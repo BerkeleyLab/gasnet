@@ -19,7 +19,8 @@ struct gasnete_coll_autotune_info_t_ {
   size_t pipe_seg_size;
 };
 
-static inline size_t gasnete_coll_nextpower2(size_t n)
+GASNETI_ALWAYS_INLINE(gasnete_coll_nextpower2)
+size_t gasnete_coll_nextpower2(size_t n)
 {
   size_t x;
   if(n==0) return 0;

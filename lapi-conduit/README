@@ -1,7 +1,7 @@
 GASNet-LAPI README file
 =======================
 Mike Welcome <mlwelcome@lbl.gov>
-$Revision: 1.11 $
+$Revision: 1.11.6.1 $
 
 This is an implementation of the GASNet CORE and EXTENDED
 API using the IBM LAPI communication protocol.
@@ -46,6 +46,8 @@ GASNET_BARRIER=LAPIGFENCE
 
 GASNET_BARRIER=LAPIAM
   Enables centralized implementation of GASNet barriers, using LAPI-AMs
+
+GASNET_EXITTIMEOUT family of environment variables (see top-level README)
 
 ===========================================================
 Known Bugs
@@ -299,8 +301,9 @@ The implementation is a multi-staged approach:
       itself with SIGQUIT.  This causes POE to propogate SIGTERMs to
       the other tasks, causing them to call gasnet_exit if they have
       not done so already.
-      The alarm is currently set to 5 seconds.  This may have to be
-      adjusted to scale with the number of GASNet threads.
+      The alarm is currently set to 5 seconds plus 0.05 per node.
+      This may be adjusted with the GASNET_EXITTIMEOUT* environment
+      variables.
     * if "got_exit_signal" has not been set, then this task tries for
       a clean exit.  it sets "got_exit_signal", then sends a LAPI
       active message to all the other tasks in the job.

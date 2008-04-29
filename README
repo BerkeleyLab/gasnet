@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.105 $
+$Revision: 1.105.2.1 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -335,7 +335,7 @@ application-specific support.
  Setting GASNET_EXITTIMEOUT provides a specific value, ignoring this formula.
  Setting one or more of the others will compute a value for GASNET_EXITTIMEOUT using
  the formula above (and defaults for any variables not set in the environment).
- Currently vapi-, ibv-, gm- and portals-conduits honor these settings.
+ Currently vapi-, ibv-, gm-, lapi- and portals-conduits honor these settings.
  Default values differ among these conduits.
 
 * see conduit-specific documentation in conduit directories for more settings

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_region.c,v $
- *     $Date: 2007/04/23 03:29:43 $
- * $Revision: 1.36 $
+ *     $Date: 2008/04/29 19:12:35 $
+ * $Revision: 1.36.12.1 $
  * Description: 
  * Copyright 2004, Paul Hargrove <PHHargrove@lbl.gov>
  * Terms of use are as specified in license.txt
@@ -25,12 +25,12 @@ struct _fh_bucket_t {
 }
 fh_bucket_t;
 
-/* IFF firehose_fwd.h did not set these, complain now */
-#ifndef FIREHOSE_CLIENT_MAXREGION_SIZE
-  #error "Conduit didn't define FIREHOSE_CLIENT_MAXREGION_SIZE in firehose_fwd.h"
+/* IFF firehose_fwd.h DID set these, complain now */
+#ifdef FIREHOSE_CLIENT_MAXREGION_SIZE
+  #error "Conduits should no longer define FIREHOSE_CLIENT_MAXREGION_SIZE in firehose_fwd.h"
 #endif
-#ifndef FIREHOSE_CLIENT_MAXREGIONS
-  #error "Conduit didn't define FIREHOSE_CLIENT_MAXREGIONS in firehose_fwd.h"
+#ifdef FIREHOSE_CLIENT_MAXREGIONS
+  #error "Conduits should no longer define FIREHOSE_CLIENT_MAXREGIONS in firehose_fwd.h"
 #endif
 
 /* ##################################################################### */
@@ -1226,8 +1226,9 @@ fh_find_pending_callbacks(gasnet_node_t node, firehose_region_t *region,
  * the local regions.
  */
 void
-fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
-               const firehose_region_t *regions, size_t num_reg,
+fh_init_plugin(uintptr_t max_pinnable_memory,
+               size_t max_regions, size_t max_region_size,
+               const firehose_region_t *regions, size_t num_prepinned,
 	       firehose_info_t *fhinfo)
 {
 	unsigned long param_M, param_VM;
@@ -1235,7 +1236,9 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 	unsigned long param_RS;
 	int i, j;
 	unsigned long firehoses, m_prepinned;
+#if 0  /* UNUSED - see param_RS computation for explanation */
 	int med_regions;
+#endif
 	int b_prepinned = 0;
 	int num_nodes = gasneti_nodes;
 	int dflt_M, dflt_VM;
@@ -1246,11 +1249,13 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
         fh_BucketTable1 = fh_hash_create(1<<16); /* 64k */
         fh_BucketTable2 = fh_hash_create(1<<17); /* 128k */
 
+#if 0  /* UNUSED - see param_RS computation for explanation */
 	/* Count how many regions fit into an AM Medium payload */
 	med_regions = (gasnet_AMMaxMedium() 
 				- sizeof(firehose_remotecallback_args_t))
 				/ sizeof(firehose_region_t);
 	gasneti_assert(med_regions > FH_MAX_UNPIN_REM); /* firehose_remotecallback_args_t too big? */
+#endif
 
 	/*
 	 * Prepin optimization: PHASE 1.
@@ -1258,7 +1263,7 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 	 * Count the number of buckets that are set as prepinned.
 	 *
 	 */
-	for (i = 0; i < num_reg; i++) {
+	for (i = 0; i < num_prepinned; i++) {
 		b_prepinned += FH_NUM_BUCKETS(regions[i].addr,regions[i].len);
 	}
 	m_prepinned = FH_BUCKET_SIZE * b_prepinned;
@@ -1300,7 +1305,7 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 
 	if (param_RS == 0) {
 		if ((fhi_InitFlags & FIREHOSE_INIT_FLAG_LOCAL_ONLY)) {
-			param_RS = FIREHOSE_CLIENT_MAXREGION_SIZE;
+			param_RS = max_region_size;
 		} else {
 /* We don't (yet) do accounting against param_R, so the worst case
  * is unpining FH_MAX_UNPIN_REM regions, rather than param_RS/FH_BUCKET_SIZE.
@@ -1313,10 +1318,10 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 			 * sized (the minimum possible).
 			 * So, we require param_RS <= (med_regions-1)*FH_BUCKET_SIZE
 			 */
-			param_RS = MIN(FIREHOSE_CLIENT_MAXREGION_SIZE,
+			param_RS = MIN(max_region_size,
 				       (med_regions-1)*FH_BUCKET_SIZE);
 #else
-			param_RS = FIREHOSE_CLIENT_MAXREGION_SIZE;
+			param_RS = max_region_size;
 #endif
 		}
 	}
@@ -1330,8 +1335,8 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 	 */
 	if (param_R == 0 && param_VR == 0) {
 		if ((fhi_InitFlags & FIREHOSE_INIT_FLAG_LOCAL_ONLY)) {
-			param_R  = num_reg;
-			param_VR = FIREHOSE_CLIENT_MAXREGIONS - param_R;
+			param_R  = num_prepinned;
+			param_VR = max_regions - param_R;
 		} else {
 			double ratio;
 
@@ -1340,7 +1345,7 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 			param_VR = param_VM / param_RS;
 			
 			/* then rescale if needed */
-			ratio = (FIREHOSE_CLIENT_MAXREGIONS - num_reg) /
+			ratio = (max_regions - num_prepinned) /
 					(double)(param_R + param_VR);
 			if (ratio < 1.) {
 				param_R  *= ratio;
@@ -1349,14 +1354,14 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 		}
 	}
 	else if (param_R == 0)
-		param_R  = FIREHOSE_CLIENT_MAXREGIONS - num_reg - param_VR;
+		param_R  = max_regions - num_prepinned - param_VR;
 	else if (param_VR == 0)
-		param_VR = FIREHOSE_CLIENT_MAXREGIONS - num_reg - param_R;
+		param_VR = max_regions - num_prepinned - param_R;
 
 	/* Trim and eliminate round-off so that limits are self-consistent */
-	param_R  = MIN(param_R,  num_reg + ((param_M - m_prepinned) / param_RS));
+	param_R  = MIN(param_R,  num_prepinned + ((param_M - m_prepinned) / param_RS));
 	param_VR = MIN(param_VR, param_VM / param_RS);
-	param_M  = param_RS * (param_R - num_reg) + m_prepinned;
+	param_M  = param_RS * (param_R - num_prepinned) + m_prepinned;
 	param_VM = param_RS * param_VR;
 
 	/* Report final values */
@@ -1399,11 +1404,11 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 			    "GASNET_FIREHOSE_M parameter (%ld)", 
 			    m_prepinned, param_M);
 
-		if_pf (param_R < num_reg)	/* XXX: need this check? */
+		if_pf (param_R < num_prepinned)	/* XXX: need this check? */
 			gasneti_fatalerror("Too many regions passed on initial"
 			    " pinned bucket list (%ld) for current "
 			    "GASNET_FIREHOSE_R parameter (%ld)", 
-			    (unsigned long)num_reg, param_R);
+			    (unsigned long)num_prepinned, param_R);
 	} else {
 		/* Want at least 32 buckets per node */
 		unsigned long	M_min = FH_BUCKET_SIZE * num_nodes * 32;
@@ -1459,11 +1464,11 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 			gasneti_fatalerror("GASNET_FIREHOSE_MAXVICTIM_R (%ld) is less than "
 			    "the minimum %ld", param_VR, VR_min);
 
-		if_pf (param_R - num_reg < R_min)
+		if_pf (param_R - num_prepinned < R_min)
 			gasneti_fatalerror("Too many regions passed on initial"
 			    " pinned bucket list (%ld) for current "
 			    "GASNET_FIREHOSE_R parameter (%ld)", 
-			    (unsigned long)num_reg, param_R);
+			    (unsigned long)num_prepinned, param_R);
 	}
 
 	/* 
@@ -1471,7 +1476,7 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 	 */
 	fhc_LocalOnlyBucketsPinned = 0;
 	fhc_LocalVictimFifoBuckets = 0;
-	fhc_MaxVictimBuckets = num_reg + param_VR;
+	fhc_MaxVictimBuckets = num_prepinned + param_VR;
 	fhi_MaxRegionSize = param_RS;
 
 
@@ -1494,7 +1499,7 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 
 
 	/* Allocate hash table for region tracking */
-	i = 1.2 * (param_R + param_VR + num_reg);	/* factor 1.2 is arbitrary */
+	i = 1.2 * (param_R + param_VR + num_prepinned);	/* factor 1.2 is arbitrary */
 	/* round 'i' up to a power of two: */
 	for (j = 1; j < i; j *= 2) { /* nothing */ }
        	fh_PrivTable = fh_hash_create(j);
@@ -1506,7 +1511,7 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
 	 * In this phase, the firehose parameters have been validated and the
 	 * buckets are added to the firehose table and sent to the FIFO.
 	 */
-	for (i = 0; i < num_reg; i++) {
+	for (i = 0; i < num_prepinned; i++) {
 		firehose_private_t *priv;
 		firehose_region_t *tmp;
 	       

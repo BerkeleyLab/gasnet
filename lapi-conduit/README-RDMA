@@ -62,21 +62,15 @@ Managing Network Buffers
 
 For short transfers we use pre-pinned network buffers.  They are of
 size gasnete_pin_threshold and we have gasnete_num_nb of them.
-They are managed with two lists, protected by a Pthread mutex (we can
-do better synchronization in the future, if needed).  They are:
-gasnete_free_nb_list, the free list, and gasnete_active_nb_list, 
-the list of active operations.  Initiators get an entry from the
-free list, if possible, and use the buffer for the transfer.  The
-entry then gets put on the active list.  Upon completion of a
-transfer, the entry is placed back on the free list.  If the
-free list is empty, the initiator attempts to steal an unsynced
-entry from the active list (pointers to origin counters are
-also provided for the check).  
+They are managed with a free list (lock free on PPC).  Initiators get
+an entry from the free list, blocking until one is available, and use
+the buffer for the transfer.  Upon completion of a transfer, the
+entry is placed back on the free list.
 
 Tuning parameters
 =================
 
-GASNET_LAPI_RCTXTS_PER_NODE - a (small) integer specifying how many
+GASNET_LAPI_RCTXTS_PER_NODE - a (small) power of 2 specifying how many
 remote contexts to open up to each peer.  Default value: 1
 
 GASNET_LAPI_USE_RDMA - use RDMA with this conduit.  If RDMA is detected
@@ -94,11 +88,4 @@ enabled for segment everything.
  
 Known Bugs
 ==========
-
-A known bug in the new lapi-conduit RDMA support will cause crashes
-at startup for jobs where the GASNet FAST or LARGE segment size differs across
-nodes (eg. this arises in UPC where the number of pthreads per node differs
-across nodes).  The suggested workaround is either to select a uniform segment
-size, or to set GASNET_LAPI_USE_RDMA=0 in the environment to disable the RDMA
-support.
 

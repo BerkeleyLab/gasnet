@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_page.c,v $
- *     $Date: 2006/04/18 18:27:55 $
- * $Revision: 1.52 $
+ *     $Date: 2008/04/29 19:12:35 $
+ * $Revision: 1.52.38.1 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -137,7 +137,7 @@ static gasneti_cond_t fh_local_da_cv = GASNETI_COND_INITIALIZER;
 #define FH_UPYL                                                      \
   do {                                                               \
       FH_TABLE_UNLOCK;                                               \
-      gasneti_AMPoll();                                              \
+      FIREHOSE_AMPOLL();                                             \
       gasneti_sched_yield();  /* Should this be GASNET_WAITHOOK? */  \
       FH_TABLE_LOCK;                                                 \
   } while (0)
@@ -145,9 +145,9 @@ static gasneti_cond_t fh_local_da_cv = GASNETI_COND_INITIALIZER;
 #define FH_UPYUL                                                     \
   do {                                                               \
       FH_TABLE_UNLOCK;                                               \
-      gasneti_AMPoll();                                              \
+      FIREHOSE_AMPOLL();                                             \
       gasneti_sched_yield();  /* Should this be GASNET_WAITHOOK? */  \
-      gasneti_AMPoll();                                              \
+      FIREHOSE_AMPOLL();                                             \
       FH_TABLE_LOCK;                                                 \
   } while (0)
 #endif /* FIREHOSE_SMP */
@@ -575,8 +575,9 @@ firehose_get_params(uintptr_t max_pinnable_memory,
  */
 
 void
-fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions, 
-	       const firehose_region_t *regions, size_t num_reg,
+fh_init_plugin(uintptr_t max_pinnable_memory,
+	       size_t max_regions, size_t max_region_size,
+	       const firehose_region_t *regions, size_t num_prepinned,
 	       firehose_info_t *fhinfo)
 {
     int	      i,j;
@@ -601,16 +602,19 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
     if (max_regions != 0)
     	gasneti_fatalerror("firehose-page does not support a "
     			   "limitation on the number of regions");
+    if (max_region_size != 0)
+    	gasneti_fatalerror("firehose-page does not support a "
+    			   "limitation on region size");
     /*
      * Prepin optimization: PHASE 1.
      *
      * Count the number of buckets that are set as prepinned.
      *
      */
-    if (num_reg > 0) {
+    if (num_prepinned > 0) {
         int	i;
 
-        for (i = 0; i < num_reg; i++) {
+        for (i = 0; i < num_prepinned; i++) {
     	gasneti_assert(regions[i].addr % FH_BUCKET_SIZE == 0);
     	gasneti_assert(regions[i].len % FH_BUCKET_SIZE == 0);
     	b_prepinned += 
@@ -662,11 +666,11 @@ fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions,
      * buckets are added to the firehose table and sent to the FIFO
      *
      */
-    if (num_reg > 0) {
+    if (num_prepinned > 0) {
         uintptr_t	bucket_addr, end_addr;
         fh_bucket_t	*bd;
 
-        for (i = 0; i < num_reg; i++) {
+        for (i = 0; i < num_prepinned; i++) {
 	    end_addr = regions[i].addr + regions[i].len - 1;
 
 	    FH_FOREACH_BUCKET(regions[i].addr, end_addr, bucket_addr) {
@@ -2163,9 +2167,9 @@ again:
         my_da = fh_local_da = 1;
         /* give others a chance to release resources */
         FH_TABLE_UNLOCK;
-        gasneti_AMPoll();
+        FIREHOSE_AMPOLL();
         gasneti_sched_yield();
-        gasneti_AMPoll();
+        FIREHOSE_AMPOLL();
         FH_TABLE_LOCK;
     }
 
@@ -2262,7 +2266,7 @@ again:
         if_pf (my_da) {
             gasneti_assert(fh_local_da);
             FH_TABLE_UNLOCK;
-            gasneti_AMPoll();
+            FIREHOSE_AMPOLL();
             FH_TABLE_LOCK;
             fh_local_da = 0;
             gasneti_cond_broadcast(&fh_local_da_cv);

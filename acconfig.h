@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2008/02/19 03:43:39 $ */
-/*  $Revision: 1.132 $ */
+/*      $Date: 2008/04/29 19:12:25 $ */
+/*  $Revision: 1.132.2.1 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -131,9 +131,11 @@
 /* has ARM kernel-level support for membar */
 #undef GASNETI_HAVE_ARM_MEMBAR
 
-/* has support (toolchain and cpu) for x86_64 cmpxchg16b instruction */
 /* has x86 EBX register (not reserved for GOT) */
 #undef GASNETI_HAVE_X86_EBX
+
+/* has support (toolchain and cpu) for ia64 cmp8xchg16 instruction */
+#undef GASNETI_HAVE_IA64_CMP8XCHG16
 
 /* has support (toolchain and cpu) for x86_64 cmpxchg16b instruction */
 #undef GASNETI_HAVE_X86_CMPXCHG16B

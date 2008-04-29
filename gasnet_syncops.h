@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_syncops.h,v $
- *     $Date: 2008/01/24 07:37:28 $
- * $Revision: 1.44 $
+ *     $Date: 2008/04/29 19:12:25 $
+ * $Revision: 1.44.2.1 $
  * Description: GASNet header for synchronization operations used in GASNet implementation
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -788,6 +788,112 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
     }
     #define GASNETI_LIFO_INITIALIZER	{{0,}, gasneti_atomic_dblptr_init(0,0),}
     #define GASNETI_HAVE_ARCH_LIFO	1
+#elif PLATFORM_ARCH_IA64 && PLATFORM_ARCH_64 && GASNETI_HAVE_IA64_CMP8XCHG16
+    /* Use the SCDS (Single-compare, double-swap) cmp8xchg16 instruction added to
+     * the Montecito processors.  The algorithm is essentially the same as w/ CAS,
+     * but the TAG is advanced/checked on both Push and Pop operations.  Note that
+     * we also need the "ld16" (128-bit atomic read) to ensure "tag" and "head" match
+     * (since we only compare on tag).
+     *
+     * We use compiler-specific code for:
+     *   _gasneti_lifo_store16(): cmp8xchg16 w/ tag++ and return 0 on success
+     *   _gasneti_lifo_load16(_addr, _tag, _addr): 16-byte atomic read macro
+     *   _gasneti_lifo_st8_rel(): st8.rel instruction
+     * and implement push/pop in terms of those using compiler-independent code.
+     */
+    #if PLATFORM_COMPILER_HP
+      #include <machine/sys/inline.h>
+	
+      GASNETI_INLINE(_gasneti_lifo_store16)
+      int _gasneti_lifo_store16(void volatile *ptr, uint64_t oldtag, void *newval) {
+	_Asm_mov_to_ar(_AREG_CSD, (int64_t)newval);
+	_Asm_mov_to_ar(_AREG_CCV, (int64_t)oldtag);
+	return oldtag != _Asm_cmp8xchg16(_SEM_ACQ, ptr, (oldtag+1), _LDHINT_NONE, _UNGUARDED,
+                                         (_Asm_fence)(_UP_MEM_FENCE | _DOWN_MEM_FENCE));
+      }
+      #define _gasneti_lifo_load16(_addr, _tag, _head) do { \
+        (_tag) = _Asm_ld16(_LDHINT_NONE, (void *)(_addr), _UNGUARDED); \
+        (_head) = _Asm_mov_from_ar(_AREG_CSD); \
+      } while (0)
+      #define _gasneti_lifo_st8_rel(_addr, _val) \
+	_Asm_st_volatile(_SZ_D, _LDHINT_NONE, (void *)(_addr), (int64_t)(_val))
+
+      #define GASNETI_HAVE_ARCH_LIFO	1
+    #elif PLATFORM_COMPILER_INTEL
+      #include <ia64intrin.h>
+      GASNETI_INLINE(_gasneti_lifo_store16)
+      int _gasneti_lifo_store16(void volatile *ptr, uint64_t oldtag, void *newval) {
+        return oldtag != _InterlockedCompare64Exchange128_acq(ptr, (uint64_t)newval, oldtag+1, oldtag);
+      }
+      #define _gasneti_lifo_load16(_addr, _tag, _head) \
+	((_tag) = __load128((_addr), &(_head)))
+      #define _gasneti_lifo_st8_rel(_addr, _val) \
+	__st8_rel((_addr), (_val))
+
+      #if 0/* XXX: DISABLED UNTIL THIS CAN BE TESTED */
+      #define GASNETI_HAVE_ARCH_LIFO	1
+      #endif
+    #elif PLATFORM_COMPILER_GNU
+      GASNETI_INLINE(_gasneti_lifo_store16)
+      int _gasneti_lifo_store16(void volatile *ptr, uint64_t oldtag, void *newval) {
+	register uint64_t tmp = oldtag + 1;
+        __asm__ __volatile__ (
+          "mov			ar.ccv=%1		\n\t"
+          "mov			ar.csd=%2;;		\n\t"
+          "cmp8xchg16.acq	%0=[%3],%0,ar.csd,ar.ccv\n"
+          : "+r"(tmp) : "r"(oldtag), "r"(newval), "r"(ptr) : "memory" );
+        return tmp != oldtag;
+      }
+      #define _gasneti_lifo_load16(_addr, _tag, _head)        \
+        __asm__ __volatile__ (                                \
+          "ld16		%0,ar.csd=[%2];;\n\t"                 \
+          "mov		%1=ar.csd	\n"                   \
+          : "=r"(_tag), "=r"(_head) : "r"(_addr) : "memory" )
+      #define _gasneti_lifo_st8_rel(_addr, _val) \
+	__asm__ __volatile__ ( "st8.rel [%0]=%1" : : "r"(_addr), "r"(_val) : "memory")
+
+      #define GASNETI_HAVE_ARCH_LIFO	1
+    #else
+      /* Unknown/unsupported compiler - mutexes will be used */
+    #endif
+
+    /* Here are the compiler-independent parts */
+    #ifdef GASNETI_HAVE_ARCH_LIFO /* Only true if compiler-specific parts defined above */
+      typedef struct {
+        void 			*array[3]; /* for 16-byte aligment use either 0+1 or 1+2 */
+        char			_pad[GASNETI_CACHE_PAD(3*sizeof(void *))];
+      } gasneti_lifo_head_t;
+
+      GASNETI_INLINE(_gasneti_lifo_push)
+      void _gasneti_lifo_push(gasneti_lifo_head_t *p, void **head, void **tail) {
+        uint64_t tag, old_head;
+        void *q = (void *)GASNETI_ALIGNUP(p, 16);
+        do {
+          _gasneti_lifo_load16(q, tag, old_head);
+          _gasneti_lifo_st8_rel(tail, old_head);
+        } while (_gasneti_lifo_store16(q, tag, head));
+      }
+      GASNETI_INLINE(_gasneti_lifo_pop)
+      void *_gasneti_lifo_pop(gasneti_lifo_head_t *p) {
+        uint64_t tag, old_head;
+        void *q = (void *)GASNETI_ALIGNUP(p, 16);
+        do {
+          _gasneti_lifo_load16(q, tag, old_head);
+	  if (!old_head) break;
+        } while (_gasneti_lifo_store16(q, tag, *(void **)old_head));
+        return (void *)old_head;
+      }
+      GASNETI_INLINE(_gasneti_lifo_init)
+      void _gasneti_lifo_init(gasneti_lifo_head_t *p) {
+        void **q = (void **)GASNETI_ALIGNUP(p, 16);
+        q[0] = q[1] = NULL;
+      }
+      GASNETI_INLINE(_gasneti_lifo_destroy)
+      void _gasneti_lifo_destroy(gasneti_lifo_head_t *p) {
+        /* NOTHING */
+      }
+      #define GASNETI_LIFO_INITIALIZER	{ { NULL, NULL, NULL} }
+    #endif /* Compiler-independent portion of 64-bit ia64 support */
 #else
   /* The LL/SC algorithm used on the PPC will not work on the Alpha or MIPS, which don't
    * allow for the load we perform between the ll and the sc.  More complex algorithms are

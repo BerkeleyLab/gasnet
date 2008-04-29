@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_internal.h,v $
- *     $Date: 2007/04/23 03:29:43 $
- * $Revision: 1.36 $
+ *     $Date: 2008/04/29 19:12:35 $
+ * $Revision: 1.36.12.1 $
  * Description: Internal Header file
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -35,6 +35,12 @@
 #if defined(FIREHOSE_REMOTE_CALLBACK_IN_HANDLER) && \
     defined(FIREHOSE_COMPLETION_IN_HANDLER)
 #define FH_POLL_NOOP
+#endif
+
+/* If unspecified in the firehose_fwd.h, we default to using gasneti_AMPoll().
+ */
+#ifndef FIREHOSE_AMPOLL
+#define FIREHOSE_AMPOLL() gasneti_AMPoll()
 #endif
 
 typedef uintptr_t	fh_uint_t;
@@ -315,9 +321,10 @@ struct _firehose_private_t {
  *                                                                       */
 /* ##################################################################### */
 
-void	fh_init_plugin(uintptr_t max_pinnable_memory, size_t max_regions, 
+void	fh_init_plugin(uintptr_t max_pinnable_memory,
+		       size_t max_regions, size_t max_region_size,
 		       const firehose_region_t *prepinned_regions,
-                       size_t num_reg, firehose_info_t *info);
+                       size_t num_prepinned, firehose_info_t *info);
 void	fh_fini_plugin(void);
 
 /* ##################################################################### */

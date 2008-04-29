@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_help.h,v $
- *     $Date: 2006/05/11 11:59:11 $
- * $Revision: 1.26 $
+ *     $Date: 2008/04/29 19:12:31 $
+ * $Revision: 1.26.34.1 $
  * Description: GASNet lapi conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,7 +17,6 @@ GASNETI_BEGIN_EXTERNC
 
 #include <gasnet_help.h>
 #include <lapi.h>
-#include <sys/atomic_op.h>
 
 /* Determine which "version" of LAPI we are using.
  * LAPI does not define this anywhere, so we will use a

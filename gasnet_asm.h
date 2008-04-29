@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2007/10/26 01:13:58 $
- * $Revision: 1.122 $
+ *     $Date: 2008/04/29 19:12:25 $
+ * $Revision: 1.122.8.1 $
  * Description: GASNet header for semi-portable inline asm support
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -78,7 +78,7 @@
   #if PLATFORM_COMPILER_VERSION_LT(6,2,5)
     #define GASNETI_PGI_ASM_BUG1754 1
   #endif
-  #if PLATFORM_COMPILER_VERSION_GE(7,1,0) /* XXX: need end of range once fixed */
+  #if PLATFORM_COMPILER_VERSION_GE(7,1,0) && PLATFORM_COMPILER_VERSION_LT(7,1,2)
     #define GASNETI_PGI_ASM_BUG2149 1
   #endif
   #define GASNETI_ASM_SPECIAL(mnemonic) asm(mnemonic)
@@ -100,6 +100,11 @@
   #define GASNETI_ASM(mnemonic)  asm(mnemonic)
 #elif PLATFORM_COMPILER_HP_C
   #define GASNETI_ASM(mnemonic)  _asm(mnemonic)
+  #if (PLATFORM_COMPILER_VERSION_GE(5,55,0) && PLATFORM_COMPILER_VERSION_LT(6,5,0))
+    /* HP's Inline ASM guide documents versions [A.05.55 , A.06.05) as having a
+     * buggy implementation of the 16byte atomics; says they should not be used. */
+    #define GASNETI_HP_ASM_BAD_16B_ATOMICS 1
+  #endif
 #elif PLATFORM_COMPILER_SGI || PLATFORM_COMPILER_HP_CXX || PLATFORM_COMPILER_XLC || \
       PLATFORM_COMPILER_CRAY || PLATFORM_COMPILER_MTA || PLATFORM_COMPILER_LCC
   /* platforms where inline assembly not supported or used */

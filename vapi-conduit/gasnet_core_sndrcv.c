@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2007/10/21 06:05:36 $
- * $Revision: 1.221 $
+ *     $Date: 2008/04/29 19:12:39 $
+ * $Revision: 1.221.8.1 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -347,10 +347,20 @@ gasnetc_create_cq(gasnetc_hca_hndl_t hca_hndl, gasnetc_cqe_cnt_t req_size,
   #define GASNETC_FH_LKEY(_cep, _fhptr)	((_fhptr)->client.lkey[0])
 #endif
 
+/* This limits the amount we ask for in a firehose_{local,remote}_pin() call,
+ * to enourage a steady-state layout of firehoses that has start and end addresses
+ * at multpiles of gasnetc_fh_align and length 2*gasnetc_fh_align.
+ * This will look sort of like two courses of bricks.
+ */
 GASNETI_INLINE(gasnetc_fh_aligned_len)
 size_t gasnetc_fh_aligned_len(uintptr_t start, size_t len) {
   size_t result = 2 * gasnetc_fh_align - (start & gasnetc_fh_align_mask);
   return MIN(len, result);
+}
+
+GASNETI_INLINE(gasnetc_fh_aligned_local_pin)
+const firehose_request_t *gasnetc_fh_aligned_local_pin(uintptr_t start, size_t len) {
+  return firehose_local_pin(start, gasnetc_fh_aligned_len(start, len), NULL);
 }
 
 GASNETI_INLINE(gasnetc_sr_desc_init)
@@ -2273,14 +2283,12 @@ size_t gasnetc_zerocp_common(gasnetc_epid_t epid, int rkey_index, uintptr_t loc_
       sr_desc->gasnetc_f_wr_sg_list[seg].lkey = GASNETC_SEG_LKEY(cep, base+seg);
     }
   } else {
-    const firehose_request_t *fh_loc;
+    const firehose_request_t *fh_loc = gasnetc_fh_aligned_local_pin(loc_addr, len);
     remain = len;
-    count = gasnetc_fh_aligned_len(loc_addr, len);
-    fh_loc = firehose_local_pin(loc_addr, count, NULL);
     for (seg = 0; fh_loc != NULL; ++seg) {
       sreq->fh_ptr[seg] = fh_loc;
       sreq->fh_count = seg + 1;
-      count = MIN(count, (fh_loc->addr + fh_loc->len - loc_addr));
+      count = MIN(remain, (fh_loc->addr + fh_loc->len - loc_addr));
       sr_desc->gasnetc_f_wr_sg_list[seg].addr = loc_addr;
       sr_desc->gasnetc_f_wr_sg_list[seg].gasnetc_f_sg_len = count;
       loc_addr += count;
@@ -2291,7 +2299,6 @@ size_t gasnetc_zerocp_common(gasnetc_epid_t epid, int rkey_index, uintptr_t loc_
 
       /* We hold a local firehose already, we can only 'try' or risk deadlock */
       fh_loc = firehose_try_local_pin(loc_addr, 1, NULL);
-      count = remain;
     }
     gasneti_assert(sreq->fh_count > 0);
     sr_desc->gasnetc_f_wr_num_sge = sreq->fh_count;
@@ -2736,8 +2743,9 @@ size_t gasnetc_get_local_fh(gasnetc_sreq_t *sreq, uintptr_t loc_addr, size_t len
     sreq->fh_count = i;
     len -= remain;
   } else {
-    len = gasnetc_fh_aligned_len(loc_addr, len);
-    sreq->fh_ptr[1] = firehose_local_pin(loc_addr, len, NULL);
+    const firehose_request_t *fh_loc = gasnetc_fh_aligned_local_pin(loc_addr, len);
+    len = MIN(remain, (fh_loc->addr + fh_loc->len - loc_addr));
+    sreq->fh_ptr[1] = fh_loc;
     sreq->fh_count = 2;
   }
 
