@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_internal.h,v $
- *     $Date: 2008/02/28 23:25:03 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2008/05/01 21:14:51 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet dcmf conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,8 +13,8 @@
 #include <dcmf.h>
 #include <dcmf_collectives.h>
 
-//#define Z fprintf(stderr,"%d> %s(%d)\n", gasnetc_mynode, __FILE__,__LINE__)
-#define Z do{} while(0)
+#define Z fprintf(stderr,"%d> %s(%d)\n", gasneti_mynode, __FILE__,__LINE__)
+//#define Z do{} while(0)
 #define DCMF_SAFE(FUNCALL) if(FUNCALL!=DCMF_SUCCESS) fprintf(stderr, "error on line %d\n", __LINE__)
 
 typedef struct gasnetc_dcmf_req_t_{

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2008/02/28 23:25:03 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2008/05/01 21:14:51 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet header for dcmf conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -24,7 +24,7 @@
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
   /*  at the same virtual address on all nodes. defined to 0 otherwise */
 #if GASNETI_DISABLE_ALIGNED_SEGMENTS
-  #define GASNET_ALIGNED_SEGMENTS   0 /* user disabled segment alignment */
+ #define GASNET_ALIGNED_SEGMENTS   0 /* user disabled segment alignment */
 #else
   #define GASNET_ALIGNED_SEGMENTS   1 
 #endif

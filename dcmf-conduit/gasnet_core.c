@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2008/02/28 23:25:03 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2008/05/01 21:14:51 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -46,11 +46,11 @@ static void gasnetc_bootstrapBarrier() {
     gasnetc_dcmf_bootstrapBarrier();
 }
 
-void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) {
+static void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) {
     gasnetc_dcmf_bootstrapBroadcast(src,len,dest,rootnode);
 }
 
-void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
+static void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
     gasnetc_dcmf_bootstrapExchange(src,len,dest);
 }
 
@@ -80,18 +80,6 @@ static int gasnetc_init(int *argc, char ***argv) {
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { 
 	gasneti_segmentInit(GASNETC_DEFAULT_SEG_SIZE, gasnetc_bootstrapExchange);
-
-/*       /\* (###) Add code here to determine optimistic maximum segment size *\/ */
-/*       gasneti_MaxLocalSegmentSize = GASNETC_DEFAULT_SEG_SIZE; */
-
-/*       /\* (###) Add code here to find the MIN(MaxLocalSegmentSize) over all nodes *\/ */
-/*       gasneti_MaxGlobalSegmentSize = GASNETC_DEFAULT_SEG_SIZE; */
-
-      /* it may be appropriate to use gasneti_segmentInit() here to set 
-         gasneti_MaxLocalSegmentSize and gasneti_MaxGlobalSegmentSize,
-         if your conduit can use memory anywhere in the address space
-         (you may want to tune GASNETI_MMAP_MAX_SIZE to limit the max size)
-      */
     }
   #elif GASNET_SEGMENT_EVERYTHING
     /* segment is everything - nothing to do */
@@ -271,12 +259,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     else {
 	gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo,
 			      gasnetc_bootstrapExchange);
-      /* (###) add code here to choose and register a segment 
-         (ensuring alignment across all nodes if this conduit sets GASNET_ALIGNED_SEGMENTS==1) 
-         you can use gasneti_segmentAttach() here if you used gasneti_segmentInit() above
-      */
-      gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
-      gasneti_assert(segsize % GASNET_PAGESIZE == 0);
+	segbase = gasneti_seginfo[gasneti_mynode].addr;
+	segsize = gasneti_seginfo[gasneti_mynode].size;
+	gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
+	gasneti_assert(segsize % GASNET_PAGESIZE == 0);
     }
   #else
     /* GASNET_SEGMENT_EVERYTHING */
@@ -288,19 +274,17 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /* ------------------------------------------------------------------------------------ */
   /*  gather segment information */
 
-  /* (###) add code here to gather the segment assignment info into 
-           gasneti_seginfo on each node (may be possible to use AMShortRequest here)
-   */
+    /*done through segmentAttach*/
 
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
   gasneti_attach_done = 1;
   gasnetc_bootstrapBarrier();
-
-  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(): primary attach complete"));
-
+  
+  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(): primary attach complete :"GASNETI_LADDRFMT" size: %lu", GASNETI_LADDRSTR(segbase), (unsigned long)segsize));
+  
   gasneti_assert(gasneti_seginfo[gasneti_mynode].addr == segbase &&
-         gasneti_seginfo[gasneti_mynode].size == segsize);
+		 gasneti_seginfo[gasneti_mynode].size == segsize);
 
   gasneti_auxseg_attach(); /* provide auxseg */
 
@@ -331,10 +315,14 @@ extern void gasnetc_exit(int exitcode) {
   gasneti_trace_finish();
   gasneti_sched_yield();
   gasnetc_dcmf_finalize();
+
+  
+  gasneti_killmyprocess(exitcode);
   /* (###) add code here to terminate the job across _all_ nodes 
            with gasneti_killmyprocess(exitcode) (not regular exit()), preferably
            after raising a SIGQUIT to inform the client of the exit
   */
+
   gasneti_fatalerror("gasnetc_exit failed!");
 }
 

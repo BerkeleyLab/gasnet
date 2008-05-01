@@ -139,7 +139,11 @@ void gasnetc_dcmf_bootstrapExchange(void *src, size_t nbytes, void *dst) {
     int i;
     gasnetc_bootstrapExchange_arg_t *cb_args;
 
-
+    if(gasneti_nodes ==1 ) {
+	Z;
+	memcpy(dst, src, nbytes);
+	return;
+    }
     num_send_recv_done = gasneti_malloc(sizeof(uint64_t)*2);
     num_send_recv_done[0] = 0;
     num_send_recv_done[1] = 0;
@@ -180,7 +184,7 @@ void gasnetc_dcmf_bootstrapExchange(void *src, size_t nbytes, void *dst) {
 		  1);
     }
     Z;
-    memcpy(dst+gasneti_mynode*nbytes, src+gasneti_mynode*nbytes, nbytes);
+    memcpy(dst+gasneti_mynode*nbytes, src, nbytes);
     while(num_send_recv_done[0]!=gasneti_nodes-1) DCMF_Messager_advance();
     while(num_send_recv_done[1]!=gasneti_nodes-1) DCMF_Messager_advance();
     Z;
