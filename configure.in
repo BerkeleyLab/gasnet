@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2008/05/05 21:57:40 $
-# $Revision: 1.485.2.3 $
+#     $Date: 2008/05/06 04:37:36 $
+# $Revision: 1.485.2.4 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.485.2.3 $)
+AC_REVISION($Revision: 1.485.2.4 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -2931,7 +2931,7 @@ if test $enabled_dcmf = yes; then
   GASNET_ENV_DEFAULT(DCMF_SYS_LIB_DIR, $DCMF_HOME/runtime/SPI)
   GASNET_ENV_DEFAULT(DCMF_LIBS, -ldcmfcoll.cnk -ldcmf.cnk -lpthread -lrt -lSPI.cna)
   
-  GASNET_IF_ENABLED_WITH_AUTO(force-compile-dcmf, [Have GASNet compile and try DCMF Conduit], [force_dcmf=yes], [force_dcmf=no], [force_dcmf=no])  
+  GASNET_IF_ENABLED_WITH_AUTO(force-compile-dcmf, [Have GASNet compile and try DCMF Conduit], [force_dcmf="yes"], [force_dcmf="no"], [force_dcmf="no"])  
   
   # if we can't even find a valid incldue path no point trying to compile even if user requests it
   AC_MSG_CHECKING(for valid DCMF include path)
@@ -2943,7 +2943,7 @@ if test $enabled_dcmf = yes; then
   fi
 
   AC_MSG_CHECKING(for forced dcmf compile)
-  if test $force_dcmf=yes; then
+  if test $force_dcmf = yes; then
      AC_MSG_RESULT(yes)
   else
      AC_MSG_RESULT(no)
