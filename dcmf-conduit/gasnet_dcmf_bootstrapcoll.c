@@ -1,4 +1,49 @@
 #include <gasnet_core_internal.h>
+static gasnetc_dcmf_req_t *gasnetc_dcmf_req_free_list;
+static inline gasnetc_dcmf_req_t * gasnetc_get_dcmf_req() {
+    gasnetc_dcmf_req_t *req;
+    if(gasnetc_dcmf_req_free_list) {
+	req = gasnetc_dcmf_req_free_list;
+	gasnetc_dcmf_req_free_list = req->next;
+    } else {
+	req = (gasnetc_dcmf_req_t*) gasneti_malloc(sizeof(gasnetc_dcmf_req_t));
+    }
+    return req;
+}
+
+static inline void gasnetc_free_dcmf_req(gasnetc_dcmf_req_t *req){
+    req->next = gasnetc_dcmf_req_free_list;
+    gasnetc_dcmf_req_free_list = req;
+}
+
+static void gasnetc_inc_uint64_arg_cb(void* arg) {
+    uint64_t *in = (uint64_t*) arg;
+    (*in)++;
+}
+
+static void gasnetc_inc_uint32_arg_cb(void* arg) {
+    uint32_t *in = (uint32_t*) arg;
+    (*in)++;
+}
+
+static void gasnetc_inc_uint8_arg_cb(void* arg) {
+    uint8_t *in = (uint8_t*) arg;
+    (*in)++;
+}
+
+typedef struct gasnetc_recv_done_cb_args_{
+    gasnetc_dcmf_req_t *req;
+    uint64_t *counter;
+} gasnetc_recv_done_cb_args_t __attribute__((__aligned__(8)));
+
+void gasnetc_recv_done_cb(void *arg) {
+    gasnetc_recv_done_cb_args_t *in = (gasnetc_recv_done_cb_args_t*) arg;
+    if(in->counter) (*(in->counter))++;
+    gasnetc_free_dcmf_req(in->req);
+    gasneti_free(in);
+}
+
+
 
 typedef struct gasnetc_bootstrap_coll_t_{
     DCMF_Protocol_t registration; /*512 bytes*/
@@ -23,7 +68,7 @@ void gasnetc_dcmf_bootstrap_coll_init() {
     barrier_config.protocol = DCMF_GI_GLOBALBARRIER_PROTOCOL;
     gasnetc_bootstrap_barrier->done_counter = 0;
     gasnetc_bootstrap_barrier->init_counter = 0;
-    gasnetc_bootstrap_barrier->callback.function = gasnetc_inc_unit64_arg_cb;
+    gasnetc_bootstrap_barrier->callback.function = gasnetc_inc_uint64_arg_cb;
     gasnetc_bootstrap_barrier->callback.clientdata = &gasnetc_bootstrap_barrier->done_counter;
     
     DCMF_SAFE(DCMF_GlobalBarrier_register(&gasnetc_bootstrap_barrier->registration, &barrier_config));
@@ -33,7 +78,7 @@ void gasnetc_dcmf_bootstrap_coll_init() {
     broadcast_config.protocol = DCMF_TREE_GLOBALBCAST_PROTOCOL;
     gasnetc_bootstrap_broadcast->done_counter = 0;
     gasnetc_bootstrap_broadcast->init_counter = 0;
-    gasnetc_bootstrap_broadcast->callback.function = gasnetc_inc_unit64_arg_cb;
+    gasnetc_bootstrap_broadcast->callback.function = gasnetc_inc_uint64_arg_cb;
     gasnetc_bootstrap_broadcast->callback.clientdata = &gasnetc_bootstrap_broadcast->done_counter;
     
     DCMF_SAFE(DCMF_GlobalBcast_register(&gasnetc_bootstrap_broadcast->registration, &broadcast_config));
@@ -99,7 +144,7 @@ void gasnetc_bootstrapExchange_recv_short_cb(void *clientdata,
     
     gasnetc_bootstrapExchange_arg_t *arg = (gasnetc_bootstrapExchange_arg_t*) clientdata;
     Z;
-    memcpy(arg->dst+peer*arg->nbytes, src, arg->nbytes);
+    memcpy((void*)((uintptr_t)arg->dst+peer*arg->nbytes), src, arg->nbytes);
     (*arg->counter)++;
     Z;
 }
@@ -158,7 +203,7 @@ void gasnetc_dcmf_bootstrapExchange(void *src, size_t nbytes, void *dst) {
     config.cb_recv_short_clientdata = cb_args;
     config.cb_recv = gasnetc_bootstrapExchange_recv_cb;
     config.cb_recv_clientdata = cb_args;
-    callback.function = gasnetc_inc_unit64_arg_cb;
+    callback.function = gasnetc_inc_uint64_arg_cb;
     callback.clientdata = &num_send_recv_done[0];
     send_reqs = gasneti_malloc(sizeof(DCMF_Request_t)*gasneti_nodes);
     Z;
@@ -184,7 +229,7 @@ void gasnetc_dcmf_bootstrapExchange(void *src, size_t nbytes, void *dst) {
 		  1);
     }
     Z;
-    memcpy(dst+gasneti_mynode*nbytes, src, nbytes);
+    memcpy((void*)((uintptr_t)dst+gasneti_mynode*nbytes), src, nbytes);
     while(num_send_recv_done[0]!=gasneti_nodes-1) DCMF_Messager_advance();
     while(num_send_recv_done[1]!=gasneti_nodes-1) DCMF_Messager_advance();
     Z;
