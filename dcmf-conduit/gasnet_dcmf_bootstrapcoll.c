@@ -103,7 +103,10 @@ void gasnetc_dcmf_bootstrapBroadcast(void *src, size_t len, void *dest, int root
     int mynode  = DCMF_Messager_rank();
     gasnetc_dcmf_bootstrapBarrier();
     bcast->init_counter++;
+    GASNETI_TRACE_PRINTF(C,("bootstrap bcast src: %p size: %d dst: %p root: %d\n", src, 
+			    len, dest, rootnode));
     DCMF_CriticalSection_enter (0);
+
     if(mynode == rootnode) {
 	DCMF_GlobalBcast(&bcast->registration,
 			 &bcast->request,
@@ -143,10 +146,10 @@ void gasnetc_bootstrapExchange_recv_short_cb(void *clientdata,
 					     unsigned bytes) {
     
     gasnetc_bootstrapExchange_arg_t *arg = (gasnetc_bootstrapExchange_arg_t*) clientdata;
-    Z;
+    
     memcpy((void*)((uintptr_t)arg->dst+peer*arg->nbytes), src, arg->nbytes);
     (*arg->counter)++;
-    Z;
+    
 }
 
 DCMF_Request_t* gasnetc_bootstrapExchange_recv_cb(void *clientdata,
@@ -160,19 +163,19 @@ DCMF_Request_t* gasnetc_bootstrapExchange_recv_cb(void *clientdata,
     gasnetc_dcmf_req_t *ret;
     gasnetc_bootstrapExchange_arg_t *arg = (gasnetc_bootstrapExchange_arg_t*) clientdata;
     gasnetc_recv_done_cb_args_t *cb_args;
-    Z;
+    
     cb_args = gasneti_malloc(sizeof(gasnetc_recv_done_cb_args_t));
-    Z;
+    
     *rcvbuf = (char*)arg->dst+peer*arg->nbytes;
     *rcvlen = arg->nbytes;
     
-    Z;
+   
     ret = gasnetc_get_dcmf_req();
     cb_args->req = ret;
     cb_args->counter = arg->counter;
     cb_done->function = gasnetc_recv_done_cb;
     cb_done->clientdata = cb_args;
-    Z;
+    
     return &ret->req;
 }
 void gasnetc_dcmf_bootstrapExchange(void *src, size_t nbytes, void *dst) {
@@ -184,8 +187,9 @@ void gasnetc_dcmf_bootstrapExchange(void *src, size_t nbytes, void *dst) {
     int i;
     gasnetc_bootstrapExchange_arg_t *cb_args;
 
+    GASNETI_TRACE_PRINTF(C,("bootstrap exchange src: %p size: %d dst: %p\n", src, nbytes, dst));
     if(gasneti_nodes ==1 ) {
-	Z;
+	
 	memcpy(dst, src, nbytes);
 	return;
     }
@@ -193,11 +197,11 @@ void gasnetc_dcmf_bootstrapExchange(void *src, size_t nbytes, void *dst) {
     num_send_recv_done[0] = 0;
     num_send_recv_done[1] = 0;
     cb_args = gasneti_malloc(sizeof(gasnetc_bootstrapExchange_arg_t));
-    Z;
+    
     cb_args->dst = dst;
     cb_args->counter = &num_send_recv_done[1];
     cb_args->nbytes = nbytes;
-    Z;
+    
     config.protocol = DCMF_EAGER_SEND_PROTOCOL;
     config.cb_recv_short = gasnetc_bootstrapExchange_recv_short_cb;
     config.cb_recv_short_clientdata = cb_args;
@@ -206,18 +210,17 @@ void gasnetc_dcmf_bootstrapExchange(void *src, size_t nbytes, void *dst) {
     callback.function = gasnetc_inc_uint64_arg_cb;
     callback.clientdata = &num_send_recv_done[0];
     send_reqs = gasneti_malloc(sizeof(DCMF_Request_t)*gasneti_nodes);
-    Z;
+    
     DCMF_CriticalSection_enter (0);
-    Z;
+    
     
     DCMF_SAFE(DCMF_Send_register(&registration, &config));
-    Z;
+    
     gasnetc_dcmf_bootstrapBarrier();
     for(i=1; i<gasneti_nodes; i++) {
 	DCQuad msginfo;
 	int dest = (gasneti_mynode+i) % gasneti_nodes;
-	fprintf(stderr, "%d> dest %d\n", gasneti_mynode, dest); 
-	Z;
+	
 	DCMF_Send(&registration,
 		  send_reqs+i,
 		  callback,
@@ -228,14 +231,14 @@ void gasnetc_dcmf_bootstrapExchange(void *src, size_t nbytes, void *dst) {
 		  &msginfo,
 		  1);
     }
-    Z;
+    
     memcpy((void*)((uintptr_t)dst+gasneti_mynode*nbytes), src, nbytes);
     while(num_send_recv_done[0]!=gasneti_nodes-1) DCMF_Messager_advance();
     while(num_send_recv_done[1]!=gasneti_nodes-1) DCMF_Messager_advance();
-    Z;
+    
     DCMF_CriticalSection_exit (0);
     gasnetc_dcmf_bootstrapBarrier();
-    Z;
+    
     gasneti_free(cb_args);
     gasneti_free(num_send_recv_done);
 }
