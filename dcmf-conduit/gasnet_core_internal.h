@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_internal.h,v $
- *     $Date: 2008/06/20 00:25:26 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2008/06/23 20:58:49 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet dcmf conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,51 +22,53 @@
 #define DCMF_SAFE(FUNCALL) if(FUNCALL!=DCMF_SUCCESS) gasneti_fatalerror("error on line %d\n", __LINE__)
 
 typedef struct gasnetc_dcmf_req_t_{
-    DCMF_Request_t req;
-    struct gasnetc_dcmf_req_t_ *next;
+	DCMF_Request_t req;
+	struct gasnetc_dcmf_req_t_ *next;
 } gasnetc_dcmf_req_t __attribute__((__aligned__(1024)));
 
 
 typedef enum{
-    GASNETC_AMREQ=0, GASNETC_AMREP,GASNETC_NUM_AMTYPES
+	GASNETC_AMREQ=0, 
+	GASNETC_AMREP,
+	GASNETC_NUM_AMTYPES
 } gasnetc_dcmf_amtype_t;
 
 
 typedef enum{
-    GASNETC_AMSHORT=0, 
-    GASNETC_AMMED,
-    GASNETC_AMLONG,
-    GASNETC_AMLONGASYNC,
-    GASNETC_NUM_AMCATS
+	GASNETC_AMSHORT=0, 
+	GASNETC_AMMED,
+	GASNETC_AMLONG,
+	GASNETC_AMLONGASYNC,
+	GASNETC_NUM_AMCATS
 } gasnetc_dcmf_amcategory_t;
 
 
 typedef enum{
-    GASNETC_DCMF_SEND_DEFAULT=0,
-    GASNETC_DCMF_SEND_EAGER, 
-    GASNETC_DCMF_SEND_RVOUS,
-    GASNETC_DCMF_NUM_SENDCATS
+	GASNETC_DCMF_SEND_DEFAULT=0,
+	GASNETC_DCMF_SEND_EAGER, 
+	GASNETC_DCMF_SEND_RVOUS,
+	GASNETC_DCMF_NUM_SENDCATS
 } gasnetc_dcmf_send_category_t;
 
 
 typedef struct gasnetc_token_t_ {
-    struct gasnetc_token_t_ *next;
-    gasnet_node_t srcnode;
-    uint8_t sent_reply;
-    gasnetc_dcmf_amtype_t amtype;
-    gasnetc_dcmf_amcategory_t amcat;
-    gasnetc_dcmf_req_t *dcmf_req;
+	struct gasnetc_token_t_ *next;
+	gasnet_node_t srcnode;
+	uint8_t sent_reply;
+	gasnetc_dcmf_amtype_t amtype;
+	gasnetc_dcmf_amcategory_t amcat;
+	gasnetc_dcmf_req_t *dcmf_req;
 } gasnetc_token_t;
 
 typedef struct gasnetc_amhandler_t_{ 
-    struct gasnetc_amhandler_t_ *next;
-    gasnetc_token_t *token;
-    gasnet_handler_t handleridx;
-    void *buffer;
-    size_t nbytes;
-    int numargs;
-    unsigned seq_number;
-    gasnet_handlerarg_t amargs[GASNETC_MAX_AM_ARGS];
+	struct gasnetc_amhandler_t_ *next;
+	gasnetc_token_t *token;
+	gasnet_handler_t handleridx;
+	void *buffer;
+	size_t nbytes;
+	int numargs;
+	unsigned seq_number;
+	gasnet_handlerarg_t amargs[GASNETC_MAX_AM_ARGS];
 } gasnetc_amhandler_t;
 
 
@@ -78,8 +80,8 @@ typedef void (*GASNETC_DCMF_RECV_HEADER_CB)(void *client_data, const DCQuad *msg
 
 
 typedef struct gasnetc_dcmf_amregistration_t_ {
-    DCMF_Protocol_t registration;
-    DCMF_Send_Protocol send_category;
+	DCMF_Protocol_t registration;
+	DCMF_Send_Protocol send_category;
 } gasnetc_dcmf_amregistration_t;
 
 extern gasnetc_dcmf_amregistration_t *gasnetc_dcmf_amregistration[GASNETC_NUM_AMTYPES][GASNETC_NUM_AMCATS][GASNETC_DCMF_NUM_SENDCATS];
