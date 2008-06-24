@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_internal.h,v $
- *     $Date: 2008/06/23 20:58:49 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2008/06/24 18:34:30 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet dcmf conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -58,7 +58,7 @@ typedef struct gasnetc_token_t_ {
 	gasnetc_dcmf_amtype_t amtype;
 	gasnetc_dcmf_amcategory_t amcat;
 	gasnetc_dcmf_req_t *dcmf_req;
-} gasnetc_token_t;
+} gasnetc_token_t __attribute__((__aligned__(32)));
 
 typedef struct gasnetc_amhandler_t_{ 
 	struct gasnetc_amhandler_t_ *next;
@@ -69,7 +69,7 @@ typedef struct gasnetc_amhandler_t_{
 	int numargs;
 	unsigned seq_number;
 	gasnet_handlerarg_t amargs[GASNETC_MAX_AM_ARGS];
-} gasnetc_amhandler_t;
+} gasnetc_amhandler_t  __attribute__((__aligned__(1024)));
 
 
 typedef void (*GASNETC_DCMF_RECV_SHORT_CB)(void *client_data, const DCQuad *msginfo, unsigned numquads,
@@ -82,7 +82,7 @@ typedef void (*GASNETC_DCMF_RECV_HEADER_CB)(void *client_data, const DCQuad *msg
 typedef struct gasnetc_dcmf_amregistration_t_ {
 	DCMF_Protocol_t registration;
 	DCMF_Send_Protocol send_category;
-} gasnetc_dcmf_amregistration_t;
+} gasnetc_dcmf_amregistration_t  __attribute__((__aligned__(16)));
 
 extern gasnetc_dcmf_amregistration_t *gasnetc_dcmf_amregistration[GASNETC_NUM_AMTYPES][GASNETC_NUM_AMCATS][GASNETC_DCMF_NUM_SENDCATS];
 

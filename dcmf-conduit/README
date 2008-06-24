@@ -1,0 +1,14 @@
+GASNet DCMF-conduit documentation
+Rajesh Nishtala <rajeshn@cs.berkeley.edu>
+
+
+Notes about building the conduit:
+MAKE SURE THAT THE DCMF BACKEND AND GASNET ARE BUILT W/ THE SAME COMPILER SUITE!!
+---> looks like XLC and GCC play well together *most* of the time but break in subtle places when it comes to alignment
+
+
+
+Recognized environment variables:
+GASNET_DCMF_EAGER_LIMIT: transfer size to switch between internal DCMF eager and rendez-vous AM protocols
+
+
