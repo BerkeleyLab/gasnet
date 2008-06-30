@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_internal.h,v $
- *     $Date: 2008/06/24 18:34:30 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2008/06/30 22:05:11 $
+ * $Revision: 1.1.2.7 $
  * Description: GASNet dcmf conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,13 +18,15 @@
 #define GASNETC_MAX_AM_ARGS 24
 
 #define Z fprintf(stderr,"%d> %s(%d)\n", gasneti_mynode, __FILE__,__LINE__)
-//#define Z do{} while(0)
-#define DCMF_SAFE(FUNCALL) if(FUNCALL!=DCMF_SUCCESS) gasneti_fatalerror("error on line %d\n", __LINE__)
+//#define Z do{} while(0
+#define DCMF_SAFE(FUNCALL) if(FUNCALL!=DCMF_SUCCESS) gasneti_fatalerror("DCMF error on line (%s)%d\n", __FILE__, __LINE__)
 
+#define ALIGN_STRUCT(BYTES) __attribute__((__aligned__(BYTES)))
 typedef struct gasnetc_dcmf_req_t_{
 	DCMF_Request_t req;
 	struct gasnetc_dcmf_req_t_ *next;
-} gasnetc_dcmf_req_t __attribute__((__aligned__(1024)));
+} gasnetc_dcmf_req_t ALIGN_STRUCT(1024);
+
 
 
 typedef enum{
@@ -58,18 +60,19 @@ typedef struct gasnetc_token_t_ {
 	gasnetc_dcmf_amtype_t amtype;
 	gasnetc_dcmf_amcategory_t amcat;
 	gasnetc_dcmf_req_t *dcmf_req;
-} gasnetc_token_t __attribute__((__aligned__(32)));
+} gasnetc_token_t ALIGN_STRUCT(32);
 
 typedef struct gasnetc_amhandler_t_{ 
 	struct gasnetc_amhandler_t_ *next;
 	gasnetc_token_t *token;
 	gasnet_handler_t handleridx;
 	void *buffer;
+	uint8_t buffer_needs_free;
 	size_t nbytes;
 	int numargs;
 	unsigned seq_number;
 	gasnet_handlerarg_t amargs[GASNETC_MAX_AM_ARGS];
-} gasnetc_amhandler_t  __attribute__((__aligned__(1024)));
+} gasnetc_amhandler_t  ALIGN_STRUCT(1024);
 
 
 typedef void (*GASNETC_DCMF_RECV_SHORT_CB)(void *client_data, const DCQuad *msginfo, unsigned numquads,
@@ -82,7 +85,7 @@ typedef void (*GASNETC_DCMF_RECV_HEADER_CB)(void *client_data, const DCQuad *msg
 typedef struct gasnetc_dcmf_amregistration_t_ {
 	DCMF_Protocol_t registration;
 	DCMF_Send_Protocol send_category;
-} gasnetc_dcmf_amregistration_t  __attribute__((__aligned__(16)));
+} gasnetc_dcmf_amregistration_t  ALIGN_STRUCT(512);
 
 extern gasnetc_dcmf_amregistration_t *gasnetc_dcmf_amregistration[GASNETC_NUM_AMTYPES][GASNETC_NUM_AMCATS][GASNETC_DCMF_NUM_SENDCATS];
 
