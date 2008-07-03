@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2008/06/27 19:15:18 $
- * $Revision: 1.1.2.8 $
+ *     $Date: 2008/07/03 16:51:11 $
+ * $Revision: 1.1.2.9 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,7 +19,7 @@ GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
 #define GASNET_DCMF_EAGER_LIMIT_DEFAULT 1024
-#define GASNETC_DEFAULT_SEG_SIZE 64*1024*1024
+#define GASNETC_DEFAULT_SEG_SIZE 256*1024*1024
 
 #if !GASNET_SEQ
 #error ONLY SEQ BUILDS SUPPORTED FOR NOW... Stay tuned for PAR/PARSYNC support
@@ -112,10 +112,15 @@ DCMF_Send_Protocol gasnetc_get_protocol(gasnetc_dcmf_send_category_t sendcat) {
 
 void gasnetc_dcmf_init(gasnet_node_t* mynode, gasnet_node_t *nodes) {
   int i,j,k;
+	int ret;
   DCMF_CriticalSection_enter(0);
-  if(DCMF_Messager_initialize()!=1) {
-    gasneti_fatalerror("MESSAGER INITIALIZATION ERROR\n");
-  }
+  ret = DCMF_Messager_initialize();
+	
+	if(ret==0) {
+		GASNETI_TRACE_PRINTF(C,("DCMF already intialized... first from MPI?"));
+  } else {
+		GASNETI_TRACE_PRINTF(C,("DCMF successfully intialized"));
+	}
     
   *mynode = DCMF_Messager_rank();
   *nodes = DCMF_Messager_size();
