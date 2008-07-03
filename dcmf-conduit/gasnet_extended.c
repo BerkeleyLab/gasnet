@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2008/07/03 16:51:11 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2008/07/03 22:23:48 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -991,17 +991,23 @@ static void gasnete_dcmfbarrier_init() {
 	{
 		DCMF_GlobalBarrier_Configuration_t config;
 		
-#if 0 /*for now just sticked w/ a single barrier protocol that we pick*/
-		const char *anonbarrier_protocol = gasneti_getenv_withdefault("GASNET_DCMF_BARRIER", "DEFAULT_BARRIER");
+#if 1
+		/*for now just sticked w/ a single barrier protocol that we pick*/
+		const char *barrier_protocol = gasneti_getenv_withdefault("GASNET_DCMF_ANONBARRIER_PROTOCOL", "DEFAULT");
 		
-		if(!strcmp(anonbarrier_protocol, "DEFAULT_BARRIER")) {
+		if(!strcmp(barrier_protocol, "DEFAULT")) {
 			config.protocol = DCMF_DEFAULT_GLOBALBARRIER_PROTOCOL;
-		} else if(!strcmp(anonbarrier_protocol, "GLOBAL_INTERRUPT_BARRIER")) {
+		} else if(!strcmp(barrier_protocol, "GLOBAL_INTERRUPT")) {
 			config.protocol = DCMF_GI_GLOBALBARRIER_PROTOCOL;
 		} else {
-			gasneti_fatalerror("unknown dcmf barrier protocol: %s", anonbarrier_protocol);
+			gasneti_fatalerror("unknown dcmf barrier protocol: %s", barrier_protocol);
 		}
 #else
+		/*tested both DCMF_GI_GLOBALBARRIER_PROTOCOL and DEFAULT_PROTOCOL*/
+		/*default performacne @ 256 nodes was 1.3us 
+			GI perforamance @ 256 nodes was us 1.308 
+			Thus we will use DEFAULT for portability sake
+		*/
 		config.protocol = DCMF_DEFAULT_GLOBALBARRIER_PROTOCOL;
 #endif
 		
@@ -1013,7 +1019,24 @@ static void gasnete_dcmfbarrier_init() {
 
 	{
 		DCMF_GlobalAllreduce_Configuration_t config;
+		/*
+			Protocol Times @ 256 ndoes:
+			DEFAULT: 4.0us
+			Tree: 4.9us
+		*/
+#if 1
+		const char *barrier_protocol = gasneti_getenv_withdefault("GASNET_DCMF_NAMEDBARRIER_PROTOCOL", "DEFAULT");
+		
+		if(!strcmp(barrier_protocol, "DEFAULT")) {
+			config.protocol = DCMF_DEFAULT_GLOBALALLREDUCE_PROTOCOL;
+		} else if(!strcmp(barrier_protocol, "TREE")) {
+			config.protocol = DCMF_TREE_GLOBALALLREDUCE_PROTOCOL;
+		} else {
+			gasneti_fatalerror("unknown dcmf barrier protocol: %s", barrier_protocol);
+		}
+#else
 		config.protocol = DCMF_DEFAULT_GLOBALALLREDUCE_PROTOCOL;
+#endif
 		DCMF_SAFE(DCMF_GlobalAllreduce_register(&named_barrier_registration, &config));
 		named_barrier_source = -1;
 		named_barrier_result = -1;
@@ -1042,9 +1065,6 @@ static void gasnete_dcmfbarrier_notify(int id, int flags) {
 		
 	cb_done.function = increment_value;
 	cb_done.clientdata = (void*) &barrier_done;
-
-	
-	
 	
 	if(flags == GASNET_BARRIERFLAG_ANONYMOUS) {
 		GASNETI_TRACE_PRINTF(B, ("running annoymous barrier notify"));
@@ -1055,9 +1075,7 @@ static void gasnete_dcmfbarrier_notify(int id, int flags) {
 		current_barrier_flags = flags;
 		current_barrier_id = id;
 		barrier_splitstate = INSIDE_BARRIER; 
-		
 	}	else {
-
 		GASNETI_TRACE_PRINTF(B, ("running named barrier notify (%d,%d)", id, flags));
 		if(flags == GASNET_BARRIERFLAG_MISMATCH) {
 			/*signal mismatch*/
@@ -1073,16 +1091,15 @@ static void gasnete_dcmfbarrier_notify(int id, int flags) {
 		/*run named barrier by doing an allreduce*/
 		/* DCMF USAGE: root=-1 means its an allreduce*/
 		DCMF_CriticalSection_enter(0);
-		DCMF_SAFE(DCMF_GlobalAllreduce(&named_barrier_registration, &barrier_req, cb_done, DCMF_MATCH_CONSISTENCY,
-																	 -1, (char*) &named_barrier_source, (char*) &named_barrier_result, 1, DCMF_SIGNED_INT, DCMF_MIN));
+		DCMF_SAFE(DCMF_GlobalAllreduce(&named_barrier_registration, &barrier_req, 
+																	 cb_done, DCMF_MATCH_CONSISTENCY,
+																	 -1, (char*) &named_barrier_source, 
+																	 (char*) &named_barrier_result, 1, DCMF_SIGNED_INT, DCMF_MIN));
 		DCMF_CriticalSection_exit(0);
 		current_barrier_flags = flags;
 		current_barrier_id = id;
 		barrier_splitstate = INSIDE_BARRIER; 
-
 	}
-	
-	
 	GASNETI_TRACE_PRINTF(B, ("finishing barrier notify (%d,%d)", id, flags));
 }
 
@@ -1126,7 +1143,7 @@ static int gasnete_dcmfbarrier_wait(int id, int flags) {
 	while(barrier_done == 0) DCMF_Messager_advance();
 	DCMF_CriticalSection_exit(0);
 	
-	GASNETI_TRACE_PRINTF(B, ("finsh barrier wait named barrier res:(%d,%dd) (%d,%d)", named_barrier_source, named_barrier_result, id, flags));
+	GASNETI_TRACE_PRINTF(B, ("finish barrier wait named barrier res:(%d,%d) (%d,%d)", named_barrier_source, named_barrier_result, id, flags));
 	ret = finish_barrier(id, flags);
 	GASNETI_TRACE_PRINTF(B, ("returning %d", ret));
 	return ret;
@@ -1144,7 +1161,13 @@ static int gasnete_dcmfbarrier_try(int id, int flags) {
 		DCMF_CriticalSection_enter(0);
 		DCMF_Messager_advance();
 		DCMF_CriticalSection_exit(0);
-		return GASNET_ERR_NOT_READY;
+		/*this last call to messager advance could have finished the barrier so see if it has
+			and then finish up the barrier*/
+		if(barrier_done==1) {
+			return finish_barrier(id, flags);
+		} else {
+			return GASNET_ERR_NOT_READY;
+		}
 	} else {
 		return finish_barrier(id, flags);
 	}
