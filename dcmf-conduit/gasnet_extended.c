@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2008/07/03 22:23:48 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2008/07/08 06:51:47 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1139,9 +1139,10 @@ static int gasnete_dcmfbarrier_wait(int id, int flags) {
 
 	GASNETI_TRACE_PRINTF(B, ("start barrier wait (%d,%d)", id, flags));
 	/*wait for whatever barrier we executed to be done*/
-	DCMF_CriticalSection_enter(0);
-	while(barrier_done == 0) DCMF_Messager_advance();
-	DCMF_CriticalSection_exit(0);
+	//DCMF_CriticalSection_enter(0);
+	/*ampoll calls DCMF Messager advance and will make progress on outstanding AMs*/
+	while(barrier_done == 0) GASNETI_SAFE(gasneti_AMPoll());
+	//DCMF_CriticalSection_exit(0);
 	
 	GASNETI_TRACE_PRINTF(B, ("finish barrier wait named barrier res:(%d,%d) (%d,%d)", named_barrier_source, named_barrier_result, id, flags));
 	ret = finish_barrier(id, flags);
@@ -1158,9 +1159,8 @@ static int gasnete_dcmfbarrier_try(int id, int flags) {
 	
 	if(barrier_done!=1) {
 		/*barrier is not done yet ... try again later*/
-		DCMF_CriticalSection_enter(0);
-		DCMF_Messager_advance();
-		DCMF_CriticalSection_exit(0);
+		GASNETI_SAFE(gasneti_AMPoll());
+
 		/*this last call to messager advance could have finished the barrier so see if it has
 			and then finish up the barrier*/
 		if(barrier_done==1) {
