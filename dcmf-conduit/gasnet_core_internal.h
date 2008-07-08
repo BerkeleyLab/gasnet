@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_internal.h,v $
- *     $Date: 2008/06/30 22:05:11 $
- * $Revision: 1.1.2.7 $
+ *     $Date: 2008/07/08 19:52:52 $
+ * $Revision: 1.1.2.8 $
  * Description: GASNet dcmf conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -53,6 +53,13 @@ typedef enum{
 } gasnetc_dcmf_send_category_t;
 
 
+typedef struct gasnetc_ambuf_t_ {
+	struct gasnetc_ambuf_t_ *next;
+	uint32_t _pad; /*4 byte padding to ensure that the buffer lies on an 8 byte boundry*/
+	uint8_t data[GASNETC_AMMAXMED];
+	
+} gasnetc_ambuf_t;
+
 typedef struct gasnetc_token_t_ {
 	struct gasnetc_token_t_ *next;
 	gasnet_node_t srcnode;
@@ -66,6 +73,8 @@ typedef struct gasnetc_amhandler_t_{
 	struct gasnetc_amhandler_t_ *next;
 	gasnetc_token_t *token;
 	gasnet_handler_t handleridx;
+	/*when the buffer is known this is  a pointer to data
+		otherwise its just a pointer to a ambuf_t*/
 	void *buffer;
 	uint8_t buffer_needs_free;
 	size_t nbytes;

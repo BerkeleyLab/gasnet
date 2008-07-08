@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2008/07/03 16:51:11 $
- * $Revision: 1.1.2.9 $
+ *     $Date: 2008/07/08 19:52:52 $
+ * $Revision: 1.1.2.10 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -49,6 +49,8 @@ static gasnetc_token_t *gasnetc_token_free_list;
 static gasnetc_amhandler_t *gasnetc_amhandler_free_list;
 static gasnetc_amhandler_t *gasnetc_amhandler_active_list_head;
 static gasnetc_amhandler_t *gasnetc_amhandler_active_list_tail;
+static gasnetc_ambuf_t *gasnetc_ambuf_free_list;
+
 static size_t   gasnetc_dcmf_eager_limit;
 static unsigned gasnetc_curr_seq_number;
 /* ------------------------------------------------------------------------------------ */
@@ -244,7 +246,8 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasnetc_dcmf_req_free_list = NULL;
 	gasnetc_token_free_list = NULL;
 	gasnetc_amhandler_free_list = NULL;
-	
+	gasnetc_ambuf_free_list = NULL;
+
 #if 0
   for(i=0; i<GASNETC_INIT_NUM_REQ; i++) {
     gasnetc_dcmf_req_t *req;
@@ -267,6 +270,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 		gasnetc_amhandler_free_list = handler;
 	}
 #endif	
+	
 	gasnetc_active_amhandlers=0;
   gasnetc_curr_seq_number = 0;
 	gasnetc_amhandler_active_list_head = NULL;
@@ -685,6 +689,32 @@ void gasnetc_free_token(gasnetc_token_t* token){
 #endif
 }
 
+GASNETI_INLINE(gasnetc_get_ambuf)
+gasnetc_ambuf_t* gasnetc_get_ambuf(size_t nbytes) {
+	gasnetc_ambuf_t *ret;
+	/*size argument just used for arg checking and future use*/
+	gasneti_assert(nbytes <= gasnet_AMMaxMedium());
+	
+	if(gasnetc_ambuf_free_list) {
+		ret = gasnetc_ambuf_free_list;
+		gasnetc_ambuf_free_list = gasnetc_ambuf_free_list->next;
+	}else {
+		GASNETI_TRACE_PRINTF(C, ("malloc of am buffer"));
+		ret = gasneti_malloc(sizeof(gasnetc_ambuf_t));
+	}
+	GASNETI_TRACE_PRINTF(C, ("allocating ambuffer: %p (%p)", ret, ret->data));
+	return ret;
+}
+
+GASNETI_INLINE(gasnetc_free_ambuf)
+void gasnetc_free_ambuf(gasnetc_ambuf_t *buffer) {
+	GASNETI_TRACE_PRINTF(C, ("freeing ambuffer before: %p (%p)", buffer, gasnetc_ambuf_free_list));
+	buffer->next = gasnetc_ambuf_free_list;
+	gasnetc_ambuf_free_list = buffer;
+	GASNETI_TRACE_PRINTF(C, ("freeing ambuffer after: %p (%p)", buffer, gasnetc_ambuf_free_list));
+}
+
+
 /*
   Active Message Queues
   ==============================
@@ -803,7 +833,9 @@ gasnetc_amhandler_t* gasnetc_remove_first_active_amhandler() {
 
 GASNETI_INLINE(gasnetc_run_amhandler_inner) 
 void gasnetc_run_amhandler_inner(gasnetc_amhandler_t *handler) {
-	GASNETI_TRACE_PRINTF(C,("running handler: %p seq: %d\n", handler, handler->seq_number));
+	gasneti_assert(handler);
+	GASNETI_TRACE_PRINTF(C,("running handler: %p am: (%d,%d) seq: %d\n", handler, handler->token->amtype, 
+													handler->token->amcat, handler->seq_number));
   switch(handler->token->amcat){
   case GASNETC_AMSHORT: 
     GASNETI_RUN_HANDLER_SHORT((handler->token->amtype==GASNETC_AMREQ), 
@@ -814,19 +846,38 @@ void gasnetc_run_amhandler_inner(gasnetc_amhandler_t *handler) {
 			      handler->numargs);
     break;
   case GASNETC_AMMED: 
-    if(handler->nbytes > 0) gasneti_assert(handler->buffer);
-    GASNETI_RUN_HANDLER_MEDIUM((handler->token->amtype==GASNETC_AMREQ), 
-			       handler->handleridx,
-			       gasnetc_handler[handler->handleridx],
-			       handler->token,
-			       handler->amargs,
-			       handler->numargs,
-			       handler->buffer, handler->nbytes);
-    /*medium replies we will not allocate an extra buffer so don't free; only free on requests*/
-		if(handler->buffer && handler->buffer_needs_free) gasneti_free(handler->buffer);
-    handler->buffer=NULL;
-    break;
-  case GASNETC_AMLONG: 
+		{
+			void *ambuffer = NULL;
+			uint8_t free_later = 0;
+			
+			/*if we used a preallocated buffer makes ure to pass the right buffer into the medium arguments*/
+			if(handler->buffer_needs_free) {
+				gasnetc_ambuf_t *temp= (gasnetc_ambuf_t*) handler->buffer;
+				gasneti_assert(temp);
+				ambuffer= temp->data;
+		
+				free_later =1;
+			} else {
+				ambuffer = handler->buffer;
+				free_later =0;
+			}
+			
+			if(handler->nbytes > 0) gasneti_assert(ambuffer);
+			
+			GASNETI_RUN_HANDLER_MEDIUM((handler->token->amtype==GASNETC_AMREQ), 
+																 handler->handleridx,
+																 gasnetc_handler[handler->handleridx],
+																 handler->token,
+																 handler->amargs,
+																 handler->numargs,
+																 ambuffer,
+																 handler->nbytes);
+			/*medium replies we will not allocate an extra buffer so don't free; only free on requests*/
+			if(free_later) gasnetc_free_ambuf((gasnetc_ambuf_t*) handler->buffer);
+			handler->buffer=NULL;
+			break;
+		}
+	case GASNETC_AMLONG: 
   case GASNETC_AMLONGASYNC: 
     if(handler->nbytes > 0) gasneti_assert(handler->buffer);
     GASNETI_RUN_HANDLER_LONG((handler->token->amtype==GASNETC_AMREQ), 
@@ -938,10 +989,10 @@ void gasnetc_dcmf_handle_am_short(void *clientdata,
   unsigned transfer_size;
   int numargs;
   gasnetc_amhandler_t *amhandler;
-  void *ambuf;
+ 
   DCQuad *argquads;
   int argquadcount = count -1;
-	uint8_t buffer_malloced = 0;
+
 	
   GASNETI_CHECKATTACH();
   gasneti_assert(count>0); /*we need to get at least one quad of header*/
@@ -953,44 +1004,9 @@ void gasnetc_dcmf_handle_am_short(void *clientdata,
 	
   /*construct token no need to allocate DCMF Req since this is a short callback*/
   token = gasnetc_construct_token(peer, amtype, amcat, 0); /*pull a token off the free list if one is available*/
-    
-  /*extract and error check args*/
-  dstaddr = (void*) GASNETC_GET_ACTIVE_MSG_DSTADDR(headerquad);
-  transfer_size = GASNETC_GET_ACTIVE_MSG_NBYTES(headerquad);
-  if(amcat == GASNETC_AMSHORT) {
-    gasneti_assert(dstaddr==NULL);
-    gasneti_assert(transfer_size == 0);
-    ambuf = NULL;
-  } else if(amcat == GASNETC_AMMED){
-    gasneti_assert(transfer_size == bytes);
-    gasneti_assert(dstaddr == NULL);
-		/*if the transfer is a medium request w/ a nonzero lenght 
-			then we need to allocate a bounce buffer to receive the data*/
-    if(amtype == GASNETC_AMREQ) { 
-			if(transfer_size > 0) {
-				ambuf = (void*) gasneti_malloc(transfer_size);
-				GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(ambuf, src, bytes); /*copy data into bounce buffer*/
-				buffer_malloced = 1;
-			} else {
-				ambuf = NULL;
-			}
-		} else {
-			/*sicne we are running the handlerinline no need to copy*/
-			ambuf = (void*) src;
-		}
-  } else if((amcat == GASNETC_AMLONG) || (amcat == GASNETC_AMLONGASYNC)) {
-    gasneti_assert(transfer_size == bytes);
-    if(transfer_size > 0) gasneti_assert(dstaddr);
-    ambuf = dstaddr;
-		/*even if handler is run inline we need to copy the data to the user specified buffer*/
-    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(ambuf, src, bytes); /*copy data into bounce buffer*/
-  } else {
-    gasneti_fatalerror("unknown am category");
-  }
-	
-	
-  numargs = GASNETC_GET_ACTIVE_MSG_NUMARGS(headerquad);
-  handleridx= GASNETC_GET_ACTIVE_MSG_HANDLERIDX(headerquad);
+
+	numargs = GASNETC_GET_ACTIVE_MSG_NUMARGS(headerquad);
+	handleridx= GASNETC_GET_ACTIVE_MSG_HANDLERIDX(headerquad);
   pfn = gasnetc_handler[handleridx];
 	
 	
@@ -1000,13 +1016,56 @@ void gasnetc_dcmf_handle_am_short(void *clientdata,
   } else {
     argquads = (DCQuad*) &msginfo[1];
   }
+
+	
+  /*extract and error check args*/
+  dstaddr = (void*) GASNETC_GET_ACTIVE_MSG_DSTADDR(headerquad);
+  transfer_size = GASNETC_GET_ACTIVE_MSG_NBYTES(headerquad);
+
+  if(amcat == GASNETC_AMSHORT) {
+    void *ambuf;
+		gasneti_assert(dstaddr==NULL);
+    gasneti_assert(transfer_size == 0);
+    ambuf = NULL;
+		amhandler = gasnetc_construct_new_amhandler(token, handleridx, NULL, 0, 0, argquads, argquadcount, numargs);
+	} else if(amcat == GASNETC_AMMED){
+		gasneti_assert(transfer_size == bytes);
+    gasneti_assert(dstaddr == NULL);
+		/*if the transfer is a medium request w/ a nonzero lenght 
+			then we need to allocate a bounce buffer to receive the data*/
+    if(amtype == GASNETC_AMREQ) { 
+			gasnetc_ambuf_t *ambuf;
+			if(transfer_size > 0) {
+				ambuf = gasnetc_get_ambuf(transfer_size);
+				//ambuf = (void*) gasneti_malloc(transfer_size);
+				GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(ambuf->data, src, bytes); /*copy data into bounce buffer*/
+				amhandler = gasnetc_construct_new_amhandler(token, handleridx, (void*) ambuf, 1, transfer_size, argquads, argquadcount, numargs);
+			} else {
+				ambuf = NULL;
+				amhandler = gasnetc_construct_new_amhandler(token, handleridx, NULL, 0, 0, argquads, argquadcount, numargs);
+			}
+			
+		} else {
+			/*sicne we are running the handlerinline no need to copy*/
+			void* ambuf = (void*) src;
+			amhandler = gasnetc_construct_new_amhandler(token, handleridx, (void*) ambuf, 0, transfer_size, argquads, argquadcount, numargs);
+		}
+	
+	} else if((amcat == GASNETC_AMLONG) || (amcat == GASNETC_AMLONGASYNC)) {
+		void *ambuf;
+    gasneti_assert(transfer_size == bytes);
+    if(transfer_size > 0) gasneti_assert(dstaddr);
+    ambuf = dstaddr;
+		/*even if handler is run inline we need to copy the data to the user specified buffer*/
+    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(ambuf, src, bytes); /*copy data into bounce buffer*/
+		amhandler = gasnetc_construct_new_amhandler(token, handleridx, (void*) ambuf, 0, transfer_size, argquads, argquadcount, numargs);
+  } else {
+    gasneti_fatalerror("unknown am category");
+  }
 	
   /*construct the callback and extract the args into the handler*/
 	/*if this is an am medium request, the temporary buffere needs to be freed*/
-  amhandler = gasnetc_construct_new_amhandler(token, handleridx, ambuf, buffer_malloced, (size_t)transfer_size, argquads, argquadcount, numargs);
-	GASNETI_TRACE_PRINTF(C, ("dcmf short am handler: am(%d,%d) srcnode: %d dstaddr: %p(%p) len: %d(%d) numargs: %d(count: %d) handleridx: %d amhandler: %p\n",
-			   amtype, amcat, peer, dstaddr, ambuf, transfer_size, bytes, numargs, count, handleridx, amhandler));
-
+  
   if(amtype == GASNETC_AMREP) {
 		/*since replies cannot generate further communication it is
 			safe to runt he reply handlers inline here rather than queue them*/
@@ -1030,7 +1089,7 @@ void gasnetc_dcmf_handle_am_done(void *arg){
 	
   if(amhandler->token->amtype == GASNETC_AMREP) {
 		/*since replies cannot generate further communication it is
-			safe to runt he reply handlers inline here rather than queue them*/
+			safe to run the reply handlers inline here rather than queue them*/
 		gasnetc_run_amhandler_inner(amhandler);
 		gasnetc_free_amhandler(amhandler);
 	} else {
@@ -1054,7 +1113,7 @@ DCMF_Request_t* gasnetc_dcmf_handle_am_header(void *clientdata,
   gasnetc_dcmf_amtype_t amtype; 
   gasnetc_dcmf_amcategory_t amcat;
   void *dstaddr;
-  void *ambuf;
+  
   unsigned transfer_size;
   int numargs;
   gasnetc_amhandler_t *amhandler;
@@ -1080,8 +1139,19 @@ DCMF_Request_t* gasnetc_dcmf_handle_am_header(void *clientdata,
   amcat = GASNETC_GET_ACTIVE_MSG_CATEGORY(headerquad);
   amtype = GASNETC_GET_ACTIVE_MSG_TYPE(headerquad);
 	
+	gasneti_assert(temp==count);
+  if(count == 1) /*we actualy contain arguments*/{
+    gasneti_assert(numargs==0); /*check to make sure both header and payload both don't have quads*/
+    argquads = NULL;
+  } else {
+    argquads = (DCQuad*) &msginfo[1];
+  }
+	
+	
   /*construct token. make sure allocate a DCMF request so that we can return it*/
-  token = gasnetc_construct_token(peer, amtype, amcat,1); /*pull a token off the free list if one is available*/
+  
+	token = gasnetc_construct_token(peer, amtype, amcat,1); /*pull a token off the free list if one is available*/
+
 	
   GASNETI_TRACE_PRINTF(C, ("starting dcmf header am handler: headerquad: (%x,%d,%d,%d) am(%d,%d) srcnode: %d dstaddr: %p len: %d numargs: %d(count: %d) handleridx: %d\n",
 			   headerquad.w0,  headerquad.w1, headerquad.w2, headerquad.w3,
@@ -1093,37 +1163,34 @@ DCMF_Request_t* gasnetc_dcmf_handle_am_header(void *clientdata,
     /*no buffer needed to allocate since no payload*/	
     *rcvbuf = NULL;
     *rcvlen = 0;
-  } else if(amcat == GASNETC_AMMED) {
-    /*allocate a temporary buffer and queue the jobs*/
+		amhandler = gasnetc_construct_new_amhandler(token, handleridx, NULL, 0, 0,argquads, argquadcount, numargs);
+	} else if(amcat == GASNETC_AMMED) {
+		gasnetc_ambuf_t *ambuf;
+		/*allocate a temporary buffer and queue the jobs*/
     gasneti_assert(transfer_size == sendlen);
     gasneti_assert(dstaddr == NULL);
 		/*dcmf guarantees that this callback won't be called on a transfer size of 0 so need to handle that case here*/
-		*rcvbuf = ambuf = (void*) gasneti_malloc(transfer_size);
+		ambuf = gasnetc_get_ambuf(transfer_size);
+		*rcvbuf = (char*) ambuf->data;
 		*rcvlen = sendlen;
-		
-		} else if((amcat == GASNETC_AMLONG) || (amcat == GASNETC_AMLONGASYNC)) {
+		amhandler = gasnetc_construct_new_amhandler(token, handleridx, (void*) ambuf, 1, transfer_size,argquads, argquadcount, numargs);
+	} else if((amcat == GASNETC_AMLONG) || (amcat == GASNETC_AMLONGASYNC)) {
+		void *ambuf;
     gasneti_assert(transfer_size == sendlen);
     if(transfer_size>0) gasneti_assert(dstaddr);
     *rcvbuf = ambuf = dstaddr;
     *rcvlen = sendlen;
+		amhandler = gasnetc_construct_new_amhandler(token, handleridx, (void*) ambuf, 0, transfer_size,argquads, argquadcount, numargs);
   } else {
     gasneti_fatalerror("unknown amcat %d", amcat);
   }
-	gasneti_assert(temp==count);
-  if(count == 1) /*we actualy contain arguments*/{
-    gasneti_assert(numargs==0); /*check to make sure both header and payload both don't have quads*/
-    argquads = NULL;
-  } else {
-    argquads = (DCQuad*) &msginfo[1];
-  }
+	
 	
   /*construct a new queue entry but don't queue it up*/
 	/*always need to malloc even for ammedium to provide landing zone so need to free it*/
-  amhandler = gasnetc_construct_new_amhandler(token, handleridx, ambuf, (amcat==GASNETC_AMMED), (size_t)transfer_size,argquads, argquadcount, numargs);
+  
 	
-  GASNETI_TRACE_PRINTF(C, ("finishing dcmf header am handler: am(%d,%d) srcnode: %d dstaddr: %p(%p) len: %d(%d) numargs: %d handleridx: %d amhandler: %p\n",
-			   amtype, amcat, peer, dstaddr, ambuf, transfer_size, sendlen, numargs, handleridx, amhandler));
-	
+  	
   /*have teh callback queue up teh entry once the transfer is completed*/
   cb_done->function = gasnetc_dcmf_handle_am_done;
   cb_done->clientdata = (void*) amhandler;
