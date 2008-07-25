@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2008/07/08 19:52:52 $
- * $Revision: 1.1.2.10 $
+ *     $Date: 2008/07/25 19:35:13 $
+ * $Revision: 1.1.2.11 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -44,12 +44,15 @@ gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table 
 #define GASNETC_INIT_NUM_AMHANDLERS 25
 
 static size_t gasnetc_active_amhandlers = 0;
-static gasnetc_dcmf_req_t *gasnetc_dcmf_req_free_list;
-static gasnetc_token_t *gasnetc_token_free_list;
-static gasnetc_amhandler_t *gasnetc_amhandler_free_list;
+
+static gasneti_lifo_head_t gasnetc_dcmf_req_free_list = GASNETI_LIFO_INITIALIZER;
+static gasneti_lifo_head_t gasnetc_token_free_list = GASNETI_LIFO_INITIALIZER;
+static gasneti_lifo_head_t gasnetc_amhandler_free_list = GASNETI_LIFO_INITIALIZER;
+static gasneti_lifo_head_t gasnetc_ambuf_free_list = GASNETI_LIFO_INITIALIZER;
+
 static gasnetc_amhandler_t *gasnetc_amhandler_active_list_head;
 static gasnetc_amhandler_t *gasnetc_amhandler_active_list_tail;
-static gasnetc_ambuf_t *gasnetc_ambuf_free_list;
+
 
 static size_t   gasnetc_dcmf_eager_limit;
 static unsigned gasnetc_curr_seq_number;
@@ -240,36 +243,6 @@ static int gasnetc_init(int *argc, char ***argv) {
   
   /*initialize file scoped global variables*/
 
-  /*preallocate request objects, tokens, and handlers then put them on the free list*/
-	/* this will hopefully speed up the startup costs of the algorithms*/
-
-  gasnetc_dcmf_req_free_list = NULL;
-	gasnetc_token_free_list = NULL;
-	gasnetc_amhandler_free_list = NULL;
-	gasnetc_ambuf_free_list = NULL;
-
-#if 0
-  for(i=0; i<GASNETC_INIT_NUM_REQ; i++) {
-    gasnetc_dcmf_req_t *req;
-    req = (gasnetc_dcmf_req_t*) gasneti_calloc(1,sizeof(gasnetc_dcmf_req_t));
-    req->next = gasnetc_dcmf_req_free_list;
-    gasnetc_dcmf_req_free_list = req;
-  }
-	
-  for(i=0; i<GASNETC_INIT_NUM_TOKENS; i++) {
-    gasnetc_token_t *token;
-    token = (gasnetc_token_t*) gasneti_calloc(1,sizeof(gasnetc_token_t));
-    token->next = gasnetc_token_free_list;
-    gasnetc_token_free_list = token;
-  }
-	
-	for(i=0; i<GASNETC_INIT_NUM_AMHANDLERS; i++) {
-		gasnetc_amhandler_t *handler;
-		handler = (gasnetc_amhandler_t*) gasneti_calloc(1, sizeof(gasnetc_amhandler_t));
-		handler->next = gasnetc_amhandler_free_list;
-		gasnetc_amhandler_free_list = handler;
-	}
-#endif	
 	
 	gasnetc_active_amhandlers=0;
   gasnetc_curr_seq_number = 0;
@@ -606,19 +579,14 @@ extern void gasnetc_exit(int exitcode) {
   Managing Internal Data Structures
   ==============================
 */
-#define GASNETC_USE_FREE_LISTS 1
+
 
 GASNETI_INLINE(gasnetc_get_dcmf_req) 
 gasnetc_dcmf_req_t * gasnetc_get_dcmf_req() {
   gasnetc_dcmf_req_t *req;
-#if GASNETC_USE_FREE_LISTS
-  if(gasnetc_dcmf_req_free_list) {
-    /*free list has something we can use so pull it off of that*/
-    req = gasnetc_dcmf_req_free_list;
-    gasnetc_dcmf_req_free_list = req->next;
-  } else 
-#endif
-	{
+
+  req = gasneti_lifo_pop(&gasnetc_dcmf_req_free_list);
+	if(!req) {
 		/*must allocate new structure*/
 		GASNETI_TRACE_PRINTF(C, ("malloc of req (%d bytes)", sizeof(gasnetc_dcmf_req_t)));
 		req = (gasnetc_dcmf_req_t*) gasneti_malloc(sizeof(gasnetc_dcmf_req_t));
@@ -629,13 +597,7 @@ gasnetc_dcmf_req_t * gasnetc_get_dcmf_req() {
 GASNETI_INLINE(gasnetc_free_dcmf_req) 
 void gasnetc_free_dcmf_req(gasnetc_dcmf_req_t *req){
   /*add it back tot he free list*/
-#if GASNETC_USE_FREE_LISTS
-  req->next = gasnetc_dcmf_req_free_list;
-  gasnetc_dcmf_req_free_list = req;
-#else
-	GASNETI_TRACE_PRINTF(C, ("Free of req (%d bytes)", sizeof(gasnetc_dcmf_req_t)));
-	gasneti_free(req);
-#endif
+  gasneti_lifo_push(&gasnetc_dcmf_req_free_list,(void*) req);
 }
 
 
@@ -651,13 +613,9 @@ gasnetc_token_t *gasnetc_construct_token(gasnet_node_t srcnode, gasnetc_dcmf_amt
   
   gasnetc_token_t *token;
   /*check the free list before allocating a new one*/
-#if GASNETC_USE_FREE_LISTS 
-	if(gasnetc_token_free_list) {
-    token = gasnetc_token_free_list;
-    gasnetc_token_free_list = token->next;
-  } else 
-#endif
-  {
+
+	token = gasneti_lifo_pop(&gasnetc_token_free_list);
+	if(!token)  {
 		GASNETI_TRACE_PRINTF(C, ("malloc of token (%d bytes)", sizeof(gasnetc_token_t)));
     token = (gasnetc_token_t*)gasneti_malloc(sizeof(gasnetc_token_t)); 
   }
@@ -680,13 +638,7 @@ gasnetc_token_t *gasnetc_construct_token(gasnet_node_t srcnode, gasnetc_dcmf_amt
 GASNETI_INLINE(gasnetc_free_token) 
 void gasnetc_free_token(gasnetc_token_t* token){
   if(token->dcmf_req) gasnetc_free_dcmf_req(token->dcmf_req);
-#if GASNETC_USE_FREE_LISTS
-  token->next = gasnetc_token_free_list;
-  gasnetc_token_free_list = token;
-#else
-	GASNETI_TRACE_PRINTF(C, ("Free of token (%d bytes)", sizeof(gasnetc_token_t)));
-	gasneti_free(token);
-#endif
+	gasneti_lifo_push(&gasnetc_token_free_list,(void*) token);
 }
 
 GASNETI_INLINE(gasnetc_get_ambuf)
@@ -694,11 +646,9 @@ gasnetc_ambuf_t* gasnetc_get_ambuf(size_t nbytes) {
 	gasnetc_ambuf_t *ret;
 	/*size argument just used for arg checking and future use*/
 	gasneti_assert(nbytes <= gasnet_AMMaxMedium());
-	
-	if(gasnetc_ambuf_free_list) {
-		ret = gasnetc_ambuf_free_list;
-		gasnetc_ambuf_free_list = gasnetc_ambuf_free_list->next;
-	}else {
+
+	ret = gasneti_lifo_pop(&gasnetc_ambuf_free_list);
+	if(!ret) {
 		GASNETI_TRACE_PRINTF(C, ("malloc of am buffer"));
 		ret = gasneti_malloc(sizeof(gasnetc_ambuf_t));
 	}
@@ -708,10 +658,8 @@ gasnetc_ambuf_t* gasnetc_get_ambuf(size_t nbytes) {
 
 GASNETI_INLINE(gasnetc_free_ambuf)
 void gasnetc_free_ambuf(gasnetc_ambuf_t *buffer) {
-	GASNETI_TRACE_PRINTF(C, ("freeing ambuffer before: %p (%p)", buffer, gasnetc_ambuf_free_list));
-	buffer->next = gasnetc_ambuf_free_list;
-	gasnetc_ambuf_free_list = buffer;
-	GASNETI_TRACE_PRINTF(C, ("freeing ambuffer after: %p (%p)", buffer, gasnetc_ambuf_free_list));
+	GASNETI_TRACE_PRINTF(C, ("freeing ambuffer before: %p", buffer));
+	gasneti_lifo_push(&gasnetc_ambuf_free_list, (void*) buffer);
 }
 
 
@@ -730,15 +678,10 @@ gasnetc_amhandler_t *gasnetc_construct_new_amhandler(gasnetc_token_t *token,
   gasnetc_amhandler_t *ret;
 
   /*check the free list if we have one*/
-#if GASNETC_USE_FREE_LISTS
-  if(gasnetc_amhandler_free_list) {
-    ret = gasnetc_amhandler_free_list;
-    gasnetc_amhandler_free_list = ret->next;
-  } else 
-#endif
- {
-	 GASNETI_TRACE_PRINTF(C, ("malloc of handler (%d bytes)", sizeof(gasnetc_amhandler_t)));
-	 ret = (gasnetc_amhandler_t*) gasneti_malloc(sizeof(gasnetc_amhandler_t));
+	ret = gasneti_lifo_pop(&gasnetc_amhandler_free_list);
+	if(!ret) {
+		GASNETI_TRACE_PRINTF(C, ("malloc of handler (%d bytes)", sizeof(gasnetc_amhandler_t)));
+		ret = (gasnetc_amhandler_t*) gasneti_malloc(sizeof(gasnetc_amhandler_t));
   }
     
   /*fill in teh data structure*/
@@ -758,22 +701,9 @@ gasnetc_amhandler_t *gasnetc_construct_new_amhandler(gasnetc_token_t *token,
 
 GASNETI_INLINE(gasnetc_free_amhandler) 
 void gasnetc_free_amhandler(gasnetc_amhandler_t *amhandler) {
-  GASNETI_TRACE_PRINTF(C, ("dcmf freeing handler before: amhandler: %p (head,tail) (%p,%p) freelist: %p\n",
-													 amhandler,gasnetc_amhandler_active_list_head, gasnetc_amhandler_active_list_tail, gasnetc_amhandler_free_list));
-	
 	/*add the amhandler back to the free list*/
   gasnetc_free_token(amhandler->token);
-#if GASNETC_USE_FREE_LISTS
-  amhandler->next = gasnetc_amhandler_free_list;
-  gasnetc_amhandler_free_list = amhandler;
-
-	GASNETI_TRACE_PRINTF(C, ("dcmf freeing handler after: amhandler: %p (head,tail) (%p,%p) freelist: %p\n",
-													 amhandler,gasnetc_amhandler_active_list_head, gasnetc_amhandler_active_list_tail, gasnetc_amhandler_free_list));
-#else
-	GASNETI_TRACE_PRINTF(C, ("Free of amhandler (%d bytes)", sizeof(gasnetc_amhandler_t)));
-	gasneti_free(amhandler);
-#endif
-
+  gasneti_lifo_push(&gasnetc_amhandler_free_list, (void*) amhandler);
 }
 
 
@@ -905,9 +835,10 @@ void gasnetc_run_first_amhandler() {
   /*Once these calls return then they have 
    * finished their calls and they will not be called again with thte 
    * current data set so just remove them from the active queue*/
-  
-  gasnetc_free_amhandler(handler);
+	
 	GASNETI_TRACE_PRINTF(C,("finished running handler: %p seq: %d\n", handler, handler->seq_number));
+  gasnetc_free_amhandler(handler);
+
  
 }
 
@@ -944,7 +875,7 @@ extern int gasnetc_AMPoll() {
   if(gasnetc_amhandler_active_list_head) {
     GASNETI_TRACE_PRINTF(C,("starting to clear active list: (%p,%p) numactive: %d", gasnetc_amhandler_active_list_head, gasnetc_amhandler_active_list_tail, gasnetc_active_amhandlers));
 		/*run any active message functions that got queued*/
-    while(gasnetc_amhandler_active_list_head) {
+		while(gasnetc_amhandler_active_list_head) {
       gasnetc_run_first_amhandler();
     }
 		/*clear the entire active list at one shot*/

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_internal.h,v $
- *     $Date: 2008/07/08 19:52:52 $
- * $Revision: 1.1.2.8 $
+ *     $Date: 2008/07/25 19:35:13 $
+ * $Revision: 1.1.2.9 $
  * Description: GASNet dcmf conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,8 +23,8 @@
 
 #define ALIGN_STRUCT(BYTES) __attribute__((__aligned__(BYTES)))
 typedef struct gasnetc_dcmf_req_t_{
-	DCMF_Request_t req;
 	struct gasnetc_dcmf_req_t_ *next;
+	DCMF_Request_t req;
 } gasnetc_dcmf_req_t ALIGN_STRUCT(1024);
 
 
