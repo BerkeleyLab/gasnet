@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_internal.h,v $
- *     $Date: 2008/07/25 19:35:13 $
- * $Revision: 1.1.2.9 $
+ *     $Date: 2008/07/29 18:49:37 $
+ * $Revision: 1.1.2.10 $
  * Description: GASNet dcmf conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,8 +14,12 @@
 #include <dcmf_collectives.h>
 #include <dcmf_globalcollectives.h>
 
-#define GASNETC_MAXQUADS_PER_AM 7
-#define GASNETC_MAX_AM_ARGS 24
+/*DCMF allows up to 7 but since gasnet 
+ * only allows 16 am args we can artificailly limit
+ * this number to 1 header + 4 data quads*/
+
+#define GASNETC_MAXQUADS_PER_AM 5
+#define GASNETC_MAX_AM_ARGS 16
 
 #define Z fprintf(stderr,"%d> %s(%d)\n", gasneti_mynode, __FILE__,__LINE__)
 //#define Z do{} while(0
@@ -26,8 +30,6 @@ typedef struct gasnetc_dcmf_req_t_{
 	struct gasnetc_dcmf_req_t_ *next;
 	DCMF_Request_t req;
 } gasnetc_dcmf_req_t ALIGN_STRUCT(1024);
-
-
 
 typedef enum{
 	GASNETC_AMREQ=0, 
@@ -52,13 +54,24 @@ typedef enum{
 	GASNETC_DCMF_NUM_SENDCATS
 } gasnetc_dcmf_send_category_t;
 
-
 typedef struct gasnetc_ambuf_t_ {
 	struct gasnetc_ambuf_t_ *next;
 	uint32_t _pad; /*4 byte padding to ensure that the buffer lies on an 8 byte boundry*/
 	uint8_t data[GASNETC_AMMAXMED];
-	
 } gasnetc_ambuf_t;
+
+typedef struct gasnetc_replay_buffer_t_ {
+	struct gasnetc_replay_buffer_t_ *next;
+	gasnetc_dcmf_amtype_t amtype;
+	gasnetc_dcmf_amcategory_t amcat;
+	gasnet_node_t dest;
+	unsigned numquads;
+	gasnetc_ambuf_t *buffer;
+	size_t buffer_size;
+	int retry_count;
+	DCQuad quads[GASNETC_MAXQUADS_PER_AM];
+} gasnetc_replay_buffer_t;
+
 
 typedef struct gasnetc_token_t_ {
 	struct gasnetc_token_t_ *next;
@@ -83,6 +96,67 @@ typedef struct gasnetc_amhandler_t_{
 	gasnet_handlerarg_t amargs[GASNETC_MAX_AM_ARGS];
 } gasnetc_amhandler_t  ALIGN_STRUCT(1024);
 
+/*generic mutex based implementation for now*/
+typedef struct gasnetc_fifo_t_ {
+  gasneti_mutex_t		lock;
+	void **head;
+	void **tail;
+	char _pad[GASNETT_CACHE_LINE_BYTES];
+} gasnetc_fifo_t;
+#define GASNETC_FIFO_INITIALIZER {GASNETI_MUTEX_INITIALIZER, NULL,NULL}
+
+/*GASNETC_FIFO Operations*/
+GASNETI_INLINE(_gasnetc_fifo_add)
+void _gasnetc_fifo_add(gasnetc_fifo_t* fifo, void **elem) {
+	gasneti_assert(elem);
+	gasneti_assert(fifo);
+	
+	gasneti_mutex_lock(&(fifo->lock));
+	if(fifo->head == NULL) {
+		gasneti_assert(fifo->tail == NULL);
+		/*assumes the first sizeof(void*) bytes are used for linkage*/
+		fifo->head = fifo->tail = elem; 
+	} else {
+		gasneti_assert(fifo->head && fifo->tail);
+		*elem = NULL; /*elem->next = NULL*/
+		*fifo->tail = elem; /*tail->next = elem*/
+		fifo->tail = elem; /*tail = elem*/
+	}
+	gasneti_mutex_unlock(&(fifo->lock));
+}
+
+GASNETI_INLINE(_gasnetc_fifo_remove)
+void *_gasnetc_fifo_remove(gasnetc_fifo_t *fifo) {
+	void **ret;
+	
+
+	gasneti_mutex_lock(&(fifo->lock));
+	if(fifo->head == NULL) ret = NULL;
+	else if(fifo->head == fifo->tail) {
+		/*this was the last elem on the list*/
+		ret = fifo->head; 
+		fifo->head = fifo->tail = NULL;	
+	} else {
+		ret = fifo->head; 
+		fifo->head = *ret; /*head = head->next*/
+	}
+	gasneti_mutex_unlock(&(fifo->lock));
+	
+	return (void*) ret;
+}
+
+/*add the element to the fifo queue element must be nonNull*/
+/*like gasneti_lifo opps we assume that the first sizeof(void*) bytes
+ * of the struct are used for linkage*/
+GASNETI_INLINE(gasnetc_fifo_add)
+void gasnetc_fifo_add(gasnetc_fifo_t* fifo, void *element) {
+	_gasnetc_fifo_add(fifo, element);
+}
+
+GASNETI_INLINE(gasnetc_fifo_remove)
+void *gasnetc_fifo_remove(gasnetc_fifo_t *fifo) {
+	return _gasnetc_fifo_remove(fifo);
+}
 
 typedef void (*GASNETC_DCMF_RECV_SHORT_CB)(void *client_data, const DCQuad *msginfo, unsigned numquads,
 					   unsigned peer, const char *src, unsigned nbytes);
@@ -103,6 +177,8 @@ extern gasnetc_dcmf_amregistration_t *gasnetc_dcmf_amregistration[GASNETC_NUM_AM
 
 #define GASNETC_DCMF_AM_SEND_CAT(AMTYPE, AMCATECORY) \
 	gasnetc_dcmf_amregistration[AMTYPE][AMCATEGORY][AMSENDCAT]->send_category
+
+
 
 
 

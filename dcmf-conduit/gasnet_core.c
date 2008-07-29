@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2008/07/25 19:35:13 $
- * $Revision: 1.1.2.11 $
+ *     $Date: 2008/07/29 18:49:37 $
+ * $Revision: 1.1.2.12 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -49,13 +49,27 @@ static gasneti_lifo_head_t gasnetc_dcmf_req_free_list = GASNETI_LIFO_INITIALIZER
 static gasneti_lifo_head_t gasnetc_token_free_list = GASNETI_LIFO_INITIALIZER;
 static gasneti_lifo_head_t gasnetc_amhandler_free_list = GASNETI_LIFO_INITIALIZER;
 static gasneti_lifo_head_t gasnetc_ambuf_free_list = GASNETI_LIFO_INITIALIZER;
+static gasneti_lifo_head_t gasnetc_replay_buffer_free_list = GASNETI_LIFO_INITIALIZER;
 
-static gasnetc_amhandler_t *gasnetc_amhandler_active_list_head;
-static gasnetc_amhandler_t *gasnetc_amhandler_active_list_tail;
+static gasnetc_fifo_t gasnetc_nack_list = GASNETC_FIFO_INITIALIZER;
+static gasnetc_fifo_t gasnetc_amhandler_active_list = GASNETC_FIFO_INITIALIZER;
 
 
 static size_t   gasnetc_dcmf_eager_limit;
 static unsigned gasnetc_curr_seq_number;
+
+/*keep track of hte number of local send replay buffers we have left to allocate. 
+ This value is always decremetned and never incremented. Once it hits 0 then we need to stall until we
+get enough acks to clear old AMs.*/
+#define GASNETC_DEFAULT_MAX_REPLAY_BUFFERS 1024
+static gasneti_semaphore_t gasnetc_replay_buffers_left;
+
+/*keep track of how many incoming buffers we have available. When this number reaches 0 that means that 
+	we have to send NACKs back to the sender indicating a failure to recv the AM. When an active message
+  is finished the buffer is cleared and this number is increased (in that order)*/
+#define GASNETC_DEFAULT_MAX_INCOMING_BUFFERS 1024
+static gasneti_semaphore_t gasnetc_incoming_buffers_available;
+
 /* ------------------------------------------------------------------------------------ */
 
 void gasnetc_dcmf_handle_am_short(void *clientdata,
@@ -116,7 +130,7 @@ DCMF_Send_Protocol gasnetc_get_protocol(gasnetc_dcmf_send_category_t sendcat) {
   } while(0);
 
 void gasnetc_dcmf_init(gasnet_node_t* mynode, gasnet_node_t *nodes) {
-  int i,j,k;
+	int i,j,k;
 	int ret;
   DCMF_CriticalSection_enter(0);
   ret = DCMF_Messager_initialize();
@@ -135,7 +149,7 @@ void gasnetc_dcmf_init(gasnet_node_t* mynode, gasnet_node_t *nodes) {
     
     
   /***Initialize all the active message handlers*/
-	GASNETI_TRACE_PRINTF(C,("amregistraion (%d bytes) each", sizeof(gasnetc_dcmf_amregistration_t)));
+	GASNETI_TRACE_PRINTF(C,("amregistraion (%d bytes) each", (int) sizeof(gasnetc_dcmf_amregistration_t)));
   for(i=0; i<GASNETC_NUM_AMTYPES; i++) {
     for(j=0; j<GASNETC_NUM_AMCATS; j++) {
       for(k=0; k<GASNETC_DCMF_NUM_SENDCATS; k++) {
@@ -243,11 +257,14 @@ static int gasnetc_init(int *argc, char ***argv) {
   
   /*initialize file scoped global variables*/
 
-	
+	/*XXX: change these to be environment tunable values*/
+	gasneti_semaphore_init(&gasnetc_replay_buffers_left, GASNETC_DEFAULT_MAX_REPLAY_BUFFERS, GASNETI_SEMAPHORE_MAX);
+	gasneti_semaphore_init(&gasnetc_incoming_buffers_available, GASNETC_DEFAULT_MAX_INCOMING_BUFFERS, GASNETI_SEMAPHORE_MAX);
+
 	gasnetc_active_amhandlers=0;
   gasnetc_curr_seq_number = 0;
-	gasnetc_amhandler_active_list_head = NULL;
-  gasnetc_amhandler_active_list_tail = NULL;
+
+  
 	gasnetc_dcmf_eager_limit = gasneti_getenv_int_withdefault("GASNET_DCMF_EAGER_LIMIT", GASNET_DCMF_EAGER_LIMIT_DEFAULT, 1);
   
 	gasneti_init_done = 1;  
@@ -641,6 +658,10 @@ void gasnetc_free_token(gasnetc_token_t* token){
 	gasneti_lifo_push(&gasnetc_token_free_list,(void*) token);
 }
 
+/*this function allocates the temporary buffer space for AM Mediums either
+ * on the sending side or the receiving side. Both places where we call the function
+ *  are protected by a semaphore that ensures we don't allocate too many
+ */
 GASNETI_INLINE(gasnetc_get_ambuf)
 gasnetc_ambuf_t* gasnetc_get_ambuf(size_t nbytes) {
 	gasnetc_ambuf_t *ret;
@@ -662,6 +683,64 @@ void gasnetc_free_ambuf(gasnetc_ambuf_t *buffer) {
 	gasneti_lifo_push(&gasnetc_ambuf_free_list, (void*) buffer);
 }
 
+GASNETI_INLINE(gasnetc_get_replay_buffer)
+gasnetc_replay_buffer_t* gasnetc_get_replay_buffer(size_t buffer_size) {
+	gasnetc_replay_buffer_t *ret;
+	
+	/*first see if we can pop one off the free list*/
+	ret = gasneti_lifo_pop(&gasnetc_replay_buffer_free_list);
+	
+	if(!ret){ 
+		/*the free list is empty so check if we are allowed to allocate a new one*/
+		if(gasneti_semaphore_trydown(&gasnetc_replay_buffers_left)) {
+			/*we haven't exceeded our max number of allocateable replay buffers so create one*/
+			ret = (gasnetc_replay_buffer_t*) gasneti_malloc(sizeof(gasnetc_replay_buffer_t));
+		} else {
+			/* we have exceeeded our maxiumum allocateable number of buffers and there are none left
+			 * so we have to wait until more are available*/
+			ret = gasneti_lifo_pop(&gasnetc_replay_buffer_free_list);
+			DCMF_CriticalSection_enter(0);
+			while(ret==NULL) {
+					DCMF_Messager_advance(); /*the polling loop will eventually run an ACK callback which will deallocate a 
+					replay buffer*/
+					ret = gasneti_lifo_pop(&gasnetc_replay_buffer_free_list);
+			}
+			DCMF_CriticalSection_exit(0);
+		}
+	}
+
+	if(buffer_size > 0) {
+		ret->buffer = gasnetc_get_ambuf(buffer_size);
+	} else {
+		ret->buffer = NULL;
+	}
+	
+	ret->retry_count = 0;
+
+	return ret;
+}
+
+GASNETI_INLINE(gasnetc_free_replay_buffer)
+void gasnetc_free_replay_buffer(gasnetc_replay_buffer_t *replay_buf) {
+	if(replay_buf->buffer) gasnetc_free_ambuf(replay_buf->buffer);
+	gasneti_lifo_push(&gasnetc_replay_buffer_free_list, replay_buf);
+}
+
+
+
+/* 
+  NACK List Management
+  ====================
+  Nack list is a FIFO so manage the head and tail pointers
+ */
+
+void gasnetc_add_replay_to_nack_list(gasnetc_replay_buffer_t* replay_buf) {
+	gasnetc_fifo_add(&gasnetc_nack_list, (void*) replay_buf);
+}
+
+gasnetc_replay_buffer_t* gasnetc_remove_from_nack_list() {
+	return (gasnetc_replay_buffer_t*) gasnetc_fifo_remove(&gasnetc_nack_list);
+}
 
 /*
   Active Message Queues
@@ -712,25 +791,10 @@ void gasnetc_free_amhandler(gasnetc_amhandler_t *amhandler) {
 
 GASNETI_INLINE(gasnetc_activate_amhandler) 
 void gasnetc_activate_amhandler(gasnetc_amhandler_t *amhandler) {
-	GASNETI_TRACE_PRINTF(C, ("dcmf activating handler before: amhandler: %p (head,tail) (%p,%p)\n",
-													  amhandler,gasnetc_amhandler_active_list_head, gasnetc_amhandler_active_list_tail));
+	GASNETI_TRACE_PRINTF(C, ("dcmf activating handler before: amhandler: %p \n", amhandler));
 	
-	if(gasnetc_amhandler_active_list_head==NULL) {
-    /*queue is empty: this item is the queue*/
-		gasneti_assert(gasnetc_amhandler_active_list_tail == NULL);
-    gasnetc_amhandler_active_list_head =
-      gasnetc_amhandler_active_list_tail = 
-      amhandler;
-  } else {
-    /*there is already something on teh queue so put this one at the end */
-    gasneti_assert(gasnetc_amhandler_active_list_head);
-    gasneti_assert(gasnetc_amhandler_active_list_tail);
-    gasnetc_amhandler_active_list_tail->next = amhandler;
-    amhandler->next = NULL;
-    gasnetc_amhandler_active_list_tail = amhandler;
-  }
-	GASNETI_TRACE_PRINTF(C, ("dcmf activating handler after: amhandler: %p (head,tail) (%p,%p)\n",
-														 amhandler,gasnetc_amhandler_active_list_head, gasnetc_amhandler_active_list_tail));
+	gasnetc_fifo_add(&gasnetc_amhandler_active_list, (void*) amhandler);
+
 	
 	gasnetc_active_amhandlers++;
 }
@@ -739,23 +803,8 @@ void gasnetc_activate_amhandler(gasnetc_amhandler_t *amhandler) {
 GASNETI_INLINE(gasnetc_remove_first_active_amhandler) 
 gasnetc_amhandler_t* gasnetc_remove_first_active_amhandler() {
   gasnetc_amhandler_t *ret=NULL;
-  GASNETI_TRACE_PRINTF(C, ("dcmf remove&ret handler before: amhandler: %p (head,tail) (%p,%p)\n",
-														 ret,gasnetc_amhandler_active_list_head, gasnetc_amhandler_active_list_tail));
-	
-	gasneti_assert(gasnetc_amhandler_active_list_head);
-  gasneti_assert(gasnetc_amhandler_active_list_tail);
-  if(gasnetc_amhandler_active_list_head==gasnetc_amhandler_active_list_tail) {
-    /*this is the last element on the active list*/
-    /*reset the head and tail pointers*/
-    ret = gasnetc_amhandler_active_list_head;
-    gasnetc_amhandler_active_list_head=gasnetc_amhandler_active_list_tail=NULL;
-  } else {
-    /*pull the item off the front of the list and update the head pointer*/
-    ret = gasnetc_amhandler_active_list_head;
-    gasnetc_amhandler_active_list_head = ret->next;
-  }
-	GASNETI_TRACE_PRINTF(C, ("dcmf remove&ret handler after: amhandler: %p (head,tail) (%p,%p)\n",
-														 ret,gasnetc_amhandler_active_list_head, gasnetc_amhandler_active_list_tail));
+	ret = (gasnetc_amhandler_t*) gasnetc_fifo_remove(&gasnetc_amhandler_active_list);
+	GASNETI_TRACE_PRINTF(C, ("dcmf remove&ret handler after: amhandler: %p\n",ret));
 	
   return ret;
 }
@@ -823,24 +872,7 @@ void gasnetc_run_amhandler_inner(gasnetc_amhandler_t *handler) {
   }
   
 }
-/*run the first element at the top of the amhandler queue*/
-GASNETI_INLINE(gasnetc_run_first_amhandler) 
-void gasnetc_run_first_amhandler() {
-  /*the way this is written right now it is not reentrant!*/
-  gasnetc_amhandler_t *handler;
-    
-  handler = gasnetc_remove_first_active_amhandler();
-    
-  gasnetc_run_amhandler_inner(handler);
-  /*Once these calls return then they have 
-   * finished their calls and they will not be called again with thte 
-   * current data set so just remove them from the active queue*/
-	
-	GASNETI_TRACE_PRINTF(C,("finished running handler: %p seq: %d\n", handler, handler->seq_number));
-  gasnetc_free_amhandler(handler);
 
- 
-}
 
 /*
   Misc. Active Message Functions
@@ -861,6 +893,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
 
 extern int gasnetc_AMPoll() {
   int retval;
+  gasnetc_amhandler_t *amhandler;
   GASNETI_CHECKATTACH();
     
   /* Make sure lock is aquired*/
@@ -872,15 +905,25 @@ extern int gasnetc_AMPoll() {
 	GASNETI_TRACE_PRINTF(C,("DCMF POLL #1 done"));
 	
   /*if there are active message handlers for us to run*/    
-  if(gasnetc_amhandler_active_list_head) {
-    GASNETI_TRACE_PRINTF(C,("starting to clear active list: (%p,%p) numactive: %d", gasnetc_amhandler_active_list_head, gasnetc_amhandler_active_list_tail, gasnetc_active_amhandlers));
+	amhandler = gasnetc_remove_first_active_amhandler();
+	if(amhandler) {
+    GASNETI_TRACE_PRINTF(C,("starting to clear active list numactive: %d", gasnetc_active_amhandlers));
 		/*run any active message functions that got queued*/
-		while(gasnetc_amhandler_active_list_head) {
-      gasnetc_run_first_amhandler();
-    }
+    
+    do {
+        
+      gasnetc_run_amhandler_inner(amhandler);
+      /*Once these calls return then they have 
+       * finished their calls and they will not be called again with thte 
+       * current data set so just remove them from the active queue*/
+    	
+    	GASNETI_TRACE_PRINTF(C,("finished running handler: %p seq: %d\n", amhandler, amhandler->seq_number));
+      gasnetc_free_amhandler(amhandler);
+    	amhandler = gasnetc_remove_first_active_amhandler();
+    } while(amhandler!=NULL);
 		/*clear the entire active list at one shot*/
 		gasnetc_active_amhandlers = 0;
-		GASNETI_TRACE_PRINTF(C,("finishing clear active list: (%p,%p)", gasnetc_amhandler_active_list_head, gasnetc_amhandler_active_list_tail));
+		GASNETI_TRACE_PRINTF(C,("finishing clear active list"));
 		
 		/*i don't think we need this since the advance are already called int he reply function sendam routines*/
 #if 0
@@ -1210,6 +1253,8 @@ void gasnetc_send_am(gasnetc_dcmf_amtype_t amtype, gasnetc_dcmf_amcategory_t amc
   }
 }
 
+
+
 #define PACKAGE_AND_SEND_AM(AMTYPE, AMCAT, DEST_NODE, HANDLER_IDX, ARGPTR, NUMARGS, DST_ADDR, SRC_ADDR, NBYTES, TOKEN) do { \
     /*statically allocate the arg quads*/				\
     DCQuad quads[GASNETC_MAXQUADS_PER_AM];				\
@@ -1221,6 +1266,7 @@ void gasnetc_send_am(gasnetc_dcmf_amtype_t amtype, gasnetc_dcmf_amcategory_t amc
     /*fire off the AM*/							\
     gasnetc_send_am((AMTYPE), (AMCAT), (DEST_NODE), quads, numactualquads, (SRC_ADDR), (NBYTES), (TOKEN)); \
   } while(0)
+
 
 
 extern int gasnetc_AMRequestShortM( 
