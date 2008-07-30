@@ -232,7 +232,7 @@ void gasnetc_dcmf_bootstrapExchange(void *src, size_t nbytes, void *dst) {
 		  1);
     }
     
-    memcpy((void*)((uintptr_t)dst+gasneti_mynode*nbytes), src, nbytes);
+    GASNETE_FAST_UNALIGNED_MEMCPY((void*)((uintptr_t)dst+gasneti_mynode*nbytes), src, nbytes);
     while(num_send_recv_done[0]!=gasneti_nodes-1) DCMF_Messager_advance();
     while(num_send_recv_done[1]!=gasneti_nodes-1) DCMF_Messager_advance();
     

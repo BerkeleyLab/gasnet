@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_internal.h,v $
- *     $Date: 2008/07/29 18:49:37 $
- * $Revision: 1.1.2.10 $
+ *     $Date: 2008/07/30 00:01:41 $
+ * $Revision: 1.1.2.11 $
  * Description: GASNet dcmf conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -26,10 +26,26 @@
 #define DCMF_SAFE(FUNCALL) if(FUNCALL!=DCMF_SUCCESS) gasneti_fatalerror("DCMF error on line (%s)%d\n", __FILE__, __LINE__)
 
 #define ALIGN_STRUCT(BYTES) __attribute__((__aligned__(BYTES)))
+
+
 typedef struct gasnetc_dcmf_req_t_{
 	struct gasnetc_dcmf_req_t_ *next;
 	DCMF_Request_t req;
 } gasnetc_dcmf_req_t ALIGN_STRUCT(1024);
+
+typedef struct gasnetc_dcmf_nack_req_t_ {
+	struct gasnetc_dcmf_nack_req_t_ *next;
+	unsigned peer;
+	unsigned remote_replay_buffer;
+	DCMF_Request_t req;
+} gasnetc_dcmf_nack_req_t ALIGN_STRUCT(1024);
+
+
+typedef enum{
+	GASNETC_MSG_ACK=0,
+	GASNETC_MSG_NACK,
+	GASNETC_NUM_ACKTYPES
+} gasnetc_dcmf_ack_t;
 
 typedef enum{
 	GASNETC_AMREQ=0, 
@@ -64,7 +80,7 @@ typedef struct gasnetc_replay_buffer_t_ {
 	struct gasnetc_replay_buffer_t_ *next;
 	gasnetc_dcmf_amtype_t amtype;
 	gasnetc_dcmf_amcategory_t amcat;
-	gasnet_node_t dest;
+	gasnet_node_t dest_node;
 	unsigned numquads;
 	gasnetc_ambuf_t *buffer;
 	size_t buffer_size;
@@ -80,6 +96,7 @@ typedef struct gasnetc_token_t_ {
 	gasnetc_dcmf_amtype_t amtype;
 	gasnetc_dcmf_amcategory_t amcat;
 	gasnetc_dcmf_req_t *dcmf_req;
+	unsigned remote_replay_buffer;
 } gasnetc_token_t ALIGN_STRUCT(32);
 
 typedef struct gasnetc_amhandler_t_{ 
@@ -115,12 +132,12 @@ void _gasnetc_fifo_add(gasnetc_fifo_t* fifo, void **elem) {
 	if(fifo->head == NULL) {
 		gasneti_assert(fifo->tail == NULL);
 		/*assumes the first sizeof(void*) bytes are used for linkage*/
-		fifo->head = fifo->tail = elem; 
+		fifo->head = fifo->tail = elem;
 	} else {
 		gasneti_assert(fifo->head && fifo->tail);
-		*elem = NULL; /*elem->next = NULL*/
-		*fifo->tail = elem; /*tail->next = elem*/
-		fifo->tail = elem; /*tail = elem*/
+		*elem = NULL;
+		*fifo->tail = elem;
+		fifo->tail = elem;
 	}
 	gasneti_mutex_unlock(&(fifo->lock));
 }
@@ -131,14 +148,15 @@ void *_gasnetc_fifo_remove(gasnetc_fifo_t *fifo) {
 	
 
 	gasneti_mutex_lock(&(fifo->lock));
-	if(fifo->head == NULL) ret = NULL;
-	else if(fifo->head == fifo->tail) {
+	if(fifo->head == NULL){ 
+		ret = NULL;
+	} else if(fifo->head == fifo->tail) {
 		/*this was the last elem on the list*/
-		ret = fifo->head; 
+		ret = fifo->head;
 		fifo->head = fifo->tail = NULL;	
 	} else {
-		ret = fifo->head; 
-		fifo->head = *ret; /*head = head->next*/
+		ret = fifo->head;
+		fifo->head = *ret;
 	}
 	gasneti_mutex_unlock(&(fifo->lock));
 	
