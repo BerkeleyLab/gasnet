@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.h,v $
- *     $Date: 2008/07/25 19:35:13 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2008/07/31 04:27:18 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet header for dcmf conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -125,7 +125,7 @@ typedef struct _gasnet_hsl_t {
 /*declare as a pure number for static declarations*/
 #define GASNETC_AMMAXMED 512
 
-#define gasnet_AMMaxArgs()          ((size_t)24)
+#define gasnet_AMMaxArgs()          ((size_t)16)
 #define gasnet_AMMaxMedium()        ((size_t)GASNETC_AMMAXMED)
 #define gasnet_AMMaxLongRequest()   ((size_t)512*1024*1024)
 #define gasnet_AMMaxLongReply()     ((size_t)512*1024*1024)

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2008/05/01 21:14:51 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2008/07/31 04:27:18 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet header for dcmf conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -46,6 +46,12 @@
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
-#define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
-
+#define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) \
+VAL(C, NACK_LIST_LEN, len) \
+CNT(C, AMREQ_REJECT, cnt) \
+VAL(C, AMREQ_RESEND_COUNT, cnt) \
+CNT(C, DCMF_NACK_SENT, cnt) \
+CNT(C, DCMF_ACK_SENT, cnt) \
+VAL(C, AMHANDLER_LIST_LEN, len) \
+TIME(C, GET_REPLAY_BUFFER_STALL, waittime)
 #endif

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2008/07/30 00:01:41 $
- * $Revision: 1.1.2.13 $
+ *     $Date: 2008/07/31 04:27:18 $
+ * $Revision: 1.1.2.14 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -24,7 +24,8 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 
 /*turns on the ability for the conduit to send negative acknowledgments*/
 /*without this we will always blindly accept all incoming active messages*/
-#define GASNETC_FLOW_CONTROL_ENABLED 0
+#define GASNETC_FLOW_CONTROL_ENABLED 1
+
 
 #if !GASNET_SEQ
 #error ONLY SEQ BUILDS SUPPORTED FOR NOW... Stay tuned for PAR/PARSYNC support
@@ -103,7 +104,7 @@ void gasnetc_ack_msg_cb(void *client_data,
 void gasnetc_add_to_nack_list_cb(void *client_data,
 		const DCMF_Control_t *info,
 		unsigned peer);
-
+void gasnetc_resend_am_req(gasnetc_replay_buffer_t *replay_buffer);
 
 
 
@@ -285,9 +286,12 @@ static int gasnetc_init(int *argc, char ***argv) {
   /*initialize file scoped global variables*/
 
 	/*XXX: change these to be environment tunable values*/
-	gasneti_semaphore_init(&gasnetc_replay_buffers_left, GASNETC_DEFAULT_MAX_REPLAY_BUFFERS, GASNETI_SEMAPHORE_MAX);
-	gasneti_semaphore_init(&gasnetc_incoming_buffers_available, GASNETC_DEFAULT_MAX_INCOMING_BUFFERS, GASNETI_SEMAPHORE_MAX);
-
+ {
+	 int64_t replay_buffer_count = gasneti_getenv_int_withdefault("GASNET_DCMF_MAX_REPLAY_BUFFERS", GASNETC_DEFAULT_MAX_REPLAY_BUFFERS, 0);
+	 int64_t incoming_buffer_count = gasneti_getenv_int_withdefault("GASNET_DCMF_INCOMING_BUFFERS", GASNETC_DEFAULT_MAX_INCOMING_BUFFERS, 0);
+	 gasneti_semaphore_init(&gasnetc_replay_buffers_left, replay_buffer_count, GASNETI_SEMAPHORE_MAX);
+	 gasneti_semaphore_init(&gasnetc_incoming_buffers_available, incoming_buffer_count, GASNETI_SEMAPHORE_MAX);
+ }
 	gasnetc_active_amhandlers=0;
   gasnetc_curr_seq_number = 0;
 
@@ -747,6 +751,10 @@ gasnetc_replay_buffer_t* gasnetc_get_replay_buffer(size_t nbytes, int allocate_b
 			/*we haven't exceeded our max number of allocateable replay buffers so create one*/
 			ret = (gasnetc_replay_buffer_t*) gasneti_malloc(sizeof(gasnetc_replay_buffer_t));
 		} else {
+#if GASNETI_STATS_OR_TRACE
+			gasneti_tick_t wait_start = GASNETI_TICKS_NOW_IFENABLED(C);
+#endif
+			
 			/* we have exceeeded our maxiumum allocateable number of buffers and there are none left
 			 * so we have to wait until more are available*/
 			ret = gasneti_lifo_pop(&gasnetc_replay_buffer_free_list);
@@ -757,6 +765,7 @@ gasnetc_replay_buffer_t* gasnetc_get_replay_buffer(size_t nbytes, int allocate_b
 					ret = gasneti_lifo_pop(&gasnetc_replay_buffer_free_list);
 			}
 			DCMF_CriticalSection_exit(0);
+			GASNETI_TRACE_EVENT_TIME(C, GET_REPLAY_BUFFER_STALL, GASNETI_TICKS_NOW_IFENABLED(C)-wait_start);
 		}
 	}
 
@@ -774,7 +783,7 @@ gasnetc_replay_buffer_t* gasnetc_get_replay_buffer(size_t nbytes, int allocate_b
 GASNETI_INLINE(gasnetc_free_replay_buffer)
 void gasnetc_free_replay_buffer(gasnetc_replay_buffer_t *replay_buf) {
 	GASNETI_TRACE_PRINTF(C,("Free replay buffer: %p (%d,%d) dest: %d, numquads: %d, buffer: %p, buffer_size: %d, quads: %p\n",
-													replay_buf, replay_buf->amtype, replay_buf->amcat, replay_buf->dest, replay_buf->numquads, replay_buf->buffer, replay_buf->buffer_size, replay_buf->quads));
+													replay_buf, replay_buf->amtype, replay_buf->amcat, replay_buf->dest_node, replay_buf->numquads, replay_buf->buffer, replay_buf->buffer_size, replay_buf->quads));
 	if(replay_buf->amcat == GASNETC_AMMED && replay_buf->buffer_size > 0) {
 		gasneti_assert(replay_buf->buffer);
 		gasnetc_free_ambuf(replay_buf->buffer); 
@@ -797,13 +806,15 @@ static uint32_t ack_counter=0;
 #define GASNETC_SEND_ACK(PEER, REMOTE_REPLAY_BUFFER) do{\
 	DCQuad outmsg; outmsg.w0 = (REMOTE_REPLAY_BUFFER); outmsg.w1 = ack_counter; \
 GASNETI_TRACE_PRINTF(C,("sending Positive ACK (ACK) to %d w/ buffer 0x%x (%d)\n", PEER, REMOTE_REPLAY_BUFFER, ack_counter++));\
+	GASNETI_TRACE_EVENT(C, DCMF_ACK_SENT);\
  DCMF_SAFE(DCMF_Control(&gasnetc_dcmf_ack_registration, DCMF_RELAXED_CONSISTENCY,(PEER),&outmsg));\
 } while(0)
 
 #define GASNETC_SEND_NACK(PEER, REMOTE_REPLAY_BUFFER) do{\
-	DCQuad outmsg; outmsg.w0 = (REMOTE_REPLAY_BUFFER); outmsg.w1 = ack_counter;\
+	 DCQuad outmsg; outmsg.w0 = (REMOTE_REPLAY_BUFFER); outmsg.w1 = ack_counter;\
 GASNETI_TRACE_PRINTF(C,("sending Negative ACK (NACK) to %d w/ buffer 0x%x (%d)\n", PEER, REMOTE_REPLAY_BUFFER, ack_counter++));\
-	DCMF_SAFE(DCMF_Control(&gasnetc_dcmf_ack_registration, DCMF_RELAXED_CONSISTENCY,(PEER),&outmsg));\
+	GASNETI_TRACE_EVENT(C, DCMF_NACK_SENT);\
+ DCMF_SAFE(DCMF_Control(&gasnetc_dcmf_nack_registration, DCMF_RELAXED_CONSISTENCY,(PEER),&outmsg));\
 } while(0)
 
 void gasnetc_add_replay_to_nack_list(gasnetc_replay_buffer_t* replay_buf) {
@@ -960,11 +971,13 @@ void gasnetc_run_amhandler_inner(gasnetc_amhandler_t *handler) {
     break;
   default: gasneti_fatalerror("unknown AM category"); break;
   }
-  
+	
+#if GASNETC_FLOW_CONTROL_ENABLED
   if(handler->token->sent_reply == 0 && handler->token->amtype == GASNETC_AMREQ) {
   	/*the handler didn't send a reply so we have to send an explicit ACK over the control channel*/
   	GASNETC_SEND_ACK(handler->token->srcnode, handler->token->remote_replay_buffer);
   }
+#endif
   
 }
 
@@ -986,28 +999,53 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   return GASNET_OK;
 }
 
+#if GASNETC_FLOW_CONTROL_ENABLED
+#define GASNETC_RESEND_AMREQS() do {\
+  gasnetc_replay_buffer_t *replay_buffer;\
+  replay_buffer = gasnetc_remove_from_nack_list();\
+	if(replay_buffer) {\
+    uint32_t count=0;\
+		GASNETI_TRACE_PRINTF(C,("resending from NACK list"));\
+		do {\
+			gasnetc_resend_am_req(replay_buffer);\
+      count++;\
+			replay_buffer = gasnetc_remove_from_nack_list();\
+		} while(replay_buffer!=NULL);\
+	GASNETI_TRACE_EVENT_VAL(C, NACK_LIST_LEN, count);\
+	}\
+} while (0)
+#else 
+#define GASNETC_RESEND_AMREQS() do {} while(0)
+#endif
+
 extern int gasnetc_AMPoll() {
   int retval;
   gasnetc_amhandler_t *amhandler;
-  GASNETI_CHECKATTACH();
-    
+
+	
+	GASNETI_CHECKATTACH();
+
+	/*kick the entire system once*/
+	GASNETI_TRACE_PRINTF(C,("Starting AMPoll"));
   /* Make sure lock is aquired*/
 	DCMF_CriticalSection_enter(0);
-	GASNETI_TRACE_PRINTF(C,("DCMF POLL #1"));
-  /*Run the DCMF active message handlers to queue whatever was left*/
+	/*Run the DCMF active message handlers to queue whatever was left*/
   DCMF_Messager_advance();
   DCMF_CriticalSection_exit(0);
-	GASNETI_TRACE_PRINTF(C,("DCMF POLL #1 done"));
-	
+
+	/*resend any old AMs that we have queued up before handling the new ones*/
+	GASNETC_RESEND_AMREQS();
+
   /*if there are active message handlers for us to run*/    
 	amhandler = gasnetc_remove_first_active_amhandler();
 	if(amhandler) {
-    GASNETI_TRACE_PRINTF(C,("starting to clear active list numactive: %d", gasnetc_active_amhandlers));
+		int amhandler_list_len=0;
+     GASNETI_TRACE_PRINTF(C,("starting to clear active list numactive: %d", gasnetc_active_amhandlers));
 		/*run any active message functions that got queued*/
     
     do {
-        
-      gasnetc_run_amhandler_inner(amhandler);
+			gasnetc_run_amhandler_inner(amhandler);
+			amhandler_list_len ++;
       /*Once these calls return then they have 
        * finished their calls and they will not be called again with thte 
        * current data set so just remove them from the active queue*/
@@ -1019,7 +1057,10 @@ extern int gasnetc_AMPoll() {
 		/*clear the entire active list at one shot*/
 		gasnetc_active_amhandlers = 0;
 		GASNETI_TRACE_PRINTF(C,("finishing clear active list"));
+		GASNETI_TRACE_EVENT_VAL(C, AMHANDLER_LIST_LEN, amhandler_list_len);
   }
+
+	
   return GASNET_OK;
 }
 
@@ -1072,13 +1113,17 @@ void gasnetc_dcmf_handle_am_short(void *clientdata,
 
 	GASNETI_TRACE_PRINTF(C, ("running short handler: (%d,%d) dst: %p transfersize: %d numargs: %d handleridx: %d replay: %x", 
 													 amcat, amtype, dstaddr, transfer_size, numargs, handleridx, remote_replay_buffer));
-#if GASNETC_FLOW_CONTROL_ENABLED
+#if GASNETC_FLOW_CONTROL_ENABLED 
 	/*first check if we can accept the message*/
 	/*otherwise just drop the arguments on the floor and ask for a resend*/
 	if(amtype == GASNETC_AMREQ) {
 		int sem_result;
+
 		sem_result = gasneti_semaphore_trydown(&gasnetc_incoming_buffers_available);
+
 		if(sem_result == 0) {
+			GASNETI_TRACE_EVENT(C, AMREQ_REJECT);
+			GASNETI_TRACE_PRINTF(C,("short handler: AM REJECTED! not accepting args"));
 			/*we can't accept the message so send a "NACK" back to teh sender*/
 			/*if this was an AMLong copy the payload to the final destination but don't queue the AM*/
 			if((amcat == GASNETC_AMLONG) || (amcat == GASNETC_AMLONGASYNC)) {
@@ -1087,13 +1132,12 @@ void gasnetc_dcmf_handle_am_short(void *clientdata,
 			GASNETC_SEND_NACK(peer, remote_replay_buffer);
 			return;
 		}
-	 else 
-#endif
-		if (amtype == GASNETC_AMREP){
-			/*this was a reply to one of our requests so go ahead and clear the associated replay buffer*/
-			gasnetc_free_replay_buffer((gasnetc_replay_buffer_t*) remote_replay_buffer);
-		}
 
+	} else if (amtype == GASNETC_AMREP){
+		/*this was a reply to one of our requests so go ahead and clear the associated replay buffer*/
+		gasnetc_free_replay_buffer((gasnetc_replay_buffer_t*) remote_replay_buffer);
+	}
+#endif	
 	/*if we get this far this means we have permission to construct the token and construct the amhandler reply*/
   /*construct token no need to allocate DCMF Req since this is a short callback*/
 	token = gasnetc_construct_token(peer, amtype, amcat, remote_replay_buffer, 0); /*pull a token off the free list if one is available*/		
@@ -1141,11 +1185,11 @@ void gasnetc_dcmf_handle_am_short(void *clientdata,
 	
 	} else if((amcat == GASNETC_AMLONG) || (amcat == GASNETC_AMLONGASYNC)) {
 		void *ambuf;
-    gasneti_assert(transfer_size == bytes);
+
     if(transfer_size > 0) gasneti_assert(dstaddr);
     ambuf = dstaddr;
 		/*even if handler is run inline we need to copy the data to the user specified buffer*/
-    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(ambuf, src, bytes); /*copy data into bounce buffer*/
+    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(ambuf, src, bytes); /*copy data into bounce buffer: use the bytes argument since on a resend bytes will be 0 and transfer size will containt he actual transfer size of hte orignal message*/
 		amhandler = gasnetc_construct_new_amhandler(token, handleridx, (void*) ambuf, 0, transfer_size, argquads, argquadcount, numargs);
   } else {
     gasneti_fatalerror("unknown am category");
@@ -1167,6 +1211,7 @@ void gasnetc_dcmf_handle_am_short(void *clientdata,
 	}
 	
 }
+	
 
 /*this callback is invoked when the active message payload has been accepted but not the args*/
 void gasnetc_dcmf_handle_am_fail(void *arg) {
@@ -1246,12 +1291,14 @@ DCMF_Request_t* gasnetc_dcmf_handle_am_header(void *clientdata,
     argquads = (DCQuad*) &msginfo[1];
   }
 	
-#if GASNETC_FLOW_CONTROL_ENABLED
+#if GASNETC_FLOW_CONTROL_ENABLED 
 	if(amtype == GASNETC_AMREQ) {
 		int sem_result;
 		sem_result = gasneti_semaphore_trydown(&gasnetc_incoming_buffers_available);
 		if(sem_result == 0) {
 			gasnetc_dcmf_nack_req_t *request;
+			GASNETI_TRACE_EVENT(C, AMREQ_REJECT);
+			GASNETI_TRACE_PRINTF(C,("header handler: AM REJECTED! not accepting args"));
 			request = gasnetc_get_dcmf_nack_req(peer, remote_replay_buffer);
 			request->peer = peer;
 			/*we can't accept the message so send a "NACK" back to teh sender*/
@@ -1267,12 +1314,11 @@ DCMF_Request_t* gasnetc_dcmf_handle_am_header(void *clientdata,
 		  cb_done->clientdata = (void*) request;
 			return &request->req;
 		}
-	} else 
-#endif
-	if (amtype == GASNETC_AMREP){
+	} else if (amtype == GASNETC_AMREP){
 		/*this was a reply to one of our requests so go ahead and clear the associated replay buffer*/
 		gasnetc_free_replay_buffer((gasnetc_replay_buffer_t*) remote_replay_buffer);
 	}
+#endif
   /*construct token. make sure allocate a DCMF request so that we can return it*/
   
 	/*in the case that this is a reply the remote_replay_buffer arguemnt will never be read again*/
@@ -1302,7 +1348,10 @@ DCMF_Request_t* gasnetc_dcmf_handle_am_header(void *clientdata,
 		amhandler = gasnetc_construct_new_amhandler(token, handleridx, (void*) ambuf, 1, transfer_size,argquads, argquadcount, numargs);
 	} else if((amcat == GASNETC_AMLONG) || (amcat == GASNETC_AMLONGASYNC)) {
 		void *ambuf;
-    gasneti_assert(transfer_size == sendlen);
+    /*since DCMF requires the short handler be invoked on zero-byte transfers
+			the resends of a long will go through the short handler process
+			thus it is safe to check this assertion here*/
+		gasneti_assert(transfer_size == sendlen);
     if(transfer_size>0) gasneti_assert(dstaddr);
     *rcvbuf = ambuf = dstaddr;
     *rcvlen = sendlen;
@@ -1346,12 +1395,14 @@ void gasnetc_resend_am_req(gasnetc_replay_buffer_t *replay_buffer) {
 	/*** LOGIC TO SEE if its safe to resend this replay buffer*/
 	ok_to_reend = 1;
 	if(!ok_to_resend) {
+		/*add to the end of the nack list*/
+		gasnetc_add_replay_to_nack_list(replay_buffer);
 		return;
 	}
 #endif
-
+	
 	replay_buffer->retry_count++;
-
+	GASNETI_TRACE_EVENT_VAL(C, AMREQ_RESEND_COUNT, replay_buffer->retry_count);
 	
 	/*arguments and  quads have already been packaged so send htem off*/
 	/*and wait for send to complete*/
@@ -1372,30 +1423,26 @@ void gasnetc_resend_am_req(gasnetc_replay_buffer_t *replay_buffer) {
 												replay_buffer->dest_node, 0, NULL,
 												replay_buffer->quads, replay_buffer->numquads));
 		
-	} else if (nbytes <= gasnetc_dcmf_eager_limit) {
+	} else if (replay_buffer->buffer_size <= gasnetc_dcmf_eager_limit) {
 		/*send eager message*/
 		DCMF_SAFE(DCMF_Send(&GASNETC_DCMF_AM_REGISTARTION(replay_buffer->amtype, replay_buffer->amcat, GASNETC_DCMF_SEND_EAGER),
 												&req,
 												send_done_callback,
 												DCMF_RELAXED_CONSISTENCY,
-												replay_buffer->dest_node, replay_buffer->buffer_size, replay_buffer->buffer->data,
+												replay_buffer->dest_node, replay_buffer->buffer_size, (void*) replay_buffer->buffer->data,
 												replay_buffer->quads, replay_buffer->numquads));
 		
 	} else {
-		DCMF_SAFE(DCMF_Send(&GASNETC_DCMF_AM_REGISTARTION(amtype, amcat, GASNETC_DCMF_SEND_DEFAULT),
+		DCMF_SAFE(DCMF_Send(&GASNETC_DCMF_AM_REGISTARTION(replay_buffer->amtype, replay_buffer->amcat, GASNETC_DCMF_SEND_DEFAULT),
 												&req,
 												send_done_callback,
 												DCMF_RELAXED_CONSISTENCY,
-												replay_buffer->dest_node, replay_buffer->buffer_size, replay_buffer->buffer->data,
+												replay_buffer->dest_node, replay_buffer->buffer_size, (void*) replay_buffer->buffer->data,
 												replay_buffer->quads, replay_buffer->numquads));
 	}
 	while(send_done == 0) {DCMF_Messager_advance();}
 	DCMF_CriticalSection_exit(0);
 }
-
-
-
-
 
 GASNETI_INLINE(gasnetc_send_am_req)
 void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_node, 
@@ -1403,28 +1450,45 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
   volatile uint8_t send_done=0;
   DCMF_Callback_t send_done_callback;
   gasnetc_dcmf_req_t *dcmf_req;
-  gasnetc_replay_buffer_t *replay_buffer;
 	gasnetc_dcmf_amtype_t amtype = GASNETC_AMREQ;
-	dcmf_req  = gasnetc_get_dcmf_req();
+
+#if GASNETC_FLOW_CONTROL_ENABLED
+	gasnetc_replay_buffer_t *replay_buffer;
+	DCQuad *quads;
+  unsigned *numquads_ptr;
+#else
+	DCQuad quads[GASNETC_MAXQUADS_PER_AM];
+	unsigned numquads_data=0;
+	unsigned *numquads_ptr = &numquads_data;
+	unsigned replay_buffer = 0;
+#endif
 	
+#if GASNETC_FLOW_CONTROL_ENABLED
+	/*try to clear the NACK list before we inject another AM to avoid starvation*/
+	GASNETC_RESEND_AMREQS();
 	
 	/*getting a replay buffer allocated implies that we have permission to send an AM from
 	 * this node*/
 	replay_buffer = gasnetc_get_replay_buffer(nbytes, (amcat == GASNETC_AMMED?1:0));
-	
+	quads = replay_buffer->quads;
+	numquads_ptr = &replay_buffer->numquads;
+
 	replay_buffer->amtype = amtype; replay_buffer->amcat = amcat;
 	replay_buffer->dest_node = dest_node; replay_buffer->buffer_size = nbytes;
+#endif
 	
+
+	dcmf_req  = gasnetc_get_dcmf_req();
 	
 
 	/*if this is request send the id of the replay buffer so we can deal with it on an ack or nack*/
 	/*if it is a reply then we send back whatever the requester sent us*/
-	GASNETC_MAKE_HEADER_QUAD(amtype, amcat, numargs, handler_idx, dst_addr, (unsigned) replay_buffer , nbytes, replay_buffer->quads);
-	GASNETC_PACK_ARG_QUADS(numargs, argptr, replay_buffer->quads+1, &replay_buffer->numquads);
-	replay_buffer->numquads++; /*add one for the header*/ 
+	GASNETC_MAKE_HEADER_QUAD(amtype, amcat, numargs, handler_idx, dst_addr, (unsigned) replay_buffer , nbytes, quads);
+	GASNETC_PACK_ARG_QUADS(numargs, argptr, quads+1, numquads_ptr);
+	(*numquads_ptr)++; /*add one for the header*/ 
 	
-	gasneti_assert(replay_buffer->numquads > 0); /*need at least one header*/
-	if(numargs>0) gasneti_assert(replay_buffer->numquads > 1);	
+	gasneti_assert((*numquads_ptr) > 0); /*need at least one header*/
+	if(numargs>0) gasneti_assert((*numquads_ptr) > 1);	
 	
 	
 	if(amcat != GASNETC_AMLONGASYNC) {
@@ -1449,8 +1513,8 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
 		/*send control if the active message has no payload and no args?*/
 	} else if (nbytes <= gasnetc_dcmf_eager_limit) {
 		GASNETI_TRACE_PRINTF(C,("sending eager headerquad: (%x,%d,%d,%d) am(%d,%d) to %d src: %p nbytes: %d quads %p numquads %d", 
-														replay_buffer->quads[0].w0, replay_buffer->quads[0].w1, replay_buffer->quads[0].w2, replay_buffer->quads[0].w3,
-														amtype, amcat, dest_node, src_addr, nbytes, replay_buffer->quads, replay_buffer->numquads));
+														quads[0].w0, quads[0].w1, quads[0].w2, quads[0].w3,
+														amtype, amcat, dest_node, src_addr, nbytes, quads, *numquads_ptr));
 		
 		/*send eager message*/
 		DCMF_SAFE(DCMF_Send(&GASNETC_DCMF_AM_REGISTARTION(amtype, amcat, GASNETC_DCMF_SEND_EAGER),
@@ -1458,25 +1522,27 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
 												send_done_callback,
 												DCMF_RELAXED_CONSISTENCY,
 												dest_node, nbytes, src_addr,
-												replay_buffer->quads, replay_buffer->numquads));
+												quads, *numquads_ptr));
 		
 	} else {
 		/*send default message*/
 		GASNETI_TRACE_PRINTF(C,("sending rvous headerquad: (%x,%d,%d,%d) am(%d,%d) to %d src: %p nbyts: %d quads %p numquads %d", 
-														replay_buffer->quads[0].w0, replay_buffer->quads[0].w1, replay_buffer->quads[0].w2, replay_buffer->quads[0].w3,
-														amtype, amcat, dest_node, src_addr, nbytes,  replay_buffer->quads, replay_buffer->numquads));
+														quads[0].w0, quads[0].w1, quads[0].w2, quads[0].w3,
+														amtype, amcat, dest_node, src_addr, nbytes,  quads, *numquads_ptr));
 		
 		DCMF_SAFE(DCMF_Send(&GASNETC_DCMF_AM_REGISTARTION(amtype, amcat, GASNETC_DCMF_SEND_DEFAULT),
 												&dcmf_req->req,
 												send_done_callback,
 												DCMF_RELAXED_CONSISTENCY,
 												dest_node, nbytes, src_addr,
-												replay_buffer->quads, replay_buffer->numquads));
+												quads, *numquads_ptr));
 	}
 	/*if its an AMMedium Request copy the payload so that we can replay it later if needed*/
 	/*perform the send here to overlap the memcpy with the send operation*/
+#if GASNETC_FLOW_CONTROL_ENABLED
 	if(amcat== GASNETC_AMMED) 
 		GASNETE_FAST_UNALIGNED_MEMCPY(replay_buffer->buffer->data, src_addr, nbytes);
+#endif
 	
 	/*if its not a long async, no need to for local message completion handled by user*/
 	if(amcat!=GASNETC_AMLONGASYNC) {
@@ -1490,7 +1556,7 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
 	if(amcat!=GASNETC_AMLONGASYNC) {
 		gasnetc_free_dcmf_req(dcmf_req);
 	}
-	
+
 }
  
 GASNETI_INLINE(gasnetc_send_am_rep) 
@@ -1561,43 +1627,6 @@ void gasnetc_send_am_rep(gasnetc_dcmf_amcategory_t amcat,
 	DCMF_CriticalSection_exit(0);
   token->sent_reply = 1;
 }
-
-/* #if 0 */
-
-/* void PACKAGE_AND_SEND_AM(gasnetc_amtype_t amtype, gasnetc_amcategory_t amcat, gasnet_node_t dest_node, */
-/* 			int handler_idx, va_list agrptr, int numargs, void *dst_addr, void *src_addr, size_t nbytes, gasnetc_token_t* token){ */
-/* 	gasnetc_replay_buffer_t *replay_buffer; */
-	
-/* 	if(amtype == GASNETC_AMREQ) { */
-/* 		/\*requests have the possibility of being replayed so we need to copy them into their replay buffers*\/ */
-/* 		replay_buffer = gasnetc_get_replay_buffer((amcat==GASNETC_AMMED?nbytes:0)); */
-		
-/* 	} else { */
-/* 		/\*there's always space on the remote side for a reply since the remote side knows it sent a message so buffers won't get exhausted*\/ */
-		
-/* 	} */
-	
-/* 	/\*First allocate the replay buffer so we can pack the arg quads*\/ */
-/* 	gasnetc_replay_buffer_t *replay_buf; */
-	
-/* 	if(amtype) */
-	
-/* } */
-
-
-/* #define PACKAGE_AND_SEND_AM(AMTYPE, AMCAT, DEST_NODE, HANDLER_IDX, ARGPTR, NUMARGS, DST_ADDR, SRC_ADDR, NBYTES, TOKEN) do { \ */
-/*     /\*statically allocate the arg quads*\/				\ */
-/*     DCQuad quads[GASNETC_MAXQUADS_PER_AM];				\ */
-/*     unsigned numactualquads=0;						\ */
-/*     /\*package the header/data quqads*\/					\ */
-/*     GASNETC_MAKE_HEADER_QUAD((AMTYPE), (AMCAT), (NUMARGS), (HANDLER_IDX), (DST_ADDR), (NBYTES), quads);	\ */
-/*     GASNETC_PACK_ARG_QUADS((NUMARGS), (ARGPTR), quads+1, &numactualquads); \ */
-/*     numactualquads++; /\*add one for the header*\/ if((NUMARGS)>0) gasneti_assert(numactualquads > 1);			\ */
-/*     /\*fire off the AM*\/							\ */
-/*     gasnetc_send_am((AMTYPE), (AMCAT), (DEST_NODE), quads, numactualquads, (SRC_ADDR), (NBYTES), (TOKEN)); \ */
-/*   } while(0) */
-/* #endif */
-
 
 extern int gasnetc_AMRequestShortM( 
 				   gasnet_node_t dest,       /* destination node */
