@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2008/07/08 06:51:47 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2008/07/31 19:59:05 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1010,9 +1010,9 @@ static void gasnete_dcmfbarrier_init() {
 		*/
 		config.protocol = DCMF_DEFAULT_GLOBALBARRIER_PROTOCOL;
 #endif
-		
-			DCMF_SAFE(DCMF_GlobalBarrier_register(&anon_barrier_registration, &config));
-		
+		GASNETC_DCMF_LOCK();
+		DCMF_SAFE(DCMF_GlobalBarrier_register(&anon_barrier_registration, &config));
+		GASNETC_DCMF_UNLOCK();
 	}
 
 	/*initialize named barrier*/
@@ -1037,10 +1037,11 @@ static void gasnete_dcmfbarrier_init() {
 #else
 		config.protocol = DCMF_DEFAULT_GLOBALALLREDUCE_PROTOCOL;
 #endif
+		GASNETC_DCMF_LOCK();
 		DCMF_SAFE(DCMF_GlobalAllreduce_register(&named_barrier_registration, &config));
 		named_barrier_source = -1;
 		named_barrier_result = -1;
-	
+		GASNETC_DCMF_UNLOCK();
 	}
 	barrier_done= 0;
 }
@@ -1069,9 +1070,9 @@ static void gasnete_dcmfbarrier_notify(int id, int flags) {
 	if(flags == GASNET_BARRIERFLAG_ANONYMOUS) {
 		GASNETI_TRACE_PRINTF(B, ("running annoymous barrier notify"));
 		/*run anonymous barrier*/
-		DCMF_CriticalSection_enter(0);
+		GASNETC_DCMF_LOCK();
 		DCMF_SAFE(DCMF_GlobalBarrier(&anon_barrier_registration, &barrier_req, cb_done));
-		DCMF_CriticalSection_exit(0);
+		GASNETC_DCMF_UNLOCK();
 		current_barrier_flags = flags;
 		current_barrier_id = id;
 		barrier_splitstate = INSIDE_BARRIER; 
@@ -1090,12 +1091,12 @@ static void gasnete_dcmfbarrier_notify(int id, int flags) {
 		/*if we use -1 then MIN will automatically propagate -1 to all others*/
 		/*run named barrier by doing an allreduce*/
 		/* DCMF USAGE: root=-1 means its an allreduce*/
-		DCMF_CriticalSection_enter(0);
+		GASNETC_DCMF_LOCK();
 		DCMF_SAFE(DCMF_GlobalAllreduce(&named_barrier_registration, &barrier_req, 
 																	 cb_done, DCMF_MATCH_CONSISTENCY,
 																	 -1, (char*) &named_barrier_source, 
 																	 (char*) &named_barrier_result, 1, DCMF_SIGNED_INT, DCMF_MIN));
-		DCMF_CriticalSection_exit(0);
+		GASNETC_DCMF_UNLOCK();
 		current_barrier_flags = flags;
 		current_barrier_id = id;
 		barrier_splitstate = INSIDE_BARRIER; 

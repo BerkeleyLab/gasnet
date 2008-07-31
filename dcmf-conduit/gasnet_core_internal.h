@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_internal.h,v $
- *     $Date: 2008/07/30 00:01:41 $
- * $Revision: 1.1.2.11 $
+ *     $Date: 2008/07/31 19:59:05 $
+ * $Revision: 1.1.2.12 $
  * Description: GASNet dcmf conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,7 +23,42 @@
 
 #define Z fprintf(stderr,"%d> %s(%d)\n", gasneti_mynode, __FILE__,__LINE__)
 //#define Z do{} while(0
-#define DCMF_SAFE(FUNCALL) if(FUNCALL!=DCMF_SUCCESS) gasneti_fatalerror("DCMF error on line (%s)%d\n", __FILE__, __LINE__)
+
+
+#if GASNET_DEBUG
+extern uint8_t gasnetc_have_dcmf_lock;
+#define DCMF_SAFE(FUNCALL) do{gasneti_assert(gasnetc_have_dcmf_lock); if(FUNCALL!=DCMF_SUCCESS) gasneti_fatalerror("DCMF fatal error at %s:%d\n", __FILE__, __LINE__);} while(0)
+#if GASNET_SEQ
+#define GASNETC_DCMF_LOCK() do {gasneti_assert(gasnetc_have_dcmf_lock==0); gasnetc_have_dcmf_lock=1;} while(0)
+#define GASNETC_DCMF_UNLOCK()  do {gasneti_assert(gasnetc_have_dcmf_lock==1); gasnetc_have_dcmf_lock=0;} while(0)
+#else
+#define GASNETC_DCMF_LOCK() do {gasneti_assert(gasnetc_have_dcmf_lock==0); DCMF_CriticalSection_enter(0); gasnetc_have_dcmf_lock=1;} while(0)
+#define GASNETC_DCMF_UNLOCK() do {gasneti_assert(gasnetc_have_dcmf_lock==1); gasnetc_have_dcmf_lock=0; DCMF_CriticalSection_exit(0);} while(0)
+#endif
+#else
+#define DCMF_SAFE(FUNCALL) if(FUNCALL!=DCMF_SUCCESS) gasneti_fatalerror("DCMF fatal error at %s:%d\n", __FILE__, __LINE__)
+#if GASNET_SEQ
+#define GASNETC_DCMF_LOCK() do {} while(0)
+#define GASNETC_DCMF_UNLOCK()  do {} while(0)
+#else
+#define GASNETC_DCMF_LOCK() DCMF_CriticalSection_enter(0)
+#define GASNETC_DCMF_UNLOCK() DCMF_CriticalSection_exit(0)
+#endif
+#endif
+
+#if GASNETI_STATS_OR_TRACE
+#define DCMF_MESSAGER_POLL() do {\
+unsigned count; \
+gasneti_assert(gasnetc_have_dcmf_lock);\
+ count = DCMF_Messager_advance();\
+GASNETI_TRACE_EVENT_VAL(C, DCMF_POLL_NUM_PROCESSED, count);\
+GASNETI_TRACE_EVENT(C, DCMF_POLL_CALLS);\
+} while(0)
+#else
+#define DCMF_MESSAGER_POLL() do {\
+gasneti_assert(gasnetc_have_dcmf_lock); DCMF_Messager_advance();
+} while(0)
+#endif
 
 #define ALIGN_STRUCT(BYTES) __attribute__((__aligned__(BYTES)))
 
@@ -123,7 +158,7 @@ typedef struct gasnetc_fifo_t_ {
 #define GASNETC_FIFO_INITIALIZER {GASNETI_MUTEX_INITIALIZER, NULL,NULL}
 
 /*GASNETC_FIFO Operations*/
-GASNETI_INLINE(_gasnetc_fifo_add)
+GASNETI_ALWAYS_INLINE(_gasnetc_fifo_add)
 void _gasnetc_fifo_add(gasnetc_fifo_t* fifo, void **elem) {
 	gasneti_assert(elem);
 	gasneti_assert(fifo);
@@ -142,7 +177,7 @@ void _gasnetc_fifo_add(gasnetc_fifo_t* fifo, void **elem) {
 	gasneti_mutex_unlock(&(fifo->lock));
 }
 
-GASNETI_INLINE(_gasnetc_fifo_remove)
+GASNETI_ALWAYS_INLINE(_gasnetc_fifo_remove)
 void *_gasnetc_fifo_remove(gasnetc_fifo_t *fifo) {
 	void **ret;
 	

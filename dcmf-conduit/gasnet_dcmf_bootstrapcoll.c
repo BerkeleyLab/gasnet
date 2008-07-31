@@ -1,4 +1,7 @@
 #include <gasnet_core_internal.h>
+
+
+
 static gasnetc_dcmf_req_t *gasnetc_dcmf_req_free_list;
 static inline gasnetc_dcmf_req_t * gasnetc_get_dcmf_req() {
     gasnetc_dcmf_req_t *req;
@@ -61,7 +64,7 @@ void gasnetc_dcmf_bootstrap_coll_init() {
     DCMF_GlobalBarrier_Configuration_t barrier_config;
     DCMF_GlobalBcast_Configuration_t broadcast_config;
  
-    DCMF_CriticalSection_enter(0);
+    GASNETC_DCMF_LOCK();
     DCMF_Collective_initialize();
     /** Initialize the barrier **/
     gasnetc_bootstrap_barrier = (gasnetc_bootstrap_coll_t*) gasneti_malloc(sizeof(gasnetc_bootstrap_coll_t));
@@ -82,20 +85,20 @@ void gasnetc_dcmf_bootstrap_coll_init() {
     gasnetc_bootstrap_broadcast->callback.clientdata = &gasnetc_bootstrap_broadcast->done_counter;
     
     DCMF_SAFE(DCMF_GlobalBcast_register(&gasnetc_bootstrap_broadcast->registration, &broadcast_config));
-    DCMF_CriticalSection_exit(0);
+    GASNETC_DCMF_UNLOCK();
 }
 
 void gasnetc_dcmf_bootstrapBarrier() {
     gasnetc_bootstrap_coll_t *barr = gasnetc_bootstrap_barrier;
     barr->init_counter++;
-    DCMF_CriticalSection_enter (0);
+    GASNETC_DCMF_LOCK();
     DCMF_SAFE(DCMF_GlobalBarrier(&barr->registration, 
 				 &barr->request,
 				 barr->callback));
     while(barr->done_counter!=barr->init_counter) {
-	DCMF_Messager_advance();
+	DCMF_MESSAGER_POLL();
     }
-    DCMF_CriticalSection_exit (0);
+		GASNETC_DCMF_UNLOCK();
 }
 
 void gasnetc_dcmf_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) {
@@ -105,30 +108,30 @@ void gasnetc_dcmf_bootstrapBroadcast(void *src, size_t len, void *dest, int root
     bcast->init_counter++;
     GASNETI_TRACE_PRINTF(C,("bootstrap bcast src: %p size: %d dst: %p root: %d\n", src, 
 			    len, dest, rootnode));
-    DCMF_CriticalSection_enter (0);
+    GASNETC_DCMF_LOCK();
 
     if(mynode == rootnode) {
-	DCMF_GlobalBcast(&bcast->registration,
-			 &bcast->request,
-			 bcast->callback,
-			 DCMF_MATCH_CONSISTENCY,
-			 rootnode,
-			 (char*) src,
-			 len);
-	memcpy(dest, src, len);
+			DCMF_SAFE(DCMF_GlobalBcast(&bcast->registration,
+																 &bcast->request,
+																 bcast->callback,
+																 DCMF_MATCH_CONSISTENCY,
+																 rootnode,
+																 (char*) src,
+																 len));
+			memcpy(dest, src, len);
     } else {
-	DCMF_GlobalBcast(&bcast->registration, 
-			 &bcast->request,
-			 bcast->callback,
-			 DCMF_MATCH_CONSISTENCY,
-			 rootnode,
-			 (char*) dest,
-			 len);
+			DCMF_SAFE(DCMF_GlobalBcast(&bcast->registration, 
+																 &bcast->request,
+																 bcast->callback,
+																 DCMF_MATCH_CONSISTENCY,
+																 rootnode,
+																 (char*) dest,
+																 len));
     }
     while(bcast->done_counter!=bcast->init_counter) {
-	DCMF_Messager_advance();
+			DCMF_MESSAGER_POLL();
     }
-    DCMF_CriticalSection_exit (0);
+    GASNETC_DCMF_UNLOCK();
     gasnetc_dcmf_bootstrapBarrier();
 }
 
@@ -211,32 +214,32 @@ void gasnetc_dcmf_bootstrapExchange(void *src, size_t nbytes, void *dst) {
     callback.clientdata = &num_send_recv_done[0];
     send_reqs = gasneti_malloc(sizeof(DCMF_Request_t)*gasneti_nodes);
     
-    DCMF_CriticalSection_enter (0);
+		gasnetc_dcmf_bootstrapBarrier();
     
-    
+		GASNETC_DCMF_LOCK();
     DCMF_SAFE(DCMF_Send_register(&registration, &config));
-    
-    gasnetc_dcmf_bootstrapBarrier();
-    for(i=1; i<gasneti_nodes; i++) {
-	DCQuad msginfo;
-	int dest = (gasneti_mynode+i) % gasneti_nodes;
-	
-	DCMF_Send(&registration,
-		  send_reqs+i,
-		  callback,
-		  DCMF_MATCH_CONSISTENCY,
-		  dest,
-		  nbytes,
-		  src,
-		  &msginfo,
-		  1);
+
+		for(i=1; i<gasneti_nodes; i++) {
+			
+			DCQuad msginfo;
+			int dest = (gasneti_mynode+i) % gasneti_nodes;
+			
+			DCMF_SAFE(DCMF_Send(&registration,
+													send_reqs+i,
+													callback,
+													DCMF_MATCH_CONSISTENCY,
+													dest,
+													nbytes,
+													src,
+													&msginfo,
+													1));
     }
     
     GASNETE_FAST_UNALIGNED_MEMCPY((void*)((uintptr_t)dst+gasneti_mynode*nbytes), src, nbytes);
-    while(num_send_recv_done[0]!=gasneti_nodes-1) DCMF_Messager_advance();
-    while(num_send_recv_done[1]!=gasneti_nodes-1) DCMF_Messager_advance();
+    while(num_send_recv_done[0]!=gasneti_nodes-1) DCMF_MESSAGER_POLL();
+    while(num_send_recv_done[1]!=gasneti_nodes-1) DCMF_MESSAGER_POLL();
     
-    DCMF_CriticalSection_exit (0);
+    GASNETC_DCMF_UNLOCK();
     gasnetc_dcmf_bootstrapBarrier();
     
     gasneti_free(cb_args);
