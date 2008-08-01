@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_internal.h,v $
- *     $Date: 2008/07/31 19:59:05 $
- * $Revision: 1.1.2.12 $
+ *     $Date: 2008/08/01 21:56:17 $
+ * $Revision: 1.1.2.13 $
  * Description: GASNet dcmf conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -56,7 +56,7 @@ GASNETI_TRACE_EVENT(C, DCMF_POLL_CALLS);\
 } while(0)
 #else
 #define DCMF_MESSAGER_POLL() do {\
-gasneti_assert(gasnetc_have_dcmf_lock); DCMF_Messager_advance();
+gasneti_assert(gasnetc_have_dcmf_lock); DCMF_Messager_advance();\
 } while(0)
 #endif
 

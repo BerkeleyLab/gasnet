@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2008/07/31 19:59:05 $
- * $Revision: 1.1.2.15 $
+ *     $Date: 2008/08/01 21:56:17 $
+ * $Revision: 1.1.2.16 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -336,19 +336,19 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     int newindex;
 
     if ((table[i].index == 0 && !dontcare) || 
-	(table[i].index && dontcare)) continue;
+				(table[i].index && dontcare)) continue;
     else if (table[i].index) newindex = table[i].index;
     else { /* deterministic assignment of dontcare indexes */
       for (newindex = lowlimit; newindex <= highlimit; newindex++) {
-	if (!checkuniqhandler[newindex]) break;
+				if (!checkuniqhandler[newindex]) break;
       }
       if (newindex > highlimit) {
-	char s[255];
-	sprintf(s,"Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
-	GASNETI_RETURN_ERRR(BAD_ARG, s);
+				char s[255];
+				sprintf(s,"Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
+				GASNETI_RETURN_ERRR(BAD_ARG, s);
       }
     }
-
+		
     /*  ensure handlers fall into the proper range of pre-assigned values */
     if (newindex < lowlimit || newindex > highlimit) {
       char s[255];
@@ -359,7 +359,8 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     /* discover duplicates */
     if (checkuniqhandler[newindex] != 0) 
       GASNETI_RETURN_ERRR(BAD_ARG, "handler index not unique");
-    checkuniqhandler[newindex] = 1;
+    
+		checkuniqhandler[newindex] = 1;
 
     /* register the handler */
     gasnetc_handler[(gasnet_handler_t)newindex] = (gasnetc_handler_fn_t)table[i].fnptr;
@@ -1091,11 +1092,11 @@ extern int gasnetc_AMPoll() {
 
 GASNETI_ALWAYS_INLINE(gasnetc_dcmf_handle_am_short_inner) 
 void gasnetc_dcmf_handle_am_short_inner(void *clientdata,
-				  const DCQuad *msginfo,
-				  unsigned count, 
-				  unsigned peer,
-				  const char *src,
-				  unsigned bytes){
+																				const DCQuad *msginfo,
+																				unsigned count, 
+																				unsigned peer,
+																				const char *src,
+																				unsigned bytes){
     
   DCQuad headerquad;
   gasnetc_handler_fn_t pfn;
@@ -1415,16 +1416,19 @@ DCMF_Request_t* gasnetc_dcmf_handle_am_header(void *clientdata,
 
 
 //GASNETI_INLINE(gasnetc_resend_am_req) 
+	/*since all the arguments and messages are not visible to the user
+		we don't need to wait for the send to be locally complete since the buffer won't be cleared
+		until we get a remote ack from the remote side...
+	*/
 void gasnetc_resend_am_req(gasnetc_replay_buffer_t *replay_buffer) {
 	volatile uint8_t send_done=0;
 	DCMF_Callback_t send_done_callback;
-	DCMF_Request_t req;
-	int ok_to_resend;
-	
-	/*will need to wait for send to be locally complete*/
-	send_done_callback.function = gasnetc_inc_uint8_arg_cb;
-	send_done_callback.clientdata = (void*)&send_done;
-	
+	gasnetc_dcmf_req_t *dcmf_req;
+		
+
+	dcmf_req = gasnetc_get_dcmf_req();
+	send_done_callback.function = gasnetc_free_dcmf_req_cb;
+	send_done_callback.clientdata = (void*)dcmf_req;
 
 #if 0
 	/*** LOGIC TO SEE if its safe to resend this replay buffer*/
@@ -1453,7 +1457,7 @@ void gasnetc_resend_am_req(gasnetc_replay_buffer_t *replay_buffer) {
 		 is already ont he remote side*/
 		/*check to see if we can just send a control message?!*/
 		DCMF_SAFE(DCMF_Send(&GASNETC_DCMF_AM_REGISTARTION(replay_buffer->amtype, replay_buffer->amcat, GASNETC_DCMF_SEND_EAGER),
-												&req,
+												&dcmf_req->req,
 												send_done_callback,
 												DCMF_RELAXED_CONSISTENCY,
 												replay_buffer->dest_node, 0, NULL,
@@ -1462,7 +1466,7 @@ void gasnetc_resend_am_req(gasnetc_replay_buffer_t *replay_buffer) {
 	} else if (replay_buffer->buffer_size <= gasnetc_dcmf_eager_limit) {
 		/*send eager message*/
 		DCMF_SAFE(DCMF_Send(&GASNETC_DCMF_AM_REGISTARTION(replay_buffer->amtype, replay_buffer->amcat, GASNETC_DCMF_SEND_EAGER),
-												&req,
+												&dcmf_req->req,
 												send_done_callback,
 												DCMF_RELAXED_CONSISTENCY,
 												replay_buffer->dest_node, replay_buffer->buffer_size, (void*) replay_buffer->buffer->data,
@@ -1470,23 +1474,23 @@ void gasnetc_resend_am_req(gasnetc_replay_buffer_t *replay_buffer) {
 		
 	} else {
 		DCMF_SAFE(DCMF_Send(&GASNETC_DCMF_AM_REGISTARTION(replay_buffer->amtype, replay_buffer->amcat, GASNETC_DCMF_SEND_DEFAULT),
-												&req,
+												&dcmf_req->req,
 												send_done_callback,
 												DCMF_RELAXED_CONSISTENCY,
 												replay_buffer->dest_node, replay_buffer->buffer_size, (void*) replay_buffer->buffer->data,
 												replay_buffer->quads, replay_buffer->numquads));
 	}
-	while(send_done == 0) {DCMF_MESSAGER_POLL();}
 	GASNETC_DCMF_UNLOCK();
 }
 
 GASNETI_INLINE(gasnetc_send_am_req)
 void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_node, 
-		int handler_idx, va_list argptr, int numargs, void *dst_addr, void *src_addr, size_t nbytes) {
+												 int handler_idx, va_list argptr, int numargs, void *dst_addr, void *src_addr, size_t nbytes) {
   volatile uint8_t send_done=0;
   DCMF_Callback_t send_done_callback;
   gasnetc_dcmf_req_t *dcmf_req;
 	gasnetc_dcmf_amtype_t amtype = GASNETC_AMREQ;
+	int wait_for_send=1;
 
 #if GASNETC_FLOW_CONTROL_ENABLED
 	gasnetc_replay_buffer_t *replay_buffer;
@@ -1513,7 +1517,7 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
 	replay_buffer->dest_node = dest_node; replay_buffer->buffer_size = nbytes;
 #endif
 	
-
+	
 	dcmf_req  = gasnetc_get_dcmf_req();
 	
 
@@ -1540,7 +1544,12 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
 	}
 #endif
 
-	if(amcat != GASNETC_AMLONGASYNC) {
+	/*if it is an AM w/ no payload or an AMLONGASYNC we don't need to wait for the Send to finish
+		so set the callback to free the associated request*/
+	
+	wait_for_send = !(amcat == GASNETC_AMLONGASYNC || nbytes == 0);
+
+	if(wait_for_send) {
 		/*will need to wait for send to be locally complete*/
 		send_done_callback.function = gasnetc_inc_uint8_arg_cb;
 		send_done_callback.clientdata = (void*)&send_done;
@@ -1562,7 +1571,7 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
 		GASNETI_TRACE_PRINTF(C,("sending eager headerquad: (%x,%d,%d,%d) am(%d,%d) to %d src: %p nbytes: %d quads %p numquads %d", 
 														quads[0].w0, quads[0].w1, quads[0].w2, quads[0].w3,
 														amtype, amcat, dest_node, src_addr, nbytes, quads, *numquads_ptr));
-		
+	
 		/*send eager message*/
 		DCMF_SAFE(DCMF_Send(&GASNETC_DCMF_AM_REGISTARTION(amtype, amcat, GASNETC_DCMF_SEND_EAGER),
 												&dcmf_req->req,
@@ -1588,24 +1597,25 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
 	/*perform the send here to overlap the memcpy with the send operation*/
 #if GASNETC_FLOW_CONTROL_ENABLED
 	if(amcat== GASNETC_AMMED) 
-		GASNETE_FAST_UNALIGNED_MEMCPY(replay_buffer->buffer->data, src_addr, nbytes);
+		GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(replay_buffer->buffer->data, src_addr, nbytes);
 #endif
 	
-	/*if its not a long async, no need to for local message completion handled by user*/
-	if(amcat!=GASNETC_AMLONGASYNC) {
+	/*if we need to wait for hte send just wait here*/
+	if(wait_for_send) {
 		while(send_done == 0) {DCMF_MESSAGER_POLL();}
 		
 	}
 	
 	GASNETC_DCMF_UNLOCK();
 	
-	/*if its not a long async then we need to keep the request around around otherwise we can free it*/
-	if(amcat!=GASNETC_AMLONGASYNC) {
+	/*if we waited for the send we can safely free the request here, otherwise a callback will handle it*/
+	if(wait_for_send) {
 		gasnetc_free_dcmf_req(dcmf_req);
 	}
 
 }
- 
+
+
 GASNETI_INLINE(gasnetc_send_am_rep) 
 void gasnetc_send_am_rep(gasnetc_dcmf_amcategory_t amcat, 
 												 int handler_idx, va_list argptr, int numargs, void *dst_addr, void *src_addr, size_t nbytes, gasnetc_token_t* token) {
@@ -1616,7 +1626,8 @@ void gasnetc_send_am_rep(gasnetc_dcmf_amcategory_t amcat,
   gasnet_node_t dest_node;
 	unsigned numquads=0;
 	DCQuad quads[GASNETC_MAXQUADS_PER_AM];
-	DCMF_Request_t req;
+	int wait_for_send=1;
+	gasnetc_dcmf_req_t *dcmf_req;
 	
 	dest_node = token->srcnode;
 	
@@ -1624,7 +1635,7 @@ void gasnetc_send_am_rep(gasnetc_dcmf_amcategory_t amcat,
   GASNETC_PACK_ARG_QUADS(numargs, argptr, quads+1, &numquads);
   numquads++; /*add one for the header*/ 
   
-	
+	dcmf_req  = gasnetc_get_dcmf_req();
   gasneti_assert(numquads > 0); /*need at least one header*/
   if(numargs>0) {gasneti_assert(numquads > 1);}
 
@@ -1643,11 +1654,20 @@ void gasnetc_send_am_rep(gasnetc_dcmf_amcategory_t amcat,
 	}
 #endif
 
-  
-  /*since replys don't have async cat no need to worry about this case here*/
-  /*will need to wait for send to be locally complete*/
-  send_done_callback.function = gasnetc_inc_uint8_arg_cb;
-  send_done_callback.clientdata = (void*)&send_done;
+	
+	wait_for_send = (nbytes != 0);
+
+	if(wait_for_send) {
+		/*will need to wait for send to be locally complete*/
+		send_done_callback.function = gasnetc_inc_uint8_arg_cb;
+		send_done_callback.clientdata = (void*)&send_done;
+	} else {
+		/*long async doens't wait for local send to complete before returning*/
+		/*register the send done callback to free the request object when it is done running*/
+		send_done_callback.function = gasnetc_free_dcmf_req_cb;
+		send_done_callback.clientdata = (void*)dcmf_req;
+	}
+
  
   
 
@@ -1664,7 +1684,7 @@ void gasnetc_send_am_rep(gasnetc_dcmf_amcategory_t amcat,
 		
 		/*send eager message*/
     DCMF_SAFE(DCMF_Send(&GASNETC_DCMF_AM_REGISTARTION(amtype, amcat, GASNETC_DCMF_SEND_EAGER),
-												&req,
+												&dcmf_req->req,
 												send_done_callback,
 												DCMF_RELAXED_CONSISTENCY,
 												dest_node, nbytes, src_addr,
@@ -1677,16 +1697,26 @@ void gasnetc_send_am_rep(gasnetc_dcmf_amcategory_t amcat,
 														amtype, amcat, dest_node, src_addr, nbytes, token, quads, numquads));
 		
 			DCMF_SAFE(DCMF_Send(&GASNETC_DCMF_AM_REGISTARTION(amtype, amcat, GASNETC_DCMF_SEND_DEFAULT),
-													&req,
+													&dcmf_req->req,
 													send_done_callback,
 													DCMF_RELAXED_CONSISTENCY,
 													dest_node, nbytes, src_addr,
 													quads, numquads));
 
 	}
- 
-  while(send_done == 0) {DCMF_MESSAGER_POLL();}
+	
+	if(wait_for_send) {
+		while(send_done == 0) {DCMF_MESSAGER_POLL();}
+	}
+	
 	GASNETC_DCMF_UNLOCK();
+	
+	if(wait_for_send) {
+		gasnetc_free_dcmf_req(dcmf_req);
+	}
+
+
+
   token->sent_reply = 1;
 	return;
 }
