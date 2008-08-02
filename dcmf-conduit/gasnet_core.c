@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2008/08/01 21:56:17 $
- * $Revision: 1.1.2.16 $
+ *     $Date: 2008/08/02 01:38:45 $
+ * $Revision: 1.1.2.17 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -76,6 +76,10 @@ static unsigned gasnetc_curr_seq_number;
 static DCMF_Protocol_t gasnetc_dcmf_ack_registration;
 static DCMF_Protocol_t gasnetc_dcmf_nack_registration;
 static DCMF_Protocol_t gasnetc_dcmf_short_msg_registration;
+
+#if GASNET_DEBUG
+static gasneti_semaphore_t gasnetc_num_replay_buffers_active= GASNETI_SEMAPHORE_INITIALIZER(0,0);
+#endif
 
 /*keep track of hte number of local send replay buffers we have left to allocate. 
  This value is always decremetned and never incremented. Once it hits 0 then we need to stall until we
@@ -227,12 +231,10 @@ void gasnetc_dcmf_finalize() {
 /* called at startup to check configuration sanity */
 static void gasnetc_check_config() {
   gasneti_check_config_preinit();
-
+	
   /* (###) add code to do some sanity checks on the number of nodes, handlers
    * and/or segment sizes */ 
 }
-
-
 
 static void gasnetc_bootstrapBarrier() {
   gasnetc_dcmf_bootstrapBarrier();
@@ -518,7 +520,10 @@ extern void gasnetc_exit(int exitcode) {
   }
 	
 	fprintf(stderr, "%d> @ exit num active handelrs = %d\n", gasneti_mynode, gasnetc_active_amhandlers);
-
+#if GASNET_DEBUG
+	/*number active replay buffers should be 0 so trying to down that semaphore should return 0*/
+	gasneti_assert(!gasneti_semaphore_trydown(&gasnetc_num_replay_buffers_active));
+#endif
   GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
   gasneti_flush_streams();
@@ -791,6 +796,10 @@ gasnetc_replay_buffer_t* gasnetc_get_replay_buffer(size_t nbytes, int allocate_b
 	}
 	
 	ret->retry_count = 0;
+#if GASNET_DEBUG
+	gasneti_semaphore_up(&gasnetc_num_replay_buffers_active);
+#endif
+
 	GASNETI_TRACE_PRINTF(C,("Constructing Replay buffer: %p (buffer: %p)\n", ret, ret->buffer));
 	return ret;
 }
@@ -807,6 +816,10 @@ void gasnetc_free_replay_buffer(gasnetc_replay_buffer_t *replay_buf) {
 	}
 
 	gasneti_lifo_push(&gasnetc_replay_buffer_free_list, replay_buf);
+#if GASNET_DEBUG	
+	/*since this semaphore count was incrased for this allocation we should always be able to decrease it by one.*/
+	gasneti_assert(gasneti_semaphore_trydown(&gasnetc_num_replay_buffers_active));
+#endif
 }
 
 
@@ -1600,7 +1613,7 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
 		GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(replay_buffer->buffer->data, src_addr, nbytes);
 #endif
 	
-	/*if we need to wait for hte send just wait here*/
+	/*if we need to wait for hte send, wait here*/
 	if(wait_for_send) {
 		while(send_done == 0) {DCMF_MESSAGER_POLL();}
 		
@@ -1612,7 +1625,7 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
 	if(wait_for_send) {
 		gasnetc_free_dcmf_req(dcmf_req);
 	}
-
+	return;
 }
 
 
