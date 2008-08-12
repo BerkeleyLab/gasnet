@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2008/06/25 01:21:19 $
-# $Revision: 1.485.2.5 $
+#     $Date: 2008/08/12 18:49:05 $
+# $Revision: 1.485.2.6 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.485.2.5 $)
+AC_REVISION($Revision: 1.485.2.6 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -2920,17 +2920,42 @@ if test $enabled_dcmf = yes; then
   # Assume the best
   have_dcmf=yes
   
+	GASNET_IF_ENABLED_WITH_AUTO(dcmf-linux, [Use Linux as the Compute Node OS], [enabled_dcmf_linux="yes"], [enabled_dcmf_linux="no"], [enabled_dcmf_linux="no"])
+	if test $enabled_dcmf_linux = yes; then
+		#this hasn't been completely enabled yet so we'll just link w/ the developers version
+		#Developer is Kazutomo Yoshii 
+		dcmf_guess=/home/kazutomo/zepto-devel/prebuilt/DCMF/install
+		GASNET_ENV_DEFAULT(DCMF_HOME, $dcmf_guess)
+		GASNET_ENV_DEFAULT(DCMF_INCLUDE, $DCMF_HOME/comm/sys/include/)
+		GASNET_ENV_DEFAULT(DCMF_SYS_INCLUDE, $DCMF_INCLUDE)
+	
+	  GASNET_ENV_DEFAULT(DCMF_LIB_DIR, $DCMF_HOME/comm/sys/lib)
+  	GASNET_ENV_DEFAULT(DCMF_SYS_LIB_DIR, $DCMF_LIB_DIR)
 
-  dcmf_guess=/bgsys/drivers/ppcfloor
-  GASNET_ENV_DEFAULT(DCMF_HOME, $dcmf_guess)
-  GASNET_ENV_DEFAULT(DCMF_INCLUDE, $DCMF_HOME/comm/sys/include) 
-  GASNET_ENV_DEFAULT(DCMF_SYS_INCLUDE, $DCMF_HOME/arch/include)
+		
+		GASNET_ENV_DEFAULT(DCMF_LIBS, -ldcmfcoll.zcl -ldcmf.zcl -lSPI.zcl -lzcl -lzoid_cn -lrt -lpthread -lm)
+	else
+	  dcmf_guess=/bgsys/drivers/ppcfloor
+	  GASNET_ENV_DEFAULT(DCMF_HOME, $dcmf_guess)
+ 	  GASNET_ENV_DEFAULT(DCMF_INCLUDE, $DCMF_HOME/comm/sys/include) 
+ 	  GASNET_ENV_DEFAULT(DCMF_SYS_INCLUDE, $DCMF_HOME/arch/include)
   
 
-  GASNET_ENV_DEFAULT(DCMF_LIB_DIR, $DCMF_HOME/comm/sys/lib)
-  GASNET_ENV_DEFAULT(DCMF_SYS_LIB_DIR, $DCMF_HOME/runtime/SPI)
-  GASNET_ENV_DEFAULT(DCMF_LIBS, -ldcmfcoll.cnk -ldcmf.cnk -lpthread -lrt -lSPI.cna)
-  
+  	GASNET_ENV_DEFAULT(DCMF_LIB_DIR, $DCMF_HOME/comm/sys/lib)
+  	GASNET_ENV_DEFAULT(DCMF_SYS_LIB_DIR, $DCMF_HOME/runtime/SPI)
+
+		
+  	if test "$BUILDCONFIG" = "debug" ; then	
+			#if debug build, link w/ debug version of DCMF
+  		GASNET_ENV_DEFAULT(DCMF_LIBS, -ldcmfcoll.cnk -ldcmf.cnk -lpthread -lrt -lSPI.cna)
+  	else
+	  	#else link with optimized version of DCMF
+			#for some reason looks like in the fast build has duplicate sybmols when we link in dcmfcoll	
+			#GASNET_ENV_DEFAULT(DCMF_LIBS, -ldcmfcoll-fast.cnk -ldcmf-fast.cnk -lpthread -lrt -lSPI.cna)
+	  	GASNET_ENV_DEFAULT(DCMF_LIBS, -ldcmf-fast.cnk -lpthread -lrt -lSPI.cna)
+		fi
+	fi
+
   GASNET_IF_ENABLED_WITH_AUTO(force-compile-dcmf, [Have GASNet compile and try DCMF Conduit], [force_dcmf="yes"], [force_dcmf="no"], [force_dcmf="no"])  
   
   # if we can't even find a valid incldue path no point trying to compile even if user requests it
@@ -2964,13 +2989,14 @@ if test $enabled_dcmf = yes; then
       GASNET_PUSHVAR(LIBS,"$LIBS $DCMF_LIBS")
 
       AC_TRY_LINK([
-      #include <stdio.h>
+   	    #include <stdio.h>
         #include <stdlib.h>
-	#include <dcmf.h>
-	#include <dcmf_collectives.h>
+				#include <dcmf.h>
+				#include <dcmf_collectives.h>
       ], [
-      DCMF_Messager_initialize();
-      DCMF_Messager_finalize();	
+        DCMF_Messager_initialize();
+				      
+        DCMF_Messager_finalize();	
       ], [ dcmf_test_worked=yes ], [ dcmf_test_worked=no GASNET_ERR_SAVE() ])
       GASNET_POPVAR(CFLAGS)
       GASNET_POPVAR(LIBS) 
@@ -2978,7 +3004,7 @@ if test $enabled_dcmf = yes; then
        AC_MSG_RESULT(yes)
       else 
         have_dcmf=no
-    	AC_MSG_RESULT(no)
+    		AC_MSG_RESULT(no)
       fi
     fi
   fi
