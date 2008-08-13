@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_internal.h,v $
- *     $Date: 2008/08/01 21:56:17 $
- * $Revision: 1.1.2.13 $
+ *     $Date: 2008/08/13 19:58:25 $
+ * $Revision: 1.1.2.14 $
  * Description: GASNet dcmf conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -145,6 +145,10 @@ typedef struct gasnetc_amhandler_t_{
 	size_t nbytes;
 	int numargs;
 	unsigned seq_number;
+
+#if GASNETI_STATS_OR_TRACE
+	gasneti_tick_t req_handler_queued;
+#endif
 	gasnet_handlerarg_t amargs[GASNETC_MAX_AM_ARGS];
 } gasnetc_amhandler_t  ALIGN_STRUCT(1024);
 

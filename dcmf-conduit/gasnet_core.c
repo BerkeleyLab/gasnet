@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2008/08/02 01:38:45 $
- * $Revision: 1.1.2.17 $
+ *     $Date: 2008/08/13 19:58:25 $
+ * $Revision: 1.1.2.18 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,6 +14,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <signal.h>
+#include <stdarg.h>
 
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
@@ -573,38 +574,38 @@ extern void gasnetc_exit(int exitcode) {
 #define GASNETC_GET_ACTIVE_MSG_NBYTES(HEADER_QUAD) ((HEADER_QUAD).w3)
 
 #define GASNETC_MAKE_HEADER_WORD(TYPE, CATEGORY, NUMARGS, HANDLERIDX)	\
-  (gasneti_assert((NUMARGS) < GASNETC_MAX_AM_ARGS),			\
+  (gasneti_assert((NUMARGS) <= GASNETC_MAX_AM_ARGS),			\
    (((HANDLERIDX)<<8) | ((NUMARGS)<<3) | ((CATEGORY)<<1) | (TYPE)))
 
 
 
 #define GASNETC_PACK_ARG_QUADS(NUMARGS, ARGPTR, DCQUADS, NUMQUADS_PTR) do { \
-    int i=(NUMARGS);							\
-    int j=0;								\
-    int numquads=0;							\
-    gasneti_assert((NUMARGS)<=GASNETC_MAX_AM_ARGS);			\
-    while(i>0) {							\
-      switch(i) {							\
-      case 3: /*only three args left... fill first three */		\
-      	(DCQUADS)[j].w0 = va_arg((ARGPTR), gasnet_handlerarg_t);	\
-				(DCQUADS)[j].w1 = va_arg((ARGPTR), gasnet_handlerarg_t);	\
-				(DCQUADS)[j].w2 = va_arg((ARGPTR), gasnet_handlerarg_t);	\
-				i-=3; numquads++; break;					\
-      case 2: /*fill first two*/					\
-      	(DCQUADS)[j].w0 = va_arg((ARGPTR), gasnet_handlerarg_t);	\
-      	(DCQUADS)[j].w1 = va_arg((ARGPTR), gasnet_handlerarg_t);	\
-      	i-=2; numquads++; break;					\
-      case 1: /*fill only one*/						\
-      	(DCQUADS)[j].w0 = va_arg((ARGPTR), gasnet_handlerarg_t);	\
-      	numquads++; i-=1; break;					\
-      default: /*at least four arguments left*/				\
-      	(DCQUADS)[j].w0 = va_arg((ARGPTR), gasnet_handlerarg_t);	\
-      	(DCQUADS)[j].w1 = va_arg((ARGPTR), gasnet_handlerarg_t);	\
-      	(DCQUADS)[j].w2 = va_arg((ARGPTR), gasnet_handlerarg_t);	\
-      	(DCQUADS)[j].w3 = va_arg((ARGPTR), gasnet_handlerarg_t);	\
-      	numquads++; i-=4; j++; break;					\
-    }}								\
-    *(NUMQUADS_PTR) = numquads; gasneti_assert(numquads < GASNETC_MAXQUADS_PER_AM); \
+    int i=(NUMARGS);							                                          \
+    int j=0;							                                                 	\
+    unsigned __numquads=0;                                       							\
+    gasneti_assert((NUMARGS)<=GASNETC_MAX_AM_ARGS);                   			\
+    while(i>0) {                                               							\
+      switch(i) {	                                              						\
+      case 3: /*only three args left... fill first three */             		\
+      	(DCQUADS)[j].w0 = va_arg((ARGPTR), gasnet_handlerarg_t);          	\
+				(DCQUADS)[j].w1 = va_arg((ARGPTR), gasnet_handlerarg_t);          	\
+				(DCQUADS)[j].w2 = va_arg((ARGPTR), gasnet_handlerarg_t);          	\
+				i-=3; __numquads++; break;                                   					\
+      case 2: /*fill first two*/                                  					\
+      	(DCQUADS)[j].w0 = va_arg((ARGPTR), gasnet_handlerarg_t);          	\
+      	(DCQUADS)[j].w1 = va_arg((ARGPTR), gasnet_handlerarg_t);          	\
+      	i-=2; __numquads++; break;                                  					\
+      case 1: /*fill only one*/	                                   					\
+      	(DCQUADS)[j].w0 = va_arg((ARGPTR), gasnet_handlerarg_t);          	\
+      	__numquads++; i-=1; break;	                                   				\
+      default: /*at least four arguments left*/	                      			\
+      	(DCQUADS)[j].w0 = va_arg((ARGPTR), gasnet_handlerarg_t);          	\
+      	(DCQUADS)[j].w1 = va_arg((ARGPTR), gasnet_handlerarg_t);          	\
+      	(DCQUADS)[j].w2 = va_arg((ARGPTR), gasnet_handlerarg_t);          	\
+      	(DCQUADS)[j].w3 = va_arg((ARGPTR), gasnet_handlerarg_t);          	\
+      	__numquads++; i-=4; j++; break;                             					\
+    }}		                                                      	 				  \
+    *(NUMQUADS_PTR) = __numquads; gasneti_assert(__numquads < GASNETC_MAXQUADS_PER_AM); \
   } while (0)
 
 #define GASNETC_UNPACK_ARG_QUADS(NUMQUADS, DCQUADS, NUMARGS, HANDLERARGS) do { \
@@ -923,7 +924,6 @@ void gasnetc_free_amhandler(gasnetc_amhandler_t *amhandler) {
 GASNETI_INLINE(gasnetc_activate_amhandler) 
 void gasnetc_activate_amhandler(gasnetc_amhandler_t *amhandler) {
 	GASNETI_TRACE_PRINTF(C, ("dcmf activating handler before: amhandler: %p \n", amhandler));
-	
 	gasnetc_fifo_add(&gasnetc_amhandler_active_list, (void*) amhandler);
 	gasnetc_active_amhandlers++;
 }
@@ -942,6 +942,13 @@ gasnetc_amhandler_t* gasnetc_remove_first_active_amhandler() {
 GASNETI_INLINE(gasnetc_run_amhandler_inner) 
 void gasnetc_run_amhandler_inner(gasnetc_amhandler_t *handler, int have_dcmf_lock) {
 	gasneti_assert(handler);
+#if GASNETI_STATS_OR_TRACE
+	if(handler->token->amtype==GASNETC_AMREQ) {
+		GASNETI_TRACE_EVENT_TIME(C, REQ_AMHANDLER_WAIT, GASNETI_TICKS_NOW_IFENABLED(C)-handler->req_handler_queued);
+	} else {
+		GASNETI_TRACE_EVENT_TIME(C, REP_AMHANDLER_WAIT, GASNETI_TICKS_NOW_IFENABLED(C)-handler->req_handler_queued);
+	}
+#endif
 	GASNETI_TRACE_PRINTF(C,("running handler: %p am: (%d,%d) seq: %d\n", handler, handler->token->amtype, 
 													handler->token->amcat, handler->seq_number));
   switch(handler->token->amcat){
@@ -1089,7 +1096,8 @@ extern int gasnetc_AMPoll() {
 		gasnetc_active_amhandlers = 0;
 		GASNETI_TRACE_PRINTF(C,("finishing clear active list"));
 		GASNETI_TRACE_EVENT_VAL(C, AMHANDLER_LIST_LEN, amhandler_list_len);
-  }
+	
+	}
 
 	
   return GASNET_OK;
@@ -1142,7 +1150,6 @@ void gasnetc_dcmf_handle_am_short_inner(void *clientdata,
 	numargs = GASNETC_GET_ACTIVE_MSG_NUMARGS(headerquad);
 	handleridx= GASNETC_GET_ACTIVE_MSG_HANDLERIDX(headerquad);
 
-
 	GASNETI_TRACE_PRINTF(C, ("running short handler: (%d,%d) dst: %p transfersize: %d numargs: %d handleridx: %d replay: %x", 
 													 amcat, amtype, dstaddr, transfer_size, numargs, handleridx, remote_replay_buffer));
 #if GASNETC_FLOW_CONTROL_ENABLED 
@@ -1150,9 +1157,7 @@ void gasnetc_dcmf_handle_am_short_inner(void *clientdata,
 	/*otherwise just drop the arguments on the floor and ask for a resend*/
 	if(amtype == GASNETC_AMREQ) {
 		int sem_result;
-
 		sem_result = gasneti_semaphore_trydown(&gasnetc_incoming_buffers_available);
-
 		if(sem_result == 0) {
 			GASNETI_TRACE_EVENT(C, AMREQ_REJECT);
 			GASNETI_TRACE_PRINTF(C,("short handler: AM REJECTED! not accepting args"));
@@ -1164,7 +1169,6 @@ void gasnetc_dcmf_handle_am_short_inner(void *clientdata,
 			GASNETC_SEND_NACK(peer, remote_replay_buffer);
 			return;
 		}
-
 	} else if (amtype == GASNETC_AMREP){
 		/*this was a reply to one of our requests so go ahead and clear the associated replay buffer*/
 		gasnetc_free_replay_buffer((gasnetc_replay_buffer_t*) remote_replay_buffer);
@@ -1173,9 +1177,7 @@ void gasnetc_dcmf_handle_am_short_inner(void *clientdata,
 	/*if we get this far this means we have permission to construct the token and construct the amhandler reply*/
   /*construct token no need to allocate DCMF Req since this is a short callback*/
 	token = gasnetc_construct_token(peer, amtype, amcat, remote_replay_buffer, 0); /*pull a token off the free list if one is available*/		
-
   pfn = gasnetc_handler[handleridx];
-	
 	
   if(count == 1) /*no user arguments*/{
     gasneti_assert(numargs==0); /*check to make sure we get consistent information about the number of quads*/
@@ -1184,15 +1186,13 @@ void gasnetc_dcmf_handle_am_short_inner(void *clientdata,
     argquads = (DCQuad*) &msginfo[1];
   }
 
-
-
   if(amcat == GASNETC_AMSHORT) {
     void *ambuf;
 		gasneti_assert(dstaddr==NULL);
     gasneti_assert(transfer_size == 0);
     ambuf = NULL;
 		amhandler = gasnetc_construct_new_amhandler(token, handleridx, NULL, 0, 0, argquads, argquadcount, numargs);
-	} else if(amcat == GASNETC_AMMED){
+	} else if(amcat == GASNETC_AMMED) {
 		gasneti_assert(transfer_size == bytes);
     gasneti_assert(dstaddr == NULL);
 		/*if the transfer is a medium request w/ a nonzero lenght 
@@ -1208,16 +1208,13 @@ void gasnetc_dcmf_handle_am_short_inner(void *clientdata,
 				ambuf = NULL;
 				amhandler = gasnetc_construct_new_amhandler(token, handleridx, NULL, 0, 0, argquads, argquadcount, numargs);
 			}
-			
 		} else {
 			/*sicne we are running the handlerinline no need to copy*/
 			void* ambuf = (void*) src;
 			amhandler = gasnetc_construct_new_amhandler(token, handleridx, (void*) ambuf, 0, transfer_size, argquads, argquadcount, numargs);
 		}
-	
 	} else if((amcat == GASNETC_AMLONG) || (amcat == GASNETC_AMLONGASYNC)) {
 		void *ambuf;
-
     if(transfer_size > 0) gasneti_assert(dstaddr);
     ambuf = dstaddr;
 		/*even if handler is run inline we need to copy the data to the user specified buffer*/
@@ -1229,14 +1226,16 @@ void gasnetc_dcmf_handle_am_short_inner(void *clientdata,
 	
   /*construct the callback and extract the args into the handler*/
 	/*if this is an am medium request, the temporary buffere needs to be freed*/
-  
-  if(amtype == GASNETC_AMREP) {
+#if GASNETI_STATS_OR_TRACE
+	amhandler->req_handler_queued = GASNETI_TICKS_NOW_IFENABLED(C);
+#endif
+
+  if(amtype == GASNETC_AMREP ) {
 		/*since replies cannot generate further communication it is
-			safe to runt he reply handlers inline here rather than queue them*/
+			safe to run the reply handlers inline here rather than queue them*/
 		gasnetc_run_amhandler_inner(amhandler, 1);
 		gasnetc_free_amhandler(amhandler);
 	} else {
-		gasneti_assert(amhandler->token->amtype == GASNETC_AMREQ);
 		/*since this is a request callback we must queue the callback
 		 to run later since it can generate a reply*/
 		gasnetc_activate_amhandler(amhandler);
@@ -1276,7 +1275,10 @@ void gasnetc_dcmf_handle_am_done(void *arg){
   /* Data transfer is complete and visible to the programmer. 
    * Handler is now ready to run so queue it up to run outside of the DCMF_Messager_advance 
    * Associated Request will automatically get freed when the handler is freed*/
-	
+#if GASNETI_STATS_OR_TRACE
+	amhandler->req_handler_queued = GASNETI_TICKS_NOW_IFENABLED(C);
+#endif
+
 	
   if(amhandler->token->amtype == GASNETC_AMREP) {
 		/*since replies cannot generate further communication it is
@@ -1498,7 +1500,7 @@ void gasnetc_resend_am_req(gasnetc_replay_buffer_t *replay_buffer) {
 
 GASNETI_INLINE(gasnetc_send_am_req)
 void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_node, 
-												 int handler_idx, va_list argptr, int numargs, void *dst_addr, void *src_addr, size_t nbytes) {
+												 int handler_idx, int numargs, void *dst_addr, void *src_addr, size_t nbytes, va_list argptr) {
   volatile uint8_t send_done=0;
   DCMF_Callback_t send_done_callback;
   gasnetc_dcmf_req_t *dcmf_req;
@@ -1550,7 +1552,8 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
 														quads[0].w0, quads[0].w1, quads[0].w2, quads[0].w3,
 														amtype, amcat, dest_node, src_addr, nbytes, quads, *numquads_ptr));
 		GASNETC_DCMF_LOCK();
-		DCMF_SAFE(DCMF_Control(&gasnetc_dcmf_short_msg_registration, DCMF_RELAXED_CONSISTENCY,
+		DCMF_SAFE(DCMF_Control(&gasnetc_dcmf_short_msg_registration, 
+													 DCMF_RELAXED_CONSISTENCY,
 													 dest_node, quads));
 		GASNETC_DCMF_UNLOCK();
 		return;
@@ -1631,7 +1634,9 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
 
 GASNETI_INLINE(gasnetc_send_am_rep) 
 void gasnetc_send_am_rep(gasnetc_dcmf_amcategory_t amcat, 
-												 int handler_idx, va_list argptr, int numargs, void *dst_addr, void *src_addr, size_t nbytes, gasnetc_token_t* token) {
+												 int handler_idx, int numargs, 
+												 void *dst_addr, void *src_addr, 
+												 size_t nbytes, gasnetc_token_t* token, va_list argptr) {
 	volatile uint8_t send_done=0;
 	DCMF_Callback_t send_done_callback;
 	
@@ -1681,15 +1686,10 @@ void gasnetc_send_am_rep(gasnetc_dcmf_amcategory_t amcat,
 		send_done_callback.clientdata = (void*)dcmf_req;
 	}
 
- 
-  
-
 	GASNETC_DCMF_LOCK();
 
 	/*Rendezvous doesn't seem to be delivering all the quads
 		bug report has been sent to IBM until then always use "default" send protocol when over eager limit*/
-
-
 	if (nbytes <= gasnetc_dcmf_eager_limit) {
 		GASNETI_TRACE_PRINTF(C,("sending eager headerquad: (%x,%d,%d,%d) am(%d,%d) to %d src: %p nbytes: %d token: %p quads %p numquads %d", 
 				quads[0].w0, quads[0].w1, quads[0].w2, quads[0].w3,
@@ -1743,7 +1743,7 @@ extern int gasnetc_AMRequestShortM(
   GASNETI_COMMON_AMREQUESTSHORT(dest,handler,numargs);
 
   va_start(argptr, numargs); /*  pass in last argument */
-  gasnetc_send_am_req(GASNETC_AMSHORT, dest, handler, argptr, numargs, NULL, NULL, 0);
+  gasnetc_send_am_req(GASNETC_AMSHORT, dest, handler, numargs, NULL, NULL, 0, argptr);
   va_end(argptr);
   
   retval = GASNET_OK; 
@@ -1759,7 +1759,7 @@ extern int gasnetc_AMRequestMediumM(
   va_list argptr;
   GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-  gasnetc_send_am_req(GASNETC_AMMED, dest, handler, argptr, numargs, NULL, source_addr, nbytes);
+  gasnetc_send_am_req(GASNETC_AMMED, dest, handler, numargs, NULL, source_addr, nbytes, argptr);
   retval = GASNET_OK; 
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -1774,7 +1774,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   va_list argptr;
   GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-  gasnetc_send_am_req(GASNETC_AMLONG, dest, handler, argptr, numargs, dest_addr, source_addr, nbytes);
+  gasnetc_send_am_req(GASNETC_AMLONG, dest, handler, numargs, dest_addr, source_addr, nbytes, argptr);
   retval = GASNET_OK;
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -1790,7 +1790,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
   GASNETI_COMMON_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
   
-	gasnetc_send_am_req(GASNETC_AMLONGASYNC, dest, handler, argptr, numargs, dest_addr, source_addr, nbytes);
+	gasnetc_send_am_req(GASNETC_AMLONGASYNC, dest, handler, numargs, dest_addr, source_addr, nbytes, argptr);
 	
   retval = GASNET_OK;
   va_end(argptr);
@@ -1806,7 +1806,7 @@ extern int gasnetc_AMReplyShortM(
   GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
   gasneti_assert(token);
   va_start(argptr, numargs); /*  pass in last argument */
-  gasnetc_send_am_rep(GASNETC_AMSHORT, handler, argptr, numargs, NULL, NULL, 0, (gasnetc_token_t*)token);
+  gasnetc_send_am_rep(GASNETC_AMSHORT, handler, numargs, NULL, NULL, 0, (gasnetc_token_t*)token, argptr);
   retval = GASNET_OK;
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -1823,7 +1823,7 @@ extern int gasnetc_AMReplyMediumM(
   va_start(argptr, numargs); /*  pass in last argument */
   gasneti_assert(token);
 
-  gasnetc_send_am_rep(GASNETC_AMMED, handler, argptr, numargs, NULL, source_addr, nbytes, (gasnetc_token_t*)token);
+  gasnetc_send_am_rep(GASNETC_AMMED, handler, numargs, NULL, source_addr, nbytes, (gasnetc_token_t*)token, argptr);
   retval = GASNET_OK; 
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -1840,8 +1840,7 @@ extern int gasnetc_AMReplyLongM(
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 
   va_start(argptr, numargs); /*  pass in last argument */
   gasneti_assert(token);
-
-  gasnetc_send_am_rep(GASNETC_AMLONG, handler, argptr, numargs, dest_addr, source_addr, nbytes, (gasnetc_token_t*)token);
+  gasnetc_send_am_rep(GASNETC_AMLONG, handler, numargs, dest_addr, source_addr, nbytes, (gasnetc_token_t*)token, argptr);
   retval = GASNET_OK; 
   va_end(argptr);
   GASNETI_RETURN(retval);
