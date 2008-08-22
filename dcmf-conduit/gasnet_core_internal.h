@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_internal.h,v $
- *     $Date: 2008/08/13 19:58:25 $
- * $Revision: 1.1.2.14 $
+ *     $Date: 2008/08/22 22:28:45 $
+ * $Revision: 1.1.2.15 $
  * Description: GASNet dcmf conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -9,10 +9,13 @@
 #ifndef _GASNET_CORE_INTERNAL_H
 #define _GASNET_CORE_INTERNAL_H
 
-#include <gasnet_internal.h>
+//#include <dcmf_impl.h>
 #include <dcmf.h>
 #include <dcmf_collectives.h>
 #include <dcmf_globalcollectives.h>
+#include <gasnet_internal.h>
+
+
 
 /*DCMF allows up to 7 but since gasnet 
  * only allows 16 am args we can artificailly limit
@@ -67,6 +70,9 @@ typedef struct gasnetc_dcmf_req_t_{
 	struct gasnetc_dcmf_req_t_ *next;
 	DCMF_Request_t req;
 } gasnetc_dcmf_req_t ALIGN_STRUCT(1024);
+
+gasnetc_dcmf_req_t * gasnetc_get_dcmf_req();
+void gasnetc_free_dcmf_req(gasnetc_dcmf_req_t *req);
 
 typedef struct gasnetc_dcmf_nack_req_t_ {
 	struct gasnetc_dcmf_nack_req_t_ *next;

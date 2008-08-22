@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2008/07/03 16:51:11 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2008/08/22 22:28:45 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -11,6 +11,8 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_handler.h>
+
+#include <gasnet_core_internal.h>
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -40,6 +42,7 @@ typedef struct _gasnete_eop_t {
   uint8_t flags;                  /*  state flags */
   gasnete_threadidx_t threadidx;  /*  thread that owns me */
   gasnete_eopaddr_t addr;         /*  next cell while in free list, my own eopaddr_t while in use */
+	gasnetc_dcmf_req_t *dcmf_req;
 } gasnete_eop_t;
 
 typedef struct _gasnete_iop_t {

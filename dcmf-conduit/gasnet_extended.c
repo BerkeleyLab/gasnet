@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2008/07/31 19:59:05 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2008/08/22 22:28:45 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -26,6 +26,16 @@ static gasnet_hsl_t threadtable_lock = GASNET_HSL_INITIALIZER;
 static const gasnete_eopaddr_t EOPADDR_NIL = { { 0xFF, 0xFF } };
 extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 
+
+
+static void increment_value(void *arg, DCMF_Error_t *e) {
+	volatile int* in = (volatile int*) arg;
+	if_pt(in) {
+		(*in)++;
+	}
+}
+
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Tuning Parameters
@@ -43,6 +53,15 @@ extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 #ifndef GASNETE_USE_LONG_GETS
 #define GASNETE_USE_LONG_GETS 1
 #endif
+
+
+/*enable puts to turn into DCMF_Puts*/
+#ifndef GASNETE_DIRECT_PUT_GET
+#define GASNETE_DIRECT_PUT_GET 1
+#endif
+
+
+
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -105,6 +124,13 @@ static void gasnete_check_config() {
   gasneti_assert_always(gasnete_eopaddr_isnil(EOPADDR_NIL));
 }
 
+#if GASNETE_DIRECT_PUT_GET
+static DCMF_Memregion_t gasnete_dcmf_my_mem_region;
+static DCMF_Memregion_t *gasnete_dcmf_all_mem_regions;
+static DCMF_Protocol_t gasnete_dcmf_put_registration;
+static DCMF_Protocol_t gasnete_dcmf_get_registration;
+#endif
+
 extern void gasnete_init() {
   static int firstcall = 1;
   GASNETI_TRACE_PRINTF(C,("gasnete_init()"));
@@ -130,7 +156,31 @@ extern void gasnete_init() {
     gasnete_op_markdone((gasnete_op_t *)eop, 0);
     gasnete_op_free((gasnete_op_t *)eop);
   }
+#if GASNETE_DIRECT_PUT_GET
+ {
+	 DCMF_Put_Configuration_t put_config;
+	 DCMF_Get_Configuration_t get_config;
+	 size_t bytes_out;
+	 size_t bytes_in = 2*1024*1024*1024;
 
+	 put_config.protocol=DCMF_DEFAULT_PUT_PROTOCOL;
+	 get_config.protocol=DCMF_DEFAULT_GET_PROTOCOL;
+	 
+	 /*intialize the memregions and try to pin entire VM space*/
+	 GASNETC_DCMF_LOCK();
+	 DCMF_SAFE(DCMF_Memregion_create(&gasnete_dcmf_my_mem_region, &bytes_out, bytes_in, 0, 0));
+	 DCMF_SAFE(DCMF_Put_register(&gasnete_dcmf_put_registration, &put_config));
+	 DCMF_SAFE(DCMF_Get_register(&gasnete_dcmf_get_registration, &get_config));
+	 GASNETC_DCMF_UNLOCK();
+	 
+	 /*make srue everyone knows about everybody elses memory*/
+	 gasnete_dcmf_all_mem_regions = gasneti_malloc(sizeof(DCMF_Memregion_t)*gasneti_nodes);
+
+	 gasnetc_dcmf_bootstrapExchange(gasnete_dcmf_my_mem_region, sizeof(DCMF_Memregion_t), gasnete_dcmf_all_mem_regions);
+	 
+ }																
+#endif
+	
   /* Initialize barrier resources */
   gasnete_barrier_init();
 
@@ -155,6 +205,7 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
     gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);
     gasneti_assert(OPTYPE(eop) == OPSTATE_FREE);
     SET_OPSTATE(eop, OPSTATE_INFLIGHT);
+		eop->dcmf_req = gasnetc_get_dcmf_req();
     return eop;
   } else { /*  free list empty - need more eops */
     int bufidx = thread->eop_num_bufs;
@@ -283,6 +334,7 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
     gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT);
     gasnete_eop_check(eop);
     SET_OPSTATE(eop, OPSTATE_COMPLETE);
+		gasnetc_free_dcmf_req(eop->dcmf_req);
   } else {
     gasnete_iop_t *iop = (gasnete_iop_t *)op;
     gasnete_iop_check(iop);
@@ -315,7 +367,7 @@ void gasnete_op_free(gasnete_op_t *op) {
 /* GASNET-Internal OP Interface */
 gasneti_eop_t *gasneti_eop_create(GASNETE_THREAD_FARG_ALONE) {
   gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
-  return (gasneti_eop_t *)op;
+	return (gasneti_eop_t *)op;
 }
 gasneti_iop_t *gasneti_iop_register(unsigned int noperations, int isget GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
@@ -507,6 +559,83 @@ SHORT_HANDLER(gasnete_markdone_reph,1,2,
               (token, UNPACK2(a0, a1)));
 /* ------------------------------------------------------------------------------------ */
 
+
+#if GASNETE_DIRECT_PUT_GET
+
+static void gasnete_mark_dcmf_get_done(void *arg, DCMF_Error_t *e) {
+	gasnete_op_markdone((gasnete_op_t *)arg, 1);
+}
+
+extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+	gasnete_eop_t *op;
+	DCMF_Callback_t done_cb;
+
+	if(node == gasneti_mynode) {
+		GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
+		return GASNET_INVALID_HANDLE;
+	}
+	
+	op = gasnete_eop_new(GASNETE_MYTHREAD);
+	
+	done_cb.function = gasnete_mark_dcmf_get_done;
+	done_cb.clientdata = (void*) op;
+
+	GASNETC_DCMF_LOCK();
+	DCMF_SAFE(DCMF_Get(&gasnete_dcmf_get_registration,
+										 &op->dcmf_req->req, done_cb,
+										 DCMF_RELAXED_CONSISTENCY, node,
+										 nbytes, gasnete_dcmf_all_mem_regions+node,
+										 &gasnete_dcmf_my_mem_region, 
+										 (size_t) src, (size_t) dest));
+	GASNETC_DCMF_UNLOCK();
+	return (gasnet_handle_t)op;
+}
+
+static void gasnete_mark_dcmf_put_done(void *arg, DCMF_Error_t *e) {
+	gasnete_op_markdone((gasnete_op_t *)arg, 0);
+}
+
+GASNETI_INLINE(gasnete_put_nb_inner)
+gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes, int isbulk GASNETE_THREAD_FARG) {
+	gasnete_eop_t *op;
+	volatile int local_put_done = 0; 
+	DCMF_Callback_t local_done_cb, remote_done_cb;
+	
+	
+	if(node == gasneti_mynode) {
+		GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
+		return GASNET_INVALID_HANDLE;
+	}
+	
+	op = gasnete_eop_new(GASNETE_MYTHREAD);
+
+
+	if(isbulk) {
+		local_done_cb.function = increment_value;
+		local_done_cb.clientdata = NULL;
+	} else {
+		local_done_cb.function = increment_value;
+		local_done_cb.clientdata = (void*) &local_put_done;
+	}
+	
+	remote_done_cb.function = gasnete_mark_dcmf_put_done;
+	remote_done_cb.clientdata = (void*) op;
+
+	GASNETC_DCMF_LOCK();
+	DCMF_SAFE(DCMF_Put(&gasnete_dcmf_put_registration, &op->dcmf_req->req,
+										 local_done_cb,
+										 DCMF_RELAXED_CONSISTENCY, node, nbytes,
+										 &gasnete_dcmf_my_mem_region, gasnete_dcmf_all_mem_regions+node,
+										 (size_t)src, (size_t)dest, remote_done_cb));
+	
+	if(!isbulk) {
+		while(local_put_done == 0) {DCMF_MESSAGER_POLL();}
+	}
+	GASNETC_DCMF_UNLOCK();
+	return (gasnet_handle_t)op;
+}
+#else
+
 extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
     gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
@@ -524,7 +653,6 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
     return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
   }
 }
-
 GASNETI_INLINE(gasnete_put_nb_inner)
 gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes, int isbulk GASNETE_THREAD_FARG) {
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
@@ -561,6 +689,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
     return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
   }
 }
+#endif
 
 extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   return gasnete_put_nb_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS);
@@ -1046,10 +1175,6 @@ static void gasnete_dcmfbarrier_init() {
 	barrier_done= 0;
 }
 
-static void increment_value(void *arg) {
-	volatile int* in = (volatile int*) arg;
-	(*in)++;
-}
 
 static void gasnete_dcmfbarrier_notify(int id, int flags) {
 	int barrier_id;

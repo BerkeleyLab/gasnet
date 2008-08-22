@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2008/08/13 19:58:25 $
- * $Revision: 1.1.2.18 $
+ *     $Date: 2008/08/22 22:28:45 $
+ * $Revision: 1.1.2.19 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -114,7 +114,7 @@ DCMF_Request_t* gasnetc_dcmf_handle_am_header(void *clientdata,
 																							unsigned *rcvlen, char **rcvbuf,
 																							DCMF_Callback_t *cb_done);
 
-void gasnetc_free_dcmf_req_cb(void *req);
+void gasnetc_free_dcmf_req_cb(void *req, DCMF_Error_t *e);
 
 void gasnetc_ack_msg_cb(void *client_data,
 												const DCMF_Control_t *info,
@@ -126,17 +126,17 @@ void gasnetc_add_to_nack_list_cb(void *client_data,
 
 void gasnetc_resend_am_req(gasnetc_replay_buffer_t *replay_buffer);
 
-static void gasnetc_inc_uint64_arg_cb(void* arg) {
+static void gasnetc_inc_uint64_arg_cb(void* arg, DCMF_Error_t* e) {
   uint64_t *in = (uint64_t*) arg;
   (*in)++;
 }
 
-static void gasnetc_inc_uint32_arg_cb(void* arg) {
+static void gasnetc_inc_uint32_arg_cb(void* arg, DCMF_Error_t *e) {
   uint32_t *in = (uint32_t*) arg;
   (*in)++;
 }
 
-static void gasnetc_inc_uint8_arg_cb(void* arg) {
+static void gasnetc_inc_uint8_arg_cb(void* arg, DCMF_Error_t *e) {
   uint8_t *in = (uint8_t*) arg;
   (*in)++;
 }
@@ -521,7 +521,8 @@ extern void gasnetc_exit(int exitcode) {
   }
 	
 	fprintf(stderr, "%d> @ exit num active handelrs = %d\n", gasneti_mynode, gasnetc_active_amhandlers);
-#if GASNET_DEBUG
+
+#if GASNET_DEBUG && 0
 	/*number active replay buffers should be 0 so trying to down that semaphore should return 0*/
 	gasneti_assert(!gasneti_semaphore_trydown(&gasnetc_num_replay_buffers_active));
 #endif
@@ -652,7 +653,7 @@ extern void gasnetc_exit(int exitcode) {
 */
 
 
-GASNETI_INLINE(gasnetc_get_dcmf_req) 
+/*GASNETI_INLINE(gasnetc_get_dcmf_req) */
 gasnetc_dcmf_req_t * gasnetc_get_dcmf_req() {
   gasnetc_dcmf_req_t *req;
 
@@ -665,7 +666,7 @@ gasnetc_dcmf_req_t * gasnetc_get_dcmf_req() {
   return req;
 }
 
-GASNETI_INLINE(gasnetc_free_dcmf_req) 
+/*GASNETI_INLINE(gasnetc_free_dcmf_req) */
 void gasnetc_free_dcmf_req(gasnetc_dcmf_req_t *req){
   /*add it back tot he free list*/
   gasneti_lifo_push(&gasnetc_dcmf_req_free_list,(void*) req);
@@ -674,7 +675,7 @@ void gasnetc_free_dcmf_req(gasnetc_dcmf_req_t *req){
 
 
 /*callback passed to DCMF_Send() that just frees the associated dcmf request object*/
-void gasnetc_free_dcmf_req_cb(void *arg){
+void gasnetc_free_dcmf_req_cb(void *arg, DCMF_Error_t *e){
   gasnetc_free_dcmf_req((gasnetc_dcmf_req_t*) arg);
 }
 
@@ -833,14 +834,14 @@ void gasnetc_free_replay_buffer(gasnetc_replay_buffer_t *replay_buf) {
 
 static uint32_t ack_counter=0;
 #define GASNETC_SEND_ACK(PEER, REMOTE_REPLAY_BUFFER) do{\
-	DCQuad outmsg; outmsg.w0 = (REMOTE_REPLAY_BUFFER); outmsg.w1 = ack_counter; \
+	DCMF_Control_t outmsg; outmsg[0].w0 = (REMOTE_REPLAY_BUFFER); outmsg[1].w1 = ack_counter; \
 GASNETI_TRACE_PRINTF(C,("sending Positive ACK (ACK) to %d w/ buffer 0x%x (%d)\n", PEER, REMOTE_REPLAY_BUFFER, ack_counter++));\
 	GASNETI_TRACE_EVENT(C, DCMF_ACK_SENT);\
  DCMF_SAFE(DCMF_Control(&gasnetc_dcmf_ack_registration, DCMF_RELAXED_CONSISTENCY,(PEER),&outmsg));\
 } while(0)
 
 #define GASNETC_SEND_NACK(PEER, REMOTE_REPLAY_BUFFER) do{\
-	 DCQuad outmsg; outmsg.w0 = (REMOTE_REPLAY_BUFFER); outmsg.w1 = ack_counter;\
+	 DCMF_Control_t outmsg; outmsg[0].w0 = (REMOTE_REPLAY_BUFFER); outmsg[0].w1 = ack_counter;\
 GASNETI_TRACE_PRINTF(C,("sending Negative ACK (NACK) to %d w/ buffer 0x%x (%d)\n", PEER, REMOTE_REPLAY_BUFFER, ack_counter++));\
 	GASNETI_TRACE_EVENT(C, DCMF_NACK_SENT);\
  DCMF_SAFE(DCMF_Control(&gasnetc_dcmf_nack_registration, DCMF_RELAXED_CONSISTENCY,(PEER),&outmsg));\
@@ -857,8 +858,8 @@ gasnetc_replay_buffer_t* gasnetc_remove_from_nack_list() {
 void gasnetc_ack_msg_cb(void *client_data,
 												const DCMF_Control_t *info,
 												unsigned peer){
-	gasnetc_replay_buffer_t* buffer = (gasnetc_replay_buffer_t*) (*info).w0;
-	uint32_t seq = (uint32_t) (*info).w1;
+	gasnetc_replay_buffer_t* buffer = (gasnetc_replay_buffer_t*) (*info[0]).w0;
+	uint32_t seq = (uint32_t) (*info[0]).w1;
 	GASNETI_TRACE_PRINTF(C,("Freeing replay buffer: %p %d", buffer, seq));
 	gasnetc_free_replay_buffer(buffer);
 }
@@ -867,8 +868,8 @@ void gasnetc_ack_msg_cb(void *client_data,
 void gasnetc_add_to_nack_list_cb(void *client_data,
 		const DCMF_Control_t *info,
 		unsigned peer) {
-	gasnetc_replay_buffer_t* buffer = (gasnetc_replay_buffer_t*) (*info).w0;
-	uint32_t seq = (uint32_t) (*info).w1;
+	gasnetc_replay_buffer_t* buffer = (gasnetc_replay_buffer_t*) (*info[0]).w0;
+	uint32_t seq = (uint32_t) (*info[0]).w1;
 	GASNETI_TRACE_PRINTF(C,("adding replay buffer to nack: %p %d", buffer, seq));
 	gasnetc_add_replay_to_nack_list(buffer);
 }
@@ -1260,7 +1261,7 @@ void gasnetc_dcmf_handle_am_short_control(void *clientdata,
 
 
 /*this callback is invoked when the active message payload has been accepted but not the args*/
-void gasnetc_dcmf_handle_am_fail(void *arg) {
+void gasnetc_dcmf_handle_am_fail(void *arg, DCMF_Error_t *e) {
 	gasnetc_dcmf_nack_req_t *nack_req = (gasnetc_dcmf_nack_req_t*) arg;
 	
 	/*then send a nack to our peer asking for a resend arguments*/
@@ -1269,7 +1270,7 @@ void gasnetc_dcmf_handle_am_fail(void *arg) {
 }
 
 /*this callback is invoked when the active message was accepted and can be put itno the queue*/
-void gasnetc_dcmf_handle_am_done(void *arg){
+void gasnetc_dcmf_handle_am_done(void *arg, DCMF_Error_t *e){
   gasnetc_amhandler_t *amhandler = (gasnetc_amhandler_t*) arg;
   GASNETI_TRACE_PRINTF(C, ("dcmf am send done callback: %p\n", amhandler)); 
   /* Data transfer is complete and visible to the programmer. 
