@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2008/08/22 22:28:45 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2008/08/23 20:30:01 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -304,6 +304,7 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
     iop->threadidx = thread->threadidx;
   }
   iop->next = NULL;
+	iop->dcmf_req_head=NULL;
   iop->initiated_get_cnt = 0;
   iop->initiated_put_cnt = 0;
   gasneti_weakatomic_set(&(iop->completed_get_cnt), 0, 0);
@@ -334,8 +335,7 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
     gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT);
     gasnete_eop_check(eop);
     SET_OPSTATE(eop, OPSTATE_COMPLETE);
-		gasnetc_free_dcmf_req(eop->dcmf_req);
-  } else {
+	} else {
     gasnete_iop_t *iop = (gasnete_iop_t *)op;
     gasnete_iop_check(iop);
     if (isget) gasneti_weakatomic_increment(&(iop->completed_get_cnt), 0);
@@ -352,15 +352,24 @@ void gasnete_op_free(gasnete_op_t *op) {
     gasnete_eopaddr_t addr = eop->addr;
     gasneti_assert(OPSTATE(eop) == OPSTATE_COMPLETE);
     gasnete_eop_check(eop);
-    SET_OPSTATE(eop, OPSTATE_FREE);
+		SET_OPSTATE(eop, OPSTATE_FREE);
     eop->addr = thread->eop_free;
     thread->eop_free = addr;
+		gasnetc_free_dcmf_req(eop->dcmf_req);
   } else {
     gasnete_iop_t *iop = (gasnete_iop_t *)op;
     gasnete_iop_check(iop);
     gasneti_assert(iop->next == NULL);
     iop->next = thread->iop_free;
     thread->iop_free = iop;
+
+		/*go through and add all the dcmf requests back onto the free list*/
+		while(iop->dcmf_req_head) {
+			gasnetc_dcmf_req_t *req = iop->dcmf_req_head;
+			iop->dcmf_req_head = iop->dcmf_req_head->next;
+			gasnetc_free_dcmf_req(req);
+		}
+		gasneti_assert(iop->dcmf_req_head ==NULL);
   }
 }
 /* ------------------------------------------------------------------------------------ */
@@ -740,7 +749,7 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
       if (op != GASNET_INVALID_HANDLE) {
         empty = 0;
         if (gasnete_op_isdone(op)) {
-	  gasneti_sync_reads();
+					gasneti_sync_reads();
           gasnete_op_free(op);
           phandle[i] = GASNET_INVALID_HANDLE;
           success = 1;
@@ -764,7 +773,7 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
       gasnete_op_t *op = phandle[i];
       if (op != GASNET_INVALID_HANDLE) {
         if (gasnete_op_isdone(op)) {
-	  gasneti_sync_reads();
+					gasneti_sync_reads();
           gasnete_op_free(op);
           phandle[i] = GASNET_INVALID_HANDLE;
         } else success = 0;
@@ -786,52 +795,56 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
     by piggybacking them on other messages (like get replies) or simply aggregating them
     the target until the source tries to synchronize
 */
-
-extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+#if GASNETE_DIRECT_PUT_GET
+GASNETI_INLINE(gasnete_put_nbi_inner)
+void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes, int isbulk GASNETE_THREAD_FARG) {
+	gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const op = mythread->current_iop;
-  if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
-    op->initiated_get_cnt++;
-  
-    GASNETI_SAFE(
-      SHORT_REQ(4,7,(node, gasneti_handleridx(gasnete_get_reqh), 
-                   (gasnet_handlerarg_t)nbytes, PACK(dest), PACK(src), PACK(op))));
-    return;
-  } else {
-    int chunksz;
-    gasnet_handler_t reqhandler;
-    uint8_t *psrc = src;
-    uint8_t *pdest = dest;
-    #if GASNETE_USE_LONG_GETS
-      gasneti_memcheck(gasneti_seginfo);
-      if (gasneti_in_segment(gasneti_mynode, dest, nbytes)) {
-        chunksz = gasnet_AMMaxLongReply();
-        reqhandler = gasneti_handleridx(gasnete_getlong_reqh);
-      }
-      else 
-    #endif
-      { reqhandler = gasneti_handleridx(gasnete_get_reqh);
-        chunksz = gasnet_AMMaxMedium();
-      }
-    for (;;) {
-      op->initiated_get_cnt++;
-      if (nbytes > chunksz) {
-        GASNETI_SAFE(
-          SHORT_REQ(4,7,(node, reqhandler, 
-                       (gasnet_handlerarg_t)chunksz, PACK(pdest), PACK(psrc), PACK(op))));
-        nbytes -= chunksz;
-        psrc += chunksz;
-        pdest += chunksz;
-      } else {
-        GASNETI_SAFE(
-          SHORT_REQ(4,7,(node, reqhandler, 
-                       (gasnet_handlerarg_t)nbytes, PACK(pdest), PACK(psrc), PACK(op))));
-        break;
-      }
-    }
-    return;
-  }
+	volatile int local_put_done = 0; 
+	DCMF_Callback_t local_done_cb, remote_done_cb;
+	gasnetc_dcmf_req_t *dcmf_req;
+	
+	if(node == gasneti_mynode) {
+		GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
+		return;
+	}
+	
+	if(isbulk) {
+		local_done_cb.function = increment_value;
+		local_done_cb.clientdata = NULL;
+	} else {
+		local_done_cb.function = increment_value;
+		local_done_cb.clientdata = (void*) &local_put_done;
+	}
+	
+	remote_done_cb.function = gasnete_mark_dcmf_put_done;
+	remote_done_cb.clientdata = (void*) op;
+	
+
+	/*each put needs its own request so allocate one and push it onto 
+		a lifo list of these ops that will get freed when the iop is freed*/
+	
+	/*since the ops are a per thread thing no need to worry about locking here*/
+	
+	dcmf_req = gasnetc_get_dcmf_req();
+	dcmf_req->next = op->dcmf_req_head;
+	op->dcmf_req_head = dcmf_req;
+		
+	GASNETC_DCMF_LOCK();
+	op->initiated_put_cnt++;
+	DCMF_SAFE(DCMF_Put(&gasnete_dcmf_put_registration, &dcmf_req->req,
+										 local_done_cb,
+										 DCMF_RELAXED_CONSISTENCY, node, nbytes,
+										 &gasnete_dcmf_my_mem_region, gasnete_dcmf_all_mem_regions+node,
+										 (size_t)src, (size_t)dest, remote_done_cb));
+	
+	if(!isbulk) {
+		while(local_put_done == 0) {DCMF_MESSAGER_POLL();}
+	}
+	GASNETC_DCMF_UNLOCK();
+	return;
 }
+#else
 
 GASNETI_INLINE(gasnete_put_nbi_inner)
 void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes, int isbulk GASNETE_THREAD_FARG) {
@@ -901,7 +914,93 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
     return;
   }
 }
+#endif
 
+
+#if GASNETE_DIRECT_PUT_GET
+extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+	gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+  gasnete_iop_t * const op = mythread->current_iop;
+	DCMF_Callback_t done_cb;
+	gasnetc_dcmf_req_t *dcmf_req;
+
+	if(node == gasneti_mynode) {
+		GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
+		return;
+	}
+	
+	
+	done_cb.function = gasnete_mark_dcmf_get_done;
+	done_cb.clientdata = (void*) op;
+
+	/*since each DCMF_Get needs its own request allocate one and then put
+		it on the lifo list for this op that will get freed when the iop is freed*/
+	/*we don't do any locking here sicne the op is a per thread object*/
+	dcmf_req = gasnetc_get_dcmf_req();
+	dcmf_req->next = op->dcmf_req_head;
+	op->dcmf_req_head = dcmf_req;
+	
+	
+	GASNETC_DCMF_LOCK();
+	op->initiated_get_cnt++;
+	DCMF_SAFE(DCMF_Get(&gasnete_dcmf_get_registration,
+										 &dcmf_req->req, done_cb,
+										 DCMF_RELAXED_CONSISTENCY, node,
+										 nbytes, gasnete_dcmf_all_mem_regions+node,
+										 &gasnete_dcmf_my_mem_region, 
+										 (size_t) src, (size_t) dest));
+	GASNETC_DCMF_UNLOCK();
+	
+	return;
+}
+
+#else
+extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+  gasnete_iop_t * const op = mythread->current_iop;
+  if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
+    op->initiated_get_cnt++;
+  
+    GASNETI_SAFE(
+      SHORT_REQ(4,7,(node, gasneti_handleridx(gasnete_get_reqh), 
+                   (gasnet_handlerarg_t)nbytes, PACK(dest), PACK(src), PACK(op))));
+    return;
+  } else {
+    int chunksz;
+    gasnet_handler_t reqhandler;
+    uint8_t *psrc = src;
+    uint8_t *pdest = dest;
+    #if GASNETE_USE_LONG_GETS
+      gasneti_memcheck(gasneti_seginfo);
+      if (gasneti_in_segment(gasneti_mynode, dest, nbytes)) {
+        chunksz = gasnet_AMMaxLongReply();
+        reqhandler = gasneti_handleridx(gasnete_getlong_reqh);
+      }
+      else 
+    #endif
+      { reqhandler = gasneti_handleridx(gasnete_get_reqh);
+        chunksz = gasnet_AMMaxMedium();
+      }
+    for (;;) {
+      op->initiated_get_cnt++;
+      if (nbytes > chunksz) {
+        GASNETI_SAFE(
+          SHORT_REQ(4,7,(node, reqhandler, 
+                       (gasnet_handlerarg_t)chunksz, PACK(pdest), PACK(psrc), PACK(op))));
+        nbytes -= chunksz;
+        psrc += chunksz;
+        pdest += chunksz;
+      } else {
+        GASNETI_SAFE(
+          SHORT_REQ(4,7,(node, reqhandler, 
+                       (gasnet_handlerarg_t)nbytes, PACK(pdest), PACK(psrc), PACK(op))));
+        break;
+      }
+    }
+    return;
+  }
+}
+#endif
 extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_put_nbi_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS);
 }
@@ -928,7 +1027,7 @@ extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
 */
 
 extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
-  #if 0
+  #if 1
     /* polling for syncnbi now happens in header file to avoid duplication */
     GASNETI_SAFE(gasneti_AMPoll());
   #endif

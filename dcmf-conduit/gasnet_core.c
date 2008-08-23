@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2008/08/22 22:28:45 $
- * $Revision: 1.1.2.19 $
+ *     $Date: 2008/08/23 20:30:01 $
+ * $Revision: 1.1.2.20 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -34,7 +34,7 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 #define GASNETC_SEND_NOARG_AM_CONTROL 0 
 
 #if !GASNET_SEQ
-#error ONLY SEQ BUILDS SUPPORTED FOR NOW... Stay tuned for PAR/PARSYNC support
+#warning NON SEQ BUILDS NOT YET TESTED
 #endif
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
