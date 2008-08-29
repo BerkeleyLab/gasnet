@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2008/08/23 20:30:01 $
- * $Revision: 1.1.2.20 $
+ *     $Date: 2008/08/29 22:09:29 $
+ * $Revision: 1.1.2.21 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,6 +15,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include <stdarg.h>
+
 
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
@@ -77,6 +78,7 @@ static unsigned gasnetc_curr_seq_number;
 static DCMF_Protocol_t gasnetc_dcmf_ack_registration;
 static DCMF_Protocol_t gasnetc_dcmf_nack_registration;
 static DCMF_Protocol_t gasnetc_dcmf_short_msg_registration;
+static DCMF_Protocol_t gasnetc_force_exit_registration;
 
 #if GASNET_DEBUG
 static gasneti_semaphore_t gasnetc_num_replay_buffers_active= GASNETI_SEMAPHORE_INITIALIZER(0,0);
@@ -141,6 +143,7 @@ static void gasnetc_inc_uint8_arg_cb(void* arg, DCMF_Error_t *e) {
   (*in)++;
 }
 
+
 gasnetc_dcmf_amregistration_t *gasnetc_dcmf_amregistration[GASNETC_NUM_AMTYPES][GASNETC_NUM_AMCATS][GASNETC_DCMF_NUM_SENDCATS];
 
 
@@ -201,11 +204,17 @@ void gasnetc_dcmf_init(gasnet_node_t* mynode, gasnet_node_t *nodes) {
   	short_msg_config.protocol = nack_config.protocol = ack_config.protocol =DCMF_DEFAULT_CONTROL_PROTOCOL;
   	ack_config.cb_recv = gasnetc_ack_msg_cb;
   	nack_config.cb_recv = gasnetc_add_to_nack_list_cb;
+	
 		short_msg_config.cb_recv = gasnetc_dcmf_handle_am_short_control;
-  	short_msg_config.cb_recv_clientdata =  	ack_config.cb_recv_clientdata = nack_config.cb_recv_clientdata = NULL;
-  	DCMF_SAFE(DCMF_Control_register(&gasnetc_dcmf_ack_registration, &ack_config));
+		
+		short_msg_config.cb_recv_clientdata =  	
+			ack_config.cb_recv_clientdata = 
+			nack_config.cb_recv_clientdata = NULL;
+  	
+		DCMF_SAFE(DCMF_Control_register(&gasnetc_dcmf_ack_registration, &ack_config));
   	DCMF_SAFE(DCMF_Control_register(&gasnetc_dcmf_nack_registration, &nack_config));
 		DCMF_SAFE(DCMF_Control_register(&gasnetc_dcmf_short_msg_registration, &short_msg_config));
+
   }
 
 
@@ -248,6 +257,7 @@ static void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int ro
 static void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
   gasnetc_dcmf_bootstrapExchange(src,len,dest);
 }
+
 
 
 static int gasnetc_init(int *argc, char ***argv) {
@@ -457,7 +467,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /*  (###) register any custom signal handlers required by your conduit 
    *        (e.g. to support interrupt-based messaging)
    */
-
+	
   atexit(gasnetc_atexit);
 
   /* ------------------------------------------------------------------------------------ */
@@ -519,29 +529,31 @@ extern void gasnetc_exit(int exitcode) {
     static gasneti_mutex_t exit_lock = GASNETI_MUTEX_INITIALIZER;
     gasneti_mutex_lock(&exit_lock);
   }
-	
-	fprintf(stderr, "%d> @ exit num active handelrs = %d\n", gasneti_mynode, gasnetc_active_amhandlers);
 
 #if GASNET_DEBUG && 0
+	fprintf(stderr, "%d> @ exit num active handelrs = %d\n", gasneti_mynode, gasnetc_active_amhandlers);
 	/*number active replay buffers should be 0 so trying to down that semaphore should return 0*/
 	gasneti_assert(!gasneti_semaphore_trydown(&gasnetc_num_replay_buffers_active));
 #endif
+
   GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
   gasneti_flush_streams();
   gasneti_trace_finish();
   gasneti_sched_yield();
 
-
-  gasnetc_dcmf_finalize();
-
-  
-  gasneti_killmyprocess(exitcode);
+	gasnetc_dcmf_finalize();
   /* (###) add code here to terminate the job across _all_ nodes 
-     with gasneti_killmyprocess(exitcode) (not regular exit()), preferably
-     after raising a SIGQUIT to inform the client of the exit
+		 with gasneti_killmyprocess(exitcode) (not regular exit()), preferably
+		 after raising a SIGQUIT to inform the client of the exit
   */
-
+	/*if the exit code is (0) we assume that we don't go through the
+		process of killing all the other nodes. If it is nonzero then we'll terminate all
+		other nodes*/
+	/*notice that the BG/P job control doesn't send SIGTERMs to other jobs when the
+		exit code is not 1, so we either exit with 0 (no error) or 1 (error)*/
+	gasneti_killmyprocess((exitcode == 0 ? 0 : 1));
+	
   gasneti_fatalerror("gasnetc_exit failed!");
 }
 
@@ -1064,7 +1076,7 @@ extern int gasnetc_AMPoll() {
 	GASNETI_CHECKATTACH();
 
 	/*kick the entire system once*/
-	GASNETI_TRACE_PRINTF(C,("Starting AMPoll"));
+	//GASNETI_TRACE_PRINTF(C,("Starting AMPoll"));
   /* Make sure lock is aquired*/
 	GASNETC_DCMF_LOCK();
 	/*Run the DCMF active message handlers to queue whatever was left*/
@@ -1078,7 +1090,7 @@ extern int gasnetc_AMPoll() {
 	amhandler = gasnetc_remove_first_active_amhandler();
 	if(amhandler) {
 		int amhandler_list_len=0;
-     GASNETI_TRACE_PRINTF(C,("starting to clear active list numactive: %d", gasnetc_active_amhandlers));
+    // GASNETI_TRACE_PRINTF(C,("starting to clear active list numactive: %d", gasnetc_active_amhandlers));
 		/*run any active message functions that got queued*/
 		
     do {
@@ -1088,15 +1100,15 @@ extern int gasnetc_AMPoll() {
        * finished their calls and they will not be called again with thte 
        * current data set so just remove them from the active queue*/
     	
-    	GASNETI_TRACE_PRINTF(C,("finished running handler: %p seq: %d\n", amhandler, amhandler->seq_number));
+    	//GASNETI_TRACE_PRINTF(C,("finished running handler: %p seq: %d\n", amhandler, amhandler->seq_number));
       gasnetc_free_amhandler(amhandler);
     	amhandler = gasnetc_remove_first_active_amhandler();
     } while(amhandler!=NULL);
 	
 		/*clear the entire active list at one shot*/
 		gasnetc_active_amhandlers = 0;
-		GASNETI_TRACE_PRINTF(C,("finishing clear active list"));
-		GASNETI_TRACE_EVENT_VAL(C, AMHANDLER_LIST_LEN, amhandler_list_len);
+		//	GASNETI_TRACE_PRINTF(C,("finishing clear active list"));
+		//		GASNETI_TRACE_EVENT_VAL(C, AMHANDLER_LIST_LEN, amhandler_list_len);
 	
 	}
 
@@ -1537,7 +1549,7 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
 	dcmf_req  = gasnetc_get_dcmf_req();
 	
 
-	/*if this is request send the id of the replay buffer so we can deal with it on an ack or nack*/
+	/*if this is request send the id of the replay buffer so we can deal with it on an ack or nacks*/
 	/*if it is a reply then we send back whatever the requester sent us*/
 	GASNETC_MAKE_HEADER_QUAD(amtype, amcat, numargs, handler_idx, dst_addr, (unsigned) replay_buffer , nbytes, quads);
 	GASNETC_PACK_ARG_QUADS(numargs, argptr, quads+1, numquads_ptr);
