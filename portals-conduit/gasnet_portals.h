@@ -856,13 +856,11 @@ extern void gasnetc_scavenge_list_add(gasnet_node_t node, int locked);
 
 /* Inline Function Definitions */
 GASNETI_INLINE(gasnetc_compute_credits)
-long gasnetc_compute_credits(long nbytes)
+unsigned long gasnetc_compute_credits(unsigned long nbytes)
 {
   if (gasnetc_use_flow_control) {
-    long credits = nbytes/(long)GASNETC_BYTES_PER_CREDIT;
-    long rem = nbytes % (long)GASNETC_BYTES_PER_CREDIT;
     /* eq: if bpc=256 then 0-256 is 1 credit, 257-512 is 2, etc */
-    return (nbytes == 0 ? 1 : (credits + (rem ? 1 : 0) ) );
+    return (nbytes == 0 ? 1 : ((nbytes + GASNETC_BYTES_PER_CREDIT - 1) / GASNETC_BYTES_PER_CREDIT));
   }
   return 0;
 }
