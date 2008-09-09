@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2008/03/17 21:22:50 $
- * $Revision: 1.12.2.3 $
+ *     $Date: 2008/09/09 19:06:28 $
+ * $Revision: 1.12.2.4 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -742,9 +742,15 @@ extern int gasnetc_AMRequestMediumM(
  * will fit into one ReqSB chunk.  However, this may require more send credits
  * than we have available.  In this case, revert to two-message send if uses
  * fewer credits.
+ *   dest:      IN
+ *   isPacked:  INOUT
+ *   msg_bytes: INOUT
+ *   nsend:     OUT
+ *   nscredit:  OUT
+ *   ntmpmd:    OUT
  */
 #define AM_LONG_COMPUTE_RESOURCES(dest,isPacked,msg_bytes,nsend,ncredit,ntmpmd) do { \
-    int packed_credits=0;						\
+    int packed_credits = 0;						\
     int packed_bytes = 0;						\
     int arg_bytes = (numargs>1 ? (numargs-1) : 0)*sizeof(gasnet_handlerarg_t); \
     /* Regular Format: hdr_dara=[arg0,lid]      data=[args][seqno][cred][pad] */ \
@@ -771,9 +777,10 @@ extern int gasnetc_AMRequestMediumM(
 	}								\
       }									\
     }									\
+    /* else packed_credits = 0; */					\
     if (isPacked) {							\
       msg_bytes = packed_bytes;						\
-      ncredit = (gasnetc_use_flow_control ? packed_credits : 0);	\
+      ncredit = packed_credits;						\
       nsend = 1;							\
       ntmpmd = 0;							\
     } else {								\
