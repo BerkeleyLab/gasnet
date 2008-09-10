@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2008/09/10 02:00:39 $
- * $Revision: 1.12.2.6 $
+ *     $Date: 2008/09/10 02:47:54 $
+ * $Revision: 1.12.2.7 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -25,6 +25,8 @@ static void gasnetc_traceoutput(int);
 
 #define GASNETC_MAX_NUMHANDLERS   256
 gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
+
+uintptr_t gasnetc_segbase, gasnetc_segend;
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -298,10 +300,14 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
       gasneti_assert(segsize % GASNET_PAGESIZE == 0);
     }
+    gasnetc_segbase = (uintptr_t)segbase;
+    gasnetc_segend = gasnetc_segbase + segsize;
   #else
     /* GASNET_SEGMENT_EVERYTHING */
     segbase = (void *)0;
     segsize = (uintptr_t)-1;
+    gasnetc_segbase = (0;
+    gasnetc_segend = (uintptr_t)-1;
     /* (###) add any code here needed to setup GASNET_SEGMENT_EVERYTHING support */
   #endif
 

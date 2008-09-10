@@ -606,6 +606,7 @@ extern int gasnetc_debug_node;                    /* used in debugging */
 #define GASNETC_CURRENT_TIME() gasneti_ticks_to_ns(gasneti_ticks_now())
 /* decay variables by dividing by 4 */
 #define GASNETC_CREDIT_DECAY(val) val = ((val) >> 2)
+extern uintptr_t gasnetc_segbase, gasnetc_segend; /* local segment bounds */
 
 #if GASNETC_USE_SANDIA_ACCEL
 extern int gasnetc_use_accel;
@@ -904,11 +905,8 @@ void gasnete_get_op_lowbits(ptl_match_bits_t mbits, uint8_t *threadid, gasnete_o
 GASNETI_INLINE(gasnetc_in_local_rar)
 int gasnetc_in_local_rar(uint8_t* pstart, size_t n)
 {
-  uint8_t *pend  = pstart + n;
-  uint8_t *start = (uint8_t*)gasneti_seginfo[gasneti_mynode].addr;
-  uint8_t *end   = start + gasneti_seginfo[gasneti_mynode].size;
-
-  return (pstart >= start) && (pend <= end);
+  uintptr_t addr = (uintptr_t)pstart;
+  return ((addr >= gasnetc_segbase) && ((addr + n) <= gasnetc_segend));
 }
 
 GASNETI_INLINE(gasnetc_alloc_tmpmd_withpoll)
