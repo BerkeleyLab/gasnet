@@ -4127,7 +4127,7 @@ size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
 }
 
 /* ------------------------------------------------------------------------------------
- * This function does the actual Portals Put operation for the extended API Get
+ * This function does the actual Portals Put operation for the extended API Put
  * operations.
  * If we have reached the put/get limit, we poll as directed.
  * dest       => Address of destination, must be in remote RAR
