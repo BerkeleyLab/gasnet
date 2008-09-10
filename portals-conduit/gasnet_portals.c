@@ -394,7 +394,7 @@ static int exec_amshort_handler(int isReq, ptl_event_t *ev, int numarg, int ghan
   }
   if (numarg > 1) {
     /* unpack the credit info */
-    memcpy(&tok.credits,data,sizeof(uint8_t));
+    tok.credits = *data;
     data += sizeof(uint8_t);
     msg_bytes += sizeof(uint8_t);
   }
@@ -637,7 +637,7 @@ static int exec_amlong_header(int isReq, int isPacked,
     nbytes = (lid & 0x00FFFFFF);
   } else {
     /* unpack credit byte */
-    memcpy(&tok.credits,data,sizeof(uint8_t));
+    tok.credits = *data;
     data += sizeof(uint8_t);
     msg_bytes += sizeof(uint8_t);
   }
