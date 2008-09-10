@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2008/09/10 02:47:54 $
- * $Revision: 1.12.2.7 $
+ *     $Date: 2008/09/10 03:16:07 $
+ * $Revision: 1.12.2.8 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -578,7 +578,7 @@ extern int gasnetc_AMRequestShortM(
   }
   if (numargs > 1) {
     /* pack the credit info byte */
-    memcpy(data,&cred_byte,sizeof(uint8_t));
+    *data = cred_byte;
     data += sizeof(uint8_t);  /* not needed */
   }
   va_end(argptr);
@@ -906,7 +906,7 @@ extern int gasnetc_AMRequestMediumM(
       GASNETC_PTLSAFE(PtlPutRegion(data_md_h, data_offset, nbytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_RAR_PTE, ac_index, data_mbits, data_rmt_offset, data_hdr_data)); \
 									\
       /* add the credit info & send header message*/			\
-      memcpy(data,&cred_byte,sizeof(uint8_t));				\
+      *data = cred_byte;						\
       data += sizeof(uint8_t);						\
 									\
       GASNETC_DBGMSG(1,1,"L",gasneti_mynode,dest,handler,numargs,hargs,msg_bytes,cred_byte,nbytes,source_addr,th); \
@@ -1114,7 +1114,7 @@ extern int gasnetc_AMReplyShortM(
   }
   if (numargs > 1) {
     /* pack the credit info byte */
-    memcpy(data,&ptok->credits,sizeof(uint8_t));
+    *data = ptok->credits;
     data += sizeof(uint8_t);  
     msg_bytes += sizeof(uint8_t);
   }
@@ -1390,7 +1390,7 @@ extern int gasnetc_AMReplyLongM(
 
     /* now complete header message */
     /* pack the return credit info (already processed when Request arrived) */
-    memcpy(data,&ptok->credits,sizeof(uint8_t));
+    *data = ptok->credits;
     msg_bytes += sizeof(uint8_t);
     gasneti_assert(msg_bytes <= GASNETC_CHUNKSIZE);
 
