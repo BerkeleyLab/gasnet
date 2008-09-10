@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2008/09/09 19:06:28 $
- * $Revision: 1.12.2.4 $
+ *     $Date: 2008/09/10 01:28:42 $
+ * $Revision: 1.12.2.5 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -738,13 +738,20 @@ extern int gasnetc_AMRequestMediumM(
   GASNETI_RETURN(GASNET_OK);
 }
 
+#if GASNET_DEBUG
+    /* Reserve an extra sizeof(uint32_t) for the debug sequence number */
+    #define MAX_PACKED_LONG (GASNETC_CHUNKSIZE - sizeof(uint32_t))
+#else
+    #define MAX_PACKED_LONG GASNETC_CHUNKSIZE
+#endif
+
 /* Compute the resources needed to send this Long AM.  If isPacked is true, message
  * will fit into one ReqSB chunk.  However, this may require more send credits
  * than we have available.  In this case, revert to two-message send if uses
  * fewer credits.
  *   dest:      IN
- *   isPacked:  INOUT
- *   msg_bytes: INOUT
+ *   isPacked:  OUT
+ *   msg_bytes: OUT
  *   nsend:     OUT
  *   nscredit:  OUT
  *   ntmpmd:    OUT
@@ -756,36 +763,39 @@ extern int gasnetc_AMRequestMediumM(
     /* Regular Format: hdr_dara=[arg0,lid]      data=[args][seqno][cred][pad] */ \
     /* Packed  Format: hdr_data=[arg0,cred:len] data=[args][seqno][destaddr][data][pad]  */ \
     /* seqno only in debug mode, pad only for Req */			\
+									\
+    /* Begin assuming Regular Format */					\
     msg_bytes = arg_bytes + sizeof(uint8_t);				\
     GASNETC_SEQNO_MSGLEN(msg_bytes);					\
     GASNETC_COMPUTE_DOUBLE_PAD(msg_bytes,pad);				\
     msg_bytes += pad;							\
-    ncredit = gasnetc_compute_credits(msg_bytes);			\
-    if (isPacked) {							\
+    gasneti_assert((gasnetc_use_flow_control == 0) ||			\
+		   (gasnetc_use_flow_control == 1));			\
+    ncredit = gasnetc_compute_credits(msg_bytes) +			\
+	      gasnetc_use_flow_control; /* for PUT_END event of RARAM */ \
+    nsend = 2;								\
+    ntmpmd = 1;								\
+    isPacked = 0;							\
+									\
+    /* Can/should we use Packed Format? */				\
+    if (gasnetc_allow_packed_long) {					\
       packed_bytes = arg_bytes + sizeof(void*) + nbytes;		\
-      GASNETC_SEQNO_MSGLEN(packed_bytes);				\
-      GASNETC_COMPUTE_DOUBLE_PAD(packed_bytes,pad);			\
-      packed_bytes += pad;						\
-    }									\
-    if (gasnetc_use_flow_control) {					\
-      ncredit++;  /* for PUT_END event of RARAM */			\
-      if (isPacked) {							\
+      if (packed_bytes <= MAX_PACKED_LONG) {				\
+	GASNETC_SEQNO_MSGLEN(packed_bytes);				\
+	GASNETC_COMPUTE_DOUBLE_PAD(packed_bytes,pad);			\
+	packed_bytes += pad;						\
 	packed_credits = gasnetc_compute_credits(packed_bytes);		\
-	if ((packed_credits > ncredit) && (packed_credits > gasnetc_avail_credits(dest))) { \
-	  /* dont use packed, revert to non-packed */			\
-	  isPacked = 0;							\
-	}								\
+	/* Use packed unless doing so creates an avoidable stall */	\
+	if (!(gasnetc_use_flow_control &&				\
+	      (packed_credits > ncredit) &&				\
+	      (packed_credits > gasnetc_avail_credits(dest)))) {	\
+          msg_bytes = packed_bytes;					\
+          ncredit = packed_credits;					\
+          nsend = 1;							\
+          ntmpmd = 0;							\
+          isPacked = 1;							\
+        }								\
       }									\
-    }									\
-    /* else packed_credits = 0; */					\
-    if (isPacked) {							\
-      msg_bytes = packed_bytes;						\
-      ncredit = packed_credits;						\
-      nsend = 1;							\
-      ntmpmd = 0;							\
-    } else {								\
-      nsend = 2;							\
-      ntmpmd = 1;							\
     }									\
     gasneti_assert( (msg_bytes % sizeof(double)) == 0 );		\
     gasneti_assert(msg_bytes <= GASNETC_CHUNKSIZE);			\
@@ -938,8 +948,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   ptl_size_t           local_offset;
   gasnetc_conn_t      *state = gasnetc_conn_state + dest;
   int                  do_sync = 1;
-  int                  isPacked = 0;
-  int                  msg_bytes, nsend, ncredit, ntmpmd, pad;
+  int                  isPacked, msg_bytes, nsend, ncredit, ntmpmd, pad;
   uint8_t              cred_byte = 0;
   gasnetc_threaddata_t *th = gasnetc_mythread();
 
@@ -950,15 +959,6 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   /* if loopback, run handler and return */
   AM_LONG_REQUEST_LOOPBACK_CHECK();
 
-  /* can we pack the message? */
-  if (gasnetc_allow_packed_long) {
-    int max_pack = GASNETC_CHUNKSIZE - (numargs>1?(numargs-1):0)*sizeof(gasnet_handlerarg_t) - sizeof(void*);
-#if GASNET_DEBUG
-    max_pack -= sizeof(uint32_t);  /* the debug sequence number */
-#endif
-    isPacked = (nbytes <= max_pack ? 1 : 0);
-  }
-    
   /* compute message len and allocate resources needed to send message */
   gasneti_assert(th->snd_credits == 0);
   AM_LONG_COMPUTE_RESOURCES(dest,isPacked,msg_bytes,nsend,ncredit,ntmpmd);
@@ -990,8 +990,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
   ptl_size_t           local_offset;
   gasnetc_conn_t      *state = gasnetc_conn_state + dest;
   int                  do_sync = 0;
-  int                  isPacked = 0;
-  int                  msg_bytes, nsend, ncredit, ntmpmd, pad;
+  int                  isPacked, msg_bytes, nsend, ncredit, ntmpmd, pad;
   uint8_t              cred_byte = 0;
   gasnetc_threaddata_t *th = gasnetc_mythread();
 
@@ -1001,15 +1000,6 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 
   /* if loopback, run handler and return */
   AM_LONG_REQUEST_LOOPBACK_CHECK();
-
-  /* can we pack the message? */
-  if (gasnetc_allow_packed_long) {
-    int max_pack = GASNETC_CHUNKSIZE - (numargs>1?(numargs-1):0)*sizeof(gasnet_handlerarg_t) - sizeof(void*);
-#if GASNET_DEBUG
-    max_pack -= sizeof(uint32_t);  /* the debug sequence number */
-#endif
-    isPacked = (nbytes <= max_pack ? 1 : 0);
-  }
 
   /* compute message len and number of resources needed to send message */
   gasneti_assert(th->snd_credits == 0);
