@@ -392,7 +392,7 @@ extern unsigned gasnetc_sys_poll_limit;
   } while(0)
 
 /* Before starting an AM Request, poll until certain conditions are met */
-#define GASNETC_COMMON_AMREQ_START(state,offset,th,nsend,ncredit,cred_byte,ntmpmd) do { \
+#define GASNETC_COMMON_AMREQ_START(state,offset,th,nsend,ncredit,cred_byte) do { \
     int pollcnt = 0;							\
     GASNETC_GET_SEND_CREDITS(th,state,ncredit,cred_byte,pollcnt);	\
     /* Allocate a send buffer */					\
@@ -400,10 +400,8 @@ extern unsigned gasnetc_sys_poll_limit;
       pollcnt++;							\
       gasneti_AMPoll();							\
     }									\
-    GASNETC_GET_TMPMD_TICKETS(th,ntmpmd,pollcnt);			\
     GASNETC_GET_SEND_TICKETS(th,nsend,pollcnt);				\
     gasneti_assert( th->snd_tickets >= nsend );				\
-    gasneti_assert( th->tmpmd_tickets >= ntmpmd );			\
     gasneti_assert( th->snd_credits >= ncredit );			\
   } while (0)
 

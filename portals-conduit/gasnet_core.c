@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2008/09/10 01:28:42 $
- * $Revision: 1.12.2.5 $
+ *     $Date: 2008/09/10 02:00:39 $
+ * $Revision: 1.12.2.6 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -492,7 +492,7 @@ extern int gasnetc_AMRequestShortM(
   gasnetc_conn_t    *state = &gasnetc_conn_state[dest];
   uint8_t           *data;
   gasnetc_threaddata_t *th = gasnetc_mythread();
-  int                nsend,ncredit,ntmpmd;
+  int                nsend,ncredit;
   uint8_t            cred_byte = 0;
 
   GASNETC_DEF_HARGS();  /* debugging, must be first statement */
@@ -539,10 +539,9 @@ extern int gasnetc_AMRequestShortM(
   ncredit = gasnetc_compute_credits(msg_bytes);
   if (!gasnetc_use_flow_control) gasneti_assert(ncredit == 0);
   nsend = 1;
-  ntmpmd = 0;
 
   /* poll until ok to send message, allocate ReqSB chunk */
-  GASNETC_COMMON_AMREQ_START(state,local_offset,th,nsend,ncredit,cred_byte,ntmpmd);
+  GASNETC_COMMON_AMREQ_START(state,local_offset,th,nsend,ncredit,cred_byte);
 
   /* get the addr of the start of the chunk */
   data = (uint8_t*)gasnetc_ReqSB.start + local_offset;
@@ -624,7 +623,7 @@ extern int gasnetc_AMRequestMediumM(
   uint32_t           hndlr_bytes = nbytes;  /* this will fit for medium message */
   uint8_t           *data;
   gasnetc_threaddata_t *th = gasnetc_mythread();
-  int                nsend, ncredit, ntmpmd;
+  int                nsend, ncredit;
   uint8_t            cred_byte = 0;
 
   GASNETC_DEF_HARGS();  /* debugging, must be first statement */
@@ -679,10 +678,9 @@ extern int gasnetc_AMRequestMediumM(
   ncredit = gasnetc_compute_credits(msg_bytes);
   if (!gasnetc_use_flow_control) gasneti_assert(ncredit == 0);
   nsend = 1;
-  ntmpmd = 0;
 
   /* poll until ok to send message, allocate ReqSB chunk */
-  GASNETC_COMMON_AMREQ_START(state,local_offset,th,nsend,ncredit,cred_byte,ntmpmd);
+  GASNETC_COMMON_AMREQ_START(state,local_offset,th,nsend,ncredit,cred_byte);
 
   /* get the addr of the start of the chunk */
   data = (uint8_t*)gasnetc_ReqSB.start + local_offset;
@@ -774,7 +772,7 @@ extern int gasnetc_AMRequestMediumM(
     ncredit = gasnetc_compute_credits(msg_bytes) +			\
 	      gasnetc_use_flow_control; /* for PUT_END event of RARAM */ \
     nsend = 2;								\
-    ntmpmd = 1;								\
+    ntmpmd = !gasnetc_in_local_rar(source_addr,nbytes);			\
     isPacked = 0;							\
 									\
     /* Can/should we use Packed Format? */				\
@@ -966,7 +964,12 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   if (! isPacked) gasneti_assert(nsend == 2);
 
   /* poll until ok to send message, allocate ReqSB chunk */
-  GASNETC_COMMON_AMREQ_START(state,local_offset,th,nsend,ncredit,cred_byte,ntmpmd);
+  GASNETC_COMMON_AMREQ_START(state,local_offset,th,nsend,ncredit,cred_byte);
+  {
+    int pollcnt = 0;
+    GASNETC_GET_TMPMD_TICKETS(th,ntmpmd,pollcnt);
+    gasneti_assert(th->tmpmd_tickets >= ntmpmd);
+  }
 
   /* do all the work in sending the messages(s) */
   AM_LONG_COMMON(do_sync,isPacked,th,cred_byte);
@@ -1007,7 +1010,12 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
   if (!gasnetc_use_flow_control) gasneti_assert(ncredit == 0);
 
   /* poll until all required resources are allocated */
-  GASNETC_COMMON_AMREQ_START(state,local_offset,th,nsend,ncredit,cred_byte,ntmpmd);
+  GASNETC_COMMON_AMREQ_START(state,local_offset,th,nsend,ncredit,cred_byte);
+  {
+    int pollcnt = 0;
+    GASNETC_GET_TMPMD_TICKETS(th,ntmpmd,pollcnt);
+    gasneti_assert(th->tmpmd_tickets >= ntmpmd);
+  }
 
   /* do all the work in sending the messages(s) */
   AM_LONG_COMMON(do_sync,isPacked,th,cred_byte);
