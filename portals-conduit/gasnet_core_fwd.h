@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2008/03/18 00:07:11 $
- * $Revision: 1.10.2.1 $
+ *     $Date: 2008/09/11 04:27:23 $
+ * $Revision: 1.10.2.2 $
  * Description: GASNet header for PORTALS conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -68,6 +68,10 @@
 	CNT(C, PUT_BB, count)                   \
 	CNT(C, PUT_FH, count)                   \
 	CNT(C, PUT_TMPMD, count)                \
+	CNT(C, LONG_PACKED, count)              \
+	CNT(C, LONG_RAR, count)                 \
+	CNT(C, LONG_FH, count)                  \
+	CNT(C, LONG_TMPMD, count)               \
 	TIME(C, FIREHOSE_MOVE, processing time) \
 	VAL(C, FIREHOSE_PIN, pages)             \
 	VAL(C, FIREHOSE_UNPIN, pages)           \

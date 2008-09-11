@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2008/09/11 03:50:54 $
- * $Revision: 1.12.2.9 $
+ *     $Date: 2008/09/11 04:27:23 $
+ * $Revision: 1.12.2.10 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -878,6 +878,7 @@ extern int gasnetc_AMRequestMediumM(
       /* send message */						\
       GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data)); \
 									\
+      GASNETI_TRACE_EVENT(C, LONG_PACKED);				\
     } else {								\
       ptl_handle_md_t data_md_h;					\
       ptl_match_bits_t data_mbits = GASNETC_PTL_MSG_AMDATA | GASNETC_PTL_RARAM_BITS; \
@@ -894,6 +895,7 @@ extern int gasnetc_AMRequestMediumM(
       if (gasnetc_in_local_rar(source_addr,nbytes)) {			\
 	data_md_h = gasnetc_RARSRC.md_h;				\
 	data_offset = GASNETC_PTL_OFFSET(gasneti_mynode,source_addr);	\
+	GASNETI_TRACE_EVENT(C, LONG_RAR);				\
       } else if_pt (gasnetc_use_firehose) {				\
 	gasnetc_fh_op_t *op =						\
 	    gasnetc_fh_aligned_local_pin((uintptr_t)source_addr, nbytes);\
@@ -902,10 +904,12 @@ extern int gasnetc_AMRequestMediumM(
 	data_offset = (uintptr_t)source_addr - fh_loc->addr;		\
 	data_mbits |= ((ptl_match_bits_t)(op->addr.fulladdr) << 32);	\
 	gasneti_assert(nbytes <= (fh_loc->len - data_offset));		\
+	GASNETI_TRACE_EVENT(C, LONG_FH);				\
       } else {								\
 	gasneti_assert(th->tmpmd_tickets > 0);				\
 	data_md_h = gasnetc_alloc_tmpmd(source_addr, nbytes);		\
 	th->tmpmd_tickets--;						\
+	GASNETI_TRACE_EVENT(C, LONG_TMPMD);				\
       }									\
       if (do_sync) {							\
 	data_mbits |= ( (ptl_match_bits_t)GASNETC_PTL_AM_SYNC  << 8);	\
