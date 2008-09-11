@@ -4081,7 +4081,7 @@ size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     GASNETI_TRACE_EVENT(C, GET_RAR);
   } else if_pt (gasnetc_use_firehose) {
     /* alloc a firehose for the destination region */
-    gasnetc_fh_op_t *op = gasnetc_fh_aligned_local_pin((uintptr_t)dest, nbytes);
+    gasnetc_fh_op_t *op = gasnetc_fh_aligned_local_pin(dest, nbytes);
     const firehose_request_t *fh_loc = op->fh[0];
     md_h = fh_loc->client;
     local_offset = (uintptr_t)dest - fh_loc->addr;
@@ -4156,7 +4156,7 @@ size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     GASNETI_TRACE_EVENT(C, PUT_RAR);
   } else if_pt (gasnetc_use_firehose) {
     /* alloc a firehose for the source region */
-    gasnetc_fh_op_t *op = gasnetc_fh_aligned_local_pin((uintptr_t)src, nbytes);
+    gasnetc_fh_op_t *op = gasnetc_fh_aligned_local_pin(src, nbytes);
     const firehose_request_t *fh_loc = op->fh[0];
     md_h = fh_loc->client;
     local_offset = (uintptr_t)src - fh_loc->addr;

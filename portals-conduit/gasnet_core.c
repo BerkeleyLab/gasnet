@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2008/09/11 04:27:23 $
- * $Revision: 1.12.2.10 $
+ *     $Date: 2008/09/11 05:17:32 $
+ * $Revision: 1.12.2.11 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -898,7 +898,7 @@ extern int gasnetc_AMRequestMediumM(
 	GASNETI_TRACE_EVENT(C, LONG_RAR);				\
       } else if_pt (gasnetc_use_firehose) {				\
 	gasnetc_fh_op_t *op =						\
-	    gasnetc_fh_aligned_local_pin((uintptr_t)source_addr, nbytes);\
+	    	gasnetc_fh_aligned_local_pin(source_addr, nbytes);	\
 	const firehose_request_t *fh_loc = op->fh[0];			\
 	data_md_h = fh_loc->client;					\
 	data_offset = (uintptr_t)source_addr - fh_loc->addr;		\
@@ -1388,7 +1388,7 @@ extern int gasnetc_AMReplyLongM(
       dp_md_h = gasnetc_RARSRC.md_h;
       dp_offset = GASNETC_PTL_OFFSET(gasneti_mynode,source_addr);
     } else if_pt (gasnetc_use_firehose) {
-      gasnetc_fh_op_t *op = gasnetc_fh_aligned_local_pin((uintptr_t)source_addr, nbytes);
+      gasnetc_fh_op_t *op = gasnetc_fh_aligned_local_pin(source_addr, nbytes);
       const firehose_request_t *fh_loc = op->fh[0];
       dp_md_h = fh_loc->client;
       dp_offset = (uintptr_t)source_addr - fh_loc->addr;
