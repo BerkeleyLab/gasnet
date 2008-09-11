@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2008/09/11 05:17:32 $
- * $Revision: 1.12.2.11 $
+ *     $Date: 2008/09/11 05:25:59 $
+ * $Revision: 1.12.2.12 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -573,7 +573,8 @@ extern int gasnetc_AMRequestShortM(
     gasnet_handlerarg_t foo;
     foo = va_arg(argptr,gasnet_handlerarg_t);
     GASNETC_ADD_HARG(foo);
-    memcpy(data,&foo,sizeof(gasnet_handlerarg_t));
+    gasneti_assert(!(3 & (uintptr_t)data));
+    *(gasnet_handlerarg_t*)data = foo;
     data += sizeof(gasnet_handlerarg_t);
   }
   if (numargs > 1) {
@@ -709,7 +710,8 @@ extern int gasnetc_AMRequestMediumM(
   for (i=1; i < numargs; i++) {
     gasnet_handlerarg_t foo = va_arg(argptr,gasnet_handlerarg_t);
     GASNETC_ADD_HARG(foo);
-    memcpy(data,&foo,sizeof(gasnet_handlerarg_t));
+    gasneti_assert(!(3 & (uintptr_t)data));
+    *(gasnet_handlerarg_t*)data = foo;
     data += sizeof(gasnet_handlerarg_t);
   }
   va_end(argptr);
@@ -851,7 +853,8 @@ extern int gasnetc_AMRequestMediumM(
     for (i=1; i < numargs; i++) {					\
       garg0 = va_arg(argptr,gasnet_handlerarg_t);			\
       GASNETC_ADD_HARG(garg0);						\
-      memcpy(data,&garg0,sizeof(gasnet_handlerarg_t));			\
+      gasneti_assert(!(3 & (uintptr_t)data));				\
+      *(gasnet_handlerarg_t*)data = garg0;				\
       data += sizeof(gasnet_handlerarg_t);				\
     }									\
     va_end(argptr);							\
@@ -1121,7 +1124,8 @@ extern int gasnetc_AMReplyShortM(
     gasnet_handlerarg_t foo;
     foo = va_arg(argptr,gasnet_handlerarg_t);
     GASNETC_ADD_HARG(foo);
-    memcpy(data,&foo,sizeof(gasnet_handlerarg_t));
+    gasneti_assert(!(3 & (uintptr_t)data));
+    *(gasnet_handlerarg_t*)data = foo;
     data += sizeof(gasnet_handlerarg_t);
     msg_bytes += sizeof(gasnet_handlerarg_t);
   }
@@ -1217,7 +1221,8 @@ extern int gasnetc_AMReplyMediumM(
   for (i=1; i < numargs; i++) {
     gasnet_handlerarg_t foo = va_arg(argptr,gasnet_handlerarg_t);
     GASNETC_ADD_HARG(foo);
-    memcpy(data,&foo,sizeof(gasnet_handlerarg_t));
+    gasneti_assert(!(3 & (uintptr_t)data));
+    *(gasnet_handlerarg_t*)data = foo;
     data += sizeof(gasnet_handlerarg_t);
     msg_bytes += sizeof(gasnet_handlerarg_t);
   }
@@ -1335,7 +1340,8 @@ extern int gasnetc_AMReplyLongM(
   for (i=1; i < numargs; i++) {
     garg = va_arg(argptr,gasnet_handlerarg_t);
     GASNETC_ADD_HARG(garg);
-    memcpy(data,&garg,sizeof(gasnet_handlerarg_t));
+    gasneti_assert(!(3 & (uintptr_t)data));
+    *(gasnet_handlerarg_t*)data = garg;
     data += sizeof(gasnet_handlerarg_t);
     msg_bytes += sizeof(gasnet_handlerarg_t);
   }
