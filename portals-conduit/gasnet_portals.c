@@ -1076,8 +1076,7 @@ static void RARSRC_event(ptl_event_t *ev)
 	/* caller is AMLong (sync, not async), and is waiting for this counter to decrement */
 	gasneti_weakatomic_t *counter = (amflag & GASNETC_PTL_AM_REQUEST) ? &th->amlongReq_data_inflight
 									  : &th->amlongRep_data_inflight;
-	gasneti_assert(gasneti_weakatomic_read(counter, 0) != 0);
-	gasneti_weakatomic_decrement(counter, 0);
+	GASNETC_DEC_INFLIGHT(counter);
       }
     }
     break;
@@ -1161,8 +1160,7 @@ static void TMPMD_event(ptl_event_t *ev)
 	/* caller is AMLong (sync, not async), and is waiting for this counter to decrement */
 	gasneti_weakatomic_t *counter = (amflag & GASNETC_PTL_AM_REQUEST) ? &th->amlongReq_data_inflight
 									  : &th->amlongRep_data_inflight;
-	gasneti_assert(gasneti_weakatomic_read(counter, 0) != 0);
-	gasneti_weakatomic_decrement(counter, 0);
+	GASNETC_DEC_INFLIGHT(counter);
       }
       /* unlink the tmp MD or free the firehose used in the AM Long data put */
       if_pt (gasnetc_use_firehose) {

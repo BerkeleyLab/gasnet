@@ -1010,6 +1010,33 @@ void gasnetc_sys_poll()
   }
 }
 
+/*
+ * Encapsulate access to 
+ *   th->amlong{Req,Rep}_data_inflight
+ */
+#if 0
+  /* General case, allows multiple ops in-flight */
+  #define GASNETC_INC_INFLIGHT(_p)	gasneti_weakatomic_increment((_p), 0)
+  #define GASNETC_DEC_INFLIGHT(_p)	gasneti_weakatomic_decrement((_p), 0)
+  #define GASNETC_TEST_INFLIGHT(_p)	gasneti_weakatomic_read((_p), 0)
+#else
+  /* Single-op case.  We allow only 1 in-flight op.
+   * This allows use of set(p,1) and set(p,0), in place of inc(p) and dec(p).
+   * We include assertions for a sanity check.
+   */
+  #define GASNETC_INC_INFLIGHT(_p) do {                              \
+	    gasneti_weakatomic_t *_tmp = (_p);                       \
+	    gasneti_assert(gasneti_weakatomic_read((_tmp), 0) == 0); \
+	    gasneti_weakatomic_set((_tmp), 1, 0);                    \
+	} while (0)
+  #define GASNETC_DEC_INFLIGHT(_p) do {                              \
+	    gasneti_weakatomic_t *_tmp = (_p);                       \
+	    gasneti_assert(gasneti_weakatomic_read((_tmp), 0) == 1); \
+	    gasneti_weakatomic_set((_tmp), 0, 0);                    \
+	} while (0)
+  #define GASNETC_TEST_INFLIGHT(_p)	gasneti_weakatomic_read((_p), 0)
+#endif
+
 /* ---------------------------------------------------------------------------------
  * Allocate a new LID = "Long ID" for a new AMLong Request or Reply operation
  * --------------------------------------------------------------------------------- */

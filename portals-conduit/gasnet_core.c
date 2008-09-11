@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2008/09/11 05:25:59 $
- * $Revision: 1.12.2.12 $
+ *     $Date: 2008/09/11 19:34:25 $
+ * $Revision: 1.12.2.13 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -916,8 +916,7 @@ extern int gasnetc_AMRequestMediumM(
       }									\
       if (do_sync) {							\
 	data_mbits |= ( (ptl_match_bits_t)GASNETC_PTL_AM_SYNC  << 8);	\
-	gasneti_assert(gasneti_weakatomic_read(&th->amlongReq_data_inflight, 0) == 0); \
-	gasneti_weakatomic_increment(&th->amlongReq_data_inflight, 0);	\
+	GASNETC_INC_INFLIGHT(&th->amlongReq_data_inflight);		\
       }									\
       GASNETC_PTLSAFE(PtlPutRegion(data_md_h, data_offset, nbytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_RAR_PTE, ac_index, data_mbits, data_rmt_offset, data_hdr_data)); \
 									\
@@ -933,7 +932,7 @@ extern int gasnetc_AMRequestMediumM(
 									\
       /* now wait for data put to complete locally */			\
       if (do_sync) {							\
-	gasneti_pollwhile( gasneti_weakatomic_read(&th->amlongReq_data_inflight, 0) > 0 ); \
+	gasneti_pollwhile(GASNETC_TEST_INFLIGHT(&th->amlongReq_data_inflight)); \
       }									\
     }									\
   } while(0)
@@ -1410,8 +1409,7 @@ extern int gasnetc_AMReplyLongM(
     /* NOTE: dp_mbits explicitly does not include the REQUEST flag, since this is a reply */
     dp_mbits |= GASNETC_PTL_MSG_AMDATA | GASNETC_PTL_RARSRC_BITS | (GASNETC_PTL_AM_SYNC << 8);
     dp_mbits |= ((ptl_match_bits_t)(th->threadidx) << 24);
-    gasneti_assert(gasneti_weakatomic_read(&th->amlongRep_data_inflight, 0) == 0);
-    gasneti_weakatomic_increment(&th->amlongRep_data_inflight, 0);
+    GASNETC_INC_INFLIGHT(&th->amlongRep_data_inflight);
     GASNETC_PTLSAFE(PtlPutRegion(dp_md_h, dp_offset, nbytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_RAR_PTE, ac_index, dp_mbits, remote_dataoffset, dp_hdr_data));
 
     /* now complete header message */
@@ -1426,7 +1424,7 @@ extern int gasnetc_AMReplyLongM(
     GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
 
     /* poll ONLY the safe eq until local completion of data put */
-    while( gasneti_weakatomic_read(&th->amlongRep_data_inflight, 0) > 0 ) {
+    while(GASNETC_TEST_INFLIGHT(&th->amlongRep_data_inflight)) {
       gasnetc_portals_poll(GASNETC_SAFE_POLL);
     }
     /* return the send ticket from the data payload message */
