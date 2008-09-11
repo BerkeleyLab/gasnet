@@ -3121,6 +3121,7 @@ extern ptl_handle_md_t gasnetc_alloc_tmpmd(void* start, size_t nbytes)
   ptl_md_t md;
   ptl_handle_md_t md_h;
 
+  gasneti_assert(!gasnetc_use_firehose);
   GASNETI_TRACE_PRINTF(C,("Alloc_Tmpmd: num available TmpMDs = %d",gasnetc_num_tickets(&gasnetc_tmpmd_tickets)));
 
   md.start = start;
@@ -3155,6 +3156,7 @@ extern ptl_handle_md_t gasnetc_alloc_tmpmd(void* start, size_t nbytes)
  * --------------------------------------------------------------------------------- */
 extern void gasnetc_free_tmpmd(ptl_handle_md_t md_h)
 {
+  gasneti_assert(!gasnetc_use_firehose);
   gasnetc_return_ticket(&gasnetc_tmpmd_tickets);
   GASNETC_PTLSAFE(PtlMDUnlink(md_h));
 #if GASNETI_STATS_OR_TRACE
@@ -3921,9 +3923,9 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
       }
 
       /* Second, we may need a tmpmd to complete a long reply, make sure we have
-       * a ticket cached
+       * a ticket cached, unless using firehose
        */
-      if (th->tmpmd_tickets == 0) {
+      if (!gasnetc_use_firehose && (th->tmpmd_tickets == 0)) {
 	if (! gasnetc_alloc_ticket(&gasnetc_tmpmd_tickets)) {
 	  goto out;
 	} 
