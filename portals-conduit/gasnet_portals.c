@@ -1136,11 +1136,12 @@ static void TMPMD_event(ptl_event_t *ev)
   GASNETI_TRACE_PRINTF(C,("TMPMD event %s offset = %i, mbits = 0x%lx, msg_type = 0x%x",ptl_event_str[ev->type],(int)offset,(uint64_t)mbits,msg_type));
 
   /* extract the lower bits based on message type */
+#if GASNET_DEBUG
   if (msg_type & GASNETC_PTL_MSG_AM) {
     gasneti_fatalerror("Unexpected AM msg type on TMPMD, mbits = 0x%lx",(uint64_t)mbits);
-  } else {
-    gasnete_get_op_lowbits(mbits, &threadid, &addr);
   }
+#endif
+  gasnete_get_op_lowbits(mbits, &threadid, &addr);
 
   /* we never truncate on this MD */
   gasneti_assert(ev->rlength == ev->mlength);
@@ -1253,10 +1254,7 @@ static void ReqSB_event(ptl_event_t *ev)
       gasnetc_return_ticket(&gasnetc_send_tickets);
     if (msg_type & GASNETC_PTL_MSG_PUT) {
       /* Put bounced through ReqSB, can free chunk now */
-      if (msg_type & GASNETC_PTL_MSG_DOLC) {
-	gasnete_threaddata_t *th = gasnete_threadtable[GASNETE_THREADID(threadid)];
-	gasneti_weakatomic_decrement(&(th->local_completion_count), 0);
-      }
+      gasneti_assert(!(msg_type & GASNETC_PTL_MSG_DOLC));
       local_offset = mbits>>32;
       gasnetc_chunk_free(&gasnetc_ReqSB,local_offset);
     }
