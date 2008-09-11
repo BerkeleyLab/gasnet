@@ -1381,11 +1381,12 @@ static void ReqRB_event(ptl_event_t *ev)
   GASNETI_TRACE_PRINTF(C,("ReqRB event %s offset = %i, mbits = 0x%lx, msg_type = 0x%x",ptl_event_str[ev->type],(int)ev->offset,(uint64_t)mbits,msg_type));
 
   /* extract the lower bits based on message type */
-  if (msg_type & GASNETC_PTL_MSG_AM) {
-    GASNETC_GET_AM_LOWBITS(mbits, numarg, ghandler, amflag);
-  } else {
+#if GASNET_DEBUG
+  if (!(msg_type & GASNETC_PTL_MSG_AM)) {
     gasneti_fatalerror("Invalid event msg type on ReqRB, mbits = 0x%lx",(uint64_t)mbits);
   }
+#endif
+  GASNETC_GET_AM_LOWBITS(mbits, numarg, ghandler, amflag);
 
   /* we never truncate on this MD */
   gasneti_assert(ev->rlength == ev->mlength);
@@ -1490,11 +1491,13 @@ static void CB_event(ptl_event_t *ev)
   GASNETI_TRACE_PRINTF(C,("CB event %s offset = %i, mbits = 0x%lx, msg_type = 0x%x",ptl_event_str[ev->type],(int)offset,(uint64_t)mbits,msg_type));
 
   /* extract the lower bits based on message type */
-  if (msg_type & GASNETC_PTL_MSG_AM) {
-    GASNETC_GET_AM_LOWBITS(mbits, numarg, ghandler, amflag);
-  } else {
+#if GASNET_DEBUG
+  if (!(msg_type & GASNETC_PTL_MSG_AM)) {
     gasneti_fatalerror("Invalid event msg type on CB, mbits = 0x%lx",(uint64_t)mbits);
   }
+#endif
+  GASNETC_GET_AM_LOWBITS(mbits, numarg, ghandler, amflag);
+
   /* we always truncate on this MD */
   gasneti_assert(ev->mlength == 0);
 
