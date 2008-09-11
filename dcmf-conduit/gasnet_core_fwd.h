@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2008/08/22 22:28:45 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2008/09/11 19:02:10 $
+ * $Revision: 1.1.2.7 $
  * Description: GASNet header for dcmf conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -43,6 +43,9 @@
 #if 0
 #define GASNETC_USE_INTERRUPTS 1
 #endif
+
+void gasnetc_myFatalSignalCallback(int id);
+#define GASNETC_FATALSIGNAL_CALLBACK(SIG) gasnetc_myFatalSignalCallback((SIG))
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */

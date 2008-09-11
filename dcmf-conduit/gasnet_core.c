@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2008/08/29 22:09:29 $
- * $Revision: 1.1.2.21 $
+ *     $Date: 2008/09/11 19:02:10 $
+ * $Revision: 1.1.2.22 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -461,8 +461,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /* ------------------------------------------------------------------------------------ */
   /*  register fatal signal handlers */
 
-  /* catch fatal signals and convert to SIGQUIT */
-  gasneti_registerSignalHandlers(gasneti_defaultSignalHandler);
+  /* catch termination signals and convert to SIGQUIT */
+	/*let all the fatal signals through and odn't change their behavior*/
+	
+	gasneti_registerSignalHandlers(gasneti_defaultSignalHandler);
 
   /*  (###) register any custom signal handlers required by your conduit 
    *        (e.g. to support interrupt-based messaging)
@@ -517,6 +519,24 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
+
+void gasnetc_myFatalSignalCallback(int sig){ 
+	sigset_t unblock_signals;
+	
+	sigemptyset(&unblock_signals);
+	sigaddset(&unblock_signals, SIGABRT);
+	sigaddset(&unblock_signals, sig);
+	/*make sure whatever signal we are trying to raise doesn't get blocked*/
+	
+	sigprocmask(SIG_UNBLOCK, &unblock_signals, NULL);
+	
+	/*reset all the signals to their default handlers*/
+	signal(SIGABRT, SIG_DFL);
+	signal(sig, SIG_DFL); 
+	
+
+}
+
 static void gasnetc_atexit(void) {
   gasnetc_exit(0);
 }
@@ -846,7 +866,7 @@ void gasnetc_free_replay_buffer(gasnetc_replay_buffer_t *replay_buf) {
 
 static uint32_t ack_counter=0;
 #define GASNETC_SEND_ACK(PEER, REMOTE_REPLAY_BUFFER) do{\
-	DCMF_Control_t outmsg; outmsg[0].w0 = (REMOTE_REPLAY_BUFFER); outmsg[1].w1 = ack_counter; \
+	DCMF_Control_t outmsg; outmsg[0].w0 = (REMOTE_REPLAY_BUFFER); outmsg[0].w1 = ack_counter; \
 GASNETI_TRACE_PRINTF(C,("sending Positive ACK (ACK) to %d w/ buffer 0x%x (%d)\n", PEER, REMOTE_REPLAY_BUFFER, ack_counter++));\
 	GASNETI_TRACE_EVENT(C, DCMF_ACK_SENT);\
  DCMF_SAFE(DCMF_Control(&gasnetc_dcmf_ack_registration, DCMF_RELAXED_CONSISTENCY,(PEER),&outmsg));\
