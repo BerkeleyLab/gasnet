@@ -975,7 +975,7 @@ static void ReqRB_refresh(uintptr_t start_addr)
   md.max_size = GASNETC_CHUNKSIZE;
   md.options = PTL_MD_OP_PUT | PTL_MD_EVENT_START_DISABLE | PTL_MD_MAX_SIZE;
 #if GASNETC_USE_EQ_HANDLER
-  md.user_ptr = (void*)(uint64_t)GASNETC_REQRB_MD;
+  md.user_ptr = (void*)(uintptr_t)GASNETC_REQRB_MD;
 #else
   md.user_ptr = (void*)ReqRB_event;
 #endif
@@ -1002,7 +1002,7 @@ static void RARAM_event(ptl_event_t *ev)
   ptl_size_t offset = ev->offset;
   ptl_match_bits_t   mbits = ev->match_bits;
   uint8_t msg_type;
-  uint64_t amflag = ((mbits & GASNETC_SELECT_BYTE1) >> 8);
+  ptl_match_bits_t amflag = ((mbits & GASNETC_SELECT_BYTE1) >> 8);
   int isReq = (amflag & GASNETC_PTL_AM_REQUEST);
   int ran_handler;
 
@@ -1070,7 +1070,7 @@ static void RARSRC_event(ptl_event_t *ev)
       gasnete_threaddata_t *th = gasnete_threadtable[GASNETE_THREADID(threadid)];
       gasneti_weakatomic_decrement(&(th->local_completion_count), 0);
     } else if (msg_type & GASNETC_PTL_MSG_AMDATA) {
-      uint64_t amflag = (mbits & GASNETC_SELECT_BYTE1) >> 8;
+      ptl_match_bits_t amflag = (mbits & GASNETC_SELECT_BYTE1) >> 8;
       if (amflag & GASNETC_PTL_AM_SYNC) {
 	gasnetc_threaddata_t *th = gasnete_threadtable[GASNETE_THREADID(threadid)]->gasnetc_threaddata;
 	/* caller is AMLong (sync, not async), and is waiting for this counter to decrement */
@@ -1086,7 +1086,7 @@ static void RARSRC_event(ptl_event_t *ev)
     /* Must be a AM Long Reply data message */
     {
       int ran_handler;
-      uint64_t amflag = (mbits & GASNETC_SELECT_BYTE1) >> 8;
+      ptl_match_bits_t amflag = (mbits & GASNETC_SELECT_BYTE1) >> 8;
       gasneti_assert( msg_type & GASNETC_PTL_MSG_AMDATA);
       gasneti_assert( !( amflag & GASNETC_PTL_AM_REQUEST) );
       exec_amlong_data(0, ev);
@@ -1155,7 +1155,7 @@ static void TMPMD_event(ptl_event_t *ev)
       gasnete_threaddata_t *th = gasnete_threadtable[GASNETE_THREADID(threadid)];
       gasneti_weakatomic_decrement(&(th->local_completion_count), 0);
     } else if (msg_type & GASNETC_PTL_MSG_AMDATA) {
-      uint64_t amflag = (mbits & GASNETC_SELECT_BYTE1) >> 8;
+      ptl_match_bits_t amflag = (mbits & GASNETC_SELECT_BYTE1) >> 8;
       if (amflag & GASNETC_PTL_AM_SYNC) {
 	gasnetc_threaddata_t *th = gasnete_threadtable[GASNETE_THREADID(threadid)]->gasnetc_threaddata;
 	/* caller is AMLong (sync, not async), and is waiting for this counter to decrement */
@@ -1576,7 +1576,7 @@ static void RAR_init()
   md.max_size = 0;
   md.options = PTL_MD_OP_PUT | PTL_MD_MANAGE_REMOTE | PTL_MD_EVENT_START_DISABLE;
 #if GASNETC_USE_EQ_HANDLER
-  md.user_ptr = (void*)(uint64_t)GASNETC_RARAM_MD;
+  md.user_ptr = (void*)(uintptr_t)GASNETC_RARAM_MD;
 #else
   md.user_ptr = (void*)RARAM_event;
 #endif
@@ -1608,7 +1608,7 @@ static void RAR_init()
   md.max_size = 0;
   md.options = PTL_MD_OP_PUT | PTL_MD_MANAGE_REMOTE | PTL_MD_EVENT_START_DISABLE;
 #if GASNETC_USE_EQ_HANDLER
-  md.user_ptr = (void*)(uint64_t)GASNETC_RARSRC_MD;
+  md.user_ptr = (void*)(uintptr_t)GASNETC_RARSRC_MD;
 #else
   md.user_ptr = (void*)RARSRC_event;
 #endif
@@ -1649,7 +1649,7 @@ static void RplSB_init()
   md.max_size = 0;
   md.options = PTL_MD_EVENT_START_DISABLE;
 #if GASNETC_USE_EQ_HANDLER
-  md.user_ptr = (void*)(uint64_t)GASNETC_REQSB_MD;
+  md.user_ptr = (void*)(uintptr_t)GASNETC_REQSB_MD;
 #else
   md.user_ptr = (void*)RplSB_event;
 #endif
@@ -1712,7 +1712,7 @@ static void ReqRB_init()
 #endif
 
 #if GASNETC_USE_EQ_HANDLER
-    md.user_ptr = (void*)(uint64_t)GASNETC_REQRB_MD;
+    md.user_ptr = (void*)(uintptr_t)GASNETC_REQRB_MD;
 #else
     md.user_ptr = (void*)ReqRB_event;
 #endif
@@ -1744,7 +1744,7 @@ static void ReqRB_init()
   md.max_size = 0;
   md.options = PTL_MD_OP_PUT | PTL_MD_EVENT_START_DISABLE | PTL_MD_ACK_DISABLE | PTL_MD_TRUNCATE;
 #if GASNETC_USE_EQ_HANDLER
-  md.user_ptr = (void*)(uint64_t)GASNETC_CB_MD;
+  md.user_ptr = (void*)(uintptr_t)GASNETC_CB_MD;
 #else
   md.user_ptr = (void*)CB_event;
 #endif
@@ -1799,7 +1799,7 @@ static void ReqSB_init()
   md.max_size = 0;
   md.options = PTL_MD_EVENT_START_DISABLE | PTL_MD_OP_PUT | PTL_MD_MANAGE_REMOTE;
 #if GASNETC_USE_EQ_HANDLER
-  md.user_ptr = (void*)(uint64_t)GASNETC_REQSB_MD;
+  md.user_ptr = (void*)(uintptr_t)GASNETC_REQSB_MD;
 #else
   md.user_ptr = (void*)ReqSB_event;
 #endif
@@ -2302,7 +2302,7 @@ static void sys_init()
   md.max_size = 0;
   md.options = PTL_MD_EVENT_START_DISABLE;
 #if GASNETC_USE_EQ_HANDLER
-  md.user_ptr = (void*)(uint64_t)GASNETC_SYS_SEND_MD;
+  md.user_ptr = (void*)(uintptr_t)GASNETC_SYS_SEND_MD;
 #else
   md.user_ptr = (void*)sys_event;
 #endif
@@ -2319,7 +2319,7 @@ static void sys_init()
   md.max_size = 0;
   md.options = PTL_MD_OP_PUT | PTL_MD_EVENT_START_DISABLE | PTL_MD_ACK_DISABLE | PTL_MD_TRUNCATE;
 #if GASNETC_USE_EQ_HANDLER
-  md.user_ptr = (void*)(uint64_t)GASNETC_SYS_RECV_MD;
+  md.user_ptr = (void*)(uintptr_t)GASNETC_SYS_RECV_MD;
 #else
   md.user_ptr = (void*)sys_event;
 #endif
@@ -2374,7 +2374,7 @@ extern void gasnetc_sys_SendMsg(gasnet_node_t node, gasnetc_sys_t msg_id,
   uint64_t           hdr_data;
 
   GASNETI_TRACE_PRINTF(C,("SYS_SendMsg: Sending msg_id=%u to node %d",(unsigned)msg_id,node));
-  match_bits = ((uint64_t)arg0 << 32) | ((uint64_t)msg_id << 8) | GASNETC_PTL_SYS_BITS;
+  match_bits = ((ptl_match_bits_t)arg0 << 32) | ((ptl_match_bits_t)msg_id << 8) | GASNETC_PTL_SYS_BITS;
   hdr_data = ((uint64_t)arg1 << 32) | (uint64_t)arg2;
   GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, GASNETC_PTL_AC_ID, match_bits, remote_offset, hdr_data));
 
@@ -3129,7 +3129,7 @@ extern ptl_handle_md_t gasnetc_alloc_tmpmd(void* start, size_t nbytes)
   md.max_size = 0;
   md.options = PTL_MD_EVENT_START_DISABLE;
 #if GASNETC_USE_EQ_HANDLER
-  md.user_ptr = (void*)(uint64_t)GASNETC_TMP_MD;
+  md.user_ptr = (void*)(uintptr_t)GASNETC_TMP_MD;
 #else
   md.user_ptr = (void*)TMPMD_event;
 #endif
@@ -4086,7 +4086,7 @@ size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     md_h = fh_loc->client;
     local_offset = (uintptr_t)dest - fh_loc->addr;
     nbytes = MIN(nbytes, (fh_loc->len - local_offset));
-    match_bits |= ((uint64_t)(op->addr.fulladdr) << 32); /* encode "op" for later release */
+    match_bits |= ((ptl_match_bits_t)(op->addr.fulladdr) << 32); /* encode "op" for later release */
     GASNETI_TRACE_EVENT(C, GET_FH);
   } else if ( (nbytes <= gasnetc_get_bounce_limit)  &&
 	      gasnetc_chunk_alloc_withpoll(&gasnetc_ReqSB, nbytes, &local_offset, 1, GASNETC_SAFE_POLL) ) {
@@ -4099,7 +4099,7 @@ size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     *(uintptr_t*)bb = (uintptr_t)dest;
     /* Let portals use the rest of the chunk */
     local_offset += sizeof(void*);
-    match_bits |= ((uint64_t)local_offset << 32);
+    match_bits |= ((ptl_match_bits_t)local_offset << 32);
     GASNETI_TRACE_EVENT(C, GET_BB);
   } else {
     /* alloc a temp md for the destination region */
@@ -4161,7 +4161,7 @@ size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     md_h = fh_loc->client;
     local_offset = (uintptr_t)src - fh_loc->addr;
     nbytes = MIN(nbytes, (fh_loc->len - local_offset));
-    match_bits |= ((uint64_t)(op->addr.fulladdr) << 32); /* encode "op" for later release */
+    match_bits |= ((ptl_match_bits_t)(op->addr.fulladdr) << 32); /* encode "op" for later release */
     GASNETI_TRACE_EVENT(C, PUT_FH);
   } else if ( (nbytes <= gasnetc_put_bounce_limit)  &&
 	      gasnetc_chunk_alloc_withpoll(&gasnetc_ReqSB,nbytes, &local_offset, 1, GASNETC_SAFE_POLL) ) {
@@ -4172,7 +4172,7 @@ size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     /* copy the src data to the bounce buffer */
     memcpy(bb,src,nbytes);
     /* store the local offset in the upper bits of the match bits */
-    match_bits |= ((uint64_t)local_offset << 32);
+    match_bits |= ((ptl_match_bits_t)local_offset << 32);
     inc_lcc = 0; /* Already completed locally */ 
     GASNETI_TRACE_EVENT(C, PUT_BB);
   } else {
@@ -4286,7 +4286,7 @@ firehose_move_callback(gasnet_node_t node,
     md.max_size = 0;
     md.options = PTL_MD_EVENT_START_DISABLE;
 #if GASNETC_USE_EQ_HANDLER
-    md.user_ptr = (void*)(uint64_t)GASNETC_TMP_MD;
+    md.user_ptr = (void*)(uintptr_t)GASNETC_TMP_MD;
 #else
     md.user_ptr = (void*)TMPMD_event;
 #endif
