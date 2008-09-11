@@ -1053,5 +1053,21 @@ typedef struct _gasnetc_fh_op_t {
 extern gasnetc_fh_op_t *gasnetc_fh_new(void);
 extern void gasnetc_fh_free(uint16_t fulladdr);
 
+/* This limits the amount we ask for in a firehose_{local,remote}_pin() call,
+ * to ensure that after rounding up to page boundaries, we don't exceed the max.
+ */
+GASNETI_INLINE(gasnetc_fh_aligned_len)
+size_t gasnetc_fh_aligned_len(uintptr_t start, size_t len) {
+  size_t limit = gasnetc_firehose_info.max_LocalPinSize - (start & (GASNET_PAGESIZE - 1));
+  return MIN(len, limit);
+}
+
+GASNETI_INLINE(gasnetc_fh_aligned_local_pin)
+gasnetc_fh_op_t *gasnetc_fh_aligned_local_pin(uintptr_t start, size_t len) {
+  gasnetc_fh_op_t *op = gasnetc_fh_new();
+  size_t ask_bytes = gasnetc_fh_aligned_len(start, len);
+  op->fh[0] = firehose_local_pin(start, ask_bytes, NULL);
+  return op;
+}
 
 #endif
