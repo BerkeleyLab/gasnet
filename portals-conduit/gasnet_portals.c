@@ -4404,3 +4404,9 @@ void gasnetc_fh_free(uint16_t fulladdr) {
 #endif
   gasneti_lifo_push(&gasnetc_fh_freelist, op);
 }
+
+/* Safe poll entry point for FIREHOSE_AMPOLL: */
+void gasnetc_firehose_ampoll(void) {
+  gasnetc_portals_poll(GASNETC_SAFE_POLL);
+}
+
