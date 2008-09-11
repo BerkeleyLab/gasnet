@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2008/08/23 20:30:01 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2008/09/11 19:01:33 $
+ * $Revision: 1.1.2.7 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1205,8 +1205,8 @@ int gasnete_elanbarrier_fast = 0;
 static int current_barrier_flags;
 static int current_barrier_id;
 static volatile int barrier_done;
-static volatile int named_barrier_source;
-static volatile int named_barrier_result;
+static volatile int named_barrier_source[2];
+static volatile int named_barrier_result[2];
 static DCMF_Request_t barrier_req;
 static DCMF_Protocol_t anon_barrier_registration;
 static DCMF_Protocol_t named_barrier_registration;
@@ -1267,8 +1267,9 @@ static void gasnete_dcmfbarrier_init() {
 #endif
 		GASNETC_DCMF_LOCK();
 		DCMF_SAFE(DCMF_GlobalAllreduce_register(&named_barrier_registration, &config));
-		named_barrier_source = -1;
-		named_barrier_result = -1;
+		named_barrier_source[0] = -1; named_barrier_source[1]=0;
+		named_barrier_result[0] = -1; named_barrier_result[1]=1;
+	 
 		GASNETC_DCMF_UNLOCK();
 	}
 	barrier_done= 0;
@@ -1285,7 +1286,7 @@ static void gasnete_dcmfbarrier_notify(int id, int flags) {
 	  gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
 	} 
 
-	gasneti_assert(id >= 0);
+	//gasneti_assert(id >= 0);
 	barrier_done = 0;
 		
 	cb_done.function = increment_value;
@@ -1304,14 +1305,15 @@ static void gasnete_dcmfbarrier_notify(int id, int flags) {
 		GASNETI_TRACE_PRINTF(B, ("running named barrier notify (%d,%d)", id, flags));
 		if(flags == GASNET_BARRIERFLAG_MISMATCH) {
 			/*signal mismatch*/
-		  named_barrier_source= -1;
+		  named_barrier_source[0]= -1;
 		} else if(flags==0) {
 			/*pass id*/
-			named_barrier_source = id;
+			named_barrier_source[0] = flags;
 		} else {
 			gasneti_fatalerror("Unknown Barrier Flags: %d", flags);
 		}
 		
+		named_barrier_source[1] = id;
 		/*if we use -1 then MIN will automatically propagate -1 to all others*/
 		/*run named barrier by doing an allreduce*/
 		/* DCMF USAGE: root=-1 means its an allreduce*/
@@ -1319,7 +1321,7 @@ static void gasnete_dcmfbarrier_notify(int id, int flags) {
 		DCMF_SAFE(DCMF_GlobalAllreduce(&named_barrier_registration, &barrier_req, 
 																	 cb_done, DCMF_MATCH_CONSISTENCY,
 																	 -1, (char*) &named_barrier_source, 
-																	 (char*) &named_barrier_result, 1, DCMF_SIGNED_INT, DCMF_MIN));
+																	 (char*) &named_barrier_result, 2, DCMF_SIGNED_INT, DCMF_MIN));
 		GASNETC_DCMF_UNLOCK();
 		current_barrier_flags = flags;
 		current_barrier_id = id;
@@ -1339,7 +1341,9 @@ static inline int finish_barrier(int id, int flags) {
 	} else if(flags==0) { /*flags are 0, so error check named barrier*/
 		if(id!=current_barrier_id) { /*check to see if we called notify on the same barrier*/
 			return GASNET_ERR_BARRIER_MISMATCH;
-		} else if(named_barrier_result==-1 || named_barrier_result!=id) { /*barrier mismatch signaled so return -1*/
+		} else if(named_barrier_result[0]==-1) { /*then check if someone declared a barrier mismatch*/
+			ret = GASNET_ERR_BARRIER_MISMATCH;
+		} else if(named_barrier_result[1]!=id) { /*then check to see if the IDs match up across all nodes*/
 			ret = GASNET_ERR_BARRIER_MISMATCH;
 		} else {
 			ret = GASNET_OK;
@@ -1369,7 +1373,7 @@ static int gasnete_dcmfbarrier_wait(int id, int flags) {
 	while(barrier_done == 0) GASNETI_SAFE(gasneti_AMPoll());
 	//DCMF_CriticalSection_exit(0);
 	
-	GASNETI_TRACE_PRINTF(B, ("finish barrier wait named barrier res:(%d,%d) (%d,%d)", named_barrier_source, named_barrier_result, id, flags));
+	GASNETI_TRACE_PRINTF(B, ("finish barrier wait named barrier res:(%d,%d) (%d,%d)", named_barrier_source[1], named_barrier_result[1], id, flags));
 	ret = finish_barrier(id, flags);
 	GASNETI_TRACE_PRINTF(B, ("returning %d", ret));
 	return ret;
