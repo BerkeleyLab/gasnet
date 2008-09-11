@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2008/09/10 03:16:07 $
- * $Revision: 1.12.2.8 $
+ *     $Date: 2008/09/11 03:50:54 $
+ * $Revision: 1.12.2.9 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -778,7 +778,8 @@ extern int gasnetc_AMRequestMediumM(
     ncredit = gasnetc_compute_credits(msg_bytes) +			\
 	      gasnetc_use_flow_control; /* for PUT_END event of RARAM */ \
     nsend = 2;								\
-    ntmpmd = !gasnetc_in_local_rar(source_addr,nbytes);			\
+    ntmpmd = !gasnetc_use_firehose &&					\
+	     !gasnetc_in_local_rar(source_addr,nbytes);			\
     isPacked = 0;							\
 									\
     /* Can/should we use Packed Format? */				\
@@ -893,6 +894,14 @@ extern int gasnetc_AMRequestMediumM(
       if (gasnetc_in_local_rar(source_addr,nbytes)) {			\
 	data_md_h = gasnetc_RARSRC.md_h;				\
 	data_offset = GASNETC_PTL_OFFSET(gasneti_mynode,source_addr);	\
+      } else if_pt (gasnetc_use_firehose) {				\
+	gasnetc_fh_op_t *op =						\
+	    gasnetc_fh_aligned_local_pin((uintptr_t)source_addr, nbytes);\
+	const firehose_request_t *fh_loc = op->fh[0];			\
+	data_md_h = fh_loc->client;					\
+	data_offset = (uintptr_t)source_addr - fh_loc->addr;		\
+	data_mbits |= ((ptl_match_bits_t)(op->addr.fulladdr) << 32);	\
+	gasneti_assert(nbytes <= (fh_loc->len - data_offset));		\
       } else {								\
 	gasneti_assert(th->tmpmd_tickets > 0);				\
 	data_md_h = gasnetc_alloc_tmpmd(source_addr, nbytes);		\
@@ -971,7 +980,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 
   /* poll until ok to send message, allocate ReqSB chunk */
   GASNETC_COMMON_AMREQ_START(state,local_offset,th,nsend,ncredit,cred_byte);
-  {
+  if_pf (!gasnetc_use_firehose) {
     int pollcnt = 0;
     GASNETC_GET_TMPMD_TICKETS(th,ntmpmd,pollcnt);
     gasneti_assert(th->tmpmd_tickets >= ntmpmd);
@@ -1017,7 +1026,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 
   /* poll until all required resources are allocated */
   GASNETC_COMMON_AMREQ_START(state,local_offset,th,nsend,ncredit,cred_byte);
-  {
+  if_pf (!gasnetc_use_firehose) {
     int pollcnt = 0;
     GASNETC_GET_TMPMD_TICKETS(th,ntmpmd,pollcnt);
     gasneti_assert(th->tmpmd_tickets >= ntmpmd);
@@ -1362,7 +1371,7 @@ extern int gasnetc_AMReplyLongM(
      */
     int dp_eq_len = 2;
     ptl_handle_md_t dp_md_h;
-    ptl_match_bits_t dp_mbits;
+    ptl_match_bits_t dp_mbits = 0;
     ptl_size_t remote_dataoffset = GASNETC_PTL_OFFSET(dest,dest_addr);
     ptl_hdr_data_t dp_hdr_data = (ptl_hdr_data_t) lid;
     ptl_size_t dp_offset = 0;
@@ -1374,6 +1383,13 @@ extern int gasnetc_AMReplyLongM(
     if (gasnetc_in_local_rar(source_addr,nbytes)) {
       dp_md_h = gasnetc_RARSRC.md_h;
       dp_offset = GASNETC_PTL_OFFSET(gasneti_mynode,source_addr);
+    } else if_pt (gasnetc_use_firehose) {
+      gasnetc_fh_op_t *op = gasnetc_fh_aligned_local_pin((uintptr_t)source_addr, nbytes);
+      const firehose_request_t *fh_loc = op->fh[0];
+      dp_md_h = fh_loc->client;
+      dp_offset = (uintptr_t)source_addr - fh_loc->addr;
+      dp_mbits |= ((ptl_match_bits_t)(op->addr.fulladdr) << 32);
+      gasneti_assert(nbytes <= (fh_loc->len - dp_offset));
     } else {
       gasneti_assert(th->tmpmd_tickets > 0);
       dp_md_h = gasnetc_alloc_tmpmd(source_addr, nbytes);
@@ -1382,7 +1398,7 @@ extern int gasnetc_AMReplyLongM(
 
     /* issue data put message */
     /* NOTE: dp_mbits explicitly does not include the REQUEST flag, since this is a reply */
-    dp_mbits = GASNETC_PTL_MSG_AMDATA | GASNETC_PTL_RARSRC_BITS | (GASNETC_PTL_AM_SYNC << 8);
+    dp_mbits |= GASNETC_PTL_MSG_AMDATA | GASNETC_PTL_RARSRC_BITS | (GASNETC_PTL_AM_SYNC << 8);
     dp_mbits |= ((ptl_match_bits_t)(th->threadidx) << 24);
     gasneti_assert(gasneti_weakatomic_read(&th->amlongRep_data_inflight, 0) == 0);
     gasneti_weakatomic_increment(&th->amlongRep_data_inflight, 0);

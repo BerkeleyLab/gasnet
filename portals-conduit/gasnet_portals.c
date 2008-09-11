@@ -163,6 +163,8 @@ uint32_t gasnetc_amseqno = 0;
 
 /* Firehose stuff */
 
+size_t gasnetc_AMMaxLong;
+
 /* XXX: Need dynamic discovery of limits, but bug 2053 makes that problematic.
  * For now we'll use 1024 regions of maximum length 128K.
  * That should be sufficiently small usage (128MB worst case) to not crash.
@@ -1162,8 +1164,12 @@ static void TMPMD_event(ptl_event_t *ev)
 	gasneti_assert(gasneti_weakatomic_read(counter, 0) != 0);
 	gasneti_weakatomic_decrement(counter, 0);
       }
-      /* unlink the tmp MD used in the AM Long data put */
-      gasnetc_free_tmpmd(ev->md_handle);
+      /* unlink the tmp MD or free the firehose used in the AM Long data put */
+      if_pt (gasnetc_use_firehose) {
+        gasnetc_fh_free((uint16_t)(mbits >> 32));
+      } else {
+        gasnetc_free_tmpmd(ev->md_handle);
+      }
     }
     break;
 
@@ -3757,6 +3763,9 @@ extern void gasnetc_init_portals_resources(void)
 
     firehose_init(firehose_mem, GASNETC_FIREHOSE_MAXREGIONS, GASNETC_FIREHOSE_MAXREGION_SIZE,
                   NULL, 0, FIREHOSE_INIT_FLAG_LOCAL_ONLY, &gasnetc_firehose_info);
+    gasnetc_AMMaxLong = gasnetc_firehose_info.max_LocalPinSize - GASNET_PAGESIZE;
+  } else {
+    gasnetc_AMMaxLong = 1024 * 1024 * 1024; /* 1GB */
   }
   #else
     #error "Firehose REMOTE is not yet supported"
