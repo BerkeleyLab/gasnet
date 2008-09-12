@@ -678,7 +678,7 @@ extern char* ptl_event_str[];
 #define GASNETC_REQRB_FINISH(bufptr)  do {} while(0)
 #endif
 
-/* -----------------------------------------------------------------------------------
+/* ----------------------------------------------------------------------------------- */
 
 /* The RAR, RARAM, and the AM request/reply send/receive buffers are described by */
 typedef struct {
