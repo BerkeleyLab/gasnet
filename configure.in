@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2008/08/12 18:49:05 $
-# $Revision: 1.485.2.6 $
+#     $Date: 2008/09/16 04:08:19 $
+# $Revision: 1.485.2.7 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.485.2.6 $)
+AC_REVISION($Revision: 1.485.2.7 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -2952,7 +2952,7 @@ if test $enabled_dcmf = yes; then
 	  	#else link with optimized version of DCMF
 			#for some reason looks like in the fast build has duplicate sybmols when we link in dcmfcoll	
 			#GASNET_ENV_DEFAULT(DCMF_LIBS, -ldcmfcoll-fast.cnk -ldcmf-fast.cnk -lpthread -lrt -lSPI.cna)
-	  	GASNET_ENV_DEFAULT(DCMF_LIBS, -ldcmf-fast.cnk -lpthread -lrt -lSPI.cna)
+	  	GASNET_ENV_DEFAULT(DCMF_LIBS, -ldcmf-fast.cnk -lpthread -lrt -lSPI-fast.cna)
 		fi
 	fi
 
@@ -2993,11 +2993,22 @@ if test $enabled_dcmf = yes; then
         #include <stdlib.h>
 				#include <dcmf.h>
 				#include <dcmf_collectives.h>
-      ], [
+   	    #if (DCMF_VERSION_RELEASE == 0)
+   	      #if (DCMF_VERSION_MAJOR >= 2)
+   	        #if (DCMF_VERSION_MINOR < 0)
+   	          #error Incompatible dcmf minor version
+   	        #endif
+   	      #else
+   	        #error Incompatible dcmf major version
+   	      #endif
+   	    #else
+   	      #error Incompatible dcmf release version
+   	    #endif
+     ], [
         DCMF_Messager_initialize();
-				      
         DCMF_Messager_finalize();	
       ], [ dcmf_test_worked=yes ], [ dcmf_test_worked=no GASNET_ERR_SAVE() ])
+      
       GASNET_POPVAR(CFLAGS)
       GASNET_POPVAR(LIBS) 
       if test "$dcmf_test_worked" = yes; then 
