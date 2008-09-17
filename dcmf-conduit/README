@@ -12,3 +12,20 @@ Recognized environment variables:
 GASNET_DCMF_EAGER_LIMIT: transfer size to switch between internal DCMF eager and rendez-vous AM protocols
 
 
+Torus Information:
+Virtual Node Mode (4 processes per node)
+
+Node/ProcessCount  Dims:(X,Y,Z,T) isTorus?:(X,Y,Z,T)	
+64/256             (4,4,4,4)      (0,0,0,1)
+128/512            (4,4,8,4)      (0,0,0,1)
+256/1024           (8,4,8,4)      (0,0,0,1)
+512/2048           (8,8,8,4)      (1,1,1,1)
+1024/4096          (8,8,16,4)     (1,1,1,1)
+2048/8192          (8,8,32,4)     (1,1,1,1)
+4096/16384         (8,16,32,4)    (1,1,1,1)
+8192/32768         (8,32,32,4)    (1,1,1,1)
+16384/65536        (16,32,32,4)   (1,1,1,1)
+24576/98304        (24,32,32,4)   (1,1,1,1)
+32768/131072       (32,32,32,4)   (1,1,1,1)
+40960/164840       (40,32,32,4)   (1,1,1,1)
+
