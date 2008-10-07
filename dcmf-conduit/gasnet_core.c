@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2008/09/11 19:02:10 $
- * $Revision: 1.1.2.22 $
+ *     $Date: 2008/10/07 20:45:41 $
+ * $Revision: 1.1.2.23 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -21,7 +21,8 @@ GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
 #define GASNET_DCMF_EAGER_LIMIT_DEFAULT 1024
-#define GASNETC_DEFAULT_SEG_SIZE 256*1024*1024
+
+#define GASNETC_DEFAULT_SEG_SIZE 1024*1024*1024
 
 
 /*turns on the ability for the conduit to send negative acknowledgments*/
@@ -34,9 +35,6 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 	we're going ot leave it in here just in case*/
 #define GASNETC_SEND_NOARG_AM_CONTROL 0 
 
-#if !GASNET_SEQ
-#warning NON SEQ BUILDS NOT YET TESTED
-#endif
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 static void gasnetc_atexit(void);
@@ -169,7 +167,7 @@ DCMF_Send_Protocol gasnetc_get_protocol(gasnetc_dcmf_send_category_t sendcat) {
     DCMF_SAFE(DCMF_Send_register(&GASNETC_DCMF_AM_REGISTARTION(AMTYPE, AMCATEGORY,SENDPROTOCOL), &config)); \
   } while(0);
 
-void gasnetc_dcmf_init(gasnet_node_t* mynode, gasnet_node_t *nodes) {
+static void gasnetc_dcmf_init(gasnet_node_t* mynode, gasnet_node_t *nodes) {
 	int i,j,k;
 	int ret;
   GASNETC_DCMF_LOCK();
@@ -220,13 +218,37 @@ void gasnetc_dcmf_init(gasnet_node_t* mynode, gasnet_node_t *nodes) {
 
   do {
     DCMF_Hardware_t hw;
+		DCMF_Configure_t dcmf_config, dcmf_config_out;
     DCMF_SAFE(DCMF_Hardware(&hw));
-    GASNETI_TRACE_PRINTF(C,("(x,y,z,t) Coords: (%d,%d,%d,%d) Sizes: (%d,%d,%d,%d) isTorus?: (%d,%d,%d,%d)",
+
+		GASNETI_TRACE_PRINTF(C,("(x,y,z,t) Coords: (%d,%d,%d,%d) Sizes: (%d,%d,%d,%d) isTorus?: (%d,%d,%d,%d)",
 			    hw.xCoord, hw.yCoord, hw.zCoord, hw.tCoord,
 			    hw.xSize, hw.ySize, hw.zSize, hw.tSize,
 			    hw.xTorus, hw.yTorus, hw.zTorus, hw.tTorus));
-	
+		
+
+#if GASNET_SEQ
+		dcmf_config.thread_level = DCMF_THREAD_SINGLE;
+#else
+		dcmf_config.thread_level = DCMF_THREAD_MULTIPLE;
+#endif
+
+#if GASNETC_DCMF_INTERRUPTS
+		dcmf_config.interrupts = DCMF_INTERRUPTS_ON;
+#else
+		dcmf_config.interrupts = DCMF_INTERRUPTS_OFF;
+#endif
+
+		DCMF_SAFE(DCMF_Messager_configure(&dcmf_config, &dcmf_config_out));
+
+		gasneti_assert(dcmf_config.thread_level == dcmf_config_out.thread_level);
+		gasneti_assert(dcmf_config.interrupts == dcmf_config_out.interrupts);
+
+
   } while(0);
+	
+ 
+	
 	GASNETC_DCMF_UNLOCK();  
 }
 
@@ -285,7 +307,17 @@ static int gasnetc_init(int *argc, char ***argv) {
 
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
   { 
-    gasneti_segmentInit(GASNETC_DEFAULT_SEG_SIZE, gasnetc_bootstrapExchange);
+		DCMF_Hardware_t hw;
+		size_t memsize;
+		GASNETC_DCMF_LOCK();
+		DCMF_SAFE(DCMF_Hardware(&hw));
+		GASNETC_DCMF_UNLOCK();
+		/*		fprintf(stderr, "%d> memsize %d torus dims %d\n", gasneti_mynode, hw.memSize, hw.tSize); */
+		/*hw.memSize gives the memory for node and tSize gives the number of processes co-located on the node*/
+		memsize = gasneti_getenv_int_withdefault("GASNET_DCMF_MAX_SEG_SIZE", 
+																						 (3*hw.memSize/hw.tSize/4)*1024*1024, 1);
+		
+		gasneti_segmentInit(memsize, gasnetc_bootstrapExchange);
   }
 #elif GASNET_SEGMENT_EVERYTHING
   /* segment is everything - nothing to do */
@@ -520,9 +552,11 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 }
 /* ------------------------------------------------------------------------------------ */
 
+/*make sure whatever signal we get is unblocked and then raise it*/
 void gasnetc_myFatalSignalCallback(int sig){ 
+#if 1
 	sigset_t unblock_signals;
-	
+	fprintf(stderr, "%d> unblocking signal: %d\n", gasneti_mynode, sig);
 	sigemptyset(&unblock_signals);
 	sigaddset(&unblock_signals, SIGABRT);
 	sigaddset(&unblock_signals, sig);
@@ -533,13 +567,69 @@ void gasnetc_myFatalSignalCallback(int sig){
 	/*reset all the signals to their default handlers*/
 	signal(SIGABRT, SIG_DFL);
 	signal(sig, SIG_DFL); 
-	
-
+#endif
 }
 
 static void gasnetc_atexit(void) {
-  gasnetc_exit(0);
+	gasnetc_exit(0);
 }
+
+/*global kill switch that will kill all nodes on this job*/
+static void gasnetc_exit_timeout(int sig) {
+	fprintf(stderr, "*** Exit Timeout: Forced global exit initiated on node %i/%i\n", (int)gasnet_mynode(), (int)gasnet_nodes());
+	_exit(1);
+}
+
+static void gasnetc_tryCollectiveExit(int exitcode) {
+	/* general algorithm
+		 Set an alarm timeout of 30 seconds (the timeout shoudl be variable)
+		 
+		 initiate a bootstrap barrier to test for collective exit
+		 if the bootstrap barrier completes, exit with whatever error code got passed in
+		 otherwise call _exit(1) on this node which will force a global exit of all the nodes
+	*/
+	
+	/*do a DCMF allreduce on the given value*/
+	uint32_t inputexit_code;
+	uint32_t outputexit_code;
+	DCMF_Request_t req;
+	/*register the protocol here*/
+	DCMF_Protocol_t exit_barrier_registration;
+	DCMF_GlobalAllreduce_Configuration_t config;
+	DCMF_Callback_t cb_done;
+	volatile int done=0;
+	config.protocol = DCMF_DEFAULT_GLOBALALLREDUCE_PROTOCOL;
+	
+	cb_done.function = gasnetc_inc_uint32_arg_cb;
+	cb_done.clientdata =(void*)  &done;
+	signal(SIGALRM, gasnetc_exit_timeout);
+	inputexit_code = 0xf0f0f000;
+	inputexit_code |= exitcode;
+	
+	alarm(30);
+
+#if GASNET_DEBUG
+	fprintf(stderr, "%d> exit initiated... checking for collective exit (code: %x)\n", gasneti_mynode, inputexit_code);
+#endif
+	
+	
+	DCMF_SAFE_NO_CHECK(DCMF_GlobalAllreduce_register(&exit_barrier_registration, &config));
+	DCMF_SAFE_NO_CHECK(DCMF_GlobalAllreduce(&exit_barrier_registration, &req,
+																					cb_done, DCMF_MATCH_CONSISTENCY,
+																					-1, (char*) &inputexit_code,
+																					(char*) &outputexit_code, 1, DCMF_UNSIGNED_INT, DCMF_MIN));
+	while(!done) DCMF_MESSAGER_POLL();
+
+	
+#if GASNET_DEBUG
+	fprintf(stderr, "%d> collective exit succeeded. Exiting with code %d\n", gasneti_mynode,
+					outputexit_code & 0x000000ff);
+#endif
+	gasneti_killmyprocess(outputexit_code & 0x000000ff);
+	return; /*we really shouldn't get this far*/
+
+}
+
 
 extern void gasnetc_exit(int exitcode) {
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
@@ -563,20 +653,12 @@ extern void gasnetc_exit(int exitcode) {
   gasneti_sched_yield();
 
 	gasnetc_dcmf_finalize();
-  /* (###) add code here to terminate the job across _all_ nodes 
-		 with gasneti_killmyprocess(exitcode) (not regular exit()), preferably
-		 after raising a SIGQUIT to inform the client of the exit
-  */
-	/*if the exit code is (0) we assume that we don't go through the
-		process of killing all the other nodes. If it is nonzero then we'll terminate all
-		other nodes*/
-	/*notice that the BG/P job control doesn't send SIGTERMs to other jobs when the
-		exit code is not 1, so we either exit with 0 (no error) or 1 (error)*/
-	gasneti_killmyprocess((exitcode == 0 ? 0 : 1));
-	
-  gasneti_fatalerror("gasnetc_exit failed!");
-}
+  
+	gasnetc_tryCollectiveExit(exitcode);
+ 
+	gasneti_fatalerror("gasnetc_exit failed!");
 
+}
 /* ------------------------------------------------------------------------------------ */
 /*
   Utility Functions/Macros

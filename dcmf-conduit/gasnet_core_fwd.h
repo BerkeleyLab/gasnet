@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2008/09/11 19:02:10 $
- * $Revision: 1.1.2.7 $
+ *     $Date: 2008/10/07 20:45:41 $
+ * $Revision: 1.1.2.8 $
  * Description: GASNet header for dcmf conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -40,10 +40,10 @@
   /* define to 1 if your conduit may interrupt an application thread 
      (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
    */
-#if 0
+/*#if 0
 #define GASNETC_USE_INTERRUPTS 1
 #endif
-
+*/
 void gasnetc_myFatalSignalCallback(int id);
 #define GASNETC_FATALSIGNAL_CALLBACK(SIG) gasnetc_myFatalSignalCallback((SIG))
 

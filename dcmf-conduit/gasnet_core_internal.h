@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_internal.h,v $
- *     $Date: 2008/08/29 22:09:29 $
- * $Revision: 1.1.2.16 $
+ *     $Date: 2008/10/07 20:45:41 $
+ * $Revision: 1.1.2.17 $
  * Description: GASNet dcmf conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -28,24 +28,32 @@
 //#define Z do{} while(0
 
 
+#define GASNETC_DCMF_INTERRUPTS 0
+
 #if GASNET_DEBUG
 extern uint8_t gasnetc_have_dcmf_lock;
 
 #define DCMF_SAFE(FUNCALL) do{int retval; gasneti_assert(gasnetc_have_dcmf_lock); retval=FUNCALL; if(retval!=DCMF_SUCCESS) gasneti_fatalerror("DCMF fatal error(%d) at %s:%d\n", retval, __FILE__, __LINE__);} while(0)
 
-#if GASNET_SEQ
+#define DCMF_SAFE_NO_CHECK(FUNCALL) do{int retval; retval=FUNCALL; if(retval!=DCMF_SUCCESS) gasneti_fatalerror("DCMF fatal error(%d) at %s:%d\n", retval, __FILE__, __LINE__);} while(0)
+
+#if GASNET_SEQ && (GASNETC_DCMF_INTERRUPTS==0)
 #define GASNETC_DCMF_LOCK() do {gasneti_assert(gasnetc_have_dcmf_lock==0); gasnetc_have_dcmf_lock=1;} while(0)
 #define GASNETC_DCMF_UNLOCK()  do {gasneti_assert(gasnetc_have_dcmf_lock==1); gasnetc_have_dcmf_lock=0;} while(0)
 #else
 #define GASNETC_DCMF_LOCK() do {DCMF_CriticalSection_enter(0); gasnetc_have_dcmf_lock=1;} while(0)
 #define GASNETC_DCMF_UNLOCK() do {gasnetc_have_dcmf_lock=0; DCMF_CriticalSection_exit(0);} while(0)
-#endif
-#else
+#endif /*END GASNET_SEQ/PAR IF*/
+
+#else /*!GASNET_DEBUG*/
+
 #define DCMF_SAFE(FUNCALL) if(FUNCALL!=DCMF_SUCCESS) gasneti_fatalerror("DCMF fatal error at %s:%d\n", __FILE__, __LINE__)
-#if GASNET_SEQ
+#define DCMF_SAFE_NO_CHECK(FUNCALL) if(FUNCALL!=DCMF_SUCCESS) gasneti_fatalerror("DCMF fatal error at %s:%d\n", __FILE__, __LINE__)
+
+#if GASNET_SEQ && (GASNETC_DCMF_INTERRUPTS==0)
 #define GASNETC_DCMF_LOCK() do {} while(0)
 #define GASNETC_DCMF_UNLOCK()  do {} while(0)
-#else
+#else 
 #define GASNETC_DCMF_LOCK() DCMF_CriticalSection_enter(0)
 #define GASNETC_DCMF_UNLOCK() DCMF_CriticalSection_exit(0)
 #endif
@@ -247,7 +255,7 @@ extern gasnetc_dcmf_amregistration_t *gasnetc_dcmf_amregistration[GASNETC_NUM_AM
 
 
 
-void gasnetc_dcmf_init(gasnet_node_t *mynode, gasnet_node_t *nodes);
+
 void gasnetc_dcmf_finalize();
 
 void gasnetc_dcmf_bootstrap_coll_init();
