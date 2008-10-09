@@ -6,10 +6,10 @@ static gasnetc_dcmf_req_t *gasnetc_dcmf_req_free_list;
 static inline gasnetc_dcmf_req_t * gasnetc_get_dcmf_req() {
     gasnetc_dcmf_req_t *req;
     if(gasnetc_dcmf_req_free_list) {
-	req = gasnetc_dcmf_req_free_list;
-	gasnetc_dcmf_req_free_list = req->next;
+  req = gasnetc_dcmf_req_free_list;
+  gasnetc_dcmf_req_free_list = req->next;
     } else {
-	req = (gasnetc_dcmf_req_t*) gasneti_malloc(sizeof(gasnetc_dcmf_req_t));
+  req = (gasnetc_dcmf_req_t*) gasneti_malloc(sizeof(gasnetc_dcmf_req_t));
     }
     return req;
 }
@@ -94,12 +94,12 @@ void gasnetc_dcmf_bootstrapBarrier() {
     barr->init_counter++;
     GASNETC_DCMF_LOCK();
     DCMF_SAFE(DCMF_GlobalBarrier(&barr->registration, 
-																 &barr->request,
-																 barr->callback));
+                                 &barr->request,
+                                 barr->callback));
     while(barr->done_counter!=barr->init_counter) {
-			DCMF_MESSAGER_POLL();
+      DCMF_MESSAGER_POLL();
     }
-		GASNETC_DCMF_UNLOCK();
+    GASNETC_DCMF_UNLOCK();
 }
 
 void gasnetc_dcmf_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) {
@@ -108,29 +108,29 @@ void gasnetc_dcmf_bootstrapBroadcast(void *src, size_t len, void *dest, int root
     gasnetc_dcmf_bootstrapBarrier();
     bcast->init_counter++;
     GASNETI_TRACE_PRINTF(C,("bootstrap bcast src: %p size: %d dst: %p root: %d\n", src, 
-			    len, dest, rootnode));
+          len, dest, rootnode));
     GASNETC_DCMF_LOCK();
 
     if(mynode == rootnode) {
-			DCMF_SAFE(DCMF_GlobalBcast(&bcast->registration,
-																 &bcast->request,
-																 bcast->callback,
-																 DCMF_MATCH_CONSISTENCY,
-																 rootnode,
-																 (char*) src,
-																 len));
-			memcpy(dest, src, len);
+      DCMF_SAFE(DCMF_GlobalBcast(&bcast->registration,
+                                 &bcast->request,
+                                 bcast->callback,
+                                 DCMF_MATCH_CONSISTENCY,
+                                 rootnode,
+                                 (char*) src,
+                                 len));
+      memcpy(dest, src, len);
     } else {
-			DCMF_SAFE(DCMF_GlobalBcast(&bcast->registration, 
-																 &bcast->request,
-																 bcast->callback,
-																 DCMF_MATCH_CONSISTENCY,
-																 rootnode,
-																 (char*) dest,
-																 len));
+      DCMF_SAFE(DCMF_GlobalBcast(&bcast->registration, 
+                                 &bcast->request,
+                                 bcast->callback,
+                                 DCMF_MATCH_CONSISTENCY,
+                                 rootnode,
+                                 (char*) dest,
+                                 len));
     }
     while(bcast->done_counter!=bcast->init_counter) {
-			DCMF_MESSAGER_POLL();
+      DCMF_MESSAGER_POLL();
     }
     GASNETC_DCMF_UNLOCK();
     gasnetc_dcmf_bootstrapBarrier();
@@ -143,11 +143,11 @@ typedef struct gasnetc_bootstrapExchange_arg_t_ {
 } gasnetc_bootstrapExchange_arg_t;
 
 void gasnetc_bootstrapExchange_recv_short_cb(void *clientdata,
-					     const DCQuad *msginfo,
-					     unsigned count, 
-					     unsigned peer,
-					     const char *src,
-					     unsigned bytes) {
+               const DCQuad *msginfo,
+               unsigned count, 
+               unsigned peer,
+               const char *src,
+               unsigned bytes) {
     
     gasnetc_bootstrapExchange_arg_t *arg = (gasnetc_bootstrapExchange_arg_t*) clientdata;
     
@@ -157,13 +157,13 @@ void gasnetc_bootstrapExchange_recv_short_cb(void *clientdata,
 }
 
 DCMF_Request_t* gasnetc_bootstrapExchange_recv_cb(void *clientdata,
-						  const DCQuad *msginfo,
-						  unsigned count, 
-						  unsigned peer,
-						  unsigned sendlen,
-						  unsigned *rcvlen,
-						  char **rcvbuf,
-						  DCMF_Callback_t *cb_done) {
+              const DCQuad *msginfo,
+              unsigned count, 
+              unsigned peer,
+              unsigned sendlen,
+              unsigned *rcvlen,
+              char **rcvbuf,
+              DCMF_Callback_t *cb_done) {
     gasnetc_dcmf_req_t *ret;
     gasnetc_bootstrapExchange_arg_t *arg = (gasnetc_bootstrapExchange_arg_t*) clientdata;
     gasnetc_recv_done_cb_args_t *cb_args;
@@ -193,15 +193,16 @@ void gasnetc_dcmf_bootstrapExchange(void *src, size_t nbytes, void *dst) {
 
     GASNETI_TRACE_PRINTF(C,("bootstrap exchange src: %p size: %d dst: %p\n", src, nbytes, dst));
     if(gasneti_nodes ==1 ) {
-	
-			memcpy(dst, src, nbytes);
-			return;
+  
+      memcpy(dst, src, nbytes);
+      return;
     }
     num_send_recv_done = gasneti_malloc(sizeof(uint64_t)*2);
     num_send_recv_done[0] = 0;
     num_send_recv_done[1] = 0;
     cb_args = gasneti_malloc(sizeof(gasnetc_bootstrapExchange_arg_t));
-    
+    send_reqs = gasneti_malloc(sizeof(DCMF_Request_t)*gasneti_nodes);
+
     cb_args->dst = dst;
     cb_args->counter = &num_send_recv_done[1];
     cb_args->nbytes = nbytes;
@@ -213,28 +214,28 @@ void gasnetc_dcmf_bootstrapExchange(void *src, size_t nbytes, void *dst) {
     config.cb_recv_clientdata = cb_args;
     callback.function = gasnetc_inc_uint64_arg_cb;
     callback.clientdata = &num_send_recv_done[0];
-    send_reqs = gasneti_malloc(sizeof(DCMF_Request_t)*gasneti_nodes);
-		GASNETC_DCMF_LOCK();
-		DCMF_SAFE(DCMF_Send_register(&registration, &config));
-		GASNETC_DCMF_UNLOCK();
-	
-		    
-		gasnetc_dcmf_bootstrapBarrier();
-		GASNETC_DCMF_LOCK();
-		for(i=1; i<gasneti_nodes; i++) {
-			
-			DCQuad msginfo;
-			int dest = (gasneti_mynode+i) % gasneti_nodes;
-			
-			DCMF_SAFE(DCMF_Send(&registration,
-													send_reqs+i,
-													callback,
-													DCMF_MATCH_CONSISTENCY,
-													dest,
-													nbytes,
-													src,
-													&msginfo,
-													1));
+ 
+    GASNETC_DCMF_LOCK();
+    DCMF_SAFE(DCMF_Send_register(&registration, &config));
+    GASNETC_DCMF_UNLOCK();
+  
+        
+    gasnetc_dcmf_bootstrapBarrier();
+    GASNETC_DCMF_LOCK();
+    for(i=1; i<gasneti_nodes; i++) {
+      
+      DCQuad msginfo;
+      int dest = (gasneti_mynode+i) % gasneti_nodes;
+      
+      DCMF_SAFE(DCMF_Send(&registration,
+                          send_reqs+i,
+                          callback,
+                          DCMF_MATCH_CONSISTENCY,
+                          dest,
+                          nbytes,
+                          src,
+                          &msginfo,
+                          1));
     }
     
     GASNETE_FAST_UNALIGNED_MEMCPY((void*)((uintptr_t)dst+gasneti_mynode*nbytes), src, nbytes);
@@ -246,4 +247,5 @@ void gasnetc_dcmf_bootstrapExchange(void *src, size_t nbytes, void *dst) {
     
     gasneti_free(cb_args);
     gasneti_free(num_send_recv_done);
+    gasneti_free(send_reqs);
 }
