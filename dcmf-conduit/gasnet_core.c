@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2008/10/09 00:41:11 $
- * $Revision: 1.1.2.24 $
+ *     $Date: 2008/10/10 03:07:16 $
+ * $Revision: 1.1.2.25 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -610,7 +610,7 @@ static void gasnetc_tryCollectiveExit(int exitcode) {
   alarm(30); /*XXX: aquire value from env*/
 
 #if GASNET_DEBUG
-  fprintf(stderr, "%d> exit initiated... checking for collective exit (code: %x)\n", gasneti_mynode, inputexit_code);
+  fprintf(stderr, "%d> exit initiated... checking for collective exit (exit code: %d)\n", gasneti_mynode, exitcode);
 #endif
   
 
@@ -620,7 +620,7 @@ static void gasnetc_tryCollectiveExit(int exitcode) {
   DCMF_SAFE_NO_CHECK(DCMF_GlobalAllreduce_register(&exit_barrier_registration, &config));
   DCMF_SAFE_NO_CHECK(DCMF_GlobalAllreduce(&exit_barrier_registration, &req,
                                           cb_done, DCMF_MATCH_CONSISTENCY,
-                                          1, (char*) &inputexit_code,
+                                          -1, (char*) &inputexit_code,
                                           (char*) &outputexit_code, 1, DCMF_UNSIGNED_INT, DCMF_MAX));
   while(!done) DCMF_Messager_advance();
   DCMF_CriticalSection_exit(0);
@@ -631,7 +631,7 @@ static void gasnetc_tryCollectiveExit(int exitcode) {
           outputexit_code & 0x000000ff);
 #endif
   gasnetc_dcmf_finalize();
-  gasneti_killmyprocess(outputexit_code & 0x000000ff);
+  gasneti_killmyprocess((int) outputexit_code & 0x000000ff);
 
   return; /*we really shouldn't get this far*/
 
