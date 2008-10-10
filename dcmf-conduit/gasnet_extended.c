@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2008/10/10 03:06:45 $
- * $Revision: 1.1.2.12 $
+ *     $Date: 2008/10/10 17:18:50 $
+ * $Revision: 1.1.2.13 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -165,13 +165,22 @@ extern void gasnete_init() {
    DCMF_Get_Configuration_t get_config;
    size_t bytes_out;
    size_t bytes_in = 2*1024*1024*1024;
-
+   
+   DCMF_Hardware_t hw;
+   size_t memsize;
+   GASNETC_DCMF_LOCK();
+   DCMF_SAFE(DCMF_Hardware(&hw));
+   bytes_in = (hw.memSize/hw.tSize)*1024*1024;
+   GASNETC_DCMF_UNLOCK();
+   
    put_config.protocol=DCMF_DEFAULT_PUT_PROTOCOL;
    get_config.protocol=DCMF_DEFAULT_GET_PROTOCOL;
    
    /*intialize the memregions and try to pin entire VM space*/
    GASNETC_DCMF_LOCK();
+   GASNETI_TRACE_PRINTF(C, ("Trying to pin %d bytes\n", bytes_in));
    DCMF_SAFE(DCMF_Memregion_create(&gasnete_dcmf_my_mem_region, &bytes_out, bytes_in, 0, 0));
+   GASNETI_TRACE_PRINTF(C, ("Bytes Pinned: %d\n", bytes_out));
    DCMF_SAFE(DCMF_Put_register(&gasnete_dcmf_put_registration, &put_config));
    DCMF_SAFE(DCMF_Get_register(&gasnete_dcmf_get_registration, &get_config));
    GASNETC_DCMF_UNLOCK();
@@ -1247,8 +1256,8 @@ int gasnete_elanbarrier_fast = 0;
 static int current_barrier_flags;
 static int current_barrier_id;
 static volatile int barrier_done;
-static volatile int64_t named_barrier_source[2];
-static volatile int64_t named_barrier_result[2];
+static long long named_barrier_source[2];
+static long long named_barrier_result[2];
 static DCMF_Request_t barrier_req;
 static DCMF_Protocol_t anon_barrier_registration;
 static DCMF_Protocol_t named_barrier_registration;

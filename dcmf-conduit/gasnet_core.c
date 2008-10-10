@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2008/10/10 03:07:16 $
- * $Revision: 1.1.2.25 $
+ *     $Date: 2008/10/10 17:18:50 $
+ * $Revision: 1.1.2.26 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -220,12 +220,18 @@ static void gasnetc_dcmf_init(gasnet_node_t* mynode, gasnet_node_t *nodes) {
     DCMF_Hardware_t hw;
     DCMF_Configure_t dcmf_config, dcmf_config_out;
     DCMF_SAFE(DCMF_Hardware(&hw));
-
-    GASNETI_TRACE_PRINTF(C,("(x,y,z,t) Coords: (%d,%d,%d,%d) Sizes: (%d,%d,%d,%d) isTorus?: (%d,%d,%d,%d)",
-          hw.xCoord, hw.yCoord, hw.zCoord, hw.tCoord,
-          hw.xSize, hw.ySize, hw.zSize, hw.tSize,
-          hw.xTorus, hw.yTorus, hw.zTorus, hw.tTorus));
-    
+    if(gasneti_getenv_yesno_withdefault("GASNET_DCMF_PRINT_TORUS_LOCATION", 0)) {
+      fprintf(stderr, "%d/%d> (x,y,z,t) Location: (%d,%d,%d,%d) Sizes: (%d,%d,%d,%d) isTorus?: (%d,%d,%d,%d)\n",
+              gasneti_mynode, gasneti_nodes, hw.xCoord, hw.yCoord, hw.zCoord, hw.tCoord,
+              hw.xSize, hw.ySize, hw.zSize, hw.tSize,
+              hw.xTorus, hw.yTorus, hw.zTorus, hw.tTorus);
+      
+    } else {
+      GASNETI_TRACE_PRINTF(C,("(x,y,z,t) Coords: (%d,%d,%d,%d) Sizes: (%d,%d,%d,%d) isTorus?: (%d,%d,%d,%d)",
+                              hw.xCoord, hw.yCoord, hw.zCoord, hw.tCoord,
+                              hw.xSize, hw.ySize, hw.zSize, hw.tSize,
+                              hw.xTorus, hw.yTorus, hw.zTorus, hw.tTorus));
+    }    
 
 #if GASNET_SEQ
     dcmf_config.thread_level = DCMF_THREAD_SINGLE;
