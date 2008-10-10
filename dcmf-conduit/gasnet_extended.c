@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2008/10/10 02:09:46 $
- * $Revision: 1.1.2.11 $
+ *     $Date: 2008/10/10 03:06:45 $
+ * $Revision: 1.1.2.12 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -810,27 +810,31 @@ gasnete_iop_dcmf_req_t *gasnete_get_iop_dcmf_req(gasnete_iop_t * const op) {
   if(!ret) {
     /*assume taht we'll need a few more of these so just go ahead and allocate 256 and push them on to the free list*/
     int i=0;
-    for(i=0; i<256; i++) {
-      ret = (gasnete_iop_dcmf_req_t*) gasneti_malloc(sizeof(gasnete_iop_dcmf_req_t));
-      gasneti_lifo_push(&gasnete_iop_dcmf_req_free_list, (void*) ret);
+    gasnete_iop_dcmf_req_t *tail, *head, *temp;
+    temp = head = (gasnete_iop_dcmf_req_t*) gasneti_malloc(sizeof(gasnete_iop_dcmf_req_t)*256);
+    for(i=0; i<255; i++) {
+      gasneti_lifo_link(temp, &head[i+1]);
+      temp = &head[i+1];
     }
+    tail = head+255;
+    gasneti_lifo_push_many(&gasnete_iop_dcmf_req_free_list, (void*) head, (void*) tail);
     /*now pop one off the free list to use it*/
     ret = gasneti_lifo_pop(&gasnete_iop_dcmf_req_free_list);
   }
-  ret->iop = op;
+  ret->ptr = op;
   return ret;
 }
 
 GASNETI_INLINE(gasnete_free_iop_dcmf_req)
 void gasnete_free_iop_dcmf_req (gasnete_iop_dcmf_req_t* req) {
-  req->iop = NULL;
+  req->ptr = NULL;
   gasneti_lifo_push(&gasnete_iop_dcmf_req_free_list, (void*) req);
 }
 
 static void gasnete_mark_iop_put_done(void *arg, DCMF_Error_t *error) {
   gasnete_iop_dcmf_req_t *in = (gasnete_iop_dcmf_req_t*) arg;
   
-  gasnete_op_markdone((gasnete_op_t*) in->iop, 0);
+  gasnete_op_markdone((gasnete_op_t*) in->ptr, 0);
   gasnete_free_iop_dcmf_req(in);
   return ;
 }
@@ -838,7 +842,7 @@ static void gasnete_mark_iop_put_done(void *arg, DCMF_Error_t *error) {
 static void gasnete_mark_iop_get_done(void *arg, DCMF_Error_t *error) {
   gasnete_iop_dcmf_req_t *in = (gasnete_iop_dcmf_req_t*) arg;
   
-  gasnete_op_markdone((gasnete_op_t*) in->iop, 1);
+  gasnete_op_markdone((gasnete_op_t*) in->ptr, 1);
   gasnete_free_iop_dcmf_req(in);
   return ;
 }

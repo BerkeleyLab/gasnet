@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2008/10/10 00:36:24 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2008/10/10 03:06:45 $
+ * $Revision: 1.1.2.7 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -64,9 +64,10 @@ typedef struct _gasnete_iop_t {
 } gasnete_iop_t;
 
 typedef struct _gasnete_iop_dcmf_req_t{
-  struct _gasnete_iop_dcmf_req_t *next;
+  void *ptr;
+
   DCMF_Request_t dcmf_req;
-  gasnete_iop_t *iop;
+
 } gasnete_iop_dcmf_req_t;
 
 
