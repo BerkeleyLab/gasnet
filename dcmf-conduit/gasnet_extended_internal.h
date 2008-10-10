@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2008/10/09 00:46:44 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2008/10/10 00:36:24 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -53,7 +53,7 @@ typedef struct _gasnete_iop_t {
   uint16_t _unused;
   int initiated_get_cnt;     /*  count of get ops initiated */
   int initiated_put_cnt;     /*  count of put ops initiated */
-  gasnetc_dcmf_req_t *dcmf_req_head;  
+/*   gasnetc_dcmf_req_t *dcmf_req_head;   */
   struct _gasnete_iop_t *next;    /*  next cell while in free list, deferred iop while being filled */
 
   /*  make sure the counters live on different cache lines for SMP's */
@@ -62,6 +62,12 @@ typedef struct _gasnete_iop_t {
   gasneti_weakatomic_t completed_get_cnt;     /*  count of get ops completed */
   gasneti_weakatomic_t completed_put_cnt;     /*  count of put ops completed */
 } gasnete_iop_t;
+
+typedef struct _gasnete_iop_dcmf_req_t{
+  struct _gasnete_iop_dcmf_req_t *next;
+  DCMF_Request_t dcmf_req;
+  gasnete_iop_t *iop;
+} gasnete_iop_dcmf_req_t;
 
 
 /* ------------------------------------------------------------------------------------ */

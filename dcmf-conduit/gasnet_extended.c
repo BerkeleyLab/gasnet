@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2008/10/09 00:46:44 $
- * $Revision: 1.1.2.9 $
+ *     $Date: 2008/10/10 00:36:24 $
+ * $Revision: 1.1.2.10 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -307,7 +307,7 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
     iop->threadidx = thread->threadidx;
   }
   iop->next = NULL;
-  iop->dcmf_req_head=NULL;
+
   iop->initiated_get_cnt = 0;
   iop->initiated_put_cnt = 0;
   gasneti_weakatomic_set(&(iop->completed_get_cnt), 0, 0);
@@ -367,12 +367,12 @@ void gasnete_op_free(gasnete_op_t *op) {
     thread->iop_free = iop;
 
     /*go through and add all the dcmf requests back onto the free list*/
-    while(iop->dcmf_req_head) {
-      gasnetc_dcmf_req_t *req = iop->dcmf_req_head;
-      iop->dcmf_req_head = iop->dcmf_req_head->next;
-      gasnetc_free_dcmf_req(req);
-    }
-    gasneti_assert(iop->dcmf_req_head ==NULL);
+/*     while(iop->dcmf_req_head) { */
+/*       gasnetc_dcmf_req_t *req = iop->dcmf_req_head; */
+/*       iop->dcmf_req_head = iop->dcmf_req_head->next; */
+/*       gasnetc_free_dcmf_req(req); */
+/*     } */
+/*     gasneti_assert(iop->dcmf_req_head ==NULL); */
   }
 }
 /* ------------------------------------------------------------------------------------ */
@@ -801,13 +801,55 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
     the target until the source tries to synchronize
 */
 #if GASNETE_DIRECT_PUT_GET
+static gasneti_lifo_head_t gasnete_iop_dcmf_req_free_list = GASNETI_LIFO_INITIALIZER;
+
+GASNETI_INLINE(gasnete_get_iop_dcmf_req)
+gasnete_iop_dcmf_req_t *gasnete_get_iop_dcmf_req(gasnete_iop_t * const op) {
+  gasnete_iop_dcmf_req_t *ret;
+  ret = gasneti_lifo_pop(&gasnete_iop_dcmf_req_free_list);
+  if(!ret) {
+    /*assume taht we'll need a few more of these so just go ahead and allocate 256 and push them on to the free list*/
+    int i=0;
+    for(i=0; i<256; i++) {
+      ret = (gasnete_iop_dcmf_req_t*) gasneti_malloc(sizeof(gasnete_iop_dcmf_req_t));
+      gasneti_lifo_push(&gasnete_iop_dcmf_req_free_list, (void*) ret);
+    }
+    /*now pop one off the free list to use it*/
+    ret = gasneti_lifo_pop(&gasnete_iop_dcmf_req_free_list);
+  }
+  ret->iop = op;
+  return ret;
+}
+
+GASNETI_INLINE(gasnete_free_iop_dcmf_req)
+void gasnete_free_iop_dcmf_req (gasnete_iop_dcmf_req_t* req) {
+  req->iop = NULL;
+  gasneti_lifo_push(&gasnete_iop_dcmf_req_free_list, (void*) req);
+}
+
+static void gasnete_mark_iop_put_done(void *arg, DCMF_Error_t *error) {
+  gasnete_iop_dcmf_req_t *in = (gasnete_iop_dcmf_req_t*) arg;
+  
+  gasnete_op_markdone((gasnete_op_t*) in->iop, 0);
+  gasnete_free_iop_dcmf_req(in);
+  return ;
+}
+
+static void gasnete_mark_iop_get_done(void *arg, DCMF_Error_t *error) {
+  gasnete_iop_dcmf_req_t *in = (gasnete_iop_dcmf_req_t*) arg;
+  
+  gasnete_op_markdone((gasnete_op_t*) in->iop, 1);
+  gasnete_free_iop_dcmf_req(in);
+  return ;
+}
+
 GASNETI_INLINE(gasnete_put_nbi_inner)
 void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes, int isbulk GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const op = mythread->current_iop;
   volatile int local_put_done = 0; 
   DCMF_Callback_t local_done_cb, remote_done_cb;
-  gasnetc_dcmf_req_t *dcmf_req;
+  gasnete_iop_dcmf_req_t *req = NULL;
   
   if(node == gasneti_mynode) {
     GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
@@ -821,22 +863,17 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
     local_done_cb.clientdata = (void*) &local_put_done;
   }
   
-  remote_done_cb.function = gasnete_mark_dcmf_put_done;
-  remote_done_cb.clientdata = (void*) op;
-  
+  req = gasnete_get_iop_dcmf_req(op);
+  remote_done_cb.function = gasnete_mark_iop_put_done;
+  remote_done_cb.clientdata = (void*) req;
 
+  
   /*each put needs its own request so allocate one and push it onto 
     a lifo list of these ops that will get freed when the iop is freed*/
   
-  /*since the ops are a per thread thing no need to worry about locking here*/
-  
-  dcmf_req = gasnetc_get_dcmf_req();
-  dcmf_req->next = op->dcmf_req_head;
-  op->dcmf_req_head = dcmf_req;
-    
   GASNETC_DCMF_LOCK();
   op->initiated_put_cnt++;
-  DCMF_SAFE(DCMF_Put(&gasnete_dcmf_put_registration, &dcmf_req->req,
+  DCMF_SAFE(DCMF_Put(&gasnete_dcmf_put_registration, &req->dcmf_req,
                      local_done_cb,
                      DCMF_RELAXED_CONSISTENCY, node, nbytes,
                      &gasnete_dcmf_my_mem_region, gasnete_dcmf_all_mem_regions+node,
@@ -930,29 +967,22 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const op = mythread->current_iop;
   DCMF_Callback_t done_cb;
-  gasnetc_dcmf_req_t *dcmf_req;
+  gasnete_iop_dcmf_req_t *req = NULL;
 
   if(node == gasneti_mynode) {
     GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
     return;
   }
   
-  
-  done_cb.function = gasnete_mark_dcmf_get_done;
-  done_cb.clientdata = (void*) op;
+  req = gasnete_get_iop_dcmf_req(op);
+  done_cb.function = gasnete_mark_iop_get_done;
+  done_cb.clientdata = (void*) req;
 
-  /*since each DCMF_Get needs its own request allocate one and then put
-    it on the lifo list for this op that will get freed when the iop is freed*/
-  /*we don't do any locking here sicne the op is a per thread object*/
-  dcmf_req = gasnetc_get_dcmf_req();
-  dcmf_req->next = op->dcmf_req_head;
-  op->dcmf_req_head = dcmf_req;
-  
   
   GASNETC_DCMF_LOCK();
   op->initiated_get_cnt++;
   DCMF_SAFE(DCMF_Get(&gasnete_dcmf_get_registration,
-                     &dcmf_req->req, done_cb,
+                     &req->dcmf_req, done_cb,
                      DCMF_RELAXED_CONSISTENCY, node,
                      nbytes, gasnete_dcmf_all_mem_regions+node,
                      &gasnete_dcmf_my_mem_region, 
