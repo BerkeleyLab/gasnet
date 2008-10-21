@@ -28,6 +28,10 @@ testconduitspecific: force
          $(MAKE) -C $(CONDUIT_DIR) $$conduit_test-$$conduit_mode && \
 	 cp -f $(CONDUIT_DIR)/$$conduit_test$(EXESUFFIX) $@$(EXESUFFIX)
 
+parsync: force
+	@$(MAKE) -C $(CONDUIT_DIR) $@
+	@echo '#!/bin/sh' > $@ ; chmod +x $@
+
 check-exports: force
 	@$(MAKE) -C $(CONDUIT_DIR) $@
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
