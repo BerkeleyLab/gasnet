@@ -40,7 +40,7 @@ fi
 #MPI_CFLAGS='' ; export MPI_CFLAGS  # flags for MPI_CC
 #MPI_LIBS='' ; export MPI_LIBS      # libs for linking with MPI_CC
 # system batch submit command:
-MPIRUN_CMD='cqsub -q short -t 10 -n %N %C' ; export MPIRUN_CMD  # launch command for MPI jobs
+MPIRUN_CMD='qsub -q short -t 10 -mode smp -n %N %C' ; export MPIRUN_CMD  # launch command for MPI jobs
 # BEWARE: the mpirun below boots its own partition on the BG/L, which may disrupt the system resource scheduler and anger the admins
 #MPIRUN_CMD='mpirun -timeout 600 -np %N %V -verbose 0 -cwd %D -exe %P -args "%A"' ; export MPIRUN_CMD  # launch command for MPI jobs
 # --disable-aligned-segments because /proc/sys/kernel/randomize_va_space==1
@@ -53,7 +53,7 @@ CROSS_HAVE_MMAP='0' ; export CROSS_HAVE_MMAP
 EXTRA_CONFIGURE_ARGS='--enable-dcmf-linux --disable-aligned-segments --disable-udp --disable-amudp' ; export EXTRA_CONFIGURE_ARGS  # misc configure args to pass
 else
 CROSS_HAVE_MMAP='1' ; export CROSS_HAVE_MMAP
-EXTRA_CONFIGURE_ARGS='--disable-dcmf-linux --disable-udp --disable-amudp' ; export EXTRA_CONFIGURE_ARGS  # misc configure args to pass
+EXTRA_CONFIGURE_ARGS='-with-max-pthreads-per-node=4 --disable-dcmf-linux --disable-udp --disable-amudp' ; export EXTRA_CONFIGURE_ARGS  # misc configure args to pass
 fi
 
 #EXTRA_CONFIGURE_ARGS='--disable-aligned-segments --enable-mpi --disable-udp --disable-amudp' ; export EXTRA_CONFIGURE_ARGS  # misc configure args to pass
