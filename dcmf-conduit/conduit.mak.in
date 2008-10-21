@@ -7,5 +7,5 @@
 #INSTRUCTIONS# See the conduit-writer instructions in the generated fragments
 #INSTRUCTIONS# or $(top_srcdir)/other/fragment-head.mak.in for usage info.
 
-CONDUIT_LIBDIRS = -L@DCMF_LIB_DIR@ -L@DCMF_SYS_LIB_DIR@
+CONDUIT_LIBDIRS = -L@DCMF_LIBDIR@ -L@DCMF_SYS_LIBDIR@
 CONDUIT_LIBS = @DCMF_LIBS@ 
