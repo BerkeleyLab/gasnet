@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testgasnet.c,v $
- *     $Date: 2008/01/09 06:35:06 $
- * $Revision: 1.57 $
+ *     $Date: 2008/10/22 19:05:44 $
+ * $Revision: 1.57.4.1 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -94,7 +94,11 @@ void doit5(int partner, int *partnerseg);
 #endif
 
 #if GASNET_PAR
+#if PLATFORM_OS_BGP
+  #define NUM_THREADS TEST_MAXTHREADS
+#else
   #define NUM_THREADS 10
+#endif
 #else
   #define NUM_THREADS 1
 #endif
