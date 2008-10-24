@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2008/10/24 21:49:00 $
- * $Revision: 1.1.2.27 $
+ *     $Date: 2008/10/24 22:51:04 $
+ * $Revision: 1.1.2.28 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -929,7 +929,7 @@ gasnetc_replay_buffer_t* gasnetc_get_replay_buffer(size_t nbytes, int allocate_b
       ret = gasneti_lifo_pop(&gasnetc_replay_buffer_free_list);
       
       while(ret==NULL) {
-        gasnetc_AMPoll();
+        gasneti_AMPoll();
         ret = gasneti_lifo_pop(&gasnetc_replay_buffer_free_list);
       }
       
@@ -1764,12 +1764,10 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
   GASNETC_DCMF_UNLOCK();  
   /*if we need to wait for hte send, wait here*/
   if(wait_for_send) {
-    while(send_done == 0) {
-      gasnetc_AMPoll();
-    /*   DCMF_MESSAGER_POLL(); */
-/*       GASNETC_DCMF_CYCLE(); /\*give another thread a chacne at the lock*\/ */
-    }
-    
+    gasneti_polluntil(send_done!=0);
+    /*&while(send_done == 0) {
+      gasneti_AMPoll();
+      }*/
   }
   
 
@@ -1870,6 +1868,8 @@ void gasnetc_send_am_rep(gasnetc_dcmf_amcategory_t amcat,
   
   if(wait_for_send) {
     while(send_done == 0) {
+      /*since this reply is run within a handler context already
+        we can only call DCMF_Messager Poll and not AMPoll*/
       DCMF_MESSAGER_POLL();
       GASNETC_DCMF_CYCLE(); /*give another thread a chance at the lock*/
     }

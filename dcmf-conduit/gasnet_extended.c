@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2008/10/24 21:51:35 $
- * $Revision: 1.1.2.14 $
+ *     $Date: 2008/10/24 22:51:04 $
+ * $Revision: 1.1.2.15 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -652,12 +652,10 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
                      (size_t)src, (size_t)dest, remote_done_cb));
   GASNETC_DCMF_UNLOCK();
   if(!isbulk) {
-    while(local_put_done == 0) {
-      gasnetc_AMPoll();
-    /*   GASNETC_DCMF_CYCLE(); /\*exit and enter the critical section to give someone else a shot at hte lock*\/ */
-/*       DCMF_MESSAGER_POLL(); */
-/*       /\*if(!local_put_done) gasneti_yield();*\/ */
-    }
+    gasneti_polluntil(local_put_done!=0);
+    /*while(local_put_done == 0) {
+      gasneti_AMPoll();
+      }*/
   }
   
   return (gasnet_handle_t)op;
@@ -908,14 +906,15 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
                      &gasnete_dcmf_my_mem_region, gasnete_dcmf_all_mem_regions+node,
                      (size_t)src, (size_t)dest, remote_done_cb));
   
-
-  if(!isbulk) {
-    while(local_put_done == 0) {
-      GASNETC_DCMF_CYCLE(); /*exit the critical section and give another thread a chacne at the lock*/
-      DCMF_MESSAGER_POLL();
-    }
-  }
   GASNETC_DCMF_UNLOCK();
+  
+  if(!isbulk) {
+    gasneti_polluntil(local_put_done!=0);
+    /*while(local_put_done == 0) {
+      gasneti_AMPoll();
+      }*/
+  }
+
   return;
 }
 #else
@@ -1493,7 +1492,9 @@ static inline int finish_barrier(int id, int flags) {
                                      -1, (char*) &named_barrier_source, 
                                      (char*) &named_barrier_result, 2, DCMF_SIGNED_LONG_LONG, 
                                      DCMF_MIN));
-      /*XXX: Factor out to macros*/
+      /*all the nodes are rerunning the barrier so it should be a fairly quick operation
+        so just call messager poll instead*/
+       
       while(barrier_rerun_done == 0) {
         GASNETC_DCMF_CYCLE(); /*cycle the lock to give another thread a chance*/
         DCMF_MESSAGER_POLL();
@@ -1532,8 +1533,11 @@ static int gasnete_dcmfbarrier_wait(int id, int flags) {
   /*wait for whatever barrier we executed to be done*/
 
   /*ampoll calls DCMF Messager advance and will make progress on outstanding AMs*/
-  while(barrier_done == 0) GASNETI_SAFE(gasneti_AMPoll()); /*XXX: GASNET POLL UNTIL*/
-
+  
+  gasneti_polluntil(barrier_done!=0);
+  /*while(barrier_done == 0) GASNETI_SAFE(gasneti_AMPoll());*/
+  
+  
   
   GASNETI_TRACE_PRINTF(B, ("finish barrier wait named barrier res:(0x%llx,0x%llx) (%d,%d)", named_barrier_source[1], named_barrier_result[1], id, flags));
   ret = finish_barrier(id, flags);
