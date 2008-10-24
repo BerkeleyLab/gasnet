@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2008/01/27 09:48:42 $
-# $Revision: 1.63 $
+#     $Date: 2008/10/24 23:16:59 $
+# $Revision: 1.63.2.1 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -99,6 +99,8 @@ sub gasnet_encode($) {
     my $is_yod      = ($mpirun_help =~ m| yod |);
     my $is_bgl_mpi  = ($mpirun_help =~ m|COprocessor or VirtualNode mode|);
     my $is_bgl_cqsub = ($mpirun_help =~ m| cqsub .*?co/vn|s);
+    my $is_bgp_mpi  = ($mpirun_help =~ m|fake-mpirun| && $mpirun_help =~ m|-partition|);
+    my $is_bgp_qsub = ($mpirun_help =~ m|--mode <mode co/vn>|s);
     my $is_hp_mpi  = ($mpirun_help =~ m|-universe_size|);
     my $is_elan_mpi  = ($mpirun_help =~ m|MPIRUN_ELANIDMAP_FILE|);
     my $is_jacquard = ($mpirun_help =~ m| \[-noenv\] |) && !$is_elan_mpi;
@@ -213,10 +215,28 @@ sub gasnet_encode($) {
 	$group_join_argv = 1;
 	$env_before_exe = 1;
 	@verbose_opt = ("-verbose", "2");
-    } elsif ($is_bgl_cqsub) {
+     }elsif ($is_bgl_cqsub) {
 	$spawner_desc = "IBM BG/L cqsub";
 	# pass as: -e A=val:B=val
 	%envfmt = ( 'pre' => '-e',
+		    'join' => ':',
+		    'val' => ''
+		  );
+        $encode_env = 1; # botches spaces in environment values
+        $encode_args = 1; # and in arguments
+    } elsif ($is_bgp_mpi) {
+	$spawner_desc = "IBM BG/P mpirun";
+	# pass as: -e A=val:B=val
+	%envfmt = ( 'pre' => '-env',
+		    'join' => ':',
+		    'val' => ''
+		  );
+        $encode_env = 1; # botches spaces in environment values
+        $encode_args = 1; # and in arguments
+    } elsif ($is_bgp_qsub) {
+	$spawner_desc = "IBM BG/P qsub";
+	# pass as: -e A=val:B=val
+	%envfmt = ( 'pre' => '--env',
 		    'join' => ':',
 		    'val' => ''
 		  );
@@ -584,6 +604,47 @@ if ($numnode && ($is_aprun || $is_yod)) {
       @numprocargs = ($numproc, '-VN');
     } else {
       die "yod does not support more than 2 processes per node.\n";
+    }
+  }
+  $dashN_ok = 1;
+}
+
+if ($numnode && ($is_bgp_mpi || $is_bgp_qsub)) { 
+  if ($is_bgp_mpi) { # mpirun requires --mode <vn, dual, smp>
+    my $partsz = undef;
+    open(QSTAT, "qstat -f $ENV{'COBALT_JOBID'}|") || die "Failed to run qstat";
+    while (<QSTAT>) {
+      if (/^[1-9]/) {
+        my @F = split;
+        $partsz = $F[6];
+        last;
+      }
+    }
+    close(QSTAT); 
+    die "Failed to query partition size" unless (defined $partsz);
+    if ($numproc <= $partsz) {
+      @numprocargs = ('-np', $numproc);
+    } elsif ($numproc * 2 == $partsz) {
+      @numprocargs = ('-mode', 'dual');
+    } elsif ($numproc * 4 == $partsz) {
+      @numprocargs = ('-mode', 'vn');
+    } else {
+      die "BG/P only supports 1, 2 or 4 ppn, and must conform to partition size.  See README.dcmf.";
+    }
+  } else { # qsub requires 
+    my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
+    if ($ppn * $numnode != $numproc) {
+	  warn "WARNING: aprun does not fully support non-uniform process distribution\n";
+	  warn "WARNING: PROCESS LAYOUT MIGHT NOT MATCH YOUR REQUEST\n";
+    }
+    if ($ppn == 1) {
+      @numprocargs = ($numproc, '--mode', 'smp');
+    } elsif ($ppn == 2) {
+      @numprocargs = ($numproc/2, '--mode', 'dual');
+    } elsif ($ppn == 4) {
+      @numprocargs = ($numproc/4, '--mode', 'vn');
+    } else {
+      die "BG/P only supports 1, 2 or 4 ppn";
     }
   }
   $dashN_ok = 1;
