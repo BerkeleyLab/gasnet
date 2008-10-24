@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2008/10/10 17:18:50 $
- * $Revision: 1.1.2.26 $
+ *     $Date: 2008/10/24 21:49:00 $
+ * $Revision: 1.1.2.27 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -28,6 +28,13 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 /*turns on the ability for the conduit to send negative acknowledgments*/
 /*without this we will always blindly accept all incoming active messages*/
 #define GASNETC_FLOW_CONTROL_ENABLED 1
+
+
+/* Exit coordination timeouts */
+#define GASNETC_DEFAULT_EXITTIMEOUT_MAX   360.0 /* 6 minutes! */
+#define GASNETC_DEFAULT_EXITTIMEOUT_MIN   2 /* 2 seconds */
+#define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR  0.25  /* 1/4 second */
+static double gasnetc_exittimeout = GASNETC_DEFAULT_EXITTIMEOUT_MAX;
 
 
 /*if this flag is enabled Active Messages with no payload and no arguments get sent as a DCMF Control Message*/
@@ -127,17 +134,17 @@ void gasnetc_add_to_nack_list_cb(void *client_data,
 void gasnetc_resend_am_req(gasnetc_replay_buffer_t *replay_buffer);
 
 static void gasnetc_inc_uint64_arg_cb(void* arg, DCMF_Error_t* e) {
-  uint64_t *in = (uint64_t*) arg;
+  volatile uint64_t *in = (volatile uint64_t*) arg;
   (*in)++;
 }
 
 static void gasnetc_inc_uint32_arg_cb(void* arg, DCMF_Error_t *e) {
-  uint32_t *in = (uint32_t*) arg;
+  volatile uint32_t *in = (volatile uint32_t*) arg;
   (*in)++;
 }
 
 static void gasnetc_inc_uint8_arg_cb(void* arg, DCMF_Error_t *e) {
-  uint8_t *in = (uint8_t*) arg;
+  volatile uint8_t *in = (volatile uint8_t*) arg;
   (*in)++;
 }
 
@@ -158,7 +165,7 @@ DCMF_Send_Protocol gasnetc_get_protocol(gasnetc_dcmf_send_category_t sendcat) {
 }
 
 #define REGISTER_SEND_HANDLER(AMTYPE, AMCATEGORY, SENDPROTOCOL) do {  \
-    DCMF_Send_Configuration_t config;         \
+    DCMF_Send_Configuration_t config; memset(&config, 0, sizeof(DCMF_Send_Configuration_t)); \
     config.protocol = gasnetc_get_protocol(SENDPROTOCOL);     \
     config.cb_recv_short = gasnetc_dcmf_handle_am_short;    \
     config.cb_recv_short_clientdata = NULL;       \
@@ -199,6 +206,10 @@ static void gasnetc_dcmf_init(gasnet_node_t* mynode, gasnet_node_t *nodes) {
 
   {
     DCMF_Control_Configuration_t ack_config, nack_config, short_msg_config;
+    bzero(&ack_config, sizeof(DCMF_Control_Configuration_t));
+    bzero(&nack_config,  sizeof(DCMF_Control_Configuration_t));
+    bzero(&short_msg_config,  sizeof(DCMF_Control_Configuration_t));
+    
     short_msg_config.protocol = nack_config.protocol = ack_config.protocol =DCMF_DEFAULT_CONTROL_PROTOCOL;
     ack_config.cb_recv = gasnetc_ack_msg_cb;
     nack_config.cb_recv = gasnetc_add_to_nack_list_cb;
@@ -366,6 +377,11 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasneti_init_done = 1;  
   gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
    
+  gasnetc_exittimeout = gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
+                                                GASNETC_DEFAULT_EXITTIMEOUT_MIN,
+                                                GASNETC_DEFAULT_EXITTIMEOUT_FACTOR,
+                                                GASNETC_DEFAULT_EXITTIMEOUT_MIN);
+  
   return GASNET_OK;
 }
 
@@ -604,6 +620,7 @@ static void gasnetc_tryCollectiveExit(int exitcode) {
   DCMF_GlobalAllreduce_Configuration_t config;
   DCMF_Callback_t cb_done;
   volatile int done=0;
+  bzero(&config, sizeof(DCMF_GlobalAllreduce_Configuration_t));
   config.protocol = DCMF_DEFAULT_GLOBALALLREDUCE_PROTOCOL;
   
   cb_done.function = gasnetc_inc_uint32_arg_cb;
@@ -613,7 +630,8 @@ static void gasnetc_tryCollectiveExit(int exitcode) {
   inputexit_code = 0xf0f0f000;
   inputexit_code |= exitcode;
   
-  alarm(30); /*XXX: aquire value from env*/
+  
+  alarm(1+(int)gasnetc_exittimeout); /*XXX: aquire value from env*/
 
 #if GASNET_DEBUG
   fprintf(stderr, "%d> exit initiated... checking for collective exit (exit code: %d)\n", gasneti_mynode, exitcode);
@@ -899,6 +917,7 @@ gasnetc_replay_buffer_t* gasnetc_get_replay_buffer(size_t nbytes, int allocate_b
     /*the free list is empty so check if we are allowed to allocate a new one*/
     if(gasneti_semaphore_trydown(&gasnetc_replay_buffers_left)) {
       /*we haven't exceeded our max number of allocateable replay buffers so create one*/
+      /*XXX: Align buffers*/
       ret = (gasnetc_replay_buffer_t*) gasneti_malloc(sizeof(gasnetc_replay_buffer_t));
     } else {
 #if GASNETI_STATS_OR_TRACE
@@ -908,15 +927,12 @@ gasnetc_replay_buffer_t* gasnetc_get_replay_buffer(size_t nbytes, int allocate_b
       /* we have exceeeded our maxiumum allocateable number of buffers and there are none left
        * so we have to wait until more are available*/
       ret = gasneti_lifo_pop(&gasnetc_replay_buffer_free_list);
-      GASNETC_DCMF_LOCK();
+      
       while(ret==NULL) {
-        
-        DCMF_MESSAGER_POLL(); /*the polling loop will eventually run an ACK callback which will deallocate a 
-                                replay buffer*/
+        gasnetc_AMPoll();
         ret = gasneti_lifo_pop(&gasnetc_replay_buffer_free_list);
-        GASNETC_DCMF_CYCLE(); /*give another thread a chacne at the lock*/
       }
-      GASNETC_DCMF_UNLOCK();
+      
       GASNETI_TRACE_EVENT_TIME(C, GET_REPLAY_BUFFER_STALL, GASNETI_TICKS_NOW_IFENABLED(C)-wait_start);
     }
   }
@@ -1194,7 +1210,7 @@ extern int gasnetc_AMPoll() {
   GASNETI_CHECKATTACH();
 
   /*kick the entire system once*/
-  //GASNETI_TRACE_PRINTF(C,("Starting AMPoll"));
+  
   /* Make sure lock is aquired*/
   GASNETC_DCMF_LOCK();
   /*Run the DCMF active message handlers to queue whatever was left*/
@@ -1208,7 +1224,7 @@ extern int gasnetc_AMPoll() {
   amhandler = gasnetc_remove_first_active_amhandler();
   if(amhandler) {
     int amhandler_list_len=0;
-    // GASNETI_TRACE_PRINTF(C,("starting to clear active list numactive: %d", gasnetc_active_amhandlers));
+    
     /*run any active message functions that got queued*/
     
     do {
@@ -1218,16 +1234,14 @@ extern int gasnetc_AMPoll() {
        * finished their calls and they will not be called again with thte 
        * current data set so just remove them from the active queue*/
       
-      //GASNETI_TRACE_PRINTF(C,("finished running handler: %p seq: %d\n", amhandler, amhandler->seq_number));
+      
       gasnetc_free_amhandler(amhandler);
       amhandler = gasnetc_remove_first_active_amhandler();
     } while(amhandler!=NULL);
   
     /*clear the entire active list at one shot*/
     gasnetc_active_amhandlers = 0;
-    //  GASNETI_TRACE_PRINTF(C,("finishing clear active list"));
-    //    GASNETI_TRACE_EVENT_VAL(C, AMHANDLER_LIST_LEN, amhandler_list_len);
-  
+      
   }
 
   
@@ -1332,7 +1346,7 @@ void gasnetc_dcmf_handle_am_short_inner(void *clientdata,
       gasnetc_ambuf_t *ambuf;
       if(transfer_size > 0) {
         ambuf = gasnetc_get_ambuf(transfer_size);
-        //ambuf = (void*) gasneti_malloc(transfer_size);
+        
         GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(ambuf->data, src, bytes); /*copy data into bounce buffer*/
         amhandler = gasnetc_construct_new_amhandler(token, handleridx, (void*) ambuf, 1, transfer_size, argquads, argquadcount, numargs);
       } else {
@@ -1561,11 +1575,11 @@ DCMF_Request_t* gasnetc_dcmf_handle_am_header(void *clientdata,
 */
 
 
-//GASNETI_INLINE(gasnetc_resend_am_req) 
-  /*since all the arguments and messages are not visible to the user
-    we don't need to wait for the send to be locally complete since the buffer won't be cleared
-    until we get a remote ack from the remote side...
-  */
+/*since all the arguments and messages are not visible to the user
+  we don't need to wait for the send to be locally complete since the buffer won't be cleared
+  until we get a remote ack from the remote side...
+*/
+GASNETI_INLINE(gasnetc_resend_am_req) 
 void gasnetc_resend_am_req(gasnetc_replay_buffer_t *replay_buffer) {
   volatile uint8_t send_done=0;
   DCMF_Callback_t send_done_callback;
@@ -1600,7 +1614,7 @@ void gasnetc_resend_am_req(gasnetc_replay_buffer_t *replay_buffer) {
   
   if(replay_buffer->amcat!= GASNETC_AMMED) {
     /*in the case of a short there's no payload and in the case of a LONG or LONGASYNC the payload 
-     is already ont he remote side*/
+      is already ont he remote side*/
     /*check to see if we can just send a control message?!*/
     DCMF_SAFE(DCMF_Send(&GASNETC_DCMF_AM_REGISTARTION(replay_buffer->amtype, replay_buffer->amcat, GASNETC_DCMF_SEND_EAGER),
                         &dcmf_req->req,
@@ -1649,9 +1663,10 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
   unsigned replay_buffer = 0;
 #endif
   
+  
 #if GASNETC_FLOW_CONTROL_ENABLED
   /*try to clear the NACK list before we inject another AM to avoid starvation*/
-  GASNETC_RESEND_AMREQS();
+  /*  GASNETC_RESEND_AMREQS(); */
   
   /*getting a replay buffer allocated implies that we have permission to send an AM from
    * this node*/
@@ -1664,7 +1679,7 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
 #endif
   
   
-  dcmf_req  = gasnetc_get_dcmf_req();
+  dcmf_req  = gasnetc_get_dcmf_req(); /*XXX: fold DCMF REquest in case of flow control*/
   
 
   /*if this is request send the id of the replay buffer so we can deal with it on an ack or nacks*/
@@ -1746,17 +1761,18 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
   if(amcat== GASNETC_AMMED) 
     GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(replay_buffer->buffer->data, src_addr, nbytes);
 #endif
-  
+  GASNETC_DCMF_UNLOCK();  
   /*if we need to wait for hte send, wait here*/
   if(wait_for_send) {
     while(send_done == 0) {
-      DCMF_MESSAGER_POLL();
-      GASNETC_DCMF_CYCLE(); /*give another thread a chacne at the lock*/
+      gasnetc_AMPoll();
+    /*   DCMF_MESSAGER_POLL(); */
+/*       GASNETC_DCMF_CYCLE(); /\*give another thread a chacne at the lock*\/ */
     }
     
   }
   
-  GASNETC_DCMF_UNLOCK();
+
   
   /*if we waited for the send we can safely free the request here, otherwise a callback will handle it*/
   if(wait_for_send) {
