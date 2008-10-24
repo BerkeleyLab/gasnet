@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_internal.h,v $
- *     $Date: 2008/10/09 00:46:44 $
- * $Revision: 1.1.2.18 $
+ *     $Date: 2008/10/24 21:49:58 $
+ * $Revision: 1.1.2.19 $
  * Description: GASNet dcmf conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -44,7 +44,7 @@ extern uint8_t gasnetc_have_dcmf_lock;
 #else
 #define GASNETC_DCMF_LOCK() do {DCMF_CriticalSection_enter(0); gasnetc_have_dcmf_lock=1;} while(0)
 #define GASNETC_DCMF_UNLOCK() do {gasnetc_have_dcmf_lock=0; DCMF_CriticalSection_exit(0);} while(0)
-#define GASNETC_DCMF_CYCLE() do {DCMF_CriticalSection_cycle(0);} while(0)
+#define GASNETC_DCMF_CYCLE() do {gasneti_assert(gasnetc_have_dcmf_lock==1); gasnetc_have_dcmf_lock=0; DCMF_CriticalSection_cycle(0); gasnetc_have_dcmf_lock=1;} while(0)
 #endif /*END GASNET_SEQ/PAR IF*/
 
 #else /*!GASNET_DEBUG*/
@@ -86,8 +86,9 @@ gasneti_assert(gasnetc_have_dcmf_lock); DCMF_Messager_advance();\
 
 typedef struct gasnetc_dcmf_req_t_{
   struct gasnetc_dcmf_req_t_ *next;
+  uint8_t _pad1[GASNETI_CACHE_LINE_BYTES - sizeof(void*)];
   DCMF_Request_t req;
-} gasnetc_dcmf_req_t ALIGN_STRUCT(1024);
+} gasnetc_dcmf_req_t;
 
 gasnetc_dcmf_req_t * gasnetc_get_dcmf_req();
 void gasnetc_free_dcmf_req(gasnetc_dcmf_req_t *req);
@@ -96,6 +97,7 @@ typedef struct gasnetc_dcmf_nack_req_t_ {
   struct gasnetc_dcmf_nack_req_t_ *next;
   unsigned peer;
   unsigned remote_replay_buffer;
+  uint8_t _pad1[GASNETI_CACHE_LINE_BYTES - sizeof(void*) - sizeof(unsigned)*2];
   DCMF_Request_t req;
 } gasnetc_dcmf_nack_req_t ALIGN_STRUCT(1024);
 
@@ -181,7 +183,7 @@ typedef struct gasnetc_fifo_t_ {
   gasneti_mutex_t   lock;
   void **head;
   void **tail;
-  char _pad[GASNETT_CACHE_LINE_BYTES];
+  char _pad[GASNETT_CACHE_LINE_BYTES - sizeof(void**)*2];
 } gasnetc_fifo_t;
 #define GASNETC_FIFO_INITIALIZER {GASNETI_MUTEX_INITIALIZER, NULL,NULL}
 
