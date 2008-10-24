@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/Makefile.am,v $
-#     $Date: 2008/07/03 16:51:11 $
-# $Revision: 1.1.2.2 $
+#     $Date: 2008/10/24 01:23:41 $
+# $Revision: 1.1.2.3 $
 # Description: Makefile for GASNet dcmf conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -11,7 +11,7 @@ AUTOMAKE_OPTIONS = foreign 1.4
 CONDUIT_NAME=dcmf
 
 # any conduit-specific subdirectories containing Makefile.am's
-SUBDIRS = .
+SUBDIRS = contrib
 
 # complete list of files in the conduit directory
 # include all headers, documentation, etc. 
@@ -57,7 +57,7 @@ CONDUIT_SPECIAL_OBJS =
 #   %P = program executable name
 #   %N = requested node count
 #   %A = program arguments
-CONDUIT_RUNCMD = mpirun -np %N %P %A
+CONDUIT_RUNCMD = @TOP_BUILDDIR@/dcmf-conduit/contrib/gasnetrun_dcmf -np %N %P %A
 
 # conduit-specific tests in ../tests directory
 CONDUIT_TESTS =
