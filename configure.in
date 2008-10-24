@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2008/10/21 02:47:32 $
-# $Revision: 1.485.2.8 $
+#     $Date: 2008/10/24 01:27:45 $
+# $Revision: 1.485.2.9 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.485.2.8 $)
+AC_REVISION($Revision: 1.485.2.9 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -2967,6 +2967,8 @@ if test $enabled_dcmf = yes; then
   else
       AC_MSG_RESULT(yes)
   fi
+  GASNET_PUSHVAR(CFLAGS,"$CFLAGS -I$DCMF_INCLUDE -I$DCMF_SYS_INCLUDE -L$DCMF_LIBDIR -L$DCMF_SYS_LIBDIR")   
+  GASNET_PUSHVAR(LIBS,"$LIBS $DCMF_LIBS")
 
   AC_MSG_CHECKING(for forced dcmf compile)
   if test $force_dcmf = yes; then
@@ -2986,8 +2988,6 @@ if test $enabled_dcmf = yes; then
 
      if test $have_dcmf = yes; then
         
-      GASNET_PUSHVAR(CFLAGS,"$CFLAGS -I$DCMF_INCLUDE -I$DCMF_SYS_INCLUDE -L$DCMF_LIBDIR -L$DCMF_SYS_LIBDIR")   
-      GASNET_PUSHVAR(LIBS,"$LIBS $DCMF_LIBS")
       AC_MSG_CHECKING(DCMF Version) 
       AC_TRY_COMPILE([
         #include <dcmf.h>
@@ -3017,8 +3017,7 @@ if test $enabled_dcmf = yes; then
           DCMF_Messager_finalize();	
         ], [ dcmf_test_worked=yes ], [ dcmf_test_worked=no GASNET_ERR_SAVE() ])
       
-        GASNET_POPVAR(CFLAGS)
-        GASNET_POPVAR(LIBS) 
+      
         if test "$dcmf_test_worked" = yes; then 
           AC_MSG_RESULT(yes)
         else 
@@ -3032,6 +3031,9 @@ if test $enabled_dcmf = yes; then
    fi #END DCMF CHECK
  fi #END FORCE_DCMF_CHECK
 fi
+
+GASNET_POPVAR(CFLAGS)
+GASNET_POPVAR(LIBS) 
 
 AC_SUBST(DCMF_INCLUDE)
 AC_SUBST(DCMF_SYS_INCLUDE)
@@ -3636,6 +3638,7 @@ GASNET_FIX_EXEC(mpi-conduit/contrib/gasnetrun_mpi)
 GASNET_FIX_EXEC(sci-conduit/contrib/gasnetrun_sci)
 GASNET_FIX_EXEC(vapi-conduit/contrib/gasnetrun_vapi)
 GASNET_FIX_EXEC(ibv-conduit/contrib/gasnetrun_ibv)
+GASNET_FIX_EXEC(dcmf-conduit/contrib/gasnetrun_dcmf)
 GASNET_FIX_EXEC(other/contrib/gasnet_trace)
 
 if test "$gasnet_toolsonly_mode" = "no" ; then
@@ -3699,6 +3702,9 @@ elan-conduit/conduit.mak
 
 dcmf-conduit/Makefile
 dcmf-conduit/conduit.mak
+dcmf-conduit/contrib/Makefile
+dcmf-conduit/contrib/gasnetrun_dcmf
+
 
 vapi-conduit/Makefile
 vapi-conduit/conduit.mak
