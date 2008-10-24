@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2008/10/07 20:45:41 $
- * $Revision: 1.1.2.8 $
+ *     $Date: 2008/10/24 21:52:49 $
+ * $Revision: 1.1.2.9 $
  * Description: GASNet header for dcmf conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -28,6 +28,10 @@
 #else
   #define GASNET_ALIGNED_SEGMENTS   1 
 #endif
+
+/* conduit allows internal GASNet fns to issue put/get for remote addrs out of segment */
+#define GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET 1
+
 
   /* conduits should define GASNETI_CONDUIT_THREADS to 1 if they have one or more 
      "private" threads which may be used to run AM handlers, even under GASNET_SEQ
