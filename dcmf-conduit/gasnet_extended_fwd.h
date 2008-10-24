@@ -1,6 +1,6 @@
-/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_extended_fwd.h,v $
- *     $Date: 2007/10/31 05:14:01 $
- * $Revision: 1.20 $
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended_fwd.h,v $
+ *     $Date: 2008/07/03 16:51:11 $
+ * $Revision: 1.1.2.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,17 +13,9 @@
 #ifndef _GASNET_EXTENDED_FWD_H
 #define _GASNET_EXTENDED_FWD_H
 
-#include <firehose_trace.h>
-
-#define GASNET_EXTENDED_VERSION      1.9
+#define GASNET_EXTENDED_VERSION      GASNET_RELEASE_VERSION_MAJOR.GASNET_RELEASE_VERSION_MINOR
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
-#if GASNET_CONDUIT_VAPI
-  #define GASNET_EXTENDED_NAME         VAPI
-#elif GASNET_CONDUIT_IBV
-  #define GASNET_EXTENDED_NAME         IBV
-#else
-  #error "Exactly one of GASNET_CONDUIT_VAPI or GASNET_CONDUIT_IBV must be defined"
-#endif
+#define GASNET_EXTENDED_NAME         REFERENCE
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
 
 
@@ -38,16 +30,8 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
      specific to the extended API implementation (see gasnet_help.h) */
 #define GASNETE_CONDUIT_STATS(CNT,VAL,TIME)  \
         GASNETI_VIS_STATS(CNT,VAL,TIME)      \
-	GASNETI_COLL_STATS(CNT,VAL,TIME)     \
-	GASNETI_FIREHOSE_STATS(CNT,VAL,TIME) \
-        CNT(C, DYNAMIC_THREADLOOKUP, cnt)           
-
-#define GASNETI_DIRECT_GET_BULK 1
-#define GASNETI_DIRECT_PUT_BULK 1
-#define GASNETI_DIRECT_MEMSET 1
-#define GASNETI_DIRECT_WAIT_SYNCNB 1
-#define GASNETI_DIRECT_WAIT_SYNCNBI_GETS 1
-#define GASNETI_DIRECT_WAIT_SYNCNBI_PUTS 1
+        GASNETI_COLL_STATS(CNT,VAL,TIME)     \
+        CNT(C, DYNAMIC_THREADLOOKUP, cnt)    
 
 #endif
 
