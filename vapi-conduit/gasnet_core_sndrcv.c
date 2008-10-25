@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2008/10/18 07:56:13 $
- * $Revision: 1.224 $
+ *     $Date: 2008/10/25 09:23:30 $
+ * $Revision: 1.225 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -547,11 +547,13 @@ void gasnetc_amrdma_eligable(gasnetc_cep_t *cep) {
 
   gasneti_weakatomic_increment(&cep->amrdma.eligable, 0);
 
-  if_pf (!(interval & hca->amrdma_balance.mask) 
 #if GASNETI_THREADS
-         && !gasneti_spinlock_trylock(&hca->amrdma_balance.lock)
+  #define GASNETC_TRY_BALANCE_LOCK(_hca) gasneti_spinlock_trylock(&(_hca)->amrdma_balance.lock)
+#else
+  #define GASNETC_TRY_BALANCE_LOCK(_hca) 0
 #endif
-         ) {
+
+  if_pf (!(interval & hca->amrdma_balance.mask) && !GASNETC_TRY_BALANCE_LOCK(hca)) {
     /* GASNETC_AMRDMA_REDUCE(X) is amount by which ALL counts X are reduced each round */
     #define GASNETC_AMRDMA_REDUCE(X)		((X)>>1)
     /* GASNETC_AMRDMA_BOOST(FLOOR) is amount by which SELECTED counts X are boosted */
