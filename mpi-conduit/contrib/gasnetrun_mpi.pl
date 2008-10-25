@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #		$Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#			$Date: 2008/10/25 01:50:14 $
-# $Revision: 1.63.2.4 $
+#			$Date: 2008/10/25 01:59:37 $
+# $Revision: 1.63.2.5 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -363,6 +363,9 @@ sub expand {
 	shift;
 		}
 
+if(!defined($numnode)) {
+    $numnode = $numproc
+}
 		print "gasnetrun: identified MPI spawner as: $spawner_desc\n" if ($verbose);
 
 # Validate -n as needed
