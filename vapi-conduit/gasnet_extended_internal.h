@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2008/02/19 03:43:53 $
- * $Revision: 1.22 $
+ *     $Date: 2008/10/25 02:12:15 $
+ * $Revision: 1.22.2.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -103,8 +103,10 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t *thread);
     gasneti_assert(GASNETE_EOPADDR_TO_PTR(_th, (eop)->addr) == eop); \
   } while (0)
   #define gasnete_iop_check(iop) do {                         \
+    gasnete_iop_t *_tmp_next;                                 \
     gasneti_memcheck(iop);                                    \
-    if ((iop)->next != NULL) _gasnete_iop_check((iop)->next); \
+    _tmp_next = (iop)->next;                                  \
+    if (_tmp_next != NULL) _gasnete_iop_check(_tmp_next);     \
     gasneti_assert((iop)->type == gasnete_opImplicit);        \
     gasneti_assert((iop)->threadidx < gasnete_numthreads);    \
     gasneti_memcheck(gasnete_threadtable[(iop)->threadidx]);  \
