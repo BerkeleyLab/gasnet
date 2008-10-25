@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2008/10/24 01:27:45 $
-# $Revision: 1.485.2.9 $
+#     $Date: 2008/10/25 01:23:51 $
+# $Revision: 1.485.2.10 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.485.2.9 $)
+AC_REVISION($Revision: 1.485.2.10 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1869,12 +1869,14 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
         GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $MISC_CFLAGS $CFLAGS, $SAFE_MPI_CFLAGS)
     	GASNET_ENV_DEFAULT(MPI_LIBS, )
 	GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
+
         ;;
     linux*) 
     	GASNET_ENV_DEFAULT(MPI_CC, mpicc)
         GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $MISC_CFLAGS $CFLAGS, $SAFE_MPI_CFLAGS)
     	GASNET_ENV_DEFAULT(MPI_LIBS, )
-	GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
+	 GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
+   GASNET_ENV_DEFAULT(MPIRUN_CMD_BATCH, "")
         ;;
     irix*)
 	# use SGI native MPI library
@@ -2046,6 +2048,7 @@ AC_SUBST(MPI_CFLAGS) # compiler flags (optimization, includes, etc) to be used w
 AC_SUBST(MPI_LIBS) # libs and ldflags that must be used when linking AMMPI-based backend
 AC_SUBST(MPI_DEFINES) # preprocessor defs to be used for all client code that includes ammpi.h (not including AMMPI library itself)
 AC_SUBST(MPIRUN_CMD) # prototype command used by tcrun to run MPI programs
+AC_SUBST(MPIRUN_CMD_BATCH) # prototype command used by tcrun to run MPI programs
 AM_CONDITIONAL(USE_MPI_CONDUIT, test "$enabled_mpi$have_mpi" = yesyes)
 CONDUIT_END([test "$enabled_mpi$have_mpi" = yesyes])
 if test "$enabled_mpi$have_mpi" = yesyes; then
