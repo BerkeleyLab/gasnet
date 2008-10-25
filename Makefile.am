@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Makefile.am,v $
-#     $Date: 2008/02/28 23:18:33 $
-# $Revision: 1.76.8.1 $
+#     $Date: 2008/10/25 02:17:01 $
+# $Revision: 1.76.8.2 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -74,7 +74,7 @@ headers =                  	\
 
 EXTRA_DIST =              		\
 	README				\
-	README-tools 			\
+ 	README-tools 			\
 	ChangeLog	  		\
 	license.txt       		\
 	.autom4te.cfg     		\
@@ -303,7 +303,7 @@ dist-hook:
 	mkdir -p $(distdir)/tests  # need this special hack to handle tests or distcheck will fail
 	fulldistdir=`cd $(distdir) ; @PWD_PROG@` export fulldistdir ; \
         cd $(srcdir)/tests ; for file in $(TESTDIST) ; do \
-	  if test -d $$file -a ! -d $$fulldistdir/tests/$$file ; then \
+ 	  if test -d $$file -a ! -d $$fulldistdir/tests/$$file ; then \
 	     mkdir -p $$fulldistdir/tests/$$file || exit $$? ; \
           fi; \
 	  if test -f $$file -a ! -f $$fulldistdir/tests/$$file ; then \
