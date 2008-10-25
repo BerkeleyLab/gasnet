@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2008/10/24 21:53:51 $
- * $Revision: 1.1.2.8 $
+ *     $Date: 2008/10/25 16:00:49 $
+ * $Revision: 1.1.2.9 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -39,12 +39,14 @@ typedef union _gasnete_eopaddr_t {
 #define gasnete_eopaddr_isnil(addr) ((addr).fulladdr == EOPADDR_NIL.fulladdr)
 
 typedef struct _gasnete_eop_t {
+
   uint8_t flags;                  /*  state flags */
   gasnete_threadidx_t threadidx;  /*  thread that owns me */
   gasnete_eopaddr_t addr;         /*  next cell while in free list, my own eopaddr_t while in use */
-  /*  gasnetc_dcmf_req_t *dcmf_req; */
+  /*make sure the eops are sep. by atleast one cacheline*/
+  char _pad[GASNETI_CACHE_LINE_BYTES - sizeof(uint8_t) - sizeof(gasnete_threadidx_t) - sizeof(gasnete_eopaddr_t)];
   DCMF_Request_t dcmf_req;
-} gasnete_eop_t;
+} gasnete_eop_t; 
 
 
 typedef struct _gasnete_iop_t {

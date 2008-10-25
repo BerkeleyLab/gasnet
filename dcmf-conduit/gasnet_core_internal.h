@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_internal.h,v $
- *     $Date: 2008/10/24 21:49:58 $
- * $Revision: 1.1.2.19 $
+ *     $Date: 2008/10/25 16:00:49 $
+ * $Revision: 1.1.2.20 $
  * Description: GASNet dcmf conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -9,7 +9,7 @@
 #ifndef _GASNET_CORE_INTERNAL_H
 #define _GASNET_CORE_INTERNAL_H
 
-//#include <dcmf_impl.h>
+/*#include <dcmf_impl.h>*/
 #include <dcmf.h>
 #include <dcmf_collectives.h>
 #include <dcmf_globalcollectives.h>
@@ -23,9 +23,6 @@
 
 #define GASNETC_MAXQUADS_PER_AM 5
 #define GASNETC_MAX_AM_ARGS 16
-
-#define Z fprintf(stderr,"%d> %s(%d)\n", gasneti_mynode, __FILE__,__LINE__)
-//#define Z do{} while(0
 
 
 #define GASNETC_DCMF_INTERRUPTS 0
@@ -77,6 +74,14 @@ gasneti_assert(gasnetc_have_dcmf_lock); DCMF_Messager_advance();\
 } while(0)
 #endif
 
+
+/*BG/P hardware requires DCMF data structures to be 16 byte aligned to take advantage of the double hummer so explicitly check for htis in the debug build*/
+#if GASNET_DEBUG
+#define GASNETC_DCMF_CHECK_PTR(DCMF_PTR) gasneti_assert((DCMF_PTR)!=NULL && (((intptr_t)(DCMF_PTR))%16 == 0))
+#else
+#define GASNETC_DCMF_CHECK_PTR(DCMF_PTR) do {} while(0)
+#endif
+
 #if 0
 #define ALIGN_STRUCT(BYTES) __attribute__((__aligned__(BYTES)))
 #else
@@ -97,7 +102,7 @@ typedef struct gasnetc_dcmf_nack_req_t_ {
   struct gasnetc_dcmf_nack_req_t_ *next;
   unsigned peer;
   unsigned remote_replay_buffer;
-  uint8_t _pad1[GASNETI_CACHE_LINE_BYTES - sizeof(void*) - sizeof(unsigned)*2];
+  uint8_t _pad1[MAX(GASNETI_CACHE_LINE_BYTES - sizeof(void*) - sizeof(unsigned)*2,16)];
   DCMF_Request_t req;
 } gasnetc_dcmf_nack_req_t ALIGN_STRUCT(1024);
 
@@ -133,12 +138,14 @@ typedef enum{
 
 typedef struct gasnetc_ambuf_t_ {
   struct gasnetc_ambuf_t_ *next;
-  uint32_t _pad; /*4 byte padding to ensure that the buffer lies on an 8 byte boundry*/
+  char _pad[16 - sizeof(void*)]; /*padding to ensure that the buffer lies on an 16 byte boundry*/
   uint8_t data[GASNETC_AMMAXMED];
 } gasnetc_ambuf_t;
 
 typedef struct gasnetc_replay_buffer_t_ {
   struct gasnetc_replay_buffer_t_ *next;
+  char _pad[16 - sizeof(void*)]; /*ensure the quads are aligned on 16 bytes*/
+  DCQuad quads[GASNETC_MAXQUADS_PER_AM]; 
   gasnetc_dcmf_amtype_t amtype;
   gasnetc_dcmf_amcategory_t amcat;
   gasnet_node_t dest_node;
@@ -146,7 +153,7 @@ typedef struct gasnetc_replay_buffer_t_ {
   gasnetc_ambuf_t *buffer;
   size_t buffer_size;
   int retry_count;
-  DCQuad quads[GASNETC_MAXQUADS_PER_AM];
+
 } gasnetc_replay_buffer_t;
 
 
@@ -158,7 +165,7 @@ typedef struct gasnetc_token_t_ {
   gasnetc_dcmf_amcategory_t amcat;
   gasnetc_dcmf_req_t *dcmf_req;
   unsigned remote_replay_buffer;
-} gasnetc_token_t ALIGN_STRUCT(32);
+} gasnetc_token_t;
 
 typedef struct gasnetc_amhandler_t_{ 
   struct gasnetc_amhandler_t_ *next;
@@ -251,7 +258,7 @@ typedef void (*GASNETC_DCMF_RECV_HEADER_CB)(void *client_data, const DCQuad *msg
 typedef struct gasnetc_dcmf_amregistration_t_ {
   DCMF_Protocol_t registration;
   DCMF_Send_Protocol send_category;
-} gasnetc_dcmf_amregistration_t  ALIGN_STRUCT(512);
+} gasnetc_dcmf_amregistration_t;
 
 extern gasnetc_dcmf_amregistration_t *gasnetc_dcmf_amregistration[GASNETC_NUM_AMTYPES][GASNETC_NUM_AMCATS][GASNETC_DCMF_NUM_SENDCATS];
 
