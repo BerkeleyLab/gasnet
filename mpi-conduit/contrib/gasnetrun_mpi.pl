@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #		$Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#			$Date: 2008/10/25 00:28:26 $
-# $Revision: 1.63.2.2 $
+#			$Date: 2008/10/25 01:21:14 $
+# $Revision: 1.63.2.3 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -608,8 +608,8 @@ if ($numnode && ($is_aprun || $is_yod)) {
 	$dashN_ok = 1;
 }
 
-	if ($numnode && $is_bgp) {
-	
+
+	if ($numproc && $is_bgp) {
 	if ($ENV{'COBALT_JOBID'}) { # inside the job script
 		my $partsz = undef;
 		#spawning command needs to be changed to cobalt-mpirun and not qsub
@@ -632,6 +632,7 @@ if ($numnode && ($is_aprun || $is_yod)) {
 		}
 		close(QSTAT); 
 		die "Failed to query partition size" unless (defined $partsz);
+    
 		if ($numproc <= $partsz) {
 			@numprocargs = ('-np', $numproc);
 		} elsif ($numproc * 2 == $partsz) {
@@ -644,7 +645,7 @@ if ($numnode && ($is_aprun || $is_yod)) {
 	} else { # qsub requires 
 		my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
 		if ($ppn * $numnode != $numproc) {
-		warn "WARNING: aprun does not fully support non-uniform process distribution\n";
+		warn "WARNING: non-uniform process distribution not supported\n";
 		warn "WARNING: PROCESS LAYOUT MIGHT NOT MATCH YOUR REQUEST\n";
 		}
 		if ($ppn == 1) {
