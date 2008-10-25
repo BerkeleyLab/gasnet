@@ -41,6 +41,8 @@ fi
 #MPI_LIBS='' ; export MPI_LIBS      # libs for linking with MPI_CC
 # system batch submit command:
 MPIRUN_CMD='qsub -t 0:10:00 -n %N %C' ; export MPIRUN_CMD  # launch command for MPI jobs
+MPIRUN_CMD_BATCH='cobalt-mpirun %N %C' ; export MPIRUN_CMD_BATCH  # launch command for MPI inside the batch script
+
 # BEWARE: the mpirun below boots its own partition on the BG/L, which may disrupt the system resource scheduler and anger the admins
 #MPIRUN_CMD='mpirun -timeout 600 -np %N %V -verbose 0 -cwd %D -exe %P -args "%A"' ; export MPIRUN_CMD  # launch command for MPI jobs
 # --disable-aligned-segments because /proc/sys/kernel/randomize_va_space==1
