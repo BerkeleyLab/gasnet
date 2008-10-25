@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #		$Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#			$Date: 2008/10/25 01:21:14 $
-# $Revision: 1.63.2.3 $
+#			$Date: 2008/10/25 01:50:14 $
+# $Revision: 1.63.2.4 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -643,7 +643,7 @@ if ($numnode && ($is_aprun || $is_yod)) {
 			die "BG/P only supports 1, 2 or 4 ppn, and must conform to partition size.	See README.dcmf.";
 		}
 	} else { # qsub requires 
-		my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
+    my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
 		if ($ppn * $numnode != $numproc) {
 		warn "WARNING: non-uniform process distribution not supported\n";
 		warn "WARNING: PROCESS LAYOUT MIGHT NOT MATCH YOUR REQUEST\n";

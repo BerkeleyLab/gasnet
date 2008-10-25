@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/Makefile.am,v $
-#     $Date: 2007/09/10 13:14:37 $
-# $Revision: 1.12 $
+#     $Date: 2008/10/25 01:50:28 $
+# $Revision: 1.12.18.1 $
 # Description: Makefile for GASNet portals conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -9,6 +9,14 @@
 AUTOMAKE_OPTIONS = foreign 1.4
 
 CONDUIT_NAME=portals
+
+# Firehose
+if OS_CATAMOUNT
+# no firehose for Catamount
+else
+fh_type=region
+include $(top_builddir)/other/firehose/firehose.mak
+endif
 
 # any conduit-specific subdirectories containing Makefile.am's
 SUBDIRS = .
@@ -25,6 +33,7 @@ CONDUIT_FILELIST =           \
       gasnet_extended.c      \
       gasnet_extended_internal.h \
       gasnet_extended_fwd.h  \
+      firehose_fwd.h         \
       gasnet_portals.h       \
       gasnet_portals.c
 
@@ -33,23 +42,24 @@ CONDUIT_FILELIST =           \
 CONDUIT_SOURCELIST =          \
       $(srcdir)/gasnet_core.c \
       $(srcdir)/gasnet_extended.c \
-      $(srcdir)/gasnet_portals.c
+      $(srcdir)/gasnet_portals.c \
+      $(fh_sourcelist)
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = @PORTALS_INCLUDES@ 
+CONDUIT_EXTRALIBCFLAGS = @PORTALS_INCLUDES@ $(fh_extralibcflags)
 
 # additional conduit header files to install from external, non-standard directories
-CONDUIT_EXTRAHEADERS = 
+CONDUIT_EXTRAHEADERS = $(fh_extraheaders)
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update
-CONDUIT_EXTRADEPS = 
+CONDUIT_EXTRADEPS = $(fh_extradeps)
 
 # additional object files to be included in libgasnet that need to be compiled 
 # using a special, conduit-specific command. These should also be included as
 # forced targets in this file, and should probably use LIBINCLUDES/LIBDEFINES
-CONDUIT_SPECIAL_OBJS = 
+CONDUIT_SPECIAL_OBJS =  $(fh_special_objs)
 
 # the default job spawn command to be used for "make run-tests"
 # The following substitutions are performed:

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2007/03/06 22:41:23 $
- * $Revision: 1.98 $
+ *     $Date: 2008/10/25 01:50:07 $
+ * $Revision: 1.98.14.1 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -28,8 +28,19 @@ typedef struct {
 } gasneti_heapstats_t;
 
 #if GASNET_DEBUG
+  /* curloc is passed to debug mallocator as "file:line",
+     or the special constant "SRCPOS" to retrieve the info from gasnet_srclines 
+     To enable use of srcpos for a compilation unit, client should: 
+       #undef GASNETT_MALLOC_USE_SRCPOS
+       #define GASNETT_MALLOC_USE_SRCPOS 1 
+  */
+  #ifndef GASNETT_MALLOC_USE_SRCPOS
+  #define GASNETT_MALLOC_USE_SRCPOS 0 /* off by default */
+  #endif
   #define GASNETI_CURLOCFARG , const char *curloc
-  #define GASNETI_CURLOCAARG , __FILE__ ":" _STRINGIFY(__LINE__)
+  #define GASNETI_CURLOCAARG , (GASNETT_MALLOC_USE_SRCPOS ? \
+                               "SRCPOS" :                   \
+                                __FILE__ ":" _STRINGIFY(__LINE__))
   #define GASNETI_CURLOCPARG , curloc
   extern size_t _gasneti_memcheck(void *ptr, const char *curloc, int checktype);
   extern void _gasneti_memcheck_one(const char *curloc);
@@ -67,6 +78,29 @@ GASNETI_MALLOCP(_gasneti_extern_strndup)
 #define gasneti_extern_free(ptr)       _gasneti_extern_free((ptr) GASNETI_CURLOCAARG)
 #define gasneti_extern_strdup(s)       _gasneti_extern_strdup((s) GASNETI_CURLOCAARG)
 #define gasneti_extern_strndup(s,n)    _gasneti_extern_strndup((s),(n) GASNETI_CURLOCAARG)
+
+/* aligned malloc - allocated size bytes with given power-of-2 alignment
+   may only be freed using gasneti_free_aligned */
+GASNETI_INLINE(_gasneti_malloc_aligned) GASNETI_MALLOC
+void * _gasneti_malloc_aligned(size_t alignment, size_t size GASNETI_CURLOCFARG) {
+  size_t alloc_size = size + sizeof(void *) + alignment;
+  void *base = _gasneti_extern_malloc(alloc_size GASNETI_CURLOCPARG);
+  void **result = (void **)GASNETI_ALIGNUP((uintptr_t)base + sizeof(void *), alignment);
+  *(result - 1) = base; /* hidden base ptr for free() */
+  gasneti_assert(result == (void **)GASNETI_ALIGNUP(result, alignment));
+  gasneti_assert((void *)(result - 1) >= base);
+  gasneti_assert(((uint8_t *)result + size) <= ((uint8_t *)base + alloc_size));
+  return (void *)result;
+}
+GASNETI_MALLOCP(_gasneti_malloc_aligned)
+#define gasneti_malloc_aligned(align,sz) _gasneti_malloc_aligned((align), (sz) GASNETI_CURLOCAARG)
+
+GASNETI_INLINE(_gasneti_free_aligned)
+void _gasneti_free_aligned(void *ptr GASNETI_CURLOCFARG) {
+  gasneti_assert(ptr);
+  _gasneti_extern_free(*((void **)ptr - 1) GASNETI_CURLOCPARG);
+}
+#define gasneti_free_aligned(ptr) _gasneti_free_aligned((ptr) GASNETI_CURLOCAARG)
 
 extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 #if GASNET_SEGMENT_EVERYTHING

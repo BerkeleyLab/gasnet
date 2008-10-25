@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_ep.c,v $
- *     $Date: 2007/02/02 22:18:19 $
- * $Revision: 1.47 $
+ *     $Date: 2008/10/25 01:50:20 $
+ * $Revision: 1.47.16.1 $
  * Description: AMMPI Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -59,8 +59,8 @@ const ammpi_stats_t AMMPI_initial_stats = /* the initial state for stats type */
         };
 /* ------------------------------------------------------------------------------------ */
 /* error handling */
-__attribute__((__format__ (__printf__, 2, 0)))
-static int AMMPI_Msg(const char *prefix, const char *msg, va_list argptr) {
+AMMPI_FORMAT_PRINTF(AMMPI_Msg,2,0,
+static int AMMPI_Msg(const char *prefix, const char *msg, va_list argptr)) {
   char *expandedmsg = (char *)AMMPI_malloc(strlen(msg)+strlen(prefix)+50);
   int retval;
 

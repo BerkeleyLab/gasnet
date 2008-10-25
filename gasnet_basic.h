@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2007/12/04 23:35:37 $
- * $Revision: 1.88 $
+ *     $Date: 2008/10/25 01:50:07 $
+ * $Revision: 1.88.4.1 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -148,9 +148,10 @@
 #if ! defined(GASNETI_HAVE_GCC_ATTRIBUTE) /* no attrib support */ || \
       (defined(__GNUC__) && GASNETI_CONFIGURE_MISMATCH_IGNORELANG) /* unsafe to use attribs */ || \
       (!defined(__GNUC__) && GASNETI_CONFIGURE_MISMATCH) /* unsafe to use attribs */            
-  /* disable all attributes */
-  #undef __attribute__
-  #define __attribute__(flags)
+  /* disable all GASNet use of attributes */
+  #define GASNETI_ATTRIBUTE(flags)
+#else
+  #define GASNETI_ATTRIBUTE(flags) __attribute__(flags)
 #endif
 
 #if PLATFORM_COMPILER_SGI_CXX
@@ -166,14 +167,14 @@
 #endif
 
 #if GASNETI_HAVE_GCC_ATTRIBUTE_WARNUNUSEDRESULT /* Warn if return value is ignored */
-  #define GASNETI_WARN_UNUSED_RESULT __attribute__((__warn_unused_result__))
+  #define GASNETI_WARN_UNUSED_RESULT GASNETI_ATTRIBUTE((__warn_unused_result__))
 #else
   #define GASNETI_WARN_UNUSED_RESULT
 #endif
 
 #if GASNETI_HAVE_GCC_ATTRIBUTE_MALLOC 
   /* assert return value is unaliased, and should not be ignored */
-  #define GASNETI_MALLOC __attribute__((__malloc__)) GASNETI_WARN_UNUSED_RESULT
+  #define GASNETI_MALLOC GASNETI_ATTRIBUTE((__malloc__)) GASNETI_WARN_UNUSED_RESULT
 #else
   #define GASNETI_MALLOC GASNETI_WARN_UNUSED_RESULT
 #endif
@@ -187,13 +188,13 @@
 #endif
 
 #if GASNETI_HAVE_GCC_ATTRIBUTE_USED
-  #define GASNETI_USED __attribute__((__used__))
+  #define GASNETI_USED GASNETI_ATTRIBUTE((__used__))
 #else
   #define GASNETI_USED 
 #endif
 
 #if GASNETI_HAVE_GCC_ATTRIBUTE_NORETURN
-  #define GASNETI_NORETURN __attribute__((__noreturn__))
+  #define GASNETI_NORETURN GASNETI_ATTRIBUTE((__noreturn__))
 #else
   #define GASNETI_NORETURN 
 #endif
@@ -218,7 +219,7 @@
    * changing any global variables (including statically scoped ones), or
    * calling any functions that do so
    */
-  #define GASNETI_PURE __attribute__((__pure__))
+  #define GASNETI_PURE GASNETI_ATTRIBUTE((__pure__))
 #else
   #define GASNETI_PURE 
 #endif
@@ -242,7 +243,7 @@
    * same restrictions, except additionally the return value must NOT
    * depend on global variables or anything pointed to by the arguments
    */
-  #define GASNETI_CONST __attribute__((__const__))
+  #define GASNETI_CONST GASNETI_ATTRIBUTE((__const__))
 #else
   #define GASNETI_CONST GASNETI_PURE
 #endif
@@ -260,7 +261,11 @@
 
 #if GASNETI_HAVE_GCC_ATTRIBUTE_ALWAYSINLINE && !PLATFORM_COMPILER_PATHSCALE /* (see bug 1620) */
   /* bug1525: gcc's __always_inline__ attribute appears to be maximally aggressive */
+ #if defined(__GCC_UPC__) /* ensure GCC/UPC sees __attribute__, even with a configure mismatch */
   #define _GASNETI_ALWAYS_INLINE(fnname) __attribute__((__always_inline__))
+ #else
+  #define _GASNETI_ALWAYS_INLINE(fnname) GASNETI_ATTRIBUTE((__always_inline__))
+ #endif
 #elif PLATFORM_COMPILER_CRAY_C
   /* the only way to request inlining a particular fn in Cray C */
   /* possibly should be using inline_always here */
@@ -311,7 +316,7 @@
 /* GASNETI_NEVER_INLINE: Most forceful demand available to disable inlining for function.
  */
 #if GASNETI_HAVE_GCC_ATTRIBUTE_NOINLINE
-  #define GASNETI_NEVER_INLINE(fnname,declarator) __attribute__((__noinline__)) declarator
+  #define GASNETI_NEVER_INLINE(fnname,declarator) GASNETI_ATTRIBUTE((__noinline__)) declarator
 #elif PLATFORM_COMPILER_SUN_C
   #define GASNETI_NEVER_INLINE(fnname,declarator) declarator; GASNETI_PRAGMA(no_inline(fnname)) declarator
 #elif PLATFORM_COMPILER_CRAY
@@ -329,7 +334,7 @@
 
 #if GASNETI_HAVE_GCC_ATTRIBUTE_FORMAT
   #define GASNETI_FORMAT_PRINTF(fnname,fmtarg,firstvararg,declarator) \
-          __attribute__((__format__ (__printf__, fmtarg, firstvararg))) declarator
+          GASNETI_ATTRIBUTE((__format__ (__printf__, fmtarg, firstvararg))) declarator
 #elif PLATFORM_COMPILER_COMPAQ_C /* not Compaq C++ */
   #define GASNETI_FORMAT_PRINTF(fnname,fmtarg,firstvararg,declarator)  \
           declarator; /* declaration required before pragma */ \

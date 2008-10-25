@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.c,v $
- *     $Date: 2006/09/05 20:12:44 $
- * $Revision: 1.133 $
+ *     $Date: 2008/10/25 01:50:08 $
+ * $Revision: 1.133.22.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -623,6 +623,7 @@ extern void gasneti_trace_updatemask(const char *newmask, char *maskstr, char *t
 }
 
 char gasneti_exename[1024];
+static const char *gasneti_mallocreport_filename = NULL;
 
 extern void gasneti_trace_init(int *pargc, char ***pargv) {
   gasneti_free(gasneti_malloc(1)); /* touch the malloc system to ensure it's intialized */
@@ -725,6 +726,9 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
     gasneti_trace_printf("GASNET_TRACEFLUSH: %i", gasneti_autoflush);
     gasneti_trace_printf("GASNET_TRACELOCAL: %i", !gasneti_trace_suppresslocal);
   #endif
+
+  gasneti_mallocreport_filename = gasneti_getenv_withdefault("GASNET_MALLOCFILE","");
+  if (gasneti_mallocreport_filename && !strcmp(gasneti_mallocreport_filename, "")) gasneti_mallocreport_filename = NULL;
 
   #if GASNET_NDEBUG
   { char *NDEBUG_warning =
@@ -922,6 +926,55 @@ extern void gasneti_trace_finish() {
     gasneti_mutex_unlock(&gasneti_tracelock);
     gasneti_mutex_unlock(&gasneti_tracefinishlock);
     sleep(1); /* pause to ensure everyone has written trace if this is a collective exit */
+  }
+#endif
+#if GASNET_DEBUG
+  if (gasneti_mallocreport_filename) {
+    static gasneti_mutex_t gasneti_debugmalloclock = GASNETI_MUTEX_INITIALIZER;
+    FILE *fp;
+    gasneti_mutex_lock(&gasneti_debugmalloclock);
+    fp = gasneti_open_outputfile(gasneti_mallocreport_filename, "malloc report");
+    if (fp) {
+      gasnett_heapstats_t stats;
+      gasnett_getheapstats(&stats);
+      fprintf(fp, "# GASNet Debug Mallocator Report\n");
+      fprintf(fp, "#\n");
+      fprintf(fp, "# program: %s\n",gasneti_exename);
+      fprintf(fp, "# host:    %s\n",gasnett_gethostname());
+      fprintf(fp, "# pid:     %i\n",(int)getpid());
+      fprintf(fp, "# node:    %i / %i\n", (int)gasnet_mynode(), (int)gasnet_nodes());
+      fprintf(fp, "#\n");
+      fprintf(fp, "# Private memory utilization:\n");
+      fprintf(fp, "# ---------------------------\n");
+      fprintf(fp, "#\n");
+      fprintf(fp, "# malloc() space total:        %10lu bytes, in %10lu objects\n",
+        (long unsigned)stats.allocated_bytes, (long unsigned)stats.allocated_objects);
+      fprintf(fp, "# malloc() space in-use:       %10lu bytes, in %10lu objects\n",
+        (unsigned long)stats.live_bytes, (unsigned long)stats.live_objects);
+      fprintf(fp, "# malloc() space freed:        %10lu bytes, in %10lu objects\n",
+        (unsigned long)stats.freed_bytes, (unsigned long)stats.freed_objects);
+      fprintf(fp, "# malloc() space peak usage:   %10lu bytes,    %10lu objects\n",
+        (unsigned long)stats.live_bytes_max, (unsigned long)stats.live_objects_max);
+      fprintf(fp, "# malloc() system overhead: >= %10lu bytes\n",
+        (unsigned long)stats.overhead_bytes);
+      fprintf(fp, "#\n");
+
+      gasneti_memcheck_all(); /* check ring sanity */
+
+      fprintf(fp, "# Live objects at job exit\n");
+      fprintf(fp, "# ------------------------\n");
+      fprintf(fp, "#\n");
+      fprintf(fp, "# Table below shows objects allocated, but not freed by job exit.\n");
+      fprintf(fp, "# Note that GASNet does not free most of its internal permanent data structures,\n");
+      fprintf(fp, "# in order to streamline job shutdown.\n");
+      fprintf(fp, "#\n");
+      fprintf(fp, "# Object size     Location Allocated\n");
+      fprintf(fp, "# ==================================\n");
+
+      gasneti_malloc_dump_liveobjects(fp);
+      fclose(fp);
+    }
+    gasneti_mutex_unlock(&gasneti_debugmalloclock);
   }
 #endif
 }

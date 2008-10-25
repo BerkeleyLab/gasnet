@@ -392,7 +392,7 @@ extern unsigned gasnetc_sys_poll_limit;
   } while(0)
 
 /* Before starting an AM Request, poll until certain conditions are met */
-#define GASNETC_COMMON_AMREQ_START(state,offset,th,nsend,ncredit,cred_byte,ntmpmd) do { \
+#define GASNETC_COMMON_AMREQ_START(state,offset,th,nsend,ncredit,cred_byte) do { \
     int pollcnt = 0;							\
     GASNETC_GET_SEND_CREDITS(th,state,ncredit,cred_byte,pollcnt);	\
     /* Allocate a send buffer */					\
@@ -400,10 +400,8 @@ extern unsigned gasnetc_sys_poll_limit;
       pollcnt++;							\
       gasneti_AMPoll();							\
     }									\
-    GASNETC_GET_TMPMD_TICKETS(th,ntmpmd,pollcnt);			\
     GASNETC_GET_SEND_TICKETS(th,nsend,pollcnt);				\
     gasneti_assert( th->snd_tickets >= nsend );				\
-    gasneti_assert( th->tmpmd_tickets >= ntmpmd );			\
     gasneti_assert( th->snd_credits >= ncredit );			\
   } while (0)
 
@@ -608,6 +606,7 @@ extern int gasnetc_debug_node;                    /* used in debugging */
 #define GASNETC_CURRENT_TIME() gasneti_ticks_to_ns(gasneti_ticks_now())
 /* decay variables by dividing by 4 */
 #define GASNETC_CREDIT_DECAY(val) val = ((val) >> 2)
+extern uintptr_t gasnetc_segbase, gasnetc_segend; /* local segment bounds */
 
 #if GASNETC_USE_SANDIA_ACCEL
 extern int gasnetc_use_accel;
@@ -679,7 +678,7 @@ extern char* ptl_event_str[];
 #define GASNETC_REQRB_FINISH(bufptr)  do {} while(0)
 #endif
 
-/* -----------------------------------------------------------------------------------
+/* ----------------------------------------------------------------------------------- */
 
 /* The RAR, RARAM, and the AM request/reply send/receive buffers are described by */
 typedef struct {
@@ -824,17 +823,16 @@ extern void gasnetc_bootstrapBarrier(void);
 extern void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode);
 extern void gasnetc_bootstrapExchange(void *src, size_t len, void *dest);
 extern void gasnetc_init_portals_resources(void);
-extern void gasnetc_portals_preexit(int do_trace);
 extern void gasnetc_portals_exit();
 extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type);
 extern void gasnetc_event_handler(ptl_event_t *ev);
 extern void gasnetc_ptl_trace_finish(void);
 extern gasnet_node_t gasnetc_get_nodeid(ptl_process_id_t *proc);
-extern void gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
+extern size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
 			   ptl_match_bits_t match_bits, gasnetc_pollflag_t pollflag);
-extern void gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
-			   ptl_match_bits_t match_bits, int is_bulk, int *wait_lcc,
-			   gasneti_weakatomic_t *lcc, gasnetc_pollflag_t pollflag);
+extern size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
+			   ptl_match_bits_t match_bits, gasneti_weakatomic_t *lcc,
+			   gasnetc_pollflag_t pollflag);
 extern void gasnetc_sys_SendMsg(gasnet_node_t node, gasnetc_sys_t msg_id,
 				int32_t arg0, int32_t arg1, int32_t arg2);
 extern void gasnetc_sys_barrier(void);
@@ -857,13 +855,11 @@ extern void gasnetc_scavenge_list_add(gasnet_node_t node, int locked);
 
 /* Inline Function Definitions */
 GASNETI_INLINE(gasnetc_compute_credits)
-long gasnetc_compute_credits(long nbytes)
+unsigned long gasnetc_compute_credits(unsigned long nbytes)
 {
   if (gasnetc_use_flow_control) {
-    long credits = nbytes/(long)GASNETC_BYTES_PER_CREDIT;
-    long rem = nbytes % (long)GASNETC_BYTES_PER_CREDIT;
     /* eq: if bpc=256 then 0-256 is 1 credit, 257-512 is 2, etc */
-    return (nbytes == 0 ? 1 : (credits + (rem ? 1 : 0) ) );
+    return (nbytes == 0 ? 1 : ((nbytes + GASNETC_BYTES_PER_CREDIT - 1) / GASNETC_BYTES_PER_CREDIT));
   }
   return 0;
 }
@@ -909,11 +905,8 @@ void gasnete_get_op_lowbits(ptl_match_bits_t mbits, uint8_t *threadid, gasnete_o
 GASNETI_INLINE(gasnetc_in_local_rar)
 int gasnetc_in_local_rar(uint8_t* pstart, size_t n)
 {
-  uint8_t *pend  = pstart + n;
-  uint8_t *start = (uint8_t*)gasneti_seginfo[gasneti_mynode].addr;
-  uint8_t *end   = start + gasneti_seginfo[gasneti_mynode].size;
-
-  return (pstart >= start) && (pend <= end);
+  uintptr_t addr = (uintptr_t)pstart;
+  return ((addr >= gasnetc_segbase) && ((addr + n) <= gasnetc_segend));
 }
 
 GASNETI_INLINE(gasnetc_alloc_tmpmd_withpoll)
@@ -1017,6 +1010,33 @@ void gasnetc_sys_poll()
   }
 }
 
+/*
+ * Encapsulate access to 
+ *   th->amlong{Req,Rep}_data_inflight
+ */
+#if 0
+  /* General case, allows multiple ops in-flight */
+  #define GASNETC_INC_INFLIGHT(_p)	gasneti_weakatomic_increment((_p), 0)
+  #define GASNETC_DEC_INFLIGHT(_p)	gasneti_weakatomic_decrement((_p), 0)
+  #define GASNETC_TEST_INFLIGHT(_p)	gasneti_weakatomic_read((_p), 0)
+#else
+  /* Single-op case.  We allow only 1 in-flight op.
+   * This allows use of set(p,1) and set(p,0), in place of inc(p) and dec(p).
+   * We include assertions for a sanity check.
+   */
+  #define GASNETC_INC_INFLIGHT(_p) do {                              \
+	    gasneti_weakatomic_t *_tmp = (_p);                       \
+	    gasneti_assert(gasneti_weakatomic_read((_tmp), 0) == 0); \
+	    gasneti_weakatomic_set((_tmp), 1, 0);                    \
+	} while (0)
+  #define GASNETC_DEC_INFLIGHT(_p) do {                              \
+	    gasneti_weakatomic_t *_tmp = (_p);                       \
+	    gasneti_assert(gasneti_weakatomic_read((_tmp), 0) == 1); \
+	    gasneti_weakatomic_set((_tmp), 0, 0);                    \
+	} while (0)
+  #define GASNETC_TEST_INFLIGHT(_p)	gasneti_weakatomic_read((_p), 0)
+#endif
+
 /* ---------------------------------------------------------------------------------
  * Allocate a new LID = "Long ID" for a new AMLong Request or Reply operation
  * --------------------------------------------------------------------------------- */
@@ -1026,5 +1046,64 @@ uint32_t gasnetc_new_lid(gasnet_node_t dest)
   /* use _add rather than _incr since it returns the new value */
   return gasneti_weakatomic_add(&gasnetc_conn_state[dest].src_lid,1,0);
 }
+
+/* ----------------------------------------------------------------------------
+ * Firehose bits
+ */
+
+#if PLATFORM_OS_CATAMOUNT
+ #define GASNETC_IF_USE_FIREHOSE(X) if (0) { /*empty*/ }
+ #define gasnetc_use_firehose       0
+#else
+
+#if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
+  #define GASNETC_FIREHOSE_LOCAL  1
+  #define GASNETC_FIREHOSE_REMOTE 0
+  #define GASNETC_FH_PER_OP	  1
+#else
+  #define GASNETC_FIREHOSE_LOCAL  0
+  #define GASNETC_FIREHOSE_REMOTE 1
+  #define GASNETC_FH_PER_OP	  2
+#endif
+
+#define GASNETC_IF_USE_FIREHOSE(X) if_pt (gasnetc_use_firehose) {X}
+
+#include <firehose.h>
+#if GASNET_DEBUG
+  extern int gasnetc_use_firehose;
+#else
+  /* Always on in an opt build (avoids branches) */
+  #define gasnetc_use_firehose 1
+#endif
+extern firehose_info_t gasnetc_firehose_info;
+
+/* A "handle" on a firehose request.
+ * Used for compact encoding in the upper match bits
+ */
+typedef struct _gasnetc_fh_op_t {
+  const firehose_request_t	*fh[GASNETC_FH_PER_OP]; /* shared w/ freelist's next ptr */
+  gasnete_opaddr_t		addr;
+} gasnetc_fh_op_t;
+
+extern gasnetc_fh_op_t *gasnetc_fh_new(void);
+extern void gasnetc_fh_free(uint16_t fulladdr);
+
+/* This limits the amount we ask for in a firehose_{local,remote}_pin() call,
+ * to ensure that after rounding up to page boundaries, we don't exceed the max.
+ */
+GASNETI_INLINE(gasnetc_fh_aligned_len)
+size_t gasnetc_fh_aligned_len(const void* start, size_t len) {
+  size_t limit = gasnetc_firehose_info.max_LocalPinSize - ((uintptr_t)start & (GASNET_PAGESIZE - 1));
+  return MIN(len, limit);
+}
+
+GASNETI_INLINE(gasnetc_fh_aligned_local_pin)
+gasnetc_fh_op_t *gasnetc_fh_aligned_local_pin(const void* start, size_t len) {
+  gasnetc_fh_op_t *op = gasnetc_fh_new();
+  size_t ask_bytes = gasnetc_fh_aligned_len(start, len);
+  op->fh[0] = firehose_local_pin((uintptr_t)start, ask_bytes, NULL);
+  return op;
+}
+#endif /* !PLATFORM_OS_CATAMOUNT */
 
 #endif

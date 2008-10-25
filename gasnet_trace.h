@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.h,v $
- *     $Date: 2006/09/05 20:12:44 $
- * $Revision: 1.57 $
+ *     $Date: 2008/10/25 01:50:08 $
+ * $Revision: 1.57.22.1 $
  * Description: GASNet Tracing Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -158,8 +158,15 @@ GASNETI_BEGIN_EXTERNC
     }
   #endif
 
+  /* GASNETI_SRCLINES_FORCE ensures we always track srclines
+     otherwise we only track them as needed for tracing purposes */
   #ifdef GASNETI_SRCLINES_FORCE
-    #define GASNETI_SRCLINE_TRACKING() (1)
+    #if PLATFORM_COMPILER_SGI /* bug 2357: workaround a braindead C compiler bug */
+      static const int _gasneti_srclines_force = 1; 
+      #define GASNETI_SRCLINE_TRACKING() (_gasneti_srclines_force)
+    #else
+      #define GASNETI_SRCLINE_TRACKING() (1)
+    #endif
   #else
     #define GASNETI_SRCLINE_TRACKING() GASNETI_TRACE_ENABLED(N)
   #endif

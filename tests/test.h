@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2008/02/19 03:43:51 $
- * $Revision: 1.116 $
+ *     $Date: 2008/10/25 01:50:37 $
+ * $Revision: 1.116.2.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -570,52 +570,15 @@ static int test_collinit = 0;
 /* standard messages */
 static void TEST_DEBUGPERFORMANCE_WARNING() {
   if (gasnet_mynode() == 0) {
-    const char *debug = "";
-    const char *trace = "";
-    const char *stats = "";
-    const char *atomics = "";
-    const char *true_weak = "";
-    const char *semas = "";
-    const char *membars = "";
-    const char *timers = "";
-    #ifdef GASNET_DEBUG
-      debug = "debugging ";
-    #endif
-    #ifdef GASNET_TRACE
-      trace = "tracing ";
-    #endif
-    #ifdef GASNET_STATS
-      stats = "statistical collection ";
-    #endif
-    #if defined(GASNETI_FORCE_GENERIC_ATOMICOPS)
-      atomics = "        FORCED mutex-based atomicops\n";
-    #elif defined(GASNETI_FORCE_OS_ATOMICOPS)
-      atomics = "        FORCED os-provided atomicops\n";
-    #endif
-    #ifdef GASNETI_FORCE_TRUE_WEAKATOMICS
-      true_weak = "        FORCED atomics in sequential code\n";
-    #endif
-    #ifdef GASNETI_FORCE_GENERIC_SEMAPHORES
-      semas = "        FORCED mutex-based semaphores\n";
-    #endif
-    #if defined(GASNETI_FORCE_YIELD_MEMBARS)
-      membars = "        FORCED sched_yield() in memory barriers\n";
-    #elif defined(GASNETI_FORCE_SLOW_MEMBARS)
-      membars = "        FORCED non-inlined memory barriers\n";
-    #endif
-    #if defined(GASNETI_FORCE_GETTIMEOFDAY)
-      timers = "        FORCED timers using gettimeofday()\n";
-    #elif defined(GASNETI_FORCE_POSIX_REALTIME)
-      timers = "        FORCED timers using clock_gettime()\n";
-    #endif
-    if (*debug || *trace || *stats || *atomics || *true_weak || *semas || *membars || *timers) {
+    const char *warning = gasnett_performance_warning_str();
+    if (*warning) {
       fflush(NULL);
       fprintf(stdout,
         "-----------------------------------------------------------------------\n"
         " WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING\n"
         "\n"
         " GASNet was configured and built with these optional features enabled:\n"
-	"%s%s%s%s%s%s%s%s%s%s"
+	"%s"
         " This usually has a SERIOUS impact on performance, so you should NOT\n"
         " trust any performance numbers reported in this run!!!\n"
         " You should configure and build from scratch without the configure\n"
@@ -623,10 +586,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
         "\n"
         " WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING\n"
         "-----------------------------------------------------------------------\n",
-        (/* Leading white space: */ (*debug || *trace || *stats) ? "        " : ""),
-        debug, trace, stats,
-        (/* Trailing white space: */ (*debug || *trace || *stats) ? "\n" : ""),
-        atomics, true_weak, semas, membars, timers);
+        warning);
       fflush(NULL);
     }
   }

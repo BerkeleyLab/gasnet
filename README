@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.105.2.1 $
+$Revision: 1.105.2.2 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -20,6 +20,9 @@ system and may already have been done for you)
 current working directory.  You can run configure from a different directory to
 place your build files somewhere other than inside the source tree (a nice
 option when maintaining several build trees on the same source tree). 
+  Unlike many other configure-based software, GASNet's configure will ignore
+any setting of CFLAGS or CXXFLAGS.  Therefore, any flags that are required
+(e.g. for the correct ABI) must be included in the values of CC, CXX and MPI_CC.
 
   Some of the useful configure options:
 
@@ -177,12 +180,12 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
  
     * Unicos/Cray-X1/CrayC/64: smp, udp, mpi, shmem &
 
-    * Catamount/Cray-XT/{gcc,PGI}/64: smp, mpi, portals %
-    * CNL/Cray-XT/{gcc,PGI}/64: smp, mpi, portals
+    * Catamount/Cray-XT/{gcc,PGI}/64: smp, mpi, portals %&
+    * CNL/Cray-XT/{gcc,PGI,Pathscale}/64: smp, mpi, portals
 
     * Linux/Cray-XD1/{gcc,PGI}/64: smp, mpi
 
-    * BLRTS/IBM-BlueGeneL-PowerPC/{gcc,xlc}/32: smp, mpi %
+    * BLRTS/IBM-BlueGeneL-PowerPC/{gcc,xlc}/32: smp, mpi %&
  
     * MTX/Cray-MTA/CrayMTAC/64: smp, udp &
  
@@ -450,6 +453,14 @@ GASNET_MALLOC_SCANFREED: set to 1 to enable scanning of freed objects, to
 
 GASNET_MALLOC_EXTRACHECK: set to 1 to enable more frequent checking for memory
  corruption (at a cost in performance)
+
+GASNET_MALLOCFILE: specify a file name to recieve a report of malloc heap
+ behavior and utilization at process exit. Includes a list of leaked objects.
+ The filename may also be "stdout" or "stderr", (or "-" to indicate stderr)
+ Each node may have its output directed to a separate file,
+ and any '%' character in the value is replaced by the node number at runtime
+ (e.g. GASNET_MALLOCFILE="mallocreport-%"). These output files are
+ human-readable, but can be passed to gasnet_trace for summarization.
 
 MPI Interoperability
 ====================
@@ -786,6 +797,11 @@ All GASNet conduit code is required to meet the following coding standards:
   moving code into different files, renaming existing identifiers, etc.)
   as this makes it more difficult to patch your conduit if a bug is 
   discovered in template-conduit or a GASNet-wide change is required.
+
+* Do NOT use tab characters in GASNet code files. Use spaces to ensure correct
+  formatting in any editor. 
+    Emacs users should: (setq-default indent-tabs-mode nil)
+    Vim users should: :set expandtab
 
 * Do not make any conduit-specific changes to the files in the
   extended-ref or tests directories.  They do not have any Makefiles because they

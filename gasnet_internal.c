@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2007/09/08 17:54:59 $
- * $Revision: 1.195 $
+ *     $Date: 2008/10/25 01:50:07 $
+ * $Revision: 1.195.10.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -67,6 +67,10 @@ GASNETI_IDENT(gasneti_IdentString_ThreadModel, "$GASNetThreadModel: GASNET_" GAS
 
 #define GASNETI_SEGMENT_CONFIG_STR _STRINGIFY(GASNETI_SEGMENT_CONFIG)
 GASNETI_IDENT(gasneti_IdentString_SegConfig, "$GASNetSegment: GASNET_SEGMENT_" GASNETI_SEGMENT_CONFIG_STR " $");
+
+#ifdef GASNETI_BUG1389_WORKAROUND
+  GASNETI_IDENT(gasneti_IdentString_ConservativeLocalCopy, "$GASNetConservativeLocalCopy: 1 $");
+#endif
 
 /* embed a string with complete configuration info to support versioning checks */
 GASNETI_IDENT(gasneti_IdentString_libraryConfig, "$GASNetConfig: (libgasnet.a) " GASNET_CONFIG_STRING " $");
@@ -800,14 +804,15 @@ static void gasneti_check_portable_conduit() { /* check for portable conduit abu
 /* ------------------------------------------------------------------------------------ */
 /* Debug memory management
    debug memory format:
-  | prev | next | allocdesc (pad to 8 bytes) | datasz | BEGINPOST | <user data> | ENDPOST |
+  | prev | next | allocdesc (2*sizeof(void*)) | datasz | BEGINPOST | <user data> | ENDPOST |
                                              ptr returned by malloc ^
  */
 #if GASNET_DEBUG
   typedef struct gasneti_memalloc_desc {  
     struct gasneti_memalloc_desc * volatile prevdesc;
     struct gasneti_memalloc_desc * volatile nextdesc;
-    uint64_t allocdesc; /* actually a (void*) */
+    const char *allocdesc_str; /* a file name, or file name:linenum */
+    uintptr_t   allocdesc_num; /* a line number, or zero for none */
     uint64_t datasz;
     uint64_t beginpost;
   } gasneti_memalloc_desc_t;
@@ -938,6 +943,27 @@ static void gasneti_check_portable_conduit() { /* check for portable conduit abu
     }
   }
 
+  #define GASNETI_MAX_LOCSZ 280
+  /* formats a curloc into buffer[GASNETI_MAX_LOCSZ] and returns buffer */
+  static char *_gasneti_format_curloc(char *buffer, const char *curloc) {
+      char retval[GASNETI_MAX_LOCSZ];
+
+      if (curloc == NULL) {
+        sprintf(retval, buffer, "<unknown>");
+      } else if (!strcmp(curloc,"SRCPOS")) {
+        const char *filename = "<unknown>"; 
+        unsigned int linenum = 0;
+        char temp[GASNETI_MAX_LOCSZ];
+        GASNETI_TRACE_GETSOURCELINE(&filename, &linenum); /* noop if not avail */
+        sprintf(temp,"%s:%i", filename, linenum);
+        sprintf(retval, buffer, temp);
+      } else {
+        sprintf(retval, buffer, curloc);
+      }
+      strcpy(buffer, retval);
+      return buffer;
+  }
+
   extern void _gasneti_memcheck_one(const char *curloc) {
     if (gasneti_memalloc_extracheck) _gasneti_memcheck_all(curloc);
     else {
@@ -983,7 +1009,8 @@ static void gasneti_check_portable_conduit() { /* check for portable conduit abu
     const char *corruptstr = NULL;
     char tmpstr[255];
     size_t nbytes = 0;
-    char *allocptr = NULL;
+    const char *allocdesc_str = NULL;
+    uintptr_t allocdesc_num = 0;
     uint64_t beginpost = 0;
     uint64_t endpost = 0;
     int doscan = 0;
@@ -999,7 +1026,8 @@ static void gasneti_check_portable_conduit() { /* check for portable conduit abu
           !gasneti_looksaligned(desc->nextdesc)) {
             nbytes = 0; /* bad metadata, don't trust any of it */
       } else {
-        allocptr = (void *)(uintptr_t)desc->allocdesc;
+        allocdesc_str = desc->allocdesc_str;
+        allocdesc_num = desc->allocdesc_num;
         memcpy(&endpost,((char*)ptr)+nbytes,GASNETI_MEM_TAILSZ);
       }
     }
@@ -1048,17 +1076,31 @@ static void gasneti_check_portable_conduit() { /* check for portable conduit abu
 
     if (corruptstr != NULL) {
       char nbytesstr[80];
-      if (allocptr != NULL && memchr(allocptr,'\0',255) == 0) /* allocptr may be bad */
-        allocptr = NULL; 
-      if (allocptr == NULL) nbytesstr[0] = '\0';
+      char allocstr[GASNETI_MAX_LOCSZ];
+      const char *allocdesc;
+      char curlocstr[GASNETI_MAX_LOCSZ];
+
+      if (allocdesc_str != NULL && memchr(allocdesc_str,'\0',255) == 0) { /* allocptr may be bad */
+        allocdesc = NULL; 
+      } else {
+        if (allocdesc_num) {
+          sprintf(allocstr,"\n   allocated at: %s:%i",allocdesc_str,(int)allocdesc_num);
+        } else {
+          sprintf(allocstr,"\n   allocated at: %s",allocdesc_str);
+        }
+        allocdesc = allocstr;
+      }
+      if (allocdesc == NULL) nbytesstr[0] = '\0';
       else sprintf(nbytesstr," nbytes=%i",(int)nbytes);
-      gasneti_fatalerror("%s\n   ptr="GASNETI_LADDRFMT"%s%s%s%s%s",
+
+      if (checktype == 1) strcpy(curlocstr,"\n   freed at: %s");
+      else                strcpy(curlocstr,"\n   detected at: %s");
+
+      gasneti_fatalerror("%s\n   ptr="GASNETI_LADDRFMT"%s%s%s",
            corruptstr,
            GASNETI_LADDRSTR(ptr), nbytesstr,
-           (allocptr!=NULL?"\n   allocated at: ":""), (allocptr!=NULL?allocptr:""),
-           (curloc!=NULL?(checktype == 1?"\n   freed at: ":"\n   detected at: "):""), 
-           (curloc!=NULL?curloc:"")
-           );
+           (allocdesc!=NULL?allocdesc:""),
+           _gasneti_format_curloc(curlocstr,curloc));
     }
     return nbytes;
   }
@@ -1079,21 +1121,31 @@ static void gasneti_check_portable_conduit() { /* check for portable conduit abu
     ret = malloc(nbytes+GASNETI_MEM_EXTRASZ);
     gasneti_assert((((uintptr_t)ret) & 0x3) == 0); /* should have at least 4-byte alignment */
     if_pf (ret == NULL) {
+      char curlocstr[GASNETI_MAX_LOCSZ];
       if (allowfail) {
         if_pt (gasneti_attach_done) gasnet_resume_interrupts();
         GASNETI_TRACE_PRINTF(I,("Warning: returning NULL for a failed gasneti_malloc(%lu): %s",
-                                (unsigned long)nbytes, (curloc == NULL ? (const char *)"" : curloc)));
+                                (unsigned long)nbytes, _gasneti_format_curloc(curlocstr,curloc)));
         return NULL;
       }
       gasneti_fatalerror("Debug malloc(%lu) failed (%lu bytes in use, in %lu objects): %s", 
                      (unsigned long)nbytes, 
                      (unsigned long)(gasneti_memalloc_allocatedbytes - gasneti_memalloc_freedbytes),
                      (unsigned long)(gasneti_memalloc_allocatedobjects - gasneti_memalloc_freedobjects),
-                     (curloc == NULL ? (const char *)"" : curloc));
+                     _gasneti_format_curloc(curlocstr,curloc));
     } else {
       uint64_t gasneti_endpost_ref = GASNETI_MEM_ENDPOST;
       gasneti_memalloc_desc_t *desc = ret;
-      desc->allocdesc = (uint64_t)(uintptr_t)curloc;
+      if (!strcmp(curloc,"SRCPOS")) {
+        const char *filename = "<unknown>"; 
+        unsigned int linenum = 0;
+        GASNETI_TRACE_GETSOURCELINE(&filename, &linenum); /* noop if not avail */
+        desc->allocdesc_str = filename;
+        desc->allocdesc_num = linenum;
+      } else {
+        desc->allocdesc_str = curloc;
+        desc->allocdesc_num = 0;
+      }
       desc->datasz = (uint64_t)nbytes;
       desc->beginpost = GASNETI_MEM_BEGINPOST;
       memcpy(((char*)ret)+nbytes+GASNETI_MEM_HEADERSZ, &gasneti_endpost_ref, GASNETI_MEM_TAILSZ);
@@ -1202,6 +1254,33 @@ static void gasneti_check_portable_conduit() { /* check for portable conduit abu
                             gasneti_memalloc_ringobjects*GASNETI_MEM_EXTRASZ;
     return 0;
   }
+
+  extern void gasneti_malloc_dump_liveobjects(FILE *fp) {
+    if_pt (gasneti_attach_done) gasnet_hold_interrupts();
+    gasneti_mutex_lock(&gasneti_memalloc_lock);
+      if (gasneti_memalloc_pos) {
+        gasneti_memalloc_desc_t *pos = gasneti_memalloc_pos;
+        uint64_t cnt;
+        for (cnt=0; cnt < gasneti_memalloc_ringobjects; cnt++) {
+          uint64_t datasz = pos->datasz;
+          const char * allocptr = NULL;
+          char allocdesc[GASNETI_MAX_LOCSZ];
+          if (!pos->allocdesc_str) {
+            allocptr = NULL;
+          } else if (pos->allocdesc_num) {
+            sprintf(allocdesc,"%s:%i",pos->allocdesc_str,(int)pos->allocdesc_num);
+            allocptr = allocdesc;
+          } else {
+            allocptr = pos->allocdesc_str;
+          }
+          fprintf(fp, "   %10lu     %s\n", (unsigned long)datasz, (allocptr?allocptr:"<unknown>"));
+          pos = pos->nextdesc;
+        } 
+      } 
+    gasneti_mutex_unlock(&gasneti_memalloc_lock);
+    if_pt (gasneti_attach_done) gasnet_resume_interrupts();
+  }
+
 #endif
 /* extern versions of gasnet malloc fns for use in public headers */
 extern void *_gasneti_extern_malloc(size_t sz GASNETI_CURLOCFARG) {

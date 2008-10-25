@@ -70,22 +70,55 @@ entry is placed back on the free list.
 Tuning parameters
 =================
 
-GASNET_LAPI_RCTXTS_PER_NODE - a (small) power of 2 specifying how many
-remote contexts to open up to each peer.  Default value: 1
+GASNET_LAPI_RCTXTS_PER_NODE - INTEGER (default: 4)
+A (small) power of 2 specifying how many remote contexts to open up to
+each peer.
 
-GASNET_LAPI_USE_RDMA - use RDMA with this conduit.  If RDMA is detected
-at configure time, it is enabled by default.  Note that -rdma_count
-must be passed to poe or rcxtblocks passed to LL.  If the conduit cannot
-use RDMA at startup it will degrade to the older conduit code and
-print a warning.
+GASNET_LAPI_USE_RDMA - BOOLEAN (default: yes if available)
+Whether or not to use RDMA with this conduit.  If RDMA is detected
+at configure time, it is enabled by default.  Note that the job must
+have the required RDMA resource allocated (see "Examples", below) or
+else the conduit will degrade to the older conduit code and print a
+warning.
 
-GASNET_LAPI_PIN_THRESHOLD - the message size (in bytes) where we crossover
-from using network buffers to pinning.  Limited to be <= 16384.
+GASNET_LAPI_PIN_THRESHOLD - INTEGER (default: 4096)
+The message size (in bytes) where get and put operations crossover
+from using network buffers to dynamic pinning.  Must be <= 16384.
 
-GASNET_LAPI_USE_FIREHOSE - Use the firehose dynamic memory registration
-scheme for segment fast (defaults to yes).  This is automatically
-enabled for segment everything.
+GASNET_LAPI_USE_FIREHOSE - BOOLEAN (default: yes)
+Whether or not to use the firehose dynamic memory registration scheme for
+SEGMENT_FAST.  Firehose is unconditionally enabled for SEGMENT_EVERYTHING.
  
+Examples
+========
+
+When running jobs via POE or LL, certain additional arguments/settings are
+required to allocate RDMA resources to the job.  Otherwise, the lapi-rdma
+support will be disabled automatically and a warning is printed.
+
+For POE the following command line options are recommended, in addition to
+any others you may normally require:
+  "-rdma_count 2"
+     This is required to allocate RDMA resources.  Large values are possible,
+     but we've yet to determine what value is optimal.
+  "-msg_api LAPI" or "-msg_api LAPI,MPI"
+     One of these is required for lapi-conduit, regardless of whether RDMA
+     support is used.  Use "-msg_api LAPI" when a job uses only GASNet, or use
+     "-msg_api LAPI,MPI" if the job uses both GASNet and MPI.
+
+For LoadLeveler job scripts, the following line is required, in addition to
+any others you may normally require:
+  #@ network.LAPI = sn_all,not_shared,us,,,rcxtblocks=2
+You should modify the first three fields of this example to match what is
+normally used at your site.  However the ",,,rcxtblocks=2" should not be
+omitted.  As with the POE example, values larger than 2 may also be used
+for rcxtblocks.
+If using both GASNet and MPI in a given LL job, use this line in ADDITION to
+any "#@ network.MPI = ..." line you may normally use.
+
+Additional information may be found in IBM's POE and LoadLeveler documentation
+or in the online documentation at some computing centers with IBM SP machines.
+
 Known Bugs
 ==========
 

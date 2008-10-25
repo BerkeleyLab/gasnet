@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2007/04/10 01:21:25 $
- * $Revision: 1.46 $
+ *     $Date: 2008/10/25 01:50:33 $
+ * $Revision: 1.46.12.1 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -106,6 +106,8 @@ static int gasnetc_init(int *argc, char ***argv) {
         You need to provide two functions (gasnetc_bootstrapExchange and gasnetc_bootstrapBroadcast)
         which the system can safely and immediately use to broadcast and exchange information 
         between nodes (gasnetc_bootstrapBroadcast is optional but highly recommended).
+        See gasnet/other/mpi-spawner/gasnet_bootstrap_mpi.c for definitions of these two
+        functions in terms of MPI collective operations.
        This system assumes that at least one of the compute nodes has a copy of the 
         full environment from the "spawning console" (if this is not true, you'll need to
         implement something yourself to get the values from the spawning console)

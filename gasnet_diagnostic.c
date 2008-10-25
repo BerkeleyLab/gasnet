@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_diagnostic.c,v $
- *     $Date: 2006/10/17 09:26:40 $
- * $Revision: 1.22 $
+ *     $Date: 2008/10/25 01:50:07 $
+ * $Revision: 1.22.22.1 $
  * Description: GASNet internal diagnostics
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -246,6 +246,21 @@ static void malloc_test(int id) {
     gasneti_free(ptrs[i]);
   }
   gasneti_free(ptrs);
+  gasneti_memcheck_all();
+
+  PTHREAD_BARRIER(num_threads);
+
+  for (i = 0; i < iters/num_threads; i++) {
+    int alignsz;
+    for (alignsz = 1; alignsz < 64*1024; alignsz *= 2) {
+      size_t sz = TEST_RAND(1,alignsz*2);
+      char * p = gasnett_malloc_aligned(alignsz,sz);
+      assert_always(p);
+      assert_always((((uintptr_t)p) & (alignsz-1)) == 0);
+      p[0] = 'x'; p[sz - 1] = 'y';
+      gasnett_free_aligned(p);
+    }
+  }
   gasneti_memcheck_all();
 
   PTHREAD_BARRIER(num_threads);

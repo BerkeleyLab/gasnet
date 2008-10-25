@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_ep.cpp,v $
- *     $Date: 2007/06/11 20:00:26 $
- * $Revision: 1.28 $
+ *     $Date: 2008/10/25 01:50:22 $
+ * $Revision: 1.28.10.1 $
  * Description: AMUDP Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -46,8 +46,8 @@ const amudp_stats_t AMUDP_initial_stats = /* the initial state for stats type */
 
 /* ------------------------------------------------------------------------------------ */
 /* error handling */
-__attribute__((__format__ (__printf__, 2, 0)))
-static int AMUDP_Msg(const char *prefix, const char *msg, va_list argptr) {
+AMUDP_FORMAT_PRINTF(AMUDP_Msg,2,0,
+static int AMUDP_Msg(const char *prefix, const char *msg, va_list argptr)) {
   char *expandedmsg = (char *)AMUDP_malloc(strlen(msg)+strlen(prefix)+50);
   int retval;
 

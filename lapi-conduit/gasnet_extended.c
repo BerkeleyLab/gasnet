@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2008/04/29 19:12:31 $
- * $Revision: 1.64.2.1 $
+ *     $Date: 2008/10/25 01:50:12 $
+ * $Revision: 1.64.2.2 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -423,26 +423,6 @@ void gasnete_op_free(gasnete_op_t *op) {
     }
 }
 
-
-#if GASNETC_LAPI_FED_POLLBUG_WORKAROUND
-/*
- * MLW: HACK to get around LAPI FEDERATION bug.
- * We allow syncing some of the outstanding put operations to
- * throttle the number of outstanding in-flight messages.  
- */
-static void gasnete_wait_syncnbi_myputs(int numputs GASNETE_THREAD_FARG)
-{
-    gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-    gasnete_iop_t *iop = mythread->current_iop;
-    int cnt = 0;
-    gasneti_assert(iop->threadidx == mythread->threadidx);
-    gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
-    gasneti_assert(iop->initiated_put_cnt >= numputs);
-    GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context,&iop->put_cntr,numputs,&cnt));
-    iop->initiated_put_cnt -= numputs;
-    gasneti_sync_reads();  /* MLW: is this needed? */
-}
-#endif
 
 /* ------------------------------------------------------------------------------------ */
 /* GASNET-Internal OP Interface */
@@ -1245,12 +1225,7 @@ extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void
     }
     gasneti_resume_spinpollers();
 
-#if GASNETC_LAPI_FED_POLLBUG_WORKAROUND
-    gasnete_wait_syncnb((gasnet_handle_t)op);
-    return GASNET_INVALID_HANDLE;
-#else
     return (gasnet_handle_t)op;
-#endif
   }
 }
 
@@ -1305,12 +1280,7 @@ extern gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src
     GASNETC_WAITCNTR(&o_cntr,num_put,&cur_cntr);
     gasneti_assert(cur_cntr == 0);
     
-#if GASNETC_LAPI_FED_POLLBUG_WORKAROUND
-    gasnete_wait_syncnb((gasnet_handle_t)op);
-    return GASNET_INVALID_HANDLE;
-#else
     return (gasnet_handle_t)op;
-#endif
   }
 }
 
@@ -1359,12 +1329,7 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
     GASNETC_WAITCNTR(&o_cntr,1,&cur_cntr);
     gasneti_assert(cur_cntr == 0);
 
-#if GASNETC_LAPI_FED_POLLBUG_WORKAROUND
-    gasnete_wait_syncnb((gasnet_handle_t)op);
-    return GASNET_INVALID_HANDLE;
-#else
     return (gasnet_handle_t)op;
-#endif
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -1436,7 +1401,7 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
     else return GASNET_ERR_NOT_READY;
 }
 
-#if GASNETC_LAPI_RDMA || GASNETC_LAPI_FED_POLLBUG_WORKAROUND
+#if GASNETC_LAPI_RDMA
 extern void gasnete_wait_syncnb(gasnet_handle_t handle) {
     gasnete_op_t *op = handle;
     if (handle == GASNET_INVALID_HANDLE)
@@ -1450,13 +1415,11 @@ extern void gasnete_wait_syncnb(gasnet_handle_t handle) {
 	    GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context,&eop->cntr,eop->initiated_cnt,&eop->initiated_cnt));
 	    gasneti_assert(eop->initiated_cnt == 0);
 	}
-#if GASNETC_LAPI_RDMA
 	else  if (eop->num_transfers > 0) {
 	  gasneti_assert(eop->origin_counter != NULL);
           GASNETC_LCHECK((LAPI_Waitcntr(gasnetc_lapi_context,eop->origin_counter,eop->num_transfers,&eop->num_transfers)));
 	  gasneti_assert(eop->num_transfers == 0);
 	}
-#endif
     } else {
 	gasnete_iop_t *iop = (gasnete_iop_t*)op;
         gasnete_iop_check(iop);
@@ -1487,23 +1450,6 @@ extern void gasnete_wait_syncnb_all(gasnet_handle_t *phandle, size_t numhandles)
 	if (op != GASNET_INVALID_HANDLE) {
 	    gasnete_wait_syncnb(op);
 	    phandle[i] = GASNET_INVALID_HANDLE;
-	}
-    }
-    }
-}
-#endif
-
-#if GASNETC_LAPI_FED_POLLBUG_WORKAROUND
-extern void gasnete_wait_syncnb_some(gasnet_handle_t *phandle, size_t numhandles) {
-    gasneti_assert(phandle);
-    { int i;
-    for (i = 0; i < numhandles; i++) {
-	gasnete_op_t *op = phandle[i];
-	if (op != GASNET_INVALID_HANDLE) {
-	    gasnete_wait_syncnb(op);
-	    phandle[i] = GASNET_INVALID_HANDLE;
-	    /* got one, just return */
-	    break;
 	}
     }
     }
@@ -1590,10 +1536,6 @@ extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src,
     }
     op->initiated_put_cnt += num_put;
     gasneti_resume_spinpollers();
-
-#if GASNETC_LAPI_FED_POLLBUG_WORKAROUND
-    gasnete_wait_syncnbi_myputs(num_put GASNETE_THREAD_PASS);
-#endif    
   }
 }
 
@@ -1645,10 +1587,6 @@ extern void gasnete_put_nbi (gasnet_node_t node, void *dest, void *src,
      */
     GASNETC_WAITCNTR(&o_cntr,num_put,&cur_cntr);
     gasneti_assert(cur_cntr == 0);
-
-#if GASNETC_LAPI_FED_POLLBUG_WORKAROUND
-    gasnete_wait_syncnbi_myputs(num_put GASNETE_THREAD_PASS);
-#endif    
   }
 }
 
@@ -1690,10 +1628,6 @@ extern void gasnete_memset_nbi (gasnet_node_t node, void *dest, int val,
      * This will ALMOST ALWAYS be true in the case of such a small message */
     GASNETC_WAITCNTR(&o_cntr,1,&cur_cntr);
     gasneti_assert(cur_cntr == 0);
-
-#if GASNETC_LAPI_FED_POLLBUG_WORKAROUND
-    gasnete_wait_syncnbi_myputs(1 GASNETE_THREAD_PASS);
-#endif    
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -1754,7 +1688,7 @@ extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
         } else return GASNET_ERR_NOT_READY;
 }
 
-#if GASNETC_LAPI_RDMA || GASNETC_LAPI_FED_POLLBUG_WORKAROUND
+#if GASNETC_LAPI_RDMA
 extern void gasnete_wait_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t *iop = mythread->current_iop;
@@ -1769,16 +1703,11 @@ extern void gasnete_wait_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
       GASNET_BLOCKUNTIL(gasneti_weakatomic_read(&iop->put_aux_cntr, 0) == 0);
     if (iop->initiated_put_cnt > 0) {
 	GASNETC_LCHECK(LAPI_Waitcntr(gasnetc_lapi_context,&iop->put_cntr,iop->initiated_put_cnt,&iop->initiated_put_cnt));
-      #if GASNETC_LAPI_FED_POLLBUG_WORKAROUND  /* XXX: Why the different membars here? -PHH */
-	gasneti_sync_mem();
-      #else
 	gasneti_sync_reads();
-      #endif
     } 
     gasneti_assert(iop->initiated_put_cnt == 0);
 }
 
-#if GASNETC_LAPI_RDMA
 extern void gasnete_wait_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) 
 {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
@@ -1798,13 +1727,12 @@ extern void gasnete_wait_syncnbi_gets(GASNETE_THREAD_FARG_ALONE)
     }
     gasneti_assert(iop->initiated_get_cnt == 0);
 }
-#endif /* GASNETC_LAPI_RDMA */
 
 extern void gasnete_wait_syncnbi_all(GASNETE_THREAD_FARG_ALONE) {
     gasnete_wait_syncnbi_puts(GASNETE_THREAD_PASS_ALONE);
     gasnete_wait_syncnbi_gets(GASNETE_THREAD_PASS_ALONE);
 }
-#endif /* GASNETC_LAPI_RDMA || GASNETC_LAPI_FED_POLLBUG_WORKAROUND */
+#endif /* GASNETC_LAPI_RDMA */
 
 /* ------------------------------------------------------------------------------------ */
 /*

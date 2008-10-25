@@ -1,6 +1,6 @@
 GASNet Portals-conduit documentation
 Michael Welcome <mlwelcome@lbl.gov>
-$Revision: 1.12 $
+$Revision: 1.12.4.1 $
 
 User Information:
 -----------------
@@ -92,28 +92,31 @@ GASNET_PORTAL_MSG_LIMIT=N
 GASNET_PORTAL_NUM_TMPMD=N
   Specifies the number of temporary memory descriptors that can be allocated
   at any time.  The default value is 1024.
-  Temporary MDs are allocated when a Put or Get operation is initiated, the
-  message is larger than what would fit into a Request chunk (bounce buffer)
-  and the memory for the source of the Put or dest of the Get is not already
-  pinned (eg. if it were in the local segment).
+  Temporary MDs are allocated when the payload of a Long lies outside the
+  GASNet segment and is too large to "pack" into a Request chunk together
+  with the AM arguments and metadata.  See also GASNET_PORTAL_PACKED_LONG.
+  If firehose is disabled (debug builds only) Temporary MDs are also allocated
+  for Put or Get operations with local addresses (src for Put, dest for get)
+  outside the GASNet segment and length too large for a Request chunk (bounce
+  buffer).  See also GASNET_PORTAL_PUTGET_BOUNCE_LIMIT.
 
-GASNET_PORTAL_PACKED_LONG=N
-  If N=0, this turns off the ability to pack short-payload AM Long messages
+GASNET_PORTAL_PACKED_LONG=boolean (0, 1, y, n, true, false)
+  If FALSE, this turns off the ability to pack short-payload AM Long messages
   into a Request Send Buffer chunk.  A normal AM Long request or reply will
   send two messages, a header and a data put.  For small AM Long messages,
   using PACKED longs has better performance.
-  The default value is N=1, allowing PACKED AM Longs.
+  The default value is TRUE, allowing PACKED AM Longs.
 
-GASNET_PORTAL_FLOW_CONTROL=N
-  if N=1, then active message flow control is enabled.  This is the default.
-  N=0 disables flow control, but the application may fail if a node receives too
+GASNET_PORTAL_FLOW_CONTROL=boolean
+  if TRUE, then active message flow control is enabled.  This is the default.
+  FALSE disables flow control, but the application may fail if a node receives too
   many AM requests such that its receive buffer overflows.
 
-GASNET_PORTAL_DYNAMIC_CREDITS=N
-  If N=1, then dynamic credit management is enabled.  This is the default.
+GASNET_PORTAL_DYNAMIC_CREDITS=boolean
+  If TRUE, then dynamic credit management is enabled.  This is the default.
   With dynamic credit management, a node dynamically distributes its credits to
   the nodes it has been communicating with recently.  
-  N=0 disables this feature.
+  FALSE disables this feature.
 
 GASNET_PORTAL_SB_CHUNKS=N
   Specifies to allocate this number of memory chunks to the Request Send Buffer
@@ -147,13 +150,13 @@ GASNET_PORTAL_MAX_CRED_PER_NODE=N
   remote node.
   The default value is 400.
 
-GASNET_PORTAL_ACCEL=N      /* if built with -DGASNETC_USE_SANDIA_ACCEL */
+GASNET_PORTAL_ACCEL=boolean  /* if built with -DGASNETC_USE_SANDIA_ACCEL */
   This value can only be used on a Sandia based Catamount system with
   accelerated portals.  In this environment, the majority of the portals
   processing is done on the seastar chip, rather than on the opteron.
-  If N=1, (and GASNet is built with the -DGASNETC_USE_SANDIA_ACCEL flag)
+  If TRUE, (and GASNet is built with the -DGASNETC_USE_SANDIA_ACCEL flag)
   then accelerated mode is enabled.
-  The default is N=0.
+  The default is FALSE.
 
 GASNET_PORTAL_CREDIT_STATS=1 
   will write credit stats to a file.  This allows a developer to get a sense of
@@ -190,6 +193,7 @@ GASNET_PORTAL_PUTGET_BOUNCE_LIMIT=N
   (The Gets require sizeof(void*) of additional temporary storage, which will
   be silently deducted from this limit if the sum would otherwise exceed the
   chunk size.)
+  This parameter has no effect unless firehose is disabled (debug builds only).
 
 * All the standard GASNet environment variables (see top-level README)
 
@@ -970,3 +974,66 @@ Additional Notes:
   be decayed, but not necessarily set to zero at the start of a new epoch.  Could try
   both approaches to see if it matters.
 
+
+=======================================================================================
+Firehose configuration
+
+  The following environment variables control the resources used by the
+  "firehose" [ref 1] dynamic registration library.  By default firehose
+  will use 1024 regions of maximum length 128KB to manage dynamic pinning
+  of local out-of-segment memory.
+
+  + GASNET_USE_FIREHOSE
+    This environment variable is only available in a DEBUG build of
+    GASNet (one configured with --enable-debug).
+    This gives a boolean: "0" to disable or "1" to enable the use
+    of the firehose dynamic pinning library.
+    The GASNet segment is registered (pinned) with portals at
+    initialization time, because pinning is required for RDMA.  However,
+    GASNet allows for local addresses (source of a PUT or destination
+    of a GET) to lie outside of the GASNet segment.  So, to perform RDMA
+    GETs and PUTs, portals-conduit must either copy out-of-segment
+    transfers though preregistered bounce buffers, or dynamically register
+    memory.  By default firehose is used to manage registration of
+    out-of-segment memory.  (default is ON).
+    Setting this environment variable to "0" (or "no") will disable use
+    of firehose, forcing the use of bounce buffers or non-cached dynamic
+    memory registration for out-of-segment transfers.  This will result
+    in lower peak bandwidth for large PUTs and GETs, with little or no
+    affect on small message latency.  It is available only for debugging
+    purposes.
+
+  + GASNET_FIREHOSE_M
+  + GASNET_FIREHOSE_R
+    These parameters are not presently used and should not be set.
+
+  + GASNET_FIREHOSE_MAXVICTIM_M
+    This gives the amount of memory to place in the victim (local) pool.
+    The suffixes "K", "M" and "G" are interpreted as Kilobytes, Megabytes
+    and Gigabytes respectively, with "M" assumed if no suffix is given.
+    The default is
+    GASNET_FIREHOSE_MAXVICTIM_R * GASNET_FIREHOSE_MAXREGION_SIZE.
+
+  + GASNET_FIREHOSE_MAXREGION_SIZE
+    This gives the maximum size of a single dynamically pinned region,
+    should be a multiple of the pagesize, and preferably a power of two.
+    The suffixes "K", "M" and "G" are interpreted as Kilobytes, Megabytes
+    and Gigabytes respectively, with "M" assumed if no suffix is given.
+    The current default is 128k.
+
+  + GASNET_FIREHOSE_MAXVICTIM_R
+    This gives the number of pinned regions to allocate for the management
+    of the victim (local) pool.  Values will be truncated if larger than
+    the default of (GASNET_FIREHOSE_MAXVICTIM_M /
+    GASNET_FIREHOSE_MAXREGION_SIZE).
+
+  + GASNET_FIREHOSE_VERBOSE
+    This gives a boolean: "0" to disable or "1" to enable the output of
+    internal information of use to the developers.  You may be asked
+    to run with this environment variable set if you report a bug that
+    appears related to the firehose algorithm. 
+
+[1]	Bell, Bonachea. "A New DMA Registration Strategy for Pinning-Based
+	High Performance Networks", Workshop on Communication Architecture
+	for Clusters (CAC'03), 2003.
+	Also at  http://upc.lbl.gov/publications/

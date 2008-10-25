@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2008/01/22 11:05:41 $
- * $Revision: 1.215 $
+ *     $Date: 2008/10/25 01:50:07 $
+ * $Revision: 1.215.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -225,6 +225,58 @@ int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC32_CONFIG) = 1;
 int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG) = 1;
 
 static gasneti_atomic_t gasneti_backtrace_enabled = gasneti_atomic_init(1);
+
+
+extern const char *gasnett_performance_warning_str() {
+  static char *result = NULL;
+  static gasneti_mutex_t gasnett_performance_warning_lock = GASNETI_MUTEX_INITIALIZER;
+  gasnett_mutex_lock(&gasnett_performance_warning_lock);
+    if (result) return result;
+    else result = malloc(1024);
+    result[0] = '\0';
+    #ifdef GASNET_DEBUG
+      strcat(result,"debugging ");
+    #endif
+    #ifdef GASNET_TRACE
+      strcat(result,"tracing ");
+    #endif
+    #ifdef GASNET_STATS
+      strcat(result,"statistical collection ");
+    #endif
+    if (result[0]) {
+        char tmp[80];
+        strcpy(tmp,"        ");  /* Leading white space: */
+        strcat(tmp,result);
+        strcat(tmp,"\n"); /* Trailing white space: */
+        strcpy(result,tmp);
+    }
+    #if defined(GASNETI_FORCE_GENERIC_ATOMICOPS)
+      strcat(result,"        FORCED mutex-based atomicops\n");
+    #elif defined(GASNETI_FORCE_OS_ATOMICOPS)
+      strcat(result,"        FORCED os-provided atomicops\n");
+    #endif
+    #if defined(GASNETI_FORCE_TRUE_WEAKATOMICS) && GASNETI_THREAD_SINGLE
+      strcat(result,"        FORCED atomics in sequential code\n");
+    #endif
+    #if defined(GASNETI_FORCE_GENERIC_SEMAPHORES) && GASNETT_THREAD_SAFE
+      strcat(result,"        FORCED mutex-based semaphores\n");
+    #endif
+    #if defined(GASNETI_FORCE_YIELD_MEMBARS)
+      strcat(result,"        FORCED sched_yield() in memory barriers\n");
+    #elif defined(GASNETI_FORCE_SLOW_MEMBARS)
+      strcat(result,"        FORCED non-inlined memory barriers\n");
+    #endif
+    #if defined(GASNETI_FORCE_GETTIMEOFDAY)
+      strcat(result,"        FORCED timers using gettimeofday()\n");
+    #elif defined(GASNETI_FORCE_POSIX_REALTIME)
+      strcat(result,"        FORCED timers using clock_gettime()\n");
+    #endif
+    #if defined(GASNETI_BUG1389_WORKAROUND)
+      strcat(result,"        FORCED conservative byte-wise local access\n");
+    #endif
+  gasnett_mutex_unlock(&gasnett_performance_warning_lock);
+  return result;
+}
 
 /* ------------------------------------------------------------------------------------ */
 /* timer support */
@@ -976,7 +1028,13 @@ extern int gasneti_print_backtrace(int fd) {
         int i;
         static char btsel[255]; /* parse selection */
         char *psel = btsel;
-        while (*plist && !strchr(" ,|;",*plist)) { *psel++ = toupper(*plist++); }
+        while (*plist && !strchr(" ,|;",*plist)) {
+	    /* ICK: Our toupper() replacement for Tru64 is a macro that 
+	     * evaluates its argument multiple times.
+	     * So, need ++ outside toupper();
+	     */
+	    *psel++ = toupper(*plist); plist++;
+	}
         *psel = '\0';
         if (*plist) plist++;
 

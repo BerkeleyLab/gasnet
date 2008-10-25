@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2008/01/29 05:46:36 $
- * $Revision: 1.86 $
+ *     $Date: 2008/10/25 01:50:07 $
+ * $Revision: 1.86.2.1 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -498,7 +498,10 @@ GASNETI_BEGIN_EXTERNC
       if (!dp) gasneti_fatalerror("*** ERROR: Failure in opendir('/proc/device-tree/cpus'): %s",strerror(errno));
       do {
         de = readdir(dp);
-	if (de && (de->d_name == strstr(de->d_name, "PowerPC,"))) {
+	if (de && 
+           ( de->d_name == strstr(de->d_name, "PowerPC,") || /* PowerPC */
+             de->d_name == strstr(de->d_name, "cpu@0") /* IBM cell */
+           )) {
 	  break;
 	}
       } while (de);
@@ -510,6 +513,18 @@ GASNETI_BEGIN_EXTERNC
       if (fread((void *)(&freq), sizeof(uint32_t), 1, fp) != 1) 
         gasneti_fatalerror("*** ERROR: Failure to read timebase frequency from '%s': %s", fname, strerror(errno));
       fclose(fp);
+      if (freq == 0) { /* Playstation3 */
+        char input[255];
+        fp = fopen("/proc/cpuinfo", "r");
+        if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
+        while (!feof(fp) && fgets(input, 255, fp)) {
+          if (strstr(input,"timebase")) {
+            char *p = strchr(input,':');
+            if (p) { freq = atoi(p+1); break; }
+          }
+        }
+        fclose(fp);
+      }
      #endif
       gasneti_assert(freq > 1000000 && freq < 1000000000); /* ensure it looks reasonable (1MHz to 1Ghz) */
       Tick = 1.0e9 / freq;

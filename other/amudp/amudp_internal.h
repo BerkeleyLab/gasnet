@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_internal.h,v $
- *     $Date: 2007/03/18 01:10:42 $
- * $Revision: 1.33 $
+ *     $Date: 2008/10/25 01:50:22 $
+ * $Revision: 1.33.14.1 $
  * Description: AMUDP internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -24,8 +24,12 @@
 #ifdef HAVE_GASNET_TOOLS 
   #define GASNETT_LITE_MODE /* use lite mode, to preserve AMUDP's threading neutrality */
   #include <gasnet_tools.h> /* must precede internal assert defs */
-#elif ! defined (__GNUC__) && ! defined (__attribute__)
-  #define __attribute__(flags)
+  #define AMUDP_FORMAT_PRINTF GASNETT_FORMAT_PRINTF
+#elif defined (__GNUC__) || defined (__attribute__)
+  #define AMUDP_FORMAT_PRINTF(fnname,fmtarg,firstvararg,declarator) \
+            __attribute__((__format__ (__printf__, fmtarg, firstvararg))) declarator
+#else
+  #define AMUDP_FORMAT_PRINTF(fnname,fmtarg,firstvararg,declarator) declarator
 #endif
 
 /* AMUDP system configuration parameters */
@@ -152,17 +156,17 @@ extern uint32_t AMUDP_ExpectedBandwidth; /* expected half-duplex bandwidth in KB
 
 SOCK_BEGIN_EXTERNC
 
-__attribute__((__format__ (__printf__, 1, 2)))
-extern int AMUDP_Err(const char *msg, ...);
+AMUDP_FORMAT_PRINTF(AMUDP_Err,1,2,
+extern int AMUDP_Err(const char *msg, ...));
 
-__attribute__((__format__ (__printf__, 1, 2)))
-extern int AMUDP_Warn(const char *msg, ...);
+AMUDP_FORMAT_PRINTF(AMUDP_Warn,1,2,
+extern int AMUDP_Warn(const char *msg, ...));
 
 #ifdef GASNETT_NORETURN
 GASNETT_NORETURN
 #endif
-__attribute__((__format__ (__printf__, 1, 2)))
-extern void AMUDP_FatalErr(const char *msg, ...);
+AMUDP_FORMAT_PRINTF(AMUDP_FatalErr,1,2,
+extern void AMUDP_FatalErr(const char *msg, ...));
 #ifdef GASNETT_NORETURNP
 GASNETT_NORETURNP(AMUDP_FatalErr)
 #endif

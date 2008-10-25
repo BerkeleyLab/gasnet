@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/contrib/Makefile.am,v $
-#     $Date: 2007/09/10 08:18:09 $
-# $Revision: 1.19 $
+#     $Date: 2008/10/25 01:50:24 $
+# $Revision: 1.19.10.1 $
 # Description: Makefile for GASNet other/contrib
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -18,6 +18,7 @@ EXTRA_DIST = $(dotpl_DATA) $(vg_DATA) \
 #	cross-configure-bgl \
 #	cross-configure-phoenix \
 #	cross-configure-k42ppc64 \
+#	cross-configure-linux-arm \
 #	cross-configure-osxi686 \
 #	cross-configure-osxppc64 \
 #	cross-configure-osxx86_64 \

@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2007/11/10 08:45:50 $
-dnl $Revision: 1.129 $
+dnl     $Date: 2008/10/25 01:50:07 $
+dnl $Revision: 1.129.4.1 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -26,6 +26,32 @@ dnl AUTOCONF_VERSION=`cat ${srcdir}/configure | perl -e '{ while (<STDIN>) { if 
 AUTOCONF_VERSION_STR=`cat ${srcdir}/configure | $AWK '/.*enerated.*utoconf.*([[0-9]]+).([[0-9]]+).*/ { [match]([$]0,"[[0-9]]+.[[0-9]]+"); print [substr]([$]0,RSTART,RLENGTH); exit 0 } '`
 AUTOCONF_VERSION=`echo $AUTOCONF_VERSION_STR | $AWK -F. '{ printf("%i%i",[$]1,[$]2); }'`
 AC_MSG_RESULT($AUTOCONF_VERSION_STR)
+GASNET_FUN_END([$0])
+])
+
+AC_DEFUN([GASNET_FORBID_PROGRAM_TRANSFORM],[
+GASNET_FUN_BEGIN([$0])
+  # echo program_prefix=$program_prefix  program_suffix=$program_suffix program_transform_name=$program_transform_name
+  # undo prefix autoconf automatically adds during cross-compilation
+  if test "$cross_compiling" = yes && test "$program_prefix" = "${target_alias}-" ; then
+    program_prefix=NONE
+  fi
+  # normalize empty prefix/suffix
+  if test -z "$program_prefix" ; then
+    program_prefix=NONE
+  fi
+  if test -z "$program_suffix" ; then
+    program_suffix=NONE
+  fi
+  # undo transforms caused by empty prefix/suffix
+  if test "$program_transform_name" = 's,^,,' || \
+     test "$program_transform_name" = 's,$$,,' || \
+     test "$program_transform_name" = 's,$$,,;s,^,,' ; then
+    program_transform_name="s,x,x,"
+  fi
+  if test "$program_prefix$program_suffix$program_transform_name" != "NONENONEs,x,x," ; then
+    GASNET_MSG_ERROR([This configure script does not support --program-prefix, --program-suffix or --program-transform-name. Users are recommended to instead use --prefix with a unique directory and make symbolic links as desired for renaming.])
+  fi
 GASNET_FUN_END([$0])
 ])
 
@@ -66,6 +92,25 @@ GASNET_IF_ENABLED(allow-gcc32, Allow the use of the known broken gcc/g++ 3.2.0-2
   ],[
   AC_MSG_ERROR([$badgccmsg \
   You may enable use of this broken compiler at your own risk by passing the --enable-allow-gcc32 flag.])
+])
+])
+AC_TRY_COMPILE([
+#if __GNUC__ == 4 && __GNUC_MINOR__ < 3
+# error
+#endif
+],[ ], [:], [
+AC_MSG_RESULT([$1 is gcc 4.x, for x < 3])
+badgccmsg="Use of gcc/g++ 4.0, 4.1 or 4.2 for compiling this software is strongly discouraged. \
+These versions have a known bug in the optimizer regarding aliasing analysis which may lead \
+to bad code and incorrect runtime behavior when optimization is enabled. \
+Consider using \$[$1] to select a different compiler."
+GASNET_IF_ENABLED(allow-gcc4, Allow the use of a broken gcc/g++ 4.0-4.2 compiler, [
+  GASNET_MSG_WARN([$badgccmsg])
+  ],[
+  AC_MSG_ERROR([$badgccmsg \
+  You may enable use of this broken compiler at your own risk by passing the --enable-allow-gcc4 flag.\
+  If you do so, please see the documentation on --enable-conservative-local-copy for a possible \
+work around for the gcc-4.x bug.])
 ])
 ])
 if test -z "$badgccmsg"; then
@@ -2000,7 +2045,7 @@ GASNET_FUN_BEGIN([$0($1)])
   if test ! -f $_subconfig_extract_file; then
      AC_MSG_ERROR([failed to open $_subconfig_extract_file - file not found])
   fi
-  _subconfig_extract_result=`$PERL -ne 'if (m/^s(.)\@('$2')\@\1([[^\1]]*)\1/) { my ($var,$val) = ([$]2,[$]3); $val =~ s/\|#_!!_#\|//g; print "$var='"'"'$val'"'"'"; }' $_subconfig_extract_file`
+  _subconfig_extract_result=`$PERL -n -e 'if (m/^S\[["('$2')"\]]="(.*)"/) { print "[$]1='"'"'[$]2'"'"'"; };' -e 'if (m/^s(.)\@('$2')\@\1([[^\1]]*)\1/) { my ($var,$val) = ([$]2,[$]3); $val =~ s/\|#_!!_#\|//g; print "$var='"'"'$val'"'"'"; };' $_subconfig_extract_file`
   if test -n "$_subconfig_extract_result" ; then
     eval $_subconfig_extract_result
     AC_MSG_RESULT($[$2])

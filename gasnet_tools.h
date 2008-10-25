@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2008/02/19 03:43:39 $
- * $Revision: 1.118 $
+ *     $Date: 2008/10/25 01:50:08 $
+ * $Revision: 1.118.2.1 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -284,6 +284,9 @@ GASNETI_BEGIN_EXTERNC
 /* ------------------------------------------------------------------------------------ */
 /* misc tools utilities */
 
+/* return a (possibly empty) string of any configuration options that might negtively impact performance */
+extern const char *gasnett_performance_warning_str();
+
 #define gasnett_sched_yield     gasneti_sched_yield 
 #define gasnett_cpu_count       gasneti_cpu_count
 #define gasnett_flush_streams   gasneti_flush_streams
@@ -463,6 +466,9 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
     #define gasnett_heapstats_t           gasneti_heapstats_t
     #define gasnett_getheapstats(pstat)   gasneti_getheapstats(pstat)
   #endif
+
+  #define gasnett_malloc_aligned(align,sz) gasneti_malloc_aligned((align),(sz))
+  #define gasnett_free_aligned(ptr)        gasneti_free_aligned(ptr)
 
   /* VIS string formatting */
   #define gasnett_format_memveclist_bufsz gasneti_format_memveclist_bufsz 

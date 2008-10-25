@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2008/04/29 19:12:39 $
- * $Revision: 1.221.8.1 $
+ *     $Date: 2008/10/25 01:50:39 $
+ * $Revision: 1.221.8.2 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -547,7 +547,11 @@ void gasnetc_amrdma_eligable(gasnetc_cep_t *cep) {
 
   gasneti_weakatomic_increment(&cep->amrdma.eligable, 0);
 
-  if_pf (!(interval & hca->amrdma_balance.mask) && !gasneti_spinlock_trylock(&hca->amrdma_balance.lock)) {
+  if_pf (!(interval & hca->amrdma_balance.mask) 
+#if GASNETI_THREADS
+         && !gasneti_spinlock_trylock(&hca->amrdma_balance.lock)
+#endif
+         ) {
     /* GASNETC_AMRDMA_REDUCE(X) is amount by which ALL counts X are reduced each round */
     #define GASNETC_AMRDMA_REDUCE(X)		((X)>>1)
     /* GASNETC_AMRDMA_BOOST(FLOOR) is amount by which SELECTED counts X are boosted */
@@ -614,7 +618,9 @@ void gasnetc_amrdma_eligable(gasnetc_cep_t *cep) {
       return; /* YES - we really mean to return w/o unlocking */
     }
 
+#if GASNETI_THREADS
     gasneti_spinlock_unlock(&hca->amrdma_balance.lock);
+#endif
   }
 }
 
@@ -1275,14 +1281,16 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
 
   GASNETC_STAT_EVENT(RCV_AM_RDMA);
 
+  /* Account for any recv buffer that was reserved for the reply, but not used.
+   * Must preced credit processing in gasnetc_processPacket (bug 2359) */
+  if (GASNETC_MSG_ISREPLY(flags)) {
+    gasneti_semaphore_up(&cep->am_loc);
+  }
+
+  /* Process the packet, includes running handler and processing credits/acks */
   rbuf.cep = cep;
   rbuf.rr_is_rdma = 1;
   gasnetc_processPacket(cep, &rbuf, flags);
-
-  if (GASNETC_MSG_ISREPLY(flags)) {
-    /* Account for recv buffer that was reserved for the reply, but not used. */
-    gasneti_semaphore_up(&cep->am_loc);
-  }
 
   /* Mark slot free locally prior to enabling the ack */
   hdr->length = 0; hdr->length_again = -1;
@@ -3133,7 +3141,9 @@ extern int gasnetc_sndrcv_init(void) {
 
         gasneti_weakatomic_set(&hca->amrdma_balance.count, 0, 0);
         hca->amrdma_balance.mask = gasnetc_amrdma_cycle ? (gasnetc_amrdma_cycle - 1) : 0;
+#if GASNETI_THREADS
         gasneti_spinlock_init(&hca->amrdma_balance.lock);
+#endif
         hca->amrdma_balance.floor = 1;
         hca->amrdma_balance.table = gasneti_calloc(hca->total_qps, sizeof(gasnetc_amrdma_balance_tbl_t));
       }
