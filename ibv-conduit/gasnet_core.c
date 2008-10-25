@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2008/04/29 19:12:39 $
- * $Revision: 1.201.4.1 $
+ *     $Date: 2008/10/25 01:50:39 $
+ * $Revision: 1.201.4.2 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -66,7 +66,8 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 #if GASNET_CONDUIT_VAPI
   #define GASNETC_DEFAULT_INLINESEND_LIMIT	72
 #else
-  #define GASNETC_DEFAULT_INLINESEND_LIMIT	256
+  /* Use HCA maximum */
+  #define GASNETC_DEFAULT_INLINESEND_LIMIT	(size_t)(-1)
 #endif
 #define GASNETC_DEFAULT_NONBULKPUT_BOUNCE_LIMIT	(64*1024)
 #define GASNETC_DEFAULT_PACKEDLONG_LIMIT	GASNETC_MAX_PACKEDLONG
@@ -121,10 +122,9 @@ static int gasnetc_qp_timeout, gasnetc_qp_retry_count;
  * With 32k * 128k = 4G we can pin upto 4GB of physical memory with these.
  * We don't yet deal well with many small regions.
  * Note that GASNET_FIREHOSE_* env vars can override these.
- * XXX: HCA-specific defaults should be used (see bug 2229).
  */
-unsigned int gasnetc_fh_maxregions = 32768;
-unsigned int gasnetc_fh_maxsize    = 131072;
+static unsigned int gasnetc_fh_maxregions = 32768;
+static unsigned int gasnetc_fh_maxsize    = 131072;
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -364,8 +364,8 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
 
   gasnetc_pin_info.memory    = ~((uintptr_t)0);
   gasnetc_pin_info.num_local = num_local;
-  gasnetc_pin_info.regions = gasnetc_hca[0].hca_cap.gasnetc_f_max_mr;
-  for (i = 1; i < gasnetc_num_hcas; ++i) {
+  gasnetc_pin_info.regions = gasnetc_fh_maxregions;
+  GASNETC_FOR_ALL_HCA_INDEX(i) {
     gasnetc_pin_info.regions = MIN(gasnetc_pin_info.regions, gasnetc_hca[i].hca_cap.gasnetc_f_max_mr);
   }
 
@@ -448,7 +448,7 @@ static int gasnetc_load_settings(void) {
   GASNETC_ENVINT(gasnetc_am_credits_slack, GASNET_AM_CREDITS_SLACK, GASNETC_DEFAULT_AM_CREDITS_SLACK, 0, 0);
   GASNETC_ENVINT(gasnetc_bbuf_limit, GASNET_BBUF_COUNT, GASNETC_DEFAULT_BBUF_COUNT, 0, 0);
   GASNETC_ENVINT(gasnetc_num_qps, GASNET_NUM_QPS, GASNETC_DEFAULT_NUM_QPS, 0, 0);
-  GASNETC_ENVINT(gasnetc_inline_limit, GASNET_INLINESEND_LIMIT, GASNETC_DEFAULT_INLINESEND_LIMIT, 0, 1);
+  GASNETC_ENVINT(gasnetc_inline_limit, GASNET_INLINESEND_LIMIT, GASNETC_DEFAULT_INLINESEND_LIMIT, -1, 1);
   GASNETC_ENVINT(gasnetc_bounce_limit, GASNET_NONBULKPUT_BOUNCE_LIMIT, GASNETC_DEFAULT_NONBULKPUT_BOUNCE_LIMIT, 0, 1);
   GASNETC_ENVINT(gasnetc_packedlong_limit, GASNET_PACKEDLONG_LIMIT, GASNETC_DEFAULT_PACKEDLONG_LIMIT, 0, 1);
   GASNETC_ENVINT(gasnetc_amrdma_max_peers, GASNET_AMRDMA_MAX_PEERS, GASNETC_DEFAULT_AMRDMA_MAX_PEERS, 0, 0);
@@ -589,7 +589,8 @@ static int gasnetc_load_settings(void) {
 #if GASNETC_PIN_SEGMENT
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_PIN_MAXSZ                = %lu", gasnetc_pin_maxsz));
 #endif
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_INLINESEND_LIMIT         = %u", (unsigned int)gasnetc_inline_limit));
+  GASNETI_TRACE_PRINTF(C,  ("  GASNET_INLINESEND_LIMIT         = %d%s", (int)gasnetc_inline_limit,
+				(gasnetc_inline_limit == (size_t)-1 ? " (automatic)" : "")));
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_NONBULKPUT_BOUNCE_LIMIT  = %u", (unsigned int)gasnetc_bounce_limit));
 #if !GASNETC_PIN_SEGMENT
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_PUTINMOVE_LIMIT          = %u", (unsigned int)gasnetc_putinmove_limit));
@@ -1089,33 +1090,15 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_assert_always(hca->hca_cap.gasnetc_f_max_cq >= 2);
     GASNETI_TRACE_PRINTF(C,("  max_num_ent_cq           = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_cqe));
   
-    /* Check for sufficient pinning resources */
-    {
-      int mr_needed = 2;		/* rcv bufs and snd bufs */
-      #if FIREHOSE_VAPI_USE_FMR
-        int fmr_needed = 0;	/* none by default */
-      #endif
   
-      #if GASNETC_PIN_SEGMENT
-        mr_needed++;		/* XXX: need more than 1 due to gasnetc_pin_maxsz */
-      #endif
-      #if FIREHOSE_VAPI_USE_FMR
-        fmr_needed += gasnetc_fh_maxregions;	/* FMRs needed for firehoses */
-      #else
-        mr_needed += gasnetc_fh_maxregions;	/* regular MRs needed for firehoses */
-      #endif
-  
-      GASNETI_TRACE_PRINTF(C,("  max_mr                   = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_mr));
-      gasneti_assert_always(hca->hca_cap.gasnetc_f_max_mr >=  mr_needed);
-      #if FIREHOSE_VAPI_USE_FMR
-        GASNETI_TRACE_PRINTF(C,("  max_num_fmr              = %u", (unsigned int)hca->hca_cap.max_num_fmr));
-	if_pf (hca->hca_cap.max_num_fmr == 0) {
-	  gasneti_fatalerror("GASNet's vapi-conduit was configured to use FMRs, but libvapi reports none available.  You must pass the --disable-vapi-fmr flag to configure.");
-	}
-        gasneti_assert_always(hca->hca_cap.max_num_fmr >= fmr_needed);
-      #endif
-    }
-  
+    GASNETI_TRACE_PRINTF(C,("  max_mr                   = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_mr));
+    #if FIREHOSE_VAPI_USE_FMR
+      GASNETI_TRACE_PRINTF(C,("  max_num_fmr              = %u", (unsigned int)hca->hca_cap.max_num_fmr));
+      if_pf (hca->hca_cap.max_num_fmr == 0) {
+	gasneti_fatalerror("GASNet's vapi-conduit was configured to use FMRs, but libvapi reports none available.  You must pass the --disable-vapi-fmr flag to configure.");
+      }
+    #endif
+
     /* Vendor/device-specific firmware checks */
 #if GASNET_CONDUIT_VAPI
     if ((hca->hca_vendor.vendor_id == MT_MELLANOX_IEEE_VENDOR_ID) &&
@@ -1419,9 +1402,11 @@ static int gasnetc_init(int *argc, char ***argv) {
       vstat = VAPI_modify_qp(gasnetc_cep[i].hca_handle, gasnetc_cep[i].qp_handle, &qp_attr, &qp_mask, &qp_cap);
       GASNETC_VAPI_CHECK(vstat, "from VAPI_modify_qp(RTS)");
       if (qp_cap.max_inline_data_sq < gasnetc_inline_limit) {
-	fprintf(stderr,
+	if (gasnetc_inline_limit != (size_t)-1) {
+	  fprintf(stderr,
 		"WARNING: Requested GASNET_INLINESEND_LIMIT %d reduced to HCA limit %d\n",
 		(int)gasnetc_inline_limit, (int)qp_cap.max_inline_data_sq);
+	}
         gasnetc_inline_limit = qp_cap.max_inline_data_sq;
       }
     }
@@ -1444,9 +1429,11 @@ static int gasnetc_init(int *argc, char ***argv) {
         rc = ibv_query_qp(gasnetc_cep[i].qp_handle, &qp_attr2, IBV_QP_CAP, &qp_init_attr);
         GASNETC_VAPI_CHECK(rc, "from ibv_query_qp(RTS)");
         if (qp_attr2.cap.max_inline_data < gasnetc_inline_limit) {
-	  fprintf(stderr,
+	  if (gasnetc_inline_limit != (size_t)-1) {
+	    fprintf(stderr,
 		"WARNING: Requested GASNET_INLINESEND_LIMIT %d reduced to HCA limit %d\n",
 		(int)gasnetc_inline_limit, (int)qp_attr2.cap.max_inline_data);
+	  }
           gasnetc_inline_limit = qp_attr2.cap.max_inline_data;
         }
       }
@@ -1841,8 +1828,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
         /* Adjust for the pinned segment (which is not advertised to firehose as prepinned) */
         gasneti_assert_always(firehose_mem > maxsize);
         firehose_mem -= maxsize;
-        gasneti_assert_always(firehose_reg > gasnetc_seg_reg_count);
-        firehose_reg -= gasnetc_seg_reg_count;
+        gasneti_assert_always(firehose_reg > gasnetc_max_regs);
+        firehose_reg -= gasnetc_max_regs;
 
 	flags |= FIREHOSE_INIT_FLAG_LOCAL_ONLY;
       #endif
