@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2008/10/25 01:50:07 $
-# $Revision: 1.485.2.11 $
+#     $Date: 2008/10/25 02:25:46 $
+# $Revision: 1.485.2.12 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.485.2.11 $)
+AC_REVISION($Revision: 1.485.2.12 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1918,14 +1918,13 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
         GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $MISC_CFLAGS $CFLAGS, $SAFE_MPI_CFLAGS)
     	GASNET_ENV_DEFAULT(MPI_LIBS, )
 	GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
-
         ;;
     linux*) 
     	GASNET_ENV_DEFAULT(MPI_CC, mpicc)
         GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $MISC_CFLAGS $CFLAGS, $SAFE_MPI_CFLAGS)
     	GASNET_ENV_DEFAULT(MPI_LIBS, )
-	 GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
-   GASNET_ENV_DEFAULT(MPIRUN_CMD_BATCH, "")
+	GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
+        GASNET_ENV_DEFAULT(MPIRUN_CMD_BATCH, "")
         ;;
     irix*)
 	# use SGI native MPI library
@@ -3768,7 +3767,6 @@ dcmf-conduit/Makefile
 dcmf-conduit/conduit.mak
 dcmf-conduit/contrib/Makefile
 dcmf-conduit/contrib/gasnetrun_dcmf
-
 
 vapi-conduit/Makefile
 vapi-conduit/conduit.mak
