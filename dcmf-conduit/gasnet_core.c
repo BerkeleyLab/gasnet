@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2008/10/25 16:00:49 $
- * $Revision: 1.1.2.29 $
+ *     $Date: 2008/10/27 04:50:45 $
+ * $Revision: 1.1.2.30 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1585,7 +1585,7 @@ DCMF_Request_t* gasnetc_dcmf_handle_am_header(void *clientdata,
   we don't need to wait for the send to be locally complete since the buffer won't be cleared
   until we get a remote ack from the remote side...
 */
-GASNETI_INLINE(gasnetc_resend_am_req) 
+/*GASNETI_INLINE(gasnetc_resend_am_req) */
 void gasnetc_resend_am_req(gasnetc_replay_buffer_t *replay_buffer) {
   volatile uint8_t send_done=0;
   DCMF_Callback_t send_done_callback;
