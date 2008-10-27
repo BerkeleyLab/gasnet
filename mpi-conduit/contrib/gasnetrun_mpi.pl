@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #		$Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#			$Date: 2008/10/25 01:59:37 $
-# $Revision: 1.63.2.5 $
+#			$Date: 2008/10/27 04:51:23 $
+# $Revision: 1.63.2.6 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -11,6 +11,7 @@ use strict;
 # NOTE: The value of $ENV{'MPIRUN_CMD'} may be set in the shell wrapper
 my $spawncmd = $ENV{'MPIRUN_CMD'} || 'mpirun -np %N %P %A';
 
+print "$ENV{'MPIRUN_CMD'} $ENV{'MPIRUN_CMD_BATCH'}\n";
 
 $spawncmd = stripouterquotes($spawncmd);
 $spawncmd =~ s/%C/%P %A/;	# deal with common alias
@@ -234,11 +235,18 @@ if ($ENV{'MPIRUN_CMD_BATCH'} ne "") {
 		} elsif ($is_bgp) {
 	$spawner_desc = "IBM BG/P";
 	# pass as: -e A=val:B=val
-	%envfmt = ( 'pre' => '--env',
+  if($ENV{'COBALT_JOBID'}) {
+			%envfmt = ( 'pre' => '-env',
 				'join' => ':',
 				'val' => ''
 			);
-	
+   } else {
+       		%envfmt = ( 'pre' => '--env',
+				'join' => ':',
+				'val' => ''
+			);
+  
+   }   
 	$encode_env = 1; # botches spaces in environment values
 	$encode_args = 1; # and in arguments
 		} elsif ($is_jacquard) {
@@ -363,9 +371,6 @@ sub expand {
 	shift;
 		}
 
-if(!defined($numnode)) {
-    $numnode = $numproc
-}
 		print "gasnetrun: identified MPI spawner as: $spawner_desc\n" if ($verbose);
 
 # Validate -n as needed
@@ -613,17 +618,19 @@ if ($numnode && ($is_aprun || $is_yod)) {
 
 
 	if ($numproc && $is_bgp) {
-	if ($ENV{'COBALT_JOBID'}) { # inside the job script
+   if(!defined($numnode)) {
+    $numnode = $numproc
+   }
+
+if ($ENV{'COBALT_JOBID'}) { # inside the job script
 		my $partsz = undef;
-		#spawning command needs to be changed to cobalt-mpirun and not qsub
+		print "inside cobalt job spawner";
+    #spawning command needs to be changed to cobalt-mpirun and not qsub
 		$spawncmd = $ENV{'MPIRUN_CMD_BATCH'} || 'cobalt-mpirun %N %P %A';
 		$spawncmd = stripouterquotes($spawncmd);
     $spawncmd =~ s/%C/%P %A/;	# deal with common alias
 		# pass as: -env A=val:B=val .... this si really dumb cobalt-mpirun has one less - than qsub
-		%envfmt = ( 'pre' => '-env',
-				'join' => ':',
-				'val' => ''
-			);
+    
 
 		open(QSTAT, "qstat -f $ENV{'COBALT_JOBID'}|") || die "Failed to run qstat";
 		while (<QSTAT>) {
@@ -634,7 +641,7 @@ if ($numnode && ($is_aprun || $is_yod)) {
 			}
 		}
 		close(QSTAT); 
-		die "Failed to query partition size" unless (defined $partsz);
+	  die "Failed to query partition size" unless (defined $partsz);
     
 		if ($numproc <= $partsz) {
 			@numprocargs = ('-np', $numproc);
@@ -643,9 +650,9 @@ if ($numnode && ($is_aprun || $is_yod)) {
 		} elsif ($numproc * 4 == $partsz) {
 			@numprocargs = ('-mode', 'vn');
 		} else {
-			die "BG/P only supports 1, 2 or 4 ppn, and must conform to partition size.	See README.dcmf.";
+			die "BG/P only supports 1, 2 or 4 ppn, and must conform to partition size $numproc $partsz.	See README.dcmf.";
 		}
-	} else { # qsub requires 
+	} else { # qsub requires
     my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
 		if ($ppn * $numnode != $numproc) {
 		warn "WARNING: non-uniform process distribution not supported\n";
