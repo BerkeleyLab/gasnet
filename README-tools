@@ -2,8 +2,8 @@
 README file for GASNet tools
 ============================
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.19 $
-GASNet tools specification version: 1.3
+$Revision: 1.19.2.1 $
+GASNet tools specification version: 1.4
 
 The GASNet tools are a set of communication-independent utilities that are used
 to implement GASNet, and constitute a useful portability tool for GASNet
@@ -178,16 +178,16 @@ Atomic operations
 
 GASNet tools provides portable atomic memory operations for efficient inter-thread coordination.
 
-Note the atomic operations exposed by GASNet tools only expand to architecturally 
+Note the default atomic operations exposed by GASNet tools only expand to architecturally 
 atomic instructions in GASNETT_THREAD_SAFE mode. In single-threaded mode, they all expand to
 appropriate regular (non-atomic) operations, which are often more efficient
 than their atomic equivalents and should be indistinguishable in behavior for
 programs with no concurrency. 
 
-The atomics currently exposed by GASNet tools are *not* guaranteed to be atomic with respect 
+The default atomics exposed by GASNet tools are *not* guaranteed to be atomic with respect 
 to signal handlers, and therefore should not be used for synchronizing with signal handlers.
-GASNet internally has signal-safe versions of the atomics on *most* platforms, and we might
-consider exposing those in a future version of the tools interface.
+If you need signal-safe atomics or atomic memory access in single-threaded codes, see
+the section on strong atomics below.
 
  * gasnett_atomic_t
 
@@ -420,6 +420,25 @@ consider exposing those in a future version of the tools interface.
   client code separate the atomic and non-atomic treatment of memory into
   distinct phases of the computation, separated by a barrier.
    
+ * Strong atomics
+
+  GASNet tools offers a "strong" atomics interface, which expands to the strongest available
+  atomic operations on a given platform, even in single threaded-codes. The syntax and semantics
+  for these operations is identical to those described above, with all name prefixes changed as follows: 
+
+    gasnett_atomic_X    to   gasnett_strongatomic_X
+    gasnett_atomic32_X  to   gasnett_strongatomic32_X
+    gasnett_atomic64_X  to   gasnett_strongatomic64_X
+
+  On most, but not all, platforms, operations on gasnett_strongatomic_t are signal safe.  
+  On the few platforms where this is not the case GASNETT_STRONGATOMIC_NOT_SIGNALSAFE
+  will be defined to 1.
+
+  Similarly, GASNETT_STRONGATOMIC32_NOT_SIGNALSAFE and GASNETT_STRONGATOMIC64_NOT_SIGNALSAFE
+  are defined to 1 IFF the implementation of the fixed-width atomics is not signal-safe.
+  Note that these two are set independently.
+
+
 -------------------------
 Portable platform defines
 -------------------------
