@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2008/10/27 21:52:07 $
-# $Revision: 1.63.2.7 $
+#     $Date: 2008/10/28 01:56:15 $
+# $Revision: 1.63.2.8 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -636,7 +636,7 @@ if ($numproc && $is_bgp) {
 
   if ($ENV{'COBALT_JOBID'}) { # inside the job script
     my $partsz = undef;
-    print "inside cobalt job spawner";
+    print "inside cobalt job spawner\n" if ($verbose);
     #spawning command needs to be changed to cobalt-mpirun and not qsub
     $spawncmd = $ENV{'MPIRUN_CMD_BATCH'} || 'cobalt-mpirun %N %P %A';
     $spawncmd = stripouterquotes($spawncmd);
