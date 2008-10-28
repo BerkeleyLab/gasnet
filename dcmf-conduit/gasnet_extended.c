@@ -1,8 +1,9 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2008/10/25 16:00:49 $
- * $Revision: 1.1.2.16 $
- * Description: GASNet Extended API Reference Implementation
- * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
+ *     $Date: 2008/10/28 00:55:42 $
+ * $Revision: 1.1.2.17 $
+ * Description: GASNet Extended API Implementation for DCMF
+ * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
+ *                 Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 

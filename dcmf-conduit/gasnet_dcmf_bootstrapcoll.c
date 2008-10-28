@@ -1,3 +1,12 @@
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_dcmf_bootstrapcoll.c,v $
+ *     $Date: 2008/10/28 00:55:42 $
+ * $Revision: 1.1.2.9 $
+ * Description: GASNet dcmf conduit Implementation
+ * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>, 
+                   Dan Bonachea <bonachea@cs.berkeley.edu>
+ * Terms of use are as specified in license.txt
+ */
+
 #include <gasnet_core_internal.h>
 
 

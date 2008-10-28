@@ -1,9 +1,10 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/Makefile.am,v $
-#     $Date: 2008/10/24 01:23:41 $
-# $Revision: 1.1.2.3 $
+#     $Date: 2008/10/28 00:55:42 $
+# $Revision: 1.1.2.4 $
 # Description: Makefile for GASNet dcmf conduit
-# Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
+# Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
+#                 Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
 
 AUTOMAKE_OPTIONS = foreign 1.4

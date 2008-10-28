@@ -1,8 +1,9 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_internal.h,v $
- *     $Date: 2008/10/25 16:00:49 $
- * $Revision: 1.1.2.20 $
+ *     $Date: 2008/10/28 00:55:42 $
+ * $Revision: 1.1.2.21 $
  * Description: GASNet dcmf conduit header for internal definitions in Core API
- * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
+ * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
+ *                 Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 

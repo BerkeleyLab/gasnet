@@ -1,10 +1,12 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2008/10/25 16:00:49 $
- * $Revision: 1.1.2.9 $
+ *     $Date: 2008/10/28 00:55:42 $
+ * $Revision: 1.1.2.10 $
  * Description: GASNet header for internal definitions in Extended API
- * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
+ * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
+ *                 Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
+
 
 #ifndef _GASNET_EXTENDED_INTERNAL_H
 #define _GASNET_EXTENDED_INTERNAL_H

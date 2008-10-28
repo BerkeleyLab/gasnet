@@ -1,8 +1,9 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.h,v $
- *     $Date: 2008/07/31 04:27:18 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2008/10/28 00:55:42 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet header for dcmf conduit core
- * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
+ * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
+ *                 Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
