@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2008/11/08 08:16:06 $
- * $Revision: 1.5 $
+ *     $Date: 2008/11/04 14:42:18 $
+ * $Revision: 1.4 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>, 
                    Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -95,7 +95,7 @@ static DCMF_Protocol_t gasnetc_dcmf_ack_registration;
 static DCMF_Protocol_t gasnetc_dcmf_nack_registration;
 static DCMF_Protocol_t gasnetc_dcmf_short_msg_registration;
 static DCMF_Protocol_t gasnetc_force_exit_registration;
-
+static DCMF_Protocol_t gasnetc_exit_barrier_registration;
 
 #if GASNET_DEBUG
 static gasneti_semaphore_t gasnetc_num_replay_buffers_active= GASNETI_SEMAPHORE_INITIALIZER(0,0);
@@ -277,6 +277,14 @@ static void gasnetc_dcmf_init(gasnet_node_t* mynode, gasnet_node_t *nodes) {
 
   } while(0);
   
+  { /*register exit barrier*/
+    DCMF_GlobalAllreduce_Configuration_t config;
+    bzero(&config, sizeof(DCMF_GlobalAllreduce_Configuration_t));
+    config.protocol = DCMF_DEFAULT_GLOBALALLREDUCE_PROTOCOL;
+    GASNETC_DCMF_CHECK_PTR(&gasnetc_exit_barrier_registration);
+    DCMF_SAFE(DCMF_GlobalAllreduce_register(&gasnetc_exit_barrier_registration, &config));
+  }
+ 
   
   GASNETC_DCMF_UNLOCK();  
 }
@@ -629,12 +637,9 @@ static void gasnetc_tryCollectiveExit(int exitcode) {
   DCMF_Request_t req;
   DCMF_Callback_t cb_done;
   volatile int done=0;
-
-#if 1
-  DCMF_Protocol_t gasnetc_exit_barrier_registration;
+  
   cb_done.function = gasnetc_inc_uint32_arg_cb;
   cb_done.clientdata =(void*)  &done;
-#endif
 
   signal(SIGALRM, gasnetc_exit_timeout);
   inputexit_code = 0xf0f0f000;
@@ -644,30 +649,20 @@ static void gasnetc_tryCollectiveExit(int exitcode) {
   alarm(1+(int)gasnetc_exittimeout); /*XXX: aquire value from env*/
 
 #if GASNET_DEBUG
-  fprintf(stderr, "%d> exit initiated... checking for collective exit (exit code: %d) timeout: %d\n", gasneti_mynode, exitcode, 1+(int)gasnetc_exittimeout);
+  fprintf(stderr, "%d> exit initiated... checking for collective exit (exit code: %d)\n", gasneti_mynode, exitcode);
 #endif
   
   
-#if 1
   DCMF_CriticalSection_enter(0);
-  { /*register exit barrier*/
-    DCMF_GlobalAllreduce_Configuration_t config;
-    bzero(&config, sizeof(DCMF_GlobalAllreduce_Configuration_t));
-    config.protocol = DCMF_DEFAULT_GLOBALALLREDUCE_PROTOCOL;
-    GASNETC_DCMF_CHECK_PTR(&gasnetc_exit_barrier_registration);
-    DCMF_GlobalAllreduce_register(&gasnetc_exit_barrier_registration, &config);
-    GASNETC_DCMF_CHECK_PTR(&req);
-    DCMF_SAFE_NO_CHECK(DCMF_GlobalAllreduce(&gasnetc_exit_barrier_registration, &req,
-                                            cb_done, DCMF_MATCH_CONSISTENCY,
-                                            -1, (char*) &inputexit_code,
-                                            (char*) &outputexit_code, 1, DCMF_UNSIGNED_INT, DCMF_MAX));
-    while(!done) DCMF_Messager_advance();
-  }
+  GASNETC_DCMF_CHECK_PTR(&gasnetc_exit_barrier_registration);
+  GASNETC_DCMF_CHECK_PTR(&req);
+  DCMF_SAFE_NO_CHECK(DCMF_GlobalAllreduce(&gasnetc_exit_barrier_registration, &req,
+                                          cb_done, DCMF_MATCH_CONSISTENCY,
+                                          -1, (char*) &inputexit_code,
+                                          (char*) &outputexit_code, 1, DCMF_UNSIGNED_INT, DCMF_MAX));
+  while(!done) DCMF_Messager_advance();
   DCMF_CriticalSection_exit(0);
-#else
-  gasnetc_bootstrapBarrier();
-  outputexit_code = exitcode;
-#endif
+
   
 #if GASNET_DEBUG
   fprintf(stderr, "%d> collective exit succeeded. Exiting with code %d\n", gasneti_mynode,

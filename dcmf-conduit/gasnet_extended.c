@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2008/11/08 08:16:06 $
- * $Revision: 1.3 $
+ *     $Date: 2008/10/28 05:43:39 $
+ * $Revision: 1.2 $
  * Description: GASNet Extended API Implementation for DCMF
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -233,8 +233,8 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
     if (bufidx == 256) gasneti_fatalerror("GASNet Extended API: Ran out of explicit handles (limit=65535)");
     thread->eop_num_bufs++;
     buf = (gasnete_eop_t *)gasneti_calloc(256,sizeof(gasnete_eop_t));
-    /* buf = (gasnete_eop_t *)gasneti_malloc_aligned(16,256*sizeof(gasnete_eop_t));
-       bzero(buf, sizeof(gasnete_eop_t)*256); */
+    // buf = (gasnete_eop_t *)gasneti_malloc_aligned(16,256*sizeof(gasnete_eop_t));
+    // bzero(buf, sizeof(gasnete_eop_t)*256);
     for (i=0; i < 256; i++) {
       gasnete_eopaddr_t addr;
       addr.bufferidx = bufidx;
@@ -1337,7 +1337,6 @@ static void gasnete_dcmfbarrier_init() {
 
   /*initialize named barrier*/
 
-  
   {
     DCMF_GlobalAllreduce_Configuration_t config;
     /*
@@ -1356,14 +1355,13 @@ static void gasnete_dcmfbarrier_init() {
       gasneti_fatalerror("unknown dcmf barrier protocol: %s", barrier_protocol);
     }
 
-    DCMF_CriticalSection_enter(0);
-    /*    GASNETC_DCMF_LOCK(); */
+    GASNETC_DCMF_LOCK();
     GASNETC_DCMF_CHECK_PTR(&named_barrier_registration);
-    DCMF_SAFE_NO_CHECK(DCMF_GlobalAllreduce_register(&named_barrier_registration, &config));
+    DCMF_SAFE(DCMF_GlobalAllreduce_register(&named_barrier_registration, &config));
     named_barrier_source[0] = -1; named_barrier_source[1]=0;
     named_barrier_result[0] = -1; named_barrier_result[1]=1;
-    DCMF_CriticalSection_exit(0);
-    /*  GASNETC_DCMF_UNLOCK(); */
+   
+    GASNETC_DCMF_UNLOCK();
   }
   barrier_done= 0;
 }
@@ -1385,7 +1383,7 @@ static void gasnete_dcmfbarrier_notify(int id, int flags) {
     gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
   } 
 
-  /*gasneti_assert(id >= 0);*/
+  //gasneti_assert(id >= 0);
   barrier_done = 0;
     
   cb_done.function = increment_value;
