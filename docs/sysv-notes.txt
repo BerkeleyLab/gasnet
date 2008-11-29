@@ -1,0 +1,144 @@
+Notes on the Sysv/GASNet prototype implementation status
+Jason Duell <jcduell@gmail.com>
+
+The big idea: is to set up shared memory between processes on the same node, so
+we skip using the network for gets/puts.   I also created a "sysVnet", which
+runs Active messages between processes using shared memory.  This was needed for
+the SMP conduit, but should be faster than using a network API, so we should
+keep using it for processes which share memory.
+
+Implementation big picture:  we need to set up lots of shared memory, make it
+work with whatever network API is being used, set up SysVnet, and then make sure
+that shared memory is used for gets/put/AM when possible.
+
+Setting up shared memory
+    - right now the smp code uses mmap/fork, but this won't work when we don't
+      have control over process spawning (i.e. for most network conduits).
+    - So you need to switch to use Posix mmap and/or SysV, depending on OS.
+        - POSIX shared memory works on most of our OSes;  AIX doesn't support
+          it, but does support large System V shared memory segments.  
+        - Ideally, you can use come autoconf checks, and prefer Posix shmem if
+          available, then (MAP_SHARED | MAP_NOSYNC) if available (it's not in
+          many places, except some BSD variants), followed by SysV shmem if
+          nothing else works.  Or it may devolve into OS-specific checks--i.e.
+          case (AIX)...--but I don't think so.
+        - Cygwin may be a whole different story:  we might have to do some
+          Win32-specific stuff if the Cygwin API doesn't support any of the Unix
+          ways of setting up shared memory.  
+    - I *believe* that we can generally set up the shared memory, and then
+      register the area with whatever network pinning/registration API the
+      conduit uses, but this may vary by network?
+    - placement of shared area--may matter for symmetric pointers
+        - only an issue on Altix and related systems
+        - talk to Dan about this.
+
+- Making sure shared memory is used when available
+    - Gets/puts: switch to use local ptr already implemented?
+        - I can't remember if I only implemented it for SMP or not.  The logic
+          should be quite similar to that for pthreads:  there's a table that
+          gets filled with node indexes, with an offset for shared memory
+          regions this thread can access, or zero if remote.
+    - Active Messages:  I also can't remember if my solution was general or SMP
+      conduit specific, but the idea is just to send local calls to SysVnet, or
+      else using the gasnet conduit's AM.
+
+------------------------------------------------------------------------
+Infrastructure:  I'm afraid I've gotten fuzzy about all the autoconf goop needed
+to build sysV version of our libraries, and how much of it I did in a
+generalizable fashion versus as a hack to make smp-sysV work.   Here's my notes:
+
+- Building SYSV libraries:
+    - I added an --enable-sysv flag to configure in the SYSV branch.  I think
+      you need to pass it to turn it on.   Once the code is merged and
+      production-ready, it should be on by default, I'd guess.
+    - Makefile.am:
+        - I added a libupcr_smp_sysv.a target, with UPCR_PARSEQ=sysv.  This
+          would be duplicated for any networks that use SysV, so UDP + sysV
+          would be libuprc_udp_sysv.a.  
+        - I'm not sure if there needs to be a gasnet 'sysv.a' lib or not:  quite
+          possibly?   Or maybe we can keep it all at the runtime level, and just
+          use the gasnet "seq" library.
+    - I also have these random notes, which I don't understand:
+
+        - Makefile-conduit.mak.in:
+            - try 'make test-sysv'
+            - THREAD_MODEL: set to 'seq', so GASNET_SEQ defined
+                - in two places: also when makefile fragment
+        - Makefile-libgasnet.mak.in
+            - set CONDUIT_SYSV_HOOK  -- used where?
+    
+        (the bit about defining GASNET_SEQ may mean that you can get away with
+        using the 'seq' library for gasnet, instead of building a 'sysV' one.)
+
+    - but then I've got some later notes that seem to indicate that we need to
+      make sure we don't turn off GASNET_SEQ for things like locks, memory
+      barriers, etc.   This make sense, if another process is sharing memory.
+
+    - Here's some more cryptic notes:  it's entirely possible that we actually
+      resolved all this crap at some point.
+        FILES with GASNET_SEQ:
+        extended-ref/gasnet_extended_refcoll.c
+            - GASNET_COLL_LOCAL 'discouraged' in GASNET_SEQ build
+                - SYSV?
+            - GASNET_COLL_SINGLE 'illegal' with GASNET_PAR
+                - assume it's OK with SYSV?
+        gasnet_atomic_bits.h
+            - some switching on whether GASNETI_USE_TRUE_MUTEXES is defined
+                - do we need real handle-safe-locks in SYSV? (PROBABLY)
+                - note: gasneti_mutex_t is a pthread mutex: need to replace with SysV
+                  semaphore if cross-platform pthread mutex not supported? 
+
+
+- I recall that there was some gasnet function that looked grotty--was it
+  gasnet_attach()?  Or maybe a subcall within it--which I wound up largely
+  cutting and pasting, and simplifying for my test SysV branch.  We may
+  want/need a single copy of that function.
+
+- Messaging setup and usage:
+    - Call sysV_queue_init() within gasnet_attach?  Before or after main shared region is setup?
+
+- Setting CPU affinity:  this is something you may want to look into at some
+  point, to see if you can optimize performance by pinning processes to CPUs.
+  Be warned that I wasted tons of time on this and never found any speedup.  But
+  I may have just missed something--the vendors certainly claim it works, and
+  MPI libs often use it.   I'd leave it for now while you just get things
+  working.
+
+--------------------------------------------------------------------------------
+
+Need separate recv & reply queues, to avoid deadlock (IMPLEMENTED)
+    - each node in supernode has a receive queue for every other node
+      (unidirectional), and a reply one as well.
+
+--------------------------------------------------------------------------------
+BEFORE MERGE
+--------------------------------------------------------------------------------
+
+- Optimize localhost puts/gets in gasnet calls
+    - already works:  gasnete_islocal() always  returns 1 for SMP conduit.
+- Increase MaxMedMsgSize
+    - allocator: small vs lg buffer pools
+    - we want SysVnet's MaxMedMsgSize to always be >= gasnet conduits'.
+- Tracing works?
+    - AMSYSV: trace_local not distinguished?
+- Fix bugs in AMSYSV
+    - testnbr fails on many (mechanic) even when seq: many more if par
+    - testcoll fails on mechanic:gcc:opt
+    - fix PARSYNC tests and run
+- Clean exits
+    - use pipes?  Gasnet_exit, too?
+        - testinternal on Jaq:par:gcc:dbg dies?
+    - Davinci: apex processes spinning forever: only when 16 threads?
+- cleaner sysvinit interface?
+    - replace variables, 2 calls to sysv_init with single call to AMSYSV_init,
+      and 
+- Symmetric ptrs: turn on for both smp-pthreads and sysv-smp?
+- Run full harness, look at results
+- Use posix/SysV instead of mmap/fork?  Add to mmap search code?
+    - stick in shared codebase
+
+Provide GASNET_POWER_OF_2_SEPARATED_SEGMENTS iff we can setup start of shared
+region at pow2 difference between nodes
+    - allows symmetric ptr optimization
+
+
