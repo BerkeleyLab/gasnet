@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_internal.h,v $
- *     $Date: 2008/10/24 22:20:11 $
- * $Revision: 1.24 $
+ *     $Date: 2008/12/10 03:15:13 $
+ * $Revision: 1.24.4.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -76,7 +76,16 @@ typedef struct _gasnete_threaddata_t {
   gasnete_iop_t *iop_free;      /*  free list of iops */
 
   struct _gasnet_valget_op_t *valget_free; /* free list of valget cells */
+
+  struct _gasnete_thread_cleanup {
+    struct _gasnete_thread_cleanup *next;
+    void (*cleanupfn)(void *);
+    void *context;
+  } *thread_cleanup; /* thread exit cleanup function LIFO */
+  int thread_cleanup_delay;
+
 } gasnete_threaddata_t;
+
 /* ------------------------------------------------------------------------------------ */
 
 /* gasnete_op_t flags field */
@@ -126,7 +135,10 @@ void gasnete_op_free(gasnete_op_t *op);
     gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);                  \
     gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT ||               \
                    OPSTATE(eop) == OPSTATE_COMPLETE);                \
+    gasneti_assert(((int)(eop)->threadidx)+1 <= GASNETI_MAX_THREADS);\
     _th = gasnete_threadtable[(eop)->threadidx];                     \
+    gasneti_assert(_th);                                             \
+    gasneti_memcheck(_th);                                           \
     gasneti_assert(GASNETE_EOPADDR_TO_PTR(_th, (eop)->addr) == eop); \
   } while (0)
   #define gasnete_iop_check(iop) do {                         \
@@ -135,7 +147,8 @@ void gasnete_op_free(gasnete_op_t *op);
     _tmp_next = (iop)->next;                                  \
     if (_tmp_next != NULL) _gasnete_iop_check(_tmp_next);     \
     gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);           \
-    gasneti_assert((iop)->threadidx < gasnete_numthreads);    \
+    gasneti_assert(((int)(iop)->threadidx)+1 <= GASNETI_MAX_THREADS); \
+    gasneti_assert(gasnete_threadtable[(iop)->threadidx]);    \
     gasneti_memcheck(gasnete_threadtable[(iop)->threadidx]);  \
     _temp = gasneti_weakatomic_read(&((iop)->completed_put_cnt), 0); \
     if (_temp <= 65000) /* prevent race condition on reset */ \

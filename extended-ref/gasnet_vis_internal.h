@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_internal.h,v $
- *     $Date: 2006/05/23 12:42:19 $
- * $Revision: 1.18 $
+ *     $Date: 2008/12/10 03:15:13 $
+ * $Revision: 1.18.38.1 $
  * Description: Internal definitions for GASNet Vector, Indexed & Strided implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -40,12 +40,27 @@ typedef struct {
   #endif
 } gasnete_vis_threaddata_t;
 
+static void gasnete_vis_cleanup_threaddata(void *_td) {
+  gasnete_vis_threaddata_t *td = (gasnete_vis_threaddata_t *)_td;
+  #ifdef GASNETE_VIS_THREADDATA_EXTRA_CLEANUP
+    GASNETE_VIS_THREADDATA_EXTRA_CLEANUP(td);
+  #endif
+  gasneti_assert(td->active_ops == NULL);
+  gasneti_vis_op_t *op;
+  while ((op = td->free_ops) != NULL) {
+    td->free_ops = op->next;
+    gasneti_free(op);
+  }
+  gasneti_free(td);
+}
+
 GASNETI_INLINE(gasnete_vis_new_threaddata) GASNETI_MALLOC
 gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
   gasnete_vis_threaddata_t *result = gasneti_calloc(1,sizeof(*result));
   #ifdef GASNETE_VIS_THREADDATA_EXTRA_INIT
-    GASNETE_VIS_THREADDATA_EXTRA_INIT(result)
+    GASNETE_VIS_THREADDATA_EXTRA_INIT(result);
   #endif
+  gasnete_register_threadcleanup(gasnete_vis_cleanup_threaddata, result);
   return result;
 }
 

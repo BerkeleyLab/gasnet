@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.c,v $
- *     $Date: 2007/08/17 06:08:40 $
- * $Revision: 1.59 $
+ *     $Date: 2008/12/10 03:15:13 $
+ * $Revision: 1.59.18.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,7 +15,7 @@ GASNETI_IDENT(gasnete_IdentString_ExtendedName, "$GASNetExtendedLibraryName: " G
 
 gasnete_threaddata_t *gasnete_threadtable[GASNETI_MAX_THREADS] = { 0 };
 static int gasnete_numthreads = 0;
-static gasnet_hsl_t threadtable_lock = GASNET_HSL_INITIALIZER;
+static gasneti_mutex_t threadtable_lock = GASNETI_MUTEX_INITIALIZER;
 #if GASNETI_CLIENT_THREADS
   /* pthread thread-specific ptr to our threaddata (or NULL for a thread never-seen before) */
   GASNETI_THREADKEY_DEFINE(gasnete_threaddata);
@@ -46,21 +46,114 @@ extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
   Thread Management
   =================
 */
+static void gasnete_valget_freeall(gasnete_threaddata_t *thread);
+static void gasnete_free_threaddata(gasnete_threaddata_t *thread) {
+
+  /* active iop */
+  gasnete_iop_t *iop = thread->current_iop;
+  gasneti_assert(iop->next == NULL); /* not inside an NBI access region */
+  gasneti_assert(gasnete_op_isdone((gasnete_op_t *)iop)); /* no outstanding NBI ops */
+  gasneti_free(iop);
+
+  /* iop free list */
+  iop = thread->iop_free;
+  while (iop) {
+    gasnete_iop_t *next = iop->next;
+    gasneti_assert(gasnete_op_isdone((gasnete_op_t *)iop)); /* active in free list - should be imposs */
+    gasneti_free(iop);  
+    iop = next;
+  }
+  /* valgets */
+  gasnete_valget_freeall(thread);
+
+  /* eops */
+  { /* TODO: check for in-flight eops */
+    int i;
+    for (i = 0; i < thread->eop_num_bufs; i++) {
+       gasneti_free(thread->eop_bufs[i]);
+    }
+  }
+
+  /* threaddata itself */
+  gasneti_free(thread);
+}
+
+#ifndef GASNETE_THREAD_CLEANUP_DELAY
+#define GASNETE_THREAD_CLEANUP_DELAY 1 /* number of times to postpone pthread_setspecific callback */
+#endif
+
+static pthread_key_t gasnete_threaddata_cleanup;
+static void gasnete_threaddata_cleanup_fn(void *_thread) {
+  gasnete_threaddata_t *thread = _thread;
+  int idx = thread->threadidx;
+
+  #if GASNETI_CLIENT_THREADS
+    if (thread->thread_cleanup_delay < GASNETE_THREAD_CLEANUP_DELAY) {
+      thread->thread_cleanup_delay++;
+      pthread_setspecific(gasnete_threaddata_cleanup, thread);
+      return;
+    }
+  #endif
+
+  GASNETI_TRACE_PRINTF(C,("thread %i exiting\n", idx));
+  /* run cleanups in LIFO order, with multiple passes to catch registrations within cleanupfns */
+  { struct _gasnete_thread_cleanup *cleanuplist;
+    while ((cleanuplist = thread->thread_cleanup) != NULL) {
+      struct _gasnete_thread_cleanup *nextcleanup;
+      thread->thread_cleanup = NULL;
+      while ((nextcleanup = cleanuplist) != NULL) {
+        cleanuplist = nextcleanup->next;
+        nextcleanup->cleanupfn(nextcleanup->context);
+        gasneti_free(nextcleanup);
+      }
+    }
+  }
+
+  gasnete_free_threaddata(thread);
+
+  gasneti_mutex_lock(&threadtable_lock);
+    gasnete_threadtable[idx] = NULL;
+    gasnete_numthreads--;
+  gasneti_mutex_unlock(&threadtable_lock);
+}
+
+extern void gasnete_register_threadcleanup(void (*cleanupfn)(void *), void *context) {
+  gasnete_threaddata_t * const thread = gasnete_mythread();
+  struct _gasnete_thread_cleanup *cleanup = gasneti_malloc(sizeof(struct _gasnete_thread_cleanup));
+  cleanup->cleanupfn = cleanupfn;
+  cleanup->context = context;
+  cleanup->next = thread->thread_cleanup;
+  thread->thread_cleanup = cleanup;
+}
+
 static gasnete_threaddata_t * gasnete_new_threaddata() {
   gasnete_threaddata_t *threaddata = NULL;
   int idx;
-  gasnet_hsl_lock(&threadtable_lock);
-    idx = gasnete_numthreads;
-    gasnete_numthreads++;
-  gasnet_hsl_unlock(&threadtable_lock);
   gasneti_assert(GASNETI_MAX_THREADS <= (1U<<(sizeof(gasnete_threadidx_t)*8)));
-  #if GASNETI_CLIENT_THREADS
-    if (idx >= GASNETI_MAX_THREADS) 
-      gasneti_fatalerror("GASNet Extended API: Too many local client threads (limit=%i)",GASNETI_MAX_THREADS);
-  #else
-    gasneti_assert(idx == 0);
-  #endif
-  gasneti_assert(gasnete_threadtable[idx] == NULL);
+
+  gasneti_mutex_lock(&threadtable_lock);
+    gasnete_numthreads++;
+    #if GASNETI_CLIENT_THREADS
+      if (gasnete_numthreads >= GASNETI_MAX_THREADS) 
+        gasneti_fatalerror("GASNet Extended API: Too many simultaneous local client threads (limit=%i)",GASNETI_MAX_THREADS);
+    #endif
+    /* find a free slot */
+    if (gasnete_threadtable[gasnete_numthreads-1] == NULL) idx = gasnete_numthreads-1;
+    else { /* keep table somewhat compacted */
+      for (idx = 0; idx < GASNETI_MAX_THREADS; idx++) {
+        if (gasnete_threadtable[idx] == NULL) break;
+      }
+    }
+    gasneti_assert(idx < GASNETI_MAX_THREADS && gasnete_threadtable[idx] == NULL);
+    #if GASNETI_CLIENT_THREADS
+    { static int keycreated = 0;
+      if (!keycreated) {
+        pthread_key_create(&gasnete_threaddata_cleanup, &gasnete_threaddata_cleanup_fn);
+        keycreated = 1;
+      }
+    }
+    #endif
+  gasneti_mutex_unlock(&threadtable_lock);
 
   threaddata = (gasnete_threaddata_t *)gasneti_calloc(1,sizeof(gasnete_threaddata_t));
 
@@ -70,6 +163,11 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
   gasnete_threadtable[idx] = threaddata;
   threaddata->current_iop = gasnete_iop_new(threaddata);
 
+  #if GASNETI_CLIENT_THREADS
+    /* setup thread destructor */
+    pthread_setspecific(gasnete_threaddata_cleanup, threaddata);
+  #endif
+
   return threaddata;
 }
 /* PURE function (returns same value for a given thread every time) 
@@ -77,7 +175,7 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
 #if GASNETI_CLIENT_THREADS
   extern gasnete_threaddata_t *gasnete_mythread() {
     gasnete_threaddata_t *threaddata = gasneti_threadkey_get(gasnete_threaddata);
-    GASNETI_TRACE_EVENT(C, DYNAMIC_THREADLOOKUP);
+    GASNETI_STAT_EVENT(C, DYNAMIC_THREADLOOKUP); /* tracing here can cause inf recursion */
     if_pt (threaddata) {
       gasneti_memcheck(threaddata);
       return threaddata;
@@ -928,6 +1026,15 @@ extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t
   gasnete_wait_syncnb(handle->handle);
   val = handle->val;
   return val;
+}
+
+static void gasnete_valget_freeall(gasnete_threaddata_t *thread) {
+  struct _gasnet_valget_op_t *vg = thread->valget_free;
+  while (vg) {
+    struct _gasnet_valget_op_t *next = vg->next;
+    gasneti_free(vg);  
+    vg = next;
+  }
 }
 
 /* ------------------------------------------------------------------------------------ */

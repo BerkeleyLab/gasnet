@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2007/04/10 01:21:17 $
- * $Revision: 1.77 $
+ *     $Date: 2008/12/10 03:15:16 $
+ * $Revision: 1.77.20.1 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -649,11 +649,21 @@ extern int gasnetc_AMReplyLongM(
     gasnet_hsl_t *locksheld;
     int inExplicitNIS;
     unsigned int inhandler;
+    int inuse;
     gasneti_tick_t NIStimestamp;
   } gasnetc_hsl_errcheckinfo_t;
-  static gasnetc_hsl_errcheckinfo_t _info_init = { NULL, 0, 0 };
+  static gasnetc_hsl_errcheckinfo_t _info_init = { NULL, 0, 0, 0 };
 
   #if GASNETI_CLIENT_THREADS
+    static void gasnetc_hsl_cleanup_threaddata(void *_td) {
+      gasnetc_hsl_errcheckinfo_t *info = (gasnetc_hsl_errcheckinfo_t *)_td;
+      gasneti_assert(info->inuse);
+      if (info->inhandler)
+        gasneti_fatalerror("HSL USAGE VIOLATION: thread exit within AM handler");
+      if (info->locksheld) GASNETI_TRACE_PRINTF(I,("Thread exiting while holding HSL locks"));
+      info->inuse = 0;
+    }
+  
     /*  pthread thread-specific ptr to our info (or NULL for a thread never-seen before) */
     GASNETI_THREADKEY_DEFINE(gasnetc_hsl_errcheckinfo);
     static gasnetc_hsl_errcheckinfo_t *gasnetc_get_errcheckinfo() {
@@ -661,21 +671,23 @@ extern int gasnetc_AMReplyLongM(
       if_pt (info) return info;
 
       /*  first time we've seen this thread - need to set it up */
-      { int retval;
-        /* it's unsafe to call malloc or gasneti_malloc here,
+      { /* it's unsafe to call malloc or gasneti_malloc here,
            because we may be within a hold_interrupts call - MUST use static allocation */
         static gasnetc_hsl_errcheckinfo_t hsl_errcheck_table[GASNETI_MAX_THREADS];
-        static int hsl_errcheck_cnt = 0;
         static gasneti_mutex_t hsl_errcheck_tablelock = GASNETI_MUTEX_INITIALIZER;
         int idx;
         gasneti_mutex_lock(&hsl_errcheck_tablelock);
-          if (hsl_errcheck_cnt >= GASNETI_MAX_THREADS) 
-            gasneti_fatalerror("gasnet-mpi HSL errcheck system: Too many local client threads (limit=%i)",GASNETI_MAX_THREADS);
-          info = &(hsl_errcheck_table[hsl_errcheck_cnt]);
-          hsl_errcheck_cnt++;
+          for (idx = 0; idx < GASNETI_MAX_THREADS; idx++) {
+            if (!hsl_errcheck_table[idx].inuse) break;
+          }
+          gasneti_assert(idx < GASNETI_MAX_THREADS);
+          info = &(hsl_errcheck_table[idx]);
+          gasneti_assert(!info->inuse);
+          memcpy(info, &_info_init, sizeof(gasnetc_hsl_errcheckinfo_t));
+          info->inuse = 1;
         gasneti_mutex_unlock(&hsl_errcheck_tablelock);
-        memcpy(info, &_info_init, sizeof(gasnetc_hsl_errcheckinfo_t));
         gasneti_threadkey_set(gasnetc_hsl_errcheckinfo, info);
+        gasnete_register_threadcleanup(gasnetc_hsl_cleanup_threaddata, info);
         return info;
       }
     }

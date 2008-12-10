@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2008/07/26 00:31:51 $
- * $Revision: 1.47 $
+ *     $Date: 2008/12/10 03:15:18 $
+ * $Revision: 1.47.4.1 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -381,6 +381,12 @@ extern int gasnetc_AMPoll() {
   ================================
 */
 
+static void gasnetc_cleanup_threaddata(void *_td) {
+  void **corethreadinfo = (void **)_td;
+  gasneti_free_aligned(*corethreadinfo);
+  *corethreadinfo = NULL;
+}
+
 GASNETI_INLINE(gasnetc_ReqRepGeneric)
 int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
                          int dest, gasnet_handler_t handler, 
@@ -418,8 +424,8 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
         uint8_t *buf = NULL;
         gasneti_assert(corethreadinfo);
         if (!*corethreadinfo) { /* ensure 8-byte alignment of medium payload */
-          void *tmp = gasneti_malloc(sizeof(gasnetc_threadinfo_t)+GASNETI_MEDBUF_ALIGNMENT);
-          *corethreadinfo = (void*)GASNETI_ALIGNUP(tmp,GASNETI_MEDBUF_ALIGNMENT);
+          *corethreadinfo = gasneti_malloc_aligned(GASNETI_MEDBUF_ALIGNMENT,sizeof(gasnetc_threadinfo_t));
+          gasnete_register_threadcleanup(gasnetc_cleanup_threaddata, corethreadinfo);
         }
         if (isReq) buf = ((gasnetc_threadinfo_t *)*corethreadinfo)->requestBuf;
         else       buf = ((gasnetc_threadinfo_t *)*corethreadinfo)->replyBuf;

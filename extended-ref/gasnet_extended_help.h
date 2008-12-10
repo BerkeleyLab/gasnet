@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_help.h,v $
- *     $Date: 2008/02/19 03:43:43 $
- * $Revision: 1.48 $
+ *     $Date: 2008/12/10 03:15:13 $
+ * $Revision: 1.48.10.1 $
  * Description: GASNet Extended API Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -51,6 +51,13 @@ GASNETI_BEGIN_EXTERNC
     #define gasnete_mythread() (gasnete_threadtable[0])
   #endif
 #endif
+
+/* register a cleanup function to run when the calling thread exits 
+   not guaranteed to run during process exits (gasnet_exit), but should
+   run for dynamic thread exits when the process is continuing.
+   Cleanups will run in reverse order of registration
+ */
+extern void gasnete_register_threadcleanup(void (*cleanupfn)(void *), void *context);
 
 /* gasnete_islocal() is used by put/get fns to decide whether shared memory on 
    a given node is "local". By default this is based on comparing the nodeid to

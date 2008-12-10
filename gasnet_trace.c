@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.c,v $
- *     $Date: 2008/10/11 07:45:27 $
- * $Revision: 1.134 $
+ *     $Date: 2008/12/10 03:15:11 $
+ * $Revision: 1.134.4.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -267,6 +267,9 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
       unsigned int linenum;
       unsigned int frozen;
     } gasneti_srclineinfo_t;
+    static void gasneti_srclineinfo_cleanup_threaddata(void *_td) {
+      gasneti_free(_td);
+    }
     GASNETI_INLINE(gasneti_mysrclineinfo)
     gasneti_srclineinfo_t *gasneti_mysrclineinfo() {
       gasneti_srclineinfo_t *srclineinfo = gasneti_threadkey_get(gasneti_srclineinfo_key);
@@ -277,6 +280,7 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
         /*  first time we've seen this thread - need to set it up */
         gasneti_srclineinfo_t *srclineinfo = gasneti_calloc(1,sizeof(gasneti_srclineinfo_t));
         gasneti_threadkey_set(gasneti_srclineinfo_key, srclineinfo);
+        gasnete_register_threadcleanup(gasneti_srclineinfo_cleanup_threaddata, srclineinfo);
         return srclineinfo;
       }
     }
