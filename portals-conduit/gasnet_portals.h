@@ -949,6 +949,11 @@ gasnetc_threaddata_t *gasnetc_mythread(void)
   return th->gasnetc_threaddata;
 }
 
+static void gasnetc_free_threaddata(void *_td) {
+  gasnetc_threaddata_t *td = (gasnetc_threaddata_t *)_td;
+  gasneti_free(td);
+}
+
 GASNETI_INLINE(gasnetc_new_threaddata)
 gasnetc_threaddata_t* gasnetc_new_threaddata(gasnete_threadidx_t idx)
 {
@@ -962,6 +967,7 @@ gasnetc_threaddata_t* gasnetc_new_threaddata(gasnete_threadidx_t idx)
   th->rplsb_off = -9999;     /* bogus value */
   gasneti_weakatomic_set(&th->amlongReq_data_inflight, 0, 0);
   gasneti_weakatomic_set(&th->amlongRep_data_inflight, 0, 0);
+  gasnete_register_threadcleanup(gasnetc_free_threaddata, th);
   return th;
 }
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2007/08/17 06:08:48 $
- * $Revision: 1.45 $
+ *     $Date: 2008/12/12 10:01:23 $
+ * $Revision: 1.45.18.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,68 +10,8 @@
 #include <gasnet_extended_internal.h>
 #include <gasnet_handler.h>
 
-GASNETI_IDENT(gasnete_IdentString_Version, "$GASNetExtendedLibraryVersion: " GASNET_EXTENDED_VERSION_STR " $");
-GASNETI_IDENT(gasnete_IdentString_ExtendedName, "$GASNetExtendedLibraryName: " GASNET_EXTENDED_NAME_STR " $");
-
-gasnete_threaddata_t *gasnete_threadtable[GASNETI_MAX_THREADS] = { 0 };
-static int gasnete_numthreads = 0;
-static gasnet_hsl_t threadtable_lock = GASNET_HSL_INITIALIZER;
-#if GASNETI_CLIENT_THREADS
-  /* pthread thread-specific ptr to our threaddata (or NULL for a thread never-seen before) */
-  GASNETI_THREADKEY_DEFINE(gasnete_threaddata);
-#endif
 static const gasnete_eopaddr_t EOPADDR_NIL = { { 0xFF, 0xFF } };
 extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
-
-/* ------------------------------------------------------------------------------------ */
-/*
-  Thread Management
-  =================
-*/
-static gasnete_threaddata_t * gasnete_new_threaddata() {
-  gasnete_threaddata_t *threaddata = NULL;
-  int idx;
-  gasnet_hsl_lock(&threadtable_lock);
-    idx = gasnete_numthreads;
-    gasnete_numthreads++;
-  gasnet_hsl_unlock(&threadtable_lock);
-  gasneti_assert(GASNETI_MAX_THREADS <= (1U<<(sizeof(gasnete_threadidx_t)*8)));
-  #if GASNETI_CLIENT_THREADS
-    if (idx >= GASNETI_MAX_THREADS) 
-      gasneti_fatalerror("GASNet Extended API: Too many local client threads (limit=%i)",GASNETI_MAX_THREADS);
-  #else
-    gasneti_assert(idx == 0);
-  #endif
-  gasneti_assert(gasnete_threadtable[idx] == NULL);
-
-  threaddata = (gasnete_threaddata_t *)gasneti_calloc(1,sizeof(gasnete_threaddata_t));
-
-  threaddata->threadidx = idx;
-  threaddata->eop_free = EOPADDR_NIL;
-
-  gasnete_threadtable[idx] = threaddata;
-  threaddata->default_iop = gasnete_iop_new(threaddata);
-  threaddata->current_iop = threaddata->default_iop;
-
-  return threaddata;
-}
-/* PURE function (returns same value for a given thread every time) 
-*/
-#if GASNETI_CLIENT_THREADS
-  extern gasnete_threaddata_t *gasnete_mythread() {
-    gasnete_threaddata_t *threaddata = gasneti_threadkey_get(gasnete_threaddata);
-    GASNETI_TRACE_EVENT(C, DYNAMIC_THREADLOOKUP);
-    if_pt (threaddata) {
-      gasneti_memcheck(threaddata);
-      return threaddata;
-    }
-
-    /* first time we've seen this thread - need to set it up */
-    threaddata = gasnete_new_threaddata();
-    gasneti_threadkey_set(gasnete_threaddata, threaddata);
-    return threaddata;
-  }
-#endif
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -304,6 +244,21 @@ SHORT_HANDLER(gasnete_done_reph,1,2,
   GASNETI_SAFE(                                                                    \
     SHORT_REP(1,2,((token), gasneti_handleridx(gasnete_done_reph), PACK(counter))) \
   )
+
+/* ------------------------------------------------------------------------------------ */
+/*
+  Extended API Common Code
+  ========================
+  Factored bits of extended API code common to most conduits, overridable when necessary
+*/
+
+/* DOB: default_iop field should probably go away */
+#define GASNETE_NEW_THREADDATA_CALLBACK(threaddata) \
+  threaddata->default_iop = threaddata->current_iop
+
+#define GASNETE_IOP_ISDONE(iop) gasnete_iop_test(iop)
+
+#include "gasnet_extended_common.c"
 
 /* ------------------------------------------------------------------------------------ */
 /* GASNET-Internal OP Interface */
@@ -680,57 +635,6 @@ extern void gasnete_memset (gasnet_node_t node, void *dest, int val,
 
   gasnetc_counter_wait(&req_oust, 0);
 }
-/* ------------------------------------------------------------------------------------ */
-/*
-  Non-Blocking Value Get (explicit-handle)
-  ========================================
-*/
-typedef struct _gasnet_valget_op_t {
-  gasnete_eop_t *eop;
-  gasnet_register_value_t val;
-
-  struct _gasnet_valget_op_t* next; /* for free-list only */
-  gasnete_threadidx_t threadidx;  /*  thread that owns me */
-} gasnet_valget_op_t;
-
-extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-  gasnet_valget_handle_t retval;
-  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
-  gasneti_boundscheck(node, src, nbytes);
-  if (mythread->valget_free) {
-    retval = mythread->valget_free;
-    mythread->valget_free = retval->next;
-    gasneti_memcheck(retval);
-  } else {
-    retval = (gasnet_valget_op_t*)gasneti_malloc(sizeof(gasnet_valget_op_t));
-    retval->threadidx = mythread->threadidx;
-  }
-
-  retval->val = 0;
-  if (gasnete_islocal(node)) {
-    GASNETE_FAST_ALIGNED_MEMCPY(GASNETE_STARTOFBITS(&(retval->val),nbytes), src, nbytes);
-    retval->eop = (gasnete_eop_t *)GASNET_INVALID_HANDLE;
-  } else {
-    /* Small, aligned source, so would call gasnete_get_nb() here if such a thing existed */
-    retval->eop = (gasnete_eop_t *)gasnete_get_nb_bulk(GASNETE_STARTOFBITS(&(retval->val),nbytes), node, src, nbytes GASNETE_THREAD_PASS);
-  }
-  return retval;
-}
-
-extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t handle) {
-  gasnet_register_value_t val;
-  gasnete_threaddata_t * const thread = gasnete_threadtable[handle->threadidx];
-  gasneti_assert(thread == gasnete_mythread());
-  handle->next = thread->valget_free; /* free before the wait to save time after the wait, */
-  thread->valget_free = handle;       /*  safe because this thread is under our control */
-
-  gasnete_wait_syncnb((gasnet_handle_t)handle->eop);
-
-  val = handle->val;
-  return val;
-}
-
 /* ------------------------------------------------------------------------------------ */
 /*
   Barriers:

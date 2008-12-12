@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_help.h,v $
- *     $Date: 2008/12/10 03:15:13 $
- * $Revision: 1.48.10.1 $
+ *     $Date: 2008/12/12 10:01:12 $
+ * $Revision: 1.48.10.2 $
  * Description: GASNet Extended API Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -43,11 +43,11 @@ GASNETI_BEGIN_EXTERNC
 
 #ifndef _GASNETE_MYTHREAD
   struct _gasnete_threaddata_t;
+  extern struct _gasnete_threaddata_t *gasnete_threadtable[GASNETI_MAX_THREADS];
   #if GASNETI_CLIENT_THREADS
     extern struct _gasnete_threaddata_t *gasnete_mythread() GASNETI_CONST;
     GASNETI_CONSTP(gasnete_mythread)
   #else
-    extern struct _gasnete_threaddata_t *gasnete_threadtable[GASNETI_MAX_THREADS];
     #define gasnete_mythread() (gasnete_threadtable[0])
   #endif
 #endif
@@ -58,6 +58,38 @@ GASNETI_BEGIN_EXTERNC
    Cleanups will run in reverse order of registration
  */
 extern void gasnete_register_threadcleanup(void (*cleanupfn)(void *), void *context);
+
+/* free list of valget cells */
+#ifdef GASNETE_VALGET_CUSTOM
+#define GASNETE_VALGET_FIELDS
+#else 
+#define GASNETE_VALGET_FIELDS struct _gasnete_valget_op_t *valget_free;
+#endif
+
+/* fields that should appear first in the threaddata struct for all conduits */
+#define GASNETE_COMMON_THREADDATA_FIELDS                                      \
+  void *gasnetc_threaddata;     /* ptr reserved for use by the core */        \
+  void *gasnete_coll_threaddata;/* ptr reserved for use by the collectives */ \
+  void *gasnete_vis_threaddata; /* ptr reserved for use by the VIS */         \
+                                                                              \
+  gasnete_threadidx_t threadidx;                                              \
+  struct _gasnete_thread_cleanup {                                            \
+    struct _gasnete_thread_cleanup *next;                                     \
+    void (*cleanupfn)(void *);                                                \
+    void *context;                                                            \
+  } *thread_cleanup; /* thread exit cleanup function LIFO */                  \
+  int thread_cleanup_delay;                                                   \
+                                                                              \
+  GASNETE_VALGET_FIELDS
+
+/* high-water mark on highest thread index allocated thus far */
+extern int gasnete_maxthreadidx;
+#define gasnete_assert_valid_threadid(threadidx) do {   \
+    int _thid = (threadidx);                            \
+    gasneti_assert(_thid <= gasnete_maxthreadidx);      \
+    gasneti_assert(gasnete_threadtable[_thid] != NULL); \
+    gasneti_memcheck(gasnete_threadtable[_thid]);       \
+} while (0)
 
 /* gasnete_islocal() is used by put/get fns to decide whether shared memory on 
    a given node is "local". By default this is based on comparing the nodeid to

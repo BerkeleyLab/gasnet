@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended_fwd.h,v $
- *     $Date: 2006/07/10 05:56:29 $
- * $Revision: 1.16 $
+ *     $Date: 2008/12/12 10:01:21 $
+ * $Revision: 1.16.36.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,6 +23,7 @@ typedef int * gasnet_handle_t;
 #define GASNET_INVALID_HANDLE ((gasnet_handle_t)0)
 #define GASNETI_DISABLE_EOP_INTERFACE
 
+/* shmem-conduit has a custom valget implementation */
 #define _GASNET_VALGET_HANDLE_T
 typedef uintptr_t gasnet_valget_handle_t;
 

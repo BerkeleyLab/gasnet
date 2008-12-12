@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended.c,v $
- *     $Date: 2007/01/03 17:12:32 $
- * $Revision: 1.23 $
+ *     $Date: 2008/12/12 10:01:21 $
+ * $Revision: 1.23.24.1 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -28,6 +28,21 @@ gasnete_threaddata_t	     gasnete_threaddata;
 gasnete_threaddata_t  * const gasnete_threaddata_ptr = &gasnete_threaddata;
 #undef gasnete_mythread
 #define gasnete_mythread() (&gasnete_threaddata)
+
+/* ------------------------------------------------------------------------------------ */
+/*
+  Extended API Common Code
+  ========================
+  Factored bits of extended API code common to most conduits, overridable when necessary
+*/
+
+#define GASNETE_THREADING_CUSTOM 1
+#define GASNETE_VALGET_CUSTOM 1
+
+#include "gasnet_extended_common.c"
+
+/* ------------------------------------------------------------------------------------ */
+
 
 extern void gasnete_init() {
   int	    i;

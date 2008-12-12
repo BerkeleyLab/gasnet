@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.h,v $
- *     $Date: 2007/01/03 17:12:28 $
- * $Revision: 1.41 $
+ *     $Date: 2008/12/12 10:01:12 $
+ * $Revision: 1.41.24.1 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -719,8 +719,8 @@ void _gasnet_put_nbi_val(gasnet_node_t node, void *dest, gasnet_register_value_t
 */
 
 #ifndef _GASNET_VALGET_HANDLE_T
-struct _gasnet_valget_op_t;
-typedef struct _gasnet_valget_op_t *gasnet_valget_handle_t;
+struct _gasnete_valget_op_t;
+typedef struct _gasnete_valget_op_t *gasnet_valget_handle_t;
 #endif
 
 extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
