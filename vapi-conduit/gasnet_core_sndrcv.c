@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2008/12/12 19:09:58 $
- * $Revision: 1.225.4.1 $
+ *     $Date: 2008/12/12 22:07:17 $
+ * $Revision: 1.225.4.2 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -265,22 +265,36 @@ static gasnetc_cep_t			**gasnetc_node2cep;
   #define GASNETC_PERTHREAD_LOOKUP	const char _core_threadinfo_dummy = sizeof(_core_threadinfo_dummy) /* no semicolon */
 #endif
 
-void gasnete_free_aligned(void *ptr) {
+static void gasnetc_free_aligned(void *ptr) {
   gasneti_free_aligned(ptr);
 }
 
+#define GASNETC_SREQS_GROWTHCNT 32 /* sreq list always grown by this size increment */
+static int gasnetc_snd_reap(int);
+
+static void gasnetc_free_sreqs(void *_ptr) {
+  gasnetc_sreq_t *ptr = (gasnetc_sreq_t *)_ptr;
+  int i;
+  /* sreqs for AM sends may still be live on the adapter and thus unsafe to free
+   */
+  for (i = 0; i < GASNETC_SREQS_GROWTHCNT; i++) {
+    while (ptr->opcode != GASNETC_OP_FREE) {
+      gasnetc_snd_reap(1);
+      if (ptr->opcode != GASNETC_OP_FREE) gasneti_sched_yield();
+    }
+    ptr = (gasnetc_sreq_t *)GASNETI_ALIGNUP(ptr+1, GASNETI_CACHE_LINE_BYTES);
+  }
+  gasneti_free_aligned(_ptr);
+}
+
 GASNETI_INLINE(gasnetc_alloc_sreqs)
-void gasnetc_alloc_sreqs(int count, gasnetc_sreq_t **head_p, gasnetc_sreq_t **tail_p)
+void gasnetc_alloc_sreqs(gasnetc_sreq_t **head_p, gasnetc_sreq_t **tail_p)
 {
+  const int count = GASNETC_SREQS_GROWTHCNT;
   size_t bytes = GASNETI_ALIGNUP(sizeof(gasnetc_sreq_t), GASNETI_CACHE_LINE_BYTES);
   gasnetc_sreq_t *ptr = gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES, count * bytes);
   int i;
-#if 0
-  /* XXX: this free causes send reap failures for testthreads -d 
-     sreqs for AM sends may still be live on the adapter and thus unsafe to free
-   */
-  gasnete_register_threadcleanup(gasnete_free_aligned, ptr);
-#endif
+  gasnete_register_threadcleanup(gasnetc_free_sreqs, ptr);
   *head_p = ptr;
   for (i = 1; i < count; ++i, ptr = ptr->next) {
     ptr->next = (gasnetc_sreq_t *)((uintptr_t)ptr + bytes);
@@ -294,7 +308,7 @@ void gasnetc_alloc_sreqs(int count, gasnetc_sreq_t **head_p, gasnetc_sreq_t **ta
 void gasnetc_per_thread_init(gasnetc_per_thread_t *td)
 {
   gasnetc_sreq_t *tail;
-  gasnetc_alloc_sreqs(32, &td->sreqs, &tail);
+  gasnetc_alloc_sreqs(&td->sreqs, &tail);
   tail->next = td->sreqs;
 }
 
@@ -305,7 +319,7 @@ void gasnetc_per_thread_init(gasnetc_per_thread_t *td)
     if_pf (retval == NULL) {
       retval = gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES,
 				  GASNETI_ALIGNUP(sizeof(gasnetc_per_thread_t), GASNETI_CACHE_LINE_BYTES));
-      gasnete_register_threadcleanup(gasnete_free_aligned, retval);
+      gasnete_register_threadcleanup(gasnetc_free_aligned, retval);
       gasneti_threadkey_set_noinit(gasnetc_per_thread_key, retval);
       gasnetc_per_thread_init(retval);
     }
@@ -1432,7 +1446,7 @@ gasnetc_sreq_t *gasnetc_get_sreq(gasnetc_sreq_opcode_t opcode GASNETC_PERTHREAD_
       if_pf (sreq->opcode != GASNETC_OP_FREE) {
         /* 4) Finally allocate more */
         gasnetc_sreq_t *head, *tail;
-        gasnetc_alloc_sreqs(32, &head, &tail);
+        gasnetc_alloc_sreqs(&head, &tail);
         tail->next = sreq->next;
         sreq = (sreq->next = head);
       }
