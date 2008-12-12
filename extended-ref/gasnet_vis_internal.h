@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_internal.h,v $
- *     $Date: 2008/12/10 03:15:13 $
- * $Revision: 1.18.38.1 $
+ *     $Date: 2008/12/12 12:46:17 $
+ * $Revision: 1.18.38.2 $
  * Description: Internal definitions for GASNet Vector, Indexed & Strided implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -42,11 +42,11 @@ typedef struct {
 
 static void gasnete_vis_cleanup_threaddata(void *_td) {
   gasnete_vis_threaddata_t *td = (gasnete_vis_threaddata_t *)_td;
+  gasneti_vis_op_t *op;
   #ifdef GASNETE_VIS_THREADDATA_EXTRA_CLEANUP
     GASNETE_VIS_THREADDATA_EXTRA_CLEANUP(td);
   #endif
   gasneti_assert(td->active_ops == NULL);
-  gasneti_vis_op_t *op;
   while ((op = td->free_ops) != NULL) {
     td->free_ops = op->next;
     gasneti_free(op);
