@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2008/10/25 09:23:30 $
- * $Revision: 1.225 $
+ *     $Date: 2008/12/12 19:09:58 $
+ * $Revision: 1.225.4.1 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -265,13 +265,23 @@ static gasnetc_cep_t			**gasnetc_node2cep;
   #define GASNETC_PERTHREAD_LOOKUP	const char _core_threadinfo_dummy = sizeof(_core_threadinfo_dummy) /* no semicolon */
 #endif
 
+void gasnete_free_aligned(void *ptr) {
+  gasneti_free_aligned(ptr);
+}
+
 GASNETI_INLINE(gasnetc_alloc_sreqs)
 void gasnetc_alloc_sreqs(int count, gasnetc_sreq_t **head_p, gasnetc_sreq_t **tail_p)
 {
   size_t bytes = GASNETI_ALIGNUP(sizeof(gasnetc_sreq_t), GASNETI_CACHE_LINE_BYTES);
-  gasnetc_sreq_t *ptr = gasneti_malloc(count * bytes + GASNETI_CACHE_LINE_BYTES-1);
+  gasnetc_sreq_t *ptr = gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES, count * bytes);
   int i;
-  *head_p = ptr = (gasnetc_sreq_t *)GASNETI_ALIGNUP(ptr, GASNETI_CACHE_LINE_BYTES);
+#if 0
+  /* XXX: this free causes send reap failures for testthreads -d 
+     sreqs for AM sends may still be live on the adapter and thus unsafe to free
+   */
+  gasnete_register_threadcleanup(gasnete_free_aligned, ptr);
+#endif
+  *head_p = ptr;
   for (i = 1; i < count; ++i, ptr = ptr->next) {
     ptr->next = (gasnetc_sreq_t *)((uintptr_t)ptr + bytes);
     ptr->opcode = GASNETC_OP_FREE;
@@ -293,9 +303,9 @@ void gasnetc_per_thread_init(gasnetc_per_thread_t *td)
   gasnetc_per_thread_t *gasnetc_my_perthread(void) {
     gasnetc_per_thread_t *retval = gasneti_threadkey_get_noinit(gasnetc_per_thread_key);
     if_pf (retval == NULL) {
-      void *alloc= gasneti_malloc(GASNETI_CACHE_LINE_BYTES +
+      retval = gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES,
 				  GASNETI_ALIGNUP(sizeof(gasnetc_per_thread_t), GASNETI_CACHE_LINE_BYTES));
-      retval = (gasnetc_per_thread_t *)GASNETI_ALIGNUP(alloc, GASNETI_CACHE_LINE_BYTES);
+      gasnete_register_threadcleanup(gasnete_free_aligned, retval);
       gasneti_threadkey_set_noinit(gasnetc_per_thread_key, retval);
       gasnetc_per_thread_init(retval);
     }

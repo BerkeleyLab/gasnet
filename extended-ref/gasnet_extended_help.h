@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_help.h,v $
- *     $Date: 2008/12/12 10:01:12 $
- * $Revision: 1.48.10.2 $
+ *     $Date: 2008/12/12 19:09:56 $
+ * $Revision: 1.48.10.3 $
  * Description: GASNet Extended API Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -66,6 +66,13 @@ extern void gasnete_register_threadcleanup(void (*cleanupfn)(void *), void *cont
 #define GASNETE_VALGET_FIELDS struct _gasnete_valget_op_t *valget_free;
 #endif
 
+typedef struct _gasnete_thread_cleanup {
+    struct _gasnete_thread_cleanup *next;
+    void (*cleanupfn)(void *);
+    void *context;
+} gasnete_thread_cleanup_t; /* thread exit cleanup function LIFO */
+
+
 /* fields that should appear first in the threaddata struct for all conduits */
 #define GASNETE_COMMON_THREADDATA_FIELDS                                      \
   void *gasnetc_threaddata;     /* ptr reserved for use by the core */        \
@@ -73,11 +80,8 @@ extern void gasnete_register_threadcleanup(void (*cleanupfn)(void *), void *cont
   void *gasnete_vis_threaddata; /* ptr reserved for use by the VIS */         \
                                                                               \
   gasnete_threadidx_t threadidx;                                              \
-  struct _gasnete_thread_cleanup {                                            \
-    struct _gasnete_thread_cleanup *next;                                     \
-    void (*cleanupfn)(void *);                                                \
-    void *context;                                                            \
-  } *thread_cleanup; /* thread exit cleanup function LIFO */                  \
+                                                                              \
+  gasnete_thread_cleanup_t *thread_cleanup; /* thread cleanup function LIFO */\
   int thread_cleanup_delay;                                                   \
                                                                               \
   GASNETE_VALGET_FIELDS

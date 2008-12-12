@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_common.c,v $
- *     $Date: 2008/12/12 10:01:12 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2008/12/12 19:09:56 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet Extended API Common code
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -116,13 +116,74 @@ static void gasnete_free_threaddata(gasnete_threaddata_t *thread) {
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-/* thread table management */
+/* thread table and cleanup callback management */
 
 #ifndef GASNETE_THREAD_CLEANUP_DELAY
 #define GASNETE_THREAD_CLEANUP_DELAY 1 /* number of times to postpone pthread_setspecific callback */
 #endif
 
-static pthread_key_t gasnete_threaddata_cleanup;
+#if GASNETI_CLIENT_THREADS
+  /* pthread_key_t are used explicitly to get callback on thread termination */
+  static pthread_key_t gasnete_threaddata_cleanup;
+  static pthread_key_t gasnete_threadless_cleanup;
+  static void gasnete_threadless_cleanup_fn(void *);
+  static void gasnete_threaddata_cleanup_fn(void *);
+  static void gasnete_threadkey_init() { 
+    static int keycreated = 0;
+    gasneti_mutex_lock(&threadtable_lock);
+    if (!keycreated) {
+      pthread_key_create(&gasnete_threaddata_cleanup, &gasnete_threaddata_cleanup_fn);
+      pthread_key_create(&gasnete_threadless_cleanup, &gasnete_threadless_cleanup_fn);
+      keycreated = 1;
+    }
+    gasneti_mutex_unlock(&threadtable_lock);
+  }
+#else
+  gasnete_thread_cleanup_t *gasnete_threadless_cleanup;
+#endif
+
+extern void gasnete_register_threadcleanup(void (*cleanupfn)(void *), void *context) {
+  gasnete_threaddata_t *thread = NULL;
+  gasnete_thread_cleanup_t *newcleanup = gasneti_malloc(sizeof(gasnete_thread_cleanup_t));
+  newcleanup->cleanupfn = cleanupfn;
+  newcleanup->context = context;
+
+  #if GASNETI_CLIENT_THREADS
+    thread = gasneti_threadkey_get(gasnete_threaddata);
+  #endif
+  if (thread) { /* usual case - extended API thread init before register */
+    newcleanup->next = thread->thread_cleanup;
+    thread->thread_cleanup = newcleanup;
+  } else { /* save away the cleanups for now */
+    #if GASNETI_CLIENT_THREADS
+      gasnete_threadkey_init();
+      newcleanup->next = pthread_getspecific(gasnete_threadless_cleanup);
+      pthread_setspecific(gasnete_threadless_cleanup, newcleanup);
+    #else
+      newcleanup->next = gasnete_threadless_cleanup;
+      gasnete_threadless_cleanup = newcleanup;
+    #endif
+  }
+}
+
+static void gasnete_threadless_cleanup_fn(void *_lifo) {
+  #if GASNETI_CLIENT_THREADS
+    if (pthread_getspecific(gasnete_threaddata_cleanup)) { /* thread exists - delay for thread cleanup */
+      pthread_setspecific(gasnete_threadless_cleanup, _lifo);
+      return;
+    }
+  #endif
+  { /* extended API thread never created - run destructors here */
+    gasnete_thread_cleanup_t *cleanuplist = (gasnete_thread_cleanup_t *)_lifo;
+    gasnete_thread_cleanup_t *nextcleanup;
+    while ((nextcleanup = cleanuplist) != NULL) {
+      cleanuplist = nextcleanup->next;
+      nextcleanup->cleanupfn(nextcleanup->context);
+      gasneti_free(nextcleanup);
+    }
+  }
+}
+
 static void gasnete_threaddata_cleanup_fn(void *_thread) {
   gasnete_threaddata_t *thread = _thread;
   int idx = thread->threadidx;
@@ -141,11 +202,22 @@ static void gasnete_threaddata_cleanup_fn(void *_thread) {
   #endif
 
   GASNETI_TRACE_PRINTF(C,("thread %i exiting\n", idx));
-  /* run cleanups in LIFO order, with multiple passes to catch registrations within cleanupfns */
-  { struct _gasnete_thread_cleanup *cleanuplist;
-    while ((cleanuplist = thread->thread_cleanup) != NULL) {
-      struct _gasnete_thread_cleanup *nextcleanup;
-      thread->thread_cleanup = NULL;
+
+  { gasnete_thread_cleanup_t *cleanuplist;
+    gasnete_thread_cleanup_t *nextcleanup;
+    /* run cleanups in LIFO order, with multiple passes to catch registrations within cleanupfns */
+    while (1) {
+      if ((cleanuplist = thread->thread_cleanup) != NULL) 
+          thread->thread_cleanup = NULL;
+      #if GASNETI_CLIENT_THREADS
+      else if ((cleanuplist = pthread_getspecific(gasnete_threadless_cleanup)) != NULL) 
+          pthread_setspecific(gasnete_threadless_cleanup, NULL);
+      #else
+      else if ((cleanuplist = gasnete_threadless_cleanup) != NULL) 
+          gasnete_threadless_cleanup = NULL;
+      #endif
+      else break;
+      
       while ((nextcleanup = cleanuplist) != NULL) {
         cleanuplist = nextcleanup->next;
         nextcleanup->cleanupfn(nextcleanup->context);
@@ -160,15 +232,6 @@ static void gasnete_threaddata_cleanup_fn(void *_thread) {
     gasnete_threadtable[idx] = NULL;
     gasnete_numthreads--;
   gasneti_mutex_unlock(&threadtable_lock);
-}
-
-extern void gasnete_register_threadcleanup(void (*cleanupfn)(void *), void *context) {
-  gasnete_threaddata_t * const thread = gasnete_mythread();
-  struct _gasnete_thread_cleanup *cleanup = gasneti_malloc(sizeof(struct _gasnete_thread_cleanup));
-  cleanup->cleanupfn = cleanupfn;
-  cleanup->context = context;
-  cleanup->next = thread->thread_cleanup;
-  thread->thread_cleanup = cleanup;
 }
 
 static gasnete_threaddata_t * gasnete_new_threaddata() {
@@ -191,14 +254,6 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
     }
     gasneti_assert(idx < GASNETI_MAX_THREADS && gasnete_threadtable[idx] == NULL);
     if (idx > gasnete_maxthreadidx) gasnete_maxthreadidx = idx;
-    #if GASNETI_CLIENT_THREADS
-    { static int keycreated = 0;
-      if (!keycreated) {
-        pthread_key_create(&gasnete_threaddata_cleanup, &gasnete_threaddata_cleanup_fn);
-        keycreated = 1;
-      }
-    }
-    #endif
   gasneti_mutex_unlock(&threadtable_lock);
 
   threaddata = (gasnete_threaddata_t *)gasneti_calloc(1,sizeof(gasnete_threaddata_t));
@@ -212,6 +267,7 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
     gasneti_threadkey_set(gasnete_threaddata, threaddata);
 
     /* register pthread destructor */
+    gasnete_threadkey_init();
     pthread_setspecific(gasnete_threaddata_cleanup, threaddata);
   #endif
 
