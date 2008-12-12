@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2008/10/14 11:53:49 $
- * $Revision: 1.100 $
+ *     $Date: 2008/12/12 23:39:42 $
+ * $Revision: 1.100.4.1 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -97,8 +97,11 @@ GASNETI_MALLOCP(_gasneti_malloc_aligned)
 
 GASNETI_INLINE(_gasneti_free_aligned)
 void _gasneti_free_aligned(void *ptr GASNETI_CURLOCFARG) {
+  void *base;
   gasneti_assert(ptr);
-  _gasneti_extern_free(*((void **)ptr - 1) GASNETI_CURLOCPARG);
+  base = *((void **)ptr - 1);
+  gasneti_assert(base);
+  _gasneti_extern_free(base GASNETI_CURLOCPARG);
 }
 #define gasneti_free_aligned(ptr) _gasneti_free_aligned((ptr) GASNETI_CURLOCAARG)
 
