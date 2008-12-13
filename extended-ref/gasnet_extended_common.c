@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_common.c,v $
- *     $Date: 2008/12/12 19:09:56 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2008/12/13 02:10:45 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet Extended API Common code
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -235,7 +235,7 @@ static void gasnete_threaddata_cleanup_fn(void *_thread) {
 }
 
 static gasnete_threaddata_t * gasnete_new_threaddata() {
-  gasnete_threaddata_t *threaddata = NULL;
+  gasnete_threaddata_t *threaddata = (gasnete_threaddata_t *)gasneti_calloc(1,sizeof(gasnete_threaddata_t));
   int idx;
   gasneti_assert(GASNETI_MAX_THREADS <= (1U<<(sizeof(gasnete_threadidx_t)*8)));
 
@@ -254,12 +254,10 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
     }
     gasneti_assert(idx < GASNETI_MAX_THREADS && gasnete_threadtable[idx] == NULL);
     if (idx > gasnete_maxthreadidx) gasnete_maxthreadidx = idx;
+
+    gasnete_threadtable[idx] = threaddata;
+    threaddata->threadidx = idx;
   gasneti_mutex_unlock(&threadtable_lock);
-
-  threaddata = (gasnete_threaddata_t *)gasneti_calloc(1,sizeof(gasnete_threaddata_t));
-
-  threaddata->threadidx = idx;
-  gasnete_threadtable[idx] = threaddata;
 
   #if GASNETI_CLIENT_THREADS
     /* setup TLS identification */
