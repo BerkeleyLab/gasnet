@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2008/11/10 16:09:01 $
-# $Revision: 1.513 $
+#     $Date: 2008/12/15 16:39:47 $
+# $Revision: 1.514 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.513 $)
+AC_REVISION($Revision: 1.514 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -2815,6 +2815,7 @@ if test "$enabled_portals" = yes; then
   GASNET_ENV_DEFAULT(PE_DIR, /opt/xt-pe/default)
   GASNET_ENV_DEFAULT(PORTALS_INCLUDE, $PE_DIR/include)
   PORTALS_INCLUDES="-I${PORTALS_INCLUDE}"
+  GASNET_ENV_DEFAULT(PORTALS_LIBS, )
   case "$target" in
     *-catamount-*) 
       GASNET_ENV_DEFAULT(CATAMOUNT_DIR, /opt/xt-catamount/default)
@@ -2854,7 +2855,10 @@ if test "$enabled_portals" = yes; then
       #include <pctmbox.h>
     ], [], [AC_DEFINE(HAVE_PCTMBOX_H)])
 
+    AC_CHECK_HEADERS(cnos_mpi_os.h)
     AC_CHECK_HEADERS(catamount/cnos_mpi_os.h)
+
+    AC_CHECK_LIB(pct, cnos_get_rank, PORTALS_LIBS="$PORTALS_LIBS -lpct") # bug 2472
 
     dnl Some PE versions lack a ptl_eq_handler_t definition in portals3.h
     GASNET_TRY_CACHE_CHECK([for ptl_eq_handler_t in portals3.h], ptl_eq_handler_t, [
@@ -2863,9 +2867,12 @@ if test "$enabled_portals" = yes; then
       ptl_eq_handler_t x;
     ], [], [AC_DEFINE(GASNETC_PORTALS_MISSING_EQ_HANDLER_T)])
 
+    GASNET_PUSHVAR(LIBS,"$LIBS ${PORTALS_LIBS}")
     GASNET_TRY_CACHE_LINK(for working Portals configuration, portals_works, [
        #include <portals/portals3.h>
-       #if HAVE_CATAMOUNT_CNOS_MPI_OS_H /* catamount and new CNL */
+       #if HAVE_CNOS_MPI_OS_H /* new CNL (bug 2472) */
+       #include <cnos_mpi_os.h>
+       #elif HAVE_CATAMOUNT_CNOS_MPI_OS_H /* catamount and new CNL */
        #include <catamount/cnos_mpi_os.h>
        #elif HAVE_PCTMBOX_H /* old CNL */
        #include <pctmbox.h>
@@ -2882,6 +2889,7 @@ if test "$enabled_portals" = yes; then
        cnos_get_nidpid_map(NULL);
        PtlNIInit(ptl_iface, PTL_PID_ANY, NULL, NULL, &ptl_ni_h);
     }], [ portals_test_worked=yes ], [ portals_test_worked=no GASNET_ERR_SAVE() ] )
+    GASNET_POPVAR(LIBS)
     GASNET_POPVAR(CPPFLAGS)
   
     if test "$portals_test_worked" != yes; then
@@ -2889,6 +2897,7 @@ if test "$enabled_portals" = yes; then
       have_portals=no
     fi
   fi
+  AC_SUBST(PORTALS_LIBS)
   AC_SUBST(PORTALS_INCLUDES)
 fi
 

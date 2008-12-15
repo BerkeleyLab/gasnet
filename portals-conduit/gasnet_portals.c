@@ -7,7 +7,9 @@
 
 #define GASNETC_DEBUG_RB_VERBOSE 0
 
-#if HAVE_CATAMOUNT_CNOS_MPI_OS_H /* catamount and new CNL */
+#if HAVE_CNOS_MPI_OS_H /* new CNL (bug 2472) */
+   #include <cnos_mpi_os.h>
+#elif HAVE_CATAMOUNT_CNOS_MPI_OS_H /* catamount and new CNL */
    #include <catamount/cnos_mpi_os.h>
 #elif HAVE_PCTMBOX_H /* old CNL */
    #include <pctmbox.h>
