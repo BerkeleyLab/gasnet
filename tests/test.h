@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2008/10/13 23:16:26 $
- * $Revision: 1.117 $
+ *     $Date: 2008/12/21 23:40:28 $
+ * $Revision: 1.117.4.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -253,7 +253,7 @@ static void test_free(void *ptr) {
 #define TEST_PROGRESS_BAR(curriter, numiters) do {    \
     static int _breakwidth, _breakpt;                 \
     if_pf(curriter == 0) {                            \
-      _breakwidth = ((numiters)/TEST_PROGRESS_STEPS);   \
+      _breakwidth = MAX(1,((numiters)/TEST_PROGRESS_STEPS));   \
       _breakpt = _breakwidth;                         \
     }                                                 \
     if (((curriter)+1) == _breakpt) {                 \
@@ -627,7 +627,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
     #define TEST_MAXTHREADS      GASNETT_MAX_THREADS
   #endif
   #ifndef TEST_SEGZ_PER_THREAD
-    #define TEST_SEGZ_PER_THREAD (64*1024)
+    #define TEST_SEGZ_PER_THREAD (64ULL*1024)
   #endif
   #ifndef TEST_SEGSZ
     #ifdef TEST_SEGSZ_EXPR
@@ -646,7 +646,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
     #ifdef TEST_SEGSZ_EXPR
       #define TEST_SEGSZ  alignup(TEST_SEGSZ_EXPR,PAGESZ)
     #else
-      #define TEST_SEGSZ  alignup(64*1024,PAGESZ)
+      #define TEST_SEGSZ  alignup(64ULL*1024,PAGESZ)
     #endif
   #endif
 #endif

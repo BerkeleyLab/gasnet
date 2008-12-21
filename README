@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.114 $
+$Revision: 1.114.4.1 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -251,6 +251,11 @@ application-specific support.
  because once the sbrk()-controlled heap reaches the bottom of shared libraries,
  glibc will use mmap() used to obtain memory regarless of any options one can
  control.
+
+* GASNET_MAX_THREADS - per-node limit on the number of GASNet client pthreads 
+  (in PAR and PARSYNC modes) that can simultaneously be live on each GASNet node.
+  This is subject to the hard limit established by configure --with-max-pthreads-per-node,
+  and pthread limits that may be imposed by specific conduits (see conduit README).
 
 * GASNET_BACKTRACE - requests the generation of stack backtraces on most fatal
  errors.  The format/content of these backtraces varies by platform.  On some

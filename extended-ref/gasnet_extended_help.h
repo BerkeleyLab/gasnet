@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_help.h,v $
- *     $Date: 2008/12/12 19:09:56 $
- * $Revision: 1.48.10.3 $
+ *     $Date: 2008/12/21 23:40:22 $
+ * $Revision: 1.48.10.4 $
  * Description: GASNet Extended API Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,15 +20,28 @@ GASNETI_BEGIN_EXTERNC
 /* ------------------------------------------------------------------------------------ */
 /* GASNETI_MAX_THREADS: cannot exceed the size representable in gasnete_threadidx_t, 
    but some conduits or configures may set it to less */
-#ifndef GASNETI_MAX_THREADS
-  #if GASNET_SEQ
-    #define GASNETI_MAX_THREADS 1
-  #elif GASNETI_MAX_THREADS_CONFIGURE
+#if GASNET_SEQ
+  #undef GASNETI_MAX_THREADS /* only one thread by definition */
+  #define GASNETI_MAX_THREADS 1
+  #define GASNETI_MAX_THREADS_REASON "GASNET_SEQ mode only supports single-threaded operation."
+#elif defined(GASNETI_MAX_THREADS) /* conduit-imposed limit */
+  #if defined(GASNETI_MAX_THREADS_CONFIGURE) && GASNETI_MAX_THREADS_CONFIGURE < GASNETI_MAX_THREADS
+    #undef  GASNETI_MAX_THREADS /* limit lowered by configure */
+    #define GASNETI_MAX_THREADS GASNETI_MAX_THREADS_CONFIGURE
+  #else
+    #define GASNETI_MAX_THREADS_REASON "This limit is imposed by "GASNET_EXTENDED_NAME_STR" conduit."
+  #endif
+#else /* default */
+  #if GASNETI_MAX_THREADS_CONFIGURE
     #define GASNETI_MAX_THREADS GASNETI_MAX_THREADS_CONFIGURE
   #else /* default */
     #define GASNETI_MAX_THREADS 256
   #endif
 #endif
+#ifndef GASNETI_MAX_THREADS_REASON
+  #define GASNETI_MAX_THREADS_REASON "To raise this limit, configure GASNet using --with-max-pthreads-per-node=N."
+#endif
+
 #ifdef _GASNETE_THREADIDX_T
    /* conduit override */
 #elif GASNETI_MAX_THREADS <= 256
@@ -40,10 +53,17 @@ GASNETI_BEGIN_EXTERNC
 #else
   typedef uint64_t gasnete_threadidx_t;
 #endif
+/* returns the runtime size of the thread table (always <= GASNETI_MAX_THREADS) */
+extern uint64_t gasneti_max_threads();
+extern void gasneti_fatal_threadoverflow(const char *subsystem);
 
 #ifndef _GASNETE_MYTHREAD
   struct _gasnete_threaddata_t;
-  extern struct _gasnete_threaddata_t *gasnete_threadtable[GASNETI_MAX_THREADS];
+  #if GASNETI_MAX_THREADS <= 256
+    extern struct _gasnete_threaddata_t *gasnete_threadtable[GASNETI_MAX_THREADS];
+  #else
+    extern struct _gasnete_threaddata_t **gasnete_threadtable;
+  #endif
   #if GASNETI_CLIENT_THREADS
     extern struct _gasnete_threaddata_t *gasnete_mythread() GASNETI_CONST;
     GASNETI_CONSTP(gasnete_mythread)

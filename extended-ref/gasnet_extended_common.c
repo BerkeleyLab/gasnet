@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_common.c,v $
- *     $Date: 2008/12/13 02:10:45 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2008/12/21 23:40:22 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet Extended API Common code
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,14 +17,54 @@ GASNETI_IDENT(gasnete_IdentString_ExtendedName, "$GASNetExtendedLibraryName: " G
 
 #ifndef GASNETE_THREADING_CUSTOM /* top-level disable for all threading-related code */
 
-gasnete_threaddata_t *gasnete_threadtable[GASNETI_MAX_THREADS] = { 0 };
-static int gasnete_numthreads = 0;
-int gasnete_maxthreadidx = 0;
+#if GASNETI_MAX_THREADS <= 256
+  gasnete_threaddata_t *gasnete_threadtable[GASNETI_MAX_THREADS] = { 0 };
+#else
+  #define GASNETI_DYNAMIC_THREADTABLE 1
+  gasnete_threaddata_t **gasnete_threadtable = NULL;
+#endif
+static int gasnete_numthreads = 0; /* current thread count */
+int gasnete_maxthreadidx = 0; /* high-water mark of thread indexes issued */
 static gasneti_mutex_t threadtable_lock = GASNETI_MUTEX_INITIALIZER;
 #if GASNETI_CLIENT_THREADS
   /* pthread thread-specific ptr to our threaddata (or NULL for a thread never-seen before) */
   GASNETI_THREADKEY_DEFINE(gasnete_threaddata);
 #endif
+
+#ifndef GASNETI_DEFAULT_MAX_THREADS
+#define GASNETI_DEFAULT_MAX_THREADS 1024
+#endif
+
+extern uint64_t gasneti_max_threads() {
+  static uint64_t val = 0;
+  if (!val) {
+    gasneti_mutex_lock(&threadtable_lock);
+      if (!val) {
+        val = MIN(GASNETI_MAX_THREADS, GASNETI_DEFAULT_MAX_THREADS);
+        val = gasneti_getenv_int_withdefault("GASNET_MAX_THREADS", val, 0);
+        if (val > GASNETI_MAX_THREADS) {
+          fprintf(stderr,"WARNING: GASNET_MAX_THREADS value exceeds permissable limit (%i), "
+                         "lowering it to match. %s\n", GASNETI_MAX_THREADS, GASNETI_MAX_THREADS_REASON);
+        }
+        val = MIN(GASNETI_MAX_THREADS, val);
+      }
+    gasneti_mutex_unlock(&threadtable_lock);
+  }
+  gasneti_sync_reads();
+  gasneti_assert(val <= GASNETI_MAX_THREADS);
+  return val;
+}
+
+extern void gasneti_fatal_threadoverflow(const char *subsystem) {
+  uint64_t maxthreads = gasneti_max_threads();
+  const char *reason;
+  if (maxthreads < GASNETI_MAX_THREADS) 
+    reason = "To raise this limit, set environment variable GASNET_MAX_THREADS.";
+  else
+    reason = GASNETI_MAX_THREADS_REASON;
+  gasneti_fatalerror("GASNet %s: Too many simultaneous local client threads (limit=%llu). %s",
+                      subsystem, (unsigned long long)maxthreads, reason);
+}
 
 /* ------------------------------------------------------------------------------------ */
 /* initing a thread's data upon thread discovery */
@@ -237,22 +277,26 @@ static void gasnete_threaddata_cleanup_fn(void *_thread) {
 static gasnete_threaddata_t * gasnete_new_threaddata() {
   gasnete_threaddata_t *threaddata = (gasnete_threaddata_t *)gasneti_calloc(1,sizeof(gasnete_threaddata_t));
   int idx;
-  gasneti_assert(GASNETI_MAX_THREADS <= (1U<<(sizeof(gasnete_threadidx_t)*8)));
+  uint64_t maxthreads = gasneti_max_threads();
+  gasneti_assert(maxthreads <= (((uint64_t)1)<<(sizeof(gasnete_threadidx_t)*8)));
 
   gasneti_mutex_lock(&threadtable_lock);
-    gasnete_numthreads++;
-    #if GASNETI_CLIENT_THREADS
-      if (gasnete_numthreads >= GASNETI_MAX_THREADS) 
-        gasneti_fatalerror("GASNet Extended API: Too many simultaneous local client threads (limit=%i)",GASNETI_MAX_THREADS);
+    #if GASNETI_DYNAMIC_THREADTABLE
+      if (!gasnete_threadtable) {
+        gasneti_assert(gasnete_numthreads == 0);
+        gasnete_threadtable = (gasnete_threaddata_t **)gasneti_calloc(maxthreads, sizeof(gasnete_threaddata_t*));
+      }
     #endif
+    gasnete_numthreads++;
+    if (gasnete_numthreads > maxthreads) gasneti_fatal_threadoverflow("Extended API");
     /* find a free slot */
     if (gasnete_threadtable[gasnete_numthreads-1] == NULL) idx = gasnete_numthreads-1;
     else { /* keep table somewhat compacted */
-      for (idx = 0; idx < GASNETI_MAX_THREADS; idx++) {
+      for (idx = 0; idx < maxthreads; idx++) {
         if (gasnete_threadtable[idx] == NULL) break;
       }
     }
-    gasneti_assert(idx < GASNETI_MAX_THREADS && gasnete_threadtable[idx] == NULL);
+    gasneti_assert(idx < GASNETI_MAX_THREADS && idx < maxthreads && gasnete_threadtable[idx] == NULL);
     if (idx > gasnete_maxthreadidx) gasnete_maxthreadidx = idx;
 
     gasnete_threadtable[idx] = threaddata;

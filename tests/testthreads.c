@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testthreads.c,v $
- *     $Date: 2008/12/10 03:15:20 $
- * $Revision: 1.27.24.1 $
+ *     $Date: 2008/12/21 23:40:28 $
+ * $Revision: 1.27.24.2 $
  *
  * Description: GASNet threaded tester.
  *   The test initializes GASNet and forks off up to 256 threads.  Each of
@@ -274,7 +274,7 @@ main(int argc, char **argv)
 
         #ifdef GASNET_PAR
           if (threadstress) {
-            int spawniters = iters/threads_num;
+            int spawniters = MAX(1,iters/threads_num);
             int i;
             MSG("Dynamic thread creation stress test, %d gasnet threads, (%d at a time)", spawniters*threads_num, threads_num);
             iters = 10; /* enough iters to ensure we get thread registration */

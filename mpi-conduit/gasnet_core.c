@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2008/12/10 03:15:16 $
- * $Revision: 1.77.20.1 $
+ *     $Date: 2008/12/21 23:40:24 $
+ * $Revision: 1.77.20.2 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -38,6 +38,7 @@ gasneti_mutex_t gasnetc_AMlock = GASNETI_MUTEX_INITIALIZER; /*  protect access t
   /* check a call is legally outside an NIS or HSL */
   void gasnetc_checkcallNIS();
   void gasnetc_checkcallHSL();
+  void gasnetc_hsl_attach();
   #define CHECKCALLNIS() gasnetc_checkcallNIS()
   #define CHECKCALLHSL() gasnetc_checkcallHSL()
 #else
@@ -364,6 +365,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
             gasnetc_enteringHandler_hook, gasnetc_leavingHandler_hook));
     #endif
 
+    #if GASNETC_HSL_ERRCHECK
+      gasnetc_hsl_attach(); /* must precede attach_done to avoid inf recursion on malloc/hold_interrupts */
+    #endif
+
     /* ------------------------------------------------------------------------------------ */
     /*  primary attach complete */
     gasneti_attach_done = 1;
@@ -671,16 +676,21 @@ extern int gasnetc_AMReplyLongM(
       if_pt (info) return info;
 
       /*  first time we've seen this thread - need to set it up */
-      { /* it's unsafe to call malloc or gasneti_malloc here,
-           because we may be within a hold_interrupts call - MUST use static allocation */
-        static gasnetc_hsl_errcheckinfo_t hsl_errcheck_table[GASNETI_MAX_THREADS];
+      { /* it's unsafe to call malloc or gasneti_malloc here after attach,
+           because we may be within a hold_interrupts call, so table is single-level
+           and initialized during gasnet_attach */
+        static gasnetc_hsl_errcheckinfo_t *hsl_errcheck_table = NULL;
         static gasneti_mutex_t hsl_errcheck_tablelock = GASNETI_MUTEX_INITIALIZER;
+        int maxthreads = gasneti_max_threads();
         int idx;
         gasneti_mutex_lock(&hsl_errcheck_tablelock);
-          for (idx = 0; idx < GASNETI_MAX_THREADS; idx++) {
+          if (!hsl_errcheck_table) 
+            hsl_errcheck_table = gasneti_calloc(maxthreads,sizeof(gasnetc_hsl_errcheckinfo_t));        
+          for (idx = 0; idx < maxthreads; idx++) {
             if (!hsl_errcheck_table[idx].inuse) break;
           }
-          gasneti_assert(idx < GASNETI_MAX_THREADS);
+          if (idx == maxthreads) gasneti_fatal_threadoverflow("HSL errorcheck");
+          gasneti_assert(idx < maxthreads);
           info = &(hsl_errcheck_table[idx]);
           gasneti_assert(!info->inuse);
           memcpy(info, &_info_init, sizeof(gasnetc_hsl_errcheckinfo_t));
@@ -696,6 +706,9 @@ extern int gasnetc_AMReplyLongM(
       return &_info_init;
     }
   #endif
+  extern void gasnetc_hsl_attach() {
+    gasnetc_get_errcheckinfo();
+  }
 
 
   extern void gasnetc_hold_interrupts() {
