@@ -74,8 +74,8 @@ type name() { \
 int stack_check_help(volatile int *p, int x) {
     volatile int local = 1;
     if (x < 100) return stack_check_help(p,x+1);
-    else if (&local > p) return 0;
-    else return 1;
+    else if (&local > p) return 1;
+    else return 0;
 }
 int stack_check() { 
   volatile int local = 0;

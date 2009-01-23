@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_region.c,v $
- *     $Date: 2008/03/05 23:54:26 $
- * $Revision: 1.37 $
+ *     $Date: 2009/01/23 20:38:29 $
+ * $Revision: 1.37.2.1 $
  * Description: 
  * Copyright 2004, Paul Hargrove <PHHargrove@lbl.gov>
  * Terms of use are as specified in license.txt
@@ -1413,8 +1413,8 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
 		/* Want at least 32 buckets per node */
 		unsigned long	M_min = FH_BUCKET_SIZE * num_nodes * 32;
 
-		/* Want at least 4k buckets of victim FIFO */
-		unsigned long	VM_min = FH_BUCKET_SIZE * 4096;
+		/* Want at least 256 buckets of victim FIFO */
+		unsigned long	VM_min = FH_BUCKET_SIZE * 256;
 
 		/* Want at least 1 region per node */
 		/* XXX/PHH THIS IS REALLY A BARE MINIMUM */

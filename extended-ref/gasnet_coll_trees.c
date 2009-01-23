@@ -604,7 +604,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
    }
      
    gasnete_coll_set_sibling_info(geom, team->myrank, team->total_ranks); 
-#if 0
+#if 1
    gasnete_coll_print_tree(geom, gasneti_mynode);
 #endif
 

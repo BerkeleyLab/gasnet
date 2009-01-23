@@ -2,8 +2,8 @@
 
 #############################################################
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/contrib/gasnet_trace.pl,v $
-#     $Date: 2005/11/27 16:00:11 $
-# $Revision: 1.35 $
+#     $Date: 2009/01/23 20:38:26 $
+# $Revision: 1.35.58.1 $
 #
 # All files in this directory (except where otherwise noted) are subject to the
 #following licensing terms:
@@ -54,18 +54,21 @@ use Getopt::Long;
 # Global Variables
 ########################
 
-my $version = "1.4";
+my $version = "2.0";
 
 my ($opt_sort, $opt_output, $opt_help, $opt_report);
 my ($opt_internal, $opt_full, $opt_thread, $opt_filter);
 
-my (%data, %report);
+my (%data, %report, %heapstats);
 my (%threads); # maps thread pidstring => global thread num
 my (%nodes); # maps thread pidstring => node num
 my (%node_threads); # maps node num => the number of threads on that node
 my (%job_nodes); # maps job idstring => num nodes
 my (%job_seen); # maps job idstring => boolean job encountered before
 my (%job_uniq); 
+my $memtable; # textual table of memory info
+my $heapstats_report;
+my @heapstat_keys; # sorted desc keys into heapstats
 my $tool_prefix = $ENV{'TOOL_PREFIX'} || 'gasnet';
 my $tool_prefix_mc = ucfirst($tool_prefix);
 $tool_prefix_mc =~ s/Gasnet/GASNet/;
@@ -121,8 +124,10 @@ if ($opt_output) {
 }
 
 if (!$opt_report) {
-    $opt_report="GET,PUT,BARRIER,TI_ARRAY_COPY";
+    $opt_report="GET,PUT,BARRIER,TI_ARRAY_COPY,MEMORY";
 } 
+
+my ($got_memreport, $got_tracefile);
 
 ARG: while (@ARGV) {
     my $arg = pop @ARGV;
@@ -138,8 +143,14 @@ ARG: while (@ARGV) {
 	}
       }
     }
-    parse_threadinfo($arg);
-    parse_tracefile($arg);
+    if (is_memreport($arg)) {
+      parse_memreport($arg);
+      $got_memreport = 1;
+    } else {
+      parse_threadinfo($arg);
+      parse_tracefile($arg);
+      $got_tracefile = 1;
+    }
 }
 foreach my $job (keys %job_nodes) {
     my ($want, $have) = ($job_nodes{$job}, $job_seen{$job});
@@ -150,10 +161,11 @@ foreach my $job (keys %job_nodes) {
 
 convert_report();
 sort_report();
-trace_output(*STDOUT, "GET") if $opt_report =~ /GET/;
-trace_output(*STDOUT, "PUT") if $opt_report =~ /PUT/;
-trace_output(*STDOUT, "BARRIER") if $opt_report =~ /BARRIER/;
-trace_output(*STDOUT, "TI_ARRAY_COPY") if ($opt_report =~ /TI_ARRAY_COPY/ && $lang_mode eq "TITANIUM");
+trace_output(*STDOUT, "GET")           if ($got_tracefile && $opt_report =~ /GET/);
+trace_output(*STDOUT, "PUT")           if ($got_tracefile && $opt_report =~ /PUT/);
+trace_output(*STDOUT, "BARRIER")       if ($got_tracefile && $opt_report =~ /BARRIER/);
+trace_output(*STDOUT, "TI_ARRAY_COPY") if ($got_tracefile && $opt_report =~ /TI_ARRAY_COPY/ && $lang_mode eq "TITANIUM");
+trace_output(*STDOUT, "MEMORY")        if ($got_memreport && $opt_report =~ /MEMORY/);
 # Show program usage
 ########################
 sub usage 
@@ -162,6 +174,7 @@ sub usage
 
     print "${tool_prefix_mc} trace file summarization script, v${version} (GASNet v${gasnet_version})\n";
     print "Usage:  ${tool_prefix}_trace [options] trace-file(s)\n";
+    print "  trace-file(s) may include any mix of ${tool_prefix_mc} trace files and local memory reports\n";
     if ($tool_prefix eq "upc" && !$h2mhelp) {
         print <<EOF;
 For detailed documentation, please see man upc_trace(1) or http://upc.lbl.gov/docs/
@@ -173,13 +186,12 @@ Options:
     -h -? -help         See this message.
     -o [filename]       Output results to file. Default is STDOUT.
     -report [r1][r2]..  Indicate which reports to generate: 
-    			PUT, GET, BARRIER, and/or TI_ARRAY_COPY.
+    			PUT, GET, BARRIER, MEMORY, and/or TI_ARRAY_COPY.
                         Default: all reports.
     -sort [f1],[f2]...  Sort output by one or more fields: TOTAL, AVG, MIN, MAX,
-                        CALLS, TYPE, or SRC. (for GETS/PUTS, TOTAL, AVG, MIN,
-                        and MAX refer to message size: for BARRIERS, to time
-                        spent in barrier).  Default: sort by SRC (source
-                        file/line). 
+                        CALLS, TYPE, or SRC. (for GET/PUT/MEMORY, TOTAL, AVG, MIN,
+                        and MAX refer to size in bytes: for BARRIERS, to time
+                        spent in barrier).  Default: sort by SRC 
     -filter [t1],[t2].. Filter out output by one or more types:
     			LOCAL, GLOBAL, WAIT, WAITNOTIFY.  
     -t -[no]thread      Output detailed information for each thread.
@@ -191,8 +203,71 @@ EOF
     exit(-1);
 }
 
+# returns true if a given file is a memory report file
+# args : the filename to be read.
+########################
+sub is_memreport
+{
+    open (TRACEFILE, $_[0]) or die "Could not open $_[0]: $!\n";
+    my $line = <TRACEFILE> ;
+    return ($line =~ m/GASNet Debug Mallocator Report/);
+}
 
-    
+# subroutine to read a memory report file and dump the useful information into a 
+# data-structure, namely an array of hashes and return the array.
+# args : the filename to be read.
+########################
+sub parse_memreport
+{
+    my $filename = $_[0];
+    my ($node, $numnodes);
+    my $in_memtable = 0;
+    open (TRACEFILE, $filename) or die "Could not open $filename: $!\n";
+    print STDERR "Parsing memory report file for $filename\n";
+
+    LINE:
+    while (<TRACEFILE>) {
+        if (m/^#\s*node:\s*(\d+)\s*\/\s*(\d+)/) {
+          $node = $1; 
+          $numnodes = $2;
+	} elsif (m/^# Object size/) {
+	  $in_memtable = 0;
+        } elsif (m/^#\s+(Private memory utilization)/) {
+	  if (!$got_memreport) {
+	    $memtable .= "$1\n"; 
+	    my $next = <TRACEFILE>;
+	    $next =~ s/^#\s*//; 
+	    $memtable .= $next;
+	    $memtable .= "\nMEMORY_TABLE_SUMMARY"; 
+	  }
+	  $in_memtable = 1;
+	} elsif ($in_memtable && m/^#\s+(.*)$/) { # memory table
+	  my $line = $1;
+	  if ($line =~ m/(malloc.*):.*?(\d+) bytes[^\d]*(\d+)?/) {
+	    my ($desc, $sz, $cnt) = ($1,$2,$3);
+	    # my $szstr = sprintf '%*s', length($sz)+6, shorten($1,"MEMORY");
+	    # $line =~ s/$sz bytes/$szstr/;
+	    push @heapstat_keys, $desc unless ($heapstats{$desc});
+	    if ($desc =~ m/peak/) { 
+	      if ($sz > $heapstats{$desc}{"SZ"}) {
+	        $heapstats{$desc}{"SZ"} = $sz;
+		$heapstats{$desc}{"CNT"} = $cnt;
+              }
+	    } else {
+	      $heapstats{$desc}{"CNT"} += $cnt;
+	      $heapstats{$desc}{"SZ"} += $sz;
+	    }
+	      
+	  } elsif (!$got_memreport) {
+	    $memtable .= "$line\n"; 
+	  }
+        } elsif (/\s*(\d+)\s+(\S+)/) {
+          my ($sz, $src) = ($1, $2);
+          push @{$data{"MEMORY"}{$src}{""}{$node}}, $sz; 
+        }
+    }
+}
+
 # subroutine to read the tracefile and dump the useful information into a 
 # data-structure, namely an array of hashes and return the array.
 # args : the filename to be read.
@@ -373,7 +448,7 @@ sub parse_tracefile
 sub shorten
 {
     my ($msg_sz, $type) = @_;
-    if ($type =~ /GET|PUT|TI_ARRAY_COPY/) {
+    if ($type =~ /GET|PUT|TI_ARRAY_COPY|MEMORY/) {
     	if ($msg_sz < 1024) {
     	    return sprintf("%.0f B", $msg_sz);
     	} elsif ($msg_sz < 1024 * 1024) {
@@ -446,6 +521,15 @@ sub convert_report
 		push @{$report{$pgb}}, \@entry; 
     	    }
     	}
+    }
+    if ($got_memreport) {
+	  foreach my $desc (@heapstat_keys) {
+	    my ($totsz,$totcnt) = ($heapstats{$desc}{"SZ"}, $heapstats{$desc}{"CNT"});
+	    my $line = sprintf('  %35s %15s', $desc, shorten($totsz,"MEMORY"));
+	    $line .= sprintf(' in %6i objects', $totcnt) if ($totcnt);
+	    $heapstats_report .= "$line\n";
+	  }
+	  $memtable =~ s/MEMORY_TABLE_SUMMARY/$heapstats_report/;
     }
 }
 
@@ -557,14 +641,23 @@ sub trace_output
     print "\n$pgb REPORT:\n";
     
 
+if ($pgb eq "MEMORY") {
+    print <<EOF;
+
+$memtable
+SOURCE                     LINE   SZ:( min       max       avg     total) COUNT  
+===============================================================================    	
+EOF
+} else {
     print <<EOF;
 SOURCE         LINE    TYPE        MSG:(min    max     avg     total)     CALLS  
 ===============================================================================    	
 EOF
-    
+}
+
     # Setting up variables;
     my ($src_num, $source, $lnum, $type, $min, $max, $avg, $total, $calls, $extra);
-    my ($threadnum, $tmin, $tmax, $tavg, $ttotal, $tcalls, $got_one);
+    my ($threadlabel, $threadnum, $tmin, $tmax, $tavg, $ttotal, $tcalls, $got_one);
 
     foreach my $entry (@{$report{$pgb}}) { 
         ($src_num, $type, $max, $min, $avg, $total, $calls) = @{$entry};
@@ -580,14 +673,24 @@ EOF
         $total = shorten($total, $pgb);
         
         # Options for showing the full file name
-        if ($opt_full) {
+        if ($pgb eq "MEMORY") {
+	  next if (($source =~ m@/(gasnet|upcr)_[^/]*@) && !$opt_internal);
+          if ($opt_full) {
+	    printf "%s\n", $source;
+	    $handle->format_name("MEMFULL");             
+          } else {
+            $source = substr $source, -25, 25;
+            $handle->format_name("MEMDEFAULT");
+          }
+	} else {
+          if ($opt_full) {
 	    printf "%s\n", $source;
 	    $handle->format_name("FULL");             
-        }
-        else {
+          } else {
             $source = substr $source, -14, 14;
             $handle->format_name("DEFAULT");
-        }
+          }
+	}
 	if ($pgb =~ /BARRIER/) {
 	  # bug 762 - don't display any cross-thread barrier call total if
 	  # we're showing call totals for each thread, because it's confusing
@@ -614,8 +717,12 @@ EOF
         
         if ($opt_thread) {
             foreach my $thread (sort keys %{$data{$pgb}{$src_num}{$type}}) {
+		$threadlabel = "Thread";
             	if ($pgb =~ /PUT|GET|TI_ARRAY_COPY/) {
             	    $threadnum = $threads{$thread};
+            	} elsif ($pgb =~ /MEMORY/) {
+		    $threadnum = $thread;
+		    $threadlabel = " Node";
             	} else {
             	    $threadnum = get_threads($thread);
                 }
@@ -656,8 +763,18 @@ $source, $lnum, $type, $min, $max, $avg, $total, $calls
 .
 
     format THREAD =
-    Thread @<<<<<<<<<<<<         @>>>>>>>> @>>>>>>>> @>>>>>>>> @>>>>>>>> @>>>>>
-$threadnum, $tmin, $tmax, $tavg, $ttotal, $tcalls
+    @<<<<< @<<<<<<<<<<<<         @>>>>>>>> @>>>>>>>> @>>>>>>>> @>>>>>>>> @>>>>>
+$threadlabel, $threadnum, $tmin, $tmax, $tavg, $ttotal, $tcalls
+.
+
+    format MEMDEFAULT = 
+@<<<<<<<<<<<<<<<<<<<<<<<< @>>>>  @>>>>>>>> @>>>>>>>> @>>>>>>>> @>>>>>>>> @>>>>>
+$source, $lnum, $min, $max, $avg, $total, $calls
+.
+
+    format MEMFULL = 
+                          @>>>>  @>>>>>>>> @>>>>>>>> @>>>>>>>> @>>>>>>>> @>>>>>
+                          $lnum, $min, $max, $avg, $total, $calls
 .
 }
 

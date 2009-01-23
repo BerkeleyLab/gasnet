@@ -36,6 +36,9 @@ CXX='powerpc64-linux-g++ -D__K42' ; export CXX  # vanilla target C++ compiler
 #MPIRUN_CMD='mpirun -np %N %C' ; export MPIRUN_CMD  # launch command for MPI jobs
 EXTRA_CONFIGURE_ARGS='--disable-udp' ; export EXTRA_CONFIGURE_ARGS  # misc configure args to pass
 
+# OS string for test harness purposes
+EXTRA_CONFIGURE_ARGS="$EXTRA_CONFIGURE_ARGS --with-feature-list=os_k42"
+
 # 2. Fill in the canonical target machine type. You can usually obtain this
 #   by running config-aux/config.guess on the target machine
 TARGET_ID='powerpc64-k42-linux-gnu'
@@ -59,7 +62,7 @@ CROSS_PAGESIZE='4096' ; export CROSS_PAGESIZE
 
 # Does the system stack grow up?
 
-CROSS_STACK_GROWS_UP='1' ; export CROSS_STACK_GROWS_UP
+CROSS_STACK_GROWS_UP='0' ; export CROSS_STACK_GROWS_UP
 
 # Is char a signed type?
 

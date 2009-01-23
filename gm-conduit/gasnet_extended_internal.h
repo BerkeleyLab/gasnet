@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2008/02/19 03:43:45 $
- * $Revision: 1.34 $
+ *     $Date: 2009/01/23 20:38:10 $
+ * $Revision: 1.34.6.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -101,13 +101,7 @@ typedef struct _gasnete_iop_t {
 
 /* -------------------------------------------------------------------------- */
 typedef struct _gasnete_threaddata_t {
-	/* pointer reserved for use by the core */
-	void			*gasnetc_threaddata;
-	/* pointer reserved for use by the collectives */
-	void			*gasnete_coll_threaddata;
-        void *gasnete_vis_threaddata; /* pointer reserved for use by the VIS implementation */
-
-	gasnete_threadidx_t	threadidx;
+  GASNETE_COMMON_THREADDATA_FIELDS /* MUST come first, for reserved ptrs */
 
 	int eop_num_bufs;	/*  number of valid buffer entries */
 	gasnete_eop_t		*eop_bufs[256]; /*  buffers of eops */
@@ -118,7 +112,6 @@ typedef struct _gasnete_threaddata_t {
 	/*  stack of iops - head is active iop servicing new implicit ops */
 	gasnete_iop_t *current_iop;  
 	gasnete_iop_t *iop_free;      /*  free list of iops */
-        struct _gasnet_valget_op_t *valget_free; /* free list of valget cells */
 } gasnete_threaddata_t;
 /* -------------------------------------------------------------------------- */
 
@@ -180,16 +173,17 @@ void		gasnete_op_free(gasnete_op_t *op);
     gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);                  \
     gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT ||               \
                    OPSTATE(eop) == OPSTATE_COMPLETE);                \
+    gasnete_assert_valid_threadid((eop)->threadidx);                 \
     _th = gasnete_threadtable[(eop)->threadidx];                     \
     gasneti_assert(GASNETE_EOPADDR_TO_PTR(_th, (eop)->addr) == eop); \
   } while (0)
   #define gasnete_iop_check(iop) do {                         \
-    int _temp;                                                \
+    int _temp; gasnete_iop_t *_tmp_next;                      \
     gasneti_memcheck(iop);                                    \
-    if ((iop)->next != NULL) _gasnete_iop_check((iop)->next); \
+    _tmp_next = (iop)->next;                                  \
+    if (_tmp_next != NULL) _gasnete_iop_check(_tmp_next);     \
     gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);           \
-    gasneti_assert((iop)->threadidx < gasnete_numthreads);    \
-    gasneti_memcheck(gasnete_threadtable[(iop)->threadidx]);  \
+    gasnete_assert_valid_threadid((iop)->threadidx);          \
     _temp = gasneti_weakatomic_read(&((iop)->completed_put_cnt),0); \
     if (_temp <= 65000) /* prevent race condition on reset */ \
       gasneti_assert((iop)->initiated_put_cnt >= _temp);      \
@@ -197,7 +191,6 @@ void		gasnete_op_free(gasnete_op_t *op);
     if (_temp <= 65000) /* prevent race condition on reset */ \
       gasneti_assert((iop)->initiated_get_cnt >= _temp);      \
   } while (0)
-  extern int gasnete_numthreads;
   extern void _gasnete_iop_check(gasnete_iop_t *iop);
 #else
   #define gasnete_eop_check(eop)   ((void)0)
@@ -211,12 +204,6 @@ void		gasnete_op_free(gasnete_op_t *op);
 /* -------------------------------------------------------------------------- */
 /* Extended threads support */
 extern const gasnete_eopaddr_t	EOPADDR_NIL;
-extern gasnete_threaddata_t	*gasnete_threadtable[GASNETI_MAX_THREADS];
-#if GASNETI_CLIENT_THREADS
-extern gasnete_threaddata_t * gasnete_mythread();
-#else
-  #define gasnete_mythread() (gasnete_threadtable[0])
-#endif
 
 void            gasnete_begin_nbi_accessregion(
 			int allowrecursion GASNETE_THREAD_FARG);

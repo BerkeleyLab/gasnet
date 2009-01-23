@@ -8,13 +8,13 @@
 
 if test "$USE_GCC" != "" ; then
 # GCC-based compilers
-CC='mpicc -O0 -Wno-unused' ; export CC  # vanilla target C compiler
-CXX='mpicxx -O0 -Wno-unused' ; export CXX  # vanilla target C++ compiler
+CC='/bgsys/drivers/ppcfloor/gnu-linux/bin/powerpc-bgp-linux-gcc -Wno-unused' ; export CC  # vanilla target C compiler
+CXX='/bgsys/drivers/ppcfloor/gnu-linux/bin/powerpc-bgp-linux-g++ -Wno-unused' ; export CXX  # vanilla target C++ compiler
 # for dynamic linking add: -dynamic -Wl,-rpath,/bgsys/drivers/V1R1M2_500_2007-071213P/ppc/runtime/SPI
 else
 # XLC-based compilers
-CC='bgxlc -qarch=450d -qtune=450' ; export CC  # vanilla target C compiler
-CXX='bgxlC -qarch=450d -qtune=450' ; export CXX  # vanilla target C++ compiler
+CC='bgxlc_r -qarch=450d -qtune=450' ; export CC  # vanilla target C compiler
+CXX='bgxlC_r -qarch=450d -qtune=450' ; export CXX  # vanilla target C++ compiler
 # for dynamic linking add: -qnostaticlink -Wl,-rpath,/bgsys/drivers/V1R1M2_500_2007-071213P/ppc/runtime/SPI
 fi
 
@@ -32,7 +32,7 @@ HOST_CXXFLAGS='' ; export HOST_CXXFLAGS
 
 if test "$USE_GCC" != "" ; then
 # GCC-based compilers
-MPI_CC='mpicc -O0 -Wno-unused' ; export MPI_CC     # MPI-enabled C compiler
+MPI_CC='mpicc' ; export MPI_CC     # MPI-enabled C compiler
 else
 # XLC-based compilers
 MPI_CC='mpixlc -qarch=450d -qtune=450' ; export MPI_CC     # MPI-enabled C compiler
@@ -40,11 +40,27 @@ fi
 #MPI_CFLAGS='' ; export MPI_CFLAGS  # flags for MPI_CC
 #MPI_LIBS='' ; export MPI_LIBS      # libs for linking with MPI_CC
 # system batch submit command:
-MPIRUN_CMD='cqsub -q short -t 10 -n %N %C' ; export MPIRUN_CMD  # launch command for MPI jobs
+MPIRUN_CMD='qsub -t 0:10:00 -n %N %C' ; export MPIRUN_CMD  # launch command for MPI jobs
+MPIRUN_CMD_BATCH='cobalt-mpirun %N %C' ; export MPIRUN_CMD_BATCH  # launch command for MPI inside the batch script
+
 # BEWARE: the mpirun below boots its own partition on the BG/L, which may disrupt the system resource scheduler and anger the admins
 #MPIRUN_CMD='mpirun -timeout 600 -np %N %V -verbose 0 -cwd %D -exe %P -args "%A"' ; export MPIRUN_CMD  # launch command for MPI jobs
 # --disable-aligned-segments because /proc/sys/kernel/randomize_va_space==1
-EXTRA_CONFIGURE_ARGS='--disable-aligned-segments --enable-mpi --disable-udp --disable-amudp' ; export EXTRA_CONFIGURE_ARGS  # misc configure args to pass
+
+
+#check which compute node OS to link against either the default compute node kernel or the Argonne
+if test "$USE_LINUX" != ""; then
+#MMAP and BG/P linux don't play well together so disabling it for now... until we hear better
+CROSS_HAVE_MMAP='0' ; export CROSS_HAVE_MMAP
+EXTRA_CONFIGURE_ARGS='--enable-dcmf-linux --disable-aligned-segments --disable-udp --disable-amudp' ; export EXTRA_CONFIGURE_ARGS  # misc configure args to pass
+EXTRA_CONFIGURE_ARGS="$EXTRA_CONFIGURE_ARGS --with-feature-list=os_bgp_linux"
+else
+CROSS_HAVE_MMAP='1' ; export CROSS_HAVE_MMAP
+EXTRA_CONFIGURE_ARGS='-with-max-pthreads-per-node=4 --disable-dcmf-linux --disable-udp --disable-amudp' ; export EXTRA_CONFIGURE_ARGS  # misc configure args to pass
+EXTRA_CONFIGURE_ARGS="$EXTRA_CONFIGURE_ARGS --with-feature-list=os_bgp"
+fi
+
+#EXTRA_CONFIGURE_ARGS='--disable-aligned-segments --enable-mpi --disable-udp --disable-amudp' ; export EXTRA_CONFIGURE_ARGS  # misc configure args to pass
 
 # 2. Fill in the canonical target machine type. You can usually obtain this
 #   by running config-aux/config.guess on the target machine
@@ -58,18 +74,13 @@ TARGET_ID='powerpc-bgp-linux'
 ################################################
 # AUTOMATICALLY DETECTED SETTINGS:
 
-
-# Whether the system has a working version of anonymous mmap
-
-CROSS_HAVE_MMAP='1' ; export CROSS_HAVE_MMAP
-
 # The system VM page size (ie mmap granularity, even if swapping is not supported)
 
 CROSS_PAGESIZE='4096' ; export CROSS_PAGESIZE
 
 # Does the system stack grow up?
 
-CROSS_STACK_GROWS_UP='1' ; export CROSS_STACK_GROWS_UP
+CROSS_STACK_GROWS_UP='0' ; export CROSS_STACK_GROWS_UP
 
 # Is char a signed type?
 

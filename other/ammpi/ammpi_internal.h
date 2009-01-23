@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_internal.h,v $
- *     $Date: 2007/02/02 22:18:19 $
- * $Revision: 1.39 $
+ *     $Date: 2009/01/23 20:38:22 $
+ * $Revision: 1.39.20.1 $
  * Description: AMMPI internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -187,21 +187,27 @@
                                    ((uintptr_t)(p))&~((uintptr_t)((P)-1)))
 #define AMMPI_ALIGNUP(p,P)     (AMMPI_ALIGNDOWN((uintptr_t)(p)+((uintptr_t)((P)-1)),P))
 
-#if ! defined (__GNUC__) && ! defined (__attribute__)
-#define __attribute__(flags)
+#ifdef GASNETT_FORMAT_PRINTF
+  #define AMMPI_FORMAT_PRINTF GASNETT_FORMAT_PRINTF
+#elif defined (__GNUC__) || defined (__attribute__)
+  #define AMMPI_FORMAT_PRINTF(fnname,fmtarg,firstvararg,declarator) \
+              __attribute__((__format__ (__printf__, fmtarg, firstvararg))) declarator
+#else
+  #define AMMPI_FORMAT_PRINTF(fnname,fmtarg,firstvararg,declarator) declarator
 #endif
 
-__attribute__((__format__ (__printf__, 1, 2)))
-extern int AMMPI_Err(const char *msg, ...);
 
-__attribute__((__format__ (__printf__, 1, 2)))
-extern int AMMPI_Warn(const char *msg, ...);
+AMMPI_FORMAT_PRINTF(AMMPI_Err,1,2,
+extern int AMMPI_Err(const char *msg, ...));
+
+AMMPI_FORMAT_PRINTF(AMMPI_Warn,1,2,
+extern int AMMPI_Warn(const char *msg, ...));
 
 #ifdef GASNETT_NORETURN
 GASNETT_NORETURN
 #endif
-__attribute__((__format__ (__printf__, 1, 2)))
-extern void AMMPI_FatalErr(const char *msg, ...);
+AMMPI_FORMAT_PRINTF(AMMPI_FatalErr,1,2,
+extern void AMMPI_FatalErr(const char *msg, ...));
 #ifdef GASNETT_NORETURNP
 GASNETT_NORETURNP(AMMPI_FatalErr)
 #endif

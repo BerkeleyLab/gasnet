@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2008/02/19 03:43:41 $
- * $Revision: 1.27 $
+ *     $Date: 2009/01/23 20:38:05 $
+ * $Revision: 1.27.6.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -80,11 +80,7 @@ typedef struct _gasnete_iop_t {
 
 /* ------------------------------------------------------------------------------------ */
 typedef struct _gasnete_threaddata_t {
-  void *gasnetc_threaddata;     /* pointer reserved for use by the core - MUST be first */
-  void *gasnete_coll_threaddata;/* pointer reserved for use by the collectives */
-  void *gasnete_vis_threaddata; /* pointer reserved for use by the VIS implementation */
-
-  gasnete_threadidx_t threadidx;
+  GASNETE_COMMON_THREADDATA_FIELDS /* MUST come first, for reserved ptrs */
 
   gasnete_eop_t *eop_bufs[256]; /*  buffers of eops for memory management */
   int eop_num_bufs;             /*  number of valid buffer entries */
@@ -95,7 +91,6 @@ typedef struct _gasnete_threaddata_t {
 
   gasnete_iop_t *iop_free;      /*  free list of iops */
 
-  struct _gasnet_valget_op_t *valget_free; /* free list of valget cells */
 } gasnete_threaddata_t;
 /* ------------------------------------------------------------------------------------ */
 
@@ -163,6 +158,7 @@ void gasnete_op_free(gasnete_op_t *op);
     gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT ||                          \
                    OPSTATE(eop) == OPSTATE_COMPLETE);                           \
     _th = gasnete_threadtable[(eop)->threadidx];                                \
+    gasnete_assert_valid_threadid((eop)->threadidx);                            \
     gasneti_assert(GASNETE_EOPADDR_TO_PTR(_th, (eop)->addr) == eop);            \
     switch (OPCAT(eop)) {                                                       \
       case OPCAT_ELANGETBB: case OPCAT_ELANPUTBB:                               \
@@ -175,12 +171,12 @@ void gasnete_op_free(gasnete_op_t *op);
     }                                                                           \
   } while (0)
   #define gasnete_iop_check(iop) do {                         \
-    int _temp;                                                \
+    int _temp; gasnete_iop_t *_tmp_next;                      \
     gasneti_memcheck(iop);                                    \
-    if ((iop)->next != NULL) _gasnete_iop_check((iop)->next); \
+    _tmp_next = (iop)->next;                                  \
+    if (_tmp_next != NULL) _gasnete_iop_check(_tmp_next);     \
     gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);           \
-    gasneti_assert((iop)->threadidx < gasnete_numthreads);    \
-    gasneti_memcheck(gasnete_threadtable[(iop)->threadidx]);  \
+    gasnete_assert_valid_threadid((iop)->threadidx);          \
     _temp = gasneti_weakatomic_read(&((iop)->completed_put_cnt), 0); \
     if (_temp <= 65000) /* prevent race condition on reset */ \
       gasneti_assert((iop)->initiated_put_cnt >= _temp);      \

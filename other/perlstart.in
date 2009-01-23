@@ -1,7 +1,7 @@
 # @configure_input@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/perlstart.in,v $
-#     $Date: 2006/12/03 10:52:38 $
-# $Revision: 1.16 $
+#     $Date: 2009/01/23 20:38:20 $
+# $Revision: 1.16.22.1 $
 # Description: 
 # Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -97,6 +97,13 @@ scriptname=`cd ${dir} >/dev/null 2>&1; $pwd_prog`/`"$basename" ${scriptname}`;
 
 PERLSTART_FLAGS="$perlopts $PERLSTART_FLAGS"
 export PERLSTART_FLAGS
+
+# bug 687/2475: perl's UTF support implicitly does some very stupid things, 
+# esp when manipulating binary strings -- so we force it all to be turned off
+LC_ALL=C
+export LC_ALL
+LANG=en_US
+export LANG
 
 exec $perl $PERLSTART_FLAGS "${scriptname}.pl" "$@"
 

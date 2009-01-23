@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2007/08/26 06:01:24 $
- * $Revision: 1.10 $
+ *     $Date: 2009/01/23 20:38:31 $
+ * $Revision: 1.10.22.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -11,18 +11,13 @@
 #include <gasnet_handler.h>
 #include <gasnet_portals.h>
 
-GASNETI_IDENT(gasnete_IdentString_Version, "$GASNetExtendedLibraryVersion: " GASNET_EXTENDED_VERSION_STR " $");
-GASNETI_IDENT(gasnete_IdentString_ExtendedName, "$GASNetExtendedLibraryName: " GASNET_EXTENDED_NAME_STR " $");
-
-gasnete_threaddata_t *gasnete_threadtable[GASNETI_MAX_THREADS] = { 0 };
-static int gasnete_numthreads = 0;
-static gasnet_hsl_t threadtable_lock = GASNET_HSL_INITIALIZER;
-#if GASNETI_CLIENT_THREADS
-  /* pthread thread-specific ptr to our threaddata (or NULL for a thread never-seen before) */
-  GASNETI_THREADKEY_DEFINE(gasnete_threaddata);
-#endif
 const gasnete_opaddr_t gasnete_opaddr_nil = { { 0xFF, 0xFF } };
+#define EOPADDR_NIL gasnete_opaddr_nil
 extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
+
+/* Maximum size xfer that can be done as a single portals operation */
+static size_t gasnete_max_put_single = GASNETC_PTL_MAX_TRANS_SZ;
+static size_t gasnete_max_get_single = GASNETC_PTL_MAX_TRANS_SZ;
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -44,64 +39,26 @@ extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Thread Management
-  =================
+  Extended API Common Code
+  ========================
+  Factored bits of extended API code common to most conduits, overridable when necessary
 */
-static gasnete_threaddata_t * gasnete_new_threaddata() {
-  gasnete_threaddata_t *threaddata = NULL;
-  int idx;
-  gasnet_hsl_lock(&threadtable_lock);
-  idx = gasnete_numthreads;
-  gasnete_numthreads++;
-  gasnet_hsl_unlock(&threadtable_lock);
-  gasneti_assert(GASNETI_MAX_THREADS <= (1U<<(sizeof(gasnete_threadidx_t)*8)));
-  #if GASNETI_CLIENT_THREADS
-    if (idx >= GASNETI_MAX_THREADS) 
-      gasneti_fatalerror("GASNet Extended API: Too many local client threads (limit=%i)",GASNETI_MAX_THREADS);
-  #else
-    gasneti_assert(idx == 0);
-  #endif
-  gasneti_assert(gasnete_threadtable[idx] == NULL);
 
-  threaddata = (gasnete_threaddata_t *)gasneti_calloc(1,sizeof(gasnete_threaddata_t));
-  GASNETI_TRACE_PRINTF(C,("gasnete_new_threaddata: idx=%i, numthreads=%i, threaddata=0x%lx",idx,gasnete_numthreads,(uintptr_t)threaddata));
+#define GASNETE_NEW_THREADDATA_CALLBACK(threaddata) \
+  gasneti_weakatomic_set(&(threaddata->local_completion_count), 0, 0)
 
-  threaddata->threadidx = idx;
-  threaddata->eop_free = gasnete_opaddr_nil;
-#if GASNETI_STATS_OR_TRACE
-  threaddata->eop_inuse = 0;
-  threaddata->eop_hwm = 0;
-#endif
+#define GASNETC_NEW_THREADDATA_CALLBACK(threaddata) \
+  threaddata->gasnetc_threaddata = gasnetc_new_threaddata(threaddata->threadidx)
 
-  threaddata->iop_free = NULL;
-  threaddata->current_iop = NULL;
-
-  gasneti_weakatomic_set(&(threaddata->local_completion_count), 0, 0);
-  gasnete_threadtable[idx] = threaddata;
-
-  threaddata->current_iop = gasnete_iop_new(threaddata);
-
-  threaddata->gasnetc_threaddata = gasnetc_new_threaddata(idx);
-
-  return threaddata;
+#define GASNETE_FREE_IOPS(thread) {            \
+  int i;                                       \
+  for (i = 0; i < thread->iop_num_bufs; i++) { \
+    gasneti_free(thread->iop_bufs[i]);         \
+  }                                            \
 }
-/* PURE function (returns same value for a given thread every time) 
-*/
-#if GASNETI_CLIENT_THREADS
-  extern gasnete_threaddata_t *gasnete_mythread() {
-    gasnete_threaddata_t *threaddata = gasneti_threadkey_get(gasnete_threaddata);
-    GASNETI_TRACE_EVENT(C, DYNAMIC_THREADLOOKUP);
-    if_pt (threaddata) {
-      gasneti_memcheck(threaddata);
-      return threaddata;
-    }
 
-    /* first time we've seen this thread - need to set it up */
-    threaddata = gasnete_new_threaddata();
-    gasneti_threadkey_set(gasnete_threaddata, threaddata);
-    return threaddata;
-  }
-#endif
+#include "gasnet_extended_common.c"
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization
@@ -428,6 +385,17 @@ extern void gasnete_init() {
 
   /* Initialize VIS subsystem */
   gasnete_vis_init();
+
+  /* Initialize get/put */
+  GASNETC_IF_USE_FIREHOSE (
+    /* The largest size we can be certain will fit in a single OP is the pin limit
+     * minus one page to allow for alignment considerations. */
+    gasnete_max_put_single = MIN(gasnete_max_put_single,
+				 gasnetc_firehose_info.max_LocalPinSize - GASNET_PAGESIZE);
+    gasnete_max_get_single = MIN(gasnete_max_get_single,
+				 gasnetc_firehose_info.max_LocalPinSize - GASNET_PAGESIZE);
+  )
+  /* ELSE default to GASNETC_PTL_MAX_TRANS_SZ */
 }
 
 /* This is called by gasnetc_exit for the purposes of cleanup-up
@@ -644,7 +612,8 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
 
 #else
 extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  if (nbytes <= GASNETC_PTL_MAX_TRANS_SZ) {
+  if ((nbytes <= gasnete_max_get_single) ||
+      (gasnetc_in_local_rar(dest,nbytes) && (nbytes <= GASNETC_PTL_MAX_TRANS_SZ))) {
     gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
     ptl_match_bits_t match_bits = 0UL;
     uint8_t lbits = GASNETC_PTL_RAR_BITS | GASNETC_PTL_MSG_GET;
@@ -653,7 +622,8 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
     gasnete_set_mbits_lowbits(&match_bits, lbits, (gasnete_op_t*)op);
 
     /* issue the actual Portals Get */
-    gasnetc_getmsg(dest,node,src,nbytes,match_bits,GASNETC_FULL_POLL);
+    gasnetc_assert_value(nbytes,
+    gasnetc_getmsg(dest,node,src,nbytes,match_bits,GASNETC_FULL_POLL));
 
     /* full poll after sending a message */
     gasneti_AMPoll();
@@ -670,28 +640,29 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
 
 GASNETI_INLINE(gasnete_put_nb_inner)
 gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes, int isbulk GASNETE_THREAD_FARG) {
-  if (nbytes <= GASNETC_PTL_MAX_TRANS_SZ) {
+  if ((nbytes <= gasnete_max_put_single) ||
+      (gasnetc_in_local_rar(src,nbytes) && (nbytes <= GASNETC_PTL_MAX_TRANS_SZ))) {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_eop_t *op = gasnete_eop_new(mythread);
     ptl_match_bits_t match_bits = 0ULL;
     uint8_t lbits = GASNETC_PTL_RAR_BITS | GASNETC_PTL_MSG_PUT;
-    int wait_for_local_completion = 0;
+    gasneti_weakatomic_t *lcc = isbulk ? (gasneti_weakatomic_t *)NULL : &(mythread->local_completion_count);
 
     gasneti_assert(gasneti_weakatomic_read(&(mythread->local_completion_count), 0) == 0);
 
     gasnete_set_mbits_lowbits(&match_bits, lbits, (gasnete_op_t*)op);
 
     /* send the message, polling first if necessary */
-    gasnetc_putmsg(dest,node,src,nbytes,match_bits,isbulk, &wait_for_local_completion,
-		   &(mythread->local_completion_count), GASNETC_FULL_POLL);
+    gasnetc_assert_value(nbytes,
+    gasnetc_putmsg(dest,node,src,nbytes,match_bits,lcc,GASNETC_FULL_POLL));
     
     /* full poll after sending a message */
     gasneti_AMPoll();
 
-    /* poll here for local completion in non-bulk or non-bb case */
-    if (wait_for_local_completion) {
-      gasneti_pollwhile( (gasneti_weakatomic_read(&(mythread->local_completion_count), 0) > 0) ); 
-   }
+    /* poll here for local completion in non-bulk / non-bb case */
+    if (lcc != NULL) {
+      gasneti_pollwhile( gasneti_weakatomic_read(lcc, 0) ); 
+    }
 
     return (gasnet_handle_t)op;
 
@@ -929,12 +900,13 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
   gasnete_set_mbits_lowbits(&match_bits, lbits, (gasnete_op_t*)op);
 
   /* Max transfer size is large, this loop will almost always execute exactly once */
-  while (nbytes > 0) {
-    size_t toget = MIN(nbytes,GASNETC_PTL_MAX_TRANS_SZ);
-
+  while (nbytes) {
     /* issue the get */
+    size_t toget = gasnetc_getmsg(dest,node,src,nbytes,match_bits,GASNETC_FULL_POLL);
     op->initiated_get_cnt++;
-    gasnetc_getmsg(dest,node,src,toget,match_bits,GASNETC_FULL_POLL);
+
+    gasneti_assert(toget > 0);
+    gasneti_assert(toget <= nbytes);
 
     nbytes -= toget;
     dest = ((uint8_t*)dest + toget);
@@ -951,9 +923,9 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const op = mythread->current_iop;
   ptl_match_bits_t match_bits = 0ULL;
-  int wait_for_local_completion = 0;
   ptl_hdr_data_t hdr_data = 0;
   uint8_t lbits = GASNETC_PTL_RAR_BITS | GASNETC_PTL_MSG_PUT;
+  gasneti_weakatomic_t *lcc = isbulk ? (gasneti_weakatomic_t *)NULL : &(mythread->local_completion_count);
 
   gasneti_assert(gasneti_weakatomic_read(&(mythread->local_completion_count), 0) == 0);
  
@@ -961,13 +933,13 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
   gasnete_set_mbits_lowbits(&match_bits, lbits, (gasnete_op_t*)op);
 
   /* Max transfer size is large, this loop will almost always execute exactly once */
-  while (nbytes > 0) {
-    size_t toput = MIN(nbytes,GASNETC_PTL_MAX_TRANS_SZ);
-
+  while (nbytes) {
     /* Issue Ptl Put operation */
+    size_t toput = gasnetc_putmsg(dest,node,src,nbytes,match_bits,lcc,GASNETC_FULL_POLL);
     op->initiated_put_cnt++;
-    gasnetc_putmsg(dest,node,src,toput,match_bits,isbulk,&wait_for_local_completion,
-		   &(mythread->local_completion_count), GASNETC_FULL_POLL);
+
+    gasneti_assert(toput > 0);
+    gasneti_assert(toput <= nbytes);
 
     nbytes -= toput;
     src = ((uint8_t*)src + toput);
@@ -977,11 +949,10 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
     gasneti_AMPoll();
   }
 
-  /* poll here for local completion in non-bulk or non-bb case */
-  if (wait_for_local_completion) {
-    gasneti_pollwhile( (gasneti_weakatomic_read(&(mythread->local_completion_count), 0) > 0) );
+  /* poll here for local completion in non-bulk / non-bb case */
+  if (lcc != NULL) {
+    gasneti_pollwhile( gasneti_weakatomic_read(lcc,0) );
   }
-
 }
 #endif
 
@@ -1094,55 +1065,6 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   mythread->current_iop = iop->next;
   iop->next = NULL;
   return (gasnet_handle_t)iop;
-}
-
-/* ------------------------------------------------------------------------------------ */
-/*
-  Non-Blocking Value Get (explicit-handle)
-  ========================================
-*/
-typedef struct _gasnet_valget_op_t {
-  gasnet_handle_t handle;
-  gasnet_register_value_t val;
-
-  struct _gasnet_valget_op_t* next; /* for free-list only */
-  gasnete_threadidx_t threadidx;  /*  thread that owns me */
-} gasnet_valget_op_t;
-
-extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-  gasnet_valget_handle_t retval;
-  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
-  gasneti_boundscheck(node, src, nbytes);
-  if (mythread->valget_free) {
-    retval = mythread->valget_free;
-    mythread->valget_free = retval->next;
-    gasneti_memcheck(retval);
-  } else {
-    retval = (gasnet_valget_op_t*)gasneti_malloc(sizeof(gasnet_valget_op_t));
-    retval->threadidx = mythread->threadidx;
-  }
-
-  retval->val = 0;
-  if (gasnete_islocal(node)) {
-    GASNETE_FAST_ALIGNED_MEMCPY(GASNETE_STARTOFBITS(&(retval->val),nbytes), src, nbytes);
-    retval->handle = GASNET_INVALID_HANDLE;
-  } else {
-    retval->handle = gasnete_get_nb_bulk(GASNETE_STARTOFBITS(&(retval->val),nbytes), node, src, nbytes GASNETE_THREAD_PASS);
-  }
-  return retval;
-}
-
-extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t handle) {
-  gasnet_register_value_t val;
-  gasnete_threaddata_t * const thread = gasnete_threadtable[GASNETE_OP_THREADID(handle)];
-  gasneti_assert(thread == gasnete_mythread());
-  handle->next = thread->valget_free; /* free before the wait to save time after the wait, */
-  thread->valget_free = handle;       /*  safe because this thread is under our control */
-
-  gasnete_wait_syncnb(handle->handle);
-  val = handle->val;
-  return val;
 }
 
 /* ------------------------------------------------------------------------------------ */

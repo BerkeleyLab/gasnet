@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2008/01/29 05:46:36 $
- * $Revision: 1.86 $
+ *     $Date: 2009/01/23 20:37:55 $
+ * $Revision: 1.86.6.1 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -239,19 +239,18 @@ GASNETI_BEGIN_EXTERNC
     return (uint64_t)(st * gasneti_timer_tick);
   }
 /* ------------------------------------------------------------------------------------ */
-#elif GASNETI_ARCH_SICORTEX && 0
- #if 0
-  /* this unfortunately does not currently work because the cycle counters 
-   * are apparently not synchronized across CPUs, so process migration across cores breaks it */
+#elif GASNETI_ARCH_SICORTEX
+ #if 1
   typedef uint64_t gasneti_tick_t;
   GASNETI_INLINE(gasneti_ticks_now)
   gasneti_tick_t gasneti_ticks_now() {
     gasneti_tick_t _count = 0;
-    __asm__ __volatile__(".set push \n"
-                         ".set mips32r2\n"
+    __asm__ __volatile__(".set push     \n"
+                         ".set mips32r2 \n"
                          "rdhwr $3, $30 \n"
-                         "move %0, $3 \n"
-                         ".set pop" : "=r"(_count) : : "$3");
+                         ".set pop      \n"
+                         "move %0, $3   \n"
+                         : "=r"(_count) : : "$2", "$3");
     return _count;
   }
 
@@ -260,15 +259,26 @@ GASNETI_BEGIN_EXTERNC
     static int firsttime = 1;
     static double adjust;
     if_pf(firsttime) {
-      /* hard-coded frequency for now */
-      #ifndef GASNETI_CPU_CLOCK_MHZ
-      #define GASNETI_CPU_CLOCK_MHZ 500
-      #endif
-      double freq = GASNETI_CPU_CLOCK_MHZ;
-      /* cycle counter runs at half of core clock speed */
-      adjust = 2.0E3/freq;
+      #define GASNETI_HZ_FILE "/sys/devices/system/clusterclock/hz"
+      FILE *fp = fopen(GASNETI_HZ_FILE,"r");
+      char input[255];
+      int hz;
+      if (fp && fgets(input, 255, fp)) {
+        hz = atoi(input);
+        gasneti_assert(hz > 100000000);
+        adjust = 1.0E9 / hz;
+      } else {
+        /* fall back on hard-coded frequency */
+        #ifndef GASNETI_CPU_CLOCK_MHZ
+        #define GASNETI_CPU_CLOCK_MHZ 500
+        #endif
+        double freq = GASNETI_CPU_CLOCK_MHZ;
+        /* cycle counter runs at half of core clock speed */
+        adjust = 2.0E3/freq;
+      }
       gasneti_sync_writes();
       firsttime = 0;
+      if (fp) fclose(fp);
     } else gasneti_sync_reads();
     return (uint64_t)(((double)ticks) * adjust);
   }
@@ -498,7 +508,10 @@ GASNETI_BEGIN_EXTERNC
       if (!dp) gasneti_fatalerror("*** ERROR: Failure in opendir('/proc/device-tree/cpus'): %s",strerror(errno));
       do {
         de = readdir(dp);
-	if (de && (de->d_name == strstr(de->d_name, "PowerPC,"))) {
+	if (de && 
+           ( de->d_name == strstr(de->d_name, "PowerPC,") || /* PowerPC */
+             de->d_name == strstr(de->d_name, "cpu@0") /* IBM cell */
+           )) {
 	  break;
 	}
       } while (de);
@@ -510,6 +523,18 @@ GASNETI_BEGIN_EXTERNC
       if (fread((void *)(&freq), sizeof(uint32_t), 1, fp) != 1) 
         gasneti_fatalerror("*** ERROR: Failure to read timebase frequency from '%s': %s", fname, strerror(errno));
       fclose(fp);
+      if (freq == 0) { /* Playstation3 */
+        char input[255];
+        fp = fopen("/proc/cpuinfo", "r");
+        if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
+        while (!feof(fp) && fgets(input, 255, fp)) {
+          if (strstr(input,"timebase")) {
+            char *p = strchr(input,':');
+            if (p) { freq = atoi(p+1); break; }
+          }
+        }
+        fclose(fp);
+      }
      #endif
       gasneti_assert(freq > 1000000 && freq < 1000000000); /* ensure it looks reasonable (1MHz to 1Ghz) */
       Tick = 1.0e9 / freq;

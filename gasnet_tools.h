@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2008/02/19 03:43:39 $
- * $Revision: 1.118 $
+ *     $Date: 2009/01/23 20:37:55 $
+ * $Revision: 1.118.6.1 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -182,6 +182,51 @@ GASNETI_BEGIN_EXTERNC
 #define GASNETT_ATOMIC_SIGNED_MIN		GASNETI_ATOMIC_SIGNED_MIN
 #define GASNETT_ATOMIC_SIGNED_MAX		GASNETI_ATOMIC_SIGNED_MAX
 
+/* strong atomics always map to true atomic operations, regardless of threading mode */
+#if GASNETI_ATOMICOPS_NOT_SIGNALSAFE
+  #define GASNETT_STRONGATOMIC_NOT_SIGNALSAFE 1
+#endif
+#define gasnett_strongatomic_t               gasneti_atomic_t
+#define gasnett_strongatomic_read(p,f)       gasneti_atomic_read(p,f)
+#define gasnett_strongatomic_init(v)         gasneti_atomic_init(v)
+#define gasnett_strongatomic_set(p,v,f)      gasneti_atomic_set(p,v,f)
+#define gasnett_strongatomic_increment(p,f)  gasneti_atomic_increment(p,f)
+#define gasnett_strongatomic_decrement(p,f)  gasneti_atomic_decrement(p,f)
+#define gasnett_strongatomic_decrement_and_test(p,f)  \
+                                       gasneti_atomic_decrement_and_test(p,f)
+#ifdef GASNETI_HAVE_ATOMIC_CAS
+  #define GASNETT_HAVE_STRONGATOMIC_CAS 1
+  #define gasnett_strongatomic_compare_and_swap(p,oldval,newval,f)  \
+                                       gasneti_atomic_compare_and_swap(p,oldval,newval,f)
+#endif
+
+#ifdef GASNETI_HAVE_ATOMIC_ADD_SUB
+  #define GASNETT_HAVE_STRONGATOMIC_ADD_SUB 1
+  #define gasnett_strongatomic_add(p,op,f)      gasneti_atomic_add(p,op,f)
+  #define gasnett_strongatomic_subtract(p,op,f) gasneti_atomic_subtract(p,op,f)
+#endif
+
+#if GASNETI_ATOMIC32_NOT_SIGNALSAFE
+  #define GASNETT_STRONGATOMIC32_NOT_SIGNALSAFE 1
+#endif
+#define gasnett_strongatomic32_t              gasneti_atomic32_t
+#define gasnett_strongatomic32_read(p,f)      gasneti_atomic32_read(p,f)
+#define gasnett_strongatomic32_init(v)        gasneti_atomic32_init(v)
+#define gasnett_strongatomic32_set(p,v,f)     gasneti_atomic32_set(p,v,f)
+#define gasnett_strongatomic32_compare_and_swap(p,oldval,newval,f)  \
+                                        gasneti_atomic32_compare_and_swap(p,oldval,newval,f)
+
+#if GASNETI_ATOMIC64_NOT_SIGNALSAFE
+  #define GASNETT_STRONGATOMIC64_NOT_SIGNALSAFE 1
+#endif
+#define gasnett_strongatomic64_t              gasneti_atomic64_t
+#define gasnett_strongatomic64_read(p,f)      gasneti_atomic64_read(p,f)
+#define gasnett_strongatomic64_init(v)        gasneti_atomic64_init(v)
+#define gasnett_strongatomic64_set(p,v,f)     gasneti_atomic64_set(p,v,f)
+#define gasnett_strongatomic64_compare_and_swap(p,oldval,newval,f)  \
+                                          gasneti_atomic64_compare_and_swap(p,oldval,newval,f)
+
+/* regular atomics map to either true atomics or sequential stubs, based on thread mode */
 #if GASNETI_THREADS
   /* PAR, PARSYNC and thread-safe tools clients */
   #define gasnett_atomic_t               gasneti_atomic_t
@@ -283,6 +328,9 @@ GASNETI_BEGIN_EXTERNC
 
 /* ------------------------------------------------------------------------------------ */
 /* misc tools utilities */
+
+/* return a (possibly empty) string of any configuration options that might negtively impact performance */
+extern const char *gasnett_performance_warning_str();
 
 #define gasnett_sched_yield     gasneti_sched_yield 
 #define gasnett_cpu_count       gasneti_cpu_count
@@ -463,6 +511,9 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
     #define gasnett_heapstats_t           gasneti_heapstats_t
     #define gasnett_getheapstats(pstat)   gasneti_getheapstats(pstat)
   #endif
+
+  #define gasnett_malloc_aligned(align,sz) gasneti_malloc_aligned((align),(sz))
+  #define gasnett_free_aligned(ptr)        gasneti_free_aligned(ptr)
 
   /* VIS string formatting */
   #define gasnett_format_memveclist_bufsz gasneti_format_memveclist_bufsz 

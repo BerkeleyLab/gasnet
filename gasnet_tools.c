@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2008/01/22 11:05:41 $
- * $Revision: 1.215 $
+ *     $Date: 2009/01/23 20:37:55 $
+ * $Revision: 1.215.6.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -81,6 +81,38 @@
   #ifdef GASNETI_GENATOMIC64_DEFN
     GASNETI_GENATOMIC64_DEFN
   #endif
+#endif
+
+#if GASNETI_MUTEX_CAUTIOUS_INIT
+#if GASNETI_ATOMIC32_NOT_SIGNALSAFE
+  #error GASNETI_MUTEX_CAUTIOUS_INIT requires !GASNETI_ATOMIC32_NOT_SIGNALSAFE
+#endif
+/* initstep values: 0 = initial value for a new mutex
+                    1 = initialization of mutex in progress by some thread
+                    2 = mutex is fully initialized and ready for use
+ */
+extern void gasneti_mutex_cautious_init(/*gasneti_mutex_t*/void *_pl) {
+  gasneti_mutex_t *pl = _pl;
+  gasneti_atomic32_t *initstep = (gasneti_atomic32_t *)&(pl->initstep);
+  while (1) {
+    /* check if initialization is complete */
+    if (gasneti_atomic32_read(initstep,GASNETI_ATOMIC_RMB_POST) == 2) return;
+    /* mutex needs initialization, try to acquire that job */
+    if (gasneti_atomic32_compare_and_swap(initstep, 0, 1,
+                                           GASNETI_ATOMIC_ACQ_IF_TRUE)) break;
+    /* some other thread beat us to it */
+    gasneti_sched_yield();
+  }
+
+  /* perform an uncontended lock/unlock cycle on the new mutex, 
+     to ensure pthread library data structures are correctly created */
+  gasneti_assert_zeroret(pthread_mutex_lock(&(pl->lock)));
+  gasneti_assert_zeroret(pthread_mutex_unlock(&(pl->lock)));
+
+  /* init complete, release */
+  gasneti_atomic32_set(initstep, 2, GASNETI_ATOMIC_WMB_PRE);
+  return;
+}
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -225,6 +257,58 @@ int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC32_CONFIG) = 1;
 int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG) = 1;
 
 static gasneti_atomic_t gasneti_backtrace_enabled = gasneti_atomic_init(1);
+
+
+extern const char *gasnett_performance_warning_str() {
+  static char *result = NULL;
+  static gasneti_mutex_t gasnett_performance_warning_lock = GASNETI_MUTEX_INITIALIZER;
+  gasnett_mutex_lock(&gasnett_performance_warning_lock);
+    if (result) return result;
+    else result = malloc(1024);
+    result[0] = '\0';
+    #ifdef GASNET_DEBUG
+      strcat(result,"debugging ");
+    #endif
+    #ifdef GASNET_TRACE
+      strcat(result,"tracing ");
+    #endif
+    #ifdef GASNET_STATS
+      strcat(result,"statistical collection ");
+    #endif
+    if (result[0]) {
+        char tmp[80];
+        strcpy(tmp,"        ");  /* Leading white space: */
+        strcat(tmp,result);
+        strcat(tmp,"\n"); /* Trailing white space: */
+        strcpy(result,tmp);
+    }
+    #if defined(GASNETI_FORCE_GENERIC_ATOMICOPS)
+      strcat(result,"        FORCED mutex-based atomicops\n");
+    #elif defined(GASNETI_FORCE_OS_ATOMICOPS)
+      strcat(result,"        FORCED os-provided atomicops\n");
+    #endif
+    #if defined(GASNETI_FORCE_TRUE_WEAKATOMICS) && GASNETI_THREAD_SINGLE
+      strcat(result,"        FORCED atomics in sequential code\n");
+    #endif
+    #if defined(GASNETI_FORCE_GENERIC_SEMAPHORES) && GASNETT_THREAD_SAFE
+      strcat(result,"        FORCED mutex-based semaphores\n");
+    #endif
+    #if defined(GASNETI_FORCE_YIELD_MEMBARS)
+      strcat(result,"        FORCED sched_yield() in memory barriers\n");
+    #elif defined(GASNETI_FORCE_SLOW_MEMBARS)
+      strcat(result,"        FORCED non-inlined memory barriers\n");
+    #endif
+    #if defined(GASNETI_FORCE_GETTIMEOFDAY)
+      strcat(result,"        FORCED timers using gettimeofday()\n");
+    #elif defined(GASNETI_FORCE_POSIX_REALTIME)
+      strcat(result,"        FORCED timers using clock_gettime()\n");
+    #endif
+    #if defined(GASNETI_BUG1389_WORKAROUND)
+      strcat(result,"        FORCED conservative byte-wise local access\n");
+    #endif
+  gasnett_mutex_unlock(&gasnett_performance_warning_lock);
+  return result;
+}
 
 /* ------------------------------------------------------------------------------------ */
 /* timer support */
@@ -976,7 +1060,13 @@ extern int gasneti_print_backtrace(int fd) {
         int i;
         static char btsel[255]; /* parse selection */
         char *psel = btsel;
-        while (*plist && !strchr(" ,|;",*plist)) { *psel++ = toupper(*plist++); }
+        while (*plist && !strchr(" ,|;",*plist)) {
+	    /* ICK: Our toupper() replacement for Tru64 is a macro that 
+	     * evaluates its argument multiple times.
+	     * So, need ++ outside toupper();
+	     */
+	    *psel++ = toupper(*plist); plist++;
+	}
         *psel = '\0';
         if (*plist) plist++;
 
@@ -1812,7 +1902,19 @@ GASNETI_ALWAYS_INLINE(gasneti_count0s_xform2) GASNETI_CONST
 uintptr_t gasneti_count0s_xform2(uintptr_t x) {
 #if 0
   return x % 255; /* simplest expression, but usually a poor performer */
+#elif 0
+  /* Form that is equvalent to the one below, and is said to be faster
+   * IFF one has a fast integer multiply instruction.
+   * Works because the product is x + (x<<8) + (x<<16) + (x<<24) + ...
+   * and thus our sum is in the UPPER 8 bits.
+   * See, for instance, http://en.wikipedia.org/wiki/Hamming_weight */
+ #if PLATFORM_ARCH_64
+  return (x * 0x0101010101010101UL) >> 56;
+ #else
+  return (x * 0x01010101UL) >> 24;
+ #endif
 #else
+ /* "tree" reduction of 4 or 8 "fields" of 8-bits each */
  #if PLATFORM_ARCH_64
   x += (x >> 32);
  #endif

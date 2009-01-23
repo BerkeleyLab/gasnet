@@ -1,8 +1,8 @@
 \input texinfo   @c -*-texinfo-*-
 @c %**start of header
 @c   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/docs/gasnet.texi,v $
-@c     $Date: 2007/10/31 00:27:24 $
-@c $Revision: 1.43 $
+@c     $Date: 2009/01/23 20:38:03 $
+@c $Revision: 1.43.10.1 $
 @c Description: GASNet specification
 @c Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
 @c Terms of use are as specified in license.txt
@@ -172,9 +172,9 @@ Published by LBNL FTG and U.C. Berkeley
 @title GASNet Specification
 @subtitle Version @value{VERSION}
 @subtitle Released @value{RELEASEDATE}
-@subtitle $Date: 2007/10/31 00:27:24 $
+@subtitle $Date: 2009/01/23 20:38:03 $
 @subtitle Printed @today{}
-@subtitle $Revision: 1.43 $ 
+@subtitle $Revision: 1.43.10.1 $ 
 @author Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
 @uref{http://gasnet.cs.berkeley.edu/}
 
@@ -212,8 +212,8 @@ This the GASNet specification, version @value{VERSION}.
 @ifset HTMLORTEXT
 Version @value{VERSION}
 @*Released @value{RELEASEDATE}
-@*$Date: 2007/10/31 00:27:24 $
-@*$Revision: 1.43 $ 
+@*$Date: 2009/01/23 20:38:03 $
+@*$Revision: 1.43.10.1 $ 
 @ifnothtml
 @*Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
 @end ifnothtml
@@ -943,7 +943,7 @@ barring any catastrophic errors (e.g. node crashes). From a sender's point
 of view, the request and reply functions block until the message is sent. A 
 message is defined to be sent once it is safe for the caller to reuse the storage 
 (registers or memory) containing the message (one notable exception to this 
-policy is @code{gasnet_RequestLargeAsyncM()}). In implementations which copy or 
+policy is @code{gasnet_RequestLongAsyncM()}). In implementations which copy or 
 buffer messages for transmission, the definition still holds: message sent 
 means the layer has copied the message and promises to deliver the copy with 
 its "best effort", and the original message storage may be reused. By best 

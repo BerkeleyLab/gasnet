@@ -45,6 +45,8 @@ MPIRUN_CMD='cqsub -q short -t 10 -n %N %C' ; export MPIRUN_CMD  # launch command
 # BEWARE: the mpirun below boots its own partition on the BG/L, which may disrupt the system resource scheduler and anger the admins
 #MPIRUN_CMD='mpirun -timeout 600 -np %N %V -verbose 0 -cwd %D -exe %P -args "%A"' ; export MPIRUN_CMD  # launch command for MPI jobs
 EXTRA_CONFIGURE_ARGS='--enable-allow-gcc32 --enable-mpi --disable-udp --disable-amudp' ; export EXTRA_CONFIGURE_ARGS  # misc configure args to pass
+# OS string for test harness purposes
+EXTRA_CONFIGURE_ARGS="$EXTRA_CONFIGURE_ARGS --with-feature-list=os_bgl"
 
 # 2. Fill in the canonical target machine type. You can usually obtain this
 #   by running config-aux/config.guess on the target machine
@@ -70,7 +72,7 @@ CROSS_PAGESIZE='4096' ; export CROSS_PAGESIZE
 
 # Does the system stack grow up?
 
-CROSS_STACK_GROWS_UP='1' ; export CROSS_STACK_GROWS_UP
+CROSS_STACK_GROWS_UP='0' ; export CROSS_STACK_GROWS_UP
 
 # Is char a signed type?
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testthreads.c,v $
- *     $Date: 2007/01/31 09:56:53 $
- * $Revision: 1.27 $
+ *     $Date: 2009/01/23 20:38:42 $
+ * $Revision: 1.27.20.1 $
  *
  * Description: GASNet threaded tester.
  *   The test initializes GASNet and forks off up to 256 threads.  Each of
@@ -48,7 +48,7 @@ int	sleep_max_us = 250000;
 int	amiters_max = 50;
 int     verbose = 0;
 int     amtrace = 0;
-
+int     threadstress = 0;
 
 #define ACTION_PRINTF \
   if (GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__), verbose) MSG
@@ -169,9 +169,9 @@ main(int argc, char **argv)
 
         #if TEST_MPI
           init_test_mpi(&argc, &argv);
-          getopt_str = "pgamlvti:";
+          getopt_str = "pgamlvtdi:";
         #else
-          getopt_str = "pgalvti:";
+          getopt_str = "pgalvtdi:";
         #endif
 
 	GASNET_Safe(gasnet_init(&argc, &argv));
@@ -189,7 +189,7 @@ main(int argc, char **argv)
         #else
           #define TEST_THREAD_USAGE  "\n\n"
         #endif
-	test_init("testthreads",0, "[ -pgalvt ] [ -i <iters> ]"
+	test_init("testthreads",0, "[ -pgalvtd ] [ -i <iters> ]"
             TEST_THREAD_USAGE
 	    "no options means run all tests with "_STRINGIFY(DEFAULT_ITERS)" iterations\n"
 	    "options:                                      \n"
@@ -200,6 +200,7 @@ main(int argc, char **argv)
             TEST_MPI_USAGE
 	    "  -v  output information about actions taken     \n"
 	    "  -t  include AM handler actions with -v         \n"
+	    "  -d  dynamic thread creation stress test        \n"
 	    "  -i <iters> use <iters> iterations per thread   \n");
 
 	while ((i = getopt (argc, argv, getopt_str)) != EOF) {
@@ -212,6 +213,7 @@ main(int argc, char **argv)
 		case 'i': iters = atoi(optarg); break;
                 case 'v': verbose = 1; break;
                 case 't': amtrace = 1; break;
+                case 'd': threadstress = 1; break;
 		default: test_usage();
           }
 	}
@@ -271,8 +273,19 @@ main(int argc, char **argv)
         #endif
 
         #ifdef GASNET_PAR
-  	  MSG("Forking %d gasnet threads", threads_num);
-          test_createandjoin_pthreads(threads_num, &threadmain, tt_thread_data, sizeof(threaddata_t));
+          if (threadstress) {
+            int spawniters = MAX(1,iters/threads_num);
+            int i;
+            MSG("Dynamic thread creation stress test, %d gasnet threads, (%d at a time)", spawniters*threads_num, threads_num);
+            iters = 10; /* enough iters to ensure we get thread registration */
+            for (i = 0; i < spawniters; i++) {
+              test_createandjoin_pthreads(threads_num, &threadmain, tt_thread_data, sizeof(threaddata_t));
+              TEST_PROGRESS_BAR(i, spawniters);
+            }
+          } else {
+            MSG("Forking %d gasnet threads and running %d iterations", threads_num, iters);
+            test_createandjoin_pthreads(threads_num, &threadmain, tt_thread_data, sizeof(threaddata_t));
+          }
         #else /* for testmpi-seq */
   	  MSG("Running with 1 thread/node for GASNET_SEQ mode");
           threadmain(tt_thread_data);
@@ -303,7 +316,7 @@ threadmain(void *args)
 
 	thread_barrier();
 
-	MSG("tid=%3d> starting.", td->tid);
+	if (!threadstress) MSG("tid=%3d> starting.", td->tid);
 
 	for (i = 0; i < iters; i++) {
 		idx = TEST_RAND(0,functions_num-1);
@@ -311,11 +324,11 @@ threadmain(void *args)
 		assert(func != NULL);
 
 		func(td);
-                if (td->ltid == 0) TEST_PROGRESS_BAR(i, iters);
+                if (td->ltid == 0 && !threadstress) TEST_PROGRESS_BAR(i, iters);
 	}
 
 	thread_barrier();
-	MSG("tid=%3d> done.", td->tid);
+	if (!threadstress) MSG("tid=%3d> done.", td->tid);
 
 	return NULL;
 }
@@ -347,7 +360,7 @@ alloc_thread_data(int threads)
 				tt_thread_map[tid] = i;
 				tt_addr_map[tid] = (void *) 
 				    ((uintptr_t) segbase + 
-				     j * TEST_SEGZ_PER_THREAD);
+				     (uintptr_t) (j * TEST_SEGZ_PER_THREAD));
 
 				if (i == gasnet_mynode()) {
 					td = &tt_thread_data[j];

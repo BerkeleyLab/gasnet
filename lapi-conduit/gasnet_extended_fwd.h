@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2007/10/31 05:13:57 $
- * $Revision: 1.27 $
+ *     $Date: 2009/01/23 20:38:12 $
+ * $Revision: 1.27.10.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,7 +19,7 @@
   #define GASNETI_FIREHOSE_STATS(CNT,VAL,TIME)	/* Empty */
 #endif
 
-#define GASNET_EXTENDED_VERSION      1.8
+#define GASNET_EXTENDED_VERSION      1.9
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
 #define GASNET_EXTENDED_NAME         LAPI
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
@@ -28,14 +28,6 @@
 #define GASNETI_DIRECT_GET_BULK 1
 #define GASNETI_DIRECT_PUT_BULK 1
 #define GASNETI_DIRECT_MEMSET   1
-
-#if GASNETC_LAPI_FED_POLLBUG_WORKAROUND
-#define GASNETI_DIRECT_WAIT_SYNCNB 1
-#define GASNETI_DIRECT_WAIT_SYNCNB_SOME 1
-#define GASNETI_DIRECT_WAIT_SYNCNB_ALL 1
-#define GASNETI_DIRECT_WAIT_SYNCNBI_PUTS 1 
-#define GASNETI_DIRECT_WAIT_SYNCNBI_ALL 1
-#endif
 
 /* conduit allows internal GASNet fns to issue put/get for remote addrs out of segment */
 #if GASNETC_LAPI_RDMA

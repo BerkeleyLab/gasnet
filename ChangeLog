@@ -1,6 +1,64 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.20 $
+$Revision: 1.20.10.1 $
+
+----------------------------------------------------------------------
+11-03-2008 : Release 1.12
+
+* New conduits added:
+  - dcmf-conduit: High-performance conduit for the IBM BlueGene/P
+    using the DCMF communication interface.
+
+* IBM SP/LAPI:
+  - Fix a bug that prevented the use of unequal segment sizes across 
+    nodes in LAPI-RDMA mode
+  - Fix several exit-time crashes
+  - Remove deprecated support for Federation LAPI version < 2.3.2.0
+  - Lots of misc cleanups and tuning
+
+* Myrinet/GM:
+  - Fix some AM performance and correctness problems, esp with AMLong
+
+* CrayXT/Portals:
+  - Upgrade to cache local memory registration using firehose library
+  - Add GASNET_PORTAL_PUTGET_BOUNCE_LIMIT setting
+
+* InfiniBand/{VAPI,IBV}:
+  - Extend "ibv" (InfiniBand) support to Qlogic's InfiniPath adapters
+
+* Platform support:
+  - Add support for the BlueGene/P architecture (mpi and dcmf)
+  - Add experimental support for ARM processors
+  - Add support for PGI compiler on Mac OSX
+  - Misc improvements and/or fixes for MIPS, Alpha, PPC and SPARC processors
+  - Add Pathscale compilers to supported list for Cray XT machines
+  - Improved support for XLC compilers on Linux
+  - Add/improve support for MIPSEL/Linux platforms, including SiCortex
+  - Add support for the default libpthread on Cray XT CNL 2.1
+  - Add support for Playstation 3 PowerPC
+
+* Configure features:
+  - Add --disable-mmap support to force the use of malloc for the GASNet segment
+  - Add configure option --with-max-pthreads-per-node=N to override the 
+    GASNet default limit of 256 pthreads per node
+  - Add support for autoconf 2.62 and newer
+  - Workaround stability problems in cygwin pthread mutexes (bug 1847)
+
+* GASNet tools:
+  - Upgrades to error reporting in the GASNet debug mallocator
+  - Add GASNET_MALLOCFILE option and corresponding gasnet_trace support
+    to assist in leak detection for libgasnet and apps using debug mallocator
+  - Add "strong" atomics to the GASNet-tools interface
+  - New gasnett_performance_warning_str() returns a string reporting
+    performance-relevant attributes of the current GASNet build
+
+* Misc changes:
+  - Workaround for a gcc 4.x (x<3) optimizer bug has changed
+      We now encourage updating to gcc >= 4.3.0, though our previously
+      documented workarounds remain valid
+  - Minor improvements to the collectives environmental interface
+  - Fix cross-configure detection of stack growth direction
+  - Avoid "capturing" __attribute__ when compiler mismatch is detected
 
 ----------------------------------------------------------------------
 10-30-2007 : Release 1.10

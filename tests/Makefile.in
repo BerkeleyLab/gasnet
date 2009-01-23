@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v $
-#     $Date: 2008/02/03 08:29:05 $
-# $Revision: 1.106 $
+#     $Date: 2009/01/23 20:38:42 $
+# $Revision: 1.106.6.1 $
 # Description: Makefile for GASNet tests
 # @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -155,7 +155,6 @@ testprograms_err =      \
 # (except in the case of cross-compilation, where we run them on the compute node using MPIRUN_CMD)
 testprograms_nongasnet = \
 	testtools testtoolscxx
-DQUOTE="
 CONDUIT_NAME_UC=`echo $(CONDUIT_NAME) | @AWK@  '{print toupper($$0)}'`
 awk_cmdbuild={  qargs="'"'"$$args"'"'"; \
                 gsub(ENVIRON["'"'"DQUOTE"'"'"],ENVIRON["'"'"BACKSLASH"'"'"]ENVIRON["'"'"DQUOTE"'"'"],qargs); \
@@ -176,6 +175,7 @@ run-tests: force
 	export `echo "$(TEST_PARAMS)" | @AWK@ 'BEGIN {FS="=";RS=";"}{ print $$1 }'` ;   \
 	line='+++++++++++++++++++++++++++++++++++++++' ; line="$$line$$line" ;          \
 	BACKSLASH='\' export BACKSLASH ;                                                \
+	DQUOTE='"' export DQUOTE ;                                                      \
 	tests_to_run="" export tests_to_run ;                                           \
 	tests_to_ignore="" export tests_to_ignore ;                                     \
 	for file in $(testprograms) ; do if test -x "$$file" ; then                     \
@@ -261,6 +261,7 @@ do-run-testexit: force
 	@echo "#!/bin/sh" > $(TESTEXIT_SCRIPT)
 	@nodes=$${TEST_NODES-2} ; args="" ; file="testexit" ;             \
          BACKSLASH='\' export BACKSLASH ;                                 \
+         DQUOTE='"' export DQUOTE ;                                       \
          awk_cmdbuild=`echo "$(awk_cmdbuild)"` ; 			  \
          cmd=`echo "$(CONDUIT_RUNCMD)" | eval @AWK@ \'$$awk_cmdbuild\'` ; \
 	 echo "INTERACTIVE_RUNCMD='$$cmd'"                        >> $(TESTEXIT_SCRIPT)

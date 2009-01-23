@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2007/10/31 05:13:55 $
- * $Revision: 1.33 $
+ *     $Date: 2009/01/23 20:38:10 $
+ * $Revision: 1.33.10.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,7 +16,7 @@
 #include <gm.h>
 #include <firehose_trace.h>
 
-#define GASNET_EXTENDED_VERSION      1.8
+#define GASNET_EXTENDED_VERSION      1.9
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
 #define GASNET_EXTENDED_NAME         GM
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)

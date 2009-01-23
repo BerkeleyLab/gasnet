@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_toolhelp.h,v $
- *     $Date: 2008/02/03 04:31:08 $
- * $Revision: 1.35 $
+ *     $Date: 2009/01/23 20:37:55 $
+ * $Revision: 1.35.6.1 $
  * Description: misc declarations needed by both gasnet_tools and libgasnet
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -222,7 +222,27 @@ int gasneti_count0s_uint32_t(uint32_t x) {
   #define GASNETI_BUG2231_WORKAROUND_PAD  
 #endif
 
-#if GASNET_DEBUG || GASNETI_BUG2231_WORKAROUND
+#if GASNETI_USE_TRUE_MUTEXES && PLATFORM_OS_CYGWIN
+  /* bug1847: Cygwin mutexes initialized using PTHREAD_MUTEX_INITIALIZER are unsafe upon first acquire */
+  #define GASNETI_MUTEX_CAUTIOUS_INIT 1
+#endif
+
+#if GASNETI_MUTEX_CAUTIOUS_INIT
+  /* implemented using fixed-width atomics to avoid a header dependency cycle */
+  #define _GASNETI_MUTEX_CAUTIOUS_INIT_FIELD       volatile int32_t initstep;
+  #define _GASNETI_MUTEX_CAUTIOUS_INIT_INITIALIZER , 0
+  #define _GASNETI_MUTEX_CAUTIOUS_INIT_CHECK(pl)   gasneti_mutex_cautious_init(pl) 
+  #define _GASNETI_MUTEX_CAUTIOUS_INIT_INIT(pl)  ( (pl)->initstep = 0, \
+                                                   gasneti_mutex_cautious_init(pl) )
+  extern void gasneti_mutex_cautious_init(/*gasneti_mutex_t*/void *pl);
+#else
+  #define _GASNETI_MUTEX_CAUTIOUS_INIT_FIELD
+  #define _GASNETI_MUTEX_CAUTIOUS_INIT_INITIALIZER
+  #define _GASNETI_MUTEX_CAUTIOUS_INIT_CHECK(pl)      ((void)0)
+  #define _GASNETI_MUTEX_CAUTIOUS_INIT_INIT(pl)       ((void)0)
+#endif
+
+#if GASNET_DEBUG || GASNETI_BUG2231_WORKAROUND || GASNETI_MUTEX_CAUTIOUS_INIT
   #define GASNETI_MUTEX_NOOWNER         ((uintptr_t)-1)
   #ifndef GASNETI_THREADIDQUERY
     /* allow conduit override of thread-id query */
@@ -237,17 +257,24 @@ int gasneti_count0s_uint32_t(uint32_t x) {
     typedef struct {
       volatile uintptr_t owner;
       pthread_mutex_t lock;
+      _GASNETI_MUTEX_CAUTIOUS_INIT_FIELD
       GASNETI_BUG2231_WORKAROUND_PAD
     } gasneti_mutex_t;
     #if defined(PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP)
       /* These are faster, though less "featureful" than the default
        * mutexes on linuxthreads implementations which offer them.
        */
-      #define GASNETI_MUTEX_INITIALIZER { GASNETI_MUTEX_NOOWNER, PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP }
+      #define _GASNETI_PTHREAD_MUTEX_INITIALIZER PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP
     #else
-      #define GASNETI_MUTEX_INITIALIZER { GASNETI_MUTEX_NOOWNER, PTHREAD_MUTEX_INITIALIZER }
+      #define _GASNETI_PTHREAD_MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
     #endif
+    #define GASNETI_MUTEX_INITIALIZER { GASNETI_MUTEX_NOOWNER,                   \
+                                        _GASNETI_PTHREAD_MUTEX_INITIALIZER       \
+                                        _GASNETI_MUTEX_CAUTIOUS_INIT_INITIALIZER \
+                                      }
     #define gasneti_mutex_lock(pl) do {                                        \
+              _GASNETI_MUTEX_CAUTIOUS_INIT_CHECK(pl);                          \
+              gasneti_assert(GASNETI_THREADIDQUERY() != GASNETI_MUTEX_NOOWNER);\
               gasneti_assert((pl)->owner != GASNETI_THREADIDQUERY());          \
               gasneti_assert_zeroret(pthread_mutex_lock(&((pl)->lock)));       \
               gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER);            \
@@ -256,6 +283,8 @@ int gasneti_count0s_uint32_t(uint32_t x) {
     GASNETI_INLINE(gasneti_mutex_trylock)
     int gasneti_mutex_trylock(gasneti_mutex_t *pl) {
               int retval;
+              _GASNETI_MUTEX_CAUTIOUS_INIT_CHECK(pl);
+              gasneti_assert(GASNETI_THREADIDQUERY() != GASNETI_MUTEX_NOOWNER);
               gasneti_assert((pl)->owner != GASNETI_THREADIDQUERY());
               retval = pthread_mutex_trylock(&((pl)->lock));
               if (retval == EBUSY) return EBUSY;
@@ -265,6 +294,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
               return 0;
     }
     #define gasneti_mutex_unlock(pl) do {                                  \
+              gasneti_assert( GASNETI_THREADIDQUERY() !=  GASNETI_MUTEX_NOOWNER); \
               gasneti_assert((pl)->owner == GASNETI_THREADIDQUERY());      \
               (pl)->owner = GASNETI_MUTEX_NOOWNER;                         \
               gasneti_assert_zeroret(pthread_mutex_unlock(&((pl)->lock))); \
@@ -273,6 +303,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
               GASNETI_MUTEX_INITCLEAR(&((pl)->lock));                         \
               gasneti_assert_zeroret(pthread_mutex_init(&((pl)->lock),NULL)); \
               (pl)->owner = GASNETI_MUTEX_NOOWNER;                            \
+              _GASNETI_MUTEX_CAUTIOUS_INIT_INIT(pl);                          \
             } while (0)
     #define gasneti_mutex_destroy_ignoreerr(pl) \
               pthread_mutex_destroy(&((pl)->lock))
@@ -375,11 +406,12 @@ int gasneti_count0s_uint32_t(uint32_t x) {
       gasneti_assert_zeroret(pthread_cond_broadcast(&((pc)->cond))); \
     } while (0)
 
-  #if GASNET_DEBUG || GASNETI_BUG2231_WORKAROUND
+  #if GASNET_DEBUG || GASNETI_BUG2231_WORKAROUND || GASNETI_MUTEX_CAUTIOUS_INIT
     #define gasneti_cond_wait(pc,pl)  do {                          \
       gasneti_assert((pl)->owner == GASNETI_THREADIDQUERY());       \
       (pl)->owner = GASNETI_MUTEX_NOOWNER;                          \
       GASNETI_COND_INIT_CHECK(pc);                                  \
+      _GASNETI_MUTEX_CAUTIOUS_INIT_CHECK(pl);                       \
       gasneti_assert_zeroret(pthread_cond_wait(&((pc)->cond), &((pl)->lock))); \
       gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER);         \
       (pl)->owner = GASNETI_THREADIDQUERY();                        \

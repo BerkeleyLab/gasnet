@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testvis.c,v $
- *     $Date: 2008/02/19 03:43:51 $
- * $Revision: 1.23 $
+ *     $Date: 2009/01/23 20:38:42 $
+ * $Revision: 1.23.6.1 $
  * Description: GASNet Vector, Indexed & Strided correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1119,7 +1119,16 @@ int main(int argc, char **argv) {
             " -o        one-way (half duplex) mode\n"
             " -t        enable timing output\n"
             " iters     number of testing iterations\n"
-            " seed      seed offset for PRNG \n");
+            " seed      seed offset for PRNG \n"
+            );
+
+#if PLATFORM_OS_CATAMOUNT
+  if (! gasnett_getenv_yesno_withdefault("GASNET_FORCE_TESTVIS",0)) {
+    MSG0("testvis is disabled on Catamount (gasnet bug #2189)");
+    gasnet_exit(0);
+    return 0;
+  }
+#endif
 
   for (i = 1; i < argc; i++) {
     if (argv[i][0] == '-') {

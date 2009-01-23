@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2008/04/04 01:52:26 $ */
-/*  $Revision: 1.133 $ */
+/*      $Date: 2009/01/23 20:37:53 $ */
+/*  $Revision: 1.133.2.1 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -125,6 +125,10 @@
 /* pause instruction, if any */
 #undef GASNETI_PAUSE_INSTRUCTION
 
+/* How to name MIPS assembler temporary register in inline asm, if at all */
+#undef GASNETI_HAVE_MIPS_REG_1
+#undef GASNETI_HAVE_MIPS_REG_AT
+
 /* has ARM kernel-level support for cmpxchg */
 #undef GASNETI_HAVE_ARM_CMPXCHG
 
@@ -202,6 +206,9 @@
 /* platform is a SiCortex multiprocessor */
 #undef GASNETI_ARCH_SICORTEX
 
+/* have (potentially buggy) SiCortex ICE9A CPU */
+#undef GASNETI_ARCH_ICE9A
+
 /* have (potentially buggy) MIPS R10000 multiprocessor */
 #undef GASNETI_ARCH_SGI_IP27
 
@@ -278,6 +285,7 @@
 #undef HAVE_ELAN_QUEUETXINIT
 
 /* GASNet portals-conduit specific */
+#undef HAVE_PCTMBOX_H
 #undef GASNETC_PORTALS_MISSING_EQ_HANDLER_T
 
 /* GASNet bug1389 detection/work-around */

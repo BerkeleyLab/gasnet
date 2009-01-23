@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2008/03/17 06:53:11 $
- * $Revision: 1.222 $
+ *     $Date: 2009/01/23 20:38:45 $
+ * $Revision: 1.222.2.1 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -265,13 +265,37 @@ static gasnetc_cep_t			**gasnetc_node2cep;
   #define GASNETC_PERTHREAD_LOOKUP	const char _core_threadinfo_dummy = sizeof(_core_threadinfo_dummy) /* no semicolon */
 #endif
 
-GASNETI_INLINE(gasnetc_alloc_sreqs)
-void gasnetc_alloc_sreqs(int count, gasnetc_sreq_t **head_p, gasnetc_sreq_t **tail_p)
-{
-  size_t bytes = GASNETI_ALIGNUP(sizeof(gasnetc_sreq_t), GASNETI_CACHE_LINE_BYTES);
-  gasnetc_sreq_t *ptr = gasneti_malloc(count * bytes + GASNETI_CACHE_LINE_BYTES-1);
+static void gasnetc_free_aligned(void *ptr) {
+  gasneti_free_aligned(ptr);
+}
+
+#define GASNETC_SREQS_GROWTHCNT 32 /* sreq list always grown by this size increment */
+static int gasnetc_snd_reap(int);
+
+static void gasnetc_free_sreqs(void *_ptr) {
+  gasnetc_sreq_t *ptr = (gasnetc_sreq_t *)_ptr;
   int i;
-  *head_p = ptr = (gasnetc_sreq_t *)GASNETI_ALIGNUP(ptr, GASNETI_CACHE_LINE_BYTES);
+  /* sreqs for AM sends may still be live on the adapter and thus unsafe to free
+   */
+  for (i = 0; i < GASNETC_SREQS_GROWTHCNT; i++) {
+    while (ptr->opcode != GASNETC_OP_FREE) {
+      gasnetc_snd_reap(1);
+      if (ptr->opcode != GASNETC_OP_FREE) gasneti_sched_yield();
+    }
+    ptr = (gasnetc_sreq_t *)GASNETI_ALIGNUP(ptr+1, GASNETI_CACHE_LINE_BYTES);
+  }
+  gasneti_free_aligned(_ptr);
+}
+
+GASNETI_INLINE(gasnetc_alloc_sreqs)
+void gasnetc_alloc_sreqs(gasnetc_sreq_t **head_p, gasnetc_sreq_t **tail_p)
+{
+  const int count = GASNETC_SREQS_GROWTHCNT;
+  size_t bytes = GASNETI_ALIGNUP(sizeof(gasnetc_sreq_t), GASNETI_CACHE_LINE_BYTES);
+  gasnetc_sreq_t *ptr = gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES, count * bytes);
+  int i;
+  gasnete_register_threadcleanup(gasnetc_free_sreqs, ptr);
+  *head_p = ptr;
   for (i = 1; i < count; ++i, ptr = ptr->next) {
     ptr->next = (gasnetc_sreq_t *)((uintptr_t)ptr + bytes);
     ptr->opcode = GASNETC_OP_FREE;
@@ -284,7 +308,7 @@ void gasnetc_alloc_sreqs(int count, gasnetc_sreq_t **head_p, gasnetc_sreq_t **ta
 void gasnetc_per_thread_init(gasnetc_per_thread_t *td)
 {
   gasnetc_sreq_t *tail;
-  gasnetc_alloc_sreqs(32, &td->sreqs, &tail);
+  gasnetc_alloc_sreqs(&td->sreqs, &tail);
   tail->next = td->sreqs;
 }
 
@@ -293,9 +317,9 @@ void gasnetc_per_thread_init(gasnetc_per_thread_t *td)
   gasnetc_per_thread_t *gasnetc_my_perthread(void) {
     gasnetc_per_thread_t *retval = gasneti_threadkey_get_noinit(gasnetc_per_thread_key);
     if_pf (retval == NULL) {
-      void *alloc= gasneti_malloc(GASNETI_CACHE_LINE_BYTES +
+      retval = gasneti_malloc_aligned(GASNETI_CACHE_LINE_BYTES,
 				  GASNETI_ALIGNUP(sizeof(gasnetc_per_thread_t), GASNETI_CACHE_LINE_BYTES));
-      retval = (gasnetc_per_thread_t *)GASNETI_ALIGNUP(alloc, GASNETI_CACHE_LINE_BYTES);
+      gasnete_register_threadcleanup(gasnetc_free_aligned, retval);
       gasneti_threadkey_set_noinit(gasnetc_per_thread_key, retval);
       gasnetc_per_thread_init(retval);
     }
@@ -547,7 +571,13 @@ void gasnetc_amrdma_eligable(gasnetc_cep_t *cep) {
 
   gasneti_weakatomic_increment(&cep->amrdma.eligable, 0);
 
-  if_pf (!(interval & hca->amrdma_balance.mask) && !gasneti_spinlock_trylock(&hca->amrdma_balance.lock)) {
+#if GASNETI_THREADS
+  #define GASNETC_TRY_BALANCE_LOCK(_hca) gasneti_spinlock_trylock(&(_hca)->amrdma_balance.lock)
+#else
+  #define GASNETC_TRY_BALANCE_LOCK(_hca) 0
+#endif
+
+  if_pf (!(interval & hca->amrdma_balance.mask) && !GASNETC_TRY_BALANCE_LOCK(hca)) {
     /* GASNETC_AMRDMA_REDUCE(X) is amount by which ALL counts X are reduced each round */
     #define GASNETC_AMRDMA_REDUCE(X)		((X)>>1)
     /* GASNETC_AMRDMA_BOOST(FLOOR) is amount by which SELECTED counts X are boosted */
@@ -614,7 +644,9 @@ void gasnetc_amrdma_eligable(gasnetc_cep_t *cep) {
       return; /* YES - we really mean to return w/o unlocking */
     }
 
+#if GASNETI_THREADS
     gasneti_spinlock_unlock(&hca->amrdma_balance.lock);
+#endif
   }
 }
 
@@ -1275,14 +1307,16 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
 
   GASNETC_STAT_EVENT(RCV_AM_RDMA);
 
+  /* Account for any recv buffer that was reserved for the reply, but not used.
+   * Must preced credit processing in gasnetc_processPacket (bug 2359) */
+  if (GASNETC_MSG_ISREPLY(flags)) {
+    gasneti_semaphore_up(&cep->am_loc);
+  }
+
+  /* Process the packet, includes running handler and processing credits/acks */
   rbuf.cep = cep;
   rbuf.rr_is_rdma = 1;
   gasnetc_processPacket(cep, &rbuf, flags);
-
-  if (GASNETC_MSG_ISREPLY(flags)) {
-    /* Account for recv buffer that was reserved for the reply, but not used. */
-    gasneti_semaphore_up(&cep->am_loc);
-  }
 
   /* Mark slot free locally prior to enabling the ack */
   hdr->length = 0; hdr->length_again = -1;
@@ -1412,7 +1446,7 @@ gasnetc_sreq_t *gasnetc_get_sreq(gasnetc_sreq_opcode_t opcode GASNETC_PERTHREAD_
       if_pf (sreq->opcode != GASNETC_OP_FREE) {
         /* 4) Finally allocate more */
         gasnetc_sreq_t *head, *tail;
-        gasnetc_alloc_sreqs(32, &head, &tail);
+        gasnetc_alloc_sreqs(&head, &tail);
         tail->next = sreq->next;
         sreq = (sreq->next = head);
       }
@@ -3133,7 +3167,9 @@ extern int gasnetc_sndrcv_init(void) {
 
         gasneti_weakatomic_set(&hca->amrdma_balance.count, 0, 0);
         hca->amrdma_balance.mask = gasnetc_amrdma_cycle ? (gasnetc_amrdma_cycle - 1) : 0;
+#if GASNETI_THREADS
         gasneti_spinlock_init(&hca->amrdma_balance.lock);
+#endif
         hca->amrdma_balance.floor = 1;
         hca->amrdma_balance.table = gasneti_calloc(hca->total_qps, sizeof(gasnetc_amrdma_balance_tbl_t));
       }

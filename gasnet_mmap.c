@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2007/10/25 17:29:01 $
- * $Revision: 1.54 $
+ *     $Date: 2009/01/23 20:37:54 $
+ * $Revision: 1.54.12.1 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -396,6 +396,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
       gasneti_maxheapend = maxheapend;
       gasneti_maxbase = maxbase;
       #if GASNET_ALIGNED_SEGMENTS
+       #if !defined(PLATFORM_OS_BGP) /* BG/P would incorrectly probe the I/O node */
         if (gasneti_nodes > 1) { 
           /* bug 2067 - detect if the compute nodes are using Linux's 'intentional VM space randomization'
            * security feature, which is known to break GASNET_ALIGNED_SEGMENTS, esp at large scale
@@ -418,6 +419,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
              fclose(fp);
            }
         }   
+       #endif
         if (maxbase >= minend) { /* no overlap - maybe should be a fatal error... */
           const char *wmsg = "WARNING: unable to locate overlapping mmap segments in gasneti_segmentInit()"
             ": perhaps you need to re-configure with --disable-aligned-segments";
@@ -716,12 +718,16 @@ static uintptr_t gasneti_auxseg_client_request_sz = 0;
 static int gasneti_auxseg_numfns;
 
 #if GASNET_DEBUG
+  /* spawner hint of our auxseg requirements */
+  #define GASNETI_AUXSEG_DUMMY_SZ    463
+  GASNETI_IDENT(gasneti_dummy_auxseg_IdentString, "$GASNetAuxSeg_dummy: "_STRINGIFY(GASNETI_AUXSEG_DUMMY_SZ)" $");
+
   gasneti_auxseg_request_t gasneti_auxseg_dummy(gasnet_seginfo_t *auxseg_info) {
     gasneti_auxseg_request_t retval;
     static gasnet_seginfo_t *auxseg_save = NULL;
     int i, selftest=0;
     retval.minsz = 213;
-    retval.optimalsz = 463;
+    retval.optimalsz = GASNETI_AUXSEG_DUMMY_SZ;
     if (auxseg_info == NULL) return retval; /* initial query */
     if (auxseg_info == (void*)(uintptr_t)-1) { /* self test */
       selftest = 1;

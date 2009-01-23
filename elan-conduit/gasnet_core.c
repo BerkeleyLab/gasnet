@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2007/04/10 01:21:13 $
- * $Revision: 1.76 $
+ *     $Date: 2009/01/23 20:38:05 $
+ * $Revision: 1.76.16.1 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -896,6 +896,9 @@ static void gasnetc_atexit(void) {
   extern void gasnetc_fatalsignal_callback(int sig) {}
 #endif
 /* ------------------------------------------------------------------------------------ */
+static void gasnetc_free_threaddata(void *AMLongbouncebuf) {
+  elan_free(STATE(), AMLongbouncebuf);
+}
 extern void gasnetc_new_threaddata_callback(void **core_threadinfo) {
   #if GASNETC_PREALLOC_AMLONG_BOUNCEBUF
     *core_threadinfo = elan_allocMain(STATE(), 64, GASNETC_MAX_LONG);
@@ -903,6 +906,7 @@ extern void gasnetc_new_threaddata_callback(void **core_threadinfo) {
       gasneti_fatalerror("Failed to elan_allocMain(%i bytes) for thread AM Long buffer. "
                          "Try disabling GASNETC_PREALLOC_AMLONG_BOUNCEBUF.", 
                           GASNETC_MAX_LONG);
+    gasnete_register_threadcleanup(gasnetc_free_threaddata, *core_threadinfo);
   #else
     *core_threadinfo = NULL;
   #endif

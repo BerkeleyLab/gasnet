@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2007/04/10 01:21:25 $
- * $Revision: 1.46 $
+ *     $Date: 2009/01/23 20:38:38 $
+ * $Revision: 1.46.16.1 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -106,6 +106,8 @@ static int gasnetc_init(int *argc, char ***argv) {
         You need to provide two functions (gasnetc_bootstrapExchange and gasnetc_bootstrapBroadcast)
         which the system can safely and immediately use to broadcast and exchange information 
         between nodes (gasnetc_bootstrapBroadcast is optional but highly recommended).
+        See gasnet/other/mpi-spawner/gasnet_bootstrap_mpi.c for definitions of these two
+        functions in terms of MPI collective operations.
        This system assumes that at least one of the compute nodes has a copy of the 
         full environment from the "spawning console" (if this is not true, you'll need to
         implement something yourself to get the values from the spawning console)
@@ -379,6 +381,12 @@ extern int gasnetc_AMPoll() {
   ================================
 */
 
+static void gasnetc_cleanup_threaddata(void *_td) {
+  void **corethreadinfo = (void **)_td;
+  gasneti_free_aligned(*corethreadinfo);
+  *corethreadinfo = NULL;
+}
+
 GASNETI_INLINE(gasnetc_ReqRepGeneric)
 int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
                          int dest, gasnet_handler_t handler, 
@@ -416,8 +424,8 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
         uint8_t *buf = NULL;
         gasneti_assert(corethreadinfo);
         if (!*corethreadinfo) { /* ensure 8-byte alignment of medium payload */
-          void *tmp = gasneti_malloc(sizeof(gasnetc_threadinfo_t)+GASNETI_MEDBUF_ALIGNMENT);
-          *corethreadinfo = (void*)GASNETI_ALIGNUP(tmp,GASNETI_MEDBUF_ALIGNMENT);
+          *corethreadinfo = gasneti_malloc_aligned(GASNETI_MEDBUF_ALIGNMENT,sizeof(gasnetc_threadinfo_t));
+          gasnete_register_threadcleanup(gasnetc_cleanup_threaddata, corethreadinfo);
         }
         if (isReq) buf = ((gasnetc_threadinfo_t *)*corethreadinfo)->requestBuf;
         else       buf = ((gasnetc_threadinfo_t *)*corethreadinfo)->replyBuf;

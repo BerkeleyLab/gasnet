@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2007/08/17 06:08:38 $
- * $Revision: 1.84 $
+ *     $Date: 2009/01/23 20:38:05 $
+ * $Revision: 1.84.14.1 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -12,14 +12,7 @@
 #include <gasnet_handler.h>
 #include <elan3/elan3.h> /* for ELAN_POLL_EVENT */
 
-gasnete_threaddata_t *gasnete_threadtable[GASNETI_MAX_THREADS] = { 0 };
-static int gasnete_numthreads = 0;
 static int gasnete_nbi_throttle = 0;
-static gasnet_hsl_t threadtable_lock = GASNET_HSL_INITIALIZER;
-#if GASNETI_CLIENT_THREADS
-  /* pthread thread-specific ptr to our threaddata (or NULL for a thread never-seen before) */
-  GASNETI_THREADKEY_DEFINE(gasnete_threaddata);
-#endif
 static const gasnete_eopaddr_t EOPADDR_NIL = { { 0xFF, 0xFF } };
 extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 
@@ -98,11 +91,10 @@ extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 
 /* ------------------------------------------------------------------------------------ */
 
-GASNETI_IDENT(gasnete_IdentString_Version, "$GASNetExtendedLibraryVersion: " GASNET_EXTENDED_VERSION_STR " $");
 #if GASNETE_USE_ELAN_PUTGET
-  GASNETI_IDENT(gasnete_IdentString_ExtendedName, "$GASNetExtendedLibraryName: " GASNET_EXTENDED_NAME_STR " $");
+  GASNETI_IDENT(gasnete_IdentString_ExtendedPutGet, "$GASNetExtendedPutGet: native $");
 #else
-  GASNETI_IDENT(gasnete_IdentString_ExtendedName, "$GASNetExtendedLibraryName: " GASNET_EXTENDED_NAME_STR " (extended-ref) $");
+  GASNETI_IDENT(gasnete_IdentString_ExtendedPutGet, "$GASNetExtendedPutGet: am $");
 #endif
 
 /* take advantage of the fact that (ELAN_EVENT *)'s and ops are always 4-byte aligned 
@@ -120,57 +112,18 @@ GASNETI_IDENT(gasnete_IdentString_Version, "$GASNetExtendedLibraryVersion: " GAS
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Thread Management
-  =================
+  Extended API Common Code
+  ========================
+  Factored bits of extended API code common to most conduits, overridable when necessary
 */
+
+#define GASNETE_IOP_ISDONE(iop) gasnete_op_isdone((gasnete_op_t *)(iop), 0)
+
+#define GASNETC_NEW_THREADDATA_CALLBACK(threaddata) gasnetc_new_threaddata_callback(&((threaddata)->gasnetc_threaddata))
 extern void gasnetc_new_threaddata_callback(void **core_threadinfo);
 
-static gasnete_threaddata_t * gasnete_new_threaddata() {
-  gasnete_threaddata_t *threaddata = NULL;
-  int idx;
-  gasnet_hsl_lock(&threadtable_lock);
-    idx = gasnete_numthreads;
-    gasnete_numthreads++;
-  gasnet_hsl_unlock(&threadtable_lock);
-  gasneti_assert(GASNETI_MAX_THREADS <= (1U<<(sizeof(gasnete_threadidx_t)*8)));
-  #if GASNETI_CLIENT_THREADS
-    if (idx >= GASNETI_MAX_THREADS) 
-      gasneti_fatalerror("GASNet Extended API: Too many local client threads (limit=%i)",GASNETI_MAX_THREADS);
-  #else
-    gasneti_assert(idx == 0);
-  #endif
-  gasneti_assert(gasnete_threadtable[idx] == NULL);
+#include "gasnet_extended_common.c"
 
-  threaddata = (gasnete_threaddata_t *)gasneti_calloc(1,sizeof(gasnete_threaddata_t));
-
-  threaddata->threadidx = idx;
-  threaddata->eop_free = EOPADDR_NIL;
-
-  gasnete_threadtable[idx] = threaddata;
-  threaddata->current_iop = gasnete_iop_new(threaddata);
-
-  /* give the core a chance to set its thread context */
-  gasnetc_new_threaddata_callback(&(threaddata->gasnetc_threaddata));
-
-  return threaddata;
-}
-/* PURE function (returns same value for a given thread every time) 
-*/
-#if GASNETI_CLIENT_THREADS
-  extern gasnete_threaddata_t *gasnete_mythread() {
-    gasnete_threaddata_t *threaddata = gasneti_threadkey_get(gasnete_threaddata);
-    GASNETI_TRACE_EVENT(C, DYNAMIC_THREADLOOKUP);
-    if_pt (threaddata) {
-      gasneti_memcheck(threaddata);
-      return threaddata;
-    }
-
-    /* first time we've seen this thread - need to set it up */
-    threaddata = gasnete_new_threaddata();
-    gasneti_threadkey_set(gasnete_threaddata, threaddata);
-    return threaddata;
-  }
-#endif
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization
@@ -1414,55 +1367,6 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   mythread->current_iop = iop->next;
   iop->next = NULL;
   return GASNETE_OP_TO_HANDLE(iop);
-}
-
-/* ------------------------------------------------------------------------------------ */
-/*
-  Non-Blocking Value Get (explicit-handle)
-  ========================================
-*/
-typedef struct _gasnet_valget_op_t {
-  gasnet_handle_t handle;
-  gasnet_register_value_t val;
-
-  struct _gasnet_valget_op_t* next; /* for free-list only */
-  gasnete_threadidx_t threadidx;  /*  thread that owns me */
-} gasnet_valget_op_t;
-
-extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-  gasnet_valget_handle_t retval;
-  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
-  gasneti_boundscheck(node, src, nbytes);
-  if (mythread->valget_free) {
-    retval = mythread->valget_free;
-    mythread->valget_free = retval->next;
-    gasneti_memcheck(retval);
-  } else {
-    retval = (gasnet_valget_op_t*)gasneti_malloc(sizeof(gasnet_valget_op_t));
-    retval->threadidx = mythread->threadidx;
-  }
-
-  retval->val = 0;
-  if (gasnete_islocal(node)) {
-    GASNETE_FAST_ALIGNED_MEMCPY(GASNETE_STARTOFBITS(&(retval->val),nbytes), src, nbytes);
-    retval->handle = GASNET_INVALID_HANDLE;
-  } else {
-    retval->handle = gasnete_get_nb_bulk(GASNETE_STARTOFBITS(&(retval->val),nbytes), node, src, nbytes GASNETE_THREAD_PASS);
-  }
-  return retval;
-}
-
-extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t handle) {
-  gasnet_register_value_t val;
-  gasnete_threaddata_t * const thread = gasnete_threadtable[handle->threadidx];
-  gasneti_assert(thread == gasnete_mythread());
-  handle->next = thread->valget_free; /* free before the wait to save time after the wait, */
-  thread->valget_free = handle;       /*  safe because this thread is under our control */
-
-  gasnete_wait_syncnb(handle->handle);
-  val = handle->val;
-  return val;
 }
 
 /* ------------------------------------------------------------------------------------ */

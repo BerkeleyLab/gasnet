@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2008/04/04 01:52:26 $
- * $Revision: 1.125 $
+ *     $Date: 2009/01/23 20:37:53 $
+ * $Revision: 1.125.2.1 $
  * Description: GASNet header for semi-portable inline asm support
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -51,6 +51,10 @@
    *   Compiler suffers from "tpr 4336" in which extended asm() register outputs are "lost"
    *   when the "register" qualifier is applied to the output variable.
    *
+   * GASNETI_PGI_ASM_BUG2294
+   *   Compiler suffers from "tpr 14969" in which extended asm() output constraints can't
+   *   be met unless they appear in a specific order.  This is on 32-bit targets only
+   *
    * See GASNet bug 1621 (http://upc-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1621) for more
    * info on the bugs indicated by GASNETI_PGI_ASM_THREADSAFE and GASNETI_PGI_ASM_X86_A.
    *
@@ -63,6 +67,9 @@
    *
    * See GASNet bug 2149 for discussion related to the BUG2149 problem and its symptoms.
    * See also PGI "tpr 4336".
+   *
+   * See GASNet bug 2294 for discussion related to the BUG2294 problem and its symptoms.
+   * See also PGI "tpr 14969".
    */
   #if (PLATFORM_COMPILER_PGI_C && PLATFORM_COMPILER_VERSION_GE(6,1,1)) || \
       (PLATFORM_COMPILER_PGI_CXX && PLATFORM_COMPILER_VERSION_GE(6,2,2))
@@ -80,6 +87,9 @@
   #endif
   #if PLATFORM_COMPILER_VERSION_GE(7,1,0) && PLATFORM_COMPILER_VERSION_LT(7,1,2)
     #define GASNETI_PGI_ASM_BUG2149 1
+  #endif
+  #if PLATFORM_ARCH_32 && PLATFORM_COMPILER_VERSION_GE(7,1,5) /* XXX: No end of range yet */
+    #define GASNETI_PGI_ASM_BUG2294 1
   #endif
   #define GASNETI_ASM_SPECIAL(mnemonic) asm(mnemonic)
 #elif PLATFORM_COMPILER_COMPAQ

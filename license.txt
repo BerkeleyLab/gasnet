@@ -1,4 +1,4 @@
-/* $Header: /Users/kamil/work/gasnet-cvs2/gasnet/license.txt,v 1.11 2007/10/19 21:08:41 rajeshn Exp $
+/* $Header: /Users/kamil/work/gasnet-cvs2/gasnet/license.txt,v 1.11.12.1 2009/01/23 20:37:55 rajeshn Exp $
  * All files in this directory and all sub-directories (except where otherwise noted)
  * are subject to the following licensing terms: 
  *
@@ -40,7 +40,8 @@
  *  Christian Bell <csbell@cs.berkeley.edu>: gm-conduit, shmem-conduit
  *  Mike Welcome <mlwelcome@lbl.gov>: lapi-conduit, portals-conduit
  *  Paul H. Hargrove <phhargrove@lbl.gov>: vapi-conduit, ibv-conduit
- *  Rajesh Nishtala <rajeshn@cs.berkeley.edu>: collectives
+ *  Rajesh Nishtala <rajeshn@cs.berkeley.edu>: collectives, dcmf-conduit
+ *  Parry Husbands (PJRHusbands@lbl.gov): lapi-conduit
  * 
  * For more information about GASNet, visit our home page at:
  *  http://gasnet.cs.berkeley.edu/

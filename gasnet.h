@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2007/12/04 23:35:37 $
- * $Revision: 1.57 $
+ *     $Date: 2009/01/23 20:37:53 $
+ * $Revision: 1.57.8.1 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -87,7 +87,7 @@
   #define GASNETI_STATS_CONFIG nostats
 #endif
 
-#if defined(GASNET_SRCLINES)
+#if defined(GASNET_SRCLINES) || defined(GASNET_DEBUG)
   #define GASNETI_SRCLINES_FORCE
 #endif
 #if defined(GASNET_SRCLINES) || defined(GASNET_TRACE)
@@ -330,6 +330,11 @@ GASNETI_END_EXTERNC
   #ifndef GASNETE_EXTRA_CONFIG_INFO
     #define GASNETE_EXTRA_CONFIG_INFO
   #endif
+  #ifdef GASNETI_BUG1389_WORKAROUND
+    #define GASNETC_BUG1389_CONFIG_INFO ",ConservativeLocalCopy"
+  #else
+    #define GASNETC_BUG1389_CONFIG_INFO
+  #endif
   #define GASNET_CONFIG_STRING                                            \
              "RELEASE=" _STRINGIFY(GASNETI_RELEASE_VERSION) ","           \
              "SPEC=" _STRINGIFY(GASNET_SPEC_VERSION_MAJOR) "."            \
@@ -350,6 +355,7 @@ GASNETI_END_EXTERNC
              _STRINGIFY(GASNETI_ATOMIC_CONFIG) ","                        \
              _STRINGIFY(GASNETI_ATOMIC32_CONFIG) ","                      \
              _STRINGIFY(GASNETI_ATOMIC64_CONFIG)                          \
+             GASNETC_BUG1389_CONFIG_INFO                                  \
              GASNETC_EXTRA_CONFIG_INFO                                    \
              GASNETE_EXTRA_CONFIG_INFO                                    
 #endif

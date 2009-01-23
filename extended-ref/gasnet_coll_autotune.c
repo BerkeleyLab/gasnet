@@ -8,6 +8,9 @@
 
 #include "gasnet_coll_autotune.h"
 
+/*this array is the maximum size of hte log2 array for fanouts*/
+#define GASNETE_COLL_AUTOTUNE_RADIX_ARR_LEN 20
+
 struct gasnete_coll_autotune_info_t_ {
   gasnete_coll_tree_type_t bcast_tree_type;
   gasnete_coll_tree_type_t scatter_tree_type;
@@ -17,6 +20,10 @@ struct gasnete_coll_autotune_info_t_ {
   size_t exchange_dissem_limit;
   
   size_t pipe_seg_size;
+	
+	/*array index i tells you what the tree fanout should be for 2^(i-1) < nbytes <= 2^(i) bytes*/
+	int bcast_tree_radix_limits[GASNETE_COLL_AUTOTUNE_RADIX_ARR_LEN];
+	
 };
 
 GASNETI_ALWAYS_INLINE(gasnete_coll_nextpower2)
@@ -41,6 +48,7 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_node_t mynode, g
   size_t dissem_limit;
   size_t temp_size;
   size_t dissem_limit_per_thread;
+	int i;
   
   ret = gasneti_malloc(sizeof(gasnete_coll_autotune_info_t));
   /* first read the environment variables for tree types*/
@@ -110,17 +118,146 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_node_t mynode, g
     
   }
   
+	/*initialize the autotune size array to 2 so we always get a binary tree*/
+	for(i=0; i<GASNETE_COLL_AUTOTUNE_RADIX_ARR_LEN; i++) {
+		ret->bcast_tree_radix_limits[i] = 3;
+	}
+	
   return ret;
 }
 
+
+/*
+	the following two functions to find the fast log2 of an int are adapted from:
+	http://graphics.stanford.edu/~seander/bithacks.html#IntegerLogLookup (accessed July 10, 2008)
+*/
+
+static uint32_t fast_log2_64bit(uint64_t number) {
+	
+	static const char LogTable256[] = 
+		{
+			0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
+			4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+			5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+			5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+			6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+			6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+			6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+			6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+			7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+			7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+			7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+			7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+			7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+			7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+			7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+			7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7
+		};
+	
+	uint64_t v=number; // 32-bit word to find the log of
+	uint32_t r;     // r will be lg(v)
+	uint64_t t, tt; // temporaries
+	
+	if ((tt = v>>48)) {
+		r = ((t = tt>>8) ? 56 + LogTable256[t] : 48 + LogTable256[tt]); 
+	} else if ((tt = v>>32)) {
+		r = ((t = tt>>8) ? 40 + LogTable256[t] : 32 + LogTable256[tt]); 
+	} else	if ((tt = v >> 16)) {
+		r = ((t = tt >> 8) ? 24 + LogTable256[t] : 16 + LogTable256[tt]);
+	}
+	else {
+		r = ((t = v >> 8) ? 8 + LogTable256[t] : LogTable256[v]);
+	}
+	
+	return r;
+	
+}
+
+static uint32_t fast_log2_32bit(uint32_t number) {
+	
+	static const char LogTable256[] = 
+		{
+			0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
+			4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+			5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+			5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+			6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+			6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+			6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+			6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+			7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+			7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+			7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+			7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+			7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+			7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+			7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+			7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7
+		};
+	
+	uint32_t v=number; // 32-bit word to find the log of
+	uint32_t r;     // r will be lg(v)
+	uint32_t t, tt; // temporaries
+	
+	
+	if ((tt = v >> 16)) {
+		r = ((t = tt >> 8) ? 24 + LogTable256[t] : 16 + LogTable256[tt]);
+	}
+	else {
+		r = ((t = v >> 8) ? 8 + LogTable256[t] : LogTable256[v]);
+	}
+	
+	return r;
+	
+}
+
+#define GASNETE_AUTOTUNE_BARRIER() do { \
+ gasnete_barrier_notify(0,GASNET_BARRIERFLAG_ANONYMOUS); \
+ gasnete_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS); \
+	} while (0)
+
+gasnete_coll_tree_type_t gasnete_coll_autotune_get_bcast_tree_type(gasnete_coll_autotune_info_t* autotune_info, 
+                                                             gasnete_coll_autotune_optype_t op_type, 
+                                                             gasnet_node_t root, size_t nbytes, int flags) {
+	gasnete_coll_tree_type_t ret;
+	/*first check if we've seen this size*/
+	/*find the log of the transfer size we are interested in*/
+	uint32_t log2_nbytes;
+#if PLATFORM_ARCH_32
+	log2_nbytes = fast_log2_32bit(nbytes);
+#else
+	log2_nbytes = fast_log2_64bit(nbytes);
+#endif
+	
+	if(autotune_info->bcast_tree_radix_limits[log2_nbytes] == -1) {
+		int radix = 0; 
+		/*perform search across fanouts*/
+		/* do a barrier to ensure all threads have arrived*/
+		GASNETE_AUTOTUNE_BARRIER();
+		
+		
+		
+		GASNETE_AUTOTUNE_BARRIER();
+	} else {
+		ret = gasnete_coll_make_tree_type((char*) "DFS_RECURSIVE_TREE", autotune_info->bcast_tree_radix_limits[(log2_nbytes >= GASNETE_COLL_AUTOTUNE_RADIX_ARR_LEN ? GASNETE_COLL_AUTOTUNE_RADIX_ARR_LEN-1 : log2_nbytes)]);
+	}
+	
+	return ret;
+}
+#define PERFORM_AUTOTUNE_BCAST 1
 gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type(gasnete_coll_autotune_info_t* autotune_info, 
                                                              gasnete_coll_autotune_optype_t op_type, 
                                                              gasnet_node_t root, size_t nbytes, int flags) {
+
   switch(op_type) {
-    case GASNETE_COLL_BROADCAST_OP: return autotune_info->bcast_tree_type;
-    case GASNETE_COLL_SCATTER_OP: return autotune_info->scatter_tree_type;
-    case GASNETE_COLL_GATHER_OP: return autotune_info->gather_tree_type;
-    default: gasneti_fatalerror("unknown tree based collective op type"); return autotune_info->bcast_tree_type;
+#if PERFORM_AUTOTUNE_BCAST
+	  case GASNETE_COLL_BROADCAST_OP: return gasnete_coll_autotune_get_bcast_tree_type(autotune_info, op_type, root, nbytes, flags);
+#else
+	  case GASNETE_COLL_BROADCAST_OP: return autotune_info->bcast_tree_type;  
+#endif
+	  case GASNETE_COLL_SCATTER_OP: return autotune_info->scatter_tree_type;
+  	case GASNETE_COLL_GATHER_OP: return autotune_info->gather_tree_type;
+  	default: gasneti_fatalerror("unknown tree based collective op type"); return autotune_info->bcast_tree_type;
   }
 }
 

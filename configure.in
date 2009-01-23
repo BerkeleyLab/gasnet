@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2008/04/04 04:49:45 $
-# $Revision: 1.490 $
+#     $Date: 2009/01/23 20:37:53 $
+# $Revision: 1.490.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.490 $)
+AC_REVISION($Revision: 1.490.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -26,14 +26,14 @@ AC_VALIDATE_CACHED_SYSTEM_TUPLE
 
 dnl Public release version packaging identifier:
 AC_DEFUN([GASNET_RELEASE_VERSION_MAJOR_D],[1])
-AC_DEFUN([GASNET_RELEASE_VERSION_MINOR_D],[11])
-AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[1])
+AC_DEFUN([GASNET_RELEASE_VERSION_MINOR_D],[13])
+AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[3])
 dnl GASNet spec version:
 AC_DEFUN([GASNET_SPEC_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNET_SPEC_VERSION_MINOR_D],[8])
 dnl GASNet tools spec version:
 AC_DEFUN([GASNETT_SPEC_VERSION_MAJOR_D],[1])
-AC_DEFUN([GASNETT_SPEC_VERSION_MINOR_D],[3])
+AC_DEFUN([GASNETT_SPEC_VERSION_MINOR_D],[4])
 
 AC_DEFUN([GASNET_RELEASE_VERSION_D],
          [GASNET_RELEASE_VERSION_MAJOR_D.GASNET_RELEASE_VERSION_MINOR_D.GASNET_RELEASE_VERSION_PATCH_D])
@@ -83,6 +83,7 @@ AC_PROG_AWK
 GASNET_IF_ENABLED_WITH_AUTO(pthreads, [enable use of pthreads (required to support pthreaded GASNet clients)],
                  [use_pthreads="yes"], [use_pthreads="no"], [use_pthreads="try"])
 
+GASNET_FORBID_PROGRAM_TRANSFORM
 
 # This is to support a very conservative implementation of
 # GASNETE_FAST_ALIGNED_MEMCPY and other type-punning operations.
@@ -183,7 +184,9 @@ AC_SUBST(GASNETI_PTR_BITS)
 ### 
 #
 # choose the default CC flags
-#
+# NOTE: we intentionally *overwrite* CFLAGS with reasonable, well-tested values, 
+# to avoid picking up bad default flags from AC_PROG_CC or the default user environment
+# Users who want to insert a specific compiler flag for all builds should append it to $CC
 
 case "$gasnet_cv_cc_family" in
   GNU)  GASNET_PUSHVAR(CFLAGS,"-O3")
@@ -223,7 +226,28 @@ case "$gasnet_cv_cc_family" in
         CCOPTFLAGS="$CFLAGS"
 	GASNET_POPVAR(CFLAGS)
   ;;
-  Pathscale)  CCOPTFLAGS="-O3 -Winline" ;;
+  Pathscale)
+        GASNET_PUSHVAR(CFLAGS,"-O3")
+        # We'd like to use -Winline (for the same reasons as with gcc).
+  	# However, some installations have been observed to complain
+        # on every inline keyword, due to -fno-inline being inserted
+        # by the compiler driver.  Avoid using -Winline in such a case.
+        GASNET_TRY_CFLAG([-Winline],[
+          noninlineCFLAGS="$CFLAGS"
+          CFLAGS="$CFLAGS -Winline"
+          AC_MSG_CHECKING(for -Winline flags conflict)
+          GASNET_TRY_CCOMPILE_WITHWARN([
+           inline int foo() { return 0; }
+          ], [ 
+           int x = foo(); 
+          ], [ AC_MSG_RESULT(ok) # keep -Winline
+          ], [ AC_MSG_RESULT(conflict)
+               CFLAGS="$noninlineCFLAGS" # remove -Winline
+          ], [ GASNET_MSG_ERROR(failure when detecting -Winline conflict)])
+        ])
+        CCOPTFLAGS="$CFLAGS"
+	GASNET_POPVAR(CFLAGS)
+  ;;
   Sun) if test "$GASNETI_PTR_BITS" = 64; then # -fast => -xarch=v8 which clobbers user's 64-bit choice
          SUN_ARCH_FLAG=`echo "$CC $CFLAGS" | $PERL -ne 'foreach(split(/ /,$_)) { print "$_" if (m/^-xarch/);}'` 
        else
@@ -795,12 +819,10 @@ case "$target_os" in
 	if test -d "/dev/hw/cpunum" -o -c "/dev/xpmem"; then
 	  AC_DEFINE(GASNETI_ARCH_ALTIX)
 	fi
-	# Check for SiCortex hardware (is there a better way?)
-	case `/usr/bin/uname -p 2>&1` in
-	  *SiCortex*)
+	# Check for SiCortex hardware by device or cpu name
+	if test -c "/dev/scfabric" || expr "`/usr/bin/uname -p 2>&1`" : SiCortex >/dev/null; then
 	    AC_DEFINE(GASNETI_ARCH_SICORTEX)
-	    ;;
-	esac
+	fi
         case "$target" in
           *-catamount-*) 
 	    GASNET_IFDEF(__LIBCATAMOUNT__,[],[
@@ -1116,7 +1138,7 @@ if expr "$enabled_sgi_ip27@$cross_compiling@$target_cpu" : "unknown@no@mips" >/d
 	   else
              enabled_sgi_ip27=no
 	   fi ;;
-    *) # SiCortex/Linux, others?
+    *) # Linux, others?
        enabled_sgi_ip27=no
        ;;
   esac
@@ -1133,6 +1155,47 @@ if test "$enabled_sgi_ip27" = yes; then
       # No inline asm to worry about MIPS) LDFLAGS="$LDFLAGS -LD_MSG:off=47" ;;
       GNU) LDFLAGS="$LDFLAGS -Wl,-LD_MSG:off=47" ;;
   esac
+fi
+
+## Look for potentially buggy SiCortex ICE9A processor
+# There is a processor erratum to work-around in our atomics :-(
+GASNET_IF_ENABLED_WITH_AUTO(arch-ice9a, Enable/disable work-around for buggy SiCoretex ICE9A processor (auto-detected),
+  enabled_arch_ice9a=yes, enabled_arch_ice9a=no, enabled_arch_ice9a=unknown)
+if (expr "$enabled_arch_ice9a@$target_cpu" : "unknown@mips" && \
+    expr "$target_os" : "linux") >/dev/null; then
+  if test "$cross_compiling" = "yes" ; then
+    AC_MSG_ERROR([Cannot probe for ICE9A processor when cross compiling.  Please configure either with --enable-arch-ice9a or --disable-arch-ice9a])
+  fi
+  AC_MSG_CHECKING(for potentially buggy ICE9A processor)
+  if grep -i ICE9A /proc/cpuinfo >/dev/null 2>&1; then
+    enabled_arch_ice9a=yes
+  else
+    enabled_arch_ice9a=no
+  fi
+  AC_MSG_RESULT($enabled_arch_ice9a)
+fi
+if test "$enabled_arch_ice9a" = yes; then
+  AC_DEFINE(GASNETI_ARCH_ICE9A)
+fi
+
+# Check how to reference MIPS assembler temporary register ("$1" or "$at")
+if expr "$target_cpu" : "mips" >/dev/null; then
+  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CPPFLAGS $MISC_CFLAGS -I$TOP_SRCDIR -I$TOP_SRCDIR/other -D_IN_CONFIGURE")
+  GASNET_TRY_CACHE_CHECK(for MIPS register '\$[]1', mips_reg_1, [
+    #include "gasnet_asm.h"
+  ], [
+    GASNETI_ASM(".set noat\n\t"
+                "move \$1,\$0\n\t"
+                ".set at"); 
+  ], [AC_DEFINE(GASNETI_HAVE_MIPS_REG_1)])
+  GASNET_TRY_CACHE_CHECK(for MIPS register '\$at', mips_reg_at, [
+    #include "gasnet_asm.h"
+  ], [
+    GASNETI_ASM(".set noat\n\t"
+                "move \$at,\$0\n\t"
+                ".set at"); 
+  ], [AC_DEFINE(GASNETI_HAVE_MIPS_REG_AT)])
+  GASNET_POPVAR(CFLAGS)
 fi
 
 ## ARM-specific checks for "kernel helpers"
@@ -1277,7 +1340,7 @@ AC_TRY_RUN([
     AC_MSG_RESULT(no)])
 GASNET_POPVAR(CFLAGS)
 
-## Do gcc/gas and CPU support "cmpxchg16b"?
+## Do CC/gas and CPU support "cmpxchg16b"?
 GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CPPFLAGS $MISC_CFLAGS -I$TOP_SRCDIR -I$TOP_SRCDIR/other -D_IN_CONFIGURE")
 AC_MSG_CHECKING(for x86-64 cmpxchg16b support)
 AC_TRY_RUN([
@@ -1289,10 +1352,10 @@ AC_TRY_RUN([
         PLATFORM_COMPILER_PATHSCALE || GASNETI_PGI_ASM_GNU
 	volatile struct {
 		unsigned long lo, hi;
-	} X = {0,1};
-
+	} X = {0,(0x1234llu << 32)};
+	/* Note oldhi selected to detect bug 2408 (anything in upper 32bits) */
 	register unsigned long oldlo = 0;
-	register unsigned long oldhi = 1;
+	register unsigned long oldhi = 0x1234llu << 32;
 	register unsigned long newlo = 1234;
 	register unsigned long newhi = 5678;
 
@@ -1592,6 +1655,12 @@ AC_DEFUN([GASNET_IB_OPTIONS],[
   pushdef([GASNETC_IB_MAX_HCAS],GASNETC_[]uppername[]_MAX_HCAS)
   pushdef([GASNET_IB_SPAWNER_CONF],GASNET_[]uppername[]_SPAWNER_CONF)
 
+  # Since we are using firehose we need to disable certain optimizations.
+  # See bug #350 for an example of why firehose needs this.
+  # See bug #596 or #1031 for evidence that VAPI is affected by this.
+  # See bug #1052 for evidence that xlc is affected.
+  GASNET_FH_CFLAGS
+
   GASNET_IF_ENABLED_WITH_AUTO(lowername[]-poll-lock, [See vapi-conduit/README (disabled by default)], 
     enabled_ib_poll_lock=yes, enabled_ib_poll_lock=no, enabled_ib_poll_lock=no)
     if test "$enabled_ib_poll_lock" = yes; then
@@ -1748,6 +1817,7 @@ if test $enabled_udp = yes; then
     Sun) if test "$target_cpu" = "sparc"; then 
            GASNET_GET_ULTRASPARC_FLAGS(CXX,["-xarch=v8plusb" "-xarch=v8plusa" "-xarch=v8plus"])
          fi
+         CXXOPTFLAGS="-xO2" # Can we go higher to match "-xO5" of CCOPTFLAGS?
       ;;
     NEC)   MISC_CXXFLAGS="-woff=68:111:174:177:236:301:550:940 -Kexceptions" 
            CXXDEBUGFLAGS="-g -Cnoopt -Cdebug"
@@ -1875,11 +1945,16 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
         GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $MISC_CFLAGS $CFLAGS, $SAFE_MPI_CFLAGS)
     	GASNET_ENV_DEFAULT(MPI_LIBS, )
 	GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
+        GASNET_ENV_DEFAULT(MPIRUN_CMD_BATCH, "")
         ;;
     irix*)
 	# use SGI native MPI library
         # user may need to do a "module load mpt" to make this work
-    	GASNET_ENV_DEFAULT(MPI_CC, cc -n32)
+        if test "$GASNETI_PTR_BITS" = 64; then
+          GASNET_ENV_DEFAULT(MPI_CC, cc -64)
+        else
+          GASNET_ENV_DEFAULT(MPI_CC, cc -n32)
+        fi
         # cannot use MISC_CFLAGS here because C compiler may not be MIPSPro
         # -common gets us correct linking behavior for tentative definitions
 	BASIC_MPI_CFLAGS="-diag_error 1035 -diag_suppress1171,1174,1209,1552 -common"
@@ -1974,7 +2049,8 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
     MPIHELPER_SRC=$MPIHELPER_BASE.c
     MPIHELPER_OBJ=$MPIHELPER_BASE.o
     MPIHELPER_LIBS="$MPIHELPER_OBJ $LIBM"
-    MPIHELPER_CODE="extern int mpihelper_cint; extern void mpihelper_cfunc(int val); mpihelper_cfunc(mpihelper_cint);"
+    MPIHELPER_DECL="extern int mpihelper_cint; extern void mpihelper_cfunc(int val);"
+    MPIHELPER_CODE="mpihelper_cfunc(mpihelper_cint);"
     cat >$MPIHELPER_BASE.c <<_GASNET_EOF
     #include <stdio.h>
     #include <string.h>
@@ -2010,6 +2086,7 @@ _GASNET_EOF
     # we just try to link an MPI app - running MPI apps is a whole new can of worms
     GASNET_TRY_CACHE_LINK(for working MPI configuration, mpi_works, [
       #include <mpi.h>
+      $MPIHELPER_DECL
     ], [
       $MPIHELPER_CODE
       MPI_Init((void*)0,(void*)0);
@@ -2046,6 +2123,7 @@ AC_SUBST(MPI_CFLAGS) # compiler flags (optimization, includes, etc) to be used w
 AC_SUBST(MPI_LIBS) # libs and ldflags that must be used when linking AMMPI-based backend
 AC_SUBST(MPI_DEFINES) # preprocessor defs to be used for all client code that includes ammpi.h (not including AMMPI library itself)
 AC_SUBST(MPIRUN_CMD) # prototype command used by tcrun to run MPI programs
+AC_SUBST(MPIRUN_CMD_BATCH) # prototype command used by tcrun to run MPI programs
 AM_CONDITIONAL(USE_MPI_CONDUIT, test "$enabled_mpi$have_mpi" = yesyes)
 CONDUIT_END([test "$enabled_mpi$have_mpi" = yesyes])
 if test "$enabled_mpi$have_mpi" = yesyes; then
@@ -2133,15 +2211,16 @@ if test $enabled_gm = yes; then
     if test "$gm_test_worked" != yes; then
       have_gm=no
     fi
-    # GM conduit was shown to break horribly on some versions of gcc, because
-    # of our reuse of memory storage in firehose.  We disable strict aliasing
-    # altogether as the problem appears and disappears across gcc3 minor
-    # versions.
-    # This is a firehose problem, and bug #1052 showed xlc to be affected as well.
-    GASNET_FH_CFLAGS
 
     # Only test if working GM config
     if test $have_gm = yes; then
+      # GM conduit was shown to break horribly on some versions of gcc, because
+      # of our reuse of memory storage in firehose.  We disable strict aliasing
+      # altogether as the problem appears and disappears across gcc3 minor
+      # versions.
+      # This is a firehose problem, and bug #1052 showed xlc to be affected as well.
+      GASNET_FH_CFLAGS
+
       GASNET_IF_ENABLED(broken-gm, Allow 2.x GM versions with broken RDMA gets,
         [AC_DEFINE(GASNETC_GM_ENABLE_BROKEN_VERSIONS) 
 	 allow_broken_gm=yes],
@@ -2261,6 +2340,21 @@ if test "$enabled_lapi" = yes; then
            AC_DEFINE_UNQUOTED(GASNETC_LAPI_VERSION_D,$LAPI_VER_NUM4)
         fi
         AC_MSG_RESULT([$LAPI_VER])
+        have_lapi_pollbug=no
+        if test $LAPI_VER_NUM1 -lt 2; then
+          have_lapi_pollbug=yes
+        elif test $LAPI_VER_NUM1 -eq 2; then
+          if test $LAPI_VER_NUM2 -lt 3; then
+            have_lapi_pollbug=yes
+          elif test $LAPI_VER_NUM2 -eq 3; then
+            if test $LAPI_VER_NUM3 -lt 2; then
+              have_lapi_pollbug=yes
+            fi
+          fi
+        fi
+        if test have_lapi_pollbug = yes; then
+	  AC_MSG_ERROR([Detected unsupported LAPI Federation version (older than 2.3.2.0).  Please update your system software, or pass --disable-lapi to omit LAPI support if you really don't want/need it.])
+        fi
     elif test "${have_col}" = "yes"; then
       AC_DEFINE(GASNETC_LAPI_COLONY)
 	AC_MSG_CHECKING([For LAPI Colony Version])
@@ -2328,8 +2422,9 @@ if test "$enabled_lapi" = yes; then
 	      AC_MSG_ERROR([--with-lapi-rdma-count requires a postive integer argument])
 	   fi])
         POE_RDMA_ARGS="-rdma_count $lapi_rdma_count"
+
         # Since we are using firehose we need to disable certain optimizations.
-        # See VAPI config logic for more detail
+        # See comment in GASNET_IB_OPTIONS for more detail
         GASNET_FH_CFLAGS
       fi
     fi
@@ -2592,12 +2687,6 @@ if test "$enabled_vapi" = yes; then
     ])
   fi
 
-  # Since we are using firehose we need to disable certain optimizations.
-  # See bug #350 for an example of why firehose needs this.
-  # See bug #596 or #1031 for evidence that VAPI is affected by this.
-  # See bug #1052 for evidence that xlc is affected.
-  GASNET_FH_CFLAGS
-
   # Try to compile and link a basic VAPI program
   GASNET_PUSHVAR(CFLAGS,"$CFLAGS -I$VAPI_INCLUDE $GASNET_THREAD_DEFINES $VAPI_LIBCFLAGS")
   GASNET_PUSHVAR(LIBS,"$LIBS -L$VAPI_LIBDIR $VAPI_LIBS $GASNET_THREAD_LIBS")
@@ -2701,9 +2790,6 @@ if test "$enabled_ibv" = yes; then
   # Assemble any extra flags needed at library build time
   IBV_LIBCFLAGS='' # None yet
 
-  # Since we are using firehose we need to disable certain optimizations.
-  GASNET_FH_CFLAGS
-
   # Try to compile and link a basic IB Verbs program
   GASNET_PUSHVAR(CFLAGS,"$CFLAGS -I$IBV_INCLUDE $GASNET_THREAD_DEFINES $IBV_LIBCFLAGS")
   GASNET_PUSHVAR(LIBS,"$LIBS -L$IBV_LIBDIR $IBV_LIBS $GASNET_THREAD_LIBS")
@@ -2754,6 +2840,7 @@ if test "$enabled_portals" = yes; then
   GASNET_ENV_DEFAULT(PE_DIR, /opt/xt-pe/default)
   GASNET_ENV_DEFAULT(PORTALS_INCLUDE, $PE_DIR/include)
   PORTALS_INCLUDES="-I${PORTALS_INCLUDE}"
+  GASNET_ENV_DEFAULT(PORTALS_LIBS, )
   case "$target" in
     *-catamount-*) 
       GASNET_ENV_DEFAULT(CATAMOUNT_DIR, /opt/xt-catamount/default)
@@ -2761,12 +2848,6 @@ if test "$enabled_portals" = yes; then
       PORTALS_INCLUDES="${PORTALS_INCLUDES} -I${CATAMOUNT_INCLUDE}"
       ;;
   esac
-
-# MLW: No longer need MPI to run portals
-#  if test "$have_mpi_compat" != yes; then
-#    GASNET_MSG_WARN([portals-conduit requires MPI compatibility support which $mpi_compat_reason])
-#    have_portals=no
-#  fi
 
   if test "$gasnet_cv_cc_family" != GNU; then
     # bug 1584 - non-GNU compilers don't support portals until PE v1.5
@@ -2784,10 +2865,25 @@ if test "$enabled_portals" = yes; then
     fi
   fi
   if test $have_portals = yes; then
-    GASNET_PUSHVAR(CFLAGS,"$CFLAGS ${PORTALS_INCLUDES}")
+    # Since we are using firehose we need to disable certain optimizations.
+    GASNET_FH_CFLAGS
+
+    GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS ${PORTALS_INCLUDES}")
   
-    AC_CHECK_HEADERS(pctmbox.h)
+    # pctmbox.h requires portals/portals3.h
+    # newer autoconf isn't happy w/o including portals3.h in 4th arg
+    # older autoconf lacks the 4-argument AC_CHECK_HEADERS
+    # want AC_CHECK_HEADERS(pctmbox.h, [:], [:], [ #include <portals/portals3.h> ])
+    # but end up with:
+    GASNET_TRY_CACHE_CHECK([for pctmbox.h], pctmbox_h, [
+      #include <portals/portals3.h>
+      #include <pctmbox.h>
+    ], [], [AC_DEFINE(HAVE_PCTMBOX_H)])
+
+    AC_CHECK_HEADERS(cnos_mpi_os.h)
     AC_CHECK_HEADERS(catamount/cnos_mpi_os.h)
+
+    AC_CHECK_LIB(pct, cnos_get_rank, PORTALS_LIBS="$PORTALS_LIBS -lpct") # bug 2472
 
     dnl Some PE versions lack a ptl_eq_handler_t definition in portals3.h
     GASNET_TRY_CACHE_CHECK([for ptl_eq_handler_t in portals3.h], ptl_eq_handler_t, [
@@ -2796,9 +2892,12 @@ if test "$enabled_portals" = yes; then
       ptl_eq_handler_t x;
     ], [], [AC_DEFINE(GASNETC_PORTALS_MISSING_EQ_HANDLER_T)])
 
+    GASNET_PUSHVAR(LIBS,"$LIBS ${PORTALS_LIBS}")
     GASNET_TRY_CACHE_LINK(for working Portals configuration, portals_works, [
        #include <portals/portals3.h>
-       #if HAVE_CATAMOUNT_CNOS_MPI_OS_H /* catamount and new CNL */
+       #if HAVE_CNOS_MPI_OS_H /* new CNL (bug 2472) */
+       #include <cnos_mpi_os.h>
+       #elif HAVE_CATAMOUNT_CNOS_MPI_OS_H /* catamount and new CNL */
        #include <catamount/cnos_mpi_os.h>
        #elif HAVE_PCTMBOX_H /* old CNL */
        #include <pctmbox.h>
@@ -2815,23 +2914,21 @@ if test "$enabled_portals" = yes; then
        cnos_get_nidpid_map(NULL);
        PtlNIInit(ptl_iface, PTL_PID_ANY, NULL, NULL, &ptl_ni_h);
     }], [ portals_test_worked=yes ], [ portals_test_worked=no GASNET_ERR_SAVE() ] )
-    GASNET_POPVAR(CFLAGS)
+    GASNET_POPVAR(LIBS)
+    GASNET_POPVAR(CPPFLAGS)
   
     if test "$portals_test_worked" != yes; then
       GASNET_MSG_WARN(build test failed: I don't know how to build Portals programs on your system)
       have_portals=no
     fi
   fi
+  AC_SUBST(PORTALS_LIBS)
   AC_SUBST(PORTALS_INCLUDES)
 fi
 
+AM_CONDITIONAL(OS_CATAMOUNT, expr "$target" : '.*-catamount-' >/dev/null)
 AM_CONDITIONAL(USE_PORTALS_CONDUIT, test "$have_portals" = yes)
 CONDUIT_END([test "$have_portals" = yes])
-# TODO: remove when portals is fully native
-# MLW: Now is the time...
-#if test "$have_portals" = yes; then
-#  have_ammpi=yes
-#fi
 
 #--------------------------------------------------------------------------------------------------------
 # SHMEM configuration
@@ -2912,6 +3009,128 @@ AC_SUBST(SHMEM_LIBS)
 AC_SUBST(SHMEM_FLAGS)
 AM_CONDITIONAL(USE_SHMEM_CONDUIT, test "$enabled_shmem$have_shmem" = yesyes)
 CONDUIT_END([test "$enabled_shmem$have_shmem" = yesyes])
+
+#--------------------------------------------------------------------------------------------------------
+# DCMF configuration
+CONDUIT_BEGIN(dcmf,[BlueGene/P network conduit (dcmf)])
+if test $enabled_dcmf = yes; then
+  # Assume the best
+  have_dcmf=yes
+  
+  GASNET_IF_ENABLED_WITH_AUTO(dcmf-linux, [Use Linux as the Compute Node OS], [enabled_dcmf_linux="yes"], [enabled_dcmf_linux="no"], [enabled_dcmf_linux="no"])
+  if test $enabled_dcmf_linux = yes; then
+    #this hasn't been completely enabled yet so we'll just link w/ the developers version
+    #Developer is Kazutomo Yoshii 
+    dcmf_guess=/home/kazutomo/zepto-devel/prebuilt/DCMF/install
+    GASNET_ENV_DEFAULT(DCMF_HOME, $dcmf_guess)
+    GASNET_ENV_DEFAULT(DCMF_INCLUDE, $DCMF_HOME/comm/sys/include/)
+    GASNET_ENV_DEFAULT(DCMF_SYS_INCLUDE, $DCMF_INCLUDE)
+  
+    GASNET_ENV_DEFAULT(DCMF_LIB_DIR, $DCMF_HOME/comm/sys/lib)
+    GASNET_ENV_DEFAULT(DCMF_SYS_LIB_DIR, $DCMF_LIB_DIR)
+    GASNET_ENV_DEFAULT(DCMF_LIBS, -ldcmfcoll.zcl -ldcmf.zcl -lSPI.zcl -lzcl -lzoid_cn -lrt -lpthread -lm)
+  else
+    dcmf_guess=/bgsys/drivers/ppcfloor
+    GASNET_ENV_DEFAULT(DCMF_HOME, $dcmf_guess)
+    GASNET_ENV_DEFAULT(DCMF_INCLUDE, $DCMF_HOME/comm/sys/include) 
+    GASNET_ENV_DEFAULT(DCMF_SYS_INCLUDE, $DCMF_HOME/arch/include)
+  
+
+    GASNET_ENV_DEFAULT(DCMF_LIBDIR, $DCMF_HOME/comm/sys/lib)
+    GASNET_ENV_DEFAULT(DCMF_SYS_LIBDIR, $DCMF_HOME/runtime/SPI)
+
+    
+    if test "$BUILDCONFIG" = "debug" ; then  
+      #if debug build, link w/ debug version of DCMF
+      GASNET_ENV_DEFAULT(DCMF_LIBS, -ldcmfcoll.cnk -ldcmf.cnk -lpthread -lrt -lSPI.cna)
+    else
+      #else link with optimized version of DCMF
+      #for some reason looks like in the fast build has duplicate sybmols when we link in dcmfcoll  
+      #GASNET_ENV_DEFAULT(DCMF_LIBS, -ldcmfcoll-fast.cnk -ldcmf-fast.cnk -lpthread -lrt -lSPI.cna)
+      GASNET_ENV_DEFAULT(DCMF_LIBS, -ldcmf-fast.cnk -lpthread -lrt -lSPI-fast.cna)
+    fi
+  fi #end if for dcmf-linux
+
+  force_dcmf_compile="no"
+  GASNET_IF_ENABLED_NOHELP(force-compile-dcmf, [force_dcmf_compile="yes"])  
+  
+  # if we can't even find a valid incldue path no point trying to compile even if user requests it
+  AC_MSG_CHECKING(for valid DCMF include path)
+  if test "$DCMF_INCLUDE" = "" || test ! -d "$DCMF_INCLUDE"; then
+      have_dcmf=no
+      AC_MSG_RESULT(no)
+  else
+      AC_MSG_RESULT(yes)
+  fi
+
+  AC_MSG_CHECKING(for forced dcmf compile)
+  if test $force_dcmf_compile = yes; then
+    AC_MSG_RESULT(yes)
+  else
+    AC_MSG_RESULT(no)
+    # check to see if we can find the other directories needed for our build 
+    if test "$DCMF_SYS_INCLUDE" = "" || test ! -d "$DCMF_SYS_INCLUDE"; then
+      have_dcmf=no
+    fi
+    if test "$DCMF_LIBDIR" = ""; then
+       have_dcmf=no
+    fi
+    if test "$DCMF_SYS_LIBDIR" = ""; then
+       have_dcmf=no
+    fi
+
+    GASNET_PUSHVAR(CFLAGS,"$CFLAGS -I$DCMF_INCLUDE -I$DCMF_SYS_INCLUDE -L$DCMF_LIBDIR -L$DCMF_SYS_LIBDIR")
+    GASNET_PUSHVAR(LIBS,"$LIBS $DCMF_LIBS")
+    if test $have_dcmf = yes; then
+      GASNET_TRY_CACHE_CHECK(DCMF Version, dcmf_version_check, [
+        #include <dcmf.h>
+         #include <dcmf_collectives.h>
+         #if (DCMF_VERSION_RELEASE == 0)
+           #if (DCMF_VERSION_MAJOR >= 2)
+             #if (DCMF_VERSION_MINOR < 0)
+               #warning Minor Version number is <0
+             #endif
+           #else
+             #error Incompatible dcmf major version
+           #endif
+         #else
+            #warning this release version not been tested with GASNet
+         #endif
+      ], [], [ ], [
+        GASNET_ERR_SAVE() 
+        AC_MSG_RESULT(GASNet needs at least DCMF 0.2.0)    
+        have_dcmf=no
+      ])
+    fi
+    if test $have_dcmf = yes; then
+      GASNET_TRY_CACHE_LINK(for working DCMF configuration, dcmf_link_test, [
+          #include <stdio.h>
+          #include <stdlib.h>
+          #include <dcmf.h>
+          #include <dcmf_collectives.h>
+         ], [
+          DCMF_Messager_initialize();
+          DCMF_Messager_finalize();  
+        ], [ 
+	  dcmf_test_worked=yes 
+	], [ 
+	  GASNET_ERR_SAVE() 
+          have_dcmf=no
+	])
+    fi
+    GASNET_POPVAR(CFLAGS)
+    GASNET_POPVAR(LIBS)
+  fi #END FORCE_DCMF_CHECK
+fi #END ENABLE DCMF
+
+AC_SUBST(DCMF_INCLUDE)
+AC_SUBST(DCMF_SYS_INCLUDE)
+AC_SUBST(DCMF_LIBDIR)
+AC_SUBST(DCMF_SYS_LIBDIR)
+AC_SUBST(DCMF_LIBS)
+AM_CONDITIONAL(USE_DCMF_CONDUIT, test "$enabled_dcmf$have_dcmf" = yesyes)
+CONDUIT_END([test "$enabled_dcmf$have_dcmf" = yesyes])
+
 
 #--------------------------------------------------------------------------------------------------------
 # SCI configuration
@@ -3019,6 +3238,7 @@ AC_CHECK_FUNCS(setenv unsetenv putenv)
 AC_CHECK_FUNCS([getrlimit setrlimit getrlimit64 setrlimit64], [], [])
 AC_CHECK_HEADERS(sys/resource.h)
 
+AC_CHECK_HEADERS(sgidefs.h)
 AC_CHECK_HEADERS(features.h)
 AC_CHECK_FUNCS(fopen64)
 
@@ -3507,6 +3727,7 @@ GASNET_FIX_EXEC(mpi-conduit/contrib/gasnetrun_mpi)
 GASNET_FIX_EXEC(sci-conduit/contrib/gasnetrun_sci)
 GASNET_FIX_EXEC(vapi-conduit/contrib/gasnetrun_vapi)
 GASNET_FIX_EXEC(ibv-conduit/contrib/gasnetrun_ibv)
+GASNET_FIX_EXEC(dcmf-conduit/contrib/gasnetrun_dcmf)
 GASNET_FIX_EXEC(other/contrib/gasnet_trace)
 
 if test "$gasnet_toolsonly_mode" = "no" ; then
@@ -3567,6 +3788,11 @@ smp-conduit/conduit.mak
 
 elan-conduit/Makefile
 elan-conduit/conduit.mak
+
+dcmf-conduit/Makefile
+dcmf-conduit/conduit.mak
+dcmf-conduit/contrib/Makefile
+dcmf-conduit/contrib/gasnetrun_dcmf
 
 vapi-conduit/Makefile
 vapi-conduit/conduit.mak

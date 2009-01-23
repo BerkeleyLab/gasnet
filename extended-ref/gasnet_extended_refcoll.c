@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2007/10/30 15:21:01 $
- * $Revision: 1.72 $
+ *     $Date: 2009/01/23 20:38:07 $
+ * $Revision: 1.72.10.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -254,8 +254,7 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
     if_pt (result) {
       td->handle_freelist = GASNETE_COLL_HANDLE_NEXT(result);
     } else {
-      /* XXX: allocate in large chunks and scatter across cache lines */
-      /* XXX: destroy freelist at exit */
+      /* XXX: allocate in large chunks and scatter across cache lines (and update gasnete_coll_cleanup_threaddata) */
       result = (gasnet_coll_handle_t)gasneti_malloc(sizeof(*result));
     }
 
@@ -779,9 +778,42 @@ gasneti_mutex_t gasnete_coll_active_lock = GASNETI_MUTEX_INITIALIZER;
 #endif
 
 /*---------------------------------------------------------------------------------*/
+static void gasnete_coll_cleanup_freelist(void **head) {
+  void **next;
+  while ((next = (void **)*head) != NULL) {
+    *head = *next;
+    gasneti_free(next);
+  }
+}
+static void gasnete_coll_cleanup_threaddata(void *_td) {
+  gasnete_coll_threaddata_t *td = (gasnete_coll_threaddata_t *)_td;
+
+  /* these free lists are all linked by initial pointer */
+  gasnete_coll_cleanup_freelist((void **)&(td->op_freelist));
+  gasnete_coll_cleanup_freelist((void **)&(td->tree_data_freelist));
+  gasnete_coll_cleanup_freelist((void **)&(td->generic_data_freelist));
+
+  gasneti_assert(td->handles.used == 0);
+  td->handles.allocated = 0;
+  gasneti_free(td->handles.array);
+
+  #ifndef GASNETE_COLL_HANDLE_OVERRIDE
+    while (td->handle_freelist) {
+      gasnet_coll_handle_t next = GASNETE_COLL_HANDLE_NEXT(td->handle_freelist);
+      gasneti_free((void *)td->handle_freelist);
+      td->handle_freelist = next;
+    }
+  #endif
+
+  #ifdef GASNETE_COLL_THREADDATA_EXTRA_CLEANUP
+    GASNETE_COLL_THREADDATA_EXTRA_CLEANUP(td);
+  #endif
+  gasneti_free(td);
+}
 
 extern gasnete_coll_threaddata_t *gasnete_coll_new_threaddata(void) {
     gasnete_coll_threaddata_t *result = gasneti_calloc(1,sizeof(*result));
+    gasnete_register_threadcleanup(gasnete_coll_cleanup_threaddata, result);
     return result;
 }
 
@@ -986,7 +1018,8 @@ void gasnete_coll_poll(GASNETE_THREAD_FARG_ALONE) {
 }
 static gasnet_seginfo_t *gasnete_coll_auxseg_save = NULL;
 
-
+/* spawner hint of our auxseg requirements */
+GASNETI_IDENT(gasnete_coll_auxseg_IdentString, "$GASNetAuxSeg_coll: GASNET_COLL_SCRATCH_SIZE:" _STRINGIFY(GASNETE_COLL_SCRATCH_SIZE_DEFAULT) " $");
 
 /* AuxSeg setup for distributed scratch space*/
 gasneti_auxseg_request_t gasnete_coll_auxseg_alloc(gasnet_seginfo_t *auxseg_info) {

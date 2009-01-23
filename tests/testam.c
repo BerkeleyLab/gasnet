@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testam.c,v $
- *     $Date: 2006/03/31 07:20:09 $
- * $Revision: 1.26 $
+ *     $Date: 2009/01/23 20:38:42 $
+ * $Revision: 1.26.44.1 $
  * Description: GASNet Active Messages performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -409,6 +409,28 @@ void doAMShort() {
           GASNET_BLOCKUNTIL(flag == iters);                                      \
           report(msg,TIME() - start, iters, sz, 1);                              \
         }                                                                        \
+        BARRIER();                                                               \
+        ADVANCESZ(sz, MAXREQREP);                                                \
+      }                                                                          \
+      if (mynode == 0) { printf("\n"); fflush(stdout); }                         \
+    }                                                                            \
+    BARRIER();                                                                   \
+    /* ---------------------------------------------------------- */             \
+    if (TEST_SECTION_BEGIN_ENABLED()) {                                          \
+      uintptr_t sz; int64_t start;                                               \
+      char msg[255];                                                             \
+      for (sz = 0; sz <= MAXREQREP; ) {                                          \
+        sprintf(msg, "%7llu "DESC_STR" flood     roundtrip ReqReq",              \
+                     (unsigned long long)sz);                                    \
+        flag = 0;                                                                \
+        BARRIER();                                                               \
+        start = TIME();                                                          \
+        for (i=0; i < iters; i++) {                                              \
+          GASNET_Safe(AMREQUEST(peer, PONG_HIDX##_flood, myseg, sz DEST));       \
+        }                                                                        \
+        GASNET_BLOCKUNTIL(flag == iters);                                        \
+        report(msg,TIME() - start, iters, sz, 1);                                \
+                                                                                 \
         BARRIER();                                                               \
         ADVANCESZ(sz, MAXREQREP);                                                \
       }                                                                          \
