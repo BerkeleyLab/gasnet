@@ -12,7 +12,7 @@
 #define  GASNETE_COLL_DEFAULT_RADIX 2
 
 typedef enum {GASNETE_COLL_NARY_TREE=100, GASNETE_COLL_BINOMIAL_TREE, 
-  GASNETE_COLL_DFS_RECURSIVE_TREE, GASNETE_COLL_REV_RECURSIVE_TREE} gasnete_coll_tree_class_t;
+              GASNETE_COLL_DFS_RECURSIVE_TREE, GASNETE_COLL_REV_RECURSIVE_TREE, GASNETE_COLL_NUM_TREE_CLASSES} gasnete_coll_tree_class_t;
 
 struct gasnete_coll_tree_type_t_ {
   gasnete_coll_tree_class_t tree_class;
@@ -63,6 +63,7 @@ struct gasnete_coll_local_tree_geom_t_ {
   gasnet_node_t *dissem_order;
   int dissem_count;
   
+  
 } ;
 
 /*for now i will only assume that one gasnet thread will be involved in the tree communication 
@@ -83,6 +84,7 @@ struct gasnete_coll_tree_geom_t_ {
    /*** tree structure metadata*****/
    gasnete_coll_tree_type_t tree_type;
   /* don't need a root argument here since local_views[i] gives a tree rooted at i*/
+  gasnete_coll_team_t *team; /*a pointer back to the associated team*/
  };
 
 

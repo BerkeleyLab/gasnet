@@ -55,14 +55,14 @@ void gasnete_coll_print_tree(gasnete_coll_local_tree_geom_t *geom, int gasnete_c
   for(i=0; i<geom->child_count; i++) {
     fprintf(stderr, "%d> child %d: %d, subtree for that child: %d\n", gasnete_coll_tree_mynode, i, (int)geom->child_list[i], (int)geom->subtree_sizes[i]);
   }
-  if(gasneti_mynode == geom->root) {
+  if(gasnete_coll_tree_mynode == geom->root) {
     for(i=0; i<geom->total_size; i++) {
-      fprintf(stderr, "%d> dfs order %d: %d\n", (int)gasneti_mynode, i, (int)geom->dfs_order[i]);
+      fprintf(stderr, "%d> dfs order %d: %d\n", (int)gasnete_coll_tree_mynode, i, (int)geom->dfs_order[i]);
     }
   } else {
      fprintf(stderr, "%d> parent: %d\n", (int)gasnete_coll_tree_mynode, (int)geom->parent);
   }
-  fprintf(stderr, "%d> mysubtree size: %d\n", (int)gasneti_mynode, (int)geom->mysubtree_size);
+  fprintf(stderr, "%d> mysubtree size: %d\n", (int)gasnete_coll_tree_mynode, (int)geom->mysubtree_size);
 #if 1
   fprintf(stderr, "%d> My sibling info: (id: %d, offset %d)\n", (int)gasnete_coll_tree_mynode, (int)geom->sibling_id, (int)geom->sibling_offset);
 #endif
@@ -283,7 +283,7 @@ gasnete_coll_local_tree_geom_t*  gasnete_coll_build_tree(gasnete_coll_tree_class
 	level = 0;
 	tchild = (gasnet_node_t*)gasneti_malloc(sizeof(gasnet_node_t)*fanout);
 	while(1) { 
-	  /* has to terminate because of the semantics of the loop  */
+	  /* has to terminate because each node will match at exactly one of the levels */
 	  if (mynode >= gasnete_coll_build_tree_START(level,fanout) && 
 	      mynode < gasnete_coll_build_tree_START(level+1,fanout)) {
 	    break;
@@ -492,7 +492,7 @@ void gasnete_coll_set_dfs_order_helper(gasnete_coll_local_tree_geom_t *geom, int
 void gasnete_coll_set_dfs_order(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_nodes) {
   int i;
   gasnet_node_t pos = 0;
-  gasneti_assert(geom->root == gasneti_mynode);
+
   
   if(geom->child_count > 0) {
     geom->dfs_order = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*gasnete_coll_tree_nodes);
@@ -503,7 +503,7 @@ void gasnete_coll_set_dfs_order(gasnete_coll_local_tree_geom_t *geom, int gasnet
     }
   } else {
     geom->dfs_order = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*1);
-    geom->dfs_order[0] = gasneti_mynode;
+    geom->dfs_order[0] = geom->root;
   }
 }
 
@@ -581,8 +581,8 @@ void gasnete_coll_set_sibling_info(gasnete_coll_local_tree_geom_t *geom, int gas
 */
 gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll_tree_type_t in_type, int rootrank, gasnete_coll_team_t team)  {
 	 gasnete_coll_local_tree_geom_t* geom;
-  #if GASNET_COLL_TREE_DEBUG
-  fprintf(stderr, "%d> setting up tree geom\n", gasneti_mynode);
+#if GASNET_COLL_TREE_DEBUG
+  fprintf(stderr, "%d> setting up tree geom\n", team->myrank);
 #endif  
    geom = gasnete_coll_build_tree(in_type.tree_class, in_type.fanout, rootrank, team->myrank, team->total_ranks, 1);
 
@@ -590,7 +590,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
    geom->total_size = team->total_ranks;
    /*gasnete_coll_set_dissemination_order(geom, gasneti_mynode, gasneti_nodes);*/ 
    gasnete_coll_set_sub_tree_sizes(geom, team->myrank, team->total_ranks); 
-   if(gasneti_mynode == rootrank) {
+   if(team->myrank == rootrank) {
       gasnete_coll_set_dfs_order(geom, team->total_ranks); 
    } 
    
@@ -605,7 +605,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
      
    gasnete_coll_set_sibling_info(geom, team->myrank, team->total_ranks); 
 #if 1
-   gasnete_coll_print_tree(geom, gasneti_mynode);
+   gasnete_coll_print_tree(geom, team->myrank);
 #endif
 
    return geom;
