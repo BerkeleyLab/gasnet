@@ -91,7 +91,7 @@ char* fill_flag_str(int flags, char *outstr) {
 
 void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr,  int root_thread, int in_flags, myxml_node_t *root_xml_node) {
   int s, c, i, f;
-  myxml_node_t *current_parent_node = root_xml_node, *temp_node= NULL;
+  myxml_node_t *addr_mode_node, *current_parent_node = root_xml_node, *temp_node= NULL;
   int *src, *dst;
   int num_tree_classes;
   int num_fanouts; 
@@ -104,32 +104,28 @@ void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_a
   int flags = in_flags | GASNET_COLL_SRC_IN_SEGMENT|GASNET_COLL_DST_IN_SEGMENT;
   
   if(in_flags & GASNET_COLL_SINGLE) { /*whether or not each node presents one address that is valid for all nodes*/
-    current_parent_node = myxml_createNode(current_parent_node, (char *)"address_mode", (char*) "val", (char*) "single", NULL);
+    addr_mode_node = myxml_createNode(root_xml_node, (char *)"address_mode", (char*) "val", (char*) "single", NULL);
     src = (int*) src_arr[0];
     dst = (int*) dst_arr[0];
-  
   } else { /*each node only gives address that are only valid on the local node*/
-
-    current_parent_node = myxml_createNode(current_parent_node, (char*) "address_mode", (char*) "val", (char*) "local", NULL);
+    addr_mode_node = myxml_createNode(root_xml_node, (char*) "address_mode", (char*) "val", (char*) "local", NULL);
     src = (int*) td->mysrc;
     dst= (int*) td->mydest;
   }
   
-  /*do broadcast*/
-  current_parent_node = myxml_createNode(current_parent_node, (char*) "collective", (char *) "val", (char*) "broadcast", NULL);
+
+  /*************** BROADCAST *****************/
+  current_parent_node = myxml_createNode(addr_mode_node, (char*) "collective", (char *) "val", (char*) "broadcast", NULL);
   
   num_tree_classes = gasnet_coll_get_num_tree_classes(GASNET_TEAM_ALL, GASNET_COLL_BROADCAST_OP);
   temp_node = current_parent_node;
   
   for(s=1; s<=max_data_size; s*=2) {
-    
     current_parent_node = myxml_createNodeInt(temp_node, (char*) "size", (char *) "start", s, NULL);
     myxml_addAttributeInt(current_parent_node, (char*) "end", (s == max_data_size ? 1<<31 : (s*2)-1));
     best_time = GASNETT_TICK_MAX;
     for(c=0; c<num_tree_classes; c++) {
-      
-      for(f = 2; f<=2; f+=5) {
-        
+      for(f = 2; f<=THREADS; f*=2) {
         gasnet_coll_set_tree_kind(GASNET_TEAM_ALL, c, f, GASNET_COLL_BROADCAST_OP);
         COLL_BARRIER();
         /*first do a few warmup iterations*/
@@ -159,13 +155,112 @@ void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_a
       }
     }
     sprintf(buffer, "%d", best_tree);
-    myxml_createNode(current_parent_node, (char*) "Best Tree Class", NULL, NULL, buffer);
+    myxml_createNode(current_parent_node, (char*) "Best_Tree_Class", NULL, NULL, buffer);
     sprintf(buffer, "%d", best_fanout);
-    myxml_createNode(current_parent_node, (char*) "Best Fanout", NULL, NULL, buffer);
+    myxml_createNode(current_parent_node, (char*) "Best_Fanout", NULL, NULL, buffer);
     sprintf(buffer, "%g us", ((double) gasnett_ticks_to_us(best_time))/performance_iters);
-    myxml_createNode(current_parent_node, (char*) "Best Time", NULL, NULL, buffer);
-  
+    myxml_createNode(current_parent_node, (char*) "Best_Time", NULL, NULL, buffer);
   }
+  /*******************END BROADCAST***************/
+
+  /*************** SCATTER *****************/
+  current_parent_node = myxml_createNode(addr_mode_node, (char*) "collective", (char *) "val", (char*) "scatter", NULL);
+  
+  num_tree_classes = gasnet_coll_get_num_tree_classes(GASNET_TEAM_ALL, GASNET_COLL_SCATTER_OP);
+  temp_node = current_parent_node;
+  
+  for(s=1; s<=max_data_size; s*=2) {
+    current_parent_node = myxml_createNodeInt(temp_node, (char*) "size", (char *) "start", s, NULL);
+    myxml_addAttributeInt(current_parent_node, (char*) "end", (s == max_data_size ? 1<<31 : (s*2)-1));
+    best_time = GASNETT_TICK_MAX;
+    for(c=0; c<num_tree_classes; c++) {
+      for(f = 2; f<=THREADS; f*=2) {
+        gasnet_coll_set_tree_kind(GASNET_TEAM_ALL, c, f, GASNET_COLL_SCATTER_OP);
+        COLL_BARRIER();
+        /*first do a few warmup iterations*/
+        if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
+        for(i =0; i<warm_iters; i++) {
+          gasnet_coll_scatter(GASNET_TEAM_ALL, dst, root_thread, src, sizeof(int)*s, flags);
+        }
+        if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
+        
+        COLL_BARRIER();
+        begin = gasnett_ticks_now();
+        if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
+        for(i=0; i<performance_iters; i++) { 
+          gasnet_coll_scatter(GASNET_TEAM_ALL, dst, root_thread, src, sizeof(int)*s, flags);
+        }
+        if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
+        end =  gasnett_ticks_now() - begin;
+        COLL_BARRIER();
+        if(td->mythread == 0) {
+          if(end < best_time) {
+            best_time = end;
+            best_tree = c;
+            best_fanout = f;
+          }
+        }
+        COLL_BARRIER();
+      }
+    }
+    sprintf(buffer, "%d", best_tree);
+    myxml_createNode(current_parent_node, (char*) "Best_Tree_Class", NULL, NULL, buffer);
+    sprintf(buffer, "%d", best_fanout);
+    myxml_createNode(current_parent_node, (char*) "Best_Fanout", NULL, NULL, buffer);
+    sprintf(buffer, "%g us", ((double) gasnett_ticks_to_us(best_time))/performance_iters);
+    myxml_createNode(current_parent_node, (char*) "Best_Time", NULL, NULL, buffer);
+  }
+  /*******************END SCATTER***************/
+
+  /*************** GATHER *****************/
+  current_parent_node = myxml_createNode(addr_mode_node, (char*) "collective", (char *) "val", (char*) "gather", NULL);
+  
+  num_tree_classes = gasnet_coll_get_num_tree_classes(GASNET_TEAM_ALL, GASNET_COLL_GATHER_OP);
+  temp_node = current_parent_node;
+  
+  for(s=1; s<=max_data_size; s*=2) {
+    current_parent_node = myxml_createNodeInt(temp_node, (char*) "size", (char *) "start", s, NULL);
+    myxml_addAttributeInt(current_parent_node, (char*) "end", (s == max_data_size ? 1<<31 : (s*2)-1));
+    best_time = GASNETT_TICK_MAX;
+    for(c=0; c<num_tree_classes; c++) {
+      for(f = 2; f<=THREADS; f*=2) {
+        gasnet_coll_set_tree_kind(GASNET_TEAM_ALL, c, f, GASNET_COLL_GATHER_OP);
+        COLL_BARRIER();
+        /*first do a few warmup iterations*/
+        if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
+        for(i =0; i<warm_iters; i++) {
+          gasnet_coll_gather(GASNET_TEAM_ALL, root_thread, dst, src, sizeof(int)*s, flags);
+        }
+        if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
+        
+        COLL_BARRIER();
+        begin = gasnett_ticks_now();
+        if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
+        for(i=0; i<performance_iters; i++) { 
+          gasnet_coll_gather(GASNET_TEAM_ALL, root_thread, dst, src, sizeof(int)*s, flags);
+        }
+        if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
+        end =  gasnett_ticks_now() - begin;
+        COLL_BARRIER();
+        if(td->mythread == 0) {
+          if(end < best_time) {
+            best_time = end;
+            best_tree = c;
+            best_fanout = f;
+          }
+        }
+        COLL_BARRIER();
+      }
+    }
+    sprintf(buffer, "%d", best_tree);
+    myxml_createNode(current_parent_node, (char*) "Best_Tree_Class", NULL, NULL, buffer);
+    sprintf(buffer, "%d", best_fanout);
+    myxml_createNode(current_parent_node, (char*) "Best_Fanout", NULL, NULL, buffer);
+    sprintf(buffer, "%g us", ((double) gasnett_ticks_to_us(best_time))/performance_iters);
+    myxml_createNode(current_parent_node, (char*) "Best_Time", NULL, NULL, buffer);
+  }
+  /*******************END GATHER***************/
+
 }
 
 
@@ -174,7 +269,9 @@ void *thread_main(void *arg) {
   thread_data_t *td = (thread_data_t*) arg;
   myxml_node_t *tuning_root, *temp, *temp2;
   char buffer[100];
+  int skip_msg_printed = 0;
 #if GASNET_PAR
+  int i;
   gasnet_image_t *imagearray = test_malloc(nodes * sizeof(gasnet_image_t));
   for (i=0; i<nodes; ++i) { imagearray[i] = threads_per_node; }
   gasnet_coll_init(imagearray, td->mythread, NULL, 0, 0);
@@ -182,20 +279,21 @@ void *thread_main(void *arg) {
 #else
   gasnet_coll_init(NULL, td->mythread, NULL, 0, 0);
 #endif
-  
+
+
   COLL_BARRIER();
-  
+
   tuning_root = myxml_createNode(NULL, (char*) "machine", (char*)"CONFIG", (char*) GASNET_CONFIG_STRING, NULL);
   
   temp = myxml_createNodeInt(tuning_root, (char*)"threads_per_node", (char*)"val", threads_per_node, NULL);
   
 
-  for(flag_iter=0; flag_iter<1; flag_iter++) {
+  for(flag_iter=0; flag_iter<9; flag_iter++) {
     int flags;
     myxml_node_t *sync_node, *test_root;
     char buffer[8];
     COLL_BARRIER();
-
+    
 
     
     switch(flag_iter) {
@@ -216,9 +314,19 @@ void *thread_main(void *arg) {
     
     sync_node = myxml_createNode(temp, (char*)"sync_mode", (char*)"val", fill_flag_str(flags, buffer), NULL);
     /*do single addr tests*/
-    test_root = myxml_createNode(sync_node, (char*)"num_addrs", (char*) "val", (char*)"single", NULL);
-    /*call the single address (coll single) test routines with testroot*/
-    run_SINGLE_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_SINGLE, test_root);
+    
+#if GASNET_ALIGNED_SEGMENTS
+    if(threads_per_node == 1) {
+      test_root = myxml_createNode(sync_node, (char*)"num_addrs", (char*) "val", (char*)"single", NULL);
+      /*call the single address (coll single) test routines with testroot*/
+      run_SINGLE_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_SINGLE, test_root);
+    } else {
+      if(td->mythread == 0 && !skip_msg_printed) MSG0("skipping SINGLE/SINGLE (multiple threads per node)");
+    }
+#else
+    if(td->mythread == 0 && !skip_msg_printed) MSG0("skipping SINGLE/SINGLE (unaligned segments)");
+#endif
+    skip_msg_printed = 1;
     /*call the single address (coll local) test routines with testroot*/
     run_SINGLE_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_LOCAL, test_root);
     
@@ -232,8 +340,13 @@ void *thread_main(void *arg) {
   
 
   
-  if(td->mythread == 0) myxml_printTreeXML(stdout, tuning_root, (char*) " ");
-  
+  if(td->mythread == 0){ 
+    myxml_printTreeXML(stdout, tuning_root, (char*) " ");
+    fflush(stdout);
+    fflush(stdout);
+  }
+      
+
   COLL_BARRIER();
   return 0;
 }
@@ -246,14 +359,15 @@ int main(int argc, char **argv) {
   
   max_data_size = DEFAULT_MAX_DATA_SIZE/sizeof(int);
   performance_iters = DEFAULT_PERFORMANCE_ITERS;
-  
+
+
 #if GASNET_PAR
   threads_per_node = gasnett_cpu_count();
 #else
   threads_per_node = 1;
 #endif
   
-  for(i=i; i<argc; i++) {
+  for(i=1; i<argc; i++) {
     if(strcmp("-i", argv[i])==0 || strcmp("-iters", argv[i])==0) {
       performance_iters = atoi(argv[i+1]);
       i++;
@@ -278,7 +392,7 @@ int main(int argc, char **argv) {
   if(performance_iters <=0) {
     gasnet_exit(0);
   }
-  
+#if 1
   mynode = gasnet_mynode();
   nodes = gasnet_nodes();
   THREADS = nodes * threads_per_node;
@@ -322,7 +436,7 @@ int main(int argc, char **argv) {
   
   test_free(td_arr);
   BARRIER();
-  MSG("done.");
+#endif
   gasnet_exit(0);
   return 0;
 }
