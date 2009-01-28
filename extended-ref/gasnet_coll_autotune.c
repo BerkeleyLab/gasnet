@@ -8,6 +8,10 @@
 
 #include "gasnet_coll_autotune.h"
 
+/*a small library to write and read XML style sheets for hte collective tuner*/
+#include <../other/myxml/myxml.h>
+#include <../other/myxml/myxml.c>
+
 /*this array is the maximum size of hte log2 array for fanouts*/
 #define GASNETE_COLL_AUTOTUNE_RADIX_ARR_LEN 20
 
@@ -56,11 +60,11 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_node_t mynode, g
   default_tree_fanout = gasneti_getenv_int_withdefault("GASNET_COLL_ROOTED_ARITY", GASNETE_COLL_DEFAULT_TREE_FANOUT, 0);
   
   /* now over-ride the defaults w/ the collective specific tree types in the environment*/
-  ret->bcast_tree_type = gasnete_coll_make_tree_type(gasneti_getenv_withdefault("GASNET_COLL_BROADCAST_GEOM", default_tree_type),
+  ret->bcast_tree_type = gasnete_coll_make_tree_type_str(gasneti_getenv_withdefault("GASNET_COLL_BROADCAST_GEOM", default_tree_type),
                                                      MIN(total_nodes, gasneti_getenv_int_withdefault("GASNET_COLL_BROADCAST_ARITY", default_tree_fanout, 0)));
-  ret->scatter_tree_type = gasnete_coll_make_tree_type(gasneti_getenv_withdefault("GASNET_COLL_SCATTER_GEOM", default_tree_type),
+  ret->scatter_tree_type = gasnete_coll_make_tree_type_str(gasneti_getenv_withdefault("GASNET_COLL_SCATTER_GEOM", default_tree_type),
                                                      MIN(total_nodes, gasneti_getenv_int_withdefault("GASNET_COLL_SCATTER_ARITY", default_tree_fanout, 0)));
-  ret->gather_tree_type = gasnete_coll_make_tree_type(gasneti_getenv_withdefault("GASNET_COLL_GATHER_GEOM", default_tree_type),
+  ret->gather_tree_type = gasnete_coll_make_tree_type_str(gasneti_getenv_withdefault("GASNET_COLL_GATHER_GEOM", default_tree_type),
                                                      MIN(total_nodes, gasneti_getenv_int_withdefault("GASNET_COLL_GATHER_ARITY", default_tree_fanout, 0)));
   
   dissem_limit_per_thread = gasneti_getenv_int_withdefault("GASNET_COLL_GATHER_ALL_DISSEM_LIMIT_PER_THREAD", GASNETE_COLL_DEFAULT_DISSEM_LIMIT_PER_THREAD, 1);
@@ -234,17 +238,20 @@ gasnete_coll_tree_type_t gasnete_coll_autotune_get_bcast_tree_type(gasnete_coll_
 		/*perform search across fanouts*/
 		/* do a barrier to ensure all threads have arrived*/
 		GASNETE_AUTOTUNE_BARRIER();
-		
+    
 		
 		
 		GASNETE_AUTOTUNE_BARRIER();
 	} else {
-		ret = gasnete_coll_make_tree_type((char*) "DFS_RECURSIVE_TREE", autotune_info->bcast_tree_radix_limits[(log2_nbytes >= GASNETE_COLL_AUTOTUNE_RADIX_ARR_LEN ? GASNETE_COLL_AUTOTUNE_RADIX_ARR_LEN-1 : log2_nbytes)]);
+    /*for larger arrays just use the maximum setting that we've already found*/
+		ret = gasnete_coll_make_tree_type_str((char*) "DFS_RECURSIVE_TREE", autotune_info->bcast_tree_radix_limits[(log2_nbytes >= GASNETE_COLL_AUTOTUNE_RADIX_ARR_LEN ? GASNETE_COLL_AUTOTUNE_RADIX_ARR_LEN-1 : log2_nbytes)]);
 	}
 	
 	return ret;
+
 }
-#define PERFORM_AUTOTUNE_BCAST 1
+
+#define PERFORM_AUTOTUNE_BCAST 0
 gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type(gasnete_coll_autotune_info_t* autotune_info, 
                                                              gasnete_coll_autotune_optype_t op_type, 
                                                              gasnet_node_t root, size_t nbytes, int flags) {
@@ -261,6 +268,7 @@ gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type(gasnete_coll_autotu
   }
 }
 
+
 size_t gasnete_coll_get_dissem_limit(gasnete_coll_autotune_info_t* autotune_info, gasnete_coll_autotune_optype_t op_type, int flags) {
   switch(op_type) {
     case GASNETE_COLL_GATHER_ALL_OP: return autotune_info->gather_all_dissem_limit;
@@ -272,4 +280,31 @@ size_t gasnete_coll_get_dissem_limit(gasnete_coll_autotune_info_t* autotune_info
 
 size_t gasnete_coll_get_pipe_seg_size(gasnete_coll_autotune_info_t* autotune_info, gasnete_coll_autotune_optype_t op_type, int flags){
   return autotune_info->pipe_seg_size;
+}
+
+
+int gasnet_coll_get_num_tree_classes(gasnete_coll_team_t team, gasnet_coll_optype_t optype) {
+  return (int) GASNETE_COLL_NUM_TREE_CLASSES;
+}
+
+
+
+void gasnet_coll_set_tree_kind(gasnete_coll_team_t team, int tree_class, int fanout, gasnet_coll_optype_t optype) {
+
+  switch(optype) {
+  case GASNET_COLL_BROADCAST_OP: team->autotune_info->bcast_tree_type = gasnete_coll_make_tree_type(tree_class, fanout); break;
+  case GASNET_COLL_SCATTER_OP: team->autotune_info->bcast_tree_type = gasnete_coll_make_tree_type(tree_class, fanout); break;
+  case GASNET_COLL_GATHER_OP: team->autotune_info->bcast_tree_type = gasnete_coll_make_tree_type(tree_class, fanout); break;
+  default: gasneti_fatalerror("unknown tree based collective op");
+  }
+  return;
+}
+
+void gasnet_coll_set_dissem_limit(gasnete_coll_team_t team, size_t dissemlimit, gasnet_coll_optype_t optype) {
+  switch(optype) {
+  case GASNET_COLL_GATHER_ALL_OP: team->autotune_info->gather_all_dissem_limit = dissemlimit; break;
+  case GASNET_COLL_EXCHANGE_OP: team->autotune_info->exchange_dissem_limit = dissemlimit; break;
+  default:  gasneti_fatalerror("unknown dissem based collective op type"); break;
+  }
+  return;
 }

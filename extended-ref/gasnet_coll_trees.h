@@ -11,7 +11,7 @@
 #define  GASNETE_COLL_DEFAULT_FANOUT 2
 #define  GASNETE_COLL_DEFAULT_RADIX 2
 
-typedef enum {GASNETE_COLL_NARY_TREE=100, GASNETE_COLL_BINOMIAL_TREE, 
+typedef enum {GASNETE_COLL_NARY_TREE=0, GASNETE_COLL_BINOMIAL_TREE, 
               GASNETE_COLL_DFS_RECURSIVE_TREE, GASNETE_COLL_REV_RECURSIVE_TREE, GASNETE_COLL_NUM_TREE_CLASSES} gasnete_coll_tree_class_t;
 
 struct gasnete_coll_tree_type_t_ {
@@ -19,7 +19,8 @@ struct gasnete_coll_tree_type_t_ {
   int fanout; 
 };
 
-gasnete_coll_tree_type_t gasnete_coll_make_tree_type(char *tree_name_str, gasnet_node_t fanout);
+gasnete_coll_tree_type_t gasnete_coll_make_tree_type_str(char *tree_name_str, gasnet_node_t fanout);
+gasnete_coll_tree_type_t gasnete_coll_make_tree_type(int tree_type, gasnet_node_t fanout);
 
 /*ACCESSOR MACROS (all take a gasnete_coll_local_tree_geom_t)*/
 #define GASNETE_COLL_TREE_GEOM_ROOT(GEOM) ((GEOM)->root)

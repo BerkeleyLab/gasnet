@@ -25,11 +25,6 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_node_t mynode, g
                                                          gasnet_image_t my_images, gasnet_image_t total_images, 
                                                          size_t min_scratch_size);
 /*testing functions*/
-void gasnete_coll_set_tree_class(char *treestr, gasnete_coll_autotune_optype_t op_type);
-#define gasnet_coll_set_tree_class gasnete_coll_set_tree_class
-
-void gasnete_coll_set_fanout(int fanout, gasnete_coll_autotune_optype_t op_type);
-#define gasnet_coll_set_fanout gasnete_coll_set_fanout;
 
 gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type(gasnete_coll_autotune_info_t* autotune_info, 
                                                              gasnete_coll_autotune_optype_t op_type, 
