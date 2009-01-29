@@ -1,0 +1,23 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <inttypes.h>
+#define gasneti_malloc(SZ) malloc(SZ)
+#define gasneti_calloc(N,SZ) calloc(N,SZ)
+#define gasneti_realloc(PTR,SZ) realloc(PTR,SZ)
+#define gasneti_free(PTR) free(PTR)
+#include "./myxml.h"
+#include "./myxml.c"
+
+int main(int argc, char **argv) {
+  myxml_node_t *A;
+  FILE *fp;
+  if(argc!=2) {
+    fprintf(stderr, "usage: %s <binfile>\n", argv[0]);
+  }
+  fp = fopen(argv[1], "r");
+  A = myxml_loadTreeBIN(fp);
+  fclose(fp);
+  myxml_printTreeXML(stdout, A, " ");
+  myxml_destroyTree(A);
+}
