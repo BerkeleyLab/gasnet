@@ -2,11 +2,12 @@
 * Description: Files for Autotuner
  * Copyright 2007, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
- */
+  */
 
 /* This is intended as a stub for the autotuner routines*/
+#include <gasnet_coll_autotune.h>
+#include <gasnet_coll_autotune_internal.h>
 
-#include "gasnet_coll_autotune.h"
 
 /*a small library to write and read XML style sheets for hte collective tuner*/
 #include <../other/myxml/myxml.h>

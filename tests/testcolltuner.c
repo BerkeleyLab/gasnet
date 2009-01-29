@@ -11,6 +11,7 @@
 #include <gasnet.h>
 #include <gasnet_tools.h>
 #include <gasnet_coll.h>
+#include <gasnet_coll_autotune.h>
 
 /*file for writing out XML information*/
 #include <../other/myxml/myxml.h>
@@ -57,7 +58,7 @@ uint8_t **my_dsts;
 uint8_t **all_srcs;
 uint8_t **all_dsts;
 
-char *outputfile = (char*) "./gasnet_coll_tuning_defaults";
+char *outputfile = (char*) "./gasnet_coll_tuning_defaults.bin";
 
 
 #include <test.h>
@@ -114,6 +115,7 @@ void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_a
   }
   
 
+#if 1
   /*************** BROADCAST *****************/
   current_parent_node = myxml_createNode(addr_mode_node, (char*) "collective", (char *) "val", (char*) "broadcast", NULL);
   
@@ -260,7 +262,7 @@ void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_a
     myxml_createNode(current_parent_node, (char*) "Best_Time", NULL, NULL, buffer);
   }
   /*******************END GATHER***************/
-
+#endif 
 }
 
 
@@ -311,7 +313,7 @@ void *thread_main(void *arg) {
     
     
 
-    
+    MSG0("starting test: %s", fill_flag_str(flags, buffer));
     sync_node = myxml_createNode(temp, (char*)"sync_mode", (char*)"val", fill_flag_str(flags, buffer), NULL);
     /*do single addr tests*/
     
@@ -341,7 +343,10 @@ void *thread_main(void *arg) {
 
   
   if(td->mythread == 0){ 
-    myxml_printTreeXML(stdout, tuning_root, (char*) " ");
+    FILE *outstream=fopen(outputfile, "w");
+    myxml_printTreeBIN(outstream, tuning_root);
+    fclose(outstream);
+    myxml_printTreeXML(stdout, tuning_root, " ");
     fflush(stdout);
     fflush(stdout);
   }
@@ -393,10 +398,12 @@ int main(int argc, char **argv) {
     gasnet_exit(0);
   }
 #if 1
+
+  
   mynode = gasnet_mynode();
   nodes = gasnet_nodes();
   THREADS = nodes * threads_per_node;
-  
+
   if (threads_per_node > gasnett_cpu_count()) {
     MSG0("WARNING: thread count (%i) exceeds physical cpu count (%i) - enabling  \"polite\", low-performance synchronization algorithms",
          (int) threads_per_node, gasnett_cpu_count());
@@ -436,6 +443,7 @@ int main(int argc, char **argv) {
   
   test_free(td_arr);
   BARRIER();
+
 #endif
   gasnet_exit(0);
   return 0;

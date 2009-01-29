@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2009/01/28 01:48:28 $
- * $Revision: 1.53.12.1 $
+ *     $Date: 2009/01/29 02:58:19 $
+ * $Revision: 1.53.12.2 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -168,26 +168,10 @@ gasnet_team_handle_t gasnete_coll_team_all;
 #define GASNET_TEAM_ALL gasnete_coll_team_all
 #endif
 
-/*---------------------------------------------------------------------------------*
- * Prototypes for external interface to try different collective trees (only works for GASNet Team All)
- * Note that the preffered way for changing these values is in the environment rather than these functions themselves
- *---------------------------------------------------------------------------------*/
-
-typedef enum {GASNET_COLL_BROADCAST_OP=0, 
-              GASNET_COLL_SCATTER_OP, 
-              GASNET_COLL_GATHER_OP, 
-              GASNET_COLL_GATHER_ALL_OP,
-              GASNET_COLL_EXCHANGE_OP,
-              GASNET_COLL_NUM_OP_TYPES} gasnet_coll_optype_t;
-
-extern int gasnet_coll_get_num_tree_classes(gasnet_team_handle_t team, gasnet_coll_optype_t optype);
-
-extern void gasnet_coll_set_tree_kind(gasnet_team_handle_t team, int tree_type, int fanout, gasnet_coll_optype_t optype); 
-
-extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t team, size_t dissemlimit, gasnet_coll_optype_t optype); 
                                                                                                               
 
 /*---------------------------------------------------------------------------------*/
+
 
 
 /*------------------------------------------------------------------------------------*/

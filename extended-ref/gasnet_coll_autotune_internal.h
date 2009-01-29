@@ -6,8 +6,8 @@
 
 /* This is intended as a stub for the autotuner routines*/
 
-#ifndef __GASNET_COLL_AUTOTUNE_H__
-#define __GASNET_COLL_AUTOTUNE_H__ 1
+#ifndef __GASNET_COLL_AUTOTUNE_INTERNAL_H__
+#define __GASNET_COLL_AUTOTUNE_INTERNAL_H__ 1
 
 #define GASNETE_COLL_DEFAULT_TREE_TYPE_STR "BINOMIAL_TREE"
 #define GASNETE_COLL_DEFAULT_TREE_FANOUT 2
