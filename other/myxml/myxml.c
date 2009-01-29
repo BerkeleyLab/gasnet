@@ -1,8 +1,33 @@
+typedef enum {
+  MYXML_ROOT_NODE = 0,
+  MYXML_LEAF_NODE,
+  MYXML_INTER_NODE,
+  MYXML_NUM_NODE_CLASSES} myxml_node_class_t;
+
+typedef struct myxml_attribute_t_ {
+  char *attribute_name;
+  char *attribute_value;
+} myxml_attribute_t;
+
+struct myxml_node_t_{
+  struct myxml_node_t_ *parent;
+  struct myxml_node_t_ **children;
+  int num_children;
+  myxml_node_class_t nodeclass;
+  
+  char *tag;
+
+  myxml_attribute_t *attribute_list;
+  int num_attributes;
+  
+  char* value;
+  int id;
+};
 
 
 #define STR_ALLOC_AND_COPY(OUTSTR, INSTR) do {(OUTSTR) = gasneti_malloc(strlen(INSTR)+1); strcpy((OUTSTR), (INSTR));} while(0)
 
-myxml_node_t *myxml_createNode_attr_list(myxml_node_t* parent, char *tag, char **attribute_list, char **attribute_vals, int num_attributes, char *value) {
+myxml_node_t *myxml_createNode_attr_list(myxml_node_t* parent, const char *tag, const char **attribute_list, const char **attribute_vals, int num_attributes, const char *value) {
   int i,j;
   myxml_node_t *ret=gasneti_calloc(1,sizeof(myxml_node_t));
   ret->parent = parent;
@@ -48,7 +73,7 @@ myxml_node_t *myxml_createNode_attr_list(myxml_node_t* parent, char *tag, char *
 }
 
 
-void myxml_addAttribute(myxml_node_t *node, char *attribute_name, char *attribute_value) {
+void myxml_addAttribute(myxml_node_t *node, const char *attribute_name, const char *attribute_value) {
 
   node->attribute_list = gasneti_realloc(node->attribute_list, sizeof(myxml_attribute_t)*(node->num_attributes+1));
   /*if adding an attribute name and value can't be NULL*/
@@ -61,7 +86,7 @@ void myxml_addAttribute(myxml_node_t *node, char *attribute_name, char *attribut
   node->num_attributes++;
 }
 
-void myxml_addAttributeInt(myxml_node_t *node, char *attribute_name, int attribute_value) {
+void myxml_addAttributeInt(myxml_node_t *node, const char *attribute_name, int attribute_value) {
   char buffer[50];
    if(attribute_name == NULL ) {
     fprintf(stderr, "myxml error: attribute_name must be non null when adding new attribute!\n");
@@ -74,13 +99,13 @@ void myxml_addAttributeInt(myxml_node_t *node, char *attribute_name, int attribu
   node->num_attributes++;
 }
 
-myxml_node_t *myxml_createNode(myxml_node_t* parent, char *tag, char *attribute, char *attribute_val, char *value) {
+myxml_node_t *myxml_createNode(myxml_node_t* parent, const char *tag, const char *attribute, const char *attribute_val, const char *value) {
   myxml_node_t *ret = myxml_createNode_attr_list(parent, tag, NULL, NULL, 0, value);
   if(attribute!=NULL && attribute_val!=NULL) myxml_addAttribute(ret, attribute, attribute_val);
   return ret;
 }
 
-myxml_node_t *myxml_createNodeInt(myxml_node_t* parent, char *tag, char *attribute, int attribute_val, char *value) {
+myxml_node_t *myxml_createNodeInt(myxml_node_t* parent, const char *tag, const char *attribute, int attribute_val, const char *value) {
   char buffer[100];
   myxml_node_t *ret = myxml_createNode_attr_list(parent, tag, NULL, NULL, 0, value);
   sprintf(buffer, "%d", attribute_val);
@@ -106,7 +131,7 @@ void myxml_destroyTree(myxml_node_t *node) {
   return;
 }
 
-void myxml_printTreeXML_helper(FILE *outstream, myxml_node_t *node, int level, char *whitespace) {
+void myxml_printTreeXML_helper(FILE *outstream, myxml_node_t *node, int level, const char *whitespace) {
   int i, l;
   
   for(l=0; l<level; l++) {
@@ -136,7 +161,7 @@ void myxml_printTreeXML_helper(FILE *outstream, myxml_node_t *node, int level, c
 }
 
 /*dump the tree in a human readable XML format*/
-void myxml_printTreeXML(FILE *outstream, myxml_node_t *node, char *whitespace) {
+void myxml_printTreeXML(FILE *outstream, myxml_node_t *node, const char *whitespace) {
   fprintf(outstream, "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n");
   if(node != NULL) 
     myxml_printTreeXML_helper(outstream, node, 0, whitespace);
