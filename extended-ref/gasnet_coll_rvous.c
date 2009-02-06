@@ -1,12 +1,14 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2009/01/29 02:58:21 $
- * $Revision: 1.65.14.1 $
+ *     $Date: 2009/02/06 02:13:25 $
+ * $Revision: 1.65.14.2 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
 #include <gasnet_internal.h>
+#include <gasnet_coll.h>
+#include <gasnet_coll_autotune.h>
 #include <gasnet_coll_internal.h>
 #include <gasnet_coll_trees.h>
 #include <gasnet_coll_scratch.h>
@@ -66,9 +68,11 @@ static int gasnete_coll_pf_bcast_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 }
 extern gasnet_coll_handle_t
 gasnete_coll_bcast_RVGet(gasnet_team_handle_t team,
-			 void *dst,
-			 gasnet_image_t srcimage, void *src,
-			 size_t nbytes, int flags, uint32_t sequence
+                         void * dst,
+                         gasnet_image_t srcimage, void *src,
+                         size_t nbytes, int flags,
+                         gasnete_coll_implementation_t coll_params,
+                         uint32_t sequence
                          GASNETE_THREAD_FARG)
 {
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
@@ -79,7 +83,7 @@ gasnete_coll_bcast_RVGet(gasnet_team_handle_t team,
 
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
 					   &gasnete_coll_pf_bcast_RVGet, options,
-					   NULL, sequence GASNETE_THREAD_PASS);
+                                           0, sequence, coll_params.num_params, coll_params.param_list GASNETE_THREAD_PASS);
 }
 
 /* bcast RVous: root node uses AM Mediums to send to addrs provided by each node */
@@ -135,9 +139,11 @@ static int gasnete_coll_pf_bcast_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 }
 extern gasnet_coll_handle_t
 gasnete_coll_bcast_RVous(gasnet_team_handle_t team,
-			 void *dst,
-			 gasnet_image_t srcimage, void *src,
-			 size_t nbytes, int flags, uint32_t sequence
+                         void * dst,
+                         gasnet_image_t srcimage, void *src,
+                         size_t nbytes, int flags,
+                         gasnete_coll_implementation_t coll_params,
+                         uint32_t sequence
                          GASNETE_THREAD_FARG)
 {
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF ((flags & GASNET_COLL_IN_ALLSYNC)) |
@@ -146,7 +152,8 @@ gasnete_coll_bcast_RVous(gasnet_team_handle_t team,
 
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
 					   &gasnete_coll_pf_bcast_RVous, options,
-					   NULL, sequence GASNETE_THREAD_PASS);
+                                           NULL, sequence, coll_params.num_params, coll_params.param_list
+ GASNETE_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/
