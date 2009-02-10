@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2008/07/20 18:56:00 $
-# $Revision: 1.64 $
+#     $Date: 2009/02/10 04:50:50 $
+# $Revision: 1.68 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -95,20 +95,27 @@ sub gasnet_encode($) {
     my $is_crayt3e_mpi = ($uname =~ m|cray t3e|i );
     my $is_irix_mpi = ($mpirun_help =~ m|\[-miser\]|);
     my $is_poe      = ($mpirun_help =~ m|Parallel Operating Environment|);
-    my $is_aprun    = ($mpirun_help =~ m|rchitecture type.*?xt|);
+    my $is_aprun    = ($mpirun_help =~ m|aprunwrapper\|rchitecture type.*?xt|);
     my $is_yod      = ($mpirun_help =~ m| yod |);
     my $is_bgl_mpi  = ($mpirun_help =~ m|COprocessor or VirtualNode mode|);
     my $is_bgl_cqsub = ($mpirun_help =~ m| cqsub .*?co/vn|s);
+#   my $is_bgp_mpi  = ($mpirun_help =~ m|fake-mpirun| && $mpirun_help =~ m|-partition|);
+    my $is_bgp = ($mpirun_help =~ m|--mode <mode co/vn>|s);
     my $is_hp_mpi  = ($mpirun_help =~ m|-universe_size|);
     my $is_elan_mpi  = ($mpirun_help =~ m|MPIRUN_ELANIDMAP_FILE|);
     my $is_jacquard = ($mpirun_help =~ m| \[-noenv\] |) && !$is_elan_mpi;
     my $is_infinipath = ($mpirun_help =~ m|InfiniPath |);
+    my $is_srun    = ($mpirun_help =~ m|srun: invalid option|);
     my $envprog = $ENV{'ENVCMD'};
     if (! -x $envprog) { # SuperUX has broken "which" implementation, so avoid if possible
       $envprog = `which env`;
       chomp $envprog;
     }
     my $spawner_desc = undef;
+
+    if ($ENV{'MPIRUN_CMD_BATCH'}) {
+      print "WARNING: MPIRUN_CMD_BATCH only has siginificant on the BlueGene/P" unless($is_bgp);
+    }
 
     if ($is_lam) {
 	$spawner_desc = "LAM/MPI";
@@ -223,6 +230,21 @@ sub gasnet_encode($) {
 		  );
         $encode_env = 1; # botches spaces in environment values
         $encode_args = 1; # and in arguments
+    } elsif ($is_bgp) {
+        $spawner_desc = "IBM BG/P";
+        if($ENV{'COBALT_JOBID'}) {
+           %envfmt = ( 'pre' => '-env',
+                       'join' => ':',
+                       'val' => ''
+                     );
+        } else {
+           %envfmt = ( 'pre' => '--env',
+                       'join' => ':',
+                       'val' => ''
+                     );
+        }   
+        $encode_env = 1; # botches spaces in environment values
+        $encode_args = 1; # and in arguments
     } elsif ($is_jacquard) {
 	$spawner_desc = "NERSC/Jacquard mpirun";
 	if (`hostname` =~ m/jaccn/) {
@@ -245,6 +267,11 @@ sub gasnet_encode($) {
         $encode_args = 1;
         $encode_env = 1;
 	@verbose_opt = ("-V");
+    } elsif ($is_srun) {
+	$spawner_desc = "SLURM srun";
+	# this spawner already propagates the environment for us automatically
+	%envfmt = ( 'noenv' => 1 );
+	@verbose_opt = ("-v");
     } else {
 	$spawner_desc = "unknown program (using generic MPI spawner)";
 	# the OS already propagates the environment for us automatically
@@ -576,6 +603,11 @@ if ($is_lam && $numnode) {
   @numprocargs = ($numproc, 'n' . join(',', @tmp));
 }
     
+if ($is_srun && $numnode) {
+  @numprocargs = ($numproc, '-N', $numnode);
+  $dashN_ok = 1;
+}
+    
 if ($numnode && ($is_aprun || $is_yod)) { 
   my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
   if ($ppn * $numnode != $numproc) {
@@ -591,6 +623,49 @@ if ($numnode && ($is_aprun || $is_yod)) {
       @numprocargs = ($numproc, '-VN');
     } else {
       die "yod does not support more than 2 processes per node.\n";
+    }
+  }
+  $dashN_ok = 1;
+}
+
+
+if ($numproc && $is_bgp) {
+  if(!defined($numnode)) {
+    $numnode = $numproc
+  }
+
+  if ($ENV{'COBALT_JOBID'}) { # inside the job script
+    print "inside cobalt job spawner\n" if ($verbose);
+    #spawning command needs to be changed to cobalt-mpirun and not qsub
+    $spawncmd = $ENV{'MPIRUN_CMD_BATCH'} || 'cobalt-mpirun %N %P %A';
+    $spawncmd = stripouterquotes($spawncmd);
+    $spawncmd =~ s/%C/%P %A/;  # deal with common alias
+  
+    my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
+    
+    if ($ppn == 1) {
+      @numprocargs = ('-np', $numproc, '-mode', 'smp');
+    } elsif ($ppn == 2) {
+      @numprocargs = ('-np', $numproc, '-mode', 'dual');
+    } elsif ($ppn == 4) {
+      @numprocargs = ('-np', $numproc, '-mode', 'vn');
+    } else {
+      die "BG/P only supports 1, 2 or 4 ppn.  See README.dcmf.";
+    }
+  } else { # qsub requires
+    my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
+    if ($ppn * $numnode != $numproc) {
+    warn "WARNING: non-uniform process distribution not supported\n";
+    warn "WARNING: PROCESS LAYOUT MIGHT NOT MATCH YOUR REQUEST\n";
+    }
+    if ($ppn == 1) {
+      @numprocargs = ($numproc, '--mode', 'smp');
+    } elsif ($ppn == 2) {
+      @numprocargs = ($numproc/2, '--mode', 'dual');
+    } elsif ($ppn == 4) {
+      @numprocargs = ($numproc/4, '--mode', 'vn');
+    } else {
+      die "BG/P only supports 1, 2 or 4 ppn";
     }
   }
   $dashN_ok = 1;
