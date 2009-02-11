@@ -115,14 +115,14 @@ void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_a
   }
   
 
-#if 1
+
   /*************** BROADCAST *****************/
   current_parent_node = myxml_createNode(addr_mode_node, (char*) "collective", (char *) "val", (char*) "broadcast", NULL);
   
   num_tree_classes = gasnet_coll_get_num_tree_classes(GASNET_TEAM_ALL, GASNET_COLL_BROADCAST_OP);
   temp_node = current_parent_node;
   
-  for(s=1; s<=max_data_size; s*=2) {
+  for(s=32; s<=32; s*=2)  {
     current_parent_node = myxml_createNodeInt(temp_node, (char*) "size", (char *) "start", s, NULL);
     myxml_addAttributeInt(current_parent_node, (char*) "end", (s == max_data_size ? 1<<31 : (s*2)-1));
     best_time = GASNETT_TICK_MAX;
@@ -165,6 +165,7 @@ void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_a
   }
   /*******************END BROADCAST***************/
 
+#if 0 
   /*************** SCATTER *****************/
   current_parent_node = myxml_createNode(addr_mode_node, (char*) "collective", (char *) "val", (char*) "scatter", NULL);
   
@@ -220,7 +221,8 @@ void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_a
   num_tree_classes = gasnet_coll_get_num_tree_classes(GASNET_TEAM_ALL, GASNET_COLL_GATHER_OP);
   temp_node = current_parent_node;
   
-  for(s=1; s<=max_data_size; s*=2) {
+//  for(s=1; s<=max_data_size; s*=2) {
+    for(s=32; s<=32; s*=2) {
     current_parent_node = myxml_createNodeInt(temp_node, (char*) "size", (char *) "start", s, NULL);
     myxml_addAttributeInt(current_parent_node, (char*) "end", (s == max_data_size ? 1<<31 : (s*2)-1));
     best_time = GASNETT_TICK_MAX;
@@ -311,7 +313,6 @@ void *thread_main(void *arg) {
     default: continue;
     }
     
-    
 
     MSG0("starting test: %s", fill_flag_str(flags, buffer));
     sync_node = myxml_createNode(temp, (char*)"sync_mode", (char*)"val", fill_flag_str(flags, buffer), NULL);
@@ -330,7 +331,7 @@ void *thread_main(void *arg) {
 #endif
     skip_msg_printed = 1;
     /*call the single address (coll local) test routines with testroot*/
-    run_SINGLE_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_LOCAL, test_root);
+  //  run_SINGLE_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_LOCAL, test_root);
     
     /*do multi addr tests*/
     test_root = myxml_createNode(sync_node,(char*)"num_addrs", (char*)"val", (char*)"multi", NULL);
@@ -346,7 +347,7 @@ void *thread_main(void *arg) {
     FILE *outstream=fopen(outputfile, "w");
     myxml_printTreeBIN(outstream, tuning_root);
     fclose(outstream);
-    myxml_printTreeXML(stdout, tuning_root, " ");
+ //   myxml_printTreeXML(stdout, tuning_root, " ");
     fflush(stdout);
     fflush(stdout);
   }

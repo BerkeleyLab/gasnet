@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_toolhelp.h,v $
- *     $Date: 2009/01/23 20:37:55 $
- * $Revision: 1.35.6.1 $
+ *     $Date: 2009/02/11 03:05:38 $
+ * $Revision: 1.35.6.2 $
  * Description: misc declarations needed by both gasnet_tools and libgasnet
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -243,19 +243,21 @@ int gasneti_count0s_uint32_t(uint32_t x) {
 #endif
 
 #if GASNET_DEBUG || GASNETI_BUG2231_WORKAROUND || GASNETI_MUTEX_CAUTIOUS_INIT
-  #define GASNETI_MUTEX_NOOWNER         ((uintptr_t)-1)
+  #define GASNETI_MUTEX_NOOWNER         ((GASNETI_THREADID_T)(uintptr_t)-1)
   #ifndef GASNETI_THREADIDQUERY
     /* allow conduit override of thread-id query */
     #if GASNETI_USE_TRUE_MUTEXES
-      #define GASNETI_THREADIDQUERY()   ((uintptr_t)pthread_self())
+      #define GASNETI_THREADID_T        pthread_t
+      #define GASNETI_THREADIDQUERY()   pthread_self()
     #else
+      #define GASNETI_THREADID_T        uintptr_t
       #define GASNETI_THREADIDQUERY()   ((uintptr_t)0)
     #endif
   #endif
   #if GASNETI_USE_TRUE_MUTEXES
     #include <pthread.h>
     typedef struct {
-      volatile uintptr_t owner;
+      volatile GASNETI_THREADID_T owner;
       pthread_mutex_t lock;
       _GASNETI_MUTEX_CAUTIOUS_INIT_FIELD
       GASNETI_BUG2231_WORKAROUND_PAD
@@ -311,7 +313,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
               gasneti_assert_zeroret(gasneti_mutex_destroy_ignoreerr(pl))
   #else /* GASNET_DEBUG non-pthread (error-check-only) mutexes */
     typedef struct {
-      volatile uintptr_t owner;
+      volatile GASNETI_THREADID_T owner;
     } gasneti_mutex_t;
     #define GASNETI_MUTEX_INITIALIZER   { GASNETI_MUTEX_NOOWNER }
     #define gasneti_mutex_lock(pl) do {                             \

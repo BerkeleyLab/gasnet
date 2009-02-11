@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2009/01/29 02:58:19 $
- * $Revision: 1.53.12.2 $
+ *     $Date: 2009/02/11 03:05:38 $
+ * $Revision: 1.53.12.3 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -24,17 +24,20 @@ GASNETI_BEGIN_EXTERNC
 #define GASNET_COLL_OUT_MYSYNC	(1<<4)
 #define GASNET_COLL_OUT_ALLSYNC	(1<<5)
 
+#define GASNET_COLL_SYNC_FLAG_MASK (0x3F)
+
 #define GASNET_COLL_SINGLE	(1<<6)
 #define GASNET_COLL_LOCAL	(1<<7)
 
 #define GASNET_COLL_AGGREGATE	(1<<8)
+#define GASNET_COLL_FIXED_THREADS_PER_NODE (1<<9)
 
-#define GASNET_COLL_DST_IN_SEGMENT	(1<<9)
-#define GASNET_COLL_SRC_IN_SEGMENT	(1<<10)
+#define GASNET_COLL_DST_IN_SEGMENT	(1<<10)
+#define GASNET_COLL_SRC_IN_SEGMENT	(1<<11)
 
 /* Scan (prefix reduction) flags - NO DEFAULT */
-#define GASNET_COLL_INCLUSIVE_SCAN	(1<<11)
-#define GASNET_COLL_EXCLUSIVE_SCAN	(1<<12)
+#define GASNET_COLL_INCLUSIVE_SCAN	(1<<12)
+#define GASNET_COLL_EXCLUSIVE_SCAN	(1<<13)
 
 /* (prefix-)reduction function flags */
 #define GASNET_COLL_AMSAFE	(1<<0)

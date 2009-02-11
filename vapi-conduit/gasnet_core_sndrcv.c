@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2009/01/23 20:38:45 $
- * $Revision: 1.222.2.1 $
+ *     $Date: 2009/02/11 03:05:49 $
+ * $Revision: 1.222.2.2 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -2794,7 +2794,7 @@ static size_t gasnetc_fh_put_args_fn(void * context, firehose_remotecallback_arg
     sreq->fh_putinmove = args->len = len;
     memcpy(args->data, (void *)(sreq->fh_loc_addr), len);
 
-    return offsetof(firehose_remotecallback_args_t, data[len]);
+    return offsetof(firehose_remotecallback_args_t, data[0]) + len;
 }
 
 GASNETI_INLINE(gasnetc_fh_put_helper)

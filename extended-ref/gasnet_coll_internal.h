@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/02/06 02:13:24 $
- * $Revision: 1.53.14.1 $
+ *     $Date: 2009/02/11 03:05:42 $
+ * $Revision: 1.53.14.2 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -340,8 +340,8 @@ struct gasnete_coll_p2p_t_ {
   /* Volatile arrays of data and state for the point-to-point synchronization */
   uint8_t			*data;
   volatile uint32_t	*state;
-  gasneti_weakatomic_t	counter;
-  
+  gasneti_weakatomic_t	*counter;
+    
   /* Handler-safe lock (if needed) */
   gasnet_hsl_t		lock;
   
@@ -367,13 +367,13 @@ extern void gasnete_coll_p2p_signalling_putAsync(gasnete_coll_op_t *op, gasnet_n
 						 void *src, size_t nbytes, uint32_t pos, uint32_t state);
 extern void gasnete_coll_p2p_change_states(gasnete_coll_op_t *op, gasnet_node_t dstnode,
                                            uint32_t count, uint32_t offset, uint32_t state);
-extern void gasnete_coll_p2p_advance(gasnete_coll_op_t *op, gasnet_node_t dstnode);
+extern void gasnete_coll_p2p_advance(gasnete_coll_op_t *op, gasnet_node_t dstnode, uint32_t idx);
 extern void gasnete_coll_p2p_counting_put(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
-                                   void *src, size_t nbytes);
+                                          void *src, size_t nbytes, uint32_t idx);
 extern void gasnete_coll_p2p_counting_putAsync(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
-                                        void *src, size_t nbytes);
+                                               void *src, size_t nbytes, uint32_t idx);
 extern void gasnete_coll_p2p_eager_put_tree(gasnete_coll_op_t *op, gasnet_node_t dstnode, 
-                                           void *src, size_t size);
+                                            void *src, size_t size);
 extern void gasnete_coll_p2p_send_rtrM(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
                                        uint32_t offset, void * const *dstlist,
                                        gasnet_node_t node, size_t nbytes, uint32_t count);

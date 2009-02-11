@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/02/06 02:13:25 $
- * $Revision: 1.72.10.4 $
+ *     $Date: 2009/02/11 03:05:42 $
+ * $Revision: 1.72.10.5 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1395,10 +1395,10 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       int i;
 
       for (i = 0; i < GASNETE_COLL_P2P_TABLE_SIZE; ++i) {
-	gasnete_coll_p2p_t *tmp = &(gasnete_coll_p2p_table[i]);
-	/* Check that table is actually empty */
-	gasneti_assert(tmp->p2p_next == tmp);
-	gasneti_assert(tmp->p2p_prev == tmp);
+        gasnete_coll_p2p_t *tmp = &(gasnete_coll_p2p_table[i]);
+        /* Check that table is actually empty */
+        gasneti_assert(tmp->p2p_next == tmp);
+        gasneti_assert(tmp->p2p_prev == tmp);
       }
     }
 
@@ -1406,9 +1406,10 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       unsigned int slot_nr = GASNETE_COLL_P2P_TABLE_SLOT(team_id, sequence);
       gasnete_coll_p2p_t *head = &(gasnete_coll_p2p_table[slot_nr]);
       gasnete_coll_p2p_t *p2p;
+      int i;
       gasneti_assert(sequence >= 42);
       gasneti_assert(gasnete_coll_team_lookup(team_id) == GASNET_TEAM_ALL);
-
+      
       gasnet_hsl_lock(&gasnete_coll_p2p_table_lock);
 
       /* Search table */
@@ -1419,58 +1420,64 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
 
       /* If not found, create it with all zeros */
       if_pf (p2p == head) {
-	size_t statesz = GASNETI_ALIGNUP(2*gasnete_coll_total_images * sizeof(uint32_t), 8);
-
-	p2p = gasnete_coll_p2p_freelist;	/* XXX: per-team */
-
-	if_pf (p2p == NULL) {
-	  /* Round to 8-byte alignment of entry array */
-	  size_t alloc_size = GASNETI_ALIGNUP(sizeof(gasnete_coll_p2p_t) + statesz,8)
-					+ gasnete_coll_p2p_eager_buffersz;
-	  uintptr_t p = (uintptr_t)gasneti_malloc(alloc_size);
-
-	  p2p = (gasnete_coll_p2p_t *)p;
-	  p += sizeof(gasnete_coll_p2p_t);
-
-	  p2p->state = (uint32_t *)p;
-	  p += statesz;
-
-	  p = GASNETI_ALIGNUP(p,8);
-	  p2p->data = (uint8_t *)p;
-
-	  p2p->p2p_next = NULL;
-	}
-
-	memset((void *)p2p->state, 0, statesz);
-	memset(p2p->data, 0, gasnete_coll_p2p_eager_buffersz);
-	gasneti_weakatomic_set(&p2p->counter, 0, 0);
+        size_t statesz = GASNETI_ALIGNUP(2*gasnete_coll_total_images * sizeof(uint32_t), 8);
+        size_t countersz = GASNETI_ALIGNUP(2*gasnete_coll_total_images * sizeof(gasneti_weakatomic_t), 8);
+        
+        p2p = gasnete_coll_p2p_freelist;	/* XXX: per-team */
+        
+        if_pf (p2p == NULL) {
+          /* Round to 8-byte alignment of entry array */
+          size_t alloc_size = GASNETI_ALIGNUP(sizeof(gasnete_coll_p2p_t) + statesz + countersz,8)
+            + gasnete_coll_p2p_eager_buffersz;
+          uintptr_t p = (uintptr_t)gasneti_malloc(alloc_size);
+          
+          p2p = (gasnete_coll_p2p_t *)p;
+          p += sizeof(gasnete_coll_p2p_t);
+          
+          p2p->state = (uint32_t *)p;
+          p += statesz;
+          
+          p2p->counter = (gasneti_weakatomic_t *)p;
+          p += countersz;
+          
+          p = GASNETI_ALIGNUP(p,8);
+          p2p->data = (uint8_t *)p;
+          
+          p2p->p2p_next = NULL;
+        }
+        
+        memset((void *)p2p->state, 0, statesz);
+        memset(p2p->data, 0, gasnete_coll_p2p_eager_buffersz);
+        for(i=0; i<2*gasnete_coll_total_images; i++) {
+          gasneti_weakatomic_set(&p2p->counter[i], 0, 0);
+        }
         
         /*allocate an empty interval for the free list */
         p2p->seg_intervals = NULL;
-          
-	p2p->team_id = team_id;
-	p2p->sequence = sequence;
-	gasnet_hsl_init(&p2p->lock);
-
-	gasnete_coll_p2p_freelist = p2p->p2p_next;
-
-	/* XXX: searches out-number insertions.  So, we should do the work here to
-	 * keep the list sorted, and take advantage in the search, above. */
-	p2p->p2p_prev = head;
-	p2p->p2p_next = head->p2p_next;
-	head->p2p_next->p2p_prev = p2p;
-	head->p2p_next = p2p;
-	#ifdef GASNETE_P2P_EXTRA_INIT
-	  GASNETE_P2P_EXTRA_INIT(p2p)
-	#endif
-      }
-
+        
+        p2p->team_id = team_id;
+        p2p->sequence = sequence;
+        gasnet_hsl_init(&p2p->lock);
+        
+        gasnete_coll_p2p_freelist = p2p->p2p_next;
+        
+        /* XXX: searches out-number insertions.  So, we should do the work here to
+         * keep the list sorted, and take advantage in the search, above. */
+        p2p->p2p_prev = head;
+        p2p->p2p_next = head->p2p_next;
+        head->p2p_next->p2p_prev = p2p;
+        head->p2p_next = p2p;
+#ifdef GASNETE_P2P_EXTRA_INIT
+        GASNETE_P2P_EXTRA_INIT(p2p)
+#endif
+          }
+      
       gasnet_hsl_unlock(&gasnete_coll_p2p_table_lock);
-
+      
       gasneti_assert(p2p != NULL);
       gasneti_assert(p2p->state != NULL);
       gasneti_assert(p2p->data != NULL);
-
+      
       return p2p;
     }
 
@@ -1695,16 +1702,16 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
 
     /* Increment atomic counter */
     extern void gasnete_coll_p2p_advance_reqh(gasnet_token_t token,
-					      gasnet_handlerarg_t seqandteam) {
+                                              gasnet_handlerarg_t seqandteam, gasnet_handlerarg_t idx) {
       uint32_t team_id = seqandteam >> 28;
       uint32_t sequence = seqandteam & 0x0fffffff;
       gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
-      gasneti_weakatomic_increment(&p2p->counter, 0);
+      gasneti_weakatomic_increment(&p2p->counter[idx], 0);
     }
 
     /* Send the data and increment atomic counter */
     extern void gasnete_coll_p2p_put_and_advance_reqh(gasnet_token_t token, void *buf, size_t nbytes,
-                                          gasnet_handlerarg_t seqandteam) {
+                                                      gasnet_handlerarg_t seqandteam, gasnet_handlerarg_t idx) {
       uint32_t team_id; 
       uint32_t sequence; 
       gasnete_coll_p2p_t *p2p;
@@ -1713,12 +1720,11 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       sequence = seqandteam & 0x0fffffff;
 
       if (nbytes) {
-	gasneti_sync_writes();
+        gasneti_sync_writes();
       }
       
       p2p = gasnete_coll_p2p_get(team_id, sequence);
-      
-      gasneti_weakatomic_increment(&p2p->counter, 0);
+      gasneti_weakatomic_increment(&p2p->counter[idx], 0);
     }
 
     extern void gasnete_coll_p2p_seg_put_reqh(gasnet_token_t token, void *buf, size_t nbytes,
@@ -1743,7 +1749,7 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       gasnete_coll_p2p_add_seg_interval(p2p, seg_id);
       
       /*increment P2P counter*/
-      gasneti_weakatomic_increment(&p2p->counter, 0);
+      gasneti_weakatomic_increment(&p2p->counter[0], 0);
       
     }
     /* Memcopy payload and then decrement atomic counter if requested */
@@ -1795,7 +1801,7 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     /* Put up to gasnet_AMMaxLongRequest() bytes, signalling the recipient */
     /* Returns as soon as local buffer is reusable */
     void gasnete_coll_p2p_counting_put(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
-                                       void *src, size_t nbytes) {
+                                       void *src, size_t nbytes, uint32_t idx) {
       
       uint32_t seq_num = op->sequence;
       uint32_t team_id = gasnete_coll_team_id(op->team);
@@ -1806,13 +1812,13 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       gasneti_assert(nbytes <= gasnet_AMMaxLongRequest());
   
       GASNETI_SAFE(
-        LONG_REQ(1,1,(dstnode, gasneti_handleridx(gasnete_coll_p2p_put_and_advance_reqh),
-                      src, nbytes, dst, seqandteam)));
+        LONG_REQ(2,2,(dstnode, gasneti_handleridx(gasnete_coll_p2p_put_and_advance_reqh),
+                      src, nbytes, dst, seqandteam, idx)));
     }
     /* Put up to gasnet_AMMaxLongRequest() bytes, signalling the recipient */
     /* Returns immediately even if the local buffer is not yet reusable */
     void gasnete_coll_p2p_counting_putAsync(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
-                                            void *src, size_t nbytes) {
+                                            void *src, size_t nbytes, uint32_t idx) {
   
       uint32_t seq_num = op->sequence;
       uint32_t team_id = gasnete_coll_team_id(op->team);
@@ -1823,8 +1829,8 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       gasneti_assert(nbytes <= gasnet_AMMaxLongRequest());
   
       GASNETI_SAFE(
-        LONGASYNC_REQ(1,1,(dstnode, gasneti_handleridx(gasnete_coll_p2p_put_and_advance_reqh),
-                      src, nbytes, dst, seqandteam)));
+        LONGASYNC_REQ(2,2,(dstnode, gasneti_handleridx(gasnete_coll_p2p_put_and_advance_reqh),
+                           src, nbytes, dst, seqandteam, idx)));
     }
     
     /*
@@ -1923,14 +1929,14 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     }
 
     /* Advance state[0] */
-    void gasnete_coll_p2p_advance(gasnete_coll_op_t *op, gasnet_node_t dstnode) {
+void gasnete_coll_p2p_advance(gasnete_coll_op_t *op, gasnet_node_t dstnode, uint32_t idx) {
       uint32_t team_id = gasnete_coll_team_id(op->team);
       uint32_t seqandteam = (team_id << 28) | (op->sequence & 0x0fffffff);
       gasneti_assert(op->sequence >= 42);
 
       GASNETI_SAFE(
-        SHORT_REQ(1,1,(dstnode, gasneti_handleridx(gasnete_coll_p2p_advance_reqh),
-                       seqandteam)));
+        SHORT_REQ(2,2,(dstnode, gasneti_handleridx(gasnete_coll_p2p_advance_reqh),
+                       seqandteam,idx)));
     }
 
     /* Memcpy up to gasnet_AMMaxMedium() bytes, signalling the recipient */

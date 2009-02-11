@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testtools.c,v $
- *     $Date: 2009/01/23 20:38:42 $
- * $Revision: 1.81.12.1 $
+ *     $Date: 2009/02/11 03:05:47 $
+ * $Revision: 1.81.12.2 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -275,13 +275,13 @@ int main(int argc, char **argv) {
 
     { /* Long strings of zeros and non-zeros */
       #define CNT0SMAX 4096
-      char *src = test_malloc(CNT0SMAX);
+      char *src = (char *)test_malloc(CNT0SMAX);
       memset(src, 0, CNT0SMAX);
-      for (i=0;i<CNT0SMAX;++i)
-	if (gasnett_count0s(src, i) != i)
+      for (i=0;i<=CNT0SMAX;++i)
+	if (gasnett_count0s(src, i) != (unsigned)i)
           ERR("incorrect return from gasnett_count0s(string-of-%i-zeros)", i);
       memset(src, 1, CNT0SMAX);
-      for (i=0;i<CNT0SMAX;++i)
+      for (i=0;i<=CNT0SMAX;++i)
 	if (gasnett_count0s(src, i) != 0)
           ERR("incorrect return from gasnett_count0s(string-of-%i-nonzeros)", i);
       test_free(src);
@@ -936,9 +936,9 @@ void * thread_fn(void *arg) {
       static gasnett_atomic_t counter2 = gasnett_atomic_init(0);
       static uint32_t shared_counter = 0;
       uint32_t woncnt = 0;
-      uint32_t share = (iters >= (0xffffffff / NUM_THREADS)) ? (0xffffffff / NUM_THREADS) : iters;
+      uint32_t share = ((unsigned)iters >= (0xffffffffU / NUM_THREADS)) ? (0xffffffffU / NUM_THREADS) : iters;
       uint32_t goal = NUM_THREADS * share;
-      uint32_t oldval;
+      uint32_t i, oldval;
 
       /* Look for missing or doubled updates by taking an equal share of increments */
       while (woncnt < share &&
@@ -984,9 +984,9 @@ void * thread_fn(void *arg) {
     {
       static gasnett_atomic32_t counter32 = gasnett_atomic32_init(0);
       uint32_t woncnt = 0;
-      uint32_t share = (iters >= (0xffffffff / NUM_THREADS)) ? (0xffffffff / NUM_THREADS) : iters;
+      uint32_t share = ((unsigned)iters >= (0xffffffffU / NUM_THREADS)) ? (0xffffffffU / NUM_THREADS) : iters;
       uint32_t goal = NUM_THREADS * share;
-      uint32_t oldval;
+      uint32_t i, oldval;
 
       /* Look for missing or doubled updates by taking an equal share of increments */
       while (woncnt < share && (oldval = gasnett_atomic32_read(&counter32,0)) != goal) {

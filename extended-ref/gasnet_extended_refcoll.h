@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.h,v $
- *     $Date: 2007/10/15 20:00:19 $
- * $Revision: 1.2 $
+ *     $Date: 2009/02/11 03:05:43 $
+ * $Revision: 1.2.12.1 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -50,8 +50,8 @@
   MEDIUM_HANDLER_NOBITS_DECL(gasnete_coll_p2p_med_reqh,6);
   LONG_HANDLER_NOBITS_DECL(gasnete_coll_p2p_long_reqh,5);
   MEDIUM_HANDLER_NOBITS_DECL(gasnete_coll_p2p_med_tree_reqh,1);
-  SHORT_HANDLER_NOBITS_DECL(gasnete_coll_p2p_advance_reqh,1);
-  LONG_HANDLER_NOBITS_DECL(gasnete_coll_p2p_put_and_advance_reqh,1);
+  SHORT_HANDLER_NOBITS_DECL(gasnete_coll_p2p_advance_reqh,2);
+  LONG_HANDLER_NOBITS_DECL(gasnete_coll_p2p_put_and_advance_reqh,2);
   LONG_HANDLER_NOBITS_DECL(gasnete_coll_p2p_seg_put_reqh,2);
 
   #define GASNETE_COLL_P2P_HANDLERS() \

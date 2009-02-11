@@ -19,6 +19,9 @@ options that is covered testcoll
 #define DEFAULT_INNER_VERIFICATION_ITERS 50
 #define DEFAULT_PERFORMANCE_ITERS 0
 
+#define ALL_COLL_ENABLED 1
+
+
 /* max data size for the test in bytes*/
 #define DEFAULT_MAX_DATA_SIZE 32768 
 
@@ -122,7 +125,7 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
     sprintf(output_str, "LOCAL");
   }
   
-  
+#if BCAST_ENABLED || ALL_COLL_ENABLED  
   for(k=0; k<outer_verification_iters; k++) {
     COLL_BARRIER();
     /* BROADCAST*/  
@@ -140,7 +143,7 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
       gasnet_coll_broadcast(GASNET_TEAM_ALL, dst+i*nelem, root_thread, src+i*nelem, sizeof(int)*nelem, flags);
     }
     if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
-    
+   
     for(i=0; i<nelem*inner_verification_iters; i++) {
       int expected = 42+i;
       if(dst[i] != expected) {
@@ -149,7 +152,7 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
       }
     }
   }
-  
+
   COLL_BARRIER();
   begin = gasnett_ticks_now();
   if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
@@ -160,8 +163,9 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
   end =  gasnett_ticks_now() - begin;
   COLL_BARRIER();
   print_timer(td, "broadcast", output_str,  "SINGLE-addr", flag_str, nelem, end);  
+#endif
   
-  
+#if SCATTER_ENABLED || ALL_COLL_ENABLED  
   for(k=0; k<outer_verification_iters; k++) {
     COLL_BARRIER();
     /*SCATTER*/
@@ -200,9 +204,9 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
   end =  gasnett_ticks_now() - begin;
   COLL_BARRIER();  
   print_timer(td,  "scatter", output_str,  "SINGLE-addr", flag_str, nelem, end);  
+#endif
   
-  
-  
+#if GATHER_ENABLED || ALL_COLL_ENABLED  
   /*GATHER*/
   for(k=0; k<outer_verification_iters; k++) {
     COLL_BARRIER();
@@ -242,9 +246,9 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
   end =  gasnett_ticks_now() - begin;
   COLL_BARRIER();  
   print_timer(td,  "gather", output_str,  "SINGLE-addr", flag_str, nelem, end);  
+#endif
   
-  
-  
+#if GATHER_ALL_ENABLED || ALL_COLL_ENABLED    
   /*GATHER_ALL*/
   for(k=0; k<outer_verification_iters; k++) {
     COLL_BARRIER();
@@ -281,9 +285,9 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
   end =  gasnett_ticks_now() - begin;
   COLL_BARRIER();  
   print_timer(td,  "gather_all", output_str,  "SINGLE-addr", flag_str, nelem, end);  
+#endif  
   
-  
-  
+#if EXCHANGE_ENABLED || ALL_COLL_ENABLED  
   /*EXCHANGE*/
   for(k=0; k<outer_verification_iters; k++) {
     COLL_BARRIER();
@@ -320,7 +324,7 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
   end =  gasnett_ticks_now() - begin;
   COLL_BARRIER();  
   print_timer(td,  "exchange", output_str,  "SINGLE-addr", flag_str, nelem, end);  
-  
+#endif
   
   if(td->my_local_thread==0 && VERBOSE_VERIFICATION_OUTPUT) MSG0("%c: %s/SINGLE-addr sync_mode: %s size: %ld bytes root: %d.  PASS", TEST_SECTION_NAME(), output_str, flag_str, (long int) (sizeof(int)*nelem), root_thread);
   
@@ -357,6 +361,7 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
   tmp_src = (uint8_t**) test_malloc(sizeof(uint8_t*)*num_addrs*inner_verification_iters);
   tmp_dest = (uint8_t**) test_malloc(sizeof(uint8_t*)*num_addrs*inner_verification_iters);
   
+#if BCAST_ENABLED || ALL_COLL_ENABLED
   
   for(k=0; k<outer_verification_iters; k++) {
     COLL_BARRIER();
@@ -397,7 +402,9 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
   end =  gasnett_ticks_now() - begin;
   COLL_BARRIER();
   print_timer(td, "broadcastM", output_str,  "MULTI-addr", flag_str, nelem, end);  
-  
+#endif
+
+#if SCATTER_ENABLED || ALL_COLL_ENABLED
   for(k=0; k<outer_verification_iters; k++) {
     COLL_BARRIER();
     /*SCATTER*/
@@ -441,8 +448,9 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
   COLL_BARRIER();
   
   print_timer(td, "scatterM", output_str,  "MULTI-addr", flag_str, nelem, end);  
+#endif
   
-  
+#if GATHER_ENABLED || ALL_COLL_ENABLED
   /*GATHER*/
   for(k=0; k<outer_verification_iters; k++) {
     COLL_BARRIER();
@@ -489,8 +497,8 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
   COLL_BARRIER();
   
   print_timer(td, "gatherM", output_str,  "MULTI-addr", flag_str, nelem, end);  
-  
-  
+#endif
+#if GATHER_ALL_ENABLED || ALL_COLL_ENABLED
   /*GATHER_ALL*/
   for(k=0; k<outer_verification_iters; k++) {
     COLL_BARRIER();
@@ -531,8 +539,9 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
   end =  gasnett_ticks_now() - begin;
   COLL_BARRIER();  
   print_timer(td, "gather_allM", output_str,  "MULTI-addr", flag_str, nelem, end);  
+#endif
   
-  
+#if EXCHANGE_ENABLED || ALL_COLL_ENABLED
   /*EXCHANGE*/
   for(k=0; k<outer_verification_iters; k++) {
     COLL_BARRIER();
@@ -573,7 +582,7 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
   end =  gasnett_ticks_now() - begin;
   COLL_BARRIER();  
   print_timer(td, "exchangeM", output_str,  "MULTI-addr", flag_str, nelem, end);  
-  
+#endif
   if(td->my_local_thread==0  && VERBOSE_VERIFICATION_OUTPUT) MSG0("%c: %s/MULTI-addr sync_mode: %s size: %ld bytes root: %d.  PASS", TEST_SECTION_NAME(), output_str, flag_str, (long int) (sizeof(int)*nelem), (int) root_thread);
   
   COLL_BARRIER();
@@ -599,13 +608,14 @@ void *thread_main(void *arg) {
 #endif
   
   COLL_BARRIER();
-  test_section=0;
+  
   for(flag_iter=0; flag_iter<9; flag_iter++) {
     int flags;
-		if(td->my_local_thread==0) TEST_SECTION_BEGIN();
-		COLL_BARRIER();
-    if(TEST_SECTION_ENABLED()) {
+    if(td->my_local_thread==0) TEST_SECTION_BEGIN();
+    COLL_BARRIER();
     
+    if(TEST_SECTION_ENABLED()) {
+      
     switch(flag_iter) { 
       case 0: flags = GASNET_COLL_IN_NOSYNC  | GASNET_COLL_OUT_NOSYNC; break;
       case 1: flags = GASNET_COLL_IN_NOSYNC  | GASNET_COLL_OUT_MYSYNC; break;

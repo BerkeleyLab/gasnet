@@ -825,7 +825,7 @@ gasnete_coll_dissem_info_t *gasnete_coll_build_dissemination(int r, gasnete_coll
   int h,w,i,j,distance,k,numpeers,destproc;
   int num_out_peers, num_in_peers;
   ret = (gasnete_coll_dissem_info_t*) gasneti_malloc(sizeof(gasnete_coll_dissem_info_t));
-  
+
   w = gasnete_coll_build_tree_mylogn(team->total_ranks, r);
  
   ret->dissemination_radix = r;
@@ -917,6 +917,7 @@ gasnete_coll_dissem_info_t *gasnete_coll_fetch_dissemination(int radix, gasnete_
 	temp = gasnete_coll_build_dissemination(radix, team);
 	temp->next = NULL;
 	temp->prev = team->dissem_cache_tail;
+  team->dissem_cache_tail->next = temp;
 	team->dissem_cache_tail = temp;  
     }
     return temp;
