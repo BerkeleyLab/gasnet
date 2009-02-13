@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/Makefile.am,v $
-#     $Date: 2009/01/23 20:38:20 $
-# $Revision: 1.30.6.1 $
+#     $Date: 2009/02/13 21:36:02 $
+# $Revision: 1.30.6.2 $
 # Description: Makefile for GASNet other 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -23,6 +23,7 @@ CONDUITMODE_EXTRADIST = \
 	amxtests    \
 	ssh-spawner \
 	mpi-spawner \
+	myxml	\
   # 	exclude these from distribution for now
   # 	cross-configure-help.c
 # GASNET_TOOLSONLY_FALSE_END
