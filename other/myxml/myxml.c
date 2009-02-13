@@ -178,6 +178,17 @@ void myxml_printTreeXML(FILE *outstream, myxml_node_t *node, const char *whitesp
     }} while(0)
 
    
+#ifndef htonl
+#define MYHTONL(IN) IN 
+#else
+#define MYJTOML(IN) htonl(IN)
+#endif
+
+#ifndef ntohl
+#define MYNTOHL(IN) IN 
+#else
+#define MYNTOHL(IN) ntohl(IN)
+#endif
 
 myxml_node_t* myxml_loadTreeHelper(FILE *instream, myxml_node_t *parent_node) {
   uint32_t temp;
@@ -192,17 +203,17 @@ myxml_node_t* myxml_loadTreeHelper(FILE *instream, myxml_node_t *parent_node) {
   } 
   
   SAFE_READ(&temp, sizeof(uint32_t), instream);
-  curr_node->id = ntohl(temp);
+  curr_node->id = MYNTOHL(temp);
     
   SAFE_READ(&temp, sizeof(uint32_t), instream);
-  curr_node->num_children = ntohl(temp);
+  curr_node->num_children = MYNTOHL(temp);
   
   SAFE_READ(&temp, sizeof(uint32_t), instream);
-  curr_node->num_attributes = ntohl(temp);
+  curr_node->num_attributes = MYNTOHL(temp);
 
   /*read the tag length and allocate the buffer*/
   SAFE_READ(&temp, sizeof(uint32_t), instream);
-  temp = ntohl(temp);
+  temp = MYNTOHL(temp);
   curr_node->tag = (char*) gasneti_malloc(temp);
   /*read the tag*/
   SAFE_READ(curr_node->tag, temp, instream);
@@ -211,19 +222,19 @@ myxml_node_t* myxml_loadTreeHelper(FILE *instream, myxml_node_t *parent_node) {
   for(i=0; i<curr_node->num_attributes; i++) {
     /*read the length of the string*/
     SAFE_READ(&temp, sizeof(uint32_t), instream);
-    temp = ntohl(temp);
+    temp = MYNTOHL(temp);
     curr_node->attribute_list[i].attribute_name = gasneti_malloc(temp);
     SAFE_READ(curr_node->attribute_list[i].attribute_name, temp, instream);
     
     
     SAFE_READ(&temp, sizeof(uint32_t), instream);
-    temp = ntohl(temp);
+    temp = MYNTOHL(temp);
     curr_node->attribute_list[i].attribute_value = gasneti_malloc(temp);
     SAFE_READ(curr_node->attribute_list[i].attribute_value, temp, instream);
   }
   /*read the size of the value str*/
   SAFE_READ(&temp, sizeof(uint32_t), instream);
-  temp = ntohl(temp);
+  temp = MYNTOHL(temp);
   
   if(temp > 0) {
     curr_node->value = (char*) gasneti_malloc(temp);
@@ -251,7 +262,7 @@ myxml_node_t* myxml_loadTreeBIN(FILE *instream) {
    uint32_t temp;
    int i;
    SAFE_READ(&temp, sizeof(uint32_t), instream);
-   num_nodes = ntohl(temp);
+   num_nodes = MYNTOHL(temp);
    
    
    return myxml_loadTreeHelper(instream, NULL);
@@ -317,36 +328,36 @@ void dump_TreeBIN(FILE *outstream, myxml_node_t *node) {
   uint32_t temp;
   int i;
 
-  temp = htonl(node->id);
+  temp = MYHTONL(node->id);
   SAFE_WRITE(&temp, sizeof(uint32_t), outstream);
 
 
 
 
-  temp = htonl(node->num_children);
+  temp = MYHTONL(node->num_children);
   SAFE_WRITE(&temp, sizeof(uint32_t), outstream);
   
-  temp = htonl(node->num_attributes);
+  temp = MYHTONL(node->num_attributes);
   SAFE_WRITE(&temp, sizeof(uint32_t), outstream);
 
-  temp = htonl(strlen(node->tag)+1);
+  temp = MYHTONL(strlen(node->tag)+1);
   SAFE_WRITE(&temp, sizeof(uint32_t), outstream);
   SAFE_WRITE(node->tag, strlen(node->tag)+1, outstream);
   for(i=0; i<node->num_attributes; i++) {
-    temp = htonl(strlen(node->attribute_list[i].attribute_name)+1);
+    temp = MYHTONL(strlen(node->attribute_list[i].attribute_name)+1);
     SAFE_WRITE(&temp, sizeof(uint32_t), outstream);
     SAFE_WRITE(node->attribute_list[i].attribute_name, strlen(node->attribute_list[i].attribute_name)+1, outstream);
-    temp = htonl(strlen(node->attribute_list[i].attribute_value)+1);
+    temp = MYHTONL(strlen(node->attribute_list[i].attribute_value)+1);
     SAFE_WRITE(&temp, sizeof(uint32_t), outstream);
     SAFE_WRITE(node->attribute_list[i].attribute_value, strlen(node->attribute_list[i].attribute_value)+1, outstream);
   }
 
   if(node->value) {
-    temp = htonl(strlen(node->value)+1);
+    temp = MYHTONL(strlen(node->value)+1);
     SAFE_WRITE(&temp, sizeof(uint32_t), outstream);
     SAFE_WRITE(node->value, strlen(node->value)+1, outstream);
   } else {
-    temp = htonl(0);
+    temp = MYHTONL(0);
     SAFE_WRITE(&temp, sizeof(uint32_t), outstream);
   }
   
@@ -364,7 +375,7 @@ void myxml_printTreeBIN(FILE *outstream, myxml_node_t *node) {
   uint32_t temp;
   
 
-  temp = htonl(num_nodes);
+  temp = MYHTONL(num_nodes);
   SAFE_WRITE(&temp, sizeof(uint32_t), outstream);
 
   dump_TreeBIN(outstream, node);
@@ -375,3 +386,5 @@ void myxml_printTreeBIN(FILE *outstream, myxml_node_t *node) {
 
 #undef SAFE_READ
 #undef SAFE_WRITE
+#undef MYNTOHL
+#undef MYHTONL
