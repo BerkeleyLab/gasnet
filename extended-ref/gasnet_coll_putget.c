@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/02/13 21:37:33 $
- * $Revision: 1.71.12.5 $
+ *     $Date: 2009/02/13 23:45:01 $
+ * $Revision: 1.71.12.6 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -179,6 +179,7 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
   const gasnete_coll_broadcast_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, broadcast);
   gasnet_node_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
   const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
+  
   gasnet_node_t barrier_count;
   int result = 0;
   int child;
@@ -190,16 +191,16 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
       }
       data->state = 1; 
       
-      case 1:
-      if(!(op->flags & GASNET_COLL_IN_NOSYNC)) {
-        if (gasneti_weakatomic_read(&(data->p2p->counter[0]), 0) != child_count) {
-          break;
+  case 1:
+        if(!(op->flags & GASNET_COLL_IN_NOSYNC)) {
+          if (gasneti_weakatomic_read(&(data->p2p->counter[0]), 0) != child_count) {
+            break;
+          }
+          if (gasneti_mynode != args->srcnode) {
+            gasnete_coll_p2p_advance(op, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom),0);
+          }
         }
-        if (gasneti_mynode != args->srcnode) {
-          gasnete_coll_p2p_advance(op, GASNETE_COLL_TREE_GEOM_PARENT(tree->geom),0);
-        }
-      }
-      data->state = 2;
+        data->state = 2;
       
       case 2:
       if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;

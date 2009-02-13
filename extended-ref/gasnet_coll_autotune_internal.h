@@ -49,6 +49,7 @@ typedef enum {GASNETE_COLL_BROADCAST_PUT=0,
               GASNETE_COLL_BROADCAST_TREE_EAGER,
               GASNETE_COLL_BROADCAST_RVOUS,
               GASNETE_COLL_BROADCAST_RVGET,
+              GASNETE_COLL_BROADCAST_TREE_RVGET,
               /*check to see if the conduits have defined any new ops*/
               GASNETE_COLL_BROADCAST_NUM_ALGS} gasnete_coll_broadcast_alg_types_t;
 

@@ -189,6 +189,23 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
                                            0,NULL,gasnete_coll_bcast_RVGet);
   
   
+  {
+    struct gasnet_coll_tuning_parameter_t tuning_params[2]=
+    { 
+      {GASNET_COLL_TREE_CLASS, 0, GASNETE_COLL_NUM_TREE_CLASSES, 1, GASNET_COLL_TUNING_STRIDE_ADD}, 
+      {GASNET_COLL_TREE_FANOUT, 2, info->team->total_ranks, 2, GASNET_COLL_TUNING_STRIDE_ADD}
+    }; 
+    
+    info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_RVGET] = 
+    gasnete_coll_autotune_register_algorithm(GASNET_COLL_BROADCAST_OP, 
+                                             GASNETE_COLL_EVERY_SYNC_FLAG,
+                                             GASNET_COLL_SRC_IN_SEGMENT | GASNET_COLL_DST_IN_SEGMENT, 
+                                             0, /*works for all sizes*/
+                                             2,tuning_params,gasnete_coll_bcast_TreeRVGet);
+    
+    
+  }
+  
   
   
   //  info->collective_algorithms[GASNET_COLL_BROADCASTM_OP] = gasneti_malloc(sizeof(gasnete_coll_algorithm_t)*GASNETE_COLL_BROADCASTM_NUM_ALGS);
@@ -573,6 +590,7 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
   ret->param_list[1] = 2;
   
   
+
   /*for now encode the original decision tree*/
   if ((nbytes <= eager_limit) &&
       (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL))) {
@@ -580,11 +598,14 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
      * the need for passing addresses for _LOCAL
      * Eager is totally AM-based and thus safe regardless of *_IN_SEGMENT
      */
-    ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_EAGER].fn_ptr.bcast_fn; 
+        ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_EAGER].fn_ptr.bcast_fn; 
   } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
     /* run the segmented broadcast code 
      function internally checks synch flags and SINGLE/LOCAL flags
-     */
+    */
+    /*this should also be part of the spae*/
+    /*ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_RVGET].fn_ptr.bcast_fn;*/ 
+    
     if(nbytes <= gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNET_COLL_BROADCAST_OP, flags)) {
       if (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL)) {
         ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_PUT_SCRATCH].fn_ptr.bcast_fn;
@@ -612,5 +633,6 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
     ret->num_params = 0;
     ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_RVOUS].fn_ptr.bcast_fn;
   }
+
   return ret;
 }
