@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2009/02/06 02:13:25 $
- * $Revision: 1.65.14.2 $
+ *     $Date: 2009/02/13 21:37:34 $
+ * $Revision: 1.65.14.3 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -83,7 +83,7 @@ gasnete_coll_bcast_RVGet(gasnet_team_handle_t team,
 
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
 					   &gasnete_coll_pf_bcast_RVGet, options,
-                                           0, sequence, coll_params.num_params, coll_params.param_list GASNETE_THREAD_PASS);
+                                           0, sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
 /* bcast RVous: root node uses AM Mediums to send to addrs provided by each node */
@@ -152,7 +152,7 @@ gasnete_coll_bcast_RVous(gasnet_team_handle_t team,
 
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
 					   &gasnete_coll_pf_bcast_RVous, options,
-                                           NULL, sequence, coll_params.num_params, coll_params.param_list
+                                           NULL, sequence, coll_params->num_params, coll_params->param_list
  GASNETE_THREAD_PASS);
 }
 

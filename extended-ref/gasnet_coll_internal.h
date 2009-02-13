@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/02/11 03:05:42 $
- * $Revision: 1.53.14.2 $
+ *     $Date: 2009/02/13 21:37:33 $
+ * $Revision: 1.53.14.3 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -95,8 +95,9 @@ typedef struct gasnete_coll_seg_interval_t_ gasnete_coll_seg_interval_t;
 struct gasnete_coll_autotune_info_t_;
 typedef struct gasnete_coll_autotune_info_t_ gasnete_coll_autotune_info_t;
 
+
 struct gasnete_coll_implementation_t_;
-typedef struct gasnete_coll_implementation_t_ gasnete_coll_implementation_t;
+typedef struct gasnete_coll_implementation_t_ *gasnete_coll_implementation_t;
 
 /*---------------------------------------------------------------------------------*/
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/02/13 20:40:29 $
- * $Revision: 1.71.12.4 $
+ *     $Date: 2009/02/13 21:37:33 $
+ * $Revision: 1.71.12.5 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -59,6 +59,7 @@ static int gasnete_coll_pf_bcast_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
       
       gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+
   }
   
   return result;
@@ -78,9 +79,9 @@ gasnete_coll_bcast_Get(gasnet_team_handle_t team,
   
   gasneti_assert(flags & GASNET_COLL_SINGLE);
   gasneti_assert(flags & GASNET_COLL_SRC_IN_SEGMENT);
-  gasneti_assert(coll_params.num_params == 0);
+  gasneti_assert(coll_params->num_params == 0);
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
-                                           &gasnete_coll_pf_bcast_Get, options, NULL, sequence, coll_params.num_params, coll_params.param_list GASNETE_THREAD_PASS);
+                                           &gasnete_coll_pf_bcast_Get, options, NULL, sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
 /* bcast Put: root node performs carefully ordered puts */
@@ -159,10 +160,10 @@ gasnete_coll_bcast_Put(gasnet_team_handle_t team,
   
   gasneti_assert(flags & GASNET_COLL_SINGLE);
   gasneti_assert(flags & GASNET_COLL_DST_IN_SEGMENT);
-  gasneti_assert(coll_params.num_params == 0);
+  gasneti_assert(coll_params->num_params == 0);
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
                                            &gasnete_coll_pf_bcast_Put, options,
-                                           NULL, sequence, coll_params.num_params, coll_params.param_list GASNETE_THREAD_PASS);
+                                           NULL, sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
 
@@ -286,13 +287,13 @@ gasnete_coll_bcast_TreePut(gasnet_team_handle_t team,
   
   
   gasneti_assert(nbytes <= gasnet_AMMaxLongRequest());
-  gasneti_assert(coll_params.num_params >= 2);
+  gasneti_assert(coll_params->num_params >= 2);
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
                                            &gasnete_coll_pf_bcast_TreePut, options,
-                                           gasnete_coll_tree_init(gasnete_coll_make_tree_type(coll_params.param_list[0], coll_params.param_list[1]), 
+                                           gasnete_coll_tree_init(gasnete_coll_make_tree_type(coll_params->param_list[0], coll_params->param_list[1]), 
                                                                   gasnete_coll_image_node(srcimage), team
                                                                   GASNETE_THREAD_PASS),
-                                           sequence, coll_params.num_params, coll_params.param_list
+                                           sequence, coll_params->num_params, coll_params->param_list
                                            GASNETE_THREAD_PASS);
 }
 
@@ -395,13 +396,13 @@ gasnete_coll_bcast_TreePutScratch(gasnet_team_handle_t team,
   GASNETE_COLL_GENERIC_OPT_P2P | GASNETE_COLL_USE_SCRATCH;
   
   gasneti_assert(nbytes <= gasnet_AMMaxLongRequest());
-  gasneti_assert(coll_params.num_params >= 2);
+  gasneti_assert(coll_params->num_params >= 2);
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
                                            &gasnete_coll_pf_bcast_TreePutScratch, options,
-                                           gasnete_coll_tree_init(gasnete_coll_make_tree_type(coll_params.param_list[0], coll_params.param_list[1]), 
+                                           gasnete_coll_tree_init(gasnete_coll_make_tree_type(coll_params->param_list[0], coll_params->param_list[1]), 
                                                                   gasnete_coll_image_node(srcimage), team
                                                                   GASNETE_THREAD_PASS),
-                                           sequence, coll_params.num_params, coll_params.param_list
+                                           sequence, coll_params->num_params, coll_params->param_list
                                            GASNETE_THREAD_PASS);
 	
 }
@@ -428,7 +429,7 @@ static int gasnete_coll_pf_bcast_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
       int num_segs;
       int flags = GASNETE_COLL_FORWARD_FLAGS(op->flags);
       
-      gasnete_coll_implementation_t impl;
+      gasnete_coll_implementation_t impl = gasnete_coll_get_implementation();
 
       
 #if !GASNET_SEQ
@@ -441,10 +442,10 @@ static int gasnete_coll_pf_bcast_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
       
       int i;
       
-      impl.fn_ptr = NULL;
+      impl->fn_ptr = NULL;
       /*strip the last argument off which contains the pipeline segment size*/
-      impl.num_params = op->num_coll_params;
-      GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(impl.param_list, op->param_list, sizeof(uint32_t)*op->num_coll_params);
+      impl->num_params = op->num_coll_params;
+      GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(impl->param_list, op->param_list, sizeof(uint32_t)*op->num_coll_params);
       
     
       seg_size = (size_t) op->param_list[2];
@@ -486,6 +487,7 @@ static int gasnete_coll_pf_bcast_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
                                                                    impl, op->sequence+i+1 GASNETE_THREAD_PASS);
         gasnete_coll_save_coll_handle(&handle_vec->handles[i] GASNETE_THREAD_PASS);          
       }
+      gasnete_coll_free_implementation(impl);
     }
       data->state = 2;
       
@@ -527,17 +529,17 @@ gasnete_coll_bcast_TreePutSeg(gasnet_team_handle_t team,
   size_t seg_size;
   uint32_t num_segs;
   
-  gasneti_assert(coll_params.num_params == 3);
-  seg_size = (size_t)coll_params.param_list[2];
+  gasneti_assert(coll_params->num_params == 3);
+  seg_size = (size_t)coll_params->param_list[2];
   num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
   
   gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
                                            &gasnete_coll_pf_bcast_TreePutSeg, options,
-                                           gasnete_coll_tree_init(gasnete_coll_make_tree_type(coll_params.param_list[0], coll_params.param_list[1]), 
+                                           gasnete_coll_tree_init(gasnete_coll_make_tree_type(coll_params->param_list[0], coll_params->param_list[1]), 
                                                                   gasnete_coll_image_node(srcimage), team
                                                                   GASNETE_THREAD_PASS), 
-                                           num_segs, coll_params.num_params, coll_params.param_list
+                                           num_segs, coll_params->num_params, coll_params->param_list
                                            GASNETE_THREAD_PASS);
 }
 
@@ -652,7 +654,7 @@ gasnete_coll_bcast_TreeGet(gasnet_team_handle_t team,
                                            gasnete_coll_tree_init(tree_type, 
                                                                   gasnete_coll_image_node(srcimage), team 
                                                                   GASNETE_THREAD_PASS),
-                                           sequence, coll_params.num_params, coll_params.param_list
+                                           sequence, coll_params->num_params, coll_params->param_list
                                            GASNETE_THREAD_PASS);
 }
 #endif

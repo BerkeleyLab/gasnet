@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_eager.c,v $
- *     $Date: 2009/02/11 03:05:42 $
- * $Revision: 1.65.14.3 $
+ *     $Date: 2009/02/13 21:37:33 $
+ * $Revision: 1.65.14.4 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -71,10 +71,10 @@ gasnete_coll_bcast_Eager(gasnet_team_handle_t team,
   GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(srcimage));
   
   gasneti_assert(nbytes <= gasnete_coll_p2p_eager_min);
-  gasneti_assert(coll_params.num_params == 0); /*expecting no parameters*/
+  gasneti_assert(coll_params->num_params == 0); /*expecting no parameters*/
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
                                            &gasnete_coll_pf_bcast_Eager, options,
-                                           NULL, sequence, coll_params.num_params, coll_params.param_list GASNETE_THREAD_PASS);
+                                           NULL, sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
 
@@ -172,14 +172,14 @@ gasnete_coll_bcast_TreeEager(gasnet_team_handle_t team,
   gasneti_assert(nbytes <= gasnete_coll_p2p_eager_min);
 
   /*the parameter list will have two elemennts: the tree type in the first slot and then the fanout in the second slot*/
-  gasneti_assert(coll_params.num_params == 2);
+  gasneti_assert(coll_params->num_params == 2);
   
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
                                            &gasnete_coll_pf_bcast_TreeEager, options,
-                                           gasnete_coll_tree_init(gasnete_coll_make_tree_type(coll_params.param_list[0], coll_params.param_list[1]),
+                                           gasnete_coll_tree_init(gasnete_coll_make_tree_type(coll_params->param_list[0], coll_params->param_list[1]),
                                                                   gasnete_coll_image_node(srcimage), team
                                                                   GASNETE_THREAD_PASS),
-                                           sequence, coll_params.num_params, coll_params.param_list
+                                           sequence, coll_params->num_params, coll_params->param_list
                                            GASNETE_THREAD_PASS);
 }
 

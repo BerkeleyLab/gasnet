@@ -22,6 +22,14 @@
 #define GASNETE_COLL_DEFAULT_DISSEM_LIMIT_PER_THREAD 1024
 #include <gasnet_coll_autotune.h>
 
+/*returns the implementation of the collectives including all the parameters to the algorithm*/
+struct gasnete_coll_implementation_t_{
+  struct gasnete_coll_implementation_t_ *next;
+  void* fn_ptr;
+  int num_params;
+  uint32_t param_list[GASNET_COLL_NUM_PARAM_TYPES]; /*declare an array that can take all the possible param types*/
+};
+
 
 typedef gasnet_coll_handle_t (*gasnete_coll_bcast_fn_ptr_t)(gasnet_team_handle_t team,
                                             void * dst,
@@ -61,12 +69,6 @@ typedef enum {GASNETE_COLL_GATHER_ALLM_NUM_ALGS=0} gasnete_coll_gather_allM_alg_
 typedef enum {GASNETE_COLL_EXCHANGE_NUM_ALGS=0} gasnete_coll_exchange_alg_types_t;
 typedef enum {GASNETE_COLL_EXCHANGEM_NUM_ALGS=0} gasnete_coll_exchangeM_alg_types_t;
 
-/*returns the implementation of the collectives including all the parameters to the algorithm*/
-struct gasnete_coll_implementation_t_{
-  void* fn_ptr;
-  int num_params;
-  uint32_t param_list[GASNET_COLL_NUM_PARAM_TYPES]; /*declare an array that can take all the possible param types*/
-};
 
 /*contains an entry in the function table*/
 typedef struct gasnete_coll_allgorithm_t_ {
@@ -125,4 +127,7 @@ size_t gasnete_coll_get_dissem_limit(gasnete_coll_autotune_info_t* autotune_info
 size_t gasnete_coll_get_pipe_seg_size(gasnete_coll_autotune_info_t* autotune_info, gasnet_coll_optype_t op_type, int flags);
 int gasnete_coll_get_dissem_radix(gasnete_coll_autotune_info_t* autotune_info, gasnet_coll_optype_t op_type, int flags);
 gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_team_handle_t team, uint32_t flags, size_t nbytes);
+gasnete_coll_implementation_t gasnete_coll_get_implementation();
+void gasnete_coll_free_implementation(gasnete_coll_implementation_t in);
+
 #endif
