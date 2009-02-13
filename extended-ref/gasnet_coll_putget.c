@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/02/11 03:05:42 $
- * $Revision: 1.71.12.3 $
+ *     $Date: 2009/02/13 20:40:29 $
+ * $Revision: 1.71.12.4 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -181,7 +181,7 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
   gasnet_node_t barrier_count;
   int result = 0;
   int child;
-  
+
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data)) {
@@ -280,7 +280,7 @@ gasnete_coll_bcast_TreePut(gasnet_team_handle_t team,
                            uint32_t sequence
                            GASNETE_THREAD_FARG)
 {
-  int options = /*GASNETE_COLL_GENERIC_OPT_INSYNC_IF(!(flags & GASNET_COLL_IN_NOSYNC))  |*/
+  int options =
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF (flags & GASNET_COLL_OUT_ALLSYNC) |
   GASNETE_COLL_GENERIC_OPT_P2P;
   
@@ -389,9 +389,8 @@ gasnete_coll_bcast_TreePutScratch(gasnet_team_handle_t team,
                                   uint32_t sequence
                                   GASNETE_THREAD_FARG)
 {
-  /* never allocate an insync barrier since this function should not be used for IN_ALLSYNC*/
-  /* use TreePut instead since an inall sync need not pay the extra copy costs to and from the scratch*/
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF(!(flags & (GASNET_COLL_IN_NOSYNC|GASNET_COLL_IN_MYSYNC)))  |
+ /*never allocated an insync barrier since it is folded in with the collective*/
+  int options =
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF (flags & GASNET_COLL_OUT_ALLSYNC) |
   GASNETE_COLL_GENERIC_OPT_P2P | GASNETE_COLL_USE_SCRATCH;
   
