@@ -40,6 +40,7 @@ typedef gasnet_coll_handle_t (*gasnete_coll_bcast_fn_ptr_t)(gasnet_team_handle_t
                                             GASNETE_THREAD_FARG);
 
 
+
 typedef enum {GASNETE_COLL_BROADCAST_PUT=0, 
               GASNETE_COLL_BROADCAST_GET,
               GASNETE_COLL_BROADCAST_TREE_PUT,
@@ -98,6 +99,7 @@ typedef struct gasnete_coll_allgorithm_t_ {
   struct gasnet_coll_tuning_parameter_t *parameter_list;
   
   union {
+    void *generic_coll_fn_ptr;
     gasnete_coll_bcast_fn_ptr_t bcast_fn;
   } fn_ptr;
   

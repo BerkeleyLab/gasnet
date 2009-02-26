@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/02/13 21:37:34 $
- * $Revision: 1.72.10.6 $
+ *     $Date: 2009/02/26 01:14:25 $
+ * $Revision: 1.72.10.7 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2201,7 +2201,6 @@ extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_type_t
   }
   
  /* unlock aquisition and free in tree init*/
-  data->pipe_seg_size = gasnete_coll_pipe_seg_size ? gasnete_coll_pipe_seg_size : 1024;
   data->sent_bytes = 0;
   data->geom = gasnete_coll_local_tree_geom_fetch(tree_type, root, team);
 

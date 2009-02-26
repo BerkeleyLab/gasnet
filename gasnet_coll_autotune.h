@@ -51,11 +51,16 @@ struct gasnet_coll_tuning_parameter_t {
   uint32_t stride;
   int flags;
 };
+typedef void (*gasnet_coll_overlap_sample_work_t)(void *arg);
 
+#define ganset_coll_tune_generic_op(team, op, dst, src, rootimg, flags, nbytes, fnptr, work_arg, best_algidx, num_params, best_param) \
+gasnete_coll_tune_generic_op(team, op, dst, src, rootimg, flags, nbytes, fnptr, work_arg, best_algidx, num_params, best_param  GASNETE_THREAD_GET)
 
-extern uint32_t gasnet_coll_get_algs(gasnet_team_handle_t team, gasnet_coll_optype_t op, size_t nbytes, uint32_t flags, uint32_t** outlist, uint32_t* num_algs_ret);
-extern int gasnet_coll_get_num_params(gasnet_team_handle_t team, gasnet_coll_optype_t op, uint32_t algorithm_num);
-extern struct gasnet_coll_tuning_parameter_t gasnet_coll_get_param(gasnet_team_handle_t team, gasnet_coll_optype_t op, uint32_t algorithm_num, uint32_t param_idx);
+void gasnete_coll_tune_generic_op(gasnet_team_handle_t team, gasnet_coll_optype_t op, 
+                                 uint8_t **dst, uint8_t **src, gasnet_image_t rootimg, int flags, size_t nbytes, 
+                                 gasnet_coll_overlap_sample_work_t fnptr, void *sample_work_arg,
+                                 /*returned by the algorithm*/
+                                 uint32_t *best_algidx, uint32_t *num_params, uint32_t **best_param GASNETE_THREAD_FARG)  ;
 
 extern int gasnet_coll_get_num_tree_classes(gasnet_team_handle_t team, gasnet_coll_optype_t optype);
 extern void gasnet_coll_set_tree_kind(gasnet_team_handle_t team, int tree_type, int fanout, gasnet_coll_optype_t optype); 

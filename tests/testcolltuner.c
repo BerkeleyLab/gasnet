@@ -101,7 +101,7 @@ void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_a
   gasnett_tick_t begin,end;
   gasnett_tick_t best_time;
   char buffer[50];
-  int warm_iters = MIN(performance_iters, 10);
+
   int flags = in_flags | GASNET_COLL_SRC_IN_SEGMENT|GASNET_COLL_DST_IN_SEGMENT;
   
   if(in_flags & GASNET_COLL_SINGLE) { /*whether or not each node presents one address that is valid for all nodes*/
@@ -122,46 +122,29 @@ void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_a
   num_tree_classes = gasnet_coll_get_num_tree_classes(GASNET_TEAM_ALL, GASNET_COLL_BROADCAST_OP);
   temp_node = current_parent_node;
   
-  for(s=32; s<=32; s*=2)  {
+   for(s=1; s<=max_data_size; s*=2) {
+    uint32_t best_alg;
+    uint32_t num_params;
+    uint32_t *param_list;
+     MSG0("starting test: %s %d bytes", fill_flag_str(flags, buffer), (int)sizeof(int)*s);
+    
     current_parent_node = myxml_createNodeInt(temp_node, (char*) "size", (char *) "start", s, NULL);
     myxml_addAttributeInt(current_parent_node, (char*) "end", (s == max_data_size ? 1<<31 : (s*2)-1));
-    best_time = GASNETT_TICK_MAX;
-    for(c=0; c<num_tree_classes; c++) {
-      for(f = 2; f<=THREADS; f*=2) {
-        gasnet_coll_set_tree_kind(GASNET_TEAM_ALL, c, f, GASNET_COLL_BROADCAST_OP);
-        COLL_BARRIER();
-        /*first do a few warmup iterations*/
-        if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
-        for(i =0; i<warm_iters; i++) {
-          gasnet_coll_broadcast(GASNET_TEAM_ALL, dst, root_thread, src, sizeof(int)*s, flags);
-        }
-        if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
-        
-        COLL_BARRIER();
-        begin = gasnett_ticks_now();
-        if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
-        for(i=0; i<performance_iters; i++) { 
-          gasnet_coll_broadcast(GASNET_TEAM_ALL, dst, root_thread, src, sizeof(int)*s, flags);
-        }
-        if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
-        end =  gasnett_ticks_now() - begin;
-        COLL_BARRIER();
-        if(td->mythread == 0) {
-          if(end < best_time) {
-            best_time = end;
-            best_tree = c;
-            best_fanout = f;
-          }
-        }
-        COLL_BARRIER();
-      }
+    
+    /*run the gasnet tuner and report back the results!*/
+    ganset_coll_tune_generic_op(GASNET_TEAM_ALL, GASNET_COLL_BROADCAST_OP, (uint8_t**) &dst, (uint8_t**) &src, root_thread, flags, sizeof(int)*s,
+                                NULL, NULL, &best_alg, &num_params, &param_list);
+
+    sprintf(buffer, "%d", best_alg);
+    myxml_createNode(current_parent_node, (char*) "Best_Alg", NULL, NULL, buffer);
+    sprintf(buffer, "%d", num_params);
+    myxml_createNode(current_parent_node, (char*) "Num_Params", NULL, NULL, buffer);
+    for(c=0; c<num_params; c++) {
+      char buff_idx[20];
+      sprintf(buff_idx, "param_%d", c);
+      sprintf(buffer, "%d", param_list[c]);
+      myxml_createNode(current_parent_node, buff_idx, NULL, NULL, buffer);
     }
-    sprintf(buffer, "%d", best_tree);
-    myxml_createNode(current_parent_node, (char*) "Best_Tree_Class", NULL, NULL, buffer);
-    sprintf(buffer, "%d", best_fanout);
-    myxml_createNode(current_parent_node, (char*) "Best_Fanout", NULL, NULL, buffer);
-    sprintf(buffer, "%g us", ((double) gasnett_ticks_to_us(best_time))/performance_iters);
-    myxml_createNode(current_parent_node, (char*) "Best_Time", NULL, NULL, buffer);
   }
   /*******************END BROADCAST***************/
 
@@ -299,6 +282,7 @@ void *thread_main(void *arg) {
     COLL_BARRIER();
     
 
+
     
     switch(flag_iter) {
     case 0: flags = GASNET_COLL_IN_NOSYNC  | GASNET_COLL_OUT_NOSYNC; break;
@@ -313,10 +297,10 @@ void *thread_main(void *arg) {
     default: continue;
     }
     
-
-    MSG0("starting test: %s", fill_flag_str(flags, buffer));
+   
     sync_node = myxml_createNode(temp, (char*)"sync_mode", (char*)"val", fill_flag_str(flags, buffer), NULL);
     /*do single addr tests*/
+ 
     
 #if GASNET_ALIGNED_SEGMENTS
     if(threads_per_node == 1) {

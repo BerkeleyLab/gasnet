@@ -181,7 +181,7 @@ void myxml_printTreeXML(FILE *outstream, myxml_node_t *node, const char *whitesp
 #ifndef htonl
 #define MYHTONL(IN) IN 
 #else
-#define MYJTOML(IN) htonl(IN)
+#define MYHTONL(IN) htonl(IN)
 #endif
 
 #ifndef ntohl

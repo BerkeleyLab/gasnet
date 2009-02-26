@@ -619,7 +619,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
    }
      
    gasnete_coll_set_sibling_info(geom, team->myrank, team->total_ranks); 
-#if 1
+#if 0
    gasnete_coll_print_tree(geom, team->myrank);
 #endif
 
@@ -629,8 +629,6 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
 
 /*---------------------------------------------------------------------------------*/
 /* Operations to access the tree geometry cache */
-
-uint32_t gasnete_coll_pipe_seg_size = 1024;
 
 /*
 	Just keep track of the number of refs to an object for debug reasons
