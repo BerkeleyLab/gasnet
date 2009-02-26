@@ -125,7 +125,7 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
   {
     struct gasnet_coll_tuning_parameter_t tuning_params[2] = 
     {{GASNET_COLL_TREE_CLASS, 0, GASNETE_COLL_NUM_TREE_CLASSES-1, 1, GASNET_COLL_TUNING_STRIDE_ADD}, 
-      {GASNET_COLL_TREE_FANOUT, 2, MAX(2,info->team->total_ranks), 1, GASNET_COLL_TUNING_STRIDE_ADD}}; 
+      {GASNET_COLL_TREE_FANOUT, 2, MAX(2,info->team->total_ranks), 2, GASNET_COLL_TUNING_STRIDE_ADD}}; 
     
     
     info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_PUT] = 
@@ -139,7 +139,7 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
   {
     struct gasnet_coll_tuning_parameter_t tuning_params[2]=
     {{GASNET_COLL_TREE_CLASS, 0, GASNETE_COLL_NUM_TREE_CLASSES-1, 1, GASNET_COLL_TUNING_STRIDE_ADD}, 
-      {GASNET_COLL_TREE_FANOUT, 2, MAX(2,info->team->total_ranks), 1, GASNET_COLL_TUNING_STRIDE_ADD}}; 
+      {GASNET_COLL_TREE_FANOUT, 2, MAX(2,info->team->total_ranks), 2, GASNET_COLL_TUNING_STRIDE_ADD}}; 
     
     info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_PUT_SCRATCH] = 
     gasnete_coll_autotune_register_algorithm(GASNET_COLL_BROADCAST_OP, 
@@ -155,8 +155,8 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
     struct gasnet_coll_tuning_parameter_t tuning_params[3]=
     { 
       {GASNET_COLL_TREE_CLASS, 0, GASNETE_COLL_NUM_TREE_CLASSES-1, 1, GASNET_COLL_TUNING_STRIDE_ADD}, 
-      {GASNET_COLL_TREE_FANOUT, 2, MAX(2,info->team->total_ranks), 1, GASNET_COLL_TUNING_STRIDE_ADD},
-      {GASNET_COLL_PIPE_SEG_SIZE, GASNET_COLL_MIN_PIPE_SEG_SIZE, GASNET_COLL_MAX_PIPE_SEG_SIZE, 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY}
+      {GASNET_COLL_TREE_FANOUT, 2, MAX(2,info->team->total_ranks), 2, GASNET_COLL_TUNING_STRIDE_ADD},
+      {GASNET_COLL_PIPE_SEG_SIZE, GASNET_COLL_MIN_PIPE_SEG_SIZE, GASNET_COLL_MAX_PIPE_SEG_SIZE, 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY | GASNET_COLL_TUNING_SIZE_PARAM}
     }; 
     
     info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_PUT_SEG] = 
@@ -179,7 +179,7 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
     struct gasnet_coll_tuning_parameter_t tuning_params[2]=
     { 
       {GASNET_COLL_TREE_CLASS, 0, GASNETE_COLL_NUM_TREE_CLASSES-1, 1, GASNET_COLL_TUNING_STRIDE_ADD}, 
-      {GASNET_COLL_TREE_FANOUT, 2, MAX(2,info->team->total_ranks), 1, GASNET_COLL_TUNING_STRIDE_ADD}
+      {GASNET_COLL_TREE_FANOUT, 2, MAX(2,info->team->total_ranks), 2, GASNET_COLL_TUNING_STRIDE_ADD}
     }; 
     
     info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_EAGER] = 
@@ -209,7 +209,7 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
     struct gasnet_coll_tuning_parameter_t tuning_params[2]=
     { 
       {GASNET_COLL_TREE_CLASS, 0, GASNETE_COLL_NUM_TREE_CLASSES-1, 1, GASNET_COLL_TUNING_STRIDE_ADD}, 
-      {GASNET_COLL_TREE_FANOUT, 2, MAX(2,info->team->total_ranks), 1, GASNET_COLL_TUNING_STRIDE_ADD}
+      {GASNET_COLL_TREE_FANOUT, 2, MAX(2,info->team->total_ranks), 2, GASNET_COLL_TUNING_STRIDE_ADD}
     }; 
     
     info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_RVGET] = 
@@ -640,42 +640,46 @@ static void do_tuning_loop(gasnet_team_handle_t team, gasnet_coll_optype_t op,
     idx = param.start;
     gasneti_assert(idx<=param.end);
     while (1) {
-      if(current_param_number == team->autotune_info->collective_algorithms[op][alg_idx].num_parameters-1) {
-        /*this is the last one so run the collective*/
-        gasnett_tick_t curr_run;
-        /*setup the collective information*/
-        gasnete_coll_implementation_t impl = gasnete_coll_get_implementation();
-        curr_idx[current_param_number]=idx;
-        impl->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][alg_idx].fn_ptr.generic_coll_fn_ptr;
-        impl->num_params = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][alg_idx].num_parameters;
-        GASNETE_FAST_UNALIGNED_MEMCPY(impl->param_list, curr_idx, impl->num_params*sizeof(uint32_t));
-        
-        /*run the measurement iterations*/
-        curr_run = run_collective_bench(team, op, dst, src, rootimg, flags, nbytes, impl, fnptr, sample_work_arg GASNETE_THREAD_PASS);
-        if(gasneti_mynode==0 && GASNETE_COLL_PRINT_TIMERS) {
-          int i;
-          printf("%d> alg: %d params:<", gasneti_mynode, alg_idx);
-          for(i=0; i<impl->num_params; i++) {
-            printf(" %d", impl->param_list[i]);
-          }
-          printf("> time: %g\n", (double)gasnett_ticks_to_us(curr_run)); 
-        }
-        /*if teh time is less than the best set this one as the new best*/
-        if(curr_run < *best_time) {
-          *best_time = curr_run;
-          GASNETE_FAST_UNALIGNED_MEMCPY(best_param_list, curr_idx, impl->num_params*sizeof(uint32_t));
-        }
-
-        gasnete_coll_free_implementation(impl);
-      } else {
-        /*there are still more iterations to set so continue down the loop nest*/
-        curr_idx[current_param_number]=idx;
-        do_tuning_loop(team, op, dst, src, rootimg, flags, nbytes, fnptr, sample_work_arg, alg_idx, best_time, best_param_list, current_param_number+1, curr_idx GASNETE_THREAD_PASS);
+      /*if the tuning paramter is a size parameter and it already exceeds the value for our collective
+	then skip this iteration*/
+      if(!(team->autotune_info->collective_algorithms[op][alg_idx].parameter_list[current_param_number].flags & GASNET_COLL_TUNING_SIZE_PARAM && idx > nbytes)) {
+	if(current_param_number == team->autotune_info->collective_algorithms[op][alg_idx].num_parameters-1) {
+	  /*this is the last one so run the collective*/
+	  gasnett_tick_t curr_run;
+	  /*setup the collective information*/
+	  gasnete_coll_implementation_t impl = gasnete_coll_get_implementation();
+	  curr_idx[current_param_number]=idx;
+	  impl->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][alg_idx].fn_ptr.generic_coll_fn_ptr;
+	  impl->num_params = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][alg_idx].num_parameters;
+	  GASNETE_FAST_UNALIGNED_MEMCPY(impl->param_list, curr_idx, impl->num_params*sizeof(uint32_t));
+	  
+	  /*run the measurement iterations*/
+	  curr_run = run_collective_bench(team, op, dst, src, rootimg, flags, nbytes, impl, fnptr, sample_work_arg GASNETE_THREAD_PASS);
+	  if(gasneti_mynode==0 && GASNETE_COLL_PRINT_TIMERS) {
+	    int i;
+	    printf("%d> alg: %d params:<", gasneti_mynode, alg_idx);
+	    for(i=0; i<impl->num_params; i++) {
+	      printf(" %d", impl->param_list[i]);
+	    }
+	    printf("> time: %g\n", (double)gasnett_ticks_to_us(curr_run)); 
+	  }
+	  /*if teh time is less than the best set this one as the new best*/
+	  if(curr_run < *best_time) {
+	    *best_time = curr_run;
+	    GASNETE_FAST_UNALIGNED_MEMCPY(best_param_list, curr_idx, impl->num_params*sizeof(uint32_t));
+	  }
+	  
+	  gasnete_coll_free_implementation(impl);
+	} else {
+	  /*there are still more iterations to set so continue down the loop nest*/
+	  curr_idx[current_param_number]=idx;
+	  do_tuning_loop(team, op, dst, src, rootimg, flags, nbytes, fnptr, sample_work_arg, alg_idx, best_time, best_param_list, current_param_number+1, curr_idx GASNETE_THREAD_PASS);
+	}
       }
       if(param.flags & GASNET_COLL_TUNING_STRIDE_ADD) {
-        idx+=param.stride;
+	idx+=param.stride;
       } else if(param.flags & GASNET_COLL_TUNING_STRIDE_MULTIPLY) {
-        idx*=param.stride;
+	idx*=param.stride;
       }
       if(idx > param.end) break;
     }
@@ -686,11 +690,12 @@ static void do_tuning_loop(gasnet_team_handle_t team, gasnet_coll_optype_t op,
   }
 }
 
+
 void gasnete_coll_tune_generic_op(gasnet_team_handle_t team, gasnet_coll_optype_t op, 
-                                 uint8_t **dst, uint8_t **src, gasnet_image_t rootimg, int flags, size_t nbytes, 
-                                 gasnet_coll_overlap_sample_work_t fnptr, void *sample_work_arg,
-                                 /*returned by the algorithm*/
-                                uint32_t *best_algidx, uint32_t *num_params, uint32_t **best_param GASNETE_THREAD_FARG)  {
+				  uint8_t **dst, uint8_t **src, gasnet_image_t rootimg, int flags, size_t nbytes, 
+				  gasnet_coll_overlap_sample_work_t fnptr, void *sample_work_arg,
+				  /*returned by the algorithm*/
+				  uint32_t *best_algidx, uint32_t *num_params, uint32_t **best_param GASNETE_THREAD_FARG)  {
   int algidx = 0;
   int num_algs;
   gasnett_tick_t curr_best_time=GASNETT_TICK_MAX, alg_best_time=GASNETT_TICK_MAX;

@@ -72,6 +72,27 @@ typedef enum {GASNETE_COLL_EXCHANGE_NUM_ALGS=0} gasnete_coll_exchange_alg_types_
 typedef enum {GASNETE_COLL_EXCHANGEM_NUM_ALGS=0} gasnete_coll_exchangeM_alg_types_t;
 
 
+#ifndef GASNET_COLL_MIN_PIPE_SEG_SIZE
+#define GASNET_COLL_MIN_PIPE_SEG_SIZE 128
+#endif
+
+#ifndef GASNET_COLL_MAX_PIPE_SEG_SIZE
+#define GASNET_COLL_MAX_PIPE_SEG_SIZE gasnet_AMMaxLongRequest()
+#endif
+
+/*flags to control how the search space looks like*/
+#define GASNET_COLL_TUNING_STRIDE_ADD (1<<0)
+#define GASNET_COLL_TUNING_STRIDE_MULTIPLY (1<<1)
+#define GASNET_COLL_TUNING_SIZE_PARAM (1<<2)
+
+struct gasnet_coll_tuning_parameter_t {
+  gasnet_coll_tuning_param_type_t tuning_param;
+  uint32_t start;
+  uint32_t end;
+  uint32_t stride;
+  int flags;
+};
+
 /*contains an entry in the function table*/
 typedef struct gasnete_coll_allgorithm_t_ {
   struct gasnete_coll_allgorithm_t_ *next;
