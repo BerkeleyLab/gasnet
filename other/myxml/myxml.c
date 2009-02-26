@@ -32,6 +32,7 @@ myxml_node_t *myxml_createNode_attr_list(myxml_node_t* parent, const char *tag, 
   myxml_node_t *ret=gasneti_calloc(1,sizeof(myxml_node_t));
   ret->parent = parent;
   ret->num_children = 0;
+  ret->children = NULL;
   /*make sure that we aren't adding to a leaf or know that this is the root node*/
   if(parent==NULL) {
     ret->nodeclass = MYXML_ROOT_NODE;
@@ -65,7 +66,11 @@ myxml_node_t *myxml_createNode_attr_list(myxml_node_t* parent, const char *tag, 
   /*add myself to my parents children list*/
   if(parent) {
     parent->num_children++;
-    parent->children = gasneti_realloc(parent->children,parent->num_children*sizeof(myxml_node_t*));
+    if(parent->children) {
+      parent->children = gasneti_realloc(parent->children,parent->num_children*sizeof(myxml_node_t*));
+    } else {
+      parent->children = gasneti_malloc(parent->num_children*sizeof(myxml_node_t*));
+    }
     parent->children[parent->num_children-1] = ret;
   }
   

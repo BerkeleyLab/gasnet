@@ -314,8 +314,9 @@ void *thread_main(void *arg) {
     if(td->mythread == 0 && !skip_msg_printed) MSG0("skipping SINGLE/SINGLE (unaligned segments)");
 #endif
     skip_msg_printed = 1;
+    test_root = myxml_createNode(sync_node,(char*)"num_addrs", (char*)"val", (char*)"single", NULL);
     /*call the single address (coll local) test routines with testroot*/
-  //  run_SINGLE_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_LOCAL, test_root);
+    run_SINGLE_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_LOCAL, test_root);
     
     /*do multi addr tests*/
     test_root = myxml_createNode(sync_node,(char*)"num_addrs", (char*)"val", (char*)"multi", NULL);

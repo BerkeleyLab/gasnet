@@ -32,25 +32,8 @@ typedef enum {GASNET_COLL_TREE_CLASS=0, GASNET_COLL_TREE_FANOUT, GASNET_COLL_PIP
   /*check to see if hte conduit has added any new tuning parameters to this list*/
 GASNET_COLL_NUM_PARAM_TYPES} gasnet_coll_tuning_param_type_t ;
 
-#ifndef GASNET_COLL_MIN_PIPE_SEG_SIZE
-#define GASNET_COLL_MIN_PIPE_SEG_SIZE 128
-#endif
 
-#ifndef GASNET_COLL_MAX_PIPE_SEG_SIZE
-#define GASNET_COLL_MAX_PIPE_SEG_SIZE gasnet_AMMaxLongRequest()
-#endif
 
-/*flags to control how the search space looks like*/
-#define GASNET_COLL_TUNING_STRIDE_ADD (1<<0)
-#define GASNET_COLL_TUNING_STRIDE_MULTIPLY (1<<1)
-
-struct gasnet_coll_tuning_parameter_t {
-  gasnet_coll_tuning_param_type_t tuning_param;
-  uint32_t start;
-  uint32_t end;
-  uint32_t stride;
-  int flags;
-};
 typedef void (*gasnet_coll_overlap_sample_work_t)(void *arg);
 
 #define ganset_coll_tune_generic_op(team, op, dst, src, rootimg, flags, nbytes, fnptr, work_arg, best_algidx, num_params, best_param) \
