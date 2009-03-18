@@ -169,9 +169,7 @@ uint8_t gasnete_coll_scratch_compare_config(gasnete_coll_scratch_config_t *A,
                                             gasnete_coll_scratch_req_t *scratch_req) {
   gasneti_assert(A);
   if((A->root != scratch_req->root) || 
-     (A->tree_type.tree_class !=scratch_req->tree_type.tree_class) ||
-     ((A->tree_type.tree_class != GASNETE_COLL_BINOMIAL_TREE) && 
-      (A->tree_type.fanout != scratch_req->tree_type.fanout)) || 
+     !gasnete_coll_compare_tree_types(A->tree_type, scratch_req->tree_type) || 
      A->op_type != scratch_req->op_type ||
      A->tree_dir != scratch_req->tree_dir) return 0;
   else return 1;

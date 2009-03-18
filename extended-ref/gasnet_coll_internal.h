@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/02/13 23:45:01 $
- * $Revision: 1.53.14.4 $
+ *     $Date: 2009/03/18 03:04:43 $
+ * $Revision: 1.53.14.5 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -63,7 +63,7 @@ struct gasnete_coll_generic_data_t_;
 typedef struct gasnete_coll_generic_data_t_ gasnete_coll_generic_data_t;
 
 struct gasnete_coll_tree_type_t_;
-typedef struct gasnete_coll_tree_type_t_ gasnete_coll_tree_type_t;
+typedef struct gasnete_coll_tree_type_t_ *gasnete_coll_tree_type_t;
 
 struct gasnete_coll_tree_data_t_;
 typedef struct gasnete_coll_tree_data_t_ gasnete_coll_tree_data_t;
@@ -197,10 +197,13 @@ struct gasnete_coll_team_t_ {
   /* tree geometry cache, each team should have its own cache .... */
   gasnete_coll_tree_geom_t *tree_geom_cache_head;
   gasnete_coll_tree_geom_t *tree_geom_cache_tail;
+  gasneti_mutex_t tree_geom_cache_lock;
+  void *tree_construction_scratch;
   
   /*dissem geometry cache, each team should have its own  ... */
   gasnete_coll_dissem_info_t *dissem_cache_head;
   gasnete_coll_dissem_info_t *dissem_cache_tail;
+  gasneti_mutex_t dissem_cache_lock;
   
   /*my relative node id in this team*/
   gasnet_node_t myrank;
@@ -284,6 +287,7 @@ struct gasnete_coll_op_t_ {
 #endif
   gasnete_coll_scratch_req_t *scratch_req; /* the associated scratch request with this op*/
   int num_coll_params;
+  gasnete_coll_tree_data_t *tree_info;
   uint32_t param_list[GASNET_COLL_NUM_PARAM_TYPES];/*contains teh parameters*/
   /* Hook for conduit-specific extensions/overrides */
 #ifdef GASNETE_COLL_OP_EXTRA

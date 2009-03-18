@@ -12,15 +12,25 @@
 #define  GASNETE_COLL_DEFAULT_RADIX 2
 
 typedef enum {GASNETE_COLL_NARY_TREE=0, GASNETE_COLL_BINOMIAL_TREE, 
-              GASNETE_COLL_DFS_RECURSIVE_TREE, GASNETE_COLL_REV_RECURSIVE_TREE, GASNETE_COLL_NUM_TREE_CLASSES} gasnete_coll_tree_class_t;
+              GASNETE_COLL_KNOMIAL_TREE, GASNETE_COLL_FORK_TREE, GASNETE_COLL_NUM_TREE_CLASSES} gasnete_coll_tree_class_t;
+
+typedef enum  {
+  GASNETE_COLL_TREE_RADIX, GASNETE_COLL_TREE_DIMS
+} gasnete_coll_tree_tuning_param_type_t;
 
 struct gasnete_coll_tree_type_t_ {
   gasnete_coll_tree_class_t tree_class;
-  int fanout; 
+  gasnet_node_t *params;
+  int num_params;
+  struct gasnete_coll_tree_type_t_ *subtree;
 };
 
-gasnete_coll_tree_type_t gasnete_coll_make_tree_type_str(char *tree_name_str, gasnet_node_t fanout);
-gasnete_coll_tree_type_t gasnete_coll_make_tree_type(int tree_type, gasnet_node_t fanout);
+
+/*returns 1 if they are equal or 0 otherwise*/
+int gasnete_coll_compare_tree_types(gasnete_coll_tree_type_t a, gasnete_coll_tree_type_t b);
+
+gasnete_coll_tree_type_t gasnete_coll_make_tree_type_str(char *tree_name_str, gasnet_node_t *params, int num_params);
+gasnete_coll_tree_type_t gasnete_coll_make_tree_type(int tree_type, gasnet_node_t *params, int num_params);
 
 /*ACCESSOR MACROS (all take a gasnete_coll_local_tree_geom_t)*/
 #define GASNETE_COLL_TREE_GEOM_ROOT(GEOM) ((GEOM)->root)
@@ -108,7 +118,8 @@ struct gasnete_coll_tree_geom_t_ {
 
 gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_tree_type_t type, gasnet_node_t root, gasnete_coll_team_t team);
 void gasnete_coll_local_tree_geom_release(gasnete_coll_local_tree_geom_t *geom);
-
+gasnete_coll_tree_type_t gasnete_coll_get_tree_type();
+void gasnete_coll_free_tree_type(gasnete_coll_tree_type_t in);
 
 /******** Dissemination Ordering **********/
 #define GASNETE_COLL_DISSEM_GET_TOTAL_PHASES(DISSEM_INFO) ((DISSEM_INFO)->dissemination_phases)

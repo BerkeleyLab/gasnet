@@ -27,8 +27,20 @@ struct gasnete_coll_implementation_t_{
   struct gasnete_coll_implementation_t_ *next;
   void* fn_ptr;
   int num_params;
+  gasnete_coll_tree_type_t tree_type;
   uint32_t param_list[GASNET_COLL_NUM_PARAM_TYPES]; /*declare an array that can take all the possible param types*/
 };
+
+typedef struct gasnete_coll_autotune_tree_node_t_ {
+  struct gasnete_coll_autotune_tree_node_t_* parent;
+  struct gasnete_coll_autotune_tree_node_t_** children;
+  int num_children;
+  char *field_name;
+  unsigned int field_start;
+  unsigned int field_end;
+  gasnete_coll_implementation_t impl;
+} gasnete_coll_autotune_tree_node_t;
+
 
 
 typedef gasnet_coll_handle_t (*gasnete_coll_bcast_fn_ptr_t)(gasnet_team_handle_t team,
@@ -117,6 +129,9 @@ typedef struct gasnete_coll_allgorithm_t_ {
   /*what are the parameters to the algorithm*/
   uint32_t num_parameters;
   
+  /*set if this is a tree-based algorithm*/
+  uint32_t tree_alg;
+  
   struct gasnet_coll_tuning_parameter_t *parameter_list;
   
   union {
@@ -141,7 +156,7 @@ gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type(gasnete_coll_autotu
 gasnete_coll_algorithm_t gasnete_coll_autotune_register_algorithm(gasnet_coll_optype_t optype, 
                                                                   uint32_t syncflags,
                                                                   uint32_t requirements,
-                                                                  size_t max_size,
+                                                                  size_t max_size,uint32_t tree_alg,
                                                                   uint32_t num_params,
                                                                   struct gasnet_coll_tuning_parameter_t *param_list,
                                                                   void *coll_fnptr);
