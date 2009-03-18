@@ -28,7 +28,7 @@ typedef enum {GASNET_COLL_BROADCAST_OP=0,
   GASNET_COLL_NUM_COLL_OPTYPES
 } gasnet_coll_optype_t;
 
-typedef enum {GASNET_COLL_TREE_CLASS=0, GASNET_COLL_TREE_FANOUT, GASNET_COLL_PIPE_SEG_SIZE, GASNET_COLL_DISSEM_RADIX, 
+typedef enum {GASNET_COLL_PIPE_SEG_SIZE, GASNET_COLL_DISSEM_RADIX, 
   /*check to see if hte conduit has added any new tuning parameters to this list*/
 GASNET_COLL_NUM_PARAM_TYPES} gasnet_coll_tuning_param_type_t ;
 
@@ -46,7 +46,7 @@ void gasnete_coll_tune_generic_op(gasnet_team_handle_t team, gasnet_coll_optype_
                                  uint32_t *best_algidx, uint32_t *num_params, uint32_t **best_param GASNETE_THREAD_FARG)  ;
 
 extern int gasnet_coll_get_num_tree_classes(gasnet_team_handle_t team, gasnet_coll_optype_t optype);
-extern void gasnet_coll_set_tree_kind(gasnet_team_handle_t team, int tree_type, int fanout, gasnet_coll_optype_t optype); 
+extern void gasnet_coll_set_tree_kind(gasnet_team_handle_t team, int tree_type, gasnet_node_t fanout, gasnet_coll_optype_t optype); 
 extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t team, size_t dissemlimit, gasnet_coll_optype_t optype); 
 
 #endif
