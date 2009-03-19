@@ -11,7 +11,7 @@
 #define  GASNETE_COLL_DEFAULT_FANOUT 2
 #define  GASNETE_COLL_DEFAULT_RADIX 2
 
-typedef enum {GASNETE_COLL_NARY_TREE=0, GASNETE_COLL_BINOMIAL_TREE, 
+typedef enum {GASNETE_COLL_NARY_TREE=0,  
               GASNETE_COLL_KNOMIAL_TREE, GASNETE_COLL_FORK_TREE, GASNETE_COLL_NUM_TREE_CLASSES} gasnete_coll_tree_class_t;
 
 typedef enum  {
@@ -52,7 +52,9 @@ struct gasnete_coll_local_tree_geom_t_ {
   gasnet_node_t child_count; /*number of children*/
   gasnet_node_t *child_list; /*list of children*/
   gasnet_node_t *subtree_sizes; /* the size of the subtrees under each of our children */
+  gasnet_node_t *child_offset; 
   gasnet_node_t mysubtree_size;
+  uint8_t children_reversed;
   gasnet_node_t parent_subtree_size; /* size of the subtree under our parent*/
   
   /** sibling information**/
@@ -66,6 +68,10 @@ struct gasnete_coll_local_tree_geom_t_ {
   
   /* DFS Order of the tree, only assigned at the root node */
   gasnet_node_t *dfs_order;
+  
+  /*in order to reorder the array this indidcates where the data needs to be reordered*/
+  int *rotation_points;
+  int num_rotations;
 
   /* A boolean variable that is set if the dfs_order of the tree is sequential*/
   /* I.E. No Reordering will be needed for scatter and gathers */

@@ -21,9 +21,7 @@ void gasnete_coll_free_tree_type(gasnete_coll_tree_type_t in){
 
 gasnete_coll_tree_type_t gasnete_coll_make_tree_type_str(char *tree_name_str, gasnet_node_t *params, int num_params) {
   gasnete_coll_tree_type_t ret = gasnete_coll_get_tree_type();
-  if(strcmp(tree_name_str, "BINOMIAL_TREE")==0) {
-    ret->tree_class = GASNETE_COLL_KNOMIAL_TREE;
-  } else if(strcmp(tree_name_str, "NARY_TREE")==0) {
+  if(strcmp(tree_name_str, "NARY_TREE")==0) {
     ret->tree_class = GASNETE_COLL_NARY_TREE;
   } else if(strcmp(tree_name_str, "KNOMIAL_TREE")==0) {
     ret->tree_class = GASNETE_COLL_KNOMIAL_TREE;
@@ -60,7 +58,7 @@ void gasnete_coll_print_tree(gasnete_coll_local_tree_geom_t *geom, int gasnete_c
   int i;
   
   for(i=0; i<geom->child_count; i++) {
-    fprintf(stderr, "%d> child %d: %d, subtree for that child: %d\n", gasnete_coll_tree_mynode, i, (int)geom->child_list[i], (int)geom->subtree_sizes[i]);
+    fprintf(stderr, "%d> child %d: %d, subtree for that child: %d (offset: %d)\n", gasnete_coll_tree_mynode, i, (int)geom->child_list[i], (int)geom->subtree_sizes[i], (int)geom->child_offset[i]);
   }
   if(gasnete_coll_tree_mynode == geom->root) {
     for(i=0; i<geom->total_size; i++) {
@@ -114,6 +112,7 @@ struct tree_node_t_ {
   gasnet_node_t id;
   struct tree_node_t_ *parent;
   int num_children;
+  uint8_t children_reversed;
   struct tree_node_t_ **children;
 };
 typedef struct tree_node_t_* tree_node_t;
@@ -132,7 +131,7 @@ typedef struct tree_node_t_* tree_node_t;
 #define GET_PARENT_ID(TREE_NODE) ((TREE_NODE)->parent==NULL ? -1 : (TREE_NODE)->parent->id)
 #define GET_NODE_ID(TREE_NODE) ((TREE_NODE)->id)
 #define GET_NUM_CHILDREN(TREE_NODE) ((TREE_NODE)->num_children)
-#define GET_CHILD_IDX(TREE_NODE, IDX) ((TREE_NODE)->children[i])
+#define GET_CHILD_IDX(TREE_NODE, IDX) ((TREE_NODE)->children[IDX])
 
 static tree_node_t *allocate_nodes(tree_node_t *curr_nodes, int num_nodes, int rootrank) {
   gasnet_node_t i;
@@ -148,6 +147,7 @@ static tree_node_t *allocate_nodes(tree_node_t *curr_nodes, int num_nodes, int r
       gasneti_free(curr_nodes[i]->children);
       curr_nodes[i]->children = NULL;
       curr_nodes[i]->num_children = 0;
+      curr_nodes[i]->children_reversed = 0;
     }
     curr_nodes[i]->id = (i+rootrank)%num_nodes;
     curr_nodes[i]->parent = NULL;
@@ -240,6 +240,7 @@ static tree_node_t make_knomial_tree(tree_node_t *nodes, gasnet_node_t num_nodes
                                       (MIN(num_nodes, (i*radix)) - i),
                                       radix);
     }
+    nodes[0]->children_reversed=1;
     preappend_children(nodes[0], children, num_children);
     gasneti_free(children);
   }
@@ -312,7 +313,7 @@ static tree_node_t find_node(tree_node_t tree, gasnet_node_t id) {
   so from here on out there is no worry about locking*/
 gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll_tree_type_t in_type, int rootrank, gasnete_coll_team_t team)  {
   gasnete_coll_local_tree_geom_t *geom;
-  int i;
+  int i,j;
   tree_node_t *allnodes = (tree_node_t*) team->tree_construction_scratch;
   tree_node_t rootnode,mynode;
   gasneti_assert(rootrank<team->total_ranks);
@@ -327,13 +328,11 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
       gasneti_assert(in_type->num_params ==1);
       rootnode = make_knomial_tree(allnodes, team->total_ranks, in_type->params[0]);
       break;
-    case GASNETE_COLL_BINOMIAL_TREE:
-      gasneti_assert(in_type->num_params ==0);
-      rootnode = make_knomial_tree(allnodes, team->total_ranks, 2);
-      break;
     case GASNETE_COLL_FORK_TREE:
       rootnode = make_fork_tree(allnodes, team->total_ranks, in_type->params, in_type->num_params);
       break;
+/*      case GASNET_COLL_HIERARCHICAL_TREE
+      root_node = make_hiearchical_tree(allnodes, team->total_ranks, in_type->params, in_type->num_params);*/
     default:
       break;
   }
@@ -347,23 +346,33 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
   geom->child_count = GET_NUM_CHILDREN(mynode);
   geom->mysubtree_size = treesize(mynode);
   geom->parent_subtree_size = treesize(mynode->parent);
+  geom->children_reversed = mynode->children_reversed;
   if(rootrank != team->myrank) {
-    gasnet_node_t i;
     geom->num_siblings = GET_NUM_CHILDREN(mynode->parent);
     geom->sibling_id = -1;
     geom->sibling_offset = 0;
     for(i=0; i<geom->num_siblings; i++) {
-      if(GET_NODE_ID(GET_CHILD_IDX(mynode->parent, i))==team->myrank) {
-        geom->sibling_id = i;
+      int tmp_id;
+      if(mynode->parent->children_reversed==1) {
+        tmp_id = geom->num_siblings-1-i;
+      } else {
+        tmp_id =i;
+      }
+      if(GET_NODE_ID(GET_CHILD_IDX(mynode->parent, tmp_id))==team->myrank) {
+        geom->sibling_id = tmp_id;
         break;
       } else {
-        geom->sibling_offset += treesize(GET_CHILD_IDX(mynode->parent, i));
+        geom->sibling_offset += treesize(GET_CHILD_IDX(mynode->parent, tmp_id));
       }
     }
   } else {
     geom->num_siblings = 0;
     geom->sibling_id = 0;
     geom->sibling_offset = 0;
+    /***** THIS NEEDS TO BE TAKEN OUT
+      The DFS ordering that we impose on the trees will mean that this no longer needs to be kept around
+      but it's in here for now for backward compatability sake until we make the neccessary changes to all the other collective algorithms
+      ****/
     geom->dfs_order = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*team->total_ranks);
     for(i=0; i<team->total_ranks; i++) {
       geom->dfs_order[i] = (i+rootrank)%team->total_ranks;
@@ -372,12 +381,32 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
   geom->seq_dfs_order = 1;
   geom->child_list = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*geom->child_count);
   geom->subtree_sizes = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*geom->child_count);
-
+  geom->child_offset = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*geom->child_count);
+  
+  
   for(i=0; i<geom->child_count; i++) {
     geom->child_list[i] = GET_NODE_ID(GET_CHILD_IDX(mynode,i));
+    geom->subtree_sizes[i] = treesize(GET_CHILD_IDX(mynode,i));
+ }
+  
+  if(mynode->children_reversed==1) {
+    size_t temp_offset = 0;
+    for(i=geom->child_count-1; i>=0; i--) {
+      geom->child_offset[i] = temp_offset; 
+      temp_offset+=geom->subtree_sizes[i];
+    }
+  } else {
+    size_t temp_offset = 0;
+    for(i=0; i<geom->child_count; i++) {
+      geom->child_offset[i] = temp_offset; 
+      temp_offset+=geom->subtree_sizes[i];
+    }
+    
   }
-  
-  
+  geom->rotation_points = (int*) gasneti_malloc(sizeof(int)*1);
+  geom->num_rotations = 1;
+  geom->rotation_points[0] = rootrank;
+  gasnete_coll_print_tree(geom, gasneti_mynode);
   return geom;
 }
 
@@ -401,9 +430,16 @@ static void gasnete_coll_tree_geom_release(gasnete_coll_tree_geom_t *geom) {
  */
 
 int gasnete_coll_compare_tree_types(gasnete_coll_tree_type_t a, gasnete_coll_tree_type_t b) {
-  if(a->tree_class == b->tree_class) {
-    if(a->tree_class == GASNETE_COLL_BINOMIAL_TREE)  return 1;
-    else if(a->num_params == b->num_params) {
+  
+  if(a==NULL && b==NULL) {
+    /*if they are both null then tehy are trivially equal*/
+    return 0;
+  } else if(a==NULL || b==NULL){
+    /*if one is null and the other is non-null then we have to reutnr a nonzero*/
+    return 0;
+  } else if(a->tree_class == b->tree_class) {
+    /*both tree types are non null so check the rest of the tree*/
+    if(a->num_params == b->num_params) {
       int i;
       for(i=0; i<a->num_params; i++) {
         if(a->params[i]!=b->params[i]) return 0;
@@ -412,6 +448,7 @@ int gasnete_coll_compare_tree_types(gasnete_coll_tree_type_t a, gasnete_coll_tre
     }
   } 
   return 0;
+  
 }
 static gasnete_coll_tree_geom_t *gasnete_coll_tree_geom_fetch_helper(gasnete_coll_tree_type_t in_type, gasnete_coll_tree_geom_t *geom_cache) {
   gasnete_coll_tree_geom_t *curr_geom = geom_cache;
