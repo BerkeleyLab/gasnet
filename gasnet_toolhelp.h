@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_toolhelp.h,v $
- *     $Date: 2009/03/25 00:56:29 $
- * $Revision: 1.37.2.1 $
+ *     $Date: 2009/03/25 01:24:07 $
+ * $Revision: 1.37.2.2 $
  * Description: misc declarations needed by both gasnet_tools and libgasnet
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -498,7 +498,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
     /* mismatched compilers can access TLS threadkeys defined in objects
        built by supported compiler via extern function call */
     #define GASNETI_THREADKEY_DECLARE(key)         \
-      extern void *_gasneti_threadkey_get_##key(); \
+      extern void *_gasneti_threadkey_get_##key(void); \
       extern void _gasneti_threadkey_set_##key(void *_val)
     /* bug 1947 - following only expanded when a configure-mismatched compiler is 
        DEFINING a threadkey - use pthread_getspecific in that case for safety
@@ -507,7 +507,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
       static pthread_key_t _gasneti_threadkey_##key##_value;                                   \
       static gasneti_mutex_t _gasneti_threadkey_##key##_initmutex = GASNETI_MUTEX_INITIALIZER; \
       static volatile int _gasneti_threadkey_##key##_isinit = 0;                               \
-      extern void *_gasneti_threadkey_get_##key() {                                            \
+      extern void *_gasneti_threadkey_get_##key(void) {                                        \
         if (!_gasneti_threadkey_##key##_isinit)                                                \
            _gasneti_threadkey_init(&_gasneti_threadkey_##key##_value,                          \
                                    &_gasneti_threadkey_##key##_initmutex,                      \
@@ -527,7 +527,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
       extern __thread _gasneti_threadkey_t _gasneti_threadkey_val_##key
     #define GASNETI_THREADKEY_DEFINE(key)                    \
       GASNETI_THREADKEY_DECLARE(key);                        \
-      extern void *_gasneti_threadkey_get_##key() {          \
+      extern void *_gasneti_threadkey_get_##key(void) {      \
         return gasneti_threadkey_get(key);                   \
       }                                                      \
       extern void _gasneti_threadkey_set_##key(void *_val) { \
