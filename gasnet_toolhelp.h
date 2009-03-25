@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_toolhelp.h,v $
- *     $Date: 2009/01/29 07:54:59 $
- * $Revision: 1.37 $
+ *     $Date: 2009/03/25 00:56:29 $
+ * $Revision: 1.37.2.1 $
  * Description: misc declarations needed by both gasnet_tools and libgasnet
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -119,24 +119,24 @@ GASNETI_NORETURNP(gasneti_fatalerror)
 extern void gasneti_killmyprocess(int exitcode) GASNETI_NORETURN;
 GASNETI_NORETURNP(gasneti_killmyprocess)
 
-extern void gasneti_freezeForDebuggerErr(); /* freeze iff user enabled error freezing */
+extern void gasneti_freezeForDebuggerErr(void); /* freeze iff user enabled error freezing */
 extern void gasneti_freezeForDebuggerNow(volatile int *flag, const char *flagsymname);
 extern volatile int gasnet_frozen; /* export to simplify debugger restart */ 
 extern void gasneti_backtrace_init(const char *exename);
 extern int (*gasneti_print_backtrace_ifenabled)(int fd);
 extern int gasneti_print_backtrace(int fd);
-extern void gasneti_ondemand_init();
+extern void gasneti_ondemand_init(void);
 
-extern void gasneti_flush_streams(); /* flush all open streams */
-extern void gasneti_close_streams(); /* close standard streams (for shutdown) */
+extern void gasneti_flush_streams(void); /* flush all open streams */
+extern void gasneti_close_streams(void); /* close standard streams (for shutdown) */
 
-extern int gasneti_cpu_count();
+extern int gasneti_cpu_count(void);
 
 extern void gasneti_set_affinity(int rank);
 
-const char *gasneti_gethostname(); /* returns the current host name - dies with an error on failure */
+const char *gasneti_gethostname(void); /* returns the current host name - dies with an error on failure */
 
-extern int gasneti_isLittleEndian();
+extern int gasneti_isLittleEndian(void);
 
 typedef void (*gasneti_sighandlerfn_t)(int);
 gasneti_sighandlerfn_t gasneti_reghandler(int sigtocatch, gasneti_sighandlerfn_t fp);
@@ -608,7 +608,7 @@ extern char *gasneti_getenv_withdefault(const char *keyname, const char *default
 extern int gasneti_getenv_yesno_withdefault(const char *keyname, int defaultval);
 extern int64_t gasneti_getenv_int_withdefault(const char *keyname, int64_t defaultval, uint64_t mem_size_multiplier);
 extern double gasneti_getenv_dbl_withdefault(const char *keyname, double defaultval);
-extern int gasneti_verboseenv();
+extern int gasneti_verboseenv(void);
 extern void gasneti_envint_display(const char *key, int64_t val, int is_dflt, int is_mem_size);
 extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt);
 extern void gasneti_envdbl_display(const char *key, double val, int is_dflt);
@@ -624,7 +624,7 @@ extern gasneti_getenv_fn_t *gasneti_conduit_getenv;
 /* Attempt to maximize allowable cpu and memory resource limits for this
  * process, silently ignoring any errors
  * return non-zero on success */
-int gasnett_maximize_rlimits();
+int gasnett_maximize_rlimits(void);
 /* maximize a particular rlimit, and return non-zero on success.
    For portability, this should be called within an ifdef to ensure 
    the specified RLIMIT_ constant exists

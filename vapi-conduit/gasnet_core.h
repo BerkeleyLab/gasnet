@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2007/04/16 18:35:10 $
- * $Revision: 1.54 $
+ *     $Date: 2009/03/25 00:57:01 $
+ * $Revision: 1.54.22.1 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -40,8 +40,8 @@ GASNETI_NORETURNP(gasnetc_exit)
 */
 /* conduit may or may not need this based on whether interrupts are used for running handlers */
 #if GASNETC_USE_INTERRUPTS
-  extern void gasnetc_hold_interrupts();
-  extern void gasnetc_resume_interrupts();
+  extern void gasnetc_hold_interrupts(void);
+  extern void gasnetc_resume_interrupts(void);
 
   #define gasnet_hold_interrupts    gasnetc_hold_interrupts
   #define gasnet_resume_interrupts  gasnetc_resume_interrupts
@@ -204,7 +204,7 @@ void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context) {
   ==============================
 */
 extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex);
-extern int gasnetc_AMPoll();
+extern int gasnetc_AMPoll(void);
 
 #define gasnet_AMGetMsgSource  gasnetc_AMGetMsgSource
 

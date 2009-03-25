@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.h,v $
- *     $Date: 2006/04/18 04:37:24 $
- * $Revision: 1.20 $
+ *     $Date: 2009/03/25 00:56:55 $
+ * $Revision: 1.20.48.1 $
  * Description: GASNet header for smp conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -40,8 +40,8 @@ GASNETI_NORETURNP(gasnetc_exit)
 */
 /* conduit may or may not need this based on whether interrupts are used for running handlers */
 #if GASNETC_USE_INTERRUPTS
-  extern void gasnetc_hold_interrupts();
-  extern void gasnetc_resume_interrupts();
+  extern void gasnetc_hold_interrupts(void);
+  extern void gasnetc_resume_interrupts(void);
 
   #define gasnet_hold_interrupts    gasnetc_hold_interrupts
   #define gasnet_resume_interrupts  gasnetc_resume_interrupts

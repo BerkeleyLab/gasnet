@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2008/12/26 05:30:52 $
- * $Revision: 1.101 $
+ *     $Date: 2009/03/25 00:56:29 $
+ * $Revision: 1.101.2.1 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -195,8 +195,8 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 #endif
 
 #if GASNET_DEBUG
-  extern void gasneti_checkinit();
-  extern void gasneti_checkattach();
+  extern void gasneti_checkinit(void);
+  extern void gasneti_checkattach(void);
   #define GASNETI_CHECKINIT()    gasneti_checkinit()
   #define GASNETI_CHECKATTACH()  gasneti_checkattach()
 #else
@@ -381,7 +381,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
  *  additionally, progressfns that make gasnet calls must be prepared to recieve 
  *  reentrant calls (ie without infinite recursion or deadlock)
  */
-typedef void (*gasneti_progressfn_t)();
+typedef void (*gasneti_progressfn_t)(void);
 
 /* currently the list of progressfns is compile-time constant for dispatch performance 
  * reasons (a static dispatch is about 3x faster than a dynamic one on modern CPUs)
@@ -396,7 +396,7 @@ typedef void (*gasneti_progressfn_t)();
 #endif
 
 #ifndef GASNETE_PROGRESSFNS_LIST
-  extern void (*gasnete_barrier_pf)();
+  extern gasneti_progressfn_t gasnete_barrier_pf;
   #define GASNETE_BARRIER_PROGRESSFN(FN) \
     FN(gasneti_pf_barrier, BOOLEAN, gasnete_barrier_pf) 
 
@@ -411,8 +411,8 @@ typedef void (*gasneti_progressfn_t)();
 #endif
 
 #if GASNET_DEBUG
-  extern void (*gasneti_debug_progressfn_bool)();
-  extern void (*gasneti_debug_progressfn_counted)();
+  extern gasneti_progressfn_t gasneti_debug_progressfn_bool;
+  extern gasneti_progressfn_t gasneti_debug_progressfn_counted;
   #define GASNETI_DEBUG_PROGRESSFNS(FN) \
       FN(gasneti_pf_debug_boolean, BOOLEAN, gasneti_debug_progressfn_bool) \
       FN(gasneti_pf_debug_counted, COUNTED, gasneti_debug_progressfn_counted) 
@@ -486,7 +486,7 @@ typedef void (*gasneti_progressfn_t)();
    gasnetc_AMPoll() - conduit AM dispatcher, should only be called from gasneti_AMPoll()
    */
   #ifndef GASNETI_GASNETC_AMPOLL
-    extern int gasnetc_AMPoll();
+    extern int gasnetc_AMPoll(void);
   #endif
 
   #if GASNETI_THROTTLE_FEATURE_ENABLED && (GASNET_PAR || GASNETI_CONDUIT_THREADS)
@@ -526,7 +526,7 @@ typedef void (*gasneti_progressfn_t)();
 
   #if !GASNETI_THROTTLE_POLLERS 
     GASNETI_INLINE(gasneti_AMPoll)
-    int gasneti_AMPoll() {
+    int gasneti_AMPoll(void) {
        int retval;
        gasneti_AMPoll_spinpollers_check();
        gasneti_memcheck_one();
@@ -639,7 +639,7 @@ extern int gasneti_wait_mode; /* current waitmode hint */
 #define _GASNET_AMPOLL
   /* GASNet client calls gasnet_AMPoll(), which throttles and traces */
   GASNETI_INLINE(gasnet_AMPoll)
-  int gasnet_AMPoll() {
+  int gasnet_AMPoll(void) {
     GASNETI_TRACE_EVENT(I, AMPOLL);
     return gasneti_AMPoll();
   }

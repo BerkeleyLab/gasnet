@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.h,v $
- *     $Date: 2008/12/26 05:30:58 $
- * $Revision: 1.42 $
+ *     $Date: 2009/03/25 00:56:35 $
+ * $Revision: 1.42.2.1 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -32,13 +32,13 @@ GASNETI_BEGIN_EXTERNC
    all handlers will have an index in range 100-199 
    may be called before gasnete_init()
 */
-extern gasnet_handlerentry_t const *gasnete_get_handlertable();
+extern gasnet_handlerentry_t const *gasnete_get_handlertable(void);
 
 /* Initialize the Extended API:
    must be called by the core API at the end of gasnet_attach() before calls to extended API
      (this function may make calls to the core functions)
 */
-extern void gasnete_init();
+extern void gasnete_init(void);
 
 /* ------------------------------------------------------------------------------------ */
 /* helper macros */
@@ -794,7 +794,7 @@ gasnet_register_value_t _gasnet_get_val (gasnet_node_t node, void *src, size_t n
 extern void (*gasnete_barrier_notify)(int id, int flags);
 extern int (*gasnete_barrier_wait)(int id, int flags);
 extern int (*gasnete_barrier_try)(int id, int flags);
-extern void gasnete_barrier_init();
+extern void gasnete_barrier_init(void);
 
 #if GASNETI_STATS_OR_TRACE
 extern gasneti_tick_t gasnete_barrier_notifytime;

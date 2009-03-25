@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2008/12/21 00:29:49 $
- * $Revision: 1.91 $
+ *     $Date: 2009/03/25 00:56:29 $
+ * $Revision: 1.91.2.1 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -362,7 +362,7 @@
 #define _GASNETI_IDENT(identName, identText)                         \
   extern char volatile identName[];                                  \
   char volatile identName[] = identText;                             \
-  extern char *_##identName##_identfn() { return (char*)identName; } \
+  extern char *_##identName##_identfn(void) { return (char*)identName; } \
   static int _dummy_##identName = sizeof(_dummy_##identName)
 #if PLATFORM_COMPILER_CRAY
   #if PLATFORM_COMPILER_VERSION_LT(6,0,0)

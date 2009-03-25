@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/11/26 03:10:55 $
- * $Revision: 1.42 $
+ *     $Date: 2009/03/25 00:56:33 $
+ * $Revision: 1.42.28.1 $
  * Description: GASNet elan conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -426,7 +426,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
                          void *source_addr, int nbytes, void *dest_ptr, 
                          int numargs, va_list argptr);
 
-extern void gasnetc_initbufs();
+extern void gasnetc_initbufs(void);
 
 #if GASNETI_CLIENT_THREADS
   #define gasnetc_mythread() ((void**)(gasnete_mythread()))
@@ -436,12 +436,12 @@ extern void gasnetc_initbufs();
 #endif
 
 /* status dumping functions */
-extern void gasnetc_dump_base();
-extern void gasnetc_dump_state();
-extern void gasnetc_dump_group();
-extern void gasnetc_dump_envvars();
-extern void gasnetc_dump_tportstats();
-extern void gasnetc_dump_groupstats();
+extern void gasnetc_dump_base(void);
+extern void gasnetc_dump_state(void);
+extern void gasnetc_dump_group(void);
+extern void gasnetc_dump_envvars(void);
+extern void gasnetc_dump_tportstats(void);
+extern void gasnetc_dump_groupstats(void);
 /* ------------------------------------------------------------------------------------ */
 /* Elan conduit locks:
     elan lock - protects all elan calls and tport rx fifo

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2008/10/11 07:45:27 $
- * $Revision: 1.59 $
+ *     $Date: 2009/03/25 00:56:29 $
+ * $Revision: 1.59.6.1 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -382,11 +382,11 @@ extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ATOMIC64_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CORE_,GASNET_CORE_NAME));
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME));
 
-static int *gasneti_linkconfig_idiotcheck();
+static int *gasneti_linkconfig_idiotcheck(void);
 /* use of void* here avoids a tinyc bug */
 static void *_gasneti_linkconfig_idiotcheck = (void *)&gasneti_linkconfig_idiotcheck;
 GASNETI_USED
-static int *gasneti_linkconfig_idiotcheck() {
+static int *gasneti_linkconfig_idiotcheck(void) {
   static int val;
   val +=  GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_THREAD_MODEL)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_SEGMENT_CONFIG)
@@ -405,7 +405,7 @@ static int *gasneti_linkconfig_idiotcheck() {
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME))
         ;
   if (_gasneti_linkconfig_idiotcheck != (void*)&gasneti_linkconfig_idiotcheck)
-    val += ((int(*)())_gasneti_linkconfig_idiotcheck)();
+    val += ((int(*)(void))_gasneti_linkconfig_idiotcheck)();
   return &val;
 }
 extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentries,

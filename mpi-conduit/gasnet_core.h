@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.h,v $
- *     $Date: 2006/04/18 04:37:18 $
- * $Revision: 1.24 $
+ *     $Date: 2009/03/25 00:56:41 $
+ * $Revision: 1.24.48.1 $
  * Description: GASNet header for MPI conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -46,8 +46,8 @@ GASNETI_NORETURNP(gasnetc_exit)
 */
 /* conduit may or may not need this based on whether interrupts are used for running handlers */
 #if GASNETC_USE_INTERRUPTS || GASNETC_HSL_ERRCHECK
-  extern void gasnetc_hold_interrupts();
-  extern void gasnetc_resume_interrupts();
+  extern void gasnetc_hold_interrupts(void);
+  extern void gasnetc_resume_interrupts(void);
 
   #define gasnet_hold_interrupts    gasnetc_hold_interrupts
   #define gasnet_resume_interrupts  gasnetc_resume_interrupts
@@ -162,7 +162,7 @@ typedef struct _gasnet_hsl_t {
   ==============================
 */
 extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex);
-extern int gasnetc_AMPoll();
+extern int gasnetc_AMPoll(void);
 
 #define gasnet_AMGetMsgSource  gasnetc_AMGetMsgSource
 

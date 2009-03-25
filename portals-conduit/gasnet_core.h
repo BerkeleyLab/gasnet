@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2008/10/10 07:54:11 $
- * $Revision: 1.5 $
+ *     $Date: 2009/03/25 00:56:49 $
+ * $Revision: 1.5.6.1 $
  * Description: GASNet header for PORTALS conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -40,8 +40,8 @@ GASNETI_NORETURNP(gasnetc_exit)
 */
 /* conduit may or may not need this based on whether interrupts are used for running handlers */
 #if GASNETC_USE_INTERRUPTS
-  extern void gasnetc_hold_interrupts();
-  extern void gasnetc_resume_interrupts();
+  extern void gasnetc_hold_interrupts(void);
+  extern void gasnetc_resume_interrupts(void);
 
   #define gasnet_hold_interrupts    gasnetc_hold_interrupts
   #define gasnet_resume_interrupts  gasnetc_resume_interrupts
@@ -141,7 +141,7 @@ extern size_t gasnetc_AMMaxLong;
   ==============================
 */
 extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex);
-extern int gasnetc_AMPoll();
+extern int gasnetc_AMPoll(void);
 
 #define gasnet_AMGetMsgSource  gasnetc_AMGetMsgSource
 
@@ -150,7 +150,7 @@ extern int gasnetc_AMPoll();
 /* ------------------------------------------------------------------------------------ */
 /* MLW: extension for testing */
 extern int gasnet_send_credits(gasnet_node_t node);
-extern int gasnet_banked_credits();
+extern int gasnet_banked_credits(void);
 extern int gasnet_credit_stalls(gasnet_node_t node);
 extern int gasnet_revoked_credits(gasnet_node_t node);
 
