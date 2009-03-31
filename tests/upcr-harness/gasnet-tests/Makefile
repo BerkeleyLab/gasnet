@@ -1,15 +1,16 @@
 CONDUIT_DIR=$(TOP_BUILDDIR)/gasnet/$(NETWORK)-conduit
+STRICT_PROTO_FLAGS=`echo $$BUPC_STRICT_PROTO_FLAGS | sed -e 's/-Wc,//'`
 
 test%-seq: force
-	@$(MAKE) -C $(CONDUIT_DIR) $@
+	@$(MAKE) -C $(CONDUIT_DIR) $@ MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)"
 	cp -f $(CONDUIT_DIR)/`basename $@ -seq`$(EXESUFFIX) $@$(EXESUFFIX)
 
 test%-par: force
-	@$(MAKE) -C $(CONDUIT_DIR) $@
+	@$(MAKE) -C $(CONDUIT_DIR) $@ MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)"
 	cp -f $(CONDUIT_DIR)/`basename $@ -par`$(EXESUFFIX) $@$(EXESUFFIX)
 
 test%-parsync: force
-	@$(MAKE) -C $(CONDUIT_DIR) $@
+	@$(MAKE) -C $(CONDUIT_DIR) $@ MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)"
 	cp -f $(CONDUIT_DIR)/`basename $@ -parsync`$(EXESUFFIX) $@$(EXESUFFIX)
 
 testconduitspecific: force
@@ -25,7 +26,7 @@ testconduitspecific: force
            conduit_test=testam ;		\
            conduit_mode=parsync ;		\
          fi ;					\
-         $(MAKE) -C $(CONDUIT_DIR) $$conduit_test-$$conduit_mode && \
+         $(MAKE) -C $(CONDUIT_DIR) $$conduit_test-$$conduit_mode MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)" && \
 	 cp -f $(CONDUIT_DIR)/$$conduit_test$(EXESUFFIX) $@$(EXESUFFIX)
 
 parsync: force
