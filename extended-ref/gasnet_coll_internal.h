@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/03/19 23:49:46 $
- * $Revision: 1.53.14.6 $
+ *     $Date: 2009/04/02 00:27:12 $
+ * $Revision: 1.53.14.7 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -519,6 +519,7 @@ void gasnete_coll_scale_ptrM(void * out_ptr[], void * const in_ptr[], size_t ele
 GASNETI_INLINE(gasnete_coll_local_rotate_left)
 void gasnete_coll_local_rotate_left(void *dst, const void *src, size_t elem_size, size_t num_elem, int rotation_amt) {
   gasneti_sync_reads();
+  gasneti_assert(rotation_amt >= 0);
   GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dst, gasnete_coll_scale_ptr(src, elem_size, rotation_amt), (num_elem-rotation_amt)*elem_size);
   GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(gasnete_coll_scale_ptr(dst, elem_size, num_elem-rotation_amt), src, (rotation_amt)*elem_size);
   gasneti_sync_writes();
@@ -527,6 +528,7 @@ GASNETI_INLINE(gasnete_coll_local_rotate_right)
 void gasnete_coll_local_rotate_right(void *dst, const void *src, size_t elem_size, size_t num_elem, int rotation_amt) {
   /*make sure we can read the data*/
   gasneti_sync_reads();
+  gasneti_assert(rotation_amt >= 0);
   GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(gasnete_coll_scale_ptr(dst, elem_size, rotation_amt), src,(num_elem-rotation_amt)*elem_size);
   GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dst, gasnete_coll_scale_ptr(src, elem_size, num_elem-rotation_amt), (rotation_amt)*elem_size);
   gasneti_sync_writes();

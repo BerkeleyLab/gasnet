@@ -19,20 +19,110 @@ void gasnete_coll_free_tree_type(gasnete_coll_tree_type_t in){
   }
 }
 
-gasnete_coll_tree_type_t gasnete_coll_make_tree_type_str(char *tree_name_str, gasnet_node_t *params, int num_params) {
-  gasnete_coll_tree_type_t ret = gasnete_coll_get_tree_type();
-  if(strcmp(tree_name_str, "NARY_TREE")==0) {
-    ret->tree_class = GASNETE_COLL_NARY_TREE;
-  } else if(strcmp(tree_name_str, "KNOMIAL_TREE")==0) {
-    ret->tree_class = GASNETE_COLL_KNOMIAL_TREE;
-  } else if(strcmp(tree_name_str, "FORK_TREE")==0) {
-    ret->tree_class = GASNETE_COLL_FORK_TREE;
-  } else {
-    gasneti_fatalerror("Unknown Tree Type: %s\n", tree_name_str);
+
+static int split_string(char ***split_strs, char *str, char *delim) {
+  char *temp=NULL,*copy;
+  int ret=0;
+  size_t malloc_len = 8;
+  int j=0;
+  static gasneti_mutex_t lock= GASNETI_MUTEX_INITIALIZER;
+
+  copy = gasneti_malloc(sizeof(char)*(strlen(str)+1));
+  
+  /*since the strtok function is desructive we have to
+    create a copy of the string first to preserve the orignal*/
+  GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(copy, str, sizeof(char)*(strlen(str)+1));
+  gasneti_mutex_lock(&lock);
+  *split_strs = (char **) gasneti_malloc(sizeof(char*) * malloc_len);
+  temp = strtok(copy, delim);
+  while(temp != NULL) {
+    if(ret == malloc_len) {
+      /*we've run out of space so grow the array by another factor*/
+      malloc_len +=malloc_len;
+      *split_strs = (char**) gasneti_realloc(*split_strs, sizeof(char*) * malloc_len);
+      gasneti_fatalerror("more than 8 params not yet supported");
+
+    }
+    (*split_strs)[ret] = temp;
+    
+    ret++;
+    temp=strtok(NULL, delim);
   }
-  ret->params = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*num_params);
-  GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(ret->params, params, num_params*sizeof(gasnet_node_t));
-  ret->num_params = num_params;
+  *split_strs = (char**) gasneti_realloc(*split_strs, sizeof(char*) * ret);
+  gasneti_mutex_unlock(&lock);
+
+  return ret;
+}
+
+
+static gasnete_coll_tree_type_t make_tree_type_str_helper(char *tree_name) {
+  gasnete_coll_tree_type_t ret = gasnete_coll_get_tree_type();
+
+  char **inner_split;
+  int num_splits;
+  int i;
+  char inner_delim[]=",";
+  num_splits = split_string(&inner_split, tree_name,inner_delim);
+  if(strcmp(inner_split[0], "NARY_TREE")==0) {
+    ret->tree_class = GASNETE_COLL_NARY_TREE;
+  } else if(strcmp(inner_split[0], "KNOMIAL_TREE")==0) {
+    ret->tree_class = GASNETE_COLL_KNOMIAL_TREE;
+  } else if(strcmp(inner_split[0], "RECURSIVE_TREE")==0) {
+    ret->tree_class = GASNETE_COLL_RECURSIVE_TREE;
+  }  else if(strcmp(inner_split[0], "FORK_TREE")==0) {
+    ret->tree_class = GASNETE_COLL_FORK_TREE;
+  }else if(strcmp(inner_split[0], "FLAT_TREE")==0) {
+    ret->tree_class = GASNETE_COLL_FLAT_TREE;
+  } else {
+    gasneti_fatalerror("Unknown Tree Type: %s\n", tree_name);
+  }
+  ret->params = gasneti_malloc(sizeof(int)*num_splits-1);
+  ret->num_params = num_splits-1;
+  for(i=0; i<ret->num_params; i++) {
+    ret->params[i] = atoi(inner_split[i+1]);
+  }
+  gasneti_free(inner_split);
+  return ret;
+}
+gasnete_coll_tree_type_t gasnete_coll_make_tree_type_str(char *tree_name_str) {
+ 
+  char outter_delim[]=":";
+  char inner_delim[]=",";
+  char **outer_split;
+  gasnete_coll_tree_type_t ret;
+  /*first split the tree string on the ":"*/
+  int num_levels = split_string(&outer_split, tree_name_str, outter_delim);
+  if(num_levels > 1) {
+    char **inner_split;
+    int num_splits, num_params;
+    int i;
+     gasnete_coll_tree_type_t temp;
+    ret = gasnete_coll_get_tree_type();
+    
+    num_splits = split_string(&inner_split, outer_split[0],inner_delim);
+    num_params = num_splits-1;/*first split is the tree name*/
+    gasneti_assert(strcmp(inner_split[0], "HIERARCHICAL_TREE")==0);
+    ret->tree_class = GASNETE_COLL_HIERARCHICAL_TREE;
+    if(num_params != num_levels-1){
+      gasneti_fatalerror("badly formed hierarchical tree expect HIEARCHICAL_TREE,<numlevels>,<in level1>,<in level2>,..,<in level n-1>:TREE1,PARAMS1:TREE2,PARAMS2:(etc)\n");
+    }
+    /*NOT DONE*/
+    ret->params = gasneti_malloc(sizeof(int)*(num_params));
+    ret->num_params = num_params;
+    for(i=0; i<num_params; i++) {
+      ret->params[i] = atoi(inner_split[i+1]);
+    }
+
+    temp = ret;
+    for(i=1; i<num_levels; i++) {
+      temp->subtree = make_tree_type_str_helper(outer_split[i]);
+      temp = temp->subtree;
+    }
+  } else {
+    ret = make_tree_type_str_helper(tree_name_str);
+  }
+
+  gasneti_free(outer_split);
   return ret;
 }
 
@@ -46,8 +136,8 @@ gasnete_coll_tree_type_t gasnete_coll_make_tree_type(int tree_class,  gasnet_nod
   }
 #endif  
   ret->tree_class = (int) tree_class;
-  ret->params = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*num_params);
-  GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(ret->params, params, num_params*sizeof(gasnet_node_t));
+  ret->params = (int*) gasneti_malloc(sizeof(int)*num_params);
+  GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(ret->params, params, num_params*sizeof(int));
   ret->num_params = num_params;
   
   return ret;
@@ -185,13 +275,10 @@ static tree_node_t make_chain_tree(tree_node_t *nodes, int num_nodes) {
   return nodes[0];
 }
 
-static tree_node_t make_flat_tree(tree_node_t *nodes, int num_nodes) {
-  /*attach all the nodes to one nodes[0]*/
-  return preappend_children(nodes[0], nodes+1, num_nodes-1);
-}
 
-static gasnet_node_t multarr(gasnet_node_t *arr, int nelem){ 
-  gasnet_node_t ret=1; int i;
+
+static gasnet_node_t multarr(int *arr, int nelem){ 
+  int ret=1; int i;
   for(i=0; i<nelem; i++) {
     ret*=arr[i];
   }
@@ -200,8 +287,8 @@ static gasnet_node_t multarr(gasnet_node_t *arr, int nelem){
 
 
 /*need to worry about corner cases*/
-static tree_node_t make_fork_tree(tree_node_t *nodes, gasnet_node_t num_nodes, 
-                           gasnet_node_t *dims, int ndims) {
+static tree_node_t make_fork_tree(tree_node_t *nodes, int num_nodes, 
+                           int *dims, int ndims) {
   int i;
   int stride;
   tree_node_t *temp_nodes;
@@ -223,7 +310,46 @@ static tree_node_t make_fork_tree(tree_node_t *nodes, gasnet_node_t num_nodes,
   return nodes[0];
 }
 
-static tree_node_t make_knomial_tree(tree_node_t *nodes, gasnet_node_t num_nodes, int radix) {
+static tree_node_t make_knomial_tree(tree_node_t *nodes, int num_nodes, int radix) {
+  int i,j;
+  int num_children=0;
+  
+  gasneti_assert(radix>1);
+  if(num_nodes > 1) {
+    int r;
+    int stride = 1;
+    int num_proc = 1;
+    tree_node_t *children;
+    while(num_proc < num_nodes) {
+      for(r=stride; r<stride*radix; r+=stride) {
+        num_proc += MIN(stride, num_nodes - num_proc);
+        num_children++;
+        if(num_proc == num_nodes) break;
+      }
+      stride*=radix;
+    }
+    children = (tree_node_t*) gasneti_malloc(num_children*sizeof(tree_node_t));
+    
+    num_proc = 1; i=1; stride = 1;
+    
+    while(num_proc<num_nodes) {
+      for(r=stride; r<stride*radix; r+=stride) {
+        gasneti_assert(i<=num_children);
+        children[num_children-i] = make_knomial_tree(nodes+r,MIN(stride, num_nodes - num_proc), radix);
+        num_proc += MIN(stride, num_nodes - num_proc);
+        if(num_proc == num_nodes) break;
+        i++;
+      }
+      stride*=radix;
+    }
+    nodes[0]->children_reversed=1;
+    preappend_children(nodes[0], children, num_children);
+    gasneti_free(children);
+  }
+  return nodes[0];
+}
+
+static tree_node_t make_recursive_tree(tree_node_t *nodes, gasnet_node_t num_nodes, int radix) {
   gasnet_node_t i,j;
   int num_children=0;
 
@@ -236,7 +362,7 @@ static tree_node_t make_knomial_tree(tree_node_t *nodes, gasnet_node_t num_nodes
     children = (tree_node_t*) gasneti_malloc(num_children*sizeof(tree_node_t));
     /*reverse the order of hte children as specified by the binomial tree construction*/
     for(i=1,j=num_children-1; i<num_nodes; i*=radix,j--) {
-      children[j] = make_knomial_tree(nodes+i,
+      children[j] = make_recursive_tree(nodes+i,
                                       (MIN(num_nodes, (i*radix)) - i),
                                       radix);
     }
@@ -249,28 +375,116 @@ static tree_node_t make_knomial_tree(tree_node_t *nodes, gasnet_node_t num_nodes
 }
 
 static tree_node_t make_nary_tree(tree_node_t *nodes, gasnet_node_t num_nodes, int radix) {
-  gasnet_node_t num_children=0,j;
-  
-  
+  gasnet_node_t num_children=0;
+  int i,j;
+
   if(num_nodes > 1) {
     tree_node_t *children;
-    children = (tree_node_t*) gasneti_malloc(radix*sizeof(tree_node_t));
     for(j=0; j<radix; j++){
       int start,end;
       start = (j==0 ? 1 : MIN(num_nodes, j*(MYCEIL(num_nodes, radix))));
       end = MIN(num_nodes, (j+1)*MYCEIL(num_nodes, radix)); 
       if(start == end) continue;
-      children[num_children] = make_nary_tree(nodes+start,
-                                              end-start,
-                                              radix);
       num_children++;
     }
-    preappend_children(nodes[0], children, num_children);
-    gasneti_free(children);
+    if(num_children > 0) {
+      children = (tree_node_t*) gasneti_malloc(num_children*sizeof(tree_node_t));
+
+      for(j=0, i=num_children-1; j<radix; j++) {
+        int start,end;
+        start = (j==0 ? 1 : MIN(num_nodes, j*(MYCEIL(num_nodes, radix))));
+        end = MIN(num_nodes, (j+1)*MYCEIL(num_nodes, radix)); 
+        if(start == end) continue;        
+        children[i] = make_nary_tree(nodes+start, end-start, radix);
+        i--;
+      }
+    
+      nodes[0]->children_reversed=1;
+      preappend_children(nodes[0], children, num_children);
+      gasneti_free(children);
+    }
   } 
   return nodes[0];
 }
 
+static tree_node_t make_flat_tree(tree_node_t *nodes, int num_nodes) {
+  /*attach all the nodes to one nodes[0]*/
+  return make_nary_tree(nodes, num_nodes, num_nodes);
+}
+
+static tree_node_t make_hiearchical_tree_helper(gasnete_coll_tree_type_t tree_type, int level, int final_level, tree_node_t *allnodes, int num_nodes, int *node_counts) {
+  tree_node_t rootnode;
+  tree_node_t *temp;
+  gasneti_assert(tree_type !=NULL);
+  if(level == final_level) {
+    switch (tree_type->tree_class) {
+      case GASNETE_COLL_NARY_TREE:
+        rootnode = make_nary_tree(allnodes, num_nodes, tree_type->params[0]);
+        break;
+      case GASNETE_COLL_FLAT_TREE:
+        rootnode = make_flat_tree(allnodes, num_nodes);
+        break;
+      case GASNETE_COLL_KNOMIAL_TREE:
+        rootnode = make_knomial_tree(allnodes, num_nodes, tree_type->params[0]);
+        break;
+      case GASNETE_COLL_RECURSIVE_TREE:
+        rootnode = make_recursive_tree(allnodes, num_nodes, tree_type->params[0]);
+        break;
+      case GASNETE_COLL_FORK_TREE:
+        rootnode = make_fork_tree(allnodes, num_nodes, tree_type->params, tree_type->num_params);
+        break;
+      default:
+        gasneti_fatalerror("unknown tree type");
+    }
+  
+  } else {
+    int i,j=0,num_processed=0;
+    int level_nodes = MYCEIL(num_nodes, node_counts[0]);
+    temp = gasneti_malloc(sizeof(tree_node_t) * level_nodes);
+    for(i=0; i<level_nodes-1; i++) {
+      temp[j]=make_hiearchical_tree_helper(tree_type->subtree, level+1, final_level, allnodes+i*node_counts[0], node_counts[0], node_counts+1);  
+      j++;
+      num_processed += node_counts[0];
+    }
+    temp[j]=make_hiearchical_tree_helper(tree_type->subtree, level+1, final_level, allnodes+i*node_counts[0], num_nodes - num_processed, node_counts+1); 
+    j++;
+    switch (tree_type->tree_class) {
+      case GASNETE_COLL_NARY_TREE:
+        rootnode = make_nary_tree(temp, j, tree_type->params[0]);
+        break;
+      case GASNETE_COLL_FLAT_TREE:
+        rootnode = make_flat_tree(temp,j);
+        break;
+      case GASNETE_COLL_KNOMIAL_TREE:
+        rootnode = make_knomial_tree(temp, j, tree_type->params[0]);
+        break;
+      case GASNETE_COLL_RECURSIVE_TREE:
+        rootnode = make_recursive_tree(temp, j, tree_type->params[0]);
+        break;
+      case GASNETE_COLL_FORK_TREE:
+        rootnode = make_fork_tree(temp, j, tree_type->params, tree_type->num_params);
+        break;
+      default:
+        gasneti_fatalerror("unknown tree type");
+    }
+    gasneti_free(temp);
+  }
+  return rootnode;
+}
+
+static tree_node_t make_hiearchical_tree(gasnete_coll_tree_type_t tree_type, tree_node_t *allnodes, int num_nodes) {
+  /*first param tells us how many tree levels there are going to be*/
+  /*the second contains the number at teh lowest level grouping*/
+  /*each tree level contains a triple (tree shape, <tree args>*/
+  /*so a 64 node run with 8 flat trees grouped into a binomial tree w/ 8 ndoes would have
+    2, 8*/
+  int num_levels = tree_type->params[0];
+  int curr_idx = 2;
+  int i;
+  gasneti_assert(tree_type->num_params >= 2);
+  return make_hiearchical_tree_helper(tree_type->subtree, 0, num_levels-1, allnodes, num_nodes, tree_type->params+1);
+}
+       
 static tree_node_t setparentshelper(tree_node_t main_node, tree_node_t parent) {
   gasnet_node_t i;
   main_node->parent = parent;
@@ -317,28 +531,64 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
   tree_node_t *allnodes = (tree_node_t*) team->tree_construction_scratch;
   tree_node_t rootnode,mynode;
   gasneti_assert(rootrank<team->total_ranks);
-  allnodes = team->tree_construction_scratch = allocate_nodes(allnodes, team->total_ranks, rootrank);
+
+  geom = (gasnete_coll_local_tree_geom_t*)gasneti_malloc(sizeof(gasnete_coll_local_tree_geom_t));
+
   
   switch (in_type->tree_class) {
     case GASNETE_COLL_NARY_TREE:
       gasneti_assert(in_type->num_params ==1);
+      allnodes = team->tree_construction_scratch = allocate_nodes(allnodes, team->total_ranks, rootrank);
       rootnode = make_nary_tree(allnodes, team->total_ranks, in_type->params[0]);
+       geom->rotation_points = (int*) gasneti_malloc(sizeof(int)*1);
+       geom->num_rotations = 1;
+       geom->rotation_points[0] = rootrank;
+      break;
+    case GASNETE_COLL_FLAT_TREE:
+      allnodes = team->tree_construction_scratch = allocate_nodes(allnodes, team->total_ranks, rootrank);
+      rootnode = make_flat_tree(allnodes, team->total_ranks);
+       geom->rotation_points = (int*) gasneti_malloc(sizeof(int)*1);
+       geom->num_rotations = 1;
+       geom->rotation_points[0] = rootrank;
       break;
     case GASNETE_COLL_KNOMIAL_TREE:
       gasneti_assert(in_type->num_params ==1);
+       allnodes = team->tree_construction_scratch = allocate_nodes(allnodes, team->total_ranks, rootrank);
       rootnode = make_knomial_tree(allnodes, team->total_ranks, in_type->params[0]);
+       geom->rotation_points = (int*) gasneti_malloc(sizeof(int)*1);
+       geom->num_rotations = 1;
+       geom->rotation_points[0] = rootrank;
+      break;
+    case GASNETE_COLL_RECURSIVE_TREE:
+      gasneti_assert(in_type->num_params ==1);
+      allnodes = team->tree_construction_scratch = allocate_nodes(allnodes, team->total_ranks, rootrank);
+      rootnode = make_recursive_tree(allnodes, team->total_ranks, in_type->params[0]);
+      geom->rotation_points = (int*) gasneti_malloc(sizeof(int)*1);
+      geom->num_rotations = 1;
+      geom->rotation_points[0] = rootrank;
       break;
     case GASNETE_COLL_FORK_TREE:
+      allnodes = team->tree_construction_scratch = allocate_nodes(allnodes, team->total_ranks, rootrank);
       rootnode = make_fork_tree(allnodes, team->total_ranks, in_type->params, in_type->num_params);
+       geom->rotation_points = (int*) gasneti_malloc(sizeof(int)*1);
+       geom->num_rotations = 1;
+       geom->rotation_points[0] = rootrank;
       break;
-/*      case GASNET_COLL_HIERARCHICAL_TREE
-      root_node = make_hiearchical_tree(allnodes, team->total_ranks, in_type->params, in_type->num_params);*/
+    case GASNETE_COLL_HIERARCHICAL_TREE:
+#if 0
+      allnodes = team->tree_construction_scratch = allocate_nodes(allnodes, team->total_ranks, 0);
+      rootnode = make_hiearchical_tree(in_type, allnodes, team->total_ranks);
+       /* XXX ADD CODE TO GET ROTATION POINTS*/
+      break;
+#else
+       gasneti_fatalerror("HIERARCHICAL_TREE not yet fully supported");
+#endif
     default:
+       gasneti_fatalerror("unknown tree type");
       break;
   }
   rootnode = setparents(rootnode);
   mynode = find_node(rootnode, team->myrank);
-  geom = (gasnete_coll_local_tree_geom_t*)gasneti_malloc(sizeof(gasnete_coll_local_tree_geom_t));
   geom->root = rootrank;
   geom->tree_type = in_type;
   geom->total_size = team->total_ranks;
@@ -403,9 +653,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
     }
     
   }
-  geom->rotation_points = (int*) gasneti_malloc(sizeof(int)*1);
-  geom->num_rotations = 1;
-  geom->rotation_points[0] = rootrank;
+
   gasnete_coll_print_tree(geom, gasneti_mynode);
   return geom;
 }

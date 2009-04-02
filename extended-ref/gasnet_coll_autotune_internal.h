@@ -17,8 +17,7 @@
 #ifndef __GASNET_COLL_AUTOTUNE_INTERNAL_H__
 #define __GASNET_COLL_AUTOTUNE_INTERNAL_H__ 1
 
-#define GASNETE_COLL_DEFAULT_TREE_TYPE_STR "KNOMIAL_TREE"
-#define GASNETE_COLL_DEFAULT_TREE_FANOUT 2
+#define GASNETE_COLL_DEFAULT_TREE_TYPE_STR "KNOMIAL_TREE,2"
 #define GASNETE_COLL_DEFAULT_DISSEM_LIMIT_PER_THREAD 1024
 #include <gasnet_coll_autotune.h>
 
@@ -126,6 +125,9 @@ typedef struct gasnete_coll_allgorithm_t_ {
   /* a size of 0 indicates that it will work for all sizes*/
   size_t max_num_bytes;
   
+  /*some algorithms only work above a certain threshold*/
+  size_t min_num_bytes;
+  
   /*what are the parameters to the algorithm*/
   uint32_t num_parameters;
   
@@ -156,7 +158,8 @@ gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type(gasnete_coll_autotu
 gasnete_coll_algorithm_t gasnete_coll_autotune_register_algorithm(gasnet_coll_optype_t optype, 
                                                                   uint32_t syncflags,
                                                                   uint32_t requirements,
-                                                                  size_t max_size,uint32_t tree_alg,
+                                                                  size_t max_size, size_t min_size,
+                                                                  uint32_t tree_alg,
                                                                   uint32_t num_params,
                                                                   struct gasnet_coll_tuning_parameter_t *param_list,
                                                                   void *coll_fnptr);
