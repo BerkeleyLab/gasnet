@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2008/11/06 16:01:37 $
- * $Revision: 1.43 $
+ *     $Date: 2009/04/05 23:00:22 $
+ * $Revision: 1.43.8.1 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -128,5 +128,11 @@ extern void gasnetc_fatalsignal_callback(int sig);
   #define u_int64_t uint64_t
  #endif
 #endif
+
+/* We have no need for the generic gasneti_gethostid(). */
+#define GASNETC_CONDUIT_SPECIFIC_HOSTID
+
+/* We use a conduit-specifc replacement for gasneti_nodemap() */
+#define GASNETC_CONDUIT_SPECIFIC_NODEMAP
 
 #endif
