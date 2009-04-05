@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/03/30 02:40:24 $
- * $Revision: 1.198 $
+ *     $Date: 2009/04/05 21:23:56 $
+ * $Revision: 1.198.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -801,6 +801,108 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
     }
   }
 }
+
+/* ------------------------------------------------------------------------------------ */
+/* Hostid/nodemap handling
+ * XXX: nodemap code assumes contiguous node assignments
+ */
+
+#if defined(GASNETC_CONDUIT_SPECIFIC_HOSTID)
+  /* Conduit-specific code may implement gasneti_gethostid() and use the default
+     gasneti_nodemap(), or may implement a fully custom gasneti_nodemap() that
+     doesn't utilize gasneti_gethostid() at all.
+
+     If implementing gasneti_gethostid() and using default the gasneti_nodemap():
+     + One must typedef or #define gasneti_hostid_t to a type that supports
+       assignment (generally a scalar or a struct, so arrays should be contained
+       within a struct).
+     + If the type contains "holes" due to padding of struct members, care must
+       be taken to initialize them to known values, for instance w/ memset() of
+       the variable before setting any fields.  Failure to do this will result
+       in incorrect results when comparing values.
+   */
+#elif 0
+  /* platform-specifc #elif cases go here */
+  /* They can #define GASNETI_USE_GETHOSTID to fall back to the generic version */
+#elif HAVE_GETHOSTID
+  #define GASNETI_USE_GETHOSTID 1
+#else
+  #error No hostid implementation is available on your platform
+#endif
+
+#if GASNETI_USE_GETHOSTID
+  /* Generic gethostid() from Single Unix Specification (IEEE Std 1003.1-2001)
+     Spec says return type is long, but that the result is 32 bits. */
+  typedef uint32_t gasneti_hostid_t;
+  static gasneti_hostid_t gasneti_gethostid(void) {
+    return (gasneti_hostid_t)gethostid();
+  }
+#endif
+
+#if defined(GASNETC_CONDUIT_SPECIFIC_NODEMAP)
+  /* Nothing to do here.
+   * Since only gasnetc_init() is expected to call gasneti_nodemap(), the
+   * conduit code doesn't even need to make its own version conform to
+   * the signature of the generic gasneti_nodemap() (though the result
+   * must be in the same form for passing to other code.)
+   */
+#elif 0
+  /* Platform-specific #elif cases go here and must fully match the
+   * signature of the generic version, below.
+   */
+#else
+  /* Fill in the caller-owned nodemap array such that
+   *   For all i: nodemap[i] is the lowest node number collocated w/ node i
+   */
+  extern void gasneti_nodemap(gasnet_node_t *nodemap,
+                              gasneti_bootstrapExchangefn_t exchangefn) {
+    gasneti_hostid_t myid, *allids;
+    gasnet_node_t i, prev;
+  
+    gasneti_assert(exchangefn);
+    gasneti_assert(nodemap);
+
+    /* Exchange raw ids */
+    myid = gasneti_gethostid();
+    allids = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+    (*exchangefn)(&myid, sizeof(gasnet_node_t), allids);
+
+    /* Every node independently computes the same map */
+    prev = nodemap[0] = 0;
+    for (i = 1; i < gasneti_nodes; ++i) {
+      prev = nodemap[i] = 
+        memcmp(&allids[i-1], &allids[i], sizeof(gasneti_hostid_t)) ? i : prev;
+    }
+    gasneti_free(allids);
+  }
+#endif
+
+/* Count number of GASNet nodes on the same O/S node as ourself,
+ * and determine our relative rank in that set.
+ */
+extern void gasneti_nodemap_local_info(gasnet_node_t *nodemap,
+                                       gasnet_node_t *local_num, 
+                                       gasnet_node_t *local_rank) {
+  gasnet_node_t first, last;
+
+  gasneti_assert(nodemap);
+  gasneti_assert(local_num);
+  gasneti_assert(local_rank);
+
+  first = nodemap[gasneti_mynode];
+  last = gasneti_mynode;
+  while ((last != gasneti_nodes) && (nodemap[last + 1] == first)) { last += 1; }
+
+  *local_num = last - first + 1;
+  *local_rank = gasneti_mynode - first;
+
+  #if GASNET_DEBUG_VERBOSE
+    printf("nodemap: node %d is %d of %d with lowest local %d\n",
+           (int)gasneti_mynode, (int)*local_rank, (int)*local_num, first);
+  #endif
+}
+
+
 /* ------------------------------------------------------------------------------------ */
 /* Debug memory management
    debug memory format:

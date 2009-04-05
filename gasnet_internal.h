@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2009/03/30 02:40:24 $
- * $Revision: 1.114 $
+ *     $Date: 2009/04/05 21:23:56 $
+ * $Revision: 1.114.2.1 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -651,6 +651,16 @@ extern void gasneti_defaultAMHandler(gasnet_token_t token);
                                  pArgs, numargs, (void *)pData, (int)datalen);                            \
     GASNETI_TRACE_PRINTF(A,("AM%s_LONG_HANDLER: handler execution complete", (isReq?"REQUEST":"REPLY"))); \
   } while (0)
+/* ------------------------------------------------------------------------------------ */
+/* nodemap functions */
+
+extern void gasneti_nodemap(gasnet_node_t *nodemap,
+                            gasneti_bootstrapExchangefn_t exchangefn);
+
+extern void gasneti_nodemap_local_info(gasnet_node_t *nodemap,
+                                       gasnet_node_t *local_num,
+                                       gasnet_node_t *local_rank);
+
 /* ------------------------------------------------------------------------------------ */
 
 GASNETI_END_EXTERNC
