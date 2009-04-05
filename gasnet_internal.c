@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/05 21:23:56 $
- * $Revision: 1.198.2.1 $
+ *     $Date: 2009/04/05 22:17:43 $
+ * $Revision: 1.198.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -865,7 +865,7 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
     /* Exchange raw ids */
     myid = gasneti_gethostid();
     allids = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
-    (*exchangefn)(&myid, sizeof(gasnet_node_t), allids);
+    (*exchangefn)(&myid, sizeof(myid), allids);
 
     /* Every node independently computes the same map */
     prev = nodemap[0] = 0;
