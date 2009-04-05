@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/05 22:20:58 $
- * $Revision: 1.198.2.3 $
+ *     $Date: 2009/04/05 22:21:56 $
+ * $Revision: 1.198.2.4 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -898,7 +898,7 @@ extern void gasneti_nodemap_local_info(gasnet_node_t *nodemap,
 
   #if GASNET_DEBUG_VERBOSE
     printf("nodemap: node %d is %d of %d with lowest local %d\n",
-           (int)gasneti_mynode, (int)*local_rank, (int)*local_num, first);
+           (int)gasneti_mynode, (int)*local_rank, (int)*local_num, (int)first);
   #endif
 }
 
