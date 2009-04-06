@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/03/30 02:40:29 $
- * $Revision: 1.79 $
+ *     $Date: 2009/04/06 09:44:01 $
+ * $Revision: 1.79.2.1 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -322,7 +322,10 @@ static int gasnetc_init(int *argc, char ***argv) {
       elan_hbcast(GROUP(), &gasnetc_remappableMem, sizeof(gasnetc_remappableMem), 0, 0);
       gasneti_segmentInit(
                           #if GASNET_SEGMENT_FAST
-                            gasnetc_remappableMem.size,
+                            gasneti_mmapLimit(gasnetc_remappableMem.size,
+                                              NULL,
+                                              &gasnetc_bootstrapExchange,
+                                              &gasnetc_bootstrapBarrier),
                           #else
                             (uintptr_t)-1,
                           #endif
