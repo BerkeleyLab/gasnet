@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/03/30 02:40:38 $
- * $Revision: 1.79 $
+ *     $Date: 2009/04/06 10:30:40 $
+ * $Revision: 1.79.2.1 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -64,13 +64,12 @@ static void gasnetc_check_config(void) {
   gasneti_assert(GASNET_ERR_BAD_ARG  == AM_ERR_BAD_ARG);
 }
 
-#define gasnetc_bootstrapBarrier() do {                                        \
-   int retval;                                                                 \
-   AM_ASSERT_LOCKED(); /* need this because SPMDBarrier may poll */            \
-   GASNETI_AM_SAFE_NORETURN(retval,AMMPI_SPMDBarrier());                       \
-   if_pf (retval) gasneti_fatalerror("failure in gasnetc_bootstrapBarrier()"); \
-} while (0)
-
+void gasnetc_bootstrapBarrier(void) {
+   int retval;
+   AM_ASSERT_LOCKED(); /* need this because SPMDBarrier may poll */
+   GASNETI_AM_SAFE_NORETURN(retval,AMMPI_SPMDBarrier());
+   if_pf (retval) gasneti_fatalerror("failure in gasnetc_bootstrapBarrier()");
+}
 void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
   int retval;
   GASNETI_AM_SAFE_NORETURN(retval,AMMPI_SPMDAllGather(src, dest, len));
@@ -174,7 +173,10 @@ static int gasnetc_init(int *argc, char ***argv) {
     #endif
 
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-      gasneti_segmentInit((uintptr_t)-1, &gasnetc_bootstrapExchange);
+      gasneti_segmentInit(gasneti_mmapLimit((uintptr_t)-1, NULL,
+                                            &gasnetc_bootstrapExchange,
+                                            &gasnetc_bootstrapBarrier),
+                          &gasnetc_bootstrapExchange);
     #elif GASNET_SEGMENT_EVERYTHING
       /* segment is everything - nothing to do */
     #else
