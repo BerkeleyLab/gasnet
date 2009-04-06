@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/04/06 07:02:12 $
- * $Revision: 1.59.2.1 $
+ *     $Date: 2009/04/06 08:57:13 $
+ * $Revision: 1.59.2.2 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -207,19 +207,16 @@ static gasnet_seginfo_t gasneti_mmap_linearasc_segsrch(uintptr_t highsz) {
   }
 }
 
-/* gasneti_mmap_segment_search allocates the largest possible page-aligned mmap 
- * with sz <= maxsz and returns the base address and size
+/* Differs from gasneti_mmap_segment_search() in that:
+ * + maxsz must already be page aligned and non-zero
+ * + zero-length result is not an error
  */
-extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz) {
+static gasnet_seginfo_t _gasneti_mmap_segment_search_inner(uintptr_t maxsz) {
   gasnet_seginfo_t si;
   int mmaped = 0;
 
-  maxsz = GASNETI_PAGE_ALIGNDOWN(maxsz);
-  if (maxsz == 0) {
-    si.size = 0;
-    si.addr = NULL;
-    return si;
-  }
+  gasneti_assert(maxsz == GASNETI_PAGE_ALIGNDOWN(maxsz));
+
   si.addr = gasneti_mmap(maxsz);
   if (si.addr != MAP_FAILED) { /* succeeded at max value - done */
     si.size = maxsz;
@@ -243,8 +240,10 @@ extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz) {
     #endif
   }
 
-  if (si.addr == NULL) 
-    gasneti_fatalerror("Unable to find an adequate mmap segment.");
+  if (si.addr == NULL) {
+    si.size = 0;
+    return si;
+  }
 
   gasneti_assert(si.addr != NULL && si.addr != MAP_FAILED && si.size > 0);
   gasneti_assert(si.size % GASNET_PAGESIZE == 0);
@@ -267,6 +266,28 @@ extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz) {
   gasneti_assert(((uintptr_t)si.addr) % GASNET_PAGESIZE == 0 && si.size % GASNET_PAGESIZE == 0);
   return si;
 }
+
+/* gasneti_mmap_segment_search allocates the largest possible page-aligned mmap 
+ * with sz <= maxsz and returns the base address and size
+ */
+extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz) {
+  gasnet_seginfo_t si;
+
+  maxsz = GASNETI_PAGE_ALIGNDOWN(maxsz);
+  if (maxsz == 0) {
+    si.size = 0;
+    si.addr = NULL;
+    return si;
+  }
+
+  si = _gasneti_mmap_segment_search_inner(maxsz);
+
+  if (si.addr == NULL) 
+    gasneti_fatalerror("Unable to find an adequate mmap segment.");
+
+  return si;
+}
+
 /* ------------------------------------------------------------------------------------ */
 #endif /* HAVE_MMAP */
 
@@ -346,30 +367,50 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
 
   #ifdef HAVE_MMAP
   { gasneti_segexch_t se;
-    int i;
+    int i, need_exchg = 0;
+    gasnet_node_t j;
+    gasnet_node_t *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
     uintptr_t maxsz = localSegmentLimit == (uintptr_t)-1 ?
                       GASNETI_MMAP_LIMIT : 
                       MIN(localSegmentLimit,GASNETI_MMAP_LIMIT);
 
-    /* Allow one GASNet node per O/S node to probe mmap() */
-    { gasnet_node_t local_count, local_rank;
-      gasnet_node_t *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+    /* Coordinate the search IFF there are any shared nodes. */
+    gasneti_nodemap(nodemap, exchangefn);
+    for (j = 0; j < gasneti_nodes; ++j) {
+      if (nodemap[j] != j) {
+        need_exchg = 1;
+        break;
+      }
+    }
+    if (need_exchg) {
       uintptr_t *sz_exchg = (uintptr_t *)gasneti_segexch; /* Steal existing space */
-      uintptr_t tmp;
 
-      gasneti_nodemap(nodemap, exchangefn);
-      gasneti_nodemap_local_info(nodemap, &local_count, &local_rank);
+      /* Allow each node to probe and collect the results */
+      gasneti_segment.size = 0;
+      maxsz = GASNETI_PAGE_ALIGNDOWN(maxsz);
+      if (maxsz) gasneti_segment = _gasneti_mmap_segment_search_inner(maxsz);
+      (*exchangefn)(&gasneti_segment.size, sizeof(uintptr_t), sz_exchg);
+      if (gasneti_segment.size) gasneti_munmap(gasneti_segment.addr, gasneti_segment.size);
 
-      if (!local_rank) {
-        gasneti_segment = gasneti_mmap_segment_search(maxsz);
-        gasneti_munmap(gasneti_segment.addr, gasneti_segment.size); 
+      /* Compute the local mean */
+      { gasnet_node_t local_count, local_rank;
+        uint64_t sum = 0;
+        gasneti_nodemap_local_info(nodemap, &local_count, &local_rank);
+
+        sum = sz_exchg[nodemap[gasneti_mynode]];
+        for (j = 1; j < local_count; ++j) {
+          sum += sz_exchg[j + nodemap[gasneti_mynode]];
+        }
+        maxsz = MIN(maxsz, sum / local_count);
       }
 
+      /* Only actually want a barrier here for the gasneti_munmap() */
       (*exchangefn)(&gasneti_segment.size, sizeof(uintptr_t), sz_exchg);
-      maxsz = MIN(maxsz, sz_exchg[nodemap[gasneti_mynode]]/local_count);
+
       gasneti_free(nodemap);
     }
 
+    /* Now probe using either the original value or the mean value computed above */
     gasneti_segment = gasneti_mmap_segment_search(maxsz);
     GASNETI_TRACE_PRINTF(C, ("My segment: addr="GASNETI_LADDRFMT"  sz=%lu",
       GASNETI_LADDRSTR(gasneti_segment.addr), (unsigned long)gasneti_segment.size));
