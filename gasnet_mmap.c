@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/03/31 21:38:30 $
- * $Revision: 1.59 $
+ *     $Date: 2009/04/06 07:02:12 $
+ * $Revision: 1.59.2.1 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -347,10 +347,30 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
   #ifdef HAVE_MMAP
   { gasneti_segexch_t se;
     int i;
+    uintptr_t maxsz = localSegmentLimit == (uintptr_t)-1 ?
+                      GASNETI_MMAP_LIMIT : 
+                      MIN(localSegmentLimit,GASNETI_MMAP_LIMIT);
 
-    gasneti_segment = gasneti_mmap_segment_search(localSegmentLimit == (uintptr_t)-1 ?
-                                                  GASNETI_MMAP_LIMIT : 
-                                                  MIN(localSegmentLimit,GASNETI_MMAP_LIMIT));
+    /* Allow one GASNet node per O/S node to probe mmap() */
+    { gasnet_node_t local_count, local_rank;
+      gasnet_node_t *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+      uintptr_t *sz_exchg = (uintptr_t *)gasneti_segexch; /* Steal existing space */
+      uintptr_t tmp;
+
+      gasneti_nodemap(nodemap, exchangefn);
+      gasneti_nodemap_local_info(nodemap, &local_count, &local_rank);
+
+      if (!local_rank) {
+        gasneti_segment = gasneti_mmap_segment_search(maxsz);
+        gasneti_munmap(gasneti_segment.addr, gasneti_segment.size); 
+      }
+
+      (*exchangefn)(&gasneti_segment.size, sizeof(uintptr_t), sz_exchg);
+      maxsz = MIN(maxsz, sz_exchg[nodemap[gasneti_mynode]]/local_count);
+      gasneti_free(nodemap);
+    }
+
+    gasneti_segment = gasneti_mmap_segment_search(maxsz);
     GASNETI_TRACE_PRINTF(C, ("My segment: addr="GASNETI_LADDRFMT"  sz=%lu",
       GASNETI_LADDRSTR(gasneti_segment.addr), (unsigned long)gasneti_segment.size));
 
