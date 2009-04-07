@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/03/19 23:49:46 $
- * $Revision: 1.72.10.9 $
+ *     $Date: 2009/04/07 02:49:20 $
+ * $Revision: 1.72.10.10 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -3369,8 +3369,7 @@ gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
     if(team->myrank == tree_info->geom->root) {
       scratch_req->num_in_peers = 0;
       scratch_req->in_peers = NULL;      
-    }
-    else {
+    } else {
       scratch_req->num_in_peers = 1;
       scratch_req->in_peers = &(GASNETE_COLL_TREE_GEOM_PARENT(tree_info->geom));
     }
