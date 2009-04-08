@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2009/04/08 21:36:27 $
- * $Revision: 1.126.2.2 $
+ * $Date: 2009/04/08 22:46:48 $
+ * $Revision: 1.126.2.3 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -35,6 +35,8 @@ gasnetc_state_t _gmc;
 gasnet_handlerentry_t const		*gasnetc_get_handlertable(void);
 extern gasnet_handlerentry_t const	*gasnete_get_handlertable(void);
 extern gasnet_handlerentry_t const	*gasnete_get_extref_handlertable(void);
+
+static gasnet_node_t *gasnetc_nodemap;
 
 static void gasnetc_atexit(void);
 
@@ -103,33 +105,42 @@ gasnetc_init(int *argc, char ***argv)
 	    gasnetc_packed_long_limit = GASNETC_AM_LEN-GASNETC_LONG_OFFSET;
 	}
 
+	/* Discover peers on the same shared-memory node */
+        gasnetc_nodemap = gasneti_malloc(gasneti_nodes*sizeof(gasnet_node_t));
+        gasneti_nodemap(gasnetc_nodemap, &gasnetc_bootstrapExchange);
+
 	/* 
 	 * Find the upper bound on pinnable memory for firehose algorithm.
 	 *
 	 * After getting a global minimum on the amount of pinnable physical
-	 * memory, we ask firehose what the M/MaxVictim parameters are for tje
+	 * memory, we ask firehose what the M/MaxVictim parameters are for the
 	 * current job.
 	 */
 	{
 		int	i;
 		uintptr_t M, MaxVictim;
 		float pm_ratio;
-		char *env_ratio;
 		uintptr_t *global_exch = (uintptr_t *)
 		    gasneti_malloc(gasneti_nodes*sizeof(uintptr_t));
 
-		env_ratio = gasneti_getenv_withdefault(
-			"GASNET_PHYSMEM_PINNABLE_RATIO", 
-			_STRINGIFY(GASNETC_DEFAULT_PHYSMEM_PINNABLE_RATIO));
-
-		pm_ratio = atof(env_ratio);
+                pm_ratio = gasneti_getenv_dbl_withdefault(
+                        "GASNET_PHYSMEM_PINNABLE_RATIO", 
+                        GASNETC_DEFAULT_PHYSMEM_PINNABLE_RATIO);
 
 		if_pf (pm_ratio <= 0.0 || pm_ratio >= 1.0)
 		    gasneti_fatalerror("GASNET_PHYSMEM_PINNABLE_RATIO "
 				       "must be between 0 and 1");
 
-		gasnetc_MaxPinnableMemory = 
-		    (uintptr_t) (gasneti_getPhysMemSz(1) * pm_ratio);
+                /* Take only a fair share of the memory */
+                { uint64_t my_physmem;
+                  gasnet_node_t local_count, local_rank;
+                  gasneti_nodemap_local_info(gasnetc_nodemap, &local_count, &local_rank);
+                  my_physmem = gasneti_getPhysMemSz(1) * pm_ratio / local_count;
+#if SIZEOF_VOID_P != 8 /* Watch for overflow! */
+                  if (my_physmem > (uint64_t)(uintptr_t)-1) my_physmem = (uintptr_t)-1;
+#endif
+                  gasnetc_MaxPinnableMemory = (uintptr_t)my_physmem;
+                }
 
 		gasnetc_bootstrapExchange(
 		    &gasnetc_MaxPinnableMemory, sizeof(uintptr_t), global_exch);
@@ -148,7 +159,7 @@ gasnetc_init(int *argc, char ***argv)
 	}
 
         #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-	  max_segmentsize = gasneti_mmapLimit(max_segmentsize, -1, NULL,
+	  max_segmentsize = gasneti_mmapLimit(max_segmentsize, -1, gasnetc_nodemap,
                                               &gasnetc_bootstrapExchange,
                                               &gasnetc_bootstrapBarrier);
 	  gasneti_segmentInit(max_segmentsize, &gasnetc_bootstrapExchange);
@@ -157,6 +168,8 @@ gasnetc_init(int *argc, char ***argv)
 	#else
 	  #error Bad segment config
 	#endif
+
+        gasneti_free(gasnetc_nodemap); /* XXX: may move later w/ SysV work */
 
 	/* Handler for non-collective returns from main() */
 	atexit(gasnetc_atexit);
