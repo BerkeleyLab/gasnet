@@ -19,7 +19,16 @@ options that is covered testcoll
 #define DEFAULT_INNER_VERIFICATION_ITERS 50
 #define DEFAULT_PERFORMANCE_ITERS 0
 
-#define ALL_COLL_ENABLED 1
+#define ALL_COLL_ENABLED 0
+#define BROADCAST_ENABLED 0
+#define SCATTER_ENABLED 0
+#define GATHER_ENABLED 1
+
+#define ALL_ADDR_MODE_ENABLED 0
+#define SINGLE_SINGLE_MODE_ENABLED 1
+#define SINGLE_LOCAL_MODE_ENABLED 0
+#define MULTI_SINGLE_MODE_ENABLED 0
+#define MULTI_LOCAL_MODE_ENABLED 0
 
 
 /* max data size for the test in bytes*/
@@ -100,8 +109,8 @@ void scale_ptrM(void * out_ptr[], void * const in_ptr[], size_t elem_count, size
 
 #if PRINT_TIMERS
 #define print_timer(td, coll_str, addr_mode, num_addrs, sync_mode, nelem, total_ticks) \
-if(td->my_local_thread==0 && performance_iters>0) MSG0("%c: %d> %s/%s %s sync_mode: (%s) size: %ld bytes time: %g us", TEST_SECTION_NAME(), td->mythread, addr_mode, num_addrs,\
-                                coll_str, sync_mode, (long int) nelem*sizeof(int), (double)gasnett_ticks_to_us(total_ticks)/performance_iters)
+if(td->my_local_thread==0 && performance_iters>0) MSG0("%c: %d> %s/%s %s sync_mode: (%s) tree: %s size: %ld bytes time: %g us", TEST_SECTION_NAME(), td->mythread, addr_mode, num_addrs,\
+                                coll_str, sync_mode, gasnett_getenv("GASNET_COLL_ROOTED_GEOM"), (long int) nelem*sizeof(int), (double)gasnett_ticks_to_us(total_ticks)/performance_iters)
 #else
 #define print_timer(td, coll_str, addr_mode, num_addrs, sync_mode, nelem, total_ticks)
 #endif
@@ -125,7 +134,7 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
     sprintf(output_str, "LOCAL");
   }
   
-#if BCAST_ENABLED || ALL_COLL_ENABLED  
+#if BROADCAST_ENABLED || ALL_COLL_ENABLED  
   for(k=0; k<outer_verification_iters; k++) {
     COLL_BARRIER();
     /* BROADCAST*/  
@@ -361,8 +370,9 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
   tmp_src = (uint8_t**) test_malloc(sizeof(uint8_t*)*num_addrs*inner_verification_iters);
   tmp_dest = (uint8_t**) test_malloc(sizeof(uint8_t*)*num_addrs*inner_verification_iters);
   
-#if BCAST_ENABLED || ALL_COLL_ENABLED
-  
+
+#if BROADCAST_ENABLED || ALL_COLL_ENABLED
+
   for(k=0; k<outer_verification_iters; k++) {
     COLL_BARRIER();
     /* BROADCAST*/  
@@ -402,7 +412,9 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
   end =  gasnett_ticks_now() - begin;
   COLL_BARRIER();
   print_timer(td, "broadcastM", output_str,  "MULTI-addr", flag_str, nelem, end);  
+  
 #endif
+
 
 #if SCATTER_ENABLED || ALL_COLL_ENABLED
   for(k=0; k<outer_verification_iters; k++) {
@@ -449,7 +461,8 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
   
   print_timer(td, "scatterM", output_str,  "MULTI-addr", flag_str, nelem, end);  
 #endif
-  
+
+#if 1  
 #if GATHER_ENABLED || ALL_COLL_ENABLED
   /*GATHER*/
   for(k=0; k<outer_verification_iters; k++) {
@@ -583,8 +596,9 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
   COLL_BARRIER();  
   print_timer(td, "exchangeM", output_str,  "MULTI-addr", flag_str, nelem, end);  
 #endif
+#endif
   if(td->my_local_thread==0  && VERBOSE_VERIFICATION_OUTPUT) MSG0("%c: %s/MULTI-addr sync_mode: %s size: %ld bytes root: %d.  PASS", TEST_SECTION_NAME(), output_str, flag_str, (long int) (sizeof(int)*nelem), (int) root_thread);
-  
+
   COLL_BARRIER();
   test_free(tmp_src);
   test_free(tmp_dest);
@@ -606,9 +620,9 @@ void *thread_main(void *arg) {
 #else
   gasnet_coll_init(NULL, 0, NULL, 0, 0);
 #endif
-  
+
   COLL_BARRIER();
-  
+
   for(flag_iter=0; flag_iter<9; flag_iter++) {
     int flags;
     if(td->my_local_thread==0) TEST_SECTION_BEGIN();
@@ -616,7 +630,7 @@ void *thread_main(void *arg) {
     
     if(TEST_SECTION_ENABLED()) {
       
-    switch(flag_iter) { 
+      switch(flag_iter) { 
       case 0: flags = GASNET_COLL_IN_NOSYNC  | GASNET_COLL_OUT_NOSYNC; break;
       case 1: flags = GASNET_COLL_IN_NOSYNC  | GASNET_COLL_OUT_MYSYNC; break;
       case 2: flags = GASNET_COLL_IN_NOSYNC  | GASNET_COLL_OUT_ALLSYNC; break;
@@ -627,9 +641,10 @@ void *thread_main(void *arg) {
       case 7: flags = GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_MYSYNC; break;
       case 8: flags = GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC; break;  
       default: continue;
-    }
+      }
     
-		
+    COLL_BARRIER();
+#if SINGLE_SINGLE_MODE_ENABLED || ALL_ADDR_MODE_ENABLED
 #if GASNET_ALIGNED_SEGMENTS
       if(threads_per_node == 1) { 
 	for(size = 1; size<=max_data_size; size=size*2) {
@@ -642,23 +657,35 @@ void *thread_main(void *arg) {
       if(td->my_local_thread == 0 && !skip_msg_printed) MSG0("skipping SINGLE/SINGLE test (unaligned segments)");
 #endif
       skip_msg_printed =1;
+#endif
 
+#if SINGLE_LOCAL_MODE_ENABLED || ALL_ADDR_MODE_ENABLED
       for(size = 1; size<=max_data_size; size=size*2) {
-	run_SINGLE_ADDR_test(td, my_dsts, my_srcs, size, root_thread, flags|GASNET_COLL_LOCAL);   
+        run_SINGLE_ADDR_test(td, my_dsts, my_srcs, size, root_thread, flags|GASNET_COLL_LOCAL);   
       }
+#endif
+
+#if MULTI_SINGLE_MODE_ENABLED || ALL_ADDR_MODE_ENABLED
       for(size = 1; size<=max_data_size; size=size*2) {
-	run_MULTI_ADDR_test(td, all_dsts, all_srcs, size, root_thread, flags|GASNET_COLL_SINGLE);
+        run_MULTI_ADDR_test(td, all_dsts, all_srcs, size, root_thread, flags|GASNET_COLL_SINGLE);
       }
+#endif      
+
+#if MULTI_LOCAL_MODE_ENABLED || ALL_ADDR_MODE_ENABLED
       for(size = 1; size<=max_data_size; size=size*2) {
-	run_MULTI_ADDR_test(td, my_dsts, my_srcs, size, root_thread, flags|GASNET_COLL_LOCAL);
+        run_MULTI_ADDR_test(td, my_dsts, my_srcs, size, root_thread, flags|GASNET_COLL_LOCAL);
       }
+#endif
       if(td->my_local_thread==0  && !VERBOSE_VERIFICATION_OUTPUT) {
-	char flag_str[8];
-	fill_flag_str(flags, flag_str);
-	MSG0("%c: sync_mode: %s %ld-%ld (powers of 2) bytes root: %d.  PASS",  TEST_SECTION_NAME(), flag_str, (long int) (sizeof(int)*1), (long int) sizeof(int)*max_data_size, (int) root_thread);
+        char flag_str[8];
+        fill_flag_str(flags, flag_str);
+        MSG0("%c: sync_mode: %s %ld-%ld (powers of 2) bytes root: %d.  PASS",  TEST_SECTION_NAME(), flag_str, (long int) (sizeof(int)*1), (long int) sizeof(int)*max_data_size, (int) root_thread);
       }
+
     }
   }
+
+  MSG("thread %d> done", td->mythread);
   return NULL;
 }
 
