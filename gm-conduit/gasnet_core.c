@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2009/04/08 22:46:48 $
- * $Revision: 1.126.2.3 $
+ * $Date: 2009/04/08 22:52:56 $
+ * $Revision: 1.126.2.4 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -106,8 +106,7 @@ gasnetc_init(int *argc, char ***argv)
 	}
 
 	/* Discover peers on the same shared-memory node */
-        gasnetc_nodemap = gasneti_malloc(gasneti_nodes*sizeof(gasnet_node_t));
-        gasneti_nodemap(gasnetc_nodemap, &gasnetc_bootstrapExchange);
+        gasnetc_nodemap = gasneti_nodemap(NULL, &gasnetc_bootstrapExchange);
 
 	/* 
 	 * Find the upper bound on pinnable memory for firehose algorithm.

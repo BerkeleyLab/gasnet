@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/05 22:21:56 $
- * $Revision: 1.198.2.4 $
+ *     $Date: 2009/04/08 22:52:54 $
+ * $Revision: 1.198.2.5 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -851,16 +851,18 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
    * signature of the generic version, below.
    */
 #else
-  /* Fill in the caller-owned nodemap array such that
+  /* Fill in the nodemap array such that
    *   For all i: nodemap[i] is the lowest node number collocated w/ node i
+   * Returns address of the nodemap (allocated if the caller passed NULL)
    */
-  extern void gasneti_nodemap(gasnet_node_t *nodemap,
-                              gasneti_bootstrapExchangefn_t exchangefn) {
+  extern gasnet_node_t *gasneti_nodemap(gasnet_node_t *nodemap,
+                                        gasneti_bootstrapExchangefn_t exchangefn) {
     gasneti_hostid_t myid, *allids;
     gasnet_node_t i, prev;
   
     gasneti_assert(exchangefn);
-    gasneti_assert(nodemap);
+
+    if (!nodemap) nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
 
     /* Exchange raw ids */
     myid = gasneti_gethostid();
