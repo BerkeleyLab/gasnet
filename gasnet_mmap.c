@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/04/06 09:40:19 $
- * $Revision: 1.59.2.3 $
+ *     $Date: 2009/04/08 21:36:23 $
+ * $Revision: 1.59.2.4 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -345,20 +345,27 @@ static gasneti_segexch_t *gasneti_segexch = NULL; /* exchanged segment informati
 
 /* perform a coordinated mmap probe to determine the max memory
     that can be mmap()ed while considering multiple GASNet nodes
-    per O/S node
-   maxsz is an optional conduit-specific upper limit
+    per shared memory node
+   localLimit is an optional conduit-specific upper limit per GASNet node
+   sharedLimit is an optional upper limit per shared memory node
    requires a nodemap, as from gasneti_nodemap() or NULL
    requires an exchange callback function that can be used to exchange data
    requires a barrier callback function
    returns a value suitable for use as localSegmentLimit in a call
     to gasneti_segmentInit()
  */
-uintptr_t gasneti_mmapLimit(uintptr_t maxsz,
+uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasnet_node_t *nodemap,
                             gasneti_bootstrapExchangefn_t exchangefn,
                             gasneti_bootstrapBarrierfn_t barrierfn) {
   int i, need_exchg = 0;
   gasnet_node_t *my_nodemap = NULL;
+  uintptr_t maxsz;
+
+  /* Apply intial limits, even if not sharing nodes */
+  maxsz = GASNETI_MMAP_LIMIT;
+  if ((uint64_t)localLimit > sharedLimit) localLimit = sharedLimit;
+  maxsz = MIN(maxsz, localLimit);
 
   /* Create nodemap if caller didn't provide one */
   if (!nodemap) {
@@ -376,18 +383,29 @@ uintptr_t gasneti_mmapLimit(uintptr_t maxsz,
   if (need_exchg) {
     uintptr_t *sz_exchg = gasneti_malloc(gasneti_nodes * sizeof(uintptr_t));
     gasnet_seginfo_t se = {0,0};
+    gasnet_node_t local_count, local_rank;
+
+    gasneti_nodemap_local_info(nodemap, &local_count, &local_rank);
+    gasneti_assert(local_count);
+
+    /* Ensure our probe will not collectively exceed the shareLimit, if any. */
+    if ((sharedLimit != (uint64_t)-1) && (local_count > 1)) {
+#if SIZEOF_VOID_P != 8
+       /* Skip MIN() on overflow */
+       if ((sharedLimit / local_count) < (uint64_t)(uintptr_t)(-1))
+#endif
+       { uintptr_t tmp = sharedLimit / local_count;
+         maxsz = MIN(maxsz, tmp);
+       }
+    }
 
     /* Allow each node to probe and collect the results */
-    maxsz = (maxsz == (uintptr_t)-1) ? GASNETI_MMAP_LIMIT
-                                     : MIN(maxsz,GASNETI_MMAP_LIMIT);
     maxsz = GASNETI_PAGE_ALIGNDOWN(maxsz);
     if (maxsz) se = _gasneti_mmap_segment_search_inner(maxsz);
     (*exchangefn)(&se.size, sizeof(uintptr_t), sz_exchg);
 
     /* Compute the local mean */
-    { gasnet_node_t local_count, local_rank;
-      uint64_t sum = 0;
-      gasneti_nodemap_local_info(nodemap, &local_count, &local_rank);
+    { uint64_t sum = 0;
 
       sum = sz_exchg[nodemap[gasneti_mynode]];
       for (i = 1; i < local_count; ++i) {
@@ -402,7 +420,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t maxsz,
     (*barrierfn)(); /* Ensures unmap() globally complete before return */
   }
 
-  gasneti_free(my_nodemap);
+  gasneti_free(my_nodemap); /* NULL if caller-provided */
   return maxsz;
 }
 
@@ -413,6 +431,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t maxsz,
    localSegmentLimit provides an optional conduit-specific limit on max segment sz
     (for example, to limit size based on physical memory availability)
     pass (uintptr_t)-1 for unlimited
+    Use of gasneti_mmapLimit() can help determine the right value to pass here
    keeps internal state for attach
  */
 void gasneti_segmentInit(uintptr_t localSegmentLimit,

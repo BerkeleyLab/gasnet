@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2009/04/08 19:40:26 $
- * $Revision: 1.126.2.1 $
+ * $Date: 2009/04/08 21:36:27 $
+ * $Revision: 1.126.2.2 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -148,7 +148,7 @@ gasnetc_init(int *argc, char ***argv)
 	}
 
         #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-	  max_segmentsize = gasneti_mmapLimit(max_segmentsize, NULL,
+	  max_segmentsize = gasneti_mmapLimit(max_segmentsize, -1, NULL,
                                               &gasnetc_bootstrapExchange,
                                               &gasnetc_bootstrapBarrier);
 	  gasneti_segmentInit(max_segmentsize, &gasnetc_bootstrapExchange);
