@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2009/04/06 05:48:16 $
- * $Revision: 1.229 $
+ *     $Date: 2009/04/08 19:26:38 $
+ * $Revision: 1.229.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -977,7 +977,7 @@ static gasnett_backtrace_type_t gasneti_backtrace_mechanisms[] = {
   #ifdef GASNETI_BT_PGDBG
   { "PGDBG", GASNETI_BT_PGDBG, 1 },
   #endif
-  { NULL, NULL, 0 } /* Avoids empty initializer and trailing commas */
+  { NULL, NULL, 0 } /* Space for registration of optional user mechanism */
 };
 static int gasneti_backtrace_mechanism_count = /* excludes the NULL */
    (sizeof(gasneti_backtrace_mechanisms)/sizeof(gasneti_backtrace_mechanisms[0])) - 1;
@@ -989,6 +989,7 @@ GASNETT_TENTATIVE_EXTERN
 const char *(*gasneti_backtraceid_fn)(void); /* allow client override of backtrace line prefix */
 gasnett_backtrace_type_t gasnett_backtrace_user; /* allow client provided backtrace function */
 extern void gasneti_backtrace_init(const char *exename) {
+  static int user_is_init = 0;
   char tmp[GASNETI_BT_PATHSZ];
   if (exename[0] == '/' || exename[0] == '\\') tmp[0] = '\0';
   else { getcwd(tmp, sizeof(tmp)); strcat(tmp,"/"); }
@@ -997,8 +998,9 @@ extern void gasneti_backtrace_init(const char *exename) {
 
   gasneti_backtrace_userenabled = gasneti_getenv_yesno_withdefault("GASNET_BACKTRACE",0);
 
-  if (gasnett_backtrace_user.name && gasnett_backtrace_user.fnp) {
+  if (!user_is_init && gasnett_backtrace_user.name && gasnett_backtrace_user.fnp) {
     memcpy(&gasneti_backtrace_mechanisms[gasneti_backtrace_mechanism_count++], &gasnett_backtrace_user, sizeof(gasnett_backtrace_user));
+    user_is_init = 1;
   }
 
   { static char btlist_def[255];
