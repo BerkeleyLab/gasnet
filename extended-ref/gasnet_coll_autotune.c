@@ -16,7 +16,7 @@
 /*this array is the maximum size of hte log2 array for fanouts*/
 #define GASNETE_COLL_AUTOTUNE_RADIX_ARR_LEN 20
 
-#define GASNETE_COLL_PRINT_TIMERS 0
+#define GASNETE_COLL_PRINT_TIMERS 1
 
 struct gasnete_coll_autotune_info_t_ {
   gasnete_coll_tree_type_t bcast_tree_type;
@@ -638,7 +638,7 @@ static void do_tuning_loop(gasnet_team_handle_t team, gasnet_coll_optype_t op,
       for(i=0; i<impl->num_params; i++) {
         printf(" %d", impl->param_list[i]);
       }
-      printf("> time: %g\n", (double)gasnett_ticks_to_us(*best_time)); 
+      printf("> time: %g\n", (double)gasnett_ticks_to_us(*best_time)/team->autotune_info->perf_iters); 
     }
     gasnete_coll_free_implementation(impl);
     return;
