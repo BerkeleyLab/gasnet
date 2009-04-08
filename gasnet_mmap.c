@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/04/08 21:36:23 $
- * $Revision: 1.59.2.4 $
+ *     $Date: 2009/04/08 21:54:42 $
+ * $Revision: 1.59.2.5 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -350,7 +350,12 @@ static gasneti_segexch_t *gasneti_segexch = NULL; /* exchanged segment informati
    sharedLimit is an optional upper limit per shared memory node
    requires a nodemap, as from gasneti_nodemap() or NULL
    requires an exchange callback function that can be used to exchange data
-   requires a barrier callback function
+   barrierfn is an optional callback function, to perform a barrier
+    If non-NULL will be called after any gasneti_munmap() to ensure all
+    on-node unmap operations are completed.  A barrier local to each
+    shared memory node is sufficient, but a job-global one is acceptible.
+    A caller may pass NULL if it can guarantee no race against following
+    mmap() calls.
    returns a value suitable for use as localSegmentLimit in a call
     to gasneti_segmentInit()
  */
@@ -417,7 +422,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
     /* Free held resources */
     gasneti_free(sz_exchg);
     if (se.size) gasneti_munmap(se.addr, se.size);
-    (*barrierfn)(); /* Ensures unmap() globally complete before return */
+    if (barrierfn) (*barrierfn)(); /* Ensures munmap()s complete on-node before return */
   }
 
   gasneti_free(my_nodemap); /* NULL if caller-provided */
