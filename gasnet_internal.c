@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/08 22:52:54 $
- * $Revision: 1.198.2.5 $
+ *     $Date: 2009/04/08 23:03:40 $
+ * $Revision: 1.198.2.6 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -876,6 +876,7 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         memcmp(&allids[i-1], &allids[i], sizeof(gasneti_hostid_t)) ? i : prev;
     }
     gasneti_free(allids);
+    return nodemap;
   }
 #endif
 
