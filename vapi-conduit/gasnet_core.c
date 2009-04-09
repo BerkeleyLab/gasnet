@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/04/05 23:00:22 $
- * $Revision: 1.209.2.1 $
+ *     $Date: 2009/04/09 07:13:56 $
+ * $Revision: 1.209.2.2 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1490,11 +1490,10 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   /* Derive gasnetc_nodemap[] from the LID info we have already exchanged */
   {
-    gasnetc_nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
-
 #ifndef GASNETC_CONDUIT_SPECIFIC_NODEMAP /* for debugging */
-    gasneti_nodemap(gasnetc_nodemap, &gasneti_bootstrapExchange);
+    gasnetc_nodemap = gasneti_nodemap(NULL, &gasneti_bootstrapExchange);
 #else
+    gasnetc_nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
     gasnetc_nodemap[0] = 0;
 
     if (gasneti_nodes > 1) { /* Would otherwise access non-existant localaddr[>0] */
