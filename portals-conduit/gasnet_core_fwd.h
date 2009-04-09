@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2008/11/06 16:01:35 $
- * $Revision: 1.14 $
+ *     $Date: 2009/04/09 01:59:51 $
+ * $Revision: 1.14.8.1 $
  * Description: GASNet header for PORTALS conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -82,5 +82,11 @@
 	CNT(C, LONG_TMPMD, count)               \
 	GASNETC_FIREHOSE_STATS(CNT,VAL,TIME)	\
         VAL(C, EVENT_REAP, numreaped)
+
+/* We have no need for the generic gasneti_gethostid(). */
+#define GASNETC_CONDUIT_SPECIFIC_HOSTID 1
+
+/* We use a conduit-specifc replacement for gasneti_nodemap() */
+#define GASNETC_CONDUIT_SPECIFIC_NODEMAP 1
 
 #endif

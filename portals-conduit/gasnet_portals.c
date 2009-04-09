@@ -123,6 +123,9 @@ int gasnetc_tmpmd_hwm = 0;
 ptl_uid_t gasnetc_uid;
 ptl_process_id_t gasnetc_myid;
 gasnetc_procid_t *gasnetc_procid_map = NULL;
+#if PLATFORM_OS_CNL
+static gasnet_node_t *gasnetc_nodemap = NULL; /* XXX: may move to extern scope for SysV work */
+#endif
 
 #if GASNETC_USE_SANDIA_ACCEL
 /* use Sandia Accelerated Portals */
@@ -2555,6 +2558,25 @@ extern void gasnetc_init_portals_network(int *argc, char ***argv)
     gasnetc_procid_map[node].next = NULL;
   }
 
+#if PLATFORM_OS_CATAMOUNT
+  /* gasnetc_nodemap is unused */
+#elif !defined(GASNETC_CONDUIT_SPECIFIC_NODEMAP)
+  /* Use default generic version for debugging */
+  gasnetc_nodemap = gasneti_nodemap(NULL, &gasnetc_bootstrapExchange);
+#else
+  /* Build gasnetc_nodemap from cnos_map w/o need for a bootstrapExchange */
+  { gasnet_node_t     prev_node;
+    ptl_nid_t         prev_nid;
+    gasnetc_nodemap = (gasnet_node_t*)gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+    prev_nid = prev_node = 0;
+    for (node = 0; node < gasneti_nodes; node++) {
+      prev_node = gasnetc_nodemap[node] = 
+          (cnos_map[node].nid == prev_nid) ? prev_node : node;
+      prev_nid = cnos_map[node].nid;
+    }
+  }
+#endif
+
   /* init the table to a list of null pointers */
   for (i = 0; i < HASHTABLE_SIZE; i++) {
     gasnetc_addrtable[i] = NULL;
@@ -2999,7 +3021,9 @@ extern uintptr_t gasnetc_portalsMaxPinMem(void)
                         "GASNET_PHYSMEM_PINNABLE_RATIO", 
                         GASNETC_DEFAULT_PHYSMEM_PINNABLE_RATIO);
 
-  limit = gasneti_mmapLimit(limit, pm_ratio * gasneti_getPhysMemSz(1), NULL,
+  gasneti_assert(gasnetc_nodemap);
+  limit = gasneti_mmapLimit(limit, pm_ratio * gasneti_getPhysMemSz(1),
+                            gasnetc_nodemap,
                             &gasnetc_bootstrapExchange,
                             &gasnetc_bootstrapBarrier);
 #endif
@@ -3417,6 +3441,12 @@ extern void gasnetc_init_portals_resources(void)
   int64_t bytes_per_buffer = gasnetc_ReqRB_numchunk*GASNETC_CHUNKSIZE;
   int64_t cred_per_buffer = cred_bytes_per_buffer/GASNETC_BYTES_PER_CREDIT;
   
+#if PLATFORM_OS_CNL
+  /* XXX: perhaps not the best place for this */
+  gasneti_assert(gasnetc_nodemap);
+  gasneti_free(gasnetc_nodemap);
+#endif
+
   /* read Portals specific env vars */
   gasnetc_put_bounce_limit = (int64_t)gasneti_getenv_int_withdefault("GASNET_PORTAL_PUTGET_BOUNCE_LIMIT",
 				(int64_t)GASNETC_PUTGET_BOUNCE_LIMIT_DFLT,1);
