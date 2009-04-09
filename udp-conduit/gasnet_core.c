@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core.c,v $
- *     $Date: 2009/04/08 21:36:31 $
- * $Revision: 1.38.2.2 $
+ *     $Date: 2009/04/09 06:55:28 $
+ * $Revision: 1.38.2.3 $
  * Description: GASNet UDP conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -217,10 +217,16 @@ static int gasnetc_init(int *argc, char ***argv) {
     #endif
 
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-      gasneti_segmentInit(gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1, NULL,
-                                            &gasnetc_bootstrapExchange,
-                                            &gasnetc_bootstrapBarrier),
-                          &gasnetc_bootstrapExchange);
+    { uintptr_t limit;
+      #if HAVE_MMAP
+        limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1, NULL,
+                                  &gasnetc_bootstrapExchange,
+                                  &gasnetc_bootstrapBarrier),
+      #else
+        limit = (intptr_t)-1;
+      #endif
+      gasneti_segmentInit(limit, &gasnetc_bootstrapExchange);
+    }
     #elif GASNET_SEGMENT_EVERYTHING
       /* segment is everything - nothing to do */
     #else
