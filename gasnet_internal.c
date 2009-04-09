@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/09 06:46:26 $
- * $Revision: 1.198.2.7 $
+ *     $Date: 2009/04/09 23:50:06 $
+ * $Revision: 1.198.2.8 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -824,25 +824,23 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
 #elif 0
   /* platform-specifc #elif cases go here */
   /* They can #define GASNETI_USE_GETHOSTID to fall back to the generic version */
-#elif PLATFORM_OS_CATAMOUNT
-  typedef int gasneti_hostid_t;
-  static gasneti_hostid_t gasneti_gethostid(void) {
-    gasneti_fatalerror("gasneti_gethostid() unimplemented on Catamount");
-    return 0;
-  }
 #elif HAVE_GETHOSTID
   #define GASNETI_USE_GETHOSTID 1
 #else
-  #error No hostid implementation is available on your platform
+  /* Implementation of last-resort uses hostid = gasneti_mynode.
+   * The result is that the nodemap says every gasnet node is a
+   * distinct O/S-level node.
+   * This happens to be correct for Catamount.
+   */
+  typedef gasnet_node_t gasneti_hostid_t;
+  #define gasneti_gethostid() (gasneti_mynode)
 #endif
 
 #if GASNETI_USE_GETHOSTID
   /* Generic gethostid() from Single Unix Specification (IEEE Std 1003.1-2001)
      Spec says return type is long, but that the result is 32 bits. */
   typedef uint32_t gasneti_hostid_t;
-  static gasneti_hostid_t gasneti_gethostid(void) {
-    return (gasneti_hostid_t)gethostid();
-  }
+  #define gasneti_gethostid() ((gasneti_hostid_t)gethostid())
 #endif
 
 #if defined(GASNETC_CONDUIT_SPECIFIC_NODEMAP)
@@ -856,12 +854,6 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
   /* Platform-specific #elif cases go here and must fully match the
    * signature of the generic version, below.
    */
-#elif PLATFORM_OS_CATAMOUNT
-  extern gasnet_node_t *gasneti_nodemap(gasnet_node_t *nodemap,
-                                        gasneti_bootstrapExchangefn_t exchangefn) {
-    gasneti_fatalerror("gasneti_nodemap() unimplemented on Catamount");
-    return NULL;
-  }
 #else
   /* Fill in the nodemap array such that
    *   For all i: nodemap[i] is the lowest node number collocated w/ node i
