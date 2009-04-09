@@ -26,7 +26,8 @@ struct gasnete_coll_node_scratch_status_t_  {
   uint64_t head;
   
   /*since the tail is the only one that gets updated by the active message handlers it needs to be the atomic one*/
-  gasnett_atomic_t reset_signal;
+  gasneti_weakatomic_t reset_signal_sent;
+  gasneti_weakatomic_t reset_signal_recv;
 };
 
 struct gasnete_coll_op_info_t_ {
@@ -116,7 +117,8 @@ void gasnete_coll_alloc_new_scratch_status(gasnete_coll_team_t team) {
   stat->clear_signal_sent = 0;
   for(i=0; i<team->total_ranks; i++) {
     stat->node_status[i].head = 0;
-    gasnett_atomic_set(&(stat->node_status[i].reset_signal),0,0);
+    gasneti_weakatomic_set(&(stat->node_status[i].reset_signal_sent),0,0);
+    gasneti_weakatomic_set(&(stat->node_status[i].reset_signal_recv),0,0);
   }
   
   team->scratch_status = stat;
@@ -159,7 +161,7 @@ void gasnete_coll_scratch_update_reqh(gasnet_token_t token,
   gasneti_assert(stat);
   gasneti_assert(stat->node_status);
   /* for now signal the new val as 1*/
-  gasnett_atomic_increment(&(stat->node_status[node].reset_signal),0);
+  gasneti_weakatomic_increment(&(stat->node_status[node].reset_signal_sent),0);
 }
 /***************************/
 
@@ -343,14 +345,16 @@ uint8_t gasnete_coll_scratch_check_remote_clear(gasnete_coll_scratch_req_t *req,
   
   for(i=0; i<req->num_out_peers; i++) {
     /*fprintf(stderr, "%d> waiting for clear from %d\n", gasneti_mynode, req->out_peers[i]);*/
-    if(!gasnett_atomic_read(&(stat->node_status[req->out_peers[i]].reset_signal),0)) {
+    if(gasneti_weakatomic_read(&(stat->node_status[req->out_peers[i]].reset_signal_sent),0)
+       == gasneti_weakatomic_read(&(stat->node_status[req->out_peers[i]].reset_signal_recv),0)
+       ) {
       return 0;
     }
   }
   /* reset all the signals once we get all of them*/
   /*fprintf(stderr, "%d> got all clear\n", gasneti_mynode);*/
   for(i=0; i<req->num_out_peers; i++) {
-    gasnett_atomic_set(&(stat->node_status[req->out_peers[i]].reset_signal),0,0);
+    gasneti_weakatomic_increment(&(stat->node_status[req->out_peers[i]].reset_signal_recv),0);
     stat->node_status[req->out_peers[i]].head = 0;
   }
   return 1;
@@ -367,12 +371,14 @@ uint8_t gasnete_coll_scratch_check_remote_alloc(gasnete_coll_scratch_req_t *req,
        req->team->scratch_segs[req->out_peers[i]].size) {
       /*fprintf(stderr, "%d> waiting for clear from %d\n", gasneti_mynode, req->out_peers[i]);*/
       /* remote space is full */
-      if(!gasnett_atomic_read(&(stat->node_status[req->out_peers[i]].reset_signal),0)) {
+      if(gasneti_weakatomic_read(&(stat->node_status[req->out_peers[i]].reset_signal_sent),0)==
+         gasneti_weakatomic_read(&(stat->node_status[req->out_peers[i]].reset_signal_recv),0)
+         ) {
         return 0;
       } else {
         /*fprintf(stderr, "%d> got clear from %d\n", gasneti_mynode, req->out_peers[i]);*/
         stat->node_status[req->out_peers[i]].head = 0;
-        gasnett_atomic_set(&(stat->node_status[req->out_peers[i]].reset_signal),0,0);
+        gasneti_weakatomic_increment(&(stat->node_status[req->out_peers[i]].reset_signal_recv),0);
       }
     }
   }
@@ -441,8 +447,9 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETE_THREAD_FARG) 
     /* empty scratch space is misconfigured*/
  
    
-    
-   /* fprintf(stderr, "%d,%d> polling scratch --> empty mismatch config\n", op->sequence, gasneti_mynode);*/
+#if GASNETE_COLL_SCRATCH_DEBUG_PRINTS
+    //    fprintf(stderr, "%d,%d> polling scratch --> empty mismatch config\n", op->sequence, gasneti_mynode);
+#endif
     if(!op->waiting_for_reconfig_clear) {
       if(stat->num_waiting_ops>0) {
         gasnete_coll_scratch_reconfigure(stat, scratch_req, stat->waiting_config_and_ops_head);
