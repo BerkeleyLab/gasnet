@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2009/04/08 22:52:56 $
- * $Revision: 1.126.2.4 $
+ * $Date: 2009/04/09 23:22:47 $
+ * $Revision: 1.126.2.5 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -36,7 +36,7 @@ gasnet_handlerentry_t const		*gasnetc_get_handlertable(void);
 extern gasnet_handlerentry_t const	*gasnete_get_handlertable(void);
 extern gasnet_handlerentry_t const	*gasnete_get_extref_handlertable(void);
 
-static gasnet_node_t *gasnetc_nodemap;
+static gasnet_node_t *gasnetc_nodemap = NULL;
 
 static void gasnetc_atexit(void);
 
@@ -90,6 +90,18 @@ gasnetc_init(int *argc, char ***argv)
 	gasnetc_AllocPinnedBufs();
 	gasnetc_AllocGatherBufs();
 
+        /* Construct nodemap from GM ids */
+        { gasnet_node_t i, prev_node = 0;
+          uint16_t prev_id = 0;
+
+          gasnetc_nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+          for (i = 0; i < gasneti_nodes; ++i) {
+            prev_node = gasnetc_nodemap[i] =
+                    (_gmc.gm_nodes[i].id == prev_id) ? prev_node : i;
+            prev_id = _gmc.gm_nodes[i].id;
+          }
+        }
+
 	gasnetc_bootstrapBarrier();
 	gasneti_init_done = 1; /* Not really done, but need getenv internally */
 
@@ -104,9 +116,6 @@ gasnetc_init(int *argc, char ***argv)
 	    fprintf(stderr, "WARNING: GASNET_PACKEDLONG_LIMIT reduced from requested value %d to maximum supported value %d.\n", (int)gasnetc_packed_long_limit, (int)(GASNETC_AM_LEN-GASNETC_LONG_OFFSET));
 	    gasnetc_packed_long_limit = GASNETC_AM_LEN-GASNETC_LONG_OFFSET;
 	}
-
-	/* Discover peers on the same shared-memory node */
-        gasnetc_nodemap = gasneti_nodemap(NULL, &gasnetc_bootstrapExchange);
 
 	/* 
 	 * Find the upper bound on pinnable memory for firehose algorithm.

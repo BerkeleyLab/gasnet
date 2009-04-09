@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_fwd.h,v $
- * $Date: 2008/11/06 16:01:31 $
- * $Revision: 1.35 $
+ * $Date: 2009/04/09 23:22:47 $
+ * $Revision: 1.35.8.1 $
  * Description: GASNet header for GM conduit core (forward definitions)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -72,5 +72,11 @@ typedef uint8_t		gasnet_handler_t;
 #define _GASNET_TOKEN_T
 struct gasnetc_bufdesc;
 typedef struct gasnetc_bufdesc *gasnet_token_t;
+
+/* We have no need for the generic gasneti_gethostid(). */
+#define GASNETC_CONDUIT_SPECIFIC_HOSTID 1
+
+/* We use a conduit-specifc replacement for gasneti_nodemap() */
+#define GASNETC_CONDUIT_SPECIFIC_NODEMAP 1
 
 #endif /* _GASNET_CORE_FWD_H */
