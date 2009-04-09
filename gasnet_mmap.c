@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/04/09 01:47:02 $
- * $Revision: 1.59.2.6 $
+ *     $Date: 2009/04/09 05:03:15 $
+ * $Revision: 1.59.2.7 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -343,6 +343,7 @@ typedef struct {
 } gasneti_segexch_t;
 static gasneti_segexch_t *gasneti_segexch = NULL; /* exchanged segment information */
 
+#ifdef HAVE_MMAP
 /* perform a coordinated mmap probe to determine the max memory
     that can be mmap()ed while considering multiple GASNet nodes
     per shared memory node
@@ -434,6 +435,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
   gasneti_free(my_nodemap); /* NULL if caller-provided */
   return maxsz;
 }
+#endif /* HAVE_MMAP */
 
 /* do the work necessary for initing a standard segment map in arbitrary memory 
      uses mmap if available, or malloc otherwise

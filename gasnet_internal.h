@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2009/04/09 01:47:02 $
- * $Revision: 1.114.2.5 $
+ *     $Date: 2009/04/09 05:03:15 $
+ * $Revision: 1.114.2.6 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -295,16 +295,18 @@ typedef void (*gasneti_bootstrapBroadcastfn_t)(void *src, size_t len, void *dest
 typedef void (*gasneti_bootstrapBarrierfn_t)(void);
 
 #if !GASNET_SEGMENT_EVERYTHING
+#ifdef HAVE_MMAP
 uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasnet_node_t *nodemap,
                             gasneti_bootstrapExchangefn_t exchangefn,
                             gasneti_bootstrapBarrierfn_t barrierfn);
+#endif /* HAVE_MMAP */
 void gasneti_segmentInit(uintptr_t localSegmentLimit,
                          gasneti_bootstrapExchangefn_t exchangefn);
 void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
                            gasnet_seginfo_t *seginfo,
                            gasneti_bootstrapExchangefn_t exchangefn);
-#endif
+#endif /* !GASNET_SEGMENT_EVERYTHING */
 void gasneti_setupGlobalEnvironment(gasnet_node_t numnodes, gasnet_node_t mynode,
                                      gasneti_bootstrapExchangefn_t exchangefn,
                                      gasneti_bootstrapBroadcastfn_t broadcastfn);
