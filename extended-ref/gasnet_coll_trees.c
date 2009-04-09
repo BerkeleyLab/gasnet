@@ -148,18 +148,18 @@ void gasnete_coll_print_tree(gasnete_coll_local_tree_geom_t *geom, int gasnete_c
   int i;
   
   for(i=0; i<geom->child_count; i++) {
-    fprintf(stderr, "%d> child %d: %d, subtree for that child: %d (offset: %d)\n", gasnete_coll_tree_mynode, i, (int)geom->child_list[i], (int)geom->subtree_sizes[i], (int)geom->child_offset[i]);
+    fprintf(stdout, "%d> child %d: %d, subtree for that child: %d (offset: %d)\n", gasnete_coll_tree_mynode, i, (int)geom->child_list[i], (int)geom->subtree_sizes[i], (int)geom->child_offset[i]);
   }
   if(gasnete_coll_tree_mynode == geom->root) {
-    for(i=0; i<geom->total_size; i++) {
-      fprintf(stderr, "%d> dfs order %d: %d\n", (int)gasnete_coll_tree_mynode, i, (int)geom->dfs_order[i]);
-    }
+    /* for(i=0; i<geom->total_size; i++) { */
+/*       fprintf(stdout, "%d> dfs order %d: %d\n", (int)gasnete_coll_tree_mynode, i, (int)geom->dfs_order[i]); */
+/*     } */
   } else {
-    fprintf(stderr, "%d> parent: %d\n", (int)gasnete_coll_tree_mynode, (int)geom->parent);
+    fprintf(stdout, "%d> parent: %d\n", (int)gasnete_coll_tree_mynode, (int)geom->parent);
   }
-  fprintf(stderr, "%d> mysubtree size: %d\n", (int)gasnete_coll_tree_mynode, (int)geom->mysubtree_size);
+  fprintf(stdout, "%d> mysubtree size: %d\n", (int)gasnete_coll_tree_mynode, (int)geom->mysubtree_size);
 #if 1
-  fprintf(stderr, "%d> My sibling info: (id: %d, offset %d)\n", (int)gasnete_coll_tree_mynode, (int)geom->sibling_id, (int)geom->sibling_offset);
+  fprintf(stdout, "%d> My sibling info: (id: %d, offset %d)\n", (int)gasnete_coll_tree_mynode, (int)geom->sibling_id, (int)geom->sibling_offset);
 #endif
 }
 
@@ -523,6 +523,17 @@ static tree_node_t find_node(tree_node_t tree, gasnet_node_t id) {
   return NULL;
 }
 
+static void print_tree_node(tree_node_t main_node, int id) {
+  int i;
+  printf("%d> %d num_children: %d\n", id, GET_NODE_ID(main_node), GET_NUM_CHILDREN(main_node));
+  for(i=0; i<GET_NUM_CHILDREN(main_node); i++) {
+    printf("%d> %d child: %d %d\n", id, GET_NODE_ID(main_node), i, GET_NODE_ID(GET_CHILD_IDX(main_node,i)));
+  }
+  for(i=0; i<GET_NUM_CHILDREN(main_node); i++) {
+    print_tree_node(GET_CHILD_IDX(main_node, i), id);
+  }
+  return;
+}
 /*this fucntion is already serialized in the function that calls this 
   so from here on out there is no worry about locking*/
 gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll_tree_type_t in_type, int rootrank, gasnete_coll_team_t team)  {
@@ -589,6 +600,8 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
   }
   rootnode = setparents(rootnode);
   mynode = find_node(rootnode, team->myrank);
+  //  if(team->myrank == 0) 
+  // print_tree_node(mynode, team->myrank);
   geom->root = rootrank;
   geom->tree_type = in_type;
   geom->total_size = team->total_ranks;

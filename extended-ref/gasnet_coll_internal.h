@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/04/02 00:27:12 $
- * $Revision: 1.53.14.7 $
+ *     $Date: 2009/04/09 05:59:37 $
+ * $Revision: 1.53.14.8 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1497,6 +1497,15 @@ gasnete_coll_scat_Put(gasnet_team_handle_t team,
 
 extern gasnet_coll_handle_t
 gasnete_coll_scat_TreePut(gasnet_team_handle_t team,
+			   void *dst,
+			   gasnet_image_t srcimage, void *src,
+			   size_t nbytes, size_t dist, int flags,
+			   gasnete_coll_tree_type_t tree_type,
+			   uint32_t sequence
+			   GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_scat_TreePutNoCopy(gasnet_team_handle_t team,
 			   void *dst,
 			   gasnet_image_t srcimage, void *src,
 			   size_t nbytes, size_t dist, int flags,
