@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/04/08 21:54:42 $
- * $Revision: 1.59.2.5 $
+ *     $Date: 2009/04/09 01:47:02 $
+ * $Revision: 1.59.2.6 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -349,6 +349,7 @@ static gasneti_segexch_t *gasneti_segexch = NULL; /* exchanged segment informati
    localLimit is an optional conduit-specific upper limit per GASNet node
    sharedLimit is an optional upper limit per shared memory node
    requires a nodemap, as from gasneti_nodemap() or NULL
+    If NULL, the conduit must not define GASNETC_CONDUIT_SPECIFIC_NODEMAP
    requires an exchange callback function that can be used to exchange data
    barrierfn is an optional callback function, to perform a barrier
     If non-NULL will be called after any gasneti_munmap() to ensure all
@@ -367,16 +368,21 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
   gasnet_node_t *my_nodemap = NULL;
   uintptr_t maxsz;
 
+  gasneti_assert(exchangefn);
+
   /* Apply intial limits, even if not sharing nodes */
   maxsz = GASNETI_MMAP_LIMIT;
   if ((uint64_t)localLimit > sharedLimit) localLimit = sharedLimit;
   maxsz = MIN(maxsz, localLimit);
 
+#if defined(GASNETC_CONDUIT_SPECIFIC_NODEMAP)
+  gasneti_assert(nodemap);
+#else
   /* Create nodemap if caller didn't provide one */
   if (!nodemap) {
-    my_nodemap = nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
-    gasneti_nodemap(nodemap, exchangefn);
+    my_nodemap = nodemap = gasneti_nodemap(NULL, exchangefn);
   }
+#endif
 
   /* Coordinate the search IFF there are any shared nodes. */
   for (i = 0; i < gasneti_nodes; ++i) {
