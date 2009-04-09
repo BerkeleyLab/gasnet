@@ -1,6 +1,6 @@
 GASNet Portals-conduit documentation
 Michael Welcome <mlwelcome@lbl.gov>
-$Revision: 1.14 $
+$Revision: 1.14.8.1 $
 
 User Information:
 -----------------
@@ -194,6 +194,12 @@ GASNET_PORTAL_PUTGET_BOUNCE_LIMIT=N
   be silently deducted from this limit if the sum would otherwise exceed the
   chunk size.)
   This parameter has no effect unless firehose is disabled (debug builds only).
+
+GASNET_PHYSMEM_PINNABLE_RATIO=DOUBLE (default=0.75)
+  The fraction of physical memory that can be made pinnable under CNL.
+  This value should be reduced if a job dies at startup with a message like
+    OOM killer terminated this process.
+  This parameter has no effect under Catamount.
 
 * All the standard GASNet environment variables (see top-level README)
 

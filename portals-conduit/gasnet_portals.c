@@ -4,6 +4,9 @@
 #include <gasnet_handler.h>
 #include <gasnet_portals.h>
 #include <signal.h>
+#ifdef HAVE_MMAP
+#include <sys/mman.h> /* For MAP_FAILED */
+#endif
 
 #define GASNETC_DEBUG_RB_VERBOSE 0
 
@@ -2918,14 +2921,18 @@ extern void gasnetc_testBootExch(void)
  * if pinning fails.
  * Cleans up after itself.
  * --------------------------------------------------------------------------------- */
-static int try_pin(uintptr_t size)
+static int try_pin(const uintptr_t size)
 {
   ptl_md_t md;
   ptl_handle_md_t md_h;
   int rc, ok;
+#if HAVE_MMAP
+  void *mem = gasneti_mmap(size);
+  if (mem == MAP_FAILED) return 0;
+#else
   void *mem = gasneti_malloc_allowfail(size);
-
   if (mem == NULL) return 0;
+#endif
 
   /* poll system queue here since these operations can take some time */
   gasnetc_sys_poll();
@@ -2958,7 +2965,11 @@ static int try_pin(uintptr_t size)
   if (ok) {
     GASNETC_PTLSAFE(PtlMDUnlink(md_h));
   }
+#if HAVE_MMAP
+  gasneti_munmap(mem, size);
+#else
   gasneti_free(mem);
+#endif
   GASNETI_TRACE_PRINTF(C,("try_pin of %lu bytes %s",(unsigned long)size,(ok?"successful":"failed")));
   return ok;
 }
@@ -2979,12 +2990,18 @@ extern uintptr_t gasnetc_portalsMaxPinMem(void)
 
 #if PLATFORM_OS_CNL
   /* On CNL, if we try to pin beyond what the OS will allow, the job is killed.
-   * So, there is really no way (that we know of) to determine the maximum
+   * So, there is really no way (that we know of) to determine the EXACT maximum
    * pinnable memory under CNL without dire consequences.
-   * For this platform, we will simply return a large value and if the user
-   * requests a value larger than what can be pinned, the job will be killed.
+   * For this platform, we will simply try a large fraction of the physical
+   * memory.  If that is too big, then the job will be killed at startup.
    */
-  return (uintptr_t)-1;
+  double pm_ratio = gasneti_getenv_dbl_withdefault(
+                        "GASNET_PHYSMEM_PINNABLE_RATIO", 
+                        GASNETC_DEFAULT_PHYSMEM_PINNABLE_RATIO);
+
+  limit = gasneti_mmapLimit(limit, pm_ratio * gasneti_getPhysMemSz(1), NULL,
+                            &gasnetc_bootstrapExchange,
+                            &gasnetc_bootstrapBarrier);
 #endif
 
   /* make sure we can pin at least the initial low watermark of memory */
@@ -2993,9 +3010,10 @@ extern uintptr_t gasnetc_portalsMaxPinMem(void)
   }
   high = low;
 
-  /* move high boundary up (exponentially) intil it will no longer pin */
+  /* move high boundary up (exponentially) until it will no longer pin, or we hit the limit */
   prev = low;
   high = prev*2;
+  if (high > limit) high = limit;
   while (try_pin(high)) {
     prev = high;
     if (high >= limit) {
@@ -3007,15 +3025,15 @@ extern uintptr_t gasnetc_portalsMaxPinMem(void)
   low = prev;
 
   /* Now bisect until difference is within the granularity */
-  do {
+  while ((high - low) > granularity) {
     uint64_t mid = (low + high)/2;
     if (try_pin(mid)) {
       low = mid;
     } else {
       high = mid;
     }
-  } while ((high - low) > granularity);
-  if (try_pin(high)) {
+  }
+  if ((low != high) && try_pin(high)) {
     low = high;
   }
   GASNETI_TRACE_PRINTF(C,("MaxPinMem = %lu",(unsigned long)low));
