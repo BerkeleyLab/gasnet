@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/10 03:45:11 $
- * $Revision: 1.198.2.9 $
+ *     $Date: 2009/04/10 04:50:14 $
+ * $Revision: 1.198.2.10 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -824,13 +824,14 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
 #elif 0
   /* platform-specifc #elif cases go here */
   /* They can #define GASNETI_USE_GETHOSTID to fall back to the generic version */
-#elif HAVE_GETHOSTID
+#elif HAVE_GETHOSTID && \
+  !(PLATFORM_OS_BLRTS || PLATFORM_OS_BGP) /* gethostid() gives I/O node */
   #define GASNETI_USE_GETHOSTID 1
 #else
   /* Implementation of last-resort uses hostid = gasneti_mynode.
    * The result is that the nodemap says every gasnet node is a
    * distinct O/S-level node.
-   * This happens to be correct for Catamount.
+   * This happens to be correct for Catamount and BG/L.
    */
   typedef gasnet_node_t gasneti_hostid_t;
   #define gasneti_gethostid() (gasneti_mynode)
