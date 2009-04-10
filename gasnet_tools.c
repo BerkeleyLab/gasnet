@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2009/04/08 19:26:38 $
- * $Revision: 1.229.2.1 $
+ *     $Date: 2009/04/10 22:14:46 $
+ * $Revision: 1.229.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,6 +15,7 @@
 #undef GASNET_PAR
 #undef GASNET_PARSYNC
 
+#define _IN_GASNET_TOOLS_C
 #include <gasnet_tools.h>
 
 #include <unistd.h>

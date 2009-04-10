@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2009/03/06 09:56:53 $
- * $Revision: 1.310 $
+ *     $Date: 2009/04/10 22:14:46 $
+ * $Revision: 1.310.4.1 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2528,11 +2528,14 @@ GASNETI_MIPS_LL(_ll "   %0,0(%4)         \n\t")/* _retval = *p (starts ll/sc res
       /* NOTE: defining gasneti_genatomic_read triggers matching behavior in gasnet_atomicops.h */
       #define gasneti_genatomic64_read             gasneti_pthread_atomic64_read
     #endif
-  #else
+  #elif !defined(_IN_GASNET_TOOLS_C)
     /* Case IV: Serial gasnet tools client. */
     /* attempt to generate a compile error if pthreads actually are in use */
     #define PTHREAD_MUTEX_INITIALIZER ERROR_include_pthread_h_before_gasnet_tools_h
     extern int pthread_mutex_lock; 
+  #else
+    /* Case V: Building serial gasnet or gasnet-tools library. */
+    /* Distinct from Case IV since system headers may include pthread.h (e.g. on BG/P) */
   #endif
 
   #ifndef gasneti_genatomic32_align
