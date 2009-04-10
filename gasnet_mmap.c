@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/04/09 05:03:15 $
- * $Revision: 1.59.2.7 $
+ *     $Date: 2009/04/10 03:45:11 $
+ * $Revision: 1.59.2.8 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -381,7 +381,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
 #else
   /* Create nodemap if caller didn't provide one */
   if (!nodemap) {
-    my_nodemap = nodemap = gasneti_nodemap(NULL, exchangefn);
+    my_nodemap = nodemap = gasneti_nodemap(exchangefn);
   }
 #endif
 

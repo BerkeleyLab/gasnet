@@ -2559,10 +2559,10 @@ extern void gasnetc_init_portals_network(int *argc, char ***argv)
   }
 
 #if PLATFORM_OS_CATAMOUNT
-  /* gasnetc_nodemap is unused */
+  /* gasnetc_nodemap is unused - no mmap(), no shared memory */
 #elif !defined(GASNETC_CONDUIT_SPECIFIC_NODEMAP)
   /* Use default generic version for debugging */
-  gasnetc_nodemap = gasneti_nodemap(NULL, &gasnetc_bootstrapExchange);
+  gasnetc_nodemap = gasneti_nodemap(&gasnetc_bootstrapExchange);
 #else
   /* Build gasnetc_nodemap from cnos_map w/o need for a bootstrapExchange */
   { gasnet_node_t     prev_node;
