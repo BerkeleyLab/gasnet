@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/03/31 21:01:13 $
- * $Revision: 1.123 $
+ *     $Date: 2009/04/10 00:48:02 $
+ * $Revision: 1.123.2.1 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -47,6 +47,8 @@ gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 /* #define GASNETC_FH_MAXREGION_SIZE (64L*1024L) */
 #define GASNETC_FH_MAXREGION_SIZE (2L*1024L*1024L)
 #define GASNETC_FH_MAX_PINNABLE (128L*1024L*1024L)
+
+gasnet_node_t *gasnetc_nodemap = NULL;
 
 /* -------------------------------------------------------------------
  * Begin: LAPI specific variables
@@ -318,6 +320,22 @@ static int gasnetc_init(int *argc, char ***argv) {
 	    gasneti_mynode, gasneti_nodes); fflush(stderr);
 #endif
 
+    /* Construct nodemap using LAPI_Address_init() */
+    {   void **tmp = (void**)gasneti_malloc(num_tasks*sizeof(void*));
+        void *myid = (void*)(uintptr_t)gethostid();
+        gasnet_node_t i, prev_node = 0;
+        void *prev_id = NULL;
+
+        gasnetc_nodemap = (gasnet_node_t*)gasneti_malloc(num_tasks*sizeof(gasnet_node_t));
+        GASNETC_LCHECK(LAPI_Address_init(gasnetc_lapi_context, myid, tmp));
+
+        for (i = 0; i < gasneti_nodes; ++i) {
+          prev_node = gasnetc_nodemap[i] = (tmp[i] == prev_id) ? prev_node : i;
+          prev_id = tmp[i];
+        }
+        gasneti_free(tmp);
+    }
+
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { 
 	/* Add code here to determine optimistic maximum segment size and
@@ -341,6 +359,8 @@ static int gasnetc_init(int *argc, char ***argv) {
 #else
 #error Bad segment config
 #endif
+
+    gasneti_free(gasnetc_nodemap); /* XXX: May move later for SysV work */
 
     /* set up atexit handler to call gasnet_exit in the
      * case where a program returns from main without
