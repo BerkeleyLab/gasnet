@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/14 02:48:40 $
- * $Revision: 1.198.2.12 $
+ *     $Date: 2009/04/14 03:42:28 $
+ * $Revision: 1.198.2.13 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -855,44 +855,40 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
   /* Platform-specific #elif cases go here and must fully match the
    * signature of the generic version, below.
    */
-#elif GASNETI_HAVE_BGP_INLINES && 0 /* DISABLED - see below */
-  /* This code is disabled because while the BG/P does allow for shared
-   *   memory between processes (e.g. among the 4 procs in VN mode, and
-   *   2 procs in DUAL mode) it requires setting BG_SHAREDMEMPOOLSIZE
-   *   in the environment before spawning the job.  This results in the
-   *   it being unusable by default.  Thus this code is OFF by default too.
-   * -PHH 2009.04.13
-   */
+#elif GASNETI_HAVE_BGP_INLINES && GASNETI_HAVE_BGP_INLINES
   extern gasnet_node_t *gasneti_nodemap(gasneti_bootstrapExchangefn_t exchangefn /* unused */) {
-    uint32_t *all_ids, prev_id;
-    gasnet_node_t i, *nodemap, prev;
+    gasnet_node_t i, *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
 
-    /* Kernel call to get torus coords for all ranks */
-    all_ids = gasneti_malloc(gasneti_nodes * sizeof(uint32_t));
-    { int rc;
-      GASNETI_BGP_SYSCALL2(rc, RANKS2COORDS, (uintptr_t)all_ids, (uint32_t)gasneti_nodes);
-      gasneti_assert(!rc);
-    }
+    if (0 == gasneti_getenv_int_withdefault("BG_SHAREDMEMPOOLSIZE",0,0)) {
+      /* Just build the trivial map if BG_SHAREDMEMPOOLSIZE is unset or zero */
+      for (i = 0; i < gasneti_nodes; ++i) nodemap[i] = i;
+    } else {
+      /* Build nodemap from <X,Y,Z> coords of all ranks.
+       *
+       * This code is "safe" for any mapping, but only identifies potential
+       * sharing for consecutive GASNet nodes (so ideal in any T... mapping).
+       * For any other mapping, we get a "valid" nodemap, but it will fail
+       * to identify the sharing of some or all nodes.
+       */
+      uint32_t *allids, prev_id;
+      gasnet_node_t i, prev;
 
-    /* Build nodemap from coords.
-     * This code is "safe" for any mapping, but only identifies potential
-     * sharing for consecutive GASNet nodes (so ideal in any T... mapping).
-     * For any other mapping, we get a "valid" nodemap, but it will fail
-     * to identify the sharing of some or all nodes.
-     */
-    nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
-    prev = prev_id = 0;
-    for (i = 0; i < gasneti_nodes; ++i) {
-      /* Mask away the T coordinate */
-      #if PLATFORM_ARCH_BIG_ENDIAN
-        uint32_t tmp_id = all_ids[i] & 0xFFFFFF00;
-      #else
-        #error "No support for a little-endian BG/P"
-      #endif
-      prev = nodemap[i] = (tmp_id == prev_id) ? prev : i;
-      prev_id = tmp_id;
+      allids = gasneti_malloc(gasneti_nodes * sizeof(uint32_t));
+      { int rc;
+        /* Kernel call to get torus coords for all ranks */
+        GASNETI_BGP_SYSCALL2(rc, RANKS2COORDS, (uintptr_t)allids, (uint32_t)gasneti_nodes);
+        gasneti_assert(!rc);
+      }
+
+      prev = prev_id = 0;
+      for (i = 0; i < gasneti_nodes; ++i) {
+        /* Mask away the T coordinate */
+        uint32_t tmp_id = allids[i] & 0xFFFFFF00;
+        prev = nodemap[i] = (tmp_id == prev_id) ? prev : i;
+        prev_id = tmp_id;
+      }
+      gasneti_free(allids);
     }
-    gasneti_free(all_ids);
 
     return nodemap;
   }
