@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2009/04/14 20:49:21 $
- * $Revision: 1.126.8.3 $
+ *     $Date: 2009/04/14 21:16:20 $
+ * $Revision: 1.126.8.4 $
  * Description: GASNet header for semi-portable inline asm support
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -171,16 +171,18 @@
    */
   #include <cnk/bgp_SysCall_Extensions.h>
   #if PLATFORM_COMPILER_GNU
-    #define GASNETI_BGP_SYSCALL2(_out, _name, _arg1, _arg2)    \
-      __asm__ __volatile__("li 0,%1\n\t"                       \
-                           "mr 3,%2\n\t"                       \
-                           "mr 4,%3\n\t"                       \
-                           "sc\n\t"                            \
-                           "mr %0,3"                           \
-                           : "=&r" (_out)                      \
-                           : "i" (_BGP_SYSCALL_NR_##_name),    \
-                               "r" (_arg1), "r" (_arg2)        \
-                           : "r0", "r3", "r4", "cr0", "memory")
+    #define _GASNETI_BGP_SYSCALL2(_out, _nr, _arg1, _arg2) do { \
+      register uint32_t _r0 __asm__("r0") = (_nr);              \
+      register uint32_t _r3 __asm__("r3") = (_arg1);            \
+      register uint32_t _r4 __asm__("r4") = (_arg2);            \
+      __asm__ __volatile__("sc"                                 \
+                           : "+r" (_r3)                         \
+                           : "r" (_r0), "r" (_r4), "0" (_r3)    \
+                           : "cc", "memory");                   \
+      (_out) = _r3;                                             \
+    } while(0)
+    #define GASNETI_BGP_SYSCALL2(_out, _name, _arg1, _arg2) \
+      _GASNETI_BGP_SYSCALL2((_out), _BGP_SYSCALL_NR_##_name, (_arg1), (_arg2))
   #elif PLATFORM_COMPILER_XLC
     static uint32_t _gasneti_bgp_syscall2(int nr, uint32_t arg1, uint32_t arg2);
     #pragma mc_func _gasneti_bgp_syscall2 {     \
