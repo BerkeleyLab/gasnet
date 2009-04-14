@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/11 06:45:38 $
- * $Revision: 1.198.2.11 $
+ *     $Date: 2009/04/14 02:48:40 $
+ * $Revision: 1.198.2.12 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -855,31 +855,24 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
   /* Platform-specific #elif cases go here and must fully match the
    * signature of the generic version, below.
    */
-#elif PLATFORM_OS_BGP && 0 /* DISABLED - see below */
-  /* This code is disabled for the following reasons:
-   * + It triggers bug 2564 w/ xlc
-   * + It won't link in some cases due to "extern inline"
-   * + Perhps most importantly: While the BG/P does allow for shared
+#elif GASNETI_HAVE_BGP_INLINES && 0 /* DISABLED - see below */
+  /* This code is disabled because while the BG/P does allow for shared
    *   memory between processes (e.g. among the 4 procs in VN mode, and
    *   2 procs in DUAL mode) it requires setting BG_SHAREDMEMPOOLSIZE
    *   in the environment before spawning the job.  This results in the
    *   it being unusable by default.  Thus this code is OFF by default too.
-   *
-   * Other than all that, it works. -PHH 2009.04.10
+   * -PHH 2009.04.13
    */
-  #include <spi/kernel_interface.h>
   extern gasnet_node_t *gasneti_nodemap(gasneti_bootstrapExchangefn_t exchangefn /* unused */) {
-    kernel_coords_t *all_coords; /* struct { unsigned char x, y, z, t; } */
     uint32_t *all_ids, prev_id;
     gasnet_node_t i, *nodemap, prev;
 
     /* Kernel call to get torus coords for all ranks */
-    all_coords = gasneti_malloc(gasneti_nodes * sizeof(kernel_coords_t));
-    gasneti_assert_zeroret(Kernel_Ranks2Coords(all_coords, gasneti_nodes));
-
-    /* We access coords as uint32_t */
-    gasneti_assert(sizeof(kernel_coords_t) == sizeof(uint32_t));
-    all_ids = (uint32_t*)all_coords;
+    all_ids = gasneti_malloc(gasneti_nodes * sizeof(uint32_t));
+    { int rc;
+      GASNETI_BGP_SYSCALL2(rc, RANKS2COORDS, (uintptr_t)all_ids, (uint32_t)gasneti_nodes);
+      gasneti_assert(!rc);
+    }
 
     /* Build nodemap from coords.
      * This code is "safe" for any mapping, but only identifies potential
@@ -890,7 +883,7 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
     nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
     prev = prev_id = 0;
     for (i = 0; i < gasneti_nodes; ++i) {
-      /* Coerce 4-byte struct to a 4-byte uint and mask away the T coordinate */
+      /* Mask away the T coordinate */
       #if PLATFORM_ARCH_BIG_ENDIAN
         uint32_t tmp_id = all_ids[i] & 0xFFFFFF00;
       #else
@@ -899,7 +892,7 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
       prev = nodemap[i] = (tmp_id == prev_id) ? prev : i;
       prev_id = tmp_id;
     }
-    gasneti_free(all_coords);
+    gasneti_free(all_ids);
 
     return nodemap;
   }
