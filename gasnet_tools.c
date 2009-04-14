@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2009/04/14 02:53:55 $
- * $Revision: 1.229.2.4 $
+ *     $Date: 2009/04/14 19:11:46 $
+ * $Revision: 1.229.2.5 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1653,7 +1653,7 @@ extern int gasneti_cpu_count(void) {
   #elif defined(GASNETI_HAVE_BGP_INLINES)
       { 
         register _BGP_SprgShMem sprg4;
-        GASNETI_BGP_SPR(sprg4, _BGP_SPRGRO_SHMem); /* SPRG4 28:29 = (cores in my process) - 1 */
+        GASNETI_BGP_SPR(sprg4.shmem, _BGP_SPRGRO_SHMem); /* SPRG4 28:29 = (cores in my process) - 1 */
         hwprocs = sprg4.ShmNumCores + 1;
       }
   #elif PLATFORM_OS_SUPERUX || PLATFORM_OS_MTA
@@ -1887,8 +1887,8 @@ const char *gasneti_gethostname() {
                   pers.Kernel_Config.UniversalComponentIdentifier).ComputeCard;
       }
       gasneti_assert(cc_uci.Component == _BGP_UCI_Component_ComputeCard);
-      GASNETI_BGP_SPR(sprg4, _BGP_SPRGRO_SHMem); /* SPRG4 28:29 = (cores in my process) - 1 */
-      GASNETI_BGP_SPR(sprg5, _BGP_SPRGRO_DST2);  /* SPRG5 30:31 = physical core ID */
+      GASNETI_BGP_SPR(sprg4.shmem, _BGP_SPRGRO_SHMem); /* SPRG4 28:29 = (cores in my process) - 1 */
+      GASNETI_BGP_SPR(sprg5.dst2,  _BGP_SPRGRO_DST2);  /* SPRG5 30:31 = physical core ID */
       /* Rrc-Mm-Nnn-Jjj-Pp.  All but "-Pp" is standard BG/P component naming.
        */
       snprintf(hostname, MAXHOSTNAMELEN, "R%1x%1x-M%1u-N%02u-J%02u-P%1u",
