@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2009/04/11 06:36:53 $
-# $Revision: 1.540.2.3 $
+#     $Date: 2009/04/14 02:05:52 $
+# $Revision: 1.540.2.4 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.540.2.3 $)
+AC_REVISION($Revision: 1.540.2.4 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -555,6 +555,25 @@ case "$gasnet_cv_cc_family" in
     esac ;;
   *)  MISC_CPPFLAGS="" ;;
 esac
+
+# Locate system directories for BG/P
+if expr "$target" : powerpc-bgp-linux >/dev/null; then
+  AC_PATH_PROGS(bgpmaster, bgpmaster)
+  if test -n "$bgpmaster"; then
+    GASNET_FOLLOWLINKS(bgpmaster)
+    bgsys_guess=`dirname \`dirname $bgpmaster\``
+  else
+    bgsys_guess=/bgsys/drivers/ppcfloor
+  fi
+  GASNET_ENV_DEFAULT(BGP_SYS_HOME, $bgsys_guess)
+  GASNET_ENV_DEFAULT(BGP_SYS_INCLUDE, $BGP_SYS_HOME/arch/include)
+  if test -e "$BGP_SYS_INCLUDE/common"; then
+    GASNET_TRY_CFLAG([-isystem $BGP_SYS_INCLUDE],
+                     [SYS_HEADER_BLD="$SYS_HEADER_BLD -isystem $BGP_SYS_INCLUDE"],
+                     [SYS_HEADER_BLD="$SYS_HEADER_BLD -I$BGP_SYS_INCLUDE"])
+  fi
+  AC_SUBST(SYS_HEADER_BLD) dnl "Hook" shared with GASNET_CHECK_OVERRIDE_PTHREADS
+fi
 
 GASNET_IF_ENABLED(debug, Build GASNet in a debugging mode, 
   [ 
