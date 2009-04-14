@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2008/10/28 05:43:39 $
- * $Revision: 1.2 $
+ *     $Date: 2009/04/14 05:36:44 $
+ * $Revision: 1.2.10.1 $
  * Description: GASNet header for dcmf conduit core (forward definitions)
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -66,4 +66,10 @@ VAL(C, AMHANDLER_LIST_LEN, len) \
 TIME(C, GET_REPLAY_BUFFER_STALL, waittime) \
 TIME(C, REQ_AMHANDLER_WAIT, waittime) \
 TIME(C, REP_AMHANDLER_WAIT, waittime) 
+
+  /* define if generic gasneti_nodemap() is unneeded
+     for instance if there is a way to use conduit-specific knowledge to
+     determine which nodes share memory without any extra communication */
+/* #define GASNETC_CONDUIT_SPECIFIC_NODEMAP 1 */
+
 #endif

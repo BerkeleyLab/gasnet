@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_fwd.h,v $
- * $Date: 2009/04/09 23:22:47 $
- * $Revision: 1.35.8.1 $
+ * $Date: 2009/04/14 05:36:48 $
+ * $Revision: 1.35.8.2 $
  * Description: GASNet header for GM conduit core (forward definitions)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -64,6 +64,11 @@
         VAL(C, AMREPLYLONG_TWOCOPY, payload bytes)         \
         VAL(C, AMREPLYLONGASYNC_ZEROCOPY, payload bytes)      
 
+  /* define if generic gasneti_nodemap() is unneeded
+     for instance if there is a way to use conduit-specific knowledge to
+     determine which nodes share memory without any extra communication */
+#define GASNETC_CONDUIT_SPECIFIC_NODEMAP 1
+
 #define _GASNET_NODE_T
 typedef uint16_t	gasnet_node_t;
 #define _GASNET_HANDLER_T
@@ -72,11 +77,5 @@ typedef uint8_t		gasnet_handler_t;
 #define _GASNET_TOKEN_T
 struct gasnetc_bufdesc;
 typedef struct gasnetc_bufdesc *gasnet_token_t;
-
-/* We have no need for the generic gasneti_gethostid(). */
-#define GASNETC_CONDUIT_SPECIFIC_HOSTID 1
-
-/* We use a conduit-specifc replacement for gasneti_nodemap() */
-#define GASNETC_CONDUIT_SPECIFIC_NODEMAP 1
 
 #endif /* _GASNET_CORE_FWD_H */

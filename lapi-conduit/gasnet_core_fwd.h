@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2009/04/10 00:48:02 $
- * $Revision: 1.30.8.1 $
+ *     $Date: 2009/04/14 05:36:50 $
+ * $Revision: 1.30.8.2 $
  * Description: GASNet header for lapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -94,14 +94,13 @@
      statistical collection values (see gasnet_trace.h) */
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
 
+  /* define if generic gasneti_nodemap() is unneeded
+     for instance if there is a way to use conduit-specific knowledge to
+     determine which nodes share memory without any extra communication */
+#define GASNETC_CONDUIT_SPECIFIC_NODEMAP 1
+
 /* lapi-conduit does not guarantee 8-byte alignment for medium buffers,
    and PowerPC does not seem to ever require it */
 #define GASNETI_MEDBUF_ALIGNMENT 4
-
-/* We have no need for the generic gasneti_gethostid(). */
-#define GASNETC_CONDUIT_SPECIFIC_HOSTID 1
-
-/* We use a conduit-specifc replacement for gasneti_nodemap() */
-#define GASNETC_CONDUIT_SPECIFIC_NODEMAP 1
 
 #endif
