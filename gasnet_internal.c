@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/14 03:42:28 $
- * $Revision: 1.198.2.13 $
+ *     $Date: 2009/04/14 03:45:08 $
+ * $Revision: 1.198.2.14 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -855,7 +855,7 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
   /* Platform-specific #elif cases go here and must fully match the
    * signature of the generic version, below.
    */
-#elif GASNETI_HAVE_BGP_INLINES && GASNETI_HAVE_BGP_INLINES
+#elif PLATFORM_OS_BGP && GASNETI_HAVE_BGP_INLINES
   extern gasnet_node_t *gasneti_nodemap(gasneti_bootstrapExchangefn_t exchangefn /* unused */) {
     gasnet_node_t i, *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
 
