@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2009/04/14 05:37:00 $
- * $Revision: 1.14.36.1 $
+ *     $Date: 2009/04/14 06:05:51 $
+ * $Revision: 1.14.36.2 $
  * Description: GASNet header for smp conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -60,6 +60,6 @@
   /* define if generic gasneti_nodemap() is unneeded
      for instance if there is a way to use conduit-specific knowledge to
      determine which nodes share memory without any extra communication */
-/* #define GASNETC_CONDUIT_SPECIFIC_NODEMAP 1 */
+#define GASNETC_CONDUIT_SPECIFIC_NODEMAP 1
 
 #endif
