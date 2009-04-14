@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/14 04:03:38 $
- * $Revision: 1.198.2.16 $
+ *     $Date: 2009/04/14 05:29:07 $
+ * $Revision: 1.198.2.17 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -803,46 +803,9 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
 }
 
 /* ------------------------------------------------------------------------------------ */
-/* Hostid/nodemap handling
- * XXX: nodemap code assumes contiguous node assignments
+/* Nodemap handling
+ * XXX: generic code assumes that only contiguously-numbered nodes can share memory
  */
-
-#if defined(GASNETC_CONDUIT_SPECIFIC_HOSTID)
-  /* Conduit-specific code may implement gasneti_gethostid() and use the default
-     gasneti_nodemap(), or may implement a fully custom gasneti_nodemap() that
-     doesn't utilize gasneti_gethostid() at all.
-
-     If implementing gasneti_gethostid() and using default the gasneti_nodemap():
-     + One must typedef or #define gasneti_hostid_t to a type that supports
-       assignment (generally a scalar or a struct, so arrays should be contained
-       within a struct).
-     + If the type contains "holes" due to padding of struct members, care must
-       be taken to initialize them to known values, for instance w/ memset() of
-       the variable before setting any fields.  Failure to do this will result
-       in incorrect results when comparing values.
-   */
-#elif 0
-  /* platform-specifc #elif cases go here */
-  /* They can #define GASNETI_USE_GETHOSTID to fall back to the generic version */
-#elif HAVE_GETHOSTID && \
-  !(PLATFORM_OS_BLRTS || PLATFORM_OS_BGP) /* gethostid() gives I/O node */
-  #define GASNETI_USE_GETHOSTID 1
-#else
-  /* Implementation of last-resort uses hostid = gasneti_mynode.
-   * The result is that the nodemap says every gasnet node is a
-   * distinct O/S-level node.
-   * This happens to be correct for Catamount and BG/L.
-   */
-  typedef gasnet_node_t gasneti_hostid_t;
-  #define gasneti_gethostid() (gasneti_mynode)
-#endif
-
-#if GASNETI_USE_GETHOSTID
-  /* Generic gethostid() from Single Unix Specification (IEEE Std 1003.1-2001)
-     Spec says return type is long, but that the result is 32 bits. */
-  typedef uint32_t gasneti_hostid_t;
-  #define gasneti_gethostid() ((gasneti_hostid_t)gethostid())
-#endif
 
 #if defined(GASNETC_CONDUIT_SPECIFIC_NODEMAP)
   /* Nothing to do here.
@@ -888,8 +851,9 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
 
     return nodemap;
   }
-#elif PLATFORM_OS_BGP || PLATFORM_OS_BLRTS  || PLATFORM_OS_CATAMOUNT
-  /* Nodes are (at least effectively) single process.
+#elif PLATFORM_OS_BGP || PLATFORM_OS_BLRTS  || PLATFORM_OS_CATAMOUNT || !HAVE_GETHOSTID
+  /* Nodes are either (at least effectively) single process,
+   * or we don't have a usable gethostid().
    * So, build a trivial nodemap. */
   extern gasnet_node_t *gasneti_nodemap(gasneti_bootstrapExchangefn_t exchangefn /* unused */) {
     gasnet_node_t i, *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
@@ -902,23 +866,26 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
    */
   extern gasnet_node_t *gasneti_nodemap(gasneti_bootstrapExchangefn_t exchangefn) {
     gasnet_node_t *nodemap;
-    gasneti_hostid_t myid, *allids;
+    uint32_t myid, *allids;
     gasnet_node_t i, prev;
   
     gasneti_assert(exchangefn);
 
     nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
 
-    /* Exchange raw ids */
-    myid = gasneti_gethostid();
-    allids = gasneti_malloc(gasneti_nodes * sizeof(*allids));
+    /* Exchange (gather-to-all) of hostids
+     * gethostid() from Single Unix Specification (IEEE Std 1003.1-2001)
+     * spec says return type is long, but that the result is 32 bits.
+     * AIX and others have int.
+     */
+    myid = (uint32_t)gethostid();
+    allids = gasneti_malloc(gasneti_nodes * sizeof(uint32_t));
     (*exchangefn)(&myid, sizeof(myid), allids);
 
     /* Every node independently computes the same map */
     prev = nodemap[0] = 0;
     for (i = 1; i < gasneti_nodes; ++i) {
-      prev = nodemap[i] = 
-        memcmp(&allids[i-1], &allids[i], sizeof(gasneti_hostid_t)) ? i : prev;
+      prev = nodemap[i] = (allids[i] == allids[i-1]) ? prev : i;
     }
     gasneti_free(allids);
     return nodemap;
