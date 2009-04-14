@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/14 08:16:52 $
- * $Revision: 1.198.2.18 $
+ *     $Date: 2009/04/14 20:50:17 $
+ * $Revision: 1.198.2.19 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -818,9 +818,6 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
   extern gasnet_node_t *gasneti_nodemap(gasneti_bootstrapExchangefn_t exchangefn /* unused */) {
     gasnet_node_t i, *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
 
-  #if PLATFORM_COMPILER_XLC /* Due to bug 2564, we can't do better */
-    for (i = 0; i < gasneti_nodes; ++i) nodemap[i] = i;
-  #else
     if (0 == gasneti_getenv_int_withdefault("BG_SHAREDMEMPOOLSIZE",0,0)) {
       /* Just build the trivial map if BG_SHAREDMEMPOOLSIZE is unset or zero */
       for (i = 0; i < gasneti_nodes; ++i) nodemap[i] = i;
@@ -851,7 +848,6 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
       }
       gasneti_free(allids);
     }
-  #endif
 
     return nodemap;
   }
