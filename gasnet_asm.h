@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2009/04/14 02:40:31 $
- * $Revision: 1.126.8.1 $
+ *     $Date: 2009/04/14 08:16:52 $
+ * $Revision: 1.126.8.2 $
  * Description: GASNet header for semi-portable inline asm support
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -144,6 +144,7 @@
       __asm__ __volatile__("mfspr %0,%1" : "=r" (_out) : "i" (_regnr) : "memory")
 
   /* Make a 2-argument bgp-specific syscall.
+   * XXX: Note that using this macro w/ XLC in gasnet_internal.c can trigger bug 2564
    */
   #include <cnk/bgp_SysCall_Extensions.h>
   #define GASNETI_BGP_SYSCALL2(_out, _name, _arg1, _arg2)      \
