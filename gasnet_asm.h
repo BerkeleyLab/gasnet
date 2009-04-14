@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2008/10/08 05:28:03 $
- * $Revision: 1.126 $
+ *     $Date: 2009/04/14 02:40:31 $
+ * $Revision: 1.126.8.1 $
  * Description: GASNet header for semi-portable inline asm support
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -126,6 +126,38 @@
 
 #ifndef GASNETI_ASM_SPECIAL
   #define GASNETI_ASM_SPECIAL GASNETI_ASM
+#endif
+
+#if PLATFORM_OS_BGP && (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_XLC)
+  /* These helper macros are required because the *_inline.h headers are broken:
+   * + They break __thread support in bgxlc (see bug 2564)
+   * + They use "extern inline" in such a way as to require us to link to a
+   *   specific runtime library even though we don't use anything from it.
+   * Yes, bgxlc does support gnu-style inline asm.
+   */
+
+  /* Read from Special Purpose Register '_regnr'.
+   * We can mark this function CONST because we use only for read-only config regs.
+   */
+  #include <cnk/bgp_SPRG_Usage.h>
+  #define GASNETI_BGP_SPR(_out, _regnr) \
+      __asm__ __volatile__("mfspr %0,%1" : "=r" (_out) : "i" (_regnr) : "memory")
+
+  /* Make a 2-argument bgp-specific syscall.
+   */
+  #include <cnk/bgp_SysCall_Extensions.h>
+  #define GASNETI_BGP_SYSCALL2(_out, _name, _arg1, _arg2)      \
+      __asm__ __volatile__("li 0,%1\n\t"                       \
+                           "mr 3,%2\n\t"                       \
+                           "mr 4,%3\n\t"                       \
+                           "sc\n\t"                            \
+                           "mr %0,3"                           \
+                           : "=&r" (_out)                      \
+                           : "i" (_BGP_SYSCALL_NR_##_name),    \
+                               "r" (_arg1), "r" (_arg2)        \
+                           : "r0", "r3", "r4", "cc", "memory")
+
+  #define GASNETI_HAVE_BGP_INLINES 1
 #endif
 
 #endif /* _GASNET_ASM_H */
