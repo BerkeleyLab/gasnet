@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/14 03:45:08 $
- * $Revision: 1.198.2.14 $
+ *     $Date: 2009/04/14 03:56:46 $
+ * $Revision: 1.198.2.15 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -851,13 +851,9 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
    * the signature of the generic gasneti_nodemap() (though the result
    * must be in the same form for passing to other code.)
    */
-#elif 0
-  /* Platform-specific #elif cases go here and must fully match the
-   * signature of the generic version, below.
-   */
 #elif PLATFORM_OS_BGP && GASNETI_HAVE_BGP_INLINES
   extern gasnet_node_t *gasneti_nodemap(gasneti_bootstrapExchangefn_t exchangefn /* unused */) {
-    gasnet_node_t i, *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+    gasnet_node_t *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
 
     if (0 == gasneti_getenv_int_withdefault("BG_SHAREDMEMPOOLSIZE",0,0)) {
       /* Just build the trivial map if BG_SHAREDMEMPOOLSIZE is unset or zero */
@@ -892,10 +888,17 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
 
     return nodemap;
   }
+#elif PLATFORM_OS_BGP || PLATFORM_OS_BLRTS  || PLATFORM_OS_CATAMOUNT
+  /* Nodes are (at least effectively) single process.
+   * So, build a trivial nodemap. */
+  extern gasnet_node_t *gasneti_nodemap(gasneti_bootstrapExchangefn_t exchangefn /* unused */) {
+    gasnet_node_t i, *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+    for (i = 0; i < gasneti_nodes; ++i) nodemap[i] = i;
+    return nodemap;
+  }
 #else
-  /* Fill in the nodemap array such that
+  /* Construct a nodemap array such that
    *   For all i: nodemap[i] is the lowest node number collocated w/ node i
-   * Returns address of the nodemap (allocated if the caller passed NULL)
    */
   extern gasnet_node_t *gasneti_nodemap(gasneti_bootstrapExchangefn_t exchangefn) {
     gasnet_node_t *nodemap;
