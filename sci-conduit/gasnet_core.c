@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/03/30 02:40:55 $
- * $Revision: 1.27 $
+ *     $Date: 2009/04/14 06:58:30 $
+ * $Revision: 1.27.2.1 $
  * Description: GASNet sci conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -33,6 +33,8 @@ volatile int            gasnetc_exit_began = 0;
 gasneti_mutex_t         gasnetc_sci_exit_lock = GASNETI_MUTEX_INITIALIZER;
 gasneti_mutex_t	        gasnetc_sci_cb_exit = GASNETI_MUTEX_INITIALIZER;
 gasneti_mutex_t		gasnetc_sci_AMPoll_mutex = GASNETI_MUTEX_INITIALIZER;
+
+static gasnet_node_t *gasnetc_nodemap = NULL;
 
 /* function to be called whenever we exit */
 void gasnetc_sci_call_exit(unsigned int sig)
@@ -107,6 +109,17 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
 
+  #ifndef GASNETC_CONDUIT_SPECIFIC_NODEMAP
+    /* XXX: This will fail since we have no gasnetc_bootstrapExchange() */
+    gasnetc_nodemap = gasneti_nodemap(gasnetc_bootstrapExchange);
+  #else
+  { gasnet_node_t i;
+    gasnetc_nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+    for (i = 0; i < gasneti_nodes; ++i) gasnetc_nodemap[i] = i;
+  }
+  #endif
+
+
   #if GASNET_SEGMENT_FAST
     {
       /* already set in gasnetc_getSCIglobal_seg() and gasnetc_get_free_mem() */
@@ -147,6 +160,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasneti_init_done = 1;
 
   gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
+  gasneti_free(gasnetc_nodemap); /* XXX: might move to gasnetc_attach w/ SysV work */
 
   return GASNET_OK;
 }
