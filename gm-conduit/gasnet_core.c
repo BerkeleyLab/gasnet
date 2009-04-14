@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2009/04/09 23:22:47 $
- * $Revision: 1.126.2.5 $
+ * $Date: 2009/04/14 07:11:55 $
+ * $Revision: 1.126.2.6 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -90,6 +90,9 @@ gasnetc_init(int *argc, char ***argv)
 	gasnetc_AllocPinnedBufs();
 	gasnetc_AllocGatherBufs();
 
+        #ifndef GASNETC_CONDUIT_SPECIFIC_NODEMAP /* for debugging */
+        gasnetc_nodemap = gasneti_nodemap(gasnetc_bootstrapExchange);
+        #else
         /* Construct nodemap from GM ids */
         { gasnet_node_t i, prev_node = 0;
           uint16_t prev_id = 0;
@@ -101,6 +104,7 @@ gasnetc_init(int *argc, char ***argv)
             prev_id = _gmc.gm_nodes[i].id;
           }
         }
+        #endif
 
 	gasnetc_bootstrapBarrier();
 	gasneti_init_done = 1; /* Not really done, but need getenv internally */
@@ -177,8 +181,6 @@ gasnetc_init(int *argc, char ***argv)
 	  #error Bad segment config
 	#endif
 
-        gasneti_free(gasnetc_nodemap); /* XXX: may move later w/ SysV work */
-
 	/* Handler for non-collective returns from main() */
 	atexit(gasnetc_atexit);
 
@@ -186,6 +188,7 @@ gasnetc_init(int *argc, char ***argv)
 	gasneti_trace_init(argc, argv);
 
         gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
+        gasneti_free(gasnetc_nodemap); /* XXX: might move to gasnetc_attach w/ SysV work */
 
 	#if GASNET_DEBUG_VERBOSE
 	printf("%d> done init\n", gasneti_mynode);

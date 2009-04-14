@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2009/03/30 02:40:26 $
- * $Revision: 1.9 $
+ *     $Date: 2009/04/14 07:11:51 $
+ * $Revision: 1.9.2.1 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>, 
                    Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -59,6 +59,8 @@ static void gasnetc_atexit(void);
 
 #define GASNETC_MAX_NUMHANDLERS   256
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
+
+static gasnet_node_t *gasnetc_nodemap = NULL;
 
 #if GASNET_DEBUG
 uint8_t gasnetc_have_dcmf_lock=0;
@@ -356,6 +358,9 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_mynode, gasneti_nodes); fflush(stderr);
 #endif
 
+  /* using the BG/P-specific gasneti_nodemap() */
+  gasnetc_nodemap = gasneti_nodemap(gasnetc_bootstrapExchange);
+
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
   { 
     DCMF_Hardware_t hw;
@@ -410,6 +415,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   
   gasneti_init_done = 1;  
   gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
+  gasneti_free(gasnetc_nodemap); /* XXX: might move to gasnetc_attach w/ SysV work */
    
   gasnetc_exittimeout = gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
                                                 GASNETC_DEFAULT_EXITTIMEOUT_MIN,

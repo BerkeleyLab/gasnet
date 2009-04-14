@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/03/30 02:40:51 $
- * $Revision: 1.19 $
+ *     $Date: 2009/04/14 07:12:01 $
+ * $Revision: 1.19.2.1 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -25,6 +25,8 @@ static void gasnetc_traceoutput(int);
 
 #define GASNETC_MAX_NUMHANDLERS   256
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
+
+gasnet_node_t *gasnetc_nodemap = NULL;
 
 uintptr_t gasnetc_segbase, gasnetc_segend;
 
@@ -75,6 +77,8 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
 
+  /* gasnetc_nodemap was constructed in gasnetc_init_portals_network() */
+
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     {
       /* try to determine the max amount of memory we can alloc and pin on each node */
@@ -122,6 +126,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
 
   gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
+  gasneti_free(gasnetc_nodemap); /* XXX: might move to gasnetc_attach w/ SysV work */
 
 #if GASNETC_DEBUG
   printf("[%d] Leaving gasnetc_init\n",gasneti_mynode);

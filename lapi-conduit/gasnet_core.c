@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/04/10 00:48:02 $
- * $Revision: 1.123.2.1 $
+ *     $Date: 2009/04/14 07:11:57 $
+ * $Revision: 1.123.2.2 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -47,8 +47,6 @@ gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 /* #define GASNETC_FH_MAXREGION_SIZE (64L*1024L) */
 #define GASNETC_FH_MAXREGION_SIZE (2L*1024L*1024L)
 #define GASNETC_FH_MAX_PINNABLE (128L*1024L*1024L)
-
-gasnet_node_t *gasnetc_nodemap = NULL;
 
 /* -------------------------------------------------------------------
  * Begin: LAPI specific variables
@@ -102,6 +100,8 @@ extern int gasnete_pin_max;
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS] = { NULL };
 void** gasnetc_remote_req_hh = NULL;
 void** gasnetc_remote_reply_hh = NULL;
+
+static gasnet_node_t *gasnetc_nodemap = NULL;
 
 volatile int gasnetc_got_exit_signal = 0;
 
@@ -320,6 +320,9 @@ static int gasnetc_init(int *argc, char ***argv) {
 	    gasneti_mynode, gasneti_nodes); fflush(stderr);
 #endif
 
+#ifndef GASNETC_CONDUIT_SPECIFIC_NODEMAP /* for debugging */
+    gasnetc_nodemap = gasneti_nodemap(gasnetc_lapi_exchange);
+#else   
     /* Construct nodemap using LAPI_Address_init() */
     {   void **tmp = (void**)gasneti_malloc(num_tasks*sizeof(void*));
         void *myid = (void*)(uintptr_t)gethostid();
@@ -335,6 +338,7 @@ static int gasnetc_init(int *argc, char ***argv) {
         }
         gasneti_free(tmp);
     }
+#endif
 
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { 
@@ -347,6 +351,10 @@ static int gasnetc_init(int *argc, char ***argv) {
 	   gasneti_MaxLocalSegmentSize and gasneti_MaxGlobalSegmentSize,
 	   if your conduit can use memory anywhere in the address space
 	   (you may want to tune GASNETI_MMAP_MAX_SIZE to limit the max size)
+
+           it may also be appropriate to first call gasneti_mmapLimit() to
+           account for limitations imposed by having multiple GASNet nodes
+           per shared-memory compute node
 	*/
 	/* On the SP, mmaped regions are allocated in segments distinct from
 	 * static, stack and heap data.  gasneti_segmentInit should work
@@ -360,8 +368,6 @@ static int gasnetc_init(int *argc, char ***argv) {
 #error Bad segment config
 #endif
 
-    gasneti_free(gasnetc_nodemap); /* XXX: May move later for SysV work */
-
     /* set up atexit handler to call gasnet_exit in the
      * case where a program returns from main without
      * calling gasnet_exit()
@@ -374,6 +380,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 #endif
 
     gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
+    gasneti_free(gasnetc_nodemap); /* XXX: might move to gasnetc_attach w/ SysV work */
    
     if(gasneti_mynode == 0) {
       char *mp_task_affinity = gasneti_getenv("MP_TASK_AFFINITY");

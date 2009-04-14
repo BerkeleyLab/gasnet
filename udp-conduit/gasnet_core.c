@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core.c,v $
- *     $Date: 2009/04/09 06:55:28 $
- * $Revision: 1.38.2.3 $
+ *     $Date: 2009/04/14 07:12:09 $
+ * $Revision: 1.38.2.4 $
  * Description: GASNet UDP conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -45,6 +45,8 @@ volatile int gasnetc_AMLockYield = 0;
   #define GASNETC_DEFAULT_SPAWNFN S
 #endif
 GASNETI_IDENT(gasnetc_IdentString_DefaultSpawnFn, "$GASNetDefaultSpawnFunction: " _STRINGIFY(GASNETC_DEFAULT_SPAWNFN) " $");
+
+static gasnet_node_t *gasnetc_nodemap = NULL;
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -216,6 +218,8 @@ static int gasnetc_init(int *argc, char ***argv) {
         gasneti_mynode, gasneti_nodes); fflush(stderr);
     #endif
 
+    gasnetc_nodemap = gasneti_nodemap(&gasnetc_bootstrapExchange);
+
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { uintptr_t limit;
       #if HAVE_MMAP
@@ -236,6 +240,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   AMUNLOCK();
 
   gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
+  gasneti_free(gasnetc_nodemap); /* XXX: might move to gasnetc_attach w/ SysV work */
 
   gasneti_assert(retval == GASNET_OK);
   return retval;

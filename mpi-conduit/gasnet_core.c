@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/04/09 06:55:30 $
- * $Revision: 1.79.2.3 $
+ *     $Date: 2009/04/14 07:11:59 $
+ * $Revision: 1.79.2.4 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -45,6 +45,8 @@ gasneti_mutex_t gasnetc_AMlock = GASNETI_MUTEX_INITIALIZER; /*  protect access t
   #define CHECKCALLNIS()
   #define CHECKCALLHSL()
 #endif
+
+static gasnet_node_t *gasnetc_nodemap = NULL;
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -172,6 +174,8 @@ static int gasnetc_init(int *argc, char ***argv) {
         gasneti_mynode, gasneti_nodes); fflush(stderr);
     #endif
 
+    gasnetc_nodemap = gasneti_nodemap(&gasnetc_bootstrapExchange);
+
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { uintptr_t limit;
       #if HAVE_MMAP
@@ -192,6 +196,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   AMUNLOCK();
 
   gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
+  gasneti_free(gasnetc_nodemap); /* XXX: might move to gasnetc_attach w/ SysV work */
 
   gasneti_assert(retval == GASNET_OK);
   return retval;

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/04/08 21:36:25 $
- * $Revision: 1.79.2.2 $
+ *     $Date: 2009/04/14 07:11:53 $
+ * $Revision: 1.79.2.3 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -85,6 +85,8 @@ extern uint64_t gasnetc_clock(void) {
 }
 
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
+
+static gasnet_node_t *gasnetc_nodemap = NULL;
 
 #ifdef GASNETC_ELAN4
 #include <elan4/library.h>
@@ -308,6 +310,8 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
   }
 
+  gasnetc_nodemap = gasneti_nodemap(&gasnetc_bootstrapExchange);
+
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     #if GASNETC_USE_STATIC_SEGMENT
       /* allocate segment statically */
@@ -345,6 +349,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
 
   gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
+  gasneti_free(gasnetc_nodemap); /* XXX: might move to gasnetc_attach w/ SysV work */
 
   return GASNET_OK;
 }

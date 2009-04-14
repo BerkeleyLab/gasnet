@@ -123,9 +123,8 @@ int gasnetc_tmpmd_hwm = 0;
 ptl_uid_t gasnetc_uid;
 ptl_process_id_t gasnetc_myid;
 gasnetc_procid_t *gasnetc_procid_map = NULL;
-#if PLATFORM_OS_CNL
-static gasnet_node_t *gasnetc_nodemap = NULL; /* XXX: may move to extern scope for SysV work */
-#endif
+
+extern gasnet_node_t *gasnetc_nodemap;
 
 #if GASNETC_USE_SANDIA_ACCEL
 /* use Sandia Accelerated Portals */
@@ -3441,12 +3440,6 @@ extern void gasnetc_init_portals_resources(void)
   int64_t bytes_per_buffer = gasnetc_ReqRB_numchunk*GASNETC_CHUNKSIZE;
   int64_t cred_per_buffer = cred_bytes_per_buffer/GASNETC_BYTES_PER_CREDIT;
   
-#if PLATFORM_OS_CNL
-  /* XXX: perhaps not the best place for this */
-  gasneti_assert(gasnetc_nodemap);
-  gasneti_free(gasnetc_nodemap);
-#endif
-
   /* read Portals specific env vars */
   gasnetc_put_bounce_limit = (int64_t)gasneti_getenv_int_withdefault("GASNET_PORTAL_PUTGET_BOUNCE_LIMIT",
 				(int64_t)GASNETC_PUTGET_BOUNCE_LIMIT_DFLT,1);

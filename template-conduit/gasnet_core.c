@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/gasnet_core.c,v $
- *     $Date: 2009/03/30 02:41:01 $
- * $Revision: 1.61 $
+ *     $Date: 2009/04/14 07:12:07 $
+ * $Revision: 1.61.2.1 $
  * Description: GASNet <conduitname> conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,6 +22,8 @@ static void gasnetc_atexit(void);
 
 #define GASNETC_MAX_NUMHANDLERS   256
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
+
+static gasnet_node_t *gasnetc_nodemap = NULL;
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -71,6 +73,18 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
 
+  /* (###) Add code here to determine which GASNet nodes may share memory
+     One may use gasneti_nodemap(gasnetc_bootstrapExchange) if the
+     conduit has no better mechanism, but if it does then define
+     GASNETC_CONDUIT_SPECIFIC_NODEMAP in gasnet_core_fwd.h
+     See below for info on gasnetc_bootstrapExchange()
+  */
+  #ifndef GASNETC_CONDUIT_SPECIFIC_NODEMAP
+    gasnetc_nodemap = gasneti_nodemap(gasnetc_bootstrapExchange);
+  #else   
+    gasnetc_nodemap = ###;
+  #endif
+
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { 
       /* (###) Add code here to determine optimistic maximum segment size */
@@ -83,6 +97,10 @@ static int gasnetc_init(int *argc, char ***argv) {
          gasneti_MaxLocalSegmentSize and gasneti_MaxGlobalSegmentSize,
          if your conduit can use memory anywhere in the address space
          (you may want to tune GASNETI_MMAP_MAX_SIZE to limit the max size)
+
+         it may also be appropriate to first call gasneti_mmapLimit() to
+         account for limitations imposed by having multiple GASNet nodes
+         per shared-memory compute node
       */
     }
   #elif GASNET_SEGMENT_EVERYTHING
@@ -113,6 +131,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasneti_init_done = 1;  
 
   gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
+  gasneti_free(gasnetc_nodemap); /* XXX: might move to gasnetc_attach w/ SysV work */
 
   return GASNET_OK;
 }

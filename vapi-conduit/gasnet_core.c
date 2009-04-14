@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/04/10 03:45:15 $
- * $Revision: 1.209.2.3 $
+ *     $Date: 2009/04/14 07:12:11 $
+ * $Revision: 1.209.2.4 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -150,9 +150,6 @@ typedef struct _gasnetc_addr_t {
   gasnetc_lid_t                                 lid;
 } gasnetc_addr_t;
 
-/* Map of gasnet nodes to physical nodes */
-gasnet_node_t *gasnetc_nodemap;
-
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 
 int		gasnetc_op_oust_limit;
@@ -170,6 +167,8 @@ typedef struct gasnetc_pin_info_t_ {
 static gasnetc_pin_info_t gasnetc_pin_info;
 
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
+
+static gasnet_node_t *gasnetc_nodemap = NULL;
 
 static void gasnetc_atexit(void);
 static void gasnetc_exit_sighandler(int sig);
@@ -1539,7 +1538,6 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_assert(gasnetc_pin_info.memory != (uintptr_t)(-1));
     gasneti_assert(gasnetc_pin_info.regions != 0);
   }
-  gasneti_free(gasnetc_nodemap); /* XXX: Will eventually be needed longer */
 
   #if GASNET_SEGMENT_FAST
   {
@@ -1568,6 +1566,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasneti_bootstrapBarrier();
 
   gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
+  gasneti_free(gasnetc_nodemap); /* XXX: might move to gasnetc_attach w/ SysV work */
 
   return GASNET_OK;
 }

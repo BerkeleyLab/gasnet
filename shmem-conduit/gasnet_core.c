@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core.c,v $
- *     $Date: 2009/03/30 02:40:57 $
- * $Revision: 1.38 $
+ *     $Date: 2009/04/14 07:12:05 $
+ * $Revision: 1.38.2.1 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -27,6 +27,8 @@ static uintptr_t        gasnetc_alignup_pow2(uintptr_t addr);
 
 #define GASNETC_MAX_NUMHANDLERS   256
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
+
+static gasnet_node_t *gasnetc_nodemap = NULL;
 
 gasnet_seginfo_t	 gasnetc_seginfo_init;
 int			 gasnetc_seginfo_allocated = 0;
@@ -169,6 +171,8 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
 
+  gasnetc_nodemap = gasneti_nodemap(gasnetc_bootstrapExchange);
+
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { 
 	#if defined(CRAY_SHMEM) || defined(SGI_SHMEM)
@@ -211,6 +215,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasneti_trace_init(argc, argv);
 
   gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
+  gasneti_free(gasnetc_nodemap); /* XXX: might move to gasnetc_attach w/ SysV work */
 
   return GASNET_OK;
 }

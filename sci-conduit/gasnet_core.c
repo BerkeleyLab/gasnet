@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/04/14 06:58:30 $
- * $Revision: 1.27.2.1 $
+ *     $Date: 2009/04/14 07:12:03 $
+ * $Revision: 1.27.2.2 $
  * Description: GASNet sci conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -109,6 +109,12 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
 
+  /* (###) Add code here to determine which GASNet nodes may share memory
+     One may use gasneti_nodemap(gasnetc_bootstrapExchange) if the
+     conduit has no better mechanism, but if it does then define
+     GASNETC_CONDUIT_SPECIFIC_NODEMAP in gasnet_core_fwd.h
+     See below for info on gasnetc_bootstrapExchange()
+   */
   #ifndef GASNETC_CONDUIT_SPECIFIC_NODEMAP
     /* XXX: This will fail since we have no gasnetc_bootstrapExchange() */
     gasnetc_nodemap = gasneti_nodemap(gasnetc_bootstrapExchange);
@@ -118,7 +124,6 @@ static int gasnetc_init(int *argc, char ***argv) {
     for (i = 0; i < gasneti_nodes; ++i) gasnetc_nodemap[i] = i;
   }
   #endif
-
 
   #if GASNET_SEGMENT_FAST
     {
@@ -130,6 +135,10 @@ static int gasnetc_init(int *argc, char ***argv) {
          gasneti_MaxLocalSegmentSize and gasneti_MaxGlobalSegmentSize,
          if your conduit can use memory anywhere in the address space
          (you may want to tune GASNETI_MMAP_MAX_SIZE to limit the max size)
+
+         it may also be appropriate to first call gasneti_mmapLimit() to
+         account for limitations imposed by having multiple GASNet nodes
+         per shared-memory compute node
       */
     }
   #elif GASNET_SEGMENT_EVERYTHING || GASNET_SEGMENT_LARGE/* currently not implemented */
