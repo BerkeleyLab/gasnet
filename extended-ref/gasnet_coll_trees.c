@@ -646,11 +646,23 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
   geom->subtree_sizes = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*geom->child_count);
   geom->child_offset = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*geom->child_count);
   
-  
+  geom->num_non_leaf_children=0;
+  geom->num_leaf_children=0;
+  geom->child_contains_wrap = 0;
   for(i=0; i<geom->child_count; i++) {
     geom->child_list[i] = GET_NODE_ID(GET_CHILD_IDX(mynode,i));
     geom->subtree_sizes[i] = treesize(GET_CHILD_IDX(mynode,i));
- }
+    if(geom->subtree_sizes[i] > 1) {
+      geom->num_non_leaf_children++;
+    } else {
+      geom->num_leaf_children++;
+    }
+    if(geom->child_list[i]+geom->subtree_sizes[i] > geom->total_size) {
+      geom->child_contains_wrap = 1;
+    }
+    
+  }
+  gasneti_assert((geom->num_leaf_children+geom->num_non_leaf_children) == geom->child_count);
   
   if(mynode->children_reversed==1) {
     size_t temp_offset = 0;
@@ -664,10 +676,9 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
       geom->child_offset[i] = temp_offset; 
       temp_offset+=geom->subtree_sizes[i];
     }
-    
   }
-
-  gasnete_coll_print_tree(geom, gasneti_mynode);
+  
+  //gasnete_coll_print_tree(geom, gasneti_mynode);
   return geom;
 }
 

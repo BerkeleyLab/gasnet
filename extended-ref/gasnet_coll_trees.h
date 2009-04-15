@@ -78,6 +78,13 @@ struct gasnete_coll_local_tree_geom_t_ {
   /* I.E. No Reordering will be needed for scatter and gathers */
   uint8_t seq_dfs_order;
   
+  /*set to true if the contiguous numbering wraps around in a subtree of the root rather than as a direct child*/
+  uint8_t child_contains_wrap;
+  
+  /*number of children that aren't leaves of the tree*/
+  gasnet_node_t num_non_leaf_children;
+  /*number of children that are leaves of the tree*/
+  gasnet_node_t num_leaf_children;
   gasnet_node_t *dissem_order;
   int dissem_count;
   

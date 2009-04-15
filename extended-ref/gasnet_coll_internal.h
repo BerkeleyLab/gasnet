@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/04/09 05:59:37 $
- * $Revision: 1.53.14.8 $
+ *     $Date: 2009/04/15 02:24:34 $
+ * $Revision: 1.53.14.9 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -942,6 +942,7 @@ int gasnete_coll_segment_checkM(int flags,
 
 extern void gasnete_coll_save_handle(gasnet_handle_t *handle_p GASNETE_THREAD_FARG);
 extern void gasnete_coll_save_coll_handle(gasnet_coll_handle_t *handle_p GASNETE_THREAD_FARG);
+/*make whatever progress you can on puts, gets, and collectives initiated by any image on this node*/
 extern void gasnete_coll_sync_saved_handles(GASNETE_THREAD_FARG_ALONE);
 
 /*---------------------------------------------------------------------------------*/
@@ -1106,6 +1107,7 @@ struct gasnete_coll_generic_data_t_ {
   gasnete_coll_tree_data_t *tree_info;
   gasnete_coll_dissem_info_t *dissem_info;
   gasnet_handle_t			handle;
+  gasnet_handle_t			handle2;
   gasnet_coll_handle_t		coll_handle;
   void				*private_data;
   
@@ -1625,7 +1627,7 @@ gasnete_coll_gath_TreePut(gasnet_team_handle_t team,
                       GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
-gasnete_coll_gath_TreePut(gasnet_team_handle_t team,
+gasnete_coll_gath_TreePutNoCopy(gasnet_team_handle_t team,
                              gasnet_image_t dstimage, void *dst,
                              void *src,
                              size_t nbytes, size_t dist, int flags, 
