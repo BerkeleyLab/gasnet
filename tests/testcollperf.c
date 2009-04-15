@@ -21,8 +21,8 @@ options that is covered testcoll
 
 #define ALL_COLL_ENABLED 0
 #define BROADCAST_ENABLED 0
-#define SCATTER_ENABLED 0
-#define GATHER_ENABLED 1
+#define SCATTER_ENABLED 1
+#define GATHER_ENABLED 0
 
 #define ALL_ADDR_MODE_ENABLED 0
 #define SINGLE_SINGLE_MODE_ENABLED 1
@@ -30,6 +30,8 @@ options that is covered testcoll
 #define MULTI_SINGLE_MODE_ENABLED 0
 #define MULTI_LOCAL_MODE_ENABLED 0
 
+
+#define ROOT_THREAD 0
 
 /* max data size for the test in bytes*/
 #define DEFAULT_MAX_DATA_SIZE 32768 
@@ -240,7 +242,7 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
         int expected = 42+i;
         if(dst[i] != 42+i) {
           MSG("%d> gather verification @ iteration: %d ... expected %d got %d", td->mythread, (int)(i/(THREADS*nelem)), expected, dst[i]);
-          ERROR_EXIT();
+          //ERROR_EXIT();
         }
       }
     }
@@ -263,7 +265,7 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
     COLL_BARRIER();
     for(i=0; i<inner_verification_iters; i++) {
       for(j=0; j<nelem; j++) {
-        src[i*nelem+j] != 42+i*THREADS*nelem+td->mythread*nelem;
+        src[i*nelem+j] = 42+i*THREADS*nelem+td->mythread*nelem+j;
       }
     }
     for(i=0; i<nelem*inner_verification_iters*THREADS; i++) {
@@ -517,7 +519,7 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
     COLL_BARRIER();
     for(i=0; i<inner_verification_iters; i++) {
       for(j=0; j<nelem; j++) {
-        mysrc[i*nelem+j] != 42+i*THREADS*nelem+td->mythread*nelem;
+        mysrc[i*nelem+j] = 42+i*THREADS*nelem+td->mythread*nelem+j;
       }
     }
     for(i=0; i<nelem*inner_verification_iters*THREADS; i++) {
@@ -610,7 +612,7 @@ void *thread_main(void *arg) {
   thread_data_t *td = (thread_data_t*) arg;
   size_t size;
   int i,flag_iter;
-  gasnet_node_t root_thread = 0;
+  gasnet_node_t root_thread = ROOT_THREAD;
   int skip_msg_printed = 0;
 #if GASNET_PAR
   gasnet_image_t *imagearray = test_malloc(nodes * sizeof(gasnet_image_t));
