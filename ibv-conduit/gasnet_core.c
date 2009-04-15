@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2009/04/14 07:12:11 $
- * $Revision: 1.209.2.4 $
+ *     $Date: 2009/04/15 23:44:16 $
+ * $Revision: 1.209.2.5 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1492,27 +1492,15 @@ static int gasnetc_init(int *argc, char ***argv) {
 #ifndef GASNETC_CONDUIT_SPECIFIC_NODEMAP /* for debugging */
     gasnetc_nodemap = gasneti_nodemap(&gasneti_bootstrapExchange);
 #else
-    gasnetc_nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
-    gasnetc_nodemap[0] = 0;
-
     if (gasneti_nodes > 1) { /* Would otherwise access non-existant localaddr[>0] */
-        gasnet_node_t prev;
-        gasnetc_lid_t prev_lid;
-
-        /* Fill in otherwise unused remote_addr[self].lid to simplify rest of code.
+        /* Fill in otherwise unused remote_addr[self].lid for the helper.
          * We use local_addr[!mynode] since local_addr[mynode] is always 0 */
         remote_addr[gasnetc_num_qps * gasneti_mynode].lid =
                              local_addr[gasnetc_num_qps * !gasneti_mynode].lid;
-
-        prev = 0;
-        prev_lid = remote_addr[0].lid;
-
-        for (i = 1; i < gasneti_nodes; ++i) {
-          gasnetc_lid_t this_lid = remote_addr[gasnetc_num_qps * i].lid;
-          prev = gasnetc_nodemap[i] = (this_lid == prev_lid) ? prev : i;
-          prev_lid = this_lid;
-        }
     }
+    gasnetc_nodemap = gasneti_nodemap_helper(&remote_addr[0].lid,
+                                             sizeof(remote_addr[0].lid),
+                                             sizeof(remote_addr[0]) * gasnetc_num_qps);
 #endif
   }
   gasneti_free(remote_addr);
