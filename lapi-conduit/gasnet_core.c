@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/04/14 07:11:57 $
- * $Revision: 1.123.2.2 $
+ *     $Date: 2009/04/15 23:58:58 $
+ * $Revision: 1.123.2.3 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -323,19 +323,11 @@ static int gasnetc_init(int *argc, char ***argv) {
 #ifndef GASNETC_CONDUIT_SPECIFIC_NODEMAP /* for debugging */
     gasnetc_nodemap = gasneti_nodemap(gasnetc_lapi_exchange);
 #else   
-    /* Construct nodemap using LAPI_Address_init() */
+    /* Construct nodemap using LAPI_Address_init() rather than gasnetc_lapi_exchange() */
     {   void **tmp = (void**)gasneti_malloc(num_tasks*sizeof(void*));
         void *myid = (void*)(uintptr_t)gethostid();
-        gasnet_node_t i, prev_node = 0;
-        void *prev_id = NULL;
-
-        gasnetc_nodemap = (gasnet_node_t*)gasneti_malloc(num_tasks*sizeof(gasnet_node_t));
         GASNETC_LCHECK(LAPI_Address_init(gasnetc_lapi_context, myid, tmp));
-
-        for (i = 0; i < gasneti_nodes; ++i) {
-          prev_node = gasnetc_nodemap[i] = (tmp[i] == prev_id) ? prev_node : i;
-          prev_id = tmp[i];
-        }
+        gasnetc_nodemap = gasneti_nodemap_helper(tmp, sizeof(void*), sizeof(void*));
         gasneti_free(tmp);
     }
 #endif
