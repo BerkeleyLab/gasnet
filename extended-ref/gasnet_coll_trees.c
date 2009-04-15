@@ -302,11 +302,13 @@ static tree_node_t make_fork_tree(tree_node_t *nodes, int num_nodes,
       temp_nodes[i] = make_fork_tree(nodes+stride*i, stride,
                                      dims+1, ndims-1);
     }
+    
     make_chain_tree(temp_nodes, dims[0]);
     gasneti_free(temp_nodes);
   } else {
     make_chain_tree(nodes, dims[0]);
   }
+  nodes[0]->children_reversed=1;
   return nodes[0];
 }
 
@@ -678,7 +680,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
     }
   }
   
-  //gasnete_coll_print_tree(geom, gasneti_mynode);
+  gasnete_coll_print_tree(geom, gasneti_mynode);
   return geom;
 }
 
