@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/15 13:51:31 $
- * $Revision: 1.198.2.23 $
+ *     $Date: 2009/04/15 16:34:14 $
+ * $Revision: 1.198.2.24 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -806,23 +806,95 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
 /* Nodemap handling
  */
 
+/* This code is "good" for all "sensible" process layouts, where "good"
+ * means identifing all sharing for such a mapping in one pass and the
+ * term "sensible" includes:
+ *   "Block" layouts like       |0.1.2.3|4.5.6.7|8.9._._|
+ *   "                       or |0.1.2.3|4.5.6._|7.8.9._|
+ *   "Round-robin" layouts like |0.3.6.9|1.4.7._|2.5.8._|
+ *   and all 24 permutations of the XYZT dimensions on the BG/P.
+ *
+ * This is also "safe" for an arbitrary mapping, but may fail to
+ * identify some or all of the potential sharing in such a case.
+ */
+gasnet_node_t *gasneti_nodemap_helper(void *ids, size_t sz) {
+  gasnet_node_t *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+  gasnet_node_t i, prev, base;
+
+  #define GASNETI_NODEMAP_HELPER(_type) do {  \
+    const _type *a = (const _type *)ids;      \
+    for (i = 1; i < gasneti_nodes; ++i) {     \
+      const _type id = a[i];                  \
+      if (id == a[base]) {                    \
+        /* Repeat the previous "row" */       \
+        prev = base;                          \
+      } else if (id == a[prev]) {             \
+        /* Repeat the previous id */          \
+        /* prev = prev; */                    \
+      } else if (id == a[prev + 1]) {         \
+        /* Continue the current "row" */      \
+        prev += 1;                            \
+      } else {                                \
+        /* Begin a new "row" */               \
+        prev = base = i;                      \
+      }                                       \
+      nodemap[i] = prev;                      \
+    }                                         \
+  } while (0)
+
+  gasneti_assert(ids);
+  gasneti_assert(sz > 0);
+
+  prev = base = nodemap[0] = 0;
+  switch (sz) {
+    case 1: GASNETI_NODEMAP_HELPER(uint8_t);  break;
+#ifndef INTTYPES_16BIT_MISSING
+    case 2: GASNETI_NODEMAP_HELPER(uint16_t); break;
+#endif
+    case 4: GASNETI_NODEMAP_HELPER(uint32_t); break;
+    case 8: GASNETI_NODEMAP_HELPER(uint64_t); break;
+    default: {
+      const char *a = (const char *)ids;
+      for (i = 1; i < gasneti_nodes; ++i) {
+        const char *p = a + sz;
+        if (!memcmp(p, a + base*sz, sz)) {
+          prev = base;
+        } else if (!memcmp(p, a + prev*sz, sz)) {
+          /* prev = prev; */
+        } else if (!memcmp(p, a + (prev + 1)*sz, sz)) {
+          prev += 1;
+        } else {
+          prev = base = i;
+        }
+        nodemap[i] = prev;
+      }
+    }
+  }
+  #undef GASNETI_NODEMAP_HELPER
+
+  #if GASNET_DEBUG_VERBOSE
+  if (!gasneti_mynode) {
+    for (i = 0; i < gasneti_nodes; ++i) {
+      fprintf(stderr, "nodemap[%i] = %i\n", (int)i, (int)nodemap[i]);
+    }
+  }
+  #endif
+
+  return nodemap;
+}
+
 #if defined(GASNETC_CONDUIT_SPECIFIC_NODEMAP)
   /* Nothing to do here.
    * Since only gasnetc_init() is expected to call gasneti_nodemap(), the
    * conduit code doesn't even need to make its own version conform to
    * the signature of the generic gasneti_nodemap() (though the result
    * must be in the same form for passing to other code.)
+   * It is recommended to use gasnet_node_t gasneti_nodemap_helper().
    */
 #elif PLATFORM_OS_BGP && GASNETI_HAVE_BGP_INLINES
-  /* Build nodemap from <X,Y,Z> coords of all ranks.
-   * This code is "good" for all 24 permutations of the XYZT dimensions,
-   * identifing potential sharing for any such mapping in one pass.
-   *
-   * This is also "safe" for an arbitrary mapping, but will fail to
-   * identify some or all of the potential sharing in a custom mapping.
-   */
+  /* Build nodemap from <X,Y,Z> coords of all ranks. */
   extern gasnet_node_t *gasneti_nodemap(gasneti_bootstrapExchangefn_t exchangefn /* unused */) {
-    gasnet_node_t i, *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+    gasnet_node_t i, *nodemap;
     _BGP_SprgShMem sprg4;
 
     GASNETI_BGP_SPR(sprg4.shmem, _BGP_SPRGRO_SHMem); /* SPRG4 30:31 = (processes per node) - 1 */
@@ -831,49 +903,29 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         !sprg4.ShmNumProcs || (gasneti_nodes == 1)) {
       /* Just build the trivial map if BG_SHAREDMEMPOOLSIZE is unset or zero,
          or are in SMP mode, or we have just a single node */
+      nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
       for (i = 0; i < gasneti_nodes; ++i) nodemap[i] = i;
     } else {
       uint32_t *allids = gasneti_malloc(gasneti_nodes * sizeof(uint32_t));
-      gasnet_node_t prev, base;
 
+      /* Kernel call to get torus coords for all ranks */
       { int rc;
-        /* Kernel call to get torus coords for all ranks */
         GASNETI_BGP_SYSCALL2(rc, RANKS2COORDS, (uintptr_t)allids, (uint32_t)gasneti_nodes);
         gasneti_assert(!rc);
       }
 
-      nodemap[0] = prev = base = 0;
-      allids[0] &= 0xFFFFFF00;
-      for (i = 1; i < gasneti_nodes; ++i) {
-        uint32_t tmpid = (allids[i] &= 0xFFFFFF00);
-        if (tmpid == allids[base]) {
-          /* Begin repeat of previous "row" */
-          prev = base;
-        } else if (tmpid == allids[prev]) {
-          /* Repeat of previous element */
-        } else if (tmpid == allids[prev+1]) {
-          /* Continue the current "row" */
-          prev += 1;
-        } else {
-          /* Begin a new "row" */
-          prev = base = i;
-        }
-        nodemap[i] = prev;
+      /* Mask away the T coordinate */
+      for (i = 0; i < gasneti_nodes; ++i) {
+        allids[i] &= 0xFFFFFF00;
       }
+
+      nodemap = gasneti_nodemap_helper(allids, sizeof(uint32_t));
 
       gasneti_free(allids);
     }
-    #if GASNET_DEBUG_VERBOSE
-    if (!gasneti_mynode) {
-      for (i = 1; i < gasneti_nodes; ++i) {
-        fprintf(stderr, "nodemap[%i] = %i\n", (int)i, (int)nodemap[i]);
-      }
-    }
-    #endif
 
     return nodemap;
   }
-  #define GASNETI_NODEMAP_NON_CONTIG 1
 #elif PLATFORM_OS_BGP || PLATFORM_OS_BLRTS  || PLATFORM_OS_CATAMOUNT || !HAVE_GETHOSTID
   /* Nodes are either (at least effectively) single process,
    * or we don't have a usable gethostid().
@@ -886,16 +938,12 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
 #else
   /* Construct a nodemap array such that
    *   For all i: nodemap[i] is the lowest node number collocated w/ node i
-   * XXX: This code assumes that only adjacently-numbered nodes are collocated
    */
   extern gasnet_node_t *gasneti_nodemap(gasneti_bootstrapExchangefn_t exchangefn) {
     gasnet_node_t *nodemap;
     uint32_t myid, *allids;
-    gasnet_node_t i, prev;
   
     gasneti_assert(exchangefn);
-
-    nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
 
     /* Exchange (gather-to-all) of hostids
      * gethostid() from Single Unix Specification (IEEE Std 1003.1-2001)
@@ -904,13 +952,10 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
      */
     myid = (uint32_t)gethostid();
     allids = gasneti_malloc(gasneti_nodes * sizeof(uint32_t));
-    (*exchangefn)(&myid, sizeof(myid), allids);
+    (*exchangefn)(&myid, sizeof(uint32_t), allids);
 
-    /* Every node independently computes the same map */
-    prev = nodemap[0] = 0;
-    for (i = 1; i < gasneti_nodes; ++i) {
-      prev = nodemap[i] = (allids[i] == allids[i-1]) ? prev : i;
-    }
+    nodemap = gasneti_nodemap_helper(allids, sizeof(uint32_t));
+
     gasneti_free(allids);
     return nodemap;
   }
@@ -930,8 +975,6 @@ extern void gasneti_nodemap_local_info(gasnet_node_t *nodemap,
   gasneti_assert(local_rank_p);
 
   if_pf (firsttime) {
-  #if GASNETI_NODEMAP_NON_CONTIG
-    /* Exhaustive scan for peers */
     gasnet_node_t first = nodemap[gasneti_mynode];
     gasnet_node_t tmp_num = 0;
     gasnet_node_t tmp_rank = 0;
@@ -942,14 +985,6 @@ extern void gasneti_nodemap_local_info(gasnet_node_t *nodemap,
     }
     local_num = tmp_num;
     local_rank = tmp_rank;
-  #else
-    /* Simplified scan for only adjacent peers */
-    gasnet_node_t first = nodemap[gasneti_mynode];
-    gasnet_node_t last = gasneti_mynode;
-    while ((last != gasneti_nodes) && (nodemap[last + 1] == first)) { last += 1; }
-    local_num = last - first + 1;
-    local_rank = gasneti_mynode - first;
-  #endif
     gasneti_sync_writes();
     firsttime = 0;
   } else gasneti_sync_reads();
