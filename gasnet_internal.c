@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/14 20:50:17 $
- * $Revision: 1.198.2.19 $
+ *     $Date: 2009/04/15 02:16:56 $
+ * $Revision: 1.198.2.20 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -804,7 +804,6 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
 
 /* ------------------------------------------------------------------------------------ */
 /* Nodemap handling
- * XXX: generic code assumes that only contiguously-numbered nodes can share memory
  */
 
 #if defined(GASNETC_CONDUIT_SPECIFIC_NODEMAP)
@@ -896,24 +895,46 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
  * and determine our relative rank in that set.
  */
 extern void gasneti_nodemap_local_info(gasnet_node_t *nodemap,
-                                       gasnet_node_t *local_num, 
-                                       gasnet_node_t *local_rank) {
-  gasnet_node_t first, last;
+                                       gasnet_node_t *local_num_p, 
+                                       gasnet_node_t *local_rank_p) {
+  static gasnet_node_t local_num, local_rank;
+  static int firsttime = 1;
 
   gasneti_assert(nodemap);
-  gasneti_assert(local_num);
-  gasneti_assert(local_rank);
+  gasneti_assert(local_num_p);
+  gasneti_assert(local_rank_p);
 
-  first = nodemap[gasneti_mynode];
-  last = gasneti_mynode;
-  while ((last != gasneti_nodes) && (nodemap[last + 1] == first)) { last += 1; }
+  if_pf (firsttime) {
+  #if GASNETI_NODEMAP_NON_CONTIG
+    /* Exhaustive scan for peers */
+    gasnet_node_t first = nodemap[gasneti_mynode];
+    gasnet_node_t tmp_num = 0;
+    gasnet_node_t tmp_rank = 0;
+    gasnet_node_t i;
+    for (i = 0; i < gasneti_nodes; ++i) {
+      if (i == gasneti_mynode) tmp_rank = tmp_num;
+      if (nodemap[i] == first) ++tmp_num;
+    }
+    local_num = tmp_num;
+    local_rank = tmp_rank;
+  #else
+    /* Simplified scan for only adjacent peers */
+    gasnet_node_t first = nodemap[gasneti_mynode];
+    gasnet_node_t last = gasneti_mynode;
+    while ((last != gasneti_nodes) && (nodemap[last + 1] == first)) { last += 1; }
+    local_num = last - first + 1;
+    local_rank = gasneti_mynode - first;
+  #endif
+    gasneti_sync_writes();
+    firsttime = 0;
+  } else gasneti_sync_reads();
 
-  *local_num = last - first + 1;
-  *local_rank = gasneti_mynode - first;
+  *local_num_p = local_num;
+  *local_rank_p = local_rank;
 
   #if GASNET_DEBUG_VERBOSE
     printf("nodemap: node %d is %d of %d with lowest local %d\n",
-           (int)gasneti_mynode, (int)*local_rank, (int)*local_num, (int)first);
+           (int)gasneti_mynode, (int)local_rank, (int)local_num, (int)nodemap[gasneti_mynode]);
   #endif
 }
 
