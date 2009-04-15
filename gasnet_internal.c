@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/15 02:16:56 $
- * $Revision: 1.198.2.20 $
+ *     $Date: 2009/04/15 02:39:21 $
+ * $Revision: 1.198.2.21 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -814,42 +814,71 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
    * must be in the same form for passing to other code.)
    */
 #elif PLATFORM_OS_BGP && GASNETI_HAVE_BGP_INLINES
+  /* Build nodemap from <X,Y,Z> coords of all ranks.
+   * This code is "good" for any T??? or ???T mapping,
+   * identifing potential sharing for any such mapping in linear time.
+   *
+   * This is also "safe" for an arbitrary mapping, but will fail to
+   * identify some or all of the potential sharing if not T??? or ???T.
+   */
   extern gasnet_node_t *gasneti_nodemap(gasneti_bootstrapExchangefn_t exchangefn /* unused */) {
     gasnet_node_t i, *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
 
-    if (0 == gasneti_getenv_int_withdefault("BG_SHAREDMEMPOOLSIZE",0,0)) {
-      /* Just build the trivial map if BG_SHAREDMEMPOOLSIZE is unset or zero */
+    if ((0 == gasneti_getenv_int_withdefault("BG_SHAREDMEMPOOLSIZE",0,0)) ||
+        (gasneti_nodes == 1)) {
+      /* Just build the trivial map if BG_SHAREDMEMPOOLSIZE is unset or zero,
+         or we have just a single node */
       for (i = 0; i < gasneti_nodes; ++i) nodemap[i] = i;
     } else {
-      /* Build nodemap from <X,Y,Z> coords of all ranks.
-       *
-       * This code is "safe" for any mapping, but only identifies potential
-       * sharing for consecutive GASNet nodes (so ideal in any T... mapping).
-       * For any other mapping, we get a "valid" nodemap, but it will fail
-       * to identify the sharing of some or all nodes.
-       */
-      uint32_t *allids, prev_id;
-      gasnet_node_t prev;
+      uint32_t *allids = gasneti_malloc(gasneti_nodes * sizeof(uint32_t));
 
-      allids = gasneti_malloc(gasneti_nodes * sizeof(uint32_t));
       { int rc;
         /* Kernel call to get torus coords for all ranks */
         GASNETI_BGP_SYSCALL2(rc, RANKS2COORDS, (uintptr_t)allids, (uint32_t)gasneti_nodes);
         gasneti_assert(!rc);
       }
 
-      prev = prev_id = 0;
-      for (i = 0; i < gasneti_nodes; ++i) {
-        /* Mask away the T coordinate */
-        uint32_t tmp_id = allids[i] & 0xFFFFFF00;
-        prev = nodemap[i] = (tmp_id == prev_id) ? prev : i;
-        prev_id = tmp_id;
+      /* Compare while masking away the T coordinate */
+      #define XYZ_IS_EQUAL(_A, _B) (!(0xFFFFFF00 & (allids[_A] ^ allids[_B])))
+
+      if (XYZ_IS_EQUAL(0,1)) {
+        /* T is fastest changing dim */
+        gasnet_node_t j, prev, width;
+
+        /* Find width of first node */
+        for (width = 2; width < gasneti_nodes; ++width) {
+           if (!XYZ_IS_EQUAL(width,0)) break;
+        }
+
+        for (i = prev = 0; i < gasneti_nodes; prev += width) {
+          for (j = 0; (j < width) && (i < gasneti_nodes); ++j, ++i) {
+            nodemap[i] = XYZ_IS_EQUAL(i,prev) ? prev : i;
+          }
+        }
+      } else {
+        /* T is slowest changing dim */
+        gasnet_node_t j, stride;
+
+        /* Find distance to the first duplicate */
+        for (stride = 2; stride < gasneti_nodes; ++stride) {
+           if (XYZ_IS_EQUAL(stride,0)) break;
+        }
+
+        for (i = 0; i < gasneti_nodes; /*empty*/) {
+          for (j = 0; (j < stride) && (i < gasneti_nodes); ++j, ++i) {
+            nodemap[i] = XYZ_IS_EQUAL(i,j) ? j : i;
+          }
+        }
       }
+
+      #undef XYZ_IS_EQUAL
+
       gasneti_free(allids);
     }
 
     return nodemap;
   }
+  #define GASNETI_NODEMAP_NON_CONTIG 1
 #elif PLATFORM_OS_BGP || PLATFORM_OS_BLRTS  || PLATFORM_OS_CATAMOUNT || !HAVE_GETHOSTID
   /* Nodes are either (at least effectively) single process,
    * or we don't have a usable gethostid().
@@ -862,6 +891,7 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
 #else
   /* Construct a nodemap array such that
    *   For all i: nodemap[i] is the lowest node number collocated w/ node i
+   * XXX: This code assumes that only adjacently-numbered nodes are collocated
    */
   extern gasnet_node_t *gasneti_nodemap(gasneti_bootstrapExchangefn_t exchangefn) {
     gasnet_node_t *nodemap;
