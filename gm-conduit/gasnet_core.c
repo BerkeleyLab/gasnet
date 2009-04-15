@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2009/04/14 07:11:55 $
- * $Revision: 1.126.2.6 $
+ * $Date: 2009/04/15 23:43:38 $
+ * $Revision: 1.126.2.7 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -94,16 +94,9 @@ gasnetc_init(int *argc, char ***argv)
         gasnetc_nodemap = gasneti_nodemap(gasnetc_bootstrapExchange);
         #else
         /* Construct nodemap from GM ids */
-        { gasnet_node_t i, prev_node = 0;
-          uint16_t prev_id = 0;
-
-          gasnetc_nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
-          for (i = 0; i < gasneti_nodes; ++i) {
-            prev_node = gasnetc_nodemap[i] =
-                    (_gmc.gm_nodes[i].id == prev_id) ? prev_node : i;
-            prev_id = _gmc.gm_nodes[i].id;
-          }
-        }
+        gasnetc_nodemap = gasneti_nodemap_helper(&_gmc.gm_nodes[0].id,
+                                                 sizeof(_gmc.gm_nodes[0].id),
+                                                 sizeof(_gmc.gm_nodes[0]));
         #endif
 
 	gasnetc_bootstrapBarrier();
