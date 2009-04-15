@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/15 02:39:21 $
- * $Revision: 1.198.2.21 $
+ *     $Date: 2009/04/15 07:40:59 $
+ * $Revision: 1.198.2.22 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -815,22 +815,28 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
    */
 #elif PLATFORM_OS_BGP && GASNETI_HAVE_BGP_INLINES
   /* Build nodemap from <X,Y,Z> coords of all ranks.
-   * This code is "good" for any T??? or ???T mapping,
+   * This code is "good" for any  T??? or ???T mapping,
    * identifing potential sharing for any such mapping in linear time.
+   * This is also "good" for some other permutations of the dimensions
+   * (perhaps *all*, but I've not yet conviced myself of that.)
    *
    * This is also "safe" for an arbitrary mapping, but will fail to
    * identify some or all of the potential sharing if not T??? or ???T.
    */
   extern gasnet_node_t *gasneti_nodemap(gasneti_bootstrapExchangefn_t exchangefn /* unused */) {
     gasnet_node_t i, *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+    _BGP_SprgShMem sprg4;
+
+    GASNETI_BGP_SPR(sprg4.shmem, _BGP_SPRGRO_SHMem); /* SPRG4 30:31 = (processes per node) - 1 */
 
     if ((0 == gasneti_getenv_int_withdefault("BG_SHAREDMEMPOOLSIZE",0,0)) ||
-        (gasneti_nodes == 1)) {
+        !sprg4.ShmNumProcs || (gasneti_nodes == 1)) {
       /* Just build the trivial map if BG_SHAREDMEMPOOLSIZE is unset or zero,
-         or we have just a single node */
+         or are in SMP mode, or we have just a single node */
       for (i = 0; i < gasneti_nodes; ++i) nodemap[i] = i;
     } else {
       uint32_t *allids = gasneti_malloc(gasneti_nodes * sizeof(uint32_t));
+      gasnet_node_t prev, base;
 
       { int rc;
         /* Kernel call to get torus coords for all ranks */
@@ -839,36 +845,21 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
       }
 
       /* Compare while masking away the T coordinate */
-      #define XYZ_IS_EQUAL(_A, _B) (!(0xFFFFFF00 & (allids[_A] ^ allids[_B])))
+      #define XYZ_IS_EQUAL(_A, _B) (!(0xFFFFFF00 & ((_A) ^ (_B))))
 
-      if (XYZ_IS_EQUAL(0,1)) {
-        /* T is fastest changing dim */
-        gasnet_node_t j, prev, width;
-
-        /* Find width of first node */
-        for (width = 2; width < gasneti_nodes; ++width) {
-           if (!XYZ_IS_EQUAL(width,0)) break;
+      nodemap[0] = prev = base = 0;
+      for (i = 1; i < gasneti_nodes; ++i) {
+        uint32_t tmpid = allids[i];
+        if (XYZ_IS_EQUAL(tmpid, allids[base])) {
+          prev = base;
+        } else if (XYZ_IS_EQUAL(tmpid, allids[prev])) {
+          /* empty */
+        } else if (XYZ_IS_EQUAL(tmpid, allids[prev+1])) {
+          prev += 1;
+        } else {
+          prev = base = i;
         }
-
-        for (i = prev = 0; i < gasneti_nodes; prev += width) {
-          for (j = 0; (j < width) && (i < gasneti_nodes); ++j, ++i) {
-            nodemap[i] = XYZ_IS_EQUAL(i,prev) ? prev : i;
-          }
-        }
-      } else {
-        /* T is slowest changing dim */
-        gasnet_node_t j, stride;
-
-        /* Find distance to the first duplicate */
-        for (stride = 2; stride < gasneti_nodes; ++stride) {
-           if (XYZ_IS_EQUAL(stride,0)) break;
-        }
-
-        for (i = 0; i < gasneti_nodes; /*empty*/) {
-          for (j = 0; (j < stride) && (i < gasneti_nodes); ++j, ++i) {
-            nodemap[i] = XYZ_IS_EQUAL(i,j) ? j : i;
-          }
-        }
+        nodemap[i] = prev;
       }
 
       #undef XYZ_IS_EQUAL
