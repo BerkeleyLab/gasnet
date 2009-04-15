@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/15 07:40:59 $
- * $Revision: 1.198.2.22 $
+ *     $Date: 2009/04/15 13:51:31 $
+ * $Revision: 1.198.2.23 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -815,13 +815,11 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
    */
 #elif PLATFORM_OS_BGP && GASNETI_HAVE_BGP_INLINES
   /* Build nodemap from <X,Y,Z> coords of all ranks.
-   * This code is "good" for any  T??? or ???T mapping,
-   * identifing potential sharing for any such mapping in linear time.
-   * This is also "good" for some other permutations of the dimensions
-   * (perhaps *all*, but I've not yet conviced myself of that.)
+   * This code is "good" for all 24 permutations of the XYZT dimensions,
+   * identifing potential sharing for any such mapping in one pass.
    *
    * This is also "safe" for an arbitrary mapping, but will fail to
-   * identify some or all of the potential sharing if not T??? or ???T.
+   * identify some or all of the potential sharing in a custom mapping.
    */
   extern gasnet_node_t *gasneti_nodemap(gasneti_bootstrapExchangefn_t exchangefn /* unused */) {
     gasnet_node_t i, *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
@@ -844,28 +842,34 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         gasneti_assert(!rc);
       }
 
-      /* Compare while masking away the T coordinate */
-      #define XYZ_IS_EQUAL(_A, _B) (!(0xFFFFFF00 & ((_A) ^ (_B))))
-
       nodemap[0] = prev = base = 0;
+      allids[0] &= 0xFFFFFF00;
       for (i = 1; i < gasneti_nodes; ++i) {
-        uint32_t tmpid = allids[i];
-        if (XYZ_IS_EQUAL(tmpid, allids[base])) {
+        uint32_t tmpid = (allids[i] &= 0xFFFFFF00);
+        if (tmpid == allids[base]) {
+          /* Begin repeat of previous "row" */
           prev = base;
-        } else if (XYZ_IS_EQUAL(tmpid, allids[prev])) {
-          /* empty */
-        } else if (XYZ_IS_EQUAL(tmpid, allids[prev+1])) {
+        } else if (tmpid == allids[prev]) {
+          /* Repeat of previous element */
+        } else if (tmpid == allids[prev+1]) {
+          /* Continue the current "row" */
           prev += 1;
         } else {
+          /* Begin a new "row" */
           prev = base = i;
         }
         nodemap[i] = prev;
       }
 
-      #undef XYZ_IS_EQUAL
-
       gasneti_free(allids);
     }
+    #if GASNET_DEBUG_VERBOSE
+    if (!gasneti_mynode) {
+      for (i = 1; i < gasneti_nodes; ++i) {
+        fprintf(stderr, "nodemap[%i] = %i\n", (int)i, (int)nodemap[i]);
+      }
+    }
+    #endif
 
     return nodemap;
   }
@@ -952,11 +956,6 @@ extern void gasneti_nodemap_local_info(gasnet_node_t *nodemap,
 
   *local_num_p = local_num;
   *local_rank_p = local_rank;
-
-  #if GASNET_DEBUG_VERBOSE
-    printf("nodemap: node %d is %d of %d with lowest local %d\n",
-           (int)gasneti_mynode, (int)local_rank, (int)local_num, (int)nodemap[gasneti_mynode]);
-  #endif
 }
 
 
