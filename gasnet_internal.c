@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/15 16:34:14 $
- * $Revision: 1.198.2.24 $
+ *     $Date: 2009/04/15 23:04:19 $
+ * $Revision: 1.198.2.25 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -816,61 +816,36 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
  *
  * This is also "safe" for an arbitrary mapping, but may fail to
  * identify some or all of the potential sharing in such a case.
+ *
+ * ids is address of first ID
+ * sz is length of an ID in bytes
+ * stride is bytes between consecutive IDs (>=sz)
  */
-gasnet_node_t *gasneti_nodemap_helper(void *ids, size_t sz) {
+gasnet_node_t *gasneti_nodemap_helper(void *ids, size_t sz, size_t stride) {
   gasnet_node_t *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
   gasnet_node_t i, prev, base;
-
-  #define GASNETI_NODEMAP_HELPER(_type) do {  \
-    const _type *a = (const _type *)ids;      \
-    for (i = 1; i < gasneti_nodes; ++i) {     \
-      const _type id = a[i];                  \
-      if (id == a[base]) {                    \
-        /* Repeat the previous "row" */       \
-        prev = base;                          \
-      } else if (id == a[prev]) {             \
-        /* Repeat the previous id */          \
-        /* prev = prev; */                    \
-      } else if (id == a[prev + 1]) {         \
-        /* Continue the current "row" */      \
-        prev += 1;                            \
-      } else {                                \
-        /* Begin a new "row" */               \
-        prev = base = i;                      \
-      }                                       \
-      nodemap[i] = prev;                      \
-    }                                         \
-  } while (0)
+  const char *p, *base_p, *prev_p;
 
   gasneti_assert(ids);
   gasneti_assert(sz > 0);
+  gasneti_assert(stride >= sz);
 
-  prev = base = nodemap[0] = 0;
-  switch (sz) {
-    case 1: GASNETI_NODEMAP_HELPER(uint8_t);  break;
-#ifndef INTTYPES_16BIT_MISSING
-    case 2: GASNETI_NODEMAP_HELPER(uint16_t); break;
-#endif
-    case 4: GASNETI_NODEMAP_HELPER(uint32_t); break;
-    case 8: GASNETI_NODEMAP_HELPER(uint64_t); break;
-    default: {
-      const char *a = (const char *)ids;
-      for (i = 1; i < gasneti_nodes; ++i) {
-        const char *p = a + sz;
-        if (!memcmp(p, a + base*sz, sz)) {
-          prev = base;
-        } else if (!memcmp(p, a + prev*sz, sz)) {
-          /* prev = prev; */
-        } else if (!memcmp(p, a + (prev + 1)*sz, sz)) {
-          prev += 1;
-        } else {
-          prev = base = i;
-        }
-        nodemap[i] = prev;
-      }
+  prev   = base   = nodemap[0] = 0;
+  prev_p = base_p = (const char *)ids;
+  p = base_p + stride;
+
+  for (i = 1; i < gasneti_nodes; ++i, p += stride) {
+    if (!memcmp(p, base_p, sz)) {                  /* Restart the previous "row" */
+      prev = base;     prev_p = base_p;
+    } else if (!memcmp(p, prev_p, sz)) {           /* Repeat the previous id */
+      /* prev = prev;  prev_p = prev_p; */
+    } else if (!memcmp(p, prev_p + stride, sz)) {  /* Continue the current "row" */
+      prev += 1;       prev_p += stride;
+    } else {                                       /* Begin a new "row" */
+      prev = base = i; prev_p = base_p = p;
     }
+    nodemap[i] = prev;
   }
-  #undef GASNETI_NODEMAP_HELPER
 
   #if GASNET_DEBUG_VERBOSE
   if (!gasneti_mynode) {
@@ -914,12 +889,16 @@ gasnet_node_t *gasneti_nodemap_helper(void *ids, size_t sz) {
         gasneti_assert(!rc);
       }
 
+#if 0
       /* Mask away the T coordinate */
       for (i = 0; i < gasneti_nodes; ++i) {
         allids[i] &= 0xFFFFFF00;
       }
-
-      nodemap = gasneti_nodemap_helper(allids, sizeof(uint32_t));
+      nodemap = gasneti_nodemap_helper(allids, sizeof(uint32_t), sizeof(uint32_t));
+#else
+      /* Compare only the upper 3 bytes, discarding the T coordinate */
+      nodemap = gasneti_nodemap_helper(allids, 3, sizeof(uint32_t));
+#endif
 
       gasneti_free(allids);
     }
@@ -954,7 +933,7 @@ gasnet_node_t *gasneti_nodemap_helper(void *ids, size_t sz) {
     allids = gasneti_malloc(gasneti_nodes * sizeof(uint32_t));
     (*exchangefn)(&myid, sizeof(uint32_t), allids);
 
-    nodemap = gasneti_nodemap_helper(allids, sizeof(uint32_t));
+    nodemap = gasneti_nodemap_helper(allids, sizeof(uint32_t), sizeof(uint32_t));
 
     gasneti_free(allids);
     return nodemap;
