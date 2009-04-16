@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/16 00:04:15 $
- * $Revision: 1.198.2.26 $
+ *     $Date: 2009/04/16 00:25:41 $
+ * $Revision: 1.198.2.27 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -864,7 +864,7 @@ gasnet_node_t *gasneti_nodemap_helper(const void *ids, size_t sz, size_t stride)
    * conduit code doesn't even need to make its own version conform to
    * the signature of the generic gasneti_nodemap() (though the result
    * must be in the same form for passing to other code.)
-   * It is recommended to use gasnet_node_t gasneti_nodemap_helper().
+   * It is recommended to use gasneti_nodemap_helper().
    */
 #elif PLATFORM_OS_BGP && GASNETI_HAVE_BGP_INLINES
   /* Build nodemap from <X,Y,Z> coords of all ranks. */
