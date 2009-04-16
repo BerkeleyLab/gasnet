@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2009/04/15 23:04:19 $
- * $Revision: 1.114.2.9 $
+ *     $Date: 2009/04/16 00:04:15 $
+ * $Revision: 1.114.2.10 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -297,7 +297,7 @@ typedef void (*gasneti_bootstrapBarrierfn_t)(void);
 #if !GASNET_SEGMENT_EVERYTHING
 #ifdef HAVE_MMAP
 uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
-                            gasnet_node_t *nodemap,
+                            const gasnet_node_t *nodemap,
                             gasneti_bootstrapExchangefn_t exchangefn,
                             gasneti_bootstrapBarrierfn_t barrierfn);
 #endif /* HAVE_MMAP */
@@ -661,13 +661,13 @@ extern void gasneti_defaultAMHandler(gasnet_token_t token);
 /* ------------------------------------------------------------------------------------ */
 /* nodemap functions */
 
-extern gasnet_node_t *gasneti_nodemap_helper(void *ids, size_t sz, size_t stride);
+extern gasnet_node_t *gasneti_nodemap_helper(const void *ids, size_t sz, size_t stride);
 
 #if !defined(GASNETC_CONDUIT_SPECIFIC_NODEMAP)
 extern gasnet_node_t *gasneti_nodemap(gasneti_bootstrapExchangefn_t exchangefn);
 #endif
 
-extern void gasneti_nodemap_local_info(gasnet_node_t *nodemap,
+extern void gasneti_nodemap_local_info(const gasnet_node_t *nodemap,
                                        gasnet_node_t *local_num,
                                        gasnet_node_t *local_rank);
 

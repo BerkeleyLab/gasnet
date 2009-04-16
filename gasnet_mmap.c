@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/04/14 21:25:54 $
- * $Revision: 1.59.2.9 $
+ *     $Date: 2009/04/16 00:04:15 $
+ * $Revision: 1.59.2.10 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -361,7 +361,7 @@ static gasneti_segexch_t *gasneti_segexch = NULL; /* exchanged segment informati
     to gasneti_segmentInit()
  */
 uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
-                            gasnet_node_t *nodemap,
+                            const gasnet_node_t *nodemap,
                             gasneti_bootstrapExchangefn_t exchangefn,
                             gasneti_bootstrapBarrierfn_t barrierfn) {
   int i, need_exchg = 0;

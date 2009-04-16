@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/15 23:04:19 $
- * $Revision: 1.198.2.25 $
+ *     $Date: 2009/04/16 00:04:15 $
+ * $Revision: 1.198.2.26 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -821,7 +821,7 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
  * sz is length of an ID in bytes
  * stride is bytes between consecutive IDs (>=sz)
  */
-gasnet_node_t *gasneti_nodemap_helper(void *ids, size_t sz, size_t stride) {
+gasnet_node_t *gasneti_nodemap_helper(const void *ids, size_t sz, size_t stride) {
   gasnet_node_t *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
   gasnet_node_t i, prev, base;
   const char *p, *base_p, *prev_p;
@@ -943,7 +943,7 @@ gasnet_node_t *gasneti_nodemap_helper(void *ids, size_t sz, size_t stride) {
 /* Count number of GASNet nodes on the same O/S node as ourself,
  * and determine our relative rank in that set.
  */
-extern void gasneti_nodemap_local_info(gasnet_node_t *nodemap,
+extern void gasneti_nodemap_local_info(const gasnet_node_t *nodemap,
                                        gasnet_node_t *local_num_p, 
                                        gasnet_node_t *local_rank_p) {
   static gasnet_node_t local_num, local_rank;
