@@ -2564,16 +2564,9 @@ extern void gasnetc_init_portals_network(int *argc, char ***argv)
   gasnetc_nodemap = gasneti_nodemap(&gasnetc_bootstrapExchange);
 #else
   /* Build gasnetc_nodemap from cnos_map w/o need for a bootstrapExchange */
-  { gasnet_node_t     prev_node;
-    ptl_nid_t         prev_nid;
-    gasnetc_nodemap = (gasnet_node_t*)gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
-    prev_nid = prev_node = 0;
-    for (node = 0; node < gasneti_nodes; node++) {
-      prev_node = gasnetc_nodemap[node] = 
-          (cnos_map[node].nid == prev_nid) ? prev_node : node;
-      prev_nid = cnos_map[node].nid;
-    }
-  }
+  gasnetc_nodemap = gasneti_nodemap_helper(&cnos_map[0].nid,
+                                           sizeof(cnos_map[0].nid),
+                                           sizeof(cnos_map[0]));
 #endif
 
   /* init the table to a list of null pointers */
