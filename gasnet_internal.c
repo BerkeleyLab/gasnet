@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/16 00:25:41 $
- * $Revision: 1.198.2.27 $
+ *     $Date: 2009/04/16 01:07:05 $
+ * $Revision: 1.198.2.28 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -810,7 +810,7 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
  * means identifing all sharing for such a mapping in one pass and the
  * term "sensible" includes:
  *   "Block" layouts like       |0.1.2.3|4.5.6.7|8.9._._|
- *   "                       or |0.1.2.3|4.5.6._|7.8.9._|
+ *                           or |0.1.2.3|4.5.6._|7.8.9._|
  *   "Round-robin" layouts like |0.3.6.9|1.4.7._|2.5.8._|
  *   and all 24 permutations of the XYZT dimensions on the BG/P.
  *
