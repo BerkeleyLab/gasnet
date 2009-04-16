@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/16 01:07:05 $
- * $Revision: 1.198.2.28 $
+ *     $Date: 2009/04/16 05:39:44 $
+ * $Revision: 1.198.2.29 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -816,22 +816,15 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
  *
  * This is also "safe" for an arbitrary mapping, but may fail to
  * identify some or all of the potential sharing in such a case.
- *
- * ids is address of first ID
- * sz is length of an ID in bytes
- * stride is bytes between consecutive IDs (>=sz)
  */
-gasnet_node_t *gasneti_nodemap_helper(const void *ids, size_t sz, size_t stride) {
+static void gasneti_nodemap_helper_linear(gasnet_node_t *nodemap, const char *ids,
+                                          size_t sz, size_t stride) {
   gasnet_node_t *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
   gasnet_node_t i, prev, base;
   const char *p, *base_p, *prev_p;
 
-  gasneti_assert(ids);
-  gasneti_assert(sz > 0);
-  gasneti_assert(stride >= sz);
-
   prev   = base   = nodemap[0] = 0;
-  prev_p = base_p = (const char *)ids;
+  prev_p = base_p = ids;
   p = base_p + stride;
 
   for (i = 1; i < gasneti_nodes; ++i, p += stride) {
@@ -845,6 +838,78 @@ gasnet_node_t *gasneti_nodemap_helper(const void *ids, size_t sz, size_t stride)
       prev = base = i; prev_p = base_p = p;
     }
     nodemap[i] = prev;
+  }
+
+  return nodemap;
+}
+
+/* This code is "good" for all possible process layouts, where "good"
+ * means identifing all sharing.  However, the running time is O(n*log(n)).
+ */
+static struct {
+  const char *ids;
+  size_t sz;
+  size_t stride;
+} _gasneti_nodemap_sort_aux;
+static int _gasneti_nodemap_sort_fn(const void *a, const void *b) {
+  gasnet_node_t key1 = *(const gasnet_node_t *)a;
+  gasnet_node_t key2 = *(const gasnet_node_t *)b;
+  const char *val1 = _gasneti_nodemap_sort_aux.ids + key1 * _gasneti_nodemap_sort_aux.stride;
+  const char *val2 = _gasneti_nodemap_sort_aux.ids + key2 * _gasneti_nodemap_sort_aux.stride;
+  int retval = memcmp(val1, val2, _gasneti_nodemap_sort_aux.sz);
+  if (!retval) { /* keep sort stable */
+    gasneti_assert(key1 != key2);
+    retval = (key1 < key2) ? -1 : 1;
+  }
+  return retval;
+}
+static void gasneti_nodemap_helper_qsort(gasnet_node_t *nodemap, const char *ids,
+                                         size_t sz, size_t stride) {
+  gasnet_node_t *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+  gasnet_node_t *work    = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+  const char *prev_id;
+  gasnet_node_t i, prev;
+
+  _gasneti_nodemap_sort_aux.ids    = ids;
+  _gasneti_nodemap_sort_aux.sz     = sz;
+  _gasneti_nodemap_sort_aux.stride = stride;
+  for (i = 0; i < gasneti_nodes; ++i) work[i] = i;
+  qsort(work, gasneti_nodes, sizeof(gasnet_node_t), &_gasneti_nodemap_sort_fn);
+
+  prev = work[0];
+  nodemap[prev] = prev;
+  prev_id = ids + prev*stride;
+  for (i = 1; i < gasneti_nodes; ++i) {
+    gasnet_node_t node = work[i];
+    const char *tmp_id = ids + node*stride;
+    prev = nodemap[node] = memcmp(tmp_id, prev_id, sz) ? node : prev;
+    prev_id = tmp_id;
+  }
+  gasneti_free(work);
+
+  return nodemap;
+}
+
+/* gasneti_nodemap_helper
+ * Construct a nodemap from a vector of "IDs"
+ *
+ * ids is address of first ID
+ * sz is length of an ID in bytes
+ * stride is bytes between consecutive IDs (>=sz)
+ */
+gasnet_node_t *gasneti_nodemap_helper(const void *ids, size_t sz, size_t stride) {
+  gasnet_node_t *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+
+  gasneti_assert(ids);
+  gasneti_assert(sz > 0);
+  gasneti_assert(stride >= sz);
+
+  if (gasneti_getenv_yesno_withdefault("GASNET_NODEMAP_EXACT",0)) {
+    /* "exact" but potentially costly */
+    gasneti_nodemap_helper_qsort(nodemap, ids, sz, stride);
+  } else {
+    /* cheap and correct for all "normal" cases */
+    gasneti_nodemap_helper_linear(nodemap, ids, sz, stride);
   }
 
   #if GASNET_DEBUG_VERBOSE
