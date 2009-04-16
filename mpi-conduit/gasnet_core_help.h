@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core_help.h,v $
- *     $Date: 2006/03/19 02:08:06 $
- * $Revision: 1.5 $
+ *     $Date: 2009/04/16 21:38:49 $
+ * $Revision: 1.5.60.1 $
  * Description: GASNet MPI conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,6 +16,21 @@
 GASNETI_BEGIN_EXTERNC
 
 #include <gasnet_help.h>
+
+#define GASNETC_MAX_ARGS   16
+#if GASNET_SYSV
+  /* HACK: set max medium to size known to be smaller than
+   * GASNETI_SYSVNET_MAX_PAYLOAD (which isn't visible to this file yet) 
+   * - TODO: fix sysV max medium to be automatically defined to equal
+   *   GASNETI_SYSVNET_MAX_PAYLOAD, and make that a bigger value!
+   */
+  #define GASNETC_MAX_MEDIUM 65536 //3984
+  //#define GASNETC_MAX_MEDIUM 3984
+#else
+  /* limited only by buffering constraints */
+  #define GASNETC_MAX_MEDIUM 65536   
+#endif
+#define GASNETC_MAX_LONG   ((size_t)0x7fffffff) /* unlimited */
 
 GASNETI_END_EXTERNC
 

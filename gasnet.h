@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2008/10/11 07:45:27 $
- * $Revision: 1.59 $
+ *     $Date: 2009/04/16 21:38:46 $
+ * $Revision: 1.59.8.1 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,6 +22,8 @@
    see the GASNet specification and top-level README for details on how to use the GASNet interface
    clients should use the automatically-generated Makefile *.mak fragments to get the correct compile settings
 */
+
+#define GASNET_SYSV 1
 
 /* autoconf-generated configuration header */
 #include <gasnet_config.h>
@@ -242,6 +244,9 @@ GASNETI_END_EXTERNC
 
 #ifndef _GASNET_HANDLERENTRY_T
 #define _GASNET_HANDLERENTRY_T
+#if GASNET_SYSV
+  typedef void (*gasneti_handler_fn_t)();
+#endif
   /*  struct type used to negotiate handler registration in gasnet_init() */
   typedef struct gasneti_handlerentry_s {
     gasnet_handler_t index; /*  == 0 for don't care  */

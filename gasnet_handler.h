@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_handler.h,v $
- *     $Date: 2006/05/23 12:42:14 $
- * $Revision: 1.9 $
+ *     $Date: 2009/04/16 21:38:46 $
+ * $Revision: 1.9.42.1 $
  * Description: GASNet Helpers for using bit-width-independent AM handlers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -168,7 +168,9 @@
 #define LONG_HANDLER_DECL         MEDIUM_HANDLER_DECL
 #define LONG_HANDLER_NOBITS_DECL  MEDIUM_HANDLER_NOBITS_DECL
 
+#ifndef GASNET_SYSV
 typedef void (*gasneti_handler_fn_t)();  /* prototype for generic handler function */
+#endif
 
 /*  handler table construction */
 #define gasneti_handleridx(fnname) _hidx_ ## fnname

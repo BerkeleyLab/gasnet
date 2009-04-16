@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2008/10/11 07:45:27 $
- * $Revision: 1.197 $
+ *     $Date: 2009/04/16 21:38:46 $
+ * $Revision: 1.197.8.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -28,6 +28,7 @@
 
 /* set to non-zero for verbose error reporting */
 int gasneti_VerboseErrors = 1;
+
 
 /* ------------------------------------------------------------------------------------ */
 /* generic atomics support */
@@ -147,6 +148,13 @@ extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentr
   gasnet_seginfo_t *gasneti_seginfo_client = NULL;
   void **gasneti_seginfo_ub = NULL; /* cached result of gasneti_seginfo[i].addr + gasneti_seginfo[i].size */
   void **gasneti_seginfo_client_ub = NULL;
+#endif
+
+#if GASNET_SYSV
+unsigned int *gasneti_nodesinfo;
+unsigned int *gasneti_sysv_mapinfo;
+gasnet_seginfo_t *gasneti_sysv_seginfo_client = NULL;
+uintptr_t *gasneti_sysvnetinfo;
 #endif
 
 /* ------------------------------------------------------------------------------------ */

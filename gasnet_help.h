@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2008/12/26 05:30:52 $
- * $Revision: 1.101 $
+ *     $Date: 2009/04/16 21:38:46 $
+ * $Revision: 1.101.4.1 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -707,6 +707,13 @@ extern int gasneti_wait_mode; /* current waitmode hint */
   extern gasnet_seginfo_t *gasneti_seginfo_client;
   extern void **gasneti_seginfo_ub;
   extern void **gasneti_seginfo_client_ub;
+#endif
+
+#if GASNET_SYSV
+  extern gasnet_seginfo_t *gasneti_sysv_seginfo_client;
+  extern unsigned int *gasneti_nodesinfo;
+  extern unsigned int *gasneti_sysv_mapinfo;
+  extern uintptr_t *gasneti_sysvnetinfo;
 #endif
 
 /* ------------------------------------------------------------------------------------ */
