@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2009/04/14 05:36:54 $
- * $Revision: 1.14.8.2 $
+ *     $Date: 2009/04/17 21:48:05 $
+ * $Revision: 1.14.8.3 $
  * Description: GASNet header for PORTALS conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -82,10 +82,5 @@
 	CNT(C, LONG_TMPMD, count)               \
 	GASNETC_FIREHOSE_STATS(CNT,VAL,TIME)	\
         VAL(C, EVENT_REAP, numreaped)
-
-  /* define if generic gasneti_nodemap() is unneeded
-     for instance if there is a way to use conduit-specific knowledge to
-     determine which nodes share memory without any extra communication */
-#define GASNETC_CONDUIT_SPECIFIC_NODEMAP 1
 
 #endif

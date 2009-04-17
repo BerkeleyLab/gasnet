@@ -124,8 +124,6 @@ ptl_uid_t gasnetc_uid;
 ptl_process_id_t gasnetc_myid;
 gasnetc_procid_t *gasnetc_procid_map = NULL;
 
-extern gasnet_node_t *gasnetc_nodemap;
-
 #if GASNETC_USE_SANDIA_ACCEL
 /* use Sandia Accelerated Portals */
 int gasnetc_use_accel = 0;
@@ -2558,15 +2556,12 @@ extern void gasnetc_init_portals_network(int *argc, char ***argv)
   }
 
 #if PLATFORM_OS_CATAMOUNT
-  /* gasnetc_nodemap is unused - no mmap(), no shared memory */
-#elif !defined(GASNETC_CONDUIT_SPECIFIC_NODEMAP)
-  /* Use default generic version for debugging */
-  gasnetc_nodemap = gasneti_nodemap(&gasnetc_bootstrapExchange);
+  /* gasneti_nodemap is unused - no mmap(), no shared memory */
 #else
-  /* Build gasnetc_nodemap from cnos_map w/o need for a bootstrapExchange */
-  gasnetc_nodemap = gasneti_nodemap_helper(&cnos_map[0].nid,
-                                           sizeof(cnos_map[0].nid),
-                                           sizeof(cnos_map[0]));
+  /* Build nodemap from cnos_map w/o need for a bootstrapExchange */
+  gasneti_nodemapInit(NULL, &cnos_map[0].nid,
+                      sizeof(cnos_map[0].nid),
+                      sizeof(cnos_map[0]));
 #endif
 
   /* init the table to a list of null pointers */
@@ -3013,9 +3008,7 @@ extern uintptr_t gasnetc_portalsMaxPinMem(void)
                         "GASNET_PHYSMEM_PINNABLE_RATIO", 
                         GASNETC_DEFAULT_PHYSMEM_PINNABLE_RATIO);
 
-  gasneti_assert(gasnetc_nodemap);
   limit = gasneti_mmapLimit(limit, pm_ratio * gasneti_getPhysMemSz(1),
-                            gasnetc_nodemap,
                             &gasnetc_bootstrapExchange,
                             &gasnetc_bootstrapBarrier);
 #endif

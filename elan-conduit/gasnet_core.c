@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/04/17 01:36:08 $
- * $Revision: 1.79.2.5 $
+ *     $Date: 2009/04/17 21:47:57 $
+ * $Revision: 1.79.2.6 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -85,8 +85,6 @@ extern uint64_t gasnetc_clock(void) {
 }
 
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
-
-static gasnet_node_t *gasnetc_nodemap = NULL;
 
 #ifdef GASNETC_ELAN4
 #include <elan4/library.h>
@@ -310,7 +308,11 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
   }
 
-  gasnetc_nodemap = gasneti_nodemap(&gasnetc_bootstrapExchange);
+  /* TODO: STATE() contains enough info to determine gasneti_nodemap[gasneti_mynode]
+   * So, a single gasnetc_bootstrapExchange() can construct the entire nodemap
+   * w/o the need to perform a pass to match up the IDs.
+   */
+  gasneti_nodemapInit(&gasnetc_bootstrapExchange, NULL, 0, 0);
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     #if GASNETC_USE_STATIC_SEGMENT
@@ -327,7 +329,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_segmentInit(
                           #if GASNET_SEGMENT_FAST
                             gasneti_mmapLimit(gasnetc_remappableMem.size,
-                                              (uint64_t)-1, gasnetc_nodemap,
+                                              (uint64_t)-1,
                                               &gasnetc_bootstrapExchange,
                                               &gasnetc_bootstrapBarrier),
                           #else
@@ -649,7 +651,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   gasnete_init(); /* init the extended API */
 
-  gasneti_free(gasnetc_nodemap);
+  gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
   gasnetc_bootstrapBarrier();

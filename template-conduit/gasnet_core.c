@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/gasnet_core.c,v $
- *     $Date: 2009/04/17 01:36:23 $
- * $Revision: 1.61.2.2 $
+ *     $Date: 2009/04/17 21:48:13 $
+ * $Revision: 1.61.2.3 $
  * Description: GASNet <conduitname> conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,8 +22,6 @@ static void gasnetc_atexit(void);
 
 #define GASNETC_MAX_NUMHANDLERS   256
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
-
-static gasnet_node_t *gasnetc_nodemap = NULL;
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -73,17 +71,18 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
 
-  /* (###) Add code here to determine which GASNet nodes may share memory
-     One may use gasneti_nodemap(gasnetc_bootstrapExchange) if the
-     conduit has no better mechanism, but if it does then define
-     GASNETC_CONDUIT_SPECIFIC_NODEMAP in gasnet_core_fwd.h
+  /* (###) Add code here to determine which GASNet nodes may share memory.
+     If the conduit has already communicated endpoint address information or
+     a similar identifier that is unique per shared-memory compute node, then
+     that info can be passed via arguments 2 through 4.
+     Otherwise the conduit should pass a non-null gasnetc_bootstrapExchange
+     as argument 1 to use platform-specific IDs, such as gethostid().
      See below for info on gasnetc_bootstrapExchange()
+
+     If the conduit can build gasneti_nodemap[] w/o assistance, it should
+     call gasneti_nodemapParse() after constructing it.
   */
-  #ifndef GASNETC_CONDUIT_SPECIFIC_NODEMAP
-    gasnetc_nodemap = gasneti_nodemap(gasnetc_bootstrapExchange);
-  #else   
-    gasnetc_nodemap = ###;
-  #endif
+  gasneti_nodemapInit(###);
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { 
@@ -316,7 +315,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   gasnete_init(); /* init the extended API */
 
-  gasneti_free(gasnetc_nodemap);
+  gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
   gasnetc_bootstrapBarrier();

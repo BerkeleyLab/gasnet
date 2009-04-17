@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/04/17 01:36:12 $
- * $Revision: 1.123.2.4 $
+ *     $Date: 2009/04/17 21:48:01 $
+ * $Revision: 1.123.2.5 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -100,8 +100,6 @@ extern int gasnete_pin_max;
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS] = { NULL };
 void** gasnetc_remote_req_hh = NULL;
 void** gasnetc_remote_reply_hh = NULL;
-
-static gasnet_node_t *gasnetc_nodemap = NULL;
 
 volatile int gasnetc_got_exit_signal = 0;
 
@@ -320,14 +318,11 @@ static int gasnetc_init(int *argc, char ***argv) {
 	    gasneti_mynode, gasneti_nodes); fflush(stderr);
 #endif
 
-#ifndef GASNETC_CONDUIT_SPECIFIC_NODEMAP /* for debugging */
-    gasnetc_nodemap = gasneti_nodemap(gasnetc_lapi_exchange);
-#else   
     /* Construct nodemap using LAPI_Address_init() rather than gasnetc_lapi_exchange() */
     {   void **tmp = (void**)gasneti_malloc(num_tasks*sizeof(void*));
         void *myid = (void*)(uintptr_t)gethostid();
         GASNETC_LCHECK(LAPI_Address_init(gasnetc_lapi_context, myid, tmp));
-        gasnetc_nodemap = gasneti_nodemap_helper(tmp, sizeof(void*), sizeof(void*));
+        gasneti_nodemapInit(NULL, tmp, sizeof(void*), sizeof(void*));
         gasneti_free(tmp);
     }
 #endif
@@ -863,7 +858,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
     gasnete_init(); /* init the extended API */
 
-    gasneti_free(gasnetc_nodemap);
+    gasneti_nodemapFini();
 
     /* ensure extended API is initialized across nodes */
     gasnetc_bootstrapBarrier();

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2009/04/14 05:37:02 $
- * $Revision: 1.13.36.1 $
+ *     $Date: 2009/04/17 21:48:13 $
+ * $Revision: 1.13.36.2 $
  * Description: GASNet header for <conduitname> conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -48,11 +48,6 @@
      statistical collection values (see gasnet_trace.h) */
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
 
-  /* define if generic gasneti_nodemap() is unneeded
-     for instance if there is a way to use conduit-specific knowledge to
-     determine which nodes share memory without any extra communication */
-#if ###
-#define GASNETC_CONDUIT_SPECIFIC_NODEMAP 1
 #endif
 
 #endif

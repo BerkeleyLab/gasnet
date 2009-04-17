@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/04/17 01:36:17 $
- * $Revision: 1.19.2.2 $
+ *     $Date: 2009/04/17 21:48:05 $
+ * $Revision: 1.19.2.3 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -25,8 +25,6 @@ static void gasnetc_traceoutput(int);
 
 #define GASNETC_MAX_NUMHANDLERS   256
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
-
-gasnet_node_t *gasnetc_nodemap = NULL;
 
 uintptr_t gasnetc_segbase, gasnetc_segend;
 
@@ -77,7 +75,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
 
-  /* gasnetc_nodemap was constructed in gasnetc_init_portals_network() */
+  /* gasneti_nodemapInit() was called in gasnetc_init_portals_network() */
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     {
@@ -338,7 +336,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   gasnete_init(); /* init the extended API */
 
-  gasneti_free(gasnetc_nodemap);
+  gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
   gasnetc_bootstrapBarrier();

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2009/04/14 05:36:46 $
- * $Revision: 1.30.2.1 $
+ *     $Date: 2009/04/17 21:47:57 $
+ * $Revision: 1.30.2.2 $
  * Description: GASNet header for elan conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -48,11 +48,6 @@ GASNETI_BEGIN_EXTERNC
         VAL(C, GET_BUFFERED, sz)         \
         VAL(C, GET_AMMEDIUM, sz)         \
         VAL(C, GET_AMLONG, sz)         
-
-  /* define if generic gasneti_nodemap() is unneeded
-     for instance if there is a way to use conduit-specific knowledge to
-     determine which nodes share memory without any extra communication */
-/* #define GASNETC_CONDUIT_SPECIFIC_NODEMAP 1 */
 
 /* get elan timers, if appropriate */
 #include <gasnet_core_toolhelp.h>

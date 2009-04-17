@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/17 00:47:14 $
- * $Revision: 1.198.2.32 $
+ *     $Date: 2009/04/17 21:47:53 $
+ * $Revision: 1.198.2.33 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -806,6 +806,10 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
 /* Nodemap handling
  */
 
+gasnet_node_t *gasneti_nodemap = NULL;
+gasnet_node_t gasneti_nodemap_local_count = 0;
+gasnet_node_t gasneti_nodemap_local_rank = (gasnet_node_t)-1;
+
 /* This code is "good" for all "sensible" process layouts, where "good"
  * means identifing all sharing for such a mapping in one pass and the
  * term "sensible" includes:
@@ -817,12 +821,11 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
  * This is also "safe" for an arbitrary mapping, but may fail to
  * identify some or all of the potential sharing in such a case.
  */
-static void gasneti_nodemap_helper_linear(gasnet_node_t *nodemap, const char *ids,
-                                          size_t sz, size_t stride) {
+static void gasneti_nodemap_helper_linear(const char *ids, size_t sz, size_t stride) {
   gasnet_node_t i, prev, base;
   const char *p, *base_p, *prev_p;
 
-  prev   = base   = nodemap[0] = 0;
+  prev   = base   = gasneti_nodemap[0] = 0;
   prev_p = base_p = ids;
   p = base_p + stride;
 
@@ -836,7 +839,7 @@ static void gasneti_nodemap_helper_linear(gasnet_node_t *nodemap, const char *id
     } else {                                       /* Begin a new "row" */
       prev = base = i; prev_p = base_p = p;
     }
-    nodemap[i] = prev;
+    gasneti_nodemap[i] = prev;
   }
 }
 
@@ -860,8 +863,7 @@ static int _gasneti_nodemap_sort_fn(const void *a, const void *b) {
   }
   return retval;
 }
-static void gasneti_nodemap_helper_qsort(gasnet_node_t *nodemap, const char *ids,
-                                         size_t sz, size_t stride) {
+static void gasneti_nodemap_helper_qsort(const char *ids, size_t sz, size_t stride) {
   gasnet_node_t *work    = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
   const char *prev_id;
   gasnet_node_t i, prev;
@@ -873,12 +875,12 @@ static void gasneti_nodemap_helper_qsort(gasnet_node_t *nodemap, const char *ids
   qsort(work, gasneti_nodes, sizeof(gasnet_node_t), &_gasneti_nodemap_sort_fn);
 
   prev = work[0];
-  nodemap[prev] = prev;
+  gasneti_nodemap[prev] = prev;
   prev_id = ids + prev*stride;
   for (i = 1; i < gasneti_nodes; ++i) {
     gasnet_node_t node = work[i];
     const char *tmp_id = ids + node*stride;
-    prev = nodemap[node] = memcmp(tmp_id, prev_id, sz) ? node : prev;
+    prev = gasneti_nodemap[node] = memcmp(tmp_id, prev_id, sz) ? node : prev;
     prev_id = tmp_id;
   }
   gasneti_free(work);
@@ -886,50 +888,38 @@ static void gasneti_nodemap_helper_qsort(gasnet_node_t *nodemap, const char *ids
 
 /* gasneti_nodemap_helper
  * Construct a nodemap from a vector of "IDs"
- *
- * ids is address of first ID
- * sz is length of an ID in bytes
- * stride is bytes between consecutive IDs (>=sz)
  */
-gasnet_node_t *gasneti_nodemap_helper(const void *ids, size_t sz, size_t stride) {
-  gasnet_node_t *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
-
+GASNETI_NEVER_INLINE(gasneti_nodemap_helper,
+static void gasneti_nodemap_helper(const void *ids, size_t sz, size_t stride)) {
   gasneti_assert(ids);
   gasneti_assert(sz > 0);
   gasneti_assert(stride >= sz);
 
   if (gasneti_getenv_yesno_withdefault("GASNET_NODEMAP_EXACT",0)) {
     /* "exact" but potentially costly */
-    gasneti_nodemap_helper_qsort(nodemap, ids, sz, stride);
+    gasneti_nodemap_helper_qsort(ids, sz, stride);
   } else {
     /* cheap and correct for all "normal" cases */
-    gasneti_nodemap_helper_linear(nodemap, ids, sz, stride);
+    gasneti_nodemap_helper_linear(ids, sz, stride);
   }
-
-  #if GASNET_DEBUG_VERBOSE
-  if (!gasneti_mynode) {
-    gasnet_node_t i;
-    for (i = 0; i < gasneti_nodes; ++i) {
-      fprintf(stderr, "nodemap[%i] = %i\n", (int)i, (int)nodemap[i]);
-    }
-  }
-  #endif
-
-  return nodemap;
 }
 
-#if defined(GASNETC_CONDUIT_SPECIFIC_NODEMAP)
-  /* Nothing to do here.
-   * Since only gasnetc_init() is expected to call gasneti_nodemap(), the
-   * conduit code doesn't even need to make its own version conform to
-   * the signature of the generic gasneti_nodemap() (though the result
-   * must be in the same form for passing to other code.)
-   * It is recommended to use gasneti_nodemap_helper().
-   */
-#elif PLATFORM_OS_BGP && GASNETI_HAVE_BGP_INLINES
-  /* Build nodemap from <X,Y,Z> coords of all ranks. */
-  extern gasnet_node_t *gasneti_nodemap(gasneti_bootstrapExchangefn_t exchangefn /* unused */) {
-    gasnet_node_t i, *nodemap;
+/* Last-resort nodemap constructor
+ * Used when neither platform nor conduit can provide any IDs,
+ * or when no exchangefn is available to disseminate them.
+ */
+void gasneti_nodemap_trivial(void) {
+  gasnet_node_t i;
+  for (i = 0; i < gasneti_nodes; ++i) gasneti_nodemap[i] = i;
+}
+
+/* Platform-depended default nodemap constructor
+ * Used when no conduit-specific IDs are provided.
+ */
+static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
+#if PLATFORM_OS_BGP && GASNETI_HAVE_BGP_INLINES
+    /* Build gasneti_nodemap from <X,Y,Z> coords of all ranks. */
+    gasnet_node_t i;
     _BGP_SprgShMem sprg4;
 
     GASNETI_BGP_SPR(sprg4.shmem, _BGP_SPRGRO_SHMem); /* SPRG4 30:31 = (processes per node) - 1 */
@@ -938,8 +928,7 @@ gasnet_node_t *gasneti_nodemap_helper(const void *ids, size_t sz, size_t stride)
         !sprg4.ShmNumProcs || (gasneti_nodes == 1)) {
       /* Just build the trivial map if BG_SHAREDMEMPOOLSIZE is unset or zero,
          or are in SMP mode, or we have just a single node */
-      nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
-      for (i = 0; i < gasneti_nodes; ++i) nodemap[i] = i;
+      gasneti_nodemap_trivial();
     } else {
       uint32_t *allids = gasneti_malloc(gasneti_nodes * sizeof(uint32_t));
 
@@ -949,87 +938,138 @@ gasnet_node_t *gasneti_nodemap_helper(const void *ids, size_t sz, size_t stride)
         gasneti_assert(!rc);
       }
 
-#if 0
-      /* Mask away the T coordinate */
-      for (i = 0; i < gasneti_nodes; ++i) {
-        allids[i] &= 0xFFFFFF00;
-      }
-      nodemap = gasneti_nodemap_helper(allids, sizeof(uint32_t), sizeof(uint32_t));
-#else
       /* Compare only the upper 3 bytes, discarding the T coordinate */
-      nodemap = gasneti_nodemap_helper(allids, 3, sizeof(uint32_t));
-#endif
+      gasneti_nodemap_helper(allids, 3, sizeof(uint32_t));
 
       gasneti_free(allids);
     }
-
-    return nodemap;
-  }
 #elif PLATFORM_OS_BGP || PLATFORM_OS_BLRTS  || PLATFORM_OS_CATAMOUNT || !HAVE_GETHOSTID
-  /* Nodes are either (at least effectively) single process,
-   * or we don't have a usable gethostid().
-   * So, build a trivial nodemap. */
-  extern gasnet_node_t *gasneti_nodemap(gasneti_bootstrapExchangefn_t exchangefn /* unused */) {
-    gasnet_node_t i, *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
-    for (i = 0; i < gasneti_nodes; ++i) nodemap[i] = i;
-    return nodemap;
-  }
+    /* Nodes are either (at least effectively) single process,
+     * or we don't have a usable gethostid().  So, build a trivial nodemap. */
+    gasneti_nodemap_trivial();
 #else
-  /* Construct a nodemap array such that
-   *   For all i: nodemap[i] is the lowest node number collocated w/ node i
-   */
-  extern gasnet_node_t *gasneti_nodemap(gasneti_bootstrapExchangefn_t exchangefn) {
-    gasnet_node_t *nodemap;
-    uint32_t myid, *allids;
-  
-    gasneti_assert(exchangefn);
-
-    /* Exchange (gather-to-all) of hostids
+    /* Construct nodemap from gethostid and conduit-provided exchangefn 
      * gethostid() from Single Unix Specification (IEEE Std 1003.1-2001)
      * spec says return type is long, but that the result is 32 bits.
      * AIX and others have int.
      */
-    myid = (uint32_t)gethostid();
-    allids = gasneti_malloc(gasneti_nodes * sizeof(uint32_t));
+    uint32_t *allids = gasneti_malloc(gasneti_nodes * sizeof(uint32_t));
+    uint32_t myid = (uint32_t)gethostid();
+  
+    gasneti_assert(exchangefn);
     (*exchangefn)(&myid, sizeof(uint32_t), allids);
 
-    nodemap = gasneti_nodemap_helper(allids, sizeof(uint32_t), sizeof(uint32_t));
+    gasneti_nodemap_helper(allids, sizeof(uint32_t), sizeof(uint32_t));
 
     gasneti_free(allids);
-    return nodemap;
-  }
 #endif
-
-/* Count number of GASNet nodes on the same O/S node as ourself,
- * and determine our relative rank in that set.
- */
-extern void gasneti_nodemap_local_info(const gasnet_node_t *nodemap,
-                                       gasnet_node_t *local_num_p, 
-                                       gasnet_node_t *local_rank_p) {
-  static gasnet_node_t local_num, local_rank;
-  static int firsttime = 1;
-
-  gasneti_assert(nodemap);
-
-  if_pf (firsttime) {
-    gasnet_node_t first = nodemap[gasneti_mynode];
-    gasnet_node_t tmp_num = 0;
-    gasnet_node_t tmp_rank = 0;
-    gasnet_node_t i;
-    for (i = first; i < gasneti_nodes; ++i) {
-      if (i == gasneti_mynode) tmp_rank = tmp_num;
-      if (nodemap[i] == first) ++tmp_num;
-    }
-    local_num = tmp_num;
-    local_rank = tmp_rank;
-    gasneti_sync_writes();
-    firsttime = 0;
-  } else gasneti_sync_reads();
-
-  if (local_num_p) *local_num_p = local_num;
-  if (local_rank_p) *local_rank_p = local_rank;
 }
 
+/* gasneti_nodemapParse()
+ *
+ * Performs "common" tasks after gasneti_nodemap[] has been constucted.
+ * A conduit which builds a gasneti_nodemap[] w/o calling gasneti_nodemapInit()
+ * should still call this function to perform the "common" work.
+ *
+ * Currently computes some local statistics:
+ *   gasneti_nodemap_local_count = number of GASNet nodes collocated w/ gasneti_mynode
+ *   gasneti_nodemap_local_rank  = rank of gasneti_mynode among gasneti_nodemap_local_count
+ *
+ */
+extern void gasneti_nodemapParse(void) {
+  gasneti_assert(gasneti_nodemap);
+  gasneti_assert(gasneti_nodemap[0] == 0);
+  gasneti_assert(gasneti_nodemap[gasneti_mynode] <= gasneti_mynode);
+
+  /* Compute local stats */
+  {
+    gasnet_node_t first = gasneti_nodemap[gasneti_mynode];
+    gasnet_node_t i;
+
+    gasneti_assert(gasneti_nodemap_local_count == 0);
+    for (i = first; i < gasneti_nodes; ++i) {
+      if (i == gasneti_mynode) gasneti_nodemap_local_rank = gasneti_nodemap_local_count;
+      if (gasneti_nodemap[i] == first) ++gasneti_nodemap_local_count;
+    }
+    gasneti_assert(gasneti_nodemap_local_count != 0);
+    gasneti_assert(gasneti_nodemap_local_rank < gasneti_nodemap_local_count);
+  }
+
+  #if GASNET_DEBUG_VERBOSE
+  if (!gasneti_mynode) {
+    gasnet_node_t i;
+    for (i = 0; i < gasneti_nodes; ++i) {
+      fprintf(stderr, "gasneti_nodemap[%i] = %i\n", (int)i, (int)gasneti_nodemap[i]);
+    }
+  }
+  #endif
+}
+
+/* gasneti_nodemapInit(exchangefn, ids, sz, stride)
+ *
+ * Collectively called to construct the gasneti_nodemap[] such that
+ *   For all i: gasneti_nodemap[i] is the lowest node number collocated w/ node i
+ * GASNet nodes are considered collocated if they have the same node "ID" (see below).
+ *
+ * Calls gasneti_nodemapParse() after construction of the nodemap.
+ *
+ * There are 4 possible cases based on the first two arguments:
+ *   Case 1: exchangefn == NULL  and  ids != NULL  (PREFERRED)
+ *     The conduit has provided a vector of IDs with gasneti_nodes elements:
+ *       'ids' is address of first ID
+ *       'sz' is length of an ID in bytes
+ *       'stride' is bytes between consecutive IDs (>=sz)
+ *     The vector of IDs need not be "single valued" across calling nodes, so
+ *     long as the resulting nodemap is the same.  This allows, for instance,
+ *     the use of "local/relative" IDs as well as "global/absolute" ones.
+ *   Case 2: exchangefn != NULL  and  ids == NULL
+ *     The conduit has provided no IDs, but does have an exchangefn.
+ *     This results in building a nodemap from a platform-specific node ID,
+ *     such as gethostid() when available.  If the platform does not support
+ *     any node ID, then the trivial [0,1,2,...] nodemap will be generated.
+ *     The 'sz' and 'stride' arguments are unused.
+ *   Case 3: exchangefn == NULL  and  ids == NULL
+ *     The conduit has provided no bootstrapExchange function with
+ *     which to communicate the platform-specific IDs (if any).
+ *     This results in the trivial [0,1,2,...] nodemap.
+ *     The 'sz' and 'stride' arguments are unused.
+ *   Case 4: exchangefn != NULL  and  ids != NULL
+ *     This case is not supported.
+ */
+extern void gasneti_nodemapInit(gasneti_bootstrapExchangefn_t exchangefn,
+                                const void *ids, size_t sz, size_t stride) {
+  gasneti_nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+
+  if (ids) {
+    /* Case 1: conduit-provided vector of IDs */
+    gasneti_assert(!exchangefn); /* Prohibit 'Case 4' */
+    gasneti_nodemap_helper(ids, sz, stride);
+  } else if (exchangefn) {
+    /* Case 2: conduit-provided exchange fn, platform-default IDs */
+    gasneti_nodemap_dflt(exchangefn);
+  } else {
+    /* Case 3: conduit provided neither exchangefn nor IDs */
+    gasneti_nodemap_trivial();
+  }
+
+  /* Perform "common" work w.r.t the nodemap */
+  gasneti_nodemapParse();
+}
+
+/* Presently just frees the space allocated for the nodemap.
+ * If a vector-of-local-nodes is later computed by gasneti_nodemapParse()
+ * then this would free that storage too.
+ */
+extern void gasneti_nodemapFini(void) {
+  gasneti_assert(gasneti_nodemap);
+  gasneti_free(gasneti_nodemap);
+#if GASNET_DEBUG
+  /* To help catch any use-afer-Fini: */
+  gasneti_nodemap = NULL;
+  gasneti_nodemap_local_count = 0;
+  gasneti_nodemap_local_rank = (gasnet_node_t)-1;
+#endif
+}
 
 /* ------------------------------------------------------------------------------------ */
 /* Debug memory management

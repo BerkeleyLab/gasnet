@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/04/17 01:36:15 $
- * $Revision: 1.79.2.6 $
+ *     $Date: 2009/04/17 21:48:03 $
+ * $Revision: 1.79.2.7 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -45,8 +45,6 @@ gasneti_mutex_t gasnetc_AMlock = GASNETI_MUTEX_INITIALIZER; /*  protect access t
   #define CHECKCALLNIS()
   #define CHECKCALLHSL()
 #endif
-
-static gasnet_node_t *gasnetc_nodemap = NULL;
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -174,13 +172,12 @@ static int gasnetc_init(int *argc, char ***argv) {
         gasneti_mynode, gasneti_nodes); fflush(stderr);
     #endif
 
-    gasnetc_nodemap = gasneti_nodemap(&gasnetc_bootstrapExchange);
+    gasneti_nodemapInit(&gasnetc_bootstrapExchange, NULL, 0, 0);
 
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { uintptr_t limit;
       #if HAVE_MMAP
         limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
-                                  gasnetc_nodemap,
                                   &gasnetc_bootstrapExchange,
                                   &gasnetc_bootstrapBarrier),
       #else
@@ -394,7 +391,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   gasnete_init(); /* init the extended API */
 
-  gasneti_free(gasnetc_nodemap);
+  gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
   AMLOCK();

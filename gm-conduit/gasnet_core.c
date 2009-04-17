@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2009/04/17 01:36:10 $
- * $Revision: 1.126.2.9 $
+ * $Date: 2009/04/17 21:47:59 $
+ * $Revision: 1.126.2.10 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -35,8 +35,6 @@ gasnetc_state_t _gmc;
 gasnet_handlerentry_t const		*gasnetc_get_handlertable(void);
 extern gasnet_handlerentry_t const	*gasnete_get_handlertable(void);
 extern gasnet_handlerentry_t const	*gasnete_get_extref_handlertable(void);
-
-static gasnet_node_t *gasnetc_nodemap = NULL;
 
 static void gasnetc_atexit(void);
 
@@ -90,14 +88,10 @@ gasnetc_init(int *argc, char ***argv)
 	gasnetc_AllocPinnedBufs();
 	gasnetc_AllocGatherBufs();
 
-        #ifndef GASNETC_CONDUIT_SPECIFIC_NODEMAP /* for debugging */
-        gasnetc_nodemap = gasneti_nodemap(gasnetc_bootstrapExchange);
-        #else
         /* Construct nodemap from GM ids */
-        gasnetc_nodemap = gasneti_nodemap_helper(&_gmc.gm_nodes[0].id,
-                                                 sizeof(_gmc.gm_nodes[0].id),
-                                                 sizeof(_gmc.gm_nodes[0]));
-        #endif
+        gasneti_nodemapInit(NULL, &_gmc.gm_nodes[0].id,
+                            sizeof(_gmc.gm_nodes[0].id),
+                            sizeof(_gmc.gm_nodes[0]));
 
 	gasnetc_bootstrapBarrier();
 	gasneti_init_done = 1; /* Not really done, but need getenv internally */
@@ -137,10 +131,7 @@ gasnetc_init(int *argc, char ***argv)
 				       "must be between 0 and 1");
 
                 /* Take only a fair share of the memory */
-                { uint64_t my_physmem;
-                  gasnet_node_t local_count;
-                  gasneti_nodemap_local_info(gasnetc_nodemap, &local_count, NULL);
-                  my_physmem = gasneti_getPhysMemSz(1) * pm_ratio / local_count;
+                { uint64_t my_physmem = gasneti_getPhysMemSz(1) * pm_ratio / gasneti_nodemap_local_count;
 #if SIZEOF_VOID_P != 8 /* Watch for overflow! */
                   if (my_physmem > (uint64_t)(uintptr_t)-1) my_physmem = (uintptr_t)-1;
 #endif
@@ -164,7 +155,7 @@ gasnetc_init(int *argc, char ***argv)
 	}
 
         #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-	  max_segmentsize = gasneti_mmapLimit(max_segmentsize, -1, gasnetc_nodemap,
+	  max_segmentsize = gasneti_mmapLimit(max_segmentsize, -1,
                                               &gasnetc_bootstrapExchange,
                                               &gasnetc_bootstrapBarrier);
 	  gasneti_segmentInit(max_segmentsize, &gasnetc_bootstrapExchange);
@@ -528,7 +519,7 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 	gasnete_init();
 	gasnetc_bootstrapBarrier();
 
-        gasneti_free(gasnetc_nodemap);
+        gasneti_nodemapFini();
 
 	/*
 	 * Free up the bootstrap gather buffers.  If they are reused, an AM

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2009/04/17 01:36:06 $
- * $Revision: 1.9.2.2 $
+ *     $Date: 2009/04/17 21:47:55 $
+ * $Revision: 1.9.2.3 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>, 
                    Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -59,8 +59,6 @@ static void gasnetc_atexit(void);
 
 #define GASNETC_MAX_NUMHANDLERS   256
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
-
-static gasnet_node_t *gasnetc_nodemap = NULL;
 
 #if GASNET_DEBUG
 uint8_t gasnetc_have_dcmf_lock=0;
@@ -358,8 +356,9 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_mynode, gasneti_nodes); fflush(stderr);
 #endif
 
-  /* using the BG/P-specific gasneti_nodemap() */
-  gasnetc_nodemap = gasneti_nodemap(gasnetc_bootstrapExchange);
+  /* non-null 1st arg causes use of platform-specific node IDs, which in
+   * the case of BG/P won't actually use gasnetc_bootstrapExchange */
+  gasneti_nodemapInit(gasnetc_bootstrapExchange, NULL, 0, 0);
 
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
   { 
@@ -614,7 +613,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   gasnete_init(); /* init the extended API */
 
-  gasneti_free(gasnetc_nodemap);
+  gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
   gasnetc_bootstrapBarrier();

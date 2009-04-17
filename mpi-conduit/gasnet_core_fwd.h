@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2009/04/14 05:36:52 $
- * $Revision: 1.28.32.1 $
+ *     $Date: 2009/04/17 21:48:03 $
+ * $Revision: 1.28.32.2 $
  * Description: GASNet header for MPI conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -69,11 +69,6 @@
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
-
-  /* define if generic gasneti_nodemap() is unneeded
-     for instance if there is a way to use conduit-specific knowledge to
-     determine which nodes share memory without any extra communication */
-/* #define GASNETC_CONDUIT_SPECIFIC_NODEMAP 1 */
 
 #define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
 extern void gasnetc_fatalsignal_callback(int sig);

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/04/17 20:57:22 $
- * $Revision: 1.59.2.14 $
+ *     $Date: 2009/04/17 21:47:53 $
+ * $Revision: 1.59.2.15 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -349,26 +349,28 @@ static gasneti_segexch_t *gasneti_segexch = NULL; /* exchanged segment informati
     per shared memory node
    localLimit is an optional conduit-specific upper limit per GASNet node
    sharedLimit is an optional upper limit per shared memory node
-   requires a nodemap, as from gasneti_nodemap()
    requires an exchange callback function that can be used to exchange data
    barrierfn is an optional callback function, to perform a barrier
     If non-NULL will be called after any gasneti_munmap() to ensure all
-    on-node unmap operations are completed.  A barrier local to each
-    shared memory node is sufficient, but a job-global one is acceptible.
+    on-node unmap operations are completed.
     A caller may pass NULL if it can guarantee no race against following
     mmap() calls.
    returns a value suitable for use as localSegmentLimit in a call
     to gasneti_segmentInit()
+   
+   for exchangefn and barrierfn: the implementations are only required to
+    perform their functions with respect the peers on a shared-memory
+    node (though exchangefn does require a "full" third argument).
+    however, global implementations are acceptible
  */
 uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
-                            const gasnet_node_t *nodemap,
                             gasneti_bootstrapExchangefn_t exchangefn,
                             gasneti_bootstrapBarrierfn_t barrierfn) {
   int i, need_exchg = 0;
   uintptr_t maxsz;
 
   gasneti_assert(exchangefn);
-  gasneti_assert(nodemap);
+  gasneti_assert(gasneti_nodemap);
 
   /* Apply intial limits, even if not sharing nodes */
   maxsz = GASNETI_MMAP_LIMIT;
@@ -377,7 +379,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
 
   /* Coordinate the search IFF there are any shared nodes. */
   for (i = 0; i < gasneti_nodes; ++i) {
-    if (nodemap[i] != i) {
+    if (gasneti_nodemap[i] != i) {
       need_exchg = 1;
       break;
     }
@@ -385,18 +387,14 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
   if (need_exchg) {
     uintptr_t *sz_exchg = gasneti_malloc(gasneti_nodes * sizeof(uintptr_t));
     gasnet_seginfo_t se = {0,0};
-    gasnet_node_t local_count;
-
-    gasneti_nodemap_local_info(nodemap, &local_count, NULL);
-    gasneti_assert(local_count);
 
     /* Ensure our probe will not collectively exceed the shareLimit, if any. */
-    if ((sharedLimit != (uint64_t)-1) && (local_count > 1)) {
+    if ((sharedLimit != (uint64_t)-1) && (gasneti_nodemap_local_count > 1)) {
 #if SIZEOF_VOID_P != 8
        /* Skip MIN() on overflow */
-       if ((sharedLimit / local_count) < (uint64_t)(uintptr_t)(-1))
+       if ((sharedLimit / gasneti_nodemap_local_count) < (uint64_t)(uintptr_t)(-1))
 #endif
-       { uintptr_t tmp = sharedLimit / local_count;
+       { uintptr_t tmp = sharedLimit / gasneti_nodemap_local_count;
          maxsz = MIN(maxsz, tmp);
        }
     }
@@ -410,17 +408,17 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
     { uint64_t sum;
       gasnet_node_t first, j;
 
-      first = nodemap[gasneti_mynode];
+      first = gasneti_nodemap[gasneti_mynode];
       sum = sz_exchg[first];
       j = 1;
 
-      for (i = (first + 1); j < local_count; ++i) {
-        if (nodemap[i] == first) {
+      for (i = (first + 1); j < gasneti_nodemap_local_count; ++i) {
+        if (gasneti_nodemap[i] == first) {
           sum += sz_exchg[i];
           j += 1;
         }
       }
-      maxsz = MIN(maxsz, sum / local_count);
+      maxsz = MIN(maxsz, sum / gasneti_nodemap_local_count);
     }
 
     /* Free held resources */

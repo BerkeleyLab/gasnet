@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/04/17 01:36:19 $
- * $Revision: 1.27.2.3 $
+ *     $Date: 2009/04/17 21:48:07 $
+ * $Revision: 1.27.2.4 $
  * Description: GASNet sci conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -33,8 +33,6 @@ volatile int            gasnetc_exit_began = 0;
 gasneti_mutex_t         gasnetc_sci_exit_lock = GASNETI_MUTEX_INITIALIZER;
 gasneti_mutex_t	        gasnetc_sci_cb_exit = GASNETI_MUTEX_INITIALIZER;
 gasneti_mutex_t		gasnetc_sci_AMPoll_mutex = GASNETI_MUTEX_INITIALIZER;
-
-static gasnet_node_t *gasnetc_nodemap = NULL;
 
 /* function to be called whenever we exit */
 void gasnetc_sci_call_exit(unsigned int sig)
@@ -109,21 +107,19 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
 
-  /* (###) Add code here to determine which GASNet nodes may share memory
-     One may use gasneti_nodemap(gasnetc_bootstrapExchange) if the
-     conduit has no better mechanism, but if it does then define
-     GASNETC_CONDUIT_SPECIFIC_NODEMAP in gasnet_core_fwd.h
+  /* (###) Add code here to determine which GASNet nodes may share memory.
+     If the conduit has already communicated endpoint address information or
+     a similar identifier that is unique per shared-memory compute node, then
+     that info can be passed via arguments 2 through 4.
+     Otherwise the conduit should pass a non-null gasnetc_bootstrapExchange
+     as argument 1 to use platform-specific IDs, such as gethostid().
      See below for info on gasnetc_bootstrapExchange()
-   */
-  #ifndef GASNETC_CONDUIT_SPECIFIC_NODEMAP
-    /* XXX: This will fail since we have no gasnetc_bootstrapExchange() */
-    gasnetc_nodemap = gasneti_nodemap(gasnetc_bootstrapExchange);
-  #else
-  { gasnet_node_t i;
-    gasnetc_nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
-    for (i = 0; i < gasneti_nodes; ++i) gasnetc_nodemap[i] = i;
-  }
-  #endif
+
+     If the conduit can build gasneti_nodemap[] w/o assistance, it should
+     call gasneti_nodemapParse() after constructing it.
+  */
+  /* We lack a bootstrapExchange and so get only the 0,1,2,... nodemap */
+  gasneti_nodemapInit(NULL, NULL, 0, 0);
 
   #if GASNET_SEGMENT_FAST
     {
@@ -367,7 +363,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   gasnete_init(); /* init the extended API */
 
-  gasneti_free(gasnetc_nodemap);
+  gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
   gasnetc_bootstrapBarrier();
