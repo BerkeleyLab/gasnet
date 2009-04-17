@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2009/04/15 23:44:16 $
- * $Revision: 1.209.2.5 $
+ *     $Date: 2009/04/17 01:36:27 $
+ * $Revision: 1.209.2.6 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1554,7 +1554,6 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasneti_bootstrapBarrier();
 
   gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
-  gasneti_free(gasnetc_nodemap); /* XXX: might move to gasnetc_attach w/ SysV work */
 
   return GASNET_OK;
 }
@@ -1882,6 +1881,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasneti_auxseg_attach(); /* provide auxseg */
 
   gasnete_init(); /* init the extended API */
+
+  gasneti_free(gasnetc_nodemap);
 
   /* ensure extended API is initialized across nodes */
   gasneti_bootstrapBarrier();
