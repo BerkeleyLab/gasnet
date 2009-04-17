@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/04/17 00:44:06 $
- * $Revision: 1.59.2.11 $
+ *     $Date: 2009/04/17 20:35:47 $
+ * $Revision: 1.59.2.12 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -407,11 +407,14 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
     (*exchangefn)(&se.size, sizeof(uintptr_t), sz_exchg);
 
     /* Compute the local mean */
-    { uint64_t sum = 0;
+    { uint64_t sum;
+      gasnet_node_t first, j;
 
-      sum = sz_exchg[nodemap[gasneti_mynode]];
-      for (i = 1; i < local_count; ++i) {
-        sum += sz_exchg[i + nodemap[gasneti_mynode]];
+      first = nodemap[gasneti_mynode];
+      sum = sz_exchg[first];
+
+      for (i = first, j = 1; j < local_count; ++i) {
+        if (nodemap[i] == first) sum += sz_exchg[i];
       }
       maxsz = MIN(maxsz, sum / local_count);
     }
