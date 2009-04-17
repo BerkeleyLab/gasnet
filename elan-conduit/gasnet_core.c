@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/04/17 21:47:57 $
- * $Revision: 1.79.2.6 $
+ *     $Date: 2009/04/17 22:09:05 $
+ * $Revision: 1.79.2.7 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -308,11 +308,20 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
   }
 
-  /* TODO: STATE() contains enough info to determine gasneti_nodemap[gasneti_mynode]
+  /* STATE() contains enough info to determine gasneti_nodemap[gasneti_mynode]
    * So, a single gasnetc_bootstrapExchange() can construct the entire nodemap
-   * w/o the need to perform a pass to match up the IDs.
+   * w/o the need to perform a subsequent pass to compare all of the IDs.
    */
-  gasneti_nodemapInit(&gasnetc_bootstrapExchange, NULL, 0, 0);
+  { gasnet_node_t first_local;
+    for (first_local = 0; first_local < gasneti_mynode; ++first_local) {
+      if (ELAN_VPISLOCAL(STATE(), first_local)) break;
+    }
+    gasneti_assert(ELAN_VPISLOCAL(STATE(), first_local));
+
+    gasneti_nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+    gasnetc_bootstrapExchange(&first_local, sizeof(first_local), gasneti_nodemap);
+  }
+  gasneti_nodemapParse();
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     #if GASNETC_USE_STATIC_SEGMENT
