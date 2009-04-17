@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/17 00:44:06 $
- * $Revision: 1.198.2.31 $
+ *     $Date: 2009/04/17 00:47:14 $
+ * $Revision: 1.198.2.32 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -908,6 +908,7 @@ gasnet_node_t *gasneti_nodemap_helper(const void *ids, size_t sz, size_t stride)
 
   #if GASNET_DEBUG_VERBOSE
   if (!gasneti_mynode) {
+    gasnet_node_t i;
     for (i = 0; i < gasneti_nodes; ++i) {
       fprintf(stderr, "nodemap[%i] = %i\n", (int)i, (int)nodemap[i]);
     }
