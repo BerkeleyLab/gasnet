@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/04/17 21:48:07 $
- * $Revision: 1.27.2.4 $
+ *     $Date: 2009/04/17 22:22:13 $
+ * $Revision: 1.27.2.5 $
  * Description: GASNet sci conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -118,7 +118,10 @@ static int gasnetc_init(int *argc, char ***argv) {
      If the conduit can build gasneti_nodemap[] w/o assistance, it should
      call gasneti_nodemapParse() after constructing it.
   */
-  /* We lack a bootstrapExchange and so get only the 0,1,2,... nodemap */
+  /* Currently support only one GASNet process per SCI ID, and therefore
+   * the [0,1,2,...] nodemap is the correct one, and is also the natural
+   * result of providing neither exchangefn nor ids to gasneti_nodemapInit().
+   */
   gasneti_nodemapInit(NULL, NULL, 0, 0);
 
   #if GASNET_SEGMENT_FAST
