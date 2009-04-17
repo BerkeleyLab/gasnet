@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2009/04/15 23:43:38 $
- * $Revision: 1.126.2.7 $
+ * $Date: 2009/04/17 00:44:08 $
+ * $Revision: 1.126.2.8 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -138,8 +138,8 @@ gasnetc_init(int *argc, char ***argv)
 
                 /* Take only a fair share of the memory */
                 { uint64_t my_physmem;
-                  gasnet_node_t local_count, local_rank;
-                  gasneti_nodemap_local_info(gasnetc_nodemap, &local_count, &local_rank);
+                  gasnet_node_t local_count;
+                  gasneti_nodemap_local_info(gasnetc_nodemap, &local_count, NULL);
                   my_physmem = gasneti_getPhysMemSz(1) * pm_ratio / local_count;
 #if SIZEOF_VOID_P != 8 /* Watch for overflow! */
                   if (my_physmem > (uint64_t)(uintptr_t)-1) my_physmem = (uintptr_t)-1;

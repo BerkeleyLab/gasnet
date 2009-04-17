@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/04/16 00:04:15 $
- * $Revision: 1.59.2.10 $
+ *     $Date: 2009/04/17 00:44:06 $
+ * $Revision: 1.59.2.11 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -385,9 +385,9 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
   if (need_exchg) {
     uintptr_t *sz_exchg = gasneti_malloc(gasneti_nodes * sizeof(uintptr_t));
     gasnet_seginfo_t se = {0,0};
-    gasnet_node_t local_count, local_rank;
+    gasnet_node_t local_count;
 
-    gasneti_nodemap_local_info(nodemap, &local_count, &local_rank);
+    gasneti_nodemap_local_info(nodemap, &local_count, NULL);
     gasneti_assert(local_count);
 
     /* Ensure our probe will not collectively exceed the shareLimit, if any. */

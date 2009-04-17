@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/17 00:41:37 $
- * $Revision: 1.198.2.30 $
+ *     $Date: 2009/04/17 00:44:06 $
+ * $Revision: 1.198.2.31 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1009,15 +1009,13 @@ extern void gasneti_nodemap_local_info(const gasnet_node_t *nodemap,
   static int firsttime = 1;
 
   gasneti_assert(nodemap);
-  gasneti_assert(local_num_p);
-  gasneti_assert(local_rank_p);
 
   if_pf (firsttime) {
     gasnet_node_t first = nodemap[gasneti_mynode];
     gasnet_node_t tmp_num = 0;
     gasnet_node_t tmp_rank = 0;
     gasnet_node_t i;
-    for (i = 0; i < gasneti_nodes; ++i) {
+    for (i = first; i < gasneti_nodes; ++i) {
       if (i == gasneti_mynode) tmp_rank = tmp_num;
       if (nodemap[i] == first) ++tmp_num;
     }
@@ -1027,8 +1025,8 @@ extern void gasneti_nodemap_local_info(const gasnet_node_t *nodemap,
     firsttime = 0;
   } else gasneti_sync_reads();
 
-  *local_num_p = local_num;
-  *local_rank_p = local_rank;
+  if (local_num_p) *local_num_p = local_num;
+  if (local_rank_p) *local_rank_p = local_rank;
 }
 
 
