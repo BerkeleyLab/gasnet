@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/16 05:39:44 $
- * $Revision: 1.198.2.29 $
+ *     $Date: 2009/04/17 00:41:37 $
+ * $Revision: 1.198.2.30 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -819,7 +819,6 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
  */
 static void gasneti_nodemap_helper_linear(gasnet_node_t *nodemap, const char *ids,
                                           size_t sz, size_t stride) {
-  gasnet_node_t *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
   gasnet_node_t i, prev, base;
   const char *p, *base_p, *prev_p;
 
@@ -839,8 +838,6 @@ static void gasneti_nodemap_helper_linear(gasnet_node_t *nodemap, const char *id
     }
     nodemap[i] = prev;
   }
-
-  return nodemap;
 }
 
 /* This code is "good" for all possible process layouts, where "good"
@@ -865,7 +862,6 @@ static int _gasneti_nodemap_sort_fn(const void *a, const void *b) {
 }
 static void gasneti_nodemap_helper_qsort(gasnet_node_t *nodemap, const char *ids,
                                          size_t sz, size_t stride) {
-  gasnet_node_t *nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
   gasnet_node_t *work    = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
   const char *prev_id;
   gasnet_node_t i, prev;
@@ -886,8 +882,6 @@ static void gasneti_nodemap_helper_qsort(gasnet_node_t *nodemap, const char *ids
     prev_id = tmp_id;
   }
   gasneti_free(work);
-
-  return nodemap;
 }
 
 /* gasneti_nodemap_helper
