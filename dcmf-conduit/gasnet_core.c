@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2009/04/14 07:11:51 $
- * $Revision: 1.9.2.1 $
+ *     $Date: 2009/04/17 01:36:06 $
+ * $Revision: 1.9.2.2 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>, 
                    Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -415,7 +415,6 @@ static int gasnetc_init(int *argc, char ***argv) {
   
   gasneti_init_done = 1;  
   gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
-  gasneti_free(gasnetc_nodemap); /* XXX: might move to gasnetc_attach w/ SysV work */
    
   gasnetc_exittimeout = gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
                                                 GASNETC_DEFAULT_EXITTIMEOUT_MIN,
@@ -614,6 +613,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasneti_auxseg_attach(); /* provide auxseg */
 
   gasnete_init(); /* init the extended API */
+
+  gasneti_free(gasnetc_nodemap);
 
   /* ensure extended API is initialized across nodes */
   gasnetc_bootstrapBarrier();

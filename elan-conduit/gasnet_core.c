@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/04/14 21:25:56 $
- * $Revision: 1.79.2.4 $
+ *     $Date: 2009/04/17 01:36:08 $
+ * $Revision: 1.79.2.5 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -349,7 +349,6 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
 
   gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
-  gasneti_free(gasnetc_nodemap); /* XXX: might move to gasnetc_attach w/ SysV work */
 
   return GASNET_OK;
 }
@@ -649,6 +648,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasneti_auxseg_attach(); /* provide auxseg */
 
   gasnete_init(); /* init the extended API */
+
+  gasneti_free(gasnetc_nodemap);
 
   /* ensure extended API is initialized across nodes */
   gasnetc_bootstrapBarrier();

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/04/14 07:12:01 $
- * $Revision: 1.19.2.1 $
+ *     $Date: 2009/04/17 01:36:17 $
+ * $Revision: 1.19.2.2 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -126,7 +126,6 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
 
   gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
-  gasneti_free(gasnetc_nodemap); /* XXX: might move to gasnetc_attach w/ SysV work */
 
 #if GASNETC_DEBUG
   printf("[%d] Leaving gasnetc_init\n",gasneti_mynode);
@@ -338,6 +337,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasnetc_init_portals_resources();
 
   gasnete_init(); /* init the extended API */
+
+  gasneti_free(gasnetc_nodemap);
 
   /* ensure extended API is initialized across nodes */
   gasnetc_bootstrapBarrier();

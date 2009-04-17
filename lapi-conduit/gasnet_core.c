@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/04/15 23:58:58 $
- * $Revision: 1.123.2.3 $
+ *     $Date: 2009/04/17 01:36:12 $
+ * $Revision: 1.123.2.4 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -372,7 +372,6 @@ static int gasnetc_init(int *argc, char ***argv) {
 #endif
 
     gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
-    gasneti_free(gasnetc_nodemap); /* XXX: might move to gasnetc_attach w/ SysV work */
    
     if(gasneti_mynode == 0) {
       char *mp_task_affinity = gasneti_getenv("MP_TASK_AFFINITY");
@@ -863,6 +862,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     gasneti_auxseg_attach(); /* provide auxseg */
 
     gasnete_init(); /* init the extended API */
+
+    gasneti_free(gasnetc_nodemap);
 
     /* ensure extended API is initialized across nodes */
     gasnetc_bootstrapBarrier();
