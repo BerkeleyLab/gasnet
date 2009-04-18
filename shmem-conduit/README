@@ -46,7 +46,7 @@ Optional compile-time settings:
 
 * All the compile-time settings from extended-ref (see the extended-ref README)
 
-* GASNETE_NBISYNC_ALWAYS_QUIET: See description above in 'GASNet implicit
+* GASNETE_NBISYNC_ALWAYS_QUIET: See description below in 'GASNet implicit
   memory operations and synchronization (nbi)'
 
 * GASNETE_GLOBAL_ADDRESS_CLIENT: If defined, the conduit makes no effort to
