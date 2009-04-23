@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2009/04/16 21:38:46 $
- * $Revision: 1.59.8.1 $
+ *     $Date: 2009/04/23 21:37:04 $
+ * $Revision: 1.59.8.2 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -246,6 +246,11 @@ GASNETI_END_EXTERNC
 #define _GASNET_HANDLERENTRY_T
 #if GASNET_SYSV
   typedef void (*gasneti_handler_fn_t)();
+#include<stdio.h>
+  typedef struct gasneti_sysvname_s{
+    char file_name[16];
+  } gasnet_sysvname_t;
+  uintptr_t gasneti_sysvsize;
 #endif
   /*  struct type used to negotiate handler registration in gasnet_init() */
   typedef struct gasneti_handlerentry_s {
@@ -258,8 +263,11 @@ GASNETI_END_EXTERNC
 #define _GASNET_SEGINFO_T
   typedef struct gasneti_seginfo_s {
     void *addr;
+    void *remote_addr;
     uintptr_t size;
+    uintptr_t remote_size;
   } gasnet_seginfo_t;
+
 #endif
 
 #ifndef _GASNET_THREADINFO_T

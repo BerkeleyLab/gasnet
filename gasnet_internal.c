@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/16 21:38:46 $
- * $Revision: 1.197.8.1 $
+ *     $Date: 2009/04/23 21:37:04 $
+ * $Revision: 1.197.8.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -151,6 +151,8 @@ extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentr
 #endif
 
 #if GASNET_SYSV
+uintptr_t gasneti_sysvsize;
+gasnet_sysvname_t *gasneti_sysvname;
 unsigned int *gasneti_nodesinfo;
 unsigned int *gasneti_sysv_mapinfo;
 gasnet_seginfo_t *gasneti_sysv_seginfo_client = NULL;

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/testam.h,v $
- *     $Date: 2006/05/11 09:43:42 $
- * $Revision: 1.14 $
+ *     $Date: 2009/04/23 21:37:09 $
+ * $Revision: 1.14.46.1 $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -327,12 +327,20 @@ typedef struct {
     GETPARTNER(token);                                                                        \
     if (CA##num)                                                                              \
       FATALERR("Arg mismatch in long_%sreq_handler on P%i\n", #num, (int)MYPROC);             \
-    if (nbytes != sizeof(testam_payload_t) ||                                                 \
-        buf != ((testam_payload_t*)MYSEG)+num ||                                              \
-        payload->idx != num ||                                                                \
-        payload->doublevar != TESTAM_DOUBLEVAR_VAL ||                                         \
-        payload->int64var != TESTAM_INT64VAR_VAL)                                             \
-      FATALERR("buf mismatch in long_%sreq_handler on P%i: nbytes=%i, buf=%i\n",              \
+    if (nbytes != sizeof(testam_payload_t))                                                  \
+      FATALERR("1 buf mismatch in long_%sreq_handler on P%i: nbytes=%i, buf=%i\n",              \
+                       #num, (int)MYPROC, (int)nbytes, payload->idx);                         \
+        if (buf != ((testam_payload_t*)MYSEG)+num)                                              \
+      FATALERR("2 buf mismatch in long_%sreq_handler on P%i: nbytes=%i, buf=%i\n",              \
+                       #num, (int)MYPROC, (int)nbytes, payload->idx);                         \
+        if (payload->idx != num)                                                                \
+      FATALERR("3 buf mismatch in long_%sreq_handler on P%i: nbytes=%i, idx is %i, should be %i buf=%p\n",              \
+                       #num, (int)MYPROC, (int)nbytes, payload->idx, num, buf);                         \
+        if (payload->doublevar != TESTAM_DOUBLEVAR_VAL)                                         \
+      FATALERR("4 buf mismatch in long_%sreq_handler on P%i: nbytes=%i, buf=%i\n",              \
+                       #num, (int)MYPROC, (int)nbytes, payload->idx);                         \
+        if (payload->int64var != TESTAM_INT64VAR_VAL)                                             \
+      FATALERR("5 buf mismatch in long_%sreq_handler on P%i: nbytes=%i, buf=%i\n",              \
                        #num, (int)MYPROC, (int)nbytes, payload->idx);                         \
     mybuf = *payload;                                                                         \
     mybuf.idx = -mybuf.idx;                                                                   \

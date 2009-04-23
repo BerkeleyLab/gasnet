@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/04/16 21:38:46 $
- * $Revision: 1.1.4.2 $
+ *     $Date: 2009/04/23 21:37:04 $
+ * $Revision: 1.1.4.3 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -791,7 +791,11 @@ int gasneti_AMSYSV_service_incoming_msg(gasneti_sysvnet_t *vnet, int isReq)
     case gasnetc_Long:
       { 
         void * data = GASNETI_AMSYSV_MSG_LONG_DATA(msg);
+#if 0
         data = (void*)((uintptr_t)data + gasneti_sysv_seginfo_client[gasneti_mysysvnode].addr);
+#else
+        data = (void*)((uintptr_t)data + gasneti_seginfo[gasneti_mysysvnode].addr);
+#endif
         size_t nbytes = GASNETI_AMSYSV_MSG_LONG_NUMBYTES(msg);
         GASNETI_RUN_HANDLER_LONG(
             isReq,handler_id,handler_fn,token,args,numargs,data,nbytes);
@@ -870,7 +874,11 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
     }
   }
 
+#if 0
   void *dest_addr = (void*)((uintptr_t)dest_ptr + gasneti_sysv_seginfo_client[dest-gasneti_firstsysvnode].addr);
+#else
+  void *dest_addr = (void*)((uintptr_t)dest_ptr + gasneti_seginfo[dest].remote_addr);
+#endif
   /* Fill in message */
   GASNETI_AMSYSV_MSG_CATEGORY(msg) = category;
   GASNETI_AMSYSV_MSG_HANDLERID(msg) = handler;
