@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2008/12/26 05:30:56 $
- * $Revision: 1.77 $
+ *     $Date: 2009/04/23 23:33:08 $
+ * $Revision: 1.77.4.1 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -309,6 +309,21 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
   }
 
+  /* STATE() contains enough info to determine gasneti_nodemap[gasneti_mynode]
+   * So, a single gasnetc_bootstrapExchange() can construct the entire nodemap
+   * w/o the need to perform a subsequent pass to compare all of the IDs.
+   */
+  { gasnet_node_t first_local;
+    for (first_local = 0; first_local < gasneti_mynode; ++first_local) {
+      if (ELAN_VPISLOCAL(STATE(), first_local)) break;
+    }
+    gasneti_assert(ELAN_VPISLOCAL(STATE(), first_local));
+
+    gasneti_nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+    gasnetc_bootstrapExchange(&first_local, sizeof(first_local), gasneti_nodemap);
+  }
+  gasneti_nodemapParse();
+
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     #if GASNETC_USE_STATIC_SEGMENT
       /* allocate segment statically */
@@ -323,7 +338,10 @@ static int gasnetc_init(int *argc, char ***argv) {
       elan_hbcast(GROUP(), &gasnetc_remappableMem, sizeof(gasnetc_remappableMem), 0, 0);
       gasneti_segmentInit(
                           #if GASNET_SEGMENT_FAST
-                            gasnetc_remappableMem.size,
+                            gasneti_mmapLimit(gasnetc_remappableMem.size,
+                                              (uint64_t)-1,
+                                              &gasnetc_bootstrapExchange,
+                                              &gasnetc_bootstrapBarrier),
                           #else
                             (uintptr_t)-1,
                           #endif
@@ -642,6 +660,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasneti_auxseg_attach(); /* provide auxseg */
 
   gasnete_init(); /* init the extended API */
+
+  gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
   gasnetc_bootstrapBarrier();

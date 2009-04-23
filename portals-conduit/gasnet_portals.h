@@ -15,6 +15,11 @@
 #define GASNETC_DEBUG 0
 #endif
 
+/* default fraction of phys mem to assume is pinnable under CNL */
+#ifndef GASNETC_DEFAULT_PHYSMEM_PINNABLE_RATIO
+#define GASNETC_DEFAULT_PHYSMEM_PINNABLE_RATIO 0.75
+#endif
+
 /* set to 1 to compile in Sandia specific Accelerated Portals code */
 #ifndef GASNETC_USE_SANDIA_ACCEL
 #define GASNETC_USE_SANDIA_ACCEL 0

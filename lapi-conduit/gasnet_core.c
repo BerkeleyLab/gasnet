@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2008/10/20 22:47:11 $
- * $Revision: 1.119 $
+ *     $Date: 2009/04/23 23:33:12 $
+ * $Revision: 1.119.8.1 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -315,6 +315,15 @@ static int gasnetc_init(int *argc, char ***argv) {
 	    gasneti_mynode, gasneti_nodes); fflush(stderr);
 #endif
 
+    /* Construct nodemap using LAPI_Address_init() rather than gasnetc_lapi_exchange() */
+    {   void **tmp = (void**)gasneti_malloc(num_tasks*sizeof(void*));
+        void *myid = (void*)(uintptr_t)gethostid();
+        GASNETC_LCHECK(LAPI_Address_init(gasnetc_lapi_context, myid, tmp));
+        gasneti_nodemapInit(NULL, tmp, sizeof(void*), sizeof(void*));
+        gasneti_free(tmp);
+    }
+#endif
+
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { 
 	/* Add code here to determine optimistic maximum segment size and
@@ -326,6 +335,10 @@ static int gasnetc_init(int *argc, char ***argv) {
 	   gasneti_MaxLocalSegmentSize and gasneti_MaxGlobalSegmentSize,
 	   if your conduit can use memory anywhere in the address space
 	   (you may want to tune GASNETI_MMAP_MAX_SIZE to limit the max size)
+
+           it may also be appropriate to first call gasneti_mmapLimit() to
+           account for limitations imposed by having multiple GASNet nodes
+           per shared-memory compute node
 	*/
 	/* On the SP, mmaped regions are allocated in segments distinct from
 	 * static, stack and heap data.  gasneti_segmentInit should work
@@ -841,6 +854,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     gasneti_auxseg_attach(); /* provide auxseg */
 
     gasnete_init(); /* init the extended API */
+
+    gasneti_nodemapFini();
 
     /* ensure extended API is initialized across nodes */
     gasnetc_bootstrapBarrier();

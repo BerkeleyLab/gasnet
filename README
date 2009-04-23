@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.115 $
+$Revision: 1.115.4.1 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -291,6 +291,17 @@ application-specific support.
 * GASNET_BARRIER - select the communication algorithm for use in GASNet barriers.
  Values AMDISSEM and AMCENTRAL are available on all conduits, and many conduits
  have additional network-specific barrier algorithms documented in conduit READMEs.
+
+* GASNET_NODEMAP_EXACT - enables more cautious algorithm for discovery of shared
+ memory nodes. Several GASNet conduits use mmap() and/or conduit-specific memory
+ registration resources to establish the GASNet segment.  When there are multiple
+ GASNet nodes running on the same O/S node, there is a potential for competition
+ for these resources. This competition is managed by startup-time discovery of
+ which GASNet nodes share memory.  The algorithm used by default runs in time
+ linear in the number of GASNet nodes, but may fail to discover some sharing of
+ memory in unusual cases. Setting this variable to 1 enables an algorithm that is
+ certain to find all sharing of memory, but has an expected running time
+ proportional to N*log(N).
 
 * GASNET_VIS_AMPIPE - set to 1 to enable packing of most non-contiguous
  put/gets into AMMediums, with each packet of size approx MaxMedium (the only

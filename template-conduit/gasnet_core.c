@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/gasnet_core.c,v $
- *     $Date: 2008/07/26 00:31:53 $
- * $Revision: 1.59 $
+ *     $Date: 2009/04/23 23:33:24 $
+ * $Revision: 1.59.8.1 $
  * Description: GASNet <conduitname> conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -72,6 +72,19 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
 
+  /* (###) Add code here to determine which GASNet nodes may share memory.
+     If the conduit has already communicated endpoint address information or
+     a similar identifier that is unique per shared-memory compute node, then
+     that info can be passed via arguments 2 through 4.
+     Otherwise the conduit should pass a non-null gasnetc_bootstrapExchange
+     as argument 1 to use platform-specific IDs, such as gethostid().
+     See below for info on gasnetc_bootstrapExchange()
+
+     If the conduit can build gasneti_nodemap[] w/o assistance, it should
+     call gasneti_nodemapParse() after constructing it.
+  */
+  gasneti_nodemapInit(###);
+
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { 
       /* (###) Add code here to determine optimistic maximum segment size */
@@ -84,6 +97,10 @@ static int gasnetc_init(int *argc, char ***argv) {
          gasneti_MaxLocalSegmentSize and gasneti_MaxGlobalSegmentSize,
          if your conduit can use memory anywhere in the address space
          (you may want to tune GASNETI_MMAP_MAX_SIZE to limit the max size)
+
+         it may also be appropriate to first call gasneti_mmapLimit() to
+         account for limitations imposed by having multiple GASNet nodes
+         per shared-memory compute node
       */
     }
   #elif GASNET_SEGMENT_EVERYTHING
@@ -298,6 +315,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasneti_auxseg_attach(); /* provide auxseg */
 
   gasnete_init(); /* init the extended API */
+
+  gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
   gasnetc_bootstrapBarrier();

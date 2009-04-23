@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2008/10/29 07:15:35 $
- * $Revision: 1.205 $
+ *     $Date: 2009/04/23 23:33:28 $
+ * $Revision: 1.205.6.1 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -143,10 +143,12 @@ uintptr_t	gasnetc_max_msg_sz;
 #endif
 firehose_info_t	gasnetc_firehose_info;
 
+typedef GASNETC_IB_CHOOSE(IB_lid_t, uint16_t) gasnetc_lid_t;
+
 /* Used only once, to exchange addresses at connection time */
 typedef struct _gasnetc_addr_t {
   GASNETC_IB_CHOOSE(VAPI_qp_num_t, uint32_t)	qp_num;
-  GASNETC_IB_CHOOSE(IB_lid_t,      uint16_t)	lid;
+  gasnetc_lid_t                                 lid;
 } gasnetc_addr_t;
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
@@ -1482,6 +1484,21 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasnetc_counter_wait(&counter, gasnetc_use_rcv_thread);
   }
 
+  /* Derive nodemap from the LID info we have already exchanged */
+  {
+    if (gasneti_nodes > 1) { /* Would otherwise access non-existant localaddr[>0] */
+        /* Fill in otherwise unused remote_addr[self].lid for the helper.
+         * We use local_addr[!mynode] since local_addr[mynode] is always 0 */
+        remote_addr[gasnetc_num_qps * gasneti_mynode].lid =
+                             local_addr[gasnetc_num_qps * !gasneti_mynode].lid;
+    }
+    gasneti_nodemapInit(NULL, &remote_addr[0].lid,
+                        sizeof(remote_addr[0].lid),
+                        sizeof(remote_addr[0]) * gasnetc_num_qps);
+  }
+  gasneti_free(remote_addr);
+  gasneti_free(local_addr);
+
   /* Find max pinnable size before we start carving up memory w/ mmap()s.
    *
    * Take care that only one process per LID (node) performs the probe.
@@ -1489,34 +1506,16 @@ static int gasnetc_init(int *argc, char ***argv) {
    * which is easily determined from the connection information we exchanged above.
    */
   {
-    gasnet_node_t	num_local;
-    gasnet_node_t	first_local;
-
-    /* Determine the number of local processes and distinguish one */
-    num_local = 1;
-    first_local = gasneti_mynode;
-    for (i = 0; i < gasneti_nodes; ++i) {
-      /* Use lid of 1st qp to match procs on same node */
-      if (i == gasneti_mynode) continue;
-      if (remote_addr[i * gasnetc_num_qps].lid == local_addr[0].lid) {
-        ++num_local;
-        first_local = MIN(i, first_local);
-      }
-    }
-    gasneti_assert(num_local != 0);
-    gasneti_assert(first_local != gasneti_nodes);
-    GASNETI_TRACE_PRINTF(C,("Detected %d on-node peer(s)", num_local-1));
+    GASNETI_TRACE_PRINTF(C,("I am node %d of %d on-node peers",
+                            gasneti_nodemap_local_rank, gasneti_nodemap_local_count));
 
     /* Query the pinning limits of the HCA */
-    gasnetc_init_pin_info(first_local, num_local);
+    gasnetc_init_pin_info(gasneti_nodemap[gasneti_mynode], gasneti_nodemap_local_count);
 
     gasneti_assert(gasnetc_pin_info.memory != 0);
     gasneti_assert(gasnetc_pin_info.memory != (uintptr_t)(-1));
     gasneti_assert(gasnetc_pin_info.regions != 0);
   }
-
-  gasneti_free(remote_addr);
-  gasneti_free(local_addr);
 
   #if GASNET_SEGMENT_FAST
   {
@@ -1872,6 +1871,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasneti_auxseg_attach(); /* provide auxseg */
 
   gasnete_init(); /* init the extended API */
+
+  gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
   gasneti_bootstrapBarrier();

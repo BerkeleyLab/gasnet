@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2008/10/10 07:54:11 $
- * $Revision: 1.16 $
+ *     $Date: 2009/04/23 23:33:16 $
+ * $Revision: 1.16.8.1 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -74,6 +74,8 @@ static int gasnetc_init(int *argc, char ***argv) {
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
+
+  /* gasneti_nodemapInit() was called in gasnetc_init_portals_network() */
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     {
@@ -333,6 +335,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasnetc_init_portals_resources();
 
   gasnete_init(); /* init the extended API */
+
+  gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
   gasnetc_bootstrapBarrier();

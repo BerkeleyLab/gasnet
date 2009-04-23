@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2008/12/26 05:31:10 $
- * $Revision: 1.48 $
+ *     $Date: 2009/04/23 23:33:22 $
+ * $Revision: 1.48.4.1 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -90,6 +90,10 @@ static int gasnetc_init(int *argc, char ***argv) {
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
+
+  /* A trivial nodemap of {0} is correct */
+  gasneti_nodemap = gasneti_calloc(1, sizeof(gasnet_node_t));
+  gasneti_nodemapParse();
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     gasneti_segmentInit((uintptr_t)-1, &gasnetc_bootstrapExchange);
@@ -307,6 +311,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasneti_auxseg_attach(); /* provide auxseg */
 
   gasnete_init(); /* init the extended API */
+
+  gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
   gasnetc_bootstrapBarrier();

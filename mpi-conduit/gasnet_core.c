@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/04/23 21:37:07 $
- * $Revision: 1.77.22.2 $
+ *     $Date: 2009/04/23 23:33:14 $
+ * $Revision: 1.77.22.3 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -105,13 +105,12 @@ static void gasnetc_check_config() {
   gasneti_assert(GASNET_ERR_BAD_ARG  == AM_ERR_BAD_ARG);
 }
 
-#define gasnetc_bootstrapBarrier() do {                                        \
-   int retval;                                                                 \
-   AM_ASSERT_LOCKED(); /* need this because SPMDBarrier may poll */            \
-   GASNETI_AM_SAFE_NORETURN(retval,AMMPI_SPMDBarrier());                       \
-   if_pf (retval) gasneti_fatalerror("failure in gasnetc_bootstrapBarrier()"); \
-} while (0)
-
+void gasnetc_bootstrapBarrier(void) {
+   int retval;
+   AM_ASSERT_LOCKED(); /* need this because SPMDBarrier may poll */
+   GASNETI_AM_SAFE_NORETURN(retval,AMMPI_SPMDBarrier());
+   if_pf (retval) gasneti_fatalerror("failure in gasnetc_bootstrapBarrier()");
+}
 void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
   int retval;
   GASNETI_AM_SAFE_NORETURN(retval,AMMPI_SPMDAllGather(src, dest, len));
@@ -348,8 +347,19 @@ static int gasnetc_init(int *argc, char ***argv) {
         gasneti_mynode, gasneti_nodes); fflush(stderr);
     #endif
 
+    gasneti_nodemapInit(&gasnetc_bootstrapExchange, NULL, 0, 0);
+
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-      gasneti_segmentInit((uintptr_t)-1, &gasnetc_bootstrapExchange);
+    { uintptr_t limit;
+      #if HAVE_MMAP
+        limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
+                                  &gasnetc_bootstrapExchange,
+                                  &gasnetc_bootstrapBarrier),
+      #else
+        limit = (intptr_t)-1;
+      #endif
+      gasneti_segmentInit(limit, &gasnetc_bootstrapExchange);
+    }
     #elif GASNET_SEGMENT_EVERYTHING
       /* segment is everything - nothing to do */
     #else
@@ -571,6 +581,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasneti_auxseg_attach(); /* provide auxseg */
 
   gasnete_init(); /* init the extended API */
+
+  gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
   AMLOCK();

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2009/02/04 19:20:09 $
- * $Revision: 1.7 $
+ *     $Date: 2009/04/23 23:33:06 $
+ * $Revision: 1.7.4.1 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>, 
                    Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -357,6 +357,10 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_mynode, gasneti_nodes); fflush(stderr);
 #endif
 
+  /* non-null 1st arg causes use of platform-specific node IDs, which in
+   * the case of BG/P won't actually use gasnetc_bootstrapExchange */
+  gasneti_nodemapInit(gasnetc_bootstrapExchange, NULL, 0, 0);
+
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
   { 
     DCMF_Hardware_t hw;
@@ -609,6 +613,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasneti_auxseg_attach(); /* provide auxseg */
 
   gasnete_init(); /* init the extended API */
+
+  gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
   gasnetc_bootstrapBarrier();

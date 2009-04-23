@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/04/23 21:37:04 $
- * $Revision: 1.57.6.2 $
+ *     $Date: 2009/04/23 23:33:03 $
+ * $Revision: 1.57.6.3 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -591,19 +591,16 @@ static gasnet_seginfo_t gasneti_mmap_linearasc_segsrch(uintptr_t highsz) {
   }
 }
 
-/* gasneti_mmap_segment_search allocates the largest possible page-aligned mmap 
- * with sz <= maxsz and returns the base address and size
+/* Differs from gasneti_mmap_segment_search() in that:
+ * + maxsz must already be page aligned and non-zero
+ * + zero-length result is not an error
  */
-extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz) {
+static gasnet_seginfo_t _gasneti_mmap_segment_search_inner(uintptr_t maxsz) {
   gasnet_seginfo_t si;
   int mmaped = 0;
 
-  maxsz = GASNETI_PAGE_ALIGNDOWN(maxsz);
-  if (maxsz == 0) {
-    si.size = 0;
-    si.addr = NULL;
-    return si;
-  }
+  gasneti_assert(maxsz == GASNETI_PAGE_ALIGNDOWN(maxsz));
+
 #if GASNET_SYSV 
   si.addr = gasneti_mmap_shared(maxsz);
 #else
@@ -631,8 +628,10 @@ extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz) {
     #endif
   }
 
-  if (si.addr == NULL) 
-    gasneti_fatalerror("Unable to find an adequate mmap segment.");
+  if (si.addr == NULL) {
+    si.size = 0;
+    return si;
+  }
 
   gasneti_assert(si.addr != NULL && si.addr != MAP_FAILED && si.size > 0);
   gasneti_assert(si.size % GASNET_PAGESIZE == 0);
@@ -659,6 +658,28 @@ extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz) {
   gasneti_assert(((uintptr_t)si.addr) % GASNET_PAGESIZE == 0 && si.size % GASNET_PAGESIZE == 0);
   return si;
 }
+
+/* gasneti_mmap_segment_search allocates the largest possible page-aligned mmap 
+ * with sz <= maxsz and returns the base address and size
+ */
+extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz) {
+  gasnet_seginfo_t si;
+
+  maxsz = GASNETI_PAGE_ALIGNDOWN(maxsz);
+  if (maxsz == 0) {
+    si.size = 0;
+    si.addr = NULL;
+    return si;
+  }
+
+  si = _gasneti_mmap_segment_search_inner(maxsz);
+
+  if (si.addr == NULL) 
+    gasneti_fatalerror("Unable to find an adequate mmap segment.");
+
+  return si;
+}
+
 /* ------------------------------------------------------------------------------------ */
 #endif /* HAVE_MMAP */
 
@@ -719,6 +740,94 @@ typedef struct {
 } gasneti_segexch_t;
 static gasneti_segexch_t *gasneti_segexch = NULL; /* exchanged segment information */
 
+#ifdef HAVE_MMAP
+/* perform a coordinated mmap probe to determine the max memory
+    that can be mmap()ed while considering multiple GASNet nodes
+    per shared memory node
+   localLimit is an optional conduit-specific upper limit per GASNet node
+   sharedLimit is an optional upper limit per shared memory node
+   requires an exchange callback function that can be used to exchange data
+   barrierfn is an optional callback function, to perform a barrier
+    If non-NULL will be called after any gasneti_munmap() to ensure all
+    on-node unmap operations are completed.
+    A caller may pass NULL if it can guarantee no race against following
+    mmap() calls.
+   returns a value suitable for use as localSegmentLimit in a call
+    to gasneti_segmentInit()
+   
+   for exchangefn and barrierfn: the implementations are only required to
+    perform their functions with respect the peers on a shared-memory
+    node (though exchangefn does require a "full" third argument).
+    however, global implementations are acceptible
+ */
+uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
+                            gasneti_bootstrapExchangefn_t exchangefn,
+                            gasneti_bootstrapBarrierfn_t barrierfn) {
+  int i, need_exchg = 0;
+  uintptr_t maxsz;
+
+  gasneti_assert(exchangefn);
+  gasneti_assert(gasneti_nodemap);
+
+  /* Apply intial limits, even if not sharing nodes */
+  maxsz = GASNETI_MMAP_LIMIT;
+  if ((uint64_t)localLimit > sharedLimit) localLimit = sharedLimit;
+  maxsz = MIN(maxsz, localLimit);
+
+  /* Coordinate the search IFF there are any shared nodes. */
+  for (i = 0; i < gasneti_nodes; ++i) {
+    if (gasneti_nodemap[i] != i) {
+      need_exchg = 1;
+      break;
+    }
+  }
+  if (need_exchg) {
+    uintptr_t *sz_exchg = gasneti_malloc(gasneti_nodes * sizeof(uintptr_t));
+    gasnet_seginfo_t se = {0,0};
+
+    /* Ensure our probe will not collectively exceed the shareLimit, if any. */
+    if ((sharedLimit != (uint64_t)-1) && (gasneti_nodemap_local_count > 1)) {
+#if SIZEOF_VOID_P != 8
+       /* Skip MIN() on overflow */
+       if ((sharedLimit / gasneti_nodemap_local_count) < (uint64_t)(uintptr_t)(-1))
+#endif
+       { uintptr_t tmp = sharedLimit / gasneti_nodemap_local_count;
+         maxsz = MIN(maxsz, tmp);
+       }
+    }
+
+    /* Allow each node to probe and collect the results */
+    maxsz = GASNETI_PAGE_ALIGNDOWN(maxsz);
+    if (maxsz) se = _gasneti_mmap_segment_search_inner(maxsz);
+    (*exchangefn)(&se.size, sizeof(uintptr_t), sz_exchg);
+
+    /* Compute the local mean */
+    { uint64_t sum;
+      gasnet_node_t first, j;
+
+      first = gasneti_nodemap[gasneti_mynode];
+      sum = sz_exchg[first];
+      j = 1;
+
+      for (i = (first + 1); j < gasneti_nodemap_local_count; ++i) {
+        if (gasneti_nodemap[i] == first) {
+          sum += sz_exchg[i];
+          j += 1;
+        }
+      }
+      maxsz = MIN(maxsz, sum / gasneti_nodemap_local_count);
+    }
+
+    /* Free held resources */
+    gasneti_free(sz_exchg);
+    if (se.size) gasneti_munmap(se.addr, se.size);
+    if (barrierfn) (*barrierfn)(); /* Ensures munmap()s complete on-node before return */
+  }
+
+  return maxsz;
+}
+#endif /* HAVE_MMAP */
+
 /* do the work necessary for initing a standard segment map in arbitrary memory 
      uses mmap if available, or malloc otherwise
    requires an exchange callback function that can be used to exchange data
@@ -726,6 +835,7 @@ static gasneti_segexch_t *gasneti_segexch = NULL; /* exchanged segment informati
    localSegmentLimit provides an optional conduit-specific limit on max segment sz
     (for example, to limit size based on physical memory availability)
     pass (uintptr_t)-1 for unlimited
+    Use of gasneti_mmapLimit() can help determine the right value to pass here
    keeps internal state for attach
  */
 void gasneti_segmentInit(uintptr_t localSegmentLimit,
