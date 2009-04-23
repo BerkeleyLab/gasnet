@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/04/15 02:24:34 $
- * $Revision: 1.53.14.9 $
+ *     $Date: 2009/04/23 21:40:50 $
+ * $Revision: 1.53.14.10 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -192,7 +192,7 @@ struct gasnete_coll_team_t_ {
   uint32_t			team_id;
   int					global_team;
   
-  
+  gasneti_weakatomic_t *num_multi_addr_collectives_started;
 		
   /* tree geometry cache, each team should have its own cache .... */
   gasnete_coll_tree_geom_t *tree_geom_cache_head;
@@ -605,7 +605,10 @@ typedef struct {
   } threads;
   
   /* XXX: more fields to come */
+  unsigned int num_multi_addr_collectives_started;
   
+  
+
   /* Macro for conduit-specific extension */
 #ifdef GASNETE_COLL_THREADDATA_EXTRA
   GASNETE_COLL_THREADDATA_EXTRA
@@ -749,7 +752,7 @@ can *prove* the current thread has a handle for the current op:
   */
 #if GASNETI_USE_TRUE_MUTEXES
 #define GASNETE_COLL_MAY_INIT_FOR(op)	((GASNETE_COLL_GENERIC_DATA(op)->owner == GASNETE_MYTHREAD) || \
-					 ((op)->flags & (GASNET_COLL_OUT_MYSYNC | GASNET_COLL_OUT_ALLSYNC)))
+				 ((op)->flags & (GASNET_COLL_OUT_MYSYNC | GASNET_COLL_OUT_ALLSYNC)))
 #define GASNETE_COLL_SET_OWNER(data)	(data)->owner = GASNETE_MYTHREAD
 #else
 #define GASNETE_COLL_MAY_INIT_FOR(op)	1
@@ -1238,6 +1241,15 @@ gasnete_coll_generic_broadcastM_nb(gasnet_team_handle_t team,
                                    GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
+gasnete_coll_generic_broadcastM_nb_new(gasnet_team_handle_t team,
+                                   void * const dstlist[],
+                                   gasnet_image_t srcimage, void *src,
+                                   size_t nbytes, int flags,
+                                   gasnete_coll_poll_fn poll_fn, int options,
+                                   gasnete_coll_tree_data_t *tree_info, uint32_t sequence
+                                   GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
 gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
                                 void *dst,
                                 gasnet_image_t srcimage, void *src,
@@ -1570,6 +1582,15 @@ gasnete_coll_scatM_TreePut(gasnet_team_handle_t team,
                               gasnete_coll_tree_type_t tree_type,    
                               uint32_t sequence
                               GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_scatM_TreePutNoCopy(gasnet_team_handle_t team,
+                                 void * const dstlist[],
+                                 gasnet_image_t srcimage, void *src,
+                                 size_t nbytes, size_t dist, int flags, 
+                                 gasnete_coll_tree_type_t tree_type,    
+                                 uint32_t sequence
+                                 GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
 gasnete_coll_scatM_TreePutSeg(gasnet_team_handle_t team,
