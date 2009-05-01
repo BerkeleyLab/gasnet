@@ -1,17 +1,17 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/05/01 18:11:40 $
- * $Revision: 1.72.10.15 $
+ *     $Date: 2009/05/01 18:38:07 $
+ * $Revision: 1.72.10.16 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
 #define GASNET_COLL_TREE_DEBUG 0
-#if GASNET_PAR
+
+/*#define ALL_THREADS_POLL 1*/
+/*having exactly 1 thread poll signifcantly helps performance by avoiding lock contention*/
 #define ALL_THREADS_POLL 0
-#else
-#define ALL_THREADS_POLL 1
-#endif
+
 
 #include <gasnet_internal.h>
 #include <gasnet_coll.h>
@@ -3392,9 +3392,9 @@ gasnete_coll_generic_broadcastM_nb(gasnet_team_handle_t team,
     }
       gasneti_assert(*dstlist != NULL);
       data->args.broadcastM.dstlist[td->my_local_image] = *dstlist; /* signalling write */
-  } else { 
+  } else 
 #endif 
-    if (td->my_local_image == 0) {
+    { if (td->my_local_image == 0) {
       gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
       int num_addrs = (flags & GASNET_COLL_LOCAL ? gasnete_coll_my_images : gasnete_coll_total_images);
       
@@ -3823,9 +3823,9 @@ gasnete_coll_generic_scatterM_nb(gasnet_team_handle_t team,
     }
       gasneti_assert(*dstlist != NULL);
       data->args.scatterM.dstlist[td->my_local_image] = *dstlist; /* signalling write */
-  } else {
+  } else 
 #endif
-    if (td->my_local_image == 0) {
+   { if (td->my_local_image == 0) {
       gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
       int num_addrs = (flags & GASNET_COLL_LOCAL ? gasnete_coll_my_images : gasnete_coll_total_images);
       GASNETE_COLL_GENERIC_SET_TAG(data, scatterM);
@@ -4803,9 +4803,9 @@ gasnete_coll_generic_gather_allM_nb(gasnet_team_handle_t team,
       data->args.gather_allM.srclist[td->my_local_image] = *srclist;
       gasneti_assert(*dstlist != NULL);
       data->args.gather_allM.dstlist[td->my_local_image] = *dstlist;
-  } else {
+  } else 
 #endif
-
+    {
     if (td->my_local_image == 0) {
       gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
       GASNETE_COLL_GENERIC_SET_TAG(data, gather_allM);
@@ -5269,9 +5269,9 @@ gasnete_coll_generic_exchangeM_nb(gasnet_team_handle_t team,
       data->args.exchangeM.srclist[td->my_local_image] = *srclist;
       gasneti_assert(*dstlist != NULL);
       data->args.exchangeM.dstlist[td->my_local_image] = *dstlist;
-  } else {
+  } else 
 #endif
-
+    {
     if (td->my_local_image == 0) {
       gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
       GASNETE_COLL_GENERIC_SET_TAG(data, exchangeM);

@@ -217,6 +217,8 @@ void gasnete_coll_free_autotune_tree_node(gasnete_coll_autotune_tree_node_t *in)
   }
 }
 
+static int allow_conduit_collectives=0;
+
 gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t team, gasnet_node_t mynode, gasnet_node_t total_nodes, gasnet_image_t my_images, gasnet_image_t total_images, size_t min_scratch_size) {
   /* read all the environment variables and setup the defaults*/
   gasnete_coll_autotune_info_t* ret;
@@ -305,7 +307,10 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t te
   ret->team = team;
   gasnete_coll_register_collectives(ret);
 #ifdef GASNETE_COLL_CONDUIT_COLLECTIVES
-  gasnete_coll_register_conduit_collectives(ret);
+  allow_conduit_collectives = gasneti_getenv_yesno_withdefault("GASNET_COLL_ALLOW_CONDUIT_COLLECTIVES", 0);
+  if(allow_conduit_collectives) {
+    gasnete_coll_register_conduit_collectives(ret);
+  }
 #endif
   return ret;
 }
@@ -762,9 +767,11 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
                                                        -1,nbytes, flags);
   
 #ifdef GASNETE_COLL_CONDUIT_BROADCAST_OPS
-
-  ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_NUM_ALGS-1].fn_ptr.bcast_fn; 
-#else
+  if(allow_conduit_collectives) 
+    ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_NUM_ALGS-1].fn_ptr.bcast_fn; 
+  else 
+#endif
+    {
   /*for now encode the original decision tree*/
   if ((nbytes <= eager_limit) &&
       (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL))) {
@@ -807,7 +814,8 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
     ret->num_params = 0;
     ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_RVOUS].fn_ptr.bcast_fn;
   }
-#endif
+    }
 
+    
   return ret;
 }

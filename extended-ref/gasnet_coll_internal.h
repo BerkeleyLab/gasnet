@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/05/01 18:11:40 $
- * $Revision: 1.53.14.11 $
+ *     $Date: 2009/05/01 18:38:07 $
+ * $Revision: 1.53.14.12 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -192,7 +192,7 @@ struct gasnete_coll_team_t_ {
   uint32_t			team_id;
   int					global_team;
   
-  gasneti_weakatomic_t *num_multi_addr_collectives_started;
+  gasneti_weakatomic_t num_multi_addr_collectives_started;
 		
   /* tree geometry cache, each team should have its own cache .... */
   gasnete_coll_tree_geom_t *tree_geom_cache_head;
