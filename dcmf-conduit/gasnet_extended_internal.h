@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2009/01/23 20:37:59 $
- * $Revision: 1.3.2.2 $
+ *     $Date: 2009/05/01 18:12:13 $
+ * $Revision: 1.3.2.3 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -15,6 +15,7 @@
 #include <gasnet_handler.h>
 
 #include <gasnet_core_internal.h>
+
 
 /* ------------------------------------------------------------------------------------ */
 

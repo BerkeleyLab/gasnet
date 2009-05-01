@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_dcmf_bootstrapcoll.c,v $
- *     $Date: 2009/01/23 20:37:58 $
- * $Revision: 1.2.6.2 $
+ *     $Date: 2009/05/01 18:12:13 $
+ * $Revision: 1.2.6.3 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>, 
                    Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -216,7 +216,8 @@ void gasnetc_dcmf_bootstrapExchange(void *src, size_t nbytes, void *dst) {
     cb_args->counter = &num_send_recv_done[1];
     cb_args->nbytes = nbytes;
     
-    config.protocol = DCMF_EAGER_SEND_PROTOCOL;
+    config.network = DCMF_DEFAULT_NETWORK;
+    config.protocol = DCMF_DEFAULT_SEND_PROTOCOL;
     config.cb_recv_short = gasnetc_bootstrapExchange_recv_short_cb;
     config.cb_recv_short_clientdata = cb_args;
     config.cb_recv = gasnetc_bootstrapExchange_recv_cb;

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2009/01/23 20:37:58 $
- * $Revision: 1.4.2.2 $
+ *     $Date: 2009/05/01 18:12:13 $
+ * $Revision: 1.4.2.3 $
  * Description: GASNet Extended API Implementation for DCMF
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -12,6 +12,11 @@
 #include <gasnet_handler.h>
 
 #include <gasnet_core_internal.h>
+
+#include <gasnet_coll.h>
+#include <gasnet_coll_autotune.h>
+#include <gasnet_coll_internal.h>
+#include <gasnet_coll_autotune_internal.h>
 
 
 static const gasnete_eopaddr_t EOPADDR_NIL = { { 0xFF, 0xFF } };
@@ -1196,6 +1201,7 @@ static DCMF_Protocol_t named_barrier_registration;
 
 static int gasnete_allow_hw_barrier;
 
+
 static void gasnete_dcmfbarrier_init() {
   barrier_splitstate = OUTSIDE_BARRIER;
   
@@ -1208,7 +1214,9 @@ static void gasnete_dcmfbarrier_init() {
   
   gasnete_allow_hw_barrier = gasneti_getenv_yesno_withdefault("GASNET_DCMF_FAST_BARRIER", 1);
   /*initialize anonymous barrier*/
+ 
   if(gasnete_allow_hw_barrier) {
+
     DCMF_GlobalBarrier_Configuration_t config;
     
     /*for now just sticked w/ a single barrier protocol that we pick*/
@@ -1233,6 +1241,7 @@ static void gasnete_dcmfbarrier_init() {
     GASNETC_DCMF_CHECK_PTR(&anon_barrier_registration);
     DCMF_SAFE(DCMF_GlobalBarrier_register(&anon_barrier_registration, &config));
     GASNETC_DCMF_UNLOCK();
+
   }
 
   /*initialize named barrier*/
