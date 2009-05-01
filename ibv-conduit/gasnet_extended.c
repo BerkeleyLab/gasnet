@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_extended.c,v $
- *     $Date: 2009/01/23 20:38:45 $
- * $Revision: 1.45.14.1 $
+ *     $Date: 2009/05/01 19:57:53 $
+ * $Revision: 1.45.14.2 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -297,13 +297,13 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
   ==============
 */
 /* called at startup to check configuration sanity */
-static void gasnete_check_config() {
+static void gasnete_check_config(void) {
   gasneti_check_config_postattach();
 
   gasneti_assert_always(gasnete_eopaddr_isnil(EOPADDR_NIL));
 }
 
-extern void gasnete_init() {
+extern void gasnete_init(void) {
   static int firstcall = 1;
   GASNETI_TRACE_PRINTF(C,("gasnete_init()"));
   gasneti_assert(firstcall); /*  make sure we haven't been called before */
@@ -689,7 +689,7 @@ static gasnet_handlerentry_t const gasnete_handlers[] = {
   { 0, NULL }
 };
 
-extern gasnet_handlerentry_t const *gasnete_get_handlertable() {
+extern gasnet_handlerentry_t const *gasnete_get_handlertable(void) {
   return gasnete_handlers;
 }
 /* ------------------------------------------------------------------------------------ */
