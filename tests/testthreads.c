@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testthreads.c,v $
- *     $Date: 2009/01/23 20:38:42 $
- * $Revision: 1.27.20.1 $
+ *     $Date: 2009/05/01 19:57:48 $
+ * $Revision: 1.27.20.2 $
  *
  * Description: GASNet threaded tester.
  *   The test initializes GASNet and forks off up to 256 threads.  Each of
@@ -86,7 +86,7 @@ threaddata_t	*tt_thread_data;
 #endif
 
 void	alloc_thread_data(int threads);
-void	free_thread_data();
+void	free_thread_data(void);
 void *	threadmain(void *args);
 
 /* GASNet Test functions */
@@ -98,7 +98,7 @@ void	test_ammedium(threaddata_t *tdata);
 void	test_amlong(threaddata_t *tdata);
 #if TEST_MPI
 void init_test_mpi(int *argc, char ***argv);
-void attach_test_mpi();
+void attach_test_mpi(void);
 void mpi_barrier(threaddata_t *tdata);
 void test_mpi(threaddata_t *tdata);
 
@@ -379,7 +379,7 @@ alloc_thread_data(int threads)
 
 
 void
-free_thread_data()
+free_thread_data(void)
 {
 	test_free(tt_thread_map);
 	test_free(tt_addr_map);

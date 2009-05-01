@@ -1,6 +1,6 @@
 //   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/exc.h,v $
-//     $Date: 2006/04/10 04:20:12 $
-// $Revision: 1.3 $
+//     $Date: 2009/05/01 19:57:26 $
+// $Revision: 1.3.42.1 $
 // Description: Exception handlers for fserver
 // Copyright 1999, Dan Bonachea & Scott McPeak
 
@@ -9,7 +9,7 @@
 
 #include "socket.h"
 
-void breaker();
+void breaker(void);
 
 // by using this macro, the debugger gets a shot before the stack is unwound
 #ifdef THROW

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2009/01/23 20:37:55 $
- * $Revision: 1.118.6.1 $
+ *     $Date: 2009/05/01 19:57:04 $
+ * $Revision: 1.118.6.2 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -330,7 +330,7 @@ GASNETI_BEGIN_EXTERNC
 /* misc tools utilities */
 
 /* return a (possibly empty) string of any configuration options that might negtively impact performance */
-extern const char *gasnett_performance_warning_str();
+extern const char *gasnett_performance_warning_str(void);
 
 #define gasnett_sched_yield     gasneti_sched_yield 
 #define gasnett_cpu_count       gasneti_cpu_count
@@ -392,7 +392,7 @@ typedef struct {
   int threadsupport; /* does backtrace function handle threads correctly? 
                               -ie backtrace the calling thread and optionally others as well */
 } gasnett_backtrace_type_t;
-gasnett_backtrace_type_t gasnett_backtrace_user;
+extern gasnett_backtrace_type_t gasnett_backtrace_user;
 
 /* ------------------------------------------------------------------------------------ */
 /* GASNet tracing/stats support (automatically stubbed out when libgasnet absent) */
@@ -598,7 +598,7 @@ static int *gasnett_linkconfig_idiotcheck(void)
       #endif
         ;
   if (_gasnett_linkconfig_idiotcheck != (void *)&gasnett_linkconfig_idiotcheck)
-    val += ((int(*)())_gasnett_linkconfig_idiotcheck)();
+    val += ((int(*)(void))_gasnett_linkconfig_idiotcheck)();
   return &val;
 }
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2009/01/23 20:37:55 $
- * $Revision: 1.86.6.1 $
+ *     $Date: 2009/05/01 19:57:04 $
+ * $Revision: 1.86.6.2 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -41,7 +41,7 @@ GASNETI_BEGIN_EXTERNC
      we stuff the internal cycle counter into a 64-bit holder and expand to realtime later */
   typedef uint64_t gasneti_tick_t;
   GASNETI_INLINE(gasneti_ticks_now)
-  gasneti_tick_t gasneti_ticks_now() {
+  gasneti_tick_t gasneti_ticks_now(void) {
     timebasestruct_t t;
     read_real_time(&t,TIMEBASE_SZ);
     return (((uint64_t)t.tb_high) << 32) | ((uint64_t)t.tb_low);
@@ -63,7 +63,7 @@ GASNETI_BEGIN_EXTERNC
   #if PLATFORM_COMPILER_GNU
     #define _rtc rtclock
   #else
-    extern long _rtc();
+    extern long _rtc(void);
   #endif
 
   #define gasneti_ticks_now()      (_rtc())
@@ -76,7 +76,7 @@ GASNETI_BEGIN_EXTERNC
     #define gasneti_ticks_to_ns(st)  ((gasneti_tick_t)(((gasneti_tick_t)(st)) * (1000000000.0 / GASNETI_UNICOS_SYS_CLOCK)))
   #elif PLATFORM_ARCH_CRAYX1
     #include <intrinsics.h>
-    extern long IRTC_RATE();
+    extern long IRTC_RATE(void);
     /* 100 or 113 Mhz sys. clock, depending on hardware */
     GASNETI_INLINE(gasneti_ticks_to_ns)
     uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
@@ -99,7 +99,7 @@ GASNETI_BEGIN_EXTERNC
 
   typedef uint64_t gasneti_tick_t;
   GASNETI_INLINE(gasneti_ticks_now)
-  gasneti_tick_t gasneti_ticks_now() {
+  gasneti_tick_t gasneti_ticks_now(void) {
     struct timespec t;
     gasneti_assert_zeroret(clock_gettime(CLOCK_SGI_CYCLE, &t));
     return ((((uint64_t)t.tv_sec) & 0xFFFF) * 1000000000) + t.tv_nsec;
@@ -137,7 +137,7 @@ GASNETI_BEGIN_EXTERNC
      determine this is (__STDC__ - 0 == 0) which is totally bogus */
   typedef uint64_t gasneti_tick_t;
   GASNETI_INLINE(gasneti_ticks_now)
-  gasneti_tick_t gasneti_ticks_now() {
+  gasneti_tick_t gasneti_ticks_now(void) {
     hrtime_t t = gethrtime();
     return *(gasneti_tick_t *)&t;
   }
@@ -182,7 +182,7 @@ GASNETI_BEGIN_EXTERNC
   GASNETI_EXTERNC int gasneti_timer_fd; /* HPET device file descriptor */
   GASNETI_EXTERNC volatile uint64_t *gasneti_tick_p; /* pointer to mapped counter, and init flag */
   GASNETI_NEVER_INLINE(gasneti_timer_init,
-  static volatile uint64_t *gasneti_timer_init()) {
+  static volatile uint64_t *gasneti_timer_init(void)) {
     if_pf (!gasneti_tick_p) {
       int result;
       uint64_t val = 0;
@@ -215,7 +215,7 @@ GASNETI_BEGIN_EXTERNC
     return gasneti_tick_p;
   }
   GASNETI_INLINE(gasneti_ticks_now)
-  gasneti_tick_t gasneti_ticks_now() {
+  gasneti_tick_t gasneti_ticks_now(void) {
     volatile uint64_t *ptr = gasneti_tick_p; 
     if_pf (!ptr) ptr = gasneti_timer_init();
     #if GASNETI_HPET_MMAP
@@ -243,7 +243,7 @@ GASNETI_BEGIN_EXTERNC
  #if 1
   typedef uint64_t gasneti_tick_t;
   GASNETI_INLINE(gasneti_ticks_now)
-  gasneti_tick_t gasneti_ticks_now() {
+  gasneti_tick_t gasneti_ticks_now(void) {
     gasneti_tick_t _count = 0;
     __asm__ __volatile__(".set push     \n"
                          ".set mips32r2 \n"
@@ -287,7 +287,7 @@ GASNETI_BEGIN_EXTERNC
   #include <time.h>
   typedef uint64_t gasneti_tick_t;
   GASNETI_INLINE(gasneti_ticks_now)
-  gasneti_tick_t gasneti_ticks_now() {
+  gasneti_tick_t gasneti_ticks_now(void) {
     gasneti_tick_t retval;
     struct timespec foo;
     syscall(__NR_clock_gettime,CLOCK_REALTIME,&foo);

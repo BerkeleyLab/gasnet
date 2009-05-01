@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core_internal.h,v $
- *     $Date: 2006/05/23 12:42:37 $
- * $Revision: 1.12 $
+ *     $Date: 2009/05/01 19:57:42 $
+ * $Revision: 1.12.34.1 $
  * Description: GASNet shmem conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -128,8 +128,12 @@ struct _gasnetc_am_stub
 	 * Short use arg[1-16] for args
 	 *
 	 * Longs use arg[1]    for length
+	 *   64-bit:
 	 *           arg[2-3]  for ptr to payload
 	 *           arg[4-19] for args
+	 *   32-bit:
+	 *           arg[2]    for ptr to payload
+	 *           arg[3-18] for args
 	 *
 	 * Meds  use arg[1]    for length
 	 *           arg[2-17] for args

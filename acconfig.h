@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2009/01/23 20:37:53 $ */
-/*  $Revision: 1.133.2.1 $ */
+/*      $Date: 2009/05/01 19:57:02 $ */
+/*  $Revision: 1.133.2.2 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -39,6 +39,7 @@
 #undef GASNETI_HAVE_GCC_ATTRIBUTE_MALLOC
 #undef GASNETI_HAVE_GCC_ATTRIBUTE_WARNUNUSEDRESULT
 #undef GASNETI_HAVE_GCC_ATTRIBUTE_USED
+#undef GASNETI_HAVE_GCC_ATTRIBUTE_UNUSED
 #undef GASNETI_HAVE_GCC_ATTRIBUTE_NORETURN
 #undef GASNETI_HAVE_GCC_ATTRIBUTE_PURE
 #undef GASNETI_HAVE_GCC_ATTRIBUTE_CONST
@@ -97,6 +98,12 @@
 
 /* have ptmalloc's mallopt() options */
 #undef HAVE_PTMALLOC
+
+/* have declarations/definitions */
+#undef HAVE_SETENV_DECL
+#undef HAVE_UNSETENV_DECL
+#undef HAVE_SNPRINTF_DECL
+#undef HAVE_VSNPRINTF_DECL
 
 /* Forbidden to use fork(), popen() and system()? */
 #undef GASNETI_NO_FORK
@@ -230,6 +237,7 @@
 #undef GASNET_STATS
 #undef GASNET_SRCLINES
 #undef GASNET_DEBUG_VERBOSE
+#undef GASNET_USE_STRICT_PROTOTYPES
 
 /* GASNet segment definition */
 #undef GASNET_SEGMENT_FAST
@@ -286,6 +294,7 @@
 
 /* GASNet portals-conduit specific */
 #undef HAVE_PCTMBOX_H
+#undef HAVE_PMI_CNOS
 #undef GASNETC_PORTALS_MISSING_EQ_HANDLER_T
 
 /* GASNet bug1389 detection/work-around */

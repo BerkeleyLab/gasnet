@@ -2,7 +2,7 @@
 README file for GASNet tools
 ============================
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.19.6.1 $
+$Revision: 1.19.6.2 $
 GASNet tools specification version: 1.4
 
 The GASNet tools are a set of communication-independent utilities that are used
@@ -546,6 +546,12 @@ GASNETT_WARN_UNUSED_RESULT
 declarator
 
   Attempt to generate a warning if the return value of the declared function is ignored by caller.
+
+GASNETT_USED                
+declarator           
+
+  Declare the given function as one that must not be omitted, even if the compiler
+  believes the function cannot ever be called.
 
 if_pf(cond) S;
 if_pt(cond) S;

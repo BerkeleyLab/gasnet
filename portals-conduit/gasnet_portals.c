@@ -7,7 +7,11 @@
 
 #define GASNETC_DEBUG_RB_VERBOSE 0
 
-#if HAVE_CNOS_MPI_OS_H /* new CNL (bug 2472) */
+#if HAVE_PMI_CNOS
+   #define _CRAY_PORTALS
+   #include <pmi.h>
+   #define GASNETC_NEED_CNOS_NIDPID_MAP_T 1
+#elif HAVE_CNOS_MPI_OS_H /* new CNL (bug 2472) */
    #include <cnos_mpi_os.h>
 #elif HAVE_CATAMOUNT_CNOS_MPI_OS_H /* catamount and new CNL */
    #include <catamount/cnos_mpi_os.h>
@@ -17,6 +21,15 @@
   extern int cnos_get_rank();
   extern int cnos_get_size();
   extern int cnos_get_nidpid_map(void *);
+  extern void cnos_barrier_init(ptl_handle_ni_t ni_handle); /* NOOP function on Catamount */
+  extern int cnos_barrier(void);
+  #if PLATFORM_OS_CNL
+    extern void cnos_pm_barrier(int);
+    extern int cnos_register_ptlid(ptl_process_id_t);
+  #endif
+  #define GASNETC_NEED_CNOS_NIDPID_MAP_T 1
+#endif
+#if GASNETC_NEED_CNOS_NIDPID_MAP_T
   typedef struct {
       ptl_nid_t nid;
       ptl_pid_t pid;
@@ -24,12 +37,6 @@
         int port;
       #endif
   } cnos_nidpid_map_t;
-  extern void cnos_barrier_init(ptl_handle_ni_t ni_handle); /* NOOP function on Catamount */
-  extern int cnos_barrier(void);
-  #if PLATFORM_OS_CNL
-    extern void cnos_pm_barrier(int);
-    extern int cnos_register_ptlid(ptl_process_id_t);
-  #endif
 #endif
 
 /* set to one for ReqRB Auto Unlink
@@ -180,9 +187,7 @@ size_t gasnetc_AMMaxLong;
   #define GASNETC_FIREHOSE_MAXREGION_SIZE (128*1024)
 #endif
 
-#if GASNET_DEBUG
-  int gasnetc_use_firehose;
-#endif
+int gasnetc_use_firehose;
 firehose_info_t gasnetc_firehose_info;
 
 #endif /* !PLATFORM_OS_CATAMOUNT */
@@ -816,46 +821,6 @@ static int  exec_amlong_data(int isReq, ptl_event_t *ev)
 }
 
 /* ------------------------------------------------------------------------------------
- * Allocate memory with a given byte alignment.
- *  -- The aligned memory is the function return value
- *  -- The actual start of the memory (for freeing it) is returned in allocated_start
- *  -- The alignment MUST be a power of 2
- * --------------------------------------------------------------------------------- */
-static void* gasnetc_aligned_alloc(size_t nbytes, uint32_t alignment, void **allocated_start)
-{
-  size_t bytes;
-  void *loc;
-  uintptr_t ptr, mask;
-
-  bytes = nbytes + (alignment > 0 ? alignment - 1 : 0);
-  loc = gasneti_malloc(bytes);
-  *allocated_start = loc;
-
-  if (alignment == 0) {
-    /* no alignment constraint */
-    return loc;
-  }
-
-  /* insure alignment is power of 2 (contains exactly one non-zero bit) */
-  {
-    uintptr_t bits = alignment;
-    int cnt = 0;
-    while (bits > 0) {
-      if (bits & 0x1) cnt++;
-      bits = bits >> 1;
-    }
-    if (cnt != 1) {
-      gasneti_fatalerror("gasnetc_aligned_alloc with non-power-of-2 alignment %d",(int)alignment);
-    }
-  }
-    
-  /* finally, do the alignment by zeroing the low order bits */
-  mask = alignment-1;
-  ptr = ((uintptr_t)( (uint8_t*)loc + alignment - 1)) & ~mask;
-  return (void*)ptr;
-}
-
-/* ------------------------------------------------------------------------------------
  * Allocate a buffer with the given alignment.
  * This buffer will NOT be managed by a chunk allocator
  * --------------------------------------------------------------------------------- */
@@ -865,8 +830,8 @@ static void gasnetc_buf_init(gasnetc_PtlBuffer_t *buf, const char *name, size_t 
   buf->alignment = alignment;
   buf->nbytes = nbytes;
   if (nbytes > 0) {
-    buf->start = gasnetc_aligned_alloc(nbytes,alignment,&buf->actual_start);
-    GASNETI_TRACE_PRINTF(C,("gasnetc_buf_init for %s alignment %u at %p, start=%p",name,alignment,buf->start,buf->actual_start));
+    buf->actual_start = buf->start = gasneti_malloc_aligned(alignment,nbytes);
+    GASNETI_TRACE_PRINTF(C,("gasnetc_buf_init for %s alignment %u at %p",name,alignment,buf->start));
   } else {
     buf->start = buf->actual_start = NULL;
     buf->alignment = 0;
@@ -894,7 +859,7 @@ static void gasnetc_chunk_init(gasnetc_PtlBuffer_t *buf, const char *name, size_
   buf->name = gasneti_strdup(name);
   buf->alignment = GASNETC_CHUNKSIZE;
   buf->nbytes = nbytes;
-  buf->start = gasnetc_aligned_alloc(nbytes,buf->alignment,&buf->actual_start);
+  buf->actual_start = buf->start = gasneti_malloc_aligned(buf->alignment,nbytes);
   buf->use_chunks = 1;
   gasneti_mutex_init(&buf->lock);
   buf->numchunks = nchunks;
@@ -920,7 +885,7 @@ static void gasnetc_buf_free(gasnetc_PtlBuffer_t *buf)
 {
   gasneti_free(buf->name);
   if (buf->actual_start != NULL) {
-    gasneti_free(buf->actual_start);
+    gasneti_free_aligned(buf->actual_start);
   }
   buf->start = buf->actual_start = NULL;
   buf->nbytes = 0;
@@ -980,6 +945,9 @@ static void ReqRB_refresh(uintptr_t start_addr)
   md.threshold = PTL_MD_THRESH_INF;
   md.max_size = GASNETC_CHUNKSIZE;
   md.options = PTL_MD_OP_PUT | PTL_MD_EVENT_START_DISABLE | PTL_MD_MAX_SIZE;
+#if GASNETC_REQRB_AUTO_UNLINK
+  md.options |= PTL_MD_FLAG_AUTO_UNLINK | PTL_MD_EVENT_AUTO_UNLINK_ENABLE;
+#endif
 #if GASNETC_USE_EQ_HANDLER
   md.user_ptr = (void*)(uintptr_t)GASNETC_REQRB_MD;
 #else
@@ -1525,7 +1493,7 @@ static void CB_event(ptl_event_t *ev)
  *     Receipt of a PUT_END on this MD causes the execution of an AMLong handler.
  * Both RAR_MD and RARAM_MD are linked on the GASNETC_RAR_PTE portals table entry list.
  * --------------------------------------------------------------------------------- */
-static void RAR_init()
+static void RAR_init(void)
 {
   ptl_md_t md;
   ptl_handle_me_t me1_h, me2_h;
@@ -1626,7 +1594,7 @@ static void RAR_init()
  * Remove the memory descriptors associated with the Remote Access Region, but dont
  * deallocate the memory.
  * --------------------------------------------------------------------------------- */
-static void RAR_exit()
+static void RAR_exit(void)
 {
   /* these will automatically unlink the match-list entries as well */
   GASNETC_PTLSAFE(PtlMDUnlink(gasnetc_RAR.md_h));
@@ -1639,7 +1607,7 @@ static void RAR_exit()
  * Replies to AM Requests are issued from this buffer.  It is never the target of
  * a remote operation so it is allocated a free-floating memory descriptor.
  * --------------------------------------------------------------------------------- */
-static void RplSB_init()
+static void RplSB_init(void)
 {
   ptl_md_t md;
 
@@ -1665,7 +1633,7 @@ static void RplSB_init()
 /* ------------------------------------------------------------------------------------
  * Clean up the Reply Send Buffer.  Unlink and delete the memory.
  * --------------------------------------------------------------------------------- */
-static void RplSB_exit()
+static void RplSB_exit(void)
 {
   GASNETC_PTLSAFE(PtlMDUnlink(gasnetc_RplSB.md_h));
   gasnetc_buf_free(&gasnetc_RplSB);
@@ -1682,7 +1650,7 @@ static void RplSB_exit()
  * We also allocate the Catch-Basin Memory descriptor here.  It lives at the end of
  * the list and uses the same match-bits as the Receive buffers.  
  * --------------------------------------------------------------------------------- */
-static void ReqRB_init()
+static void ReqRB_init(void)
 {
   int i;
   ptl_md_t md;
@@ -1761,7 +1729,7 @@ static void ReqRB_init()
 /* ---------------------------------------------------------------------------------
  * Cleanup Request Receive Buffer resources.
  * --------------------------------------------------------------------------------- */
-static void ReqRB_exit()
+static void ReqRB_exit(void)
 {
   int i;
 
@@ -1783,7 +1751,7 @@ static void ReqRB_exit()
  *        Match-list for AM Replys and for Catch-Basin algorithm to work.  
  *        Put it on GASNETC_AM_PTE table entry.
  * --------------------------------------------------------------------------------- */
-static void ReqSB_init()
+static void ReqSB_init(void)
 {
   ptl_md_t md;
   gasnetc_PtlBuffer_t *p = &gasnetc_ReqSB;
@@ -1818,7 +1786,7 @@ static void ReqSB_init()
 /* ---------------------------------------------------------------------------------
  * Cleanup Request Send Buffer Resources
  * --------------------------------------------------------------------------------- */
-static void ReqSB_exit()
+static void ReqSB_exit(void)
 {
   /* unlink the MD */
   GASNETC_PTLSAFE(PtlMDUnlink(gasnetc_ReqSB.md_h));
@@ -2067,7 +2035,7 @@ void gasnetc_end_epoch(int epoch_count)
  * Walk list of nodes, hitting them up for credits to be returned to us
  * Walk in circular list, always re-start from where we left off last time.
  * --------------------------------------------------------------------------------- */
-void gasnetc_scavenge_for_credits()
+void gasnetc_scavenge_for_credits(void)
 {
   /* Simply walk list of remote nodes, requesting that they return credits */
   int node, start;
@@ -2284,7 +2252,7 @@ static void sys_event(ptl_event_t *ev)
 /* ---------------------------------------------------------------------------------
  * Init the system SYS MDs and Event Queue
  * --------------------------------------------------------------------------------- */
-static void sys_init()
+static void sys_init(void)
 {
   ptl_size_t eq_len = 2*gasneti_nodes + 10;
   ptl_md_t   md;
@@ -2349,7 +2317,7 @@ static void sys_init()
 /* ---------------------------------------------------------------------------------
  * Remove the system SYS resources
  * --------------------------------------------------------------------------------- */
-static void sys_exit()
+static void sys_exit(void)
 {
   ptl_event_t ev;
   /* these will automatically unlink the match-list entries as well */
@@ -2440,9 +2408,23 @@ extern void gasnetc_init_portals_network(int *argc, char ***argv)
   int               num_interfaces;
   int               pid_offset = 0;
   uint32_t          maxnodes = (uint32_t)((gasnetc_dll_index_t)-1);
- 
+
+#if HAVE_PMI_CNOS
+  if (PMI_SUCCESS != PMI_Init(&rc)) {
+    gasneti_fatalerror("PMI_Init() failed");
+  }
+  if (PMI_SUCCESS != PMI_Get_rank(&i)) {
+    gasneti_fatalerror("PMI_Get_rank() failed");
+  }
+  gasneti_mynode = i;
+  if (PMI_SUCCESS != PMI_Get_size(&i)) {
+    gasneti_fatalerror("PMI_Get_size() failed");
+  }
+  gasneti_nodes = i;
+#else
   gasneti_mynode = cnos_get_rank();
   gasneti_nodes = cnos_get_size();
+#endif
 
   /* init tracing as early as possible */
   gasneti_trace_init(argc, argv);
@@ -2490,7 +2472,9 @@ extern void gasnetc_init_portals_network(int *argc, char ***argv)
   GASNETC_PTLSAFE(PtlGetUid(gasnetc_ni_h,&gasnetc_uid));
   GASNETC_PTLSAFE(PtlGetId(gasnetc_ni_h,&gasnetc_myid));
 
-#if PLATFORM_OS_CNL
+#if HAVE_PMI_CNOS
+  /* Not using the CNOS barrier */
+#elif PLATFORM_OS_CNL
   /* must init the CNOS barrier under CNL (this is a noop for Catamount)
    * This MUST be done before calls to
    *      cnos_register_ptlid() AND cnos_get_nidpid_map()
@@ -2508,9 +2492,15 @@ extern void gasnetc_init_portals_network(int *argc, char ***argv)
 #endif
 
   /* get process to portals address mapping */
+#if HAVE_PMI_CNOS
+  if (PMI_SUCCESS != PMI_CNOS_Get_nidpid_map((void **)&cnos_map)) {
+    gasneti_fatalerror("PMI_CNOS_Get_nidpid_map failed");
+  }
+#else
   if(gasneti_nodes != cnos_get_nidpid_map(&cnos_map)) {
     gasneti_fatalerror("cnos_get_nidpid_map size != %d",gasneti_nodes);
   }
+#endif
 
   gasneti_assert_always(cnos_map[gasneti_mynode].nid == gasnetc_myid.nid);
   gasneti_assert_always(cnos_map[gasneti_mynode].pid == (gasnetc_myid.pid - pid_offset));
@@ -2603,7 +2593,7 @@ extern gasnet_node_t gasnetc_get_nodeid(ptl_process_id_t *proc)
  * Bootstrap barrier function.
  * Just use cnos_barrier on XT3, but might have to init it first.
  * --------------------------------------------------------------------------------- */
-extern void gasnetc_bootstrapBarrier() {
+extern void gasnetc_bootstrapBarrier(void) {
   static int gasnetc_bootstrapBarrierCnt = 0;
 
   gasnetc_bootstrapBarrierCnt++;
@@ -2613,7 +2603,11 @@ extern void gasnetc_bootstrapBarrier() {
     gasnetc_sys_barrier();
   } else {
     GASNETI_TRACE_PRINTF(C,("bootstrapBarrier count = %d",gasnetc_bootstrapBarrierCnt));
+#if HAVE_PMI_CNOS
+    PMI_Barrier();
+#else
     cnos_barrier();
+#endif
   }
 }
 
@@ -3367,17 +3361,32 @@ extern void gasnetc_init_portals_resources(void)
   int64_t cred_per_buffer = cred_bytes_per_buffer/GASNETC_BYTES_PER_CREDIT;
   
   /* read Portals specific env vars */
-  gasnetc_put_bounce_limit = (int64_t)gasneti_getenv_int_withdefault("GASNET_PORTAL_PUTGET_BOUNCE_LIMIT",
-				(int64_t)GASNETC_PUTGET_BOUNCE_LIMIT_DFLT,1);
+  #if GASNETC_FIREHOSE_LOCAL
+  gasnetc_use_firehose = gasneti_getenv_yesno_withdefault("GASNET_USE_FIREHOSE", 1);
+  #endif
+  val64 = (int64_t)gasneti_getenv_int_withdefault("GASNET_PORTAL_PUTGET_BOUNCE_LIMIT",
+                         (gasnetc_use_firehose ? 0 : (int64_t)GASNETC_PUTGET_BOUNCE_LIMIT_DFLT), 1);
+  gasnetc_put_bounce_limit = (int64_t)gasneti_getenv_int_withdefault("GASNET_PORTAL_PUT_BOUNCE_LIMIT",
+                                                                     val64, 1);
   if (gasnetc_put_bounce_limit > GASNETC_CHUNKSIZE) {
     if (!gasneti_mynode) {
       fprintf(stderr,
-		"WARNING: Requested GASNET_PORTAL_PUTGET_BOUNCE_LIMIT %u reduced to chunksize %u\n",
+		"WARNING: Requested GASNET_PORTAL_PUT_BOUNCE_LIMIT %u reduced to %u\n",
 		(unsigned int)gasnetc_put_bounce_limit, (unsigned int)GASNETC_CHUNKSIZE);
     }
     gasnetc_put_bounce_limit = GASNETC_CHUNKSIZE;
   }
-  gasnetc_get_bounce_limit = GASNETC_MIN(gasnetc_put_bounce_limit, GASNETC_CHUNKSIZE - sizeof(void *));
+  gasnetc_get_bounce_limit = (int64_t)gasneti_getenv_int_withdefault("GASNET_PORTAL_GET_BOUNCE_LIMIT",
+                                                                     val64, 1);
+  if (gasnetc_get_bounce_limit > GASNETC_CHUNKSIZE) { /* Don't complain about last sizeof(void *) */
+    if (!gasneti_mynode) {
+      fprintf(stderr,
+		"WARNING: Requested GASNET_PORTAL_GET_BOUNCE_LIMIT %u reduced to %u\n",
+		(unsigned int)gasnetc_get_bounce_limit, (unsigned int)(GASNETC_CHUNKSIZE - sizeof(void *)));
+    }
+  }
+  gasnetc_get_bounce_limit = GASNETC_MIN(gasnetc_get_bounce_limit, GASNETC_CHUNKSIZE - sizeof(void *));
+
   gasnetc_dump_stats = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_STATS",
 				 (int64_t)gasnetc_dump_stats,0);
   gasnetc_ReqSB_numchunk = (int)gasneti_getenv_int_withdefault("GASNET_PORTAL_SB_CHUNKS",
@@ -3761,9 +3770,6 @@ extern void gasnetc_init_portals_resources(void)
 
   /* Initialize firehose */
   #if GASNETC_FIREHOSE_LOCAL
-  #if GASNET_DEBUG /* Always ON in an opt build (avoids branches) */
-  gasnetc_use_firehose = gasneti_getenv_yesno_withdefault("GASNET_USE_FIREHOSE", 1);
-  #endif
   if (gasnetc_use_firehose) {
     size_t firehose_mem = GASNETC_FIREHOSE_MAXREGIONS * GASNETC_FIREHOSE_MAXREGION_SIZE;
 
@@ -3819,7 +3825,7 @@ extern void gasnetc_portals_preexit(int do_trace)
  *   - Remove MDs and match-list entries
  *   - Free the buffers used for bounce, send/recv
  * --------------------------------------------------------------------------------- */
-extern void gasnetc_portals_exit()
+extern void gasnetc_portals_exit(void)
 {
 
 #define DO_CLEANUP_PORTALS 0
@@ -3853,7 +3859,12 @@ extern void gasnetc_portals_exit()
     GASNETC_PTLSAFE(PtlNIFini(gasnetc_ni_h));
   }
 #endif
-#if PLATFORM_OS_CNL
+
+#if HAVE_PMI_CNOS
+  if (PMI_SUCCESS != PMI_Finalize()) {
+    gasneti_fatalerror("Error in PMI_Finalize");
+  }
+#elif PLATFORM_OS_CNL
   /* inform cnos of clean exit
    * MLW: dont understand the args to this yet!!!
    */
@@ -4082,16 +4093,7 @@ size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,dest);
     nbytes = MIN(nbytes,GASNETC_PTL_MAX_TRANS_SZ);
     GASNETI_TRACE_EVENT(C, GET_RAR);
-  } else GASNETC_IF_USE_FIREHOSE (
-    /* alloc a firehose for the destination region */
-    gasnetc_fh_op_t *op = gasnetc_fh_aligned_local_pin(dest, nbytes);
-    const firehose_request_t *fh_loc = op->fh[0];
-    md_h = fh_loc->client;
-    local_offset = (uintptr_t)dest - fh_loc->addr;
-    nbytes = MIN(nbytes, (fh_loc->len - local_offset));
-    match_bits |= ((ptl_match_bits_t)(op->addr.fulladdr) << 32); /* encode "op" for later release */
-    GASNETI_TRACE_EVENT(C, GET_FH);
-  ) else if ( (nbytes <= gasnetc_get_bounce_limit)  &&
+  } else if ( (nbytes <= gasnetc_get_bounce_limit)  &&
 	      gasnetc_chunk_alloc_withpoll(&gasnetc_ReqSB, nbytes, &local_offset, 1, GASNETC_SAFE_POLL) ) {
     /* Encode dest addr in BB chunk for later copy */
     void* bb;
@@ -4104,7 +4106,16 @@ size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     local_offset += sizeof(void*);
     match_bits |= ((ptl_match_bits_t)local_offset << 32);
     GASNETI_TRACE_EVENT(C, GET_BB);
-  } else {
+  } else GASNETC_IF_USE_FIREHOSE (
+    /* alloc a firehose for the destination region */
+    gasnetc_fh_op_t *op = gasnetc_fh_aligned_local_pin(dest, nbytes);
+    const firehose_request_t *fh_loc = &op->fh[0];
+    md_h = fh_loc->client;
+    local_offset = (uintptr_t)dest - fh_loc->addr;
+    nbytes = MIN(nbytes, (fh_loc->len - local_offset));
+    match_bits |= ((ptl_match_bits_t)(op->addr.fulladdr) << 32); /* encode "op" for later release */
+    GASNETI_TRACE_EVENT(C, GET_FH);
+  ) else {
     /* alloc a temp md for the destination region */
     nbytes = MIN(nbytes,GASNETC_PTL_MAX_TRANS_SZ);
     md_h = gasnetc_alloc_tmpmd_withpoll(dest, nbytes);
@@ -4157,16 +4168,7 @@ size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     local_offset = GASNETC_PTL_OFFSET(gasneti_mynode,src);
     nbytes = MIN(nbytes,GASNETC_PTL_MAX_TRANS_SZ);
     GASNETI_TRACE_EVENT(C, PUT_RAR);
-  } else GASNETC_IF_USE_FIREHOSE (
-    /* alloc a firehose for the source region */
-    gasnetc_fh_op_t *op = gasnetc_fh_aligned_local_pin(src, nbytes);
-    const firehose_request_t *fh_loc = op->fh[0];
-    md_h = fh_loc->client;
-    local_offset = (uintptr_t)src - fh_loc->addr;
-    nbytes = MIN(nbytes, (fh_loc->len - local_offset));
-    match_bits |= ((ptl_match_bits_t)(op->addr.fulladdr) << 32); /* encode "op" for later release */
-    GASNETI_TRACE_EVENT(C, PUT_FH);
-  ) else if ( (nbytes <= gasnetc_put_bounce_limit)  &&
+  } else if ( (nbytes <= gasnetc_put_bounce_limit)  &&
 	      gasnetc_chunk_alloc_withpoll(&gasnetc_ReqSB,nbytes, &local_offset, 1, GASNETC_SAFE_POLL) ) {
     void* bb;
     md_h = gasnetc_ReqSB.md_h;
@@ -4178,7 +4180,16 @@ size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     match_bits |= ((ptl_match_bits_t)local_offset << 32);
     inc_lcc = 0; /* Already completed locally */ 
     GASNETI_TRACE_EVENT(C, PUT_BB);
-  } else {
+  } else GASNETC_IF_USE_FIREHOSE (
+    /* alloc a firehose for the source region */
+    gasnetc_fh_op_t *op = gasnetc_fh_aligned_local_pin(src, nbytes);
+    const firehose_request_t *fh_loc = &op->fh[0];
+    md_h = fh_loc->client;
+    local_offset = (uintptr_t)src - fh_loc->addr;
+    nbytes = MIN(nbytes, (fh_loc->len - local_offset));
+    match_bits |= ((ptl_match_bits_t)(op->addr.fulladdr) << 32); /* encode "op" for later release */
+    GASNETI_TRACE_EVENT(C, PUT_FH);
+  ) else {
     /* alloc a temp md for the source region */
     nbytes = MIN(nbytes,GASNETC_PTL_MAX_TRANS_SZ);
     md_h = gasnetc_alloc_tmpmd_withpoll(src, nbytes);
@@ -4378,6 +4389,9 @@ gasnetc_fh_op_t *gasnetc_fh_new(void) {
     } while (result == NULL);
   }
 
+#if (GASNETC_FH_PER_OP != 1)
+  op->count = 0;
+#endif
   return result;
 }
 
@@ -4389,13 +4403,21 @@ void gasnetc_fh_free(uint16_t fulladdr) {
   GASNETI_TRACE_EVENT(C, FH_OP_FREE);
   addr.fulladdr = fulladdr;
   op = gasnetc_fh_buffer_tbl[addr.bufferidx] + addr.opidx;
-  gasneti_assert(op->fh[0] != NULL); /* Never allocated w/o use */
 #if (GASNETC_FH_PER_OP == 1)
-  firehose_release(op->fh, 1);
-#elif (GASNETC_FH_PER_OP == 2)
-  firehose_release(op->fh, op->fh[1] ? 2 : 1);
+  {
+    const firehose_request_t *tmp = &op->fh[0];
+    firehose_release(&tmp, 1);
+  }
 #else
-  #error "Unknown/invalid GASNETC_FH_PER_OP"
+  {
+    const firehose_request_t *tmp[GASNETC_FH_PER_OP];
+    int i;
+    for (i = 0; i < op->count; ++i) {
+      tmp[i] = &op->fh[i];
+    }
+    gasneti_assert(op->count != 0); /* Never allocated w/o use */
+    firehose_release(tmp, op->count);
+  }
 #endif
   gasneti_lifo_push(&gasnetc_fh_freelist, op);
 }

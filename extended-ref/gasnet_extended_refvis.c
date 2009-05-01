@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refvis.c,v $
- *     $Date: 2006/07/07 22:03:57 $
- * $Revision: 1.21 $
+ *     $Date: 2009/05/01 19:57:11 $
+ * $Revision: 1.21.32.1 $
  * Description: Reference implementation of GASNet Vector, Indexed & Strided
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,7 +23,7 @@ static size_t gasnete_vis_maxchunk;
 static int gasnete_vis_use_remotecontig;
 #endif
 
-extern void gasnete_vis_init() {
+extern void gasnete_vis_init(void) {
   gasneti_assert(!gasnete_vis_isinit);
   gasnete_vis_isinit = 1;
   GASNETI_TRACE_PRINTF(C,("gasnete_vis_init()"));
@@ -68,7 +68,7 @@ extern void gasnete_vis_init() {
     goto visop_removed;                                  \
   } while (0)
 
-extern void gasneti_vis_progressfn() { 
+extern void gasneti_vis_progressfn(void) { 
   GASNETE_THREAD_LOOKUP /* TODO: remove this lookup */
   gasnete_vis_threaddata_t *td = GASNETE_VIS_MYTHREAD; 
   gasneti_vis_op_t **lastp = &(td->active_ops);

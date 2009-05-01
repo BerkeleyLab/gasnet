@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_diagnostic.c,v $
- *     $Date: 2009/01/23 20:37:54 $
- * $Revision: 1.22.26.1 $
+ *     $Date: 2009/05/01 19:57:03 $
+ * $Revision: 1.22.26.2 $
  * Description: GASNet internal diagnostics
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -82,7 +82,7 @@ static int id = 0;
 
 #if GASNET_DEBUG
   extern gasneti_auxseg_request_t gasneti_auxseg_dummy(gasnet_seginfo_t *auxseg_info);
-  static void auxseg_test() {
+  static void auxseg_test(void) {
     BARRIER();
     TEST_HEADER("auxseg test") {
       gasneti_auxseg_dummy((void *)(uintptr_t)-1); /* call self-test */
@@ -617,14 +617,14 @@ static void progressfn_tester(int *counter) {
   gasneti_local_mb();
   active = 0;
 }
-static void progressfn_bool() { progressfn_tester(&pf_cnt_boolean); }
-static void progressfn_counted() { progressfn_tester(&pf_cnt_counted); }
+static void progressfn_bool(void) { progressfn_tester(&pf_cnt_boolean); }
+static void progressfn_counted(void) { progressfn_tester(&pf_cnt_counted); }
 static void progressfns_test(int id) {
-  int iter;
 #if !GASNET_DEBUG
   TEST_HEADER("progress functions test - SKIPPED"); else return;
   return;
 #else
+  int iter;
   TEST_HEADER("progress functions test"); else return;
   for (iter=0; iter < iters0; iter++) {
     int i;
@@ -691,7 +691,6 @@ static void op_test(int id) {
   PTHREAD_BARRIER(num_threads);
   TEST_HEADER("internal op interface test"); else return;
   for (iter=0; iter < iters0; iter++) {
-    int i;
     static const void **share = NULL;
     int peerid = ( id + 1 ) % num_threads;
 
@@ -755,7 +754,6 @@ static void op_test(int id) {
           assert_always(gasnet_try_syncnbi_gets() == GASNET_OK),            \
           assert_always(gasnet_try_syncnbi_all() == GASNET_ERR_NOT_READY)) )
 
-        gasnet_handle_t h;
         gasneti_iop_t *iop1, *iop2;
         gasneti_iop_t *peer_iop1, *peer_iop2;
         ASSERT_NBI_SYNCED();

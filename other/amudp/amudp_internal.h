@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_internal.h,v $
- *     $Date: 2009/01/23 20:38:24 $
- * $Revision: 1.33.18.1 $
+ *     $Date: 2009/05/01 19:57:26 $
+ * $Revision: 1.33.18.2 $
  * Description: AMUDP internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -430,7 +430,7 @@ extern volatile int AMUDP_SPMDIsActiveControlSocket;
 #define _AMUDP_IDENT(identName, identText)  \
   extern char volatile identName[];         \
   char volatile identName[] = identText;    \
-  extern char *_##identName##_identfn() { return (char*)identName; } 
+  extern char *_##identName##_identfn(void) { return (char*)identName; } 
 #if PLATFORM_COMPILER_CRAY
   #define AMUDP_IDENT(identName, identText) \
     AMUDP_PRAGMA(_CRI ident identText);     \
@@ -553,7 +553,7 @@ extern int myrecvfrom(SOCKET s, char * buf, int len, int flags,
   #define tickspersec               ueth_ticks_per_second
 #else
   #if PLATFORM_OS_MSWINDOWS
-    static int64_t getMicrosecondTimeStamp() {
+    static int64_t getMicrosecondTimeStamp(void) {
       static int status = -1;
       static double multiplier;
       if (status == -1) { /*  first time run */
@@ -581,7 +581,7 @@ extern int myrecvfrom(SOCKET s, char * buf, int len, int flags,
    */
 
   #else /* unknown processor - use generic UNIX call */
-    static int64_t getMicrosecondTimeStamp() {
+    static int64_t getMicrosecondTimeStamp(void) {
       int64_t retval;
       struct timeval tv;
       retry:

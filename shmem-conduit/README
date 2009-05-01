@@ -61,9 +61,11 @@ Known problems:
 
 * See the Berkeley UPC Bugzilla server for details on known bugs.
 
-* Conduit only works with SGI Altix and Cray X1 'flavors' of shmem.  These two
-  systems have native hardware access to global memory, a feature that was
-  considered when designing the conduit.
+* Conduit only works with SGI and Cray X1 'flavors' of shmem.  These two
+  implementations have native hardware access to global memory, a feature that
+  was considered when designing the conduit.
+  The SGI 'flavor' is know to work on both an SGI Altix (Linux based) and an
+  SGI Origin 2000 (IRIX based).
 
 Future work:
 ------------
@@ -90,7 +92,7 @@ GASNet explicit memory operations (nb):
     returns GASNETE_SYNC_NONE
     * Always issued as a blocking operation, for simplicity.  If these were
       non-blocking, the sync_nb calls that we would want as lightweight would
-      have to poll on AM arrivals -- to expensive and complex for these
+      have to poll on AM arrivals -- too expensive and complex for the
       seemingly useless non-blocking memset.  Always return SYNC_NONE since we
       complete the operation before returning.
 
@@ -101,7 +103,7 @@ GASNet explicit memory operations (nb):
       registers, the main processor cannot asynchronously fetch data and the
       processor will stall if it attempts to use any value obtained through the
       memory transfer.  These transfers are always blocking and therefore
-      return SYNC_NONE since to subsequent synchronization is required.
+      return SYNC_NONE since no subsequent synchronization is required.
 
 
 GASNet explicit synchronization (nb):

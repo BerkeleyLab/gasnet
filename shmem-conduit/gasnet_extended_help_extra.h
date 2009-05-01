@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended_help_extra.h,v $
- *     $Date: 2006/05/23 12:42:37 $
- * $Revision: 1.6 $
+ *     $Date: 2009/05/01 19:57:42 $
+ * $Revision: 1.6.34.1 $
  * Description: GASNet Extended Shmem-specific Header 
  * Copyright 2005, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -75,8 +75,10 @@
 
 #if PLATFORM_ARCH_CRAYX1
 #define _GASNETE_CRAYX1_ONLY(x)  x
+#define _GASNETE_BCOPY bcopy
 #else
 #define _GASNETE_CRAYX1_ONLY(x)
+#define _GASNETE_BCOPY(s,d,n) memcpy((d),(s),(n))
 #endif
 
 #define _GASNETE_INLINE_VLOOP(dest,src,nbytes)      \
@@ -87,12 +89,17 @@
 		dest[i] = src[i];		    \
 	    }					    \
 	} while (0)
+
+#define _GASNETE_DESTSRC_ALIGNED(dest,src,al)			    \
+	    (!((((uintptr_t)dest)|((uintptr_t)src))&(al)))
 	    
 #define _gasnete_global_ldst(dest,src,nbytes)			    \
 	do {							    \
-	    uint64_t *pDest = (uint64_t *)dest;			    \
-	    uint64_t *pSrc = (uint64_t *)src;			    \
-	    switch(nbytes) {					    \
+	    if (!(nbytes&0x7) &&				    \
+			_GASNETE_DESTSRC_ALIGNED(dest,src,0x7)) {   \
+	      uint64_t *pDest = (uint64_t *)dest;		    \
+	      uint64_t *pSrc = (uint64_t *)src;			    \
+	      switch(nbytes) {					    \
 		case 80:					    \
 		    pDest[0] = pSrc[0];	pDest[1] = pSrc[1];	    \
 		    pDest[2] = pSrc[2];	pDest[3] = pSrc[3];	    \
@@ -143,34 +150,40 @@
 		case 8:						    \
 		    pDest[0] = pSrc[0];				    \
 		    break;					    \
+		default:					    \
+		    _GASNETE_CRAYX1_ONLY(			    \
+		    if (nbytes <= 256)				    \
+			_GASNETE_INLINE_VLOOP(pDest,pSrc,nbytes);   \
+		    else					    \
+		    )						    \
+			_GASNETE_BCOPY(src, dest, nbytes);	    \
+		    break;					    \
+	      }                                                     \
+	    } else {						    \
+	      switch(nbytes) {					    \
 		case 4:						    \
-		    *((uint32_t *)dest) = *((uint32_t *)src);	    \
+		    if (_GASNETE_DESTSRC_ALIGNED(dest,src,0x3))	    \
+			*((uint32_t *)dest) = *((uint32_t *)src);   \
+		    else					    \
+			memcpy(dest,src,nbytes);		    \
 		    break;					    \
 		case 2:						    \
-		    *((uint16_t *)dest) = *((uint16_t *)src);	    \
+		    if (_GASNETE_DESTSRC_ALIGNED(dest,src,0x1))	    \
+			*((uint16_t *)dest) = *((uint16_t *)src);   \
+		    else					    \
+			memcpy(dest,src,nbytes);		    \
 		    break;					    \
 		case 1:						    \
 		    *((uint8_t *)dest) = *((uint8_t *)src);	    \
 		    break;					    \
 		default:					    \
-		    _GASNETE_CRAYX1_ONLY(			    \
-		    if (nbytes <= 256 && !(nbytes&0x7))		    \
-			_GASNETE_INLINE_VLOOP(pDest,pSrc,nbytes);   \
-		    else					    \
-		    )						    \
-			bcopy(src, dest, nbytes);		    \
+		    memcpy(dest, src, nbytes);			    \
 		    break;					    \
+	      }							    \
 	    }							    \
 	} while (0)
 
 #if PLATFORM_ARCH_CRAYX1
-  /*
-   * X1 is more picky about alignment.  Size of the dereference must 
-   * match it's alignment boundary.
-   */
-  #define _GASNETE_DESTSRC_ALIGNED(dest,src,al)			    \
-	    (!(((uintptr_t)dest)&(al)) && !(((uintptr_t)src)&(al)))
-
   #define _gasnete_x1_global_ldst_bulk(dest,src,nbytes)		    \
 	do {							    \
 	    uint64_t *pDest = (uint64_t *)dest;			    \
@@ -202,7 +215,7 @@
 			nbytes <= 256 && !(nbytes&0x7))	            \
 			_GASNETE_INLINE_VLOOP(pDest,pSrc,nbytes);   \
 		    else					    \
-			bcopy(src, dest, nbytes);		    \
+			_GASNETE_BCOPY(src, dest, nbytes);	    \
 		    break;					    \
 	    }							    \
 	} while (0)

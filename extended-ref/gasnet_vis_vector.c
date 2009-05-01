@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_vector.c,v $
- *     $Date: 2007/05/02 13:17:29 $
- * $Revision: 1.21 $
+ *     $Date: 2009/05/01 19:57:12 $
+ * $Revision: 1.21.16.1 $
  * Description: GASNet Vector implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -54,10 +54,10 @@ void *gasnete_memvec_unpack(size_t count, gasnet_memvec_t const *list, void cons
 extern void gasnete_packetize_verify(gasnete_packetdesc_t *pt, size_t ptidx, int lastpacket,
                               size_t count, size_t len, gasnet_memvec_t const *list) {
   size_t firstidx = pt[ptidx].firstidx;
+  GASNETI_UNUSED_UNLESS_DEBUG
   size_t firstoffset = pt[ptidx].firstoffset;
   size_t lastidx = pt[ptidx].lastidx;
   size_t lastlen = pt[ptidx].lastlen;
-  size_t entries = lastidx - firstidx + 1;
   gasneti_assert(firstidx <= lastidx);
   gasneti_assert(lastidx < count);
   if (ptidx == 0) gasneti_assert(firstidx == 0 && firstoffset == 0); /* first packet */
@@ -348,6 +348,7 @@ void gasnete_putv_AMPipeline_reqh_inner(gasnet_token_t token,
   void *iop, gasnet_handlerarg_t rnum) {
   gasnet_memvec_t * const rlist = addr;
   uint8_t * const data = (uint8_t *)(&rlist[rnum]);
+  GASNETI_UNUSED_UNLESS_DEBUG /* but still need side-effects */
   uint8_t * const end = gasnete_memvec_unpack(rnum, rlist, data, 0, (size_t)-1);
   gasneti_assert(end - (uint8_t *)addr <= gasnet_AMMaxMedium());
   gasneti_sync_writes();
@@ -471,7 +472,8 @@ void gasnete_getv_AMPipeline_reph_inner(gasnet_token_t token,
   size_t const lnum = lpacket->lastidx - lpacket->firstidx + 1;
   gasneti_assert(visop->type == GASNETI_VIS_CAT_GETV_AMPIPELINE);
   gasneti_assert(lpacket->lastidx < visop->count);
-  { uint8_t *end = gasnete_memvec_unpack(lnum, savedlst+lpacket->firstidx, addr, lpacket->firstoffset, lpacket->lastlen);
+  { GASNETI_UNUSED_UNLESS_DEBUG /* but still need side-effects */
+    uint8_t *end = gasnete_memvec_unpack(lnum, savedlst+lpacket->firstidx, addr, lpacket->firstoffset, lpacket->lastlen);
     gasneti_assert(end - (uint8_t *)addr == nbytes);
   }
   if (gasneti_weakatomic_decrement_and_test(&(visop->packetcnt), 

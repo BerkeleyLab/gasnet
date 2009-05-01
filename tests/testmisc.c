@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testmisc.c,v $
- *     $Date: 2008/01/22 11:05:44 $
- * $Revision: 1.39 $
+ *     $Date: 2009/05/01 19:57:48 $
+ * $Revision: 1.39.6.1 $
  * Description: GASNet misc performance test
  *   Measures the overhead associated with a number of purely local 
  *   operations that involve no communication. 
@@ -26,16 +26,16 @@ void report(const char *desc, int64_t totaltime, int iters) {
 }
 
 /* placed in a function to avoid excessive inlining */
-gasnett_tick_t ticktime() { return gasnett_ticks_now(); }
+gasnett_tick_t ticktime(void) { return gasnett_ticks_now(); }
 uint64_t tickcvt(gasnett_tick_t ticks) { return gasnett_ticks_to_ns(ticks); }
 
-void doit1();
-void doit2();
-void doit3();
-void doit4();
-void doit5();
-void doit6();
-void doit7();
+void doit1(void);
+void doit2(void);
+void doit3(void);
+void doit4(void);
+void doit5(void);
+void doit6(void);
+void doit7(void);
 /* ------------------------------------------------------------------------------------ */
 #define hidx_null_shorthandler        201
 #define hidx_justreply_shorthandler   202
@@ -144,7 +144,7 @@ gasnett_tick_t timertemp = 0;
 int8_t bigtemp[1024];
 gasnet_handle_t handles[8];
 /* ------------------------------------------------------------------------------------ */
-void doit1() { GASNET_BEGIN_FUNCTION();
+void doit1(void) { GASNET_BEGIN_FUNCTION();
 
     { int i; for (i=0;i<8;i++) handles[i] = GASNET_INVALID_HANDLE; }
 
@@ -188,7 +188,7 @@ void doit1() { GASNET_BEGIN_FUNCTION();
 volatile int val_true = 1;
 volatile int val_false = 0;
 int val_junk = 0;
-void doit2() { GASNET_BEGIN_FUNCTION();
+void doit2(void) { GASNET_BEGIN_FUNCTION();
 
     TEST_SECTION_BEGIN();
     TIME_OPERATION("hold/resume interrupts",
@@ -271,7 +271,7 @@ void doit2() { GASNET_BEGIN_FUNCTION();
 }
 /* ------------------------------------------------------------------------------------ */
 GASNETI_THREADKEY_DEFINE(key);
-void doit3() { 
+void doit3(void) { 
   void * volatile x = 0;
   volatile gasnet_threadinfo_t ti;
   volatile uintptr_t y = 0;
@@ -291,6 +291,11 @@ void doit3() {
   }
 
   TEST_SECTION_BEGIN();
+  /* TODO: How to suppress unused var warnings in the timings of
+   * GASNET_BEGIN_FUNCTION and GASNET_POST_THREADINFO w/o knowledge of
+   * how they are implemented AND w/o adding operations that would
+   * effect the timings.
+   */
   TIME_OPERATION("GASNET_BEGIN_FUNCTION (" _STRINGIFY(TEST_PARSEQ) " mode)", 
       { GASNET_BEGIN_FUNCTION(); });
   memset((void *)&ti,0,sizeof(ti));
@@ -306,7 +311,7 @@ void doit3() {
   doit4();
 }
 /* ------------------------------------------------------------------------------------ */
-void doit4() { GASNET_BEGIN_FUNCTION();
+void doit4(void) { GASNET_BEGIN_FUNCTION();
 
     TEST_SECTION_BEGIN();
     TIME_OPERATION("local 4-byte gasnet_put",
@@ -345,7 +350,7 @@ void doit4() { GASNET_BEGIN_FUNCTION();
     doit5();
 }
 /* ------------------------------------------------------------------------------------ */
-void doit5() { GASNET_BEGIN_FUNCTION();
+void doit5(void) { GASNET_BEGIN_FUNCTION();
 
     TIME_OPERATION("local 4-byte gasnet_get",
       { gasnet_get(&temp, mynode, myseg, 4); });
@@ -381,7 +386,7 @@ void doit5() { GASNET_BEGIN_FUNCTION();
     doit6();
 }
 /* ------------------------------------------------------------------------------------ */
-void doit6() { GASNET_BEGIN_FUNCTION();
+void doit6(void) { GASNET_BEGIN_FUNCTION();
 
     { int32_t temp1 = 0;
       int32_t temp2 = 0;
@@ -393,7 +398,6 @@ void doit6() { GASNET_BEGIN_FUNCTION();
 
     { int8_t temp1[1024];
       int8_t temp2[1024];
-      int64_t start = TIME();
       TIME_OPERATION("local 1024-byte memcpy",
         { memcpy(temp1, temp2, 1024); });
     }
@@ -401,14 +405,14 @@ void doit6() { GASNET_BEGIN_FUNCTION();
     doit7();
 }
 /* ------------------------------------------------------------------------------------ */
-void doit7() { GASNET_BEGIN_FUNCTION();
+void doit7(void) { GASNET_BEGIN_FUNCTION();
 
     TEST_SECTION_BEGIN();
     TIME_OPERATION("do-nothing gasnet_wait_syncnb()",
       { gasnet_wait_syncnb(GASNET_INVALID_HANDLE);  });
 
     TIME_OPERATION("do-nothing gasnet_try_syncnb()",
-      { int junk = gasnet_try_syncnb(GASNET_INVALID_HANDLE); });
+      { GASNETI_UNUSED int junk = gasnet_try_syncnb(GASNET_INVALID_HANDLE); });
 
     TIME_OPERATION("do-nothing gasnet_wait_syncnb_all() (8 handles)",
       { gasnet_wait_syncnb_all(handles, 8); });
@@ -432,13 +436,13 @@ void doit7() { GASNET_BEGIN_FUNCTION();
       { gasnet_wait_syncnbi_gets(); });
 
     TIME_OPERATION("do-nothing gasnet_try_syncnbi_all()",
-      { int junk = gasnet_try_syncnbi_all(); });
+      { GASNETI_UNUSED int junk = gasnet_try_syncnbi_all(); });
 
     TIME_OPERATION("do-nothing gasnet_try_syncnbi_puts()",
-      { int junk = gasnet_try_syncnbi_puts(); });
+      { GASNETI_UNUSED int junk = gasnet_try_syncnbi_puts(); });
 
     TIME_OPERATION("do-nothing gasnet_try_syncnbi_gets()",
-      { int junk = gasnet_try_syncnbi_gets(); });
+      { GASNETI_UNUSED int junk = gasnet_try_syncnbi_gets(); });
 
     TIME_OPERATION("do-nothing begin/end nbi accessregion",
       { gasnet_begin_nbi_accessregion();

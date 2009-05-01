@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core_internal.c,v $
- *     $Date: 2006/05/04 12:09:34 $
- * $Revision: 1.15 $
+ *     $Date: 2009/05/01 19:57:40 $
+ * $Revision: 1.15.38.1 $
  * Description: GASNet sci conduit c-file for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -84,7 +84,7 @@ gasneti_mutex_t		                gasnetc_sci_request_mutex = GASNETI_MUTEX_INITI
 /********************************************************
                                  Sequence Generation
 ********************************************************/
-void gasnetc_sci_create_sequence ()
+void gasnetc_sci_create_sequence (void)
 {
       int i;
       sci_error_t error;
@@ -103,7 +103,7 @@ void gasnetc_sci_create_sequence ()
       }
 }
 
-void gasnetc_sci_remove_sequence ()
+void gasnetc_sci_remove_sequence (void)
 {
       int i;
       sci_error_t error;
@@ -162,7 +162,7 @@ unsigned int gasnetc_get_remote_payload_id (gasnet_node_t remote_id, gasnet_node
 }
 
 /*  Return the next available temporary segment id for the local node */
-unsigned int gasnetc_get_dmaqueue_id ()
+unsigned int gasnetc_get_dmaqueue_id (void)
 {
 	if (gasnetc_sci_dmaqueue_count == 0)	/*  exhaust all temp id, recycle */
 	{
@@ -203,7 +203,7 @@ sci_callback_action_t gasnetc_sci_remote_callback(void * arg,  sci_remote_segmen
                 SCI BARRIER FUNCTIONS
 ********************************************************/
 
-void gasnetc_sci_create_barrier_segment()
+void gasnetc_sci_create_barrier_segment(void)
 {
         sci_error_t error;
         unsigned int gasnetc_sci_local_barrier_id = gasnetc_get_local_barrier_id(gasneti_mynode, gasneti_nodes);
@@ -304,7 +304,7 @@ void gasnetc_sci_create_barrier_segment()
         }
 }
 
-void gasnetc_sci_remove_barrier_segment()
+void gasnetc_sci_remove_barrier_segment(void)
 {
         int i;
         sci_error_t error;
@@ -433,7 +433,7 @@ int gasnetc_sci_barrier_wait (int barrier_value)
         return GASNET_OK;
 }
 
-void gasnetc_sci_internal_Barrier()
+void gasnetc_sci_internal_Barrier(void)
 {
       gasnetc_sci_internal_barrier_flag = GASNETC_SCI_TRUE;
 
@@ -467,7 +467,7 @@ int gasnetc_parseSCIIds(FILE *node_info) {
 
 /*  Set the Max_local_Segment size in bytes based on available */
 /*  free mem on the system and writes the size to a global file */
-void gasnetc_get_free_mem() {
+void gasnetc_get_free_mem(void) {
         int size, found, mod, orig_size;
         char title[100];
 
@@ -514,7 +514,7 @@ void gasnetc_get_free_mem() {
 /*  Returns the maximum global segment size. This is the minimum of the segment */
 /*  sizes available over the whole cluster. Return -1 if not all node information */
 /*  is in the file, throws an error otherwise. */
-void gasnetc_getSCIglobal_seg() {
+void gasnetc_getSCIglobal_seg(void) {
         int count, index;
         uintptr_t *Table_Sizes; /*table of all the sizes, and pointer to uint seg info*/
         sci_sequence_t sequence;
@@ -560,7 +560,7 @@ void gasnetc_getSCIglobal_seg() {
 /*  This uses the number given to it to create the segments needed by the command */
 /*  region. It will leave an open spot for the gasnet segment space to be */
 /*  the next to last segment. It will be created in GASNet Attach. */
-void gasnetc_SCI_Create_Connections() {
+void gasnetc_SCI_Create_Connections(void) {
 	int index;
 	unsigned int LocalID;
 	sci_error_t error;
@@ -666,7 +666,7 @@ void gasnetc_SCI_Create_Connections() {
 
 /*  Connects all the command regions and then all the global ready bytes */
 /*  across all nodes. */
-int gasnetc_SCI_connect_cmd() {
+int gasnetc_SCI_connect_cmd(void) {
 	int i, j, index, gb_ID, counter = 0;
 	sci_error_t error;
 
@@ -780,7 +780,7 @@ int gasnetc_SCI_connect_cmd() {
 /*  assign GASNet Node IDS to each SCI ID. Additionally, the total amount of free */
 /*  memory on the system is determined and a percentage is used as the MAX_local_Seg */
 /*  size. */
-void gasnetc_SCIInit() {
+void gasnetc_SCIInit(void) {
 	FILE* node_info;
 	int index, mem_available;
 	char num_of_nodes[10], *node_ids;
@@ -952,7 +952,7 @@ void gasnetc_get_SegInfo( gasnet_seginfo_t * SEG_INFO, uintptr_t segsize,  void 
 ********************************************************/
 
 /*  Allocate space and initialize the MLS */
-void gasnetc_mls_init ()
+void gasnetc_mls_init (void)
 {
 	int i;
 	gasnetc_sci_msg_loc_status = (uint8_t *) gasneti_malloc ((sizeof (uint8_t)) * (gasneti_nodes * GASNETC_SCI_MAX_REQUEST_MSG * 2));
@@ -1002,7 +1002,7 @@ int gasnetc_mls_get_loc (gasnet_node_t dest_node_id)
 ********************************************************/
 
 /*  Allocate and initialize the handler table */
-void gasnetc_ht_init()
+void gasnetc_ht_init(void)
 {
 	int i;
 	for (i = 0; i < GASNETC_SCI_MAX_HANDLER_NUMBER; i++)
@@ -1115,7 +1115,7 @@ void gasnetc_sci_handle_msg (gasnet_node_t sender_id, uint8_t msg_number, uint8_
 				  MSG Flag Management
 ********************************************************/
 /*  Scans the MRFs to enqueue new messages */
-void gasnetc_MRF_scan ()
+void gasnetc_MRF_scan (void)
 {
         int i, j;
         int msg_flag_status;
@@ -1298,7 +1298,7 @@ int gasnetc_SM_transfer (gasnet_node_t dest, uint8_t msg_number, uint8_t msg_typ
 /********************************************************
                 DMA Queue Management
 ********************************************************/
-int gasnetc_sci_get_dma_queue ()
+int gasnetc_sci_get_dma_queue (void)
 {
       int counter = 0;
       sci_error_t error;
@@ -1326,7 +1326,7 @@ int gasnetc_sci_get_dma_queue ()
 ********************************************************/
 
 /*  Allocates space for local dma queues */
-int gasnetc_create_dma_queues ()
+int gasnetc_create_dma_queues (void)
 {
 	int i;
 	sci_error_t error;
@@ -1370,7 +1370,7 @@ int gasnetc_create_dma_queues ()
 }
 
 /*  Remove the previously allocated local dma queues */
-int gasnetc_remove_dma_queues ()
+int gasnetc_remove_dma_queues (void)
 {
 	int i;
 	sci_error_t error;
@@ -1450,7 +1450,7 @@ int gasnetc_DMA_write (gasnet_node_t dest, void *source_addr, size_t DMA_nbytes,
 ********************************************************/
 
 /*  Initialize necessary system variables */
-void gasnetc_setup_env ()
+void gasnetc_setup_env (void)
 {
 	gasnetc_mls_init ();
 	gasnetc_ht_init ();
@@ -1459,7 +1459,7 @@ void gasnetc_setup_env ()
 }
 
 /*  Remove system variables */
-void gasnetc_free_env ()
+void gasnetc_free_env (void)
 {
 	if(gasneti_attach_done == 1)
 	{

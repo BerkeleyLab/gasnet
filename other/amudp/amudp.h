@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp.h,v $
- *     $Date: 2007/10/31 05:28:10 $
- * $Revision: 1.38 $
+ *     $Date: 2009/05/01 19:57:26 $
+ * $Revision: 1.38.10.1 $
  * Description: AMUDP Header
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -211,7 +211,11 @@ typedef struct {
   uint64_t TotalBytesSent; /* total user level packet sizes for all req/rep */
 } amudp_stats_t;
 
+#ifdef GASNET_USE_STRICT_PROTOTYPES
+typedef void *amudp_handler_fn_t;
+#else
 typedef void (*amudp_handler_fn_t)();  /* prototype for handler function */
+#endif
 typedef struct {
   char inuse; /*  entry in use */
   en_t name;  /*  remote address */
@@ -511,8 +515,8 @@ extern int AMUDP_SetHandlerCallbacks(ep_t ep, AMUDP_preHandlerCallback_t preHand
 extern int AM_MaxSegLength(uintptr_t* nbytes);
 
 /* System initialization/termination */
-extern int AM_Init();
-extern int AM_Terminate();
+extern int AM_Init(void);
+extern int AM_Terminate(void);
 
 /* endpoint/bundle management */
 extern int AM_AllocateBundle(int type, eb_t *endb);

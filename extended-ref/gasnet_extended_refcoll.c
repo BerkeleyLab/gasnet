@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/05/01 18:43:48 $
- * $Revision: 1.72.10.17 $
+ *     $Date: 2009/05/01 19:57:11 $
+ * $Revision: 1.72.10.18 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -32,6 +32,7 @@
 */
 #include <gasnet_coll_autotune.c>
 #include <gasnet_coll_scratch.c>
+
 
 
 size_t gasnete_coll_p2p_eager_min = 0;
@@ -70,6 +71,8 @@ int gasnete_coll_multi_images_any;	/* count of any node's images > 1 */
 #endif
 
 
+
+gasnet_team_handle_t gasnete_coll_team_all;
 /*---------------------------------------------------------------------------------*/
 
 int gasnete_coll_init_done = 0;
@@ -1359,8 +1362,10 @@ void gasnete_coll_p2p_init() {
   }
 }
 
+
 void gasnete_coll_p2p_fini() {
   int i;
+
 
   for (i = 0; i < GASNETE_COLL_P2P_TABLE_SIZE; ++i) {
     gasnete_coll_p2p_t *tmp = &(gasnete_coll_p2p_table[i]);
@@ -1474,8 +1479,10 @@ void gasnete_coll_p2p_free(gasnete_coll_p2p_t *p2p) {
 static gasnet_hsl_t gasnete_coll_p2p_seg_free_list_lock = GASNET_HSL_INITIALIZER;
 static gasnete_coll_seg_interval_t *gasnet_coll_p2p_seg_interval_free_list = NULL;
 
+
 gasnete_coll_seg_interval_t *gasnet_coll_p2p_alloc_seg_interval() {
   gasnete_coll_seg_interval_t *curr_interval;
+
            
   gasnet_hsl_lock(&gasnete_coll_p2p_seg_free_list_lock);
   if(gasnet_coll_p2p_seg_interval_free_list == NULL) {
@@ -3321,7 +3328,7 @@ gasnete_coll_generic_broadcastM_nb(gasnet_team_handle_t team,
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOALLOC;
   
   
-  gasneti_assert(!(options&GASNETE_COLL_USE_SCRATCH || options & GASNETE_COLL_USE_SCRATCH_TREE));
+
   
   if((options & (GASNETE_COLL_USE_SCRATCH)) && td->my_local_image==0) {
       int i;

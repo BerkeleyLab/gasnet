@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2009/01/23 20:37:54 $
- * $Revision: 1.88.8.1 $
+ *     $Date: 2009/05/01 19:57:03 $
+ * $Revision: 1.88.8.2 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -59,13 +59,22 @@
   #define GASNETI_BEGIN_EXTERNC extern "C" {
   #define GASNETI_EXTERNC       extern "C" 
   #define GASNETI_END_EXTERNC   }
-  #define GASNETI_TENTATIVE_EXTERN extern
 #else
   #define GASNETI_BEGIN_EXTERNC 
   #define GASNETI_EXTERNC       
   #define GASNETI_END_EXTERNC 
-  #define GASNETI_TENTATIVE_EXTERN 
 #endif
+
+/* Some symbols need a tentative definition when building libgasnet_tools-*.a.
+ * However we want an extern definition in libgasnet-*.a and all clients.
+ * This includes C++ clients where tentative definitions are not supported.
+ */
+#if defined(GASNETT_BUILDING_TOOLS)
+  #define GASNETI_TENTATIVE_EXTERN /*empty*/
+#else
+  #define GASNETI_TENTATIVE_EXTERN extern
+#endif
+
 
 #if defined(__cplusplus) || GASNETI_CONFIGURE_MISMATCH
   /* bug 1206: the restrict keyword is not part of the C++ spec, and many C++
@@ -196,6 +205,12 @@
   #define GASNETI_USED GASNETI_ATTRIBUTE((__used__))
 #else
   #define GASNETI_USED 
+#endif
+
+#if GASNETI_HAVE_GCC_ATTRIBUTE_UNUSED
+  #define GASNETI_UNUSED GASNETI_ATTRIBUTE((__unused__))
+#else
+  #define GASNETI_UNUSED 
 #endif
 
 #if GASNETI_HAVE_GCC_ATTRIBUTE_NORETURN
@@ -362,7 +377,7 @@
 #define _GASNETI_IDENT(identName, identText)                         \
   extern char volatile identName[];                                  \
   char volatile identName[] = identText;                             \
-  extern char *_##identName##_identfn() { return (char*)identName; } \
+  extern char *_##identName##_identfn(void) { return (char*)identName; } \
   static int _dummy_##identName = sizeof(_dummy_##identName)
 #if PLATFORM_COMPILER_CRAY
   #if PLATFORM_COMPILER_VERSION_LT(6,0,0)
@@ -413,7 +428,7 @@
      #define PREDICT_FALSE(exp) ((exp) && ({; _Pragma("execution_frequency(very_low)"); 1; }))
    #else /* experimentally determined that pragma is sometimes(?) ignored unless it is
             preceded by a non-trivial statement - unfortunately the dummy statement can also hurt performance */
-     static __inline gasneti_xlc_pragma_dummy() {} 
+     static __inline gasneti_xlc_pragma_dummy(void) {} 
      #define PREDICT_TRUE(exp)  ((exp) && ({ gasneti_xlc_pragma_dummy(); _Pragma("execution_frequency(very_high)"); 1; }))
      #define PREDICT_FALSE(exp) ((exp) && ({ gasneti_xlc_pragma_dummy(); _Pragma("execution_frequency(very_low)"); 1; }))
    #endif

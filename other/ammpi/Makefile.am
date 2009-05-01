@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/Makefile.am,v $
-#     $Date: 2007/03/01 01:37:23 $
-# $Revision: 1.39 $
+#     $Date: 2009/05/01 19:57:24 $
+# $Revision: 1.39.20.1 $
 # Description: Makefile for AMMPI/GASNet 
 # Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -22,8 +22,14 @@ else
   BUILDCONFIG_DEFINES = -DAMMPI_NDEBUG=1
 endif
 
+if USE_STRICT_PROTOTYPES
+  strict_proto_flags = -DGASNET_USE_STRICT_PROTOTYPES
+else
+  strict_proto_flags = 
+endif
+
 CC = @MPI_CC@
-CFLAGS = @MPI_CFLAGS@ $(MANUAL_CFLAGS) $(apputils_flags)
+CFLAGS = @MPI_CFLAGS@ $(MANUAL_CFLAGS) $(apputils_flags) $(strict_proto_flags)
 LDFLAGS = @LDFLAGS@ $(MANUAL_LDFLAGS)
 
 PERL = @PERL@

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/detect-cachesz.c,v $
- *     $Date: 2005/11/09 06:14:19 $
- * $Revision: 1.3 $
+ *     $Date: 2009/05/01 19:57:22 $
+ * $Revision: 1.3.58.1 $
  * Description: stand-alone tool to empirically detect SMP shared data cache line size
  * Copyright 2005, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -99,7 +99,7 @@ int detect_cachesz(double confidence_threshold, int conservative_default) {
 }
 
 #ifndef CONFIG_TEST
-int main() {
+int main(void) {
   detect_cachesz(0.0, 0);
   return 0;
 }

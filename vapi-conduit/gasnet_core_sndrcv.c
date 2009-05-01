@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2009/02/11 03:05:49 $
- * $Revision: 1.222.2.2 $
+ *     $Date: 2009/05/01 19:57:53 $
+ * $Revision: 1.222.2.3 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -411,6 +411,7 @@ void *gasnetc_sr_desc_init(gasnetc_snd_wr_t *result, gasnetc_sge_t *sg_lst_p, in
 #define GASNETC_DECL_SR_DESC(_name, _sg_lst_len, _count)                \
 	gasnetc_snd_wr_t _name[_count];                                   \
 	gasnetc_sge_t _CONCAT(_name,_sg_lst)[_count*_sg_lst_len];       \
+	GASNETI_UNUSED                                                  \
 	void *_CONCAT(_name,_dummy) = gasnetc_sr_desc_init(_name, _CONCAT(_name,_sg_lst), _sg_lst_len, _count) /* note intentional lack of final semicolon */
 
 /* Use of IB's 32-bit immediate data:
@@ -654,7 +655,7 @@ void gasnetc_amrdma_eligable(gasnetc_cep_t *cep) {
 void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t flags) {
   gasnetc_buffer_t *buf = (gasnetc_buffer_t *)(uintptr_t)(rbuf->rr_sg.addr);
   gasnet_handler_t handler_id = GASNETC_MSG_HANDLERID(flags);
-  gasnetc_handler_fn_t handler_fn = gasnetc_handler[handler_id];
+  gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id];
   gasnetc_category_t category = GASNETC_MSG_CATEGORY(flags);
   int full_numargs = GASNETC_MSG_NUMARGS(flags);
   int user_numargs = full_numargs;
@@ -3346,13 +3347,15 @@ extern void gasnetc_sndrcv_attach_peer(gasnet_node_t node) {
 
 extern void gasnetc_sndrcv_fini(void) {
   gasnetc_hca_t *hca;
+#if 0 /* See below */
   int vstat;
+#endif
 
   GASNETC_FOR_ALL_HCA(hca) {
     if (gasneti_nodes > 1) {
 #if GASNET_CONDUIT_VAPI
       if (gasnetc_use_rcv_thread) {
-        vstat = EVAPI_clear_comp_eventh(hca->handle, hca->rcv_handler);
+        int vstat = EVAPI_clear_comp_eventh(hca->handle, hca->rcv_handler);
         GASNETC_VAPI_CHECK(vstat, "from EVAPI_clear_comp_eventh()");
       }
 #endif
@@ -3701,7 +3704,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   return GASNET_OK;
 }
 
-extern int gasnetc_AMPoll() {
+extern int gasnetc_AMPoll(void) {
 #if 0 /* Timings show peek optimization is no longer effective */
   int h, work;
 

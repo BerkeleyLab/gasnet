@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testgasnet.c,v $
- *     $Date: 2009/01/23 20:38:42 $
- * $Revision: 1.57.8.1 $
+ *     $Date: 2009/05/01 19:57:48 $
+ * $Revision: 1.57.8.2 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,6 +18,8 @@
 
 /* Define to get one big function that pushes the gcc inliner heursitics */
 #undef TESTGASNET_NO_SPLIT
+
+TEST_BACKTRACE_DECLS();
 
 void doit(int partner, int *partnerseg);
 void doit2(int partner, int *partnerseg);
@@ -143,7 +145,7 @@ void test_threadinfo(int threadid, int numthreads) {
     return NULL;
   }
 #endif
-void test_libgasnet_tools() {
+void test_libgasnet_tools(void) {
   void *p;
   TEST_TRACING_MACROS();
   #ifdef HAVE_MMAP
@@ -201,7 +203,6 @@ int main(int argc, char **argv) {
   test_init("testgasnet",0,"");
   assert(TEST_SEGSZ >= 2*sizeof(int)*NUMHANDLERS_PER_TYPE);
 
-
   TEST_PRINT_CONDUITINFO();
 
   { int smaj = GASNET_SPEC_VERSION_MAJOR;
@@ -221,6 +222,10 @@ int main(int argc, char **argv) {
     }
     printf("]\n"); fflush(stdout);
   }
+
+  TEST_BACKTRACE_INIT(argv[0]);
+  TEST_BACKTRACE();
+
   test_libgasnet_tools();
   partner = (gasnet_mynode() + 1) % gasnet_nodes();
   #if GASNET_SEGMENT_EVERYTHING
@@ -320,7 +325,6 @@ void doit3(int partner, int *partnerseg) {
 
   { /*  value test */
     GASNET_BEGIN_FUNCTION();
-    int vals[300];
     int i, success=1;
     unsigned char *partnerbase2 = (unsigned char *)(partnerseg+300);
     for (i=0; i < 100; i++) {
@@ -407,7 +411,7 @@ void doit3(int partner, int *partnerseg) {
   doit4(partner, partnerseg);
 }
 void doit4(int partner, int *partnerseg) {
-  int mynode = gasnet_mynode();
+  /* int mynode = gasnet_mynode(); UNUSED */
 #endif
 
   BARRIER();
@@ -607,33 +611,21 @@ void doit5(int partner, int *partnerseg) {
   /* Serial tests of optional internal 128-bit atomics: */
   #if GASNETI_HAVE_ATOMIC128_T
   {
-    gasneti_atomic128_t var128;
+    char _var128[16 + GASNETI_HAVE_ATOMIC128_T - 1]; /* Space for var128 + alignment padding */
+    gasneti_atomic128_t *var128 = (gasneti_atomic128_t *)
+	    (((uintptr_t)_var128 + GASNETI_HAVE_ATOMIC128_T - 1) & ~(GASNETI_HAVE_ATOMIC128_T - 1));
     uint64_t readhi, readlo;
     const uint64_t one64 = 1;
     uint64_t tmp64;
     int i;
 
-    {
-      gasneti_atomic128_t var = gasneti_atomic128_init(0, ~(uint64_t)0);
-      gasneti_atomic128_read(&readhi, &readlo, &var,0);
-    }
-    if ((~readlo != 0) || readhi)
-      ERR("gasneti_atomic128_init/gasneti_atomic128_read got wrong value (lo half)");
-
-    {
-      gasneti_atomic128_t var = gasneti_atomic128_init(~(uint64_t)0, 0);
-      gasneti_atomic128_read(&readhi, &readlo, &var,0);
-    }
-    if ((~readhi != 0) || readlo)
-      ERR("gasneti_atomic128_init/gasneti_atomic128_read got wrong value (hi half)");
-
-    gasneti_atomic128_set(&var128, 0, 2*iters, 0);
-    gasneti_atomic128_read(&readhi, &readlo, &var128,0);
+    gasneti_atomic128_set(var128, 0, 2*iters, 0);
+    gasneti_atomic128_read(&readhi, &readlo, var128,0);
     if ((readlo != (uint64_t)(2*iters)) || readhi)
       ERR("gasneti_atomic128_set/gasneti_atomic128_read got wrong value (lo half)");
 
-    gasneti_atomic128_set(&var128, 2*iters, 0, 0);
-    gasneti_atomic128_read(&readhi, &readlo, &var128,0);
+    gasneti_atomic128_set(var128, 2*iters, 0, 0);
+    gasneti_atomic128_read(&readhi, &readlo, var128,0);
     if ((readhi != (uint64_t)(2*iters)) || readlo)
       ERR("gasneti_atomic128_set/gasneti_atomic128_read got wrong value (hi half)");
 
@@ -642,13 +634,13 @@ void doit5(int partner, int *partnerseg) {
       const uint64_t tmplo = (i < 64) ? (one64<<i) : 0;
       const uint64_t tmphi = (i >= 64) ? (one64<<(i-64)) : 0;
 
-      gasneti_atomic128_set(&var128, tmphi, tmplo, 0);
-      gasneti_atomic128_read(&readhi, &readlo, &var128, 0);
+      gasneti_atomic128_set(var128, tmphi, tmplo, 0);
+      gasneti_atomic128_read(&readhi, &readlo, var128, 0);
       if ((readlo != tmplo) || (readhi != tmphi))
         ERR("gasneti_atomic128_set/gasneti_atomic128_read got wrong value on bit %i", i);
-      if (gasneti_atomic128_compare_and_swap(&var128, 0, 0, tmphi, tmplo, 0))
+      if (gasneti_atomic128_compare_and_swap(var128, 0, 0, tmphi, tmplo, 0))
         ERR("gasneti_atomic128_compare_and_swap succeeded at bit %i when it should have failed", i);
-      if (!gasneti_atomic128_compare_and_swap(&var128, tmphi, tmplo, 0, 0, 0))
+      if (!gasneti_atomic128_compare_and_swap(var128, tmphi, tmplo, 0, 0, 0))
         ERR("gasneti_atomic128_compare_and_swap failed at bit %i when it should have succeeded", i);
     }
 
@@ -663,25 +655,25 @@ void doit5(int partner, int *partnerseg) {
         const uint64_t tmplo = tmplo_i | tmplo_j;
         const uint64_t tmphi = tmphi_i | tmphi_j;
 
-        gasneti_atomic128_set(&var128, tmphi, tmplo, 0);
-        if (gasneti_atomic128_compare_and_swap(&var128, tmphi_i, tmplo_i, tmphi, tmplo, 0) ||
-            gasneti_atomic128_compare_and_swap(&var128, tmphi_j, tmplo_j, tmphi, tmplo, 0))
+        gasneti_atomic128_set(var128, tmphi, tmplo, 0);
+        if (gasneti_atomic128_compare_and_swap(var128, tmphi_i, tmplo_i, tmphi, tmplo, 0) ||
+            gasneti_atomic128_compare_and_swap(var128, tmphi_j, tmplo_j, tmphi, tmplo, 0))
           ERR("gasneti_atomic128_compare_and_swap succeeded at bits %i and %i when it should have failed", i, j);
       }
     }
 
-    gasneti_atomic128_set(&var128, iters, 0, 0);
+    gasneti_atomic128_set(var128, iters, 0, 0);
     for (i=0;i<=iters;i++) {
-      if (gasneti_atomic128_compare_and_swap(&var128, iters+i-1, i-1, iters+i-2, i-2, 0))
+      if (gasneti_atomic128_compare_and_swap(var128, iters+i-1, i-1, iters+i-2, i-2, 0))
         ERR("gasneti_atomic128_compare_and_swap succeeded at i=%i when it should have failed", i);
-      if (gasneti_atomic128_compare_and_swap(&var128, iters+i+1, i+1, iters+i-2, i-2, 0))
+      if (gasneti_atomic128_compare_and_swap(var128, iters+i+1, i+1, iters+i-2, i-2, 0))
         ERR("gasneti_atomic128_compare_and_swap succeeded at i=%i when it should have failed", i);
-      gasneti_atomic128_read(&readhi, &readlo,&var128,0);
+      gasneti_atomic128_read(&readhi, &readlo,var128,0);
       if ((readhi != iters+i) || (readlo != i))
         ERR("gasneti_atomic128_compare_and_swap altered value when it should not have at i=%i", i);
-      if (!gasneti_atomic128_compare_and_swap(&var128, iters+i, i, iters+i+1, i+1, 0))
+      if (!gasneti_atomic128_compare_and_swap(var128, iters+i, i, iters+i+1, i+1, 0))
         ERR("gasneti_atomic128_compare_and_swap failed at i=%i when it should have succeeded", i);
-      gasneti_atomic128_read(&readhi, &readlo, &var128,0);
+      gasneti_atomic128_read(&readhi, &readlo, var128,0);
       if ((readhi != iters+i+1) || (readlo != i+1))
         ERR("gasneti_atomic128_compare_and_swap set wrong updated value at i=%i", i);
     }

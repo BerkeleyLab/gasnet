@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_ep.c,v $
- *     $Date: 2009/01/23 20:38:22 $
- * $Revision: 1.47.20.1 $
+ *     $Date: 2009/05/01 19:57:24 $
+ * $Revision: 1.47.20.2 $
  * Description: AMMPI Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -667,7 +667,7 @@ extern int AMMPI_GrowReplyPool(ammpi_sendbuffer_pool_t* pool) {
 /*------------------------------------------------------------------------------------
  * System initialization/termination
  *------------------------------------------------------------------------------------ */
-extern int AM_Init() {
+extern int AM_Init(void) {
   { int initialized = 0;
     MPI_SAFE(MPI_Initialized(&initialized));
     if (!initialized) AMMPI_RETURN_ERRFR(RESOURCE, AM_Init, "MPI not initialized");
@@ -713,7 +713,7 @@ extern int AM_Init() {
   return AM_OK;
 }
 /* ------------------------------------------------------------------------------------ */
-extern int AM_Terminate() {
+extern int AM_Terminate(void) {
   int i;
   int retval = AM_OK;
   AMMPI_CHECKINIT();

@@ -1,6 +1,6 @@
 //   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/socklist.h,v $
-//     $Date: 2006/04/10 04:20:12 $
-// $Revision: 1.4 $
+//     $Date: 2009/05/01 19:57:26 $
+// $Revision: 1.4.42.1 $
 // Description: 
 // Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
 
@@ -34,8 +34,8 @@ class SocketList {
     ~SocketList();
 
     void clear();
-    unsigned long getCount() { return count; }
-    unsigned long getMaxFd() { return maxfd; }
+    unsigned long getCount(void) { return count; }
+    unsigned long getMaxFd(void) { return maxfd; }
 
     #ifdef SOCKLIST_MT
       void setThreadSafe(int ThreadSafe) { TS = ThreadSafe; }

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2009/05/01 18:12:13 $
- * $Revision: 1.5.6.4 $
+ *     $Date: 2009/05/01 19:57:07 $
+ * $Revision: 1.5.6.5 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>, 
                    Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -2116,6 +2116,7 @@ extern void gasnetc_hold_interrupts(void) {
   gasneti_assert(dcmf_config.interrupts == dcmf_config_out.interrupts);
 
 }
+
 extern void gasnetc_resume_interrupts(void) {
   DCMF_Configure_t dcmf_config, dcmf_config_out;
   GASNETI_CHECKATTACH();

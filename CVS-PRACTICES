@@ -105,6 +105,12 @@ GASNet Release Procedure
 * Unpack the archive and diff against the source tree to find missing files,
   especially documentation and auxilliary files
 
+* Verify that ./unBootstrap removes all generated files:
+  In the srcdir:
+    ./unBootstrap
+    cvs up | grep ^?
+  If there is any output then you'll need to update unBootstrap.
+
 * Check the spec documents were generated correctly & clean up if necessary 
   (regenerate the .ps on Linux)
 

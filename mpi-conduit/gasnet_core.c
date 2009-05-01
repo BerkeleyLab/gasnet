@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/01/23 20:38:14 $
- * $Revision: 1.77.16.1 $
+ *     $Date: 2009/05/01 19:57:20 $
+ * $Revision: 1.77.16.2 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -36,9 +36,9 @@ gasneti_mutex_t gasnetc_AMlock = GASNETI_MUTEX_INITIALIZER; /*  protect access t
 
 #if GASNETC_HSL_ERRCHECK
   /* check a call is legally outside an NIS or HSL */
-  void gasnetc_checkcallNIS();
-  void gasnetc_checkcallHSL();
-  void gasnetc_hsl_attach();
+  void gasnetc_checkcallNIS(void);
+  void gasnetc_checkcallHSL(void);
+  void gasnetc_hsl_attach(void);
   #define CHECKCALLNIS() gasnetc_checkcallNIS()
   #define CHECKCALLHSL() gasnetc_checkcallHSL()
 #else
@@ -52,7 +52,7 @@ gasneti_mutex_t gasnetc_AMlock = GASNETI_MUTEX_INITIALIZER; /*  protect access t
   ==============
 */
 /* called at startup to check configuration sanity */
-static void gasnetc_check_config() {
+static void gasnetc_check_config(void) {
   gasneti_check_config_preinit();
 
   gasneti_assert(GASNET_MAXNODES <= AMMPI_MAX_SPMDPROCS);
@@ -494,7 +494,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   }
 }
 
-extern int gasnetc_AMPoll() {
+extern int gasnetc_AMPoll(void) {
   int retval;
   GASNETI_CHECKATTACH();
   CHECKCALLNIS();
@@ -671,7 +671,7 @@ extern int gasnetc_AMReplyLongM(
   
     /*  pthread thread-specific ptr to our info (or NULL for a thread never-seen before) */
     GASNETI_THREADKEY_DEFINE(gasnetc_hsl_errcheckinfo);
-    static gasnetc_hsl_errcheckinfo_t *gasnetc_get_errcheckinfo() {
+    static gasnetc_hsl_errcheckinfo_t *gasnetc_get_errcheckinfo(void) {
       gasnetc_hsl_errcheckinfo_t *info = gasneti_threadkey_get(gasnetc_hsl_errcheckinfo);
       if_pt (info) return info;
 
@@ -702,16 +702,16 @@ extern int gasnetc_AMReplyLongM(
       }
     }
   #else
-    static gasnetc_hsl_errcheckinfo_t *gasnetc_get_errcheckinfo() {
+    static gasnetc_hsl_errcheckinfo_t *gasnetc_get_errcheckinfo(void) {
       return &_info_init;
     }
   #endif
-  extern void gasnetc_hsl_attach() {
+  extern void gasnetc_hsl_attach(void) {
     gasnetc_get_errcheckinfo();
   }
 
 
-  extern void gasnetc_hold_interrupts() {
+  extern void gasnetc_hold_interrupts(void) {
     GASNETI_CHECKATTACH();
     { gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
       if (info->inhandler) { /* NIS calls ignored within a handler */
@@ -728,7 +728,7 @@ extern int gasnetc_AMReplyLongM(
       info->NIStimestamp = gasneti_ticks_now();
     }
   }
-  extern void gasnetc_resume_interrupts() {
+  extern void gasnetc_resume_interrupts(void) {
     GASNETI_CHECKATTACH();
     { gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
       if (info->inhandler) { /* NIS calls ignored within a handler */
@@ -751,7 +751,7 @@ extern int gasnetc_AMReplyLongM(
     }
   }
 
-  void gasnetc_checkcallNIS() {
+  void gasnetc_checkcallNIS(void) {
     gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
     if (info->inExplicitNIS)
       gasneti_fatalerror("Illegal call to GASNet within a No-Interrupt Section");
@@ -759,7 +759,7 @@ extern int gasnetc_AMReplyLongM(
       gasneti_fatalerror("Illegal call to GASNet within a No-Interrupt Section (imposed by handler context)");
     gasnetc_checkcallHSL();
   }
-  void gasnetc_checkcallHSL() {
+  void gasnetc_checkcallHSL(void) {
     gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
     if (info->locksheld)
       gasneti_fatalerror("Illegal call to GASNet while holding a Handler-Safe Lock");
@@ -999,7 +999,7 @@ static gasnet_handlerentry_t const gasnetc_handlers[] = {
   { 0, NULL }
 };
 
-gasnet_handlerentry_t const *gasnetc_get_handlertable() {
+gasnet_handlerentry_t const *gasnetc_get_handlertable(void) {
   return gasnetc_handlers;
 }
 

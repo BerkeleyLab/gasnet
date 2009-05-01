@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended.c,v $
- *     $Date: 2009/01/23 20:38:36 $
- * $Revision: 1.23.20.1 $
+ *     $Date: 2009/05/01 19:57:42 $
+ * $Revision: 1.23.20.2 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -42,12 +42,12 @@ gasnete_threaddata_t  * const gasnete_threaddata_ptr = &gasnete_threaddata;
 #include "gasnet_extended_common.c"
 
 extern void gasnete_register_threadcleanup(void (*cleanupfn)(void *), void *context) { }
-extern uint64_t gasneti_max_threads() { return 1; }
+extern uint64_t gasneti_max_threads(void) { return 1; }
 
 /* ------------------------------------------------------------------------------------ */
 
 
-extern void gasnete_init() {
+extern void gasnete_init(void) {
   int	    i;
   static int firstcall = 1;
   GASNETI_TRACE_PRINTF(C,("gasnete_init()"));
@@ -174,7 +174,21 @@ gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
   =========
 */
 
-static void gasnete_shmembarrier_init();
+/* Our SHMEM barrier uses a 64-bit atomic operation to allow the user's
+ * 32-bit barrier value to be distinguished from a "uninitialized" marker.
+ * This code requires shmem_long_finc() and an 8-byte shmem_*_cswap().
+ */
+#if defined(GASNETE_USE_SHMEM_BARRIER)
+  /* Keep the current value */
+#elif PLATFORM_ARCH_CRAYX1 || GASNETI_ARCH_ALTIX || \
+     (HAVE_SHMEM_LONG_FINC && \
+      (((SIZEOF_LONG == 8) && HAVE_SHMEM_LONG_CSWAP) || \
+       ((SIZEOF_LONG_LONG == 8) && HAVE_SHMEM_LONGLONG_CSWAP)))
+  #define GASNETE_USE_SHMEM_BARRIER 1
+#endif
+
+#if GASNETE_USE_SHMEM_BARRIER
+static void gasnete_shmembarrier_init(void);
 static void gasnete_shmembarrier_notify(int id, int flags);
 static int gasnete_shmembarrier_wait(int id, int flags);
 static int gasnete_shmembarrier_try(int id, int flags);
@@ -188,11 +202,14 @@ static int gasnete_shmembarrier_try(int id, int flags);
       gasnete_shmembarrier_init();                           \
     }                                                        \
   } while (0)
+#endif /* GASNETE_USE_SHMEM_BARRIER */
 
 /* allow reference implementation of barrier */
 #define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
 #include "gasnet_extended_refbarrier.c"
 #undef GASNETI_GASNET_EXTENDED_REFBARRIER_C
+
+#if GASNETE_USE_SHMEM_BARRIER
 /* ------------------------------------------------------------------------------------ */
 /* SHMEM barrier */
 /*
@@ -225,7 +242,10 @@ static int gasnete_shmembarrier_try(int id, int flags);
  * broadcast.
  *
  * On X1, performance-critical code paths replace the shmem_ptr shmem library
- * translation function with GASNet's inllined GASNETE_TRANSLATE_X1 macro.
+ * translation function with GASNet's inlined GASNETE_TRANSLATE_X1 macro.
+ *
+ * The SGI Origin (IRIX) support is so far using the same code as Altix.
+ * However, it has not been tuned and is not ported to ILP32.
  */
 
 #define BARRIER_PAD_CACHELINE_SIZE 128
@@ -241,13 +261,13 @@ static int gasnete_shmembarrier_try(int id, int flags);
 #endif
 
 typedef struct {
-    long volatile barrier_value;
-    long volatile barrier_flags;
+    int barrier_value;
+    int barrier_flags;
 } gasnete_barrier_state_t;
 
-#define BARRIER_INITVAL 0x1234567800000000
+#define BARRIER_INITVAL 0x1234567800000000LL
 
-static long barrier_value[2] = { BARRIER_INITVAL, BARRIER_INITVAL };
+static uint64_t barrier_value[2] = { BARRIER_INITVAL, BARRIER_INITVAL };
 static int  barrier_mismatch[2] = { 0, 0 };
 static int  barrier_phase = 0;
 
@@ -258,11 +278,12 @@ _BARRIER_PAD(n1);
 static long volatile		    barrier_notify_ctr[2] = { 0, 0 };
 static gasnete_barrier_state_t	    barrier_state[2];
 
-static void gasnete_shmembarrier_init() {
+static void gasnete_shmembarrier_init(void) {
   /* nothing to do.. */
 }
 
-static void gasnete_barrier_broadcastmismatch() {
+GASNETI_NEVER_INLINE(gasnete_barrier_broadcastmismatch,
+static void gasnete_barrier_broadcastmismatch(void)) {
   int i;
   for (i=0; i < gasneti_nodes; i++) 
     *((int *)shmem_ptr(&barrier_mismatch[barrier_phase], i)) = 1;
@@ -270,9 +291,22 @@ static void gasnete_barrier_broadcastmismatch() {
   gasneti_local_wmb();
 }
 
+#if PLATFORM_OS_IRIX
+  /* These are sometimes missing from shmem.h */
+  #if HAVE_SHMEM_LONG_FINC
+    extern long shmem_long_finc(long *addr, int pe);
+  #endif
+  #if HAVE_SHMEM_LONG_CSWAP
+    extern long shmem_long_cswap(long *target, long cond, long value, int pe);
+  #endif
+  #if HAVE_SHMEM_LONGLONG_CSWAP
+    extern long long shmem_longlong_cswap(long long *target, long long cond, long long value, int pe);
+  #endif
+#endif
+
 static void gasnete_shmembarrier_notify(int id, int flags) {
     int i;
-    long curval;
+    uint64_t curval;
     if_pf (barrier_splitstate == INSIDE_BARRIER)
 	gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
 
@@ -290,9 +324,12 @@ static void gasnete_shmembarrier_notify(int id, int flags) {
 	    curval = _amo_acswap(
 		    GASNETE_TRANSLATE_X1(&barrier_value[barrier_phase], 0), 
 		    BARRIER_INITVAL, (long) id);
-	#else
-	    curval = shmem_long_cswap(&barrier_value[barrier_phase], 
+	#elif (SIZEOF_LONG == 8)
+	    curval = shmem_long_cswap((long *)&barrier_value[barrier_phase], 
 				      BARRIER_INITVAL, (long) id, 0);
+	#elif (SIZEOF_LONG_LONG == 8)
+	    curval = shmem_longlong_cswap((long long *)&barrier_value[barrier_phase], 
+					  BARRIER_INITVAL, (long long) id, 0);
 	#endif
 	/*
 	 * Value mismatch -- broadcast to the mismatch flag. Operation is in a
@@ -396,6 +433,7 @@ static int gasnete_shmembarrier_try(int id, int flags) {
 	gasneti_fatalerror("gasnet_barrier_try() called without a matching notify");
     return gasnete_shmembarrier_wait(id, flags);
 }
+#endif /* GASNETE_USE_SHMEM_BARRIER */
 
 /* ------------------------------------------------------------------------ */
 /*
@@ -443,7 +481,7 @@ gasnete_handlers[] = {
 };
 
 extern gasnet_handlerentry_t const *
-gasnete_get_handlertable() {
+gasnete_get_handlertable(void) {
   return gasnete_handlers;
 }
 

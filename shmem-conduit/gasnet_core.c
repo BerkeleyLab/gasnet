@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core.c,v $
- *     $Date: 2007/04/10 01:21:23 $
- * $Revision: 1.36 $
+ *     $Date: 2009/05/01 19:57:42 $
+ * $Revision: 1.36.16.1 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -21,13 +21,12 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 static void gasnetc_atexit(void);
 
-static gasnet_seginfo_t gasnetc_SHMallocSegmentSearch();
+static gasnet_seginfo_t gasnetc_SHMallocSegmentSearch(void);
 static uintptr_t        gasnetc_aligndown_pow2(uintptr_t addr);
 static uintptr_t        gasnetc_alignup_pow2(uintptr_t addr);
 
 #define GASNETC_MAX_NUMHANDLERS   256
-typedef void (*gasnetc_handler_fn_t)();  /* prototype for handler function */
-gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
+gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
 
 gasnet_seginfo_t	 gasnetc_seginfo_init;
 int			 gasnetc_seginfo_allocated = 0;
@@ -53,8 +52,10 @@ gasnetc_am_packet_t  gasnetc_amq_reqs[2*GASNETC_AMQUEUE_MAX_DEPTH];
   /*
    * Altix requires mpirun to start jobs, and also requests that jobs
    * explicitly call MPI_Finalize() or else they abort.
+   * Origin 2000 only seems happy w/ both MPI_Init() and _Finalize().
    */
-  extern void MPI_Finalize();
+  extern int MPI_Init(int *, char ***);
+  extern void MPI_Finalize(void);
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -63,7 +64,7 @@ gasnetc_am_packet_t  gasnetc_amq_reqs[2*GASNETC_AMQUEUE_MAX_DEPTH];
   ==============
 */
 /* called at startup to check configuration sanity */
-static void gasnetc_check_config() {
+static void gasnetc_check_config(void) {
   /* add code to do some sanity checks on the number of nodes, handlers
    * and/or segment sizes */ 
   /* ensure our AM buffer placement and sizes are 8-byte aligned */
@@ -73,7 +74,7 @@ static void gasnetc_check_config() {
   gasneti_assert(sizeof(gasnetc_amq_reqs[0].state) == 4);
 }
 
-static void gasnetc_bootstrapBarrier() {
+static void gasnetc_bootstrapBarrier(void) {
 	shmem_barrier_all();
 }
 
@@ -138,8 +139,10 @@ static int gasnetc_init(int *argc, char ***argv) {
     fprintf(stderr,"gasnetc_init(): about to spawn...\n"); fflush(stderr);
   #endif
 
-  #if defined(CRAY_SHMEM) || defined(SGI_SHMEM)
+  #if defined(CRAY_SHMEM) || GASNETI_ARCH_ALTIX
     start_pes(0);
+  #elif PLATFORM_OS_IRIX
+    MPI_Init(argc, argv);
   #elif defined(QUADRICS_SHMEM)
     shmem_init();
   #endif
@@ -265,7 +268,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     /* register the handler */
     /* add code here to register table[i].fnptr 
              on index (gasnet_handler_t)newindex */
-    gasnetc_handler[(gasnet_handler_t)newindex] = (gasnetc_handler_fn_t)table[i].fnptr;
+    gasnetc_handler[(gasnet_handler_t)newindex] = (gasneti_handler_fn_t)table[i].fnptr;
 
     /* The check below for !table[i].index is redundant and present
      * only to defeat the over-aggressive optimizer in pathcc 2.1
@@ -313,7 +316,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /*  register handlers */
   { int i;
     for (i = 0; i < GASNETC_MAX_NUMHANDLERS; i++) 
-      gasnetc_handler[i] = (gasnetc_handler_fn_t)&gasneti_defaultAMHandler;
+      gasnetc_handler[i] = (gasneti_handler_fn_t)&gasneti_defaultAMHandler;
   }
   { /*  core API handlers */
     gasnet_handlerentry_t *ctable = (gasnet_handlerentry_t *)gasnetc_get_handlertable();
@@ -380,7 +383,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 	    int		i;
 
 	    if (segsize < gasnetc_seginfo_init.size) {
-		/* Enforce power of 2 per thread on Altix */
+		/* Enforce power of 2 per thread on Altix and Origin */
 		#if 0 && defined(SGI_SHMEM)
 		  char buf[64];
 		  uintptr_t segup = gasnetc_alignup_pow2(segsize);
@@ -632,7 +635,7 @@ GASNETI_INLINE(gasnetc_AMProcess)
 void
 gasnetc_AMProcess(gasnetc_am_header_t *hdr, uint32_t *args /* header */)
 {
-	gasnetc_handler_fn_t	handler;
+	gasneti_handler_fn_t	handler;
 	gasnet_token_t		token;
 	size_t			numargs = (size_t) hdr->numargs;
 
@@ -660,10 +663,16 @@ gasnetc_AMProcess(gasnetc_am_header_t *hdr, uint32_t *args /* header */)
 		}
 		break;
 	    case GASNETC_AMLONG_T:
-		{   gasnet_handlerarg_t *pargs =
+		{   int nbytes = args[1];
+#if PLATFORM_ARCH_64
+		    gasnet_handlerarg_t *pargs =
 			(gasnet_handlerarg_t *) &args[4];
-		    int nbytes = args[1];
 		    void *pdata = (void *) GASNETI_MAKEWORD(args[2],args[3]);
+#else
+		    gasnet_handlerarg_t *pargs =
+			(gasnet_handlerarg_t *) &args[3];
+		    void *pdata = (void *) args[2];
+#endif
 		    GASNETI_RUN_HANDLER_LONG(GASNETC_AMHEADER_ISREQUEST(hdr->reqrep),hdr->handler,
                                              handler,token,pargs,numargs,
 					     pdata,nbytes);
@@ -971,10 +980,15 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 			GASNETC_REQUEST_T, GASNETC_AMLONG_T, numargs, 
 			handler, gasneti_mynode);
   _amstub.args[1] = nbytes;
+#if PLATFORM_ARCH_64
   _amstub.args[2] = (gasnet_handlerarg_t) GASNETI_HIWORD(dest_addr);
   _amstub.args[3] = (gasnet_handlerarg_t) GASNETI_LOWORD(dest_addr);
-
   args = &_amstub.args[4];
+#else
+  _amstub.args[2] = (gasnet_handlerarg_t) dest_addr;
+  args = &_amstub.args[3];
+#endif
+
   for (i = 0; i < numargs; i++)
 	  args[i] = (gasnet_handlerarg_t)va_arg(argptr, uint32_t);
 
@@ -1139,10 +1153,15 @@ extern int gasnetc_AMReplyLongM(
 			GASNETC_REPLY_T, GASNETC_AMLONG_T, numargs, 
 			handler, gasneti_mynode);
   _amstub.args[1] = nbytes;
+#if PLATFORM_ARCH_64
   _amstub.args[2] = (gasnet_handlerarg_t) GASNETI_HIWORD(dest_addr);
   _amstub.args[3] = (gasnet_handlerarg_t) GASNETI_LOWORD(dest_addr);
-
   args = &_amstub.args[4];
+#else
+  _amstub.args[2] = (gasnet_handlerarg_t) dest_addr;
+  args = &_amstub.args[3];
+#endif
+
   for (i = 0; i < numargs; i++)
 	  args[i] = (gasnet_handlerarg_t)va_arg(argptr, uint32_t);
 
@@ -1188,11 +1207,11 @@ extern int gasnetc_AMReplyLongM(
 */
 #if GASNETC_USE_INTERRUPTS
   #error interrupts not implemented
-  extern void gasnetc_hold_interrupts() {
+  extern void gasnetc_hold_interrupts(void) {
     GASNETI_CHECKATTACH();
     /* add code here to disable handler interrupts for _this_ thread */
   }
-  extern void gasnetc_resume_interrupts() {
+  extern void gasnetc_resume_interrupts(void) {
     GASNETI_CHECKATTACH();
     /* add code here to re-enable handler interrupts for _this_ thread */
   }
@@ -1318,12 +1337,16 @@ static gasnet_handlerentry_t const gasnetc_handlers[] = {
   { 0, NULL }
 };
 
-gasnet_handlerentry_t const *gasnetc_get_handlertable() {
+gasnet_handlerentry_t const *gasnetc_get_handlertable(void) {
   return gasnetc_handlers;
 }
 
 /* ------------------------------------------------------------------------------------ */
-#define GASNETC_SHMALLOC_GRANULARITY	(256<<20)
+#ifdef CRAY_SHMEM
+  #define GASNETC_SHMALLOC_GRANULARITY	(256<<20)
+#else
+  #define GASNETC_SHMALLOC_GRANULARITY	(16<<20)
+#endif
 
 static
 gasnet_seginfo_t
@@ -1355,7 +1378,7 @@ gasnetc_SHMallocBinarySearch(size_t low, size_t high)
 	}
 }
 
-uintptr_t gasnetc_getMaxMem() {
+uintptr_t gasnetc_getMaxMem(void) {
   #ifdef CRAY_SHMEM
     return (uintptr_t)(64UL<<30);
   #else

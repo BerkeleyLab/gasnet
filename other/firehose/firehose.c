@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose.c,v $
- *     $Date: 2008/04/02 17:57:16 $
- * $Revision: 1.35 $
+ *     $Date: 2009/05/01 19:57:32 $
+ * $Revision: 1.35.2.1 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1149,8 +1149,6 @@ fh_am_move_reqh_inner(gasnet_token_t token, void *addr, size_t nbytes,
 	int			hit_pending = 0;
 	int			remote_callback = 0;
 
-	fh_remote_callback_t	*rc = NULL;
-
 	gasnet_AMGetMsgSource(token, &node);
 
 	new_reg = (firehose_region_t *) addr;
@@ -1342,6 +1340,6 @@ gasnet_handlerentry_t fh_am_handlers[] = {
 };
 
 gasnet_handlerentry_t *
-firehose_get_handlertable() {
+firehose_get_handlertable(void) {
         return fh_am_handlers;
 }

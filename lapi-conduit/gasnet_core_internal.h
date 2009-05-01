@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2008/03/09 09:38:31 $
- * $Revision: 1.53 $
+ *     $Date: 2009/05/01 19:57:18 $
+ * $Revision: 1.53.2.1 $
  * Description: GASNet lapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,6 +19,7 @@
 #define _GASNET_CORE_INTERNAL_H
 
 #include <gasnet_internal.h>
+#include <gasnet_handler.h>
 #if GASNETC_LAPI_RDMA
   #include <firehose.h>
 #endif
@@ -74,8 +75,7 @@ extern void**             gasnetc_remote_reply_hh;
 #define GASNETC_LAPI_POLL(context) GASNETC_LCHECK(LAPI_Probe(context))
 #endif
 
-typedef void (*gasnetc_handler_fn_t)();  /* prototype for handler function */
-extern gasnetc_handler_fn_t gasnetc_handler[]; /* handler table */
+extern gasneti_handler_fn_t gasnetc_handler[]; /* handler table */
 
 extern void gasnetc_lapi_exchange(void *src, size_t len, void *dest);
 
@@ -95,8 +95,6 @@ typedef enum {
     gasnetc_Long=2,
     gasnetc_AsyncLong=3
 } gasnetc_category_t;
-
-static const char *gasnetc_catname[] = {"Short","Medium","Long","AsyncLong"};
 
 #if GASNETC_USE_INTERRUPTS
 #define GASNETC_MAX_THREAD 20

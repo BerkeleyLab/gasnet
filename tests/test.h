@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2009/01/23 20:38:42 $
- * $Revision: 1.116.6.1 $
+ *     $Date: 2009/05/01 19:57:48 $
+ * $Revision: 1.116.6.2 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -188,7 +188,9 @@ static int _test_rand(int low, int high) {
   if_pf(!_retval) FATALERR(#op": %s(%i)",strerror(_retval), _retval); \
 } while (0)
 
+GASNETI_UNUSED /* not used by every test */
 static char test_section;
+GASNETI_UNUSED /* not used by every test */
 static char test_sections[255];
 
 #define TEST_SECTION_BEGIN()        ((void)(!test_section ? test_section = 'A' : test_section++))
@@ -198,7 +200,7 @@ static char test_sections[255];
 #define TEST_SECTION_PARSE(arg) do {       \
       const char *p = (arg);               \
       char *q = test_sections;             \
-      while (*p) *(q++) = toupper(*(p++)); \
+      while (*p) *(q++) = toupper((int)*(p++)); \
     } while (0)
 
 /* ------------------------------------------------------------------------------------ */
@@ -552,6 +554,7 @@ static void test_createandjoin_pthreads(int numthreads, void *(*start_routine)(v
   } while (0)
 #endif
 
+GASNETI_UNUSED /* test_collinit not used in all tests */
 static int test_collinit = 0;
 #define TEST_COLL_INIT() do {          \
     if (!test_collinit) {              \
@@ -568,7 +571,7 @@ static int test_collinit = 0;
 
 /* ------------------------------------------------------------------------------------ */
 /* standard messages */
-static void TEST_DEBUGPERFORMANCE_WARNING() {
+static void TEST_DEBUGPERFORMANCE_WARNING(void) {
   if (gasnet_mynode() == 0) {
     const char *warning = gasnett_performance_warning_str();
     if (*warning) {
@@ -705,9 +708,14 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
     gasnet_handlerentry_t *mytab = (gasnet_handlerentry_t *)malloc((numentries+2)*sizeof(gasnet_handlerentry_t));
     if (numentries) memcpy(mytab, table, numentries*sizeof(gasnet_handlerentry_t));
     mytab[numentries].index = 0; /* "dont care" index */
-    mytab[numentries].fnptr = (void (*)())_test_seggather;
     mytab[numentries+1].index = 0; /* "dont care" index */
+#if GASNET_USE_STRICT_PROTOTYPES
+    mytab[numentries].fnptr = (void *)_test_seggather;
+    mytab[numentries+1].fnptr = (void *)_test_segbcast;
+#else
+    mytab[numentries].fnptr = (void (*)())_test_seggather;
     mytab[numentries+1].fnptr = (void (*)())_test_segbcast;
+#endif
     /* do regular attach, then setup seg_everything segment */
     GASNET_Safe(result = gasnet_attach(mytab, numentries+2, segsize, minheapoffset));
     _test_seggather_idx = mytab[numentries].index;
@@ -774,7 +782,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING() {
   #define TEST_SIG_INIT()
 #endif
 
-static void TEST_GENERICS_WARNING() {
+static void TEST_GENERICS_WARNING(void) {
   #ifdef TEST_GASNET_H
     if (gasnet_mynode() == 0)
   #endif
@@ -881,9 +889,43 @@ static void _test_init(const char *testname, int reports_performance, int early,
 #define test_init_early(testname, reports_performance, usagestr) \
        _test_init(testname, reports_performance, 1, argc, (const char * const *)argv, usagestr)
 
+#define TEST_BACKTRACE_DECLS()                              \
+  static int test_my_backtrace = 0;                         \
+  static volatile int test_my_backtrace_ran = 0;            \
+  static int test_my_backtrace_fn(int fd) {                 \
+    if (test_my_backtrace_ran != -1) {                      \
+      /* Indicate FAILURE if we were not testing */         \
+      /* So the next available mechanism will run. */       \
+      return 1;                                             \
+    }                                                       \
+    test_my_backtrace_ran = 1;                              \
+    return 0;                                               \
+  }                                                         \
+  gasnett_backtrace_type_t gasnett_backtrace_user = {       \
+    "USER", &test_my_backtrace_fn, 1                        \
+  }
+#define TEST_BACKTRACE_INIT(_exename)                       \
+  /* Only test our backtrace handler if the user is not trying to backtrace */ \
+  if (!gasnett_getenv("GASNET_BACKTRACE")) {                \
+    test_my_backtrace = 1;                                  \
+    gasnett_setenv("GASNET_BACKTRACE_TYPE","USER");         \
+  }                                                         \
+  gasnett_backtrace_init(_exename)
+#define TEST_BACKTRACE() do {                               \
+    if (test_my_backtrace) {                                \
+      test_my_backtrace_ran = -1;                           \
+      gasnett_print_backtrace(STDOUT_FILENO);               \
+      if (test_my_backtrace_ran != 1) {                     \
+        ERR("failed to run user-supplied backtrace code\n");\
+      }                                                     \
+    }                                                       \
+  } while(0)
+  
 
 #define TEST_TRACING_MACROS() do {                                                 \
-  const char *file; unsigned int line;                                             \
+  /* 'file' and 'line' unused in tools-only or when srclines disabled */           \
+  GASNETI_UNUSED const char *file;                                                 \
+  GASNETI_UNUSED unsigned int line;                                                \
   GASNETT_TRACE_GETSOURCELINE(&file, &line);                                       \
   GASNETT_TRACE_SETSOURCELINE(file, line);                                         \
   GASNETT_TRACE_FREEZESOURCELINE();                                                \

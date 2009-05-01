@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2009/05/01 18:12:13 $
- * $Revision: 1.4.2.3 $
+ *     $Date: 2009/05/01 19:57:07 $
+ * $Revision: 1.4.2.4 $
  * Description: GASNet Extended API Implementation for DCMF
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -75,7 +75,7 @@ static void empty_cb(void *arg, DCMF_Error_t *e) {
   ==============
 */
 /* called at startup to check configuration sanity */
-static void gasnete_check_config() {
+static void gasnete_check_config(void) {
   gasneti_check_config_postattach();
 
   gasneti_assert_always(GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD <= gasnet_AMMaxMedium());
@@ -89,7 +89,7 @@ static DCMF_Protocol_t gasnete_dcmf_put_registration;
 static DCMF_Protocol_t gasnete_dcmf_get_registration;
 #endif
 
-extern void gasnete_init() {
+extern void gasnete_init(void) {
   static int firstcall = 1;
   GASNETI_TRACE_PRINTF(C,("gasnete_init()"));
   gasneti_assert(firstcall); /*  make sure we haven't been called before */
@@ -1155,7 +1155,7 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   =========
 */
 
-static void gasnete_dcmfbarrier_init();
+static void gasnete_dcmfbarrier_init(void);
 static void gasnete_dcmfbarrier_notify(int id, int flags);
 static int gasnete_dcmfbarrier_wait(int id, int flags);
 static int gasnete_dcmfbarrier_try(int id, int flags);
@@ -1202,7 +1202,8 @@ static DCMF_Protocol_t named_barrier_registration;
 static int gasnete_allow_hw_barrier;
 
 
-static void gasnete_dcmfbarrier_init() {
+static void gasnete_dcmfbarrier_init(void) {
+
   barrier_splitstate = OUTSIDE_BARRIER;
   
   /* by default assume that if the user provides the anonymous flag on
@@ -1541,7 +1542,7 @@ static gasnet_handlerentry_t const gasnete_handlers[] = {
   { 0, NULL }
 };
 
-extern gasnet_handlerentry_t const *gasnete_get_handlertable() {
+extern gasnet_handlerentry_t const *gasnete_get_handlertable(void) {
   return gasnete_handlers;
 }
 /* ------------------------------------------------------------------------------------ */

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_reqrep.c,v $
- *     $Date: 2007/02/02 22:18:19 $
- * $Revision: 1.37 $
+ *     $Date: 2009/05/01 19:57:24 $
+ * $Revision: 1.37.20.1 $
  * Description: AMMPI Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -38,7 +38,7 @@ static int intpow(int val, int exp) {
 }
 /* ------------------------------------------------------------------------------------ */
 #ifdef WIN32
-  extern int64_t AMMPI_getMicrosecondTimeStamp() {
+  extern int64_t AMMPI_getMicrosecondTimeStamp(void) {
     static int status = -1;
     static double multiplier;
     if (status == -1) { /*  first time run */
@@ -66,7 +66,7 @@ static int intpow(int val, int exp) {
  */
 
 #else /* unknown processor - use generic UNIX call */
-  extern int64_t AMMPI_getMicrosecondTimeStamp() {
+  extern int64_t AMMPI_getMicrosecondTimeStamp(void) {
     int64_t retval;
     struct timeval tv;
     if (gettimeofday(&tv, NULL))
@@ -616,7 +616,9 @@ extern int _AMMPI_ServiceIncomingMessages(ep_t ep, int blockForActivity, int rep
 
     /* we have a real message waiting - get it */
     { ammpi_bufstatus_t* status = &(buf->status); /* the status block for this buffer */
+     #if AMMPI_DEBUG || AMMPI_DEBUG_VERBOSE
       int recvlen;
+     #endif
 
       if_pf (mpistatus.MPI_TAG != ep->name.mpitag) {
         #if AMMPI_DEBUG
@@ -1269,7 +1271,9 @@ extern void AMMPI_DefaultReturnedMsg_Handler(int status, op_t opcode, void *toke
     strcat(argStr, tmp);
   }
   { char temp1[80];
+   #if AMMPI_USE_AMTAGS
     char temp2[80];
+   #endif
     AMMPI_FatalErr("An active message was returned to sender,\n"
              "    and trapped by the default returned message handler (handler 0):\n"
              "Error Code: %s\n"

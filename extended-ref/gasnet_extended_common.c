@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_common.c,v $
- *     $Date: 2009/01/23 20:38:07 $
- * $Revision: 1.2.2.2 $
+ *     $Date: 2009/05/01 19:57:11 $
+ * $Revision: 1.2.2.3 $
  * Description: GASNet Extended API Common code
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -35,7 +35,7 @@ static gasneti_mutex_t threadtable_lock = GASNETI_MUTEX_INITIALIZER;
 #define GASNETI_DEFAULT_MAX_THREADS 1024
 #endif
 
-extern uint64_t gasneti_max_threads() {
+extern uint64_t gasneti_max_threads(void) {
   static uint64_t val = 0;
   if (!val) {
     gasneti_mutex_lock(&threadtable_lock);
@@ -168,7 +168,7 @@ static void gasnete_free_threaddata(gasnete_threaddata_t *thread) {
   static pthread_key_t gasnete_threadless_cleanup;
   static void gasnete_threadless_cleanup_fn(void *);
   static void gasnete_threaddata_cleanup_fn(void *);
-  static void gasnete_threadkey_init() { 
+  static void gasnete_threadkey_init(void) { 
     static int keycreated = 0;
     gasneti_mutex_lock(&threadtable_lock);
     if (!keycreated) {
@@ -274,7 +274,7 @@ static void gasnete_threaddata_cleanup_fn(void *_thread) {
   gasneti_mutex_unlock(&threadtable_lock);
 }
 
-static gasnete_threaddata_t * gasnete_new_threaddata() {
+static gasnete_threaddata_t * gasnete_new_threaddata(void) {
   gasnete_threaddata_t *threaddata = (gasnete_threaddata_t *)gasneti_calloc(1,sizeof(gasnete_threaddata_t));
   int idx;
   uint64_t maxthreads = gasneti_max_threads();
@@ -320,7 +320,7 @@ static gasnete_threaddata_t * gasnete_new_threaddata() {
 /* PURE function (returns same value for a given thread every time) 
 */
 #if GASNETI_CLIENT_THREADS && !defined(gasnete_mythread)
-  extern gasnete_threaddata_t *gasnete_mythread() {
+  extern gasnete_threaddata_t *gasnete_mythread(void) {
     gasnete_threaddata_t *threaddata = gasneti_threadkey_get(gasnete_threaddata);
     GASNETI_STAT_EVENT(C, DYNAMIC_THREADLOOKUP); /* tracing here can cause inf recursion */
     if_pt (threaddata) {

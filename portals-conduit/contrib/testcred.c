@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/contrib/Attic/testcred.c,v $
- *     $Date: 2007/08/26 06:01:26 $
- * $Revision: 1.2 $
+ *     $Date: 2009/05/01 19:57:38 $
+ * $Revision: 1.2.26.1 $
  * Description: GASNet Active Messages performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -124,7 +124,7 @@ static void define_chain_partners(void)
 }
 
 /* nodes form pairs, and only communicate with each other */
-static void define_pairs_partners()
+static void define_pairs_partners(void)
 {
   int start = mynode;
   int msg_count, i, j;
@@ -155,7 +155,7 @@ static void define_pairs_partners()
 }
 
 /* even nodes pair with odd nodes, only even nodes send */
-static void define_oddpoll_partners()
+static void define_oddpoll_partners(void)
 {
   int start = mynode;
   int msg_count, i, j;
@@ -296,7 +296,7 @@ void rotate_partners(void)
   }
 }
 
-void print_header()
+void print_header(void)
 {
   printf("\nc%8s  %4s %4s  %6s  %6s  %12s  %8s  %8s  %8s  %8s  %8s  %8s  %8s  %8s  %8s  %8s\n",
 	 "Index","SNod","RNod","Order","Step","Msg_Length","Time(s)","MB/sec","Msg_Cnt","S_Credit",

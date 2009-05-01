@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testlockcontend.c,v $
- *     $Date: 2008/01/22 11:05:44 $
- * $Revision: 1.4 $
+ *     $Date: 2009/05/01 19:57:48 $
+ * $Revision: 1.4.6.1 $
  * Description: GASNet lock performance test
  *   Measures the overhead associated with contended locks
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -34,7 +34,7 @@ void report(int threads, int64_t totaltime, int iters) {
 }
 
 /* placed in a function to avoid excessive inlining */
-gasnett_tick_t ticktime() { return gasnett_ticks_now(); }
+gasnett_tick_t ticktime(void) { return gasnett_ticks_now(); }
 uint64_t tickcvt(gasnett_tick_t ticks) { return gasnett_ticks_to_ns(ticks); }
 
 void* thread_fn1(void*);

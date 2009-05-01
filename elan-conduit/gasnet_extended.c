@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2009/01/23 20:38:05 $
- * $Revision: 1.84.14.1 $
+ *     $Date: 2009/05/01 19:57:09 $
+ * $Revision: 1.84.14.2 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -9,7 +9,6 @@
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
 #include <gasnet_extended_internal.h>
-#include <gasnet_handler.h>
 #include <elan3/elan3.h> /* for ELAN_POLL_EVENT */
 
 static int gasnete_nbi_throttle = 0;
@@ -130,7 +129,7 @@ extern void gasnetc_new_threaddata_callback(void **core_threadinfo);
   ==============
 */
 /* called at startup to check configuration sanity */
-static void gasnete_check_config() {
+static void gasnete_check_config(void) {
   gasneti_check_config_postattach();
 
   gasneti_assert_always(GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD <= gasnet_AMMaxMedium());
@@ -138,7 +137,7 @@ static void gasnete_check_config() {
   gasneti_assert_always(GASNETI_POWEROFTWO(GASNETE_BARRIERBLOCKING_POLLFREQ));
 }
 
-extern void gasnete_init() {
+extern void gasnete_init(void) {
   static int firstcall = 1;
   int default_nbi_throttle = GASNETE_DEFAULT_NBI_THROTTLE;
   GASNETI_TRACE_PRINTF(C,("gasnete_init()"));
@@ -1374,7 +1373,7 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   Barriers:
   =========
 */
-static void gasnete_elanbarrier_init();
+static void gasnete_elanbarrier_init(void);
 static void gasnete_elanbarrier_notify(int id, int flags);
 static int gasnete_elanbarrier_wait(int id, int flags);
 static int gasnete_elanbarrier_try(int id, int flags);
@@ -1445,7 +1444,7 @@ int gasnete_barrier_poll(void *handle, unsigned int *ready) {
   return 0; /* return 0 => don't delay the elan blocking */
 }
 
-static void gasnete_elanbarrier_init() {
+static void gasnete_elanbarrier_init(void) {
   #ifdef ELAN_VER_1_2
     barrier_state = elan_gallocMain(BASE()->galloc, GROUP(), 64, 6*sizeof(gasnete_barrier_state_t));
   #else
@@ -1638,7 +1637,7 @@ static gasnet_handlerentry_t const gasnete_handlers[] = {
   { 0, NULL }
 };
 
-extern gasnet_handlerentry_t const *gasnete_get_handlertable() {
+extern gasnet_handlerentry_t const *gasnete_get_handlertable(void) {
   return gasnete_handlers;
 }
 

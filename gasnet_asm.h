@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2009/01/23 20:37:53 $
- * $Revision: 1.125.2.1 $
+ *     $Date: 2009/05/01 19:57:02 $
+ * $Revision: 1.125.2.2 $
  * Description: GASNet header for semi-portable inline asm support
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -126,6 +126,81 @@
 
 #ifndef GASNETI_ASM_SPECIAL
   #define GASNETI_ASM_SPECIAL GASNETI_ASM
+#endif
+
+#if PLATFORM_OS_BGP && (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_XLC)
+  /* These helper macros are required because the *_inline.h headers are broken:
+   * + They break __thread support in bgxlc (see bug 2564)
+   * + They use "extern inline" in such a way as to require us to link to a
+   *   specific runtime library even though we don't use anything from it.
+   * Yes, bgxlc does support gnu-style inline asm.
+   * XXX: Note that using gnu-style asm w/ bgxlc in the same source file as
+   *      __thread will trigger bug 2564.  So, we use mc_func instead.
+   */
+
+  /* Read from a Special Purpose Register
+   */
+  #include <cnk/bgp_SPRG_Usage.h>
+  #if PLATFORM_COMPILER_GNU
+    #define GASNETI_BGP_SPR(_out, _regnr) \
+      __asm__ __volatile__("mfspr %0,%1" : "=r" (_out) : "i" (_regnr) : "memory")
+  #elif PLATFORM_COMPILER_XLC
+    static uint32_t _gasneti_bgp_mfsprg4(void);
+    #pragma mc_func _gasneti_bgp_mfsprg4 { "7c6442a6" /* mfsprg r3,4 */ }
+    #pragma reg_killed_by _gasneti_bgp_mfsprg4 /* NONE */
+
+    static uint32_t _gasneti_bgp_mfsprg5(void);
+    #pragma mc_func _gasneti_bgp_mfsprg5 { "7c6542a6" /* mfsprg r3,5 */ }
+    #pragma reg_killed_by _gasneti_bgp_mfsprg5 /* NONE */
+
+    /* Paranoia in case these should change */
+    #if (_BGP_SPRGRO_SHMem != SPRN_SPRG4RO) || \
+        (_BGP_SPRGRO_DST2  != SPRN_SPRG5RO)
+      #error "SPR assignments have changed or moved!"
+    #endif
+
+    #define _gasneti_BGP_SPRGRO_SHMem() _gasneti_bgp_mfsprg4()
+    #define _gasneti_BGP_SPRGRO_DST2()  _gasneti_bgp_mfsprg5()
+    #define GASNETI_BGP_SPR(_out, _name) \
+      ((_out) = _gasneti##_name())
+  #else
+    #error Unsupported compiler
+  #endif
+
+  /* Make a 2-argument bgp-specific syscall.
+   */
+  #include <cnk/bgp_SysCall_Extensions.h>
+  #if PLATFORM_COMPILER_GNU
+    #define _GASNETI_BGP_SYSCALL2(_out, _nr, _arg1, _arg2) do { \
+      register uint32_t _r0 __asm__("r0") = (_nr);              \
+      register uint32_t _r3 __asm__("r3") = (_arg1);            \
+      register uint32_t _r4 __asm__("r4") = (_arg2);            \
+      __asm__ __volatile__("sc"                                 \
+                           : "+r" (_r3)                         \
+                           : "r" (_r0), "r" (_r4), "0" (_r3)    \
+                           : "cc", "memory");                   \
+      (_out) = _r3;                                             \
+    } while(0)
+    #define GASNETI_BGP_SYSCALL2(_out, _name, _arg1, _arg2) \
+      _GASNETI_BGP_SYSCALL2((_out), _BGP_SYSCALL_NR_##_name, (_arg1), (_arg2))
+  #elif PLATFORM_COMPILER_XLC
+    static uint32_t _gasneti_bgp_syscall2(int nr, uint32_t arg1, uint32_t arg2);
+    #pragma mc_func _gasneti_bgp_syscall2 {     \
+      /* ARGS: r3 = nr, r4 = arg1, r5 = arg2 */ \
+      "7c601b78"      /* mr  r0,r3 */           \
+      "7c832378"      /* mr  r3,r4 */           \
+      "7ca42b78"      /* mr  r4,r5 */           \
+      "44000002"      /* sc        */           \
+      /* RETURN in r3 = result of syscall */    \
+    }
+    /* no "#pragma reg_killed_by" -> default to all volatile regs */
+    #define GASNETI_BGP_SYSCALL2(_out, _name, _arg1, _arg2) \
+      ((_out) = _gasneti_bgp_syscall2(_BGP_SYSCALL_NR_##_name, (_arg1), (_arg2)))
+  #else
+    #error Unsupported compiler
+  #endif
+
+  #define GASNETI_HAVE_BGP_INLINES 1
 #endif
 
 #endif /* _GASNET_ASM_H */

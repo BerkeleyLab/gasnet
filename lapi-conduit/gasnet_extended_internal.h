@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2009/01/23 20:38:12 $
- * $Revision: 1.36.2.1 $
+ *     $Date: 2009/05/01 19:57:18 $
+ * $Revision: 1.36.2.2 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,7 +10,6 @@
 #define _GASNET_EXTENDED_INTERNAL_H
 
 #include <gasnet_internal.h>
-#include <gasnet_handler.h>
 
 /* =====================================================================
  * LAPI specific structures

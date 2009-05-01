@@ -15,6 +15,10 @@
 #define GASNETC_DEBUG 0
 #endif
 
+#if GASNET_SEGMENT_EVERYTHING
+    #error "GASNET_SEGMENT_EVERYTHING is not yet supported by portals-conduit"
+#endif
+
 /* set to 1 to compile in Sandia specific Accelerated Portals code */
 #ifndef GASNETC_USE_SANDIA_ACCEL
 #define GASNETC_USE_SANDIA_ACCEL 0
@@ -806,9 +810,7 @@ extern int gasnetc_msg_limit;
 extern uint32_t gasnetc_snd_seqno, gasnetc_rcv_seqno;
 extern uint32_t gasnetc_amseqno;
 
-/* prototype for gasnet handler functions */
-typedef void (*gasnetc_handler_fn_t)();
-extern gasnetc_handler_fn_t gasnetc_handler[]; /* the handler table */
+extern gasneti_handler_fn_t gasnetc_handler[]; /* the handler table */
 
 /* Functions we export to the core and extended API */
 extern int gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset);
@@ -823,7 +825,7 @@ extern void gasnetc_bootstrapBarrier(void);
 extern void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode);
 extern void gasnetc_bootstrapExchange(void *src, size_t len, void *dest);
 extern void gasnetc_init_portals_resources(void);
-extern void gasnetc_portals_exit();
+extern void gasnetc_portals_exit(void);
 extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type);
 extern void gasnetc_event_handler(ptl_event_t *ev);
 extern void gasnetc_ptl_trace_finish(void);
@@ -972,7 +974,7 @@ gasnetc_threaddata_t* gasnetc_new_threaddata(gasnete_threadidx_t idx)
 }
 
 GASNETI_INLINE(gasnetc_sys_poll)
-void gasnetc_sys_poll()
+void gasnetc_sys_poll(void)
 {
   ptl_event_t ev;
   unsigned sys_cnt = 0;
@@ -1075,19 +1077,17 @@ uint32_t gasnetc_new_lid(gasnet_node_t dest)
 #define GASNETC_IF_USE_FIREHOSE(X) if_pt (gasnetc_use_firehose) {X}
 
 #include <firehose.h>
-#if GASNET_DEBUG
-  extern int gasnetc_use_firehose;
-#else
-  /* Always on in an opt build (avoids branches) */
-  #define gasnetc_use_firehose 1
-#endif
+extern int gasnetc_use_firehose;
 extern firehose_info_t gasnetc_firehose_info;
 
 /* A "handle" on a firehose request.
  * Used for compact encoding in the upper match bits
  */
 typedef struct _gasnetc_fh_op_t {
-  const firehose_request_t	*fh[GASNETC_FH_PER_OP]; /* shared w/ freelist's next ptr */
+  firehose_request_t		fh[GASNETC_FH_PER_OP]; /* shared w/ freelist's next ptr */
+#if (GASNETC_FH_PER_OP != 1)
+  int				count;  /* Since might need just local or remote, need a count */
+#endif
   gasnete_opaddr_t		addr;
 } gasnetc_fh_op_t;
 
@@ -1107,7 +1107,10 @@ GASNETI_INLINE(gasnetc_fh_aligned_local_pin)
 gasnetc_fh_op_t *gasnetc_fh_aligned_local_pin(const void* start, size_t len) {
   gasnetc_fh_op_t *op = gasnetc_fh_new();
   size_t ask_bytes = gasnetc_fh_aligned_len(start, len);
-  op->fh[0] = firehose_local_pin((uintptr_t)start, ask_bytes, NULL);
+  (void) firehose_local_pin((uintptr_t)start, ask_bytes, &op->fh[0]);
+#if (GASNETC_FH_PER_OP != 1)
+  op->count++;
+#endif
   return op;
 }
 #endif /* !PLATFORM_OS_CATAMOUNT */

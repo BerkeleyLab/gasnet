@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose.h,v $
- *     $Date: 2008/03/05 23:54:26 $
- * $Revision: 1.20 $
+ *     $Date: 2009/05/01 19:57:32 $
+ * $Revision: 1.20.2.1 $
  * Description: Public Header file
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -279,7 +279,7 @@ firehose_unexport_callback(gasnet_node_t node,
  * initialization, a check is made to make sure each function pointer
  * has been assigned a usable index number.
  */
-extern gasnet_handlerentry_t * firehose_get_handlertable();
+extern gasnet_handlerentry_t * firehose_get_handlertable(void);
 
 /**************************
  * Firehose Initialization

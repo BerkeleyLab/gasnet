@@ -1,6 +1,6 @@
 //   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/sockaddr.h,v $
-//     $Date: 2006/05/15 04:03:24 $
-// $Revision: 1.9 $
+//     $Date: 2009/05/01 19:57:26 $
+// $Revision: 1.9.38.1 $
 // Description: Objects for encapsulating and hashing SockAddr's
 // Copyright 1998, Dan Bonachea
 
@@ -32,7 +32,7 @@ class SockAddr {
     char IPBuffer[25];
 
   public:
-    SockAddr() {
+    SockAddr(void) {
       memset(&addr,'\0',sizeof(sockaddr_in));
     }
     SockAddr(unsigned long IPaddr, unsigned short portnum, short sin_family=AF_INET) {
@@ -86,18 +86,18 @@ class SockAddr {
       memcpy(&(((sockaddr*)&addr)->sa_data), _sa_data, sizeof(((sockaddr*)&addr)->sa_data));
       DEBUGIP(); // makes it easier to see addresses in debugger
     }
-    operator sockaddr*() { return (sockaddr*)&addr; }
-    operator sockaddr_in*() { return &addr; }
-    unsigned long IP() { return ntohl(addr.sin_addr.s_addr); }
-    unsigned short port() { return ntohs(addr.sin_port); }
-    char *IPStr() { 
+    operator sockaddr*(void) { return (sockaddr*)&addr; }
+    operator sockaddr_in*(void) { return &addr; }
+    unsigned long IP(void) { return ntohl(addr.sin_addr.s_addr); }
+    unsigned short port(void) { return ntohs(addr.sin_port); }
+    char *IPStr(void) { 
       // inet_ntoa(((sockaddr_in*)&addr)->sin_addr); // This may screw up transparency
       unsigned char * pdata = (unsigned char *)(((sockaddr*)&addr)->sa_data);
       unsigned int a = pdata[2], b = pdata[3], c = pdata[4], d = pdata[5];
       sprintf(IPBuffer, "%u.%u.%u.%u",a,b,c,d);
       return IPBuffer; 
     }
-    char *FTPStr() { 
+    char *FTPStr(void) { 
       unsigned char * pdata = (unsigned char *)(((sockaddr*)&addr)->sa_data);
       unsigned int a = pdata[2], b = pdata[3], c = pdata[4], d = pdata[5];
       unsigned short prt = port();

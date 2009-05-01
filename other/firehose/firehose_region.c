@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_region.c,v $
- *     $Date: 2009/01/23 20:38:29 $
- * $Revision: 1.37.2.1 $
+ *     $Date: 2009/05/01 19:57:32 $
+ * $Revision: 1.37.2.2 $
  * Description: 
  * Copyright 2004, Paul Hargrove <PHHargrove@lbl.gov>
  * Terms of use are as specified in license.txt
@@ -11,6 +11,8 @@
 #include <gasnet_handler.h>
 
 #ifdef FIREHOSE_REGION
+
+#include <firehose_hash.c> /* For possible inlining */
 
 typedef
 struct _fh_bucket_t {

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/01/23 20:38:12 $
- * $Revision: 1.114.2.1 $
+ *     $Date: 2009/05/01 19:57:18 $
+ * $Revision: 1.114.2.2 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,7 +16,6 @@
  */
 
 #include <gasnet_internal.h>
-#include <gasnet_handler.h>
 #include <gasnet_core_internal.h>
 
 #include <errno.h>
@@ -57,6 +56,10 @@ lapi_handle_t  gasnetc_lapi_context;
 int            gasnetc_max_lapi_uhdr_size;
 unsigned long  gasnetc_max_lapi_data_size = LAPI_MAX_MSG_SZ;
 
+#if 0 /* For debugging */
+static const char *gasnetc_catname[] = {"Short","Medium","Long","AsyncLong"};
+#endif
+
 #if GASNETC_LAPI_RDMA
 
 /* PJRH
@@ -75,8 +78,8 @@ int *gasnetc_lapi_local_target_counters = NULL;
 lapi_cntr_t **gasnetc_lapi_completion_ptrs = NULL;
 lapi_long_t *gasnetc_lapi_target_counter_directory = NULL;
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-extern void gasnete_lapi_setup_nb();
-extern void gasnete_lapi_free_nb();
+extern void gasnete_lapi_setup_nb(void);
+extern void gasnete_lapi_free_nb(void);
 #endif
 /* In case people call exit before attach */
 int gasnetc_lapi_rdma_initialized = 0;
@@ -94,7 +97,7 @@ extern int gasnete_pin_max;
 /* This is the official core AM handler table.  All registered
  * entries go here
  */
-gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS] = { NULL };
+gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS] = { NULL };
 void** gasnetc_remote_req_hh = NULL;
 void** gasnetc_remote_reply_hh = NULL;
 
@@ -137,14 +140,14 @@ gasnetc_uhdr_freelist_t gasnetc_uhdr_freelist;
   ==============
 */
 /* called at startup to check configuration sanity */
-static void gasnetc_check_config() {
+static void gasnetc_check_config(void) {
   gasneti_check_config_preinit();
 
   /* (###) add code to do some sanity checks on the number of nodes, handlers
      * and/or segment sizes */ 
 }
 
-static void gasnetc_bootstrapBarrier() {
+static void gasnetc_bootstrapBarrier(void) {
     /* (###) add code here to implement an external barrier 
        this barrier should not rely on AM or the GASNet API because it's used 
        during bootstrapping before such things are fully functional
@@ -438,7 +441,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
 
 int gasnetc_use_firehose = 0;
 
-void gasnetc_lapi_get_remote_contexts()
+void gasnetc_lapi_get_remote_contexts(void)
 {
   int i,j;
   int rctxts_per_node;
@@ -568,7 +571,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     /*  register handlers */
     { int i;
       for (i = 0; i < GASNETC_MAX_NUMHANDLERS; i++) 
-        gasnetc_handler[i] = (gasnetc_handler_fn_t)&gasneti_defaultAMHandler;
+        gasnetc_handler[i] = (gasneti_handler_fn_t)&gasneti_defaultAMHandler;
     }
     { /*  core API handlers */
 	gasnet_handlerentry_t *ctable = (gasnet_handlerentry_t *)gasnetc_get_handlertable();
@@ -849,7 +852,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 }
     
 #if GASNETC_LAPI_RDMA
-void gasnetc_lapi_free()
+void gasnetc_lapi_free(void)
 {
 #if 0
   int i;
@@ -1076,7 +1079,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
     return GASNET_OK;
 }
 
-extern int gasnetc_AMPoll() {
+extern int gasnetc_AMPoll(void) {
     GASNETI_CHECKATTACH();
 
     /* Check if any request handlers are queued for processing
@@ -1161,7 +1164,7 @@ extern int gasnetc_AMRequestShortM(
     /* Do Loopback check here */
 #if GASNETC_ENABLE_LOOPBACK
     if (dest == gasneti_mynode) {
-	gasnetc_handler_fn_t pfn = gasnetc_handler[handler];
+	gasneti_handler_fn_t pfn = gasnetc_handler[handler];
 	GASNETI_RUN_HANDLER_SHORT(1,handler,pfn,token,&msg->args[0],numargs);
 	GASNETI_RETURN(GASNET_OK);
     }
@@ -1236,7 +1239,7 @@ extern int gasnetc_AMRequestMediumM(
     /* Do Loopback check here */
 #if GASNETC_ENABLE_LOOPBACK
     if (dest == gasneti_mynode) {
-	gasnetc_handler_fn_t pfn = gasnetc_handler[handler];
+	gasneti_handler_fn_t pfn = gasnetc_handler[handler];
 	void *destloc;
 	if (udata_packed) {
 	    destloc = udata_start;
@@ -1314,7 +1317,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
     /* Do Loopback check here */
 #if GASNETC_ENABLE_LOOPBACK
     if (dest == gasneti_mynode) {
-	gasnetc_handler_fn_t pfn = gasnetc_handler[handler];
+	gasneti_handler_fn_t pfn = gasnetc_handler[handler];
 	/* must do local copy of data from source to dest */
 	if_pt(dest_addr != source_addr) memcpy((char*)dest_addr,source_addr,nbytes);
 	GASNETI_RUN_HANDLER_LONG(1,handler,pfn,token,&msg->args[0],numargs,dest_addr,nbytes);
@@ -1393,7 +1396,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     /* Do Loopback check here */
 #if GASNETC_ENABLE_LOOPBACK
     if (dest == gasneti_mynode) {
-	gasnetc_handler_fn_t pfn = gasnetc_handler[handler];
+	gasneti_handler_fn_t pfn = gasnetc_handler[handler];
 	/* must do local copy of data from source to dest */
 	if_pt(dest_addr != source_addr) memcpy((char*)dest_addr,source_addr,nbytes);
 	/* Note: we will deallocate the token below, just to be safe
@@ -1471,7 +1474,7 @@ extern int gasnetc_AMReplyShortM(
 
 #if GASNETC_ENABLE_LOOPBACK
     if (requester == gasneti_mynode) {
-	gasnetc_handler_fn_t pfn = gasnetc_handler[handler];
+	gasneti_handler_fn_t pfn = gasnetc_handler[handler];
 	GASNETI_RUN_HANDLER_SHORT(0,handler,pfn,token,&msg->args[0],numargs);
 	GASNETI_RETURN(GASNET_OK);
     }
@@ -1546,7 +1549,7 @@ extern int gasnetc_AMReplyMediumM(
 
 #if GASNETC_ENABLE_LOOPBACK
     if (requester == gasneti_mynode) {
-	gasnetc_handler_fn_t pfn = gasnetc_handler[handler];
+	gasneti_handler_fn_t pfn = gasnetc_handler[handler];
 	void *destloc;
 	if (nbytes > udata_avail) {
 	    destloc = gasneti_malloc(nbytes > 0 ? nbytes : 1);
@@ -1621,7 +1624,7 @@ extern int gasnetc_AMReplyLongM(
 
 #if GASNETC_ENABLE_LOOPBACK
     if (dest == gasneti_mynode) {
-	gasnetc_handler_fn_t pfn = gasnetc_handler[handler];
+	gasneti_handler_fn_t pfn = gasnetc_handler[handler];
 	/* copy from source to dest, then execute handler */
 	if_pt(dest_addr != source_addr) memcpy((char*)dest_addr,source_addr,nbytes);
 	GASNETI_RUN_HANDLER_LONG(0,handler,pfn,token,&msg->args[0],numargs,dest_addr,nbytes);
@@ -1683,7 +1686,7 @@ extern int gasnetc_AMReplyLongM(
  * ============================================================================
  */
 #if GASNETC_USE_INTERRUPTS
-extern void gasnetc_hold_interrupts() {
+extern void gasnetc_hold_interrupts(void) {
     GASNETI_CHECKATTACH();
 
     /* Check to see of interrupts are already being held */
@@ -1699,7 +1702,7 @@ extern void gasnetc_hold_interrupts() {
     #error interrupts not implemented
     /* add code here to disable handler interrupts for _this_ thread */
 }
-extern void gasnetc_resume_interrupts() {
+extern void gasnetc_resume_interrupts(void) {
     GASNETI_CHECKATTACH();
 
     /* Check to insure that interrupts are being held */
@@ -1845,7 +1848,7 @@ static gasnet_handlerentry_t const gasnetc_handlers[] = {
   { 0, NULL }
 };
 
-gasnet_handlerentry_t const *gasnetc_get_handlertable() {
+gasnet_handlerentry_t const *gasnetc_get_handlertable(void) {
     return gasnetc_handlers;
 }
 
@@ -2008,7 +2011,7 @@ void* gasnetc_lapi_AMreply_hh(lapi_handle_t *context, void *uhdr, uint *uhdr_len
     gasnetc_token_t *new_token;
     unsigned int numargs;
     gasnet_handler_t func_ix = msg->handlerId;
-    gasnetc_handler_fn_t am_func = gasnetc_handler[func_ix];
+    gasneti_handler_fn_t am_func = gasnetc_handler[func_ix];
     gasnet_handlerarg_t *am_args = &msg->args[0];
     int done = 0;
 
@@ -2235,7 +2238,7 @@ void gasnetc_run_handler(gasnetc_token_t *token)
     void *dataptr = (void*)(msg->destLoc);
     size_t datalen = msg->dataLen;
     gasnet_handler_t func_ix = msg->handlerId;
-    gasnetc_handler_fn_t am_func = gasnetc_handler[func_ix];
+    gasneti_handler_fn_t am_func = gasnetc_handler[func_ix];
     gasnet_handlerarg_t *am_args = &msg->args[0];
 
     gasneti_assert(numargs <= GASNETC_AM_MAX_ARGS);

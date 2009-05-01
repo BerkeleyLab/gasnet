@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/Makefile.am,v $
-#     $Date: 2006/06/08 18:31:59 $
-# $Revision: 1.41 $
+#     $Date: 2009/05/01 19:57:26 $
+# $Revision: 1.41.34.1 $
 # Description: Makefile for AMUDP/GASNet 
 # Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -22,8 +22,14 @@ else
   BUILDCONFIG_DEFINES = -DAMUDP_NDEBUG=1
 endif
 
+if USE_STRICT_PROTOTYPES
+  strict_proto_flags = -DGASNET_USE_STRICT_PROTOTYPES
+else
+  strict_proto_flags = 
+endif
+
 CC  = @CC@
-CFLAGS = @CFLAGS@ @MISC_CFLAGS@ $(MANUAL_CFLAGS) $(apputils_flags)
+CFLAGS = @CFLAGS@ @MISC_CFLAGS@ $(MANUAL_CFLAGS) $(apputils_flags) $(strict_proto_flags)
 CXX = @CXX@
 CXXFLAGS = @CXXFLAGS@ @MISC_CXXFLAGS@ $(MANUAL_CXXFLAGS)
 LDFLAGS = @LDFLAGS@ @cxxLDFLAGS@ $(MANUAL_LDFLAGS)

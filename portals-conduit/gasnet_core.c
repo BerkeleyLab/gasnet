@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/01/23 20:38:31 $
- * $Revision: 1.13.6.1 $
+ *     $Date: 2009/05/01 19:57:35 $
+ * $Revision: 1.13.6.2 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -24,7 +24,7 @@ static void gasnetc_atexit(void);
 static void gasnetc_traceoutput(int);
 
 #define GASNETC_MAX_NUMHANDLERS   256
-gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
+gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
 
 uintptr_t gasnetc_segbase, gasnetc_segend;
 
@@ -34,7 +34,7 @@ uintptr_t gasnetc_segbase, gasnetc_segend;
   ==============
 */
 /* called at startup to check configuration sanity */
-static void gasnetc_check_config() {
+static void gasnetc_check_config(void) {
   gasneti_check_config_preinit();
 
   /* (###) add code to do some sanity checks on the number of nodes, handlers
@@ -181,7 +181,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     checkuniqhandler[newindex] = 1;
 
     /* register the handler */
-    gasnetc_handler[(gasnet_handler_t)newindex] = (gasnetc_handler_fn_t)table[i].fnptr;
+    gasnetc_handler[(gasnet_handler_t)newindex] = (gasneti_handler_fn_t)table[i].fnptr;
 
     /* The check below for !table[i].index is redundant and present
      * only to defeat the over-aggressive optimizer in pathcc 2.1
@@ -234,7 +234,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   { int i;
     GASNETI_TRACE_PRINTF(C,("Registering %d default AM Handlers",GASNETC_MAX_NUMHANDLERS));
     for (i = 0; i < GASNETC_MAX_NUMHANDLERS; i++) 
-      gasnetc_handler[i] = (gasnetc_handler_fn_t)&gasneti_defaultAMHandler;
+      gasnetc_handler[i] = (gasneti_handler_fn_t)&gasneti_defaultAMHandler;
   }
   { /*  core API handlers */
     gasnet_handlerentry_t *ctable = (gasnet_handlerentry_t *)gasnetc_get_handlertable();
@@ -308,7 +308,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     /* GASNET_SEGMENT_EVERYTHING */
     segbase = (void *)0;
     segsize = (uintptr_t)-1;
-    gasnetc_segbase = (0;
+    gasnetc_segbase = 0;
     gasnetc_segend = (uintptr_t)-1;
     /* (###) add any code here needed to setup GASNET_SEGMENT_EVERYTHING support */
   #endif
@@ -439,7 +439,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   return GASNET_OK;
 }
 
-extern int gasnetc_AMPoll() {
+extern int gasnetc_AMPoll(void) {
   int retval;
   GASNETI_CHECKATTACH();
 
@@ -904,7 +904,7 @@ extern int gasnetc_AMRequestMediumM(
       } else GASNETC_IF_USE_FIREHOSE (					\
 	gasnetc_fh_op_t *op =						\
 	    	gasnetc_fh_aligned_local_pin(source_addr, nbytes);	\
-	const firehose_request_t *fh_loc = op->fh[0];			\
+	const firehose_request_t *fh_loc = &op->fh[0];			\
 	data_md_h = fh_loc->client;					\
 	data_offset = (uintptr_t)source_addr - fh_loc->addr;		\
 	data_mbits |= ((ptl_match_bits_t)(op->addr.fulladdr) << 32);	\
@@ -1396,7 +1396,7 @@ extern int gasnetc_AMReplyLongM(
       dp_offset = GASNETC_PTL_OFFSET(gasneti_mynode,source_addr);
     } else GASNETC_IF_USE_FIREHOSE (
       gasnetc_fh_op_t *op = gasnetc_fh_aligned_local_pin(source_addr, nbytes);
-      const firehose_request_t *fh_loc = op->fh[0];
+      const firehose_request_t *fh_loc = &op->fh[0];
       dp_md_h = fh_loc->client;
       dp_offset = (uintptr_t)source_addr - fh_loc->addr;
       dp_mbits |= ((ptl_match_bits_t)(op->addr.fulladdr) << 32);
@@ -1452,11 +1452,11 @@ extern int gasnetc_AMReplyLongM(
 */
 #if GASNETC_USE_INTERRUPTS
   #error interrupts not implemented
-  extern void gasnetc_hold_interrupts() {
+  extern void gasnetc_hold_interrupts(void) {
     GASNETI_CHECKATTACH();
     /* add code here to disable handler interrupts for _this_ thread */
   }
-  extern void gasnetc_resume_interrupts() {
+  extern void gasnetc_resume_interrupts(void) {
     GASNETI_CHECKATTACH();
     /* add code here to re-enable handler interrupts for _this_ thread */
   }
@@ -1583,7 +1583,7 @@ static gasnet_handlerentry_t const gasnetc_handlers[] = {
   { 0, NULL }
 };
 
-gasnet_handlerentry_t const *gasnetc_get_handlertable() {
+gasnet_handlerentry_t const *gasnetc_get_handlertable(void) {
   return gasnetc_handlers;
 }
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi.h,v $
- *     $Date: 2007/10/31 05:28:08 $
- * $Revision: 1.42 $
+ *     $Date: 2009/05/01 19:57:24 $
+ * $Revision: 1.42.10.1 $
  * Description: AMMPI Header
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -64,7 +64,11 @@ typedef struct ammpi_ep *ep_t;
 
 /* ------------------------------------------------------------------------------------ */
 /* AMMPI extension types */
+#ifdef GASNET_USE_STRICT_PROTOTYPES
+typedef void *ammpi_handler_fn_t;
+#else
 typedef void (*ammpi_handler_fn_t)();  /* prototype for handler function */
+#endif
 
 typedef enum {
   ammpi_Short=0, 
@@ -315,8 +319,8 @@ extern const ammpi_stats_t AMMPI_initial_stats; /* the "empty" values for counte
 extern int AM_MaxSegLength(uintptr_t* nbytes);
 
 /* System initialization/termination */
-extern int AM_Init();
-extern int AM_Terminate();
+extern int AM_Init(void);
+extern int AM_Terminate(void);
 
 /* endpoint/bundle management */
 extern int AM_AllocateBundle(int type, eb_t *endb);

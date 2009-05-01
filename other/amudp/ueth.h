@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/ueth.h,v $
- *     $Date: 2006/05/23 12:42:29 $
- * $Revision: 1.3 $
+ *     $Date: 2009/05/01 19:57:26 $
+ * $Revision: 1.3.34.1 $
  * Description: UETH interface to ISTORE-specific hardware driver
  * Copyright 2000, Dan Hettena <danielh@cs.berkeley.edu>
  *                 and Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -55,7 +55,7 @@ extern "C" {
 #define	ueth_us_to_ticks(us)	(((us)*800)/3)
 
 /* May be used any time. Return value strictly increases with time. */
-static inline uint64_t ueth_getcputime() {
+static inline uint64_t ueth_getcputime(void) {
   uint64_t result;
   asm volatile("rdtsc" : "=A" (result));
   return result;

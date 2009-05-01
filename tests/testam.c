@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testam.c,v $
- *     $Date: 2009/01/23 20:38:42 $
- * $Revision: 1.26.44.1 $
+ *     $Date: 2009/05/01 19:57:48 $
+ * $Revision: 1.26.44.2 $
  * Description: GASNet Active Messages performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -113,10 +113,10 @@ void pong_longhandler_flood(gasnet_token_t token, void *buf, size_t nbytes) {
 int iters=0;
 int i = 0;
 uintptr_t maxmed, maxlongreq, maxlongrep;
-void doAMShort();
-void doAMMed();
-void doAMLong();
-void doAMLongAsync();
+void doAMShort(void);
+void doAMMed(void);
+void doAMLong(void);
+void doAMLongAsync(void);
 
 int main(int argc, char **argv) {
   gasnet_handlerentry_t htable[] = { 
@@ -185,7 +185,7 @@ int main(int argc, char **argv) {
   return 0;
 }
 /* ------------------------------------------------------------------------------------ */
-void doAMShort() {
+void doAMShort(void) {
     GASNET_BEGIN_FUNCTION();
 
     if (sender) { /* warm-up */
@@ -442,17 +442,17 @@ void doAMShort() {
   #define MEDDEST
   #define LONGDEST , peerseg
 /* ------------------------------------------------------------------------------------ */
-void doAMMed() {
+void doAMMed(void) {
   GASNET_BEGIN_FUNCTION();
   TESTAM_PERF("AMMedium   ",    gasnet_AMRequestMedium0,    hidx_ping_medhandler,  hidx_pong_medhandler,  maxmed, maxmed, MEDDEST);
 }
 /* ------------------------------------------------------------------------------------ */
-void doAMLong() {
+void doAMLong(void) {
   GASNET_BEGIN_FUNCTION();
   TESTAM_PERF("AMLong     ",      gasnet_AMRequestLong0,      hidx_ping_longhandler, hidx_pong_longhandler, maxlongreq, maxlongrep, LONGDEST);
 }
 /* ------------------------------------------------------------------------------------ */
-void doAMLongAsync() {
+void doAMLongAsync(void) {
   GASNET_BEGIN_FUNCTION();
   TESTAM_PERF("AMLongAsync", gasnet_AMRequestLongAsync0, hidx_ping_longhandler, hidx_pong_longhandler, maxlongreq, maxlongrep, LONGDEST);
 }

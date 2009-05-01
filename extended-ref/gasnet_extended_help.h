@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_help.h,v $
- *     $Date: 2009/01/23 20:38:07 $
- * $Revision: 1.48.6.1 $
+ *     $Date: 2009/05/01 19:57:11 $
+ * $Revision: 1.48.6.2 $
  * Description: GASNet Extended API Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -54,7 +54,7 @@ GASNETI_BEGIN_EXTERNC
   typedef uint64_t gasnete_threadidx_t;
 #endif
 /* returns the runtime size of the thread table (always <= GASNETI_MAX_THREADS) */
-extern uint64_t gasneti_max_threads();
+extern uint64_t gasneti_max_threads(void);
 extern void gasneti_fatal_threadoverflow(const char *subsystem);
 
 #ifndef _GASNETE_MYTHREAD
@@ -65,7 +65,7 @@ extern void gasneti_fatal_threadoverflow(const char *subsystem);
     extern struct _gasnete_threaddata_t **gasnete_threadtable;
   #endif
   #if GASNETI_CLIENT_THREADS
-    extern struct _gasnete_threaddata_t *gasnete_mythread() GASNETI_CONST;
+    extern struct _gasnete_threaddata_t *gasnete_mythread(void) GASNETI_CONST;
     GASNETI_CONSTP(gasnete_mythread)
   #else
     #define gasnete_mythread() (gasnete_threadtable[0])
@@ -109,6 +109,7 @@ typedef struct _gasnete_thread_cleanup {
 /* high-water mark on highest thread index allocated thus far */
 extern int gasnete_maxthreadidx;
 #define gasnete_assert_valid_threadid(threadidx) do {   \
+    GASNETI_UNUSED_UNLESS_DEBUG                         \
     int _thid = (threadidx);                            \
     gasneti_assert(_thid <= gasnete_maxthreadidx);      \
     gasneti_assert(gasnete_threadtable[_thid] != NULL); \
@@ -411,7 +412,7 @@ typedef union {
   #define GASNETE_TISTARTOFBITS(ptr,nbytes,ti) GASNETE_STARTOFBITS(ptr,nbytes)
   #define GASNETE_MYTHREAD            ((struct _gasnete_threaddata_t *)_threadinfo)
 #else
-  #define GASNETE_THREAD_FARG_ALONE   
+  #define GASNETE_THREAD_FARG_ALONE   void
   #define GASNETE_THREAD_FARG         
   #define GASNETE_THREAD_GET_ALONE   
   #define GASNETE_THREAD_GET         

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/apputils.h,v $
- *     $Date: 2006/06/06 16:03:32 $
- * $Revision: 1.19 $
+ *     $Date: 2009/05/01 19:57:28 $
+ * $Revision: 1.19.34.1 $
  * Description: AMX Application utilities
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -88,7 +88,6 @@
     if (AMX_SPMDIsWorker(argv)) { /* slave */                                         \
       AM_Safe(AMX_SPMDStartup(&(argc), &(argv), 0, &(networkpid), &(eb), &(ep)));     \
       if ((argc) < (minargs)+1 || (argc) > (maxargs)+1 ) {                                \
-        eb_t eb; ep_t ep; uint64_t networkpid;                                        \
         fprintf(stderr, "Usage: %s %s\n", (argv)[0], (usagestr));                     \
         fflush(stderr);                                                               \
         AMX_SPMDExit(-1);                                                             \
@@ -112,15 +111,15 @@
 /* call first to setup handlers for all app utils */
 void setupUtilHandlers(ep_t activeep, eb_t activeeb);
 
-void printGlobalStats();
+void printGlobalStats(void);
 
 
 #ifdef UETH
   #define getCurrentTimeMicrosec() ueth_getustime()
 #else
-  extern int64_t getCurrentTimeMicrosec();
+  extern int64_t getCurrentTimeMicrosec(void);
 #endif
-extern void outputTimerStats();
+extern void outputTimerStats(void);
 
 #define TEST_32BIT_ONLY() do {                                         \
     if (sizeof(void*) != 4) {                                          \
@@ -138,10 +137,10 @@ uint32_t getWord(int proc, void *addr);
 void putWord(int proc, void *addr, uint32_t val);
 
 void readWord(void *destaddr, int proc, void *addr);
-void readSync();
+void readSync(void);
 
 void writeWord(int proc, void *addr, uint32_t val);
-void writeSync();
+void writeSync(void);
 #else
   #define getWord(a,b)     (AMX_FatalErr("APPUTILS_OMIT_READWRITE violation"),0)
   #define putWord(a,b,c)   AMX_FatalErr("APPUTILS_OMIT_READWRITE violation")

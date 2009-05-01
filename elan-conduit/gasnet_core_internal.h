@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/11/26 03:10:55 $
- * $Revision: 1.42 $
+ *     $Date: 2009/05/01 19:57:09 $
+ * $Revision: 1.42.22.1 $
  * Description: GASNet elan conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,6 +10,7 @@
 #define _GASNET_CORE_INTERNAL_H
 
 #include <gasnet_internal.h>
+#include <gasnet_handler.h>
 
 #if PLATFORM_COMPILER_PGI || PLATFORM_COMPILER_SUN
   /* this workaround enables use of these compilers with the libelan headers */
@@ -303,7 +304,7 @@ void gasnete_evtbin_init(gasnete_evtbin_t *bin, uint16_t sz, ELAN_EVENT **space)
      TODO: does assigning per-thread ELAN_PGCTRL's reduce locking contention in libelan?
    */
   GASNETI_INLINE(gasnetc_next_PGCTRL)
-  ELAN_PGCTRL *gasnetc_next_PGCTRL() {
+  ELAN_PGCTRL *gasnetc_next_PGCTRL(void) {
     int myidx = _gasnete_elan_pgctrl_cur;
     int newidx = myidx+1;
     gasneti_assert(gasnete_elan_pgctrl_cnt);
@@ -414,8 +415,7 @@ typedef struct _gasnetc_bufdesc_t {
 } gasnetc_bufdesc_t;
 
 #define GASNETC_MAX_NUMHANDLERS   256
-typedef void (*gasnetc_handler_fn_t)();  /* prototype for handler function */
-gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
+gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
 
 extern int gasnetc_RequestGeneric(gasnetc_category_t category, 
                          int dest, gasnet_handler_t handler, 
@@ -426,7 +426,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
                          void *source_addr, int nbytes, void *dest_ptr, 
                          int numargs, va_list argptr);
 
-extern void gasnetc_initbufs();
+extern void gasnetc_initbufs(void);
 
 #if GASNETI_CLIENT_THREADS
   #define gasnetc_mythread() ((void**)(gasnete_mythread()))
@@ -436,12 +436,12 @@ extern void gasnetc_initbufs();
 #endif
 
 /* status dumping functions */
-extern void gasnetc_dump_base();
-extern void gasnetc_dump_state();
-extern void gasnetc_dump_group();
-extern void gasnetc_dump_envvars();
-extern void gasnetc_dump_tportstats();
-extern void gasnetc_dump_groupstats();
+extern void gasnetc_dump_base(void);
+extern void gasnetc_dump_state(void);
+extern void gasnetc_dump_group(void);
+extern void gasnetc_dump_envvars(void);
+extern void gasnetc_dump_tportstats(void);
+extern void gasnetc_dump_groupstats(void);
 /* ------------------------------------------------------------------------------------ */
 /* Elan conduit locks:
     elan lock - protects all elan calls and tport rx fifo

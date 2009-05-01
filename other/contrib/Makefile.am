@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/contrib/Makefile.am,v $
-#     $Date: 2009/01/23 20:38:26 $
-# $Revision: 1.19.14.1 $
+#     $Date: 2009/05/01 19:57:30 $
+# $Revision: 1.19.14.2 $
 # Description: Makefile for GASNet other/contrib
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -11,6 +11,7 @@ AUTOMAKE_OPTIONS = foreign 1.4
 SUBDIRS = .
 
 EXTRA_DIST = $(dotpl_DATA) $(vg_DATA) \
+	gasnet_ibrun \
  	cross-configure-bgp \
 	cross-configure-crayxt-catamount \
 	cross-configure-crayxt-linux \
