@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/04/23 21:35:50 $
- * $Revision: 1.71.12.13 $
+ *     $Date: 2009/05/01 18:40:47 $
+ * $Revision: 1.71.12.14 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1636,16 +1636,15 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
         int8_t *scratchspace = (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos;
         /*read memory barrier to ensure that the reading of the data doesn't preceed the flag*/
         gasneti_sync_reads();
-        
+        gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
         /*skip the first slot of the input array since it is destined for me*/
         for(i=0; i<child_count; i++) {
           gasnet_node_t child = children[i];
           if(tree->geom->subtree_sizes[i]==1 && direct_put_ok) {
-            /* if i am sending to a leaf ... put it right where it needs to go */
-            gasnete_coll_p2p_signalling_put(op, children[i], 
-                                            args->dst, 
-                                            gasnete_coll_scale_ptr(scratchspace,(tree->geom->child_offset[i]+1),args->nbytes),
-                                            args->nbytes*tree->geom->subtree_sizes[i], 0, 1);
+            gasnete_put_nbi_bulk(children[i], args->dst, 
+                                 gasnete_coll_scale_ptr(scratchspace,(tree->geom->child_offset[i]+1),args->nbytes), 
+                                 args->nbytes GASNETE_THREAD_PASS);
+          
           } else {
             /*need to stick the data into scratch space*/
             if(op->flags & GASNET_COLL_OUT_ALLSYNC) {
@@ -1666,8 +1665,10 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
           sent_bytes+=tree->geom->subtree_sizes[i]*args->nbytes;
         }
         
+        data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+        gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         
-        /* In the case of Mysync the data is always sent to the scratch space so copy it out*/
+        /* In the case of Mysync or being an intermediate node  the data is always sent to the scratch space so copy it out*/
         GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, scratchspace, args->nbytes);
         
       } else {
@@ -3001,7 +3002,7 @@ static int gasnete_coll_pf_gath_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
         }
       }
      
-  } else {
+    } else {
       GASNETE_FAST_UNALIGNED_MEMCPY(gasnete_coll_scale_ptr(args->dst,op->team->myrank,args->nbytes), 
                                     (int8_t*)args->src, args->nbytes);
     }
