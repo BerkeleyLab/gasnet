@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/05/01 18:38:07 $
- * $Revision: 1.72.10.16 $
+ *     $Date: 2009/05/01 18:43:48 $
+ * $Revision: 1.72.10.17 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -8,10 +8,10 @@
 
 #define GASNET_COLL_TREE_DEBUG 0
 
-/*#define ALL_THREADS_POLL 1*/
 /*having exactly 1 thread poll signifcantly helps performance by avoiding lock contention*/
-#define ALL_THREADS_POLL 0
+/*#define ALL_THREADS_POLL 1*/
 
+#define ALL_THREADS_POLL 0
 
 #include <gasnet_internal.h>
 #include <gasnet_coll.h>
