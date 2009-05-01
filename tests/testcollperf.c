@@ -13,7 +13,6 @@ options that is covered testcoll
 */
 #include "gasnet.h"
 #include "gasnet_coll.h"
-/*test on new branch*/
 
 #define DEFAULT_OUTER_VERIFICATION_ITERS 2
 #define DEFAULT_INNER_VERIFICATION_ITERS 50
