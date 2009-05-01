@@ -1,13 +1,18 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/04/23 21:40:50 $
- * $Revision: 1.72.10.14 $
+ *     $Date: 2009/05/01 18:11:40 $
+ * $Revision: 1.72.10.15 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
 #define GASNET_COLL_TREE_DEBUG 0
+#if GASNET_PAR
+#define ALL_THREADS_POLL 0
+#else
 #define ALL_THREADS_POLL 1
+#endif
+
 #include <gasnet_internal.h>
 #include <gasnet_coll.h>
 #include <gasnet_coll_autotune.h>
@@ -1139,7 +1144,7 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     }
 
     /* setup information for the global team */
-    GASNET_TEAM_ALL = (struct gasnete_coll_team_t_*) gasneti_malloc(sizeof(struct gasnete_coll_team_t_));
+    GASNET_TEAM_ALL = (struct gasnete_coll_team_t_*) gasneti_calloc(1,sizeof(struct gasnete_coll_team_t_));
     GASNET_TEAM_ALL->team_id = 0;
     GASNET_TEAM_ALL->global_team = 1;
     GASNET_TEAM_ALL->tree_geom_cache_head = NULL;

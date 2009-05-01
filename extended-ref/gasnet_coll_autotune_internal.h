@@ -62,7 +62,10 @@ typedef enum {GASNETE_COLL_BROADCAST_PUT=0,
               GASNETE_COLL_BROADCAST_RVOUS,
               GASNETE_COLL_BROADCAST_RVGET,
               GASNETE_COLL_BROADCAST_TREE_RVGET,
+#ifdef GASNETE_COLL_CONDUIT_BROADCAST_OPS
               /*check to see if the conduits have defined any new ops*/
+              GASNETE_COLL_CONDUIT_BROADCAST_OPS ,
+#endif
               GASNETE_COLL_BROADCAST_NUM_ALGS} gasnete_coll_broadcast_alg_types_t;
 
 typedef enum {GASNETE_COLL_BROADCASTM_PUT=0, 
@@ -143,6 +146,29 @@ typedef struct gasnete_coll_allgorithm_t_ {
   
 } gasnete_coll_algorithm_t;
 
+#define GASNETE_COLL_AUTOTUNE_RADIX_ARR_LEN 20
+struct gasnete_coll_autotune_info_t_ {
+  gasnete_coll_tree_type_t bcast_tree_type;
+  gasnete_coll_tree_type_t scatter_tree_type;
+  gasnete_coll_tree_type_t gather_tree_type;
+  
+  size_t gather_all_dissem_limit;
+  size_t exchange_dissem_limit;
+  int exchange_dissem_radix;
+  size_t pipe_seg_size;
+  
+  int warm_iters;
+  int perf_iters;
+	
+	/*array index i tells you what the tree fanout should be for 2^(i-1) < nbytes <= 2^(i) bytes*/
+	int bcast_tree_radix_limits[GASNETE_COLL_AUTOTUNE_RADIX_ARR_LEN];
+  
+  gasnete_coll_algorithm_t *collective_algorithms[GASNET_COLL_NUM_COLL_OPTYPES];
+  gasnete_coll_implementation_t *current_implementations[GASNET_COLL_NUM_COLL_OPTYPES];
+  gasnete_coll_autotune_tree_node_t *decision_tree;
+  gasnet_team_handle_t team;
+};
+
 
 
 
@@ -154,6 +180,11 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t te
 gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type(gasnete_coll_autotune_info_t* autotune_info, 
                                                              gasnet_coll_optype_t op_type, 
                                                              gasnet_node_t root, size_t nbytes, int flags);
+
+
+#ifdef GASNETE_COLL_CONDUIT_COLLECTIVES
+void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* info);
+#endif
 
 gasnete_coll_algorithm_t gasnete_coll_autotune_register_algorithm(gasnet_coll_optype_t optype, 
                                                                   uint32_t syncflags,

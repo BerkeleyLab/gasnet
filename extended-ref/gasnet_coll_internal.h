@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/04/23 21:40:50 $
- * $Revision: 1.53.14.10 $
+ *     $Date: 2009/05/01 18:11:40 $
+ * $Revision: 1.53.14.11 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -294,6 +294,7 @@ struct gasnete_coll_op_t_ {
   GASNETE_COLL_OP_EXTRA
 #endif
 };
+
 
 struct gasnete_coll_seg_interval_t_ {
   uint32_t start;

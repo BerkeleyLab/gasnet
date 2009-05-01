@@ -14,31 +14,10 @@
 #include <../other/myxml/myxml.c>
 
 /*this array is the maximum size of hte log2 array for fanouts*/
-#define GASNETE_COLL_AUTOTUNE_RADIX_ARR_LEN 20
+
 
 #define GASNETE_COLL_PRINT_TIMERS 1
 
-struct gasnete_coll_autotune_info_t_ {
-  gasnete_coll_tree_type_t bcast_tree_type;
-  gasnete_coll_tree_type_t scatter_tree_type;
-  gasnete_coll_tree_type_t gather_tree_type;
-  
-  size_t gather_all_dissem_limit;
-  size_t exchange_dissem_limit;
-  int exchange_dissem_radix;
-  size_t pipe_seg_size;
-  
-  int warm_iters;
-  int perf_iters;
-	
-	/*array index i tells you what the tree fanout should be for 2^(i-1) < nbytes <= 2^(i) bytes*/
-	int bcast_tree_radix_limits[GASNETE_COLL_AUTOTUNE_RADIX_ARR_LEN];
-  
-  gasnete_coll_algorithm_t *collective_algorithms[GASNET_COLL_NUM_COLL_OPTYPES];
-  gasnete_coll_implementation_t *current_implementations[GASNET_COLL_NUM_COLL_OPTYPES];
-  gasnete_coll_autotune_tree_node_t *decision_tree;
-  gasnet_team_handle_t team;
-};
 
 struct gasnet_coll_tuning_iterator_t_{
   uint32_t num_params;
@@ -126,14 +105,14 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
   gasnete_coll_autotune_register_algorithm(GASNET_COLL_BROADCAST_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
                                            GASNET_COLL_DST_IN_SEGMENT | GASNET_COLL_SINGLE,
                                            0, 0, 0,
-                                           0,NULL,gasnete_coll_bcast_Put);
+                                           0,NULL,(void*)gasnete_coll_bcast_Put);
   
   
   info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_GET] = 
   gasnete_coll_autotune_register_algorithm(GASNET_COLL_BROADCAST_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
                                            GASNET_COLL_SRC_IN_SEGMENT | GASNET_COLL_SINGLE, 
                                            0, 0, 0,
-                                           0,NULL,gasnete_coll_bcast_Get);
+                                           0,NULL,(void*)gasnete_coll_bcast_Get);
   
 
     
@@ -142,7 +121,7 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
                                              GASNET_COLL_IN_NOSYNC | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_NOSYNC | GASNET_COLL_OUT_ALLSYNC,
                                              GASNET_COLL_DST_IN_SEGMENT | GASNET_COLL_SINGLE, 
                                              gasnet_AMMaxLongRequest(), 0, 1,
-                                             0, NULL,gasnete_coll_bcast_TreePut);
+                                             0, NULL,(void*)gasnete_coll_bcast_TreePut);
 
 
     info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_PUT_SCRATCH] = 
@@ -150,7 +129,7 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
                                              GASNETE_COLL_EVERY_SYNC_FLAG,
                                              GASNET_COLL_DST_IN_SEGMENT, 
                                              gasnet_AMMaxLongRequest(), 0, 1,
-                                             0,NULL,gasnete_coll_bcast_TreePutScratch);
+                                             0,NULL,(void*)gasnete_coll_bcast_TreePutScratch);
     
     
   {
@@ -164,7 +143,7 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
                                              GASNETE_COLL_EVERY_SYNC_FLAG,
                                              GASNET_COLL_DST_IN_SEGMENT, 
                                              0, 0, 1,
-                                             1,tuning_params,gasnete_coll_bcast_TreePutSeg);
+                                             1,tuning_params,(void*)gasnete_coll_bcast_TreePutSeg);
     
     
   }
@@ -173,7 +152,7 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
   gasnete_coll_autotune_register_algorithm(GASNET_COLL_BROADCAST_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
                                            0, /*works for all flags as long as size is small enough*/ 
                                            gasnete_coll_p2p_eager_min, 0, 0,
-                                           0,NULL,gasnete_coll_bcast_Eager);
+                                           0,NULL,(void*)gasnete_coll_bcast_Eager);
   
     
     info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_EAGER] = 
@@ -181,7 +160,7 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
                                              GASNETE_COLL_EVERY_SYNC_FLAG,
                                              0, /*works for all flags as long as size is small enough*/ 
                                              gasnete_coll_p2p_eager_min,0, 1,
-                                             0,NULL,gasnete_coll_bcast_TreeEager);
+                                             0,NULL,(void*)gasnete_coll_bcast_TreeEager);
     
     
   
@@ -189,13 +168,13 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
   gasnete_coll_autotune_register_algorithm(GASNET_COLL_BROADCAST_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
                                            0, /*works for all flags as long as size is small enough*/ 
                                            0, /*works for all sizes*/ 0, 0,
-                                           0,NULL,gasnete_coll_bcast_RVous);
+                                           0,NULL,(void*)gasnete_coll_bcast_RVous);
   
   info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_RVGET] = 
   gasnete_coll_autotune_register_algorithm(GASNET_COLL_BROADCAST_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
                                            GASNET_COLL_SRC_IN_SEGMENT, 
                                            0, /*works for all sizes*/ 0, 0, 
-                                           0,NULL,gasnete_coll_bcast_RVGet);
+                                           0,NULL,(void*)gasnete_coll_bcast_RVGet);
   
   
 
@@ -205,7 +184,7 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
                                              GASNETE_COLL_EVERY_SYNC_FLAG,
                                              GASNET_COLL_SRC_IN_SEGMENT | GASNET_COLL_DST_IN_SEGMENT, 
                                              0 /*works for all sizes*/, 0, 1,
-                                             0,NULL,gasnete_coll_bcast_TreeRVGet);
+                                             0,NULL,(void*)gasnete_coll_bcast_TreeRVGet);
     
     
   
@@ -325,7 +304,9 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t te
   ret->decision_tree = gasnete_coll_get_autotune_tree_node();
   ret->team = team;
   gasnete_coll_register_collectives(ret);
-  
+#ifdef GASNETE_COLL_CONDUIT_COLLECTIVES
+  gasnete_coll_register_conduit_collectives(ret);
+#endif
   return ret;
 }
 
@@ -780,6 +761,10 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
                                                        GASNET_COLL_BROADCAST_OP, 
                                                        -1,nbytes, flags);
   
+#ifdef GASNETE_COLL_CONDUIT_BROADCAST_OPS
+
+  ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_NUM_ALGS-1].fn_ptr.bcast_fn; 
+#else
   /*for now encode the original decision tree*/
   if ((nbytes <= eager_limit) &&
       (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL))) {
@@ -787,7 +772,7 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
      * the need for passing addresses for _LOCAL
      * Eager is totally AM-based and thus safe regardless of *_IN_SEGMENT
      */
-        ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_EAGER].fn_ptr.bcast_fn; 
+    ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_EAGER].fn_ptr.bcast_fn; 
   } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
     /* run the segmented broadcast code 
      function internally checks synch flags and SINGLE/LOCAL flags
@@ -797,14 +782,14 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
     
     if(nbytes <= gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNET_COLL_BROADCAST_OP, flags)) {
       if (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL)) {
-        ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_PUT_SCRATCH].fn_ptr.bcast_fn;
+        ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_PUT_SCRATCH].fn_ptr.bcast_fn;
       } else {
-        ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_PUT].fn_ptr.bcast_fn;
+        ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_PUT].fn_ptr.bcast_fn;
       }
     } else {
       ret->num_params = 1;
       ret->param_list[0] = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNET_COLL_BROADCAST_OP, flags);  
-      ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_PUT_SEG].fn_ptr.bcast_fn;
+      ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_PUT_SEG].fn_ptr.bcast_fn;
     }
   } else if (flags & GASNET_COLL_SRC_IN_SEGMENT) {
     if (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL)) {
@@ -812,16 +797,17 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
        * The Rendezvous is needed for _LOCAL.
        */
       ret->num_params = 0;
-      ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_RVGET].fn_ptr.bcast_fn;
+      ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_RVGET].fn_ptr.bcast_fn;
     } else {
       ret->num_params = 0;
-      ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_GET].fn_ptr.bcast_fn;
+      ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_GET].fn_ptr.bcast_fn;
     }
   }  else {
     /* If we reach here then neither src nor dst is in-segment */
     ret->num_params = 0;
-    ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_RVOUS].fn_ptr.bcast_fn;
+    ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_RVOUS].fn_ptr.bcast_fn;
   }
+#endif
 
   return ret;
 }
