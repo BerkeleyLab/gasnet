@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/05/07 01:19:04 $
- * $Revision: 1.71.12.15 $
+ *     $Date: 2009/05/07 01:43:52 $
+ * $Revision: 1.71.12.16 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -648,7 +648,7 @@ gasnete_coll_bcast_ScatterAllgather(gasnet_team_handle_t team,
                                            gasnete_coll_tree_init(coll_params->tree_type, 
                                                                   gasnete_coll_image_node(srcimage), team
                                                                   GASNETE_THREAD_PASS), 
-                                           2, coll_params->num_params, coll_params->param_list
+                                           2+team->total_ranks, coll_params->num_params, coll_params->param_list
                                            GASNETE_THREAD_PASS);
 }
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/05/07 01:19:04 $
- * $Revision: 1.72.10.20 $
+ *     $Date: 2009/05/07 01:43:52 $
+ * $Revision: 1.72.10.21 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -4494,11 +4494,16 @@ gasnete_coll_gall_Gath(gasnet_team_handle_t team,
 {
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
-  //gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
-
-  return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,
-                                            &gasnete_coll_pf_gall_Gath, options,
-                                            NULL, gasnete_coll_total_images GASNETE_THREAD_PASS);
+  //  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
+  if(flags & GASNETE_COLL_SUBORDINATE) 
+    return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,
+                                              &gasnete_coll_pf_gall_Gath, options,
+                                              NULL, sequence GASNETE_THREAD_PASS); 
+  else {
+    return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,
+                                              &gasnete_coll_pf_gall_Gath, options,
+                                              NULL, gasnete_coll_total_images GASNETE_THREAD_PASS); 
+  }
 }
 
 extern gasnet_coll_handle_t
