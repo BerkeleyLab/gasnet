@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/05/04 23:50:20 $
- * $Revision: 1.72.10.19 $
+ *     $Date: 2009/05/07 01:19:04 $
+ * $Revision: 1.72.10.20 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2199,12 +2199,12 @@ extern void gasnete_coll_tree_free(gasnete_coll_tree_data_t *tree GASNETE_THREAD
 #ifndef gasnete_coll_broadcast_nb
 #define gasnete_coll_broadcast_nb gasnete_coll_broadcast_nb_default
 #else
-extern gasnet_coll_handle_t
-gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
-                                  void *dst,
-                                  gasnet_image_t srcimage, void *src,
-                                  size_t nbytes, int flags, uint32_t sequence
-                                  GASNETE_THREAD_FARG);
+  extern gasnet_coll_handle_t
+  gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
+                                    void *dst,
+                                    gasnet_image_t srcimage, void *src,
+                                    size_t nbytes, int flags, uint32_t sequence
+                                    GASNETE_THREAD_FARG);
 #endif
 extern gasnet_coll_handle_t
 gasnete_coll_broadcast_nb(gasnet_team_handle_t team,
@@ -4494,7 +4494,7 @@ gasnete_coll_gall_Gath(gasnet_team_handle_t team,
 {
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
-  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
+  //gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
 
   return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,
                                             &gasnete_coll_pf_gall_Gath, options,

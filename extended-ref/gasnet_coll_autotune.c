@@ -130,7 +130,13 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
                                              GASNET_COLL_DST_IN_SEGMENT, 
                                              gasnet_AMMaxLongRequest(), 0, 1,
                                              0,NULL,(void*)gasnete_coll_bcast_TreePutScratch);
-    
+  
+  info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_SCATTERALLGATHER] = 
+  gasnete_coll_autotune_register_algorithm(GASNET_COLL_BROADCAST_OP, 
+                                           GASNETE_COLL_EVERY_SYNC_FLAG,
+                                           GASNET_COLL_DST_IN_SEGMENT, 
+                                           gasnet_AMMaxLongRequest(), info->team->total_ranks, 0,
+                                           0,NULL,(void*)gasnete_coll_bcast_ScatterAllgather);
     
   {
     struct gasnet_coll_tuning_parameter_t tuning_params[1]=
@@ -766,6 +772,8 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
                                                        GASNET_COLL_BROADCAST_OP, 
                                                        -1,nbytes, flags);
   
+  
+
 #ifdef GASNETE_COLL_CONDUIT_BROADCAST_OPS
   if(allow_conduit_collectives) 
     ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_NUM_ALGS-1].fn_ptr.bcast_fn; 
@@ -773,7 +781,7 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
 #endif
     {
   /*for now encode the original decision tree*/
-  if ((nbytes <= eager_limit) &&
+  if ((nbytes <= eager_limit) && 0 &&
       (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL))) {
     /* Small enough for Eager, which will eliminate any barriers for *_MYSYNC and
      * the need for passing addresses for _LOCAL
@@ -786,8 +794,9 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
     */
     /*this should also be part of the spae*/
     /*ret->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_RVGET].fn_ptr.bcast_fn;*/ 
-    
-    if(nbytes <= gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNET_COLL_BROADCAST_OP, flags)) {
+    if((nbytes > team->total_ranks) && ((nbytes % team->total_ranks)==0))         
+      ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_SCATTERALLGATHER].fn_ptr.bcast_fn;
+    else if(nbytes <= gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNET_COLL_BROADCAST_OP, flags)) {
       if (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL)) {
         ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_PUT_SCRATCH].fn_ptr.bcast_fn;
       } else {
@@ -815,7 +824,6 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
     ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_RVOUS].fn_ptr.bcast_fn;
   }
     }
-
     
   return ret;
 }

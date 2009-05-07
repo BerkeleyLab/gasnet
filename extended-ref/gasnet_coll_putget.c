@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/05/01 18:40:47 $
- * $Revision: 1.71.12.14 $
+ *     $Date: 2009/05/07 01:19:04 $
+ * $Revision: 1.71.12.15 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -545,7 +545,112 @@ gasnete_coll_bcast_TreePutSeg(gasnet_team_handle_t team,
                                            GASNETE_THREAD_PASS);
 }
 
+static int gasnete_coll_pf_bcast_ScatterAllgather(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+  gasnete_coll_generic_data_t *data = op->data;
+  gasnete_coll_tree_data_t *tree = data->tree_info;
+  const gasnete_coll_broadcast_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, broadcast);
+  int result =0;
+  static int counter =0;
+  switch (data->state) {
+    case 0:	/* Optional IN barrier */
+      if (!gasnete_coll_generic_all_threads(data) ||
+          !gasnete_coll_generic_insync(data)) {
+        break;
+      }
+      data->state = 1;
+      
+    case 1:	/* Initiate Scatter */
+      if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
+    {
+      gasnet_coll_handle_t *handle;
+      uint8_t *tempspace;
+      size_t seg_size = (args->nbytes)/op->team->total_ranks;
+      int flags = GASNETE_COLL_FORWARD_FLAGS(op->flags);
+      int i;
+     
+      gasneti_assert(args->nbytes % op->team->total_ranks == 0);
+      
+      data->private_data = gasneti_malloc(sizeof(gasnet_coll_handle_t)+seg_size);
+      
+      handle = (gasnet_coll_handle_t*) data->private_data;
 
+      tempspace = ((uint8_t*) data->private_data) + sizeof(gasnet_coll_handle_t); 
+#if !GASNET_SEQ
+      *handle = gasnete_coll_scatter_nb_default(op->team, tempspace, args->srcimage, args->src, seg_size, flags | GASNET_COLL_LOCAL, op->sequence+1 GASNETE_THREAD_PASS);
+#else
+      *handle = gasnete_coll_scatter_nb_default(op->team, tempspace, args->srcnode, args->src, seg_size, flags | GASNET_COLL_LOCAL, op->sequence+1 GASNETE_THREAD_PASS);
+#endif
+      gasnete_coll_save_coll_handle(handle GASNETE_THREAD_PASS);
+    }
+      data->state = 2;
+      
+    case 2:	/* Initiate all gather*/
+      counter++;
+      if(counter % 100000 == 0) gasneti_freezeForDebugger();
+      if (!gasnete_coll_generic_coll_sync((gasnet_coll_handle_t*) data->private_data, 1 GASNETE_THREAD_PASS)) {
+        break;
+      } else {
+        gasnet_coll_handle_t *handle;
+        uint8_t *tempspace;
+        size_t seg_size = (args->nbytes)/op->team->total_ranks;
+        int flags = GASNETE_COLL_FORWARD_FLAGS(op->flags);
+        
+        handle = (gasnet_coll_handle_t*) data->private_data;
+      
+        tempspace = ((uint8_t*) data->private_data) + sizeof(gasnet_coll_handle_t); 
+      
+        *handle = gasnete_coll_gather_all_nb_default(op->team, args->dst, tempspace, seg_size, flags | GASNET_COLL_LOCAL, op->sequence+2 GASNETE_THREAD_PASS);
+        gasnete_coll_save_coll_handle(handle GASNETE_THREAD_PASS);
+
+        data->state = 3;
+      }
+       
+    case 3:
+      
+      if (!gasnete_coll_generic_coll_sync((gasnet_coll_handle_t*) data->private_data, 1 GASNETE_THREAD_PASS)) {
+        break;
+      }
+        data->state =4;
+      
+    case 4:	/* Optional OUT barrier */
+      if (!gasnete_coll_generic_outsync(data)) {
+        break;
+      }
+      
+      gasneti_free(data->private_data);
+      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+  }
+  
+  return result;
+}
+
+
+extern gasnet_coll_handle_t
+gasnete_coll_bcast_ScatterAllgather(gasnet_team_handle_t team,
+                              void * dst,
+                              gasnet_image_t srcimage, void *src,
+                              size_t nbytes, int flags,
+                              gasnete_coll_implementation_t coll_params,
+                              uint32_t sequence
+                              GASNETE_THREAD_FARG)
+{
+  int options = GASNETE_COLL_GENERIC_OPT_INSYNC | GASNETE_COLL_GENERIC_OPT_OUTSYNC;
+  
+  size_t seg_size;
+  uint32_t num_segs;
+  
+//  printf("here!\n");
+  
+  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
+  return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
+                                           &gasnete_coll_pf_bcast_ScatterAllgather, options,
+                                           gasnete_coll_tree_init(coll_params->tree_type, 
+                                                                  gasnete_coll_image_node(srcimage), team
+                                                                  GASNETE_THREAD_PASS), 
+                                           2, coll_params->num_params, coll_params->param_list
+                                           GASNETE_THREAD_PASS);
+}
 
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_broadcastM_nb() */
@@ -4037,12 +4142,12 @@ gasnete_coll_gall_FlatPut(gasnet_team_handle_t team,
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
   
   
-  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
+//  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
   
   return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,
                                             &gasnete_coll_pf_gall_FlatPut, options,
                                             NULL, 
-                                            0 GASNETE_THREAD_PASS);
+                                            sequence GASNETE_THREAD_PASS);
 }
 
 static int gasnete_coll_pf_gall_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
@@ -4153,12 +4258,12 @@ gasnete_coll_gall_Dissem(gasnet_team_handle_t team,
   GASNETE_COLL_GENERIC_OPT_P2P | GASNETE_COLL_USE_SCRATCH;
   
   
-  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
+ // gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
   
   return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,
                                             &gasnete_coll_pf_gall_Dissem, options,
                                             NULL, 
-                                            0 GASNETE_THREAD_PASS);
+                                            sequence GASNETE_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/
