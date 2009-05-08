@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/05/08 20:12:41 $
- * $Revision: 1.71.12.17 $
+ *     $Date: 2009/05/08 21:50:29 $
+ * $Revision: 1.71.12.18 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -4480,12 +4480,12 @@ gasnete_coll_gallM_FlatPut(gasnet_team_handle_t team,
   GASNETE_COLL_GENERIC_OPT_P2P;
   
   
-  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
+
   
   return gasnete_coll_generic_gather_allM_nb(team, dstlist, srclist, nbytes, flags,
                                              &gasnete_coll_pf_gallM_FlatPut, options,
                                              NULL, 
-                                             0 GASNETE_THREAD_PASS);
+                                             sequence GASNETE_THREAD_PASS);
 }
 
 static int gasnete_coll_pf_gallM_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
@@ -4607,12 +4607,13 @@ gasnete_coll_gallM_Dissem(gasnet_team_handle_t team,
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF ((flags & GASNET_COLL_IN_ALLSYNC)) |
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF((flags & GASNET_COLL_OUT_ALLSYNC)) | 
   GASNETE_COLL_GENERIC_OPT_P2P | GASNETE_COLL_USE_SCRATCH;
-  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
   
-  return gasnete_coll_generic_gather_allM_nb(team, dstlist, srclist, nbytes, flags,
-                                             &gasnete_coll_pf_gallM_Dissem, options,
-                                             NULL, 
-                                             0 GASNETE_THREAD_PASS);
+
+
+    return gasnete_coll_generic_gather_allM_nb(team, dstlist, srclist, nbytes, flags,
+                                               &gasnete_coll_pf_gallM_Dissem, options,
+                                               NULL, 
+                                               sequence GASNETE_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/

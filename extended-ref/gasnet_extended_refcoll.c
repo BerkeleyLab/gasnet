@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/05/08 20:12:41 $
- * $Revision: 1.72.10.22 $
+ *     $Date: 2009/05/08 21:50:29 $
+ * $Revision: 1.72.10.23 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -3477,7 +3477,9 @@ gasnete_coll_broadcastM_nb_default(gasnet_team_handle_t team,
      */
     return gasnete_coll_bcastM_TreeEager(team, dstlist, srcimage, src, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
   } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
-    if(nbytes <= gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNET_COLL_BROADCASTM_OP, flags)) {
+    if(flags & GASNET_COLL_SRC_IN_SEGMENT) {
+      return gasnete_coll_bcastM_TreeRVGet(team, dstlist, srcimage, src, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
+    } else if(nbytes <= gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNET_COLL_BROADCASTM_OP, flags)) {
       if (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL)) {
         return gasnete_coll_bcastM_TreePutScratch(team, dstlist, srcimage, src, nbytes, flags, tree_type, sequence GASNETE_THREAD_PASS);
       } else {
@@ -3500,7 +3502,6 @@ gasnete_coll_broadcastM_nb_default(gasnet_team_handle_t team,
     return gasnete_coll_bcastM_RVous(team, dstlist, srcimage, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
   }
 }
-
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_scatter_nb() */
 
@@ -4675,11 +4676,17 @@ gasnete_coll_gallM_Gath(gasnet_team_handle_t team,
 {
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
-  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
-
-  return gasnete_coll_generic_gather_allM_nb(team, dstlist, srclist, nbytes, flags,
-                                             &gasnete_coll_pf_gallM_Gath, options,
-                                             NULL, gasnete_coll_total_images GASNETE_THREAD_PASS);
+  if((flags & GASNETE_COLL_SUBORDINATE)) {
+       return gasnete_coll_generic_gather_allM_nb(team, dstlist, srclist, nbytes, flags,
+                                               &gasnete_coll_pf_gallM_Gath, options,
+                                               NULL, sequence GASNETE_THREAD_PASS);
+ 
+  } else {
+       return gasnete_coll_generic_gather_allM_nb(team, dstlist, srclist, nbytes, flags,
+                                               &gasnete_coll_pf_gallM_Gath, options,
+                                               NULL, gasnete_coll_total_images GASNETE_THREAD_PASS);
+ 
+ }
 }
 
 #if ALL_THREADS_POLL

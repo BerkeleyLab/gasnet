@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/05/07 01:19:04 $
- * $Revision: 1.53.14.13 $
+ *     $Date: 2009/05/08 21:50:29 $
+ * $Revision: 1.53.14.14 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1549,6 +1549,15 @@ gasnete_coll_bcastM_RVGet(gasnet_team_handle_t team,
 			  void * const dstlist[],
 			  gasnet_image_t srcimage, void *src,
 			  size_t nbytes, int flags, uint32_t sequence
+                          GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_bcastM_TreeRVGet(gasnet_team_handle_t team,
+                              void * const dstlist[],
+                              gasnet_image_t srcimage, void *src,
+                              size_t nbytes, int flags, 
+                              gasnete_coll_tree_type_t tree_type,
+                              uint32_t sequence
                           GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
