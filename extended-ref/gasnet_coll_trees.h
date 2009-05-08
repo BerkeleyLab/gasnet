@@ -11,9 +11,19 @@
 #define  GASNETE_COLL_DEFAULT_FANOUT 2
 #define  GASNETE_COLL_DEFAULT_RADIX 2
 
-typedef enum {GASNETE_COLL_NARY_TREE=0,  GASNETE_COLL_FLAT_TREE,
-              GASNETE_COLL_KNOMIAL_TREE, GASNETE_COLL_RECURSIVE_TREE, GASNETE_COLL_FORK_TREE, 
-              GASNETE_COLL_HIERARCHICAL_TREE, GASNETE_COLL_NUM_TREE_CLASSES} gasnete_coll_tree_class_t;
+/*first four are more "traditional"
+ */
+typedef enum {GASNETE_COLL_FLAT_TREE=0, GASNETE_COLL_KNOMIAL_TREE, 
+              GASNETE_COLL_NARY_TREE, GASNETE_COLL_RECURSIVE_TREE, 
+              /*insert PLATFORM INDEPENDANT Tree classes here*/
+              /*the most generic searcher will go through these classes first*/
+              
+              GASNETE_COLL_NUM_PLATFORM_INDEP_TREE_CLASSES,
+              /*insert more specialized trees here*/
+              GASNETE_COLL_FORK_TREE, 
+              GASNETE_COLL_HIERARCHICAL_TREE, GASNETE_COLL_NUM_TREE_CLASSES_TOTAL} gasnete_coll_tree_class_t;
+
+#define GASNETE_COLL_NUM_TREE_CLASSES (GASNETE_COLL_NUM_TREE_CLASSES_TOTAL - 1)
 
 typedef enum  {
   GASNETE_COLL_TREE_RADIX, GASNETE_COLL_TREE_DIMS
@@ -21,7 +31,7 @@ typedef enum  {
 
 struct gasnete_coll_tree_type_t_ {
   gasnete_coll_tree_class_t tree_class;
-  int *params;
+  gasnet_node_t *params;
   int num_params;
   struct gasnete_coll_tree_type_t_ *subtree;
 };

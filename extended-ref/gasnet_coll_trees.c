@@ -679,8 +679,9 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
       temp_offset+=geom->subtree_sizes[i];
     }
   }
-  
+#if 0  
   gasnete_coll_print_tree(geom, gasneti_mynode);
+#endif
   return geom;
 }
 

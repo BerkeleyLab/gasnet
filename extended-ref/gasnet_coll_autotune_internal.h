@@ -70,9 +70,9 @@ typedef enum {GASNETE_COLL_BROADCAST_PUT=0,
               GASNETE_COLL_BROADCAST_NUM_ALGS} gasnete_coll_broadcast_alg_types_t;
 
 typedef enum {GASNETE_COLL_BROADCASTM_PUT=0, 
-  GASNETE_COLL_BROADCASTM_GET,
-  /*check to see if the conduits have defined any new ops*/
-GASNETE_COLL_BROADCASTM_NUM_ALGS} gasnete_coll_broadcastM_alg_types_t;
+              GASNETE_COLL_BROADCASTM_GET,
+              /*check to see if the conduits have defined any new ops*/
+              GASNETE_COLL_BROADCASTM_NUM_ALGS} gasnete_coll_broadcastM_alg_types_t;
 
 typedef enum {GASNETE_COLL_SCATTER_NUM_ALGS=0} gasnete_coll_scatter_alg_types_t;
 typedef enum {GASNETE_COLL_SCATTERM_NUM_ALGS=0} gasnete_coll_scatterM_alg_types_t;
@@ -99,6 +99,7 @@ typedef enum {GASNETE_COLL_EXCHANGEM_NUM_ALGS=0} gasnete_coll_exchangeM_alg_type
 #define GASNET_COLL_TUNING_STRIDE_ADD (1<<0)
 #define GASNET_COLL_TUNING_STRIDE_MULTIPLY (1<<1)
 #define GASNET_COLL_TUNING_SIZE_PARAM (1<<2)
+#define GASNET_COLL_TUNING_TREE_SHAPE (1<<3)
 
 struct gasnet_coll_tuning_parameter_t {
   gasnet_coll_tuning_param_type_t tuning_param;
@@ -187,7 +188,8 @@ gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type(gasnete_coll_autotu
 void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* info);
 #endif
 
-gasnete_coll_algorithm_t gasnete_coll_autotune_register_algorithm(gasnet_coll_optype_t optype, 
+gasnete_coll_algorithm_t gasnete_coll_autotune_register_algorithm(gasnet_team_handle_t team,
+                                                                  gasnet_coll_optype_t optype, 
                                                                   uint32_t syncflags,
                                                                   uint32_t requirements,
                                                                   size_t max_size, size_t min_size,

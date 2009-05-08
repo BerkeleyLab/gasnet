@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/05/07 01:43:52 $
- * $Revision: 1.72.10.21 $
+ *     $Date: 2009/05/08 20:12:41 $
+ * $Revision: 1.72.10.22 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -103,7 +103,7 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
 
   /* XXX: temporary limitation: */
   if(team != GASNET_TEAM_ALL) {
-    gasneti_fatalerror("Team argument must be GASNET_TEAM_ALL.");
+        gasneti_fatalerror("Team argument must be GASNET_TEAM_ALL.");
   }
 
 #if GASNET_DEBUG
