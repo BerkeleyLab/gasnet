@@ -28,7 +28,7 @@ typedef enum {GASNET_COLL_BROADCAST_OP=0,
   GASNET_COLL_NUM_COLL_OPTYPES
 } gasnet_coll_optype_t;
 
-typedef enum {GASNET_COLL_PIPE_SEG_SIZE, GASNET_COLL_DISSEM_RADIX, 
+typedef enum {GASNET_COLL_PIPE_SEG_SIZE, GASNET_COLL_DISSEM_RADIX, GASNET_COLL_TREE_TYPE,
               /*check to see if hte conduit has added any new tuning parameters to this list*/
 #ifdef GASNETE_COLL_CONDUIT_TUNING_PARAMETERS
               GASNETE_COLL_CONDUIT_TUNING_PARAMETERS ,
