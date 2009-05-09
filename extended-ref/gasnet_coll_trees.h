@@ -31,7 +31,7 @@ typedef enum  {
 
 struct gasnete_coll_tree_type_t_ {
   gasnete_coll_tree_class_t tree_class;
-  gasnet_node_t *params;
+  int *params;
   int num_params;
   struct gasnete_coll_tree_type_t_ *subtree;
 };
@@ -41,7 +41,7 @@ struct gasnete_coll_tree_type_t_ {
 int gasnete_coll_compare_tree_types(gasnete_coll_tree_type_t a, gasnete_coll_tree_type_t b);
 
 gasnete_coll_tree_type_t gasnete_coll_make_tree_type_str(char *tree_name_str);
-gasnete_coll_tree_type_t gasnete_coll_make_tree_type(int tree_type, gasnet_node_t *params, int num_params);
+gasnete_coll_tree_type_t gasnete_coll_make_tree_type(int tree_type, int *params, int num_params);
 
 /*ACCESSOR MACROS (all take a gasnete_coll_local_tree_geom_t)*/
 #define GASNETE_COLL_TREE_GEOM_ROOT(GEOM) ((GEOM)->root)

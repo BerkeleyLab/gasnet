@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/05/08 21:50:29 $
- * $Revision: 1.53.14.14 $
+ *     $Date: 2009/05/09 17:06:23 $
+ * $Revision: 1.53.14.15 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1238,16 +1238,8 @@ gasnete_coll_generic_broadcastM_nb(gasnet_team_handle_t team,
                                    gasnet_image_t srcimage, void *src,
                                    size_t nbytes, int flags,
                                    gasnete_coll_poll_fn poll_fn, int options,
-                                   gasnete_coll_tree_data_t *tree_info, uint32_t sequence
-                                   GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_generic_broadcastM_nb_new(gasnet_team_handle_t team,
-                                   void * const dstlist[],
-                                   gasnet_image_t srcimage, void *src,
-                                   size_t nbytes, int flags,
-                                   gasnete_coll_poll_fn poll_fn, int options,
-                                   gasnete_coll_tree_data_t *tree_info, uint32_t sequence
+                                   gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
+                                   int num_params, uint32_t *param_list
                                    GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
@@ -1490,14 +1482,16 @@ extern gasnet_coll_handle_t
 gasnete_coll_bcastM_Get(gasnet_team_handle_t team,
 			void * const dstlist[],
 			gasnet_image_t srcimage, void *src,
-			size_t nbytes, int flags, uint32_t sequence
+			size_t nbytes, int flags, 
+                        gasnete_coll_implementation_t coll_params,
+                        uint32_t sequence
                         GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
 gasnete_coll_bcastM_Put(gasnet_team_handle_t team,
 			void * const dstlist[],
 			gasnet_image_t srcimage, void *src,
-			size_t nbytes, int flags, uint32_t sequence
+			size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
                         GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
@@ -1505,7 +1499,7 @@ gasnete_coll_bcastM_TreePut(gasnet_team_handle_t team,
                             void * const dstlist[],
                             gasnet_image_t srcimage, void *src,
                             size_t nbytes, int flags, 
-                            gasnete_coll_tree_type_t tree_type,    
+                            gasnete_coll_implementation_t coll_params,    
                             uint32_t sequence
                             GASNETE_THREAD_FARG);
 
@@ -1514,7 +1508,7 @@ gasnete_coll_bcastM_TreePutScratch(gasnet_team_handle_t team,
                                    void * const dstlist[],
                                    gasnet_image_t srcimage, void *src,
                                    size_t nbytes, int flags, 
-                                   gasnete_coll_tree_type_t tree_type,    
+                                   gasnete_coll_implementation_t coll_params,    
                                    uint32_t sequence
                                    GASNETE_THREAD_FARG);
 
@@ -1524,15 +1518,25 @@ gasnete_coll_bcastM_TreePutSeg(gasnet_team_handle_t team,
                                void * const dstlist[],
                                gasnet_image_t srcimage, void *src,
                                size_t nbytes, int flags,
-                               gasnete_coll_tree_type_t tree_type,
+                               gasnete_coll_implementation_t coll_params,
                                uint32_t sequence
                                GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_bcastM_ScatterAllgather(gasnet_team_handle_t team,
+                               void * const dstlist[],
+                               gasnet_image_t srcimage, void *src,
+                               size_t nbytes, int flags,
+                               gasnete_coll_implementation_t coll_params,
+                               uint32_t sequence
+                               GASNETE_THREAD_FARG);
+
 
 extern gasnet_coll_handle_t
 gasnete_coll_bcastM_Eager(gasnet_team_handle_t team,
 			  void * const dstlist[],
 			  gasnet_image_t srcimage, void *src,
-			  size_t nbytes, int flags, uint32_t sequence
+			  size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
                           GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
@@ -1540,7 +1544,7 @@ gasnete_coll_bcastM_TreeEager(gasnet_team_handle_t team,
                               void * const dstlist[],
                               gasnet_image_t srcimage, void *src,
                               size_t nbytes, int flags, 
-                              gasnete_coll_tree_type_t tree_type,
+                              gasnete_coll_implementation_t coll_params,
                               uint32_t sequence
                               GASNETE_THREAD_FARG);
 
@@ -1548,7 +1552,7 @@ extern gasnet_coll_handle_t
 gasnete_coll_bcastM_RVGet(gasnet_team_handle_t team,
 			  void * const dstlist[],
 			  gasnet_image_t srcimage, void *src,
-			  size_t nbytes, int flags, uint32_t sequence
+			  size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
                           GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
@@ -1556,7 +1560,7 @@ gasnete_coll_bcastM_TreeRVGet(gasnet_team_handle_t team,
                               void * const dstlist[],
                               gasnet_image_t srcimage, void *src,
                               size_t nbytes, int flags, 
-                              gasnete_coll_tree_type_t tree_type,
+                              gasnete_coll_implementation_t coll_params,
                               uint32_t sequence
                           GASNETE_THREAD_FARG);
 
@@ -1564,7 +1568,7 @@ extern gasnet_coll_handle_t
 gasnete_coll_bcastM_RVous(gasnet_team_handle_t team,
 			  void * const dstlist[],
 			  gasnet_image_t srcimage, void *src,
-			  size_t nbytes, int flags, uint32_t sequence
+			  size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
                           GASNETE_THREAD_FARG);
 
 /*---------------------------------------------------------------------------------*/

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2009/05/08 21:50:29 $
- * $Revision: 1.65.14.6 $
+ *     $Date: 2009/05/09 17:06:24 $
+ * $Revision: 1.65.14.7 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -350,7 +350,7 @@ extern gasnet_coll_handle_t
 gasnete_coll_bcastM_RVGet(gasnet_team_handle_t team,
 			  void * const dstlist[],
 			  gasnet_image_t srcimage, void *src,
-			  size_t nbytes, int flags, uint32_t sequence
+			  size_t nbytes, int flags,  gasnete_coll_implementation_t coll_params, uint32_t sequence
                           GASNETE_THREAD_FARG)
 {
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC)   |
@@ -359,7 +359,7 @@ gasnete_coll_bcastM_RVGet(gasnet_team_handle_t team,
 
   return gasnete_coll_generic_broadcastM_nb(team, dstlist, srcimage, src, nbytes, flags,
 					    &gasnete_coll_pf_bcastM_RVGet, options,
-					    NULL, sequence GASNETE_THREAD_PASS);
+					    NULL, sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
 static int gasnete_coll_pf_bcastM_TreeRVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
@@ -462,7 +462,7 @@ gasnete_coll_bcastM_TreeRVGet(gasnet_team_handle_t team,
                               void * const dstlist[],
                               gasnet_image_t srcimage, void *src,
                               size_t nbytes, int flags, 
-                              gasnete_coll_tree_type_t tree_type,
+                              gasnete_coll_implementation_t coll_params,
                               uint32_t sequence
                               GASNETE_THREAD_FARG) {
   int options = 
@@ -470,10 +470,10 @@ gasnete_coll_bcastM_TreeRVGet(gasnet_team_handle_t team,
 
   return gasnete_coll_generic_broadcastM_nb(team, dstlist, srcimage, src, nbytes, flags,
                                             &gasnete_coll_pf_bcastM_TreeRVGet, options,
-                                            gasnete_coll_tree_init(tree_type, 
+                                            gasnete_coll_tree_init(coll_params->tree_type, 
                                                                    gasnete_coll_image_node(srcimage), team
                                                                    GASNETE_THREAD_PASS),
-                                            sequence GASNETE_THREAD_PASS);
+                                            sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
   
 }
 
@@ -543,7 +543,7 @@ extern gasnet_coll_handle_t
 gasnete_coll_bcastM_RVous(gasnet_team_handle_t team,
 			  void * const dstlist[],
 			  gasnet_image_t srcimage, void *src,
-			  size_t nbytes, int flags, uint32_t sequence
+			  size_t nbytes, int flags,  gasnete_coll_implementation_t coll_params, uint32_t sequence
                           GASNETE_THREAD_FARG)
 {
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF ((flags & GASNET_COLL_IN_ALLSYNC)) |
@@ -552,7 +552,7 @@ gasnete_coll_bcastM_RVous(gasnet_team_handle_t team,
 
   return gasnete_coll_generic_broadcastM_nb(team, dstlist, srcimage, src, nbytes, flags,
 					    &gasnete_coll_pf_bcastM_RVous, options,
-					    NULL, sequence GASNETE_THREAD_PASS);
+					    NULL, sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/

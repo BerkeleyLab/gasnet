@@ -50,8 +50,13 @@ typedef gasnet_coll_handle_t (*gasnete_coll_bcast_fn_ptr_t)(gasnet_team_handle_t
                                             uint32_t sequence
                                             GASNETE_THREAD_FARG);
 
-
-
+typedef gasnet_coll_handle_t (*gasnete_coll_bcastM_fn_ptr_t)(gasnet_team_handle_t team,
+                                                             void * const dstlist[],
+                                                             gasnet_image_t srcimage, void *src,
+                                                             size_t nbytes, int flags, 
+                                                             gasnete_coll_implementation_t coll_params, 
+                                                             uint32_t sequence
+                                                             GASNETE_THREAD_FARG);
 typedef enum {GASNETE_COLL_BROADCAST_PUT=0, 
               GASNETE_COLL_BROADCAST_GET,
               GASNETE_COLL_BROADCAST_TREE_PUT,
@@ -69,8 +74,21 @@ typedef enum {GASNETE_COLL_BROADCAST_PUT=0,
 #endif
               GASNETE_COLL_BROADCAST_NUM_ALGS} gasnete_coll_broadcast_alg_types_t;
 
-typedef enum {GASNETE_COLL_BROADCASTM_PUT=0, 
-              GASNETE_COLL_BROADCASTM_GET,
+typedef enum {GASNETE_COLL_BROADCASTM_GET=0,
+  GASNETE_COLL_BROADCASTM_PUT,
+  GASNETE_COLL_BROADCASTM_TREE_PUT,
+  GASNETE_COLL_BROADCASTM_TREE_PUT_SCRATCH,
+  GASNETE_COLL_BROADCASTM_TREE_PUT_SEG,
+  GASNETE_COLL_BROADCASTM_SCATTERALLGATHER,
+  GASNETE_COLL_BROADCASTM_EAGER,
+  GASNETE_COLL_BROADCASTM_TREE_EAGER,
+  GASNETE_COLL_BROADCASTM_RVOUS,
+  GASNETE_COLL_BROADCASTM_RVGET,
+  GASNETE_COLL_BROADCASTM_TREE_RVGET,
+#ifdef GASNETE_COLL_CONDUIT_BROADCASTM_OPS
+  /*check to see if the conduits have defined any new ops*/
+  GASNETE_COLL_CONDUIT_BROADCASTM_OPS ,
+#endif
               /*check to see if the conduits have defined any new ops*/
               GASNETE_COLL_BROADCASTM_NUM_ALGS} gasnete_coll_broadcastM_alg_types_t;
 
@@ -144,6 +162,7 @@ typedef struct gasnete_coll_allgorithm_t_ {
   union {
     void *generic_coll_fn_ptr;
     gasnete_coll_bcast_fn_ptr_t bcast_fn;
+    gasnete_coll_bcastM_fn_ptr_t bcastM_fn;
   } fn_ptr;
   
 } gasnete_coll_algorithm_t;

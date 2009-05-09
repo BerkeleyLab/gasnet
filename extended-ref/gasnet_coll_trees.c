@@ -126,7 +126,7 @@ gasnete_coll_tree_type_t gasnete_coll_make_tree_type_str(char *tree_name_str) {
   return ret;
 }
 
-gasnete_coll_tree_type_t gasnete_coll_make_tree_type(int tree_class,  gasnet_node_t *params, int num_params) {
+gasnete_coll_tree_type_t gasnete_coll_make_tree_type(int tree_class,  int *params, int num_params) {
   gasnete_coll_tree_type_t ret= gasnete_coll_get_tree_type();
   
   
