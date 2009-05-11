@@ -207,106 +207,7 @@ void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_a
   }
   /*******************END BROADCAST***************/
   
-#if 0 
-  /*************** SCATTER *****************/
-  current_parent_node = myxml_createNode(addr_mode_node, (char*) "collective", (char *) "val", (char*) "scatter", NULL);
-  
-  num_tree_classes = gasnet_coll_get_num_tree_classes(GASNET_TEAM_ALL, GASNET_COLL_SCATTER_OP);
-  temp_node = current_parent_node;
-  
-  for(s=1; s<=max_data_size; s*=2) {
-    current_parent_node = myxml_createNodeInt(temp_node, (char*) "size", (char *) "start", s, NULL);
-    myxml_addAttributeInt(current_parent_node, (char*) "end", (s == max_data_size ? 1<<31 : (s*2)-1));
-    best_time = GASNETT_TICK_MAX;
-    for(c=0; c<num_tree_classes; c++) {
-      for(f = 2; f<=THREADS; f*=2) {
-        gasnet_coll_set_tree_kind(GASNET_TEAM_ALL, c, f, GASNET_COLL_SCATTER_OP);
-        COLL_BARRIER();
-        /*first do a few warmup iterations*/
-        if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
-        for(i =0; i<warm_iters; i++) {
-          gasnet_coll_scatter(GASNET_TEAM_ALL, dst, root_thread, src, sizeof(int)*s, flags);
-        }
-        if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
-        
-        COLL_BARRIER();
-        begin = gasnett_ticks_now();
-        if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
-        for(i=0; i<performance_iters; i++) { 
-          gasnet_coll_scatter(GASNET_TEAM_ALL, dst, root_thread, src, sizeof(int)*s, flags);
-        }
-        if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
-        end =  gasnett_ticks_now() - begin;
-        COLL_BARRIER();
-        if(td->mythread == 0) {
-          if(end < best_time) {
-            best_time = end;
-            best_tree = c;
-            best_fanout = f;
-          }
-        }
-        COLL_BARRIER();
-      }
-    }
-    sprintf(buffer, "%d", best_tree);
-    myxml_createNode(current_parent_node, (char*) "Best_Tree_Class", NULL, NULL, buffer);
-    sprintf(buffer, "%d", best_fanout);
-    myxml_createNode(current_parent_node, (char*) "Best_Fanout", NULL, NULL, buffer);
-    sprintf(buffer, "%g us", ((double) gasnett_ticks_to_us(best_time))/performance_iters);
-    myxml_createNode(current_parent_node, (char*) "Best_Time", NULL, NULL, buffer);
-  }
-  /*******************END SCATTER***************/
-  
-  /*************** GATHER *****************/
-  current_parent_node = myxml_createNode(addr_mode_node, (char*) "collective", (char *) "val", (char*) "gather", NULL);
-  
-  num_tree_classes = gasnet_coll_get_num_tree_classes(GASNET_TEAM_ALL, GASNET_COLL_GATHER_OP);
-  temp_node = current_parent_node;
-  
-  //  for(s=1; s<=max_data_size; s*=2) {
-  for(s=32; s<=32; s*=2) {
-    current_parent_node = myxml_createNodeInt(temp_node, (char*) "size", (char *) "start", s, NULL);
-    myxml_addAttributeInt(current_parent_node, (char*) "end", (s == max_data_size ? 1<<31 : (s*2)-1));
-    best_time = GASNETT_TICK_MAX;
-    for(c=0; c<num_tree_classes; c++) {
-      for(f = 2; f<=THREADS; f*=2) {
-        gasnet_coll_set_tree_kind(GASNET_TEAM_ALL, c, f, GASNET_COLL_GATHER_OP);
-        COLL_BARRIER();
-        /*first do a few warmup iterations*/
-        if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
-        for(i =0; i<warm_iters; i++) {
-          gasnet_coll_gather(GASNET_TEAM_ALL, root_thread, dst, src, sizeof(int)*s, flags);
-        }
-        if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
-        
-        COLL_BARRIER();
-        begin = gasnett_ticks_now();
-        if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
-        for(i=0; i<performance_iters; i++) { 
-          gasnet_coll_gather(GASNET_TEAM_ALL, root_thread, dst, src, sizeof(int)*s, flags);
-        }
-        if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
-        end =  gasnett_ticks_now() - begin;
-        COLL_BARRIER();
-        if(td->mythread == 0) {
-          if(end < best_time) {
-            best_time = end;
-            best_tree = c;
-            best_fanout = f;
-          }
-        }
-        COLL_BARRIER();
-      }
-    }
-    sprintf(buffer, "%d", best_tree);
-    myxml_createNode(current_parent_node, (char*) "Best_Tree_Class", NULL, NULL, buffer);
-    sprintf(buffer, "%d", best_fanout);
-    myxml_createNode(current_parent_node, (char*) "Best_Fanout", NULL, NULL, buffer);
-    sprintf(buffer, "%g us", ((double) gasnett_ticks_to_us(best_time))/performance_iters);
-    myxml_createNode(current_parent_node, (char*) "Best_Time", NULL, NULL, buffer);
-  }
-  /*******************END GATHER***************/
-#endif 
+
 }
 
 
@@ -357,7 +258,7 @@ void *thread_main(void *arg) {
     default: continue;
     }
     
-   
+
     sync_node = myxml_createNode(temp, (char*)"sync_mode", (char*)"val", fill_flag_str(flags, buffer), NULL);
     /*do single addr tests*/
  
@@ -366,7 +267,7 @@ void *thread_main(void *arg) {
     if(threads_per_node == 1) {
       test_root = myxml_createNode(sync_node, (char*)"num_addrs", (char*) "val", (char*)"single", NULL);
       /*call the single address (coll single) test routines with testroot*/
-      run_SINGLE_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_SINGLE, test_root);
+      // run_SINGLE_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_SINGLE, test_root);
     } else {
       if(td->mythread == 0 && !skip_msg_printed) MSG0("skipping SINGLE/SINGLE (multiple threads per node)");
     }
@@ -376,7 +277,7 @@ void *thread_main(void *arg) {
     skip_msg_printed = 1;
     test_root = myxml_createNode(sync_node,(char*)"num_addrs", (char*)"val", (char*)"single", NULL);
     /*call the single address (coll local) test routines with testroot*/
-    run_SINGLE_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_LOCAL, test_root);
+    // run_SINGLE_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_LOCAL, test_root);
     
     /*do multi addr tests*/
     test_root = myxml_createNode(sync_node,(char*)"num_addrs", (char*)"val", (char*)"multi", NULL);
@@ -390,7 +291,7 @@ void *thread_main(void *arg) {
 
   
 
-  
+  MSG0("starting dump of tuning data");
   if(td->mythread == 0){ 
     FILE *outstream=fopen(outputfile, "w");
     myxml_printTreeBIN(outstream, tuning_root);
@@ -399,6 +300,7 @@ void *thread_main(void *arg) {
     fflush(stdout);
     fflush(stdout);
   }
+  MSG0("tunign data dumped");
       
 
   COLL_BARRIER();
