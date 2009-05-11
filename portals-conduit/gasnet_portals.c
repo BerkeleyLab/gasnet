@@ -40,9 +40,8 @@
 #endif
 
 /* set to one for ReqRB Auto Unlink
- * Not advised since unlink event may be reaped so late that all
- * receive buffers are filled and overflow before the first
- * unlink event is seen.  Manual unlink seems to be the best option.
+ * We used to prefer Manual unlink, until bug 2461 revealed that it
+ * was flawed.  Now AUTO_UNLINK is the only safe option.
  */
 #define GASNETC_REQRB_AUTO_UNLINK 1
 #define GASNETC_REQRB_UNLINK_VERBOSE 0
@@ -1356,7 +1355,7 @@ static void ReqRB_event(ptl_event_t *ev)
   uint8_t msg_type, amflag, numarg, ghandler;
   gasnetc_PtlBuffer_t *bufptr = ReqRB_getbuf((uintptr_t)ev->md.start);
 
-  /* increment ref counter on this buffer, atomic w.r.t.  */
+  /* increment ref counter on this buffer, atomic w.r.t. poll of the AM_EQ */
   if (ev->mlength && (ev->type == PTL_EVENT_PUT_END)) GASNETC_REQRB_START(bufptr);
   gasneti_mutex_unlock(&gasnetc_AM_EQ->lock);
 
@@ -1376,8 +1375,6 @@ static void ReqRB_event(ptl_event_t *ev)
 
   switch (ev->type) {
   case PTL_EVENT_PUT_END:
-//fprintf(stderr, "%d> PUT_END %p  link = %u  offset = %u  mlength = %u  remain = %u  ctr = %d\n", gasneti_mynode, bufptr, ev->link, (unsigned)ev->offset, (unsigned)ev->mlength, (unsigned)(ev->md.length - (ev->offset + ev->mlength)), gasneti_weakatomic_read(&bufptr->threads_active,0));
-
     if (amflag & GASNETC_PTL_AM_SHORT) {
       exec_amshort_handler(1,ev,numarg,ghandler);
     } else if (amflag & GASNETC_PTL_AM_MEDIUM) {
@@ -1444,7 +1441,6 @@ static void ReqRB_event(ptl_event_t *ev)
     break;
 
   case PTL_EVENT_UNLINK:
-//fprintf(stderr, "%d> UNLINK %p\n", gasneti_mynode, bufptr);
     /* buffer was auto-unlinked, refresh and relink at end of buffer list. */
 
 #if GASNETC_REQRB_UNLINK_VERBOSE
