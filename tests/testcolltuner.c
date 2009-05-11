@@ -90,7 +90,7 @@ char* fill_flag_str(int flags, char *outstr) {
 }
 
 
-void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr,  int root_thread, int in_flags, myxml_node_t *root_xml_node) {
+void run_MULTI_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr,  int root_thread, int in_flags, myxml_node_t *root_xml_node) {
   int s, c, i, f;
   myxml_node_t *addr_mode_node, *current_parent_node = root_xml_node, *temp_node= NULL;
   int *src, *dst;
@@ -116,10 +116,9 @@ void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_a
   
 
 
-  /*************** BROADCAST *****************/
-  current_parent_node = myxml_createNode(addr_mode_node, (char*) "collective", (char *) "val", (char*) "broadcast", NULL);
+  /*************** BROADCASTM *****************/
+  current_parent_node = myxml_createNode(addr_mode_node, (char*) "collective", (char *) "val", (char*) "broadcastM", NULL);
   
-  num_tree_classes = gasnet_coll_get_num_tree_classes(GASNET_TEAM_ALL, GASNET_COLL_BROADCAST_OP);
   temp_node = current_parent_node;
   
    for(s=1; s<=max_data_size; s*=2) {
@@ -132,7 +131,7 @@ void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_a
     myxml_addAttributeInt(current_parent_node, (char*) "end", (s == max_data_size ? 1<<31 : (s*2)-1));
     
     /*run the gasnet tuner and report back the results!*/
-    ganset_coll_tune_generic_op(GASNET_TEAM_ALL, GASNET_COLL_BROADCAST_OP, (uint8_t**) &dst, (uint8_t**) &src, root_thread, flags, sizeof(int)*s,
+    ganset_coll_tune_generic_op(GASNET_TEAM_ALL, GASNET_COLL_BROADCASTM_OP, dst_arr, src_arr, root_thread, flags, sizeof(int)*s,
                                 NULL, NULL, &best_alg, &num_params, &param_list);
 
     sprintf(buffer, "%d", best_alg);
@@ -146,8 +145,68 @@ void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_a
       myxml_createNode(current_parent_node, buff_idx, NULL, NULL, buffer);
     }
   }
-  /*******************END BROADCAST***************/
+  /*******************END BROADCASTM***************/
 
+}
+
+void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr,  int root_thread, int in_flags, myxml_node_t *root_xml_node) {
+  int s, c, i, f;
+  myxml_node_t *addr_mode_node, *current_parent_node = root_xml_node, *temp_node= NULL;
+  int *src, *dst;
+  int num_tree_classes;
+  int num_fanouts; 
+  int best_tree; 
+  int best_fanout;
+  gasnett_tick_t begin,end;
+  gasnett_tick_t best_time;
+  char buffer[50];
+  
+  int flags = in_flags | GASNET_COLL_SRC_IN_SEGMENT|GASNET_COLL_DST_IN_SEGMENT;
+  
+  if(in_flags & GASNET_COLL_SINGLE) { /*whether or not each node presents one address that is valid for all nodes*/
+    addr_mode_node = myxml_createNode(root_xml_node, (char *)"address_mode", (char*) "val", (char*) "single", NULL);
+    src = (int*) src_arr[0];
+    dst = (int*) dst_arr[0];
+  } else { /*each node only gives address that are only valid on the local node*/
+    addr_mode_node = myxml_createNode(root_xml_node, (char*) "address_mode", (char*) "val", (char*) "local", NULL);
+    src = (int*) td->mysrc;
+    dst= (int*) td->mydest;
+  }
+  
+  
+  
+  /*************** BROADCAST *****************/
+  current_parent_node = myxml_createNode(addr_mode_node, (char*) "collective", (char *) "val", (char*) "broadcast", NULL);
+  
+  num_tree_classes = gasnet_coll_get_num_tree_classes(GASNET_TEAM_ALL, GASNET_COLL_BROADCAST_OP);
+  temp_node = current_parent_node;
+  
+  for(s=1; s<=max_data_size; s*=2) {
+    uint32_t best_alg;
+    uint32_t num_params;
+    uint32_t *param_list;
+    MSG0("starting test: %s %d bytes", fill_flag_str(flags, buffer), (int)sizeof(int)*s);
+    
+    current_parent_node = myxml_createNodeInt(temp_node, (char*) "size", (char *) "start", s, NULL);
+    myxml_addAttributeInt(current_parent_node, (char*) "end", (s == max_data_size ? 1<<31 : (s*2)-1));
+    
+    /*run the gasnet tuner and report back the results!*/
+    ganset_coll_tune_generic_op(GASNET_TEAM_ALL, GASNET_COLL_BROADCAST_OP, (uint8_t**) &dst, (uint8_t**) &src, root_thread, flags, sizeof(int)*s,
+                                NULL, NULL, &best_alg, &num_params, &param_list);
+    
+    sprintf(buffer, "%d", best_alg);
+    myxml_createNode(current_parent_node, (char*) "Best_Alg", NULL, NULL, buffer);
+    sprintf(buffer, "%d", num_params);
+    myxml_createNode(current_parent_node, (char*) "Num_Params", NULL, NULL, buffer);
+    for(c=0; c<num_params; c++) {
+      char buff_idx[20];
+      sprintf(buff_idx, "param_%d", c);
+      sprintf(buffer, "%d", param_list[c]);
+      myxml_createNode(current_parent_node, buff_idx, NULL, NULL, buffer);
+    }
+  }
+  /*******************END BROADCAST***************/
+  
 #if 0 
   /*************** SCATTER *****************/
   current_parent_node = myxml_createNode(addr_mode_node, (char*) "collective", (char *) "val", (char*) "scatter", NULL);
@@ -197,15 +256,15 @@ void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_a
     myxml_createNode(current_parent_node, (char*) "Best_Time", NULL, NULL, buffer);
   }
   /*******************END SCATTER***************/
-
+  
   /*************** GATHER *****************/
   current_parent_node = myxml_createNode(addr_mode_node, (char*) "collective", (char *) "val", (char*) "gather", NULL);
   
   num_tree_classes = gasnet_coll_get_num_tree_classes(GASNET_TEAM_ALL, GASNET_COLL_GATHER_OP);
   temp_node = current_parent_node;
   
-//  for(s=1; s<=max_data_size; s*=2) {
-    for(s=32; s<=32; s*=2) {
+  //  for(s=1; s<=max_data_size; s*=2) {
+  for(s=32; s<=32; s*=2) {
     current_parent_node = myxml_createNodeInt(temp_node, (char*) "size", (char *) "start", s, NULL);
     myxml_addAttributeInt(current_parent_node, (char*) "end", (s == max_data_size ? 1<<31 : (s*2)-1));
     best_time = GASNETT_TICK_MAX;
@@ -249,6 +308,7 @@ void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_a
   /*******************END GATHER***************/
 #endif 
 }
+
 
 
 void *thread_main(void *arg) {
@@ -321,7 +381,10 @@ void *thread_main(void *arg) {
     /*do multi addr tests*/
     test_root = myxml_createNode(sync_node,(char*)"num_addrs", (char*)"val", (char*)"multi", NULL);
     /*call the multi address test (coll single) routines with testroot*/
+    run_MULTI_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_SINGLE, test_root);
     /*call the multi address test (coll local) routines with testroot*/
+    run_MULTI_tree_tests(td, my_dsts, my_srcs, 0, flags | GASNET_COLL_LOCAL, test_root);
+
   }
 
 
