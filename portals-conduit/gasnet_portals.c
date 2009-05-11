@@ -947,8 +947,6 @@ static gasnetc_PtlBuffer_t* ReqRB_getbuf(uintptr_t start_addr)
 /* ---------------------------------------------------------------------------------
  * This function is called when a Request Receive Buffer needs to be refreshed
  * and placed on the match list just before the catch-basin buffer.
- * The start_addr is the starting address of the memory buffer.  We use this
- * to determine which ReqRB from the pool needs to be re-cycled
  * --------------------------------------------------------------------------------- */
 static void ReqRB_refresh(gasnetc_PtlBuffer_t *p)
 {
@@ -961,11 +959,9 @@ static void ReqRB_refresh(gasnetc_PtlBuffer_t *p)
    * re-threading back onto ME list.  
    */
   if_pf (GASNETC_REQRB_BUSY(p)) {
-//uint64_t start = gasneti_ticks_now();
-//int ctr = gasneti_weakatomic_read(&p->threads_active, 0);
-//fprintf(stderr, "%d> BUSY %p %u\n", gasneti_mynode, p, ctr);
+    GASNETC_TRACE_WAIT_BEGIN();
     while(GASNETC_REQRB_BUSY(p)) gasneti_sched_yield();
-//fprintf(stderr, "%d> UNBUSY %p %lu\n", gasneti_mynode, p, (unsigned long)gasneti_ticks_to_ns(gasneti_ticks_now() - start));
+    GASNETC_TRACE_WAIT_END(REFRESH_STALL);
   }
 
   ReqRB_Attach(p);
@@ -4240,8 +4236,6 @@ void gasnetc_portalsSignalHandler(int sig) {
 /* Firehose bits */
 
 #if GASNETI_STATS_OR_TRACE
-  #define GASNETC_TRACE_WAIT_BEGIN() \
-    gasneti_tick_t _waitstart = GASNETI_TICKS_NOW_IFENABLED(C)
   #define GASNETC_TRACE_MR(_event, _verb, _region) do {                  \
 	const firehose_region_t *_reg = (_region);                       \
 	int _pages = (int)(_reg->len/GASNET_PAGESIZE);                   \
@@ -4253,13 +4247,9 @@ void gasnetc_portalsSignalHandler(int sig) {
   #define GASNETC_TRACE_PIN(_region)	GASNETC_TRACE_MR(FIREHOSE_PIN, pin, (_region))
   #define GASNETC_TRACE_UNPIN(_region)	GASNETC_TRACE_MR(FIREHOSE_UNPIN, unpin, (_region))
 #else
-  #define GASNETC_TRACE_WAIT_BEGIN() \
-    static char _dummy = (char)sizeof(_dummy)
   #define GASNETC_TRACE_PIN(_region) 	((void)0)
   #define GASNETC_TRACE_UNPIN(_region) 	((void)0)
 #endif
-#define GASNETC_TRACE_WAIT_END(name) \
-  GASNETI_TRACE_EVENT_TIME(C,name,gasneti_ticks_now() - _waitstart)
 
 /* XXX: Could/should use PtlMDUpdate?  When I tried PTL_EQ_NONE was flagged as invalid */
 extern int

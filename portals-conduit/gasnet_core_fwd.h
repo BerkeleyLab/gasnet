@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2008/11/06 16:01:35 $
- * $Revision: 1.14 $
+ *     $Date: 2009/05/11 18:26:38 $
+ * $Revision: 1.14.12.1 $
  * Description: GASNet header for PORTALS conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -81,6 +81,7 @@
 	CNT(C, LONG_RAR, count)                 \
 	CNT(C, LONG_TMPMD, count)               \
 	GASNETC_FIREHOSE_STATS(CNT,VAL,TIME)	\
+        TIME(C, REFRESH_STALL, stalled time)    \
         VAL(C, EVENT_REAP, numreaped)
 
 #endif
