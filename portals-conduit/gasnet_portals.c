@@ -894,6 +894,40 @@ static void gasnetc_buf_free(gasnetc_PtlBuffer_t *buf)
 }
 
 /* ---------------------------------------------------------------------------------
+ * Attach the MD for a ReqRB buffer
+ * --------------------------------------------------------------------------------- */
+static void ReqRB_Attach(gasnetc_PtlBuffer_t *p)
+{
+  ptl_md_t md;
+  ptl_process_id_t match_id;
+
+  match_id.nid = PTL_NID_ANY;
+  match_id.pid = PTL_PID_ANY;
+
+  md.start = p->start;
+  md.length = p->nbytes;
+  md.threshold = PTL_MD_THRESH_INF;
+  md.max_size = GASNETC_CHUNKSIZE;
+  md.options = PTL_MD_OP_PUT | PTL_MD_EVENT_START_DISABLE | PTL_MD_MAX_SIZE;
+#if GASNETC_REQRB_AUTO_UNLINK
+  /* NOTE: these flags are Cray extensions to the spec */
+  md.options |= PTL_MD_FLAG_AUTO_UNLINK | PTL_MD_EVENT_AUTO_UNLINK_ENABLE;
+#endif
+
+#if GASNETC_USE_EQ_HANDLER
+  md.user_ptr = (void*)(uintptr_t)GASNETC_REQRB_MD;
+#else
+  md.user_ptr = (void*)ReqRB_event;
+#endif
+  md.eq_handle = gasnetc_AM_EQ->eq_h;
+
+  GASNETC_PTLSAFE(PtlMEInsert(gasnetc_CB.me_h, match_id,
+                              GASNETC_PTL_REQRB_BITS, GASNETC_PTL_IGNORE_BITS,
+                              PTL_UNLINK, PTL_INS_BEFORE, &p->me_h));
+  GASNETC_PTLSAFE(PtlMDAttach(p->me_h, md, PTL_UNLINK, &p->md_h));
+}
+
+/* ---------------------------------------------------------------------------------
  * Find the ReqRB with a memory starting address of start_addr
  * --------------------------------------------------------------------------------- */
 static gasnetc_PtlBuffer_t* ReqRB_getbuf(uintptr_t start_addr)
@@ -918,10 +952,6 @@ static gasnetc_PtlBuffer_t* ReqRB_getbuf(uintptr_t start_addr)
  * --------------------------------------------------------------------------------- */
 static void ReqRB_refresh(gasnetc_PtlBuffer_t *p)
 {
-  int i;
-  ptl_md_t md;
-  ptl_process_id_t match_id;
-
   GASNETI_TRACE_PRINTF(C,("ReqRB_refresh called with start address %p",p->start));
 #if GASNETC_DEBUG_RB_VERBOSE
   printf("[%d] ReqRB_refresh buffer %s at start address %lx\n",gasneti_mynode,p->name,p->start); fflush(stdout);
@@ -938,27 +968,7 @@ static void ReqRB_refresh(gasnetc_PtlBuffer_t *p)
 //fprintf(stderr, "%d> UNBUSY %p %lu\n", gasneti_mynode, p, (unsigned long)gasneti_ticks_to_ns(gasneti_ticks_now() - start));
   }
 
-  md.start = p->start;
-  md.length = p->nbytes;
-  md.threshold = PTL_MD_THRESH_INF;
-  md.max_size = GASNETC_CHUNKSIZE;
-  md.options = PTL_MD_OP_PUT | PTL_MD_EVENT_START_DISABLE | PTL_MD_MAX_SIZE;
-#if GASNETC_REQRB_AUTO_UNLINK
-  md.options |= PTL_MD_FLAG_AUTO_UNLINK | PTL_MD_EVENT_AUTO_UNLINK_ENABLE;
-#endif
-#if GASNETC_USE_EQ_HANDLER
-  md.user_ptr = (void*)(uintptr_t)GASNETC_REQRB_MD;
-#else
-  md.user_ptr = (void*)ReqRB_event;
-#endif
-  md.eq_handle = gasnetc_AM_EQ->eq_h;
-
-  match_id.nid = PTL_NID_ANY;
-  match_id.pid = PTL_PID_ANY;
-
-  GASNETC_PTLSAFE(PtlMEInsert(gasnetc_CB.me_h, match_id, GASNETC_PTL_REQRB_BITS, GASNETC_PTL_IGNORE_BITS,PTL_UNLINK, PTL_INS_BEFORE, &p->me_h));
-
-  GASNETC_PTLSAFE(PtlMDAttach(p->me_h, md, PTL_UNLINK, &p->md_h));
+  ReqRB_Attach(p);
 }
 
 /* ---------------------------------------------------------------------------------
@@ -1670,50 +1680,7 @@ static void ReqRB_init(void)
   match_id.nid = PTL_NID_ANY;
   match_id.pid = PTL_PID_ANY;
 
-  p = gasnetc_ReqRB = (gasnetc_PtlBuffer_t*)gasneti_malloc(gasnetc_ReqRB_pool_size*sizeof(gasnetc_PtlBuffer_t));
-  gasneti_assert(gasnetc_ReqRB != NULL);
-  for (i = 0; i < gasnetc_ReqRB_pool_size; i++) {
-    sprintf(&name[0],"ReqRB_%02d",i);
-
-    gasnetc_buf_init(p,name,nbytes,sizeof(double));
-
-    md.start = p->start;
-    md.length = p->nbytes;
-    md.threshold = PTL_MD_THRESH_INF;
-    md.max_size = GASNETC_CHUNKSIZE;
-    md.options = PTL_MD_OP_PUT | PTL_MD_EVENT_START_DISABLE | PTL_MD_MAX_SIZE;
-#if GASNETC_REQRB_AUTO_UNLINK
-    /* Not advised.  See notes above where GASNETC_REQRB_AUTO_UNLINK is defined */
-    /* NOTE: these flags are Cray extensions to the spec */
-    md.options |= PTL_MD_FLAG_AUTO_UNLINK | PTL_MD_EVENT_AUTO_UNLINK_ENABLE;
-#endif
-
-#if GASNETC_USE_EQ_HANDLER
-    md.user_ptr = (void*)(uintptr_t)GASNETC_REQRB_MD;
-#else
-    md.user_ptr = (void*)ReqRB_event;
-#endif
-    md.eq_handle = gasnetc_AM_EQ->eq_h;
-
-    if (i == 0) {
-      /* make first in list */
-      GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_AM_PTE, match_id, GASNETC_PTL_REQRB_BITS, GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_BEFORE, &p->me_h));
-    } else {
-      /* insert after i-1 */
-      GASNETC_PTLSAFE(PtlMEInsert(gasnetc_ReqRB[i-1].me_h, match_id, GASNETC_PTL_REQRB_BITS, GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER, &p->me_h));
-    }
-    GASNETC_PTLSAFE(PtlMDAttach(p->me_h, md, PTL_UNLINK, &(p->md_h)));
-
-    GASNETI_TRACE_PRINTF(C,("ReqRB_init[%d]: %s %lu bytes me=%lu md=%lu",i,p->name,(ulong)nbytes,(ulong)p->me_h,(ulong)p->md_h));
-
-#if GASNETC_DEBUG_RB_VERBOSE
-    printf("[%d] ReqRB_Init: buffer %s at start address %lx\n",gasneti_mynode,p->name,(uintptr_t)p->start); fflush(stdout);
-#endif
-
-    p++;
-  }
-
-  /* Now add the Catch-Basin MD */
+  /* First add the Catch-Basin MD */
   gasnetc_buf_init(&gasnetc_CB,"Catch_Basin",0,0);
   md.start = NULL;
   md.length = 0;
@@ -1726,11 +1693,27 @@ static void ReqRB_init(void)
   md.user_ptr = (void*)CB_event;
 #endif
   md.eq_handle = gasnetc_SAFE_EQ->eq_h;
-  GASNETC_PTLSAFE(PtlMEInsert(gasnetc_ReqRB[gasnetc_ReqRB_pool_size-1].me_h, match_id, GASNETC_PTL_REQRB_BITS, GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER, &gasnetc_CB.me_h));
+  GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_AM_PTE, match_id, GASNETC_PTL_REQRB_BITS, GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER, &gasnetc_CB.me_h));
   GASNETC_PTLSAFE(PtlMDAttach(gasnetc_CB.me_h, md, PTL_RETAIN, &gasnetc_CB.md_h));
 
   GASNETI_TRACE_PRINTF(C,("CB_init: %s me=%lu md=%lu",gasnetc_CB.name,(ulong)gasnetc_CB.me_h,(ulong)gasnetc_CB.md_h));
 
+  /* Then add the ReqRB MDs */
+  p = gasnetc_ReqRB = (gasnetc_PtlBuffer_t*)gasneti_malloc(gasnetc_ReqRB_pool_size*sizeof(gasnetc_PtlBuffer_t));
+  gasneti_assert(gasnetc_ReqRB != NULL);
+  for (i = 0; i < gasnetc_ReqRB_pool_size; i++, p++) {
+    sprintf(&name[0],"ReqRB_%02d",i);
+
+    gasnetc_buf_init(p,name,nbytes,sizeof(double));
+
+    ReqRB_Attach(p);
+
+    GASNETI_TRACE_PRINTF(C,("ReqRB_init[%d]: %s %lu bytes me=%lu md=%lu",i,p->name,(ulong)nbytes,(ulong)p->me_h,(ulong)p->md_h));
+
+#if GASNETC_DEBUG_RB_VERBOSE
+    printf("[%d] ReqRB_Init: buffer %s at start address %lx\n",gasneti_mynode,p->name,(uintptr_t)p->start); fflush(stdout);
+#endif
+  }
 }
 
 /* ---------------------------------------------------------------------------------
