@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/05/09 17:06:23 $
- * $Revision: 1.53.14.15 $
+ *     $Date: 2009/05/11 21:04:46 $
+ * $Revision: 1.53.14.16 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -540,9 +540,10 @@ void gasnete_coll_local_rotate_right(void *dst, const void *src, size_t elem_siz
 GASNETI_INLINE(gasnete_coll_local_broadcast)
 void gasnete_coll_local_broadcast(size_t count, void * const dstlist[], const void *src, size_t nbytes) {
   /* XXX: this could/should be segemented to cache reuse */
-  while (count--) {
+  while (count>0) {
     GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(*dstlist, src, nbytes);
     dstlist++;
+    count--;
   }
   gasneti_sync_writes();	/* Ensure result is visible on all threads */
 }
@@ -552,10 +553,11 @@ GASNETI_INLINE(gasnete_coll_local_scatter)
 void gasnete_coll_local_scatter(size_t count, void * const dstlist[], const void *src, size_t nbytes) {
   const uint8_t *src_addr = (const uint8_t *)src;
   
-  while (count--) {
+  while (count>0) {
     GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(*dstlist, src_addr, nbytes);
     dstlist++;
     src_addr += nbytes;
+    count --;
   }
   gasneti_sync_writes();	/* Ensure result is visible on all threads */
 }
@@ -565,10 +567,11 @@ GASNETI_INLINE(gasnete_coll_local_gather)
 void gasnete_coll_local_gather(size_t count, void * dst, void * const srclist[], size_t nbytes) {
   uint8_t *dst_addr = (uint8_t *)dst;
   gasneti_sync_reads();
-  while (count--) {
+  while (count>0) {
     GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dst_addr, *srclist, nbytes);
     dst_addr += nbytes;
     srclist++;
+    count--;
   }
   gasneti_sync_writes();	/* Ensure result is visible on all threads */
 }

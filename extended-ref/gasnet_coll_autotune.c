@@ -793,8 +793,8 @@ static void do_tuning_loop(gasnet_team_handle_t team, gasnet_coll_optype_t op,
           /*setup the collective information*/
           gasnete_coll_implementation_t impl = gasnete_coll_get_implementation();
           curr_idx[current_param_number]=idx;
-          impl->fn_ptr = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][alg_idx].fn_ptr.generic_coll_fn_ptr;
-          impl->num_params = team->autotune_info->collective_algorithms[GASNET_COLL_BROADCAST_OP][alg_idx].num_parameters;
+          impl->fn_ptr = team->autotune_info->collective_algorithms[op][alg_idx].fn_ptr.generic_coll_fn_ptr;
+          impl->num_params = team->autotune_info->collective_algorithms[op][alg_idx].num_parameters;
           GASNETE_FAST_UNALIGNED_MEMCPY(impl->param_list, curr_idx, impl->num_params*sizeof(uint32_t));
           if(team->autotune_info->collective_algorithms[op][alg_idx].parameter_list[current_param_number].flags & GASNET_COLL_TUNING_TREE_SHAPE)
             impl->tree_type = gasnete_coll_autotune_get_tree_type_idx(team, idx);
@@ -853,6 +853,9 @@ void gasnete_coll_tune_generic_op(gasnet_team_handle_t team, gasnet_coll_optype_
   switch (op) {
     case GASNET_COLL_BROADCAST_OP:
       num_algs = GASNETE_COLL_BROADCAST_NUM_ALGS;
+      break;
+    case GASNET_COLL_BROADCASTM_OP:
+      num_algs = GASNETE_COLL_BROADCASTM_NUM_ALGS;
       break;
     default:
       gasneti_fatalerror("not yet supported");
