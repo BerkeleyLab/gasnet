@@ -4,6 +4,9 @@
 #include <gasnet_handler.h>
 #include <gasnet_portals.h>
 #include <signal.h>
+#ifdef HAVE_MMAP
+#include <sys/mman.h> /* For MAP_FAILED */
+#endif
 
 #define GASNETC_DEBUG_RB_VERBOSE 0
 
@@ -819,6 +822,25 @@ static int  exec_amlong_data(int isReq, ptl_event_t *ev)
   return ran_handler;
 }
 
+#if HAVE_MMAP
+  GASNETI_INLINE(gasnetc_malloc_aligned)
+  void *gasnetc_malloc_aligned(size_t alignment, size_t nbytes) {
+    void *result = gasneti_mmap(GASNETI_PAGE_ALIGNUP(nbytes));
+    gasneti_assert_always(result != MAP_FAILED);
+    gasneti_assert(alignment <= GASNET_PAGESIZE);
+    return result;
+  }
+  GASNETI_INLINE(gasnetc_free_aligned)
+  void gasnetc_free_aligned(void *addr, size_t nbytes) {
+    gasneti_munmap(addr, GASNETI_PAGE_ALIGNUP(nbytes));
+  }
+#else
+  #define gasnetc_malloc_aligned(_alignment,_nbytes) \
+    gasneti_malloc_aligned(_alignment,_nbytes)
+  #define gasnetc_free_aligned(_addr,_nbytes) \
+    gasneti_free_aligned(_addr)
+#endif
+
 /* ------------------------------------------------------------------------------------
  * Allocate a buffer with the given alignment.
  * This buffer will NOT be managed by a chunk allocator
@@ -829,7 +851,7 @@ static void gasnetc_buf_init(gasnetc_PtlBuffer_t *buf, const char *name, size_t 
   buf->alignment = alignment;
   buf->nbytes = nbytes;
   if (nbytes > 0) {
-    buf->actual_start = buf->start = gasneti_malloc_aligned(alignment,nbytes);
+    buf->actual_start = buf->start = gasnetc_malloc_aligned(alignment,nbytes);
     GASNETI_TRACE_PRINTF(C,("gasnetc_buf_init for %s alignment %u at %p",name,alignment,buf->start));
   } else {
     buf->start = buf->actual_start = NULL;
@@ -858,7 +880,7 @@ static void gasnetc_chunk_init(gasnetc_PtlBuffer_t *buf, const char *name, size_
   buf->name = gasneti_strdup(name);
   buf->alignment = GASNETC_CHUNKSIZE;
   buf->nbytes = nbytes;
-  buf->actual_start = buf->start = gasneti_malloc_aligned(buf->alignment,nbytes);
+  buf->actual_start = buf->start = gasnetc_malloc_aligned(buf->alignment,nbytes);
   buf->use_chunks = 1;
   gasneti_mutex_init(&buf->lock);
   buf->numchunks = nchunks;
@@ -884,7 +906,7 @@ static void gasnetc_buf_free(gasnetc_PtlBuffer_t *buf)
 {
   gasneti_free(buf->name);
   if (buf->actual_start != NULL) {
-    gasneti_free_aligned(buf->actual_start);
+    gasnetc_free_aligned(buf->actual_start, buf->nbytes);
   }
   buf->start = buf->actual_start = NULL;
   buf->nbytes = 0;
@@ -895,7 +917,7 @@ static void gasnetc_buf_free(gasnetc_PtlBuffer_t *buf)
 /* ---------------------------------------------------------------------------------
  * Attach the MD for a ReqRB buffer
  * --------------------------------------------------------------------------------- */
-static void ReqRB_Attach(gasnetc_PtlBuffer_t *p)
+static void ReqRB_attach(gasnetc_PtlBuffer_t *p)
 {
   ptl_md_t md;
   ptl_process_id_t match_id;
@@ -928,16 +950,26 @@ static void ReqRB_Attach(gasnetc_PtlBuffer_t *p)
 
 /* ---------------------------------------------------------------------------------
  * Find the ReqRB with a memory starting address of start_addr
+ * TODO: If we could allocate the gasnetc_PtlBuffer_t struct consecutive
+ *       with the memory it manages or else all the ReqRBs consecutively
+ *       then this would reduce to simple offset arithmetic rather than 
+ *       a table search.
  * --------------------------------------------------------------------------------- */
 static gasnetc_PtlBuffer_t* ReqRB_getbuf(uintptr_t start_addr)
 {
-  int i;
-  gasnetc_PtlBuffer_t *p = NULL;
+  static gasneti_weakatomic_t cached = gasneti_weakatomic_init(0);
+  int idx = gasneti_weakatomic_read(&cached, 0);
 
-  for (i = 0; i < gasnetc_ReqRB_pool_size; i++) {
-    uintptr_t buf_start = (uintptr_t)gasnetc_ReqRB[i].start;
-    if (buf_start == start_addr) {
-      return &gasnetc_ReqRB[i];
+  if_pt ((uintptr_t)gasnetc_ReqRB[idx].start == start_addr) {
+    return &gasnetc_ReqRB[idx];
+  } else {
+    int i;
+    for (i = 1; i < gasnetc_ReqRB_pool_size; i++) {
+      if_pf (++idx == gasnetc_ReqRB_pool_size) idx = 0;
+      if_pt ((uintptr_t)gasnetc_ReqRB[idx].start == start_addr) {
+        gasneti_weakatomic_set(&cached, idx, 0);
+        return &gasnetc_ReqRB[idx];
+      }
     }
   }
   gasneti_fatalerror("ReqRB_getbuf: Unable to find ReqRB with starting address 0x%llx",(unsigned long long)start_addr);
@@ -949,21 +981,25 @@ static gasnetc_PtlBuffer_t* ReqRB_getbuf(uintptr_t start_addr)
  * --------------------------------------------------------------------------------- */
 static void ReqRB_refresh(gasnetc_PtlBuffer_t *p)
 {
+  gasneti_assert(p);
+
   GASNETI_TRACE_PRINTF(C,("ReqRB_refresh called with start address %p",p->start));
 #if GASNETC_DEBUG_RB_VERBOSE
   printf("[%d] ReqRB_refresh buffer %s at start address %lx\n",gasneti_mynode,p->name,p->start); fflush(stdout);
 #endif
 
+#if GASNET_PAR
   /* must wait until all other threads have completed work in this buffer before
    * re-threading back onto ME list.  
    */
   if_pf (GASNETC_REQRB_BUSY(p)) {
     GASNETC_TRACE_WAIT_BEGIN();
-    while(GASNETC_REQRB_BUSY(p)) gasneti_sched_yield();
+    gasneti_waitwhile(GASNETC_REQRB_BUSY(p));
     GASNETC_TRACE_WAIT_END(REFRESH_STALL);
   }
+#endif
 
-  ReqRB_Attach(p);
+  ReqRB_attach(p);
 }
 
 /* ---------------------------------------------------------------------------------
@@ -1356,7 +1392,9 @@ static void ReqRB_event(ptl_event_t *ev)
   gasnetc_PtlBuffer_t *bufptr = ReqRB_getbuf((uintptr_t)ev->md.start);
 
   /* increment ref counter on this buffer, atomic w.r.t. poll of the AM_EQ */
-  if (ev->mlength && (ev->type == PTL_EVENT_PUT_END)) GASNETC_REQRB_START(bufptr);
+  if (ev->mlength && (ev->type == PTL_EVENT_PUT_END)) {
+    GASNETC_REQRB_START(bufptr);
+  }
   gasneti_mutex_unlock(&gasnetc_AM_EQ->lock);
 
   msg_type = GASNETC_GET_MSG_TYPE(mbits);
@@ -1698,7 +1736,7 @@ static void ReqRB_init(void)
 
     gasnetc_buf_init(p,name,nbytes,sizeof(double));
 
-    ReqRB_Attach(p);
+    ReqRB_attach(p);
 
     GASNETI_TRACE_PRINTF(C,("ReqRB_init[%d]: %s %lu bytes me=%lu md=%lu",i,p->name,(ulong)nbytes,(ulong)p->me_h,(ulong)p->md_h));
 
