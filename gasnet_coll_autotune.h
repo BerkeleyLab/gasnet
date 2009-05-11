@@ -49,7 +49,7 @@ void gasnete_coll_tune_generic_op(gasnet_team_handle_t team, gasnet_coll_optype_
                                  uint32_t *best_algidx, uint32_t *num_params, uint32_t **best_param GASNETE_THREAD_FARG);
 
 extern int gasnet_coll_get_num_tree_classes(gasnet_team_handle_t team, gasnet_coll_optype_t optype);
-extern void gasnet_coll_set_tree_kind(gasnet_team_handle_t team, int tree_type, gasnet_node_t fanout, gasnet_coll_optype_t optype); 
+extern void gasnet_coll_set_tree_kind(gasnet_team_handle_t team, int tree_type, int fanout, gasnet_coll_optype_t optype); 
 extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t team, size_t dissemlimit, gasnet_coll_optype_t optype); 
 
 #endif
