@@ -66,7 +66,7 @@ gasnetc_PtlBuffer_t gasnetc_ReqSB;
 /* We maintain an array of Request Receive Buffers */
 int    gasnetc_ReqRB_pool_size = 8;
 size_t gasnetc_ReqRB_numchunk = 1024;
-gasnetc_PtlBuffer_t *gasnetc_ReqRB;          
+gasnetc_PtlBuffer_t **gasnetc_ReqRB;          
 
 /* We maintain a single Reply send buffer.
  * Each threads is allowed to cache up to one buffer.
@@ -842,21 +842,16 @@ static int  exec_amlong_data(int isReq, ptl_event_t *ev)
 #endif
 
 /* ------------------------------------------------------------------------------------
- * Allocate a buffer with the given alignment.
+ * Initialize a buffer with the given size and address.
  * This buffer will NOT be managed by a chunk allocator
  * --------------------------------------------------------------------------------- */
-static void gasnetc_buf_init(gasnetc_PtlBuffer_t *buf, const char *name, size_t nbytes, uint32_t alignment)
+static void gasnetc_buf_init(gasnetc_PtlBuffer_t *buf, const char *name, size_t nbytes, void *addr)
 {
+  GASNETI_TRACE_PRINTF(C,("gasnetc_buf_init for %s with length %lu at %p",name,(unsigned long)nbytes,addr));
+  gasneti_assert((addr && nbytes) || (!addr && !nbytes));
   buf->name = gasneti_strdup(name);
-  buf->alignment = alignment;
   buf->nbytes = nbytes;
-  if (nbytes > 0) {
-    buf->actual_start = buf->start = gasnetc_malloc_aligned(alignment,nbytes);
-    GASNETI_TRACE_PRINTF(C,("gasnetc_buf_init for %s alignment %u at %p",name,alignment,buf->start));
-  } else {
-    buf->start = buf->actual_start = NULL;
-    buf->alignment = 0;
-  }
+  buf->actual_start = buf->start = addr;
   buf->use_chunks = 0;
 #ifdef GASNET_PAR
   gasneti_weakatomic_set(&buf->threads_active, 0, 0);
@@ -878,9 +873,8 @@ static void gasnetc_chunk_init(gasnetc_PtlBuffer_t *buf, const char *name, size_
 
   GASNETI_TRACE_PRINTF(C,("gasnetc_chunk_init for %s with %lu chunks",name,(ulong)nchunks));
   buf->name = gasneti_strdup(name);
-  buf->alignment = GASNETC_CHUNKSIZE;
   buf->nbytes = nbytes;
-  buf->actual_start = buf->start = gasnetc_malloc_aligned(buf->alignment,nbytes);
+  buf->actual_start = buf->start = gasnetc_malloc_aligned(GASNETC_CHUNKSIZE,nbytes);
   buf->use_chunks = 1;
   gasneti_mutex_init(&buf->lock);
   buf->numchunks = nchunks;
@@ -949,30 +943,15 @@ static void ReqRB_attach(gasnetc_PtlBuffer_t *p)
 }
 
 /* ---------------------------------------------------------------------------------
- * Find the ReqRB with a memory starting address of start_addr
- * TODO: If we could allocate the gasnetc_PtlBuffer_t struct consecutive
- *       with the memory it manages or else all the ReqRBs consecutively
- *       then this would reduce to simple offset arithmetic rather than 
- *       a table search.
+ * "Find" the ReqRB with a memory starting address of start_addr
  * --------------------------------------------------------------------------------- */
-static gasnetc_PtlBuffer_t* ReqRB_getbuf(uintptr_t start_addr)
+GASNETI_ALWAYS_INLINE(ReqRB_getbuf) GASNETI_CONST
+gasnetc_PtlBuffer_t* ReqRB_getbuf(uintptr_t start_addr)
 {
-  static gasneti_weakatomic_t cached = gasneti_weakatomic_init(0);
-  int idx = gasneti_weakatomic_read(&cached, 0);
-
-  if_pt ((uintptr_t)gasnetc_ReqRB[idx].start == start_addr) {
-    return &gasnetc_ReqRB[idx];
-  } else {
-    int i;
-    for (i = 1; i < gasnetc_ReqRB_pool_size; i++) {
-      if_pf (++idx == gasnetc_ReqRB_pool_size) idx = 0;
-      if_pt ((uintptr_t)gasnetc_ReqRB[idx].start == start_addr) {
-        gasneti_weakatomic_set(&cached, idx, 0);
-        return &gasnetc_ReqRB[idx];
-      }
-    }
-  }
-  gasneti_fatalerror("ReqRB_getbuf: Unable to find ReqRB with starting address 0x%llx",(unsigned long long)start_addr);
+  const size_t skip = GASNETI_ALIGNUP(sizeof(gasnetc_PtlBuffer_t),sizeof(double));
+  gasnetc_PtlBuffer_t *result = (gasnetc_PtlBuffer_t *)(start_addr - skip);
+  gasneti_assert((uintptr_t)result->start == start_addr);
+  return result;
 }
 
 /* ---------------------------------------------------------------------------------
@@ -1555,7 +1534,6 @@ static void RAR_init(void)
 
   gasnetc_RAR.start = rar_start;
   gasnetc_RAR.nbytes = rar_len;
-  gasnetc_RAR.alignment = GASNET_PAGESIZE;
   gasnetc_RAR.actual_start = NULL;      /* this gets lost in gasneti_segmentattach, so cant free */
   gasnetc_RAR.name = gasneti_strdup("RAR");
   gasnetc_RAR.use_chunks = 0;
@@ -1582,7 +1560,6 @@ static void RAR_init(void)
    */
   gasnetc_RARAM.start = rar_start;
   gasnetc_RARAM.nbytes = rar_len;
-  gasnetc_RARAM.alignment = GASNET_PAGESIZE;
   gasnetc_RARAM.actual_start = NULL;      /* this gets lost in gasneti_segmentattach, so cant free */
   gasnetc_RARAM.name = gasneti_strdup("RARAM");
   gasnetc_RARAM.use_chunks = 0;
@@ -1614,7 +1591,6 @@ static void RAR_init(void)
    */
   gasnetc_RARSRC.start = rar_start;
   gasnetc_RARSRC.nbytes = rar_len;
-  gasnetc_RARSRC.alignment = GASNET_PAGESIZE;
   gasnetc_RARSRC.actual_start = NULL;      /* this gets lost in gasneti_segmentattach, so cant free */
   gasnetc_RARSRC.name = gasneti_strdup("RARSRC");
   gasnetc_RARSRC.use_chunks = 0;
@@ -1702,7 +1678,6 @@ static void ReqRB_init(void)
   int i;
   ptl_md_t md;
   size_t nbytes = gasnetc_ReqRB_numchunk * GASNETC_CHUNKSIZE;
-  gasnetc_PtlBuffer_t *p;
   ptl_handle_me_t me_h;
   ptl_process_id_t  match_id;
   char name[32];
@@ -1711,7 +1686,7 @@ static void ReqRB_init(void)
   match_id.pid = PTL_PID_ANY;
 
   /* First add the Catch-Basin MD */
-  gasnetc_buf_init(&gasnetc_CB,"Catch_Basin",0,0);
+  gasnetc_buf_init(&gasnetc_CB,"Catch_Basin",0,NULL);
   md.start = NULL;
   md.length = 0;
   md.threshold = PTL_MD_THRESH_INF;
@@ -1729,12 +1704,15 @@ static void ReqRB_init(void)
   GASNETI_TRACE_PRINTF(C,("CB_init: %s me=%lu md=%lu",gasnetc_CB.name,(ulong)gasnetc_CB.me_h,(ulong)gasnetc_CB.md_h));
 
   /* Then add the ReqRB MDs */
-  p = gasnetc_ReqRB = (gasnetc_PtlBuffer_t*)gasneti_malloc(gasnetc_ReqRB_pool_size*sizeof(gasnetc_PtlBuffer_t));
-  gasneti_assert(gasnetc_ReqRB != NULL);
-  for (i = 0; i < gasnetc_ReqRB_pool_size; i++, p++) {
+  gasnetc_ReqRB = (gasnetc_PtlBuffer_t**)gasneti_malloc(gasnetc_ReqRB_pool_size*sizeof(gasnetc_PtlBuffer_t*));
+  for (i = 0; i < gasnetc_ReqRB_pool_size; i++) {
+    gasnetc_PtlBuffer_t *p;
+    size_t skip = GASNETI_ALIGNUP(sizeof(gasnetc_PtlBuffer_t),sizeof(double));
+
     sprintf(&name[0],"ReqRB_%02d",i);
 
-    gasnetc_buf_init(p,name,nbytes,sizeof(double));
+    p = gasnetc_ReqRB[i] = gasnetc_malloc_aligned(sizeof(double),nbytes + skip);
+    gasnetc_buf_init(p,name,nbytes,(void *)((uintptr_t)p + skip));
 
     ReqRB_attach(p);
 
@@ -1755,8 +1733,8 @@ static void ReqRB_exit(void)
 
   for (i = 0; i < gasnetc_ReqRB_pool_size; i++) {
     /* This should also unlink the associated MEs */
-    GASNETC_PTLSAFE(PtlMDUnlink(gasnetc_ReqRB[i].md_h));
-    gasnetc_buf_free(&gasnetc_ReqRB[i]);
+    GASNETC_PTLSAFE(PtlMDUnlink(gasnetc_ReqRB[i]->md_h));
+    gasnetc_buf_free(gasnetc_ReqRB[i]);
   }
   gasneti_free(gasnetc_ReqRB);
 
@@ -2285,7 +2263,7 @@ static void sys_init(void)
   gasnetc_SYS_EQ = gasnetc_eq_alloc(eq_len,"SYS_EQ",NULL);
 
   /* allocate the SYS send buffer */
-  gasnetc_buf_init(&gasnetc_SYS_Send,"SYS_Send",0,0);
+  gasnetc_buf_init(&gasnetc_SYS_Send,"SYS_Send",0,NULL);
   md.start = NULL;
   md.length = 0;
   md.threshold = PTL_MD_THRESH_INF;
@@ -2302,7 +2280,7 @@ static void sys_init(void)
   GASNETI_TRACE_PRINTF(C,("SYS_init: %s initialized, md=%lu",gasnetc_SYS_Send.name,(ulong)gasnetc_SYS_Send.md_h));
 
   /* allocate the SYS receive buffer */
-  gasnetc_buf_init(&gasnetc_SYS_Recv,"SYS_Recv",0,0);
+  gasnetc_buf_init(&gasnetc_SYS_Recv,"SYS_Recv",0,NULL);
   md.start = NULL;
   md.length = 0;
   md.threshold = PTL_MD_THRESH_INF;

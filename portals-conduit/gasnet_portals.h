@@ -687,7 +687,6 @@ extern char* ptl_event_str[];
 
 /* The RAR, RARAM, and the AM request/reply send/receive buffers are described by */
 typedef struct {
-  size_t alignment;                    /* alignment (power of 2) */
   size_t nbytes;                       /* number of bytes in buffer after alignment */
   void*  actual_start;                 /* returned by allocator */
   void*  start;                        /* aligned start */
@@ -757,7 +756,7 @@ extern size_t gasnetc_RplSB_numchunk;         /* Number of chunks to alloc for R
 extern gasnetc_PtlBuffer_t gasnetc_ReqSB;
 extern gasnetc_PtlBuffer_t gasnetc_RplSB;    /* MLW: Can elim this, and alloc a per-thread buffer and MD
 					      * No need for an EQ since will only use it to send */
-extern gasnetc_PtlBuffer_t *gasnetc_ReqRB;   /* an array of buffers */
+extern gasnetc_PtlBuffer_t **gasnetc_ReqRB;  /* an array of buffers */
 extern gasnetc_PtlBuffer_t gasnetc_RAR;
 extern gasnetc_PtlBuffer_t gasnetc_RARAM;
 extern gasnetc_PtlBuffer_t gasnetc_RARSRC;
