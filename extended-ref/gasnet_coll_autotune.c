@@ -712,6 +712,11 @@ static gasnett_tick_t run_collective_bench(gasnet_team_handle_t team, gasnet_col
         if(fnptr) (*fnptr)(sample_work_arg);
         gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
         break;
+      case GASNET_COLL_BROADCASTM_OP:
+        handle = (*((gasnete_coll_bcastM_fn_ptr_t) (impl->fn_ptr)))(team, (void * const *) dst, rootimg, src[0], nbytes, flags, impl, 0 GASNETE_THREAD_PASS);
+        if(fnptr) (*fnptr)(sample_work_arg);
+        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        break;        
       default:
         gasneti_fatalerror("collective not yet implemented");  
     }    
@@ -726,6 +731,11 @@ static gasnett_tick_t run_collective_bench(gasnet_team_handle_t team, gasnet_col
         if(fnptr) (*fnptr)(sample_work_arg);
         gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
         break;
+      case GASNET_COLL_BROADCASTM_OP:
+        handle = (*((gasnete_coll_bcastM_fn_ptr_t) (impl->fn_ptr)))(team, (void * const *) dst, rootimg, src[0], nbytes, flags, impl, 0 GASNETE_THREAD_PASS);
+        if(fnptr) (*fnptr)(sample_work_arg);
+        gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+        break;     
       default:
         gasneti_fatalerror("collective not yet implemented");  
     }    
