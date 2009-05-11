@@ -668,18 +668,19 @@ extern gasnetc_procid_t   *gasnetc_procid_map;
 extern char* ptl_event_str[];
 
 
-#ifdef GASNET_PAR
-#define GASNETC_REQRB_START(start_addr) do {				\
-    gasnetc_PtlBuffer_t *p = ReqRB_getbuf((uintptr_t)(start_addr));	\
-    gasneti_weakatomic_increment(&p->threads_active, 0);		\
-  } while(0)
-#define GASNETC_REQRB_FINISH(start_addr) do {				\
-    gasnetc_PtlBuffer_t *p = ReqRB_getbuf((uintptr_t)(start_addr));	\
-    gasneti_weakatomic_decrement(&p->threads_active, 0);		\
-  } while(0)
+#ifndef GASNET_PAR
+  /* No accounting required */
+  #define GASNETC_REQRB_START(bufptr)      do {} while(0)
+  #define GASNETC_REQRB_FINISH(bufptr)     do {} while(0)
+  #define GASNETC_REQRB_BUSY(bufptr)       0
 #else
-#define GASNETC_REQRB_START(bufptr)  do {} while(0)
-#define GASNETC_REQRB_FINISH(bufptr)  do {} while(0)
+  /* "counter" counts threads referencing the buffer */
+  #define GASNETC_REQRB_START(bufptr) \
+      gasneti_weakatomic_increment(&(bufptr)->threads_active, 0)
+  #define GASNETC_REQRB_FINISH(bufptr) \
+      gasneti_weakatomic_decrement(&(bufptr)->threads_active, 0)
+  #define GASNETC_REQRB_BUSY(bufptr) \
+      (gasneti_weakatomic_read(&(bufptr)->threads_active, 0) != 0)
 #endif
 
 /* ----------------------------------------------------------------------------------- */
@@ -921,14 +922,14 @@ ptl_handle_md_t gasnetc_alloc_tmpmd_withpoll(void* start, size_t nbytes)
 }
 
 GASNETI_INLINE(gasnetc_get_event)
-int gasnetc_get_event(gasnetc_eq_t *eq, ptl_event_t *ev)
+int gasnetc_get_event(gasnetc_eq_t *eq, ptl_event_t *ev, int locked)
 {
   int rc;
   int retcode = 0;
 
-  gasneti_mutex_lock(&eq->lock);
+  if (!locked) gasneti_mutex_lock(&eq->lock);
   rc = PtlEQGet( eq->eq_h, ev);
-  gasneti_mutex_unlock(&eq->lock);
+  if (!locked) gasneti_mutex_unlock(&eq->lock);
   switch (rc) {
   case PTL_OK:
     retcode = 1;

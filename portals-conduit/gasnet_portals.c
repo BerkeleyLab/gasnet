@@ -44,7 +44,7 @@
  * receive buffers are filled and overflow before the first
  * unlink event is seen.  Manual unlink seems to be the best option.
  */
-#define GASNETC_REQRB_AUTO_UNLINK 0
+#define GASNETC_REQRB_AUTO_UNLINK 1
 #define GASNETC_REQRB_UNLINK_VERBOSE 0
 
 /* macros used for simple hash table lookup.  Only accessed in this file. */
@@ -916,30 +916,28 @@ static gasnetc_PtlBuffer_t* ReqRB_getbuf(uintptr_t start_addr)
  * The start_addr is the starting address of the memory buffer.  We use this
  * to determine which ReqRB from the pool needs to be re-cycled
  * --------------------------------------------------------------------------------- */
-static void ReqRB_refresh(uintptr_t start_addr)
+static void ReqRB_refresh(gasnetc_PtlBuffer_t *p)
 {
   int i;
-  gasnetc_PtlBuffer_t *p = NULL;
   ptl_md_t md;
   ptl_process_id_t match_id;
 
-
-  GASNETI_TRACE_PRINTF(C,("ReqRB_refresh called with start address %lx",start_addr));
-  p = ReqRB_getbuf(start_addr);
+  GASNETI_TRACE_PRINTF(C,("ReqRB_refresh called with start address %p",p->start));
 #if GASNETC_DEBUG_RB_VERBOSE
-  printf("[%d] ReqRB_refresh buffer %s at start address %lx\n",gasneti_mynode,p->name,start_addr); fflush(stdout);
+  printf("[%d] ReqRB_refresh buffer %s at start address %lx\n",gasneti_mynode,p->name,p->start); fflush(stdout);
 #endif
-#ifdef GASNET_PAR 
+
   /* must wait until all other threads have completed work in this buffer before
    * re-threading back onto ME list.  
    */
-  while (gasneti_weakatomic_read(&p->threads_active, 0) > 0) {
-    /* probably should do-nothing poll since if other threads are active they
-     * should be done soon and should not block
-     */
-    gasneti_sched_yield();
+  if_pf (GASNETC_REQRB_BUSY(p)) {
+//uint64_t start = gasneti_ticks_now();
+//int ctr = gasneti_weakatomic_read(&p->threads_active, 0);
+//fprintf(stderr, "%d> BUSY %p %u\n", gasneti_mynode, p, ctr);
+    while(GASNETC_REQRB_BUSY(p)) gasneti_sched_yield();
+//fprintf(stderr, "%d> UNBUSY %p %lu\n", gasneti_mynode, p, (unsigned long)gasneti_ticks_to_ns(gasneti_ticks_now() - start));
   }
-#endif
+
   md.start = p->start;
   md.length = p->nbytes;
   md.threshold = PTL_MD_THRESH_INF;
@@ -973,14 +971,21 @@ static void ReqRB_refresh(uintptr_t start_addr)
  * --------------------------------------------------------------------------------- */
 static void RARAM_event(ptl_event_t *ev)
 {
-  ptl_size_t offset = ev->offset;
-  ptl_match_bits_t   mbits = ev->match_bits;
+  ptl_size_t offset;
+  ptl_match_bits_t mbits;
   uint8_t msg_type;
-  ptl_match_bits_t amflag = ((mbits & GASNETC_SELECT_BYTE1) >> 8);
-  int isReq = (amflag & GASNETC_PTL_AM_REQUEST);
+  ptl_match_bits_t amflag;
+  int isReq;
   int ran_handler;
 
+  gasneti_mutex_unlock(&gasnetc_AM_EQ->lock);
+
+  offset = ev->offset;
+  mbits = ev->match_bits;
+  amflag = ((mbits & GASNETC_SELECT_BYTE1) >> 8);
+  isReq = (amflag & GASNETC_PTL_AM_REQUEST);
   msg_type = GASNETC_GET_MSG_TYPE(mbits);
+
   GASNETI_TRACE_PRINTF(C,("RARAM event %s offset = %i, mbits = 0x%lx, msg_type = 0x%x, amflag=%x",ptl_event_str[ev->type],(int)offset,(uint64_t)mbits,msg_type,(uint32_t)amflag));
 
   /* extract the lower bits based on message type */
@@ -1343,9 +1348,11 @@ static void ReqRB_event(ptl_event_t *ev)
 {
   ptl_match_bits_t   mbits = ev->match_bits;
   uint8_t msg_type, amflag, numarg, ghandler;
+  gasnetc_PtlBuffer_t *bufptr = ReqRB_getbuf((uintptr_t)ev->md.start);
 
-  /* increment ref counter on this buffer */
-  GASNETC_REQRB_START(ev->md.start);
+  /* increment ref counter on this buffer, atomic w.r.t.  */
+  if (ev->mlength && (ev->type == PTL_EVENT_PUT_END)) GASNETC_REQRB_START(bufptr);
+  gasneti_mutex_unlock(&gasnetc_AM_EQ->lock);
 
   msg_type = GASNETC_GET_MSG_TYPE(mbits);
   GASNETI_TRACE_PRINTF(C,("ReqRB event %s offset = %i, mbits = 0x%lx, msg_type = 0x%x",ptl_event_str[ev->type],(int)ev->offset,(uint64_t)mbits,msg_type));
@@ -1363,6 +1370,7 @@ static void ReqRB_event(ptl_event_t *ev)
 
   switch (ev->type) {
   case PTL_EVENT_PUT_END:
+//fprintf(stderr, "%d> PUT_END %p  link = %u  offset = %u  mlength = %u  remain = %u  ctr = %d\n", gasneti_mynode, bufptr, ev->link, (unsigned)ev->offset, (unsigned)ev->mlength, (unsigned)(ev->md.length - (ev->offset + ev->mlength)), gasneti_weakatomic_read(&bufptr->threads_active,0));
 
     if (amflag & GASNETC_PTL_AM_SHORT) {
       exec_amshort_handler(1,ev,numarg,ghandler);
@@ -1377,7 +1385,7 @@ static void ReqRB_event(ptl_event_t *ev)
     }
 
     /* decrement ref counter on this buffer */
-    GASNETC_REQRB_FINISH(ev->md.start);
+    if (ev->mlength) GASNETC_REQRB_FINISH(bufptr);
 
     /* Should we check if this buffer can be recycled here as well as below? */
     /* THREAD SAFETY ISSUE: multiple threads could be executing handlers that
@@ -1416,7 +1424,7 @@ static void ReqRB_event(ptl_event_t *ev)
 	   * the MD has been unlinked, so refresh it */
 	  /* put it back on the end of the list */
 	  /* printf("[%d] Manual Unlink of ReqRB with handle %lu, rc=%d\n",gasneti_mynode,(ulong)ev->md_handle,rc); */
-	  ReqRB_refresh((intptr_t)ev->md.start);
+	  ReqRB_refresh(bufptr);
 	  break;
 	case PTL_MD_IN_USE:
 	  /* do nothing, will unlink later */
@@ -1430,19 +1438,16 @@ static void ReqRB_event(ptl_event_t *ev)
     break;
 
   case PTL_EVENT_UNLINK:
+//fprintf(stderr, "%d> UNLINK %p\n", gasneti_mynode, bufptr);
     /* buffer was auto-unlinked, refresh and relink at end of buffer list. */
 
 #if GASNETC_REQRB_UNLINK_VERBOSE
     printf("[%d] Got Unlink event of ReqRB with handle %lu\n",gasneti_mynode,(ulong)ev->md_handle);
 #endif
-    /* decrement ref counter on this buffer */
-    GASNETC_REQRB_FINISH(ev->md.start);
-    ReqRB_refresh((intptr_t)ev->md.start);
+    ReqRB_refresh(bufptr);
     break;
 
   default:
-    /* decrement ref counter on this buffer */
-    GASNETC_REQRB_FINISH(ev->md.start);
     gasneti_fatalerror("Invalid event %s on ReqRB",ptl_event_str[ev->type]);
   }
 }
@@ -1473,6 +1478,8 @@ static void CB_event(ptl_event_t *ev)
 
   switch (ev->type) {
   case PTL_EVENT_PUT_END:
+    gasneti_fatalerror("PUT_END event on CB indicates flow-control failure");
+    break;
 
   default:
     gasneti_fatalerror("Invalid event %s on CB",ptl_event_str[ev->type]);
@@ -2324,7 +2331,7 @@ static void sys_exit(void)
   GASNETC_PTLSAFE(PtlMDUnlink(gasnetc_SYS_Send.md_h));
   GASNETC_PTLSAFE(PtlMDUnlink(gasnetc_SYS_Recv.md_h));
   /* drain the queue */
-  while (gasnetc_get_event(gasnetc_SYS_EQ,&ev)) {};
+  while (gasnetc_get_event(gasnetc_SYS_EQ,&ev,0)) {};
   gasnetc_eq_free(gasnetc_SYS_EQ);
 }
 
@@ -3843,10 +3850,10 @@ extern void gasnetc_portals_exit(void)
     RAR_exit();
 
     /* remove the event queues */
-    while (gasnetc_get_event(gasnetc_SAFE_EQ,&ev)) {};
+    while (gasnetc_get_event(gasnetc_SAFE_EQ,&ev,0)) {};
     gasnetc_eq_free(gasnetc_SAFE_EQ);
     gasnetc_SAFE_EQ = NULL;
-    while (gasnetc_get_event(gasnetc_AM_EQ,&ev)) {};
+    while (gasnetc_get_event(gasnetc_AM_EQ,&ev,0)) {};
     gasnetc_eq_free(gasnetc_AM_EQ);
     gasnetc_AM_EQ = NULL;
 
@@ -3906,7 +3913,7 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
    * to prevent send_ticket starvation
    */
   while (safe_cnt < gasnetc_safe_poll_limit) {
-    if ( gasnetc_get_event(gasnetc_SAFE_EQ, &ev) ) {
+    if ( gasnetc_get_event(gasnetc_SAFE_EQ, &ev, 0) ) {
       GASNETI_TRACE_PRINTF(C,("Got event %s from SAFE_EQ, md=%lu, mbits=0x%lx, th_id=%d",ptl_event_str[ev.type],(ulong)ev.md_handle,(unsigned long)ev.match_bits,th->threadidx));
       GASNETC_CALL_EQ_HANDLER(ev);
       processed++;
@@ -3955,12 +3962,15 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
       GASNETI_TRACE_PRINTF(C,("PtlPoll: FULL thread=0x%p flags=0x%x",th,th->flags));
 
       /* if we got here, we have enough resources to poll the AM queue */
-      if (gasnetc_get_event(gasnetc_AM_EQ, &ev) ) {
+      gasneti_mutex_lock(&gasnetc_AM_EQ->lock);
+      if (gasnetc_get_event(gasnetc_AM_EQ, &ev, 1) ) {
 	GASNETI_TRACE_PRINTF(C,("Got event %s from AM_EQ, md=%lu, mbits=0x%lx th_id=%d",ptl_event_str[ev.type],(ulong)ev.md_handle,(ulong)ev.match_bits,th->threadidx));
 	GASNETC_CALL_EQ_HANDLER(ev);
+        gasneti_mutex_assertunlocked(&gasnetc_AM_EQ->lock);
 	processed++;
 	am_cnt++;
       } else {
+        gasneti_mutex_unlock(&gasnetc_AM_EQ->lock);
 	goto out;
       }
     } /* end while */
