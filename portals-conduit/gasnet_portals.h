@@ -653,7 +653,6 @@ extern void* gasnetc_flush_buffer;
  * structures to gasnet_node_t.
  */
 typedef struct gasnetc_procrec {
-  gasnet_node_t     node_id;
   ptl_process_id_t  ptl_id;
   struct gasnetc_procrec *next;  /* linked list for hash table reverse lookup */
 } gasnetc_procid_t;

@@ -2488,7 +2488,6 @@ extern void gasnetc_init_portals_network(int *argc, char ***argv)
 
   gasnetc_procid_map = (gasnetc_procid_t*)gasneti_malloc(gasneti_nodes * sizeof(gasnetc_procid_t));
   for (node = 0; node < gasneti_nodes; node++) {
-    gasnetc_procid_map[node].node_id = node;
     gasnetc_procid_map[node].ptl_id.nid = cnos_map[node].nid;
     gasnetc_procid_map[node].ptl_id.pid = cnos_map[node].pid + pid_offset;
     gasnetc_procid_map[node].next = NULL;
@@ -2520,7 +2519,7 @@ extern void gasnetc_init_portals_network(int *argc, char ***argv)
       gasnetc_procid_t *p = gasnetc_addrtable[i];
       if (p == NULL) numzero++;
       while (p != NULL) {
-	GASNETI_TRACE_PRINTF(C,("Table[%d][%d] :: Node=%d, Nid=%d, Pid=%d",i,cnt,p->node_id,p->ptl_id.nid,p->ptl_id.pid));
+	GASNETI_TRACE_PRINTF(C,("Table[%d][%d] :: Node=%d, Nid=%d, Pid=%d",i,cnt,(int)(p-gasnetc_procid_map),p->ptl_id.nid,p->ptl_id.pid));
 	cnt++;
 	p = p->next;
       }
@@ -2562,7 +2561,7 @@ extern gasnet_node_t gasnetc_get_nodeid(ptl_process_id_t *proc)
   gasnetc_procid_t *p = gasnetc_addrtable[indx];
   while (p != NULL) {
     if ((p->ptl_id.nid == proc->nid) && (p->ptl_id.pid == proc->pid)) {
-      return p->node_id;
+      return (p - gasnetc_procid_map);
     }
     p = p->next;
   }
