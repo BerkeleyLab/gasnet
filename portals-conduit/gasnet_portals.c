@@ -93,6 +93,8 @@ ptl_handle_ni_t gasnetc_ni_h;              /* the network interface handle */
 gasnetc_eq_t *gasnetc_AM_EQ = NULL;        /* The AM Event Queue */
 gasnetc_eq_t *gasnetc_SAFE_EQ = NULL;      /* The SAFE Event Queue */
 
+gasnetc_eq_t *gasnetc_EMPTY_EQ = NULL;     /* For MDUpdate, since it rejects PTL_NO_EQ */
+
 /* out of band MDs for sending system messages */
 gasnetc_PtlBuffer_t gasnetc_SYS_Send;       /* out-of-band message send buffer */
 gasnetc_PtlBuffer_t gasnetc_SYS_Recv;       /* out-of-band message recv buffer */
@@ -2552,6 +2554,10 @@ extern void gasnetc_init_portals_network(int *argc, char ***argv)
   /* setup system SYS Send/Recv resources */
   sys_init();
 
+  /* setup an empty EQ for firehose */
+  #if GASNETC_FIREHOSE_LOCAL
+    gasnetc_EMPTY_EQ = gasnetc_eq_alloc(1,"EMPTY_EQ",NULL);
+  #endif
 }
 
 /* Function to convert a ptl_process_id_t to a GASNet Node id */
@@ -3805,7 +3811,10 @@ extern void gasnetc_portals_exit(void)
   {
     ptl_event_t ev;
 
-    firehose_fini();
+    #if GASNETC_FIREHOSE_LOCAL
+      firehose_fini();
+      gasnetc_eq_free(gasnetc_EMPTY_EQ);
+    #endif
 
     sys_exit();
 
@@ -4237,7 +4246,6 @@ void gasnetc_portalsSignalHandler(int sig) {
   #define GASNETC_TRACE_UNPIN(_region) 	((void)0)
 #endif
 
-/* XXX: Could/should use PtlMDUpdate?  When I tried PTL_EQ_NONE was flagged as invalid */
 extern int
 firehose_move_callback(gasnet_node_t node,
                        const firehose_region_t *unpin_list,
@@ -4246,10 +4254,11 @@ firehose_move_callback(gasnet_node_t node,
                        size_t pin_num)
 {
   GASNETC_TRACE_WAIT_BEGIN();
+  int updates = MIN(unpin_num, pin_num);
   int i;
 
-  /* Step 1: unpins */
-  for (i = 0; i < unpin_num; i++) {
+  /* Step 1: unpaired unpins */
+  for (i = updates; i < unpin_num; i++) {
     GASNETC_TRACE_UNPIN(unpin_list+i);
     GASNETC_PTLSAFE(PtlMDUnlink(unpin_list[i].client));
   }
@@ -4258,8 +4267,6 @@ firehose_move_callback(gasnet_node_t node,
   for (i = 0; i < pin_num; i++) {
     firehose_region_t *region = pin_list + i;
     ptl_md_t md;
-
-    GASNETC_TRACE_PIN(region);
 
     gasneti_assert(region->addr % GASNET_PAGESIZE == 0);
     gasneti_assert(region->len % GASNET_PAGESIZE == 0);
@@ -4276,7 +4283,15 @@ firehose_move_callback(gasnet_node_t node,
 #endif
     md.eq_handle = gasnetc_SAFE_EQ->eq_h;
 
-    GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, md, PTL_UNLINK, &region->client));
+    if (i < updates) {
+      /* PTL_EQ_NONE gets flagged as invalid.  So I've created an EMPTY_EQ. */
+      GASNETC_TRACE_UNPIN(unpin_list+i);
+      region->client = unpin_list[i].client;
+      GASNETC_PTLSAFE(PtlMDUpdate(region->client, NULL, &md, gasnetc_EMPTY_EQ->eq_h));
+    } else {
+      GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, md, PTL_RETAIN, &region->client));
+    }
+    GASNETC_TRACE_PIN(region);
   }
 
   GASNETC_TRACE_WAIT_END(FIREHOSE_MOVE);
