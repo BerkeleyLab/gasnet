@@ -54,6 +54,9 @@
 #define HASHVAL HASHTABLE_SIZE
 #define HASHFUNC(procid) (((procid)->nid) % HASHVAL)
 
+/* for all the MEs we create */
+static const ptl_process_id_t gasnetc_any_id = {PTL_NID_ANY,PTL_PID_ANY};
+
 /* Max number of events we will process per polling call */
 unsigned gasnetc_safe_poll_limit = 12;
 unsigned gasnetc_am_poll_limit = 8;
@@ -914,10 +917,6 @@ static void gasnetc_buf_free(gasnetc_PtlBuffer_t *buf)
 static void ReqRB_attach(gasnetc_PtlBuffer_t *p)
 {
   ptl_md_t md;
-  ptl_process_id_t match_id;
-
-  match_id.nid = PTL_NID_ANY;
-  match_id.pid = PTL_PID_ANY;
 
   md.start = p->start;
   md.length = p->nbytes;
@@ -936,7 +935,7 @@ static void ReqRB_attach(gasnetc_PtlBuffer_t *p)
 #endif
   md.eq_handle = gasnetc_AM_EQ->eq_h;
 
-  GASNETC_PTLSAFE(PtlMEInsert(gasnetc_CB.me_h, match_id,
+  GASNETC_PTLSAFE(PtlMEInsert(gasnetc_CB.me_h, gasnetc_any_id,
                               GASNETC_PTL_REQRB_BITS, GASNETC_PTL_IGNORE_BITS,
                               PTL_UNLINK, PTL_INS_BEFORE, &p->me_h));
   GASNETC_PTLSAFE(PtlMDAttach(p->me_h, md, PTL_UNLINK, &p->md_h));
@@ -1523,14 +1522,10 @@ static void RAR_init(void)
 {
   ptl_md_t md;
   ptl_handle_me_t me1_h, me2_h;
-  ptl_process_id_t  match_id;
   void* rar_start   = gasneti_seginfo[gasneti_mynode].addr;
   size_t rar_len    = gasneti_seginfo[gasneti_mynode].size;
 
   GASNETI_TRACE_PRINTF(C,("RAR_init with len = %lu at %p",(unsigned long)rar_len,rar_start));
-
-  match_id.nid = PTL_NID_ANY;
-  match_id.pid = PTL_PID_ANY;
 
   gasnetc_RAR.start = rar_start;
   gasnetc_RAR.nbytes = rar_len;
@@ -1539,7 +1534,7 @@ static void RAR_init(void)
   gasnetc_RAR.use_chunks = 0;
 
   /* Insert a MLE at the head of the list */
-  GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_RAR_PTE, match_id, GASNETC_PTL_RAR_BITS,
+  GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_RAR_PTE, gasnetc_any_id, GASNETC_PTL_RAR_BITS,
 			      GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_BEFORE, &gasnetc_RAR.me_h));
 
   /* The RAR does not generate events, but will produce ACKs */
@@ -1576,7 +1571,7 @@ static void RAR_init(void)
 #endif
   md.eq_handle = gasnetc_AM_EQ->eq_h;
 
-  GASNETC_PTLSAFE(PtlMEInsert(gasnetc_RAR.me_h, match_id, GASNETC_PTL_RARAM_BITS,
+  GASNETC_PTLSAFE(PtlMEInsert(gasnetc_RAR.me_h, gasnetc_any_id, GASNETC_PTL_RARAM_BITS,
 			      GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER,
 			      &gasnetc_RARAM.me_h));
   GASNETC_PTLSAFE(PtlMDAttach(gasnetc_RARAM.me_h, md, PTL_RETAIN, &gasnetc_RARAM.md_h));
@@ -1607,7 +1602,7 @@ static void RAR_init(void)
 #endif
   md.eq_handle = gasnetc_SAFE_EQ->eq_h;
 
-  GASNETC_PTLSAFE(PtlMEInsert(gasnetc_RARAM.me_h, match_id, GASNETC_PTL_RARSRC_BITS,
+  GASNETC_PTLSAFE(PtlMEInsert(gasnetc_RARAM.me_h, gasnetc_any_id, GASNETC_PTL_RARSRC_BITS,
 			      GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER,
 			      &gasnetc_RARSRC.me_h));
   GASNETC_PTLSAFE(PtlMDAttach(gasnetc_RARSRC.me_h, md, PTL_RETAIN, &gasnetc_RARSRC.md_h));
@@ -1679,11 +1674,7 @@ static void ReqRB_init(void)
   ptl_md_t md;
   size_t nbytes = gasnetc_ReqRB_numchunk * GASNETC_CHUNKSIZE;
   ptl_handle_me_t me_h;
-  ptl_process_id_t  match_id;
   char name[32];
-
-  match_id.nid = PTL_NID_ANY;
-  match_id.pid = PTL_PID_ANY;
 
   /* First add the Catch-Basin MD */
   gasnetc_buf_init(&gasnetc_CB,"Catch_Basin",0,NULL);
@@ -1698,7 +1689,7 @@ static void ReqRB_init(void)
   md.user_ptr = (void*)CB_event;
 #endif
   md.eq_handle = gasnetc_SAFE_EQ->eq_h;
-  GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_AM_PTE, match_id, GASNETC_PTL_REQRB_BITS, GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER, &gasnetc_CB.me_h));
+  GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_AM_PTE, gasnetc_any_id, GASNETC_PTL_REQRB_BITS, GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER, &gasnetc_CB.me_h));
   GASNETC_PTLSAFE(PtlMDAttach(gasnetc_CB.me_h, md, PTL_RETAIN, &gasnetc_CB.md_h));
 
   GASNETI_TRACE_PRINTF(C,("CB_init: %s me=%lu md=%lu",gasnetc_CB.name,(ulong)gasnetc_CB.me_h,(ulong)gasnetc_CB.md_h));
@@ -1753,10 +1744,6 @@ static void ReqSB_init(void)
 {
   ptl_md_t md;
   gasnetc_PtlBuffer_t *p = &gasnetc_ReqSB;
-  ptl_process_id_t  match_id;
-
-  match_id.nid = PTL_NID_ANY;
-  match_id.pid = PTL_PID_ANY;
 
   gasnetc_chunk_init(p, "ReqSB", gasnetc_ReqSB_numchunk);
 
@@ -1774,7 +1761,7 @@ static void ReqSB_init(void)
   md.eq_handle = gasnetc_SAFE_EQ->eq_h;
 
   /* Insert this after the Catch-Basin ME entry (at end of list) */
-  GASNETC_PTLSAFE(PtlMEInsert(gasnetc_CB.me_h, match_id, GASNETC_PTL_REQSB_BITS, GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER, &p->me_h));
+  GASNETC_PTLSAFE(PtlMEInsert(gasnetc_CB.me_h, gasnetc_any_id, GASNETC_PTL_REQSB_BITS, GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER, &p->me_h));
   GASNETC_PTLSAFE(PtlMDAttach(p->me_h, md, PTL_UNLINK, &p->md_h ));
 
   GASNETI_TRACE_PRINTF(C,("ReqSB_init: %s %lu chunks me=%lu md=%lu",p->name,(ulong)gasnetc_ReqSB_numchunk,(ulong)p->me_h,(ulong)p->md_h));
@@ -2254,10 +2241,6 @@ static void sys_init(void)
 {
   ptl_size_t eq_len = 2*gasneti_nodes + 10;
   ptl_md_t   md;
-  ptl_process_id_t  match_id;
-
-  match_id.nid = PTL_NID_ANY;
-  match_id.pid = PTL_PID_ANY;
 
   /*  printf("[%d] SYS_init: allocated %ld events on SYS_EQ\n",(int)gasneti_mynode,(long)eq_len); */
   gasnetc_SYS_EQ = gasnetc_eq_alloc(eq_len,"SYS_EQ",NULL);
@@ -2294,7 +2277,7 @@ static void sys_init(void)
   md.eq_handle = gasnetc_SYS_EQ->eq_h;
 
   /* Insert a MLE at the head of the list */
-  GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_AM_PTE, match_id, GASNETC_PTL_SYS_BITS,
+  GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_AM_PTE, gasnetc_any_id, GASNETC_PTL_SYS_BITS,
 			      GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_BEFORE, &gasnetc_SYS_Recv.me_h));
   GASNETC_PTLSAFE(PtlMDAttach(gasnetc_SYS_Recv.me_h, md, PTL_RETAIN, &gasnetc_SYS_Recv.md_h));
 
@@ -2621,15 +2604,11 @@ extern void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int ro
   ptl_handle_me_t dest_me_h;
   ptl_handle_md_t src_h, dest_h;
   ptl_handle_eq_t eq_h;
-  ptl_process_id_t  match_id;
   ptl_event_t ev;
   ptl_match_bits_t match_bits  = 0x0F0F0F0F0F0F0F0F;
   ptl_match_bits_t ignore_bits = 0x0000000000000000;
   int eq_len;
   int i, rc;
-
-  match_id.nid = PTL_NID_ANY;
-  match_id.pid = PTL_PID_ANY;
 
   GASNETI_TRACE_PRINTF(C,("bootBroadcast from %d len = %d, src=%p dest=%p",rootnode,(int)len,src,dest));
 
@@ -2647,7 +2626,7 @@ extern void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int ro
     dest_md.eq_handle = eq_h;
 
     /* construct the match entry */
-    GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_AM_PTE, match_id, match_bits, ignore_bits, PTL_UNLINK, PTL_INS_AFTER, &dest_me_h));
+    GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_AM_PTE, gasnetc_any_id, match_bits, ignore_bits, PTL_UNLINK, PTL_INS_AFTER, &dest_me_h));
 
     /* attach the dest memory descriptor */
     GASNETC_PTLSAFE(PtlMDAttach(dest_me_h, dest_md, PTL_RETAIN, &dest_h));
@@ -2735,16 +2714,12 @@ extern void gasnetc_bootstrapExchange(void *src, size_t len, void *dest)
   ptl_handle_md_t src_h, dest_h;
   ptl_handle_eq_t eq_h;
   int eq_len = gasneti_nodes * 4;
-  ptl_process_id_t  match_id;
   int found = 0;
   ptl_event_t ev;
   ptl_match_bits_t match_bits  = 0xF0F0F0F0F0F0F0F0;
   ptl_match_bits_t ignore_bits = 0x0000000000000000;
   int dest_offset = gasneti_mynode*len;
   int i;
-
-  match_id.nid = PTL_NID_ANY;
-  match_id.pid = PTL_PID_ANY;
 
   GASNETI_TRACE_PRINTF(C,("bootExch with len = %d, src = %p dest = %p",(int)len,src,dest));
 
@@ -2772,7 +2747,7 @@ extern void gasnetc_bootstrapExchange(void *src, size_t len, void *dest)
   dest_md.eq_handle = eq_h;
 
   /* construct the match entry */
-  GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_AM_PTE, match_id, match_bits, ignore_bits, PTL_UNLINK, PTL_INS_AFTER, &dest_me_h));
+  GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_AM_PTE, gasnetc_any_id, match_bits, ignore_bits, PTL_UNLINK, PTL_INS_AFTER, &dest_me_h));
 
   /* attach the dest memory descriptor */
   GASNETC_PTLSAFE(PtlMDAttach(dest_me_h, dest_md, PTL_RETAIN, &dest_h));
