@@ -267,18 +267,23 @@ void *thread_main(void *arg) {
     if(threads_per_node == 1) {
       test_root = myxml_createNode(sync_node, (char*)"num_addrs", (char*) "val", (char*)"single", NULL);
       /*call the single address (coll single) test routines with testroot*/
-      // run_SINGLE_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_SINGLE, test_root);
+      run_SINGLE_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_SINGLE, test_root);
     } else {
       if(td->mythread == 0 && !skip_msg_printed) MSG0("skipping SINGLE/SINGLE (multiple threads per node)");
     }
 #else
     if(td->mythread == 0 && !skip_msg_printed) MSG0("skipping SINGLE/SINGLE (unaligned segments)");
 #endif
+
+    if(threads_per_node == 1) {
+      test_root = myxml_createNode(sync_node,(char*)"num_addrs", (char*)"val", (char*)"single", NULL);
+      /*call the single address (coll local) test routines with testroot*/
+      run_SINGLE_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_LOCAL, test_root);
+    } else {
+      if(td->mythread == 0 && !skip_msg_printed) MSG0("skipping SINGLE/LOCAL (multiple threads per node) (test unimplemetned for now)");
+    }
+
     skip_msg_printed = 1;
-    test_root = myxml_createNode(sync_node,(char*)"num_addrs", (char*)"val", (char*)"single", NULL);
-    /*call the single address (coll local) test routines with testroot*/
-    // run_SINGLE_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_LOCAL, test_root);
-    
     /*do multi addr tests*/
     test_root = myxml_createNode(sync_node,(char*)"num_addrs", (char*)"val", (char*)"multi", NULL);
     /*call the multi address test (coll single) routines with testroot*/
@@ -341,6 +346,13 @@ int main(int argc, char **argv) {
       outputfile = test_malloc(strlen(argv[i+1])+1);
       strcpy(outputfile, argv[i+1]);
       i++;
+    } else if(strcmp("-h", argv[i])==0 || strcmp("-help", argv[i])==0) {
+#if GASNET_PAR
+      if(gasneti_mynode == 0) printf("usage: %s (-i iters) (-t num threads) (-sz max size) (-f output file)\n", argv[0]);
+#else
+      if(gasneti_mynode == 0) printf("usage: %s (-i iters) (-sz max size) (-f output file)\n", argv[0]);
+#endif
+      gasnet_exit(0);
     }
     
   }                      
