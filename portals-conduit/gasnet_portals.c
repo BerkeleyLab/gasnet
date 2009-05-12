@@ -2299,18 +2299,24 @@ static void sys_init(void)
 
 }
 
+static void gasnetc_eq_destroy(gasnetc_eq_t *eq)
+{
+  ptl_event_t ev;
+  gasneti_mutex_lock(&eq->lock);
+  while (gasnetc_get_event(eq,&ev,GASNETC_EQ_NOLOCK)) {};
+  gasneti_mutex_unlock(&eq->lock);
+  gasnetc_eq_free(eq);
+}
+
 /* ---------------------------------------------------------------------------------
  * Remove the system SYS resources
  * --------------------------------------------------------------------------------- */
 static void sys_exit(void)
 {
-  ptl_event_t ev;
   /* these will automatically unlink the match-list entries as well */
   GASNETC_PTLSAFE(PtlMDUnlink(gasnetc_SYS_Send.md_h));
   GASNETC_PTLSAFE(PtlMDUnlink(gasnetc_SYS_Recv.md_h));
-  /* drain the queue */
-  while (gasnetc_get_event(gasnetc_SYS_EQ,&ev,0)) {};
-  gasnetc_eq_free(gasnetc_SYS_EQ);
+  gasnetc_eq_destroy(gasnetc_SYS_EQ);
 }
 
 /* ---------------------------------------------------------------------------------
@@ -2346,7 +2352,9 @@ extern void gasnetc_sys_barrier(void)
   GASNETI_TRACE_PRINTF(C,("Entering SYS BARRIER cnt=%d",barr_cnt));
   if (gasneti_mynode == 0) {
     /* wait for all other nodes to check in */
-    while (gasneti_weakatomic_read(&sys_barrier_checkin,0) < gasneti_nodes-1) gasnetc_sys_poll();
+    while (gasneti_weakatomic_read(&sys_barrier_checkin,0) < gasneti_nodes-1) {
+      gasnetc_sys_poll(GASNETC_EQ_LOCK);
+    }
 
     /* reset this for next barrier */
     gasneti_weakatomic_set(&sys_barrier_checkin, 0, 0);
@@ -2362,7 +2370,9 @@ extern void gasnetc_sys_barrier(void)
     gasnetc_sys_SendMsg(0,GASNETC_SYS_BARRIER_ARRIVE,gasneti_mynode,barr_cnt,0);
 
     /* wait for node 0 to reply */
-    while (!gasneti_weakatomic_read(&sys_barrier_got,0)) gasnetc_sys_poll();
+    while (!gasneti_weakatomic_read(&sys_barrier_got,0)) {
+      gasnetc_sys_poll(GASNETC_EQ_LOCK);
+    }
   }
 }
 
@@ -2868,7 +2878,7 @@ static int try_pin(uintptr_t size)
   if (mem == NULL) return 0;
 
   /* poll system queue here since these operations can take some time */
-  gasnetc_sys_poll();
+  gasnetc_sys_poll(GASNETC_EQ_LOCK);
 
 #if GASNETC_DEBUG
   printf("[%d] try_pin with %lu bytes\n",gasneti_mynode,(unsigned long)size);
@@ -3825,11 +3835,9 @@ extern void gasnetc_portals_exit(void)
     RAR_exit();
 
     /* remove the event queues */
-    while (gasnetc_get_event(gasnetc_SAFE_EQ,&ev,0)) {};
-    gasnetc_eq_free(gasnetc_SAFE_EQ);
+    gasnetc_eq_destroy(gasnetc_SAFE_EQ);
     gasnetc_SAFE_EQ = NULL;
-    while (gasnetc_get_event(gasnetc_AM_EQ,&ev,0)) {};
-    gasnetc_eq_free(gasnetc_AM_EQ);
+    gasnetc_eq_destroy(gasnetc_AM_EQ);
     gasnetc_AM_EQ = NULL;
 
     /* free the proc id map */
@@ -3881,20 +3889,20 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
   gasneti_assert(poll_type != GASNETC_NO_POLL);
 
   /* always poll on the system queue, adds .074 usec to poll, cost of extra PtlEQGet call */
-  gasnetc_sys_poll();
+  gasnetc_sys_poll(GASNETC_EQ_TRYLOCK);
 
   /* always try to get a few events from the SAFE eq first 
    * all puts and gets generate two events so need to reap these queues faster
    * to prevent send_ticket starvation
    */
   while (safe_cnt < gasnetc_safe_poll_limit) {
-    if ( gasnetc_get_event(gasnetc_SAFE_EQ, &ev, 0) ) {
+    if ( gasnetc_get_event(gasnetc_SAFE_EQ, &ev, GASNETC_EQ_TRYLOCK) ) {
       GASNETI_TRACE_PRINTF(C,("Got event %s from SAFE_EQ, md=%lu, mbits=0x%lx, th_id=%d",ptl_event_str[ev.type],(ulong)ev.md_handle,(unsigned long)ev.match_bits,th->threadidx));
       GASNETC_CALL_EQ_HANDLER(ev);
       processed++;
       safe_cnt++;
     } else {
-      /* no ready events, stop trying */
+      /* no ready events or another poller holds the lock, stop trying */
       break;
     }
   }
@@ -3937,8 +3945,8 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
       GASNETI_TRACE_PRINTF(C,("PtlPoll: FULL thread=0x%p flags=0x%x",th,th->flags));
 
       /* if we got here, we have enough resources to poll the AM queue */
-      gasneti_mutex_lock(&gasnetc_AM_EQ->lock);
-      if (gasnetc_get_event(gasnetc_AM_EQ, &ev, 1) ) {
+      if (gasneti_mutex_trylock(&gasnetc_AM_EQ->lock)) goto out;
+      if (gasnetc_get_event(gasnetc_AM_EQ, &ev, GASNETC_EQ_NOLOCK) ) {
 	GASNETI_TRACE_PRINTF(C,("Got event %s from AM_EQ, md=%lu, mbits=0x%lx th_id=%d",ptl_event_str[ev.type],(ulong)ev.md_handle,(ulong)ev.match_bits,th->threadidx));
 	GASNETC_CALL_EQ_HANDLER(ev);
         gasneti_mutex_assertunlocked(&gasnetc_AM_EQ->lock);

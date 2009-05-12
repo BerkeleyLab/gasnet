@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/04/27 22:10:53 $
- * $Revision: 1.20 $
+ *     $Date: 2009/05/12 19:13:50 $
+ * $Revision: 1.20.2.1 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -207,7 +207,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
                           numentries, (unsigned long)segsize, (unsigned long)minheapoffset));
 
   /* check for system messages */
-  gasnetc_sys_poll();
+  gasnetc_sys_poll(GASNETC_EQ_LOCK);
 
   if (!gasneti_init_done) 
     GASNETI_RETURN_ERRR(NOT_INIT, "GASNet attach called before init");
@@ -394,7 +394,7 @@ extern void gasnetc_exit(int exitcode) {
     while (( cnt < gasneti_nodes) && (stoptime-starttime<shutdowntime)) {
       cnt = 0;
       for (node = 0; node < gasneti_nodes; node++) cnt += (gasnetc_conn_state[node].flags & GASNETC_SYS_GOT_SHUTDOWN_MSG ? 1 : 0);
-      if (cnt < gasneti_nodes) gasnetc_sys_poll();
+      if (cnt < gasneti_nodes) gasnetc_sys_poll(GASNETC_EQ_TRYLOCK);
       stoptime = GASNETC_CURRENT_TIME();
     } 
 

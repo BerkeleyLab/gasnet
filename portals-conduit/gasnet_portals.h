@@ -919,15 +919,31 @@ ptl_handle_md_t gasnetc_alloc_tmpmd_withpoll(void* start, size_t nbytes)
   return gasnetc_alloc_tmpmd(start, nbytes);
 }
 
+enum { /* lock_op argument to gasnetc_get_event and gasnetc_sys_poll */
+  GASNETC_EQ_NOLOCK = 0, /* Caller must hold the lock */
+  GASNETC_EQ_LOCK,       /* Obtain and release the lock */
+  GASNETC_EQ_TRYLOCK     /* trylock and return 0 on failure to acquire */
+};
+
 GASNETI_INLINE(gasnetc_get_event)
-int gasnetc_get_event(gasnetc_eq_t *eq, ptl_event_t *ev, int locked)
+int gasnetc_get_event(gasnetc_eq_t *eq, ptl_event_t *ev, int lock_op)
 {
   int rc;
   int retcode = 0;
 
-  if (!locked) gasneti_mutex_lock(&eq->lock);
+  switch (lock_op) {
+  case GASNETC_EQ_NOLOCK:
+    gasneti_mutex_assertlocked(&eq->lock);
+    break;
+  case GASNETC_EQ_LOCK:
+    gasneti_mutex_lock(&eq->lock);
+    break;
+  case GASNETC_EQ_TRYLOCK:
+    if (gasneti_mutex_trylock(&eq->lock)) return 0;
+    break;
+  }
   rc = PtlEQGet( eq->eq_h, ev);
-  if (!locked) gasneti_mutex_unlock(&eq->lock);
+  if (lock_op != GASNETC_EQ_NOLOCK) gasneti_mutex_unlock(&eq->lock);
   switch (rc) {
   case PTL_OK:
     retcode = 1;
@@ -973,7 +989,7 @@ gasnetc_threaddata_t* gasnetc_new_threaddata(gasnete_threadidx_t idx)
 }
 
 GASNETI_INLINE(gasnetc_sys_poll)
-void gasnetc_sys_poll(void)
+void gasnetc_sys_poll(int lock_op)
 {
   ptl_event_t ev;
   unsigned sys_cnt = 0;
@@ -986,9 +1002,19 @@ void gasnetc_sys_poll(void)
   while ((gasnetc_sys_poll_limit == 0) || (sys_cnt < gasnetc_sys_poll_limit)) {
     /* attempt to get an event, ok if EQ overflowed (but not until after sys initialization) */
     int rc;
-    gasneti_mutex_lock(&gasnetc_SYS_EQ->lock);
+    switch (lock_op) {
+    case GASNETC_EQ_NOLOCK:
+      gasneti_mutex_assertlocked(&gasnetc_SYS_EQ->lock);
+      break;
+    case GASNETC_EQ_LOCK:
+      gasneti_mutex_lock(&gasnetc_SYS_EQ->lock);
+      break;
+    case GASNETC_EQ_TRYLOCK:
+      if (gasneti_mutex_trylock(&gasnetc_SYS_EQ->lock)) return;
+      break;
+    }
     rc = PtlEQGet(gasnetc_SYS_EQ->eq_h, &ev);
-    gasneti_mutex_unlock(&gasnetc_SYS_EQ->lock);
+    if (lock_op != GASNETC_EQ_NOLOCK) gasneti_mutex_unlock(&gasnetc_SYS_EQ->lock);
     switch (rc) {
     case PTL_EQ_EMPTY:
       /* no work, return to caller */
