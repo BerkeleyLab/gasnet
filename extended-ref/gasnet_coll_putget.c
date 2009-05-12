@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/05/11 19:46:41 $
- * $Revision: 1.71.12.20 $
+ *     $Date: 2009/05/12 04:15:52 $
+ * $Revision: 1.71.12.21 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1332,7 +1332,11 @@ static int gasnete_coll_pf_bcastM_ScatterAllgather(gasnete_coll_op_t *op GASNETE
       
       tempspace = ((uint8_t*) data->private_data) + sizeof(gasnet_coll_handle_t)*2;
       
-      handle[0] = gasnete_coll_scatter_nb_default(op->team, tempspace, srcproc, args->src, seg_size, flags | GASNET_COLL_LOCAL, op->sequence+1 GASNETE_THREAD_PASS);
+      if(seg_size > 0) {
+        handle[0] = gasnete_coll_scatter_nb_default(op->team, tempspace, srcproc, args->src, seg_size, flags | GASNET_COLL_LOCAL, op->sequence+1 GASNETE_THREAD_PASS);
+      } else {
+        handle[0] = GASNET_COLL_INVALID_HANDLE;
+      }
       gasnete_coll_save_coll_handle(&handle[0] GASNETE_THREAD_PASS);
       
       if(remainder > 0) {

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/05/11 21:04:46 $
- * $Revision: 1.53.14.16 $
+ *     $Date: 2009/05/12 04:15:52 $
+ * $Revision: 1.53.14.17 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -754,10 +754,10 @@ can *prove* the current thread has a handle for the current op:
   None of this is needed once gasnete_poll() will ensure that gasneti_AMPoll()
   will poll collectives as long as any remain unfinished.
   */
-#if GASNETI_USE_TRUE_MUTEXES
+#if GASNETI_USE_TRUE_MUTEXES 
 #define GASNETE_COLL_MAY_INIT_FOR(op)	((GASNETE_COLL_GENERIC_DATA(op)->owner == GASNETE_MYTHREAD) || \
 				 ((op)->flags & (GASNET_COLL_OUT_MYSYNC | GASNET_COLL_OUT_ALLSYNC)))
-#define GASNETE_COLL_SET_OWNER(data)	(data)->owner = GASNETE_MYTHREAD
+#define GASNETE_COLL_SET_OWNER(data)	(gasneti_assert(GASNETE_COLL_MYTHREAD->my_local_image == 0), (data)->owner = GASNETE_MYTHREAD)
 #else
 #define GASNETE_COLL_MAY_INIT_FOR(op)	1
 #if GASNET_DEBUG

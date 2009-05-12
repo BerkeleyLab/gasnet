@@ -57,8 +57,8 @@ typedef gasnet_coll_handle_t (*gasnete_coll_bcastM_fn_ptr_t)(gasnet_team_handle_
                                                              gasnete_coll_implementation_t coll_params, 
                                                              uint32_t sequence
                                                              GASNETE_THREAD_FARG);
-typedef enum {GASNETE_COLL_BROADCAST_PUT=0, 
-              GASNETE_COLL_BROADCAST_GET,
+typedef enum {GASNETE_COLL_BROADCAST_GET=0, 
+              GASNETE_COLL_BROADCAST_PUT,
               GASNETE_COLL_BROADCAST_TREE_PUT,
               GASNETE_COLL_BROADCAST_TREE_PUT_SCRATCH,
               GASNETE_COLL_BROADCAST_TREE_PUT_SEG,
@@ -75,16 +75,16 @@ typedef enum {GASNETE_COLL_BROADCAST_PUT=0,
               GASNETE_COLL_BROADCAST_NUM_ALGS} gasnete_coll_broadcast_alg_types_t;
 
 typedef enum {GASNETE_COLL_BROADCASTM_GET=0,
-  GASNETE_COLL_BROADCASTM_PUT,
-  GASNETE_COLL_BROADCASTM_TREE_PUT,
-  GASNETE_COLL_BROADCASTM_TREE_PUT_SCRATCH,
-  GASNETE_COLL_BROADCASTM_TREE_PUT_SEG,
-  GASNETE_COLL_BROADCASTM_SCATTERALLGATHER,
-  GASNETE_COLL_BROADCASTM_EAGER,
-  GASNETE_COLL_BROADCASTM_TREE_EAGER,
-  GASNETE_COLL_BROADCASTM_RVOUS,
-  GASNETE_COLL_BROADCASTM_RVGET,
-  GASNETE_COLL_BROADCASTM_TREE_RVGET,
+              GASNETE_COLL_BROADCASTM_PUT,
+              GASNETE_COLL_BROADCASTM_TREE_PUT,
+              GASNETE_COLL_BROADCASTM_TREE_PUT_SCRATCH,
+              GASNETE_COLL_BROADCASTM_TREE_PUT_SEG,
+              GASNETE_COLL_BROADCASTM_SCATTERALLGATHER,
+              GASNETE_COLL_BROADCASTM_EAGER,
+              GASNETE_COLL_BROADCASTM_TREE_EAGER,
+              GASNETE_COLL_BROADCASTM_RVOUS,
+              GASNETE_COLL_BROADCASTM_RVGET,
+              GASNETE_COLL_BROADCASTM_TREE_RVGET,
 #ifdef GASNETE_COLL_CONDUIT_BROADCASTM_OPS
   /*check to see if the conduits have defined any new ops*/
   GASNETE_COLL_CONDUIT_BROADCASTM_OPS ,
@@ -165,6 +165,7 @@ typedef struct gasnete_coll_allgorithm_t_ {
     gasnete_coll_bcastM_fn_ptr_t bcastM_fn;
   } fn_ptr;
   
+  char *name_str;
 } gasnete_coll_algorithm_t;
 
 #define GASNETE_COLL_AUTOTUNE_RADIX_ARR_LEN 20
@@ -215,7 +216,8 @@ gasnete_coll_algorithm_t gasnete_coll_autotune_register_algorithm(gasnet_team_ha
                                                                   uint32_t tree_alg,
                                                                   uint32_t num_params,
                                                                   struct gasnet_coll_tuning_parameter_t *param_list,
-                                                                  void *coll_fnptr);
+                                                                  void *coll_fnptr,
+                                                                  char *name_str);
 
 size_t gasnete_coll_get_dissem_limit(gasnete_coll_autotune_info_t* autotune_info, gasnet_coll_optype_t op_type, int flags);
 
