@@ -93,7 +93,7 @@ ptl_handle_ni_t gasnetc_ni_h;              /* the network interface handle */
 gasnetc_eq_t *gasnetc_AM_EQ = NULL;        /* The AM Event Queue */
 gasnetc_eq_t *gasnetc_SAFE_EQ = NULL;      /* The SAFE Event Queue */
 
-gasnetc_eq_t *gasnetc_EMPTY_EQ = NULL;     /* For MDUpdate, since it rejects PTL_NO_EQ */
+gasnetc_eq_t *gasnetc_EMPTY_EQ = NULL;     /* For MDUpdate, since it rejects PTL_EQ_NONE */
 
 /* out of band MDs for sending system messages */
 gasnetc_PtlBuffer_t gasnetc_SYS_Send;       /* out-of-band message send buffer */
@@ -584,7 +584,6 @@ static int exec_ammedium_handler(int isReq, ptl_event_t *ev, int numarg, int gha
  * AMLong messages with small data payloads may have the payload packed with the header
  * message (and no data message).  isPacked=true if a packed message.
  * In summary, this function is called from:
- * - RARAM_event: in response to a Request or Reply AMLong data packet arrival.
  * - ReqRB_event: in response to an AM Long Header Request message.
  * - ReqSB_event: in response to an AM Long Header Reply message.
  * --------------------------------------------------------------------------------- */
@@ -767,7 +766,8 @@ static int exec_amlong_header(int isReq, int isPacked,
  * The last to arrive will execute the requested handler.
  * The first to arrive will cache its metadata in a LID cache that the second can retrieve.
  * This function is called from:
- * - RARAM_event: in response to a Request or Reply AMLong data packet arrival.
+ * - RARAM_event:  in response to a Request AMLong data packet arrival.
+ * - RARSRC_event: in response to a Reply AMLong data packet arrival.
  * --------------------------------------------------------------------------------- */
 static int  exec_amlong_data(int isReq, ptl_event_t *ev)
 {
@@ -1216,7 +1216,7 @@ static void TMPMD_event(ptl_event_t *ev)
  *              to actual destination, mark op free, free chunk.
  *   PUT_END => Reply AM arrived in same chunk as Request was sent.
  *              Call GASNet handler then free chunk.
- *   GET_END => Catch-basin recovery underway.  Mark source node as in-recovery.
+ *   GET_END => Catch-basin recovery underway.  Mark source node as in-recovery (NYI).
  * --------------------------------------------------------------------------------- */
 static void ReqSB_event(ptl_event_t *ev)
 {
@@ -1289,6 +1289,7 @@ static void ReqSB_event(ptl_event_t *ev)
     gasnete_op_markdone(op, 1);
     break;
 
+#if 0 /* Not Yet Implemented */
   case PTL_EVENT_GET_END:
     /* CB Recovery of dropped AM Request, stop all further AMs to this node */
     srcnode = gasnetc_get_nodeid(&ev->initiator);
@@ -1300,6 +1301,7 @@ static void ReqSB_event(ptl_event_t *ev)
     gasneti_fatalerror("ReqSB got GET_END event, but CB not implemented");
     
     break;
+#endif
 
   case PTL_EVENT_PUT_END:
     /* This is an AM reply from a previous request */
@@ -2738,7 +2740,6 @@ extern void gasnetc_bootstrapExchange(void *src, size_t len, void *dest)
   src_md.max_size = 0;
   src_md.options = PTL_MD_EVENT_START_DISABLE;
   src_md.user_ptr = 0;
-  src_md.eq_handle = PTL_EQ_NONE;
   src_md.eq_handle = eq_h;
   GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, src_md, PTL_RETAIN, &src_h));
 
