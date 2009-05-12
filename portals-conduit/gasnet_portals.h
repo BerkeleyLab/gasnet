@@ -673,7 +673,7 @@ extern char* ptl_event_str[];
   #define GASNETC_REQRB_FINISH(bufptr)     do {} while(0)
   #define GASNETC_REQRB_BUSY(bufptr)       0
 #else
-  /* "counter" counts threads referencing the buffer */
+  /* "threads_active" counts threads referencing the buffer */
   #define GASNETC_REQRB_START(bufptr) \
       gasneti_weakatomic_increment(&(bufptr)->threads_active, 0)
   #define GASNETC_REQRB_FINISH(bufptr) \
