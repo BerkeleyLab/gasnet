@@ -285,12 +285,15 @@ void *thread_main(void *arg) {
 
     skip_msg_printed = 1;
     /*do multi addr tests*/
-    test_root = myxml_createNode(sync_node,(char*)"num_addrs", (char*)"val", (char*)"multi", NULL);
-    /*call the multi address test (coll single) routines with testroot*/
-    run_MULTI_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_SINGLE, test_root);
-    /*call the multi address test (coll local) routines with testroot*/
-    run_MULTI_tree_tests(td, my_dsts, my_srcs, 0, flags | GASNET_COLL_LOCAL, test_root);
-
+    if(threads_per_node > 1) {
+      /*call the multi address test (coll single) routines with testroot*/
+      test_root = myxml_createNode(sync_node,(char*)"num_addrs", (char*)"val", (char*)"multi", NULL);
+      run_MULTI_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_SINGLE, test_root);
+      
+      /*call the multi address test (coll local) routines with testroot*/
+      test_root = myxml_createNode(sync_node,(char*)"num_addrs", (char*)"val", (char*)"multi", NULL);
+      run_MULTI_tree_tests(td, my_dsts, my_srcs, 0, flags | GASNET_COLL_LOCAL, test_root);
+    }
   }
 
 
