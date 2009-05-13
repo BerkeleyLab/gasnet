@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2009/04/23 23:33:03 $
- * $Revision: 1.113.8.2 $
+ *     $Date: 2009/05/13 21:51:41 $
+ * $Revision: 1.113.8.3 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -50,6 +50,13 @@ GASNETI_BEGIN_EXTERNC
    */
   #undef toupper
   #define toupper(c) ((c) >= 'a' && (c) <= 'z' ? (c) & 0x5F:(c))
+#endif
+
+#if GASNET_SYSV
+  extern uintptr_t *gasneti_seginfo_correction;
+  extern uintptr_t gasneti_sysvsize;
+  extern gasnet_sysvname_t *gasneti_sysvname;
+  extern gasnet_sysvname_t gasneti_vnetname;
 #endif
 
 extern int gasneti_init_done; /*  true after init */
@@ -664,6 +671,7 @@ extern void gasneti_defaultAMHandler(gasnet_token_t token);
 /* nodemap data and functions */
 
 extern gasnet_node_t *gasneti_nodemap;
+extern gasnet_node_t *gasneti_nodemap_local;
 extern gasnet_node_t gasneti_nodemap_local_count;
 extern gasnet_node_t gasneti_nodemap_local_rank;
 

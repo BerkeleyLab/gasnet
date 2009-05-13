@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2009/04/23 21:37:04 $
- * $Revision: 1.59.8.2 $
+ *     $Date: 2009/05/13 21:51:41 $
+ * $Revision: 1.59.8.3 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -248,7 +248,7 @@ GASNETI_END_EXTERNC
   typedef void (*gasneti_handler_fn_t)();
 #include<stdio.h>
   typedef struct gasneti_sysvname_s{
-    char file_name[16];
+    char file_name[32];
   } gasnet_sysvname_t;
   uintptr_t gasneti_sysvsize;
 #endif
@@ -266,6 +266,7 @@ GASNETI_END_EXTERNC
     void *remote_addr;
     uintptr_t size;
     uintptr_t remote_size;
+    gasnet_node_t nodeinfo;
   } gasnet_seginfo_t;
 
 #endif

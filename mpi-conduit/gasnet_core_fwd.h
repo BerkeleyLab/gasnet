@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2009/04/16 21:38:49 $
- * $Revision: 1.28.34.1 $
+ *     $Date: 2009/05/13 21:51:46 $
+ * $Revision: 1.28.34.2 $
  * Description: GASNet header for MPI conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -79,20 +79,5 @@ struct gasneti_seginfo_s;
 GASNETI_EXTERNC int gasnetc_getSegmentInfo(struct gasneti_seginfo_s *seginfo_table, int numentries);
 #define gasnet_getSegmentInfo(seginfo_table, numentries) \
         gasnetc_getSegmentInfo(seginfo_table, numentries)
-
-#if GASNET_SYSV
-GASNETI_EXTERNC int gasnetc_getSysVSegmentInfo(struct gasneti_seginfo_s *seginfo_table, int numentries);
-#define gasnet_getSysVSegmentInfo(seginfo_table, numentries) \
-        gasnetc_getSysVSegmentInfo(seginfo_table, numentries)
-
-GASNETI_EXTERNC int gasnetc_getSysVNodesInfo(unsigned int *nodesinfo_table, int numentries);
-#define gasnet_getSysVNodesInfo(seginfo_table, numentries) \
-        gasnetc_getSysVNodesInfo(seginfo_table, numentries)
-
-GASNETI_EXTERNC int gasnetc_getSysVMapInfo(unsigned int *mapinfo_table, int numentries);
-#define gasnet_getSysVMapInfo(mapinfo_table, numentries) \
-        gasnetc_getSysVMapInfo(mapinfo_table, numentries)
-
-#endif
 
 #endif

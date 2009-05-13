@@ -17,6 +17,12 @@
   #define GASNETI_SYSVNET_PAGESIZE GASNET_PAGESIZE
 #endif
 
+void *gasneti_mmap_vnet(uintptr_t segsize);
+gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest);
+void gasnetc_token_destroy(gasnet_token_t token);
+gasneti_handler_fn_t gasneti_get_handler(int handler_id);
+
+
 /* Virtual network between processes within a shared
  * memory 'supernode'.  
  * - Implemented as a set of message queues located in a shared memory space
@@ -51,6 +57,8 @@ extern uintptr_t *gasneti_vnet_addr;
  * </SysV variables that must be initialized by the conduit using SYSV>
  *******************************************************************************/
 
+void gasnetc_init_sysv();
+void gasnetc_mmap_sysv();
 
 
 /* Returns 1 if given node is in the caller's supernode, or 0 if it's not. */

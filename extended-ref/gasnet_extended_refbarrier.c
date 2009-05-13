@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2007/01/03 17:12:28 $
- * $Revision: 1.34 $
+ *     $Date: 2009/05/13 21:51:44 $
+ * $Revision: 1.34.28.1 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -114,9 +114,9 @@ void gasnete_amdbarrier_kick() {
   int numsteps = 0;
   gasnet_handlerarg_t flags, value;
 
-  if (step == amdbarrier_size || !amdbarrier_step_done[phase][step]) 
+  if (step == amdbarrier_size || !amdbarrier_step_done[phase][step]){ 
     return; /* nothing to do */
-
+  }
   gasneti_assert(gasneti_nodes > 1);
 
   gasnet_hsl_lock(&amdbarrier_lock);

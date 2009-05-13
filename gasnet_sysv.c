@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/04/23 21:37:04 $
- * $Revision: 1.1.4.3 $
+ *     $Date: 2009/05/13 21:51:41 $
+ * $Revision: 1.1.4.4 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,6 +10,82 @@
 
 
 #if GASNET_SYSV
+
+static void *gasnetc_sysvnet_region;
+
+/* maximum number of processes that share a single shared memory region */
+  #define GASNETC_MAX_SYSV_NODES 256
+
+  /* Supernode data that lives in shared space */
+  struct gasnetc_supernode_info_t {
+    gasnet_node_t node2pid[GASNETC_MAX_SYSV_NODES]; /* pid lookup table */
+    gasneti_atomic_t startup_counter;		    /* one-time barrier */
+  };
+  static struct gasnetc_supernode_info_t *gasnetc_sn_info;
+
+  #define gasneti_sysv_node2pid gasnetc_sn_info->node2pid
+
+
+void gasnetc_init_sysv(){
+  size_t vnetsz, sninfosz, mmapsz;
+  int retval = GASNET_OK;
+  int i, sysv_nodes = 0, myrank = 0;
+
+  
+#if GASNET_CONDUIT_SMP_SYSV     
+  gasneti_sysvnodes = gasneti_nodes;
+  gasneti_firstsysvnode = 0;
+  gasneti_mysysvnode = gasneti_mynode;
+#else
+  gasneti_sysvnodes = gasneti_nodemap_local_count;
+  gasneti_firstsysvnode = gasneti_nodemap[gasneti_mynode];
+  gasneti_mysysvnode = gasneti_nodemap_local_rank;
+#endif
+
+
+  /* set up additional shared memory region for shared supernode data and AM
+   * infrastructure.
+   */
+  vnetsz = gasneti_sysvnet_memory_needed(gasneti_sysvnodes); 
+  sninfosz = sizeof(struct gasnetc_supernode_info_t);
+  sninfosz = GASNETI_ALIGNUP(sninfosz, GASNETI_SYSVNET_PAGESIZE);
+  mmapsz = sninfosz + (2*vnetsz);
+  /* NOTE: do we need gasneti_sysvsize (is it ever used)? */
+  gasneti_sysvsize = sninfosz + (2*vnetsz);
+  /* NOTE: What happens here if there is not enough memory to alloc vnet? */
+  gasneti_vnet_addr = gasnetc_sysvnet_region = gasneti_mmap_vnet(mmapsz);
+  if (gasnetc_sysvnet_region == NULL) //MAP_FAILED)
+    gasneti_fatalerror("mmap for shared memory Active Messages region failed!");
+  
+  /* Initializing supernode info. NOTE: I am not sure if we really need node2pid ... */
+  gasnetc_sn_info = (struct gasnetc_supernode_info_t *)gasnetc_sysvnet_region;
+  if (gasneti_mynode==0) memset(gasnetc_sn_info, 0, sizeof(struct gasnetc_supernode_info_t));
+  else sleep(1);
+  gasneti_sysv_node2pid[0] = getpid();
+
+  gasneti_sysv_node2supernode = gasneti_malloc(sizeof(int*)*gasneti_nodes);
+  if (gasneti_sysv_node2supernode==NULL) 
+    gasneti_fatalerror("Unable to allocate memory for node2supernode");
+  
+  /* Collective call to initialize Shared AM "networks" */
+  gasneti_sysvnet_init(&gasneti_request_sysvnet, ((char*)(gasnetc_sysvnet_region))+sninfosz,
+                       vnetsz, gasneti_firstsysvnode, gasneti_sysvnodes);
+  gasneti_sysvnet_init(&gasneti_reply_sysvnet, ((char*)(gasnetc_sysvnet_region))+(sninfosz+vnetsz),
+                       vnetsz, gasneti_firstsysvnode, gasneti_sysvnodes);
+
+  /* One-time 'barrier' */
+  gasneti_atomic_increment(&gasnetc_sn_info->startup_counter, GASNETI_ATOMIC_REL);
+  while (gasneti_atomic_read(&gasnetc_sn_info->startup_counter, GASNETI_ATOMIC_ACQ) 
+            != gasneti_nodes)
+    gasneti_sched_yield();
+    
+
+}
+
+
+
+
+
 
 /*******************************************************************************
  * "SysV Net":  virtual network between peers in a shared memory supernode 
@@ -183,19 +259,16 @@ struct gasneti_sysvnet {
 #define sysvnode(vnet, gasnet_node) \
         (gasnet_node - vnet->firstnode)
 
-//#define sysvnode(vnet, gasnet_node) \
-        gasneti_mynode
-        
 #define gasneti_assert_align(p, align) \
         gasneti_assert((((uintptr_t)p) % align) == 0)
 
 /* Macros for determining the offset and the real address, used for
  * the addresses inside the sysnet region */
 #define gasneti_sysv_offset(addr) \
-                ((uintptr_t)addr - (uintptr_t)gasneti_vnet_addr)
+                (void *)((uintptr_t)addr - (uintptr_t)gasneti_vnet_addr)
 
 #define gasneti_sysv_addr(addr) \
-                ((uintptr_t)addr + (uintptr_t)gasneti_vnet_addr)
+                (void *)((uintptr_t)addr + (uintptr_t)gasneti_vnet_addr)
 
 
 static int get_queue_depth(gasnet_node_t nodes) 
@@ -409,6 +482,9 @@ int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf,
                                         size_t nbytes, gasnet_node_t target)
 {
   int retval = -1;
+  gasneti_sysvnet_msg_t *q_send_next;
+  gasneti_sysvnet_msg_t *q_queue;
+  gasneti_sysvnet_msg_t *q_justpastlast;
   gasneti_sysvnet_payload_t *p;
   gasneti_sysvnet_queue_t *q = vnet->out_queues[sysvnode(vnet, target)];
   gasneti_assert(q != NULL);
@@ -417,9 +493,9 @@ int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf,
   
   /* Get the actuall addresses of q->send_next, queue and justpastlast (they are currently
    * only offsets) */
-  gasneti_sysvnet_msg_t *q_send_next = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->send_next);
-  gasneti_sysvnet_msg_t *q_queue = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->queue);
-  gasneti_sysvnet_msg_t *q_justpastlast = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->justpastlast);
+  q_send_next = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->send_next);
+  q_queue = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->queue);
+  q_justpastlast = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->justpastlast);
 
    /* This code assumes that if the current 'send_node' isn't free yet, there
    * are no free slots in the recipient's queue.  Since there is only one
@@ -455,15 +531,19 @@ int gasneti_sysvnet_recv(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize,
                          gasnet_node_t *from)
 {
   int i;
+  gasneti_sysvnet_msg_t *q_recv_next;
+  gasneti_sysvnet_msg_t *q_queue;
+  gasneti_sysvnet_msg_t *q_justpastlast;
+   
   for (i = 0; i < vnet->nodecount; i++) {
     if (vnet->nextindex != gasneti_mysysvnode) {
       gasneti_sysvnet_queue_t *q = vnet->in_queues[vnet->nextindex];
       
       /* Get the actuall addresses of q->recv_next, queue and justpastlast (they are currently
        * only offsets) */
-      gasneti_sysvnet_msg_t *q_recv_next = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->recv_next);
-      gasneti_sysvnet_msg_t *q_queue = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->queue);
-      gasneti_sysvnet_msg_t *q_justpastlast = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->justpastlast);
+      q_recv_next = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->recv_next);
+      q_queue = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->queue);
+      q_justpastlast = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->justpastlast);
       
       gasneti_assert(q != NULL);
       gasneti_mutex_lock(&q->recv_lock);
@@ -610,7 +690,6 @@ void gasneti_sysvnet_bootstrapExchange(gasneti_sysvnet_t *vnet, void *src,
     msg = gasneti_sysvnet_get_send_buffer(vnet, len, i);
     if (msg) {
       memcpy(msg, src, len);
-      printf("BOOTEX\n");
       if (gasneti_sysvnet_deliver_send_buffer(vnet, msg, len, i)) {
         gasneti_fatalerror("T%d: Can't deliver msg to node %d during bootstrap exchange", 
                            gasnet_mynode(), i);
@@ -790,13 +869,16 @@ int gasneti_AMSYSV_service_incoming_msg(gasneti_sysvnet_t *vnet, int isReq)
       break;
     case gasnetc_Long:
       { 
-        void * data = GASNETI_AMSYSV_MSG_LONG_DATA(msg);
+        void * data;
+        size_t nbytes;
+        
+        data = GASNETI_AMSYSV_MSG_LONG_DATA(msg);
+        nbytes = GASNETI_AMSYSV_MSG_LONG_NUMBYTES(msg);
 #if 0
         data = (void*)((uintptr_t)data + gasneti_sysv_seginfo_client[gasneti_mysysvnode].addr);
 #else
-        data = (void*)((uintptr_t)data + gasneti_seginfo[gasneti_mysysvnode].addr);
+        data = (void *)((uintptr_t)data + (uintptr_t)gasneti_seginfo[gasneti_mysysvnode].addr);
 #endif
-        size_t nbytes = GASNETI_AMSYSV_MSG_LONG_NUMBYTES(msg);
         GASNETI_RUN_HANDLER_LONG(
             isReq,handler_id,handler_fn,token,args,numargs,data,nbytes);
       }
@@ -836,7 +918,7 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
 {
   gasneti_sysvnet_t *vnet = (isReq ? gasneti_request_sysvnet : gasneti_reply_sysvnet);
   int msgsz, i;
-  void *msg;
+  void *msg, *dest_addr;
   gasnet_handlerarg_t *pargs;
   int loopback = (dest == gasneti_mynode);
 
@@ -868,16 +950,16 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
   } else {
     while (!(msg = gasneti_sysvnet_get_send_buffer(vnet, msgsz, dest))) {
       /* If reply, only poll reply network: avoids deadlock  */
-      //gasneti_AMSYSVPoll(!isReq);
+      gasneti_AMSYSVPoll(!isReq);
 
-        gasnetc_AMPoll(!isReq);
+        //gasnetc_AMPoll(!isReq);
     }
   }
 
 #if 0
   void *dest_addr = (void*)((uintptr_t)dest_ptr + gasneti_sysv_seginfo_client[dest-gasneti_firstsysvnode].addr);
 #else
-  void *dest_addr = (void*)((uintptr_t)dest_ptr + gasneti_seginfo[dest].remote_addr);
+  dest_addr = (void*)((uintptr_t)dest_ptr + (uintptr_t)gasneti_seginfo[dest].remote_addr);
 #endif
   /* Fill in message */
   GASNETI_AMSYSV_MSG_CATEGORY(msg) = category;
@@ -928,12 +1010,10 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
     gasnetc_token_destroy(token);
   } else {
     
-      //if (vnet==NULL) printf("\n\n%d> mysysvnode %d vnet is NUUUUUUUUUUUUUULLL dest %d\n\n",gasneti_mynode,gasneti_mysysvnode,vnet,dest);
-      //else printf("\n\n%d> mysysvnode %d before Send_buffer %p dest %d\n\n",gasneti_mynode,gasneti_mysysvnode,vnet,dest);
     while (gasneti_sysvnet_deliver_send_buffer(vnet, msg, msgsz, dest)) {
       /* If reply, only poll reply network: avoids deadlock  */
-      //gasneti_AMSYSVPoll(!isReq);
-        gasnetc_AMPoll(!isReq);
+      gasneti_AMSYSVPoll(!isReq);
+        //gasnetc_AMPoll(!isReq);
     }
   }
   return GASNET_OK;

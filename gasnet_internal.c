@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/04/23 23:33:03 $
- * $Revision: 1.197.8.3 $
+ *     $Date: 2009/05/13 21:51:41 $
+ * $Revision: 1.197.8.4 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -151,12 +151,10 @@ extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentr
 #endif
 
 #if GASNET_SYSV
-uintptr_t gasneti_sysvsize;
-gasnet_sysvname_t *gasneti_sysvname;
-unsigned int *gasneti_nodesinfo;
-unsigned int *gasneti_sysv_mapinfo;
-gasnet_seginfo_t *gasneti_sysv_seginfo_client = NULL;
-uintptr_t *gasneti_sysvnetinfo;
+  uintptr_t *gasneti_seginfo_correction;
+  uintptr_t gasneti_sysvsize;
+  gasnet_sysvname_t *gasneti_sysvname;
+  gasnet_sysvname_t gasneti_vnetname;
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -817,6 +815,7 @@ static void gasneti_check_portable_conduit() { /* check for portable conduit abu
  */
 
 gasnet_node_t *gasneti_nodemap = NULL;
+gasnet_node_t *gasneti_nodemap_local = NULL;
 gasnet_node_t gasneti_nodemap_local_count = 0;
 gasnet_node_t gasneti_nodemap_local_rank = (gasnet_node_t)-1;
 
@@ -987,6 +986,9 @@ static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
  *
  */
 extern void gasneti_nodemapParse(void) {
+  
+  gasnet_node_t i,j,q;
+
   gasneti_assert(gasneti_nodemap);
   gasneti_assert(gasneti_nodemap[0] == 0);
   gasneti_assert(gasneti_nodemap[gasneti_mynode] <= gasneti_mynode);
@@ -1003,6 +1005,16 @@ extern void gasneti_nodemapParse(void) {
     }
     gasneti_assert(gasneti_nodemap_local_count != 0);
     gasneti_assert(gasneti_nodemap_local_rank < gasneti_nodemap_local_count);
+  }
+  gasneti_nodemap_local = gasneti_malloc(gasneti_nodemap_local_count*sizeof(gasnet_node_t));
+
+  q=i=gasneti_nodemap[gasneti_mynode];
+  j=0;
+  for( ;j<gasneti_nodemap_local_count; i++){
+    if (gasneti_nodemap[i] == q){
+        gasneti_nodemap_local[j]=i;
+        j++;
+    }
   }
 
   #if GASNET_DEBUG_VERBOSE
@@ -1073,6 +1085,7 @@ extern void gasneti_nodemapInit(gasneti_bootstrapExchangefn_t exchangefn,
 extern void gasneti_nodemapFini(void) {
   gasneti_assert(gasneti_nodemap);
   gasneti_free(gasneti_nodemap);
+  gasneti_free(gasneti_nodemap_local);
 #if GASNET_DEBUG
   /* To help catch any use-afer-Fini: */
   gasneti_nodemap = NULL;

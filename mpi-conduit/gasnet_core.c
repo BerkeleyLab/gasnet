@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/04/23 23:33:14 $
- * $Revision: 1.77.22.3 $
+ *     $Date: 2009/05/13 21:51:46 $
+ * $Revision: 1.77.22.4 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,7 +17,9 @@
 #include <signal.h>
 #include <unistd.h>
 
-void *gasneti_mmap_vnet(uintptr_t segsize);
+#if GASNET_SYSV
+void *gasneti_unlink_segment();
+#endif
 
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
@@ -31,43 +33,21 @@ ep_t gasnetc_endpoint;
 
 gasneti_mutex_t gasnetc_AMlock = GASNETI_MUTEX_INITIALIZER; /*  protect access to AMMPI */
 
-//SYSV stuff
 #if GASNET_SYSV
 static int gasnetc_sysv_init;
-  /* maximum number of processes that share a single shared memory region */
-  #define GASNETC_MAX_SYSV_NODES 256
-
-  /* Supernode data that lives in shared space */
-  struct gasnetc_supernode_info_t {
-    gasnet_node_t node2pid[GASNETC_MAX_SYSV_NODES]; /* pid lookup table */
-    gasneti_atomic_t startup_counter;		    /* one-time barrier */
-  };
-  static struct gasnetc_supernode_info_t *gasnetc_sn_info;
-
-  #define gasneti_sysv_node2pid gasnetc_sn_info->node2pid
-
-  static void *gasnetc_sysvnet_region;
-
-gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
-static void gasnetc_atexit(void);
-
-#if !GASNETI_CLIENT_THREADS
-  void *_gasnetc_mythread = NULL;
-#endif
-
 #define GASNETC_MAX_NUMHANDLERS   256
 typedef void (*gasnetc_handler_fn_t)();  /* prototype for handler function */
 gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
 
-gasneti_handler_fn_t gasneti_get_handler(int handler_id) {
+gasneti_handler_fn_t gasnetc_get_handler(int handler_id) {
   gasneti_assert(handler_id < GASNETC_MAX_NUMHANDLERS);
   return gasnetc_handler[handler_id];
 }
+/* Used in gasnet_sysv.c */
+extern gasneti_handler_fn_t gasneti_get_handler(int handler_id){
+  return gasnetc_get_handler(handler_id); 
+}
 #endif /* GASNET_SYSV */
-//end SYSV
-
-  
-
 
 #if GASNETC_HSL_ERRCHECK || GASNET_TRACE
   extern void gasnetc_enteringHandler_hook(ammpi_category_t cat, int isReq, int handlerId, void *token, 
@@ -134,122 +114,6 @@ void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode)
    goto done;                                                           \
  } while (0)
 
-#if GASNET_SYSV
-static int gasnetc_get_sysv_nodecount()
-{
-  gasnet_node_t nodes = gasneti_getenv_int_withdefault("GASNET_SYSV_NODES", 0, 0);
-  int polite_wait, politedefault;
-
-  if (nodes > GASNETC_MAX_SYSV_NODES) { 
-    gasneti_fatalerror("Nodes requested (%d) > maximum (%d)", nodes,
-                       GASNETC_MAX_SYSV_NODES);
-  } else if (nodes == 0) {
-    fprintf(stderr, "Warning: GASNET_SYSV_NODES not specified: running with 1 node\n");
-    nodes = 1;
-  }
-
-  politedefault = gasnett_cpu_count() > 0 && nodes > gasnett_cpu_count();
-  polite_wait = gasnett_getenv_yesno_withdefault("GASNET_POLITE_SYNC",politedefault);
-  if (politedefault) {
-    fprintf(stderr,
-      "WARNING: Running more processes (%i) than there are physical CPU's (%i)\n",
-       nodes, gasnett_cpu_count());
-    if (polite_wait) {
-      fprintf(stderr,
-        "         enabling \"polite\" synchronization algorithms\n");
-    } else {
-      fprintf(stderr,
-        "         but setting GASNET_POLITE_SYNC=\"%s\" in your environment has\n"
-        "         disabled \"polite\" synchronization algorithms\n"
-        "         Results of this run are not suitable for benchmarking\n",
-        gasnet_getenv("GASNET_POLITE_SYNC"));
-    }
-  } else if (polite_wait) {
-    fprintf(stderr,"WARNING: GASNET_POLITE_SYNC=\"%s\" is set in your environment\n"
-        "         enabling \"polite\", low-performance synchronization algorithms\n",
-        gasnet_getenv("GASNET_POLITE_SYNC"));
-  }
-  fflush(stderr);
-  gasnet_set_waitmode(polite_wait ? GASNET_WAIT_BLOCK : GASNET_WAIT_SPIN);
-  return nodes;
-}
-
-static void gasnetc_init_sysv(int *argc, char ***argv)
-{
-  int retval = GASNET_OK;
-  size_t vnetsz, sninfosz, mmapsz;
-  int i, sysv_nodes = 0, myrank = 0;
-
-  /* Initializing the array that contains mapping of processes to physical nodes */
-  gasneti_nodesinfo = (unsigned int *)gasneti_malloc(gasneti_nodes*sizeof(unsigned int));
-  gasneti_sysv_mapinfo = (unsigned int *)gasneti_malloc(gasneti_nodes*sizeof(unsigned int));
-  for(i=0; i<gasneti_nodes; i++)
-      gasneti_nodesinfo[i]=0;
-  gasneti_nodesinfo[gasneti_mynode] = gethostid();
-  gasnetc_bootstrapExchange(&gasneti_nodesinfo[gasneti_mynode], sizeof(unsigned int), gasneti_nodesinfo);
-
-  int j;
-  for(j=0; j<gasneti_nodes; j++){
-    //printf("%d> nodesinfo[%d] = %d\n",gasneti_mynode,j,gasneti_nodesinfo[j]);
-  }
-  
-  /* Determining gasneti_sysvnodes, gasneti_mysysvnode and gasneti_firstsysvnode
-   * according to definitions in gasnet_sysv.h. The assumption is that the UPC threads
-   * on a single physical node have conscutive values for gasneti_mynode 
-   */
-  for(i=0; i<gasneti_nodes; i++){
-      if (gasneti_nodesinfo[gasneti_mynode]==gasneti_nodesinfo[i]) sysv_nodes++;
-  }
-  gasneti_sysvnodes = sysv_nodes;
-
-  for(i=0; i<gasneti_nodes; i++){
-      if (gasneti_nodesinfo[i] == gasneti_nodesinfo[gasneti_mynode] && i < gasneti_mynode){
-          myrank++;
-          if (myrank==1) gasneti_firstsysvnode = i;
-      }
-  }
-  if (myrank == 0) gasneti_firstsysvnode = gasneti_mynode;
-  gasneti_mysysvnode = myrank;
-  
-  gasneti_sysv_mapinfo[gasneti_mynode] = gasneti_mysysvnode;
-  gasnetc_bootstrapExchange(&gasneti_sysv_mapinfo[gasneti_mynode], sizeof(unsigned int), gasneti_sysv_mapinfo);
-
-  /* set up additional shared memory region for shared supernode data and AM
-   * infrastructure.
-   */
-  vnetsz = gasneti_sysvnet_memory_needed(gasneti_sysvnodes); 
-  sninfosz = sizeof(struct gasnetc_supernode_info_t);
-  sninfosz = GASNETI_ALIGNUP(sninfosz, GASNETI_SYSVNET_PAGESIZE);
-  mmapsz = sninfosz + (2*vnetsz);
-  /* NOTE: do we need gasneti_sysvsize (is it ever used)? */
-  gasneti_sysvsize = sninfosz + (2*vnetsz);
-  /* NOTE: What happens here if there is not enough memory to alloc vnet? */
-  gasneti_vnet_addr = gasnetc_sysvnet_region = gasneti_mmap_vnet(mmapsz);
-  if (gasnetc_sysvnet_region == NULL) //MAP_FAILED)
-    gasneti_fatalerror("mmap for shared memory Active Messages region failed!");
-  
-  /* Initializing supernode info. NOTE: I am not sure if we really need node2pid ... */
-  gasnetc_sn_info = (struct gasnetc_supernode_info_t *)gasnetc_sysvnet_region;
-  memset(gasnetc_sn_info, 0, sizeof(struct gasnetc_supernode_info_t));
-  gasneti_sysv_node2pid[0] = getpid();
-  
-  gasneti_sysv_node2supernode = gasneti_malloc(sizeof(int*)*gasneti_nodes);
-  if (gasneti_sysv_node2supernode==NULL) 
-    gasneti_fatalerror("Unable to allocate memory for node2supernode");
-  
-  /* Collective call to initialize Shared AM "networks" */
-  gasneti_sysvnet_init(&gasneti_request_sysvnet, ((char*)(gasnetc_sysvnet_region))+sninfosz,
-                       vnetsz, gasneti_firstsysvnode, gasneti_sysvnodes);
-  gasneti_sysvnet_init(&gasneti_reply_sysvnet, ((char*)(gasnetc_sysvnet_region))+(sninfosz+vnetsz),
-                       vnetsz, gasneti_firstsysvnode, gasneti_sysvnodes);
-  /* Setting the indicator that the SYSV AM network is initialized. This indicator is
-   * used in AM Request/Reply functions. 
-   */
-  //gasnetc_sysv_init=1;
-
-}
-#endif
-
 static int gasnetc_init(int *argc, char ***argv) {
   int retval = GASNET_OK;
   int networkdepth = 0;
@@ -315,22 +179,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_mynode = AMMPI_SPMDMyProc();
     gasneti_nodes = AMMPI_SPMDNumProcs();
   
-#if GASNET_SYSV
-    /* Creating the names for shmem files 
-     * NOTE: currently the gasneti_sysvname array holds gasneti_nodes enteries, and bootstrapExchange
-     * is performed across the entire system. Could we do better? i.e. use gasneti_sysvnodes instead
-     * of gasneti_nodes, and perform exchange only locally.
-     */
-    gasneti_sysvname = (gasnet_sysvname_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_sysvname_t));
-    strcpy(gasneti_sysvname[gasneti_mynode].file_name,"/upcmem.XXXXXX");
-    mkstemp(gasneti_sysvname[gasneti_mynode].file_name);
-    gasnetc_bootstrapExchange(&gasneti_sysvname[gasneti_mynode], sizeof(gasnet_sysvname_t), gasneti_sysvname);
-
-    //printf("%d> %s\n",gasneti_mynode,gasneti_sysvname[gasneti_mynode].file_name);
-  
-    gasnetc_init_sysv(argc,argv);
-#endif
-    
+   
     /* a number of MPI job spawners fail to propagate the environment to all compute nodes */
     /* do this before trace_init to make sure it gets right environment */
     gasneti_setupGlobalEnvironment(gasneti_nodes, gasneti_mynode, 
@@ -349,6 +198,25 @@ static int gasnetc_init(int *argc, char ***argv) {
 
     gasneti_nodemapInit(&gasnetc_bootstrapExchange, NULL, 0, 0);
 
+#if GASNET_SYSV
+    /* Creating the names for shmem files 
+     * NOTE: currently the gasneti_sysvname array holds gasneti_nodes enteries, and bootstrapExchange
+     * is performed across the entire system. Could we do better? i.e. use gasneti_sysvnodes instead
+     * of gasneti_nodes, and perform exchange only locally.
+     * I gues it is possible for processes on different physical nodes to have the same files,
+     * but we do not care about that ... or do we?
+     */
+    gasneti_sysvname = (gasnet_sysvname_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_sysvname_t));
+    strcpy(gasneti_sysvname[gasneti_mynode].file_name,"/upcmem.XXXXXX");
+    mkstemp(gasneti_sysvname[gasneti_mynode].file_name);
+    gasnetc_bootstrapExchange(&gasneti_sysvname[gasneti_mynode], sizeof(gasnet_sysvname_t), gasneti_sysvname);
+
+    strcpy(gasneti_vnetname.file_name, gasneti_sysvname[0].file_name);
+    strcat(gasneti_vnetname.file_name, "sysv_vnet");
+
+    gasnetc_init_sysv();
+#endif
+ 
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { uintptr_t limit;
       #if HAVE_MMAP
@@ -444,6 +312,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
 /* ------------------------------------------------------------------------------------ */
 extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
                           uintptr_t segsize, uintptr_t minheapoffset) {
+
   int retval = GASNET_OK;
   void *segbase = NULL;
   
@@ -475,7 +344,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     #endif
 
     segsize = gasneti_auxseg_preattach(segsize); /* adjust segsize for auxseg reqts */
-
     /* ------------------------------------------------------------------------------------ */
     /*  register handlers */
 #if GASNET_SYSV
@@ -533,14 +401,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     /* ------------------------------------------------------------------------------------ */
     /*  register segment  */
     gasneti_seginfo = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
+  
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-      gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, &gasnetc_bootstrapExchange);
-#if GASNET_SYSV
-      gasneti_AttachRemote(segsize, minheapoffset, gasneti_seginfo, &gasnetc_bootstrapExchange);
-      gasnetc_bootstrapBarrier();
-      gasneti_unlink_segment();
-      gasneti_unlink_segment();
-#endif
+    gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, &gasnetc_bootstrapExchange);
+    gasnetc_bootstrapBarrier();
     #else /* GASNET_SEGMENT_EVERYTHING */
       { int i;
         for (i=0;i<gasneti_nodes;i++) {
@@ -549,13 +413,13 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
         }
       }
     #endif
-#if 0
-    segbase = gasneti_sysv_seginfo_client[gasneti_mysysvnode].addr;
-    segsize = gasneti_sysv_seginfo_client[gasneti_mysysvnode].size;
-#else
+
+#if GASNET_SYSV
+    gasneti_unlink_segment();
+#endif
+
     segbase = gasneti_seginfo[gasneti_mynode].addr;
     segsize = gasneti_seginfo[gasneti_mynode].size;
-#endif
 
     /*  AMMPI allows arbitrary registration with no further action  */
     if (segsize) {
@@ -582,7 +446,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   gasnete_init(); /* init the extended API */
 
-  gasneti_nodemapFini();
+  //gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
   AMLOCK();
@@ -630,6 +494,8 @@ extern void gasnetc_exit(int exitcode) {
   gasneti_reghandler(SIGQUIT, SIG_IGN);
   gasnetc_exitcalled = 1;
 
+  gasneti_nodemapFini();
+
   {  /* ensure only one thread ever continues past this point */
     static gasneti_mutex_t exit_lock = GASNETI_MUTEX_INITIALIZER;
     gasneti_mutex_lock(&exit_lock);
@@ -672,30 +538,6 @@ extern void gasnetc_exit(int exitcode) {
   Job Environment Queries
   =======================
 */
-//Filip
-#if GASNET_SYSV
-extern int gasneti_getSysVNodesInfo(unsigned int *nodesinfo_table, int numentries);
-
-extern int gasnetc_getSysVNodesInfo(unsigned int *nodesinfo_table, int numentries) {
-  CHECKCALLNIS();
-  return gasneti_getSysVNodesInfo(nodesinfo_table, numentries);
-}
-
-extern int gasneti_getSysVSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries);
-
-extern int gasnetc_getSysVSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries) {
-  CHECKCALLNIS();
-  return gasneti_getSysVSegmentInfo(seginfo_table, numentries);
-}
-
-extern int gasneti_getSysVMapInfo(unsigned int *mapinfo_table, int numentries);
-
-extern int gasnetc_getSysVMapInfo(unsigned int *mapinfo_table, int numentries){
-  CHECKCALLNIS();
-  return gasneti_getSysVMapInfo(mapinfo_table, numentries);
-}
-#endif
-
 extern int gasneti_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries);
 
 extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries) {
@@ -712,7 +554,7 @@ extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
 /* Returns a (conduit-specific) token type, with (internal conduit-specific)
  * source and isRequest fields filled in.  The token is guaranteed to work
  * with gasnetc_AMGetMsgSource (which is conduit-specific). */
-gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest)
+extern gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest)
 {
     /*
   #if GASNET_DEBUG
@@ -734,7 +576,7 @@ gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest)
 }
 
 /* Frees a token handed out by gasnetc_token_create() */
-void gasnetc_token_destroy(gasnet_token_t token)
+extern void gasnetc_token_destroy(gasnet_token_t token)
 {
   //#if GASNET_DEBUG
     //gasneti_free(token);
@@ -757,7 +599,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   //printf("TOKEN IS %u %d\n",token,token);
   //Filip: this is for SYSV case. Currently gasneti_sysvnodes is the total number of processes because this is the version for a single shared mem computer. I guess it should be only the number of threads on a single computer.
    // printf("TOKEN BEFORE IF gasneti_mynode %d, token %d\n",gasneti_mynode,token);
-  if (token >= gasneti_firstsysvnode && token <= (gasneti_firstsysvnode + gasneti_sysvnodes - 1)){
+  if ( (uintptr_t)token >= gasneti_firstsysvnode && (uintptr_t)token <= (gasneti_firstsysvnode + gasneti_sysvnodes - 1)){
   
   /*
   if ( ((gasneti_mynode==0 || gasneti_mynode==2) && (token==0 || token==2)) ||
@@ -777,9 +619,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   
   }else{
   
-      GASNETI_AM_SAFE_NORETURN(retval, AMMPI_GetSourceId(token, &sourceid));
-
-    //printf("MSGSOURCE IS %d\n",sourceid);
+    GASNETI_AM_SAFE_NORETURN(retval, AMMPI_GetSourceId(token, &sourceid));
     if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
     else {
         gasneti_assert(sourceid >= 0 && sourceid < gasneti_nodes);
@@ -865,7 +705,7 @@ extern int gasnetc_AMRequestShortM(
   int retval;
   va_list argptr;
 #if GASNET_SYSV
-  if (gasnetc_sysv_init==1 &&  gasneti_nodesinfo[gasneti_mynode] == gasneti_nodesinfo[dest]){
+  if (gasnetc_sysv_init==1 &&  gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
   
         GASNETI_COMMON_AMREQUESTSHORT(dest,handler,numargs);
         va_start(argptr, numargs); /*  pass in last argument */
@@ -914,7 +754,7 @@ extern int gasnetc_AMRequestMediumM(
   va_list argptr;
 #if GASNET_SYSV
 
-  if (gasnetc_sysv_init==1 && gasneti_nodesinfo[gasneti_mynode] == gasneti_nodesinfo[dest]){
+  if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
   
     GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
     va_start(argptr, numargs); /*  pass in last argument */
@@ -969,19 +809,15 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 
 #if GASNET_SYSV
       
-  if (gasnetc_sysv_init==1 && gasneti_nodesinfo[gasneti_mynode] == gasneti_nodesinfo[dest]){
+  if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
       
       GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
       va_start(argptr, numargs); /*  pass in last argument */
-#if 0
-      dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo_client[dest].addr);// + ((uintptr_t)gasneti_sysv_seginfo_client[dest].addr);
-#else
-      dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);// + ((uintptr_t)gasneti_sysv_seginfo_client[dest].addr);
-#endif
+      dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
       /*  call the generic requestor */
       retval = gasnetc_RequestGeneric(gasnetc_Long, 
                                       dest, handler, 
-                                      source_addr, nbytes, dest_offset,
+                                      source_addr, nbytes, (void *)dest_offset,
                                       numargs, argptr);
       va_end(argptr);
       GASNETI_RETURN(retval);
@@ -1033,7 +869,7 @@ extern int gasnetc_AMReplyShortM(
   GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
  #if GASNET_SYSV
       
-  if (gasnetc_sysv_init==1 && gasneti_nodesinfo[gasneti_mynode] == gasneti_nodesinfo[dest]){
+  if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
 
       GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
       va_start(argptr, numargs); /*  pass in last argument */
@@ -1088,7 +924,7 @@ extern int gasnetc_AMReplyMediumM(
   GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
 #if GASNET_SYSV
       
-  if (gasnetc_sysv_init==1 && gasneti_nodesinfo[gasneti_mynode] == gasneti_nodesinfo[dest]){
+  if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
 
        GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
        va_start(argptr, numargs); /*  pass in last argument */
@@ -1141,19 +977,15 @@ extern int gasnetc_AMReplyLongM(
   GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
 #if GASNET_SYSV
       
-  if (gasnetc_sysv_init==1 && gasneti_nodesinfo[gasneti_mynode] == gasneti_nodesinfo[dest]){
+  if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
 
       GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 
       va_start(argptr, numargs);
-#if 0
-      dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo_client[dest].addr);
-#else
-      dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);// + ((uintptr_t)gasneti_sysv_seginfo_client[dest].addr);
-#endif
+      dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
       /*  call the generic requestor */
       retval = gasnetc_ReplyGeneric(gasnetc_Long, 
                                     token, handler, 
-                                    source_addr, nbytes, dest_offset,
+                                    source_addr, nbytes, (void *)dest_offset,
                                     numargs, argptr);
       va_end(argptr);
       GASNETI_RETURN(retval);
