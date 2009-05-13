@@ -144,6 +144,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
 void gasnete_coll_local_tree_geom_release(gasnete_coll_local_tree_geom_t *geom);
 gasnete_coll_tree_type_t gasnete_coll_get_tree_type();
 void gasnete_coll_free_tree_type(gasnete_coll_tree_type_t in);
+void gasnete_coll_tree_type_to_str(char *outbuf, gasnete_coll_tree_type_t in);
 
 /******** Dissemination Ordering **********/
 #define GASNETE_COLL_DISSEM_GET_TOTAL_PHASES(DISSEM_INFO) ((DISSEM_INFO)->dissemination_phases)

@@ -55,6 +55,7 @@ static int split_string(char ***split_strs, char *str, char *delim) {
 }
 
 
+
 static gasnete_coll_tree_type_t make_tree_type_str_helper(char *tree_name) {
   gasnete_coll_tree_type_t ret = gasnete_coll_get_tree_type();
 
@@ -686,6 +687,29 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
 }
 
 
+
+void gasnete_coll_tree_type_to_str(char *outbuf, gasnete_coll_tree_type_t in) {
+  gasneti_assert(in->subtree == NULL);
+  gasneti_assert(in->num_params <= 1);
+  switch(in->tree_class) {
+    
+  case GASNETE_COLL_NARY_TREE:
+      sprintf(outbuf, "NARY_TREE,%d", in->params[0]);
+      break;
+  case GASNETE_COLL_FLAT_TREE:
+    sprintf(outbuf, "FLAT_TREE");
+    break;
+  case GASNETE_COLL_KNOMIAL_TREE:
+    sprintf(outbuf, "KNOMIAL_TREE,%d", in->params[0]);
+    break;
+  case GASNETE_COLL_RECURSIVE_TREE:
+    sprintf(outbuf, "RECURSIVE_TREE,%d", in->params[0]);
+    break;
+  default:
+    gasneti_fatalerror("unknown tree type");
+  }
+  
+}
 /*---------------------------------------------------------------------------------*/
 /* Operations to access the tree geometry cache */
 

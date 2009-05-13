@@ -141,6 +141,7 @@ int gasnete_coll_autotune_get_num_tree_types(gasnet_team_handle_t team) {
     log2_threads * (GASNETE_COLL_NUM_PLATFORM_INDEP_TREE_CLASSES-1); /*num powers of two for each of the three tree types*/
 }
 
+
 gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type_idx(gasnet_team_handle_t team, int idx) {
   gasnete_coll_tree_type_t ret = gasnete_coll_get_tree_type();
   int log2_threads = fast_log2_32bit((uint32_t) team->total_ranks);
@@ -692,6 +693,58 @@ void gasnete_coll_free_implementation(gasnete_coll_implementation_t in){
 }
 
 
+static char* print_op_str(char *buf, gasnet_coll_optype_t op, int flags) {
+  
+  switch(op) {
+  case GASNET_COLL_BROADCAST_OP:
+    sprintf(buf, "BROADCAST SINGLE/");
+    break;
+  case GASNET_COLL_BROADCASTM_OP:
+    sprintf(buf, "BROADCAST MULTI/");
+    break;
+  case GASNET_COLL_SCATTER_OP:
+    sprintf(buf, "SCATTER SINGLE/");
+    break;
+  case GASNET_COLL_SCATTERM_OP:
+    sprintf(buf, "SCATTER MULTI/");
+    break;
+  default:
+    sprintf(buf, "FILLIN");
+    
+  }
+
+  if(flags & GASNET_COLL_LOCAL) {
+    strncat(buf, "LOCAL", 100);
+  } else {
+    strncat(buf, "SINGLE", 100);
+  }
+  return buf;
+}
+
+static char* print_flag_str(char *outstr, int flags) {
+  
+  if(flags & GASNET_COLL_IN_NOSYNC && flags & GASNET_COLL_OUT_NOSYNC) {
+    sprintf(outstr, "no/no");
+  } else if(flags & GASNET_COLL_IN_NOSYNC && flags & GASNET_COLL_OUT_MYSYNC) {
+    sprintf(outstr, "no/my");
+  } else if(flags & GASNET_COLL_IN_NOSYNC && flags & GASNET_COLL_OUT_ALLSYNC) {
+    sprintf(outstr, "no/all");
+  } else if(flags & GASNET_COLL_IN_MYSYNC && flags & GASNET_COLL_OUT_NOSYNC) {
+    sprintf(outstr, "my/no");
+  } else if(flags & GASNET_COLL_IN_MYSYNC && flags & GASNET_COLL_OUT_MYSYNC) {
+    sprintf(outstr, "my/my");
+  } else if(flags & GASNET_COLL_IN_MYSYNC && flags & GASNET_COLL_OUT_ALLSYNC) {
+    sprintf(outstr, "my/all");
+  } else if(flags & GASNET_COLL_IN_ALLSYNC && flags & GASNET_COLL_OUT_NOSYNC) {
+    sprintf(outstr, "all/no");
+  } else if(flags & GASNET_COLL_IN_ALLSYNC && flags & GASNET_COLL_OUT_MYSYNC) {
+    sprintf(outstr, "all/my");
+  } else if(flags & GASNET_COLL_IN_ALLSYNC && flags & GASNET_COLL_OUT_ALLSYNC) {
+    sprintf(outstr, "all/all");
+  }
+  return outstr;
+}
+
 
 
 
@@ -850,11 +903,17 @@ static void do_tuning_loop(gasnet_team_handle_t team, gasnet_coll_optype_t op,
     *best_time = run_collective_bench(team, op, dst, src, rootimg, flags, nbytes, impl, fnptr, sample_work_arg GASNETE_THREAD_PASS);
     if(td->my_image==0 && GASNETE_COLL_PRINT_TIMERS) {
       int i;
-      printf("%d> alg: %s params:<", gasneti_mynode, team->autotune_info->collective_algorithms[op][alg_idx].name_str);
+      char buf1[100];
+      char buf2[100];
+      
+      printf("%d> %s alg: %s syncflags: %s nbytes: %d params:<", td->my_image, print_op_str(buf1, op, flags), team->autotune_info->collective_algorithms[op][alg_idx].name_str,
+             print_flag_str(buf2, flags), (int) nbytes);
+      
+      
       for(i=0; i<impl->num_params; i++) {
         printf(" %d", impl->param_list[i]);
       }
-      printf("> time: %g\n", (double)gasnett_ticks_to_us(*best_time)/team->autotune_info->perf_iters); 
+      printf(" > time: %g\n", (double)gasnett_ticks_to_us(*best_time)/team->autotune_info->perf_iters); 
     }
     gasnete_coll_free_implementation(impl);
     return;
@@ -887,20 +946,28 @@ static void do_tuning_loop(gasnet_team_handle_t team, gasnet_coll_optype_t op,
           if(team->autotune_info->collective_algorithms[op][alg_idx].parameter_list[current_param_number].flags & GASNET_COLL_TUNING_TREE_SHAPE)
             impl->tree_type = gasnete_coll_autotune_get_tree_type_idx(team, idx);
           
+          
           /*run the measurement iterations*/
           curr_run = run_collective_bench(team, op, dst, src, rootimg, flags, nbytes, impl, fnptr, sample_work_arg GASNETE_THREAD_PASS);
           if(td->my_image==0 && GASNETE_COLL_PRINT_TIMERS) {
+            char buf1[100];
+            char buf2[100];
             int i;
-            printf("%d> alg: %s params:<", gasneti_mynode, team->autotune_info->collective_algorithms[op][alg_idx].name_str);
+
+            printf("%d> %s alg: %s syncflags: %s nbytes: %d params:<", td->my_image, print_op_str(buf1, op, flags), team->autotune_info->collective_algorithms[op][alg_idx].name_str,
+                   print_flag_str(buf2, flags), (int) nbytes);
+
             for(i=0; i<impl->num_params; i++) {
-              if(i==0) {
-                printf("%d", impl->param_list[i]);
-              } else {
+              if(team->autotune_info->collective_algorithms[op][alg_idx].parameter_list[i].flags & GASNET_COLL_TUNING_TREE_SHAPE){
+               
+                gasnete_coll_tree_type_to_str((char *) buf1, impl->tree_type);
+                printf(" %s", buf1);
+              }else {
                 printf(" %d", impl->param_list[i]);
               }
               
             }
-            printf("> time: %g\n", (double)gasnett_ticks_to_us(curr_run)/team->autotune_info->perf_iters); 
+            printf(" > time: %g\n", (double)gasnett_ticks_to_us(curr_run)/team->autotune_info->perf_iters); 
           }
           /*if teh time is less than the best set this one as the new best*/
           if(curr_run < *best_time) {

@@ -106,7 +106,7 @@ typedef enum {GASNETE_COLL_EXCHANGEM_NUM_ALGS=0} gasnete_coll_exchangeM_alg_type
 
 
 #ifndef GASNET_COLL_MIN_PIPE_SEG_SIZE
-#define GASNET_COLL_MIN_PIPE_SEG_SIZE 128
+#define GASNET_COLL_MIN_PIPE_SEG_SIZE 1024
 #endif
 
 #ifndef GASNET_COLL_MAX_PIPE_SEG_SIZE
