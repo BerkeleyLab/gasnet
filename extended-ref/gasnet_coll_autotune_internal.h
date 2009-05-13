@@ -165,7 +165,7 @@ typedef struct gasnete_coll_allgorithm_t_ {
     gasnete_coll_bcastM_fn_ptr_t bcastM_fn;
   } fn_ptr;
   
-  char *name_str;
+  const char *name_str;
 } gasnete_coll_algorithm_t;
 
 #define GASNETE_COLL_AUTOTUNE_RADIX_ARR_LEN 20
@@ -217,7 +217,7 @@ gasnete_coll_algorithm_t gasnete_coll_autotune_register_algorithm(gasnet_team_ha
                                                                   uint32_t num_params,
                                                                   struct gasnet_coll_tuning_parameter_t *param_list,
                                                                   void *coll_fnptr,
-                                                                  char *name_str);
+                                                                  const char *name_str);
 
 size_t gasnete_coll_get_dissem_limit(gasnete_coll_autotune_info_t* autotune_info, gasnet_coll_optype_t op_type, int flags);
 

@@ -169,7 +169,7 @@ gasnete_coll_algorithm_t gasnete_coll_autotune_register_algorithm(gasnet_team_ha
                                                                   uint32_t num_params,
                                                                   struct gasnet_coll_tuning_parameter_t *param_list, 
                                                                   void *coll_fnptr,
-                                                                  char *name_str) {
+                                                                  const char *name_str) {
   gasnete_coll_algorithm_t ret;
   int i;
   ret.tree_alg = tree_alg;
