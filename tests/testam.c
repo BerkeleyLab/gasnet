@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testam.c,v $
- *     $Date: 2009/04/20 06:40:08 $
- * $Revision: 1.30 $
+ *     $Date: 2009/05/14 01:03:48 $
+ * $Revision: 1.30.2.1 $
  * Description: GASNet Active Messages performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -117,6 +117,7 @@ void doAMShort(void);
 void doAMMed(void);
 void doAMLong(void);
 void doAMLongAsync(void);
+void *doall(void *);
 
 int main(int argc, char **argv) {
   gasnet_handlerentry_t htable[] = { 
@@ -173,7 +174,14 @@ int main(int argc, char **argv) {
              "   ------  -----------                             ----------   ---------   ---------\n");
       fflush(stdout);
   }
-
+  test_createandjoin_pthreads(4,doall,NULL,0);
+  return 0;
+}
+void *doall(void *ptr) {
+ if (ptr) {
+   if (recvr) GASNET_BLOCKUNTIL(0);
+   else return NULL;
+ } else {
   doAMShort();
   doAMMed();
   doAMLong();
@@ -182,7 +190,8 @@ int main(int argc, char **argv) {
   MSG("done.");
 
   gasnet_exit(0);
-  return 0;
+  return NULL;
+ }
 }
 /* ------------------------------------------------------------------------------------ */
 void doAMShort(void) {
