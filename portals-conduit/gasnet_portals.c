@@ -77,10 +77,13 @@ gasnetc_PtlBuffer_t **gasnetc_ReqRB;
 size_t gasnetc_RplSB_numchunk = 256;  /* each thread allowed to cache up to one */
 gasnetc_PtlBuffer_t gasnetc_RplSB;
 
+/* Duplicate of RplSB used for Get of missed AMs */
+gasnetc_PtlBuffer_t gasnetc_CBRB;
+
 /* The catch-basin buffer */
 gasnetc_PtlBuffer_t gasnetc_CB;          
 
-/* And the Remote Access Region, covered by two buffers */
+/* And the Remote Access Region, covered by three buffers */
 gasnetc_PtlBuffer_t gasnetc_RAR;
 gasnetc_PtlBuffer_t gasnetc_RARAM;
 gasnetc_PtlBuffer_t gasnetc_RARSRC;
@@ -170,7 +173,7 @@ static int gasnetc_msg_minimum = 12; /* most likely deadlock with fewer */
 /* by default, allow packed AMLong messages */
 int gasnetc_allow_packed_long = 1;
 
-const char* gasnetc_md_name[] = {"RAR_MD","RARAM_MD","RARSRC_MD","REQSB_MD","REQRB_MD","RPLSB_MD","CB_MD","TMP_MD","SYS_SEND","SYS_RECV"};
+const char* gasnetc_md_name[] = {"RAR_MD","RARAM_MD","RARSRC_MD","REQSB_MD","REQRB_MD","RPLSB_MD","CB_MD","CBRB_MD","TMP_MD","SYS_SEND","SYS_RECV"};
 
 /* debugging aids */
 uint32_t gasnetc_snd_seqno=0;
@@ -924,7 +927,7 @@ static void ReqRB_attach(gasnetc_PtlBuffer_t *p)
   md.length = p->nbytes;
   md.threshold = PTL_MD_THRESH_INF;
   md.max_size = GASNETC_CHUNKSIZE;
-  md.options = PTL_MD_OP_PUT | PTL_MD_EVENT_START_DISABLE | PTL_MD_MAX_SIZE;
+  md.options = PTL_MD_OP_PUT | PTL_MD_EVENT_START_DISABLE | PTL_MD_MAX_SIZE | PTL_MD_ACK_DISABLE;
 #if GASNETC_REQRB_AUTO_UNLINK
   /* NOTE: these flags are Cray extensions to the spec */
   md.options |= PTL_MD_FLAG_AUTO_UNLINK | PTL_MD_EVENT_AUTO_UNLINK_ENABLE;
@@ -1211,12 +1214,12 @@ static void TMPMD_event(ptl_event_t *ev)
  *                - Ignore for Gets (Cray Portals gens these in violation of spec)
  *                - If non-bulk Put, increment local completion counter and free chunk.
  *       ACK => Put through bounce buffer completed.  
- *                - NOTE: AMs will not generate ACKs.
+ *           OR AM Request header hit the CB MD (ReqRB MDs suppress ACKs)
  * REPLY_END => Get operation completed, data in bounce buffer must be copied
  *              to actual destination, mark op free, free chunk.
  *   PUT_END => Reply AM arrived in same chunk as Request was sent.
  *              Call GASNet handler then free chunk.
- *   GET_END => Catch-basin recovery underway.  Mark source node as in-recovery (NYI).
+ *   GET_END => Catch-basin recovery underway.  Ignored (ACK started the work)
  * --------------------------------------------------------------------------------- */
 static void ReqSB_event(ptl_event_t *ev)
 {
@@ -1261,11 +1264,21 @@ static void ReqSB_event(ptl_event_t *ev)
     break;
 
   case PTL_EVENT_ACK:
-    /* Put bounced through ReqSB, mark op complete */
-    gasneti_assert(msg_type & GASNETC_PTL_MSG_PUT);
-    op = gasnete_opaddr_to_ptr(threadid, addr);
-    /* mark the put (isget=0) operation complete */
-    gasnete_op_markdone(op, 0 /* !isget */);
+    if_pt (msg_type & GASNETC_PTL_MSG_PUT) {
+      /* Put bounced through ReqSB, mark op complete */
+      op = gasnete_opaddr_to_ptr(threadid, addr);
+      /* mark the put (isget=0) operation complete */
+      gasnete_op_markdone(op, 0 /* !isget */);
+    } else {
+      gasneti_assert(msg_type & GASNETC_PTL_MSG_AM);
+fprintf(stderr, "%d> My %u byte AM Request ACKED.  Things should fall apart any moment now.\n", gasneti_mynode, ev->rlength);
+      /* TODO: CB Recovery of dropped AM Request,
+       * - stop all further AMs to this node (needs matching check in GASNETC_COMMON_AMREQ_START)
+       * - Need something in Reply header to unfreeze.
+       */
+      srcnode = gasnetc_get_nodeid(&ev->initiator);
+      state = &gasnetc_conn_state[srcnode];
+    }
     break;
 
   case PTL_EVENT_REPLY_END:
@@ -1289,19 +1302,10 @@ static void ReqSB_event(ptl_event_t *ev)
     gasnete_op_markdone(op, 1);
     break;
 
-#if 0 /* Not Yet Implemented */
   case PTL_EVENT_GET_END:
-    /* CB Recovery of dropped AM Request, stop all further AMs to this node */
-    srcnode = gasnetc_get_nodeid(&ev->initiator);
-    state = &gasnetc_conn_state[srcnode];
-    /* dealloc the chunk */
-    gasnetc_chunk_free(&gasnetc_ReqSB,offset);
-
-    /* CB Recovery not implemented, better fail */
-    gasneti_fatalerror("ReqSB got GET_END event, but CB not implemented");
-    
+    /* CB Recovery of dropped AM Request has begun.  Ignore. */
+    /* TODO: CB Recovery should use a distinct MD/ME to avoid this event */
     break;
-#endif
 
   case PTL_EVENT_PUT_END:
     /* This is an AM reply from a previous request */
@@ -1480,9 +1484,14 @@ static void ReqRB_event(ptl_event_t *ev)
  * --------------------------------------------------------------------------------- */
 static void CB_event(ptl_event_t *ev)
 {
-  ptl_size_t offset = ev->offset;
-  ptl_match_bits_t   mbits = ev->match_bits;
+  ptl_size_t offset;
+  ptl_match_bits_t   mbits;
   uint8_t msg_type, amflag, numarg, ghandler;
+
+  gasneti_mutex_unlock(&gasnetc_AM_EQ->lock);
+
+  offset = ev->offset;
+  mbits = ev->match_bits;
 
   msg_type = GASNETC_GET_MSG_TYPE(mbits);
   GASNETI_TRACE_PRINTF(C,("CB event %s offset = %i, mbits = 0x%lx, msg_type = 0x%x",ptl_event_str[ev->type],(int)offset,(uint64_t)mbits,msg_type));
@@ -1498,14 +1507,46 @@ static void CB_event(ptl_event_t *ev)
   /* we always truncate on this MD */
   gasneti_assert(ev->mlength == 0);
 
-  switch (ev->type) {
-  case PTL_EVENT_PUT_END:
-    gasneti_fatalerror("PUT_END event on CB indicates flow-control failure");
-    break;
+  if_pt (ev->type == PTL_EVENT_PUT_END) {
+    gasnetc_threaddata_t *th = gasnetc_mythread();
+    ptl_ac_index_t ac_index = GASNETC_PTL_AC_ID;
+    ptl_size_t local_offset = th->rplsb_off;
+    ptl_size_t remote_offset = mbits >> 32;
+    ptl_size_t nbytes = ev->rlength;
+    ptl_process_id_t target_id = ev->initiator;
 
-  default:
+    /* already allocated a send ticket and RplSB, spend them now */
+    gasneti_assert(th->snd_tickets > 0);
+    th->snd_tickets -= 1;
+    gasneti_assert(th->flags & GASNETC_THREAD_HAVE_RPLSB);
+    th->flags &= ~GASNETC_THREAD_HAVE_RPLSB;
+
+    /* Start the recovery (this is now a Rendezvous protocol) w/ a GET of the dropped AM. */
+    GASNETC_PTLSAFE(PtlGetRegion(gasnetc_CBRB.md_h, local_offset, nbytes, target_id, GASNETC_PTL_AM_PTE, ac_index, GASNETC_PTL_REQSB_BITS, remote_offset));
+
+    /* TODO:
+     * Will need remoteOffset and hdr_data when the REPLY_END arrives
+     * Could fit removeOffset in mbits, but a gasnetc_ptl_token_t sounds better.
+     * So, upper 32 match bits should allow locating a gasnetc_ptl_token_t.
+     */
+  } else {
     gasneti_fatalerror("Invalid event %s on CB",ptl_event_str[ev->type]);
   }
+}
+
+/* ------------------------------------------------------------------------------------
+ * Handle events on the Catch-Basin Recovery Buffer memory descriptor.
+ * - REPLY_END => recovered AM Request
+ * --------------------------------------------------------------------------------- */
+static void CBRB_event(ptl_event_t *ev)
+{
+  gasneti_mutex_unlock(&gasnetc_AM_EQ->lock);
+  gasneti_assert(ev->type == PTL_EVENT_REPLY_END);
+fprintf(stderr, "%d> Cool, I fetched a %u byte dropped AM Request.  Too bad I'm ignoring it now.\n", gasneti_mynode, ev->mlength);
+  /* TODO: Need to run the header processing path (probably from a *copy* of the AM) */
+
+  gasnetc_return_ticket(&gasnetc_send_tickets);
+  gasnetc_chunk_free(&gasnetc_RplSB, ev->offset);
 }
 
 /* ---------------------------------------------------------------------------------
@@ -1650,6 +1691,26 @@ static void RplSB_init(void)
   GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, md, PTL_RETAIN, &gasnetc_RplSB.md_h));
   GASNETI_TRACE_PRINTF(C,("RplSB_init: %s %lu chunks md=%lu",gasnetc_RplSB.name,(ulong)gasnetc_RplSB_numchunk,(ulong)gasnetc_RplSB.md_h));
 
+  /* And the free-floating CBRB to cover the same memory, but sends events to the AM_EQ */
+  gasnetc_CBRB.start = gasnetc_RplSB.start;
+  gasnetc_CBRB.nbytes = gasnetc_RplSB.nbytes;
+  gasnetc_CBRB.actual_start = NULL;      /* can't free */
+  gasnetc_CBRB.name = gasneti_strdup("CBRB");
+  gasnetc_CBRB.use_chunks = 0;
+
+  md.start = gasnetc_CBRB.start;
+  md.length = gasnetc_CBRB.nbytes;
+  md.threshold = PTL_MD_THRESH_INF;
+  md.max_size = 0;
+  md.options = PTL_MD_EVENT_START_DISABLE; /* Any more? */
+#if GASNETC_USE_EQ_HANDLER
+  md.user_ptr = (void*)(uintptr_t)GASNETC_CBRB_MD;
+#else
+  md.user_ptr = (void*)CBRB_event;
+#endif
+  md.eq_handle = gasnetc_AM_EQ->eq_h;
+
+  GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, md, PTL_RETAIN, &gasnetc_CBRB.md_h));
 }
 
 /* ------------------------------------------------------------------------------------
@@ -1663,7 +1724,7 @@ static void RplSB_exit(void)
 
 /* ------------------------------------------------------------------------------------
  * Construct a pool of Request Receive Buffers along with Memory Descriptors for
- * each.  Link the buffers at the head of the GASNERC_AM_PTE portals table entry.
+ * each.  Link the buffers at the head of the GASNETC_PTL_AM_PTE portals table entry.
  * This is where AM Request messages will be placed (these are the only unexpected
  * messages in this implementation).  We do not implement any strict flow-control
  * so a flood of AM Requests into a node can overflow these buffers.  They are implemented
@@ -1686,13 +1747,13 @@ static void ReqRB_init(void)
   md.length = 0;
   md.threshold = PTL_MD_THRESH_INF;
   md.max_size = 0;
-  md.options = PTL_MD_OP_PUT | PTL_MD_EVENT_START_DISABLE | PTL_MD_ACK_DISABLE | PTL_MD_TRUNCATE;
+  md.options = PTL_MD_OP_PUT | PTL_MD_EVENT_START_DISABLE | PTL_MD_TRUNCATE;
 #if GASNETC_USE_EQ_HANDLER
   md.user_ptr = (void*)(uintptr_t)GASNETC_CB_MD;
 #else
   md.user_ptr = (void*)CB_event;
 #endif
-  md.eq_handle = gasnetc_SAFE_EQ->eq_h;
+  md.eq_handle = gasnetc_AM_EQ->eq_h;
   GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_AM_PTE, gasnetc_any_id, GASNETC_PTL_REQRB_BITS, GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER, &gasnetc_CB.me_h));
   GASNETC_PTLSAFE(PtlMDAttach(gasnetc_CB.me_h, md, PTL_RETAIN, &gasnetc_CB.md_h));
 
@@ -1740,9 +1801,9 @@ static void ReqRB_exit(void)
 /* ---------------------------------------------------------------------------------
  * Allocate the Request Send Buffer (also used as a Bounce Buffer) and
  * Construct a Memory Descriptor for it.
- * Note:  Current Implementation is for free-floating MD.  Must put this on
- *        Match-list for AM Replys and for Catch-Basin algorithm to work.  
- *        Put it on GASNETC_AM_PTE table entry.
+ * 
+ * We put this on Match-list for AM Replys and for Catch-Basin algorithm to work.  
+ * Put it on GASNETC_PTL_AM_PTE table entry.
  * --------------------------------------------------------------------------------- */
 static void ReqSB_init(void)
 {
@@ -1756,7 +1817,7 @@ static void ReqSB_init(void)
   md.length = gasnetc_ReqSB.nbytes;
   md.threshold = PTL_MD_THRESH_INF;
   md.max_size = 0;
-  md.options = PTL_MD_EVENT_START_DISABLE | PTL_MD_OP_PUT | PTL_MD_MANAGE_REMOTE;
+  md.options = PTL_MD_EVENT_START_DISABLE | PTL_MD_OP_PUT | PTL_MD_OP_GET | PTL_MD_MANAGE_REMOTE;
 #if GASNETC_USE_EQ_HANDLER
   md.user_ptr = (void*)(uintptr_t)GASNETC_REQSB_MD;
 #else
@@ -4007,6 +4068,10 @@ extern void gasnetc_event_handler(ptl_event_t *ev)
     
   case GASNETC_CB_MD:
     CB_event(ev);
+    break;
+
+  case GASNETC_CBRB_MD:
+    CBRB_event(ev);
     break;
 
   case GASNETC_SYS_SEND_MD:

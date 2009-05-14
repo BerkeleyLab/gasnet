@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/05/13 21:39:03 $
- * $Revision: 1.21 $
+ *     $Date: 2009/05/14 05:26:04 $
+ * $Revision: 1.21.2.1 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -597,7 +597,7 @@ extern int gasnetc_AMRequestShortM(
   GASNETC_DBGMSG(1,1,"S",gasneti_mynode,dest,handler,numargs,hargs,msg_bytes,cred_byte,0,NULL,th);
 
   /* send message */
-  GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
+  GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_ACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
 
   /* Always poll at end of AM Request */
   gasneti_AMPoll();
@@ -735,7 +735,7 @@ extern int gasnetc_AMRequestMediumM(
   GASNETC_DBGMSG(1,1,"M",gasneti_mynode,dest,handler,numargs,hargs,msg_bytes,cred_byte,nbytes,source_addr,th);
 
   /* send message */
-  GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
+  GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_ACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
 
   /* Always poll at end of AM Request */
   gasneti_AMPoll();
@@ -881,7 +881,7 @@ extern int gasnetc_AMRequestMediumM(
 									\
       GASNETC_DBGMSG(1,1,"L",gasneti_mynode,dest,handler,numargs,hargs,msg_bytes,cred_byte,nbytes,source_addr,th); \
       /* send message */						\
-      GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data)); \
+      GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_ACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data)); \
 									\
       GASNETI_TRACE_EVENT(C, LONG_PACKED);				\
     } else {								\
@@ -927,7 +927,7 @@ extern int gasnetc_AMRequestMediumM(
       data += sizeof(uint8_t);						\
 									\
       GASNETC_DBGMSG(1,1,"L",gasneti_mynode,dest,handler,numargs,hargs,msg_bytes,cred_byte,nbytes,source_addr,th); \
-      GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data)); \
+      GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_ACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data)); \
 									\
       th->snd_tickets -= 2;						\
       th->snd_credits -= ncredit;					\
