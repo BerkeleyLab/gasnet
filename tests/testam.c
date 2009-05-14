@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testam.c,v $
- *     $Date: 2009/05/14 01:03:48 $
- * $Revision: 1.30.2.1 $
+ *     $Date: 2009/05/14 03:57:03 $
+ * $Revision: 1.30.2.2 $
  * Description: GASNet Active Messages performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -174,7 +174,11 @@ int main(int argc, char **argv) {
              "   ------  -----------                             ----------   ---------   ---------\n");
       fflush(stdout);
   }
+#if GASNET_PAR
   test_createandjoin_pthreads(4,doall,NULL,0);
+#else
+  doall(NULL);
+#endif
   return 0;
 }
 void *doall(void *ptr) {
