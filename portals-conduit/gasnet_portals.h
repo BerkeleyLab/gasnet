@@ -187,6 +187,7 @@ extern unsigned gasnetc_sys_poll_limit;
 #define GASNETC_PTL_CB_BITS      0x03
 #define GASNETC_PTL_REQSB_BITS   0x04
 #define GASNETC_PTL_SYS_BITS     0x05
+#define GASNETC_PTL_CBRSRC_BITS  0x06
 
 /* Operation type */
 #define GASNETC_PTL_MSG_PUT      0x10
@@ -481,6 +482,15 @@ typedef struct gasnetc_amlongcache_rec {
   struct gasnetc_amlongcache_rec *next;   /* link into conn_state list of active AMLong lid objs */
 } gasnetc_amlongcache_t;
 
+/* Cache of metadata used for CB Recovery */
+typedef struct gasnetc_cbrcache_rec {
+  uint32_t            key;
+  ptl_process_id_t    initiator;
+  ptl_match_bits_t    match_bits;
+  ptl_hdr_data_t      hdr_data;
+  struct gasnetc_cbrcache_rec *next;
+} gasnetc_cbrcache_t;
+
 #if GASNETC_USE_SPINLOCK
 typedef gasneti_atomic_t gasnetc_statelock_t;
 #define GASNETC_INITLOCK_STATE(ptr) gasneti_spinlock_init(&ptr->lock)
@@ -584,6 +594,7 @@ typedef struct gconrec {
   uint8_t                flags;             /* maintain binary state values */
   gasneti_weakatomic_t   src_lid;           /* must be 32 bit unsigned so will roll after 2^32 */
   gasnetc_amlongcache_t *lids;              /* list of lid cache objects of AM Longs from this node */
+  gasnetc_cbrcache_t    *cbrs;              /* list of cbr cache objects for CB recovery */
 } gasnetc_conn_t;
 
 /* array of connection states */
@@ -624,7 +635,8 @@ enum { GASNETC_RAR_MD,
        GASNETC_REQRB_MD,
        GASNETC_RPLSB_MD,
        GASNETC_CB_MD,
-       GASNETC_CBRB_MD,
+       GASNETC_CBSRC_MD,
+       GASNETC_CBDST_MD,
        GASNETC_TMP_MD,
        GASNETC_SYS_SEND_MD,
        GASNETC_SYS_RECV_MD,

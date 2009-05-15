@@ -77,8 +77,9 @@ gasnetc_PtlBuffer_t **gasnetc_ReqRB;
 size_t gasnetc_RplSB_numchunk = 256;  /* each thread allowed to cache up to one */
 gasnetc_PtlBuffer_t gasnetc_RplSB;
 
-/* Duplicate of RplSB used for Get of missed AMs */
-gasnetc_PtlBuffer_t gasnetc_CBRB;
+/* Duplicates of ReqSB and RplSB used for Get of missed AMs */
+gasnetc_PtlBuffer_t gasnetc_CBRSrc; /* Covers ReqSB */
+gasnetc_PtlBuffer_t gasnetc_CBRDst; /* Covers RplSB */
 
 /* The catch-basin buffer */
 gasnetc_PtlBuffer_t gasnetc_CB;          
@@ -87,6 +88,11 @@ gasnetc_PtlBuffer_t gasnetc_CB;
 gasnetc_PtlBuffer_t gasnetc_RAR;
 gasnetc_PtlBuffer_t gasnetc_RARAM;
 gasnetc_PtlBuffer_t gasnetc_RARSRC;
+
+/* List of in-flight CB Recovery operations */
+gasneti_mutex_t gasnetc_cbr_lock = GASNETI_MUTEX_INITIALIZER;
+gasnetc_cbrcache_t *gasnetc_cbrs = NULL;
+uint32_t gasnetc_cbr_seq = 0;
 
 /* Max size of a bounced put or get (differ by space for bounce addr in the get) */
 size_t gasnetc_put_bounce_limit;
@@ -173,7 +179,7 @@ static int gasnetc_msg_minimum = 12; /* most likely deadlock with fewer */
 /* by default, allow packed AMLong messages */
 int gasnetc_allow_packed_long = 1;
 
-const char* gasnetc_md_name[] = {"RAR_MD","RARAM_MD","RARSRC_MD","REQSB_MD","REQRB_MD","RPLSB_MD","CB_MD","CBRB_MD","TMP_MD","SYS_SEND","SYS_RECV"};
+const char* gasnetc_md_name[] = {"RAR_MD","RARAM_MD","RARSRC_MD","REQSB_MD","REQRB_MD","RPLSB_MD","CB_MD","CBRSRC_MD","CBRDST_MD","TMP_MD","SYS_SEND","SYS_RECV"};
 
 /* debugging aids */
 uint32_t gasnetc_snd_seqno=0;
@@ -830,6 +836,24 @@ static int  exec_amlong_data(int isReq, ptl_event_t *ev)
   return ran_handler;
 }
 
+/* AM Request Header arrival */
+static void exec_am_handler(int isReq, ptl_match_bits_t mbits, ptl_event_t *ev)
+{
+  uint8_t amflag, numarg, ghandler;
+  GASNETC_GET_AM_LOWBITS(mbits, numarg, ghandler, amflag);
+
+  if (amflag & GASNETC_PTL_AM_SHORT) {
+    exec_amshort_handler(isReq,ev,numarg,ghandler);
+  } else if (amflag & GASNETC_PTL_AM_MEDIUM) {
+    exec_ammedium_handler(isReq,ev,numarg,ghandler);
+  } else if (amflag & GASNETC_PTL_AM_LONG) {
+    int is_packed = amflag & GASNETC_PTL_AM_PACKED;
+    exec_amlong_header(isReq,is_packed,ev,numarg,ghandler);
+  } else {
+    gasneti_fatalerror("Invalid amflag from mbits = %lx",(uint64_t)mbits);
+  }
+}
+
 #if HAVE_MMAP
   GASNETI_INLINE(gasnetc_malloc_aligned)
   void *gasnetc_malloc_aligned(size_t alignment, size_t nbytes) {
@@ -1219,7 +1243,6 @@ static void TMPMD_event(ptl_event_t *ev)
  *              to actual destination, mark op free, free chunk.
  *   PUT_END => Reply AM arrived in same chunk as Request was sent.
  *              Call GASNet handler then free chunk.
- *   GET_END => Catch-basin recovery underway.  Ignored (ACK started the work)
  * --------------------------------------------------------------------------------- */
 static void ReqSB_event(ptl_event_t *ev)
 {
@@ -1227,14 +1250,13 @@ static void ReqSB_event(ptl_event_t *ev)
   ptl_match_bits_t   mbits = ev->match_bits;
   gasnete_threadidx_t threadid;
   gasnete_opaddr_t addr;
-  uint8_t msg_type, amflag, numarg, ghandler;
+  uint8_t msg_type;
   gasnete_op_t *op;
   uint8_t *pdata, *q;
   void *dest;
   gasnetc_conn_t      *state;
   int pending;
   gasnet_node_t srcnode;
-  int ran_handler = 0;
   ptl_size_t local_offset;
 
 
@@ -1242,9 +1264,7 @@ static void ReqSB_event(ptl_event_t *ev)
   GASNETI_TRACE_PRINTF(C,("ReqSB event %s offset = %i, mbits = 0x%lx, msg_type = 0x%x",ptl_event_str[ev->type],(int)offset,(uint64_t)mbits,msg_type));
 
   /* extract the lower bits based on message type */
-  if (msg_type & GASNETC_PTL_MSG_AM) {
-    GASNETC_GET_AM_LOWBITS(mbits, numarg, ghandler, amflag);
-  } else {
+  if (!(msg_type & GASNETC_PTL_MSG_AM)) {
     gasnete_get_op_lowbits(mbits, &threadid, &addr);
   }
 
@@ -1264,20 +1284,23 @@ static void ReqSB_event(ptl_event_t *ev)
     break;
 
   case PTL_EVENT_ACK:
-    if_pt (msg_type & GASNETC_PTL_MSG_PUT) {
+#if 0
+    if_pf (msg_type & GASNETC_PTL_MSG_AM) {
+      /* TODO: More efficient CB Recovery of dropped AM Request
+       * - freeze further AMs to this peer
+       * - will need something in Reply header to unfreeze.
+       * This would be not for correctness, but efficiency.
+       * Need to remove PTL_MD_ACK_DISABLE from CB_MD if we
+       * ever implement this portion.
+       */
+    } else
+#endif
+    {
+      gasneti_assert(msg_type & GASNETC_PTL_MSG_PUT);
       /* Put bounced through ReqSB, mark op complete */
       op = gasnete_opaddr_to_ptr(threadid, addr);
       /* mark the put (isget=0) operation complete */
       gasnete_op_markdone(op, 0 /* !isget */);
-    } else {
-      gasneti_assert(msg_type & GASNETC_PTL_MSG_AM);
-fprintf(stderr, "%d> My %u byte AM Request ACKED.  Things should fall apart any moment now.\n", gasneti_mynode, ev->rlength);
-      /* TODO: CB Recovery of dropped AM Request,
-       * - stop all further AMs to this node (needs matching check in GASNETC_COMMON_AMREQ_START)
-       * - Need something in Reply header to unfreeze.
-       */
-      srcnode = gasnetc_get_nodeid(&ev->initiator);
-      state = &gasnetc_conn_state[srcnode];
     }
     break;
 
@@ -1302,25 +1325,8 @@ fprintf(stderr, "%d> My %u byte AM Request ACKED.  Things should fall apart any 
     gasnete_op_markdone(op, 1);
     break;
 
-  case PTL_EVENT_GET_END:
-    /* CB Recovery of dropped AM Request has begun.  Ignore. */
-    /* TODO: CB Recovery should use a distinct MD/ME to avoid this event */
-    break;
-
   case PTL_EVENT_PUT_END:
-    /* This is an AM reply from a previous request */
-    if (amflag & GASNETC_PTL_AM_SHORT) {
-      ran_handler = exec_amshort_handler(0,ev,numarg,ghandler);
-    } else if (amflag & GASNETC_PTL_AM_MEDIUM) {
-      ran_handler = exec_ammedium_handler(0,ev,numarg,ghandler);
-    } else if (amflag & GASNETC_PTL_AM_LONG) {
-      int is_packed = amflag & GASNETC_PTL_AM_PACKED;
-      gasneti_assert(! (amflag & GASNETC_PTL_AM_REQUEST) );
-      /* isReq = 0, only Replies come into ReqSB */
-      ran_handler = exec_amlong_header(0,is_packed,ev,numarg,ghandler);
-    } else {
-      gasneti_fatalerror("ReqSB: Invalid amflag from mbits = %lx",(uint64_t)mbits);
-    }
+    exec_am_handler(0,mbits,ev);
 
     /* dealloc the chunk */
     gasnetc_chunk_free(&gasnetc_ReqSB,offset);
@@ -1373,8 +1379,8 @@ static void RplSB_event(ptl_event_t *ev)
  * --------------------------------------------------------------------------------- */
 static void ReqRB_event(ptl_event_t *ev)
 {
-  ptl_match_bits_t   mbits = ev->match_bits;
-  uint8_t msg_type, amflag, numarg, ghandler;
+  ptl_match_bits_t mbits;
+  uint8_t msg_type;
   gasnetc_PtlBuffer_t *bufptr = ReqRB_getbuf((uintptr_t)ev->md.start);
 
   /* increment ref counter on this buffer, atomic w.r.t. poll of the AM_EQ */
@@ -1383,6 +1389,7 @@ static void ReqRB_event(ptl_event_t *ev)
   }
   gasneti_mutex_unlock(&gasnetc_AM_EQ->lock);
 
+  mbits = ev->match_bits;
   msg_type = GASNETC_GET_MSG_TYPE(mbits);
   GASNETI_TRACE_PRINTF(C,("ReqRB event %s offset = %i, mbits = 0x%lx, msg_type = 0x%x",ptl_event_str[ev->type],(int)ev->offset,(uint64_t)mbits,msg_type));
 
@@ -1392,24 +1399,13 @@ static void ReqRB_event(ptl_event_t *ev)
     gasneti_fatalerror("Invalid event msg type on ReqRB, mbits = 0x%lx",(uint64_t)mbits);
   }
 #endif
-  GASNETC_GET_AM_LOWBITS(mbits, numarg, ghandler, amflag);
 
   /* we never truncate on this MD */
   gasneti_assert(ev->rlength == ev->mlength);
 
   switch (ev->type) {
   case PTL_EVENT_PUT_END:
-    if (amflag & GASNETC_PTL_AM_SHORT) {
-      exec_amshort_handler(1,ev,numarg,ghandler);
-    } else if (amflag & GASNETC_PTL_AM_MEDIUM) {
-      exec_ammedium_handler(1,ev,numarg,ghandler);
-    } else if (amflag & GASNETC_PTL_AM_LONG) {
-      int is_packed = amflag & GASNETC_PTL_AM_PACKED;
-      /* isReq = true */
-      exec_amlong_header(1,is_packed,ev,numarg,ghandler);
-    } else {
-      gasneti_fatalerror("ReqRB: Invalid amflag from mbits = %lx",(uint64_t)mbits);
-    }
+    exec_am_handler(1,mbits,ev);
 
     /* decrement ref counter on this buffer */
     if (ev->mlength) GASNETC_REQRB_FINISH(bufptr);
@@ -1485,8 +1481,8 @@ static void ReqRB_event(ptl_event_t *ev)
 static void CB_event(ptl_event_t *ev)
 {
   ptl_size_t offset;
-  ptl_match_bits_t   mbits;
-  uint8_t msg_type, amflag, numarg, ghandler;
+  ptl_match_bits_t mbits;
+  uint8_t msg_type;
 
   gasneti_mutex_unlock(&gasnetc_AM_EQ->lock);
 
@@ -1502,7 +1498,6 @@ static void CB_event(ptl_event_t *ev)
     gasneti_fatalerror("Invalid event msg type on CB, mbits = 0x%lx",(uint64_t)mbits);
   }
 #endif
-  GASNETC_GET_AM_LOWBITS(mbits, numarg, ghandler, amflag);
 
   /* we always truncate on this MD */
   gasneti_assert(ev->mlength == 0);
@@ -1514,21 +1509,30 @@ static void CB_event(ptl_event_t *ev)
     ptl_size_t remote_offset = mbits >> 32;
     ptl_size_t nbytes = ev->rlength;
     ptl_process_id_t target_id = ev->initiator;
+    gasnet_node_t node = gasnetc_get_nodeid(&ev->initiator);
+    gasnetc_conn_t *state = &gasnetc_conn_state[node];
+    gasnetc_cbrcache_t *cbr = (gasnetc_cbrcache_t*)gasneti_malloc(sizeof(gasnetc_cbrcache_t));
+    ptl_match_bits_t gmbits;
 
-    /* already allocated a send ticket and RplSB, spend them now */
+    /* Cache metadata needed to reconstruct the key parts of current event */
+    cbr->initiator = target_id;
+    cbr->match_bits = mbits;
+    cbr->hdr_data = ev->hdr_data;
+    gasneti_mutex_lock(&gasnetc_cbr_lock);
+    cbr->key = gasnetc_cbr_seq++;
+    cbr->next = gasnetc_cbrs;
+    gasnetc_cbrs = cbr;
+    gasneti_mutex_unlock(&gasnetc_cbr_lock);
+
+    /* Start the recovery (this is now a Rendezvous protocol) w/ a GET of the dropped AM. */
+    gmbits = GASNETI_MAKEWORD(cbr->key, GASNETC_PTL_CBRSRC_BITS);
+    GASNETC_PTLSAFE(PtlGetRegion(gasnetc_CBRDst.md_h, local_offset, nbytes, target_id, GASNETC_PTL_AM_PTE, ac_index, gmbits, remote_offset));
+
+    /* We've spent the allocated send ticket and RplSB */
     gasneti_assert(th->snd_tickets > 0);
     th->snd_tickets -= 1;
     gasneti_assert(th->flags & GASNETC_THREAD_HAVE_RPLSB);
     th->flags &= ~GASNETC_THREAD_HAVE_RPLSB;
-
-    /* Start the recovery (this is now a Rendezvous protocol) w/ a GET of the dropped AM. */
-    GASNETC_PTLSAFE(PtlGetRegion(gasnetc_CBRB.md_h, local_offset, nbytes, target_id, GASNETC_PTL_AM_PTE, ac_index, GASNETC_PTL_REQSB_BITS, remote_offset));
-
-    /* TODO:
-     * Will need remoteOffset and hdr_data when the REPLY_END arrives
-     * Could fit removeOffset in mbits, but a gasnetc_ptl_token_t sounds better.
-     * So, upper 32 match bits should allow locating a gasnetc_ptl_token_t.
-     */
   } else {
     gasneti_fatalerror("Invalid event %s on CB",ptl_event_str[ev->type]);
   }
@@ -1538,15 +1542,52 @@ static void CB_event(ptl_event_t *ev)
  * Handle events on the Catch-Basin Recovery Buffer memory descriptor.
  * - REPLY_END => recovered AM Request
  * --------------------------------------------------------------------------------- */
-static void CBRB_event(ptl_event_t *ev)
+static void CBRDst_event(ptl_event_t *ev)
 {
-  gasneti_mutex_unlock(&gasnetc_AM_EQ->lock);
-  gasneti_assert(ev->type == PTL_EVENT_REPLY_END);
-fprintf(stderr, "%d> Cool, I fetched a %u byte dropped AM Request.  Too bad I'm ignoring it now.\n", gasneti_mynode, ev->mlength);
-  /* TODO: Need to run the header processing path (probably from a *copy* of the AM) */
 
-  gasnetc_return_ticket(&gasnetc_send_tickets);
-  gasnetc_chunk_free(&gasnetc_RplSB, ev->offset);
+  gasneti_mutex_unlock(&gasnetc_AM_EQ->lock);
+
+  switch (ev->type) {
+  case PTL_EVENT_SEND_END:
+    break; /* Ignore */
+
+  case PTL_EVENT_REPLY_END:
+    {
+      gasnetc_cbrcache_t *cbr, **prev_p;
+      uint32_t cbr_key = GASNETI_HIWORD(ev->match_bits);
+      ptl_event_t ev2;
+
+fprintf(stderr, "%d> Cool, I recovered a %u byte AM Request.\n", gasneti_mynode, (unsigned)ev->mlength);
+      gasnetc_return_ticket(&gasnetc_send_tickets);
+
+      prev_p = &gasnetc_cbrs;
+      gasneti_mutex_lock(&gasnetc_cbr_lock);
+      cbr = gasnetc_cbrs;
+      gasneti_assert(cbr != NULL);
+      while (cbr->key != cbr_key) {
+        prev_p = &cbr->next;
+        cbr = cbr->next;
+        gasneti_assert(cbr != NULL);
+      }
+      *prev_p = cbr->next;
+      gasneti_mutex_unlock(&gasnetc_cbr_lock);
+
+      /* Build a fake event from current one and cbr */
+      ev2 = *ev;
+      ev2.initiator = cbr->initiator;
+      ev2.hdr_data = cbr->hdr_data;
+      ev2.match_bits = cbr->match_bits;
+      gasneti_free(cbr);
+
+      /* XXX: May want/need to do so from a *copy* of the AM to free up the RplSB chunk earlier? */
+      exec_am_handler(1, ev2.match_bits, &ev2);
+      gasnetc_chunk_free(&gasnetc_RplSB, ev->offset);
+    }
+    break;
+
+  default:
+    gasneti_fatalerror("Invalid event %s on CBRDst",ptl_event_str[ev->type]);
+  }
 }
 
 /* ---------------------------------------------------------------------------------
@@ -1691,26 +1732,26 @@ static void RplSB_init(void)
   GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, md, PTL_RETAIN, &gasnetc_RplSB.md_h));
   GASNETI_TRACE_PRINTF(C,("RplSB_init: %s %lu chunks md=%lu",gasnetc_RplSB.name,(ulong)gasnetc_RplSB_numchunk,(ulong)gasnetc_RplSB.md_h));
 
-  /* And the free-floating CBRB to cover the same memory, but sends events to the AM_EQ */
-  gasnetc_CBRB.start = gasnetc_RplSB.start;
-  gasnetc_CBRB.nbytes = gasnetc_RplSB.nbytes;
-  gasnetc_CBRB.actual_start = NULL;      /* can't free */
-  gasnetc_CBRB.name = gasneti_strdup("CBRB");
-  gasnetc_CBRB.use_chunks = 0;
+  /* And the free-floating CBRDst to cover the same memory, but sends events to the AM_EQ */
+  gasnetc_CBRDst.start = gasnetc_RplSB.start;
+  gasnetc_CBRDst.nbytes = gasnetc_RplSB.nbytes;
+  gasnetc_CBRDst.actual_start = NULL;      /* can't free */
+  gasnetc_CBRDst.name = gasneti_strdup("CBRDst");
+  gasnetc_CBRDst.use_chunks = 0;
 
-  md.start = gasnetc_CBRB.start;
-  md.length = gasnetc_CBRB.nbytes;
+  md.start = gasnetc_CBRDst.start;
+  md.length = gasnetc_CBRDst.nbytes;
   md.threshold = PTL_MD_THRESH_INF;
   md.max_size = 0;
   md.options = PTL_MD_EVENT_START_DISABLE; /* Any more? */
 #if GASNETC_USE_EQ_HANDLER
-  md.user_ptr = (void*)(uintptr_t)GASNETC_CBRB_MD;
+  md.user_ptr = (void*)(uintptr_t)GASNETC_CBRDST_MD;
 #else
-  md.user_ptr = (void*)CBRB_event;
+  md.user_ptr = (void*)CBRDst_event;
 #endif
   md.eq_handle = gasnetc_AM_EQ->eq_h;
 
-  GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, md, PTL_RETAIN, &gasnetc_CBRB.md_h));
+  GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, md, PTL_RETAIN, &gasnetc_CBRDst.md_h));
 }
 
 /* ------------------------------------------------------------------------------------
@@ -1748,6 +1789,9 @@ static void ReqRB_init(void)
   md.threshold = PTL_MD_THRESH_INF;
   md.max_size = 0;
   md.options = PTL_MD_OP_PUT | PTL_MD_EVENT_START_DISABLE | PTL_MD_TRUNCATE;
+#if 1 /* Don't generate ACKs that we are currently just going to ignore */
+  md.options |= PTL_MD_ACK_DISABLE;
+#endif
 #if GASNETC_USE_EQ_HANDLER
   md.user_ptr = (void*)(uintptr_t)GASNETC_CB_MD;
 #else
@@ -1802,8 +1846,10 @@ static void ReqRB_exit(void)
  * Allocate the Request Send Buffer (also used as a Bounce Buffer) and
  * Construct a Memory Descriptor for it.
  * 
- * We put this on Match-list for AM Replys and for Catch-Basin algorithm to work.  
- * Put it on GASNETC_PTL_AM_PTE table entry.
+ * We put this on Match-list for use as the target of AM Replys.
+ *
+ * We also create CBRSrc (Catch Basin Recovery Src) for Catch-Basin recovery.
+ * Put both on the GASNETC_PTL_AM_PTE table entry.
  * --------------------------------------------------------------------------------- */
 static void ReqSB_init(void)
 {
@@ -1817,7 +1863,7 @@ static void ReqSB_init(void)
   md.length = gasnetc_ReqSB.nbytes;
   md.threshold = PTL_MD_THRESH_INF;
   md.max_size = 0;
-  md.options = PTL_MD_EVENT_START_DISABLE | PTL_MD_OP_PUT | PTL_MD_OP_GET | PTL_MD_MANAGE_REMOTE;
+  md.options = PTL_MD_EVENT_START_DISABLE | PTL_MD_OP_PUT | PTL_MD_MANAGE_REMOTE;
 #if GASNETC_USE_EQ_HANDLER
   md.user_ptr = (void*)(uintptr_t)GASNETC_REQSB_MD;
 #else
@@ -1825,12 +1871,30 @@ static void ReqSB_init(void)
 #endif
   md.eq_handle = gasnetc_SAFE_EQ->eq_h;
 
-  /* Insert this after the Catch-Basin ME entry (at end of list) */
-  GASNETC_PTLSAFE(PtlMEInsert(gasnetc_CB.me_h, gasnetc_any_id, GASNETC_PTL_REQSB_BITS, GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER, &p->me_h));
+  /* Insert this after the Catch-Basin ME entry (at end of GASNETC_PTL_AM_PTE) */
+  GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_AM_PTE, gasnetc_any_id, GASNETC_PTL_REQSB_BITS, GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER, &p->me_h));
   GASNETC_PTLSAFE(PtlMDAttach(p->me_h, md, PTL_UNLINK, &p->md_h ));
 
   GASNETI_TRACE_PRINTF(C,("ReqSB_init: %s %lu chunks me=%lu md=%lu",p->name,(ulong)gasnetc_ReqSB_numchunk,(ulong)p->me_h,(ulong)p->md_h));
 
+  /* Now CBRSrc, at end of GASNETC_PTL_AM_PTE */
+  gasnetc_CBRSrc.start = gasnetc_ReqSB.start;
+  gasnetc_CBRSrc.nbytes = gasnetc_ReqSB.nbytes;
+  gasnetc_CBRSrc.actual_start = NULL;      /* can't free */
+  gasnetc_CBRSrc.name = gasneti_strdup("CBRSrc");
+  gasnetc_CBRSrc.use_chunks = 0;
+
+  md.start = gasnetc_CBRSrc.start;
+  md.length = gasnetc_CBRSrc.nbytes;
+  md.threshold = PTL_MD_THRESH_INF;
+  md.max_size = 0;
+  md.options = PTL_MD_EVENT_START_DISABLE | PTL_MD_OP_GET | PTL_MD_MANAGE_REMOTE;
+  md.user_ptr = NULL;
+  md.eq_handle = PTL_EQ_NONE;
+
+  p = &gasnetc_CBRSrc;
+  GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_AM_PTE, gasnetc_any_id, GASNETC_PTL_CBRSRC_BITS, GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER, &p->me_h));
+  GASNETC_PTLSAFE(PtlMDAttach(p->me_h, md, PTL_UNLINK, &p->md_h ));
 }
 
 /* ---------------------------------------------------------------------------------
@@ -2615,6 +2679,7 @@ extern void gasnetc_init_portals_network(int *argc, char ***argv)
     s->flags = 0;
     gasneti_weakatomic_set(&s->src_lid, 0, 0);
     s->lids = NULL;
+    s->cbrs = NULL;
     GASNETC_INITLOCK_STATE(s);
   }
 
@@ -4070,8 +4135,8 @@ extern void gasnetc_event_handler(ptl_event_t *ev)
     CB_event(ev);
     break;
 
-  case GASNETC_CBRB_MD:
-    CBRB_event(ev);
+  case GASNETC_CBRDST_MD:
+    CBRDst_event(ev);
     break;
 
   case GASNETC_SYS_SEND_MD:
