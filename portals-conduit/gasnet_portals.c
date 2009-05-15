@@ -70,6 +70,12 @@ gasnetc_PtlBuffer_t gasnetc_ReqSB;
 int    gasnetc_ReqRB_pool_size = 8;
 size_t gasnetc_ReqRB_numchunk = 1024;
 gasnetc_PtlBuffer_t **gasnetc_ReqRB;          
+#if GASNET_PAR
+  #define GASNETC_REQRB_SPARES 2
+  gasneti_weakatomic_t gasnetc_spare_ReqRB = gasneti_weakatomic_init(GASNETC_REQRB_SPARES);
+#else
+  #define GASNETC_REQRB_SPARES 1
+#endif
 
 /* We maintain a single Reply send buffer.
  * Each threads is allowed to cache up to one buffer.
@@ -858,9 +864,6 @@ static void gasnetc_buf_init(gasnetc_PtlBuffer_t *buf, const char *name, size_t 
   buf->nbytes = nbytes;
   buf->actual_start = buf->start = addr;
   buf->use_chunks = 0;
-#ifdef GASNET_PAR
-  gasneti_weakatomic_set(&buf->threads_active, 0, 0);
-#endif
 }
 
 /* ------------------------------------------------------------------------------------
@@ -937,6 +940,11 @@ static void ReqRB_attach(gasnetc_PtlBuffer_t *p)
 #endif
   md.eq_handle = gasnetc_AM_EQ->eq_h;
 
+#ifdef GASNET_PAR
+  gasneti_assert(!GASNETC_REQRB_BUSY(p));
+  p->fresh = 1;
+#endif
+
   GASNETC_PTLSAFE(PtlMEInsert(gasnetc_CB.me_h, gasnetc_any_id,
                               GASNETC_PTL_REQRB_BITS, GASNETC_PTL_IGNORE_BITS,
                               PTL_UNLINK, PTL_INS_BEFORE, &p->me_h));
@@ -980,6 +988,10 @@ static void ReqRB_refresh(gasnetc_PtlBuffer_t *p)
 #endif
 
   ReqRB_attach(p);
+
+#ifdef GASNET_PAR
+  gasneti_weakatomic_increment(&gasnetc_spare_ReqRB, 0);
+#endif
 }
 
 /* ---------------------------------------------------------------------------------
@@ -1289,20 +1301,6 @@ static void ReqSB_event(ptl_event_t *ev)
     gasnete_op_markdone(op, 1);
     break;
 
-#if 0 /* Not Yet Implemented */
-  case PTL_EVENT_GET_END:
-    /* CB Recovery of dropped AM Request, stop all further AMs to this node */
-    srcnode = gasnetc_get_nodeid(&ev->initiator);
-    state = &gasnetc_conn_state[srcnode];
-    /* dealloc the chunk */
-    gasnetc_chunk_free(&gasnetc_ReqSB,offset);
-
-    /* CB Recovery not implemented, better fail */
-    gasneti_fatalerror("ReqSB got GET_END event, but CB not implemented");
-    
-    break;
-#endif
-
   case PTL_EVENT_PUT_END:
     /* This is an AM reply from a previous request */
     if (amflag & GASNETC_PTL_AM_SHORT) {
@@ -1373,10 +1371,24 @@ static void ReqRB_event(ptl_event_t *ev)
   uint8_t msg_type, amflag, numarg, ghandler;
   gasnetc_PtlBuffer_t *bufptr = ReqRB_getbuf((uintptr_t)ev->md.start);
 
-  /* increment ref counter on this buffer, atomic w.r.t. poll of the AM_EQ */
-  if (ev->mlength && (ev->type == PTL_EVENT_PUT_END)) {
-    GASNETC_REQRB_START(bufptr);
+#ifdef GASNET_PAR
+  /* flow control related work done atomic w.r.t. poll of the AM_EQ */
+  if (ev->type == PTL_EVENT_PUT_END) {
+    /* increment ref counter on this buffer */
+    if (ev->mlength) GASNETC_REQRB_START(bufptr);
+
+    /* stall if too few "fresh" ReqRBs would remain to cover the advertised credits (bug 2462) */
+    if_pf (bufptr->fresh) {
+      if_pf (!gasneti_weakatomic_read(&gasnetc_spare_ReqRB, 0)) {
+        GASNETC_TRACE_WAIT_BEGIN();
+        gasneti_waituntil(gasneti_weakatomic_read(&gasnetc_spare_ReqRB, 0));
+        GASNETC_TRACE_WAIT_END(FRESH_STALL);
+      }
+      gasneti_weakatomic_decrement(&gasnetc_spare_ReqRB, 0);
+      bufptr->fresh = 0;
+    }
   }
+#endif
   gasneti_mutex_unlock(&gasnetc_AM_EQ->lock);
 
   msg_type = GASNETC_GET_MSG_TYPE(mbits);
@@ -1708,6 +1720,9 @@ static void ReqRB_init(void)
 
     p = gasnetc_ReqRB[i] = gasnetc_malloc_aligned(sizeof(double),nbytes + skip);
     gasnetc_buf_init(p,name,nbytes,(void *)((uintptr_t)p + skip));
+#ifdef GASNET_PAR
+    gasneti_weakatomic_set(&p->threads_active, 0, 0);
+#endif
 
     ReqRB_attach(p);
 
@@ -3287,8 +3302,8 @@ static void adjust_bufspace_from_cred(int64_t *banked, int *cpn, int64_t *total_
   /* add remainder to the bank */
   *banked = tot_cred - (gasneti_nodes-1)*(*cpn);
   *total_cred = tot_cred;
-  *nbuf = nb + 1;   /* always one more than credit buffer space */
-#if GASNETC_CREDIT_TESTING
+  *nbuf = nb + GASNETC_REQRB_SPARES;   /* always more than credit buffer space (see bug 2462) */
+#if GASNETC_CREDIT_TESTING ||1
   if (gasneti_mynode == 0) printf("Adjust: final banked = %d, cpn = %d, tot_cred = %d, nbuf = %d\n",
 				  (int)*banked,*cpn,(int)tot_cred,*nbuf);
 #endif
@@ -3486,7 +3501,7 @@ extern void gasnetc_init_portals_resources(void)
       adjust_bufspace_from_cred(&banked, &cred_per_node, &total_credits, &num_reqRB);
 
 #if GASNETC_CREDIT_TESTING
-      // MLW: hack to force credits to what we specify in env vars and ignore extras
+      /* MLW: hack to force credits to what we specify in env vars and ignore extras */
       cred_per_node = cpn_saved;
 #endif
 

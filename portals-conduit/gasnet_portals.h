@@ -693,8 +693,10 @@ typedef struct {
   ptl_handle_me_t  me_h;               /* The Portals match-list entry handle (if used) */
   char *name;                          /* string used for diagnostics */
   int use_chunks;                      /* Is the buffer under control of a chunk allocator? */
-  gasneti_weakatomic_t threads_active; /* Used only in ReqRB, counts number of threads
-					* actively using buffer */
+
+  /* Used only in ReqRB: */
+  gasneti_weakatomic_t threads_active; /* counts number of threads actively using buffer */
+  int fresh;                           /* non-zero if no AMs have been processed since MDAttach */
 
   /* The following fields are only used in the case of a chunk allocator */
   /* NOTE: Only ReqSB and RplSB objects are controlled by chunk allocation, others are not. */
