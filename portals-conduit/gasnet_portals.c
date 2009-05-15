@@ -3303,7 +3303,7 @@ static void adjust_bufspace_from_cred(int64_t *banked, int *cpn, int64_t *total_
   *banked = tot_cred - (gasneti_nodes-1)*(*cpn);
   *total_cred = tot_cred;
   *nbuf = nb + GASNETC_REQRB_SPARES;   /* always more than credit buffer space (see bug 2462) */
-#if GASNETC_CREDIT_TESTING ||1
+#if GASNETC_CREDIT_TESTING
   if (gasneti_mynode == 0) printf("Adjust: final banked = %d, cpn = %d, tot_cred = %d, nbuf = %d\n",
 				  (int)*banked,*cpn,(int)tot_cred,*nbuf);
 #endif
