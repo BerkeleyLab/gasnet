@@ -696,7 +696,7 @@ typedef struct {
 
   /* Used only in ReqRB: */
   gasneti_weakatomic_t threads_active; /* counts number of threads actively using buffer */
-  int fresh;                           /* non-zero if no AMs have been processed since MDAttach */
+  volatile int fresh;                  /* non-zero if no AMs have been processed since MDAttach */
 
   /* The following fields are only used in the case of a chunk allocator */
   /* NOTE: Only ReqSB and RplSB objects are controlled by chunk allocation, others are not. */

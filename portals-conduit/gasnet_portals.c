@@ -72,7 +72,7 @@ size_t gasnetc_ReqRB_numchunk = 1024;
 gasnetc_PtlBuffer_t **gasnetc_ReqRB;          
 #if GASNET_PAR
   #define GASNETC_REQRB_SPARES 2
-  gasneti_weakatomic_t gasnetc_spare_ReqRB = gasneti_weakatomic_init(GASNETC_REQRB_SPARES);
+  static gasneti_weakatomic_t gasnetc_spare_ReqRB = gasneti_weakatomic_init(GASNETC_REQRB_SPARES);
 #else
   #define GASNETC_REQRB_SPARES 1
 #endif
@@ -1372,24 +1372,34 @@ static void ReqRB_event(ptl_event_t *ev)
   gasnetc_PtlBuffer_t *bufptr = ReqRB_getbuf((uintptr_t)ev->md.start);
 
 #ifdef GASNET_PAR
-  /* flow control related work done atomic w.r.t. poll of the AM_EQ */
+  /* flow control work */
   if (ev->type == PTL_EVENT_PUT_END) {
-    /* increment ref counter on this buffer */
-    if (ev->mlength) GASNETC_REQRB_START(bufptr);
+    /* increment ref counter on this buffer, atomic w.r.t. poll of the AM_EQ */
+    GASNETC_REQRB_START(bufptr);
 
-    /* stall if too few "fresh" ReqRBs would remain to cover the advertised credits (bug 2462) */
+    /* release AM_EQ mutex so that "fresh stall" can't block unrelated events */
+    gasneti_mutex_unlock(&gasnetc_AM_EQ->lock);
+
+    /* stall if too few "fresh" ReqRBs would remain to cover the advertised credits (bug 2462)
+     * the ref we hold protects against ReqRB_refresh accessing bufptr->fresh */
     if_pf (bufptr->fresh) {
-      if_pf (!gasneti_weakatomic_read(&gasnetc_spare_ReqRB, 0)) {
-        GASNETC_TRACE_WAIT_BEGIN();
+      static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
+      GASNETC_TRACE_WAIT_BEGIN();
+      gasneti_mutex_lock(&lock);
+      if (bufptr->fresh) {
         gasneti_waituntil(gasneti_weakatomic_read(&gasnetc_spare_ReqRB, 0));
-        GASNETC_TRACE_WAIT_END(FRESH_STALL);
+        gasneti_weakatomic_decrement(&gasnetc_spare_ReqRB, 0);
+        bufptr->fresh = 0;
       }
-      gasneti_weakatomic_decrement(&gasnetc_spare_ReqRB, 0);
-      bufptr->fresh = 0;
+      gasneti_mutex_unlock(&lock);
+      GASNETC_TRACE_WAIT_END(FRESH_STALL);
     }
-  }
+
+    /* on zero-byte payload we don't need to keep a reference */
+    if (!ev->mlength) GASNETC_REQRB_FINISH(bufptr);
+  } else
 #endif
-  gasneti_mutex_unlock(&gasnetc_AM_EQ->lock);
+    gasneti_mutex_unlock(&gasnetc_AM_EQ->lock);
 
   msg_type = GASNETC_GET_MSG_TYPE(mbits);
   GASNETI_TRACE_PRINTF(C,("ReqRB event %s offset = %i, mbits = 0x%lx, msg_type = 0x%x",ptl_event_str[ev->type],(int)ev->offset,(uint64_t)mbits,msg_type));
@@ -1419,17 +1429,9 @@ static void ReqRB_event(ptl_event_t *ev)
       gasneti_fatalerror("ReqRB: Invalid amflag from mbits = %lx",(uint64_t)mbits);
     }
 
-    /* decrement ref counter on this buffer */
+    /* decrement ref counter on this buffer if we held one */
     if (ev->mlength) GASNETC_REQRB_FINISH(bufptr);
 
-    /* Should we check if this buffer can be recycled here as well as below? */
-    /* THREAD SAFETY ISSUE: multiple threads could be executing handlers that
-     * reference data in this MD.  Cant zero memory and should not re-link
-     * into list until all threads have completed.
-     * In practice, it will be a very low probability event that, after
-     * being added back into the match list, an incoming message will have
-     * over-written data that one of the threads is still reading.
-     */
 #if GASNETC_REQRB_AUTO_UNLINK
 #if GASNETC_REQRB_UNLINK_VERBOSE
     { /* testing */
@@ -1441,6 +1443,7 @@ static void ReqRB_event(ptl_event_t *ev)
     }
 #endif
 #else
+    #error "!GASNETC_REQRB_AUTO_UNLINK is known to be broken (bug 2461)"
     {
       ptl_size_t space_left = ev->md.length - (ev->offset + ev->mlength);
       if (space_left < GASNETC_CHUNKSIZE) {
