@@ -940,7 +940,7 @@ static void ReqRB_attach(gasnetc_PtlBuffer_t *p)
 #endif
   md.eq_handle = gasnetc_AM_EQ->eq_h;
 
-#ifdef GASNET_PAR
+#if GASNET_PAR
   gasneti_assert(!GASNETC_REQRB_BUSY(p));
   p->fresh = 1;
 #endif
@@ -989,7 +989,7 @@ static void ReqRB_refresh(gasnetc_PtlBuffer_t *p)
 
   ReqRB_attach(p);
 
-#ifdef GASNET_PAR
+#if GASNET_PAR
   gasneti_weakatomic_increment(&gasnetc_spare_ReqRB, 0);
 #endif
 }
@@ -1371,7 +1371,7 @@ static void ReqRB_event(ptl_event_t *ev)
   uint8_t msg_type, amflag, numarg, ghandler;
   gasnetc_PtlBuffer_t *bufptr = ReqRB_getbuf((uintptr_t)ev->md.start);
 
-#ifdef GASNET_PAR
+#if GASNET_PAR
   /* flow control work */
   if (ev->type == PTL_EVENT_PUT_END) {
     /* increment ref counter on this buffer, atomic w.r.t. poll of the AM_EQ */
@@ -1383,16 +1383,18 @@ static void ReqRB_event(ptl_event_t *ev)
     /* stall if too few "fresh" ReqRBs would remain to cover the advertised credits (bug 2462)
      * the ref we hold protects against ReqRB_refresh accessing bufptr->fresh */
     if_pf (bufptr->fresh) {
-      static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
-      GASNETC_TRACE_WAIT_BEGIN();
-      gasneti_mutex_lock(&lock);
+      gasneti_mutex_lock(&bufptr->lock);
       if (bufptr->fresh) {
-        gasneti_waituntil(gasneti_weakatomic_read(&gasnetc_spare_ReqRB, 0));
+        GASNETI_TRACE_EVENT(C, FRESH_REQRB);
+        if_pf (!gasneti_weakatomic_read(&gasnetc_spare_ReqRB, 0)) {
+          GASNETC_TRACE_WAIT_BEGIN();
+          gasneti_waituntil(gasneti_weakatomic_read(&gasnetc_spare_ReqRB, 0));
+          GASNETC_TRACE_WAIT_END(FRESH_STALL);
+        }
         gasneti_weakatomic_decrement(&gasnetc_spare_ReqRB, 0);
         bufptr->fresh = 0;
       }
-      gasneti_mutex_unlock(&lock);
-      GASNETC_TRACE_WAIT_END(FRESH_STALL);
+      gasneti_mutex_unlock(&bufptr->lock);
     }
 
     /* on zero-byte payload we don't need to keep a reference */
@@ -1723,8 +1725,9 @@ static void ReqRB_init(void)
 
     p = gasnetc_ReqRB[i] = gasnetc_malloc_aligned(sizeof(double),nbytes + skip);
     gasnetc_buf_init(p,name,nbytes,(void *)((uintptr_t)p + skip));
-#ifdef GASNET_PAR
+#if GASNET_PAR
     gasneti_weakatomic_set(&p->threads_active, 0, 0);
+    gasneti_mutex_init(&p->lock);
 #endif
 
     ReqRB_attach(p);
