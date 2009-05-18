@@ -108,12 +108,10 @@
 
 /* Do we register an EQ handler with a queue or just poll ourselves */
 #if GASNETC_USE_EQ_HANDLER
-  #define GASNETC_EQ_HANDLER gasnetc_event_handler
-  #define GASNETC_CALL_EQ_HANDLER(ev) gasnetc_event_handler(&ev)
-#else
-  #define GASNETC_EQ_HANDLER NULL
-  #define GASNETC_CALL_EQ_HANDLER(ev) (*(gasnetc_ptl_event_handler)(ev.md.user_ptr))(&(ev)) 
+  #error "GASNETC_USE_EQ_HANDLER is no longer supported"
 #endif
+
+#define GASNETC_CALL_EQ_HANDLER(ev) (*(gasnetc_ptl_event_handler)(ev.md.user_ptr))(&(ev)) 
 
 /* bug workaround for missing ptl_eq_handler_t typedef in some PE versions */
 #ifdef GASNETC_PORTALS_MISSING_EQ_HANDLER_T

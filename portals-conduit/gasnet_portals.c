@@ -913,11 +913,7 @@ static void ReqRB_attach(gasnetc_PtlBuffer_t *p)
   md.options |= PTL_MD_FLAG_AUTO_UNLINK | PTL_MD_EVENT_AUTO_UNLINK_ENABLE;
 #endif
 
-#if GASNETC_USE_EQ_HANDLER
-  md.user_ptr = (void*)(uintptr_t)GASNETC_REQRB_MD;
-#else
   md.user_ptr = (void*)ReqRB_event;
-#endif
   md.eq_handle = gasnetc_AM_EQ->eq_h;
 
 #if GASNET_PAR
@@ -1505,11 +1501,7 @@ static void RAR_init(void)
   md.threshold = PTL_MD_THRESH_INF;
   md.max_size = 0;
   md.options = PTL_MD_OP_PUT | PTL_MD_MANAGE_REMOTE | PTL_MD_EVENT_START_DISABLE;
-#if GASNETC_USE_EQ_HANDLER
-  md.user_ptr = (void*)(uintptr_t)GASNETC_RARAM_MD;
-#else
   md.user_ptr = (void*)RARAM_event;
-#endif
   md.eq_handle = gasnetc_AM_EQ->eq_h;
 
   GASNETC_PTLSAFE(PtlMEInsert(gasnetc_RAR.me_h, gasnetc_any_id, GASNETC_PTL_RARAM_BITS,
@@ -1536,11 +1528,7 @@ static void RAR_init(void)
   md.threshold = PTL_MD_THRESH_INF;
   md.max_size = 0;
   md.options = PTL_MD_OP_PUT | PTL_MD_MANAGE_REMOTE | PTL_MD_EVENT_START_DISABLE;
-#if GASNETC_USE_EQ_HANDLER
-  md.user_ptr = (void*)(uintptr_t)GASNETC_RARSRC_MD;
-#else
   md.user_ptr = (void*)RARSRC_event;
-#endif
   md.eq_handle = gasnetc_SAFE_EQ->eq_h;
 
   GASNETC_PTLSAFE(PtlMEInsert(gasnetc_RARAM.me_h, gasnetc_any_id, GASNETC_PTL_RARSRC_BITS,
@@ -1577,11 +1565,7 @@ static void RplSB_init(void)
   md.threshold = PTL_MD_THRESH_INF;
   md.max_size = 0;
   md.options = PTL_MD_EVENT_START_DISABLE;
-#if GASNETC_USE_EQ_HANDLER
-  md.user_ptr = (void*)(uintptr_t)GASNETC_REQSB_MD;
-#else
   md.user_ptr = (void*)RplSB_event;
-#endif
   md.eq_handle = gasnetc_SAFE_EQ->eq_h;
 
   GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, md, PTL_RETAIN, &gasnetc_RplSB.md_h));
@@ -1623,11 +1607,7 @@ static void ReqRB_init(void)
   md.threshold = PTL_MD_THRESH_INF;
   md.max_size = 0;
   md.options = PTL_MD_OP_PUT | PTL_MD_EVENT_START_DISABLE | PTL_MD_ACK_DISABLE | PTL_MD_TRUNCATE;
-#if GASNETC_USE_EQ_HANDLER
-  md.user_ptr = (void*)(uintptr_t)GASNETC_CB_MD;
-#else
   md.user_ptr = (void*)CB_event;
-#endif
   md.eq_handle = gasnetc_SAFE_EQ->eq_h;
   GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_AM_PTE, gasnetc_any_id, GASNETC_PTL_REQRB_BITS, GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER, &gasnetc_CB.me_h));
   GASNETC_PTLSAFE(PtlMDAttach(gasnetc_CB.me_h, md, PTL_RETAIN, &gasnetc_CB.md_h));
@@ -1697,11 +1677,7 @@ static void ReqSB_init(void)
   md.threshold = PTL_MD_THRESH_INF;
   md.max_size = 0;
   md.options = PTL_MD_EVENT_START_DISABLE | PTL_MD_OP_PUT | PTL_MD_MANAGE_REMOTE;
-#if GASNETC_USE_EQ_HANDLER
-  md.user_ptr = (void*)(uintptr_t)GASNETC_REQSB_MD;
-#else
   md.user_ptr = (void*)ReqSB_event;
-#endif
   md.eq_handle = gasnetc_SAFE_EQ->eq_h;
 
   /* Insert this after the Catch-Basin ME entry (at end of list) */
@@ -2198,11 +2174,7 @@ static void sys_init(void)
   md.threshold = PTL_MD_THRESH_INF;
   md.max_size = 0;
   md.options = PTL_MD_EVENT_START_DISABLE;
-#if GASNETC_USE_EQ_HANDLER
-  md.user_ptr = (void*)(uintptr_t)GASNETC_SYS_SEND_MD;
-#else
   md.user_ptr = (void*)sys_event;
-#endif
   md.eq_handle = PTL_EQ_NONE;
 
   GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, md, PTL_RETAIN, &gasnetc_SYS_Send.md_h));
@@ -2215,11 +2187,7 @@ static void sys_init(void)
   md.threshold = PTL_MD_THRESH_INF;
   md.max_size = 0;
   md.options = PTL_MD_OP_PUT | PTL_MD_EVENT_START_DISABLE | PTL_MD_ACK_DISABLE | PTL_MD_TRUNCATE;
-#if GASNETC_USE_EQ_HANDLER
-  md.user_ptr = (void*)(uintptr_t)GASNETC_SYS_RECV_MD;
-#else
   md.user_ptr = (void*)sys_event;
-#endif
   md.eq_handle = gasnetc_SYS_EQ->eq_h;
 
   /* Insert a MLE at the head of the list */
@@ -3045,11 +3013,7 @@ extern ptl_handle_md_t gasnetc_alloc_tmpmd(void* start, size_t nbytes)
   md.threshold = PTL_MD_THRESH_INF;
   md.max_size = 0;
   md.options = PTL_MD_EVENT_START_DISABLE;
-#if GASNETC_USE_EQ_HANDLER
-  md.user_ptr = (void*)(uintptr_t)GASNETC_TMP_MD;
-#else
   md.user_ptr = (void*)TMPMD_event;
-#endif
   md.eq_handle = gasnetc_SAFE_EQ->eq_h;
 
   GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, md, PTL_UNLINK, &md_h));
@@ -3683,8 +3647,8 @@ extern void gasnetc_init_portals_resources(void)
     num_safe_events = (int)((double)num_safe_events * 0.75);
   }
 
-  gasnetc_SAFE_EQ = gasnetc_eq_alloc(num_safe_events, "SAFE_EQ", GASNETC_EQ_HANDLER);
-  gasnetc_AM_EQ = gasnetc_eq_alloc(num_am_events, "AM_EQ", GASNETC_EQ_HANDLER);
+  gasnetc_SAFE_EQ = gasnetc_eq_alloc(num_safe_events, "SAFE_EQ", NULL);
+  gasnetc_AM_EQ = gasnetc_eq_alloc(num_am_events, "AM_EQ", NULL);
 
   /* Finally, init the Remote Access Region and allocate the AM Buffer space */
   RAR_init();
@@ -3708,11 +3672,9 @@ extern void gasnetc_init_portals_resources(void)
   #endif
 
 #if 0
-#ifndef GASNETC_USE_EQ_HANDLER
   /* Enable the progress function */
   GASNETI_TRACE_PRINTF(C,("Enabling Portals polling function (No EQ Handler)"));
   GASNETI_PROGRESSFNS_ENABLE(gasnete_pf_portals_poll,BOOLEAN);
-#endif
 #endif
 }
 
@@ -3905,58 +3867,6 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
 #endif
 
   GASNETI_TRACE_EVENT_VAL(C, EVENT_REAP, processed);
-}
-
-/* ------------------------------------------------------------------------------------
- * Jump table to determine which event handler to run.
- * Only used in case when we register a Portals event handler with an EQ, otherwise
- * functions are called through a function pointer stored in ev->md.user_prt
- * --------------------------------------------------------------------------------- */
-extern void gasnetc_event_handler(ptl_event_t *ev)
-{
-#if GASNETC_USE_EQ_HANDLER
-  unsigned int which_md = (unsigned int)(uintptr_t)ev->md.user_ptr;
-
-  gasneti_assert(which_md < GASNETC_NUM_MD);
-
-  switch (which_md) {
-  case GASNETC_RARAM_MD:
-    RARAM_event(ev);
-    break;
-
-  case GASNETC_RARSRC_MD:
-    RARSRC_event(ev);
-    break;
-
-  case GASNETC_REQSB_MD:
-    ReqSB_event(ev);
-    break;
-
-  case GASNETC_TMP_MD:
-    TMPMD_event(ev);
-    break;
-
-  case GASNETC_REQRB_MD:
-    ReqRB_event(ev);
-    break;
-
-  case GASNETC_RPLSB_MD:
-    RplSB_event(ev);
-    break;
-    
-  case GASNETC_CB_MD:
-    CB_event(ev);
-    break;
-
-  case GASNETC_SYS_SEND_MD:
-  case GASNETC_SYS_RECV_MD:
-    sys_event(ev);
-    break;
-
-  default:
-    gasneti_fatalerror("Invalid MD [%i] for event %s",(int)which_md,ptl_event_str[ev->type]);
-  }
-#endif
 }
 
 /* ------------------------------------------------------------------------------------
@@ -4224,11 +4134,7 @@ firehose_move_callback(gasnet_node_t node,
     md.threshold = PTL_MD_THRESH_INF;
     md.max_size = 0;
     md.options = PTL_MD_EVENT_START_DISABLE;
-#if GASNETC_USE_EQ_HANDLER
-    md.user_ptr = (void*)(uintptr_t)GASNETC_TMP_MD;
-#else
     md.user_ptr = (void*)TMPMD_event;
-#endif
     md.eq_handle = gasnetc_SAFE_EQ->eq_h;
 
     if (i < updates) {
