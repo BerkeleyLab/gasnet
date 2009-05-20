@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2009/02/10 22:27:10 $
- * $Revision: 1.155 $
+ *     $Date: 2009/05/20 22:16:59 $
+ * $Revision: 1.155.4.1 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -537,6 +537,17 @@ extern void gasnetc_sndrcv_init_misc(void);
 extern void gasnetc_sndrcv_attach_peer(gasnet_node_t node);
 extern void gasnetc_sndrcv_fini_peer(gasnet_node_t node);
 extern void gasnetc_sndrcv_poll(void);
+#if GASNET_SYSV
+extern int gasnetc_AMSYSV_RequestGeneric(gasnetc_category_t category, 
+                         int dest, gasnet_handler_t handler, 
+                         void *source_addr, int nbytes, void *dest_ptr, 
+                         int numargs, va_list argptr);
+extern int gasnetc_AMSYSV_ReplyGeneric(gasnetc_category_t category, 
+                         gasnet_token_t token, gasnet_handler_t handler, 
+                         void *source_addr, int nbytes, void *dest_ptr, 
+                         int numargs, va_list argptr);
+#endif
+
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  int dest, gasnet_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
@@ -545,7 +556,6 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 				gasnet_token_t token, gasnet_handler_t handler,
 				void *src_addr, int nbytes, void *dst_addr,
 				int numargs, gasnetc_counter_t *mem_oust, va_list argptr);
-
 /* General routines in gasnet_core.c */
 extern int gasnetc_pin(gasnetc_hca_t *hca, void *addr, size_t size, gasnetc_acl_t acl, gasnetc_memreg_t *reg);
 extern void gasnetc_unpin(gasnetc_hca_t *hca, gasnetc_memreg_t *reg);
