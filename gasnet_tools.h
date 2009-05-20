@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2008/10/27 18:39:28 $
- * $Revision: 1.121 $
+ *     $Date: 2009/05/20 22:16:50 $
+ * $Revision: 1.121.8.1 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -227,7 +227,7 @@ GASNETI_BEGIN_EXTERNC
                                           gasneti_atomic64_compare_and_swap(p,oldval,newval,f)
 
 /* regular atomics map to either true atomics or sequential stubs, based on thread mode */
-#if GASNETI_THREADS
+#if GASNETI_THREADS || GASNET_SYSV
   /* PAR, PARSYNC and thread-safe tools clients */
   #define gasnett_atomic_t               gasneti_atomic_t
   #define gasnett_atomic_read(p,f)       gasneti_atomic_read(p,f)

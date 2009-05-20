@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/05/13 21:51:46 $
- * $Revision: 1.77.22.4 $
+ *     $Date: 2009/05/20 22:16:55 $
+ * $Revision: 1.77.22.5 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -34,7 +34,6 @@ ep_t gasnetc_endpoint;
 gasneti_mutex_t gasnetc_AMlock = GASNETI_MUTEX_INITIALIZER; /*  protect access to AMMPI */
 
 #if GASNET_SYSV
-static int gasnetc_sysv_init;
 #define GASNETC_MAX_NUMHANDLERS   256
 typedef void (*gasnetc_handler_fn_t)();  /* prototype for handler function */
 gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
@@ -121,6 +120,9 @@ static int gasnetc_init(int *argc, char ***argv) {
   const char *tmsgstr = NULL;
   int i;
 
+#if GASNET_SYSV
+  gasnetc_sysv_init=0;
+#endif
   AMLOCK();
     if (gasneti_init_done) 
       INITERR(NOT_INIT, "GASNet already initialized");

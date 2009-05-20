@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2009/05/13 21:51:41 $
- * $Revision: 1.113.8.3 $
+ *     $Date: 2009/05/20 22:16:50 $
+ * $Revision: 1.113.8.4 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -57,6 +57,7 @@ GASNETI_BEGIN_EXTERNC
   extern uintptr_t gasneti_sysvsize;
   extern gasnet_sysvname_t *gasneti_sysvname;
   extern gasnet_sysvname_t gasneti_vnetname;
+  extern int gasnetc_sysv_init;
 #endif
 
 extern int gasneti_init_done; /*  true after init */

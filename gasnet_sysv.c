@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/05/13 21:51:41 $
- * $Revision: 1.1.4.4 $
+ *     $Date: 2009/05/20 22:16:50 $
+ * $Revision: 1.1.4.5 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -799,14 +799,18 @@ typedef struct {
   gasneti_AMSYSV_category_t category;      /* AM msg type: small, med, large */
   gasneti_AMSYSV_handler_t handler_id;
   uint32_t numargs;
+#if GASNETC_MAX_ARGS_USER && GASNET_SYSV
+  gasnet_handlerarg_t args[GASNETC_MAX_ARGS_USER];
+#else
   gasnet_handlerarg_t args[GASNETC_MAX_ARGS];
+#endif
 } gasneti_AMSYSV_msg_t;
 typedef gasneti_AMSYSV_msg_t gasneti_AMSYSV_smallmsg_t;
 
 typedef struct {
   gasneti_AMSYSV_msg_t msg;
   uint32_t numbytes;
-  uint8_t  mediumdata[GASNETC_MAX_MEDIUM];
+  uint8_t  mediumdata[(size_t)GASNETC_MAX_MEDIUM];
 } gasneti_AMSYSV_medmsg_t;
 
 typedef struct {
@@ -845,12 +849,10 @@ int gasneti_AMSYSV_service_incoming_msg(gasneti_sysvnet_t *vnet, int isReq)
 
   token = gasnetc_token_create(from, isReq);
   category = GASNETI_AMSYSV_MSG_CATEGORY(msg);
-  //printf("%d> category = %d\n",gasneti_mysysvnode, category);
   gasneti_assert(category < gasnetc_invalid_category);
   handler_id = GASNETI_AMSYSV_MSG_HANDLERID(msg);
   handler_fn = gasneti_get_handler(handler_id);
   numargs = GASNETI_AMSYSV_MSG_NUMARGS(msg);
-  //printf("%d> numargs = %d\n",gasneti_mysysvnode, numargs);
   args = GASNETI_AMSYSV_MSG_ARGS(msg);
 
   switch (category) {
@@ -950,9 +952,9 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
   } else {
     while (!(msg = gasneti_sysvnet_get_send_buffer(vnet, msgsz, dest))) {
       /* If reply, only poll reply network: avoids deadlock  */
-      gasneti_AMSYSVPoll(!isReq);
+      //gasneti_AMSYSVPoll(!isReq);
 
-        //gasnetc_AMPoll(!isReq);
+        gasnetc_AMPoll(!isReq);
     }
   }
 
@@ -1012,8 +1014,8 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
     
     while (gasneti_sysvnet_deliver_send_buffer(vnet, msg, msgsz, dest)) {
       /* If reply, only poll reply network: avoids deadlock  */
-      gasneti_AMSYSVPoll(!isReq);
-        //gasnetc_AMPoll(!isReq);
+      //gasneti_AMSYSVPoll(!isReq);
+        gasnetc_AMPoll(!isReq);
     }
   }
   return GASNET_OK;
