@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_extended.c,v $
- *     $Date: 2008/12/26 05:31:14 $
- * $Revision: 1.46 $
+ *     $Date: 2009/05/20 22:17:00 $
+ * $Revision: 1.46.4.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -342,6 +342,7 @@ extern void gasnete_init() {
 GASNETI_INLINE(gasnete_memset_reqh_inner)
 void gasnete_memset_reqh_inner(gasnet_token_t token, 
   gasnet_handlerarg_t val, gasnet_handlerarg_t nbytes, void *dest, void *counter) {
+
   memset(dest, (int)(uint32_t)val, nbytes);
   gasneti_sync_writes();
   GASNETE_DONE(token, counter);
@@ -383,7 +384,7 @@ extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void
 extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_eop_t *eop = gasnete_eop_new(GASNETE_MYTHREAD);
 
-  gasnetc_counter_inc(&eop->req_oust);
+ gasnetc_counter_inc(&eop->req_oust);
   GASNETI_SAFE(
     SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
                  (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
@@ -625,14 +626,13 @@ extern void gasnete_put_bulk (gasnet_node_t node, void* dest, void *src,
 
 extern void gasnete_memset (gasnet_node_t node, void *dest, int val,
 		            size_t nbytes GASNETE_THREAD_FARG) {
+
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
-
   gasnetc_counter_inc(&req_oust);
-  GASNETI_SAFE(
-    SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
-                 (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
-                 PACK(dest), PACK(&req_oust))));
-
+    GASNETI_SAFE(
+      SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
+                   (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
+                   PACK(dest), PACK(&req_oust))));
   gasnetc_counter_wait(&req_oust, 0);
 }
 /* ------------------------------------------------------------------------------------ */
