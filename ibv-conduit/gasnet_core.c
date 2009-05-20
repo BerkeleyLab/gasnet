@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2009/04/23 23:33:28 $
- * $Revision: 1.205.6.1 $
+ *     $Date: 2009/05/20 22:16:59 $
+ * $Revision: 1.205.6.2 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,6 +19,19 @@
 
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
+
+#if GASNET_SYSV
+#define GASNETC_MAX_NUMHANDLERS   256
+gasneti_handler_fn_t gasnetc_get_handler(int handler_id) {
+  gasneti_assert(handler_id < GASNETC_MAX_NUMHANDLERS);
+  return gasnetc_handler[handler_id];
+}
+/* Used in gasnet_sysv.c */
+extern gasneti_handler_fn_t gasneti_get_handler(int handler_id){
+  return gasnetc_get_handler(handler_id); 
+}
+#endif /* GASNET_SYSV */
+
 
 #if HAVE_SSH_SPAWNER
   GASNETI_IDENT(gasnetc_IdentString_HaveSSHSpawner, "$GASNetSSHSpawner: 1 $");
@@ -965,6 +978,9 @@ static int gasnetc_init(int *argc, char ***argv) {
   int 			num_ports;
   int 			h, i;
 
+#if GASNET_SYSV
+  gasnetc_sysv_init=0;
+#endif
   /*  check system sanity */
   gasnetc_check_config();
 
@@ -1517,6 +1533,27 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_assert(gasnetc_pin_info.regions != 0);
   }
 
+#if GASNET_SYSV
+    /* Creating the names for shmem files 
+     * NOTE: currently the gasneti_sysvname array holds gasneti_nodes enteries, and bootstrapExchange
+     * is performed across the entire system. Could we do better? i.e. use gasneti_sysvnodes instead
+     * of gasneti_nodes, and perform exchange only locally.
+     * I gues it is possible for processes on different physical nodes to have the same files,
+     * but we do not care about that ... or do we?
+     */
+    gasneti_sysvname = (gasnet_sysvname_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_sysvname_t));
+    strcpy(gasneti_sysvname[gasneti_mynode].file_name,"/upcmem.XXXXXX");
+    mkstemp(gasneti_sysvname[gasneti_mynode].file_name);
+    gasneti_bootstrapExchange(&gasneti_sysvname[gasneti_mynode], sizeof(gasnet_sysvname_t), gasneti_sysvname);
+
+    strcpy(gasneti_vnetname.file_name, gasneti_sysvname[0].file_name);
+    strcat(gasneti_vnetname.file_name, "sysv_vnet");
+
+    gasneti_bootstrapBarrier();
+    gasnetc_init_sysv();
+    gasneti_bootstrapBarrier();
+#endif
+ 
   #if GASNET_SEGMENT_FAST
   {
     /* Reserved memory needed by firehose on each node */
@@ -1530,7 +1567,23 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_segmentInit((gasnetc_pin_info.memory - reserved_mem), &gasneti_bootstrapExchange);
   }
   #elif GASNET_SEGMENT_LARGE
+
+#if GASNET_SYSV
+  { uintptr_t limit;
+      #if HAVE_MMAP
+        limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
+                                  &gasneti_bootstrapExchange,
+                                  &gasneti_bootstrapBarrier),
+      #else
+        limit = (intptr_t)-1;
+      #endif
+      gasneti_bootstrapBarrier();
+      gasneti_segmentInit(limit, &gasneti_bootstrapExchange);
+    }
+#else
     gasneti_segmentInit((uintptr_t)(-1), &gasneti_bootstrapExchange);
+#endif
+
   #elif GASNET_SEGMENT_EVERYTHING
     /* segment is everything - nothing to do */
   #endif
@@ -1723,6 +1776,11 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   {
     /* allocate the segment and exchange seginfo */
     gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, &gasneti_bootstrapExchange);
+#if GASNET_SYSV
+    gasneti_bootstrapBarrier();
+    gasneti_unlink_segment();
+#endif
+
     segbase = gasneti_seginfo[gasneti_mynode].addr;
     segsize = gasneti_seginfo[gasneti_mynode].size;
 
@@ -1872,11 +1930,15 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   gasnete_init(); /* init the extended API */
 
-  gasneti_nodemapFini();
+  //gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
   gasneti_bootstrapBarrier();
 
+#if GASNET_SYSV
+  gasnetc_sysv_init=1;
+#endif
+ 
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
@@ -2567,6 +2629,28 @@ extern int gasnetc_AMRequestShortM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
+#if GASNET_SYSV
+  if (gasnetc_sysv_init==1 &&  gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
+    GASNETI_COMMON_AMREQUESTSHORT(dest,handler,numargs);
+    va_start(argptr, numargs); /*  pass in last argument */
+    retval = gasnetc_AMSYSV_RequestGeneric(gasnetc_Short, 
+                                    dest, handler, 
+                                    0, 0, 0,
+                                    numargs, argptr); 
+    va_end(argptr);
+    GASNETI_RETURN(retval);
+  }else{ 
+    GASNETI_COMMON_AMREQUESTSHORT(dest,handler,numargs);
+    va_start(argptr, numargs); /*  pass in last argument */
+
+    retval = gasnetc_RequestGeneric(gasnetc_Short, dest, handler,
+		  		  NULL, 0, NULL,
+				  numargs, NULL, argptr);
+    va_end(argptr);
+    GASNETI_RETURN(retval);
+ }
+#else
+ 
   GASNETI_COMMON_AMREQUESTSHORT(dest,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
@@ -2576,6 +2660,7 @@ extern int gasnetc_AMRequestShortM(
 
   va_end(argptr);
   GASNETI_RETURN(retval);
+#endif
 }
 
 extern int gasnetc_AMRequestMediumM( 
@@ -2585,15 +2670,40 @@ extern int gasnetc_AMRequestMediumM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
+#if GASNET_SYSV
+  if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
+    GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
+    va_start(argptr, numargs); /*  pass in last argument */
+    /*  call the generic requestor */
+    retval = gasnetc_AMSYSV_RequestGeneric(gasnetc_Medium, 
+                                  dest, handler, 
+                                  source_addr, nbytes, 0,
+                                  numargs, argptr);
+    va_end(argptr);
+    GASNETI_RETURN(retval);
+  }else{
+ 
+    GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
+    va_start(argptr, numargs); /*  pass in last argument */
+
+    retval = gasnetc_RequestGeneric(gasnetc_Medium, dest, handler,
+                                    source_addr, nbytes, NULL,
+				    numargs, NULL, argptr);
+
+    va_end(argptr);
+    GASNETI_RETURN(retval);
+  }
+#else
   GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
   retval = gasnetc_RequestGeneric(gasnetc_Medium, dest, handler,
-		  		  source_addr, nbytes, NULL,
-				  numargs, NULL, argptr);
+                                  source_addr, nbytes, NULL,
+		                  numargs, NULL, argptr);
 
   va_end(argptr);
   GASNETI_RETURN(retval);
+#endif
 }
 
 extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination node */
@@ -2601,9 +2711,41 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
-  gasnetc_counter_t mem_oust = GASNETC_COUNTER_INITIALIZER;
   int retval;
+  uintptr_t dest_offset;
   va_list argptr;
+#if GASNET_SYSV
+      
+  if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
+      
+      GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
+      va_start(argptr, numargs); /*  pass in last argument */
+      dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
+      /*  call the generic requestor */
+      retval = gasnetc_AMSYSV_RequestGeneric(gasnetc_Long, 
+                                      dest, handler, 
+                                      source_addr, nbytes, (void *)dest_offset,
+                                      numargs, argptr);
+      va_end(argptr);
+      GASNETI_RETURN(retval);
+  }else{ 
+
+    gasnetc_counter_t mem_oust = GASNETC_COUNTER_INITIALIZER;
+    GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
+    va_start(argptr, numargs); /*  pass in last argument */
+
+    retval = gasnetc_RequestGeneric(gasnetc_Long, dest, handler,
+  		  		    source_addr, nbytes, dest_addr,
+				    numargs, &mem_oust, argptr);
+
+    /* block for completion of RDMA transfer */
+    gasnetc_counter_wait(&mem_oust, 0);
+
+    va_end(argptr);
+    GASNETI_RETURN(retval);
+  }
+#else
+  gasnetc_counter_t mem_oust = GASNETC_COUNTER_INITIALIZER;
   GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
@@ -2616,6 +2758,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 
   va_end(argptr);
   GASNETI_RETURN(retval);
+#endif
 }
 
 extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destination node */
@@ -2624,7 +2767,36 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
   int retval;
+  uintptr_t dest_offset;
   va_list argptr;
+  
+#if GASNET_SYSV
+      
+  if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
+      
+      GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
+      va_start(argptr, numargs); /*  pass in last argument */
+      dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
+      /*  call the generic requestor */
+      retval = gasnetc_AMSYSV_RequestGeneric(gasnetc_Long, 
+                                      dest, handler, 
+                                      source_addr, nbytes, (void *)dest_offset,
+                                      numargs, argptr);
+      va_end(argptr);
+      GASNETI_RETURN(retval);
+  }else{ 
+    GASNETI_COMMON_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs);
+    va_start(argptr, numargs); /*  pass in last argument */
+
+    retval = gasnetc_RequestGeneric(gasnetc_Long, dest, handler,
+		  		    source_addr, nbytes, dest_addr,
+				    numargs, NULL, argptr);
+
+    va_end(argptr);
+    GASNETI_RETURN(retval);
+  }
+#else
+
   GASNETI_COMMON_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
@@ -2634,6 +2806,8 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 
   va_end(argptr);
   GASNETI_RETURN(retval);
+#endif
+
 }
 
 extern int gasnetc_AMReplyShortM( 
@@ -2642,6 +2816,36 @@ extern int gasnetc_AMReplyShortM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
+
+#if GASNET_SYSV
+  gasnet_node_t dest;
+  GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
+
+  if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
+
+    GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
+    va_start(argptr, numargs); /*  pass in last argument */
+
+    /*  call the generic requestor */
+    retval = gasnetc_AMSYSV_ReplyGeneric(gasnetc_Short, 
+                                  token, handler, 
+                                  0, 0, 0,
+                                  numargs, argptr);
+
+    va_end(argptr);
+    GASNETI_RETURN(retval);
+  }else{
+    GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
+    va_start(argptr, numargs); /*  pass in last argument */
+
+    retval = gasnetc_ReplyGeneric(gasnetc_Short, token, handler,
+ 		  		  NULL, 0, NULL,
+				  numargs, NULL, argptr);
+
+    va_end(argptr);
+    GASNETI_RETURN(retval);
+  }
+#else
   GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
@@ -2651,6 +2855,7 @@ extern int gasnetc_AMReplyShortM(
 
   va_end(argptr);
   GASNETI_RETURN(retval);
+#endif
 }
 
 extern int gasnetc_AMReplyMediumM( 
@@ -2660,6 +2865,35 @@ extern int gasnetc_AMReplyMediumM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
+#if GASNET_SYSV
+
+  gasnet_node_t dest;
+  GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
+  if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
+
+    GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
+    va_start(argptr, numargs); /*  pass in last argument */
+    /*  call the generic requestor */
+    retval = gasnetc_AMSYSV_ReplyGeneric(gasnetc_Medium, 
+                                  token, handler, 
+                                  source_addr, nbytes, 0,
+                                  numargs, argptr);
+    va_end(argptr);
+    GASNETI_RETURN(retval);
+  }else{
+
+    GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
+    va_start(argptr, numargs); /*  pass in last argument */
+
+    retval = gasnetc_ReplyGeneric(gasnetc_Medium, token, handler,
+		  		  source_addr, nbytes, NULL,
+				  numargs, NULL, argptr);
+
+    va_end(argptr);
+    GASNETI_RETURN(retval);
+  }
+#else
+
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
@@ -2669,6 +2903,7 @@ extern int gasnetc_AMReplyMediumM(
 
   va_end(argptr);
   GASNETI_RETURN(retval);
+#endif
 }
 
 extern int gasnetc_AMReplyLongM( 
@@ -2679,9 +2914,48 @@ extern int gasnetc_AMReplyLongM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
+  uintptr_t dest_offset;
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 
   va_start(argptr, numargs); /*  pass in last argument */
 
+#if GASNET_SYSV
+  gasnet_node_t dest;
+  GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
+      
+  if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
+
+      GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 
+      va_start(argptr, numargs);
+      dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
+      /*  call the generic requestor */
+      retval = gasnetc_AMSYSV_ReplyGeneric(gasnetc_Long, 
+                                    token, handler, 
+                                    source_addr, nbytes, (void *)dest_offset,
+                                    numargs, argptr);
+      va_end(argptr);
+      GASNETI_RETURN(retval);
+  }else{
+    #if GASNETC_PIN_SEGMENT
+    {
+      gasnetc_counter_t mem_oust = GASNETC_COUNTER_INITIALIZER;
+
+      retval = gasnetc_ReplyGeneric(gasnetc_Long, token, handler,
+		  		    source_addr, nbytes, dest_addr,
+				    numargs, &mem_oust, argptr);
+
+      /* block for completion of RDMA transfer */
+      gasnetc_counter_wait(&mem_oust, 1 /* calling from a request handler */);
+    }
+    #else
+    retval = gasnetc_ReplyGeneric(gasnetc_Long, token, handler,
+		  		  source_addr, nbytes, dest_addr,
+				  numargs, NULL, argptr);
+
+    #endif
+    va_end(argptr);
+    GASNETI_RETURN(retval);
+  }
+#else
   #if GASNETC_PIN_SEGMENT
   {
     gasnetc_counter_t mem_oust = GASNETC_COUNTER_INITIALIZER;
@@ -2702,6 +2976,7 @@ extern int gasnetc_AMReplyLongM(
 
   va_end(argptr);
   GASNETI_RETURN(retval);
+#endif
 }
 
 /* ------------------------------------------------------------------------------------ */
