@@ -453,7 +453,7 @@ static int exec_ammedium_handler(gasnetc_ptl_token_t *ptok, uint32_t *data32,
  * Returns TRUE if an implicit Reply must be sent
  * --------------------------------------------------------------------------------- */
 static int exec_amlong_header(gasnetc_ptl_token_t *ptok, int isPacked,
-                              uint32_t *data32, int numarg, int ghandler, int nbytes)
+                              uint32_t *data32, int numarg, int ghandler, int len_or_lid)
 {
   gasnet_token_t token;
   int      ran_handler = 1; /* assume the best */
@@ -490,6 +490,7 @@ static int exec_amlong_header(gasnetc_ptl_token_t *ptok, int isPacked,
   if (isPacked) {
     
     void    *dest;
+    size_t   nbytes = len_or_lid;
 
     /* extract the data payload destination, should be in local RAR */
     dest = (void*)GASNETI_MAKEWORD(data32[1],data32[0]);
@@ -516,7 +517,7 @@ static int exec_amlong_header(gasnetc_ptl_token_t *ptok, int isPacked,
       /* message length accounting */
       GASNETC_MSGLEN_PAD(ptok->msg_bytes);
     } else {
-      lid = nbytes;
+      lid = len_or_lid;
     }
 
     /* Check lid is in proper Request or Reply space */
@@ -554,7 +555,7 @@ void exec_am_header(int isReq, ptl_match_bits_t mbits, ptl_event_t *ev)
   gasnetc_ptl_token_t tok;
   int argcnt, need_reply;
   uint32_t *data32;
-  uint32_t nbytes;
+  uint32_t other;
 
 #if GASNET_DEBUG
   gasnetc_threaddata_t *th = gasnetc_mythread();
@@ -570,18 +571,18 @@ void exec_am_header(int isReq, ptl_match_bits_t mbits, ptl_event_t *ev)
   tok.need_reply = isReq;
   tok.initiator = ev->initiator;
   tok.initiator_offset = GASNETI_HIWORD(mbits); /* only used if isReq, but no need to branch */
-  tok.credits = 0; /* Is this needed? */
 
   GASNETC_GET_AM_LOWBITS(mbits, numarg, ghandler, amflag);
 
   /* Common Format for all AM categories
-   *     HD=[srcnode,nbytes:cred] data=[args][seqno]...
+   *     HD=[srcnode,other:cred] data=[args][seqno]...
+   * Where "other" is 24 bits and varies with category/format
    */
 
   /* unpack hdr_data */
   tok.srcnode = (gasnet_node_t)GASNETI_HIWORD(ev->hdr_data);
-  tok.credits = (uint8_t)GASNETI_LOWORD(ev->hdr_data);
-  nbytes = GASNETI_LOWORD(ev->hdr_data) >> 8; /* safe even if not present */
+  tok.credits = (uint8_t)ev->hdr_data;
+  other = GASNETI_LOWORD(ev->hdr_data) >> 8;
 
   /* set data pointer and verify alignment */
   data32 = (uint32_t*)((uintptr_t)ev->md.start + ev->offset);
@@ -595,13 +596,13 @@ void exec_am_header(int isReq, ptl_match_bits_t mbits, ptl_event_t *ev)
   GASNETC_EXTRACT_SEQNO(data32,tok);      /* debug */
 
   if (amflag & GASNETC_PTL_AM_SHORT) {
-    gasneti_assert(nbytes == 0);
+    gasneti_assert(other == 0);
     need_reply = exec_amshort_handler(&tok,data32,numarg,ghandler);
   } else if (amflag & GASNETC_PTL_AM_MEDIUM) {
-    need_reply = exec_ammedium_handler(&tok,data32,numarg,ghandler,nbytes);
+    need_reply = exec_ammedium_handler(&tok,data32,numarg,ghandler,other);
   } else if (amflag & GASNETC_PTL_AM_LONG) {
     int is_packed = amflag & GASNETC_PTL_AM_PACKED;
-    need_reply = exec_amlong_header(&tok,is_packed,data32,numarg,ghandler,nbytes);
+    need_reply = exec_amlong_header(&tok,is_packed,data32,numarg,ghandler,other);
   } else {
     gasneti_fatalerror("Invalid amflag from mbits = %lx",(uint64_t)mbits);
   }
