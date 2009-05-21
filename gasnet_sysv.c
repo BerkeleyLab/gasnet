@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/05/20 22:16:50 $
- * $Revision: 1.1.4.5 $
+ *     $Date: 2009/05/21 21:30:48 $
+ * $Revision: 1.1.4.6 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -76,7 +76,7 @@ void gasnetc_init_sysv(){
   /* One-time 'barrier' */
   gasneti_atomic_increment(&gasnetc_sn_info->startup_counter, GASNETI_ATOMIC_REL);
   while (gasneti_atomic_read(&gasnetc_sn_info->startup_counter, GASNETI_ATOMIC_ACQ) 
-            != gasneti_nodes)
+            != gasneti_sysvnodes)
     gasneti_sched_yield();
     
 
