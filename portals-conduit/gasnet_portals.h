@@ -809,7 +809,6 @@ extern void gasnetc_portals_exit(void);
 extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type);
 extern void gasnetc_event_handler(ptl_event_t *ev);
 extern void gasnetc_ptl_trace_finish(void);
-extern gasnet_node_t gasnetc_get_nodeid(ptl_process_id_t *proc);
 extern size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
 			   ptl_match_bits_t match_bits, gasnetc_pollflag_t pollflag);
 extern size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
@@ -1069,14 +1068,15 @@ void gasnetc_sys_poll(int lock_op)
 #endif
 
 /* ---------------------------------------------------------------------------------
- * Allocate a new LID = "Long ID" for a new AMLong Reply operation
- * High bit is set to prevent accidental collision w/ offset-based lids of Requests
+ * Allocate a new 24-bit LID = "Long ID" for a new AMLong Reply operation
+ * Bit 23 is set to prevent accidental collision w/ offset-based lids of Requests
  * --------------------------------------------------------------------------------- */
 GASNETI_INLINE(gasnetc_new_lid)
 uint32_t gasnetc_new_lid(gasnet_node_t dest)
 {
   /* use _add rather than _incr since it returns the new value */
-  return (1<<31) | gasneti_weakatomic_add(&gasnetc_conn_state[dest].src_lid,1,0);
+  uint32_t cntr = gasneti_weakatomic_add(&gasnetc_conn_state[dest].src_lid,1,0);
+  return ((1<<23) | (cntr & 0x7FFFFF));
 }
 
 /* ----------------------------------------------------------------------------
