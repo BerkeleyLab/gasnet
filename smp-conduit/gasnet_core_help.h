@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core_help.h,v $
- *     $Date: 2009/05/13 21:51:48 $
- * $Revision: 1.6.60.1 $
+ *     $Date: 2009/05/22 22:11:31 $
+ * $Revision: 1.6.60.2 $
  * Description: GASNet smp conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,6 +19,7 @@ GASNETI_BEGIN_EXTERNC
 
 #define GASNETC_MAX_ARGS   16
 #if GASNET_SYSV
+  #define GASNETC_MAX_ARGS_SYSV	GASNETC_MAX_ARGS
   /* HACK: set max medium to size known to be smaller than
    * GASNETI_SYSVNET_MAX_PAYLOAD (which isn't visible to this file yet) 
    * - TODO: fix sysV max medium to be automatically defined to equal

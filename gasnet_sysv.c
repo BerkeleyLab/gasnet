@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/05/21 21:30:48 $
- * $Revision: 1.1.4.6 $
+ *     $Date: 2009/05/22 22:11:27 $
+ * $Revision: 1.1.4.7 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -799,11 +799,7 @@ typedef struct {
   gasneti_AMSYSV_category_t category;      /* AM msg type: small, med, large */
   gasneti_AMSYSV_handler_t handler_id;
   uint32_t numargs;
-#if GASNETC_MAX_ARGS_USER && GASNET_SYSV
-  gasnet_handlerarg_t args[GASNETC_MAX_ARGS_USER];
-#else
-  gasnet_handlerarg_t args[GASNETC_MAX_ARGS];
-#endif
+  gasnet_handlerarg_t args[GASNETC_MAX_ARGS_SYSV];
 } gasneti_AMSYSV_msg_t;
 typedef gasneti_AMSYSV_msg_t gasneti_AMSYSV_smallmsg_t;
 
