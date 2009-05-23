@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/05/22 22:11:27 $
- * $Revision: 1.1.4.7 $
+ *     $Date: 2009/05/23 01:36:28 $
+ * $Revision: 1.1.4.8 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -875,7 +875,7 @@ int gasneti_AMSYSV_service_incoming_msg(gasneti_sysvnet_t *vnet, int isReq)
 #if 0
         data = (void*)((uintptr_t)data + gasneti_sysv_seginfo_client[gasneti_mysysvnode].addr);
 #else
-        data = (void *)((uintptr_t)data + (uintptr_t)gasneti_seginfo[gasneti_mysysvnode].addr);
+        data = (void *)((uintptr_t)data + (uintptr_t)gasneti_seginfo[gasneti_mynode].addr);
 #endif
         GASNETI_RUN_HANDLER_LONG(
             isReq,handler_id,handler_fn,token,args,numargs,data,nbytes);
