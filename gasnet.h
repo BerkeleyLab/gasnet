@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2009/05/13 21:51:41 $
- * $Revision: 1.59.8.3 $
+ *     $Date: 2009/05/28 22:45:19 $
+ * $Revision: 1.59.8.4 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -170,6 +170,7 @@
 /* GASNet atomic memory operations */
 #include <gasnet_atomicops.h>
 
+
 /* ------------------------------------------------------------------------------------ */
 /* constants */
 
@@ -303,9 +304,11 @@ GASNETI_END_EXTERNC
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-
 /* Main core header */
 #include <gasnet_core.h>
+#if GASNET_SYSV
+    #include <gasnet_sysv.h>
+#endif
 
 /* Main extended header */
 #include <gasnet_extended.h>
