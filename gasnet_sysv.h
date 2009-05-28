@@ -31,6 +31,82 @@ gasneti_handler_fn_t gasneti_get_handler(int handler_id);
 struct gasneti_sysvnet;			/* opaque type */
 typedef struct gasneti_sysvnet gasneti_sysvnet_t;
 
+/* max # of incoming requests per node, per supernode peer */
+int gasneti_sysvnet_queue_depth;  
+#define GASNETI_SYSVNET_DEFAULT_QUEUE_DEPTH 24
+#define GASNETI_SYSVNET_MAX_QUEUE_DEPTH 1024
+
+/* payload memory available for outstanding requests, per node */
+uintptr_t gasneti_sysvnet_queue_mem; 
+#define GASNETI_SYSVNET_DEFAULT_QUEUE_MEMORY (1<<20)
+#define GASNETI_SYSVNET_MAX_QUEUE_MEMORY (1<<28) 
+
+
+/* data about an incoming message */
+typedef struct gasneti_sysvnet_msg {
+  void * addr;
+  size_t len;
+  gasneti_atomic_t ready4receipt;
+  /* Paul informs me that padding with GASNETI_CACHE_PAD ensures the struct
+   * is sizeof(cache_line), but not that it's aligned on a single cache line.
+   * But we enforce cache line alignment, so we're OK */
+  #if 1
+    char _pad[GASNETI_CACHE_PAD(sizeof(void *)
+                               +sizeof(size_t)
+                               +sizeof(gasneti_atomic_t))];
+  #else
+   /* Alternative: pad out the struct to two cache lines, to ensure we'll have
+    * no spurious cache line conflicts.  Many vapi structs use this too. */
+    char _pad[GASNETI_CACHE_LINE_BYTES];
+  #endif
+} gasneti_sysvnet_msg_t;
+
+
+/* Circular queue of info about received messages */
+typedef struct gasneti_sysvnet_queue {
+  gasneti_sysvnet_msg_t *queue;   
+  /* Only need to lock queue ptr if client multithreaded */
+  gasneti_mutex_t recv_lock;
+  gasneti_sysvnet_msg_t *recv_next;  
+  gasneti_mutex_t send_lock;
+  gasneti_sysvnet_msg_t *send_next;  
+  gasneti_sysvnet_msg_t *justpastlast;  
+  #if 1
+    /* See above comment about cache alignment: we ensure queue_t's are
+     * cache-aligned, too */
+    char _pad[GASNETI_CACHE_PAD(sizeof(void *)*4
+                               +sizeof(gasneti_mutex_t)*2)];
+  #else
+    char _pad[GASNETI_CACHE_LINE_BYTES];
+  #endif
+} gasneti_sysvnet_queue_t;
+
+struct gasneti_sysvnet_allocator;  /* forward definition */
+
+/* message payload metadata
+ */
+typedef struct gasneti_sysvnet_payload_info {
+  gasneti_sysvnet_msg_t *msg;
+  struct gasneti_sysvnet_allocator *allocator;
+} gasneti_sysvnet_payload_info_t;
+
+/* Max payload size: make sure this is kept in sync with definition
+ * of gasneti_sysvnet_allocator_block_t */
+#define GASNETI_SYSVNET_MAX_PAYLOAD \
+        (17*GASNETI_SYSVNET_PAGESIZE - (2*sizeof(gasneti_sysvnet_payload_info_t)))
+
+#define round_up_to_sysvpage(size_or_addr)               \
+        GASNETI_ALIGNUP(size_or_addr, GASNETI_SYSVNET_PAGESIZE)
+
+#define sysvnet_get_struct_addr_from_field_addr(structname, fieldname, fieldaddr) \
+        ((structname*)(((char *)fieldaddr) - (char *)(&((structname *)0)->fieldname)))
+
+typedef struct gasneti_sysvnet_payload {
+  gasneti_sysvnet_payload_info_t info;
+  char payload[GASNETI_SYSVNET_MAX_PAYLOAD];
+} gasneti_sysvnet_payload_t;
+
+gasneti_sysvnet_t *gasneti_request_sysvnet, *gasneti_reply_sysvnet;
 /*******************************************************************************
  * <SysV variables that must be initialized by the conduit using SYSV>
  */
@@ -41,25 +117,15 @@ typedef struct gasneti_sysvnet gasneti_sysvnet_t;
  *   supernode.  Other vnets may be created as are needed or useful.
  * - Initialize these vnets before use via gasneti_sysvnet_init().
  */
-extern gasneti_sysvnet_t *gasneti_request_sysvnet, *gasneti_reply_sysvnet;
-/* lookup table: which supernode does a given node belong to? */
-extern int *gasneti_sysv_node2supernode;
 /* # of nodes in my supernode, lowest of contiguous gasnet node #s in
  * supernode, and my 0-based rank within it */
 extern gasnet_node_t gasneti_sysvnodes;
 extern gasnet_node_t gasneti_firstsysvnode;
 extern gasnet_node_t gasneti_mysysvnode;
 
-
-extern uintptr_t *gasneti_vnet_addr;
-
 /*
  * </SysV variables that must be initialized by the conduit using SYSV>
  *******************************************************************************/
-
-void gasnetc_init_sysv();
-void gasnetc_mmap_sysv();
-
 
 /* Returns 1 if given node is in the caller's supernode, or 0 if it's not. */
 GASNETI_INLINE(gasneti_sysvnet_in_supernode)

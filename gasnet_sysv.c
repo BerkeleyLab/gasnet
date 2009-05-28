@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/05/23 01:36:28 $
- * $Revision: 1.1.4.8 $
+ *     $Date: 2009/05/28 18:28:26 $
+ * $Revision: 1.1.4.9 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -53,7 +53,7 @@ void gasnetc_init_sysv(){
   /* NOTE: do we need gasneti_sysvsize (is it ever used)? */
   gasneti_sysvsize = sninfosz + (2*vnetsz);
   /* NOTE: What happens here if there is not enough memory to alloc vnet? */
-  gasneti_vnet_addr = gasnetc_sysvnet_region = gasneti_mmap_vnet(mmapsz);
+  gasnetc_sysvnet_region = gasneti_mmap_vnet(mmapsz);
   if (gasnetc_sysvnet_region == NULL) //MAP_FAILED)
     gasneti_fatalerror("mmap for shared memory Active Messages region failed!");
   
@@ -63,10 +63,6 @@ void gasnetc_init_sysv(){
   else sleep(1);
   gasneti_sysv_node2pid[0] = getpid();
 
-  gasneti_sysv_node2supernode = gasneti_malloc(sizeof(int*)*gasneti_nodes);
-  if (gasneti_sysv_node2supernode==NULL) 
-    gasneti_fatalerror("Unable to allocate memory for node2supernode");
-  
   /* Collective call to initialize Shared AM "networks" */
   gasneti_sysvnet_init(&gasneti_request_sysvnet, ((char*)(gasnetc_sysvnet_region))+sninfosz,
                        vnetsz, gasneti_firstsysvnode, gasneti_sysvnodes);
@@ -82,102 +78,18 @@ void gasnetc_init_sysv(){
 
 }
 
-
-
-
-
-
 /*******************************************************************************
  * "SysV Net":  virtual network between peers in a shared memory supernode 
  ******************************************************************************/
-
-gasneti_sysvnet_t *gasneti_request_sysvnet, *gasneti_reply_sysvnet;
-int *gasneti_sysv_node2supernode;
-
 /* # of nodes in my supernode, lowest of contiguous gasnet node #s in
  * supernode, and my 0-based rank within it */
 gasnet_node_t gasneti_sysvnodes;
 gasnet_node_t gasneti_firstsysvnode;
 gasnet_node_t gasneti_mysysvnode;
-uintptr_t *gasneti_vnet_addr;
-
-
-/* max # of incoming requests per node, per supernode peer */
-static int gasneti_sysvnet_queue_depth;  
-#define GASNETI_SYSVNET_DEFAULT_QUEUE_DEPTH 24
-#define GASNETI_SYSVNET_MAX_QUEUE_DEPTH 1024
-
-/* payload memory available for outstanding requests, per node */
-static uintptr_t gasneti_sysvnet_queue_mem; 
-#define GASNETI_SYSVNET_DEFAULT_QUEUE_MEMORY (1<<20)
-#define GASNETI_SYSVNET_MAX_QUEUE_MEMORY (1<<28) 
-
-#define sysvnet_get_struct_addr_from_field_addr(structname, fieldname, fieldaddr) \
-        ((structname*)(((char *)fieldaddr) - (char *)(&((structname *)0)->fieldname)))
-
-/* data about an incoming message */
-typedef struct gasneti_sysvnet_msg {
-  void * addr;
-  size_t len;
-  gasneti_atomic_t ready4receipt;
-  /* Paul informs me that padding with GASNETI_CACHE_PAD ensures the struct
-   * is sizeof(cache_line), but not that it's aligned on a single cache line.
-   * But we enforce cache line alignment, so we're OK */
-  #if 1
-    char _pad[GASNETI_CACHE_PAD(sizeof(void *)
-                               +sizeof(size_t)
-                               +sizeof(gasneti_atomic_t))];
-  #else
-   /* Alternative: pad out the struct to two cache lines, to ensure we'll have
-    * no spurious cache line conflicts.  Many vapi structs use this too. */
-    char _pad[GASNETI_CACHE_LINE_BYTES];
-  #endif
-} gasneti_sysvnet_msg_t;
-
-/* Circular queue of info about received messages */
-typedef struct gasneti_sysvnet_queue {
-  gasneti_sysvnet_msg_t *queue;   
-  /* Only need to lock queue ptr if client multithreaded */
-  gasneti_mutex_t recv_lock;
-  gasneti_sysvnet_msg_t *recv_next;  
-  gasneti_mutex_t send_lock;
-  gasneti_sysvnet_msg_t *send_next;  
-  gasneti_sysvnet_msg_t *justpastlast;  
-  #if 1
-    /* See above comment about cache alignment: we ensure queue_t's are
-     * cache-aligned, too */
-    char _pad[GASNETI_CACHE_PAD(sizeof(void *)*4
-                               +sizeof(gasneti_mutex_t)*2)];
-  #else
-    char _pad[GASNETI_CACHE_LINE_BYTES];
-  #endif
-} gasneti_sysvnet_queue_t;
-
-struct gasneti_sysvnet_allocator;  /* forward definition */
-
-/* message payload metadata
- */
-typedef struct gasneti_sysvnet_payload_info {
-  gasneti_sysvnet_msg_t *msg;
-  struct gasneti_sysvnet_allocator *allocator;
-} gasneti_sysvnet_payload_info_t;
-
-/* Max payload size: make sure this is kept in sync with definition
- * of gasneti_sysvnet_allocator_block_t */
-#define GASNETI_SYSVNET_MAX_PAYLOAD \
-        (17*GASNETI_SYSVNET_PAGESIZE - (2*sizeof(gasneti_sysvnet_payload_info_t)))
-
-#define round_up_to_sysvpage(size_or_addr)               \
-        GASNETI_ALIGNUP(size_or_addr, GASNETI_SYSVNET_PAGESIZE)
 
 size_t gasneti_sysvnet_max_payload() {
   return GASNETI_SYSVNET_MAX_PAYLOAD;
 }
-
-typedef struct gasneti_sysvnet_payload {
-  gasneti_sysvnet_payload_info_t info;
-  char payload[GASNETI_SYSVNET_MAX_PAYLOAD];
-} gasneti_sysvnet_payload_t;
 
 /******************************************************************************
  * Payload memory allocator interface.
@@ -265,10 +177,10 @@ struct gasneti_sysvnet {
 /* Macros for determining the offset and the real address, used for
  * the addresses inside the sysnet region */
 #define gasneti_sysv_offset(addr) \
-                (void *)((uintptr_t)addr - (uintptr_t)gasneti_vnet_addr)
+                (void *)((uintptr_t)addr - (uintptr_t)gasnetc_sysvnet_region)
 
 #define gasneti_sysv_addr(addr) \
-                (void *)((uintptr_t)addr + (uintptr_t)gasneti_vnet_addr)
+                (void *)((uintptr_t)addr + (uintptr_t)gasnetc_sysvnet_region)
 
 
 static int get_queue_depth(gasnet_node_t nodes) 
@@ -423,9 +335,7 @@ void gasneti_sysvnet_init(gasneti_sysvnet_t **pvnet, void *start, size_t nbytes,
 
   /* make sure that our max buffer size isn't smaller than whatever network
    * is being used */
-  gasneti_assert(GASNETC_MAX_MEDIUM < GASNETI_SYSVNET_MAX_PAYLOAD);
-  /* Up to conduit to have set up gasneti_sysv_node2supernode already */
-  gasneti_assert(gasneti_sysv_node2supernode != NULL);
+  gasneti_assert(GASNETC_MAX_MEDIUM_SYSV < GASNETI_SYSVNET_MAX_PAYLOAD);
 
   region = start;
   region = (void *)round_up_to_sysvpage(region);
@@ -806,7 +716,7 @@ typedef gasneti_AMSYSV_msg_t gasneti_AMSYSV_smallmsg_t;
 typedef struct {
   gasneti_AMSYSV_msg_t msg;
   uint32_t numbytes;
-  uint8_t  mediumdata[(size_t)GASNETC_MAX_MEDIUM];
+  uint8_t  mediumdata[(size_t)GASNETC_MAX_MEDIUM_SYSV];
 } gasneti_AMSYSV_medmsg_t;
 
 typedef struct {

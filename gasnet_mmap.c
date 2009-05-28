@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/05/20 22:16:50 $
- * $Revision: 1.57.6.5 $
+ *     $Date: 2009/05/28 18:28:26 $
+ * $Revision: 1.57.6.6 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -639,8 +639,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
           j += 1;
         }
       }
-      //FILIP: TALK TO PAUL ABOUT THIS!!
-      maxsz = MIN(maxsz, sum / (gasneti_nodemap_local_count*gasneti_nodemap_local_count));
+      maxsz = MIN(maxsz, sum / gasneti_nodemap_local_count);
     }
 
     /* Free held resources */
@@ -1021,17 +1020,6 @@ void gasneti_AttachRemote(uintptr_t segsize, gasnet_node_t sysv_node, uintptr_t 
           segsize = maxsegsz;
         }
       }
-/*
-static int tmp_s;
-      if (gasneti_mysysvnode == 1) {
-          if (sysv_node == 2){
-              if (tmp_s == 0){
-                  segsize -= GASNET_PAGESIZE;
-                  tmp_s++;
-              }
-          }
-      }
-*/
 
       if (gasneti_remote_segments[sysv_node].addr != segbase || gasneti_remote_segments[sysv_node].size != segsize) {
         gasneti_assert(segbase >= gasneti_remote_segments[sysv_node].addr &&
@@ -1052,7 +1040,8 @@ static int tmp_s;
   
     if (seginfo[gasneti_nodemap_local[sysv_node]].remote_size < seginfo[gasneti_nodemap_local[sysv_node]].size){
         seginfo_correction[sysv_node] = seginfo[gasneti_nodemap_local[sysv_node]].remote_size;
-        //gasneti_fatalerror("Shared memory region cannot exceed %p\n",seginfo_correction[sysv_node]);
+        gasneti_fatalerror("Not enough memory! Process %d tried mapping %u bytes, but only %u bytes available. Try further reducing the shared heap size.\n",
+                           gasneti_mynode, seginfo[gasneti_nodemap_local[sysv_node]].size,seginfo[gasneti_nodemap_local[sysv_node]].remote_size);
     }else{
         seginfo_correction[sysv_node] = 0;
     }
