@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/05/01 18:38:07 $
- * $Revision: 1.53.14.12 $
+ *     $Date: 2009/05/28 22:17:53 $
+ * $Revision: 1.53.14.12.2.1 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -12,6 +12,7 @@
 #define _GASNET_COLL_INTERNAL_H
 #include <gasnet_coll.h>
 #include <gasnet_handler.h>
+#include <gasnet_coll_autotune.h> /* for GASNET_COLL_NUM_PARAM_TYPES */
 
 #define GASNETI_COLL_FN_HEADER(FNNAME) 
 /*---------------------------------------------------------------------------------*/
@@ -210,7 +211,10 @@ struct gasnete_coll_team_t_ {
   
   /*total number of members in this team*/
   int total_ranks;
-  
+
+  /* ranks of the processes in the team */
+  gasnet_node_t *ranks; /* need to be initialized */
+
   /* scratch segments allocated on team creation*/
   gasnet_seginfo_t *scratch_segs;
   size_t smallest_scratch_seg;

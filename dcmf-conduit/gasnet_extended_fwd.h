@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended_fwd.h,v $
- *     $Date: 2009/05/01 18:12:13 $
- * $Revision: 1.2.6.3 $
+ *     $Date: 2009/05/28 22:17:51 $
+ * $Revision: 1.2.6.3.2.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -43,9 +43,17 @@ extern int gasnete_dcmfbarrier_fast;
 
 
 /*all the conduit collective information*/
-#define GASNETE_COLL_TEAM_EXTRA void *dcmf_geom;
+#define GASNETE_COLL_TEAM_EXTRA   void * dcmf_tp;
 
-#if 1
+/* conduit specific collective functions overiding the default
+   reference implementation in gasnet/extended-ref */
+#define gasnete_coll_init_conduit gasnete_coll_init_dcmf
+#define gasnete_coll_team_init_conduit gasnete_coll_team_init_dcmf
+#define gasnete_coll_exchange_nb gasnete_coll_exchange_nb_dcmf
+#define gasnete_coll_broadcast_nb gasnete_coll_broadcast_nb_dcmf
+#define gasnete_coll_broadcast gasnete_coll_broadcast_dcmf
+
+#if 0
 #define GASNETE_COLL_CONDUIT_COLLECTIVES 1
 #define GASNETE_COLL_CONDUIT_BROADCAST_OPS GASNETE_COLL_BROADCAST_DCMF, GASNETE_COLL_BROADCAST_DCMF_TREE
 #endif

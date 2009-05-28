@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/05/01 19:57:11 $
- * $Revision: 1.72.10.18 $
+ *     $Date: 2009/05/28 22:17:53 $
+ * $Revision: 1.72.10.18.2.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1146,6 +1146,11 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
 #endif
     }
 
+#ifdef gasnete_coll_init_conduit
+    /* initialization of conduit specific collectives */
+    gasnete_coll_init_conduit();
+#endif
+
     /* setup information for the global team */
     GASNET_TEAM_ALL = (struct gasnete_coll_team_t_*) gasneti_calloc(1,sizeof(struct gasnete_coll_team_t_));
     GASNET_TEAM_ALL->team_id = 0;
@@ -1159,6 +1164,16 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     gasneti_mutex_init(&GASNET_TEAM_ALL->dissem_cache_lock);
     GASNET_TEAM_ALL->myrank = gasneti_mynode;
     GASNET_TEAM_ALL->total_ranks = gasneti_nodes;
+    {
+      int i;
+      /* the following memory space should be freed before the team is
+         deleted, for example, in the gasnete_coll_team_fini() function,
+         which doesn't exist yet. */
+      GASNET_TEAM_ALL->ranks  = gasneti_malloc(sizeof(gasnet_node_t)*gasneti_nodes);
+      gasneti_assert(GASNET_TEAM_ALL->ranks != NULL);
+      for (i=0; i<gasneti_nodes; i++)
+        GASNET_TEAM_ALL->ranks[i]=i;
+    }
     GASNET_TEAM_ALL->scratch_segs = gasnete_coll_auxseg_save;
     GASNET_TEAM_ALL->smallest_scratch_seg = smallest_scratch_seg;
     GASNET_TEAM_ALL->autotune_info = gasnete_coll_autotune_init(GASNET_TEAM_ALL, gasneti_mynode, gasneti_nodes, 
@@ -1169,6 +1184,11 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       fprintf(stderr, "WARNING: Current collective implementation requires constant number of threads on each node\n");
       fprintf(stderr, "WARNING: for optimized collectives.\n");
     }
+
+#ifdef gasnete_coll_team_init_conduit
+    /* conduit specific initialization for gasnet teams */
+    gasnete_coll_team_init_conduit(GASNET_TEAM_ALL);
+#endif
 
     /* This barrier, together with the thread barrier that follows, ensures all global
        collectives initialization is complete before any collectives can be called. */
@@ -2227,7 +2247,8 @@ _gasnet_coll_broadcast_nb(gasnet_team_handle_t team,
 }
 
 #ifdef gasnete_coll_broadcast
-extern gasnet_coll_handle_t
+// extern gasnet_coll_handle_t
+extern void 
 gasnete_coll_broadcast(gasnet_team_handle_t team,
                        void *dst,
                        gasnet_image_t srcimage, void *src,
@@ -3383,7 +3404,8 @@ gasnete_coll_generic_broadcastM_nb(gasnet_team_handle_t team,
       data->tree_info = tree_info;
      
       result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, 0, NULL, tree_info GASNETE_THREAD_PASS);
-      gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started, GASNETT_ATOMIC_WMB_PRE);
+      if(!(flags & GASNETE_COLL_SUBORDINATE))
+        gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started, GASNETT_ATOMIC_WMB_PRE);
       
       td->num_multi_addr_collectives_started++;
     } else {
@@ -3424,7 +3446,8 @@ gasnete_coll_generic_broadcastM_nb(gasnet_team_handle_t team,
       data->options = options;
       data->tree_info = tree_info;
       result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, 0, NULL, tree_info GASNETE_THREAD_PASS);
-      gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started, GASNETT_ATOMIC_WMB_PRE);
+      if(!(flags & GASNETE_COLL_SUBORDINATE))
+        gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started, GASNETT_ATOMIC_WMB_PRE);
       td->num_multi_addr_collectives_started++;
     } else {
       td->num_multi_addr_collectives_started++;
@@ -3815,7 +3838,8 @@ gasnete_coll_generic_scatterM_nb(gasnet_team_handle_t team,
       data->options = options;
       data->tree_info=tree_info;
       result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, 0, NULL, tree_info GASNETE_THREAD_PASS);
-      gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started,GASNETT_ATOMIC_WMB_PRE);
+      if(!(flags & GASNETE_COLL_SUBORDINATE))
+        gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started,GASNETT_ATOMIC_WMB_PRE);
       td->num_multi_addr_collectives_started ++;
     } else {
       td->num_multi_addr_collectives_started++;
@@ -3856,7 +3880,8 @@ gasnete_coll_generic_scatterM_nb(gasnet_team_handle_t team,
       data->options = options;
       data->tree_info=tree_info;
       result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, 0, NULL, tree_info GASNETE_THREAD_PASS);
-      gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started,GASNETT_ATOMIC_WMB_PRE);
+      if(!(flags & GASNETE_COLL_SUBORDINATE))
+        gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started,GASNETT_ATOMIC_WMB_PRE);
       td->num_multi_addr_collectives_started ++;
     } else {
       td->num_multi_addr_collectives_started++;
@@ -4284,7 +4309,8 @@ gasnete_coll_generic_gatherM_nb(gasnet_team_handle_t team,
       data->tree_info=tree_info;
       data->private_data = NULL; 
       result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, 0, NULL,tree_info GASNETE_THREAD_PASS);
-      gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started,GASNETT_ATOMIC_WMB_PRE);
+      if(!(flags & GASNETE_COLL_SUBORDINATE))
+        gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started,GASNETT_ATOMIC_WMB_PRE);
       td->num_multi_addr_collectives_started++;
     } else {
       td->num_multi_addr_collectives_started++;
@@ -4328,7 +4354,8 @@ gasnete_coll_generic_gatherM_nb(gasnet_team_handle_t team,
         data->private_data = NULL; 
         data->tree_info=tree_info;
         result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, 0, NULL, tree_info GASNETE_THREAD_PASS);
-        gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started,GASNETT_ATOMIC_WMB_PRE);
+        if(!(flags & GASNETE_COLL_SUBORDINATE))
+          gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started,GASNETT_ATOMIC_WMB_PRE);
         td->num_multi_addr_collectives_started++; 
       } else {
         td->num_multi_addr_collectives_started++; 
@@ -4798,7 +4825,8 @@ gasnete_coll_generic_gather_allM_nb(gasnet_team_handle_t team,
       data->private_data = private_data; data->tree_info=NULL;
       data->dissem_info = dissem;
       result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, 0, NULL, NULL GASNETE_THREAD_PASS);
-      gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started,GASNETT_ATOMIC_WMB_PRE);
+      if(!(flags & GASNETE_COLL_SUBORDINATE))
+        gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started,GASNETT_ATOMIC_WMB_PRE);
       td->num_multi_addr_collectives_started++;
     } else {
       td->num_multi_addr_collectives_started++;
@@ -4823,7 +4851,8 @@ gasnete_coll_generic_gather_allM_nb(gasnet_team_handle_t team,
       data->private_data = private_data; data->tree_info=NULL;
       data->dissem_info = dissem;
       result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, 0, NULL, NULL GASNETE_THREAD_PASS);
-      gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started,GASNETT_ATOMIC_WMB_PRE);
+      if(!(flags & GASNETE_COLL_SUBORDINATE))
+        gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started,GASNETT_ATOMIC_WMB_PRE);
       td->num_multi_addr_collectives_started++;
     } else {
       td->num_multi_addr_collectives_started++;
@@ -5264,7 +5293,8 @@ gasnete_coll_generic_exchangeM_nb(gasnet_team_handle_t team,
       data->private_data = private_data; data->tree_info=NULL;
       data->dissem_info = dissem;
       result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req , 0, NULL , NULL GASNETE_THREAD_PASS);
-      gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started, GASNETT_ATOMIC_WMB_PRE);
+      if(!(flags & GASNETE_COLL_SUBORDINATE))
+        gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started, GASNETT_ATOMIC_WMB_PRE);
       td->num_multi_addr_collectives_started++;
     } else {
       td->num_multi_addr_collectives_started++;
@@ -5289,7 +5319,8 @@ gasnete_coll_generic_exchangeM_nb(gasnet_team_handle_t team,
       data->private_data = private_data; data->tree_info=NULL;
       data->dissem_info = dissem;
       result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, 0, NULL, NULL GASNETE_THREAD_PASS);
-      gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started, GASNETT_ATOMIC_WMB_PRE);
+      if(!(flags & GASNETE_COLL_SUBORDINATE))
+        gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started, GASNETT_ATOMIC_WMB_PRE);
       td->num_multi_addr_collectives_started++;
     } else {
       td->num_multi_addr_collectives_started++;
