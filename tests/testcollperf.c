@@ -19,10 +19,12 @@ options that is covered testcoll
 #define DEFAULT_INNER_VERIFICATION_ITERS 50
 #define DEFAULT_PERFORMANCE_ITERS 0
 
-#define ALL_COLL_ENABLED 1
-#define BROADCAST_ENABLED 0
-#define SCATTER_ENABLED 0
-#define GATHER_ENABLED 0
+
+#define ALL_COLL_ENABLED 0
+#define BROADCAST_ENABLED 1
+#define SCATTER_ENABLED 1
+#define GATHER_ENABLED 1
+
 
 #define ALL_ADDR_MODE_ENABLED 1
 #define SINGLE_SINGLE_MODE_ENABLED 0
@@ -388,6 +390,7 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
     }
     curr_dst_arr = tmp_dest;
     
+    gasnett_local_mb();
     if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
     for(i=0; i<inner_verification_iters; i++) { 
       scale_ptrM((void**) curr_dst_arr, (void**) dst_arr, nelem*i, sizeof(int), num_addrs);
@@ -395,7 +398,7 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
       curr_dst_arr+=num_addrs;
     }
     if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
-    
+    gasnett_local_mb();
     for(i=0; i<nelem*inner_verification_iters; i++) {
       int expected = 42+i;
       if(mydest[i] != 42+i) {

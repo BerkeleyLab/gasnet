@@ -14,12 +14,12 @@
 /*first four are more "traditional"
  */
 typedef enum {GASNETE_COLL_FLAT_TREE=0, GASNETE_COLL_KNOMIAL_TREE, 
-              GASNETE_COLL_NARY_TREE, GASNETE_COLL_RECURSIVE_TREE, 
+              GASNETE_COLL_NARY_TREE, 
               /*insert PLATFORM INDEPENDANT Tree classes here*/
               /*the most generic searcher will go through these classes first*/
-              
               GASNETE_COLL_NUM_PLATFORM_INDEP_TREE_CLASSES,
               /*insert more specialized trees here*/
+              GASNETE_COLL_RECURSIVE_TREE,
               GASNETE_COLL_FORK_TREE, 
               GASNETE_COLL_HIERARCHICAL_TREE, GASNETE_COLL_NUM_TREE_CLASSES_TOTAL} gasnete_coll_tree_class_t;
 

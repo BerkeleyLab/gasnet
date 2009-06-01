@@ -51,8 +51,9 @@ gasnet_image_t THREADS;
 int performance_iters;
 size_t max_data_size;
 
-#define TEST_SEGSZ_EXPR (sizeof(int)*(max_data_size*TOTAL_THREADS*threads_per_node*2))
-#define SEG_PER_THREAD (sizeof(int)*max_data_size*TOTAL_THREADS)
+#define SEG_PER_THREAD (sizeof(int)*max_data_size*2)
+#define TEST_SEGSZ_EXPR (sizeof(int)*(SEG_PER_THREAD*threads_per_node))
+
 uint8_t **my_srcs;
 uint8_t **my_dsts;
 uint8_t **all_srcs;
@@ -125,7 +126,8 @@ void run_MULTI_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
     uint32_t best_alg;
     uint32_t num_params;
     uint32_t *param_list;
-     MSG0("starting test: %s %d bytes", fill_flag_str(flags, buffer), (int)sizeof(int)*s);
+    if(td->mythread==0)
+      MSG0("starting test: %s %d bytes", fill_flag_str(flags, buffer), (int)sizeof(int)*s);
     
     current_parent_node = myxml_createNodeInt(temp_node, (char*) "size", (char *) "start", s, NULL);
     myxml_addAttributeInt(current_parent_node, (char*) "end", (s == max_data_size ? 1<<31 : (s*2)-1));
@@ -185,7 +187,8 @@ void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_a
     uint32_t best_alg;
     uint32_t num_params;
     uint32_t *param_list;
-    MSG0("starting test: %s %d bytes", fill_flag_str(flags, buffer), (int)sizeof(int)*s);
+    if(td->mythread==0)
+      MSG0("starting test: %s %d bytes", fill_flag_str(flags, buffer), (int)sizeof(int)*s);
     
     current_parent_node = myxml_createNodeInt(temp_node, (char*) "size", (char *) "start", s, NULL);
     myxml_addAttributeInt(current_parent_node, (char*) "end", (s == max_data_size ? 1<<31 : (s*2)-1));
@@ -298,8 +301,8 @@ void *thread_main(void *arg) {
 
 
   
-
-  MSG0("starting dump of tuning data");
+  if(td->mythread==0)
+    MSG0("starting dump of tuning data");
   if(td->mythread == 0){ 
     FILE *outstream=fopen(outputfile, "w");
     myxml_printTreeBIN(outstream, tuning_root);
@@ -308,6 +311,7 @@ void *thread_main(void *arg) {
     fflush(stdout);
     fflush(stdout);
   }
+  if(td->mythread==0)
   MSG0("tunign data dumped");
       
 

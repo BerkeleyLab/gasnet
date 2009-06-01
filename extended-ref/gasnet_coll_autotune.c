@@ -135,7 +135,7 @@ static uint32_t fast_log2_32bit(uint32_t number) {
 */
 int gasnete_coll_autotune_get_num_tree_types(gasnet_team_handle_t team) {
   /*for now only search over the FLAT, NARY, KNOMIAL, and RECURSIVE trees power of two fanouts and the FLAT TREE*/
-  int log2_threads = fast_log2_32bit((uint32_t) team->total_ranks);
+  int log2_threads = fast_log2_32bit(MIN((uint32_t) team->total_ranks,128));
   
   return 1 + /*flat_tree*/
     log2_threads * (GASNETE_COLL_NUM_PLATFORM_INDEP_TREE_CLASSES-1); /*num powers of two for each of the three tree types*/
@@ -144,7 +144,7 @@ int gasnete_coll_autotune_get_num_tree_types(gasnet_team_handle_t team) {
 
 gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type_idx(gasnet_team_handle_t team, int idx) {
   gasnete_coll_tree_type_t ret = gasnete_coll_get_tree_type();
-  int log2_threads = fast_log2_32bit((uint32_t) team->total_ranks);
+  int log2_threads = fast_log2_32bit(MIN((uint32_t) team->total_ranks,128));
   int tree_class;
   int radix;
   gasneti_assert(idx < gasnete_coll_autotune_get_num_tree_types(team));
@@ -1041,7 +1041,9 @@ void gasnete_coll_tune_generic_op(gasnet_team_handle_t team, gasnet_coll_optype_
       continue;
     }
 #endif
-    //    if(algidx == GASNETE_COLL_BROADCASTM_SCATTERALLGATHER) continue;
+    
+    if((op = GASNET_COLL_BROADCASTM_OP && algidx == GASNETE_COLL_BROADCASTM_SCATTERALLGATHER) || 
+       (op = GASNET_COLL_BROADCAST_OP && algidx == GASNETE_COLL_BROADCAST_SCATTERALLGATHER)) continue;
     /*find out hte best time for this algorithm*/
     alg_best_time = curr_best_time;
     do_tuning_loop(team, op, dst, src, rootimg, flags, nbytes, fnptr, sample_work_arg, 

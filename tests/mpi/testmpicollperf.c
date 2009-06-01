@@ -409,7 +409,7 @@ int main(int argc, char **argv) {
 
   
   switch(argc) {
-  case 1: iters=10000; elem_per_thread = 2048; break;
+  case 1: iters=1000; elem_per_thread = 2048; break;
   case 2: iters=atoi(argv[1]); break;
   case 3: iters=atoi(argv[1]); elem_per_thread = atoi(argv[2])/sizeof(double); break;
   default: print_usage(argv[0]); MPI_Finalize(); return 1; break;
@@ -427,10 +427,10 @@ int main(int argc, char **argv) {
   for(sz = 1; sz<=elem_per_thread; sz*=2) {
     run_bcast_test(sz, iters, 1);
     run_bcast_test(sz, iters, 0);
-    run_scatter_test(sz, iters,1);
-    run_scatter_test(sz, iters,0);
-    run_gather_test(sz, iters, 1);
-    run_gather_test(sz, iters, 0);
+    //    run_scatter_test(sz, iters,1);
+    //  run_scatter_test(sz, iters,0);
+    //   run_gather_test(sz, iters, 1);
+    //  run_gather_test(sz, iters, 0);
     // run_all_to_all_test(sz, iters);
   }
   
