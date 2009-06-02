@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/05/12 04:15:52 $
- * $Revision: 1.71.12.21 $
+ *     $Date: 2009/06/02 16:04:19 $
+ * $Revision: 1.71.12.22 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1986,7 +1986,7 @@ gasnete_coll_scat_TreePutNoCopy(gasnet_team_handle_t team,
                           GASNETE_THREAD_FARG)
 {
   int options = 
-  GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF((flags & GASNET_COLL_OUT_ALLSYNC)) | 
+    GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF((flags & GASNET_COLL_OUT_ALLSYNC)) | 
   GASNETE_COLL_USE_SCRATCH | GASNETE_COLL_GENERIC_OPT_P2P_IF(1);
   
   return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, dist, flags,
@@ -3402,14 +3402,13 @@ static int gasnete_coll_pf_gath_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
     if(op->flags & GASNET_COLL_OUT_ALLSYNC) {
       if(op->team->myrank!=args->dstnode) {
         /*wait for clear signal from parent*/
-        expected_count = child_count + 1;
-        if (gasneti_weakatomic_read(&(data->p2p->counter[0]), 0) < expected_count) {
+         if (gasneti_weakatomic_read(&(data->p2p->counter[1]), 0) == 0) {
           break;
         }
       }
       /*send clear signal to all the other nodes*/
       for(child=0; child<child_count; child++) {
-        gasnete_coll_p2p_advance(op, children[child],0);
+        gasnete_coll_p2p_advance(op, children[child],1);
       }
     }
     data->state = 6;
