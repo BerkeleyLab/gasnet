@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended_coll_dcmf.c,v $
- * $Date: 2009/05/28 22:17:51 $
- * $Revision: 1.1.2.1 $
+ * $Date: 2009/06/04 20:14:55 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet extended collectives implementation on DCMF
  * LBNL 2009
  */
@@ -80,6 +80,14 @@ static void gasnete_coll_team_dcmf_delete(gasnete_coll_team_dcmf_t * dcmf_tp)
 
 void gasnete_coll_team_init_dcmf(gasnet_team_handle_t team)
 {
+  gasnete_dcmf_team_init(team, g_dcmf_barrier_kind_default,
+                         g_dcmf_lbarrier_kind_default);
+}
+
+void gasnete_dcmf_team_init(gasnet_team_handle_t team,
+                            gasnete_dcmf_barrier_proto_t barrier_kind,
+                            gasnete_dcmf_barrier_proto_t lbarrier_kind)
+{
   DCMF_Result rv;
   gasnete_coll_team_dcmf_t *dcmf_tp;
   
@@ -109,28 +117,35 @@ void gasnete_coll_team_init_dcmf(gasnet_team_handle_t team)
           fprintf(stderr, "%d ", team->ranks[i]);
         fprintf(stderr, "\n");
       }
-      fprintf(stderr, "g_coll_dcmf_num_barrier %d\n", g_coll_dcmf_num_barrier);
-      fprintf(stderr, "g_coll_dcmf_num_localbarrier %d\n", g_coll_dcmf_num_localbarrier);
+      fprintf(stderr, "barrier_kind %d, g_dcmf_barrier[barrier_kind] %p\n", 
+              barrier_kind, g_dcmf_barrier[barrier_kind]);
+      fprintf(stderr, "lbarrier_kind %d, g_dcmf_localbarrier[lbarrier_kind] %p\n", 
+              lbarrier_kind, g_dcmf_localbarrier[lbarrier_kind]);
       fprintf(stderr, "&dcmf_tp->geometry %x\n", &dcmf_tp->geometry);
       fprintf(stderr, "&dcmf_tp->barrier_req %x\n", &dcmf_tp->barrier_req);
     }
 #endif
   
   /* Initialize the dcmf-specific data members in the team object */
-  rv = (DCMF_Result)DCMF_Geometry_initialize (&dcmf_tp->geometry,
-                                              team->team_id, 
-                                              team->ranks, 
-                                              team->total_ranks,
-                                              g_dcmf_barrier,
-                                              g_dcmf_barrier_num,
-                                              g_dcmf_localbarrier,
-                                              g_dcmf_localbarrier_num,
-                                              &dcmf_tp->barrier_req, 
-                                              1, /* number of (bcast) colors */
-                                              (team == GASNET_TEAM_ALL)); /* is globalcontext? */
-                                              
-  if(rv != DCMF_SUCCESS) {
-    gasneti_fatalerror("DCMF_Geometry_initialize failed! %d\n", rv);
+  {
+    DCMF_CollectiveProtocol_t * bar_proto = &g_dcmf_barrier_proto[barrier_kind];
+    DCMF_CollectiveProtocol_t * lbar_proto = &g_dcmf_barrier_proto[barrier_kind];
+                                                                  
+    rv = DCMF_Geometry_initialize (&dcmf_tp->geometry,
+                                   team->team_id, 
+                                   team->ranks, 
+                                   team->total_ranks,
+                                   &bar_proto,
+                                   1,
+                                   &lbar_proto,
+                                   1,
+                                   &dcmf_tp->barrier_req, 
+                                   1, /* number of (bcast) colors */
+                                   (team == GASNET_TEAM_ALL)); /* is globalcontext? */
+    
+    if(rv != DCMF_SUCCESS) {
+        gasneti_fatalerror("DCMF_Geometry_initialize failed! %d\n", rv);
+    }
   }
 }
 

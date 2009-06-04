@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended_coll_dcmf.h,v $
- * $Date: 2009/05/28 22:17:51 $
- * $Revision: 1.1.2.1 $
+ * $Date: 2009/06/04 20:14:55 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet extended collectives implementation on DCMF
  * LBNL 2009
  */
@@ -13,6 +13,8 @@
 #include <gasnet_coll.h>
 #include <gasnet_coll_internal.h>
 #include <gasnet_coll_autotune_internal.h>
+
+#include <gasnet_coll_barrier_dcmf.h>
 
 /* The following function prototypes should be declared in
  * gasnet_extended_refcoll.h, however they only appear in
@@ -59,6 +61,7 @@ typedef struct {
   /* struct gasnete_coll_team_t_ baseteam; */
   DCMF_CollectiveRequest_t barrier_req;
   DCMF_Geometry_t geometry;
+  volatile unsigned in_barrier;
 } gasnete_coll_team_dcmf_t;  
 
 extern int gasnete_coll_dcmf_inited;
@@ -78,6 +81,9 @@ void gasnete_coll_fini_dcmf();
  * Initialize the dcmf data structures for gasnet team
  */
 void gasnete_coll_team_init_dcmf(gasnet_team_handle_t team);
+void gasnete_dcmf_team_init(gasnet_team_handle_t team,
+                            gasnete_dcmf_barrier_proto_t barrier_kind,
+                            gasnete_dcmf_barrier_proto_t lbarrier_kind);
 
 /**
  * Finalize the dcmf data structures for gasnet team
