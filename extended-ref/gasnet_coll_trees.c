@@ -224,14 +224,14 @@ typedef struct tree_node_t_* tree_node_t;
 #define GET_NUM_CHILDREN(TREE_NODE) ((TREE_NODE)->num_children)
 #define GET_CHILD_IDX(TREE_NODE, IDX) ((TREE_NODE)->children[IDX])
 
-static tree_node_t *allocate_nodes(tree_node_t *curr_nodes, int num_nodes, int rootrank) {
+static tree_node_t *allocate_nodes(tree_node_t *curr_nodes, gasnet_team_handle_t team, int rootrank) {
   gasnet_node_t i;
   int new_allocation=0;
   if(!curr_nodes) {
-    curr_nodes = (tree_node_t*) gasneti_malloc(sizeof(tree_node_t)*num_nodes);
+    curr_nodes = (tree_node_t*) gasneti_malloc(sizeof(tree_node_t)*team->total_ranks);
     new_allocation=1;
   }
-  for(i=0; i<num_nodes; i++) {
+  for(i=0; i<team->total_ranks; i++) {
     if(new_allocation) {
       curr_nodes[i] = (struct tree_node_t_*) gasneti_calloc(1,sizeof(struct tree_node_t_));
     } else {
@@ -240,7 +240,7 @@ static tree_node_t *allocate_nodes(tree_node_t *curr_nodes, int num_nodes, int r
       curr_nodes[i]->num_children = 0;
       curr_nodes[i]->children_reversed = 0;
     }
-    curr_nodes[i]->id = (i+rootrank)%num_nodes;
+    curr_nodes[i]->id = (i+rootrank)%team->total_ranks;
     curr_nodes[i]->parent = NULL;
   }
   return curr_nodes;
@@ -552,14 +552,14 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
   switch (in_type->tree_class) {
     case GASNETE_COLL_NARY_TREE:
       gasneti_assert(in_type->num_params ==1);
-      allnodes = team->tree_construction_scratch = allocate_nodes(allnodes, team->total_ranks, rootrank);
+      allnodes = team->tree_construction_scratch = allocate_nodes(allnodes, team, rootrank);
       rootnode = make_nary_tree(allnodes, team->total_ranks, in_type->params[0]);
        geom->rotation_points = (int*) gasneti_malloc(sizeof(int)*1);
        geom->num_rotations = 1;
        geom->rotation_points[0] = rootrank;
       break;
     case GASNETE_COLL_FLAT_TREE:
-      allnodes = team->tree_construction_scratch = allocate_nodes(allnodes, team->total_ranks, rootrank);
+      allnodes = team->tree_construction_scratch = allocate_nodes(allnodes, team, rootrank);
       rootnode = make_flat_tree(allnodes, team->total_ranks);
        geom->rotation_points = (int*) gasneti_malloc(sizeof(int)*1);
        geom->num_rotations = 1;
@@ -567,7 +567,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
       break;
     case GASNETE_COLL_KNOMIAL_TREE:
       gasneti_assert(in_type->num_params ==1);
-       allnodes = team->tree_construction_scratch = allocate_nodes(allnodes, team->total_ranks, rootrank);
+       allnodes = team->tree_construction_scratch = allocate_nodes(allnodes, team, rootrank);
       rootnode = make_knomial_tree(allnodes, team->total_ranks, in_type->params[0]);
        geom->rotation_points = (int*) gasneti_malloc(sizeof(int)*1);
        geom->num_rotations = 1;
@@ -575,14 +575,14 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
       break;
     case GASNETE_COLL_RECURSIVE_TREE:
       gasneti_assert(in_type->num_params ==1);
-      allnodes = team->tree_construction_scratch = allocate_nodes(allnodes, team->total_ranks, rootrank);
+      allnodes = team->tree_construction_scratch = allocate_nodes(allnodes, team, rootrank);
       rootnode = make_recursive_tree(allnodes, team->total_ranks, in_type->params[0]);
       geom->rotation_points = (int*) gasneti_malloc(sizeof(int)*1);
       geom->num_rotations = 1;
       geom->rotation_points[0] = rootrank;
       break;
     case GASNETE_COLL_FORK_TREE:
-      allnodes = team->tree_construction_scratch = allocate_nodes(allnodes, team->total_ranks, rootrank);
+      allnodes = team->tree_construction_scratch = allocate_nodes(allnodes, team, rootrank);
       rootnode = make_fork_tree(allnodes, team->total_ranks, in_type->params, in_type->num_params);
        geom->rotation_points = (int*) gasneti_malloc(sizeof(int)*1);
        geom->num_rotations = 1;
@@ -590,7 +590,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
       break;
     case GASNETE_COLL_HIERARCHICAL_TREE:
 #if 0
-      allnodes = team->tree_construction_scratch = allocate_nodes(allnodes, team->total_ranks, 0);
+      allnodes = team->tree_construction_scratch = allocate_nodes(allnodes, team, 0);
       rootnode = make_hiearchical_tree(in_type, allnodes, team->total_ranks);
        /* XXX ADD CODE TO GET ROTATION POINTS*/
       break;

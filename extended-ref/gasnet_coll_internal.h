@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/05/12 04:15:52 $
- * $Revision: 1.53.14.17 $
+ *     $Date: 2009/06/19 00:38:19 $
+ * $Revision: 1.53.14.18 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -227,6 +227,12 @@ struct gasnete_coll_team_t_ {
   /*gasnet_node_t *node_map; */
   /* XXX: Design not complete yet */
   
+  /**THIS IS JUST FOR MY TESTING PURPOSES: once yili adds in teams we can rip this piece out and add in his 
+   stuff*/
+  /*if and only if this team is TEAM_ALL then this field will be NULL*/
+  /*else this is a list of total_ranks elements that will contain mapping from actual to a relative rank*/
+  gasnet_node_t *rel2act_map;
+  
   /* Hook for conduit-specific extensions/overrides */
 #ifdef GASNETE_COLL_TEAM_EXTRA
   GASNETE_COLL_TEAM_EXTRA
@@ -236,6 +242,7 @@ struct gasnete_coll_team_t_ {
     
 };
 
+#define GASNETE_COLL_REL2ACT(TEAM, IDX) ((TEAM) == GASNET_TEAM_ALL ? IDX : (TEAM)->rel2act_map[IDX])
 
 /*---------------------------------------------------------------------------------*/
 
@@ -479,16 +486,16 @@ void gasnete_coll_p2p_eager_put_all(gasnete_coll_op_t *op, void *src, size_t siz
 #ifndef gasnete_coll_p2p_eager_addr_all
 GASNETI_INLINE(gasnete_coll_p2p_eager_addr_all)
 void gasnete_coll_p2p_eager_addr_all(gasnete_coll_op_t *op, void *addr,
-                                     uint32_t offset, uint32_t state) {
+                                     uint32_t offset, uint32_t state, gasnet_team_handle_t team) {
   gasnet_node_t i;
   
   /* Send to nodes to the "right" of ourself */
-  for (i = gasneti_mynode + 1; i < gasneti_nodes; ++i) {
-    gasnete_coll_p2p_eager_addr(op, i, addr, offset, state);
+  for (i = team->myrank + 1; i < team->total_ranks; ++i) {
+    gasnete_coll_p2p_eager_addr(op, GASNETE_COLL_REL2ACT(team, i), addr, offset, state);
   }
   /* Send to nodes to the "left" of ourself */
   for (i = 0; i < gasneti_mynode; ++i) {
-    gasnete_coll_p2p_eager_addr(op, i, addr, offset, state);
+    gasnete_coll_p2p_eager_addr(op, GASNETE_COLL_REL2ACT(team, i), addr, offset, state);
   }
 }
 #endif

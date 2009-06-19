@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/05/12 04:15:52 $
- * $Revision: 1.72.10.25 $
+ *     $Date: 2009/06/19 00:38:20 $
+ * $Revision: 1.72.10.26 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -71,8 +71,10 @@ int gasnete_coll_multi_images_any;	/* count of any node's images > 1 */
 #endif
 
 
-
+/*declarations for gasnet team all*/
 gasnet_team_handle_t gasnete_coll_team_all;
+gasnet_team_handle_t gasnete_coll_team_even;
+gasnet_team_handle_t gasnete_coll_team_odd;
 /*---------------------------------------------------------------------------------*/
 
 int gasnete_coll_init_done = 0;
@@ -101,10 +103,6 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
   gasneti_assert(!(flags & GASNETE_COLL_THREAD_LOCAL));
 #endif
 
-  /* XXX: temporary limitation: */
-  if(team != GASNET_TEAM_ALL) {
-        gasneti_fatalerror("Team argument must be GASNET_TEAM_ALL.");
-  }
 
 #if GASNET_DEBUG
 #if GASNET_SEQ
@@ -425,25 +423,34 @@ void gasnete_coll_sync_saved_handles(GASNETE_THREAD_FARG_ALONE) {
 /* Called by by AM handlers to lookup the team by id */
 gasnete_coll_team_t gasnete_coll_team_lookup(uint32_t team_id) {
 	/* XXX: no implementation of teams yet */
-	if (team_id != 0) {
-    gasneti_fatalerror("Non-zero team id passed, but teams are not yet implemented.");
-	}
-	return GASNET_TEAM_ALL;
+	if (team_id == 0) {
+    return GASNET_TEAM_ALL;
+  } else if (team_id == 1) {
+    return GASNET_TEAM_EVEN;
+  } else if (team_id == 2) {
+    return GASNET_TEAM_ODD;
+  } else {
+    gasneti_fatalerror("UNKNOWN TEAM ID (%d) in id to team lookup", team_id);
+  }
 }
 
 gasnet_node_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank) {
-	gasneti_assert(team == GASNET_TEAM_ALL);
-	return (gasnet_node_t)rank;
+//	gasneti_assert(team == GASNET_TEAM_ALL);
+	return GASNETE_COLL_REL2ACT(team, rank);
 }
 
 int gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnet_node_t node) {
-	gasneti_assert(team == GASNET_TEAM_ALL);
+//	gasneti_assert(team == GASNET_TEAM_ALL);
 	return (int)node;
 }
 
 uint32_t gasnete_coll_team_id(gasnete_coll_team_t team) {
-	gasneti_assert(team == GASNET_TEAM_ALL);
-	return 0;
+//	gasneti_assert(team == GASNET_TEAM_ALL);
+	if(team == GASNET_TEAM_ALL) return 0;
+  else if(team == GASNET_TEAM_EVEN) return 1;
+  else if(team == GASNET_TEAM_ODD) return 2;
+  else gasneti_fatalerror("UNKNOWN TEAM ID (%d) in team to id lookup", team_id);
+  return 0;
 }
 #endif
 
@@ -1169,7 +1176,48 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       fprintf(stderr, "WARNING: Current collective implementation requires constant number of threads on each node\n");
       fprintf(stderr, "WARNING: for optimized collectives.\n");
     }
-
+    
+#if 0
+    if(gasneti_mynode %2 == 0) {
+      GASNET_TEAM_EVEN = (struct gasnete_coll_team_t_*) gasneti_calloc(1,sizeof(struct gasnete_coll_team_t_));
+      GASNET_TEAM_EVEN->team_id = 1;
+      GASNET_TEAM_EVEN->global_team = 0;
+      GASNET_TEAM_EVEN->tree_geom_cache_head = NULL;
+      GASNET_TEAM_EVEN->tree_geom_cache_tail = NULL;
+      gasneti_mutex_init(&GASNET_TEAM_EVEN->tree_geom_cache_lock);
+      GASNET_TEAM_EVEN->tree_construction_scratch = NULL;
+      GASNET_TEAM_EVEN->dissem_cache_head = NULL;
+      GASNET_TEAM_EVEN->dissem_cache_tail = NULL;
+      gasneti_mutex_init(&GASNET_TEAM_EVEN->dissem_cache_lock);
+      GASNET_TEAM_EVEN->myrank = gasneti_mynode/2;
+      GASNET_TEAM_EVEN->total_ranks = gasneti_nodes/2;
+      GASNET_TEAM_EVEN->scratch_segs = gasnete_coll_auxseg_save;
+      GASNET_TEAM_EVEN->smallest_scratch_seg = smallest_scratch_seg;
+      GASNET_TEAM_EVEN->autotune_info = gasnete_coll_autotune_init(GASNET_TEAM_EVEN, gasneti_mynode, gasneti_nodes, 
+                                                                   gasnete_coll_my_images, gasnete_coll_total_images,
+                                                                   smallest_scratch_seg);
+      gasnete_coll_alloc_new_scratch_status(GASNET_TEAM_EVEN);
+    } else {
+      GASNET_TEAM_ODD = (struct gasnete_coll_team_t_*) gasneti_calloc(1,sizeof(struct gasnete_coll_team_t_));
+      GASNET_TEAM_ODD->team_id = 2;
+      GASNET_TEAM_ODD->global_team = 0;
+      GASNET_TEAM_ODD->tree_geom_cache_head = NULL;
+      GASNET_TEAM_ODD->tree_geom_cache_tail = NULL;
+      gasneti_mutex_init(&GASNET_TEAM_ODD->tree_geom_cache_lock);
+      GASNET_TEAM_ODD->tree_construction_scratch = NULL;
+      GASNET_TEAM_ODD->dissem_cache_head = NULL;
+      GASNET_TEAM_ODD->dissem_cache_tail = NULL;
+      gasneti_mutex_init(&GASNET_TEAM_ODD->dissem_cache_lock);
+      GASNET_TEAM_ODD->myrank = gasneti_mynode/2;
+      GASNET_TEAM_ODD->total_ranks = gasneti_nodes/2;
+      GASNET_TEAM_ODD->scratch_segs = gasnete_coll_auxseg_save;
+      GASNET_TEAM_ODD->smallest_scratch_seg = smallest_scratch_seg;
+      GASNET_TEAM_ODD->autotune_info = gasnete_coll_autotune_init(GASNET_TEAM_ODD, gasneti_mynode, gasneti_nodes, 
+                                                                   gasnete_coll_my_images, gasnete_coll_total_images,
+                                                                   smallest_scratch_seg);
+      gasnete_coll_alloc_new_scratch_status(GASNET_TEAM_ODD);
+    }
+#endif
     /* This barrier, together with the thread barrier that follows, ensures all global
        collectives initialization is complete before any collectives can be called. */
     gasnet_barrier_notify((int)gasnete_coll_sequence,0);
@@ -1381,7 +1429,7 @@ gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence) {
   gasnete_coll_p2p_t *p2p;
   int i;
   gasneti_assert(sequence >= 42);
-  gasneti_assert(gasnete_coll_team_lookup(team_id) == GASNET_TEAM_ALL);
+//  gasneti_assert(gasnete_coll_team_lookup(team_id) == GASNET_TEAM_ALL);
       
   gasnet_hsl_lock(&gasnete_coll_p2p_table_lock);
 
@@ -2063,7 +2111,7 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
   gasnet_coll_handle_t handle = GASNET_COLL_INVALID_HANDLE;
   gasnete_coll_op_t *op;
   int i;
-  gasneti_assert(team == GASNET_TEAM_ALL);
+//  gasneti_assert(team == GASNET_TEAM_ALL);
   gasneti_assert(data != NULL);
       
       

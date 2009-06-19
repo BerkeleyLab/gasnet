@@ -256,13 +256,13 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
                                              gasnet_AMMaxLongRequest(), 0, 1,
                                              0,NULL,(void*)gasnete_coll_bcast_TreePutScratch, "BROADCAST_TREE_PUT_SCRATCH");
   
+
   info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_SCATTERALLGATHER] =
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCAST_OP,
                                            GASNETE_COLL_EVERY_SYNC_FLAG,
                                            0, /*works for all flags (scatter/allgather will pick their right implementations based on the actual flags)*/
                                            0, 0, 0,
                                            0,NULL,(void*)gasnete_coll_bcast_ScatterAllgather, "BROADCAST_SCATTERALLGATHER");
-    
   {
     struct gasnet_coll_tuning_parameter_t tuning_params[1]=
     { 
@@ -282,7 +282,7 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
   info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_EAGER] = 
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCAST_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
                                            0, /*works for all flags as long as size is small enough*/ 
-                                           gasnete_coll_p2p_eager_min, 0, 0,
+                                           gasnet_AMMaxMedium(), 0, 0,
                                            0,NULL,(void*)gasnete_coll_bcast_Eager, "BROADCAST_EAGER");
   
     
@@ -290,7 +290,7 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
     gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCAST_OP, 
                                              GASNETE_COLL_EVERY_SYNC_FLAG,
                                              0, /*works for all flags as long as size is small enough*/ 
-                                             gasnete_coll_p2p_eager_min,0, 1,
+                                             gasnet_AMMaxMedium(),0, 1,
                                              0,NULL,(void*)gasnete_coll_bcast_TreeEager, "BROADCAST_TREE_EAGER");
     
     
@@ -329,13 +329,16 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
                                            GASNET_COLL_SINGLE | GASNET_COLL_SRC_IN_SEGMENT, 
                                            0, 0, 0,
                                            0,NULL,(void*)gasnete_coll_bcastM_Get, "BROADCASTM_GET");
+
   
+
   info->collective_algorithms[GASNET_COLL_BROADCASTM_OP][GASNETE_COLL_BROADCASTM_PUT] = 
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCASTM_OP, 
                                            GASNETE_COLL_EVERY_SYNC_FLAG,
                                            GASNET_COLL_SINGLE | GASNET_COLL_DST_IN_SEGMENT, 
                                            0, 0, 0,
                                            0,NULL,(void*)gasnete_coll_bcastM_Put, "BROADCASTM_PUT");
+
 
   info->collective_algorithms[GASNET_COLL_BROADCASTM_OP][GASNETE_COLL_BROADCASTM_TREE_PUT] = 
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCASTM_OP, 
@@ -378,14 +381,14 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCASTM_OP, 
                                            GASNETE_COLL_EVERY_SYNC_FLAG,
                                            0, 
-                                           gasnete_coll_p2p_eager_min, 0, 1,
+                                           gasnet_AMMaxMedium(), 0, 1,
                                            0,NULL,(void*)gasnete_coll_bcastM_TreeEager, "BROADCASTM_TREE_EAGER");
   
   info->collective_algorithms[GASNET_COLL_BROADCASTM_OP][GASNETE_COLL_BROADCASTM_EAGER] = 
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCASTM_OP, 
                                            GASNETE_COLL_EVERY_SYNC_FLAG,
                                            0, 
-                                           gasnete_coll_p2p_eager_min, 0, 0,
+                                           gasnet_AMMaxMedium(), 0, 0,
                                            0,NULL,(void*)gasnete_coll_bcastM_Eager, "BROADCASTM_EAGER");
   
   

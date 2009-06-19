@@ -136,10 +136,10 @@ void gasnete_coll_scratch_send_updates(gasnete_coll_team_t team, int seq) {
   gasnete_coll_scratch_status_t *stat = team->scratch_status;
   
   /*Becareful with the teams here and how the peer list is specified*/
-  /*for gasnet team all it doesn't matter but in other cases it does*/
-  
+  /*for gasnet team all it doesn't matter but in other cases it does
+  stat->active_config_and_ops->peers[i] needs to be translated to an absolute rank*/
   for(i=0; i<stat->active_config_and_ops->numpeers; i++) {
-    GASNETI_SAFE(SHORT_REQ(2,2,(stat->active_config_and_ops->peers[i],
+    GASNETI_SAFE(SHORT_REQ(2,2,(GASNETE_COLL_REL2ACT(team, stat->active_config_and_ops->peers[i]),
                                 gasneti_handleridx(gasnete_coll_scratch_update_reqh),
                                 team->team_id, team->myrank)));
 #if GASNETE_COLL_SCRATCH_DEBUG_PRINTS
