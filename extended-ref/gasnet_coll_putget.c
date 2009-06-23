@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/06/23 20:33:59 $
- * $Revision: 1.71.12.25 $
+ *     $Date: 2009/06/23 23:16:10 $
+ * $Revision: 1.71.12.26 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -34,7 +34,7 @@ static int gasnete_coll_pf_bcast_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data) ||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -57,7 +57,7 @@ static int gasnete_coll_pf_bcast_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
       data->state = 3;
       
       case 3:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       
@@ -97,7 +97,7 @@ static int gasnete_coll_pf_bcast_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data) ||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -140,7 +140,7 @@ static int gasnete_coll_pf_bcast_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
       data->state = 3;
       
       case 3:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       
@@ -258,7 +258,7 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
       
       case 4:	/* Optional OUT barrier */
 #if 1
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
 #else
@@ -374,7 +374,7 @@ static int gasnete_coll_pf_bcast_TreePutScratch(gasnete_coll_op_t *op GASNETE_TH
       
       
       case 4:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       /*free up the scratch space used by this op*/
@@ -420,7 +420,7 @@ static int gasnete_coll_pf_bcast_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data) ||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -505,7 +505,7 @@ static int gasnete_coll_pf_bcast_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
       data->state = 3;
     }   
       case 3:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       
@@ -558,7 +558,7 @@ static int gasnete_coll_pf_bcast_ScatterAllgather(gasnete_coll_op_t *op GASNETE_
   switch (data->state) {
   case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data) ||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -632,7 +632,7 @@ static int gasnete_coll_pf_bcast_ScatterAllgather(gasnete_coll_op_t *op GASNETE_
       data->state =4;
       
   case 4:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       
@@ -687,7 +687,7 @@ static int gasnete_coll_pf_bcastM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_threads_ready1(op, args->dstlist GASNETE_THREAD_PASS) ||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -717,7 +717,7 @@ static int gasnete_coll_pf_bcastM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
       data->state = 3;
       
       case 3:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       
@@ -756,7 +756,7 @@ static int gasnete_coll_pf_bcastM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_threads_ready1(op, args->dstlist GASNETE_THREAD_PASS) ||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -815,7 +815,7 @@ static int gasnete_coll_pf_bcastM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
       data->state = 3;
       
       case 3:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       
@@ -933,7 +933,7 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
       
       case 4:	/* Optional OUT barrier */
 #if USE_CONSENSUS_BARRIER
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       data->state = 5;
@@ -1083,7 +1083,7 @@ static int gasnete_coll_pf_bcastM_TreePutScratch(gasnete_coll_op_t *op GASNETE_T
  
 #if USE_CONSENSUS_BARRIER
       case 4:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       data->state = 5;
@@ -1171,7 +1171,7 @@ static int gasnete_coll_pf_bcastM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
   switch (data->state) {
   case 0:	/* Optional IN barrier */
       if (!gasnete_coll_threads_ready1(op, args->dstlist GASNETE_THREAD_PASS) ||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -1251,7 +1251,7 @@ static int gasnete_coll_pf_bcastM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
       data->state = 3;
     }   
       case 3:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       
@@ -1304,7 +1304,7 @@ static int gasnete_coll_pf_bcastM_ScatterAllgather(gasnete_coll_op_t *op GASNETE
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_threads_ready1(op, args->dstlist GASNETE_THREAD_PASS) ||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -1391,7 +1391,7 @@ static int gasnete_coll_pf_bcastM_ScatterAllgather(gasnete_coll_op_t *op GASNETE
       data->state =4;
       
     case 4:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       
@@ -1441,7 +1441,7 @@ static int gasnete_coll_pf_scat_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data) ||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -1467,7 +1467,7 @@ static int gasnete_coll_pf_scat_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
       data->state = 3;
       
       case 3:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       
@@ -1504,7 +1504,7 @@ static int gasnete_coll_pf_scat_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data) ||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -1551,7 +1551,7 @@ static int gasnete_coll_pf_scat_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
       data->state = 3;
       
       case 3:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       
@@ -1773,7 +1773,7 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       
       
       case 5:	/* Final Out Barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
         
       }
@@ -1960,7 +1960,7 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
       
       
       case 5:	/* Final Out Barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
         
       }
@@ -2005,7 +2005,7 @@ static int gasnete_coll_pf_scat_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data) ||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -2057,7 +2057,7 @@ static int gasnete_coll_pf_scat_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
       data->state = 3;
     }   
       case 3:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       
@@ -2110,7 +2110,7 @@ static int gasnete_coll_pf_scatM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_threads_ready1(op, args->dstlist GASNETE_THREAD_PASS) ||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -2139,7 +2139,7 @@ static int gasnete_coll_pf_scatM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
       data->state = 3;
       
       case 3:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       
@@ -2176,7 +2176,7 @@ static int gasnete_coll_pf_scatM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_threads_ready1(op, args->dstlist GASNETE_THREAD_PASS) ||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -2253,7 +2253,7 @@ static int gasnete_coll_pf_scatM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
       data->state = 3;
       
       case 3:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       
@@ -2439,7 +2439,7 @@ static int gasnete_coll_pf_scatM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
       
       case 4:	/* Final Out Barrier */
 #if USE_CONSENSUS_BARRIER
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       data->state = 5;
@@ -2662,7 +2662,7 @@ static int gasnete_coll_pf_scatM_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THR
       
       
   case 4:	/* Final Out Barrier */
-    if (!gasnete_coll_generic_outsync(data)) {
+    if (!gasnete_coll_generic_outsync(op->team, data)) {
       break;
     }
     data->state = 5;
@@ -2710,7 +2710,7 @@ static int gasnete_coll_pf_scatM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_threads_ready1(op, args->dstlist GASNETE_THREAD_PASS) ||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -2767,7 +2767,7 @@ static int gasnete_coll_pf_scatM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
       data->state = 3;
     }   
       case 3:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       
@@ -2821,7 +2821,7 @@ static int gasnete_coll_pf_gath_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data) ||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -2864,7 +2864,7 @@ static int gasnete_coll_pf_gath_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
       data->state = 3;
       
       case 3:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       
@@ -2901,7 +2901,7 @@ static int gasnete_coll_pf_gath_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data) ||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -2926,7 +2926,7 @@ static int gasnete_coll_pf_gath_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
       data->state = 3;
       
       case 3:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       
@@ -2980,7 +2980,7 @@ static int gasnete_coll_pf_gath_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       
     case 1:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data)||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
 
@@ -3168,7 +3168,7 @@ static int gasnete_coll_pf_gath_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
     
   case 1:	/* Optional IN barrier */
     if (!gasnete_coll_generic_all_threads(data)||
-        !gasnete_coll_generic_insync(data)) {
+        !gasnete_coll_generic_insync(op->team, data)) {
       break;
     }
     
@@ -3385,7 +3385,7 @@ static int gasnete_coll_pf_gath_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data) ||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -3438,7 +3438,7 @@ static int gasnete_coll_pf_gath_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
       data->state = 3;
     }   
       case 3:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       
@@ -3491,7 +3491,7 @@ static int gasnete_coll_pf_gathM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_threads_ready1(op, args->srclist GASNETE_THREAD_PASS) ||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -3563,7 +3563,7 @@ static int gasnete_coll_pf_gathM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
       data->state = 3;
       
       case 3:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       
@@ -3600,7 +3600,7 @@ static int gasnete_coll_pf_gathM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_threads_ready1(op, args->srclist GASNETE_THREAD_PASS) ||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -3630,7 +3630,7 @@ static int gasnete_coll_pf_gathM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
       data->state = 3;
       
       case 3:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       
@@ -3679,7 +3679,7 @@ static int gasnete_coll_pf_gathM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
       
       case 1:	/* Optional IN barrier */
       if (!gasnete_coll_threads_ready1(op, args->srclist GASNETE_THREAD_PASS)||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 2;
@@ -3777,7 +3777,7 @@ static int gasnete_coll_pf_gathM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_threads_ready1(op, args->srclist GASNETE_THREAD_PASS) ||
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -3834,7 +3834,7 @@ static int gasnete_coll_pf_gathM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
       data->state = 3;
     }   
       case 3:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       
@@ -3898,7 +3898,7 @@ static int gasnete_coll_pf_gall_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   switch (data->state) {
     case 0:	/* Optional IN barrier */
       if (!gasnete_coll_generic_all_threads(data) || 
-          !gasnete_coll_generic_insync(data)) {
+          !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
       data->state = 1;
@@ -3991,7 +3991,7 @@ static int gasnete_coll_pf_gall_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       
       
       case 5:	/* Optional OUT barrier */
-      if (!gasnete_coll_generic_outsync(data)) {
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
         break;
       }
       /*free up the scratch space used by this op*/
@@ -4043,7 +4043,7 @@ static int gasnete_coll_pf_gall_RingPut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   /* State 0: In barrier (if needed)*/
   if(data->state == 0) {
     if (!gasnete_coll_generic_all_threads(data) || 
-        !gasnete_coll_generic_insync(data)) {
+        !gasnete_coll_generic_insync(op->team, data)) {
       return 0;
     }
     data->state++;
@@ -4059,7 +4059,7 @@ static int gasnete_coll_pf_gall_RingPut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   } 
   /* State Nodes+1: Out Barrier (if needed)*/
   else if(data->state == op->team->total_ranks+1) {
-    if (!gasnete_coll_generic_outsync(data)) {
+    if (!gasnete_coll_generic_outsync(op->team, data)) {
       return 0;
     }
     gasneti_free(data->private_data);
@@ -4132,7 +4132,7 @@ static int gasnete_coll_pf_gall_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   /* State 0: In barrier (if needed)*/
   if(data->state == 0) {
     if (!gasnete_coll_generic_all_threads(data) || 
-        !gasnete_coll_generic_insync(data)) {
+        !gasnete_coll_generic_insync(op->team, data)) {
       return 0;
     }
     data->state++;
@@ -4173,7 +4173,7 @@ static int gasnete_coll_pf_gall_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   
   if(data->state == 3) {
     /* out barrier and cleanup*/
-    if (!gasnete_coll_generic_outsync(data)) {
+    if (!gasnete_coll_generic_outsync(op->team, data)) {
       return 0;
     }
     
@@ -4223,7 +4223,7 @@ static int gasnete_coll_pf_gall_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FARG
   } 
   if(data->state == 1) {
     if (!gasnete_coll_generic_all_threads(data) || 
-        !gasnete_coll_generic_insync(data)) {
+        !gasnete_coll_generic_insync(op->team, data)) {
       return 0;
     }
     
@@ -4285,7 +4285,7 @@ static int gasnete_coll_pf_gall_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FARG
     data->state++;
   }
   if(data->state == (dissem->dissemination_phases)*2+2) {
-    if (!gasnete_coll_generic_outsync(data)) {
+    if (!gasnete_coll_generic_outsync(op->team, data)) {
       return 0;
     }
     
@@ -4334,7 +4334,7 @@ static int gasnete_coll_pf_gallM_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FA
   /* State 0: In barrier (if needed)*/
   if(data->state == 0) {
     if (!gasnete_coll_generic_all_threads(data) || 
-        !gasnete_coll_generic_insync(data)) {
+        !gasnete_coll_generic_insync(op->team, data)) {
       return 0;
     }
     /* local gather */
@@ -4379,7 +4379,7 @@ static int gasnete_coll_pf_gallM_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FA
   
   if(data->state == 3) {
     /* out barrier and cleanup*/
-    if (!gasnete_coll_generic_outsync(data)) {
+    if (!gasnete_coll_generic_outsync(op->team, data)) {
       return 0;
     }
     
@@ -4428,7 +4428,7 @@ static int gasnete_coll_pf_gallM_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   if(data->state == 1) {
     int i;
     if (!gasnete_coll_threads_ready2(op, args->dstlist, args->srclist GASNETE_THREAD_PASS) || 
-        !gasnete_coll_generic_insync(data)) {
+        !gasnete_coll_generic_insync(op->team, data)) {
       return 0;
     }
     
@@ -4505,7 +4505,7 @@ static int gasnete_coll_pf_gallM_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   }
   
   if(data->state == (dissem->dissemination_phases)*2+2 || (op->team->total_ranks==1 && data->state==3)) {
-    if (!gasnete_coll_generic_outsync(data)) {
+    if (!gasnete_coll_generic_outsync(op->team, data)) {
       return 0;
     }
     gasnete_coll_free_scratch(op);
@@ -4628,7 +4628,7 @@ static int gasnete_coll_pf_exchg_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   if(data->state == 1) {
     
     if (!gasnete_coll_generic_all_threads(data) ||
-        !gasnete_coll_generic_insync(data)) {
+        !gasnete_coll_generic_insync(op->team, data)) {
       return result;
     }
     
@@ -4725,7 +4725,7 @@ static int gasnete_coll_pf_exchg_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FAR
     
   }
   if(data->state == dissem->dissemination_phases*3+3) {
-    if (!gasnete_coll_generic_outsync(data)) {
+    if (!gasnete_coll_generic_outsync(op->team, data)) {
       return 0;
     }
     
@@ -4795,7 +4795,7 @@ static int gasnete_coll_pf_exchgM_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FA
     int i,j,k=0;
     int8_t **out_ptr;
     if (!gasnete_coll_threads_ready2(op, args->dstlist, args->srclist GASNETE_THREAD_PASS) ||
-        !gasnete_coll_generic_insync(data)) {
+        !gasnete_coll_generic_insync(op->team, data)) {
       return result;
     }
     
@@ -4905,7 +4905,7 @@ static int gasnete_coll_pf_exchgM_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FA
     
   }
   if(data->state == dissem->dissemination_phases*3+3) {
-    if (!gasnete_coll_generic_outsync(data)) {
+    if (!gasnete_coll_generic_outsync(op->team, data)) {
       return 0;
     }
     

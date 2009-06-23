@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/06/23 01:10:52 $
- * $Revision: 1.53.14.19 $
+ *     $Date: 2009/06/23 23:16:10 $
+ * $Revision: 1.53.14.20 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -248,7 +248,11 @@ struct gasnete_coll_team_t_ {
   int multi_images;	/* count of local images > 1 */
   int multi_images_any;	/* count of any node's images > 1 */
 #endif
-
+  
+  /*Stuff for consensus*/
+  uint32_t consensus_issued_id;
+  uint32_t consensus_id;
+  
   /* Hook for conduit-specific extensions/overrides */
 #ifdef GASNETE_COLL_TEAM_EXTRA
   GASNETE_COLL_TEAM_EXTRA
@@ -333,9 +337,9 @@ struct gasnete_coll_seg_interval_t_ {
 typedef uint32_t gasnete_coll_consensus_t;
 #endif
 
-extern gasnete_coll_consensus_t gasnete_coll_consensus_create(void);
-extern int gasnete_coll_consensus_try(gasnete_coll_consensus_t id);
-extern int gasnete_coll_consensus_wait(GASNETE_THREAD_FARG_ALONE);
+extern gasnete_coll_consensus_t gasnete_coll_consensus_create(gasnete_coll_team_t team);
+extern int gasnete_coll_consensus_try(gasnete_coll_team_t team, gasnete_coll_consensus_t id);
+extern int gasnete_coll_consensus_wait(gasnete_coll_team_t team GASNETE_THREAD_FARG);
 
 /*---------------------------------------------------------------------------------*/
 /* Type for point-to-point synchronization */
@@ -1218,18 +1222,19 @@ gasneti_fatalerror("Call to gasnete_coll_threads_insert() in non-PAR build")
 #define gasnete_coll_generic_all_threads(data)	(1)
 #endif
 
+
 GASNETI_INLINE(gasnete_coll_generic_insync)
-int gasnete_coll_generic_insync(gasnete_coll_generic_data_t *data) {
+int gasnete_coll_generic_insync(gasnete_coll_team_t team, gasnete_coll_generic_data_t *data) {
   gasneti_assert(data != NULL);
   return (!(data->options & GASNETE_COLL_GENERIC_OPT_INSYNC) ||
-	  (gasnete_coll_consensus_try(data->in_barrier) == GASNET_OK));
+	  (gasnete_coll_consensus_try(team, data->in_barrier) == GASNET_OK));
 }
 
 GASNETI_INLINE(gasnete_coll_generic_outsync)
-int gasnete_coll_generic_outsync(gasnete_coll_generic_data_t *data) {
+int gasnete_coll_generic_outsync(gasnete_coll_team_t team, gasnete_coll_generic_data_t *data) {
   gasneti_assert(data != NULL);
   return (!(data->options & GASNETE_COLL_GENERIC_OPT_OUTSYNC) ||
-	  (gasnete_coll_consensus_try(data->out_barrier) == GASNET_OK));
+	  (gasnete_coll_consensus_try(team, data->out_barrier) == GASNET_OK));
 }
 
 extern int gasnete_coll_generic_coll_sync(gasnet_coll_handle_t *p, size_t count GASNETE_THREAD_FARG);
