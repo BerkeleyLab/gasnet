@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2009/05/01 19:57:03 $
- * $Revision: 1.53.12.4 $
+ *     $Date: 2009/06/23 01:10:50 $
+ * $Revision: 1.53.12.5 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -168,7 +168,11 @@ typedef struct gasnete_coll_team_t_ *gasnete_coll_team_t;
 typedef gasnete_coll_team_t gasnet_team_handle_t;
 /*change this so even the TEAM_ALL has a default team allocated rather than NULL*/
 extern gasnet_team_handle_t gasnete_coll_team_all;
+extern gasnet_team_handle_t gasnete_coll_team_even;
+extern gasnet_team_handle_t gasnete_coll_team_odd;
 #define GASNET_TEAM_ALL gasnete_coll_team_all
+#define GASNET_TEAM_EVEN gasnete_coll_team_even
+#define GASNET_TEAM_ODD gasnete_coll_team_odd
 #endif
 
                                                                                                               

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcoll.c,v $
- *     $Date: 2009/05/01 19:57:48 $
- * $Revision: 1.34.32.1 $
+ *     $Date: 2009/06/23 01:10:56 $
+ * $Revision: 1.34.32.2 $
  * Description: GASNet collectives test
  * Copyright 2002-2004, Jaein Jeong and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -153,7 +153,7 @@ void PREFIX##_MYMY(int root, thread_data_t *td) {                            \
 	CALL(broadcast##SUFFIX, ALL(A), ROOT(A),                             \
 	     FLAGS | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);        \
 	if (*LOCAL(A) != R[j]) {                                             \
-	    MSG("ERROR: %s broadcast validation failed", name);              \
+	    MSG("ERROR: %s broadcast validation failed %d %d on %d", name, *LOCAL(A), R[j], mythread);              \
 	    gasnet_exit(1);                                                  \
 	}                                                                    \
 	CALL(gather##SUFFIX, ROOT(C), ALL(B),                                \
@@ -456,10 +456,12 @@ void *thread_main(void *arg) {
     testSM_MYMY(root, td);
     testSM_ALLALL(root, td);
     testSM_NB(root, td);
+
     testLS_NONO(root, td);
     testLS_MYMY(root, td);
     testLS_ALLALL(root, td);
     testLS_NB(root, td);
+
     testLM_NONO(root, td);
     testLM_MYMY(root, td);
     testLM_ALLALL(root, td);

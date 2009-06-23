@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/06/19 00:38:19 $
- * $Revision: 1.53.14.18 $
+ *     $Date: 2009/06/23 01:10:52 $
+ * $Revision: 1.53.14.19 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -112,13 +112,13 @@ extern size_t gasnete_coll_p2p_eager_scale;
 * a larger type, many default things will require overrides.
 */
 #if GASNET_SEQ
-#define gasnete_coll_image_node(I)	I
+#define gasnete_coll_image_node(TEAM, I)	I
 #else
 extern gasnet_node_t *gasnete_coll_image_to_node;
-#define gasnete_coll_image_node(I)	\
-(gasneti_assert(gasnete_coll_image_to_node != NULL), gasnete_coll_image_to_node[I])
+#define gasnete_coll_image_node(TEAM, I)                               \
+  (gasneti_assert((TEAM)->image_to_node != NULL), (TEAM)->image_to_node[I])
 #endif
-#define gasnete_coll_image_is_local(I)	(gasneti_mynode == gasnete_coll_image_node(I))
+#define gasnete_coll_image_is_local(TEAM, I)	((TEAM)->myrank == gasnete_coll_image_node(TEAM, I))
 #endif
 
 #ifndef GASNETE_COLL_HANDLE_OVERRIDE
@@ -233,6 +233,22 @@ struct gasnete_coll_team_t_ {
   /*else this is a list of total_ranks elements that will contain mapping from actual to a relative rank*/
   gasnet_node_t *rel2act_map;
   
+  uint32_t sequence;	/* arbitrary non-zero starting value */
+  gasnet_image_t *all_images;
+  gasnet_image_t *all_offset;
+  uint8_t fixed_image_count; /* 1 if all the nodes have teh same number of images and 0 else*/ 
+  gasnet_image_t total_images;
+  gasnet_image_t max_images;
+  gasnet_image_t my_images;	/* count of local images */
+  gasnet_image_t my_offset;	/* count of images before my first image */
+#if !GASNET_SEQ
+  gasnet_node_t *image_to_node;
+#endif
+#if GASNET_PAR
+  int multi_images;	/* count of local images > 1 */
+  int multi_images_any;	/* count of any node's images > 1 */
+#endif
+
   /* Hook for conduit-specific extensions/overrides */
 #ifdef GASNETE_COLL_TEAM_EXTRA
   GASNETE_COLL_TEAM_EXTRA
@@ -764,7 +780,7 @@ can *prove* the current thread has a handle for the current op:
 #if GASNETI_USE_TRUE_MUTEXES 
 #define GASNETE_COLL_MAY_INIT_FOR(op)	((GASNETE_COLL_GENERIC_DATA(op)->owner == GASNETE_MYTHREAD) || \
 				 ((op)->flags & (GASNET_COLL_OUT_MYSYNC | GASNET_COLL_OUT_ALLSYNC)))
-#define GASNETE_COLL_SET_OWNER(data)	(gasneti_assert(GASNETE_COLL_MYTHREAD->my_local_image == 0), (data)->owner = GASNETE_MYTHREAD)
+#define GASNETE_COLL_SET_OWNER(data)	((data)->owner = GASNETE_MYTHREAD)
 #else
 #define GASNETE_COLL_MAY_INIT_FOR(op)	1
 #if GASNET_DEBUG
@@ -779,26 +795,11 @@ can *prove* the current thread has a handle for the current op:
 
 extern gasnet_coll_fn_entry_t *gasnete_coll_fn_tbl;
 extern size_t gasnete_coll_fn_count;
-extern uint32_t gasnete_coll_sequence;	/* arbitrary non-zero starting value */
-extern gasnet_image_t *gasnete_coll_all_images;
-extern gasnet_image_t *gasnete_coll_all_offset;
-extern uint8_t gasnete_coll_fixed_image_count; /* 1 if all the nodes have teh same number of images and 0 else*/ 
-extern gasnet_image_t gasnete_coll_total_images;
-extern gasnet_image_t gasnete_coll_max_images;
-extern gasnet_image_t gasnete_coll_my_images;	/* count of local images */
-extern gasnet_image_t gasnete_coll_my_offset;	/* count of images before my first image */
-#if !GASNET_SEQ
-extern gasnet_node_t *gasnete_coll_image_to_node;
-#endif
-#if GASNET_PAR
-extern int gasnete_coll_multi_images;	/* count of local images > 1 */
-extern int gasnete_coll_multi_images_any;	/* count of any node's images > 1 */
-#endif
 
-#define GASNETE_COLL_1ST_IMAGE(LIST,NODE) \
-(((void * const *)(LIST))[gasnete_coll_all_offset[(NODE)]])
-#define GASNETE_COLL_MY_1ST_IMAGE(LIST,FLAGS) \
-(((void * const *)(LIST))[((FLAGS) & GASNET_COLL_LOCAL) ? 0 : gasnete_coll_my_offset])
+#define GASNETE_COLL_1ST_IMAGE(TEAM,LIST,NODE)              \
+  (((void * const *)(LIST))[(TEAM)->all_offset[(NODE)]])
+#define GASNETE_COLL_MY_1ST_IMAGE(TEAM,LIST,FLAGS)                      \
+  (((void * const *)(LIST))[((FLAGS) & GASNET_COLL_LOCAL) ? 0 : (TEAM)->my_offset])
 
 /*---------------------------------------------------------------------------------*/
 /* In-segment checks */
@@ -1186,16 +1187,18 @@ extern gasnet_coll_handle_t gasnete_coll_op_generic_init(gasnete_coll_team_t tea
 extern int gasnete_coll_generic_syncnb(gasnete_coll_generic_data_t *data);
 
 #if GASNET_PAR
-extern void gasnete_coll_threads_lock(int flags GASNETE_THREAD_FARG);
+extern void gasnete_coll_threads_lock(gasnete_coll_team_t team, int flags GASNETE_THREAD_FARG);
 extern void gasnete_coll_threads_unlock(GASNETE_THREAD_FARG_ALONE);
 extern int gasnete_coll_threads_first(GASNETE_THREAD_FARG_ALONE);
 extern gasnet_coll_handle_t gasnete_coll_threads_get_handle(GASNETE_THREAD_FARG_ALONE);
 extern void gasnete_coll_threads_insert(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
 extern void gasnete_coll_threads_delete(gasnete_coll_op_t *op GASNETE_THREAD_FARG);
-GASNETI_INLINE(all_threads)
+GASNETI_INLINE(gasnete_coll_generic_all_threads)
 int gasnete_coll_generic_all_threads(gasnete_coll_generic_data_t *data) {
   int result;
   gasneti_assert(data != NULL);
+  /*make sure we are reading a positive value*/
+  gasneti_assert((int)gasneti_atomic_read(&data->threads.remaining, 0) >= 0);
   result = (gasneti_atomic_read(&data->threads.remaining, 0) == 0);
   if (result) {
     gasneti_sync_reads();
@@ -1203,7 +1206,7 @@ int gasnete_coll_generic_all_threads(gasnete_coll_generic_data_t *data) {
   return result;
 }
 #else
-#define gasnete_coll_threads_lock(flags)		do { } while (0)
+#define gasnete_coll_threads_lock(team, flags)		do { } while (0)
 #define gasnete_coll_threads_unlock(thrarg)	do { } while (0)
 #define gasnete_coll_threads_first(thrarg)		1
 #define gasnete_coll_threads_get_handle(thrarg)	\

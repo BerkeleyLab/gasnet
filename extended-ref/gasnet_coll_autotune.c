@@ -845,7 +845,7 @@ static gasnett_tick_t run_collective_bench(gasnet_team_handle_t team, gasnet_col
   gasnett_tick_t start, total;
   gasnet_coll_handle_t handle;
 
-  PTHREAD_BARRIER(gasnete_coll_my_images);
+  PTHREAD_BARRIER(team->my_images);
   
   for(iter=0; iter<team->autotune_info->warm_iters; iter++) {
     switch(op){
@@ -864,7 +864,7 @@ static gasnett_tick_t run_collective_bench(gasnet_team_handle_t team, gasnet_col
     }    
   }
   
-  PTHREAD_BARRIER(gasnete_coll_my_images);
+  PTHREAD_BARRIER(team->my_images);
 
   start = gasnett_ticks_now();
   for(iter=0; iter<team->autotune_info->perf_iters; iter++) {
@@ -884,7 +884,7 @@ static gasnett_tick_t run_collective_bench(gasnet_team_handle_t team, gasnet_col
     }    
   }
 
-  PTHREAD_BARRIER(gasnete_coll_my_images);
+  PTHREAD_BARRIER(team->my_images);
   
   total = gasnett_ticks_now()-start;
   return total;
