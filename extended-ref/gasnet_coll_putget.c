@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/06/23 01:10:53 $
- * $Revision: 1.71.12.24 $
+ *     $Date: 2009/06/23 20:33:59 $
+ * $Revision: 1.71.12.25 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -400,7 +400,6 @@ gasnete_coll_bcast_TreePutScratch(gasnet_team_handle_t team,
   GASNETE_COLL_GENERIC_OPT_P2P | GASNETE_COLL_USE_SCRATCH;
   
   gasneti_assert(nbytes <= gasnet_AMMaxLongRequest());
-
 
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
                                            &gasnete_coll_pf_bcast_TreePutScratch, options,
