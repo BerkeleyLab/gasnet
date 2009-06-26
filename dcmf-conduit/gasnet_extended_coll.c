@@ -302,18 +302,19 @@ void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* inf
   
   /*add the hardware collective op into the list of viable ops*/ 
  info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_DCMF_TREE] = 
-    gasnete_coll_autotune_register_algorithm(GASNET_COLL_BROADCAST_OP,
-                                             GASNET_COLL_IN_NOSYNC | 
-                                             GASNET_COLL_IN_MYSYNC | 
-                                             GASNET_COLL_IN_ALLSYNC |
-                                             GASNET_COLL_OUT_NOSYNC | 
-                                             GASNET_COLL_OUT_MYSYNC | 
-                                             GASNET_COLL_OUT_ALLSYNC,
-                                             0, 0, 0, 0, 0, NULL,
-                                             (void*) gasnete_coll_bcast_dcmf_tree);
+   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCAST_OP,
+                                            GASNET_COLL_IN_NOSYNC | 
+                                            GASNET_COLL_IN_MYSYNC | 
+                                            GASNET_COLL_IN_ALLSYNC |
+                                            GASNET_COLL_OUT_NOSYNC | 
+                                            GASNET_COLL_OUT_MYSYNC | 
+                                            GASNET_COLL_OUT_ALLSYNC,
+                                            0, 0, 0, 0, 0, NULL,
+                                            (void*) gasnete_coll_bcast_dcmf_tree,
+                                            "BROADCAST_DCMF_TREE");
 
  info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_DCMF] = 
-    gasnete_coll_autotune_register_algorithm(GASNET_COLL_BROADCAST_OP,
+    gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCAST_OP,
                                              GASNET_COLL_IN_NOSYNC | 
                                              GASNET_COLL_IN_MYSYNC | 
                                              GASNET_COLL_IN_ALLSYNC |
@@ -321,7 +322,8 @@ void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* inf
                                              GASNET_COLL_OUT_MYSYNC | 
                                              GASNET_COLL_OUT_ALLSYNC,
                                              0, 0, 0, 0, 0, NULL,
-                                             (void*) gasnete_coll_bcast_dcmf);
+                                             (void*) gasnete_coll_bcast_dcmf,
+                                             "BROADCAST_DCMF");
   
 
   
