@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2009/06/23 23:16:10 $
- * $Revision: 1.65.14.10 $
+ *     $Date: 2009/06/26 00:57:54 $
+ * $Revision: 1.65.14.11 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -60,7 +60,7 @@ static int gasnete_coll_pf_bcast_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
       break;
     }
     
-    gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+    gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -184,7 +184,7 @@ static int gasnete_coll_pf_bcast_TreeRVGet(gasnete_coll_op_t *op GASNETE_THREAD_
       break;
     }
     
-    gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+    gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -261,7 +261,7 @@ static int gasnete_coll_pf_bcast_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
       break;
     }
     
-    gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+    gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -340,7 +340,7 @@ static int gasnete_coll_pf_bcastM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 	break;
       }
 
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
 
@@ -450,7 +450,7 @@ static int gasnete_coll_pf_bcastM_TreeRVGet(gasnete_coll_op_t *op GASNETE_THREAD
       break;
     }
     
-    gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+    gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -533,7 +533,7 @@ static int gasnete_coll_pf_bcastM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 	break;
       }
 
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
 
@@ -604,7 +604,7 @@ static int gasnete_coll_pf_scat_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 	break;
       }
 
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
 
@@ -675,7 +675,7 @@ static int gasnete_coll_pf_scat_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 	break;
       }
 
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
 
@@ -750,7 +750,7 @@ static int gasnete_coll_pf_scatM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	break;
       }
 
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
 
@@ -831,7 +831,7 @@ static int gasnete_coll_pf_scatM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	break;
       }
 
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
 
@@ -901,7 +901,7 @@ static int gasnete_coll_pf_gath_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 	break;
       }
 
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
 
@@ -968,7 +968,7 @@ static int gasnete_coll_pf_gath_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 	break;
       }
 
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
 
@@ -1041,7 +1041,7 @@ static int gasnete_coll_pf_gathM_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	break;
       }
 
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
 
@@ -1119,7 +1119,7 @@ static int gasnete_coll_pf_gathM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 	break;
       }
 
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
 

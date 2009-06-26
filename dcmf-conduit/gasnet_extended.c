@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2009/05/01 19:57:07 $
- * $Revision: 1.4.2.4 $
+ *     $Date: 2009/06/26 00:57:49 $
+ * $Revision: 1.4.2.5 $
  * Description: GASNet Extended API Implementation for DCMF
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -1189,6 +1189,7 @@ int gasnete_dcmfbarrier_fast = 0;
  *       declare a barrier mismatch
  *     + Use -1 to denote a barrier mismatch
  **********************************/
+
 
 static int current_barrier_flags;
 static int current_barrier_id;

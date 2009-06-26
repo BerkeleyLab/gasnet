@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2009/06/23 01:10:50 $
- * $Revision: 1.53.12.5 $
+ *     $Date: 2009/06/26 00:57:47 $
+ * $Revision: 1.53.12.6 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -167,12 +167,27 @@ struct gasnete_coll_team_t_;
 typedef struct gasnete_coll_team_t_ *gasnete_coll_team_t;
 typedef gasnete_coll_team_t gasnet_team_handle_t;
 /*change this so even the TEAM_ALL has a default team allocated rather than NULL*/
+
+#ifndef GASNET_TEAM_ALL
 extern gasnet_team_handle_t gasnete_coll_team_all;
-extern gasnet_team_handle_t gasnete_coll_team_even;
-extern gasnet_team_handle_t gasnete_coll_team_odd;
 #define GASNET_TEAM_ALL gasnete_coll_team_all
+#endif
+
+extern gasnet_team_handle_t gasnete_coll_team_even;
 #define GASNET_TEAM_EVEN gasnete_coll_team_even
+
+extern gasnet_team_handle_t gasnete_coll_team_odd;
 #define GASNET_TEAM_ODD gasnete_coll_team_odd
+
+
+#if 0
+extern gasnet_team_handle_t gasnete_coll_team_up;
+#define GASNET_TEAM_UP gasnete_coll_team_up;
+
+extern gasnet_team_handle_t gasnete_coll_team_down;
+#define GASNET_TEAM_DOWN gasnete_coll_team_down;
+#endif
+
 #endif
 
                                                                                                               
@@ -302,6 +317,14 @@ void _gasnet_coll_wait_sync_all(gasnet_coll_handle_t *phandle, size_t numhandles
   GASNETI_TRACE_COLL_WAITSYNC_END(COLL_WAIT_SYNC_ALL);
 }
 
+extern void gasnete_coll_barrier_notify(gasnete_coll_team_t team, int id, int flags);
+extern int gasnete_coll_barrier_try(gasnete_coll_team_t team, int id, int flags);
+extern int gasnete_coll_barrier_wait(gasnete_coll_team_t team, int id, int flags);
+
+
+#define gasnet_coll_barrier_notify(team, id, flags) gasnete_coll_barrier_notify(team, id, flags)
+#define gasnet_coll_barrier_try(team, id, flags) gasnete_coll_barrier_try(team, id, flags)
+#define gasnet_coll_barrier_wait(team, id, flags) gasnete_coll_barrier_wait(team, id, flags)
 
 #define gasnet_coll_try_sync(handle) \
        _gasnet_coll_try_sync(handle GASNETE_THREAD_GET)

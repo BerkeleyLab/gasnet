@@ -543,8 +543,8 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t te
 
 
 #define GASNETE_AUTOTUNE_BARRIER() do { \
-gasnete_barrier_notify(0,GASNET_BARRIERFLAG_ANONYMOUS); \
-gasnete_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS); \
+gasnet_barrier_notify(0,GASNET_BARRIERFLAG_ANONYMOUS); \
+gasnet_barrier_wait(0, GASNET_BARRIERFLAG_ANONYMOUS); \
 } while (0)
 
 gasnete_coll_tree_type_t gasnete_coll_autotune_get_bcast_tree_type(gasnete_coll_autotune_info_t* autotune_info, 

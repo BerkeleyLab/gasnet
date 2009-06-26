@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2006/07/10 05:56:21 $
- * $Revision: 1.25 $
+ *     $Date: 2009/06/26 00:57:51 $
+ * $Revision: 1.25.32.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -59,6 +59,8 @@ extern int gasnete_elanbarrier_fast;
   #define GASNETE_BARRIERBLOCKING_POLLFREQ 1
 #endif
 #endif
+
+#define GASNETE_COLL_CONDUIT_BARRIERS GASNETE_COLL_BARRIER_ELANFAST, GASNETE_COLL_BARRIER_ELANSLOW
 
 /* ------------------------------------------------------------------------------------ */
 

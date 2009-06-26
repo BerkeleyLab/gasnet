@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/06/23 23:16:10 $
- * $Revision: 1.53.14.20 $
+ *     $Date: 2009/06/26 00:57:53 $
+ * $Revision: 1.53.14.21 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -177,8 +177,87 @@ struct gasnete_coll_tree_data_t_ {
 #define GASNETE_COLL_OPT_LOC_SCRATCH_SIZE GASNETE_COLL_OPT_SCRATCH_SIZE_DEFAULT
 #endif
 #endif
+/*---------------------------------------------------------------------------------*/
+/* Type for global synchronization */
+
+#ifndef GASNETE_COLL_CONSENSUS_OVERRIDE
+/* Scalar type, could be a pointer to a struct */
+typedef uint32_t gasnete_coll_consensus_t;
+#if 0
+struct gasnete_coll_consensus_t_ {
+  struct gasnete_coll_consensus_t_* next; /*linkage for free list*/
+  uint32_t id;
+  gasnet_coll_handle_t handle; /*handle for the nonblocking*/
+};
+
+typedef struct gasnete_coll_consensus_t_* gasnete_coll_consensus_t;
+#endif
+#endif
+
+extern gasnete_coll_consensus_t gasnete_coll_consensus_create(gasnete_coll_team_t team);
+extern void gasnete_coll_consensus_free(gasnete_coll_team_t team, gasnete_coll_consensus_t consensus);
+extern int gasnete_coll_consensus_try(gasnete_coll_team_t team, gasnete_coll_consensus_t id);
+extern int gasnete_coll_consensus_wait(gasnete_coll_team_t team GASNETE_THREAD_FARG);
 
 /*---------------------------------------------------------------------------------*/
+
+/*---------------------------------------------------------------------------------*/
+/*data structure to contain state for team barrier*/
+
+#ifndef GASNETE_AMDBARRIER_MAXSTEP
+#define GASNETE_AMDBARRIER_MAXSTEP 32
+#endif
+
+typedef void (*gasnete_all_barrier_notify)(gasnete_coll_team_t team, int id, int flags);
+typedef int (*gasnete_all_barrier_wait)(gasnete_coll_team_t team, int id, int flags);
+typedef int (*gasnete_all_barrier_try)(gasnete_coll_team_t team, int id, int flags);
+
+
+typedef enum {
+  GASNETE_COLL_BARRIER_ENVDEFAULT=0,
+  GASNETE_COLL_BARRIER_AMDISSEM,
+  GASNETE_COLL_BARRIER_AMCENTRAL,
+#ifdef GASNETE_COLL_CONDUIT_BARRIERS
+  GASNETE_COLL_CONDUIT_BARRIERS
+#endif
+} gasnete_coll_barrier_type_t;
+
+typedef struct gasnete_coll_team_barrier_t_ {
+  /* am based barrier state variables*/
+  gasnet_hsl_t amdbarrier_lock;/* = GASNET_HSL_INITIALIZER;*/
+  int volatile amdbarrier_value; /*  local ambarrier value */
+  int volatile amdbarrier_flags; /*  local ambarrier flags */
+  int volatile amdbarrier_step;  /*  local ambarrier step */
+  int volatile amdbarrier_size;/* = -1;   ceil(lg(nodes)), or -1 if uninitialized */
+  int volatile amdbarrier_phase;/* = 0;    2-phase operation to improve pipelining */
+  int volatile amdbarrier_step_done[2][GASNETE_AMDBARRIER_MAXSTEP];/* = { { 0 } };  non-zero when a step is complete */
+  int volatile amdbarrier_mismatch[2];/* = { 0, 0 };   non-zero if we detected a mismatch */
+  int volatile amdbarrier_recv_value[2]; /*  consensus ambarrier value */
+  int volatile amdbarrier_recv_value_present[2];/* = { 0, 0 };   consensus ambarrier value is present */
+  
+  int volatile amcbarrier_value; /*  local ambarrier value */
+  int volatile amcbarrier_flags; /*  local ambarrier flags */
+  int volatile amcbarrier_phase;/* = 0;    2-phase operation to improve pipelining */
+  int volatile amcbarrier_response_done[2];/* = { 0, 0 };   non-zero when ambarrier is complete */
+  int volatile amcbarrier_response_mismatch[2];/* = { 0, 0 };   non-zero if we detected a mismatch */
+  
+  /*  global state on master */
+  gasnet_hsl_t amcbarrier_lock;/* = GASNET_HSL_INITIALIZER;*/
+  int volatile amcbarrier_consensus_value[2]; /*  consensus ambarrier value */
+  int volatile amcbarrier_consensus_value_present[2];/* = { 0, 0 };   consensus ambarrier value found */
+  int volatile amcbarrier_consensus_mismatch[2];/* = { 0, 0 };   non-zero if we detected a mismatch */
+  int volatile amcbarrier_count[2];/* = { 0, 0 };   count of how many remotes have notified (on P0) */
+  
+  enum { OUTSIDE_BARRIER, INSIDE_BARRIER } barrier_splitstate;
+
+  /*let the conduits add their own stuff too*/
+#ifdef GASNETE_COLL_TEAM_BARRIER_EXTRA
+  GASNETE_COLL_TEAM_BARRIER_EXTRA
+#endif
+  
+} gasnete_coll_team_barrier_t;
+
+gasnete_coll_team_barrier_t *gasnete_coll_initialize_barrier();
 
 /* Type for collective teams: */
 struct gasnete_coll_team_t_ {
@@ -209,7 +288,7 @@ struct gasnete_coll_team_t_ {
   gasnet_node_t myrank;
   
   /*total number of members in this team*/
-  int total_ranks;
+  gasnet_node_t total_ranks;
   
   /* scratch segments allocated on team creation*/
   gasnet_seginfo_t *scratch_segs;
@@ -253,6 +332,12 @@ struct gasnete_coll_team_t_ {
   uint32_t consensus_issued_id;
   uint32_t consensus_id;
   
+  gasnete_coll_team_barrier_t *barrier_info;
+  gasnete_all_barrier_notify barrier_notify;
+  gasnete_all_barrier_try barrier_try;
+  gasnete_all_barrier_wait barrier_wait;
+  gasneti_progressfn_t barrier_pf;
+  
   /* Hook for conduit-specific extensions/overrides */
 #ifdef GASNETE_COLL_TEAM_EXTRA
   GASNETE_COLL_TEAM_EXTRA
@@ -261,6 +346,10 @@ struct gasnete_coll_team_t_ {
     
     
 };
+
+gasnete_coll_team_t gasnete_coll_make_team(int allocating_team_all, 
+                                           const gasnet_image_t images[], gasnet_node_t myrank, gasnet_node_t num_members, 
+                                           gasnet_seginfo_t * scratch_segments GASNETE_THREAD_FARG);
 
 #define GASNETE_COLL_REL2ACT(TEAM, IDX) ((TEAM) == GASNET_TEAM_ALL ? IDX : (TEAM)->rel2act_map[IDX])
 
@@ -329,19 +418,7 @@ struct gasnete_coll_seg_interval_t_ {
   gasnete_coll_seg_interval_t *next;
 };
 
-/*---------------------------------------------------------------------------------*/
-/* Type for global synchronization */
 
-#ifndef GASNETE_COLL_CONSENSUS_OVERRIDE
-/* Scalar type, could be a pointer to a struct */
-typedef uint32_t gasnete_coll_consensus_t;
-#endif
-
-extern gasnete_coll_consensus_t gasnete_coll_consensus_create(gasnete_coll_team_t team);
-extern int gasnete_coll_consensus_try(gasnete_coll_team_t team, gasnete_coll_consensus_t id);
-extern int gasnete_coll_consensus_wait(gasnete_coll_team_t team GASNETE_THREAD_FARG);
-
-/*---------------------------------------------------------------------------------*/
 /* Type for point-to-point synchronization */
 
 #ifndef GASNETE_COLL_P2P_EAGER_SCALE_DEFAULT
@@ -1179,7 +1256,7 @@ struct gasnete_coll_generic_data_t_ {
 
 
 extern gasnete_coll_generic_data_t *gasnete_coll_generic_alloc(GASNETE_THREAD_FARG_ALONE);
-void gasnete_coll_generic_free(gasnete_coll_generic_data_t *data GASNETE_THREAD_FARG);
+void gasnete_coll_generic_free(gasnete_coll_team_t team, gasnete_coll_generic_data_t *data GASNETE_THREAD_FARG);
 #if 0
 extern gasnet_coll_handle_t gasnete_coll_op_generic_init(gasnete_coll_team_t team, int flags,
 							 gasnete_coll_generic_data_t *data,

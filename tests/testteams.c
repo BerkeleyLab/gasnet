@@ -57,7 +57,7 @@ uint8_t **all_srcs;
 uint8_t **all_dsts;
 
 #if GASNET_PAR
-#error test teams doesn't support GASNET_PAR 
+#error test teams doesnt support GASNET_PAR 
 #endif
 #define CURRENT_ROOT 0
 #define DATA_LEN 2048
@@ -86,23 +86,31 @@ void *thread_main(void *arg) {
   }
   
   COLL_BARRIER();
+  i=0;
   if(mynode%2 == 0) {
     gasnet_coll_broadcast(GASNET_TEAM_EVEN, dst, 0, src, (DATA_LEN/2)*sizeof(int), GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC | single_local_flag);
     gasnet_coll_broadcast(GASNET_TEAM_EVEN, dst+DATA_LEN/2, 0, src+DATA_LEN/2, (DATA_LEN/2)*sizeof(int), GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC | single_local_flag);
+    for(i=0; i<100000; i++) {
+      gasnet_coll_barrier_notify(GASNET_TEAM_EVEN, i, 0);
+      gasnet_coll_barrier_wait(GASNET_TEAM_EVEN, i, 0);
+    }
   } else {
-    gasnet_coll_broadcast(GASNET_TEAM_ODD, dst, 0, src, DATA_LEN*sizeof(int), GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC | single_local_flag);
+    gasnet_coll_broadcast(GASNET_TEAM_ODD, dst, 0, src, DATA_LEN*sizeof(int), GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_ALLSYNC | single_local_flag);
   }
-  COLL_BARRIER();
+  {
+    gasnett_tick_t start,total;
+    start = gasnett_ticks_now();
+    COLL_BARRIER();
+    total = gasnett_ticks_now();
+    printf("%d> time in last barrier %g\n", gasneti_mynode, (double) gasnett_ticks_to_us(total-start));
+  }
+  printf("%d> i: %d\n", td->mythread, i); 
   for(i=0; i<DATA_LEN; i++) {
     if(dst[i] != (CURRENT_ROOT+(mynode%2))*10000 +i) {
       fprintf(stderr, "%d ERROR expected: %d got %d\n", td->mythread,  (CURRENT_ROOT+(mynode%2))*10000 +i, dst[i]);
     }
   }   
-  fflush(stderr);
-  COLL_BARRIER();
   fprintf(stderr, "%d> all verification done!\n", td->mythread);
-  fflush(stderr);
-  COLL_BARRIER();
   return NULL;
 }
   

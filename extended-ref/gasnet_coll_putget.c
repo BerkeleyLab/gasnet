@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/06/23 23:16:10 $
- * $Revision: 1.71.12.26 $
+ *     $Date: 2009/06/26 00:57:53 $
+ * $Revision: 1.71.12.27 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -61,7 +61,7 @@ static int gasnete_coll_pf_bcast_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         break;
       }
       
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
 
   }
@@ -144,7 +144,7 @@ static int gasnete_coll_pf_bcast_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         break;
       }
       
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -270,7 +270,7 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
       data->state = 5;
       
       case 5: /*done*/
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -379,7 +379,7 @@ static int gasnete_coll_pf_bcast_TreePutScratch(gasnete_coll_op_t *op GASNETE_TH
       }
       /*free up the scratch space used by this op*/
       gasnete_coll_free_scratch(op);
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -510,7 +510,7 @@ static int gasnete_coll_pf_bcast_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
       }
       
       gasneti_free(data->private_data);
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -637,7 +637,7 @@ static int gasnete_coll_pf_bcast_ScatterAllgather(gasnete_coll_op_t *op GASNETE_
       }
       
       gasneti_free(data->private_data);
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -721,7 +721,7 @@ static int gasnete_coll_pf_bcastM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
         break;
       }
       
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -819,7 +819,7 @@ static int gasnete_coll_pf_bcastM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
         break;
       }
       
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -977,7 +977,7 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
         data->state = 6;
       case 6: /*done*/
 #endif
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -1127,7 +1127,7 @@ static int gasnete_coll_pf_bcastM_TreePutScratch(gasnete_coll_op_t *op GASNETE_T
       case 6: /*done*/
 #endif
         gasnete_coll_free_scratch(op);
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
       /*free up the scratch space used by this op*/
       
@@ -1256,7 +1256,7 @@ static int gasnete_coll_pf_bcastM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
       }
       
       gasneti_free(data->private_data);
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -1396,7 +1396,7 @@ static int gasnete_coll_pf_bcastM_ScatterAllgather(gasnete_coll_op_t *op GASNETE
       }
       
       gasneti_free(data->private_data);
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -1471,7 +1471,7 @@ static int gasnete_coll_pf_scat_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
         break;
       }
       
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -1555,7 +1555,7 @@ static int gasnete_coll_pf_scat_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
         break;
       }
       
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
       
   }
@@ -1781,7 +1781,7 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       
       case 6: /*done*/    
       gasnete_coll_free_scratch(op);
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
       
   }
@@ -1968,7 +1968,7 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
       
       case 6: /*done*/    
       gasnete_coll_free_scratch(op);
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
       
   }
@@ -2062,7 +2062,7 @@ static int gasnete_coll_pf_scat_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
       }
       
       gasneti_free(data->private_data);
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -2143,7 +2143,7 @@ static int gasnete_coll_pf_scatM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         break;
       }
       
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -2257,7 +2257,7 @@ static int gasnete_coll_pf_scatM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         break;
       }
       
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -2486,7 +2486,7 @@ static int gasnete_coll_pf_scatM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
 
 #endif
       gasnete_coll_free_scratch(op);
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
       
   }
@@ -2669,7 +2669,7 @@ static int gasnete_coll_pf_scatM_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THR
     
   case 5: /*done*/    
     gasnete_coll_free_scratch(op);
-    gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+    gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
     
   }
@@ -2772,7 +2772,7 @@ static int gasnete_coll_pf_scatM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
       }
       
       gasneti_free(data->private_data);
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -2868,7 +2868,7 @@ static int gasnete_coll_pf_gath_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
         break;
       }
       
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -2930,7 +2930,7 @@ static int gasnete_coll_pf_gath_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
         break;
       }
       
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -3116,7 +3116,7 @@ static int gasnete_coll_pf_gath_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
     data->state = 6;
     
   case 6: /* done*/
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
       gasnete_coll_free_scratch(op);
   }
@@ -3351,7 +3351,7 @@ static int gasnete_coll_pf_gath_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
     data->state = 6;
     
   case 6: /* done*/
-    gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+    gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
     gasnete_coll_free_scratch(op);
   }
@@ -3443,7 +3443,7 @@ static int gasnete_coll_pf_gath_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_
       }
       
       gasneti_free(data->private_data);
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -3567,7 +3567,7 @@ static int gasnete_coll_pf_gathM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         break;
       }
       
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -3634,7 +3634,7 @@ static int gasnete_coll_pf_gathM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         break;
       }
       
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -3739,7 +3739,7 @@ static int gasnete_coll_pf_gathM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
       
       case 5: /* done*/
       gasnete_coll_free_scratch(op);
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
       
       
@@ -3839,7 +3839,7 @@ static int gasnete_coll_pf_gathM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD
       }
       
       gasneti_free(data->private_data);
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -3997,7 +3997,7 @@ static int gasnete_coll_pf_gall_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       /*free up the scratch space used by this op*/
       gasnete_coll_free_scratch(op);
       gasneti_free(data->private_data);
-      gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -4063,7 +4063,7 @@ static int gasnete_coll_pf_gall_RingPut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       return 0;
     }
     gasneti_free(data->private_data);
-    gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+    gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);    
   }
   /* State [1,NODES) perform ring*/
@@ -4177,7 +4177,7 @@ static int gasnete_coll_pf_gall_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       return 0;
     }
     
-    gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+    gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
     
   }
@@ -4291,7 +4291,7 @@ static int gasnete_coll_pf_gall_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FARG
     
     /*free up the scratch space used by this op*/
     if(op->team->total_ranks > 1) gasnete_coll_free_scratch(op);    
-    gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+    gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
     
   }
@@ -4383,7 +4383,7 @@ static int gasnete_coll_pf_gallM_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FA
       return 0;
     }
     
-    gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+    gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
     
   }
@@ -4509,7 +4509,7 @@ static int gasnete_coll_pf_gallM_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       return 0;
     }
     gasnete_coll_free_scratch(op);
-    gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+    gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
     /*free up the scratch space used by this op*/
     
@@ -4731,7 +4731,7 @@ static int gasnete_coll_pf_exchg_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FAR
     
     /*free up the scratch space used by this op*/
     if(op->team->total_ranks != 1) gasnete_coll_free_scratch(op);    
-    gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+    gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
     
   }
@@ -4912,7 +4912,7 @@ static int gasnete_coll_pf_exchgM_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FA
     gasnete_coll_free_scratch(op);
     gasneti_free(data->private_data);
     data->private_data = NULL;    
-    gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+    gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
     /*free up the scratch space used by this op*/
   }

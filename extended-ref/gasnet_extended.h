@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.h,v $
- *     $Date: 2009/05/01 19:57:11 $
- * $Revision: 1.41.20.2 $
+ *     $Date: 2009/06/26 00:57:54 $
+ * $Revision: 1.41.20.3 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,7 +16,9 @@
 #include <string.h>
 
 #include <gasnet_extended_help.h>
-
+#include <gasnet_coll.h>
+#include <gasnet_coll_autotune.h>
+#include <gasnet_coll_internal.h>
 GASNETI_BEGIN_EXTERNC
 
 /*  TODO: add debug code to enforce restrictions on SEQ and PARSYNC config */
@@ -791,10 +793,19 @@ gasnet_register_value_t _gasnet_get_val (gasnet_node_t node, void *src, size_t n
   =========
 */
 
-extern void (*gasnete_barrier_notify)(int id, int flags);
-extern int (*gasnete_barrier_wait)(int id, int flags);
-extern int (*gasnete_barrier_try)(int id, int flags);
-extern void gasnete_barrier_init(void);
+
+#ifndef GASNET_TEAM_ALL
+extern gasnet_team_handle_t gasnete_coll_team_all;
+#define GASNET_TEAM_ALL gasnete_coll_team_all
+#endif
+
+/*intialize the barriers for a given team*/
+extern void gasnete_coll_barrier_init(gasnete_coll_team_t team, gasnete_coll_barrier_type_t barrier_type);
+
+/*initialize the barriers forGASNET_TEAM_ALL*/
+/*note that here partially constructed GASNET_TEAM_ALL is created and used until coll_init is called*/
+#define gasnete_barrier_init() gasnete_coll_barrier_init(GASNET_TEAM_ALL, 0)
+
 
 #if GASNETI_STATS_OR_TRACE
 extern gasneti_tick_t gasnete_barrier_notifytime;
@@ -802,13 +813,13 @@ extern gasneti_tick_t gasnete_barrier_notifytime;
 
 GASNETI_INLINE(gasnet_barrier_notify)
 void gasnet_barrier_notify(int id, int flags) {
-  GASNETI_TRACE_PRINTF(B, ("BARRIER_NOTIFY(id=%i,flags=%i)", id, flags));
+  GASNETI_TRACE_PRINTF(B, ("BARRIER_NOTIFY(team=GASNET_TEAM_ALL,id=%i,flags=%i)", id, flags));
   #if GASNETI_STATS_OR_TRACE
     gasnete_barrier_notifytime = GASNETI_TICKS_NOW_IFENABLED(B);
   #endif
 
-  gasneti_assert(gasnete_barrier_notify);
-  (*gasnete_barrier_notify)(id, flags);
+  gasneti_assert(GASNET_TEAM_ALL->barrier_notify);
+  (*GASNET_TEAM_ALL->barrier_notify)(GASNET_TEAM_ALL, id, flags);
 }
 
 GASNETI_INLINE(gasnet_barrier_wait)
@@ -819,8 +830,8 @@ int gasnet_barrier_wait(int id, int flags) {
   int retval;
   GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,GASNETI_TICKS_NOW_IFENABLED(B)-gasnete_barrier_notifytime);
   
-  gasneti_assert(gasnete_barrier_wait);
-  retval = (*gasnete_barrier_wait)(id, flags);
+  gasneti_assert(GASNET_TEAM_ALL->barrier_wait);
+  retval = (*GASNET_TEAM_ALL->barrier_wait)(GASNET_TEAM_ALL, id, flags);
  
   GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,GASNETI_TICKS_NOW_IFENABLED(B)-wait_start);
   return retval;
@@ -830,13 +841,12 @@ GASNETI_INLINE(gasnet_barrier_try) GASNETI_WARN_UNUSED_RESULT
 int gasnet_barrier_try(int id, int flags) {
   int retval;
 
-  gasneti_assert(gasnete_barrier_try);
-  retval = (*gasnete_barrier_try)(id, flags);
+  gasneti_assert(GASNET_TEAM_ALL->barrier_try);
+  retval = (*GASNET_TEAM_ALL->barrier_try)(GASNET_TEAM_ALL, id, flags);
 
   GASNETI_TRACE_EVENT_VAL(B,BARRIER_TRY,(retval != GASNET_ERR_NOT_READY));
   return retval;
 }
-
 /* ------------------------------------------------------------------------------------ */
 
 GASNETI_END_EXTERNC
