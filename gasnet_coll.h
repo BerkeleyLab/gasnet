@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2009/06/26 00:57:47 $
- * $Revision: 1.53.12.6 $
+ *     $Date: 2009/06/29 23:02:55 $
+ * $Revision: 1.53.12.7 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -173,20 +173,12 @@ extern gasnet_team_handle_t gasnete_coll_team_all;
 #define GASNET_TEAM_ALL gasnete_coll_team_all
 #endif
 
-extern gasnet_team_handle_t gasnete_coll_team_even;
-#define GASNET_TEAM_EVEN gasnete_coll_team_even
+extern gasnet_team_handle_t gasnete_coll_teamA;
+#define GASNET_TEAM_A gasnete_coll_teamA
 
-extern gasnet_team_handle_t gasnete_coll_team_odd;
-#define GASNET_TEAM_ODD gasnete_coll_team_odd
+extern gasnet_team_handle_t gasnete_coll_teamB;
+#define GASNET_TEAM_B gasnete_coll_teamB
 
-
-#if 0
-extern gasnet_team_handle_t gasnete_coll_team_up;
-#define GASNET_TEAM_UP gasnete_coll_team_up;
-
-extern gasnet_team_handle_t gasnete_coll_team_down;
-#define GASNET_TEAM_DOWN gasnete_coll_team_down;
-#endif
 
 #endif
 
