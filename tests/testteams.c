@@ -60,13 +60,14 @@ uint8_t **all_dsts;
 #error test teams doesnt support GASNET_PAR 
 #endif
 #define CURRENT_ROOT 0
-#define DATA_LEN 2048
+#define DATA_LEN 16
 void *thread_main(void *arg) {
   thread_data_t *td = (thread_data_t*) arg;
-
+  gasnet_coll_handle_t *handles;
   int *src;
   int *dst;
   int i;
+  int j;
 #if GASNET_ALIGNED_SEGMENTS
 #warning compiling w/ alinged segments
   int single_local_flag = GASNET_COLL_SINGLE;
@@ -88,15 +89,16 @@ void *thread_main(void *arg) {
   COLL_BARRIER();
   i=0;
   if(mynode%2 == 0) {
-    gasnet_coll_broadcast(GASNET_TEAM_EVEN, dst, 0, src, (DATA_LEN/2)*sizeof(int), GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC | single_local_flag);
-    gasnet_coll_broadcast(GASNET_TEAM_EVEN, dst+DATA_LEN/2, 0, src+DATA_LEN/2, (DATA_LEN/2)*sizeof(int), GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC | single_local_flag);
+    gasnet_coll_broadcast(GASNET_TEAM_A, dst, 0, src, (DATA_LEN/2)*sizeof(int), GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC | single_local_flag);
+    gasnet_coll_broadcast(GASNET_TEAM_A, dst+DATA_LEN/2, 0, src+DATA_LEN/2, (DATA_LEN/2)*sizeof(int), GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC | single_local_flag);
     for(i=0; i<100000; i++) {
-      gasnet_coll_barrier_notify(GASNET_TEAM_EVEN, i, 0);
-      gasnet_coll_barrier_wait(GASNET_TEAM_EVEN, i, 0);
+      gasnet_coll_barrier_notify(GASNET_TEAM_A, i, 0);
+      gasnet_coll_barrier_wait(GASNET_TEAM_A, i, 0);
     }
   } else {
-    gasnet_coll_broadcast(GASNET_TEAM_ODD, dst, 0, src, DATA_LEN*sizeof(int), GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_ALLSYNC | single_local_flag);
+    gasnet_coll_broadcast(GASNET_TEAM_A, dst, 0, src, DATA_LEN*sizeof(int), GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_ALLSYNC | single_local_flag);
   }
+  
   {
     gasnett_tick_t start,total;
     start = gasnett_ticks_now();
@@ -110,10 +112,101 @@ void *thread_main(void *arg) {
       fprintf(stderr, "%d ERROR expected: %d got %d\n", td->mythread,  (CURRENT_ROOT+(mynode%2))*10000 +i, dst[i]);
     }
   }   
-  fprintf(stderr, "%d> all verification done!\n", td->mythread);
+  fprintf(stderr, "%d> EVEN/ODD verification done!\n", td->mythread);
+
+  COLL_BARRIER();
+  i=0;
+  if(mynode%2 < nodes) {
+    for(i=0; i<DATA_LEN; i++) {
+      gasnet_coll_broadcast(GASNET_TEAM_B, dst+i, 0, src+i, sizeof(int), GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_NOSYNC | single_local_flag);
+    }
+    for(i=0; i<1000; i++) {
+      gasnet_coll_barrier_notify(GASNET_TEAM_B, i, 0);
+      gasnet_coll_barrier_wait(GASNET_TEAM_B, i, 0);
+    }
+  } else {
+    gasnet_coll_broadcast(GASNET_TEAM_B, dst, 0, src, DATA_LEN*sizeof(int), GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_ALLSYNC | single_local_flag);
+  }
+  {
+    gasnett_tick_t start,total;
+    start = gasnett_ticks_now();
+    COLL_BARRIER();
+    total = gasnett_ticks_now();
+    printf("%d> time in last barrier 2 %g\n", gasneti_mynode, (double) gasnett_ticks_to_us(total-start));
+  }
+  printf("%d> i: %d\n", td->mythread, i); 
+  for(i=0; i<DATA_LEN; i++) {
+    int expected = (CURRENT_ROOT+(nodes/2)*(mynode*2/nodes))*10000 +i;
+    if(dst[i] != expected) {
+      fprintf(stderr, "%d ERROR expected: %d got %d\n", td->mythread,  expected, dst[i]);
+    }
+  }   
+  fprintf(stderr, "%d> UP/DOWN verification done!\n", td->mythread);
+  COLL_BARRIER();
+  i=0;
+  handles = calloc(sizeof(gasnet_coll_handle_t),DATA_LEN/2);
+  for(i=0,j=0; i<DATA_LEN; i+=2, j++) {
+    handles[j] = gasnet_coll_broadcast_nb(GASNET_TEAM_A, dst+i, 0, src+i, sizeof(int), GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_ALLSYNC | single_local_flag);
+  }
+  for(i=1,j=0; i<DATA_LEN; i+=2, j++) {
+    gasnet_coll_broadcast(GASNET_TEAM_B, dst+i, 0, src+i, sizeof(int), GASNET_COLL_IN_NOSYNC | GASNET_COLL_OUT_ALLSYNC | single_local_flag);
+  }
+  for(j=0; j<DATA_LEN/2; j++) {
+    gasnet_coll_wait_sync(handles[j]);
+  }
+  for(i=0; i<DATA_LEN; i++) {
+    int expected;
+    if(i%2 == 0) {
+      expected = (CURRENT_ROOT+(mynode%2))*10000 +i;
+    } else {
+      expected = (CURRENT_ROOT+(nodes/2)*(mynode*2/nodes))*10000 +i;
+    }
+    if(dst[i] != expected) {
+      fprintf(stderr, "%d ERROR expected: %d got %d\n", td->mythread,  expected, dst[i]);
+    }
+    
+  }   
+  fprintf(stderr, "%d> UP/DOWN EVEN/ODD MIX verification done!\n", td->mythread);
   return NULL;
 }
   
+void *thread_main_row_col(void *arg) {
+  thread_data_t *td = (thread_data_t*) arg;
+  gasnet_coll_handle_t *handles;
+  int *src;
+  int *dst;
+  int i;
+  int j;
+  gasnet_coll_handle_t A, B;
+#if GASNET_ALIGNED_SEGMENTS
+#warning compiling w/ alinged segments
+  int single_local_flag = GASNET_COLL_SINGLE;
+  src = (int*) all_srcs[CURRENT_ROOT+(mynode%2)];
+  dst = (int*) all_dsts[td->mythread];
+#else
+  int single_local_flag = GASNET_COLL_LOCAL;
+  src = (td->mythread == CURRENT_ROOT ? (int*) td->mysrc : NULL);
+  dst = (int*) td->mydest;
+#endif
+  
+  gasnet_coll_init(NULL, td->mythread, NULL, 0, 0);
+  
+  /*Basic tests for TEAM ALL*/
+  for(i=0; i<DATA_LEN; i++) {
+    src[i] = td->mythread*10000 + i;
+  }
+  
+  A = gasnet_coll_broadcast_nb(GASNET_TEAM_A, dst, 0, src, (DATA_LEN/2)*sizeof(int),  GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | single_local_flag);
+  B = gasnet_coll_broadcast_nb(GASNET_TEAM_B, dst+(DATA_LEN/2), 0, src+(DATA_LEN/2), (DATA_LEN/2)*sizeof(int), GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | single_local_flag);
+  
+  gasnet_coll_wait_sync(A);
+  gasnet_coll_wait_sync(B);
+  
+  for(i=0; i<DATA_LEN; i++) {
+    printf("%d> %d %d\n", mynode, i, dst[i]);
+  }
+  return 0;
+}
 int main(int argc, char **argv) {
   int i,j;
   static uint8_t *A, *B;
