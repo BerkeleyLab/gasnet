@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2009/06/29 23:02:55 $
- * $Revision: 1.53.12.7 $
+ *     $Date: 2009/07/06 16:00:10 $
+ * $Revision: 1.53.12.8 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -181,8 +181,14 @@ extern gasnet_team_handle_t gasnete_coll_teamB;
 
 
 #endif
+extern gasnet_node_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank);
+extern int gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnet_node_t node);
+extern int gasnete_coll_team_size(gasnete_coll_team_t team);
 
-                                                                                                              
+
+#define gasnet_coll_team_rank2node(TEAM, RANK) gasnete_coll_team_rank2node(TEAM, RANK)
+#define gasnet_coll_team_node2rank(TEAM, NODE) gasnete_coll_team_node2rank(TEAM, NODE)
+#define gasnet_coll_team_size(TEAM) gasnete_coll_team_size(TEAM)
 
 /*---------------------------------------------------------------------------------*/
 
@@ -218,7 +224,6 @@ extern gasnet_team_handle_t gasnete_coll_teamB;
   #define gasnet_coll_init(im,mi,fn,fc,fl) \
 		gasnete_coll_init(im,mi,fn,fc,fl GASNETE_THREAD_GET)
 #endif
-
 /*---------------------------------------------------------------------------------*/
 
 /* Include all the code for wait/try sync so that we can attempt to inline them into the user code to improve performance*/

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/06/26 00:57:53 $
- * $Revision: 1.53.14.21 $
+ *     $Date: 2009/07/06 16:00:12 $
+ * $Revision: 1.53.14.22 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -346,6 +346,10 @@ struct gasnete_coll_team_t_ {
     
     
 };
+
+extern gasnet_node_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank);
+extern int gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnet_node_t node);
+extern int gasnete_coll_team_size(gasnete_coll_team_t team);
 
 gasnete_coll_team_t gasnete_coll_make_team(int allocating_team_all, 
                                            const gasnet_image_t images[], gasnet_node_t myrank, gasnet_node_t num_members, 

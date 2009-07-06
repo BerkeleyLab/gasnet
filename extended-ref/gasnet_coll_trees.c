@@ -544,7 +544,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
   int i,j;
   tree_node_t *allnodes = (tree_node_t*) team->tree_construction_scratch;
   tree_node_t rootnode,mynode;
-  gasneti_assert(rootrank<team->total_ranks);
+  gasneti_assert(rootrank<team->total_ranks && rootrank >=0);
 
   geom = (gasnete_coll_local_tree_geom_t*)gasneti_malloc(sizeof(gasnete_coll_local_tree_geom_t));
 
