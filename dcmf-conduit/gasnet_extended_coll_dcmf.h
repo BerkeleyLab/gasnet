@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended_coll_dcmf.h,v $
- * $Date: 2009/06/04 20:14:55 $
- * $Revision: 1.1.2.2 $
+ * $Date: 2009/07/06 07:48:29 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet extended collectives implementation on DCMF
  * LBNL 2009
  */
@@ -102,6 +102,7 @@ DCMF_Geometry_t * gasnete_dcmf_get_geometry(int team_id);
       {                                         \
         fprintf((fp), "%s[%d]=", #A, i);        \
         fprintf((fp), format, (A)[i]);          \
+        fprintf((fp), "\n");                    \
       }                                         \
     fprintf((fp), "\n");                        \
   } while(0);

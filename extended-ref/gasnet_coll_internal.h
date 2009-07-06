@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/05/28 22:17:53 $
- * $Revision: 1.53.14.12.2.1 $
+ *     $Date: 2009/07/06 07:48:26 $
+ * $Revision: 1.53.14.12.2.2 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -210,10 +210,10 @@ struct gasnete_coll_team_t_ {
   gasnet_node_t myrank;
   
   /*total number of members in this team*/
-  int total_ranks;
+  uint32_t total_ranks;
 
   /* ranks of the processes in the team */
-  gasnet_node_t *ranks; /* need to be initialized */
+  gasnet_node_t *rel2act_map; /* need to be initialized */
 
   /* scratch segments allocated on team creation*/
   gasnet_seginfo_t *scratch_segs;

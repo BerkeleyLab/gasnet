@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_coll_bcast_dcmf.c,v $
- * $Date: 2009/05/28 22:17:51 $
- * $Revision: 1.1.2.1 $
+ * $Date: 2009/07/06 07:48:29 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet broadcast implementation on DCMF
  * LBNL 2009
  */
@@ -9,7 +9,7 @@
 
 #include <gasnet_coll_bcast_dcmf.h>
 
-//#define G_DCMF_COLL_TRACE
+// #define G_DCMF_COLL_TRACE
 
 /* Broadcast protocol registration data */
 static DCMF_CollectiveProtocol_t g_dcmf_bcast_proto[G_DCMF_BCAST_PROTO_NUM];
@@ -86,14 +86,16 @@ void gasnete_coll_bcast_proto_register()
 
   /* select a default broadcast algorithm */
   tmp_str = gasneti_getenv("GASNET_DCMF_BCAST_PROTO");
-  if (tmp_str == NULL || (!strcmp(tmp_str, "TREE_BROADCAST")))
-    g_dcmf_bcast_kind_default = TREE_BROADCAST; /* default protocol */
+  if (tmp_str == NULL)
+    g_dcmf_bcast_kind_default = TORUS_BINOMIAL_BROADCAST;
+  else if (!strcmp(tmp_str, "TREE_BROADCAST"))
+    g_dcmf_bcast_kind_default = TREE_BROADCAST; 
   else if (!strcmp(tmp_str, "TORUS_RECTANGLE_BROADCAST"))
     g_dcmf_bcast_kind_default = TORUS_RECTANGLE_BROADCAST;
   else if (!strcmp(tmp_str, "TORUS_BINOMIAL_BROADCAST"))
     g_dcmf_bcast_kind_default = TORUS_BINOMIAL_BROADCAST;
   else /* default protocol */
-    g_dcmf_bcast_kind_default = TREE_BROADCAST;
+    g_dcmf_bcast_kind_default = TORUS_BINOMIAL_BROADCAST;
 
   GASNETC_DCMF_UNLOCK(); 
 }
@@ -161,7 +163,7 @@ static int gasnete_coll_pf_bcast_dcmf(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
                                    &bcast->request.global, 
                                    bcast->cb_done,
                                    DCMF_MATCH_CONSISTENCY,
-                                   bcast->root,
+                                   team->rel2act_map[bcast->root],
                                    (team->myrank==bcast->root) ? bcast->src : bcast->dst, 
                                    bcast->bytes));
         GASNETC_DCMF_UNLOCK();
@@ -174,7 +176,7 @@ static int gasnete_coll_pf_bcast_dcmf(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
                                  bcast->cb_done,
                                  bcast->consistency,
                                  bcast->geometry, 
-                                 bcast->root,
+                                 team->rel2act_map[bcast->root],
                                  (team->myrank==bcast->root) ? bcast->src : bcast->dst, 
                                  bcast->bytes)); 
         GASNETC_DCMF_UNLOCK();
@@ -377,7 +379,7 @@ void gasnete_coll_bcast_dcmf(gasnet_team_handle_t team, void *dst,
                                  &request, 
                                  cb_done,
                                  DCMF_MATCH_CONSISTENCY,
-                                 root,
+                                 team->rel2act_map[root],
                                  (team->myrank == root) ? src : dst,
                                  nbytes));
       
@@ -401,7 +403,7 @@ void gasnete_coll_bcast_dcmf(gasnet_team_handle_t team, void *dst,
                      cb_done,
                      DCMF_MATCH_CONSISTENCY,
                      &dcmf_tp->geometry,
-                     root,
+                     team->rel2act_map[root],
                      (team->myrank == root) ? src : dst,
                      nbytes);
 

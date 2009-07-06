@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended_coll_dcmf.c,v $
- * $Date: 2009/06/04 20:14:55 $
- * $Revision: 1.1.2.2 $
+ * $Date: 2009/07/06 07:48:29 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet extended collectives implementation on DCMF
  * LBNL 2009
  */
@@ -10,16 +10,17 @@
 #include <gasnet_coll_bcast_dcmf.h>
 #include <gasnet_coll_barrier_dcmf.h>
 
-/* #define G_DCMF_TRACE */
+// #define G_DCMF_TRACE
 
 int gasnete_coll_dcmf_inited = 0;
 
 DCMF_Geometry_t * gasnete_dcmf_get_geometry(int team_id)
 {
   gasnet_team_handle_t team = gasnete_coll_team_lookup(team_id);
+  gasneti_assert(team != NULL);
   gasnete_coll_team_dcmf_t *dcmf_tp = (gasnete_coll_team_dcmf_t *)team->dcmf_tp;
 #ifdef G_DCMF_TRACE
-  fprintf(stderr, "gasnete_dcmf_get_geometry: geometry %p \n", 
+  fprintf(stderr, "gasnete_dcmf_get_geometry: team_id %u, geometry %p \n", 
           &dcmf_tp->geometry);
 #endif
   return &dcmf_tp->geometry;
@@ -112,9 +113,9 @@ void gasnete_dcmf_team_init(gasnet_team_handle_t team,
       fprintf(stderr, "team->total_ranks %d\n", team->total_ranks);
       {
         int i;
-        fprintf(stderr, "team->ranks: ");
+        fprintf(stderr, "team->rel2act_map: ");
         for (i=0;i<team->total_ranks;i++)
-          fprintf(stderr, "%d ", team->ranks[i]);
+          fprintf(stderr, "%d ", team->rel2act_map[i]);
         fprintf(stderr, "\n");
       }
       fprintf(stderr, "barrier_kind %d, g_dcmf_barrier[barrier_kind] %p\n", 
@@ -133,7 +134,7 @@ void gasnete_dcmf_team_init(gasnet_team_handle_t team,
                                                                   
     rv = DCMF_Geometry_initialize (&dcmf_tp->geometry,
                                    team->team_id, 
-                                   team->ranks, 
+                                   team->rel2act_map, 
                                    team->total_ranks,
                                    &bar_proto,
                                    1,
@@ -144,7 +145,7 @@ void gasnete_dcmf_team_init(gasnet_team_handle_t team,
                                    (team == GASNET_TEAM_ALL)); /* is globalcontext? */
     
     if(rv != DCMF_SUCCESS) {
-        gasneti_fatalerror("DCMF_Geometry_initialize failed! %d\n", rv);
+      gasneti_fatalerror("DCMF_Geometry_initialize failed! %d\n", rv);
     }
   }
 }

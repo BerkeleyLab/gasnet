@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/05/28 22:17:53 $
- * $Revision: 1.72.10.18.2.1 $
+ *     $Date: 2009/07/06 07:48:26 $
+ * $Revision: 1.72.10.18.2.2 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,6 +17,7 @@
 #include <gasnet_coll.h>
 #include <gasnet_coll_autotune.h>
 #include <gasnet_coll_internal.h>
+#include <gasnet_coll_team.h>
 #include <gasnet_coll_autotune_internal.h>
 #include <gasnet_coll_scratch.h>
 #include <gasnet_coll_trees.h>
@@ -32,7 +33,6 @@
 */
 #include <gasnet_coll_autotune.c>
 #include <gasnet_coll_scratch.c>
-
 
 
 size_t gasnete_coll_p2p_eager_min = 0;
@@ -102,9 +102,9 @@ void gasnete_coll_validate(gasnet_team_handle_t team,
 #endif
 
   /* XXX: temporary limitation: */
-  if(team != GASNET_TEAM_ALL) {
-    gasneti_fatalerror("Team argument must be GASNET_TEAM_ALL.");
-  }
+/*   if(team != GASNET_TEAM_ALL) { */
+/*     gasneti_fatalerror("Team argument must be GASNET_TEAM_ALL."); */
+/*   } */
 
 #if GASNET_DEBUG
 #if GASNET_SEQ
@@ -1162,17 +1162,16 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     GASNET_TEAM_ALL->dissem_cache_head = NULL;
     GASNET_TEAM_ALL->dissem_cache_tail = NULL;
     gasneti_mutex_init(&GASNET_TEAM_ALL->dissem_cache_lock);
-    GASNET_TEAM_ALL->myrank = gasneti_mynode;
-    GASNET_TEAM_ALL->total_ranks = gasneti_nodes;
     {
-      int i;
-      /* the following memory space should be freed before the team is
-         deleted, for example, in the gasnete_coll_team_fini() function,
-         which doesn't exist yet. */
-      GASNET_TEAM_ALL->ranks  = gasneti_malloc(sizeof(gasnet_node_t)*gasneti_nodes);
-      gasneti_assert(GASNET_TEAM_ALL->ranks != NULL);
+      gasnet_node_t *ranks;
+      uint32_t i;
+      ranks  = gasneti_malloc(sizeof(gasnet_node_t)*gasneti_nodes);
+      gasneti_assert(ranks != NULL);
       for (i=0; i<gasneti_nodes; i++)
-        GASNET_TEAM_ALL->ranks[i]=i;
+        ranks[i]=i;
+      
+      gasnete_coll_team_init(GASNET_TEAM_ALL, 0, gasneti_nodes, gasneti_mynode, ranks);
+      gasneti_free(ranks);
     }
     GASNET_TEAM_ALL->scratch_segs = gasnete_coll_auxseg_save;
     GASNET_TEAM_ALL->smallest_scratch_seg = smallest_scratch_seg;
@@ -1185,10 +1184,10 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       fprintf(stderr, "WARNING: for optimized collectives.\n");
     }
 
-#ifdef gasnete_coll_team_init_conduit
-    /* conduit specific initialization for gasnet teams */
-    gasnete_coll_team_init_conduit(GASNET_TEAM_ALL);
-#endif
+/* #ifdef gasnete_coll_team_init_conduit */
+/*     /\* conduit specific initialization for gasnet teams *\/ */
+/*     gasnete_coll_team_init_conduit(GASNET_TEAM_ALL); */
+/* #endif */
 
     /* This barrier, together with the thread barrier that follows, ensures all global
        collectives initialization is complete before any collectives can be called. */

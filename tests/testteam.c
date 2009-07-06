@@ -1,0 +1,110 @@
+/* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testteam.c,v $
+ * $Date: 2009/07/06 07:48:24 $
+ * $Revision: 1.1.2.1 $
+ * LBNL 2009
+ */
+
+/* Description: basic GASNet team implementation test and team barrier
+   test.  Column teams and row teams of a process grid are created and
+   team barriers are performed on these teams. */
+
+#include <gasnet.h>
+#include <gasnet_coll.h>
+#include <gasnet_coll_team.h>
+
+#include <test.h>
+
+int main(int argc, char **argv) 
+{
+  int mynode, nodes, iters=0;
+  int64_t start,total;
+  int i = 0;
+  gasnet_node_t nrows, ncols, my_row, my_col;
+  void *clientdata = NULL;
+  gasnet_team_handle_t my_row_team, my_col_team;
+
+  GASNET_Safe(gasnet_init(&argc, &argv));
+  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+
+  gasnet_coll_init(NULL, 0, NULL, 0, 0);
+
+  test_init("test_team", 1, "nrows ncols (iters)");
+  mynode = gasnet_mynode();
+  nodes = gasnet_nodes();
+
+  if (argc < 3)
+    test_usage();
+
+  nrows = atoi(argv[1]);
+  ncols = atoi(argv[2]);
+  gasneti_assert(nrows*ncols == nodes);
+
+  if (argc > 3) iters = atoi(argv[3]);
+  if (!iters) iters = 10000;
+
+  if (mynode == 0) {
+    printf("Running team test with a %u-by-%u grid and %i iterations...\n",
+           nrows, ncols, iters);
+    fflush(stdout);
+  }
+  BARRIER();
+                 
+  my_row = mynode / ncols;
+  my_col = mynode % ncols;
+                 
+  my_row_team = gasnete_coll_team_split(GASNET_TEAM_ALL,
+                                        my_row,
+                                        my_col,
+                                        clientdata);
+
+  my_col_team = gasnete_coll_team_split(GASNET_TEAM_ALL,
+                                        my_col,
+                                        my_row,
+                                        clientdata);
+
+  if (my_col == 0) {
+    printf("row team %u: Running team barrier test with row teams...\n",
+           my_row);
+    fflush(stdout);
+  }
+
+  BARRIER();
+  start = TIME();
+  for (i=0; i < iters; i++) {
+    gasnete_coll_teambarrier_notify(my_row_team);            
+    gasnete_coll_teambarrier_wait(my_row_team); 
+  }
+  total = TIME() - start;
+
+  if (my_col == 0) {
+    printf("row team %u: total time: %8.3f sec, avg row team Barrier latency: %8.3f us\n",
+           my_row, ((float)total)/1000000, ((float)total)/iters);
+    fflush(stdout);
+  }
+
+  if (my_row == 0) {
+    printf("col team %u: Running team barrier test with column teams...\n",
+           my_col);
+    fflush(stdout);
+  }
+
+  BARRIER();
+  start = TIME();
+  for (i=0; i < iters; i++) {
+    gasnete_coll_teambarrier_notify(my_col_team);            
+    gasnete_coll_teambarrier_wait(my_col_team); 
+  }
+  total = TIME() - start;
+  
+  if (my_row == 0) {
+    printf("col team %u: total time: %8.3f sec  Avg column team Barrier latency: %8.3f us\n",
+           my_col, ((float)total)/1000000, ((float)total)/iters);
+    fflush(stdout);
+  }
+  BARRIER();
+
+  MSG("done.");
+
+  gasnet_exit(0); /* for faster exit */
+  return 0;
+}

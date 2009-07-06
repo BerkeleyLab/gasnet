@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_coll_barrier_dcmf.c,v $
- * $Date: 2009/06/04 20:14:55 $
- * $Revision: 1.1.2.2 $
+ * $Date: 2009/07/06 07:48:29 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet barrier implementation on DCMF
  * LBNL 2009
  */
@@ -118,7 +118,9 @@ void gasnete_coll_barrier_proto_register()
 
   /* select a default team barrier algorithm */
   tmp_str = gasneti_getenv("GASNET_DCMF_BARRIER_PROTO");
-  if (tmp_str == NULL || (!strcmp(tmp_str, "GI_BARRIER")))
+  if (tmp_str == NULL) 
+    g_dcmf_barrier_kind_default = TORUS_BINOMIAL_BARRIER;
+  else if (!strcmp(tmp_str, "GI_BARRIER"))
     g_dcmf_barrier_kind_default = GI_BARRIER; 
   else if (!strcmp(tmp_str, "TORUS_RECTANGLE_BARRIER"))
     g_dcmf_barrier_kind_default = TORUS_RECTANGLE_BARRIER;
@@ -127,7 +129,7 @@ void gasnete_coll_barrier_proto_register()
   else if (!strcmp(tmp_str, "TORUS_BINOMIAL_BARRIER"))
     g_dcmf_barrier_kind_default = TORUS_BINOMIAL_BARRIER;
   else 
-    g_dcmf_barrier_kind_default = GI_BARRIER;
+    g_dcmf_barrier_kind_default = TORUS_BINOMIAL_BARRIER;
   
   g_dcmf_lbarrier_kind_default = LOCKBOX_BARRIER;
 
@@ -139,7 +141,6 @@ void gasnete_coll_teambarrier_dcmf(gasnet_team_handle_t team)
   gasnete_coll_teambarrier_notify_dcmf(team);
   gasnete_coll_teambarrier_wait_dcmf(team);
 }
-
 
 void gasnete_coll_teambarrier_notify_dcmf(gasnet_team_handle_t team)
 {
