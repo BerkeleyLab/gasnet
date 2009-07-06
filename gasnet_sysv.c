@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/05/28 18:28:26 $
- * $Revision: 1.1.4.9 $
+ *     $Date: 2009/07/06 05:06:33 $
+ * $Revision: 1.1.4.10 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,16 +14,18 @@
 static void *gasnetc_sysvnet_region;
 
 /* maximum number of processes that share a single shared memory region */
-  #define GASNETC_MAX_SYSV_NODES 256
+ #define GASNETC_MAX_SYSV_NODES 256
 
-  /* Supernode data that lives in shared space */
-  struct gasnetc_supernode_info_t {
-    gasnet_node_t node2pid[GASNETC_MAX_SYSV_NODES]; /* pid lookup table */
-    gasneti_atomic_t startup_counter;		    /* one-time barrier */
-  };
-  static struct gasnetc_supernode_info_t *gasnetc_sn_info;
+/* Supernode data that lives in shared space */
+struct gasnetc_supernode_info_t {
+  gasnet_node_t node2pid[GASNETC_MAX_SYSV_NODES]; /* pid lookup table */
+  gasneti_atomic_t startup_counter;		    /* one-time barrier */
+};
+static struct gasnetc_supernode_info_t *gasnetc_sn_info;
+gasneti_mutex_t gasneti_index_lock;
 
-  #define gasneti_sysv_node2pid gasnetc_sn_info->node2pid
+#define gasneti_sysv_node2pid gasnetc_sn_info->node2pid
+
 
 
 void gasnetc_init_sysv(){
@@ -62,6 +64,7 @@ void gasnetc_init_sysv(){
   if (gasneti_mynode==0) memset(gasnetc_sn_info, 0, sizeof(struct gasnetc_supernode_info_t));
   else sleep(1);
   gasneti_sysv_node2pid[0] = getpid();
+  gasneti_mutex_init(&gasneti_index_lock);
 
   /* Collective call to initialize Shared AM "networks" */
   gasneti_sysvnet_init(&gasneti_request_sysvnet, ((char*)(gasnetc_sysvnet_region))+sninfosz,
@@ -440,23 +443,30 @@ int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf,
 int gasneti_sysvnet_recv(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize, 
                          gasnet_node_t *from)
 {
-  int i;
+  int i, nextindex;
   gasneti_sysvnet_msg_t *q_recv_next;
   gasneti_sysvnet_msg_t *q_queue;
   gasneti_sysvnet_msg_t *q_justpastlast;
    
+  gasneti_mutex_lock(&gasneti_index_lock);
+  nextindex = vnet->nextindex;
+  gasneti_mutex_unlock(&gasneti_index_lock);
+
+  /* We could try using i instead of vnet->nextindex
+   * but that would influence the fairness. Not sure
+   * what is better ... */
   for (i = 0; i < vnet->nodecount; i++) {
-    if (vnet->nextindex != gasneti_mysysvnode) {
-      gasneti_sysvnet_queue_t *q = vnet->in_queues[vnet->nextindex];
+    if (nextindex != gasneti_mysysvnode) {
+      gasneti_sysvnet_queue_t *q = vnet->in_queues[nextindex];
       
+      gasneti_assert(q != NULL);
+      gasneti_mutex_lock(&q->recv_lock);
       /* Get the actuall addresses of q->recv_next, queue and justpastlast (they are currently
        * only offsets) */
       q_recv_next = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->recv_next);
       q_queue = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->queue);
       q_justpastlast = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->justpastlast);
       
-      gasneti_assert(q != NULL);
-      gasneti_mutex_lock(&q->recv_lock);
       if (gasneti_atomic_read(&q_recv_next->ready4receipt, GASNETI_ATOMIC_ACQ)) {
         /* Transform the offset in q_recv_next->addr
          * into a real address */
@@ -464,16 +474,21 @@ int gasneti_sysvnet_recv(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize,
         *psize = q_recv_next->len;
         if (++q_recv_next == q_justpastlast)
           q_recv_next = q_queue;
-        gasneti_mutex_unlock(&q->recv_lock);
-        *from = vnet->nextindex + vnet->firstnode;
-        /* Ensure fairness: next check starts with next node */
-        if (++vnet->nextindex == vnet->nodecount) 
-          vnet->nextindex = 0;
-      
+        *from = nextindex + vnet->firstnode;
+     
         /* If q_recv_next was changed, set the offset value in q->send_next to
          * mach the changed value */
         q->recv_next = (gasneti_sysvnet_msg_t *)gasneti_sysv_offset(q_recv_next);
+        gasneti_mutex_unlock(&q->recv_lock);
 
+        /* Ensure fairness: next check starts with next node */
+        if (++nextindex == vnet->nodecount) 
+          nextindex = 0;
+
+        gasneti_mutex_lock(&gasneti_index_lock);
+        vnet->nextindex=nextindex;
+        gasneti_mutex_unlock(&gasneti_index_lock);
+ 
         return 0;
       }
         
@@ -482,9 +497,15 @@ int gasneti_sysvnet_recv(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize,
       q->recv_next = (gasneti_sysvnet_msg_t *)gasneti_sysv_offset(q_recv_next);
       gasneti_mutex_unlock(&q->recv_lock);
     }
-    if (++vnet->nextindex == vnet->nodecount) 
-      vnet->nextindex = 0;
+
+    if (++nextindex == vnet->nodecount) 
+      nextindex = 0;
   }
+  
+  gasneti_mutex_lock(&gasneti_index_lock);
+  vnet->nextindex=nextindex;
+  gasneti_mutex_unlock(&gasneti_index_lock);
+
   return -1;
 }
 #else
