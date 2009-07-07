@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/07/07 20:42:37 $
- * $Revision: 1.53.14.24 $
+ *     $Date: 2009/07/07 23:08:42 $
+ * $Revision: 1.53.14.25 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -959,7 +959,7 @@ int _gasnete_coll_segment_check_aux(int rooted, gasnet_image_t root, const void 
 #else
   if (rooted) {
     /* Check the given address against the given node only */
-    return gasnete_coll_in_segment(gasnete_coll_image_node(root), addr, len);
+    return gasnete_coll_in_segment(gasnete_coll_image_node(UNUSED_IN_SEQ, root), addr, len);
   } else {
     /* Check the given address against ALL nodes */
     gasnet_node_t i;
@@ -1015,7 +1015,7 @@ int _gasnete_coll_segment_checkM_aux(int rooted, gasnet_image_t root, const void
 #if GASNET_ALIGNED_SEGMENTS /* always use node 0 for cache reuse */
     return gasnete_coll_in_segment(0, addr, len);
 #else
-    return gasnete_coll_in_segment(gasnete_coll_image_node(root), addr, len);
+    return gasnete_coll_in_segment(gasnete_coll_image_node(UNUSED_IN_SEQ, root), addr, len);
 #endif
   } else {
     /* Check the given addresses against ALL nodes */
