@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/07/06 16:00:12 $
- * $Revision: 1.53.14.22 $
+ *     $Date: 2009/07/07 00:00:52 $
+ * $Revision: 1.53.14.23 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -12,6 +12,8 @@
 #define _GASNET_COLL_INTERNAL_H
 #include <gasnet_coll.h>
 #include <gasnet_handler.h>
+#include <gasnet_coll_autotune.h> /* for GASNET_COLL_NUM_PARAM_TYPES */
+#include <gasnet_coll_team.h>
 
 #define GASNETI_COLL_FN_HEADER(FNNAME) 
 /*---------------------------------------------------------------------------------*/
@@ -212,6 +214,27 @@ typedef void (*gasnete_all_barrier_notify)(gasnete_coll_team_t team, int id, int
 typedef int (*gasnete_all_barrier_wait)(gasnete_coll_team_t team, int id, int flags);
 typedef int (*gasnete_all_barrier_try)(gasnete_coll_team_t team, int id, int flags);
 
+/*XXX: TEMPORARY ONLY*/
+/* If the conduit hasn't defined team barrier define it here*/
+#ifndef gasnete_coll_teambarrier
+#define gasnete_coll_teambarrier(TEAM) do {\
+    gasnete_coll_barrier_notify(TEAM, 0, GASNET_BARRIERFLAG_ANONYMOUS); \
+    gasnete_coll_barrier_wait(TEAM, 0, GASNET_BARRIERFLAG_ANONYMOUS); \
+  } while(0)
+#endif
+
+#ifndef gasnete_coll_teambarrier_notify
+#define gasnete_coll_teambarrier_notify(TEAM) do {\
+    gasnete_coll_barrier_notify(TEAM, 0, GASNET_BARRIERFLAG_ANONYMOUS); \
+  } while(0)
+#endif
+
+#ifndef gasnete_coll_teambarrier_wait
+#define gasnete_coll_teambarrier_wait(TEAM) do {\
+    gasnete_coll_barrier_wait(TEAM, 0, GASNET_BARRIERFLAG_ANONYMOUS); \
+  } while(0)
+#endif
+
 
 typedef enum {
   GASNETE_COLL_BARRIER_ENVDEFAULT=0,
@@ -290,6 +313,11 @@ struct gasnete_coll_team_t_ {
   /*total number of members in this team*/
   gasnet_node_t total_ranks;
   
+
+  /* ranks of the processes in the team */
+  gasnet_node_t *rel2act_map; /* need to be initialized */
+
+
   /* scratch segments allocated on team creation*/
   gasnet_seginfo_t *scratch_segs;
   size_t smallest_scratch_seg;
@@ -305,12 +333,6 @@ struct gasnete_coll_team_t_ {
   /*not worrying about this yet*/
   /*gasnet_node_t *node_map; */
   /* XXX: Design not complete yet */
-  
-  /**THIS IS JUST FOR MY TESTING PURPOSES: once yili adds in teams we can rip this piece out and add in his 
-   stuff*/
-  /*if and only if this team is TEAM_ALL then this field will be NULL*/
-  /*else this is a list of total_ranks elements that will contain mapping from actual to a relative rank*/
-  gasnet_node_t *rel2act_map;
   
   uint32_t sequence;	/* arbitrary non-zero starting value */
   gasnet_image_t *all_images;
@@ -347,14 +369,18 @@ struct gasnete_coll_team_t_ {
     
 };
 
+#if 0
 extern gasnet_node_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank);
 extern int gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnet_node_t node);
-extern int gasnete_coll_team_size(gasnete_coll_team_t team);
+#endif
 
+extern gasnet_node_t gasnete_coll_team_size(gasnete_coll_team_t team);
+
+#if 0
 gasnete_coll_team_t gasnete_coll_make_team(int allocating_team_all, 
                                            const gasnet_image_t images[], gasnet_node_t myrank, gasnet_node_t num_members, 
                                            gasnet_seginfo_t * scratch_segments GASNETE_THREAD_FARG);
-
+#endif
 #define GASNETE_COLL_REL2ACT(TEAM, IDX) ((TEAM) == GASNET_TEAM_ALL ? IDX : (TEAM)->rel2act_map[IDX])
 
 /*---------------------------------------------------------------------------------*/

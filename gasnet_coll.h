@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2009/07/06 16:00:10 $
- * $Revision: 1.53.12.8 $
+ *     $Date: 2009/07/07 00:00:47 $
+ * $Revision: 1.53.12.9 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -182,8 +182,8 @@ extern gasnet_team_handle_t gasnete_coll_teamB;
 
 #endif
 extern gasnet_node_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank);
-extern int gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnet_node_t node);
-extern int gasnete_coll_team_size(gasnete_coll_team_t team);
+extern gasnet_node_t gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnet_node_t node);
+extern gasnet_node_t gasnete_coll_team_size(gasnete_coll_team_t team);
 
 
 #define gasnet_coll_team_rank2node(TEAM, RANK) gasnete_coll_team_rank2node(TEAM, RANK)
