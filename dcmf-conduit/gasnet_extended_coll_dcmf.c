@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended_coll_dcmf.c,v $
- * $Date: 2009/07/07 00:00:49 $
- * $Revision: 1.1.4.2 $
+ * $Date: 2009/07/07 17:11:59 $
+ * $Revision: 1.1.4.3 $
  * Description: GASNet extended collectives implementation on DCMF
  * LBNL 2009
  */
@@ -67,7 +67,6 @@ static gasnete_coll_team_dcmf_t * gasnete_coll_team_dcmf_new()
   fprintf(stderr, "gasnete_coll_team_dcmf_new is executed!\n");
 #endif 
   p = gasneti_malloc(sizeof(gasnete_coll_team_dcmf_t));
-  gasneti_assert(p != NULL);
   return (gasnete_coll_team_dcmf_t *)p;
 }
 

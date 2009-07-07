@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended_coll_dcmf.h,v $
- * $Date: 2009/07/07 00:00:49 $
- * $Revision: 1.1.4.2 $
+ * $Date: 2009/07/07 17:11:59 $
+ * $Revision: 1.1.4.3 $
  * Description: GASNet extended collectives implementation on DCMF
  * LBNL 2009
  */
@@ -95,16 +95,16 @@ void gasnete_coll_team_fini_dcmf(gasnet_team_handle_t team);
  */
 DCMF_Geometry_t * gasnete_dcmf_get_geometry(int team_id);
 
-#define PRINT_ARRAY(fp, A, size, format)        \
-  do {                                          \
-    int i;                                      \
-    for(i=0; i<(size); i++)                     \
-      {                                         \
-        fprintf((fp), "%s[%d]=", #A, i);        \
-        fprintf((fp), format, (A)[i]);          \
-        fprintf((fp), "\n");                    \
-      }                                         \
-    fprintf((fp), "\n");                        \
-  } while(0);
+/* #define PRINT_ARRAY(fp, A, size, format)        \ */
+/*   do {                                          \ */
+/*     int i;                                      \ */
+/*     for(i=0; i<(size); i++)                     \ */
+/*       {                                         \ */
+/*         fprintf((fp), "%s[%d]=", #A, i);        \ */
+/*         fprintf((fp), format, (A)[i]);          \ */
+/*         fprintf((fp), "\n");                    \ */
+/*       }                                         \ */
+/*     fprintf((fp), "\n");                        \ */
+/*   } while(0); */
 
 #endif /* GASNET_EXTENDED_COLL_DCMF_H_ */

@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_coll_bcast_dcmf.c,v $
- * $Date: 2009/07/07 00:00:49 $
- * $Revision: 1.1.4.2 $
+ * $Date: 2009/07/07 17:11:59 $
+ * $Revision: 1.1.4.3 $
  * Description: GASNet broadcast implementation on DCMF
  * LBNL 2009
  */
@@ -193,12 +193,12 @@ static int gasnete_coll_pf_bcast_dcmf(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
     if(team->myrank == bcast->root) 
       GASNETE_FAST_UNALIGNED_MEMCPY(bcast->dst, bcast->src, bcast->bytes);
     
-    if (!gasnete_coll_generic_outsync(data))
+    if (!gasnete_coll_generic_outsync(op->team, data))
       break;
     
     /* clean up storage space */
     gasneti_free(bcast);
-    gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+    gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
     
     return (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
 
@@ -222,7 +222,7 @@ gasnet_coll_handle_t gasnete_coll_bcast_nb_dcmf(gasnet_team_handle_t team,
 {
   gasnete_dcmf_bcast_data_t *bcast;
   gasnete_coll_team_dcmf_t *dcmf_tp = (gasnete_coll_team_dcmf_t *)team->dcmf_tp;
-  const unsigned root  = gasnete_coll_image_node(srcimage);
+  const unsigned root  = gasnete_coll_image_node(team, srcimage);
   gasnete_coll_generic_data_t *data;
     
 #ifdef G_DCMF_COLL_TRACE
@@ -277,7 +277,6 @@ gasnet_coll_handle_t gasnete_coll_bcast_nb_dcmf(gasnet_team_handle_t team,
   
   /* initialize DCMF specific data structures */
   bcast = (gasnete_dcmf_bcast_data_t *)gasneti_malloc(sizeof(gasnete_dcmf_bcast_data_t));
-  gasneti_assert(bcast != NULL);
   gasnete_coll_dcmf_bcast_init(bcast, team, kind, &dcmf_tp->geometry,
                                root, src, dst, nbytes);
   data->private_data = bcast;
@@ -333,7 +332,7 @@ void gasnete_coll_bcast_dcmf(gasnet_team_handle_t team, void *dst,
                              GASNETE_THREAD_FARG)
 {
   gasnete_coll_team_dcmf_t *dcmf_tp = (gasnete_coll_team_dcmf_t *)team->dcmf_tp;
-  const unsigned root = gasnete_coll_image_node(srcimage);
+  const unsigned root = gasnete_coll_image_node(team, srcimage);
   DCMF_Callback_t cb_done;
   volatile unsigned active;
     

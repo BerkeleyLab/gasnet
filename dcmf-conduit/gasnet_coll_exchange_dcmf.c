@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_coll_exchange_dcmf.c,v $
- * $Date: 2009/07/07 00:00:49 $
- * $Revision: 1.1.4.2 $
+ * $Date: 2009/07/07 17:11:59 $
+ * $Revision: 1.1.4.3 $
  * Description: GASNet exchange (alltoall) implementation on DCMF
  * LBNL 2009
  */
@@ -64,22 +64,11 @@ void gasnete_coll_dcmf_a2a_init(gasnete_dcmf_a2a_data_t *a2a,
   a2a->rcvbuf = dst;
 
   a2a->sndlens = (unsigned *)gasneti_malloc(nprocs*sizeof(unsigned));
-  gasneti_assert(a2a->sndlens != NULL);
-
   a2a->rcvlens = (unsigned *)gasneti_malloc(nprocs*sizeof(unsigned));
-  gasneti_assert(a2a->rcvlens != NULL);
-
   a2a->sdispls = (unsigned *)gasneti_malloc(nprocs*sizeof(unsigned));
-  gasneti_assert(a2a->sdispls != NULL);
-
   a2a->rdispls = (unsigned *)gasneti_malloc(nprocs*sizeof(unsigned));
-  gasneti_assert(a2a->rdispls != NULL);
-
   a2a->sndcounters = (unsigned *)gasneti_malloc(nprocs*sizeof(unsigned));
-  gasneti_assert(a2a->sndcounters != NULL);
-
   a2a->rcvcounters = (unsigned *)gasneti_malloc(nprocs*sizeof(unsigned));
-  gasneti_assert(a2a->rcvcounters != NULL);
   
   for (i = 0; i < nprocs; i++) {
     a2a->sndlens[i] = nbytes;
@@ -149,13 +138,13 @@ static int gasnete_coll_pf_exchg_dcmf(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
     data->state = 3;
     
   case 3: 
-    if (!gasnete_coll_generic_outsync(data))
+    if (!gasnete_coll_generic_outsync(op->team, data))
       break;
 
     /* clean up storage space */
     gasnete_coll_dcmf_a2a_fini(a2a);
     gasneti_free(a2a);
-    gasnete_coll_generic_free(data GASNETE_THREAD_PASS);
+    gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
     return (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
   
@@ -205,7 +194,6 @@ gasnet_coll_handle_t gasnete_coll_exchange_nb_dcmf(gasnet_team_handle_t team,
   
   a2a = (gasnete_dcmf_a2a_data_t *)
     gasneti_malloc(sizeof(gasnete_dcmf_a2a_data_t));
-  gasneti_assert(a2a != NULL);
   gasnete_coll_dcmf_a2a_init(a2a, &g_dcmf_a2a_protos[TORUS_ALLTOALLV], 
                              &dcmf_tp->geometry, nprocs, src, dst, nbytes);
   
@@ -274,7 +262,6 @@ void gasnete_coll_exchange_dcmf(gasnet_team_handle_t team,
   
   a2a = (gasnete_dcmf_a2a_data_t *)
     gasneti_malloc(sizeof(gasnete_dcmf_a2a_data_t));
-  gasneti_assert(a2a != NULL);
   gasnete_coll_dcmf_a2a_init(a2a, &g_dcmf_a2a_protos[TORUS_ALLTOALLV], 
                              &dcmf_tp->geometry, nprocs, src, dst, nbytes);
   
