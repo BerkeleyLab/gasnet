@@ -19,7 +19,7 @@
 
 #define GASNETE_COLL_DEFAULT_TREE_TYPE_STR "KNOMIAL_TREE,2"
 #define GASNETE_COLL_DEFAULT_DISSEM_LIMIT_PER_THREAD 1024
-#include <gasnet_coll_autotune.h>
+#include <gasnet_coll.h>
 
 /*returns the implementation of the collectives including all the parameters to the algorithm*/
 struct gasnete_coll_implementation_t_{

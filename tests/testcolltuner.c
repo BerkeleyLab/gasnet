@@ -11,7 +11,7 @@
 #include <gasnet.h>
 #include <gasnet_tools.h>
 #include <gasnet_coll.h>
-#include <gasnet_coll_autotune.h>
+//#include <gasnet_coll_autotune.h>
 
 /*file for writing out XML information*/
 #include <../other/myxml/myxml.h>

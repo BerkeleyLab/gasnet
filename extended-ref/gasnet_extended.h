@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.h,v $
- *     $Date: 2009/07/06 16:00:12 $
- * $Revision: 1.41.20.4 $
+ *     $Date: 2009/07/07 20:42:38 $
+ * $Revision: 1.41.20.5 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,8 +17,8 @@
 
 #include <gasnet_extended_help.h>
 #include <gasnet_coll.h>
-#include <gasnet_coll_autotune.h>
-//#include <gasnet_coll_internal.h>
+//#include <gasnet_coll_autotune.h>
+#include <gasnet_coll_internal.h>
 GASNETI_BEGIN_EXTERNC
 
 /*  TODO: add debug code to enforce restrictions on SEQ and PARSYNC config */

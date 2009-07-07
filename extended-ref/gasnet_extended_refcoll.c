@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/07/07 00:00:52 $
- * $Revision: 1.72.10.33 $
+ *     $Date: 2009/07/07 20:42:38 $
+ * $Revision: 1.72.10.34 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,7 +15,7 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_coll.h>
-#include <gasnet_coll_autotune.h>
+//#include <gasnet_coll_autotune.h>
 #include <gasnet_coll_internal.h>
 #include <gasnet_coll_team.h>
 #include <gasnet_coll_autotune_internal.h>

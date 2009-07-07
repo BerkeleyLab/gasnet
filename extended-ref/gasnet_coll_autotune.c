@@ -5,7 +5,7 @@
  */
 
 /* This is intended as a stub for the autotuner routines*/
-#include <gasnet_coll_autotune.h>
+//#include <gasnet_coll_autotune.h>
 #include <gasnet_coll_autotune_internal.h>
 
 
