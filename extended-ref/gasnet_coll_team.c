@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_team.c,v $
- * $Date: 2009/07/07 00:00:52 $
- * $Revision: 1.1.4.2 $
+ * $Date: 2009/07/08 00:16:58 $
+ * $Revision: 1.1.4.3 $
  * Description: GASNet generic team implementation for collectives 
  * LBNL 2009
  */
@@ -355,6 +355,7 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
   newteam = gasnete_coll_team_create(new_total_ranks, myrelrank, rel2act_map, allsegs GASNETE_THREAD_PASS);
   
   gasneti_free(rel2act_map);
+  gasnete_coll_teambarrier(team);
   return newteam;
 }
 
