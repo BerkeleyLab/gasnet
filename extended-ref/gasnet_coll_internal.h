@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/07/09 07:32:56 $
- * $Revision: 1.53.14.26 $
+ *     $Date: 2009/07/09 18:37:12 $
+ * $Revision: 1.53.14.27 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2013,6 +2013,12 @@ gasnete_coll_exchg_Gath(gasnet_team_handle_t team,
 			void *dst, void *src,
 			size_t nbytes, int flags, uint32_t sequence
                         GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_exchg_RVPut(gasnet_team_handle_t team,
+                         void *dst, void *src,
+                         size_t nbytes, int flags, uint32_t sequence
+                         GASNETE_THREAD_FARG);
 
 /*---------------------------------------------------------------------------------*/
 
