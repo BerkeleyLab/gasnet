@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/07/07 23:08:42 $
- * $Revision: 1.53.14.25 $
+ *     $Date: 2009/07/09 07:32:56 $
+ * $Revision: 1.53.14.26 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -621,7 +621,7 @@ void gasnete_coll_p2p_eager_addr_all(gasnete_coll_op_t *op, void *addr,
     gasnete_coll_p2p_eager_addr(op, GASNETE_COLL_REL2ACT(team, i), addr, offset, state);
   }
   /* Send to nodes to the "left" of ourself */
-  for (i = 0; i < gasneti_mynode; ++i) {
+  for (i = 0; i < team->myrank; ++i) {
     gasnete_coll_p2p_eager_addr(op, GASNETE_COLL_REL2ACT(team, i), addr, offset, state);
   }
 }
