@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/07/07 20:42:37 $
- * $Revision: 1.71.12.28 $
+ *     $Date: 2009/07/10 14:43:07 $
+ * $Revision: 1.71.12.29 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -4757,6 +4757,71 @@ gasnete_coll_exchg_Dissem(gasnet_team_handle_t team,
                                           NULL, gasnete_coll_fetch_dissemination(radix ,team), sequence GASNETE_THREAD_PASS);
 }
 
+static int gasnete_coll_pf_exchg_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+  gasnete_coll_generic_data_t *data = op->data;
+  const gasnete_coll_exchange_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, exchange);
+  int result = 0;
+  int i;
+
+
+  switch(data->state) {
+
+  case 0:	/* Optional IN barrier */
+    if (!gasnete_coll_generic_all_threads(data) || 
+        !gasnete_coll_generic_insync(op->team, data)) {
+      break;
+    }
+    
+    data->state = 1;
+    
+  case 1: /* fire off all the nonblocking puts*/
+    gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+    /*put to the left of me*/
+    for(i=op->team->myrank+1; i<op->team->total_ranks; i++) {
+      gasnete_put_nbi_bulk(GASNETE_COLL_REL2ACT(op->team,i), ((int8_t*) args->dst) + op->team->myrank*args->nbytes, ((int8_t*) args->src)+i*args->nbytes, args->nbytes GASNETE_THREAD_PASS);
+    } 
+    /*put to the right of me*/
+    for(i=0; i<op->team->myrank; i++) {
+      gasnete_put_nbi_bulk(GASNETE_COLL_REL2ACT(op->team,i), ((int8_t*) args->dst) + op->team->myrank*args->nbytes, ((int8_t*) args->src)+i*args->nbytes, args->nbytes GASNETE_THREAD_PASS);
+    }
+    data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+    gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*) args->dst + op->team->myrank*args->nbytes, 
+                                        (int8_t*) args->src+op->team->myrank*args->nbytes, args->nbytes);
+    data->state = 2;
+  case 2: /* sync all the handles for the puts*/
+    if (op->team->total_ranks > 1 && data->handle != GASNET_INVALID_HANDLE) {
+      return 0;
+    }
+    data->state=3;
+  case 3: /*final out barrier*/
+    if (!gasnete_coll_generic_outsync(op->team, data)) {
+      break;
+    }
+    data->state = 6;
+  case 6: /*done*/
+    gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
+    result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+  }
+
+  return result;
+}
+
+extern gasnet_coll_handle_t
+gasnete_coll_exchg_Put(gasnet_team_handle_t team,
+                       void *dst, void *src,
+                       size_t nbytes, int flags, uint32_t sequence
+                       GASNETE_THREAD_FARG)
+{
+  int options =  GASNETE_COLL_GENERIC_OPT_P2P | 
+    GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+    GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+  
+  gasneti_assert(flags & GASNET_COLL_SINGLE);
+  return gasnete_coll_generic_exchange_nb(team, dst, src, nbytes, flags,
+                                          &gasnete_coll_pf_exchg_Put, options,
+                                          NULL, NULL, sequence GASNETE_THREAD_PASS);
+}
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_exchangeM_nb() */
 

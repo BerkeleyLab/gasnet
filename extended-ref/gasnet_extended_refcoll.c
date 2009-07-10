@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/07/09 18:37:12 $
- * $Revision: 1.72.10.35 $
+ *     $Date: 2009/07/10 14:43:07 $
+ * $Revision: 1.72.10.36 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -5221,8 +5221,14 @@ gasnete_coll_exchange_nb_default(gasnet_team_handle_t team,
       max_dissem_msg_size <=  gasnet_AMMaxLongRequest() &&
       team->fixed_image_count) {
     return gasnete_coll_exchg_Dissem(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+  } else if(flags & GASNET_COLL_DST_IN_SEGMENT){
+    if(flags & GASNET_COLL_SINGLE) {
+      return gasnete_coll_exchg_Put(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    } else{
+      return gasnete_coll_exchg_RVPut(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    }
   } else {
-    return gasnete_coll_exchg_RVPut(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
+    return gasnete_coll_exchg_Gath(team, dst, src, nbytes, flags, sequence GASNETE_THREAD_PASS);
   }
 }
 
