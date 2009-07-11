@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2009/05/01 19:57:53 $
- * $Revision: 1.202.2.2 $
+ *     $Date: 2009/07/11 22:33:55 $
+ * $Revision: 1.202.2.3 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -345,7 +345,7 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
     }
   }
   { /* Honor PHYSMEM_MAX if set */
-    int tmp = gasneti_getenv_int_withdefault("GASNET_PHYSMEM_MAX", 0, 1);
+    unsigned long tmp = gasneti_getenv_int_withdefault("GASNET_PHYSMEM_MAX", 0, 1);
     if (tmp) {
       limit = MIN(limit, tmp);
       if_pf (gasneti_getenv_yesno_withdefault("GASNET_PHYSMEM_NOPROBE", 0)) {
@@ -383,10 +383,12 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
       gasnetc_pin_info.memory = size;
     }
     gasneti_bootstrapExchange(&gasnetc_pin_info, sizeof(gasnetc_pin_info_t), all_info);
+#if GASNET_ALIGNED_SEGMENTS  /* Just a waste of time otherwise */
     if (gasneti_mynode != first_local) {
       /* Extra mmap traffic to ensure compatible VM spaces */
       gasnetc_fakepin(all_info[first_local].memory, step);
     }
+#endif
   } else {
     /* Note that README says PHYSMEM_NOPROBE must be equal on all nodes */
     gasnetc_pin_info.memory = limit;
