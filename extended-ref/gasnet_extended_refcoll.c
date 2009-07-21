@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/07/10 14:43:07 $
- * $Revision: 1.72.10.36 $
+ *     $Date: 2009/07/21 22:04:43 $
+ * $Revision: 1.72.10.37 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -3296,7 +3296,7 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
 #endif
 
   /* "Discover" in-segment flags if needed/possible */
-  flags = gasnete_coll_segment_check(flags, 0, 0, dst, nbytes, 1, srcimage, src, nbytes);
+  flags = gasnete_coll_segment_check(team, flags, 0, 0, dst, nbytes, 1, srcimage, src, nbytes);
 
   tree_type = gasnete_coll_autotune_get_tree_type(team->autotune_info, 
                                                   GASNET_COLL_BROADCAST_OP, 
@@ -3359,7 +3359,7 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
 #endif
   
   /* "Discover" in-segment flags if needed/possible */
-  flags = gasnete_coll_segment_check(flags, 0, 0, dst, nbytes, 1, srcimage, src, nbytes);
+  flags = gasnete_coll_segment_check(team, flags, 0, 0, dst, nbytes, 1, srcimage, src, nbytes);
   impl = gasnete_coll_autotune_get_bcast_algorithm(team, flags, nbytes);
   return (*((gasnete_coll_bcast_fn_ptr_t) (impl->fn_ptr)))(team, dst, srcimage, src, nbytes, flags, impl, sequence GASNETE_THREAD_PASS);
 }
@@ -3632,7 +3632,7 @@ gasnete_coll_broadcastM_nb_default(gasnet_team_handle_t team,
 
 
   /* "Discover" in-segment flags if needed/possible */
-  flags = gasnete_coll_segment_checkM(flags, 0, 0, dstlist, nbytes, 1, srcimage, src, nbytes);
+  flags = gasnete_coll_segment_checkM(team, flags, 0, 0, dstlist, nbytes, 1, srcimage, src, nbytes);
   tree_type = gasnete_coll_autotune_get_tree_type(team->autotune_info, 
                                                   GASNET_COLL_BROADCASTM_OP, 
                                                   srcimage, nbytes, flags);
@@ -3687,7 +3687,7 @@ extern gasnet_coll_handle_t
                                        flags, sequence GASNETE_THREAD_PASS);
     }
 #endif
-    flags = gasnete_coll_segment_checkM(flags, 0, 0, dstlist, nbytes, 1, srcimage, src, nbytes);
+    flags = gasnete_coll_segment_checkM(team, flags, 0, 0, dstlist, nbytes, 1, srcimage, src, nbytes);
     impl = gasnete_coll_autotune_get_bcastM_algorithm(team, flags, nbytes);
     return (*((gasnete_coll_bcastM_fn_ptr_t) (impl->fn_ptr)))(team, dstlist, srcimage, src, nbytes, flags, impl, sequence GASNETE_THREAD_PASS);
   }
@@ -3792,7 +3792,7 @@ gasnete_coll_scatter_nb_default(gasnet_team_handle_t team,
 #endif
 
   /* "Discover" in-segment flags if needed/possible */
-  flags = gasnete_coll_segment_check(flags, 0, 0, dst, nbytes,
+  flags = gasnete_coll_segment_check(team, flags, 0, 0, dst, nbytes,
                                      1, srcimage, src, nbytes*gasneti_nodes);
 
   tree_type = gasnete_coll_autotune_get_tree_type(team->autotune_info, 
@@ -4084,7 +4084,7 @@ gasnete_coll_scatterM_nb_default(gasnet_team_handle_t team,
 #endif
 
   /* "Discover" in-segment flags if needed/possible */
-  flags = gasnete_coll_segment_checkM(flags, 0, 0, dstlist, nbytes,
+  flags = gasnete_coll_segment_checkM(team, flags, 0, 0, dstlist, nbytes,
                                       1, srcimage, src, nbytes*gasneti_nodes);
 
   tree_type = gasnete_coll_autotune_get_tree_type(team->autotune_info, 
@@ -4236,7 +4236,7 @@ gasnete_coll_gather_nb_default(gasnet_team_handle_t team,
 #endif
 
   /* "Discover" in-segment flags if needed/possible */
-  flags = gasnete_coll_segment_check(flags, 1, dstimage, dst, nbytes*gasneti_nodes,
+  flags = gasnete_coll_segment_check(team, flags, 1, dstimage, dst, nbytes*gasneti_nodes,
                                      0, 0, src, nbytes);
   tree_type = gasnete_coll_autotune_get_tree_type(team->autotune_info, 
                                                   GASNET_COLL_GATHER_OP, 
@@ -4552,7 +4552,7 @@ gasnete_coll_gatherM_nb_default(gasnet_team_handle_t team,
 #endif
 
   /* "Discover" in-segment flags if needed/possible */
-  flags = gasnete_coll_segment_checkM(flags, 1, dstimage, dst, nbytes*gasneti_nodes,
+  flags = gasnete_coll_segment_checkM(team, flags, 1, dstimage, dst, nbytes*gasneti_nodes,
                                       0, 0, srclist, nbytes);
   tree_type = gasnete_coll_autotune_get_tree_type(team->autotune_info, 
                                                   GASNET_COLL_GATHERM_OP, 
@@ -4751,7 +4751,7 @@ gasnete_coll_gather_all_nb_default(gasnet_team_handle_t team,
 #endif
 
   /* "Discover" in-segment flags if needed/possible */
-  flags = gasnete_coll_segment_check(flags, 0, 0, dst, nbytes*gasneti_nodes,
+  flags = gasnete_coll_segment_check(team, flags, 0, 0, dst, nbytes*gasneti_nodes,
                                      0, 0, src, nbytes);
 
   
@@ -5055,7 +5055,7 @@ gasnete_coll_gather_allM_nb_default(gasnet_team_handle_t team,
 #endif
 
   /* "Discover" in-segment flags if needed/possible */
-  flags = gasnete_coll_segment_checkM(flags, 0, 0, dstlist, nbytes*gasneti_nodes,
+  flags = gasnete_coll_segment_checkM(team, flags, 0, 0, dstlist, nbytes*gasneti_nodes,
                                       0, 0, srclist, nbytes);
 
   
@@ -5212,7 +5212,7 @@ gasnete_coll_exchange_nb_default(gasnet_team_handle_t team,
 #endif
 
   /* "Discover" in-segment flags if needed/possible */
-  flags = gasnete_coll_segment_check(flags, 0, 0, dst, nbytes*gasneti_nodes,
+  flags = gasnete_coll_segment_check(team, flags, 0, 0, dst, nbytes*gasneti_nodes,
                                      0, 0, src, nbytes*gasneti_nodes);
 
   /* XXX: need more implementations to choose from here */
@@ -5529,7 +5529,7 @@ gasnete_coll_exchangeM_nb_default(gasnet_team_handle_t team,
 #endif
 
   /* "Discover" in-segment flags if needed/possible */
-  flags = gasnete_coll_segment_checkM(flags, 0, 0, dstlist, nbytes*gasneti_nodes,
+  flags = gasnete_coll_segment_checkM(team, flags, 0, 0, dstlist, nbytes*gasneti_nodes,
                                       0, 0, srclist, nbytes*gasneti_nodes);
 
   /* XXX: need more implementations to choose from here */
