@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/07/21 22:04:43 $
- * $Revision: 1.72.10.37 $
+ *     $Date: 2009/07/25 23:35:25 $
+ * $Revision: 1.72.10.38 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -21,7 +21,6 @@
 #include <gasnet_coll_autotune_internal.h>
 #include <gasnet_coll_scratch.h>
 #include <gasnet_coll_trees.h>
-
 #include <gasnet_extended_refcoll.h>
 #include <gasnet_vis.h>
 
@@ -33,7 +32,8 @@
 */
 #include <gasnet_coll_autotune.c>
 #include <gasnet_coll_scratch.c>
-
+#include <../smp-collectives/smp_coll.c>
+#include <../smp-collectives/smp_coll_barrier.c>
 
 size_t gasnete_coll_p2p_eager_min = 0;
 size_t gasnete_coll_p2p_eager_scale = 0;
@@ -1335,6 +1335,12 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     gasnet_barrier_wait((int)GASNET_TEAM_ALL->sequence,0);
   }
   if (images) {
+#if GASNET_PAR
+    {
+      int tune_barriers = gasneti_getenv_yesno_withdefault("GASNET_COLL_TUNE_SMP_BARRIER", 1);
+      td->smp_coll_handle = smp_coll_init(pthread_self(), 1024*1024, (tune_barriers==1 ? 0 : SMP_COLL_SKIP_TUNE_BARRIERS), images[gasneti_mynode], td->my_image);
+    }
+#endif
     /* Simple barrier */
     gasneti_mutex_lock(&init_lock);
     remain -= 1;

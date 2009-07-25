@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2009/07/06 16:00:12 $
- * $Revision: 1.34.20.3 $
+ *     $Date: 2009/07/25 23:35:25 $
+ * $Revision: 1.34.20.4 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -488,20 +488,85 @@ gasnete_coll_team_barrier_t *gasnete_coll_initialize_barrier() {
 
 
 static gasnete_coll_barrier_type_t gasnete_coll_default_barrier_type=0;
-void gasnete_coll_barrier_notify(gasnete_coll_team_t team, int id, int flags) {
+
+GASNETI_INLINE(gasnete_coll_barrier_notify_internal)
+void gasnete_coll_barrier_notify_internal(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG) {
   gasneti_assert(team->barrier_notify);
-  (*team->barrier_notify)(team, id, flags);
+#if GASNET_PAR
+  if(flags & GASNET_BARRIERFLAG_IMAGES) {
+   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
+    smp_coll_barrier(td->smp_coll_handle, 0);
+    if(td->my_local_image == 0) (*team->barrier_notify)(team, id, flags);
+  } else
+#endif
+    (*team->barrier_notify)(team, id, flags);
 }
-int gasnete_coll_barrier_try(gasnete_coll_team_t team, int id, int flags) {
+
+GASNETI_INLINE(gasnete_coll_barrier_try_internal)
+int gasnete_coll_barrier_try_internal(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG) {
+  int ret;
   gasneti_assert(team->barrier_try);
+  
+
+  /* currently there's no try version of the smp_coll_barriers*/
+  /* so the try is not yet supported over the images*/
+  gasneti_assert(!(flags & GASNET_BARRIERFLAG_IMAGES));
+#if GASNET_PAR && 0
+  {
+    gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
+    if(td->my_local_image == 0) ret =  (*team->barrier_try)(team, id, flags);
+    /*if the barrier has succeeded then call the local smp barrier on the way out*/
+    /*if there is exactly one gasnet_node then the barrier on the notify is sufficient*/
+    if(flags & GASNET_BARRIERFLAG_IMAGES && team->total_ranks > 1 && ret == GASNET_OK) {
+      smp_coll_barrier(td->smp_coll_handle, 0);
+    } 
+    return ret;
+  }
+#else
   return (*team->barrier_try)(team, id, flags);
+#endif
+
+  
 }
-int gasnete_coll_barrier_wait(gasnete_coll_team_t team, int id, int flags) {
+
+GASNETI_INLINE(gasnete_coll_barrier_wait_internal)
+int gasnete_coll_barrier_wait_internal(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG) {
+  int ret;
   gasneti_assert(team->barrier_wait);
+  
+#if GASNET_PAR 
+  {
+    gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
+    if(td->my_local_image == 0) ret = (*team->barrier_wait)(team, id, flags);
+    else ret = GASNET_OK;
+    /*if the barrier has succeeded then call the local smp barrier on the way out*/
+    /*if there is exactly one gasnet_node then the barrier on the notify is sufficient*/
+    if(flags & GASNET_BARRIERFLAG_IMAGES && team->total_ranks > 1 && ret == GASNET_OK) {
+      smp_coll_barrier(td->smp_coll_handle, 0);
+    } 
+    return ret;
+  }
+#else
   return (*team->barrier_wait)(team, id, flags);
+#endif
+  
 }
 
+void gasnete_coll_barrier_notify(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG) {
+  gasnete_coll_barrier_notify_internal(team, id, flags GASNETE_THREAD_PASS);
+}
 
+int gasnete_coll_barrier_try(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG) {
+  return gasnete_coll_barrier_try_internal(team, id, flags GASNETE_THREAD_PASS);
+}
+
+int gasnete_coll_barrier_wait(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG) {
+  return gasnete_coll_barrier_wait_internal(team, id, flags GASNETE_THREAD_PASS);
+}
+
+/*the default gasnet_barrier_* as defined by the spec must only be called amongst the nodes by ONE representative image
+   client is responsible for synchronizing images
+ */
 void gasnet_barrier_notify(int id, int flags) {
   GASNETI_TRACE_PRINTF(B, ("BARRIER_NOTIFY(team=GASNET_TEAM_ALL,id=%i,flags=%i)", id, flags));
   #if GASNETI_STATS_OR_TRACE
@@ -509,7 +574,8 @@ void gasnet_barrier_notify(int id, int flags) {
   #endif
 
   gasneti_assert(GASNET_TEAM_ALL->barrier_notify);
-  (*GASNET_TEAM_ALL->barrier_notify)(GASNET_TEAM_ALL, id, flags);
+  gasneti_assert(!(flags & GASNET_BARRIERFLAG_IMAGES));
+  gasnete_coll_barrier_notify_internal(GASNET_TEAM_ALL, id, flags GASNETE_THREAD_GET);
 }
 
 
@@ -521,7 +587,8 @@ int gasnet_barrier_wait(int id, int flags) {
   GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,GASNETI_TICKS_NOW_IFENABLED(B)-gasnete_barrier_notifytime);
   
   gasneti_assert(GASNET_TEAM_ALL->barrier_wait);
-  retval = (*GASNET_TEAM_ALL->barrier_wait)(GASNET_TEAM_ALL, id, flags);
+  gasneti_assert(!(flags & GASNET_BARRIERFLAG_IMAGES));
+  retval = gasnete_coll_barrier_wait_internal(GASNET_TEAM_ALL, id, flags GASNETE_THREAD_GET);
  
   GASNETI_TRACE_EVENT_TIME(B,BARRIER_WAIT,GASNETI_TICKS_NOW_IFENABLED(B)-wait_start);
   return retval;
@@ -531,7 +598,9 @@ int gasnet_barrier_try(int id, int flags) {
   int retval;
 
   gasneti_assert(GASNET_TEAM_ALL->barrier_try);
-  retval = (*GASNET_TEAM_ALL->barrier_try)(GASNET_TEAM_ALL, id, flags);
+  gasneti_assert(!(flags & GASNET_BARRIERFLAG_IMAGES));
+  
+  retval = gasnete_coll_barrier_try_internal(GASNET_TEAM_ALL, id, flags GASNETE_THREAD_GET);
 
   GASNETI_TRACE_EVENT_VAL(B,BARRIER_TRY,(retval != GASNET_ERR_NOT_READY));
   return retval;

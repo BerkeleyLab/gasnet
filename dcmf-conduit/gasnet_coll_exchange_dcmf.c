@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_coll_exchange_dcmf.c,v $
- * $Date: 2009/07/07 17:11:59 $
- * $Revision: 1.1.4.3 $
+ * $Date: 2009/07/25 23:35:23 $
+ * $Revision: 1.1.4.4 $
  * Description: GASNet exchange (alltoall) implementation on DCMF
  * LBNL 2009
  */
@@ -200,7 +200,9 @@ gasnet_coll_handle_t gasnete_coll_exchange_nb_dcmf(gasnet_team_handle_t team,
   data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
   data->private_data = a2a;
   GASNETE_COLL_GENERIC_SET_TAG(data, exchange);
-  data->options = GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+  data->options = 
+    GASNETE_COLL_GENERIC_OPT_INSYNC_IF((flags & GASNET_COLL_IN_ALLSYNC)) |
+    GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF((flags & GASNET_COLL_OUT_ALLSYNC));
   
   return gasnete_coll_op_generic_init_with_scratch(team, flags, data, 
                                                    gasnete_coll_pf_exchg_dcmf, 

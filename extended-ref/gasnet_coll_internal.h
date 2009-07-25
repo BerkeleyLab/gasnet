@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/07/21 22:04:43 $
- * $Revision: 1.53.14.29 $
+ *     $Date: 2009/07/25 23:35:25 $
+ * $Revision: 1.53.14.30 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,6 +14,7 @@
 #include <gasnet_handler.h>
 //#include <gasnet_coll_autotune.h> /* for GASNET_COLL_NUM_PARAM_TYPES */
 #include <gasnet_coll_team.h>
+#include <../smp-collectives/smp_coll.h>
 
 #define GASNETI_COLL_FN_HEADER(FNNAME) 
 /*---------------------------------------------------------------------------------*/
@@ -218,20 +219,20 @@ typedef int (*gasnete_all_barrier_try)(gasnete_coll_team_t team, int id, int fla
 /* If the conduit hasn't defined team barrier define it here*/
 #ifndef gasnete_coll_teambarrier
 #define gasnete_coll_teambarrier(TEAM) do {\
-    gasnete_coll_barrier_notify(TEAM, 0, GASNET_BARRIERFLAG_ANONYMOUS); \
-    gasnete_coll_barrier_wait(TEAM, 0, GASNET_BARRIERFLAG_ANONYMOUS); \
+    gasnete_coll_barrier_notify(TEAM, 0, GASNET_BARRIERFLAG_ANONYMOUS GASNETE_THREAD_GET); \
+    gasnete_coll_barrier_wait(TEAM, 0, GASNET_BARRIERFLAG_ANONYMOUS GASNETE_THREAD_GET); \
   } while(0)
 #endif
 
 #ifndef gasnete_coll_teambarrier_notify
 #define gasnete_coll_teambarrier_notify(TEAM) do {\
-    gasnete_coll_barrier_notify(TEAM, 0, GASNET_BARRIERFLAG_ANONYMOUS); \
+    gasnete_coll_barrier_notify(TEAM, 0, GASNET_BARRIERFLAG_ANONYMOUS GASNETE_THREAD_GET); \
   } while(0)
 #endif
 
 #ifndef gasnete_coll_teambarrier_wait
 #define gasnete_coll_teambarrier_wait(TEAM) do {\
-    gasnete_coll_barrier_wait(TEAM, 0, GASNET_BARRIERFLAG_ANONYMOUS); \
+    gasnete_coll_barrier_wait(TEAM, 0, GASNET_BARRIERFLAG_ANONYMOUS GASNETE_THRREAD_GET); \
   } while(0)
 #endif
 
@@ -744,7 +745,7 @@ typedef struct {
   
   /* XXX: more fields to come */
   unsigned int num_multi_addr_collectives_started;
-  
+  smp_coll_t smp_coll_handle;
   
 
   /* Macro for conduit-specific extension */

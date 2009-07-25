@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v $
-#     $Date: 2009/06/23 20:32:26 $
-# $Revision: 1.106.6.3 $
+#     $Date: 2009/07/25 23:35:28 $
+# $Revision: 1.106.6.4 $
 # Description: Makefile for GASNet tests
 # @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -79,12 +79,13 @@ testprograms_seq =      \
         testcolltuner   \
         testcollperf    \
         testteams       \
+        testteambarrier       \
         testnbr         \
         testvisperf     \
         testqueue       \
         $(CONDUIT_TESTS) \
         $(MPI_TESTS_SEQ)
-  
+
 
 # tests that should only be built in PARSYNC and PAR modes
 testprograms_parsync =  \

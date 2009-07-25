@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/07/10 14:43:07 $
- * $Revision: 1.71.12.29 $
+ *     $Date: 2009/07/25 23:35:25 $
+ * $Revision: 1.71.12.30 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -4798,8 +4798,8 @@ static int gasnete_coll_pf_exchg_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
     if (!gasnete_coll_generic_outsync(op->team, data)) {
       break;
     }
-    data->state = 6;
-  case 6: /*done*/
+    data->state = 4;
+  case 4: /*done*/
     gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
     result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
