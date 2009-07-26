@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/07/25 23:35:25 $
- * $Revision: 1.72.10.38 $
+ *     $Date: 2009/07/26 00:18:01 $
+ * $Revision: 1.72.10.39 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1335,10 +1335,16 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     gasnet_barrier_wait((int)GASNET_TEAM_ALL->sequence,0);
   }
   if (images) {
+    td->my_local_image = my_image - GASNET_TEAM_ALL->my_offset;
+    gasneti_assert(td->my_local_image < GASNET_TEAM_ALL->my_images);
+  } else {
+    td->my_local_image = 0;
+  }
+  if (images) {
 #if GASNET_PAR
     {
       int tune_barriers = gasneti_getenv_yesno_withdefault("GASNET_COLL_TUNE_SMP_BARRIER", 1);
-      td->smp_coll_handle = smp_coll_init(pthread_self(), 1024*1024, (tune_barriers==1 ? 0 : SMP_COLL_SKIP_TUNE_BARRIERS), images[gasneti_mynode], td->my_image);
+      td->smp_coll_handle = smp_coll_init(pthread_self(), 1024*1024, (tune_barriers==1 ? 0 : SMP_COLL_SKIP_TUNE_BARRIERS), images[gasneti_mynode], td->my_local_image);
     }
 #endif
     /* Simple barrier */
@@ -1365,12 +1371,7 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     gasneti_assert(fn_tbl[i].fnptr == gasnete_coll_fn_tbl[i].fnptr);
   }
 #endif
-  if (images) {
-    td->my_local_image = my_image - GASNET_TEAM_ALL->my_offset;
-    gasneti_assert(td->my_local_image < GASNET_TEAM_ALL->my_images);
-  } else {
-    td->my_local_image = 0;
-  }
+
 }
 
 /*---------------------------------------------------------------------------------*/
