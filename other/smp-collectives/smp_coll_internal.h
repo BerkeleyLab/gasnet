@@ -103,7 +103,7 @@ void smp_coll_barrier_tree_pull_pull(smp_coll_t handle, int flags);
 
 void smp_coll_barrier_pthread(smp_coll_t handle, int flags);
 
-
+#if HAVE_PTHREAD_BARRIER
 #define SMP_COLL_CONSTRUCT_BARR_ROUTINES(HANDLE) do{\
 (HANDLE)->barr_fns[0] = smp_coll_barrier_cond_var; \
 (HANDLE)->barr_fns[1] = smp_coll_barrier_dissem_atomic; \
@@ -114,6 +114,17 @@ void smp_coll_barrier_pthread(smp_coll_t handle, int flags);
 (HANDLE)->barr_fns[6] = smp_coll_barrier_pthread; \
 (HANDLE)->curr_barrier_routine=3;\
 } while(0)
+#else
+#define SMP_COLL_CONSTRUCT_BARR_ROUTINES(HANDLE) do{\
+(HANDLE)->barr_fns[0] = smp_coll_barrier_cond_var; \
+(HANDLE)->barr_fns[1] = smp_coll_barrier_dissem_atomic; \
+(HANDLE)->barr_fns[2] = smp_coll_barrier_tree_push_push; \
+(HANDLE)->barr_fns[3] = smp_coll_barrier_tree_push_pull; \
+(HANDLE)->barr_fns[4] = smp_coll_barrier_tree_pull_push; \
+(HANDLE)->barr_fns[5] = smp_coll_barrier_tree_pull_pull; \
+(HANDLE)->curr_barrier_routine=3;\
+} while(0)
+#endif
 
 #if 0
 typedef void (*SMP_COLL_BCAST_FN)(smp_coll_t handle, int num_addrs, void * const dstlist[], const void *src, 
