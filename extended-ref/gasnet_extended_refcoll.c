@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/07/26 00:18:01 $
- * $Revision: 1.72.10.39 $
+ *     $Date: 2009/07/27 20:33:47 $
+ * $Revision: 1.72.10.40 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1185,168 +1185,14 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       gasnete_coll_team_init(GASNET_TEAM_ALL, 0, gasneti_nodes, gasneti_mynode, rel2act_map, gasnete_coll_auxseg_save, images GASNETE_THREAD_PASS);
       gasneti_free(rel2act_map);
     }
-    
-
-#if 0
-    GASNET_TEAM_ALL = gasnete_coll_make_team(1, images, gasneti_mynode, gasneti_nodes, gasnete_coll_auxseg_save GASNETE_THREAD_PASS);
-    TX = gasneti_getenv_int_withdefault("GASNET_COLL_TX", 0, 0);
-    if(TX) {
-      gasnet_seginfo_t *aux_seg_temp;
-      int num_nodes;
-      TY = gasneti_getenv_int_withdefault("GASNET_COLL_TY", gasneti_nodes/TX, 0);
-      gasneti_assert(TX*TY == gasneti_nodes);
-      
-      /*first build row teams*/
-      {
-        num_nodes = TY;
-        aux_seg_temp = gasneti_malloc(sizeof(gasnet_seginfo_t)*num_nodes);
-        for(i=0; i<num_nodes; i++) {
-          aux_seg_temp[i].addr = gasnete_coll_auxseg2_save[(gasneti_mynode/TY)*TY + i].addr;
-          aux_seg_temp[i].size = gasnete_coll_auxseg2_save[(gasneti_mynode/TY)*TY + i].size/2;
-        }
-        /* setup information for the global team */
-        GASNET_TEAM_A = gasnete_coll_make_team(0, NULL, gasneti_mynode%TY, num_nodes, aux_seg_temp GASNETE_THREAD_PASS);
-        GASNET_TEAM_A->rel2act_map = gasneti_malloc(sizeof(gasnet_node_t)*num_nodes);
-        GASNET_TEAM_A->team_id = 1;
-        for(i=0; i<num_nodes; i++) {
-          GASNET_TEAM_A->rel2act_map[i] = (gasneti_mynode/TY)*TY + i;
-        }
-      }
-      /*build column teams*/
-      {
-        num_nodes = TX;
-        aux_seg_temp = gasneti_malloc(sizeof(gasnet_seginfo_t)*num_nodes);
-        for(i=0; i<num_nodes; i++) {
-          aux_seg_temp[i].addr = (uint8_t*) gasnete_coll_auxseg2_save[i*TY+gasneti_mynode%TY].addr + gasnete_coll_auxseg2_save[i*TY+gasneti_mynode%TY].size/2;
-          aux_seg_temp[i].size = gasnete_coll_auxseg2_save[i*TY+gasneti_mynode%TY].size/2;
-        }
-        /* setup information for the global team */
-        GASNET_TEAM_B = gasnete_coll_make_team(0, NULL, gasneti_mynode/TY, num_nodes, aux_seg_temp GASNETE_THREAD_PASS);
-        GASNET_TEAM_B->rel2act_map = gasneti_malloc(sizeof(gasnet_node_t)*num_nodes);
-        GASNET_TEAM_B->team_id = 2;
-        for(i=0; i<num_nodes; i++) {
-          GASNET_TEAM_B->rel2act_map[i] = i*TY+gasneti_mynode%TY;
-        }
-      }
-      
-    } else {
-      gasnet_seginfo_t *aux_seg_temp;
-      /*build the even/odd team*/
-      
-      if(gasneti_mynode%2 == 0) {
-        int num_nodes = (gasneti_nodes+1)/2;
-        aux_seg_temp = gasneti_malloc(sizeof(gasnet_seginfo_t)*num_nodes);
-        for(i=0; i<num_nodes; i++) {
-          aux_seg_temp[i].addr = gasnete_coll_auxseg2_save[i*2].addr;
-          aux_seg_temp[i].size = gasnete_coll_auxseg2_save[i*2].size/2;
-        }
-        /* setup information for the global team */
-
-        GASNET_TEAM_A = gasnete_coll_make_team(0, NULL, gasneti_mynode/2, num_nodes, aux_seg_temp GASNETE_THREAD_PASS);
-        GASNET_TEAM_A->rel2act_map = gasneti_malloc(sizeof(gasnet_node_t)*num_nodes);
-        GASNET_TEAM_A->team_id = 1;
-        for(i=0; i<num_nodes; i++) {
-          GASNET_TEAM_A->rel2act_map[i] = i*2;
-        }
-      } else {
-        int num_nodes = gasneti_nodes/2;
-        aux_seg_temp = gasneti_malloc(sizeof(gasnet_seginfo_t)*num_nodes);
-        for(i=0; i<num_nodes; i++) {
-          aux_seg_temp[i].addr = gasnete_coll_auxseg2_save[(i*2)+1].addr;
-          aux_seg_temp[i].size = gasnete_coll_auxseg2_save[(i*2)+1].size/2;
-        }
-
-        GASNET_TEAM_A = gasnete_coll_make_team(0, NULL, gasneti_mynode/2, num_nodes, aux_seg_temp GASNETE_THREAD_PASS);
-        GASNET_TEAM_A->rel2act_map = gasneti_malloc(sizeof(gasnet_node_t)*num_nodes);
-        GASNET_TEAM_A->team_id = 1;
-        for(i=0; i<num_nodes; i++) {
-          GASNET_TEAM_A->rel2act_map[i] = i*2+1;
-        }
-      }
-      
-      if(gasneti_mynode < gasneti_nodes/2) {
-        int num_nodes = gasneti_nodes/2; 
-        aux_seg_temp = gasneti_malloc(sizeof(gasnet_seginfo_t)*num_nodes);
-        for(i=0; i<num_nodes; i++) {
-          aux_seg_temp[i].addr = (uint8_t*) gasnete_coll_auxseg2_save[i*2].addr + gasnete_coll_auxseg2_save[i*2].size/2;
-          aux_seg_temp[i].size = gasnete_coll_auxseg2_save[i*2].size/2;
-        }
-        /* setup information for the global team */
-        GASNET_TEAM_B = gasnete_coll_make_team(0, NULL, gasneti_mynode, num_nodes, aux_seg_temp GASNETE_THREAD_PASS);
-        GASNET_TEAM_B->rel2act_map = gasneti_malloc(sizeof(gasnet_node_t)*num_nodes);
-        GASNET_TEAM_B->team_id = 2;
-        for(i=0; i<num_nodes; i++) {
-          GASNET_TEAM_B->rel2act_map[i] = i;
-        }
-        
-      } else {
-        int num_nodes = (gasneti_nodes+1)/2;
-        aux_seg_temp = gasneti_malloc(sizeof(gasnet_seginfo_t)*num_nodes);
-        for(i=0; i<num_nodes; i++) {
-          aux_seg_temp[i].addr = (uint8_t*) gasnete_coll_auxseg2_save[i*2].addr + gasnete_coll_auxseg2_save[i*2].size/2;
-          aux_seg_temp[i].size = gasnete_coll_auxseg2_save[i*2].size/2;
-        }
-        /* setup information for the global team */
-        GASNET_TEAM_B = gasnete_coll_make_team(0, NULL, gasneti_mynode-gasneti_nodes/2, num_nodes, aux_seg_temp GASNETE_THREAD_PASS);
-        GASNET_TEAM_B->rel2act_map = gasneti_malloc(sizeof(gasnet_node_t)*num_nodes);
-        GASNET_TEAM_B->team_id = 2;
-        for(i=0; i<num_nodes; i++) {
-          GASNET_TEAM_B->rel2act_map[i] = i+gasneti_nodes/2;
-        }
-      }
-#endif 
-      
-#if 0
-    GASNET_TEAM_ALL->global_team = 1;
-    GASNET_TEAM_ALL->tree_geom_cache_head = NULL;
-    GASNET_TEAM_ALL->tree_geom_cache_tail = NULL;
-    gasneti_mutex_init(&GASNET_TEAM_ALL->tree_geom_cache_lock);
-    GASNET_TEAM_ALL->tree_construction_scratch = NULL;
-    GASNET_TEAM_ALL->dissem_cache_head = NULL;
-    GASNET_TEAM_ALL->dissem_cache_tail = NULL;
-    gasneti_mutex_init(&GASNET_TEAM_ALL->dissem_cache_lock);
-    {
-      gasnet_node_t *ranks;
-      uint32_t i;
-      ranks  = gasneti_malloc(sizeof(gasnet_node_t)*gasneti_nodes);
-      gasneti_assert(ranks != NULL);
-      for (i=0; i<gasneti_nodes; i++)
-        ranks[i]=i;
-      
-      gasnete_coll_team_init(GASNET_TEAM_ALL, 0, gasneti_nodes, gasneti_mynode, ranks);
-      gasneti_free(ranks);
-    }
-    GASNET_TEAM_ALL->scratch_segs = gasnete_coll_auxseg_save;
-    GASNET_TEAM_ALL->smallest_scratch_seg = smallest_scratch_seg;
-    GASNET_TEAM_ALL->autotune_info = gasnete_coll_autotune_init(GASNET_TEAM_ALL, gasneti_mynode, gasneti_nodes, 
-                                                                gasnete_coll_my_images, gasnete_coll_total_images,
-                                                                smallest_scratch_seg);
-    gasnete_coll_alloc_new_scratch_status(GASNET_TEAM_ALL);
-    if(!gasnete_coll_fixed_image_count && gasneti_mynode ==0) {
-      fprintf(stderr, "WARNING: Current collective implementation requires constant number of threads on each node\n");
-      fprintf(stderr, "WARNING: for optimized collectives.\n");
-
-    }
-#endif
 
     /* This barrier, together with the thread barrier that follows, ensures all global
        collectives initialization is complete before any collectives can be called. */
     gasnet_barrier_notify((int)GASNET_TEAM_ALL->sequence,0);
     gasnet_barrier_wait((int)GASNET_TEAM_ALL->sequence,0);
   }
+
   if (images) {
-    td->my_local_image = my_image - GASNET_TEAM_ALL->my_offset;
-    gasneti_assert(td->my_local_image < GASNET_TEAM_ALL->my_images);
-  } else {
-    td->my_local_image = 0;
-  }
-  if (images) {
-#if GASNET_PAR
-    {
-      int tune_barriers = gasneti_getenv_yesno_withdefault("GASNET_COLL_TUNE_SMP_BARRIER", 1);
-      td->smp_coll_handle = smp_coll_init(pthread_self(), 1024*1024, (tune_barriers==1 ? 0 : SMP_COLL_SKIP_TUNE_BARRIERS), images[gasneti_mynode], td->my_local_image);
-    }
-#endif
     /* Simple barrier */
     gasneti_mutex_lock(&init_lock);
     remain -= 1;
@@ -1358,9 +1204,26 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       } while (remain);
     }
     gasneti_mutex_unlock(&init_lock);
-  }
-  gasnete_coll_init_done = 1;
+    
 
+  }
+  if (images) {
+    td->my_local_image = my_image - GASNET_TEAM_ALL->my_offset;
+    gasneti_assert(td->my_local_image < GASNET_TEAM_ALL->my_images);
+#if GASNET_PAR
+    {
+      int tune_barriers = gasneti_getenv_yesno_withdefault("GASNET_COLL_TUNE_SMP_BARRIER", 1);
+      td->smp_coll_handle = smp_coll_init(pthread_self(), 1024*1024, 
+                                          (tune_barriers==1 ? 0 : SMP_COLL_SKIP_TUNE_BARRIERS), 
+                                          images[gasneti_mynode], td->my_local_image);
+    }
+#endif
+  } else {
+    td->my_local_image = 0;  
+  }
+  
+  if(td->my_local_image == 0) gasnete_coll_init_done = 1;
+  
   /* Only thread-local initialization may follow this point */
 
 #if GASNET_DEBUG
