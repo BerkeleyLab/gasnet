@@ -64,7 +64,10 @@ char *outputfile = (char*) "./gasnet_coll_tuning_defaults.bin";
 
 #include <test.h>
 
-#define COLL_BARRIER() PTHREAD_BARRIER(threads_per_node)
+#define COLL_BARRIER() do {\
+gasnet_coll_barrier_notify(GASNET_TEAM_ALL, 0, GASNET_BARRIERFLAG_ANONYMOUS | GASNET_BARRIERFLAG_IMAGES);\
+gasnet_coll_barrier_wait(GASNET_TEAM_ALL, 0, GASNET_BARRIERFLAG_ANONYMOUS | GASNET_BARRIERFLAG_IMAGES);\
+} while(0);
 
 char* fill_flag_str(int flags, char *outstr) {
   
@@ -133,7 +136,7 @@ void run_MULTI_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
     myxml_addAttributeInt(current_parent_node, (char*) "end", (s == max_data_size ? 1<<31 : (s*2)-1));
     
     /*run the gasnet tuner and report back the results!*/
-    ganset_coll_tune_generic_op(GASNET_TEAM_ALL, GASNET_COLL_BROADCASTM_OP, dst_arr, src_arr, root_thread, flags, sizeof(int)*s,
+    gasnet_coll_tune_generic_op(GASNET_TEAM_ALL, GASNET_COLL_BROADCASTM_OP, dst_arr, src_arr, root_thread, flags, sizeof(int)*s,
                                 NULL, NULL, &best_alg, &num_params, &param_list);
 
     sprintf(buffer, "%d", best_alg);
@@ -194,7 +197,7 @@ void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_a
     myxml_addAttributeInt(current_parent_node, (char*) "end", (s == max_data_size ? 1<<31 : (s*2)-1));
     
     /*run the gasnet tuner and report back the results!*/
-    ganset_coll_tune_generic_op(GASNET_TEAM_ALL, GASNET_COLL_BROADCAST_OP, (uint8_t**) &dst, (uint8_t**) &src, root_thread, flags, sizeof(int)*s,
+    gasnet_coll_tune_generic_op(GASNET_TEAM_ALL, GASNET_COLL_BROADCAST_OP, (uint8_t**) &dst, (uint8_t**) &src, root_thread, flags, sizeof(int)*s,
                                 NULL, NULL, &best_alg, &num_params, &param_list);
     
     sprintf(buffer, "%d", best_alg);
@@ -247,7 +250,7 @@ void *thread_main(void *arg) {
     
 
 
-    
+
     switch(flag_iter) {
     case 0: flags = GASNET_COLL_IN_NOSYNC  | GASNET_COLL_OUT_NOSYNC; break;
     case 1: flags = GASNET_COLL_IN_NOSYNC  | GASNET_COLL_OUT_MYSYNC; break;
