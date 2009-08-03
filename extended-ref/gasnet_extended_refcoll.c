@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/07/27 20:33:47 $
- * $Revision: 1.72.10.40 $
+ *     $Date: 2009/08/03 20:35:04 $
+ * $Revision: 1.72.10.41 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2100,8 +2100,14 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
   gasneti_assert(td->my_local_image == 0);
   /*if all the threads don't poll by definition this one is the first thread so do some house keeping to get the thread local sequence correct*/
   /*this is an error if this isn't the first thread calling the function*/
-  first_thread = gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE);
-  gasneti_assert(first_thread==1);
+  if(!(flags & GASNETE_COLL_SUBORDINATE)) {
+    /*the threads first does some house keeping regarding thread entrance but we want to only advance the thread sequence
+     numbers if all threads are going to be calling this routine*/
+    first_thread = gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE);
+    gasneti_assert(first_thread==1);
+  } else {
+    first_thread = 1;
+  }
 #endif
   GASNETE_COLL_SET_OWNER(data);
 
@@ -3464,17 +3470,21 @@ gasnete_coll_generic_broadcastM_nb(gasnet_team_handle_t team,
       data->tree_info = tree_info;
       result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, num_params, param_list, tree_info GASNETE_THREAD_PASS);
 //      gasneti_atomic_set(&data->threads.remaining, (flags & GASNET_COLL_IN_NOSYNC) ? 0 : (team->my_images - 1), 0);
+      
       if(!(flags & GASNETE_COLL_SUBORDINATE)) {
         //gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started, GASNETT_ATOMIC_WMB_PRE);
         
         gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started, GASNETT_ATOMIC_WMB_PRE);
+        td->num_multi_addr_collectives_started++;
+
       }
 
-      td->num_multi_addr_collectives_started++;
     } else {
-      td->num_multi_addr_collectives_started++;
-      gasneti_waitwhile(td->num_multi_addr_collectives_started > gasneti_weakatomic_read(&team->num_multi_addr_collectives_started,0));
-      gasneti_sync_reads();
+      if(!(flags & GASNETE_COLL_SUBORDINATE)) {
+        td->num_multi_addr_collectives_started++;
+        gasneti_waitwhile(td->num_multi_addr_collectives_started > gasneti_weakatomic_read(&team->num_multi_addr_collectives_started,0));
+        gasneti_sync_reads();
+      }
       result = gasnete_coll_threads_get_handle(GASNETE_THREAD_PASS_ALONE);
     }
   }
