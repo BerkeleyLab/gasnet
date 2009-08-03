@@ -128,11 +128,12 @@ void smp_coll_tune_barrier(smp_coll_t handle) {
     //for(root = 0; root < handle->THREADS; root=(root==0 ? 2 : root *2)) {
     if(handle->MYTHREAD==0 && VERBOSE_TUNING) fprintf(stderr, "ROOT: %d\n", root);
     for(i=0; i<SMP_COLL_NUM_BARR_ROUTINES; i++) {
+      if(i==SMP_COLL_BARRIER_COND_VAR) continue;
       if(handle->MYTHREAD==0 && VERBOSE_TUNING) fprintf(stderr, "\t routine: %d\n",i);
       for(radix=2; radix<=handle->THREADS; radix*=2) {
         
         
-        if(i==SMP_COLL_BARRIER_COND_VAR) continue;
+        
         if(i==SMP_COLL_BARRIER_COND_VAR && radix>2) continue;
         if(i==SMP_COLL_BARRIER_PTHREAD && radix>2) continue;
         if(handle->MYTHREAD==0 && VERBOSE_TUNING) fprintf(stderr, "\t\t radix: %d\n",radix);
