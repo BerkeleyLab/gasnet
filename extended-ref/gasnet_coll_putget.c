@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/07/25 23:35:25 $
- * $Revision: 1.71.12.30 $
+ *     $Date: 2009/08/03 20:35:40 $
+ * $Revision: 1.71.12.31 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1203,7 +1203,7 @@ static int gasnete_coll_pf_bcastM_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREA
       impl->tree_type = op->tree_info->geom->tree_type;
       
       seg_size = (size_t) op->param_list[0];
-      num_segs = ((args->nbytes % seg_size) == 0 ? args->nbytes/seg_size : (args->nbytes/seg_size)+1);
+      num_segs = (args->nbytes + seg_size - 1)/seg_size;
       
       
       data->private_data = gasneti_malloc(sizeof(gasnete_coll_handle_vec_t)+sizeof(void* const)*numaddrs);
@@ -1281,7 +1281,7 @@ gasnete_coll_bcastM_TreePutSeg(gasnet_team_handle_t team,
   
   gasneti_assert(coll_params->num_params >= 1);
   seg_size = (size_t)coll_params->param_list[0];
-  num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
+  num_segs = (nbytes + seg_size - 1)/seg_size;
   gasneti_assert(num_segs < MAX_NUM_SEGS);
 
 //  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));

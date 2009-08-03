@@ -361,6 +361,8 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
                                            0, 0, 0,
                                            0,NULL,(void*)gasnete_coll_bcastM_ScatterAllgather,"BROADCASTM_SCATTERALLGATHER");
   
+#if 1
+#warning here
   {
     struct gasnet_coll_tuning_parameter_t tuning_params[1]=
     { 
@@ -376,7 +378,7 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info) {
     
     
   }
-  
+#endif
   info->collective_algorithms[GASNET_COLL_BROADCASTM_OP][GASNETE_COLL_BROADCASTM_TREE_EAGER] = 
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCASTM_OP, 
                                            GASNETE_COLL_EVERY_SYNC_FLAG,
@@ -442,7 +444,7 @@ void gasnete_coll_free_autotune_tree_node(gasnete_coll_autotune_tree_node_t *in)
   }
 }
 
-static int allow_conduit_collectives=0;
+static int allow_conduit_collectives=1;
 
 gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t team, gasnet_node_t mynode, gasnet_node_t total_nodes, gasnet_image_t my_images, gasnet_image_t total_images, size_t min_scratch_size) {
   /* read all the environment variables and setup the defaults*/
@@ -531,8 +533,8 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t te
   ret->decision_tree = gasnete_coll_get_autotune_tree_node();
   ret->team = team;
   gasnete_coll_register_collectives(ret);
-#ifdef GASNETE_COLL_CONDUIT_COLLECTIVES
-  allow_conduit_collectives = gasneti_getenv_yesno_withdefault("GASNET_COLL_ALLOW_CONDUIT_COLLECTIVES", 0);
+#if GASNETE_COLL_CONDUIT_COLLECTIVES
+  allow_conduit_collectives = gasneti_getenv_yesno_withdefault("GASNET_COLL_ALLOW_CONDUIT_COLLECTIVES", allow_conduit_collectives);
   if(allow_conduit_collectives) {
     gasnete_coll_register_conduit_collectives(ret);
   }
@@ -753,84 +755,16 @@ static char* print_flag_str(char *outstr, int flags) {
 
 /*run the given op on the given arguments*/
 /*and return the best one*/
-#if defined(GASNET_PAR) || defined(GASNET_PARSYNC)
-  /* Cheap (but functional!) pthread + gasnet barrier */
-  #if PLATFORM_ARCH_CRAYX1 || PLATFORM_OS_CYGWIN
-    /* pthread_cond is unreliable on some versions of these OS's - use semaphores */
-    #include <semaphore.h>
-static void gasnete_coll_autotune_barrier(gasnete_coll_team_t team, unsigned int local_pthread_count, int doGASNetbarrier) {
-      static gasnett_mutex_t barrier_mutex = GASNETT_MUTEX_INITIALIZER;
-      static volatile int phase = 0;
-      static volatile unsigned int barrier_count = 0;
-      static sem_t sem[2];
-      gasnett_mutex_lock(&barrier_mutex);
-      { int myphase = phase;
-        static volatile int firsttime = 1;
-        if (firsttime) {
-          check_zeroret(sem_init(&sem[0], 0, 0));
-          check_zeroret(sem_init(&sem[1], 0, 0));
-          firsttime = 0;
-        }
-        barrier_count++;
-        if (barrier_count < local_pthread_count) { 
-          gasnett_mutex_unlock(&barrier_mutex);
-          check_zeroret(sem_wait(&sem[myphase]));
-        } else {
-          int i;
-          if (doGASNetbarrier) GASNETE_COLL_AUTOTUNE_BARRIER(team);
-          barrier_count = 0;
-          phase = !phase;
-          gasnett_mutex_unlock(&barrier_mutex);
-          for (i=0; i < (int)(local_pthread_count-1); i++) {
-            check_zeroret(sem_post(&sem[myphase]));
-          }
-        }
-      }
-    }
-  #else
-static void gasnete_coll_autotune_barrier(gasnete_coll_team_t team, unsigned int local_pthread_count, int doGASNetbarrier) {
-      /* cond variables must be phased on some OS's (HPUX) */
-      static struct {
-        gasnett_cond_t cond;
-        gasnett_mutex_t mutex;
-      } barrier[2] = { { GASNETT_COND_INITIALIZER, GASNETT_MUTEX_INITIALIZER }, 
-                       { GASNETT_COND_INITIALIZER, GASNETT_MUTEX_INITIALIZER }};
-      static volatile unsigned int barrier_count = 0;
-      static volatile int phase = 0;
-      const int myphase = phase;
-      gasnett_mutex_lock(&(barrier[myphase].mutex));
-      barrier_count++;
-      if (barrier_count < local_pthread_count) {
-	/* CAUTION: changing the "do-while" to a "while" triggers a bug in the SunStudio 2006-08
-         * compiler for x86_64.  See http://upc-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1858
-         * which includes a link to Sun's own database entry for this issue.
-         */
-        do {
-          gasnett_cond_wait(&(barrier[myphase].cond), &(barrier[myphase].mutex));
-        } while (myphase == phase);
-      } else {  
-        /* Now do the gasnet barrier */
-        if (doGASNetbarrier) GASNETE_COLL_AUTOTUNE_BARRIER(team);
-        barrier_count = 0;
-        phase = !phase;
-        gasnett_cond_broadcast(&(barrier[myphase].cond));
-      }       
-      gasnett_mutex_unlock(&(barrier[myphase].mutex));
-    }
-  #endif
+static void gasnete_coll_autotune_barrier(gasnete_coll_team_t team) {
+  int ret;
+  gasnet_coll_barrier_notify(team, 0, GASNET_BARRIERFLAG_ANONYMOUS | GASNET_BARRIERFLAG_IMAGES);
+  ret = gasnet_coll_barrier_wait(team, 0, GASNET_BARRIERFLAG_ANONYMOUS | GASNET_BARRIERFLAG_IMAGES);
+  gasneti_assert_always(ret == GASNET_OK);
+}
+                                          
 #define PTHREAD_BARRIER(team, local_pthread_count)  \
-  gasnete_coll_autotune_barrier(team, local_pthread_count, 1)
-#define PTHREAD_LOCALBARRIER(team, local_pthread_count) \
-  gasnete_coll_autotune_barrier(team, local_pthread_count, 0)
-#else
-#define PTHREAD_BARRIER(team, local_pthread_count) do { \
-    gasneti_assert(local_pthread_count == 1); GASNETE_COLL_AUTOTUNE_BARRIER(team); \
-  } while (0)
-#define PTHREAD_LOCALBARRIER(team, local_pthread_count) do {  \
-    if (local_pthread_count != 1)                                 \
-      gasneti_fatalerror("cannot call PTHREAD_BARRIER in GASNET_SEQ mode"); \
-  } while (0)
-#endif
+  gasnete_coll_autotune_barrier(team)
+
 
 static gasnett_tick_t run_collective_bench(gasnet_team_handle_t team, gasnet_coll_optype_t op,
                                            uint8_t **dst, uint8_t **src, gasnet_image_t rootimg, int flags, size_t nbytes,
@@ -1006,7 +940,7 @@ void gasnete_coll_tune_generic_op(gasnet_team_handle_t team, gasnet_coll_optype_
   uint32_t loc_best_param_list[GASNET_COLL_NUM_PARAM_TYPES];
   uint32_t sync_flags = (flags &  GASNET_COLL_SYNC_FLAG_MASK); /*strip the sync flags off the flags*/
   uint32_t req_flags = (flags & (~GASNET_COLL_SYNC_FLAG_MASK));
-  
+  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   switch (op) {
     case GASNET_COLL_BROADCAST_OP:
       num_algs = GASNETE_COLL_BROADCAST_NUM_ALGS;
@@ -1020,27 +954,28 @@ void gasnete_coll_tune_generic_op(gasnet_team_handle_t team, gasnet_coll_optype_
   }
   
   *best_algidx = 0;
-
-  
+  PTHREAD_BARRIER(team, team->my_images);
+//  for (algidx=0; algidx<num_algs; algidx++) {
   for (algidx=0; algidx<num_algs; algidx++) {
+    
     int size_ok = (team->autotune_info->collective_algorithms[op][algidx].max_num_bytes==0 || nbytes <= team->autotune_info->collective_algorithms[op][algidx].max_num_bytes);
     /*ensure that all the flags required by the algorithm are passed in through the flags*/
     int req_flags_ok = ((req_flags & team->autotune_info->collective_algorithms[op][algidx].requirements) == team->autotune_info->collective_algorithms[op][algidx].requirements);
     /*ensure that the synchronization flags exist in the list of possible synch flags for this algorithm*/
     int sync_flags_ok = ((sync_flags & team->autotune_info->collective_algorithms[op][algidx].syncflags) == sync_flags);
 #if GASNET_DEBUG
-    if(!size_ok){if(gasneti_mynode==0) fprintf(stderr, "%d> skipping alg: %d (reason: size too large)\n", gasneti_mynode, algidx);continue;}
-    if(!req_flags_ok){if(gasneti_mynode==0) fprintf(stderr, "%d> skipping alg: %d (reason: all req flags are not present)\n", gasneti_mynode, algidx);continue;}
-    if(!sync_flags_ok){if(gasneti_mynode==0) fprintf(stderr, "%d> skipping alg: %d (reason: not valid for this syncflag)\n", gasneti_mynode, algidx);continue;}
+    if(!size_ok){if(td->my_image==0) fprintf(stderr, "%d> skipping alg: %d (reason: size too large)\n", gasneti_mynode, algidx);continue;}
+    if(!req_flags_ok){if(td->my_image==0) fprintf(stderr, "%d> skipping alg: %d (reason: all req flags are not present)\n", gasneti_mynode, algidx);continue;}
+    if(!sync_flags_ok){if(td->my_image==0) fprintf(stderr, "%d> skipping alg: %d (reason: not valid for this syncflag)\n", gasneti_mynode, algidx);continue;}
 
 #else
     if(!(size_ok && req_flags_ok && sync_flags_ok/*match!*/)) {
       continue;
     }
 #endif
-    
-    if((op = GASNET_COLL_BROADCASTM_OP && algidx == GASNETE_COLL_BROADCASTM_SCATTERALLGATHER) || 
-       (op = GASNET_COLL_BROADCAST_OP && algidx == GASNETE_COLL_BROADCAST_SCATTERALLGATHER)) continue;
+     PTHREAD_BARRIER(team, team->my_images);
+    if((op == GASNET_COLL_BROADCASTM_OP && algidx == GASNETE_COLL_BROADCASTM_SCATTERALLGATHER) || 
+       (op == GASNET_COLL_BROADCAST_OP && algidx == GASNETE_COLL_BROADCAST_SCATTERALLGATHER)) continue;
     /*find out hte best time for this algorithm*/
     alg_best_time = curr_best_time;
     do_tuning_loop(team, op, dst, src, rootimg, flags, nbytes, fnptr, sample_work_arg, 
@@ -1148,9 +1083,15 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcastM_algorithm(gasnet_
         ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_BROADCASTM_OP][GASNETE_COLL_BROADCASTM_TREE_PUT].fn_ptr.bcastM_fn; 
       }
     } else {
+#if 0
       ret->num_params = 1;
+      
       ret->param_list[0] = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNET_COLL_BROADCASTM_OP, flags);  
       ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_BROADCASTM_OP][GASNETE_COLL_BROADCASTM_TREE_PUT_SEG].fn_ptr.bcastM_fn; 
+
+#else
+      ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_BROADCASTM_OP][GASNETE_COLL_BROADCASTM_RVGET].fn_ptr.bcastM_fn; 
+#endif
     }
   } else if (flags & GASNET_COLL_SRC_IN_SEGMENT) {
     if (flags & (GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_LOCAL)) {

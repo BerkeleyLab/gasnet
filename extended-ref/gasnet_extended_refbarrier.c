@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2009/07/25 23:35:25 $
- * $Revision: 1.34.20.4 $
+ *     $Date: 2009/08/03 20:35:40 $
+ * $Revision: 1.34.20.5 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -491,15 +491,15 @@ static gasnete_coll_barrier_type_t gasnete_coll_default_barrier_type=0;
 
 GASNETI_INLINE(gasnete_coll_barrier_notify_internal)
 void gasnete_coll_barrier_notify_internal(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG) {
+  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   gasneti_assert(team->barrier_notify);
 #if GASNET_PAR
   if(flags & GASNET_BARRIERFLAG_IMAGES) {
-   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
-    smp_coll_barrier(td->smp_coll_handle, 0);
+    if(team->total_ranks >1) smp_coll_barrier(td->smp_coll_handle, 0);
     if(td->my_local_image == 0) (*team->barrier_notify)(team, id, flags);
-  } else
+  }  else 
 #endif
-    (*team->barrier_notify)(team, id, flags);
+    (*team->barrier_notify)(team, id, flags);  
 }
 
 GASNETI_INLINE(gasnete_coll_barrier_try_internal)
@@ -535,20 +535,17 @@ int gasnete_coll_barrier_wait_internal(gasnete_coll_team_t team, int id, int fla
   gasneti_assert(team->barrier_wait);
   
 #if GASNET_PAR 
-  {
+  if(flags & GASNET_BARRIERFLAG_IMAGES){
     gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
     if(td->my_local_image == 0) ret = (*team->barrier_wait)(team, id, flags);
     else ret = GASNET_OK;
     /*if the barrier has succeeded then call the local smp barrier on the way out*/
     /*if there is exactly one gasnet_node then the barrier on the notify is sufficient*/
-    if(flags & GASNET_BARRIERFLAG_IMAGES && team->total_ranks > 1 && ret == GASNET_OK) {
-      smp_coll_barrier(td->smp_coll_handle, 0);
-    } 
+    if(ret == GASNET_OK) smp_coll_barrier(td->smp_coll_handle, 0);
     return ret;
-  }
-#else
-  return (*team->barrier_wait)(team, id, flags);
+  } else
 #endif
+    return (*team->barrier_wait)(team, id, flags);
   
 }
 
