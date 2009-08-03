@@ -1,4 +1,5 @@
-#include <smp_coll_internal.h>
+#include <../smp-collectives/smp_coll_internal.h>
+#if 0
 void smp_coll_set_broadcast_routine(smp_coll_t handle, smp_coll_broadcast_routine_t routine_id, int in_radix) {
   smp_coll_safe_barrier(handle, 0);
   if(!POWEROFTWO(in_radix)) {
@@ -11,6 +12,7 @@ void smp_coll_set_broadcast_routine(smp_coll_t handle, smp_coll_broadcast_routin
   handle->curr_bcast_routine = routine_id;
   smp_coll_safe_barrier(handle, 0);
 }
+
 #if !(INLINE_ALL_COLLECTIVES)
 void smp_coll_broadcast(smp_coll_t handle, int num_addrs, void * const dstlist[], const void *src, 
                         size_t nbytes, int flags) {
@@ -18,7 +20,6 @@ void smp_coll_broadcast(smp_coll_t handle, int num_addrs, void * const dstlist[]
                                                    nbytes, flags);
 }
 #endif
-
 #if !(INLINE_ALL_COLLECTIVES)
 void smp_coll_scatter_offset(smp_coll_t handle, int num_addrs, void * const dstlist[], void *src, 
                              size_t nbytes, int flags, size_t offset) {
@@ -44,7 +45,7 @@ void smp_coll_gather_all(smp_coll_t handle,  int num_addrs,
   smp_coll_broadcast(handle, num_addrs, dstlist, dstlist[0], nbytes*handle->THREADS, new_flags);
   if(!(flags & SMP_COLL_NO_SYNC)) smp_coll_barrier(handle, flags); 
 }
-
+#endif
 
 void smp_coll_broadcast_flat(smp_coll_t handle, int num_addrs, void * const dstlist[], const void *src, 
 			size_t nbytes, int flags){
@@ -52,19 +53,19 @@ void smp_coll_broadcast_flat(smp_coll_t handle, int num_addrs, void * const dstl
   if(!(flags & SMP_COLL_NO_SYNC)) smp_coll_barrier(handle, flags); 
   if(handle->MYTHREAD==0) {
     for(idx=0; idx<num_addrs; idx++) {
-      memcpy(dstlist[idx], src, nbytes); 
+      GASNETE_FAST_UNALIGNED_MEMCPY(dstlist[idx], src, nbytes); 
     }
   }
   if(!(flags & SMP_COLL_NO_SYNC)) smp_coll_barrier(handle, flags); 
 }
 
+#if 0
 void smp_coll_broadcast_tree_atomic(smp_coll_t handle, int num_addrs, void * const dstlist[], const void *src, 
-                             size_t nbytes, int flags){
+                             size_t nbytes, int flags, int radix){
   int idx = 0;
   
-  int num_digits = handle->broadcast_log_radix_THREADS;
-  int radixlog2 = handle->broadcast_log_2_radix;
-  int radix = handle->broadcast_radix;
+  int num_digits = smp_coll_mylogn(handle->THREADS, radix); 
+  int radixlog2 = smp_coll_mylogn(radix,2);
   int i,j,k;
   int parent=-1;
   
@@ -76,9 +77,8 @@ void smp_coll_broadcast_tree_atomic(smp_coll_t handle, int num_addrs, void * con
     }
   }
   if(parent!=-1) {
-    double a=2.0;
-    while(SMP_COLL_READ_ATOMIC(handle, handle->MYTHREAD, 0, handle->curr_atomic_set)!=1){a=1.0/a;}
-    SMP_COLL_RESET_ATOMIC(handle, handle->MYTHREAD, 0, handle->curr_atomic_set);
+    gasneti_waitwhile(SMP_COLL_READ_ATOMIC(handle, handle->MYTHREAD, 0, handle->curr_atomic_set)!=1);
+    SMP_COLL_DEC_ATOMIC(handle, handle->MYTHREAD, 0, handle->curr_atomic_set);
     gasnett_local_rmb();
   } else {
     memcpy(dstlist[0], src, nbytes);
@@ -90,7 +90,7 @@ void smp_coll_broadcast_tree_atomic(smp_coll_t handle, int num_addrs, void * con
       for(k=1;k<radix;k++) {
         int dest = SMP_COLL_MAKE_NUM_POWER2RADIX(handle->MYTHREAD, i, k, radix, radixlog2);
         if(dest<handle->THREADS) {
-          memcpy(dstlist[dest], dstlist[handle->MYTHREAD], nbytes); 
+          GASNETE_FAST_UNALIGNED_MEMCPY(dstlist[dest], dstlist[handle->MYTHREAD], nbytes); 
           gasnett_local_wmb();
           SMP_COLL_INC_ATOMIC(handle, dest, 0, handle->curr_atomic_set);
         }
@@ -101,14 +101,16 @@ void smp_coll_broadcast_tree_atomic(smp_coll_t handle, int num_addrs, void * con
   if((flags & SMP_COLL_ALL_SYNC)) smp_coll_barrier(handle, flags); 
   handle->curr_atomic_set = !handle->curr_atomic_set;
 }
+#endif
 
 void smp_coll_broadcast_tree_flag(smp_coll_t handle, int num_addrs, void * const dstlist[], const void *src, 
-                                    size_t nbytes, int flags){
+                                    size_t nbytes, int flags, int radix){
   int idx = 0;
   
-  int num_digits = handle->broadcast_log_radix_THREADS;
-  int radixlog2 = handle->broadcast_log_2_radix;
-  int radix = handle->broadcast_radix;
+  
+  int num_digits = smp_coll_mylogn(handle->THREADS, radix); 
+  int radixlog2 = smp_coll_mylogn(radix,2);
+
   int i,j,k;
   int parent=-1;
   
@@ -128,10 +130,7 @@ void smp_coll_broadcast_tree_flag(smp_coll_t handle, int num_addrs, void * const
   
   /*they then wait for the parent to come around and reset their flag back to 0 indicating the data has also arrived*/
   if(handle->MYTHREAD!=0) {
-    double a=2.0;
-    while(SMP_COLL_GET_BCAST_FLAG(handle, handle->MYTHREAD,0)!=0){a=1.0/a;}
-    /*read memory barrier to ensure data is transfered before we use it*/
-    gasnett_local_rmb();
+    gasneti_waitwhile(SMP_COLL_GET_BCAST_FLAG(handle, handle->MYTHREAD,0)!=0);
   } else {
     memcpy(dstlist[0], src, nbytes);
   }
@@ -142,9 +141,8 @@ void smp_coll_broadcast_tree_flag(smp_coll_t handle, int num_addrs, void * const
       for(k=1;k<radix;k++) {
         int dest = SMP_COLL_MAKE_NUM_POWER2RADIX(handle->MYTHREAD, i, k, radix, radixlog2);
         if(dest<handle->THREADS) {
-          double a=2.0;
           /*wait for dest to be ready before we send*/
-          while(SMP_COLL_GET_BCAST_FLAG(handle, dest, 0)==0){a=1.0/a;}
+          gasneti_waitwhile(SMP_COLL_GET_BCAST_FLAG(handle, dest, 0)==0);
           memcpy(dstlist[dest], dstlist[handle->MYTHREAD], nbytes); 
           /*write memory barrier to ensure data is transfered before we set the flag*/
           gasnett_local_wmb();
@@ -158,7 +156,7 @@ void smp_coll_broadcast_tree_flag(smp_coll_t handle, int num_addrs, void * const
 
 }
 
-
+#if 0
 void smp_coll_broadcast_tree_leaf_get_flag(smp_coll_t handle, int num_addrs, void * const dstlist[], const void *src, 
                                   size_t nbytes, int flags){
   int idx = 0;
@@ -263,3 +261,4 @@ void smp_coll_gather_flat(smp_coll_t handle, int num_addrs, const void *dst, voi
   }
   if(!(flags & SMP_COLL_NO_SYNC)) smp_coll_barrier(handle, flags); 
 }
+#endif
