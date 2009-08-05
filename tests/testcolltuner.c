@@ -50,6 +50,7 @@ gasnet_image_t THREADS;
 
 int performance_iters;
 size_t max_data_size;
+size_t min_data_size;
 
 #define SEG_PER_THREAD (sizeof(int)*max_data_size*2)
 #define TEST_SEGSZ_EXPR (sizeof(int)*(SEG_PER_THREAD*threads_per_node))
@@ -125,10 +126,11 @@ void run_MULTI_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
   
   temp_node = current_parent_node;
   
-   for(s=1; s<=max_data_size; s*=2) {
+   for(s=min_data_size; s<=max_data_size; s*=2) {
     uint32_t best_alg;
     uint32_t num_params;
     uint32_t *param_list;
+     char *best_tree;
     if(td->mythread==0)
       MSG0("starting test: %s %d bytes", fill_flag_str(flags, buffer), (int)sizeof(int)*s);
     
@@ -137,11 +139,13 @@ void run_MULTI_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
     
     /*run the gasnet tuner and report back the results!*/
     gasnet_coll_tune_generic_op(GASNET_TEAM_ALL, GASNET_COLL_BROADCASTM_OP, dst_arr, src_arr, root_thread, flags, sizeof(int)*s,
-                                NULL, NULL, &best_alg, &num_params, &param_list);
+                                NULL, NULL, &best_alg, &num_params, &param_list, &best_tree);
 
     sprintf(buffer, "%d", best_alg);
     myxml_createNode(current_parent_node, (char*) "Best_Alg", NULL, NULL, buffer);
+     myxml_createNode(current_parent_node, (char*) "Best_Tree", NULL, NULL, best_tree);
     sprintf(buffer, "%d", num_params);
+     
     myxml_createNode(current_parent_node, (char*) "Num_Params", NULL, NULL, buffer);
     for(c=0; c<num_params; c++) {
       char buff_idx[20];
@@ -149,6 +153,7 @@ void run_MULTI_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
       sprintf(buffer, "%d", param_list[c]);
       myxml_createNode(current_parent_node, buff_idx, NULL, NULL, buffer);
     }
+    //free(best_tree);
   }
   /*******************END BROADCASTM***************/
 
@@ -186,24 +191,27 @@ void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_a
   num_tree_classes = gasnet_coll_get_num_tree_classes(GASNET_TEAM_ALL, GASNET_COLL_BROADCAST_OP);
   temp_node = current_parent_node;
   
-  for(s=1; s<=max_data_size; s*=2) {
+  for(s=min_data_size; s<=max_data_size; s*=2) {
     uint32_t best_alg;
     uint32_t num_params;
     uint32_t *param_list;
+    char *best_tree;
     if(td->mythread==0)
       MSG0("starting test: %s %d bytes", fill_flag_str(flags, buffer), (int)sizeof(int)*s);
     
-    current_parent_node = myxml_createNodeInt(temp_node, (char*) "size", (char *) "start", s, NULL);
-    myxml_addAttributeInt(current_parent_node, (char*) "end", (s == max_data_size ? 1<<31 : (s*2)-1));
+    current_parent_node = myxml_createNodeInt(temp_node, (char*) "size", (char *) "start", s*sizeof(int), NULL);
+    myxml_addAttributeInt(current_parent_node, (char*) "end", (s == max_data_size ? 1<<31 : (s*2*sizeof(int))-1));
     
     /*run the gasnet tuner and report back the results!*/
     gasnet_coll_tune_generic_op(GASNET_TEAM_ALL, GASNET_COLL_BROADCAST_OP, (uint8_t**) &dst, (uint8_t**) &src, root_thread, flags, sizeof(int)*s,
-                                NULL, NULL, &best_alg, &num_params, &param_list);
+                                NULL, NULL, &best_alg, &num_params, &param_list, &best_tree);
     
     sprintf(buffer, "%d", best_alg);
     myxml_createNode(current_parent_node, (char*) "Best_Alg", NULL, NULL, buffer);
+    myxml_createNode(current_parent_node, (char*) "Best_Tree", NULL, NULL, best_tree);
     sprintf(buffer, "%d", num_params);
     myxml_createNode(current_parent_node, (char*) "Num_Params", NULL, NULL, buffer);
+   // free(best_tree);
     for(c=0; c<num_params; c++) {
       char buff_idx[20];
       sprintf(buff_idx, "param_%d", c);
@@ -249,7 +257,7 @@ void *thread_main(void *arg) {
     COLL_BARRIER();
     
 
-
+   
 
     switch(flag_iter) {
     case 0: flags = GASNET_COLL_IN_NOSYNC  | GASNET_COLL_OUT_NOSYNC; break;
@@ -271,9 +279,8 @@ void *thread_main(void *arg) {
     
 #if GASNET_ALIGNED_SEGMENTS
     if(threads_per_node == 1) {
-      test_root = myxml_createNode(sync_node, (char*)"num_addrs", (char*) "val", (char*)"single", NULL);
       /*call the single address (coll single) test routines with testroot*/
-      run_SINGLE_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_SINGLE, test_root);
+      run_SINGLE_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_SINGLE, sync_node);
     } else {
       if(td->mythread == 0 && !skip_msg_printed) MSG0("skipping SINGLE/SINGLE (multiple threads per node)");
     }
@@ -282,9 +289,8 @@ void *thread_main(void *arg) {
 #endif
 
     if(threads_per_node == 1) {
-      test_root = myxml_createNode(sync_node,(char*)"num_addrs", (char*)"val", (char*)"single", NULL);
       /*call the single address (coll local) test routines with testroot*/
-      run_SINGLE_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_LOCAL, test_root);
+      run_SINGLE_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_LOCAL, sync_node);
     } else {
       if(td->mythread == 0 && !skip_msg_printed) MSG0("skipping SINGLE/LOCAL (multiple threads per node) (test unimplemetned for now)");
     }
@@ -293,12 +299,10 @@ void *thread_main(void *arg) {
     /*do multi addr tests*/
     if(threads_per_node > 1) {
       /*call the multi address test (coll single) routines with testroot*/
-      test_root = myxml_createNode(sync_node,(char*)"num_addrs", (char*)"val", (char*)"multi", NULL);
-      run_MULTI_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_SINGLE, test_root);
+      run_MULTI_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_SINGLE, sync_node);
       
       /*call the multi address test (coll local) routines with testroot*/
-      test_root = myxml_createNode(sync_node,(char*)"num_addrs", (char*)"val", (char*)"multi", NULL);
-      run_MULTI_tree_tests(td, my_dsts, my_srcs, 0, flags | GASNET_COLL_LOCAL, test_root);
+     run_MULTI_tree_tests(td, my_dsts, my_srcs, 0, flags | GASNET_COLL_LOCAL, sync_node);
     }
   }
 
@@ -329,6 +333,7 @@ int main(int argc, char **argv) {
   GASNET_Safe(gasnet_init(&argc, &argv));
   
   max_data_size = DEFAULT_MAX_DATA_SIZE/sizeof(int);
+  min_data_size = sizeof(int);
   performance_iters = DEFAULT_PERFORMANCE_ITERS;
 
 
@@ -351,6 +356,9 @@ int main(int argc, char **argv) {
 #endif
     else if(strcmp("-sz", argv[i])==0 || strcmp("-max-data-size", argv[i])==0) {
       max_data_size = atoi(argv[i+1])/sizeof(int);
+      i++;
+    } else if(strcmp("-minsz", argv[i])==0 || strcmp("-min-data-size", argv[i])==0) {
+      min_data_size = atoi(argv[i+1])/sizeof(int);
       i++;
     } else if(strcmp("-f", argv[i])==0 || strcmp("-tune-file", argv[i])==0) {
       outputfile = test_malloc(strlen(argv[i+1])+1);

@@ -1,28 +1,3 @@
-typedef enum {
-  MYXML_ROOT_NODE = 0,
-  MYXML_LEAF_NODE,
-  MYXML_INTER_NODE,
-  MYXML_NUM_NODE_CLASSES} myxml_node_class_t;
-
-typedef struct myxml_attribute_t_ {
-  char *attribute_name;
-  char *attribute_value;
-} myxml_attribute_t;
-
-struct myxml_node_t_{
-  struct myxml_node_t_ *parent;
-  struct myxml_node_t_ **children;
-  int num_children;
-  myxml_node_class_t nodeclass;
-  
-  char *tag;
-
-  myxml_attribute_t *attribute_list;
-  int num_attributes;
-  
-  char* value;
-  int id;
-};
 
 
 #define STR_ALLOC_AND_COPY(OUTSTR, INSTR) do {(OUTSTR) = gasneti_malloc(strlen(INSTR)+1); strcpy((OUTSTR), (INSTR));} while(0)

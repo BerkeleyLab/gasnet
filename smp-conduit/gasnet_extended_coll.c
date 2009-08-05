@@ -46,10 +46,10 @@ gasnet_coll_handle_t gasnete_coll_smp_bcast_tree_intflags(gasnet_team_handle_t t
   
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   gasneti_assert(coll_params->num_params >= 1);
-  if(flags & GASNET_COLL_IN_ALLSYNC) smp_coll_barrier(td->smp_coll_handle,0);
+  if(!(flags & GASNET_COLL_IN_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
   smp_coll_broadcast_tree_flag(td->smp_coll_handle, team->my_images, dstlist, src, 
                                  nbytes, flags, coll_params->param_list[0]);
-  if(flags & GASNET_COLL_OUT_ALLSYNC) smp_coll_barrier(td->smp_coll_handle,0);
+  if(!(flags & GASNET_COLL_OUT_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
   return GASNET_COLL_INVALID_HANDLE;
 }
 

@@ -40,6 +40,15 @@ typedef struct gasnete_coll_autotune_tree_node_t_ {
   gasnete_coll_implementation_t impl;
 } gasnete_coll_autotune_tree_node_t;
 
+typedef enum {GASNETE_COLL_NONO=0, GASNETE_COLL_NOMY, GASNETE_COLL_NOALL, 
+  GASNETE_COLL_MYNO, GASNETE_COLL_MYMY, GASNETE_COLL_MYALL,
+GASNETE_COLL_ALLNO, GASNETE_COLL_ALLMY, GASNETE_COLL_ALLALL, GASNETE_COLL_NUM_SYNCMODES}
+  gasnete_coll_syncmode_t;
+
+typedef enum {GASNETE_COLL_SINGLE_MODE=0, GASNETE_COLL_LOCAL_MODE, GASNETE_COLL_NUM_ADDRMODES} gasnete_coll_addr_mode_t;
+
+
+  
 
 
 typedef gasnet_coll_handle_t (*gasnete_coll_bcast_fn_ptr_t)(gasnet_team_handle_t team,
@@ -169,6 +178,21 @@ typedef struct gasnete_coll_allgorithm_t_ {
 } gasnete_coll_algorithm_t;
 
 #define GASNETE_COLL_AUTOTUNE_RADIX_ARR_LEN 20
+#define GASNETE_COLL_LOG2_AUTOTUNE_MAX_SIZE 20
+#define GASNETE_COLL_ALG_INDEX_SIZE (GASNET_COLL_NUM_COLL_OPTYPES*GASNETE_COLL_NUM_SYNCMODES*GASNETE_COLL_NUM_ADDRTYPES*GASNETE_COLL_LOG2_AUTOTUNE_MAX_SIZE)
+
+struct gasnete_coll_autotune_index_entry_t_ {
+  struct gasnete_coll_autotune_index_entry_t_ *subtree;
+  struct gasnete_coll_autotune_index_entry_t_ *next_interval;
+  
+  const char* node_type;
+  int start;
+  int end;
+  gasnete_coll_implementation_t impl;
+};
+
+typedef struct gasnete_coll_autotune_index_entry_t_ gasnete_coll_autotune_index_entry_t;
+
 struct gasnete_coll_autotune_info_t_ {
   gasnete_coll_tree_type_t bcast_tree_type;
   gasnete_coll_tree_type_t scatter_tree_type;
@@ -186,9 +210,8 @@ struct gasnete_coll_autotune_info_t_ {
 	int bcast_tree_radix_limits[GASNETE_COLL_AUTOTUNE_RADIX_ARR_LEN];
   
   gasnete_coll_algorithm_t *collective_algorithms[GASNET_COLL_NUM_COLL_OPTYPES];
-  gasnete_coll_implementation_t *current_implementations[GASNET_COLL_NUM_COLL_OPTYPES];
-  gasnete_coll_autotune_tree_node_t *decision_tree;
-  gasnet_team_handle_t team;
+  gasnete_coll_autotune_index_entry_t *autotuner_defaults;
+  gasnete_coll_team_t team;
 };
 
 
@@ -224,7 +247,14 @@ size_t gasnete_coll_get_dissem_limit(gasnete_coll_autotune_info_t* autotune_info
 size_t gasnete_coll_get_pipe_seg_size(gasnete_coll_autotune_info_t* autotune_info, gasnet_coll_optype_t op_type, int flags);
 int gasnete_coll_get_dissem_radix(gasnete_coll_autotune_info_t* autotune_info, gasnet_coll_optype_t op_type, int flags);
 gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_team_handle_t team, uint32_t flags, size_t nbytes);
+
+gasnete_coll_implementation_t gasnete_coll_lookup_implementation(gasnete_coll_autotune_info_t* autotune_info, 
+                                                                 gasnet_coll_optype_t optype, gasnete_coll_syncmode_t syncmode, gasnete_coll_addr_mode_t, size_t nbytes);
+gasnete_coll_autotune_index_entry_t *gasnete_coll_load_autotuner_defaults(gasnete_coll_autotune_info_t* autotune_info, const char *filename);
+
 gasnete_coll_implementation_t gasnete_coll_get_implementation();
 void gasnete_coll_free_implementation(gasnete_coll_implementation_t in);
+
+
 
 #endif
