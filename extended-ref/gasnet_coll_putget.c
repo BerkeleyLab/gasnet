@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/08/03 20:35:40 $
- * $Revision: 1.71.12.31 $
+ *     $Date: 2009/08/06 22:49:20 $
+ * $Revision: 1.71.12.32 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,7 +20,7 @@
 #define USE_CONSENSUS_BARRIER 1
 typedef struct {int num_handles; gasnet_coll_handle_t *handles;} gasnete_coll_handle_vec_t;
 /*for the segmented algorithms limit the maximum number of subcollectives to 2048*/
-#define MAX_NUM_SEGS 2048
+
 
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_broadcast_nb() */
@@ -537,7 +537,7 @@ gasnete_coll_bcast_TreePutSeg(gasnet_team_handle_t team,
   gasneti_assert(coll_params->num_params >= 1);
   seg_size = (size_t)coll_params->param_list[0];
   num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
-  gasneti_assert(num_segs < MAX_NUM_SEGS);
+  gasneti_assert(num_segs < GASNETE_COLL_MAX_NUM_SEGS);
 
 //  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
@@ -665,7 +665,7 @@ gasnete_coll_bcast_ScatterAllgather(gasnet_team_handle_t team,
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
                                            &gasnete_coll_pf_bcast_ScatterAllgather, options,
                                            NULL, 
-                                           3 + 2*MAX_NUM_SEGS +team->total_ranks, /*scatter and broadcast can initiate upto MAX_NUM_SEGS sub scatters, broadcasts and 
+                                           3 + 2*GASNETE_COLL_MAX_NUM_SEGS +team->total_ranks, /*scatter and broadcast can initiate upto GASNETE_COLL_MAX_NUM_SEGS sub scatters, broadcasts and 
    all gather can initiate upto total ranks sub collectives*/
                                            
                                            coll_params->num_params, coll_params->param_list
@@ -1282,7 +1282,7 @@ gasnete_coll_bcastM_TreePutSeg(gasnet_team_handle_t team,
   gasneti_assert(coll_params->num_params >= 1);
   seg_size = (size_t)coll_params->param_list[0];
   num_segs = (nbytes + seg_size - 1)/seg_size;
-  gasneti_assert(num_segs < MAX_NUM_SEGS);
+  gasneti_assert(num_segs < GASNETE_COLL_MAX_NUM_SEGS);
 
 //  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
   return gasnete_coll_generic_broadcastM_nb(team, dstlist, srcimage, src, nbytes, flags,
@@ -2083,7 +2083,7 @@ gasnete_coll_scat_TreePutSeg(gasnet_team_handle_t team,
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNETE_COLL_SUBORDINATE));
   size_t seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNET_COLL_SCATTER_OP, flags);
   int num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
-  gasneti_assert(num_segs < MAX_NUM_SEGS);
+  gasneti_assert(num_segs < GASNETE_COLL_MAX_NUM_SEGS);
 
 //  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
     return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, nbytes, flags,
@@ -2793,7 +2793,7 @@ gasnete_coll_scatM_TreePutSeg(gasnet_team_handle_t team,
 
   size_t seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNET_COLL_SCATTER_OP, flags);
   int num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
-  gasneti_assert(num_segs < MAX_NUM_SEGS);
+  gasneti_assert(num_segs < GASNETE_COLL_MAX_NUM_SEGS);
 
 //  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
   return gasnete_coll_generic_scatterM_nb(team, dstlist, srcimage, src, nbytes, nbytes, flags,
@@ -3464,7 +3464,7 @@ gasnete_coll_gath_TreePutSeg(gasnet_team_handle_t team,
 
   size_t seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNET_COLL_GATHER_OP, flags);
   int num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
-  gasneti_assert(num_segs < MAX_NUM_SEGS);
+  gasneti_assert(num_segs < GASNETE_COLL_MAX_NUM_SEGS);
 
  // gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
   return gasnete_coll_generic_gather_nb(team, dstimage, dst, src, nbytes, nbytes, flags,
@@ -3862,7 +3862,7 @@ gasnete_coll_gathM_TreePutSeg(gasnet_team_handle_t team,
   
   size_t seg_size = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNET_COLL_GATHER_OP, flags);
   int num_segs = ((nbytes % seg_size) == 0 ? nbytes/seg_size : (nbytes/seg_size)+1);
-  gasneti_assert(num_segs < MAX_NUM_SEGS);
+  gasneti_assert(num_segs < GASNETE_COLL_MAX_NUM_SEGS);
 
 //  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
   return gasnete_coll_generic_gatherM_nb(team, dstimage, dst, srclist, nbytes, nbytes, flags,

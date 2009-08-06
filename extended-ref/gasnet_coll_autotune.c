@@ -273,7 +273,7 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info, size_
     gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCAST_OP, 
                                              GASNETE_COLL_EVERY_SYNC_FLAG,
                                              GASNET_COLL_DST_IN_SEGMENT, 
-                                             0, GASNET_COLL_MIN_PIPE_SEG_SIZE, 1,
+                                             GASNET_COLL_MIN_PIPE_SEG_SIZE*GASNETE_COLL_MAX_NUM_SEGS, GASNET_COLL_MIN_PIPE_SEG_SIZE, 1,
                                              1,tuning_params,(void*)gasnete_coll_bcast_TreePutSeg, "BROADCAST_TREE_PUT_SEG");
     
     
@@ -371,7 +371,7 @@ void gasnete_coll_register_collectives(gasnete_coll_autotune_info_t* info, size_
     gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCAST_OP, 
                                              GASNETE_COLL_EVERY_SYNC_FLAG,
                                              GASNET_COLL_DST_IN_SEGMENT, 
-                                             0, GASNET_COLL_MIN_PIPE_SEG_SIZE, 1,
+                                             GASNET_COLL_MIN_PIPE_SEG_SIZE*GASNETE_COLL_MAX_NUM_SEGS, GASNET_COLL_MIN_PIPE_SEG_SIZE, 1,
                                              1,tuning_params,(void*)gasnete_coll_bcastM_TreePutSeg, "BROADCASTM_TREE_PUT_SEG");
     
     
