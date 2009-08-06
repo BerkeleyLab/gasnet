@@ -134,7 +134,7 @@ void run_MULTI_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
     if(td->mythread==0)
       MSG0("starting test: %s %d bytes", fill_flag_str(flags, buffer), (int)sizeof(int)*s);
     
-    current_parent_node = myxml_createNodeInt(temp_node, (char*) "size", (char *) "start", s, NULL);
+    current_parent_node = myxml_createNodeInt(temp_node, (char*) "size", (char *) "start", s*sizeof(int), NULL);
     myxml_addAttributeInt(current_parent_node, (char*) "end", (s == max_data_size ? 1<<31 : (s*2)-1));
     
     /*run the gasnet tuner and report back the results!*/
@@ -333,7 +333,7 @@ int main(int argc, char **argv) {
   GASNET_Safe(gasnet_init(&argc, &argv));
   
   max_data_size = DEFAULT_MAX_DATA_SIZE/sizeof(int);
-  min_data_size = sizeof(int);
+  min_data_size = 1;
   performance_iters = DEFAULT_PERFORMANCE_ITERS;
 
 
@@ -354,7 +354,7 @@ int main(int argc, char **argv) {
       i++;
     } 
 #endif
-    else if(strcmp("-sz", argv[i])==0 || strcmp("-max-data-size", argv[i])==0) {
+    else if(strcmp("-sz", argv[i])==0  || strcmp("-maxsz", argv[i])==0 || strcmp("-max-data-size", argv[i])==0) {
       max_data_size = atoi(argv[i+1])/sizeof(int);
       i++;
     } else if(strcmp("-minsz", argv[i])==0 || strcmp("-min-data-size", argv[i])==0) {
