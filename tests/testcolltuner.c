@@ -297,7 +297,10 @@ void *thread_main(void *arg) {
 
     skip_msg_printed = 1;
     /*do multi addr tests*/
-    if(threads_per_node > 1) {
+#if GASNET_ALIGNED_SEGMENTS
+    if(threads_per_node > 1)
+#endif
+    {
       /*call the multi address test (coll single) routines with testroot*/
       run_MULTI_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_SINGLE, sync_node);
       
