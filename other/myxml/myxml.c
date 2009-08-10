@@ -117,7 +117,7 @@ void myxml_printTreeXML_helper(FILE *outstream, myxml_node_t *node, int level, c
   for(l=0; l<level; l++) {
     fprintf(outstream, "%s", whitespace);
   } 
-  fprintf(outstream, "<%s id=%d", node->tag, node->id);
+  fprintf(outstream, "<%s", node->tag);
   for(i=0; i<node->num_attributes; i++) {
     fprintf(outstream, " %s=\"%s\"", node->attribute_list[i].attribute_name, node->attribute_list[i].attribute_value);
   }

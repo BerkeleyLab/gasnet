@@ -25,7 +25,9 @@
 struct gasnete_coll_implementation_t_{
   struct gasnete_coll_implementation_t_ *next;
   void* fn_ptr;
+  int fn_idx;
   int num_params;
+  
   gasnete_coll_tree_type_t tree_type;
   uint32_t param_list[GASNET_COLL_NUM_PARAM_TYPES]; /*declare an array that can take all the possible param types*/
 };

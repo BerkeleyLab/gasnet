@@ -246,9 +246,9 @@ void *thread_main(void *arg) {
   COLL_BARRIER();
 
   tuning_root = myxml_createNode(NULL, (char*) "machine", (char*)"CONFIG", (char*) GASNET_CONFIG_STRING, NULL);
-  
-  temp = myxml_createNodeInt(tuning_root, (char*)"threads_per_node", (char*)"val", threads_per_node, NULL);
-  
+
+  temp = myxml_createNodeInt(tuning_root, (char*)"num_nodes", (char*)"val", nodes, NULL);  
+  temp = myxml_createNodeInt(temp, (char*)"threads_per_node", (char*)"val", threads_per_node, NULL);
 
   for(flag_iter=0; flag_iter<9; flag_iter++) {
     int flags;
@@ -297,6 +297,7 @@ void *thread_main(void *arg) {
 
     skip_msg_printed = 1;
     /*do multi addr tests*/
+
 #if GASNET_ALIGNED_SEGMENTS
     if(threads_per_node > 1)
 #endif
