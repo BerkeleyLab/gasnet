@@ -27,7 +27,7 @@ struct gasnete_coll_implementation_t_{
   void* fn_ptr;
   int fn_idx;
   int num_params;
-  
+  int need_to_free;
   gasnete_coll_tree_type_t tree_type;
   uint32_t param_list[GASNET_COLL_NUM_PARAM_TYPES]; /*declare an array that can take all the possible param types*/
 };
@@ -214,6 +214,7 @@ struct gasnete_coll_autotune_info_t_ {
   gasnete_coll_algorithm_t *collective_algorithms[GASNET_COLL_NUM_COLL_OPTYPES];
   gasnete_coll_autotune_index_entry_t *autotuner_defaults;
   gasnete_coll_team_t team;
+  int search_enabled;
 };
 
 
@@ -248,7 +249,8 @@ size_t gasnete_coll_get_dissem_limit(gasnete_coll_autotune_info_t* autotune_info
 
 size_t gasnete_coll_get_pipe_seg_size(gasnete_coll_autotune_info_t* autotune_info, gasnet_coll_optype_t op_type, int flags);
 int gasnete_coll_get_dissem_radix(gasnete_coll_autotune_info_t* autotune_info, gasnet_coll_optype_t op_type, int flags);
-gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_team_handle_t team, uint32_t flags, size_t nbytes);
+gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_team_handle_t team, void *dst, gasnet_image_t srcimage, void *src, size_t nbytes, uint32_t flags  GASNETE_THREAD_FARG);
+gasnete_coll_implementation_t gasnete_coll_autotune_get_bcastM_algorithm(gasnet_team_handle_t team, uint32_t flags, size_t nbytes);
 
 gasnete_coll_implementation_t gasnete_coll_lookup_implementation(gasnete_coll_autotune_info_t* autotune_info, 
                                                                  gasnet_coll_optype_t optype, gasnete_coll_syncmode_t syncmode, gasnete_coll_addr_mode_t, size_t nbytes);

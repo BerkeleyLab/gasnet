@@ -40,6 +40,7 @@ struct gasnete_coll_tree_type_t_ {
 /*returns 1 if they are equal or 0 otherwise*/
 int gasnete_coll_compare_tree_types(gasnete_coll_tree_type_t a, gasnete_coll_tree_type_t b);
 
+#define GASNETE_COLL_MAX_TREE_TYPE_STRLEN 100
 gasnete_coll_tree_type_t gasnete_coll_make_tree_type_str(char *tree_name_str);
 gasnete_coll_tree_type_t gasnete_coll_make_tree_type(int tree_type, int *params, int num_params);
 

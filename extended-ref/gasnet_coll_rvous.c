@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2009/07/09 18:37:12 $
- * $Revision: 1.65.14.13 $
+ *     $Date: 2009/08/13 20:23:54 $
+ * $Revision: 1.65.14.14 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -201,7 +201,7 @@ gasnete_coll_bcast_TreeRVGet(gasnet_team_handle_t team,
                          GASNETE_THREAD_FARG)
 {
   int options = 
-		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC)) |
+		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_P2P;
   
   gasneti_assert(flags & GASNET_COLL_SRC_IN_SEGMENT);
