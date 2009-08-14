@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/08/13 20:23:54 $
- * $Revision: 1.72.10.42 $
+ *     $Date: 2009/08/14 00:32:51 $
+ * $Revision: 1.72.10.43 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -3571,7 +3571,7 @@ extern gasnet_coll_handle_t
     }
 #endif
     flags = gasnete_coll_segment_checkM(team, flags, 0, 0, dstlist, nbytes, 1, srcimage, src, nbytes);
-    impl = gasnete_coll_autotune_get_bcastM_algorithm(team, flags, nbytes);
+    impl = gasnete_coll_autotune_get_bcastM_algorithm(team, dstlist, srcimage, src, nbytes, flags GASNETE_THREAD_PASS);
     return (*((gasnete_coll_bcastM_fn_ptr_t) (impl->fn_ptr)))(team, dstlist, srcimage, src, nbytes, flags, impl, sequence GASNETE_THREAD_PASS);
   }
 #endif

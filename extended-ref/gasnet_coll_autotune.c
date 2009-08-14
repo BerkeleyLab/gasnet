@@ -543,7 +543,7 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t te
       ret->autotuner_defaults = NULL;
     ret->search_enabled = gasneti_getenv_yesno_withdefault("GASNET_COLL_ENABLE_SEARCH", 0);
     gasnete_coll_print_autotuner_timers = gasneti_getenv_yesno_withdefault("GASNET_COLL_PRINT_AUTOTUNE_TIMER", GASNETE_COLL_PRINT_TIMERS);
-  } 
+  }
   return ret;
 }
 
@@ -1332,14 +1332,36 @@ gasnete_coll_autotune_index_entry_t *add_to_index(gasnet_coll_optype_t op, gasne
 void gasnete_coll_safe_broadcast(gasnete_coll_team_t team, void *dst, void *src, gasnet_image_t root, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_coll_implementation_t impl = gasnete_coll_get_implementation();
   //int flags = gasnete_coll_segment_check(team, flags, 0, 0, dst, nbytes, 1, root, src, nbytes);
-  
+#if GASNET_PAR
+  int flags =  GASNET_COLL_IN_ALLSYNC| GASNET_COLL_OUT_ALLSYNC| GASNET_COLL_LOCAL | GASNETE_COLL_THREAD_LOCAL;
+  if(nbytes < gasnete_coll_p2p_eager_min && 0) {
+    impl->tree_type = gasnete_coll_make_tree_type_str((char*) "KNOMIAL_TREE,2");
+    impl->num_params = 0;
+    gasnete_coll_wait_sync(gasnete_coll_bcastM_TreeEager(team,
+                                                        &dst,
+                                                        root, src,
+                                                        nbytes, flags,
+                                                        impl,
+                                                        0
+                                                        GASNETE_THREAD_PASS) GASNETE_THREAD_PASS);
+  }  else {
+    gasnete_coll_wait_sync(gasnete_coll_bcastM_RVous(team,
+                                                    &dst,
+                                                    root, src,
+                                                    nbytes, flags,
+                                                    impl,
+                                                    0
+                                                    GASNETE_THREAD_PASS) GASNETE_THREAD_PASS);
+  }  
+#else
+  int flags =  GASNET_COLL_IN_ALLSYNC| GASNET_COLL_OUT_ALLSYNC| GASNET_COLL_LOCAL;
   if(nbytes < gasnete_coll_p2p_eager_min && 0) {
     impl->tree_type = gasnete_coll_make_tree_type_str((char*) "KNOMIAL_TREE,2");
     impl->num_params = 0;
     gasnete_coll_wait_sync(gasnete_coll_bcast_TreeEager(team,
                                                         dst,
                                                         root, src,
-                                                        nbytes,  GASNET_COLL_IN_ALLSYNC| GASNET_COLL_OUT_ALLSYNC,
+                                                        nbytes, flags,
                                                         impl,
                                                         0
                                                         GASNETE_THREAD_PASS) GASNETE_THREAD_PASS);
@@ -1347,11 +1369,12 @@ void gasnete_coll_safe_broadcast(gasnete_coll_team_t team, void *dst, void *src,
     gasnete_coll_wait_sync(gasnete_coll_bcast_RVous(team,
                                                    dst,
                                                    root, src,
-                                                   nbytes, GASNET_COLL_IN_ALLSYNC| GASNET_COLL_OUT_ALLSYNC,
+                                                   nbytes, flags,
                                                    impl,
                                                    0
                                                    GASNETE_THREAD_PASS) GASNETE_THREAD_PASS);
   }
+  #endif
   gasnete_coll_free_implementation(impl);
 }
 
@@ -1405,9 +1428,11 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
     char all_best_tree[GASNETE_COLL_MAX_TREE_TYPE_STRLEN];
     char *temp_tree_str;
     ret = gasnete_coll_get_implementation();
+#if 0
     if((team==GASNET_TEAM_ALL && td->my_image == srcimage) || team->myrank == srcimage) {
       fprintf(stderr, "%d> starting autotune for %s %d byte broadcast\n", td->my_image, print_flag_str(flagstr, flags), (int)nbytes);
     }
+#endif
     gasnete_coll_tune_generic_op(team, GASNET_COLL_BROADCAST_OP, 
                                  (uint8_t**) &dst, (uint8_t**) &src, srcimage, flags, nbytes, 
                                  NULL, NULL,
@@ -1415,10 +1440,12 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
                                  &best_algidx, &num_params, &param_list, &temp_tree_str GASNETE_THREAD_PASS);
     /*until we have a solution for teams with srcimages*/
     if((team==GASNET_TEAM_ALL && td->my_image == srcimage) || team->myrank == srcimage) {
-      fprintf(stderr, "%d> starting autotune for %s %d byte broadcast\n", td->my_image, print_flag_str(flagstr, flags), (int)nbytes);      
+#if 0
+      fprintf(stderr, "%d> finishing autotune for %s %d byte broadcast\n", td->my_image, print_flag_str(flagstr, flags), (int)nbytes);      
+#endif
       temp->fn_idx = best_algidx;
       temp->num_params = num_params;
-      GASNETE_FAST_UNALIGNED_MEMCPY(ret->param_list, param_list, sizeof(uint32_t)*num_params);
+      GASNETE_FAST_UNALIGNED_MEMCPY(temp->param_list, param_list, sizeof(uint32_t)*num_params);
       if(strlen(temp_tree_str) > 0) {
         gasneti_assert(strlen(temp_tree_str)<(GASNETE_COLL_MAX_TREE_TYPE_STRLEN-1));
         strcpy(best_tree, temp_tree_str);
@@ -1437,8 +1464,12 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
     }
     gasnete_coll_free_implementation(temp);
     /*insert ret into the search index*/
-    idx = add_to_index(GASNET_COLL_BROADCAST_OP, team, flags, nbytes);
-    idx->impl = ret;
+    PTHREAD_BARRIER(team, team->my_images); 
+    if(td->my_local_image == 0) {
+      idx = add_to_index(GASNET_COLL_BROADCAST_OP, team, flags, nbytes);
+      idx->impl = ret;
+    }
+    PTHREAD_BARRIER(team, team->my_images); 
   
     return ret;
   }
@@ -1509,7 +1540,8 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
   return ret;
 }
 
-gasnete_coll_implementation_t gasnete_coll_autotune_get_bcastM_algorithm(gasnet_team_handle_t team, uint32_t flags, size_t nbytes) {
+gasnete_coll_implementation_t gasnete_coll_autotune_get_bcastM_algorithm(gasnet_team_handle_t team, void * const dstlist[],
+                                                                         gasnet_image_t srcimage, void *src, size_t nbytes, uint32_t flags GASNETE_THREAD_FARG) {
   
   
   gasnete_coll_implementation_t ret;
@@ -1517,23 +1549,74 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcastM_algorithm(gasnet_
   /*first try to search our gasnet autotuner index to see if we have anything for it*/
   /*if not then fall back to our orignal implementation*/
   
-  if(team->autotune_info->autotuner_defaults) {
-    ret = search_index(GASNET_COLL_BROADCASTM_OP, team, flags, nbytes, 0);  
-    
+  if(team->autotune_info->autotuner_defaults  || team->autotune_info->search_enabled) {
+    ret = search_index(GASNET_COLL_BROADCASTM_OP, team, flags, nbytes, team->autotune_info->search_enabled);  
     /*make sure the returned algortithm can handle the cases*/
-    if(ret) {
-      gasnet_coll_optype_t op = GASNET_COLL_BROADCASTM_OP;
-      uint32_t sync_flags = (flags &  GASNET_COLL_SYNC_FLAG_MASK); /*strip the sync flags off the flags*/
-      uint32_t req_flags = (flags & (~GASNET_COLL_SYNC_FLAG_MASK));
-      
-      int size_ok, req_flags_ok, sync_flags_ok;
-      size_ok = (team->autotune_info->collective_algorithms[op][ret->fn_idx].max_num_bytes==0 || nbytes <= team->autotune_info->collective_algorithms[op][ret->fn_idx].max_num_bytes);
-      /*ensure that all the flags required by the algorithm are passed in through the flags*/
-      req_flags_ok = ((req_flags & team->autotune_info->collective_algorithms[op][ret->fn_idx].requirements) == team->autotune_info->collective_algorithms[op][ret->fn_idx].requirements);
-      /*ensure that the synchronization flags exist in the list of possible synch flags for this algorithm*/
-      sync_flags_ok = ((sync_flags & team->autotune_info->collective_algorithms[op][ret->fn_idx].syncflags) == sync_flags);
-      if(size_ok && req_flags_ok && sync_flags_ok) return ret;
-    }     
+    if(verify_algorithm(team, GASNET_COLL_BROADCASTM_OP, flags, nbytes, ret)) {
+      return ret;
+    }    
+  }
+  
+  if(team->autotune_info->search_enabled && (team==GASNET_TEAM_ALL || team->my_images==1)) {
+    gasnete_coll_implementation_t temp = gasnete_coll_get_implementation();
+    gasnete_coll_autotune_index_entry_t *idx;
+    gasnet_image_t myrank;
+    uint32_t best_algidx;
+    uint32_t num_params;
+    uint32_t *param_list;
+    char flagstr[15];
+    gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
+    char best_tree[GASNETE_COLL_MAX_TREE_TYPE_STRLEN];
+    char all_best_tree[GASNETE_COLL_MAX_TREE_TYPE_STRLEN];
+    char *temp_tree_str;
+    
+    ret = gasnete_coll_get_implementation();
+    myrank = (team == GASNET_TEAM_ALL ? td->my_image : team->myrank);
+#if 0
+    if(myrank == srcimage) {
+      fprintf(stderr, "%d> starting autotune for %s %d byte broadcast\n", td->my_image, print_flag_str(flagstr, flags), (int)nbytes);
+    }
+#endif
+    gasnete_coll_tune_generic_op(team, GASNET_COLL_BROADCASTM_OP, 
+                                 (uint8_t**) dstlist, (uint8_t**) &src, srcimage, flags, nbytes, 
+                                 NULL, NULL,
+                                 /*returned by the algorithm*/
+                                 &best_algidx, &num_params, &param_list, &temp_tree_str GASNETE_THREAD_PASS);
+    /*until we have a solution for teams with srcimages*/
+    if(myrank == srcimage) {
+#if 0
+      fprintf(stderr, "%d> finishing autotune for %s %d byte broadcast\n", td->my_image, print_flag_str(flagstr, flags), (int)nbytes);      
+#endif
+      temp->fn_idx = best_algidx;
+      temp->num_params = num_params;
+      GASNETE_FAST_UNALIGNED_MEMCPY(temp->param_list, param_list, sizeof(uint32_t)*num_params);
+      if(strlen(temp_tree_str) > 0) {
+        gasneti_assert(strlen(temp_tree_str)<(GASNETE_COLL_MAX_TREE_TYPE_STRLEN-1));
+        strcpy(best_tree, temp_tree_str);
+        gasneti_free(temp_tree_str);
+      } else {
+        bzero(best_tree, sizeof(char)*GASNETE_COLL_MAX_TREE_TYPE_STRLEN);
+      }
+    }
+    /*have the root tell all other nodes in this team what the correct implementation is*/
+    gasnete_coll_safe_broadcast(team, ret, temp, srcimage, sizeof(struct gasnete_coll_implementation_t_) GASNETE_THREAD_PASS);
+    bzero(all_best_tree, sizeof(char)*GASNETE_COLL_MAX_TREE_TYPE_STRLEN);
+    gasnete_coll_safe_broadcast(team, all_best_tree, best_tree, srcimage, GASNETE_COLL_MAX_TREE_TYPE_STRLEN*sizeof(char) GASNETE_THREAD_PASS);
+    ret->fn_ptr = (void*) team->autotune_info->collective_algorithms[GASNET_COLL_BROADCASTM_OP][ret->fn_idx].fn_ptr.generic_coll_fn_ptr;
+    if(strlen(all_best_tree) > 0) {
+      ret->tree_type = gasnete_coll_make_tree_type_str(all_best_tree);
+    }
+    gasnete_coll_free_implementation(temp);
+    /*insert ret into the search index*/
+    PTHREAD_BARRIER(team, team->my_images); 
+    if(td->my_local_image == 0) {
+      idx = add_to_index(GASNET_COLL_BROADCASTM_OP, team, flags, nbytes);
+      idx->impl = ret;
+    }
+
+    PTHREAD_BARRIER(team, team->my_images); 
+    
+    return ret;
   }
   
   ret = gasnete_coll_get_implementation();
