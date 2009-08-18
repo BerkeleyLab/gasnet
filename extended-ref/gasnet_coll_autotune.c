@@ -781,6 +781,7 @@ gasnete_coll_syncmode_t get_syncmode_from_flags(int flags) {
   }
   return -1;
 }
+
 static gasnete_coll_syncmode_t get_syncmode_from_str(char *str) {
   if(STRINGS_MATCH(str, "no/no")) return GASNETE_COLL_NONO;
   else if(STRINGS_MATCH(str, "no/my")) return GASNETE_COLL_NOMY;
@@ -794,6 +795,42 @@ static gasnete_coll_syncmode_t get_syncmode_from_str(char *str) {
   gasneti_fatalerror("unknown syncmode from str %s", str);
 }
 
+static char* syncmode_to_str(char *buffer, gasnete_coll_syncmode_t mode) {
+  switch (mode) {
+    case GASNETE_COLL_NONO:
+      sprintf(buffer, "no/no");
+      break;
+    case GASNETE_COLL_NOMY:
+      sprintf(buffer, "no/my");
+      break;
+    case GASNETE_COLL_NOALL:
+      sprintf(buffer, "no/all");
+      break;
+    case GASNETE_COLL_MYNO:
+      sprintf(buffer, "my/no");
+      break;
+    case GASNETE_COLL_MYMY:
+      sprintf(buffer, "my/my");
+      break;
+    case GASNETE_COLL_MYALL:
+      sprintf(buffer, "my/all");
+      break;
+    case GASNETE_COLL_ALLNO:
+      sprintf(buffer, "all/no");
+      break;
+    case GASNETE_COLL_ALLMY:
+      sprintf(buffer, "all/my");
+      break;
+    case GASNETE_COLL_ALLALL:
+      sprintf(buffer, "all/all");
+      break;
+    default:
+      gasneti_fatalerror("unknown syncmode");
+      break;
+  }
+  return buffer;
+}
+
 static gasnete_coll_addr_mode_t get_addrmode_from_str(char *str) { 
   if(STRINGS_MATCH(str, "single")) 
     return GASNETE_COLL_SINGLE_MODE;
@@ -801,6 +838,20 @@ static gasnete_coll_addr_mode_t get_addrmode_from_str(char *str) {
     return GASNETE_COLL_LOCAL_MODE;
   return -1;
 }
+
+static char * addrmode_to_str(char *buffer, gasnete_coll_addr_mode_t mode) {
+  switch(mode){
+    case GASNETE_COLL_SINGLE_MODE:
+      sprintf(buffer, "single");
+      break;
+    case GASNETE_COLL_LOCAL_MODE:
+      sprintf(buffer, "local");
+      break;
+    default:
+      gasneti_fatalerror("unknown address mode");
+  }
+  return buffer;
+} 
 
 GASNETI_INLINE(get_addrmode_from_flags)
 gasnete_coll_addr_mode_t get_addrmode_from_flags(int flags) { 
@@ -817,6 +868,20 @@ static gasnet_coll_optype_t get_optype_from_str(char *str) {
   else if(STRINGS_MATCH(str, "broadcastM"))
     return GASNET_COLL_BROADCASTM_OP;
   else gasneti_fatalerror("op %s not yet supported\n", str);
+}
+
+static char * optype_to_str(char *buffer, gasnet_coll_optype_t op) {
+  switch (op) {
+    case GASNET_COLL_BROADCAST_OP:
+      sprintf(buffer, "broadcast");
+      break;
+    case GASNET_COLL_BROADCASTM_OP:
+      sprintf(buffer, "broadcastM");
+      break;
+    default:
+      gasneti_fatalerror("unknown op type");
+  }
+  return buffer;
 }
 
 /************************/
@@ -1668,4 +1733,71 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcastM_algorithm(gasnet_
   return ret;
 }
 
+static void dump_tuning_state_helper(myxml_node_t *parent, gasnete_coll_autotune_index_entry_t *tuning_root) {
+  int i;
+  gasnete_coll_autotune_index_entry_t *temp=tuning_root;
+  while(temp!=NULL) {
+    char buffer[50];
+    myxml_node_t *temp_xml;
+    if(STRINGS_MATCH(temp->node_type, "sync_mode")) {
+      syncmode_to_str(buffer, temp->start); 
+      temp_xml =myxml_createNode(parent, temp->node_type, (char*)"val", buffer, NULL);
+    } else if(STRINGS_MATCH(temp->node_type, "address_mode")) {
+      addrmode_to_str(buffer, temp->start);
+      temp_xml =myxml_createNode(parent, temp->node_type, (char*)"val", buffer, NULL);
+    } else if(STRINGS_MATCH(temp->node_type, "collective")) {
+      optype_to_str(buffer, temp->start);
+      temp_xml =myxml_createNode(parent, temp->node_type, (char*)"val", buffer, NULL);
+    } else {
+      temp_xml =  myxml_createNodeInt(parent, temp->node_type, (char*)"val", temp->start, NULL);
+    }
+    if(temp->subtree) {
+      dump_tuning_state_helper(temp_xml, tuning_root->subtree);
+    } else {
+      char buffer[GASNETE_COLL_MAX_TREE_TYPE_STRLEN];
+      char tempbuffer[20];
+      int c;
+      gasneti_assert(temp->impl);
+      gasnete_coll_tree_type_to_str(buffer, temp->impl->tree_type);
+      sprintf(tempbuffer, "%d",  temp->impl->fn_idx);
+      myxml_createNode(temp_xml, (char*) "Best_Alg", NULL, NULL,tempbuffer);
+      myxml_createNode(temp_xml, (char*) "Best_Tree", NULL, NULL, buffer);
+      sprintf(tempbuffer, "%d",  temp->impl->num_params);
+      myxml_createNode(temp_xml, (char*) "Num_Params", NULL, NULL, tempbuffer);
+
+      // free(best_tree);
+      for(c=0; c<temp->impl->num_params; c++) {
+        char buff_idx[20];
+        sprintf(tempbuffer, "%d",  temp->impl->fn_idx);
+        sprintf(buff_idx, "param_%d", c);
+        sprintf(buffer, "%d", temp->impl->param_list[c]);
+        myxml_createNode(temp_xml, buff_idx, NULL, NULL, buffer);
+      }
+    }
+    temp = temp->next_interval;
+  }
+}
+
+
+void gasnete_coll_dumpTuningState(char *filename, gasnete_coll_team_t team GASNETE_THREAD_FARG) {
+  myxml_node_t *node;
+  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
+  gasnet_image_t myrank = (team == GASNET_TEAM_ALL ? td->my_image : team->myrank);
+
+
+  if(myrank==0 && team->autotune_info->search_enabled) {
+    FILE *outstream;
+    node = myxml_createNode(NULL, (char*) "machine", (char*)"CONFIG", (char*) GASNET_CONFIG_STRING, NULL);
+    
+    if(!filename) {
+      if(team!=GASNET_TEAM_ALL) {fprintf(stderr, "WARNING: printing tuning output to default filename is not recommended for non-TEAM-ALL teams\n");}
+      outstream = fopen("gasnet_coll_tuning_defaults.bin", "w");
+    } else {
+      outstream = fopen(filename, "w");
+    }
+    dump_tuning_state_helper(node, team->autotune_info->autotuner_defaults);
+    myxml_printTreeBIN(outstream, node);
+    fclose(outstream);
+  }
+}
 

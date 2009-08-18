@@ -688,7 +688,7 @@ void *thread_main(void *arg) {
 
     }
   }
-
+  gasnet_coll_dumpTuningState("./blah.bin", GASNET_TEAM_ALL);
   MSG("thread %d> done", td->mythread);
   return NULL;
 }

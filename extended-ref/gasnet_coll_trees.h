@@ -43,6 +43,7 @@ int gasnete_coll_compare_tree_types(gasnete_coll_tree_type_t a, gasnete_coll_tre
 #define GASNETE_COLL_MAX_TREE_TYPE_STRLEN 100
 gasnete_coll_tree_type_t gasnete_coll_make_tree_type_str(char *tree_name_str);
 gasnete_coll_tree_type_t gasnete_coll_make_tree_type(int tree_type, int *params, int num_params);
+char* gasnete_coll_tree_type_to_str(char *buffer, gasnete_coll_tree_type_t tree_type);
 
 /*ACCESSOR MACROS (all take a gasnete_coll_local_tree_geom_t)*/
 #define GASNETE_COLL_TREE_GEOM_ROOT(GEOM) ((GEOM)->root)
@@ -145,7 +146,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
 void gasnete_coll_local_tree_geom_release(gasnete_coll_local_tree_geom_t *geom);
 gasnete_coll_tree_type_t gasnete_coll_get_tree_type();
 void gasnete_coll_free_tree_type(gasnete_coll_tree_type_t in);
-void gasnete_coll_tree_type_to_str(char *outbuf, gasnete_coll_tree_type_t in);
+char* gasnete_coll_tree_type_to_str(char *outbuf, gasnete_coll_tree_type_t in);
 
 /******** Dissemination Ordering **********/
 #define GASNETE_COLL_DISSEM_GET_TOTAL_PHASES(DISSEM_INFO) ((DISSEM_INFO)->dissemination_phases)

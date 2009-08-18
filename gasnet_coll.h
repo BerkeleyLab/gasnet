@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2009/08/05 23:32:20 $
- * $Revision: 1.53.12.14 $
+ *     $Date: 2009/08/18 19:00:42 $
+ * $Revision: 1.53.12.15 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -270,6 +270,9 @@ typedef enum {GASNET_COLL_PIPE_SEG_SIZE, GASNET_COLL_DISSEM_RADIX, GASNET_COLL_T
 
 
 typedef void (*gasnet_coll_overlap_sample_work_t)(void *arg);
+
+#define gasnet_coll_dumpTuningState(FILENAME, TEAM) gasnete_coll_dumpTuningState(FILENAME, TEAM GASNETE_THREAD_GET)
+void gasnete_coll_dumpTuningState(char *filename, gasnete_coll_team_t team GASNETE_THREAD_FARG);
 
 #define gasnet_coll_tune_generic_op(team, op, dst, src, rootimg, flags, nbytes, fnptr, work_arg, best_algidx, num_params, best_param, best_tree) \
 gasnete_coll_tune_generic_op(team, op, dst, src, rootimg, flags, nbytes, fnptr, work_arg, best_algidx, num_params, best_param,  best_tree GASNETE_THREAD_GET)
