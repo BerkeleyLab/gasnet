@@ -54,15 +54,12 @@ gasnet_coll_handle_t gasnete_coll_smp_bcast_tree_intflags(gasnet_team_handle_t t
 }
 
 void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* info) {
-#ifdef GASNETE_COLL_BROADCAST_SMP_FLAT
   info->collective_algorithms[GASNET_COLL_BROADCASTM_OP][GASNETE_COLL_BROADCAST_SMP_FLAT] =
     gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCASTM_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
                                              0 /*works for all addresses since it's just a memcpy on a the local node*/,
                                              0, 0, 0, 0, NULL, 
                                              (void*) gasnete_coll_smp_bcast_flat, "SMP_BCAST_FLAT");
-#endif
 
-#ifdef GASNETE_COLL_BROADCAST_SMP_TREE_INTFLAGS
   {
     struct gasnet_coll_tuning_parameter_t tuning_params[1]=
     { 
@@ -75,6 +72,5 @@ void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* inf
                                              0, 0, 0, 1, tuning_params, 
                                              (void*) gasnete_coll_smp_bcast_tree_intflags, "SMP_BCAST_TREE_INTFLAGS");
   }
-#endif
 }
 #endif
