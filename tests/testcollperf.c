@@ -63,7 +63,11 @@ size_t max_data_size;
 
 #include "test.h"
 
+#if 0
+#define COLL_BARRIER() do{  gasnet_coll_barrier_notify(GASNET_TEAM_ALL, 0, GASNET_BARRIERFLAG_ANONYMOUS | GASNET_BARRIERFLAG_IMAGES); gasnet_coll_barrier_wait(GASNET_TEAM_ALL, 0, GASNET_BARRIERFLAG_ANONYMOUS | GASNET_BARRIERFLAG_IMAGES);} while(0)
+#else
 #define COLL_BARRIER() PTHREAD_BARRIER(threads_per_node)
+#endif
 
 typedef struct {
   int my_local_thread;
@@ -401,7 +405,7 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
     for(i=0; i<nelem*inner_verification_iters; i++) {
       int expected = 42+i;
       if(mydest[i] != 42+i) {
-        MSG("%d> broadcastM verification @ iteration: %d ... expected %d got %d", td->mythread, (int)(i/nelem), expected, mydest[i]);
+        MSG("%d> broadcastM verification @ iteration: %d ... expected %d got %d (%d bytes)", td->mythread, (int)(i/nelem), expected, mydest[i], nelem*sizeof(int));
         ERROR_EXIT();
       }
     }
@@ -490,7 +494,6 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
       curr_src_arr+=num_addrs;
     }
     if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
-    
     
     if(td->mythread == root_thread) {
       for(i=0; i<inner_verification_iters*THREADS*nelem; i++) {

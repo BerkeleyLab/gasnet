@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2009/08/18 19:00:42 $
- * $Revision: 1.53.12.15 $
+ *     $Date: 2009/08/21 18:41:53 $
+ * $Revision: 1.53.12.16 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -38,6 +38,7 @@ GASNETI_BEGIN_EXTERNC
 /* Scan (prefix reduction) flags - NO DEFAULT */
 #define GASNET_COLL_INCLUSIVE_SCAN	(1<<12)
 #define GASNET_COLL_EXCLUSIVE_SCAN	(1<<13)
+#define GASNET_COLL_DISABLE_AUTOTUNE (1<<14)
 
 /* (prefix-)reduction function flags */
 #define GASNET_COLL_AMSAFE	(1<<0)

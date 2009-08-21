@@ -87,41 +87,41 @@ static uint32_t fast_log2_64bit(uint64_t number) {
 }
 
 static uint32_t fast_log2_32bit(uint32_t number) {
-	
-	static const char LogTable256[] = 
-  {
-    0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
-    4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
-    5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
-    5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
-    6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-    6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-    6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-    6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
-    7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7
-  };
-	
-	uint32_t v=number; // 32-bit word to find the log of
-	uint32_t r;     // r will be lg(v)
-	uint32_t t, tt; // temporaries
-	
-	
-	if ((tt = v >> 16)) {
-		r = ((t = tt >> 8) ? 24 + LogTable256[t] : 16 + LogTable256[tt]);
-	}
-	else {
-		r = ((t = v >> 8) ? 8 + LogTable256[t] : LogTable256[v]);
-	}
-	
-	return r;
-	
+  
+  static const char LogTable256[] = 
+    {
+      0, 0, 1, 1, 2, 2, 2, 2, 3, 3, 3, 3, 3, 3, 3, 3,
+      4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+      5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+      5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5,
+      6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+      6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+      6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+      6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6,
+      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7,
+      7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7
+    };
+  
+  uint32_t v=number; // 32-bit word to find the log of
+  uint32_t r;     // r will be lg(v)
+  uint32_t t, tt; // temporaries
+  
+  
+  if ((tt = v >> 16)) {
+    r = ((t = tt >> 8) ? 24 + LogTable256[t] : 16 + LogTable256[tt]);
+  }
+  else {
+    r = ((t = v >> 8) ? 8 + LogTable256[t] : LogTable256[v]);
+  }
+  
+  return r;
+  
 }
 
 /*register teh collective algorithm
@@ -1395,11 +1395,13 @@ gasnete_coll_autotune_index_entry_t *add_to_index(gasnet_coll_optype_t op, gasne
 
 }
 void gasnete_coll_safe_broadcast(gasnete_coll_team_t team, void *dst, void *src, gasnet_image_t root, size_t nbytes GASNETE_THREAD_FARG) {
-  gasnete_coll_implementation_t impl = gasnete_coll_get_implementation();
+  //  gasnete_coll_implementation_t impl = gasnete_coll_get_implementation();
   //int flags = gasnete_coll_segment_check(team, flags, 0, 0, dst, nbytes, 1, root, src, nbytes);
+  gasnet_coll_broadcast(team, dst, root, src, nbytes, GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC | GASNET_COLL_LOCAL |  GASNET_COLL_DISABLE_AUTOTUNE );
+#if 0
 #if GASNET_PAR
   int flags =  GASNET_COLL_IN_ALLSYNC| GASNET_COLL_OUT_ALLSYNC| GASNET_COLL_LOCAL | GASNETE_COLL_THREAD_LOCAL;
-  if(nbytes < gasnete_coll_p2p_eager_min && 0) {
+  if(nbytes < gasnete_coll_p2p_eager_min) {
     impl->tree_type = gasnete_coll_make_tree_type_str((char*) "KNOMIAL_TREE,2");
     impl->num_params = 0;
     gasnete_coll_wait_sync(gasnete_coll_bcastM_TreeEager(team,
@@ -1411,12 +1413,12 @@ void gasnete_coll_safe_broadcast(gasnete_coll_team_t team, void *dst, void *src,
                                                         GASNETE_THREAD_PASS) GASNETE_THREAD_PASS);
   }  else {
     gasnete_coll_wait_sync(gasnete_coll_bcastM_RVous(team,
-                                                    &dst,
-                                                    root, src,
-                                                    nbytes, flags,
-                                                    impl,
-                                                    0
-                                                    GASNETE_THREAD_PASS) GASNETE_THREAD_PASS);
+						     &dst,
+						     root, src,
+						     nbytes, flags,
+						     impl,
+						     0
+						     GASNETE_THREAD_PASS) GASNETE_THREAD_PASS);
   }  
 #else
   int flags =  GASNET_COLL_IN_ALLSYNC| GASNET_COLL_OUT_ALLSYNC| GASNET_COLL_LOCAL;
@@ -1441,6 +1443,7 @@ void gasnete_coll_safe_broadcast(gasnete_coll_team_t team, void *dst, void *src,
   }
   #endif
   gasnete_coll_free_implementation(impl);
+#endif
 }
 
 static inline
@@ -1466,33 +1469,33 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
 
   /*first try to search our gasnet autotuner index to see if we have anything for it*/
   /*if not then fall back to our orignal implementation*/
-  
-  /*if the search has been enabled first search in our existing defaults, if no match then start the exhastive search*/
-  if(team->autotune_info->autotuner_defaults || team->autotune_info->search_enabled) {
-    /*if the user requested a search based on some algorithms then we perform an exact match for those parameters*/
-    /*otherwise if loaded from a generic file than an approx match will do */
-    ret = search_index(GASNET_COLL_BROADCAST_OP, team, flags, nbytes, team->autotune_info->search_enabled);  
-
-    /*make sure the returned algortithm can handle the cases*/
-    if(verify_algorithm(team, GASNET_COLL_BROADCAST_OP, flags, nbytes, ret)) {
-      return ret;
+  if(!(flags & GASNET_COLL_DISABLE_AUTOTUNE)) {
+    /*if the search has been enabled first search in our existing defaults, if no match then start the exhastive search*/
+    if(team->autotune_info->autotuner_defaults || team->autotune_info->search_enabled) {
+      /*if the user requested a search based on some algorithms then we perform an exact match for those parameters*/
+      /*otherwise if loaded from a generic file than an approx match will do */
+      ret = search_index(GASNET_COLL_BROADCAST_OP, team, flags, nbytes, team->autotune_info->search_enabled);  
+      
+      /*make sure the returned algortithm can handle the cases*/
+      if(verify_algorithm(team, GASNET_COLL_BROADCAST_OP, flags, nbytes, ret)) {
+        return ret;
+      }
     }
-  }
-  
-  /*search was enabled and it was not found during the search... this is the first time that this algortihm is being run!*/
-  /*tune it and add it to the index*/
-  if(team->autotune_info->search_enabled) {
-    gasnete_coll_implementation_t temp = gasnete_coll_get_implementation();
-    gasnete_coll_autotune_index_entry_t *idx;
-    uint32_t best_algidx;
-    uint32_t num_params;
-    uint32_t *param_list;
-    char flagstr[15];
-    gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
-    char best_tree[GASNETE_COLL_MAX_TREE_TYPE_STRLEN];
-    char all_best_tree[GASNETE_COLL_MAX_TREE_TYPE_STRLEN];
-    char *temp_tree_str;
-    ret = gasnete_coll_get_implementation();
+    
+    /*search was enabled and it was not found during the search... this is the first time that this algortihm is being run!*/
+    /*tune it and add it to the index*/
+    if(team->autotune_info->search_enabled) {
+      gasnete_coll_implementation_t temp = gasnete_coll_get_implementation();
+      gasnete_coll_autotune_index_entry_t *idx;
+      uint32_t best_algidx;
+      uint32_t num_params;
+      uint32_t *param_list;
+      char flagstr[15];
+      gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
+      char best_tree[GASNETE_COLL_MAX_TREE_TYPE_STRLEN];
+      char all_best_tree[GASNETE_COLL_MAX_TREE_TYPE_STRLEN];
+      char *temp_tree_str;
+      ret = gasnete_coll_get_implementation();
 #if 0
     if((team==GASNET_TEAM_ALL && td->my_image == srcimage) || team->myrank == srcimage) {
       fprintf(stderr, "%d> starting autotune for %s %d byte broadcast\n", td->my_image, print_flag_str(flagstr, flags), (int)nbytes);
@@ -1537,6 +1540,7 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
     PTHREAD_BARRIER(team, team->my_images); 
   
     return ret;
+  }
   }
   
   /*autotuning is turned off or we need to fall back to the default*/
@@ -1613,7 +1617,7 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcastM_algorithm(gasnet_
   const size_t eager_limit = gasnete_coll_p2p_eager_min;
   /*first try to search our gasnet autotuner index to see if we have anything for it*/
   /*if not then fall back to our orignal implementation*/
-  
+  if(!(flags & GASNET_COLL_DISABLE_AUTOTUNE)) {
   if(team->autotune_info->autotuner_defaults  || team->autotune_info->search_enabled) {
     ret = search_index(GASNET_COLL_BROADCASTM_OP, team, flags, nbytes, team->autotune_info->search_enabled);  
     /*make sure the returned algortithm can handle the cases*/
@@ -1682,6 +1686,7 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcastM_algorithm(gasnet_
     PTHREAD_BARRIER(team, team->my_images); 
     
     return ret;
+  }
   }
   
   ret = gasnete_coll_get_implementation();

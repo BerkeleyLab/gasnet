@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/08/14 00:32:51 $
- * $Revision: 1.72.10.43 $
+ *     $Date: 2009/08/21 18:41:55 $
+ * $Revision: 1.72.10.44 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -591,13 +591,15 @@ gasnet_coll_handle_t gasnete_coll_threads_get_handle(GASNETE_THREAD_FARG_ALONE) 
   gasnet_coll_handle_t result = GASNET_COLL_INVALID_HANDLE;
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOALLOC;
   
-  /*can't be the first thread for this op*/
+
 #if !ALL_THREADS_POLL && GASNET_PAR
   int first_thread=gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE);
   gasneti_assert(first_thread==0);
 #endif
                                             
   gasneti_mutex_lock(&gasnete_coll_active_lock);
+  /*can't be the first thread for this op*/
+
   op = gasnete_coll_threads_get_op(GASNETE_THREAD_PASS_ALONE);
   if_pt (op != NULL) {
     /* Deal with IN_*SYNC */
