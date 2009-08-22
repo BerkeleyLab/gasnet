@@ -19,7 +19,7 @@
 
 typedef void (*gasneti_handler_fn_t)();
 typedef struct gasneti_sysvname_s{
-    char file_name[32];
+    char file_name[16];
 } gasnet_sysvname_t;
 
 extern uintptr_t *gasneti_seginfo_correction;
@@ -29,7 +29,6 @@ extern gasnet_sysvname_t gasneti_vnetname;
 extern int gasnetc_sysv_init;
 
 extern void gasneti_new_sysv_file(char *filename);
-extern void gasneti_init_sysv(void);
 void *gasneti_mmap_vnet(uintptr_t segsize);
 gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest);
 void gasnetc_token_destroy(gasnet_token_t token);

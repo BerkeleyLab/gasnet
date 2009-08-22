@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/05/20 22:16:55 $
- * $Revision: 1.77.22.5 $
+ *     $Date: 2009/08/22 07:48:00 $
+ * $Revision: 1.77.22.6 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -201,22 +201,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_nodemapInit(&gasnetc_bootstrapExchange, NULL, 0, 0);
 
 #if GASNET_SYSV
-    /* Creating the names for shmem files 
-     * NOTE: currently the gasneti_sysvname array holds gasneti_nodes enteries, and bootstrapExchange
-     * is performed across the entire system. Could we do better? i.e. use gasneti_sysvnodes instead
-     * of gasneti_nodes, and perform exchange only locally.
-     * I gues it is possible for processes on different physical nodes to have the same files,
-     * but we do not care about that ... or do we?
-     */
-    gasneti_sysvname = (gasnet_sysvname_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_sysvname_t));
-    strcpy(gasneti_sysvname[gasneti_mynode].file_name,"/upcmem.XXXXXX");
-    mkstemp(gasneti_sysvname[gasneti_mynode].file_name);
-    gasnetc_bootstrapExchange(&gasneti_sysvname[gasneti_mynode], sizeof(gasnet_sysvname_t), gasneti_sysvname);
-
-    strcpy(gasneti_vnetname.file_name, gasneti_sysvname[0].file_name);
-    strcat(gasneti_vnetname.file_name, "sysv_vnet");
-
-    gasnetc_init_sysv();
+    gasnetc_init_sysv(&gasnetc_bootstrapExchange);
 #endif
  
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE

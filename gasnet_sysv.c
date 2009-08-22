@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/22 04:34:35 $
- * $Revision: 1.1.4.11 $
+ *     $Date: 2009/08/22 07:47:58 $
+ * $Revision: 1.1.4.12 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -28,12 +28,11 @@ gasneti_mutex_t gasneti_index_lock;
 
 
 
-void gasnetc_init_sysv(){
+void gasnetc_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
   size_t vnetsz, sninfosz, mmapsz;
   int retval = GASNET_OK;
   int i, sysv_nodes = 0, myrank = 0;
 
-  
 #if GASNET_CONDUIT_SMP_SYSV     
   gasneti_sysvnodes = gasneti_nodes;
   gasneti_firstsysvnode = 0;
@@ -44,6 +43,27 @@ void gasnetc_init_sysv(){
   gasneti_mysysvnode = gasneti_nodemap_local_rank;
 #endif
 
+  /* setup filenames, unless exchangefn is NULL (indicating caller took care of it) */
+  if (exchangefn != NULL) {
+    /* NOTE: currently bootstrapExchange is performed twice across the entire system.
+     * Could we do better?
+     */
+    gasnet_sysvname_t mine, *tmp;
+    
+    /* First the name for individual segments */
+    gasneti_new_sysv_file(mine.file_name);
+    gasneti_sysvname = (gasnet_sysvname_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_sysvname_t));
+    (*exchangefn)(&mine, sizeof(gasnet_sysvname_t), gasneti_sysvname);
+
+    /* Then sysvnet, selected by the first node of each supernode */
+    if (gasneti_mysysvnode == 0) {
+      gasneti_new_sysv_file(mine.file_name);
+    }
+    tmp = (gasnet_sysvname_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_sysvname_t));
+    (*exchangefn)(&mine.file_name, sizeof(gasnet_sysvname_t), tmp);
+    memcpy(&gasneti_vnetname, &tmp[gasneti_firstsysvnode], sizeof(gasnet_sysvname_t));
+    gasneti_free(tmp);
+  }
 
   /* set up additional shared memory region for shared supernode data and AM
    * infrastructure.

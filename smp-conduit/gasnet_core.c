@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/22 06:32:02 $
- * $Revision: 1.48.4.6 $
+ *     $Date: 2009/08/22 07:48:02 $
+ * $Revision: 1.48.4.7 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -182,7 +182,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   }
   gasneti_firstsysvnode = 0; 
 
-  gasnetc_init_sysv();
+  gasnetc_init_sysv(NULL);
 #endif
 
   /* enable tracing */
