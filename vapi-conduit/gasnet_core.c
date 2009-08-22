@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/08/22 07:48:04 $
- * $Revision: 1.205.6.4 $
+ *     $Date: 2009/08/22 08:53:20 $
+ * $Revision: 1.205.6.5 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2620,7 +2620,7 @@ extern int gasnetc_AMRequestShortM(
 
 #if GASNET_SYSV
   if (gasnetc_sysv_init==1 &&  gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
-    retval = gasnetc_AMSYSV_RequestGeneric(gasnetc_Short, 
+    retval = gasneti_AMSYSV_RequestGeneric(gasnetc_Short, 
                                     dest, handler, 
                                     0, 0, 0,
                                     numargs, argptr); 
@@ -2647,7 +2647,7 @@ extern int gasnetc_AMRequestMediumM(
 
 #if GASNET_SYSV
   if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
-    retval = gasnetc_AMSYSV_RequestGeneric(gasnetc_Medium, 
+    retval = gasneti_AMSYSV_RequestGeneric(gasnetc_Medium, 
                                   dest, handler, 
                                   source_addr, nbytes, 0,
                                   numargs, argptr);
@@ -2676,7 +2676,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 #if GASNET_SYSV
   if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
       uintptr_t dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
-      retval = gasnetc_AMSYSV_RequestGeneric(gasnetc_Long, 
+      retval = gasneti_AMSYSV_RequestGeneric(gasnetc_Long, 
                                       dest, handler, 
                                       source_addr, nbytes, (void *)dest_offset,
                                       numargs, argptr);
@@ -2709,7 +2709,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 #if GASNET_SYSV
   if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
       uintptr_t dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
-      retval = gasnetc_AMSYSV_RequestGeneric(gasnetc_Long, 
+      retval = gasneti_AMSYSV_RequestGeneric(gasnetc_Long, 
                                       dest, handler, 
                                       source_addr, nbytes, (void *)dest_offset,
                                       numargs, argptr);
@@ -2740,7 +2740,7 @@ extern int gasnetc_AMReplyShortM(
   GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
   if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
     /*  call the generic requestor */
-    retval = gasnetc_AMSYSV_ReplyGeneric(gasnetc_Short, 
+    retval = gasneti_AMSYSV_ReplyGeneric(gasnetc_Short, 
                                   token, handler, 
                                   0, 0, 0,
                                   numargs, argptr);
@@ -2772,7 +2772,7 @@ extern int gasnetc_AMReplyMediumM(
   GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
   if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
     /*  call the generic requestor */
-    retval = gasnetc_AMSYSV_ReplyGeneric(gasnetc_Medium, 
+    retval = gasneti_AMSYSV_ReplyGeneric(gasnetc_Medium, 
                                   token, handler, 
                                   source_addr, nbytes, 0,
                                   numargs, argptr);
@@ -2806,7 +2806,7 @@ extern int gasnetc_AMReplyLongM(
   if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
       uintptr_t dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
       /*  call the generic requestor */
-      retval = gasnetc_AMSYSV_ReplyGeneric(gasnetc_Long, 
+      retval = gasneti_AMSYSV_ReplyGeneric(gasnetc_Long, 
                                     token, handler, 
                                     source_addr, nbytes, (void *)dest_offset,
                                     numargs, argptr);

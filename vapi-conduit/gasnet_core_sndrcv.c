@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2009/05/20 22:16:59 $
- * $Revision: 1.227.4.1 $
+ *     $Date: 2009/08/22 08:53:20 $
+ * $Revision: 1.227.4.2 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3606,26 +3606,6 @@ extern int gasnetc_rdma_getv(gasnetc_epid_t epid, void *src_ptr, size_t dstcount
 
   return 0;
 }
-
-#if GASNET_SYSV
-extern int gasnetc_AMSYSV_RequestGeneric(gasnetc_category_t category, 
-                         int dest, gasnet_handler_t handler, 
-                         void *source_addr, int nbytes, void *dest_ptr, 
-                         int numargs, va_list argptr) {
-
-  return gasneti_AMSYSV_RequestGeneric(category, dest, handler, source_addr, nbytes, 
-                                      dest_ptr, numargs, argptr); 
-}
-
-extern int gasnetc_AMSYSV_ReplyGeneric(gasnetc_category_t category, 
-                         gasnet_token_t token, gasnet_handler_t handler, 
-                         void *source_addr, int nbytes, void *dest_ptr, 
-                         int numargs, va_list argptr) {
-  return gasneti_AMSYSV_ReplyGeneric(category, token, handler, source_addr, nbytes, 
-                                     dest_ptr, numargs, argptr); 
-}
-#endif
-
 
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  int dest, gasnet_handler_t handler,
