@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2009/08/22 08:53:20 $
- * $Revision: 1.227.4.2 $
+ *     $Date: 2009/08/22 18:45:57 $
+ * $Revision: 1.227.4.3 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1415,16 +1415,13 @@ void gasnetc_do_poll(int poll_rcv, int poll_snd) {
   #else
     gasnetc_hca_t *hca = &gasnetc_hca[0];
   #endif
-#if GASNET_SYSV
-  if (gasnetc_sysv_init==1)  gasneti_AMSYSVPoll(0);
-#endif
     gasnetc_poll_rcv_hca(hca, GASNETC_RCV_REAP_LIMIT);
+  #if GASNET_SYSV
+    if (gasnetc_sysv_init==1) gasneti_AMSYSVPoll(0);
+  #endif
   }
 
   if (poll_snd) {
-#if GASNET_SYSV
-  if (gasnetc_sysv_init==1)  gasneti_AMSYSVPoll(0);
-#endif
     (void)gasnetc_snd_reap(GASNETC_SND_REAP_LIMIT);
   }
 }
@@ -3725,45 +3722,27 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   uint32_t flags;
   gasnet_node_t sourceid;
 
-  //GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
-  //GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
-
 #if GASNET_SYSV
   if ( (uintptr_t)token >= gasneti_firstsysvnode && (uintptr_t)token <= (gasneti_firstsysvnode + gasneti_sysvnodes - 1) && gasneti_sysvnodes > 0){
     sourceid = (gasnet_node_t)(uintptr_t)token;
-    gasneti_assert(sourceid < gasneti_nodes);
-    *srcindex = sourceid;
-  }else{
+  } else
+#endif
+  {
+    GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
+    GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
+
     flags = ((gasnetc_rbuf_t *)token)->rbuf_flags;
 
-    if (GASNETC_MSG_CATEGORY(flags) != gasnetc_System) {
+    if_pf (GASNETC_MSG_CATEGORY(flags) != gasnetc_System) {
       GASNETI_CHECKATTACH();
     }
 
     sourceid = GASNETC_MSG_SRCIDX(flags);
-
-    gasneti_assert(sourceid < gasneti_nodes);
-    *srcindex = sourceid;
-  }  
-  return GASNET_OK;
-#else
-
-  GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
-  GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
-
-  flags = ((gasnetc_rbuf_t *)token)->rbuf_flags;
-
-  if (GASNETC_MSG_CATEGORY(flags) != gasnetc_System) {
-    GASNETI_CHECKATTACH();
   }
-
-  sourceid = GASNETC_MSG_SRCIDX(flags);
 
   gasneti_assert(sourceid < gasneti_nodes);
   *srcindex = sourceid;
   return GASNET_OK;
-#endif
-
 }
 
 extern int gasnetc_AMPoll() {
