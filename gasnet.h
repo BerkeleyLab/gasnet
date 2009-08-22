@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2009/05/28 22:45:19 $
- * $Revision: 1.59.8.4 $
+ *     $Date: 2009/08/22 04:23:20 $
+ * $Revision: 1.59.8.5 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,10 +23,23 @@
    clients should use the automatically-generated Makefile *.mak fragments to get the correct compile settings
 */
 
-#define GASNET_SYSV 1
-
 /* autoconf-generated configuration header */
 #include <gasnet_config.h>
+
+/* XXX: This should be controlled per-conduit, NOT per build */
+#ifndef GASNET_SYSV
+ #if HAVE_SHM_OPEN
+  #define GASNET_SYSV 1
+ #else
+  #define GASNET_SYSV 0
+ #endif
+#endif
+
+/* Can't align segments w/ SYSV */
+#if GASNET_SYSV
+ #undef GASNETI_DISABLE_ALIGNED_SEGMENTS
+ #define GASNETI_DISABLE_ALIGNED_SEGMENTS 1
+#endif
 
 /* public spec version numbers */
 #define GASNET_SPEC_VERSION_MAJOR GASNETI_SPEC_VERSION_MAJOR
