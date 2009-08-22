@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/22 04:00:07 $
- * $Revision: 1.48.4.4 $
+ *     $Date: 2009/08/22 04:09:47 $
+ * $Revision: 1.48.4.5 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -522,7 +522,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
 #if GASNET_SYSV
   if ( (uintptr_t)token >= gasneti_firstsysvnode && (uintptr_t)token < (gasneti_firstsysvnode + gasneti_sysvnodes)){
     sourceid = (gasnet_node_t)(uintptr_t)token;
-  }else printf("AMGetMsgSource ERROR %d\n",(uintptr_t)token);
+  }else printf("AMGetMsgSource ERROR %p\n",(void*)(uintptr_t)token);
 #endif
   gasneti_assert(sourceid < gasneti_nodes);
   *srcindex = sourceid;

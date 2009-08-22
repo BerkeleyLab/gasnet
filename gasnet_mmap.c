@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/22 03:36:07 $
- * $Revision: 1.57.6.7 $
+ *     $Date: 2009/08/22 04:09:45 $
+ * $Revision: 1.57.6.8 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1043,8 +1043,8 @@ void gasneti_AttachRemote(uintptr_t segsize, gasnet_node_t sysv_node, uintptr_t 
   
     if (seginfo[gasneti_nodemap_local[sysv_node]].remote_size < seginfo[gasneti_nodemap_local[sysv_node]].size){
         seginfo_correction[sysv_node] = seginfo[gasneti_nodemap_local[sysv_node]].remote_size;
-        gasneti_fatalerror("Not enough memory! Process %d tried mapping %u bytes, but only %u bytes available. Try further reducing the shared heap size.\n",
-                           gasneti_mynode, seginfo[gasneti_nodemap_local[sysv_node]].size,seginfo[gasneti_nodemap_local[sysv_node]].remote_size);
+        gasneti_fatalerror("Not enough memory! Process %d tried mapping %lu bytes, but only %lu bytes available. Try further reducing the shared heap size.\n",
+                           gasneti_mynode, (unsigned long)seginfo[gasneti_nodemap_local[sysv_node]].size, (unsigned long)seginfo[gasneti_nodemap_local[sysv_node]].remote_size);
     }else{
         seginfo_correction[sysv_node] = 0;
     }
