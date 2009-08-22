@@ -27,10 +27,11 @@ extern gasnet_sysvname_t gasneti_vnetname;
 extern int gasnetc_sysv_init;
 
 extern void gasneti_new_sysv_file(char *filename);
-void *gasneti_mmap_vnet(uintptr_t segsize);
-gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest);
-void gasnetc_token_destroy(gasnet_token_t token);
-gasneti_handler_fn_t gasneti_get_handler(int handler_id);
+extern void gasneti_unlink_segment(void);
+extern void *gasneti_mmap_vnet(uintptr_t segsize);
+extern gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest);
+extern void gasnetc_token_destroy(gasnet_token_t token);
+extern gasneti_handler_fn_t gasneti_get_handler(int handler_id);
 
 
 /* Virtual network between processes within a shared

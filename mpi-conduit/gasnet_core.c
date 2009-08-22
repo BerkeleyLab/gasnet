@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/22 07:48:00 $
- * $Revision: 1.77.22.6 $
+ *     $Date: 2009/08/22 08:23:58 $
+ * $Revision: 1.77.22.7 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,10 +16,6 @@
 #include <unistd.h>
 #include <signal.h>
 #include <unistd.h>
-
-#if GASNET_SYSV
-void *gasneti_unlink_segment();
-#endif
 
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");

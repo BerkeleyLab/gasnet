@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/22 08:02:50 $
- * $Revision: 1.57.6.12 $
+ *     $Date: 2009/08/22 08:23:56 $
+ * $Revision: 1.57.6.13 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -336,7 +336,7 @@ extern void *gasneti_mmap_shared(uintptr_t segsize) {
 extern void *gasneti_mmap_vnet(uintptr_t segsize) {
   return gasneti_mmap_internal_vnet(NULL, segsize);
 }
-extern void gasneti_unlink_segment() {
+extern void gasneti_unlink_segment(void) {
     shm_unlink(gasneti_sysvname[gasneti_mynode]);
     shm_unlink(gasneti_vnetname);
 }

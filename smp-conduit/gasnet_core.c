@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/22 08:02:52 $
- * $Revision: 1.48.4.8 $
+ *     $Date: 2009/08/22 08:24:00 $
+ * $Revision: 1.48.4.9 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -30,7 +30,6 @@ typedef void (*gasnetc_handler_fn_t)();  /* prototype for handler function */
 gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
 
 #if GASNET_SYSV
-void *gasneti_unlink_segment();
 gasneti_handler_fn_t gasnetc_get_handler(int handler_id) {
   gasneti_assert(handler_id < GASNETC_MAX_NUMHANDLERS);
   return gasnetc_handler[handler_id];
