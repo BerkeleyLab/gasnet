@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/04/23 23:33:12 $
- * $Revision: 1.119.8.1 $
+ *     $Date: 2009/08/22 02:09:18 $
+ * $Revision: 1.119.8.2 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -322,7 +322,6 @@ static int gasnetc_init(int *argc, char ***argv) {
         gasneti_nodemapInit(NULL, tmp, sizeof(void*), sizeof(void*));
         gasneti_free(tmp);
     }
-#endif
 
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { 
