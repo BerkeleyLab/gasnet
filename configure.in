@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2009/08/22 01:16:03 $
-# $Revision: 1.519.2.2 $
+#     $Date: 2009/08/22 20:17:35 $
+# $Revision: 1.519.2.3 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.519.2.2 $)
+AC_REVISION($Revision: 1.519.2.3 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1379,26 +1379,29 @@ AC_TRY_RUN([
   #if PLATFORM_ARCH_X86_64
     #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
         PLATFORM_COMPILER_PATHSCALE || GASNETI_PGI_ASM_GNU
-	volatile struct {
-		unsigned long lo, hi;
-	} X = {0,(0x1234llu << 32)};
+	unsigned long *array[3];
+	volatile unsigned long *p = (void *)(((unsigned long)array + 15) & ~(unsigned long)15);
+
 	/* Note oldhi selected to detect bug 2408 (anything in upper 32bits) */
 	register unsigned long oldlo = 0;
 	register unsigned long oldhi = 0x1234llu << 32;
 	register unsigned long newlo = 1234;
 	register unsigned long newhi = 5678;
 
+	p[0] = 0;
+	p[1] = 0x1234llu << 32;
+
 	__asm__ __volatile__ (
 		"lock;			"
 		"cmpxchg16b	%0	\n\t"
 		"sete		%b1	"
-		: "+m" (X), "+&a" (oldlo), "+&d" (oldhi)
+		: "+m" (*p), "+&a" (oldlo), "+&d" (oldhi)
 		: "b" (newlo), "c" (newhi)
 		: "cc", "memory");
 	oldlo &= 0xff;
 
-	/* Want SUCCESS and changed X */
-       	return (!oldlo || (X.lo != 1234) || (X.hi != 5678));
+	/* Want SUCCESS and changed values */
+       	return (!oldlo || (p[0] != 1234) || (p[1] != 5678));
     #else
 	/* Don't know, but also don't currently care */
 	return 0;
