@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/22 04:48:37 $
- * $Revision: 1.57.6.9 $
+ *     $Date: 2009/08/22 04:58:05 $
+ * $Revision: 1.57.6.10 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -12,9 +12,8 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/mman.h>
 #include <fcntl.h>
- 
+
 #ifdef HAVE_MMAP
 #include <sys/mman.h>
 
@@ -68,7 +67,6 @@
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-
 static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize) {
   static int gasneti_mmapfd = -1;
   gasneti_tick_t t1, t2;
@@ -526,7 +524,6 @@ uintptr_t _gasneti_max_segsize(uint64_t configure_val) {
   static uintptr_t result = 0;
   uint64_t tmp;
   if (!result) {
-    char *p;
     int is_dflt = 1;
     /* start with the configure-selected default */
     tmp = configure_val;
