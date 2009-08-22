@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/07/06 05:06:33 $
- * $Revision: 1.1.4.10 $
+ *     $Date: 2009/08/22 04:34:35 $
+ * $Revision: 1.1.4.11 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -347,8 +347,8 @@ void gasneti_sysvnet_init(gasneti_sysvnet_t **pvnet, void *start, size_t nbytes,
   szpernode = gasneti_sysvnet_memory_needed_pernode(sysvnodes);
   if (regionlen < szpernode * sysvnodes) 
     gasneti_fatalerror("Internal error: not enough memory for sysvnet: \n"
-                       " given %ld effective bytes, but need %ld", 
-                       regionlen, szpernode * sysvnodes);
+                       " given %lu effective bytes, but need %lu", 
+                       (unsigned long)regionlen, (unsigned long)(szpernode * sysvnodes));
   vnet = gasneti_malloc(sizeof(gasneti_sysvnet_t));
   vnet->firstnode = firstnode;
   vnet->nodecount = sysvnodes;
