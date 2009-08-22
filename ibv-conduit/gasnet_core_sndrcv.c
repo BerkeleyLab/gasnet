@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2009/08/22 18:45:57 $
- * $Revision: 1.227.4.3 $
+ *     $Date: 2009/08/22 22:27:02 $
+ * $Revision: 1.227.4.4 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3690,48 +3690,35 @@ extern int gasnetc_ReplySystem(gasnet_token_t token,
  * with gasnetc_AMGetMsgSource (which is conduit-specific). */
 extern gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest)
 {
-    /*
-  #if GASNET_DEBUG
-    gasnetc_bufdesc_t *buf = gasneti_malloc(sizeof(gasnetc_bufdesc_t));
-    buf->srcnode = src;
-    buf->isReq = isRequest;
-    return (gasnet_token_t)buf; 
-  #else
-    return (gasnet_token_t)(uintptr_t)src;
-  #endif
-  */
- //  ammpi_buf_t *token; 
- 
-    //gasnet_token_t token;
-    //token = (gasnet_token_t) AMMPI_create_token(src);
-    //return token;
-    return (gasnet_token_t)(uintptr_t)src;
-
+  /* We encode the src node in the token and recognize it as not aligned as a pointer.
+   * Use of local rank avoids overflow for all but the most extream cases.
+   */
+  return (gasnet_token_t)(1 | ((uintptr_t)(src - gasneti_firstsysvnode) << 1));
 }
 
 /* Frees a token handed out by gasnetc_token_create() */
 extern void gasnetc_token_destroy(gasnet_token_t token)
 {
-  //#if GASNET_DEBUG
-    //gasneti_free(token);
-    //AMMPI_free_token(token);
-  //#endif
+  /* NO-OP
+   * Token is not a pointer to allocated memory.
+   * So, nothing to free()
+   */
 }
 
 extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
-  uint32_t flags;
   gasnet_node_t sourceid;
 
+  GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
+  GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
+
 #if GASNET_SYSV
-  if ( (uintptr_t)token >= gasneti_firstsysvnode && (uintptr_t)token <= (gasneti_firstsysvnode + gasneti_sysvnodes - 1) && gasneti_sysvnodes > 0){
-    sourceid = (gasnet_node_t)(uintptr_t)token;
+  if ((uintptr_t)token & 1) {
+    sourceid = gasneti_firstsysvnode + (gasnet_node_t)((uintptr_t)token >> 1);
+    gasneti_assert(gasneti_sysv_in_supernode(sourceid));
   } else
 #endif
   {
-    GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
-    GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
-
-    flags = ((gasnetc_rbuf_t *)token)->rbuf_flags;
+    uint32_t flags = ((gasnetc_rbuf_t *)token)->rbuf_flags;
 
     if_pf (GASNETC_MSG_CATEGORY(flags) != gasnetc_System) {
       GASNETI_CHECKATTACH();
