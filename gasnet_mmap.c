@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/22 04:58:05 $
- * $Revision: 1.57.6.10 $
+ *     $Date: 2009/08/22 06:32:00 $
+ * $Revision: 1.57.6.11 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -118,6 +118,30 @@ static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize) {
 }
 
 #if GASNET_SYSV
+extern void gasneti_new_sysv_file(char *filename) {
+  int i, rc, rand0 = (int)getpid() | 1;
+  const char prefix[] = "/gasnet";
+  const char tbl[] = "0123456789ABCDEFGHIJKLMNOPQRSTUV";
+
+  memcpy(filename, prefix, sizeof(prefix));
+  do {
+    const uint64_t now = gasneti_ticks_now();
+    uint32_t rand1 = (GASNETI_LOWORD(now) ^ GASNETI_HIWORD(now)) * rand0;
+    char *p = filename + sizeof(prefix) - 1;
+
+    for (i = 0; i < 6; ++i) {
+      *(p++) = tbl[rand1 % 32];
+      rand1 /= 32;
+    }
+    *p = '\0';
+    gasneti_assert(strlen(filename) <= 14); /* Maximum portable length */
+    rc = shm_open(filename, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
+  } while ((rc < 0) && (errno == EEXIST));
+  if (rc < 0) gasneti_fatalerror("shm_open() failed to find a unique name");
+
+  close(rc);
+}
+
 static void *gasneti_mmap_remote_shared(void *segbase, uintptr_t segsize, char *filename) {
   int gasneti_mmapfd = -1;
   gasneti_tick_t t1, t2;
