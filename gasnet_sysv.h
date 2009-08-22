@@ -17,6 +17,11 @@
   #define GASNETI_SYSVNET_PAGESIZE GASNET_PAGESIZE
 #endif
 
+typedef void (*gasneti_handler_fn_t)();
+typedef struct gasneti_sysvname_s{
+    char file_name[32];
+} gasnet_sysvname_t;
+
 extern uintptr_t *gasneti_seginfo_correction;
 extern uintptr_t gasneti_sysvsize;
 extern gasnet_sysvname_t *gasneti_sysvname;
