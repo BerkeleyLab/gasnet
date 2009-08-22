@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/05/28 18:28:26 $
- * $Revision: 1.57.6.6 $
+ *     $Date: 2009/08/22 03:36:07 $
+ * $Revision: 1.57.6.7 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -169,8 +169,28 @@ static void *gasneti_mmap_remote_shared(void *segbase, uintptr_t segsize, char *
   return ptr;
 }
 
+static int gasneti_mmap_stretch(int fd, uintptr_t size) {
+#if 1
+  /* This is from the example code in IEEE Std 1003.1-2001/Cor 2-2004 */
+  if (ftruncate(fd, size) < 0) {
+    perror("Error calling ftruncate() on the shm file");
+    return -1;
+  }
+#else
+  if (lseek(fd, size-1, SEEK_SET) < 0) {
+    perror("Error calling lseek() on the shm file");
+    return -1;
+  }
+  if (write(fd, "", 1) != 1) {
+    perror("Error writing last byte of the shm file");
+    return -1;
+  }
+#endif
+  return 0;
+}
+
 static void *gasneti_mmap_shared_internal(void *segbase, uintptr_t segsize) {
-  int gasneti_mmapfd = -1, result;
+  int gasneti_mmapfd = -1;
   gasneti_tick_t t1, t2;
   void	*ptr;
 
@@ -180,18 +200,9 @@ static void *gasneti_mmap_shared_internal(void *segbase, uintptr_t segsize) {
     if (gasneti_mmapfd == -1) 
       gasneti_fatalerror("failed to open %s for mmap : %s\n",gasneti_sysvname[gasneti_mynode].file_name,strerror(errno));
   }
-  /* Stretch the file size to the size of the (mmapped) array of ints */
-  result = lseek(gasneti_mmapfd, segsize-1, SEEK_SET);
-  if (result == -1) {
+  if (gasneti_mmap_stretch(gasneti_mmapfd, segsize)) {
     shm_unlink(gasneti_sysvname[gasneti_mynode].file_name);
-    perror("Error calling lseek() to 'stretch' the file");
-    exit(EXIT_FAILURE);
-  }
-  result = write(gasneti_mmapfd, "", 1);
-  if (result != 1) {
-    shm_unlink(gasneti_sysvname[gasneti_mynode].file_name);
-    perror("Error writing last byte of the file");
-    exit(EXIT_FAILURE);
+    gasneti_fatalerror("failed to setup mmap file");
   }
  
   t1 = gasneti_ticks_now();
@@ -229,9 +240,9 @@ static void *gasneti_mmap_shared_internal(void *segbase, uintptr_t segsize) {
     
   return ptr;
 }
+
 static void *gasneti_mmap_internal_vnet(void *segbase, uintptr_t segsize) {
   int gasneti_mmapfd = -1;
-  int result;
   gasneti_tick_t t1, t2;
   void	*ptr;
 
@@ -241,18 +252,10 @@ static void *gasneti_mmap_internal_vnet(void *segbase, uintptr_t segsize) {
         gasneti_fatalerror("failed to open %s for mmap : %s\n",gasneti_vnetname.file_name,strerror(errno));
     }
 
-    /* Stretch the file size to the size of the (mmapped) array of ints */
-    result = lseek(gasneti_mmapfd, segsize-1, SEEK_SET);
-    if (result == -1) {
-        shm_unlink(gasneti_vnetname.file_name);
-	perror("Error calling lseek() to 'stretch' the file");
-	exit(EXIT_FAILURE);
-    }
-    result = write(gasneti_mmapfd, "", 1);
-    if (result != 1) {
-        shm_unlink(gasneti_vnetname.file_name);
-	perror("Error writing last byte of the file");
-	exit(EXIT_FAILURE);
+    /* Stretch the file size to the requested size */
+    if (gasneti_mmap_stretch(gasneti_mmapfd, segsize)) {
+      shm_unlink(gasneti_vnetname.file_name);
+      gasneti_fatalerror("failed to setup vnet file");
     }
  
   t1 = gasneti_ticks_now();
