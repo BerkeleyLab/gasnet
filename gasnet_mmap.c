@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/22 04:09:45 $
- * $Revision: 1.57.6.8 $
+ *     $Date: 2009/08/22 04:48:37 $
+ * $Revision: 1.57.6.9 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -173,12 +173,12 @@ static int gasneti_mmap_stretch(int fd, uintptr_t size) {
 #if 1
   /* This is from the example code in IEEE Std 1003.1-2001/Cor 2-2004 */
   if (ftruncate(fd, size) < 0) {
-    perror("Error calling ftruncate() on the shm file");
+    fprintf(stderr, "Error calling ftruncate(%lu) on the shm file: %s\n", (unsigned long)size, strerror(errno));
     return -1;
   }
 #else
   if (lseek(fd, size-1, SEEK_SET) < 0) {
-    perror("Error calling lseek() on the shm file");
+    fprintf(stderr, "Error calling lseek(%lu,SEEK_SET) on the shm file: %s\n", (unsigned long)size-1, strerror(errno));
     return -1;
   }
   if (write(fd, "", 1) != 1) {
