@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/other/fragment-body.mak.in,v 1.6 2007/09/10 13:14:33 bonachea Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/other/fragment-body.mak.in,v 1.6.24.1 2009/08/22 01:16:05 phargrov Exp $
 # ----------------------------------------------------------------------
 # Following section @configure_input@
 
@@ -53,6 +53,7 @@ GASNET_LIBS =                             \
     $(CONDUIT_LIBS)                       \
     $(CONDUIT_LIBS_#THREAD_MODEL#)        \
     $(GASNET_EXTRALIBS_#THREAD_MODEL#)    \
+    @GASNET_PSHM_LIBS@                    \
     @LIBGCC@                              \
     @LIBS@                                \
     @LIBM@                                \

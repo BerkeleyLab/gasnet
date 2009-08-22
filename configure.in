@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2009/04/23 23:33:03 $
-# $Revision: 1.519.2.1 $
+#     $Date: 2009/08/22 01:16:03 $
+# $Revision: 1.519.2.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.519.2.1 $)
+AC_REVISION($Revision: 1.519.2.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1070,6 +1070,35 @@ AC_SUBST(PTHREADS)
 ## Solaris threads
 
 AC_CHECK_LIB(thread, thr_create, have_solthread=yes, have_solthread=no)
+
+########################################################################
+## Process-shared memory (pshm)
+
+dnl GASNET_TOOLSONLY_FALSE_BEGIN
+GASNET_IF_ENABLED_WITH_AUTO(pshm, Enable/disable inter-process shared memory support (auto-detected),
+  [enabled_pshm=yes;force_pshm=yes],
+   enabled_pshm=no,
+   enabled_pshm=yes)
+have_pshm=no
+if test $enabled_pshm = yes; then
+  GASNET_PSHM_LIBS=""
+
+  # shm_open() could be in libc (AIX) or librt (Linux)
+  GASNET_PUSHVAR(LIBS,"")
+  AC_SEARCH_LIBS(shm_open, rt, [
+    AC_DEFINE(HAVE_SHM_OPEN)
+    GASNET_PSHM_LIBS="$LIBS"
+    have_pshm=yes])
+  GASNET_POPVAR(LIBS)
+fi
+if test "$have_pshm$force_pshm" = noyes; then
+  GASNET_MSG_ERROR([User requested --enable-pshm but no supported implementation was found])
+fi
+AC_SUBST(GASNET_PSHM_LIBS)
+dnl GASNET_TOOLSONLY_FALSE_END
+
+AM_CONDITIONAL(USE_PSHM, test "$enabled_pshm$have_pshm" = yesyes)
+
 
 ########################################################################
 ## CPU feature checks
