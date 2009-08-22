@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2009/08/22 06:32:00 $
- * $Revision: 1.113.8.6 $
+ *     $Date: 2009/08/22 06:50:51 $
+ * $Revision: 1.113.8.7 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -46,15 +46,6 @@ GASNETI_BEGIN_EXTERNC
    */
   #undef toupper
   #define toupper(c) ((c) >= 'a' && (c) <= 'z' ? (c) & 0x5F:(c))
-#endif
-
-#if GASNET_SYSV
-  extern uintptr_t *gasneti_seginfo_correction;
-  extern uintptr_t gasneti_sysvsize;
-  extern gasnet_sysvname_t *gasneti_sysvname;
-  extern gasnet_sysvname_t gasneti_vnetname;
-  extern int gasnetc_sysv_init;
-  extern void gasneti_new_sysv_file(char *filename);
 #endif
 
 extern int gasneti_init_done; /*  true after init */
@@ -301,6 +292,10 @@ void gasneti_defaultSignalHandler(int sig);
 typedef void (*gasneti_bootstrapExchangefn_t)(void *src, size_t len, void *dest);
 typedef void (*gasneti_bootstrapBroadcastfn_t)(void *src, size_t len, void *dest, int rootnode);
 typedef void (*gasneti_bootstrapBarrierfn_t)(void);
+
+#if GASNET_SYSV
+  #include <gasnet_sysv.h>
+#endif
 
 #if !GASNET_SEGMENT_EVERYTHING
 #ifdef HAVE_MMAP

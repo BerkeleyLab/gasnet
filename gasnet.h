@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2009/08/22 04:23:20 $
- * $Revision: 1.59.8.5 $
+ *     $Date: 2009/08/22 06:50:51 $
+ * $Revision: 1.59.8.6 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -319,9 +319,6 @@ GASNETI_END_EXTERNC
 /* ------------------------------------------------------------------------------------ */
 /* Main core header */
 #include <gasnet_core.h>
-#if GASNET_SYSV
-    #include <gasnet_sysv.h>
-#endif
 
 /* Main extended header */
 #include <gasnet_extended.h>
