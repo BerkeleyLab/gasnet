@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/22 08:23:56 $
- * $Revision: 1.57.6.13 $
+ *     $Date: 2009/08/22 18:54:00 $
+ * $Revision: 1.57.6.14 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -148,7 +148,7 @@ static void *gasneti_mmap_remote_shared(void *segbase, uintptr_t segsize, char *
   void	*ptr=NULL;
 
   if (gasneti_mmapfd == -1) {
-    gasneti_mmapfd = shm_open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+    gasneti_mmapfd = shm_open(filename, O_RDWR, S_IRUSR | S_IWUSR);
      if (gasneti_mmapfd == -1) 
       gasneti_fatalerror("failed to open for mmap : %s\n",strerror(errno));
   }
@@ -217,7 +217,7 @@ static void *gasneti_mmap_shared_internal(void *segbase, uintptr_t segsize) {
   void	*ptr;
 
   if (gasneti_mmapfd == -1) {
-    gasneti_mmapfd = shm_open(gasneti_sysvname[gasneti_mynode], O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+    gasneti_mmapfd = shm_open(gasneti_sysvname[gasneti_mynode], O_RDWR, S_IRUSR | S_IWUSR);
     
     if (gasneti_mmapfd == -1) 
       gasneti_fatalerror("failed to open %s for mmap : %s\n",gasneti_sysvname[gasneti_mynode],strerror(errno));
@@ -269,7 +269,7 @@ static void *gasneti_mmap_internal_vnet(void *segbase, uintptr_t segsize) {
   void	*ptr;
 
     if (gasneti_mmapfd == -1) {
-      gasneti_mmapfd = shm_open(gasneti_vnetname, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+      gasneti_mmapfd = shm_open(gasneti_vnetname, O_RDWR, S_IRUSR | S_IWUSR);
       if (gasneti_mmapfd == -1) 
         gasneti_fatalerror("failed to open %s for mmap : %s\n",gasneti_vnetname,strerror(errno));
     }
