@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/22 07:48:02 $
- * $Revision: 1.48.4.7 $
+ *     $Date: 2009/08/22 08:02:52 $
+ * $Revision: 1.48.4.8 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -138,7 +138,7 @@ static int gasnetc_get_sysv_nodecount()
 #endif 
 
 static int gasnetc_init(int *argc, char ***argv) {
-  int i, fork_return;
+  int i;
   /*  check system sanity */
   gasnetc_check_config();
 
@@ -155,9 +155,6 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   /* add code here to bootstrap the nodes for your conduit */
 
-  gasneti_mynode = 0;
-  gasneti_nodes = 1;
-
 #if GASNET_SYSV
   gasneti_mynode = 0;
   gasneti_nodes = gasneti_sysvnodes = gasnetc_get_sysv_nodecount();
@@ -165,13 +162,13 @@ static int gasnetc_init(int *argc, char ***argv) {
   /* Create unique names for shmem files. */
   gasneti_sysvname = (gasnet_sysvname_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_sysvname_t));
   for(i=0; i<gasneti_nodes; i++){
-    gasneti_new_sysv_file(gasneti_sysvname[i].file_name);
+    gasneti_new_sysv_file(gasneti_sysvname[i]);
   }
-  gasneti_new_sysv_file(gasneti_vnetname.file_name);
+  gasneti_new_sysv_file(gasneti_vnetname);
 
   /* go fork yourself! */
   for (i = 1; i < gasneti_nodes; i++) {
-    fork_return = fork();
+    int fork_return = fork();
     if (fork_return < 0) {
       gasneti_fatalerror("Fork failed!");
     }
@@ -183,6 +180,9 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasneti_firstsysvnode = 0; 
 
   gasnetc_init_sysv(NULL);
+#else
+  gasneti_mynode = 0;
+  gasneti_nodes = 1;
 #endif
 
   /* enable tracing */

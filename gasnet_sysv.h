@@ -18,9 +18,7 @@
 #endif
 
 typedef void (*gasneti_handler_fn_t)();
-typedef struct gasneti_sysvname_s{
-    char file_name[16];
-} gasnet_sysvname_t;
+typedef char gasnet_sysvname_t[16];
 
 extern uintptr_t *gasneti_seginfo_correction;
 extern uintptr_t gasneti_sysvsize;

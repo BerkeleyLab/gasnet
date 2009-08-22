@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/22 06:32:00 $
- * $Revision: 1.57.6.11 $
+ *     $Date: 2009/08/22 08:02:50 $
+ * $Revision: 1.57.6.12 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -217,13 +217,13 @@ static void *gasneti_mmap_shared_internal(void *segbase, uintptr_t segsize) {
   void	*ptr;
 
   if (gasneti_mmapfd == -1) {
-    gasneti_mmapfd = shm_open(gasneti_sysvname[gasneti_mynode].file_name, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+    gasneti_mmapfd = shm_open(gasneti_sysvname[gasneti_mynode], O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
     
     if (gasneti_mmapfd == -1) 
-      gasneti_fatalerror("failed to open %s for mmap : %s\n",gasneti_sysvname[gasneti_mynode].file_name,strerror(errno));
+      gasneti_fatalerror("failed to open %s for mmap : %s\n",gasneti_sysvname[gasneti_mynode],strerror(errno));
   }
   if (gasneti_mmap_stretch(gasneti_mmapfd, segsize)) {
-    shm_unlink(gasneti_sysvname[gasneti_mynode].file_name);
+    shm_unlink(gasneti_sysvname[gasneti_mynode]);
     gasneti_fatalerror("failed to setup mmap file");
   }
  
@@ -269,14 +269,14 @@ static void *gasneti_mmap_internal_vnet(void *segbase, uintptr_t segsize) {
   void	*ptr;
 
     if (gasneti_mmapfd == -1) {
-      gasneti_mmapfd = shm_open(gasneti_vnetname.file_name, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+      gasneti_mmapfd = shm_open(gasneti_vnetname, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
       if (gasneti_mmapfd == -1) 
-        gasneti_fatalerror("failed to open %s for mmap : %s\n",gasneti_vnetname.file_name,strerror(errno));
+        gasneti_fatalerror("failed to open %s for mmap : %s\n",gasneti_vnetname,strerror(errno));
     }
 
     /* Stretch the file size to the requested size */
     if (gasneti_mmap_stretch(gasneti_mmapfd, segsize)) {
-      shm_unlink(gasneti_vnetname.file_name);
+      shm_unlink(gasneti_vnetname);
       gasneti_fatalerror("failed to setup vnet file");
     }
  
@@ -337,8 +337,8 @@ extern void *gasneti_mmap_vnet(uintptr_t segsize) {
   return gasneti_mmap_internal_vnet(NULL, segsize);
 }
 extern void gasneti_unlink_segment() {
-    shm_unlink(gasneti_sysvname[gasneti_mynode].file_name);
-    shm_unlink(gasneti_vnetname.file_name);
+    shm_unlink(gasneti_sysvname[gasneti_mynode]);
+    shm_unlink(gasneti_vnetname);
 }
 #endif
 /* ------------------------------------------------------------------------------------ */
@@ -724,7 +724,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
     gasneti_remote_segments = gasneti_malloc(gasneti_sysvnodes*sizeof(gasnet_seginfo_t));
     for(i=0; i<gasneti_sysvnodes; i++){
         if (gasneti_nodemap_local[i]!=gasneti_mynode){ 
-            gasneti_remote_segments[i].addr = gasneti_mmap_remote_shared(NULL, gasneti_segexch[gasneti_nodemap_local[i]].seginfo.size, gasneti_sysvname[gasneti_nodemap_local[i]].file_name);
+            gasneti_remote_segments[i].addr = gasneti_mmap_remote_shared(NULL, gasneti_segexch[gasneti_nodemap_local[i]].seginfo.size, gasneti_sysvname[gasneti_nodemap_local[i]]);
             gasneti_remote_segments[i].size = gasneti_segexch[gasneti_nodemap_local[i]].seginfo.size;
         }
     }
@@ -1049,7 +1049,7 @@ void gasneti_AttachRemote(uintptr_t segsize, gasnet_node_t sysv_node, uintptr_t 
         gasneti_assert(segbase >= gasneti_remote_segments[sysv_node].addr &&
                (uintptr_t)segbase + segsize <= (uintptr_t)gasneti_remote_segments[sysv_node].addr + gasneti_remote_segments[sysv_node].size);
         gasneti_munmap(gasneti_remote_segments[sysv_node].addr, gasneti_remote_segments[sysv_node].size);
-        gasneti_mmap_remote_shared(segbase, segsize, gasneti_sysvname[gasneti_nodemap_local[sysv_node]].file_name);
+        gasneti_mmap_remote_shared(segbase, segsize, gasneti_sysvname[gasneti_nodemap_local[sysv_node]]);
         gasneti_remote_segments[sysv_node].addr = segbase;
         gasneti_remote_segments[sysv_node].size = segsize;
       }
