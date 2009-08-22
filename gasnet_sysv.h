@@ -138,11 +138,21 @@ extern gasnet_node_t gasneti_mysysvnode;
  * </SysV variables that must be initialized by the conduit using SYSV>
  *******************************************************************************/
 
-/* Returns 1 if given node is in the caller's supernode, or 0 if it's not. */
+/* Returns 1 if given node is in the caller's supernode, or 0 if it's not.
+ * NOTE: result is false if !gasneti_sysvnodes (e.g. before vnet initialization)
+ */
 GASNETI_INLINE(gasneti_sysvnet_in_supernode)
 int gasneti_sysv_in_supernode(gasnet_node_t node) {
-  int index = node - gasneti_firstsysvnode;
-  return (index >= 0 && index < gasneti_sysvnodes);
+  /* NOTE: gasnet_node_t is an unsigned type, so in the case of
+   * (node < gasneti_firstsysvnode), the subtraction will wrap to
+   * a "large" value and the result of "<" is the required FALSE.
+   */
+  gasnet_node_t diff = (node - gasneti_firstsysvnode);
+  int retval = (diff < gasneti_sysvnodes);
+
+  gasneti_assert(!retval || (node >= gasneti_firstsysvnode));
+  gasneti_assert(!retval || (node < (gasneti_firstsysvnode + gasneti_sysvnodes)));
+  return retval;
 }
 
 /* Returns amount of memory needed (rounded up to a multiple of the system

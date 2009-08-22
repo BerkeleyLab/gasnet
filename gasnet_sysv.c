@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/22 08:02:50 $
- * $Revision: 1.1.4.13 $
+ *     $Date: 2009/08/22 22:27:00 $
+ * $Revision: 1.1.4.14 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -106,9 +106,9 @@ void gasnetc_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
  ******************************************************************************/
 /* # of nodes in my supernode, lowest of contiguous gasnet node #s in
  * supernode, and my 0-based rank within it */
-gasnet_node_t gasneti_sysvnodes;
-gasnet_node_t gasneti_firstsysvnode;
-gasnet_node_t gasneti_mysysvnode;
+gasnet_node_t gasneti_sysvnodes = 0;
+gasnet_node_t gasneti_firstsysvnode = (gasnet_node_t)(-1);
+gasnet_node_t gasneti_mysysvnode = (gasnet_node_t)(-1);
 
 size_t gasneti_sysvnet_max_payload() {
   return GASNETI_SYSVNET_MAX_PAYLOAD;
