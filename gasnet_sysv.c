@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/23 01:38:01 $
- * $Revision: 1.1.4.16 $
+ *     $Date: 2009/08/23 02:50:27 $
+ * $Revision: 1.1.4.17 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -12,13 +12,6 @@
 #if GASNET_SYSV
 
 static void *gasnetc_sysvnet_region;
-
-/* maximum number of processes that share a single shared memory region */
- #define GASNETC_MAX_SYSV_NODES 256
-
-static gasneti_mutex_t gasneti_index_lock = GASNETI_MUTEX_INITIALIZER;
-
-
 
 void gasnetc_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
   size_t vnetsz, mmapsz;
@@ -168,6 +161,7 @@ struct gasneti_sysvnet {
   gasnet_node_t firstnode;          /* first gasnet node in this supernode */
   gasnet_node_t nodecount;          /* nodes in supernode */ 
   gasnet_node_t nextindex;          /* index of next node to check for msgs */
+  gasneti_mutex_t index_lock;       /* protects updates to nextindex */
   /* my 'in' queues are other nodes' 'out' queues */
   gasneti_sysvnet_queue_t **in_queues;
   gasneti_sysvnet_queue_t **out_queues;
@@ -184,10 +178,10 @@ struct gasneti_sysvnet {
 /* Macros for determining the offset and the real address, used for
  * the addresses inside the sysnet region */
 #define gasneti_sysv_offset(addr) \
-                (void *)((uintptr_t)addr - (uintptr_t)gasnetc_sysvnet_region)
+                (void *)((uintptr_t)(addr) - (uintptr_t)gasnetc_sysvnet_region)
 
 #define gasneti_sysv_addr(addr) \
-                (void *)((uintptr_t)addr + (uintptr_t)gasnetc_sysvnet_region)
+                (void *)((uintptr_t)(addr) + (uintptr_t)gasnetc_sysvnet_region)
 
 
 static int get_queue_depth(gasnet_node_t nodes) 
@@ -328,6 +322,7 @@ static void gasneti_sysvnet_init_my_sysv(gasneti_sysvnet_t *pvnet, char * myregi
     gasneti_sysvnet_init_allocator(alloc_region, gasneti_sysvnet_queue_mem);
 
   pvnet->nextindex = 0;
+  gasneti_mutex_init(&pvnet->index_lock);
 }
 
 /* Initializes the sysvnet region. Called from each node twice: 
@@ -400,19 +395,14 @@ int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf,
 {
   int retval = -1;
   gasneti_sysvnet_msg_t *q_send_next;
-  gasneti_sysvnet_msg_t *q_queue;
-  gasneti_sysvnet_msg_t *q_justpastlast;
   gasneti_sysvnet_payload_t *p;
   gasneti_sysvnet_queue_t *q = vnet->out_queues[sysvnode(vnet, target)];
   gasneti_assert(q != NULL);
 
   gasneti_mutex_lock(&q->send_lock);
   
-  /* Get the actuall addresses of q->send_next, queue and justpastlast (they are currently
-   * only offsets) */
+  /* Get the actual address of q->send_next (q-> contains only offsets) */
   q_send_next = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->send_next);
-  q_queue = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->queue);
-  q_justpastlast = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->justpastlast);
 
    /* This code assumes that if the current 'send_node' isn't free yet, there
    * are no free slots in the recipient's queue.  Since there is only one
@@ -431,13 +421,11 @@ int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf,
     p->info.msg = gasneti_sysv_offset(q_send_next);
     /* Perform write flush before writing ready bit */
     gasneti_atomic_set(&q_send_next->ready4receipt, 1, GASNETI_ATOMIC_REL);
-    if (++q_send_next == q_justpastlast)
-      q_send_next = q_queue;
+    /* Advance q->send_next (logic is the same regardless of addr vs. offset) */
+    if (++q->send_next == q->justpastlast)
+      q->send_next = q->queue;
   }
  
-  /* If q_send_next was changed, set the offset value in q->send_next to
-   * mach the changed value */
-  q->send_next = (gasneti_sysvnet_msg_t *)gasneti_sysv_offset(q_send_next);
   gasneti_mutex_unlock(&q->send_lock);
 
   return retval;
@@ -447,69 +435,48 @@ int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf,
 int gasneti_sysvnet_recv(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize, 
                          gasnet_node_t *from)
 {
-  int i, nextindex;
-  gasneti_sysvnet_msg_t *q_recv_next;
-  gasneti_sysvnet_msg_t *q_queue;
-  gasneti_sysvnet_msg_t *q_justpastlast;
+  const int nodecount = vnet->nodecount;
+  int i;
    
-  gasneti_mutex_lock(&gasneti_index_lock);
-  nextindex = vnet->nextindex;
-  gasneti_mutex_unlock(&gasneti_index_lock);
+  for (i = 0; i < nodecount; i++) {
+    int tmp, nextindex;
 
-  /* We could try using i instead of vnet->nextindex
-   * but that would influence the fairness. Not sure
-   * what is better ... */
-  for (i = 0; i < vnet->nodecount; i++) {
+    /* Ensure fairness: next check starts with next node. */
+    gasneti_mutex_lock(&vnet->index_lock);
+      nextindex = vnet->nextindex;
+      tmp = nextindex + 1;
+      if (tmp == nodecount) tmp = 0;
+      vnet->nextindex = tmp;
+    gasneti_mutex_unlock(&vnet->index_lock);
+ 
     if (nextindex != gasneti_mysysvnode) {
       gasneti_sysvnet_queue_t *q = vnet->in_queues[nextindex];
+      gasneti_sysvnet_msg_t *q_recv_next;
       
       gasneti_assert(q != NULL);
       gasneti_mutex_lock(&q->recv_lock);
-      /* Get the actuall addresses of q->recv_next, queue and justpastlast (they are currently
-       * only offsets) */
+
+      /* Get the actual address of q->recv_next (q-> contains only offsets) */
       q_recv_next = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->recv_next);
-      q_queue = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->queue);
-      q_justpastlast = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->justpastlast);
       
       if (gasneti_atomic_read(&q_recv_next->ready4receipt, GASNETI_ATOMIC_ACQ)) {
-        /* Transform the offset in q_recv_next->addr
-         * into a real address */
+        /* Transform the offset in q_recv_next->addr into a real address */
         *pbuf = gasneti_sysv_addr(q_recv_next->addr);
         *psize = q_recv_next->len;
-        if (++q_recv_next == q_justpastlast)
-          q_recv_next = q_queue;
-        *from = nextindex + vnet->firstnode;
-     
-        /* If q_recv_next was changed, set the offset value in q->send_next to
-         * mach the changed value */
-        q->recv_next = (gasneti_sysvnet_msg_t *)gasneti_sysv_offset(q_recv_next);
+
+	/* Advance q->recv_next (logic is the same regardless of addr vs. offset) */
+        if (++q->recv_next == q->justpastlast)
+           q->recv_next = q->queue;
+
         gasneti_mutex_unlock(&q->recv_lock);
-
-        /* Ensure fairness: next check starts with next node */
-        if (++nextindex == vnet->nodecount) 
-          nextindex = 0;
-
-        gasneti_mutex_lock(&gasneti_index_lock);
-        vnet->nextindex=nextindex;
-        gasneti_mutex_unlock(&gasneti_index_lock);
- 
+        *from = nextindex + vnet->firstnode;
         return 0;
       }
         
-      /* If q_recv_next was changed, set the offset value in q->recv_next to
-       * mach the changed value */
-      q->recv_next = (gasneti_sysvnet_msg_t *)gasneti_sysv_offset(q_recv_next);
       gasneti_mutex_unlock(&q->recv_lock);
     }
-
-    if (++nextindex == vnet->nodecount) 
-      nextindex = 0;
   }
   
-  gasneti_mutex_lock(&gasneti_index_lock);
-  vnet->nextindex=nextindex;
-  gasneti_mutex_unlock(&gasneti_index_lock);
-
   return -1;
 }
 #else
