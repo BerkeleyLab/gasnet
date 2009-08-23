@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/23 02:50:27 $
- * $Revision: 1.1.4.17 $
+ *     $Date: 2009/08/23 05:03:47 $
+ * $Revision: 1.1.4.18 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -12,20 +12,21 @@
 #if GASNET_SYSV
 
 static void *gasnetc_sysvnet_region;
+static gasneti_atomic_t *gasneti_barrier_counter = NULL;
 
 void gasnetc_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
   size_t vnetsz, mmapsz;
   int retval = GASNET_OK;
   int i, sysv_nodes = 0, myrank = 0;
 
-#if GASNET_CONDUIT_SMP_SYSV     
-  gasneti_sysvnodes = gasneti_nodes;
-  gasneti_firstsysvnode = 0;
-  gasneti_mysysvnode = gasneti_mynode;
-#else
   gasneti_sysvnodes = gasneti_nodemap_local_count;
   gasneti_firstsysvnode = gasneti_nodemap[gasneti_mynode];
   gasneti_mysysvnode = gasneti_nodemap_local_rank;
+
+#if GASNET_CONDUIT_SMP_SYSV || GASNET_CONDUIT_SMP
+  gasneti_assert(gasneti_sysvnodes == gasneti_nodes);
+  gasneti_assert(gasneti_firstsysvnode == 0);
+  gasneti_assert(gasneti_mysysvnode == gasneti_mynode);
 #endif
 
   /* setup filenames, unless exchangefn is NULL (indicating caller took care of it) */
@@ -54,7 +55,7 @@ void gasnetc_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
    * infrastructure.
    */
   vnetsz = gasneti_sysvnet_memory_needed(gasneti_sysvnodes); 
-  mmapsz = (2*vnetsz) + GASNETI_SYSVNET_PAGESIZE; /* Extra page is for the one-time barrier */
+  mmapsz = (2*vnetsz) + GASNETI_SYSVNET_PAGESIZE; /* Extra page is for the bootstrapBarrier */
 
   /* NOTE: What happens here if there is not enough memory to alloc vnet? */
   gasnetc_sysvnet_region = gasneti_mmap_vnet(mmapsz);
@@ -68,14 +69,9 @@ void gasnetc_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
   gasneti_sysvnet_init(&gasneti_reply_sysvnet, (void*)((uintptr_t)gasnetc_sysvnet_region + vnetsz),
                        vnetsz, gasneti_firstsysvnode, gasneti_sysvnodes);
 
-  /* One-time 'barrier' */
-  {
-    gasneti_atomic_t *startup_counter = (gasneti_atomic_t *)((uintptr_t)gasnetc_sysvnet_region + 2*vnetsz);
-    gasneti_atomic_increment(startup_counter, GASNETI_ATOMIC_REL);
-    while (gasneti_atomic_read(startup_counter, GASNETI_ATOMIC_ACQ) != gasneti_sysvnodes) {
-      gasneti_sched_yield();
-    }
-  }
+  /* Prepare the barrier and call it once to ensure all our peers are ready */
+  gasneti_barrier_counter = (gasneti_atomic_t *)((uintptr_t)gasnetc_sysvnet_region + 2*vnetsz);
+  gasneti_sysvnet_bootstrapBarrier();
 }
 
 /*******************************************************************************
@@ -567,6 +563,25 @@ void gasneti_sysvnet_recv_release(gasneti_sysvnet_t *vnet, void *buf)
 
 
 /******************************************************************************
+ * Sysvnet bootstrap barrier
+ * - TODO: only good a finite number of times before it wraps!
+ ******************************************************************************/
+void gasneti_sysvnet_bootstrapBarrier(void)
+{
+  gasneti_atomic_val_t curr, target;
+
+  gasneti_assert(gasneti_barrier_counter != NULL);
+  gasneti_assert(gasneti_sysvnodes > 0);
+
+  curr = gasneti_atomic_read(gasneti_barrier_counter, 0);
+  target = gasneti_sysvnodes + curr - (curr % gasneti_sysvnodes);
+  gasneti_assert_always(target > curr); /* Die if we were ever to wrap */
+
+  gasneti_atomic_increment(gasneti_barrier_counter, GASNETI_ATOMIC_REL);
+  gasneti_waitwhile(gasneti_atomic_read(gasneti_barrier_counter, 0) < target);
+}
+
+/******************************************************************************
  * Sysvnet bootstrap exchange
  * - TODO: to make this more robust, should there be a separate vnet for
  *   this?  (We'd want it to be smaller, to consume less resources, but right
@@ -574,7 +589,6 @@ void gasneti_sysvnet_recv_release(gasneti_sysvnet_t *vnet, void *buf)
  * - Also, could remove requirement that queue depth >= nodes if we check
  *   for incoming msgs as we send them.
  ******************************************************************************/
-
 void gasneti_sysvnet_bootstrapExchange(gasneti_sysvnet_t *vnet, void *src, 
                                        size_t len, void *dest)
 {
@@ -612,6 +626,8 @@ void gasneti_sysvnet_bootstrapExchange(gasneti_sysvnet_t *vnet, void *src,
   }
   /* memcpy our own piece */
   memcpy( ((char*)dest)+len*sysvnode(vnet, gasnet_mynode()), src, len);
+  /* barrier to ensure queues won't overflow on back-to-back calls */
+  gasneti_sysvnet_bootstrapBarrier();
 }
 
 

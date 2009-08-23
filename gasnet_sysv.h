@@ -177,13 +177,19 @@ size_t gasneti_sysvnet_memory_needed(gasnet_node_t nodes);
 void gasneti_sysvnet_init(gasneti_sysvnet_t **pvnet, void *start, size_t len, 
                           gasnet_node_t firstnode, gasnet_node_t node_count);
 
+/* Bootstrap barrier via sysvnet.
+ *
+ * This function has the following restrictions:
+ * 1) It must be called after gasneti_sysvnet_init() has completed.
+ * 2) It must be called collectively by all nodes in the vnet.
+ */
+void gasneti_sysvnet_bootstrapBarrier(void);
+
 /* Bootstrap exchange via sysvnet.
  *
  * This function has the following restrictions:
  * 1) It must be called after gasneti_sysvnet_init() has completed.
  * 2) It must be called collectively by all nodes in the vnet.
- * 3) The conduit's bootstrap_barrier function must be called before further
- *    calls to this function (or gasneti_sysvnet_bootstrap_Exchange) are made.
  */
 void gasneti_sysvnet_bootstrapExchange(gasneti_sysvnet_t *vnet, void *src, 
                                        size_t len, void *dest);

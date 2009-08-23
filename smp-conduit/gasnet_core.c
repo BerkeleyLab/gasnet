@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/22 08:24:00 $
- * $Revision: 1.48.4.9 $
+ *     $Date: 2009/08/23 05:03:49 $
+ * $Revision: 1.48.4.10 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -54,23 +54,24 @@ static void gasnetc_check_config() {
    * and/or segment sizes */ 
 }
 
-void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
+static void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
   #if GASNET_SYSV
     gasneti_assert(gasneti_request_sysvnet != NULL);
     gasneti_sysvnet_bootstrapExchange(gasneti_request_sysvnet, src, len, dest);
-    /* TODO: Here we should have barrier instead of sleep */
-    sleep(1);
   #else
     gasneti_assert(gasneti_nodes == 1); /* trivial because we only have one node */
     memmove(dest, src, len);
   #endif
 }
-void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) {
-  /* NOTE: no GASNET_SYSV implemention, but that's OK 'cause this function
-   * isn't getting used */
-  gasneti_assert(gasneti_nodes == 1); /* trivial because we only have one node */
-  gasneti_assert(rootnode == 0);
-  memmove(dest, src, len);
+
+static void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) {
+  #if GASNET_SYSV
+    gasneti_fatalerror("gasnetc_bootstrapBroadcast() not implemented for sysvnet");
+  #else
+    gasneti_assert(gasneti_nodes == 1); /* trivial because we only have one node */
+    gasneti_assert(rootnode == 0);
+    memmove(dest, src, len);
+  #endif
 }
 
 static void gasnetc_bootstrapBarrier() {
@@ -83,11 +84,7 @@ static void gasnetc_bootstrapBarrier() {
       that would probably be a good choice for this
    */
   #if GASNET_SYSV
-    /* HACK: use my patented "sleepy ostrich" algorithm ("race conditions go
-     * away if you just take a sufficiently long nap").
-     * - TODO: replace with a real barrier!
-     */
-     sleep(1);
+    gasneti_sysvnet_bootstrapBarrier();
   #else
     gasneti_assert(gasneti_nodes == 1); /* trivial because we only have one node */
   #endif
@@ -153,35 +150,42 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
 
   /* add code here to bootstrap the nodes for your conduit */
+  gasneti_mynode = 0;
+  gasneti_nodes = 1;
 
 #if GASNET_SYSV
-  gasneti_mynode = 0;
-  gasneti_nodes = gasneti_sysvnodes = gasnetc_get_sysv_nodecount();
+  gasneti_nodes = gasnetc_get_sysv_nodecount();
 
-  /* Create unique names for shmem files. */
+  /* Create unique names for shmem files.
+   * We do this here, since we get a chicken-and-egg problem if we
+   * were to call gasnetc_init_sysv() with our bootstrapExchange.
+   * PLUS its just plain simpler to do this pre-fork().
+   */
   gasneti_sysvname = (gasnet_sysvname_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_sysvname_t));
   for(i=0; i<gasneti_nodes; i++){
     gasneti_new_sysv_file(gasneti_sysvname[i]);
   }
   gasneti_new_sysv_file(gasneti_vnetname);
 
-  /* go fork yourself! */
+  /* A fork in the road! */
   for (i = 1; i < gasneti_nodes; i++) {
     int fork_return = fork();
     if (fork_return < 0) {
       gasneti_fatalerror("Fork failed!");
     }
     if (fork_return == 0){
-        gasneti_mynode = gasneti_mysysvnode = i; 
+        gasneti_mynode = i; 
         break;
     }
   }
-  gasneti_firstsysvnode = 0; 
+#endif
 
+  /* Trivial all-zero nodemap */
+  gasneti_nodemap = gasneti_calloc(gasneti_nodes, sizeof(gasnet_node_t));
+  gasneti_nodemapParse();
+
+#if GASNET_SYSV
   gasnetc_init_sysv(NULL);
-#else
-  gasneti_mynode = 0;
-  gasneti_nodes = 1;
 #endif
 
   /* enable tracing */
@@ -191,10 +195,6 @@ static int gasnetc_init(int *argc, char ***argv) {
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
-
-#if GASNET_SYSV
-  gasneti_nodemapInit(&gasnetc_bootstrapExchange, NULL, 0, 0);
-#endif
  
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
   
