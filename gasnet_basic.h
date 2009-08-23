@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2008/12/21 00:29:49 $
- * $Revision: 1.91 $
+ *     $Date: 2009/08/23 19:50:17 $
+ * $Revision: 1.91.4.1 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -103,24 +103,31 @@
   #define GASNETI_LOWORD(arg)     ((uint32_t)((uint64_t)(arg)))
 #endif
 
+/* Non-asserting alignment macros
+ * Use for instance in
+ *    char buffer[GASNETI_ALIGNUP_NOASSERT(sizeof(struct foo), GASNETI_CACHE_LINE_BYTES)];
+ * where the expression must be a compile-time constant (no assertion).
+ * One should really use the asserting versions when possible.
+ */
+#define GASNETI_ALIGNDOWN_NOASSERT(p,P)   (((uintptr_t)(p))&~((uintptr_t)((P)-1)))
+#define GASNETI_ALIGNUP_NOASSERT(p,P)     (GASNETI_ALIGNDOWN_NOASSERT((uintptr_t)(p)+((uintptr_t)((P)-1)),P))
+
 /* alignment macros */
 #define GASNETI_POWEROFTWO(P)    (((P)&((P)-1)) == 0)
 
 #define GASNETI_ALIGNDOWN(p,P)    (gasneti_assert(GASNETI_POWEROFTWO(P)), \
-                                   ((uintptr_t)(p))&~((uintptr_t)((P)-1)))
+                                   GASNETI_ALIGNDOWN_NOASSERT((p),(P)))
 #define GASNETI_ALIGNUP(p,P)     (GASNETI_ALIGNDOWN((uintptr_t)(p)+((uintptr_t)((P)-1)),P))
 
 #define GASNETI_PAGE_ALIGNDOWN(p) (GASNETI_ALIGNDOWN(p,GASNET_PAGESIZE))
 #define GASNETI_PAGE_ALIGNUP(p)   (GASNETI_ALIGNUP(p,GASNET_PAGESIZE))
 
-/* GASNETI_CACHE_PAD() is distinct because we can't assert in a type definition */
+/* GASNETI_CACHE_PAD() */
 #if 0
   /* This version can yield 0-byte padding, which upsets some compilers */
-  /* Read as GASNETI_ALIGNUP(SZ,GASNETI_CACHE_LINE_BYTES) - SZ */
-  #define GASNETI_CACHE_PAD(SZ) (((SZ+GASNETI_CACHE_LINE_BYTES-1)&~(GASNETI_CACHE_LINE_BYTES-1))-(SZ))
+  #define GASNETI_CACHE_PAD(SZ) (GASNETI_ALIGNUP_NOASSERT((SZ),GASNETI_CACHE_LINE_BYTES)-(SZ))
 #else
-  /* Read as GASNETI_ALIGNUP(SZ+1,GASNETI_CACHE_LINE_BYTES) - SZ */
-  #define GASNETI_CACHE_PAD(SZ) (((SZ+GASNETI_CACHE_LINE_BYTES)&~(GASNETI_CACHE_LINE_BYTES-1))-(SZ))
+  #define GASNETI_CACHE_PAD(SZ) (GASNETI_ALIGNUP_NOASSERT((SZ+1),GASNETI_CACHE_LINE_BYTES)-(SZ))
 #endif
 
 #ifndef GASNET_PAGESIZE
