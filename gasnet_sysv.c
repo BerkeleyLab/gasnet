@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/22 22:27:00 $
- * $Revision: 1.1.4.14 $
+ *     $Date: 2009/08/23 00:58:22 $
+ * $Revision: 1.1.4.15 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,13 +18,10 @@ static void *gasnetc_sysvnet_region;
 
 /* Supernode data that lives in shared space */
 struct gasnetc_supernode_info_t {
-  gasnet_node_t node2pid[GASNETC_MAX_SYSV_NODES]; /* pid lookup table */
   gasneti_atomic_t startup_counter;		    /* one-time barrier */
 };
 static struct gasnetc_supernode_info_t *gasnetc_sn_info;
-gasneti_mutex_t gasneti_index_lock;
-
-#define gasneti_sysv_node2pid gasnetc_sn_info->node2pid
+static gasneti_mutex_t gasneti_index_lock = GASNETI_MUTEX_INITIALIZER;
 
 
 
@@ -79,12 +76,12 @@ void gasnetc_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
   if (gasnetc_sysvnet_region == NULL) //MAP_FAILED)
     gasneti_fatalerror("mmap for shared memory Active Messages region failed!");
   
-  /* Initializing supernode info. NOTE: I am not sure if we really need node2pid ... */
+  /* Initializing supernode info. */
   gasnetc_sn_info = (struct gasnetc_supernode_info_t *)gasnetc_sysvnet_region;
+#if 0 /* spec says new object is zeroed (and "sleep(1)" is NOT a barrier) */
   if (gasneti_mynode==0) memset(gasnetc_sn_info, 0, sizeof(struct gasnetc_supernode_info_t));
   else sleep(1);
-  gasneti_sysv_node2pid[0] = getpid();
-  gasneti_mutex_init(&gasneti_index_lock);
+#endif
 
   /* Collective call to initialize Shared AM "networks" */
   gasneti_sysvnet_init(&gasneti_request_sysvnet, ((char*)(gasnetc_sysvnet_region))+sninfosz,
@@ -97,8 +94,6 @@ void gasnetc_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
   while (gasneti_atomic_read(&gasnetc_sn_info->startup_counter, GASNETI_ATOMIC_ACQ) 
             != gasneti_sysvnodes)
     gasneti_sched_yield();
-    
-
 }
 
 /*******************************************************************************
