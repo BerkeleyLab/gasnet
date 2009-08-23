@@ -37,6 +37,7 @@ LIBDEFINES =                        \
 
 @BUILDCONFIG_DEBUG_FALSE@ TOOLLIB_DEBUGFLAGS = -DNDEBUG
 TOOLLIBCFLAGS =                   \
+        -DGASNETT_BUILDING_TOOLS  \
         @CFLAGS@                  \
         @MISC_CFLAGS@             \
         $(TOOLLIBDEFINES)         \
