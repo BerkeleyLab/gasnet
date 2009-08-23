@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2009/08/22 22:27:02 $
- * $Revision: 1.227.4.4 $
+ *     $Date: 2009/08/23 01:03:18 $
+ * $Revision: 1.227.4.5 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3685,6 +3685,7 @@ extern int gasnetc_ReplySystem(gasnet_token_t token,
   ==============================
 */
 
+#if GASNET_SYSV
 /* Returns a (conduit-specific) token type, with (internal conduit-specific)
  * source and isRequest fields filled in.  The token is guaranteed to work
  * with gasnetc_AMGetMsgSource (which is conduit-specific). */
@@ -3704,6 +3705,7 @@ extern void gasnetc_token_destroy(gasnet_token_t token)
    * So, nothing to free()
    */
 }
+#endif
 
 extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
   gasnet_node_t sourceid;
