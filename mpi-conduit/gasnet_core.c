@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/22 09:52:19 $
- * $Revision: 1.77.22.8 $
+ *     $Date: 2009/08/23 01:15:48 $
+ * $Revision: 1.77.22.9 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -116,9 +116,6 @@ static int gasnetc_init(int *argc, char ***argv) {
   const char *tmsgstr = NULL;
   int i;
 
-#if GASNET_SYSV
-  gasnetc_sysv_init=0;
-#endif
   AMLOCK();
     if (gasneti_init_done) 
       INITERR(NOT_INIT, "GASNet already initialized");
@@ -534,93 +531,27 @@ extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
   ==============================
 */
 
+#if GASNET_SYSV
 /* Returns a (conduit-specific) token type, with (internal conduit-specific)
  * source and isRequest fields filled in.  The token is guaranteed to work
  * with gasnetc_AMGetMsgSource (which is conduit-specific). */
 extern gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest)
 {
-    /*
-  #if GASNET_DEBUG
-    gasnetc_bufdesc_t *buf = gasneti_malloc(sizeof(gasnetc_bufdesc_t));
-    buf->srcnode = src;
-    buf->isReq = isRequest;
-    return (gasnet_token_t)buf; 
-  #else
-    return (gasnet_token_t)(uintptr_t)src;
-  #endif
-  */
- //  ammpi_buf_t *token; 
- 
-    //gasnet_token_t token;
-    //token = (gasnet_token_t) AMMPI_create_token(src);
-    //return token;
-    return (gasnet_token_t)(uintptr_t)src;
-
+  /* We encode the src node in the token and recognize it as not aligned as a pointer.
+   * Use of local rank avoids overflow for all but the most extream cases.
+   */
+  return (gasnet_token_t)(1 | ((uintptr_t)(src - gasneti_firstsysvnode) << 1));
 }
 
 /* Frees a token handed out by gasnetc_token_create() */
 extern void gasnetc_token_destroy(gasnet_token_t token)
 {
-  //#if GASNET_DEBUG
-    //gasneti_free(token);
-    //AMMPI_free_token(token);
-  //#endif
+  /* NO-OP
+   * Token is not a pointer to allocated memory.
+   * So, nothing to free()
+   */
 }
-
-#if GASNET_SYSV
-extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
-  int sourceid;
-  int retval;
-  
-  GASNETI_CHECKATTACH();
-  //#if GASNET_DEBUG
-  //    GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
-  //#else
-      //GASNETI_CHECK_ERRR((token),BAD_ARG,"bad token");
-  //#endif
-  GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
-
-  //printf("TOKEN IS %u %d\n",token,token);
-  //Filip: this is for SYSV case. Currently gasneti_sysvnodes is the total number of processes because this is the version for a single shared mem computer. I guess it should be only the number of threads on a single computer.
-   // printf("TOKEN BEFORE IF gasneti_mynode %d, token %d\n",gasneti_mynode,token);
-  if ( (uintptr_t)token >= gasneti_firstsysvnode && (uintptr_t)token <= (gasneti_firstsysvnode + gasneti_sysvnodes - 1)){
-  
-  /*
-  if ( ((gasneti_mynode==0 || gasneti_mynode==2) && (token==0 || token==2)) ||
-       ((gasneti_mynode==1 || gasneti_mynode==3) && (token==1 || token==3)) ){
-       */
-
-      //printf("gasneti_mynode %d, token %d\n",gasneti_mynode,token);
-    //#if GASNET_DEBUG
-    //  sourceid = ((gasnetc_bufdesc_t *)token)->srcnode;
-    //#else
-      sourceid = (gasnet_node_t)(uintptr_t)token;
-    //#endif
-      //sourceid = 0;
-  } else {
-    GASNETI_AM_SAFE_NORETURN(retval, AMMPI_GetSourceId(token, &sourceid));
-    if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
-  }
-
-  gasneti_assert(sourceid >= 0 && sourceid < gasneti_nodes);
-  *srcindex = sourceid;
-  return GASNET_OK;
-}
-
-extern int gasnetc_AMPoll() 
-{
-    int retval;
-  GASNETI_CHECKATTACH();
-  gasneti_AMSYSVPoll(0);
-  CHECKCALLNIS();
-  AMLOCK();
-    GASNETI_AM_SAFE_NORETURN(retval, AM_Poll(gasnetc_bundle));
-  AMUNLOCK();
-  return GASNET_OK;
-
-}
-
-#else
+#endif
 
 extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
   int retval;
@@ -629,27 +560,36 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
 
-  GASNETI_AM_SAFE_NORETURN(retval, AMMPI_GetSourceId(token, &sourceid));
+#if GASNET_SYSV
+  if ((uintptr_t)token & 1) {
+    sourceid = gasneti_firstsysvnode + (gasnet_node_t)((uintptr_t)token >> 1);
+    gasneti_assert(gasneti_sysv_in_supernode(sourceid));
+  } else
+#endif
+  {
+    GASNETI_AM_SAFE_NORETURN(retval, AMMPI_GetSourceId(token, &sourceid));
+    if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
+  }
 
-  if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
-  else {
     gasneti_assert(sourceid >= 0 && sourceid < gasneti_nodes);
     *srcindex = sourceid;
     return GASNET_OK;
-  }
 }
 
 extern int gasnetc_AMPoll() {
   int retval;
   GASNETI_CHECKATTACH();
   CHECKCALLNIS();
+#if GASNET_SYSV
+  gasneti_AMSYSVPoll(0);
+#endif
   AMLOCK();
     GASNETI_AM_SAFE_NORETURN(retval, AM_Poll(gasnetc_bundle));
   AMUNLOCK();
   if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
   else return GASNET_OK;
 }
-#endif
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Active Message Request Functions
@@ -667,7 +607,7 @@ extern int gasnetc_AMRequestShortM(
   va_start(argptr, numargs); /*  pass in last argument */
 
 #if GASNET_SYSV
-  if (gasnetc_sysv_init==1 &&  gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
+  if_pt (gasneti_sysv_in_supernode(dest)) {
     retval = gasneti_AMSYSV_RequestGeneric(gasnetc_Short, 
                                         dest, handler, 
                                         0, 0, 0,
@@ -699,7 +639,7 @@ extern int gasnetc_AMRequestMediumM(
   va_start(argptr, numargs); /*  pass in last argument */
 
 #if GASNET_SYSV
-  if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
+  if_pt (gasneti_sysv_in_supernode(dest)) {
     retval = gasneti_AMSYSV_RequestGeneric(gasnetc_Medium, 
                                   dest, handler, 
                                   source_addr, nbytes, 0,
@@ -736,7 +676,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   va_start(argptr, numargs); /*  pass in last argument */
 
 #if GASNET_SYSV
-  if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
+  if_pt (gasneti_sysv_in_supernode(dest)) {
       retval = gasneti_AMSYSV_RequestGeneric(gasnetc_Long, 
                                       dest, handler, 
                                       source_addr, nbytes, (void *)dest_offset,
@@ -774,7 +714,7 @@ extern int gasnetc_AMReplyShortM(
 
 #if GASNET_SYSV
   GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
-  if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
+  if_pt (gasneti_sysv_in_supernode(dest)) {
       retval = gasneti_AMSYSV_ReplyGeneric(gasnetc_Short, 
                                     token, handler, 
                                     0, 0, 0,
@@ -809,7 +749,7 @@ extern int gasnetc_AMReplyMediumM(
   
 #if GASNET_SYSV
   GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
-  if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
+  if_pt (gasneti_sysv_in_supernode(dest)) {
        retval = gasneti_AMSYSV_ReplyGeneric(gasnetc_Medium, 
                                      token, handler, 
                                      source_addr, nbytes, 0,
@@ -847,7 +787,7 @@ extern int gasnetc_AMReplyLongM(
 
 #if GASNET_SYSV
   GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
-  if (gasnetc_sysv_init==1 && gasneti_nodemap[gasneti_mynode] == gasneti_nodemap[dest]){
+  if_pt (gasneti_sysv_in_supernode(dest)) {
       retval = gasneti_AMSYSV_ReplyGeneric(gasnetc_Long, 
                                     token, handler, 
                                     source_addr, nbytes, (void *)dest_offset,
