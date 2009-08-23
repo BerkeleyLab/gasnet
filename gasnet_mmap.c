@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/22 18:54:00 $
- * $Revision: 1.57.6.14 $
+ *     $Date: 2009/08/23 06:24:49 $
+ * $Revision: 1.57.6.15 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -143,6 +143,7 @@ extern void gasneti_new_sysv_file(char *filename) {
 }
 
 static void *gasneti_mmap_remote_shared(void *segbase, uintptr_t segsize, char *filename) {
+  int flags = MAP_SHARED | (segbase==NULL?GASNETI_MMAP_NOTFIXED_FLAG:GASNETI_MMAP_FIXED_FLAG);
   int gasneti_mmapfd = -1;
   gasneti_tick_t t1, t2;
   void	*ptr=NULL;
@@ -154,7 +155,7 @@ static void *gasneti_mmap_remote_shared(void *segbase, uintptr_t segsize, char *
   }
 
   t1 = gasneti_ticks_now();
-  ptr = mmap(segbase, segsize, (PROT_READ|PROT_WRITE), MAP_SHARED, gasneti_mmapfd, 0);
+  ptr = mmap(segbase, segsize, (PROT_READ|PROT_WRITE), flags, gasneti_mmapfd, 0);
   t2 = gasneti_ticks_now();
   
   GASNETI_TRACE_PRINTF(C, 
@@ -212,6 +213,7 @@ static int gasneti_mmap_stretch(int fd, uintptr_t size) {
 }
 
 static void *gasneti_mmap_shared_internal(void *segbase, uintptr_t segsize) {
+  int flags = MAP_SHARED | (segbase==NULL?GASNETI_MMAP_NOTFIXED_FLAG:GASNETI_MMAP_FIXED_FLAG);
   int gasneti_mmapfd = -1;
   gasneti_tick_t t1, t2;
   void	*ptr;
@@ -228,7 +230,7 @@ static void *gasneti_mmap_shared_internal(void *segbase, uintptr_t segsize) {
   }
  
   t1 = gasneti_ticks_now();
-  ptr = mmap(segbase, segsize, (PROT_READ|PROT_WRITE), MAP_SHARED, gasneti_mmapfd, 0);
+  ptr = mmap(segbase, segsize, (PROT_READ|PROT_WRITE), flags, gasneti_mmapfd, 0);
   t2 = gasneti_ticks_now();
 
   GASNETI_TRACE_PRINTF(C, 
@@ -264,6 +266,7 @@ static void *gasneti_mmap_shared_internal(void *segbase, uintptr_t segsize) {
 }
 
 static void *gasneti_mmap_internal_vnet(void *segbase, uintptr_t segsize) {
+  int flags = MAP_SHARED | (segbase==NULL?GASNETI_MMAP_NOTFIXED_FLAG:GASNETI_MMAP_FIXED_FLAG);
   int gasneti_mmapfd = -1;
   gasneti_tick_t t1, t2;
   void	*ptr;
@@ -283,8 +286,7 @@ static void *gasneti_mmap_internal_vnet(void *segbase, uintptr_t segsize) {
   t1 = gasneti_ticks_now();
   
   ptr = mmap(segbase, segsize, (PROT_READ|PROT_WRITE), 
-                          MAP_SHARED, 
-      gasneti_mmapfd, 0);
+                          flags, gasneti_mmapfd, 0);
 
   t2 = gasneti_ticks_now();
 
