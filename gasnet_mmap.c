@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/23 06:24:49 $
- * $Revision: 1.57.6.15 $
+ *     $Date: 2009/08/23 23:12:33 $
+ * $Revision: 1.57.6.16 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -86,6 +86,10 @@ static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize) {
       gasneti_mmapfd, 0);
   t2 = gasneti_ticks_now();
 
+  #ifdef GASNETI_MMAP_FILE
+    /* close(gasneti_mmapfd);  NOPE: we reuse one static fd */
+  #endif
+
   GASNETI_TRACE_PRINTF(C, 
       ("mmap %s("GASNETI_LADDRFMT", %lu): %.3fus => "GASNETI_LADDRFMT"%s%s\n", 
         (segbase == NULL?"":"fixed"),
@@ -115,6 +119,12 @@ static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize) {
 	    GASNETI_LADDRSTR(segbase), GASNETI_LADDRSTR(ptr), (unsigned long)segsize);
   }
   return ptr;
+}
+extern void gasneti_mmap_fixed(void *segbase, uintptr_t segsize) {
+  gasneti_mmap_internal(segbase, segsize);
+}
+extern void *gasneti_mmap(uintptr_t segsize) {
+  return gasneti_mmap_internal(NULL, segsize);
 }
 
 #if GASNET_SYSV
@@ -142,63 +152,10 @@ extern void gasneti_new_sysv_file(char *filename) {
   close(rc);
 }
 
-static void *gasneti_mmap_remote_shared(void *segbase, uintptr_t segsize, char *filename) {
-  int flags = MAP_SHARED | (segbase==NULL?GASNETI_MMAP_NOTFIXED_FLAG:GASNETI_MMAP_FIXED_FLAG);
-  int gasneti_mmapfd = -1;
-  gasneti_tick_t t1, t2;
-  void	*ptr=NULL;
-
-  if (gasneti_mmapfd == -1) {
-    gasneti_mmapfd = shm_open(filename, O_RDWR, S_IRUSR | S_IWUSR);
-     if (gasneti_mmapfd == -1) 
-      gasneti_fatalerror("failed to open for mmap : %s\n",strerror(errno));
-  }
-
-  t1 = gasneti_ticks_now();
-  ptr = mmap(segbase, segsize, (PROT_READ|PROT_WRITE), flags, gasneti_mmapfd, 0);
-  t2 = gasneti_ticks_now();
-  
-  GASNETI_TRACE_PRINTF(C, 
-      ("mmap %s("GASNETI_LADDRFMT", %lu): %.3fus => "GASNETI_LADDRFMT"%s%s\n", 
-        (segbase == NULL?"":"fixed"),
-        GASNETI_LADDRSTR(segbase), (unsigned long)segsize,
-        gasneti_ticks_to_ns(t2-t1)/1000.0,
-        GASNETI_LADDRSTR(ptr),
-        (ptr == MAP_FAILED?"  MAP_FAILED: ":""),
-        (ptr == MAP_FAILED?strerror(errno):"")));
-
-  if (ptr == MAP_FAILED && errno != ENOMEM) {
-    #if PLATFORM_OS_CYGWIN
-      if (errno != EACCES) /* Cygwin stupidly returns EACCES for insuff mem */
-    #elif PLATFORM_OS_SOLARIS
-      if (errno != EAGAIN) /* Solaris stupidly returns EAGAIN for insuff mem */
-    #endif
-    gasneti_fatalerror("unexpected error in mmap%s for size %lu: %s\n", 
-                       (segbase == NULL?"":" fixed"),
-                       (unsigned long)segsize, strerror(errno));
-  }
-  if (!segbase && ptr == MAP_FAILED) {
-    gasneti_fatalerror("mmap failed at "GASNETI_LADDRFMT" for size %lu: %s\n",
-            GASNETI_LADDRSTR(segbase), (unsigned long)segsize, strerror(errno));
-  }
-  if (segbase && ptr == MAP_FAILED) {
-    gasneti_fatalerror("mmap fixed failed at "GASNETI_LADDRFMT" for size %lu: %s\n",
-            GASNETI_LADDRSTR(segbase), (unsigned long)segsize, strerror(errno));
-  }
-  if (segbase && segbase != ptr) {
-    gasneti_fatalerror("mmap fixed moved from "GASNETI_LADDRFMT" to "GASNETI_LADDRFMT" for size %lu\n",
-            GASNETI_LADDRSTR(segbase), GASNETI_LADDRSTR(ptr), (unsigned long)segsize);
-  }
-  return ptr;
-}
-
 static int gasneti_mmap_stretch(int fd, uintptr_t size) {
 #if 1
   /* This is from the example code in IEEE Std 1003.1-2001/Cor 2-2004 */
-  if (ftruncate(fd, size) < 0) {
-    fprintf(stderr, "Error calling ftruncate(%lu) on the shm file: %s\n", (unsigned long)size, strerror(errno));
-    return -1;
-  }
+  return ftruncate(fd, size);
 #else
   if (lseek(fd, size-1, SEEK_SET) < 0) {
     fprintf(stderr, "Error calling lseek(%lu,SEEK_SET) on the shm file: %s\n", (unsigned long)size-1, strerror(errno));
@@ -212,26 +169,26 @@ static int gasneti_mmap_stretch(int fd, uintptr_t size) {
   return 0;
 }
 
-static void *gasneti_mmap_shared_internal(void *segbase, uintptr_t segsize) {
-  int flags = MAP_SHARED | (segbase==NULL?GASNETI_MMAP_NOTFIXED_FLAG:GASNETI_MMAP_FIXED_FLAG);
-  int gasneti_mmapfd = -1;
+static void *gasneti_mmap_shared_internal(const char *filename, void *segbase, uintptr_t segsize, int may_fail) {
+  const int flags = MAP_SHARED | (segbase ? GASNETI_MMAP_FIXED_FLAG : GASNETI_MMAP_NOTFIXED_FLAG);
+  int gasneti_mmapfd;
   gasneti_tick_t t1, t2;
   void	*ptr;
 
+  gasneti_mmapfd = shm_open(filename, O_RDWR, S_IRUSR | S_IWUSR);
   if (gasneti_mmapfd == -1) {
-    gasneti_mmapfd = shm_open(gasneti_sysvname[gasneti_mynode], O_RDWR, S_IRUSR | S_IWUSR);
-    
-    if (gasneti_mmapfd == -1) 
-      gasneti_fatalerror("failed to open %s for mmap : %s\n",gasneti_sysvname[gasneti_mynode],strerror(errno));
+    gasneti_fatalerror("failed to shm_open(%s): %s\n",filename,strerror(errno));
   }
   if (gasneti_mmap_stretch(gasneti_mmapfd, segsize)) {
-    shm_unlink(gasneti_sysvname[gasneti_mynode]);
-    gasneti_fatalerror("failed to setup mmap file");
+    if (may_fail) return MAP_FAILED;
+    shm_unlink(filename);
+    gasneti_fatalerror("failed to setup shared memory file %s",filename);
   }
  
   t1 = gasneti_ticks_now();
   ptr = mmap(segbase, segsize, (PROT_READ|PROT_WRITE), flags, gasneti_mmapfd, 0);
   t2 = gasneti_ticks_now();
+  close(gasneti_mmapfd);
 
   GASNETI_TRACE_PRINTF(C, 
       ("mmap %s("GASNETI_LADDRFMT", %lu): %.3fus => "GASNETI_LADDRFMT"%s%s\n", 
@@ -242,107 +199,53 @@ static void *gasneti_mmap_shared_internal(void *segbase, uintptr_t segsize) {
         (ptr == MAP_FAILED?"  MAP_FAILED: ":""),
         (ptr == MAP_FAILED?strerror(errno):"")));
 
-  if (ptr == MAP_FAILED && errno != ENOMEM) {
-    #if PLATFORM_OS_CYGWIN
-      if (errno != EACCES) /* Cygwin stupidly returns EACCES for insuff mem */
-    #elif PLATFORM_OS_SOLARIS
-      if (errno != EAGAIN) /* Solaris stupidly returns EAGAIN for insuff mem */
-    #endif
-    gasneti_fatalerror("unexpected error in mmap%s for size %lu: %s\n", 
-                       (segbase == NULL?"":" fixed"),
-                       (unsigned long)segsize, strerror(errno));
-  }
-
-  if (segbase && ptr == MAP_FAILED) {
-    gasneti_fatalerror("mmap fixed failed at "GASNETI_LADDRFMT" for size %lu: %s\n",
-            GASNETI_LADDRSTR(segbase), (unsigned long)segsize, strerror(errno));
-  }
-  if (segbase && segbase != ptr) {
-    gasneti_fatalerror("mmap fixed moved from "GASNETI_LADDRFMT" to "GASNETI_LADDRFMT" for size %lu\n",
-	    GASNETI_LADDRSTR(segbase), GASNETI_LADDRSTR(ptr), (unsigned long)segsize);
-  }
-    
-  return ptr;
-}
-
-static void *gasneti_mmap_internal_vnet(void *segbase, uintptr_t segsize) {
-  int flags = MAP_SHARED | (segbase==NULL?GASNETI_MMAP_NOTFIXED_FLAG:GASNETI_MMAP_FIXED_FLAG);
-  int gasneti_mmapfd = -1;
-  gasneti_tick_t t1, t2;
-  void	*ptr;
-
-    if (gasneti_mmapfd == -1) {
-      gasneti_mmapfd = shm_open(gasneti_vnetname, O_RDWR, S_IRUSR | S_IWUSR);
-      if (gasneti_mmapfd == -1) 
-        gasneti_fatalerror("failed to open %s for mmap : %s\n",gasneti_vnetname,strerror(errno));
+  if ((ptr == MAP_FAILED) && !may_fail) {
+    if (errno != ENOMEM) {
+      #if PLATFORM_OS_CYGWIN
+        if (errno != EACCES) /* Cygwin stupidly returns EACCES for insuff mem */
+      #elif PLATFORM_OS_SOLARIS
+        if (errno != EAGAIN) /* Solaris stupidly returns EAGAIN for insuff mem */
+      #endif
+      gasneti_fatalerror("unexpected error in mmap%s for size %lu: %s\n", 
+                         (segbase == NULL?"":" fixed"),
+                         (unsigned long)segsize, strerror(errno));
     }
 
-    /* Stretch the file size to the requested size */
-    if (gasneti_mmap_stretch(gasneti_mmapfd, segsize)) {
-      shm_unlink(gasneti_vnetname);
-      gasneti_fatalerror("failed to setup vnet file");
+    if (!segbase) {
+      gasneti_fatalerror("mmap failed for size %lu: %s", (unsigned long)segsize, strerror(errno));
+    } else {
+      gasneti_fatalerror("mmap fixed failed at "GASNETI_LADDRFMT" for size %lu: %s",
+              GASNETI_LADDRSTR(segbase), (unsigned long)segsize, strerror(errno));
     }
- 
-  t1 = gasneti_ticks_now();
-  
-  ptr = mmap(segbase, segsize, (PROT_READ|PROT_WRITE), 
-                          flags, gasneti_mmapfd, 0);
-
-  t2 = gasneti_ticks_now();
-
-  GASNETI_TRACE_PRINTF(C, 
-      ("mmap %s("GASNETI_LADDRFMT", %lu): %.3fus => "GASNETI_LADDRFMT"%s%s\n", 
-        (segbase == NULL?"":"fixed"),
-        GASNETI_LADDRSTR(segbase), (unsigned long)segsize,
-        gasneti_ticks_to_ns(t2-t1)/1000.0,
-        GASNETI_LADDRSTR(ptr),
-        (ptr == MAP_FAILED?"  MAP_FAILED: ":""),
-        (ptr == MAP_FAILED?strerror(errno):"")));
-
-  if (ptr == MAP_FAILED && errno != ENOMEM) {
-    #if PLATFORM_OS_CYGWIN
-      if (errno != EACCES) /* Cygwin stupidly returns EACCES for insuff mem */
-    #elif PLATFORM_OS_SOLARIS
-      if (errno != EAGAIN) /* Solaris stupidly returns EAGAIN for insuff mem */
-    #endif
-    gasneti_fatalerror("unexpected error in mmap%s for size %lu: %s\n", 
-                       (segbase == NULL?"":" fixed"),
-                       (unsigned long)segsize, strerror(errno));
   }
 
-  if (segbase && ptr == MAP_FAILED) {
-      gasneti_fatalerror("mmap fixed failed at "GASNETI_LADDRFMT" for size %lu: %s\n",
-	      GASNETI_LADDRSTR(segbase), (unsigned long)segsize, strerror(errno));
-  }
-  if (segbase && segbase != ptr) {
-    gasneti_fatalerror("mmap fixed moved from "GASNETI_LADDRFMT" to "GASNETI_LADDRFMT" for size %lu\n",
-	    GASNETI_LADDRSTR(segbase), GASNETI_LADDRSTR(ptr), (unsigned long)segsize);
+  if (segbase && (segbase != ptr) && (ptr != MAP_FAILED)) {
+    gasneti_fatalerror("mmap fixed moved from "GASNETI_LADDRFMT" to "GASNETI_LADDRFMT" for size %lu",
+            GASNETI_LADDRSTR(segbase), GASNETI_LADDRSTR(ptr), (unsigned long)segsize);
   }
 
   return ptr;
 }
-#endif
-extern void gasneti_mmap_fixed(void *segbase, uintptr_t segsize) {
-  gasneti_mmap_internal(segbase, segsize);
+
+static void *gasneti_mmap_remote_shared(void *segbase, uintptr_t segsize, const char *filename) {
+  return gasneti_mmap_shared_internal(filename, segbase, segsize, 0);
 }
-extern void *gasneti_mmap(uintptr_t segsize) {
-  return gasneti_mmap_internal(NULL, segsize);
-}
-#if GASNET_SYSV
 extern void gasneti_mmap_shared_fixed(void *segbase, uintptr_t segsize) {
-  gasneti_mmap_shared_internal(segbase, segsize);
+  gasneti_mmap_shared_internal(gasneti_sysvname[gasneti_mynode], segbase, segsize, 0);
 }
 extern void *gasneti_mmap_shared(uintptr_t segsize) {
-  return gasneti_mmap_shared_internal(NULL, segsize);
+  return gasneti_mmap_shared_internal(gasneti_sysvname[gasneti_mynode], NULL, segsize, 1);
 }
-extern void *gasneti_mmap_vnet(uintptr_t segsize) {
-  return gasneti_mmap_internal_vnet(NULL, segsize);
+extern void *gasneti_mmap_vnet(uintptr_t size) {
+  void *ptr = gasneti_mmap_shared_internal(gasneti_vnetname, NULL, size, 1);
+  return (ptr == MAP_FAILED) ? NULL : ptr;
 }
 extern void gasneti_unlink_segment(void) {
     shm_unlink(gasneti_sysvname[gasneti_mynode]);
     shm_unlink(gasneti_vnetname);
 }
-#endif
+#endif /* GASNET_SYSV */
+
 /* ------------------------------------------------------------------------------------ */
 extern void gasneti_munmap(void *segbase, uintptr_t segsize) {
   gasneti_tick_t t1, t2;
@@ -609,6 +512,9 @@ static gasneti_segexch_t *gasneti_segexch = NULL; /* exchanged segment informati
     perform their functions with respect the peers on a shared-memory
     node (though exchangefn does require a "full" third argument).
     however, global implementations are acceptible
+
+  TODO: For SYSV we should probably account for the vnet mmap() too.
+  TODO: For SYSV on 32-bit arch, must ensure combined size fits in the address space
  */
 uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasneti_bootstrapExchangefn_t exchangefn,
