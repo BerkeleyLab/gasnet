@@ -248,7 +248,7 @@ extern int gasneti_AMSYSVPoll(int repliesOnly);
 /* Don't call this function directly: internal sysv function */
 int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
                                  gasnet_handler_t handler, void *source_addr, int nbytes, 
-                                 void *dest_ptr, int numargs, va_list argptr);
+                                 void *dest_addr, int numargs, va_list argptr);
 
 /* Generic AM handler for SysVnet.
  * Divert your conduit's regular AM requests to this function if a call to
@@ -256,10 +256,10 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
 GASNETI_INLINE(gasneti_AMSYSV_RequestGeneric)
 int gasneti_AMSYSV_RequestGeneric(int category, int dest, 
                                   gasnet_handler_t handler, void *source_addr, int nbytes,
-                                  void *dest_ptr, int numargs, va_list argptr) 
+                                  void *dest_addr, int numargs, va_list argptr) 
 {
   return gasnetc_AMSYSV_ReqRepGeneric(category, 1, dest, handler, source_addr,
-                                      nbytes, dest_ptr, numargs, argptr); 
+                                      nbytes, dest_addr, numargs, argptr); 
 }
 
 /* Generic AM handler for SysVnet.
@@ -268,14 +268,14 @@ int gasneti_AMSYSV_RequestGeneric(int category, int dest,
 GASNETI_INLINE(gasneti_AMSYSV_ReplyGeneric)
 int gasneti_AMSYSV_ReplyGeneric(int category, gasnet_token_t token, 
                                        gasnet_handler_t handler, void *source_addr, 
-                                       int nbytes, void *dest_ptr, int numargs, 
+                                       int nbytes, void *dest_addr, int numargs, 
                                        va_list argptr) 
 {
   int retval;
   gasnet_node_t sourceid;
   gasnetc_AMGetMsgSource(token, &sourceid);
   retval = gasnetc_AMSYSV_ReqRepGeneric(category, 0, sourceid, handler, source_addr, 
-                                        nbytes, dest_ptr, numargs, argptr); 
+                                        nbytes, dest_addr, numargs, argptr); 
   return retval;
 }
 #endif /*GASNET_SYSV*/

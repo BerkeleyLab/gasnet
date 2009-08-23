@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/23 01:15:48 $
- * $Revision: 1.77.22.9 $
+ *     $Date: 2009/08/23 21:12:24 $
+ * $Revision: 1.77.22.10 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -666,12 +666,9 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
   int retval;
-  uintptr_t dest_offset;
   va_list argptr;
   CHECKCALLNIS();
   GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
-
-  dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
 
   va_start(argptr, numargs); /*  pass in last argument */
 
@@ -679,11 +676,14 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   if_pt (gasneti_sysv_in_supernode(dest)) {
       retval = gasneti_AMSYSV_RequestGeneric(gasnetc_Long, 
                                       dest, handler, 
-                                      source_addr, nbytes, (void *)dest_offset,
+                                      source_addr, nbytes, dest_addr,
                                       numargs, argptr);
   } else
 #endif  
   {   
+    uintptr_t dest_offset;
+    dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
+
     AMLOCK_TOSEND();
       GASNETI_AM_SAFE_NORETURN(retval,
                AMMPI_RequestXferVA(gasnetc_endpoint, dest, handler, 
@@ -774,14 +774,12 @@ extern int gasnetc_AMReplyLongM(
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
   int retval;
-  uintptr_t dest_offset;
   gasnet_node_t dest;
   va_list argptr;
   
   CHECKCALLHSL();
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 
   GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
-  dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
 
   va_start(argptr, numargs); /*  pass in last argument */
 
@@ -790,11 +788,14 @@ extern int gasnetc_AMReplyLongM(
   if_pt (gasneti_sysv_in_supernode(dest)) {
       retval = gasneti_AMSYSV_ReplyGeneric(gasnetc_Long, 
                                     token, handler, 
-                                    source_addr, nbytes, (void *)dest_offset,
+                                    source_addr, nbytes, dest_addr,
                                     numargs, argptr);
   } else
 #endif
   {
+    uintptr_t dest_offset;
+    dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
+
     AM_ASSERT_LOCKED();
     GASNETI_AM_SAFE_NORETURN(retval,
               AMMPI_ReplyXferVA(token, handler, source_addr, nbytes, dest_offset, numargs, argptr));

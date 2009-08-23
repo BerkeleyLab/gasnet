@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/08/22 22:27:02 $
- * $Revision: 1.205.6.7 $
+ *     $Date: 2009/08/23 21:12:28 $
+ * $Revision: 1.205.6.8 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2676,10 +2676,9 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 
 #if GASNET_SYSV
   if_pt (gasneti_sysv_in_supernode(dest)) {
-      uintptr_t dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
       retval = gasneti_AMSYSV_RequestGeneric(gasnetc_Long, 
                                       dest, handler, 
-                                      source_addr, nbytes, (void *)dest_offset,
+                                      source_addr, nbytes, dest_addr,
                                       numargs, argptr);
   } else
 #endif
@@ -2709,10 +2708,9 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 
 #if GASNET_SYSV
   if_pt (gasneti_sysv_in_supernode(dest)) {
-      uintptr_t dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
       retval = gasneti_AMSYSV_RequestGeneric(gasnetc_Long, 
                                       dest, handler, 
-                                      source_addr, nbytes, (void *)dest_offset,
+                                      source_addr, nbytes, dest_addr,
                                       numargs, argptr);
   } else
 #endif
@@ -2803,10 +2801,9 @@ extern int gasnetc_AMReplyLongM(
 #if GASNET_SYSV
   GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
   if_pt (gasneti_sysv_in_supernode(dest)) {
-      uintptr_t dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
       retval = gasneti_AMSYSV_ReplyGeneric(gasnetc_Long, 
                                     token, handler, 
-                                    source_addr, nbytes, (void *)dest_offset,
+                                    source_addr, nbytes, dest_addr,
                                     numargs, argptr);
   } else
 #endif

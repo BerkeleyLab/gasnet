@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/23 05:03:47 $
- * $Revision: 1.1.4.18 $
+ *     $Date: 2009/08/23 21:12:22 $
+ * $Revision: 1.1.4.19 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -785,16 +785,8 @@ int gasneti_AMSYSV_service_incoming_msg(gasneti_sysvnet_t *vnet, int isReq)
       break;
     case gasnetc_Long:
       { 
-        void * data;
-        size_t nbytes;
-        
-        data = GASNETI_AMSYSV_MSG_LONG_DATA(msg);
-        nbytes = GASNETI_AMSYSV_MSG_LONG_NUMBYTES(msg);
-#if 0
-        data = (void*)((uintptr_t)data + gasneti_sysv_seginfo_client[gasneti_mysysvnode].addr);
-#else
-        data = (void *)((uintptr_t)data + (uintptr_t)gasneti_seginfo[gasneti_mynode].addr);
-#endif
+        void * data = GASNETI_AMSYSV_MSG_LONG_DATA(msg);
+        size_t nbytes = GASNETI_AMSYSV_MSG_LONG_NUMBYTES(msg);
         GASNETI_RUN_HANDLER_LONG(
             isReq,handler_id,handler_fn,token,args,numargs,data,nbytes);
       }
@@ -830,11 +822,11 @@ int gasneti_AMSYSVPoll(int repliesOnly)
 
 int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
                                  gasnet_handler_t handler, void *source_addr, int nbytes, 
-                                 void *dest_ptr, int numargs, va_list argptr) 
+                                 void *dest_addr, int numargs, va_list argptr) 
 {
   gasneti_sysvnet_t *vnet = (isReq ? gasneti_request_sysvnet : gasneti_reply_sysvnet);
   int msgsz, i;
-  void *msg, *dest_addr;
+  void *msg;
   gasnet_handlerarg_t *pargs;
   int loopback = (dest == gasneti_mynode);
 
@@ -868,15 +860,10 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
       /* If reply, only poll reply network: avoids deadlock  */
       //gasneti_AMSYSVPoll(!isReq);
 
-        gasnetc_AMPoll(!isReq);
+        gasnetc_AMPoll();
     }
   }
 
-#if 0
-  void *dest_addr = (void*)((uintptr_t)dest_ptr + gasneti_sysv_seginfo_client[dest-gasneti_firstsysvnode].addr);
-#else
-  dest_addr = (void*)((uintptr_t)dest_ptr + (uintptr_t)gasneti_seginfo[dest].remote_addr);
-#endif
   /* Fill in message */
   GASNETI_AMSYSV_MSG_CATEGORY(msg) = category;
   GASNETI_AMSYSV_MSG_HANDLERID(msg) = handler;
@@ -891,15 +878,17 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
       GASNETI_AMSYSV_MSG_MED_NUMBYTES(msg) = nbytes;
       memcpy(GASNETI_AMSYSV_MSG_MED_DATA(msg), source_addr, nbytes);
       break;
-    case gasnetc_Long:
-      GASNETI_AMSYSV_MSG_LONG_DATA(msg) = dest_ptr; 
+    case gasnetc_Long: {
+      void *local_dest_addr = (void*)((uintptr_t)dest_addr
+                                      - (uintptr_t)gasneti_seginfo[dest].addr
+                                      + (uintptr_t)gasneti_seginfo[dest].remote_addr);
+
+      GASNETI_AMSYSV_MSG_LONG_DATA(msg) = dest_addr; 
       GASNETI_AMSYSV_MSG_LONG_NUMBYTES(msg) = nbytes;
       /* deliver_msg call, below, contains write flush, so don't need here */
-      /* TODO: given that msg may be long, is it worth using our (allegedly
-       * faster) ALIGNED memcpy macro here, and just use vanilla memcpy() on
-       * any non-aligned part? */
-      memcpy(dest_addr, source_addr, nbytes);
+      memcpy(local_dest_addr, source_addr, nbytes);
       break;
+    }
   }
 
   /* Deliver message */
@@ -929,7 +918,7 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
     while (gasneti_sysvnet_deliver_send_buffer(vnet, msg, msgsz, dest)) {
       /* If reply, only poll reply network: avoids deadlock  */
       //gasneti_AMSYSVPoll(!isReq);
-        gasnetc_AMPoll(!isReq);
+        gasnetc_AMPoll();
     }
   }
   return GASNET_OK;
