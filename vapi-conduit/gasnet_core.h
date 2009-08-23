@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2009/05/28 18:28:32 $
- * $Revision: 1.54.24.3 $
+ *     $Date: 2009/08/23 19:51:26 $
+ * $Revision: 1.54.24.4 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -184,33 +184,19 @@ void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context) {
 #define GASNETC_MAX_ARGS_EXTRA	1	/* For flow-control info */
 #define GASNETC_MAX_ARGS	(GASNETC_MAX_ARGS_USER + GASNETC_MAX_ARGS_EXTRA)
 
-
-#if GASNET_SYSV
-  #define GASNETC_MAX_ARGS_SYSV	GASNETC_MAX_ARGS_USER
-  /* For SYSV we cannot use standard AGSNETI_ALIGN(UP/DOWN) since
-   * they contain assertion which further results in compilation error.
-   * Therefore, in this case we have special GASNETI_ALIGN(UP/DOWN) macros,
-   * and we know that P=8=2^3.
-   */
-  #define GASNETI_ALIGNDOWN_SYSV(p,P)  ((uintptr_t)(p))&~((uintptr_t)((P)-1))
-  #define GASNETI_ALIGNUP_SYSV(p,P)     (GASNETI_ALIGNDOWN_SYSV((uintptr_t)(p)+((uintptr_t)((P)-1)),P))
-
-  /* We know that GASNETC_MAX_MEDIUP is smaller than GASNETI_SYSVNET_MAX_PAYLOAD */
-  #define GASNETC_MAX_MEDIUM	\
-                  (GASNETC_BUFSZ - GASNETI_ALIGNUP_SYSV(GASNETC_MEDIUM_HDRSZ + 4*GASNETC_MAX_ARGS, 8))
-  #define GASNETC_MAX_MEDIUM_SYSV GASNETC_MAX_MEDIUM 
-#else
-  #define GASNETC_MAX_MEDIUM	\
-                  (GASNETC_BUFSZ - GASNETI_ALIGNUP(GASNETC_MEDIUM_HDRSZ + 4*GASNETC_MAX_ARGS, 8))
-#endif
-
-
+#define GASNETC_MAX_MEDIUM	\
+               (GASNETC_BUFSZ - GASNETI_ALIGNUP_NOASSERT(GASNETC_MEDIUM_HDRSZ + 4*GASNETC_MAX_ARGS, 8))
 #define GASNETC_MAX_LONG_REQ	(0x7fffffff)
 #define GASNETC_MAX_PACKEDLONG	(GASNETC_BUFSZ - GASNETC_LONG_HDRSZ - 4*GASNETC_MAX_ARGS)
 #if GASNETC_PIN_SEGMENT
   #define GASNETC_MAX_LONG_REP	GASNETC_MAX_LONG_REQ
 #else
   #define GASNETC_MAX_LONG_REP	GASNETC_MAX_PACKEDLONG
+#endif
+
+#if GASNET_SYSV
+  #define GASNETC_MAX_ARGS_SYSV     GASNETC_MAX_ARGS_USER
+  #define GASNETC_MAX_MEDIUM_SYSV   GASNETC_MAX_MEDIUM
 #endif
 
 #define gasnet_AMMaxArgs()          ((size_t)GASNETC_MAX_ARGS_USER)
