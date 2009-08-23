@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/23 00:58:22 $
- * $Revision: 1.1.4.15 $
+ *     $Date: 2009/08/23 01:38:01 $
+ * $Revision: 1.1.4.16 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,17 +16,12 @@ static void *gasnetc_sysvnet_region;
 /* maximum number of processes that share a single shared memory region */
  #define GASNETC_MAX_SYSV_NODES 256
 
-/* Supernode data that lives in shared space */
-struct gasnetc_supernode_info_t {
-  gasneti_atomic_t startup_counter;		    /* one-time barrier */
-};
-static struct gasnetc_supernode_info_t *gasnetc_sn_info;
 static gasneti_mutex_t gasneti_index_lock = GASNETI_MUTEX_INITIALIZER;
 
 
 
 void gasnetc_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
-  size_t vnetsz, sninfosz, mmapsz;
+  size_t vnetsz, mmapsz;
   int retval = GASNET_OK;
   int i, sysv_nodes = 0, myrank = 0;
 
@@ -66,34 +61,28 @@ void gasnetc_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
    * infrastructure.
    */
   vnetsz = gasneti_sysvnet_memory_needed(gasneti_sysvnodes); 
-  sninfosz = sizeof(struct gasnetc_supernode_info_t);
-  sninfosz = GASNETI_ALIGNUP(sninfosz, GASNETI_SYSVNET_PAGESIZE);
-  mmapsz = sninfosz + (2*vnetsz);
-  /* NOTE: do we need gasneti_sysvsize (is it ever used)? */
-  gasneti_sysvsize = sninfosz + (2*vnetsz);
+  mmapsz = (2*vnetsz) + GASNETI_SYSVNET_PAGESIZE; /* Extra page is for the one-time barrier */
+
   /* NOTE: What happens here if there is not enough memory to alloc vnet? */
   gasnetc_sysvnet_region = gasneti_mmap_vnet(mmapsz);
-  if (gasnetc_sysvnet_region == NULL) //MAP_FAILED)
+  if (gasnetc_sysvnet_region == NULL) {
     gasneti_fatalerror("mmap for shared memory Active Messages region failed!");
+  }
   
-  /* Initializing supernode info. */
-  gasnetc_sn_info = (struct gasnetc_supernode_info_t *)gasnetc_sysvnet_region;
-#if 0 /* spec says new object is zeroed (and "sleep(1)" is NOT a barrier) */
-  if (gasneti_mynode==0) memset(gasnetc_sn_info, 0, sizeof(struct gasnetc_supernode_info_t));
-  else sleep(1);
-#endif
-
   /* Collective call to initialize Shared AM "networks" */
-  gasneti_sysvnet_init(&gasneti_request_sysvnet, ((char*)(gasnetc_sysvnet_region))+sninfosz,
+  gasneti_sysvnet_init(&gasneti_request_sysvnet, gasnetc_sysvnet_region,
                        vnetsz, gasneti_firstsysvnode, gasneti_sysvnodes);
-  gasneti_sysvnet_init(&gasneti_reply_sysvnet, ((char*)(gasnetc_sysvnet_region))+(sninfosz+vnetsz),
+  gasneti_sysvnet_init(&gasneti_reply_sysvnet, (void*)((uintptr_t)gasnetc_sysvnet_region + vnetsz),
                        vnetsz, gasneti_firstsysvnode, gasneti_sysvnodes);
 
   /* One-time 'barrier' */
-  gasneti_atomic_increment(&gasnetc_sn_info->startup_counter, GASNETI_ATOMIC_REL);
-  while (gasneti_atomic_read(&gasnetc_sn_info->startup_counter, GASNETI_ATOMIC_ACQ) 
-            != gasneti_sysvnodes)
-    gasneti_sched_yield();
+  {
+    gasneti_atomic_t *startup_counter = (gasneti_atomic_t *)((uintptr_t)gasnetc_sysvnet_region + 2*vnetsz);
+    gasneti_atomic_increment(startup_counter, GASNETI_ATOMIC_REL);
+    while (gasneti_atomic_read(startup_counter, GASNETI_ATOMIC_ACQ) != gasneti_sysvnodes) {
+      gasneti_sched_yield();
+    }
+  }
 }
 
 /*******************************************************************************
