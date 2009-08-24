@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/24 09:23:54 $
- * $Revision: 1.1.4.23 $
+ *     $Date: 2009/08/24 09:48:07 $
+ * $Revision: 1.1.4.24 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -35,7 +35,7 @@ void gasnetc_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
   /* setup filenames, unless exchangefn is NULL (indicating caller took care of it) */
   if (exchangefn != NULL) {
     char (*tmp)[GASNETI_SYSV_PREFIX_LEN];
-    int i,j;
+    int i;
 
     /* First in each supernode generates a vnetname */
     if (gasneti_mysysvnode == 0) {
@@ -55,12 +55,10 @@ void gasnetc_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
     }
     gasneti_free(tmp);
 
-    /* setup filenames for the segment without communication */
-    /* TODO: since no longer using exchange, we could do away with the sparse array */
-    gasneti_sysvname = (gasnet_sysvname_t *)gasneti_calloc(gasneti_nodes,sizeof(gasnet_sysvname_t));
-    for (j = 0, i = gasneti_firstsysvnode; j < gasneti_sysvnodes; ++i) {
-      if (gasneti_nodemap[i] != gasneti_firstsysvnode) continue;
-      gasneti_sysv_makename(j++, gasneti_sysvname[i]);
+    /* setup filenames for the supernode-local segments without communication */
+    gasneti_sysvname = (gasnet_sysvname_t *)gasneti_malloc(gasneti_sysvnodes * sizeof(gasnet_sysvname_t));
+    for (i = 0; i < gasneti_sysvnodes; ++i) {
+      gasneti_sysv_makename(i, gasneti_sysvname[i]);
     }
   }
     

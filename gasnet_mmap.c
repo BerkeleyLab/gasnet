@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/24 09:01:58 $
- * $Revision: 1.57.6.20 $
+ *     $Date: 2009/08/24 09:48:07 $
+ * $Revision: 1.57.6.21 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -240,14 +240,14 @@ static void *gasneti_mmap_shared_internal(const char *filename, void *segbase, u
   return ptr;
 }
 
-static void *gasneti_mmap_remote_shared(void *segbase, uintptr_t segsize, const char *filename) {
-  return gasneti_mmap_shared_internal(filename, segbase, segsize, 0);
+static void *gasneti_mmap_remote_shared(void *segbase, uintptr_t segsize, gasnet_node_t sysvnode) {
+  return gasneti_mmap_shared_internal(gasneti_sysvname[sysvnode], segbase, segsize, 0);
 }
 extern void gasneti_mmap_shared_fixed(void *segbase, uintptr_t segsize) {
-  gasneti_mmap_shared_internal(gasneti_sysvname[gasneti_mynode], segbase, segsize, 0);
+  gasneti_mmap_shared_internal(gasneti_sysvname[gasneti_mysysvnode], segbase, segsize, 0);
 }
 extern void *gasneti_mmap_shared(uintptr_t segsize) {
-  return gasneti_mmap_shared_internal(gasneti_sysvname[gasneti_mynode], NULL, segsize, 1);
+  return gasneti_mmap_shared_internal(gasneti_sysvname[gasneti_mysysvnode], NULL, segsize, 1);
 }
 extern void *gasneti_mmap_vnet(uintptr_t size) {
   void *ptr = gasneti_mmap_shared_internal(gasneti_vnetname, NULL, size, 1);
@@ -257,7 +257,7 @@ extern void gasneti_unlink_segment(void) {
   /* Try to unlink everything we can, ignoring errors */
   if (gasneti_sysvname) {
     gasnet_node_t i;
-    for (i=0; i<gasneti_nodes; ++i) {
+    for (i=0; i<gasneti_sysvnodes; ++i) {
       (void)shm_unlink(gasneti_sysvname[i]);
     }
   }
@@ -696,10 +696,11 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
     /* Map the remote shared segments */
     gasneti_remote_segments = gasneti_malloc(gasneti_sysvnodes*sizeof(gasnet_seginfo_t));
     for(i=0; i<gasneti_sysvnodes; i++){
-        if (gasneti_nodemap_local[i]!=gasneti_mynode){ 
-            gasneti_remote_segments[i].addr = gasneti_mmap_remote_shared(NULL, gasneti_segexch[gasneti_nodemap_local[i]].seginfo.size, gasneti_sysvname[gasneti_nodemap_local[i]]);
-            gasneti_remote_segments[i].size = gasneti_segexch[gasneti_nodemap_local[i]].seginfo.size;
-        }
+        const gasnet_node_t j = gasneti_nodemap_local[i];
+        if (j == gasneti_mynode) continue;
+
+        gasneti_remote_segments[i].addr = gasneti_mmap_remote_shared(NULL,gasneti_segexch[j].seginfo.size,i);
+        gasneti_remote_segments[i].size = gasneti_segexch[j].seginfo.size;
     }
 #endif
  
@@ -1022,7 +1023,7 @@ void gasneti_AttachRemote(uintptr_t segsize, gasnet_node_t sysv_node, uintptr_t 
         gasneti_assert(segbase >= gasneti_remote_segments[sysv_node].addr &&
                (uintptr_t)segbase + segsize <= (uintptr_t)gasneti_remote_segments[sysv_node].addr + gasneti_remote_segments[sysv_node].size);
         gasneti_munmap(gasneti_remote_segments[sysv_node].addr, gasneti_remote_segments[sysv_node].size);
-        gasneti_mmap_remote_shared(segbase, segsize, gasneti_sysvname[gasneti_nodemap_local[sysv_node]]);
+        gasneti_mmap_remote_shared(segbase, segsize, sysv_node);
         gasneti_remote_segments[sysv_node].addr = segbase;
         gasneti_remote_segments[sysv_node].size = segsize;
       }
