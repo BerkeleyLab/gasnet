@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/24 11:03:16 $
- * $Revision: 1.48.4.13 $
+ *     $Date: 2009/08/24 11:38:25 $
+ * $Revision: 1.48.4.14 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -390,7 +390,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, &gasnetc_bootstrapExchange);
-    gasnetc_bootstrapBarrier();
     gasneti_assert(((uintptr_t)gasneti_seginfo[gasneti_mynode].addr) % GASNET_PAGESIZE == 0);
     gasneti_assert(gasneti_seginfo[gasneti_mynode].size % GASNET_PAGESIZE == 0);
   #else
@@ -402,10 +401,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       }
     }
   #endif
-
-#if GASNET_SYSV
-    gasneti_unlink_segment();
-#endif
 
   segbase = gasneti_seginfo[gasneti_mynode].addr;
   segsize = gasneti_seginfo[gasneti_mynode].size;

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/23 21:12:24 $
- * $Revision: 1.77.22.10 $
+ *     $Date: 2009/08/24 11:38:27 $
+ * $Revision: 1.77.22.11 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -383,8 +383,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     gasneti_seginfo = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
   
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-    gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, &gasnetc_bootstrapExchange);
-    gasnetc_bootstrapBarrier();
+      gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, &gasnetc_bootstrapExchange);
     #else /* GASNET_SEGMENT_EVERYTHING */
       { int i;
         for (i=0;i<gasneti_nodes;i++) {
@@ -393,10 +392,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
         }
       }
     #endif
-
-#if GASNET_SYSV
-    gasneti_unlink_segment();
-#endif
 
     segbase = gasneti_seginfo[gasneti_mynode].addr;
     segsize = gasneti_seginfo[gasneti_mynode].size;

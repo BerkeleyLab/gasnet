@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/24 11:03:14 $
- * $Revision: 1.57.6.22 $
+ *     $Date: 2009/08/24 11:38:23 $
+ * $Revision: 1.57.6.23 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1154,6 +1154,9 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
   gasneti_free(gasneti_remote_segments);
   gasneti_free(gasneti_seginfo_correction);
   gasneti_free(seginfo_correction); 
+
+  gasneti_sysvnet_bootstrapBarrier();
+  gasneti_unlink_segment();
 #endif /* GASNET_SYSV */
 
 } 

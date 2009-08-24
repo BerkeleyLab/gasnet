@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/08/23 21:12:28 $
- * $Revision: 1.205.6.8 $
+ *     $Date: 2009/08/24 11:38:29 $
+ * $Revision: 1.205.6.9 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1758,11 +1758,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   {
     /* allocate the segment and exchange seginfo */
     gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, &gasneti_bootstrapExchange);
-#if GASNET_SYSV
-    gasneti_bootstrapBarrier();
-    gasneti_unlink_segment();
-#endif
-
     segbase = gasneti_seginfo[gasneti_mynode].addr;
     segsize = gasneti_seginfo[gasneti_mynode].size;
 
@@ -1809,10 +1804,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   {
     /* allocate the segment and exchange seginfo */
     gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, gasneti_bootstrapExchange);
-#if GASNET_SYSV
-    gasneti_bootstrapBarrier();
-    gasneti_unlink_segment();
-#endif
     segbase = gasneti_seginfo[gasneti_mynode].addr;
     segsize = gasneti_seginfo[gasneti_mynode].size;
   }
