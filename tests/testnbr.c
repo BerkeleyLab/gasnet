@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testnbr.c,v $
- *     $Date: 2006/10/18 02:43:13 $
- * $Revision: 1.18 $
+ *     $Date: 2009/08/24 06:00:34 $
+ * $Revision: 1.18.32.1 $
  * Description: MG-like Neighbor exchange
  * Copyright 2005, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -397,8 +397,8 @@ main(int argc, char **argv)
 	maxdim = MAX(level_dims[level][i], maxdim);
 
     if (!POWER_OF_TWO(nprocs)) {
-	fprintf(stderr, "%s only runs on a power of two processors\n", argv[0]);
-	gasnet_exit(1);
+	MSG("WARNING: This test requires a power of two number of processes. Test skipped.\n");
+	gasnet_exit(0); /* exit 0 to prevent false negatives */
     }
 
     /* setup max grid we intend to use, so we can get enough 
