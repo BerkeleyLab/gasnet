@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/24 11:38:27 $
- * $Revision: 1.77.22.11 $
+ *     $Date: 2009/08/24 20:33:11 $
+ * $Revision: 1.77.22.12 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -202,7 +202,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       #if HAVE_MMAP
         limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
                                   &gasnetc_bootstrapExchange,
-                                  &gasnetc_bootstrapBarrier),
+                                  &gasnetc_bootstrapBarrier);
       #else
         limit = (intptr_t)-1;
       #endif

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/24 11:38:25 $
- * $Revision: 1.48.4.14 $
+ *     $Date: 2009/08/24 20:33:13 $
+ * $Revision: 1.48.4.15 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -194,22 +194,16 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
  
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-  
-    #if GASNET_SYSV
       { uintptr_t limit;
-        #if HAVE_MMAP
+        #if HAVE_MMAP && GASNET_SYSV
           limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
                                   &gasnetc_bootstrapExchange,
-                                  &gasnetc_bootstrapBarrier),
+                                  &gasnetc_bootstrapBarrier);
         #else
           limit = (intptr_t)-1;
         #endif
         gasneti_segmentInit(limit, &gasnetc_bootstrapExchange);
       }
-    #else
-      gasneti_segmentInit((uintptr_t)-1, &gasnetc_bootstrapExchange);
-    #endif
-
   #elif GASNET_SEGMENT_EVERYTHING
     /* segment is everything - nothing to do */
   #else

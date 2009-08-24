@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core.c,v $
- *     $Date: 2009/04/23 23:33:26 $
- * $Revision: 1.37.18.1 $
+ *     $Date: 2009/08/24 20:33:15 $
+ * $Revision: 1.37.18.2 $
  * Description: GASNet UDP conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -223,7 +223,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       #if HAVE_MMAP
         limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
                                   &gasnetc_bootstrapExchange,
-                                  &gasnetc_bootstrapBarrier),
+                                  &gasnetc_bootstrapBarrier);
       #else
         limit = (intptr_t)-1;
       #endif
