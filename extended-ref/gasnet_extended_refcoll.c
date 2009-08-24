@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/08/21 18:41:55 $
- * $Revision: 1.72.10.44 $
+ *     $Date: 2009/08/24 23:09:47 $
+ * $Revision: 1.72.10.45 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -530,6 +530,7 @@ void gasnete_coll_threads_unlock(GASNETE_THREAD_FARG_ALONE) {
 /* Each thread calls this upon arrival.  First arrival gets non-zero */
 int gasnete_coll_threads_first(GASNETE_THREAD_FARG_ALONE) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
+  static int testing[2]={0,0};
 #if ALL_THREADS_POLL
   /*in the case where all threads don't poll the lock aquisition has been removed so 
    this will always return true even if it's not the first thread
@@ -546,7 +547,7 @@ int gasnete_coll_threads_first(GASNETE_THREAD_FARG_ALONE) {
     /*no atomics are needed here since there is already an extra lelvel of synchronization protecting the 
      the data*/
     const uint32_t sequence = td->threads.sequence;
-    
+    testing[td->my_local_image]++;
     ++td->threads.sequence;
     if (sequence == gasnete_coll_threads_sequence) {
       ++gasnete_coll_threads_sequence;
@@ -3095,6 +3096,7 @@ gasnete_coll_generic_broadcast_nb(gasnet_team_handle_t team,
   gasnet_coll_handle_t result;
   gasnete_coll_scratch_req_t *scratch_req=NULL;
   int i;
+  int first_thread;
   
   /*fill out a scratch request "form" if you need scratch space with this operation*/
   if(options & (GASNETE_COLL_USE_SCRATCH)) {
@@ -3130,7 +3132,14 @@ gasnete_coll_generic_broadcast_nb(gasnet_team_handle_t team,
   }
 
   gasnete_coll_threads_lock(team, flags GASNETE_THREAD_PASS);
-  if_pt (gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE)) {
+
+  if(!(flags & GASNETE_COLL_SUBORDINATE) || ALL_THREADS_POLL) {
+    first_thread = gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE);
+  } else {
+    first_thread = 1;
+  }
+  
+  if_pt (first_thread) {
     gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
     GASNETE_COLL_GENERIC_SET_TAG(data, broadcast);
     data->args.broadcast.dst        = dst;
@@ -3592,6 +3601,7 @@ gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
   gasnet_coll_handle_t result;
   gasnete_coll_scratch_req_t *scratch_req=NULL;
   uint64_t *out_sizes;
+  int first_thread;
   int i;
 
   if(options & (GASNETE_COLL_USE_SCRATCH)) {
@@ -3636,7 +3646,12 @@ gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
   }
   
   gasnete_coll_threads_lock(team, flags GASNETE_THREAD_PASS);
-  if_pt (gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE)) {
+  if(!(flags & GASNETE_COLL_SUBORDINATE) || ALL_THREADS_POLL) {
+    first_thread = gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE);
+  } else {
+    first_thread = 1;
+  }
+  if_pt (first_thread) {
     gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
     GASNETE_COLL_GENERIC_SET_TAG(data, scatter);
     data->args.scatter.dst        = dst;
@@ -4035,6 +4050,7 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
   gasnete_coll_scratch_req_t *scratch_req=NULL;
   uint64_t *out_sizes;
   int i;
+  int first_thread;
   
 
   
@@ -4079,7 +4095,13 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
   }
   
   gasnete_coll_threads_lock(team, flags GASNETE_THREAD_PASS);
-  if_pt (gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE)) {
+  if(!(flags & GASNETE_COLL_SUBORDINATE) || ALL_THREADS_POLL) {
+    first_thread = gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE);
+  } else {
+    first_thread = 1;
+  }
+  
+  if_pt (first_thread) {
     gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
     GASNETE_COLL_GENERIC_SET_TAG(data, gather);
 #if !GASNET_SEQ
@@ -4583,6 +4605,7 @@ gasnete_coll_generic_gather_all_nb(gasnet_team_handle_t team,
   gasnete_coll_scratch_req_t *scratch_req=NULL;
   uint32_t *out_sizes;
   int i;
+  int first_thread;
   gasnete_coll_dissem_info_t *dissem = gasnete_coll_fetch_dissemination(2,team);
   
   if(options & (GASNETE_COLL_USE_SCRATCH)) {
@@ -4601,8 +4624,13 @@ gasnete_coll_generic_gather_all_nb(gasnet_team_handle_t team,
   }  
   gasnete_coll_threads_lock(team, flags GASNETE_THREAD_PASS);
   
+  if(!(flags & GASNETE_COLL_SUBORDINATE) || ALL_THREADS_POLL) {
+    first_thread = gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE);
+  } else {
+    first_thread = 1;
+  }
   
-  if_pt (gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE)) {
+  if_pt (first_thread) {
     gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
     GASNETE_COLL_GENERIC_SET_TAG(data, gather_all);
     data->args.gather_all.dst     = dst;
@@ -5041,6 +5069,7 @@ gasnete_coll_generic_exchange_nb(gasnet_team_handle_t team,
                                  GASNETE_THREAD_FARG) {
   gasnet_coll_handle_t result; int i;
   gasnete_coll_scratch_req_t *scratch_req=NULL;
+  int first_thread;
   if(options & GASNETE_COLL_USE_SCRATCH) {
     /*fill out a scratch request form*/	
     scratch_req = (gasnete_coll_scratch_req_t*) gasneti_calloc(1,sizeof(gasnete_coll_scratch_req_t));
@@ -5060,7 +5089,13 @@ gasnete_coll_generic_exchange_nb(gasnet_team_handle_t team,
   }
   
   gasnete_coll_threads_lock(team, flags GASNETE_THREAD_PASS);
-  if_pt (gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE)) {
+  if(!(flags & GASNETE_COLL_SUBORDINATE) || ALL_THREADS_POLL) {
+    first_thread = gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE);
+  } else {
+    first_thread = 1;
+  }
+  
+  if_pt (first_thread) {
     gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
     GASNETE_COLL_GENERIC_SET_TAG(data, exchange);
     data->args.exchange.dst     = dst;

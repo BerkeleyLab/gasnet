@@ -1215,8 +1215,8 @@ void gasnete_coll_tune_generic_op(gasnet_team_handle_t team, gasnet_coll_optype_
     }
 #endif
      PTHREAD_BARRIER(team, team->my_images);
-    if((op == GASNET_COLL_BROADCASTM_OP && algidx == GASNETE_COLL_BROADCASTM_SCATTERALLGATHER) || 
-       (op == GASNET_COLL_BROADCAST_OP && algidx == GASNETE_COLL_BROADCAST_SCATTERALLGATHER)) continue;
+   /* if((op == GASNET_COLL_BROADCASTM_OP && algidx == GASNETE_COLL_BROADCASTM_SCATTERALLGATHER) || 
+       (op == GASNET_COLL_BROADCAST_OP && algidx == GASNETE_COLL_BROADCAST_SCATTERALLGATHER)) continue; */
     /*find out hte best time for this algorithm*/
     alg_best_time = curr_best_time;
     do_tuning_loop(team, op, dst, src, rootimg, flags, nbytes, fnptr, sample_work_arg, 
@@ -1397,7 +1397,9 @@ gasnete_coll_autotune_index_entry_t *add_to_index(gasnet_coll_optype_t op, gasne
 void gasnete_coll_safe_broadcast(gasnete_coll_team_t team, void *dst, void *src, gasnet_image_t root, size_t nbytes GASNETE_THREAD_FARG) {
   //  gasnete_coll_implementation_t impl = gasnete_coll_get_implementation();
   //int flags = gasnete_coll_segment_check(team, flags, 0, 0, dst, nbytes, 1, root, src, nbytes);
+  PTHREAD_BARRIER(team, team->my_images); 
   gasnet_coll_broadcast(team, dst, root, src, nbytes, GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC | GASNET_COLL_LOCAL |  GASNET_COLL_DISABLE_AUTOTUNE );
+  PTHREAD_BARRIER(team, team->my_images); 
 #if 0
 #if GASNET_PAR
   int flags =  GASNET_COLL_IN_ALLSYNC| GASNET_COLL_OUT_ALLSYNC| GASNET_COLL_LOCAL | GASNETE_COLL_THREAD_LOCAL;
