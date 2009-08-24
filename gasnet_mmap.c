@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/24 01:19:28 $
- * $Revision: 1.57.6.18 $
+ *     $Date: 2009/08/24 06:25:14 $
+ * $Revision: 1.57.6.19 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -513,7 +513,7 @@ static gasneti_segexch_t *gasneti_segexch = NULL; /* exchanged segment informati
     If non-NULL will be called after any gasneti_munmap() to ensure all
     on-node unmap operations are completed.
     A caller may pass NULL if it can guarantee no race against following
-    mmap() calls.
+    mmap() calls, UNLESS building for GASNET_SYSV.
    returns a value suitable for use as localSegmentLimit in a call
     to gasneti_segmentInit()
    
@@ -522,7 +522,8 @@ static gasneti_segexch_t *gasneti_segexch = NULL; /* exchanged segment informati
     node (though exchangefn does require a "full" third argument).
     however, global implementations are acceptible
 
-  TODO: For SYSV on 32-bit arch, must ensure combined size fits in the address space
+   For SYSV on 32-bit arch we also try to ensure the combined size fits
+    in the address space, but might not always be perfect about it.
  */
 uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasneti_bootstrapExchangefn_t exchangefn,
@@ -580,6 +581,52 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
         }
       }
       maxsz = MIN(maxsz, sum / gasneti_nodemap_local_count);
+      maxsz = GASNETI_PAGE_ALIGNDOWN(maxsz);
+
+#if GASNET_SYSV
+      /* The probe completed has determined how much memory we can map.
+       * However, we now need to be sure that multiple segments will fit.
+       * The limit could be, for instance, due to
+       * + RLIMIT_AS or RLIMIT_VMEM
+       * + size of the holes in the address space (especially on 32-bit arch)
+       */
+      if (se.size) gasneti_munmap(se.addr, se.size);
+      se.size = 0;
+      gasneti_assert(barrierfn);
+      (barrierfn)(); /* Ensures munmap()s complete on-node */
+
+      if (gasneti_mynode == first) {
+        gasnet_seginfo_t *tmp_se = gasneti_calloc(gasneti_nodemap_local_count,sizeof(gasnet_seginfo_t));
+	int done;
+	/* Iterate until we find a size for which N segments fit.
+	 * Ideally the first pass finds that the size probed above works.
+	 * If rlimit or total address space limit the mapping, then the first
+	 *   iteration determines the right size and the second verifies it.
+	 * If we are limited by the size of the holes in the address space
+	 *   then it may take several iterations to work out what fits.
+	 * TODO: If we reach a 3rd pass perhaps we could try something else?
+	 */
+	do {
+          sum = 0; done = 1;
+          for (i = 0; i < gasneti_nodemap_local_count; ++i) {
+            tmp_se[i] = _gasneti_mmap_segment_search_inner(maxsz);
+            sum += tmp_se[i].size;
+	    if (tmp_se[i].size != maxsz) {
+	      done = 0;
+	      if (tmp_se[i].size < GASNETI_MMAP_GRANULARITY) break;
+            }
+          }
+          for (i = 0; i < gasneti_nodemap_local_count; ++i) {
+            if (tmp_se[i].size) gasneti_munmap(tmp_se[i].addr, tmp_se[i].size);
+            tmp_se[i].size = 0;
+          }
+          maxsz = GASNETI_PAGE_ALIGNDOWN(sum / gasneti_nodemap_local_count);
+        } while (!done);
+        gasneti_free(tmp_se);
+      }
+      (*exchangefn)(&maxsz, sizeof(uintptr_t), sz_exchg); /* Used as supernode-scoped bcast */
+      maxsz = MIN(maxsz, sz_exchg[first]);
+#endif
     }
 
     /* Free held resources */
