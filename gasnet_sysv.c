@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/24 22:28:06 $
- * $Revision: 1.1.4.26 $
+ *     $Date: 2009/08/24 22:53:04 $
+ * $Revision: 1.1.4.27 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -605,34 +605,32 @@ void gasneti_sysvnet_bootstrapExchange(gasneti_sysvnet_t *vnet, void *src,
 
   gasneti_assert(vnet != NULL);
 
-  /* TODO: right now we assume queues are empty, that queue depth <=
-   * nodes. */
+  /* TODO: right now we assume that available queue depth >= nodes. */
   for (i = 0 ; i < vnet->nodecount; i++) {
-    if (i == gasnet_mynode())
+    if (i == gasneti_mysysvnode)
       continue;
     msg = gasneti_sysvnet_get_send_buffer(vnet, len, i);
     if (msg) {
       memcpy(msg, src, len);
       if (gasneti_sysvnet_deliver_send_buffer(vnet, msg, len, i)) {
         gasneti_fatalerror("T%d: Can't deliver msg to node %d during bootstrap exchange", 
-                           gasnet_mynode(), i);
+                           gasneti_mynode, i);
       }
     } else {
       gasneti_fatalerror("T%d: Couldn't get send buffer during bootstrap exchange!", 
-                         gasnet_mynode());
+                         gasneti_mynode);
     }
   }
   for (i = 1; i < vnet->nodecount; i++) {
-    while (gasneti_sysvnet_recv(vnet, &msg, &inlen, &from))
-      gasneti_sched_yield();
+    gasneti_waitwhile (gasneti_sysvnet_recv(vnet, &msg, &inlen, &from));
     if (len != inlen)
       gasneti_fatalerror("T%d: got invalid msg length (%ld) during bootstrap exchange!", 
-                         gasnet_mynode(), (long int)inlen);
+                         gasneti_mynode, (long int)inlen);
     memcpy( ((char*)dest)+len*sysvnode(vnet, from), msg, len);
     gasneti_sysvnet_recv_release(vnet, msg);
   }
   /* memcpy our own piece */
-  memcpy( ((char*)dest)+len*sysvnode(vnet, gasnet_mynode()), src, len);
+  memcpy( ((char*)dest)+len*sysvnode(vnet, gasneti_mynode), src, len);
   /* barrier to ensure queues won't overflow on back-to-back calls */
   gasneti_sysvnet_bootstrapBarrier();
 }
