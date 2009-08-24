@@ -221,7 +221,7 @@ void smp_coll_barrier_dissem_atomic(smp_coll_t handle, int flags) {
   const dissem_vector_t *barrier_order = dissem->barrier_order;
   int i,j;
   double a=2.0;
-  // gasnett_local_wmb();
+  gasnett_local_wmb();
   for(i=0; i<dissem->dissemination_phases; i++) {
     if(barrier_order[i].n > 0) {
       const int* elem_list = barrier_order[i].elem_list;
@@ -237,7 +237,7 @@ void smp_coll_barrier_dissem_atomic(smp_coll_t handle, int flags) {
     }
   }
   handle->curr_atomic_set = !handle->curr_atomic_set;
-  //gasnett_local_rmb();
+  gasnett_local_rmb();
 
 }
 
@@ -249,7 +249,7 @@ void smp_coll_barrier_tree_push_push(smp_coll_t handle, int flags) {
   double a=2.0;
   int flagset = handle->barrier_flag_set;
   int atomicset = handle->curr_atomic_set;
-  //gasnett_local_wmb();
+  gasnett_local_wmb();
   
   /*push based tree wait for all children*/
   gasneti_waitwhile(SMP_COLL_READ_ATOMIC(handle, handle->MYTHREAD, 0, atomicset)!=handle->barrier_num_children);
@@ -270,7 +270,7 @@ void smp_coll_barrier_tree_push_push(smp_coll_t handle, int flags) {
 
   handle->barrier_flag_set = !handle->barrier_flag_set;
   handle->curr_atomic_set = !handle->curr_atomic_set;
-  //gasnett_local_rmb();
+  gasnett_local_rmb();
 
 }
 
@@ -278,7 +278,7 @@ void smp_coll_barrier_tree_push_pull(smp_coll_t handle, int flags) {
   int i;
   double a=2.0;
   int flagset = handle->barrier_flag_set;
-  //gasnett_local_wmb();
+  gasnett_local_wmb();
   
   /*push based tree wait for all children*/
   gasneti_waitwhile(SMP_COLL_READ_ATOMIC(handle, handle->MYTHREAD, 0, handle->curr_atomic_set)!=handle->barrier_num_children);
@@ -301,13 +301,14 @@ void smp_coll_barrier_tree_push_pull(smp_coll_t handle, int flags) {
   
   handle->barrier_flag_set = !handle->barrier_flag_set;
   handle->curr_atomic_set = !handle->curr_atomic_set;
+  gasnett_local_rmb();
 }
 #define SPIN() gasnett_spinloop_hint()
 void smp_coll_barrier_tree_pull_push(smp_coll_t handle, int flags) {
   int i;
   double a=2.0;
   int flagset = handle->barrier_flag_set;
-  
+  gasnett_local_wmb();
   for(i=0; i<handle->barrier_num_children; i++) {
     gasneti_waitwhile(SMP_COLL_GET_BARRIER_FLAG(handle, handle->barrier_children[i], flagset)==0);
   }
@@ -329,13 +330,14 @@ void smp_coll_barrier_tree_pull_push(smp_coll_t handle, int flags) {
   }
   
   handle->barrier_flag_set = !handle->barrier_flag_set;
+  gasnett_local_rmb();
 }
 
 void smp_coll_barrier_tree_pull_pull(smp_coll_t handle, int flags) {
   int i;
   double a=2.0;
   int flagset = handle->barrier_flag_set;
-  
+  gasnett_local_wmb();
   for(i=0; i<handle->barrier_num_children; i++) {
     gasneti_waitwhile(SMP_COLL_GET_BARRIER_FLAG(handle, handle->barrier_children[i], flagset)==0);
   }
@@ -359,6 +361,7 @@ void smp_coll_barrier_tree_pull_pull(smp_coll_t handle, int flags) {
   SMP_COLL_SET_BARRIER_FLAG(handle, handle->MYTHREAD, 2+flagset, 1);
   
   handle->barrier_flag_set = !handle->barrier_flag_set;
+  gasnett_local_rmb();
 }
 
 #if 0
