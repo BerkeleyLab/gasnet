@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/23 21:29:20 $
- * $Revision: 1.1.4.20 $
+ *     $Date: 2009/08/24 01:18:53 $
+ * $Revision: 1.1.4.21 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,6 +10,11 @@
 
 
 #if GASNET_SYSV
+
+uintptr_t *gasneti_seginfo_correction;
+gasnet_sysvname_t *gasneti_sysvname = NULL;
+gasnet_sysvname_t gasneti_vnetname = {0};
+int gasnetc_sysv_init = 0;
 
 static void *gasnetc_sysvnet_region;
 static gasneti_atomic_t *gasneti_barrier_counter = NULL;
@@ -33,34 +38,34 @@ void gasnetc_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
   if (exchangefn != NULL) {
     /* NOTE: currently bootstrapExchange is performed twice across the entire system.
      * Could we do better?
+     * NOTE: We construct names in-place so gasneti_unlink_segment() can cleanup.
      */
-    gasnet_sysvname_t mine, *tmp;
+    gasnet_sysvname_t *tmp;
     
     /* First the name for individual segments */
-    gasneti_new_sysv_file(mine);
-    gasneti_sysvname = (gasnet_sysvname_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_sysvname_t));
-    (*exchangefn)(&mine, sizeof(gasnet_sysvname_t), gasneti_sysvname);
+    gasneti_sysvname = (gasnet_sysvname_t *)gasneti_calloc(gasneti_nodes,sizeof(gasnet_sysvname_t));
+    gasneti_new_sysv_file(gasneti_sysvname[gasneti_mynode]);
+    (*exchangefn)(gasneti_sysvname[gasneti_mynode], sizeof(gasnet_sysvname_t), gasneti_sysvname);
 
     /* Then sysvnet, selected by the first node of each supernode */
     if (gasneti_mysysvnode == 0) {
-      gasneti_new_sysv_file(mine);
+      gasneti_new_sysv_file(gasneti_vnetname);
     }
     tmp = (gasnet_sysvname_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_sysvname_t));
-    (*exchangefn)(mine, sizeof(gasnet_sysvname_t), tmp);
+    (*exchangefn)(&gasneti_vnetname, sizeof(gasnet_sysvname_t), tmp);
     memcpy(&gasneti_vnetname, &tmp[gasneti_firstsysvnode], sizeof(gasnet_sysvname_t));
     gasneti_free(tmp);
   }
 
-  /* set up additional shared memory region for shared supernode data and AM
-   * infrastructure.
+  /* set up additional shared memory region for AM infrastructure and supernode barrier.
    */
   vnetsz = gasneti_sysvnet_memory_needed(gasneti_sysvnodes); 
   mmapsz = (2*vnetsz) + GASNETI_SYSVNET_PAGESIZE; /* Extra page is for the bootstrapBarrier */
-
-  /* NOTE: What happens here if there is not enough memory to alloc vnet? */
   gasnetc_sysvnet_region = gasneti_mmap_vnet(mmapsz);
   if (gasnetc_sysvnet_region == NULL) {
-    gasneti_fatalerror("mmap for shared memory Active Messages region failed!");
+    gasneti_unlink_segment();
+    gasneti_fatalerror("Failed to mmap %lu bytes for shared memory Active Messages region.",
+                       (unsigned long)mmapsz);
   }
   
   /* Collective call to initialize Shared AM "networks" */

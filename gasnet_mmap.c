@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/23 23:12:33 $
- * $Revision: 1.57.6.16 $
+ *     $Date: 2009/08/24 01:18:53 $
+ * $Revision: 1.57.6.17 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -147,9 +147,12 @@ extern void gasneti_new_sysv_file(char *filename) {
     gasneti_assert(strlen(filename) <= 14); /* Maximum portable length */
     rc = shm_open(filename, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
   } while ((rc < 0) && (errno == EEXIST));
-  if (rc < 0) gasneti_fatalerror("shm_open() failed to find a unique name");
-
-  close(rc);
+  if (rc >= 0) {
+    close(rc);
+  } else {
+    gasneti_unlink_segment();
+    gasneti_fatalerror("Failed to find unique names for shared memory segments");
+  }
 }
 
 static int gasneti_mmap_stretch(int fd, uintptr_t size) {
@@ -241,8 +244,14 @@ extern void *gasneti_mmap_vnet(uintptr_t size) {
   return (ptr == MAP_FAILED) ? NULL : ptr;
 }
 extern void gasneti_unlink_segment(void) {
-    shm_unlink(gasneti_sysvname[gasneti_mynode]);
-    shm_unlink(gasneti_vnetname);
+  /* Try to unlink everything we can, ignoring errors */
+  if (gasneti_sysvname) {
+    gasnet_node_t i;
+    for (i=0; i<gasneti_nodes; ++i) {
+      (void)shm_unlink(gasneti_sysvname[i]);
+    }
+  }
+  (void)shm_unlink(gasneti_vnetname);
 }
 #endif /* GASNET_SYSV */
 
