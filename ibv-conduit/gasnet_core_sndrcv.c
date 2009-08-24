@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2009/08/23 01:03:18 $
- * $Revision: 1.227.4.5 $
+ *     $Date: 2009/08/24 00:33:42 $
+ * $Revision: 1.227.4.6 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1417,7 +1417,7 @@ void gasnetc_do_poll(int poll_rcv, int poll_snd) {
   #endif
     gasnetc_poll_rcv_hca(hca, GASNETC_RCV_REAP_LIMIT);
   #if GASNET_SYSV
-    if (gasnetc_sysv_init==1) gasneti_AMSYSVPoll(0);
+    if_pt (gasnetc_sysv_init) gasneti_AMSYSVPoll(0);
   #endif
   }
 
