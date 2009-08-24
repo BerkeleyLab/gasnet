@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/23 21:12:26 $
- * $Revision: 1.48.4.11 $
+ *     $Date: 2009/08/24 09:02:00 $
+ * $Revision: 1.48.4.12 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -163,9 +163,9 @@ static int gasnetc_init(int *argc, char ***argv) {
    */
   gasneti_sysvname = (gasnet_sysvname_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_sysvname_t));
   for(i=0; i<gasneti_nodes; i++){
-    gasneti_new_sysv_file(gasneti_sysvname[i]);
+    gasneti_sysv_makename(i, gasneti_sysvname[i]);
   }
-  gasneti_new_sysv_file(gasneti_vnetname);
+  gasneti_sysv_makename(gasneti_nodes, gasneti_vnetname);
 
   /* A fork in the road! */
   for (i = 1; i < gasneti_nodes; i++) {

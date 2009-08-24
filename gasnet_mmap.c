@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/24 06:25:14 $
- * $Revision: 1.57.6.19 $
+ *     $Date: 2009/08/24 09:01:58 $
+ * $Revision: 1.57.6.20 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -128,36 +128,46 @@ extern void *gasneti_mmap(uintptr_t segsize) {
 }
 
 #if GASNET_SYSV
-extern void gasneti_new_sysv_file(char *filename) {
-  int i, rc, rand0 = (int)getpid() | 1;
-  const char prefix[] = "/gasnet";
-  const char tbl[] = "0123456789ABCDEFGHIJKLMNOPQRSTUV";
+static char *gasneti_sysv_tmpfile = NULL;
+char *gasneti_sysv_prefix = NULL;
 
-  memcpy(filename, prefix, sizeof(prefix));
-  do {
-    const uint64_t now = gasneti_ticks_now();
-    uint32_t rand1 = (GASNETI_LOWORD(now) ^ GASNETI_HIWORD(now)) * rand0;
-    char *p = filename + sizeof(prefix) - 1;
+extern void gasneti_sysv_makename(int index, char *filename) {
+  const char tbl[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-    for (i = 0; i < 6; ++i) {
-      *(p++) = tbl[rand1 % 32];
-      rand1 /= 32;
+  if (!gasneti_sysv_prefix) { /* First call and not externally initialized */
+    const char *tmpdir;
+    int tmpfd;
+
+    /* Find a directory to use */
+    tmpdir = gasneti_getenv_withdefault("TMPDIR","/tmp");
+    gasneti_sysv_tmpfile = gasneti_malloc(strlen(tmpdir) + GASNETI_SYSV_PREFIX_LEN + 1);
+    strcpy(gasneti_sysv_tmpfile, tmpdir);
+    strcat(gasneti_sysv_tmpfile, "/GASNTXXXXXX");
+
+    /* Now create a unique file in the chosen directory */
+    tmpfd = mkstemp(gasneti_sysv_tmpfile);
+    if (tmpfd < 0) {
+      gasneti_fatalerror("mkstemp() failed to find a unique prefix: %s", strerror(errno));
     }
-    *p = '\0';
-    gasneti_assert(strlen(filename) <= 14); /* Maximum portable length */
-    rc = shm_open(filename, O_CREAT | O_EXCL | O_RDWR, S_IRUSR | S_IWUSR);
-  } while ((rc < 0) && (errno == EEXIST));
-  if (rc >= 0) {
-    close(rc);
-  } else {
-    gasneti_unlink_segment();
-    gasneti_fatalerror("Failed to find unique names for shared memory segments");
+    close(tmpfd);
+    /* Don't unlink() it until we no longer require uniqueness */
+
+    /* Strip away the tmpdir to yield a unique prefix */
+    gasneti_sysv_prefix = strrchr(gasneti_sysv_tmpfile, '/');
+    gasneti_assert(strlen(gasneti_sysv_prefix) == GASNETI_SYSV_PREFIX_LEN);
   }
+
+  /* Two base-36 "digits" provide 1296 unique names, even if a case-insensitive. */
+  gasneti_assert_always(index < (36*36));
+  memcpy(filename, gasneti_sysv_prefix, GASNETI_SYSV_PREFIX_LEN);
+  filename[GASNETI_SYSV_PREFIX_LEN+0] = tbl[index / 36];
+  filename[GASNETI_SYSV_PREFIX_LEN+1] = tbl[index % 36];
+  filename[GASNETI_SYSV_PREFIX_LEN+2] = '\0';
 }
 
 static int gasneti_mmap_stretch(int fd, uintptr_t size) {
 #if 1
-  /* This is from the example code in IEEE Std 1003.1-2001/Cor 2-2004 */
+  /* Use of ftruncate is from the example code in IEEE Std 1003.1-2001/Cor 2-2004 */
   return ftruncate(fd, size);
 #else
   if (lseek(fd, size-1, SEEK_SET) < 0) {
@@ -168,8 +178,8 @@ static int gasneti_mmap_stretch(int fd, uintptr_t size) {
     perror("Error writing last byte of the shm file");
     return -1;
   }
-#endif
   return 0;
+#endif
 }
 
 static void *gasneti_mmap_shared_internal(const char *filename, void *segbase, uintptr_t segsize, int may_fail) {
@@ -178,7 +188,7 @@ static void *gasneti_mmap_shared_internal(const char *filename, void *segbase, u
   gasneti_tick_t t1, t2;
   void	*ptr;
 
-  gasneti_mmapfd = shm_open(filename, O_RDWR, S_IRUSR | S_IWUSR);
+  gasneti_mmapfd = shm_open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
   if (gasneti_mmapfd == -1) {
     gasneti_fatalerror("failed to shm_open(%s): %s\n",filename,strerror(errno));
   }
@@ -252,6 +262,9 @@ extern void gasneti_unlink_segment(void) {
     }
   }
   (void)shm_unlink(gasneti_vnetname);
+  if (gasneti_sysv_tmpfile) {
+    (void)unlink(gasneti_sysv_tmpfile);
+  }
 }
 #endif /* GASNET_SYSV */
 
@@ -521,9 +534,6 @@ static gasneti_segexch_t *gasneti_segexch = NULL; /* exchanged segment informati
     perform their functions with respect the peers on a shared-memory
     node (though exchangefn does require a "full" third argument).
     however, global implementations are acceptible
-
-   For SYSV on 32-bit arch we also try to ensure the combined size fits
-    in the address space, but might not always be perfect about it.
  */
 uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasneti_bootstrapExchangefn_t exchangefn,
