@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/24 01:18:53 $
- * $Revision: 1.57.6.17 $
+ *     $Date: 2009/08/24 01:19:28 $
+ * $Revision: 1.57.6.18 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -522,7 +522,6 @@ static gasneti_segexch_t *gasneti_segexch = NULL; /* exchanged segment informati
     node (though exchangefn does require a "full" third argument).
     however, global implementations are acceptible
 
-  TODO: For SYSV we should probably account for the vnet mmap() too.
   TODO: For SYSV on 32-bit arch, must ensure combined size fits in the address space
  */
 uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
