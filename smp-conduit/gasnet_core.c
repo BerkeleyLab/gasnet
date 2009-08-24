@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/24 09:02:00 $
- * $Revision: 1.48.4.12 $
+ *     $Date: 2009/08/24 11:03:16 $
+ * $Revision: 1.48.4.13 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -161,11 +161,8 @@ static int gasnetc_init(int *argc, char ***argv) {
    * were to call gasnetc_init_sysv() with our bootstrapExchange.
    * PLUS its just plain simpler to do this pre-fork().
    */
-  gasneti_sysvname = (gasnet_sysvname_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_sysvname_t));
-  for(i=0; i<gasneti_nodes; i++){
-    gasneti_sysv_makename(i, gasneti_sysvname[i]);
-  }
-  gasneti_sysv_makename(gasneti_nodes, gasneti_vnetname);
+  gasneti_sysvnodes = gasneti_nodes;
+  (void)gasneti_sysv_makenames(NULL);
 
   /* A fork in the road! */
   for (i = 1; i < gasneti_nodes; i++) {

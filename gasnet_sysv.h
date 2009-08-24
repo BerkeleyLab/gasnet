@@ -17,19 +17,15 @@
   #define GASNETI_SYSVNET_PAGESIZE GASNET_PAGESIZE
 #endif
 
-#define GASNETI_SYSV_PREFIX_LEN 12
+#define GASNETI_SYSV_UNIQUE_LEN 6
 
 typedef void (*gasneti_handler_fn_t)();
-typedef char gasnet_sysvname_t[16];
 
 extern uintptr_t *gasneti_seginfo_correction;
 extern uintptr_t gasneti_sysvsize;
-extern gasnet_sysvname_t *gasneti_sysvname;
-extern gasnet_sysvname_t gasneti_vnetname;
 extern int gasnetc_sysv_init;
-extern char *gasneti_sysv_prefix;
 
-extern void gasneti_sysv_makename(int index, char *filename);
+extern const char *gasneti_sysv_makenames(const char *unique);
 extern void gasneti_unlink_segment(void);
 extern void *gasneti_mmap_vnet(uintptr_t segsize);
 extern gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest);

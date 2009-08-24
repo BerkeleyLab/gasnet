@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/24 09:48:07 $
- * $Revision: 1.57.6.21 $
+ *     $Date: 2009/08/24 11:03:14 $
+ * $Revision: 1.57.6.22 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -128,21 +128,31 @@ extern void *gasneti_mmap(uintptr_t segsize) {
 }
 
 #if GASNET_SYSV
+typedef char gasnet_sysvname_t[16];
+static gasnet_sysvname_t *gasneti_sysvname = NULL; /* length 1+gasneti_sysvnodes, the +1 is for AMs */
+
 static char *gasneti_sysv_tmpfile = NULL;
-char *gasneti_sysv_prefix = NULL;
+#define GASNETI_SYSV_PREFIX_LEN1  6  /* "/GASNT" */
+#define GASNETI_SYSV_PREFIX_LEN   (GASNETI_SYSV_PREFIX_LEN1 + GASNETI_SYSV_UNIQUE_LEN)
 
-extern void gasneti_sysv_makename(int index, char *filename) {
-  const char tbl[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+static void make_sysv_name(int index, char *filename) {
+}
 
-  if (!gasneti_sysv_prefix) { /* First call and not externally initialized */
-    const char *tmpdir;
+extern const char *gasneti_sysv_makenames(const char *unique) {
+  static char prefix[] = "/GASNTXXXXXX";
+  int i;
+
+  gasneti_assert(strlen(prefix) == GASNETI_SYSV_PREFIX_LEN);
+
+  if (!unique) { /* We get to pick the unique bits */
+    const char *tmpdir, *tmp;
     int tmpfd;
 
     /* Find a directory to use */
     tmpdir = gasneti_getenv_withdefault("TMPDIR","/tmp");
     gasneti_sysv_tmpfile = gasneti_malloc(strlen(tmpdir) + GASNETI_SYSV_PREFIX_LEN + 1);
     strcpy(gasneti_sysv_tmpfile, tmpdir);
-    strcat(gasneti_sysv_tmpfile, "/GASNTXXXXXX");
+    strcat(gasneti_sysv_tmpfile, prefix);
 
     /* Now create a unique file in the chosen directory */
     tmpfd = mkstemp(gasneti_sysv_tmpfile);
@@ -153,16 +163,28 @@ extern void gasneti_sysv_makename(int index, char *filename) {
     /* Don't unlink() it until we no longer require uniqueness */
 
     /* Strip away the tmpdir to yield a unique prefix */
-    gasneti_sysv_prefix = strrchr(gasneti_sysv_tmpfile, '/');
-    gasneti_assert(strlen(gasneti_sysv_prefix) == GASNETI_SYSV_PREFIX_LEN);
+    unique = strrchr(gasneti_sysv_tmpfile, '/');
+    gasneti_assert(strlen(unique) == GASNETI_SYSV_PREFIX_LEN);
+    unique += GASNETI_SYSV_PREFIX_LEN1;
   }
 
-  /* Two base-36 "digits" provide 1296 unique names, even if a case-insensitive. */
-  gasneti_assert_always(index < (36*36));
-  memcpy(filename, gasneti_sysv_prefix, GASNETI_SYSV_PREFIX_LEN);
-  filename[GASNETI_SYSV_PREFIX_LEN+0] = tbl[index / 36];
-  filename[GASNETI_SYSV_PREFIX_LEN+1] = tbl[index % 36];
-  filename[GASNETI_SYSV_PREFIX_LEN+2] = '\0';
+  /* Note: 'unique' might not be NUL terminated */
+  memcpy(prefix + GASNETI_SYSV_PREFIX_LEN1, unique, GASNETI_SYSV_UNIQUE_LEN);
+
+  /* Two base-36 "digits" provide 1296 unique names, even if case-insensitive. */
+  gasneti_assert_always(gasneti_sysvnodes < (36*36));
+  gasneti_sysvname = (gasnet_sysvname_t *)gasneti_malloc((gasneti_sysvnodes+1) * sizeof(gasnet_sysvname_t));
+  for (i = 0; i <= gasneti_sysvnodes; ++i) {
+    const char tbl[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    char *filename = gasneti_sysvname[i];
+
+    memcpy(filename, prefix, GASNETI_SYSV_PREFIX_LEN);
+    filename[GASNETI_SYSV_PREFIX_LEN+0] = tbl[i / 36];
+    filename[GASNETI_SYSV_PREFIX_LEN+1] = tbl[i % 36];
+    filename[GASNETI_SYSV_PREFIX_LEN+2] = '\0';
+  }
+
+  return unique;
 }
 
 static int gasneti_mmap_stretch(int fd, uintptr_t size) {
@@ -182,7 +204,8 @@ static int gasneti_mmap_stretch(int fd, uintptr_t size) {
 #endif
 }
 
-static void *gasneti_mmap_shared_internal(const char *filename, void *segbase, uintptr_t segsize, int may_fail) {
+static void *gasneti_mmap_shared_internal(int sysvnode, void *segbase, uintptr_t segsize, int may_fail) {
+  const char *filename = gasneti_sysvname[sysvnode];
   const int flags = MAP_SHARED | (segbase ? GASNETI_MMAP_FIXED_FLAG : GASNETI_MMAP_NOTFIXED_FLAG);
   int gasneti_mmapfd;
   gasneti_tick_t t1, t2;
@@ -241,29 +264,31 @@ static void *gasneti_mmap_shared_internal(const char *filename, void *segbase, u
 }
 
 static void *gasneti_mmap_remote_shared(void *segbase, uintptr_t segsize, gasnet_node_t sysvnode) {
-  return gasneti_mmap_shared_internal(gasneti_sysvname[sysvnode], segbase, segsize, 0);
+  gasneti_assert(sysvnode < gasneti_sysvnodes);
+  return gasneti_mmap_shared_internal(sysvnode, segbase, segsize, 0);
 }
 extern void gasneti_mmap_shared_fixed(void *segbase, uintptr_t segsize) {
-  gasneti_mmap_shared_internal(gasneti_sysvname[gasneti_mysysvnode], segbase, segsize, 0);
+  gasneti_mmap_shared_internal(gasneti_mysysvnode, segbase, segsize, 0);
 }
 extern void *gasneti_mmap_shared(uintptr_t segsize) {
-  return gasneti_mmap_shared_internal(gasneti_sysvname[gasneti_mysysvnode], NULL, segsize, 1);
+  return gasneti_mmap_shared_internal(gasneti_mysysvnode, NULL, segsize, 1);
 }
 extern void *gasneti_mmap_vnet(uintptr_t size) {
-  void *ptr = gasneti_mmap_shared_internal(gasneti_vnetname, NULL, size, 1);
+  void *ptr = gasneti_mmap_shared_internal(gasneti_sysvnodes, NULL, size, 1);
   return (ptr == MAP_FAILED) ? NULL : ptr;
 }
 extern void gasneti_unlink_segment(void) {
   /* Try to unlink everything we can, ignoring errors */
   if (gasneti_sysvname) {
-    gasnet_node_t i;
-    for (i=0; i<gasneti_sysvnodes; ++i) {
+    int i;
+    for (i=0; i<=gasneti_sysvnodes; ++i) {
       (void)shm_unlink(gasneti_sysvname[i]);
     }
+    gasneti_free(gasneti_sysvname);
   }
-  (void)shm_unlink(gasneti_vnetname);
   if (gasneti_sysv_tmpfile) {
     (void)unlink(gasneti_sysv_tmpfile);
+    gasneti_free(gasneti_sysv_tmpfile);
   }
 }
 #endif /* GASNET_SYSV */
