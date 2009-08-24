@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/24 11:38:29 $
- * $Revision: 1.205.6.9 $
+ *     $Date: 2009/08/24 20:33:17 $
+ * $Revision: 1.205.6.10 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1549,23 +1549,12 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_segmentInit((gasnetc_pin_info.memory - reserved_mem), &gasneti_bootstrapExchange);
   }
   #elif GASNET_SEGMENT_LARGE
-
-#if GASNET_SYSV
-  { uintptr_t limit;
-      #if HAVE_MMAP
-        limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
+  {
+    uintptr_t limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
                                   &gasneti_bootstrapExchange,
                                   &gasneti_bootstrapBarrier),
-      #else
-        limit = (intptr_t)-1;
-      #endif
-      gasneti_bootstrapBarrier();
-      gasneti_segmentInit(limit, &gasneti_bootstrapExchange);
-    }
-#else
-    gasneti_segmentInit((uintptr_t)(-1), &gasneti_bootstrapExchange);
-#endif
-
+    gasneti_segmentInit(limit, &gasneti_bootstrapExchange);
+  }
   #elif GASNET_SEGMENT_EVERYTHING
     /* segment is everything - nothing to do */
   #endif
