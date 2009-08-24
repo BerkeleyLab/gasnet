@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_indexed.c,v $
- *     $Date: 2006/07/07 22:03:57 $
- * $Revision: 1.21 $
+ *     $Date: 2009/08/24 05:49:12 $
+ * $Revision: 1.21.40.1 $
  * Description: GASNet Indexed implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -358,6 +358,7 @@ gasnet_handle_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
     void * * const packedbuf = savedlst + dstcount;
     gasnete_packetdesc_t *remotept;
     gasnete_packetdesc_t *localpt;
+    gasneti_eop_t *eop;
     size_t packetidx;
     size_t const packetcnt = gasnete_packetize_addrlist(srccount, srclen, dstcount, dstlen,  
                                                 &remotept, &localpt, gasnet_AMMaxMedium(), 0);
@@ -372,6 +373,7 @@ gasnet_handle_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
     visop->addr = localpt;
     memcpy(savedlst, dstlist, dstcount*sizeof(void *));
     gasneti_weakatomic_set(&(visop->packetcnt), packetcnt, GASNETI_ATOMIC_WMB_POST);
+    eop = visop->eop; /* visop may disappear once the last AM is launched */
 
     for (packetidx = 0; packetidx < packetcnt; packetidx++) {
       gasnete_packetdesc_t * const rpacket = &remotept[packetidx];
@@ -387,7 +389,7 @@ gasnet_handle_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
     }
 
     gasneti_free(remotept);
-    GASNETE_VISOP_RETURN(visop, synctype);
+    GASNETE_VISOP_RETURN_VOLATILE(eop, synctype);
   }
 }
   #define GASNETE_GETI_AMPIPELINE_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen) \

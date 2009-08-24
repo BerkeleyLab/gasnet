@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_strided.c,v $
- *     $Date: 2006/07/07 22:03:57 $
- * $Revision: 1.25 $
+ *     $Date: 2009/08/24 05:49:12 $
+ * $Revision: 1.25.40.1 $
  * Description: GASNet Strided implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -869,6 +869,7 @@ gasnet_handle_t gasnete_gets_AMPipeline(gasnete_strided_stats_t const *stats, ga
     size_t * const packetcount = packetinit + stridelevels;
     size_t * const packetstrides = packetcount + stridelevels + 1;
     size_t remaining = totalchunks;
+    gasneti_eop_t *eop;
 
     gasneti_assert(chunksz*totalchunks == stats->totalsz);
     gasneti_assert(chunksperpacket >= 1);
@@ -888,6 +889,7 @@ gasnet_handle_t gasnete_gets_AMPipeline(gasnete_strided_stats_t const *stats, ga
     memcpy(tablestrides, dststrides, stridelevels*sizeof(size_t));
     memcpy(packetstrides, srcstrides, stridelevels*sizeof(size_t));
     memset(tableinit, 0, stridelevels*sizeof(size_t)); /* init[] = [0..0] */
+    eop = visop->eop; /* visop may disappear once the last AM is launched */
 
     for (packetidx = 0; packetidx < packetcnt; packetidx++) {
       size_t const packetchunks = MIN(chunksperpacket, remaining);
@@ -908,7 +910,7 @@ gasnet_handle_t gasnete_gets_AMPipeline(gasnete_strided_stats_t const *stats, ga
     }
     gasneti_assert(remaining == 0);
     gasneti_assert(tableinit == packetbase);
-    GASNETE_VISOP_RETURN(visop, synctype);
+    GASNETE_VISOP_RETURN_VOLATILE(eop, synctype);
   }
 }
   #define GASNETE_GETS_AMPIPELINE_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels) \

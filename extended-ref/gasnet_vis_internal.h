@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_internal.h,v $
- *     $Date: 2008/12/26 05:30:58 $
- * $Revision: 1.19 $
+ *     $Date: 2009/08/24 05:49:12 $
+ * $Revision: 1.19.6.1 $
  * Description: Internal definitions for GASNet Vector, Indexed & Strided implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -96,21 +96,25 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     }                                                                 \
 } while (0)
 
-#define GASNETE_VISOP_RETURN(visop, synctype) do {                   \
+/* Must not reference visop, which may no longer exist */
+#define GASNETE_VISOP_RETURN_VOLATILE(eop, synctype) do {            \
     switch (synctype) {                                              \
       case gasnete_synctype_b: {                                     \
-        gasnet_handle_t h = gasneti_eop_to_handle(visop->eop);       \
+        gasnet_handle_t h = gasneti_eop_to_handle(eop);              \
         gasnete_wait_syncnb(h);                                      \
         return GASNET_INVALID_HANDLE;                                \
       }                                                              \
       case gasnete_synctype_nb:                                      \
-        return gasneti_eop_to_handle(visop->eop);                    \
+        return gasneti_eop_to_handle(eop);                           \
       case gasnete_synctype_nbi:                                     \
         return GASNET_INVALID_HANDLE;                                \
       default: gasneti_fatalerror("bad synctype");                   \
         return GASNET_INVALID_HANDLE; /* avoid warning on MIPSPro */ \
     }                                                                \
 } while (0)
+
+#define GASNETE_VISOP_RETURN(visop, synctype) \
+    GASNETE_VISOP_RETURN_VOLATILE(visop->eop, synctype)
 
 /* signal a visop dummy eop/iop */
 #define GASNETE_VISOP_SIGNAL(visop, isget) do {       \
