@@ -26,8 +26,9 @@ extern uintptr_t gasneti_sysvsize;
 extern int gasnetc_sysv_init;
 
 extern const char *gasneti_sysv_makenames(const char *unique);
-extern void gasneti_unlink_segment(void);
 extern void *gasneti_mmap_vnet(uintptr_t segsize);
+extern void gasneti_unlink_vnet(void);
+
 extern gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest);
 extern void gasnetc_token_destroy(gasnet_token_t token);
 extern gasneti_handler_fn_t gasneti_get_handler(int handler_id);
@@ -139,6 +140,8 @@ extern gasnet_node_t gasneti_mysysvnode;
 
 /* Returns 1 if given node is in the caller's supernode, or 0 if it's not.
  * NOTE: result is false if !gasneti_sysvnodes (e.g. before vnet initialization)
+ * TODO: This implementation is only correct when gasnet node numbers
+ *       within a supernode are contiguous.
  */
 GASNETI_INLINE(gasneti_sysvnet_in_supernode)
 int gasneti_sysv_in_supernode(gasnet_node_t node) {

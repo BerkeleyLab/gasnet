@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/24 11:38:23 $
- * $Revision: 1.57.6.23 $
+ *     $Date: 2009/08/24 22:28:06 $
+ * $Revision: 1.57.6.24 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -187,6 +187,35 @@ extern const char *gasneti_sysv_makenames(const char *unique) {
   return unique;
 }
 
+/* shm_unlink() so the shared memory will disappear upon exit.
+ * This must be called collectively, because barriers are
+ * used to prevent races against shm_open() before or after.
+ */
+static void gasneti_unlink_segments(void) {
+  gasneti_sysvnet_bootstrapBarrier();
+  (void)shm_unlink(gasneti_sysvname[gasneti_mysysvnode]);
+  gasneti_sysvnet_bootstrapBarrier();
+}
+
+/* Try to unlink everything we can, ignoring errors */
+static void gasneti_cleanup_shm(void) {
+  int i;
+  if (gasneti_sysvname) {
+    /* Unlink the segments */
+    for (i=0; i<gasneti_sysvnodes; ++i) {
+      (void)shm_unlink(gasneti_sysvname[i]);
+    }
+    /* Unlink the vnet */
+    (void)shm_unlink(gasneti_sysvname[gasneti_sysvnodes]);
+    gasneti_free(gasneti_sysvname);
+  }
+  /* Remove the tmpfile that ensures uniqueness of our filenames */
+  if (gasneti_sysv_tmpfile) {
+    (void)unlink(gasneti_sysv_tmpfile);
+    gasneti_free(gasneti_sysv_tmpfile);
+  }
+}
+
 static int gasneti_mmap_stretch(int fd, uintptr_t size) {
 #if 1
   /* Use of ftruncate is from the example code in IEEE Std 1003.1-2001/Cor 2-2004 */
@@ -217,7 +246,7 @@ static void *gasneti_mmap_shared_internal(int sysvnode, void *segbase, uintptr_t
   }
   if (gasneti_mmap_stretch(gasneti_mmapfd, segsize)) {
     if (may_fail) return MAP_FAILED;
-    shm_unlink(filename);
+    gasneti_cleanup_shm();
     gasneti_fatalerror("failed to setup shared memory file %s",filename);
   }
  
@@ -273,23 +302,13 @@ extern void gasneti_mmap_shared_fixed(void *segbase, uintptr_t segsize) {
 extern void *gasneti_mmap_shared(uintptr_t segsize) {
   return gasneti_mmap_shared_internal(gasneti_mysysvnode, NULL, segsize, 1);
 }
+
 extern void *gasneti_mmap_vnet(uintptr_t size) {
   void *ptr = gasneti_mmap_shared_internal(gasneti_sysvnodes, NULL, size, 1);
   return (ptr == MAP_FAILED) ? NULL : ptr;
 }
-extern void gasneti_unlink_segment(void) {
-  /* Try to unlink everything we can, ignoring errors */
-  if (gasneti_sysvname) {
-    int i;
-    for (i=0; i<=gasneti_sysvnodes; ++i) {
-      (void)shm_unlink(gasneti_sysvname[i]);
-    }
-    gasneti_free(gasneti_sysvname);
-  }
-  if (gasneti_sysv_tmpfile) {
-    (void)unlink(gasneti_sysv_tmpfile);
-    gasneti_free(gasneti_sysv_tmpfile);
-  }
+extern void gasneti_unlink_vnet(void) {
+  (void)shm_unlink(gasneti_sysvname[gasneti_sysvnodes]);
 }
 #endif /* GASNET_SYSV */
 
@@ -661,6 +680,9 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
       }
       (*exchangefn)(&maxsz, sizeof(uintptr_t), sz_exchg); /* Used as supernode-scoped bcast */
       maxsz = MIN(maxsz, sz_exchg[first]);
+
+      /* Unlink the shared segments to prevent leaks (they are recreated in segmentInit) */
+      gasneti_unlink_segments();
 #endif
     }
 
@@ -727,6 +749,9 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
         gasneti_remote_segments[i].addr = gasneti_mmap_remote_shared(NULL,gasneti_segexch[j].seginfo.size,i);
         gasneti_remote_segments[i].size = gasneti_segexch[j].seginfo.size;
     }
+
+    /* Unlink the shared segments to prevent leaks (they are recreated in segmentAttach) */
+    gasneti_unlink_segments();
 #endif
  
     /* compute bounding-box of segment location */
@@ -1078,6 +1103,11 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
     int i,j;
     uintptr_t *seginfo_correction;
 
+#if GASNET_SYSV
+    /* Avoid leaking shared memory files in case of non-collective exit between init/attach */
+    gasneti_sysvnet_bootstrapBarrier();
+#endif
+
     gasneti_segmentAttachLocal(segsize, minheapoffset, seginfo, exchangefn);
     gasneti_segment.remote_addr = 0;
     gasneti_segment.remote_size = 0;
@@ -1156,7 +1186,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
   gasneti_free(seginfo_correction); 
 
   gasneti_sysvnet_bootstrapBarrier();
-  gasneti_unlink_segment();
+  gasneti_cleanup_shm();
 #endif /* GASNET_SYSV */
 
 } 

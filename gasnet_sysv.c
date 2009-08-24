@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/24 11:03:14 $
- * $Revision: 1.1.4.25 $
+ *     $Date: 2009/08/24 22:28:06 $
+ * $Revision: 1.1.4.26 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -59,19 +59,25 @@ void gasnetc_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
   mmapsz = (2*vnetsz) + GASNETI_SYSVNET_PAGESIZE; /* Extra page is for the bootstrapBarrier */
   gasnetc_sysvnet_region = gasneti_mmap_vnet(mmapsz);
   if (gasnetc_sysvnet_region == NULL) {
-    gasneti_unlink_segment();
+    gasneti_unlink_vnet();
     gasneti_fatalerror("Failed to mmap %lu bytes for shared memory Active Messages region.",
                        (unsigned long)mmapsz);
   }
   
+  /* Prepare the barrier */
+  gasneti_barrier_counter = (gasneti_atomic_t *)((uintptr_t)gasnetc_sysvnet_region + 2*vnetsz);
+
+  /* Unlink the shared memory file to prevent leaks */
+  gasneti_sysvnet_bootstrapBarrier();
+  gasneti_unlink_vnet();
+
   /* Collective call to initialize Shared AM "networks" */
   gasneti_sysvnet_init(&gasneti_request_sysvnet, gasnetc_sysvnet_region,
                        vnetsz, gasneti_firstsysvnode, gasneti_sysvnodes);
   gasneti_sysvnet_init(&gasneti_reply_sysvnet, (void*)((uintptr_t)gasnetc_sysvnet_region + vnetsz),
                        vnetsz, gasneti_firstsysvnode, gasneti_sysvnodes);
 
-  /* Prepare the barrier and call it once to ensure all our peers are ready */
-  gasneti_barrier_counter = (gasneti_atomic_t *)((uintptr_t)gasnetc_sysvnet_region + 2*vnetsz);
+  /* Ensure all peers are initialized before return */
   gasneti_sysvnet_bootstrapBarrier();
 }
 
