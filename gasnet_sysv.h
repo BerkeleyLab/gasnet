@@ -58,7 +58,7 @@ uintptr_t gasneti_sysvnet_queue_mem;
 typedef struct gasneti_sysvnet_msg {
   void * addr;
   size_t len;
-  gasneti_atomic_t ready4receipt;
+  gasneti_atomic_t state;
   /* Paul informs me that padding with GASNETI_CACHE_PAD ensures the struct
    * is sizeof(cache_line), but not that it's aligned on a single cache line.
    * But we enforce cache line alignment, so we're OK */
@@ -72,6 +72,13 @@ typedef struct gasneti_sysvnet_msg {
     char _pad[GASNETI_CACHE_LINE_BYTES];
   #endif
 } gasneti_sysvnet_msg_t;
+
+/* Values for gasneti_sysvnet_msg_t.state */
+enum {
+  GASNETI_SYSVNET_EMPTY = 0,
+  GASNETI_SYSVNET_FULL,
+  GASNETI_SYSVNET_BUSY
+};
 
 
 /* Circular queue of info about received messages */

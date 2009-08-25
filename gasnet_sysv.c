@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/25 01:21:43 $
- * $Revision: 1.1.4.28 $
+ *     $Date: 2009/08/25 02:25:38 $
+ * $Revision: 1.1.4.29 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -267,7 +267,7 @@ static void init_queue(gasneti_sysvnet_queue_t *q, gasneti_sysvnet_msg_t *msgs,
   gasneti_mutex_init(&q->send_lock);
 
   for (i = 0; i < depth; i++) {
-    gasneti_atomic_set(&msgs->ready4receipt, 0, 0);
+    gasneti_atomic_set(&msgs->state, GASNETI_SYSVNET_EMPTY, 0);
     msgs++;
   }
 
@@ -284,9 +284,9 @@ static void init_queue(gasneti_sysvnet_queue_t *q, gasneti_sysvnet_msg_t *msgs,
   gasneti_mutex_init(&q->recv_lock);
   gasneti_mutex_init(&q->send_lock);
 
-  //printf("%d> init_queue address q->send_next %u, q->send_next->ready4receipt %u q->send_next->ready4receipt.ctr %u\n",gasneti_mysysvnode,&q->send_next, &q->send_next->ready4receipt, &q->send_next->ready4receipt.ctr);
+  //printf("%d> init_queue address q->send_next %u, q->send_next->state %u q->send_next->state.ctr %u\n",gasneti_mysysvnode,&q->send_next, &q->send_next->state, &q->send_next->state.ctr);
   for (i = 0; i < depth; i++) {
-    gasneti_atomic_set(&msgs->ready4receipt, 0, 0);
+    gasneti_atomic_set(&msgs->state, GASNETI_SYSVNET_EMPTY, 0);
     msgs++;
   }
 }
@@ -409,7 +409,7 @@ int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf,
    * are no free slots in the recipient's queue.  Since there is only one
    * sender, one receiver, and the receiver consumes messages in order, this
    * should be true, so no scan over the list is needed. */
-  if (!gasneti_atomic_read(&q_send_next->ready4receipt, 0)) {
+  if (gasneti_atomic_read(&q_send_next->state, 0) == GASNETI_SYSVNET_EMPTY) {
     retval = 0;
     /* fill in message info. Instead of buf we use offset since it
      * will be read by another node wich does not have identical sysvnet
@@ -421,7 +421,7 @@ int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf,
     gasneti_assert(buf == &p->payload);
     p->info.msg = gasneti_sysv_offset(q_send_next);
     /* Perform write flush before writing ready bit */
-    gasneti_atomic_set(&q_send_next->ready4receipt, 1, GASNETI_ATOMIC_REL);
+    gasneti_atomic_set(&q_send_next->state, GASNETI_SYSVNET_FULL, GASNETI_ATOMIC_REL);
     /* Advance q->send_next (logic is the same regardless of addr vs. offset) */
     if (++q->send_next == q->justpastlast)
       q->send_next = q->queue;
@@ -460,7 +460,8 @@ int gasneti_sysvnet_recv(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize,
       /* Get the actual address of q->recv_next (q-> contains only offsets) */
       q_recv_next = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->recv_next);
       
-      if (gasneti_atomic_read(&q_recv_next->ready4receipt, GASNETI_ATOMIC_ACQ)) {
+      if (gasneti_atomic_compare_and_swap(&q_recv_next->state, GASNETI_SYSVNET_FULL,
+                                          GASNETI_SYSVNET_BUSY, GASNETI_ATOMIC_ACQ_IF_TRUE)) {
         /* Transform the offset in q_recv_next->addr into a real address */
         *pbuf = gasneti_sysv_addr(q_recv_next->addr);
         *psize = q_recv_next->len;
@@ -495,7 +496,7 @@ int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf,
    * are no free slots in the recipient's queue.  Since there is only one
    * sender, one receiver, and the receiver consumes messages in order, this
    * should be true, so no scan over the list is needed. */
-  if (!gasneti_atomic_read(&q->send_next->ready4receipt, 0)) {
+  if (gasneti_atomic_read(&q->send_next->state, 0) == GASNETI_SYSVNET_EMPTY) {
     retval = 0;
     /* fill in message info */
     q->send_next->addr = buf;
@@ -505,7 +506,7 @@ int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf,
     gasneti_assert(buf == &p->payload);
     p->info.msg = q->send_next;
     /* Perform write flush before writing ready bit */
-    gasneti_atomic_set(&q->send_next->ready4receipt, 1, GASNETI_ATOMIC_REL);
+    gasneti_atomic_set(&q->send_next->state, GASNETI_SYSVNET_FULL, GASNETI_ATOMIC_REL);
     if (++q->send_next == q->justpastlast)
       q->send_next = q->queue;
   }
@@ -522,7 +523,8 @@ int gasneti_sysvnet_recv(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize,
       gasneti_sysvnet_queue_t *q = vnet->in_queues[vnet->nextindex];
       gasneti_assert(q != NULL);
       gasneti_mutex_lock(&q->recv_lock);
-      if (gasneti_atomic_read(&q->recv_next->ready4receipt, GASNETI_ATOMIC_ACQ)) {
+      if (gasneti_atomic_compare_and_swap(&q->recv_next->state, GASNETI_SYSVNET_FULL,
+                                          GASNETI_SYSVNET_BUSY, GASNETI_ATOMIC_ACQ_IF_TRUE)) {
         *pbuf = q->recv_next->addr;
         *psize = q->recv_next->len;
         if (++q->recv_next == q->justpastlast)
@@ -545,12 +547,9 @@ int gasneti_sysvnet_recv(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize,
 #endif
 
 /* TODO: the current behavior if a user forgets to call this function is
- * NASTY--the message stays marked as 'ready4receipt', which will both cause
- * senders to think the queue is full, and the receiver to receive the same
- * message again if/when the queue pointer wraps around.  This could cause
+ * NASTY--the message stays marked as state==FULL, which will cause
+ * senders to think the queue is full.  This could cause
  * deadlock and/or lots of confusion (for me it was the latter).
- * - Add another field to payload ('marked_as_released') in debug mode, and
- *   throw an error in receive/deliver functions if it's not set? 
  */
 void gasneti_sysvnet_recv_release(gasneti_sysvnet_t *vnet, void *buf)
 {
@@ -562,7 +561,8 @@ void gasneti_sysvnet_recv_release(gasneti_sysvnet_t *vnet, void *buf)
   gasneti_assert(p && p->info.msg && p->info.allocator);
   /* mark msg as free */
   p->info.msg = gasneti_sysv_addr(p->info.msg);
-  gasneti_atomic_set(&p->info.msg->ready4receipt, 0, 0);
+  gasneti_assert(gasneti_atomic_read(&p->info.msg->state,0) == GASNETI_SYSVNET_BUSY);
+  gasneti_atomic_set(&p->info.msg->state, GASNETI_SYSVNET_EMPTY, 0);
   gasneti_sysvnet_free(p->info.allocator, p);
 }
 
