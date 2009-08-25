@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/24 22:28:06 $
- * $Revision: 1.57.6.24 $
+ *     $Date: 2009/08/25 01:30:24 $
+ * $Revision: 1.57.6.25 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -570,7 +570,7 @@ static gasneti_segexch_t *gasneti_segexch = NULL; /* exchanged segment informati
     If non-NULL will be called after any gasneti_munmap() to ensure all
     on-node unmap operations are completed.
     A caller may pass NULL if it can guarantee no race against following
-    mmap() calls, UNLESS building for GASNET_SYSV.
+    mmap() calls.
    returns a value suitable for use as localSegmentLimit in a call
     to gasneti_segmentInit()
    
@@ -646,8 +646,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
        */
       if (se.size) gasneti_munmap(se.addr, se.size);
       se.size = 0;
-      gasneti_assert(barrierfn);
-      (barrierfn)(); /* Ensures munmap()s complete on-node */
+      gasneti_sysvnet_bootstrapBarrier(); /* Ensures munmap()s complete on-node */
 
       if (gasneti_mynode == first) {
         gasnet_seginfo_t *tmp_se = gasneti_calloc(gasneti_nodemap_local_count,sizeof(gasnet_seginfo_t));
@@ -678,8 +677,9 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
         } while (!done);
         gasneti_free(tmp_se);
       }
-      (*exchangefn)(&maxsz, sizeof(uintptr_t), sz_exchg); /* Used as supernode-scoped bcast */
-      maxsz = MIN(maxsz, sz_exchg[first]);
+
+      /* supernode-local communication of the maxsz results */
+      gasneti_sysvnet_bootstrapBroadcast(gasneti_request_sysvnet, &maxsz, sizeof(uintptr_t), &maxsz, 0);
 
       /* Unlink the shared segments to prevent leaks (they are recreated in segmentInit) */
       gasneti_unlink_segments();
