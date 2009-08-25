@@ -122,11 +122,11 @@ smp_coll_t smp_coll_init(pthread_t my_pthread_handle,
 
   smp_coll_reset_all_flags(ret);
 
-
-
   ret->dissem_info=NULL;
   if(!(flags & SMP_COLL_SKIP_TUNE_BARRIERS)) {
     smp_coll_tune_barrier(ret);
+  } else {
+    smp_coll_set_barrier_routine(ret, 3, 4);
   }
 #if 0
   smp_coll_set_broadcast_routine(ret, SMP_COLL_BROADCAST_TREE_FLAG, 2);
