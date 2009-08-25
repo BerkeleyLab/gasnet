@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/25 03:01:55 $
- * $Revision: 1.1.4.30 $
+ *     $Date: 2009/08/25 04:53:12 $
+ * $Revision: 1.1.4.31 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -890,7 +890,7 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
   } else {
     while (!(msg = gasneti_sysvnet_get_send_buffer(vnet, msgsz, dest))) {
       /* If reply, only poll reply network: avoids deadlock  */
-      if (isReq) gasneti_AMPoll();
+      if (isReq) gasnetc_AMPoll(); /* No progress functions */
       else gasneti_AMSYSVPoll(1);
     }
   }
@@ -948,7 +948,7 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
     
     while (gasneti_sysvnet_deliver_send_buffer(vnet, msg, msgsz, dest)) {
       /* If reply, only poll reply network: avoids deadlock  */
-      if (isReq) gasneti_AMPoll();
+      if (isReq) gasnetc_AMPoll(); /* No progress functions */
       else gasneti_AMSYSVPoll(1);
     }
   }
