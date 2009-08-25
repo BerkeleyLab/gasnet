@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/08/24 23:09:47 $
- * $Revision: 1.72.10.45 $
+ *     $Date: 2009/08/25 23:14:01 $
+ * $Revision: 1.72.10.46 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -530,7 +530,7 @@ void gasnete_coll_threads_unlock(GASNETE_THREAD_FARG_ALONE) {
 /* Each thread calls this upon arrival.  First arrival gets non-zero */
 int gasnete_coll_threads_first(GASNETE_THREAD_FARG_ALONE) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
-  static int testing[2]={0,0};
+
 #if ALL_THREADS_POLL
   /*in the case where all threads don't poll the lock aquisition has been removed so 
    this will always return true even if it's not the first thread
@@ -547,7 +547,7 @@ int gasnete_coll_threads_first(GASNETE_THREAD_FARG_ALONE) {
     /*no atomics are needed here since there is already an extra lelvel of synchronization protecting the 
      the data*/
     const uint32_t sequence = td->threads.sequence;
-    testing[td->my_local_image]++;
+
     ++td->threads.sequence;
     if (sequence == gasnete_coll_threads_sequence) {
       ++gasnete_coll_threads_sequence;
@@ -837,9 +837,10 @@ static gasnete_coll_op_t *gasnete_coll_agg = NULL;
 
 
 gasnet_coll_handle_t
-gasnete_coll_op_submit(gasnete_coll_op_t *op, gasnet_coll_handle_t handle GASNETE_THREAD_FARG) {
+gasnete_coll_op_submit(gasnete_coll_op_t *op, gasnet_coll_handle_t handle GASNETE_THREAD_FARG) {  
   op->agg_head = NULL;
   op->handle = handle;
+  
 
   if_pf (op->flags & GASNET_COLL_AGGREGATE) {
     gasnete_coll_op_t *head = gasnete_coll_agg;
