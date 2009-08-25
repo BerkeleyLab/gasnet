@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/24 22:53:04 $
- * $Revision: 1.1.4.27 $
+ *     $Date: 2009/08/25 01:21:43 $
+ * $Revision: 1.1.4.28 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -194,12 +194,10 @@ static int get_queue_depth(gasnet_node_t nodes)
     fprintf(stderr, "GASNET_SYSVNET_QUEUE_DEPTH (%d) larger than max: using max (%d)\n",
             val, GASNETI_SYSVNET_MAX_QUEUE_DEPTH);
     val = GASNETI_SYSVNET_MAX_QUEUE_DEPTH;
-  } else if (val < nodes) {
-    /* ensure queue depth >= nodes, so that lazily-written 
-     * gasneti_sysvnet_bootstrapExchange() function doesn't deadlock */
+  } else if (val < GASNETI_SYSVNET_MIN_QUEUE_DEPTH) {
     fprintf(stderr, "GASNET_SYSVNET_QUEUE_DEPTH (%d) < than SysV nodes (%d): using %d\n",
-            val, nodes, nodes);
-    val = nodes;
+            val, GASNETI_SYSVNET_MIN_QUEUE_DEPTH, GASNETI_SYSVNET_MIN_QUEUE_DEPTH);
+    val = GASNETI_SYSVNET_MIN_QUEUE_DEPTH;
   }
   return val;
 }
@@ -589,50 +587,79 @@ void gasneti_sysvnet_bootstrapBarrier(void)
 }
 
 /******************************************************************************
+ * Helper for Sysvnet bootstrap broadcast and exchange
+ ******************************************************************************/
+static void gasneti_sysvnet_bcast_inner(gasneti_sysvnet_t *vnet, void *src, 
+                                        size_t len, void *dest, int rootsysvnode)
+{
+  if (gasneti_mysysvnode == rootsysvnode) {
+    gasnet_node_t i, to;
+    void *msg;
+
+    for (i = 0, to = vnet->firstnode; i < vnet->nodecount; i++, to++) {
+      if (i == gasneti_mysysvnode) continue;
+      msg = gasneti_sysvnet_get_send_buffer(vnet, len, to);
+      if (msg) {
+        memcpy(msg, src, len);
+        if (gasneti_sysvnet_deliver_send_buffer(vnet, msg, len, to)) {
+          gasneti_fatalerror("T%d: Can't deliver msg to node %d during bootstrap collective", 
+                             gasneti_mynode, to);
+        }
+      } else {
+        gasneti_fatalerror("T%d: Couldn't get send buffer during bootstrap collective", 
+                           gasneti_mynode);
+      }
+    }
+    memmove(dest, src, len);
+  } else {
+    gasnet_node_t i, from;
+    void *msg;
+    size_t inlen;
+
+    gasneti_waitwhile (gasneti_sysvnet_recv(vnet, &msg, &inlen, &from));
+    if (len != inlen) {
+      gasneti_fatalerror("T%d: got unexpected msg length (%ld) during bootstrap collective", 
+                         gasneti_mynode, (long int)inlen);
+    }
+    if (sysvnode(vnet, from) != rootsysvnode) {
+      gasneti_fatalerror("T%d: got unexpected source node (%d) during bootstrap collective", 
+                         gasneti_mynode, (int)from);
+    }
+    memcpy(dest, msg, len);
+    gasneti_sysvnet_recv_release(vnet, msg);
+  }
+}
+
+/******************************************************************************
+ * Sysvnet bootstrap broadcast
+ * - Rootsysvnode is supernode-local rank
+ * - Barriers ensure ordering w.r.t sends that precede or follow
+ ******************************************************************************/
+void gasneti_sysvnet_bootstrapBroadcast(gasneti_sysvnet_t *vnet, void *src, 
+                                        size_t len, void *dest, int rootsysvnode)
+{
+  gasneti_assert(vnet != NULL);
+  gasneti_sysvnet_bootstrapBarrier();
+  gasneti_sysvnet_bcast_inner(vnet, src, len, dest, rootsysvnode);
+}
+
+/******************************************************************************
  * Sysvnet bootstrap exchange
- * - TODO: to make this more robust, should there be a separate vnet for
- *   this?  (We'd want it to be smaller, to consume less resources, but right
- *   now all vnets are the same size).
- * - Also, could remove requirement that queue depth >= nodes if we check
- *   for incoming msgs as we send them.
+ * - Barriers ensure ordering w.r.t sends that precede or follow
  ******************************************************************************/
 void gasneti_sysvnet_bootstrapExchange(gasneti_sysvnet_t *vnet, void *src, 
                                        size_t len, void *dest)
 {
-  gasnet_node_t i, from;
-  void *msg;
-  size_t inlen;
+  gasnet_node_t i;
 
   gasneti_assert(vnet != NULL);
 
-  /* TODO: right now we assume that available queue depth >= nodes. */
-  for (i = 0 ; i < vnet->nodecount; i++) {
-    if (i == gasneti_mysysvnode)
-      continue;
-    msg = gasneti_sysvnet_get_send_buffer(vnet, len, i);
-    if (msg) {
-      memcpy(msg, src, len);
-      if (gasneti_sysvnet_deliver_send_buffer(vnet, msg, len, i)) {
-        gasneti_fatalerror("T%d: Can't deliver msg to node %d during bootstrap exchange", 
-                           gasneti_mynode, i);
-      }
-    } else {
-      gasneti_fatalerror("T%d: Couldn't get send buffer during bootstrap exchange!", 
-                         gasneti_mynode);
-    }
+  /* All nodes broadcast their contribution in turn */
+  for (i = 0; i < vnet->nodecount; i++) {
+    void *dest_elem = (void*)((uintptr_t)dest + (i*len));
+    gasneti_sysvnet_bootstrapBarrier(); 
+    gasneti_sysvnet_bcast_inner(vnet, src, len, dest_elem, i);
   }
-  for (i = 1; i < vnet->nodecount; i++) {
-    gasneti_waitwhile (gasneti_sysvnet_recv(vnet, &msg, &inlen, &from));
-    if (len != inlen)
-      gasneti_fatalerror("T%d: got invalid msg length (%ld) during bootstrap exchange!", 
-                         gasneti_mynode, (long int)inlen);
-    memcpy( ((char*)dest)+len*sysvnode(vnet, from), msg, len);
-    gasneti_sysvnet_recv_release(vnet, msg);
-  }
-  /* memcpy our own piece */
-  memcpy( ((char*)dest)+len*sysvnode(vnet, gasneti_mynode), src, len);
-  /* barrier to ensure queues won't overflow on back-to-back calls */
-  gasneti_sysvnet_bootstrapBarrier();
 }
 
 

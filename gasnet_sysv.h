@@ -46,6 +46,7 @@ typedef struct gasneti_sysvnet gasneti_sysvnet_t;
 int gasneti_sysvnet_queue_depth;  
 #define GASNETI_SYSVNET_DEFAULT_QUEUE_DEPTH 24
 #define GASNETI_SYSVNET_MAX_QUEUE_DEPTH 1024
+#define GASNETI_SYSVNET_MIN_QUEUE_DEPTH 2
 
 /* payload memory available for outstanding requests, per node */
 uintptr_t gasneti_sysvnet_queue_mem; 
@@ -187,11 +188,23 @@ void gasneti_sysvnet_init(gasneti_sysvnet_t **pvnet, void *start, size_t len,
  */
 void gasneti_sysvnet_bootstrapBarrier(void);
 
+/* Bootstrap broadcast via sysvnet.
+ *
+ * This function has the following restrictions:
+ * 1) It must be called after gasneti_sysvnet_init() has completed.
+ * 2) It must be called collectively by all nodes in the vnet.
+ * 3) The rootsysvnode is the supernode-local rank
+ * 4) Len is limited to the value returned by gasneti_sysvnet_max_payload().
+ */
+void gasneti_sysvnet_bootstrapBroadcast(gasneti_sysvnet_t *vnet, void *src, 
+                                        size_t len, void *dest, int rootsysvnode);
+
 /* Bootstrap exchange via sysvnet.
  *
  * This function has the following restrictions:
  * 1) It must be called after gasneti_sysvnet_init() has completed.
  * 2) It must be called collectively by all nodes in the vnet.
+ * 3) Len is limited to the value returned by gasneti_sysvnet_max_payload().
  */
 void gasneti_sysvnet_bootstrapExchange(gasneti_sysvnet_t *vnet, void *src, 
                                        size_t len, void *dest);
