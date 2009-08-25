@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/24 20:33:13 $
- * $Revision: 1.48.4.15 $
+ *     $Date: 2009/08/25 01:26:30 $
+ * $Revision: 1.48.4.16 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -66,7 +66,8 @@ static void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
 
 static void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) {
   #if GASNET_SYSV
-    gasneti_fatalerror("gasnetc_bootstrapBroadcast() not implemented for sysvnet");
+    gasneti_assert(gasneti_request_sysvnet != NULL);
+    gasneti_sysvnet_bootstrapBroadcast(gasneti_request_sysvnet, src, len, dest, rootnode);
   #else
     gasneti_assert(gasneti_nodes == 1); /* trivial because we only have one node */
     gasneti_assert(rootnode == 0);
