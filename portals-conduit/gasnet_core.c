@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/04/23 23:33:16 $
- * $Revision: 1.16.8.1 $
+ *     $Date: 2009/08/26 07:33:08 $
+ * $Revision: 1.16.8.2 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -25,6 +25,14 @@ static void gasnetc_traceoutput(int);
 
 #define GASNETC_MAX_NUMHANDLERS   256
 gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
+
+#if GASNET_SYSV
+/* Used in gasnet_sysv.c */
+extern gasneti_handler_fn_t gasneti_get_handler(int handler_id){
+  gasneti_assert(handler_id < GASNETC_MAX_NUMHANDLERS);
+  return gasnetc_handler[handler_id];
+}
+#endif /* GASNET_SYSV */
 
 uintptr_t gasnetc_segbase, gasnetc_segend;
 
@@ -76,6 +84,10 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
 
   /* gasneti_nodemapInit() was called in gasnetc_init_portals_network() */
+
+#if GASNET_SYSV
+  gasnetc_init_sysv(&gasnetc_bootstrapExchange);
+#endif
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     {
@@ -342,6 +354,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasnetc_bootstrapBarrier();
   gasnetc_resource_init_complete = 1;
 
+#if GASNET_SYSV
+  gasnetc_sysv_init = 1;
+#endif
+
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
@@ -428,6 +444,29 @@ extern void gasnetc_exit(int exitcode) {
   Misc. Active Message Functions
   ==============================
 */
+
+#if GASNET_SYSV
+/* Returns a (conduit-specific) token type, with (internal conduit-specific)
+ * source and isRequest fields filled in.  The token is guaranteed to work
+ * with gasnetc_AMGetMsgSource (which is conduit-specific). */
+extern gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest)
+{
+  /* We encode the src node in the token and recognize it as not aligned as a pointer.
+   * Use of local rank avoids overflow for all but the most extream cases.
+   */
+  return (gasnet_token_t)(1 | ((uintptr_t)(src - gasneti_firstsysvnode) << 1));
+}
+
+/* Frees a token handed out by gasnetc_token_create() */
+extern void gasnetc_token_destroy(gasnet_token_t token)
+{
+  /* NO-OP
+   * Token is not a pointer to allocated memory.
+   * So, nothing to free()
+   */
+}
+#endif
+
 extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
   gasnet_node_t sourceid;
   gasnetc_ptl_token_t *ptok = (gasnetc_ptl_token_t*)token;
@@ -435,8 +474,16 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
 
-  /* MLW: for now, we sent node ID in data packet.  Could hash loopup on portals address */
-  sourceid = ptok->srcnode;
+#if GASNET_SYSV
+  if ((uintptr_t)token & 1) {
+    sourceid = gasneti_firstsysvnode + (gasnet_node_t)((uintptr_t)token >> 1);
+    gasneti_assert(gasneti_sysv_in_supernode(sourceid));
+  } else
+#endif
+  {
+    /* MLW: for now, we sent node ID in data packet.  Could hash loopup on portals address */
+    sourceid = ptok->srcnode;
+  }
 
   gasneti_assert(sourceid < gasneti_nodes);
   *srcindex = sourceid;
@@ -448,6 +495,9 @@ extern int gasnetc_AMPoll() {
   GASNETI_CHECKATTACH();
 
   gasnetc_portals_poll(GASNETC_FULL_POLL);
+#if GASNET_SYSV
+  if_pt (gasnetc_sysv_init) gasneti_AMSYSVPoll(0);
+#endif
 
   return GASNET_OK;
 }
@@ -511,6 +561,17 @@ extern int gasnetc_AMRequestShortM(
 
   GASNETI_COMMON_AMREQUESTSHORT(dest,handler,numargs);
 
+#if GASNET_SYSV /* INCLUDES LOOPBACK CASE */
+  if_pt (gasneti_sysv_in_supernode(dest)) {
+    va_start(argptr, numargs);
+    retval = gasneti_AMSYSV_RequestGeneric(gasnetc_Short,
+                                           dest, handler,
+                                           0, 0, 0,
+                                           numargs, argptr);
+    va_end(argptr);
+    return retval;
+  }
+#else
   /* handle loopback case */
   if (dest == gasneti_mynode) {
     gasnetc_ptl_token_t tok;
@@ -528,6 +589,7 @@ extern int gasnetc_AMRequestShortM(
     gasneti_AMPoll();
     GASNETI_RETURN(GASNET_OK);
   }
+#endif
 
   gasneti_assert(th->snd_credits == 0);
 
@@ -643,8 +705,17 @@ extern int gasnetc_AMRequestMediumM(
 
   GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
 
-  gasneti_assert(nbytes <= gasnet_AMMaxMedium());
-
+#if GASNET_SYSV /* INCLUDES LOOPBACK CASE */
+  if_pt (gasneti_sysv_in_supernode(dest)) {
+    va_start(argptr, numargs);
+    retval = gasneti_AMSYSV_RequestGeneric(gasnetc_Medium,
+                                           dest, handler,
+                                           source_addr, nbytes, 0,
+                                           numargs, argptr);
+    va_end(argptr);
+    return retval;
+  }
+#else
   /* handle loopback case */
   if (dest == gasneti_mynode) {
     gasnetc_ptl_token_t tok;
@@ -666,6 +737,7 @@ extern int gasnetc_AMRequestMediumM(
     gasneti_AMPoll();
     GASNETI_RETURN(GASNET_OK);
   }
+#endif
 
   /* AM Medium Data Format:
    * HD=[cred:len,arg1] MB=[off,XX] Data=[args][seqno][pad][data][pad]
@@ -981,8 +1053,21 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 
   GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
 
+#if GASNET_SYSV /* INCLUDES LOOPBACK CASE */
+  if_pt (gasneti_sysv_in_supernode(dest)) {
+    int retval;
+    va_start(argptr, numargs);
+    retval = gasneti_AMSYSV_RequestGeneric(gasnetc_Long,
+                                           dest, handler,
+                                           source_addr, nbytes, dest_addr,
+                                           numargs, argptr);
+    va_end(argptr);
+    return retval;
+  }
+#else
   /* if loopback, run handler and return */
   AM_LONG_REQUEST_LOOPBACK_CHECK();
+#endif
 
   /* compute message len and allocate resources needed to send message */
   gasneti_assert(th->snd_credits == 0);
@@ -1028,8 +1113,21 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 
   GASNETI_COMMON_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs);
 
+#if GASNET_SYSV /* INCLUDES LOOPBACK CASE */
+  if_pt (gasneti_sysv_in_supernode(dest)) {
+    int retval;
+    va_start(argptr, numargs);
+    retval = gasneti_AMSYSV_RequestGeneric(gasnetc_Long,
+                                           dest, handler,
+                                           source_addr, nbytes, dest_addr,
+                                           numargs, argptr);
+    va_end(argptr);
+    return retval;
+  }
+#else
   /* if loopback, run handler and return */
   AM_LONG_REQUEST_LOOPBACK_CHECK();
+#endif
 
   /* compute message len and number of resources needed to send message */
   gasneti_assert(th->snd_credits == 0);
@@ -1065,10 +1163,10 @@ extern int gasnetc_AMReplyShortM(
   int retval;
   va_list argptr; 
   gasnetc_ptl_token_t *ptok = (gasnetc_ptl_token_t*)token;
-  ptl_size_t           local_offset = ptok->rplsb_offset;
-  ptl_size_t           remote_offset = ptok->initiator_offset;
+  ptl_size_t           local_offset;
+  ptl_size_t           remote_offset;
   ptl_handle_md_t      md_h = gasnetc_RplSB.md_h;
-  ptl_process_id_t     target_id = ptok->initiator;
+  ptl_process_id_t     target_id;
   ptl_ac_index_t       ac_index = GASNETC_PTL_AC_ID;
   uint64_t             amtype = GASNETC_PTL_AM_SHORT;
   uint64_t             targ_mbits = GASNETC_PTL_REQSB_BITS | GASNETC_PTL_MSG_AM;
@@ -1078,15 +1176,37 @@ extern int gasnetc_AMReplyShortM(
   ptl_match_bits_t     mbits;
   ptl_hdr_data_t       hdr_data = 0;
   ptl_size_t           msg_bytes = 0;
-  uint8_t             *data = (uint8_t*)gasnetc_RplSB.start + local_offset;
+  uint8_t             *data;
   int                  i;
   gasnetc_threaddata_t *th = gasnetc_mythread();
+#if GASNET_SYSV
+  gasnet_node_t dest;
+#endif
 
   GASNETC_DEF_HARGS();       /* debugging, must be first statement */
-  GASNETC_GET_SEQNO(ptok);   /* debug */
 
   GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
 
+#if GASNET_SYSV /* INCLUDES LOOPBACK CASE */
+  GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
+  if_pt (gasneti_sysv_in_supernode(dest)) {
+    va_start(argptr, numargs);
+    retval = gasneti_AMSYSV_ReplyGeneric(gasnetc_Short,
+                                         token, handler,
+                                         0, 0, 0,
+                                         numargs, argptr);
+    va_end(argptr);
+    return retval;
+  }
+#endif
+
+  GASNETC_GET_SEQNO(ptok);   /* debug */
+  local_offset = ptok->rplsb_offset;
+  remote_offset = ptok->initiator_offset;
+  target_id = ptok->initiator;
+  data = (uint8_t*)gasnetc_RplSB.start + local_offset;
+
+#if !GASNET_SYSV
   /* handle loopback case */
   if (ptok->srcnode == gasneti_mynode) {
     gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
@@ -1099,6 +1219,7 @@ extern int gasnetc_AMReplyShortM(
     GASNETI_RUN_HANDLER_SHORT(0, handler, gasnetc_handler[handler], token, args, numargs);
     GASNETI_RETURN(GASNET_OK);
   }
+#endif
 
   va_start(argptr, numargs); /*  pass in last argument */
 
@@ -1168,10 +1289,10 @@ extern int gasnetc_AMReplyMediumM(
   int retval;
   va_list argptr;
   gasnetc_ptl_token_t  *ptok = (gasnetc_ptl_token_t*)token;
-  ptl_size_t            local_offset = ptok->rplsb_offset;
-  ptl_size_t            remote_offset = ptok->initiator_offset;
+  ptl_size_t            local_offset;
+  ptl_size_t            remote_offset;
   ptl_handle_md_t       md_h = gasnetc_RplSB.md_h;
-  ptl_process_id_t      target_id = ptok->initiator;
+  ptl_process_id_t      target_id;
   ptl_ac_index_t        ac_index = GASNETC_PTL_AC_ID;
   uint64_t              amtype = GASNETC_PTL_AM_MEDIUM;
   uint64_t              targ_mbits = GASNETC_PTL_REQSB_BITS | GASNETC_PTL_MSG_AM;
@@ -1182,15 +1303,37 @@ extern int gasnetc_AMReplyMediumM(
   ptl_hdr_data_t        hdr_data = 0;
   ptl_size_t            msg_bytes = 0;
   uint32_t              payload_bytes = nbytes;
-  uint8_t              *data = (uint8_t*)gasnetc_RplSB.start + local_offset;
+  uint8_t              *data;
   int                   i, pad;
   gasnetc_threaddata_t *th = gasnetc_mythread();
+#if GASNET_SYSV
+  gasnet_node_t dest;
+#endif
 
   GASNETC_DEF_HARGS();       /* debugging, must be first statement */
-  GASNETC_GET_SEQNO(ptok);   /* debug */
 
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
 
+#if GASNET_SYSV /* INCLUDES LOOPBACK CASE */
+  GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
+  if_pt (gasneti_sysv_in_supernode(dest)) {
+    va_start(argptr, numargs);
+    retval = gasneti_AMSYSV_ReplyGeneric(gasnetc_Medium,
+                                         token, handler,
+                                         source_addr, nbytes, 0,
+                                         numargs, argptr);
+    va_end(argptr);
+    return retval;
+  }
+#endif
+
+  GASNETC_GET_SEQNO(ptok);   /* debug */
+  local_offset = ptok->rplsb_offset;
+  remote_offset = ptok->initiator_offset;
+  target_id = ptok->initiator;
+  data = (uint8_t*)gasnetc_RplSB.start + local_offset;
+
+#if !GASNET_SYSV
   /* handle loopback case */
   if (ptok->srcnode == gasneti_mynode) {
     gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
@@ -1207,6 +1350,7 @@ extern int gasnetc_AMReplyMediumM(
     gasneti_free(tmpdata);
     GASNETI_RETURN(GASNET_OK);
   }
+#endif
 
   GASNETC_PACK_AM_MBITS(mbits,ptok->rplsb_offset,numargs,handler,amtype,targ_mbits);
 
@@ -1270,10 +1414,10 @@ extern int gasnetc_AMReplyLongM(
   int retval;
   va_list argptr;
   gasnetc_ptl_token_t  *ptok = (gasnetc_ptl_token_t*)token;
-  ptl_size_t            local_offset = ptok->rplsb_offset;
-  ptl_size_t            remote_offset = ptok->initiator_offset;
+  ptl_size_t            local_offset;
+  ptl_size_t            remote_offset;
   ptl_handle_md_t       md_h = gasnetc_RplSB.md_h;
-  ptl_process_id_t      target_id = ptok->initiator;
+  ptl_process_id_t      target_id;
   ptl_ac_index_t        ac_index = GASNETC_PTL_AC_ID;
   uint64_t              amtype = GASNETC_PTL_AM_LONG;
   uint64_t              targ_mbits = GASNETC_PTL_REQSB_BITS | GASNETC_PTL_MSG_AM;
@@ -1284,18 +1428,39 @@ extern int gasnetc_AMReplyLongM(
   ptl_hdr_data_t        hdr_data = 0;
   ptl_size_t            msg_bytes = 0;
   int32_t               payload_bytes = nbytes;
-  uint8_t              *data = (uint8_t*)gasnetc_RplSB.start + local_offset;
+  uint8_t              *data;
   int                   i, nstart, pad;
-  gasnet_node_t         dest = ptok->srcnode;
+  gasnet_node_t         dest;
   gasnetc_threaddata_t *th = gasnetc_mythread();
 
   GASNETC_DEF_HARGS();       /* debugging, must be first statement */
-  GASNETC_GET_SEQNO(ptok);   /* debug */
 
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 
 
+#if GASNET_SYSV /* INCLUDES LOOPBACK CASE */
+  GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
+  if_pt (gasneti_sysv_in_supernode(dest)) {
+    va_start(argptr, numargs);
+    retval = gasneti_AMSYSV_ReplyGeneric(gasnetc_Long,
+                                         token, handler,
+                                         source_addr, nbytes, dest_addr,
+                                         numargs, argptr);
+    va_end(argptr);
+    return retval;
+  }
+#endif
+
+  GASNETC_GET_SEQNO(ptok);   /* debug */
+  local_offset = ptok->rplsb_offset;
+  remote_offset = ptok->initiator_offset;
+  target_id = ptok->initiator;
+  data = (uint8_t*)gasnetc_RplSB.start + local_offset;
+
+#if !GASNET_SYSV
+  dest = ptok->srcnode
+
   /* handle loopback case */
-  if (ptok->srcnode == gasneti_mynode) {
+  if (dest == gasneti_mynode) {
     gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
     va_start(argptr, numargs);
     for (i = 0; i < gasnet_AMMaxArgs(); i++) args[i] = 0;
@@ -1307,6 +1472,7 @@ extern int gasnetc_AMReplyLongM(
     GASNETI_RUN_HANDLER_LONG(0, handler, gasnetc_handler[handler], token, args, numargs, dest_addr, nbytes);
     GASNETI_RETURN(GASNET_OK);
   }
+#endif
 
   /* Regular Format: hdr_dara=[arg0,lid]      mbits=[off,XX] data=[args][seqno][cred] */
   /* Packed  Format: hdr_data=[arg0,cred:len] mbits=[off,XX] data=[args][seqno][destaddr][data] */

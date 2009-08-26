@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2008/10/10 07:54:11 $
- * $Revision: 1.5 $
+ *     $Date: 2009/08/26 07:33:08 $
+ * $Revision: 1.5.8.1 $
  * Description: GASNet header for PORTALS conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -133,6 +133,11 @@ typedef struct _gasnet_hsl_t {
 extern size_t gasnetc_AMMaxLong;
 #define gasnet_AMMaxLongRequest()   (gasnetc_AMMaxLong + 0) /* Can't be misused as an lvalue */
 #define gasnet_AMMaxLongReply()     (gasnetc_AMMaxLong + 0) /* Can't be misused as an lvalue */
+#endif
+
+#if GASNET_SYSV
+  #define GASNETC_MAX_ARGS_SYSV     (gasnet_AMMaxArgs())
+  #define GASNETC_MAX_MEDIUM_SYSV   (gasnet_AMMaxMedium())
 #endif
 
 /* ------------------------------------------------------------------------------------ */

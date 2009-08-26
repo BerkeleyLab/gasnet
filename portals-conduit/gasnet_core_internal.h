@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2008/09/10 01:56:58 $
- * $Revision: 1.4 $
+ *     $Date: 2009/08/26 07:33:08 $
+ * $Revision: 1.4.10.1 $
  * Description: GASNet PORTALS conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,6 +19,15 @@
 #define _hidx_gasnetc_auxseg_reqh             (GASNETC_HANDLER_BASE+0)
 #define _hidx_gasnetc_noop_reph               (GASNETC_HANDLER_BASE+1)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
+
+/* ------------------------------------------------------------------------------------ */
+#if GASNET_SYSV /* Not used by Portals conduit except to call AMSYSV code */
+  enum {
+    gasnetc_Short=0,
+    gasnetc_Medium=1,
+    gasnetc_Long=2
+  };
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /* Unconditionally evalute second arg.
