@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2009/07/09 23:51:50 $
-# $Revision: 1.490.2.5 $
+#     $Date: 2009/08/26 05:01:44 $
+# $Revision: 1.490.2.6 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.490.2.5 $)
+AC_REVISION($Revision: 1.490.2.6 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -27,7 +27,7 @@ AC_VALIDATE_CACHED_SYSTEM_TUPLE
 dnl Public release version packaging identifier:
 AC_DEFUN([GASNET_RELEASE_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNET_RELEASE_VERSION_MINOR_D],[13])
-AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[5])
+AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[7])
 dnl GASNet spec version:
 AC_DEFUN([GASNET_SPEC_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNET_SPEC_VERSION_MINOR_D],[8])
@@ -505,6 +505,7 @@ case "$gasnet_cv_cc_family" in
     case "$target_cpu" in
       sparc) GASNET_GET_ULTRASPARC_FLAGS(C,["-mcpu=ultrasparc3 -mtune=ultrasparc3" "-mcpu=ultrasparc -mtune=ultrasparc"]);;
       powerpc*) GASNET_GET_PPC64_FLAGS(C,["-force_cpusubtype_ALL" "-Wa,-mppc64"]);;
+      ia64) GASNET_TRY_CFLAG([-mtls-size=64], [MISC_CFLAGS="$MISC_CFLAGS -mtls-size=64"]);;
     esac
     case "$target_os" in
       hpux*) GASNET_GET_HPUX_FLAGS(C,["-D__STDC_EXT__=1"]);;
@@ -1826,6 +1827,7 @@ if test $enabled_udp = yes; then
        case "$target_cpu" in
          sparc) GASNET_GET_ULTRASPARC_FLAGS(CXX,["-mcpu=ultrasparc3 -mtune=ultrasparc3" "-mcpu=ultrasparc -mtune=ultrasparc"]);;
          powerpc*) GASNET_GET_PPC64_FLAGS(CXX,["-force_cpusubtype_ALL" "-Wa,-mppc64"]);;
+         ia64) GASNET_TRY_CXXFLAG([-mtls-size=64], [MISC_CXXFLAGS="$MISC_CXXFLAGS -mtls-size=64"]);;
        esac
        case "$target_os" in
          hpux*) GASNET_GET_HPUX_FLAGS(CXX,["-D__STDC_EXT__=1"]);;
@@ -1872,6 +1874,7 @@ if test $enabled_udp = yes; then
       alphaev5) MISC_CXXFLAGS="-hnomessage=236:611:997 -hexceptions -hnew_for_init $LIBCM" ;; # T3E
       *)        MISC_CXXFLAGS="-hnomessage=236:611:997 -hexceptions -hnew_for_init $LIBCM" ;; # X1
      esac ;;
+    Pathscale)  CXXDEBUGFLAGS="-g -O0" ;; # consistent with CCDEBUGFLAGS
   esac  
   if test "$BUILDCONFIG" = "optimize" ; then
     CXXFLAGS="$CXXOPTFLAGS"
@@ -3365,6 +3368,7 @@ AC_DEFUN([GASNET_CHECK_SYS_DECL], [
 	#include <stdlib.h>
 	#include <unistd.h>
 	#include <string.h>
+	#include <ctype.h>
   ], [
     #ifdef $1
       /* It is a macro and that is OK */
@@ -3383,6 +3387,10 @@ GASNET_CHECK_SYS_DECL(setenv)
 GASNET_CHECK_SYS_DECL(unsetenv)
 GASNET_CHECK_SYS_DECL(snprintf)
 GASNET_CHECK_SYS_DECL(vsnprintf)
+
+GASNET_CHECK_SYS_DECL(isblank)
+GASNET_CHECK_SYS_DECL(isascii)
+GASNET_CHECK_SYS_DECL(toascii)
 
 ########################################################################
 # BACKTRACE support

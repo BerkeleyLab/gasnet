@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testlarge.c,v $
- *     $Date: 2009/05/01 19:57:48 $
- * $Revision: 1.45.6.1 $
+ *     $Date: 2009/08/26 05:02:10 $
+ * $Revision: 1.45.6.2 $
  * Description: GASNet bulk get/put performance test
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet bulk gets and puts
@@ -106,7 +106,7 @@ void bulk_test(int iters) {GASNET_BEGIN_FUNCTION();
     stat_struct_t stget, stput;
     int payload;
     
-	for (payload = min_payload; payload <= max_payload; payload *= 2) {
+	for (payload = min_payload; payload <= max_payload && payload > 0; payload *= 2) {
 		init_stat(&stput, payload);
 
 		BARRIER();
@@ -155,7 +155,7 @@ void bulk_test_nbi(int iters) {GASNET_BEGIN_FUNCTION();
     stat_struct_t stget, stput;
     int payload;
     
-	for (payload = min_payload; payload <= max_payload; payload *= 2) {
+	for (payload = min_payload; payload <= max_payload && payload > 0; payload *= 2) {
 		init_stat(&stput, payload);
 
 		BARRIER();
@@ -209,7 +209,7 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
     
 	handles = (gasnet_handle_t *) test_malloc(sizeof(gasnet_handle_t) * iters);
 
-	for (payload = min_payload; payload <= max_payload; payload *= 2) {
+	for (payload = min_payload; payload <= max_payload && payload > 0; payload *= 2) {
 		init_stat(&stput, payload);
 
 		BARRIER();

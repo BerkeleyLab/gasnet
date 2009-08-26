@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2009/02/11 03:05:45 $
-# $Revision: 1.63.6.2 $
+#     $Date: 2009/08/26 05:01:54 $
+# $Revision: 1.63.6.3 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -33,6 +33,7 @@ unless ($cmd_ok ||
 my $envlist = '';
 my $numproc = undef;
 my $numnode = undef;
+my $numcpu = undef; # For spawners that pin to a group of cpus.  0 means disable any such pinning.
 my @numprocargs = ();
 my $verbose = 0;
 my @verbose_opt = ("-v");
@@ -106,6 +107,7 @@ sub gasnet_encode($) {
     my $is_jacquard = ($mpirun_help =~ m| \[-noenv\] |) && !$is_elan_mpi;
     my $is_infinipath = ($mpirun_help =~ m|InfiniPath |);
     my $is_srun    = ($mpirun_help =~ m|srun: invalid option|);
+    my $is_prun    = ($mpirun_help =~ m|railmask|);
     my $envprog = $ENV{'ENVCMD'};
     if (! -x $envprog) { # SuperUX has broken "which" implementation, so avoid if possible
       $envprog = `which env`;
@@ -272,9 +274,14 @@ sub gasnet_encode($) {
 	# this spawner already propagates the environment for us automatically
 	%envfmt = ( 'noenv' => 1 );
 	@verbose_opt = ("-v");
+    } elsif ($is_prun) {
+	$spawner_desc = "Quadrics/RMS prun";
+	# this spawner already propagates the environment for us automatically
+	%envfmt = ( 'noenv' => 1 );
+	@verbose_opt = ("-v");
     } else {
 	$spawner_desc = "unknown program (using generic MPI spawner)";
-	# the OS already propagates the environment for us automatically
+	# assume the OS will not propagate the environment
 	# pass env as "/usr/bin/env A=1 B=2 C=3"
 	# Our nearly universal default
 	%envfmt = ( 'pre' => $envprog,
@@ -293,6 +300,7 @@ sub usage
     print "    options:\n";
     print "      -n <n>                number of processes to run\n";
     print "      -N <n>                number of nodes to run on (not suppored on all mpiruns)\n";
+    print "      -c <n>                number of cpus per process (not suppored on all mpiruns)\n";
     print "      -E <VAR1[,VAR2...]>   list of environment vars to propagate\n";
     print "      -v                    be verbose about what is happening\n";
     print "      -t                    test only, don't execute anything (implies -v)\n";
@@ -355,6 +363,11 @@ sub expand {
 	    shift;
 	    usage ("-E option given without an argument\n") unless @ARGV >= 1;
 	    $envlist = $ARGV[0];
+	} elsif ($_ eq '-c') {
+	    shift;
+	    usage ("$_ option given without an argument\n") unless @ARGV >= 1;
+	    $numcpu = $ARGV[0];
+	    usage ("$_ option given with invalid argument '$ARGV[0]'\n") unless $numcpu >= 0;
 	} elsif ($_ eq '-v') {
 	    $verbose = 1;
 	} elsif ($_ eq '-t') {
@@ -603,27 +616,46 @@ if ($is_lam && $numnode) {
   @numprocargs = ($numproc, 'n' . join(',', @tmp));
 }
     
-if ($is_srun && $numnode) {
+if (($is_srun || $is_prun) && $numnode) {
   @numprocargs = ($numproc, '-N', $numnode);
   $dashN_ok = 1;
 }
     
-if ($numnode && ($is_aprun || $is_yod)) { 
-  my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
-  if ($ppn * $numnode != $numproc) {
-	warn "WARNING: aprun does not fully support non-uniform process distribution\n";
-	warn "WARNING: PROCESS LAYOUT MIGHT NOT MATCH YOUR REQUEST\n";
+
+if ($is_aprun || $is_yod) {
+  @numprocargs = ($numproc);
+
+  # Try to honor allocation if no -N given
+  if (!defined($numnode)) {
+        my $pbs_nodes = $ENV{'PBS_NNODES'};
+        my $pbs_jobid = $ENV{'PBS_JOBID'};
+        if (defined $pbs_nodes) {
+            $numnode = $pbs_nodes;
+        } elsif (defined($pbs_jobid) && open(QSTAT, "qstat -f $pbs_jobid |")) {
+            while (<QSTAT>) {
+                if (/mppnodect\s*=\s*([0-9]+)/) {
+                    $numnode = $1;
+                    last;
+                }
+            }
+            close(QSTAT);
+        }
   }
-  if ($is_aprun) { # aprun requires -N ppn
-    @numprocargs = ($numproc, '-N', $ppn);
-  } else { # yod requires -SN or -VN
-    if ($ppn == 1) {
-      @numprocargs = ($numproc, '-SN');
+
+  if ($numnode) {
+    my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
+    if ($is_aprun) { # aprun requires -N ppn
+      push @numprocargs, ('-N', $ppn);
+    } elsif ($ppn == 1) { # yod requires -SN or -VN
+      push @numprocargs, '-SN';
     } elsif ($ppn == 2) {
-      @numprocargs = ($numproc, '-VN');
+      push @numprocargs, '-VN';
     } else {
       die "yod does not support more than 2 processes per node.\n";
     }
+  }
+  if ($is_aprun && defined($numcpu)) {
+    push @numprocargs, ($numcpu ? ('-d', $numcpu) : qw/-cc none/);
   }
   $dashN_ok = 1;
 }
@@ -668,6 +700,12 @@ if ($numproc && $is_bgp) {
       die "BG/P only supports 1, 2 or 4 ppn";
     }
   }
+  $dashN_ok = 1;
+}
+
+if ($numnode && $is_infinipath) {
+  my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
+  @numprocargs = ($numproc, '-ppn', $ppn);
   $dashN_ok = 1;
 }
 
@@ -736,7 +774,7 @@ if ($numproc && $is_bgp) {
  	}
     } else {
 	exec(@spawncmd);
-	die "gasnetrun: exec failed: $!\n";
+	die "gasnetrun: exec(@spawncmd) failed: $!\n";
     }
     exit(0);
 __END__

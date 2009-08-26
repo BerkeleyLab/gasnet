@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2009/07/11 22:33:55 $
- * $Revision: 1.222.2.4 $
+ *     $Date: 2009/08/26 05:02:15 $
+ * $Revision: 1.222.2.5 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -149,53 +149,53 @@ typedef struct gasnetc_sreq_t_ {
   /* Firehose, bounce buffers, and AMs are mutually exclusive. */
   union {
     struct { /* Firehose data */
-      int			fh_count;
-      const firehose_request_t	*fh_ptr[GASNETC_MAX_FH];
+      int			count;
+      const firehose_request_t	*ptr[GASNETC_MAX_FH];
     } fh;
     struct { /* Bounce buffer data */
-      gasnetc_buffer_t		*bb_buff;
-      void			*bb_addr;	/* local address for bounced GETs */
-      size_t			bb_len;		/* length for bounced GETs */
+      gasnetc_buffer_t		*buff;
+      void			*addr;	/* local address for bounced GETs */
+      size_t			len;	/* length for bounced GETs */
     } bb;
     struct { /* AM buffer */
-      gasnetc_buffer_t		*am_buff;
+      gasnetc_buffer_t		*buff;
     } am;
   } u;
-  #define fh_count	u.fh.fh_count
-  #define fh_ptr	u.fh.fh_ptr
-  #define bb_buff	u.bb.bb_buff
-  #define bb_addr	u.bb.bb_addr
-  #define bb_len	u.bb.bb_len
-  #define am_buff	u.am.am_buff
+  #define fh_count	u.fh.count
+  #define fh_ptr	u.fh.ptr
+  #define bb_buff	u.bb.buff
+  #define bb_addr	u.bb.addr
+  #define bb_len	u.bb.len
+  #define am_buff	u.am.buff
 #else
   /* Firehose, and AMs are mutually exclusive. */
   union {
     /* Firehose data */
     struct {
-      int			fh_count;
-      const firehose_request_t	*fh_ptr[GASNETC_MAX_FH];
-      size_t			fh_len;
-      size_t			fh_putinmove;	/* bytes piggybacked on an Move AM */
-      uintptr_t			fh_loc_addr;
-      uintptr_t			fh_rem_addr;
-      gasnetc_buffer_t		*fh_bbuf;
-      gasneti_weakatomic_t	fh_ready;	/* 0 when loc and rem both ready */
-      gasnetc_counter_t		*fh_oust;	/* fh transactions outstanding */
+      int			count;
+      const firehose_request_t	*ptr[GASNETC_MAX_FH];
+      size_t			len;
+      size_t			putinmove;	/* bytes piggybacked on an Move AM */
+      uintptr_t			loc_addr;
+      uintptr_t			rem_addr;
+      gasnetc_buffer_t		*bbuf;
+      gasneti_weakatomic_t	ready;	/* 0 when loc and rem both ready */
+      gasnetc_counter_t		*oust;	/* fh transactions outstanding */
     } fh;
     struct { /* AM buffer */
-      gasnetc_buffer_t		*am_buff;
+      gasnetc_buffer_t		*buff;
     } am;
   } u;
-  #define fh_count	u.fh.fh_count
-  #define fh_ptr	u.fh.fh_ptr
-  #define fh_len	u.fh.fh_len
-  #define fh_putinmove	u.fh.fh_putinmove
-  #define fh_loc_addr	u.fh.fh_loc_addr
-  #define fh_rem_addr	u.fh.fh_rem_addr
-  #define fh_bbuf	u.fh.fh_bbuf
-  #define fh_ready	u.fh.fh_ready
-  #define fh_oust	u.fh.fh_oust
-  #define am_buff	u.am.am_buff
+  #define fh_count	u.fh.count
+  #define fh_ptr	u.fh.ptr
+  #define fh_len	u.fh.len
+  #define fh_putinmove	u.fh.putinmove
+  #define fh_loc_addr	u.fh.loc_addr
+  #define fh_rem_addr	u.fh.rem_addr
+  #define fh_bbuf	u.fh.bbuf
+  #define fh_ready	u.fh.ready
+  #define fh_oust	u.fh.oust
+  #define am_buff	u.am.buff
 #endif
 } gasnetc_sreq_t;
 
@@ -822,7 +822,6 @@ void gasnetc_dump_cqs(gasnetc_wc_t *comp, gasnetc_hca_t *hca, const int is_snd))
     gasnetc_sreq_t *sreq = (gasnetc_sreq_t *)(uintptr_t)comp->gasnetc_f_wr_id;
     gasnet_node_t node = gasnetc_epid2node(sreq->cep->epid);
     int qpi = gasnetc_epid2qpi(sreq->cep->epid);
-    label = "rcv";
     if (comp->status == GASNETC_WC_RETRY_EXC_ERR) {
       fprintf(stderr, "@ %d> snd status=TIMEOUT opcode=%d dst_node=%d dst_qp=%d\n", gasneti_mynode, comp->opcode, (int)node, qpi-1);
     } else {
@@ -2292,9 +2291,10 @@ size_t gasnetc_zerocp_common(gasnetc_epid_t epid, int rkey_index, uintptr_t loc_
     remain = len;
     sreq->fh_count = 0;
     for (seg = 0; remain && (seg < GASNETC_SND_SG); ++seg) {
-      const int index = (loc_addr - gasnetc_seg_start) >> gasnetc_pin_maxsz_shift;
+      const int index = base + seg;
       gasneti_assert(index >= 0);
       gasneti_assert(index < gasnetc_seg_reg_count);
+      gasneti_assert(index == (loc_addr - gasnetc_seg_start) >> gasnetc_pin_maxsz_shift);
 
       /* Note seg_reg boundaries are HCA-independent */
       if (end > gasnetc_hca[0].seg_reg[index].end) {
@@ -2359,7 +2359,9 @@ int gasnetc_get_rkey_index(const gasnetc_epid_t epid, uintptr_t start, size_t *l
 #if GASNET_ALIGNED_SEGMENTS
   const uintptr_t segbase = gasnetc_seg_start;
 #else
-  const uintptr_t segbase = (uintptr_t)gasneti_seginfo[gasnetc_epid2node(epid)].addr;
+  const gasnet_seginfo_t *seginfo = &gasneti_seginfo[gasnetc_epid2node(epid)];
+  const uintptr_t segbase = (uintptr_t)seginfo->addr;
+  const uintptr_t seglen  = (uintptr_t)seginfo->size;
 #endif
   size_t len = *len_p;
   uintptr_t end = start + (len - 1);
@@ -2379,7 +2381,7 @@ int gasnetc_get_rkey_index(const gasnetc_epid_t epid, uintptr_t start, size_t *l
   tmp = gasnetc_seg_ends[index];
 #else
   /* gasnetc_seg_ends values are relative */
-  tmp = gasnetc_seg_ends[index] + segbase;
+  tmp = MIN(gasnetc_seg_ends[index], seglen) + segbase;
 #endif
   if (end > tmp) {
     *len_p = (tmp - start) + 1;
@@ -2799,7 +2801,7 @@ static size_t gasnetc_fh_put_args_fn(void * context, firehose_remotecallback_arg
 }
 
 GASNETI_INLINE(gasnetc_fh_put_helper)
-int gasnetc_fh_put_helper(gasnet_node_t node, gasnetc_sreq_t *sreq,
+size_t gasnetc_fh_put_helper(gasnet_node_t node, gasnetc_sreq_t *sreq,
 		          uintptr_t loc_addr, uintptr_t rem_addr, size_t len) {
   const firehose_request_t *fh_rem;
   size_t putinmove = sreq->fh_putinmove = 0;
@@ -2915,7 +2917,7 @@ int gasnetc_fh_put_helper(gasnet_node_t node, gasnetc_sreq_t *sreq,
 }
 
 GASNETI_INLINE(gasnetc_fh_get_helper)
-int gasnetc_fh_get_helper(gasnet_node_t node, gasnetc_sreq_t *sreq,
+size_t gasnetc_fh_get_helper(gasnet_node_t node, gasnetc_sreq_t *sreq,
 		          uintptr_t loc_addr, uintptr_t rem_addr, size_t len) {
   const firehose_request_t *fh_rem;
 
@@ -3061,7 +3063,7 @@ extern int gasnetc_sndrcv_init(void) {
     /* no AM or RDMA on the wire, but still need bufs for constructing AMs */
     gasnetc_bbuf_limit = gasnetc_num_qps * gasnetc_am_oust_pp;
   }
-  GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_BBUF_LIMIT = %d", gasnetc_bbuf_limit));
+  GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_BBUF_COUNT = %d", gasnetc_bbuf_limit));
 
   /*
    * setup RCV resources
@@ -3143,7 +3145,7 @@ extern int gasnetc_sndrcv_init(void) {
       gasneti_weakatomic_set(&hca->amrdma_rcv.count, 0, 0);
       if (gasnetc_amrdma_max_peers) {
 	const int max_peers = hca->amrdma_rcv.max_peers;
-	size_t alloc_size = max_peers * (gasnetc_amrdma_depth << GASNETC_AMRDMA_SZ_LG2);
+	size_t alloc_size = GASNETI_PAGE_ALIGNUP(max_peers * (gasnetc_amrdma_depth << GASNETC_AMRDMA_SZ_LG2) + GASNETC_AMRDMA_PAD);
 	void *buf = gasneti_mmap(alloc_size);
 
         if_pf (buf == MAP_FAILED) {
@@ -3159,6 +3161,7 @@ extern int gasnetc_sndrcv_init(void) {
 	  /* XXX: unwind here? */
 	  gasneti_fatalerror("Unable to allocate pinned memory for AM-over-RDMA");
         }
+	buf = (void *)((uintptr_t)buf + GASNETC_AMRDMA_PAD);
 	for (i = 0; i < max_peers; ++i) {
 	  gasneti_lifo_push(&hca->amrdma_freelist, buf);
 	  buf = (void *)((uintptr_t)buf + (gasnetc_amrdma_depth << GASNETC_AMRDMA_SZ_LG2));
@@ -3339,6 +3342,15 @@ extern void gasnetc_sndrcv_attach_peer(gasnet_node_t node) {
       gasnetc_seg_ends[i] = ((uintptr_t)(i+1) << gasnetc_pin_maxsz_shift) - 1;
 #endif
     }
+#if GASNET_ALIGNED_SEGMENTS
+    gasneti_assert(i == gasnetc_max_regs);
+    if (gasnetc_seg_ends[i-1] < gasnetc_seg_start) {
+      /* Fixup any wrap-around */
+      gasnetc_seg_ends[i-1] = ~((uintptr_t)0);
+    }
+#else
+    /* Fixup is in gasnetc_get_rkey_index() due to differing lengths */
+#endif
   }
 #else
   /* Nothing currently needed */
@@ -3542,6 +3554,7 @@ extern int gasnetc_rdma_put_fh(gasnetc_epid_t epid, void *src_ptr, void *dst_ptr
     nbytes -= count;
   } while (nbytes);
 
+  gasnetc_poll_rcv(); /* Progress may depend on firehose AM Reply */
   return 0;
 }
 
@@ -3570,6 +3583,7 @@ extern int gasnetc_rdma_get(gasnetc_epid_t epid, void *src_ptr, void *dst_ptr, s
     nbytes -= count;
   } while (nbytes);
 
+  gasnetc_poll_rcv(); /* Progress may depend on firehose AM Reply */
   return 0;
 }
 #endif

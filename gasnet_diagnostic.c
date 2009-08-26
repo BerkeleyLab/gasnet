@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_diagnostic.c,v $
- *     $Date: 2009/05/01 19:57:03 $
- * $Revision: 1.22.26.2 $
+ *     $Date: 2009/08/26 05:01:44 $
+ * $Revision: 1.22.26.3 $
  * Description: GASNet internal diagnostics
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -582,10 +582,13 @@ static void lifo_test(int id) {
 /* ------------------------------------------------------------------------------------ */
 static int pf_cnt_boolean, pf_cnt_counted;
 static gasnet_hsl_t pf_lock = GASNET_HSL_INITIALIZER;
+static gasneti_weakatomic_t progressfn_req_sent = gasneti_weakatomic_init(0);
+static gasneti_weakatomic_t progressfn_rep_rcvd = gasneti_weakatomic_init(0);
 static void progressfn_reqh(gasnet_token_t token, void *buf, size_t nbytes) {
   GASNET_Safe(gasnet_AMReplyMedium0(token, gasneti_diag_hidx_base + 1, buf, nbytes));
 }
 static void progressfn_reph(gasnet_token_t token, void *buf, size_t nbytes) {
+  gasneti_weakatomic_increment(&progressfn_rep_rcvd,0);
 }
 static void progressfn_tester(int *counter) {
   static int active = 0; /* protocol provides mutual exclusion & recursion protection */
@@ -608,7 +611,9 @@ static void progressfn_tester(int *counter) {
     sz = gasnet_try_syncnbi_all();
     if (gasneti_diag_havehandlers) {
       for (sz = 1; sz <= MIN(gasnet_AMMaxMedium(),MIN(64*1024,TEST_SEGSZ/2)); sz = (sz < 64?sz*2:sz*8)) {
+        gasneti_weakatomic_increment(&progressfn_req_sent,0);
         gasnet_AMRequestMedium0(peer, gasneti_diag_hidx_base + 0, myseg, sz);
+        gasneti_weakatomic_increment(&progressfn_req_sent,0);
         gasnet_AMRequestLong0(peer, gasneti_diag_hidx_base + 0, myseg, sz, peersegmid);
       }
     }
@@ -681,6 +686,8 @@ static void progressfns_test(int id) {
     /* ensure they did not run */
     assert_always(cnt_c == pf_cnt_counted); assert_always(cnt_b == pf_cnt_boolean);
   }
+  GASNET_BLOCKUNTIL(gasneti_weakatomic_read(&progressfn_req_sent,0) ==
+                    gasneti_weakatomic_read(&progressfn_rep_rcvd,0));
 #endif
 }
 /* ------------------------------------------------------------------------------------ */

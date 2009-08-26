@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2009/05/01 19:57:02 $ */
-/*  $Revision: 1.133.2.2 $ */
+/*      $Date: 2009/08/26 05:01:44 $ */
+/*  $Revision: 1.133.2.3 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -104,6 +104,9 @@
 #undef HAVE_UNSETENV_DECL
 #undef HAVE_SNPRINTF_DECL
 #undef HAVE_VSNPRINTF_DECL
+#undef HAVE_ISBLANK_DECL
+#undef HAVE_ISASCII_DECL
+#undef HAVE_TOASCII_DECL
 
 /* Forbidden to use fork(), popen() and system()? */
 #undef GASNETI_NO_FORK

@@ -18,13 +18,14 @@
 # fh_extradeps      - dependencies on firehose .c and .h files
 # fh_special_objs   - firehose .o files with "abonormal" build requirements
 #
-# fh_srcdir is also set, but probably isn't needed outside this fragment
+# fh_{src,bld}dir are also set, but probably aren't needed outside this fragment
 
 fh_srcdir = $(top_srcdir)/other/firehose
+fh_blddir = $(top_builddir)/other/firehose
 fh_sourcelist = 
 fh_extraheaders = $(fh_srcdir)/firehose_trace.h
 fh_extralibcflags = -I$(fh_srcdir)
-fh_extradeps = $(fh_srcdir)/*.[ch]
+fh_extradeps = $(fh_srcdir)/*.[ch] $(fh_blddir)/firehose.mak
 fh_special_objs =                                   \
 	$(builddir)/firehose-$(THREAD_MODEL).o      \
 	$(builddir)/firehose_$(fh_type)-$(THREAD_MODEL).o
@@ -39,3 +40,6 @@ $(builddir)/firehose_$(fh_type)-$(THREAD_MODEL).o: force
 	keeptmps='$(KEEPTMPS)'; \
 	@CC@ $(LIBCFLAGS) @FH_CFLAGS@ -o $@ -c $(fh_srcdir)/firehose_$(fh_type).c
 
+# How to rebuild this file
+$(fh_blddir)/firehose.mak: $(fh_srcdir)/firehose.mak.in
+	cd $(@D) && $(MAKE) $(@F)

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testam.c,v $
- *     $Date: 2009/05/01 19:57:48 $
- * $Revision: 1.26.44.2 $
+ *     $Date: 2009/08/26 05:02:10 $
+ * $Revision: 1.26.44.3 $
  * Description: GASNet Active Messages performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -59,6 +59,8 @@ gasnet_hsl_t inchsl = GASNET_HSL_INITIALIZER;
 #define hidx_ping_longhandler_flood    211
 #define hidx_pong_longhandler_flood    212
 
+#define hidx_done_shorthandler   213
+
 volatile int flag = 0;
 
 void ping_shorthandler(gasnet_token_t token) {
@@ -109,16 +111,22 @@ void pong_longhandler_flood(gasnet_token_t token, void *buf, size_t nbytes) {
   INC(flag);
 }
 
+
+volatile int done = 0;
+void done_shorthandler(gasnet_token_t token) {
+  done = 1;
+}
+
 /* ------------------------------------------------------------------------------------ */
 int iters=0;
+int pollers=0;
 int i = 0;
 uintptr_t maxmed, maxlongreq, maxlongrep;
-void doAMShort(void);
-void doAMMed(void);
-void doAMLong(void);
-void doAMLongAsync(void);
+void *doAll(void*);
 
 int main(int argc, char **argv) {
+  int arg=1;
+
   gasnet_handlerentry_t htable[] = { 
     { hidx_ping_shorthandler,  ping_shorthandler  },
     { hidx_pong_shorthandler,  pong_shorthandler  },
@@ -132,21 +140,41 @@ int main(int argc, char **argv) {
     { hidx_ping_medhandler_flood,    ping_medhandler_flood    },
     { hidx_pong_medhandler_flood,    pong_medhandler_flood    },
     { hidx_ping_longhandler_flood,   ping_longhandler_flood   },
-    { hidx_pong_longhandler_flood,   pong_longhandler_flood   }
+    { hidx_pong_longhandler_flood,   pong_longhandler_flood   },
+
+    { hidx_done_shorthandler,  done_shorthandler  }
   };
 
   GASNET_Safe(gasnet_init(&argc, &argv));
 
-  if (argc > 1) iters = atoi(argv[1]);
+  if ((argc-arg >= 2) && !strcmp(argv[arg], "-p")) {
+#if GASNET_PAR
+    pollers = atoi(argv[arg+1]);
+    arg += 2;
+#else
+    if (gasnet_mynode() == 0) {
+      fprintf(stderr, "testam %s\n", GASNET_CONFIG_STRING);
+      fprintf(stderr, "ERROR: The -p option is only available in the PAR configuration.\n");
+      fflush(NULL);
+    }
+    sleep(1);
+    gasnet_exit(1);
+#endif
+  }
+  if (argc-arg >= 1) iters = atoi(argv[arg]);
   if (!iters) iters = 1000;
-  if (argc > 2) maxsz = atoi(argv[2]);
+  if (argc-arg >= 2) maxsz = atoi(argv[arg+1]);
   if (!maxsz) maxsz = 2*1024*1024;
-  if (argc > 3) TEST_SECTION_PARSE(argv[3]);
+  if (argc-arg >= 3) TEST_SECTION_PARSE(argv[arg+2]);
 
   GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t),
                             TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+#if GASNET_PAR
+  test_init("testam", 1, "[-p polling_threads] (iters) (maxsz) (test_sections)");
+#else
   test_init("testam", 1, "(iters) (maxsz) (test_sections)");
-  if (argc > 4) test_usage();
+#endif
+  if (argc-arg >= 4) test_usage();
   mynode = gasnet_mynode();
 
   TEST_PRINT_CONDUITINFO();
@@ -168,22 +196,28 @@ int main(int argc, char **argv) {
   BARRIER();
 
   if (mynode == 0) {
+#if GASNET_PAR
+      printf("Running AM performance test with %i iterations and %i extra recvr polling threads...\n",iters,pollers);
+#else
       printf("Running AM performance test with %i iterations...\n",iters);
+#endif
       printf("   Msg Sz  Description                             Total time   Avg. time   Bandwidth\n"
              "   ------  -----------                             ----------   ---------   ---------\n");
       fflush(stdout);
   }
-
-  doAMShort();
-  doAMMed();
-  doAMLong();
-  doAMLongAsync();
+#if GASNET_PAR
+  if (pollers)
+    test_createandjoin_pthreads(pollers+1,doAll,NULL,0);
+  else
+#endif
+    doAll(NULL);
 
   MSG("done.");
 
   gasnet_exit(0);
   return 0;
 }
+
 /* ------------------------------------------------------------------------------------ */
 void doAMShort(void) {
     GASNET_BEGIN_FUNCTION();
@@ -455,5 +489,18 @@ void doAMLong(void) {
 void doAMLongAsync(void) {
   GASNET_BEGIN_FUNCTION();
   TESTAM_PERF("AMLongAsync", gasnet_AMRequestLongAsync0, hidx_ping_longhandler, hidx_pong_longhandler, maxlongreq, maxlongrep, LONGDEST);
+}
+/* ------------------------------------------------------------------------------------ */
+void *doAll(void *ptr) {
+  if (ptr) {
+    if (recvr) GASNET_BLOCKUNTIL(done);
+  } else {
+    doAMShort();
+    doAMMed();
+    doAMLong();
+    doAMLongAsync();
+    if (recvr) GASNET_Safe(gasnet_AMRequestShort0(mynode, hidx_done_shorthandler));
+  }
+  return NULL;
 }
 /* ------------------------------------------------------------------------------------ */

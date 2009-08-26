@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose.h,v $
- *     $Date: 2009/05/01 19:57:32 $
- * $Revision: 1.20.2.1 $
+ *     $Date: 2009/08/26 05:02:04 $
+ * $Revision: 1.20.2.2 $
  * Description: Public Header file
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -604,7 +604,9 @@ firehose_get_params(uintptr_t max_pinnable_memory,
  * to determine if remote memory has previously been pinned.  They only
  * return success when the request can be satisfied based on local
  * knowledge of what memory is already pinned.  For this reason, spin
- * polling on these functions is not recommended.
+ * polling on these functions is not recommended.  Additionally, be
+ * aware that these functions can return NULL (failure) due to a 
+ * temporary lack of resources, even if the memory is known to be pinned.
  */
 
 /********************************************************************/
@@ -637,7 +639,8 @@ firehose_local_pin(uintptr_t addr, size_t len, firehose_request_t *req);
  * Called to find an existing local pinning of a specified region.
  * If the requested region is already pinned, a corresponding request
  * type is returned.  If the region covered by (addr, addr+len) is not
- * pinned, the function returns NULL.
+ * pinned, the function returns NULL.  A NULL result may also occur if
+ * there is a temporary lack of resources.
  *
  * This is an immediate operation, meaning no network communication is
  * required to complete the operation, and all side effects have occurred
@@ -657,8 +660,9 @@ firehose_try_local_pin(uintptr_t addr, size_t len, firehose_request_t *req);
  *****************************
  * Called to request a (potentially) partial local pinning operation.
  * The call returns with a valid request type if any portion of the
- * requested region is already pinned.  Only if no portion of the
- * requested region is already pinned does the call return NULL.
+ * requested region is already pinned.  If no portion of the requested
+ * region is pinned this call returns NULL.  A NULL result may also
+ * occur if there is a temporary lack of resources.
  *
  * This is an immediate operation, meaning no network communication is
  * required to complete the operation, and all side effects have occurred
@@ -810,7 +814,8 @@ firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
  * Called to find an existing remote pinning of a specified region.
  * If the requested region is already pinned, a corresponding request
  * type is returned.  If the region covered by (addr, addr+len) is not
- * pinned, the function returns NULL.
+ * pinned, the function returns NULL.  A NULL result may also occur if
+ * there is a temporary lack of resources.
  *
  * This is an immediate operation, meaning no network communication is
  * required to complete the operation, and all side effects have occurred
@@ -831,8 +836,9 @@ firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
  ******************************
  * Called to request a (potentially) partial remote pinning operation.
  * The call returns with a valid request type if any portion of the
- * requested region is already pinned.  Only if no portion of the
- * requested region is already pinned does the call return NULL.
+ * requested region is already pinned.  If no portion of the requested
+ * region is pinned this call returns NULL.  A NULL result may also
+ * occur if there is a temporary lack of resources.
  *
  * This is an immediate operation, meaning no network communication is
  * required to complete the operation, and all side effects have occurred

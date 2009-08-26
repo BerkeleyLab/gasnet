@@ -41,6 +41,19 @@
 #define GASNETC_USE_SPINLOCK 0
 #endif
 
+/* Set to 1 to enable use of PtlMDUpdate in the firehose move callback.
+ * The code that this enables currently works around an apparent bug in
+ * PtlMDUPdate in which it returns PTL_INVALID_EQ when passed PTL_EQ_NONE.
+ * However, it does NOT currently work-around GASNet bug 2617, and so is
+ * disabled by default.
+ * Additionally, testing done while examining Bug 2617 suggests that the
+ * cost of an PtlMDUpdate in PE-2.1.50HD is as much as 50% higher than the
+ * corresponding PtlMDUnlink() + PtlMDBind().
+ */
+#ifndef GASNETC_USE_MDUPDATE
+#define GASNETC_USE_MDUPDATE 0
+#endif
+
 /* Comments on the value of GASNETC_CHUNKSIZE:
  *
  *         ==> NOTE: This value set in gasnet_core_help.h <==
@@ -153,20 +166,24 @@ extern unsigned gasnetc_sys_poll_limit;
     }									\
   } while(0);
 #else
-#define GASNETC_CHECKSIG()
+#define GASNETC_CHECKSIG() ((void)0)
 #endif
 
-/* Macro that checks error condition of Portals calls */
+/* Macro that checks return code from a Portals calls */
+#define GASNETC_PTLCHECK(_retcode, _message) do {			\
+    if_pf (_retcode != (int)PTL_OK) {					\
+      gasneti_fatalerror("\nGASNet Portals encountered an error: %s (%i)\n" \
+			 "  %s\n  at %s",				\
+			 ptl_err_str[_retcode], _retcode, _message, gasneti_current_loc); \
+    }									\
+ } while (0)
+
+/* Macro that makes a Portals calls and checks return code */
 #define GASNETC_PTLSAFE(fncall) do {					\
     int _retcode;							\
     GASNETC_CHECKSIG();							\
     _retcode = (fncall);						\
-    if_pf (_retcode != (int)PTL_OK) {					\
-      gasneti_fatalerror("\nGASNet Portals encountered an error: %s (%i)\n" \
-			 "  while calling: %s\n"			\
-			 "  at %s",					\
-			 ptl_err_str[_retcode], _retcode, #fncall, gasneti_current_loc); \
-    }									\
+    GASNETC_PTLCHECK(_retcode, "while calling: " #fncall);		\
  } while (0)
 
 /* Portals Access table not implemented on XT3 */
@@ -224,20 +241,18 @@ extern unsigned gasnetc_sys_poll_limit;
 #define GASNETC_SELECT_BYTE6       0x00FF000000000000ULL
 #define GASNETC_SELECT_BYTE7       0xFF00000000000000ULL
 
-/* x is a uint64_t and a and b are int32_t */
 #define GASNETC_PACK_UPPER(lhs,rhs) lhs = ((lhs) & GASNETC_SELECT_LOWER32) | ((uint64_t)(rhs) << 32)
 #define GASNETC_PACK_LOWER(lhs,rhs) lhs = ((lhs) & GASNETC_SELECT_UPPER32) | ((uint64_t)(rhs) & GASNETC_SELECT_LOWER32)
-#define GASNETC_PACK_2INT(x,up,low) x = ((uint64_t)(up)<<32) | ((uint64_t)(low) & GASNETC_SELECT_LOWER32)
+#define GASNETC_PACK_2INT(x,up,low) x = GASNETI_MAKEWORD(up,low)
 
-#define GASNETC_UNPACK_UPPER(x) (int32_t)((x)>>32)
-#define GASNETC_UNPACK_LOWER(x) (int32_t)((x)&GASNETC_SELECT_LOWER32)
 #define GASNETC_UNPACK_2INT(x,up,low) do { \
-    (up) = GASNETC_UNPACK_UPPER(x);	   \
-    (low) = GASNETC_UNPACK_LOWER(x);	   \
+    (up) = GASNETI_HIWORD(x);	   \
+    (low) = GASNETI_LOWORD(x);	   \
   } while (0)
 
 #define gasnetc_alloc_ticket(semptr) gasneti_semaphore_trydown(semptr)
 #define gasnetc_return_ticket(semptr) gasneti_semaphore_up(semptr)
+#define gasnetc_return_tickets(semptr,n) gasneti_semaphore_up_n(semptr,n)
 #define gasnetc_num_tickets(semptr) gasneti_semaphore_read(semptr)
 
 /* poll until thread has cached requested number of send tickets
@@ -288,9 +303,8 @@ extern unsigned gasnetc_sys_poll_limit;
 
 /* debugging functions and macros */
 #if GASNET_DEBUG
-#define GASNETC_NEXTSEQNO() do {	  \
-    db_seqno = gasnetc_amseqno++;	  \
-  }while(0)
+#define GASNETC_MSGLEN_PAD(n)   do { (n) = GASNETI_ALIGNUP((n),GASNETI_MEDBUF_ALIGNMENT); } while(0)
+#define GASNETC_MSGLEN_ADD(n,l) do {	(n) += (l); } while(0)
 #define GASNETC_INIT_HARGS do {			\
     int i;					\
     for (i = 0; i < 16; i++) hargs[i]=0;	\
@@ -298,17 +312,13 @@ extern unsigned gasnetc_sys_poll_limit;
 #define GASNETC_DEF_HARGS() gasnet_handlerarg_t hargs[16]; int hargcnt=0; uint32_t db_seqno; int db_cntr=0; GASNETC_INIT_HARGS
 #define GASNETC_ADD_HARG(foo) hargs[hargcnt++] = foo
 #define GASNETC_GET_SEQNO(ptoken) db_seqno = (ptoken)->seqno
-#define GASNETC_SAVE_SEQNO(ptoken) (ptoken)->seqno = db_seqno
-#define GASNETC_EXTRACT_SEQNO(data,cntr) do {\
-    memcpy(&db_seqno,data,sizeof(uint32_t)); \
-    data += sizeof(uint32_t);		     \
-    cntr += sizeof(uint32_t);		     \
-  } while(0);
-#define GASNETC_INJECT_SEQNO(data,cntr) do { \
-    memcpy(data,&db_seqno,sizeof(uint32_t)); \
-    data += sizeof(uint32_t);		     \
-    cntr += sizeof(uint32_t);		     \
-  } while(0);
+#define GASNETC_EXTRACT_SEQNO(data32,tok) do {\
+    tok.seqno = *(data32++);                  \
+    tok.msg_bytes += sizeof(uint32_t);        \
+  } while(0)
+#define GASNETC_INJECT_NEXT_SEQNO(data32) do {       \
+    *(data32++) = db_seqno = gasnetc_amseqno++; \
+  } while(0)
 #define GASNETC_SEQNO_MSGLEN(cntr) cntr += sizeof(uint32_t)
 #define GASNETC_AMLONG_DEFSEQARG ,uint32_t db_seqno
 #define GASNETC_AMLONG_SEQARG ,db_seqno
@@ -320,27 +330,27 @@ extern unsigned gasnetc_sys_poll_limit;
 #endif
 #define GASNETC_DBGMSG(snd,req,str,src,dest,handler,narg,a,mlen,cred,dlen,data,th) do { \
     const char *fmt_str = "AMD %s %s %s s=%d d=%d sq=%d sr=%d h=%d mlen=%d dlen=%d crc=%lu cred=%d:%d:%d th=%d narg=%d %x %x %x %x %x %x %x %x"; \
-    uint64_t i;								\
     uint8_t end_epoch,nextra,ncredit;					\
-    uint8_t *udata = (uint8_t*)data;					\
     uint32_t sr_seqno = (snd ? (gasnetc_snd_seqno++) : (gasnetc_rcv_seqno++)); \
     uint64_t crc = GASNETC_CHECKSUM(data,dlen);				\
     GASNETC_READ_CREDIT_BYTE(cred,end_epoch,nextra,ncredit);		\
     GASNETI_TRACE_PRINTF(C,(fmt_str,(snd?"S":"R"),str,(req?"Req":"Rpl"),src,dest,db_seqno,sr_seqno,handler,mlen,dlen,crc,end_epoch,nextra,ncredit,th->threadidx,narg,a[0],a[1],a[2],a[3],a[4],a[5],a[6],a[7])); \
   } while(0)
+  #define GASNETC_ZERO_AMARGS(_args) memset((_args), 0, sizeof(_args))
     
 #else
-#define GASNETC_NEXTSEQNO(sn) do {} while(0)
+#define GASNETC_MSGLEN_PAD(n)   do {} while(0)
+#define GASNETC_MSGLEN_ADD(n,l) do {} while(0)
 #define GASNETC_DEF_HARGS() do {} while(0)
 #define GASNETC_ADD_HARG(foo) do {} while(0)
 #define GASNETC_GET_SEQNO(ptok) do {} while(0)
-#define GASNETC_SAVE_SEQNO(ptok) do {} while(0)
-#define GASNETC_EXTRACT_SEQNO(data,cntr) do {} while(0)
-#define GASNETC_INJECT_SEQNO(data,cntr) do {} while(0)
+#define GASNETC_EXTRACT_SEQNO(data,tok) do {} while(0)
+#define GASNETC_INJECT_NEXT_SEQNO(data) do {} while(0)
 #define GASNETC_SEQNO_MSGLEN(cntr) do {} while(0)
 #define GASNETC_AMLONG_DEFSEQARG
 #define GASNETC_AMLONG_SEQARG
 #define GASNETC_DBGMSG(snd,req,str,src,dest,handler,narg,a,mlen,cred,dlen,data,th) do{}while(0)
+#define GASNETC_ZERO_AMARGS(args) do {} while(0)
 #endif
 
 #if GASNETC_CREDIT_TESTING
@@ -359,8 +369,10 @@ extern unsigned gasnetc_sys_poll_limit;
     int navail;								\
     uint8_t end_epoch = 0;						\
     gasneti_assert(th->snd_credits == 0);				\
+    gasneti_assert(pollcnt == 0);					\
     cred_byte = 0;							\
     if (gasnetc_use_flow_control) {					\
+      GASNETC_TRACE_WAIT_BEGIN();					\
       do {								\
 	GASNETC_LOCK_STATE(state);					\
 	navail = state->SendCredits - state->SendInuse;			\
@@ -384,7 +396,6 @@ extern unsigned gasnetc_sys_poll_limit;
 	    need = (uint8_t)(ncredit - navail);				\
 	    state->SendStalls++;					\
 	    UPDATE_STALL_TOT(state);					\
-	    GASNETI_TRACE_EVENT(C, CREDIT_STALL);			\
 	  }								\
 	  GASNETC_UNLOCK_STATE(state);					\
 	  GASNETI_TRACE_EVENT(C, CREDIT_THROTTLE);			\
@@ -392,6 +403,7 @@ extern unsigned gasnetc_sys_poll_limit;
 	  gasneti_AMPoll();						\
 	}								\
       } while(th->snd_credits < ncredit);				\
+      if (pollcnt) GASNETC_TRACE_WAIT_END(CREDIT_STALL);		\
     }									\
   } while(0)
 
@@ -414,7 +426,7 @@ extern unsigned gasnetc_sys_poll_limit;
       | ((uint64_t)(hndlr) << 16) | ((uint64_t)(amflag) << 8) | (uint64_t)(targ_mbits)
 
 #define GASNETC_UNPACK_AM_MBITS(mbits, offset, numarg, hndlr, amflag, targ_mbits) do { \
-    offset     = (mbits)>>32;						\
+    offset     = GASNETI_HIWORD(mbits);					\
     numarg     = ((mbits)&GASNETC_SELECT_BYTE3)>>24;			\
     hndlr      = ((mbits)&GASNETC_SELECT_BYTE2)>>16;			\
     amflag     = ((mbits)&GASNETC_SELECT_BYTE1)>>8;			\
@@ -430,11 +442,6 @@ extern unsigned gasnetc_sys_poll_limit;
 #define GASNETC_GET_MSG_TYPE(mbits) ((mbits) & 0xF0)
 #define GASNETC_SET_MSG_TYPE(mbits,mtyp) (((mbits) & 0xFFFFFFFFFFFFFF0F) | ((mtyp) & 0xF0))
 
-#define GASNETC_COMPUTE_DOUBLE_PAD(n,pad) do {	\
-    int p = (n) % sizeof(double);		\
-    pad = (p == 0 ? 0 : sizeof(double)-p);	\
-  } while(0)
-
 #define GASNETC_PTL_OFFSET(n,s) ((uint8_t*)(s) - (uint8_t*)gasneti_seginfo[n].addr)
 
 /* AM tokens data structure.  This is never sent over the wire and generally exists
@@ -443,17 +450,12 @@ extern unsigned gasnetc_sys_poll_limit;
  * object, retaining its state until both header and data payload arrives.
  */
 typedef struct token_rec {
-  uint8_t           flags;
+  uint8_t           need_reply;
   uint8_t           credits;             /* credit info: end_epoch flag, nextra, ncredit */
   uint32_t          initiator_offset;    /* offset in senders ReqSB, where Reply is sent */
-  ptl_size_t        rplsb_offset;        /* offset in replyer RplSB to use in Reply */
   ptl_process_id_t  initiator;           /* process ID of requestor */
   gasnet_node_t     srcnode;             /* gasnet node ID of requestor */
   gasnet_handlerarg_t args[gasnet_AMMaxArgs()]; /* handler arguments [expands to constant] */
-  /* the remaining fields are only used in the case of a two-message AM Long and may
-   * not be set for AM Short, AM Medium or Packed AM Longs */
-  gasnet_handler_t  ghandler;            /* handler to run */
-  uint32_t          narg;                /* number of arguments */
 #if GASNET_DEBUG
   size_t            msg_bytes;           /* Entire length of header message (for debugging) */
   uint32_t          seqno;               /* Debug Seq number for AM Req/Reply */
@@ -464,20 +466,17 @@ typedef struct token_rec {
  * These data structures are allocated dynamically and updated atomically.
  * They will be created when the first of the AM Long Header or data packet arrives
  * and deallocated after the handler is run.
- * The args field is a dynamic array, the size of the array (and structure) is 
- * determined by the narg field.
  */
-#define GASNETC_LID_DATA_HERE    0x1
-#define GASNETC_LID_HEADER_HERE  0x2
 typedef struct gasnetc_amlongcache_rec {
-  uint8_t             flags;              /* indicates if HEADER and/or DATA has arrived */
-  uint32_t            dest_lid;           /* ID of this Long AM */
 #if GASNET_DEBUG
-  uint32_t            seqno;              /* AM sequence number for debugging */
+  #define GASNETC_LID_DATA_HERE    0x1
+  #define GASNETC_LID_HEADER_HERE  0x2
+  uint8_t             flags;              /* indicates if HEADER and/or DATA has arrived */
 #endif
+  uint32_t            dest_lid;           /* ID of this Long AM */
   gasnetc_ptl_token_t tok;                /* token for this AM, only gets written by header */
   void*               data;               /* location of data packet payload */
-  size_t              nbytes;             /* data payload size (med/long) */
+  size_t              nbytes;             /* data payload size */
   struct gasnetc_amlongcache_rec *next;   /* link into conn_state list of active AMLong lid objs */
 } gasnetc_amlongcache_t;
 
@@ -653,7 +652,6 @@ extern void* gasnetc_flush_buffer;
  * structures to gasnet_node_t.
  */
 typedef struct gasnetc_procrec {
-  gasnet_node_t     node_id;
   ptl_process_id_t  ptl_id;
   struct gasnetc_procrec *next;  /* linked list for hash table reverse lookup */
 } gasnetc_procid_t;
@@ -668,25 +666,25 @@ extern gasnetc_procid_t   *gasnetc_procid_map;
 extern char* ptl_event_str[];
 
 
-#ifdef GASNET_PAR
-#define GASNETC_REQRB_START(start_addr) do {				\
-    gasnetc_PtlBuffer_t *p = ReqRB_getbuf((uintptr_t)(start_addr));	\
-    gasneti_weakatomic_increment(&p->threads_active, 0);		\
-  } while(0)
-#define GASNETC_REQRB_FINISH(start_addr) do {				\
-    gasnetc_PtlBuffer_t *p = ReqRB_getbuf((uintptr_t)(start_addr));	\
-    gasneti_weakatomic_decrement(&p->threads_active, 0);		\
-  } while(0)
+#ifndef GASNET_PAR
+  /* No accounting required */
+  #define GASNETC_REQRB_START(bufptr)      do {} while(0)
+  #define GASNETC_REQRB_FINISH(bufptr)     do {} while(0)
+  #define GASNETC_REQRB_BUSY(bufptr)       0
 #else
-#define GASNETC_REQRB_START(bufptr)  do {} while(0)
-#define GASNETC_REQRB_FINISH(bufptr)  do {} while(0)
+  /* "threads_active" counts threads referencing the buffer */
+  #define GASNETC_REQRB_START(bufptr) \
+      gasneti_weakatomic_increment(&(bufptr)->threads_active, 0)
+  #define GASNETC_REQRB_FINISH(bufptr) \
+      gasneti_weakatomic_decrement(&(bufptr)->threads_active, 0)
+  #define GASNETC_REQRB_BUSY(bufptr) \
+      (gasneti_weakatomic_read(&(bufptr)->threads_active, 0) != 0)
 #endif
 
 /* ----------------------------------------------------------------------------------- */
 
 /* The RAR, RARAM, and the AM request/reply send/receive buffers are described by */
 typedef struct {
-  size_t alignment;                    /* alignment (power of 2) */
   size_t nbytes;                       /* number of bytes in buffer after alignment */
   void*  actual_start;                 /* returned by allocator */
   void*  start;                        /* aligned start */
@@ -694,26 +692,29 @@ typedef struct {
   ptl_handle_me_t  me_h;               /* The Portals match-list entry handle (if used) */
   char *name;                          /* string used for diagnostics */
   int use_chunks;                      /* Is the buffer under control of a chunk allocator? */
-  gasneti_weakatomic_t threads_active; /* Used only in ReqRB, counts number of threads
-					* actively using buffer */
+
+  /* Used only in ReqRB: */
+  gasneti_weakatomic_t threads_active; /* counts number of threads actively using buffer */
+  volatile int fresh;                  /* non-zero if no AMs have been processed since MDAttach */
 
   /* The following fields are only used in the case of a chunk allocator */
   /* NOTE: Only ReqSB and RplSB objects are controlled by chunk allocation, others are not. */
-  gasneti_mutex_t      lock;           /* locks access to chunk allocator freelist */
+#if GASNETI_STATS_OR_TRACE
   int numchunks;                       /* number of chunks in buffer */
   int inuse;                           /* number of chunks currently in use */
   int hwm;                             /* High water mark of chunk use */
-  void **freelist;                     /* chunk freelist */
+#endif
+  gasneti_lifo_head_t freelist;        /* chunk freelist */
+
+  /* locks access to "fresh" (if !use_chunks), or "inuse" and "hwm" (if use_chunks) */
+  gasneti_mutex_t      lock;
 } gasnetc_PtlBuffer_t;
 
 /* Thread local data
  * This is attached to the gasnetc_threaddata hook in gasnete_threaddata_t
  */
-#define GASNETC_THREAD_HAVE_RPLSB   0x02U
-typedef gasnete_threadidx_t gasnetc_threadidx_t;
 typedef struct _gasnetc_threaddata_t {
-  uint8_t flags;
-  gasnetc_threadidx_t threadidx;     /* must be identical to corresponding gasnete value */
+  gasnete_threadidx_t threadidx;     /* must be identical to corresponding gasnete value */
 
   /* holding place for tickets and credits that we have already allocated */
   uint8_t snd_tickets;
@@ -730,9 +731,8 @@ typedef struct _gasnetc_threaddata_t {
    * A separate counter is required because both may be in flight simultaneously */
   gasneti_weakatomic_t amlongRep_data_inflight;
 
-  /* When (flags & GASNETC_THREAD_HAVE_RPLSB)
-   * rplsb_off contains offset of cached request send buffer  */
-  ptl_size_t rplsb_off;
+  /* rplsb is cached request send buffer, or NULL */
+  void *rplsb;
 } gasnetc_threaddata_t;
 
 /* ----------------------------------------------------------------------------
@@ -756,7 +756,7 @@ extern size_t gasnetc_RplSB_numchunk;         /* Number of chunks to alloc for R
 extern gasnetc_PtlBuffer_t gasnetc_ReqSB;
 extern gasnetc_PtlBuffer_t gasnetc_RplSB;    /* MLW: Can elim this, and alloc a per-thread buffer and MD
 					      * No need for an EQ since will only use it to send */
-extern gasnetc_PtlBuffer_t *gasnetc_ReqRB;   /* an array of buffers */
+extern gasnetc_PtlBuffer_t **gasnetc_ReqRB;  /* an array of buffers */
 extern gasnetc_PtlBuffer_t gasnetc_RAR;
 extern gasnetc_PtlBuffer_t gasnetc_RARAM;
 extern gasnetc_PtlBuffer_t gasnetc_RARSRC;
@@ -779,9 +779,6 @@ typedef enum{GASNETC_SYS_SHUTDOWN_REQUEST=0,
 	     GASNETC_SYS_CREDIT_REVOKE,
 	     GASNETC_SYS_CREDIT_RETURN,
 	     GASNETC_SYS_NUM} gasnetc_sys_t;
-static gasneti_weakatomic_t sys_barrier_cnt;
-static gasneti_weakatomic_t sys_barrier_got;
-static gasneti_weakatomic_t sys_barrier_checkin;
 extern int gasnetc_resource_init_complete;         /* After this is set, should be ok to tolerate
 						    * dropped events on SYS queue */
 
@@ -813,8 +810,9 @@ extern uint32_t gasnetc_amseqno;
 extern gasneti_handler_fn_t gasnetc_handler[]; /* the handler table */
 
 /* Functions we export to the core and extended API */
-extern int gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset);
-extern int gasnetc_chunk_alloc_withpoll(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset,
+extern void *gasnetc_chunk_alloc_no_off(gasnetc_PtlBuffer_t *buf, size_t nbytes);
+extern void *gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset);
+extern void *gasnetc_chunk_alloc_withpoll(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset,
 					int pollcnt, gasnetc_pollflag_t poll_type);
 extern void gasnetc_chunk_free(gasnetc_PtlBuffer_t *buf, ptl_size_t offset);
 extern ptl_handle_md_t gasnetc_alloc_tmpmd(void* dest, size_t nbytes);
@@ -829,7 +827,6 @@ extern void gasnetc_portals_exit(void);
 extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type);
 extern void gasnetc_event_handler(ptl_event_t *ev);
 extern void gasnetc_ptl_trace_finish(void);
-extern gasnet_node_t gasnetc_get_nodeid(ptl_process_id_t *proc);
 extern size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
 			   ptl_match_bits_t match_bits, gasnetc_pollflag_t pollflag);
 extern size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
@@ -856,6 +853,16 @@ extern void gasnetc_scavenge_list_remove(gasnet_node_t node);
 extern void gasnetc_scavenge_list_add(gasnet_node_t node, int locked);
 
 /* Inline Function Definitions */
+
+GASNETI_ALWAYS_INLINE(get_rplsb) 
+void *claim_rplsb(gasnetc_threaddata_t *th)
+{
+  void *retval = th->rplsb;
+  th->rplsb = NULL;
+  gasneti_assert(retval != NULL);
+  return retval;
+}
+
 GASNETI_INLINE(gasnetc_compute_credits)
 unsigned long gasnetc_compute_credits(unsigned long nbytes)
 {
@@ -894,14 +901,22 @@ void gasnete_set_mbits_lowbits(ptl_match_bits_t *mbits, uint8_t msg_type, gasnet
     GASNETI_TRACE_PRINTF(C,("set lowbits th = 0x%x, addr = 0x%x, type = 0x%x, bits = 0x%llx",th_b,addr_b,m_b,*mbits));
 }
 
-GASNETI_INLINE(gasnete_get_op_lowbits)
-void gasnete_get_op_lowbits(ptl_match_bits_t mbits, uint8_t *threadid, gasnete_opaddr_t *addr)
-			    
+GASNETI_INLINE(gasnete_mbits2op)
+gasnete_op_t* gasnete_mbits2op(ptl_match_bits_t mbits)
 {
-    uint32_t lb    = (uint32_t)(GASNETC_SELECT_LOWER32 & mbits);
-    *threadid      = (uint8_t)(lb >> 24);
-    addr->fulladdr = (uint16_t)((lb & 0x00FFFF00) >> 8);
-    GASNETI_TRACE_PRINTF(C,("get bits = 0x%lx, th = 0x%x, addr = 0x%x",(unsigned long)mbits,*threadid,addr->fulladdr));
+  uint32_t lo = GASNETI_LOWORD(mbits);
+  uint8_t tid = lo >> 24;
+  gasnete_opaddr_t addr;
+  addr.fulladdr = lo >> 8;
+  return gasnete_opaddr_to_ptr(tid, addr);
+}
+
+GASNETI_INLINE(gasnete_mbits2td)
+gasnete_threaddata_t* gasnete_mbits2td(ptl_match_bits_t mbits)
+{
+  uint32_t lo = GASNETI_LOWORD(mbits);
+  uint8_t tid = lo >> 24;
+  return gasnete_threadtable[GASNETE_THREADID(tid)];
 }
 
 GASNETI_INLINE(gasnetc_in_local_rar)
@@ -920,15 +935,31 @@ ptl_handle_md_t gasnetc_alloc_tmpmd_withpoll(void* start, size_t nbytes)
   return gasnetc_alloc_tmpmd(start, nbytes);
 }
 
+enum { /* lock_op argument to gasnetc_get_event and gasnetc_sys_poll */
+  GASNETC_EQ_NOLOCK = 0, /* Caller must hold the lock */
+  GASNETC_EQ_LOCK,       /* Obtain and release the lock */
+  GASNETC_EQ_TRYLOCK     /* trylock and return 0 on failure to acquire */
+};
+
 GASNETI_INLINE(gasnetc_get_event)
-int gasnetc_get_event(gasnetc_eq_t *eq, ptl_event_t *ev)
+int gasnetc_get_event(gasnetc_eq_t *eq, ptl_event_t *ev, int lock_op)
 {
   int rc;
   int retcode = 0;
 
-  gasneti_mutex_lock(&eq->lock);
+  switch (lock_op) {
+  case GASNETC_EQ_NOLOCK:
+    gasneti_mutex_assertlocked(&eq->lock);
+    break;
+  case GASNETC_EQ_LOCK:
+    gasneti_mutex_lock(&eq->lock);
+    break;
+  case GASNETC_EQ_TRYLOCK:
+    if (gasneti_mutex_trylock(&eq->lock)) return 0;
+    break;
+  }
   rc = PtlEQGet( eq->eq_h, ev);
-  gasneti_mutex_unlock(&eq->lock);
+  if (lock_op != GASNETC_EQ_NOLOCK) gasneti_mutex_unlock(&eq->lock);
   switch (rc) {
   case PTL_OK:
     retcode = 1;
@@ -961,12 +992,11 @@ gasnetc_threaddata_t* gasnetc_new_threaddata(gasnete_threadidx_t idx)
 {
   gasnetc_threaddata_t *th = (gasnetc_threaddata_t*)gasneti_malloc(sizeof(gasnetc_threaddata_t));
   gasneti_assert_always(th);
-  th->flags = 0;
   th->threadidx = idx;       /* keep this consistent with gasnete_threaddata */
   th->snd_tickets = 0;
   th->tmpmd_tickets = 0;
   th->snd_credits = 0;
-  th->rplsb_off = -9999;     /* bogus value */
+  th->rplsb = NULL;
   gasneti_weakatomic_set(&th->amlongReq_data_inflight, 0, 0);
   gasneti_weakatomic_set(&th->amlongRep_data_inflight, 0, 0);
   gasnete_register_threadcleanup(gasnetc_free_threaddata, th);
@@ -974,7 +1004,7 @@ gasnetc_threaddata_t* gasnetc_new_threaddata(gasnete_threadidx_t idx)
 }
 
 GASNETI_INLINE(gasnetc_sys_poll)
-void gasnetc_sys_poll(void)
+void gasnetc_sys_poll(int lock_op)
 {
   ptl_event_t ev;
   unsigned sys_cnt = 0;
@@ -987,9 +1017,19 @@ void gasnetc_sys_poll(void)
   while ((gasnetc_sys_poll_limit == 0) || (sys_cnt < gasnetc_sys_poll_limit)) {
     /* attempt to get an event, ok if EQ overflowed (but not until after sys initialization) */
     int rc;
-    gasneti_mutex_lock(&gasnetc_SYS_EQ->lock);
+    switch (lock_op) {
+    case GASNETC_EQ_NOLOCK:
+      gasneti_mutex_assertlocked(&gasnetc_SYS_EQ->lock);
+      break;
+    case GASNETC_EQ_LOCK:
+      gasneti_mutex_lock(&gasnetc_SYS_EQ->lock);
+      break;
+    case GASNETC_EQ_TRYLOCK:
+      if (gasneti_mutex_trylock(&gasnetc_SYS_EQ->lock)) return;
+      break;
+    }
     rc = PtlEQGet(gasnetc_SYS_EQ->eq_h, &ev);
-    gasneti_mutex_unlock(&gasnetc_SYS_EQ->lock);
+    if (lock_op != GASNETC_EQ_NOLOCK) gasneti_mutex_unlock(&gasnetc_SYS_EQ->lock);
     switch (rc) {
     case PTL_EQ_EMPTY:
       /* no work, return to caller */
@@ -1046,13 +1086,15 @@ void gasnetc_sys_poll(void)
 #endif
 
 /* ---------------------------------------------------------------------------------
- * Allocate a new LID = "Long ID" for a new AMLong Request or Reply operation
+ * Allocate a new 24-bit LID = "Long ID" for a new AMLong Reply operation
+ * Bit 23 is set to prevent accidental collision w/ offset-based lids of Requests
  * --------------------------------------------------------------------------------- */
 GASNETI_INLINE(gasnetc_new_lid)
 uint32_t gasnetc_new_lid(gasnet_node_t dest)
 {
   /* use _add rather than _incr since it returns the new value */
-  return gasneti_weakatomic_add(&gasnetc_conn_state[dest].src_lid,1,0);
+  uint32_t cntr = gasneti_weakatomic_add(&gasnetc_conn_state[dest].src_lid,1,0);
+  return ((1<<23) | (cntr & 0x7FFFFF));
 }
 
 /* ----------------------------------------------------------------------------

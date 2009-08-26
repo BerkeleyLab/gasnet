@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testsmall.c,v $
- *     $Date: 2009/05/01 19:57:48 $
- * $Revision: 1.42.6.1 $
+ *     $Date: 2009/08/26 05:02:10 $
+ * $Revision: 1.42.6.2 $
  * Description: GASNet non-bulk get/put performance test
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet gets and puts
@@ -577,22 +577,22 @@ int main(int argc, char **argv)
         BARRIER();
 
 	if (TEST_SECTION_BEGIN_ENABLED()) 
-        for (j = min_payload; j <= max_payload; j *= 2)  roundtrip_test(iters, j); 
+        for (j = min_payload; j <= max_payload && j > 0; j *= 2)  roundtrip_test(iters, j); 
 
   	if (TEST_SECTION_BEGIN_ENABLED()) 
-        for (j = min_payload; j <= max_payload; j *= 2)  oneway_test(iters, j);
+        for (j = min_payload; j <= max_payload && j > 0; j *= 2)  oneway_test(iters, j);
 
   	if (TEST_SECTION_BEGIN_ENABLED()) 
-  	for (j = min_payload; j <= max_payload; j *= 2)  roundtrip_nbi_test(iters, j);
+  	for (j = min_payload; j <= max_payload && j > 0; j *= 2)  roundtrip_nbi_test(iters, j);
 
   	if (TEST_SECTION_BEGIN_ENABLED()) 
-  	for (j = min_payload; j <= max_payload; j *= 2)  oneway_nbi_test(iters, j);
+  	for (j = min_payload; j <= max_payload && j > 0; j *= 2)  oneway_nbi_test(iters, j);
 
   	if (TEST_SECTION_BEGIN_ENABLED()) 
-  	for (j = min_payload; j <= max_payload; j *= 2)  roundtrip_nb_test(iters, j);
+  	for (j = min_payload; j <= max_payload && j > 0; j *= 2)  roundtrip_nb_test(iters, j);
 
   	if (TEST_SECTION_BEGIN_ENABLED()) 
-  	for (j = min_payload; j <= max_payload; j *= 2)  oneway_nb_test(iters, j);
+  	for (j = min_payload; j <= max_payload && j > 0; j *= 2)  oneway_nb_test(iters, j);
 
         BARRIER();
         if (!insegment) {

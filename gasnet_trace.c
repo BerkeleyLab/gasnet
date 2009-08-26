@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.c,v $
- *     $Date: 2009/05/01 19:57:04 $
- * $Revision: 1.133.26.2 $
+ *     $Date: 2009/08/26 05:01:45 $
+ * $Revision: 1.133.26.3 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -316,10 +316,15 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
   };
 
   #define BUFSZ     8192
-  #define NUMBUFS   32
-  static char gasneti_printbufs[NUMBUFS][BUFSZ];
-  static int gasneti_curbuf = 0;
-  static gasneti_mutex_t gasneti_buflock = GASNETI_MUTEX_INITIALIZER;
+  #define NUMBUFS   4
+  typedef struct {
+    int bufidx;
+    char bufs[NUMBUFS][BUFSZ];
+  } gasneti_printbuf_t;
+  GASNETI_THREADKEY_DEFINE(gasneti_printbuf_key);
+  static void gasneti_printbuf_cleanup_threaddata(void *_td) {
+      gasneti_free(_td);
+  }
 
   /* give gcc enough information to type-check our format strings */
   GASNETI_FORMAT_PRINTF(gasneti_file_vprintf,2,0,
@@ -332,15 +337,16 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
   static void gasneti_tracestats_printf(const char *format, ...));
 
   static char *gasneti_getbuf(void) {
-    int bufidx;
-
-    gasneti_mutex_lock(&gasneti_buflock);
-
-    bufidx = gasneti_curbuf;
-    gasneti_curbuf = (gasneti_curbuf + 1) % NUMBUFS;
-
-    gasneti_mutex_unlock(&gasneti_buflock);
-    return gasneti_printbufs[bufidx];
+    gasneti_printbuf_t * printbuf;
+    if ((printbuf = gasneti_threadkey_get(gasneti_printbuf_key)) == NULL) {
+      printbuf = gasneti_malloc(sizeof(gasneti_printbuf_t));
+      gasneti_threadkey_set(gasneti_printbuf_key, printbuf);
+      printbuf->bufidx = 0;
+      gasnete_register_threadcleanup(gasneti_printbuf_cleanup_threaddata, printbuf);
+    }
+    gasneti_memcheck(printbuf);
+    printbuf->bufidx = (printbuf->bufidx+1) % NUMBUFS;
+    return printbuf->bufs[printbuf->bufidx];
   }
 
   /* format and return a string result

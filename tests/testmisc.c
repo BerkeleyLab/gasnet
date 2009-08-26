@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testmisc.c,v $
- *     $Date: 2009/05/01 19:57:48 $
- * $Revision: 1.39.6.1 $
+ *     $Date: 2009/08/26 05:02:10 $
+ * $Revision: 1.39.6.2 $
  * Description: GASNet misc performance test
  *   Measures the overhead associated with a number of purely local 
  *   operations that involve no communication. 
@@ -36,6 +36,7 @@ void doit4(void);
 void doit5(void);
 void doit6(void);
 void doit7(void);
+void doit8(void);
 /* ------------------------------------------------------------------------------------ */
 #define hidx_null_shorthandler        201
 #define hidx_justreply_shorthandler   202
@@ -457,6 +458,61 @@ void doit7(void) { GASNET_BEGIN_FUNCTION();
     if (TEST_SECTION_ENABLED() && (gasnet_nodes() > 1))
       MSG0("Note: this is actually the barrier time for %i nodes, "
            "since you're running with more than one node.\n", (int)gasnet_nodes());
+
+    doit8();
+}
+/* ------------------------------------------------------------------------------------ */
+void doit8(void) { GASNET_BEGIN_FUNCTION();
+    /* buffers, aligned and not on the stack */
+    static long src[(1024 + sizeof(void*)) / sizeof(long)];
+    static long dst[(1024 + sizeof(void*)) / sizeof(long)];
+    const char *s = (const char *)src;
+    char *d = (char *)dst;
+
+    TEST_SECTION_BEGIN();
+    if (TEST_SECTION_ENABLED()) {
+      int i;
+      for (i = 0; i < sizeof(src); i++) {
+        ((uint8_t*)src)[i] = TEST_RAND(0,255);
+      }
+    }
+
+    TIME_OPERATION("1024-byte gasnett_count0s()",
+      { GASNETI_UNUSED int junk = gasnett_count0s(s, 1024); });
+    TIME_OPERATION("1024-byte gasnett_count0s_copy()",
+      { GASNETI_UNUSED int junk = gasnett_count0s_copy(d, s, 1024); });
+    TIME_OPERATION("1024-byte gasnett_count0s() + memcpy()",
+      { GASNETI_UNUSED int junk = gasnett_count0s(s, 1024);
+        (void)memcpy(d,s,1024);
+      });
+
+    s += sizeof(void*) / 2;
+    d += sizeof(void*) / 2;
+    TIME_OPERATION("unaligned 1024-byte gasnett_count0s()",
+      { GASNETI_UNUSED int junk = gasnett_count0s(s, 1024); });
+    TIME_OPERATION("unaligned 1024-byte gasnett_count0s_copy()",
+      { GASNETI_UNUSED int junk = gasnett_count0s_copy(d, s, 1024); });
+    TIME_OPERATION("unaligned 1024-byte gasnett_count0s() + memcpy()",
+      { GASNETI_UNUSED int junk = gasnett_count0s(s, 1024);
+        (void)memcpy(d,s,1024);
+      });
+
+    s -= 1;
+    d += 1;
+    TIME_OPERATION("misaligned 1024-byte gasnett_count0s_copy()",
+      { GASNETI_UNUSED int junk = gasnett_count0s_copy(d, s, 1024); });
+    TIME_OPERATION("misaligned 1024-byte gasnett_count0s() + memcpy()",
+      { GASNETI_UNUSED int junk = gasnett_count0s(s, 1024);
+        (void)memcpy(d,s,1024);
+      });
+
+    { volatile int temp;
+      int volatile *ptr = &temp;
+      TIME_OPERATION("gasnett_count0s_uint32_t()",
+        { (*ptr) = gasnett_count0s_uint32_t((uint32_t)i); });
+      TIME_OPERATION("gasnett_count0s_uint64_t()",
+        { (*ptr) = gasnett_count0s_uint64_t((uint64_t)i); });
+    }
 }
 /* ------------------------------------------------------------------------------------ */
 

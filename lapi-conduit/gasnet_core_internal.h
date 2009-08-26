@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2009/05/01 19:57:18 $
- * $Revision: 1.53.2.1 $
+ *     $Date: 2009/08/26 05:01:52 $
+ * $Revision: 1.53.2.2 $
  * Description: GASNet lapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -37,7 +37,18 @@ extern void**             gasnetc_remote_reply_hh;
 /* Enable loopback by setting to 1, disable by setting to 0 */
 #define GASNETC_ENABLE_LOOPBACK 1
 
+/* Enable (expensive) checksum of AM traffic */
+#define GASNETC_DO_CSUM 0
+
 #define GASNETC_MAX_NUMHANDLERS   256
+
+/* Limits on number of queued AM Requests to run per call.
+ * Note that both functions may call gasnetc_service_req_q()
+ * twice, with this limit applied to EACH call independently.
+ * 0 yields 2^32 (essentially unlimited)
+ */
+#define GASNETC_POLL_LIMIT 32 /* In gasnetc_AMPoll() */
+#define GASNETC_AMCH_LIMIT 0  /* In gasnetc_lapi_AMch() */
 
 #define GASNETC_LCHECK(func) do {                                 \
     int lapi_errno;                                               \
@@ -104,6 +115,10 @@ extern volatile int gasnetc_interrupt_held[];
 /* the important contents of a gasnet token */
 typedef unsigned int gasnetc_flag_t;
 typedef struct {
+#if GASNETC_DO_CSUM
+    uint64_t             args_csum;
+    uint64_t             data_csum;
+#endif
     gasnetc_flag_t       flags;
     gasnet_handler_t     handlerId;
     gasnet_node_t        sourceId;
@@ -112,6 +127,29 @@ typedef struct {
     uintptr_t            uhdrLoc;    /* only used on AsyncLong messages */
     gasnet_handlerarg_t  args[GASNETC_AM_MAX_ARGS];
 } gasnetc_msg_t;
+
+#if GASNETC_DO_CSUM
+  /* Write args_csum and data_csum fields of msg */
+  #define GASNETC_GEN_CSUM(_msg, _numargs, _dataptr, _datalen) do {\
+    (_msg)->data_csum = gasneti_checksum((_dataptr),(_datalen));   \
+    (_msg)->args_csum = gasneti_checksum(&(_msg)->args, (_numargs)*sizeof(gasnet_handlerarg_t));\
+  } while(0)
+  /* Check args_csum and data_csum fields of msg */
+  #define GASNETC_CHECK_CSUM(_msg, _numargs, _dataptr, _datalen) do {\
+     uint64_t orig_args_csum = (_msg)->args_csum;                    \
+     uint64_t orig_data_csum = (_msg)->data_csum;                    \
+     GASNETC_GEN_CSUM((_msg),(_numargs),(_dataptr),(_datalen));      \
+     if_pf (orig_args_csum != (_msg)->args_csum)                     \
+	gasneti_fatalerror("args_csum(%d args) validation failed at %s:%d",\
+                           (int)(_numargs), __FILE__,  __LINE__);    \
+     if_pf (orig_data_csum != (_msg)->data_csum)                     \
+	gasneti_fatalerror("data_csum(%d bytes) validation failed at %s:%d",\
+                           (int)(_datalen), __FILE__,  __LINE__);    \
+  } while(0)
+#else
+  #define GASNETC_GEN_CSUM(_msg, _numargs, _dataptr, _datalen)   ((void)0)
+  #define GASNETC_CHECK_CSUM(_msg, _numargs, _dataptr, _datalen) ((void)0)
+#endif
 
 #define GASNETC_MSG_SETFLAGS(pmsg, isreq, cat, packed, numargs) \
   ((pmsg)->flags = (gasnetc_flag_t) (                   \
@@ -149,15 +187,11 @@ typedef struct gasnetc_token_rec {
 } gasnetc_token_t;
 /*
  * We currently set the token length at compile time.
- * Will change this in the future.
+ * Will might this in the future.
  * On Federation systems the packet size if 2KB, whereas
  * its 1KB on older, switch2-based systems like Seaborg.
- * Dont know how to detect this at compile time, so for now
- * we just use the lapi version number.  All federation systems
- * use the new version of LAPI and seaborg uses the older version
- * (at least for now).
  */
-#if (GASNETC_LAPI_VERSION > 1)
+#if GASNETC_LAPI_FEDERATION
 #define GASNETC_TOKEN_SIZE 2048
 #else
 #define GASNETC_TOKEN_SIZE 1024

@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/Makefile.am,v $
-#     $Date: 2009/05/01 19:57:35 $
-# $Revision: 1.12.22.2 $
+#     $Date: 2009/08/26 05:02:07 $
+# $Revision: 1.12.22.3 $
 # Description: Makefile for GASNet portals conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -70,9 +70,9 @@ CONDUIT_SPECIAL_OBJS =  $(fh_special_objs)
 #   %D = the current working directory 
 #   %H = hostfile (if any)
 # This will work for both CNL and Catamount
-CONDUIT_RUNCMD = @TOP_BUILDDIR@/mpi-conduit/contrib/gasnetrun_mpi -np %N %P %A
+CONDUIT_RUNCMD = @TOP_BUILDDIR@/mpi-conduit/contrib/gasnetrun_mpi -np %N -c 0 %P %A
 # Aprun for CNL:
-#CONDUIT_RUNCMD = aprun -n %N -N 1 %P %A
+#CONDUIT_RUNCMD = aprun -n %N -N 1 -cc none %P %A
 # YOD for Catamount:
 #CONDUIT_RUNCMD = yod -np %N %P %A
 
