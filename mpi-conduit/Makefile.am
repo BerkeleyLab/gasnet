@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/Makefile.am,v $
-#     $Date: 2009/04/16 21:38:49 $
-# $Revision: 1.34.30.1 $
+#     $Date: 2009/08/26 04:12:50 $
+# $Revision: 1.34.30.2 $
 # Description: Makefile for GASNet mpi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -65,9 +65,6 @@ if BUILD_SEQ_LIBS
 libgasnet_mpi_seq_a_SOURCES =
 libraries_seq = libgasnet-mpi-seq.a
 endif
-# shmem-conduit does not support pthreads, due to shmem's lack of pthread safety
-CHECK_TEST_TARGET_OVERRIDE = tests-seq
-if ALWAYS_FALSECOND
 if BUILD_PAR_LIBS
 libgasnet_mpi_par_a_SOURCES =
 libraries_par = libgasnet-mpi-par.a
@@ -75,7 +72,6 @@ endif
 if BUILD_PARSYNC_LIBS
 libgasnet_mpi_parsync_a_SOURCES =
 libraries_parsync = libgasnet-mpi-parsync.a
-endif
 endif
 libraries = $(libraries_seq) $(libraries_par) $(libraries_parsync)
 
