@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2009/08/26 08:34:03 $
- * $Revision: 1.155.4.3 $
+ *     $Date: 2009/08/26 08:46:09 $
+ * $Revision: 1.155.4.4 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -12,6 +12,7 @@
 #include <stddef.h>	/* for offsetof() */
 
 #include <gasnet_internal.h>
+#include <gasnet_handler.h>
 #include <firehose.h>
 
 /* Check that firehose_fwd.h picked an IB API for us */
@@ -137,7 +138,7 @@ typedef enum {
 /* ------------------------------------------------------------------------------------ */
 
 #define GASNETC_MAX_NUMHANDLERS   256
-extern gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
+extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 /* ------------------------------------------------------------------------------------ */
 typedef void (*gasnetc_sys_handler_fn_t)(gasnet_token_t token, gasnet_handlerarg_t *args, int numargs);
