@@ -1,15 +1,15 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/26 08:33:55 $
- * $Revision: 1.1.4.34 $
+ *     $Date: 2009/08/26 08:59:08 $
+ * $Revision: 1.1.4.35 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#if GASNET_SYSV
-
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h> /* for gasnetc_{Short,Medium,Long} */
+
+#if GASNET_SYSV
 
 /* Do this here to avoid pulling gasnet_handler.h into gasnet_sysv.h */
 #include <gasnet_handler.h> /* Need gasneti_handler_fn_t */
