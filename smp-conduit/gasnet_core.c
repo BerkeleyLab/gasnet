@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/26 08:34:01 $
- * $Revision: 1.48.4.17 $
+ *     $Date: 2009/08/26 09:01:07 $
+ * $Revision: 1.48.4.18 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -462,36 +462,33 @@ extern void gasnetc_exit(int exitcode) {
  * source and isRequest fields filled in.  The token is guaranteed to work
  * with gasnetc_AMGetMsgSource (which is conduit-specific). */
 extern gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest){
-  return (gasnet_token_t)(uintptr_t)src;
+  return (gasnet_token_t)(uintptr_t)(1 | (src << 1));
 }
 
 /* Frees a token handed out by gasnetc_token_create() */
 extern void gasnetc_token_destroy(gasnet_token_t token){
+  /* NO-OP: nothing allocated == nothing freed */
 }
 #endif
 
 extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
   gasnet_node_t sourceid;
   GASNETI_CHECKATTACH();
-
-  #if GASNET_SYSV
-    GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
+  #if GASNET_DEBUG || GASNET_SYSV
+    GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
   #else
-    #if GASNET_DEBUG
-      GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
-    #else
-      GASNETI_CHECK_ERRR((token),BAD_ARG,"bad token");
-    #endif
-    GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
+    GASNETI_CHECK_ERRR((token),BAD_ARG,"bad token");
   #endif
+  GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
 
   /* add code here to write the source index into sourceid */
-  sourceid = 0;
 #if GASNET_SYSV
-  if ( (uintptr_t)token >= gasneti_firstsysvnode && (uintptr_t)token < (gasneti_firstsysvnode + gasneti_sysvnodes)){
-    sourceid = (gasnet_node_t)(uintptr_t)token;
-  }else printf("AMGetMsgSource ERROR %p\n",(void*)(uintptr_t)token);
+  gasneti_assert((uintptr_t)token & 1);
+  sourceid = (gasnet_node_t)((uintptr_t)token >> 1);
+#else
+  sourceid = 0;
 #endif
+
   gasneti_assert(sourceid < gasneti_nodes);
   *srcindex = sourceid;
   return GASNET_OK;
@@ -502,6 +499,8 @@ extern int gasnetc_AMPoll() {
   GASNETI_CHECKATTACH();
   return gasneti_AMSYSVPoll(0);
 }
+#else
+/* no polling required for smp-conduit */
 #endif
 
 /* ------------------------------------------------------------------------------------ */
