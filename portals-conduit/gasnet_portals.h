@@ -812,8 +812,7 @@ extern uint32_t gasnetc_snd_seqno, gasnetc_rcv_seqno;
 extern uint32_t gasnetc_amseqno;
 
 /* prototype for gasnet handler functions */
-typedef void (*gasnetc_handler_fn_t)();
-extern gasnetc_handler_fn_t gasnetc_handler[]; /* the handler table */
+extern gasneti_handler_fn_t gasnetc_handler[]; /* the handler table */
 
 /* Functions we export to the core and extended API */
 extern int gasnetc_chunk_alloc(gasnetc_PtlBuffer_t *buf, size_t nbytes, ptl_size_t *offset);

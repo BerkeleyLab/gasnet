@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2009/08/24 00:33:42 $
- * $Revision: 1.227.4.6 $
+ *     $Date: 2009/08/26 08:34:03 $
+ * $Revision: 1.227.4.7 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -654,7 +654,7 @@ void gasnetc_amrdma_eligable(gasnetc_cep_t *cep) {
 void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t flags) {
   gasnetc_buffer_t *buf = (gasnetc_buffer_t *)(uintptr_t)(rbuf->rr_sg.addr);
   gasnet_handler_t handler_id = GASNETC_MSG_HANDLERID(flags);
-  gasnetc_handler_fn_t handler_fn = gasnetc_handler[handler_id];
+  gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id];
   gasnetc_category_t category = GASNETC_MSG_CATEGORY(flags);
   int full_numargs = GASNETC_MSG_NUMARGS(flags);
   int user_numargs = full_numargs;

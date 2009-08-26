@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/26 07:52:29 $
- * $Revision: 1.1.4.33 $
+ *     $Date: 2009/08/26 08:33:55 $
+ * $Revision: 1.1.4.34 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -11,9 +11,9 @@
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h> /* for gasnetc_{Short,Medium,Long} */
 
-/* Do this here to avoid pulling gasnet_handler.h into every file */
+/* Do this here to avoid pulling gasnet_handler.h into gasnet_sysv.h */
 #include <gasnet_handler.h> /* Need gasneti_handler_fn_t */
-extern gasneti_handler_fn_t gasneti_get_handler(int handler_id);
+extern gasneti_handler_fn_t gasnetc_get_handler(int handler_id);
 
 uintptr_t *gasneti_seginfo_correction;
 int gasnetc_sysv_init = 0;
@@ -797,7 +797,7 @@ int gasneti_AMSYSV_service_incoming_msg(gasneti_sysvnet_t *vnet, int isReq)
                  (category == gasnetc_Medium) || 
                  (category == gasnetc_Long));
   handler_id = GASNETI_AMSYSV_MSG_HANDLERID(msg);
-  handler_fn = gasneti_get_handler(handler_id);
+  handler_fn = gasnetc_get_handler(handler_id);
   numargs = GASNETI_AMSYSV_MSG_NUMARGS(msg);
   args = GASNETI_AMSYSV_MSG_ARGS(msg);
 
@@ -924,7 +924,7 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
 
   /* Deliver message */
   if (loopback) {
-    gasneti_handler_fn_t handler_fn = gasneti_get_handler(handler); 
+    gasneti_handler_fn_t handler_fn = gasnetc_get_handler(handler); 
     gasnet_token_t token = gasnetc_token_create(gasneti_mynode, isReq);
     gasnet_handlerarg_t *args = GASNETI_AMSYSV_MSG_ARGS(msg);
     switch (category) {

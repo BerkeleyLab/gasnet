@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/24 20:33:11 $
- * $Revision: 1.77.22.12 $
+ *     $Date: 2009/08/26 08:33:57 $
+ * $Revision: 1.77.22.13 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -30,18 +30,12 @@ ep_t gasnetc_endpoint;
 gasneti_mutex_t gasnetc_AMlock = GASNETI_MUTEX_INITIALIZER; /*  protect access to AMMPI */
 
 #if GASNET_SYSV
-#define GASNETC_MAX_NUMHANDLERS   256
-typedef void (*gasnetc_handler_fn_t)();  /* prototype for handler function */
-gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
-
-gasneti_handler_fn_t gasnetc_get_handler(int handler_id) {
-  gasneti_assert(handler_id < GASNETC_MAX_NUMHANDLERS);
-  return gasnetc_handler[handler_id];
-}
-/* Used in gasnet_sysv.c */
-extern gasneti_handler_fn_t gasneti_get_handler(int handler_id){
-  return gasnetc_get_handler(handler_id); 
-}
+  #define GASNETC_MAX_NUMHANDLERS 256
+  static gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* shadown handler table */
+  extern gasneti_handler_fn_t gasnetc_get_handler(int handler_id) {
+    gasneti_assert(handler_id < GASNETC_MAX_NUMHANDLERS);
+    return gasnetc_handler[handler_id];
+  }
 #endif /* GASNET_SYSV */
 
 #if GASNETC_HSL_ERRCHECK || GASNET_TRACE
@@ -277,7 +271,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
       GASNETI_RETURN_ERRR(RESOURCE, "AM_SetHandler() failed while registering handlers");
 #if GASNET_SYSV
     /* Register the SYSV handlers */
-    gasnetc_handler[(gasnet_handler_t)newindex] = (gasnetc_handler_fn_t)table[i].fnptr;
+    gasnetc_handler[(gasnet_handler_t)newindex] = (gasneti_handler_fn_t)table[i].fnptr;
 #endif
 
     /* The check below for !table[i].index is redundant and present
@@ -330,7 +324,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     /* Initialize the SYSV handler table */
     { int i;
       for (i=0; i<GASNETC_MAX_NUMHANDLERS; i++)
-          gasnetc_handler[i]=(gasnetc_handler_fn_t)&gasneti_defaultAMHandler;
+          gasnetc_handler[i]=(gasneti_handler_fn_t)&gasneti_defaultAMHandler;
     }
 #endif
     { /*  core API handlers */
