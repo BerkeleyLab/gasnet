@@ -1,12 +1,13 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/25 04:53:12 $
- * $Revision: 1.1.4.31 $
+ *     $Date: 2009/08/26 04:51:45 $
+ * $Revision: 1.1.4.32 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
 #include <gasnet_internal.h>
+#include <gasnet_core_internal.h> /* for gasnetc_{Short,Medium,Long} */
 
 
 #if GASNET_SYSV
@@ -735,12 +736,6 @@ static void gasneti_sysvnet_free(gasneti_sysvnet_allocator_t *a, void *p)
  * AMSYSV:  Active Message API over Sysvnet
  ******************************************************************************/
 
-enum {
-  gasnetc_Short=0, 
-  gasnetc_Medium=1, 
-  gasnetc_Long=2,
-  gasnetc_invalid_category
-};
 typedef uint32_t gasneti_AMSYSV_category_t;
 typedef uint32_t gasneti_AMSYSV_handler_t;
 
@@ -795,7 +790,9 @@ int gasneti_AMSYSV_service_incoming_msg(gasneti_sysvnet_t *vnet, int isReq)
 
   token = gasnetc_token_create(from, isReq);
   category = GASNETI_AMSYSV_MSG_CATEGORY(msg);
-  gasneti_assert(category < gasnetc_invalid_category);
+  gasneti_assert((category == gasnetc_Short) || 
+                 (category == gasnetc_Medium) || 
+                 (category == gasnetc_Long));
   handler_id = GASNETI_AMSYSV_MSG_HANDLERID(msg);
   handler_fn = gasneti_get_handler(handler_id);
   numargs = GASNETI_AMSYSV_MSG_NUMARGS(msg);
