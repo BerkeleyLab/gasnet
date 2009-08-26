@@ -26,10 +26,12 @@ options that is covered testcoll
 
 
 #define ALL_ADDR_MODE_ENABLED 0
+
 #define SINGLE_SINGLE_MODE_ENABLED 0
 #define SINGLE_LOCAL_MODE_ENABLED 0
 #define MULTI_SINGLE_MODE_ENABLED 1
 #define MULTI_LOCAL_MODE_ENABLED 1
+
 
 
 #define ROOT_THREAD 0
@@ -61,6 +63,7 @@ size_t max_data_size;
 #define TEST_SEGSZ_EXPR (sizeof(int)*(max_data_size*(inner_verification_iters)*TOTAL_THREADS*threads_per_node*2))
 #define SEG_PER_THREAD (sizeof(int)*max_data_size*(inner_verification_iters)*TOTAL_THREADS)
 
+#define TEST_USE_PRIMORDIAL_THREAD 1
 #include "test.h"
 
 #if 0
@@ -619,8 +622,10 @@ void *thread_main(void *arg) {
   int i,flag_iter;
   gasnet_node_t root_thread = ROOT_THREAD;
   int skip_msg_printed = 0;
+
 #if GASNET_PAR
   gasnet_image_t *imagearray = test_malloc(nodes * sizeof(gasnet_image_t));
+  gasnett_set_affinity(td->my_local_thread);
   for (i=0; i<nodes; ++i) { imagearray[i] = threads_per_node; }
   gasnet_coll_init(imagearray, td->mythread, NULL, 0, 0);
   test_free(imagearray);

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2009/05/01 19:57:48 $
- * $Revision: 1.116.6.2 $
+ *     $Date: 2009/08/26 17:24:20 $
+ * $Revision: 1.116.6.3 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -400,7 +400,7 @@ GASNETT_IDENT(GASNetT_TiCompiler_IdentString,
 #ifndef TEST_USE_PRIMORDIAL_THREAD
   #if PLATFORM_OS_BGP 
     /* some systems have strict limits on how many threads can exist */
-    #define TEST_USE_PRIMORDIAL_THREAD 1
+#define TEST_USE_PRIMORDIAL_THREAD 1
   #else
     #define TEST_USE_PRIMORDIAL_THREAD 0
   #endif

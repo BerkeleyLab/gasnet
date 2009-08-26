@@ -440,7 +440,7 @@ static tree_node_t make_nary_tree(tree_node_t *nodes, gasnet_node_t num_nodes, i
 
 static tree_node_t make_flat_tree(tree_node_t *nodes, int num_nodes) {
   /*attach all the nodes to one nodes[0]*/
-  return make_nary_tree(nodes, num_nodes, num_nodes);
+  preappend_children(nodes[0], nodes+1, num_nodes-1);
 }
 
 static tree_node_t make_hiearchical_tree_helper(gasnete_coll_tree_type_t tree_type, int level, int final_level, tree_node_t *allnodes, int num_nodes, int *node_counts) {
@@ -846,7 +846,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
     ret = curr_geom->local_views[root];
   } 
 
-#ifdef GASNETC_HAVE_AMRDMA && 0 
+#ifdef GASNETC_HAVE_AMRDMA  
   /*at the time of this writing no conduits support this yet*/
   if(team->myrank != ret->root) {
     int count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(ret);
