@@ -4,10 +4,10 @@
  * This API allows "virtual networks" (vnets) to be setup within a gasnet
  * shared memory supernode.
  */
-#include <stdarg.h>
+#if GASNET_SYSV && !defined(_GASNET_SYSV_H)
+#define _GASNET_SYSV_H
 
-
-#if GASNET_SYSV
+#include <stdarg.h> /* Need type va_list */
 
 /* Some systems (T3E, others?) may not have #defined page size? 
  * - That's my reading of configure.in, at least... */
@@ -19,8 +19,6 @@
 
 #define GASNETI_SYSV_UNIQUE_LEN 6
 
-typedef void (*gasneti_handler_fn_t)();
-
 extern uintptr_t *gasneti_seginfo_correction;
 extern uintptr_t gasneti_sysvsize;
 extern int gasnetc_sysv_init;
@@ -31,7 +29,6 @@ extern void gasneti_unlink_vnet(void);
 
 extern gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest);
 extern void gasnetc_token_destroy(gasnet_token_t token);
-extern gasneti_handler_fn_t gasneti_get_handler(int handler_id);
 
 
 /* Virtual network between processes within a shared
@@ -300,4 +297,5 @@ int gasneti_AMSYSV_ReplyGeneric(int category, gasnet_token_t token,
                                         nbytes, dest_addr, numargs, argptr); 
   return retval;
 }
+
 #endif /*GASNET_SYSV*/
