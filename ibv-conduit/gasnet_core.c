@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/24 20:33:17 $
- * $Revision: 1.205.6.10 $
+ *     $Date: 2009/08/26 08:34:03 $
+ * $Revision: 1.205.6.11 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,18 +19,6 @@
 
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
-
-#if GASNET_SYSV
-#define GASNETC_MAX_NUMHANDLERS   256
-gasneti_handler_fn_t gasnetc_get_handler(int handler_id) {
-  gasneti_assert(handler_id < GASNETC_MAX_NUMHANDLERS);
-  return gasnetc_handler[handler_id];
-}
-/* Used in gasnet_sysv.c */
-extern gasneti_handler_fn_t gasneti_get_handler(int handler_id){
-  return gasnetc_get_handler(handler_id); 
-}
-#endif /* GASNET_SYSV */
 
 
 #if HAVE_SSH_SPAWNER
@@ -180,7 +168,7 @@ typedef struct gasnetc_pin_info_t_ {
 } gasnetc_pin_info_t;
 static gasnetc_pin_info_t gasnetc_pin_info;
 
-gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
+gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
 
 static void gasnetc_atexit(void);
 static void gasnetc_exit_sighandler(int sig);
@@ -1666,7 +1654,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /*  register handlers */
   { int i;
     for (i = 0; i < GASNETC_MAX_NUMHANDLERS; i++) 
-      gasnetc_handler[i] = (gasnetc_handler_fn_t)&gasneti_defaultAMHandler;
+      gasnetc_handler[i] = (gasneti_handler_fn_t)&gasneti_defaultAMHandler;
   }
   { /*  core API handlers */
     gasnet_handlerentry_t *ctable = (gasnet_handlerentry_t *)gasnetc_get_handlertable();
@@ -1951,7 +1939,7 @@ static void gasnetc_disable_AMs(void) {
   int i;
 
   for (i = 0; i < GASNETC_MAX_NUMHANDLERS; ++i) {
-    gasnetc_handler[i] = (gasnetc_handler_fn_t)&gasnetc_noop;
+    gasnetc_handler[i] = (gasneti_handler_fn_t)&gasnetc_noop;
   }
 }
 
@@ -2808,6 +2796,15 @@ extern int gasnetc_AMReplyLongM(
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
+
+/* ------------------------------------------------------------------------------------ */
+
+#if GASNET_SYSV
+extern gasneti_handler_fn_t gasneti_get_handler(int handler_id) {
+  gasneti_assert(handler_id < GASNETC_MAX_NUMHANDLERS);
+  return gasnetc_handler[handler_id];
+}
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /*
