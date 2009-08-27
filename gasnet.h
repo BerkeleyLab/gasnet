@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2009/08/27 02:32:25 $
- * $Revision: 1.59.8.10 $
+ *     $Date: 2009/08/27 03:38:23 $
+ * $Revision: 1.59.8.11 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -25,21 +25,6 @@
 
 /* autoconf-generated configuration header */
 #include <gasnet_config.h>
-
-/* XXX: This should be controlled per-conduit, NOT per build */
-#ifndef GASNET_SYSV
- #if HAVE_SHM_OPEN
-  #define GASNET_SYSV 1
- #else
-  #define GASNET_SYSV 0
- #endif
-#endif
-
-/* Can't align segments w/ SYSV */
-#if GASNET_SYSV
- #undef GASNETI_DISABLE_ALIGNED_SEGMENTS
- #define GASNETI_DISABLE_ALIGNED_SEGMENTS 1
-#endif
 
 /* public spec version numbers */
 #define GASNET_SPEC_VERSION_MAJOR GASNETI_SPEC_VERSION_MAJOR
@@ -117,6 +102,13 @@
   #define GASNETI_STATS_OR_TRACE 1
 #elif defined(GASNETI_STATS_OR_TRACE)
   #error bad def of GASNETI_STATS_OR_TRACE
+#endif
+
+#if defined(GASNET_SYSV)
+  #undef GASNET_SYSV
+  #define GASNET_SYSV 1
+#else
+  #define GASNET_SYSV 0
 #endif
 
 /* basic utilities used in the headers */

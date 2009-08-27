@@ -15,6 +15,9 @@ SEPARATE_CC = @SEPARATE_CC@
 @USE_PLPA_TRUE@PLPA_SOURCES  = $(top_srcdir)/other/plpa/src/libplpa/plpa_api_probe.c \
 @USE_PLPA_TRUE@                $(top_srcdir)/other/plpa/src/libplpa/plpa_dispatch.c
 
+@USE_PSHM_TRUE@PSHM_DEFINES  = -DGASNET_SYSV
+@USE_PSHM_TRUE@PSHM_SOURCES  = $(top_srcdir)/gasnet_sysv.c
+
 TOOLLIBINCLUDES =         \
         @SYS_HEADER_BLD@  \
         -I$(srcdir)       \
@@ -62,6 +65,7 @@ libgasnet_tools_sources =            \
 libgasnet_sources =                                         \
         $(CONDUIT_SOURCELIST)                               \
         $(libgasnet_tools_sources)                          \
+        $(PSHM_SOURCES)                                     \
         $(top_srcdir)/extended-ref/gasnet_extended_refvis.c \
         $(top_srcdir)/extended-ref/gasnet_extended_refcoll.c\
         $(top_srcdir)/extended-ref/gasnet_coll_putget.c     \

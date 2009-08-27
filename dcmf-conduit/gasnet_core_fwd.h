@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2008/10/28 05:43:39 $
- * $Revision: 1.2 $
+ *     $Date: 2009/08/27 03:38:25 $
+ * $Revision: 1.2.12.1 $
  * Description: GASNet header for dcmf conduit core (forward definitions)
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -27,7 +27,7 @@
 #if GASNETI_DISABLE_ALIGNED_SEGMENTS
  #define GASNET_ALIGNED_SEGMENTS   0 /* user disabled segment alignment */
 #else
-  #define GASNET_ALIGNED_SEGMENTS   1 
+ #define GASNET_ALIGNED_SEGMENTS   (!GASNET_SYSV)
 #endif
 
 /* conduit allows internal GASNet fns to issue put/get for remote addrs out of segment */
