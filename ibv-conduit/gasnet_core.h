@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.h,v $
- *     $Date: 2009/08/23 19:51:26 $
- * $Revision: 1.54.24.4 $
+ *     $Date: 2009/08/27 00:22:47 $
+ * $Revision: 1.54.24.5 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -192,11 +192,6 @@ void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context) {
   #define GASNETC_MAX_LONG_REP	GASNETC_MAX_LONG_REQ
 #else
   #define GASNETC_MAX_LONG_REP	GASNETC_MAX_PACKEDLONG
-#endif
-
-#if GASNET_SYSV
-  #define GASNETC_MAX_ARGS_SYSV     GASNETC_MAX_ARGS_USER
-  #define GASNETC_MAX_MEDIUM_SYSV   GASNETC_MAX_MEDIUM
 #endif
 
 #define gasnet_AMMaxArgs()          ((size_t)GASNETC_MAX_ARGS_USER)
