@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2008/11/06 16:01:37 $
- * $Revision: 1.43 $
+ *     $Date: 2009/08/27 02:32:31 $
+ * $Revision: 1.43.10.1 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -48,7 +48,7 @@ typedef uint8_t gasnet_handler_t;
 #if GASNETI_DISABLE_ALIGNED_SEGMENTS
   #define GASNET_ALIGNED_SEGMENTS   0 /* user disabled segment alignment */
 #else
-  #define GASNET_ALIGNED_SEGMENTS   1 
+  #define GASNET_ALIGNED_SEGMENTS   (!GASNET_SYSV)
 #endif
 
 
