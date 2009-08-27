@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2009/05/13 21:51:48 $
- * $Revision: 1.14.38.1 $
+ *     $Date: 2009/08/27 02:32:29 $
+ * $Revision: 1.14.38.2 $
  * Description: GASNet header for smp conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -32,21 +32,12 @@
 #if GASNETI_DISABLE_ALIGNED_SEGMENTS
   #define GASNET_ALIGNED_SEGMENTS   0 /* user disabled segment alignment */
 #else
-  #if GASNET_SYSV
-    #define GASNET_ALIGNED_SEGMENTS   0
-  #else
-    #define GASNET_ALIGNED_SEGMENTS   1
-  #endif
+  #define GASNET_ALIGNED_SEGMENTS   (!GASNET_SYSV)
 #endif
 
-#if GASNET_SYSV
-
-#else
-  #if !defined(GASNETE_PUTGET_ALWAYSREMOTE) && !defined(GASNETE_PUTGET_ALWAYSLOCAL)
-    #define GASNETE_PUTGET_ALWAYSLOCAL 1
-  #endif
+#if !defined(GASNETE_PUTGET_ALWAYSREMOTE) && !defined(GASNETE_PUTGET_ALWAYSLOCAL) && !GASNET_SYSV
+  #define GASNETE_PUTGET_ALWAYSLOCAL 1
 #endif
-
 
 #if GASNETI_THROTTLE_FEATURE_ENABLED
 /* polling is a no-op on smp-conduit, so never throttle it */ 

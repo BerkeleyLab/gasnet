@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2009/08/27 01:25:59 $
- * $Revision: 1.59.8.9 $
+ *     $Date: 2009/08/27 02:32:25 $
+ * $Revision: 1.59.8.10 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -183,7 +183,6 @@
 /* GASNet atomic memory operations */
 #include <gasnet_atomicops.h>
 
-
 /* ------------------------------------------------------------------------------------ */
 /* constants */
 
@@ -272,12 +271,13 @@ GASNETI_END_EXTERNC
 #define _GASNET_SEGINFO_T
   typedef struct gasneti_seginfo_s {
     void *addr;
-    void *remote_addr;
     uintptr_t size;
+  #if GASNET_SYSV
+    void *remote_addr;
     uintptr_t remote_size;
     gasnet_node_t nodeinfo;
+  #endif
   } gasnet_seginfo_t;
-
 #endif
 
 #ifndef _GASNET_THREADINFO_T
@@ -312,6 +312,7 @@ GASNETI_END_EXTERNC
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+
 /* Main core header */
 #include <gasnet_core.h>
 

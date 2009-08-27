@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/25 01:30:24 $
- * $Revision: 1.57.6.25 $
+ *     $Date: 2009/08/27 02:32:25 $
+ * $Revision: 1.57.6.26 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1106,11 +1106,12 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
 #if GASNET_SYSV
     /* Avoid leaking shared memory files in case of non-collective exit between init/attach */
     gasneti_sysvnet_bootstrapBarrier();
+
+    gasneti_segment.remote_addr = 0;
+    gasneti_segment.remote_size = 0;
 #endif
 
     gasneti_segmentAttachLocal(segsize, minheapoffset, seginfo, exchangefn);
-    gasneti_segment.remote_addr = 0;
-    gasneti_segment.remote_size = 0;
     (*exchangefn)(&gasneti_segment, sizeof(gasnet_seginfo_t), seginfo);
 
 #if GASNET_SYSV
