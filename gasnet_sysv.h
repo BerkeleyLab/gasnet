@@ -50,6 +50,9 @@ uintptr_t gasneti_sysvnet_queue_mem;
 #define GASNETI_SYSVNET_DEFAULT_QUEUE_MEMORY (1<<20)
 #define GASNETI_SYSVNET_MAX_QUEUE_MEMORY (1<<28) 
 
+/* Largest Medium payload we will support.
+ * Conduits set GASNET>C<_MAX_MEDIUM_SYSV to their actual needs */
+#define GASNETI_MAX_MEDIUM_SYSV 65536
 
 /* data about an incoming message */
 typedef struct gasneti_sysvnet_msg {
@@ -97,30 +100,11 @@ typedef struct gasneti_sysvnet_queue {
   #endif
 } gasneti_sysvnet_queue_t;
 
-struct gasneti_sysvnet_allocator;  /* forward definition */
-
-/* message payload metadata
- */
-typedef struct gasneti_sysvnet_payload_info {
-  gasneti_sysvnet_msg_t *msg;
-  struct gasneti_sysvnet_allocator *allocator;
-} gasneti_sysvnet_payload_info_t;
-
-/* Max payload size: make sure this is kept in sync with definition
- * of gasneti_sysvnet_allocator_block_t */
-#define GASNETI_SYSVNET_MAX_PAYLOAD \
-        (17*GASNETI_SYSVNET_PAGESIZE - (2*sizeof(gasneti_sysvnet_payload_info_t)))
-
 #define round_up_to_sysvpage(size_or_addr)               \
         GASNETI_ALIGNUP(size_or_addr, GASNETI_SYSVNET_PAGESIZE)
 
 #define sysvnet_get_struct_addr_from_field_addr(structname, fieldname, fieldaddr) \
         ((structname*)(((char *)fieldaddr) - (char *)(&((structname *)0)->fieldname)))
-
-typedef struct gasneti_sysvnet_payload {
-  gasneti_sysvnet_payload_info_t info;
-  char payload[GASNETI_SYSVNET_MAX_PAYLOAD];
-} gasneti_sysvnet_payload_t;
 
 gasneti_sysvnet_t *gasneti_request_sysvnet, *gasneti_reply_sysvnet;
 /*******************************************************************************
@@ -214,15 +198,14 @@ void gasneti_sysvnet_bootstrapExchange(gasneti_sysvnet_t *vnet, void *src,
                                        size_t len, void *dest);
 
 /* returns the maximum size payload that sysvnet can offer.  This is the
- * maximum size one can ask of gasneti_sysvnet_get_send_buffer.  It is
- * typically slightly less than a page in size. */
+ * maximum size one can ask of gasneti_sysvnet_get_send_buffer.
+ */
 size_t gasneti_sysvnet_max_payload();
 
 /* Returns send buffer, into which message should be written.  Then
  * deliver_send_buffer() must be called, after which is is not safe to touch the
  * buffer any more.
- * - 'nbytes' must be <= gasneti_sysvnet_max_payload() (typically slightly less
- *   than a page).
+ * - 'nbytes' must be <= gasneti_sysvnet_max_payload().
  * - Returns NULL if no buffer is available (poll your receive queue, then try
  *   again).
  */

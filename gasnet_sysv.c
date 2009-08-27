@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/26 08:59:08 $
- * $Revision: 1.1.4.35 $
+ *     $Date: 2009/08/27 00:22:41 $
+ * $Revision: 1.1.4.36 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -94,9 +94,61 @@ gasnet_node_t gasneti_sysvnodes = 0;
 gasnet_node_t gasneti_firstsysvnode = (gasnet_node_t)(-1);
 gasnet_node_t gasneti_mysysvnode = (gasnet_node_t)(-1);
 
-size_t gasneti_sysvnet_max_payload() {
-  return GASNETI_SYSVNET_MAX_PAYLOAD;
-}
+/*******************************************************************************
+ * "SysV Net":  message header formats
+ * These come early because their sizes influence allocation
+ ******************************************************************************/
+
+/* Defaults if conduit doesn't define these.
+ * If these defaults are not compile-time constants the conduit must define them */
+#ifndef GASNETC_MAX_ARGS_SYSV
+  #define GASNETC_MAX_ARGS_SYSV   (gasnet_AMMaxArgs())
+#endif
+#ifndef GASNETC_MAX_MEDIUM_SYSV
+  #define GASNETC_MAX_MEDIUM_SYSV (gasnet_AMMaxMedium())
+#endif
+
+typedef uint32_t gasneti_AMSYSV_category_t;
+typedef uint32_t gasneti_AMSYSV_handler_t;
+
+/* TODO: tweak data sizes?  */
+typedef struct {
+  gasneti_AMSYSV_category_t category;      /* AM msg type: short, med, long */
+  gasneti_AMSYSV_handler_t handler_id;
+  uint32_t numargs;
+  gasnet_handlerarg_t args[GASNETC_MAX_ARGS_SYSV];
+} gasneti_AMSYSV_msg_t;
+typedef gasneti_AMSYSV_msg_t gasneti_AMSYSV_shortmsg_t;
+
+typedef struct {
+  gasneti_AMSYSV_msg_t msg;
+  uint32_t numbytes;
+  uint8_t  mediumdata[4 + GASNETC_MAX_MEDIUM_SYSV]; /* Either 4- or 8-byte aligned */
+} gasneti_AMSYSV_medmsg_t;
+
+typedef struct {
+  gasneti_AMSYSV_msg_t msg;
+  uint32_t numbytes;
+  void *   longdata;
+} gasneti_AMSYSV_longmsg_t;
+
+typedef union {
+  gasneti_AMSYSV_shortmsg_t Short;
+  gasneti_AMSYSV_medmsg_t   Medium;
+  gasneti_AMSYSV_longmsg_t  Long;
+} gasneti_AMSYSV_maxmsg_t;
+
+struct gasneti_sysvnet_allocator;  /* forward definition */
+
+/* message payload metadata */
+typedef struct gasneti_sysvnet_payload {
+  gasneti_sysvnet_msg_t *msg;
+  struct gasneti_sysvnet_allocator *allocator;
+  union {
+    double payload_alignment;
+    gasneti_AMSYSV_maxmsg_t am_payload;
+  } data;
+} gasneti_sysvnet_payload_t;
 
 /******************************************************************************
  * Payload memory allocator interface.
@@ -115,29 +167,24 @@ size_t gasneti_sysvnet_max_payload() {
  * Logically, we have this layout:
  *  
  *    1) Atomic used by allocator as 'in use' bit
- *    2) A gasnet_sysvnet_payload_t struct, used by sysvnet
- *    3) The rest of the page-sized, for payload.
+ *    2) A gasneti_sysvnet_payload_t, used by sysvnet
  *
- * Suboptimal hack: I don't know my alignment niceties well enough, so I'm
- * having the allocator treat the space as
- *  
- *    1) A gasnet_sysvnet_payload_t sized-space, which I cast to a (definitely
- *       smaller) atomic_t for use as the 'in_use' bit.
- *    2) A second gasnet_sysvnet_payload_t, used by sysvnet.  This is the
- *       'start' of the memory returned by the allocator, as sysvent sees it.
- *    3) A third gasnet_sysvnet_payload_t, which is cast to 'void *', and is
- *       the start of the payload.
+ * Allocator returns #2 to the caller
  */ 
 
-/* sizeof(gasneti_sysvnet_allocator_block) == GASNETI_SYSVNET_PAGESIZE 
- * - if not, adjust definition of GASNETI_SYSVNET_MAX_PAYLOAD */
-typedef struct gasneti_sysvnet_allocator_block {
-  union {
-    gasneti_atomic_t in_use;
-    gasneti_sysvnet_payload_info_t padding;
-  } alignmentFun; 
-  gasneti_sysvnet_payload_t payload_t;
+typedef struct {
+  gasneti_atomic_t in_use;
+  gasneti_sysvnet_payload_t payload;
 } gasneti_sysvnet_allocator_block_t;
+
+#define GASNETI_SYSVNET_ALLOC_BLKSZ \
+    GASNETI_ALIGNUP(sizeof(gasneti_sysvnet_allocator_block_t), GASNETI_SYSVNET_PAGESIZE)
+#define GASNETI_SYSVNET_MAX_PAYLOAD \
+    (GASNETI_SYSVNET_ALLOC_BLKSZ - offsetof(gasneti_sysvnet_allocator_block_t, payload))
+
+size_t gasneti_sysvnet_max_payload() {
+  return GASNETI_SYSVNET_MAX_PAYLOAD;
+}
 
 /* This implementation uses a circular queue of fixed-size payloads */
 typedef struct gasneti_sysvnet_allocator {
@@ -149,7 +196,7 @@ typedef struct gasneti_sysvnet_allocator {
 } gasneti_sysvnet_allocator_t;
 
 /* WARNING: the amount requested from this allocator must be less than 
- * sizeof(gasneti_sysvnet_payload_t)
+ * or equal to sizeof(gasneti_sysvnet_payload_t)
  * - returns NULL if no memory available
  */
 static gasneti_sysvnet_allocator_t *gasneti_sysvnet_init_allocator(void *region, size_t len);
@@ -340,9 +387,8 @@ void gasneti_sysvnet_init(gasneti_sysvnet_t **pvnet, void *start, size_t nbytes,
   size_t szpernode, regionlen;
   void *region, *myregion;
 
-  /* make sure that our max buffer size isn't smaller than whatever network
-   * is being used */
-  gasneti_assert(GASNETC_MAX_MEDIUM_SYSV < GASNETI_SYSVNET_MAX_PAYLOAD);
+  /* make sure that our max buffer size fits all possible AMs */
+  gasneti_assert(sizeof(gasneti_AMSYSV_maxmsg_t) <= GASNETI_SYSVNET_MAX_PAYLOAD);
 
   region = start;
   region = (void *)round_up_to_sysvpage(region);
@@ -384,9 +430,9 @@ void * gasneti_sysvnet_get_send_buffer(gasneti_sysvnet_t *vnet, size_t nbytes,
 
   p = gasneti_sysvnet_alloc(vnet->my_allocator, sizeof(gasneti_sysvnet_payload_t));
   if (p != NULL) {
-    p->info.msg = NULL;
-    p->info.allocator = vnet->my_allocator;
-    retval = p->payload;
+    p->msg = NULL;
+    p->allocator = vnet->my_allocator;
+    retval = &p->data;
   }
   
   return retval;
@@ -421,9 +467,9 @@ int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf,
     q_send_next->addr = gasneti_sysv_offset(buf);
     q_send_next->len = nbytes;
     /* set pointer to msg in buffer */
-    p = sysvnet_get_struct_addr_from_field_addr(gasneti_sysvnet_payload_t, payload, buf);
-    gasneti_assert(buf == &p->payload);
-    p->info.msg = gasneti_sysv_offset(q_send_next);
+    p = sysvnet_get_struct_addr_from_field_addr(gasneti_sysvnet_payload_t, data, buf);
+    gasneti_assert(buf == &p->data);
+    p->msg = gasneti_sysv_offset(q_send_next);
     /* Perform write flush before writing ready bit */
     gasneti_atomic_set(&q_send_next->state, GASNETI_SYSVNET_FULL, GASNETI_ATOMIC_REL);
     /* Advance q->send_next (logic is the same regardless of addr vs. offset) */
@@ -508,7 +554,7 @@ int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf,
     /* set pointer to msg in buffer */
     p = sysvnet_get_struct_addr_from_field_addr(gasneti_sysvnet_payload_t, payload, buf);
     gasneti_assert(buf == &p->payload);
-    p->info.msg = q->send_next;
+    p->info = q->send_next;
     /* Perform write flush before writing ready bit */
     gasneti_atomic_set(&q->send_next->state, GASNETI_SYSVNET_FULL, GASNETI_ATOMIC_REL);
     if (++q->send_next == q->justpastlast)
@@ -557,17 +603,17 @@ int gasneti_sysvnet_recv(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize,
  */
 void gasneti_sysvnet_recv_release(gasneti_sysvnet_t *vnet, void *buf)
 {
-  /* Address we handed out was the addr of the 'payload' field */
+  /* Address we handed out was the addr of the 'data' field */
   gasneti_sysvnet_payload_t *p = 
     sysvnet_get_struct_addr_from_field_addr(gasneti_sysvnet_payload_t,
-                                            payload, buf);
-  gasneti_assert(buf == &p->payload);
-  gasneti_assert(p && p->info.msg && p->info.allocator);
+                                            data, buf);
+  gasneti_assert(buf == &p->data);
+  gasneti_assert(p && p->msg && p->allocator);
   /* mark msg as free */
-  p->info.msg = gasneti_sysv_addr(p->info.msg);
-  gasneti_assert(gasneti_atomic_read(&p->info.msg->state,0) == GASNETI_SYSVNET_BUSY);
-  gasneti_atomic_set(&p->info.msg->state, GASNETI_SYSVNET_EMPTY, 0);
-  gasneti_sysvnet_free(p->info.allocator, p);
+  p->msg = gasneti_sysv_addr(p->msg);
+  gasneti_assert(gasneti_atomic_read(&p->msg->state,0) == GASNETI_SYSVNET_BUSY);
+  gasneti_atomic_set(&p->msg->state, GASNETI_SYSVNET_EMPTY, 0);
+  gasneti_sysvnet_free(p->allocator, p);
 }
 
 
@@ -674,7 +720,7 @@ void gasneti_sysvnet_bootstrapExchange(gasneti_sysvnet_t *vnet, void *src,
 static gasneti_sysvnet_allocator_t *gasneti_sysvnet_init_allocator(void *region, size_t len)
 {
   int i;
-  int count = len / sizeof(gasneti_sysvnet_allocator_block_t);
+  int count = len / GASNETI_SYSVNET_ALLOC_BLKSZ;
   gasneti_sysvnet_allocator_block_t *tmp;
 
   /* This implementation doesn't need to put allocator within shared memory.
@@ -683,15 +729,16 @@ static gasneti_sysvnet_allocator_t *gasneti_sysvnet_init_allocator(void *region,
    */
   gasneti_sysvnet_allocator_t *a = gasneti_malloc(sizeof(gasneti_sysvnet_allocator_t));
 
-  /* make sure we've arranged for block == page */
-  gasneti_assert(sizeof(gasneti_sysvnet_allocator_block_t) == 17*GASNETI_SYSVNET_PAGESIZE);
+  /* make sure we've arranged for page alignment */
+  gasneti_assert_align(GASNETI_SYSVNET_ALLOC_BLKSZ, GASNETI_SYSVNET_PAGESIZE);
   gasneti_assert_align(region, GASNETI_SYSVNET_PAGESIZE);
 
   a->queue = a->next = tmp = region;
-  a->justpastlast = tmp + count;
+  a->justpastlast = (gasneti_sysvnet_allocator_block_t*)
+                              ((uintptr_t)tmp + count*GASNETI_SYSVNET_ALLOC_BLKSZ);
   gasneti_mutex_init(&a->next_lock);
   for (i = 0; i < count; i++, tmp++) {
-    gasneti_atomic_set(&tmp->alignmentFun.in_use, 0, 0);
+    gasneti_atomic_set(&tmp->in_use, 0, 0);
   }
   return a;
 }
@@ -710,10 +757,12 @@ static void * gasneti_sysvnet_alloc(gasneti_sysvnet_allocator_t *a, size_t nbyte
    * receivers (who may take different times to get around to consuming them),
    * perhaps we ought to do a full scan?
    */
-  if (!gasneti_atomic_read(&a->next->alignmentFun.in_use, 0)) {
-    gasneti_atomic_set(&a->next->alignmentFun.in_use, 1, 0);
-    retval = &a->next->payload_t;
-    if (++a->next == a->justpastlast)
+  if (!gasneti_atomic_read(&a->next->in_use, 0)) {
+    gasneti_atomic_set(&a->next->in_use, 1, 0);
+    retval = &a->next->payload;
+    a->next = (gasneti_sysvnet_allocator_block_t*)
+                      ((uintptr_t)a->next + GASNETI_SYSVNET_ALLOC_BLKSZ);
+    if (a->next == a->justpastlast)
       a->next = a->queue;
   }
   gasneti_mutex_unlock(&a->next_lock);
@@ -727,48 +776,29 @@ static void gasneti_sysvnet_free(gasneti_sysvnet_allocator_t *a, void *p)
   /* Address we handed out was the addr of the 'payload_t' field */
   gasneti_sysvnet_allocator_block_t *block = 
       sysvnet_get_struct_addr_from_field_addr(gasneti_sysvnet_allocator_block_t,
-                                              payload_t, p);
-  gasneti_assert(p == &block->payload_t);
+                                              payload, p);
+  gasneti_assert(p == &block->payload);
   /* assert block is page-aligned */
   gasneti_assert( (((uintptr_t)block) % GASNETI_SYSVNET_PAGESIZE) == 0);
 
-  gasneti_atomic_set(&block->alignmentFun.in_use, 0, 0);
+  gasneti_atomic_set(&block->in_use, 0, 0);
 }
 
 /******************************************************************************
  * AMSYSV:  Active Message API over Sysvnet
  ******************************************************************************/
 
-typedef uint32_t gasneti_AMSYSV_category_t;
-typedef uint32_t gasneti_AMSYSV_handler_t;
-
-/* TODO: tweak data sizes?  */
-typedef struct {
-  gasneti_AMSYSV_category_t category;      /* AM msg type: small, med, large */
-  gasneti_AMSYSV_handler_t handler_id;
-  uint32_t numargs;
-  gasnet_handlerarg_t args[GASNETC_MAX_ARGS_SYSV];
-} gasneti_AMSYSV_msg_t;
-typedef gasneti_AMSYSV_msg_t gasneti_AMSYSV_smallmsg_t;
-
-typedef struct {
-  gasneti_AMSYSV_msg_t msg;
-  uint32_t numbytes;
-  uint8_t  mediumdata[(size_t)GASNETC_MAX_MEDIUM_SYSV];
-} gasneti_AMSYSV_medmsg_t;
-
-typedef struct {
-  gasneti_AMSYSV_msg_t msg;
-  uint32_t numbytes;
-  void *   longdata;
-} gasneti_AMSYSV_longmsg_t;
+/* The mediumdata field may not be aligned */
+#define GASNETI_AMSYSV_MSG_MEDDATA_OFFSET \
+   offsetof(gasneti_sysvnet_allocator_block_t, payload.data.am_payload.Medium.mediumdata)
 
 #define GASNETI_AMSYSV_MSG_CATEGORY(msg)      (((gasneti_AMSYSV_msg_t*)msg)->category)
 #define GASNETI_AMSYSV_MSG_HANDLERID(msg)     (((gasneti_AMSYSV_msg_t*)msg)->handler_id)
 #define GASNETI_AMSYSV_MSG_NUMARGS(msg)       (((gasneti_AMSYSV_msg_t*)msg)->numargs)
 #define GASNETI_AMSYSV_MSG_ARGS(msg)          (((gasneti_AMSYSV_msg_t*)msg)->args)
 #define GASNETI_AMSYSV_MSG_MED_NUMBYTES(msg)  (((gasneti_AMSYSV_medmsg_t*)msg)->numbytes)
-#define GASNETI_AMSYSV_MSG_MED_DATA(msg)      (((gasneti_AMSYSV_medmsg_t*)msg)->mediumdata)
+#define GASNETI_AMSYSV_MSG_MED_DATA(msg)      ((((gasneti_AMSYSV_medmsg_t*)msg)->mediumdata) + \
+                                               (GASNETI_AMSYSV_MSG_MEDDATA_OFFSET & 4))
 #define GASNETI_AMSYSV_MSG_LONG_NUMBYTES(msg) (((gasneti_AMSYSV_longmsg_t*)msg)->numbytes)
 #define GASNETI_AMSYSV_MSG_LONG_DATA(msg)     (((gasneti_AMSYSV_longmsg_t*)msg)->longdata)
 
@@ -868,7 +898,7 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
   /* calculate size of sysV buffer needed */
   switch (category) {
     case gasnetc_Short:
-      msgsz = sizeof(gasneti_AMSYSV_smallmsg_t);
+      msgsz = sizeof(gasneti_AMSYSV_shortmsg_t);
       break;
     case gasnetc_Medium:
       msgsz = sizeof(gasneti_AMSYSV_medmsg_t);

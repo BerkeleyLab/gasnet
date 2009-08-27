@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.h,v $
- *     $Date: 2009/04/16 21:38:49 $
- * $Revision: 1.24.50.1 $
+ *     $Date: 2009/08/27 00:22:43 $
+ * $Revision: 1.24.50.2 $
  * Description: GASNet header for MPI conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -152,7 +152,11 @@ typedef struct _gasnet_hsl_t {
 */
 
 #define gasnet_AMMaxArgs()          ((size_t)AM_MaxShort())
-#define gasnet_AMMaxMedium()        ((size_t)AM_MaxMedium())
+#if GASNET_SYSV
+  #define gasnet_AMMaxMedium()      MIN((size_t)AM_MaxMedium(), GASNETI_MAX_MEDIUM_SYSV)
+#else
+  #define gasnet_AMMaxMedium()      ((size_t)AM_MaxMedium())
+#endif
 #define gasnet_AMMaxLongRequest()   ((size_t)AM_MaxLong())
 #define gasnet_AMMaxLongReply()     ((size_t)AM_MaxLong())
 
