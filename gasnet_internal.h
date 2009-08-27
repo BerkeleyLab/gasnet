@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2009/08/22 07:47:58 $
- * $Revision: 1.113.8.9 $
+ *     $Date: 2009/08/27 01:25:59 $
+ * $Revision: 1.113.8.10 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -292,10 +292,6 @@ void gasneti_defaultSignalHandler(int sig);
 typedef void (*gasneti_bootstrapExchangefn_t)(void *src, size_t len, void *dest);
 typedef void (*gasneti_bootstrapBroadcastfn_t)(void *src, size_t len, void *dest, int rootnode);
 typedef void (*gasneti_bootstrapBarrierfn_t)(void);
-
-#if GASNET_SYSV
-extern void gasnetc_init_sysv(gasneti_bootstrapExchangefn_t exchangefn);
-#endif
 
 #if !GASNET_SEGMENT_EVERYTHING
 #ifdef HAVE_MMAP
@@ -675,6 +671,11 @@ extern void gasneti_nodemapFini(void);
 
 /* ------------------------------------------------------------------------------------ */
 
+#if GASNET_SYSV
+#include <gasnet_sysv.h>
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 GASNETI_END_EXTERNC
 
 #undef _IN_GASNET_INTERNAL_H

@@ -4,7 +4,8 @@
  * This API allows "virtual networks" (vnets) to be setup within a gasnet
  * shared memory supernode.
  */
-#if GASNET_SYSV && !defined(_GASNET_SYSV_H)
+
+#ifndef _GASNET_SYSV_H
 #define _GASNET_SYSV_H
 
 #include <stdarg.h> /* Need type va_list */
@@ -22,6 +23,8 @@
 extern uintptr_t *gasneti_seginfo_correction;
 extern uintptr_t gasneti_sysvsize;
 extern int gasnetc_sysv_init;
+
+extern void gasnetc_init_sysv(gasneti_bootstrapExchangefn_t exchangefn);
 
 extern const char *gasneti_sysv_makenames(const char *unique);
 extern void *gasneti_mmap_vnet(uintptr_t segsize);
@@ -49,10 +52,6 @@ int gasneti_sysvnet_queue_depth;
 uintptr_t gasneti_sysvnet_queue_mem; 
 #define GASNETI_SYSVNET_DEFAULT_QUEUE_MEMORY (1<<20)
 #define GASNETI_SYSVNET_MAX_QUEUE_MEMORY (1<<28) 
-
-/* Largest Medium payload we will support.
- * Conduits set GASNET>C<_MAX_MEDIUM_SYSV to their actual needs */
-#define GASNETI_MAX_MEDIUM_SYSV 65536
 
 /* data about an incoming message */
 typedef struct gasneti_sysvnet_msg {

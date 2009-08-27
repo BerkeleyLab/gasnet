@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2009/08/22 07:32:52 $
- * $Revision: 1.59.8.8 $
+ *     $Date: 2009/08/27 01:25:59 $
+ * $Revision: 1.59.8.9 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -224,6 +224,9 @@
   #define GASNET_ERR_BARRIER_MISMATCH     (_GASNET_ERR_BASE+5)
 #endif
 
+/* Largest Medium supported by AMSYSV */
+#define GASNETI_MAX_MEDIUM_SYSV 65536
+
 GASNETI_BEGIN_EXTERNC
 extern const char *gasnet_ErrorName(int);
 extern const char *gasnet_ErrorDesc(int);
@@ -311,9 +314,6 @@ GASNETI_END_EXTERNC
 /* ------------------------------------------------------------------------------------ */
 /* Main core header */
 #include <gasnet_core.h>
-#if GASNET_SYSV
-    #include <gasnet_sysv.h>
-#endif
 
 /* Main extended header */
 #include <gasnet_extended.h>
