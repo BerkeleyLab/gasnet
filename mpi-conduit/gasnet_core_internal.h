@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core_internal.h,v $
- *     $Date: 2009/08/27 00:22:43 $
- * $Revision: 1.20.52.2 $
+ *     $Date: 2009/08/27 00:39:25 $
+ * $Revision: 1.20.52.3 $
  * Description: GASNet MPI conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -82,20 +82,10 @@ const char *gasneti_AMErrorName(int errval) {
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
 #if GASNET_SYSV
-typedef struct {
-  gasnet_node_t srcnode;
-#if GASNET_DEBUG
-  int8_t   isReq; 
-  int8_t   handlerRunning; 
-  int8_t   replyIssued;    
-#endif
-} gasnetc_bufdesc_t;
-
 typedef enum {
     gasnetc_Short=0,
     gasnetc_Medium=1,
-    gasnetc_Long=2,
-    gasnetc_System=3
+    gasnetc_Long=2
 } gasnetc_category_t;
 #endif
 
