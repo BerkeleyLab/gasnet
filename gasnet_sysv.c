@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/27 00:22:41 $
- * $Revision: 1.1.4.36 $
+ *     $Date: 2009/08/27 02:08:38 $
+ * $Revision: 1.1.4.37 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -144,10 +144,7 @@ struct gasneti_sysvnet_allocator;  /* forward definition */
 typedef struct gasneti_sysvnet_payload {
   gasneti_sysvnet_msg_t *msg;
   struct gasneti_sysvnet_allocator *allocator;
-  union {
-    double payload_alignment;
-    gasneti_AMSYSV_maxmsg_t am_payload;
-  } data;
+  gasneti_AMSYSV_maxmsg_t data;
 } gasneti_sysvnet_payload_t;
 
 /******************************************************************************
@@ -790,7 +787,7 @@ static void gasneti_sysvnet_free(gasneti_sysvnet_allocator_t *a, void *p)
 
 /* The mediumdata field may not be aligned */
 #define GASNETI_AMSYSV_MSG_MEDDATA_OFFSET \
-   offsetof(gasneti_sysvnet_allocator_block_t, payload.data.am_payload.Medium.mediumdata)
+   offsetof(gasneti_sysvnet_allocator_block_t, payload.data.Medium.mediumdata)
 
 #define GASNETI_AMSYSV_MSG_CATEGORY(msg)      (((gasneti_AMSYSV_msg_t*)msg)->category)
 #define GASNETI_AMSYSV_MSG_HANDLERID(msg)     (((gasneti_AMSYSV_msg_t*)msg)->handler_id)
@@ -888,7 +885,7 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
 {
   gasneti_sysvnet_t *vnet = (isReq ? gasneti_request_sysvnet : gasneti_reply_sysvnet);
   int msgsz, i;
-  void *msg;
+  void *msg, *msg_alloc = NULL;
   gasnet_handlerarg_t *pargs;
   int loopback = (dest == gasneti_mynode);
 
@@ -916,7 +913,9 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
     /* TODO: instead of doing a malloc each time, keep a per-thread pair of
      * medmsg-sized request/reply buffers, and use them.  See smp-conduit's
      * gasnetc_ReqRepGeneric's handling of mediummsgs */
-    msg = gasneti_malloc(msgsz);
+    msg_alloc = gasneti_malloc(msgsz+4);
+    msg = ((uintptr_t)GASNETI_AMSYSV_MSG_MED_DATA(msg_alloc) & 4)
+                       ? (void*)((uintptr_t)msg_alloc + 4) : msg_alloc;
   } else {
     while (!(msg = gasneti_sysvnet_get_send_buffer(vnet, msgsz, dest))) {
       /* If reply, only poll reply network: avoids deadlock  */
@@ -972,7 +971,7 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
                                  dest_addr, nbytes);
         break;
     }
-    gasneti_free(msg);
+    gasneti_free(msg_alloc);
     gasnetc_token_destroy(token);
   } else {
     
