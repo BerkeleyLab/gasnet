@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/Makefile.am,v $
-#     $Date: 2009/08/27 00:34:52 $
-# $Revision: 1.34.30.3 $
+#     $Date: 2009/08/27 01:02:42 $
+# $Revision: 1.34.30.4 $
 # Description: Makefile for GASNet mpi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -27,6 +27,7 @@ CONDUIT_FILELIST =           \
 # to be compiled into libgasnet on the compiler command line
 CONDUIT_SOURCELIST =          \
       $(srcdir)/gasnet_core.c \
+      $(top_srcdir)/gasnet_sysv.c \
       $(top_srcdir)/extended-ref/gasnet_extended.c 
 
 # additional -I or -D directives needed by this specific conduit

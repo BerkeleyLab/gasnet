@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/Makefile.am,v $
-#     $Date: 2009/08/27 00:34:56 $
-# $Revision: 1.15.10.2 $
+#     $Date: 2009/08/27 01:02:44 $
+# $Revision: 1.15.10.3 $
 # Description: Makefile for GASNet portals conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -43,6 +43,7 @@ CONDUIT_SOURCELIST =          \
       $(srcdir)/gasnet_core.c \
       $(srcdir)/gasnet_extended.c \
       $(srcdir)/gasnet_portals.c \
+      $(top_srcdir)/gasnet_sysv.c \
       $(fh_sourcelist)
 
 # additional -I or -D directives needed by this specific conduit

@@ -70,7 +70,6 @@ libgasnet_sources =                                         \
         $(top_srcdir)/gasnet_internal.c                     \
         $(top_srcdir)/gasnet_trace.c                        \
         $(top_srcdir)/gasnet_mmap.c                         \
-        $(top_srcdir)/gasnet_sysv.c                         \
 	$(top_srcdir)/gasnet_diagnostic.c
 
 libgasnet_objects = \
