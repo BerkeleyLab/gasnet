@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/08/26 08:33:59 $
- * $Revision: 1.16.8.3 $
+ *     $Date: 2009/08/28 03:42:24 $
+ * $Revision: 1.16.8.4 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -1457,7 +1457,7 @@ extern int gasnetc_AMReplyLongM(
   data = (uint8_t*)gasnetc_RplSB.start + local_offset;
 
 #if !GASNET_SYSV
-  dest = ptok->srcnode
+  dest = ptok->srcnode;
 
   /* handle loopback case */
   if (dest == gasneti_mynode) {
