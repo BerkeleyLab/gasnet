@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/28 05:13:14 $
- * $Revision: 1.57.6.28 $
+ *     $Date: 2009/08/28 19:23:52 $
+ * $Revision: 1.57.6.29 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -225,35 +225,51 @@ static int gasneti_mmap_stretch(int fd, uintptr_t size) {
    */
   if ((rc < 0) && (errno == EINVAL)) {
     struct stat s;
-    int save_errno = errno;
     if (!fstat(fd,&s) && (s.st_size == size)) rc = 0; /* OK if size already correct */
-    errno = save_errno;
+    errno = EINVAL;
   }
 #endif
   return rc;
 }
 
-static void *gasneti_mmap_shared_internal(int sysvnode, void *segbase, uintptr_t segsize, int may_fail) {
+static void *gasneti_mmap_shared_internal(int sysvnode, void *segbase, uintptr_t segsize,
+                                          int may_fail, int do_unlink) {
   const char *filename = gasneti_sysvname[sysvnode];
   const int flags = MAP_SHARED | (segbase ? GASNETI_MMAP_FIXED_FLAG : GASNETI_MMAP_NOTFIXED_FLAG);
   int gasneti_mmapfd;
   gasneti_tick_t t1, t2;
   void	*ptr;
 
+  /* 0-byte failure modes can vary by implemenation */
+  if (!segsize) {
+    char *tmp = gasneti_strdup(filename); /* filename is free()ed in cleanup */
+    if (may_fail) return MAP_FAILED;
+    gasneti_cleanup_shm();
+    gasneti_fatalerror("failed to setup 0-byte shared memory file %s",tmp);
+  }
+
   gasneti_mmapfd = shm_open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
   if (gasneti_mmapfd == -1) {
     gasneti_fatalerror("failed to shm_open(%s): %s\n",filename,strerror(errno));
   }
+  if (do_unlink) {
+    /* Darwin requires an shm_unlink/shm_open to resize a shared memory object.
+     * However, it is always safe and can help reduce the opportunities for a leak. */
+    (void)shm_unlink(filename);
+  }
+
   if (gasneti_mmap_stretch(gasneti_mmapfd, segsize)) {
     if (may_fail) return MAP_FAILED;
+    int save_errno = errno;
+    char *tmp = gasneti_strdup(filename); /* filename is free()ed in cleanup */
     gasneti_cleanup_shm();
-    gasneti_fatalerror("failed to setup shared memory file %s",filename);
+    gasneti_fatalerror("failed to set shared memory file %s to %lu bytes: %s",tmp,(unsigned long)segsize,strerror(save_errno));
   }
  
   t1 = gasneti_ticks_now();
   ptr = mmap(segbase, segsize, (PROT_READ|PROT_WRITE), flags, gasneti_mmapfd, 0);
   t2 = gasneti_ticks_now();
-  close(gasneti_mmapfd);
+  (void)close(gasneti_mmapfd);
 
   GASNETI_TRACE_PRINTF(C, 
       ("mmap %s("GASNETI_LADDRFMT", %lu): %.3fus => "GASNETI_LADDRFMT"%s%s\n", 
@@ -265,6 +281,8 @@ static void *gasneti_mmap_shared_internal(int sysvnode, void *segbase, uintptr_t
         (ptr == MAP_FAILED?strerror(errno):"")));
 
   if ((ptr == MAP_FAILED) && !may_fail) {
+    gasneti_cleanup_shm();
+
     if (errno != ENOMEM) {
       #if PLATFORM_OS_CYGWIN
         if (errno != EACCES) /* Cygwin stupidly returns EACCES for insuff mem */
@@ -285,6 +303,7 @@ static void *gasneti_mmap_shared_internal(int sysvnode, void *segbase, uintptr_t
   }
 
   if (segbase && (segbase != ptr) && (ptr != MAP_FAILED)) {
+    gasneti_cleanup_shm();
     gasneti_fatalerror("mmap fixed moved from "GASNETI_LADDRFMT" to "GASNETI_LADDRFMT" for size %lu",
             GASNETI_LADDRSTR(segbase), GASNETI_LADDRSTR(ptr), (unsigned long)segsize);
   }
@@ -294,27 +313,17 @@ static void *gasneti_mmap_shared_internal(int sysvnode, void *segbase, uintptr_t
 
 static void *gasneti_mmap_remote_shared(void *segbase, uintptr_t segsize, gasnet_node_t sysvnode) {
   gasneti_assert(sysvnode < gasneti_sysvnodes);
-  return gasneti_mmap_shared_internal(sysvnode, segbase, segsize, 0);
+  return gasneti_mmap_shared_internal(sysvnode, segbase, segsize, 0, 0);
 }
 extern void gasneti_mmap_shared_fixed(void *segbase, uintptr_t segsize) {
-  gasneti_mmap_shared_internal(gasneti_mysysvnode, segbase, segsize, 0);
+  gasneti_mmap_shared_internal(gasneti_mysysvnode, segbase, segsize, 0, 0);
 }
 extern void *gasneti_mmap_shared(uintptr_t segsize) {
-  void *retval = gasneti_mmap_shared_internal(gasneti_mysysvnode, NULL, segsize, 1);
-  /* Darwin won't let you resize a POSIX shared memory object.
-   * Since this function is called only in the size-probing loop, we can
-   * be certain that there is a single process using the file, and that
-   * it will be created again with a different size.*/
-#if PLATFORM_OS_DARWIN || 1
-  /* NOTE: Only appears *required* for Darwin so far, but always safe.
-   * So, we leave this unconditionally enabled for portability. */
-  (void)shm_unlink(gasneti_sysvname[gasneti_mysysvnode]);
-#endif
-  return retval;
+  return gasneti_mmap_shared_internal(gasneti_mysysvnode, NULL, segsize, 1, 1);
 }
 
 extern void *gasneti_mmap_vnet(uintptr_t size) {
-  void *ptr = gasneti_mmap_shared_internal(gasneti_sysvnodes, NULL, size, 1);
+  void *ptr = gasneti_mmap_shared_internal(gasneti_sysvnodes, NULL, size, 1, 0);
   return (ptr == MAP_FAILED) ? NULL : ptr;
 }
 extern void gasneti_unlink_vnet(void) {
@@ -655,8 +664,8 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
        * + size of the holes in the address space (especially on 32-bit arch)
        */
       if (se.size) gasneti_munmap(se.addr, se.size);
+      gasneti_unlink_segments(); /* Includes barrier to complete munmap()s */
       se.size = 0;
-      gasneti_sysvnet_bootstrapBarrier(); /* Ensures munmap()s complete on-node */
 
       if (gasneti_mynode == first) {
         gasnet_seginfo_t *tmp_se = gasneti_calloc(gasneti_nodemap_local_count,sizeof(gasnet_seginfo_t));
