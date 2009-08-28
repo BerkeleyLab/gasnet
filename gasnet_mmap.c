@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/28 19:23:52 $
- * $Revision: 1.57.6.29 $
+ *     $Date: 2009/08/28 21:52:21 $
+ * $Revision: 1.57.6.30 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -259,8 +259,8 @@ static void *gasneti_mmap_shared_internal(int sysvnode, void *segbase, uintptr_t
   }
 
   if (gasneti_mmap_stretch(gasneti_mmapfd, segsize)) {
-    if (may_fail) return MAP_FAILED;
     int save_errno = errno;
+    if (may_fail) return MAP_FAILED;
     char *tmp = gasneti_strdup(filename); /* filename is free()ed in cleanup */
     gasneti_cleanup_shm();
     gasneti_fatalerror("failed to set shared memory file %s to %lu bytes: %s",tmp,(unsigned long)segsize,strerror(save_errno));
