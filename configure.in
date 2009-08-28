@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2009/08/28 04:29:05 $
-# $Revision: 1.519.2.5 $
+#     $Date: 2009/08/28 06:17:14 $
+# $Revision: 1.519.2.6 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.519.2.5 $)
+AC_REVISION($Revision: 1.519.2.6 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1088,10 +1088,44 @@ if test "$enabled_pshm" = yes; then
 
   # shm_open() might be in libc (e.g. AIX, Darwin) or librt (e.g. Linux, Solaris)
   GASNET_PUSHVAR(LIBS,"$LIBS")
+  have_shm_open=no
   AC_SEARCH_LIBS(shm_open, rt, [
-    AC_DEFINE(HAVE_SHM_OPEN)
-    GASNET_PSHM_LIBS="$LIBS"
-    have_pshm=yes])
+    if test "$cross_compiling" = "yes" ; then
+      # Assume that if user passed --enable-pshm they know what they are doing
+      have_shm_open=yes
+    else
+      GASNET_TRY_CACHE_RUN([for working shm_open()], have_shm_open, [
+        #include <sys/types.h>
+        #include <sys/stat.h>
+        #include <sys/mman.h>
+        #include <unistd.h>
+        #include <fcntl.h>
+        #include <stdlib.h>
+        #define SHM_NAME "/GASNETconftst"
+        #define SIZE (1024*1024)
+        int main(void) {
+          int size = 1024 * 1024; /* Should be a multiple of PAGESIZE */
+          int fd;
+          void * addr;
+
+          fd = shm_open(SHM_NAME, O_CREAT|O_RDWR, S_IRUSR|S_IWUSR);
+          (void)shm_unlink(SHM_NAME);
+          if (fd < 0) return 1;
+          if (ftruncate(fd, size) < 0) return 1;
+          addr = mmap(NULL, size, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
+          (void)close(fd);
+          if (!addr || (addr == MAP_FAILED)) return 1;
+          (void)munmap(addr, size);
+          return 0;
+        }
+      ],[ have_shm_open=yes ])
+    fi
+    if test "$have_shm_open" = yes; then
+      AC_DEFINE(HAVE_SHM_OPEN)
+      GASNET_PSHM_LIBS="$LIBS"
+      have_pshm=yes
+    fi
+  ])
   GASNET_POPVAR(LIBS)
 
   # could search for other mechanisms here
