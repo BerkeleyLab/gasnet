@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/27 02:32:25 $
- * $Revision: 1.57.6.26 $
+ *     $Date: 2009/08/28 05:00:01 $
+ * $Revision: 1.57.6.27 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -217,20 +217,17 @@ static void gasneti_cleanup_shm(void) {
 }
 
 static int gasneti_mmap_stretch(int fd, uintptr_t size) {
-#if 1
   /* Use of ftruncate is from the example code in IEEE Std 1003.1-2001/Cor 2-2004 */
-  return ftruncate(fd, size);
-#else
-  if (lseek(fd, size-1, SEEK_SET) < 0) {
-    fprintf(stderr, "Error calling lseek(%lu,SEEK_SET) on the shm file: %s\n", (unsigned long)size-1, strerror(errno));
-    return -1;
+  int rc = ftruncate(fd, size);
+#if PLATFORM_OS_DARWIN /* Darwin won't let you resize a POSIX shared memory object */
+  if ((rc < 0) && (errno == EINVAL)) {
+    struct stat s;
+    int save_errno = errno;
+    if (!fstat(fd,&s) && (s.st_size == size)) rc = 0; /* OK if size already correct */
+    errno = save_errno;
   }
-  if (write(fd, "", 1) != 1) {
-    perror("Error writing last byte of the shm file");
-    return -1;
-  }
-  return 0;
 #endif
+  return rc;
 }
 
 static void *gasneti_mmap_shared_internal(int sysvnode, void *segbase, uintptr_t segsize, int may_fail) {
@@ -300,7 +297,12 @@ extern void gasneti_mmap_shared_fixed(void *segbase, uintptr_t segsize) {
   gasneti_mmap_shared_internal(gasneti_mysysvnode, segbase, segsize, 0);
 }
 extern void *gasneti_mmap_shared(uintptr_t segsize) {
-  return gasneti_mmap_shared_internal(gasneti_mysysvnode, NULL, segsize, 1);
+  void *retval = gasneti_mmap_shared_internal(gasneti_mysysvnode, NULL, segsize, 1);
+#if PLATFORM_OS_DARWIN /* Darwin won't let you resize a POSIX shared memory object */
+  /* NOTE: This path called only in the size-probe loop */
+  (void)shm_unlink(gasneti_sysvname[gasneti_mysysvnode]);
+#endif
+  return retval;
 }
 
 extern void *gasneti_mmap_vnet(uintptr_t size) {
