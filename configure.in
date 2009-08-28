@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2009/08/22 20:17:35 $
-# $Revision: 1.519.2.3 $
+#     $Date: 2009/08/28 00:28:07 $
+# $Revision: 1.519.2.4 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.519.2.3 $)
+AC_REVISION($Revision: 1.519.2.4 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1604,6 +1604,10 @@ fi
 am__fastdepCXX_TRUE='#'
 am__fastdepCXX_FALSE=
 
+dnl GASNET_TOOLSONLY_FALSE_BEGIN
+GASNET_IF_DISABLED(auto-conduit-detect, [Enable/disable automatic detection of supported network conduits (enabled by default)], [enabled_auto_detect=no], [enabled_auto_detect=yes])
+dnl GASNET_TOOLSONLY_FALSE_END
+
 CONDUITS=
 AC_SUBST(CONDUITS)
 # reporting file output at completion
@@ -1632,8 +1636,17 @@ dnl GASNET_TOOLSONLY_FALSE_BEGIN
  GASNET_IF_ENABLED_WITH_AUTO($1, Enable/disable the CONDUIT_DESC (auto-detected),
   [enabled_[]$1=yes;force_[]$1=yes],
    enabled_[]$1=no,
-   enabled_[]$1=yes)
+   enabled_[]$1=$enabled_auto_detect)
 dnl GASNET_TOOLSONLY_FALSE_END
+])
+dnl CONDUIT_DISALLOW_SEGMENT(segment_type)
+AC_DEFUN([CONDUIT_DISALLOW_SEGMENT],[
+  pushdef([upperseg],translit($1,'a-z','A-Z'))
+  if test "$enabled_[]CONDUIT_NAME" = "yes" && expr "$segconfig" : $1 >/dev/null; then
+    GASNET_MSG_WARN([CONDUIT_NAME[]-conduit does not support the upperseg shared segment configuration - disabling CONDUIT_NAME])
+    enabled_[]CONDUIT_NAME=no
+  fi
+  popdef([upperseg])
 ])
 dnl CONDUIT_END(test_conduit_enabled)
 AC_DEFUN([CONDUIT_END],[
@@ -2866,6 +2879,7 @@ case "$target" in
      fi
   ;;
 esac
+CONDUIT_DISALLOW_SEGMENT(everything)
 
 if test "$enabled_portals" = yes; then
   have_portals=yes # start by assuming we have it
@@ -3168,6 +3182,8 @@ CONDUIT_END([test "$enabled_dcmf$have_dcmf" = yesyes])
 # SCI configuration
 
 CONDUIT_BEGIN(sci,[Dolphin SISCI network conduit (sci)])
+CONDUIT_DISALLOW_SEGMENT(everything)
+CONDUIT_DISALLOW_SEGMENT(large)
 
 if test "$enabled_sci" = yes; then
   # Look for sci binaries in our path
