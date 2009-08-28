@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/27 02:08:38 $
- * $Revision: 1.1.4.37 $
+ *     $Date: 2009/08/28 23:00:10 $
+ * $Revision: 1.1.4.38 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -634,47 +634,47 @@ void gasneti_sysvnet_bootstrapBarrier(void)
 }
 
 /******************************************************************************
- * Helper for Sysvnet bootstrap broadcast and exchange
+ * Helpers for Sysvnet bootstrap broadcast and exchange
  ******************************************************************************/
-static void gasneti_sysvnet_bcast_inner(gasneti_sysvnet_t *vnet, void *src, 
-                                        size_t len, void *dest, int rootsysvnode)
+
+/* Sends data to all peers excluding self */
+static void gasneti_sysvnet_coll_send(gasneti_sysvnet_t *vnet, void *src, size_t len)
 {
-  if (gasneti_mysysvnode == rootsysvnode) {
-    gasnet_node_t i, to;
-    void *msg;
+  gasnet_node_t i, to;
+  void *msg;
 
-    for (i = 0, to = vnet->firstnode; i < vnet->nodecount; i++, to++) {
-      if (i == gasneti_mysysvnode) continue;
-      msg = gasneti_sysvnet_get_send_buffer(vnet, len, to);
-      if (msg) {
-        memcpy(msg, src, len);
-        if (gasneti_sysvnet_deliver_send_buffer(vnet, msg, len, to)) {
-          gasneti_fatalerror("T%d: Can't deliver msg to node %d during bootstrap collective", 
-                             gasneti_mynode, to);
-        }
-      } else {
-        gasneti_fatalerror("T%d: Couldn't get send buffer during bootstrap collective", 
-                           gasneti_mynode);
+  for (i = 0, to = vnet->firstnode; i < vnet->nodecount; i++, to++) {
+    if (i == gasneti_mysysvnode) continue;
+    msg = gasneti_sysvnet_get_send_buffer(vnet, len, to);
+    if (msg) {
+      memcpy(msg, src, len);
+      if (gasneti_sysvnet_deliver_send_buffer(vnet, msg, len, to)) {
+        gasneti_fatalerror("T%d: Can't deliver msg to node %d during bootstrap collective", 
+                           gasneti_mynode, to);
       }
+    } else {
+      gasneti_fatalerror("T%d: Couldn't get send buffer during bootstrap collective", 
+                         gasneti_mynode);
     }
-    memmove(dest, src, len);
-  } else {
-    gasnet_node_t i, from;
-    void *msg;
-    size_t inlen;
-
-    gasneti_waitwhile (gasneti_sysvnet_recv(vnet, &msg, &inlen, &from));
-    if (len != inlen) {
-      gasneti_fatalerror("T%d: got unexpected msg length (%ld) during bootstrap collective", 
-                         gasneti_mynode, (long int)inlen);
-    }
-    if (sysvnode(vnet, from) != rootsysvnode) {
-      gasneti_fatalerror("T%d: got unexpected source node (%d) during bootstrap collective", 
-                         gasneti_mynode, (int)from);
-    }
-    memcpy(dest, msg, len);
-    gasneti_sysvnet_recv_release(vnet, msg);
   }
+}
+
+/* Recive data from any peer excluding self, placing data according to srcidx*stride */
+static void gasneti_sysvnet_coll_recv(gasneti_sysvnet_t *vnet, size_t len,
+                                      size_t stride, void *dest)
+{
+  gasnet_node_t from;
+  void *msg, *dest_elem;
+  size_t inlen;
+
+  gasneti_waitwhile (gasneti_sysvnet_recv(vnet, &msg, &inlen, &from));
+  if (len != inlen) {
+    gasneti_fatalerror("T%d: got unexpected msg length (%ld) during bootstrap collective", 
+                       gasneti_mynode, (long int)inlen);
+  }
+  dest_elem = (void*)((uintptr_t)dest + (stride * sysvnode(vnet, from)));
+  memcpy(dest_elem, msg, len);
+  gasneti_sysvnet_recv_release(vnet, msg);
 }
 
 /******************************************************************************
@@ -686,8 +686,15 @@ void gasneti_sysvnet_bootstrapBroadcast(gasneti_sysvnet_t *vnet, void *src,
                                         size_t len, void *dest, int rootsysvnode)
 {
   gasneti_assert(vnet != NULL);
+  gasneti_assert(vnet->nodecount == gasneti_sysvnodes);
+
   gasneti_sysvnet_bootstrapBarrier();
-  gasneti_sysvnet_bcast_inner(vnet, src, len, dest, rootsysvnode);
+  if (gasneti_mysysvnode == rootsysvnode) {
+    gasneti_sysvnet_coll_send(vnet, src, len);
+    memmove(dest, src, len);
+  } else {
+    gasneti_sysvnet_coll_recv(vnet, len, 0, dest);
+  }
 }
 
 /******************************************************************************
@@ -700,12 +707,17 @@ void gasneti_sysvnet_bootstrapExchange(gasneti_sysvnet_t *vnet, void *src,
   gasnet_node_t i;
 
   gasneti_assert(vnet != NULL);
+  gasneti_assert(vnet->nodecount == gasneti_sysvnodes);
 
   /* All nodes broadcast their contribution in turn */
+  gasneti_sysvnet_bootstrapBarrier(); 
   for (i = 0; i < vnet->nodecount; i++) {
-    void *dest_elem = (void*)((uintptr_t)dest + (i*len));
-    gasneti_sysvnet_bootstrapBarrier(); 
-    gasneti_sysvnet_bcast_inner(vnet, src, len, dest_elem, i);
+    if (gasneti_mysysvnode == i) {
+      gasneti_sysvnet_coll_send(vnet, src, len);
+      memmove((void*)((uintptr_t)dest + (gasneti_mysysvnode*len)), src, len);
+    } else {
+      gasneti_sysvnet_coll_recv(vnet, len, len, dest);
+    }
   }
 }
 
