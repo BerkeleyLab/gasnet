@@ -43,13 +43,11 @@ struct gasneti_sysvnet;			/* opaque type */
 typedef struct gasneti_sysvnet gasneti_sysvnet_t;
 
 /* max # of incoming requests per node, per supernode peer */
-int gasneti_sysvnet_queue_depth;  
 #define GASNETI_SYSVNET_DEFAULT_QUEUE_DEPTH 8
 #define GASNETI_SYSVNET_MAX_QUEUE_DEPTH 1024
 #define GASNETI_SYSVNET_MIN_QUEUE_DEPTH 2
 
 /* payload memory available for outstanding requests, per node */
-uintptr_t gasneti_sysvnet_queue_mem; 
 #define GASNETI_SYSVNET_DEFAULT_QUEUE_MEMORY (1<<20)
 #define GASNETI_SYSVNET_MAX_QUEUE_MEMORY (1<<28) 
 

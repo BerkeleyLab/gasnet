@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/28 23:00:10 $
- * $Revision: 1.1.4.38 $
+ *     $Date: 2009/08/28 23:08:35 $
+ * $Revision: 1.1.4.39 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,6 +17,9 @@ extern gasneti_handler_fn_t gasnetc_get_handler(int handler_id);
 
 uintptr_t *gasneti_seginfo_correction;
 int gasnetc_sysv_init = 0;
+ 
+static int gasneti_sysvnet_queue_depth = 0;
+static uintptr_t gasneti_sysvnet_queue_mem = 0;
 
 static void *gasnetc_sysvnet_region;
 static gasneti_atomic_t *gasneti_barrier_counter = NULL;
@@ -279,8 +282,12 @@ static size_t gasneti_sysvnet_memory_needed_pernode(gasnet_node_t nodes)
 {
   size_t size = 0;
 
-  gasneti_sysvnet_queue_depth = get_queue_depth(nodes);
-  gasneti_sysvnet_queue_mem = get_queue_mem(nodes);
+  if_pf (!gasneti_sysvnet_queue_depth) {
+    gasneti_sysvnet_queue_depth = get_queue_depth(nodes);
+  }
+  if_pf (!gasneti_sysvnet_queue_mem) {
+    gasneti_sysvnet_queue_mem = get_queue_mem(nodes);
+  }
 
   /* Message infos and queue */
   size = sizeof(gasneti_sysvnet_queue_t)*(nodes);
