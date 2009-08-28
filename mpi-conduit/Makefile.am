@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/Makefile.am,v $
-#     $Date: 2009/08/27 03:38:33 $
-# $Revision: 1.34.30.5 $
+#     $Date: 2009/08/28 04:29:08 $
+# $Revision: 1.34.30.6 $
 # Description: Makefile for GASNet mpi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -31,7 +31,7 @@ CONDUIT_SOURCELIST =          \
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = -I$(top_srcdir)/other/ammpi $(PSHM_DEFINES)
+CONDUIT_EXTRALIBCFLAGS = -I$(top_srcdir)/other/ammpi
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS = $(top_srcdir)/other/ammpi/*.h 

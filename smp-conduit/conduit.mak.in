@@ -6,4 +6,3 @@
 #INSTRUCTIONS# (including the GASNet tests). 
 #INSTRUCTIONS# See the conduit-writer instructions in the generated fragments
 #INSTRUCTIONS# or $(top_srcdir)/other/fragment-head.mak.in for usage info.
-@USE_PSHM_TRUE@CONDUIT_DEFINES = -DGASNET_SYSV

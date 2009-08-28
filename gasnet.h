@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2009/08/27 03:38:23 $
- * $Revision: 1.59.8.11 $
+ *     $Date: 2009/08/28 04:29:05 $
+ * $Revision: 1.59.8.12 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -104,12 +104,14 @@
   #error bad def of GASNETI_STATS_OR_TRACE
 #endif
 
-#if defined(GASNET_SYSV)
-  #undef GASNET_SYSV
-  #define GASNET_SYSV 1
+#if defined(GASNET_PSHM)
+  #undef GASNET_PSHM
+  #define GASNET_PSHM 1
 #else
-  #define GASNET_SYSV 0
+  #define GASNET_PSHM 0
 #endif
+/* XXX: Legacy.  To be removed */
+#define GASNET_SYSV GASNET_PSHM
 
 /* basic utilities used in the headers */
 #include <gasnet_basic.h>
