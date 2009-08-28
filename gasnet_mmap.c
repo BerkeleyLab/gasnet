@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/28 05:00:01 $
- * $Revision: 1.57.6.27 $
+ *     $Date: 2009/08/28 05:13:14 $
+ * $Revision: 1.57.6.28 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -219,7 +219,10 @@ static void gasneti_cleanup_shm(void) {
 static int gasneti_mmap_stretch(int fd, uintptr_t size) {
   /* Use of ftruncate is from the example code in IEEE Std 1003.1-2001/Cor 2-2004 */
   int rc = ftruncate(fd, size);
-#if PLATFORM_OS_DARWIN /* Darwin won't let you resize a POSIX shared memory object */
+#if PLATFORM_OS_DARWIN || 1
+  /* Darwin won't let you resize a POSIX shared memory object, but this check is
+   * always safe.  So, enabled unconditionally for portability.
+   */
   if ((rc < 0) && (errno == EINVAL)) {
     struct stat s;
     int save_errno = errno;
@@ -298,8 +301,13 @@ extern void gasneti_mmap_shared_fixed(void *segbase, uintptr_t segsize) {
 }
 extern void *gasneti_mmap_shared(uintptr_t segsize) {
   void *retval = gasneti_mmap_shared_internal(gasneti_mysysvnode, NULL, segsize, 1);
-#if PLATFORM_OS_DARWIN /* Darwin won't let you resize a POSIX shared memory object */
-  /* NOTE: This path called only in the size-probe loop */
+  /* Darwin won't let you resize a POSIX shared memory object.
+   * Since this function is called only in the size-probing loop, we can
+   * be certain that there is a single process using the file, and that
+   * it will be created again with a different size.*/
+#if PLATFORM_OS_DARWIN || 1
+  /* NOTE: Only appears *required* for Darwin so far, but always safe.
+   * So, we leave this unconditionally enabled for portability. */
   (void)shm_unlink(gasneti_sysvname[gasneti_mysysvnode]);
 #endif
   return retval;
