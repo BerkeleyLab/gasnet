@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/29 01:17:00 $
- * $Revision: 1.1.4.41 $
+ *     $Date: 2009/08/29 01:45:30 $
+ * $Revision: 1.1.4.42 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -651,33 +651,20 @@ static void gasneti_sysvnet_coll_send(gasneti_sysvnet_t *vnet, void *src, size_t
 
   for (i = 0, to = vnet->firstnode; i < vnet->nodecount; i++, to++) {
     if (i == gasneti_mysysvnode) continue;
-    msg = gasneti_sysvnet_get_send_buffer(vnet, len, to);
-    if (msg) {
-      memcpy(msg, src, len);
-      if (gasneti_sysvnet_deliver_send_buffer(vnet, msg, len, to)) {
-        gasneti_fatalerror("T%d: Can't deliver msg to node %d during bootstrap collective", 
-                           gasneti_mynode, to);
-      }
-    } else {
-      gasneti_fatalerror("T%d: Couldn't get send buffer during bootstrap collective", 
-                         gasneti_mynode);
-    }
+    gasneti_waitwhile (NULL == (msg = gasneti_sysvnet_get_send_buffer(vnet, len, to)));
+    memcpy(msg, src, len);
+    gasneti_waitwhile (gasneti_sysvnet_deliver_send_buffer(vnet, msg, len, to));
   }
 }
 
 /* Recive data from any peer excluding self, placing data according to srcidx*stride */
-static void gasneti_sysvnet_coll_recv(gasneti_sysvnet_t *vnet, size_t len,
-                                      size_t stride, void *dest)
+static void gasneti_sysvnet_coll_recv(gasneti_sysvnet_t *vnet, size_t stride, void *dest)
 {
   gasnet_node_t from;
   void *msg, *dest_elem;
-  size_t inlen;
+  size_t len;
 
-  gasneti_waitwhile (gasneti_sysvnet_recv(vnet, &msg, &inlen, &from));
-  if (len != inlen) {
-    gasneti_fatalerror("T%d: got unexpected msg length (%ld) during bootstrap collective", 
-                       gasneti_mynode, (long int)inlen);
-  }
+  gasneti_waitwhile (gasneti_sysvnet_recv(vnet, &msg, &len, &from));
   dest_elem = (void*)((uintptr_t)dest + (stride * sysvnode(vnet, from)));
   memcpy(dest_elem, msg, len);
   gasneti_sysvnet_recv_release(vnet, msg);
@@ -689,18 +676,30 @@ static void gasneti_sysvnet_coll_recv(gasneti_sysvnet_t *vnet, size_t len,
  * - Barriers ensure ordering w.r.t sends that precede or follow
  ******************************************************************************/
 void gasneti_sysvnet_bootstrapBroadcast(gasneti_sysvnet_t *vnet, void *src, 
-                                        size_t len, void *dest, int rootsysvnode)
+                                        size_t len, void *dst, int rootsysvnode)
 {
+  uintptr_t src_addr = (uintptr_t)src;
+  uintptr_t dst_addr = (uintptr_t)dst;
+  size_t remain = len;
+
   gasneti_assert(vnet != NULL);
   gasneti_assert(vnet->nodecount == gasneti_sysvnodes);
 
-  gasneti_sysvnet_bootstrapBarrier();
-  if (gasneti_mysysvnode == rootsysvnode) {
-    gasneti_sysvnet_coll_send(vnet, src, len);
-    memmove(dest, src, len);
-  } else {
-    gasneti_sysvnet_coll_recv(vnet, len, 0, dest);
+  while (remain) {
+    size_t nbytes = MIN(remain, GASNETI_SYSVNET_MAX_PAYLOAD);
+
+    gasneti_sysvnet_bootstrapBarrier();
+    if (gasneti_mysysvnode == rootsysvnode) {
+      gasneti_sysvnet_coll_send(vnet, (void*)src_addr, nbytes);
+    } else {
+      gasneti_sysvnet_coll_recv(vnet, 0, (void*)dst_addr);
+    }
+
+    src_addr += nbytes;
+    dst_addr += nbytes;
+    remain -= nbytes;
   }
+  memmove(dst, src, len);
 }
 
 /******************************************************************************
@@ -708,23 +707,34 @@ void gasneti_sysvnet_bootstrapBroadcast(gasneti_sysvnet_t *vnet, void *src,
  * - Barriers ensure ordering w.r.t sends that precede or follow
  ******************************************************************************/
 void gasneti_sysvnet_bootstrapExchange(gasneti_sysvnet_t *vnet, void *src, 
-                                       size_t len, void *dest)
+                                       size_t len, void *dst)
 {
-  gasnet_node_t i;
+  uintptr_t src_addr = (uintptr_t)src;
+  uintptr_t dst_addr = (uintptr_t)dst;
+  size_t remain = len;
 
   gasneti_assert(vnet != NULL);
   gasneti_assert(vnet->nodecount == gasneti_sysvnodes);
 
   /* All nodes broadcast their contribution in turn */
-  gasneti_sysvnet_bootstrapBarrier(); 
-  for (i = 0; i < vnet->nodecount; i++) {
-    if (gasneti_mysysvnode == i) {
-      gasneti_sysvnet_coll_send(vnet, src, len);
-      memmove((void*)((uintptr_t)dest + (gasneti_mysysvnode*len)), src, len);
-    } else {
-      gasneti_sysvnet_coll_recv(vnet, len, len, dest);
+  while (remain) {
+    size_t nbytes = MIN(remain, GASNETI_SYSVNET_MAX_PAYLOAD);
+    gasnet_node_t i;
+
+    gasneti_sysvnet_bootstrapBarrier(); 
+    for (i = 0; i < vnet->nodecount; i++) {
+      if (gasneti_mysysvnode == i) {
+        gasneti_sysvnet_coll_send(vnet, (void*)src_addr, nbytes);
+      } else {
+        gasneti_sysvnet_coll_recv(vnet, len, (void*)dst_addr);
+      }
     }
+
+    src_addr += nbytes;
+    dst_addr += nbytes;
+    remain -= nbytes;
   }
+  memmove((void*)((uintptr_t)dst + (gasneti_mysysvnode*len)), src, len);
 }
 
 

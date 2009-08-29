@@ -179,7 +179,6 @@ void gasneti_sysvnet_bootstrapBarrier(void);
  * 1) It must be called after gasneti_sysvnet_init() has completed.
  * 2) It must be called collectively by all nodes in the vnet.
  * 3) The rootsysvnode is the supernode-local rank
- * 4) Len is limited to the value returned by gasneti_sysvnet_max_payload().
  */
 void gasneti_sysvnet_bootstrapBroadcast(gasneti_sysvnet_t *vnet, void *src, 
                                         size_t len, void *dest, int rootsysvnode);
@@ -189,7 +188,6 @@ void gasneti_sysvnet_bootstrapBroadcast(gasneti_sysvnet_t *vnet, void *src,
  * This function has the following restrictions:
  * 1) It must be called after gasneti_sysvnet_init() has completed.
  * 2) It must be called collectively by all nodes in the vnet.
- * 3) Len is limited to the value returned by gasneti_sysvnet_max_payload().
  */
 void gasneti_sysvnet_bootstrapExchange(gasneti_sysvnet_t *vnet, void *src, 
                                        size_t len, void *dest);
