@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/28 23:08:35 $
- * $Revision: 1.1.4.39 $
+ *     $Date: 2009/08/29 00:41:43 $
+ * $Revision: 1.1.4.40 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -180,7 +180,7 @@ typedef struct {
 #define GASNETI_SYSVNET_ALLOC_BLKSZ \
     GASNETI_ALIGNUP(sizeof(gasneti_sysvnet_allocator_block_t), GASNETI_SYSVNET_PAGESIZE)
 #define GASNETI_SYSVNET_MAX_PAYLOAD \
-    (GASNETI_SYSVNET_ALLOC_BLKSZ - offsetof(gasneti_sysvnet_allocator_block_t, payload))
+    (GASNETI_SYSVNET_ALLOC_BLKSZ - offsetof(gasneti_sysvnet_allocator_block_t, payload.data))
 
 size_t gasneti_sysvnet_max_payload() {
   return GASNETI_SYSVNET_MAX_PAYLOAD;
@@ -750,12 +750,14 @@ static gasneti_sysvnet_allocator_t *gasneti_sysvnet_init_allocator(void *region,
   gasneti_assert_align(region, GASNETI_SYSVNET_PAGESIZE);
 
   a->queue = a->next = tmp = region;
-  a->justpastlast = (gasneti_sysvnet_allocator_block_t*)
-                              ((uintptr_t)tmp + count*GASNETI_SYSVNET_ALLOC_BLKSZ);
-  gasneti_mutex_init(&a->next_lock);
-  for (i = 0; i < count; i++, tmp++) {
+  for (i = 0; i < count; i++) {
     gasneti_atomic_set(&tmp->in_use, 0, 0);
+    tmp = (gasneti_sysvnet_allocator_block_t*)
+                              ((uintptr_t)tmp + GASNETI_SYSVNET_ALLOC_BLKSZ);
   }
+  a->justpastlast = tmp;
+  gasneti_mutex_init(&a->next_lock);
+
   return a;
 }
 
