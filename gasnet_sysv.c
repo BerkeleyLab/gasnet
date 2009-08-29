@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/29 04:03:05 $
- * $Revision: 1.1.4.43 $
+ *     $Date: 2009/08/29 04:09:08 $
+ * $Revision: 1.1.4.44 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -242,12 +242,12 @@ static int get_queue_depth(gasnet_node_t nodes)
 {
   int val = gasneti_getenv_int_withdefault("GASNET_SYSVNET_QUEUE_DEPTH", GASNETI_SYSVNET_DEFAULT_QUEUE_DEPTH, 0);
   if (val > GASNETI_SYSVNET_MAX_QUEUE_DEPTH) {
-    fprintf(stderr, "GASNET_SYSVNET_QUEUE_DEPTH (%d) larger than max: using max (%d)\n",
+    fprintf(stderr, "GASNET_SYSVNET_QUEUE_DEPTH (%d) larger than max: using %d\n",
             val, GASNETI_SYSVNET_MAX_QUEUE_DEPTH);
     val = GASNETI_SYSVNET_MAX_QUEUE_DEPTH;
   } else if (val < GASNETI_SYSVNET_MIN_QUEUE_DEPTH) {
-    fprintf(stderr, "GASNET_SYSVNET_QUEUE_DEPTH (%d) < than SysV nodes (%d): using %d\n",
-            val, GASNETI_SYSVNET_MIN_QUEUE_DEPTH, GASNETI_SYSVNET_MIN_QUEUE_DEPTH);
+    fprintf(stderr, "GASNET_SYSVNET_QUEUE_DEPTH (%d) smaller than min: using %d\n",
+            val, GASNETI_SYSVNET_MIN_QUEUE_DEPTH);
     val = GASNETI_SYSVNET_MIN_QUEUE_DEPTH;
   }
   return val;
@@ -261,11 +261,11 @@ static uintptr_t get_queue_mem(int nodes)
   uintptr_t pernode = gasneti_getenv_int_withdefault("GASNET_SYSVNET_QUEUE_MEMORY", 
                     MAX(minsize, GASNETI_SYSVNET_DEFAULT_QUEUE_MEMORY), 1<<20);
   if (pernode > GASNETI_SYSVNET_MAX_QUEUE_MEMORY) {
-    fprintf(stderr, "GASNET_SYSVNET_QUEUE_MEMORY (%ld) larger than max: using max (%ld)\n",
+    fprintf(stderr, "GASNET_SYSVNET_QUEUE_MEMORY (%ld) larger than max: using %ld\n",
             (long)pernode, (long)GASNETI_SYSVNET_MAX_QUEUE_MEMORY);
     pernode = GASNETI_SYSVNET_MAX_QUEUE_MEMORY;
   } else if (pernode < minsize) {
-    fprintf(stderr, "GASNET_SYSVNET_QUEUE_MEMORY (%ld) smaller than min: using min (%ld)\n",
+    fprintf(stderr, "GASNET_SYSVNET_QUEUE_MEMORY (%ld) smaller than min: using %ld\n",
             (long)pernode, (long)minsize);
     pernode = minsize;
   }
