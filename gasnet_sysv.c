@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/29 04:09:08 $
- * $Revision: 1.1.4.44 $
+ *     $Date: 2009/08/29 06:15:18 $
+ * $Revision: 1.1.4.45 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -784,7 +784,7 @@ static void * gasneti_sysvnet_alloc(gasneti_sysvnet_allocator_t *a, size_t nbyte
    * receivers (who may take different times to get around to consuming them),
    * perhaps we ought to do a full scan?
    */
-  if (!gasneti_atomic_read(&a->next->in_use, 0)) {
+  if (!gasneti_atomic_read(&a->next->in_use, GASNETI_ATOMIC_ACQ)) {
     gasneti_atomic_set(&a->next->in_use, 1, 0);
     retval = &a->next->payload;
     a->next = (gasneti_sysvnet_allocator_block_t*)
@@ -808,7 +808,7 @@ static void gasneti_sysvnet_free(gasneti_sysvnet_allocator_t *a, void *p)
   /* assert block is page-aligned */
   gasneti_assert( (((uintptr_t)block) % GASNETI_SYSVNET_PAGESIZE) == 0);
 
-  gasneti_atomic_set(&block->in_use, 0, 0);
+  gasneti_atomic_set(&block->in_use, 0, GASNETI_ATOMIC_REL);
 }
 
 /******************************************************************************
