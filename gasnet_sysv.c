@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/29 06:15:18 $
- * $Revision: 1.1.4.45 $
+ *     $Date: 2009/08/29 22:11:41 $
+ * $Revision: 1.1.4.46 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -111,22 +111,25 @@ gasnet_node_t gasneti_mysysvnode = (gasnet_node_t)(-1);
   #define GASNETC_MAX_MEDIUM_SYSV (gasnet_AMMaxMedium())
 #endif
 
-typedef uint32_t gasneti_AMSYSV_category_t;
-typedef uint32_t gasneti_AMSYSV_handler_t;
+/* TODO: Could/should we squeeze unused args out of a Medium.*/
+/* TODO: Pack category and numargs together (makes assumtion about ranges) */
 
-/* TODO: tweak data sizes?  */
 typedef struct {
-  gasneti_AMSYSV_category_t category;      /* AM msg type: short, med, long */
-  gasneti_AMSYSV_handler_t handler_id;
-  uint32_t numargs;
+  uint8_t category;      /* AM msg type: short, med, long */
+  uint8_t numargs;
+  uint8_t handler_id;
   gasnet_handlerarg_t args[GASNETC_MAX_ARGS_SYSV];
 } gasneti_AMSYSV_msg_t;
 typedef gasneti_AMSYSV_msg_t gasneti_AMSYSV_shortmsg_t;
 
 typedef struct {
   gasneti_AMSYSV_msg_t msg;
+#if (GASNETI_MAX_MEDIUM_SYSV < 65536) /* GASNET<C>_MAX_MEDIUM_SYSV often not a preprocess-time constant */
+  uint16_t numbytes;
+#else
   uint32_t numbytes;
-  uint8_t  mediumdata[4 + GASNETC_MAX_MEDIUM_SYSV]; /* Either 4- or 8-byte aligned */
+#endif
+  uint8_t  mediumdata[6 + GASNETC_MAX_MEDIUM_SYSV]; /* Is 2, 4 or 8-byte aligned */
 } gasneti_AMSYSV_medmsg_t;
 
 typedef struct {
@@ -817,7 +820,9 @@ static void gasneti_sysvnet_free(gasneti_sysvnet_allocator_t *a, void *p)
 
 /* The mediumdata field may not be aligned */
 #define GASNETI_AMSYSV_MSG_MEDDATA_OFFSET \
-   offsetof(gasneti_sysvnet_allocator_block_t, payload.data.Medium.mediumdata)
+   (offsetof(gasneti_sysvnet_allocator_block_t, payload.data.Medium.mediumdata)&7)
+#define GASNETI_AMSYSV_MSG_MEDDATA_SHIFT \
+   (GASNETI_AMSYSV_MSG_MEDDATA_OFFSET?(8-GASNETI_AMSYSV_MSG_MEDDATA_OFFSET):0)
 
 #define GASNETI_AMSYSV_MSG_CATEGORY(msg)      (((gasneti_AMSYSV_msg_t*)msg)->category)
 #define GASNETI_AMSYSV_MSG_HANDLERID(msg)     (((gasneti_AMSYSV_msg_t*)msg)->handler_id)
@@ -825,7 +830,7 @@ static void gasneti_sysvnet_free(gasneti_sysvnet_allocator_t *a, void *p)
 #define GASNETI_AMSYSV_MSG_ARGS(msg)          (((gasneti_AMSYSV_msg_t*)msg)->args)
 #define GASNETI_AMSYSV_MSG_MED_NUMBYTES(msg)  (((gasneti_AMSYSV_medmsg_t*)msg)->numbytes)
 #define GASNETI_AMSYSV_MSG_MED_DATA(msg)      ((((gasneti_AMSYSV_medmsg_t*)msg)->mediumdata) + \
-                                               (GASNETI_AMSYSV_MSG_MEDDATA_OFFSET & 4))
+                                               GASNETI_AMSYSV_MSG_MEDDATA_SHIFT)
 #define GASNETI_AMSYSV_MSG_LONG_NUMBYTES(msg) (((gasneti_AMSYSV_longmsg_t*)msg)->numbytes)
 #define GASNETI_AMSYSV_MSG_LONG_DATA(msg)     (((gasneti_AMSYSV_longmsg_t*)msg)->longdata)
 
@@ -838,8 +843,8 @@ int gasneti_AMSYSV_service_incoming_msg(gasneti_sysvnet_t *vnet, int isReq)
   void *msg;
   size_t msgsz;
   gasnet_node_t from;
-  gasneti_AMSYSV_category_t category;
-  gasneti_AMSYSV_handler_t handler_id;
+  int category;
+  int handler_id;
   void (*handler_fn)();
   int numargs;
   gasnet_handlerarg_t *args;
@@ -909,13 +914,20 @@ int gasneti_AMSYSVPoll(int repliesOnly)
  * ================================
  */
 
+/* Loopback AMs use buffers from this free pool.
+ * Worst case this pool grows to two per threads (one request and one reply).
+ * TODO: per-thread buffers (as in smp-conduit) would remove contention, but
+ * requires mofiying the conduit-specific code for threaddata.
+ */
+static gasneti_lifo_head_t loopback_freepool = GASNETI_LIFO_INITIALIZER;
+
 int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
                                  gasnet_handler_t handler, void *source_addr, int nbytes, 
                                  void *dest_addr, int numargs, va_list argptr) 
 {
   gasneti_sysvnet_t *vnet = (isReq ? gasneti_request_sysvnet : gasneti_reply_sysvnet);
   int msgsz, i;
-  void *msg, *msg_alloc = NULL;
+  void *msg;
   gasnet_handlerarg_t *pargs;
   int loopback = (dest == gasneti_mynode);
 
@@ -938,15 +950,17 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
   }
   gasneti_assert(msgsz <= GASNETI_SYSVNET_MAX_PAYLOAD); 
 
-  /* Get buffer, poll if busy */
   if (loopback) {
-    /* TODO: instead of doing a malloc each time, keep a per-thread pair of
-     * medmsg-sized request/reply buffers, and use them.  See smp-conduit's
-     * gasnetc_ReqRepGeneric's handling of mediummsgs */
-    msg_alloc = gasneti_malloc(msgsz+4);
-    msg = ((uintptr_t)GASNETI_AMSYSV_MSG_MED_DATA(msg_alloc) & 4)
-                       ? (void*)((uintptr_t)msg_alloc + 4) : msg_alloc;
+    msg = gasneti_lifo_pop(&loopback_freepool);
+    if_pf (msg == NULL) {
+      /* Grow the free pool with buffers sized and aligned for the largest Medium */
+      void *tmp = gasneti_malloc(sizeof(gasneti_AMSYSV_medmsg_t)+7);
+      uintptr_t offset = (uintptr_t)GASNETI_AMSYSV_MSG_MED_DATA(tmp) & 7;
+      /* Align the (macro-adjusted) Medium payload field, not the msg itself */
+      msg = (void*)((uintptr_t)tmp + (offset ? (8-offset) : 0));
+    }
   } else {
+    /* Get buffer, poll if busy */
     while (!(msg = gasneti_sysvnet_get_send_buffer(vnet, msgsz, dest))) {
       /* If reply, only poll reply network: avoids deadlock  */
       if (isReq) gasnetc_AMPoll(); /* No progress functions */
@@ -961,11 +975,17 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
   for(i = 0; i < numargs; i++) 
     GASNETI_AMSYSV_MSG_ARGS(msg)[i] = (gasnet_handlerarg_t)va_arg(argptr, int);
 
+  /* Detect truncation if our field widths were too small */
+  gasneti_assert( GASNETI_AMSYSV_MSG_CATEGORY(msg) == category );
+  gasneti_assert( GASNETI_AMSYSV_MSG_HANDLERID(msg) == handler );
+  gasneti_assert( GASNETI_AMSYSV_MSG_NUMARGS(msg) == numargs );
+
   switch (category) {
     case gasnetc_Short:
       break;
     case gasnetc_Medium:
       GASNETI_AMSYSV_MSG_MED_NUMBYTES(msg) = nbytes;
+      gasneti_assert( GASNETI_AMSYSV_MSG_MED_NUMBYTES(msg) == nbytes ); /* truncation check */
       memcpy(GASNETI_AMSYSV_MSG_MED_DATA(msg), source_addr, nbytes);
       break;
     case gasnetc_Long: {
@@ -975,6 +995,7 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
 
       GASNETI_AMSYSV_MSG_LONG_DATA(msg) = dest_addr; 
       GASNETI_AMSYSV_MSG_LONG_NUMBYTES(msg) = nbytes;
+      gasneti_assert( GASNETI_AMSYSV_MSG_LONG_NUMBYTES(msg) == nbytes ); /* truncation check */
       /* deliver_msg call, below, contains write flush, so don't need here */
       memcpy(local_dest_addr, source_addr, nbytes);
       break;
@@ -1001,7 +1022,7 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
                                  dest_addr, nbytes);
         break;
     }
-    gasneti_free(msg_alloc);
+    gasneti_lifo_push(&loopback_freepool, msg);
     gasnetc_token_destroy(token);
   } else {
     
