@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/29 01:45:30 $
- * $Revision: 1.1.4.42 $
+ *     $Date: 2009/08/29 04:03:05 $
+ * $Revision: 1.1.4.43 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -259,7 +259,7 @@ static uintptr_t get_queue_mem(int nodes)
    * - future implementations may also need some space for allocator's metadata */
   size_t minsize = GASNETI_SYSVNET_ALLOC_BLKSZ*nodes*2;
   uintptr_t pernode = gasneti_getenv_int_withdefault("GASNET_SYSVNET_QUEUE_MEMORY", 
-                    GASNETI_SYSVNET_DEFAULT_QUEUE_MEMORY, 1<<20);
+                    MAX(minsize, GASNETI_SYSVNET_DEFAULT_QUEUE_MEMORY), 1<<20);
   if (pernode > GASNETI_SYSVNET_MAX_QUEUE_MEMORY) {
     fprintf(stderr, "GASNET_SYSVNET_QUEUE_MEMORY (%ld) larger than max: using max (%ld)\n",
             (long)pernode, (long)GASNETI_SYSVNET_MAX_QUEUE_MEMORY);
