@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/29 00:41:43 $
- * $Revision: 1.1.4.40 $
+ *     $Date: 2009/08/29 01:17:00 $
+ * $Revision: 1.1.4.41 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -255,9 +255,9 @@ static int get_queue_depth(gasnet_node_t nodes)
 
 static uintptr_t get_queue_mem(int nodes) 
 {
-  /* theoretical limit = 1 send buffer per peer? 
+  /* theoretical limit = 1 send buffer per peer?  We're requiring 2 per peer right now.
    * - future implementations may also need some space for allocator's metadata */
-  size_t minsize = GASNETI_SYSVNET_PAGESIZE*nodes*2;
+  size_t minsize = GASNETI_SYSVNET_ALLOC_BLKSZ*nodes*2;
   uintptr_t pernode = gasneti_getenv_int_withdefault("GASNET_SYSVNET_QUEUE_MEMORY", 
                     GASNETI_SYSVNET_DEFAULT_QUEUE_MEMORY, 1<<20);
   if (pernode > GASNETI_SYSVNET_MAX_QUEUE_MEMORY) {
@@ -271,10 +271,9 @@ static uintptr_t get_queue_mem(int nodes)
   }
   gasneti_assert(pernode > 0);
 
-  /* round up to multiple of payload size */
-  if ( (pernode % sizeof(gasneti_sysvnet_payload_t)) != 0)
-    pernode = ((pernode / sizeof(gasneti_sysvnet_payload_t)) + 1) 
-                * sizeof(gasneti_sysvnet_payload_t);
+  /* round up to multiple allocator block size */
+  pernode = GASNETI_SYSVNET_ALLOC_BLKSZ *
+            ((pernode + GASNETI_SYSVNET_ALLOC_BLKSZ - 1) / GASNETI_SYSVNET_ALLOC_BLKSZ);
   return pernode;
 }
 
