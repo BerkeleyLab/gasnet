@@ -9,6 +9,7 @@
 #define _GASNET_SYSV_H
 
 #include <stdarg.h> /* Need type va_list */
+#include <stddef.h> /* Need offsetof() */
 
 /* Some systems (T3E, others?) may not have #defined page size? 
  * - That's my reading of configure.in, at least... */
@@ -101,7 +102,7 @@ typedef struct gasneti_sysvnet_queue {
         GASNETI_ALIGNUP(size_or_addr, GASNETI_SYSVNET_PAGESIZE)
 
 #define sysvnet_get_struct_addr_from_field_addr(structname, fieldname, fieldaddr) \
-        ((structname*)(((char *)fieldaddr) - (char *)(&((structname *)0)->fieldname)))
+        ((structname*)(((uintptr_t)fieldaddr) - offsetof(structname,fieldname)))
 
 gasneti_sysvnet_t *gasneti_request_sysvnet, *gasneti_reply_sysvnet;
 /*******************************************************************************
