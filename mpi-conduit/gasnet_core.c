@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/30 04:34:02 $
- * $Revision: 1.77.22.14 $
+ *     $Date: 2009/08/30 05:43:17 $
+ * $Revision: 1.77.22.15 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -421,10 +421,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     gasnetc_bootstrapBarrier();
   AMUNLOCK();
   
-#if GASNET_SYSV  
-  gasnetc_sysv_init=1;
-#endif
- 
   gasneti_assert(retval == GASNET_OK);
   return retval;
 

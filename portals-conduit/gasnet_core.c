@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/08/30 04:34:04 $
- * $Revision: 1.16.8.5 $
+ *     $Date: 2009/08/30 05:43:19 $
+ * $Revision: 1.16.8.6 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -354,10 +354,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasnetc_bootstrapBarrier();
   gasnetc_resource_init_complete = 1;
 
-#if GASNET_SYSV
-  gasnetc_sysv_init = 1;
-#endif
-
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
@@ -496,7 +492,7 @@ extern int gasnetc_AMPoll() {
 
   gasnetc_portals_poll(GASNETC_FULL_POLL);
 #if GASNET_SYSV
-  if_pt (gasnetc_sysv_init) gasneti_AMSYSVPoll(0);
+  gasneti_AMSYSVPoll(0);
 #endif
 
   return GASNET_OK;

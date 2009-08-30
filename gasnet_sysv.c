@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/30 04:34:00 $
- * $Revision: 1.1.4.50 $
+ *     $Date: 2009/08/30 05:43:15 $
+ * $Revision: 1.1.4.51 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -31,7 +31,6 @@
 gasneti_sysvnet_t *gasneti_request_sysvnet = NULL;
 gasneti_sysvnet_t *gasneti_reply_sysvnet = NULL;
 uintptr_t *gasneti_seginfo_correction = NULL;
-int gasnetc_sysv_init = 0;
  
 static int gasneti_sysvnet_queue_depth = 0;
 static uintptr_t gasneti_sysvnet_queue_mem = 0;
