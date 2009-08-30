@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/08/30 07:18:43 $
- * $Revision: 1.205.6.17 $
+ *     $Date: 2009/08/30 22:51:28 $
+ * $Revision: 1.205.6.18 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2690,16 +2690,12 @@ extern int gasnetc_AMReplyShortM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-#if GASNET_SYSV
-  gasnet_node_t dest;
-#endif
 
   GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
 #if GASNET_SYSV
-  GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
-  if_pt (gasneti_sysv_in_supernode(dest)) {
+  if_pt (gasnetc_token_is_sysv(token)) {
     retval = gasneti_AMSYSV_ReplyGeneric(gasnetc_Short, 
                                   token, handler, 
                                   0, 0, 0,
@@ -2721,16 +2717,12 @@ extern int gasnetc_AMReplyMediumM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-#if GASNET_SYSV
-  gasnet_node_t dest;
-#endif
 
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
 #if GASNET_SYSV
-  GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
-  if_pt (gasneti_sysv_in_supernode(dest)) {
+  if_pt (gasnetc_token_is_sysv(token)) {
     retval = gasneti_AMSYSV_ReplyGeneric(gasnetc_Medium, 
                                   token, handler, 
                                   source_addr, nbytes, 0,
@@ -2753,16 +2745,12 @@ extern int gasnetc_AMReplyLongM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-#if GASNET_SYSV
-  gasnet_node_t dest;
-#endif
 
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 
   va_start(argptr, numargs); /*  pass in last argument */
 
 #if GASNET_SYSV
-  GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
-  if_pt (gasneti_sysv_in_supernode(dest)) {
+  if_pt (gasnetc_token_is_sysv(token)) {
       retval = gasneti_AMSYSV_ReplyGeneric(gasnetc_Long, 
                                     token, handler, 
                                     source_addr, nbytes, dest_addr,

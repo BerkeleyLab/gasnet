@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/30 21:38:42 $
- * $Revision: 1.1.4.56 $
+ *     $Date: 2009/08/30 22:51:24 $
+ * $Revision: 1.1.4.57 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -136,6 +136,7 @@ void gasneti_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
     static gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isReq) {
       gasneti_amsysv_token_t *my_token = gasneti_malloc(sizeof(gasneti_amsysv_token_t));
       gasneti_assert(!((uintptr_t)my_token & 1));
+      gasneti_assert(gasneti_sysv_in_supernode(src));
       my_token->srcNode = src;
       my_token->isReq = isReq;
       my_token->replySent = 0;
@@ -146,7 +147,7 @@ void gasneti_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
 
     extern void gasnetc_token_reply(gasnet_token_t token) {
       gasneti_amsysv_token_t *my_token = (gasneti_amsysv_token_t *)(1^(uintptr_t)token);
-      gasneti_assert((uintptr_t)token & 1);
+      gasneti_assert(gasnetc_token_is_sysv(token));
       gasneti_assert(my_token);
       gasneti_assert(my_token->isReq);
       gasneti_assert(!my_token->replySent);
@@ -155,7 +156,7 @@ void gasneti_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
 
     extern int gasneti_AMSYSVGetMsgSource(gasnet_token_t token, gasnet_node_t *src_ptr) {
       int retval = GASNET_ERR_BAD_ARG;
-      if ((uintptr_t)token & 1) {
+      if (gasnetc_token_is_sysv(token)) {
         gasneti_amsysv_token_t *my_token = (gasneti_amsysv_token_t *)(1^(uintptr_t)token);
         gasnet_node_t tmp = my_token->srcNode;
         gasneti_assert(gasneti_sysv_in_supernode(tmp));

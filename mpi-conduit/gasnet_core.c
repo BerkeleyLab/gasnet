@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/30 20:42:53 $
- * $Revision: 1.77.22.18 $
+ *     $Date: 2009/08/30 22:51:26 $
+ * $Revision: 1.77.22.19 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -656,17 +656,13 @@ extern int gasnetc_AMReplyShortM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-#if GASNET_SYSV
-  gasnet_node_t dest;
-#endif
 
   CHECKCALLHSL();
   GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
 #if GASNET_SYSV
-  GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
-  if_pt (gasneti_sysv_in_supernode(dest)) {
+  if_pt (gasnetc_token_is_sysv(token)) {
       retval = gasneti_AMSYSV_ReplyGeneric(gasnetc_Short, 
                                     token, handler, 
                                     0, 0, 0,
@@ -691,17 +687,13 @@ extern int gasnetc_AMReplyMediumM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-#if GASNET_SYSV
-  gasnet_node_t dest;
-#endif
 
   CHECKCALLHSL();
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
   
 #if GASNET_SYSV
-  GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
-  if_pt (gasneti_sysv_in_supernode(dest)) {
+  if_pt (gasnetc_token_is_sysv(token)) {
        retval = gasneti_AMSYSV_ReplyGeneric(gasnetc_Medium, 
                                      token, handler, 
                                      source_addr, nbytes, 0,
@@ -726,18 +718,15 @@ extern int gasnetc_AMReplyLongM(
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
   int retval;
-  gasnet_node_t dest;
   va_list argptr;
   
   CHECKCALLHSL();
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 
-  GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
 
   va_start(argptr, numargs); /*  pass in last argument */
 
 #if GASNET_SYSV
-  GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
-  if_pt (gasneti_sysv_in_supernode(dest)) {
+  if_pt (gasnetc_token_is_sysv(token)) {
       retval = gasneti_AMSYSV_ReplyGeneric(gasnetc_Long, 
                                     token, handler, 
                                     source_addr, nbytes, dest_addr,
@@ -745,7 +734,10 @@ extern int gasnetc_AMReplyLongM(
   } else
 #endif
   {
+    gasnet_node_t dest;
     uintptr_t dest_offset;
+
+    GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
     dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
 
     AM_ASSERT_LOCKED();
