@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2009/08/30 20:22:37 $
-# $Revision: 1.519.2.9 $
+#     $Date: 2009/08/30 20:27:05 $
+# $Revision: 1.519.2.10 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.519.2.9 $)
+AC_REVISION($Revision: 1.519.2.10 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -2993,7 +2993,7 @@ case "$target" in
   ;;
 esac
 CONDUIT_DISALLOW_SEGMENT(everything)
-CONDUIT_DISALLOW_PSHM() dnl Untested code exists, but CNL lacks shm_open().
+CONDUIT_DISALLOW_PSHM()
 
 if test "$enabled_portals" = yes; then
   have_portals=yes # start by assuming we have it
