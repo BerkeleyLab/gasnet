@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2009/08/30 20:27:05 $
-# $Revision: 1.519.2.10 $
+#     $Date: 2009/08/30 22:06:53 $
+# $Revision: 1.519.2.11 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.519.2.10 $)
+AC_REVISION($Revision: 1.519.2.11 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -3020,7 +3020,7 @@ if test "$enabled_portals" = yes; then
       done
     fi
     if test `echo $XTOS_VERSION | awk -F. '{ if ($1 < 1 || ($1 == 1 && $2 < 5)) print "no"; else print "yes"; }'` = "no"; then
-      GASNET_MSG_WARN([portals-conduit requires the GNU GCC compiler (PrgEnv-gnu) in PE versions prior to 1.5)])
+      GASNET_MSG_WARN([portals-conduit requires the GNU GCC compiler (PrgEnv-gnu) in PE versions prior to 1.5])
       have_portals=no
     fi
   fi
