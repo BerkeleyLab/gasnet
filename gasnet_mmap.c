@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/30 03:36:06 $
- * $Revision: 1.57.6.32 $
+ *     $Date: 2009/08/30 06:00:45 $
+ * $Revision: 1.57.6.33 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -128,6 +128,8 @@ extern void *gasneti_mmap(uintptr_t segsize) {
 }
 
 #if GASNET_SYSV
+static uintptr_t *gasneti_seginfo_correction = NULL;
+
 typedef char gasnet_sysvname_t[16];
 static gasnet_sysvname_t *gasneti_sysvname = NULL; /* length 1+gasneti_sysvnodes, the +1 is for AMs */
 

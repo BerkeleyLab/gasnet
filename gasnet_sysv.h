@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.h,v $
- *     $Date: 2009/08/30 05:44:29 $
- * $Revision: 1.1.4.28 $
+ *     $Date: 2009/08/30 06:00:45 $
+ * $Revision: 1.1.4.29 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -22,9 +22,6 @@
 #else
   #define GASNETI_SYSVNET_PAGESIZE GASNET_PAGESIZE
 #endif
-
-/* Global variables */
-extern uintptr_t *gasneti_seginfo_correction;
 
 /* In gasnet_mmap.c */
 #define GASNETI_SYSV_UNIQUE_LEN 6
