@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2009/08/30 05:43:21 $
- * $Revision: 1.227.4.10 $
+ *     $Date: 2009/08/30 20:42:57 $
+ * $Revision: 1.227.4.11 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3689,29 +3689,6 @@ extern int gasnetc_ReplySystem(gasnet_token_t token,
   Misc. Active Message Functions
   ==============================
 */
-
-#if GASNET_SYSV
-/* Returns a (conduit-specific) token type, with (internal conduit-specific)
- * source and isRequest fields filled in.  The token is guaranteed to work
- * with gasnetc_AMGetMsgSource (which is conduit-specific). */
-extern gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest)
-{
-  /* We encode the src node in the token and recognize it as not aligned as a pointer.
-   * Use of local rank avoids overflow for all but the most extream cases.
-   */
-  return (gasnet_token_t)(1 | ((uintptr_t)(src - gasneti_firstsysvnode) << 1));
-}
-
-/* Frees a token handed out by gasnetc_token_create() */
-extern void gasnetc_token_destroy(gasnet_token_t token)
-{
-  /* NO-OP
-   * Token is not a pointer to allocated memory.
-   * So, nothing to free()
-   */
-}
-#endif
-
 extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
   gasnet_node_t sourceid;
 
@@ -3719,10 +3696,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
 
 #if GASNET_SYSV
-  if ((uintptr_t)token & 1) {
-    sourceid = gasneti_firstsysvnode + (gasnet_node_t)((uintptr_t)token >> 1);
-    gasneti_assert(gasneti_sysv_in_supernode(sourceid));
-  } else
+  if (gasneti_AMSYSVGetMsgSource(token, &sourceid) != GASNET_OK)
 #endif
   {
     uint32_t flags = ((gasnetc_rbuf_t *)token)->rbuf_flags;
