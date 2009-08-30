@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/30 00:45:42 $
- * $Revision: 1.1.4.48 $
+ *     $Date: 2009/08/30 01:04:21 $
+ * $Revision: 1.1.4.49 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -121,7 +121,7 @@ gasnet_node_t gasneti_mysysvnode = (gasnet_node_t)(-1);
 typedef struct {
   uint8_t category;      /* AM msg type: short, med, long */
   uint8_t numargs;
-  uint8_t handler_id;
+  gasnet_handler_t handler_id;
   gasnet_handlerarg_t args[GASNETC_MAX_ARGS_SYSV];
 } gasneti_AMSYSV_msg_t;
 typedef gasneti_AMSYSV_msg_t gasneti_AMSYSV_shortmsg_t;
@@ -893,7 +893,6 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
 
   /* Detect truncation if our field widths were too small */
   gasneti_assert( GASNETI_AMSYSV_MSG_CATEGORY(msg) == category );
-  gasneti_assert( GASNETI_AMSYSV_MSG_HANDLERID(msg) == handler );
   gasneti_assert( GASNETI_AMSYSV_MSG_NUMARGS(msg) == numargs );
 
   switch (category) {
