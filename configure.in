@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2009/08/30 00:07:07 $
-# $Revision: 1.519.2.7 $
+#     $Date: 2009/08/30 16:17:09 $
+# $Revision: 1.519.2.8 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.519.2.7 $)
+AC_REVISION($Revision: 1.519.2.8 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1721,7 +1721,11 @@ dnl CONDUIT_DISALLOW_SEGMENT(segment_type)
 AC_DEFUN([CONDUIT_DISALLOW_SEGMENT],[
   pushdef([upperseg],translit($1,'a-z','A-Z'))
   if test "$enabled_[]CONDUIT_NAME" = "yes" && expr "$segconfig" : $1 >/dev/null; then
-    GASNET_MSG_WARN([CONDUIT_NAME[]-conduit does not support the upperseg shared segment configuration - disabling CONDUIT_NAME])
+    msg="CONDUIT_NAME[]-conduit does not support the upperseg shared segment configuration"
+    if test "$force_[]CONDUIT_NAME" = yes ; then
+     GASNET_MSG_ERROR([User requested --enable-CONDUIT_NAME but $msg])
+    fi
+    GASNET_MSG_WARN([$msg - disabling CONDUIT_NAME])
     enabled_[]CONDUIT_NAME=no
   fi
   popdef([upperseg])
@@ -1731,13 +1735,21 @@ AC_DEFUN([CONDUIT_DISALLOW_PSHM],[
   m4_ifval([$1],[
     pushdef([upperseg],translit($1,'a-z','A-Z'))
     if test "$enabled_pshm$enabled_[]CONDUIT_NAME" = "yesyes" && expr "$segconfig" : $1 >/dev/null; then
-      GASNET_MSG_WARN([CONDUIT_NAME[]-conduit does not support PSHM in the upperseg shared segment configuration - disabling CONDUIT_NAME])
+      msg="CONDUIT_NAME[]-conduit does not support PSHM in the upperseg shared segment configuration"
+      if test "$force_[]CONDUIT_NAME" = yes ; then
+       GASNET_MSG_ERROR([User requested --enable-CONDUIT_NAME and --enable-pshm but $msg])
+      fi
+      GASNET_MSG_WARN([$msg - disabling CONDUIT_NAME])
       enabled_[]CONDUIT_NAME=no
     fi
     popdef([upperseg])
   ],[
     if test "$enabled_pshm$enabled_[]CONDUIT_NAME" = "yesyes" >/dev/null; then
-      GASNET_MSG_WARN([CONDUIT_NAME[]-conduit does not support PSHM - disabling CONDUIT_NAME])
+      msg="CONDUIT_NAME[]-conduit does not support PSHM"
+      if test "$force_[]CONDUIT_NAME" = yes ; then
+       GASNET_MSG_ERROR([User requested --enable-CONDUIT_NAME and --enable-pshm but $msg])
+      fi
+      GASNET_MSG_WARN([$msg - disabling CONDUIT_NAME])
       enabled_[]CONDUIT_NAME=no
     fi
   ])
