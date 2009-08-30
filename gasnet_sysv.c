@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/30 20:42:51 $
- * $Revision: 1.1.4.55 $
+ *     $Date: 2009/08/30 21:38:42 $
+ * $Revision: 1.1.4.56 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -121,15 +121,55 @@ void gasneti_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
   #define gasnetc_get_handler(_h) (gasnetc_handler[(_h)])
 #endif
 #ifndef GASNETC_TOKEN_CREATE
-    /* Our default implementation is suitable for conduits that use a pointer
-     * for gasnet_token_t.  We encode the source (but ignore isReq) in a
-     * uintptr_t, which has the least-significant bit set.  This distinguishes
-     * it from a valid pointer, but still allows a (token != NULL) assertion.
-     * Use of local rank avoids overflow for all but the most extreme cases.
-     */
+  /* Our default implementation is suitable for conduits that use a pointer
+   * for gasnet_token_t.  We generate tokens with the least-significant bit
+   * set.  This distinguishes them from a valid pointer, but still allows a
+   * (token != NULL) assertion.
+   */
+  #if GASNET_DEBUG
+    typedef struct {
+      gasnet_node_t srcNode;
+      int isReq;
+      int replySent;
+    } gasneti_amsysv_token_t;
+
+    static gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isReq) {
+      gasneti_amsysv_token_t *my_token = gasneti_malloc(sizeof(gasneti_amsysv_token_t));
+      gasneti_assert(!((uintptr_t)my_token & 1));
+      my_token->srcNode = src;
+      my_token->isReq = isReq;
+      my_token->replySent = 0;
+      return (gasnet_token_t)(1|(uintptr_t)my_token);
+    }
+
+    #define gasnetc_token_destroy(tok) gasneti_free((void*)(1^(uintptr_t)(tok)))
+
+    extern void gasnetc_token_reply(gasnet_token_t token) {
+      gasneti_amsysv_token_t *my_token = (gasneti_amsysv_token_t *)(1^(uintptr_t)token);
+      gasneti_assert((uintptr_t)token & 1);
+      gasneti_assert(my_token);
+      gasneti_assert(my_token->isReq);
+      gasneti_assert(!my_token->replySent);
+      my_token->replySent = 1;
+    }
+
+    extern int gasneti_AMSYSVGetMsgSource(gasnet_token_t token, gasnet_node_t *src_ptr) {
+      int retval = GASNET_ERR_BAD_ARG;
+      if ((uintptr_t)token & 1) {
+        gasneti_amsysv_token_t *my_token = (gasneti_amsysv_token_t *)(1^(uintptr_t)token);
+        gasnet_node_t tmp = my_token->srcNode;
+        gasneti_assert(gasneti_sysv_in_supernode(tmp));
+        *src_ptr = tmp;
+        retval = GASNET_OK;
+      }
+      return retval;
+    }
+  #else
+    /* We encode the source in a uintptr_t but ignore isReq.  */
     #define gasnetc_token_create(_src, _isReq) \
-      ((gasnet_token_t)(1 | ((uintptr_t)(_src - gasneti_firstsysvnode) << 1)))
+      ((gasnet_token_t)(1 | ((uintptr_t)(_src) << 1)))
     #define gasnetc_token_destroy(tok) ((void)0)
+  #endif
 #endif
 
 
