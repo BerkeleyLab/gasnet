@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/30 05:43:17 $
- * $Revision: 1.77.22.15 $
+ *     $Date: 2009/08/30 06:06:27 $
+ * $Revision: 1.77.22.16 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -414,7 +414,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   gasnete_init(); /* init the extended API */
 
-  //gasneti_nodemapFini();
+  gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
   AMLOCK();
@@ -457,8 +457,6 @@ extern void gasnetc_exit(int exitcode) {
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   gasneti_reghandler(SIGQUIT, SIG_IGN);
   gasnetc_exitcalled = 1;
-
-  gasneti_nodemapFini();
 
   {  /* ensure only one thread ever continues past this point */
     static gasneti_mutex_t exit_lock = GASNETI_MUTEX_INITIALIZER;

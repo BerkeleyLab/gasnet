@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/08/30 05:43:21 $
- * $Revision: 1.205.6.15 $
+ *     $Date: 2009/08/30 06:06:31 $
+ * $Revision: 1.205.6.16 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1882,7 +1882,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   gasnete_init(); /* init the extended API */
 
-  //gasneti_nodemapFini();
+  gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
   gasneti_bootstrapBarrier();

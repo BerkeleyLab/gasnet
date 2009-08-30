@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/30 04:34:06 $
- * $Revision: 1.48.4.19 $
+ *     $Date: 2009/08/30 06:06:29 $
+ * $Revision: 1.48.4.20 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -415,9 +415,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   gasnete_init(); /* init the extended API */
 
-#if GASNET_SYSV
   gasneti_nodemapFini();
-#endif
 
   /* ensure extended API is initialized across nodes */
   gasnetc_bootstrapBarrier();
