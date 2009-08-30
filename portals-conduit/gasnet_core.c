@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/08/28 03:42:24 $
- * $Revision: 1.16.8.4 $
+ *     $Date: 2009/08/30 04:34:04 $
+ * $Revision: 1.16.8.5 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -86,7 +86,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   /* gasneti_nodemapInit() was called in gasnetc_init_portals_network() */
 
 #if GASNET_SYSV
-  gasnetc_init_sysv(&gasnetc_bootstrapExchange);
+  gsaneti_init_sysv(&gasnetc_bootstrapExchange);
 #endif
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE

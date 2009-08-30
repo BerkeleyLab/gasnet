@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/26 09:01:07 $
- * $Revision: 1.48.4.18 $
+ *     $Date: 2009/08/30 04:34:06 $
+ * $Revision: 1.48.4.19 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -29,8 +29,7 @@ gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table 
 
 #if GASNET_SYSV
   #define GASNETC_MAX_SYSV_NODES 256
-  extern gasneti_handler_fn_t gasnetc_get_handler(int handler_id) {
-    gasneti_assert(handler_id < GASNETC_MAX_NUMHANDLERS);
+  extern gasneti_handler_fn_t gasnetc_get_handler(gasnet_handler_t handler_id) {
     return gasnetc_handler[handler_id];
   }
 #endif /* GASNET_SYSV */
@@ -154,7 +153,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   /* Create unique names for shmem files.
    * We do this here, since we get a chicken-and-egg problem if we
-   * were to call gasnetc_init_sysv() with our bootstrapExchange.
+   * were to call gasneti_init_sysv() with our bootstrapExchange.
    * PLUS its just plain simpler to do this pre-fork().
    */
   gasneti_sysvnodes = gasneti_nodes;
@@ -178,7 +177,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasneti_nodemapParse();
 
 #if GASNET_SYSV
-  gasnetc_init_sysv(NULL);
+  gasneti_init_sysv(NULL);
 #endif
 
   /* enable tracing */

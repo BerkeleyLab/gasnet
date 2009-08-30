@@ -1,34 +1,51 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/30 01:04:21 $
- * $Revision: 1.1.4.49 $
+ *     $Date: 2009/08/30 04:34:00 $
+ * $Revision: 1.1.4.50 $
  * Description: GASNet infrastructure for shared memory communications
- * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
+ * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
  */
 
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h> /* for gasnetc_{Short,Medium,Long} */
 
-#if GASNET_SYSV
+#ifndef GASNET_SYSV
+  #error "gasnet_sysv.c compiled in a non-PSHM build"
+#endif
 
 #if defined(GASNETI_USE_GENERIC_ATOMICOPS) || defined(GASNETI_USE_OS_ATOMICOPS)
   #error "GASNet PSHM support requires Native atomics"
 #endif
 
-/* Do this here to avoid pulling gasnet_handler.h into gasnet_sysv.h */
-#include <gasnet_handler.h> /* Need gasneti_handler_fn_t */
-extern gasneti_handler_fn_t gasnetc_get_handler(int handler_id);
+/* max # of incoming requests per node, per supernode peer */
+#define GASNETI_SYSVNET_DEFAULT_QUEUE_DEPTH 8
+#define GASNETI_SYSVNET_MAX_QUEUE_DEPTH 1024
+#define GASNETI_SYSVNET_MIN_QUEUE_DEPTH 2
 
-uintptr_t *gasneti_seginfo_correction;
+/* payload memory available for outstanding requests, per node
+ * default will be silently raised as needed for large node count */
+#define GASNETI_SYSVNET_DEFAULT_QUEUE_MEMORY (1<<20)
+#define GASNETI_SYSVNET_MAX_QUEUE_MEMORY (1<<28) 
+
+/* Global vars */
+gasneti_sysvnet_t *gasneti_request_sysvnet = NULL;
+gasneti_sysvnet_t *gasneti_reply_sysvnet = NULL;
+uintptr_t *gasneti_seginfo_correction = NULL;
 int gasnetc_sysv_init = 0;
  
 static int gasneti_sysvnet_queue_depth = 0;
 static uintptr_t gasneti_sysvnet_queue_mem = 0;
 
-static void *gasnetc_sysvnet_region;
+static void *gasnetc_sysvnet_region = NULL;
 static gasneti_atomic_t *gasneti_barrier_counter = NULL;
 
-void gasnetc_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
+#define round_up_to_sysvpage(size_or_addr)               \
+        GASNETI_ALIGNUP(size_or_addr, GASNETI_SYSVNET_PAGESIZE)
+
+#define sysvnet_get_struct_addr_from_field_addr(structname, fieldname, fieldaddr) \
+        ((structname*)(((uintptr_t)fieldaddr) - offsetof(structname,fieldname)))
+
+void gasneti_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
   size_t vnetsz, mmapsz;
 
   gasneti_sysvnodes = gasneti_nodemap_local_count;
@@ -92,6 +109,7 @@ void gasnetc_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
   gasneti_sysvnet_bootstrapBarrier();
 }
 
+
 /*******************************************************************************
  * "SysV Net":  virtual network between peers in a shared memory supernode 
  ******************************************************************************/
@@ -147,6 +165,51 @@ typedef union {
   gasneti_AMSYSV_medmsg_t   Medium;
   gasneti_AMSYSV_longmsg_t  Long;
 } gasneti_AMSYSV_maxmsg_t;
+
+/* data about an incoming message */
+typedef struct gasneti_sysvnet_msg {
+  void * addr;
+  size_t len;
+  gasneti_atomic_t state;
+  /* Paul informs me that padding with GASNETI_CACHE_PAD ensures the struct
+   * is sizeof(cache_line), but not that it's aligned on a single cache line.
+   * But we enforce cache line alignment, so we're OK */
+  #if 1
+    char _pad[GASNETI_CACHE_PAD(sizeof(void *)
+                               +sizeof(size_t)
+                               +sizeof(gasneti_atomic_t))];
+  #else
+   /* Alternative: pad out the struct to two cache lines, to ensure we'll have
+    * no spurious cache line conflicts.  Many vapi structs use this too. */
+    char _pad[GASNETI_CACHE_LINE_BYTES];
+  #endif
+} gasneti_sysvnet_msg_t;
+
+/* Values for gasneti_sysvnet_msg_t.state */
+enum {
+  GASNETI_SYSVNET_EMPTY = 0,
+  GASNETI_SYSVNET_FULL,
+  GASNETI_SYSVNET_BUSY
+};
+
+/* Circular queue of info about received messages */
+typedef struct gasneti_sysvnet_queue {
+  gasneti_sysvnet_msg_t *queue;   
+  /* Only need to lock queue ptr if client multithreaded */
+  gasneti_mutex_t recv_lock;
+  gasneti_sysvnet_msg_t *recv_next;  
+  gasneti_mutex_t send_lock;
+  gasneti_sysvnet_msg_t *send_next;  
+  gasneti_sysvnet_msg_t *justpastlast;  
+  #if 1
+    /* See above comment about cache alignment: we ensure queue_t's are
+     * cache-aligned, too */
+    char _pad[GASNETI_CACHE_PAD(sizeof(void *)*4
+                               +sizeof(gasneti_mutex_t)*2)];
+  #else
+    char _pad[GASNETI_CACHE_LINE_BYTES];
+  #endif
+} gasneti_sysvnet_queue_t;
 
 struct gasneti_sysvnet_allocator;  /* forward definition */
 
@@ -949,5 +1012,3 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
   }
   return GASNET_OK;
 }
-
-#endif /* GASNET_SYSV */

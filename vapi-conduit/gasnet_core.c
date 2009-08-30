@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/08/28 04:41:51 $
- * $Revision: 1.205.6.13 $
+ *     $Date: 2009/08/30 04:34:08 $
+ * $Revision: 1.205.6.14 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1519,9 +1519,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   }
 
 #if GASNET_SYSV
-    gasneti_bootstrapBarrier();
-    gasnetc_init_sysv(&gasneti_bootstrapExchange);
-    gasneti_bootstrapBarrier();
+    gasneti_init_sysv(&gasneti_bootstrapExchange);
 #endif
  
   #if GASNET_SEGMENT_FAST
@@ -1890,7 +1888,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasneti_bootstrapBarrier();
 
 #if GASNET_SYSV
-  gasnetc_sysv_init = 1; /* XXX: move to gasnetc_init_sysv() or gasneti_segmentAttach() ? */
+  gasnetc_sysv_init = 1; /* XXX: move to gasneti_init_sysv() or gasneti_segmentAttach() ? */
 #endif
  
   return GASNET_OK;
@@ -2800,8 +2798,7 @@ extern int gasnetc_AMReplyLongM(
 /* ------------------------------------------------------------------------------------ */
 
 #if GASNET_SYSV
-extern gasneti_handler_fn_t gasnetc_get_handler(int handler_id) {
-  gasneti_assert(handler_id < GASNETC_MAX_NUMHANDLERS);
+extern gasneti_handler_fn_t gasnetc_get_handler(gasnet_handler_t handler_id) {
   return gasnetc_handler[handler_id];
 }
 #endif

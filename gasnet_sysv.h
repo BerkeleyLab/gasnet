@@ -1,15 +1,19 @@
-/**
- * Common API for SysV messaging
- * ------------------------------------
- * This API allows "virtual networks" (vnets) to be setup within a gasnet
- * shared memory supernode.
+/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.h,v $
+ *     $Date: 2009/08/30 04:34:00 $
+ * $Revision: 1.1.4.26 $
+ * Description: GASNet infrastructure for shared memory communications
+ * Copyright 2009, E. O. Lawrence Berekely National Laboratory
+ * Terms of use are as specified in license.txt
  */
 
 #ifndef _GASNET_SYSV_H
 #define _GASNET_SYSV_H
 
-#include <stdarg.h> /* Need type va_list */
-#include <stddef.h> /* Need offsetof() */
+#ifndef GASNET_SYSV
+  #error "gasnet_sysv.h included in a non-PSHM build"
+#endif
+
+#include <gasnet_handler.h> /* Need gasneti_handler_fn_t */
 
 /* Some systems (T3E, others?) may not have #defined page size? 
  * - That's my reading of configure.in, at least... */
@@ -19,21 +23,21 @@
   #define GASNETI_SYSVNET_PAGESIZE GASNET_PAGESIZE
 #endif
 
-#define GASNETI_SYSV_UNIQUE_LEN 6
-
+/* Global variables */
 extern uintptr_t *gasneti_seginfo_correction;
 extern uintptr_t gasneti_sysvsize;
 extern int gasnetc_sysv_init;
 
-extern void gasnetc_init_sysv(gasneti_bootstrapExchangefn_t exchangefn);
-
+/* In gasnet_mmap.c */
+#define GASNETI_SYSV_UNIQUE_LEN 6
 extern const char *gasneti_sysv_makenames(const char *unique);
 extern void *gasneti_mmap_vnet(uintptr_t segsize);
 extern void gasneti_unlink_vnet(void);
 
+/* In conduit-specific code */
 extern gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest);
 extern void gasnetc_token_destroy(gasnet_token_t token);
-
+extern gasneti_handler_fn_t gasnetc_get_handler(gasnet_handler_t handler);
 
 /* Virtual network between processes within a shared
  * memory 'supernode'.  
@@ -43,69 +47,12 @@ extern void gasnetc_token_destroy(gasnet_token_t token);
 struct gasneti_sysvnet;			/* opaque type */
 typedef struct gasneti_sysvnet gasneti_sysvnet_t;
 
-/* max # of incoming requests per node, per supernode peer */
-#define GASNETI_SYSVNET_DEFAULT_QUEUE_DEPTH 8
-#define GASNETI_SYSVNET_MAX_QUEUE_DEPTH 1024
-#define GASNETI_SYSVNET_MIN_QUEUE_DEPTH 2
-
-/* payload memory available for outstanding requests, per node
- * default will be silently raised as needed for large node count */
-#define GASNETI_SYSVNET_DEFAULT_QUEUE_MEMORY (1<<20)
-#define GASNETI_SYSVNET_MAX_QUEUE_MEMORY (1<<28) 
-
-/* data about an incoming message */
-typedef struct gasneti_sysvnet_msg {
-  void * addr;
-  size_t len;
-  gasneti_atomic_t state;
-  /* Paul informs me that padding with GASNETI_CACHE_PAD ensures the struct
-   * is sizeof(cache_line), but not that it's aligned on a single cache line.
-   * But we enforce cache line alignment, so we're OK */
-  #if 1
-    char _pad[GASNETI_CACHE_PAD(sizeof(void *)
-                               +sizeof(size_t)
-                               +sizeof(gasneti_atomic_t))];
-  #else
-   /* Alternative: pad out the struct to two cache lines, to ensure we'll have
-    * no spurious cache line conflicts.  Many vapi structs use this too. */
-    char _pad[GASNETI_CACHE_LINE_BYTES];
-  #endif
-} gasneti_sysvnet_msg_t;
-
-/* Values for gasneti_sysvnet_msg_t.state */
-enum {
-  GASNETI_SYSVNET_EMPTY = 0,
-  GASNETI_SYSVNET_FULL,
-  GASNETI_SYSVNET_BUSY
-};
+/* Initialize sysv request and reply networks given a conduit-specific exchange function */
+extern void gasneti_init_sysv(gasneti_bootstrapExchangefn_t exchangefn);
+extern gasneti_sysvnet_t *gasneti_request_sysvnet;
+extern gasneti_sysvnet_t *gasneti_reply_sysvnet;
 
 
-/* Circular queue of info about received messages */
-typedef struct gasneti_sysvnet_queue {
-  gasneti_sysvnet_msg_t *queue;   
-  /* Only need to lock queue ptr if client multithreaded */
-  gasneti_mutex_t recv_lock;
-  gasneti_sysvnet_msg_t *recv_next;  
-  gasneti_mutex_t send_lock;
-  gasneti_sysvnet_msg_t *send_next;  
-  gasneti_sysvnet_msg_t *justpastlast;  
-  #if 1
-    /* See above comment about cache alignment: we ensure queue_t's are
-     * cache-aligned, too */
-    char _pad[GASNETI_CACHE_PAD(sizeof(void *)*4
-                               +sizeof(gasneti_mutex_t)*2)];
-  #else
-    char _pad[GASNETI_CACHE_LINE_BYTES];
-  #endif
-} gasneti_sysvnet_queue_t;
-
-#define round_up_to_sysvpage(size_or_addr)               \
-        GASNETI_ALIGNUP(size_or_addr, GASNETI_SYSVNET_PAGESIZE)
-
-#define sysvnet_get_struct_addr_from_field_addr(structname, fieldname, fieldaddr) \
-        ((structname*)(((uintptr_t)fieldaddr) - offsetof(structname,fieldname)))
-
-gasneti_sysvnet_t *gasneti_request_sysvnet, *gasneti_reply_sysvnet;
 /*******************************************************************************
  * <SysV variables that must be initialized by the conduit using SYSV>
  */
@@ -151,7 +98,7 @@ int gasneti_sysv_in_supernode(gasnet_node_t node) {
  * - Reads the GASNET_SYSVNET_QUEUE_DEPTH and GASNET_SYSVNET_QUEUE_MEMORY
  *   environment variables, if present.
  */
-size_t gasneti_sysvnet_memory_needed(gasnet_node_t nodes);
+extern size_t gasneti_sysvnet_memory_needed(gasnet_node_t nodes);
 
 /* Creates a new virtual network within a gasnet shared memory supernode.
  * This function must be called collectively, and with a shared memory region
@@ -278,4 +225,4 @@ int gasneti_AMSYSV_ReplyGeneric(int category, gasnet_token_t token,
   return retval;
 }
 
-#endif /*GASNET_SYSV*/
+#endif /* _GASNET_SYSV_H */

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/26 08:33:57 $
- * $Revision: 1.77.22.13 $
+ *     $Date: 2009/08/30 04:34:02 $
+ * $Revision: 1.77.22.14 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -32,8 +32,7 @@ gasneti_mutex_t gasnetc_AMlock = GASNETI_MUTEX_INITIALIZER; /*  protect access t
 #if GASNET_SYSV
   #define GASNETC_MAX_NUMHANDLERS 256
   static gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* shadown handler table */
-  extern gasneti_handler_fn_t gasnetc_get_handler(int handler_id) {
-    gasneti_assert(handler_id < GASNETC_MAX_NUMHANDLERS);
+  extern gasneti_handler_fn_t gasnetc_get_handler(gasnet_handler_t handler_id) {
     return gasnetc_handler[handler_id];
   }
 #endif /* GASNET_SYSV */
@@ -188,7 +187,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_nodemapInit(&gasnetc_bootstrapExchange, NULL, 0, 0);
 
 #if GASNET_SYSV
-    gasnetc_init_sysv(&gasnetc_bootstrapExchange);
+    gasneti_init_sysv(&gasnetc_bootstrapExchange);
 #endif
  
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
