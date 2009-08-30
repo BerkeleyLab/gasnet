@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/30 00:07:07 $
- * $Revision: 1.1.4.47 $
+ *     $Date: 2009/08/30 00:45:42 $
+ * $Revision: 1.1.4.48 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -312,9 +312,6 @@ size_t gasneti_sysvnet_memory_needed(gasnet_node_t nodes)
   return gasneti_sysvnet_memory_needed_pernode(nodes) * nodes;
 }
 
-#define SYSV_OFFSET
-#ifdef SYSV_OFFSET
-
 static void init_queue(gasneti_sysvnet_queue_t *q, gasneti_sysvnet_msg_t *msgs,
                        int depth)
 {
@@ -323,36 +320,14 @@ static void init_queue(gasneti_sysvnet_queue_t *q, gasneti_sysvnet_msg_t *msgs,
   /* Instead of using the "real" msgs address, we use only the offset with respect to the beginning of
    * the mapping */
   q->queue = q->recv_next = q->send_next = (gasneti_sysvnet_msg_t *)gasneti_sysv_offset(msgs);
-  q->justpastlast = (gasneti_sysvnet_msg_t *)gasneti_sysv_offset(msgs) + depth;
+  q->justpastlast = q->queue + depth;
   gasneti_mutex_init(&q->recv_lock);
   gasneti_mutex_init(&q->send_lock);
 
   for (i = 0; i < depth; i++) {
-    gasneti_atomic_set(&msgs->state, GASNETI_SYSVNET_EMPTY, 0);
-    msgs++;
-  }
-
-}
-#else
-
-static void init_queue(gasneti_sysvnet_queue_t *q, gasneti_sysvnet_msg_t *msgs,
-                       int depth)
-{
-  int i;
-
-  q->queue = q->recv_next = q->send_next = msgs;
-  q->justpastlast = msgs + depth;
-  gasneti_mutex_init(&q->recv_lock);
-  gasneti_mutex_init(&q->send_lock);
-
-  //printf("%d> init_queue address q->send_next %u, q->send_next->state %u q->send_next->state.ctr %u\n",gasneti_mysysvnode,&q->send_next, &q->send_next->state, &q->send_next->state.ctr);
-  for (i = 0; i < depth; i++) {
-    gasneti_atomic_set(&msgs->state, GASNETI_SYSVNET_EMPTY, 0);
-    msgs++;
+    gasneti_atomic_set(&msgs[i].state, GASNETI_SYSVNET_EMPTY, 0);
   }
 }
-
-#endif
 
 static void gasneti_sysvnet_init_my_sysv(gasneti_sysvnet_t *pvnet, char * myregion, 
                                   gasnet_node_t firstnode, gasnet_node_t nodes)
@@ -374,7 +349,9 @@ static void gasneti_sysvnet_init_my_sysv(gasneti_sysvnet_t *pvnet, char * myregi
 
   for (i = 0; i < nodes; i++) {
     if (i == gasneti_mysysvnode) {
-      memset(&myqueues[i], 0, sizeof(gasneti_sysvnet_queue_t));
+#if GASNET_DEBUG
+      memset(&myqueues[i], 0xff, sizeof(gasneti_sysvnet_queue_t));
+#endif
     } else {
       init_queue(&myqueues[i], mymsgs, gasneti_sysvnet_queue_depth);
       mymsgs += gasneti_sysvnet_queue_depth;
@@ -448,8 +425,6 @@ void * gasneti_sysvnet_get_send_buffer(gasneti_sysvnet_t *vnet, size_t nbytes,
   return retval;
 }
 
-
-#ifdef SYSV_OFFSET
 
 int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf, 
                                         size_t nbytes, gasnet_node_t target)
@@ -541,73 +516,10 @@ int gasneti_sysvnet_recv(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize,
   
   return -1;
 }
-#else
 
-int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf, 
-                                        size_t nbytes, gasnet_node_t target)
-{
-  int retval = -1;
-  gasneti_sysvnet_payload_t *p;
-  gasneti_sysvnet_queue_t *q = vnet->out_queues[sysvnode(vnet, target)];
-  gasneti_assert(q != NULL);
-  gasneti_mutex_lock(&q->send_lock);
 
-  /* This code assumes that if the current 'send_node' isn't free yet, there
-   * are no free slots in the recipient's queue.  Since there is only one
-   * sender, one receiver, and the receiver consumes messages in order, this
-   * should be true, so no scan over the list is needed. */
-  if (gasneti_atomic_read(&q->send_next->state, 0) == GASNETI_SYSVNET_EMPTY) {
-    retval = 0;
-    /* fill in message info */
-    q->send_next->addr = buf;
-    q->send_next->len = nbytes;
-    /* set pointer to msg in buffer */
-    p = sysvnet_get_struct_addr_from_field_addr(gasneti_sysvnet_payload_t, payload, buf);
-    gasneti_assert(buf == &p->payload);
-    p->info = q->send_next;
-    /* Perform write flush before writing ready bit */
-    gasneti_atomic_set(&q->send_next->state, GASNETI_SYSVNET_FULL, GASNETI_ATOMIC_REL);
-    if (++q->send_next == q->justpastlast)
-      q->send_next = q->queue;
-  }
-  gasneti_mutex_unlock(&q->send_lock);
-  return retval;
-}
-
-int gasneti_sysvnet_recv(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize, 
-                         gasnet_node_t *from)
-{
-  int i;
-  for (i = 0; i < vnet->nodecount; i++) {
-    if (vnet->nextindex != gasneti_mysysvnode) {
-      gasneti_sysvnet_queue_t *q = vnet->in_queues[vnet->nextindex];
-      gasneti_assert(q != NULL);
-      gasneti_mutex_lock(&q->recv_lock);
-      if (gasneti_atomic_compare_and_swap(&q->recv_next->state, GASNETI_SYSVNET_FULL,
-                                          GASNETI_SYSVNET_BUSY, GASNETI_ATOMIC_ACQ_IF_TRUE)) {
-        *pbuf = q->recv_next->addr;
-        *psize = q->recv_next->len;
-        if (++q->recv_next == q->justpastlast)
-          q->recv_next = q->queue;
-        gasneti_mutex_unlock(&q->recv_lock);
-        *from = vnet->nextindex + vnet->firstnode;
-        /* Ensure fairness: next check starts with next node */
-        if (++vnet->nextindex == vnet->nodecount) 
-          vnet->nextindex = 0;
-        return 0;
-      }
-      gasneti_mutex_unlock(&q->recv_lock);
-    }
-    if (++vnet->nextindex == vnet->nodecount) 
-      vnet->nextindex = 0;
-  }
-  return -1;
-}
-
-#endif
-
-/* TODO: the current behavior if a user forgets to call this function is
- * NASTY--the message stays marked as state==FULL, which will cause
+/* Note the current behavior if a user forgets to call this function is
+ * NASTY--the message stays marked as state==BUSY, which will cause
  * senders to think the queue is full.  This could cause
  * deadlock and/or lots of confusion (for me it was the latter).
  */
