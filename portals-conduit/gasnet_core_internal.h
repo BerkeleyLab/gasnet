@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2009/08/30 07:18:35 $
- * $Revision: 1.4.10.2 $
+ *     $Date: 2009/08/30 19:47:47 $
+ * $Revision: 1.4.10.3 $
  * Description: GASNet PORTALS conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -25,15 +25,6 @@
 /* handler table (recommended impl) */
 #define GASNETC_MAX_NUMHANDLERS   256
 extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
-
-/* ------------------------------------------------------------------------------------ */
-#if GASNET_SYSV /* Not used by Portals conduit except to call AMSYSV code */
-  enum {
-    gasnetc_Short=0,
-    gasnetc_Medium=1,
-    gasnetc_Long=2
-  };
-#endif
 
 /* ------------------------------------------------------------------------------------ */
 /* Unconditionally evalute second arg.
