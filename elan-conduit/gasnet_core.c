@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/04/23 23:33:08 $
- * $Revision: 1.77.4.1 $
+ *     $Date: 2009/08/30 07:18:27 $
+ * $Revision: 1.77.4.2 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -85,7 +85,7 @@ extern uint64_t gasnetc_clock() {
     return 0;
 }
 
-gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
+gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
 
 #ifdef GASNETC_ELAN4
 #include <elan4/library.h>
@@ -471,7 +471,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /*  register handlers */
   { int i;
     for (i = 0; i < GASNETC_MAX_NUMHANDLERS; i++) 
-      gasnetc_handler[i] = (gasnetc_handler_fn_t)&gasneti_defaultAMHandler;
+      gasnetc_handler[i] = (gasneti_handler_fn_t)&gasneti_defaultAMHandler;
   }
   { /*  core API handlers */
     gasnet_handlerentry_t *ctable = (gasnet_handlerentry_t *)gasnetc_get_handlertable();

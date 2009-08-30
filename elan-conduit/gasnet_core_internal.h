@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/11/26 03:10:55 $
- * $Revision: 1.42 $
+ *     $Date: 2009/08/30 07:18:27 $
+ * $Revision: 1.42.30.1 $
  * Description: GASNet elan conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,6 +10,7 @@
 #define _GASNET_CORE_INTERNAL_H
 
 #include <gasnet_internal.h>
+#include <gasnet_handler.h>
 
 #if PLATFORM_COMPILER_PGI || PLATFORM_COMPILER_SUN
   /* this workaround enables use of these compilers with the libelan headers */
@@ -73,6 +74,11 @@
 #define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
 #define _hidx_gasnetc_auxseg_reqh             (GASNETC_HANDLER_BASE+0)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
+
+/* ------------------------------------------------------------------------------------ */
+/* handler table (recommended impl) */
+#define GASNETC_MAX_NUMHANDLERS   256
+extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 extern ELAN_BASE  *gasnetc_elan_base;
 extern ELAN_STATE *gasnetc_elan_state;
@@ -412,10 +418,6 @@ typedef struct _gasnetc_bufdesc_t {
   int8_t   handlerRunning; /* received packets only */
   int8_t   replyIssued;    /* received packets only */
 } gasnetc_bufdesc_t;
-
-#define GASNETC_MAX_NUMHANDLERS   256
-typedef void (*gasnetc_handler_fn_t)();  /* prototype for handler function */
-gasnetc_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
 
 extern int gasnetc_RequestGeneric(gasnetc_category_t category, 
                          int dest, gasnet_handler_t handler, 

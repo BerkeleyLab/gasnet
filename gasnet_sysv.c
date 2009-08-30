@@ -1,13 +1,13 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/30 06:12:06 $
- * $Revision: 1.1.4.53 $
+ *     $Date: 2009/08/30 07:18:23 $
+ * $Revision: 1.1.4.54 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
  */
 
 #include <gasnet_internal.h>
-#include <gasnet_core_internal.h> /* for gasnetc_{Short,Medium,Long} */
+#include <gasnet_core_internal.h> /* for gasnetc_{Short,Medium,Long} and gasnetc_handler[] */
 
 #ifndef GASNET_SYSV
   #error "gasnet_sysv.c compiled in a non-PSHM build"
@@ -130,6 +130,13 @@ gasnet_node_t gasneti_mysysvnode = (gasnet_node_t)(-1);
 #ifndef GASNETC_MAX_MEDIUM_SYSV
   #define GASNETC_MAX_MEDIUM_SYSV (gasnet_AMMaxMedium())
 #endif
+#ifndef GASNETC_GET_HANDLER
+  /* Assumes conduit has gasnetc_handler[] */
+  gasneti_handler_fn_t gasnetc_get_handler(gasnet_handler_t handler) {
+    return gasnetc_handler[handler];
+  }
+#endif
+
 
 /* TODO: Could/should we squeeze unused args out of a Medium.*/
 /* TODO: Pack category and numargs together (makes assumtion about ranges) */

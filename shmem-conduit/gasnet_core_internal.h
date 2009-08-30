@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core_internal.h,v $
- *     $Date: 2006/05/23 12:42:37 $
- * $Revision: 1.12 $
+ *     $Date: 2009/08/30 07:18:37 $
+ * $Revision: 1.12.44.1 $
  * Description: GASNet shmem conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,6 +10,7 @@
 #define _GASNET_CORE_INTERNAL_H
 
 #include <gasnet_internal.h>
+#include <gasnet_handler.h>
 #if defined(CRAY_SHMEM) || defined(SGI_SHMEM)
 #include <mpp/shmem.h>
 #elif defined(QUADRICS_SHMEM)
@@ -25,6 +26,11 @@ extern intptr_t		*gasnetc_segment_shptr_off;
 #define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
 #define _hidx_gasnetc_auxseg_reqh             (GASNETC_HANDLER_BASE+0)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
+
+/* ------------------------------------------------------------------------------------ */
+/* handler table (recommended impl) */
+#define GASNETC_MAX_NUMHANDLERS   256
+extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 /*
  * Active Message header encoding (always 4 bytes)

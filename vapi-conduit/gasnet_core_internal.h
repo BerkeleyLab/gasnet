@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2009/08/26 08:46:09 $
- * $Revision: 1.155.4.4 $
+ *     $Date: 2009/08/30 07:18:43 $
+ * $Revision: 1.155.4.5 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -83,6 +83,11 @@ extern gasneti_atomic_t gasnetc_exit_running;
 #define _hidx_gasnetc_SYS_init_ping       5
 
 /* ------------------------------------------------------------------------------------ */
+/* handler table (recommended impl) */
+#define GASNETC_MAX_NUMHANDLERS   256
+extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
+
+/* ------------------------------------------------------------------------------------ */
 
 #define GASNETC_ARGSEND_AUX(s,nargs) \
 	(offsetof(s,args)+((nargs)*sizeof(gasnet_handlerarg_t)))
@@ -134,11 +139,6 @@ typedef enum {
   gasnetc_Long=2,
   gasnetc_System=3
 } gasnetc_category_t;
-
-/* ------------------------------------------------------------------------------------ */
-
-#define GASNETC_MAX_NUMHANDLERS   256
-extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 /* ------------------------------------------------------------------------------------ */
 typedef void (*gasnetc_sys_handler_fn_t)(gasnet_token_t token, gasnet_handlerarg_t *args, int numargs);

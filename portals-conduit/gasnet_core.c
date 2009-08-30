@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/08/30 05:43:19 $
- * $Revision: 1.16.8.6 $
+ *     $Date: 2009/08/30 07:18:35 $
+ * $Revision: 1.16.8.7 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -23,7 +23,6 @@ gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 static void gasnetc_atexit(void);
 static void gasnetc_traceoutput(int);
 
-#define GASNETC_MAX_NUMHANDLERS   256
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
 
 #if GASNET_SYSV

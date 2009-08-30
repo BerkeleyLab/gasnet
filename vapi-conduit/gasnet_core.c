@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/08/30 06:06:31 $
- * $Revision: 1.205.6.16 $
+ *     $Date: 2009/08/30 07:18:43 $
+ * $Revision: 1.205.6.17 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2790,14 +2790,6 @@ extern int gasnetc_AMReplyLongM(
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
-
-/* ------------------------------------------------------------------------------------ */
-
-#if GASNET_SYSV
-extern gasneti_handler_fn_t gasnetc_get_handler(gasnet_handler_t handler_id) {
-  return gasnetc_handler[handler_id];
-}
-#endif
 
 /* ------------------------------------------------------------------------------------ */
 /*

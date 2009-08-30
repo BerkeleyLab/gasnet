@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_reqrep.c,v $
- *     $Date: 2006/11/26 03:10:55 $
- * $Revision: 1.33 $
+ *     $Date: 2009/08/30 07:18:27 $
+ * $Revision: 1.33.30.1 $
  * Description: GASNet elan conduit - AM request/reply implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -386,7 +386,7 @@ extern void gasnetc_initbufs() {
 static void gasnetc_processPacket(gasnetc_bufdesc_t *desc) {
   gasnetc_buf_t *buf = desc->buf;
   gasnetc_msg_t *msg = &(buf->m.msg);
-  gasnetc_handler_fn_t handler = gasnetc_handler[msg->handlerId];
+  gasneti_handler_fn_t handler = gasnetc_handler[msg->handlerId];
   gasnetc_category_t category = GASNETC_MSG_CATEGORY(msg);
   int numargs = GASNETC_MSG_NUMARGS(msg);
   gasneti_assert(numargs >= 0 && numargs <= GASNETC_MAX_ARGS);

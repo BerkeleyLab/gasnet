@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2008/03/09 09:38:31 $
- * $Revision: 1.53 $
+ *     $Date: 2009/08/30 07:18:31 $
+ * $Revision: 1.53.10.1 $
  * Description: GASNet lapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,6 +19,7 @@
 #define _GASNET_CORE_INTERNAL_H
 
 #include <gasnet_internal.h>
+#include <gasnet_handler.h>
 #if GASNETC_LAPI_RDMA
   #include <firehose.h>
 #endif
@@ -73,9 +74,6 @@ extern void**             gasnetc_remote_reply_hh;
 #else
 #define GASNETC_LAPI_POLL(context) GASNETC_LCHECK(LAPI_Probe(context))
 #endif
-
-typedef void (*gasnetc_handler_fn_t)();  /* prototype for handler function */
-extern gasnetc_handler_fn_t gasnetc_handler[]; /* handler table */
 
 extern void gasnetc_lapi_exchange(void *src, size_t len, void *dest);
 
@@ -301,6 +299,11 @@ extern size_t gasnetc_get_pagesize(void *addr);
 #define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
 #define _hidx_gasnetc_auxseg_reqh             (GASNETC_HANDLER_BASE+0)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
+
+/* ------------------------------------------------------------------------------------ */
+/* handler table (recommended impl) */
+#define GASNETC_MAX_NUMHANDLERS   256
+extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 /* ------------------------------------------------------------------------------------ */
 

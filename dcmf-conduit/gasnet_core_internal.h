@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_internal.h,v $
- *     $Date: 2008/10/28 05:43:39 $
- * $Revision: 1.2 $
+ *     $Date: 2009/08/30 07:18:25 $
+ * $Revision: 1.2.10.1 $
  * Description: GASNet dcmf conduit header for internal definitions in Core API
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -15,6 +15,7 @@
 #include <dcmf_collectives.h>
 #include <dcmf_globalcollectives.h>
 #include <gasnet_internal.h>
+#include <gasnet_handler.h>
 
 
 
@@ -292,5 +293,9 @@ void gasnetc_dcmf_bootstrapExchange(void *src, size_t nbytes, void *dst);
 #define _hidx_gasnetc_auxseg_reqh             (GASNETC_HANDLER_BASE+0)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
+/* ------------------------------------------------------------------------------------ */
+/* handler table (recommended impl) */
+#define GASNETC_MAX_NUMHANDLERS   256
+extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 #endif

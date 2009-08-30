@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_internal.h,v $
- * $Date: 2007/12/19 22:33:09 $
- * $Revision: 1.76 $
+ * $Date: 2009/08/30 07:18:29 $
+ * $Revision: 1.76.16.1 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -71,7 +71,6 @@ extern gasneti_atomic_t gasnetc_exit_running;
 
 /* -------------------------------------------------------------------------- */
 typedef struct gasnetc_bufdesc gasnetc_bufdesc_t;
-typedef void (*gasnetc_handler_fn_t)();
 
 gasnetc_bufdesc_t * 	gasnetc_AMRequestPool_block();
 
@@ -229,8 +228,8 @@ struct _gasnetc_state {
 	gasnetc_token_t		stoks;
 	gasnetc_token_t		rtoks;
 
-	gasnetc_handler_fn_t	handlers[GASNETC_AM_MAX_HANDLERS];
-	gasnetc_handler_fn_t	syshandlers[GASNETC_AM_MAX_HANDLERS];
+	gasneti_handler_fn_t	handlers[GASNETC_AM_MAX_HANDLERS];
+	gasneti_handler_fn_t	syshandlers[GASNETC_AM_MAX_HANDLERS];
 	gasnetc_gm_nodes_t	*gm_nodes;
 	gasnetc_gm_nodes_rev_t	*gm_nodes_rev;
 

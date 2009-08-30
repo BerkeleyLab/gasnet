@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/30 06:06:29 $
- * $Revision: 1.48.4.20 $
+ *     $Date: 2009/08/30 07:18:39 $
+ * $Revision: 1.48.4.21 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -24,16 +24,9 @@ static void gasnetc_atexit(void);
   void *_gasnetc_mythread = NULL;
 #endif
 
-#define GASNETC_MAX_NUMHANDLERS   256
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
 
-#if GASNET_SYSV
-  #define GASNETC_MAX_SYSV_NODES 256
-  extern gasneti_handler_fn_t gasnetc_get_handler(gasnet_handler_t handler_id) {
-    return gasnetc_handler[handler_id];
-  }
-#endif /* GASNET_SYSV */
-
+#define GASNETC_MAX_SYSV_NODES 256
 
 /* ------------------------------------------------------------------------------------ */
 /*
