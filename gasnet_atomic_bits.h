@@ -1,12 +1,12 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2009/08/22 20:17:35 $
- * $Revision: 1.307.2.1 $
+ *     $Date: 2009/08/30 00:07:07 $
+ * $Revision: 1.307.2.2 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#if !defined(_IN_GASNET_TOOLS_H) && !defined(_IN_GASNET_H)
+#if !defined(_IN_GASNET_TOOLS_H) && !defined(_IN_GASNET_H) && !defined(_IN_CONFIGURE)
   #error This file is not meant to be included directly- clients should include gasnet.h or gasnet_tools.h
 #endif
 

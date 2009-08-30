@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2009/08/28 06:17:14 $
-# $Revision: 1.519.2.6 $
+#     $Date: 2009/08/30 00:07:07 $
+# $Revision: 1.519.2.7 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.519.2.6 $)
+AC_REVISION($Revision: 1.519.2.7 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1081,7 +1081,7 @@ GASNET_IF_ENABLED(pshm,
   [Enable/disable inter-process shared memory support (default disabled)],
   [enabled_pshm=yes])
 if test "$segconfig$enabled_pshm" = everythingyes; then
-  GASNET_MSG_ERROR([User requested --enable-segment-everything and --enable-pshm but these settings conflict.])
+  GASNET_MSG_ERROR([User requested --enable-segment-everything and --enable-pshm but PSHM support does not include GASNET_SEGMENT_EVERYTHING.])
 fi
 if test "$enabled_pshm" = yes; then
   GASNET_PSHM_LIBS=""
@@ -1639,6 +1639,41 @@ GASNET_MSG_WARN([
  WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING
 -----------------------------------------------------------------------])
 fi
+
+#---------------------------------------------------------------------------------------------------------------
+# PSHM uses atomics in shared memory for IPC.
+# So we assume that Generic and O/S atomics are insufficient.
+# If that is ever not the case, one can add exceptions as needed.
+dnl GASNET_TOOLSONLY_FALSE_BEGIN
+if test "$enabled_pshm" = yes; then
+  if test -n "$enabled_generic_atomicops" ; then
+    GASNET_MSG_ERROR([User passed --enable-force-generic-atomicops and --enable-pshm, but PSHM support requires native atomics])
+  elif test -n "$enabled_os_atomicops"; then
+    GASNET_MSG_ERROR([User passed --enable-force-os-atomicops and --enable-pshm, but PSHM support requires native atomics])
+  else
+    dnl Check for non-native atomics on this platform
+    dnl To avoid false positives should the compilation fail for unrelated reasons, this
+    dnl test is written to PASS only if we can positively ID generic or OS atomics.
+    dnl So, if gasnet_atomic_bits.h has any unsatisfied dependencies on a given platform
+    dnl then we could miss detecting the problem here, but will still catch at compile time.
+    dnl Note that native atomics w/o signal safety are okay.
+    GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CPPFLAGS $MISC_CFLAGS -I$TOP_SRCDIR -I$TOP_SRCDIR/other -D_IN_CONFIGURE")
+    GASNET_TRY_CACHE_CHECK(for non-native atomics, non_native_atomics, [
+      #include "portable_inttypes.h"
+      #include "gasnet_asm.h" /* Includes portable_platform.h */
+      #define GASNETI_INLINE(arg) /* empty */
+      #include "gasnet_atomic_bits.h"
+    ], [
+      #if !defined(GASNETI_USE_GENERIC_ATOMICOPS) && !defined(GASNETI_USE_OS_ATOMICOPS)
+        #error "Native atomics"
+      #endif
+    ], [
+      GASNET_MSG_ERROR([User passed --enable-pshm, but PSHM support requires native atomics which GASNet does not appear to support on your platform])
+    ])
+    GASNET_POPVAR(CFLAGS)
+  fi
+fi
+dnl GASNET_TOOLSONLY_FALSE_END
 
 #---------------------------------------------------------------------------------------------------------------
 # CONDUIT CONFIGURATION UTILITIES

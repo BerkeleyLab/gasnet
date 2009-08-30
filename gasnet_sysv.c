@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/29 22:11:41 $
- * $Revision: 1.1.4.46 $
+ *     $Date: 2009/08/30 00:07:07 $
+ * $Revision: 1.1.4.47 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2007, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,6 +10,10 @@
 #include <gasnet_core_internal.h> /* for gasnetc_{Short,Medium,Long} */
 
 #if GASNET_SYSV
+
+#if defined(GASNETI_USE_GENERIC_ATOMICOPS) || defined(GASNETI_USE_OS_ATOMICOPS)
+  #error "GASNet PSHM support requires Native atomics"
+#endif
 
 /* Do this here to avoid pulling gasnet_handler.h into gasnet_sysv.h */
 #include <gasnet_handler.h> /* Need gasneti_handler_fn_t */
