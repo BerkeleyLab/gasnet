@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/28 21:55:38 $
- * $Revision: 1.57.6.31 $
+ *     $Date: 2009/08/30 03:36:06 $
+ * $Revision: 1.57.6.32 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -937,7 +937,7 @@ void gasneti_segmentAttachLocal(uintptr_t segsize, uintptr_t minheapoffset,
         #if GASNETI_USE_HIGHSEGMENT
           segbase = (void *)((uintptr_t)gasneti_segment.addr + 
                              gasneti_segment.size - segsize);
-          if ((int64_t)(gasneti_segment.size - segsize) >= GASNETI_SEGMENT_DISALIGN_BIAS) {
+          if ((intptr_t)(gasneti_segment.size - segsize) >= GASNETI_SEGMENT_DISALIGN_BIAS) {
             segbase = (void *)((uintptr_t)segbase - GASNETI_SEGMENT_DISALIGN_BIAS);
           } else {
             segbase = (void *)((uintptr_t)segbase + GASNETI_SEGMENT_DISALIGN_BIAS);
@@ -1054,7 +1054,7 @@ void gasneti_AttachRemote(uintptr_t segsize, gasnet_node_t sysv_node, uintptr_t 
     #if GASNETI_USE_HIGHSEGMENT
       segbase = (void *)((uintptr_t)gasneti_remote_segments[sysv_node].addr + 
                          gasneti_remote_segments[sysv_node].size - segsize);
-      if ((int64_t)(gasneti_remote_segments[sysv_node].size - segsize) >= GASNETI_SEGMENT_DISALIGN_BIAS) {
+      if ((intptr_t)(gasneti_remote_segments[sysv_node].size - segsize) >= GASNETI_SEGMENT_DISALIGN_BIAS) {
         segbase = (void *)((uintptr_t)segbase - GASNETI_SEGMENT_DISALIGN_BIAS);
       } else {
         segbase = (void *)((uintptr_t)segbase + GASNETI_SEGMENT_DISALIGN_BIAS);
