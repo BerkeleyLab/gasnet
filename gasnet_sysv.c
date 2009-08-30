@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/30 06:00:45 $
- * $Revision: 1.1.4.52 $
+ *     $Date: 2009/08/30 06:12:06 $
+ * $Revision: 1.1.4.53 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -910,7 +910,6 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
 
   gasneti_assert(vnet != NULL);
 
-  //printf("%d> reqrep category=%d\n",gasneti_mysysvnode,category);
   /* calculate size of sysV buffer needed */
   switch (category) {
     case gasnetc_Short:
