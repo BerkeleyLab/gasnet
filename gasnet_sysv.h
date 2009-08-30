@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.h,v $
- *     $Date: 2009/08/30 06:00:45 $
- * $Revision: 1.1.4.29 $
+ *     $Date: 2009/08/30 20:42:51 $
+ * $Revision: 1.1.4.30 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -28,11 +28,6 @@
 extern const char *gasneti_sysv_makenames(const char *unique);
 extern void *gasneti_mmap_vnet(uintptr_t segsize);
 extern void gasneti_unlink_vnet(void);
-
-/* In conduit-specific code */
-extern gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest);
-extern void gasnetc_token_destroy(gasnet_token_t token);
-extern gasneti_handler_fn_t gasnetc_get_handler(gasnet_handler_t handler);
 
 /* Virtual network between processes within a shared
  * memory 'supernode'.  
@@ -219,5 +214,35 @@ int gasneti_AMSYSV_ReplyGeneric(int category, gasnet_token_t token,
                                         nbytes, dest_addr, numargs, argptr); 
   return retval;
 }
+
+
+
+/* Optional conduit-specific code if defaults in gasnet_sysv.c are not usable.
+ * Conduits providing these should #define the appropriate token in gasnet_core_fwd.h
+ * When a given token is NOT defined, internal default implementations are used.
+ */
+#ifdef GASNETC_GET_HANDLER
+  extern gasneti_handler_fn_t gasnetc_get_handler(gasnet_handler_t handler);
+#endif
+#ifdef GASNETC_TOKEN_CREATE
+  extern gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest);
+  extern void gasnetc_token_destroy(gasnet_token_t token);
+#else
+    /* Conduits using the default gasnetc_token_create() will
+     * want/need to use this in their gasnetc_AMGetMsgSource().
+     * Returns GASNET_OK if token was recognized, GASNET_ERR_BAD_ARG otherwise.
+     */
+    GASNETI_INLINE(gasneti_AMSYSVGetMsgSource)
+    int gasneti_AMSYSVGetMsgSource(gasnet_token_t token, gasnet_node_t *src_ptr) {
+      int retval = GASNET_ERR_BAD_ARG;
+      if ((uintptr_t)token & 1) {
+        gasnet_node_t tmp = gasneti_firstsysvnode + (gasnet_node_t)((uintptr_t)token >> 1);
+        gasneti_assert(gasneti_sysv_in_supernode(tmp));
+        *src_ptr = tmp;
+        retval = GASNET_OK;
+      }
+      return retval;
+    }
+#endif
 
 #endif /* _GASNET_SYSV_H */

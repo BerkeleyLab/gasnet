@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/30 07:18:33 $
- * $Revision: 1.77.22.17 $
+ *     $Date: 2009/08/30 20:42:53 $
+ * $Revision: 1.77.22.18 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -508,29 +508,6 @@ extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
   Misc. Active Message Functions
   ==============================
 */
-
-#if GASNET_SYSV
-/* Returns a (conduit-specific) token type, with (internal conduit-specific)
- * source and isRequest fields filled in.  The token is guaranteed to work
- * with gasnetc_AMGetMsgSource (which is conduit-specific). */
-extern gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest)
-{
-  /* We encode the src node in the token and recognize it as not aligned as a pointer.
-   * Use of local rank avoids overflow for all but the most extream cases.
-   */
-  return (gasnet_token_t)(1 | ((uintptr_t)(src - gasneti_firstsysvnode) << 1));
-}
-
-/* Frees a token handed out by gasnetc_token_create() */
-extern void gasnetc_token_destroy(gasnet_token_t token)
-{
-  /* NO-OP
-   * Token is not a pointer to allocated memory.
-   * So, nothing to free()
-   */
-}
-#endif
-
 extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
   int retval;
   int sourceid;
@@ -539,10 +516,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
 
 #if GASNET_SYSV
-  if ((uintptr_t)token & 1) {
-    sourceid = gasneti_firstsysvnode + (gasnet_node_t)((uintptr_t)token >> 1);
-    gasneti_assert(gasneti_sysv_in_supernode(sourceid));
-  } else
+  if (gasneti_AMSYSVGetMsgSource(token, &sourceid) != GASNET_OK)
 #endif
   {
     GASNETI_AM_SAFE_NORETURN(retval, AMMPI_GetSourceId(token, &sourceid));

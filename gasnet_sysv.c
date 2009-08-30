@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/30 07:18:23 $
- * $Revision: 1.1.4.54 $
+ *     $Date: 2009/08/30 20:42:51 $
+ * $Revision: 1.1.4.55 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -107,6 +107,31 @@ void gasneti_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
   gasneti_sysvnet_bootstrapBarrier();
 }
 
+/* Defaults if gasnet_core_fwd.h doesn't #define these preprocessor tokens */
+#ifndef GASNETC_MAX_ARGS_SYSV
+  /* Assumes gasnet_AMMaxArgs() expands to a compile-time constant */
+  #define GASNETC_MAX_ARGS_SYSV   (gasnet_AMMaxArgs())
+#endif
+#ifndef GASNETC_MAX_MEDIUM_SYSV
+  /* Assumes gasnet_AMMaxMedium() expands to a compile-time constant */
+  #define GASNETC_MAX_MEDIUM_SYSV (gasnet_AMMaxMedium())
+#endif
+#ifndef GASNETC_GET_HANDLER
+  /* Assumes conduit has gasnetc_handler[] as in template-conduit */
+  #define gasnetc_get_handler(_h) (gasnetc_handler[(_h)])
+#endif
+#ifndef GASNETC_TOKEN_CREATE
+    /* Our default implementation is suitable for conduits that use a pointer
+     * for gasnet_token_t.  We encode the source (but ignore isReq) in a
+     * uintptr_t, which has the least-significant bit set.  This distinguishes
+     * it from a valid pointer, but still allows a (token != NULL) assertion.
+     * Use of local rank avoids overflow for all but the most extreme cases.
+     */
+    #define gasnetc_token_create(_src, _isReq) \
+      ((gasnet_token_t)(1 | ((uintptr_t)(_src - gasneti_firstsysvnode) << 1)))
+    #define gasnetc_token_destroy(tok) ((void)0)
+#endif
+
 
 /*******************************************************************************
  * "SysV Net":  virtual network between peers in a shared memory supernode 
@@ -121,22 +146,6 @@ gasnet_node_t gasneti_mysysvnode = (gasnet_node_t)(-1);
  * "SysV Net":  message header formats
  * These come early because their sizes influence allocation
  ******************************************************************************/
-
-/* Defaults if conduit doesn't define these.
- * If these defaults are not compile-time constants the conduit must define them */
-#ifndef GASNETC_MAX_ARGS_SYSV
-  #define GASNETC_MAX_ARGS_SYSV   (gasnet_AMMaxArgs())
-#endif
-#ifndef GASNETC_MAX_MEDIUM_SYSV
-  #define GASNETC_MAX_MEDIUM_SYSV (gasnet_AMMaxMedium())
-#endif
-#ifndef GASNETC_GET_HANDLER
-  /* Assumes conduit has gasnetc_handler[] */
-  gasneti_handler_fn_t gasnetc_get_handler(gasnet_handler_t handler) {
-    return gasnetc_handler[handler];
-  }
-#endif
-
 
 /* TODO: Could/should we squeeze unused args out of a Medium.*/
 /* TODO: Pack category and numargs together (makes assumtion about ranges) */

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/30 07:18:39 $
- * $Revision: 1.48.4.21 $
+ *     $Date: 2009/08/30 20:42:55 $
+ * $Revision: 1.48.4.22 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -447,20 +447,6 @@ extern void gasnetc_exit(int exitcode) {
   Misc. Active Message Functions
   ==============================
 */
-#if GASNET_SYSV
-/* Returns a (conduit-specific) token type, with (internal conduit-specific)
- * source and isRequest fields filled in.  The token is guaranteed to work
- * with gasnetc_AMGetMsgSource (which is conduit-specific). */
-extern gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isRequest){
-  return (gasnet_token_t)(uintptr_t)(1 | (src << 1));
-}
-
-/* Frees a token handed out by gasnetc_token_create() */
-extern void gasnetc_token_destroy(gasnet_token_t token){
-  /* NO-OP: nothing allocated == nothing freed */
-}
-#endif
-
 extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
   gasnet_node_t sourceid;
   GASNETI_CHECKATTACH();
@@ -473,8 +459,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
 
   /* add code here to write the source index into sourceid */
 #if GASNET_SYSV
-  gasneti_assert((uintptr_t)token & 1);
-  sourceid = (gasnet_node_t)((uintptr_t)token >> 1);
+  GASNETI_SAFE_PROPAGATE(gasneti_AMSYSVGetMsgSource(token, &sourceid));
 #else
   sourceid = 0;
 #endif
