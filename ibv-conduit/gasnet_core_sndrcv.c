@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2009/08/26 08:34:03 $
- * $Revision: 1.227.4.7 $
+ *     $Date: 2009/08/30 01:21:52 $
+ * $Revision: 1.227.4.8 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1880,6 +1880,11 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
 			  int numargs, gasnetc_counter_t *mem_oust,
 			  gasnetc_counter_t *req_oust, va_list argptr) {
   if_pt (dest == gasneti_mynode) {
+#if GASNET_SYSV
+    /* SYSV code handles loopback case for all but category=System */
+    gasneti_assert(category == gasnetc_System);
+    category = gasnetc_System; /* Hope optimizer propogates the constant */
+#endif
     /* Local Case */
     gasnet_handlerarg_t *args;
     int i;
