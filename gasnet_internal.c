@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/08/31 19:02:49 $
- * $Revision: 1.197.8.11 $
+ *     $Date: 2009/08/31 22:20:20 $
+ * $Revision: 1.197.8.12 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -816,7 +816,8 @@ gasnet_node_t gasneti_nodemap_local_rank = (gasnet_node_t)-1;
  * term "sensible" includes:
  *   "Block" layouts like       |0.1.2.3|4.5.6.7|8.9._._|
  *                           or |0.1.2.3|4.5.6._|7.8.9._|
- *   "Round-robin" layouts like |0.3.6.9|1.4.7._|2.5.8._|
+ *   "Block-cyclic" like        |0.1.6.7|2.3.8.9|4.5._._|
+ *   "Cyclic/Round-robin" like  |0.3.6.9|1.4.7._|2.5.8._|
  *   and all 24 permutations of the XYZT dimensions on the BG/P.
  *
  * This is also "safe" for an arbitrary mapping, but may fail to
@@ -831,16 +832,23 @@ static void gasneti_nodemap_helper_linear(const char *ids, size_t sz, size_t str
   p = base_p + stride;
 
   for (i = 1; i < gasneti_nodes; ++i, p += stride) {
-    if (!memcmp(p, base_p, sz)) {                  /* Restart the previous "row" */
+    if (!memcmp(p, prev_p, sz)) {                  /* Repeat the previous id */
+      gasneti_nodemap[i] = gasneti_nodemap[prev];
+      prev += 1;       prev_p += stride;
+      continue;
+    }
+
+    gasneti_nodemap[i] = i;
+    if (!memcmp(p, ids, sz)) {                     /* Restart the first "row" */
+      prev = 0;        prev_p = ids;
+    } else if (!memcmp(p, base_p, sz)) {           /* Restart the previous "row" */
       prev = base;     prev_p = base_p;
-    } else if (!memcmp(p, prev_p, sz)) {           /* Repeat the previous id */
-      /* prev = prev;  prev_p = prev_p; */
-    } else if (!memcmp(p, prev_p + stride, sz)) {  /* Continue the current "row" */
+    } else if (!memcmp(p, prev_p + stride, sz)) {  /* Continue current "row" if any */
       prev += 1;       prev_p += stride;
     } else {                                       /* Begin a new "row" */
       prev = base = i; prev_p = base_p = p;
     }
-    gasneti_nodemap[i] = prev;
+    gasneti_nodemap[i] = gasneti_nodemap[prev];
   }
 }
 
