@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/08/31 17:45:21 $
- * $Revision: 1.197.8.10 $
+ *     $Date: 2009/08/31 19:02:49 $
+ * $Revision: 1.197.8.11 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1069,9 +1069,7 @@ extern void gasneti_nodemapInit(gasneti_bootstrapExchangefn_t exchangefn,
   gasneti_nodemapParse();
 }
 
-/* Presently just frees the space allocated for the nodemap.
- * If a vector-of-local-nodes is later computed by gasneti_nodemapParse()
- * then this would free that storage too.
+/* Presently just frees the space allocated for the nodemaps.
  */
 extern void gasneti_nodemapFini(void) {
   gasneti_assert(gasneti_nodemap);
@@ -1080,6 +1078,7 @@ extern void gasneti_nodemapFini(void) {
 #if GASNET_DEBUG
   /* To help catch any use-afer-Fini: */
   gasneti_nodemap = NULL;
+  gasneti_nodemap_local = NULL;
   gasneti_nodemap_local_count = 0;
   gasneti_nodemap_local_rank = (gasnet_node_t)-1;
 #endif
