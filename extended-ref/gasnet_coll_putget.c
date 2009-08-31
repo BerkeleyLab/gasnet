@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/08/06 22:49:20 $
- * $Revision: 1.71.12.32 $
+ *     $Date: 2009/08/31 18:09:55 $
+ * $Revision: 1.71.12.33 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -998,12 +998,15 @@ gasnete_coll_bcastM_TreePut(gasnet_team_handle_t team,
     GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC)) | 
 #endif
   GASNETE_COLL_GENERIC_OPT_P2P;
-  
+
+  gasnete_coll_tree_data_t *tree_info = 
+    gasnete_coll_tree_init(coll_params->tree_type, 
+      gasnete_coll_image_node(team,srcimage), team
+      GASNETE_THREAD_PASS);
+
   return gasnete_coll_generic_broadcastM_nb(team, dstlist, srcimage, src, nbytes, flags,
                                             &gasnete_coll_pf_bcastM_TreePut, options,
-                                            gasnete_coll_tree_init(coll_params->tree_type, 
-                                                                   gasnete_coll_image_node(team,srcimage), team
-                                                                   GASNETE_THREAD_PASS),
+                                            tree_info,
                                             sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
