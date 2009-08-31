@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.h,v $
- *     $Date: 2009/08/27 00:22:43 $
- * $Revision: 1.24.50.2 $
+ *     $Date: 2009/08/31 22:49:43 $
+ * $Revision: 1.24.50.3 $
  * Description: GASNet header for MPI conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -165,14 +165,10 @@ typedef struct _gasnet_hsl_t {
   Misc. Active Message Functions
   ==============================
 */
-#if GASNET_SYSV
-extern int gasnetc_AMGetSYSVMsgSource(gasnet_token_t token, gasnet_node_t *srcindex);
-#endif
 extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex);
 extern int gasnetc_AMPoll();
 
 #define gasnet_AMGetMsgSource  gasnetc_AMGetMsgSource
-#define gasnet_AMGetSYSVMsgSource  gasnetc_AMGetSYSVMsgSource
 
 #define GASNET_BLOCKUNTIL(cond) gasneti_polluntil(cond)
 
