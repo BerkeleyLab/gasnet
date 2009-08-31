@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/31 00:44:05 $
- * $Revision: 1.1.4.59 $
+ *     $Date: 2009/08/31 19:00:29 $
+ * $Revision: 1.1.4.60 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -46,14 +46,53 @@ static gasneti_atomic_t *gasneti_barrier_counter = NULL;
 void gasneti_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
   size_t vnetsz, mmapsz;
 
+#if GASNET_CONDUIT_SMP_SYSV || GASNET_CONDUIT_SMP
   gasneti_sysvnodes = gasneti_nodemap_local_count;
   gasneti_firstsysvnode = gasneti_nodemap[gasneti_mynode];
   gasneti_mysysvnode = gasneti_nodemap_local_rank;
 
-#if GASNET_CONDUIT_SMP_SYSV || GASNET_CONDUIT_SMP
   gasneti_assert(gasneti_sysvnodes == gasneti_nodes);
   gasneti_assert(gasneti_firstsysvnode == 0);
   gasneti_assert(gasneti_mysysvnode == gasneti_mynode);
+#else
+  /* The vnet code assumes/requires contiguously numbered nodes.
+   * However, the code that builds the nodemap may discover, for instance,
+   * block-cyclic process layouts that don't meet that requirement.
+   * So, we may need to sub-divide into smaller supernodes.
+   *
+   * TODO: Can/should the vnet code to remove this restriction.
+   * TODO: Allow env var to limit size of a supernode (w/o a warning).
+   */
+  gasnet_node_t first, last;
+  for (first=gasneti_nodemap_local_rank; first!=0; --first) {
+    if (gasneti_nodemap_local[first-1] != (gasneti_nodemap_local[first]-1)) break;
+  }
+  for (last=gasneti_nodemap_local_rank; last<gasneti_nodemap_local_count; ++last) {
+    if (gasneti_nodemap_local[last+1] != (gasneti_nodemap_local[last]+1)) break;
+  }
+  gasneti_sysvnodes = last - first + 1;
+  gasneti_firstsysvnode = gasneti_nodemap_local[first];
+  gasneti_mysysvnode = gasneti_nodemap_local_rank - first;
+
+  if (!gasneti_mynode) { /* Warn ONCE for any (detected) non-contiguous case */
+    gasnet_node_t i;
+    for (i=1; i<gasneti_nodes; ++i) {
+      if (gasneti_nodemap[i-1] > gasneti_nodemap[i]) {
+        const char *wmsg =
+            "GASNet PSHM support can use shared memory within a compute node to bypass the network "
+            "only for processes with contiguous GASNet node numbers.  However, GASNet has "
+            "detected non-contiguous numbering within one or more compute nodes.  Use of "
+            "shared memory communication is being limited to contiguously-numbered groups "
+            "of processes (possibly NONE).  This is likely to reduce performance.";
+        GASNETI_TRACE_PRINTF(I, (wmsg));
+        if (!gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
+          fprintf(stderr, "%s\n", wmsg);
+          fflush(stderr);
+        }
+        break;
+      }
+    }
+  }
 #endif
 
   /* setup filenames, unless exchangefn is NULL (indicating caller took care of it) */
