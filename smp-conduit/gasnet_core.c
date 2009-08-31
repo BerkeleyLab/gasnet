@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/30 20:42:55 $
- * $Revision: 1.48.4.22 $
+ *     $Date: 2009/08/31 01:16:20 $
+ * $Revision: 1.48.4.23 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -123,6 +123,7 @@ static int gasnetc_get_sysv_nodecount()
 
 static int gasnetc_init(int *argc, char ***argv) {
   int i;
+
   /*  check system sanity */
   gasnetc_check_config();
 
@@ -130,7 +131,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     GASNETI_RETURN_ERRR(NOT_INIT, "GASNet already initialized");
   gasneti_init_done = 1; /* enable early to allow tracing */
 
-  gasneti_freezeForDebugger();
+    gasneti_freezeForDebugger();
 
   #if GASNET_DEBUG_VERBOSE
     /* note - can't call trace macros during gasnet_init because trace system not yet initialized */
@@ -138,6 +139,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
 
   /* add code here to bootstrap the nodes for your conduit */
+
   gasneti_mynode = 0;
   gasneti_nodes = 1;
 
@@ -180,7 +182,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
- 
+
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
       { uintptr_t limit;
         #if HAVE_MMAP && GASNET_SYSV
@@ -383,7 +385,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       }
     }
   #endif
-
   segbase = gasneti_seginfo[gasneti_mynode].addr;
   segsize = gasneti_seginfo[gasneti_mynode].size;
 
@@ -557,12 +558,12 @@ static int gasnetc_RequestGeneric(gasnetc_category_t category,
                          int dest, gasnet_handler_t handler, 
                          void *source_addr, int nbytes, void *dest_ptr, 
                          int numargs, va_list argptr) {
+  gasneti_AMPoll(); /* ensure progress */
 
 #if GASNET_SYSV
   return gasneti_AMSYSV_RequestGeneric(category, dest, handler, source_addr, nbytes, 
                                       dest_ptr, numargs, argptr); 
 #else
-  gasneti_AMPoll(); /* ensure progress */
   return gasnetc_ReqRepGeneric(category, 1, dest, handler, 
                                source_addr, nbytes, dest_ptr, 
                                numargs, argptr); 
@@ -656,7 +657,6 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
                                   source_addr, nbytes, dest_addr,
                                   numargs, argptr);
 #endif
-
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -733,11 +733,10 @@ extern int gasnetc_AMReplyLongM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  gasnet_node_t dest;
 
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 
-  GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
   va_start(argptr, numargs); /*  pass in last argument */
+
 #if GASNET_SYSV
   /*  call the generic requestor */
   retval = gasnetc_ReplyGeneric(gasnetc_Long, 
