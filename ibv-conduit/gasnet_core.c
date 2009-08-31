@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/30 22:51:28 $
- * $Revision: 1.205.6.18 $
+ *     $Date: 2009/08/31 01:16:22 $
+ * $Revision: 1.205.6.19 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,7 +19,6 @@
 
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
-
 
 #if HAVE_SSH_SPAWNER
   GASNETI_IDENT(gasnetc_IdentString_HaveSSHSpawner, "$GASNetSSHSpawner: 1 $");
@@ -2577,7 +2576,6 @@ extern int gasnetc_AMRequestShortM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-
   GASNETI_COMMON_AMREQUESTSHORT(dest,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
@@ -2604,7 +2602,6 @@ extern int gasnetc_AMRequestMediumM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-
   GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
@@ -2632,7 +2629,6 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   gasnetc_counter_t mem_oust = GASNETC_COUNTER_INITIALIZER;
   int retval;
   va_list argptr;
-
   GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
@@ -2664,7 +2660,6 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  
   GASNETI_COMMON_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
@@ -2690,7 +2685,6 @@ extern int gasnetc_AMReplyShortM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-
   GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
@@ -2717,7 +2711,6 @@ extern int gasnetc_AMReplyMediumM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
@@ -2745,7 +2738,6 @@ extern int gasnetc_AMReplyLongM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 
   va_start(argptr, numargs); /*  pass in last argument */
 
