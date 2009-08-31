@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/31 01:51:21 $
- * $Revision: 1.57.6.34 $
+ *     $Date: 2009/08/31 02:03:19 $
+ * $Revision: 1.57.6.35 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -900,97 +900,95 @@ void gasneti_segmentAttachLocal(uintptr_t segsize, uintptr_t minheapoffset,
 
   #ifdef HAVE_MMAP
   { /* TODO: this assumes heap grows up */
-       
-      uintptr_t topofheap;
-      #if GASNET_ALIGNED_SEGMENTS
-        #if GASNETI_USE_HIGHSEGMENT
-          { /* the segsizes requested may differ across nodes, so in order to 
-               place the segment as high as possible while maintaining alignment, 
-               we need another all-to-all to calculate the new aligned base address
-             */
-            gasneti_segexch_t se;
-            uintptr_t minsegstart = (uintptr_t)-1;
-            int i;
-
-            /* gather the segsize info again */
-            se.seginfo = gasneti_segment;
-            se.heapend = gasneti_myheapend;
-            se.segsize_request = segsize;
-            (*exchangefn)(&se, sizeof(gasneti_segexch_t), gasneti_segexch);
-
-            for (i=0;i<gasneti_nodes;i++) {
-              uintptr_t segstart = 
-                  ((uintptr_t)gasneti_segexch[i].seginfo.addr + gasneti_segexch[i].seginfo.size) - 
-                   gasneti_segexch[i].segsize_request;
-              /*gasneti_assert(gasneti_segexch[i].segsize_request >= 0); True by typing */
-              gasneti_assert(segstart >= gasneti_maxbase);
-              if (segstart < minsegstart) minsegstart = segstart;
-            }
-
-            segbase = (void *)minsegstart;
-          }
-        #else /* !GASNETI_USE HIGH_SEGMENTS */
-        segbase = (void *)gasneti_maxbase;
-        #endif /* GASNETI_USE HIGH_SEGMENTS */
-        topofheap = gasneti_maxheapend;
-      
-      #else /* !GASNETI_ALIGNED_SEGMENTS */
-      topofheap = gasneti_myheapend;
-    
-        #if GASNETI_USE_HIGHSEGMENT
-          segbase = (void *)((uintptr_t)gasneti_segment.addr + 
-                             gasneti_segment.size - segsize);
-          if ((intptr_t)(gasneti_segment.size - segsize) >= GASNETI_SEGMENT_DISALIGN_BIAS) {
-            segbase = (void *)((uintptr_t)segbase - GASNETI_SEGMENT_DISALIGN_BIAS);
-          } else {
-            segbase = (void *)((uintptr_t)segbase + GASNETI_SEGMENT_DISALIGN_BIAS);
-            segsize -= GASNETI_SEGMENT_DISALIGN_BIAS;
-          }
-        #else
-          segbase = gasneti_segment.addr;
-          if (gasneti_segment.size > GASNETI_SEGMENT_DISALIGN_BIAS) {
-            segbase = (void *)((uintptr_t)segbase + GASNETI_SEGMENT_DISALIGN_BIAS);
-            segsize = MIN(segsize,gasneti_segment.size - GASNETI_SEGMENT_DISALIGN_BIAS);
-          }
-        #endif
-      #endif /* GASNETI_ALIGNED_SEGMENTS */
-      
-      if (segsize == 0) { /* no segment */
-        gasneti_munmap(gasneti_segment.addr, gasneti_segment.size);
-        segbase = NULL; 
-      }
-      else {
-        /* check if segment is above the heap (in its path) and too close */
-        if ((((uintptr_t)segbase + segsize) > topofheap) &&
-          (topofheap + minheapoffset > (uintptr_t)segbase)) {
-          uintptr_t maxsegsz;
-          void *endofseg = (void *)((uintptr_t)gasneti_segment.addr + gasneti_segment.size);
-          /* we're too close to the heap - readjust to prevent collision 
-             note this allows us to return different segsizes on diff nodes
-             (even when we are using GASNET_ALIGNED_SEGMENTS)
+    uintptr_t topofheap;
+    #if GASNET_ALIGNED_SEGMENTS
+      #if GASNETI_USE_HIGHSEGMENT
+        { /* the segsizes requested may differ across nodes, so in order to 
+             place the segment as high as possible while maintaining alignment, 
+             we need another all-to-all to calculate the new aligned base address
            */
-          segbase = (void *)(topofheap + minheapoffset);
-          if (segbase >= endofseg) 
-            gasneti_fatalerror("minheapoffset too large to accomodate a segment");
-          maxsegsz = (uintptr_t)endofseg - (uintptr_t)segbase;
-          if (segsize > maxsegsz) {
-            GASNETI_TRACE_PRINTF(I, ("WARNING: gasneti_segmentAttach() reducing requested segsize (%lu=>%lu) to accomodate minheapoffset",
-            (unsigned long)segsize, (unsigned long)maxsegsz));
-            segsize = maxsegsz;
+          gasneti_segexch_t se;
+          uintptr_t minsegstart = (uintptr_t)-1;
+          int i;
+
+          /* gather the segsize info again */
+          se.seginfo = gasneti_segment;
+          se.heapend = gasneti_myheapend;
+          se.segsize_request = segsize;
+          (*exchangefn)(&se, sizeof(gasneti_segexch_t), gasneti_segexch);
+
+          for (i=0;i<gasneti_nodes;i++) {
+            uintptr_t segstart = 
+                ((uintptr_t)gasneti_segexch[i].seginfo.addr + gasneti_segexch[i].seginfo.size) - 
+                 gasneti_segexch[i].segsize_request;
+            /*gasneti_assert(gasneti_segexch[i].segsize_request >= 0); True by typing */
+            gasneti_assert(segstart >= gasneti_maxbase);
+            if (segstart < minsegstart) minsegstart = segstart;
           }
+
+          segbase = (void *)minsegstart;
         }
-        /* trim final segment if required */
-        if (gasneti_segment.addr != segbase || gasneti_segment.size != segsize) {
-          gasneti_assert(segbase >= gasneti_segment.addr &&
-                 (uintptr_t)segbase + segsize <= (uintptr_t)gasneti_segment.addr + gasneti_segment.size);
-          gasneti_munmap(gasneti_segment.addr, gasneti_segment.size);
-#if GASNET_SYSV
-          gasneti_mmap_shared_fixed(segbase, segsize);
-#else
-          gasneti_mmap_fixed(segbase, segsize);
-#endif
+      #else /* !GASNETI_USE HIGH_SEGMENTS */
+        segbase = (void *)gasneti_maxbase;
+      #endif /* GASNETI_USE HIGH_SEGMENTS */
+      topofheap = gasneti_maxheapend;
+    #else /* !GASNETI_ALIGNED_SEGMENTS */
+      topofheap = gasneti_myheapend;
+      #if GASNETI_USE_HIGHSEGMENT
+        segbase = (void *)((uintptr_t)gasneti_segment.addr + 
+                           gasneti_segment.size - segsize);
+        if ((intptr_t)(gasneti_segment.size - segsize) >= GASNETI_SEGMENT_DISALIGN_BIAS) {
+          segbase = (void *)((uintptr_t)segbase - GASNETI_SEGMENT_DISALIGN_BIAS);
+        } else {
+          segbase = (void *)((uintptr_t)segbase + GASNETI_SEGMENT_DISALIGN_BIAS);
+          segsize -= GASNETI_SEGMENT_DISALIGN_BIAS;
+        }
+      #else
+        segbase = gasneti_segment.addr;
+        if (gasneti_segment.size > GASNETI_SEGMENT_DISALIGN_BIAS) {
+          segbase = (void *)((uintptr_t)segbase + GASNETI_SEGMENT_DISALIGN_BIAS);
+          segsize = MIN(segsize,gasneti_segment.size - GASNETI_SEGMENT_DISALIGN_BIAS);
+        }
+      #endif
+    #endif /* GASNETI_ALIGNED_SEGMENTS */
+
+    if (segsize == 0) { /* no segment */
+      gasneti_munmap(gasneti_segment.addr, gasneti_segment.size);
+      segbase = NULL; 
+    }
+    else {
+      /* check if segment is above the heap (in its path) and too close */
+      if ((((uintptr_t)segbase + segsize) > topofheap) &&
+        (topofheap + minheapoffset > (uintptr_t)segbase)) {
+        uintptr_t maxsegsz;
+        void *endofseg = (void *)((uintptr_t)gasneti_segment.addr + gasneti_segment.size);
+        /* we're too close to the heap - readjust to prevent collision 
+           note this allows us to return different segsizes on diff nodes
+           (even when we are using GASNET_ALIGNED_SEGMENTS)
+         */
+        segbase = (void *)(topofheap + minheapoffset);
+        if (segbase >= endofseg) 
+          gasneti_fatalerror("minheapoffset too large to accomodate a segment");
+        maxsegsz = (uintptr_t)endofseg - (uintptr_t)segbase;
+        if (segsize > maxsegsz) {
+          GASNETI_TRACE_PRINTF(I, ("WARNING: gasneti_segmentAttach() reducing requested segsize (%lu=>%lu) to accomodate minheapoffset",
+            (unsigned long)segsize, (unsigned long)maxsegsz));
+          segsize = maxsegsz;
         }
       }
+
+      /* trim final segment if required */
+      if (gasneti_segment.addr != segbase || gasneti_segment.size != segsize) {
+        gasneti_assert(segbase >= gasneti_segment.addr &&
+               (uintptr_t)segbase + segsize <= (uintptr_t)gasneti_segment.addr + gasneti_segment.size);
+        gasneti_munmap(gasneti_segment.addr, gasneti_segment.size);
+#if GASNET_SYSV
+        gasneti_mmap_shared_fixed(segbase, segsize);
+#else
+        gasneti_mmap_fixed(segbase, segsize);
+#endif
+      }
+    }
   }
   #else /* !HAVE_MMAP */
     /* for the T3E, and other platforms which don't support mmap */
