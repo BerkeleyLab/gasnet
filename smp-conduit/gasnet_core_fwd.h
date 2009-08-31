@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2009/08/27 02:32:29 $
- * $Revision: 1.14.38.2 $
+ *     $Date: 2009/08/31 23:34:52 $
+ * $Revision: 1.14.38.3 $
  * Description: GASNet header for smp conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,8 +20,8 @@
 #define GASNET_CONDUIT_NAME      GASNET_CORE_NAME
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 
-#if GASNET_SYSV
-  #define GASNET_CONDUIT_SMP_SYSV       1
+#if GASNET_PSHM
+  #define GASNET_CONDUIT_SMP_PSHM       1
 #else
   #define GASNET_CONDUIT_SMP       1
 #endif
@@ -32,10 +32,10 @@
 #if GASNETI_DISABLE_ALIGNED_SEGMENTS
   #define GASNET_ALIGNED_SEGMENTS   0 /* user disabled segment alignment */
 #else
-  #define GASNET_ALIGNED_SEGMENTS   (!GASNET_SYSV)
+  #define GASNET_ALIGNED_SEGMENTS   (!GASNET_PSHM)
 #endif
 
-#if !defined(GASNETE_PUTGET_ALWAYSREMOTE) && !defined(GASNETE_PUTGET_ALWAYSLOCAL) && !GASNET_SYSV
+#if !defined(GASNETE_PUTGET_ALWAYSREMOTE) && !defined(GASNETE_PUTGET_ALWAYSLOCAL) && !GASNET_PSHM
   #define GASNETE_PUTGET_ALWAYSLOCAL 1
 #endif
 
@@ -45,7 +45,7 @@
 #endif
 
 #define GASNETI_GASNETC_AMPOLL
-#if GASNET_SYSV
+#if GASNET_PSHM
   extern int gasnetc_AMPoll();
 #else
   #define gasnetc_AMPoll()        GASNET_OK  /* nothing to do */

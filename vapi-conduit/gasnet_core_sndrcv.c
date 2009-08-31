@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2009/08/30 20:42:57 $
- * $Revision: 1.227.4.11 $
+ *     $Date: 2009/08/31 23:34:58 $
+ * $Revision: 1.227.4.12 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1416,8 +1416,8 @@ void gasnetc_do_poll(int poll_rcv, int poll_snd) {
     gasnetc_hca_t *hca = &gasnetc_hca[0];
   #endif
     gasnetc_poll_rcv_hca(hca, GASNETC_RCV_REAP_LIMIT);
-  #if GASNET_SYSV
-    if_pt(gasneti_attach_done) gasneti_AMSYSVPoll(0);
+  #if GASNET_PSHM
+    if_pt(gasneti_attach_done) gasneti_AMPSHMPoll(0);
   #endif
   }
 
@@ -1893,8 +1893,8 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
 	buf = gasneti_malloc(GASNETC_BUFSZ);
       }
     #endif
-    #if GASNET_SYSV
-      /* SYSV code handles loopback case for all but category=System */
+    #if GASNET_PSHM
+      /* PSHM code handles loopback case for all but category=System */
       gasneti_assert(category == gasnetc_System);
       category = gasnetc_System; /* Hope optimizer propogates the constant */
     #endif
@@ -3695,8 +3695,8 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
 
-#if GASNET_SYSV
-  if (gasneti_AMSYSVGetMsgSource(token, &sourceid) != GASNET_OK)
+#if GASNET_PSHM
+  if (gasneti_AMPSHMGetMsgSource(token, &sourceid) != GASNET_OK)
 #endif
   {
     uint32_t flags = ((gasnetc_rbuf_t *)token)->rbuf_flags;

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2009/08/27 03:38:27 $
- * $Revision: 1.29.36.1 $
+ *     $Date: 2009/08/31 23:34:44 $
+ * $Revision: 1.29.36.2 $
  * Description: GASNet header for elan conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -28,7 +28,7 @@ GASNETI_BEGIN_EXTERNC
 #if GASNETI_DISABLE_ALIGNED_SEGMENTS
   #define GASNET_ALIGNED_SEGMENTS   0 /* user disabled segment alignment */
 #else
-  #define GASNET_ALIGNED_SEGMENTS   (!GASNET_SYSV)
+  #define GASNET_ALIGNED_SEGMENTS   (!GASNET_PSHM)
 #endif
 
   /* this can be used to add conduit-specific 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core_internal.h,v $
- *     $Date: 2009/08/30 07:18:33 $
- * $Revision: 1.20.52.4 $
+ *     $Date: 2009/08/31 23:34:50 $
+ * $Revision: 1.20.52.5 $
  * Description: GASNet MPI conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -81,7 +81,7 @@ const char *gasneti_AMErrorName(int errval) {
 #define _hidx_gasnetc_auxseg_reqh             (GASNETC_HANDLER_BASE+0)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
-#if GASNET_SYSV
+#if GASNET_PSHM
 #include <gasnet_handler.h>
 #define GASNETC_MAX_NUMHANDLERS 256
 extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];

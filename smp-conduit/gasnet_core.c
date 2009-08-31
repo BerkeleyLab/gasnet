@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/31 01:16:20 $
- * $Revision: 1.48.4.23 $
+ *     $Date: 2009/08/31 23:34:52 $
+ * $Revision: 1.48.4.24 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -26,7 +26,7 @@ static void gasnetc_atexit(void);
 
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
 
-#define GASNETC_MAX_SYSV_NODES 256
+#define GASNETC_MAX_PSHM_NODES 256
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -42,9 +42,9 @@ static void gasnetc_check_config() {
 }
 
 static void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
-  #if GASNET_SYSV
-    gasneti_assert(gasneti_request_sysvnet != NULL);
-    gasneti_sysvnet_bootstrapExchange(gasneti_request_sysvnet, src, len, dest);
+  #if GASNET_PSHM
+    gasneti_assert(gasneti_request_pshmnet != NULL);
+    gasneti_pshmnet_bootstrapExchange(gasneti_request_pshmnet, src, len, dest);
   #else
     gasneti_assert(gasneti_nodes == 1); /* trivial because we only have one node */
     memmove(dest, src, len);
@@ -52,9 +52,9 @@ static void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
 }
 
 static void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) {
-  #if GASNET_SYSV
-    gasneti_assert(gasneti_request_sysvnet != NULL);
-    gasneti_sysvnet_bootstrapBroadcast(gasneti_request_sysvnet, src, len, dest, rootnode);
+  #if GASNET_PSHM
+    gasneti_assert(gasneti_request_pshmnet != NULL);
+    gasneti_pshmnet_bootstrapBroadcast(gasneti_request_pshmnet, src, len, dest, rootnode);
   #else
     gasneti_assert(gasneti_nodes == 1); /* trivial because we only have one node */
     gasneti_assert(rootnode == 0);
@@ -71,24 +71,24 @@ static void gasnetc_bootstrapBarrier() {
      If your underlying spawning or batch system provides barrier functionality,
       that would probably be a good choice for this
    */
-  #if GASNET_SYSV
-    gasneti_sysvnet_bootstrapBarrier();
+  #if GASNET_PSHM
+    gasneti_pshmnet_bootstrapBarrier();
   #else
     gasneti_assert(gasneti_nodes == 1); /* trivial because we only have one node */
   #endif
 }
 
-#if GASNET_SYSV
-static int gasnetc_get_sysv_nodecount()
+#if GASNET_PSHM
+static int gasnetc_get_pshm_nodecount()
 {
-  gasnet_node_t nodes = gasneti_getenv_int_withdefault("GASNET_SYSV_NODES", 0, 0);
+  gasnet_node_t nodes = gasneti_getenv_int_withdefault("GASNET_PSHM_NODES", 0, 0);
   int polite_wait, politedefault;
 
-  if (nodes > GASNETC_MAX_SYSV_NODES) { 
+  if (nodes > GASNETC_MAX_PSHM_NODES) { 
     gasneti_fatalerror("Nodes requested (%d) > maximum (%d)", nodes,
-                       GASNETC_MAX_SYSV_NODES);
+                       GASNETC_MAX_PSHM_NODES);
   } else if (nodes == 0) {
-    fprintf(stderr, "Warning: GASNET_SYSV_NODES not specified: running with 1 node\n");
+    fprintf(stderr, "Warning: GASNET_PSHM_NODES not specified: running with 1 node\n");
     nodes = 1;
   }
 
@@ -143,16 +143,16 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasneti_mynode = 0;
   gasneti_nodes = 1;
 
-#if GASNET_SYSV
-  gasneti_nodes = gasnetc_get_sysv_nodecount();
+#if GASNET_PSHM
+  gasneti_nodes = gasnetc_get_pshm_nodecount();
 
   /* Create unique names for shmem files.
    * We do this here, since we get a chicken-and-egg problem if we
-   * were to call gasneti_init_sysv() with our bootstrapExchange.
+   * were to call gasneti_init_pshm() with our bootstrapExchange.
    * PLUS its just plain simpler to do this pre-fork().
    */
-  gasneti_sysvnodes = gasneti_nodes;
-  (void)gasneti_sysv_makenames(NULL);
+  gasneti_pshmnodes = gasneti_nodes;
+  (void)gasneti_pshm_makenames(NULL);
 
   /* A fork in the road! */
   for (i = 1; i < gasneti_nodes; i++) {
@@ -171,8 +171,8 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasneti_nodemap = gasneti_calloc(gasneti_nodes, sizeof(gasnet_node_t));
   gasneti_nodemapParse();
 
-#if GASNET_SYSV
-  gasneti_init_sysv(NULL);
+#if GASNET_PSHM
+  gasneti_init_pshm(NULL);
 #endif
 
   /* enable tracing */
@@ -185,7 +185,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
       { uintptr_t limit;
-        #if HAVE_MMAP && GASNET_SYSV
+        #if HAVE_MMAP && GASNET_PSHM
           limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
                                   &gasnetc_bootstrapExchange,
                                   &gasnetc_bootstrapBarrier);
@@ -451,7 +451,7 @@ extern void gasnetc_exit(int exitcode) {
 extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
   gasnet_node_t sourceid;
   GASNETI_CHECKATTACH();
-  #if GASNET_DEBUG || GASNET_SYSV
+  #if GASNET_DEBUG || GASNET_PSHM
     GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
   #else
     GASNETI_CHECK_ERRR((token),BAD_ARG,"bad token");
@@ -459,8 +459,8 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
 
   /* add code here to write the source index into sourceid */
-#if GASNET_SYSV
-  GASNETI_SAFE_PROPAGATE(gasneti_AMSYSVGetMsgSource(token, &sourceid));
+#if GASNET_PSHM
+  GASNETI_SAFE_PROPAGATE(gasneti_AMPSHMGetMsgSource(token, &sourceid));
 #else
   sourceid = 0;
 #endif
@@ -470,10 +470,10 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   return GASNET_OK;
 }
 
-#if GASNET_SYSV 
+#if GASNET_PSHM 
 extern int gasnetc_AMPoll() {
   GASNETI_CHECKATTACH();
-  return gasneti_AMSYSVPoll(0);
+  return gasneti_AMPSHMPoll(0);
 }
 #else
 /* no polling required for smp-conduit */
@@ -560,8 +560,8 @@ static int gasnetc_RequestGeneric(gasnetc_category_t category,
                          int numargs, va_list argptr) {
   gasneti_AMPoll(); /* ensure progress */
 
-#if GASNET_SYSV
-  return gasneti_AMSYSV_RequestGeneric(category, dest, handler, source_addr, nbytes, 
+#if GASNET_PSHM
+  return gasneti_AMPSHM_RequestGeneric(category, dest, handler, source_addr, nbytes, 
                                       dest_ptr, numargs, argptr); 
 #else
   return gasnetc_ReqRepGeneric(category, 1, dest, handler, 
@@ -574,8 +574,8 @@ static int gasnetc_ReplyGeneric(gasnetc_category_t category,
                          gasnet_token_t token, gasnet_handler_t handler, 
                          void *source_addr, int nbytes, void *dest_ptr, 
                          int numargs, va_list argptr) {
-#if GASNET_SYSV
-  return gasneti_AMSYSV_ReplyGeneric(category, token, handler, source_addr, nbytes, 
+#if GASNET_PSHM
+  return gasneti_AMPSHM_ReplyGeneric(category, token, handler, source_addr, nbytes, 
                                      dest_ptr, numargs, argptr); 
 #else
   int retval;
@@ -643,7 +643,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   va_list argptr;
   GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_SYSV
+#if GASNET_PSHM
   /*  call the generic requestor */
   retval = gasnetc_RequestGeneric(gasnetc_Long, 
                                   dest, handler, 
@@ -671,7 +671,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
   GASNETI_COMMON_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
-#if GASNET_SYSV
+#if GASNET_PSHM
   /*  call the generic requestor */
   retval = gasnetc_RequestGeneric(gasnetc_Long, 
                                   dest, handler, 
@@ -737,7 +737,7 @@ extern int gasnetc_AMReplyLongM(
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 
   va_start(argptr, numargs); /*  pass in last argument */
 
-#if GASNET_SYSV
+#if GASNET_PSHM
   /*  call the generic requestor */
   retval = gasnetc_ReplyGeneric(gasnetc_Long, 
                                 token, handler, 

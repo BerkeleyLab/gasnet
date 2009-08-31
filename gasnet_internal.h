@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2009/08/31 01:51:21 $
- * $Revision: 1.113.8.11 $
+ *     $Date: 2009/08/31 23:34:40 $
+ * $Revision: 1.113.8.12 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -672,7 +672,7 @@ extern void gasneti_nodemapFini(void);
 
 /* ------------------------------------------------------------------------------------ */
 
-#if GASNET_SYSV
+#if GASNET_PSHM
 #include <gasnet_sysv.h>
 #endif
 

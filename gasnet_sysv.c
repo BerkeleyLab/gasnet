@@ -1,15 +1,17 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/31 19:00:29 $
- * $Revision: 1.1.4.60 $
+ *     $Date: 2009/08/31 23:34:40 $
+ * $Revision: 1.1.4.61 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
+ *
+ * File name is historic (started with SystemV shared memory)
  */
 
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h> /* for gasnetc_{Short,Medium,Long} and gasnetc_handler[] */
 
-#ifndef GASNET_SYSV
+#ifndef GASNET_PSHM
   #error "gasnet_sysv.c compiled in a non-PSHM build"
 #endif
 
@@ -18,42 +20,42 @@
 #endif
 
 /* max # of incoming requests per node, per supernode peer */
-#define GASNETI_SYSVNET_DEFAULT_QUEUE_DEPTH 8
-#define GASNETI_SYSVNET_MAX_QUEUE_DEPTH 1024
-#define GASNETI_SYSVNET_MIN_QUEUE_DEPTH 2
+#define GASNETI_PSHMNET_DEFAULT_QUEUE_DEPTH 8
+#define GASNETI_PSHMNET_MAX_QUEUE_DEPTH 1024
+#define GASNETI_PSHMNET_MIN_QUEUE_DEPTH 2
 
 /* payload memory available for outstanding requests, per node
  * default will be silently raised as needed for large node count */
-#define GASNETI_SYSVNET_DEFAULT_QUEUE_MEMORY (1<<20)
-#define GASNETI_SYSVNET_MAX_QUEUE_MEMORY (1<<28) 
+#define GASNETI_PSHMNET_DEFAULT_QUEUE_MEMORY (1<<20)
+#define GASNETI_PSHMNET_MAX_QUEUE_MEMORY (1<<28) 
 
 /* Global vars */
-gasneti_sysvnet_t *gasneti_request_sysvnet = NULL;
-gasneti_sysvnet_t *gasneti_reply_sysvnet = NULL;
+gasneti_pshmnet_t *gasneti_request_pshmnet = NULL;
+gasneti_pshmnet_t *gasneti_reply_pshmnet = NULL;
  
-static int gasneti_sysvnet_queue_depth = 0;
-static uintptr_t gasneti_sysvnet_queue_mem = 0;
+static int gasneti_pshmnet_queue_depth = 0;
+static uintptr_t gasneti_pshmnet_queue_mem = 0;
 
-static void *gasnetc_sysvnet_region = NULL;
+static void *gasnetc_pshmnet_region = NULL;
 static gasneti_atomic_t *gasneti_barrier_counter = NULL;
 
-#define round_up_to_sysvpage(size_or_addr)               \
-        GASNETI_ALIGNUP(size_or_addr, GASNETI_SYSVNET_PAGESIZE)
+#define round_up_to_pshmpage(size_or_addr)               \
+        GASNETI_ALIGNUP(size_or_addr, GASNETI_PSHMNET_PAGESIZE)
 
-#define sysvnet_get_struct_addr_from_field_addr(structname, fieldname, fieldaddr) \
+#define pshmnet_get_struct_addr_from_field_addr(structname, fieldname, fieldaddr) \
         ((structname*)(((uintptr_t)fieldaddr) - offsetof(structname,fieldname)))
 
-void gasneti_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
+void gasneti_init_pshm(gasneti_bootstrapExchangefn_t exchangefn) {
   size_t vnetsz, mmapsz;
 
-#if GASNET_CONDUIT_SMP_SYSV || GASNET_CONDUIT_SMP
-  gasneti_sysvnodes = gasneti_nodemap_local_count;
-  gasneti_firstsysvnode = gasneti_nodemap[gasneti_mynode];
-  gasneti_mysysvnode = gasneti_nodemap_local_rank;
+#if GASNET_CONDUIT_SMP_PSHM || GASNET_CONDUIT_SMP
+  gasneti_pshmnodes = gasneti_nodemap_local_count;
+  gasneti_firstpshmnode = gasneti_nodemap[gasneti_mynode];
+  gasneti_mypshmnode = gasneti_nodemap_local_rank;
 
-  gasneti_assert(gasneti_sysvnodes == gasneti_nodes);
-  gasneti_assert(gasneti_firstsysvnode == 0);
-  gasneti_assert(gasneti_mysysvnode == gasneti_mynode);
+  gasneti_assert(gasneti_pshmnodes == gasneti_nodes);
+  gasneti_assert(gasneti_firstpshmnode == 0);
+  gasneti_assert(gasneti_mypshmnode == gasneti_mynode);
 #else
   /* The vnet code assumes/requires contiguously numbered nodes.
    * However, the code that builds the nodemap may discover, for instance,
@@ -70,9 +72,9 @@ void gasneti_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
   for (last=gasneti_nodemap_local_rank; last<gasneti_nodemap_local_count; ++last) {
     if (gasneti_nodemap_local[last+1] != (gasneti_nodemap_local[last]+1)) break;
   }
-  gasneti_sysvnodes = last - first + 1;
-  gasneti_firstsysvnode = gasneti_nodemap_local[first];
-  gasneti_mysysvnode = gasneti_nodemap_local_rank - first;
+  gasneti_pshmnodes = last - first + 1;
+  gasneti_firstpshmnode = gasneti_nodemap_local[first];
+  gasneti_mypshmnode = gasneti_nodemap_local_rank - first;
 
   if (!gasneti_mynode) { /* Warn ONCE for any (detected) non-contiguous case */
     gasnet_node_t i;
@@ -97,63 +99,63 @@ void gasneti_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
 
   /* setup filenames, unless exchangefn is NULL (indicating caller took care of it) */
   if (exchangefn != NULL) {
-    char (*exchg)[GASNETI_SYSV_UNIQUE_LEN];
-    char unique[GASNETI_SYSV_UNIQUE_LEN];
+    char (*exchg)[GASNETI_PSHM_UNIQUE_LEN];
+    char unique[GASNETI_PSHM_UNIQUE_LEN];
 
     /* First in each supernode generates the names and returns the unique identifier */
-    if (gasneti_mysysvnode == 0) {
-      const char *tmp = gasneti_sysv_makenames(NULL);
-      memcpy(unique, tmp, GASNETI_SYSV_UNIQUE_LEN);
+    if (gasneti_mypshmnode == 0) {
+      const char *tmp = gasneti_pshm_makenames(NULL);
+      memcpy(unique, tmp, GASNETI_PSHM_UNIQUE_LEN);
     }
 
     /* Conduit's exchangefn is used as a supernode-scoped bcast to
      * communicate the unique identifier generated by the firsts */
-    exchg = gasneti_malloc(gasneti_nodes * GASNETI_SYSV_UNIQUE_LEN);
-    (*exchangefn)(unique, GASNETI_SYSV_UNIQUE_LEN, exchg);
+    exchg = gasneti_malloc(gasneti_nodes * GASNETI_PSHM_UNIQUE_LEN);
+    (*exchangefn)(unique, GASNETI_PSHM_UNIQUE_LEN, exchg);
 
     /* Non-first nodes now generate the same names from the unique identifier */
-    if (gasneti_mysysvnode != 0) {
-      (void)gasneti_sysv_makenames((const char *)(exchg + gasneti_firstsysvnode));
+    if (gasneti_mypshmnode != 0) {
+      (void)gasneti_pshm_makenames((const char *)(exchg + gasneti_firstpshmnode));
     }
     gasneti_free(exchg);
   }
     
   /* setup vnet shared memory region for AM infrastructure and supernode barrier.
    */
-  vnetsz = gasneti_sysvnet_memory_needed(gasneti_sysvnodes); 
-  mmapsz = (2*vnetsz) + GASNETI_SYSVNET_PAGESIZE; /* Extra page is for the bootstrapBarrier */
-  gasnetc_sysvnet_region = gasneti_mmap_vnet(mmapsz);
-  if (gasnetc_sysvnet_region == NULL) {
+  vnetsz = gasneti_pshmnet_memory_needed(gasneti_pshmnodes); 
+  mmapsz = (2*vnetsz) + GASNETI_PSHMNET_PAGESIZE; /* Extra page is for the bootstrapBarrier */
+  gasnetc_pshmnet_region = gasneti_mmap_vnet(mmapsz);
+  if (gasnetc_pshmnet_region == NULL) {
     gasneti_unlink_vnet();
     gasneti_fatalerror("Failed to mmap %lu bytes for shared memory Active Messages region.",
                        (unsigned long)mmapsz);
   }
   
   /* Prepare the barrier */
-  gasneti_barrier_counter = (gasneti_atomic_t *)((uintptr_t)gasnetc_sysvnet_region + 2*vnetsz);
+  gasneti_barrier_counter = (gasneti_atomic_t *)((uintptr_t)gasnetc_pshmnet_region + 2*vnetsz);
 
   /* Unlink the shared memory file to prevent leaks */
-  gasneti_sysvnet_bootstrapBarrier();
+  gasneti_pshmnet_bootstrapBarrier();
   gasneti_unlink_vnet();
 
   /* Collective call to initialize Shared AM "networks" */
-  gasneti_sysvnet_init(&gasneti_request_sysvnet, gasnetc_sysvnet_region,
-                       vnetsz, gasneti_firstsysvnode, gasneti_sysvnodes);
-  gasneti_sysvnet_init(&gasneti_reply_sysvnet, (void*)((uintptr_t)gasnetc_sysvnet_region + vnetsz),
-                       vnetsz, gasneti_firstsysvnode, gasneti_sysvnodes);
+  gasneti_pshmnet_init(&gasneti_request_pshmnet, gasnetc_pshmnet_region,
+                       vnetsz, gasneti_firstpshmnode, gasneti_pshmnodes);
+  gasneti_pshmnet_init(&gasneti_reply_pshmnet, (void*)((uintptr_t)gasnetc_pshmnet_region + vnetsz),
+                       vnetsz, gasneti_firstpshmnode, gasneti_pshmnodes);
 
   /* Ensure all peers are initialized before return */
-  gasneti_sysvnet_bootstrapBarrier();
+  gasneti_pshmnet_bootstrapBarrier();
 }
 
 /* Defaults if gasnet_core_fwd.h doesn't #define these preprocessor tokens */
-#ifndef GASNETC_MAX_ARGS_SYSV
+#ifndef GASNETC_MAX_ARGS_PSHM
   /* Assumes gasnet_AMMaxArgs() expands to a compile-time constant */
-  #define GASNETC_MAX_ARGS_SYSV   (gasnet_AMMaxArgs())
+  #define GASNETC_MAX_ARGS_PSHM   (gasnet_AMMaxArgs())
 #endif
-#ifndef GASNETC_MAX_MEDIUM_SYSV
+#ifndef GASNETC_MAX_MEDIUM_PSHM
   /* Assumes gasnet_AMMaxMedium() expands to a compile-time constant */
-  #define GASNETC_MAX_MEDIUM_SYSV (gasnet_AMMaxMedium())
+  #define GASNETC_MAX_MEDIUM_PSHM (gasnet_AMMaxMedium())
 #endif
 #ifndef GASNETC_GET_HANDLER
   /* Assumes conduit has gasnetc_handler[] as in template-conduit */
@@ -170,12 +172,12 @@ void gasneti_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
       gasnet_node_t srcNode;
       int isReq;
       int replySent;
-    } gasneti_amsysv_token_t;
+    } gasneti_ampshm_token_t;
 
     static gasnet_token_t gasnetc_token_create(gasnet_node_t src, int isReq) {
-      gasneti_amsysv_token_t *my_token = gasneti_malloc(sizeof(gasneti_amsysv_token_t));
+      gasneti_ampshm_token_t *my_token = gasneti_malloc(sizeof(gasneti_ampshm_token_t));
       gasneti_assert(!((uintptr_t)my_token & 1));
-      gasneti_assert(gasneti_sysv_in_supernode(src));
+      gasneti_assert(gasneti_pshm_in_supernode(src));
       my_token->srcNode = src;
       my_token->isReq = isReq;
       my_token->replySent = 0;
@@ -185,20 +187,20 @@ void gasneti_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
     #define gasnetc_token_destroy(tok) gasneti_free((void*)(1^(uintptr_t)(tok)))
 
     extern void gasnetc_token_reply(gasnet_token_t token) {
-      gasneti_amsysv_token_t *my_token = (gasneti_amsysv_token_t *)(1^(uintptr_t)token);
-      gasneti_assert(gasnetc_token_is_sysv(token));
+      gasneti_ampshm_token_t *my_token = (gasneti_ampshm_token_t *)(1^(uintptr_t)token);
+      gasneti_assert(gasnetc_token_is_pshm(token));
       gasneti_assert(my_token);
       gasneti_assert(my_token->isReq);
       gasneti_assert(!my_token->replySent);
       my_token->replySent = 1;
     }
 
-    extern int gasneti_AMSYSVGetMsgSource(gasnet_token_t token, gasnet_node_t *src_ptr) {
+    extern int gasneti_AMPSHMGetMsgSource(gasnet_token_t token, gasnet_node_t *src_ptr) {
       int retval = GASNET_ERR_BAD_ARG;
-      if (gasnetc_token_is_sysv(token)) {
-        gasneti_amsysv_token_t *my_token = (gasneti_amsysv_token_t *)(1^(uintptr_t)token);
+      if (gasnetc_token_is_pshm(token)) {
+        gasneti_ampshm_token_t *my_token = (gasneti_ampshm_token_t *)(1^(uintptr_t)token);
         gasnet_node_t tmp = my_token->srcNode;
-        gasneti_assert(gasneti_sysv_in_supernode(tmp));
+        gasneti_assert(gasneti_pshm_in_supernode(tmp));
         *src_ptr = tmp;
         retval = GASNET_OK;
       }
@@ -214,56 +216,56 @@ void gasneti_init_sysv(gasneti_bootstrapExchangefn_t exchangefn) {
 
 
 /*******************************************************************************
- * "SysV Net":  virtual network between peers in a shared memory supernode 
+ * "PSHM Net":  virtual network between peers in a shared memory supernode 
  ******************************************************************************/
 /* # of nodes in my supernode, lowest of contiguous gasnet node #s in
  * supernode, and my 0-based rank within it */
-gasnet_node_t gasneti_sysvnodes = 0;
-gasnet_node_t gasneti_firstsysvnode = (gasnet_node_t)(-1);
-gasnet_node_t gasneti_mysysvnode = (gasnet_node_t)(-1);
+gasnet_node_t gasneti_pshmnodes = 0;
+gasnet_node_t gasneti_firstpshmnode = (gasnet_node_t)(-1);
+gasnet_node_t gasneti_mypshmnode = (gasnet_node_t)(-1);
 
 /*******************************************************************************
- * "SysV Net":  message header formats
+ * "PSHM Net":  message header formats
  * These come early because their sizes influence allocation
  ******************************************************************************/
 
 /* TODO: Could/should we squeeze unused args out of a Medium.*/
 /* TODO: Pack category and numargs together (makes assumtion about ranges) */
 
-/* XXX: If any header or allocator structs change, retune GASNETI_MAX_MEDIUM_SYSV. */
+/* XXX: If any header or allocator structs change, retune GASNETI_MAX_MEDIUM_PSHM. */
 
 typedef struct {
   uint8_t category;      /* AM msg type: short, med, long */
   uint8_t numargs;
   gasnet_handler_t handler_id;
-  gasnet_handlerarg_t args[GASNETC_MAX_ARGS_SYSV];
-} gasneti_AMSYSV_msg_t;
-typedef gasneti_AMSYSV_msg_t gasneti_AMSYSV_shortmsg_t;
+  gasnet_handlerarg_t args[GASNETC_MAX_ARGS_PSHM];
+} gasneti_AMPSHM_msg_t;
+typedef gasneti_AMPSHM_msg_t gasneti_AMPSHM_shortmsg_t;
 
 typedef struct {
-  gasneti_AMSYSV_msg_t msg;
-#if (GASNETI_MAX_MEDIUM_SYSV < 65536) /* GASNET<C>_MAX_MEDIUM_SYSV often not a preprocess-time constant */
+  gasneti_AMPSHM_msg_t msg;
+#if (GASNETI_MAX_MEDIUM_PSHM < 65536) /* GASNET<C>_MAX_MEDIUM_PSHM often not a preprocess-time constant */
   uint16_t numbytes;
 #else
   uint32_t numbytes;
 #endif
-  uint8_t  mediumdata[6 + GASNETC_MAX_MEDIUM_SYSV]; /* Is 2, 4 or 8-byte aligned */
-} gasneti_AMSYSV_medmsg_t;
+  uint8_t  mediumdata[6 + GASNETC_MAX_MEDIUM_PSHM]; /* Is 2, 4 or 8-byte aligned */
+} gasneti_AMPSHM_medmsg_t;
 
 typedef struct {
-  gasneti_AMSYSV_msg_t msg;
+  gasneti_AMPSHM_msg_t msg;
   uint32_t numbytes;
   void *   longdata;
-} gasneti_AMSYSV_longmsg_t;
+} gasneti_AMPSHM_longmsg_t;
 
 typedef union {
-  gasneti_AMSYSV_shortmsg_t Short;
-  gasneti_AMSYSV_medmsg_t   Medium;
-  gasneti_AMSYSV_longmsg_t  Long;
-} gasneti_AMSYSV_maxmsg_t;
+  gasneti_AMPSHM_shortmsg_t Short;
+  gasneti_AMPSHM_medmsg_t   Medium;
+  gasneti_AMPSHM_longmsg_t  Long;
+} gasneti_AMPSHM_maxmsg_t;
 
 /* data about an incoming message */
-typedef struct gasneti_sysvnet_msg {
+typedef struct gasneti_pshmnet_msg {
   void * addr;
   size_t len;
   gasneti_atomic_t state;
@@ -279,24 +281,24 @@ typedef struct gasneti_sysvnet_msg {
     * no spurious cache line conflicts.  Many vapi structs use this too. */
     char _pad[GASNETI_CACHE_LINE_BYTES];
   #endif
-} gasneti_sysvnet_msg_t;
+} gasneti_pshmnet_msg_t;
 
-/* Values for gasneti_sysvnet_msg_t.state */
+/* Values for gasneti_pshmnet_msg_t.state */
 enum {
-  GASNETI_SYSVNET_EMPTY = 0,
-  GASNETI_SYSVNET_FULL,
-  GASNETI_SYSVNET_BUSY
+  GASNETI_PSHMNET_EMPTY = 0,
+  GASNETI_PSHMNET_FULL,
+  GASNETI_PSHMNET_BUSY
 };
 
 /* Circular queue of info about received messages */
-typedef struct gasneti_sysvnet_queue {
-  gasneti_sysvnet_msg_t *queue;   
+typedef struct gasneti_pshmnet_queue {
+  gasneti_pshmnet_msg_t *queue;   
   /* Only need to lock queue ptr if client multithreaded */
   gasneti_mutex_t recv_lock;
-  gasneti_sysvnet_msg_t *recv_next;  
+  gasneti_pshmnet_msg_t *recv_next;  
   gasneti_mutex_t send_lock;
-  gasneti_sysvnet_msg_t *send_next;  
-  gasneti_sysvnet_msg_t *justpastlast;  
+  gasneti_pshmnet_msg_t *send_next;  
+  gasneti_pshmnet_msg_t *justpastlast;  
   #if 1
     /* See above comment about cache alignment: we ensure queue_t's are
      * cache-aligned, too */
@@ -305,16 +307,16 @@ typedef struct gasneti_sysvnet_queue {
   #else
     char _pad[GASNETI_CACHE_LINE_BYTES];
   #endif
-} gasneti_sysvnet_queue_t;
+} gasneti_pshmnet_queue_t;
 
-struct gasneti_sysvnet_allocator;  /* forward definition */
+struct gasneti_pshmnet_allocator;  /* forward definition */
 
 /* message payload metadata */
-typedef struct gasneti_sysvnet_payload {
-  gasneti_sysvnet_msg_t *msg;
-  struct gasneti_sysvnet_allocator *allocator;
-  gasneti_AMSYSV_maxmsg_t data;
-} gasneti_sysvnet_payload_t;
+typedef struct gasneti_pshmnet_payload {
+  gasneti_pshmnet_msg_t *msg;
+  struct gasneti_pshmnet_allocator *allocator;
+  gasneti_AMPSHM_maxmsg_t data;
+} gasneti_pshmnet_payload_t;
 
 /******************************************************************************
  * Payload memory allocator interface.
@@ -333,42 +335,42 @@ typedef struct gasneti_sysvnet_payload {
  * Logically, we have this layout:
  *  
  *    1) Atomic used by allocator as 'in use' bit
- *    2) A gasneti_sysvnet_payload_t, used by sysvnet
+ *    2) A gasneti_pshmnet_payload_t, used by pshmnet
  *
  * Allocator returns #2 to the caller
  */ 
 
 typedef struct {
   gasneti_atomic_t in_use;
-  gasneti_sysvnet_payload_t payload;
-} gasneti_sysvnet_allocator_block_t;
+  gasneti_pshmnet_payload_t payload;
+} gasneti_pshmnet_allocator_block_t;
 
-#define GASNETI_SYSVNET_ALLOC_BLKSZ \
-    GASNETI_ALIGNUP(sizeof(gasneti_sysvnet_allocator_block_t), GASNETI_SYSVNET_PAGESIZE)
-#define GASNETI_SYSVNET_MAX_PAYLOAD \
-    (GASNETI_SYSVNET_ALLOC_BLKSZ - offsetof(gasneti_sysvnet_allocator_block_t, payload.data))
+#define GASNETI_PSHMNET_ALLOC_BLKSZ \
+    GASNETI_ALIGNUP(sizeof(gasneti_pshmnet_allocator_block_t), GASNETI_PSHMNET_PAGESIZE)
+#define GASNETI_PSHMNET_MAX_PAYLOAD \
+    (GASNETI_PSHMNET_ALLOC_BLKSZ - offsetof(gasneti_pshmnet_allocator_block_t, payload.data))
 
-size_t gasneti_sysvnet_max_payload(void) {
-  return GASNETI_SYSVNET_MAX_PAYLOAD;
+size_t gasneti_pshmnet_max_payload(void) {
+  return GASNETI_PSHMNET_MAX_PAYLOAD;
 }
 
 /* This implementation uses a circular queue of fixed-size payloads */
-typedef struct gasneti_sysvnet_allocator {
-  gasneti_sysvnet_allocator_block_t *queue;
+typedef struct gasneti_pshmnet_allocator {
+  gasneti_pshmnet_allocator_block_t *queue;
   gasneti_mutex_t next_lock;    /* only locked by owning process */
-  gasneti_sysvnet_allocator_block_t *next;
-  gasneti_sysvnet_allocator_block_t *justpastlast;
+  gasneti_pshmnet_allocator_block_t *next;
+  gasneti_pshmnet_allocator_block_t *justpastlast;
   char _pad[GASNETI_CACHE_LINE_BYTES];
-} gasneti_sysvnet_allocator_t;
+} gasneti_pshmnet_allocator_t;
 
 /* WARNING: the amount requested from this allocator must be less than 
- * or equal to sizeof(gasneti_sysvnet_payload_t)
+ * or equal to sizeof(gasneti_pshmnet_payload_t)
  * - returns NULL if no memory available
  */
-static gasneti_sysvnet_allocator_t *gasneti_sysvnet_init_allocator(void *region, size_t len);
-static void * gasneti_sysvnet_alloc(gasneti_sysvnet_allocator_t *a, size_t nbytes);
+static gasneti_pshmnet_allocator_t *gasneti_pshmnet_init_allocator(void *region, size_t len);
+static void * gasneti_pshmnet_alloc(gasneti_pshmnet_allocator_t *a, size_t nbytes);
 /* Frees memory.  Note that this must be callable by a different node */
-static void gasneti_sysvnet_free(gasneti_sysvnet_allocator_t *a, void *p);
+static void gasneti_pshmnet_free(gasneti_pshmnet_allocator_t *a, void *p);
 
 /******************************************************************************
  * </Payload memory allocator interface>
@@ -377,19 +379,19 @@ static void gasneti_sysvnet_free(gasneti_sysvnet_allocator_t *a, void *p);
 /* Per node view of 'network' of queues in supernode 
  * - Note that this struct itself is not stored in shared memory. 
  */
-struct gasneti_sysvnet {
+struct gasneti_pshmnet {
   gasnet_node_t firstnode;          /* first gasnet node in this supernode */
   gasnet_node_t nodecount;          /* nodes in supernode */ 
   gasnet_node_t nextindex;          /* index of next node to check for msgs */
   gasneti_mutex_t index_lock;       /* protects updates to nextindex */
   /* my 'in' queues are other nodes' 'out' queues */
-  gasneti_sysvnet_queue_t **in_queues;
-  gasneti_sysvnet_queue_t **out_queues;
+  gasneti_pshmnet_queue_t **in_queues;
+  gasneti_pshmnet_queue_t **out_queues;
   /* only need to see one's own allocator */
-  gasneti_sysvnet_allocator_t *my_allocator;
+  gasneti_pshmnet_allocator_t *my_allocator;
 };
 
-#define sysvnode(vnet, gasnet_node) \
+#define pshmnode(vnet, gasnet_node) \
         (gasnet_node - vnet->firstnode)
 
 #define gasneti_assert_align(p, align) \
@@ -397,24 +399,24 @@ struct gasneti_sysvnet {
 
 /* Macros for determining the offset and the real address, used for
  * the addresses inside the sysnet region */
-#define gasneti_sysv_offset(addr) \
-                (void *)((uintptr_t)(addr) - (uintptr_t)gasnetc_sysvnet_region)
+#define gasneti_pshm_offset(addr) \
+                (void *)((uintptr_t)(addr) - (uintptr_t)gasnetc_pshmnet_region)
 
-#define gasneti_sysv_addr(addr) \
-                (void *)((uintptr_t)(addr) + (uintptr_t)gasnetc_sysvnet_region)
+#define gasneti_pshm_addr(addr) \
+                (void *)((uintptr_t)(addr) + (uintptr_t)gasnetc_pshmnet_region)
 
 
 static int get_queue_depth(gasnet_node_t nodes) 
 {
-  int val = gasneti_getenv_int_withdefault("GASNET_SYSVNET_QUEUE_DEPTH", GASNETI_SYSVNET_DEFAULT_QUEUE_DEPTH, 0);
-  if (val > GASNETI_SYSVNET_MAX_QUEUE_DEPTH) {
-    fprintf(stderr, "GASNET_SYSVNET_QUEUE_DEPTH (%d) larger than max: using %d\n",
-            val, GASNETI_SYSVNET_MAX_QUEUE_DEPTH);
-    val = GASNETI_SYSVNET_MAX_QUEUE_DEPTH;
-  } else if (val < GASNETI_SYSVNET_MIN_QUEUE_DEPTH) {
-    fprintf(stderr, "GASNET_SYSVNET_QUEUE_DEPTH (%d) smaller than min: using %d\n",
-            val, GASNETI_SYSVNET_MIN_QUEUE_DEPTH);
-    val = GASNETI_SYSVNET_MIN_QUEUE_DEPTH;
+  int val = gasneti_getenv_int_withdefault("GASNET_PSHMNET_QUEUE_DEPTH", GASNETI_PSHMNET_DEFAULT_QUEUE_DEPTH, 0);
+  if (val > GASNETI_PSHMNET_MAX_QUEUE_DEPTH) {
+    fprintf(stderr, "GASNET_PSHMNET_QUEUE_DEPTH (%d) larger than max: using %d\n",
+            val, GASNETI_PSHMNET_MAX_QUEUE_DEPTH);
+    val = GASNETI_PSHMNET_MAX_QUEUE_DEPTH;
+  } else if (val < GASNETI_PSHMNET_MIN_QUEUE_DEPTH) {
+    fprintf(stderr, "GASNET_PSHMNET_QUEUE_DEPTH (%d) smaller than min: using %d\n",
+            val, GASNETI_PSHMNET_MIN_QUEUE_DEPTH);
+    val = GASNETI_PSHMNET_MIN_QUEUE_DEPTH;
   }
   return val;
 }
@@ -423,158 +425,158 @@ static uintptr_t get_queue_mem(int nodes)
 {
   /* theoretical limit = 1 send buffer per peer?  We're requiring 2 per peer right now.
    * - future implementations may also need some space for allocator's metadata */
-  size_t minsize = GASNETI_SYSVNET_ALLOC_BLKSZ*nodes*2;
-  uintptr_t pernode = gasneti_getenv_int_withdefault("GASNET_SYSVNET_QUEUE_MEMORY", 
-                    MAX(minsize, GASNETI_SYSVNET_DEFAULT_QUEUE_MEMORY), 1<<20);
-  if (pernode > GASNETI_SYSVNET_MAX_QUEUE_MEMORY) {
-    fprintf(stderr, "GASNET_SYSVNET_QUEUE_MEMORY (%ld) larger than max: using %ld\n",
-            (long)pernode, (long)GASNETI_SYSVNET_MAX_QUEUE_MEMORY);
-    pernode = GASNETI_SYSVNET_MAX_QUEUE_MEMORY;
+  size_t minsize = GASNETI_PSHMNET_ALLOC_BLKSZ*nodes*2;
+  uintptr_t pernode = gasneti_getenv_int_withdefault("GASNET_PSHMNET_QUEUE_MEMORY", 
+                    MAX(minsize, GASNETI_PSHMNET_DEFAULT_QUEUE_MEMORY), 1<<20);
+  if (pernode > GASNETI_PSHMNET_MAX_QUEUE_MEMORY) {
+    fprintf(stderr, "GASNET_PSHMNET_QUEUE_MEMORY (%ld) larger than max: using %ld\n",
+            (long)pernode, (long)GASNETI_PSHMNET_MAX_QUEUE_MEMORY);
+    pernode = GASNETI_PSHMNET_MAX_QUEUE_MEMORY;
   } else if (pernode < minsize) {
-    fprintf(stderr, "GASNET_SYSVNET_QUEUE_MEMORY (%ld) smaller than min: using %ld\n",
+    fprintf(stderr, "GASNET_PSHMNET_QUEUE_MEMORY (%ld) smaller than min: using %ld\n",
             (long)pernode, (long)minsize);
     pernode = minsize;
   }
   gasneti_assert(pernode > 0);
 
   /* round up to multiple allocator block size */
-  pernode = GASNETI_SYSVNET_ALLOC_BLKSZ *
-            ((pernode + GASNETI_SYSVNET_ALLOC_BLKSZ - 1) / GASNETI_SYSVNET_ALLOC_BLKSZ);
+  pernode = GASNETI_PSHMNET_ALLOC_BLKSZ *
+            ((pernode + GASNETI_PSHMNET_ALLOC_BLKSZ - 1) / GASNETI_PSHMNET_ALLOC_BLKSZ);
   return pernode;
 }
 
-static size_t gasneti_sysvnet_memory_needed_pernode(gasnet_node_t nodes)
+static size_t gasneti_pshmnet_memory_needed_pernode(gasnet_node_t nodes)
 {
   size_t size = 0;
 
-  if_pf (!gasneti_sysvnet_queue_depth) {
-    gasneti_sysvnet_queue_depth = get_queue_depth(nodes);
+  if_pf (!gasneti_pshmnet_queue_depth) {
+    gasneti_pshmnet_queue_depth = get_queue_depth(nodes);
   }
-  if_pf (!gasneti_sysvnet_queue_mem) {
-    gasneti_sysvnet_queue_mem = get_queue_mem(nodes);
+  if_pf (!gasneti_pshmnet_queue_mem) {
+    gasneti_pshmnet_queue_mem = get_queue_mem(nodes);
   }
 
   /* Message infos and queue */
-  size = sizeof(gasneti_sysvnet_queue_t)*(nodes);
-  size += sizeof(gasneti_sysvnet_msg_t)*gasneti_sysvnet_queue_depth*(nodes-1);
-  size = round_up_to_sysvpage(size);
-  size += sizeof(gasneti_sysvnet_allocator_t);
-  size = round_up_to_sysvpage(size);
-  size += gasneti_sysvnet_queue_mem;  
-  size = round_up_to_sysvpage(size);
+  size = sizeof(gasneti_pshmnet_queue_t)*(nodes);
+  size += sizeof(gasneti_pshmnet_msg_t)*gasneti_pshmnet_queue_depth*(nodes-1);
+  size = round_up_to_pshmpage(size);
+  size += sizeof(gasneti_pshmnet_allocator_t);
+  size = round_up_to_pshmpage(size);
+  size += gasneti_pshmnet_queue_mem;  
+  size = round_up_to_pshmpage(size);
 
   return size;
 }
 
-size_t gasneti_sysvnet_memory_needed(gasnet_node_t nodes)
+size_t gasneti_pshmnet_memory_needed(gasnet_node_t nodes)
 {
-  return gasneti_sysvnet_memory_needed_pernode(nodes) * nodes;
+  return gasneti_pshmnet_memory_needed_pernode(nodes) * nodes;
 }
 
-static void init_queue(gasneti_sysvnet_queue_t *q, gasneti_sysvnet_msg_t *msgs,
+static void init_queue(gasneti_pshmnet_queue_t *q, gasneti_pshmnet_msg_t *msgs,
                        int depth)
 {
   int i;
 
   /* Instead of using the "real" msgs address, we use only the offset with respect to the beginning of
    * the mapping */
-  q->queue = q->recv_next = q->send_next = (gasneti_sysvnet_msg_t *)gasneti_sysv_offset(msgs);
+  q->queue = q->recv_next = q->send_next = (gasneti_pshmnet_msg_t *)gasneti_pshm_offset(msgs);
   q->justpastlast = q->queue + depth;
   gasneti_mutex_init(&q->recv_lock);
   gasneti_mutex_init(&q->send_lock);
 
   for (i = 0; i < depth; i++) {
-    gasneti_atomic_set(&msgs[i].state, GASNETI_SYSVNET_EMPTY, 0);
+    gasneti_atomic_set(&msgs[i].state, GASNETI_PSHMNET_EMPTY, 0);
   }
 }
 
-static void gasneti_sysvnet_init_my_sysv(gasneti_sysvnet_t *pvnet, char * myregion, 
+static void gasneti_pshmnet_init_my_pshm(gasneti_pshmnet_t *pvnet, char * myregion, 
                                   gasnet_node_t firstnode, gasnet_node_t nodes)
 {
   int i;
-  gasneti_sysvnet_queue_t *myqueues;
-  gasneti_sysvnet_msg_t   *mymsgs, *remote_mymsgs;
+  gasneti_pshmnet_queue_t *myqueues;
+  gasneti_pshmnet_msg_t   *mymsgs, *remote_mymsgs;
   void *alloc_region;
-  gasneti_assert_align(myregion, GASNETI_SYSVNET_PAGESIZE);
+  gasneti_assert_align(myregion, GASNETI_PSHMNET_PAGESIZE);
 
   /* NOTE: other init code relies on queues being at start of region */
-  myqueues = (gasneti_sysvnet_queue_t *)myregion;
-  mymsgs = (gasneti_sysvnet_msg_t *)(((char*)myqueues) 
-                                      + sizeof(gasneti_sysvnet_queue_t)*nodes);  
+  myqueues = (gasneti_pshmnet_queue_t *)myregion;
+  mymsgs = (gasneti_pshmnet_msg_t *)(((char*)myqueues) 
+                                      + sizeof(gasneti_pshmnet_queue_t)*nodes);  
   gasneti_assert_align(mymsgs, GASNETI_CACHE_LINE_BYTES);
   alloc_region = ((char*)mymsgs) + 
-        sizeof(gasneti_sysvnet_msg_t)*gasneti_sysvnet_queue_depth*(nodes-1);
-  alloc_region = (void *)round_up_to_sysvpage(alloc_region);
+        sizeof(gasneti_pshmnet_msg_t)*gasneti_pshmnet_queue_depth*(nodes-1);
+  alloc_region = (void *)round_up_to_pshmpage(alloc_region);
 
   for (i = 0; i < nodes; i++) {
-    if (i == gasneti_mysysvnode) {
+    if (i == gasneti_mypshmnode) {
 #if GASNET_DEBUG
-      memset(&myqueues[i], 0xff, sizeof(gasneti_sysvnet_queue_t));
+      memset(&myqueues[i], 0xff, sizeof(gasneti_pshmnet_queue_t));
 #endif
     } else {
-      init_queue(&myqueues[i], mymsgs, gasneti_sysvnet_queue_depth);
-      mymsgs += gasneti_sysvnet_queue_depth;
+      init_queue(&myqueues[i], mymsgs, gasneti_pshmnet_queue_depth);
+      mymsgs += gasneti_pshmnet_queue_depth;
     }
   }
   pvnet->my_allocator = 
-    gasneti_sysvnet_init_allocator(alloc_region, gasneti_sysvnet_queue_mem);
+    gasneti_pshmnet_init_allocator(alloc_region, gasneti_pshmnet_queue_mem);
 
   pvnet->nextindex = 0;
   gasneti_mutex_init(&pvnet->index_lock);
 }
 
-/* Initializes the sysvnet region. Called from each node twice: 
- * to initialize sysvnet_request and sysvnet_reply */
-void gasneti_sysvnet_init(gasneti_sysvnet_t **pvnet, void *start, size_t nbytes, 
-                          gasnet_node_t firstnode, gasnet_node_t sysvnodes)
+/* Initializes the pshmnet region. Called from each node twice: 
+ * to initialize pshmnet_request and pshmnet_reply */
+void gasneti_pshmnet_init(gasneti_pshmnet_t **pvnet, void *start, size_t nbytes, 
+                          gasnet_node_t firstnode, gasnet_node_t pshmnodes)
 {
-  gasneti_sysvnet_t *vnet;
+  gasneti_pshmnet_t *vnet;
   gasnet_node_t i, othernode;
   size_t szpernode, regionlen;
   void *region, *myregion;
 
   /* make sure that our max buffer size fits all possible AMs */
-  gasneti_assert(sizeof(gasneti_AMSYSV_maxmsg_t) <= GASNETI_SYSVNET_MAX_PAYLOAD);
+  gasneti_assert(sizeof(gasneti_AMPSHM_maxmsg_t) <= GASNETI_PSHMNET_MAX_PAYLOAD);
 
   region = start;
-  region = (void *)round_up_to_sysvpage(region);
+  region = (void *)round_up_to_pshmpage(region);
 
   regionlen = nbytes - ( ((uintptr_t)region)-((uintptr_t)start));
-  szpernode = gasneti_sysvnet_memory_needed_pernode(sysvnodes);
-  if (regionlen < szpernode * sysvnodes) 
-    gasneti_fatalerror("Internal error: not enough memory for sysvnet: \n"
+  szpernode = gasneti_pshmnet_memory_needed_pernode(pshmnodes);
+  if (regionlen < szpernode * pshmnodes) 
+    gasneti_fatalerror("Internal error: not enough memory for pshmnet: \n"
                        " given %lu effective bytes, but need %lu", 
-                       (unsigned long)regionlen, (unsigned long)(szpernode * sysvnodes));
-  vnet = gasneti_malloc(sizeof(gasneti_sysvnet_t));
+                       (unsigned long)regionlen, (unsigned long)(szpernode * pshmnodes));
+  vnet = gasneti_malloc(sizeof(gasneti_pshmnet_t));
   vnet->firstnode = firstnode;
-  vnet->nodecount = sysvnodes;
-  myregion = (void *)( ((uintptr_t)region) + (szpernode*gasneti_mysysvnode));
+  vnet->nodecount = pshmnodes;
+  myregion = (void *)( ((uintptr_t)region) + (szpernode*gasneti_mypshmnode));
   /* collective call, so each process inits its own region.
-   * To allow non-fixed mapping of the sysvnet memory, we initialize
+   * To allow non-fixed mapping of the pshmnet memory, we initialize
    * each reqion using the offset-addresses */
-  gasneti_sysvnet_init_my_sysv(vnet, myregion, firstnode, sysvnodes);
+  gasneti_pshmnet_init_my_pshm(vnet, myregion, firstnode, pshmnodes);
 
   /* initialize queue pointers */
-  vnet->in_queues = gasneti_malloc(sizeof(gasneti_sysvnet_queue_t*)*sysvnodes);
-  vnet->out_queues = gasneti_malloc(sizeof(gasneti_sysvnet_queue_t*)*sysvnodes);
-  for (i = 0; i < sysvnodes; i++) {
-    vnet->in_queues[i] = ((gasneti_sysvnet_queue_t *)myregion) + i;
-    vnet->out_queues[i] = ((gasneti_sysvnet_queue_t *) (((uintptr_t)region)+(szpernode*i))) 
-                          + gasneti_mysysvnode;
+  vnet->in_queues = gasneti_malloc(sizeof(gasneti_pshmnet_queue_t*)*pshmnodes);
+  vnet->out_queues = gasneti_malloc(sizeof(gasneti_pshmnet_queue_t*)*pshmnodes);
+  for (i = 0; i < pshmnodes; i++) {
+    vnet->in_queues[i] = ((gasneti_pshmnet_queue_t *)myregion) + i;
+    vnet->out_queues[i] = ((gasneti_pshmnet_queue_t *) (((uintptr_t)region)+(szpernode*i))) 
+                          + gasneti_mypshmnode;
   }
 
   *pvnet = vnet;
 }
 
-void * gasneti_sysvnet_get_send_buffer(gasneti_sysvnet_t *vnet, size_t nbytes, 
+void * gasneti_pshmnet_get_send_buffer(gasneti_pshmnet_t *vnet, size_t nbytes, 
                                        gasnet_node_t target)
 {
-  gasneti_sysvnet_payload_t *p;
+  gasneti_pshmnet_payload_t *p;
   void *retval = NULL;
   
-  gasneti_assert(nbytes <= GASNETI_SYSVNET_MAX_PAYLOAD);
+  gasneti_assert(nbytes <= GASNETI_PSHMNET_MAX_PAYLOAD);
 
-  p = gasneti_sysvnet_alloc(vnet->my_allocator, sizeof(gasneti_sysvnet_payload_t));
+  p = gasneti_pshmnet_alloc(vnet->my_allocator, sizeof(gasneti_pshmnet_payload_t));
   if (p != NULL) {
     p->msg = NULL;
     p->allocator = vnet->my_allocator;
@@ -585,37 +587,37 @@ void * gasneti_sysvnet_get_send_buffer(gasneti_sysvnet_t *vnet, size_t nbytes,
 }
 
 
-int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf, 
+int gasneti_pshmnet_deliver_send_buffer(gasneti_pshmnet_t *vnet, void *buf, 
                                         size_t nbytes, gasnet_node_t target)
 {
   int retval = -1;
-  gasneti_sysvnet_msg_t *q_send_next;
-  gasneti_sysvnet_payload_t *p;
-  gasneti_sysvnet_queue_t *q = vnet->out_queues[sysvnode(vnet, target)];
+  gasneti_pshmnet_msg_t *q_send_next;
+  gasneti_pshmnet_payload_t *p;
+  gasneti_pshmnet_queue_t *q = vnet->out_queues[pshmnode(vnet, target)];
   gasneti_assert(q != NULL);
 
   gasneti_mutex_lock(&q->send_lock);
   
   /* Get the actual address of q->send_next (q-> contains only offsets) */
-  q_send_next = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->send_next);
+  q_send_next = (gasneti_pshmnet_msg_t *)gasneti_pshm_addr(q->send_next);
 
    /* This code assumes that if the current 'send_node' isn't free yet, there
    * are no free slots in the recipient's queue.  Since there is only one
    * sender, one receiver, and the receiver consumes messages in order, this
    * should be true, so no scan over the list is needed. */
-  if (gasneti_atomic_read(&q_send_next->state, 0) == GASNETI_SYSVNET_EMPTY) {
+  if (gasneti_atomic_read(&q_send_next->state, 0) == GASNETI_PSHMNET_EMPTY) {
     retval = 0;
     /* fill in message info. Instead of buf we use offset since it
-     * will be read by another node wich does not have identical sysvnet
+     * will be read by another node wich does not have identical pshmnet
      * memory mapping */
-    q_send_next->addr = gasneti_sysv_offset(buf);
+    q_send_next->addr = gasneti_pshm_offset(buf);
     q_send_next->len = nbytes;
     /* set pointer to msg in buffer */
-    p = sysvnet_get_struct_addr_from_field_addr(gasneti_sysvnet_payload_t, data, buf);
+    p = pshmnet_get_struct_addr_from_field_addr(gasneti_pshmnet_payload_t, data, buf);
     gasneti_assert(buf == &p->data);
-    p->msg = gasneti_sysv_offset(q_send_next);
+    p->msg = gasneti_pshm_offset(q_send_next);
     /* Perform write flush before writing ready bit */
-    gasneti_atomic_set(&q_send_next->state, GASNETI_SYSVNET_FULL, GASNETI_ATOMIC_REL);
+    gasneti_atomic_set(&q_send_next->state, GASNETI_PSHMNET_FULL, GASNETI_ATOMIC_REL);
     /* Advance q->send_next (logic is the same regardless of addr vs. offset) */
     if (++q->send_next == q->justpastlast)
       q->send_next = q->queue;
@@ -627,7 +629,7 @@ int gasneti_sysvnet_deliver_send_buffer(gasneti_sysvnet_t *vnet, void *buf,
 }
 
 
-int gasneti_sysvnet_recv(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize, 
+int gasneti_pshmnet_recv(gasneti_pshmnet_t *vnet, void **pbuf, size_t *psize, 
                          gasnet_node_t *from)
 {
   const int nodecount = vnet->nodecount;
@@ -644,20 +646,20 @@ int gasneti_sysvnet_recv(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize,
       vnet->nextindex = tmp;
     gasneti_mutex_unlock(&vnet->index_lock);
  
-    if (nextindex != gasneti_mysysvnode) {
-      gasneti_sysvnet_queue_t *q = vnet->in_queues[nextindex];
-      gasneti_sysvnet_msg_t *q_recv_next;
+    if (nextindex != gasneti_mypshmnode) {
+      gasneti_pshmnet_queue_t *q = vnet->in_queues[nextindex];
+      gasneti_pshmnet_msg_t *q_recv_next;
       
       gasneti_assert(q != NULL);
       gasneti_mutex_lock(&q->recv_lock);
 
       /* Get the actual address of q->recv_next (q-> contains only offsets) */
-      q_recv_next = (gasneti_sysvnet_msg_t *)gasneti_sysv_addr(q->recv_next);
+      q_recv_next = (gasneti_pshmnet_msg_t *)gasneti_pshm_addr(q->recv_next);
       
-      if (gasneti_atomic_compare_and_swap(&q_recv_next->state, GASNETI_SYSVNET_FULL,
-                                          GASNETI_SYSVNET_BUSY, GASNETI_ATOMIC_ACQ_IF_TRUE)) {
+      if (gasneti_atomic_compare_and_swap(&q_recv_next->state, GASNETI_PSHMNET_FULL,
+                                          GASNETI_PSHMNET_BUSY, GASNETI_ATOMIC_ACQ_IF_TRUE)) {
         /* Transform the offset in q_recv_next->addr into a real address */
-        *pbuf = gasneti_sysv_addr(q_recv_next->addr);
+        *pbuf = gasneti_pshm_addr(q_recv_next->addr);
         *psize = q_recv_next->len;
 
 	/* Advance q->recv_next (logic is the same regardless of addr vs. offset) */
@@ -682,35 +684,35 @@ int gasneti_sysvnet_recv(gasneti_sysvnet_t *vnet, void **pbuf, size_t *psize,
  * senders to think the queue is full.  This could cause
  * deadlock and/or lots of confusion (for me it was the latter).
  */
-void gasneti_sysvnet_recv_release(gasneti_sysvnet_t *vnet, void *buf)
+void gasneti_pshmnet_recv_release(gasneti_pshmnet_t *vnet, void *buf)
 {
   /* Address we handed out was the addr of the 'data' field */
-  gasneti_sysvnet_payload_t *p = 
-    sysvnet_get_struct_addr_from_field_addr(gasneti_sysvnet_payload_t,
+  gasneti_pshmnet_payload_t *p = 
+    pshmnet_get_struct_addr_from_field_addr(gasneti_pshmnet_payload_t,
                                             data, buf);
   gasneti_assert(buf == &p->data);
   gasneti_assert(p && p->msg && p->allocator);
   /* mark msg as free */
-  p->msg = gasneti_sysv_addr(p->msg);
-  gasneti_assert(gasneti_atomic_read(&p->msg->state,0) == GASNETI_SYSVNET_BUSY);
-  gasneti_atomic_set(&p->msg->state, GASNETI_SYSVNET_EMPTY, 0);
-  gasneti_sysvnet_free(p->allocator, p);
+  p->msg = gasneti_pshm_addr(p->msg);
+  gasneti_assert(gasneti_atomic_read(&p->msg->state,0) == GASNETI_PSHMNET_BUSY);
+  gasneti_atomic_set(&p->msg->state, GASNETI_PSHMNET_EMPTY, 0);
+  gasneti_pshmnet_free(p->allocator, p);
 }
 
 
 /******************************************************************************
- * Sysvnet bootstrap barrier
+ * PSHMnet bootstrap barrier
  * - TODO: only good a finite number of times before it wraps!
  ******************************************************************************/
-void gasneti_sysvnet_bootstrapBarrier(void)
+void gasneti_pshmnet_bootstrapBarrier(void)
 {
   gasneti_atomic_val_t curr, target;
 
   gasneti_assert(gasneti_barrier_counter != NULL);
-  gasneti_assert(gasneti_sysvnodes > 0);
+  gasneti_assert(gasneti_pshmnodes > 0);
 
   curr = gasneti_atomic_read(gasneti_barrier_counter, 0);
-  target = gasneti_sysvnodes + curr - (curr % gasneti_sysvnodes);
+  target = gasneti_pshmnodes + curr - (curr % gasneti_pshmnodes);
   gasneti_assert_always(target > curr); /* Die if we were ever to wrap */
 
   gasneti_atomic_increment(gasneti_barrier_counter, GASNETI_ATOMIC_REL);
@@ -718,59 +720,59 @@ void gasneti_sysvnet_bootstrapBarrier(void)
 }
 
 /******************************************************************************
- * Helpers for Sysvnet bootstrap broadcast and exchange
+ * Helpers for PSHMnet bootstrap broadcast and exchange
  ******************************************************************************/
 
 /* Sends data to all peers excluding self */
-static void gasneti_sysvnet_coll_send(gasneti_sysvnet_t *vnet, void *src, size_t len)
+static void gasneti_pshmnet_coll_send(gasneti_pshmnet_t *vnet, void *src, size_t len)
 {
   gasnet_node_t i, to;
   void *msg;
 
   for (i = 0, to = vnet->firstnode; i < vnet->nodecount; i++, to++) {
-    if (i == gasneti_mysysvnode) continue;
-    gasneti_waitwhile (NULL == (msg = gasneti_sysvnet_get_send_buffer(vnet, len, to)));
+    if (i == gasneti_mypshmnode) continue;
+    gasneti_waitwhile (NULL == (msg = gasneti_pshmnet_get_send_buffer(vnet, len, to)));
     memcpy(msg, src, len);
-    gasneti_waitwhile (gasneti_sysvnet_deliver_send_buffer(vnet, msg, len, to));
+    gasneti_waitwhile (gasneti_pshmnet_deliver_send_buffer(vnet, msg, len, to));
   }
 }
 
 /* Recive data from any peer excluding self, placing data according to srcidx*stride */
-static void gasneti_sysvnet_coll_recv(gasneti_sysvnet_t *vnet, size_t stride, void *dest)
+static void gasneti_pshmnet_coll_recv(gasneti_pshmnet_t *vnet, size_t stride, void *dest)
 {
   gasnet_node_t from;
   void *msg, *dest_elem;
   size_t len;
 
-  gasneti_waitwhile (gasneti_sysvnet_recv(vnet, &msg, &len, &from));
-  dest_elem = (void*)((uintptr_t)dest + (stride * sysvnode(vnet, from)));
+  gasneti_waitwhile (gasneti_pshmnet_recv(vnet, &msg, &len, &from));
+  dest_elem = (void*)((uintptr_t)dest + (stride * pshmnode(vnet, from)));
   memcpy(dest_elem, msg, len);
-  gasneti_sysvnet_recv_release(vnet, msg);
+  gasneti_pshmnet_recv_release(vnet, msg);
 }
 
 /******************************************************************************
- * Sysvnet bootstrap broadcast
- * - Rootsysvnode is supernode-local rank
+ * PSHMnet bootstrap broadcast
+ * - Rootpshmnode is supernode-local rank
  * - Barriers ensure ordering w.r.t sends that precede or follow
  ******************************************************************************/
-void gasneti_sysvnet_bootstrapBroadcast(gasneti_sysvnet_t *vnet, void *src, 
-                                        size_t len, void *dst, int rootsysvnode)
+void gasneti_pshmnet_bootstrapBroadcast(gasneti_pshmnet_t *vnet, void *src, 
+                                        size_t len, void *dst, int rootpshmnode)
 {
   uintptr_t src_addr = (uintptr_t)src;
   uintptr_t dst_addr = (uintptr_t)dst;
   size_t remain = len;
 
   gasneti_assert(vnet != NULL);
-  gasneti_assert(vnet->nodecount == gasneti_sysvnodes);
+  gasneti_assert(vnet->nodecount == gasneti_pshmnodes);
 
   while (remain) {
-    size_t nbytes = MIN(remain, GASNETI_SYSVNET_MAX_PAYLOAD);
+    size_t nbytes = MIN(remain, GASNETI_PSHMNET_MAX_PAYLOAD);
 
-    gasneti_sysvnet_bootstrapBarrier();
-    if (gasneti_mysysvnode == rootsysvnode) {
-      gasneti_sysvnet_coll_send(vnet, (void*)src_addr, nbytes);
+    gasneti_pshmnet_bootstrapBarrier();
+    if (gasneti_mypshmnode == rootpshmnode) {
+      gasneti_pshmnet_coll_send(vnet, (void*)src_addr, nbytes);
     } else {
-      gasneti_sysvnet_coll_recv(vnet, 0, (void*)dst_addr);
+      gasneti_pshmnet_coll_recv(vnet, 0, (void*)dst_addr);
     }
 
     src_addr += nbytes;
@@ -781,10 +783,10 @@ void gasneti_sysvnet_bootstrapBroadcast(gasneti_sysvnet_t *vnet, void *src,
 }
 
 /******************************************************************************
- * Sysvnet bootstrap exchange
+ * PSHMnet bootstrap exchange
  * - Barriers ensure ordering w.r.t sends that precede or follow
  ******************************************************************************/
-void gasneti_sysvnet_bootstrapExchange(gasneti_sysvnet_t *vnet, void *src, 
+void gasneti_pshmnet_bootstrapExchange(gasneti_pshmnet_t *vnet, void *src, 
                                        size_t len, void *dst)
 {
   uintptr_t src_addr = (uintptr_t)src;
@@ -792,19 +794,19 @@ void gasneti_sysvnet_bootstrapExchange(gasneti_sysvnet_t *vnet, void *src,
   size_t remain = len;
 
   gasneti_assert(vnet != NULL);
-  gasneti_assert(vnet->nodecount == gasneti_sysvnodes);
+  gasneti_assert(vnet->nodecount == gasneti_pshmnodes);
 
   /* All nodes broadcast their contribution in turn */
   while (remain) {
-    size_t nbytes = MIN(remain, GASNETI_SYSVNET_MAX_PAYLOAD);
+    size_t nbytes = MIN(remain, GASNETI_PSHMNET_MAX_PAYLOAD);
     gasnet_node_t i;
 
-    gasneti_sysvnet_bootstrapBarrier(); 
+    gasneti_pshmnet_bootstrapBarrier(); 
     for (i = 0; i < vnet->nodecount; i++) {
-      if (gasneti_mysysvnode == i) {
-        gasneti_sysvnet_coll_send(vnet, (void*)src_addr, nbytes);
+      if (gasneti_mypshmnode == i) {
+        gasneti_pshmnet_coll_send(vnet, (void*)src_addr, nbytes);
       } else {
-        gasneti_sysvnet_coll_recv(vnet, len, (void*)dst_addr);
+        gasneti_pshmnet_coll_recv(vnet, len, (void*)dst_addr);
       }
     }
 
@@ -812,7 +814,7 @@ void gasneti_sysvnet_bootstrapExchange(gasneti_sysvnet_t *vnet, void *src,
     dst_addr += nbytes;
     remain -= nbytes;
   }
-  memmove((void*)((uintptr_t)dst + (gasneti_mysysvnode*len)), src, len);
+  memmove((void*)((uintptr_t)dst + (gasneti_mypshmnode*len)), src, len);
 }
 
 
@@ -820,27 +822,27 @@ void gasneti_sysvnet_bootstrapExchange(gasneti_sysvnet_t *vnet, void *src,
  * Allocator implementation
  ******************************************************************************/
 
-static gasneti_sysvnet_allocator_t *gasneti_sysvnet_init_allocator(void *region, size_t len)
+static gasneti_pshmnet_allocator_t *gasneti_pshmnet_init_allocator(void *region, size_t len)
 {
   int i;
-  int count = len / GASNETI_SYSVNET_ALLOC_BLKSZ;
-  gasneti_sysvnet_allocator_block_t *tmp;
+  int count = len / GASNETI_PSHMNET_ALLOC_BLKSZ;
+  gasneti_pshmnet_allocator_block_t *tmp;
 
   /* This implementation doesn't need to put allocator within shared memory.
    * If a later one does, consider increasing the size returned by
    * get_queue_mem()
    */
-  gasneti_sysvnet_allocator_t *a = gasneti_malloc(sizeof(gasneti_sysvnet_allocator_t));
+  gasneti_pshmnet_allocator_t *a = gasneti_malloc(sizeof(gasneti_pshmnet_allocator_t));
 
   /* make sure we've arranged for page alignment */
-  gasneti_assert_align(GASNETI_SYSVNET_ALLOC_BLKSZ, GASNETI_SYSVNET_PAGESIZE);
-  gasneti_assert_align(region, GASNETI_SYSVNET_PAGESIZE);
+  gasneti_assert_align(GASNETI_PSHMNET_ALLOC_BLKSZ, GASNETI_PSHMNET_PAGESIZE);
+  gasneti_assert_align(region, GASNETI_PSHMNET_PAGESIZE);
 
   a->queue = a->next = tmp = region;
   for (i = 0; i < count; i++) {
     gasneti_atomic_set(&tmp->in_use, 0, 0);
-    tmp = (gasneti_sysvnet_allocator_block_t*)
-                              ((uintptr_t)tmp + GASNETI_SYSVNET_ALLOC_BLKSZ);
+    tmp = (gasneti_pshmnet_allocator_block_t*)
+                              ((uintptr_t)tmp + GASNETI_PSHMNET_ALLOC_BLKSZ);
   }
   a->justpastlast = tmp;
   gasneti_mutex_init(&a->next_lock);
@@ -849,11 +851,11 @@ static gasneti_sysvnet_allocator_t *gasneti_sysvnet_init_allocator(void *region,
 }
 
 
-static void * gasneti_sysvnet_alloc(gasneti_sysvnet_allocator_t *a, size_t nbytes)
+static void * gasneti_pshmnet_alloc(gasneti_pshmnet_allocator_t *a, size_t nbytes)
 {
   void *retval = NULL;
 
-  gasneti_assert(nbytes <= sizeof(gasneti_sysvnet_payload_t));
+  gasneti_assert(nbytes <= sizeof(gasneti_pshmnet_payload_t));
 
   gasneti_mutex_lock(&a->next_lock);
   /* NOTE: I assume messages are generally consumed in serial order, so just
@@ -865,8 +867,8 @@ static void * gasneti_sysvnet_alloc(gasneti_sysvnet_allocator_t *a, size_t nbyte
   if (!gasneti_atomic_read(&a->next->in_use, GASNETI_ATOMIC_ACQ)) {
     gasneti_atomic_set(&a->next->in_use, 1, 0);
     retval = &a->next->payload;
-    a->next = (gasneti_sysvnet_allocator_block_t*)
-                      ((uintptr_t)a->next + GASNETI_SYSVNET_ALLOC_BLKSZ);
+    a->next = (gasneti_pshmnet_allocator_block_t*)
+                      ((uintptr_t)a->next + GASNETI_PSHMNET_ALLOC_BLKSZ);
     if (a->next == a->justpastlast)
       a->next = a->queue;
   }
@@ -874,46 +876,46 @@ static void * gasneti_sysvnet_alloc(gasneti_sysvnet_allocator_t *a, size_t nbyte
   return retval;
 }
 
-static void gasneti_sysvnet_free(gasneti_sysvnet_allocator_t *a, void *p)
+static void gasneti_pshmnet_free(gasneti_pshmnet_allocator_t *a, void *p)
 {
   /* We don't need the allocator ptr, but other implementations might  */
 
   /* Address we handed out was the addr of the 'payload_t' field */
-  gasneti_sysvnet_allocator_block_t *block = 
-      sysvnet_get_struct_addr_from_field_addr(gasneti_sysvnet_allocator_block_t,
+  gasneti_pshmnet_allocator_block_t *block = 
+      pshmnet_get_struct_addr_from_field_addr(gasneti_pshmnet_allocator_block_t,
                                               payload, p);
   gasneti_assert(p == &block->payload);
   /* assert block is page-aligned */
-  gasneti_assert( (((uintptr_t)block) % GASNETI_SYSVNET_PAGESIZE) == 0);
+  gasneti_assert( (((uintptr_t)block) % GASNETI_PSHMNET_PAGESIZE) == 0);
 
   gasneti_atomic_set(&block->in_use, 0, GASNETI_ATOMIC_REL);
 }
 
 /******************************************************************************
- * AMSYSV:  Active Message API over Sysvnet
+ * AMPSHM:  Active Message API over PSHMnet
  ******************************************************************************/
 
 /* The mediumdata field may not be aligned */
-#define GASNETI_AMSYSV_MSG_MEDDATA_OFFSET \
-   (offsetof(gasneti_sysvnet_allocator_block_t, payload.data.Medium.mediumdata)&7)
-#define GASNETI_AMSYSV_MSG_MEDDATA_SHIFT \
-   (GASNETI_AMSYSV_MSG_MEDDATA_OFFSET?(8-GASNETI_AMSYSV_MSG_MEDDATA_OFFSET):0)
+#define GASNETI_AMPSHM_MSG_MEDDATA_OFFSET \
+   (offsetof(gasneti_pshmnet_allocator_block_t, payload.data.Medium.mediumdata)&7)
+#define GASNETI_AMPSHM_MSG_MEDDATA_SHIFT \
+   (GASNETI_AMPSHM_MSG_MEDDATA_OFFSET?(8-GASNETI_AMPSHM_MSG_MEDDATA_OFFSET):0)
 
-#define GASNETI_AMSYSV_MSG_CATEGORY(msg)      (((gasneti_AMSYSV_msg_t*)msg)->category)
-#define GASNETI_AMSYSV_MSG_HANDLERID(msg)     (((gasneti_AMSYSV_msg_t*)msg)->handler_id)
-#define GASNETI_AMSYSV_MSG_NUMARGS(msg)       (((gasneti_AMSYSV_msg_t*)msg)->numargs)
-#define GASNETI_AMSYSV_MSG_ARGS(msg)          (((gasneti_AMSYSV_msg_t*)msg)->args)
-#define GASNETI_AMSYSV_MSG_MED_NUMBYTES(msg)  (((gasneti_AMSYSV_medmsg_t*)msg)->numbytes)
-#define GASNETI_AMSYSV_MSG_MED_DATA(msg)      ((((gasneti_AMSYSV_medmsg_t*)msg)->mediumdata) + \
-                                               GASNETI_AMSYSV_MSG_MEDDATA_SHIFT)
-#define GASNETI_AMSYSV_MSG_LONG_NUMBYTES(msg) (((gasneti_AMSYSV_longmsg_t*)msg)->numbytes)
-#define GASNETI_AMSYSV_MSG_LONG_DATA(msg)     (((gasneti_AMSYSV_longmsg_t*)msg)->longdata)
+#define GASNETI_AMPSHM_MSG_CATEGORY(msg)      (((gasneti_AMPSHM_msg_t*)msg)->category)
+#define GASNETI_AMPSHM_MSG_HANDLERID(msg)     (((gasneti_AMPSHM_msg_t*)msg)->handler_id)
+#define GASNETI_AMPSHM_MSG_NUMARGS(msg)       (((gasneti_AMPSHM_msg_t*)msg)->numargs)
+#define GASNETI_AMPSHM_MSG_ARGS(msg)          (((gasneti_AMPSHM_msg_t*)msg)->args)
+#define GASNETI_AMPSHM_MSG_MED_NUMBYTES(msg)  (((gasneti_AMPSHM_medmsg_t*)msg)->numbytes)
+#define GASNETI_AMPSHM_MSG_MED_DATA(msg)      ((((gasneti_AMPSHM_medmsg_t*)msg)->mediumdata) + \
+                                               GASNETI_AMPSHM_MSG_MEDDATA_SHIFT)
+#define GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) (((gasneti_AMPSHM_longmsg_t*)msg)->numbytes)
+#define GASNETI_AMPSHM_MSG_LONG_DATA(msg)     (((gasneti_AMPSHM_longmsg_t*)msg)->longdata)
 
-#define GASNETI_AMSYSV_MAX_RECVMSGS_PER_POLL 10
+#define GASNETI_AMPSHM_MAX_RECVMSGS_PER_POLL 10
 
 /* ------------------------------------------------------------------------------------ */
-GASNETI_INLINE(gasneti_AMSYSV_service_incoming_msg)
-int gasneti_AMSYSV_service_incoming_msg(gasneti_sysvnet_t *vnet, int isReq)
+GASNETI_INLINE(gasneti_AMPSHM_service_incoming_msg)
+int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
 {
   void *msg;
   size_t msgsz;
@@ -925,18 +927,18 @@ int gasneti_AMSYSV_service_incoming_msg(gasneti_sysvnet_t *vnet, int isReq)
   gasnet_handlerarg_t *args;
   gasnet_token_t token;
 
-  if (gasneti_sysvnet_recv(vnet, &msg, &msgsz, &from))
+  if (gasneti_pshmnet_recv(vnet, &msg, &msgsz, &from))
     return -1;
 
   token = gasnetc_token_create(from, isReq);
-  category = GASNETI_AMSYSV_MSG_CATEGORY(msg);
+  category = GASNETI_AMPSHM_MSG_CATEGORY(msg);
   gasneti_assert((category == gasnetc_Short) || 
                  (category == gasnetc_Medium) || 
                  (category == gasnetc_Long));
-  handler_id = GASNETI_AMSYSV_MSG_HANDLERID(msg);
+  handler_id = GASNETI_AMPSHM_MSG_HANDLERID(msg);
   handler_fn = gasnetc_get_handler(handler_id);
-  numargs = GASNETI_AMSYSV_MSG_NUMARGS(msg);
-  args = GASNETI_AMSYSV_MSG_ARGS(msg);
+  numargs = GASNETI_AMPSHM_MSG_NUMARGS(msg);
+  args = GASNETI_AMPSHM_MSG_ARGS(msg);
 
   switch (category) {
     case gasnetc_Short:
@@ -946,39 +948,39 @@ int gasneti_AMSYSV_service_incoming_msg(gasneti_sysvnet_t *vnet, int isReq)
       break;
     case gasnetc_Medium:
       {
-        void * data = GASNETI_AMSYSV_MSG_MED_DATA(msg);
-        size_t nbytes = GASNETI_AMSYSV_MSG_MED_NUMBYTES(msg);
+        void * data = GASNETI_AMPSHM_MSG_MED_DATA(msg);
+        size_t nbytes = GASNETI_AMPSHM_MSG_MED_NUMBYTES(msg);
         GASNETI_RUN_HANDLER_MEDIUM(
           isReq,handler_id,handler_fn,token,args,numargs,data,nbytes);
       }
       break;
     case gasnetc_Long:
       { 
-        void * data = GASNETI_AMSYSV_MSG_LONG_DATA(msg);
-        size_t nbytes = GASNETI_AMSYSV_MSG_LONG_NUMBYTES(msg);
+        void * data = GASNETI_AMPSHM_MSG_LONG_DATA(msg);
+        size_t nbytes = GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg);
         GASNETI_RUN_HANDLER_LONG(
             isReq,handler_id,handler_fn,token,args,numargs,data,nbytes);
       }
       break;
   }
   gasnetc_token_destroy(token);
-  gasneti_sysvnet_recv_release(vnet, msg);
+  gasneti_pshmnet_recv_release(vnet, msg);
   return 0;
 }
 
 /* ------------------------------------------------------------------------------------ */
-int gasneti_AMSYSVPoll(int repliesOnly)
+int gasneti_AMPSHMPoll(int repliesOnly)
 {
   int i = 0;
 
   GASNETI_CHECKATTACH();
 
-  for (; i < GASNETI_AMSYSV_MAX_RECVMSGS_PER_POLL; i++) 
-    if (gasneti_AMSYSV_service_incoming_msg(gasneti_reply_sysvnet, 0))
+  for (; i < GASNETI_AMPSHM_MAX_RECVMSGS_PER_POLL; i++) 
+    if (gasneti_AMPSHM_service_incoming_msg(gasneti_reply_pshmnet, 0))
       break;
   if (!repliesOnly)
-    for (; i < GASNETI_AMSYSV_MAX_RECVMSGS_PER_POLL; i++) 
-      if (gasneti_AMSYSV_service_incoming_msg(gasneti_request_sysvnet, 1))
+    for (; i < GASNETI_AMPSHM_MAX_RECVMSGS_PER_POLL; i++) 
+      if (gasneti_AMPSHM_service_incoming_msg(gasneti_request_pshmnet, 1))
         break;
   return GASNET_OK;
 }
@@ -996,11 +998,11 @@ int gasneti_AMSYSVPoll(int repliesOnly)
  */
 static gasneti_lifo_head_t loopback_freepool = GASNETI_LIFO_INITIALIZER;
 
-int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
+int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, int dest,
                                  gasnet_handler_t handler, void *source_addr, int nbytes, 
                                  void *dest_addr, int numargs, va_list argptr) 
 {
-  gasneti_sysvnet_t *vnet = (isReq ? gasneti_request_sysvnet : gasneti_reply_sysvnet);
+  gasneti_pshmnet_t *vnet = (isReq ? gasneti_request_pshmnet : gasneti_reply_pshmnet);
   int msgsz, i;
   void *msg;
   gasnet_handlerarg_t *pargs;
@@ -1008,67 +1010,67 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
 
   gasneti_assert(vnet != NULL);
 
-  /* calculate size of sysV buffer needed */
+  /* calculate size of buffer needed */
   switch (category) {
     case gasnetc_Short:
-      msgsz = sizeof(gasneti_AMSYSV_shortmsg_t);
+      msgsz = sizeof(gasneti_AMPSHM_shortmsg_t);
       break;
     case gasnetc_Medium:
-      msgsz = sizeof(gasneti_AMSYSV_medmsg_t);
+      msgsz = sizeof(gasneti_AMPSHM_medmsg_t);
       break;
     case gasnetc_Long:
-      msgsz = sizeof(gasneti_AMSYSV_longmsg_t);
+      msgsz = sizeof(gasneti_AMPSHM_longmsg_t);
       break;
     default:
       gasneti_fatalerror("internal error: unknown msg category");
   }
-  gasneti_assert(msgsz <= GASNETI_SYSVNET_MAX_PAYLOAD); 
+  gasneti_assert(msgsz <= GASNETI_PSHMNET_MAX_PAYLOAD); 
 
   if (loopback) {
     msg = gasneti_lifo_pop(&loopback_freepool);
     if_pf (msg == NULL) {
       /* Grow the free pool with buffers sized and aligned for the largest Medium */
-      void *tmp = gasneti_malloc(sizeof(gasneti_AMSYSV_medmsg_t)+7);
-      uintptr_t offset = (uintptr_t)GASNETI_AMSYSV_MSG_MED_DATA(tmp) & 7;
+      void *tmp = gasneti_malloc(sizeof(gasneti_AMPSHM_medmsg_t)+7);
+      uintptr_t offset = (uintptr_t)GASNETI_AMPSHM_MSG_MED_DATA(tmp) & 7;
       /* Align the (macro-adjusted) Medium payload field, not the msg itself */
       msg = (void*)((uintptr_t)tmp + (offset ? (8-offset) : 0));
     }
   } else {
     /* Get buffer, poll if busy */
-    while (!(msg = gasneti_sysvnet_get_send_buffer(vnet, msgsz, dest))) {
+    while (!(msg = gasneti_pshmnet_get_send_buffer(vnet, msgsz, dest))) {
       /* If reply, only poll reply network: avoids deadlock  */
       if (isReq) gasnetc_AMPoll(); /* No progress functions */
-      else gasneti_AMSYSVPoll(1);
+      else gasneti_AMPSHMPoll(1);
     }
   }
 
   /* Fill in message */
-  GASNETI_AMSYSV_MSG_CATEGORY(msg) = category;
-  GASNETI_AMSYSV_MSG_HANDLERID(msg) = handler;
-  GASNETI_AMSYSV_MSG_NUMARGS(msg) = numargs;
+  GASNETI_AMPSHM_MSG_CATEGORY(msg) = category;
+  GASNETI_AMPSHM_MSG_HANDLERID(msg) = handler;
+  GASNETI_AMPSHM_MSG_NUMARGS(msg) = numargs;
   for(i = 0; i < numargs; i++) 
-    GASNETI_AMSYSV_MSG_ARGS(msg)[i] = (gasnet_handlerarg_t)va_arg(argptr, int);
+    GASNETI_AMPSHM_MSG_ARGS(msg)[i] = (gasnet_handlerarg_t)va_arg(argptr, int);
 
   /* Detect truncation if our field widths were too small */
-  gasneti_assert( GASNETI_AMSYSV_MSG_CATEGORY(msg) == category );
-  gasneti_assert( GASNETI_AMSYSV_MSG_NUMARGS(msg) == numargs );
+  gasneti_assert( GASNETI_AMPSHM_MSG_CATEGORY(msg) == category );
+  gasneti_assert( GASNETI_AMPSHM_MSG_NUMARGS(msg) == numargs );
 
   switch (category) {
     case gasnetc_Short:
       break;
     case gasnetc_Medium:
-      GASNETI_AMSYSV_MSG_MED_NUMBYTES(msg) = nbytes;
-      gasneti_assert( GASNETI_AMSYSV_MSG_MED_NUMBYTES(msg) == nbytes ); /* truncation check */
-      memcpy(GASNETI_AMSYSV_MSG_MED_DATA(msg), source_addr, nbytes);
+      GASNETI_AMPSHM_MSG_MED_NUMBYTES(msg) = nbytes;
+      gasneti_assert( GASNETI_AMPSHM_MSG_MED_NUMBYTES(msg) == nbytes ); /* truncation check */
+      memcpy(GASNETI_AMPSHM_MSG_MED_DATA(msg), source_addr, nbytes);
       break;
     case gasnetc_Long: {
       void *local_dest_addr = (void*)((uintptr_t)dest_addr
                                       - (uintptr_t)gasneti_seginfo[dest].addr
                                       + (uintptr_t)gasneti_seginfo[dest].remote_addr);
 
-      GASNETI_AMSYSV_MSG_LONG_DATA(msg) = dest_addr; 
-      GASNETI_AMSYSV_MSG_LONG_NUMBYTES(msg) = nbytes;
-      gasneti_assert( GASNETI_AMSYSV_MSG_LONG_NUMBYTES(msg) == nbytes ); /* truncation check */
+      GASNETI_AMPSHM_MSG_LONG_DATA(msg) = dest_addr; 
+      GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) = nbytes;
+      gasneti_assert( GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) == nbytes ); /* truncation check */
       /* deliver_msg call, below, contains write flush, so don't need here */
       memcpy(local_dest_addr, source_addr, nbytes);
       break;
@@ -1079,7 +1081,7 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
   if (loopback) {
     gasneti_handler_fn_t handler_fn = gasnetc_get_handler(handler); 
     gasnet_token_t token = gasnetc_token_create(gasneti_mynode, isReq);
-    gasnet_handlerarg_t *args = GASNETI_AMSYSV_MSG_ARGS(msg);
+    gasnet_handlerarg_t *args = GASNETI_AMPSHM_MSG_ARGS(msg);
     switch (category) {
       case gasnetc_Short:
         GASNETI_RUN_HANDLER_SHORT(isReq,handler,handler_fn,token,args,numargs);
@@ -1087,7 +1089,7 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
         break;
       case gasnetc_Medium:
         GASNETI_RUN_HANDLER_MEDIUM(isReq, handler, handler_fn, token, args, numargs,
-                                   GASNETI_AMSYSV_MSG_MED_DATA(msg), nbytes);
+                                   GASNETI_AMPSHM_MSG_MED_DATA(msg), nbytes);
         break;
       case gasnetc_Long:
         gasneti_local_wmb(); /* sync memcpy, above */
@@ -1099,10 +1101,10 @@ int gasnetc_AMSYSV_ReqRepGeneric(int category, int isReq, int dest,
     gasnetc_token_destroy(token);
   } else {
     
-    while (gasneti_sysvnet_deliver_send_buffer(vnet, msg, msgsz, dest)) {
+    while (gasneti_pshmnet_deliver_send_buffer(vnet, msg, msgsz, dest)) {
       /* If reply, only poll reply network: avoids deadlock  */
       if (isReq) gasnetc_AMPoll(); /* No progress functions */
-      else gasneti_AMSYSVPoll(1);
+      else gasneti_AMPSHMPoll(1);
     }
   }
   return GASNET_OK;

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.h,v $
- *     $Date: 2009/05/13 21:51:48 $
- * $Revision: 1.20.50.1 $
+ *     $Date: 2009/08/31 23:34:52 $
+ * $Revision: 1.20.50.2 $
  * Description: GASNet header for smp conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -137,7 +137,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
 
 #define gasnet_AMGetMsgSource  gasnetc_AMGetMsgSource
 
-#if GASNET_SYSV
+#if GASNET_PSHM
   #define GASNET_BLOCKUNTIL(cond) gasneti_polluntil(cond)
 #else
   #define GASNET_BLOCKUNTIL(cond) do { \

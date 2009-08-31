@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/31 01:16:18 $
- * $Revision: 1.77.22.20 $
+ *     $Date: 2009/08/31 23:34:50 $
+ * $Revision: 1.77.22.21 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -29,9 +29,9 @@ ep_t gasnetc_endpoint;
 
 gasneti_mutex_t gasnetc_AMlock = GASNETI_MUTEX_INITIALIZER; /*  protect access to AMMPI */
 
-#if GASNET_SYSV
+#if GASNET_PSHM
   gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* shadow handler table */
-#endif /* GASNET_SYSV */
+#endif /* GASNET_PSHM */
 
 #if GASNETC_HSL_ERRCHECK || GASNET_TRACE
   extern void gasnetc_enteringHandler_hook(ammpi_category_t cat, int isReq, int handlerId, void *token, 
@@ -178,8 +178,8 @@ static int gasnetc_init(int *argc, char ***argv) {
 
     gasneti_nodemapInit(&gasnetc_bootstrapExchange, NULL, 0, 0);
 
-#if GASNET_SYSV
-    gasneti_init_sysv(&gasnetc_bootstrapExchange);
+#if GASNET_PSHM
+    gasneti_init_pshm(&gasnetc_bootstrapExchange);
 #endif
  
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
@@ -260,8 +260,8 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     /* register the handler */
     if (AM_SetHandler(gasnetc_endpoint, (handler_t)newindex, table[i].fnptr) != AM_OK) 
       GASNETI_RETURN_ERRR(RESOURCE, "AM_SetHandler() failed while registering handlers");
-#if GASNET_SYSV
-    /* Register the SYSV handlers */
+#if GASNET_PSHM
+    /* Maintain a shadown handler table for AMPSHM */
     gasnetc_handler[(gasnet_handler_t)newindex] = (gasneti_handler_fn_t)table[i].fnptr;
 #endif
 
@@ -311,8 +311,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
     /* ------------------------------------------------------------------------------------ */
     /*  register handlers */
-#if GASNET_SYSV
-    /* Initialize the SYSV handler table */
+#if GASNET_PSHM
+    /* Initialize AMPSHM's shadow handler table */
     { int i;
       for (i=0; i<GASNETC_MAX_NUMHANDLERS; i++)
           gasnetc_handler[i]=(gasneti_handler_fn_t)&gasneti_defaultAMHandler;
@@ -511,8 +511,8 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
 
-#if GASNET_SYSV
-  if (gasneti_AMSYSVGetMsgSource(token, &sourceid) != GASNET_OK)
+#if GASNET_PSHM
+  if (gasneti_AMPSHMGetMsgSource(token, &sourceid) != GASNET_OK)
 #endif
   {
     GASNETI_AM_SAFE_NORETURN(retval, AMMPI_GetSourceId(token, &sourceid));
@@ -528,8 +528,8 @@ extern int gasnetc_AMPoll() {
   int retval;
   GASNETI_CHECKATTACH();
   CHECKCALLNIS();
-#if GASNET_SYSV
-  gasneti_AMSYSVPoll(0);
+#if GASNET_PSHM
+  gasneti_AMPSHMPoll(0);
 #endif
   AMLOCK();
     GASNETI_AM_SAFE_NORETURN(retval, AM_Poll(gasnetc_bundle));
@@ -553,9 +553,9 @@ extern int gasnetc_AMRequestShortM(
   CHECKCALLNIS();
   GASNETI_COMMON_AMREQUESTSHORT(dest,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_SYSV
-  if_pt (gasneti_sysv_in_supernode(dest)) {
-    retval = gasneti_AMSYSV_RequestGeneric(gasnetc_Short, 
+#if GASNET_PSHM
+  if_pt (gasneti_pshm_in_supernode(dest)) {
+    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Short, 
                                         dest, handler, 
                                         0, 0, 0,
                                         numargs, argptr); 
@@ -583,9 +583,9 @@ extern int gasnetc_AMRequestMediumM(
   CHECKCALLNIS();
   GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_SYSV
-  if_pt (gasneti_sysv_in_supernode(dest)) {
-    retval = gasneti_AMSYSV_RequestGeneric(gasnetc_Medium, 
+#if GASNET_PSHM
+  if_pt (gasneti_pshm_in_supernode(dest)) {
+    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Medium, 
                                   dest, handler, 
                                   source_addr, nbytes, 0,
                                   numargs, argptr);
@@ -615,9 +615,9 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
 
   va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_SYSV
-  if_pt (gasneti_sysv_in_supernode(dest)) {
-      retval = gasneti_AMSYSV_RequestGeneric(gasnetc_Long, 
+#if GASNET_PSHM
+  if_pt (gasneti_pshm_in_supernode(dest)) {
+      retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Long, 
                                       dest, handler, 
                                       source_addr, nbytes, dest_addr,
                                       numargs, argptr);
@@ -649,9 +649,9 @@ extern int gasnetc_AMReplyShortM(
   CHECKCALLHSL();
   GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_SYSV
-  if_pt (gasnetc_token_is_sysv(token)) {
-      retval = gasneti_AMSYSV_ReplyGeneric(gasnetc_Short, 
+#if GASNET_PSHM
+  if_pt (gasnetc_token_is_pshm(token)) {
+      retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Short, 
                                     token, handler, 
                                     0, 0, 0,
                                     numargs, argptr);
@@ -677,9 +677,9 @@ extern int gasnetc_AMReplyMediumM(
   CHECKCALLHSL();
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_SYSV
-  if_pt (gasnetc_token_is_sysv(token)) {
-       retval = gasneti_AMSYSV_ReplyGeneric(gasnetc_Medium, 
+#if GASNET_PSHM
+  if_pt (gasnetc_token_is_pshm(token)) {
+       retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Medium, 
                                      token, handler, 
                                      source_addr, nbytes, 0,
                                      numargs, argptr);
@@ -708,9 +708,9 @@ extern int gasnetc_AMReplyLongM(
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 
 
   va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_SYSV
-  if_pt (gasnetc_token_is_sysv(token)) {
-      retval = gasneti_AMSYSV_ReplyGeneric(gasnetc_Long, 
+#if GASNET_PSHM
+  if_pt (gasnetc_token_is_pshm(token)) {
+      retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Long, 
                                     token, handler, 
                                     source_addr, nbytes, dest_addr,
                                     numargs, argptr);
