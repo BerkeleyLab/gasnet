@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/08/24 01:18:53 $
- * $Revision: 1.197.8.8 $
+ *     $Date: 2009/08/31 01:51:21 $
+ * $Revision: 1.197.8.9 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -28,7 +28,6 @@
 
 /* set to non-zero for verbose error reporting */
 int gasneti_VerboseErrors = 1;
-
 
 /* ------------------------------------------------------------------------------------ */
 /* generic atomics support */

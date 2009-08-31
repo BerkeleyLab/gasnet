@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/30 06:00:45 $
- * $Revision: 1.57.6.33 $
+ *     $Date: 2009/08/31 01:51:21 $
+ * $Revision: 1.57.6.34 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -369,7 +369,7 @@ static gasnet_seginfo_t gasneti_mmap_binary_segsrch(uintptr_t lowsz, uintptr_t h
 
   si.size = GASNETI_PAGE_ALIGNDOWN((lowsz + (highsz - lowsz) / 2));
   gasneti_assert(si.size > 0);
-  
+
 #if GASNET_SYSV
   si.addr = gasneti_mmap_shared(si.size);
 #else
@@ -563,7 +563,6 @@ uintptr_t _gasneti_max_segsize(uint64_t configure_val) {
 }
 
 #if !GASNET_SEGMENT_EVERYTHING
-
 /* mmap-based segment init/attach */
 static gasnet_seginfo_t gasneti_segment = {0,0}; /* local segment info */
 static uintptr_t gasneti_myheapend = 0; /* top of my malloc heap */
@@ -808,6 +807,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
       gasneti_maxheapend = maxheapend;
       gasneti_maxbase = maxbase;
       #if GASNET_ALIGNED_SEGMENTS
+       #if !defined(PLATFORM_OS_BGP) /* BG/P would incorrectly probe the I/O node */
         if (gasneti_nodes > 1) { 
           /* bug 2067 - detect if the compute nodes are using Linux's 'intentional VM space randomization'
            * security feature, which is known to break GASNET_ALIGNED_SEGMENTS, esp at large scale
@@ -830,6 +830,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
              fclose(fp);
            }
         }   
+       #endif
         if (maxbase >= minend) { /* no overlap - maybe should be a fatal error... */
           const char *wmsg = "WARNING: unable to locate overlapping mmap segments in gasneti_segmentInit()"
             ": perhaps you need to re-configure with --disable-aligned-segments";
@@ -1004,7 +1005,6 @@ void gasneti_segmentAttachLocal(uintptr_t segsize, uintptr_t minheapoffset,
       segbase = (void *)(((uintptr_t)segbase)+GASNETI_SEGMENT_DISALIGN_BIAS);
     }
   #endif /* HAVE_MMAP */
-
   gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
   gasneti_assert(segsize % GASNET_PAGESIZE == 0);
   GASNETI_TRACE_PRINTF(C, ("Final segment: segbase="GASNETI_LADDRFMT"  segsize=%lu",
@@ -1035,7 +1035,6 @@ void gasneti_AttachRemote(uintptr_t segsize, gasnet_node_t sysv_node, uintptr_t 
   gasneti_assert(exchangefn);
   gasneti_assert(gasneti_segexch);
   gasneti_memcheck(gasneti_segexch);
-  
 
   #ifndef GASNETI_SEGMENT_DISALIGN_BIAS
     #if GASNET_DEBUG && !GASNET_ALIGNED_SEGMENTS
@@ -1120,7 +1119,6 @@ void gasneti_AttachRemote(uintptr_t segsize, gasnet_node_t sysv_node, uintptr_t 
 void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
                            gasnet_seginfo_t *seginfo,
                            gasneti_bootstrapExchangefn_t exchangefn) {
-
     int i,j;
     uintptr_t *seginfo_correction;
 
@@ -1217,7 +1215,6 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
 /* ------------------------------------------------------------------------------------ */
 /* seginfo initialization and manipulation */
 extern int gasneti_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries) {
-  
   GASNETI_CHECKATTACH();
   gasneti_memcheck(gasneti_seginfo);
   gasneti_memcheck(gasneti_seginfo_client);
@@ -1321,12 +1318,16 @@ static uintptr_t gasneti_auxseg_client_request_sz = 0;
 static int gasneti_auxseg_numfns;
 
 #if GASNET_DEBUG
+  /* spawner hint of our auxseg requirements */
+  #define GASNETI_AUXSEG_DUMMY_SZ    463
+  GASNETI_IDENT(gasneti_dummy_auxseg_IdentString, "$GASNetAuxSeg_dummy: "_STRINGIFY(GASNETI_AUXSEG_DUMMY_SZ)" $");
+
   gasneti_auxseg_request_t gasneti_auxseg_dummy(gasnet_seginfo_t *auxseg_info) {
     gasneti_auxseg_request_t retval;
     static gasnet_seginfo_t *auxseg_save = NULL;
     int i, selftest=0;
     retval.minsz = 213;
-    retval.optimalsz = 463;
+    retval.optimalsz = GASNETI_AUXSEG_DUMMY_SZ;
     if (auxseg_info == NULL) return retval; /* initial query */
     if (auxseg_info == (void*)(uintptr_t)-1) { /* self test */
       selftest = 1;
@@ -1513,7 +1514,6 @@ void gasneti_auxseg_attach() {
       #else /* place auxseg at bottom of fullseg by default, to reduce chance of client overflow damage */
         gasneti_seginfo_client[j].addr = (void *)(((uintptr_t)gasneti_seginfo[j].addr) + gasneti_auxseg_sz);
         gasneti_seginfo_client[j].size = gasneti_seginfo[j].size - gasneti_auxseg_sz;
- 
         si[j].addr = gasneti_seginfo[j].addr;
         si[j].size = gasneti_auxseg_sz;
       #endif

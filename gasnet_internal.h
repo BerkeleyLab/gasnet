@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2009/08/27 01:25:59 $
- * $Revision: 1.113.8.10 $
+ *     $Date: 2009/08/31 01:51:21 $
+ * $Revision: 1.113.8.11 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,6 +17,7 @@
 #include <gasnet.h> /* MUST come first to ensure correct inttypes behavior */
 #include <gasnet_tools.h>
 #include <gasnet_syncops.h>
+
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
