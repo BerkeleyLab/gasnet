@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/31 02:03:19 $
- * $Revision: 1.57.6.35 $
+ *     $Date: 2009/08/31 02:52:10 $
+ * $Revision: 1.57.6.36 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -357,6 +357,15 @@ extern void gasneti_munmap(void *segbase, uintptr_t segsize) {
      gasneti_ticks_to_ns(t2-t1)/1000.0) );
 }
 /* ------------------------------------------------------------------------------------ */
+
+#if GASNET_SYSV
+  #define gasneti_do_mmap       gasneti_mmap_shared
+  #define gasneti_do_mmap_fixed gasneti_mmap_shared_fixed
+#else
+  #define gasneti_do_mmap       gasneti_mmap
+  #define gasneti_do_mmap_fixed gasneti_mmap_fixed
+#endif
+
 /* binary search for segment - returns location, not mmaped */
 static gasnet_seginfo_t gasneti_mmap_binary_segsrch(uintptr_t lowsz, uintptr_t highsz) {
   gasnet_seginfo_t si;
@@ -370,11 +379,7 @@ static gasnet_seginfo_t gasneti_mmap_binary_segsrch(uintptr_t lowsz, uintptr_t h
   si.size = GASNETI_PAGE_ALIGNDOWN((lowsz + (highsz - lowsz) / 2));
   gasneti_assert(si.size > 0);
 
-#if GASNET_SYSV
-  si.addr = gasneti_mmap_shared(si.size);
-#else
-  si.addr = gasneti_mmap(si.size);
-#endif
+  si.addr = gasneti_do_mmap(si.size);
 
   if (si.addr == MAP_FAILED) 
     return gasneti_mmap_binary_segsrch(lowsz, si.size);
@@ -394,11 +399,7 @@ static gasnet_seginfo_t gasneti_mmap_lineardesc_segsrch(uintptr_t highsz) {
   si.size = highsz;
   while (si.addr == MAP_FAILED && si.size > GASNET_PAGESIZE) {
     si.size -= GASNET_PAGESIZE;
-#if GASNET_SYSV
-    si.addr = gasneti_mmap_shared(si.size);
-#else
-    si.addr = gasneti_mmap(si.size);
-#endif
+    si.addr = gasneti_do_mmap(si.size);
   }
   if (si.addr == MAP_FAILED) {
     si.addr = NULL;
@@ -411,21 +412,13 @@ static gasnet_seginfo_t gasneti_mmap_linearasc_segsrch(uintptr_t highsz) {
   gasnet_seginfo_t si;
   gasnet_seginfo_t last_si = { NULL, 0 };
   si.size = GASNET_PAGESIZE;
-#if GASNET_SYSV
-  si.addr = gasneti_mmap_shared(si.size);
-#else
-  si.addr = gasneti_mmap(si.size);
-#endif
+  si.addr = gasneti_do_mmap(si.size);
 
   while (si.addr != MAP_FAILED && si.size <= highsz) {
     last_si = si;
     gasneti_munmap(last_si.addr, last_si.size);
     si.size += GASNET_PAGESIZE;
-#if GASNET_SYSV
-    si.addr = gasneti_mmap_shared(si.size);
-#else
-    si.addr = gasneti_mmap(si.size);
-#endif
+    si.addr = gasneti_do_mmap(si.size);
   }
   if (si.addr == MAP_FAILED) return last_si;
   else {
@@ -444,11 +437,7 @@ static gasnet_seginfo_t _gasneti_mmap_segment_search_inner(uintptr_t maxsz) {
 
   gasneti_assert(maxsz == GASNETI_PAGE_ALIGNDOWN(maxsz));
 
-#if GASNET_SYSV
-  si.addr = gasneti_mmap_shared(maxsz);
-#else
-  si.addr = gasneti_mmap(maxsz);
-#endif
+  si.addr = gasneti_do_mmap(maxsz);
   if (si.addr != MAP_FAILED) { /* succeeded at max value - done */
     si.size = maxsz;
     mmaped = 1;
@@ -490,11 +479,7 @@ static gasnet_seginfo_t _gasneti_mmap_segment_search_inner(uintptr_t maxsz) {
       si.addr = (void *)begin;
       si.size = end - begin;
     }
-#if GASNET_SYSV
-    gasneti_mmap_shared_fixed(si.addr, si.size);
-#else
-    gasneti_mmap_fixed(si.addr, si.size);
-#endif
+    gasneti_do_mmap_fixed(si.addr, si.size);
   }
 
   gasneti_assert(si.addr != NULL && si.addr != MAP_FAILED && si.size > 0);
@@ -982,11 +967,7 @@ void gasneti_segmentAttachLocal(uintptr_t segsize, uintptr_t minheapoffset,
         gasneti_assert(segbase >= gasneti_segment.addr &&
                (uintptr_t)segbase + segsize <= (uintptr_t)gasneti_segment.addr + gasneti_segment.size);
         gasneti_munmap(gasneti_segment.addr, gasneti_segment.size);
-#if GASNET_SYSV
-        gasneti_mmap_shared_fixed(segbase, segsize);
-#else
-        gasneti_mmap_fixed(segbase, segsize);
-#endif
+        gasneti_do_mmap_fixed(segbase, segsize);
       }
     }
   }
@@ -1033,16 +1014,6 @@ void gasneti_AttachRemote(uintptr_t segsize, gasnet_node_t sysv_node, uintptr_t 
   gasneti_assert(exchangefn);
   gasneti_assert(gasneti_segexch);
   gasneti_memcheck(gasneti_segexch);
-
-  #ifndef GASNETI_SEGMENT_DISALIGN_BIAS
-    #if GASNET_DEBUG && !GASNET_ALIGNED_SEGMENTS
-      /* force segment disalignment for debugging purposes */
-      #define GASNETI_SEGMENT_DISALIGN_BIAS \
-            ((GASNET_PAGESIZE < 1024*1024)?(GASNET_PAGESIZE*(gasneti_mynode%2)):0)
-    #else
-      #define GASNETI_SEGMENT_DISALIGN_BIAS 0
-    #endif
-  #endif
 
     if (gasneti_nodemap_local[sysv_node] == gasneti_mynode){
       seginfo_correction[sysv_node]=0;
@@ -1206,9 +1177,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
   gasneti_sysvnet_bootstrapBarrier();
   gasneti_cleanup_shm();
 #endif /* GASNET_SYSV */
-
 } 
-
 #endif /* !GASNET_SEGMENT_EVERYTHING */
 /* ------------------------------------------------------------------------------------ */
 /* seginfo initialization and manipulation */
