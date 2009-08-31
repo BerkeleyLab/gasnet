@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/30 22:51:24 $
- * $Revision: 1.1.4.57 $
+ *     $Date: 2009/08/31 00:36:34 $
+ * $Revision: 1.1.4.58 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -190,6 +190,8 @@ gasnet_node_t gasneti_mysysvnode = (gasnet_node_t)(-1);
 
 /* TODO: Could/should we squeeze unused args out of a Medium.*/
 /* TODO: Pack category and numargs together (makes assumtion about ranges) */
+
+/* XXX: If any header or allocator structs change, retune GASNETI_MAX_MEDIUM_SYSV. */
 
 typedef struct {
   uint8_t category;      /* AM msg type: short, med, long */
