@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/08/31 01:51:21 $
- * $Revision: 1.197.8.9 $
+ *     $Date: 2009/08/31 17:45:21 $
+ * $Revision: 1.197.8.10 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -975,11 +975,12 @@ static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
  * Currently computes some local statistics:
  *   gasneti_nodemap_local_count = number of GASNet nodes collocated w/ gasneti_mynode
  *   gasneti_nodemap_local_rank  = rank of gasneti_mynode among gasneti_nodemap_local_count
+ *   gasneti_nodemap_local[]     = array (length gasneti_nodemap_local_count) of local nodes
  *
  */
 extern void gasneti_nodemapParse(void) {
   
-  gasnet_node_t i,j,q;
+  gasnet_node_t i,j,first;
 
   gasneti_assert(gasneti_nodemap);
   gasneti_assert(gasneti_nodemap[0] == 0);
@@ -1000,12 +1001,11 @@ extern void gasneti_nodemapParse(void) {
   }
   gasneti_nodemap_local = gasneti_malloc(gasneti_nodemap_local_count*sizeof(gasnet_node_t));
 
-  q=i=gasneti_nodemap[gasneti_mynode];
-  j=0;
-  for( ;j<gasneti_nodemap_local_count; i++){
-    if (gasneti_nodemap[i] == q){
-        gasneti_nodemap_local[j]=i;
-        j++;
+  /* construct array of local nodes */
+  first = gasneti_nodemap[gasneti_mynode];
+  for(i=first, j=0; j<gasneti_nodemap_local_count; i++){
+    if (gasneti_nodemap[i] == first){
+        gasneti_nodemap_local[j++] = i;
     }
   }
 
