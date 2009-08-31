@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/31 00:36:34 $
- * $Revision: 1.1.4.58 $
+ *     $Date: 2009/08/31 00:44:05 $
+ * $Revision: 1.1.4.59 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -309,7 +309,7 @@ typedef struct {
 #define GASNETI_SYSVNET_MAX_PAYLOAD \
     (GASNETI_SYSVNET_ALLOC_BLKSZ - offsetof(gasneti_sysvnet_allocator_block_t, payload.data))
 
-size_t gasneti_sysvnet_max_payload() {
+size_t gasneti_sysvnet_max_payload(void) {
   return GASNETI_SYSVNET_MAX_PAYLOAD;
 }
 
@@ -881,7 +881,7 @@ int gasneti_AMSYSV_service_incoming_msg(gasneti_sysvnet_t *vnet, int isReq)
   gasnet_node_t from;
   int category;
   int handler_id;
-  void (*handler_fn)();
+  gasneti_handler_fn_t handler_fn;
   int numargs;
   gasnet_handlerarg_t *args;
   gasnet_token_t token;

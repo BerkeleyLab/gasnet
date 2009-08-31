@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.h,v $
- *     $Date: 2009/08/30 22:51:24 $
- * $Revision: 1.1.4.32 $
+ *     $Date: 2009/08/31 00:44:05 $
+ * $Revision: 1.1.4.33 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -205,7 +205,7 @@ void gasneti_sysvnet_bootstrapExchange(gasneti_sysvnet_t *vnet, void *src,
 /* returns the maximum size payload that sysvnet can offer.  This is the
  * maximum size one can ask of gasneti_sysvnet_get_send_buffer.
  */
-size_t gasneti_sysvnet_max_payload();
+size_t gasneti_sysvnet_max_payload(void);
 
 /* Returns send buffer, into which message should be written.  Then
  * deliver_send_buffer() must be called, after which is is not safe to touch the
