@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testthreads.c,v $
- *     $Date: 2009/01/14 05:00:20 $
- * $Revision: 1.29 $
+ *     $Date: 2009/09/01 20:10:23 $
+ * $Revision: 1.29.2.1 $
  *
  * Description: GASNet threaded tester.
  *   The test initializes GASNet and forks off up to 256 threads.  Each of
@@ -16,9 +16,11 @@
 
 #if !defined(GASNET_PAR)
   #ifdef TEST_MPI
+   #ifdef GASNET_SEQ
     /* special hacks to allow testmpi-seq */
     #define TEST_SEGZ_PER_THREAD TEST_SEGSZ
     #define TEST_MAXTHREADS 1
+   #endif
   #else
     #error This test can only be built for GASNet PAR configuration
   #endif
@@ -50,8 +52,15 @@ int     verbose = 0;
 int     amtrace = 0;
 int     threadstress = 0;
 
+#if PLATFORM_COMPILER_TINY
+/* Appears unable to expand GASNETT_TRACE_SETSOURCELINE multiple times per line.
+ * The instance in MSG should be sufficient, right? */
+#define ACTION_PRINTF \
+  if (verbose) MSG
+#else
 #define ACTION_PRINTF \
   if (GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__), verbose) MSG
+#endif
 
 int	sizes[] = { 0, /* gasnet_AMMaxMedium()-1      */
                     0, /* gasnet_AMMaxMedium()        */
@@ -86,7 +95,7 @@ threaddata_t	*tt_thread_data;
 #endif
 
 void	alloc_thread_data(int threads);
-void	free_thread_data();
+void	free_thread_data(void);
 void *	threadmain(void *args);
 
 /* GASNet Test functions */
@@ -98,7 +107,7 @@ void	test_ammedium(threaddata_t *tdata);
 void	test_amlong(threaddata_t *tdata);
 #if TEST_MPI
 void init_test_mpi(int *argc, char ***argv);
-void attach_test_mpi();
+void attach_test_mpi(void);
 void mpi_barrier(threaddata_t *tdata);
 void test_mpi(threaddata_t *tdata);
 
@@ -286,8 +295,12 @@ main(int argc, char **argv)
             MSG("Forking %d gasnet threads and running %d iterations", threads_num, iters);
             test_createandjoin_pthreads(threads_num, &threadmain, tt_thread_data, sizeof(threaddata_t));
           }
-        #else /* for testmpi-seq */
+        #else /* for testmpi-seq and -parsync */
+         #ifdef GASNET_SEQ
   	  MSG("Running with 1 thread/node for GASNET_SEQ mode");
+         #else
+  	  MSG("Running with 1 thread/node for GASNET_PARSYNC mode");
+         #endif
           threadmain(tt_thread_data);
         #endif
 
@@ -379,7 +392,7 @@ alloc_thread_data(int threads)
 
 
 void
-free_thread_data()
+free_thread_data(void)
 {
 	test_free(tt_thread_map);
 	test_free(tt_addr_map);
@@ -388,8 +401,15 @@ free_thread_data()
 
 /****************************************************************/
 /* AM Handlers */
+#if PLATFORM_COMPILER_TINY
+/* Appears unable to expand GASNETT_TRACE_SETSOURCELINE multiple times per line.
+ * The instance in MSG should be sufficient, right? */
+#define PRINT_AM(x) \
+  if (amtrace) ACTION_PRINTF x
+#else
 #define PRINT_AM(x) \
   if (GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__), amtrace) ACTION_PRINTF x
+#endif
 
 void 
 ping_shorthandler(gasnet_token_t token, harg_t idx) 

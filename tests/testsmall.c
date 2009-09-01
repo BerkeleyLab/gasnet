@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testsmall.c,v $
- *     $Date: 2008/02/01 22:05:45 $
- * $Revision: 1.42 $
+ *     $Date: 2009/09/01 20:10:23 $
+ * $Revision: 1.42.14.1 $
  * Description: GASNet non-bulk get/put performance test
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet gets and puts
@@ -357,7 +357,7 @@ void oneway_nb_test(int iters, int nbytes)
     int i;
     int64_t begin, end;
     stat_struct_t st;
-    gasnet_handle_t hdlget, hdlput;
+    /*gasnet_handle_t hdlget, hdlput;*/
     gasnet_handle_t *handles;
 
 	/* initialize statistics */
@@ -425,7 +425,7 @@ int main(int argc, char **argv)
     void *alloc;
     int arg;
     int iters = 0;
-    int i, j;
+    int j;
     int firstlastmode = 0;
     int fullduplexmode = 0;
     int crossmachinemode = 0;
@@ -577,22 +577,22 @@ int main(int argc, char **argv)
         BARRIER();
 
 	if (TEST_SECTION_BEGIN_ENABLED()) 
-        for (j = min_payload; j <= max_payload; j *= 2)  roundtrip_test(iters, j); 
+        for (j = min_payload; j <= max_payload && j > 0; j *= 2)  roundtrip_test(iters, j); 
 
   	if (TEST_SECTION_BEGIN_ENABLED()) 
-        for (j = min_payload; j <= max_payload; j *= 2)  oneway_test(iters, j);
+        for (j = min_payload; j <= max_payload && j > 0; j *= 2)  oneway_test(iters, j);
 
   	if (TEST_SECTION_BEGIN_ENABLED()) 
-  	for (j = min_payload; j <= max_payload; j *= 2)  roundtrip_nbi_test(iters, j);
+  	for (j = min_payload; j <= max_payload && j > 0; j *= 2)  roundtrip_nbi_test(iters, j);
 
   	if (TEST_SECTION_BEGIN_ENABLED()) 
-  	for (j = min_payload; j <= max_payload; j *= 2)  oneway_nbi_test(iters, j);
+  	for (j = min_payload; j <= max_payload && j > 0; j *= 2)  oneway_nbi_test(iters, j);
 
   	if (TEST_SECTION_BEGIN_ENABLED()) 
-  	for (j = min_payload; j <= max_payload; j *= 2)  roundtrip_nb_test(iters, j);
+  	for (j = min_payload; j <= max_payload && j > 0; j *= 2)  roundtrip_nb_test(iters, j);
 
   	if (TEST_SECTION_BEGIN_ENABLED()) 
-  	for (j = min_payload; j <= max_payload; j *= 2)  oneway_nb_test(iters, j);
+  	for (j = min_payload; j <= max_payload && j > 0; j *= 2)  oneway_nb_test(iters, j);
 
         BARRIER();
         if (!insegment) {

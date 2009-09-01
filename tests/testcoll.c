@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcoll.c,v $
- *     $Date: 2006/08/10 07:37:26 $
- * $Revision: 1.34 $
+ *     $Date: 2009/09/01 20:10:23 $
+ * $Revision: 1.34.40.1 $
  * Description: GASNet collectives test
  * Copyright 2002-2004, Jaein Jeong and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -45,10 +45,10 @@ typedef struct {
 #define PROLOGUE(NAME) \
   GASNET_BEGIN_FUNCTION(); \
   const char name[] = NAME; \
-  int myproc = (randomize(td), td->myproc); \
+  GASNETI_UNUSED int myproc = (randomize(td), td->myproc); \
   int mythread = td->mythread; \
-  int peerthread = td->peerthread; \
-  gasnet_coll_handle_t *hndl = td->hndl
+  GASNETI_UNUSED int peerthread = td->peerthread; \
+  GASNETI_UNUSED gasnet_coll_handle_t *hndl = td->hndl
 
 static int *R;
 static int **Aw, **Bw, **Cw, **Dw, **Ew, **Fw, **Gw;

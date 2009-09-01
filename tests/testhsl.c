@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testhsl.c,v $
- *     $Date: 2006/11/26 03:10:57 $
- * $Revision: 1.20 $
+ *     $Date: 2009/09/01 20:10:23 $
+ * $Revision: 1.20.30.1 $
  * Description: GASNet HSL correctness test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -93,7 +93,9 @@ int main(int argc, char **argv) {
   if (argc < 2) test_usage();
   {
     int errtest = atoi(argv[1]);
+    GASNETI_UNUSED_UNLESS_THREADS
     gasnet_hsl_t lock1 = GASNET_HSL_INITIALIZER;
+    GASNETI_UNUSED_UNLESS_THREADS
     gasnet_hsl_t lock2;
     gasnet_hsl_init(&lock2);
 
@@ -143,6 +145,7 @@ int main(int argc, char **argv) {
     BARRIER();
 
    if (errtest) {
+    int dummy = 0;
     MSG0("testing illegal case %i...", errtest);
     switch(errtest) {
       case 1:
@@ -172,8 +175,8 @@ int main(int argc, char **argv) {
         gasnet_hsl_lock(&lock1);
       break;
       case 8:
-        gasnet_hsl_trylock(&lock1);
-        gasnet_hsl_trylock(&lock1);
+        dummy += gasnet_hsl_trylock(&lock1);
+        dummy += gasnet_hsl_trylock(&lock1);
       break;
       case 9:
         gasnet_hsl_lock(&lock1);
@@ -203,7 +206,7 @@ int main(int argc, char **argv) {
         goto done;
       break;
       case 15:
-        gasnet_hsl_trylock(&lock1);
+        dummy += gasnet_hsl_trylock(&lock1);
         sleep(2);
         gasnet_hsl_unlock(&lock1);
         goto done;

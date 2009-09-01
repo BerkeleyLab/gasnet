@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testgasnet.c,v $
- *     $Date: 2009/08/22 20:17:38 $
- * $Revision: 1.58.6.1 $
+ *     $Date: 2009/09/01 20:10:23 $
+ * $Revision: 1.58.6.2 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,6 +18,8 @@
 
 /* Define to get one big function that pushes the gcc inliner heursitics */
 #undef TESTGASNET_NO_SPLIT
+
+TEST_BACKTRACE_DECLS();
 
 void doit(int partner, int *partnerseg);
 void doit2(int partner, int *partnerseg);
@@ -143,7 +145,7 @@ void test_threadinfo(int threadid, int numthreads) {
     return NULL;
   }
 #endif
-void test_libgasnet_tools() {
+void test_libgasnet_tools(void) {
   void *p;
   TEST_TRACING_MACROS();
   #ifdef HAVE_MMAP
@@ -201,7 +203,6 @@ int main(int argc, char **argv) {
   test_init("testgasnet",0,"");
   assert(TEST_SEGSZ >= 2*sizeof(int)*NUMHANDLERS_PER_TYPE);
 
-
   TEST_PRINT_CONDUITINFO();
 
   { int smaj = GASNET_SPEC_VERSION_MAJOR;
@@ -221,6 +222,10 @@ int main(int argc, char **argv) {
     }
     printf("]\n"); fflush(stdout);
   }
+
+  TEST_BACKTRACE_INIT(argv[0]);
+  TEST_BACKTRACE();
+
   test_libgasnet_tools();
   partner = (gasnet_mynode() + 1) % gasnet_nodes();
   #if GASNET_SEGMENT_EVERYTHING
@@ -320,7 +325,6 @@ void doit3(int partner, int *partnerseg) {
 
   { /*  value test */
     GASNET_BEGIN_FUNCTION();
-    int vals[300];
     int i, success=1;
     unsigned char *partnerbase2 = (unsigned char *)(partnerseg+300);
     for (i=0; i < 100; i++) {
@@ -407,7 +411,7 @@ void doit3(int partner, int *partnerseg) {
   doit4(partner, partnerseg);
 }
 void doit4(int partner, int *partnerseg) {
-  int mynode = gasnet_mynode();
+  /* int mynode = gasnet_mynode(); UNUSED */
 #endif
 
   BARRIER();

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testtools.c,v $
- *     $Date: 2009/01/27 07:58:53 $
- * $Revision: 1.92 $
+ *     $Date: 2009/09/01 20:10:24 $
+ * $Revision: 1.92.4.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -40,6 +40,8 @@ int iters = 0;
   TEST_HEADER_PREFIX();               \
   if (TEST_SECTION_BEGIN_ENABLED() && \
       (MSG0("%c: %s",TEST_SECTION_NAME(),desc),1))
+
+TEST_BACKTRACE_DECLS();
 
 void * thread_fn(void *arg);
 
@@ -86,8 +88,19 @@ GASNETT_THREADKEY_DEFINE(partest_key2);
 } while (0)
 
 int main(int argc, char **argv) {
+  /* avoid unused function warnings */
+  uintptr_t test_dummies =
+          (uintptr_t)&test_dummy  ^
+          (uintptr_t)&test_dummy2 ^
+          (uintptr_t)&test_dummy3 ^
+          (uintptr_t)&test_dummy4 ^
+          (uintptr_t)&test_dummy5 ^
+          (uintptr_t)&test_dummies;
+
   test_init("testtools", 0,"(iters) (num_threads) (tests_to_run)");
 
+  TEST_BACKTRACE_INIT(argv[0]);
+  
   if (argc > 1) iters = atoi(argv[1]);
   if (iters < 1) iters = DEFAULT_ITERS;
   #ifdef HAVE_PTHREAD_H
@@ -611,6 +624,10 @@ int main(int argc, char **argv) {
     }
   }
 
+  TEST_HEADER("Testing client-provided backtrace code...") {  
+    TEST_BACKTRACE();
+  }
+
 #ifdef HAVE_PTHREAD_H
   MSG("Spawning pthreads...");
   { 
@@ -986,7 +1003,7 @@ void * thread_fn(void *arg) {
       uint32_t woncnt = 0;
       uint32_t share = ((unsigned)iters >= (0xffffffffU / NUM_THREADS)) ? (0xffffffffU / NUM_THREADS) : iters;
       uint32_t goal = NUM_THREADS * share;
-      uint32_t i, oldval;
+      uint32_t oldval;
 
       /* Look for missing or doubled updates by taking an equal share of increments */
       while (woncnt < share && (oldval = gasnett_atomic32_read(&counter32,0)) != goal) {

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testnbr.c,v $
- *     $Date: 2009/08/24 06:00:34 $
- * $Revision: 1.18.32.1 $
+ *     $Date: 2009/09/01 20:10:23 $
+ * $Revision: 1.18.32.2 $
  * Description: MG-like Neighbor exchange
  * Copyright 2005, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -250,7 +250,7 @@ void _update_stat(stat_struct_t *st, uint64_t temptime, int iters)
 
 void _print_stat(nbr_t *nb, int myproc, stat_struct_t *st, const char *name)
 {
-	int	i,j,c;
+	int	i,c;
 	float	cattimes[4] = { 0.0 };
 	int	catcount[4] = { 0 };
 	double	stdev[4];
@@ -361,8 +361,6 @@ main(int argc, char **argv)
     int axis;
     int argn = 1;
     int help = 0;
-    void *myseg;
-    void *alloc;
 
     /* call startup */
     GASNET_Safe(gasnet_init(&argc, &argv));
@@ -829,7 +827,7 @@ ge_unpack(nbr_t *nb, double *src, size_t destp, int axis)
 void 
 ghostExchUPCMGOrig(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
 {
-    int i, j, axis, dest;
+    int i, j, axis;
     int axis_tot;
 
     uint64_t	    begin, end;
@@ -890,13 +888,13 @@ ghostExchUPCMGOrig(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
 void 
 ghostExchUPCMG(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
 {
-    int i, j, axis, dest;
+    int i, j, axis;
     int axis_tot;
 
     uint64_t	    begin, end;
     stat_struct_t   stcomm3;
     int		    axes[3];
-    gasnet_handle_t hput1, hput2, hnotify_up, hnotify_down;
+    gasnet_handle_t hput1, hput2;
 
     if (axis_in == AALL) {
 	axes[0] = 0; axes[1] = 1; axes[2] = 2;
@@ -958,15 +956,13 @@ ghostExchUPCMG(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
 void 
 ghostExchGASNetNonBlock(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
 {
-    unsigned int i, j, axis, dest, face;
+    unsigned int i, j, axis, face;
     volatile int *syncflag;
 
     uint64_t	    begin, end;
     stat_struct_t   stcomm3;
     gasnet_handle_t hput[2];
     gasnet_handle_t sput[6];
-    int		    *syncaddr;
-    int		    phase = 1;
 
     int	    axes[3];
     int	    axis_tot;
@@ -1156,9 +1152,7 @@ pairwise_wait_nbrs(nbr_t *nb, gasnet_handle_t *h_nbr, int axis_in, int phase)
 void
 ghostExchAMLong(nbr_t *nb, int iters, int axis_in)
 {
-    int i, j, axis, dest, axis_tot;
-    int ghostexchUpper[3];
-    int ghostexchLower[3];
+    int i, j, axis, axis_tot;
     long maxmsg = 0;
 
     int	axes[3];

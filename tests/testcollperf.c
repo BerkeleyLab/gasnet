@@ -254,7 +254,7 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
     COLL_BARRIER();
     for(i=0; i<inner_verification_iters; i++) {
       for(j=0; j<nelem; j++) {
-        src[i*nelem+j] != 42+i*THREADS*nelem+td->mythread*nelem;
+        src[i*nelem+j] = 42+i*THREADS*nelem+td->mythread*nelem+j;
       }
     }
     for(i=0; i<nelem*inner_verification_iters*THREADS; i++) {
@@ -504,7 +504,7 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
     COLL_BARRIER();
     for(i=0; i<inner_verification_iters; i++) {
       for(j=0; j<nelem; j++) {
-        mysrc[i*nelem+j] != 42+i*THREADS*nelem+td->mythread*nelem;
+        mysrc[i*nelem+j] = 42+i*THREADS*nelem+td->mythread*nelem+j;
       }
     }
     for(i=0; i<nelem*inner_verification_iters*THREADS; i++) {
@@ -595,10 +595,11 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
 void *thread_main(void *arg) {
   thread_data_t *td = (thread_data_t*) arg;
   size_t size;
-  int i,flag_iter;
+  int flag_iter;
   gasnet_node_t root_thread = 0;
   int skip_msg_printed = 0;
 #if GASNET_PAR
+  int i;
   gasnet_image_t *imagearray = test_malloc(nodes * sizeof(gasnet_image_t));
   for (i=0; i<nodes; ++i) { imagearray[i] = threads_per_node; }
   gasnet_coll_init(imagearray, td->mythread, NULL, 0, 0);

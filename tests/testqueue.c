@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testqueue.c,v $
- *     $Date: 2006/10/18 02:43:13 $
- * $Revision: 1.12 $
+ *     $Date: 2009/09/01 20:10:23 $
+ * $Revision: 1.12.30.1 $
  * Description: GASNet put/get injection performance test
  *   measures the average non-blocking put/get injection time 
  *   for increasing number of back-to-back operations
@@ -69,10 +69,10 @@ int numsync = 0;
 int do_bulk = 0, do_nonbulk = 0;
 int do_implicit = 0, do_explicit = 0, do_blocking = 0;
 
-void do_bulkputgets();
-void do_nonbulkputgets();
-void do_blockingputgets();
-void do_amtests();
+void do_bulkputgets(void);
+void do_nonbulkputgets(void);
+void do_blockingputgets(void);
+void do_amtests(void);
 
 int main(int argc, char **argv) {
     /* call startup */
@@ -281,10 +281,12 @@ int main(int argc, char **argv) {
       for (payload = min_payload; payload <= last_payload; payload *= 2) {  \
         char row[1024];                                                     \
         char *prow = row;                                                   \
+        if (payload < 0) break; /* Overflow */                              \
         sprintf(prow, "%-8i", payload); prow += strlen(prow);               \
         if (!multisender) { printf("%s",row); fflush(stdout); prow = row; } \
         depth = 1;                                                          \
         if (iamsender) { /* Prime i-cache, free-lists, firehose, etc. */    \
+          GASNETI_UNUSED /* 'i' not used in all expansions of QUEUE_TEST */ \
           int i = 0;                                                        \
           OP;                                                               \
           { SYNC; }                                                         \
@@ -317,7 +319,10 @@ int main(int argc, char **argv) {
             }                                                               \
             { double avgus = gasnett_ticks_to_ns(total) / 1000.0 /          \
                              (double)iters / (double)depth;                 \
+              /* '{min,max}us' not used in all expansions of QUEUE_TEST */  \
+              GASNETI_UNUSED                                                \
               double minus = gasnett_ticks_to_ns(min) / 1000.0 / (double)depth; \
+              GASNETI_UNUSED                                                \
               double maxus = gasnett_ticks_to_ns(max) / 1000.0 / (double)depth; \
               int prec;                                                     \
               if (avgus < 1000.0) prec = 3;                                 \
@@ -344,7 +349,7 @@ int main(int argc, char **argv) {
       }                                                                     \
     } while (0)
 
-void do_bulkputgets() {
+void do_bulkputgets(void) {
     if (do_puts && do_bulk && do_explicit) {
       QUEUE_TEST("gasnet_put_nb_bulk", 
                  handles[i] = gasnet_put_nb_bulk(peerproc, tgtmem, msgbuf, payload), 
@@ -369,7 +374,7 @@ void do_bulkputgets() {
                  gasnet_wait_syncnbi_all(), (void)0, 0);
     }
 }
-void do_nonbulkputgets() {
+void do_nonbulkputgets(void) {
     if (do_puts && do_nonbulk && do_explicit) {
       QUEUE_TEST("gasnet_put_nb", 
                  handles[i] = gasnet_put_nb(peerproc, tgtmem, msgbuf, payload), 
@@ -394,7 +399,7 @@ void do_nonbulkputgets() {
                  gasnet_wait_syncnbi_all(), (void)0, 0);
     }
 }
-void do_blockingputgets() {
+void do_blockingputgets(void) {
     if (do_puts && do_nonbulk && do_blocking) {
       QUEUE_TEST("gasnet_put (BLOCKING - represents round-trip latency)", 
                  gasnet_put(peerproc, tgtmem, msgbuf, payload), 
@@ -419,7 +424,7 @@ void do_blockingputgets() {
                  (void)0, (void)0, 0);
     }
 }
-void do_amtests() {
+void do_amtests(void) {
     if (do_amshort) {
       gasnett_atomic_set(&amcount, 0, 0);
       QUEUE_TEST("gasnet_AMRequestShort0", 
