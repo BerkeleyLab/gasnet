@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2009/09/01 20:46:34 $
-# $Revision: 1.519.2.12 $
+#     $Date: 2009/09/01 22:33:26 $
+# $Revision: 1.519.2.13 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.519.2.12 $)
+AC_REVISION($Revision: 1.519.2.13 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1121,7 +1121,7 @@ if test "$enabled_pshm" = yes; then
     if test "$cross_compiling" = "yes" ; then
       # To the best of my knowledge CNL, Catamount, BG/L and BG/P all lack
       # working shm_open() support, though at least CNL finds the symbol.
-      # So, we assume NO shm_open() when cross-compiling.
+      # So, we assume NO shm_open() when cross-compiling. -PHH
       # We can add exceptions or CROSS_* should the need arise.
       have_shm_open=no
     else
@@ -1133,9 +1133,8 @@ if test "$enabled_pshm" = yes; then
         #include <fcntl.h>
         #include <stdlib.h>
         #define SHM_NAME "/GASNETconftst"
-        #define SIZE (1024*1024)
         int main(void) {
-          int size = 1024 * 1024; /* Should be a multiple of PAGESIZE */
+          int size = GASNETI_PAGESIZE;
           int fd;
           void * addr;
 
