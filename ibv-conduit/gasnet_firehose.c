@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_firehose.c,v $
- *     $Date: 2007/03/08 00:43:11 $
- * $Revision: 1.15 $
+ *     $Date: 2009/09/01 20:47:22 $
+ * $Revision: 1.15.28.1 $
  * Description: Client-specific firehose code
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -214,7 +214,7 @@ firehose_move_callback(gasnet_node_t node,
     
       GASNETC_FOR_ALL_HCA_INDEX(h) {
         client->handle[h] = ibv_reg_mr(gasnetc_hca[h].pd, (void*)(uintptr_t)region->addr, region->len, access);
-	if_pf (client->handle[h] == NULL) gasneti_fatalerror("ibv_reg_mr failed");
+	if_pf (client->handle[h] == NULL) gasneti_fatalerror("ibv_reg_mr failed in firehose_move_callback");
     
 	client->lkey[h]     = client->handle[h]->lkey;
 	client->rkey[h]     = client->handle[h]->rkey;
