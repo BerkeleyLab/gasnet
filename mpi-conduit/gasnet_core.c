@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/01 20:46:51 $
- * $Revision: 1.77.22.23 $
+ *     $Date: 2009/09/01 21:48:00 $
+ * $Revision: 1.77.22.24 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -511,7 +511,7 @@ extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
 */
 extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
   int retval;
-  int sourceid;
+  gasnet_node_t sourceid;
   GASNETI_CHECKATTACH();
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
@@ -520,11 +520,14 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   if (gasneti_AMPSHMGetMsgSource(token, &sourceid) != GASNET_OK)
 #endif
   {
-    GASNETI_AM_SAFE_NORETURN(retval, AMMPI_GetSourceId(token, &sourceid));
+    int tmp; /* AMMPI wants an int, but gasnet_node_t is uint32_t */
+    GASNETI_AM_SAFE_NORETURN(retval, AMMPI_GetSourceId(token, &tmp));
     if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
+    gasneti_assert(tmp >= 0);
+    sourceid = tmp;
   }
 
-    gasneti_assert(sourceid >= 0 && sourceid < gasneti_nodes);
+    gasneti_assert(sourceid < gasneti_nodes);
     *srcindex = sourceid;
     return GASNET_OK;
 }
