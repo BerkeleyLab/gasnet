@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/09/01 02:57:49 $
- * $Revision: 1.1.4.63 $
+ *     $Date: 2009/09/01 03:15:22 $
+ * $Revision: 1.1.4.64 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -38,7 +38,7 @@ static uintptr_t gasneti_pshmnet_queue_mem = 0;
 
 static void *gasnetc_pshmnet_region = NULL;
 
-struct gasneti_pshm_info {
+static struct gasneti_pshm_info {
     gasneti_atomic_t    bootstrap_barrier;
     pid_t               pids[GASNETI_PSHM_MAX_NODES];
 } *gasneti_pshm_info = NULL;
