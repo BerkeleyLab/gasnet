@@ -1,12 +1,15 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.23 $
+$Revision: 1.23.6.1 $
 
 ----------------------------------------------------------------------
 ??-??-2009 : Release 1.14
 
 * CrayXT/Portals:
   - Support extended to PE 2.1.42 and newer
+
+* shmem-conduit
+  - Ported to IRIX (developed/tested on an Origin 2000)
 
 ----------------------------------------------------------------------
 11-03-2008 : Release 1.12
