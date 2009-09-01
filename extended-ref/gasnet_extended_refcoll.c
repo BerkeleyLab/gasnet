@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/08/31 18:09:55 $
- * $Revision: 1.72.10.48 $
+ *     $Date: 2009/09/01 17:31:10 $
+ * $Revision: 1.72.10.49 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -597,8 +597,10 @@ gasnet_coll_handle_t gasnete_coll_threads_get_handle(GASNETE_THREAD_FARG_ALONE) 
   gasneti_mutex_lock(&gasnete_coll_active_lock);
   /*can't be the first thread for this op*/
 #if !ALL_THREADS_POLL && GASNET_PAR
-  int first_thread=gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE);
-  gasneti_assert(first_thread==0);
+  {
+    int first_thread=gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE);
+    gasneti_assert(first_thread==0);
+  }
 #endif
 
   op = gasnete_coll_threads_get_op(GASNETE_THREAD_PASS_ALONE);
@@ -1228,9 +1230,8 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
                                           (tune_barriers==1 ? 0 : SMP_COLL_SKIP_TUNE_BARRIERS), 
                                           1, 0);
     }
-
   }
-  
+
   if(td->my_local_image == 0) gasnete_coll_init_done = 1;
   
   /* Only thread-local initialization may follow this point */

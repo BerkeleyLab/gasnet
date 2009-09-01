@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_coll_fwd.h,v $
- *     $Date: 2009/08/03 23:23:59 $
- * $Revision: 1.1.4.3 $
+ *     $Date: 2009/09/01 17:31:13 $
+ * $Revision: 1.1.4.4 $
  * Description: GASNet Collectives Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -61,7 +61,7 @@
 
 #if GASNETE_COLL_CONDUIT_COLLECTIVES
 #define GASNETE_COLL_CONDUIT_TUNING_PARAMETERS GASNETE_COLL_SMP_COLL_TREE_RADIX
-#define GASNETE_COLL_CONDUIT_BROADCASTM_OPS GASNETE_COLL_BROADCAST_SMP_FLAT, GASNETE_COLL_BROADCAST_SMP_TREE_INTFLAGS
+#define GASNETE_COLL_CONDUIT_BROADCASTM_OPS GASNETE_COLL_BROADCAST_SMP_FLAT_GET, GASNETE_COLL_BROADCAST_SMP_FLAT_PUT, GASNETE_COLL_BROADCAST_SMP_TREE_INTFLAGS
 #endif
 
 #endif

@@ -154,6 +154,11 @@ typedef struct gasnete_coll_allgorithm_t_ {
    for those flags*/
   uint32_t requirements;
   
+  /*A list of flags (if present) the algorithm will not work for
+    (a good example is GASNETE_COLL_THREAD_LOCAL)
+   */
+  uint32_t n_requirements;
+  
   /*the maximum number of bytes as an argument that this algorithm can handle*/
   /*probably will be based on maximum AM lengths or lenghts of largest transfers*/
   /* a size of 0 indicates that it will work for all sizes*/
@@ -238,6 +243,7 @@ gasnete_coll_algorithm_t gasnete_coll_autotune_register_algorithm(gasnet_team_ha
                                                                   gasnet_coll_optype_t optype, 
                                                                   uint32_t syncflags,
                                                                   uint32_t requirements,
+                                                                  uint32_t n_requirements,
                                                                   size_t max_size, size_t min_size,
                                                                   uint32_t tree_alg,
                                                                   uint32_t num_params,
