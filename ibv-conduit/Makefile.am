@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/Makefile.am,v $
-#     $Date: 2009/08/27 00:34:50 $
-# $Revision: 1.7.16.2 $
+#     $Date: 2009/09/01 19:59:13 $
+# $Revision: 1.7.16.3 $
 # Description: Makefile for GASNet ibv conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -95,6 +95,9 @@ CONDUIT_SPECIAL_OBJS = $(mpi_special_objs) $(fh_special_objs)
 #   %P = program executable name
 #   %N = requested node count
 #   %A = program arguments
+#   %Q = program arguments w/ an extra level of quotes
+#   %D = the current working directory 
+#   %H = hostfile (if any)
 CONDUIT_RUNCMD = @TOP_BUILDDIR@/ibv-conduit/contrib/gasnetrun_ibv -np %N %P %A
 
 # conduit-specific tests in ../tests directory

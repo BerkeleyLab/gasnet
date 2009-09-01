@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/Makefile.am,v $
-#     $Date: 2009/08/28 04:29:08 $
-# $Revision: 1.34.30.6 $
+#     $Date: 2009/09/01 19:59:17 $
+# $Revision: 1.34.30.7 $
 # Description: Makefile for GASNet mpi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -53,6 +53,9 @@ CONDUIT_SPECIAL_OBJS =
 #   %P = program executable name
 #   %N = requested node count
 #   %A = program arguments
+#   %Q = program arguments w/ an extra level of quotes
+#   %D = the current working directory 
+#   %H = hostfile (if any)
 CONDUIT_RUNCMD = @TOP_BUILDDIR@/mpi-conduit/contrib/gasnetrun_mpi -np %N %P %A
 
 # conduit-specific tests in ../tests directory

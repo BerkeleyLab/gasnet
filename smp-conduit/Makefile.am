@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/Makefile.am,v $
-#     $Date: 2009/08/31 23:44:51 $
-# $Revision: 1.21.30.7 $
+#     $Date: 2009/09/01 19:59:25 $
+# $Revision: 1.21.30.8 $
 # Description: Makefile for GASNet smp conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -50,6 +50,9 @@ CONDUIT_SPECIAL_OBJS =
 #   %P = program executable name
 #   %N = requested node count
 #   %A = program arguments
+#   %Q = program arguments w/ an extra level of quotes
+#   %D = the current working directory 
+#   %H = hostfile (if any)
 if USE_PSHM
 CONDUIT_RUNCMD = env GASNET_PSHM_NODES=%N %P %A
 else

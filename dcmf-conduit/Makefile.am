@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/Makefile.am,v $
-#     $Date: 2008/10/28 05:43:39 $
-# $Revision: 1.2 $
+#     $Date: 2009/09/01 19:59:07 $
+# $Revision: 1.2.12.1 $
 # Description: Makefile for GASNet dcmf conduit
 # Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
 #                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -58,6 +58,9 @@ CONDUIT_SPECIAL_OBJS =
 #   %P = program executable name
 #   %N = requested node count
 #   %A = program arguments
+#   %Q = program arguments w/ an extra level of quotes
+#   %D = the current working directory 
+#   %H = hostfile (if any)
 CONDUIT_RUNCMD = @TOP_BUILDDIR@/dcmf-conduit/contrib/gasnetrun_dcmf -np %N %P %A
 
 # conduit-specific tests in ../tests directory
