@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/08/31 23:34:40 $
- * $Revision: 1.1.4.61 $
+ *     $Date: 2009/09/01 01:12:04 $
+ * $Revision: 1.1.4.62 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -48,7 +48,7 @@ static gasneti_atomic_t *gasneti_barrier_counter = NULL;
 void gasneti_init_pshm(gasneti_bootstrapExchangefn_t exchangefn) {
   size_t vnetsz, mmapsz;
 
-#if GASNET_CONDUIT_SMP_PSHM || GASNET_CONDUIT_SMP
+#if GASNET_CONDUIT_SMP
   gasneti_pshmnodes = gasneti_nodemap_local_count;
   gasneti_firstpshmnode = gasneti_nodemap[gasneti_mynode];
   gasneti_mypshmnode = gasneti_nodemap_local_rank;
