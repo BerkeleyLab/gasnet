@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/31 23:34:52 $
- * $Revision: 1.48.4.24 $
+ *     $Date: 2009/09/01 02:57:51 $
+ * $Revision: 1.48.4.25 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -25,8 +25,6 @@ static void gasnetc_atexit(void);
 #endif
 
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
-
-#define GASNETC_MAX_PSHM_NODES 256
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -84,9 +82,9 @@ static int gasnetc_get_pshm_nodecount()
   gasnet_node_t nodes = gasneti_getenv_int_withdefault("GASNET_PSHM_NODES", 0, 0);
   int polite_wait, politedefault;
 
-  if (nodes > GASNETC_MAX_PSHM_NODES) { 
+  if (nodes > GASNETI_PSHM_MAX_NODES) { 
     gasneti_fatalerror("Nodes requested (%d) > maximum (%d)", nodes,
-                       GASNETC_MAX_PSHM_NODES);
+                       GASNETI_PSHM_MAX_NODES);
   } else if (nodes == 0) {
     fprintf(stderr, "Warning: GASNET_PSHM_NODES not specified: running with 1 node\n");
     nodes = 1;

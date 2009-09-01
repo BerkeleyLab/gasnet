@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/09/01 01:12:04 $
- * $Revision: 1.1.4.62 $
+ *     $Date: 2009/09/01 02:57:49 $
+ * $Revision: 1.1.4.63 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -37,7 +37,11 @@ static int gasneti_pshmnet_queue_depth = 0;
 static uintptr_t gasneti_pshmnet_queue_mem = 0;
 
 static void *gasnetc_pshmnet_region = NULL;
-static gasneti_atomic_t *gasneti_barrier_counter = NULL;
+
+struct gasneti_pshm_info {
+    gasneti_atomic_t    bootstrap_barrier;
+    pid_t               pids[GASNETI_PSHM_MAX_NODES];
+} *gasneti_pshm_info = NULL;
 
 #define round_up_to_pshmpage(size_or_addr)               \
         GASNETI_ALIGNUP(size_or_addr, GASNETI_PSHMNET_PAGESIZE)
@@ -47,6 +51,7 @@ static gasneti_atomic_t *gasneti_barrier_counter = NULL;
 
 void gasneti_init_pshm(gasneti_bootstrapExchangefn_t exchangefn) {
   size_t vnetsz, mmapsz;
+  gasnet_node_t i;
 
 #if GASNET_CONDUIT_SMP
   gasneti_pshmnodes = gasneti_nodemap_local_count;
@@ -123,7 +128,7 @@ void gasneti_init_pshm(gasneti_bootstrapExchangefn_t exchangefn) {
   /* setup vnet shared memory region for AM infrastructure and supernode barrier.
    */
   vnetsz = gasneti_pshmnet_memory_needed(gasneti_pshmnodes); 
-  mmapsz = (2*vnetsz) + GASNETI_PSHMNET_PAGESIZE; /* Extra page is for the bootstrapBarrier */
+  mmapsz = (2*vnetsz) + round_up_to_pshmpage(sizeof(struct gasneti_pshm_info));
   gasnetc_pshmnet_region = gasneti_mmap_vnet(mmapsz);
   if (gasnetc_pshmnet_region == NULL) {
     gasneti_unlink_vnet();
@@ -131,11 +136,23 @@ void gasneti_init_pshm(gasneti_bootstrapExchangefn_t exchangefn) {
                        (unsigned long)mmapsz);
   }
   
-  /* Prepare the barrier */
-  gasneti_barrier_counter = (gasneti_atomic_t *)((uintptr_t)gasnetc_pshmnet_region + 2*vnetsz);
+  /* Prepare the shared info struct (including barrier) */
+  gasneti_pshm_info = (struct gasneti_pshm_info *)((uintptr_t)gasnetc_pshmnet_region + 2*vnetsz);
+  if (gasneti_mypshmnode != 0) {
+    /* For a few architectures we cannot assume that the pre-zeroed memory we
+     * receive will correspond to an atomic counter of value zero. */
+    gasneti_atomic_set(&gasneti_pshm_info->bootstrap_barrier, 0, 0);
+  }
+  gasneti_pshm_info->pids[gasneti_mypshmnode] = getpid();
+  gasneti_local_wmb();
 
-  /* Unlink the shared memory file to prevent leaks */
-  gasneti_pshmnet_bootstrapBarrier();
+  /* "Silly" barrier which protects initialization of the real barrier counter. */
+  for (i=0; i < gasneti_pshmnodes; ++i) {
+    gasneti_waituntil(gasneti_pshm_info->pids[i] != 0);
+  }
+
+  /* Unlink the shared memory file to prevent leaks.
+   * "Silly" barrier above ensures all procs have attached. */
   gasneti_unlink_vnet();
 
   /* Collective call to initialize Shared AM "networks" */
@@ -708,15 +725,15 @@ void gasneti_pshmnet_bootstrapBarrier(void)
 {
   gasneti_atomic_val_t curr, target;
 
-  gasneti_assert(gasneti_barrier_counter != NULL);
+  gasneti_assert(gasneti_pshm_info != NULL);
   gasneti_assert(gasneti_pshmnodes > 0);
 
-  curr = gasneti_atomic_read(gasneti_barrier_counter, 0);
+  curr = gasneti_atomic_read(&gasneti_pshm_info->bootstrap_barrier, 0);
   target = gasneti_pshmnodes + curr - (curr % gasneti_pshmnodes);
   gasneti_assert_always(target > curr); /* Die if we were ever to wrap */
 
-  gasneti_atomic_increment(gasneti_barrier_counter, GASNETI_ATOMIC_REL);
-  gasneti_waitwhile(gasneti_atomic_read(gasneti_barrier_counter, 0) < target);
+  gasneti_atomic_increment(&gasneti_pshm_info->bootstrap_barrier, GASNETI_ATOMIC_REL);
+  gasneti_waitwhile(gasneti_atomic_read(&gasneti_pshm_info->bootstrap_barrier, 0) < target);
 }
 
 /******************************************************************************

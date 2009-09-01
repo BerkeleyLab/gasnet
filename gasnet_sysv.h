@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.h,v $
- *     $Date: 2009/08/31 23:34:40 $
- * $Revision: 1.1.4.34 $
+ *     $Date: 2009/09/01 02:57:49 $
+ * $Revision: 1.1.4.35 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -24,6 +24,9 @@
 #else
   #define GASNETI_PSHMNET_PAGESIZE GASNET_PAGESIZE
 #endif
+
+/* Max number of processes supported per node */
+#define GASNETI_PSHM_MAX_NODES 256
 
 /* In gasnet_mmap.c */
 #define GASNETI_PSHM_UNIQUE_LEN 6
