@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.h,v $
- *     $Date: 2009/09/01 10:44:02 $
- * $Revision: 1.1.4.37 $
+ *     $Date: 2009/09/01 23:22:26 $
+ * $Revision: 1.1.4.38 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -262,7 +262,7 @@ extern int gasneti_AMPSHMPoll(int repliesOnly);
 
 /* Don't call this function directly: internal pshm function */
 int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, int dest,
-                                 gasnet_handler_t handler, void *source_addr, int nbytes, 
+                                 gasnet_handler_t handler, void *source_addr, size_t nbytes, 
                                  void *dest_addr, int numargs, va_list argptr);
 
 /* Generic AM handler for PSHMnet.
@@ -270,7 +270,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, int dest,
  * gasneti_pshm_in_supernode(dest) is nonzero */ 
 GASNETI_INLINE(gasneti_AMPSHM_RequestGeneric)
 int gasneti_AMPSHM_RequestGeneric(int category, int dest, 
-                                  gasnet_handler_t handler, void *source_addr, int nbytes,
+                                  gasnet_handler_t handler, void *source_addr, size_t nbytes,
                                   void *dest_addr, int numargs, va_list argptr) 
 {
   gasneti_assert(gasneti_pshm_in_supernode(dest));
@@ -283,9 +283,9 @@ int gasneti_AMPSHM_RequestGeneric(int category, int dest,
  * gasneti_pshm_in_supernode(dest) or gasnetc_token_is_pshm(token) is nonzero */ 
 GASNETI_INLINE(gasneti_AMPSHM_ReplyGeneric)
 int gasneti_AMPSHM_ReplyGeneric(int category, gasnet_token_t token, 
-                                       gasnet_handler_t handler, void *source_addr, 
-                                       int nbytes, void *dest_addr, int numargs, 
-                                       va_list argptr) 
+                                gasnet_handler_t handler, void *source_addr, 
+                                size_t nbytes, void *dest_addr, int numargs, 
+                                va_list argptr) 
 {
   int retval;
   gasnet_node_t sourceid;

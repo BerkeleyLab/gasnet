@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/09/01 11:37:58 $
- * $Revision: 1.1.4.68 $
+ *     $Date: 2009/09/01 23:22:26 $
+ * $Revision: 1.1.4.69 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -625,7 +625,7 @@ void * gasneti_pshmnet_get_send_buffer(gasneti_pshmnet_t *vnet, size_t nbytes,
   
   gasneti_assert(nbytes <= GASNETI_PSHMNET_MAX_PAYLOAD);
 
-  p = gasneti_pshmnet_alloc(vnet->my_allocator, sizeof(gasneti_pshmnet_payload_t));
+  p = gasneti_pshmnet_alloc(vnet->my_allocator, nbytes);
   if (p != NULL) {
     p->msg = NULL;
     p->allocator = vnet->my_allocator;
@@ -905,7 +905,7 @@ static void * gasneti_pshmnet_alloc(gasneti_pshmnet_allocator_t *a, size_t nbyte
   void *retval = NULL;
   gasneti_pshmnet_allocator_block_t *first, *curr;
 
-  gasneti_assert(nbytes <= sizeof(gasneti_pshmnet_payload_t));
+  gasneti_assert(nbytes <= GASNETI_PSHMNET_MAX_PAYLOAD);
 
   gasneti_mutex_lock(&a->next_lock);
   /* Since the blocks we allocate may go to different peers with
@@ -1051,32 +1051,17 @@ int gasneti_AMPSHMPoll(int repliesOnly)
 static gasneti_lifo_head_t loopback_freepool = GASNETI_LIFO_INITIALIZER;
 
 int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, int dest,
-                                 gasnet_handler_t handler, void *source_addr, int nbytes, 
+                                 gasnet_handler_t handler, void *source_addr, size_t nbytes, 
                                  void *dest_addr, int numargs, va_list argptr) 
 {
   gasneti_pshmnet_t *vnet = (isReq ? gasneti_request_pshmnet : gasneti_reply_pshmnet);
-  int msgsz, i;
+  size_t msgsz = 0;
+  int i;
   void *msg;
   gasnet_handlerarg_t *pargs;
   int loopback = (dest == gasneti_mynode);
 
   gasneti_assert(vnet != NULL);
-
-  /* calculate size of buffer needed */
-  switch (category) {
-    case gasnetc_Short:
-      msgsz = sizeof(gasneti_AMPSHM_shortmsg_t);
-      break;
-    case gasnetc_Medium:
-      msgsz = sizeof(gasneti_AMPSHM_medmsg_t);
-      break;
-    case gasnetc_Long:
-      msgsz = sizeof(gasneti_AMPSHM_longmsg_t);
-      break;
-    default:
-      gasneti_fatalerror("internal error: unknown msg category");
-  }
-  gasneti_assert(msgsz <= GASNETI_PSHMNET_MAX_PAYLOAD); 
 
   if (loopback) {
     msg = gasneti_lifo_pop(&loopback_freepool);
@@ -1088,6 +1073,22 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, int dest,
       msg = (void*)((uintptr_t)tmp + (offset ? (8-offset) : 0));
     }
   } else {
+    /* calculate size of buffer needed */
+    switch (category) {
+      case gasnetc_Short:
+        msgsz = sizeof(gasneti_AMPSHM_shortmsg_t);
+        break;
+      case gasnetc_Medium:
+        msgsz = sizeof(gasneti_AMPSHM_medmsg_t) - (GASNETC_MAX_MEDIUM_PSHM - nbytes);
+        break;
+      case gasnetc_Long:
+        msgsz = sizeof(gasneti_AMPSHM_longmsg_t);
+        break;
+      default:
+        gasneti_fatalerror("internal error: unknown msg category");
+    }
+    gasneti_assert(msgsz <= sizeof(gasneti_AMPSHM_maxmsg_t)); 
+
     /* Get buffer, poll if busy */
     while (!(msg = gasneti_pshmnet_get_send_buffer(vnet, msgsz, dest))) {
       /* If reply, only poll reply network: avoids deadlock  */
