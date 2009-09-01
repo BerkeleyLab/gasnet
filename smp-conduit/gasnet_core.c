@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/01 10:44:06 $
- * $Revision: 1.48.4.27 $
+ *     $Date: 2009/09/01 11:36:21 $
+ * $Revision: 1.48.4.28 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -432,6 +432,10 @@ static void gasnetc_atexit(void) {
 }
 
 extern void gasnetc_exit(int exitcode) {
+#if GASNET_PSHM
+  int need_signal;
+#endif
+
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   gasneti_reghandler(SIGQUIT, SIG_IGN);
 
@@ -442,6 +446,10 @@ extern void gasnetc_exit(int exitcode) {
 
   GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
+#if GASNET_PSHM
+  need_signal = gasneti_pshm_exit_barrier(gasnetc_exittimeout * 1e6);
+#endif
+
   gasneti_flush_streams();
   gasneti_trace_finish();
   gasneti_sched_yield();
@@ -451,7 +459,7 @@ extern void gasnetc_exit(int exitcode) {
            after raising a SIGQUIT to inform the client of the exit
   */
 #if GASNET_PSHM
-  if (gasneti_pshm_exit_barrier(gasnetc_exittimeout * 1e6)) {
+  if (need_signal) {
     /* TODO: Send a non-fatal signal to initiate exit w/o the SIGTERM message? */
     gasneti_pshm_signal(SIGTERM);
   }
