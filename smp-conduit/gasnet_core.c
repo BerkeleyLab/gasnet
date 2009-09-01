@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/01 11:36:21 $
- * $Revision: 1.48.4.28 $
+ *     $Date: 2009/09/01 19:09:15 $
+ * $Revision: 1.48.4.29 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -226,10 +226,12 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
 
+#if GASNET_PSHM
   gasnetc_exittimeout = gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
                                                 GASNETC_DEFAULT_EXITTIMEOUT_MIN,
                                                 GASNETC_DEFAULT_EXITTIMEOUT_FACTOR,
                                                 GASNETC_DEFAULT_EXITTIMEOUT_MIN);
+#endif
 
   return GASNET_OK;
 }
