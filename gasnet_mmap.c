@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/08/31 23:34:40 $
- * $Revision: 1.57.6.38 $
+ *     $Date: 2009/09/01 00:56:19 $
+ * $Revision: 1.57.6.39 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1477,7 +1477,17 @@ void gasneti_auxseg_attach() {
       #if GASNET_PSHM
         gasneti_seginfo_client[j].remote_addr = (void *)(((uintptr_t)gasneti_seginfo[j].remote_addr) + gasneti_auxseg_sz);
         gasneti_seginfo_client[j].remote_size = gasneti_seginfo[j].remote_size - gasneti_auxseg_sz;
+#if 0 /* Must match the splitting done in gasnet_sysv.c for non-contiguous nodes */
         gasneti_seginfo_client[j].nodeinfo = gasneti_nodemap[j];
+#else
+        {
+          int k;
+          for (k = j; k > 0; --k) {
+            if (gasneti_nodemap[k] != gasneti_nodemap[k - 1]) break;
+          }
+          gasneti_seginfo_client[j].nodeinfo = k;
+        }
+#endif
       #endif
       #if GASNETI_FORCE_CLIENTSEG_TO_BASE
         gasneti_seginfo_client[j].addr = gasneti_seginfo[j].addr;
