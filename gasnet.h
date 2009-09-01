@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2009/08/31 23:34:40 $
- * $Revision: 1.59.8.14 $
+ *     $Date: 2009/09/01 00:23:46 $
+ * $Revision: 1.59.8.15 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -107,8 +107,10 @@
 #if defined(GASNET_PSHM)
   #undef GASNET_PSHM
   #define GASNET_PSHM 1
+  #define GASNETI_PSHM_CONFIG pshm
 #else
   #define GASNET_PSHM 0
+  #define GASNETI_PSHM_CONFIG nopshm
 #endif
 
 /* basic utilities used in the headers */
@@ -134,9 +136,10 @@
 #endif
 
 /* additional safety check, in case a very smart linker removes all of the checks at the end of this file */
-#define gasnet_init _CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT( \
+#define gasnet_init _CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT( \
                     gasnet_init_GASNET_,                             \
                     GASNETI_THREAD_MODEL),                           \
+                    GASNETI_PSHM_CONFIG),                            \
                     GASNETI_SEGMENT_CONFIG),                         \
                     GASNETI_DEBUG_CONFIG),                           \
                     GASNETI_TRACE_CONFIG),                           \
@@ -371,6 +374,7 @@ GASNETI_END_EXTERNC
              "SEGMENT=" _STRINGIFY(GASNETI_SEGMENT_CONFIG) ","            \
              "PTR=" _STRINGIFY(GASNETI_PTR_CONFIG) ","                    \
              _STRINGIFY(GASNETI_ALIGN_CONFIG) ","                         \
+             _STRINGIFY(GASNETI_PSHM_CONFIG) ","                          \
              _STRINGIFY(GASNETI_DEBUG_CONFIG) ","                         \
              _STRINGIFY(GASNETI_TRACE_CONFIG) ","                         \
              _STRINGIFY(GASNETI_STATS_CONFIG) ","                         \
@@ -398,6 +402,7 @@ extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TRACE_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_STATS_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_SRCLINES_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ALIGN_CONFIG);
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_PSHM_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_PTR_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TIMER_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_MEMBAR_CONFIG);
@@ -420,6 +425,7 @@ static int *gasneti_linkconfig_idiotcheck() {
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_STATS_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_SRCLINES_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_ALIGN_CONFIG)
+        + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_PSHM_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_PTR_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TIMER_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_MEMBAR_CONFIG)
