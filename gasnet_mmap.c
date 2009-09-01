@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/09/01 10:44:02 $
- * $Revision: 1.57.6.40 $
+ *     $Date: 2009/09/01 20:46:35 $
+ * $Revision: 1.57.6.41 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -550,6 +550,7 @@ uintptr_t _gasneti_max_segsize(uint64_t configure_val) {
 #if !GASNET_SEGMENT_EVERYTHING
 /* mmap-based segment init/attach */
 static gasnet_seginfo_t gasneti_segment = {0,0}; /* local segment info */
+#ifdef HAVE_MMAP
 static uintptr_t gasneti_myheapend = 0; /* top of my malloc heap */
 static uintptr_t gasneti_maxheapend = 0; /* top of max malloc heap */
 static uintptr_t gasneti_maxbase = 0; /* start of segment overlap region */
@@ -557,7 +558,8 @@ static uintptr_t gasneti_maxbase = 0; /* start of segment overlap region */
 static gasnet_seginfo_t *gasneti_remote_segments;
 /* NOTE: pshm supernode may be shifted relative to nodemap's view (and smaller) */
 #define pshm_to_gasnet(_i) (gasneti_nodemap_local[(_i) + gasneti_nodemap_local_rank - gasneti_pshm_mynode])
-#endif
+#endif /* GASNET_PSHM */
+#endif /* HAVE_MMAP */
 
 typedef struct {
   gasnet_seginfo_t seginfo;
@@ -716,9 +718,6 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
  */
 void gasneti_segmentInit(uintptr_t localSegmentLimit,
                          gasneti_bootstrapExchangefn_t exchangefn) {
-  gasneti_segexch_t se;
-  int i;
-
   gasneti_assert(gasneti_MaxLocalSegmentSize == 0);
   gasneti_assert(gasneti_MaxGlobalSegmentSize == 0);
   gasneti_assert(exchangefn);
@@ -731,6 +730,9 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
     localSegmentLimit = GASNETI_PAGE_ALIGNDOWN(localSegmentLimit);
 
   #ifdef HAVE_MMAP
+  { gasneti_segexch_t se;
+    int i;
+
     gasneti_segment = gasneti_mmap_segment_search(localSegmentLimit == (uintptr_t)-1 ?
                                                   GASNETI_MMAP_LIMIT : 
                                                   MIN(localSegmentLimit,GASNETI_MMAP_LIMIT));
@@ -846,6 +848,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
         gasneti_MaxGlobalSegmentSize = minsize;
       #endif
     }
+  }
   #else /* !HAVE_MMAP */
     #if GASNET_ALIGNED_SEGMENTS && !GASNET_CONDUIT_SMP
       #error bad config: dont know how to provide GASNET_ALIGNED_SEGMENTS when !HAVE_MMAP
@@ -1205,7 +1208,9 @@ extern int gasneti_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
     }
     #else
     { int i; 
+      #if GASNET_ALIGNED_SEGMENTS
       void *segbase = NULL;
+      #endif
       for (i=0; i < gasneti_nodes; i++) {
         if (gasneti_seginfo[i].size == 0) {
           gasneti_assert(gasneti_seginfo[i].addr == 0);
@@ -1288,7 +1293,6 @@ static gasneti_auxseg_request_t gasneti_auxseg_total_alignedsz = { 0, 0 };
 static gasneti_auxseg_request_t *gasneti_auxseg_alignedsz = NULL;
 static uintptr_t gasneti_auxseg_sz = 0;
 static uintptr_t gasneti_auxseg_client_request_sz = 0;
-static int gasneti_auxseg_numfns;
 
 #if GASNET_DEBUG
   /* spawner hint of our auxseg requirements */
@@ -1329,7 +1333,7 @@ static int gasneti_auxseg_numfns;
 #endif
 
 /* collect required auxseg sizes and subtract them from the values to report to client */
-void gasneti_auxseg_init() {
+void gasneti_auxseg_init(void) {
   int i;
   int numfns = (sizeof(gasneti_auxsegfns)/sizeof(gasneti_auxsegregfn_t))-1;
 
@@ -1441,7 +1445,7 @@ uintptr_t gasneti_auxseg_preattach(uintptr_t client_request_sz) {
 /* provide auxseg to GASNet components and init secondary segment arrays 
    requires gasneti_seginfo has been initialized to the correct values
  */
-void gasneti_auxseg_attach() {
+void gasneti_auxseg_attach(void) {
   gasnet_seginfo_t *si;
   int numfns = (sizeof(gasneti_auxsegfns)/sizeof(gasneti_auxsegregfn_t))-1;
   int i,j;

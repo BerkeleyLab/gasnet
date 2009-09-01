@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/testbulk.c,v $
- *     $Date: 2006/05/11 09:43:42 $
- * $Revision: 1.12 $
+ *     $Date: 2009/09/01 20:46:59 $
+ * $Revision: 1.12.46.1 $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,7 +23,9 @@ int done = 0;
 uint32_t *VMseg;
 
 static void bulk_request_handler(void *token, void *buf, int nbytes, int arg) {
+  #if DEBUG
   uint32_t *recvdbuf = (uint32_t *)buf;
+  #endif
   #if VERBOSE
     printf("%i: bulk_request_handler(). starting...\n", myproc); fflush(stdout);
   #endif

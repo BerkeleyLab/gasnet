@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/testam.c,v $
- *     $Date: 2006/05/11 09:43:42 $
- * $Revision: 1.13 $
+ *     $Date: 2009/09/01 20:46:59 $
+ * $Revision: 1.13.46.1 $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -50,7 +50,7 @@ int main(int argc, char **argv) {
   if (false) { /* don't actually call these, just ensure they link properly */
     AMX_SPMDSetExitCallback(NULL);
     AMX_SPMDgetenvMaster("PATH");
-    AMX_SPMDIsWorker(argv);
+    (void) AMX_SPMDIsWorker(argv);
     AMX_SPMDAllGather(NULL, NULL, 0);
     AMX_SPMDkillmyprocess(0);
   }

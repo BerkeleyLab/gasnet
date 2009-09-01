@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_dcmf_bootstrapcoll.c,v $
- *     $Date: 2008/10/28 05:43:39 $
- * $Revision: 1.2 $
+ *     $Date: 2009/09/01 20:46:39 $
+ * $Revision: 1.2.10.1 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>, 
                    Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -12,7 +12,7 @@
 
 #if 0
 static gasnetc_dcmf_req_t *gasnetc_dcmf_req_free_list;
-static inline gasnetc_dcmf_req_t * gasnetc_get_dcmf_req() {
+static inline gasnetc_dcmf_req_t * gasnetc_get_dcmf_req(void) {
     gasnetc_dcmf_req_t *req;
     if(gasnetc_dcmf_req_free_list) {
   req = gasnetc_dcmf_req_free_list;
@@ -70,7 +70,7 @@ gasnetc_bootstrap_coll_t *gasnetc_bootstrap_barrier;
 gasnetc_bootstrap_coll_t *gasnetc_bootstrap_broadcast;
 gasnetc_bootstrap_coll_t *gasnetc_bootstrap_exchange;
 
-void gasnetc_dcmf_bootstrap_coll_init() {
+void gasnetc_dcmf_bootstrap_coll_init(void) {
     DCMF_GlobalBarrier_Configuration_t barrier_config;
     DCMF_GlobalBcast_Configuration_t broadcast_config;
  
@@ -98,7 +98,7 @@ void gasnetc_dcmf_bootstrap_coll_init() {
     GASNETC_DCMF_UNLOCK();
 }
 
-void gasnetc_dcmf_bootstrapBarrier() {
+void gasnetc_dcmf_bootstrapBarrier(void) {
     gasnetc_bootstrap_coll_t *barr = gasnetc_bootstrap_barrier;
     barr->init_counter++;
     GASNETC_DCMF_LOCK();

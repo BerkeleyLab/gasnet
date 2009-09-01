@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/apputils.c,v $
- *     $Date: 2006/05/31 08:17:44 $
- * $Revision: 1.17 $
+ *     $Date: 2009/09/01 20:46:59 $
+ * $Revision: 1.17.42.1 $
  * Description: AMX Application utilities
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -42,7 +42,7 @@ static void stats_request_handler(void *token, void *buf, int nbytes, int32_t pr
   statscalls++;
 }
 
-void printGlobalStats() {
+void printGlobalStats(void) {
   amx_stats_t stats;
   statscalls = 0; 
   globalStats = AMX_initial_stats;
@@ -96,7 +96,7 @@ void printGlobalStats() {
 /* ------------------------------------------------------------------------------------ */
 #ifndef UETH
 #ifdef WIN32
-  int64_t getCurrentTimeMicrosec() {
+  int64_t getCurrentTimeMicrosec(void) {
     static int status = -1;
     static double multiplier;
     if (status == -1) { /*  first time run */
@@ -117,7 +117,7 @@ void printGlobalStats() {
     }
   }
 #else
-  int64_t getCurrentTimeMicrosec() {
+  int64_t getCurrentTimeMicrosec(void) {
     int64_t retval;
     struct timeval tv;
     if (gettimeofday(&tv, NULL))
@@ -128,7 +128,7 @@ void printGlobalStats() {
 #endif
 #endif
 /* ------------------------------------------------------------------------------------ */
-extern void outputTimerStats() {
+extern void outputTimerStats(void) {
   int iters = 10000;
   int64_t starttime = getCurrentTimeMicrosec();
   int64_t lasttime = starttime;
@@ -243,7 +243,7 @@ void readWord(void *destaddr, int proc, void *addr) {
   return;
 }
 
-void readSync() {
+void readSync(void) {
   while (readCtr) AM_PollBlock(eb);
 }
 /* ------------------------------------------------------------------------------------ */
@@ -271,7 +271,7 @@ void writeWord(int proc, void *addr, uint32_t val) {
   return;
 }
 
-void writeSync() {
+void writeSync(void) {
   while (writeCtr) AM_PollBlock(eb);
 }
 #endif

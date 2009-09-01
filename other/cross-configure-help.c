@@ -63,7 +63,7 @@ void warning(const char *str) {
   #define VERBOSE(args) ((void)0)
 #endif
 #define NOOP_CHECK(type, name,str) \
-type name() { \
+type name(void) { \
     char msg[255]; \
     sprintf(msg,"failed to auto-detect %s",str); \
     warning(msg); \
@@ -77,7 +77,7 @@ int stack_check_help(volatile int *p, int x) {
     else if (&local > p) return 1;
     else return 0;
 }
-int stack_check() { 
+int stack_check(void) { 
   volatile int local = 0;
   return stack_check_help(&local, 0);
 }
@@ -101,7 +101,7 @@ NOOP_CHECK(int,stack_check,"stack growth direction")
 #endif
 
 #if CHECK_SIGNED_CHAR
-int signed_char_check() { 
+int signed_char_check(void) { 
   char c = (char)(int)-5;
   int char_signed = 1;
   if (c > 0) char_signed = 0;
@@ -128,7 +128,7 @@ NOOP_CHECK(int,signed_char_check,"char signedness")
 #if CHECK_PAGESIZE
 #include <unistd.h>
 #include <limits.h>
-unsigned long pagesize_check() { 
+unsigned long pagesize_check(void) { 
   unsigned long pagesize = 0;
   /* take the first non-zero value, checked in this order */
   #ifdef PAGESIZE
@@ -157,7 +157,7 @@ int mmap_check();
   int arm_membar_check();
 #endif
 
-int main() {
+int main(void) {
 
   printf("#!/bin/sh\n\n");
   printf("# This is an automatically-generated cross-configuration setup script\n");
@@ -275,7 +275,7 @@ int main() {
   #include <stdlib.h>
   char junk[16384];
   int testfd(int);
-  int mmap_check() {
+  int mmap_check(void) {
     int fd, retval;
     #if 0
       char filename[255];

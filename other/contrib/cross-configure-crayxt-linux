@@ -35,7 +35,7 @@ if test -f /usr/include/nptl/pthread.h -a -d /usr/lib64/nptl ; then # PE <= 2.0 
 else
   NPTL_PTHREAD_ARGS='--enable-pthreads'
 fi
-EXTRA_CONFIGURE_ARGS="--enable-mpi --disable-udp --disable-amudp --enable-allow-gcc4 --disable-aligned-segments $NPTL_PTHREAD_ARGS"
+EXTRA_CONFIGURE_ARGS="--enable-mpi --disable-udp --disable-amudp --disable-aligned-segments $NPTL_PTHREAD_ARGS"
 # OS string for test harness purposes
 EXTRA_CONFIGURE_ARGS="$EXTRA_CONFIGURE_ARGS --with-feature-list=os_cnl"
 

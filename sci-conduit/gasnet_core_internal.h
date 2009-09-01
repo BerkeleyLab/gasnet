@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2006/05/23 12:42:35 $
- * $Revision: 1.14 $
+ *     $Date: 2009/09/01 20:47:11 $
+ * $Revision: 1.14.42.1 $
  * Description: GASNet sci conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -157,7 +157,7 @@ void gasnetc_sci_call_exit(unsigned int sig);
 /*  temp segment, writes a 1 in their segment at index:gasneti_mynode, */
 /*  then waits until everybody has written a 1 into all of our index spots */
 /*  destroys the segment and continues. */
-void gasnetc_sci_internal_Barrier();
+void gasnetc_sci_internal_Barrier(void);
 
 /*  Parses all the SCI Ids and places them in gasnetc_sci_SCI_Ids. */
 /*  The corresponding GASNet node ID is the index of the location of the SCI id in the */
@@ -166,27 +166,27 @@ int gasnetc_parseSCIIds(FILE *node_info);
 
 /*  Returns the Max_local_Segment size in bytes based on available */
 /*  free mem on the system and writes the size to a global file */
-void gasnetc_get_free_mem();
+void gasnetc_get_free_mem(void);
 
 /*  Returns the maximum global segment size. This is the minimum of the segment */
 /*  sizes available over the whole cluster. Return -1 if not all node information */
 /*  is in the file, throws an error otherwise. */
-void gasnetc_getSCIglobal_seg();
+void gasnetc_getSCIglobal_seg(void);
 
 /*  This uses the number given to it to create the segments needed by the command */
 /*  region. It will leave an open spot for the gasnet segment space to be */
 /*  the next to last segment. It will be created in GASNet Attach. */
-void gasnetc_SCI_Create_Connections();
+void gasnetc_SCI_Create_Connections(void);
 
 /*  Connects all the command regions and then all the global ready bytes */
 /*  across all nodes. */
-int gasnetc_SCI_connect_cmd();
+int gasnetc_SCI_connect_cmd(void);
 
 /*  This function finds the total number of nodes that will run GASNet as well as */
 /*  assign GASNet Node IDS to each SCI ID. Additionally, the total amount of free */
 /*  memory on the system is determined and a percentage is used as the MAX_local_Seg */
 /*  size. */
-void gasnetc_SCIInit();
+void gasnetc_SCIInit(void);
 
 /*  Create the payload (GASNET segment) segment and set it available. */
 void* gasnetc_create_gasnetc_sci_seg(uintptr_t *segsize, int index);
@@ -280,14 +280,14 @@ int gasnetc_mls_get_loc (gasnet_node_t dest_node_id);
 ********************************************************/
 /*  return the status of message existense flag */
 GASNETI_INLINE(gasnetc_msg_exist_flag_status)
-bool gasnetc_msg_exist_flag_status ()
+bool gasnetc_msg_exist_flag_status (void)
 {
         return gasnetc_sci_msg_flag[gasneti_nodes * GASNETC_SCI_MAX_REQUEST_MSG * 2];
 }
 
 /*  set the message existense flag to FALSE */
 GASNETI_INLINE(gasnetc_msg_exist_flag_release)
-void gasnetc_msg_exist_flag_release ()
+void gasnetc_msg_exist_flag_release (void)
 {
         gasnetc_sci_msg_flag[gasneti_nodes * GASNETC_SCI_MAX_REQUEST_MSG * 2] = GASNETC_SCI_FALSE;
 }
@@ -307,7 +307,7 @@ void gasnetc_msg_flag_release (gasnet_node_t node_id, uint8_t msg_number)
 }
 
 /*  Scans the MRFs to enqueue new messages */
-void gasnetc_MRF_scan ();
+void gasnetc_MRF_scan (void);
 
 /********************************************************
 			Command Segment Related Functions
@@ -437,10 +437,10 @@ int gasnetc_SM_request (gasnet_node_t dest, uint8_t AM_type, gasnet_handler_t ha
 ********************************************************/
 
 /*  Allocates space for local dma queues */
-int gasnetc_create_dma_queues ();
+int gasnetc_create_dma_queues (void);
 
 /*  Remove the previously allocated local dma queues */
-int gasnetc_remove_dma_queues ();
+int gasnetc_remove_dma_queues (void);
 
 /*  Transfer the Long message using the DMA transfer method */
 int gasnetc_DMA_write (gasnet_node_t dest, void *source_addr, size_t nbytes, void *dest_addr);
@@ -450,9 +450,9 @@ int gasnetc_DMA_write (gasnet_node_t dest, void *source_addr, size_t nbytes, voi
 ********************************************************/
 
 /*  Initialize necessary system variables */
-void gasnetc_setup_env ();
+void gasnetc_setup_env (void);
 
 /*  Remove system variables */
-void gasnetc_free_env ();
+void gasnetc_free_env (void);
 
 #endif

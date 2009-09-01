@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/08/30 07:18:31 $
- * $Revision: 1.119.8.3 $
+ *     $Date: 2009/09/01 20:46:49 $
+ * $Revision: 1.119.8.4 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,7 +16,6 @@
  */
 
 #include <gasnet_internal.h>
-#include <gasnet_handler.h>
 #include <gasnet_core_internal.h>
 
 #include <errno.h>
@@ -57,6 +56,10 @@ lapi_handle_t  gasnetc_lapi_context;
 int            gasnetc_max_lapi_uhdr_size;
 unsigned long  gasnetc_max_lapi_data_size = LAPI_MAX_MSG_SZ;
 
+#if 0 /* For debugging */
+static const char *gasnetc_catname[] = {"Short","Medium","Long","AsyncLong"};
+#endif
+
 #if GASNETC_LAPI_RDMA
 
 /* PJRH
@@ -75,8 +78,8 @@ int *gasnetc_lapi_local_target_counters = NULL;
 lapi_cntr_t **gasnetc_lapi_completion_ptrs = NULL;
 lapi_long_t *gasnetc_lapi_target_counter_directory = NULL;
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-extern void gasnete_lapi_setup_nb();
-extern void gasnete_lapi_free_nb();
+extern void gasnete_lapi_setup_nb(void);
+extern void gasnete_lapi_free_nb(void);
 #endif
 /* In case people call exit before attach */
 int gasnetc_lapi_rdma_initialized = 0;
@@ -137,14 +140,14 @@ gasnetc_uhdr_freelist_t gasnetc_uhdr_freelist;
   ==============
 */
 /* called at startup to check configuration sanity */
-static void gasnetc_check_config() {
+static void gasnetc_check_config(void) {
   gasneti_check_config_preinit();
 
   /* (###) add code to do some sanity checks on the number of nodes, handlers
      * and/or segment sizes */ 
 }
 
-static void gasnetc_bootstrapBarrier() {
+static void gasnetc_bootstrapBarrier(void) {
     /* (###) add code here to implement an external barrier 
        this barrier should not rely on AM or the GASNet API because it's used 
        during bootstrapping before such things are fully functional
@@ -450,7 +453,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
 
 int gasnetc_use_firehose = 0;
 
-void gasnetc_lapi_get_remote_contexts()
+void gasnetc_lapi_get_remote_contexts(void)
 {
   int i,j;
   int rctxts_per_node;
@@ -731,27 +734,22 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
          }
 	 /* Break up the segment */
 	 my_num_pvos = (segsize + (GASNETC_LAPI_PVO_EXTENT-1)) >> GASNETC_LAPI_PVO_EXTENT_BITS;
-         GASNETI_TRACE_PRINTF(C,("gasnetc_attach: node = %d num_pvos = %d extent = %ld segment size = %ld segment base = %ld\n",gasneti_mynode,my_num_pvos,GASNETC_LAPI_PVO_EXTENT,segsize,(uint64_t) segbase));
+         GASNETI_TRACE_PRINTF(C,("num_pvos = %d pvo_extent = %ld",my_num_pvos,GASNETC_LAPI_PVO_EXTENT));
 	 gasnetc_node_pvo_list = gasneti_calloc(my_num_pvos,sizeof(lapi_get_pvo_t));
 
-	 while(tmp_offset < segsize) {
+	 while(tmp_offset != segsize) {
 	 	/* Attempt to get a PVO for this section */
+	 	uintptr_t len = MIN(segsize - tmp_offset, GASNETC_LAPI_PVO_EXTENT);
 	 	gasnetc_node_pvo_list[i].Util_type = LAPI_XLATE_ADDRESS;
-	 	gasnetc_node_pvo_list[i].length = ((tmp_offset + GASNETC_LAPI_PVO_EXTENT) < segsize) ? GASNETC_LAPI_PVO_EXTENT :
-		  (segsize - i*GASNETC_LAPI_PVO_EXTENT);
+	 	gasnetc_node_pvo_list[i].length = len;
 	 	gasnetc_node_pvo_list[i].usr_pvo = 0;
-	 	gasnetc_node_pvo_list[i].address = (void *) (((lapi_long_t) segbase) + i*GASNETC_LAPI_PVO_EXTENT);
+	 	gasnetc_node_pvo_list[i].address = (void *) (((lapi_long_t) segbase) + tmp_offset);
 	 	gasnetc_node_pvo_list[i].operation = LAPI_RDMA_ACQUIRE;									
 	 	GASNETC_LCHECK(LAPI_Util(gasnetc_lapi_context, (lapi_util_t *) (&(gasnetc_node_pvo_list[i]))));
-                GASNETI_TRACE_PRINTF(C,("gasnetc_attach: node = %d i=%d usr_pvo=%ld (size=%ld) length=%d address=%ld segbase=%ld\n",gasneti_mynode,i,(uint64_t) gasnetc_node_pvo_list[i].usr_pvo,sizeof(lapi_user_pvo_t),gasnetc_node_pvo_list[i].length,(size_t) gasnetc_node_pvo_list[i].address,(size_t) segbase));
-	 	tmp_offset += GASNETC_LAPI_PVO_EXTENT;
+                GASNETI_TRACE_PRINTF(C,("pvo[i=%d]: usr_pvo=0x%lx length=0x%lx address=%p",i,(ulong) gasnetc_node_pvo_list[i].usr_pvo,len,gasnetc_node_pvo_list[i].address));
+	 	tmp_offset += len;
 	 	i++;
 	 }
-
-    for(i=0;i < my_num_pvos;i++) {
-      GASNETI_TRACE_PRINTF(C,("after getting node %d gasnetc_node_pvo_list[%d].usr_pvo = %ld\n",gasneti_mynode, i,(uint64_t)( gasnetc_node_pvo_list[i].usr_pvo)));
-    }		
-
 	 
     /* Exchange PVOs with everybody else so that given a
      * (node, offset) pair, a remode node can find the
@@ -787,6 +785,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       GASNETC_LCHECK(LAPI_Address_init64(gasnetc_lapi_context, tmp_long, tmp_pvo_ptr));
       for (j=0;j < gasneti_nodes;j++) {
         gasnetc_pvo_table[j][i] = tmp_pvo_ptr[j];
+        GASNETI_TRACE_PRINTF(C,("gasnetc_pvo_table[node=%d][idx=%d] = 0x%lx",j,i,(ulong)gasnetc_pvo_table[j][i]));
       }
     }		
     gasneti_free(tmp_pvo_ptr);
@@ -863,7 +862,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 }
     
 #if GASNETC_LAPI_RDMA
-void gasnetc_lapi_free()
+void gasnetc_lapi_free(void)
 {
 #if 0
   int i;
@@ -1090,20 +1089,27 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
     return GASNET_OK;
 }
 
-extern int gasnetc_AMPoll() {
+/* Run up to max_count request handlers (essentially unbounded if max_count==0) */
+GASNETI_INLINE(gasnetc_service_req_q)
+void gasnetc_service_req_q(unsigned int max_count, int update_schedule) {
+    gasnetc_token_t *q_token = NULL;
+    unsigned int count = 0;
+
+    while ( (q_token = gasnetc_token_dequeue(&gasnetc_req_q, update_schedule)) != NULL ) {
+	gasnetc_run_handler(q_token);
+	/* deallocate the token, it was allocated in the header handler */
+	gasnetc_uhdr_free(q_token);
+	++count;
+	if (count == max_count) break; /* If max_count==0, will match only when count wraps */
+    }
+}
+
+extern int gasnetc_AMPoll(void) {
     GASNETI_CHECKATTACH();
 
     /* Check if any request handlers are queued for processing
-     * and execute all on the list
      */
-    {
-	gasnetc_token_t *q_token = NULL;
-	while ( (q_token = gasnetc_token_dequeue(&gasnetc_req_q, 0)) != NULL ) {
-	    gasnetc_run_handler(q_token);
-	    /* deallocate the token, it was allocated in the header handler */
-	    gasnetc_uhdr_free(q_token);
-	}
-    }
+    gasnetc_service_req_q(GASNETC_POLL_LIMIT, 0);
 
     /* NOTE: a call to probe is not needed when LAPI is executing
      * in interrupt mode.  In that mode, polling can sometimes
@@ -1116,17 +1122,9 @@ extern int gasnetc_AMPoll() {
      */
     GASNETC_LAPI_POLL(gasnetc_lapi_context);
 
-    /* Check if any request handlers are queued for processing
-     * and execute all on the list
+    /* Check again if any request handlers are queued for processing
      */
-    {
-	gasnetc_token_t *q_token = NULL;
-	while ( (q_token = gasnetc_token_dequeue(&gasnetc_req_q, 0)) != NULL ) {
-	    gasnetc_run_handler(q_token);
-	    /* deallocate the token, it was allocated in the header handler */
-	    gasnetc_uhdr_free(q_token);
-	}
-    }
+    gasnetc_service_req_q(GASNETC_POLL_LIMIT, 0);
     
 #if GASNETC_LAPI_RDMA
     if(gasnetc_use_firehose) {
@@ -1171,6 +1169,8 @@ extern int gasnetc_AMRequestShortM(
 	msg->args[i] = va_arg(argptr, gasnet_handlerarg_t);
     }
     va_end(argptr);
+
+    GASNETC_GEN_CSUM(msg, numargs, NULL, 0);
 
     /* Do Loopback check here */
 #if GASNETC_ENABLE_LOOPBACK
@@ -1246,6 +1246,8 @@ extern int gasnetc_AMRequestMediumM(
 	udata_packed = 1;
 	GASNETC_MSG_SET_PACKED(msg);
     }
+
+    GASNETC_GEN_CSUM(msg, numargs, source_addr, nbytes);
 
     /* Do Loopback check here */
 #if GASNETC_ENABLE_LOOPBACK
@@ -1325,6 +1327,8 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
     token_len = TOKEN_LEN(numargs);
     udata_avail = gasnetc_max_lapi_uhdr_size - token_len - GASNETC_DOUBLEWORD;
 
+    GASNETC_GEN_CSUM(msg, numargs, source_addr, nbytes);
+
     /* Do Loopback check here */
 #if GASNETC_ENABLE_LOOPBACK
     if (dest == gasneti_mynode) {
@@ -1364,6 +1368,10 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
     GASNETI_RETURN(retval);
 }
 
+#ifndef HAVE_BUG2582
+#define HAVE_BUG2582 1
+#endif 
+
 extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destination node */
 					gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
 					void *source_addr, size_t nbytes,   /* data payload */
@@ -1377,11 +1385,18 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     int udata_avail;
     int udata_packed = 0;
     int retval;
+#if HAVE_BUG2582
+    char raw_token[GASNETC_TOKEN_SIZE + GASNETC_DOUBLEWORD];
+#endif
     va_list argptr;
 
     GASNETI_COMMON_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs);
 
+#if HAVE_BUG2582
+    token = (gasnetc_token_t*)GASNETC_ALIGN_PTR(&raw_token[0]);
+#else
     token = gasnetc_uhdr_alloc();
+#endif
     msg = &token->msg;
     msg->handlerId = handler;
     msg->sourceId = gasneti_mynode;
@@ -1403,6 +1418,8 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     udata_start = (void*)&msg->args[numargs];
     token_len = TOKEN_LEN(numargs);
     udata_avail = gasnetc_max_lapi_uhdr_size - token_len - GASNETC_DOUBLEWORD;
+
+    GASNETC_GEN_CSUM(msg, numargs, source_addr, nbytes);
 
     /* Do Loopback check here */
 #if GASNETC_ENABLE_LOOPBACK
@@ -1429,14 +1446,32 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 	GASNETC_MSG_SET_PACKED(msg);
     }
     
+    token_len = GASNETC_ROUND_DOUBLEWORD(token_len);
+    gasneti_assert( token_len <= gasnetc_max_lapi_uhdr_size);
+
+#if HAVE_BUG2582 /* Work around BUG 2582 - memory leak w/ LongAsync. */
+  {
+    lapi_cntr_t o_cntr;
+    GASNETC_LCHECK(LAPI_Setcntr(gasnetc_lapi_context,&o_cntr,0));
+    gasneti_suspend_spinpollers();
+    GASNETC_LCHECK(LAPI_Amsend(gasnetc_lapi_context, dest,
+			       gasnetc_remote_req_hh[dest],
+			       (void*)token, token_len,
+			       (udata_packed ? NULL : source_addr),
+			       (udata_packed ? 0    : nbytes),
+			       NULL, &o_cntr, NULL));
+    gasneti_resume_spinpollers();
+    
+    /* wait for the Amsend call to complete locally */
+    GASNETC_WAITCNTR(&o_cntr,1,NULL);
+  }
+#else
     /* issue the request for remote execution of the user handler */
     /* NOTE: no LAPI counters are used here, the token will be deallocated
      * later (by the completion handler when the reply handler is executed).
      * It is up to the client not to modify the source_addr data until his 
      * reply handler runs.
      */
-    token_len = GASNETC_ROUND_DOUBLEWORD(token_len);
-    gasneti_assert( token_len <= gasnetc_max_lapi_uhdr_size);
     gasneti_suspend_spinpollers();
     GASNETC_LCHECK(LAPI_Amsend(gasnetc_lapi_context, dest,
 			       gasnetc_remote_req_hh[dest],
@@ -1446,6 +1481,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 			       NULL, NULL, NULL));
     
     gasneti_resume_spinpollers();
+#endif
 
     retval = GASNET_OK;
     GASNETI_RETURN(retval);
@@ -1482,6 +1518,8 @@ extern int gasnetc_AMReplyShortM(
 	msg->args[i] = va_arg(argptr, gasnet_handlerarg_t);
     }
     va_end(argptr);
+
+    GASNETC_GEN_CSUM(msg, numargs, NULL, 0);
 
 #if GASNETC_ENABLE_LOOPBACK
     if (requester == gasneti_mynode) {
@@ -1558,6 +1596,8 @@ extern int gasnetc_AMReplyMediumM(
 	GASNETC_MSG_SET_PACKED(msg);
     }
 
+    GASNETC_GEN_CSUM(msg, numargs, source_addr, nbytes);
+
 #if GASNETC_ENABLE_LOOPBACK
     if (requester == gasneti_mynode) {
 	gasneti_handler_fn_t pfn = gasnetc_handler[handler];
@@ -1632,6 +1672,7 @@ extern int gasnetc_AMReplyLongM(
     token_len = TOKEN_LEN(numargs);
     udata_avail = gasnetc_max_lapi_uhdr_size - token_len - GASNETC_DOUBLEWORD;
 
+    GASNETC_GEN_CSUM(msg, numargs, source_addr, nbytes);
 
 #if GASNETC_ENABLE_LOOPBACK
     if (dest == gasneti_mynode) {
@@ -1697,7 +1738,7 @@ extern int gasnetc_AMReplyLongM(
  * ============================================================================
  */
 #if GASNETC_USE_INTERRUPTS
-extern void gasnetc_hold_interrupts() {
+extern void gasnetc_hold_interrupts(void) {
     GASNETI_CHECKATTACH();
 
     /* Check to see of interrupts are already being held */
@@ -1713,7 +1754,7 @@ extern void gasnetc_hold_interrupts() {
     #error interrupts not implemented
     /* add code here to disable handler interrupts for _this_ thread */
 }
-extern void gasnetc_resume_interrupts() {
+extern void gasnetc_resume_interrupts(void) {
     GASNETI_CHECKATTACH();
 
     /* Check to insure that interrupts are being held */
@@ -1859,7 +1900,7 @@ static gasnet_handlerentry_t const gasnetc_handlers[] = {
   { 0, NULL }
 };
 
-gasnet_handlerentry_t const *gasnetc_get_handlertable() {
+gasnet_handlerentry_t const *gasnetc_get_handlertable(void) {
     return gasnetc_handlers;
 }
 
@@ -2047,6 +2088,9 @@ void* gasnetc_lapi_AMreply_hh(lapi_handle_t *context, void *uhdr, uint *uhdr_len
     }
 #endif
     
+#if HAVE_BUG2582
+    msg->uhdrLoc = (uintptr_t)NULL;
+#else
     /* This is a reply. If the uhdrLoc field of the token is set
      * that means the origional GASNET call was an AsyncLong and we
      * should deallocate the origional uhdr memory.
@@ -2056,6 +2100,7 @@ void* gasnetc_lapi_AMreply_hh(lapi_handle_t *context, void *uhdr, uint *uhdr_len
 	gasnetc_uhdr_free(loc);
 	msg->uhdrLoc = (uintptr_t)NULL;
     }
+#endif
 
     switch (cat) {
     case gasnetc_Short:
@@ -2066,7 +2111,9 @@ void* gasnetc_lapi_AMreply_hh(lapi_handle_t *context, void *uhdr, uint *uhdr_len
     case gasnetc_Medium:
 	if (is_packed) {
 	    /* can run the AM handler in-line, data payload is packed in uhdr */
+	    /* Note that bug 2583 is not a problem, since there is no Reply from a Reply */
 	    void *srcloc = (void*)&msg->args[numargs];
+            GASNETC_CHECK_CSUM(msg, numargs, srcloc, msg->dataLen);
 	    GASNETI_RUN_HANDLER_MEDIUM(0,func_ix,am_func,token,am_args,numargs,srcloc,msg->dataLen);
 	    done = 1;
 	} else {
@@ -2212,11 +2259,7 @@ void gasnetc_lapi_AMch(lapi_handle_t *context, void *uinfo)
     /* first, process all items on the request queue to keep
      * latencies to a minimum
      */
-    while ( (q_token = gasnetc_token_dequeue(&gasnetc_req_q, do_schedule)) != NULL ) {
-	gasnetc_run_handler(q_token);
-	/* deallocate the token, it was allocated in the header handler */
-	gasnetc_uhdr_free(q_token);
-    }
+    gasnetc_service_req_q(0, do_schedule);
 
     if (token != NULL) {
 	/* Our request was not put on the queue either because
@@ -2228,14 +2271,8 @@ void gasnetc_lapi_AMch(lapi_handle_t *context, void *uinfo)
 	gasnetc_uhdr_free(token);
 
 	/* Check the request queue again */
-	while ( (q_token = gasnetc_token_dequeue(&gasnetc_req_q, 1)) != NULL ) {
-	    gasnetc_run_handler(q_token);
-	    /* deallocate the token, it was allocated in the header handler */
-	    gasnetc_uhdr_free(q_token);
-	}
+        gasnetc_service_req_q(0, 1);
     }
-
-
 }
 
 void gasnetc_run_handler(gasnetc_token_t *token)
@@ -2273,15 +2310,14 @@ void gasnetc_run_handler(gasnetc_token_t *token)
 	
     case gasnetc_Medium:
 	if (is_packed) {
-	    /* data is cached in this uhdr */
-	    dataptr = (void*)&msg->args[numargs];
+	    /* data is cached in this uhdr, but we must make a copy (bug 2583) */
+	    dataptr = gasneti_malloc(datalen);
+	    memcpy(dataptr,(void*)&msg->args[numargs],datalen);
 	}
+        GASNETC_CHECK_CSUM(msg, numargs, dataptr, datalen);
 	GASNETI_RUN_HANDLER_MEDIUM(is_request,func_ix,am_func,token,am_args,numargs,dataptr,datalen);
-	/* need to free this data memory (allocated in header handler) */
-	if (! is_packed) {
-	    /* we allocated a buffer for the payload in the header handler */
-	    gasneti_free(dataptr);
-	}
+	/* need to free this data memory (either allocated in header handler, or just now) */
+	gasneti_free(dataptr);
 	break;
 
     case gasnetc_Long:

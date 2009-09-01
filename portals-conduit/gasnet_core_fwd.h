@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2008/11/06 16:01:35 $
- * $Revision: 1.14 $
+ *     $Date: 2009/09/01 20:47:06 $
+ * $Revision: 1.14.10.1 $
  * Description: GASNet header for PORTALS conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 #ifndef _GASNET_CORE_FWD_H
 #define _GASNET_CORE_FWD_H
 
-#define GASNET_CORE_VERSION      1.2
+#define GASNET_CORE_VERSION      1.3
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         PORTALS
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
@@ -68,7 +68,7 @@
         CNT(C, MSG_THROTTLE, count)             \
         CNT(C, CREDIT_THROTTLE, count)		\
         CNT(C, TMPMD_THROTTLE, count)		\
-        CNT(C, CREDIT_STALL, count)		\
+        TIME(C, CREDIT_STALL, stalled time)	\
         CNT(C, SYSQ_DROPPED, count)		\
         CNT(C, END_EPOCH, count)		\
 	CNT(C, GET_RAR, count)                  \
@@ -81,6 +81,12 @@
 	CNT(C, LONG_RAR, count)                 \
 	CNT(C, LONG_TMPMD, count)               \
 	GASNETC_FIREHOSE_STATS(CNT,VAL,TIME)	\
+	CNT(C, FRESH_REQRB, count)              \
+        TIME(C, FRESH_STALL, stalled time)      \
+        TIME(C, REFRESH_STALL, stalled time)    \
         VAL(C, EVENT_REAP, numreaped)
+
+/* This is the default, but we define it here for use in gasnet_core.h */
+#define GASNETI_MEDBUF_ALIGNMENT 8
 
 #endif

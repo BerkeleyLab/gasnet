@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_internal.h,v $
- * $Date: 2009/08/30 07:18:29 $
- * $Revision: 1.76.16.1 $
+ * $Date: 2009/09/01 20:46:47 $
+ * $Revision: 1.76.16.2 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -72,22 +72,22 @@ extern gasneti_atomic_t gasnetc_exit_running;
 /* -------------------------------------------------------------------------- */
 typedef struct gasnetc_bufdesc gasnetc_bufdesc_t;
 
-gasnetc_bufdesc_t * 	gasnetc_AMRequestPool_block();
+gasnetc_bufdesc_t * 	gasnetc_AMRequestPool_block(void);
 
 int	gasnetc_gm_nodes_compare(const void *, const void *);
 
-void	gasnetc_AllocPinnedBufs();
-void	gasnetc_DestroyPinnedBufs();
+void	gasnetc_AllocPinnedBufs(void);
+void	gasnetc_DestroyPinnedBufs(void);
 
-void	gasnetc_AllocGatherBufs();
-void	gasnetc_DestroyGatherBufs();
+void	gasnetc_AllocGatherBufs(void);
+void	gasnetc_DestroyGatherBufs(void);
 
 int	gasnetc_alloc_nodemap(int);
 int	gasnetc_gmport_allocate(int *board, int *port);
 
 /* 3 bootstrapping methods */
-void	gasnetc_getconf_conffile();
-void	gasnetc_getconf_mpiexec();
+void	gasnetc_getconf_conffile(void);
+void	gasnetc_getconf_mpiexec(void);
 void	gasnetc_getconf(int *argc, char ***argv);
 #ifdef GASNETC_GM_MPI_COMPAT
 void	gasnetc_getconf_bootmpi(int *argc, char ***argv);
@@ -110,13 +110,13 @@ void	gasnetc_GMSend_AMSystem(void *buf, size_t len, uint16_t id,
 void	gasnetc_GMSend_AMRequest(void *, uint32_t, uint32_t, uint32_t, 
 		gm_send_completion_callback_t, void *, uintptr_t);
 
-void	gasnetc_dump_tokens();
+void	gasnetc_dump_tokens(void);
 
-void	gasnetc_bootstrapBarrier();
+void	gasnetc_bootstrapBarrier(void);
 void	gasnetc_bootstrapExchange(void *src, size_t len, void *dest);
 
 /* AMSystems have their own handlers */
-void	gasnetc_registerSysHandlers();
+void	gasnetc_registerSysHandlers(void);
 int	gasnetc_RequestSystem(gasnet_node_t dest, gasnet_handler_t handler, 
 			      int *done, void *source_addr, size_t nbytes,
                               int numargs, ...);
@@ -303,7 +303,7 @@ gasnetc_nodeid(gasnet_node_t node)
  */
 GASNETI_INLINE(gasnetc_token_hi_acquire)
 int
-gasnetc_token_hi_acquire()
+gasnetc_token_hi_acquire(void)
 {
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
 	if (GASNETC_TOKEN_HI_AVAILABLE()) {
@@ -321,7 +321,7 @@ gasnetc_token_hi_acquire()
 
 GASNETI_INLINE(gasnetc_token_hi_release)
 void
-gasnetc_token_hi_release()
+gasnetc_token_hi_release(void)
 {
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
 	GASNETI_TRACE_PRINTF(C, ("release token_hi = %d, tot=%d\n", _gmc.stoks.hi, _gmc.stoks.total));
@@ -332,7 +332,7 @@ gasnetc_token_hi_release()
 
 GASNETI_INLINE(gasnetc_token_lo_acquire)
 int
-gasnetc_token_lo_acquire()
+gasnetc_token_lo_acquire(void)
 {
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
 	if (GASNETC_TOKEN_LO_AVAILABLE()) {
@@ -347,7 +347,7 @@ gasnetc_token_lo_acquire()
 
 GASNETI_INLINE(gasnetc_token_lo_poll)
 void
-gasnetc_token_lo_poll()
+gasnetc_token_lo_poll(void)
 {
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
 	while (1) {
@@ -362,7 +362,7 @@ gasnetc_token_lo_poll()
 
 GASNETI_INLINE(gasnetc_token_lo_release)
 void
-gasnetc_token_lo_release()
+gasnetc_token_lo_release(void)
 {
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
 	gasneti_assert((_gmc.stoks.lo-1 >= 0) && (_gmc.stoks.total-1 >= 0));
@@ -417,7 +417,7 @@ gasnetc_bufdesc_from_token(gasnet_token_t token)
 /* GM provide receive buffer wrapper */
 GASNETI_INLINE(gasnetc_relinquish_AMReply_token)
 void
-gasnetc_relinquish_AMReply_token()
+gasnetc_relinquish_AMReply_token(void)
 {
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
 	_gmc.rtoks.hi--;
@@ -425,7 +425,7 @@ gasnetc_relinquish_AMReply_token()
 }
 GASNETI_INLINE(gasnetc_relinquish_AMRequest_token)
 void
-gasnetc_relinquish_AMRequest_token()
+gasnetc_relinquish_AMRequest_token(void)
 {
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
 	_gmc.rtoks.lo--;
@@ -529,7 +529,7 @@ gasnetc_provide_AMRequestPool(gasnetc_bufdesc_t *bufd)
 
 GASNETI_INLINE(gasnetc_fifo_remove)
 void
-gasnetc_fifo_remove()
+gasnetc_fifo_remove(void)
 {
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
 	gasneti_assert(_gmc.fifo_bd_head != NULL);
@@ -566,7 +566,7 @@ gasnetc_fifo_insert(gasnetc_bufdesc_t *bufd)
 
 GASNETI_INLINE(gasnetc_fifo_progress)
 void
-gasnetc_fifo_progress()
+gasnetc_fifo_progress(void)
 {
 	gasnetc_bufdesc_t *bufd;
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);

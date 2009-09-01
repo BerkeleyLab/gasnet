@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose.c,v $
- *     $Date: 2008/04/02 17:57:16 $
- * $Revision: 1.35 $
+ *     $Date: 2009/09/01 20:47:03 $
+ * $Revision: 1.35.10.1 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -8,8 +8,14 @@
 #include <firehose.h>
 #include <firehose_internal.h>
 
-static firehose_request_t *fh_request_new(firehose_request_t *ureq);
+static firehose_request_t *fh_request_freehead = NULL;
+static firehose_request_t *fh_request_new(firehose_request_t *ureq, int block);
 static void fh_request_free(firehose_request_t *req);
+
+/* Should we poll in the try/partial calls if we might be short on handles? */
+#ifndef FH_POLL_FOR_HANDLES
+#define FH_POLL_FOR_HANDLES 0
+#endif
 
 /* ##################################################################### */
 /* LOCKS, FIFOS, ETC.                                                    */
@@ -121,7 +127,8 @@ firehose_init(uintptr_t max_pinnable_memory,
 
 	/* hit the request_t freelist for first allocation */
 	{
-		firehose_request_t *req = fh_request_new(NULL);
+		firehose_request_t *req = fh_request_new(NULL, 0);
+		gasneti_assert(req != NULL);
 		fh_request_free(req);
 	}
 
@@ -154,14 +161,16 @@ firehose_init(uintptr_t max_pinnable_memory,
 	return;
 }
 
+#define FH_REQUEST_ALLOC_PERIDX	256
+#define FH_REQUEST_ALLOC_MAXIDX	256
+static firehose_request_t	*fh_request_bufs[FH_REQUEST_ALLOC_MAXIDX] = { 0 };
+
+extern int fh_dacount;
+
 /*
  * XXX should call from gasnet_exit(), fatal or not
  *
  */
-static firehose_request_t	*fh_request_bufs[256] = { 0 };
-
-extern int fh_dacount;
-
 void
 firehose_fini()
 {
@@ -185,7 +194,7 @@ firehose_fini()
 	}
 
 	/* Deallocate the arrays of request_t buffers used, if applicable */
-	for (i = 0; i < 256; i++) {
+	for (i = 0; i < FH_REQUEST_ALLOC_MAXIDX; i++) {
 		if (fh_request_bufs[i] == NULL)
 			break;
 		gasneti_free(fh_request_bufs[i]);
@@ -263,7 +272,9 @@ firehose_local_pin(uintptr_t addr, size_t nbytes, firehose_request_t *ureq)
 
 	FH_TABLE_LOCK;
 
-	req         = fh_request_new(ureq);
+	req = fh_request_new(ureq, 1);
+	gasneti_assert(req != NULL);
+
 	req->node   = gasneti_mynode;
 	req->addr   = FH_ADDR_ALIGN(addr);
 	req->len    = FH_SIZE_ALIGN(addr,nbytes);
@@ -287,16 +298,26 @@ firehose_try_local_pin(uintptr_t addr, size_t len, firehose_request_t *ureq)
 	len  = FH_SIZE_ALIGN(addr,len);
 	GASNETI_TRACE_EVENT_VAL(C,FH_TRY_LOCAL_PIN,(len >> FH_BUCKET_SHIFT));
 
+#if FH_POLL_FOR_HANDLES
+	if_pf (!ureq && !fh_request_freehead)
+		FIREHOSE_AMPOLL();
+#endif
+
 	FH_TABLE_LOCK;
 	if (fh_region_ispinned(gasneti_mynode, addr, len)) {
-		req         = fh_request_new(ureq);
-		req->node   = gasneti_mynode;
-		req->addr   = addr;
-		req->len    = len;
-		req->flags |= FH_FLAG_PINNED;
+		req = fh_request_new(ureq, 0);
+		if_pt (req != NULL) {
+			req->node   = gasneti_mynode;
+			req->addr   = addr;
+			req->len    = len;
+			req->flags |= FH_FLAG_PINNED;
 
-		fh_commit_try_local_region(req);
-		GASNETI_TRACE_EVENT(C,FH_TRY_LOCAL_HIT);
+			fh_commit_try_local_region(req);
+			GASNETI_TRACE_EVENT(C,FH_TRY_LOCAL_HIT);
+		}
+		else {
+			GASNETI_TRACE_EVENT(C,FH_TRY_LOCAL_FAIL);
+		}
 	}
 	else {
 		GASNETI_TRACE_EVENT(C,FH_TRY_LOCAL_MISS);
@@ -316,16 +337,26 @@ firehose_partial_local_pin(uintptr_t addr, size_t len,
 	len  = FH_SIZE_ALIGN(addr,len);
 	GASNETI_TRACE_EVENT_VAL(C,FH_PARTIAL_LOCAL_PIN,(len >> FH_BUCKET_SHIFT));
 
+#if FH_POLL_FOR_HANDLES
+	if_pf (!ureq && !fh_request_freehead)
+		FIREHOSE_AMPOLL();
+#endif
+
 	FH_TABLE_LOCK;
 	if (fh_region_partial(gasneti_mynode, &addr, &len)) {
-		req         = fh_request_new(ureq);
-		req->node   = gasneti_mynode;
-		req->addr   = addr;
-		req->len    = len;
-		req->flags |= FH_FLAG_PINNED;
+		req = fh_request_new(ureq, 0);
+		if_pt (req != NULL) {
+			req->node   = gasneti_mynode;
+			req->addr   = addr;
+			req->len    = len;
+			req->flags |= FH_FLAG_PINNED;
 
-		fh_commit_try_local_region(req);
-		GASNETI_TRACE_EVENT(C,FH_PARTIAL_LOCAL_HIT);
+			fh_commit_try_local_region(req);
+			GASNETI_TRACE_EVENT(C,FH_PARTIAL_LOCAL_HIT);
+		}
+		else {
+			GASNETI_TRACE_EVENT(C,FH_PARTIAL_LOCAL_FAIL);
+		}
 	}
 	else {
 		GASNETI_TRACE_EVENT(C,FH_PARTIAL_LOCAL_MISS);
@@ -351,7 +382,9 @@ firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 
 	FH_TABLE_LOCK;
 
-	req = fh_request_new(ureq);
+	req = fh_request_new(ureq, 1);
+	gasneti_assert(req != NULL);
+
 	req->node = node;
 	req->addr = FH_ADDR_ALIGN(addr); 
 	req->len  = FH_SIZE_ALIGN(addr,len);
@@ -401,16 +434,26 @@ firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 	len  = FH_SIZE_ALIGN(addr,len);
 	GASNETI_TRACE_EVENT_VAL(C,FH_TRY_REMOTE_PIN,(len >> FH_BUCKET_SHIFT));
 
+#if FH_POLL_FOR_HANDLES
+	if_pf (!ureq && !fh_request_freehead)
+		FIREHOSE_AMPOLL();
+#endif
+
 	FH_TABLE_LOCK;
 
 	if (fh_region_ispinned(node, addr, len)) {
-		req = fh_request_new(ureq);
-		req->node = node;
-		req->addr = addr;
-		req->len  = len;
+		req = fh_request_new(ureq, 0);
+		if_pt (req != NULL) {
+			req->node = node;
+			req->addr = addr;
+			req->len  = len;
 
-		fh_commit_try_remote_region(req);
-		GASNETI_TRACE_EVENT(C,FH_TRY_REMOTE_HIT);
+			fh_commit_try_remote_region(req);
+			GASNETI_TRACE_EVENT(C,FH_TRY_REMOTE_HIT);
+		}
+		else {
+			GASNETI_TRACE_EVENT(C,FH_TRY_REMOTE_FAIL);
+		}
 	}
 	else {
 		GASNETI_TRACE_EVENT(C,FH_TRY_REMOTE_MISS);
@@ -434,19 +477,29 @@ firehose_partial_remote_pin(gasnet_node_t node, uintptr_t addr,
 	len  = FH_SIZE_ALIGN(addr,len);
 	GASNETI_TRACE_EVENT_VAL(C,FH_PARTIAL_REMOTE_PIN,(len >> FH_BUCKET_SHIFT));
 
+#if FH_POLL_FOR_HANDLES
+	if_pf (!ureq && !fh_request_freehead)
+		FIREHOSE_AMPOLL();
+#endif
+
 	FH_TABLE_LOCK;
 
 	if (fh_region_partial(node, &addr, &len)) {
-		req = fh_request_new(ureq);
-		req->node = node;
-		req->addr = addr;
-		req->len  = len;
+		req = fh_request_new(ureq, 0);
+		if_pt (req != NULL) {
+			req->node = node;
+			req->addr = addr;
+			req->len  = len;
 
-		fh_commit_try_remote_region(req);
-		GASNETI_TRACE_EVENT(C,FH_TRY_REMOTE_HIT);
+			fh_commit_try_remote_region(req);
+			GASNETI_TRACE_EVENT(C,FH_PARTIAL_REMOTE_HIT);
+		}
+		else {
+			GASNETI_TRACE_EVENT(C,FH_PARTIAL_REMOTE_FAIL);
+		}
 	}
 	else {
-		GASNETI_TRACE_EVENT(C,FH_TRY_REMOTE_MISS);
+		GASNETI_TRACE_EVENT(C,FH_PARTIAL_REMOTE_MISS);
 	}
 	FH_TABLE_UNLOCK;
 
@@ -515,12 +568,10 @@ fh_free_completion_callback(fh_completion_callback_t *cc)
  * latter case, allocation is done using a freelist allocator and the internal
  * pointer is used to link the request_t.
  */
-#define FH_REQUEST_ALLOC_PERIDX	256
-static firehose_request_t	*fh_request_freehead = NULL;
 static int			 fh_request_bufidx = 0;
 
 static firehose_request_t *
-fh_request_new(firehose_request_t *ureq)
+fh_request_new(firehose_request_t *ureq, int block)
 {
 	firehose_request_t	*req;
 
@@ -537,16 +588,36 @@ fh_request_new(firehose_request_t *ureq)
 		req = fh_request_freehead;
 		fh_request_freehead = (firehose_request_t *) req->internal;
 	}
+	else if_pf (fh_request_bufidx == FH_REQUEST_ALLOC_MAXIDX) {
+#if GASNETI_STATS_OR_TRACE
+		gasneti_tick_t ticks = GASNETI_TICKS_NOW_IFENABLED(C);
+#endif
+
+		/* If !block we cannot poll even once because calls to
+		 * fh_commit_*() could break if we release the lock here.
+		 */
+		if (!block)
+			return NULL;
+
+		do {
+			FH_TABLE_UNLOCK;
+			FIREHOSE_AMPOLL();
+			FH_TABLE_LOCK;
+		} while (fh_request_freehead == NULL);
+		req = fh_request_freehead;
+		fh_request_freehead = (firehose_request_t *) req->internal;
+
+#if GASNETI_STATS_OR_TRACE
+		ticks = GASNETI_TICKS_NOW_IFENABLED(C) - ticks;
+		GASNETI_TRACE_EVENT_TIME(C, FH_REQUEST_STALL, ticks);
+#endif
+	}
 	else {
 		firehose_request_t	*buf;
 		int			 i;
 
-		GASNETI_STAT_EVENT_VAL(C, FH_REQUEST_ALLOC, FH_REQUEST_ALLOC_PERIDX);
 
-		if (fh_request_bufidx == 256)
-			gasneti_fatalerror("Firehose: Ran out "
-			    "of request handles (limit=%d)",
-			    FH_REQUEST_ALLOC_PERIDX*256);
+		GASNETI_STAT_EVENT_VAL(C, FH_REQUEST_ALLOC, FH_REQUEST_ALLOC_PERIDX);
 
 		buf = (firehose_request_t *)
 			gasneti_malloc(FH_REQUEST_ALLOC_PERIDX*
@@ -1149,8 +1220,6 @@ fh_am_move_reqh_inner(gasnet_token_t token, void *addr, size_t nbytes,
 	int			hit_pending = 0;
 	int			remote_callback = 0;
 
-	fh_remote_callback_t	*rc = NULL;
-
 	gasnet_AMGetMsgSource(token, &node);
 
 	new_reg = (firehose_region_t *) addr;
@@ -1342,6 +1411,6 @@ gasnet_handlerentry_t fh_am_handlers[] = {
 };
 
 gasnet_handlerentry_t *
-firehose_get_handlertable() {
+firehose_get_handlertable(void) {
         return fh_am_handlers;
 }

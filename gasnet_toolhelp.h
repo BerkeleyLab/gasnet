@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_toolhelp.h,v $
- *     $Date: 2009/01/29 07:54:59 $
- * $Revision: 1.37 $
+ *     $Date: 2009/09/01 20:46:36 $
+ * $Revision: 1.37.4.1 $
  * Description: misc declarations needed by both gasnet_tools and libgasnet
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -108,6 +108,17 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
   #define gasneti_assert_nzeroret(op) op
 #endif
 
+#if GASNET_DEBUG
+  #define GASNETI_UNUSED_UNLESS_DEBUG
+#else
+  #define GASNETI_UNUSED_UNLESS_DEBUG GASNETI_UNUSED
+#endif
+#if GASNETI_THREADS
+  #define GASNETI_UNUSED_UNLESS_THREADS
+#else
+  #define GASNETI_UNUSED_UNLESS_THREADS GASNETI_UNUSED
+#endif
+
 /* return physical memory of machine
    on failure, failureIsFatal nonzero => fatal error, failureIsFatal zero => return 0 */
 extern uint64_t gasneti_getPhysMemSz(int failureIsFatal); 
@@ -119,24 +130,24 @@ GASNETI_NORETURNP(gasneti_fatalerror)
 extern void gasneti_killmyprocess(int exitcode) GASNETI_NORETURN;
 GASNETI_NORETURNP(gasneti_killmyprocess)
 
-extern void gasneti_freezeForDebuggerErr(); /* freeze iff user enabled error freezing */
+extern void gasneti_freezeForDebuggerErr(void); /* freeze iff user enabled error freezing */
 extern void gasneti_freezeForDebuggerNow(volatile int *flag, const char *flagsymname);
 extern volatile int gasnet_frozen; /* export to simplify debugger restart */ 
 extern void gasneti_backtrace_init(const char *exename);
 extern int (*gasneti_print_backtrace_ifenabled)(int fd);
 extern int gasneti_print_backtrace(int fd);
-extern void gasneti_ondemand_init();
+extern void gasneti_ondemand_init(void);
 
-extern void gasneti_flush_streams(); /* flush all open streams */
-extern void gasneti_close_streams(); /* close standard streams (for shutdown) */
+extern void gasneti_flush_streams(void); /* flush all open streams */
+extern void gasneti_close_streams(void); /* close standard streams (for shutdown) */
 
-extern int gasneti_cpu_count();
+extern int gasneti_cpu_count(void);
 
 extern void gasneti_set_affinity(int rank);
 
-const char *gasneti_gethostname(); /* returns the current host name - dies with an error on failure */
+const char *gasneti_gethostname(void); /* returns the current host name - dies with an error on failure */
 
-extern int gasneti_isLittleEndian();
+extern int gasneti_isLittleEndian(void);
 
 typedef void (*gasneti_sighandlerfn_t)(int);
 gasneti_sighandlerfn_t gasneti_reghandler(int sigtocatch, gasneti_sighandlerfn_t fp);
@@ -155,11 +166,25 @@ extern size_t gasneti_count0s(const void * src, size_t len);
 
 GASNETI_INLINE(gasneti_count0s_uint32_t) GASNETI_CONST
 int gasneti_count0s_uint32_t(uint32_t x) {
+#if 0
   x |= (x >> 4); x |= (x >> 2); x |= (x >> 1);
   x &= 0x01010101UL;
   x += (x >> 16); x += (x >> 8);
   return sizeof(x) - (x & 0xf);
+#else
+  const uint32_t mask = 0x7f7f7f7fUL;
+  uint32_t tmp;
+  tmp = x & mask;
+  tmp += mask;
+  tmp |= x;
+  tmp &= ~mask;
+  tmp >>= 7;
+  tmp += (tmp >> 16);
+  tmp += (tmp >> 8);
+  return sizeof(x) - (tmp & 0xf);
+#endif
 }
+
 #if PLATFORM_ARCH_32
   GASNETI_INLINE(gasneti_count0s_uint64_t) GASNETI_CONST
   int gasneti_count0s_uint64_t(uint64_t x) {
@@ -169,11 +194,25 @@ int gasneti_count0s_uint32_t(uint32_t x) {
   #define gasneti_count0s_uintptr_t(x) gasneti_count0s_uint32_t(x)
 #elif PLATFORM_ARCH_64
   GASNETI_INLINE(gasneti_count0s_uint64_t) GASNETI_CONST
-  int gasneti_count0s_uint64_t(uintptr_t x) {
+  int gasneti_count0s_uint64_t(uint64_t x) {
+  #if 0
     x |= (x >> 4); x |= (x >> 2); x |= (x >> 1);
     x &= 0x0101010101010101UL;
     x += (x >> 32); x += (x >> 16); x += (x >> 8);
     return sizeof(x) - (x & 0xf);
+  #else
+    const uint64_t mask = 0x7f7f7f7f7f7f7f7fULL;
+    uint64_t tmp;
+    tmp = x & mask;
+    tmp += mask;
+    tmp |= x;
+    tmp &= ~mask;
+    tmp >>= 7;
+    tmp += (tmp >> 32);
+    tmp += (tmp >> 16);
+    tmp += (tmp >> 8);
+    return sizeof(x) - (tmp & 0xf);
+  #endif
   }
   #define gasneti_count0s_uintptr_t(x) gasneti_count0s_uint64_t(x)
 #else
@@ -282,7 +321,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
               gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER);            \
               (pl)->owner = GASNETI_THREADIDQUERY();                           \
             } while (0)
-    GASNETI_INLINE(gasneti_mutex_trylock)
+    GASNETI_INLINE(gasneti_mutex_trylock) GASNETI_WARN_UNUSED_RESULT
     int gasneti_mutex_trylock(gasneti_mutex_t *pl) {
               int retval;
               _GASNETI_MUTEX_CAUTIOUS_INIT_CHECK(pl);
@@ -320,7 +359,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
               gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER); \
               (pl)->owner = GASNETI_THREADIDQUERY();                \
             } while (0)
-    GASNETI_INLINE(gasneti_mutex_trylock)
+    GASNETI_INLINE(gasneti_mutex_trylock) GASNETI_WARN_UNUSED_RESULT
     int gasneti_mutex_trylock(gasneti_mutex_t *pl) {
               gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER);
               (pl)->owner = GASNETI_THREADIDQUERY();
@@ -498,7 +537,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
     /* mismatched compilers can access TLS threadkeys defined in objects
        built by supported compiler via extern function call */
     #define GASNETI_THREADKEY_DECLARE(key)         \
-      extern void *_gasneti_threadkey_get_##key(); \
+      extern void *_gasneti_threadkey_get_##key(void); \
       extern void _gasneti_threadkey_set_##key(void *_val)
     /* bug 1947 - following only expanded when a configure-mismatched compiler is 
        DEFINING a threadkey - use pthread_getspecific in that case for safety
@@ -507,7 +546,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
       static pthread_key_t _gasneti_threadkey_##key##_value;                                   \
       static gasneti_mutex_t _gasneti_threadkey_##key##_initmutex = GASNETI_MUTEX_INITIALIZER; \
       static volatile int _gasneti_threadkey_##key##_isinit = 0;                               \
-      extern void *_gasneti_threadkey_get_##key() {                                            \
+      extern void *_gasneti_threadkey_get_##key(void) {                                        \
         if (!_gasneti_threadkey_##key##_isinit)                                                \
            _gasneti_threadkey_init(&_gasneti_threadkey_##key##_value,                          \
                                    &_gasneti_threadkey_##key##_initmutex,                      \
@@ -527,7 +566,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
       extern __thread _gasneti_threadkey_t _gasneti_threadkey_val_##key
     #define GASNETI_THREADKEY_DEFINE(key)                    \
       GASNETI_THREADKEY_DECLARE(key);                        \
-      extern void *_gasneti_threadkey_get_##key() {          \
+      extern void *_gasneti_threadkey_get_##key(void) {      \
         return gasneti_threadkey_get(key);                   \
       }                                                      \
       extern void _gasneti_threadkey_set_##key(void *_val) { \
@@ -544,9 +583,17 @@ int gasneti_count0s_uint32_t(uint32_t x) {
 
 #if _GASNETI_THREADKEY_USES_PTHREAD_GETSPECIFIC
   /* struct prevents accidental direct access, magic provides extra safety checks */
+ #if GASNET_DEBUG
   #define _gasneti_threadkey_check(key, requireinit)         \
    ( gasneti_assert((key).magic == _GASNETI_THREADKEY_MAGIC), \
      (requireinit ? gasneti_assert((key).isinit) : ((void)0)))
+ #else
+  /* Special case needed to suppress -Wunused-value warnings.
+   * You would think the DEBUG version would be fine, but it's not
+   * regardnless of how many (void) casts one inserts (gcc bug?).
+   */
+  #define _gasneti_threadkey_check(key, requireinit)         ((void)0)
+ #endif
   #define gasneti_threadkey_get_noinit(key) \
     ( _gasneti_threadkey_check((key), 1),   \
       pthread_getspecific((key).value) )
@@ -608,7 +655,7 @@ extern char *gasneti_getenv_withdefault(const char *keyname, const char *default
 extern int gasneti_getenv_yesno_withdefault(const char *keyname, int defaultval);
 extern int64_t gasneti_getenv_int_withdefault(const char *keyname, int64_t defaultval, uint64_t mem_size_multiplier);
 extern double gasneti_getenv_dbl_withdefault(const char *keyname, double defaultval);
-extern int gasneti_verboseenv();
+extern int gasneti_verboseenv(void);
 extern void gasneti_envint_display(const char *key, int64_t val, int is_dflt, int is_mem_size);
 extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt);
 extern void gasneti_envdbl_display(const char *key, double val, int is_dflt);
@@ -624,7 +671,7 @@ extern gasneti_getenv_fn_t *gasneti_conduit_getenv;
 /* Attempt to maximize allowable cpu and memory resource limits for this
  * process, silently ignoring any errors
  * return non-zero on success */
-int gasnett_maximize_rlimits();
+int gasnett_maximize_rlimits(void);
 /* maximize a particular rlimit, and return non-zero on success.
    For portability, this should be called within an ifdef to ensure 
    the specified RLIMIT_ constant exists
@@ -633,15 +680,159 @@ int gasnett_maximize_rlimit(int res, const char *lim_desc);
 
 /* ------------------------------------------------------------------------------------ */
 
-#if PLATFORM_OS_AIX
-  /* AIX's stdio.h won't provide prototypes for snprintf() and vsnprintf()
+  /* Older AIX's stdio.h won't provide prototypes for snprintf() and vsnprintf()
    * by default since they are in C99 but not C89.
    */
+#if !HAVE_SNPRINTF_DECL
   GASNETI_FORMAT_PRINTF(snprintf,3,4,
   extern int snprintf(char * s, size_t n, const char * format, ...));
+#endif
+#if !HAVE_VSNPRINTF_DECL
+  #include <stdarg.h>
   GASNETI_FORMAT_PRINTF(vsnprintf,3,0,
   extern int vsnprintf(char * s, size_t n, const char * format, va_list ap));
 #endif
+
+/* ------------------------------------------------------------------------------------ */
+
+/* By default GASNet(tools) enforces a spec-compliant ctype interface,
+   even when the OS version is buggy / warning-prone.
+   Clients who want the buggy OS version can -DGASNET_USE_CTYPE_WRAPPERS=0
+ */
+#ifndef GASNET_USE_CTYPE_WRAPPERS
+   #if PLATFORM_OS_TRU64 || PLATFORM_OS_IRIX
+      #define GASNET_USE_CTYPE_WRAPPERS 1
+   #else
+      #define GASNET_USE_CTYPE_WRAPPERS 0
+   #endif
+#endif
+
+#include <ctype.h>
+#if GASNET_USE_CTYPE_WRAPPERS 
+  GASNETI_ALWAYS_INLINE(gasnett_toupper) GASNETI_CONST
+  int gasnett_toupper(int _c) { return toupper(_c); }
+  #undef toupper
+  #define toupper gasnett_toupper
+
+  GASNETI_ALWAYS_INLINE(gasnett_tolower) GASNETI_CONST
+  int gasnett_tolower(int _c) { return tolower(_c); }
+  #undef tolower
+  #define tolower gasnett_tolower
+
+  GASNETI_ALWAYS_INLINE(gasnett_isalnum) GASNETI_CONST
+  int gasnett_isalnum(int _c) { return isalnum(_c); }
+  #undef isalnum
+  #define isalnum gasnett_isalnum
+
+  GASNETI_ALWAYS_INLINE(gasnett_isalpha) GASNETI_CONST
+  int gasnett_isalpha(int _c) { return isalpha(_c); }
+  #undef isalpha
+  #define isalpha gasnett_isalpha
+
+  GASNETI_ALWAYS_INLINE(gasnett_iscntrl) GASNETI_CONST
+  int gasnett_iscntrl(int _c) { return iscntrl(_c); }
+  #undef iscntrl
+  #define iscntrl gasnett_iscntrl
+
+  GASNETI_ALWAYS_INLINE(gasnett_isdigit) GASNETI_CONST
+  int gasnett_isdigit(int _c) { return isdigit(_c); }
+  #undef isdigit
+  #define isdigit gasnett_isdigit
+
+  GASNETI_ALWAYS_INLINE(gasnett_isgraph) GASNETI_CONST
+  int gasnett_isgraph(int _c) { return isgraph(_c); }
+  #undef isgraph
+  #define isgraph gasnett_isgraph
+
+  GASNETI_ALWAYS_INLINE(gasnett_islower) GASNETI_CONST
+  int gasnett_islower(int _c) { return islower(_c); }
+  #undef islower
+  #define islower gasnett_islower
+
+  GASNETI_ALWAYS_INLINE(gasnett_isprint) GASNETI_CONST
+  int gasnett_isprint(int _c) { return isprint(_c); }
+  #undef isprint
+  #define isprint gasnett_isprint
+
+  GASNETI_ALWAYS_INLINE(gasnett_ispunct) GASNETI_CONST
+  int gasnett_ispunct(int _c) { return ispunct(_c); }
+  #undef ispunct
+  #define ispunct gasnett_ispunct
+
+  GASNETI_ALWAYS_INLINE(gasnett_isspace) GASNETI_CONST
+  int gasnett_isspace(int _c) { return isspace(_c); }
+  #undef isspace
+  #define isspace gasnett_isspace
+
+  GASNETI_ALWAYS_INLINE(gasnett_isupper) GASNETI_CONST
+  int gasnett_isupper(int _c) { return isupper(_c); }
+  #undef isupper
+  #define isupper gasnett_isupper
+
+  GASNETI_ALWAYS_INLINE(gasnett_isxdigit) GASNETI_CONST
+  int gasnett_isxdigit(int _c) { return isxdigit(_c); }
+  #undef isxdigit
+  #define isxdigit gasnett_isxdigit
+
+ #if HAVE_ISBLANK /* Added in ISO C99 */
+  #if !(HAVE_ISBLANK_DECL || defined(isblank))
+   extern int isblank(int);
+  #endif
+  GASNETI_ALWAYS_INLINE(gasnett_isblank) GASNETI_CONST
+  int gasnett_isblank(int _c) { return isblank(_c); }
+  #undef isblank
+  #define isblank gasnett_isblank
+ #endif
+
+ #if HAVE_ISASCII /* X/OPEN */
+  #if !(HAVE_ISASCII_DECL || defined(isascii))
+   extern int isascii(int);
+  #endif
+  GASNETI_ALWAYS_INLINE(gasnett_isascii) GASNETI_CONST
+  int gasnett_isascii(int _c) { return isascii(_c); }
+  #undef isascii
+  #define isascii gasnett_isascii
+ #endif
+
+ #if HAVE_TOASCII /* X/OPEN */
+  #if !(HAVE_TOASCII_DECL || defined(toascii))
+   extern int toascii(int);
+  #endif
+  GASNETI_ALWAYS_INLINE(gasnett_toascii) GASNETI_CONST
+  int gasnett_toascii(int _c) { return toascii(_c); }
+  #undef toascii
+  #define toascii gasnett_toascii
+ #endif
+#endif
+
+/* If a platform lacks isblank() we supply it, assuming the C/POSIX locale.
+ */
+#if !HAVE_ISBLANK
+  GASNETI_ALWAYS_INLINE(gasnett_isblank) GASNETI_CONST
+  int gasnett_isblank(int _c) { return (_c == ' ') || (_c == '\t'); }
+  #undef isblank /* Paranoia */
+  #define isblank gasnett_isblank
+#endif
+
+/* If a platform lacks isascii() we supply it.
+ */
+#if !HAVE_ISASCII
+  GASNETI_ALWAYS_INLINE(gasnett_isascii) GASNETI_CONST
+  int gasnett_isascii(int _c) { return !(_c & ~0x7f); }
+  #undef isascii /* Paranoia */
+  #define isascii gasnett_isascii
+#endif
+
+/* If a platform lacks toascii() we supply it.
+ */
+#if !HAVE_TOASCII
+  GASNETI_ALWAYS_INLINE(gasnett_toascii) GASNETI_CONST
+  int gasnett_toascii(int _c) { return (_c & 0x7f); }
+  #undef toascii /* Paranoia */
+  #define toascii gasnett_toascii
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 
 GASNETI_END_EXTERNC
 

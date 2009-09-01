@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2008/11/20 00:58:17 $
-dnl $Revision: 1.133 $
+dnl     $Date: 2009/09/01 20:46:34 $
+dnl $Revision: 1.133.6.1 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -290,7 +290,7 @@ AC_DEFUN([GASNET_CHECK_INTTYPES],[
     dnl otherwise, build and run the inttypes program to ensure the header values are actually correct
     GASNET_TRY_CACHE_RUN([for a complete $1],[[$2]COMPLETE_[]uppername],[
       GASNET_CHECK_INTTYPES_HELPERPROG($1)
-      int main() { return check(); }
+      int main(void) { return check(); }
     ],[ 
       [$2]COMPLETE_[]uppername=1
       AC_SUBST([$2]COMPLETE_[]uppername)
@@ -965,7 +965,7 @@ AC_DEFUN([GASNET_TRY_CCOMPILE_WITHWARN_NORETRY],[
   cat > $gasnet_testfile <<EOF
 #include "confdefs.h"
 $1
-int main() {
+int main(void) {
 $2
 ; return 0; }
 EOF
@@ -1023,7 +1023,7 @@ AC_DEFUN([GASNET_TRY_CXXCOMPILE_WITHWARN_NORETRY],[
   cat > $gasnet_testfile <<EOF
 #include "confdefs.h"
 $1
-int main() {
+int main(void) {
 $2
 ; return 0; }
 EOF
@@ -1414,7 +1414,7 @@ AC_DEFUN([GASNET_TRY_CACHE_RUN_WITHCC],[
   else
     GASNET_TRY_CACHE_RUN([$1],[$2],[
       $3
-      int main() {
+      int main(void) {
         $4
 	return 0;
       }
@@ -1440,7 +1440,7 @@ AC_TRY_RUN([
   #include <stdio.h>
   #include <stdlib.h>
   $3
-  int main() {
+  int main(void) {
     FILE *f=fopen("conftestval", "w");
     int val = 0;
     if (!f) exit(1);
@@ -1580,7 +1580,7 @@ AC_DEFUN([GASNET_PROG_CC], [
     CROSS_COMPILING=0
     ac_cv_prog_cc_cross=no
     AC_MSG_CHECKING([working C compiler executables])
-    AC_TRY_RUN([int main() { return 0; }], [AC_MSG_RESULT(yes)],
+    AC_TRY_RUN([int main(void) { return 0; }], [AC_MSG_RESULT(yes)],
   	     [AC_MSG_RESULT(no) GASNET_MSG_ERROR([Cannot run executables created with C compiler. If you're attempting to cross-compile, use --enable-cross-compile])], 
   	     [GASNET_MSG_ERROR(Internal configure error - please report)])
   ])
@@ -1625,7 +1625,7 @@ AC_DEFUN([GASNET_PROG_CXX], [
     cross_compiling=no
     ac_cv_prog_cxx_cross=no
     AC_MSG_CHECKING([working C++ compiler executables])
-    AC_TRY_RUN([int main() { return 0; }], [AC_MSG_RESULT(yes)],
+    AC_TRY_RUN([int main(void) { return 0; }], [AC_MSG_RESULT(yes)],
   	     [AC_MSG_RESULT(no) GASNET_MSG_ERROR([Cannot run executables created with C++ compiler. If you're attempting to cross-compile, use --enable-cross-compile])], 
   	     [GASNET_MSG_ERROR(Internal configure error - please report)])
   ])
@@ -1702,7 +1702,7 @@ if test "$cross_compiling" = "yes" ; then
     AC_LANG_C
     GASNET_PUSHVAR(cross_compiling,"no")
     AC_MSG_CHECKING([working host C compiler executables])
-    AC_TRY_RUN([int main() { return 0; }], [AC_MSG_RESULT(yes)],
+    AC_TRY_RUN([int main(void) { return 0; }], [AC_MSG_RESULT(yes)],
              [AC_MSG_RESULT(no) GASNET_MSG_ERROR($HOST_MSG)],
              [GASNET_MSG_ERROR(Internal configure error - please report)])
     GASNET_POPVAR(cross_compiling)
@@ -1753,7 +1753,7 @@ if test "$cross_compiling" = "yes" ; then
     AC_LANG_CPLUSPLUS
     GASNET_PUSHVAR(cross_compiling,"no")
     AC_MSG_CHECKING([working host CXX compiler executables])
-    AC_TRY_RUN([int main() { return 0; }], [AC_MSG_RESULT(yes)],
+    AC_TRY_RUN([int main(void) { return 0; }], [AC_MSG_RESULT(yes)],
              [AC_MSG_RESULT(no) GASNET_MSG_ERROR($HOST_MSG)],
              [GASNET_MSG_ERROR(Internal configure error - please report)])
     GASNET_POPVAR(cross_compiling)
@@ -2208,7 +2208,7 @@ GASNET_FUN_BEGIN([$0(...)])
   cat >conftest.$ac_ext <<"EOF"
 #include "confdefs.h"
 $1
-  int main() { 
+  int main(void) { 
 $2
   return 0; }
 EOF
@@ -2243,7 +2243,7 @@ GASNET_FUN_BEGIN([$0(...)])
   cat >conftest.$ac_ext <<"EOF"
 #include "confdefs.h"
 $1
-  int main() { 
+  int main(void) { 
 $2
   return 0; }
 EOF

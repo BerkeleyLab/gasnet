@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_dump.c,v $
- *     $Date: 2006/05/28 08:32:21 $
- * $Revision: 1.19 $
+ *     $Date: 2009/09/01 20:46:41 $
+ * $Revision: 1.19.42.1 $
  * Description: GASNet elan conduit - elan informational dumps
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -11,11 +11,11 @@
 #include <elan3/elan3.h> /* for DMA_BYTE */
 
 #ifdef GASNETC_ELAN4
- extern int gasnetc_ispatchfree_driver();
+ extern int gasnetc_ispatchfree_driver(void);
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-extern void gasnetc_dump_base() {
+extern void gasnetc_dump_base(void) {
   ELAN_BASE *b = BASE();
 
   #ifdef ELAN_DRIVER_VERSION
@@ -148,7 +148,7 @@ extern void gasnetc_dump_base() {
 
 }
 /* ------------------------------------------------------------------------------------ */
-extern void gasnetc_dump_state() {
+extern void gasnetc_dump_state(void) {
   ELAN_STATE *s = STATE();
 
   GASNETI_STATS_PRINTF(C,("ELAN_STATE: {"));
@@ -194,7 +194,7 @@ extern void gasnetc_dump_state() {
   #endif
 }
 /* ------------------------------------------------------------------------------------ */
-extern void gasnetc_dump_group() {
+extern void gasnetc_dump_group(void) {
   ELAN_GROUP *g = GROUP();
 
   GASNETI_STATS_PRINTF(C,("ELAN_GROUP: {"));
@@ -220,7 +220,7 @@ extern void gasnetc_dump_group() {
 
 }
 /* ------------------------------------------------------------------------------------ */
-extern void gasnetc_dump_envvars() {
+extern void gasnetc_dump_envvars(void) {
   FILE *out = stdout;
   const char *ev[] = {
     "LIBELAN_WAITTYPE",
@@ -312,7 +312,7 @@ extern void gasnetc_dump_envvars() {
   }
 }
 /* ------------------------------------------------------------------------------------ */
-void gasnetc_dump_tportstats() {
+void gasnetc_dump_tportstats(void) {
   ELAN_TPORTSTATS stats;
   LOCK_ELAN_WEAK();
     elan_tportGetStats(TPORT(), &stats);
@@ -377,7 +377,7 @@ void gasnetc_dump_tportstats() {
   #undef DUMP_STAT
 }
 /* ------------------------------------------------------------------------------------ */
-void gasnetc_dump_groupstats() {
+void gasnetc_dump_groupstats(void) {
   ELAN_GROUPSTATS stats;
   LOCK_ELAN_WEAK();
     elan_groupGetStats(GROUP(), &stats);

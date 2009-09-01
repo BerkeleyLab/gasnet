@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2008/12/26 05:31:06 $
- * $Revision: 1.13 $
+ *     $Date: 2009/09/01 20:47:06 $
+ * $Revision: 1.13.4.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -65,7 +65,7 @@ static size_t gasnete_max_get_single = GASNETC_PTL_MAX_TRANS_SZ;
   ==============
 */
 /* called at startup to check configuration sanity */
-static void gasnete_check_config() {
+static void gasnete_check_config(void) {
   gasneti_check_config_postattach();
 
   gasneti_assert_always(GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD <= gasnet_AMMaxMedium());
@@ -349,7 +349,7 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
   gasnete_iop_check(op);
 }
 
-extern void gasnete_init() {
+extern void gasnete_init(void) {
   static int firstcall = 1;
   GASNETI_TRACE_PRINTF(C,("gasnete_init()"));
   gasneti_assert(firstcall); /*  make sure we haven't been called before */
@@ -923,7 +923,6 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const op = mythread->current_iop;
   ptl_match_bits_t match_bits = 0ULL;
-  ptl_hdr_data_t hdr_data = 0;
   uint8_t lbits = GASNETC_PTL_RAR_BITS | GASNETC_PTL_MSG_PUT;
   gasneti_weakatomic_t *lcc = isbulk ? (gasneti_weakatomic_t *)NULL : &(mythread->local_completion_count);
 
@@ -1130,7 +1129,7 @@ static gasnet_handlerentry_t const gasnete_handlers[] = {
   { 0, NULL }
 };
 
-extern gasnet_handlerentry_t const *gasnete_get_handlertable() {
+extern gasnet_handlerentry_t const *gasnete_get_handlertable(void) {
   return gasnete_handlers;
 }
 /* ------------------------------------------------------------------------------------ */

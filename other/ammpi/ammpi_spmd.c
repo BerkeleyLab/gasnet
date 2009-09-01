@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_spmd.c,v $
- *     $Date: 2007/06/11 20:00:24 $
- * $Revision: 1.41 $
+ *     $Date: 2009/09/01 20:46:55 $
+ * $Revision: 1.41.22.1 $
  * Description: AMMPI Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -44,7 +44,7 @@ static void _freezeForDebugger(int depth) {
     }
   }
 }
-static void freezeForDebugger() {
+static void freezeForDebugger(void) {
   char name[255];
   gethostname(name, 255);
   fprintf(stderr,"slave frozen for debugger: host=%s  pid=%i\n", name, getpid()); fflush(stderr);
@@ -114,7 +114,7 @@ extern char *AMMPI_tagStr(tag_t tag, char *buf) {
 /* ------------------------------------------------------------------------------------ 
  *  basic inquiries
  * ------------------------------------------------------------------------------------ */
-extern int AMMPI_SPMDNumProcs() {
+extern int AMMPI_SPMDNumProcs(void) {
   if (!AMMPI_SPMDStartupCalled) {
     AMMPI_Err("called AMMPI_SPMDNumProcs before AMMPI_SPMDStartup()");
     return -1;
@@ -123,7 +123,7 @@ extern int AMMPI_SPMDNumProcs() {
   return AMMPI_SPMDNUMPROCS;
 }
 /* ------------------------------------------------------------------------------------ */
-extern int AMMPI_SPMDMyProc() {
+extern int AMMPI_SPMDMyProc(void) {
   if (!AMMPI_SPMDStartupCalled) {
     AMMPI_Err("called AMMPI_SPMDMyProc before AMMPI_SPMDStartup()");
     return -1;
@@ -447,7 +447,7 @@ extern int AMMPI_SPMDExit(int exitcode) {
 /* ------------------------------------------------------------------------------------ 
  *  barrier
  * ------------------------------------------------------------------------------------ */
-extern int AMMPI_SPMDBarrier() {
+extern int AMMPI_SPMDBarrier(void) {
   int oldmask;
   #if !AMMPI_BLOCKING_SPMD_BARRIER
     uint32_t timeoutusec = 100;

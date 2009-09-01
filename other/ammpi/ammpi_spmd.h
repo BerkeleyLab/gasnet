@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_spmd.h,v $
- *     $Date: 2006/12/17 01:26:24 $
- * $Revision: 1.14 $
+ *     $Date: 2009/09/01 20:46:55 $
+ * $Revision: 1.14.28.1 $
  * Description: AMMPI Header for SPMD interface
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -60,10 +60,10 @@ extern int AMMPI_SPMDIsWorker(char **argv);
   /* given the initial command line arguments, determine whether this process is a 
    * worker process created by the AMMPI SPMD job startup API
    */
-extern int AMMPI_SPMDNumProcs(); /* return the number of processors in the parallel job */
-extern int AMMPI_SPMDMyProc();   /* return a zero-based unique identifier of this processor in the parallel job */
+extern int AMMPI_SPMDNumProcs(void); /* return the number of processors in the parallel job */
+extern int AMMPI_SPMDMyProc(void);   /* return a zero-based unique identifier of this processor in the parallel job */
 
-extern int AMMPI_SPMDBarrier(); 
+extern int AMMPI_SPMDBarrier(void); 
 /* block until all SPMD processors call this function, 
  * and poll the SPMD endpoint while waiting
  * a slow, but functional barrier that is advisable to call after setting up handlers

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2009/08/30 19:47:47 $
- * $Revision: 1.5.8.2 $
+ *     $Date: 2009/09/01 20:47:06 $
+ * $Revision: 1.5.8.3 $
  * Description: GASNet header for PORTALS conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -40,8 +40,8 @@ GASNETI_NORETURNP(gasnetc_exit)
 */
 /* conduit may or may not need this based on whether interrupts are used for running handlers */
 #if GASNETC_USE_INTERRUPTS
-  extern void gasnetc_hold_interrupts();
-  extern void gasnetc_resume_interrupts();
+  extern void gasnetc_hold_interrupts(void);
+  extern void gasnetc_resume_interrupts(void);
 
   #define gasnet_hold_interrupts    gasnetc_hold_interrupts
   #define gasnet_resume_interrupts  gasnetc_resume_interrupts
@@ -109,7 +109,7 @@ typedef struct _gasnet_hsl_t {
   extern void gasnetc_hsl_destroy(gasnet_hsl_t *hsl);
   extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl);
   extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl);
-  extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl);
+  extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) GASNETI_WARN_UNUSED_RESULT;
 
   #define gasnet_hsl_init    gasnetc_hsl_init
   #define gasnet_hsl_destroy gasnetc_hsl_destroy
@@ -124,8 +124,8 @@ typedef struct _gasnet_hsl_t {
 */
 
 #define gasnet_AMMaxArgs()          ((size_t)16)
-/* Msg space for Medium must include space for 15 4-byte args + pad for double alignment */
-#define gasnet_AMMaxMedium()        ((size_t)(GASNETC_CHUNKSIZE - 64))
+/* Msg space for Medium must include space for 15 4-byte args + pad for alignment */
+#define gasnet_AMMaxMedium()        ((size_t)(GASNETC_CHUNKSIZE - GASNETI_ALIGNUP(60,GASNETI_MEDBUF_ALIGNMENT)))
 #if PLATFORM_OS_CATAMOUNT
 #define gasnet_AMMaxLongRequest()   ((size_t)1073741824ULL)
 #define gasnet_AMMaxLongReply()     ((size_t)1073741824ULL)
@@ -141,7 +141,7 @@ extern size_t gasnetc_AMMaxLong;
   ==============================
 */
 extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex);
-extern int gasnetc_AMPoll();
+extern int gasnetc_AMPoll(void);
 
 #define gasnet_AMGetMsgSource  gasnetc_AMGetMsgSource
 
@@ -150,7 +150,7 @@ extern int gasnetc_AMPoll();
 /* ------------------------------------------------------------------------------------ */
 /* MLW: extension for testing */
 extern int gasnet_send_credits(gasnet_node_t node);
-extern int gasnet_banked_credits();
+extern int gasnet_banked_credits(void);
 extern int gasnet_credit_stalls(gasnet_node_t node);
 extern int gasnet_revoked_credits(gasnet_node_t node);
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/30 07:18:25 $
- * $Revision: 1.7.4.2 $
+ *     $Date: 2009/09/01 20:46:39 $
+ * $Revision: 1.7.4.3 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>, 
                    Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -302,7 +302,7 @@ static void gasnetc_dcmf_init(gasnet_node_t* mynode, gasnet_node_t *nodes) {
   GASNETC_DCMF_UNLOCK();  
 }
 
-void gasnetc_dcmf_finalize() {
+void gasnetc_dcmf_finalize(void) {
   DCMF_Messager_finalize();
 }
 
@@ -311,14 +311,14 @@ void gasnetc_dcmf_finalize() {
   ==============
 */
 /* called at startup to check configuration sanity */
-static void gasnetc_check_config() {
+static void gasnetc_check_config(void) {
   gasneti_check_config_preinit();
   
   /* (###) add code to do some sanity checks on the number of nodes, handlers
    * and/or segment sizes */ 
 }
 
-static void gasnetc_bootstrapBarrier() {
+static void gasnetc_bootstrapBarrier(void) {
   gasnetc_dcmf_bootstrapBarrier();
 }
 
@@ -854,7 +854,7 @@ extern void gasnetc_exit(int exitcode) {
 
 
 /*GASNETI_INLINE(gasnetc_get_dcmf_req) */
-gasnetc_dcmf_req_t * gasnetc_get_dcmf_req() {
+gasnetc_dcmf_req_t * gasnetc_get_dcmf_req(void) {
   gasnetc_dcmf_req_t *req;
 
   req = gasneti_lifo_pop(&gasnetc_dcmf_req_free_list);
@@ -1054,7 +1054,7 @@ void gasnetc_add_replay_to_nack_list(gasnetc_replay_buffer_t* replay_buf) {
   gasnetc_fifo_add(&gasnetc_nack_list, (void*) replay_buf);
 }
 
-gasnetc_replay_buffer_t* gasnetc_remove_from_nack_list() {
+gasnetc_replay_buffer_t* gasnetc_remove_from_nack_list(void) {
   return (gasnetc_replay_buffer_t*) gasnetc_fifo_remove(&gasnetc_nack_list);
 }
 
@@ -1134,7 +1134,7 @@ void gasnetc_activate_amhandler(gasnetc_amhandler_t *amhandler) {
 
 /*return the head of the active handler queue*/
 GASNETI_INLINE(gasnetc_remove_first_active_amhandler) 
-gasnetc_amhandler_t* gasnetc_remove_first_active_amhandler() {
+gasnetc_amhandler_t* gasnetc_remove_first_active_amhandler(void) {
   gasnetc_amhandler_t *ret=NULL;
   ret = (gasnetc_amhandler_t*) gasnetc_fifo_remove(&gasnetc_amhandler_active_list);
   GASNETI_TRACE_PRINTF(C, ("dcmf remove&ret handler after: amhandler: %p\n",ret));
@@ -1259,7 +1259,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
 #define GASNETC_RESEND_AMREQS() do {} while(0)
 #endif
 
-extern int gasnetc_AMPoll() {
+extern int gasnetc_AMPoll(void) {
   int retval;
   gasnetc_amhandler_t *amhandler;
 
@@ -2073,11 +2073,11 @@ extern int gasnetc_AMReplyLongM(
 */
 #if GASNETC_USE_INTERRUPTS
 #error interrupts not implemented
-extern void gasnetc_hold_interrupts() {
+extern void gasnetc_hold_interrupts(void) {
   GASNETI_CHECKATTACH();
   /* add code here to disable handler interrupts for _this_ thread */
 }
-extern void gasnetc_resume_interrupts() {
+extern void gasnetc_resume_interrupts(void) {
   GASNETI_CHECKATTACH();
   /* add code here to re-enable handler interrupts for _this_ thread */
 }
@@ -2203,7 +2203,7 @@ static gasnet_handlerentry_t const gasnetc_handlers[] = {
   { 0, NULL }
 };
 
-gasnet_handlerentry_t const *gasnetc_get_handlertable() {
+gasnet_handlerentry_t const *gasnetc_get_handlertable(void) {
   return gasnetc_handlers;
 }
 

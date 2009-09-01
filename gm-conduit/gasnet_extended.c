@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2008/12/26 05:31:00 $
- * $Revision: 1.44 $
+ *     $Date: 2009/09/01 20:46:47 $
+ * $Revision: 1.44.4.1 $
  * Description: GASNet Extended API GM Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -47,14 +47,14 @@ const gasnete_eopaddr_t	EOPADDR_NIL = { { 0xFF, 0xFF } };
   ==============
 */
 /* called at startup to check configuration sanity */
-static void gasnete_check_config() {
+static void gasnete_check_config(void) {
   gasneti_check_config_postattach();
 
   gasneti_assert_always(GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD <= gasnet_AMMaxMedium());
   gasneti_assert_always(gasnete_eopaddr_isnil(EOPADDR_NIL));
 }
 
-extern void gasnete_init() {
+extern void gasnete_init(void) {
     static int firstcall = 1;
     GASNETI_TRACE_PRINTF(C,("gasnete_init()"));
     gasneti_assert(firstcall); /*  make sure we haven't been called before */

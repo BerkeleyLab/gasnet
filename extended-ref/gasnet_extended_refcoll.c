@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/02/10 19:42:45 $
- * $Revision: 1.75 $
+ *     $Date: 2009/09/01 20:46:44 $
+ * $Revision: 1.75.4.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -24,6 +24,8 @@ the files are compiled under their own .o files)*/
 */
 #include <gasnet_coll_autotune.c>
 #include <gasnet_coll_scratch.c>
+
+gasnet_team_handle_t gasnete_coll_team_all;
 
 size_t gasnete_coll_p2p_eager_min = 0;
 size_t gasnete_coll_p2p_eager_scale = 0;
@@ -1379,7 +1381,7 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     static gasnete_coll_p2p_t gasnete_coll_p2p_table[GASNETE_COLL_P2P_TABLE_SIZE];
     static gasnet_hsl_t gasnete_coll_p2p_table_lock = GASNET_HSL_INITIALIZER; 
 	
-    void gasnete_coll_p2p_init() {
+    void gasnete_coll_p2p_init(void) {
       int i;
 
       for (i = 0; i < GASNETE_COLL_P2P_TABLE_SIZE; ++i) {
@@ -1388,7 +1390,7 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
       }
     }
 
-    void gasnete_coll_p2p_fini() {
+    void gasnete_coll_p2p_fini(void) {
       int i;
 
       for (i = 0; i < GASNETE_COLL_P2P_TABLE_SIZE; ++i) {
@@ -1503,7 +1505,7 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     static gasnet_hsl_t gasnete_coll_p2p_seg_free_list_lock = GASNET_HSL_INITIALIZER;
     static gasnete_coll_seg_interval_t *gasnet_coll_p2p_seg_interval_free_list = NULL;
 
-    gasnete_coll_seg_interval_t *gasnet_coll_p2p_alloc_seg_interval() {
+    gasnete_coll_seg_interval_t *gasnet_coll_p2p_alloc_seg_interval(void) {
       gasnete_coll_seg_interval_t *curr_interval;
            
       gasnet_hsl_lock(&gasnete_coll_p2p_seg_free_list_lock);

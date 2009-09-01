@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_strided.c,v $
- *     $Date: 2009/08/24 05:49:12 $
- * $Revision: 1.25.40.1 $
+ *     $Date: 2009/09/01 20:46:45 $
+ * $Revision: 1.25.40.2 $
  * Description: GASNet Strided implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -821,6 +821,7 @@ void gasnete_puts_AMPipeline_reqh_inner(gasnet_token_t token,
   size_t * const packetstrides = packetcount + stridelevels + 1;
   size_t * const packedbuf = packetstrides + stridelevels;
   size_t const limit = stridelevels - gasnete_strided_nulldims(packetcount, stridelevels);
+  GASNETI_UNUSED_UNLESS_DEBUG /* but still need side-effects */
   uint8_t * const end = gasnete_strided_unpack_partial(&dstaddr, packetstrides, packetcount, contiglevel, limit,
                                                        packetchunks, packetinit+contiglevel, 0, 0, packedbuf);
   gasneti_assert(end - (uint8_t *)addr == nbytes);
@@ -985,7 +986,8 @@ void gasnete_gets_AMPipeline_reph_inner(gasnet_token_t token,
 
   gasneti_assert(visop->type == GASNETI_VIS_CAT_GETS_AMPIPELINE);
 
-  { uint8_t * const end = gasnete_strided_unpack_partial(&dstaddr, tablestrides, tablecount, contiglevel, limit,
+  { GASNETI_UNUSED_UNLESS_DEBUG /* but still need side-effects */
+    uint8_t * const end = gasnete_strided_unpack_partial(&dstaddr, tablestrides, tablecount, contiglevel, limit,
                                                        packetchunks, tableinit+contiglevel, 0, 0, addr);
     gasneti_assert(end - (uint8_t *)addr == nbytes);
   }

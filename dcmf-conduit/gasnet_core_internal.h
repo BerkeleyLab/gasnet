@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_internal.h,v $
- *     $Date: 2009/08/30 07:18:25 $
- * $Revision: 1.2.10.1 $
+ *     $Date: 2009/09/01 20:46:39 $
+ * $Revision: 1.2.10.2 $
  * Description: GASNet dcmf conduit header for internal definitions in Core API
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -97,7 +97,7 @@ typedef struct gasnetc_dcmf_req_t_{
   DCMF_Request_t req;
 } gasnetc_dcmf_req_t;
 
-gasnetc_dcmf_req_t * gasnetc_get_dcmf_req();
+gasnetc_dcmf_req_t * gasnetc_get_dcmf_req(void);
 void gasnetc_free_dcmf_req(gasnetc_dcmf_req_t *req);
 
 typedef struct gasnetc_dcmf_nack_req_t_ {
@@ -275,13 +275,13 @@ extern gasnetc_dcmf_amregistration_t *gasnetc_dcmf_amregistration[GASNETC_NUM_AM
 
 
 
-void gasnetc_dcmf_finalize();
+void gasnetc_dcmf_finalize(void);
 
-void gasnetc_dcmf_bootstrap_coll_init();
-void gasnetc_dcmf_p2p_init();
+void gasnetc_dcmf_bootstrap_coll_init(void);
+void gasnetc_dcmf_p2p_init(void);
 
 
-void gasnetc_dcmf_bootstrapBarrier();
+void gasnetc_dcmf_bootstrapBarrier(void);
 void gasnetc_dcmf_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode);
 void gasnetc_dcmf_bootstrapExchange(void *src, size_t nbytes, void *dst);
 

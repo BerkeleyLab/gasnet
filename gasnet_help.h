@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2009/05/13 21:51:41 $
- * $Revision: 1.101.4.3 $
+ *     $Date: 2009/09/01 20:46:35 $
+ * $Revision: 1.101.4.4 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -87,6 +87,7 @@ void * _gasneti_malloc_aligned(size_t alignment, size_t size GASNETI_CURLOCFARG)
   void *base = _gasneti_extern_malloc(alloc_size GASNETI_CURLOCPARG);
   void **result = (void **)GASNETI_ALIGNUP((uintptr_t)base + sizeof(void *), alignment);
   *(result - 1) = base; /* hidden base ptr for free() */
+  gasneti_assert(GASNETI_POWEROFTWO(alignment));
   gasneti_assert(result == (void **)GASNETI_ALIGNUP(result, alignment));
   gasneti_assert((void *)(result - 1) >= base);
   gasneti_assert(((uint8_t *)result + size) <= ((uint8_t *)base + alloc_size));
@@ -195,8 +196,8 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 #endif
 
 #if GASNET_DEBUG
-  extern void gasneti_checkinit();
-  extern void gasneti_checkattach();
+  extern void gasneti_checkinit(void);
+  extern void gasneti_checkattach(void);
   #define GASNETI_CHECKINIT()    gasneti_checkinit()
   #define GASNETI_CHECKATTACH()  gasneti_checkattach()
 #else
@@ -282,7 +283,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
       return 0;
   }
   /* return 0/EBUSY on success/failure to match pthreads */
-  GASNETI_INLINE(gasneti_spinlock_trylock)
+  GASNETI_INLINE(gasneti_spinlock_trylock) GASNETI_WARN_UNUSED_RESULT
   int gasneti_spinlock_trylock(gasneti_atomic_t *plock) {
       gasneti_assert(gasneti_spinlock_is_valid(plock));
       if (gasneti_atomic_compare_and_swap(plock, GASNETI_SPINLOCK_UNLOCKED, GASNETI_SPINLOCK_LOCKED, GASNETI_ATOMIC_ACQ_IF_TRUE)) {
@@ -324,7 +325,8 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
     gasnet_threadinfo_t gasnete_threadinfo_cache = (info); \
     uint32_t gasnete_threadinfo_available = 0
     /* if you get an unused variable warning on gasnete_threadinfo_available, 
-       it means you POST'ed in a function which made no GASNet calls that needed it */
+       it means you POST'ed in a function which made no GASNet calls that needed it
+       So, PLEASE don't add GASNETI_UNUSED annotations here. */
 
   #if GASNETI_LAZY_BEGINFUNCTION
     #define GASNET_GET_THREADINFO()                              \
@@ -381,7 +383,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
  *  additionally, progressfns that make gasnet calls must be prepared to recieve 
  *  reentrant calls (ie without infinite recursion or deadlock)
  */
-typedef void (*gasneti_progressfn_t)();
+typedef void (*gasneti_progressfn_t)(void);
 
 /* currently the list of progressfns is compile-time constant for dispatch performance 
  * reasons (a static dispatch is about 3x faster than a dynamic one on modern CPUs)
@@ -396,7 +398,7 @@ typedef void (*gasneti_progressfn_t)();
 #endif
 
 #ifndef GASNETE_PROGRESSFNS_LIST
-  extern void (*gasnete_barrier_pf)();
+  extern gasneti_progressfn_t gasnete_barrier_pf;
   #define GASNETE_BARRIER_PROGRESSFN(FN) \
     FN(gasneti_pf_barrier, BOOLEAN, gasnete_barrier_pf) 
 
@@ -411,8 +413,8 @@ typedef void (*gasneti_progressfn_t)();
 #endif
 
 #if GASNET_DEBUG
-  extern void (*gasneti_debug_progressfn_bool)();
-  extern void (*gasneti_debug_progressfn_counted)();
+  extern gasneti_progressfn_t gasneti_debug_progressfn_bool;
+  extern gasneti_progressfn_t gasneti_debug_progressfn_counted;
   #define GASNETI_DEBUG_PROGRESSFNS(FN) \
       FN(gasneti_pf_debug_boolean, BOOLEAN, gasneti_debug_progressfn_bool) \
       FN(gasneti_pf_debug_counted, COUNTED, gasneti_debug_progressfn_counted) 
@@ -486,7 +488,7 @@ typedef void (*gasneti_progressfn_t)();
    gasnetc_AMPoll() - conduit AM dispatcher, should only be called from gasneti_AMPoll()
    */
   #ifndef GASNETI_GASNETC_AMPOLL
-    extern int gasnetc_AMPoll();
+    extern int gasnetc_AMPoll(void);
   #endif
 
   #if GASNETI_THROTTLE_FEATURE_ENABLED && (GASNET_PAR || GASNETI_CONDUIT_THREADS)
@@ -526,7 +528,7 @@ typedef void (*gasneti_progressfn_t)();
 
   #if !GASNETI_THROTTLE_POLLERS 
     GASNETI_INLINE(gasneti_AMPoll)
-    int gasneti_AMPoll() {
+    int gasneti_AMPoll(void) {
        int retval;
        gasneti_AMPoll_spinpollers_check();
        gasneti_memcheck_one();
@@ -639,7 +641,7 @@ extern int gasneti_wait_mode; /* current waitmode hint */
 #define _GASNET_AMPOLL
   /* GASNet client calls gasnet_AMPoll(), which throttles and traces */
   GASNETI_INLINE(gasnet_AMPoll)
-  int gasnet_AMPoll() {
+  int gasnet_AMPoll(void) {
     GASNETI_TRACE_EVENT(I, AMPOLL);
     return gasneti_AMPoll();
   }

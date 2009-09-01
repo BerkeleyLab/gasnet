@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2009/08/31 01:51:23 $
- * $Revision: 1.34.28.2 $
+ *     $Date: 2009/09/01 20:46:44 $
+ * $Revision: 1.34.28.3 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -108,7 +108,7 @@ int amdbarrier_recv_value_synced(int phase) {
   return amdbarrier_recv_value[phase];
 }
 
-void gasnete_amdbarrier_kick() {
+void gasnete_amdbarrier_kick(void) {
   int phase = amdbarrier_phase;
   int step = amdbarrier_step;
   int numsteps = 0;
@@ -361,7 +361,7 @@ static void gasnete_amcbarrier_done_reqh(gasnet_token_t token,
 }
 
 /*  make some progress on the ambarrier */
-void gasnete_amcbarrier_kick() {
+void gasnete_amcbarrier_kick(void) {
   int phase = amcbarrier_phase;
 
   if (gasneti_mynode != GASNETE_AMCBARRIER_MASTER) return;
@@ -482,9 +482,9 @@ int (*gasnete_barrier_wait)(int id, int flags) = NULL;
 int (*gasnete_barrier_try)(int id, int flags) = NULL;
 
 /* optional pointer, for progress function if the barrier implementation wants it */
-void (*gasnete_barrier_pf)() = NULL;
+gasneti_progressfn_t gasnete_barrier_pf = NULL;
 
-extern void gasnete_barrier_init() {
+extern void gasnete_barrier_init(void) {
   #ifndef GASNETE_BARRIER_DEFAULT
   /* conduit plugin for default barrier mechanism */
   #define GASNETE_BARRIER_DEFAULT "AMDISSEM"

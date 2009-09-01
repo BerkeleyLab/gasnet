@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/08/30 19:47:47 $
- * $Revision: 1.16.8.8 $
+ *     $Date: 2009/09/01 20:47:06 $
+ * $Revision: 1.16.8.9 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -21,7 +21,6 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 static void gasnetc_atexit(void);
-static void gasnetc_traceoutput(int);
 
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
 
@@ -33,7 +32,7 @@ uintptr_t gasnetc_segbase, gasnetc_segend;
   ==============
 */
 /* called at startup to check configuration sanity */
-static void gasnetc_check_config() {
+static void gasnetc_check_config(void) {
   gasneti_check_config_preinit();
 
   /* (###) add code to do some sanity checks on the number of nodes, handlers
@@ -206,7 +205,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
                           numentries, (unsigned long)segsize, (unsigned long)minheapoffset));
 
   /* check for system messages */
-  gasnetc_sys_poll();
+  gasnetc_sys_poll(GASNETC_EQ_LOCK);
 
   if (!gasneti_init_done) 
     GASNETI_RETURN_ERRR(NOT_INIT, "GASNet attach called before init");
@@ -298,8 +297,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, &gasnetc_bootstrapExchange);
       segbase = gasneti_seginfo[gasneti_mynode].addr;
       segsize = gasneti_seginfo[gasneti_mynode].size;
-      gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
-      gasneti_assert(segsize % GASNET_PAGESIZE == 0);
+      gasnetc_assert_aligned(segbase, GASNET_PAGESIZE);
+      gasnetc_assert_aligned(segsize, GASNET_PAGESIZE);
     }
     gasnetc_segbase = (uintptr_t)segbase;
     gasnetc_segend = gasnetc_segbase + segsize;
@@ -307,7 +306,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     /* GASNET_SEGMENT_EVERYTHING */
     segbase = (void *)0;
     segsize = (uintptr_t)-1;
-    gasnetc_segbase = (0;
+    gasnetc_segbase = 0;
     gasnetc_segend = (uintptr_t)-1;
     /* (###) add any code here needed to setup GASNET_SEGMENT_EVERYTHING support */
   #endif
@@ -395,7 +394,7 @@ extern void gasnetc_exit(int exitcode) {
     while (( cnt < gasneti_nodes) && (stoptime-starttime<shutdowntime)) {
       cnt = 0;
       for (node = 0; node < gasneti_nodes; node++) cnt += (gasnetc_conn_state[node].flags & GASNETC_SYS_GOT_SHUTDOWN_MSG ? 1 : 0);
-      if (cnt < gasneti_nodes) gasnetc_sys_poll();
+      if (cnt < gasneti_nodes) gasnetc_sys_poll(GASNETC_EQ_TRYLOCK);
       stoptime = GASNETC_CURRENT_TIME();
     } 
 
@@ -440,8 +439,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   return GASNET_OK;
 }
 
-extern int gasnetc_AMPoll() {
-  int retval;
+extern int gasnetc_AMPoll(void) {
   GASNETI_CHECKATTACH();
 
   gasnetc_portals_poll(GASNETC_FULL_POLL);
@@ -467,23 +465,55 @@ SHORT_HANDLER(gasnetc_noop_reph,0,0,
 
 
 #define AM_RELEASE_RESOURCES(th) do {			\
-    while (th->snd_tickets > 0) {			\
-      gasnetc_return_ticket(&gasnetc_send_tickets);	\
-      th->snd_tickets--;				\
+    if (th->snd_tickets) {				\
+      gasnetc_return_tickets(&gasnetc_send_tickets, th->snd_tickets);\
+      th->snd_tickets = 0;				\
     }							\
-    while (th->tmpmd_tickets) {				\
+    if (th->tmpmd_tickets) {				\
+      gasneti_assert(th->tmpmd_tickets == 1);		\
       gasnetc_return_ticket(&gasnetc_tmpmd_tickets);	\
-      th->tmpmd_tickets--;				\
+      th->tmpmd_tickets = 0;				\
     }							\
     gasneti_assert(th->snd_credits == 0);		\
   } while(0)
+
+#define GASNETC_AM_LOOPBACK_COMMON(_args) \
+    GASNETC_ZERO_AMARGS(_args);				\
+    do {						\
+      va_list argptr; int i;				\
+      va_start(argptr, numargs);			\
+      for (i = 0; i < numargs; i++) _args[i] = va_arg(argptr,gasnet_handlerarg_t);\
+      va_end(argptr);					\
+    } while (0)
+
+#define GASNETC_AM_HEADER_COMMON(cred_word) do {			\
+    va_list argptr;							\
+    int i;								\
+									\
+    gasnetc_assert_aligned(data32,GASNETI_MEDBUF_ALIGNMENT);		\
+									\
+    /* pack all the args in to data payload */				\
+    va_start(argptr, numargs);						\
+    for (i = 0; i < numargs; i++) {					\
+      uint32_t garg = va_arg(argptr,gasnet_handlerarg_t);		\
+      *(data32++) = garg;						\
+      GASNETC_ADD_HARG(garg); /* debug */				\
+    }									\
+    va_end(argptr);							\
+									\
+    GASNETC_INJECT_NEXT_SEQNO(data32); /* debug */			\
+									\
+    /* construct the match bits */					\
+    GASNETC_PACK_AM_MBITS(mbits,local_offset,numargs,handler,amtype,targ_mbits); \
+									\
+    /* pack srcnode and cred_word into hdr_data */			\
+    GASNETC_PACK_2INT(hdr_data,gasneti_mynode,cred_word);		\
+  } while (0)
 
 extern int gasnetc_AMRequestShortM( 
                             gasnet_node_t dest,       /* destination node */
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             int numargs, ...) {
-  int retval;
-  va_list argptr;
   ptl_size_t         local_offset;
   ptl_size_t         remote_offset = 0;
   ptl_handle_md_t    md_h = gasnetc_ReqSB.md_h;
@@ -491,15 +521,11 @@ extern int gasnetc_AMRequestShortM(
   ptl_ac_index_t     ac_index = GASNETC_PTL_AC_ID;
   uint64_t           amtype = GASNETC_PTL_AM_SHORT | GASNETC_PTL_AM_REQUEST;
   uint64_t           targ_mbits = GASNETC_PTL_REQRB_BITS  | GASNETC_PTL_MSG_AM;
-  gasnet_handlerarg_t garg0 = 0;
-  gasnet_handlerarg_t garg1 = 0;
   ptl_match_bits_t   mbits;
   ptl_hdr_data_t     hdr_data;
-  ptl_size_t         msg_bytes = 0;
-  int                pad = 0;
-  int                i;
+  ptl_size_t         msg_bytes;
   gasnetc_conn_t    *state = &gasnetc_conn_state[dest];
-  uint8_t           *data;
+  uint32_t          *data32;
   gasnetc_threaddata_t *th = gasnetc_mythread();
   int                nsend,ncredit;
   uint8_t            cred_byte = 0;
@@ -512,12 +538,8 @@ extern int gasnetc_AMRequestShortM(
   if (dest == gasneti_mynode) {
     gasnetc_ptl_token_t tok;
     gasnet_token_t      token = (gasnet_token_t)&tok;
-    va_start(argptr, numargs);
-    for (i = 0; i < gasnet_AMMaxArgs(); i++) tok.args[i] = 0;
-    for (i = 0; i < numargs; i++) tok.args[i] = va_arg(argptr,gasnet_handlerarg_t);
-    va_end(argptr);
+    GASNETC_AM_LOOPBACK_COMMON(tok.args);
     tok.srcnode = gasneti_mynode;
-    tok.rplsb_offset = 0;
     tok.initiator_offset = 0;
     GASNETI_TRACE_PRINTF(C,("AM_LOOPBACK: S_Req handler=%d, narg=%d",handler,numargs));
     GASNETC_DBGMSG(1,1,"S",gasneti_mynode,dest,handler,numargs,tok.args,0,cred_byte,0,NULL,th);
@@ -529,65 +551,23 @@ extern int gasnetc_AMRequestShortM(
   gasneti_assert(th->snd_credits == 0);
 
   /* Short Request Data Format:
-   * numarg=0:   HD=[----,cred] MB=[off,XX] Data=[seqno][pad]
-   * numarg=1:   HD=[arg1,cred] MB=[off,XX] Data=[seqno][pad]
-   * numarg=2+:  HD=[arg1,arg2] MB=[off,XX] Data=[args][cred][seqno][pad]
+   *     HD=[srcnode,cred] MB=[off,XX] Data=[args][seqno][pad]
    * NOTE: seqno included only in debug mode
-  */
+   */
+
   /* Here we pre-compute msg length based on number of arguments and message format */
-  if (numargs < 2) {
-    msg_bytes = 0;  /* cred_info in hdr_data */
-  } else {
-    msg_bytes = (numargs-2)*sizeof(gasnet_handlerarg_t) + sizeof(uint8_t);
-  }
+  msg_bytes = numargs * sizeof(gasnet_handlerarg_t);
   GASNETC_SEQNO_MSGLEN(msg_bytes);           /* debug */
-  /* add padding for 8-byte alignment */
-  GASNETC_COMPUTE_DOUBLE_PAD(msg_bytes,pad);
-  msg_bytes += pad;
-  gasneti_assert( (msg_bytes % sizeof(double)) == 0 );
+  msg_bytes = GASNETI_ALIGNUP(msg_bytes,GASNETI_MEDBUF_ALIGNMENT);
   ncredit = gasnetc_compute_credits(msg_bytes);
   if (!gasnetc_use_flow_control) gasneti_assert(ncredit == 0);
   nsend = 1;
 
   /* poll until ok to send message, allocate ReqSB chunk */
   GASNETC_COMMON_AMREQ_START(state,local_offset,th,nsend,ncredit,cred_byte);
+  data32 = (uint32_t*)((uintptr_t)gasnetc_ReqSB.start + local_offset);
 
-  /* get the addr of the start of the chunk */
-  data = (uint8_t*)gasnetc_ReqSB.start + local_offset;
-
-  /* construct the match bits */
-  GASNETC_PACK_AM_MBITS(mbits,local_offset,numargs,handler,amtype,targ_mbits);
-
-  va_start(argptr, numargs); /*  pass in last argument */
-  /* pack first two args in hdr_data */
-  if (numargs > 0) {
-    garg0 = va_arg(argptr,gasnet_handlerarg_t);
-    GASNETC_ADD_HARG(garg0);
-  }
-  if (numargs < 2) {
-    garg1 = cred_byte;
-  } else {
-    garg1 = va_arg(argptr,gasnet_handlerarg_t);
-    GASNETC_ADD_HARG(garg1);
-  }
-  GASNETC_PACK_2INT(hdr_data,garg0,garg1);
-  /* pack remaining args in data payload */
-  for (i=2; i < numargs; i++) {
-    gasnet_handlerarg_t foo;
-    foo = va_arg(argptr,gasnet_handlerarg_t);
-    GASNETC_ADD_HARG(foo);
-    gasneti_assert(!(3 & (uintptr_t)data));
-    *(gasnet_handlerarg_t*)data = foo;
-    data += sizeof(gasnet_handlerarg_t);
-  }
-  if (numargs > 1) {
-    /* pack the credit info byte */
-    *data = cred_byte;
-    data += sizeof(uint8_t);  /* not needed */
-  }
-  va_end(argptr);
-  GASNETC_NEXTSEQNO();                    /* debug */
-  GASNETC_INJECT_SEQNO(data,db_cntr);     /* debug */
+  GASNETC_AM_HEADER_COMMON(cred_byte);
 
   gasneti_assert(th->snd_tickets);
   th->snd_tickets--;
@@ -614,8 +594,6 @@ extern int gasnetc_AMRequestMediumM(
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             int numargs, ...) {
-  int retval;
-  va_list argptr;
   ptl_size_t         local_offset;
   ptl_size_t         remote_offset = 0;
   ptl_handle_md_t    md_h = gasnetc_ReqSB.md_h;
@@ -623,15 +601,13 @@ extern int gasnetc_AMRequestMediumM(
   ptl_ac_index_t     ac_index = GASNETC_PTL_AC_ID;
   uint64_t           amtype = GASNETC_PTL_AM_MEDIUM | GASNETC_PTL_AM_REQUEST;
   uint64_t           targ_mbits = GASNETC_PTL_REQRB_BITS  | GASNETC_PTL_MSG_AM;
-  gasnet_handlerarg_t garg0 = 0;
-  gasnet_handlerarg_t garg1 = 0;
+  uint32_t           len_cred;
   ptl_match_bits_t   mbits;
   ptl_hdr_data_t     hdr_data;
   gasnetc_conn_t    *state = gasnetc_conn_state + dest;
-  int                i, pad1, pad2;
-  int                msg_bytes = 0;
-  uint32_t           hndlr_bytes = nbytes;  /* this will fit for medium message */
-  uint8_t           *data;
+  int                i;
+  int                msg_bytes;
+  uint32_t           *data32;
   gasnetc_threaddata_t *th = gasnetc_mythread();
   int                nsend, ncredit;
   uint8_t            cred_byte = 0;
@@ -646,42 +622,34 @@ extern int gasnetc_AMRequestMediumM(
   if (dest == gasneti_mynode) {
     gasnetc_ptl_token_t tok;
     gasnet_token_t      token = (gasnet_token_t)&tok;
-    void *tmpdata = gasneti_malloc(nbytes);
-    va_start(argptr, numargs);
-    for (i = 0; i < gasnet_AMMaxArgs(); i++) tok.args[i] = 0;
-    for (i = 0; i < numargs; i++) tok.args[i] = va_arg(argptr,gasnet_handlerarg_t);
-    va_end(argptr);
+    void *tmpdata = gasnetc_alloc_tmp(nbytes);
+    GASNETC_AM_LOOPBACK_COMMON(tok.args);
+    gasneti_assert(!((uintptr_t)tmpdata & 7)); /* x86_64 ABI ensures this, alloca() does not */
     tok.srcnode = gasneti_mynode;
-    tok.rplsb_offset = 0;
     tok.initiator_offset = 0;
     /* dont allow handler to modify source memory */
     memcpy(tmpdata,source_addr,nbytes);
     GASNETI_TRACE_PRINTF(C,("AM_LOOPBACK: M_Req handler=%d, narg=%d nbytes=%d",handler,numargs,(int)nbytes));
     GASNETC_DBGMSG(1,1,"M",gasneti_mynode,dest,handler,numargs,tok.args,0,cred_byte,nbytes,source_addr,th);
     GASNETI_RUN_HANDLER_MEDIUM(1, handler, gasnetc_handler[handler], token, tok.args, numargs, tmpdata, nbytes);
-    gasneti_free(tmpdata);
+    gasnetc_free_tmp(tmpdata);
     gasneti_AMPoll();
     GASNETI_RETURN(GASNET_OK);
   }
 
-  /* AM Medium Data Format:
-   * HD=[cred:len,arg1] MB=[off,XX] Data=[args][seqno][pad][data][pad]
-   * NOTE: seqno only included in debug mode
+  /* Medium Request Data Format:
+   *     HD=[srcnode,len:cred] MB=[off,XX] Data=[args][seqno][pad][data][pad]
+   * NOTE: seqno included only in debug mode
    */
+
   gasneti_assert(th->snd_credits == 0);
-  if (numargs < 2) {  /* 1 args + cred:len in hdr_data */
-    msg_bytes = 0;
-  } else { /* one arg and cred:len in hdr, up to 15 args + pad1 + data + pad2 in data */
-    msg_bytes = (numargs-1)*sizeof(gasnet_handlerarg_t);
-  }
-  /* have accounted for args, len and cred info.  Now add [seqno] [pad1] [data] [pad2]*/
+
+  msg_bytes = numargs * sizeof(gasnet_handlerarg_t);
+  /* have accounted for args.  Now add [seqno] [pad1] [data] [pad2]*/
   GASNETC_SEQNO_MSGLEN(msg_bytes);           /* debug */
-  GASNETC_COMPUTE_DOUBLE_PAD(msg_bytes,pad1);
-  msg_bytes += pad1;
+  msg_bytes = GASNETI_ALIGNUP(msg_bytes,GASNETI_MEDBUF_ALIGNMENT);
   msg_bytes += nbytes;
-  GASNETC_COMPUTE_DOUBLE_PAD(msg_bytes,pad2);
-  msg_bytes += pad2;
-  gasneti_assert( (msg_bytes % sizeof(double)) == 0 );
+  msg_bytes = GASNETI_ALIGNUP(msg_bytes,GASNETI_MEDBUF_ALIGNMENT);
   gasneti_assert(msg_bytes <= GASNETC_CHUNKSIZE);
 
   /* resources we need */
@@ -691,41 +659,15 @@ extern int gasnetc_AMRequestMediumM(
 
   /* poll until ok to send message, allocate ReqSB chunk */
   GASNETC_COMMON_AMREQ_START(state,local_offset,th,nsend,ncredit,cred_byte);
+  data32 = (uint32_t*)((uintptr_t)gasnetc_ReqSB.start + local_offset);
 
-  /* get the addr of the start of the chunk */
-  data = (uint8_t*)gasnetc_ReqSB.start + local_offset;
-  gasneti_assert( ((intptr_t)data % sizeof(double)) == 0 );
+  /* pack cred_byte together with message length, we need only 10 bits for nbytes */
+  len_cred = (nbytes << 8) | cred_byte;
 
-  /* construct the match bits */
-  GASNETC_PACK_AM_MBITS(mbits,local_offset,numargs,handler,amtype,targ_mbits);
+  GASNETC_AM_HEADER_COMMON(len_cred);
 
-  /* pack cred_byte to upper byte of hndlr_bytes, we only use lower 10 bits for msg len */
-  hndlr_bytes |= ((uint32_t)cred_byte << 24);
-  garg0 = hndlr_bytes;
-
-  va_start(argptr, numargs); /*  pass in last argument */
-  if (numargs > 0) {
-    garg1 = va_arg(argptr,gasnet_handlerarg_t);
-    GASNETC_ADD_HARG(garg1);
-  }
-  GASNETC_PACK_2INT(hdr_data,garg0,garg1);
-  /* pack remaining args in data payload */
-  for (i=1; i < numargs; i++) {
-    gasnet_handlerarg_t foo = va_arg(argptr,gasnet_handlerarg_t);
-    GASNETC_ADD_HARG(foo);
-    gasneti_assert(!(3 & (uintptr_t)data));
-    *(gasnet_handlerarg_t*)data = foo;
-    data += sizeof(gasnet_handlerarg_t);
-  }
-  va_end(argptr);
-  GASNETC_NEXTSEQNO();                    /* debug */
-  GASNETC_INJECT_SEQNO(data,db_cntr);     /* debug */
-
-  /* pad so that data payload starts on double-aligned memory */
-  data += pad1;
-
-  /* copy data payload */
-  memcpy(data,source_addr,nbytes);
+  /* copy data payload (aligned) */
+  memcpy((void*)GASNETI_ALIGNUP(data32,GASNETI_MEDBUF_ALIGNMENT),source_addr,nbytes);
 
   gasneti_assert(th->snd_tickets);
   th->snd_tickets--;
@@ -764,20 +706,20 @@ extern int gasnetc_AMRequestMediumM(
  *   nsend:     OUT
  *   nscredit:  OUT
  *   ntmpmd:    OUT
+ *
+ * Regular Format: HD=[srcnode,cred]     MB=[off,XX] data=[args][seqno][pad]
+ * Packed  Format: HD=[srcnode,len:cred] MB=[off,XX] data=[args][seqno][destaddr][data][pad]
+ * seqno only in debug mode 
  */
 #define AM_LONG_COMPUTE_RESOURCES(dest,isPacked,msg_bytes,nsend,ncredit,ntmpmd) do { \
     int packed_credits = 0;						\
     int packed_bytes = 0;						\
-    int arg_bytes = (numargs>1 ? (numargs-1) : 0)*sizeof(gasnet_handlerarg_t); \
-    /* Regular Format: hdr_dara=[arg0,lid]      data=[args][seqno][cred][pad] */ \
-    /* Packed  Format: hdr_data=[arg0,cred:len] data=[args][seqno][destaddr][data][pad]  */ \
-    /* seqno only in debug mode, pad only for Req */			\
+    int arg_bytes = numargs * sizeof(gasnet_handlerarg_t);		\
 									\
     /* Begin assuming Regular Format */					\
-    msg_bytes = arg_bytes + sizeof(uint8_t);				\
+    msg_bytes = arg_bytes;						\
     GASNETC_SEQNO_MSGLEN(msg_bytes);					\
-    GASNETC_COMPUTE_DOUBLE_PAD(msg_bytes,pad);				\
-    msg_bytes += pad;							\
+    msg_bytes = GASNETI_ALIGNUP(msg_bytes,GASNETI_MEDBUF_ALIGNMENT);	\
     gasneti_assert((gasnetc_use_flow_control == 0) ||			\
 		   (gasnetc_use_flow_control == 1));			\
     ncredit = gasnetc_compute_credits(msg_bytes) +			\
@@ -790,10 +732,9 @@ extern int gasnetc_AMRequestMediumM(
     /* Can/should we use Packed Format? */				\
     if (gasnetc_allow_packed_long) {					\
       packed_bytes = arg_bytes + sizeof(void*) + nbytes;		\
+      GASNETC_SEQNO_MSGLEN(packed_bytes);				\
+      packed_bytes = GASNETI_ALIGNUP(packed_bytes,GASNETI_MEDBUF_ALIGNMENT);\
       if (packed_bytes <= MAX_PACKED_LONG) {				\
-	GASNETC_SEQNO_MSGLEN(packed_bytes);				\
-	GASNETC_COMPUTE_DOUBLE_PAD(packed_bytes,pad);			\
-	packed_bytes += pad;						\
 	packed_credits = gasnetc_compute_credits(packed_bytes);		\
 	/* Use packed unless doing so creates an avoidable stall */	\
 	if (!(gasnetc_use_flow_control &&				\
@@ -807,7 +748,7 @@ extern int gasnetc_AMRequestMediumM(
         }								\
       }									\
     }									\
-    gasneti_assert( (msg_bytes % sizeof(double)) == 0 );		\
+    gasnetc_assert_aligned(msg_bytes,GASNETI_MEDBUF_ALIGNMENT);		\
     gasneti_assert(msg_bytes <= GASNETC_CHUNKSIZE);			\
   } while(0)
 
@@ -820,59 +761,37 @@ extern int gasnetc_AMRequestMediumM(
     ptl_ac_index_t       ac_index = GASNETC_PTL_AC_ID;			\
     uint64_t             amtype = GASNETC_PTL_AM_LONG | GASNETC_PTL_AM_REQUEST;	\
     uint64_t             targ_mbits = GASNETC_PTL_REQRB_BITS  | GASNETC_PTL_MSG_AM; \
-    gasnet_handlerarg_t  garg0 = 0;					\
-    uint32_t             lid;						\
+    uint32_t             len_cred;					\
     ptl_match_bits_t     mbits;						\
     ptl_hdr_data_t       hdr_data;					\
-    int                  i;						\
-    uint8_t             *data;						\
+    uint32_t             *data32;					\
 									\
-    /* pre-compute message length */					\
-    if (isPacked) {							\
-      /* pack message length + cred_byte in place of lid, len will fit in 10 bits */	\
-      lid = nbytes;							\
-      lid |= ((uint32_t)cred_byte << 24);				\
-      amtype |= GASNETC_PTL_AM_PACKED;					\
-    } else {								\
-      lid = gasnetc_new_lid(dest);					\
+    if_pf (!gasnetc_use_firehose) {					\
+      int pollcnt = 0;							\
+      GASNETC_GET_TMPMD_TICKETS(th,ntmpmd,pollcnt);			\
+      gasneti_assert(th->tmpmd_tickets >= ntmpmd);			\
     }									\
 									\
-    /* construct the match bits */					\
-    GASNETC_PACK_AM_MBITS(mbits,local_offset,numargs,handler,amtype,targ_mbits); \
+    len_cred = cred_byte;						\
+    if (isPacked) {							\
+      /* pack nbytes w/ the cred_byte, len fits in 10 bits */		\
+      len_cred |= nbytes << 8;						\
+      amtype |= GASNETC_PTL_AM_PACKED;					\
+    }									\
 									\
     /* get the addr of the start of the chunk */			\
-    data = (uint8_t*)gasnetc_ReqSB.start + local_offset;		\
-    gasneti_assert( ((intptr_t)data % sizeof(double)) == 0 );		\
+    data32 = (uint32_t*)((uintptr_t)gasnetc_ReqSB.start + local_offset);\
 									\
-    va_start(argptr, numargs);						\
-    if (numargs > 0) {							\
-      garg0 = va_arg(argptr,gasnet_handlerarg_t);			\
-      GASNETC_ADD_HARG(garg0);						\
-    }									\
-									\
-    GASNETC_PACK_2INT(hdr_data,garg0,lid);				\
-									\
-    /* pack remaining args in data payload */				\
-    for (i=1; i < numargs; i++) {					\
-      garg0 = va_arg(argptr,gasnet_handlerarg_t);			\
-      GASNETC_ADD_HARG(garg0);						\
-      gasneti_assert(!(3 & (uintptr_t)data));				\
-      *(gasnet_handlerarg_t*)data = garg0;				\
-      data += sizeof(gasnet_handlerarg_t);				\
-    }									\
-    va_end(argptr);							\
-    GASNETC_NEXTSEQNO();                    /* debug */			\
-    GASNETC_INJECT_SEQNO(data,db_cntr);	    /* debug */			\
+    GASNETC_AM_HEADER_COMMON(len_cred);					\
 									\
     if (isPacked) {							\
 									\
       /* pack the target node RAR destination address for this message */ \
-      memcpy(data,&dest_addr,sizeof(void*));				\
-      data += sizeof(void*);						\
+      *(data32++) = GASNETI_LOWORD(dest_addr);				\
+      *(data32++) = GASNETI_HIWORD(dest_addr);				\
 									\
       /* copy the data payload */					\
-      memcpy(data,source_addr,nbytes);					\
-      data += nbytes;							\
+      memcpy(data32,source_addr,nbytes);				\
 									\
       gasneti_assert(th->snd_tickets > 0);				\
       th->snd_tickets--;						\
@@ -890,7 +809,7 @@ extern int gasnetc_AMRequestMediumM(
       ptl_match_bits_t data_mbits = GASNETC_PTL_MSG_AMDATA | GASNETC_PTL_RARAM_BITS; \
       ptl_size_t data_offset = 0;					\
       ptl_size_t data_rmt_offset = GASNETC_PTL_OFFSET(dest,dest_addr);	\
-      ptl_hdr_data_t data_hdr_data = (ptl_hdr_data_t)lid;		\
+      ptl_hdr_data_t data_hdr_data = GASNETI_MAKEWORD(gasneti_mynode, local_offset);\
 									\
       gasneti_assert(th->snd_credits >= ncredit);			\
       gasneti_assert(th->snd_tickets > 1);				\
@@ -898,6 +817,8 @@ extern int gasnetc_AMRequestMediumM(
       /* first issue data put message and request sync */		\
       data_mbits |= ((ptl_match_bits_t)GASNETC_PTL_AM_REQUEST << 8);	\
       data_mbits |= ((ptl_match_bits_t)(th->threadidx) << 24);		\
+      data_mbits |= ((ptl_match_bits_t)(handler) << 48);		\
+      data_mbits |= ((ptl_match_bits_t)(numargs) << 56);		\
       if (gasnetc_in_local_rar(source_addr,nbytes)) {			\
 	data_md_h = gasnetc_RARSRC.md_h;				\
 	data_offset = GASNETC_PTL_OFFSET(gasneti_mynode,source_addr);	\
@@ -905,7 +826,7 @@ extern int gasnetc_AMRequestMediumM(
       } else GASNETC_IF_USE_FIREHOSE (					\
 	gasnetc_fh_op_t *op =						\
 	    	gasnetc_fh_aligned_local_pin(source_addr, nbytes);	\
-	const firehose_request_t *fh_loc = op->fh[0];			\
+	const firehose_request_t *fh_loc = &op->fh[0];			\
 	data_md_h = fh_loc->client;					\
 	data_offset = (uintptr_t)source_addr - fh_loc->addr;		\
 	data_mbits |= ((ptl_match_bits_t)(op->addr.fulladdr) << 32);	\
@@ -922,10 +843,6 @@ extern int gasnetc_AMRequestMediumM(
 	GASNETC_INC_INFLIGHT(&th->amlongReq_data_inflight);		\
       }									\
       GASNETC_PTLSAFE(PtlPutRegion(data_md_h, data_offset, nbytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_RAR_PTE, ac_index, data_mbits, data_rmt_offset, data_hdr_data)); \
-									\
-      /* add the credit info & send header message*/			\
-      *data = cred_byte;						\
-      data += sizeof(uint8_t);						\
 									\
       GASNETC_DBGMSG(1,1,"L",gasneti_mynode,dest,handler,numargs,hargs,msg_bytes,cred_byte,nbytes,source_addr,th); \
       GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data)); \
@@ -944,13 +861,8 @@ extern int gasnetc_AMRequestMediumM(
     if (dest == gasneti_mynode) {					\
       gasnetc_ptl_token_t tok;						\
       gasnet_token_t      token = (gasnet_token_t)&tok;			\
-      int i;								\
-      va_start(argptr, numargs);					\
-      for (i = 0; i < gasnet_AMMaxArgs(); i++) tok.args[i] = 0;		\
-      for (i = 0; i < numargs; i++) tok.args[i] = va_arg(argptr,gasnet_handlerarg_t); \
-      va_end(argptr);							\
+      GASNETC_AM_LOOPBACK_COMMON(tok.args);				\
       tok.srcnode = gasneti_mynode;					\
-      tok.rplsb_offset = 0;						\
       tok.initiator_offset = 0;						\
       memcpy(dest_addr,source_addr,nbytes);				\
       GASNETI_TRACE_PRINTF(C,("AM_LOOPBACK: L_Req handler=%d, narg=%d nbytes=%d",handler,numargs,(int)nbytes));	\
@@ -966,11 +878,9 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
-  va_list              argptr;
   ptl_size_t           local_offset;
   gasnetc_conn_t      *state = gasnetc_conn_state + dest;
-  int                  do_sync = 1;
-  int                  isPacked, msg_bytes, nsend, ncredit, ntmpmd, pad;
+  int                  isPacked, msg_bytes, nsend, ncredit, ntmpmd;
   uint8_t              cred_byte = 0;
   gasnetc_threaddata_t *th = gasnetc_mythread();
 
@@ -989,14 +899,9 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 
   /* poll until ok to send message, allocate ReqSB chunk */
   GASNETC_COMMON_AMREQ_START(state,local_offset,th,nsend,ncredit,cred_byte);
-  if_pf (!gasnetc_use_firehose) {
-    int pollcnt = 0;
-    GASNETC_GET_TMPMD_TICKETS(th,ntmpmd,pollcnt);
-    gasneti_assert(th->tmpmd_tickets >= ntmpmd);
-  }
 
   /* do all the work in sending the messages(s) */
-  AM_LONG_COMMON(do_sync,isPacked,th,cred_byte);
+  AM_LONG_COMMON(1 /*do_sync*/,isPacked,th,cred_byte);
   
   /* Always poll at end of AM Request */
   gasneti_AMPoll();
@@ -1013,11 +918,9 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
-  va_list              argptr;
   ptl_size_t           local_offset;
   gasnetc_conn_t      *state = gasnetc_conn_state + dest;
-  int                  do_sync = 0;
-  int                  isPacked, msg_bytes, nsend, ncredit, ntmpmd, pad;
+  int                  isPacked, msg_bytes, nsend, ncredit, ntmpmd;
   uint8_t              cred_byte = 0;
   gasnetc_threaddata_t *th = gasnetc_mythread();
 
@@ -1035,14 +938,9 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 
   /* poll until all required resources are allocated */
   GASNETC_COMMON_AMREQ_START(state,local_offset,th,nsend,ncredit,cred_byte);
-  if_pf (!gasnetc_use_firehose) {
-    int pollcnt = 0;
-    GASNETC_GET_TMPMD_TICKETS(th,ntmpmd,pollcnt);
-    gasneti_assert(th->tmpmd_tickets >= ntmpmd);
-  }
 
   /* do all the work in sending the messages(s) */
-  AM_LONG_COMMON(do_sync,isPacked,th,cred_byte);
+  AM_LONG_COMMON(0 /*do_sync*/,isPacked,th,cred_byte);
   
   /* Always poll at end of AM Request */
   gasneti_AMPoll();
@@ -1053,30 +951,25 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
   GASNETI_RETURN(GASNET_OK);
 }
 
+#undef AM_LONG_COMPUTE_RESOURCES
 #undef AM_LONG_COMMON
 
 extern int gasnetc_AMReplyShortM( 
                             gasnet_token_t token,       /* token provided on handler entry */
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             int numargs, ...) {
-  int retval;
-  va_list argptr; 
   gasnetc_ptl_token_t *ptok = (gasnetc_ptl_token_t*)token;
-  ptl_size_t           local_offset = ptok->rplsb_offset;
+  ptl_size_t           local_offset;
   ptl_size_t           remote_offset = ptok->initiator_offset;
   ptl_handle_md_t      md_h = gasnetc_RplSB.md_h;
   ptl_process_id_t     target_id = ptok->initiator;
   ptl_ac_index_t       ac_index = GASNETC_PTL_AC_ID;
   uint64_t             amtype = GASNETC_PTL_AM_SHORT;
   uint64_t             targ_mbits = GASNETC_PTL_REQSB_BITS | GASNETC_PTL_MSG_AM;
-  gasnet_handlerarg_t  garg0 = 0;
-  gasnet_handlerarg_t  garg1 = 0;
-  gasnet_handlerarg_t  garg2 = 0;
   ptl_match_bits_t     mbits;
   ptl_hdr_data_t       hdr_data = 0;
-  ptl_size_t           msg_bytes = 0;
-  uint8_t             *data = (uint8_t*)gasnetc_RplSB.start + local_offset;
-  int                  i;
+  ptl_size_t           msg_bytes;
+  uint32_t            *data32;
   gasnetc_threaddata_t *th = gasnetc_mythread();
 
   GASNETC_DEF_HARGS();       /* debugging, must be first statement */
@@ -1087,63 +980,29 @@ extern int gasnetc_AMReplyShortM(
   /* handle loopback case */
   if (ptok->srcnode == gasneti_mynode) {
     gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
-    va_start(argptr, numargs);
-    for (i = 0; i < gasnet_AMMaxArgs(); i++) args[i] = 0;
-    for (i = 0; i < numargs; i++) args[i] = va_arg(argptr,gasnet_handlerarg_t);
-    va_end(argptr);
+    GASNETC_AM_LOOPBACK_COMMON(args);
     GASNETI_TRACE_PRINTF(C,("AM_LOOPBACK: S_Rpl handler=%d, narg=%d",handler,numargs));
     GASNETC_DBGMSG(1,0,"S",gasneti_mynode,ptok->srcnode,handler,numargs,args,0,ptok->credits,0,NULL,th);
     GASNETI_RUN_HANDLER_SHORT(0, handler, gasnetc_handler[handler], token, args, numargs);
     GASNETI_RETURN(GASNET_OK);
   }
 
-  va_start(argptr, numargs); /*  pass in last argument */
-
   /* AM Short Reply Data Format:
-   * numarg=0:   HD=[----,cred] MB=[off,XX] Data=[seqno]
-   * numarg=1:   HD=[arg1,cred] MB=[off,XX] Data=[seqno]
-   * numarg=2:   HD=[arg1,arg2] MB=[off,XX] Data=[args][cred][seqno]
+   *     HD=[srcnode,cred] MB=[off,XX] Data=[args][seqno]
    * NOTE: seqno included only in debug mode
    */
 
-  /* reqsb offset in upper bits of match bits */
-  GASNETC_PACK_AM_MBITS(mbits,local_offset,numargs,handler,amtype,targ_mbits);
+  data32 = claim_rplsb(th);
+  local_offset = (ptl_size_t)((uintptr_t)data32 - (uintptr_t)gasnetc_RplSB.start);
 
-  /* pack first two args in hdr_data */
-  if (numargs > 0) {
-    garg0 = va_arg(argptr,gasnet_handlerarg_t);
-    GASNETC_ADD_HARG(garg0);
-  }
-  if (numargs < 2) {
-    garg1 = ptok->credits;  /* credit info in hdr_data */
-  } else {
-    garg1 = va_arg(argptr,gasnet_handlerarg_t);
-    GASNETC_ADD_HARG(garg1);
-  }
-  GASNETC_PACK_2INT(hdr_data,garg0,garg1);
-  /* pack remaining args in data payload */
-  for (i=2; i < numargs; i++) {
-    gasnet_handlerarg_t foo;
-    foo = va_arg(argptr,gasnet_handlerarg_t);
-    GASNETC_ADD_HARG(foo);
-    gasneti_assert(!(3 & (uintptr_t)data));
-    *(gasnet_handlerarg_t*)data = foo;
-    data += sizeof(gasnet_handlerarg_t);
-    msg_bytes += sizeof(gasnet_handlerarg_t);
-  }
-  if (numargs > 1) {
-    /* pack the credit info byte */
-    *data = ptok->credits;
-    data += sizeof(uint8_t);  
-    msg_bytes += sizeof(uint8_t);
-  }
-  va_end(argptr);
-  GASNETC_INJECT_SEQNO(data,msg_bytes);     /* debug */
+  GASNETC_AM_HEADER_COMMON(ptok->credits);
 
   /* already allocated a send ticket */
   gasneti_assert(th->snd_tickets > 0);
   th->snd_tickets--;
 
+  msg_bytes = numargs * sizeof(gasnet_handlerarg_t);
+  GASNETC_SEQNO_MSGLEN(msg_bytes);
   gasneti_assert(msg_bytes <= GASNETC_CHUNKSIZE);
 
   GASNETC_DBGMSG(1,0,"S",gasneti_mynode,ptok->srcnode,handler,numargs,hargs,msg_bytes,ptok->credits,0,NULL,th);
@@ -1152,7 +1011,7 @@ extern int gasnetc_AMReplyShortM(
   GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
 
   /* Indicate to reply code that AM did in fact send a reply message */
-  ptok->flags |= GASNETC_PTL_REPLY_SENT;
+  ptok->need_reply = 0;
 
   GASNETI_RETURN(GASNET_OK);
 }
@@ -1162,25 +1021,19 @@ extern int gasnetc_AMReplyMediumM(
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             int numargs, ...) {
-  int retval;
-  va_list argptr;
   gasnetc_ptl_token_t  *ptok = (gasnetc_ptl_token_t*)token;
-  ptl_size_t            local_offset = ptok->rplsb_offset;
+  ptl_size_t            local_offset;
   ptl_size_t            remote_offset = ptok->initiator_offset;
   ptl_handle_md_t       md_h = gasnetc_RplSB.md_h;
   ptl_process_id_t      target_id = ptok->initiator;
   ptl_ac_index_t        ac_index = GASNETC_PTL_AC_ID;
   uint64_t              amtype = GASNETC_PTL_AM_MEDIUM;
   uint64_t              targ_mbits = GASNETC_PTL_REQSB_BITS | GASNETC_PTL_MSG_AM;
-  gasnet_handlerarg_t   garg0 = 0;
-  gasnet_handlerarg_t   garg1 = 0;
-  gasnet_handlerarg_t   garg2 = 0;
+  uint32_t              len_cred;
   ptl_match_bits_t      mbits;
   ptl_hdr_data_t        hdr_data = 0;
-  ptl_size_t            msg_bytes = 0;
-  uint32_t              payload_bytes = nbytes;
-  uint8_t              *data = (uint8_t*)gasnetc_RplSB.start + local_offset;
-  int                   i, pad;
+  ptl_size_t            msg_bytes;
+  uint32_t             *data32;
   gasnetc_threaddata_t *th = gasnetc_mythread();
 
   GASNETC_DEF_HARGS();       /* debugging, must be first statement */
@@ -1191,54 +1044,37 @@ extern int gasnetc_AMReplyMediumM(
   /* handle loopback case */
   if (ptok->srcnode == gasneti_mynode) {
     gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
-    void *tmpdata = gasneti_malloc(nbytes);
-    va_start(argptr, numargs);
-    for (i = 0; i < gasnet_AMMaxArgs(); i++) args[i] = 0;
-    for (i = 0; i < numargs; i++) args[i] = va_arg(argptr,gasnet_handlerarg_t);
-    va_end(argptr);
+    void *tmpdata = gasnetc_alloc_tmp(nbytes);
+    GASNETC_AM_LOOPBACK_COMMON(args);
+    gasneti_assert(!((uintptr_t)tmpdata & 7)); /* x86_64 ABI ensures this, alloca() does not */
     /* dont allow handler to modify source memory */
     memcpy(tmpdata,source_addr,nbytes);
     GASNETI_TRACE_PRINTF(C,("AM_LOOPBACK: M_Rpl handler=%d, narg=%d nbytes=%d",handler,numargs,(int)nbytes));
     GASNETC_DBGMSG(1,0,"M",gasneti_mynode,ptok->srcnode,handler,numargs,args,0,ptok->credits,nbytes,source_addr,th);
     GASNETI_RUN_HANDLER_MEDIUM(0, handler, gasnetc_handler[handler], token, args, numargs, tmpdata, nbytes);
-    gasneti_free(tmpdata);
+    gasnetc_free_tmp(tmpdata);
     GASNETI_RETURN(GASNET_OK);
   }
 
-  GASNETC_PACK_AM_MBITS(mbits,ptok->rplsb_offset,numargs,handler,amtype,targ_mbits);
-
-  /* AM Medium Data Format:
-   * HD=[cred:len,arg1] MB=[off,XX] Data=[args][seqno][pad][data]
-   * NOTE: seqno only included in debug mode
+  /* Medium Reply Data Format:
+   *     HD=[srcnode,len:cred] MB=[off,XX] Data=[args][seqno][pad][data]
+   * NOTE: seqno included only in debug mode
    */
-  payload_bytes |= ((uint32_t)(ptok->credits) << 24);
 
-  va_start(argptr, numargs); /*  pass in last argument */
-  garg0 = payload_bytes;
-  if (numargs > 0) {
-    garg1 = va_arg(argptr,gasnet_handlerarg_t);
-    GASNETC_ADD_HARG(garg1);
-  }
-  GASNETC_PACK_2INT(hdr_data,garg0,garg1);
-  for (i=1; i < numargs; i++) {
-    gasnet_handlerarg_t foo = va_arg(argptr,gasnet_handlerarg_t);
-    GASNETC_ADD_HARG(foo);
-    gasneti_assert(!(3 & (uintptr_t)data));
-    *(gasnet_handlerarg_t*)data = foo;
-    data += sizeof(gasnet_handlerarg_t);
-    msg_bytes += sizeof(gasnet_handlerarg_t);
-  }
-  va_end(argptr);
+  data32 = claim_rplsb(th);
+  local_offset = (ptl_size_t)((uintptr_t)data32 - (uintptr_t)gasnetc_RplSB.start);
+  len_cred = ptok->credits | (nbytes << 8);
 
-  GASNETC_INJECT_SEQNO(data,msg_bytes);     /* debug */
+  GASNETC_AM_HEADER_COMMON(len_cred);
 
-  /* pad to that data payload is double aligned */
-  GASNETC_COMPUTE_DOUBLE_PAD(msg_bytes,pad);
-  data += pad;
-  msg_bytes += pad;
+  msg_bytes = numargs  * sizeof(gasnet_handlerarg_t);
+  GASNETC_SEQNO_MSGLEN(msg_bytes);
 
-  /* copy handler data payload here */
-  memcpy(data,source_addr,nbytes);
+  /* pad to that data payload is correctly aligned */
+  msg_bytes = GASNETI_ALIGNUP(msg_bytes,GASNETI_MEDBUF_ALIGNMENT);
+
+  /* copy handler data payload here (aligned) */
+  memcpy((void*)GASNETI_ALIGNUP(data32,GASNETI_MEDBUF_ALIGNMENT),source_addr,nbytes);
   msg_bytes += nbytes;
 
   /* already allocated a send ticket */
@@ -1253,7 +1089,7 @@ extern int gasnetc_AMReplyMediumM(
   GASNETC_PTLSAFE(PtlPutRegion(md_h, local_offset, msg_bytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_AM_PTE, ac_index, mbits, remote_offset, hdr_data));
 
   /* Indicate to reply code that AM did in fact send a reply message */
-  ptok->flags |= GASNETC_PTL_REPLY_SENT;
+  ptok->need_reply = 0;
 
   GASNETI_RETURN(GASNET_OK);
 }
@@ -1264,25 +1100,20 @@ extern int gasnetc_AMReplyLongM(
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
-  int retval;
-  va_list argptr;
   gasnetc_ptl_token_t  *ptok = (gasnetc_ptl_token_t*)token;
-  ptl_size_t            local_offset = ptok->rplsb_offset;
+  ptl_size_t            local_offset;
   ptl_size_t            remote_offset = ptok->initiator_offset;
   ptl_handle_md_t       md_h = gasnetc_RplSB.md_h;
   ptl_process_id_t      target_id = ptok->initiator;
   ptl_ac_index_t        ac_index = GASNETC_PTL_AC_ID;
   uint64_t              amtype = GASNETC_PTL_AM_LONG;
   uint64_t              targ_mbits = GASNETC_PTL_REQSB_BITS | GASNETC_PTL_MSG_AM;
-  gasnet_handlerarg_t   garg = 0;
-  uint32_t              lid;
+  uint32_t              lid, cred_word;
   int                   isPacked = 0;
   ptl_match_bits_t      mbits;
   ptl_hdr_data_t        hdr_data = 0;
-  ptl_size_t            msg_bytes = 0;
-  int32_t               payload_bytes = nbytes;
-  uint8_t              *data = (uint8_t*)gasnetc_RplSB.start + local_offset;
-  int                   i, nstart, pad;
+  ptl_size_t            msg_bytes;
+  uint32_t             *data32;
   gasnet_node_t         dest = ptok->srcnode;
   gasnetc_threaddata_t *th = gasnetc_mythread();
 
@@ -1292,12 +1123,9 @@ extern int gasnetc_AMReplyLongM(
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 
 
   /* handle loopback case */
-  if (ptok->srcnode == gasneti_mynode) {
+  if (dest == gasneti_mynode) {
     gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
-    va_start(argptr, numargs);
-    for (i = 0; i < gasnet_AMMaxArgs(); i++) args[i] = 0;
-    for (i = 0; i < numargs; i++) args[i] = va_arg(argptr,gasnet_handlerarg_t);
-    va_end(argptr);
+    GASNETC_AM_LOOPBACK_COMMON(args);
     memcpy(dest_addr,source_addr,nbytes);
     GASNETI_TRACE_PRINTF(C,("AM_LOOPBACK: L_Rpl handler=%d, narg=%d nbytes=%d",handler,numargs,(int)nbytes));
     GASNETC_DBGMSG(1,0,"L",gasneti_mynode,ptok->srcnode,handler,numargs,args,0,ptok->credits,nbytes,source_addr,th);
@@ -1305,61 +1133,42 @@ extern int gasnetc_AMReplyLongM(
     GASNETI_RETURN(GASNET_OK);
   }
 
-  /* Regular Format: hdr_dara=[arg0,lid]      mbits=[off,XX] data=[args][seqno][cred] */
-  /* Packed  Format: hdr_data=[arg0,cred:len] mbits=[off,XX] data=[args][seqno][destaddr][data] */
-  /* seqno only in debug mode, pad only for Req */
+  /* Regular Format: HD=[srcnode,lid:cred] MB=[off,XXX] data=[args][seqno]
+   * Packed  Format: HD=[srcnode,len:cred] MB=[off,XXX] data=[args][seqno][destaddr][data]
+   * seqno only in debug mode
+   */
+
+  data32 = claim_rplsb(th);
+  local_offset = (ptl_size_t)((uintptr_t)data32 - (uintptr_t)gasnetc_RplSB.start);
+
+  msg_bytes = numargs * sizeof(gasnet_handlerarg_t);
+  GASNETC_SEQNO_MSGLEN(msg_bytes);
 
   if (gasnetc_allow_packed_long) {
-    int max_pack = GASNETC_CHUNKSIZE - (numargs>1?(numargs-1):0)*sizeof(gasnet_handlerarg_t) - sizeof(void*);
-#if GASNET_DEBUG
-    max_pack -= sizeof(uint32_t);          /* room for debug sequence number */
-#endif
-    isPacked = (nbytes <= max_pack ? 1 : 0);
+    const int max_pack = GASNETC_CHUNKSIZE - sizeof(void*);
+    isPacked = (msg_bytes + nbytes <= max_pack);
   }
 
-  if (isPacked) amtype |= GASNETC_PTL_AM_PACKED;
-
-  /* pack rplsb offset in upper bits of mbits */
-  garg = (uint32_t)ptok->rplsb_offset;
-  GASNETC_PACK_AM_MBITS(mbits,garg,numargs,handler,amtype,targ_mbits);
-
-  va_start(argptr, numargs); /*  pass in last argument */
-  if (numargs > 0) {
-    garg = va_arg(argptr,gasnet_handlerarg_t);
-    GASNETC_ADD_HARG(garg);
-  }
-
+  cred_word = ptok->credits;
   if (isPacked) {
-    /* pack message length in place of lid */
-    lid = nbytes;
-    lid |= ((uint32_t)(ptok->credits) << 24);
+    amtype |= GASNETC_PTL_AM_PACKED;
+    cred_word |= nbytes << 8;
   } else {
     lid = gasnetc_new_lid(dest);
+    cred_word |= lid << 8;
   }
-  GASNETC_PACK_2INT(hdr_data,garg,lid);
 
-  /* pack remaining args in data payload */
-  for (i=1; i < numargs; i++) {
-    garg = va_arg(argptr,gasnet_handlerarg_t);
-    GASNETC_ADD_HARG(garg);
-    gasneti_assert(!(3 & (uintptr_t)data));
-    *(gasnet_handlerarg_t*)data = garg;
-    data += sizeof(gasnet_handlerarg_t);
-    msg_bytes += sizeof(gasnet_handlerarg_t);
-  }
-  va_end(argptr);
-
-  GASNETC_INJECT_SEQNO(data,msg_bytes);     /* debug */
+  GASNETC_AM_HEADER_COMMON(cred_word);
 
   if (isPacked) {
 
     /* pack the target node RAR destination address for this message */
-    memcpy(data,&dest_addr,sizeof(void*));
-    data += sizeof(void*);
-    msg_bytes += sizeof(void*);
+    *(data32++) = GASNETI_LOWORD(dest_addr);
+    *(data32++) = GASNETI_HIWORD(dest_addr);
+    msg_bytes += 2*sizeof(uint32_t);
 
     /* copy the data payload */
-    memcpy(data,source_addr,nbytes);
+    memcpy(data32,source_addr,nbytes);
     msg_bytes += nbytes;
 
     gasneti_assert(msg_bytes <= GASNETC_CHUNKSIZE);
@@ -1381,11 +1190,10 @@ extern int gasnetc_AMReplyLongM(
      * both the RARSRC MD and the possible TMP_MD both use the SAFE_EQ.
      * NOTE: Data Reply sent to RARSRC (not RARAM) MD !!!
      */
-    int dp_eq_len = 2;
     ptl_handle_md_t dp_md_h;
     ptl_match_bits_t dp_mbits = 0;
     ptl_size_t remote_dataoffset = GASNETC_PTL_OFFSET(dest,dest_addr);
-    ptl_hdr_data_t dp_hdr_data = (ptl_hdr_data_t) lid;
+    ptl_hdr_data_t dp_hdr_data = GASNETI_MAKEWORD(gasneti_mynode, lid);
     ptl_size_t dp_offset = 0;
 
     /* already allocated a send ticket, spend them now */
@@ -1397,7 +1205,7 @@ extern int gasnetc_AMReplyLongM(
       dp_offset = GASNETC_PTL_OFFSET(gasneti_mynode,source_addr);
     } else GASNETC_IF_USE_FIREHOSE (
       gasnetc_fh_op_t *op = gasnetc_fh_aligned_local_pin(source_addr, nbytes);
-      const firehose_request_t *fh_loc = op->fh[0];
+      const firehose_request_t *fh_loc = &op->fh[0];
       dp_md_h = fh_loc->client;
       dp_offset = (uintptr_t)source_addr - fh_loc->addr;
       dp_mbits |= ((ptl_match_bits_t)(op->addr.fulladdr) << 32);
@@ -1412,13 +1220,11 @@ extern int gasnetc_AMReplyLongM(
     /* NOTE: dp_mbits explicitly does not include the REQUEST flag, since this is a reply */
     dp_mbits |= GASNETC_PTL_MSG_AMDATA | GASNETC_PTL_RARSRC_BITS | (GASNETC_PTL_AM_SYNC << 8);
     dp_mbits |= ((ptl_match_bits_t)(th->threadidx) << 24);
+    dp_mbits |= ((ptl_match_bits_t)(handler) << 48);
+    dp_mbits |= ((ptl_match_bits_t)(numargs) << 56);
     GASNETC_INC_INFLIGHT(&th->amlongRep_data_inflight);
     GASNETC_PTLSAFE(PtlPutRegion(dp_md_h, dp_offset, nbytes, PTL_NOACK_REQ, target_id, GASNETC_PTL_RAR_PTE, ac_index, dp_mbits, remote_dataoffset, dp_hdr_data));
 
-    /* now complete header message */
-    /* pack the return credit info (already processed when Request arrived) */
-    *data = ptok->credits;
-    msg_bytes += sizeof(uint8_t);
     gasneti_assert(msg_bytes <= GASNETC_CHUNKSIZE);
 
     GASNETC_DBGMSG(1,0,"L",gasneti_mynode,ptok->srcnode,handler,numargs,hargs,msg_bytes,ptok->credits,nbytes,source_addr,th);
@@ -1430,12 +1236,10 @@ extern int gasnetc_AMReplyLongM(
     while(GASNETC_TEST_INFLIGHT(&th->amlongRep_data_inflight)) {
       gasnetc_portals_poll(GASNETC_SAFE_POLL);
     }
-    /* return the send ticket from the data payload message */
-    if (gasnetc_msg_limit) gasnetc_return_ticket(&gasnetc_send_tickets);
   }
 
   /* Indicate to reply code that AM did in fact send a reply message */
-  ptok->flags |= GASNETC_PTL_REPLY_SENT;
+  ptok->need_reply = 0;
 
   GASNETI_RETURN(GASNET_OK);
 }
@@ -1453,11 +1257,11 @@ extern int gasnetc_AMReplyLongM(
 */
 #if GASNETC_USE_INTERRUPTS
   #error interrupts not implemented
-  extern void gasnetc_hold_interrupts() {
+  extern void gasnetc_hold_interrupts(void) {
     GASNETI_CHECKATTACH();
     /* add code here to disable handler interrupts for _this_ thread */
   }
-  extern void gasnetc_resume_interrupts() {
+  extern void gasnetc_resume_interrupts(void) {
     GASNETI_CHECKATTACH();
     /* add code here to re-enable handler interrupts for _this_ thread */
   }
@@ -1584,7 +1388,7 @@ static gasnet_handlerentry_t const gasnetc_handlers[] = {
   { 0, NULL }
 };
 
-gasnet_handlerentry_t const *gasnetc_get_handlertable() {
+gasnet_handlerentry_t const *gasnetc_get_handlertable(void) {
   return gasnetc_handlers;
 }
 

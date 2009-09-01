@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2009/08/31 23:34:40 $
- * $Revision: 1.113.8.12 $
+ *     $Date: 2009/09/01 20:46:35 $
+ * $Revision: 1.113.8.13 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -36,27 +36,14 @@ GASNETI_BEGIN_EXTERNC
   #pragma error_messages(off, E_STATEMENT_NOT_REACHED)
 #endif
 
-#if PLATFORM_OS_TRU64
-  /* replace a stupidly broken implementation of toupper on Tru64 
-     (fails to correctly implement required integral promotion of
-      character-typed arguments, leading to bogus warnings)
-     WARNING: This may evaluate the argument multiple times.
-              So, usage like
-                 *p = toupper(*q++);
-              is not going to work as expected.
-   */
-  #undef toupper
-  #define toupper(c) ((c) >= 'a' && (c) <= 'z' ? (c) & 0x5F:(c))
-#endif
-
 extern int gasneti_init_done; /*  true after init */
 extern int gasneti_attach_done; /*  true after attach */
 
 extern char gasneti_exename[1024];
 
 /* conduit-independent sanity checks */
-extern void gasneti_check_config_preinit();
-extern void gasneti_check_config_postattach();
+extern void gasneti_check_config_preinit(void);
+extern void gasneti_check_config_postattach(void);
 
 /* decode the command-line arguments */
 extern void gasneti_decode_args(int *argc, char ***argv);
@@ -244,7 +231,7 @@ GASNETI_MALLOCP(_gasneti_strndup)
 
 /* ------------------------------------------------------------------------------------ */
 
-extern void gasneti_freezeForDebugger();
+extern void gasneti_freezeForDebugger(void);
 
 /* GASNET_DEBUG_VERBOSE is set by configure to request job startup and general 
    status messages on stderr 
@@ -333,7 +320,7 @@ typedef struct {
 typedef gasneti_auxseg_request_t (*gasneti_auxsegregfn_t)(gasnet_seginfo_t *auxseg_info);
 
 /* collect required auxseg sizes and subtract them from the max values to report to client */
-void gasneti_auxseg_init();
+void gasneti_auxseg_init(void);
 
 /* consume the client's segsize request and return the 
    value to acquire including auxseg requirements */
@@ -342,7 +329,7 @@ uintptr_t gasneti_auxseg_preattach(uintptr_t client_request_sz);
 /* provide auxseg to GASNet components and init secondary segment arrays 
    requires gasneti_seginfo has been initialized to the correct values
  */
-void gasneti_auxseg_attach();
+void gasneti_auxseg_attach(void);
 
 #if GASNET_SEGMENT_EVERYTHING
   extern void gasnetc_auxseg_reqh(gasnet_token_t token, void *buf, size_t nbytes, 

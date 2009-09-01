@@ -1,16 +1,18 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_hash.c,v $
- *     $Date: 2006/03/19 02:08:14 $
- * $Revision: 1.12 $
+ *     $Date: 2009/09/01 20:47:03 $
+ * $Revision: 1.12.60.1 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
+#if 0 /* We now #include <firehose_hash.c> in firehose_{page,region}.c */
 #include <stdlib.h>
 #include <stdio.h>
 
 #include <firehose.h>
 #include <firehose_internal.h>
 #include <gasnet_internal.h>
+#endif
 
 struct _fh_hash_t {
         void   **fh_table;
@@ -83,7 +85,7 @@ inthash(fh_int_t key)
 */
 
 #if 1
-GASNETI_INLINE(inthash)
+GASNETI_ALWAYS_INLINE(inthash)
 int
 inthash(fh_int_t key)
 {
@@ -96,7 +98,7 @@ inthash(fh_int_t key)
 	return (int) key;
 }
 #else
-GASNETI_INLINE(inthash)
+GASNETI_ALWAYS_INLINE(inthash)
 int
 inthash(fh_int_t key)
 {
@@ -117,7 +119,7 @@ inthash(fh_int_t key)
  * Allocates a table large enough to hold 'entries' entries of size 'keylen'.
  * Note that 'entries' must be a power of two.
  */
-
+static
 fh_hash_t *
 fh_hash_create(size_t entries)
 {
@@ -144,6 +146,7 @@ fh_hash_create(size_t entries)
 	return hash;
 }
 
+static
 void
 fh_hash_destroy(fh_hash_t *hash)
 {
@@ -170,7 +173,7 @@ fh_hash_destroy(fh_hash_t *hash)
 
 /* The firehose hash uses open addressing as a collision resolution scheme,
  * since space occupied by each entry must be minimized. */
-
+static
 void *
 fh_hash_find(fh_hash_t *hash, fh_int_t key)
 {
@@ -190,6 +193,7 @@ fh_hash_find(fh_hash_t *hash, fh_int_t key)
  * fh_hash_insert(hash, key, val)
  * If val==NULL, the key is removed from the table
  */
+static
 void *
 fh_hash_insert(fh_hash_t *hash, fh_int_t key, void *newval)
 {
@@ -277,6 +281,7 @@ void fh_hash_apply(fh_hash_t *hash, void (*fn)(void *val, void *arg), void *arg)
  */
 
 /* Given an (non-NULL) entry, find the next one with the same key */
+static
 void *
 fh_hash_next(fh_hash_t *hash, void *val)
 {
@@ -292,6 +297,7 @@ fh_hash_next(fh_hash_t *hash, void *val)
 /* Given a (non-NULL) entry, by address not by key, replace
  * it with another entry, or delete if replacement is NULL
  */
+static
 void
 fh_hash_replace(fh_hash_t *hash, void *val, void *newval)
 {

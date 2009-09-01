@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/testam.h,v $
- *     $Date: 2009/04/23 21:39:57 $
- * $Revision: 1.14.46.2 $
+ *     $Date: 2009/09/01 20:46:59 $
+ * $Revision: 1.14.46.3 $
  * Description: AMX test
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -9,7 +9,11 @@
   #include "gasnet_tools.h"
   #include "test.h"
   typedef gasnet_handlerarg_t handlerarg_t;
+ #ifdef GASNET_USE_STRICT_PROTOTYPES
+  typedef void *handler_fn_t;
+ #else
   typedef void (*handler_fn_t)();
+ #endif
   typedef gasnet_token_t token_t;
   typedef size_t bufsize_t;
   gasnett_atomic_t numreq = gasnett_atomic_init(0);

@@ -1,13 +1,12 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/09/01 10:44:08 $
- * $Revision: 1.205.6.21 $
+ *     $Date: 2009/09/01 20:47:21 $
+ * $Revision: 1.205.6.22 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
 #include <gasnet_internal.h>
-#include <gasnet_handler.h>
 #include <gasnet_core_internal.h>
 
 #include <errno.h>
@@ -57,18 +56,13 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 #define GASNETC_DEFAULT_BBUF_COUNT		1024	/* Max bounce buffers prepinned, 0 = automatic */
 
 /* Limit on size of prepinned regions */
-#define GASNETC_DEFAULT_PIN_MAXSZ	(256*1024)
+#define GASNETC_DEFAULT_PIN_MAXSZ		0	/* 0 = automatic (VAPI->256K, IBV->max_msg_sz) */
 
 /* Use of multiple QPs */
 #define GASNETC_DEFAULT_NUM_QPS			0	/* 0 = one per HCA */
 
 /* Protocol switch points */
-#if GASNET_CONDUIT_VAPI
-  #define GASNETC_DEFAULT_INLINESEND_LIMIT	72
-#else
-  /* Use HCA maximum */
-  #define GASNETC_DEFAULT_INLINESEND_LIMIT	(size_t)(-1)
-#endif
+#define GASNETC_DEFAULT_INLINESEND_LIMIT	72
 #define GASNETC_DEFAULT_NONBULKPUT_BOUNCE_LIMIT	(64*1024)
 #define GASNETC_DEFAULT_PACKEDLONG_LIMIT	GASNETC_MAX_PACKEDLONG
 #if !GASNETC_PIN_SEGMENT
@@ -138,8 +132,8 @@ uintptr_t	gasnetc_max_msg_sz;
   int			gasnetc_max_regs;
   uintptr_t		gasnetc_seg_start;
   uintptr_t		gasnetc_seg_end;
-  unsigned long		gasnetc_pin_maxsz;
-  int			gasnetc_pin_maxsz_shift;
+  uint64_t 		gasnetc_pin_maxsz;
+  unsigned int		gasnetc_pin_maxsz_shift;
 #endif
 firehose_info_t	gasnetc_firehose_info;
 
@@ -193,12 +187,22 @@ static char *gasnetc_vapi_ports;
   ==============
 */
 /* called at startup to check configuration sanity */
-static void gasnetc_check_config() {
+static void gasnetc_check_config(void) {
   gasneti_check_config_preinit();
 
   gasneti_assert_always(offsetof(gasnetc_medmsg_t,args) == GASNETC_MEDIUM_HDRSZ);
   gasneti_assert_always(offsetof(gasnetc_longmsg_t,args) == GASNETC_LONG_HDRSZ);
 }
+
+#if GASNETC_PIN_SEGMENT
+/* Set gasnetc_pin_maxsz_shift while rounding gasnetc_pin_maxsz down to a power of two */
+static void setup_pin_maxsz(uint64_t size) {
+  gasneti_assert(size != 0);
+  size >>= 1;
+  for (gasnetc_pin_maxsz_shift=0; size != 0; ++gasnetc_pin_maxsz_shift) { size >>= 1; }
+  gasnetc_pin_maxsz = ((uint64_t)1) << gasnetc_pin_maxsz_shift;
+}
+#endif
 
 extern void gasnetc_unpin(gasnetc_hca_t *hca, gasnetc_memreg_t *reg) {
   int rc = gasnetc_dereg_mr(hca->handle, reg->handle);
@@ -348,7 +352,7 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
     }
   }
   { /* Honor PHYSMEM_MAX if set */
-    int tmp = gasneti_getenv_int_withdefault("GASNET_PHYSMEM_MAX", 0, 1);
+    unsigned long tmp = gasneti_getenv_int_withdefault("GASNET_PHYSMEM_MAX", 0, 1);
     if (tmp) {
       limit = MIN(limit, tmp);
       if_pf (gasneti_getenv_yesno_withdefault("GASNET_PHYSMEM_NOPROBE", 0)) {
@@ -375,21 +379,25 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
     /* Now search for largest pinnable memory, on one process per machine */
     unsigned long step = GASNETI_MMAP_GRANULARITY;
     #if GASNETC_PIN_SEGMENT
-      step = MAX(step, gasnetc_pin_maxsz);
+    if (step > gasnetc_pin_maxsz) {
+      step = gasnetc_pin_maxsz;
+    }
     #endif
     step = GASNETI_PAGE_ALIGNDOWN(step);
     if (gasneti_mynode == first_local) {
       uintptr_t size = gasnetc_trypin(limit, step);
       if_pf (!size) {
-        gasneti_fatalerror("ERROR: Failure to determine the max pinnable memory.  VAPI may be misconfigured.");
+        gasneti_fatalerror("ERROR: Failure to determine the max pinnable memory.  " GASNET_CONDUIT_NAME_STR " may be misconfigured.");
       }
       gasnetc_pin_info.memory = size;
     }
     gasneti_bootstrapExchange(&gasnetc_pin_info, sizeof(gasnetc_pin_info_t), all_info);
+#if GASNET_ALIGNED_SEGMENTS  /* Just a waste of time otherwise */
     if (gasneti_mynode != first_local) {
       /* Extra mmap traffic to ensure compatible VM spaces */
       gasnetc_fakepin(all_info[first_local].memory, step);
     }
+#endif
   } else {
     /* Note that README says PHYSMEM_NOPROBE must be equal on all nodes */
     gasnetc_pin_info.memory = limit;
@@ -438,10 +446,10 @@ static int gasnetc_load_settings(void) {
     gasnetc_qp_timeout = 31;
   }
   GASNETC_ENVINT(gasnetc_qp_retry_count, GASNET_QP_RETRY_COUNT, GASNETC_DEFAULT_QP_RETRY_COUNT, 1, 0);
-  if_pf (gasnetc_qp_retry_count > 255) {
+  if_pf (gasnetc_qp_retry_count > 7) {
     fprintf(stderr,
-            "WARNING: GASNET_QP_RETRY_COUNT reduced from the requested value, %d, to the maximum supported value 255.\n", (int)gasnetc_qp_retry_count);
-    gasnetc_qp_retry_count = 255;
+            "WARNING: GASNET_QP_RETRY_COUNT reduced from the requested value, %d, to the maximum supported value 7.\n", (int)gasnetc_qp_retry_count);
+    gasnetc_qp_retry_count = 7;
   }
   GASNETC_ENVINT(gasnetc_op_oust_pp, GASNET_NETWORKDEPTH_PP, GASNETC_DEFAULT_NETWORKDEPTH_PP, 1, 0);
   GASNETC_ENVINT(gasnetc_op_oust_limit, GASNET_NETWORKDEPTH_TOTAL, GASNETC_DEFAULT_NETWORKDEPTH_TOTAL, 0, 0);
@@ -450,7 +458,7 @@ static int gasnetc_load_settings(void) {
   GASNETC_ENVINT(gasnetc_am_credits_slack, GASNET_AM_CREDITS_SLACK, GASNETC_DEFAULT_AM_CREDITS_SLACK, 0, 0);
   GASNETC_ENVINT(gasnetc_bbuf_limit, GASNET_BBUF_COUNT, GASNETC_DEFAULT_BBUF_COUNT, 0, 0);
   GASNETC_ENVINT(gasnetc_num_qps, GASNET_NUM_QPS, GASNETC_DEFAULT_NUM_QPS, 0, 0);
-  GASNETC_ENVINT(gasnetc_inline_limit, GASNET_INLINESEND_LIMIT, GASNETC_DEFAULT_INLINESEND_LIMIT, -1, 1);
+  GASNETC_ENVINT(gasnetc_inline_limit, GASNET_INLINESEND_LIMIT, GASNETC_DEFAULT_INLINESEND_LIMIT, -1, 0);
   GASNETC_ENVINT(gasnetc_bounce_limit, GASNET_NONBULKPUT_BOUNCE_LIMIT, GASNETC_DEFAULT_NONBULKPUT_BOUNCE_LIMIT, 0, 1);
   GASNETC_ENVINT(gasnetc_packedlong_limit, GASNET_PACKEDLONG_LIMIT, GASNETC_DEFAULT_PACKEDLONG_LIMIT, 0, 1);
   GASNETC_ENVINT(gasnetc_amrdma_max_peers, GASNET_AMRDMA_MAX_PEERS, GASNETC_DEFAULT_AMRDMA_MAX_PEERS, 0, 0);
@@ -485,15 +493,17 @@ static int gasnetc_load_settings(void) {
   }
 
   #if GASNETC_PIN_SEGMENT
-  { long tmp;
-
-    GASNETC_ENVINT(gasnetc_pin_maxsz, GASNET_PIN_MAXSZ, GASNETC_DEFAULT_PIN_MAXSZ, GASNET_PAGESIZE, 1);
-    if_pf (!GASNETI_POWEROFTWO(gasnetc_pin_maxsz)) {
-      gasneti_fatalerror("GASNET_PIN_MAXSZ (%lu) is not a power of 2", gasnetc_pin_maxsz);
+    GASNETC_ENVINT(gasnetc_pin_maxsz, GASNET_PIN_MAXSZ, GASNETC_DEFAULT_PIN_MAXSZ, 0, 1);
+    if (!gasnetc_pin_maxsz) {
+      /* 0=automatic.  Will setup later */
+    } else if (!GASNETI_POWEROFTWO(gasnetc_pin_maxsz)) {
+      gasneti_fatalerror("GASNET_PIN_MAXSZ (%llu) is not a power of 2", (unsigned long long)gasnetc_pin_maxsz);
+    } else if (gasnetc_pin_maxsz < GASNET_PAGESIZE) {
+      gasneti_fatalerror("GASNET_PIN_MAXSZ (%lu) is less than GASNET_PAGESIZE (%lu)",
+                         (unsigned long)gasnetc_pin_maxsz, (unsigned long)GASNET_PAGESIZE);
+    } else {
+      setup_pin_maxsz(gasnetc_pin_maxsz);
     }
-    tmp = gasnetc_pin_maxsz;
-    for (gasnetc_pin_maxsz_shift=-1; tmp != 0; ++gasnetc_pin_maxsz_shift) { tmp >>= 1; }
-  }
   #else
     GASNETC_ENVINT(gasnetc_putinmove_limit, GASNET_PUTINMOVE_LIMIT, GASNETC_DEFAULT_PUTINMOVE_LIMIT, 0, 1);
     if_pf (gasnetc_putinmove_limit > GASNETC_PUTINMOVE_LIMIT_MAX) {
@@ -589,7 +599,8 @@ static int gasnetc_load_settings(void) {
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_BBUF_COUNT               = %d%s",
 			  	gasnetc_bbuf_limit, gasnetc_bbuf_limit ? "": " (automatic)"));
 #if GASNETC_PIN_SEGMENT
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_PIN_MAXSZ                = %lu", gasnetc_pin_maxsz));
+  GASNETI_TRACE_PRINTF(C,  ("  GASNET_PIN_MAXSZ                = %lu%s", (unsigned long)gasnetc_pin_maxsz,
+				(!gasnetc_pin_maxsz ? " (automatic)" : "")));
 #endif
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_INLINESEND_LIMIT         = %d%s", (int)gasnetc_inline_limit,
 				(gasnetc_inline_limit == (size_t)-1 ? " (automatic)" : "")));
@@ -782,7 +793,9 @@ static gasnetc_port_info_t* gasnetc_probe_ports(int *port_count_p) {
   int			port_count = 0;
   int			hca_count = 0;
   int			curr_hca;
+#if GASNET_CONDUIT_VAPI
   int			rc;
+#endif
 
   if (gasnetc_parse_ports(gasnetc_vapi_ports)) {
     GASNETI_TRACE_PRINTF(C,("Failed to parse " GASNET_VAPI_PORTS_STR "='%s'", gasnetc_vapi_ports));
@@ -1056,7 +1069,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   }
 
   /* Report/check hca and port properties */
-  gasnetc_max_msg_sz = ~0;
+  gasnetc_max_msg_sz = ~((uintptr_t)0);
   GASNETC_FOR_ALL_HCA_INDEX(h) {
     hca = &gasnetc_hca[h];
     GASNETI_TRACE_PRINTF(C,(GASNET_CONDUIT_NAME_STR_LC "-conduit HCA properties (%d of %d) = {", h+1, gasnetc_num_hcas));
@@ -1177,9 +1190,25 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
   }
   #if GASNETC_PIN_SEGMENT
-    if_pf (gasnetc_max_msg_sz < gasnetc_pin_maxsz) {
-      GASNETC_FOR_ALL_HCA(hca) { (void)gasnetc_close_hca(hca->handle); }
-      GASNETI_RETURN_ERRR(RESOURCE, "GASNET_PIN_MAXSZ exceeds HCA capabilities");
+    if (!gasnetc_pin_maxsz || (gasnetc_pin_maxsz > gasnetc_max_msg_sz)) {
+      uint64_t orig = gasnetc_pin_maxsz;
+      char newval[16];
+
+#if GASNET_CONDUIT_VAPI
+      setup_pin_maxsz(MIN(256 * 1024, gasnetc_max_msg_sz));
+#else
+      setup_pin_maxsz(gasnetc_max_msg_sz);
+#endif
+      gasneti_format_number(gasnetc_pin_maxsz, newval, sizeof(newval), 1);
+      GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_PIN_MAXSZ = %s", newval));
+
+      if (orig != 0) {
+        char oldval[16];
+        gasneti_format_number(orig, oldval, sizeof(oldval), 1);
+        fprintf(stderr,
+                "WARNING: Requested GASNET_PIN_MAXSZ %s reduced by HCA's max_msg_sz to %s\n",
+                oldval, newval);
+      }
     }
   #endif
   gasnetc_bounce_limit = MIN(gasnetc_max_msg_sz, gasnetc_bounce_limit);
@@ -1447,6 +1476,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
 #endif
   }
+  GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_INLINESEND_LIMIT = %d", (int)gasnetc_inline_limit));
 
   gasneti_free(port_map);
   gasneti_free(port_tbl);
@@ -2006,7 +2036,7 @@ static void gasnetc_exit_role_reph(gasnet_token_t token, gasnet_handlerarg_t *ar
  * Note that if we get here as a result of a remote exit request then our role has already been
  * set to "slave" and we won't touch the network from inside the request handler.
  */
-static int gasnetc_get_exit_role()
+static int gasnetc_get_exit_role(void)
 {
   int role;
 
@@ -2784,11 +2814,11 @@ extern int gasnetc_AMReplyLongM(
 */
 #if GASNETC_USE_INTERRUPTS
   #error interrupts not implemented
-  extern void gasnetc_hold_interrupts() {
+  extern void gasnetc_hold_interrupts(void) {
     GASNETI_CHECKATTACH();
     /* add code here to disable handler interrupts for _this_ thread */
   }
-  extern void gasnetc_resume_interrupts() {
+  extern void gasnetc_resume_interrupts(void) {
     GASNETI_CHECKATTACH();
     /* add code here to re-enable handler interrupts for _this_ thread */
   }
@@ -2916,7 +2946,7 @@ static gasnet_handlerentry_t const gasnetc_handlers[] = {
   { 0, NULL }
 };
 
-gasnet_handlerentry_t const *gasnetc_get_handlertable() {
+gasnet_handlerentry_t const *gasnetc_get_handlertable(void) {
   return gasnetc_handlers;
 }
 

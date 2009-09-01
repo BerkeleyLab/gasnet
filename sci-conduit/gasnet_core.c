@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/04/23 23:33:18 $
- * $Revision: 1.26.8.1 $
+ *     $Date: 2009/09/01 20:47:11 $
+ * $Revision: 1.26.8.2 $
  * Description: GASNet sci conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -55,13 +55,13 @@ void gasnetc_sci_call_exit(unsigned int sig)
   ==============
 */
 /* called at startup to check configuration sanity */
-static void gasnetc_check_config() {
+static void gasnetc_check_config(void) {
   gasneti_check_config_preinit();
   /* (###) add code to do some sanity checks on the number of nodes, handlers
    * and/or segment sizes */
 }
 
-static void gasnetc_bootstrapBarrier() {
+static void gasnetc_bootstrapBarrier(void) {
   /* (###) add code here to implement an external barrier
       this barrier should not rely on AM or the GASNet API because it's used
       during bootstrapping before such things are fully functional
@@ -496,7 +496,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   return GASNET_OK;
 }
 
-extern int gasnetc_AMPoll() {
+extern int gasnetc_AMPoll(void) {
 	int retval;
 	GASNETI_CHECKATTACH();
 
@@ -736,11 +736,11 @@ extern int gasnetc_AMReplyLongM(
 */
 #if GASNETC_USE_INTERRUPTS
   #error interrupts not implemented
-  extern void gasnetc_hold_interrupts() {
+  extern void gasnetc_hold_interrupts(void) {
     GASNETI_CHECKATTACH();
     /* add code here to disable handler interrupts for _this_ thread */
   }
-  extern void gasnetc_resume_interrupts() {
+  extern void gasnetc_resume_interrupts(void) {
     GASNETI_CHECKATTACH();
     /* add code here to re-enable handler interrupts for _this_ thread */
   }
@@ -866,7 +866,7 @@ static gasnet_handlerentry_t const gasnetc_handlers[] = {
   { 0, NULL }
 };
 
-gasnet_handlerentry_t const *gasnetc_get_handlertable() {
+gasnet_handlerentry_t const *gasnetc_get_handlertable(void) {
   return gasnetc_handlers;
 }
 

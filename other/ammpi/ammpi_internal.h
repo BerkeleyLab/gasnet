@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_internal.h,v $
- *     $Date: 2008/10/02 07:56:49 $
- * $Revision: 1.40 $
+ *     $Date: 2009/09/01 20:46:55 $
+ * $Revision: 1.40.8.1 $
  * Description: AMMPI internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -687,7 +687,7 @@ static int AMMPI_checkMPIreturn(int retcode, const char *fncallstr,
 #endif
 
 extern int AMMPI_enEqual(en_t en1, en_t en2);
-extern int64_t AMMPI_getMicrosecondTimeStamp();
+extern int64_t AMMPI_getMicrosecondTimeStamp(void);
 /* ------------------------------------------------------------------------------------ */
 /*  global data */
 extern int AMMPI_numBundles;
@@ -739,7 +739,7 @@ extern int AMMPI_PostRecvBuffer(ammpi_buf_t *rxBuf, MPI_Request *prxHandle, MPI_
 #define _AMMPI_IDENT(identName, identText)  \
   extern char volatile identName[];         \
   char volatile identName[] = identText;    \
-  extern char *_##identName##_identfn() { return (char*)identName; } \
+  extern char *_##identName##_identfn(void) { return (char*)identName; } \
   static int _dummy_##identName = sizeof(_dummy_##identName)
 #if PLATFORM_COMPILER_CRAY
   #define AMMPI_IDENT(identName, identText) \

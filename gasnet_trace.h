@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.h,v $
- *     $Date: 2008/10/14 02:28:24 $
- * $Revision: 1.58 $
+ *     $Date: 2009/09/01 20:46:36 $
+ * $Revision: 1.58.8.1 $
  * Description: GASNet Tracing Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -129,8 +129,8 @@ GASNETI_BEGIN_EXTERNC
   #if GASNETI_CLIENT_THREADS
     extern void gasneti_trace_setsourceline(const char *filename, unsigned int linenum);
     extern void gasneti_trace_getsourceline(const char **pfilename, unsigned int *plinenum);
-    extern void gasneti_trace_freezesourceline();
-    extern void gasneti_trace_unfreezesourceline();
+    extern void gasneti_trace_freezesourceline(void);
+    extern void gasneti_trace_unfreezesourceline(void);
   #else
     extern const char *gasneti_srcfilename;
     extern unsigned int gasneti_srclinenum;
@@ -148,11 +148,11 @@ GASNETI_BEGIN_EXTERNC
       *plinenum = gasneti_srclinenum;
     }
     GASNETI_INLINE(gasneti_trace_freezesourceline)
-    void gasneti_trace_freezesourceline() {
+    void gasneti_trace_freezesourceline(void) {
       gasneti_srcfreeze++;
     }
     GASNETI_INLINE(gasneti_trace_unfreezesourceline)
-    void gasneti_trace_unfreezesourceline() {
+    void gasneti_trace_unfreezesourceline(void) {
       gasneti_assert(gasneti_srcfreeze > 0);
       gasneti_srcfreeze--;
     }
@@ -267,7 +267,7 @@ GASNETI_BEGIN_EXTERNC
 
 #if GASNET_STATS
   typedef void (*gasnett_stats_callback_t)(void (*)(const char *, ...));
-  GASNETI_TENTATIVE_EXTERN void (*gasnett_stats_callback)(
+  extern void (*gasnett_stats_callback)(
     GASNETI_FORMAT_PRINTF_FUNCPTR(format,1,2,void (*format)(const char *, ...))
   );
 #endif
@@ -679,7 +679,7 @@ typedef struct {
 
 /* startup & cleanup called by GASNet */
 extern void gasneti_trace_init(int *argc, char ***argv);
-extern void gasneti_trace_finish();
+extern void gasneti_trace_finish(void);
 
 /* defines all the types */
 #define GASNETI_ALLTYPES "GPSWXBLAICDNH"

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_internal.h,v $
- *     $Date: 2008/04/02 17:57:16 $
- * $Revision: 1.38 $
+ *     $Date: 2009/09/01 20:47:03 $
+ * $Revision: 1.38.12.1 $
  * Description: Internal Header file
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -57,7 +57,7 @@ extern int fh_verbose;
   #define fhi_debug_local_table() _fhi_debug_local_table(GASNETI_CURRENT_FUNCTION, __LINE__)
   extern int fhc_LocalReserved; /* space reserved for upcoming pin */
 #else
-  #define fhi_debug_local_table() (0)
+  #define fhi_debug_local_table() ((void)0)
 #endif
 
 extern gasneti_mutex_t		fh_table_lock;
@@ -345,6 +345,7 @@ void	fh_fini_plugin(void);
 struct _fh_hash_t;
 typedef struct _fh_hash_t fh_hash_t;
 
+#if 0 /* We now #include <firehose_hash.c> into firehose_{page,region}.c */
 fh_hash_t *	fh_hash_create(size_t entries);
 void		fh_hash_destroy(fh_hash_t *hash);
 void *		fh_hash_find(fh_hash_t *hash, fh_int_t key);
@@ -352,6 +353,7 @@ void *		fh_hash_insert(fh_hash_t *hash, fh_int_t key, void *newval);
 void *		fh_hash_next(fh_hash_t *hash, void *val);
 void		fh_hash_replace(fh_hash_t *hash, void *val, void *newval);
 void		fh_hash_apply(fh_hash_t *hash, void (*fn)(void *val, void *arg), void *arg);
+#endif
 
 /* ##################################################################### */
 /* FIFO (local and remote) management operations (COMMON, firehose.c)    */

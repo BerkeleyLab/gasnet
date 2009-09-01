@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_ref.c,v $
- * $Date: 2006/07/10 05:56:25 $
- * $Revision: 1.22 $
+ * $Date: 2009/09/01 20:46:47 $
+ * $Revision: 1.22.42.1 $
  * Description: GASNet GM conduit Extended API Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -435,7 +435,7 @@ static gasnet_handlerentry_t const gasnete_ref_handlers[] = {
   { 0, NULL }
 };
 
-extern gasnet_handlerentry_t const *gasnete_get_extref_handlertable()
+extern gasnet_handlerentry_t const *gasnete_get_extref_handlertable(void)
 {
 	return gasnete_ref_handlers;
 }

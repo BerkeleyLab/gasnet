@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/portable_platform.h,v $
- *     $Date: 2008/09/15 20:16:41 $
- * $Revision: 1.23 $
+ *     $Date: 2009/09/01 20:46:53 $
+ * $Revision: 1.23.6.1 $
  * Description: Portable platform detection header
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -237,14 +237,14 @@
   #else
     #define PLATFORM_COMPILER_CRAY_C  1
   #endif
-  #if defined(_RELEASE) && defined(_RELEASE_MINOR) /* X1 */
+  #if defined(_RELEASE) && defined(_RELEASE_MINOR) /* X1 and XT */
     #define PLATFORM_COMPILER_VERSION \
             PLATFORM_COMPILER_VERSION_INT(_RELEASE,_RELEASE_MINOR,0)
   #elif defined(_RELEASE) /* T3E */
     #define PLATFORM_COMPILER_VERSION \
             PLATFORM_COMPILER_VERSION_INT(_RELEASE,0,0)
   #endif
-  #ifdef _RELEASE_STRING /* X1 */
+  #ifdef _RELEASE_STRING /* X1 and XT */
     #define PLATFORM_COMPILER_VERSION_STR _RELEASE_STRING
   #endif
 
@@ -744,7 +744,7 @@ OS_FAMILYNAME = _STRINGIFY(PLATFORM_OS_FAMILYNAME)
 , *
 ARCH_FAMILYNAME = _STRINGIFY(PLATFORM_ARCH_FAMILYNAME)
 ;
-int main() {
+int main(void) {
   #define PLATFORM_DISP(x) printf("PLATFORM_"#x"=%s\n",x)
   #define PLATFORM_DISPI(x) printf("PLATFORM_"#x"=%i\n",PLATFORM_##x)
   #define PLATFORM_DISPX(x) printf("PLATFORM_"#x"=0x%x\n",PLATFORM_##x)
@@ -756,6 +756,7 @@ int main() {
   PLATFORM_DISP(COMPILER_IDSTR);
   PLATFORM_DISP(OS_FAMILYNAME);
   PLATFORM_DISP(ARCH_FAMILYNAME);
+  return 0;
 }
 #endif
 /* ------------------------------------------------------------------------------------ */

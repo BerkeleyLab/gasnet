@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2009/08/30 07:18:27 $
- * $Revision: 1.42.30.1 $
+ *     $Date: 2009/09/01 20:46:41 $
+ * $Revision: 1.42.30.2 $
  * Description: GASNet elan conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -309,7 +309,7 @@ void gasnete_evtbin_init(gasnete_evtbin_t *bin, uint16_t sz, ELAN_EVENT **space)
      TODO: does assigning per-thread ELAN_PGCTRL's reduce locking contention in libelan?
    */
   GASNETI_INLINE(gasnetc_next_PGCTRL)
-  ELAN_PGCTRL *gasnetc_next_PGCTRL() {
+  ELAN_PGCTRL *gasnetc_next_PGCTRL(void) {
     int myidx = _gasnete_elan_pgctrl_cur;
     int newidx = myidx+1;
     gasneti_assert(gasnete_elan_pgctrl_cnt);
@@ -428,7 +428,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
                          void *source_addr, int nbytes, void *dest_ptr, 
                          int numargs, va_list argptr);
 
-extern void gasnetc_initbufs();
+extern void gasnetc_initbufs(void);
 
 #if GASNETI_CLIENT_THREADS
   #define gasnetc_mythread() ((void**)(gasnete_mythread()))
@@ -438,12 +438,12 @@ extern void gasnetc_initbufs();
 #endif
 
 /* status dumping functions */
-extern void gasnetc_dump_base();
-extern void gasnetc_dump_state();
-extern void gasnetc_dump_group();
-extern void gasnetc_dump_envvars();
-extern void gasnetc_dump_tportstats();
-extern void gasnetc_dump_groupstats();
+extern void gasnetc_dump_base(void);
+extern void gasnetc_dump_state(void);
+extern void gasnetc_dump_group(void);
+extern void gasnetc_dump_envvars(void);
+extern void gasnetc_dump_tportstats(void);
+extern void gasnetc_dump_groupstats(void);
 /* ------------------------------------------------------------------------------------ */
 /* Elan conduit locks:
     elan lock - protects all elan calls and tport rx fifo

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_vis_fwd.h,v $
- *     $Date: 2006/06/12 09:55:48 $
- * $Revision: 1.4 $
+ *     $Date: 2009/09/01 20:46:44 $
+ * $Revision: 1.4.44.1 $
  * Description: GASNet Non-contiguous Access Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,9 +15,9 @@
 
 GASNETI_BEGIN_EXTERNC
 
-extern void gasnete_vis_init();
+extern void gasnete_vis_init(void);
 
-extern void gasneti_vis_progressfn();
+extern void gasneti_vis_progressfn(void);
 #define GASNETI_VIS_PROGRESSFNS(FN) \
     FN(gasneti_pf_vis, COUNTED, gasneti_vis_progressfn) 
 

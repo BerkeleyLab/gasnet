@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_diagnostic.c,v $
- *     $Date: 2008/10/14 11:53:49 $
- * $Revision: 1.23 $
+ *     $Date: 2009/09/01 20:46:35 $
+ * $Revision: 1.23.8.1 $
  * Description: GASNet internal diagnostics
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -82,7 +82,7 @@ static int id = 0;
 
 #if GASNET_DEBUG
   extern gasneti_auxseg_request_t gasneti_auxseg_dummy(gasnet_seginfo_t *auxseg_info);
-  static void auxseg_test() {
+  static void auxseg_test(void) {
     BARRIER();
     TEST_HEADER("auxseg test") {
       gasneti_auxseg_dummy((void *)(uintptr_t)-1); /* call self-test */
@@ -582,10 +582,13 @@ static void lifo_test(int id) {
 /* ------------------------------------------------------------------------------------ */
 static int pf_cnt_boolean, pf_cnt_counted;
 static gasnet_hsl_t pf_lock = GASNET_HSL_INITIALIZER;
+static gasneti_weakatomic_t progressfn_req_sent = gasneti_weakatomic_init(0);
+static gasneti_weakatomic_t progressfn_rep_rcvd = gasneti_weakatomic_init(0);
 static void progressfn_reqh(gasnet_token_t token, void *buf, size_t nbytes) {
   GASNET_Safe(gasnet_AMReplyMedium0(token, gasneti_diag_hidx_base + 1, buf, nbytes));
 }
 static void progressfn_reph(gasnet_token_t token, void *buf, size_t nbytes) {
+  gasneti_weakatomic_increment(&progressfn_rep_rcvd,0);
 }
 static void progressfn_tester(int *counter) {
   static int active = 0; /* protocol provides mutual exclusion & recursion protection */
@@ -608,7 +611,9 @@ static void progressfn_tester(int *counter) {
     sz = gasnet_try_syncnbi_all();
     if (gasneti_diag_havehandlers) {
       for (sz = 1; sz <= MIN(gasnet_AMMaxMedium(),MIN(64*1024,TEST_SEGSZ/2)); sz = (sz < 64?sz*2:sz*8)) {
+        gasneti_weakatomic_increment(&progressfn_req_sent,0);
         gasnet_AMRequestMedium0(peer, gasneti_diag_hidx_base + 0, myseg, sz);
+        gasneti_weakatomic_increment(&progressfn_req_sent,0);
         gasnet_AMRequestLong0(peer, gasneti_diag_hidx_base + 0, myseg, sz, peersegmid);
       }
     }
@@ -617,14 +622,14 @@ static void progressfn_tester(int *counter) {
   gasneti_local_mb();
   active = 0;
 }
-static void progressfn_bool() { progressfn_tester(&pf_cnt_boolean); }
-static void progressfn_counted() { progressfn_tester(&pf_cnt_counted); }
+static void progressfn_bool(void) { progressfn_tester(&pf_cnt_boolean); }
+static void progressfn_counted(void) { progressfn_tester(&pf_cnt_counted); }
 static void progressfns_test(int id) {
-  int iter;
 #if !GASNET_DEBUG
   TEST_HEADER("progress functions test - SKIPPED"); else return;
   return;
 #else
+  int iter;
   TEST_HEADER("progress functions test"); else return;
   for (iter=0; iter < iters0; iter++) {
     int i;
@@ -681,6 +686,8 @@ static void progressfns_test(int id) {
     /* ensure they did not run */
     assert_always(cnt_c == pf_cnt_counted); assert_always(cnt_b == pf_cnt_boolean);
   }
+  GASNET_BLOCKUNTIL(gasneti_weakatomic_read(&progressfn_req_sent,0) ==
+                    gasneti_weakatomic_read(&progressfn_rep_rcvd,0));
 #endif
 }
 /* ------------------------------------------------------------------------------------ */
@@ -691,7 +698,6 @@ static void op_test(int id) {
   PTHREAD_BARRIER(num_threads);
   TEST_HEADER("internal op interface test"); else return;
   for (iter=0; iter < iters0; iter++) {
-    int i;
     static const void **share = NULL;
     int peerid = ( id + 1 ) % num_threads;
 
@@ -755,7 +761,6 @@ static void op_test(int id) {
           assert_always(gasnet_try_syncnbi_gets() == GASNET_OK),            \
           assert_always(gasnet_try_syncnbi_all() == GASNET_ERR_NOT_READY)) )
 
-        gasnet_handle_t h;
         gasneti_iop_t *iop1, *iop2;
         gasneti_iop_t *peer_iop1, *peer_iop2;
         ASSERT_NBI_SYNCED();
