@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/01 02:57:51 $
- * $Revision: 1.48.4.25 $
+ *     $Date: 2009/09/01 10:28:41 $
+ * $Revision: 1.48.4.26 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -19,6 +19,13 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 static void gasnetc_atexit(void);
+
+#if GASNET_PSHM
+  #define GASNETC_DEFAULT_EXITTIMEOUT_MAX       30.
+  #define GASNETC_DEFAULT_EXITTIMEOUT_MIN        2.
+  #define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR     0.1
+  static double gasnetc_exittimeout = GASNETC_DEFAULT_EXITTIMEOUT_MAX;
+#endif
 
 #if !GASNETI_CLIENT_THREADS
   void *_gasnetc_mythread = NULL;
@@ -218,6 +225,11 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
 
   gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
+
+  gasnetc_exittimeout = gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
+                                                GASNETC_DEFAULT_EXITTIMEOUT_MIN,
+                                                GASNETC_DEFAULT_EXITTIMEOUT_FACTOR,
+                                                GASNETC_DEFAULT_EXITTIMEOUT_MIN);
 
   return GASNET_OK;
 }
@@ -438,6 +450,13 @@ extern void gasnetc_exit(int exitcode) {
            with gasneti_killmyprocess(exitcode) (not regular exit()), preferably
            after raising a SIGQUIT to inform the client of the exit
   */
+#if GASNET_PSHM
+  if (gasneti_pshm_exit_barrier(gasnetc_exittimeout * 1e6)) {
+    /* TODO: Send a non-fatal signal to initiate exit w/o the SIGTERM message? */
+    gasneti_pshm_signal(SIGTERM);
+  }
+#endif
+
   gasneti_killmyprocess(exitcode);
 }
 
