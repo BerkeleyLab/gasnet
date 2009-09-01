@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/09/01 10:28:39 $
- * $Revision: 1.1.4.65 $
+ *     $Date: 2009/09/01 10:35:51 $
+ * $Revision: 1.1.4.66 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -10,6 +10,9 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h> /* for gasnetc_{Short,Medium,Long} and gasnetc_handler[] */
+
+#include <sys/types.h>
+#include <signal.h>
 
 #ifndef GASNET_PSHM
   #error "gasnet_sysv.c compiled in a non-PSHM build"
