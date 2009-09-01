@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/09/01 10:44:02 $
- * $Revision: 1.1.4.67 $
+ *     $Date: 2009/09/01 11:37:58 $
+ * $Revision: 1.1.4.68 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -903,24 +903,27 @@ static gasneti_pshmnet_allocator_t *gasneti_pshmnet_init_allocator(void *region,
 static void * gasneti_pshmnet_alloc(gasneti_pshmnet_allocator_t *a, size_t nbytes)
 {
   void *retval = NULL;
+  gasneti_pshmnet_allocator_block_t *first, *curr;
 
   gasneti_assert(nbytes <= sizeof(gasneti_pshmnet_payload_t));
 
   gasneti_mutex_lock(&a->next_lock);
-  /* NOTE: I assume messages are generally consumed in serial order, so just
-   * check the 'next' payload, rather than scan the whole array.  I believe
-   * this is at least correct, but given that the payloads can go to different
-   * receivers (who may take different times to get around to consuming them),
-   * perhaps we ought to do a full scan?
+  /* Since the blocks we allocate may go to different peers with
+   * widely varying "return rate", we perform a full scan of the
+   * blocks before we give up.
    */
-  if (!gasneti_atomic_read(&a->next->in_use, GASNETI_ATOMIC_ACQ)) {
-    gasneti_atomic_set(&a->next->in_use, 1, 0);
-    retval = &a->next->payload;
-    a->next = (gasneti_pshmnet_allocator_block_t*)
-                      ((uintptr_t)a->next + GASNETI_PSHMNET_ALLOC_BLKSZ);
-    if (a->next == a->justpastlast)
-      a->next = a->queue;
-  }
+  first = curr = a->next;
+  do {
+    if (!gasneti_atomic_read(&curr->in_use, GASNETI_ATOMIC_ACQ)) {
+      gasneti_atomic_set(&curr->in_use, 1, 0);
+      retval = &curr->payload;
+    }
+    curr = (gasneti_pshmnet_allocator_block_t*)
+                      ((uintptr_t)curr + GASNETI_PSHMNET_ALLOC_BLKSZ);
+    if (curr == a->justpastlast)
+      curr = a->queue;
+  } while ((retval == NULL) && (curr != first));
+  a->next = curr;
   gasneti_mutex_unlock(&a->next_lock);
   return retval;
 }
