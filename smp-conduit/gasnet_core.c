@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/01 20:47:15 $
- * $Revision: 1.48.4.30 $
+ *     $Date: 2009/09/01 21:37:34 $
+ * $Revision: 1.48.4.31 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -84,7 +84,7 @@ static void gasnetc_bootstrapBarrier(void) {
 }
 
 #if GASNET_PSHM
-static int gasnetc_get_pshm_nodecount()
+static int gasnetc_get_pshm_nodecount(void)
 {
   gasnet_node_t nodes = gasneti_getenv_int_withdefault("GASNET_PSHM_NODES", 0, 0);
   int polite_wait, politedefault;
@@ -498,7 +498,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
 }
 
 #if GASNET_PSHM 
-extern int gasnetc_AMPoll() {
+extern int gasnetc_AMPoll(void) {
   GASNETI_CHECKATTACH();
   return gasneti_AMPSHMPoll(0);
 }

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2009/09/01 01:12:06 $
- * $Revision: 1.14.38.4 $
+ *     $Date: 2009/09/01 21:37:34 $
+ * $Revision: 1.14.38.5 $
  * Description: GASNet header for smp conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -42,7 +42,7 @@
 
 #define GASNETI_GASNETC_AMPOLL
 #if GASNET_PSHM
-  extern int gasnetc_AMPoll();
+  extern int gasnetc_AMPoll(void);
 #else
   #define gasnetc_AMPoll()        GASNET_OK  /* nothing to do */
 #endif
