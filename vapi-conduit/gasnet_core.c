@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/08/31 23:34:58 $
- * $Revision: 1.205.6.20 $
+ *     $Date: 2009/09/01 10:44:08 $
+ * $Revision: 1.205.6.21 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1518,7 +1518,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   }
 
 #if GASNET_PSHM
-    gasneti_init_pshm(&gasneti_bootstrapExchange);
+    gasneti_pshm_init(&gasneti_bootstrapExchange);
 #endif
  
   #if GASNET_SEGMENT_FAST

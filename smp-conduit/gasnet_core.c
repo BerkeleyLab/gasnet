@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/01 10:28:41 $
- * $Revision: 1.48.4.26 $
+ *     $Date: 2009/09/01 10:44:06 $
+ * $Revision: 1.48.4.27 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -153,10 +153,10 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   /* Create unique names for shmem files.
    * We do this here, since we get a chicken-and-egg problem if we
-   * were to call gasneti_init_pshm() with our bootstrapExchange.
+   * were to call gasneti_pshm_init() with our bootstrapExchange.
    * PLUS its just plain simpler to do this pre-fork().
    */
-  gasneti_pshmnodes = gasneti_nodes;
+  gasneti_pshm_nodes = gasneti_nodes;
   (void)gasneti_pshm_makenames(NULL);
 
   /* A fork in the road! */
@@ -177,7 +177,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasneti_nodemapParse();
 
 #if GASNET_PSHM
-  gasneti_init_pshm(NULL);
+  gasneti_pshm_init(NULL);
 #endif
 
   /* enable tracing */

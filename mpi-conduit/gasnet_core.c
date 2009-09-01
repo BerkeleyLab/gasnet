@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/08/31 23:34:50 $
- * $Revision: 1.77.22.21 $
+ *     $Date: 2009/09/01 10:44:04 $
+ * $Revision: 1.77.22.22 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -179,7 +179,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_nodemapInit(&gasnetc_bootstrapExchange, NULL, 0, 0);
 
 #if GASNET_PSHM
-    gasneti_init_pshm(&gasnetc_bootstrapExchange);
+    gasneti_pshm_init(&gasnetc_bootstrapExchange);
 #endif
  
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE

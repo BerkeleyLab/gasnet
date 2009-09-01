@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.h,v $
- *     $Date: 2009/09/01 10:28:39 $
- * $Revision: 1.1.4.36 $
+ *     $Date: 2009/09/01 10:44:02 $
+ * $Revision: 1.1.4.37 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -43,7 +43,7 @@ struct gasneti_pshmnet;			/* opaque type */
 typedef struct gasneti_pshmnet gasneti_pshmnet_t;
 
 /* Initialize pshm request and reply networks given a conduit-specific exchange function */
-extern void gasneti_init_pshm(gasneti_bootstrapExchangefn_t exchangefn);
+extern void gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn);
 extern gasneti_pshmnet_t *gasneti_request_pshmnet;
 extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
 
@@ -134,30 +134,30 @@ extern int gasneti_pshm_exit_barrier(gasneti_tick_t timeout_us);
  */
 /* # of nodes in my supernode, lowest of contiguous gasnet node #s in
  * supernode, and my 0-based rank within it */
-extern gasnet_node_t gasneti_pshmnodes;
-extern gasnet_node_t gasneti_firstpshmnode;
-extern gasnet_node_t gasneti_mypshmnode;
+extern gasnet_node_t gasneti_pshm_nodes;
+extern gasnet_node_t gasneti_pshm_firstnode;
+extern gasnet_node_t gasneti_pshm_mynode;
 
 /*
  * </PSHM variables that must be initialized by the conduit using PSHM>
  *******************************************************************************/
 
 /* Returns 1 if given node is in the caller's supernode, or 0 if it's not.
- * NOTE: result is false if !gasneti_pshmnodes (e.g. before vnet initialization)
+ * NOTE: result is false if !gasneti_pshm_nodes (e.g. before vnet initialization)
  * TODO: This implementation is only correct when gasnet node numbers
  *       within a supernode are contiguous.
  */
 GASNETI_INLINE(gasneti_pshmnet_in_supernode)
 int gasneti_pshm_in_supernode(gasnet_node_t node) {
   /* NOTE: gasnet_node_t is an unsigned type, so in the case of
-   * (node < gasneti_firstpshmnode), the subtraction will wrap to
+   * (node < gasneti_pshm_firstnode), the subtraction will wrap to
    * a "large" value and the result of "<" is the required FALSE.
    */
-  gasnet_node_t diff = (node - gasneti_firstpshmnode);
-  int retval = (diff < gasneti_pshmnodes);
+  gasnet_node_t diff = (node - gasneti_pshm_firstnode);
+  int retval = (diff < gasneti_pshm_nodes);
 
-  gasneti_assert(!retval || (node >= gasneti_firstpshmnode));
-  gasneti_assert(!retval || (node < (gasneti_firstpshmnode + gasneti_pshmnodes)));
+  gasneti_assert(!retval || (node >= gasneti_pshm_firstnode));
+  gasneti_assert(!retval || (node < (gasneti_pshm_firstnode + gasneti_pshm_nodes)));
   return retval;
 }
 
