@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/09/01 20:47:21 $
- * $Revision: 1.205.6.22 $
+ *     $Date: 2009/09/02 03:29:05 $
+ * $Revision: 1.205.6.23 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1324,6 +1324,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     struct ibv_qp_attr	qp_attr;
     enum ibv_qp_attr_mask	qp_mask;
     int rc;
+    int user_inline_limit = (gasnet_getenv("GASNET_INLINESEND_LIMIT") != NULL);
 #endif
 
     /* advance RST -> INIT */
@@ -1465,7 +1466,7 @@ static int gasnetc_init(int *argc, char ***argv) {
         rc = ibv_query_qp(gasnetc_cep[i].qp_handle, &qp_attr2, IBV_QP_CAP, &qp_init_attr);
         GASNETC_VAPI_CHECK(rc, "from ibv_query_qp(RTS)");
         if (qp_attr2.cap.max_inline_data < gasnetc_inline_limit) {
-	  if (gasnetc_inline_limit != (size_t)-1) {
+	  if ((gasnetc_inline_limit != (size_t)-1) && user_inline_limit) {
 	    fprintf(stderr,
 		"WARNING: Requested GASNET_INLINESEND_LIMIT %d reduced to HCA limit %d\n",
 		(int)gasnetc_inline_limit, (int)qp_attr2.cap.max_inline_data);
