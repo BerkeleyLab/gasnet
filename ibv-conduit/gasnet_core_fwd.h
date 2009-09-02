@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2009/08/31 23:34:58 $
- * $Revision: 1.43.10.2 $
+ *     $Date: 2009/09/02 06:30:02 $
+ * $Revision: 1.43.10.3 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -45,12 +45,34 @@ typedef uint8_t gasnet_handler_t;
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
   /*  at the same virtual address on all nodes. defined to 0 otherwise */
-#if GASNETI_DISABLE_ALIGNED_SEGMENTS
-  #define GASNET_ALIGNED_SEGMENTS   0 /* user disabled segment alignment */
+#if GASNETI_DISABLE_ALIGNED_SEGMENTS || GASNET_PSHM
+  #define GASNET_ALIGNED_SEGMENTS   0 /* user or PSHM disabled segment alignment */
 #else
-  #define GASNET_ALIGNED_SEGMENTS   (!GASNET_PSHM)
+  #define GASNET_ALIGNED_SEGMENTS   1
 #endif
 
+  /* conduits should define GASNETI_CONDUIT_THREADS to 1 if they have one or more 
+     "private" threads which may be used to run AM handlers, even under GASNET_SEQ
+     this ensures locking is still done correctly, etc
+   */
+/*
+ * The VAPI conduit may have a network progress thread, even for GASNET_SEQ
+ * XXX: no progress thread for IBV yet
+ */
+#if GASNET_CONDUIT_VAPI && GASNETC_VAPI_RCV_THREAD
+  #define GASNETI_CONDUIT_THREADS 1
+#endif
+  
+  /* define to 1 if your conduit may interrupt an application thread 
+     (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
+   */
+/* #define GASNETC_USE_INTERRUPTS 1 */
+  
+  /* define these to 1 if your conduit supports PSHM, but cannot use the
+     default interfaces. (see template-conduit/gasnet_core.c and gasnet_sysv.h)
+   */
+/* #define GASNETC_GET_HANDLER 1 */
+/* #define GASNETC_TOKEN_CREATE 1 */
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
@@ -92,19 +114,6 @@ typedef uint8_t gasnet_handler_t;
 
 #define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
 extern void gasnetc_fatalsignal_callback(int sig);
-
-/*
- * The VAPI conduit may have a network progress thread, even for GASNET_SEQ
- * XXX: no progress thread for IBV yet
- */
-#if GASNET_CONDUIT_VAPI && GASNETC_VAPI_RCV_THREAD
-  #define GASNETI_CONDUIT_THREADS 1
-#endif
-
-  /* define to 1 if your conduit may interrupt an application thread 
-     (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
-   */
-/* #define GASNETC_USE_INTERRUPTS 1 */
 
 #if PLATFORM_OS_DARWIN && !GASNET_SEQ
   #define GASNETC_PTHREAD_CREATE_OVERRIDE(create_fn, thread, attr, start_routine, arg) \
