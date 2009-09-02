@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.h,v $
- *     $Date: 2009/09/01 23:22:26 $
- * $Revision: 1.1.4.38 $
+ *     $Date: 2009/09/02 02:05:02 $
+ * $Revision: 1.1.4.39 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -17,12 +17,12 @@
 
 #include <gasnet_handler.h> /* Need gasneti_handler_fn_t */
 
-/* Some systems (T3E, others?) may not have #defined page size? 
- * - That's my reading of configure.in, at least... */
 #if GASNET_PAGESIZE < 4096
   #define GASNETI_PSHMNET_PAGESIZE 4096
+  #define GASNETI_PSHMNET_PAGESHIFT 12
 #else
   #define GASNETI_PSHMNET_PAGESIZE GASNET_PAGESIZE
+  #define GASNETI_PSHMNET_PAGESHIFT GASNETI_PAGESHIFT
 #endif
 
 /* Max number of processes supported per node */

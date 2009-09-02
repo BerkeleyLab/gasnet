@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/09/01 23:22:26 $
- * $Revision: 1.1.4.69 $
+ *     $Date: 2009/09/02 02:05:02 $
+ * $Revision: 1.1.4.70 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -370,13 +370,7 @@ typedef struct gasneti_pshmnet_payload {
 /******************************************************************************
  * Payload memory allocator interface.
  *
- * Keep the payload allocator interface clean, so we can replace the current
- * algorithm (circular queue of fixed-length buffers) with something else
- * (like a full-blown memory allocator) if needed.
- * - It should be mainly a matter of autotools goopery to replace this
- *   implementation with umalloc, should that prove to be a good idea.
- * - Naming note: 'allocator' = "payload allocator", just like a "J. Lo"
- *   allocator would would be called "jallocator".  Isn't that obvious?
+ * Keep the payload allocator interface clean, so we can change algorithms.
  ******************************************************************************/
 
 /* Memory layout of allocator.
@@ -394,26 +388,38 @@ typedef struct {
   gasneti_pshmnet_payload_t payload;
 } gasneti_pshmnet_allocator_block_t;
 
-#define GASNETI_PSHMNET_ALLOC_BLKSZ \
+#define GASNETI_PSHMNET_ALLOC_MAXSZ \
     GASNETI_ALIGNUP(sizeof(gasneti_pshmnet_allocator_block_t), GASNETI_PSHMNET_PAGESIZE)
+#define GASNETI_PSHMNET_ALLOC_MAXPG (GASNETI_PSHMNET_ALLOC_MAXSZ >> GASNETI_PSHMNET_PAGESHIFT)
+
 #define GASNETI_PSHMNET_MAX_PAYLOAD \
-    (GASNETI_PSHMNET_ALLOC_BLKSZ - offsetof(gasneti_pshmnet_allocator_block_t, payload.data))
+    (GASNETI_PSHMNET_ALLOC_MAXSZ - offsetof(gasneti_pshmnet_allocator_block_t, payload.data))
 
 size_t gasneti_pshmnet_max_payload(void) {
   return GASNETI_PSHMNET_MAX_PAYLOAD;
 }
 
-/* This implementation uses a circular queue of fixed-size payloads */
+/* This implementation uses a circular queue of variable-sized payloads.
+ * This data structure lives entirely in private memory.
+ *
+ * The allocator's per-block metadata is external to the blocks, and is
+ * stored in the "length" array.  There is a length entry for each "page",
+ * but only the entries corresponding to the first page of each block have
+ * defined values.  The "length[]", "next" and "count" are all in units
+ * of GASNETI_PSHMNET_PAGESIZE (which must be a power-of-2).
+ */
 typedef struct gasneti_pshmnet_allocator {
-  gasneti_pshmnet_allocator_block_t *queue;
-  gasneti_mutex_t next_lock;    /* only locked by owning process */
-  gasneti_pshmnet_allocator_block_t *next;
-  gasneti_pshmnet_allocator_block_t *justpastlast;
+  gasneti_mutex_t lock;    /* only locked by owning process */
+  void *region;
+  unsigned int next;
+  unsigned int count;
+  unsigned int *length;
   char _pad[GASNETI_CACHE_LINE_BYTES];
 } gasneti_pshmnet_allocator_t;
 
 /* WARNING: the amount requested from this allocator must be less than 
- * or equal to sizeof(gasneti_pshmnet_payload_t)
+ * or equal to GASNETI_PSHMNET_MAX_PAYLOAD (which is at least as large
+ * as sizeof(gasneti_pshmnet_payload_t)).
  * - returns NULL if no memory available
  */
 static gasneti_pshmnet_allocator_t *gasneti_pshmnet_init_allocator(void *region, size_t len);
@@ -472,9 +478,10 @@ static int get_queue_depth(gasnet_node_t nodes)
 
 static uintptr_t get_queue_mem(int nodes) 
 {
-  /* theoretical limit = 1 send buffer per peer?  We're requiring 2 per peer right now.
+  /* theoretical limit = 1 max-sized send buffer per peer?
+   *   We're requiring 2 per peer right now to be safe.
    * - future implementations may also need some space for allocator's metadata */
-  size_t minsize = GASNETI_PSHMNET_ALLOC_BLKSZ*nodes*2;
+  size_t minsize = GASNETI_PSHMNET_ALLOC_MAXSZ*nodes*2;
   uintptr_t pernode = gasneti_getenv_int_withdefault("GASNET_PSHMNET_QUEUE_MEMORY", 
                     MAX(minsize, GASNETI_PSHMNET_DEFAULT_QUEUE_MEMORY), 1<<20);
   if (pernode > GASNETI_PSHMNET_MAX_QUEUE_MEMORY) {
@@ -488,10 +495,8 @@ static uintptr_t get_queue_mem(int nodes)
   }
   gasneti_assert(pernode > 0);
 
-  /* round up to multiple allocator block size */
-  pernode = GASNETI_PSHMNET_ALLOC_BLKSZ *
-            ((pernode + GASNETI_PSHMNET_ALLOC_BLKSZ - 1) / GASNETI_PSHMNET_ALLOC_BLKSZ);
-  return pernode;
+  /* round up to multiple of allocator page size */
+  return GASNETI_ALIGNUP(pernode, GASNETI_PSHMNET_PAGESIZE);
 }
 
 static size_t gasneti_pshmnet_memory_needed_pernode(gasnet_node_t nodes)
@@ -874,7 +879,7 @@ void gasneti_pshmnet_bootstrapExchange(gasneti_pshmnet_t *vnet, void *src,
 static gasneti_pshmnet_allocator_t *gasneti_pshmnet_init_allocator(void *region, size_t len)
 {
   int i;
-  int count = len / GASNETI_PSHMNET_ALLOC_BLKSZ;
+  int count = len >> GASNETI_PSHMNET_PAGESHIFT;
   gasneti_pshmnet_allocator_block_t *tmp;
 
   /* This implementation doesn't need to put allocator within shared memory.
@@ -884,47 +889,87 @@ static gasneti_pshmnet_allocator_t *gasneti_pshmnet_init_allocator(void *region,
   gasneti_pshmnet_allocator_t *a = gasneti_malloc(sizeof(gasneti_pshmnet_allocator_t));
 
   /* make sure we've arranged for page alignment */
-  gasneti_assert_align(GASNETI_PSHMNET_ALLOC_BLKSZ, GASNETI_PSHMNET_PAGESIZE);
+  gasneti_assert_align(GASNETI_PSHMNET_ALLOC_MAXSZ, GASNETI_PSHMNET_PAGESIZE);
   gasneti_assert_align(region, GASNETI_PSHMNET_PAGESIZE);
 
-  a->queue = a->next = tmp = region;
-  for (i = 0; i < count; i++) {
-    gasneti_atomic_set(&tmp->in_use, 0, 0);
-    tmp = (gasneti_pshmnet_allocator_block_t*)
-                              ((uintptr_t)tmp + GASNETI_PSHMNET_ALLOC_BLKSZ);
-  }
-  a->justpastlast = tmp;
-  gasneti_mutex_init(&a->next_lock);
+  /* Initial state is one large free block */
+  a->next = 0;
+  a->count = count;
+  a->length = gasneti_malloc(count*sizeof(unsigned int));
+  a->length[0] = count;
+  a->region = tmp = region;
+  gasneti_atomic_set(&tmp->in_use, 0, 0);
+
+  gasneti_mutex_init(&a->lock);
 
   return a;
 }
 
 
+/* Basic page-granular first-fit allocator */
 static void * gasneti_pshmnet_alloc(gasneti_pshmnet_allocator_t *a, size_t nbytes)
 {
   void *retval = NULL;
-  gasneti_pshmnet_allocator_block_t *first, *curr;
+  unsigned int curr;
+  unsigned int needed;
+  int remain;
+  void *region = a->region;
 
-  gasneti_assert(nbytes <= GASNETI_PSHMNET_MAX_PAYLOAD);
+  nbytes += offsetof(gasneti_pshmnet_allocator_block_t, payload.data);
+  gasneti_assert(nbytes <= GASNETI_PSHMNET_ALLOC_MAXSZ);
 
-  gasneti_mutex_lock(&a->next_lock);
-  /* Since the blocks we allocate may go to different peers with
-   * widely varying "return rate", we perform a full scan of the
-   * blocks before we give up.
-   */
-  first = curr = a->next;
+  needed = (nbytes + GASNETI_PSHMNET_PAGESIZE - 1) >> GASNETI_PSHMNET_PAGESHIFT;
+  gasneti_assert(needed <= GASNETI_PSHMNET_ALLOC_MAXPG);
+
+  gasneti_mutex_lock(&a->lock);
+  curr = a->next;
+  remain = a->count;
   do {
-    if (!gasneti_atomic_read(&curr->in_use, GASNETI_ATOMIC_ACQ)) {
-      gasneti_atomic_set(&curr->in_use, 1, 0);
-      retval = &curr->payload;
+    unsigned int length = a->length[curr];
+    gasneti_pshmnet_allocator_block_t *next_block;
+    gasneti_pshmnet_allocator_block_t * const block = 
+            (gasneti_pshmnet_allocator_block_t*)
+                      ((uintptr_t)region + (curr << GASNETI_PSHMNET_PAGESHIFT));
+
+    if (!gasneti_atomic_read(&block->in_use, GASNETI_ATOMIC_ACQ)) {
+      while (length < needed) {
+        unsigned int next = curr + length;
+        gasneti_assert (next <= a->count);
+        if (next == a->count) break; /* hit end of region */
+        next_block = (gasneti_pshmnet_allocator_block_t*)
+                     ((uintptr_t)block + (length << GASNETI_PSHMNET_PAGESHIFT));
+        if (gasneti_atomic_read(&next_block->in_use, GASNETI_ATOMIC_ACQ)) break; /* hit busy block */
+        length += a->length[next];
+      }
+
+      if (length >= needed) {
+        unsigned int next = curr + needed;
+
+        if (length > needed) { /* Split it */
+          gasneti_assert (next < a->count);
+          a->length[next] = length - needed;
+          next_block = (gasneti_pshmnet_allocator_block_t*)
+                       ((uintptr_t)block + (needed << GASNETI_PSHMNET_PAGESHIFT));
+          gasneti_atomic_set(&next_block->in_use, 0, 0);
+        }
+
+        a->length[curr] = needed;
+        gasneti_atomic_set(&block->in_use, 1, 0);
+        retval = &block->payload;
+
+	if ((curr =next) == a->count) curr = 0;
+        break; /* do {} while (remain); */
+      }
+
+      /* Assume write is cheaper than brancing again when length is unchanged */
+      a->length[curr] = length;
     }
-    curr = (gasneti_pshmnet_allocator_block_t*)
-                      ((uintptr_t)curr + GASNETI_PSHMNET_ALLOC_BLKSZ);
-    if (curr == a->justpastlast)
-      curr = a->queue;
-  } while ((retval == NULL) && (curr != first));
+
+    remain -= length;
+    if ((curr += length) == a->count) curr = 0;
+  } while (remain > 0); /* could be negative if merging took us past our starting point */
   a->next = curr;
-  gasneti_mutex_unlock(&a->next_lock);
+  gasneti_mutex_unlock(&a->lock);
   return retval;
 }
 
