@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core_internal.h,v $
- *     $Date: 2009/08/31 23:34:50 $
- * $Revision: 1.20.52.5 $
+ *     $Date: 2009/09/02 06:30:00 $
+ * $Revision: 1.20.52.6 $
  * Description: GASNet MPI conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,6 +10,7 @@
 #define _GASNET_CORE_INTERNAL_H
 
 #include <gasnet_internal.h>
+#include <gasnet_handler.h>
 
 /*  whether or not to use spin-locking for HSL's */
 #define GASNETC_HSL_SPINLOCK 1
@@ -81,16 +82,18 @@ const char *gasneti_AMErrorName(int errval) {
 #define _hidx_gasnetc_auxseg_reqh             (GASNETC_HANDLER_BASE+0)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
+/* ------------------------------------------------------------------------------------ */
 #if GASNET_PSHM
-#include <gasnet_handler.h>
 #define GASNETC_MAX_NUMHANDLERS 256
 extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
-
-typedef enum {
-    gasnetc_Short=0,
-    gasnetc_Medium=1,
-    gasnetc_Long=2
-} gasnetc_category_t;
 #endif
+
+/* ------------------------------------------------------------------------------------ */
+/* AM category (recommended impl if supporting PSHM) */
+typedef enum {
+  gasnetc_Short=0,
+  gasnetc_Medium=1,
+  gasnetc_Long=2
+} gasnetc_category_t;
 
 #endif

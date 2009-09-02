@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2009/09/01 20:47:21 $
- * $Revision: 1.155.4.6 $
+ *     $Date: 2009/09/02 06:30:02 $
+ * $Revision: 1.155.4.7 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -88,6 +88,15 @@ extern gasneti_atomic_t gasnetc_exit_running;
 extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 /* ------------------------------------------------------------------------------------ */
+/* AM category (recommended impl if supporting PSHM) */
+typedef enum {
+  gasnetc_Short=0,
+  gasnetc_Medium=1,
+  gasnetc_Long=2,
+  gasnetc_System=3 /* Conduit-specific addition */
+} gasnetc_category_t;
+
+/* ------------------------------------------------------------------------------------ */
 
 #define GASNETC_ARGSEND_AUX(s,nargs) \
 	(offsetof(s,args)+((nargs)*sizeof(gasnet_handlerarg_t)))
@@ -132,13 +141,6 @@ typedef union {
   gasnetc_medmsg_t	medmsg;
   gasnetc_longmsg_t	longmsg;
 } gasnetc_buffer_t;
-
-typedef enum {
-  gasnetc_Short=0,
-  gasnetc_Medium=1,
-  gasnetc_Long=2,
-  gasnetc_System=3
-} gasnetc_category_t;
 
 /* ------------------------------------------------------------------------------------ */
 typedef void (*gasnetc_sys_handler_fn_t)(gasnet_token_t token, gasnet_handlerarg_t *args, int numargs);

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/09/02 03:29:05 $
- * $Revision: 1.205.6.23 $
+ *     $Date: 2009/09/02 06:30:02 $
+ * $Revision: 1.205.6.24 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1548,9 +1548,9 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_assert(gasnetc_pin_info.regions != 0);
   }
 
-#if GASNET_PSHM
+  #if GASNET_PSHM
     gasneti_pshm_init(&gasneti_bootstrapExchange);
-#endif
+  #endif
  
   #if GASNET_SEGMENT_FAST
   {
@@ -2609,19 +2609,16 @@ extern int gasnetc_AMRequestShortM(
   va_list argptr;
   GASNETI_COMMON_AMREQUESTSHORT(dest,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(dest)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Short, 
-                                    dest, handler, 
-                                    0, 0, 0,
-                                    numargs, argptr); 
+    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Short, dest, handler, 
+                                           0, 0, 0,
+                                           numargs, argptr); 
   } else
 #endif
   retval = gasnetc_RequestGeneric(gasnetc_Short, dest, handler,
 		  		  NULL, 0, NULL,
 				  numargs, NULL, argptr);
-
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -2635,19 +2632,16 @@ extern int gasnetc_AMRequestMediumM(
   va_list argptr;
   GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(dest)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Medium, 
-                                  dest, handler, 
-                                  source_addr, nbytes, 0,
-                                  numargs, argptr);
+    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Medium, dest, handler, 
+                                           source_addr, nbytes, 0,
+                                           numargs, argptr);
   } else
 #endif
   retval = gasnetc_RequestGeneric(gasnetc_Medium, dest, handler,
 		  		  source_addr, nbytes, NULL,
 				  numargs, NULL, argptr);
-
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -2662,13 +2656,11 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   va_list argptr;
   GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(dest)) {
-      retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Long, 
-                                      dest, handler, 
-                                      source_addr, nbytes, dest_addr,
-                                      numargs, argptr);
+      retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Long, dest, handler, 
+                                             source_addr, nbytes, dest_addr,
+                                             numargs, argptr);
   } else
 #endif
   {
@@ -2679,7 +2671,6 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
     /* block for completion of RDMA transfer */
     gasnetc_counter_wait(&mem_oust, 0);
   }
-
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -2693,19 +2684,16 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
   va_list argptr;
   GASNETI_COMMON_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(dest)) {
-      retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Long, 
-                                      dest, handler, 
-                                      source_addr, nbytes, dest_addr,
-                                      numargs, argptr);
+      retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Long, dest, handler, 
+                                             source_addr, nbytes, dest_addr,
+                                             numargs, argptr);
   } else
 #endif
   retval = gasnetc_RequestGeneric(gasnetc_Long, dest, handler,
 		  		  source_addr, nbytes, dest_addr,
 				  numargs, NULL, argptr);
-
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -2718,19 +2706,16 @@ extern int gasnetc_AMReplyShortM(
   va_list argptr;
   GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-
 #if GASNET_PSHM
   if_pt (gasnetc_token_is_pshm(token)) {
-    retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Short, 
-                                  token, handler, 
-                                  0, 0, 0,
-                                  numargs, argptr);
+    retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Short, token, handler, 
+                                         0, 0, 0,
+                                         numargs, argptr);
   } else
 #endif
   retval = gasnetc_ReplyGeneric(gasnetc_Short, token, handler,
 		  		NULL, 0, NULL,
 				numargs, NULL, argptr);
-
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -2744,19 +2729,16 @@ extern int gasnetc_AMReplyMediumM(
   va_list argptr;
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-
 #if GASNET_PSHM
   if_pt (gasnetc_token_is_pshm(token)) {
-    retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Medium, 
-                                  token, handler, 
-                                  source_addr, nbytes, 0,
-                                  numargs, argptr);
+    retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Medium, token, handler, 
+                                         source_addr, nbytes, 0,
+                                         numargs, argptr);
   } else
 #endif
   retval = gasnetc_ReplyGeneric(gasnetc_Medium, token, handler,
 		  		source_addr, nbytes, NULL,
 				numargs, NULL, argptr);
-
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -2771,13 +2753,11 @@ extern int gasnetc_AMReplyLongM(
   va_list argptr;
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 
   va_start(argptr, numargs); /*  pass in last argument */
-
 #if GASNET_PSHM
   if_pt (gasnetc_token_is_pshm(token)) {
-      retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Long, 
-                                    token, handler, 
-                                    source_addr, nbytes, dest_addr,
-                                    numargs, argptr);
+      retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Long, token, handler, 
+                                           source_addr, nbytes, dest_addr,
+                                           numargs, argptr);
   } else
 #endif
   #if GASNETC_PIN_SEGMENT
@@ -2797,7 +2777,6 @@ extern int gasnetc_AMReplyLongM(
 				numargs, NULL, argptr);
 
   #endif
-
   va_end(argptr);
   GASNETI_RETURN(retval);
 }

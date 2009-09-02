@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/01 21:48:00 $
- * $Revision: 1.77.22.24 $
+ *     $Date: 2009/09/02 06:30:00 $
+ * $Revision: 1.77.22.25 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -179,9 +179,9 @@ static int gasnetc_init(int *argc, char ***argv) {
 
     gasneti_nodemapInit(&gasnetc_bootstrapExchange, NULL, 0, 0);
 
-#if GASNET_PSHM
-    gasneti_pshm_init(&gasnetc_bootstrapExchange);
-#endif
+    #if GASNET_PSHM
+      gasneti_pshm_init(&gasnetc_bootstrapExchange);
+    #endif
  
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { uintptr_t limit;
@@ -563,10 +563,9 @@ extern int gasnetc_AMRequestShortM(
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(dest)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Short, 
-                                        dest, handler, 
-                                        0, 0, 0,
-                                        numargs, argptr); 
+    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Short, dest, handler, 
+                                           0, 0, 0,
+                                           numargs, argptr); 
   } else
 #endif
   {
@@ -593,10 +592,9 @@ extern int gasnetc_AMRequestMediumM(
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(dest)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Medium, 
-                                  dest, handler, 
-                                  source_addr, nbytes, 0,
-                                  numargs, argptr);
+    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Medium, dest, handler, 
+                                           source_addr, nbytes, 0,
+                                           numargs, argptr);
   } else
 #endif
   { 
@@ -625,10 +623,9 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(dest)) {
-      retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Long, 
-                                      dest, handler, 
-                                      source_addr, nbytes, dest_addr,
-                                      numargs, argptr);
+      retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Long, dest, handler, 
+                                             source_addr, nbytes, dest_addr,
+                                             numargs, argptr);
   } else
 #endif  
   {   
@@ -659,10 +656,9 @@ extern int gasnetc_AMReplyShortM(
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasnetc_token_is_pshm(token)) {
-      retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Short, 
-                                    token, handler, 
-                                    0, 0, 0,
-                                    numargs, argptr);
+      retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Short, token, handler, 
+                                           0, 0, 0,
+                                           numargs, argptr);
   } else
 #endif
   {
@@ -687,10 +683,9 @@ extern int gasnetc_AMReplyMediumM(
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasnetc_token_is_pshm(token)) {
-       retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Medium, 
-                                     token, handler, 
-                                     source_addr, nbytes, 0,
-                                     numargs, argptr);
+       retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Medium, token, handler, 
+                                            source_addr, nbytes, 0,
+                                            numargs, argptr);
   } else
 #endif
   {
@@ -718,10 +713,9 @@ extern int gasnetc_AMReplyLongM(
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasnetc_token_is_pshm(token)) {
-      retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Long, 
-                                    token, handler, 
-                                    source_addr, nbytes, dest_addr,
-                                    numargs, argptr);
+      retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Long, token, handler, 
+                                           source_addr, nbytes, dest_addr,
+                                           numargs, argptr);
   } else
 #endif
   {
