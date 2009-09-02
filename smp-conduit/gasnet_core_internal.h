@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core_internal.h,v $
- *     $Date: 2009/08/31 01:16:20 $
- * $Revision: 1.11.80.2 $
+ *     $Date: 2009/09/02 05:02:19 $
+ * $Revision: 1.11.80.3 $
  * Description: GASNet smp conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -39,13 +39,14 @@ typedef struct {
 extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 /* ------------------------------------------------------------------------------------ */
+/* AM category (recommended impl if supporting PSHM) */
 typedef enum {
-  gasnetc_Short=0, 
-  gasnetc_Medium=1, 
-  gasnetc_Long=2,
-  gasnetc_System=3
-  } gasnetc_category_t;
+  gasnetc_Short=0,
+  gasnetc_Medium=1,
+  gasnetc_Long=2
+} gasnetc_category_t;
 
+/* ------------------------------------------------------------------------------------ */
 #if GASNETI_CLIENT_THREADS
   #define gasnetc_mythread() ((void**)(gasnete_mythread()))
 #else
