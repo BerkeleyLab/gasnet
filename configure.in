@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2009/09/01 22:33:26 $
-# $Revision: 1.519.2.13 $
+#     $Date: 2009/09/02 07:50:25 $
+# $Revision: 1.519.2.14 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.519.2.13 $)
+AC_REVISION($Revision: 1.519.2.14 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -3787,7 +3787,7 @@ AM_CONDITIONAL(USE_PLPA,test "$enabled_plpa" = "yes")
 # Check for mmap functionality we actually use
 if test "$cross_compiling" = "yes" ; then
  GASNET_CROSS_VAR(HAVE_MMAP,HAVE_MMAP)
- mmap_reason="was disabled" dnl unused if HAVE_MAP==1
+ mmap_reason="was disabled"
 else
  case "$target_os" in
   cygwin*)  # mmap is known to be broken on Cygwin - dont even try
