@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2009/09/02 04:04:46 $
- * $Revision: 1.59.8.17 $
+ *     $Date: 2009/09/02 04:43:08 $
+ * $Revision: 1.59.8.18 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -225,9 +225,9 @@
    * gasnet_core_fwd.h can override if that assumption is wrong.
    */
   #if PLATFORM_ARCH_32
-    #define GASNETI_MAX_MEDIUM_PSHM ((size_t)65448)
+    #define GASNETI_MAX_MEDIUM_PSHM 65448
   #else
-    #define GASNETI_MAX_MEDIUM_PSHM ((size_t)65432)
+    #define GASNETI_MAX_MEDIUM_PSHM 65432
   #endif
 #endif
 
