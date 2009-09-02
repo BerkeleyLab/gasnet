@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/09/02 02:05:02 $
- * $Revision: 1.1.4.70 $
+ *     $Date: 2009/09/02 02:17:40 $
+ * $Revision: 1.1.4.71 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -716,7 +716,7 @@ int gasneti_pshmnet_recv(gasneti_pshmnet_t *vnet, void **pbuf, size_t *psize,
         *pbuf = gasneti_pshm_addr(q_recv_next->addr);
         *psize = q_recv_next->len;
 
-	/* Advance q->recv_next (logic is the same regardless of addr vs. offset) */
+        /* Advance q->recv_next (logic is the same regardless of addr vs. offset) */
         if (++q->recv_next == q->justpastlast)
            q->recv_next = q->queue;
 
@@ -957,7 +957,7 @@ static void * gasneti_pshmnet_alloc(gasneti_pshmnet_allocator_t *a, size_t nbyte
         gasneti_atomic_set(&block->in_use, 1, 0);
         retval = &block->payload;
 
-	if ((curr =next) == a->count) curr = 0;
+        if ((curr =next) == a->count) curr = 0;
         break; /* do {} while (remain); */
       }
 
