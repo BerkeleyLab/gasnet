@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/gasnet_core_internal.h,v $
- *     $Date: 2009/08/30 07:18:41 $
- * $Revision: 1.12.80.1 $
+ *     $Date: 2009/09/02 04:28:35 $
+ * $Revision: 1.12.80.2 $
  * Description: GASNet <conduitname> conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -24,5 +24,13 @@
 /* handler table (recommended impl) */
 #define GASNETC_MAX_NUMHANDLERS   256
 extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
+
+/* ------------------------------------------------------------------------------------ */
+/* AM category (recommended impl if supporting PSHM) */
+typedef enum {
+  gasnetc_Short=0,
+  gasnetc_Medium=1,
+  gasnetc_Long=2
+} gasnetc_category_t;
 
 #endif

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2009/08/31 23:34:54 $
- * $Revision: 1.13.38.2 $
+ *     $Date: 2009/09/02 04:28:35 $
+ * $Revision: 1.13.38.3 $
  * Description: GASNet header for <conduitname> conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -42,6 +42,16 @@
    */
 #if ###
 #define GASNETC_USE_INTERRUPTS 1
+#endif
+
+  /* define these to 1 if your conduit supports PSHM, but cannot use the
+     default interfaces. (see template-conduit/gasnet_core.c and gasnet_sysv.h)
+   */
+#if ###
+#define GASNETC_GET_HANDLER 1
+#endif
+#if ###
+#define GASNETC_TOKEN_CREATE 1
 #endif
 
   /* this can be used to add conduit-specific 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/gasnet_core.h,v $
- *     $Date: 2009/09/01 20:47:17 $
- * $Revision: 1.23.50.1 $
+ *     $Date: 2009/09/02 04:28:35 $
+ * $Revision: 1.23.50.2 $
  * Description: GASNet header for <conduitname> conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -124,7 +124,15 @@ typedef struct _gasnet_hsl_t {
 */
 
 #define gasnet_AMMaxArgs()          ((size_t)###)
-#define gasnet_AMMaxMedium()        ((size_t)###)
+#if GASNET_PSHM
+  /* (###) If supporting PSHM a conduit must "negotiate" the maximum size of a
+   * Medium message.  This can either be done by lowering the conduit's value to
+   * the default PSHM value (as shown here), or GASNETI_MAX_MEDIUM_PSHM can be
+   * defined in gasnet_core_fwd.h to give the conduit complete control. */
+  #define gasnet_AMMaxMedium()      ((size_t)MIN(###, GASNETI_MAX_MEDIUM_PSHM))
+#else
+  #define gasnet_AMMaxMedium()      ((size_t)###) 
+#endif
 #define gasnet_AMMaxLongRequest()   ((size_t)###)
 #define gasnet_AMMaxLongReply()     ((size_t)###)
 
