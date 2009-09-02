@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2009/09/02 04:28:35 $
- * $Revision: 1.13.38.3 $
+ *     $Date: 2009/09/02 06:10:14 $
+ * $Revision: 1.13.38.4 $
  * Description: GASNet header for <conduitname> conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,10 +23,10 @@
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
   /*  at the same virtual address on all nodes. defined to 0 otherwise */
-#if GASNETI_DISABLE_ALIGNED_SEGMENTS
-  #define GASNET_ALIGNED_SEGMENTS   0 /* user disabled segment alignment */
+#if GASNETI_DISABLE_ALIGNED_SEGMENTS || GASNET_PSHM
+  #define GASNET_ALIGNED_SEGMENTS   0 /* user or PSHM disabled segment alignment */
 #else
-  #define GASNET_ALIGNED_SEGMENTS   ###  /* 0 or (!GASNET_PSHM) are the most likely values */
+  #define GASNET_ALIGNED_SEGMENTS   ###
 #endif
 
   /* conduits should define GASNETI_CONDUIT_THREADS to 1 if they have one or more 
