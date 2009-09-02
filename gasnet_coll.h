@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2009/08/21 18:41:53 $
- * $Revision: 1.53.12.16 $
+ *     $Date: 2009/09/02 02:27:22 $
+ * $Revision: 1.53.12.16.2.1 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -35,10 +35,18 @@ GASNETI_BEGIN_EXTERNC
 #define GASNET_COLL_DST_IN_SEGMENT	(1<<10)
 #define GASNET_COLL_SRC_IN_SEGMENT	(1<<11)
 
+/*sane default reduction operators*/
+#define GASNET_COLL_REDUCE_OP_SUM (1<<12)
+#define GASNET_COLL_REDUCE_OP_MAX (1<<13)
+#define GASNET_COLL_REDUCE_OP_MIN (1<<14)
+#define GASNET_COLL_REDUCE_OP_CUSTOM (1<<15)
+
 /* Scan (prefix reduction) flags - NO DEFAULT */
-#define GASNET_COLL_INCLUSIVE_SCAN	(1<<12)
-#define GASNET_COLL_EXCLUSIVE_SCAN	(1<<13)
-#define GASNET_COLL_DISABLE_AUTOTUNE (1<<14)
+#define GASNET_COLL_INCLUSIVE_SCAN	(1<<16)
+#define GASNET_COLL_EXCLUSIVE_SCAN	(1<<17)
+
+
+#define GASNET_COLL_DISABLE_AUTOTUNE (1<<18)
 
 /* (prefix-)reduction function flags */
 #define GASNET_COLL_AMSAFE	(1<<0)
@@ -258,6 +266,8 @@ typedef enum {GASNET_COLL_BROADCAST_OP=0,
   GASNET_COLL_GATHER_ALLM_OP,
   GASNET_COLL_EXCHANGE_OP,
   GASNET_COLL_EXCHANGEM_OP, 
+  GASNET_COLL_REDUCE_OP,
+  GASNET_COLL_REDUCEM_OP,
   GASNET_COLL_NUM_COLL_OPTYPES
 } gasnet_coll_optype_t;
 

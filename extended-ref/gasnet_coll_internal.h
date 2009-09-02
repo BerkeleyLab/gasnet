@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/08/06 22:49:20 $
- * $Revision: 1.53.14.31 $
+ *     $Date: 2009/09/02 02:27:26 $
+ * $Revision: 1.53.14.31.2.1 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -713,6 +713,8 @@ void gasnete_coll_local_gather(size_t count, void * dst, void * const srclist[],
   gasneti_sync_writes();	/* Ensure result is visible on all threads */
 }
 
+
+
 /*---------------------------------------------------------------------------------*/
 /* Thread-specific data: */
 typedef struct {
@@ -1177,6 +1179,20 @@ typedef struct {
   size_t nbytes;
 } gasnete_coll_exchangeM_args_t;
 
+typedef struct {
+#if !GASNET_SEQ
+  gasnet_image_t dstimage;
+#endif
+  gasnet_node_t dstnode;
+  void *dst;
+  void *src;
+  size_t src_blksz; 
+  size_t src_offset;
+  size_t elem_size; 
+  size_t elem_count;
+  size_t nbytes;
+  gasnet_coll_fn_handle_t func; int func_arg;
+} gasnete_coll_reduce_args_t;
 
 /* Options for gasnete_coll_generic_* */
 #define GASNETE_COLL_GENERIC_OPT_INSYNC		0x0001
@@ -1203,6 +1219,7 @@ struct gasnete_coll_generic_data_t_ {
     GASNETE_COLL_GENERIC_TAG(gather),
     GASNETE_COLL_GENERIC_TAG(gather_all),
     GASNETE_COLL_GENERIC_TAG(exchange),
+    GASNETE_COLL_GENERIC_TAG(reduce),
     /* Multiple-address interfaces: */
     GASNETE_COLL_GENERIC_TAG(broadcastM),
     GASNETE_COLL_GENERIC_TAG(scatterM),
@@ -1262,13 +1279,14 @@ struct gasnete_coll_generic_data_t_ {
       gasnete_coll_gather_args_t		gather;
       gasnete_coll_gather_all_args_t		gather_all;
       gasnete_coll_exchange_args_t		exchange;
+      gasnete_coll_reduce_args_t reduce;
+
       /* Multiple-address interfaces: */
       gasnete_coll_broadcastM_args_t		broadcastM;
       gasnete_coll_scatterM_args_t		scatterM;
       gasnete_coll_gatherM_args_t		gatherM;
       gasnete_coll_gather_allM_args_t		gather_allM;
       gasnete_coll_exchangeM_args_t		exchangeM;
-      
       /* XXX: still need a few more */
       
       /* Hook for conduit-specific extension */
@@ -1496,6 +1514,17 @@ gasnete_coll_exchangeM_nb_default(gasnet_team_handle_t team,
                                   void * const dstlist[], void * const srclist[],
                                   size_t nbytes, int flags, uint32_t sequence
                                   GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_generic_reduce_nb(gasnet_team_handle_t team,
+                               gasnet_image_t dstimage, void *dst,
+                               void *src, size_t src_blksz, size_t src_offset,
+                               size_t elem_size, size_t elem_count, 
+                               gasnet_coll_fn_handle_t func, int func_arg, int flags,
+                               gasnete_coll_poll_fn poll_fn, int options,
+                               gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
+                               int num_params, uint32_t *param_list
+                               GASNETE_THREAD_FARG);
 
 extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_type_t tree_type, gasnet_node_t rootnode, gasnete_coll_team_t team GASNETE_THREAD_FARG);
 extern void gasnete_coll_tree_free(gasnete_coll_tree_data_t *tree GASNETE_THREAD_FARG);
@@ -2045,6 +2074,20 @@ gasnete_coll_exchgM_Gath(gasnet_team_handle_t team,
 
 /*---------------------------------------------------------------------------------*/
 
+#define DECLARE_REDUCE_IMPL(FUNC_EXT) \
+extern gasnet_coll_handle_t \
+gasnete_coll_reduce_##FUNC_EXT(gasnet_team_handle_t team,\
+                          gasnet_image_t dstimage, void *dst,\
+                          void *src, size_t src_blksz, size_t src_offset,\
+                          size_t elem_size, size_t elem_count,\
+                          gasnet_coll_fn_handle_t func, int func_arg,\
+                          int flags, \
+                          gasnete_coll_implementation_t coll_params,\
+                          uint32_t sequence\
+                          GASNETE_THREAD_FARG)\
+
+DECLARE_REDUCE_IMPL(Eager);
+DECLARE_REDUCE_IMPL(TreeEager);
 
 /*#undef GASNETI_COLL_FN_HEADER*/
 

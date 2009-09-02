@@ -28,7 +28,9 @@ gasnet_coll_handle_t gasnete_coll_smp_bcast_flat_get(gasnet_team_handle_t team,
   
   
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
+#if GASNET_PAR
   gasneti_assert(!(flags & GASNETE_COLL_THREAD_LOCAL));
+#endif
   if(!(flags & GASNET_COLL_IN_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
   GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dstlist[td->my_local_image], src, nbytes);
   if(!(flags & GASNET_COLL_OUT_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
@@ -44,8 +46,9 @@ gasnet_coll_handle_t gasnete_coll_smp_bcast_flat_put(gasnet_team_handle_t team,
                                             GASNETE_THREAD_FARG) {
   
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
+#if GASNET_PAR
   gasneti_assert(!(flags & GASNETE_COLL_THREAD_LOCAL));
-
+#endif
   if(!(flags & GASNET_COLL_IN_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
   /*regardless of SINGLE or LOCAL dstlist contains as many addresses as the number of images*/
   if(td->my_local_image == srcimage) {
@@ -65,8 +68,10 @@ gasnet_coll_handle_t gasnete_coll_smp_bcast_tree_intflags(gasnet_team_handle_t t
   
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   gasneti_assert(coll_params->num_params >= 1);
+#if GASNET_PAR
   gasneti_assert(!(flags & GASNETE_COLL_THREAD_LOCAL));
-
+#endif
+  
   if(!(flags & GASNET_COLL_IN_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
   smp_coll_broadcast_tree_flag(td->smp_coll_handle, team->my_images, dstlist, src, 
                                  nbytes, flags, coll_params->param_list[0]);

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/09/01 17:31:10 $
- * $Revision: 1.72.10.49 $
+ *     $Date: 2009/09/02 02:27:26 $
+ * $Revision: 1.72.10.49.2.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2823,15 +2823,16 @@ gasnete_coll_reduce_nb_default(gasnet_team_handle_t team,
                                void *src, size_t src_blksz, size_t src_offset,
                                size_t elem_size, size_t elem_count,
                                gasnet_coll_fn_handle_t func, int func_arg,
-                               int flags GASNETE_THREAD_FARG);
+                               int flags, uint32_t sequence GASNETE_THREAD_FARG);
 #endif
+
 extern gasnet_coll_handle_t
 gasnete_coll_reduce_nb(gasnet_team_handle_t team,
                        gasnet_image_t dstimage, void *dst,
                        void *src, size_t src_blksz, size_t src_offset,
                        size_t elem_size, size_t elem_count,
                        gasnet_coll_fn_handle_t func, int func_arg,
-                       int flags GASNETE_THREAD_FARG);
+                       int flags, uint32_t sequence  GASNETE_THREAD_FARG);
 GASNETI_COLL_FN_HEADER(_gasnet_coll_reduce_nb) GASNETI_WARN_UNUSED_RESULT
 gasnet_coll_handle_t
 _gasnet_coll_reduce_nb(gasnet_team_handle_t team,
@@ -2843,7 +2844,7 @@ _gasnet_coll_reduce_nb(gasnet_team_handle_t team,
   gasnet_coll_handle_t handle;
   GASNETI_TRACE_COLL_REDUCE(COLL_REDUCE_NB,team,dstimage,dst,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags);
   GASNETE_COLL_VALIDATE_REDUCE(team,dstimage,dst,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags);
-  handle = gasnete_coll_reduce_nb(team,dstimage,dst,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags GASNETE_THREAD_PASS);
+  handle = gasnete_coll_reduce_nb(team,dstimage,dst,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags, 0 GASNETE_THREAD_PASS);
   gasnete_coll_poll(GASNETE_THREAD_PASS_ALONE);
   return handle;
 }
@@ -2865,7 +2866,7 @@ GASNETI_COLL_FN_HEADER(gasnete_coll_reduce)
                               gasnet_coll_fn_handle_t func, int func_arg,
                               int flags GASNETE_THREAD_FARG) {
   gasnet_coll_handle_t handle;
-  handle = gasnete_coll_reduce_nb(team,dstimage,dst,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags GASNETE_THREAD_PASS);
+  handle = gasnete_coll_reduce_nb(team,dstimage,dst,src,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags, 0 GASNETE_THREAD_PASS);
   gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
 }
 #endif
@@ -5472,6 +5473,88 @@ gasnete_coll_exchangeM_nb_default(gasnet_team_handle_t team,
 }
 
 /*---------------------------------------------------------------------------------*/
+extern gasnet_coll_handle_t
+gasnete_coll_generic_reduce_nb(gasnet_team_handle_t team,
+                               gasnet_image_t dstimage, void *dst,
+                               void *src, size_t src_blksz, size_t src_offset,
+                               size_t elem_size, size_t elem_count, 
+                               gasnet_coll_fn_handle_t func, int func_arg, int flags,
+                               gasnete_coll_poll_fn poll_fn, int options,
+                               gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
+                               int num_params, uint32_t *param_list
+                               GASNETE_THREAD_FARG) {
+  gasnet_coll_handle_t result;
+  gasnete_coll_scratch_req_t *scratch_req=NULL;
+  uint64_t *out_sizes;
+  int i;
+  int first_thread;
+  size_t nbytes = elem_size *elem_count;
+  
+  
+  if(options & (GASNETE_COLL_USE_SCRATCH)) {
+    scratch_req = (gasnete_coll_scratch_req_t*) gasneti_calloc(1,sizeof(gasnete_coll_scratch_req_t));
+    /*fill out the tree information*/
+    scratch_req->tree_type = tree_info->geom->tree_type;
+    scratch_req->tree_dir = GASNETE_COLL_UP_TREE;
+    scratch_req->root = tree_info->geom->root;
+    
+    scratch_req->team = team;
+    scratch_req->op_type = GASNETE_COLL_TREE_OP;
+    /*fill out the peer information*/
+    scratch_req->incoming_size = nbytes*tree_info->geom->child_count;
+    /*  fprintf(stderr, "%d> requesting %d bytes as incoming\n", gasneti_mynode, scratch_req->incoming_size); */
+    scratch_req->num_in_peers = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree_info->geom);
+    if(scratch_req->num_in_peers > 0) {
+      scratch_req->in_peers = GASNETE_COLL_TREE_GEOM_CHILDREN(tree_info->geom);      
+    } else {
+      scratch_req->in_peers = NULL;
+    }
+    if(team->myrank == gasnete_coll_image_node(team, dstimage)) {
+      scratch_req->num_out_peers = 0;
+      scratch_req->out_peers = NULL;      
+      scratch_req->out_sizes = NULL;
+    } else {
+      scratch_req->num_out_peers = 1;
+      scratch_req->out_peers = &(GASNETE_COLL_TREE_GEOM_PARENT(tree_info->geom));
+      scratch_req->out_sizes = (uint64_t*) gasneti_malloc(sizeof(uint64_t)*1);
+      scratch_req->out_sizes[0] = nbytes*tree_info->geom->num_siblings;
+    }
+  }
+  
+  gasnete_coll_threads_lock(team, flags GASNETE_THREAD_PASS);
+  if(!(flags & GASNETE_COLL_SUBORDINATE) || ALL_THREADS_POLL) {
+    first_thread = gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE);
+  } else {
+    first_thread = 1;
+  }
+  
+  if_pt (first_thread) {
+    gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
+    GASNETE_COLL_GENERIC_SET_TAG(data, reduce);
+#if !GASNET_SEQ
+    data->args.reduce.dstimage = dstimage;
+#endif
+    data->args.reduce.dstnode    = gasnete_coll_image_node(team, dstimage);
+    data->args.reduce.dst        = dst;
+    data->args.reduce.src        = src;
+    data->args.reduce.src_blksz  = src_blksz;
+    data->args.reduce.src_offset = src_offset;
+    data->args.reduce.elem_size  = elem_size;
+    
+    data->args.reduce.elem_count  = elem_count;
+    data->args.reduce.nbytes  = elem_size*elem_count;
+    data->args.reduce.func       = func;
+    data->args.reduce.func_arg    = func_arg;
+    
+    data->options = options;
+    data->private_data = NULL; data->tree_info=tree_info;
+    result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, 0, NULL, tree_info GASNETE_THREAD_PASS);
+  } else {
+    result = gasnete_coll_threads_get_handle(GASNETE_THREAD_PASS_ALONE);
+  }
+  gasnete_coll_threads_unlock(GASNETE_THREAD_PASS_ALONE);
+  return result;
+}
 
 extern gasnet_coll_handle_t
 gasnete_coll_reduce_nb_default(gasnet_team_handle_t team,
@@ -5479,10 +5562,24 @@ gasnete_coll_reduce_nb_default(gasnet_team_handle_t team,
                                void *src, size_t src_blksz, size_t src_offset,
                                size_t elem_size, size_t elem_count,
                                gasnet_coll_fn_handle_t func, int func_arg,
-                               int flags GASNETE_THREAD_FARG)
+                               int flags, uint32_t sequence GASNETE_THREAD_FARG)
 {
-  gasneti_fatalerror("%s UNIMPLEMENTED", GASNETI_CURRENT_FUNCTION);
-  return GASNET_COLL_INVALID_HANDLE;
+  gasnete_coll_implementation_t impl = gasnete_coll_get_implementation();
+
+  /*initial limitations*/
+  gasneti_assert(src_blksz == 0);
+  gasneti_assert(src_offset == 0);
+  
+  /*error check to make sure the function table is properly configured*/
+  gasneti_assert(gasnete_coll_fn_tbl);
+  gasneti_assert(func < gasnete_coll_fn_count);
+  gasneti_assert(gasnete_coll_fn_tbl[func].fnptr);
+  impl->tree_type = gasnete_coll_autotune_get_tree_type(team->autotune_info, 
+                                                       GASNET_COLL_BROADCAST_OP, 
+                                                        dstimage, elem_size*elem_count, flags);
+  
+  return gasnete_coll_reduce_TreeEager(team, dstimage, dst, src, src_blksz, src_offset, 
+                                       elem_size, elem_count, func, func_arg, flags, impl, sequence GASNETE_THREAD_PASS);  
 }
 
 /*---------------------------------------------------------------------------------*/

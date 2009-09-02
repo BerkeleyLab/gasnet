@@ -20,17 +20,18 @@ options that is covered testcoll
 
 
 #define ALL_COLL_ENABLED 0
-#define BROADCAST_ENABLED 1
+#define BROADCAST_ENABLED 0
 #define SCATTER_ENABLED 0
 #define GATHER_ENABLED 0
+#define REDUCE_ENABLED 1
 
 
 #define ALL_ADDR_MODE_ENABLED 0
 
-#define SINGLE_SINGLE_MODE_ENABLED 0
+#define SINGLE_SINGLE_MODE_ENABLED 1
 #define SINGLE_LOCAL_MODE_ENABLED 0
-#define MULTI_SINGLE_MODE_ENABLED 1
-#define MULTI_LOCAL_MODE_ENABLED 1
+#define MULTI_SINGLE_MODE_ENABLED 0
+#define MULTI_LOCAL_MODE_ENABLED 0
 
 
 
@@ -124,7 +125,21 @@ if(td->my_local_thread==0 && performance_iters>0) MSG0("%c: %d> %s/%s %s sync_mo
 #else
 #define print_timer(td, coll_str, addr_mode, num_addrs, sync_mode, nelem, total_ticks)
 #endif
-
+void int_reduce_fn(void *results, size_t result_count,
+                   const void *left_operands, size_t left_count,
+                   const void *right_operands,
+                   size_t elem_size, int flags, int arg) {
+  int i;
+  int *res = (int*) results;
+  int *src1 = (int*) left_operands;
+  int *src2 = (int*) right_operands;
+  if(elem_size != sizeof(int)) {MSG0("bad elem size: %d\n", (int)elem_size); gasnet_exit(1);}
+  if(result_count!=left_count) {MSG0("bad counts: %d %d\n", (int)result_count, (int)left_count); gasnet_exit(1);}
+  for(i=0; i<result_count; i++) {
+    res[i] = src1[i] + src2[i];
+  }
+}
+gasnet_coll_fn_entry_t fntable;
 void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr, size_t nelem, int root_thread, int in_flags) {
   /* all threads pass the same pointers for src and dest*/
   int i,j,t,k;
@@ -345,6 +360,51 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
   print_timer(td,  "exchange", output_str,  "SINGLE-addr", flag_str, nelem, end);  
 #endif
   
+#if REDUCE_ENABLED || ALL_COLL_ENABLED  
+  /*REDUCE*/
+  for(k=0; k<outer_verification_iters; k++) {
+    COLL_BARRIER();
+    for(i=0; i<inner_verification_iters; i++) {
+      for(j=0; j<nelem; j++) {
+        src[i*nelem+j] = (42*(i+1)+j);
+      }
+    }
+    if(root_thread == td->mythread) {
+      for(i=0; i<nelem*inner_verification_iters*THREADS; i++) {
+        dst[i] = -1;
+      }
+    }
+    if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();} 
+    for(i=0; i<inner_verification_iters; i++) {
+      gasnet_coll_reduce(GASNET_TEAM_ALL, root_thread, dst+i*nelem, src+i*nelem, 0,0, sizeof(int), nelem, 0, 0, flags);
+    }
+    if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
+    
+    if(td->mythread == root_thread) {
+      for(i=0; i<inner_verification_iters; i++) {
+        for(j=0; j<nelem; j++) {
+          int expected = (42*(i+1)+j)*THREADS;
+          if(dst[i*nelem+j] != expected) {
+            MSG("%d> reduce verification @ iteration: %d,%d ... expected %d got %d", td->mythread, i, j, expected, dst[i*nelem+j]);
+            ERROR_EXIT();
+          }
+        }
+      }
+    }
+  }
+#if 1
+  COLL_BARRIER();
+  begin = gasnett_ticks_now();
+  if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
+  for(i=0; i<performance_iters; i++) { 
+    gasnet_coll_reduce(GASNET_TEAM_ALL, root_thread, dst, src, 0,0, sizeof(int), nelem, 0, 0, flags);
+  }
+  if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
+  end =  gasnett_ticks_now() - begin;
+  COLL_BARRIER();  
+#endif
+  print_timer(td,  "reduce", output_str,  "SINGLE-addr", flag_str, nelem, end);  
+#endif
   if(td->my_local_thread==0 && VERBOSE_VERIFICATION_OUTPUT) MSG0("%c: %s/SINGLE-addr sync_mode: %s size: %ld bytes root: %d.  PASS", TEST_SECTION_NAME(), output_str, flag_str, (long int) (sizeof(int)*nelem), root_thread);
   
   COLL_BARRIER();
@@ -622,15 +682,17 @@ void *thread_main(void *arg) {
   int i,flag_iter;
   gasnet_node_t root_thread = ROOT_THREAD;
   int skip_msg_printed = 0;
-
+  gasnet_coll_fn_entry_t fntable[1];
+  fntable[0].fnptr = int_reduce_fn;
+  fntable[0].flags = 0;
 #if GASNET_PAR
   gasnet_image_t *imagearray = test_malloc(nodes * sizeof(gasnet_image_t));
   gasnett_set_affinity(td->my_local_thread);
   for (i=0; i<nodes; ++i) { imagearray[i] = threads_per_node; }
-  gasnet_coll_init(imagearray, td->mythread, NULL, 0, 0);
+  gasnet_coll_init(imagearray, td->mythread, fntable, 1, 0);
   test_free(imagearray);
 #else
-  gasnet_coll_init(NULL, 0, NULL, 0, 0);
+  gasnet_coll_init(NULL, 0, fntable, 1, 0);
 #endif
 
   COLL_BARRIER();
@@ -696,7 +758,7 @@ void *thread_main(void *arg) {
 
     }
   }
-  gasnet_coll_dumpTuningState("./blah.bin", GASNET_TEAM_ALL);
+  gasnet_coll_dumpTuningState((char*) "./blah.bin", GASNET_TEAM_ALL);
   MSG("thread %d> done", td->mythread);
   return NULL;
 }

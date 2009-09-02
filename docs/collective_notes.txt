@@ -1,6 +1,6 @@
 GASNet collectives design notes
 ===============================
-* $Revision: 1.36 $
+* $Revision: 1.36.32.1 $
 * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu> and Paul Hargrove <PHHargrove@lbl.gov>
 * Terms of use are as specified in license.txt
 
@@ -609,9 +609,14 @@ typedef void
 		The number of results to be generated.  Since there is
 		a one-to-one correspondence between results and
 		right-hand operands, this is also the length of the
-		'right_operands' array. The client may safely assume that a
+		'right_operands' array. 
+
+/*** RAJESH: I REALLY DON'T THINK WE SHOULD ALLOW THIS We'll be forced into a function call overhead for every 
+             element in the reduction which could be very large****/
+    The client may safely assume that a
 		callback invoked on behalf of a (non-prefix) reduce function
 		will always have result_count == 1. Otherwise, it will be >= 1.
+
 	left_operands: Optional left-hand operand array
 		This argument is the address of 0 or more operands which lie
 		to the left of those given by the 'right_operands' argument.
