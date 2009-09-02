@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2006/08/30 11:46:09 $
- * $Revision: 1.10 $
+ *     $Date: 2009/09/02 07:57:06 $
+ * $Revision: 1.10.38.1 $
  * Description: GASNet header for sci conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -25,6 +25,12 @@
   /*  at the same virtual address on all nodes. defined to 0 otherwise */
 /* GASNETI_DISABLE_ALIGNED_SEGMENTS is trivially satisfied */
 #define GASNET_ALIGNED_SEGMENTS   0
+
+  /* define these to 1 if your conduit supports PSHM, but cannot use the
+     default interfaces. (see template-conduit/gasnet_core.c and gasnet_sysv.h)
+   */
+#define GASNETC_GET_HANDLER 1  /* Not currently using default handler table impl */
+/* #define GASNETC_TOKEN_CREATE 1 */
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */

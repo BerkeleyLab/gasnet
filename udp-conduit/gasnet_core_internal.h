@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core_internal.h,v $
- *     $Date: 2007/10/31 04:57:51 $
- * $Revision: 1.9 $
+ *     $Date: 2009/09/02 07:57:10 $
+ * $Revision: 1.9.20.1 $
  * Description: GASNet MPI conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -113,5 +113,13 @@ const char *gasneti_AMErrorName(int errval) {
 #define _hidx_gasnetc_auxseg_reqh             (GASNETC_HANDLER_BASE+0)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
+
+/* ------------------------------------------------------------------------------------ */
+/* AM category (recommended impl if supporting PSHM) */
+typedef enum {
+  gasnetc_Short=0,
+  gasnetc_Medium=1,
+  gasnetc_Long=2
+} gasnetc_category_t;
 
 #endif

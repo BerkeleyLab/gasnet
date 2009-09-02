@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_internal.h,v $
- *     $Date: 2009/09/01 20:46:39 $
- * $Revision: 1.2.10.2 $
+ *     $Date: 2009/09/02 07:56:56 $
+ * $Revision: 1.2.10.3 $
  * Description: GASNet dcmf conduit header for internal definitions in Core API
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -297,5 +297,13 @@ void gasnetc_dcmf_bootstrapExchange(void *src, size_t nbytes, void *dst);
 /* handler table (recommended impl) */
 #define GASNETC_MAX_NUMHANDLERS   256
 extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
+
+/* ------------------------------------------------------------------------------------ */
+/* AM category (recommended impl if supporting PSHM) */
+typedef enum {
+  gasnetc_Short=0,
+  gasnetc_Medium=1,
+  gasnetc_Long=2
+} gasnetc_category_t;
 
 #endif

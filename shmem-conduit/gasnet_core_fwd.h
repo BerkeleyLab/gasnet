@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2009/09/01 20:47:13 $
- * $Revision: 1.14.38.1 $
+ *     $Date: 2009/09/02 07:57:08 $
+ * $Revision: 1.14.38.2 $
  * Description: GASNet header for shmem conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -36,6 +36,12 @@
      (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
    */
 /* #define GASNETC_USE_INTERRUPTS 1 */
+
+  /* define these to 1 if your conduit supports PSHM, but cannot use the
+     default interfaces. (see template-conduit/gasnet_core.c and gasnet_sysv.h)
+   */
+/* #define GASNETC_GET_HANDLER 1 */
+/* #define GASNETC_TOKEN_CREATE 1 */
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */

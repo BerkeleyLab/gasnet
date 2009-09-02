@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2009/09/01 20:47:11 $
- * $Revision: 1.14.42.1 $
+ *     $Date: 2009/09/02 07:57:06 $
+ * $Revision: 1.14.42.2 $
  * Description: GASNet sci conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -84,6 +84,14 @@ typedef void (*gasnetc_handler_mediumlong)(gasnet_token_t token, void *buf, size
 #define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
 #define _hidx_gasnetc_auxseg_reqh             (GASNETC_HANDLER_BASE+0)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
+
+/* ------------------------------------------------------------------------------------ */
+/* AM category (recommended impl if supporting PSHM) */
+typedef enum {
+  gasnetc_Short=0,
+  gasnetc_Medium=1,
+  gasnetc_Long=2
+} gasnetc_category_t;
 
 /*  SCI conduit specific constants */
 #define GASNETC_SCI_NO_CALLBACK				NULL

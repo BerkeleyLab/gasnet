@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2009/08/31 23:34:48 $
- * $Revision: 1.30.10.2 $
+ *     $Date: 2009/09/02 07:57:02 $
+ * $Revision: 1.30.10.3 $
  * Description: GASNet header for lapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -71,10 +71,10 @@
 #if GASNETC_LAPI_RDMA /* bug 2176 - must use large-page malloc (and unaligned segments) for LAPI-RDMA */
    #define GASNET_ALIGNED_SEGMENTS   0 
    #undef HAVE_MMAP
-#elif GASNETI_DISABLE_ALIGNED_SEGMENTS
-  #define GASNET_ALIGNED_SEGMENTS   0 /* user disabled segment alignment */
+#elif GASNETI_DISABLE_ALIGNED_SEGMENTS || GASNET_PSHM
+  #define GASNET_ALIGNED_SEGMENTS   0 /* user of PSHM disabled segment alignment */
 #else
-  #define GASNET_ALIGNED_SEGMENTS   (!GASNET_PSHM)
+  #define GASNET_ALIGNED_SEGMENTS   1
 #endif
 
 
@@ -89,6 +89,12 @@
      (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
    */
 /* #define GASNETC_USE_INTERRUPTS 1 */
+
+  /* define these to 1 if your conduit supports PSHM, but cannot use the
+     default interfaces. (see template-conduit/gasnet_core.c and gasnet_sysv.h)
+   */
+/* #define GASNETC_GET_HANDLER 1 */
+/* #define GASNETC_TOKEN_CREATE 1 */
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */

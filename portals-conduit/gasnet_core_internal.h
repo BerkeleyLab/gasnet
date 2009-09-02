@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2009/09/01 20:47:06 $
- * $Revision: 1.4.10.4 $
+ *     $Date: 2009/09/02 07:57:04 $
+ * $Revision: 1.4.10.5 $
  * Description: GASNet PORTALS conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -25,6 +25,14 @@
 /* handler table (recommended impl) */
 #define GASNETC_MAX_NUMHANDLERS   256
 extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
+
+/* ------------------------------------------------------------------------------------ */
+/* AM category (recommended impl if supporting PSHM) */
+typedef enum {
+  gasnetc_Short=0,
+  gasnetc_Medium=1,
+  gasnetc_Long=2
+} gasnetc_category_t;
 
 /* ------------------------------------------------------------------------------------ */
 /* Unconditionally evalute second arg.

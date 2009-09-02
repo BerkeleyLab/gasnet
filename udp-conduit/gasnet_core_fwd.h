@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2009/09/01 20:47:19 $
- * $Revision: 1.18.26.3 $
+ *     $Date: 2009/09/02 07:57:10 $
+ * $Revision: 1.18.26.4 $
  * Description: GASNet header for UDP conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,12 +23,12 @@
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
   /*  at the same virtual address on all nodes. defined to 0 otherwise */
-#if GASNETI_DISABLE_ALIGNED_SEGMENTS
-  #define GASNET_ALIGNED_SEGMENTS   0 /* user disabled segment alignment */
+#if GASNETI_DISABLE_ALIGNED_SEGMENTS || GASNET_PSHM
+  #define GASNET_ALIGNED_SEGMENTS   0 /* user of PSHM disabled segment alignment */
 #else
   /* udp-conduit supports both aligned and un-aligned */
   #if defined(HAVE_MMAP) && !PLATFORM_ARCH_CRAYX1
-    #define GASNET_ALIGNED_SEGMENTS   (!GASNET_PSHM)
+    #define GASNET_ALIGNED_SEGMENTS   1
   #else
     #define GASNET_ALIGNED_SEGMENTS   0
   #endif
@@ -60,6 +60,12 @@ typedef uint16_t gasnet_node_t;
 #define GASNET_ERR_BAD_ARG              2
 #define GASNET_ERR_NOT_READY            (_GASNET_ERR_BASE+4)
 #define GASNET_ERR_BARRIER_MISMATCH     (_GASNET_ERR_BASE+5)
+
+  /* define these to 1 if your conduit supports PSHM, but cannot use the
+     default interfaces. (see template-conduit/gasnet_core.c and gasnet_sysv.h)
+   */
+#define GASNETC_GET_HANDLER 1 /* Not currently using default handler table impl */
+/* #define GASNETC_TOKEN_CREATE 1 */
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */

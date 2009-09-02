@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2009/08/31 23:34:42 $
- * $Revision: 1.2.12.2 $
+ *     $Date: 2009/09/02 07:56:56 $
+ * $Revision: 1.2.12.3 $
  * Description: GASNet header for dcmf conduit core (forward definitions)
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -24,10 +24,10 @@
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
   /*  at the same virtual address on all nodes. defined to 0 otherwise */
-#if GASNETI_DISABLE_ALIGNED_SEGMENTS
- #define GASNET_ALIGNED_SEGMENTS   0 /* user disabled segment alignment */
+#if GASNETI_DISABLE_ALIGNED_SEGMENTS || GASNET_PSHM
+ #define GASNET_ALIGNED_SEGMENTS   0 /* user of PSHM disabled segment alignment */
 #else
- #define GASNET_ALIGNED_SEGMENTS   (!GASNET_PSHM)
+ #define GASNET_ALIGNED_SEGMENTS   1
 #endif
 
 /* conduit allows internal GASNet fns to issue put/get for remote addrs out of segment */
@@ -51,6 +51,12 @@
 */
 void gasnetc_myFatalSignalCallback(int id);
 #define GASNETC_FATALSIGNAL_CALLBACK(SIG) gasnetc_myFatalSignalCallback((SIG))
+
+  /* define these to 1 if your conduit supports PSHM, but cannot use the
+     default interfaces. (see template-conduit/gasnet_core.c and gasnet_sysv.h)
+   */
+/* #define GASNETC_GET_HANDLER 1 */
+/* #define GASNETC_TOKEN_CREATE 1 */
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
