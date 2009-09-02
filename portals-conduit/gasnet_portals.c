@@ -2330,46 +2330,6 @@ extern void gasnetc_init_portals_network(int *argc, char ***argv)
                       sizeof(cnos_map[0]));
 #endif
 
-  /* init the table to a list of null pointers */
-  for (i = 0; i < HASHTABLE_SIZE; i++) {
-    gasnetc_addrtable[i] = NULL;
-  }
-
-  /* now populate the table */
-  for (node = 0; node < gasneti_nodes; node++) {
-    gasnetc_procid_t *proc = &gasnetc_procid_map[node];
-    int indx = HASHFUNC(&proc->ptl_id);
-    proc->next = gasnetc_addrtable[indx];
-    gasnetc_addrtable[indx] = proc;
-  }
-
-#ifdef GASNET_DEBUG
-  {
-    int i;
-    int numzero = 0;
-    int sum = 0;
-    int mincnt = gasneti_nodes+1;
-    int maxcnt = 0;
-    double avg;
-    for (i = 0; i < HASHTABLE_SIZE; i++) {
-      int cnt = 0;
-      gasnetc_procid_t *p = gasnetc_addrtable[i];
-      if (p == NULL) numzero++;
-      while (p != NULL) {
-	GASNETI_TRACE_PRINTF(C,("Table[%d][%d] :: Node=%d, Nid=%d, Pid=%d",i,cnt,p->node_id,p->ptl_id.nid,p->ptl_id.pid));
-	cnt++;
-	p = p->next;
-      }
-      mincnt = MIN(cnt,mincnt);
-      maxcnt = MAX(cnt,maxcnt);
-      sum += cnt;
-    }
-    gasneti_assert(sum == gasneti_nodes);
-    avg = ((double)sum)/((double)HASHTABLE_SIZE);
-    GASNETI_TRACE_PRINTF(C,("Table stats: NumZero=%d, AvgLen=%6.2f, MinLen=%d, MaxLen=%d",numzero,avg,mincnt,maxcnt));
-  }
-#endif
-
   /* Allocate and init (part of) the connection state array */
   gasnetc_conn_state = (gasnetc_conn_t*)gasneti_malloc(gasneti_nodes*sizeof(gasnetc_conn_t));
   for (i = 0; i < gasneti_nodes; i++) {
