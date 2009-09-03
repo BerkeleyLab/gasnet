@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/09/02 02:17:40 $
- * $Revision: 1.1.4.71 $
+ *     $Date: 2009/09/03 09:54:16 $
+ * $Revision: 1.1.4.72 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -545,11 +545,11 @@ static void init_queue(gasneti_pshmnet_queue_t *q, gasneti_pshmnet_msg_t *msgs,
 }
 
 static void gasneti_pshmnet_init_my_pshm(gasneti_pshmnet_t *pvnet, char * myregion, 
-                                  gasnet_node_t firstnode, gasnet_node_t nodes)
+                                         gasnet_node_t nodes)
 {
   int i;
   gasneti_pshmnet_queue_t *myqueues;
-  gasneti_pshmnet_msg_t   *mymsgs, *remote_mymsgs;
+  gasneti_pshmnet_msg_t   *mymsgs;
   void *alloc_region;
   gasneti_assert_align(myregion, GASNETI_PSHMNET_PAGESIZE);
 
@@ -585,7 +585,7 @@ void gasneti_pshmnet_init(gasneti_pshmnet_t **pvnet, void *start, size_t nbytes,
                           gasnet_node_t firstnode, gasnet_node_t pshmnodes)
 {
   gasneti_pshmnet_t *vnet;
-  gasnet_node_t i, othernode;
+  gasnet_node_t i;
   size_t szpernode, regionlen;
   void *region, *myregion;
 
@@ -608,7 +608,7 @@ void gasneti_pshmnet_init(gasneti_pshmnet_t **pvnet, void *start, size_t nbytes,
   /* collective call, so each process inits its own region.
    * To allow non-fixed mapping of the pshmnet memory, we initialize
    * each reqion using the offset-addresses */
-  gasneti_pshmnet_init_my_pshm(vnet, myregion, firstnode, pshmnodes);
+  gasneti_pshmnet_init_my_pshm(vnet, myregion, pshmnodes);
 
   /* initialize queue pointers */
   vnet->in_queues = gasneti_malloc(sizeof(gasneti_pshmnet_queue_t*)*pshmnodes);
@@ -878,7 +878,6 @@ void gasneti_pshmnet_bootstrapExchange(gasneti_pshmnet_t *vnet, void *src,
 
 static gasneti_pshmnet_allocator_t *gasneti_pshmnet_init_allocator(void *region, size_t len)
 {
-  int i;
   int count = len >> GASNETI_PSHMNET_PAGESHIFT;
   gasneti_pshmnet_allocator_block_t *tmp;
 
@@ -1103,7 +1102,6 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, int dest,
   size_t msgsz = 0;
   int i;
   void *msg;
-  gasnet_handlerarg_t *pargs;
   int loopback = (dest == gasneti_mynode);
 
   gasneti_assert(vnet != NULL);

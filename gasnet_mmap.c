@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/09/01 20:46:35 $
- * $Revision: 1.57.6.41 $
+ *     $Date: 2009/09/03 09:54:16 $
+ * $Revision: 1.57.6.42 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -147,7 +147,7 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
   gasneti_assert(strlen(prefix) == GASNETI_PSHM_PREFIX_LEN);
 
   if (!unique) { /* We get to pick the unique bits */
-    const char *tmpdir, *tmp;
+    const char *tmpdir;
     int tmpfd;
 
     /* Find a directory to use */
@@ -1095,7 +1095,7 @@ void gasneti_AttachRemote(uintptr_t segsize, const gasnet_node_t pshm_node, uint
 void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
                            gasnet_seginfo_t *seginfo,
                            gasneti_bootstrapExchangefn_t exchangefn) {
-    int i,j;
+    int i;
     uintptr_t *seginfo_correction;
 
 #if GASNET_PSHM
@@ -1134,6 +1134,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
 
     /* Detect which segments need to be re-attached */
     for(i=0; i<gasneti_pshm_nodes; i++){
+      int j;
       for(j=0; j<gasneti_pshm_nodes; j++){
          gasnet_node_t node = pshm_to_gasnet(i);
          if ((gasneti_seginfo_correction[node*gasneti_pshm_nodes+j] != 0 &&
