@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/09/03 10:55:17 $
- * $Revision: 1.1.4.73 $
+ *     $Date: 2009/09/03 11:15:40 $
+ * $Revision: 1.1.4.74 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -436,7 +436,6 @@ static void gasneti_pshmnet_free(gasneti_pshmnet_allocator_t *a, void *p);
  * - Note that this struct itself is not stored in shared memory. 
  */
 struct gasneti_pshmnet {
-  gasnet_node_t firstnode;          /* first gasnet node in this supernode */
   gasnet_node_t nodecount;          /* nodes in supernode */ 
   gasnet_node_t nextindex;          /* index of next node to check for msgs */
   gasneti_mutex_t index_lock;       /* protects updates to nextindex */
@@ -446,9 +445,6 @@ struct gasneti_pshmnet {
   /* only need to see one's own allocator */
   gasneti_pshmnet_allocator_t *my_allocator;
 };
-
-#define pshmnode(vnet, gasnet_node) \
-        (gasnet_node - vnet->firstnode)
 
 #define gasneti_assert_align(p, align) \
         gasneti_assert((((uintptr_t)p) % align) == 0)
@@ -603,7 +599,6 @@ void gasneti_pshmnet_init(gasneti_pshmnet_t **pvnet, void *start, size_t nbytes,
                        " given %lu effective bytes, but need %lu", 
                        (unsigned long)regionlen, (unsigned long)(szpernode * pshmnodes));
   vnet = gasneti_malloc(sizeof(gasneti_pshmnet_t));
-  vnet->firstnode = firstnode;
   vnet->nodecount = pshmnodes;
   myregion = (void *)( ((uintptr_t)region) + (szpernode*gasneti_pshm_mynode));
   /* collective call, so each process inits its own region.
@@ -648,7 +643,7 @@ int gasneti_pshmnet_deliver_send_buffer(gasneti_pshmnet_t *vnet, void *buf,
   int retval = -1;
   gasneti_pshmnet_msg_t *q_send_next;
   gasneti_pshmnet_payload_t *p;
-  gasneti_pshmnet_queue_t *q = vnet->out_queues[pshmnode(vnet, target)];
+  gasneti_pshmnet_queue_t *q = vnet->out_queues[target];
   gasneti_assert(q != NULL);
 
   gasneti_mutex_lock(&q->send_lock);
@@ -691,18 +686,18 @@ int gasneti_pshmnet_recv(gasneti_pshmnet_t *vnet, void **pbuf, size_t *psize,
   int i;
    
   for (i = 0; i < nodecount; i++) {
-    int tmp, nextindex;
+    int tmp, nodeindex;
 
     /* Ensure fairness: next check starts with next node. */
     gasneti_mutex_lock(&vnet->index_lock);
-      nextindex = vnet->nextindex;
-      tmp = nextindex + 1;
+      nodeindex = vnet->nextindex;
+      tmp = nodeindex + 1;
       if (tmp == nodecount) tmp = 0;
       vnet->nextindex = tmp;
     gasneti_mutex_unlock(&vnet->index_lock);
  
-    if (nextindex != gasneti_pshm_mynode) {
-      gasneti_pshmnet_queue_t *q = vnet->in_queues[nextindex];
+    if (nodeindex != gasneti_pshm_mynode) {
+      gasneti_pshmnet_queue_t *q = vnet->in_queues[nodeindex];
       gasneti_pshmnet_msg_t *q_recv_next;
       
       gasneti_assert(q != NULL);
@@ -722,7 +717,7 @@ int gasneti_pshmnet_recv(gasneti_pshmnet_t *vnet, void **pbuf, size_t *psize,
            q->recv_next = q->queue;
 
         gasneti_mutex_unlock(&q->recv_lock);
-        *from = nextindex + vnet->firstnode;
+        *from = nodeindex;
         return 0;
       }
         
@@ -781,14 +776,14 @@ void gasneti_pshmnet_bootstrapBarrier(void)
 /* Sends data to all peers excluding self */
 static void gasneti_pshmnet_coll_send(gasneti_pshmnet_t *vnet, void *src, size_t len)
 {
-  gasnet_node_t i, to;
+  gasnet_node_t i;
   void *msg;
 
-  for (i = 0, to = vnet->firstnode; i < vnet->nodecount; i++, to++) {
+  for (i = 0; i < vnet->nodecount; i++) {
     if (i == gasneti_pshm_mynode) continue;
-    gasneti_waitwhile (NULL == (msg = gasneti_pshmnet_get_send_buffer(vnet, len, to)));
+    gasneti_waitwhile (NULL == (msg = gasneti_pshmnet_get_send_buffer(vnet, len, i)));
     memcpy(msg, src, len);
-    gasneti_waitwhile (gasneti_pshmnet_deliver_send_buffer(vnet, msg, len, to));
+    gasneti_waitwhile (gasneti_pshmnet_deliver_send_buffer(vnet, msg, len, i));
   }
 }
 
@@ -800,7 +795,7 @@ static void gasneti_pshmnet_coll_recv(gasneti_pshmnet_t *vnet, size_t stride, vo
   size_t len;
 
   gasneti_waitwhile (gasneti_pshmnet_recv(vnet, &msg, &len, &from));
-  dest_elem = (void*)((uintptr_t)dest + (stride * pshmnode(vnet, from)));
+  dest_elem = (void*)((uintptr_t)dest + (stride * from));
   memcpy(dest_elem, msg, len);
   gasneti_pshmnet_recv_release(vnet, msg);
 }
@@ -1027,7 +1022,7 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
   if (gasneti_pshmnet_recv(vnet, &msg, &msgsz, &from))
     return -1;
 
-  token = gasnetc_token_create(from, isReq);
+  token = gasnetc_token_create(gasneti_pshm_firstnode + from, isReq);
   category = GASNETI_AMPSHM_MSG_CATEGORY(msg);
   gasneti_assert((category == gasnetc_Short) || 
                  (category == gasnetc_Medium) || 
@@ -1100,6 +1095,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, int dest,
                                  void *dest_addr, int numargs, va_list argptr) 
 {
   gasneti_pshmnet_t *vnet = (isReq ? gasneti_request_pshmnet : gasneti_reply_pshmnet);
+  gasnet_node_t target = (dest - gasneti_pshm_firstnode);
   size_t msgsz = 0;
   int i;
   void *msg;
@@ -1134,7 +1130,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, int dest,
     gasneti_assert(msgsz <= sizeof(gasneti_AMPSHM_maxmsg_t)); 
 
     /* Get buffer, poll if busy */
-    while (!(msg = gasneti_pshmnet_get_send_buffer(vnet, msgsz, dest))) {
+    while (!(msg = gasneti_pshmnet_get_send_buffer(vnet, msgsz, target))) {
       /* If reply, only poll reply network: avoids deadlock  */
       if (isReq) gasnetc_AMPoll(); /* No progress functions */
       else gasneti_AMPSHMPoll(1);
@@ -1198,7 +1194,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, int dest,
     gasnetc_token_destroy(token);
   } else {
     
-    while (gasneti_pshmnet_deliver_send_buffer(vnet, msg, msgsz, dest)) {
+    while (gasneti_pshmnet_deliver_send_buffer(vnet, msg, msgsz, target)) {
       /* If reply, only poll reply network: avoids deadlock  */
       if (isReq) gasnetc_AMPoll(); /* No progress functions */
       else gasneti_AMPSHMPoll(1);

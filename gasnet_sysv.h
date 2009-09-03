@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.h,v $
- *     $Date: 2009/09/02 02:05:02 $
- * $Revision: 1.1.4.39 $
+ *     $Date: 2009/09/03 11:15:40 $
+ * $Revision: 1.1.4.40 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -221,6 +221,7 @@ size_t gasneti_pshmnet_max_payload(void);
  * - 'nbytes' must be <= gasneti_pshmnet_max_payload().
  * - Returns NULL if no buffer is available (poll your receive queue, then try
  *   again).
+ * 'target' is rank relative to the supernode
  */
 void * gasneti_pshmnet_get_send_buffer(gasneti_pshmnet_t *vnet, size_t nbytes, 
                                        gasnet_node_t target);
@@ -229,6 +230,7 @@ void * gasneti_pshmnet_get_send_buffer(gasneti_pshmnet_t *vnet, size_t nbytes,
  * Notifies target that message is ready to be received.  After calling, 'buf'
  * logically belongs to the target process, and the caller should not touch
  * the memory pointed to by 'buf' again.
+ * 'target' is rank relative to the supernode
  *
  * Returns nonzero if no message can be sent (message queue full).  Poll your
  * own queues and try again later.
@@ -240,7 +242,7 @@ int gasneti_pshmnet_deliver_send_buffer(gasneti_pshmnet_t *vnet, void *buf, size
 /* Polls receipt queue for any messages from any sender.
  * - 'pbuf': address of pointer which will point to message (if successful)
  * - 'psize': out parameter (msg length will be written into memory)
- * - 'from': out parameter (sender node ID written into memory)
+ * - 'from': out parameter (sender supernode-relative rank written into memory)
  *
  * returns nonzero if no message to receive */
 int gasneti_pshmnet_recv(gasneti_pshmnet_t *vnet, void **pbuf, size_t *psize, 
