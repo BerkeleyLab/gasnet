@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/09/02 02:27:26 $
- * $Revision: 1.53.14.31.2.1 $
+ *     $Date: 2009/09/03 01:51:33 $
+ * $Revision: 1.53.14.31.2.2 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1523,7 +1523,7 @@ gasnete_coll_generic_reduce_nb(gasnet_team_handle_t team,
                                gasnet_coll_fn_handle_t func, int func_arg, int flags,
                                gasnete_coll_poll_fn poll_fn, int options,
                                gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
-                               int num_params, uint32_t *param_list
+                               int num_params, uint32_t *param_list, gasnete_coll_scratch_req_t *scratch_req
                                GASNETE_THREAD_FARG);
 
 extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_type_t tree_type, gasnet_node_t rootnode, gasnete_coll_team_t team GASNETE_THREAD_FARG);
@@ -2088,7 +2088,9 @@ gasnete_coll_reduce_##FUNC_EXT(gasnet_team_handle_t team,\
 
 DECLARE_REDUCE_IMPL(Eager);
 DECLARE_REDUCE_IMPL(TreeEager);
+DECLARE_REDUCE_IMPL(TreePut);
+DECLARE_REDUCE_IMPL(TreeGet);
 
 /*#undef GASNETI_COLL_FN_HEADER*/
-
+#undef DECLARE_REDUCE_IMPL
 #endif

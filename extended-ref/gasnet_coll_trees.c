@@ -688,13 +688,14 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
   geom->child_list = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*geom->child_count);
   geom->subtree_sizes = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*geom->child_count);
   geom->child_offset = (gasnet_node_t*) gasneti_malloc(sizeof(gasnet_node_t)*geom->child_count);
-  
+  geom->grand_children = (gasnet_node_t*)gasneti_malloc(sizeof(gasnet_node_t)*geom->child_count); 
   geom->num_non_leaf_children=0;
   geom->num_leaf_children=0;
   geom->child_contains_wrap = 0;
   for(i=0; i<geom->child_count; i++) {
     geom->child_list[i] = GET_NODE_ID(GET_CHILD_IDX(mynode,i));
     geom->subtree_sizes[i] = treesize(GET_CHILD_IDX(mynode,i));
+    geom->grand_children[i] = GET_NUM_CHILDREN(GET_CHILD_IDX(mynode, i));
     if(geom->subtree_sizes[i] > 1) {
       geom->num_non_leaf_children++;
     } else {

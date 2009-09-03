@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_eager.c,v $
- *     $Date: 2009/09/02 02:27:26 $
- * $Revision: 1.65.14.12.2.1 $
+ *     $Date: 2009/09/03 01:51:33 $
+ * $Revision: 1.65.14.12.2.2 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -822,11 +822,12 @@ gasnete_coll_reduce_Eager(gasnet_team_handle_t team,
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC)|
   GASNETE_COLL_GENERIC_OPT_P2P_IF(1);
-  
+  gasneti_assert(gasnete_coll_p2p_eager_scale>= elem_size*elem_count);
+
   return gasnete_coll_generic_reduce_nb(team, dstimage, dst, src, src_blksz, src_offset,
                                         elem_size, elem_count, func, func_arg, flags, 
                                         &gasnete_coll_pf_reduce_Eager, options,
-                                        NULL, sequence, 0, NULL GASNETE_THREAD_PASS);
+                                        NULL, sequence, 0, NULL, NULL GASNETE_THREAD_PASS);
 }
 
 static int gasnete_coll_pf_reduce_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
@@ -924,12 +925,13 @@ gasnete_coll_reduce_TreeEager(gasnet_team_handle_t team,
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC)|
   GASNETE_COLL_GENERIC_OPT_P2P_IF(1);
-  
+  gasneti_assert(gasnete_coll_p2p_eager_scale>= elem_size*elem_count);
+
   return gasnete_coll_generic_reduce_nb(team, dstimage, dst, src, src_blksz, src_offset,
                                         elem_size, elem_count, func, func_arg, flags, 
                                         &gasnete_coll_pf_reduce_TreeEager, options,
                                         gasnete_coll_tree_init(coll_params->tree_type,
                                                                gasnete_coll_image_node(team,dstimage), team
-                                                               GASNETE_THREAD_PASS), sequence, coll_params->num_params, coll_params->param_list
+                                                               GASNETE_THREAD_PASS), sequence, coll_params->num_params, coll_params->param_list, NULL
                                         GASNETE_THREAD_PASS);
 }

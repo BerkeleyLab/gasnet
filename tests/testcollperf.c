@@ -133,8 +133,8 @@ void int_reduce_fn(void *results, size_t result_count,
   int *res = (int*) results;
   int *src1 = (int*) left_operands;
   int *src2 = (int*) right_operands;
-  if(elem_size != sizeof(int)) {MSG0("bad elem size: %d\n", (int)elem_size); gasnet_exit(1);}
-  if(result_count!=left_count) {MSG0("bad counts: %d %d\n", (int)result_count, (int)left_count); gasnet_exit(1);}
+  assert(elem_size == sizeof(int));
+  assert(result_count==left_count);
   for(i=0; i<result_count; i++) {
     res[i] = src1[i] + src2[i];
   }
@@ -387,6 +387,9 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
           if(dst[i*nelem+j] != expected) {
             MSG("%d> reduce verification @ iteration: %d,%d ... expected %d got %d", td->mythread, i, j, expected, dst[i*nelem+j]);
             ERROR_EXIT();
+          } else if(0) {
+            MSG("%d> reduce passed @ iteration: %d,%d ... expected %d got %d", td->mythread, i, j, expected, dst[i*nelem+j]);
+          
           }
         }
       }
