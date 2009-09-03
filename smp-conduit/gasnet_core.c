@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/02 05:02:19 $
- * $Revision: 1.48.4.32 $
+ *     $Date: 2009/09/03 11:37:14 $
+ * $Revision: 1.48.4.33 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -21,9 +21,9 @@ gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 static void gasnetc_atexit(void);
 
 #if GASNET_PSHM
-  #define GASNETC_DEFAULT_EXITTIMEOUT_MAX       30.
-  #define GASNETC_DEFAULT_EXITTIMEOUT_MIN        2.
-  #define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR     0.1
+  #define GASNETC_DEFAULT_EXITTIMEOUT_MAX       60.
+  #define GASNETC_DEFAULT_EXITTIMEOUT_MIN       10.
+  #define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR     0.5
   static double gasnetc_exittimeout = GASNETC_DEFAULT_EXITTIMEOUT_MAX;
 #endif
 
@@ -432,6 +432,16 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 static void gasnetc_atexit(void) {
     gasnetc_exit(0);
 }
+
+#if GASNET_PSHM
+/* Fatal signal on node 0 looks like whole-job exit to our parent.
+   So, must try to kill all on a non-collective signal case. */
+extern void gasnetc_fatalsignal_callback(int sig) {
+  if (gasneti_pshm_exit_barrier(gasnetc_exittimeout * 1e6)) {
+    gasneti_pshm_signal(SIGTERM);
+  }
+}
+#endif
 
 extern void gasnetc_exit(int exitcode) {
 #if GASNET_PSHM

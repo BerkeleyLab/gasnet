@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2009/09/02 06:14:06 $
- * $Revision: 1.14.38.7 $
+ *     $Date: 2009/09/03 11:37:14 $
+ * $Revision: 1.14.38.8 $
  * Description: GASNet header for smp conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -38,6 +38,11 @@
 #if GASNETI_THROTTLE_FEATURE_ENABLED
 /* polling is a no-op on smp-conduit, so never throttle it */ 
 #undef GASNETI_THROTTLE_FEATURE_ENABLED
+#endif
+
+#if GASNET_PSHM
+  #define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
+  extern void gasnetc_fatalsignal_callback(int sig);
 #endif
 
 #define GASNETI_GASNETC_AMPOLL
