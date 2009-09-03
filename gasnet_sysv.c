@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/09/03 09:54:16 $
- * $Revision: 1.1.4.72 $
+ *     $Date: 2009/09/03 10:55:17 $
+ * $Revision: 1.1.4.73 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -90,6 +90,7 @@ void gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn) {
     for (i=1; i<gasneti_nodes; ++i) {
       if (gasneti_nodemap[i-1] > gasneti_nodemap[i]) {
         const char *wmsg =
+            "WARNING: "
             "GASNet PSHM support can use shared memory within a compute node to bypass the network "
             "only for processes with contiguous GASNet node numbers.  However, GASNet has "
             "detected non-contiguous numbering within one or more compute nodes.  Use of "
