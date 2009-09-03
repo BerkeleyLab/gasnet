@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/09/03 01:51:33 $
- * $Revision: 1.53.14.31.2.2 $
+ *     $Date: 2009/09/03 17:12:51 $
+ * $Revision: 1.53.14.31.2.3 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -635,6 +635,16 @@ void gasnete_coll_p2p_eager_addr_all(gasnete_coll_op_t *op, void *addr,
 #define gasnete_coll_p2p_change_state(op, dstnode, offset, state) \
 gasnete_coll_p2p_change_states(op, dstnode, 1, offset, state)
 #endif
+/*---------------------------------------------------------------------------------*/
+/* XXX: sequence and other stuff that will need to be per-team scoped: */
+
+extern gasnet_coll_fn_entry_t *gasnete_coll_fn_tbl;
+extern size_t gasnete_coll_fn_count;
+
+#define GASNETE_COLL_1ST_IMAGE(TEAM,LIST,NODE)              \
+(((void * const *)(LIST))[(TEAM)->all_offset[(NODE)]])
+#define GASNETE_COLL_MY_1ST_IMAGE(TEAM,LIST,FLAGS)                      \
+(((void * const *)(LIST))[((FLAGS) & GASNET_COLL_LOCAL) ? 0 : (TEAM)->my_offset])
 
 /*---------------------------------------------------------------------------------*/
 
@@ -713,6 +723,22 @@ void gasnete_coll_local_gather(size_t count, void * dst, void * const srclist[],
   gasneti_sync_writes();	/* Ensure result is visible on all threads */
 }
 
+
+GASNETI_INLINE(gasnete_coll_local_reduce)
+void gasnete_coll_local_reduce(size_t count, void * dst, void * const srclist[], size_t elem_size, size_t elem_count, gasnet_coll_fn_handle_t func, int func_arg) {
+  gasnet_coll_reduce_fn_t reduce_fn = gasnete_coll_fn_tbl[func].fnptr;
+  uint32_t red_fn_flags = gasnete_coll_fn_tbl[func].flags;
+  uint32_t reduce_args = func_arg;
+  size_t nbytes = elem_size*elem_count;
+  int i;
+  
+  gasneti_sync_reads();
+  GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dst, *srclist, nbytes);
+  for(i=1; i<count; i++) {
+    (*reduce_fn)(dst, elem_count, dst, elem_count, srclist[i], elem_size, red_fn_flags, reduce_args);
+  }
+  gasneti_sync_writes();	/* Ensure result is visible on all threads */
+}
 
 
 /*---------------------------------------------------------------------------------*/
@@ -906,16 +932,6 @@ can *prove* the current thread has a handle for the current op:
 #endif
 #endif
 
-/*---------------------------------------------------------------------------------*/
-/* XXX: sequence and other stuff that will need to be per-team scoped: */
-
-extern gasnet_coll_fn_entry_t *gasnete_coll_fn_tbl;
-extern size_t gasnete_coll_fn_count;
-
-#define GASNETE_COLL_1ST_IMAGE(TEAM,LIST,NODE)              \
-  (((void * const *)(LIST))[(TEAM)->all_offset[(NODE)]])
-#define GASNETE_COLL_MY_1ST_IMAGE(TEAM,LIST,FLAGS)                      \
-  (((void * const *)(LIST))[((FLAGS) & GASNET_COLL_LOCAL) ? 0 : (TEAM)->my_offset])
 
 /*---------------------------------------------------------------------------------*/
 /* In-segment checks */
@@ -1194,6 +1210,21 @@ typedef struct {
   gasnet_coll_fn_handle_t func; int func_arg;
 } gasnete_coll_reduce_args_t;
 
+typedef struct {
+#if !GASNET_SEQ
+  gasnet_image_t dstimage;
+#endif
+  gasnet_node_t dstnode;
+  void *dst;
+  void ** srclist;
+  size_t src_blksz; 
+  size_t src_offset;
+  size_t elem_size; 
+  size_t elem_count;
+  size_t nbytes;
+  gasnet_coll_fn_handle_t func; int func_arg;
+} gasnete_coll_reduceM_args_t;
+
 /* Options for gasnete_coll_generic_* */
 #define GASNETE_COLL_GENERIC_OPT_INSYNC		0x0001
 #define GASNETE_COLL_GENERIC_OPT_OUTSYNC	0x0002
@@ -1225,7 +1256,8 @@ struct gasnete_coll_generic_data_t_ {
     GASNETE_COLL_GENERIC_TAG(scatterM),
     GASNETE_COLL_GENERIC_TAG(gatherM),
     GASNETE_COLL_GENERIC_TAG(gather_allM),
-    GASNETE_COLL_GENERIC_TAG(exchangeM)
+    GASNETE_COLL_GENERIC_TAG(exchangeM),
+    GASNETE_COLL_GENERIC_TAG(reduceM)
 #if GASNET_PAR
     /* Single-address/multi-thread interfaces: */
     , GASNETE_COLL_GENERIC_TAG(broadcastT),
@@ -1287,6 +1319,7 @@ struct gasnete_coll_generic_data_t_ {
       gasnete_coll_gatherM_args_t		gatherM;
       gasnete_coll_gather_allM_args_t		gather_allM;
       gasnete_coll_exchangeM_args_t		exchangeM;
+      gasnete_coll_reduceM_args_t		reduceM;
       /* XXX: still need a few more */
       
       /* Hook for conduit-specific extension */
@@ -1457,6 +1490,30 @@ gasnete_coll_generic_exchangeM_nb(gasnet_team_handle_t team,
                                   GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
+gasnete_coll_generic_reduce_nb(gasnet_team_handle_t team,
+                               gasnet_image_t dstimage, void *dst,
+                               void *src, size_t src_blksz, size_t src_offset,
+                               size_t elem_size, size_t elem_count, 
+                               gasnet_coll_fn_handle_t func, int func_arg, int flags,
+                               gasnete_coll_poll_fn poll_fn, int options,
+                               gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
+                               int num_params, uint32_t *param_list, gasnete_coll_scratch_req_t *scratch_req
+                               GASNETE_THREAD_FARG);
+
+extern gasnet_coll_handle_t
+gasnete_coll_generic_reduceM_nb(gasnet_team_handle_t team,
+                               gasnet_image_t dstimage, void *dst,
+                               void * const srclist[], size_t src_blksz, size_t src_offset,
+                               size_t elem_size, size_t elem_count, 
+                               gasnet_coll_fn_handle_t func, int func_arg, int flags,
+                               gasnete_coll_poll_fn poll_fn, int options,
+                               gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
+                               int num_params, uint32_t *param_list, gasnete_coll_scratch_req_t *scratch_req
+                               GASNETE_THREAD_FARG);
+
+
+
+extern gasnet_coll_handle_t
 gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
                                   void *dst,
                                   gasnet_image_t srcimage, void *src,
@@ -1515,16 +1572,6 @@ gasnete_coll_exchangeM_nb_default(gasnet_team_handle_t team,
                                   size_t nbytes, int flags, uint32_t sequence
                                   GASNETE_THREAD_FARG);
 
-extern gasnet_coll_handle_t
-gasnete_coll_generic_reduce_nb(gasnet_team_handle_t team,
-                               gasnet_image_t dstimage, void *dst,
-                               void *src, size_t src_blksz, size_t src_offset,
-                               size_t elem_size, size_t elem_count, 
-                               gasnet_coll_fn_handle_t func, int func_arg, int flags,
-                               gasnete_coll_poll_fn poll_fn, int options,
-                               gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
-                               int num_params, uint32_t *param_list, gasnete_coll_scratch_req_t *scratch_req
-                               GASNETE_THREAD_FARG);
 
 extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_type_t tree_type, gasnet_node_t rootnode, gasnete_coll_team_t team GASNETE_THREAD_FARG);
 extern void gasnete_coll_tree_free(gasnete_coll_tree_data_t *tree GASNETE_THREAD_FARG);
@@ -2084,13 +2131,29 @@ gasnete_coll_reduce_##FUNC_EXT(gasnet_team_handle_t team,\
                           int flags, \
                           gasnete_coll_implementation_t coll_params,\
                           uint32_t sequence\
-                          GASNETE_THREAD_FARG)\
+                          GASNETE_THREAD_FARG)
 
 DECLARE_REDUCE_IMPL(Eager);
 DECLARE_REDUCE_IMPL(TreeEager);
 DECLARE_REDUCE_IMPL(TreePut);
+DECLARE_REDUCE_IMPL(TreePutSeg);
 DECLARE_REDUCE_IMPL(TreeGet);
 
 /*#undef GASNETI_COLL_FN_HEADER*/
 #undef DECLARE_REDUCE_IMPL
+
+#define DECLARE_REDUCEM_IMPL(FUNC_EXT) \
+extern gasnet_coll_handle_t \
+gasnete_coll_reduceM_##FUNC_EXT(gasnet_team_handle_t team,\
+                                gasnet_image_t dstimage, void *dst,\
+                                void * const srclist[], size_t src_blksz, size_t src_offset,\
+                                size_t elem_size, size_t elem_count,\
+                                gasnet_coll_fn_handle_t func, int func_arg,\
+                                int flags, \
+                                gasnete_coll_implementation_t coll_params,\
+                                uint32_t sequence\
+                                GASNETE_THREAD_FARG)
+
+DECLARE_REDUCEM_IMPL(TreeEager);
+#undef DECLARE_REDUCEM_IMPL
 #endif

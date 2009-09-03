@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/09/03 01:51:34 $
- * $Revision: 1.72.10.49.2.2 $
+ *     $Date: 2009/09/03 17:12:52 $
+ * $Revision: 1.72.10.49.2.3 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2893,7 +2893,7 @@ gasnete_coll_reduceM_nb_default(gasnet_team_handle_t team,
                                 void * const srclist[], size_t src_blksz, size_t src_offset,
                                 size_t elem_size, size_t elem_count,
                                 gasnet_coll_fn_handle_t func, int func_arg,
-                                int flags GASNETE_THREAD_FARG);
+                                int flags, uint32_t sequence GASNETE_THREAD_FARG);
 #endif
 extern gasnet_coll_handle_t
 gasnete_coll_reduceM_nb(gasnet_team_handle_t team,
@@ -2901,7 +2901,7 @@ gasnete_coll_reduceM_nb(gasnet_team_handle_t team,
                         void * const srclist[], size_t src_blksz, size_t src_offset,
                         size_t elem_size, size_t elem_count,
                         gasnet_coll_fn_handle_t func, int func_arg,
-                        int flags GASNETE_THREAD_FARG);
+                        int flags, uint32_t sequence GASNETE_THREAD_FARG);
 GASNETI_COLL_FN_HEADER(_gasnet_coll_reduceM_nb) GASNETI_WARN_UNUSED_RESULT
 gasnet_coll_handle_t
 _gasnet_coll_reduceM_nb(gasnet_team_handle_t team,
@@ -2913,7 +2913,7 @@ _gasnet_coll_reduceM_nb(gasnet_team_handle_t team,
   gasnet_coll_handle_t handle;
   GASNETI_TRACE_COLL_REDUCE_M(COLL_REDUCE_M_NB,team,dstimage,dst,srclist,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags);
   GASNETE_COLL_VALIDATE_REDUCE_M(team,dstimage,dst,srclist,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags);
-  handle = gasnete_coll_reduceM_nb(team,dstimage,dst,srclist,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags GASNETE_THREAD_PASS);
+  handle = gasnete_coll_reduceM_nb(team,dstimage,dst,srclist,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags, 0 GASNETE_THREAD_PASS);
   gasnete_coll_poll(GASNETE_THREAD_PASS_ALONE);
   return handle;
 }
@@ -2934,7 +2934,7 @@ GASNETI_COLL_FN_HEADER(gasnete_coll_reduceM)
                                gasnet_coll_fn_handle_t func, int func_arg,
                                int flags GASNETE_THREAD_FARG) {
   gasnet_coll_handle_t handle;
-  handle = gasnete_coll_reduceM_nb(team,dstimage,dst,srclist,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags GASNETE_THREAD_PASS);
+  handle = gasnete_coll_reduceM_nb(team,dstimage,dst,srclist,src_blksz,src_offset,elem_size,elem_count,func,func_arg,flags, 0 GASNETE_THREAD_PASS);
   gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
 }
 #endif
@@ -4467,7 +4467,7 @@ gasnete_coll_gatherM_nb_default(gasnet_team_handle_t team,
 #endif
 
   /* "Discover" in-segment flags if needed/possible */
-  flags = gasnete_coll_segment_checkM(team, flags, 1, dstimage, dst, nbytes*gasneti_nodes,
+  flags = gasnete_coll_segment_checkM(team, flags, 1, dstimage, dst, nbytes*team->total_ranks,
                                       0, 0, srclist, nbytes);
   tree_type = gasnete_coll_autotune_get_tree_type(team->autotune_info, 
                                                   GASNET_COLL_GATHERM_OP, 
@@ -5518,7 +5518,7 @@ gasnete_coll_generic_reduce_nb(gasnet_team_handle_t team,
     
     data->options = options;
     data->private_data = NULL; data->tree_info=tree_info;
-    result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, 0, NULL, tree_info GASNETE_THREAD_PASS);
+    result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, num_params, param_list, tree_info GASNETE_THREAD_PASS);
   } else {
     result = gasnete_coll_threads_get_handle(GASNETE_THREAD_PASS_ALONE);
   }
@@ -5535,7 +5535,158 @@ gasnete_coll_reduce_nb_default(gasnet_team_handle_t team,
                                int flags, uint32_t sequence GASNETE_THREAD_FARG)
 {
   gasnete_coll_implementation_t impl = gasnete_coll_get_implementation();
+  size_t nbytes = elem_size*elem_count;
+  
+  /*initial limitations*/
+  gasneti_assert(src_blksz == 0);
+  gasneti_assert(src_offset == 0);
+  
+#if GASNET_PAR
+  if(flags & GASNET_COLL_LOCAL && !(flags & GASNETE_COLL_SUBORDINATE)) {
+    return gasnete_coll_reduceM_nb(team, dstimage, dst, &src, src_blksz, src_offset, elem_size, elem_size, func, func_arg,
+                                   flags | GASNETE_COLL_THREAD_LOCAL, sequence GASNETE_THREAD_PASS);
+  }
+#endif
+  
+  flags = gasnete_coll_segment_check(team, flags, 1, dstimage, dst, nbytes,
+                                     0, 0, src, nbytes);
+  /*error check to make sure the function table is properly configured*/
+  gasneti_assert(gasnete_coll_fn_tbl);
+  gasneti_assert(func < gasnete_coll_fn_count);
+  gasneti_assert(gasnete_coll_fn_tbl[func].fnptr);
+  impl->tree_type = gasnete_coll_autotune_get_tree_type(team->autotune_info, 
+                                                       GASNET_COLL_BROADCAST_OP, 
+                                                        dstimage, elem_size*elem_count, flags);
+  impl->num_params = 1;
+  impl->param_list[0] = 4;
+  return gasnete_coll_reduce_TreePutSeg(team, dstimage, dst, src, src_blksz, src_offset, 
+                                       elem_size, elem_count, func, func_arg, flags, impl, sequence GASNETE_THREAD_PASS);  
+}
 
+/*---------------------------------------------------------------------------------*/
+extern gasnet_coll_handle_t
+gasnete_coll_generic_reduceM_nb(gasnet_team_handle_t team,
+                               gasnet_image_t dstimage, void *dst,
+                               void * const srclist[], size_t src_blksz, size_t src_offset,
+                               size_t elem_size, size_t elem_count, 
+                               gasnet_coll_fn_handle_t func, int func_arg, int flags,
+                               gasnete_coll_poll_fn poll_fn, int options,
+                               gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
+                               int num_params, uint32_t *param_list, gasnete_coll_scratch_req_t *scratch_req
+                               GASNETE_THREAD_FARG) {
+  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
+  gasnet_coll_handle_t result;
+#if GASNET_PAR
+  if (flags & GASNETE_COLL_THREAD_LOCAL) {
+    gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOALLOC;
+    gasnete_coll_generic_data_t *data;
+    if (td->my_local_image == 0) {
+      data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
+      GASNETE_COLL_GENERIC_SET_TAG(data, reduceM);
+      data->threads.data = gasneti_calloc(team->my_images, sizeof(void *));
+      data->args.reduceM.srclist    = (void**)data->threads.data;
+      data->args.reduceM.dstimage   = dstimage;
+      data->args.reduceM.dstnode    = gasnete_coll_image_node(team, dstimage);
+      data->args.reduceM.dst        = dst; /* may get overwritten, but not worth a branch */
+      data->args.reduceM.src_blksz  = src_blksz;
+      data->args.reduceM.src_offset = src_offset;
+      data->args.reduceM.elem_size  = elem_size;
+      
+      data->args.reduceM.elem_count  = elem_count;
+      data->args.reduceM.nbytes  = elem_size*elem_count;
+      data->args.reduceM.func       = func;
+      data->args.reduceM.func_arg    = func_arg;
+      data->options = options;
+      data->tree_info=tree_info;
+      data->private_data = NULL; 
+      result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, num_params, param_list,tree_info GASNETE_THREAD_PASS);
+      if(!(flags & GASNETE_COLL_SUBORDINATE))
+        gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started,GASNETT_ATOMIC_WMB_PRE);
+      td->num_multi_addr_collectives_started++;
+    } else {
+      td->num_multi_addr_collectives_started++;
+      gasneti_waitwhile(td->num_multi_addr_collectives_started > gasneti_weakatomic_read(&team->num_multi_addr_collectives_started,0));
+      gasneti_sync_reads();
+      result = gasnete_coll_threads_get_handle_and_data(&data GASNETE_THREAD_PASS);
+      if (td->my_image == dstimage) {
+        gasneti_assert(dst != NULL);
+        data->args.gatherM.dst = dst;
+        gasneti_sync_writes();
+      }
+    }
+    gasneti_assert(*srclist != NULL);
+    data->args.reduceM.srclist[td->my_local_image] = *srclist; /* signalling write */
+  } else
+#endif
+  {
+    if (td->my_local_image == 0) {
+      gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);    
+      int num_addrs = (flags & GASNET_COLL_LOCAL ? team->my_images : team->total_images);
+      
+      GASNETE_COLL_GENERIC_SET_TAG(data, reduceM);
+      
+#if GASNET_PAR
+      data->threads.data = gasneti_calloc(num_addrs, sizeof(void *));
+      data->args.reduceM.srclist = data->threads.data;
+#else
+      data->addrs = gasneti_calloc(num_addrs, sizeof(void *));
+      data->args.reduceM.srclist = data->addrs;
+#endif    
+      GASNETE_FAST_UNALIGNED_MEMCPY(data->args.reduceM.srclist, srclist, sizeof(void*)*num_addrs);
+      
+#if !GASNET_SEQ
+      data->args.reduceM.dstimage = dstimage;
+#endif
+      data->args.reduceM.dstnode    = gasnete_coll_image_node(team, dstimage);
+      data->args.reduceM.dst        = dst; /* may get overwritten, but not worth a branch */
+      data->args.reduceM.src_blksz  = src_blksz;
+      data->args.reduceM.src_offset = src_offset;
+      data->args.reduceM.elem_size  = elem_size;
+      
+      data->args.reduceM.elem_count  = elem_count;
+      data->args.reduceM.nbytes  = elem_size*elem_count;
+      data->args.reduceM.func       = func;
+      data->args.reduceM.func_arg    = func_arg;
+      
+      data->options = options;
+      data->private_data = NULL; 
+      data->tree_info=tree_info;
+      result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, num_params, param_list, tree_info GASNETE_THREAD_PASS);
+      if(!(flags & GASNETE_COLL_SUBORDINATE))
+        gasneti_weakatomic_increment(&team->num_multi_addr_collectives_started,GASNETT_ATOMIC_WMB_PRE);
+      td->num_multi_addr_collectives_started++; 
+    } else {
+      td->num_multi_addr_collectives_started++; 
+      gasneti_waitwhile(td->num_multi_addr_collectives_started > gasneti_weakatomic_read(&team->num_multi_addr_collectives_started,0));
+      gasneti_sync_reads();
+      result = gasnete_coll_threads_get_handle(GASNETE_THREAD_PASS_ALONE);
+    }
+  }
+  return result;
+  
+}
+
+extern gasnet_coll_handle_t
+gasnete_coll_reduceM_nb_default(gasnet_team_handle_t team,
+                                gasnet_image_t dstimage, void *dst,
+                                void * const srclist[], size_t src_blksz, size_t src_offset,
+                                size_t elem_size, size_t elem_count,
+                                gasnet_coll_fn_handle_t func, int func_arg,
+                                int flags, uint32_t sequence GASNETE_THREAD_FARG)
+{
+
+  gasnete_coll_implementation_t impl = gasnete_coll_get_implementation();
+  size_t nbytes = elem_count*elem_size;
+#if GASNET_SEQ
+  if(flags & GASNET_COLL_LOCAL) {
+    return gasnete_coll_reduce_nb(team, dstimage, dst, srclist[0], 
+                                  src_blksz, src_offset, elem_size, elem_count, 
+                                  func, func_arg, flags, sequence GASNETE_THREAD_PASS);
+  }
+#endif
+  /* "Discover" in-segment flags if needed/possible */
+  flags = gasnete_coll_segment_checkM(team, flags, 1, dstimage, dst, nbytes,
+                                      0, 0, srclist, nbytes);
   /*initial limitations*/
   gasneti_assert(src_blksz == 0);
   gasneti_assert(src_offset == 0);
@@ -5545,25 +5696,11 @@ gasnete_coll_reduce_nb_default(gasnet_team_handle_t team,
   gasneti_assert(func < gasnete_coll_fn_count);
   gasneti_assert(gasnete_coll_fn_tbl[func].fnptr);
   impl->tree_type = gasnete_coll_autotune_get_tree_type(team->autotune_info, 
-                                                       GASNET_COLL_BROADCAST_OP, 
+                                                        GASNET_COLL_BROADCASTM_OP, 
                                                         dstimage, elem_size*elem_count, flags);
-  
-  return gasnete_coll_reduce_TreeGet(team, dstimage, dst, src, src_blksz, src_offset, 
-                                       elem_size, elem_count, func, func_arg, flags, impl, sequence GASNETE_THREAD_PASS);  
-}
-
-/*---------------------------------------------------------------------------------*/
-
-extern gasnet_coll_handle_t
-gasnete_coll_reduceM_nb_default(gasnet_team_handle_t team,
-                                gasnet_image_t dstimage, void *dst,
-                                void * const srclist[], size_t src_blksz, size_t src_offset,
-                                size_t elem_size, size_t elem_count,
-                                gasnet_coll_fn_handle_t func, int func_arg,
-                                int flags GASNETE_THREAD_FARG)
-{
-  gasneti_fatalerror("%s UNIMPLEMENTED", GASNETI_CURRENT_FUNCTION);
-  return GASNET_COLL_INVALID_HANDLE;
+  impl->num_params = 0;
+  return gasnete_coll_reduceM_TreeEager(team, dstimage, dst, srclist, src_blksz, src_offset, 
+                                        elem_size, elem_count, func, func_arg, flags, impl, sequence GASNETE_THREAD_PASS);  
 }
 
 /*---------------------------------------------------------------------------------*/
