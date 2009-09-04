@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/09/04 00:58:59 $
- * $Revision: 1.53.14.31.2.4 $
+ *     $Date: 2009/09/04 19:27:13 $
+ * $Revision: 1.53.14.31.2.5 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -733,7 +733,7 @@ void gasnete_coll_local_reduce(size_t count, void * dst, void * const srclist[],
   int i;
   
   gasneti_sync_reads();
-  GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dst, *srclist, nbytes);
+  GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dst, srclist[0], nbytes);
   for(i=1; i<count; i++) {
     (*reduce_fn)(dst, elem_count, dst, elem_count, srclist[i], elem_size, red_fn_flags, reduce_args);
   }

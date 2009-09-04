@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/09/04 00:58:59 $
- * $Revision: 1.71.12.33.2.3 $
+ *     $Date: 2009/09/04 19:27:13 $
+ * $Revision: 1.71.12.33.2.4 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -5008,6 +5008,7 @@ gasnete_coll_exchgM_Dissem(gasnet_team_handle_t team,
 
 /*---------------------------------------------------------------------------------*/
 /* Reductions*/
+#define FOLD_REDUCE_BARRIER 1
 static int gasnete_coll_pf_reduce_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   gasnete_coll_tree_data_t *tree = data->tree_info;
@@ -5103,9 +5104,27 @@ static int gasnete_coll_pf_reduce_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
      } 
       data->state = 3;
     case 3:
-      if (!gasnete_coll_generic_outsync(op->team, data)) {
-        break;
-      }      
+#if FOLD_REDUCE_BARRIER
+      if(op->flags & GASNET_COLL_OUT_ALLSYNC) {
+        int i;
+        if(args->dstnode != op->team->myrank) {
+          /*wait for parent to signal*/
+          if(gasneti_weakatomic_read(&(data->p2p->counter[0]), 0) == 0) {
+            break;
+          }
+        }
+        /*parent has signaled*/
+        /*signal all children*/
+        for(i=0; i<child_count; i++) {
+          gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, children[i]), 0);
+        }
+      }
+#else
+    if (!gasnete_coll_generic_outsync(op->team, data)) {
+      break;
+    }      
+#endif
+
       gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
       gasnete_coll_free_scratch(op);
@@ -5125,7 +5144,9 @@ gasnete_coll_reduce_TreePut(gasnet_team_handle_t team,
                               uint32_t sequence
                             GASNETE_THREAD_FARG){
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
+#if !FOLD_REDUCE_BARRIER
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC)|
+#endif
   GASNETE_COLL_GENERIC_OPT_P2P_IF(1) | GASNETE_COLL_USE_SCRATCH;
   gasnete_coll_scratch_req_t *scratch_req;
   gasnete_coll_tree_data_t *tree_info;
@@ -5247,6 +5268,9 @@ static int gasnete_coll_pf_reduce_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_F
             case 2: {
               if(((gasnet_handle_t*) data->private_data)[i] != GASNET_INVALID_HANDLE) {done = 0; break;}
               gasneti_sync_reads();
+              if(!(op->flags & GASNET_COLL_OUT_ALLSYNC)) {
+                gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, children[i]), 0);
+              }
               (*reduce_fn)((void*) dst_addr, args->elem_count, (void*) dst_addr, args->elem_count, 
                            (void*) src_addr, args->elem_size, red_fn_flags, reduce_args); 
               state[i]++;
@@ -5272,13 +5296,39 @@ static int gasnete_coll_pf_reduce_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_F
       gasneti_free(data->private_data);
       data->state = 3;
     case 3:
-      if (!gasnete_coll_generic_outsync(op->team, data)) {
-        break;
-      }     
+      /*wait for the signal from parent that the get is done*/
+      if(!(op->flags & GASNET_COLL_OUT_ALLSYNC) && op->team->myrank!=args->dstnode) {
+        if (gasneti_weakatomic_read(&(data->p2p->counter[0]), 0) == 0) {
+          break;
+        }
+      } 
+      data->state = 4;
+    case 4:
+#if FOLD_REDUCE_BARRIER
+      if(op->flags & GASNET_COLL_OUT_ALLSYNC) {
+        int i;
+        if(args->dstnode != op->team->myrank) {
+          /*wait for parent to signal*/
+          if(gasneti_weakatomic_read(&(data->p2p->counter[1]), 0) == 0) {
+            break;
+          }
+        }
+        /*parent has signaled*/
+        /*signal all children*/
+        for(i=0; i<child_count; i++) {
+          gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, children[i]), 1);
+        }
+      }
+#else
+    if (!gasnete_coll_generic_outsync(op->team, data)) {
+      break;
+    }      
+#endif
+    
       gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
       gasnete_coll_free_scratch(op);
-  }
+}
       
   
   
@@ -5297,7 +5347,9 @@ gasnete_coll_reduce_TreeGet(gasnet_team_handle_t team,
                             uint32_t sequence
                             GASNETE_THREAD_FARG){
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
+#if !FOLD_REDUCE_BARRIER
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC)|
+#endif
   GASNETE_COLL_GENERIC_OPT_P2P_IF(1) | GASNETE_COLL_USE_SCRATCH;
   gasnete_coll_scratch_req_t *scratch_req;
   gasnete_coll_tree_data_t *tree_info;
@@ -5311,7 +5363,7 @@ gasnete_coll_reduce_TreeGet(gasnet_team_handle_t team,
   scratch_req = (gasnete_coll_scratch_req_t*) gasneti_calloc(1,sizeof(gasnete_coll_scratch_req_t));
   /*fill out the tree information*/
   scratch_req->tree_type = tree_info->geom->tree_type;
-  scratch_req->tree_dir = GASNETE_COLL_UP_TREE;
+  scratch_req->tree_dir = GASNETE_COLL_DOWN_TREE;
   scratch_req->root = tree_info->geom->root;
   
   scratch_req->team = team;
@@ -5482,6 +5534,8 @@ gasnete_coll_reduce_TreePutSeg(gasnet_team_handle_t team,
   
 }
 
+
+
 static int gasnete_coll_pf_reduceM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   gasnete_coll_tree_data_t *tree = data->tree_info;
@@ -5584,9 +5638,26 @@ static int gasnete_coll_pf_reduceM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_
       } 
       data->state = 3;
     case 3:
-      if (!gasnete_coll_generic_outsync(op->team, data)) {
-        break;
-      }      
+#if FOLD_REDUCE_BARRIER
+      if(op->flags & GASNET_COLL_OUT_ALLSYNC) {
+        int i;
+        if(args->dstnode != op->team->myrank) {
+          /*wait for parent to signal*/
+          if(gasneti_weakatomic_read(&(data->p2p->counter[0]), 0) == 0) {
+            break;
+          }
+        }
+        /*parent has signaled*/
+        /*signal all children*/
+        for(i=0; i<child_count; i++) {
+          gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, children[i]), 0);
+        }
+      }
+#else
+    if (!gasnete_coll_generic_outsync(op->team, data)) {
+      break;
+    }      
+#endif
       gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
       gasnete_coll_free_scratch(op);
@@ -5607,7 +5678,9 @@ gasnete_coll_reduceM_TreePut(gasnet_team_handle_t team,
                             GASNETE_THREAD_FARG){
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOALLOC;
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
+#if !FOLD_REDUCE_BARRIER
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC)|
+#endif
   GASNETE_COLL_GENERIC_OPT_P2P_IF(1) | GASNETE_COLL_USE_SCRATCH;
   gasnete_coll_scratch_req_t *scratch_req;
   gasnete_coll_tree_data_t *tree_info;
@@ -5735,6 +5808,9 @@ static int gasnete_coll_pf_reduceM_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_
             case 2: {
               if(((gasnet_handle_t*) data->private_data)[i] != GASNET_INVALID_HANDLE) {done = 0; break;}
               gasneti_sync_reads();
+              if(!(op->flags & GASNET_COLL_OUT_ALLSYNC)) {
+                gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, children[i]), 0);
+              }
               (*reduce_fn)((void*) dst_addr, args->elem_count, (void*) dst_addr, args->elem_count, 
                            (void*) src_addr, args->elem_size, red_fn_flags, reduce_args); 
               state[i]++;
@@ -5756,9 +5832,34 @@ static int gasnete_coll_pf_reduceM_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_
       gasneti_free(data->private_data);
       data->state = 3;
     case 3:
-      if (!gasnete_coll_generic_outsync(op->team, data)) {
-        break;
-      }     
+      /*wait for the signal from parent that the get is done*/
+      if(!(op->flags & GASNET_COLL_OUT_ALLSYNC) && op->team->myrank!=args->dstnode) {
+        if (gasneti_weakatomic_read(&(data->p2p->counter[0]), 0) == 0) {
+          break;
+        }
+      } 
+      data->state = 4;
+    case 4:
+#if FOLD_REDUCE_BARRIER
+      if(op->flags & GASNET_COLL_OUT_ALLSYNC) {
+        int i;
+        if(args->dstnode != op->team->myrank) {
+          /*wait for parent to signal*/
+          if(gasneti_weakatomic_read(&(data->p2p->counter[1]), 0) == 0) {
+            break;
+          }
+        }
+        /*parent has signaled*/
+        /*signal all children*/
+        for(i=0; i<child_count; i++) {
+          gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, children[i]), 1);
+        }
+      }
+#else
+    if (!gasnete_coll_generic_outsync(op->team, data)) {
+      break;
+    }      
+#endif
       gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
       result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
       gasnete_coll_free_scratch(op);
@@ -5781,7 +5882,9 @@ gasnete_coll_reduceM_TreeGet(gasnet_team_handle_t team,
                             uint32_t sequence
                             GASNETE_THREAD_FARG){
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
+#if !FOLD_REDUCE_BARRIER
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC)|
+#endif
   GASNETE_COLL_GENERIC_OPT_P2P_IF(1) | GASNETE_COLL_USE_SCRATCH;
   gasnete_coll_scratch_req_t *scratch_req=NULL;
   gasnete_coll_tree_data_t *tree_info;
@@ -5797,7 +5900,7 @@ gasnete_coll_reduceM_TreeGet(gasnet_team_handle_t team,
     scratch_req = (gasnete_coll_scratch_req_t*) gasneti_calloc(1,sizeof(gasnete_coll_scratch_req_t));
     /*fill out the tree information*/
     scratch_req->tree_type = tree_info->geom->tree_type;
-    scratch_req->tree_dir = GASNETE_COLL_UP_TREE;
+    scratch_req->tree_dir = GASNETE_COLL_DOWN_TREE;
     scratch_req->root = tree_info->geom->root;
     
     scratch_req->team = team;

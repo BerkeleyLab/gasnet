@@ -274,9 +274,84 @@ void run_reduce_test(int elem_per_thread) {
     MPI_Gather(&barrier_time, 1, MPI_DOUBLE, barrier_times, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     MPI_Gather(&coll_time, 1, MPI_DOUBLE, coll_times, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
     for(i=0; i<THREADS; i++) {
-      fprintf(stdout, "%d> reduce mpi %d coll_time: %.3f +-0%% barrier_time: %.3f +-0%%\n",i, 
+      fprintf(stdout, "%d> reduce_double mpi %d coll_time: %.3f +-0%% barrier_time: %.3f +-0%%\n",i, 
 	      elem_per_thread, 
 	      coll_times[i]*1e6 / REPS, barrier_times[i]*1e6/REPS);
+    }
+  }
+  if(MYTHREAD==0) free(dest);
+  free(src);
+}
+
+void run_int_reduce_test(int elem_per_thread, int iters, int use_barrier) {
+  int *src, *dest;
+ 
+  
+  double start_time;
+  double barrier_time=0;
+  double coll_time;
+  double coll_start_time;
+  double *coll_times;
+  double *barrier_times;
+  int i;
+
+  src = (int*) malloc(sizeof(int)*elem_per_thread);
+
+  if(MYTHREAD==0) {
+    dest = (int*) malloc(sizeof(int)*elem_per_thread);
+    coll_times = (double*) malloc(sizeof(double)*THREADS);
+    barrier_times = (double*) malloc(sizeof(double)*THREADS);
+  } else {
+    dest = NULL;
+    coll_times = NULL;
+    barrier_times = NULL;
+  }
+  for(i=0; i<elem_per_thread; i++) {
+    src[i] = 42+i;
+  }
+  for(i=0; i<10; i++) {
+    MPI_Reduce(src, dest, elem_per_thread, MPI_INT, MPI_SUM,  
+	       0, MPI_COMM_WORLD);
+  }
+  MPI_Barrier(MPI_COMM_WORLD);
+  
+  coll_start_time = MPI_Wtime();
+  for(i=0; i<iters; i++) {
+    MPI_Reduce(src, dest, elem_per_thread, MPI_INT, MPI_SUM,  
+	       0, MPI_COMM_WORLD);
+    if(use_barrier) { 
+      start_time = MPI_Wtime();
+      
+      MPI_Barrier(MPI_COMM_WORLD);
+      barrier_time += MPI_Wtime() - start_time;
+    }
+  }
+  
+  if(!use_barrier) { 
+     start_time = MPI_Wtime();
+     MPI_Barrier(MPI_COMM_WORLD);
+     barrier_time += MPI_Wtime() - start_time;
+   }
+
+  coll_time = MPI_Wtime() - coll_start_time;
+  
+  
+  if(MYTHREAD!=0) {
+    
+    MPI_Gather(&barrier_time, 1, MPI_DOUBLE, NULL, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Gather(&coll_time, 1, MPI_DOUBLE, NULL, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+  } else {
+    MPI_Gather(&barrier_time, 1, MPI_DOUBLE, barrier_times, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    MPI_Gather(&coll_time, 1, MPI_DOUBLE, coll_times, 1, MPI_DOUBLE, 0, MPI_COMM_WORLD);
+    for(i=0; i<THREADS; i++) {
+      char *use_barrier_str = "-latency";
+      char *use_nobarrier_str = "-throughput";
+     
+
+      fprintf(stdout, "%d> reduce_int-%s mpi %d coll_time: %.3f +-0%% barrier_time: %.3f +-0%%\n",i, 
+              (use_barrier ? use_barrier_str : use_nobarrier_str),
+                 elem_per_thread, 
+                 coll_times[i]*1e6 / REPS, barrier_times[i]*1e6/REPS);
     }
   }
   if(MYTHREAD==0) free(dest);
@@ -427,6 +502,8 @@ int main(int argc, char **argv) {
   for(sz = 1; sz<=elem_per_thread; sz*=2) {
     run_bcast_test(sz, iters, 1);
     run_bcast_test(sz, iters, 0);
+    run_int_reduce_test(sz, iters, 1);
+    run_int_reduce_test(sz, iters, 0);
     //    run_scatter_test(sz, iters,1);
     //  run_scatter_test(sz, iters,0);
     //   run_gather_test(sz, iters, 1);

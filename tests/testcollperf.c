@@ -20,7 +20,7 @@ options that is covered testcoll
 
 
 #define ALL_COLL_ENABLED 0
-#define BROADCAST_ENABLED 1
+#define BROADCAST_ENABLED 0
 #define SCATTER_ENABLED 0
 #define GATHER_ENABLED 0
 #define REDUCE_ENABLED 1
@@ -135,9 +135,23 @@ void int_reduce_fn(void *results, size_t result_count,
   int *src2 = (int*) right_operands;
   assert(elem_size == sizeof(int));
   assert(result_count==left_count);
-  for(i=0; i<result_count; i++) {
-    res[i] = src1[i] + src2[i];
+  switch(arg) {
+  case 0:
+    for(i=0; i<result_count; i++) {
+      res[i] = src1[i] + src2[i];
+    } break;
+  case 1:
+    for(i=0; i<result_count; i++) {
+      res[i] = MAX(src1[i],src2[i]);
+    } break;
+  case 2:
+    for(i=0; i<result_count; i++) {
+      res[i] = MIN(src1[i],src2[i]);
+    } break;
+  default:
+    MSG("NOT SUPPORTED reduce op %d\n", arg); ERROR_EXIT();
   }
+  
 }
 gasnet_coll_fn_entry_t fntable;
 void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr, size_t nelem, int root_thread, int in_flags) {
@@ -698,7 +712,7 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
         for(j=0; j<nelem; j++) {
           int expected = (42*(i+1)+j)*THREADS;
           if(mydest[i*nelem+j] != expected) {
-            MSG("%d> reduceM verification @ iteration: %d,%d ... expected %d got %d", td->mythread, i, j, expected, mydest[i*nelem+j]);
+            MSG("%d> reduceM verification @ iteration: %d,%d,%d ... expected %d got %d", td->mythread, k, i, j, expected, mydest[i*nelem+j]);
             ERROR_EXIT();
           } else if(0) {
             MSG("%d> reduceM passed @ iteration: %d,%d ... expected %d got %d", td->mythread, i, j, expected, mydest[i*nelem+j]);

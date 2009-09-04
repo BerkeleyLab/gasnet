@@ -1377,8 +1377,11 @@ void gasnete_coll_tune_generic_op(gasnet_team_handle_t team, gasnet_coll_optype_
 #endif
      PTHREAD_BARRIER(team, team->my_images);
 
-    if((op == GASNET_COLL_BROADCASTM_OP && algidx == GASNETE_COLL_BROADCASTM_SCATTERALLGATHER) || 
+     if((op == GASNET_COLL_BROADCASTM_OP && algidx == GASNETE_COLL_BROADCASTM_SCATTERALLGATHER) || 
        (op == GASNET_COLL_BROADCAST_OP && algidx == GASNETE_COLL_BROADCAST_SCATTERALLGATHER)) continue;
+
+     if((op == GASNET_COLL_REDUCEM_OP && algidx == GASNETE_COLL_REDUCEM_TREE_GET) || 
+       (op == GASNET_COLL_REDUCE_OP && algidx == GASNETE_COLL_REDUCE_TREE_GET)) continue;
 
     alg_best_time = curr_best_time;
 //    if(gasnet_coll_get_num_params(team, op, algidx)!=0) continue;
