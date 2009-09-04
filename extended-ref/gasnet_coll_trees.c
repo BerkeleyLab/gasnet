@@ -139,7 +139,7 @@ char* gasnete_coll_tree_type_to_str(char *buffer, gasnete_coll_tree_type_t tree_
       sprintf(buffer, "%s", "NARY_TREE");
       break;
     case GASNETE_COLL_KNOMIAL_TREE:
-      sprintf(buffer, "%s", "NARY_TREE");
+      sprintf(buffer, "%s", "KNOMIAL_TREE");
       break;
     case GASNETE_COLL_RECURSIVE_TREE:
       sprintf(buffer, "%s", "RECURSIVE_TREE");
@@ -587,13 +587,6 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
   gasneti_assert_always(in_type==intype_copy);
   
   switch (in_type->tree_class) {
-  case GASNETE_COLL_FLAT_TREE:
-    allocate_nodes((tree_node_t**) &team->tree_construction_scratch , team, rootrank);
-    rootnode = make_flat_tree(team->tree_construction_scratch, team->total_ranks);
-     geom->rotation_points = (int*) gasneti_malloc(sizeof(int)*1);
-     geom->num_rotations = 1;
-     geom->rotation_points[0] = rootrank;
-    break;
 #if 1
   case GASNETE_COLL_NARY_TREE:
       gasneti_assert(in_type->num_params ==1);
@@ -610,6 +603,13 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
        geom->rotation_points = (int*) gasneti_malloc(sizeof(int)*1);
        geom->num_rotations = 1;
        geom->rotation_points[0] = rootrank;
+      break;
+    case GASNETE_COLL_FLAT_TREE:
+      allocate_nodes((tree_node_t**) &team->tree_construction_scratch , team, rootrank);
+      rootnode = make_flat_tree(team->tree_construction_scratch, team->total_ranks);
+      geom->rotation_points = (int*) gasneti_malloc(sizeof(int)*1);
+      geom->num_rotations = 1;
+      geom->rotation_points[0] = rootrank;
       break;
     case GASNETE_COLL_RECURSIVE_TREE:
       gasneti_assert(in_type->num_params ==1);

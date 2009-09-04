@@ -20,7 +20,7 @@ options that is covered testcoll
 
 
 #define ALL_COLL_ENABLED 0
-#define BROADCAST_ENABLED 0
+#define BROADCAST_ENABLED 1
 #define SCATTER_ENABLED 0
 #define GATHER_ENABLED 0
 #define REDUCE_ENABLED 1
@@ -29,9 +29,9 @@ options that is covered testcoll
 #define ALL_ADDR_MODE_ENABLED 0
 
 #define SINGLE_SINGLE_MODE_ENABLED 0
-#define SINGLE_LOCAL_MODE_ENABLED 0
+#define SINGLE_LOCAL_MODE_ENABLED 1
 #define MULTI_SINGLE_MODE_ENABLED 1
-#define MULTI_LOCAL_MODE_ENABLED 0
+#define MULTI_LOCAL_MODE_ENABLED 1
 
 
 
@@ -700,7 +700,7 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
           if(mydest[i*nelem+j] != expected) {
             MSG("%d> reduceM verification @ iteration: %d,%d ... expected %d got %d", td->mythread, i, j, expected, mydest[i*nelem+j]);
             ERROR_EXIT();
-          } else if(1) {
+          } else if(0) {
             MSG("%d> reduceM passed @ iteration: %d,%d ... expected %d got %d", td->mythread, i, j, expected, mydest[i*nelem+j]);
             
           }
@@ -708,18 +708,17 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
       }
     }
   }
-#if 0
+
   COLL_BARRIER();
   begin = gasnett_ticks_now();
   if(flags & GASNET_COLL_IN_NOSYNC) {COLL_BARRIER();}
   for(i=0; i<performance_iters; i++) { 
-    gasnet_coll_reduce(GASNET_TEAM_ALL, root_thread, dst, src, 0,0, sizeof(int), nelem, 0, 0, flags);
+    gasnet_coll_reduceM(GASNET_TEAM_ALL, root_thread, dst, (void**)src_arr, 0,0, sizeof(int), nelem, 0, 0, flags);
   }
   if(flags & GASNET_COLL_OUT_NOSYNC) {COLL_BARRIER();}
   end =  gasnett_ticks_now() - begin;
   COLL_BARRIER();  
-#endif
-  print_timer(td,  "reduce", output_str,  "MULTI-addr", flag_str, nelem, end);  
+  print_timer(td,  "reduceM", output_str,  "MULTI-addr", flag_str, nelem, end);  
 #endif
   
 #endif

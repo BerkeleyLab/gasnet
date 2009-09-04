@@ -79,6 +79,30 @@ gasnet_coll_handle_t gasnete_coll_smp_bcast_tree_intflags(gasnet_team_handle_t t
   return GASNET_COLL_INVALID_HANDLE;
 }
 
+extern gasnet_coll_handle_t
+gasnete_coll_smp_reduceM_flat(gasnet_team_handle_t team,
+                                gasnet_image_t dstimage, void *dst,
+                                void * const srclist[], size_t src_blksz, size_t src_offset,
+                                size_t elem_size, size_t elem_count,
+                                gasnet_coll_fn_handle_t func, int func_arg,
+                                int flags, 
+                                gasnete_coll_implementation_t coll_params,
+                                uint32_t sequence
+                              GASNETE_THREAD_FARG) {
+  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
+#if GASNET_PAR
+  gasneti_assert(!(flags & GASNETE_COLL_THREAD_LOCAL));
+#endif
+  if(!(flags & GASNET_COLL_IN_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
+  if(td->my_local_image == dstimage) {
+    gasnete_coll_local_reduce(team->my_images, (void*) dst, srclist,
+                              elem_size, elem_count, func, func_arg);
+  }
+  if(!(flags & GASNET_COLL_OUT_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
+  return GASNET_COLL_INVALID_HANDLE;
+  
+}
+
 void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* info) {
   info->collective_algorithms[GASNET_COLL_BROADCASTM_OP][GASNETE_COLL_BROADCAST_SMP_FLAT_GET] =
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCASTM_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
@@ -118,5 +142,16 @@ void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* inf
                                              0, 0, 0, 1, tuning_params,  
                                              (void*) gasnete_coll_smp_bcast_tree_intflags, "SMP_BCAST_TREE_INTFLAGS");
   }
+  
+  info->collective_algorithms[GASNET_COLL_REDUCEM_OP][GASNETE_COLL_REDUCE_SMP_FLAT] =
+  gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_REDUCEM_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
+                                           0 /*works for all addresses since it's just a memcpy on a the local node*/, 
+#if GASNET_PAR
+                                           GASNETE_COLL_THREAD_LOCAL /*the algorithms will not work for thread local since there is no method of posting local addresses*/,
+#else
+                                           0,
+#endif                                             
+                                           0, 0, 0, 0, NULL, 
+                                           (void*) gasnete_coll_smp_reduceM_flat, "SMP_REDUCE");
 }
 #endif

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2009/09/02 02:27:22 $
- * $Revision: 1.53.12.16.2.1 $
+ *     $Date: 2009/09/04 05:13:14 $
+ * $Revision: 1.53.12.16.2.2 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -285,14 +285,27 @@ typedef void (*gasnet_coll_overlap_sample_work_t)(void *arg);
 #define gasnet_coll_dumpTuningState(FILENAME, TEAM) gasnete_coll_dumpTuningState(FILENAME, TEAM GASNETE_THREAD_GET)
 void gasnete_coll_dumpTuningState(char *filename, gasnete_coll_team_t team GASNETE_THREAD_FARG);
 
-#define gasnet_coll_tune_generic_op(team, op, dst, src, rootimg, flags, nbytes, fnptr, work_arg, best_algidx, num_params, best_param, best_tree) \
-gasnete_coll_tune_generic_op(team, op, dst, src, rootimg, flags, nbytes, fnptr, work_arg, best_algidx, num_params, best_param,  best_tree GASNETE_THREAD_GET)
+#define gasnet_coll_tune_generic_op(team, op, coll_args, flags, fnptr, work_arg, best_algidx, num_params, best_param, best_tree) \
+gasnete_coll_tune_generic_op(team, op, coll_args, flags, fnptr, work_arg, best_algidx, num_params, best_param,  best_tree GASNETE_THREAD_GET)
+
+typedef struct gasnet_coll_args_t_ {
+  uint8_t **dst; 
+  uint8_t **src; 
+  gasnet_image_t rootimg; 
+  size_t src_blksz;
+  size_t src_offset;
+  size_t elem_size; 
+  /*elem count will be nbytes / elem_size*/
+  size_t nbytes;
+  gasnet_coll_fn_handle_t func; 
+  int func_arg;
+} gasnet_coll_args_t;
 
 void gasnete_coll_tune_generic_op(gasnet_team_handle_t team, gasnet_coll_optype_t op, 
-                                 uint8_t **dst, uint8_t **src, gasnet_image_t rootimg, int flags, size_t nbytes, 
-                                 gasnet_coll_overlap_sample_work_t fnptr, void *sample_work_arg,
-                                 /*returned by the algorithm*/
-                                 uint32_t *best_algidx, uint32_t *num_params, uint32_t **best_param, char **best_tree GASNETE_THREAD_FARG);
+                                  gasnet_coll_args_t coll_args, int flags,
+                                  gasnet_coll_overlap_sample_work_t fnptr, void *sample_work_arg,
+                                  /*returned by the algorithm*/
+                                  uint32_t *best_algidx, uint32_t *num_params, uint32_t **best_param, char **best_tree GASNETE_THREAD_FARG);
 
 extern int gasnet_coll_get_num_tree_classes(gasnet_team_handle_t team, gasnet_coll_optype_t optype);
 extern void gasnet_coll_set_tree_kind(gasnet_team_handle_t team, int tree_type, int fanout, gasnet_coll_optype_t optype); 
