@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/09/03 17:12:52 $
- * $Revision: 1.72.10.49.2.3 $
+ *     $Date: 2009/09/04 00:58:59 $
+ * $Revision: 1.72.10.49.2.4 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -5543,7 +5543,7 @@ gasnete_coll_reduce_nb_default(gasnet_team_handle_t team,
   
 #if GASNET_PAR
   if(flags & GASNET_COLL_LOCAL && !(flags & GASNETE_COLL_SUBORDINATE)) {
-    return gasnete_coll_reduceM_nb(team, dstimage, dst, &src, src_blksz, src_offset, elem_size, elem_size, func, func_arg,
+    return gasnete_coll_reduceM_nb(team, dstimage, dst, &src, src_blksz, src_offset, elem_size, elem_count, func, func_arg,
                                    flags | GASNETE_COLL_THREAD_LOCAL, sequence GASNETE_THREAD_PASS);
   }
 #endif
@@ -5698,9 +5698,10 @@ gasnete_coll_reduceM_nb_default(gasnet_team_handle_t team,
   impl->tree_type = gasnete_coll_autotune_get_tree_type(team->autotune_info, 
                                                         GASNET_COLL_BROADCASTM_OP, 
                                                         dstimage, elem_size*elem_count, flags);
-  impl->num_params = 0;
-  return gasnete_coll_reduceM_TreeEager(team, dstimage, dst, srclist, src_blksz, src_offset, 
-                                        elem_size, elem_count, func, func_arg, flags, impl, sequence GASNETE_THREAD_PASS);  
+  impl->num_params = 1;
+  impl->param_list[0] = 4;
+  return gasnete_coll_reduceM_TreePutSeg(team, dstimage, dst, srclist, src_blksz, src_offset, 
+                                      elem_size, elem_count, func, func_arg, flags, impl, sequence GASNETE_THREAD_PASS);  
 }
 
 /*---------------------------------------------------------------------------------*/
