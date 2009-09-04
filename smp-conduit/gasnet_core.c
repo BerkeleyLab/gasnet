@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/04 19:53:20 $
- * $Revision: 1.48.4.34 $
+ *     $Date: 2009/09/04 23:06:33 $
+ * $Revision: 1.48.4.35 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,13 +18,10 @@ GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
+#if HAVE_ON_EXIT
+static void gasnetc_on_exit(int, void*);
+#else
 static void gasnetc_atexit(void);
-
-#if GASNET_PSHM
-  #define GASNETC_DEFAULT_EXITTIMEOUT_MAX       60.
-  #define GASNETC_DEFAULT_EXITTIMEOUT_MIN       10.
-  #define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR     0.5
-  static double gasnetc_exittimeout = GASNETC_DEFAULT_EXITTIMEOUT_MAX;
 #endif
 
 #if !GASNETI_CLIENT_THREADS
@@ -84,6 +81,166 @@ static void gasnetc_bootstrapBarrier(void) {
 }
 
 #if GASNET_PSHM
+#include <sys/types.h>
+#include <sys/wait.h>
+
+/* exit timeout is limit on inter-exit gap, not first-to-last interval */
+#define GASNETC_DEFAULT_EXITTIMEOUT_MAX       20.
+#define GASNETC_DEFAULT_EXITTIMEOUT_MIN       10.
+#define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR     0.25
+
+static sig_atomic_t *gasnetc_child_tbl;
+static sig_atomic_t gasnetc_child_count = 0;
+static sig_atomic_t gasnetc_exit_timeout = (sig_atomic_t)GASNETC_DEFAULT_EXITTIMEOUT_MAX;
+
+#ifndef GASNETC_REMOTEEXIT_SIGNAL
+  #ifdef SIGURG
+    #define GASNETC_REMOTEEXIT_SIGNAL  SIGURG
+  #else
+    #define GASNETC_REMOTEEXIT_SIGNAL  SIGUSR1
+  #endif
+#endif
+
+/* TODO: use a process group (would require SIGT{STP,TIN,TOU} handling) */
+static void gasnetc_signal_job(int sig) {
+  int i;
+  for (i = 0; i < gasnetc_child_count; i++) {
+    (void)kill(gasnetc_child_tbl[i], sig);
+  }
+}
+
+static void gasnetc_exit_sighand(int sig_recvd) {
+  int sig_to_send = sig_recvd;
+  switch (sig_recvd) {
+    case SIGABRT: case SIGILL: case SIGSEGV: case SIGBUS: case SIGFPE:
+      /* These signals indicates a bug in this "parent". */
+      fprintf(stderr, "ERROR: Parent process received fatal signal %d - Terminating\n", sig_recvd);
+      sig_to_send = SIGTERM;
+      break;
+
+    case SIGALRM: {
+      /* This signal indicates a non-collective exit */
+      static int count = 0;
+      switch (count++) {
+        case 0:  sig_to_send = GASNETC_REMOTEEXIT_SIGNAL; break;
+        case 1:  sig_to_send = SIGTERM; break;
+        default: sig_to_send = SIGKILL; break;
+      }
+      alarm(gasnetc_exit_timeout);
+      break;
+    }
+  }
+
+  /* Signals are forwarded to the job */
+  gasnetc_signal_job(sig_to_send);
+
+  /* rearm */
+  gasneti_reghandler(sig_recvd, gasnetc_exit_sighand);
+}
+
+/* NOTE: This runs in the childen */
+static void gasnetc_remote_exit_sighand(int sig) {
+  gasneti_sighandlerfn_t handler;
+
+  /* Run the SIGQUIT handler, if any */
+  handler = gasneti_reghandler(SIGQUIT, SIG_IGN);
+  if ((handler != gasneti_defaultSignalHandler) &&
+#ifdef SIG_HOLD
+      (handler != (gasneti_sighandlerfn_t)SIG_HOLD) &&
+#endif
+      (handler != (gasneti_sighandlerfn_t)SIG_ERR) &&
+      (handler != (gasneti_sighandlerfn_t)SIG_IGN) &&
+      (handler != (gasneti_sighandlerfn_t)SIG_DFL)) {
+      (void)gasneti_reghandler(SIGQUIT, handler);
+      #if 1
+        raise(SIGQUIT);
+        /* Note: Both ISO C and POSIX assure us that raise() won't return until after the signal handler
+         * (if any) has executed.  However, if that handler calls gasnetc_exit(), we'll never return here. */
+      #elif 0
+        kill(getpid(),SIGQUIT);
+      #else
+        handler(SIGQUIT);
+      #endif
+  }
+
+  gasnetc_exit(99);
+}
+
+static void gasnetc_fork_children(void) {
+  int gasnetc_exit_code = 0;
+  int i, rc;
+
+  gasnetc_child_tbl = gasneti_malloc(gasneti_nodes * sizeof(sig_atomic_t));
+
+  for (i = 0; i < gasneti_nodes; i++) {
+    int fork_return = fork();
+    if (fork_return < 0) {
+      gasnetc_signal_job(SIGTERM);
+      gasneti_fatalerror("Fork failed!");
+    }
+    if (fork_return) {
+      /* I am parent */
+      gasnetc_child_tbl[gasnetc_child_count++] = fork_return;
+    } else {
+      /* I am child */
+      gasneti_reghandler(GASNETC_REMOTEEXIT_SIGNAL, gasnetc_remote_exit_sighand);
+      gasneti_free((void*)gasnetc_child_tbl);
+      gasneti_mynode = i; 
+      return;
+    }
+  }
+
+  /* If I get here I am the parent and NOT a gasnet application process */
+
+  gasneti_registerSignalHandlers(gasnetc_exit_sighand);
+  gasneti_reghandler(SIGALRM, gasnetc_exit_sighand);
+  gasneti_reghandler(SIGCHLD, SIG_DFL);
+
+  gasnetc_exit_timeout = gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
+                                                 GASNETC_DEFAULT_EXITTIMEOUT_MIN,
+                                                 GASNETC_DEFAULT_EXITTIMEOUT_FACTOR,
+                                                 GASNETC_DEFAULT_EXITTIMEOUT_MIN);
+
+  while (gasnetc_child_count) {
+    int status;
+
+    rc = wait(&status);
+    if (rc < 0) {
+      if (errno == EINTR) continue;
+
+      gasnetc_signal_job(SIGTERM);
+      gasneti_fatalerror("Unexpected wait() failure: %d(%s) - Terminating job", errno, strerror(errno));
+    }
+
+    /* Remove the deceased from the table of children */
+    gasnetc_child_count -= 1;
+    for (i = 0; i < gasnetc_child_count; ++i) {
+      if (gasnetc_child_tbl[i] == rc) {
+        gasnetc_child_tbl[i] = gasnetc_child_tbl[gasnetc_child_count];
+        break;
+      }
+    }
+
+    /* Job will return w/ first non-zero exit code we observe */
+    rc = 0;
+    if (WIFEXITED(status)) {
+      rc = WEXITSTATUS(status);
+    } else if (WIFSIGNALED(status)) {
+      gasnetc_exit_code = 254;
+    }
+    if (rc && !gasnetc_exit_code) {
+      gasnetc_exit_code = rc;
+    }
+
+    alarm(gasnetc_exit_timeout);
+  }
+
+  gasneti_registerSignalHandlers(SIG_DFL);
+  alarm(0);
+
+  gasneti_killmyprocess(gasnetc_exit_code);
+}
+
 static int gasnetc_get_pshm_nodecount(void)
 {
   gasnet_node_t nodes = gasneti_getenv_int_withdefault("GASNET_PSHM_NODES", 0, 0);
@@ -124,11 +281,10 @@ static int gasnetc_get_pshm_nodecount(void)
   gasnet_set_waitmode(polite_wait ? GASNET_WAIT_BLOCK : GASNET_WAIT_SPIN);
   return nodes;
 }
+
 #endif 
 
 static int gasnetc_init(int *argc, char ***argv) {
-  int i;
-
   /*  check system sanity */
   gasnetc_check_config();
 
@@ -160,16 +316,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   (void)gasneti_pshm_makenames(NULL);
 
   /* A fork in the road! */
-  for (i = 1; i < gasneti_nodes; i++) {
-    int fork_return = fork();
-    if (fork_return < 0) {
-      gasneti_fatalerror("Fork failed!");
-    }
-    if (fork_return == 0){
-        gasneti_mynode = i; 
-        break;
-    }
-  }
+  gasnetc_fork_children();
 #endif
 
   /* enable tracing */
@@ -225,13 +372,6 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
 
   gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
-
-#if GASNET_PSHM
-  gasnetc_exittimeout = gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
-                                                GASNETC_DEFAULT_EXITTIMEOUT_MIN,
-                                                GASNETC_DEFAULT_EXITTIMEOUT_FACTOR,
-                                                GASNETC_DEFAULT_EXITTIMEOUT_MIN);
-#endif
 
   return GASNET_OK;
 }
@@ -377,7 +517,11 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
    *        (e.g. to support interrupt-based messaging)
    */
 
+#if HAVE_ON_EXIT
+  on_exit(gasnetc_on_exit, NULL);
+#else
   atexit(gasnetc_atexit);
+#endif
 
   /* ------------------------------------------------------------------------------------ */
   /*  register segment  */
@@ -429,25 +573,17 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
+#if HAVE_ON_EXIT
+static void gasnetc_on_exit(int exitcode, void *arg) {
+    gasnetc_exit(exitcode);
+}
+#else
 static void gasnetc_atexit(void) {
     gasnetc_exit(0);
-}
-
-#if GASNET_PSHM
-/* Fatal signal on node 0 looks like whole-job exit to our parent.
-   So, must try to kill all on a non-collective signal case. */
-extern void gasnetc_fatalsignal_callback(int sig) {
-  if (gasneti_pshm_exit_barrier(gasnetc_exittimeout * 1e6)) {
-    gasneti_pshm_signal(SIGTERM);
-  }
 }
 #endif
 
 extern void gasnetc_exit(int exitcode) {
-#if GASNET_PSHM
-  int need_signal;
-#endif
-
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   gasneti_reghandler(SIGQUIT, SIG_IGN);
 
@@ -458,10 +594,6 @@ extern void gasnetc_exit(int exitcode) {
 
   GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
-#if GASNET_PSHM
-  need_signal = gasneti_pshm_exit_barrier(gasnetc_exittimeout * 1e6);
-#endif
-
   gasneti_flush_streams();
   gasneti_trace_finish();
   gasneti_sched_yield();
@@ -470,12 +602,6 @@ extern void gasnetc_exit(int exitcode) {
            with gasneti_killmyprocess(exitcode) (not regular exit()), preferably
            after raising a SIGQUIT to inform the client of the exit
   */
-#if GASNET_PSHM
-  if (need_signal) {
-    /* TODO: Send a non-fatal signal to initiate exit w/o the SIGTERM message? */
-    gasneti_pshm_signal(SIGTERM);
-  }
-#endif
 
   gasneti_killmyprocess(exitcode);
 }
