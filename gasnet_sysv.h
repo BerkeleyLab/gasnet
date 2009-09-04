@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.h,v $
- *     $Date: 2009/09/03 11:15:40 $
- * $Revision: 1.1.4.40 $
+ *     $Date: 2009/09/04 19:53:16 $
+ * $Revision: 1.1.4.41 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -42,8 +42,10 @@ extern void gasneti_unlink_vnet(void);
 struct gasneti_pshmnet;			/* opaque type */
 typedef struct gasneti_pshmnet gasneti_pshmnet_t;
 
-/* Initialize pshm request and reply networks given a conduit-specific exchange function */
-extern void gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn);
+/* Initialize pshm request and reply networks given a conduit-specific exchange function.
+   Returns pointer to shared memory of length "aux_sz" available for conduit-specific use */
+extern void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz);
+
 extern gasneti_pshmnet_t *gasneti_request_pshmnet;
 extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
 

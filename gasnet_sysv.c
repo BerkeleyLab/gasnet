@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/09/04 19:40:53 $
- * $Revision: 1.1.4.76 $
+ *     $Date: 2009/09/04 19:53:16 $
+ * $Revision: 1.1.4.77 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -53,7 +53,7 @@ static struct gasneti_pshm_info {
 #define pshmnet_get_struct_addr_from_field_addr(structname, fieldname, fieldaddr) \
         ((structname*)(((uintptr_t)fieldaddr) - offsetof(structname,fieldname)))
 
-void gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn) {
+void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz) {
   size_t vnetsz, mmapsz;
   gasnet_node_t i;
 
@@ -133,7 +133,9 @@ void gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn) {
   /* setup vnet shared memory region for AM infrastructure and supernode barrier.
    */
   vnetsz = gasneti_pshmnet_memory_needed(gasneti_pshm_nodes); 
-  mmapsz = (2*vnetsz) + round_up_to_pshmpage(sizeof(struct gasneti_pshm_info));
+  mmapsz = (2*vnetsz)
+           + round_up_to_pshmpage(sizeof(struct gasneti_pshm_info))
+           + round_up_to_pshmpage(aux_sz);
   gasnetc_pshmnet_region = gasneti_mmap_vnet(mmapsz);
   if (gasnetc_pshmnet_region == NULL) {
     gasneti_unlink_vnet();
@@ -169,6 +171,11 @@ void gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn) {
 
   /* Ensure all peers are initialized before return */
   gasneti_pshmnet_bootstrapBarrier();
+
+  /* Return the conduit's portion, if any */
+  return aux_sz ? (void*)((uintptr_t)gasneti_pshm_info +
+                          round_up_to_pshmpage(sizeof(struct gasneti_pshm_info)))
+                : NULL;
 }
 
 /* Called to send a signal to all local processes except self */

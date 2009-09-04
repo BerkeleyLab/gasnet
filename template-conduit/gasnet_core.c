@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/02 04:28:35 $
- * $Revision: 1.59.8.4 $
+ *     $Date: 2009/09/04 19:53:22 $
+ * $Revision: 1.59.8.5 $
  * Description: GASNet <conduitname> conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -85,8 +85,12 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   #if GASNET_PSHM
     /* (###) If your conduit will support PSHM, you should initialize it here.
-     * The argument is normally "&gasnetc_bootstrapExchange" (described below). */
-    gasneti_pshm_init(###);
+     * The 1st argument is normally "&gasnetc_bootstrapExchange" (described below).
+     * The 2nd argument is the amout of shared memory space needed for any
+     * conduit-specific uses.  The return value is a pointer to the space
+     * requested by the 2nd argument.
+     */
+    ### = gasneti_pshm_init(###, ###);
   #endif
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
