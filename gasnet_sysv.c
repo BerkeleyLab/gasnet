@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/09/04 18:37:15 $
- * $Revision: 1.1.4.75 $
+ *     $Date: 2009/09/04 19:40:53 $
+ * $Revision: 1.1.4.76 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -894,8 +894,6 @@ static gasneti_pshmnet_allocator_t *gasneti_pshmnet_init_allocator(void *region,
   a->region = tmp = region;
   gasneti_atomic_set(&tmp->in_use, 0, 0);
 
-  gasneti_mutex_init(&a->lock);
-
   return a;
 }
 
@@ -1141,6 +1139,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, int dest,
       else gasneti_AMPSHMPoll(1);
     }
     gasneti_mutex_unlock(lock);
+  }
 
   /* Fill in message */
   GASNETI_AMPSHM_MSG_CATEGORY(msg) = category;
