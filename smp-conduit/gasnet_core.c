@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/04 23:06:33 $
- * $Revision: 1.48.4.35 $
+ *     $Date: 2009/09/04 23:11:23 $
+ * $Revision: 1.48.4.36 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -89,9 +89,9 @@ static void gasnetc_bootstrapBarrier(void) {
 #define GASNETC_DEFAULT_EXITTIMEOUT_MIN       10.
 #define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR     0.25
 
-static sig_atomic_t *gasnetc_child_tbl;
-static sig_atomic_t gasnetc_child_count = 0;
-static sig_atomic_t gasnetc_exit_timeout = (sig_atomic_t)GASNETC_DEFAULT_EXITTIMEOUT_MAX;
+static volatile sig_atomic_t *gasnetc_child_tbl;
+static volatile sig_atomic_t gasnetc_child_count = 0;
+static volatile sig_atomic_t gasnetc_exit_timeout = (sig_atomic_t)GASNETC_DEFAULT_EXITTIMEOUT_MAX;
 
 #ifndef GASNETC_REMOTEEXIT_SIGNAL
   #ifdef SIGURG
