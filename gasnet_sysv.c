@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/09/03 11:15:40 $
- * $Revision: 1.1.4.74 $
+ *     $Date: 2009/09/04 18:37:15 $
+ * $Revision: 1.1.4.75 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -410,7 +410,6 @@ size_t gasneti_pshmnet_max_payload(void) {
  * of GASNETI_PSHMNET_PAGESIZE (which must be a power-of-2).
  */
 typedef struct gasneti_pshmnet_allocator {
-  gasneti_mutex_t lock;    /* only locked by owning process */
   void *region;
   unsigned int next;
   unsigned int count;
@@ -901,7 +900,8 @@ static gasneti_pshmnet_allocator_t *gasneti_pshmnet_init_allocator(void *region,
 }
 
 
-/* Basic page-granular first-fit allocator */
+/* Basic page-granular first-fit allocator
+   This allocator is NOT thread-safe - the callers are responsible for serialization. */
 static void * gasneti_pshmnet_alloc(gasneti_pshmnet_allocator_t *a, size_t nbytes)
 {
   void *retval = NULL;
@@ -916,7 +916,6 @@ static void * gasneti_pshmnet_alloc(gasneti_pshmnet_allocator_t *a, size_t nbyte
   needed = (nbytes + GASNETI_PSHMNET_PAGESIZE - 1) >> GASNETI_PSHMNET_PAGESHIFT;
   gasneti_assert(needed <= GASNETI_PSHMNET_ALLOC_MAXPG);
 
-  gasneti_mutex_lock(&a->lock);
   curr = a->next;
   remain = a->count;
   do {
@@ -964,7 +963,6 @@ static void * gasneti_pshmnet_alloc(gasneti_pshmnet_allocator_t *a, size_t nbyte
     if ((curr += length) == a->count) curr = 0;
   } while (remain > 0); /* could be negative if merging took us past our starting point */
   a->next = curr;
-  gasneti_mutex_unlock(&a->lock);
   return retval;
 }
 
@@ -1113,6 +1111,10 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, int dest,
       msg = (void*)((uintptr_t)tmp + (offset ? (8-offset) : 0));
     }
   } else {
+    static gasneti_mutex_t req_lock = GASNETI_MUTEX_INITIALIZER;
+    static gasneti_mutex_t rep_lock = GASNETI_MUTEX_INITIALIZER;
+    gasneti_mutex_t *lock;
+
     /* calculate size of buffer needed */
     switch (category) {
       case gasnetc_Short:
@@ -1129,13 +1131,16 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, int dest,
     }
     gasneti_assert(msgsz <= sizeof(gasneti_AMPSHM_maxmsg_t)); 
 
-    /* Get buffer, poll if busy */
+    /* Get buffer, poll if busy.
+       Lock serializes allocation so small messages can't starve large ones */
+    lock = isReq ? &req_lock : &rep_lock;
+    gasneti_mutex_lock(lock);
     while (!(msg = gasneti_pshmnet_get_send_buffer(vnet, msgsz, target))) {
       /* If reply, only poll reply network: avoids deadlock  */
       if (isReq) gasnetc_AMPoll(); /* No progress functions */
       else gasneti_AMPSHMPoll(1);
     }
-  }
+    gasneti_mutex_unlock(lock);
 
   /* Fill in message */
   GASNETI_AMPSHM_MSG_CATEGORY(msg) = category;
