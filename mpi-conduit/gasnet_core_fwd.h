@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2009/09/02 06:30:00 $
- * $Revision: 1.28.34.5 $
+ *     $Date: 2009/09/04 23:26:01 $
+ * $Revision: 1.28.34.6 $
  * Description: GASNet header for MPI conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -35,6 +35,8 @@
 #endif
 
 /* conduit allows internal GASNet fns to issue put/get for remote addrs out of segment */
+/* XXX: This is currently true even for the GASNET_PSHM==1 case, but only because there
+ * is no shared-memory bypass of the put/get code */
 #define GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET 1
 
   /* conduits should define GASNETI_CONDUIT_THREADS to 1 if they have one or more 
