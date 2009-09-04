@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/09/04 19:53:16 $
- * $Revision: 1.1.4.77 $
+ *     $Date: 2009/09/04 23:42:40 $
+ * $Revision: 1.1.4.78 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -43,8 +43,8 @@ static void *gasnetc_pshmnet_region = NULL;
 
 static struct gasneti_pshm_info {
     gasneti_atomic_t    bootstrap_barrier;
-    gasneti_atomic_t    exit_barrier;
-    pid_t               pids[GASNETI_PSHM_MAX_NODES];
+    /* sig_atomic_t should be wide enough to avoid word-tearing, right? */
+    volatile sig_atomic_t early_barrier[GASNETI_PSHM_MAX_NODES];
 } *gasneti_pshm_info = NULL;
 
 #define round_up_to_pshmpage(size_or_addr)               \
@@ -149,14 +149,13 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
     /* For a few architectures we cannot assume that the pre-zeroed memory we
      * receive will correspond to an atomic counter of value zero. */
     gasneti_atomic_set(&gasneti_pshm_info->bootstrap_barrier, 0, 0);
-    gasneti_atomic_set(&gasneti_pshm_info->exit_barrier, 0, 0);
   }
-  gasneti_pshm_info->pids[gasneti_pshm_mynode] = getpid();
+  gasneti_pshm_info->early_barrier[gasneti_pshm_mynode] = 1;
   gasneti_local_wmb();
 
-  /* "Silly" barrier which protects initialization of the real barrier counter. */
+  /* "early" barrier which protects initialization of the real barrier counter. */
   for (i=0; i < gasneti_pshm_nodes; ++i) {
-    gasneti_waituntil(gasneti_pshm_info->pids[i] != 0);
+    gasneti_waituntil(gasneti_pshm_info->early_barrier[i] != 0);
   }
 
   /* Unlink the shared memory file to prevent leaks.
@@ -177,33 +176,6 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
                           round_up_to_pshmpage(sizeof(struct gasneti_pshm_info)))
                 : NULL;
 }
-
-/* Called to send a signal to all local processes except self */
-void gasneti_pshm_signal(int signo) {
-  gasnet_node_t i;
-  for (i=0; i < gasneti_pshm_nodes; ++i) {
-    if (i == gasneti_pshm_mynode) continue;
-    (void)kill(gasneti_pshm_info->pids[i], signo);
-  }
-}
-
-/* Returns 0 on success, non-zero on timeout or error */
-int gasneti_pshm_exit_barrier(gasneti_tick_t timeout_us) {
-  gasneti_tick_t start_time;
-  int result;
-
-  if (gasneti_pshm_info == NULL) return 1;
-
-  start_time = gasneti_ticks_now();
-  gasneti_atomic_increment(&gasneti_pshm_info->exit_barrier, 0);
-
-  gasneti_waitwhile(
-      (result = (gasneti_atomic_read(&gasneti_pshm_info->exit_barrier, 0) != gasneti_pshm_nodes)) &&
-      (gasneti_ticks_to_us(gasneti_ticks_now() - start_time) < timeout_us));
-
-  return result;
-}
-
 
 /* Defaults if gasnet_core_fwd.h doesn't #define these preprocessor tokens */
 #ifndef GASNETC_MAX_ARGS_PSHM

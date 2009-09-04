@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.h,v $
- *     $Date: 2009/09/04 19:53:16 $
- * $Revision: 1.1.4.41 $
+ *     $Date: 2009/09/04 23:42:40 $
+ * $Revision: 1.1.4.42 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -48,10 +48,6 @@ extern void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t 
 
 extern gasneti_pshmnet_t *gasneti_request_pshmnet;
 extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
-
-/* Helpful functions for coordinated exit */
-extern void gasneti_pshm_signal(int signo);
-extern int gasneti_pshm_exit_barrier(gasneti_tick_t timeout_us);
 
 /* Optional conduit-specific code if defaults in gasnet_sysv.c are not usable.
  * Conduits providing these should #define the appropriate token in gasnet_core_fwd.h
