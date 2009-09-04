@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2009/09/02 07:50:25 $
-# $Revision: 1.519.2.14 $
+#     $Date: 2009/09/04 22:42:49 $
+# $Revision: 1.519.2.15 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.519.2.14 $)
+AC_REVISION($Revision: 1.519.2.15 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -3483,6 +3483,8 @@ fi
 
 # Check for alloca in C code
 GASNET_FUNC_ALLOCA
+
+AC_CHECK_FUNCS(on_exit)
 
 AC_CHECK_FUNCS(gethostid)
 
