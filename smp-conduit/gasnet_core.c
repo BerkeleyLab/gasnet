@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/04 23:11:23 $
- * $Revision: 1.48.4.36 $
+ *     $Date: 2009/09/05 01:16:41 $
+ * $Revision: 1.48.4.37 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -106,6 +106,7 @@ static void gasnetc_signal_job(int sig) {
   int i;
   for (i = 0; i < gasnetc_child_count; i++) {
     (void)kill(gasnetc_child_tbl[i], sig);
+    (void)kill(gasnetc_child_tbl[i], SIGCONT);
   }
 }
 
@@ -186,12 +187,16 @@ static void gasnetc_fork_children(void) {
       gasneti_reghandler(GASNETC_REMOTEEXIT_SIGNAL, gasnetc_remote_exit_sighand);
       gasneti_free((void*)gasnetc_child_tbl);
       gasneti_mynode = i; 
+      if (gasneti_mynode != 0) {
+        (void)freopen("/dev/null", "r", stdin);
+      }
       return;
     }
   }
 
   /* If I get here I am the parent and NOT a gasnet application process */
 
+  (void)freopen("/dev/null", "r", stdin);
   gasneti_registerSignalHandlers(gasnetc_exit_sighand);
   gasneti_reghandler(SIGALRM, gasnetc_exit_sighand);
   gasneti_reghandler(SIGCHLD, SIG_DFL);
