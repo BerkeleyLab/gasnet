@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2009/09/02 04:43:08 $
- * $Revision: 1.59.8.18 $
+ *     $Date: 2009/09/06 00:09:28 $
+ * $Revision: 1.59.8.19 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -220,15 +220,7 @@
 
 /* Largest Medium supported by AMPSHM */
 #ifndef GASNETI_MAX_MEDIUM_PSHM
-  /* Largest multiple of wordsize that yields a 64KB allocation
-   * block when assuming gasnet_AMMaxArgs() == 16.
-   * gasnet_core_fwd.h can override if that assumption is wrong.
-   */
-  #if PLATFORM_ARCH_32
-    #define GASNETI_MAX_MEDIUM_PSHM 65448
-  #else
-    #define GASNETI_MAX_MEDIUM_PSHM 65432
-  #endif
+  #define GASNETI_MAX_MEDIUM_PSHM 65000
 #endif
 
 GASNETI_BEGIN_EXTERNC

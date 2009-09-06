@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/09/03 09:54:16 $
- * $Revision: 1.57.6.42 $
+ *     $Date: 2009/09/06 00:09:28 $
+ * $Revision: 1.57.6.43 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -174,7 +174,9 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
   memcpy(prefix + GASNETI_PSHM_PREFIX_LEN1, unique, GASNETI_PSHM_UNIQUE_LEN);
 
   /* Two base-36 "digits" provide 1296 unique names, even if case-insensitive. */
+#if GASNETI_PSHM_MAX_NODES > 255
   gasneti_assert_always(gasneti_pshm_nodes < (36*36));
+#endif
   gasneti_pshmname = (gasnet_pshmname_t *)gasneti_malloc((gasneti_pshm_nodes+1) * sizeof(gasnet_pshmname_t));
   for (i = 0; i <= gasneti_pshm_nodes; ++i) {
     const char tbl[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -556,8 +558,6 @@ static uintptr_t gasneti_maxheapend = 0; /* top of max malloc heap */
 static uintptr_t gasneti_maxbase = 0; /* start of segment overlap region */
 #if GASNET_PSHM
 static gasnet_seginfo_t *gasneti_remote_segments;
-/* NOTE: pshm supernode may be shifted relative to nodemap's view (and smaller) */
-#define pshm_to_gasnet(_i) (gasneti_nodemap_local[(_i) + gasneti_nodemap_local_rank - gasneti_pshm_mynode])
 #endif /* GASNET_PSHM */
 #endif /* HAVE_MMAP */
 
@@ -753,7 +753,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
     /* Map the remote shared segments */
     gasneti_remote_segments = gasneti_malloc(gasneti_pshm_nodes*sizeof(gasnet_seginfo_t));
     for(i=0; i<gasneti_pshm_nodes; i++){
-        const gasnet_node_t j = pshm_to_gasnet(i);
+        const gasnet_node_t j = gasneti_nodemap_local[i];
         if (j == gasneti_mynode) continue;
 
         gasneti_remote_segments[i].addr = gasneti_mmap_remote_shared(NULL,gasneti_segexch[j].seginfo.size,i);
@@ -1015,7 +1015,7 @@ void gasneti_AttachRemote(uintptr_t segsize, const gasnet_node_t pshm_node, uint
                            gasneti_bootstrapExchangefn_t exchangefn) {
   void *segbase = NULL;
   uintptr_t topofheap;
-  gasnet_node_t node = pshm_to_gasnet(pshm_node);
+  gasnet_node_t node = gasneti_nodemap_local[pshm_node];
 
   gasneti_assert(seginfo);
   gasneti_assert(exchangefn);
@@ -1136,7 +1136,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
     for(i=0; i<gasneti_pshm_nodes; i++){
       int j;
       for(j=0; j<gasneti_pshm_nodes; j++){
-         gasnet_node_t node = pshm_to_gasnet(i);
+         gasnet_node_t node = gasneti_nodemap_local[i];
          if ((gasneti_seginfo_correction[node*gasneti_pshm_nodes+j] != 0 &&
             (gasneti_seginfo_correction[node*gasneti_pshm_nodes+j] < min_corrections[j]))){
             
@@ -1150,7 +1150,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
     /* Save remote info */
     uintptr_t remote_size[gasneti_pshm_nodes], remote_addr[gasneti_pshm_nodes];
     for(i=0; i<gasneti_pshm_nodes; i++){
-        gasnet_node_t node = pshm_to_gasnet(i);
+        gasnet_node_t node = gasneti_nodemap_local[i];
         remote_size[i] = seginfo[node].remote_size;
         remote_addr[i] = seginfo[node].remote_addr;
     }
@@ -1163,7 +1163,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
 
     /* Restore remote info */
     for(i=0; i<gasneti_pshm_nodes; i++){
-        gasnet_node_t node = pshm_to_gasnet(i);
+        gasnet_node_t node = gasneti_nodemap_local[i];
         seginfo[node].remote_size = remote_size[i];
         seginfo[node].remote_addr = remote_addr[i];
     }
@@ -1482,17 +1482,7 @@ void gasneti_auxseg_attach(void) {
       #if GASNET_PSHM
         gasneti_seginfo_client[j].remote_addr = (void *)(((uintptr_t)gasneti_seginfo[j].remote_addr) + gasneti_auxseg_sz);
         gasneti_seginfo_client[j].remote_size = gasneti_seginfo[j].remote_size - gasneti_auxseg_sz;
-#if 0 /* Must match the splitting done in gasnet_sysv.c for non-contiguous nodes */
         gasneti_seginfo_client[j].nodeinfo = gasneti_nodemap[j];
-#else
-        {
-          int k;
-          for (k = j; k > 0; --k) {
-            if (gasneti_nodemap[k] != gasneti_nodemap[k - 1]) break;
-          }
-          gasneti_seginfo_client[j].nodeinfo = k;
-        }
-#endif
       #endif
       #if GASNETI_FORCE_CLIENTSEG_TO_BASE
         gasneti_seginfo_client[j].addr = gasneti_seginfo[j].addr;
