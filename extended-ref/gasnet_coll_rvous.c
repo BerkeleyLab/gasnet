@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2009/08/13 20:23:54 $
- * $Revision: 1.65.14.14 $
+ *     $Date: 2009/09/07 01:10:28 $
+ * $Revision: 1.65.14.14.2.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -612,18 +612,20 @@ static int gasnete_coll_pf_scat_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 }
 extern gasnet_coll_handle_t
 gasnete_coll_scat_RVGet(gasnet_team_handle_t team,
-			void *dst,
-			gasnet_image_t srcimage, void *src,
-			size_t nbytes, int flags, uint32_t sequence
+                        void *dst,
+                        gasnet_image_t srcimage, void *src,
+                        size_t nbytes, size_t dist, int flags, 
+                        gasnete_coll_implementation_t coll_params,
+                        uint32_t sequence
                         GASNETE_THREAD_FARG)
 {
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(team, srcimage));
 
-  return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, nbytes, flags,
+  return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, dist, flags,
 					 &gasnete_coll_pf_scat_RVGet, options,
-					 NULL, sequence GASNETE_THREAD_PASS);
+					 NULL, sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
 /* scat RVous: root node uses AM Mediums to send to addrs provided by each node */
@@ -683,18 +685,20 @@ static int gasnete_coll_pf_scat_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 }
 extern gasnet_coll_handle_t
 gasnete_coll_scat_RVous(gasnet_team_handle_t team,
-			 void *dst,
-			 gasnet_image_t srcimage, void *src,
-			 size_t nbytes, int flags, uint32_t sequence
-                         GASNETE_THREAD_FARG)
+                        void *dst,
+                        gasnet_image_t srcimage, void *src,
+                        size_t nbytes, size_t dist, int flags, 
+                        gasnete_coll_implementation_t coll_params,
+                        uint32_t sequence
+                        GASNETE_THREAD_FARG)
 {
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF ((flags & GASNET_COLL_IN_ALLSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF((flags & GASNET_COLL_OUT_ALLSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_P2P;
 
-  return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, nbytes, flags,
+  return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, dist, flags,
 					 &gasnete_coll_pf_scat_RVous, options,
-					 NULL, sequence GASNETE_THREAD_PASS);
+					 NULL, sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/
@@ -758,18 +762,20 @@ static int gasnete_coll_pf_scatM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 }
 extern gasnet_coll_handle_t
 gasnete_coll_scatM_RVGet(gasnet_team_handle_t team,
-			  void * const dstlist[],
-			  gasnet_image_t srcimage, void *src,
-			  size_t nbytes, int flags, uint32_t sequence
-                          GASNETE_THREAD_FARG)
+                         void * const dstlist[],
+                         gasnet_image_t srcimage, void *src,
+                         size_t nbytes, size_t dist, int flags, 
+                         gasnete_coll_implementation_t coll_params,    
+                         uint32_t sequence
+                         GASNETE_THREAD_FARG)
 {
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_P2P_IF(!gasnete_coll_image_is_local(team, srcimage));
 
-  return gasnete_coll_generic_scatterM_nb(team, dstlist, srcimage, src, nbytes, nbytes, flags,
+  return gasnete_coll_generic_scatterM_nb(team, dstlist, srcimage, src, nbytes, dist, flags,
 					  &gasnete_coll_pf_scatM_RVGet, options,
-					  NULL, sequence GASNETE_THREAD_PASS);
+					  NULL, sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
 /* scatM RVous: root node uses AM Mediums to send to addrs provided by each node */
@@ -839,18 +845,19 @@ static int gasnete_coll_pf_scatM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 }
 extern gasnet_coll_handle_t
 gasnete_coll_scatM_RVous(gasnet_team_handle_t team,
-			  void * const dstlist[],
-			  gasnet_image_t srcimage, void *src,
-			  size_t nbytes, int flags, uint32_t sequence
+                         void * const dstlist[],
+                         gasnet_image_t srcimage, void *src,
+                         size_t nbytes, size_t dist, int flags, 
+                         gasnete_coll_implementation_t coll_params,    uint32_t sequence
                           GASNETE_THREAD_FARG)
 {
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF ((flags & GASNET_COLL_IN_ALLSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF((flags & GASNET_COLL_OUT_ALLSYNC)) |
 		GASNETE_COLL_GENERIC_OPT_P2P;
 
-  return gasnete_coll_generic_scatterM_nb(team, dstlist, srcimage, src, nbytes, nbytes, flags,
+  return gasnete_coll_generic_scatterM_nb(team, dstlist, srcimage, src, nbytes, dist, flags,
 					  &gasnete_coll_pf_scatM_RVous, options,
-					  NULL, sequence GASNETE_THREAD_PASS);
+					  NULL, sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/09/04 19:27:13 $
- * $Revision: 1.53.14.31.2.5 $
+ *     $Date: 2009/09/07 01:10:27 $
+ * $Revision: 1.53.14.31.2.6 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1427,7 +1427,8 @@ gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
                                 gasnet_image_t srcimage, void *src,
                                 size_t nbytes, size_t dist, int flags,
                                 gasnete_coll_poll_fn poll_fn, int options,
-                                gasnete_coll_tree_data_t *tree_info, uint32_t sequence
+                                gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
+                                int num_params, uint32_t *param_list
                                 GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
@@ -1436,7 +1437,8 @@ gasnete_coll_generic_scatterM_nb(gasnet_team_handle_t team,
                                  gasnet_image_t srcimage, void *src,
                                  size_t nbytes, size_t dist, int flags,
                                  gasnete_coll_poll_fn poll_fn, int options,
-                                 gasnete_coll_tree_data_t *tree_info, uint32_t sequence
+                                 gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
+                                 int num_params, uint32_t *param_list
                                  GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
@@ -1629,132 +1631,47 @@ GASNETE_COLL_DECLARE_BCASTM_ALG(RVous);
 
 /*---------------------------------------------------------------------------------*/
 
-extern gasnet_coll_handle_t
-gasnete_coll_scat_Get(gasnet_team_handle_t team,
-		      void *dst,
-		      gasnet_image_t srcimage, void *src,
-		      size_t nbytes, int flags, uint32_t sequence
-                      GASNETE_THREAD_FARG);
+#define GASNETE_COLL_DECLARE_SCATTER_ALG(FUNC_EXT)\
+extern gasnet_coll_handle_t \
+gasnete_coll_scat_##FUNC_EXT(gasnet_team_handle_t team,\
+                             void *dst,\
+                             gasnet_image_t srcimage, void *src,\
+                             size_t nbytes, size_t dist, int flags,\
+                             gasnete_coll_implementation_t coll_params,\
+                             uint32_t sequence\
+                             GASNETE_THREAD_FARG)
 
-extern gasnet_coll_handle_t
-gasnete_coll_scat_Put(gasnet_team_handle_t team,
-		      void *dst,
-		      gasnet_image_t srcimage, void *src,
-		      size_t nbytes, int flags, uint32_t sequence
-                      GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_scat_TreePut(gasnet_team_handle_t team,
-			   void *dst,
-			   gasnet_image_t srcimage, void *src,
-			   size_t nbytes, size_t dist, int flags,
-			   gasnete_coll_tree_type_t tree_type,
-			   uint32_t sequence
-			   GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_scat_TreePutNoCopy(gasnet_team_handle_t team,
-			   void *dst,
-			   gasnet_image_t srcimage, void *src,
-			   size_t nbytes, size_t dist, int flags,
-			   gasnete_coll_tree_type_t tree_type,
-			   uint32_t sequence
-			   GASNETE_THREAD_FARG);
-
-
-extern gasnet_coll_handle_t
-gasnete_coll_scat_TreePutSeg(gasnet_team_handle_t team,
-                          void *dst,
-                          gasnet_image_t srcimage, void *src,
-                          size_t nbytes, int flags,
-                          gasnete_coll_tree_type_t tree_type,
-                          uint32_t sequence
-                          GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_scat_Eager(gasnet_team_handle_t team,
-		        void *dst,
-		        gasnet_image_t srcimage, void *src,
-		        size_t nbytes, int flags, uint32_t sequence
-                        GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_scat_RVGet(gasnet_team_handle_t team,
-		        void *dst,
-		        gasnet_image_t srcimage, void *src,
-		        size_t nbytes, int flags, uint32_t sequence
-                        GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_scat_RVous(gasnet_team_handle_t team,
-		        void *dst,
-		        gasnet_image_t srcimage, void *src,
-		        size_t nbytes, int flags, uint32_t sequence
-                        GASNETE_THREAD_FARG);
+GASNETE_COLL_DECLARE_SCATTER_ALG(Get);
+GASNETE_COLL_DECLARE_SCATTER_ALG(Put);
+GASNETE_COLL_DECLARE_SCATTER_ALG(TreePut);
+GASNETE_COLL_DECLARE_SCATTER_ALG(TreePutNoCopy);
+GASNETE_COLL_DECLARE_SCATTER_ALG(TreePutSeg);
+GASNETE_COLL_DECLARE_SCATTER_ALG(TreeEager);
+GASNETE_COLL_DECLARE_SCATTER_ALG(Eager);
+GASNETE_COLL_DECLARE_SCATTER_ALG(RVGet);
+GASNETE_COLL_DECLARE_SCATTER_ALG(RVous);
 
 /*---------------------------------------------------------------------------------*/
 
-extern gasnet_coll_handle_t
-gasnete_coll_scatM_Get(gasnet_team_handle_t team,
-		       void * const dstlist[],
-		       gasnet_image_t srcimage, void *src,
-		       size_t nbytes, int flags, uint32_t sequence
-                       GASNETE_THREAD_FARG);
+#define GASNETE_COLL_DECLARE_SCATTERM_ALG(FUNC_EXT)\
+extern gasnet_coll_handle_t \
+gasnete_coll_scatM_##FUNC_EXT(gasnet_team_handle_t team,\
+                              void * const dstlist[],\
+                              gasnet_image_t srcimage, void *src,\
+                              size_t nbytes, size_t dist, int flags,\
+                              gasnete_coll_implementation_t coll_params,\
+                              uint32_t sequence\
+                              GASNETE_THREAD_FARG)
 
-extern gasnet_coll_handle_t
-gasnete_coll_scatM_Put(gasnet_team_handle_t team,
-		       void * const dstlist[],
-		       gasnet_image_t srcimage, void *src,
-		       size_t nbytes, int flags, uint32_t sequence
-                       GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_scatM_TreePut(gasnet_team_handle_t team,
-                              void * const dstlist[],
-                              gasnet_image_t srcimage, void *src,
-                              size_t nbytes, size_t dist, int flags, 
-                              gasnete_coll_tree_type_t tree_type,    
-                              uint32_t sequence
-                              GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_scatM_TreePutNoCopy(gasnet_team_handle_t team,
-                                 void * const dstlist[],
-                                 gasnet_image_t srcimage, void *src,
-                                 size_t nbytes, size_t dist, int flags, 
-                                 gasnete_coll_tree_type_t tree_type,    
-                                 uint32_t sequence
-                                 GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_scatM_TreePutSeg(gasnet_team_handle_t team,
-                              void * const dstlist[],
-                              gasnet_image_t srcimage, void *src,
-                              size_t nbytes, int flags, 
-                              gasnete_coll_tree_type_t tree_type,    
-                              uint32_t sequence
-                              GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_scatM_Eager(gasnet_team_handle_t team,
-		         void * const dstlist[],
-		         gasnet_image_t srcimage, void *src,
-		         size_t nbytes, int flags, uint32_t sequence
-                         GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_scatM_RVGet(gasnet_team_handle_t team,
-		         void * const dstlist[],
-		         gasnet_image_t srcimage, void *src,
-		         size_t nbytes, int flags, uint32_t sequence
-                         GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_scatM_RVous(gasnet_team_handle_t team,
-		         void * const dstlist[],
-		         gasnet_image_t srcimage, void *src,
-		         size_t nbytes, int flags, uint32_t sequence
-                         GASNETE_THREAD_FARG);
+GASNETE_COLL_DECLARE_SCATTERM_ALG(Get);
+GASNETE_COLL_DECLARE_SCATTERM_ALG(Put);
+GASNETE_COLL_DECLARE_SCATTERM_ALG(TreePut);
+GASNETE_COLL_DECLARE_SCATTERM_ALG(TreePutNoCopy);
+GASNETE_COLL_DECLARE_SCATTERM_ALG(TreePutSeg);
+GASNETE_COLL_DECLARE_SCATTERM_ALG(TreeEager);
+GASNETE_COLL_DECLARE_SCATTERM_ALG(Eager);
+GASNETE_COLL_DECLARE_SCATTERM_ALG(RVGet);
+GASNETE_COLL_DECLARE_SCATTERM_ALG(RVous);
 
 /*---------------------------------------------------------------------------------*/
 

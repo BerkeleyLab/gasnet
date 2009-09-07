@@ -47,7 +47,8 @@ typedef enum {GASNETE_COLL_NONO=0, GASNETE_COLL_NOMY, GASNETE_COLL_NOALL,
 GASNETE_COLL_ALLNO, GASNETE_COLL_ALLMY, GASNETE_COLL_ALLALL, GASNETE_COLL_NUM_SYNCMODES}
   gasnete_coll_syncmode_t;
 
-typedef enum {GASNETE_COLL_SINGLE_MODE=0, GASNETE_COLL_LOCAL_MODE, GASNETE_COLL_NUM_ADDRMODES} gasnete_coll_addr_mode_t;
+typedef enum {GASNETE_COLL_SINGLE_MODE=0, GASNETE_COLL_LOCAL_MODE, GASNETE_COLL_THREAD_LOCAL_MODE, 
+  GASNETE_COLL_NUM_ADDRMODES} gasnete_coll_addr_mode_t;
 
 
   
@@ -68,6 +69,23 @@ typedef gasnet_coll_handle_t (*gasnete_coll_bcastM_fn_ptr_t)(gasnet_team_handle_
                                                              gasnete_coll_implementation_t coll_params, 
                                                              uint32_t sequence
                                                              GASNETE_THREAD_FARG);
+
+typedef gasnet_coll_handle_t (*gasnete_coll_scatter_fn_ptr_t)(gasnet_team_handle_t team,
+                                                           void *dst,
+                                                           gasnet_image_t srcimage, void *src,
+                                                           size_t nbytes, size_t dist, int flags,
+                                                           gasnete_coll_implementation_t coll_params,
+                                                           uint32_t sequence
+                                                           GASNETE_THREAD_FARG);
+
+
+typedef gasnet_coll_handle_t (*gasnete_coll_scatterM_fn_ptr_t)(gasnet_team_handle_t team,
+                                                              void * const dstlist[],
+                                                              gasnet_image_t srcimage, void *src,
+                                                              size_t nbytes, size_t dist, int flags,
+                                                              gasnete_coll_implementation_t coll_params,
+                                                              uint32_t sequence
+                                                              GASNETE_THREAD_FARG);
 
 typedef gasnet_coll_handle_t (*gasnete_coll_reduce_fn_ptr_t) (gasnet_team_handle_t team,
                                                               gasnet_image_t dstimage, void *dst,
@@ -124,8 +142,35 @@ typedef enum {GASNETE_COLL_BROADCASTM_GET=0,
               /*check to see if the conduits have defined any new ops*/
               GASNETE_COLL_BROADCASTM_NUM_ALGS} gasnete_coll_broadcastM_alg_types_t;
 
-typedef enum {GASNETE_COLL_SCATTER_NUM_ALGS=0} gasnete_coll_scatter_alg_types_t;
-typedef enum {GASNETE_COLL_SCATTERM_NUM_ALGS=0} gasnete_coll_scatterM_alg_types_t;
+typedef enum {GASNETE_COLL_SCATTER_GET=0,
+  GASNETE_COLL_SCATTER_PUT,
+  GASNETE_COLL_SCATTER_TREE_PUT,
+  GASNETE_COLL_SCATTER_TREE_PUT_NO_COPY,
+  GASNETE_COLL_SCATTER_TREE_PUT_SEG,
+  GASNETE_COLL_SCATTER_TREE_EAGER,
+  GASNETE_COLL_SCATTER_EAGER,
+  GASNETE_COLL_SCATTER_RVGET,
+  GASNETE_COLL_SCATTER_RVOUS,
+#ifdef GASNETE_COLL_CONDUIT_SCATTER_OPS
+  /*check to see if the conduits have defined any new ops*/
+  GASNETE_COLL_CONDUIT_SCATTER_OPS ,
+#endif
+  GASNETE_COLL_SCATTER_NUM_ALGS} gasnete_coll_scatter_alg_types_t;
+
+typedef enum {GASNETE_COLL_SCATTERM_GET=0,
+  GASNETE_COLL_SCATTERM_PUT,
+  GASNETE_COLL_SCATTERM_TREE_PUT,
+  GASNETE_COLL_SCATTERM_TREE_PUT_NO_COPY,
+  GASNETE_COLL_SCATTERM_TREE_PUT_SEG,
+  GASNETE_COLL_SCATTERM_TREE_EAGER,
+  GASNETE_COLL_SCATTERM_EAGER,
+  GASNETE_COLL_SCATTERM_RVGET,
+  GASNETE_COLL_SCATTERM_RVOUS,
+#ifdef GASNETE_COLL_CONDUIT_SCATTERM_OPS
+  /*check to see if the conduits have defined any new ops*/
+  GASNETE_COLL_CONDUIT_SCATTERM_OPS ,
+#endif
+  GASNETE_COLL_SCATTERM_NUM_ALGS} gasnete_coll_scatterM_alg_types_t;
 
 typedef enum {GASNETE_COLL_GATHER_NUM_ALGS=0} gasnete_coll_gather_alg_types_t;
 typedef enum {GASNETE_COLL_GATHERM_NUM_ALGS=0} gasnete_coll_gatherM_alg_types_t;
@@ -222,6 +267,8 @@ typedef struct gasnete_coll_allgorithm_t_ {
     void *generic_coll_fn_ptr;
     gasnete_coll_bcast_fn_ptr_t bcast_fn;
     gasnete_coll_bcastM_fn_ptr_t bcastM_fn;
+    gasnete_coll_scatter_fn_ptr_t scatter_fn;
+    gasnete_coll_scatterM_fn_ptr_t scatterM_fn;
     gasnete_coll_reduce_fn_ptr_t reduce_fn;
     gasnete_coll_reduceM_fn_ptr_t reduceM_fn;
   } fn_ptr;
@@ -306,6 +353,11 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_t
 
 gasnete_coll_implementation_t gasnete_coll_autotune_get_bcastM_algorithm(gasnet_team_handle_t team, void * const dstlist[],
                                                                          gasnet_image_t srcimage, void *src, size_t nbytes, uint32_t flags GASNETE_THREAD_FARG);
+
+gasnete_coll_implementation_t gasnete_coll_autotune_get_scatter_algorithm(gasnet_team_handle_t team, void *dst, gasnet_image_t srcimage, void *src, size_t nbytes, size_t dist, uint32_t flags  GASNETE_THREAD_FARG);
+
+gasnete_coll_implementation_t gasnete_coll_autotune_get_scatterM_algorithm(gasnet_team_handle_t team, void * const dstlist[], gasnet_image_t srcimage, 
+                                             void *src, size_t nbytes, size_t dist, uint32_t flags  GASNETE_THREAD_FARG);
 
 gasnete_coll_implementation_t gasnete_coll_autotune_get_reduce_algorithm(gasnet_team_handle_t team, gasnet_image_t dstimage, void *dst, void *src,
                                                                           size_t src_blksz, size_t src_offset, size_t elem_size, size_t elem_count,

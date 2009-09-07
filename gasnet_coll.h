@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2009/09/04 05:13:14 $
- * $Revision: 1.53.12.16.2.2 $
+ *     $Date: 2009/09/07 01:10:25 $
+ * $Revision: 1.53.12.16.2.3 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -297,6 +297,7 @@ typedef struct gasnet_coll_args_t_ {
   size_t elem_size; 
   /*elem count will be nbytes / elem_size*/
   size_t nbytes;
+  size_t dist;
   gasnet_coll_fn_handle_t func; 
   int func_arg;
 } gasnet_coll_args_t;
