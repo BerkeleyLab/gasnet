@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/09/07 21:32:10 $
- * $Revision: 1.57.6.49 $
+ *     $Date: 2009/09/07 23:04:28 $
+ * $Revision: 1.57.6.50 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -686,6 +686,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
           sum = 0; done = 1;
           for (i = 0; i < gasneti_pshm_nodes; ++i) {
             tmp_se[i] = _gasneti_mmap_segment_search_inner(maxsz);
+            (void)shm_unlink(gasneti_pshmname[gasneti_pshm_mynode]);
             sum += tmp_se[i].size;
 	    if (tmp_se[i].size != maxsz) {
 	      done = 0;
