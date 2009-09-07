@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/09/07 03:26:12 $
- * $Revision: 1.57.6.45 $
+ *     $Date: 2009/09/07 09:03:51 $
+ * $Revision: 1.57.6.46 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -253,6 +253,16 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
   }
 
   gasneti_mmapfd = shm_open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+#if PLATFORM_OS_DARWIN
+  if ((gasneti_mmapfd == -1) && (errno == EEXIST)) {
+    /* Work around Darwin stupidity observed by Filip */
+    int retries_remain = 32;
+    do {
+      gasneti_sched_yield();
+      gasneti_mmapfd = shm_open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+    } while ((gasneti_mmapfd == -1) && (errno == EEXIST) && retries_remain--);
+  }
+#endif
   if (gasneti_mmapfd == -1) {
     gasneti_fatalerror("failed to shm_open(%s): %s\n",filename,strerror(errno));
   }
