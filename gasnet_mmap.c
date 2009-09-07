@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/09/06 04:36:43 $
- * $Revision: 1.57.6.44 $
+ *     $Date: 2009/09/07 03:26:12 $
+ * $Revision: 1.57.6.45 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1454,6 +1454,16 @@ void gasneti_auxseg_attach(void) {
   gasneti_assert(gasneti_auxsegfns[numfns] == NULL);
   gasneti_seginfo_client = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
 
+  if (gasneti_nodemap) {
+    for (i=0; i < gasneti_nodes; i++) {
+      gasneti_seginfo_client[i].nodeinfo = gasneti_nodemap[i];
+    }
+  } else {
+    for (i=0; i < gasneti_nodes; i++) {
+      gasneti_seginfo_client[i].nodeinfo = (gasnet_node_t)-1;
+    }
+  }
+
   /* point si at the auxseg */
   #if GASNET_SEGMENT_EVERYTHING
   { /* need to packetize this broadcast to avoid overflowing max medium with high node count */
@@ -1482,7 +1492,6 @@ void gasneti_auxseg_attach(void) {
       #if GASNET_PSHM
         gasneti_seginfo_client[j].remote_addr = (void *)(((uintptr_t)gasneti_seginfo[j].remote_addr) + gasneti_auxseg_sz);
         gasneti_seginfo_client[j].remote_size = gasneti_seginfo[j].remote_size - gasneti_auxseg_sz;
-        gasneti_seginfo_client[j].nodeinfo = gasneti_nodemap[j];
       #endif
       #if GASNETI_FORCE_CLIENTSEG_TO_BASE
         gasneti_seginfo_client[j].addr = gasneti_seginfo[j].addr;
