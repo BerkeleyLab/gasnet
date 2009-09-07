@@ -19,7 +19,7 @@
 
 #define SHM_NAME "/posixshmemelem"
 
-#define MEGABYTE (1024*1024)
+#define MEGABYTE (1024*1024LU)
 
 int main(int argc, char **argv)
 {
@@ -36,16 +36,16 @@ int main(int argc, char **argv)
 	}
 	if (ftruncate(fd, sz) == -1) {
 	    perror("error in ftruncate");
-	    printf("Biggest size was %ld (%ld MB)\n", gotsz , gotsz/MEGABYTE);
+	    printf("Biggest size was %lu (%lu MB)\n", (unsigned long)gotsz , (unsigned long)gotsz/MEGABYTE);
 	    exit (-1);
 	}
 	addr = mmap(NULL, sz, PROT_READ|PROT_WRITE, MAP_SHARED, fd, 0);
 	if (!addr) {
 	    perror("error in mmap");
-	    printf("Biggest size was %ld (%ld MB)\n", gotsz , gotsz/MEGABYTE);
+	    printf("Biggest size was %lu (%lu MB)\n", (unsigned long)gotsz , (unsigned long)gotsz/MEGABYTE);
 	    exit (-1);
 	}
-	printf("got region of %ld bytes (%ld MB)\n", (long)sz , sz/MEGABYTE);
+	printf("got region of %lu bytes (%lu MB)\n", (unsigned long)sz , (unsigned long)sz/MEGABYTE);
 	close(fd);
 	munmap(addr, sz);
 	shm_unlink(SHM_NAME);
