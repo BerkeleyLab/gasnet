@@ -34,6 +34,7 @@ int main(int argc, char **argv)
 	    perror("error in shm_open");
 	    exit (-1);
 	}
+	shm_unlink(SHM_NAME);
 	if (ftruncate(fd, sz) == -1) {
 	    perror("error in ftruncate");
 	    printf("Biggest size was %lu (%lu MB)\n", (unsigned long)gotsz , (unsigned long)gotsz/MEGABYTE);
@@ -48,7 +49,6 @@ int main(int argc, char **argv)
 	printf("got region of %lu bytes (%lu MB)\n", (unsigned long)sz , (unsigned long)sz/MEGABYTE);
 	close(fd);
 	munmap(addr, sz);
-	shm_unlink(SHM_NAME);
 	gotsz = sz;
     }
 
