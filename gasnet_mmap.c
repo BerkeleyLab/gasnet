@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/09/07 21:00:19 $
- * $Revision: 1.57.6.48 $
+ *     $Date: 2009/09/07 21:32:10 $
+ * $Revision: 1.57.6.49 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -243,11 +243,12 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
 
   /* 0-byte failure modes can vary by implemenation */
   if (!segsize) {
-    char *tmp;
-    if (may_fail) return MAP_FAILED;
-    tmp = gasneti_strdup(filename); /* filename is free()ed in cleanup */
-    gasneti_cleanup_shm();
-    gasneti_fatalerror("failed to setup 0-byte shared memory file %s",tmp);
+    if (!may_fail) {
+      char *tmp = gasneti_strdup(filename); /* filename is free()ed in cleanup */
+      gasneti_cleanup_shm();
+      gasneti_fatalerror("failed to setup 0-byte shared memory file %s",tmp);
+    }
+    return MAP_FAILED;
   }
 
   gasneti_mmapfd = shm_open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
@@ -272,11 +273,14 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
 
   if (gasneti_mmap_stretch(gasneti_mmapfd, segsize)) {
     int save_errno = errno;
-    char *tmp;
-    if (may_fail) return MAP_FAILED;
-    tmp = gasneti_strdup(filename); /* filename is free()ed in cleanup */
-    gasneti_cleanup_shm();
-    gasneti_fatalerror("failed to set shared memory file %s to %lu bytes: %s",tmp,(unsigned long)segsize,strerror(save_errno));
+    (void)close(gasneti_mmapfd);
+    if (!may_fail) {
+      char *tmp = gasneti_strdup(filename); /* filename is free()ed in cleanup */
+      gasneti_cleanup_shm();
+      gasneti_fatalerror("failed to set shared memory file %s to %lu bytes: %s",tmp,(unsigned long)segsize,strerror(save_errno));
+    }
+    errno = save_errno;
+    return MAP_FAILED;
   }
  
   t1 = gasneti_ticks_now();
