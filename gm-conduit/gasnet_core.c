@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2009/09/01 20:46:47 $
- * $Revision: 1.124.10.3 $
+ * $Date: 2009/09/07 02:22:21 $
+ * $Revision: 1.124.10.4 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -92,6 +92,10 @@ gasnetc_init(int *argc, char ***argv)
         gasneti_nodemapInit(NULL, &_gmc.gm_nodes[0].id,
                             sizeof(_gmc.gm_nodes[0].id),
                             sizeof(_gmc.gm_nodes[0]));
+
+        #if GASNET_PSHM
+          gasneti_pshm_init(&gasnetc_bootstrapExchange, 0);
+        #endif
 
 	gasnetc_bootstrapBarrier();
 	gasneti_init_done = 1; /* Not really done, but need getenv internally */
@@ -1255,18 +1259,24 @@ MEDIUM_HANDLER(gasnetc_am_medcopy,1,2,
 */
 extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
   gasnet_node_t sourceid;
-  gasnetc_bufdesc_t *bufd;
 
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
 
-  bufd = (gasnetc_bufdesc_t *) token;
   if ((void *)token == (void *)-1) {
-	  *srcindex = gasneti_mynode;
-	  return GASNET_OK;
+    /* Need this even in presence of GASNET_PSHM, due to System category AMs */
+    sourceid = gasneti_mynode;
   }
-  if_pf (!bufd->gm_id) GASNETI_RETURN_ERRR(BAD_ARG, "No GM receive event");
-  sourceid = bufd->node;
+#if GASNET_PSHM
+  else if (gasneti_AMPSHMGetMsgSource(token, &sourceid) == GASNET_OK) {
+    /* Empty */
+  }
+#endif
+  else {
+    gasnetc_bufdesc_t *bufd = (gasnetc_bufdesc_t *) token;
+    if_pf (!bufd->gm_id) GASNETI_RETURN_ERRR(BAD_ARG, "No GM receive event");
+    sourceid = bufd->node;
+  }
 
   gasneti_assert(sourceid < gasneti_nodes);
   *srcindex = sourceid;
@@ -1289,6 +1299,15 @@ gasnetc_AMRequestShortM(gasnet_node_t dest, gasnet_handler_t handler,
         GASNETI_COMMON_AMREQUESTSHORT(dest,handler,numargs);
 	va_start(argptr, numargs);
 
+#if GASNET_PSHM
+	if_pt (gasneti_pshm_in_supernode(dest)) { /* Includes loopback */
+		int retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Short, dest, handler,
+							   0, 0, 0,
+							   numargs, argptr);
+		va_end(argptr);
+		return retval;
+	}
+#else
 	if (dest == gasneti_mynode) { /* local handler */
 		int argbuf[GASNETC_AM_MAX_ARGS];
                 gasnet_token_t token = (void *) -1;
@@ -1296,6 +1315,7 @@ gasnetc_AMRequestShortM(gasnet_node_t dest, gasnet_handler_t handler,
 		GASNETI_RUN_HANDLER_SHORT(1, handler, _gmc.handlers[handler], token, 
 					  argbuf, numargs);
 	}
+#endif
 	else {
 		bufd = gasnetc_AMRequestPool_block();
 		len = gasnetc_write_AMBufferShort(bufd->buf, handler, numargs, 
@@ -1321,6 +1341,15 @@ extern int gasnetc_AMRequestMediumM(
   va_start(argptr, numargs); /*  pass in last argument */
 
   gasneti_assert(nbytes <= GASNETC_AM_MEDIUM_MAX);
+#if GASNET_PSHM
+  if_pt (gasneti_pshm_in_supernode(dest)) { /* Includes loopback */
+    int retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Medium, dest, handler,
+                                               source_addr, nbytes, 0,
+                                               numargs, argptr);
+    va_end(argptr);
+    return retval;
+  }
+#else
   if (dest == gasneti_mynode) { /* local handler */
     void *loopbuf;
     int argbuf[GASNETC_AM_MAX_ARGS];
@@ -1332,6 +1361,7 @@ extern int gasnetc_AMRequestMediumM(
     GASNETI_RUN_HANDLER_MEDIUM(1, handler, _gmc.handlers[handler], token,
 				argbuf, numargs, loopbuf, nbytes);
   }
+#endif
   else {
     bufd = gasnetc_AMRequestPool_block();
     len = gasnetc_write_AMBufferMedium(bufd->buf, handler, numargs, argptr, 
@@ -1491,6 +1521,15 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 
 	gasneti_assert(nbytes <= GASNETC_AM_LONG_REQUEST_MAX);
 
+#if GASNET_PSHM
+	if_pt (gasneti_pshm_in_supernode(dest)) { /* Includes loopback */
+		int retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Long, dest, handler,
+							   source_addr, nbytes, dest_addr,
+							   numargs, argptr);
+		va_end(argptr);
+		return retval;
+	}
+#else
 	if (dest == gasneti_mynode) {
 		int	argbuf[GASNETC_AM_MAX_ARGS];
                 gasnet_token_t token = (void *) -1;
@@ -1500,6 +1539,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 		GASNETI_RUN_HANDLER_LONG(1, handler, _gmc.handlers[handler], token, 
 		    argbuf, numargs, dest_addr, nbytes);
 	}
+#endif
 	else {
 		/* XXX gasneti_assert(GASNET_LONG_OFFSET >= LONG_HEADER) */
 		if_pt (nbytes > 0) { /* Handle zero-length messages */
@@ -1554,6 +1594,15 @@ gasnetc_AMRequestLongAsyncM(
         GASNETI_COMMON_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs);
 	va_start(argptr, numargs); /*  pass in last argument */
 
+#if GASNET_PSHM
+	if_pt (gasneti_pshm_in_supernode(dest)) { /* Includes loopback */
+		int retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Long, dest, handler,
+							   source_addr, nbytes, dest_addr,
+							   numargs, argptr);
+		va_end(argptr);
+		return retval;
+	}
+#else
 	if (dest == gasneti_mynode) {
 		int	argbuf[GASNETC_AM_MAX_ARGS];
                 gasnet_token_t token = (void *) -1;
@@ -1565,6 +1614,7 @@ gasnetc_AMRequestLongAsyncM(
 		va_end(argptr);
 		return GASNET_OK;
 	}
+#endif
 
 	/* If length is below the packed long limit, or the remote local is not pinned,
 	 * then we send using packed longs, or AMMedium payloads, respectively */
@@ -1801,12 +1851,22 @@ gasnetc_AMReplyShortM(gasnet_token_t token, gasnet_handler_t handler,
         GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
 	va_start(argptr, numargs); /*  pass in last argument */
 
+#if GASNET_PSHM
+	if_pt (gasnetc_token_is_pshm(token)) { /* Includes loopback */
+		int retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Short, token, handler,
+							 0, 0, 0,
+							 numargs, argptr);
+		va_end(argptr);
+		return retval;
+	}
+#else
 	if ((void *)token == (void*)-1) { /* local handler */
 		int argbuf[GASNETC_AM_MAX_ARGS];
 		GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
 		GASNETI_RUN_HANDLER_SHORT(0, handler, _gmc.handlers[handler], 
 				          token, argbuf, numargs);
 	}
+#endif
 	else {
 		bufd = gasnetc_bufdesc_from_token(token);
 		bufd->len = 
@@ -1838,6 +1898,15 @@ extern int gasnetc_AMReplyMediumM(
   va_start(argptr, numargs); /*  pass in last argument */
 
   gasneti_assert(nbytes <= GASNETC_AM_MEDIUM_MAX);
+#if GASNET_PSHM
+  if_pt (gasnetc_token_is_pshm(token)) { /* Includes loopback */
+    int retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Medium, token, handler,
+                                             source_addr, nbytes, 0,
+                                             numargs, argptr);
+    va_end(argptr);
+    return retval;
+  }
+#else
   if ((void *)token == (void *)-1) { /* local handler */
     int argbuf[GASNETC_AM_MAX_ARGS];
     void *loopbuf;
@@ -1847,7 +1916,9 @@ extern int gasnetc_AMReplyMediumM(
     GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
     GASNETI_RUN_HANDLER_MEDIUM(0, handler, _gmc.handlers[handler], token,
 				argbuf, numargs, loopbuf, nbytes);
-  } else {
+  }
+#endif
+  else {
     bufd = gasnetc_bufdesc_from_token(token);
     bufd->len = 
 	    gasnetc_write_AMBufferMedium(bufd->buf, handler, numargs, 
@@ -1881,6 +1952,15 @@ extern int gasnetc_AMReplyLongM(
         GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
 	va_start(argptr, numargs); /*  pass in last argument */
 	gasneti_assert(nbytes <= GASNETC_AM_LONG_REPLY_MAX);
+#if GASNET_PSHM
+	if_pt (gasnetc_token_is_pshm(token)) { /* Includes loopback */
+		int retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Long, token, handler,
+							 source_addr, nbytes, dest_addr,
+							 numargs, argptr);
+		va_end(argptr);
+		return retval;
+	}
+#else
 	if ((void *)token == (void *)-1) {
 		int	argbuf[GASNETC_AM_MAX_ARGS];
 		GASNETC_ARGS_WRITE(argbuf, argptr, numargs);
@@ -1888,6 +1968,7 @@ extern int gasnetc_AMReplyLongM(
 		GASNETI_RUN_HANDLER_LONG(0, handler, _gmc.handlers[handler], token, 
 		    argbuf, numargs, dest_addr, nbytes);
 	}
+#endif
 	else {
 		uintptr_t	pbuf;
 		unsigned int	len;
@@ -1996,6 +2077,16 @@ gasnetc_AMReplyLongAsyncM(
 	va_start(argptr, numargs); /*  pass in last argument */
 	GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,
 	    numargs);
+
+#if GASNET_PSHM
+	if_pt (gasnetc_token_is_pshm(token)) { /* Includes loopback */
+	    int retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Long, token, handler,
+						     source_addr, nbytes, dest_addr,
+						     numargs, argptr);
+	    va_end(argptr);
+	    return GASNET_OK;
+	}
+#endif
 
 	bufd = gasnetc_bufdesc_from_token(token);
 	len =

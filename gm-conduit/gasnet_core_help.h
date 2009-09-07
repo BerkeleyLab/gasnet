@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_help.h,v $
- * $Date: 2006/05/23 12:42:21 $
- * $Revision: 1.44 $
+ * $Date: 2009/09/07 02:22:21 $
+ * $Revision: 1.44.46.1 $
  * Description: GASNet gm conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -173,13 +173,17 @@ GASNETI_BEGIN_EXTERNC
 
 /* -------------------------------------------------------------------------- */
 /* Maximum sizes for mediums and Longs */
-#define GASNETC_AM_MEDIUM_MAX                                     \
+#define GASNETC_AM_MEDIUM_MAX_                                    \
 		(GASNETC_AM_PACKET -                              \
 		 GASNETC_AM_MEDIUM_HEADER_LEN(GASNETC_AM_MAX_ARGS))
+#if GASNET_PSHM
+  #define GASNETC_AM_MEDIUM_MAX MIN(GASNETC_AM_MEDIUM_MAX_, GASNETI_MAX_MEDIUM_PSHM)
+#else
+  #define GASNETC_AM_MEDIUM_MAX GASNETC_AM_MEDIUM_MAX_
+#endif 
 #define GASNETC_AM_LONG_REPLY_MAX   (GASNETC_AM_LEN - GASNETC_LONG_OFFSET)
 #define GASNETC_AM_LONG_REQUEST_MAX (3*GASNETC_AM_LEN - GASNETC_LONG_OFFSET)
 
-#define GASNETC_AM_MAX_NON_DMA_PAYLOAD	((GM_MTU-8)-GASNETC_AM_MEDIUM_MAX)
 #define GASNETC_AM_SYSTEM_MAX GASNETC_AM_MEDIUM_MAX
 /* -------------------------------------------------------------------------- */
 #define GASNETC_AM_NUMARGS(c)   (((c) >> 1) & 0x1f)

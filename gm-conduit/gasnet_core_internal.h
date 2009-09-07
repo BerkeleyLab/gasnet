@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_internal.h,v $
- * $Date: 2009/09/02 07:57:00 $
- * $Revision: 1.76.16.3 $
+ * $Date: 2009/09/07 02:22:21 $
+ * $Revision: 1.76.16.4 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -799,5 +799,13 @@ typedef enum {
   gasnetc_Medium=1,
   gasnetc_Long=2
 } gasnetc_category_t;
+
+/* -------------------------------------------------------------------------- */
+#if GASNET_PSHM
+  /* ?: ensures this can't be misused as a lvalue */
+  #define gasnetc_get_handler(_idx) (1 ? _gmc.handlers[(_idx)] : NULL)
+#endif
+
+/* -------------------------------------------------------------------------- */
 
 #endif
