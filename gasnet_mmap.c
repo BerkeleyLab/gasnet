@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/09/07 09:03:51 $
- * $Revision: 1.57.6.46 $
+ *     $Date: 2009/09/07 19:35:20 $
+ * $Revision: 1.57.6.47 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -136,9 +136,6 @@ static gasnet_pshmname_t *gasneti_pshmname = NULL; /* length 1+gasneti_pshm_node
 static char *gasneti_pshm_tmpfile = NULL;
 #define GASNETI_PSHM_PREFIX_LEN1  6  /* "/GASNT" */
 #define GASNETI_PSHM_PREFIX_LEN   (GASNETI_PSHM_PREFIX_LEN1 + GASNETI_PSHM_UNIQUE_LEN)
-
-static void make_pshm_name(int index, char *filename) {
-}
 
 extern const char *gasneti_pshm_makenames(const char *unique) {
   static char prefix[] = "/GASNTXXXXXX";
