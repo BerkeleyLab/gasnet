@@ -504,8 +504,8 @@ int main(int argc, char **argv) {
     run_bcast_test(sz, iters, 0);
     run_int_reduce_test(sz, iters, 1);
     run_int_reduce_test(sz, iters, 0);
-    //    run_scatter_test(sz, iters,1);
-    //  run_scatter_test(sz, iters,0);
+    run_scatter_test(sz, iters,1);
+    run_scatter_test(sz, iters,0);
     //   run_gather_test(sz, iters, 1);
     //  run_gather_test(sz, iters, 0);
     // run_all_to_all_test(sz, iters);
