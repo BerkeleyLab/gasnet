@@ -19,6 +19,7 @@
 
 #define GASNETE_COLL_DEFAULT_TREE_TYPE_STR "KNOMIAL_TREE,2"
 #define GASNETE_COLL_DEFAULT_DISSEM_LIMIT_PER_THREAD 1024
+#include <../other/myxml/myxml.h>
 #include <gasnet_coll.h>
 
 /*returns the implementation of the collectives including all the parameters to the algorithm*/
@@ -319,7 +320,7 @@ struct gasnete_coll_autotune_info_t_ {
 
 gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t team, gasnet_node_t mynode, gasnet_node_t total_nodes, 
                                                          gasnet_image_t my_images, gasnet_image_t total_images, 
-                                                         size_t min_scratch_size);
+                                                         size_t min_scratch_size GASNETE_THREAD_FARG);
 /*testing functions*/
 
 gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type(gasnete_coll_autotune_info_t* autotune_info, 
@@ -373,7 +374,7 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_reduceM_algorithm(gasnet
 
 gasnete_coll_implementation_t gasnete_coll_lookup_implementation(gasnete_coll_autotune_info_t* autotune_info, 
                                                                  gasnet_coll_optype_t optype, gasnete_coll_syncmode_t syncmode, gasnete_coll_addr_mode_t, size_t nbytes);
-gasnete_coll_autotune_index_entry_t *gasnete_coll_load_autotuner_defaults(gasnete_coll_autotune_info_t* autotune_info, const char *filename);
+gasnete_coll_autotune_index_entry_t *gasnete_coll_load_autotuner_defaults(gasnete_coll_autotune_info_t* autotune_info, myxml_node_t *tuning_data);
 
 gasnete_coll_implementation_t gasnete_coll_get_implementation();
 void gasnete_coll_free_implementation(gasnete_coll_implementation_t in);

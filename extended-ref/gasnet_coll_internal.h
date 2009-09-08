@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/09/07 01:10:27 $
- * $Revision: 1.53.14.31.2.6 $
+ *     $Date: 2009/09/08 05:44:02 $
+ * $Revision: 1.53.14.31.2.7 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -30,6 +30,7 @@
 #define GASNETE_COLL_USE_SCRATCH_DISSSEM (1<<26)
 #define GASNETE_COLL_USE_TREE		 (1<<25)
 #define GASNETE_COLL_NONROOT_SUBORDINATE (1<<24)
+
 
 #define GASNETE_COLL_IN_MODE(flags) \
 ((flags) & (GASNET_COLL_IN_NOSYNC  | GASNET_COLL_IN_MYSYNC  | GASNET_COLL_IN_ALLSYNC))
@@ -1361,6 +1362,7 @@ extern void gasnete_coll_threads_delete(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 GASNETI_INLINE(gasnete_coll_generic_all_threads)
 int gasnete_coll_generic_all_threads(gasnete_coll_generic_data_t *data) {
   int result;
+  /*no other threads will be calling this so trivially true*/
   gasneti_assert(data != NULL);
   /*make sure we are reading a positive value*/
   gasneti_assert((int)gasneti_atomic_read(&data->threads.remaining, 0) >= 0);

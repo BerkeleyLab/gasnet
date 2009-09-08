@@ -30,6 +30,12 @@ struct myxml_node_t_{
   int id;
 };
 
+typedef struct myxml_bytstream_t_ {
+  char* bytes;
+  size_t offset;
+  size_t size;
+} myxml_bytestream_t;
+
 typedef struct myxml_node_t_ myxml_node_t;
 typedef struct myxml_node_t_ *myxml_nodeptr_t;
 
@@ -43,7 +49,12 @@ void myxml_addAttributeInt(myxml_node_t *node, const char *attribute_name, int a
 void myxml_printTreeXML(FILE *outstream, myxml_node_t *node, const char *whitespace);
 void myxml_printTreeBIN(FILE *outstream, myxml_node_t *node);
 
+
+myxml_bytestream_t myxml_loadFile_into_bytestream(FILE *instream);
 myxml_node_t* myxml_loadTreeBIN(FILE *instream);
+myxml_node_t* myxml_loadTreeBYTESTREAM(char *bytes, size_t nbytes);
+
+
 #define MYXML_PARENT(NODEPTR) ((NODEPTR)->parent)
 #define MYXML_CHILDREN(NODEPTR) ((NODEPTR)->children)
 #define MYXML_NUM_CHILDREN(NODEPTR) ((NODEPTR)->num_children)

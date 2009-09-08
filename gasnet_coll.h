@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2009/09/07 01:10:25 $
- * $Revision: 1.53.12.16.2.3 $
+ *     $Date: 2009/09/08 05:44:00 $
+ * $Revision: 1.53.12.16.2.4 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -47,6 +47,7 @@ GASNETI_BEGIN_EXTERNC
 
 
 #define GASNET_COLL_DISABLE_AUTOTUNE (1<<18)
+#define GASNET_COLL_NO_IMAGES (1<<19)
 
 /* (prefix-)reduction function flags */
 #define GASNET_COLL_AMSAFE	(1<<0)
@@ -282,8 +283,13 @@ typedef enum {GASNET_COLL_PIPE_SEG_SIZE, GASNET_COLL_DISSEM_RADIX, GASNET_COLL_T
 
 typedef void (*gasnet_coll_overlap_sample_work_t)(void *arg);
 
-#define gasnet_coll_dumpTuningState(FILENAME, TEAM) gasnete_coll_dumpTuningState(FILENAME, TEAM GASNETE_THREAD_GET)
+
+void gasnete_coll_loadTuningState(char *filename, gasnete_coll_team_t team GASNETE_THREAD_FARG);
+#define gasnet_coll_loadTuningState(FILENAME, TEAM) gasnete_coll_loadTuningState(FILENAME, TEAM GASNETE_THREAD_GET)
+
+
 void gasnete_coll_dumpTuningState(char *filename, gasnete_coll_team_t team GASNETE_THREAD_FARG);
+#define gasnet_coll_dumpTuningState(FILENAME, TEAM) gasnete_coll_dumpTuningState(FILENAME, TEAM GASNETE_THREAD_GET)
 
 #define gasnet_coll_tune_generic_op(team, op, coll_args, flags, fnptr, work_arg, best_algidx, num_params, best_param, best_tree) \
 gasnete_coll_tune_generic_op(team, op, coll_args, flags, fnptr, work_arg, best_algidx, num_params, best_param,  best_tree GASNETE_THREAD_GET)

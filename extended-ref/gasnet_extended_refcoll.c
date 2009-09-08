@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/09/07 01:10:28 $
- * $Revision: 1.72.10.49.2.6 $
+ *     $Date: 2009/09/08 05:44:02 $
+ * $Revision: 1.72.10.49.2.7 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2110,7 +2110,7 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
   gasneti_assert(td->my_local_image == 0);
   /*if all the threads don't poll by definition this one is the first thread so do some house keeping to get the thread local sequence correct*/
   /*this is an error if this isn't the first thread calling the function*/
-  if(!(flags & GASNETE_COLL_SUBORDINATE)) {
+  if(!(flags & GASNETE_COLL_SUBORDINATE) && !(flags & GASNET_COLL_NO_IMAGES)) {
     /*the threads first does some house keeping regarding thread entrance but we want to only advance the thread sequence
      numbers if all threads are going to be calling this routine*/
     first_thread = gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE);
@@ -2149,7 +2149,7 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
     op->flags = flags;
 
 #if GASNET_PAR
-    if (team->multi_images && !(flags & GASNETE_COLL_SUBORDINATE)) {
+    if (team->multi_images && !(flags & GASNETE_COLL_SUBORDINATE) && !(flags & GASNET_COLL_NO_IMAGES)) {
       op->threads.sequence = gasnete_coll_threads_sequence - 1;
       gasneti_atomic_set(&data->threads.remaining, (flags & GASNET_COLL_IN_NOSYNC) ? 0 : (team->my_images - 1), 0);
     } else {
@@ -3142,7 +3142,10 @@ gasnete_coll_generic_broadcast_nb(gasnet_team_handle_t team,
   gasnete_coll_threads_lock(team, flags GASNETE_THREAD_PASS);
 
   if(!(flags & GASNETE_COLL_SUBORDINATE) || ALL_THREADS_POLL) {
-    first_thread = gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE);
+    if(!(flags & GASNET_COLL_NO_IMAGES))
+      first_thread = gasnete_coll_threads_first(GASNETE_THREAD_PASS_ALONE);
+    else 
+      first_thread =1;
   } else {
     first_thread = 1;
   }
@@ -3247,7 +3250,7 @@ gasnete_coll_broadcast_nb_default(gasnet_team_handle_t team,
   
 #if GASNET_PAR
   /* Thread-local addr(s) - forward to bcastM_nb() */
-  if (flags & GASNET_COLL_LOCAL  && !(flags & GASNETE_COLL_SUBORDINATE)) {
+  if (flags & GASNET_COLL_LOCAL  && !(flags & GASNETE_COLL_SUBORDINATE) && !(flags & GASNET_COLL_NO_IMAGES)) {
     return gasnete_coll_broadcastM_nb(team, &dst, srcimage, src, nbytes,
                                       flags | GASNETE_COLL_THREAD_LOCAL, sequence
                                       GASNETE_THREAD_PASS);

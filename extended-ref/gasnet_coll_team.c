@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_team.c,v $
- * $Date: 2009/07/08 00:16:58 $
- * $Revision: 1.1.4.3 $
+ * $Date: 2009/09/08 05:44:02 $
+ * $Revision: 1.1.4.3.2.1 $
  * Description: GASNet generic team implementation for collectives 
  * LBNL 2009
  */
@@ -127,7 +127,7 @@ static void initialize_team_fields(gasnete_coll_team_t team,
   team->smallest_scratch_seg = smallest_scratch_seg;
   team->autotune_info = gasnete_coll_autotune_init(team, myrank, num_members, 
                                                    team->my_images, team->total_images,
-                                                   smallest_scratch_seg);
+                                                   smallest_scratch_seg GASNETE_THREAD_PASS);
   team->consensus_issued_id = 0;
   team->consensus_id = 0;
   if(team!=GASNET_TEAM_ALL) {

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_eager.c,v $
- *     $Date: 2009/09/07 01:10:27 $
- * $Revision: 1.65.14.12.2.5 $
+ *     $Date: 2009/09/08 05:44:02 $
+ * $Revision: 1.65.14.12.2.6 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -536,6 +536,7 @@ static int gasnete_coll_pf_scatM_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
           !gasnete_coll_generic_insync(op->team, data)) {
         break;
       }
+      
       data->state = 1;
       
       case 1:	/* Data movement */
@@ -551,7 +552,7 @@ static int gasnete_coll_pf_scatM_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
           for (i = op->team->myrank + 1; i < op->team->total_ranks; ++i) {
             const size_t count = op->team->all_images[i];
             
-            gasnete_coll_p2p_eager_putM(op, GASNETE_COLL_REL2ACT(op->team,i), (void *)src_addr, count, nbytes, 0, 1);
+            gasnete_coll_p2p_eager_put(op, GASNETE_COLL_REL2ACT(op->team,i), (void *)src_addr, count*nbytes, 0, 1);
             src_addr += count * nbytes;
           }
         }
@@ -561,7 +562,7 @@ static int gasnete_coll_pf_scatM_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
           for (i = 0; i < op->team->myrank; ++i) {
             const size_t count = op->team->all_images[i];
             
-            gasnete_coll_p2p_eager_putM(op, GASNETE_COLL_REL2ACT(op->team,i), (void *)src_addr, count, nbytes, 0, 1);
+            gasnete_coll_p2p_eager_put(op, GASNETE_COLL_REL2ACT(op->team,i), (void *)src_addr, count*nbytes, 0, 1);
             src_addr += count * nbytes;
           }
         }
@@ -570,7 +571,11 @@ static int gasnete_coll_pf_scatM_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
         gasnete_coll_local_scatter(op->team->my_images,
                                    &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->dstlist, op->flags),
                                    gasnete_coll_scale_ptr(src, op->team->my_offset, nbytes), nbytes);
-      } else {
+      } else if(data->p2p->state[0]) {
+        gasnete_coll_local_scatter(op->team->my_images,
+                                   &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->dstlist, op->flags),
+                                   data->p2p->data, args->nbytes);
+#if 0
         gasnete_coll_p2p_t *p2p = data->p2p;
         volatile uint32_t *state;
         size_t nbytes = args->nbytes;
@@ -601,6 +606,9 @@ static int gasnete_coll_pf_scatM_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
         }
         
         if (!done) { break; }
+#endif
+      } else {
+        break;
       }
       data->state = 2;
       

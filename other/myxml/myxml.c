@@ -147,17 +147,6 @@ void myxml_printTreeXML(FILE *outstream, myxml_node_t *node, const char *whitesp
     myxml_printTreeXML_helper(outstream, node, 0, whitespace);
 }
 
-
-#define SAFE_READ(PTR, NBYTES, INSTREAM) do {                           \
-    size_t __ret;                                                       \
-    __ret = fread(PTR, 1, NBYTES, INSTREAM);                            \
-    if(__ret != (NBYTES)) {                                             \
-      fprintf(stderr, "read error (expected: %d got: %d)", (uint32_t)NBYTES, (uint32_t)__ret); \
-      fclose(INSTREAM);                                                 \
-      exit(1);                                                          \
-    }} while(0)
-
-   
 #ifndef htonl
 #define MYHTONL(IN) IN 
 #else
@@ -169,6 +158,16 @@ void myxml_printTreeXML(FILE *outstream, myxml_node_t *node, const char *whitesp
 #else
 #define MYNTOHL(IN) ntohl(IN)
 #endif
+
+#if 0
+#define SAFE_READ(PTR, NBYTES, INSTREAM) do {                           \
+    size_t __ret;                                                       \
+    __ret = fread(PTR, 1, NBYTES, INSTREAM);                            \
+    if(__ret != (NBYTES)) {                                             \
+      fprintf(stderr, "read error (expected: %d got: %d)", (uint32_t)NBYTES, (uint32_t)__ret); \
+      fclose(INSTREAM);                                                 \
+      exit(1);                                                          \
+    }} while(0)
 
 myxml_node_t* myxml_loadTreeHelper(FILE *instream, myxml_node_t *parent_node) {
   uint32_t temp;
@@ -247,8 +246,121 @@ myxml_node_t* myxml_loadTreeBIN(FILE *instream) {
    
    return myxml_loadTreeHelper(instream, NULL);
 }
+#endif
 
 
+#define SAFE_READ_BYTES(PTR, NBYTES, BYTESTREAM) do {\
+memcpy(PTR, ((BYTESTREAM)->bytes)+(BYTESTREAM)->offset, NBYTES);\
+(BYTESTREAM)->offset+=NBYTES; gasneti_assert_always((BYTESTREAM)->offset<=(BYTESTREAM)->size);\
+} while(0)
+
+myxml_node_t* myxml_loadTreeHelper_bytestream(myxml_bytestream_t *instream, myxml_node_t *parent_node) {
+  uint32_t temp;
+  int i=0;
+  myxml_node_t *curr_node = (myxml_node_t*) gasneti_malloc(sizeof(myxml_node_t));
+  
+  curr_node->parent = parent_node;
+  if(parent_node == NULL) {
+    curr_node->nodeclass = MYXML_ROOT_NODE;
+  } else {
+    curr_node->nodeclass = MYXML_INTER_NODE;
+  } 
+  
+  SAFE_READ_BYTES(&temp, sizeof(uint32_t), instream);
+  curr_node->id = MYNTOHL(temp);
+  
+  SAFE_READ_BYTES(&temp, sizeof(uint32_t), instream);
+  curr_node->num_children = MYNTOHL(temp);
+  
+  SAFE_READ_BYTES(&temp, sizeof(uint32_t), instream);
+  curr_node->num_attributes = MYNTOHL(temp);
+  
+  /*read the tag length and allocate the buffer*/
+  SAFE_READ_BYTES(&temp, sizeof(uint32_t), instream);
+  temp = MYNTOHL(temp);
+  curr_node->tag = (char*) gasneti_malloc(temp);
+  /*read the tag*/
+  SAFE_READ_BYTES(curr_node->tag, temp, instream);
+  
+  curr_node->attribute_list = (myxml_attribute_t*) gasneti_malloc(sizeof(myxml_attribute_t)*curr_node->num_attributes);
+  for(i=0; i<curr_node->num_attributes; i++) {
+    /*read the length of the string*/
+    SAFE_READ_BYTES(&temp, sizeof(uint32_t), instream);
+    temp = MYNTOHL(temp);
+    curr_node->attribute_list[i].attribute_name = gasneti_malloc(temp);
+    SAFE_READ_BYTES(curr_node->attribute_list[i].attribute_name, temp, instream);
+    
+    
+    SAFE_READ_BYTES(&temp, sizeof(uint32_t), instream);
+    temp = MYNTOHL(temp);
+    curr_node->attribute_list[i].attribute_value = gasneti_malloc(temp);
+    SAFE_READ_BYTES(curr_node->attribute_list[i].attribute_value, temp, instream);
+  }
+  /*read the size of the value str*/
+  SAFE_READ_BYTES(&temp, sizeof(uint32_t), instream);
+  temp = MYNTOHL(temp);
+  
+  if(temp > 0) {
+    curr_node->value = (char*) gasneti_malloc(temp);
+    SAFE_READ_BYTES(curr_node->value, temp, instream);
+    curr_node->nodeclass = MYXML_LEAF_NODE;
+  }
+  
+  
+  
+  curr_node->children = (myxml_node_t**) gasneti_malloc(sizeof(myxml_node_t*)*curr_node->num_children);
+  for(i=0; i<curr_node->num_children; i++) {
+    
+    curr_node->children[i] = myxml_loadTreeHelper_bytestream(instream, curr_node);
+  }
+  
+  return curr_node;
+  
+}
+
+
+
+myxml_node_t* myxml_loadTreeBYTESTREAM(char *bytes, size_t nbytes) {
+  uint32_t *offset_idx;
+  uint32_t num_nodes;
+  uint32_t temp;
+  int i;
+  myxml_bytestream_t bytestream;
+  bytestream.bytes = bytes;
+  bytestream.size = nbytes;
+  bytestream.offset = 0;
+  
+  SAFE_READ_BYTES(&temp, sizeof(uint32_t), &bytestream);
+  num_nodes = MYNTOHL(temp);
+  
+  return myxml_loadTreeHelper_bytestream(&bytestream, NULL);
+}
+
+myxml_bytestream_t myxml_loadFile_into_bytestream(FILE *instream) {
+  char *buffer;
+  
+  myxml_bytestream_t ret;
+  
+  ret.offset = 0;
+  fseek(instream, 0L, SEEK_END);
+  ret.size = ftell(instream);
+  rewind(instream);
+  
+  printf("loading %d bytes\n", (int)ret.size);
+  ret.bytes = gasneti_calloc(sizeof(char),ret.size);
+  
+  if(fread(ret.bytes, 1, ret.size, instream)!=ret.size) {
+    fprintf(stderr, "error reading input file!\n");
+    exit(1);
+  }
+  return ret;
+  
+}
+
+myxml_node_t* myxml_loadTreeBIN(FILE *instream) {
+  myxml_bytestream_t bytestream = myxml_loadFile_into_bytestream(instream);
+  return myxml_loadTreeBYTESTREAM(bytestream.bytes, bytestream.size);
+}
 
 uint32_t myxml_countAndLabelNodes(myxml_node_t *node, uint32_t label) {
   int i;
@@ -345,6 +457,7 @@ void dump_TreeBIN(FILE *outstream, myxml_node_t *node) {
     dump_TreeBIN(outstream, node->children[i]);
   }
 }
+
 
 
 /*dump the tree as a Binary file that the other parts of GASNet can later load*/
