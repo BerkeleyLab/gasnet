@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/05 01:16:41 $
- * $Revision: 1.48.4.37 $
+ *     $Date: 2009/09/09 23:49:53 $
+ * $Revision: 1.48.4.38 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -337,7 +337,17 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
 
   #if GASNET_PSHM
-    gasneti_pshm_init(NULL, 0);
+    {
+      /* Add space for PSHM-SMP barrier */
+      size_t pshmbar_sz = sizeof(gasneti_pshm_barrier_t) + 4*gasneti_nodes*sizeof(int); 
+      gasneti_pshm_barrier = gasneti_pshm_init(NULL, pshmbar_sz);
+    }
+
+    /* Allocate the PSHM-SMP barrier */
+    gasneti_pshm_barrier->flags[0] = (int *)((uintptr_t)gasneti_pshm_barrier + sizeof(gasneti_pshm_barrier_t));
+    gasneti_pshm_barrier->flags[1] = (int *)((uintptr_t)gasneti_pshm_barrier->flags[0] + gasneti_nodes*sizeof(int));
+    gasneti_pshm_barrier->value[0] = (int *)((uintptr_t)gasneti_pshm_barrier->flags[1] + gasneti_nodes*sizeof(int));
+    gasneti_pshm_barrier->value[1] = (int *)((uintptr_t)gasneti_pshm_barrier->value[0] + gasneti_nodes*sizeof(int));
   #endif
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
