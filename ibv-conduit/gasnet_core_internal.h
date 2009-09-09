@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2009/09/02 06:30:02 $
- * $Revision: 1.155.4.7 $
+ *     $Date: 2009/09/09 23:06:16 $
+ * $Revision: 1.155.4.8 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -580,6 +580,9 @@ extern size_t		gasnetc_amrdma_limit;
 extern int		gasnetc_amrdma_depth;
 extern int		gasnetc_amrdma_slot_mask;
 extern gasneti_weakatomic_val_t gasnetc_amrdma_cycle;
+#if GASNET_PSHM
+extern int		gasnetc_pshm_is_init;
+#endif
 
 
 /* Global variables */
