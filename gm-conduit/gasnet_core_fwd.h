@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_fwd.h,v $
- * $Date: 2009/09/09 04:39:15 $
- * $Revision: 1.35.10.5 $
+ * $Date: 2009/09/09 05:10:39 $
+ * $Revision: 1.35.10.6 $
  * Description: GASNet header for GM conduit core (forward definitions)
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -52,7 +52,7 @@
      default interfaces. (see template-conduit/gasnet_core.c and gasnet_sysv.h)
    */
 #define GASNETC_GET_HANDLER 1 /* Not using the default handler table impl */
-typedef uint8_t gasnetc_handler_t;
+typedef uint16_t gasnetc_handler_t;
 /* #define GASNETC_TOKEN_CREATE 1 */
 
   /* this can be used to add conduit-specific 

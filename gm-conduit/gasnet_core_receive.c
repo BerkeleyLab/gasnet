@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_receive.c,v $
- * $Date: 2009/09/07 02:22:21 $
- * $Revision: 1.48.18.1 $
+ * $Date: 2009/09/09 05:10:39 $
+ * $Revision: 1.48.18.2 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -89,7 +89,7 @@ gasnetc_AMPoll()
 	#endif
 
 	#if GASNET_PSHM
-		 if_pt (gasneti_attach_done)
+		 if_pt (gasneti_init_done)
 			 gasneti_AMPSHMPoll(0);
 	#endif
 

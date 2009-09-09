@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2009/09/07 02:22:21 $
- * $Revision: 1.124.10.4 $
+ * $Date: 2009/09/09 05:10:39 $
+ * $Revision: 1.124.10.5 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -99,6 +99,7 @@ gasnetc_init(int *argc, char ***argv)
 
 	gasnetc_bootstrapBarrier();
 	gasneti_init_done = 1; /* Not really done, but need getenv internally */
+	/* non-zero gasneti_init_done also enables AMPSH for System AMs */
 
 	gasnetc_exittimeout = gasneti_get_exittimeout(	GASNETC_DEFAULT_EXITTIMEOUT_MAX,
 							GASNETC_DEFAULT_EXITTIMEOUT_MIN,
@@ -1710,6 +1711,21 @@ extern int gasnetc_RequestSystem(
 	*done = cur + 1;
     }
   }
+#if GASNET_PSHM
+  /* Still need the loopback code above for the !gasneti_init_done case */
+  else if_pt (gasneti_init_done && gasneti_pshm_in_supernode(dest)) { /* Includes loopback */
+    int retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Medium, dest,
+                                               handler | GASNETC_SYS_HANDLER_FLAG,
+                                               source_addr, nbytes, 0,
+                                               numargs, argptr);
+    if (done != NULL) {
+	int cur = *done;
+	*done = cur + 1;
+    }
+    va_end(argptr);
+    return retval;
+  }
+#endif
   else {
     bufd = gasnetc_AMRequestPool_block();
     bufd->done = done;
@@ -2163,6 +2179,17 @@ int gasnetc_ReplySystem(
     GASNETI_RUN_HANDLER_MEDIUM(0, handler, _gmc.syshandlers[handler], token,
 				argbuf, numargs, loopbuf, nbytes);
   }
+#if GASNET_PSHM
+  /* Still need the loopback code above for the !gasneti_init_done case */
+  else if_pt (gasneti_init_done && gasnetc_token_is_pshm(token)) {
+    int retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Medium, token,
+                                             handler | GASNETC_SYS_HANDLER_FLAG,
+                                             source_addr, nbytes, 0,
+                                             numargs, argptr);
+    va_end(argptr);
+    return retval;
+  }
+#endif
   else {
     bufd = gasnetc_bufdesc_from_token(token);
     bufd->len = 
