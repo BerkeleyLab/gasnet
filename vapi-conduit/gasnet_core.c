@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/09/04 19:53:24 $
- * $Revision: 1.205.6.25 $
+ *     $Date: 2009/09/09 05:08:27 $
+ * $Revision: 1.205.6.26 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1489,6 +1489,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
   
+#if 0
   /* Verify that we are actually connected. */
   if (gasnetc_use_rcv_thread) {
     /* All QPs must reach RTS before we can test connectivity.
@@ -1514,6 +1515,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 #endif
     gasnetc_counter_wait(&counter, gasnetc_use_rcv_thread);
   }
+#endif
 
   /* Derive nodemap from the LID info we have already exchanged */
   {
