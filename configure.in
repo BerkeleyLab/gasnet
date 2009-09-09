@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2009/09/07 02:22:19 $
-# $Revision: 1.519.2.16 $
+#     $Date: 2009/09/09 01:10:12 $
+# $Revision: 1.519.2.17 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.519.2.16 $)
+AC_REVISION($Revision: 1.519.2.17 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1110,6 +1110,10 @@ GASNET_IF_ENABLED(pshm,
   [enabled_pshm=yes])
 if test "$segconfig$enabled_pshm" = everythingyes; then
   GASNET_MSG_ERROR([User requested --enable-segment-everything and --enable-pshm but PSHM support does not include GASNET_SEGMENT_EVERYTHING.])
+fi
+if expr "$enabled_pshm@$target_os" : "yes@darwin" >/dev/null; then
+  GASNET_MSG_ERROR([User requested --enable-pshm but PSHM support is not permitted on Mac OS X.])
+  dnl We can crash Macs!  See bib 2629.
 fi
 if test "$enabled_pshm" = yes; then
   GASNET_PSHM_LIBS=""
