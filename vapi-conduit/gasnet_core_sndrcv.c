@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2009/09/09 23:06:16 $
- * $Revision: 1.227.4.14 $
+ *     $Date: 2009/09/09 23:43:51 $
+ * $Revision: 1.227.4.15 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -720,12 +720,8 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
   switch (category) {
     case gasnetc_System:
       {
-        gasnetc_sys_handler_fn_t sys_handler_fn = gasnetc_sys_handler[handler_id];
-        if (GASNETC_MSG_ISREQUEST(flags))
-          GASNETC_TRACE_SYSTEM_REQHANDLER(handler_id, rbuf, user_numargs, args);
-        else
-          GASNETC_TRACE_SYSTEM_REPHANDLER(handler_id, rbuf, user_numargs, args);
-        RUN_HANDLER_SYSTEM(sys_handler_fn,rbuf,args,user_numargs);
+        handler_fn = gasnetc_sys_handler[handler_id];
+        GASNETC_RUN_HANDLER_SYS(GASNETC_MSG_ISREQUEST(flags),handler_id,handler_fn,rbuf,args,user_numargs);
       }
       break;
 

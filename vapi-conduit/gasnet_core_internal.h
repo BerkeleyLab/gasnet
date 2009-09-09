@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2009/09/09 23:06:16 $
- * $Revision: 1.155.4.8 $
+ *     $Date: 2009/09/09 23:43:51 $
+ * $Revision: 1.155.4.9 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -143,11 +143,25 @@ typedef union {
 } gasnetc_buffer_t;
 
 /* ------------------------------------------------------------------------------------ */
-typedef void (*gasnetc_sys_handler_fn_t)(gasnet_token_t token, gasnet_handlerarg_t *args, int numargs);
-extern const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLERS];
+extern const gasneti_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLERS];
 
-#define RUN_HANDLER_SYSTEM(phandlerfn, token, args, numargs) \
-    if (phandlerfn != NULL) (*phandlerfn)(token, args, numargs)
+#define GASNETC_RUN_HANDLER_SYS(isReq, hid, phandlerfn, token, pArgs, numargs) do {       \
+    if (isReq) GASNETC_TRACE_SYSTEM_REQHANDLER(hid, token, numargs, pArgs);               \
+    else       GASNETC_TRACE_SYSTEM_REPHANDLER(hid, token, numargs, pArgs);               \
+    if_pf (phandlerfn) {                                                                  \
+      if (numargs == 0) (*(gasneti_HandlerShort)phandlerfn)((gasnet_token_t)token);       \
+      else {                                                                              \
+        gasnet_handlerarg_t *_args = (gasnet_handlerarg_t *)(pArgs); /* eval only once */ \
+        switch (numargs) {                                                                \
+          case 1:  (*(gasneti_HandlerShort)phandlerfn)((gasnet_token_t)token, _args[0]); break; \
+          case 2:  (*(gasneti_HandlerShort)phandlerfn)((gasnet_token_t)token, _args[0], _args[1]); break;\
+          default: gasneti_fatalerror("Illegal numargs=%i in GASNETC_RUN_HANDLER_SYS", (int)numargs); \
+        }                                                                                 \
+      }                                                                                   \
+    }                                                                                     \
+    GASNETI_TRACE_PRINTF(C,("AM%s_SYS_HANDLER: handler execution complete", (isReq?"REQUEST":"REPLY"))); \
+  } while (0)  
+
 
 #if GASNET_TRACE
   #define _GASNETC_TRACE_SYSTEM(name,dest,handler,numargs) do {                        \
