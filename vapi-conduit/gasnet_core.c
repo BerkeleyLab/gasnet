@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/09/09 05:08:27 $
- * $Revision: 1.205.6.26 $
+ *     $Date: 2009/09/09 23:06:16 $
+ * $Revision: 1.205.6.27 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1314,6 +1314,24 @@ static int gasnetc_init(int *argc, char ***argv) {
   /* exchange endpoint info for connecting */
   gasneti_bootstrapAlltoall(local_addr, gasnetc_num_qps*sizeof(gasnetc_addr_t), remote_addr);
 
+  /* Derive nodemap from the LID info we have just exchanged */
+  {
+    if (gasneti_nodes > 1) { /* Would otherwise access non-existant localaddr[>0] */
+        /* Fill in otherwise unused remote_addr[self].lid for the helper.
+         * We use local_addr[!mynode] since local_addr[mynode] is always 0 */
+        remote_addr[gasnetc_num_qps * gasneti_mynode].lid =
+                             local_addr[gasnetc_num_qps * !gasneti_mynode].lid;
+    }
+    gasneti_nodemapInit(NULL, &remote_addr[0].lid,
+                        sizeof(remote_addr[0].lid),
+                        sizeof(remote_addr[0]) * gasnetc_num_qps);
+  }
+
+  #if GASNET_PSHM
+    gasneti_pshm_init(&gasneti_bootstrapExchange, 0);
+    gasnetc_pshm_is_init = 1;
+  #endif
+
   /* connect the endpoints */
   {
 #if GASNET_CONDUIT_VAPI
@@ -1517,18 +1535,6 @@ static int gasnetc_init(int *argc, char ***argv) {
   }
 #endif
 
-  /* Derive nodemap from the LID info we have already exchanged */
-  {
-    if (gasneti_nodes > 1) { /* Would otherwise access non-existant localaddr[>0] */
-        /* Fill in otherwise unused remote_addr[self].lid for the helper.
-         * We use local_addr[!mynode] since local_addr[mynode] is always 0 */
-        remote_addr[gasnetc_num_qps * gasneti_mynode].lid =
-                             local_addr[gasnetc_num_qps * !gasneti_mynode].lid;
-    }
-    gasneti_nodemapInit(NULL, &remote_addr[0].lid,
-                        sizeof(remote_addr[0].lid),
-                        sizeof(remote_addr[0]) * gasnetc_num_qps);
-  }
   gasneti_free(remote_addr);
   gasneti_free(local_addr);
 
@@ -1549,10 +1555,6 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_assert(gasnetc_pin_info.memory != (uintptr_t)(-1));
     gasneti_assert(gasnetc_pin_info.regions != 0);
   }
-
-  #if GASNET_PSHM
-    gasneti_pshm_init(&gasneti_bootstrapExchange, 0);
-  #endif
  
   #if GASNET_SEGMENT_FAST
   {
