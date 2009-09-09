@@ -2181,10 +2181,10 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_reduce_algorithm(gasnet_
   ret->num_params =0;
   
   ret->tree_type = gasnete_coll_autotune_get_tree_type(team->autotune_info, 
-                                                       GASNET_COLL_REDUCEM_OP, 
+                                                       GASNET_COLL_REDUCE_OP, 
                                                        -1,elem_count*elem_size, flags);
   
-  ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_REDUCE_OP][GASNETE_COLL_REDUCEM_TREE_GET].fn_ptr.reduce_fn;
+  ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_REDUCE_OP][GASNETE_COLL_REDUCE_TREE_GET].fn_ptr.reduce_fn;
   
   return ret;
 }

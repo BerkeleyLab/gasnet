@@ -22,7 +22,7 @@ options that is covered testcoll
 #define ALL_COLL_ENABLED 0
 #define BROADCAST_ENABLED 1
 #define SCATTER_ENABLED 1
-#define GATHER_ENABLED 0
+#define GATHER_ENABLED 1
 #define REDUCE_ENABLED 1
 
 

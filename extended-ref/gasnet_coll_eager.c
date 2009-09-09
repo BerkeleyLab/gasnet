@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_eager.c,v $
- *     $Date: 2009/09/08 05:44:02 $
- * $Revision: 1.65.14.12.2.6 $
+ *     $Date: 2009/09/09 22:13:06 $
+ * $Revision: 1.65.14.12.2.7 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -64,6 +64,8 @@ static int gasnete_coll_pf_bcast_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
   
   return result;
 }
+
+
 extern gasnet_coll_handle_t
 gasnete_coll_bcast_Eager(gasnet_team_handle_t team,
                          void * dst,
@@ -827,20 +829,16 @@ static int gasnete_coll_pf_gath_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
   
   return result;
 }
-extern gasnet_coll_handle_t
-gasnete_coll_gath_Eager(gasnet_team_handle_t team,
-                        gasnet_image_t dstimage, void *dst,
-                        void *src,
-                        size_t nbytes, int flags, uint32_t sequence
-                        GASNETE_THREAD_FARG)
+
+GASNETE_COLL_DECLARE_GATHER_ALG(Eager)
 {
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC)|
   GASNETE_COLL_GENERIC_OPT_P2P_IF(gasnete_coll_image_is_local(team, dstimage));
   
-  return gasnete_coll_generic_gather_nb(team, dstimage, dst, src, nbytes, nbytes, flags,
+  return gasnete_coll_generic_gather_nb(team, dstimage, dst, src, nbytes, dist, flags,
                                         &gasnete_coll_pf_gath_Eager, options,
-                                        NULL, sequence GASNETE_THREAD_PASS);
+                                        NULL, sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
 
@@ -930,20 +928,15 @@ static int gasnete_coll_pf_gathM_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
   
   return result;
 }
-extern gasnet_coll_handle_t
-gasnete_coll_gathM_Eager(gasnet_team_handle_t team,
-                         gasnet_image_t dstimage, void *dst,
-                         void * const srclist[],
-                         size_t nbytes, int flags, uint32_t sequence
-                         GASNETE_THREAD_FARG)
-{
+
+GASNETE_COLL_DECLARE_GATHERM_ALG(Eager){
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
   GASNETE_COLL_GENERIC_OPT_P2P_IF(gasnete_coll_image_is_local(team, dstimage));
   
-  return gasnete_coll_generic_gatherM_nb(team, dstimage, dst, srclist, nbytes, nbytes, flags,
+  return gasnete_coll_generic_gatherM_nb(team, dstimage, dst, srclist, nbytes, dist, flags,
                                          &gasnete_coll_pf_gathM_Eager, options,
-                                         NULL, sequence GASNETE_THREAD_PASS);
+                                         NULL, sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/09/08 05:44:02 $
- * $Revision: 1.53.14.31.2.7 $
+ *     $Date: 2009/09/09 22:13:06 $
+ * $Revision: 1.53.14.31.2.8 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1449,7 +1449,8 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
                                void *src,
                                size_t nbytes, size_t dist, int flags,
                                gasnete_coll_poll_fn poll_fn, int options,
-                               gasnete_coll_tree_data_t *tree_info, uint32_t sequence
+                               gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
+                               int num_params, uint32_t *param_list
                                GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
@@ -1458,7 +1459,8 @@ gasnete_coll_generic_gatherM_nb(gasnet_team_handle_t team,
                                 void * const srclist[],
                                 size_t nbytes, size_t dist, int flags,
                                 gasnete_coll_poll_fn poll_fn, int options,
-                                 gasnete_coll_tree_data_t *tree_info, uint32_t sequence
+                                gasnete_coll_tree_data_t *tree_info, uint32_t sequence,
+                                int num_params, uint32_t *param_list
                                 GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
@@ -1677,122 +1679,44 @@ GASNETE_COLL_DECLARE_SCATTERM_ALG(RVous);
 
 /*---------------------------------------------------------------------------------*/
 
-extern gasnet_coll_handle_t
-gasnete_coll_gath_Get(gasnet_team_handle_t team,
-		      gasnet_image_t dstimage, void *dst,
-		      void *src,
-		      size_t nbytes, int flags, uint32_t sequence
-                      GASNETE_THREAD_FARG);
+#define GASNETE_COLL_DECLARE_GATHER_ALG(FUNC_EXT)\
+extern gasnet_coll_handle_t \
+gasnete_coll_gath_##FUNC_EXT(gasnet_team_handle_t team,\
+                             gasnet_image_t dstimage, void *dst,\
+                             void *src,\
+                             size_t nbytes, size_t dist, int flags, \
+                             gasnete_coll_implementation_t coll_params,\
+                             uint32_t sequence\
+                             GASNETE_THREAD_FARG)
 
-extern gasnet_coll_handle_t
-gasnete_coll_gath_Put(gasnet_team_handle_t team,
-		      gasnet_image_t dstimage, void *dst,
-		      void *src,
-		      size_t nbytes, int flags, uint32_t sequence
-                      GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_gath_TreePut(gasnet_team_handle_t team,
-		      gasnet_image_t dstimage, void *dst,
-		      void *src,
-		      size_t nbytes, size_t dist, int flags, 
-                      gasnete_coll_tree_type_t tree_type,
-                      uint32_t sequence
-                      GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_gath_TreePutNoCopy(gasnet_team_handle_t team,
-                             gasnet_image_t dstimage, void *dst,
-                             void *src,
-                             size_t nbytes, size_t dist, int flags, 
-                             gasnete_coll_tree_type_t tree_type,
-                             uint32_t sequence
-                             GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_gath_TreePutSeg(gasnet_team_handle_t team,
-                          gasnet_image_t dstimage, void *dst,
-                          void *src,
-                          size_t nbytes, int flags, 
-                          gasnete_coll_tree_type_t tree_type,
-                          uint32_t sequence
-                          GASNETE_THREAD_FARG);
-
-
-extern gasnet_coll_handle_t
-gasnete_coll_gath_Eager(gasnet_team_handle_t team,
-		        gasnet_image_t dstimage, void *dst,
-		        void *src,
-		        size_t nbytes, int flags, uint32_t sequence
-                        GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_gath_RVPut(gasnet_team_handle_t team,
-		        gasnet_image_t dstimage, void *dst,
-		        void *src,
-		        size_t nbytes, int flags, uint32_t sequence
-                        GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_gath_RVous(gasnet_team_handle_t team,
-		        gasnet_image_t dstimage, void *dst,
-		        void *src,
-		        size_t nbytes, int flags, uint32_t sequence
-                        GASNETE_THREAD_FARG);
+GASNETE_COLL_DECLARE_GATHER_ALG(Get);
+GASNETE_COLL_DECLARE_GATHER_ALG(Put);
+GASNETE_COLL_DECLARE_GATHER_ALG(TreePut);
+GASNETE_COLL_DECLARE_GATHER_ALG(TreePutNoCopy);
+GASNETE_COLL_DECLARE_GATHER_ALG(TreePutSeg);
+GASNETE_COLL_DECLARE_GATHER_ALG(Eager);
+GASNETE_COLL_DECLARE_GATHER_ALG(RVPut);
+GASNETE_COLL_DECLARE_GATHER_ALG(RVous);
 
 /*---------------------------------------------------------------------------------*/
 
-extern gasnet_coll_handle_t
-gasnete_coll_gathM_Get(gasnet_team_handle_t team,
-		       gasnet_image_t dstimage, void *dst,
-		       void * const srclist[],
-		       size_t nbytes, int flags, uint32_t sequence
-                       GASNETE_THREAD_FARG);
+#define GASNETE_COLL_DECLARE_GATHERM_ALG(FUNC_EXT)\
+extern gasnet_coll_handle_t \
+gasnete_coll_gathM_##FUNC_EXT(gasnet_team_handle_t team,\
+                              gasnet_image_t dstimage, void *dst,\
+                              void * const srclist[],\
+                              size_t nbytes, size_t dist, int flags,\
+                              gasnete_coll_implementation_t coll_params,\
+                              uint32_t sequence\
+                              GASNETE_THREAD_FARG)
 
-extern gasnet_coll_handle_t
-gasnete_coll_gathM_Put(gasnet_team_handle_t team,
-		       gasnet_image_t dstimage, void *dst,
-		       void * const srclist[],
-		       size_t nbytes, int flags, uint32_t sequence
-                       GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_gathM_TreePut(gasnet_team_handle_t team,
-                              gasnet_image_t dstimage, void *dst,
-                              void * const srclist[],
-                              size_t nbytes, size_t dist, int flags, 
-                              gasnete_coll_tree_type_t tree_type,
-                              uint32_t sequence
-                              GASNETE_THREAD_FARG);
-extern gasnet_coll_handle_t
-gasnete_coll_gathM_TreePutSeg(gasnet_team_handle_t team,
-                             gasnet_image_t dstimage, void *dst,
-                             void * const srclist[],
-                             size_t nbytes, int flags, 
-                             gasnete_coll_tree_type_t tree_type,
-                             uint32_t sequence
-                             GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_gathM_Eager(gasnet_team_handle_t team,
-		         gasnet_image_t dstimage, void *dst,
-		         void * const srclist[],
-		         size_t nbytes, int flags, uint32_t sequence
-                         GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_gathM_RVPut(gasnet_team_handle_t team,
-		         gasnet_image_t dstimage, void *dst,
-		         void * const srclist[],
-		         size_t nbytes, int flags, uint32_t sequence
-                         GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_gathM_RVous(gasnet_team_handle_t team,
-		         gasnet_image_t dstimage, void *dst,
-		         void * const srclist[],
-		         size_t nbytes, int flags, uint32_t sequence
-                         GASNETE_THREAD_FARG);
+GASNETE_COLL_DECLARE_GATHERM_ALG(Get);
+GASNETE_COLL_DECLARE_GATHERM_ALG(Put);
+GASNETE_COLL_DECLARE_GATHERM_ALG(TreePut);
+GASNETE_COLL_DECLARE_GATHERM_ALG(TreePutSeg);
+GASNETE_COLL_DECLARE_GATHERM_ALG(Eager);
+GASNETE_COLL_DECLARE_GATHERM_ALG(RVPut);
+GASNETE_COLL_DECLARE_GATHERM_ALG(RVous);
 
 /*---------------------------------------------------------------------------------*/
 
