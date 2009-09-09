@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/09/08 05:44:02 $
- * $Revision: 1.72.10.49.2.7 $
+ *     $Date: 2009/09/09 02:12:41 $
+ * $Revision: 1.72.10.49.2.8 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -5604,7 +5604,7 @@ gasnete_coll_reduce_nb_default(gasnet_team_handle_t team,
 {
   gasnete_coll_implementation_t impl = gasnete_coll_get_implementation();
   size_t nbytes = elem_size*elem_count;
-  
+  gasnet_coll_handle_t ret;
   /*initial limitations*/
   gasneti_assert(src_blksz == 0);
   gasneti_assert(src_offset == 0);
@@ -5615,19 +5615,24 @@ gasnete_coll_reduce_nb_default(gasnet_team_handle_t team,
                                    flags | GASNETE_COLL_THREAD_LOCAL, sequence GASNETE_THREAD_PASS);
   }
 #endif
-  
-  flags = gasnete_coll_segment_check(team, flags, 1, dstimage, dst, nbytes,
+  flags = gasnete_coll_segment_check(team, flags, 0, 0, dst, nbytes*gasneti_nodes,
                                      0, 0, src, nbytes);
+  /*initial limitations*/
+  gasneti_assert(src_blksz == 0);
+  gasneti_assert(src_offset == 0);
+  
   /*error check to make sure the function table is properly configured*/
   gasneti_assert(gasnete_coll_fn_tbl);
   gasneti_assert(func < gasnete_coll_fn_count);
   gasneti_assert(gasnete_coll_fn_tbl[func].fnptr);
-  impl->tree_type = gasnete_coll_autotune_get_tree_type(team->autotune_info, 
-                                                       GASNET_COLL_BROADCAST_OP, 
-                                                        dstimage, elem_size*elem_count, flags);
-  impl->num_params = 0;
-  return gasnete_coll_reduce_TreePut(team, dstimage, dst, src, src_blksz, src_offset, 
-                                       elem_size, elem_count, func, func_arg, flags, impl, sequence GASNETE_THREAD_PASS);  
+  
+  
+  impl = gasnete_coll_autotune_get_reduce_algorithm(team, dstimage, dst, src, src_blksz, 
+                                                     src_offset, elem_size, elem_count, func, func_arg, flags GASNETE_THREAD_PASS);
+  ret = (*((gasnete_coll_reduce_fn_ptr_t) (impl->fn_ptr)))(team, dstimage, dst, src, src_blksz, src_offset, elem_size, elem_count, func, func_arg,
+                                                            flags, impl, sequence GASNETE_THREAD_PASS);
+  if(impl->need_to_free) gasnete_coll_free_implementation(impl);
+  return ret;
 }
 
 /*---------------------------------------------------------------------------------*/
@@ -5771,15 +5776,7 @@ gasnete_coll_reduceM_nb_default(gasnet_team_handle_t team,
                                                             flags, impl, sequence GASNETE_THREAD_PASS);
   if(impl->need_to_free) gasnete_coll_free_implementation(impl);
   return ret;
-  
-#if 0
-  ->tree_type = gasnete_coll_autotune_get_tree_type(team->autotune_info, 
-                                                        GASNET_COLL_BROADCASTM_OP, 
-                                                        dstimage, elem_size*elem_count, flags);
-  impl->num_params = 0;
-  return gasnete_coll_reduceM_TreePut(team, dstimage, dst, srclist, src_blksz, src_offset, 
-                                      elem_size, elem_count, func, func_arg, flags, impl, sequence GASNETE_THREAD_PASS);  
-#endif
+
 }
 
 /*---------------------------------------------------------------------------------*/
