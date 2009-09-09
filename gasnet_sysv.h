@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.h,v $
- *     $Date: 2009/09/06 00:09:28 $
- * $Revision: 1.1.4.43 $
+ *     $Date: 2009/09/09 04:39:13 $
+ * $Revision: 1.1.4.44 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -59,6 +59,8 @@ extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
  *   gasnetc_get_handler()
  *     Returns handler function for the given handler index
  *     For use ONLY by gasnet_pshm.[ch]
+ *   gasnetc_handler_t
+ *     Type (via typdef or #define) used for handlers instead of gasnet_handler_t
  *
  * If gasnet_core_fwd.h defines GASNETC_TOKEN_CREATE, conduit must provide
  * ALL of the following:
@@ -77,8 +79,10 @@ extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
  */
 #ifdef GASNETC_GET_HANDLER
   #ifndef gasnetc_get_handler
-    extern gasneti_handler_fn_t gasnetc_get_handler(gasnet_handler_t handler);
+    extern gasneti_handler_fn_t gasnetc_get_handler(gasnetc_handler_t handler);
   #endif
+#else
+  #define gasnetc_handler_t gasnet_handler_t
 #endif
 #ifdef GASNETC_TOKEN_CREATE
   #ifndef gasnetc_token_create
@@ -287,7 +291,7 @@ extern int gasneti_AMPSHMPoll(int repliesOnly);
 /* Don't call this function directly: internal pshm function */
 extern
 int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnet_node_t dest,
-                                 gasnet_handler_t handler, void *source_addr, size_t nbytes, 
+                                 gasnetc_handler_t handler, void *source_addr, size_t nbytes, 
                                  void *dest_addr, int numargs, va_list argptr);
 
 /* Generic AM handler for PSHMnet.
@@ -295,7 +299,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnet_node_t dest,
  * gasneti_pshm_in_supernode(dest) is nonzero */ 
 GASNETI_INLINE(gasneti_AMPSHM_RequestGeneric)
 int gasneti_AMPSHM_RequestGeneric(int category, gasnet_node_t dest, 
-                                  gasnet_handler_t handler, void *source_addr, size_t nbytes,
+                                  gasnetc_handler_t handler, void *source_addr, size_t nbytes,
                                   void *dest_addr, int numargs, va_list argptr) 
 {
   gasneti_assert(gasneti_pshm_in_supernode(dest));
@@ -308,7 +312,7 @@ int gasneti_AMPSHM_RequestGeneric(int category, gasnet_node_t dest,
  * gasneti_pshm_in_supernode(dest) or gasnetc_token_is_pshm(token) is nonzero */ 
 GASNETI_INLINE(gasneti_AMPSHM_ReplyGeneric)
 int gasneti_AMPSHM_ReplyGeneric(int category, gasnet_token_t token, 
-                                gasnet_handler_t handler, void *source_addr, 
+                                gasnetc_handler_t handler, void *source_addr, 
                                 size_t nbytes, void *dest_addr, int numargs, 
                                 va_list argptr) 
 {

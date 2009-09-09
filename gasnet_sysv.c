@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Attic/gasnet_sysv.c,v $
- *     $Date: 2009/09/06 00:09:28 $
- * $Revision: 1.1.4.79 $
+ *     $Date: 2009/09/09 04:39:13 $
+ * $Revision: 1.1.4.80 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -256,7 +256,7 @@ gasneti_pshm_rank_t *gasneti_pshm_rankmap = NULL;
 typedef struct {
   uint8_t category;      /* AM msg type: short, med, long */
   uint8_t numargs;
-  gasnet_handler_t handler_id;
+  gasnetc_handler_t handler_id;
   gasnet_node_t source;
   gasnet_handlerarg_t args[GASNETC_MAX_ARGS_PSHM];
 } gasneti_AMPSHM_msg_t;
@@ -980,11 +980,13 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
   size_t msgsz;
   gasneti_pshm_rank_t from;
   int category;
-  int handler_id;
+  gasnetc_handler_t handler_id;
   gasneti_handler_fn_t handler_fn;
   int numargs;
   gasnet_handlerarg_t *args;
   gasnet_token_t token;
+
+  gasneti_assert(vnet != NULL);
 
   if (gasneti_pshmnet_recv(vnet, &msg, &msgsz, &from))
     return -1;
@@ -1032,7 +1034,10 @@ int gasneti_AMPSHMPoll(int repliesOnly)
 {
   int i = 0;
 
+#if 0
+  /* We skip CHECKATTACH to allow "early" internal use by conduits. */
   GASNETI_CHECKATTACH();
+#endif
 
   for (; i < GASNETI_AMPSHM_MAX_RECVMSGS_PER_POLL; i++) 
     if (gasneti_AMPSHM_service_incoming_msg(gasneti_reply_pshmnet, 0))
@@ -1058,7 +1063,7 @@ int gasneti_AMPSHMPoll(int repliesOnly)
 static gasneti_lifo_head_t loopback_freepool = GASNETI_LIFO_INITIALIZER;
 
 int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnet_node_t dest,
-                                 gasnet_handler_t handler, void *source_addr, size_t nbytes, 
+                                 gasnetc_handler_t handler, void *source_addr, size_t nbytes, 
                                  void *dest_addr, int numargs, va_list argptr) 
 {
   gasneti_pshmnet_t *vnet = (isReq ? gasneti_request_pshmnet : gasneti_reply_pshmnet);

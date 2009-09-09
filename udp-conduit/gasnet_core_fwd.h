@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2009/09/02 07:57:10 $
- * $Revision: 1.18.26.4 $
+ *     $Date: 2009/09/09 04:39:21 $
+ * $Revision: 1.18.26.5 $
  * Description: GASNet header for UDP conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -65,6 +65,7 @@ typedef uint16_t gasnet_node_t;
      default interfaces. (see template-conduit/gasnet_core.c and gasnet_sysv.h)
    */
 #define GASNETC_GET_HANDLER 1 /* Not currently using default handler table impl */
+/* typedef ### gasnetc_handler_t; */
 /* #define GASNETC_TOKEN_CREATE 1 */
 
   /* this can be used to add conduit-specific 

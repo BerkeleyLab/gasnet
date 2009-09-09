@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2009/09/02 07:57:06 $
- * $Revision: 1.10.38.1 $
+ *     $Date: 2009/09/09 04:39:17 $
+ * $Revision: 1.10.38.2 $
  * Description: GASNet header for sci conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -30,6 +30,7 @@
      default interfaces. (see template-conduit/gasnet_core.c and gasnet_sysv.h)
    */
 #define GASNETC_GET_HANDLER 1  /* Not currently using default handler table impl */
+/* typedef ### gasnetc_handler_t; */
 /* #define GASNETC_TOKEN_CREATE 1 */
 
   /* this can be used to add conduit-specific 

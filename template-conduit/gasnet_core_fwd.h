@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2009/09/02 06:10:14 $
- * $Revision: 1.13.38.4 $
+ *     $Date: 2009/09/09 04:39:19 $
+ * $Revision: 1.13.38.5 $
  * Description: GASNet header for <conduitname> conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -49,6 +49,7 @@
    */
 #if ###
 #define GASNETC_GET_HANDLER 1
+typedef ### gasnetc_handler_t;
 #endif
 #if ###
 #define GASNETC_TOKEN_CREATE 1
