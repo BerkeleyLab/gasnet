@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/09 23:43:51 $
- * $Revision: 1.205.6.28 $
+ *     $Date: 2009/09/09 23:53:31 $
+ * $Revision: 1.205.6.29 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1497,6 +1497,8 @@ static int gasnetc_init(int *argc, char ***argv) {
   }
   GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_INLINESEND_LIMIT = %d", (int)gasnetc_inline_limit));
 
+  gasneti_free(remote_addr);
+  gasneti_free(local_addr);
   gasneti_free(port_map);
   gasneti_free(port_tbl);
 
@@ -1507,7 +1509,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
   
-#if 0
+  #if GASNET_DEBUG
   /* Verify that we are actually connected. */
   if (gasnetc_use_rcv_thread) {
     /* All QPs must reach RTS before we can test connectivity.
@@ -1516,27 +1518,14 @@ static int gasnetc_init(int *argc, char ***argv) {
      */
     gasneti_bootstrapBarrier();
   }
-  /* BLOCKING AM Send */
-  {
+  { /* Each node sends an AM to node self-1 and then waits for local completion. */
     gasnetc_counter_t counter = GASNETC_COUNTER_INITIALIZER;
     gasnet_node_t peer;
-#if 1 /* Each node sends an AM to node i-1 and then waits for local completion. */
     peer = (gasneti_mynode ? gasneti_mynode : gasneti_nodes) - 1;
     GASNETI_SAFE(gasnetc_RequestSystem(peer, &counter, gasneti_handleridx(gasnetc_SYS_init_ping), 0));
-#else /* XXX: If we every actually want a full all-to-all here */
-    for (peer = gasneti_mynode + 1; peer < gasneti_nodes; ++peer) {
-      GASNETI_SAFE(gasnetc_RequestSystem(peer, &counter, gasneti_handleridx(gasnetc_SYS_init_ping), 0));
-    }
-    for (peer = 0; peer < gasneti_mynode; ++peer) {
-      GASNETI_SAFE(gasnetc_RequestSystem(peer, &counter, gasneti_handleridx(gasnetc_SYS_init_ping), 0));
-    }
-#endif
-    gasnetc_counter_wait(&counter, gasnetc_use_rcv_thread);
+    gasnetc_counter_wait(&counter, gasnetc_use_rcv_thread); /* BLOCKING AM Send */
   }
-#endif
-
-  gasneti_free(remote_addr);
-  gasneti_free(local_addr);
+  #endif
 
   /* Find max pinnable size before we start carving up memory w/ mmap()s.
    *
