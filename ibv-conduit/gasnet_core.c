@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/09 23:06:16 $
- * $Revision: 1.205.6.27 $
+ *     $Date: 2009/09/09 23:43:51 $
+ * $Revision: 1.205.6.28 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1977,11 +1977,10 @@ static void gasnetc_disable_AMs(void) {
  * This request handler (invoked only on the "root" node) handles the election
  * of a single exit "master", who will coordinate an orderly shutdown.
  */
-static void gasnetc_exit_role_reqh(gasnet_token_t token, gasnet_handlerarg_t *args, int numargs) {
+static void gasnetc_exit_role_reqh(gasnet_token_t token) {
   gasnet_node_t src;
   int local_role, result;
 
-  gasneti_assert(numargs == 0);
   gasneti_assert(gasneti_mynode == GASNETC_ROOT_NODE);	/* May only send this request to the root node */
 
   
@@ -2004,7 +2003,7 @@ static void gasnetc_exit_role_reqh(gasnet_token_t token, gasnet_handlerarg_t *ar
  * This reply handler receives the result of the election of an exit "master".
  * The reply contains the exit "role" this node should assume.
  */
-static void gasnetc_exit_role_reph(gasnet_token_t token, gasnet_handlerarg_t *args, int numargs) {
+static void gasnetc_exit_role_reph(gasnet_token_t token, gasnet_handlerarg_t arg0) {
   int role;
 
   #if GASNET_DEBUG
@@ -2016,9 +2015,7 @@ static void gasnetc_exit_role_reph(gasnet_token_t token, gasnet_handlerarg_t *ar
   #endif
 
   /* What role has this node been assigned? */
-  gasneti_assert(args != NULL);
-  gasneti_assert(numargs == 1);
-  role = (int)args[0];
+  role = (int)arg0;
   gasneti_assert((role == GASNETC_EXIT_ROLE_MASTER) || (role == GASNETC_EXIT_ROLE_SLAVE));
 
   /* Set the role if not yet set.  Then assert that the assigned role has been assumed.
@@ -2448,10 +2445,7 @@ static void gasnetc_exit_body(void) {
  * exit procedure, via gasnetc_exit_{body,tail}().  Additionally, we are responsible for
  * firing off a SIGQUIT to let the user's handler, if any, run before we begin to exit.
  */
-static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t *args, int numargs) {
-  gasneti_assert(args != NULL);
-  gasneti_assert(numargs == 1);
-
+static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t arg0) {
   /* The master will send this AM, but should _never_ receive it */
   gasneti_assert(gasneti_atomic_read(&gasnetc_exit_role, 0) != GASNETC_EXIT_ROLE_MASTER);
 
@@ -2470,7 +2464,7 @@ static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t *args, i
   gasneti_atomic_increment(&gasnetc_exit_reqs, 0);
 
   /* Initiate an exit IFF this is the first we've heard of it */
-  if (gasnetc_exit_head(args[0])) {
+  if (gasnetc_exit_head(arg0)) {
     gasneti_sighandlerfn_t handler;
     /* IMPORTANT NOTE
      * When we reach this point we are in a request handler which will never return.
@@ -2522,9 +2516,7 @@ static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t *args, i
  *
  * Simply count replies
  */
-static void gasnetc_exit_reph(gasnet_token_t token, gasnet_handlerarg_t *args, int numargs) {
-  gasneti_assert(numargs == 0);
-
+static void gasnetc_exit_reph(gasnet_token_t token) {
   gasneti_atomic_increment(&gasnetc_exit_reps, 0);
 }
   
@@ -2569,7 +2561,7 @@ extern void gasnetc_exit(int exitcode) {
 
 /* ------------------------------------------------------------------------------------ */
 
-static void gasnetc_init_ping(gasnet_token_t token, gasnet_handlerarg_t *args, int numargs) {
+static void gasnetc_init_ping(gasnet_token_t token) {
   #if GASNET_DEBUG_VERBOSE
   {
     gasnet_node_t src;
@@ -2938,7 +2930,7 @@ gasnet_handlerentry_t const *gasnetc_get_handlertable(void) {
   System handlers, available even between _init and _attach
 */
 
-const gasnetc_sys_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLERS] = {
+const gasneti_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLERS] = {
   NULL,	/* ACK: NULL -> do nothing */
   gasnetc_exit_role_reqh,
   gasnetc_exit_role_reph,
