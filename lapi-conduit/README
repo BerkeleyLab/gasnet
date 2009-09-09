@@ -1,7 +1,7 @@
 GASNet-LAPI README file
 =======================
 Mike Welcome <mlwelcome@lbl.gov>
-$Revision: 1.12 $
+$Revision: 1.12.12.1 $
 
 This is an implementation of the GASNet CORE and EXTENDED
 API using the IBM LAPI communication protocol.
@@ -85,7 +85,7 @@ place the heap and static data in another segment, reducing
 the availalble MMAP space by one segment. Note that 0x10000000 
 is hex for 256MB.  
 Similarly, linking with -Bmaxdata=0x40000000 will reserve four 
-full 56MB segments for use by the heap.  The stack (and static
+full 256MB segments for use by the heap.  The stack (and static
 data?) will be placed in another segment.  Doing this will
 reduce the number of segments available to MMAP and shared
 memory by 4 segments.  
