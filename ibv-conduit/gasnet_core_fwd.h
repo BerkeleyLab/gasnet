@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2009/09/02 06:30:02 $
- * $Revision: 1.43.10.3 $
+ *     $Date: 2009/09/10 01:35:33 $
+ * $Revision: 1.43.10.4 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -71,7 +71,8 @@ typedef uint8_t gasnet_handler_t;
   /* define these to 1 if your conduit supports PSHM, but cannot use the
      default interfaces. (see template-conduit/gasnet_core.c and gasnet_sysv.h)
    */
-/* #define GASNETC_GET_HANDLER 1 */
+#define GASNETC_GET_HANDLER 1 /* Need wider type to encode System category AMs */
+typedef uint16_t gasnetc_handler_t;
 /* #define GASNETC_TOKEN_CREATE 1 */
 
   /* this can be used to add conduit-specific 
