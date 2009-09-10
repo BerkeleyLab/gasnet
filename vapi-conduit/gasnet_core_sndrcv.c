@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2009/09/10 01:35:33 $
- * $Revision: 1.227.4.16 $
+ *     $Date: 2009/09/10 02:36:19 $
+ * $Revision: 1.227.4.17 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -661,6 +661,11 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
   int user_numargs = full_numargs;
   gasnet_handlerarg_t *args;
 
+  #if GASNET_PSHM
+    gasneti_assert(!gasneti_pshm_in_supernode(GASNETC_MSG_SRCIDX(flags)));
+    gasneti_assert(cep != NULL);
+  #endif
+
   rbuf->rbuf_needReply = GASNETC_MSG_ISREQUEST(flags);
   rbuf->rbuf_handlerRunning = 1;
   rbuf->rbuf_flags = flags;
@@ -684,7 +689,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
     gasneti_fatalerror("invalid AM category on recv");
   }
 
-  if_pt (cep != NULL) { /* Process any flow control info, unless loopback */
+  if_pt (GASNET_PSHM || (cep != NULL)) { /* Process any flow control info, unless loopback */
     int credits = 0;
 
     if (GASNETC_MSG_FLOW(flags)) {
@@ -1875,6 +1880,9 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
 			  void *src_addr, int nbytes, void *dst_addr,
 			  int numargs, gasnetc_counter_t *mem_oust,
 			  gasnetc_counter_t *req_oust, va_list argptr) {
+#if GASNET_PSHM /* PSHM code handles all "local" AMs including the loopback case */
+  gasneti_assert(!gasneti_pshm_in_supernode(dest));
+#else
   if_pt (dest == gasneti_mynode) {
     /* Local Case */
     gasnet_handlerarg_t *args;
@@ -1888,11 +1896,6 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       if_pf (buf == NULL) {
 	buf = gasneti_malloc(GASNETC_BUFSZ);
       }
-    #endif
-    #if GASNET_PSHM
-      /* PSHM code handles loopback case for all but category=System */
-      gasneti_assert(category == gasnetc_System);
-      category = gasnetc_System; /* Hope optimizer propogates the constant */
     #endif
 
     switch (category) {
@@ -1939,7 +1942,9 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
     #if !GASNETC_LOOPBACK_AMS_ON_STACK
       gasneti_lifo_push(&buf_freelist, buf);
     #endif
-  } else {
+  } else
+#endif /* !GASNET_PSHM */
+  {
     /* Remote Case */
     gasnetc_buffer_t *buf, *buf_alloc = NULL;
     gasnet_handlerarg_t *args;
