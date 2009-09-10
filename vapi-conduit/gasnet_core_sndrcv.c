@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2009/09/09 23:43:51 $
- * $Revision: 1.227.4.15 $
+ *     $Date: 2009/09/10 01:35:33 $
+ * $Revision: 1.227.4.16 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -71,9 +71,6 @@ size_t					gasnetc_amrdma_limit;
 int					gasnetc_amrdma_depth;
 int					gasnetc_amrdma_slot_mask;
 gasneti_weakatomic_val_t		gasnetc_amrdma_cycle;
-#if GASNET_PSHM
-int					gasnetc_pshm_is_init = 0;
-#endif
 
 /* ------------------------------------------------------------------------------------ *
  *  File-scoped types                                                                   *
@@ -1416,7 +1413,7 @@ void gasnetc_do_poll(int poll_rcv, int poll_snd) {
   #endif
     gasnetc_poll_rcv_hca(hca, GASNETC_RCV_REAP_LIMIT);
   #if GASNET_PSHM
-    if_pt(gasnetc_pshm_is_init) gasneti_AMPSHMPoll(0);
+    gasneti_AMPSHMPoll(0);
   #endif
   }
 
@@ -3670,6 +3667,15 @@ extern int gasnetc_RequestSystem(gasnet_node_t dest,
   GASNETC_TRACE_SYSTEM_REQUEST(dest,handler,numargs);
 
   va_start(argptr, numargs);
+#if GASNET_PSHM
+  if_pt (gasneti_pshm_in_supernode(dest)) {
+    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Short, dest,
+                                           handler | GASNETC_SYS_HANDLER_FLAG,
+                                           0, 0, 0,
+                                           numargs, argptr); 
+    /* No need to touch req_oust */
+  } else
+#endif
   retval = gasnetc_ReqRepGeneric(gasnetc_System, NULL, dest, handler,
 				 NULL, 0, NULL, numargs, NULL, req_oust, argptr);
   va_end(argptr);
@@ -3680,23 +3686,30 @@ extern int gasnetc_ReplySystem(gasnet_token_t token,
 			       gasnetc_counter_t *req_oust,
                                gasnet_handler_t handler,
                                int numargs, ...) {
-  gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)token;
   int retval;
   va_list argptr;
   gasnet_node_t dest;
 
-  gasneti_assert(rbuf);
-
-  dest = GASNETC_MSG_SRCIDX(rbuf->rbuf_flags);
-
+  GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
   GASNETC_TRACE_SYSTEM_REPLY(dest,handler,numargs);
 
   va_start(argptr, numargs);
-  retval = gasnetc_ReqRepGeneric(gasnetc_System, rbuf, dest, handler,
-				 NULL, 0, NULL, numargs, NULL, req_oust, argptr);
+#if GASNET_PSHM
+  if_pt (gasnetc_token_is_pshm(token)) {
+    retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Short, token,
+                                         handler | GASNETC_SYS_HANDLER_FLAG,
+                                         0, 0, 0,
+                                         numargs, argptr);
+  } else
+#endif
+  {
+    gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)token;
+    gasneti_assert(rbuf);
+    retval = gasnetc_ReqRepGeneric(gasnetc_System, rbuf, dest, handler,
+				   NULL, 0, NULL, numargs, NULL, req_oust, argptr);
+    rbuf->rbuf_needReply = 0;
+  }
   va_end(argptr);
-
-  rbuf->rbuf_needReply = 0;
   return retval;
 }
 

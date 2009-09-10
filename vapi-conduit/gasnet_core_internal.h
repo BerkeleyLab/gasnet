@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2009/09/09 23:43:51 $
- * $Revision: 1.155.4.9 $
+ *     $Date: 2009/09/10 01:35:33 $
+ * $Revision: 1.155.4.10 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -86,6 +86,14 @@ extern gasneti_atomic_t gasnetc_exit_running;
 /* handler table (recommended impl) */
 #define GASNETC_MAX_NUMHANDLERS   256
 extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
+extern const gasneti_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLERS];
+
+#if GASNET_PSHM
+  #define GASNETC_SYS_HANDLER_FLAG (GASNETC_MAX_NUMHANDLERS << 1)
+  #define gasnetc_get_handler(_idx) (((_idx)&GASNETC_SYS_HANDLER_FLAG) \
+                                     ? gasnetc_sys_handler[(_idx)^GASNETC_SYS_HANDLER_FLAG] \
+                                     : gasnetc_handler[(_idx)])
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /* AM category (recommended impl if supporting PSHM) */
@@ -143,12 +151,11 @@ typedef union {
 } gasnetc_buffer_t;
 
 /* ------------------------------------------------------------------------------------ */
-extern const gasneti_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLERS];
 
 #define GASNETC_RUN_HANDLER_SYS(isReq, hid, phandlerfn, token, pArgs, numargs) do {       \
     if (isReq) GASNETC_TRACE_SYSTEM_REQHANDLER(hid, token, numargs, pArgs);               \
     else       GASNETC_TRACE_SYSTEM_REPHANDLER(hid, token, numargs, pArgs);               \
-    if_pf (phandlerfn) {                                                                  \
+    if (GASNET_PSHM || phandlerfn) { /* NULL handler only possible when !GASNET_PSHM */   \
       if (numargs == 0) (*(gasneti_HandlerShort)phandlerfn)((gasnet_token_t)token);       \
       else {                                                                              \
         gasnet_handlerarg_t *_args = (gasnet_handlerarg_t *)(pArgs); /* eval only once */ \
@@ -594,9 +601,6 @@ extern size_t		gasnetc_amrdma_limit;
 extern int		gasnetc_amrdma_depth;
 extern int		gasnetc_amrdma_slot_mask;
 extern gasneti_weakatomic_val_t gasnetc_amrdma_cycle;
-#if GASNET_PSHM
-extern int		gasnetc_pshm_is_init;
-#endif
 
 
 /* Global variables */

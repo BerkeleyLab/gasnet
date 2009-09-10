@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/09/09 23:53:31 $
- * $Revision: 1.205.6.29 $
+ *     $Date: 2009/09/10 01:35:33 $
+ * $Revision: 1.205.6.30 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1329,7 +1329,6 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   #if GASNET_PSHM
     gasneti_pshm_init(&gasneti_bootstrapExchange, 0);
-    gasnetc_pshm_is_init = 1;
   #endif
 
   /* connect the endpoints */
@@ -2920,7 +2919,12 @@ gasnet_handlerentry_t const *gasnetc_get_handlertable(void) {
 */
 
 const gasneti_handler_fn_t gasnetc_sys_handler[GASNETC_MAX_NUMHANDLERS] = {
+#if GASNET_PSHM
+  /* AMPSHM doesn't like NULL handlers */
+  (gasneti_handler_fn_t)&gasnetc_noop,
+#else
   NULL,	/* ACK: NULL -> do nothing */
+#endif
   gasnetc_exit_role_reqh,
   gasnetc_exit_role_reph,
   gasnetc_exit_reqh,
