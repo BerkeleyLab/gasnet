@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2009/09/11 10:39:27 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2009/09/11 19:49:54 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet Extended API for smp-conduit
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -49,180 +49,122 @@ static int gasnete_pshmbarrier_try(int id, int flags);
   ========================================
 */
 
-/* The "flip" variable - alternates between 0 and 1
+/* The "phase" variable - alternates between 0 and 1
  * and prevents deadlock if 2 barriers are consecutievly
  * called */
-static int flip;
+static int gasnete_pshmbarrier_phase;
+
+/* The "goal" variable - alternates between gasneti_nodes
+ * and zero.  Indicates target counter value and avoids
+ * the need to "reset" the barrier */
+static int gasnete_pshmbarrier_goal;
 
 static void gasnete_pshmbarrier_init(void) {
-    int i;
-    
     barrier_splitstate = OUTSIDE_BARRIER;
+    gasnete_pshmbarrier_phase = 0;
+    gasnete_pshmbarrier_goal = gasneti_nodes;
 
     /* Counter used to detect that all nodes have reached the barrier */
     gasneti_atomic_set(&gasneti_pshm_barrier->counter[0], 0, GASNETI_ATOMIC_REL);
-    gasneti_atomic_set(&gasneti_pshm_barrier->counter[1], 0, GASNETI_ATOMIC_REL);
-
-    /* Counter used to detect the last node to leave the barrier. This
-     * node will reset the barrier values. */
-    gasneti_atomic_set(&gasneti_pshm_barrier->done[0], 0, GASNETI_ATOMIC_REL);
-    gasneti_atomic_set(&gasneti_pshm_barrier->done[1], 0, GASNETI_ATOMIC_REL);
-
-    /* Variables that detects if some node has passed mismatch
-     * for the barrier value */
-    gasneti_pshm_barrier->mismatch[0]=0;
-    gasneti_pshm_barrier->mismatch[1]=0;
-
-    /* Arrays that hold the passed flags and values */
-    for(i=0; i<gasneti_nodes; i++){
-
-        gasneti_pshm_barrier->flags[0][i]=0;
-        gasneti_pshm_barrier->flags[1][i]=0;
-
-        gasneti_pshm_barrier->value[0][i]=0;
-        gasneti_pshm_barrier->value[1][i]=0;
-
-    }
+    gasneti_atomic_set(&gasneti_pshm_barrier->counter[1], 0, 0);
 }
 
-#define MISMATCH_FLAG GASNET_BARRIERFLAG_MISMATCH
-#define ANON_FLAG GASNET_BARRIERFLAG_ANONYMOUS
-#define NAMED_FLAG 0x00
-
 static void gasnete_pshmbarrier_notify(int id, int flags) {
+  int phase;
+  gasneti_sync_reads();
+  phase = gasnete_pshmbarrier_phase;
 
-  if(barrier_splitstate == INSIDE_BARRIER) {
+  if_pf (barrier_splitstate == INSIDE_BARRIER) {
     gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
   } 
 
   /* Record the passed flag and value */
-  gasneti_pshm_barrier->flags[flip][gasneti_mynode]=flags;
-  gasneti_pshm_barrier->value[flip][gasneti_mynode]=id;
+  gasneti_pshm_barrier->node[gasneti_mynode].flags[phase] = flags;
+  gasneti_pshm_barrier->node[gasneti_mynode].value[phase] = id;
   
-  /* Detect if someone used the mismatch flag */
-  if (flags == MISMATCH_FLAG) gasneti_pshm_barrier->mismatch[flip] = 1;
-
   /* Notify others that I have reached the barrier */
-  gasneti_atomic_increment(&gasneti_pshm_barrier->counter[flip], GASNETI_ATOMIC_REL);
+  if (gasnete_pshmbarrier_goal) { /* Counting UP */
+    gasneti_atomic_increment(&gasneti_pshm_barrier->counter[phase], GASNETI_ATOMIC_REL);
+  } else {
+    (void)gasneti_atomic_decrement_and_test(&gasneti_pshm_barrier->counter[phase], GASNETI_ATOMIC_REL);
+  }
   
+  /* No sync_writes() needed due to REL, above */
   barrier_splitstate = INSIDE_BARRIER; 
 }
 
-/* At least one node has passed MISMATCH_FLAG to pshmbarrier_notify()
- */
-static int barrier_mismatch(void){
-    int ret = 0;
-
-    if (gasneti_pshm_barrier->mismatch[flip] == 1){
-      ret=1;
-    }else{
-      /* Check if all values passed to the named barrier are equal */
-      int i=0, k, tmp_flag; 
-
-      /* Find the first named flag */
-      while(gasneti_pshm_barrier->flags[flip][i] != NAMED_FLAG 
-            && i<gasneti_nodes) i++;
-      
-      /* Check if all the named values are equal */
-      if (i<gasneti_nodes){
-        tmp_flag = gasneti_pshm_barrier->value[flip][i];
-
-        for(k=i+1; k<gasneti_nodes; k++){
-          if (gasneti_pshm_barrier->flags[flip][k] == NAMED_FLAG 
-              && gasneti_pshm_barrier->value[flip][k] != tmp_flag) return 1;
-        }
-      }
-
-    }
-    
-    return ret; 
-}
-
-static inline int finish_barrier(int id, int flags) {
-  int ret;
+static int finish_barrier(int id, int flags, int phase) {
+  int ret = GASNET_OK; /* assume success */
+  int orig_flags = gasneti_pshm_barrier->node[gasneti_mynode].flags[phase];
+  int orig_value = gasneti_pshm_barrier->node[gasneti_mynode].value[phase];
   
-  /*at this point the barrier is complete so check the flags 
-    that we get and make sure they are the same as the ones
-    we pass in*/
-  if_pf(flags != gasneti_pshm_barrier->flags[flip][gasneti_mynode]){
+  /* Check all the conditions for mismatch */
+  if_pf((flags != orig_flags) ||
+	(!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && (id != orig_value))) {
     ret = GASNET_ERR_BARRIER_MISMATCH; 
-  }else if(id != gasneti_pshm_barrier->value[flip][gasneti_mynode]){
-    ret = GASNET_ERR_BARRIER_MISMATCH;
-  }else if(barrier_mismatch()) {
-    /*someone has signalled a mismatch so return mismatch on everyone*/
-    ret = GASNET_ERR_BARRIER_MISMATCH;
-  }else{ 
-    /*everyone passed same id and flags so the barrier result is good... should be the 
-      normal path (could be the anonymous tag but everyone was consistent)*/
-    ret = GASNET_OK;
+  } else {
+    int have_value = 0;
+    int value, i;
+
+    for (i = 0; i < gasneti_nodes; ++i) {
+      int flag = gasneti_pshm_barrier->node[i].flags[phase];
+      if_pt (flag & GASNET_BARRIERFLAG_ANONYMOUS) {
+        continue;
+      } else if_pf (flag & GASNET_BARRIERFLAG_MISMATCH) {
+        ret = GASNET_ERR_BARRIER_MISMATCH; 
+        break;
+      } else if (!have_value) {
+        have_value = 1;
+        value = gasneti_pshm_barrier->node[i].value[phase];
+      } else if (value != gasneti_pshm_barrier->node[i].value[phase]) {
+        ret = GASNET_ERR_BARRIER_MISMATCH; 
+        break;
+      }
+    }
   }
 
+  /* Switch the barrier variables.*/
+  gasnete_pshmbarrier_phase = 1 ^ phase;
+  if (phase) gasnete_pshmbarrier_goal = gasneti_nodes - gasnete_pshmbarrier_goal;
   barrier_splitstate = OUTSIDE_BARRIER;
+  gasneti_sync_writes();
+
   return ret;
-}
-
-static void reset_barrier(void){
-  int i;
-
-  gasneti_atomic_set(&gasneti_pshm_barrier->counter[flip], 0, GASNETI_ATOMIC_REL);
-  gasneti_atomic_set(&gasneti_pshm_barrier->done[flip], 0, GASNETI_ATOMIC_REL);
-  gasneti_pshm_barrier->mismatch[flip]=0;
-
-  /* We do not need to reset the values of the arrays that hold
-   * the flags and values, because they will get new values the
-   * next time barrier is called */
-  /*
-  for(i=0; i<gasneti_nodes; i++){
-    gasneti_pshm_barrier->flags[flip][i]=0;
-    gasneti_pshm_barrier->value[flip][i]=0;
-  }
-  */
-
 }
 
 static int gasnete_pshmbarrier_wait(int id, int flags) {
-  int ret;
-  
-  if(barrier_splitstate == OUTSIDE_BARRIER) {
+  gasneti_atomic_t *counter;
+  int phase;
+
+  gasneti_sync_reads();
+  phase = gasnete_pshmbarrier_phase;
+
+  if_pf (barrier_splitstate == OUTSIDE_BARRIER) {
     gasneti_fatalerror("gasnet_barrier_wait() called without a matching notify");
   }
 
-  /* Wait until all nodes have reached the barrier */
-  gasneti_pollwhile((gasneti_atomic_read(&gasneti_pshm_barrier->counter[flip], 0) < gasneti_nodes));
-  ret = finish_barrier(id, flags);
-  
-  /* Detect if I am the last node to leave the barrier, and if so, reset the 
-   * barrier values. */
-  gasneti_atomic_increment(&gasneti_pshm_barrier->done[flip], GASNETI_ATOMIC_REL);
-  if (gasneti_atomic_read(&gasneti_pshm_barrier->done[flip], 0) == gasneti_nodes){
-      reset_barrier();
-  }
-  
-  /* Switch the barrier variables.*/
-  flip ^= 1;
-  return ret;
+  /* Poll until all nodes have reached the barrier */
+  counter = &gasneti_pshm_barrier->counter[phase];
+  gasneti_pollwhile(
+         gasnete_pshmbarrier_goal != gasneti_atomic_read(counter, GASNETI_ATOMIC_ACQ));
+
+  return finish_barrier(id, flags, phase);
 }
 
 static int gasnete_pshmbarrier_try(int id, int flags) { 
+  gasneti_atomic_t *counter;
+  int phase;
 
-  int ret;
-  if(barrier_splitstate == OUTSIDE_BARRIER) {
+  gasneti_sync_reads();
+  phase = gasnete_pshmbarrier_phase;
+
+  if_pf (barrier_splitstate == OUTSIDE_BARRIER) {
     gasneti_fatalerror("gasnet_barrier_try() called without a matching notify");
   }
-  if (gasneti_atomic_read(&gasneti_pshm_barrier->counter[flip], 0) == gasneti_nodes){
-    ret = finish_barrier(id,flags);
-    /* Detect if I am the last node to leave the barrier, and if so, reset the 
-     * barrier values. */
-    gasneti_atomic_increment(&gasneti_pshm_barrier->done[flip], GASNETI_ATOMIC_REL);
-    if (gasneti_atomic_read(&gasneti_pshm_barrier->done[flip], 0) == gasneti_nodes){
-      reset_barrier();
-    }
 
-    /* Switch the barrier variables.*/
-    flip ^= 1;
-  }else ret = GASNET_ERR_NOT_READY;
-  
-  return ret;
+  counter = &gasneti_pshm_barrier->counter[phase];
+  return (gasnete_pshmbarrier_goal == gasneti_atomic_read(counter, GASNETI_ATOMIC_ACQ))
+         ? finish_barrier(id, flags, phase) : GASNET_ERR_NOT_READY;
 }
 #endif /* GASNET_PSHM */
 /* ------------------------------------------------------------------------------------ */

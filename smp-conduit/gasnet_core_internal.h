@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core_internal.h,v $
- *     $Date: 2009/09/11 10:39:27 $
- * $Revision: 1.11.80.5 $
+ *     $Date: 2009/09/11 19:49:54 $
+ * $Revision: 1.11.80.6 $
  * Description: GASNet smp conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -58,10 +58,12 @@ typedef enum {
   /* Structure for PSHM-SMP barrier */
   typedef struct gasneti_pshm_barrier{
     gasneti_atomic_t counter[2];
-    gasneti_atomic_t done[2];
-    int mismatch[2];
-    int *value[2];
-    int *flags[2];
+    char _pad[GASNETI_CACHE_PAD(2*sizeof(gasneti_atomic_t))];
+    struct {
+      int value[2];
+      int flags[2];
+      char _pad[GASNETI_CACHE_PAD(4*sizeof(int))];
+    } node[1]; /* VLA */
   } gasneti_pshm_barrier_t;
 
   gasneti_pshm_barrier_t *gasneti_pshm_barrier;
