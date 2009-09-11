@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/11 10:41:38 $
- * $Revision: 1.205.6.31 $
+ *     $Date: 2009/09/11 10:43:55 $
+ * $Revision: 1.205.6.32 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1522,8 +1522,16 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasnetc_counter_t counter = GASNETC_COUNTER_INITIALIZER;
     gasnet_node_t peer;
     peer = (gasneti_mynode ? gasneti_mynode : gasneti_nodes) - 1;
-    GASNETI_SAFE(gasnetc_RequestSystem(peer, &counter, gasneti_handleridx(gasnetc_SYS_init_ping), 0));
-    gasnetc_counter_wait(&counter, gasnetc_use_rcv_thread); /* BLOCKING AM Send */
+  #if GASNET_PSHM
+    /* Send only off-node AMs (cannot use AMPSHM yet because gasneti_mmapLimit()
+     * still needs the "raw" vnet for pshmnet_bootstrapBroadcast).
+     */
+    if (!gasneti_pshm_in_supernode(peer))
+  #endif
+    {
+      GASNETI_SAFE(gasnetc_RequestSystem(peer, &counter, gasneti_handleridx(gasnetc_SYS_init_ping), 0));
+      gasnetc_counter_wait(&counter, gasnetc_use_rcv_thread); /* BLOCKING AM Send */
+    }
   }
   #endif
 
