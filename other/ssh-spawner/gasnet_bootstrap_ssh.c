@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ssh-spawner/gasnet_bootstrap_ssh.c,v $
- *     $Date: 2008/03/05 22:02:31 $
- * $Revision: 1.67 $
+ *     $Date: 2009/09/11 19:38:57 $
+ * $Revision: 1.67.12.1 $
  * Description: GASNet conduit-independent ssh-based spawner
  * Copyright 2005, The Regents of the University of California
  * Terms of use are as specified in license.txt
@@ -434,7 +434,7 @@ static void do_abort(unsigned char exitcode) {
   if (is_master) {
     clean_up();
   } else {
-    _exit(exitcode);
+    gasneti_killmyprocess(exitcode);
 
     /* paranoia... */
     gasneti_reghandler(SIGABRT, SIG_DFL);
@@ -1016,9 +1016,7 @@ static void post_spawn(int count, int argc, char * const *argv) {
     reaper(0); /* Disarm signal handler */
 
     (void)fcntl(s, F_SETFD, FD_CLOEXEC);
-    if (!is_master) {
-      (void)ioctl(s, SIOCSPGRP, &mypid); /* Enable SIGURG delivery on OOB data */
-    }
+    (void)ioctl(s, SIOCSPGRP, &mypid); /* Enable SIGURG delivery on OOB data */
     (void)setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (char *) &one, sizeof(one));
     do_read(s, &child_id, sizeof(gasnet_node_t));
     gasneti_assert(child_id < children);
@@ -1303,6 +1301,7 @@ static void do_master(int argc, char **argv) {
   #endif
 
   /* Start the process(es) */
+  mypid = getpid();
   do_spawn(argc, argv, myhost);
 
   /* Locate all procs */
