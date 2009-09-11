@@ -6,7 +6,7 @@
 #define gasneti_calloc(N,SZ) calloc(N,SZ)
 #define gasneti_realloc(PTR,SZ) realloc(PTR,SZ)
 #define gasneti_free(PTR) free(PTR)
-#define gasneti_assert_always(COND) do{if(!COND){ fprintf(stderr, "fatalERROR: %s:%d\n", __FILE__, __LINE__); exit(1);}}while(0)
+#define gasneti_assert_always(COND) do{if(!(COND)){ fprintf(stderr, "fatalERROR: %s:%d\n", __FILE__, __LINE__); exit(1);}}while(0)
 #include "./myxml.h"
 #include "./myxml.c"
 
