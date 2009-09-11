@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/10 01:35:33 $
- * $Revision: 1.205.6.30 $
+ *     $Date: 2009/09/11 10:41:38 $
+ * $Revision: 1.205.6.31 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -397,6 +397,7 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
       /* Extra mmap traffic to ensure compatible VM spaces */
       gasnetc_fakepin(all_info[first_local].memory, step);
     }
+    gasneti_bootstrapBarrier(); /* Ensure fakepin completes unmap before continuing */
 #endif
   } else {
     /* Note that README says PHYSMEM_NOPROBE must be equal on all nodes */
