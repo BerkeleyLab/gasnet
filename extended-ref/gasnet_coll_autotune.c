@@ -661,11 +661,18 @@ void gasnete_coll_register_gather_collectives(gasnete_coll_autotune_info_t* info
                                              smallest_seg_size*GASNETE_COLL_MAX_NUM_SEGS, smallest_seg_size, 1,
                                              1, tuning_params, (void*)gasnete_coll_gathM_TreePutSeg, "GATHERM_TREE_PUT_SEG");
   }
+  info->collective_algorithms[GASNET_COLL_GATHERM_OP][GASNETE_COLL_GATHERM_TREE_EAGER]=
+  gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_GATHERM_OP, 
+                                           GASNETE_COLL_EVERY_SYNC_FLAG,
+                                           0, 0,
+                                           gasnete_coll_p2p_eager_scale/info->team->my_images, 0, 1,
+                                           0,NULL,(void*)gasnete_coll_gathM_TreeEager, "GATHERM_TREE_EAGER");
+  
   info->collective_algorithms[GASNET_COLL_GATHERM_OP][GASNETE_COLL_GATHERM_EAGER]=
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_GATHERM_OP, 
                                            GASNETE_COLL_EVERY_SYNC_FLAG,
                                            0, 0,
-                                           gasnete_coll_p2p_eager_scale/info->team->total_images, 0, 0,
+                                           gasnete_coll_p2p_eager_scale/info->team->my_images, 0, 0,
                                            0,NULL,(void*)gasnete_coll_gathM_Eager, "GATHERM_EAGER");
   
   info->collective_algorithms[GASNET_COLL_GATHERM_OP][GASNETE_COLL_GATHERM_RVPUT]=
@@ -2434,6 +2441,7 @@ gasnete_coll_autotune_get_gatherM_algorithm(gasnet_team_handle_t team,gasnet_ima
   ret->tree_type = gasnete_coll_autotune_get_tree_type(team->autotune_info, 
                                                        GASNET_COLL_GATHERM_OP, 
                                                        dstimage, nbytes, flags);
+
   if ((flags & GASNET_COLL_DST_IN_SEGMENT) && (flags & GASNET_COLL_SRC_IN_SEGMENT)) {
     /* Both ends are in-segment */
     if(!(flags & GASNETE_COLL_NONROOT_SUBORDINATE) && team->fixed_image_count) {
@@ -2450,19 +2458,19 @@ gasnete_coll_autotune_get_gatherM_algorithm(gasnet_team_handle_t team,gasnet_ima
       }
     } else if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
       if (nbytes <= eager_limit) {
-        ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_GATHERM_OP][GASNETE_COLL_GATHERM_EAGER].fn_ptr.gatherM_fn;
+        ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_GATHERM_OP][GASNETE_COLL_GATHERM_TREE_EAGER].fn_ptr.gatherM_fn;
         
       } else {
         ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_GATHERM_OP][GASNETE_COLL_GATHERM_RVPUT].fn_ptr.gatherM_fn;
       }
     } else if ((flags & GASNET_COLL_OUT_MYSYNC) && (nbytes <= eager_limit)) {
-      ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_GATHERM_OP][GASNETE_COLL_GATHERM_EAGER].fn_ptr.gatherM_fn;
+      ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_GATHERM_OP][GASNETE_COLL_GATHERM_TREE_EAGER].fn_ptr.gatherM_fn;
     } else {
       ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_GATHERM_OP][GASNETE_COLL_GATHERM_TREE_PUT].fn_ptr.gatherM_fn;
     }
   } else if (nbytes <= eager_limit) {
     /* Small enough for Eager, which works for out-of-segment src and/or dst */
-    ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_GATHERM_OP][GASNETE_COLL_GATHERM_EAGER].fn_ptr.gatherM_fn;
+    ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_GATHERM_OP][GASNETE_COLL_GATHERM_TREE_EAGER].fn_ptr.gatherM_fn;
   } else if (flags & GASNET_COLL_DST_IN_SEGMENT) {
     /* Only the destination is in-segment (and too big for Eager) */
     if ((flags & GASNET_COLL_IN_NOSYNC) && (flags & GASNET_COLL_SINGLE)) {

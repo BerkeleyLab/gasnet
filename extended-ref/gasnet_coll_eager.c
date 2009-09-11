@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_eager.c,v $
- *     $Date: 2009/09/11 10:48:37 $
- * $Revision: 1.65.14.12.2.8 $
+ *     $Date: 2009/09/11 10:53:42 $
+ * $Revision: 1.65.14.12.2.9 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1034,6 +1034,89 @@ GASNETE_COLL_DECLARE_GATHERM_ALG(Eager){
                                          NULL, sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
+static int gasnete_coll_pf_gathM_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+  gasnete_coll_generic_data_t *data = op->data;
+  const gasnete_coll_gatherM_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gatherM);
+  int result = 0;
+  gasnete_coll_tree_data_t *tree = data->tree_info;
+  gasnet_node_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
+  const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
+  gasnet_node_t parent = GASNETE_COLL_TREE_GEOM_PARENT(tree->geom);
+  int child;
+  
+  switch (data->state) {
+    case 0:	/* Optional IN barrier */
+      if (!gasnete_coll_threads_ready1(op, args->srclist GASNETE_THREAD_PASS) ||
+          !gasnete_coll_generic_insync(op->team, data)) {
+        break;
+      }
+      
+      gasnete_coll_local_gather(op->team->my_images, data->p2p->data, &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->srclist, op->flags), 
+                                args->nbytes);
+      
+      data->state = 1;
+      
+      
+    case 1:	/* Complete data movement */
+    {
+      int i;
+      if (gasneti_weakatomic_read(&data->p2p->counter[0], 0) != child_count) {
+        break;
+      }
+      if(op->team->myrank != args->dstnode) {
+        gasnete_coll_p2p_counting_eager_put(op, GASNETE_COLL_REL2ACT(op->team, parent), data->p2p->data,
+                                            args->nbytes*tree->geom->mysubtree_size*op->team->my_images, args->nbytes*op->team->my_images, (tree->geom->sibling_offset+1), 0);
+      } else {
+        gasneti_assert(tree->geom->num_rotations==1);
+        gasnete_coll_local_rotate_right(args->dst,data->p2p->data, 
+                                        args->nbytes*op->team->my_images, op->team->total_ranks, tree->geom->rotation_points[0]);
+      }
+    } 
+      data->state = 2;
+      
+    case 2:	/* Optional OUT barrier */
+#if FOLD_OUT_BARRIER
+      if(op->flags & GASNET_COLL_OUT_ALLSYNC) {
+        int i;
+        if(args->dstnode != op->team->myrank) {
+          /*wait for parent to signal*/
+          if(gasneti_weakatomic_read(&(data->p2p->counter[1]), 0) == 0) {
+            break;
+          }
+        }
+        /*parent has signaled*/
+        /*signal all children*/
+        for(i=0; i<child_count; i++) {
+          gasnete_coll_p2p_advance(op, GASNETE_COLL_REL2ACT(op->team, children[i]), 1);
+        }
+      }
+#else
+      if (!gasnete_coll_generic_outsync(op->team, data)) {
+        break;
+      }
+#endif
+      gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
+      result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+  }
+  
+  return result;
+}
+
+GASNETE_COLL_DECLARE_GATHERM_ALG(TreeEager){
+  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
+#if !FOLD_OUT_BARRIER
+  GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
+#endif
+  GASNETE_COLL_GENERIC_OPT_P2P;
+  
+  
+  
+  return gasnete_coll_generic_gatherM_nb(team, dstimage, dst, srclist, nbytes, dist, flags,
+                                         &gasnete_coll_pf_gathM_TreeEager, options,
+                                         gasnete_coll_tree_init(coll_params->tree_type,
+                                                                gasnete_coll_image_node(team,dstimage), team
+                                                                GASNETE_THREAD_PASS), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
+}
 
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_gather_all_nb() */

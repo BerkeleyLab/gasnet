@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/09/11 10:48:38 $
- * $Revision: 1.53.14.31.2.9 $
+ *     $Date: 2009/09/11 10:53:43 $
+ * $Revision: 1.53.14.31.2.10 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1717,6 +1717,7 @@ GASNETE_COLL_DECLARE_GATHERM_ALG(Get);
 GASNETE_COLL_DECLARE_GATHERM_ALG(Put);
 GASNETE_COLL_DECLARE_GATHERM_ALG(TreePut);
 GASNETE_COLL_DECLARE_GATHERM_ALG(TreePutSeg);
+GASNETE_COLL_DECLARE_GATHERM_ALG(TreeEager);
 GASNETE_COLL_DECLARE_GATHERM_ALG(Eager);
 GASNETE_COLL_DECLARE_GATHERM_ALG(RVPut);
 GASNETE_COLL_DECLARE_GATHERM_ALG(RVous);
