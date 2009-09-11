@@ -1347,6 +1347,8 @@ static gasnete_coll_autotune_index_entry_t *load_autotuner_defaults_helper(gasne
       temp->start = atoi(MYXML_ATTRIBUTES(child_node)[0].attribute_value);
     } else if(STRINGS_MATCH(tag_strings[level], "num_nodes")) {
       temp->start = atoi(MYXML_ATTRIBUTES(child_node)[0].attribute_value);
+    } else if(STRINGS_MATCH(tag_strings[level], "root")) {
+      temp->start = atoi(MYXML_ATTRIBUTES(child_node)[0].attribute_value);
     } else {
       gasneti_fatalerror("unknown tag string\n");
     }
@@ -1387,7 +1389,7 @@ gasnete_coll_autotune_index_entry_t *gasnete_coll_load_autotuner_defaults(gasnet
   myxml_node_t *temp;
   
   gasnete_coll_autotune_index_entry_t *root;
-  const char *tree_levels[7] = {"machine", "num_nodes", "threads_per_node", "sync_mode", "address_mode", "collective", "size"};
+  const char *tree_levels[8] = {"machine", "num_nodes", "threads_per_node", "sync_mode", "address_mode", "collective", "root", "size"};
   
   /*the root of the tree contains the GASNET config string*/
   /*throw a warning if the tree does not match the current tree*/
@@ -1395,7 +1397,7 @@ gasnete_coll_autotune_index_entry_t *gasnete_coll_load_autotuner_defaults(gasnet
     if(!STRINGS_MATCH(MYXML_ATTRIBUTES(tuning_data)[0].attribute_value, GASNET_CONFIG_STRING)) {
       printf("warning! tuning data's config string: %s does not match current gasnet config string: %s\n", MYXML_ATTRIBUTES(tuning_data)[0].attribute_value, GASNET_CONFIG_STRING);
     } 
-    root= load_autotuner_defaults_helper(autotune_info, tuning_data, tree_levels, 1, 7, -1);
+    root= load_autotuner_defaults_helper(autotune_info, tuning_data, tree_levels, 1, 8, -1);
   } else gasneti_fatalerror("exepected machine as the root of the tree");
   return root;
 }
@@ -1425,7 +1427,7 @@ static gasnett_tick_t run_collective_bench(gasnet_team_handle_t team, gasnet_col
   gasnett_tick_t start, total;
   gasnet_coll_handle_t handle;
 
-
+  gasneti_assert(coll_args.rootimg < team->total_images);
   PTHREAD_BARRIER(team, team->my_images);
 
   for(iter=0; iter<team->autotune_info->warm_iters; iter++) {
@@ -1813,7 +1815,7 @@ gasnete_coll_autotune_index_entry_t *search_intervals(gasnete_coll_autotune_inde
 
 /*GASNETI_INLINE(search_index)*/
 static inline
-gasnete_coll_implementation_t search_index(gasnet_coll_optype_t op, gasnete_coll_team_t team, uint32_t flags, size_t nbytes, int exact_match) {
+gasnete_coll_implementation_t search_index(gasnet_coll_optype_t op, gasnete_coll_team_t team, uint32_t flags, size_t nbytes, gasnet_image_t rootimg, int exact_match) {
 
   gasnete_coll_autotune_index_entry_t *temp = team->autotune_info->autotuner_defaults;
   if(!temp) return NULL;
@@ -1836,6 +1838,10 @@ gasnete_coll_implementation_t search_index(gasnet_coll_optype_t op, gasnete_coll
   
   /*loookup the op (need to find an exact match)*/
   temp = search_intervals(temp->subtree, op,1);
+  if(!temp) return NULL;
+  
+  /*loookup the root*/
+  temp = search_intervals(temp->subtree, rootimg,exact_match);
   if(!temp) return NULL;
   
   /*approximate match for size is ok*/
@@ -1896,7 +1902,7 @@ gasnete_coll_autotune_index_entry_t* add_interval(gasnete_coll_autotune_index_en
 
 /*GASNETI_INLINE(add_to_index)*/
 static inline
-gasnete_coll_autotune_index_entry_t *add_to_index(gasnet_coll_optype_t op, gasnete_coll_team_t team, uint32_t flags, size_t nbytes) {
+gasnete_coll_autotune_index_entry_t *add_to_index(gasnet_coll_optype_t op, gasnete_coll_team_t team, uint32_t flags, size_t nbytes, gasnet_image_t rootimg) {
   gasnete_coll_autotune_index_entry_t *idx = team->autotune_info->autotuner_defaults;
   gasnete_coll_autotune_index_entry_t *temp; 
   gasnete_coll_implementation_t impl;
@@ -1919,6 +1925,10 @@ gasnete_coll_autotune_index_entry_t *add_to_index(gasnet_coll_optype_t op, gasne
 
   temp->subtree = add_interval(temp->subtree,  op, "collective");
   temp = search_intervals(temp->subtree, op, 1);
+  gasneti_assert(temp);
+  
+  temp->subtree = add_interval(temp->subtree,  rootimg, "root");
+  temp = search_intervals(temp->subtree, rootimg, 1);
   gasneti_assert(temp);
 
   temp->subtree = add_interval(temp->subtree,  nbytes, "size");
@@ -1964,7 +1974,7 @@ static gasnete_coll_implementation_t autotune_op(gasnet_team_handle_t team, gasn
   
   
   if(team->autotune_info->autotuner_defaults  || team->autotune_info->search_enabled) {
-    ret = search_index(op, team, flags, args.nbytes, team->autotune_info->search_enabled);  
+    ret = search_index(op, team, flags, args.nbytes, args.rootimg, team->autotune_info->search_enabled);  
     /*make sure the returned algortithm can handle the cases*/
     if(verify_algorithm(team, op, flags, args.nbytes, ret)) {
       return ret;
@@ -2025,7 +2035,7 @@ static gasnete_coll_implementation_t autotune_op(gasnet_team_handle_t team, gasn
     /*insert ret into the search index*/
     PTHREAD_BARRIER(team, team->my_images); 
     if(td->my_local_image == 0) {
-      idx = add_to_index(op, team, flags, args.nbytes);
+      idx = add_to_index(op, team, flags, args.nbytes, args.rootimg);
       idx->impl = ret;
     }
     
