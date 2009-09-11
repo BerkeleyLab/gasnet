@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_coll_fwd.h,v $
- *     $Date: 2009/09/07 01:10:31 $
- * $Revision: 1.1.4.4.2.2 $
+ *     $Date: 2009/09/11 10:52:23 $
+ * $Revision: 1.1.4.4.2.3 $
  * Description: GASNet Collectives Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -64,6 +64,7 @@
 #define GASNETE_COLL_CONDUIT_BROADCASTM_OPS GASNETE_COLL_BROADCAST_SMP_FLAT_GET, GASNETE_COLL_BROADCAST_SMP_FLAT_PUT, GASNETE_COLL_BROADCAST_SMP_TREE_INTFLAGS
 #define GASNETE_COLL_CONDUIT_REDUCEM_OPS GASNETE_COLL_REDUCE_SMP_FLAT
 #define GASNETE_COLL_CONDUIT_SCATTERM_OPS GASNETE_COLL_SCATTER_SMP_FLAT_PUT, GASNETE_COLL_SCATTER_SMP_FLAT_GET
+#define GASNETE_COLL_CONDUIT_GATHERM_OPS GASNETE_COLL_GATHER_SMP_FLAT_PUT, GASNETE_COLL_GATHER_SMP_FLAT_GET
 #endif
 
 #endif
