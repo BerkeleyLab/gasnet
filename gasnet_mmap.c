@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/09/07 23:04:28 $
- * $Revision: 1.57.6.50 $
+ *     $Date: 2009/09/11 10:42:31 $
+ * $Revision: 1.57.6.51 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1012,6 +1012,7 @@ void gasneti_segmentAttachLocal(uintptr_t segsize, uintptr_t minheapoffset,
   /*  gather segment information */
   gasneti_segment.addr = segbase;
   gasneti_segment.size = segsize;
+  (*exchangefn)(&gasneti_segment, sizeof(gasnet_seginfo_t), seginfo);
 
   #if GASNET_ALIGNED_SEGMENTS == 1
     if (segsize > 0) { int i; /*  check that segments are aligned */
