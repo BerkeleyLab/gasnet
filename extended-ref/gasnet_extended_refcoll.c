@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/09/09 22:13:07 $
- * $Revision: 1.72.10.49.2.9 $
+ *     $Date: 2009/09/11 10:48:41 $
+ * $Revision: 1.72.10.49.2.10 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1673,6 +1673,25 @@ extern void gasnete_coll_p2p_med_reqh(gasnet_token_t token, void *buf, size_t nb
   }
 }
 
+extern void gasnete_coll_p2p_med_counting_reqh(gasnet_token_t token, void *buf, size_t nbytes,
+                                               gasnet_handlerarg_t team_id,
+                                               gasnet_handlerarg_t sequence,
+                                               gasnet_handlerarg_t offset,
+                                               gasnet_handlerarg_t idx,
+                                               gasnet_handlerarg_t size) {
+  gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
+  int i;
+  
+  if (size) {
+    int nelem = nbytes/sizeof(int);
+
+    GASNETE_FAST_UNALIGNED_MEMCPY(p2p->data + offset*size, buf, nbytes);
+    gasneti_sync_writes();
+  }
+  
+  gasneti_weakatomic_increment(&p2p->counter[idx], 0);
+}
+
 /* Delivers a medium payload to the eager buffer space and updates 1 state
    seqandteaem: a packed 32 bit int with both the team and the sequence number
    size: eager element size; payload is copied to (p2p->data)
@@ -1960,7 +1979,19 @@ void gasnete_coll_p2p_memcpy(gasnete_coll_op_t *op, gasnet_node_t dstnode, void 
                                src, nbytes, PACK(dst), team_id, op->sequence, 1)));
 }
 
-   
+
+extern void gasnete_coll_p2p_counting_eager_put(gasnete_coll_op_t *op, gasnet_node_t dstnode, 
+                                                void *src, size_t nbytes, size_t offset_size, uint32_t offset, uint32_t idx){
+  
+  uint32_t team_id = gasnete_coll_team_id(op->team);
+  int i;
+  
+
+  
+  GASNETI_SAFE(MEDIUM_REQ(5,5,(dstnode, gasneti_handleridx(gasnete_coll_p2p_med_counting_reqh),
+                               src, nbytes, team_id, op->sequence, offset, idx, offset_size)));
+}
+
 
 /* Indicate ready for a gasnete_coll_p2p_memcpy, placing request in slots "offset+" */
 /* XXX: we send addr+"0", when only the addr is needed (want "custom" AM, not eager_put) . */
@@ -4198,7 +4229,7 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
   gasnete_coll_threads_unlock(GASNETE_THREAD_PASS_ALONE);
   return result;
 }
-
+#if 0
 extern gasnet_coll_handle_t
 gasnete_coll_gather_nb_default(gasnet_team_handle_t team,
                                gasnet_image_t dstimage, void *dst,
@@ -4238,7 +4269,7 @@ gasnete_coll_gather_nb_default(gasnet_team_handle_t team,
         }
       } else {
         impl->num_params = 1;
-        impl->param_list[0] = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNET_COLL_SCATTER_OP, flags);
+        impl->param_list[0] = gasnete_coll_get_pipe_seg_size(team->autotune_info, GASNET_COLL_GATHER_OP, flags);
         return gasnete_coll_gath_TreePutSeg(team, dstimage, dst, src, nbytes, nbytes, flags, impl, sequence GASNETE_THREAD_PASS);
       }
     } else if ((flags & GASNET_COLL_IN_MYSYNC) || (flags & GASNET_COLL_LOCAL)) {
@@ -4273,9 +4304,39 @@ gasnete_coll_gather_nb_default(gasnet_team_handle_t team,
   } else {
     return gasnete_coll_gath_RVous(team, dstimage, dst, src, nbytes, nbytes, flags, impl, sequence GASNETE_THREAD_PASS);
   }
-  gasnete_coll_free_implementation(impl);
+  
 }
-
+#else
+extern gasnet_coll_handle_t
+gasnete_coll_gather_nb_default(gasnet_team_handle_t team,
+                               gasnet_image_t dstimage, void *dst,
+                               void *src,
+                               size_t nbytes, int flags, uint32_t sequence
+                               GASNETE_THREAD_FARG)
+{
+  const size_t eager_limit = gasnete_coll_p2p_eager_min;
+  gasnete_coll_tree_type_t tree_type;
+  gasnete_coll_implementation_t impl;
+  
+#if GASNET_PAR
+  /* Thread-local addr(s) - forward to gathM_nb() */
+  if (flags & GASNET_COLL_LOCAL && !(flags & GASNETE_COLL_SUBORDINATE))  {
+    return gasnete_coll_gatherM_nb(team, dstimage, dst, &src, nbytes,
+                                   flags | GASNETE_COLL_THREAD_LOCAL, sequence
+                                   GASNETE_THREAD_PASS);
+  }
+#endif
+  
+  /* "Discover" in-segment flags if needed/possible */
+  flags = gasnete_coll_segment_check(team, flags, 1, dstimage, dst, nbytes*gasneti_nodes,
+                                     0, 0, src, nbytes);
+  
+  impl = gasnete_coll_autotune_get_gather_algorithm(team,dstimage, dst, src, 
+                                                    nbytes, nbytes, flags  GASNETE_THREAD_PASS);
+  
+  return (*((gasnete_coll_gather_fn_ptr_t) (impl->fn_ptr)))(team, dstimage, dst, src, nbytes, nbytes, flags, impl, sequence GASNETE_THREAD_PASS);
+}
+#endif
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_gatherM_nb() */
 #if ALL_THREADS_POLL

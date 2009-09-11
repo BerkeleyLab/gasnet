@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/09/09 22:13:06 $
- * $Revision: 1.71.12.33.2.6 $
+ *     $Date: 2009/09/11 10:48:39 $
+ * $Revision: 1.71.12.33.2.7 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1864,7 +1864,6 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
       if (op->team->myrank == args->srcnode) {
         if(args->dist!=args->nbytes) {
           gasneti_fatalerror("not yet supported!");
-          
         } else {
           gasneti_assert(tree->geom->num_rotations == 1);
           
@@ -1991,16 +1990,21 @@ gasnete_coll_scat_TreePutNoCopy(gasnet_team_handle_t team,
                           uint32_t sequence
                           GASNETE_THREAD_FARG)
 {
-  int options = 
-    GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF((flags & GASNET_COLL_OUT_ALLSYNC)) | 
-  GASNETE_COLL_USE_SCRATCH | GASNETE_COLL_GENERIC_OPT_P2P_IF(1);
   
-  return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, dist, flags,
-                                         &gasnete_coll_pf_scat_TreePutNoCopy, options,
-                                         gasnete_coll_tree_init(coll_params->tree_type,
-                                                                gasnete_coll_image_node(team,srcimage), team
-                                                                GASNETE_THREAD_PASS),
-                                         sequence,coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
+  if(srcimage!=0) {
+    return gasnete_coll_scat_TreePut(team, dst, srcimage, src, nbytes, dist, flags, coll_params, sequence GASNETE_THREAD_PASS);
+  } else {
+    int options = 
+    GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF((flags & GASNET_COLL_OUT_ALLSYNC)) | 
+    GASNETE_COLL_USE_SCRATCH | GASNETE_COLL_GENERIC_OPT_P2P_IF(1);
+    
+    return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, dist, flags,
+                                           &gasnete_coll_pf_scat_TreePutNoCopy, options,
+                                           gasnete_coll_tree_init(coll_params->tree_type,
+                                                                  gasnete_coll_image_node(team,srcimage), team
+                                                                  GASNETE_THREAD_PASS),
+                                           sequence,coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
+  }
 }  
 
 static int gasnete_coll_pf_scat_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
@@ -3380,15 +3384,26 @@ static int gasnete_coll_pf_gath_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
 
 GASNETE_COLL_DECLARE_GATHER_ALG(TreePutNoCopy)
 {
-  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF ((flags & GASNET_COLL_IN_ALLSYNC)) |
+
+  if(dstimage != 0) {
+    /*tree put copy as written doesn't work when the root is not 0*/
+    return gasnete_coll_gath_TreePut(team,
+                                     dstimage, dst,
+                                     src,
+                                     nbytes, dist, flags, 
+                                     coll_params,
+                                     sequence
+                                     GASNETE_THREAD_PASS);
+  } else {
+    int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF ((flags & GASNET_COLL_IN_ALLSYNC)) |
     GASNETE_COLL_USE_SCRATCH | GASNETE_COLL_GENERIC_OPT_P2P_IF(1);
-  
-  return gasnete_coll_generic_gather_nb(team, dstimage, dst, src, nbytes, dist, flags,
-                                        &gasnete_coll_pf_gath_TreePutNoCopy, options,
-                                        gasnete_coll_tree_init(coll_params->tree_type, 
-                                                               gasnete_coll_image_node(team,dstimage), team
-                                                               GASNETE_THREAD_PASS), sequence, coll_params->num_params, coll_params->param_list
-                                        GASNETE_THREAD_PASS);
+    return gasnete_coll_generic_gather_nb(team, dstimage, dst, src, nbytes, dist, flags,
+                                          &gasnete_coll_pf_gath_TreePutNoCopy, options,
+                                          gasnete_coll_tree_init(coll_params->tree_type, 
+                                                                 gasnete_coll_image_node(team,dstimage), team
+                                                                 GASNETE_THREAD_PASS), sequence, coll_params->num_params, coll_params->param_list
+                                          GASNETE_THREAD_PASS);
+  }
 }
 
 static int gasnete_coll_pf_gath_TreePutSeg(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {

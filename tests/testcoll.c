@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcoll.c,v $
- *     $Date: 2009/08/05 23:32:28 $
- * $Revision: 1.34.32.3 $
+ *     $Date: 2009/09/11 10:49:21 $
+ * $Revision: 1.34.32.3.2.1 $
  * Description: GASNet collectives test
  * Copyright 2002-2004, Jaein Jeong and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -87,7 +87,7 @@ void PREFIX##_NONO(int root, thread_data_t *td) {                            \
 	*LOCAL(A) = (mythread == root) ? R[j] : -1;                          \
 	*LOCAL(B) = mythread;                                                \
 	for (i = 0; i < images; ++i) {                                       \
-	    LOCAL(D)[i] = i * R[j] + mythread;                               \
+	    LOCAL(D)[i] = i * R[j] + mythread;         \
 	}                                                                    \
                                                                              \
 	global_barrier();                                                    \
@@ -112,13 +112,13 @@ void PREFIX##_NONO(int root, thread_data_t *td) {                            \
 	if (mythread == root) {                                              \
 	    for (i = 0; i < images; ++i) {                                   \
 		if (LOCAL(C)[i] != i) {                                      \
-		    MSG("ERROR: %s gather validation failed", name);         \
+		    MSG("ERROR: %s gather validation failed %d %d", name, LOCAL(C)[i], i);         \
 		    gasnet_exit(1);                                          \
 		}                                                            \
 	    }                                                                \
 	}                                                                    \
 	if (*LOCAL(E) != mythread*R[j] + root) {                             \
-	    MSG("ERROR: %s scatter validation failed", name);                \
+	    MSG("ERROR: %s scatter validation failed %d %d", name, *LOCAL(E),  mythread*R[j] + root);                \
 	    gasnet_exit(1);                                                  \
 	}                                                                    \
 	for (i = 0; i < images; ++i) {                                       \

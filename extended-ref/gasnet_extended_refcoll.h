@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.h,v $
- *     $Date: 2009/07/07 00:00:52 $
- * $Revision: 1.2.12.3 $
+ *     $Date: 2009/09/11 10:48:45 $
+ * $Revision: 1.2.12.3.2.1 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,7 +20,7 @@
 /*---------------------------------------------------------------------------------*/
 /* conduits may override this to relocate the ref-coll handlers */
 #ifndef GASNETE_COLL_HANDLER_BASE
-#define GASNETE_COLL_HANDLER_BASE 120
+#define GASNETE_COLL_HANDLER_BASE 119
 #endif
 
 #define _hidx_gasnete_coll_p2p_memcpy_reqh  (GASNETE_COLL_HANDLER_BASE+0)
@@ -30,7 +30,8 @@
 #define _hidx_gasnete_coll_p2p_med_tree_reqh (GASNETE_COLL_HANDLER_BASE+4)
 #define _hidx_gasnete_coll_p2p_advance_reqh (GASNETE_COLL_HANDLER_BASE+5)
 #define _hidx_gasnete_coll_p2p_put_and_advance_reqh (GASNETE_COLL_HANDLER_BASE+6)
-#define _hidx_gasnete_coll_p2p_seg_put_reqh (GASNETE_COLL_HANDLER_BASE+7)
+#define _hidx_gasnete_coll_p2p_med_counting_reqh (GASNETE_COLL_HANDLER_BASE+7)
+#define _hidx_gasnete_coll_p2p_seg_put_reqh (GASNETE_COLL_HANDLER_BASE+8)
 
 /*---------------------------------------------------------------------------------*/
 /*four args: team id, node id, seq number, head, tail*/
@@ -52,6 +53,7 @@
   MEDIUM_HANDLER_DECL(gasnete_coll_p2p_memcpy_reqh,4,5);
   SHORT_HANDLER_NOBITS_DECL(gasnete_coll_p2p_short_reqh, 5);
   MEDIUM_HANDLER_NOBITS_DECL(gasnete_coll_p2p_med_reqh,6);
+MEDIUM_HANDLER_NOBITS_DECL(gasnete_coll_p2p_med_counting_reqh,5);
   LONG_HANDLER_NOBITS_DECL(gasnete_coll_p2p_long_reqh,5);
 
   MEDIUM_HANDLER_NOBITS_DECL(gasnete_coll_p2p_med_tree_reqh,2);
@@ -67,6 +69,7 @@
       gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_med_tree_reqh), \
       gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_advance_reqh), \
       gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_put_and_advance_reqh), \
+      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_med_counting_reqh), \
       gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_seg_put_reqh), 
 
 #elif !defined(GASNETE_COLL_P2P_HANDLERS)

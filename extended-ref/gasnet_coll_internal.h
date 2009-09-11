@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/09/09 22:13:06 $
- * $Revision: 1.53.14.31.2.8 $
+ *     $Date: 2009/09/11 10:48:38 $
+ * $Revision: 1.53.14.31.2.9 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -514,6 +514,8 @@ extern void gasnete_coll_p2p_change_states(gasnete_coll_op_t *op, gasnet_node_t 
 extern void gasnete_coll_p2p_advance(gasnete_coll_op_t *op, gasnet_node_t dstnode, uint32_t idx);
 extern void gasnete_coll_p2p_counting_put(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
                                           void *src, size_t nbytes, uint32_t idx);
+extern void gasnete_coll_p2p_counting_eager_put(gasnete_coll_op_t *op, gasnet_node_t dstnode, 
+                                                void *src, size_t nbytes, size_t offset_size, uint32_t offset, uint32_t idx);
 extern void gasnete_coll_p2p_counting_putAsync(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
                                                void *src, size_t nbytes, uint32_t idx);
 extern void gasnete_coll_p2p_eager_put_tree(gasnete_coll_op_t *op, gasnet_node_t dstnode, 
@@ -1694,6 +1696,7 @@ GASNETE_COLL_DECLARE_GATHER_ALG(Put);
 GASNETE_COLL_DECLARE_GATHER_ALG(TreePut);
 GASNETE_COLL_DECLARE_GATHER_ALG(TreePutNoCopy);
 GASNETE_COLL_DECLARE_GATHER_ALG(TreePutSeg);
+GASNETE_COLL_DECLARE_GATHER_ALG(TreeEager);
 GASNETE_COLL_DECLARE_GATHER_ALG(Eager);
 GASNETE_COLL_DECLARE_GATHER_ALG(RVPut);
 GASNETE_COLL_DECLARE_GATHER_ALG(RVous);
