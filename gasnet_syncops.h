@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_syncops.h,v $
- *     $Date: 2009/08/22 20:17:35 $
- * $Revision: 1.50.6.1 $
+ *     $Date: 2009/09/12 01:06:18 $
+ * $Revision: 1.50.6.2 $
  * Description: GASNet header for synchronization operations used in GASNet implementation
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -752,7 +752,7 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
 #elif defined(GASNETI_HAVE_ATOMIC_DBLPTR_CAS)
     /* Algorithm if we have a compare-and-swap for a type as wide as two pointers.
      * The lower half holds the head pointer, which the upper half hold a "tag"
-     * which is advanced by one on each Pop to avoid the "classic ABA problem".
+     * which is advanced by one on each operation to avoid the "classic ABA problem".
      */
     typedef struct {
       char		_pad0[GASNETI_CACHE_LINE_BYTES];
@@ -761,12 +761,13 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
     } gasneti_lifo_head_t;
 
     GASNETI_INLINE(_gasneti_lifo_push)
-    void _gasneti_lifo_push(gasneti_lifo_head_t *p, void **head, void **tail) {
-      uintptr_t oldhead;
+    void _gasneti_lifo_push(gasneti_lifo_head_t *p, void **newhead, void **tail) {
+      uintptr_t tag, oldhead;
       do {
 	oldhead = gasneti_atomic_dblptr_read_lo(&p->head_and_tag);
+	tag = gasneti_atomic_dblptr_read_hi(&p->head_and_tag);
 	*tail = (void *)oldhead;
-      } while (!gasneti_atomic_dblptr_cas_lo(&p->head_and_tag, oldhead, (uintptr_t)head, GASNETI_ATOMIC_REL));
+      } while (!gasneti_atomic_dblptr_cas2(&p->head_and_tag, tag, oldhead, tag+1, (uintptr_t)newhead, GASNETI_ATOMIC_REL));
     }
     GASNETI_INLINE(_gasneti_lifo_pop)
     void *_gasneti_lifo_pop(gasneti_lifo_head_t *p) {
@@ -799,13 +800,22 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
     #define _GASNETI_LIFO_ALIGN(p) ((uintptr_t)p & ~(GASNETI_HAVE_ATOMIC128_T - 1))
 
     GASNETI_INLINE(_gasneti_lifo_push)
-    void _gasneti_lifo_push(gasneti_lifo_head_t *p, void **head, void **tail) {
-      gasneti_atomic64_t *ptr = (gasneti_atomic64_t *)_GASNETI_LIFO_ALIGN(p);
-      uintptr_t oldhead;
+    void _gasneti_lifo_push(gasneti_lifo_head_t *p, void **newhead, void **tail) {
+      uintptr_t tag, oldhead;
+      gasneti_atomic64_t *head = (gasneti_atomic64_t *)_GASNETI_LIFO_ALIGN(p);
+      gasneti_atomic128_t *head_and_tag = (gasneti_atomic128_t *)head;
       do {
-        oldhead = gasneti_atomic64_read(ptr, 0);
+        oldhead = gasneti_atomic64_read(head, 0);
+        tag = gasneti_atomic64_read(head+1, 0);
         *tail = (void *)oldhead;
-      } while (!gasneti_atomic64_compare_and_swap(ptr, oldhead, (uintptr_t)head, GASNETI_ATOMIC_REL));
+      } while
+  #if PLATFORM_ARCH_BIG_ENDIAN
+              (!gasneti_atomic128_compare_and_swap(head_and_tag, oldhead, tag,
+			                           (uintptr_t)newhead, tag+1, GASNETI_ATOMIC_REL));
+  #else
+              (!gasneti_atomic128_compare_and_swap(head_and_tag, tag, oldhead,
+			                           tag+1, (uintptr_t)newhead, GASNETI_ATOMIC_REL));
+  #endif
     }
     GASNETI_INLINE(_gasneti_lifo_pop)
     void *_gasneti_lifo_pop(gasneti_lifo_head_t *p) {

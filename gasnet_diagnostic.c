@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_diagnostic.c,v $
- *     $Date: 2009/09/01 20:46:35 $
- * $Revision: 1.23.8.1 $
+ *     $Date: 2009/09/12 01:06:18 $
+ * $Revision: 1.23.8.2 $
  * Description: GASNet internal diagnostics
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -516,6 +516,18 @@ static void lifo_test(int id) {
   PTHREAD_BARRIER(num_threads);
   TEST_HEADER("lifo test"); else return;
 
+  { 
+    void * tmp = test_malloc(sizeof(void *));
+    for (i = 0; i < iters2; ++i) {
+      gasneti_lifo_push(&lifo1, tmp);
+      tmp = gasneti_lifo_pop(&lifo1);
+      if (tmp == NULL)
+        ERR("failed lifo test: 1-each pop/push test failed at iteration %d", i);
+    }
+    test_free(tmp);
+  }
+
+  PTHREAD_BARRIER(num_threads);
     if (!id) {
       gasneti_lifo_init(&lifo2);
 
