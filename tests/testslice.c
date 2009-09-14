@@ -1,11 +1,12 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testslice.c,v $
- *     $Date: 2007/10/17 08:59:34 $
- * $Revision: 1.7 $
+ *     $Date: 2009/09/14 21:54:11 $
+ * $Revision: 1.7.22.1 $
  * Description: GASNet randomized get/put correctness validation test
  * Copyright 2007, Parry Husbands and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
-#include "gasnet.h"
+#include <gasnet.h>
+#include <gasnet_coll.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -46,7 +47,7 @@ int main(int argc, char **argv)
     int outer_iterations = 0;
     int inner_iterations = 0;
     int seedoffset = 0;
-    int numprocs, myproc;
+    int numprocs, myproc, peerproc;
     int sender_p;
     char *shadow_region_1, *shadow_region_2;
     int i,j;
@@ -74,17 +75,16 @@ int main(int argc, char **argv)
     /* parse arguments */
     if (argc > 5) test_usage();
     
-    if(numprocs != 2) {
-        MSG("WARNING: This test requires exactly 2 nodes. Test skipped.\n");
+    if(numprocs & 1) {
+        MSG("WARNING: This test requires an even number of nodes. Test skipped.\n");
         gasnet_exit(0); /* exit 0 to prevent false negatives in test harnesses for smp-conduit */
     }
-    sender_p = (myproc == 0);
+    sender_p = !(myproc & 1);
+    peerproc = myproc ^ 1;
 
     if (seedoffset == 0) {
       seedoffset = (((unsigned int)TIME()) & 0xFFFF);
-      #if 0 /* currently omit seed bcast, as only P0 uses rand */
-        TEST_BCAST(&seedoffset, 0, &seedoffset, sizeof(&seedoffset));
-      #endif
+      TEST_BCAST(&seedoffset, 0, &seedoffset, sizeof(&seedoffset));
     }
     TEST_SRAND(myproc+seedoffset);
 
@@ -104,10 +104,10 @@ int main(int argc, char **argv)
     memset(shadow_region_2,0,segsize);
 
     /* Big loop performing the following */
-    if(sender_p) {
-      local_base = TEST_SEG(0);
-      target_base = TEST_SEG(1);
-      for(i=0;i < outer_iterations;i++) {
+    for(i=0;i < outer_iterations;i++) {
+      if(sender_p) {
+        local_base = TEST_SEG(0);
+        target_base = TEST_SEG(1);
         /* Pick a starting point anywhere in the segment */
         int starting_point = TEST_RAND(0,(segsize-1));
  
@@ -120,27 +120,27 @@ int main(int argc, char **argv)
 
           /* Perform operations */
           /* Out of segment put from shadow_region 1 to remote */
-          gasnet_put(1,target_base+remote_starting_point,shadow_region_1 + starting_point,len); 
+          gasnet_put(peerproc,target_base+remote_starting_point,shadow_region_1 + starting_point,len); 
   
           /* In segment get from remote to local segment */
-          gasnet_get(local_base+local_starting_point_1,1,target_base+remote_starting_point,len); 
+          gasnet_get(local_base+local_starting_point_1,peerproc,target_base+remote_starting_point,len); 
   
           /* Verify */
           assert_eq(shadow_region_1 + starting_point, local_base + local_starting_point_1, len,starting_point,i,j,"Out of segment put + in segment get");
   
           /* Out of segment get from remote to shadow_region_2 (starting from 0) */
-          gasnet_get(shadow_region_2+local_starting_point_2,1,target_base+remote_starting_point,len); 
+          gasnet_get(shadow_region_2+local_starting_point_2,peerproc,target_base+remote_starting_point,len); 
   
           /* Verify */
           assert_eq(shadow_region_2+local_starting_point_2, shadow_region_1 + starting_point, len,starting_point,i,j,"Out of segment get");
         }
         TEST_PROGRESS_BAR(i,outer_iterations);
       }
-      if(failures == 0) {
-        MSG("testslice PASSED");
-      }
+      BARRIER();
     }
-    BARRIER();
+    if(sender_p && !failures) {
+      MSG("testslice PASSED");
+    }
     gasnet_exit(0);
 
     return 0;
