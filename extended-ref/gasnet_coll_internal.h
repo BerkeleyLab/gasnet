@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/09/11 10:53:43 $
- * $Revision: 1.53.14.31.2.10 $
+ *     $Date: 2009/09/14 17:41:22 $
+ * $Revision: 1.53.14.31.2.11 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1470,7 +1470,8 @@ gasnete_coll_generic_gather_all_nb(gasnet_team_handle_t team,
                                    void *dst, void *src,
                                    size_t nbytes, int flags,
                                    gasnete_coll_poll_fn poll_fn, int options,
-                                   void *private_data, uint32_t sequence
+                                   void *private_data, uint32_t sequence,
+                                   int num_params, uint32_t *param_list
                                    GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
@@ -1478,7 +1479,8 @@ gasnete_coll_generic_gather_allM_nb(gasnet_team_handle_t team,
                                     void * const dstlist[], void * const srclist[],
                                     size_t nbytes, int flags,
                                     gasnete_coll_poll_fn poll_fn, int options,
-                                    void *private_data, uint32_t sequence
+                                    void *private_data, uint32_t sequence,
+                                    int num_params, uint32_t *param_list
                                     GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
@@ -1703,15 +1705,15 @@ GASNETE_COLL_DECLARE_GATHER_ALG(RVous);
 
 /*---------------------------------------------------------------------------------*/
 
-#define GASNETE_COLL_DECLARE_GATHERM_ALG(FUNC_EXT)\
-extern gasnet_coll_handle_t \
-gasnete_coll_gathM_##FUNC_EXT(gasnet_team_handle_t team,\
-                              gasnet_image_t dstimage, void *dst,\
-                              void * const srclist[],\
-                              size_t nbytes, size_t dist, int flags,\
-                              gasnete_coll_implementation_t coll_params,\
-                              uint32_t sequence\
-                              GASNETE_THREAD_FARG)
+#define GASNETE_COLL_DECLARE_GATHERM_ALG(FUNC_EXT)                  \
+  extern gasnet_coll_handle_t                                       \
+  gasnete_coll_gathM_##FUNC_EXT(gasnet_team_handle_t team,            \
+                                gasnet_image_t dstimage, void *dst,     \
+                                void * const srclist[],                 \
+                                size_t nbytes, size_t dist, int flags,  \
+                                gasnete_coll_implementation_t coll_params, \
+                                uint32_t sequence                       \
+                                GASNETE_THREAD_FARG)
 
 GASNETE_COLL_DECLARE_GATHERM_ALG(Get);
 GASNETE_COLL_DECLARE_GATHERM_ALG(Put);
@@ -1724,59 +1726,36 @@ GASNETE_COLL_DECLARE_GATHERM_ALG(RVous);
 
 /*---------------------------------------------------------------------------------*/
 
-extern gasnet_coll_handle_t
-gasnete_coll_gall_Gath(gasnet_team_handle_t team,
-		       void *dst, void *src,
-		       size_t nbytes, int flags, uint32_t sequence
-                       GASNETE_THREAD_FARG);
+#define GASNETE_COLL_DECLARE_GATHER_ALL_ALG(FUNC_EXT)\
+  extern gasnet_coll_handle_t                                           \
+  gasnete_coll_gall_##FUNC_EXT(gasnet_team_handle_t team,               \
+                               void *dst, void *src,                    \
+                               size_t nbytes, int flags,                \
+                               gasnete_coll_implementation_t coll_params, \
+                               uint32_t sequence                        \
+                               GASNETE_THREAD_FARG)
 
-#if 0
-extern gasnet_coll_handle_t
-gasnete_coll_gall_TreePut(gasnet_team_handle_t team,
-                          void *dst, void *src,
-                          size_t nbytes, int flags, gasnete_coll_tree_type_t tree_type, 
-                          uint32_t sequence
-                          GASNETE_THREAD_FARG);
-#endif
-extern gasnet_coll_handle_t
-gasnete_coll_gall_Dissem(gasnet_team_handle_t team,
-                          void *dst, void *src,
-                          size_t nbytes, int flags,  
-                          uint32_t sequence
-                          GASNETE_THREAD_FARG);
-extern gasnet_coll_handle_t
-gasnete_coll_gall_FlatPut(gasnet_team_handle_t team,
-                          void *dst, void *src,
-                          size_t nbytes, int flags,  
-                          uint32_t sequence
-                          GASNETE_THREAD_FARG);
-extern gasnet_coll_handle_t
-gasnete_coll_gall_RingPut(gasnet_team_handle_t team,
-                          void *dst, void *src,
-                          size_t nbytes, int flags,  
-                          uint32_t sequence
-                          GASNETE_THREAD_FARG);
-
+GASNETE_COLL_DECLARE_GATHER_ALL_ALG(Gath);
+GASNETE_COLL_DECLARE_GATHER_ALL_ALG(EagerDissem);
+GASNETE_COLL_DECLARE_GATHER_ALL_ALG(Dissem);
+GASNETE_COLL_DECLARE_GATHER_ALL_ALG(FlatEagerPut);
+GASNETE_COLL_DECLARE_GATHER_ALL_ALG(FlatPut);
+GASNETE_COLL_DECLARE_GATHER_ALL_ALG(FlatGet);
 
 /*---------------------------------------------------------------------------------*/
 
-extern gasnet_coll_handle_t
-gasnete_coll_gallM_Dissem(gasnet_team_handle_t team,
-			void * const dstlist[], void * const srclist[],
-			size_t nbytes, int flags, uint32_t sequence
-                        GASNETE_THREAD_FARG);
+#define GASNETE_COLL_DECLARE_GATHER_ALLM_ALG(FUNC_EXT)\
+extern gasnet_coll_handle_t \
+gasnete_coll_gallM_##FUNC_EXT(gasnet_team_handle_t team,\
+                              void * const dstlist[], void * const srclist[],\
+                              size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence\
+                              GASNETE_THREAD_FARG)
 
-extern gasnet_coll_handle_t
-gasnete_coll_gallM_FlatPut(gasnet_team_handle_t team,
-			void * const dstlist[], void * const srclist[],
-			size_t nbytes, int flags, uint32_t sequence
-                        GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_gallM_Gath(gasnet_team_handle_t team,
-			void * const dstlist[], void * const srclist[],
-			size_t nbytes, int flags, uint32_t sequence
-                        GASNETE_THREAD_FARG);
+GASNETE_COLL_DECLARE_GATHER_ALLM_ALG(Dissem);
+GASNETE_COLL_DECLARE_GATHER_ALLM_ALG(EagerDissem);
+GASNETE_COLL_DECLARE_GATHER_ALLM_ALG(FlatEagerPut);
+GASNETE_COLL_DECLARE_GATHER_ALLM_ALG(FlatPut);
+GASNETE_COLL_DECLARE_GATHER_ALLM_ALG(Gath);
 
 /*---------------------------------------------------------------------------------*/
 

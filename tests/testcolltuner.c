@@ -11,12 +11,10 @@
 #include <gasnet.h>
 #include <gasnet_tools.h>
 #include <gasnet_coll.h>
-//#include <gasnet_coll_autotune.h>
 
 /*file for writing out XML information*/
 #include <../other/myxml/myxml.h>
 
-#define DEFAULT_PERFORMANCE_ITERS 50
 
 typedef struct {
   int my_local_thread;
@@ -28,9 +26,7 @@ typedef struct {
 
 } thread_data_t;
 
-/* max data size for the test in bytes*/
-#define DEFAULT_MAX_DATA_SIZE 32768 
-
+#define DEFAULT_PERFORMANCE_ITERS 10
 #define PRINT_TIMERS 1
 #define VERBOSE_VERIFICATION_OUTPUT 0
 
@@ -50,10 +46,10 @@ gasnet_image_t THREADS;
 
 int performance_iters;
 size_t max_data_size;
-size_t min_data_size;
 
-#define SEG_PER_THREAD (sizeof(int)*max_data_size*2)
-#define TEST_SEGSZ_EXPR (sizeof(int)*(SEG_PER_THREAD*threads_per_node))
+
+#define SEG_PER_THREAD (max_data_size*2)*THREADS
+#define TEST_SEGSZ_EXPR ((SEG_PER_THREAD*threads_per_node))
 
 uint8_t **my_srcs;
 uint8_t **my_dsts;
@@ -61,7 +57,7 @@ uint8_t **all_srcs;
 uint8_t **all_dsts;
 
 char *outputfile = (char*) "./gasnet_coll_tuning_defaults.bin";
-
+char *profile_file = (char*) "./gasnet_coll_profile.bin";
 
 #include <test.h>
 
@@ -70,161 +66,7 @@ gasnet_coll_barrier_notify(GASNET_TEAM_ALL, 0, GASNET_BARRIERFLAG_ANONYMOUS | GA
 gasnet_coll_barrier_wait(GASNET_TEAM_ALL, 0, GASNET_BARRIERFLAG_ANONYMOUS | GASNET_BARRIERFLAG_IMAGES);\
 } while(0);
 
-char* fill_flag_str(int flags, char *outstr) {
-  
-  if(flags & GASNET_COLL_IN_NOSYNC && flags & GASNET_COLL_OUT_NOSYNC) {
-    sprintf(outstr, "no/no");
-  } else if(flags & GASNET_COLL_IN_NOSYNC && flags & GASNET_COLL_OUT_MYSYNC) {
-    sprintf(outstr, "no/my");
-  } else if(flags & GASNET_COLL_IN_NOSYNC && flags & GASNET_COLL_OUT_ALLSYNC) {
-    sprintf(outstr, "no/all");
-  } else if(flags & GASNET_COLL_IN_MYSYNC && flags & GASNET_COLL_OUT_NOSYNC) {
-    sprintf(outstr, "my/no");
-  } else if(flags & GASNET_COLL_IN_MYSYNC && flags & GASNET_COLL_OUT_MYSYNC) {
-    sprintf(outstr, "my/my");
-  } else if(flags & GASNET_COLL_IN_MYSYNC && flags & GASNET_COLL_OUT_ALLSYNC) {
-    sprintf(outstr, "my/all");
-  } else if(flags & GASNET_COLL_IN_ALLSYNC && flags & GASNET_COLL_OUT_NOSYNC) {
-    sprintf(outstr, "all/no");
-  } else if(flags & GASNET_COLL_IN_ALLSYNC && flags & GASNET_COLL_OUT_MYSYNC) {
-    sprintf(outstr, "all/my");
-  } else if(flags & GASNET_COLL_IN_ALLSYNC && flags & GASNET_COLL_OUT_ALLSYNC) {
-    sprintf(outstr, "all/all");
-  }
-  return outstr;
-}
-
-
-void run_MULTI_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr,  int root_thread, int in_flags, myxml_node_t *root_xml_node) {
-  int s, c, i, f;
-  myxml_node_t *addr_mode_node, *current_parent_node = root_xml_node, *temp_node= NULL;
-  int *src, *dst;
-  int num_tree_classes;
-  int num_fanouts; 
-  int best_tree; 
-  int best_fanout;
-  gasnett_tick_t begin,end;
-  gasnett_tick_t best_time;
-  char buffer[50];
-
-  int flags = in_flags | GASNET_COLL_SRC_IN_SEGMENT|GASNET_COLL_DST_IN_SEGMENT;
-  
-  if(in_flags & GASNET_COLL_SINGLE) { /*whether or not each node presents one address that is valid for all nodes*/
-    addr_mode_node = myxml_createNode(root_xml_node, (char *)"address_mode", (char*) "val", (char*) "single", NULL);
-    src = (int*) src_arr[0];
-    dst = (int*) dst_arr[0];
-  } else { /*each node only gives address that are only valid on the local node*/
-    addr_mode_node = myxml_createNode(root_xml_node, (char*) "address_mode", (char*) "val", (char*) "local", NULL);
-    src = (int*) td->mysrc;
-    dst= (int*) td->mydest;
-  }
-  
-
-
-  /*************** BROADCASTM *****************/
-  current_parent_node = myxml_createNode(addr_mode_node, (char*) "collective", (char *) "val", (char*) "broadcastM", NULL);
-  
-  temp_node = current_parent_node;
-  
-   for(s=min_data_size; s<=max_data_size; s*=2) {
-    uint32_t best_alg;
-    uint32_t num_params;
-    uint32_t *param_list;
-     char *best_tree;
-    if(td->mythread==0)
-      MSG0("starting test: %s %d bytes", fill_flag_str(flags, buffer), (int)sizeof(int)*s);
-    
-    current_parent_node = myxml_createNodeInt(temp_node, (char*) "size", (char *) "start", s*sizeof(int), NULL);
-    myxml_addAttributeInt(current_parent_node, (char*) "end", (s == max_data_size ? 1<<31 : (s*2)-1));
-    
-    /*run the gasnet tuner and report back the results!*/
-    gasnet_coll_tune_generic_op(GASNET_TEAM_ALL, GASNET_COLL_BROADCASTM_OP, dst_arr, src_arr, root_thread, flags, sizeof(int)*s,
-                                NULL, NULL, &best_alg, &num_params, &param_list, &best_tree);
-
-    sprintf(buffer, "%d", best_alg);
-    myxml_createNode(current_parent_node, (char*) "Best_Alg", NULL, NULL, buffer);
-     myxml_createNode(current_parent_node, (char*) "Best_Tree", NULL, NULL, best_tree);
-    sprintf(buffer, "%d", num_params);
-     
-    myxml_createNode(current_parent_node, (char*) "Num_Params", NULL, NULL, buffer);
-    for(c=0; c<num_params; c++) {
-      char buff_idx[20];
-      sprintf(buff_idx, "param_%d", c);
-      sprintf(buffer, "%d", param_list[c]);
-      myxml_createNode(current_parent_node, buff_idx, NULL, NULL, buffer);
-    }
-    //free(best_tree);
-  }
-  /*******************END BROADCASTM***************/
-
-}
-
-void run_SINGLE_tree_tests(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr,  int root_thread, int in_flags, myxml_node_t *root_xml_node) {
-  int s, c, i, f;
-  myxml_node_t *addr_mode_node, *current_parent_node = root_xml_node, *temp_node= NULL;
-  int *src, *dst;
-  int num_tree_classes;
-  int num_fanouts; 
-  int best_tree; 
-  int best_fanout;
-  gasnett_tick_t begin,end;
-  gasnett_tick_t best_time;
-  char buffer[50];
-  
-  int flags = in_flags | GASNET_COLL_SRC_IN_SEGMENT|GASNET_COLL_DST_IN_SEGMENT;
-  
-  if(in_flags & GASNET_COLL_SINGLE) { /*whether or not each node presents one address that is valid for all nodes*/
-    addr_mode_node = myxml_createNode(root_xml_node, (char *)"address_mode", (char*) "val", (char*) "single", NULL);
-    src = (int*) src_arr[0];
-    dst = (int*) dst_arr[0];
-  } else { /*each node only gives address that are only valid on the local node*/
-    addr_mode_node = myxml_createNode(root_xml_node, (char*) "address_mode", (char*) "val", (char*) "local", NULL);
-    src = (int*) td->mysrc;
-    dst= (int*) td->mydest;
-  }
-  
-  
-  
-  /*************** BROADCAST *****************/
-  current_parent_node = myxml_createNode(addr_mode_node, (char*) "collective", (char *) "val", (char*) "broadcast", NULL);
-  
-  num_tree_classes = gasnet_coll_get_num_tree_classes(GASNET_TEAM_ALL, GASNET_COLL_BROADCAST_OP);
-  temp_node = current_parent_node;
-  
-  for(s=min_data_size; s<=max_data_size; s*=2) {
-    uint32_t best_alg;
-    uint32_t num_params;
-    uint32_t *param_list;
-    char *best_tree;
-    if(td->mythread==0)
-      MSG0("starting test: %s %d bytes", fill_flag_str(flags, buffer), (int)sizeof(int)*s);
-    
-    current_parent_node = myxml_createNodeInt(temp_node, (char*) "size", (char *) "start", s*sizeof(int), NULL);
-    myxml_addAttributeInt(current_parent_node, (char*) "end", (s == max_data_size ? 1<<31 : (s*2*sizeof(int))-1));
-    
-    /*run the gasnet tuner and report back the results!*/
-    gasnet_coll_tune_generic_op(GASNET_TEAM_ALL, GASNET_COLL_BROADCAST_OP, (uint8_t**) &dst, (uint8_t**) &src, root_thread, flags, sizeof(int)*s,
-                                NULL, NULL, &best_alg, &num_params, &param_list, &best_tree);
-    
-    sprintf(buffer, "%d", best_alg);
-    myxml_createNode(current_parent_node, (char*) "Best_Alg", NULL, NULL, buffer);
-    myxml_createNode(current_parent_node, (char*) "Best_Tree", NULL, NULL, best_tree);
-    sprintf(buffer, "%d", num_params);
-    myxml_createNode(current_parent_node, (char*) "Num_Params", NULL, NULL, buffer);
-   // free(best_tree);
-    for(c=0; c<num_params; c++) {
-      char buff_idx[20];
-      sprintf(buff_idx, "param_%d", c);
-      sprintf(buffer, "%d", param_list[c]);
-      myxml_createNode(current_parent_node, buff_idx, NULL, NULL, buffer);
-    }
-  }
-  /*******************END BROADCAST***************/
-  
-
-}
-
-
+myxml_node_t *profile_info;
 
 void *thread_main(void *arg) {
   int flag_iter;
@@ -241,8 +83,9 @@ void *thread_main(void *arg) {
 #else
   gasnet_coll_init(NULL, td->mythread, NULL, 0, 0);
 #endif
+  return 0;
 
-
+#if 0
   COLL_BARRIER();
 
   tuning_root = myxml_createNode(NULL, (char*) "machine", (char*)"CONFIG", (char*) GASNET_CONFIG_STRING, NULL);
@@ -323,11 +166,50 @@ void *thread_main(void *arg) {
     fflush(stdout);
   }
   if(td->mythread==0)
-  MSG0("tunign data dumped");
+    MSG0("tuning data dumped");
       
 
   COLL_BARRIER();
   return 0;
+#endif
+}
+
+#define STRINGS_MATCH(STR_A, STR_B) (strcmp(STR_A, STR_B)==0)
+
+myxml_node_t *load_file(char *filename) {
+  FILE *instream;
+  myxml_bytestream_t file_content;
+  myxml_node_t *ret;
+  
+  if(!filename) {fprintf(stderr, "filename can't be null!\n"); gasnet_exit(0);}
+  instream = fopen(filename, "r");
+  
+  /*load the tuning file into a bytestream*/
+  if(!instream) {fprintf(stderr, "failed to open file: %s!\n", filename); gasnet_exit(0);}
+  ret = myxml_loadTreeBIN(instream);
+  if(!STRINGS_MATCH(GASNET_CONFIG_STRING, MYXML_ATTRIBUTES(ret)[0].attribute_value)) {
+    fprintf(stderr, "WARNING: Profile (%s) loaded successfully but GASNet configurations don't match!\n", filename); 
+  }
+  return ret;
+}
+
+void fill_meta_data(myxml_node_t *root_node) {
+  int i;
+  if(STRINGS_MATCH(MYXML_TAG(root_node), "threads_per_node")) {
+    int curr_tpn = atoi(MYXML_ATTRIBUTES(root_node)[0].attribute_value);
+    if( curr_tpn > threads_per_node) {
+      threads_per_node = curr_tpn;
+    }
+  } else if(STRINGS_MATCH(MYXML_TAG(root_node), "size")) {
+    int curr_sz = atoi(MYXML_ATTRIBUTES(root_node)[0].attribute_value);
+    if(curr_sz > max_data_size) {
+      max_data_size = curr_sz;
+    }
+  }
+  for(i=0; i<MYXML_NUM_CHILDREN(root_node); i++) {
+    fill_meta_data(MYXML_CHILDREN(root_node)[i]);
+  }
+  return;
 }
 
 int main(int argc, char **argv) {
@@ -336,54 +218,44 @@ int main(int argc, char **argv) {
   thread_data_t *td_arr;
   GASNET_Safe(gasnet_init(&argc, &argv));
   
-  max_data_size = DEFAULT_MAX_DATA_SIZE/sizeof(int);
-  min_data_size = 1;
   performance_iters = DEFAULT_PERFORMANCE_ITERS;
-
-
-#if GASNET_PAR
-  threads_per_node = gasnett_cpu_count();
-#else
-  threads_per_node = 1;
-#endif
-  
+    
   for(i=1; i<argc; i++) {
     if(strcmp("-i", argv[i])==0 || strcmp("-iters", argv[i])==0) {
       performance_iters = atoi(argv[i+1]);
-      i++;
-    } 
-#if GASNET_PAR
-    else if(strcmp("-t", argv[i])==0 || strcmp("-threads", argv[i])==0) {
-      threads_per_node = atoi(argv[i+1]);
-      i++;
-    } 
-#endif
-    else if(strcmp("-sz", argv[i])==0  || strcmp("-maxsz", argv[i])==0 || strcmp("-max-data-size", argv[i])==0) {
-      max_data_size = atoi(argv[i+1])/sizeof(int);
-      i++;
-    } else if(strcmp("-minsz", argv[i])==0 || strcmp("-min-data-size", argv[i])==0) {
-      min_data_size = atoi(argv[i+1])/sizeof(int);
       i++;
     } else if(strcmp("-f", argv[i])==0 || strcmp("-tune-file", argv[i])==0) {
       outputfile = test_malloc(strlen(argv[i+1])+1);
       strcpy(outputfile, argv[i+1]);
       i++;
+    } else if(strcmp("-p", argv[i])==0 || strcmp("-profile", argv[i])==0) {
+      profile_file = test_malloc(strlen(argv[i+1])+1);
+      strcpy(profile_file, argv[i+1]);
+      i++;
     } else if(strcmp("-h", argv[i])==0 || strcmp("-help", argv[i])==0) {
-#if GASNET_PAR
-      if(gasneti_mynode == 0) printf("usage: %s (-i iters) (-t num threads) (-sz max size) (-f output file)\n", argv[0]);
-#else
-      if(gasneti_mynode == 0) printf("usage: %s (-i iters) (-sz max size) (-f output file)\n", argv[0]);
-#endif
+      if(gasneti_mynode == 0) printf("usage: %s (-i iters) (-f output file)\n", argv[0]);
       gasnet_exit(0);
     }
-    
-  }                      
+  }                    
   
+  max_data_size = 0;
+  threads_per_node = 0;
+  profile_info = load_file(profile_file);
+  fill_meta_data(profile_info);
+  printf("data loaded: %d %d\n", (int)max_data_size, threads_per_node);
+  if(max_data_size <=0) {
+    fprintf(stderr, "max data size(%d) should be >=0\n", (int) max_data_size);
+    gasnet_exit(1);
+  }
+  if(threads_per_node<1) {
+    fprintf(stderr, "threads_per_node (%d) should be > 0\n", threads_per_node);
+    gasnet_exit(1);
+  }
+    
+
   if(performance_iters <=0) {
     gasnet_exit(0);
   }
-#if 1
-
   
   mynode = gasnet_mynode();
   nodes = gasnet_nodes();
@@ -429,7 +301,6 @@ int main(int argc, char **argv) {
   test_free(td_arr);
   BARRIER();
 
-#endif
   gasnet_exit(0);
   return 0;
 }

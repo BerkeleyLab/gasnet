@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2009/09/08 05:44:00 $
- * $Revision: 1.53.12.16.2.4 $
+ *     $Date: 2009/09/14 17:41:20 $
+ * $Revision: 1.53.12.16.2.5 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -290,6 +290,9 @@ void gasnete_coll_loadTuningState(char *filename, gasnete_coll_team_t team GASNE
 
 void gasnete_coll_dumpTuningState(char *filename, gasnete_coll_team_t team GASNETE_THREAD_FARG);
 #define gasnet_coll_dumpTuningState(FILENAME, TEAM) gasnete_coll_dumpTuningState(FILENAME, TEAM GASNETE_THREAD_GET)
+
+void gasnete_coll_dumpProfile(char *filename, gasnete_coll_team_t team GASNETE_THREAD_FARG);
+#define gasnet_coll_dumpProfile(FILENAME, TEAM) gasnete_coll_dumpProfile(FILENAME, TEAM GASNETE_THREAD_GET)
 
 #define gasnet_coll_tune_generic_op(team, op, coll_args, flags, fnptr, work_arg, best_algidx, num_params, best_param, best_tree) \
 gasnete_coll_tune_generic_op(team, op, coll_args, flags, fnptr, work_arg, best_algidx, num_params, best_param,  best_tree GASNETE_THREAD_GET)

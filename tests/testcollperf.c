@@ -20,18 +20,19 @@ options that is covered testcoll
 
 
 #define ALL_COLL_ENABLED 0
-#define BROADCAST_ENABLED 1
-#define SCATTER_ENABLED 1
-#define GATHER_ENABLED 1
-#define REDUCE_ENABLED 1
+#define BROADCAST_ENABLED 0
+#define SCATTER_ENABLED 0
+#define GATHER_ENABLED 0
+#define GATHER_ALL_ENABLED 1
+#define REDUCE_ENABLED 0
 
 
 #define ALL_ADDR_MODE_ENABLED 0
 
 #define SINGLE_SINGLE_MODE_ENABLED 1
-#define SINGLE_LOCAL_MODE_ENABLED 1
+#define SINGLE_LOCAL_MODE_ENABLED 0
 #define MULTI_SINGLE_MODE_ENABLED 1
-#define MULTI_LOCAL_MODE_ENABLED 1
+#define MULTI_LOCAL_MODE_ENABLED 0
 
 
 
@@ -626,7 +627,7 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
       if(mydest[i] != 42+i) {
         MSG("%d> gather_allM verification @ iteration: %d ... expected %d got %d", td->mythread, (int)(i/(nelem*THREADS)), expected, mydest[i]);
         ERROR_EXIT();
-      }
+      } 
     }
   }
   COLL_BARRIER();
@@ -832,6 +833,7 @@ void *thread_main(void *arg) {
     }
   }
   gasnet_coll_dumpTuningState(NULL, GASNET_TEAM_ALL);
+  gasnet_coll_dumpProfile(NULL, GASNET_TEAM_ALL);
   MSG("thread %d> done", td->mythread);
   return NULL;
 }

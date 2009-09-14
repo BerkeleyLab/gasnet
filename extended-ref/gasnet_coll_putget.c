@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/09/11 10:48:39 $
- * $Revision: 1.71.12.33.2.7 $
+ *     $Date: 2009/09/14 17:41:22 $
+ * $Revision: 1.71.12.33.2.8 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -4125,7 +4125,9 @@ static int gasnete_coll_pf_gall_RingPut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 extern gasnet_coll_handle_t
 gasnete_coll_gall_RingPut(gasnet_team_handle_t team,
                           void *dst, void *src,
-                          size_t nbytes, int flags, uint32_t sequence
+                          size_t nbytes, int flags, 
+                          gasnete_coll_implementation_t coll_params,
+                          uint32_t sequence
                           GASNETE_THREAD_FARG)
 {
   /*Since the algorithm is naturally in_no / out_no use in-barrier if anything besides IN NOSYNC. 
@@ -4138,13 +4140,13 @@ gasnete_coll_gall_RingPut(gasnet_team_handle_t team,
   return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,
                                             &gasnete_coll_pf_gall_RingPut, options,
                                             NULL, 
-                                            sequence GASNETE_THREAD_PASS);
+                                            sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 #endif
 
 
 
-/*only works for COLL_SINGLE*/
+/*only works for COLL_SINGLE and DST IN SEGMENT*/
 static int gasnete_coll_pf_gall_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_coll_gather_all_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather_all);
@@ -4210,7 +4212,9 @@ static int gasnete_coll_pf_gall_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 extern gasnet_coll_handle_t
 gasnete_coll_gall_FlatPut(gasnet_team_handle_t team,
                           void *dst, void *src,
-                          size_t nbytes, int flags, uint32_t sequence
+                          size_t nbytes, int flags, 
+                          gasnete_coll_implementation_t coll_params,
+                          uint32_t sequence
                           GASNETE_THREAD_FARG)
 {
   /*Since the algorithm is naturally in_no / out_no use in-barrier if anything besides IN NOSYNC. 
@@ -4224,8 +4228,98 @@ gasnete_coll_gall_FlatPut(gasnet_team_handle_t team,
   return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,
                                             &gasnete_coll_pf_gall_FlatPut, options,
                                             NULL, 
-                                            sequence GASNETE_THREAD_PASS);
+                                            sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
+
+/*GASNET_COLL_SINGLE and GASNET_SRC_IN_SEG*/
+static int gasnete_coll_pf_gall_FlatGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
+  gasnete_coll_generic_data_t *data = op->data;
+  const gasnete_coll_gather_all_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather_all);
+  int result = 0;
+  int8_t *myscratch;
+  
+  /* State 0: In barrier (if needed)*/
+  if(data->state == 0) {
+    if (!gasnete_coll_generic_all_threads(data) || 
+        !gasnete_coll_generic_insync(op->team, data)) {
+      return 0;
+    }
+    data->state++;
+  }
+  
+  if(data->state == 1) {
+    gasnet_node_t srcnode;
+    if (!GASNETE_COLL_MAY_INIT_FOR(op)) return result;
+    
+    if_pt(op->team->total_ranks > 1) {
+      gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+      {
+        for(srcnode=op->team->myrank+1; srcnode<op->team->total_ranks; srcnode++) {
+          /* get from threads above me*/
+          gasnete_get_nbi_bulk(gasnete_coll_scale_ptr(args->dst, srcnode, args->nbytes), 
+                               GASNETE_COLL_REL2ACT(op->team,srcnode), args->src, 
+                               args->nbytes GASNETE_THREAD_PASS);
+        }
+        for(srcnode=0; srcnode<op->team->myrank; srcnode++) {
+          /*get threads below me*/
+          gasnete_get_nbi_bulk(gasnete_coll_scale_ptr(args->dst, srcnode, args->nbytes), 
+                               GASNETE_COLL_REL2ACT(op->team,srcnode), args->src, 
+                               args->nbytes GASNETE_THREAD_PASS);
+        }
+      }
+      data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+      gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
+    }
+    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*) args->dst + op->team->myrank*args->nbytes, 
+                                        args->src, args->nbytes);
+    
+    data->state++;
+  }
+  
+  if(data->state == 2) {
+    /* sync all the handles for the gets*/
+    if (op->team->total_ranks > 1 && data->handle != GASNET_INVALID_HANDLE) {
+      return 0;
+    }
+    data->state++;
+  }
+  
+  if(data->state == 3) {
+    /* out barrier and cleanup*/
+    if (!gasnete_coll_generic_outsync(op->team, data)) {
+      return 0;
+    }
+    
+    gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
+    result = (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
+    
+  }
+  
+  return result;
+}
+
+extern gasnet_coll_handle_t
+gasnete_coll_gall_FlatGet(gasnet_team_handle_t team,
+                          void *dst, void *src,
+                          size_t nbytes, int flags, 
+                          gasnete_coll_implementation_t coll_params,
+                          uint32_t sequence
+                          GASNETE_THREAD_FARG)
+{
+  /*Since the algorithm is naturally in_no / out_no use in-barrier if anything besides IN NOSYNC. 
+   Use out barrier only if out_ALLSYNC since algorithm does not need a full barrier for OUT_MYSYNC*/
+  int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+  
+  
+  //  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
+  
+  return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,
+                                            &gasnete_coll_pf_gall_FlatGet, options,
+                                            NULL, 
+                                            sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
+}
+
 
 static int gasnete_coll_pf_gall_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
@@ -4325,7 +4419,9 @@ static int gasnete_coll_pf_gall_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FARG
 extern gasnet_coll_handle_t
 gasnete_coll_gall_Dissem(gasnet_team_handle_t team,
                          void *dst, void *src,
-                         size_t nbytes, int flags, uint32_t sequence
+                         size_t nbytes, int flags, 
+                         gasnete_coll_implementation_t coll_params,
+                         uint32_t sequence
                          GASNETE_THREAD_FARG)
 {
   /*Since the algorithm is naturally in_no / out_no use in-barrier if anything besides IN NOSYNC. 
@@ -4340,7 +4436,7 @@ gasnete_coll_gall_Dissem(gasnet_team_handle_t team,
   return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,
                                             &gasnete_coll_pf_gall_Dissem, options,
                                             NULL, 
-                                            sequence GASNETE_THREAD_PASS);
+                                            sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/
@@ -4416,7 +4512,8 @@ static int gasnete_coll_pf_gallM_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FA
 extern gasnet_coll_handle_t
 gasnete_coll_gallM_FlatPut(gasnet_team_handle_t team,
                            void * const dstlist[], void * const srclist[],
-                           size_t nbytes, int flags, uint32_t sequence
+                           size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, 
+                           uint32_t sequence
                            GASNETE_THREAD_FARG)
 {
   /*Since the algorithm is naturally in_no / out_no use in-barrier if anything besides IN NOSYNC. 
@@ -4431,7 +4528,8 @@ gasnete_coll_gallM_FlatPut(gasnet_team_handle_t team,
   return gasnete_coll_generic_gather_allM_nb(team, dstlist, srclist, nbytes, flags,
                                              &gasnete_coll_pf_gallM_FlatPut, options,
                                              NULL, 
-                                             sequence GASNETE_THREAD_PASS);
+                                             sequence, coll_params->num_params, 
+                                             coll_params->param_list GASNETE_THREAD_PASS);
 }
 
 static int gasnete_coll_pf_gallM_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
@@ -4545,7 +4643,7 @@ static int gasnete_coll_pf_gallM_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 extern gasnet_coll_handle_t
 gasnete_coll_gallM_Dissem(gasnet_team_handle_t team,
                           void * const dstlist[], void * const srclist[],
-                          size_t nbytes, int flags, uint32_t sequence
+                          size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
                           GASNETE_THREAD_FARG)
 {
   /*Since the algorithm is naturally in_no / out_no use in-barrier if anything besides IN NOSYNC. 
@@ -4559,7 +4657,7 @@ gasnete_coll_gallM_Dissem(gasnet_team_handle_t team,
     return gasnete_coll_generic_gather_allM_nb(team, dstlist, srclist, nbytes, flags,
                                                &gasnete_coll_pf_gallM_Dissem, options,
                                                NULL, 
-                                               sequence GASNETE_THREAD_PASS);
+                                               sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
 /*---------------------------------------------------------------------------------*/
