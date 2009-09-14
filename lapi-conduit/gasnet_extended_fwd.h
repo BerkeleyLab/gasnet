@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2009/01/23 20:38:12 $
- * $Revision: 1.27.10.1 $
+ *     $Date: 2009/09/14 23:13:47 $
+ * $Revision: 1.27.10.1.4.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -43,6 +43,8 @@
 #define GASNETI_DIRECT_WAIT_SYNCNBI_PUTS 1 
 #define GASNETI_DIRECT_WAIT_SYNCNBI_ALL 1
 #endif
+
+#define GASNETE_COLL_CONDUIT_BARRIERS GASNETE_COLL_BARRIER_LAPIGFENCE, GASNETE_COLL_BARRIER_LAPIAM
 
 #define _GASNET_HANDLE_T
 /*  an opaque type representing a non-blocking operation in-progress initiated using the extended API */
