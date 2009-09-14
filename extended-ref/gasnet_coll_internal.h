@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/09/14 17:41:22 $
- * $Revision: 1.53.14.31.2.11 $
+ *     $Date: 2009/09/14 22:57:31 $
+ * $Revision: 1.53.14.31.2.12 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1738,6 +1738,7 @@ GASNETE_COLL_DECLARE_GATHERM_ALG(RVous);
 GASNETE_COLL_DECLARE_GATHER_ALL_ALG(Gath);
 GASNETE_COLL_DECLARE_GATHER_ALL_ALG(EagerDissem);
 GASNETE_COLL_DECLARE_GATHER_ALL_ALG(Dissem);
+GASNETE_COLL_DECLARE_GATHER_ALL_ALG(DissemNoScratch);
 GASNETE_COLL_DECLARE_GATHER_ALL_ALG(FlatEagerPut);
 GASNETE_COLL_DECLARE_GATHER_ALL_ALG(FlatPut);
 GASNETE_COLL_DECLARE_GATHER_ALL_ALG(FlatGet);
@@ -1752,6 +1753,7 @@ gasnete_coll_gallM_##FUNC_EXT(gasnet_team_handle_t team,\
                               GASNETE_THREAD_FARG)
 
 GASNETE_COLL_DECLARE_GATHER_ALLM_ALG(Dissem);
+GASNETE_COLL_DECLARE_GATHER_ALLM_ALG(DissemNoScratch);
 GASNETE_COLL_DECLARE_GATHER_ALLM_ALG(EagerDissem);
 GASNETE_COLL_DECLARE_GATHER_ALLM_ALG(FlatEagerPut);
 GASNETE_COLL_DECLARE_GATHER_ALLM_ALG(FlatPut);
