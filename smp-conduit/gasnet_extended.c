@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2009/09/11 19:49:54 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2009/09/14 03:23:25 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet Extended API for smp-conduit
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -143,10 +143,15 @@ static int gasnete_pshmbarrier_wait(int id, int flags) {
     gasneti_fatalerror("gasnet_barrier_wait() called without a matching notify");
   }
 
-  /* Poll until all nodes have reached the barrier */
   counter = &gasneti_pshm_barrier->counter[phase];
-  gasneti_pollwhile(
-         gasnete_pshmbarrier_goal != gasneti_atomic_read(counter, GASNETI_ATOMIC_ACQ));
+  if (gasnete_pshmbarrier_goal == gasneti_atomic_read(counter, 0)) {
+    /* completed asynchronously before wait */ 
+    GASNETI_TRACE_EVENT_TIME(B,BARRIER_ASYNC_COMPLETION,GASNETI_TICKS_NOW_IFENABLED(B)-gasnete_barrier_notifytime);
+    gasneti_local_rmb();
+  } else {
+    /* Poll until all nodes have reached the barrier (polluntil includes the final RMB) */
+    gasneti_polluntil(gasnete_pshmbarrier_goal == gasneti_atomic_read(counter, 0));
+  }
 
   return finish_barrier(id, flags, phase);
 }
