@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2009/08/03 20:35:40 $
- * $Revision: 1.34.20.5 $
+ *     $Date: 2009/09/15 17:10:55 $
+ * $Revision: 1.34.20.5.2.1 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -487,7 +487,7 @@ gasnete_coll_team_barrier_t *gasnete_coll_initialize_barrier() {
 }
 
 
-static gasnete_coll_barrier_type_t gasnete_coll_default_barrier_type=0;
+static gasnete_coll_barrier_type_t gasnete_coll_default_barrier_type=GASNETE_COLL_BARRIER_ENVDEFAULT;
 
 GASNETI_INLINE(gasnete_coll_barrier_notify_internal)
 void gasnete_coll_barrier_notify_internal(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG) {
@@ -608,7 +608,7 @@ extern void gasnete_coll_barrier_init(gasnete_coll_team_t team,  int barrier_typ
   /* conduit plugin for default barrier mechanism */
 #define GASNETE_BARRIER_DEFAULT "AMDISSEM"
 #endif
-  gasnete_coll_barrier_type_t barrier_type= barrier_type_in;
+  gasnete_coll_barrier_type_t barrier_type= (gasnete_coll_barrier_type_t) barrier_type_in;
   static int envdefault_set = 0;
   
   
