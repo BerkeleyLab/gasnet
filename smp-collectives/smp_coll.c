@@ -3,8 +3,8 @@
 #include <stdlib.h>
 #include <math.h>
 #include <inttypes.h>
-#include <../smp-collectives/smp_coll_internal.h>
-#include <../smp-collectives/smp_coll_dissem.c>
+#include <smp-collectives/smp_coll_internal.h>
+#include <smp-collectives/smp_coll_dissem.c>
 #if defined(ENABLE_AFFINITY_VIA_SOLARIS)
   #include <sys/types.h>
   #include <sys/processor.h>

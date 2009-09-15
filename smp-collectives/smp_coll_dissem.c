@@ -1,4 +1,4 @@
-#include <../smp-collectives/smp_coll_dissem.h>
+#include <smp-collectives/smp_coll_dissem.h>
 
 void smp_coll_print_dissem_order(dissem_info_t *obj, int MYTHREAD) {
   int i;

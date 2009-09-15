@@ -10,8 +10,8 @@
 
 
 /*a small library to write and read XML style sheets for the collective tuner*/
-#include <../other/myxml/myxml.h>
-#include <../other/myxml/myxml.c>
+#include <myxml/myxml.h>
+#include <myxml/myxml.c>
 
 /*this array is the maximum size of hte log2 array for fanouts*/
 

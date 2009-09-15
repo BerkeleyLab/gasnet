@@ -10,8 +10,8 @@
 #include <gasnet_extended_internal.h>
 #include <gasnet_coll_internal.h>
 #include <gasnet_coll_autotune_internal.h>
-#include <../smp-collectives/smp_coll.h>
-#include <../smp-collectives/smp_coll_bcast_scatter_gather.c>
+#include <smp-collectives/smp_coll.h>
+#include <smp-collectives/smp_coll_bcast_scatter_gather.c>
 
 #define GASNETE_COLL_EVERY_IN_SYNC_FLAG GASNET_COLL_IN_NOSYNC | GASNET_COLL_IN_MYSYNC | GASNET_COLL_IN_ALLSYNC 
 #define GASNETE_COLL_EVERY_OUT_SYNC_FLAG GASNET_COLL_OUT_NOSYNC | GASNET_COLL_OUT_MYSYNC | GASNET_COLL_OUT_ALLSYNC 

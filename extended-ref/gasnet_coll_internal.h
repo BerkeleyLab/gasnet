@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/09/15 21:21:48 $
- * $Revision: 1.53.14.31.2.14 $
+ *     $Date: 2009/09/15 21:39:15 $
+ * $Revision: 1.53.14.31.2.15 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,7 +14,7 @@
 #include <gasnet_handler.h>
 //#include <gasnet_coll_autotune.h> /* for GASNET_COLL_NUM_PARAM_TYPES */
 #include <gasnet_coll_team.h>
-#include <../smp-collectives/smp_coll.h>
+#include <smp-collectives/smp_coll.h>
 
 #define GASNETI_COLL_FN_HEADER(FNNAME) 
 /*---------------------------------------------------------------------------------*/

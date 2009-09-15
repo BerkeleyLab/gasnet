@@ -19,7 +19,7 @@
 
 #define GASNETE_COLL_DEFAULT_TREE_TYPE_STR "KNOMIAL_TREE,2"
 #define GASNETE_COLL_DEFAULT_DISSEM_LIMIT_PER_THREAD 1024
-#include <../other/myxml/myxml.h>
+#include <myxml/myxml.h>
 #include <gasnet_coll.h>
 
 /*returns the implementation of the collectives including all the parameters to the algorithm*/

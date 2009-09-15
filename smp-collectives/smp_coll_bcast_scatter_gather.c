@@ -1,4 +1,4 @@
-#include <../smp-collectives/smp_coll_internal.h>
+#include <smp-collectives/smp_coll_internal.h>
 #if 0
 void smp_coll_set_broadcast_routine(smp_coll_t handle, smp_coll_broadcast_routine_t routine_id, int in_radix) {
   smp_coll_safe_barrier(handle, 0);

@@ -1,4 +1,4 @@
-#include <../smp-collectives/smp_coll_internal.h>
+#include <smp-collectives/smp_coll_internal.h>
 
 #if !(INLINE_ALL_COLLECTIVES)
 void smp_coll_barrier(smp_coll_t handle, int flags) {

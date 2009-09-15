@@ -13,7 +13,7 @@
 #include <gasnet_coll.h>
 
 /*file for writing out XML information*/
-#include <../other/myxml/myxml.h>
+#include <myxml/myxml.h>
 
 
 typedef struct {
