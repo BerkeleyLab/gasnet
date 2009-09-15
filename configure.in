@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2009/09/15 16:45:48 $
-# $Revision: 1.490.2.6.2.1 $
+#     $Date: 2009/09/15 20:14:06 $
+# $Revision: 1.490.2.6.2.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.490.2.6.2.1 $)
+AC_REVISION($Revision: 1.490.2.6.2.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -270,7 +270,7 @@ case "$gasnet_cv_cc_family" in
 	    ;;
 	linux*) CCOPTFLAGS="-O3 -qhot -qarch=auto -qtune=auto -qsmp=noauto -qmaxmem=-1" ;;
 	*)  #CCOPTFLAGS="-O5 -qsmp=noauto -qmaxmem=-1" ;; # -O5 == -O3 w/ intra-procedural analysis, maxmem=-1 is default for -O3 or higher
-	    CCOPTFLAGS="-O3 -qarch=auto -qtune=auto -qsmp=noauto -qmaxmem=-1" ;; # -O5 causes linker to hang on Titanium 
+	    CCOPTFLAGS="-O3 -qarch=auto -qtune=auto -qnosmp -qmaxmem=-1" ;; # -O5 causes linker to hang on Titanium 
     esac
   ;;
   Compaq) CCOPTFLAGS="-fast -noifo -O4 -tune host -inline all" ;;
@@ -2017,7 +2017,7 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
     	GASNET_ENV_DEFAULT(MPI_CC, mpcc)
 	BASIC_MPI_CFLAGS=""
 	if test "$BUILDCONFIG" = "optimize" ; then
-    	  BASIC_MPI_CFLAGS="-O3 -qstrict -qarch=auto -qtune=auto -qsmp=noauto -qmaxmem=-1 $BASIC_MPI_CFLAGS"
+    	  BASIC_MPI_CFLAGS="-O3 -qstrict -qarch=auto -qtune=auto -qnosmp -qmaxmem=-1 $BASIC_MPI_CFLAGS"
 	else
     	  BASIC_MPI_CFLAGS="-g $BASIC_MPI_CFLAGS"
 	fi
