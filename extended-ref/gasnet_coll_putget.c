@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/09/15 16:23:13 $
- * $Revision: 1.71.12.33.2.10 $
+ *     $Date: 2009/09/15 17:12:26 $
+ * $Revision: 1.71.12.33.2.11 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -5561,7 +5561,7 @@ static int gasnete_coll_pf_reduce_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
        }
        if(!done) {break;}
        if(op->team->myrank != args->dstnode) {
-         int8_t* parent_scratch = (int8_t*)(((uintptr_t)op->team->scratch_segs[parent].addr)+op->scratchpos[0]);
+         int8_t* parent_scratch = (int8_t*)(((int8_t*)op->team->scratch_segs[parent].addr)+op->scratchpos[0]);
          if(op->flags & GASNET_COLL_OUT_MYSYNC) {
            gasnete_coll_p2p_signalling_put(op, GASNETE_COLL_REL2ACT(op->team, parent), 
                                             ((int8_t*)parent_scratch)+(tree->geom->sibling_id+1)*args->nbytes, 
@@ -5574,7 +5574,7 @@ static int gasnete_coll_pf_reduce_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
          }
        } 
      } else if(op->team->myrank != args->dstnode){
-       int8_t* parent_scratch = (int8_t*)(((uintptr_t)op->team->scratch_segs[parent].addr)+op->scratchpos[0]);
+       int8_t* parent_scratch = (int8_t*)(((int8_t*)op->team->scratch_segs[parent].addr)+op->scratchpos[0]);
        if(op->flags & GASNET_COLL_OUT_MYSYNC) {
          gasnete_coll_p2p_signalling_put(op, GASNETE_COLL_REL2ACT(op->team, parent), 
                                          ((int8_t*)parent_scratch)+(tree->geom->sibling_id+1)*args->nbytes, 
@@ -6094,7 +6094,7 @@ static int gasnete_coll_pf_reduceM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_
         }
         if(!done) {break;}
         if(op->team->myrank != args->dstnode) {
-          int8_t* parent_scratch = (int8_t*)(((uintptr_t)op->team->scratch_segs[parent].addr)+op->scratchpos[0]);
+          int8_t* parent_scratch = (int8_t*)(((int8_t*)op->team->scratch_segs[parent].addr)+op->scratchpos[0]);
           if(op->flags & GASNET_COLL_OUT_MYSYNC) {
             gasnete_coll_p2p_signalling_put(op, GASNETE_COLL_REL2ACT(op->team, parent), 
                                             ((int8_t*)parent_scratch)+(tree->geom->sibling_id+1)*args->nbytes, 
@@ -6108,7 +6108,7 @@ static int gasnete_coll_pf_reduceM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_
         } 
       } else if(op->team->myrank != args->dstnode){
         int8_t *myscratch = ((int8_t*)op->team->scratch_segs[op->team->myrank].addr)+op->myscratchpos;
-        int8_t* parent_scratch = (int8_t*)(((uintptr_t)op->team->scratch_segs[parent].addr)+op->scratchpos[0]);
+        int8_t* parent_scratch = (int8_t*)(((int8_t*)op->team->scratch_segs[parent].addr)+op->scratchpos[0]);
         if(op->flags & GASNET_COLL_OUT_MYSYNC) {
           gasnete_coll_p2p_signalling_put(op, GASNETE_COLL_REL2ACT(op->team, parent), 
                                           ((int8_t*)parent_scratch)+(tree->geom->sibling_id+1)*args->nbytes, 
