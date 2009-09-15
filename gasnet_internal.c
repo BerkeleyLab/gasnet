@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/09/01 20:46:35 $
- * $Revision: 1.197.8.14 $
+ *     $Date: 2009/09/15 04:13:52 $
+ * $Revision: 1.197.8.15 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -880,7 +880,8 @@ static int _gasneti_nodemap_sort_fn(const void *a, const void *b) {
 static void gasneti_nodemap_helper_qsort(const char *ids, size_t sz, size_t stride) {
   gasnet_node_t *work    = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
   const char *prev_id;
-  gasnet_node_t i, prev;
+  gasnet_node_t i;
+  int prev; /* If this is gasnet_node_t then bug 2634 can crash XLC */
 
   _gasneti_nodemap_sort_aux.ids    = ids;
   _gasneti_nodemap_sort_aux.sz     = sz;
