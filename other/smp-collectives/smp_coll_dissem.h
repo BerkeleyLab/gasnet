@@ -39,8 +39,8 @@ struct dissem_info_t_ {
 
 
 /*given a radix ... build a dissem_info_t*/
-dissem_info_t *build_dissemination(int radix, int MYTHREAD, int THREADS);
-void dump_dissem_order(dissem_info_t *obj, int MYTHREAD);
-void free_dissemination(dissem_info_t* obj);
+dissem_info_t *smp_coll_build_dissemination(int radix, int MYTHREAD, int THREADS);
+void smp_coll_dump_dissem_order(dissem_info_t *obj, int MYTHREAD);
+void smp_coll_free_dissemination(dissem_info_t* obj);
 
 #endif
