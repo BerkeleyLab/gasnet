@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testteam.c,v $
- * $Date: 2009/07/07 00:00:57 $
- * $Revision: 1.1.4.2 $
+ * $Date: 2009/09/15 22:29:04 $
+ * $Revision: 1.1.4.2.2.1 $
  * LBNL 2009
  */
 
@@ -27,24 +27,34 @@ int main(int argc, char **argv)
   gasnet_team_handle_t my_row_team, my_col_team;
   static uint8_t *A, *B;
 
+  
+  
   gasnet_seginfo_t teamA_scratch;
   gasnet_seginfo_t teamB_scratch;
-  
-  
+  gasnet_seginfo_t const * test_segs;
   GASNET_Safe(gasnet_init(&argc, &argv));
+#if !GASNET_SEQ
+  MSG0("WARNING: This test does not work for NON-SEQ builds yet.. skipping test\n");
+  gasnet_exit(0);
+#endif
+
   GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-  A = TEST_MYSEG();
-  teamA_scratch.addr = (TEST_SEGINFO())[gasnet_mynode()].addr;
-  teamA_scratch.size = (TEST_SEGINFO())[gasnet_mynode()].size/2;
   
-  teamB_scratch.addr = ((uint8_t*) (TEST_SEGINFO())[gasnet_mynode()].addr) + (TEST_SEGINFO())[gasnet_mynode()].size/2;
-  teamB_scratch.size = (TEST_SEGINFO())[gasnet_mynode()].size/2;
+  A = TEST_MYSEG();
   
   gasnet_coll_init(NULL, 0, NULL, 0, 0);
 
   test_init("test_team", 1, "nrows ncols (iters)");
+
   mynode = gasnet_mynode();
   nodes = gasnet_nodes();
+  test_segs = TEST_SEGINFO();
+  
+  teamA_scratch.addr = test_segs[mynode].addr;
+  teamA_scratch.size = test_segs[mynode].size/2;
+  
+  teamB_scratch.addr = (uint8_t*)teamA_scratch.addr + teamA_scratch.size;
+  teamB_scratch.size = teamA_scratch.size;
 
   if (argc < 3)
     test_usage();
@@ -66,12 +76,12 @@ int main(int argc, char **argv)
   my_row = mynode / ncols;
   my_col = mynode % ncols;
                  
-  my_row_team = gasnete_coll_team_split(GASNET_TEAM_ALL,
+  my_row_team = gasnet_coll_team_split(GASNET_TEAM_ALL,
                                         my_row,
                                         my_col,
                                         &teamA_scratch);
 
-  my_col_team = gasnete_coll_team_split(GASNET_TEAM_ALL,
+  my_col_team = gasnet_coll_team_split(GASNET_TEAM_ALL,
                                         my_col,
                                         my_row,
                                         &teamB_scratch);
