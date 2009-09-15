@@ -126,6 +126,22 @@ typedef gasnet_coll_handle_t
                                     uint32_t sequence
                                     GASNETE_THREAD_FARG);
 
+typedef gasnet_coll_handle_t
+(*gasnete_coll_exchange_fn_ptr_t)(gasnet_team_handle_t team,
+                                    void *dst, void *src,
+                                    size_t nbytes, int flags, 
+                                    gasnete_coll_implementation_t coll_params,
+                                    uint32_t sequence
+                                    GASNETE_THREAD_FARG);
+
+typedef gasnet_coll_handle_t
+(*gasnete_coll_exchangeM_fn_ptr_t)(gasnet_team_handle_t team,
+                                   void * const dstlist[], void * const srclist[],
+                                   size_t nbytes, int flags, 
+                                   gasnete_coll_implementation_t coll_params,
+                                   uint32_t sequence
+                                   GASNETE_THREAD_FARG);
+
 typedef gasnet_coll_handle_t 
 (*gasnete_coll_reduce_fn_ptr_t)(gasnet_team_handle_t team,
                                  gasnet_image_t dstimage, void *dst,
@@ -267,8 +283,32 @@ typedef enum {
 #endif
   GASNETE_COLL_GATHER_ALLM_NUM_ALGS} gasnete_coll_gather_allM_alg_types_t;
 
-typedef enum {GASNETE_COLL_EXCHANGE_NUM_ALGS=0} gasnete_coll_exchange_alg_types_t;
-typedef enum {GASNETE_COLL_EXCHANGEM_NUM_ALGS=0} gasnete_coll_exchangeM_alg_types_t;
+typedef enum {
+  GASNETE_COLL_EXCHANGE_DISSEM2=0,
+  GASNETE_COLL_EXCHANGE_DISSEM3,
+  GASNETE_COLL_EXCHANGE_DISSEM4,
+  GASNETE_COLL_EXCHANGE_DISSEM8,
+  GASNETE_COLL_EXCHANGE_FLAT_SCRATCH,
+  GASNETE_COLL_EXCHANGE_PUT,
+  GASNETE_COLL_EXCHANGE_RVPUT,
+  GASNETE_COLL_EXCHANGE_GATH,
+#ifdef GASNETE_COLL_CONDUIT_EXCHANGE_OPS
+  GASNETE_COLL_CONDUIT_EXCHANGE_OPS ,
+#endif
+  GASNETE_COLL_EXCHANGE_NUM_ALGS} gasnete_coll_exchange_alg_types_t;
+
+typedef enum {
+  GASNETE_COLL_EXCHANGEM_DISSEM2=0,
+  GASNETE_COLL_EXCHANGEM_DISSEM3,
+  GASNETE_COLL_EXCHANGEM_DISSEM4,
+  GASNETE_COLL_EXCHANGEM_DISSEM8,
+  GASNETE_COLL_EXCHANGEM_FLAT_SCRATCH,
+  GASNETE_COLL_EXCHANGEM_GATH,
+#ifdef GASNETE_COLL_CONDUIT_EXCHANGEM_OPS
+  GASNETE_COLL_CONDUIT_EXCHANGEM_OPS ,
+#endif
+  
+  GASNETE_COLL_EXCHANGEM_NUM_ALGS} gasnete_coll_exchangeM_alg_types_t;
 
 typedef enum {
   GASNETE_COLL_REDUCE_EAGER=0,
@@ -362,6 +402,8 @@ typedef struct gasnete_coll_allgorithm_t_ {
     gasnete_coll_gatherM_fn_ptr_t gatherM_fn;
     gasnete_coll_gather_all_fn_ptr_t gather_all_fn;
     gasnete_coll_gather_allM_fn_ptr_t gather_allM_fn;
+    gasnete_coll_exchange_fn_ptr_t exchange_fn;
+    gasnete_coll_exchangeM_fn_ptr_t exchangeM_fn;
     gasnete_coll_reduce_fn_ptr_t reduce_fn;
     gasnete_coll_reduceM_fn_ptr_t reduceM_fn;
   } fn_ptr;
@@ -475,9 +517,19 @@ gasnete_coll_implementation_t
 gasnete_coll_autotune_get_gather_all_algorithm(gasnet_team_handle_t team, void *dst, void *src, 
                                                 size_t nbytes, uint32_t flags  GASNETE_THREAD_FARG);
 
+
 gasnete_coll_implementation_t 
 gasnete_coll_autotune_get_gather_allM_algorithm(gasnet_team_handle_t team, void * const dstlist[], void * const srclist[], 
                                                 size_t nbytes, uint32_t flags  GASNETE_THREAD_FARG);
+
+gasnete_coll_implementation_t 
+gasnete_coll_autotune_get_exchange_algorithm(gasnet_team_handle_t team, void *dst, void *src, 
+                                             size_t nbytes, uint32_t flags  GASNETE_THREAD_FARG);
+
+gasnete_coll_implementation_t 
+gasnete_coll_autotune_get_exchangeM_algorithm(gasnet_team_handle_t team, void * const dstlist[], void * const srclist[], 
+                                              size_t nbytes, uint32_t flags  GASNETE_THREAD_FARG);
+
 
 
 gasnete_coll_implementation_t 

@@ -238,6 +238,59 @@ gasnete_coll_smp_gath_allM_flat_get(gasnet_team_handle_t team,
   return GASNET_COLL_INVALID_HANDLE;
 }
 
+gasnet_coll_handle_t
+gasnete_coll_smp_exchgM_flat_put(gasnet_team_handle_t team,
+                                    void * const dstlist [],
+                                    void * const srclist[],
+                                    size_t nbytes, int flags,
+                                    gasnete_coll_implementation_t coll_params,
+                                    uint32_t sequence
+                                    GASNETE_THREAD_FARG) {
+  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
+  int dst;
+#if GASNET_PAR
+  gasneti_assert(!(flags & GASNETE_COLL_THREAD_LOCAL));
+#endif
+  if(!(flags & GASNET_COLL_IN_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
+  for (dst = td->my_image+1; dst<team->my_images; dst++) {
+    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(gasnete_coll_scale_ptr(dstlist[dst], nbytes, td->my_image),
+                                        gasnete_coll_scale_ptr(srclist[td->my_image], nbytes, dst), nbytes);
+  }
+  for (dst = 0; dst<=td->my_image; dst++) {
+    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(gasnete_coll_scale_ptr(dstlist[dst], nbytes, td->my_image),
+                                        gasnete_coll_scale_ptr(srclist[td->my_image], nbytes, dst), nbytes);
+  }
+  if(!(flags & GASNET_COLL_OUT_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
+  return GASNET_COLL_INVALID_HANDLE;
+}
+
+gasnet_coll_handle_t
+gasnete_coll_smp_exchgM_flat_get(gasnet_team_handle_t team,
+                                    void * const dstlist [],
+                                    void * const srclist[],
+                                    size_t nbytes, int flags,
+                                    gasnete_coll_implementation_t coll_params,
+                                    uint32_t sequence
+                                    GASNETE_THREAD_FARG) {
+  gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
+  int src;
+#if GASNET_PAR
+  gasneti_assert(!(flags & GASNETE_COLL_THREAD_LOCAL));
+#endif
+  if(!(flags & GASNET_COLL_IN_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
+  for (src = td->my_image+1; src<team->my_images; src++) {
+    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(gasnete_coll_scale_ptr(dstlist[td->my_image], nbytes, src),
+                                        gasnete_coll_scale_ptr(srclist[src], nbytes, td->my_image), nbytes);
+  }
+  for (src = 0; src<=td->my_image; src++) {
+    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(gasnete_coll_scale_ptr(dstlist[td->my_image], nbytes, src),
+                                        gasnete_coll_scale_ptr(srclist[src], nbytes, td->my_image), nbytes);
+
+  }
+  if(!(flags & GASNET_COLL_OUT_NOSYNC)) smp_coll_barrier(td->smp_coll_handle,0);
+  return GASNET_COLL_INVALID_HANDLE;
+}
+
 void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* info) {
   info->collective_algorithms[GASNET_COLL_BROADCASTM_OP][GASNETE_COLL_BROADCAST_SMP_FLAT_GET] =
   gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCASTM_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
@@ -355,5 +408,29 @@ void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* inf
 #endif                                             
                                            0, 0, 0, 0, NULL, 
                                            (void*) gasnete_coll_smp_gath_allM_flat_get, "SMP_GATHER_ALL_FLAT_GET");
+  
+  info->collective_algorithms[GASNET_COLL_EXCHANGEM_OP][GASNETE_COLL_EXCHANGE_SMP_FLAT_PUT] =
+  gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_EXCHANGEM_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
+                                           0 /*works for all addresses since it's just a memcpy on a the local node*/, 
+#if GASNET_PAR
+                                           GASNETE_COLL_THREAD_LOCAL /*the algorithms will not work for thread local since there is no method of posting local addresses*/,
+#else
+                                           0,
+#endif                                             
+                                           0, 0, 0, 0, NULL, 
+                                           (void*) gasnete_coll_smp_exchgM_flat_put, "SMP_EXCHANGE_FLAT_PUT");
+  
+  info->collective_algorithms[GASNET_COLL_EXCHANGEM_OP][GASNETE_COLL_EXCHANGE_SMP_FLAT_GET] =
+  gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_EXCHANGEM_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
+                                           0 /*works for all addresses since it's just a memcpy on a the local node*/, 
+#if GASNET_PAR
+                                           GASNETE_COLL_THREAD_LOCAL /*the algorithms will not work for thread local since there is no method of posting local addresses*/,
+#else
+                                           0,
+#endif                                             
+                                           0, 0, 0, 0, NULL, 
+                                           (void*) gasnete_coll_smp_exchgM_flat_get, "SMP_EXCHANGE_FLAT_GET");
+  
+
 }
 #endif

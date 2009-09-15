@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/09/14 22:57:31 $
- * $Revision: 1.53.14.31.2.12 $
+ *     $Date: 2009/09/15 16:23:13 $
+ * $Revision: 1.53.14.31.2.13 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1488,7 +1488,8 @@ gasnete_coll_generic_exchange_nb(gasnet_team_handle_t team,
                                  void *dst, void *src,
                                  size_t nbytes, int flags,
                                  gasnete_coll_poll_fn poll_fn, int options,
-                                 void *private_data, gasnete_coll_dissem_info_t *dissem, uint32_t sequence
+                                 void *private_data, gasnete_coll_dissem_info_t *dissem, uint32_t sequence,
+                                 int num_params, uint32_t *param_list
                                  GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
@@ -1496,7 +1497,8 @@ gasnete_coll_generic_exchangeM_nb(gasnet_team_handle_t team,
                                   void * const dstlist[], void * const srclist[],
                                   size_t nbytes, int flags,
                                   gasnete_coll_poll_fn poll_fn, int options,
-                                  void *private_data, gasnete_coll_dissem_info_t *dissem, uint32_t sequence
+                                  void *private_data, gasnete_coll_dissem_info_t *dissem, uint32_t sequence,
+                                  int num_params, uint32_t *param_list
                                   GASNETE_THREAD_FARG);
 
 extern gasnet_coll_handle_t
@@ -1761,43 +1763,37 @@ GASNETE_COLL_DECLARE_GATHER_ALLM_ALG(Gath);
 
 /*---------------------------------------------------------------------------------*/
 
-extern gasnet_coll_handle_t
-gasnete_coll_exchg_Dissem(gasnet_team_handle_t team,
-			void *dst, void *src,
-			size_t nbytes, int flags, uint32_t sequence
-                        GASNETE_THREAD_FARG);
+#define GASNETE_COLL_DECLARE_EXCHANGE_ALG(FUNC_EXT)\
+extern gasnet_coll_handle_t \
+gasnete_coll_exchg_##FUNC_EXT(gasnet_team_handle_t team,\
+                              void *dst, void *src,\
+                              size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence\
+                              GASNETE_THREAD_FARG)
 
-extern gasnet_coll_handle_t
-gasnete_coll_exchg_Gath(gasnet_team_handle_t team,
-			void *dst, void *src,
-			size_t nbytes, int flags, uint32_t sequence
-                        GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_exchg_Put(gasnet_team_handle_t team,
-                         void *dst, void *src,
-                         size_t nbytes, int flags, uint32_t sequence
-                         GASNETE_THREAD_FARG);
-
-extern gasnet_coll_handle_t
-gasnete_coll_exchg_RVPut(gasnet_team_handle_t team,
-                         void *dst, void *src,
-                         size_t nbytes, int flags, uint32_t sequence
-                         GASNETE_THREAD_FARG);
+GASNETE_COLL_DECLARE_EXCHANGE_ALG(Dissem2);
+GASNETE_COLL_DECLARE_EXCHANGE_ALG(Dissem3);
+GASNETE_COLL_DECLARE_EXCHANGE_ALG(Dissem4);
+GASNETE_COLL_DECLARE_EXCHANGE_ALG(Dissem8);
+GASNETE_COLL_DECLARE_EXCHANGE_ALG(FlatScratch);
+GASNETE_COLL_DECLARE_EXCHANGE_ALG(Gath);
+GASNETE_COLL_DECLARE_EXCHANGE_ALG(Put);
+GASNETE_COLL_DECLARE_EXCHANGE_ALG(RVPut);
 
 /*---------------------------------------------------------------------------------*/
 
-extern gasnet_coll_handle_t
-gasnete_coll_exchgM_Dissem(gasnet_team_handle_t team,
-			 void * const dstlist[], void * const srclist[],
-			 size_t nbytes, int flags, uint32_t sequence
-                         GASNETE_THREAD_FARG);
+#define GASNETE_COLL_DECLARE_EXCHANGEM_ALG(FUNC_EXT)\
+extern gasnet_coll_handle_t \
+gasnete_coll_exchgM_##FUNC_EXT(gasnet_team_handle_t team,\
+                               void * const dstlist[] , void * const srclist[],\
+                               size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence\
+                               GASNETE_THREAD_FARG)
 
-extern gasnet_coll_handle_t
-gasnete_coll_exchgM_Gath(gasnet_team_handle_t team,
-			 void * const dstlist[], void * const srclist[],
-			 size_t nbytes, int flags, uint32_t sequence
-                         GASNETE_THREAD_FARG);
+GASNETE_COLL_DECLARE_EXCHANGEM_ALG(Dissem2);
+GASNETE_COLL_DECLARE_EXCHANGEM_ALG(Dissem3);
+GASNETE_COLL_DECLARE_EXCHANGEM_ALG(Dissem4);
+GASNETE_COLL_DECLARE_EXCHANGEM_ALG(Dissem8);
+GASNETE_COLL_DECLARE_EXCHANGEM_ALG(FlatScratch);
+GASNETE_COLL_DECLARE_EXCHANGEM_ALG(Gath);
 
 /*---------------------------------------------------------------------------------*/
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/09/14 22:57:31 $
- * $Revision: 1.71.12.33.2.9 $
+ *     $Date: 2009/09/15 16:23:13 $
+ * $Revision: 1.71.12.33.2.10 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Rajesh Nishtala <rajeshn@eecs.berkeley.edu> Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -5090,22 +5090,94 @@ static int gasnete_coll_pf_exchg_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FAR
 }
 
 extern gasnet_coll_handle_t
-gasnete_coll_exchg_Dissem(gasnet_team_handle_t team,
+gasnete_coll_exchg_Dissem2(gasnet_team_handle_t team,
                           void *dst, void *src,
-                          size_t nbytes, int flags, uint32_t sequence
+                          size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
                           GASNETE_THREAD_FARG)
 {
   int options =  GASNETE_COLL_USE_SCRATCH | GASNETE_COLL_GENERIC_OPT_P2P | 
   GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+  int radix;
   
-  
-  int radix = gasnete_coll_get_dissem_radix(team->autotune_info, GASNET_COLL_EXCHANGE_OP, 0);
-//  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
+  radix = 2;
+
   return gasnete_coll_generic_exchange_nb(team, dst, src, nbytes, flags,
                                           &gasnete_coll_pf_exchg_Dissem, options,
-                                          NULL, gasnete_coll_fetch_dissemination(radix ,team), sequence GASNETE_THREAD_PASS);
+                                          NULL, gasnete_coll_fetch_dissemination(radix ,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
+extern gasnet_coll_handle_t
+gasnete_coll_exchg_Dissem3(gasnet_team_handle_t team,
+                           void *dst, void *src,
+                           size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
+                           GASNETE_THREAD_FARG)
+{
+  int options =  GASNETE_COLL_USE_SCRATCH | GASNETE_COLL_GENERIC_OPT_P2P | 
+  GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+  int radix;
+  
+  radix = 3;
+  
+  return gasnete_coll_generic_exchange_nb(team, dst, src, nbytes, flags,
+                                          &gasnete_coll_pf_exchg_Dissem, options,
+                                          NULL, gasnete_coll_fetch_dissemination(radix ,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
+}
+extern gasnet_coll_handle_t
+gasnete_coll_exchg_Dissem4(gasnet_team_handle_t team,
+                           void *dst, void *src,
+                           size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
+                           GASNETE_THREAD_FARG)
+{
+  int options =  GASNETE_COLL_USE_SCRATCH | GASNETE_COLL_GENERIC_OPT_P2P | 
+  GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+  int radix;
+  
+  radix = 4;
+  
+  return gasnete_coll_generic_exchange_nb(team, dst, src, nbytes, flags,
+                                          &gasnete_coll_pf_exchg_Dissem, options,
+                                          NULL, gasnete_coll_fetch_dissemination(radix ,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
+}
+
+extern gasnet_coll_handle_t
+gasnete_coll_exchg_Dissem8(gasnet_team_handle_t team,
+                           void *dst, void *src,
+                           size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
+                           GASNETE_THREAD_FARG)
+{
+  int options =  GASNETE_COLL_USE_SCRATCH | GASNETE_COLL_GENERIC_OPT_P2P | 
+  GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+  int radix;
+  
+  radix = 8;
+  
+  return gasnete_coll_generic_exchange_nb(team, dst, src, nbytes, flags,
+                                          &gasnete_coll_pf_exchg_Dissem, options,
+                                          NULL, gasnete_coll_fetch_dissemination(radix ,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
+}
+
+extern gasnet_coll_handle_t
+gasnete_coll_exchg_FlatScratch(gasnet_team_handle_t team,
+                           void *dst, void *src,
+                           size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
+                           GASNETE_THREAD_FARG)
+{
+  int options =  GASNETE_COLL_USE_SCRATCH | GASNETE_COLL_GENERIC_OPT_P2P | 
+  GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+  int radix;
+  
+  radix = team->total_ranks;
+  
+  return gasnete_coll_generic_exchange_nb(team, dst, src, nbytes, flags,
+                                          &gasnete_coll_pf_exchg_Dissem, options,
+                                          NULL, gasnete_coll_fetch_dissemination(radix ,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
+}
+
+
 
 static int gasnete_coll_pf_exchg_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
@@ -5160,7 +5232,7 @@ static int gasnete_coll_pf_exchg_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
 extern gasnet_coll_handle_t
 gasnete_coll_exchg_Put(gasnet_team_handle_t team,
                        void *dst, void *src,
-                       size_t nbytes, int flags, uint32_t sequence
+                       size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
                        GASNETE_THREAD_FARG)
 {
   int options =  GASNETE_COLL_GENERIC_OPT_P2P | 
@@ -5170,7 +5242,7 @@ gasnete_coll_exchg_Put(gasnet_team_handle_t team,
   gasneti_assert(flags & GASNET_COLL_SINGLE);
   return gasnete_coll_generic_exchange_nb(team, dst, src, nbytes, flags,
                                           &gasnete_coll_pf_exchg_Put, options,
-                                          NULL, NULL, sequence GASNETE_THREAD_PASS);
+                                          NULL, NULL, sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 /*---------------------------------------------------------------------------------*/
 /* gasnete_coll_exchangeM_nb() */
@@ -5336,23 +5408,87 @@ static int gasnete_coll_pf_exchgM_Dissem(gasnete_coll_op_t *op GASNETE_THREAD_FA
 }
 
 extern gasnet_coll_handle_t
-gasnete_coll_exchgM_Dissem(gasnet_team_handle_t team,
+gasnete_coll_exchgM_Dissem2(gasnet_team_handle_t team,
                            void * const dstlist[], void * const srclist[],
-                           size_t nbytes, int flags, uint32_t sequence
+                           size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
                            GASNETE_THREAD_FARG)
 {
   int options =  GASNETE_COLL_USE_SCRATCH | GASNETE_COLL_GENERIC_OPT_P2P | 
   GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
-  int radix = gasnete_coll_get_dissem_radix(team->autotune_info, GASNET_COLL_EXCHANGEM_OP, 0);
+  int radix;
   
-//  gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
-  
+  radix = 2;
   return gasnete_coll_generic_exchangeM_nb(team, dstlist, srclist, nbytes, flags,
                                            &gasnete_coll_pf_exchgM_Dissem, options,
-                                           NULL, gasnete_coll_fetch_dissemination(radix,team), sequence GASNETE_THREAD_PASS);
+                                           NULL, gasnete_coll_fetch_dissemination(radix,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
 
+extern gasnet_coll_handle_t
+gasnete_coll_exchgM_Dissem3(gasnet_team_handle_t team,
+                            void * const dstlist[], void * const srclist[],
+                            size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
+                            GASNETE_THREAD_FARG)
+{
+  int options =  GASNETE_COLL_USE_SCRATCH | GASNETE_COLL_GENERIC_OPT_P2P | 
+  GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+  int radix;
+  
+  radix = 3;
+  return gasnete_coll_generic_exchangeM_nb(team, dstlist, srclist, nbytes, flags,
+                                           &gasnete_coll_pf_exchgM_Dissem, options,
+                                           NULL, gasnete_coll_fetch_dissemination(radix,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
+}
+
+extern gasnet_coll_handle_t
+gasnete_coll_exchgM_Dissem4(gasnet_team_handle_t team,
+                            void * const dstlist[], void * const srclist[],
+                            size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
+                            GASNETE_THREAD_FARG)
+{
+  int options =  GASNETE_COLL_USE_SCRATCH | GASNETE_COLL_GENERIC_OPT_P2P | 
+  GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+  int radix;
+  
+  radix = 4;
+  return gasnete_coll_generic_exchangeM_nb(team, dstlist, srclist, nbytes, flags,
+                                           &gasnete_coll_pf_exchgM_Dissem, options,
+                                           NULL, gasnete_coll_fetch_dissemination(radix,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
+}
+extern gasnet_coll_handle_t
+gasnete_coll_exchgM_Dissem8(gasnet_team_handle_t team,
+                            void * const dstlist[], void * const srclist[],
+                            size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
+                            GASNETE_THREAD_FARG)
+{
+  int options =  GASNETE_COLL_USE_SCRATCH | GASNETE_COLL_GENERIC_OPT_P2P | 
+  GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+  int radix;
+  
+  radix = 8;
+  return gasnete_coll_generic_exchangeM_nb(team, dstlist, srclist, nbytes, flags,
+                                           &gasnete_coll_pf_exchgM_Dissem, options,
+                                           NULL, gasnete_coll_fetch_dissemination(radix,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
+}
+extern gasnet_coll_handle_t
+gasnete_coll_exchgM_FlatScratch(gasnet_team_handle_t team,
+                            void * const dstlist[], void * const srclist[],
+                            size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
+                            GASNETE_THREAD_FARG)
+{
+  int options =  GASNETE_COLL_USE_SCRATCH | GASNETE_COLL_GENERIC_OPT_P2P | 
+  GASNETE_COLL_GENERIC_OPT_INSYNC_IF (!(flags & GASNET_COLL_IN_NOSYNC)) |
+  GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(!(flags & GASNET_COLL_OUT_NOSYNC));
+  int radix;
+  
+  radix = team->total_ranks;
+  return gasnete_coll_generic_exchangeM_nb(team, dstlist, srclist, nbytes, flags,
+                                           &gasnete_coll_pf_exchgM_Dissem, options,
+                                           NULL, gasnete_coll_fetch_dissemination(radix,team), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
+}
 /*---------------------------------------------------------------------------------*/
 /* Reductions*/
 #define FOLD_REDUCE_BARRIER 1
