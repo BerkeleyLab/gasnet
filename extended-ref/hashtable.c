@@ -51,7 +51,7 @@ void gasnete_hashtable_free(gasnete_hashtable_t * ht)
    
   for (i=0; i<ht->size; i++) {
     assert(ht->buckets[i] != NULL);
-    table_free(ht->buckets[i]);
+    gasnete_table_free(ht->buckets[i]);
   }
 
   free(ht->buckets);
@@ -98,7 +98,7 @@ uint32_t gasnete_hashtable_insert(gasnete_hashtable_t * ht, uint32_t key, void *
     gasnete_table_t * new_table;
     new_table = gasnete_table_create(table->size*2);
     assert(new_table != NULL);
-    table_copy(table, new_table);
+    gasnete_table_copy(table, new_table);
     ht->buckets[i] = new_table;
     table = new_table;
   }
