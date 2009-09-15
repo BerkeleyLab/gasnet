@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_team.c,v $
- * $Date: 2009/09/08 05:44:02 $
- * $Revision: 1.1.4.3.2.1 $
+ * $Date: 2009/09/15 21:30:38 $
+ * $Revision: 1.1.4.3.2.2 $
  * Description: GASNet generic team implementation for collectives 
  * LBNL 2009
  */
@@ -17,9 +17,12 @@
 
 /* #define DEBUG_TEAM */
 
+static
 HashTable_T *team_dir = NULL;
 
+static
 volatile uint32_t my_team_seq = 1;
+static
 volatile uint32_t new_team_id = 0; /* new_team_id is for communication
                                       between the AM handler
                                       (gasnete_coll_teamid_reqh) and

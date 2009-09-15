@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_team.h,v $ 
- * $Date: 2009/07/07 00:00:52 $ 
- * $Revision: 1.1.4.2 $ 
+ * $Date: 2009/09/15 21:30:38 $ 
+ * $Revision: 1.1.4.2.2.1 $ 
  * Description: GASNet team data structure
  * LBNL 2009
  */
@@ -13,7 +13,7 @@
 #include "hashtable.h"
 
 #define TEAM_DIR_SIZE 1021
-extern HashTable_T *team_dir;
+/* extern HashTable_T *team_dir; not used outside of gasnet_coll_team.c */
 
 #define TEAM_ROOT(team_id) (((team_id)>>12) & 0xfffff) /* high 20 bits for root node id */
 #define TEAM_SEQ(team_id) ((team_id) & 0xfff) /* low 12 bits for team sequence */

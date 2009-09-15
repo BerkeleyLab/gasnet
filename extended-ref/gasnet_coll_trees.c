@@ -898,6 +898,7 @@ int gasnete_coll_is_power_of_two(int num) {
 }
 
 #if 0
+static
 gasnete_coll_dissem_info_t *gasnete_coll_build_dissemination(int r, gasnete_coll_team_t team) {
   gasnete_coll_dissem_info_t *ret;  
   int h,w,i,j,distance,x,numpeers,destproc;
@@ -979,6 +980,7 @@ static int gasnete_coll_build_tree_mylogn(gasnet_node_t num, int base) {
 }
 
 
+static
 gasnete_coll_dissem_info_t *gasnete_coll_build_dissemination(int r, gasnete_coll_team_t team) {
   gasnete_coll_dissem_info_t *ret;  
   int h,w,i,j,distance,k,numpeers,destproc;
