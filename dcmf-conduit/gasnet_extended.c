@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2009/07/07 20:48:51 $
- * $Revision: 1.4.2.7 $
+ *     $Date: 2009/09/15 21:21:44 $
+ * $Revision: 1.4.2.7.2.1 $
  * Description: GASNet Extended API Implementation for DCMF
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -1196,7 +1196,6 @@ int gasnete_dcmfbarrier_fast = 0;
  *     + Use -1 to denote a barrier mismatch
  **********************************/
 
-
 static int current_barrier_flags;
 static int current_barrier_id;
 static volatile int barrier_done;
@@ -1222,9 +1221,7 @@ static void gasnete_dcmfbarrier_init(gasnete_coll_team_t team) {
   
   gasnete_allow_hw_barrier = gasneti_getenv_yesno_withdefault("GASNET_DCMF_FAST_BARRIER", 1);
   /*initialize anonymous barrier*/
- 
   if(gasnete_allow_hw_barrier) {
-
     DCMF_GlobalBarrier_Configuration_t config;
     
     /*for now just sticked w/ a single barrier protocol that we pick*/
@@ -1249,7 +1246,6 @@ static void gasnete_dcmfbarrier_init(gasnete_coll_team_t team) {
     GASNETC_DCMF_CHECK_PTR(&anon_barrier_registration);
     DCMF_SAFE(DCMF_GlobalBarrier_register(&anon_barrier_registration, &config));
     GASNETC_DCMF_UNLOCK();
-
   }
 
   /*initialize named barrier*/

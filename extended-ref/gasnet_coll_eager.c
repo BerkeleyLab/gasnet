@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_eager.c,v $
- *     $Date: 2009/09/14 17:41:22 $
- * $Revision: 1.65.14.12.2.10 $
+ *     $Date: 2009/09/15 21:21:48 $
+ * $Revision: 1.65.14.12.2.11 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -174,9 +174,7 @@ gasnete_coll_bcast_TreeEager(gasnet_team_handle_t team,
   GASNETE_COLL_GENERIC_OPT_P2P;
   
   gasneti_assert(nbytes <= gasnete_coll_p2p_eager_min);
-
  
-
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
                                            &gasnete_coll_pf_bcast_TreeEager, options,
                                            gasnete_coll_tree_init(coll_params->tree_type,

@@ -28,8 +28,6 @@ struct gasnet_coll_tuning_iterator_t_{
   uint32_t curr_idx;
 };
 
-
-
 GASNETI_ALWAYS_INLINE(gasnete_coll_nextpower2)
 size_t gasnete_coll_nextpower2(size_t n)
 {
@@ -1284,7 +1282,6 @@ gasnete_coll_tree_type_t gasnete_coll_autotune_get_bcast_tree_type(gasnete_coll_
 gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type(gasnete_coll_autotune_info_t* autotune_info, 
                                                              gasnet_coll_optype_t op_type, 
                                                              gasnet_node_t root, size_t nbytes, int flags) {
-  
   switch(op_type) {
 	  case GASNET_COLL_BROADCAST_OP:
     case GASNET_COLL_BROADCASTM_OP: 

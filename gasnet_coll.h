@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2009/09/14 17:41:20 $
- * $Revision: 1.53.12.16.2.5 $
+ *     $Date: 2009/09/15 21:21:42 $
+ * $Revision: 1.53.12.16.2.6 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -217,7 +217,6 @@ gasnet_team_handle_t _gasnet_coll_team_split(gasnet_team_handle_t parent_team, g
 /*---------------------------------------------------------------------------------*/
 
 
-
 /*------------------------------------------------------------------------------------*/
 
 /* gasnet_coll_init: Initialize GASNet collectives
@@ -248,6 +247,7 @@ gasnet_team_handle_t _gasnet_coll_team_split(gasnet_team_handle_t parent_team, g
   #define gasnet_coll_init(im,mi,fn,fc,fl) \
 		gasnete_coll_init(im,mi,fn,fc,fl GASNETE_THREAD_GET)
 #endif
+
 /*---------------------------------------------------------------------------------*/
 
 
@@ -695,6 +695,5 @@ void _gasnet_coll_scanM(gasnet_team_handle_t team,
 #undef GASNETI_COLL_FN_HEADER
 
 GASNETI_END_EXTERNC
-
 
 #endif

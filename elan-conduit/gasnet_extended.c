@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2009/06/26 00:57:51 $
- * $Revision: 1.84.14.3 $
+ *     $Date: 2009/09/15 21:21:46 $
+ * $Revision: 1.84.14.3.2.1 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -529,7 +529,7 @@ SHORT_HANDLER(gasnete_get_reqh,4,7,
               (token, a0, UNPACK2(a1, a2), UNPACK2(a3, a4), UNPACK2(a5, a6)));
 /* ------------------------------------------------------------------------------------ */
 GASNETI_INLINE(gasnete_get_reph_inner)
-     void gasnete_get_reph_inner(gasnet_token_t token, 
+void gasnete_get_reph_inner(gasnet_token_t token, 
   void *addr, size_t nbytes,
   void *dest, void *op) {
   GASNETE_FAST_UNALIGNED_MEMCPY(dest, addr, nbytes);
@@ -1373,7 +1373,6 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   Barriers:
   =========
 */
-
 static void gasnete_elanbarrier_init(void);
 static void dummy_fn() {}
 static void gasnete_elanbarrier_notify(gasnete_coll_team_t team, int id, int flags);
