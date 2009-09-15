@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_team.h,v $ 
- * $Date: 2009/09/15 21:55:57 $ 
- * $Revision: 1.1.4.2.2.2 $ 
+ * $Date: 2009/09/15 22:46:01 $ 
+ * $Revision: 1.1.4.2.2.3 $ 
  * Description: GASNet team data structure
  * LBNL 2009
  */
@@ -9,8 +9,7 @@
 #define GASNET_COLL_TEAM_H_
 
 #include <gasnet_coll_internal.h>
-
-#include "hashtable.h"
+#include <gasnet_coll_hashtable.h>
 
 #define TEAM_DIR_SIZE 1021
 /* extern gasnete_hashtable_t *team_dir; */
