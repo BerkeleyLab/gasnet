@@ -12,7 +12,7 @@ gasnete_coll_tree_type_t gasnete_coll_get_tree_type() {
   if(!ret) {
     ret = (gasnete_coll_tree_type_t) gasneti_malloc(sizeof(struct gasnete_coll_tree_type_t_));
   }
-  bzero(ret, sizeof(struct gasnete_coll_tree_type_t_));
+  memset(ret, 0, sizeof(struct gasnete_coll_tree_type_t_));
   return ret;
 }
 
@@ -133,7 +133,7 @@ gasnete_coll_tree_type_t gasnete_coll_make_tree_type_str(char *tree_name_str) {
 
 char* gasnete_coll_tree_type_to_str(char *buffer, gasnete_coll_tree_type_t tree_type) {
   int i;
-  if(!tree_type) {bzero(buffer, 10); return buffer;}
+  if(!tree_type) {memset(buffer, 0, 10); return buffer;}
   switch (tree_type->tree_class) {
     case GASNETE_COLL_NARY_TREE:
       sprintf(buffer, "%s", "NARY_TREE");

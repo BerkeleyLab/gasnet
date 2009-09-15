@@ -1123,7 +1123,7 @@ gasnete_coll_autotune_tree_node_t *gasnete_coll_get_autotune_tree_node() {
   if(!ret) {
     ret = (gasnete_coll_autotune_tree_node_t*) gasneti_malloc(sizeof(gasnete_coll_autotune_tree_node_t));
   }
-  bzero(ret, sizeof(gasnete_coll_autotune_tree_node_t));
+  memset(ret, 0, sizeof(gasnete_coll_autotune_tree_node_t));
   return ret;
 }
 
@@ -1392,7 +1392,7 @@ gasnete_coll_implementation_t gasnete_coll_get_implementation() {
   if(!ret) {
     ret = (gasnete_coll_implementation_t) gasneti_malloc(sizeof(struct gasnete_coll_implementation_t_));
   }
-  bzero(ret, sizeof(struct gasnete_coll_implementation_t_));
+  memset(ret, 0, sizeof(struct gasnete_coll_implementation_t_));
   return ret;
 }
 
@@ -2185,7 +2185,7 @@ void gasnete_coll_tune_generic_op(gasnet_team_handle_t team, gasnet_coll_optype_
       *best_algidx = algidx;
       curr_best_time = alg_best_time;
       if(!team->autotune_info->collective_algorithms[op][algidx].tree_alg) {
-        bzero(loc_best_tree, sizeof(char)*100);
+        memset(loc_best_tree, 0, sizeof(char)*100);
       } else {
         gasneti_assert(strlen(loc_best_tree)>0);
       }
@@ -2457,12 +2457,12 @@ static gasnete_coll_implementation_t autotune_op(gasnet_team_handle_t team, gasn
         strcpy(best_tree, temp_tree_str);
         gasneti_free(temp_tree_str);
       } else {
-        bzero(best_tree, sizeof(char)*GASNETE_COLL_MAX_TREE_TYPE_STRLEN);
+        memset(best_tree, 0, sizeof(char)*GASNETE_COLL_MAX_TREE_TYPE_STRLEN);
       }
     }
     /*have the root tell all other nodes in this team what the correct implementation is*/
     gasnete_coll_safe_broadcast(team, ret, temp, args.rootimg, sizeof(struct gasnete_coll_implementation_t_), 0 GASNETE_THREAD_PASS);
-    bzero(all_best_tree, sizeof(char)*GASNETE_COLL_MAX_TREE_TYPE_STRLEN);
+    memset(all_best_tree, 0, sizeof(char)*GASNETE_COLL_MAX_TREE_TYPE_STRLEN);
     gasnete_coll_safe_broadcast(team, all_best_tree, best_tree, args.rootimg, GASNETE_COLL_MAX_TREE_TYPE_STRLEN*sizeof(char), 0 GASNETE_THREAD_PASS);
     ret->fn_ptr = (void*) team->autotune_info->collective_algorithms[op][ret->fn_idx].fn_ptr.generic_coll_fn_ptr;
     if(strlen(all_best_tree) > 0) {
