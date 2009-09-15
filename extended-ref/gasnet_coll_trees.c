@@ -256,7 +256,7 @@ typedef struct tree_node_t_* tree_node_t;
 #define GET_NUM_CHILDREN(TREE_NODE) ((TREE_NODE)->num_children)
 #define GET_CHILD_IDX(TREE_NODE, IDX) ((TREE_NODE)->children[IDX])
 
-tree_node_t *allocate_nodes(tree_node_t **curr_nodes, gasnet_team_handle_t team, int rootrank) {
+static tree_node_t *allocate_nodes(tree_node_t **curr_nodes, gasnet_team_handle_t team, int rootrank) {
   gasnet_node_t i;
   int new_allocation=0;
 
@@ -281,7 +281,7 @@ tree_node_t *allocate_nodes(tree_node_t **curr_nodes, gasnet_team_handle_t team,
 }
 
 /*preappend a list of children*/
-tree_node_t preappend_children(tree_node_t main_node, tree_node_t *child_nodes, int num_nodes) {
+static tree_node_t preappend_children(tree_node_t main_node, tree_node_t *child_nodes, int num_nodes) {
   if(num_nodes > 0) {
     if(main_node->num_children == 0) {
       main_node->children = gasneti_malloc(num_nodes * sizeof(tree_node_t));
@@ -322,7 +322,7 @@ static gasnet_node_t multarr(int *arr, int nelem){
 
 
 /*need to worry about corner cases*/
-tree_node_t make_fork_tree(tree_node_t *nodes, int num_nodes, 
+static tree_node_t make_fork_tree(tree_node_t *nodes, int num_nodes, 
                            int *dims, int ndims) {
   int i;
   int stride;
@@ -347,7 +347,7 @@ tree_node_t make_fork_tree(tree_node_t *nodes, int num_nodes,
   return nodes[0];
 }
 
-tree_node_t make_knomial_tree(tree_node_t *nodes, int num_nodes, int radix) {
+static tree_node_t make_knomial_tree(tree_node_t *nodes, int num_nodes, int radix) {
   int i,j;
   int num_children=0;
   
@@ -386,7 +386,7 @@ tree_node_t make_knomial_tree(tree_node_t *nodes, int num_nodes, int radix) {
   return nodes[0];
 }
 
-tree_node_t make_recursive_tree(tree_node_t *nodes, gasnet_node_t num_nodes, int radix) {
+static tree_node_t make_recursive_tree(tree_node_t *nodes, gasnet_node_t num_nodes, int radix) {
   gasnet_node_t i,j;
   int num_children=0;
 
@@ -411,7 +411,7 @@ tree_node_t make_recursive_tree(tree_node_t *nodes, gasnet_node_t num_nodes, int
   return nodes[0];
 }
 
-tree_node_t make_nary_tree(tree_node_t *nodes, gasnet_node_t num_nodes, int radix) {
+static tree_node_t make_nary_tree(tree_node_t *nodes, gasnet_node_t num_nodes, int radix) {
   gasnet_node_t num_children=0;
   int i,j;
 
@@ -444,7 +444,7 @@ tree_node_t make_nary_tree(tree_node_t *nodes, gasnet_node_t num_nodes, int radi
   return nodes[0];
 }
 
-tree_node_t make_flat_tree(tree_node_t *nodes, int num_nodes) {
+static tree_node_t make_flat_tree(tree_node_t *nodes, int num_nodes) {
   /*attach all the nodes to one nodes[0]*/
   preappend_children(nodes[0], nodes+1, num_nodes-1);
   return nodes[0];
