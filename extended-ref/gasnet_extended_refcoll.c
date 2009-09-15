@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/09/15 16:23:14 $
- * $Revision: 1.72.10.49.2.13 $
+ *     $Date: 2009/09/15 16:24:27 $
+ * $Revision: 1.72.10.49.2.14 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -403,7 +403,7 @@ void gasnete_coll_sync_saved_handles(GASNETE_THREAD_FARG_ALONE) {
  * Serialization done inside the implementation
  */
 
-#ifndef GASNETE_COLL_TEAMS_OVERRIDE && 0
+#if 0
 /* Called by by AM handlers to lookup the team by id */
 gasnete_coll_team_t gasnete_coll_team_lookup(uint32_t team_id) {
   if (team_id == 0) {
