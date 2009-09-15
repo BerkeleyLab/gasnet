@@ -3,6 +3,7 @@
 #include <pthread.h>
 #include <gasnet_tools.h>
 
+#define HAVE_PTHREAD_BARRIER 0
 
 /*declarations that we'll need inside smp_coll_internal that are defined inside this header*/
 struct smp_coll_t_;
@@ -18,8 +19,7 @@ typedef double (*RED_FN_DBL)(double, double);
 
 #define INLINE_ALL_COLLECTIVES 0
 void smp_coll_set_affinity(int location);
-smp_coll_t smp_coll_init(pthread_t my_pthread_handle,
-			 size_t aux_space_per_thread, int flags, int THREADS, int MYTHREAD);
+smp_coll_t smp_coll_init(size_t aux_space_per_thread, int flags, int THREADS, int MYTHREAD);
 void smp_coll_reset_all_flags(smp_coll_t handle);
 void smp_coll_tune_barrier(smp_coll_t handle);
 /*tuning knobs*/

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/09/15 16:24:27 $
- * $Revision: 1.72.10.49.2.14 $
+ *     $Date: 2009/09/15 20:36:58 $
+ * $Revision: 1.72.10.49.2.15 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1218,7 +1218,7 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     gasneti_assert(td->my_local_image < GASNET_TEAM_ALL->my_images);
     {
       int tune_barriers = gasneti_getenv_yesno_withdefault("GASNET_COLL_TUNE_SMP_BARRIER", 1);
-      td->smp_coll_handle = smp_coll_init(pthread_self(), 1024*1024, 
+      td->smp_coll_handle = smp_coll_init(1024*1024, 
                                           (tune_barriers==1 ? 0 : SMP_COLL_SKIP_TUNE_BARRIERS), 
                                           images[gasneti_mynode], td->my_local_image);
     }
@@ -1226,7 +1226,7 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
     td->my_local_image = 0;  
     {
       int tune_barriers = gasneti_getenv_yesno_withdefault("GASNET_COLL_TUNE_SMP_BARRIER", 0);
-      td->smp_coll_handle = smp_coll_init(pthread_self(), 1024*1024, 
+      td->smp_coll_handle = smp_coll_init(1024*1024, 
                                           (tune_barriers==1 ? 0 : SMP_COLL_SKIP_TUNE_BARRIERS), 
                                           1, 0);
     }

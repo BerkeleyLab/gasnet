@@ -187,16 +187,16 @@ void smp_coll_barrier_pthread(smp_coll_t handle, int flags) {
 /*all threads except last to arrive at barrier grab a lock and then fall asleep on a condition variable*/
 /*last thread grabs the lock and broadcats to all other threads to wake up*/
 void smp_coll_barrier_cond_var(smp_coll_t handle, int flags){
-  static pthread_cond_t barrier_cond[2] = /* must be phased on some OS's (HPUX) */
-  { PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER };
-  static pthread_mutex_t barrier_mutex[2] = 
-  { PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER };
+  static gasneti_cond_t barrier_cond[2] = /* must be phased on some OS's (HPUX) */
+  { GASNETI_COND_INITIALIZER, GASNETI_COND_INITIALIZER };
+  static gasneti_mutex_t barrier_mutex[2] = 
+  { GASNETI_MUTEX_INITIALIZER, GASNETI_MUTEX_INITIALIZER };
   static volatile unsigned int barrier_count = 0;
   static volatile int phase = 0;
   const int myphase = phase;
   //  gasnett_local_mb();
 
-  check_zeroret(pthread_mutex_lock(&barrier_mutex[myphase]));
+  gasneti_mutex_lock(&barrier_mutex[myphase]);
   barrier_count++;
   if (barrier_count < handle->THREADS) {
     /* CAUTION: changing the "do-while" to a "while" triggers a bug in the SunStudio 2006-08
@@ -204,14 +204,14 @@ void smp_coll_barrier_cond_var(smp_coll_t handle, int flags){
      * which includes a link to Sun's own database entry for this issue.
      */
     do {
-      check_zeroret(pthread_cond_wait(&barrier_cond[myphase], &barrier_mutex[myphase]));
+      gasneti_cond_wait(&barrier_cond[myphase], &barrier_mutex[myphase]);
     } while (myphase == phase);
   } else {  
     barrier_count = 0;
     phase = !phase;
-    check_zeroret(pthread_cond_broadcast(&barrier_cond[myphase]));
+    gasneti_cond_broadcast(&barrier_cond[myphase]);
   }       
-  check_zeroret(pthread_mutex_unlock(&barrier_mutex[myphase]));
+  gasneti_mutex_unlock(&barrier_mutex[myphase]);
 }
 
 /*bruck's dissemination style barrier*/
