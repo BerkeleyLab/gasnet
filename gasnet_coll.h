@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2009/09/15 21:36:50 $
- * $Revision: 1.53.12.16.2.7 $
+ *     $Date: 2009/09/15 22:05:21 $
+ * $Revision: 1.53.12.16.2.8 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -196,10 +196,12 @@ extern gasnet_node_t gasnete_coll_team_size(gasnete_coll_team_t team);
 #define gasnet_coll_team_node2rank(TEAM, NODE) gasnete_coll_team_node2rank(TEAM, NODE)
 #define gasnet_coll_team_size(TEAM) gasnete_coll_team_size(TEAM)
 
-extern gasnet_team_handle_t gasnete_coll_team_split(gasnete_coll_team_t parent_team, gasnet_node_t color, gasnet_node_t relrank, void *clientdata GASNETE_THREAD_FARG);
+extern gasnet_team_handle_t gasnete_coll_team_split(gasnete_coll_team_t parent_team, gasnet_node_t color,
+						    gasnet_node_t relrank, void *clientdata GASNETE_THREAD_FARG);
+
 GASNETI_INLINE(_gasnet_coll_team_split)
-gasnet_team_handle_t _gasnet_coll_team_split(gasnet_team_handle_t parent_team, gasnet_node_t color, gasnet_node_t relrank, 
-                                             void *clientdata GASNETE_THREAD_FARG) {
+     gasnet_team_handle_t _gasnet_coll_team_split(gasnet_team_handle_t parent_team, gasnet_node_t color, gasnet_node_t relrank, 
+						  void *clientdata GASNETE_THREAD_FARG) {
   return gasnete_coll_team_split(parent_team, color, relrank, clientdata GASNETE_THREAD_PASS);
   
 }

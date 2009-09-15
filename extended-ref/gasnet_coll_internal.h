@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/09/15 21:39:15 $
- * $Revision: 1.53.14.31.2.15 $
+ *     $Date: 2009/09/15 22:05:23 $
+ * $Revision: 1.53.14.31.2.16 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -234,7 +234,7 @@ typedef int (*gasnete_all_barrier_try)(gasnete_coll_team_t team, int id, int fla
 
 #ifndef gasnete_coll_teambarrier_wait
 #define gasnete_coll_teambarrier_wait(TEAM) do {\
-    gasnete_coll_barrier_wait(TEAM, 0, GASNET_BARRIERFLAG_ANONYMOUS GASNETE_THRREAD_GET); \
+    gasnete_coll_barrier_wait(TEAM, 0, GASNET_BARRIERFLAG_ANONYMOUS GASNETE_THREAD_GET); \
   } while(0)
 #endif
 
