@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended.c,v $
- *     $Date: 2009/05/01 19:57:42 $
- * $Revision: 1.23.20.2 $
+ *     $Date: 2009/09/15 00:19:49 $
+ * $Revision: 1.23.20.2.4.1 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -189,17 +189,23 @@ gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
 
 #if GASNETE_USE_SHMEM_BARRIER
 static void gasnete_shmembarrier_init(void);
-static void gasnete_shmembarrier_notify(int id, int flags);
-static int gasnete_shmembarrier_wait(int id, int flags);
-static int gasnete_shmembarrier_try(int id, int flags);
+static void gasnete_shmembarrier_notify(gasnete_coll_team_t team, int id, int flags);
+static int gasnete_shmembarrier_wait(gasnete_coll_team_t team, int id, int flags);
+static int gasnete_shmembarrier_try(gasnete_coll_team_t team, int id, int flags);
+static void dummy_fn(void) {}
 
 #define GASNETE_BARRIER_DEFAULT "SHMEM"
-#define GASNETE_BARRIER_INIT() do {                          \
-    if (GASNETE_ISBARRIER("SHMEM")) {                        \
-      gasnete_barrier_notify = &gasnete_shmembarrier_notify; \
-      gasnete_barrier_wait =   &gasnete_shmembarrier_wait;   \
-      gasnete_barrier_try =    &gasnete_shmembarrier_try;    \
+#define GASNETE_BARRIER_READENV() do { \
+  if(GASNETE_ISBARRIER("SHMEM")) gasnete_coll_default_barrier_type = GASNETE_COLL_BARRIER_SHMEM; \
+} while (0)
+
+#define GASNETE_BARRIER_INIT(TEAM, BARRIER_TYPE) do {        \
+    if ((BARRIER_TYPE) == GASNETE_COLL_BARRIER_SHMEM && (TEAM)==GASNET_TEAM_ALL) { \
+      (TEAM)->barrier_notify = &gasnete_shmembarrier_notify; \
+      (TEAM)->barrier_wait =   &gasnete_shmembarrier_wait;   \
+      (TEAM)->barrier_try =    &gasnete_shmembarrier_try;    \
       gasnete_shmembarrier_init();                           \
+      gasnete_barrier_pf = &dummy_fn;                        \
     }                                                        \
   } while (0)
 #endif /* GASNETE_USE_SHMEM_BARRIER */
@@ -304,10 +310,10 @@ static void gasnete_barrier_broadcastmismatch(void)) {
   #endif
 #endif
 
-static void gasnete_shmembarrier_notify(int id, int flags) {
+static void gasnete_shmembarrier_notify(gasnete_coll_team_t team, int id, int flags) {
     int i;
     uint64_t curval;
-    if_pf (barrier_splitstate == INSIDE_BARRIER)
+    if_pf (team->barrier_info->barrier_splitstate == INSIDE_BARRIER)
 	gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
 
     barrier_phase = !barrier_phase;
@@ -346,21 +352,21 @@ static void gasnete_shmembarrier_notify(int id, int flags) {
 	shmem_long_finc((long*)&barrier_notify_ctr[barrier_phase], 0);
     #endif
 
-    barrier_splitstate = INSIDE_BARRIER;
+    team->barrier_info->barrier_splitstate = INSIDE_BARRIER;
     gasneti_sync_writes();
 }
 
-static int gasnete_shmembarrier_wait(int id, int flags) {
+static int gasnete_shmembarrier_wait(gasnete_coll_team_t team, int id, int flags) {
     int  i, local_mismatch = 0;
     long volatile *done_ctr = &barrier_done[barrier_phase];
 
     gasneti_sync_reads();
 
-    if_pf(barrier_splitstate == OUTSIDE_BARRIER) 
+    if_pf(team->barrier_info->barrier_splitstate == OUTSIDE_BARRIER) 
 	gasneti_fatalerror(
 	    "gasnet_barrier_wait() called without a matching notify");
 
-    barrier_splitstate = OUTSIDE_BARRIER;
+    team->barrier_info->barrier_splitstate = OUTSIDE_BARRIER;
     gasneti_sync_writes();
 
     /*
@@ -428,10 +434,10 @@ static int gasnete_shmembarrier_wait(int id, int flags) {
 	return GASNET_OK;
 }
 
-static int gasnete_shmembarrier_try(int id, int flags) {
-    if_pf(barrier_splitstate == OUTSIDE_BARRIER)
+static int gasnete_shmembarrier_try(gasnete_coll_team_t team, int id, int flags) {
+    if_pf(team->barrier_info->barrier_splitstate == OUTSIDE_BARRIER)
 	gasneti_fatalerror("gasnet_barrier_try() called without a matching notify");
-    return gasnete_shmembarrier_wait(id, flags);
+    return gasnete_shmembarrier_wait(team, id, flags);
 }
 #endif /* GASNETE_USE_SHMEM_BARRIER */
 
