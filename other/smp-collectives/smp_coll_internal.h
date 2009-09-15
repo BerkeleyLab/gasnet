@@ -1,7 +1,7 @@
 #ifndef __SMP_COLL_INTERNAL_H_INC__
 #define __SMP_COLL_INTERNAL_H_INC__ 1
-#include <../smp-collectives/smp_coll.h>
-#include <../smp-collectives/smp_coll_dissem.h>
+#include <smp-collectives/smp_coll.h>
+#include <smp-collectives/smp_coll_dissem.h>
 
 
 #if HAVE_PTHREAD_BARRIER
