@@ -1,14 +1,11 @@
 /**
  * Implement hash table data structure using vectors (chaining) to
  * solve collisions
-
- * example: hashtable_test.c
  *
  * For information about the data structures and algorithms used in the
  * implementation, please see Ch. 12 of Introduction to Algorithms
  * by Thomas H. Cormen, Charles E. Leiserson, Ronald L. Rivest.
  *
- * Yili Zheng
  * Lawrence Berkeley National Laboratory
  * 2009
  */
@@ -21,28 +18,28 @@
 
 #define TABLE_INIT_SIZE 10
 
-HashTable_T * HashTable_create(uint32_t size)
+gasnete_hashtable_t * gasnete_hashtable_create(uint32_t size)
 {
-  HashTable_T * ht;
+  gasnete_hashtable_t * ht;
   uint32_t i;
 
   assert(size > 0);
-  ht = (HashTable_T *)malloc(sizeof(HashTable_T));
+  ht = (gasnete_hashtable_t *)malloc(sizeof(gasnete_hashtable_t));
   assert(ht != NULL);
-  ht->buckets = (Table_T **)malloc(sizeof(Table_T *)*size);
+  ht->buckets = (gasnete_table_t **)malloc(sizeof(gasnete_table_t *)*size);
   assert(ht->buckets != NULL);
   ht->size = size;
   ht->num = 0;
 
   for (i=0; i<size; i++) {
-    ht->buckets[i] = table_create(TABLE_INIT_SIZE);
+    ht->buckets[i] = gasnete_table_create(TABLE_INIT_SIZE);
     assert(ht->buckets[i] != NULL);
   }
  
   return ht;
 }
 
-void HashTable_free(HashTable_T * ht)
+void gasnete_hashtable_free(gasnete_hashtable_t * ht)
 {
   uint32_t i;
 
@@ -51,24 +48,24 @@ void HashTable_free(HashTable_T * ht)
    
   for (i=0; i<ht->size; i++) {
     assert(ht->buckets[i] != NULL);
-    table_free(ht->buckets[i]);
+    gasnete_table_free(ht->buckets[i]);
   }
 
   free(ht->buckets);
   free(ht);
 }
 
-uint32_t HashTable_search(HashTable_T * ht, uint32_t key, void ** data)
+uint32_t gasnete_hashtable_search(gasnete_hashtable_t * ht, uint32_t key, void ** data)
 {
-  Table_T * table;
-  Tab_Item_T * item;
+  gasnete_table_t * table;
+  gasnete_table_item_t * item;
 
   assert(ht != NULL);
 
-  table = ht->buckets[HashTable_hash(ht, key)];
+  table = ht->buckets[gasnete_hashtable_hash(ht, key)];
   assert (table != NULL);
 
-  item = table_search(table, key);
+  item = gasnete_table_search(table, key);
   if (item == NULL)
     return 1; /* cannot find the item with key */
 
@@ -78,10 +75,10 @@ uint32_t HashTable_search(HashTable_T * ht, uint32_t key, void ** data)
   return 0; /* success */
 }
 
-uint32_t HashTable_insert(HashTable_T * ht, uint32_t key, void * data)
+uint32_t gasnete_hashtable_insert(gasnete_hashtable_t * ht, uint32_t key, void * data)
 {
-  Table_T * table;
-  Tab_Item_T item;
+  gasnete_table_t * table;
+  gasnete_table_item_t item;
   uint32_t i;
 
   assert(ht != NULL);
@@ -89,38 +86,38 @@ uint32_t HashTable_insert(HashTable_T * ht, uint32_t key, void * data)
   item.key = key;
   item.data = data;
 
-  i = HashTable_hash(ht, key);
+  i = gasnete_hashtable_hash(ht, key);
   table = ht->buckets[i];
   assert (table != NULL);
 
   /* double the size of the table if the table is full */
   if (table->num == table->size) {
-    Table_T * new_table;
-    new_table = table_create(table->size*2);
+    gasnete_table_t * new_table;
+    new_table = gasnete_table_create(table->size*2);
     assert(new_table != NULL);
-    table_copy(table, new_table);
+    gasnete_table_copy(table, new_table);
     ht->buckets[i] = new_table;
     table = new_table;
   }
 
   ht->num++;
-  return table_insert(table, item);
+  return gasnete_table_insert(table, item);
 }
 
-uint32_t HashTable_remove(HashTable_T * ht, uint32_t key, void ** data)
+uint32_t gasnete_hashtable_remove(gasnete_hashtable_t * ht, uint32_t key, void ** data)
 {
-  Table_T * table;
-  Tab_Item_T item;
+  gasnete_table_t * table;
+  gasnete_table_item_t item;
   uint32_t i, rv;
 
   assert(ht != NULL);
-  i = HashTable_hash(ht, key);
+  i = gasnete_hashtable_hash(ht, key);
   table = ht->buckets[i];
   assert (table != NULL);
   if (table == NULL)
     return 1;
 
-  rv = table_remove(table, key, &item);
+  rv = gasnete_table_remove(table, key, &item);
   if (rv == 0 && data != NULL)
     *data = item.data;
   

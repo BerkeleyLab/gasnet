@@ -1,7 +1,6 @@
 /*
  * table.c - implements a table data structure
  *
- * Yili Zheng
  * Lawrence Berkeley National Laboratory
  * 2009
  */
@@ -12,15 +11,15 @@
 
 #include "table.h"
 
-Table_T * table_create(uint32_t size)
+gasnete_table_t * gasnete_table_create(uint32_t size)
 {
-  Table_T * table;
+  gasnete_table_t * table;
 
   assert(size > 0);
-  table = (Table_T *)malloc(sizeof(Table_T));
+  table = (gasnete_table_t *)malloc(sizeof(gasnete_table_t));
   assert(table != NULL);
 
-  table->slots = (Tab_Item_T *)malloc(sizeof(Tab_Item_T)*size);
+  table->slots = (gasnete_table_item_t *)malloc(sizeof(gasnete_table_item_t)*size);
   assert(table->slots != NULL);
 
   table->size = size;
@@ -29,10 +28,10 @@ Table_T * table_create(uint32_t size)
   return table;
 }
 
-Tab_Item_T * table_search(const Table_T * const table, uint32_t key)
+gasnete_table_item_t * gasnete_table_search(const gasnete_table_t * const table, uint32_t key)
 {
   uint32_t i;
-  Tab_Item_T * slots;
+  gasnete_table_item_t * slots;
 
   assert(table != NULL);
   slots = table->slots;
@@ -43,7 +42,7 @@ Tab_Item_T * table_search(const Table_T * const table, uint32_t key)
   return NULL; /* item with key is not found in the table */
 }
 
-uint32_t table_insert(Table_T * const table, Tab_Item_T item)
+uint32_t gasnete_table_insert(gasnete_table_t * const table, gasnete_table_item_t item)
 {
   if (table->num >= table->size)
     return 1; /* insertion failed because the table is full */
@@ -55,11 +54,11 @@ uint32_t table_insert(Table_T * const table, Tab_Item_T item)
   return 0; /* success */
 }
 
-uint32_t table_remove(Table_T * const table, uint32_t key, Tab_Item_T * deleted)
+uint32_t gasnete_table_remove(gasnete_table_t * const table, uint32_t key, gasnete_table_item_t * deleted)
 {
-  Tab_Item_T item;
+  gasnete_table_item_t item;
   uint32_t i;
-  Tab_Item_T * slots;
+  gasnete_table_item_t * slots;
 
   assert(table != NULL);
   slots = table->slots;
@@ -85,10 +84,10 @@ uint32_t table_remove(Table_T * const table, uint32_t key, Tab_Item_T * deleted)
   return 1; /* item not in the table */
 }
 
-void table_copy(const Table_T * const src, Table_T * const dst)
+void gasnete_table_copy(const gasnete_table_t * const src, gasnete_table_t * const dst)
 {
   uint32_t i;
-  Tab_Item_T * src_slots, * dst_slots;
+  gasnete_table_item_t * src_slots, * dst_slots;
 
   assert(dst->size >= src->num);
 
@@ -100,7 +99,7 @@ void table_copy(const Table_T * const src, Table_T * const dst)
   dst->num = src->num;
 }
 
-void table_free(Table_T * const table)
+void gasnete_table_free(gasnete_table_t * const table)
 {
   assert(table != NULL);
 

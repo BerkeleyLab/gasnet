@@ -1,6 +1,7 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_team.c,v $
- * $Date: 2009/09/15 21:30:38 $
- * $Revision: 1.1.4.3.2.2 $
+ * $Date: 2009/09/15 21:55:57 $
+ * $Revision: 1.1.4.3.2.3 $
+ *
  * Description: GASNet generic team implementation for collectives 
  * LBNL 2009
  */
@@ -17,8 +18,8 @@
 
 /* #define DEBUG_TEAM */
 
-static
-HashTable_T *team_dir = NULL;
+static 
+gasnete_hashtable_t *team_dir = NULL;
 
 static
 volatile uint32_t my_team_seq = 1;
@@ -178,10 +179,10 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
   /* lock the team direcotry (team_dir) */
   /* add the new team to the directory */
   if (team_dir == NULL) {
-    team_dir = HashTable_create(TEAM_DIR_SIZE);
+    team_dir = gasnete_hashtable_create(TEAM_DIR_SIZE);
     gasneti_assert(team_dir != NULL);
   }
-  HashTable_insert(team_dir, team_id, team);
+  gasnete_hashtable_insert(team_dir, team_id, team);
 
 #ifdef gasnete_coll_team_init_conduit
   /* conduit specific initialization for gasnet teams */
@@ -200,7 +201,7 @@ void gasnete_coll_team_fini(gasnet_team_handle_t team)
   /* free data members of the team, such as scratch space and etc. */
   gasneti_free(team->rel2act_map);
   gasneti_assert(team_dir != NULL);
-  HashTable_remove(team_dir, team->team_id, NULL);
+  gasnete_hashtable_remove(team_dir, team->team_id, NULL);
 
 #ifdef gasnete_coll_team_fini_conduit
   /* conduit specific initialization for gasnet teams */
@@ -375,7 +376,7 @@ gasnet_team_handle_t gasnete_coll_team_lookup(uint32_t team_id)
 	if (team_id == 0)
     team = GASNET_TEAM_ALL;
   else {
-    if (HashTable_search(team_dir, team_id, (void **)&team))
+    if (gasnete_hashtable_search(team_dir, team_id, (void **)&team))
       team = NULL; /* cannot find team_id the hash table */
   }
   
