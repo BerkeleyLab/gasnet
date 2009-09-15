@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2009/09/15 21:21:42 $
- * $Revision: 1.53.12.16.2.6 $
+ *     $Date: 2009/09/15 21:36:50 $
+ * $Revision: 1.53.12.16.2.7 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -182,13 +182,6 @@ typedef gasnete_coll_team_t gasnet_team_handle_t;
 extern gasnet_team_handle_t gasnete_coll_team_all;
 #define GASNET_TEAM_ALL gasnete_coll_team_all
 #endif
-
-extern gasnet_team_handle_t gasnete_coll_teamA;
-#define GASNET_TEAM_A gasnete_coll_teamA
-
-extern gasnet_team_handle_t gasnete_coll_teamB;
-#define GASNET_TEAM_B gasnete_coll_teamB
-
 
 #endif
 

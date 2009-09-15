@@ -6,7 +6,7 @@ void smp_coll_barrier(smp_coll_t handle, int flags) {
 }
 #endif
 
-void print_barrier_tree(smp_coll_t handle) {
+static void print_barrier_tree(smp_coll_t handle) {
   int i;
   printf("%d> parent: %d numchildren: %d\n", handle->MYTHREAD, handle->barrier_parent, handle->barrier_num_children);
   for(i=0; i<handle->barrier_num_children; i++) {
@@ -17,8 +17,8 @@ void print_barrier_tree(smp_coll_t handle) {
 void smp_coll_set_barrier_routine_with_root(smp_coll_t handle, smp_coll_barrier_routine_t routine_id, int in_radix, int root) {
   
   smp_coll_safe_barrier(handle, 0);
-  if(handle->dissem_info) free_dissemination(handle->dissem_info);
-  handle->dissem_info = build_dissemination(in_radix, handle->MYTHREAD, handle->THREADS);
+  if(handle->dissem_info) smp_coll_free_dissemination(handle->dissem_info);
+  handle->dissem_info = smp_coll_build_dissemination(in_radix, handle->MYTHREAD, handle->THREADS);
   
   handle->barrier_root = root;
   handle->barrier_radix = in_radix;

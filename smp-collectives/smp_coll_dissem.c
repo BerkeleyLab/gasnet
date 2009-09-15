@@ -1,6 +1,6 @@
 #include <../smp-collectives/smp_coll_dissem.h>
 
-void print_dissem_order(dissem_info_t *obj, int MYTHREAD) {
+void smp_coll_print_dissem_order(dissem_info_t *obj, int MYTHREAD) {
   int i;
   int j;
   FILE *fp;
@@ -23,7 +23,7 @@ void print_dissem_order(dissem_info_t *obj, int MYTHREAD) {
   fclose(fp);
 }
 
-void dump_dissem_order(dissem_info_t *obj, int MYTHREAD) {
+void smp_coll_dump_dissem_order(dissem_info_t *obj, int MYTHREAD) {
   int i;
   int j;
 
@@ -42,7 +42,7 @@ void dump_dissem_order(dissem_info_t *obj, int MYTHREAD) {
 
 }
 
-dissem_info_t *build_dissemination(int r, int MYTHREAD, int THREADS) {
+dissem_info_t *smp_coll_build_dissemination(int r, int MYTHREAD, int THREADS) {
   dissem_info_t *ret;
   int h,w,i,j,distance,x,numpeers,destproc;
   ret = (dissem_info_t*) gasneti_malloc(sizeof(dissem_info_t));
@@ -115,7 +115,7 @@ dissem_info_t *build_dissemination(int r, int MYTHREAD, int THREADS) {
 }
 
 
-void free_dissemination(dissem_info_t* obj) {
+void smp_coll_free_dissemination(dissem_info_t* obj) {
   
   int i;
   for(i=0; i<obj->dissemination_phases; i++) {

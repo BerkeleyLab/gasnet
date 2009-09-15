@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/09/15 20:36:58 $
- * $Revision: 1.72.10.49.2.15 $
+ *     $Date: 2009/09/15 21:36:52 $
+ * $Revision: 1.72.10.49.2.16 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -402,48 +402,6 @@ void gasnete_coll_sync_saved_handles(GASNETE_THREAD_FARG_ALONE) {
  *
  * Serialization done inside the implementation
  */
-
-#if 0
-/* Called by by AM handlers to lookup the team by id */
-gasnete_coll_team_t gasnete_coll_team_lookup(uint32_t team_id) {
-  if (team_id == 0) {
-    return GASNET_TEAM_ALL;
-  } else if (team_id == 1) {
-    return GASNET_TEAM_A;
-  } else if (team_id == 2) {
-    return GASNET_TEAM_B;
-  } else {
-    gasneti_fatalerror("UNKNOWN TEAM ID (%d) in id to team lookup", team_id);
-  }
-}
-
-gasnet_node_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank) {
-//	gasneti_assert(team == GASNET_TEAM_ALL);
-	return GASNETE_COLL_REL2ACT(team, rank);
-}
-
-int gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnet_node_t node) {
-//	gasneti_assert(team == GASNET_TEAM_ALL);
-	/*REALLY REALLY DUMB IMPLEMENTATION FOR NOW*/
-
-  int i;
-  for(i=0; i<team->total_ranks; i++) {
-    if(GASNETE_COLL_REL2ACT(team, i) == node) return i;
-  }
-  return -1;
-}
-
-uint32_t gasnete_coll_team_id(gasnete_coll_team_t team) {
-//	gasneti_assert(team == GASNET_TEAM_ALL);
-
-  if(team == GASNET_TEAM_ALL) return 0;
-  else if(team == GASNET_TEAM_A) return 1;
-  else if(team == GASNET_TEAM_B) return 2;
-
-  else gasneti_fatalerror("UNKNOWN TEAM in team to id lookup");
-  return 0;
-}
-#endif
 
 gasnet_node_t gasnete_coll_team_size(gasnete_coll_team_t team) {
   return team->total_ranks;

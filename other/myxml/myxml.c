@@ -416,7 +416,7 @@ void myxml_fillSizes(myxml_node_t *node, size_t *sz_arr) {
 }
 #endif
 
-void dump_TreeBIN(FILE *outstream, myxml_node_t *node) {
+static void dump_TreeBIN(FILE *outstream, myxml_node_t *node) {
   uint32_t temp;
   int i;
 
