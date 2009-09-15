@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.106.2.2 $
+$Revision: 1.106.2.2.4.1 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -184,7 +184,7 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * AIX/IBM-SPPower3/VisualAgeC(xlc),gcc/32,64: smp, mpi, udp, lapi
     * AIX/IBM-SPPower4/VisualAgeC(xlc),gcc/32,64: smp, mpi, udp, lapi
 
-    * IRIX/Origin2000/gcc,MIPSProC/32,64: smp, mpi, udp, shmem
+    * IRIX/Origin2000/gcc,MIPSProC/32,64: smp, mpi, udp
 
     * HPUX/PA-RISC/gcc/32: smp, udp, mpi
     * HPUX/PA-RISC/HPcc/32: smp, udp, mpi

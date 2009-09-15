@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2009/08/26 05:01:44 $
-# $Revision: 1.490.2.6 $
+#     $Date: 2009/09/15 16:45:48 $
+# $Revision: 1.490.2.6.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.490.2.6 $)
+AC_REVISION($Revision: 1.490.2.6.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -3033,6 +3033,7 @@ if test $enabled_shmem = yes; then
       # Explict -L/usr/lib would only be correct for o32 objects
       GASNET_ENV_DEFAULT(SHMEM_LIBDIR, /anything/but/usr/lib)
       GASNET_ENV_DEFAULT(SHMEM_LIBS, [-lsma -lmpi])
+      GASNET_MSG_WARN(building _EXPERIMENTAL_ support for SHMEM on IRIX.)
       ;;
     # Linux shmem may mean Quadrics shmem or SGI shmem, but only SGI shmem is supported.
     linux*)

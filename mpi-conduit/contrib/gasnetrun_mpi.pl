@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2009/08/26 05:01:54 $
-# $Revision: 1.63.6.3 $
+#     $Date: 2009/09/15 16:45:52 $
+# $Revision: 1.63.6.3.2.1 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -9,9 +9,9 @@ require 5.004;
 use strict;
 
 # NOTE: The value of $ENV{'MPIRUN_CMD'} may be set in the shell wrapper
-my $spawncmd = $ENV{'MPIRUN_CMD'} || 'mpirun -np %N %P %A';
-$spawncmd = stripouterquotes($spawncmd);
-$spawncmd =~ s/%C/%P %A/;	# deal with common alias
+my $orig_spawncmd = $ENV{'MPIRUN_CMD'} || 'mpirun -np %N %P %A';
+$orig_spawncmd = stripouterquotes($orig_spawncmd);
+(my $spawncmd = $orig_spawncmd) =~ s/%C/%P %A/;	# deal with common alias
 
 # Validate the spawncmd
 my $cmd_ok = exists($ENV{'MPIRUN_CMD_OK'});
@@ -20,13 +20,14 @@ if ($spawncmd =~ m/MPIRUN_CMD_OK/) {
   $cmd_ok = 1;
 }
 unless ($cmd_ok ||
-        (($spawncmd =~ m/%P/) && ($spawncmd =~ m/%A/) && ($spawncmd =~ m/%N/))) {
-	die("gasnetrun: ERROR: MPIRUN_CMD='$spawncmd'\n"
+        (($spawncmd =~ m/%P/) && ($spawncmd =~ m/%[AQ]/) && ($spawncmd =~ m/%N/))) {
+	die("gasnetrun: ERROR: MPIRUN_CMD='$orig_spawncmd'\n"
           . "The environment variable MPIRUN_CMD must contain the strings '%P' and '%A'\n"
-	  . "(or '%C' as an alias for '%P %A') for expansion into the program and its arguments;\n"
-	  . "and '%N' for expansion into the number of processes.\n"
-	  . "To disable this check, set MPIRUN_CMD_OK in your environment, \n"
-	  . "or append the string MPIRUN_CMD_OK to the command.\n");
+          . "for expansion into the program and its arguments; and '%N' for expansion\n"
+          . "into the number of processes ('%C' is acceptible as an alias for '%P %A'\n"
+          . "and '%Q' may be substituted for '%A' to request extra quoting.)\n"
+          . "To disable this check, set MPIRUN_CMD_OK in your environment, \n"
+          . "or append the string MPIRUN_CMD_OK to the command.\n");
 }
 
 # Globals
@@ -210,8 +211,8 @@ sub gasnet_encode($) {
 	# the OS already propagates the environment for us automatically
 	%envfmt = ( 'noenv' => 1
                   );
-	# what a mess: pbsyod needs extra quoting, bare yod does not...
-        #$extra_quote_argv = 1;
+	# what a mess: pbsyod needs extra quoting, bare yod does not.
+	# recommend pbsyod users use "%Q" in MPIRUN_CMD
 	@verbose_opt = ("-setenv", "PMI_DEBUG=1");
     } elsif ($is_bgl_mpi) {
 	$spawner_desc = "IBM BG/L MPI";
@@ -397,6 +398,9 @@ sub expand {
     if (!defined($numproc) && $spawncmd =~ /%N/) {
 	usage "Required option -n was not given\n";
     }
+
+# User's MPIRUN_CMD might request over-quoting explicitly
+    $extra_quote_argv++ if ($spawncmd =~ s/%Q/%A/);
 
 # Find the program
     my $exebase = shift or usage "No program specified\n";
@@ -672,6 +676,7 @@ if ($numproc && $is_bgp) {
     $spawncmd = $ENV{'MPIRUN_CMD_BATCH'} || 'cobalt-mpirun %N %P %A';
     $spawncmd = stripouterquotes($spawncmd);
     $spawncmd =~ s/%C/%P %A/;  # deal with common alias
+    $extra_quote_argv++ if ($spawncmd =~ s/%Q/%A/);
   
     my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
     
