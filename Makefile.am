@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Makefile.am,v $
-#     $Date: 2009/05/01 19:57:02 $
-# $Revision: 1.76.12.2 $
+#     $Date: 2009/09/15 20:37:38 $
+# $Revision: 1.76.12.2.4.1 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -46,6 +46,7 @@ CONDUITMODE_EXTRA_DIST =    	\
 	docs              	\
 	extended-ref      	\
 	template-conduit  	\
+	smp-collectives  	\
 	gasnet_internal.h 	\
 	gasnet_internal.c 	\
 	gasnet_mmap.c  	  	\
