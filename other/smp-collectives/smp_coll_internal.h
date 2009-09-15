@@ -3,7 +3,8 @@
 #include <../smp-collectives/smp_coll.h>
 #include <../smp-collectives/smp_coll_dissem.h>
 
-#ifdef HAVE_PTHREAD_BARRIER
+
+#if HAVE_PTHREAD_BARRIER
 #ifndef __USE_XOPEN2K
 #include "pthread_barrier.h"
 #warning explicitly defining pthread barrier things
@@ -297,7 +298,6 @@ void smp_coll_exchange_hierarchical_overlap(smp_coll_t handle,  int num_addrs,
 struct smp_coll_t_{
   int THREADS;
   int MYTHREAD;
-  pthread_t thread_id;
   volatile uint32_t *flags;
   volatile uint32_t *barrier_flags;
   volatile uint32_t *bcast_flags;

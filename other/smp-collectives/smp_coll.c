@@ -1,7 +1,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <pthread.h>
 #include <math.h>
 #include <inttypes.h>
 #include <../smp-collectives/smp_coll_internal.h>
@@ -45,8 +44,7 @@ void smp_coll_reset_all_flags(smp_coll_t handle) {
   BOOTSTRAP_BARRIER(handle, 0);
 }
 
-smp_coll_t smp_coll_init(pthread_t my_pthread_handle,
-			 size_t aux_space_per_thread, int flags, int THREADS, int MYTHREAD){
+smp_coll_t smp_coll_init(size_t aux_space_per_thread, int flags, int THREADS, int MYTHREAD){
 
   static uint8_t **allscratch;
   smp_coll_t ret;
@@ -54,7 +52,6 @@ smp_coll_t smp_coll_init(pthread_t my_pthread_handle,
   ret = (struct smp_coll_t_*) gasneti_malloc(sizeof(struct smp_coll_t_));
   ret->MYTHREAD = MYTHREAD;
   ret->THREADS = THREADS;
-  ret->thread_id = my_pthread_handle;
   ret->flag_set = 0;
   ret->tempaddrs = (void**) gasneti_malloc(sizeof(void*)*THREADS);
   if(flags & SMP_COLL_SET_AFFINITY) {
