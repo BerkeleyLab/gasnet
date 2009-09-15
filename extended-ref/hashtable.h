@@ -18,12 +18,12 @@
 
 #include "table.h"
 
-typedef struct HashTable
+typedef struct gasnete_hashtable
 {
-  Table_T ** buckets;
+  gasnete_table_t ** buckets;
   uint32_t size; /**< hash table size (# of buckets) */
   uint32_t num;  /**< number of elements in the hash table */
-} HashTable_T;
+} gasnete_hashtable_t;
 
 #ifdef __cplusplus
 extern "C" {
@@ -32,7 +32,7 @@ extern "C" {
   /**
    * Hash function that determines the bucket for the element with a key
    */
-  static inline uint32_t HashTable_hash(HashTable_T * ht, uint32_t key)
+  static inline uint32_t gasnete_hashtable_hash(gasnete_hashtable_t * ht, uint32_t key)
   {
     return (key % ht->size);
   }
@@ -40,15 +40,15 @@ extern "C" {
   /**
    * Create a hash table
    */
-  HashTable_T * HashTable_create(uint32_t size);
+  gasnete_hashtable_t * gasnete_hashtable_create(uint32_t size);
 
-  uint32_t HashTable_search(HashTable_T * ht, uint32_t key, void ** data);
+  uint32_t gasnete_hashtable_search(gasnete_hashtable_t * ht, uint32_t key, void ** data);
 
-  uint32_t HashTable_insert(HashTable_T * ht, uint32_t key, void * data);
+  uint32_t gasnete_hashtable_insert(gasnete_hashtable_t * ht, uint32_t key, void * data);
 
-  uint32_t HashTable_remove(HashTable_T * ht, uint32_t key, void ** data);
+  uint32_t gasnete_hashtable_remove(gasnete_hashtable_t * ht, uint32_t key, void ** data);
 
-  void HashTable_free(HashTable_T * ht);
+  void gasnete_hashtable_free(gasnete_hashtable_t * ht);
 
 #ifdef __cplusplus
 }
