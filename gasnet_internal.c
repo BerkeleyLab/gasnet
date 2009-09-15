@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/09/15 04:13:52 $
- * $Revision: 1.197.8.15 $
+ *     $Date: 2009/09/15 05:47:25 $
+ * $Revision: 1.197.8.16 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -880,8 +880,7 @@ static int _gasneti_nodemap_sort_fn(const void *a, const void *b) {
 static void gasneti_nodemap_helper_qsort(const char *ids, size_t sz, size_t stride) {
   gasnet_node_t *work    = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
   const char *prev_id;
-  gasnet_node_t i;
-  int prev; /* If this is gasnet_node_t then bug 2634 can crash XLC */
+  int i, prev; /* If these are gasnet_node_t then bug 2634 can crash XLC */
 
   _gasneti_nodemap_sort_aux.ids    = ids;
   _gasneti_nodemap_sort_aux.sz     = sz;
@@ -893,7 +892,7 @@ static void gasneti_nodemap_helper_qsort(const char *ids, size_t sz, size_t stri
   gasneti_nodemap[prev] = prev;
   prev_id = ids + prev*stride;
   for (i = 1; i < gasneti_nodes; ++i) {
-    gasnet_node_t node = work[i];
+    int node = work[i]; /* Also subject to bug 2634 */
     const char *tmp_id = ids + node*stride;
     prev = gasneti_nodemap[node] = memcmp(tmp_id, prev_id, sz) ? node : prev;
     prev_id = tmp_id;
