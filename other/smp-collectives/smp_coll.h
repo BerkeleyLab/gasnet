@@ -55,7 +55,7 @@ void smp_coll_set_reduce_double_routine(smp_coll_t handle, smp_coll_reduce_routi
 typedef enum{SMP_COLL_EXCHANGE_FLAT=0, SMP_COLL_EXCHANGE_DISSEM_FLAG, SMP_COLL_EXCHANGE_HIEARCHICAL, SMP_COLL_EXCHANGE_HIEARCHICAL_OVERLAP} smp_coll_exchange_routine_t;
 void smp_coll_set_exchange_routine(smp_coll_t handle, smp_coll_exchange_routine_t routine_id, int in_radix);
 
-#include <../smp-collectives/smp_coll_internal.h>
+#include <smp-collectives/smp_coll_internal.h>
 
 void smp_coll_safe_barrier(smp_coll_t handle, int flags);
 

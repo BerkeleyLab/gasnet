@@ -14,7 +14,7 @@ typedef struct dissem_vector_t_ dissem_vector_t;
 struct  dissem_info_t_;
 typedef struct dissem_info_t_ dissem_info_t;
 
-#include <../smp-collectives/smp_coll_internal.h>
+#include <smp-collectives/smp_coll_internal.h>
 
 struct dissem_vector_t_{
   int *elem_list;
