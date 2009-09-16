@@ -123,7 +123,9 @@ void smp_coll_tune_barrier(smp_coll_t handle) {
   static int best_barrier_routine =1;
   static int best_root = 0;
 
+#if VERBOSE_TUNING
   if(handle->MYTHREAD==0) fprintf(stderr, "starting autotuning of local barrier\n");
+#endif
   for(root=0; root<1; root++) {
     //for(root = 0; root < handle->THREADS; root=(root==0 ? 2 : root *2)) {
     if(handle->MYTHREAD==0 && VERBOSE_TUNING) fprintf(stderr, "ROOT: %d\n", root);
@@ -160,7 +162,9 @@ void smp_coll_tune_barrier(smp_coll_t handle) {
       }
     }
   }
+#if VERBOSE_TUNING
   if(handle->MYTHREAD==0) fprintf(stderr, "setting best barrier: routine: %d radix: %d root: %d time: %g ns\n", best_barrier_routine, best_barrier_radix, best_root, best_time);
+#endif
   smp_coll_set_barrier_routine_with_root(handle, best_barrier_routine, best_barrier_radix, best_root);
   
   
