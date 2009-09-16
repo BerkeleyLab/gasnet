@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testteam.c,v $
- * $Date: 2009/09/15 22:29:04 $
- * $Revision: 1.1.4.2.2.1 $
+ * $Date: 2009/09/16 00:46:58 $
+ * $Revision: 1.1.4.2.2.2 $
  * LBNL 2009
  */
 
@@ -44,7 +44,7 @@ int main(int argc, char **argv)
   
   gasnet_coll_init(NULL, 0, NULL, 0, 0);
 
-  test_init("test_team", 1, "nrows ncols (iters)");
+  test_init("test_team", 1, "(nrows) (ncols) (iters)");
 
   mynode = gasnet_mynode();
   nodes = gasnet_nodes();
@@ -56,11 +56,19 @@ int main(int argc, char **argv)
   teamB_scratch.addr = (uint8_t*)teamA_scratch.addr + teamA_scratch.size;
   teamB_scratch.size = teamA_scratch.size;
 
-  if (argc < 3)
+  if (argc > 4)
     test_usage();
 
-  nrows = atoi(argv[1]);
-  ncols = atoi(argv[2]);
+  if (argc > 1) {
+    nrows = atoi(argv[1]);
+  } else {
+    nrows = 1 + !(nodes & 1); /* 1 if odd, 2 if even */
+  }
+  if (argc > 2) {
+    ncols = atoi(argv[2]);
+  } else {
+    ncols = nodes / nrows;
+  }
   gasneti_assert(nrows*ncols == nodes);
 
   if (argc > 3) iters = atoi(argv[3]);

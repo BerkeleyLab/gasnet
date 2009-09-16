@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v $
-#     $Date: 2009/09/16 00:32:10 $
-# $Revision: 1.106.6.4.2.3 $
+#     $Date: 2009/09/16 00:46:58 $
+# $Revision: 1.106.6.4.2.4 $
 # Description: Makefile for GASNet tests
 # @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -144,7 +144,6 @@ TEST_PARAMS=                    					\
    testvisperf_args="-maxdata 131072 -maxcontig 512 10"; 		\
    testslice_args="1024000 10 10";			 		\
    testcollperf_args="32768 2 50 0";			 		\
-   testteam_args="$(TEST_NODES) 1";				 	\
    $(CONDUIT_TESTPARAMS) dummy=1 ; 					\
    $(MANUAL_TESTPARAMS) dummy=1 ;
 
