@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2009/09/01 20:46:39 $
- * $Revision: 1.4.6.1 $
+ *     $Date: 2009/09/18 05:04:13 $
+ * $Revision: 1.4.6.2 $
  * Description: GASNet Extended API Implementation for DCMF
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -12,6 +12,11 @@
 #include <gasnet_handler.h>
 
 #include <gasnet_core_internal.h>
+
+#include <gasnet_coll.h>
+//#include <gasnet_coll_autotune.h>
+#include <gasnet_coll_internal.h>
+#include <gasnet_coll_autotune_internal.h>
 
 
 static const gasnete_eopaddr_t EOPADDR_NIL = { { 0xFF, 0xFF } };
@@ -1150,19 +1155,25 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   =========
 */
 
-static void gasnete_dcmfbarrier_init(void);
-static void gasnete_dcmfbarrier_notify(int id, int flags);
-static int gasnete_dcmfbarrier_wait(int id, int flags);
-static int gasnete_dcmfbarrier_try(int id, int flags);
+static void do_nothing(){}
+static void gasnete_dcmfbarrier_init(gasnete_coll_team_t team);
+static void gasnete_dcmfbarrier_notify(gasnete_coll_team_t team, int id, int flags);
+static int gasnete_dcmfbarrier_wait(gasnete_coll_team_t team, int id, int flags);
+static int gasnete_dcmfbarrier_try(gasnete_coll_team_t team, int id, int flags);
 int gasnete_dcmfbarrier_fast = 0;
 
 #define GASNETE_BARRIER_DEFAULT "DCMF_BARRIER"
-#define GASNETE_BARRIER_INIT() do {                         \
-    if (GASNETE_ISBARRIER("DCMF_BARRIER")) {                \
-      gasnete_barrier_notify = &gasnete_dcmfbarrier_notify; \
-      gasnete_barrier_wait =   &gasnete_dcmfbarrier_wait;   \
-      gasnete_barrier_try =    &gasnete_dcmfbarrier_try;    \
-      gasnete_dcmfbarrier_init();                           \
+#define GASNETE_BARRIER_READENV() do { \
+  if(GASNETE_ISBARRIER("DCMF_BARRIER")) gasnete_coll_default_barrier_type = GASNETE_COLL_BARRIER_DCMF; \
+} while (0)
+
+#define GASNETE_BARRIER_INIT(TEAM, BARRIER_TYPE) do {                         \
+    if ((BARRIER_TYPE) == GASNETE_COLL_BARRIER_DCMF && (TEAM)==GASNET_TEAM_ALL) {                \
+      (TEAM)->barrier_notify = &gasnete_dcmfbarrier_notify; \
+      (TEAM)->barrier_wait =   &gasnete_dcmfbarrier_wait;   \
+      (TEAM)->barrier_try =    &gasnete_dcmfbarrier_try;    \
+      gasnete_barrier_pf = &do_nothing;                     \
+       gasnete_dcmfbarrier_init(TEAM);                      \
     }                                                       \
   } while (0)
 
@@ -1196,8 +1207,10 @@ static DCMF_Protocol_t named_barrier_registration;
 
 static int gasnete_allow_hw_barrier;
 
-static void gasnete_dcmfbarrier_init(void) {
-  barrier_splitstate = OUTSIDE_BARRIER;
+
+static void gasnete_dcmfbarrier_init(gasnete_coll_team_t team) {
+
+  team->barrier_info->barrier_splitstate = OUTSIDE_BARRIER;
   
   /* by default assume that if the user provides the anonymous flag on
      one node it is done so on all the nodes and thus we can use the built-in
@@ -1275,13 +1288,13 @@ static void gasnete_dcmfbarrier_init(void) {
 #define ANON_FLAG 0x01
 #define NAMED_FLAG 0x02
 
-static void gasnete_dcmfbarrier_notify(int id, int flags) {
+static void gasnete_dcmfbarrier_notify(gasnete_coll_team_t team, int id, int flags) {
   int barrier_id;
   DCMF_Callback_t cb_done;
   
   
   gasneti_sync_reads();
-  if(barrier_splitstate == INSIDE_BARRIER) {
+  if(team->barrier_info->barrier_splitstate == INSIDE_BARRIER) {
     gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
   } 
 
@@ -1300,7 +1313,7 @@ static void gasnete_dcmfbarrier_notify(int id, int flags) {
     GASNETC_DCMF_UNLOCK();
     current_barrier_flags = flags;
     current_barrier_id = id;
-    barrier_splitstate = INSIDE_BARRIER; 
+    team->barrier_info->barrier_splitstate = INSIDE_BARRIER; 
   } else {
     GASNETI_TRACE_PRINTF(B, ("running named barrier notify (%d,%d)", id, flags));
     named_barrier_result[0] = named_barrier_source[0] = 0;
@@ -1339,14 +1352,14 @@ static void gasnete_dcmfbarrier_notify(int id, int flags) {
     GASNETC_DCMF_UNLOCK();
     current_barrier_flags = flags;
     current_barrier_id = id;
-    barrier_splitstate = INSIDE_BARRIER; 
+    team->barrier_info->barrier_splitstate = INSIDE_BARRIER; 
 
   }
   gasneti_sync_writes();
   GASNETI_TRACE_PRINTF(B, ("finishing barrier notify (%d,%d)", id, flags));
 }
 
-static inline int finish_barrier(int id, int flags) {
+static inline int finish_barrier(gasnete_coll_team_t team, int id, int flags) {
   int ret;
   
   /*at this point the barrier is complete so check the flags 
@@ -1426,16 +1439,16 @@ static inline int finish_barrier(int id, int flags) {
       ret = GASNET_ERR_BARRIER_MISMATCH;
     }
   }
-  barrier_splitstate = OUTSIDE_BARRIER;
+  team->barrier_info->barrier_splitstate = OUTSIDE_BARRIER;
   gasneti_sync_writes();
   return ret;
 }
 
-static int gasnete_dcmfbarrier_wait(int id, int flags) {
+static int gasnete_dcmfbarrier_wait(gasnete_coll_team_t team, int id, int flags) {
   int ret;
   
   gasneti_sync_reads();
-  if(barrier_splitstate == OUTSIDE_BARRIER) {
+  if(team->barrier_info->barrier_splitstate == OUTSIDE_BARRIER) {
     gasneti_fatalerror("gasnet_barrier_wait() called without a matching notify");
   }
   
@@ -1452,15 +1465,15 @@ static int gasnete_dcmfbarrier_wait(int id, int flags) {
   
   
   GASNETI_TRACE_PRINTF(B, ("finish barrier wait named barrier res:(0x%llx,0x%llx) (%d,%d)", named_barrier_source[1], named_barrier_result[1], id, flags));
-  ret = finish_barrier(id, flags);
+  ret = finish_barrier(team, id, flags);
   GASNETI_TRACE_PRINTF(B, ("returning %d", ret));
   return ret;
 
 }
 
-static int gasnete_dcmfbarrier_try(int id, int flags) { 
+static int gasnete_dcmfbarrier_try(gasnete_coll_team_t team, int id, int flags) { 
   gasneti_sync_reads();
-  if(barrier_splitstate == OUTSIDE_BARRIER) {
+  if(team->barrier_info->barrier_splitstate == OUTSIDE_BARRIER) {
     gasneti_fatalerror("gasnet_barrier_try() called without a matching notify");
   }
   
@@ -1472,12 +1485,12 @@ static int gasnete_dcmfbarrier_try(int id, int flags) {
     /*this last call to messager advance could have finished the barrier so see if it has
       and then finish up the barrier*/
     if(barrier_done==1) {
-      return finish_barrier(id, flags);
+      return finish_barrier(team, id, flags);
     } else {
       return GASNET_ERR_NOT_READY;
     }
   } else {
-    return finish_barrier(id, flags);
+    return finish_barrier(team, id, flags);
   }
 }
 

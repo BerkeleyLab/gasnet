@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/Makefile.am,v $
-#     $Date: 2009/09/01 19:59:07 $
-# $Revision: 1.2.12.1 $
+#     $Date: 2009/09/18 05:04:13 $
+# $Revision: 1.2.12.2 $
 # Description: Makefile for GASNet dcmf conduit
 # Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
 #                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -27,7 +27,15 @@ CONDUIT_FILELIST =                \
       gasnet_core_internal.h      \
 			gasnet_extended.c           \
 			gasnet_extended_fwd.h       \
-      gasnet_extended_internal.h
+      gasnet_extended_internal.h  \
+			gasnet_extended_coll_dcmf.c \
+			gasnet_extended_coll_dcmf.h \
+			gasnet_coll_exchange_dcmf.c \
+			gasnet_coll_exchange_dcmf.h \
+			gasnet_coll_bcast_dcmf.c \
+			gasnet_coll_bcast_dcmf.h \
+			gasnet_coll_barrier_dcmf.c \
+			gasnet_coll_barrier_dcmf.h 
 
 # list of conduit core and extended .c source files 
 # to be compiled into libgasnet on the compiler command line
@@ -35,7 +43,11 @@ CONDUIT_SOURCELIST =          \
       $(srcdir)/gasnet_core.c \
       $(srcdir)/gasnet_dcmf_internal.c \
       $(srcdir)/gasnet_dcmf_bootstrapcoll.c \
-      $(srcdir)/gasnet_extended.c 
+      $(srcdir)/gasnet_extended.c \
+			$(srcdir)/gasnet_extended_coll_dcmf.c \
+			$(srcdir)/gasnet_coll_exchange_dcmf.c \
+			$(srcdir)/gasnet_coll_bcast_dcmf.c \
+			$(srcdir)/gasnet_coll_barrier_dcmf.c
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags

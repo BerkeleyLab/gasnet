@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcoll.c,v $
- *     $Date: 2009/09/01 20:10:23 $
- * $Revision: 1.34.40.1 $
+ *     $Date: 2009/09/18 05:04:48 $
+ * $Revision: 1.34.40.2 $
  * Description: GASNet collectives test
  * Copyright 2002-2004, Jaein Jeong and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -87,7 +87,7 @@ void PREFIX##_NONO(int root, thread_data_t *td) {                            \
 	*LOCAL(A) = (mythread == root) ? R[j] : -1;                          \
 	*LOCAL(B) = mythread;                                                \
 	for (i = 0; i < images; ++i) {                                       \
-	    LOCAL(D)[i] = i * R[j] + mythread;                               \
+	    LOCAL(D)[i] = i * R[j] + mythread;         \
 	}                                                                    \
                                                                              \
 	global_barrier();                                                    \
@@ -112,13 +112,13 @@ void PREFIX##_NONO(int root, thread_data_t *td) {                            \
 	if (mythread == root) {                                              \
 	    for (i = 0; i < images; ++i) {                                   \
 		if (LOCAL(C)[i] != i) {                                      \
-		    MSG("ERROR: %s gather validation failed", name);         \
+		    MSG("ERROR: %s gather validation failed %d %d", name, LOCAL(C)[i], i);         \
 		    gasnet_exit(1);                                          \
 		}                                                            \
 	    }                                                                \
 	}                                                                    \
 	if (*LOCAL(E) != mythread*R[j] + root) {                             \
-	    MSG("ERROR: %s scatter validation failed", name);                \
+	    MSG("ERROR: %s scatter validation failed %d %d", name, *LOCAL(E),  mythread*R[j] + root);                \
 	    gasnet_exit(1);                                                  \
 	}                                                                    \
 	for (i = 0; i < images; ++i) {                                       \
@@ -153,7 +153,7 @@ void PREFIX##_MYMY(int root, thread_data_t *td) {                            \
 	CALL(broadcast##SUFFIX, ALL(A), ROOT(A),                             \
 	     FLAGS | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);        \
 	if (*LOCAL(A) != R[j]) {                                             \
-	    MSG("ERROR: %s broadcast validation failed", name);              \
+	    MSG("ERROR: %s broadcast validation failed %d %d on %d", name, *LOCAL(A), R[j], mythread);              \
 	    gasnet_exit(1);                                                  \
 	}                                                                    \
 	CALL(gather##SUFFIX, ROOT(C), ALL(B),                                \
@@ -456,14 +456,18 @@ void *thread_main(void *arg) {
     testSM_MYMY(root, td);
     testSM_ALLALL(root, td);
     testSM_NB(root, td);
+
+#if 0
     testLS_NONO(root, td);
     testLS_MYMY(root, td);
     testLS_ALLALL(root, td);
     testLS_NB(root, td);
+
     testLM_NONO(root, td);
     testLM_MYMY(root, td);
     testLM_ALLALL(root, td);
     testLM_NB(root, td);
+#endif
   }
   
   test_free(td->hndl);

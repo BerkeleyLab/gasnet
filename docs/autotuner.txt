@@ -1,0 +1,27 @@
+GASNet autotuner design notes
+===============================
+
+* Interface:
+
+Collective Index: 
+Machine, Number of Nodes, Threads Per Node, Sync Mode, Address Mode, Collective, and Size
+
+Modes of Operation
+0) No Tuning 
+ -- All collectives fall back to their defualt implementations w/ the default trees. The trees and such can be modifed through the existing environment variables
+
+1) Read Existing Tuning Data
+-- GASNet node 0 loads in a tuning file specified through the environment or during a function call. The tuning data is then broadcast to all other nodes to avoid multiple nodes doing simultaneous I/O
+gasnet_coll_loadTuningState(char *filename, gasnet_team_t team);
+For GASNET_TEAM_ALL, use the GASNET_COLL_TUNING_FILE environment variable to specify the location of the file
+
+2) Search and Append to Tuning State
+-- First time particular collective configuration is called a search is enabled and the best algorithm is added to the index
+controlled by the yes/no GASNET_COLL_ENABLE_SEARCH environment variable
+If tuning state is also loaded in addition to the search, the search will be enabled only for collectives which already do not exist in the index. The new searched results are added to the index. Otherwise the tuning state is added to an initially empty index
+
+3) Search and Save Tuning Data
+-- Like search but the tuning data is then stored to a file so that it can be used for later runs. To save the tuning file the user must invoke:
+gasnet_coll_dumpTuningState(char *filename, gasnet_team_t team);
+(Note that since we don't want to do I/O into the gasnet_exit() command, we will require the user to explicitly save the file. 
+

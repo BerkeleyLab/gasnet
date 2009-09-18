@@ -70,6 +70,8 @@ libgasnet_sources =                                         \
         $(top_srcdir)/extended-ref/gasnet_coll_putget.c     \
         $(top_srcdir)/extended-ref/gasnet_coll_eager.c      \
         $(top_srcdir)/extended-ref/gasnet_coll_rvous.c      \
+        $(top_srcdir)/extended-ref/gasnet_coll_team.c				\
+        $(top_srcdir)/extended-ref/gasnet_coll_hashtable.c   \
         $(top_srcdir)/gasnet_internal.c                     \
         $(top_srcdir)/gasnet_trace.c                        \
         $(top_srcdir)/gasnet_mmap.c                         \
@@ -177,6 +179,7 @@ $(top_builddir)/other/Makefile-libgasnet.mak: $(top_srcdir)/other/Makefile-libga
 @GNU_NM_TRUE@		    -e ' [\._]*gasnet_' -e ' [\._]*gasnett_'                        \
 @GNU_NM_TRUE@		    -e ' [\._]*fh_' -e ' [\._]*firehose_'                           \
 @GNU_NM_TRUE@		    -e ' [\._]*fhi_' -e ' [\._]*fhc_' -e ' [\._]*fhsmp_' -e ' [\._]*fhuni_' \
+@GNU_NM_TRUE@		    -e ' [\._]*myxml_' -e ' [\._]*smp_coll_'                        \
 @GNU_NM_TRUE@		    -e __FUNCTION__ -e __PRETTY_FUNCTION__ -e ' [\._]*DWinfo'       \
 @GNU_NM_TRUE@               -e ' [\._]*debug_info_seg' -e ' [\._]*debug_abbrev_seg'         \
 @GNU_NM_TRUE@               -e ' [\._]*debug_frame_seg' -e ' [\._]*debug_line_seg'          \

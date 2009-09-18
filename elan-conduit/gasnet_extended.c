@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2009/09/01 20:46:41 $
- * $Revision: 1.85.4.1 $
+ *     $Date: 2009/09/18 05:04:20 $
+ * $Revision: 1.85.4.2 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1374,26 +1374,32 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   =========
 */
 static void gasnete_elanbarrier_init(void);
-static void gasnete_elanbarrier_notify(int id, int flags);
-static int gasnete_elanbarrier_wait(int id, int flags);
-static int gasnete_elanbarrier_try(int id, int flags);
+static void dummy_fn() {}
+static void gasnete_elanbarrier_notify(gasnete_coll_team_t team, int id, int flags);
+static int gasnete_elanbarrier_wait(gasnete_coll_team_t team, int id, int flags);
+static int gasnete_elanbarrier_try(gasnete_coll_team_t team, int id, int flags);
 int gasnete_elanbarrier_fast = 0;
 
 #define GASNETE_BARRIER_DEFAULT "ELANFAST"
-#define GASNETE_BARRIER_INIT() do {                         \
-    if (GASNETE_ISBARRIER("ELANFAST")) {                    \
+#define GASNETE_BARRIER_READENV() do { \
+  if(GASNETE_ISBARRIER("ELANFAST")) gasnete_coll_default_barrier_type = GASNETE_COLL_BARRIER_ELANFAST; \
+  else if(GASNETE_ISBARRIER("ELANSLOW")) gasnete_coll_default_barrier_type = GASNETE_COLL_BARRIER_ELANSLOW; \
+} while (0)
+
+#define GASNETE_BARRIER_INIT(TEAM, BARRIER_TYPE) do {                         \
+    if ((BARRIER_TYPE) == GASNETE_COLL_BARRIER_ELANFAST && (TEAM)==GASNET_TEAM_ALL) {                    \
       gasnete_elanbarrier_fast = 1;                         \
-      gasnete_barrier_notify = &gasnete_elanbarrier_notify; \
-      gasnete_barrier_wait =   &gasnete_elanbarrier_wait;   \
-      gasnete_barrier_try =    &gasnete_elanbarrier_try;    \
-      gasnete_elanbarrier_init();                           \
-    } else if (GASNETE_ISBARRIER("ELANSLOW")) {             \
-      gasnete_barrier_notify = &gasnete_elanbarrier_notify; \
-      gasnete_barrier_wait =   &gasnete_elanbarrier_wait;   \
-      gasnete_barrier_try =    &gasnete_elanbarrier_try;    \
-      gasnete_elanbarrier_init();                           \
-    }                                                       \
-  } while (0)
+      (TEAM)->barrier_notify = &gasnete_elanbarrier_notify; \
+      (TEAM)->barrier_wait =   &gasnete_elanbarrier_wait;   \
+      (TEAM)->barrier_try =    &gasnete_elanbarrier_try;    \
+      gasnete_elanbarrier_init();  gasnete_barrier_pf = &dummy_fn;\
+    } else if ((BARRIER_TYPE) == GASNETE_COLL_BARRIER_ELANSLOW && (TEAM)==GASNET_TEAM_ALL) {             \
+      (TEAM)->barrier_notify = &gasnete_elanbarrier_notify; \
+      (TEAM)->barrier_wait =   &gasnete_elanbarrier_wait;   \
+      (TEAM)->barrier_try =    &gasnete_elanbarrier_try;    \
+      gasnete_elanbarrier_init(); gasnete_barrier_pf = &dummy_fn;\
+    } \
+ } while (0)
 
 /* allow reference implementation of barrier */
 #define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
@@ -1461,10 +1467,10 @@ static void gasnete_elanbarrier_init(void) {
   #endif
 }
 
-static void gasnete_elanbarrier_notify(int id, int flags) {
+static void gasnete_elanbarrier_notify(gasnete_coll_team_t team, int id, int flags) {
   int phase;
   gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
-  if_pf(barrier_splitstate == INSIDE_BARRIER) 
+  if_pf(team->barrier_info->barrier_splitstate == INSIDE_BARRIER) 
     gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
   phase = barrier_phase;
 
@@ -1557,20 +1563,19 @@ static void gasnete_elanbarrier_notify(int id, int flags) {
   } 
 
   /*  update state */
-  barrier_splitstate = INSIDE_BARRIER;
+  team->barrier_info->barrier_splitstate = INSIDE_BARRIER;
   gasneti_sync_writes(); /* ensure all state changes committed before return */
 }
 
-static int gasnete_elanbarrier_wait(int id, int flags) {
+static int gasnete_elanbarrier_wait(gasnete_coll_team_t team, int id, int flags) {
   int phase;
   gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
-  if_pf(barrier_splitstate == OUTSIDE_BARRIER) 
+  if_pf(team->barrier_info->barrier_splitstate == OUTSIDE_BARRIER) 
     gasneti_fatalerror("gasnet_barrier_wait() called without a matching notify");
   phase = barrier_phase;
   barrier_phase = !phase;
 
-  /*  update state */
-  barrier_splitstate = OUTSIDE_BARRIER;
+  team->barrier_info->barrier_splitstate = OUTSIDE_BARRIER;
   gasneti_sync_writes(); /* ensure all state changes committed before return */
   if_pf((barrier_state[phase+2].barrier_flags & GASNET_BARRIERFLAG_MISMATCH) ||
         flags != barrier_state[phase+2].barrier_flags ||
@@ -1581,12 +1586,12 @@ static int gasnete_elanbarrier_wait(int id, int flags) {
     return GASNET_OK;
 }
 
-static int gasnete_elanbarrier_try(int id, int flags) {
+static int gasnete_elanbarrier_try(gasnete_coll_team_t team, int id, int flags) {
   gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
-  if_pf(barrier_splitstate == OUTSIDE_BARRIER) 
+  if_pf(team->barrier_info->barrier_splitstate == OUTSIDE_BARRIER) 
     gasneti_fatalerror("gasnet_barrier_try() called without a matching notify");
 
-  return gasnete_barrier_wait(id, flags);
+  return gasnete_elanbarrier_wait(team, id, flags);
 }
 /* ------------------------------------------------------------------------------------ */
 /*

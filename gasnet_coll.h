@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2009/09/01 20:46:35 $
- * $Revision: 1.53.20.1 $
+ *     $Date: 2009/09/18 05:04:10 $
+ * $Revision: 1.53.20.2 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -24,17 +24,30 @@ GASNETI_BEGIN_EXTERNC
 #define GASNET_COLL_OUT_MYSYNC	(1<<4)
 #define GASNET_COLL_OUT_ALLSYNC	(1<<5)
 
+#define GASNET_COLL_SYNC_FLAG_MASK (0x3F)
+
 #define GASNET_COLL_SINGLE	(1<<6)
 #define GASNET_COLL_LOCAL	(1<<7)
 
 #define GASNET_COLL_AGGREGATE	(1<<8)
+#define GASNET_COLL_FIXED_THREADS_PER_NODE (1<<9)
 
-#define GASNET_COLL_DST_IN_SEGMENT	(1<<9)
-#define GASNET_COLL_SRC_IN_SEGMENT	(1<<10)
+#define GASNET_COLL_DST_IN_SEGMENT	(1<<10)
+#define GASNET_COLL_SRC_IN_SEGMENT	(1<<11)
+
+/*sane default reduction operators*/
+#define GASNET_COLL_REDUCE_OP_SUM (1<<12)
+#define GASNET_COLL_REDUCE_OP_MAX (1<<13)
+#define GASNET_COLL_REDUCE_OP_MIN (1<<14)
+#define GASNET_COLL_REDUCE_OP_CUSTOM (1<<15)
 
 /* Scan (prefix reduction) flags - NO DEFAULT */
-#define GASNET_COLL_INCLUSIVE_SCAN	(1<<11)
-#define GASNET_COLL_EXCLUSIVE_SCAN	(1<<12)
+#define GASNET_COLL_INCLUSIVE_SCAN	(1<<16)
+#define GASNET_COLL_EXCLUSIVE_SCAN	(1<<17)
+
+
+#define GASNET_COLL_DISABLE_AUTOTUNE (1<<18)
+#define GASNET_COLL_NO_IMAGES (1<<19)
 
 /* (prefix-)reduction function flags */
 #define GASNET_COLL_AMSAFE	(1<<0)
@@ -164,18 +177,37 @@ struct gasnete_coll_team_t_;
 typedef struct gasnete_coll_team_t_ *gasnete_coll_team_t;
 typedef gasnete_coll_team_t gasnet_team_handle_t;
 /*change this so even the TEAM_ALL has a default team allocated rather than NULL*/
+
+#ifndef GASNET_TEAM_ALL
 extern gasnet_team_handle_t gasnete_coll_team_all;
 #define GASNET_TEAM_ALL gasnete_coll_team_all
 #endif
 
-/*---------------------------------------------------------------------------------*
- * Start of generic framework for tree-based reference implementations
- *---------------------------------------------------------------------------------*/
+#endif
 
 
-extern void gasnet_coll_set_tree_kind(char *); 
-extern void gasnet_coll_set_fanout(int); 
-                                                                                                              
+
+extern gasnet_node_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank);
+extern gasnet_node_t gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnet_node_t node);
+extern gasnet_node_t gasnete_coll_team_size(gasnete_coll_team_t team);
+
+
+#define gasnet_coll_team_rank2node(TEAM, RANK) gasnete_coll_team_rank2node(TEAM, RANK)
+#define gasnet_coll_team_node2rank(TEAM, NODE) gasnete_coll_team_node2rank(TEAM, NODE)
+#define gasnet_coll_team_size(TEAM) gasnete_coll_team_size(TEAM)
+
+extern gasnet_team_handle_t gasnete_coll_team_split(gasnete_coll_team_t parent_team, gasnet_node_t color,
+						    gasnet_node_t relrank, void *clientdata GASNETE_THREAD_FARG);
+
+GASNETI_INLINE(_gasnet_coll_team_split)
+     gasnet_team_handle_t _gasnet_coll_team_split(gasnet_team_handle_t parent_team, gasnet_node_t color, gasnet_node_t relrank, 
+						  void *clientdata GASNETE_THREAD_FARG) {
+  return gasnete_coll_team_split(parent_team, color, relrank, clientdata GASNETE_THREAD_PASS);
+  
+}
+
+#define gasnet_coll_team_split(parent_team, color, relrank, clientdata)  \
+  _gasnet_coll_team_split(parent_team, color, relrank, clientdata GASNETE_THREAD_GET)
 
 /*---------------------------------------------------------------------------------*/
 
@@ -212,6 +244,79 @@ extern void gasnet_coll_set_fanout(int);
 #endif
 
 /*---------------------------------------------------------------------------------*/
+
+
+/* STUFF FOR COLLECTIVE AUTOTUNING*/
+/*---------------------------------------------------------------------------------*
+ * Prototypes for external interface to try different collective trees (only works for GASNet Team All)
+ * Note that the preffered way for changing these values is in the environment rather than these functions themselves
+ *---------------------------------------------------------------------------------*/
+
+typedef enum {GASNET_COLL_BROADCAST_OP=0, 
+  GASNET_COLL_BROADCASTM_OP, 
+  GASNET_COLL_SCATTER_OP, 
+  GASNET_COLL_SCATTERM_OP, 
+  GASNET_COLL_GATHER_OP, 
+  GASNET_COLL_GATHERM_OP, 
+  GASNET_COLL_GATHER_ALL_OP,
+  GASNET_COLL_GATHER_ALLM_OP,
+  GASNET_COLL_EXCHANGE_OP,
+  GASNET_COLL_EXCHANGEM_OP, 
+  GASNET_COLL_REDUCE_OP,
+  GASNET_COLL_REDUCEM_OP,
+  GASNET_COLL_NUM_COLL_OPTYPES
+} gasnet_coll_optype_t;
+
+typedef enum {GASNET_COLL_PIPE_SEG_SIZE, GASNET_COLL_DISSEM_RADIX, GASNET_COLL_TREE_TYPE,
+              /*check to see if hte conduit has added any new tuning parameters to this list*/
+#ifdef GASNETE_COLL_CONDUIT_TUNING_PARAMETERS
+              GASNETE_COLL_CONDUIT_TUNING_PARAMETERS ,
+#endif 
+              GASNET_COLL_NUM_PARAM_TYPES} gasnet_coll_tuning_param_type_t ;
+
+
+
+typedef void (*gasnet_coll_overlap_sample_work_t)(void *arg);
+
+
+void gasnete_coll_loadTuningState(char *filename, gasnete_coll_team_t team GASNETE_THREAD_FARG);
+#define gasnet_coll_loadTuningState(FILENAME, TEAM) gasnete_coll_loadTuningState(FILENAME, TEAM GASNETE_THREAD_GET)
+
+
+void gasnete_coll_dumpTuningState(char *filename, gasnete_coll_team_t team GASNETE_THREAD_FARG);
+#define gasnet_coll_dumpTuningState(FILENAME, TEAM) gasnete_coll_dumpTuningState(FILENAME, TEAM GASNETE_THREAD_GET)
+
+void gasnete_coll_dumpProfile(char *filename, gasnete_coll_team_t team GASNETE_THREAD_FARG);
+#define gasnet_coll_dumpProfile(FILENAME, TEAM) gasnete_coll_dumpProfile(FILENAME, TEAM GASNETE_THREAD_GET)
+
+#define gasnet_coll_tune_generic_op(team, op, coll_args, flags, fnptr, work_arg, best_algidx, num_params, best_param, best_tree) \
+gasnete_coll_tune_generic_op(team, op, coll_args, flags, fnptr, work_arg, best_algidx, num_params, best_param,  best_tree GASNETE_THREAD_GET)
+
+typedef struct gasnet_coll_args_t_ {
+  uint8_t **dst; 
+  uint8_t **src; 
+  gasnet_image_t rootimg; 
+  size_t src_blksz;
+  size_t src_offset;
+  size_t elem_size; 
+  /*elem count will be nbytes / elem_size*/
+  size_t nbytes;
+  size_t dist;
+  gasnet_coll_fn_handle_t func; 
+  int func_arg;
+} gasnet_coll_args_t;
+
+void gasnete_coll_tune_generic_op(gasnet_team_handle_t team, gasnet_coll_optype_t op, 
+                                  gasnet_coll_args_t coll_args, int flags,
+                                  gasnet_coll_overlap_sample_work_t fnptr, void *sample_work_arg,
+                                  /*returned by the algorithm*/
+                                  uint32_t *best_algidx, uint32_t *num_params, uint32_t **best_param, char **best_tree GASNETE_THREAD_FARG);
+
+extern int gasnet_coll_get_num_tree_classes(gasnet_team_handle_t team, gasnet_coll_optype_t optype);
+extern void gasnet_coll_set_tree_kind(gasnet_team_handle_t team, int tree_type, int fanout, gasnet_coll_optype_t optype); 
+extern void gasnet_coll_set_dissem_limit(gasnet_team_handle_t team, size_t dissemlimit, gasnet_coll_optype_t optype); 
+
+
 
 /* Include all the code for wait/try sync so that we can attempt to inline them into the user code to improve performance*/
 /* some of these ops can be potential no-ops*/
@@ -301,6 +406,14 @@ void _gasnet_coll_wait_sync_all(gasnet_coll_handle_t *phandle, size_t numhandles
   GASNETI_TRACE_COLL_WAITSYNC_END(COLL_WAIT_SYNC_ALL);
 }
 
+extern void gasnete_coll_barrier_notify(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG);
+extern int gasnete_coll_barrier_try(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG);
+extern int gasnete_coll_barrier_wait(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG);
+
+
+#define gasnet_coll_barrier_notify(team, id, flags) gasnete_coll_barrier_notify(team, id, flags GASNETE_THREAD_GET)
+#define gasnet_coll_barrier_try(team, id, flags) gasnete_coll_barrier_try(team, id, flags GASNETE_THREAD_GET)
+#define gasnet_coll_barrier_wait(team, id, flags) gasnete_coll_barrier_wait(team, id, flags GASNETE_THREAD_GET)
 
 #define gasnet_coll_try_sync(handle) \
        _gasnet_coll_try_sync(handle GASNETE_THREAD_GET)

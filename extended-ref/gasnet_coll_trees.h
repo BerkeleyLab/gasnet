@@ -11,15 +11,39 @@
 #define  GASNETE_COLL_DEFAULT_FANOUT 2
 #define  GASNETE_COLL_DEFAULT_RADIX 2
 
-typedef enum {GASNETE_COLL_NARY_TREE=100, GASNETE_COLL_BINOMIAL_TREE, 
-  GASNETE_COLL_DFS_RECURSIVE_TREE, GASNETE_COLL_REV_RECURSIVE_TREE} gasnete_coll_tree_class_t;
+/*first four are more "traditional"
+ */
+typedef enum {GASNETE_COLL_FLAT_TREE=0, GASNETE_COLL_KNOMIAL_TREE, 
+              GASNETE_COLL_NARY_TREE, 
+              /*insert PLATFORM INDEPENDANT Tree classes here*/
+              /*the most generic searcher will go through these classes first*/
+              GASNETE_COLL_NUM_PLATFORM_INDEP_TREE_CLASSES,
+              /*insert more specialized trees here*/
+              GASNETE_COLL_RECURSIVE_TREE,
+              GASNETE_COLL_FORK_TREE, 
+              GASNETE_COLL_HIERARCHICAL_TREE, GASNETE_COLL_NUM_TREE_CLASSES_TOTAL} gasnete_coll_tree_class_t;
+
+#define GASNETE_COLL_NUM_TREE_CLASSES (GASNETE_COLL_NUM_TREE_CLASSES_TOTAL - 1)
+
+typedef enum  {
+  GASNETE_COLL_TREE_RADIX, GASNETE_COLL_TREE_DIMS
+} gasnete_coll_tree_tuning_param_type_t;
 
 struct gasnete_coll_tree_type_t_ {
   gasnete_coll_tree_class_t tree_class;
-  int fanout; 
+  int *params;
+  int num_params;
+  struct gasnete_coll_tree_type_t_ *subtree;
 };
 
-gasnete_coll_tree_type_t gasnete_coll_make_tree_type(char *tree_name_str, gasnet_node_t fanout);
+
+/*returns 1 if they are equal or 0 otherwise*/
+int gasnete_coll_compare_tree_types(gasnete_coll_tree_type_t a, gasnete_coll_tree_type_t b);
+
+#define GASNETE_COLL_MAX_TREE_TYPE_STRLEN 100
+gasnete_coll_tree_type_t gasnete_coll_make_tree_type_str(char *tree_name_str);
+gasnete_coll_tree_type_t gasnete_coll_make_tree_type(int tree_type, int *params, int num_params);
+char* gasnete_coll_tree_type_to_str(char *buffer, gasnete_coll_tree_type_t tree_type);
 
 /*ACCESSOR MACROS (all take a gasnete_coll_local_tree_geom_t)*/
 #define GASNETE_COLL_TREE_GEOM_ROOT(GEOM) ((GEOM)->root)
@@ -41,7 +65,10 @@ struct gasnete_coll_local_tree_geom_t_ {
   gasnet_node_t child_count; /*number of children*/
   gasnet_node_t *child_list; /*list of children*/
   gasnet_node_t *subtree_sizes; /* the size of the subtrees under each of our children */
+  gasnet_node_t *child_offset;
+  gasnet_node_t *grand_children; /*contians the number of children under each of our children*/
   gasnet_node_t mysubtree_size;
+  uint8_t children_reversed;
   gasnet_node_t parent_subtree_size; /* size of the subtree under our parent*/
   
   /** sibling information**/
@@ -55,13 +82,25 @@ struct gasnete_coll_local_tree_geom_t_ {
   
   /* DFS Order of the tree, only assigned at the root node */
   gasnet_node_t *dfs_order;
+  
+  /*in order to reorder the array this indidcates where the data needs to be reordered*/
+  int *rotation_points;
+  int num_rotations;
 
   /* A boolean variable that is set if the dfs_order of the tree is sequential*/
   /* I.E. No Reordering will be needed for scatter and gathers */
   uint8_t seq_dfs_order;
   
+  /*set to true if the contiguous numbering wraps around in a subtree of the root rather than as a direct child*/
+  uint8_t child_contains_wrap;
+  
+  /*number of children that aren't leaves of the tree*/
+  gasnet_node_t num_non_leaf_children;
+  /*number of children that are leaves of the tree*/
+  gasnet_node_t num_leaf_children;
   gasnet_node_t *dissem_order;
   int dissem_count;
+  
   
 } ;
 
@@ -83,6 +122,7 @@ struct gasnete_coll_tree_geom_t_ {
    /*** tree structure metadata*****/
    gasnete_coll_tree_type_t tree_type;
   /* don't need a root argument here since local_views[i] gives a tree rooted at i*/
+  gasnete_coll_team_t *team; /*a pointer back to the associated team*/
  };
 
 
@@ -105,7 +145,9 @@ struct gasnete_coll_tree_geom_t_ {
 
 gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_tree_type_t type, gasnet_node_t root, gasnete_coll_team_t team);
 void gasnete_coll_local_tree_geom_release(gasnete_coll_local_tree_geom_t *geom);
-
+gasnete_coll_tree_type_t gasnete_coll_get_tree_type();
+void gasnete_coll_free_tree_type(gasnete_coll_tree_type_t in);
+char* gasnete_coll_tree_type_to_str(char *outbuf, gasnete_coll_tree_type_t in);
 
 /******** Dissemination Ordering **********/
 #define GASNETE_COLL_DISSEM_GET_TOTAL_PHASES(DISSEM_INFO) ((DISSEM_INFO)->dissemination_phases)

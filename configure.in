@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2009/09/09 22:23:02 $
-# $Revision: 1.519.2.18 $
+#     $Date: 2009/09/18 05:04:10 $
+# $Revision: 1.519.2.19 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.519.2.18 $)
+AC_REVISION($Revision: 1.519.2.19 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -270,7 +270,7 @@ case "$gasnet_cv_cc_family" in
 	    ;;
 	linux*) CCOPTFLAGS="-O3 -qhot -qarch=auto -qtune=auto -qsmp=noauto -qmaxmem=-1" ;;
 	*)  #CCOPTFLAGS="-O5 -qsmp=noauto -qmaxmem=-1" ;; # -O5 == -O3 w/ intra-procedural analysis, maxmem=-1 is default for -O3 or higher
-	    CCOPTFLAGS="-O3 -qarch=auto -qtune=auto -qsmp=noauto -qmaxmem=-1" ;; # -O5 causes linker to hang on Titanium 
+	    CCOPTFLAGS="-O3 -qarch=auto -qtune=auto -qnosmp -qmaxmem=-1" ;; # -O5 causes linker to hang on Titanium 
     esac
   ;;
   Compaq) CCOPTFLAGS="-fast -noifo -O4 -tune host -inline all" ;;
@@ -2159,7 +2159,7 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
     	GASNET_ENV_DEFAULT(MPI_CC, mpcc)
 	BASIC_MPI_CFLAGS=""
 	if test "$BUILDCONFIG" = "optimize" ; then
-    	  BASIC_MPI_CFLAGS="-O3 -qstrict -qarch=auto -qtune=auto -qsmp=noauto -qmaxmem=-1 $BASIC_MPI_CFLAGS"
+    	  BASIC_MPI_CFLAGS="-O3 -qstrict -qarch=auto -qtune=auto -qnosmp -qmaxmem=-1 $BASIC_MPI_CFLAGS"
 	else
     	  BASIC_MPI_CFLAGS="-g $BASIC_MPI_CFLAGS"
 	fi
@@ -3277,7 +3277,7 @@ if test $enabled_dcmf = yes; then
       #else link with optimized version of DCMF
       #for some reason looks like in the fast build has duplicate sybmols when we link in dcmfcoll  
       #GASNET_ENV_DEFAULT(DCMF_LIBS, -ldcmfcoll-fast.cnk -ldcmf-fast.cnk -lpthread -lrt -lSPI.cna)
-      GASNET_ENV_DEFAULT(DCMF_LIBS, -ldcmf-fast.cnk -lpthread -lrt -lSPI-fast.cna)
+      GASNET_ENV_DEFAULT(DCMF_LIBS, -ldcmfcoll-fast.cnk -ldcmf-fast.cnk -lpthread -lrt -lSPI-fast.cna)
     fi
   fi #end if for dcmf-linux
 
