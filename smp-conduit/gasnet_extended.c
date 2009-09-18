@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2009/09/14 03:23:25 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2009/09/18 05:33:22 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet Extended API for smp-conduit
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -22,16 +22,23 @@
 */
 
 static void gasnete_pshmbarrier_init(void);
-static void gasnete_pshmbarrier_notify(int id, int flags);
-static int gasnete_pshmbarrier_wait(int id, int flags);
-static int gasnete_pshmbarrier_try(int id, int flags);
+static void gasnete_pshmbarrier_notify(gasnete_coll_team_t team, int id, int flags);
+static int gasnete_pshmbarrier_wait(gasnete_coll_team_t team, int id, int flags);
+static int gasnete_pshmbarrier_try(gasnete_coll_team_t team, int id, int flags);
+static void dummy_fn(void) {}
 
-#define GASNETE_BARRIER_DEFAULT "PSHM_BARRIER"
-#define GASNETE_BARRIER_INIT() do {                         \
-    if (GASNETE_ISBARRIER("PSHM_BARRIER")) {                \
-      gasnete_barrier_notify = &gasnete_pshmbarrier_notify; \
-      gasnete_barrier_wait =   &gasnete_pshmbarrier_wait;   \
-      gasnete_barrier_try =    &gasnete_pshmbarrier_try;    \
+#define GASNETE_BARRIER_DEFAULT "PSHM"
+#define GASNETE_BARRIER_READENV() do { \
+        if(GASNETE_ISBARRIER("PSHM")) gasnete_coll_default_barrier_type = GASNETE_COLL_BARRIER_PSHM; \
+    } while (0)
+
+#define GASNETE_BARRIER_INIT(TEAM, BARRIER_TYPE) do {       \
+    if ((BARRIER_TYPE) == GASNETE_COLL_BARRIER_PSHM &&      \
+        (TEAM) == GASNET_TEAM_ALL) {                        \
+      (TEAM)->barrier_notify = &gasnete_pshmbarrier_notify; \
+      (TEAM)->barrier_wait =   &gasnete_pshmbarrier_wait;   \
+      (TEAM)->barrier_try =    &gasnete_pshmbarrier_try;    \
+      gasnete_barrier_pf = &dummy_fn;                       \
       gasnete_pshmbarrier_init();                           \
     }                                                       \
   } while (0)
@@ -60,7 +67,6 @@ static int gasnete_pshmbarrier_phase;
 static int gasnete_pshmbarrier_goal;
 
 static void gasnete_pshmbarrier_init(void) {
-    barrier_splitstate = OUTSIDE_BARRIER;
     gasnete_pshmbarrier_phase = 0;
     gasnete_pshmbarrier_goal = gasneti_nodes;
 
@@ -69,12 +75,12 @@ static void gasnete_pshmbarrier_init(void) {
     gasneti_atomic_set(&gasneti_pshm_barrier->counter[1], 0, 0);
 }
 
-static void gasnete_pshmbarrier_notify(int id, int flags) {
+static void gasnete_pshmbarrier_notify(gasnete_coll_team_t team, int id, int flags) {
   int phase;
   gasneti_sync_reads();
   phase = gasnete_pshmbarrier_phase;
 
-  if_pf (barrier_splitstate == INSIDE_BARRIER) {
+  if_pf (team->barrier_info->barrier_splitstate == INSIDE_BARRIER) {
     gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
   } 
 
@@ -90,10 +96,10 @@ static void gasnete_pshmbarrier_notify(int id, int flags) {
   }
   
   /* No sync_writes() needed due to REL, above */
-  barrier_splitstate = INSIDE_BARRIER; 
+  team->barrier_info->barrier_splitstate = INSIDE_BARRIER; 
 }
 
-static int finish_barrier(int id, int flags, int phase) {
+static int finish_barrier(gasnete_coll_team_t team, int id, int flags, int phase) {
   int ret = GASNET_OK; /* assume success */
   int orig_flags = gasneti_pshm_barrier->node[gasneti_mynode].flags[phase];
   int orig_value = gasneti_pshm_barrier->node[gasneti_mynode].value[phase];
@@ -126,20 +132,20 @@ static int finish_barrier(int id, int flags, int phase) {
   /* Switch the barrier variables.*/
   gasnete_pshmbarrier_phase = 1 ^ phase;
   if (phase) gasnete_pshmbarrier_goal = gasneti_nodes - gasnete_pshmbarrier_goal;
-  barrier_splitstate = OUTSIDE_BARRIER;
+  team->barrier_info->barrier_splitstate = OUTSIDE_BARRIER;
   gasneti_sync_writes();
 
   return ret;
 }
 
-static int gasnete_pshmbarrier_wait(int id, int flags) {
+static int gasnete_pshmbarrier_wait(gasnete_coll_team_t team, int id, int flags) {
   gasneti_atomic_t *counter;
   int phase;
 
   gasneti_sync_reads();
   phase = gasnete_pshmbarrier_phase;
 
-  if_pf (barrier_splitstate == OUTSIDE_BARRIER) {
+  if_pf (team->barrier_info->barrier_splitstate == OUTSIDE_BARRIER) {
     gasneti_fatalerror("gasnet_barrier_wait() called without a matching notify");
   }
 
@@ -153,23 +159,23 @@ static int gasnete_pshmbarrier_wait(int id, int flags) {
     gasneti_polluntil(gasnete_pshmbarrier_goal == gasneti_atomic_read(counter, 0));
   }
 
-  return finish_barrier(id, flags, phase);
+  return finish_barrier(team, id, flags, phase);
 }
 
-static int gasnete_pshmbarrier_try(int id, int flags) { 
+static int gasnete_pshmbarrier_try(gasnete_coll_team_t team, int id, int flags) { 
   gasneti_atomic_t *counter;
   int phase;
 
   gasneti_sync_reads();
   phase = gasnete_pshmbarrier_phase;
 
-  if_pf (barrier_splitstate == OUTSIDE_BARRIER) {
+  if_pf (team->barrier_info->barrier_splitstate == OUTSIDE_BARRIER) {
     gasneti_fatalerror("gasnet_barrier_try() called without a matching notify");
   }
 
   counter = &gasneti_pshm_barrier->counter[phase];
   return (gasnete_pshmbarrier_goal == gasneti_atomic_read(counter, GASNETI_ATOMIC_ACQ))
-         ? finish_barrier(id, flags, phase) : GASNET_ERR_NOT_READY;
+         ? finish_barrier(team, id, flags, phase) : GASNET_ERR_NOT_READY;
 }
 #endif /* GASNET_PSHM */
 /* ------------------------------------------------------------------------------------ */
