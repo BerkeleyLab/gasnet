@@ -145,7 +145,7 @@ struct gasnete_coll_tree_geom_t_ {
 
 gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_tree_type_t type, gasnet_node_t root, gasnete_coll_team_t team);
 void gasnete_coll_local_tree_geom_release(gasnete_coll_local_tree_geom_t *geom);
-gasnete_coll_tree_type_t gasnete_coll_get_tree_type();
+gasnete_coll_tree_type_t gasnete_coll_get_tree_type(void);
 void gasnete_coll_free_tree_type(gasnete_coll_tree_type_t in);
 char* gasnete_coll_tree_type_to_str(char *outbuf, gasnete_coll_tree_type_t in);
 

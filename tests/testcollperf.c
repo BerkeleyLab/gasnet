@@ -756,7 +756,9 @@ void *thread_main(void *arg) {
   gasnet_coll_fn_entry_t fntable[1];
 #if GASNET_PAR
   gasnet_image_t *imagearray = test_malloc(nodes * sizeof(gasnet_image_t));
+ #if !GASNETI_ARCH_ALTIX
   gasnett_set_affinity(td->my_local_thread);
+ #endif
   fntable[0].fnptr = int_reduce_fn;
   fntable[0].flags = 0;
 

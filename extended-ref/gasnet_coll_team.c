@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_team.c,v $
- * $Date: 2009/09/18 05:04:25 $
- * $Revision: 1.4.2.2 $
+ * $Date: 2009/09/18 07:43:05 $
+ * $Revision: 1.4.2.3 $
  *
  * Description: GASNet generic team implementation for collectives 
  * LBNL 2009
@@ -141,8 +141,8 @@ static void initialize_team_fields(gasnete_coll_team_t team,
   gasnete_coll_alloc_new_scratch_status(team);
   gasneti_weakatomic_set(&team->num_multi_addr_collectives_started, 0, GASNETT_ATOMIC_WMB_PRE);
   if(!team->fixed_image_count && team->myrank ==0) {
-    fprintf(stderr, "WARNING: Current collective implementation requires constant number of threads on each node\n");
-    fprintf(stderr, "WARNING: for optimized collectives.\n");
+    fprintf(stderr, "WARNING: Current collective implementation requires a constant number\n");
+    fprintf(stderr, "WARNING: of threads per process for optimized collectives.\n");
   }
   
 }
@@ -400,6 +400,7 @@ gasnet_node_t gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnet_node_
    
   gasneti_fatalerror("Cannot find node %u in team %p with id %x!\n", 
                      node, team, team->team_id);
+  return (gasnet_node_t)(-1); /* NOT REACHED */
 }
 
 uint32_t gasnete_coll_team_id(gasnete_coll_team_t team) 

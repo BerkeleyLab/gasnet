@@ -550,7 +550,7 @@ gasnete_coll_implementation_t gasnete_coll_lookup_implementation(gasnete_coll_au
                                                                  gasnet_coll_optype_t optype, gasnete_coll_syncmode_t syncmode, gasnete_coll_addr_mode_t, size_t nbytes);
 gasnete_coll_autotune_index_entry_t *gasnete_coll_load_autotuner_defaults(gasnete_coll_autotune_info_t* autotune_info, myxml_node_t *tuning_data);
 
-gasnete_coll_implementation_t gasnete_coll_get_implementation();
+gasnete_coll_implementation_t gasnete_coll_get_implementation(void);
 void gasnete_coll_free_implementation(gasnete_coll_implementation_t in);
 
 

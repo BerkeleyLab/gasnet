@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testgasnet.c,v $
- *     $Date: 2009/09/01 20:10:23 $
- * $Revision: 1.58.6.2 $
+ *     $Date: 2009/09/18 07:43:14 $
+ * $Revision: 1.58.6.3 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -140,7 +140,9 @@ void test_threadinfo(int threadid, int numthreads) {
     PTHREAD_LOCALBARRIER(NUM_THREADS);
     test_threadinfo(idx, NUM_THREADS);
     PTHREAD_LOCALBARRIER(NUM_THREADS);
+  #if !GASNETI_ARCH_ALTIX
     gasnett_set_affinity(idx);
+  #endif
     PTHREAD_LOCALBARRIER(NUM_THREADS);
     return NULL;
   }

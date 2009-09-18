@@ -5,7 +5,7 @@
 #endif
 
 static gasneti_lifo_head_t gasnete_coll_tree_type_free_list = GASNETI_LIFO_INITIALIZER;
-gasnete_coll_tree_type_t gasnete_coll_get_tree_type() {
+gasnete_coll_tree_type_t gasnete_coll_get_tree_type(void) {
   gasnete_coll_tree_type_t ret;
   
   ret = gasneti_lifo_pop(&gasnete_coll_tree_type_free_list);

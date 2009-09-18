@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2009/09/18 05:04:25 $
- * $Revision: 1.34.28.4 $
+ *     $Date: 2009/09/18 07:43:05 $
+ * $Revision: 1.34.28.5 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -466,14 +466,14 @@ extern int gasnete_amcbarrier_try(gasnete_coll_team_t team, int id, int flags) {
 /*XXX: for now only team all registers their pollers*/
 gasneti_progressfn_t gasnete_barrier_pf= NULL;
 
-void gasnete_amdbarrier_kick_team_all() {
+void gasnete_amdbarrier_kick_team_all(void) {
   gasnete_amdbarrier_kick(GASNET_TEAM_ALL);
 }
-void gasnete_amcbarrier_kick_team_all() {
+void gasnete_amcbarrier_kick_team_all(void) {
   gasnete_amcbarrier_kick(GASNET_TEAM_ALL);
 }
 
-gasnete_coll_team_barrier_t *gasnete_coll_initialize_barrier() {
+gasnete_coll_team_barrier_t *gasnete_coll_initialize_barrier(void) {
   gasnete_coll_team_barrier_t *ret;
   
   ret = gasneti_calloc(1,sizeof(gasnete_coll_team_barrier_t));
