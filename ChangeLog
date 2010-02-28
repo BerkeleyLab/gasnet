@@ -1,9 +1,9 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.30 $
+$Revision: 1.30.2.1 $
 
 ----------------------------------------------------------------------
-??-??-2010 : Release 1.16
+02-28-2010 : Release 1.15.2 (SNAPSHOT for Carver.nersc.gov)
 
 * General:
   - Much improved support for heterogenous compilers (CC, CXX and MPI_CC)
