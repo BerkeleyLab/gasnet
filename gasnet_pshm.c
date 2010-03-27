@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2010/03/15 03:59:42 $
- * $Revision: 1.7 $
+ *     $Date: 2010/03/27 09:24:24 $
+ * $Revision: 1.7.4.1 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1203,9 +1203,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnet_node_t dest,
       memcpy(GASNETI_AMPSHM_MSG_MED_DATA(msg), source_addr, nbytes);
       break;
     case gasnetc_Long: {
-      void *local_dest_addr = (void*)((uintptr_t)dest_addr
-                                      - (uintptr_t)gasneti_seginfo[dest].addr
-                                      + (uintptr_t)gasneti_seginfo[dest].remote_addr);
+      void *local_dest_addr = gasneti_pshm_addr2local(dest, dest_addr);
 
       GASNETI_AMPSHM_MSG_LONG_DATA(msg) = dest_addr; 
       GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) = nbytes;

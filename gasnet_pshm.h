@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.h,v $
- *     $Date: 2010/03/17 06:15:14 $
- * $Revision: 1.8 $
+ *     $Date: 2010/03/27 09:24:24 $
+ * $Revision: 1.8.2.1 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -191,6 +191,16 @@ GASNETI_INLINE(gasneti_pshmnet_in_supernode)
 int gasneti_pshm_in_supernode(gasnet_node_t node) {
   return (gasneti_pshm_local_rank(node) < gasneti_pshm_nodes);
 }
+
+/* Returns local version of remote in-supernode address.
+ * TODO: precompute the OFFSET to avoid doing the same subtraction each time
+ */
+GASNETI_INLINE(gasneti_pshm_addr2local)
+void *gasneti_pshm_addr2local(gasnet_node_t node, void *addr) {
+  return  (void*)((uintptr_t)addr
+                   - (uintptr_t)gasneti_seginfo[node].addr
+                   + (uintptr_t)gasneti_seginfo[node].remote_addr);
+} 
 
 /* Returns amount of memory needed (rounded up to a multiple of the system
  * page size) needed for a new gasneti_pshmnet_t.
