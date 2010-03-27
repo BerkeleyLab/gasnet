@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.c,v $
- *     $Date: 2010/03/27 09:24:26 $
- * $Revision: 1.61.10.2 $
+ *     $Date: 2010/03/27 17:54:37 $
+ * $Revision: 1.61.10.3 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -458,8 +458,8 @@ SHORT_HANDLER(gasnete_markdone_reph,1,2,
 extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(node)) {
-    memcpy(dest, gasneti_pshm_addr2local(node, src), nbytes);
-    gasneti_local_wmb();
+    GASNETE_FAST_UNALIGNED_MEMCPY(dest, gasneti_pshm_addr2local(node, src), nbytes);
+    gasnete_loopbackget_memsync();
     return GASNET_INVALID_HANDLE;
   } else
 #endif
@@ -520,8 +520,8 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
 extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(node)) {
-    memcpy(gasneti_pshm_addr2local(node, dest), src, nbytes);
-    gasneti_local_wmb();
+    GASNETE_FAST_ALIGNED_MEMCPY(gasneti_pshm_addr2local(node, dest), src, nbytes);
+    gasnete_loopbackput_memsync();
     return GASNET_INVALID_HANDLE;
   } else
 #endif
@@ -531,8 +531,8 @@ extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void
 extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(node)) {
-    memcpy(gasneti_pshm_addr2local(node, dest), src, nbytes);
-    gasneti_local_wmb();
+    GASNETE_FAST_UNALIGNED_MEMCPY(gasneti_pshm_addr2local(node, dest), src, nbytes);
+    gasnete_loopbackput_memsync();
     return GASNET_INVALID_HANDLE;
   } else
 #endif
@@ -543,7 +543,7 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(node)) {
     memset(gasneti_pshm_addr2local(node, dest), val, nbytes);
-    gasneti_local_wmb();
+    gasnete_loopbackput_memsync();
     return GASNET_INVALID_HANDLE;
   } else {
 #endif
@@ -642,8 +642,8 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
   gasnete_iop_t * const op = mythread->current_iop;
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(node)) {
-    memcpy(dest, gasneti_pshm_addr2local(node, src), nbytes);
-    gasneti_local_wmb();
+    GASNETE_FAST_UNALIGNED_MEMCPY(dest, gasneti_pshm_addr2local(node, src), nbytes);
+    gasnete_loopbackget_memsync();
   } else
 #endif
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
@@ -761,8 +761,8 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
 extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(node)) {
-    memcpy(gasneti_pshm_addr2local(node, dest), src, nbytes);
-    gasneti_local_wmb();
+    memcpy(GASNETE_FAST_ALIGNED_MEMCPY(node, dest), src, nbytes);
+    gasnete_loopbackput_memsync();
   } else
 #endif
   gasnete_put_nbi_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS);
@@ -771,8 +771,8 @@ extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, siz
 extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(node)) {
-    memcpy(gasneti_pshm_addr2local(node, dest), src, nbytes);
-    gasneti_local_wmb();
+    memcpy(GASNETE_FAST_UNALIGNED_MEMCPY(node, dest), src, nbytes);
+    gasnete_loopbackput_memsync();
   } else
 #endif
   gasnete_put_nbi_inner(node, dest, src, nbytes, 1 GASNETE_THREAD_PASS);
@@ -784,7 +784,7 @@ extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(node)) {
     memset(gasneti_pshm_addr2local(node, dest), val, nbytes);
-    gasneti_local_wmb();
+    gasnete_loopbackput_memsync();
     return;
   }
 #endif
