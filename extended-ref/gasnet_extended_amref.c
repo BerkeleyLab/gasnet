@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_amref.c,v $
- *     $Date: 2010/03/27 17:54:37 $
- * $Revision: 1.61.10.3 $
+ *     $Date: 2010/03/27 22:58:41 $
+ * $Revision: 1.61.10.4 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -761,7 +761,7 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
 extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(node)) {
-    memcpy(GASNETE_FAST_ALIGNED_MEMCPY(node, dest), src, nbytes);
+    GASNETE_FAST_ALIGNED_MEMCPY(gasneti_pshm_addr2local(node, dest), src, nbytes);
     gasnete_loopbackput_memsync();
   } else
 #endif
@@ -771,7 +771,7 @@ extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, siz
 extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(node)) {
-    memcpy(GASNETE_FAST_UNALIGNED_MEMCPY(node, dest), src, nbytes);
+    GASNETE_FAST_UNALIGNED_MEMCPY(gasneti_pshm_addr2local(node, dest), src, nbytes);
     gasnete_loopbackput_memsync();
   } else
 #endif
