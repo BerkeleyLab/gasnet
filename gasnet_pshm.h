@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.h,v $
- *     $Date: 2010/03/27 09:24:24 $
- * $Revision: 1.8.2.1 $
+ *     $Date: 2010/03/28 19:47:54 $
+ * $Revision: 1.8.2.2 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -158,8 +158,12 @@ extern gasnet_node_t gasneti_pshm_firstnode;
 extern gasnet_node_t *gasneti_pshm_firsts;
 /* supernode number for an arbitrary node 
  * only available after gasneti_auxseg_attach() */
+#if GASNET_CONDUIT_SMP
+#define gasneti_pshm_node2supernode(n) 0
+#else
 #define gasneti_pshm_node2supernode(n) \
   (gasneti_assert(gasneti_seginfo_client), gasneti_seginfo_client[(n)].nodeinfo)
+#endif
 
 /* Non-NULL only when supernode members are non-contiguous */
 extern gasneti_pshm_rank_t *gasneti_pshm_rankmap;
@@ -173,6 +177,9 @@ extern gasneti_pshm_rank_t *gasneti_pshm_rankmap;
  */
 GASNETI_INLINE(gasneti_pshmnet_local_rank)
 gasneti_pshm_rank_t gasneti_pshm_local_rank(gasnet_node_t node) {
+#if GASNET_CONDUIT_SMP
+  return node;
+#else
   if_pt (gasneti_pshm_rankmap == NULL) {
     /* NOTE: gasnet_node_t is an unsigned type, so in the case of
      * (node < gasneti_pshm_firstnode), the subtraction will wrap to
@@ -182,6 +189,7 @@ gasneti_pshm_rank_t gasneti_pshm_local_rank(gasnet_node_t node) {
   } else {
     return gasneti_pshm_rankmap[node];
   }
+#endif
 }
 
 /* Returns 1 if given node is in the caller's supernode, or 0 if it's not.
@@ -189,7 +197,11 @@ gasneti_pshm_rank_t gasneti_pshm_local_rank(gasnet_node_t node) {
  */
 GASNETI_INLINE(gasneti_pshmnet_in_supernode)
 int gasneti_pshm_in_supernode(gasnet_node_t node) {
+#if GASNET_CONDUIT_SMP
+  return 1;
+#else
   return (gasneti_pshm_local_rank(node) < gasneti_pshm_nodes);
+#endif
 }
 
 /* Returns local version of remote in-supernode address.
