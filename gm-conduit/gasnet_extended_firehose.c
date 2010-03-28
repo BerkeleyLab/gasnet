@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_firehose.c,v $
- * $Date: 2009/03/30 02:40:34 $
- * $Revision: 1.58 $
+ * $Date: 2010/03/28 01:36:08 $
+ * $Revision: 1.58.10.1 $
  * Description: GASNet GM conduit Firehose DMA Registration Algorithm
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -296,6 +296,7 @@ gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src,
 		     size_t nbytes GASNETE_THREAD_FARG)
 {
 	gasnet_handle_t	handle;
+	GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
 	GASNETI_TRACE_PRINTF(C, 
 	    ("gasnete_put_nb_bulk Firehose (%d,%p <- %p,%d bytes)",
 	    (unsigned) node, dest, src, (int)nbytes));
@@ -311,6 +312,7 @@ gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src,
 {
 	gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
 	gasnete_iop_t *iop = mythread->current_iop;
+	GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
 
 	GASNETI_TRACE_PRINTF(C, 
 	    ("gasnete_put_nbi_bulk Firehose (%d,%p <- %p,%d bytes)",
@@ -379,6 +381,7 @@ gasnete_put_nb (gasnet_node_t node, void *dest, void *src,
 		size_t nbytes GASNETE_THREAD_FARG)
 {
 	gasnet_handle_t	handle;
+	GASNETI_CHECKPSHM_PUT(ALIGNED,H);
 
 	GASNETI_TRACE_PRINTF(C, 
 	    ("gasnete_put_nb Firehose (%d,%p <- %p,%d bytes)",
@@ -399,6 +402,7 @@ gasnete_put_nbi(gasnet_node_t node, void *dest, void *src,
 {
 	gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
 	gasnete_iop_t *iop = mythread->current_iop;
+	GASNETI_CHECKPSHM_PUT(ALIGNED,V);
 	GASNETI_TRACE_PRINTF(C, 
 	    ("gasnete_put_nbi Firehose (%d,%p <- %p,%d bytes)",
 	    (unsigned) node, dest, src, (int)nbytes));
@@ -701,6 +705,7 @@ gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src,
 		     size_t nbytes GASNETE_THREAD_FARG)
 {
 	gasneti_boundscheck(node, src, nbytes);
+	GASNETI_CHECKPSHM_GET(UNALIGNED,H);
 
 	GASNETI_TRACE_PRINTF(C, 
 	    ("gasnete_get_nb_bulk Firehose (%p <- %d,%p @ %d bytes)",
@@ -716,6 +721,7 @@ gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src,
 {
 	gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
 	gasnete_iop_t *iop = mythread->current_iop;
+	GASNETI_CHECKPSHM_GET(UNALIGNED,V);
 
 	gasneti_boundscheck(node, src, nbytes);
 

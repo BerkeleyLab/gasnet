@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2009/03/30 02:40:34 $
- * $Revision: 1.45 $
+ *     $Date: 2010/03/28 01:36:08 $
+ * $Revision: 1.45.10.1 $
  * Description: GASNet Extended API GM Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -260,6 +260,7 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
 extern gasnet_handle_t 
 gasnete_memset_nb(gasnet_node_t node, void *dest, int val, 
 		  size_t nbytes   GASNETE_THREAD_FARG) {
+	GASNETI_CHECKPSHM_MEMSET(H);
 	return gasnete_extref_memset_nb(node, dest, val, 
 	    nbytes GASNETE_THREAD_PASS);
 }
@@ -267,6 +268,7 @@ gasnete_memset_nb(gasnet_node_t node, void *dest, int val,
 extern void
 gasnete_memset_nbi(gasnet_node_t node, void *dest, int val, 
 		  size_t nbytes   GASNETE_THREAD_FARG) {
+	GASNETI_CHECKPSHM_MEMSET(V);
 	gasnete_extref_memset_nbi(node, dest, val, 
 	    nbytes GASNETE_THREAD_PASS);
 	return;
