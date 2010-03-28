@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.c,v $
- *     $Date: 2010/03/27 22:58:41 $
- * $Revision: 1.61.10.4 $
+ *     $Date: 2010/03/28 00:14:54 $
+ * $Revision: 1.61.10.5 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -456,13 +456,7 @@ SHORT_HANDLER(gasnete_markdone_reph,1,2,
 /* ------------------------------------------------------------------------------------ */
 
 extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-#if GASNET_PSHM
-  if_pt (gasneti_pshm_in_supernode(node)) {
-    GASNETE_FAST_UNALIGNED_MEMCPY(dest, gasneti_pshm_addr2local(node, src), nbytes);
-    gasnete_loopbackget_memsync();
-    return GASNET_INVALID_HANDLE;
-  } else
-#endif
+  GASNETI_CHECKPSHM_GET(UNALIGNED,H);
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
     gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
 
@@ -518,35 +512,18 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
 }
 
 extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-#if GASNET_PSHM
-  if_pt (gasneti_pshm_in_supernode(node)) {
-    GASNETE_FAST_ALIGNED_MEMCPY(gasneti_pshm_addr2local(node, dest), src, nbytes);
-    gasnete_loopbackput_memsync();
-    return GASNET_INVALID_HANDLE;
-  } else
-#endif
+  GASNETI_CHECKPSHM_PUT(ALIGNED,H);
   return gasnete_put_nb_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS);
 }
 
 extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-#if GASNET_PSHM
-  if_pt (gasneti_pshm_in_supernode(node)) {
-    GASNETE_FAST_UNALIGNED_MEMCPY(gasneti_pshm_addr2local(node, dest), src, nbytes);
-    gasnete_loopbackput_memsync();
-    return GASNET_INVALID_HANDLE;
-  } else
-#endif
+  GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
   return gasnete_put_nb_inner(node, dest, src, nbytes, 1 GASNETE_THREAD_PASS);
 }
 
 extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
-#if GASNET_PSHM
-  if_pt (gasneti_pshm_in_supernode(node)) {
-    memset(gasneti_pshm_addr2local(node, dest), val, nbytes);
-    gasnete_loopbackput_memsync();
-    return GASNET_INVALID_HANDLE;
-  } else {
-#endif
+ GASNETI_CHECKPSHM_MEMSET(H);
+ {
   gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
 
   GASNETI_SAFE(
@@ -555,9 +532,7 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
                  PACK(dest), PACK(op))));
 
   return (gasnet_handle_t)op;
-#if GASNET_PSHM
-  }
-#endif
+ }
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -640,12 +615,7 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const op = mythread->current_iop;
-#if GASNET_PSHM
-  if_pt (gasneti_pshm_in_supernode(node)) {
-    GASNETE_FAST_UNALIGNED_MEMCPY(dest, gasneti_pshm_addr2local(node, src), nbytes);
-    gasnete_loopbackget_memsync();
-  } else
-#endif
+  GASNETI_CHECKPSHM_GET(UNALIGNED,V);
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
     op->initiated_get_cnt++;
   
@@ -759,35 +729,20 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
 }
 
 extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-#if GASNET_PSHM
-  if_pt (gasneti_pshm_in_supernode(node)) {
-    GASNETE_FAST_ALIGNED_MEMCPY(gasneti_pshm_addr2local(node, dest), src, nbytes);
-    gasnete_loopbackput_memsync();
-  } else
-#endif
+  GASNETI_CHECKPSHM_PUT(ALIGNED,V);
   gasnete_put_nbi_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS);
 }
 
 extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-#if GASNET_PSHM
-  if_pt (gasneti_pshm_in_supernode(node)) {
-    GASNETE_FAST_UNALIGNED_MEMCPY(gasneti_pshm_addr2local(node, dest), src, nbytes);
-    gasnete_loopbackput_memsync();
-  } else
-#endif
+  GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
   gasnete_put_nbi_inner(node, dest, src, nbytes, 1 GASNETE_THREAD_PASS);
 }
 
 extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *op = mythread->current_iop;
-#if GASNET_PSHM
-  if_pt (gasneti_pshm_in_supernode(node)) {
-    memset(gasneti_pshm_addr2local(node, dest), val, nbytes);
-    gasnete_loopbackput_memsync();
-    return;
-  }
-#endif
+  GASNETI_CHECKPSHM_MEMSET(V);
+
   op->initiated_put_cnt++;
 
   GASNETI_SAFE(

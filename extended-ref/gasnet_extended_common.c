@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_common.c,v $
- *     $Date: 2010/03/27 10:22:09 $
- * $Revision: 1.3.10.1 $
+ *     $Date: 2010/03/28 00:14:54 $
+ * $Revision: 1.3.10.2 $
  * Description: GASNet Extended API Common code
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -369,6 +369,7 @@ extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, 
   retval->val = 0;
 #if GASNET_PSHM
   if (gasneti_pshm_in_supernode(node)) {
+static int first=1; if(first) {first=0; fprintf(stderr, "@ %s\n", __FUNCTION__);}
     /* Assume that addr2local on local node is cheaper than an extra branch */
     GASNETE_FAST_ALIGNED_MEMCPY(GASNETE_STARTOFBITS(&(retval->val),nbytes),
                                 gasneti_pshm_addr2local(node, src), nbytes);
