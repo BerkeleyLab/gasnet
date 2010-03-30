@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.c,v $
- *     $Date: 2009/03/30 02:40:31 $
- * $Revision: 1.61 $
+ *     $Date: 2010/03/30 22:07:46 $
+ * $Revision: 1.61.8.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -51,6 +51,10 @@ static void gasnete_check_config(void) {
 
   gasneti_assert_always(GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD <= gasnet_AMMaxMedium());
   gasneti_assert_always(gasnete_eopaddr_isnil(EOPADDR_NIL));
+
+  /* The next two ensure nbytes in AM-based Gets will fit in handler_arg_t (bug 2770) */
+  gasneti_assert_always(gasnet_AMMaxMedium() <= (size_t)0xffffffff);
+  gasneti_assert_always(gasnet_AMMaxLongReply() <= (size_t)0xffffffff);
 }
 
 extern void gasnete_init(void) {
@@ -434,16 +438,17 @@ LONG_HANDLER(gasnete_putlong_reqh,1,2,
 /* ------------------------------------------------------------------------------------ */
 GASNETI_INLINE(gasnete_memset_reqh_inner)
 void gasnete_memset_reqh_inner(gasnet_token_t token, 
-  gasnet_handlerarg_t val, gasnet_handlerarg_t nbytes, void *dest, void *op) {
+  gasnet_handlerarg_t val, void *nbytes_arg, void *dest, void *op) {
+  size_t nbytes = (uintptr_t)nbytes_arg;
   memset(dest, (int)(uint32_t)val, nbytes);
   gasneti_sync_writes();
   GASNETI_SAFE(
     SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_markdone_reph),
                   PACK(op))));
 }
-SHORT_HANDLER(gasnete_memset_reqh,4,6,
-              (token, a0, a1, UNPACK(a2),      UNPACK(a3)     ),
-              (token, a0, a1, UNPACK2(a2, a3), UNPACK2(a4, a5)));
+SHORT_HANDLER(gasnete_memset_reqh,4,7,
+              (token, a0, UNPACK(a1),      UNPACK(a2),      UNPACK(a3)     ),
+              (token, a0, UNPACK2(a1, a2), UNPACK2(a3, a4), UNPACK2(a5, a6)));
 /* ------------------------------------------------------------------------------------ */
 GASNETI_INLINE(gasnete_markdone_reph_inner)
 void gasnete_markdone_reph_inner(gasnet_token_t token, 
@@ -522,8 +527,8 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
   gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
 
   GASNETI_SAFE(
-    SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
-                 (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
+    SHORT_REQ(4,7,(node, gasneti_handleridx(gasnete_memset_reqh),
+                 (gasnet_handlerarg_t)val, PACK(nbytes),
                  PACK(dest), PACK(op))));
 
   return (gasnet_handle_t)op;
@@ -735,8 +740,8 @@ extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
   op->initiated_put_cnt++;
 
   GASNETI_SAFE(
-    SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
-                 (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
+    SHORT_REQ(4,7,(node, gasneti_handleridx(gasnete_memset_reqh),
+                 (gasnet_handlerarg_t)val, PACK(nbytes),
                  PACK(dest), PACK(op))));
 }
 

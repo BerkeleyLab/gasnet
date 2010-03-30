@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testteam.c,v $
- * $Date: 2009/09/16 01:13:43 $
- * $Revision: 1.2 $
+ * $Date: 2010/03/30 22:07:54 $
+ * $Revision: 1.2.8.1 $
  * LBNL 2009
  */
 
@@ -15,6 +15,7 @@
 #define SEG_PER_THREAD (2*1024*1024)
 #define TEST_SEGSZ_EXPR (SEG_PER_THREAD)
 
+#include <math.h> /* for sqrt() */
 #include <test.h>
 
 int main(int argc, char **argv) 
@@ -33,18 +34,19 @@ int main(int argc, char **argv)
   gasnet_seginfo_t teamB_scratch;
   gasnet_seginfo_t const * test_segs;
   GASNET_Safe(gasnet_init(&argc, &argv));
+
+  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  
 #if !GASNET_SEQ
   MSG0("WARNING: This test does not work for NON-SEQ builds yet.. skipping test\n");
   gasnet_exit(0);
 #endif
 
-  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-  
   A = TEST_MYSEG();
   
   gasnet_coll_init(NULL, 0, NULL, 0, 0);
 
-  test_init("test_team", 1, "(nrows) (ncols) (iters)");
+  test_init("test_team", 1, "(iters) (nrows) (ncols)");
 
   mynode = gasnet_mynode();
   nodes = gasnet_nodes();
@@ -59,26 +61,25 @@ int main(int argc, char **argv)
   if (argc > 4)
     test_usage();
 
-  if (argc > 1) {
-    nrows = atoi(argv[1]);
-  } else {
-    nrows = 1 + !(nodes & 1); /* 1 if odd, 2 if even */
-  }
+  if (argc > 1) iters = atoi(argv[1]);
+  if (!iters) iters = 10000;
+
   if (argc > 2) {
-    ncols = atoi(argv[2]);
+    nrows = atoi(argv[2]);
+  } else {
+    /* search for as near to square as possible */
+    nrows = sqrt(nodes);
+    while (nodes % nrows) --nrows;
+  }
+  if (argc > 3) {
+    ncols = atoi(argv[3]);
   } else {
     ncols = nodes / nrows;
   }
-  gasneti_assert(nrows*ncols == nodes);
+  assert_always(nrows*ncols == nodes);
 
-  if (argc > 3) iters = atoi(argv[3]);
-  if (!iters) iters = 10000;
-
-  if (mynode == 0) {
-    printf("Running team test with a %u-by-%u grid and %i iterations...\n",
+  MSG0("Running team test with a %u-by-%u grid and %i iterations...\n",
            nrows, ncols, iters);
-    fflush(stdout);
-  }
   BARRIER();
                  
   my_row = mynode / ncols;

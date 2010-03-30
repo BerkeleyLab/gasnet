@@ -233,7 +233,7 @@ int main(int argc, char **argv) {
       strcpy(profile_file, argv[i+1]);
       i++;
     } else if(strcmp("-h", argv[i])==0 || strcmp("-help", argv[i])==0) {
-      if(gasneti_mynode == 0) printf("usage: %s (-i iters) (-f output file)\n", argv[0]);
+      MSG0("usage: %s (-i iters) (-f output file)\n", argv[0]);
       gasnet_exit(0);
     }
   }                    

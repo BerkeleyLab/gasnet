@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testteambcast.c,v $
- * $Date: 2009/11/17 22:02:42 $
- * $Revision: 1.1 $
+ * $Date: 2010/03/30 22:07:54 $
+ * $Revision: 1.1.4.1 $
  * See license.txt for terms
  * Rajesh Nishtala and Yili Zheng
  */
@@ -77,7 +77,7 @@ int main(int argc, char **argv)
   } else {
     ncols = nodes / nrows;
   }
-  gasneti_assert(nrows*ncols == nodes);
+  assert_always(nrows*ncols == nodes);
 
   if (argc > 3) iters = atoi(argv[3]);
   if (!iters) iters = 20;

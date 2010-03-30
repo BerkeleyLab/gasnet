@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2008/12/26 05:31:00 $
- * $Revision: 1.36 $
+ *     $Date: 2010/03/30 22:07:48 $
+ * $Revision: 1.36.12.1 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -213,22 +213,24 @@ gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE);
 extern int gasnete_getrdma_enabled;
 
 /* Extended reference functions */
-gasnet_handle_t gasnete_extref_get_nb_bulk(void *dest, gasnet_node_t node, 
-			void *src, size_t nbytes GASNETE_THREAD_FARG);
 gasnet_handle_t gasnete_extref_put_nb(gasnet_node_t node, void *dest, 
+			void *src, size_t nbytes GASNETE_THREAD_FARG);
+void gasnete_extref_put_nbi      (gasnet_node_t node, void *dest, void *src, 
+			size_t nbytes GASNETE_THREAD_FARG);
+gasnet_handle_t gasnete_extref_memset_nb   (gasnet_node_t node, void *dest, 
+			int val, size_t nbytes GASNETE_THREAD_FARG);
+void gasnete_extref_memset_nbi   (gasnet_node_t node, void *dest, int val, 
+			size_t nbytes GASNETE_THREAD_FARG);
+#if 0 /* UNUSED */
+gasnet_handle_t gasnete_extref_get_nb_bulk(void *dest, gasnet_node_t node, 
 			void *src, size_t nbytes GASNETE_THREAD_FARG);
 gasnet_handle_t gasnete_extref_put_nb_bulk (gasnet_node_t node, void *dest, 
 			void *src, size_t nbytes GASNETE_THREAD_FARG);
-gasnet_handle_t gasnete_extref_memset_nb   (gasnet_node_t node, void *dest, 
-			int val, size_t nbytes GASNETE_THREAD_FARG);
 void gasnete_extref_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, 
-			size_t nbytes GASNETE_THREAD_FARG);
-void gasnete_extref_put_nbi      (gasnet_node_t node, void *dest, void *src, 
 			size_t nbytes GASNETE_THREAD_FARG);
 void gasnete_extref_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, 
 			size_t nbytes GASNETE_THREAD_FARG);
-void gasnete_extref_memset_nbi   (gasnet_node_t node, void *dest, int val, 
-			size_t nbytes GASNETE_THREAD_FARG);
+#endif
 
 /* Additional support for core AMReplyLongAsync */
 #if PLATFORM_ARCH_32
@@ -243,10 +245,12 @@ void gasnete_extref_memset_nbi   (gasnet_node_t node, void *dest, int val,
 #define _hidx_gasnete_amdbarrier_notify_reqh (GASNETE_HANDLER_BASE+0) 
 #define _hidx_gasnete_amcbarrier_notify_reqh (GASNETE_HANDLER_BASE+1) 
 #define _hidx_gasnete_amcbarrier_done_reqh   (GASNETE_HANDLER_BASE+2)
+#if 0 /* UNUSED: No AM-based Gets in gm-conduit */
 #define _hidx_gasnete_extref_get_reqh        (GASNETE_HANDLER_BASE+3)
 #define _hidx_gasnete_extref_get_reph        (GASNETE_HANDLER_BASE+4)
 #define _hidx_gasnete_extref_getlong_reqh    (GASNETE_HANDLER_BASE+5)
 #define _hidx_gasnete_extref_getlong_reph    (GASNETE_HANDLER_BASE+6)
+#endif
 #define _hidx_gasnete_extref_put_reqh        (GASNETE_HANDLER_BASE+7)
 #define _hidx_gasnete_extref_putlong_reqh    (GASNETE_HANDLER_BASE+8)
 #define _hidx_gasnete_extref_memset_reqh     (GASNETE_HANDLER_BASE+9)

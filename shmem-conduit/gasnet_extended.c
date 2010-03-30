@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended.c,v $
- *     $Date: 2010/03/15 06:32:41 $
- * $Revision: 1.34 $
+ *     $Date: 2010/03/30 22:07:52 $
+ * $Revision: 1.34.2.1 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -97,8 +97,8 @@ gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val,
     void *pdone = (void*)&isdone;
 
     GASNETI_SAFE(
-	SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
-		      (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes, 
+	SHORT_REQ(4,7,(node, gasneti_handleridx(gasnete_memset_reqh),
+		      (gasnet_handlerarg_t)val, PACK(nbytes), 
 		      PACK(ptr), PACK(pdone))));
 
     /* Always blocking, even if an AM */
@@ -110,8 +110,9 @@ gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val,
 GASNETI_INLINE(gasnete_memset_reqh_inner)
 void 
 gasnete_memset_reqh_inner(gasnet_token_t token, gasnet_handlerarg_t val, 
-			  gasnet_handlerarg_t nbytes, void *dest, void *op) 
+			  void *nbytes_arg, void *dest, void *op) 
 {
+    size_t nbytes = (uintptr_t)nbytes_arg;
     memset(dest, (int)(uint32_t)val, nbytes);
     gasneti_sync_writes();
 
@@ -119,9 +120,9 @@ gasnete_memset_reqh_inner(gasnet_token_t token, gasnet_handlerarg_t val,
 	SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_markdone_reph),
                   PACK(op))));
 }
-SHORT_HANDLER(gasnete_memset_reqh,4,6,
-              (token, a0, a1, UNPACK(a2),      UNPACK(a3)     ),
-              (token, a0, a1, UNPACK2(a2, a3), UNPACK2(a4, a5)));
+SHORT_HANDLER(gasnete_memset_reqh,4,7,
+              (token, a0, UNPACK(a1),      UNPACK(a2),      UNPACK(a3)     ),
+              (token, a0, UNPACK2(a1, a2), UNPACK2(a3, a4), UNPACK2(a5, a6)));
 
 GASNETI_INLINE(gasnete_markdone_reph_inner)
 void 
