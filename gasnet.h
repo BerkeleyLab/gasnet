@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2009/09/18 23:33:23 $
- * $Revision: 1.63 $
+ *     $Date: 2010/04/10 19:06:59 $
+ * $Revision: 1.63.10.1 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -269,6 +269,8 @@ GASNETI_END_EXTERNC
   } gasnet_handlerentry_t;
 #endif
 
+#define GASNET_NUMA 1
+
 #ifndef _GASNET_SEGINFO_T
 #define _GASNET_SEGINFO_T
   typedef struct gasneti_seginfo_s {
@@ -278,7 +280,12 @@ GASNETI_END_EXTERNC
     void *remote_addr;
     uintptr_t remote_size;
   #endif
+  //#ifndef GASNET_NUMA
+  /* We have to enable it for now, since some tests
+   * are using this field.
+   */
     gasnet_node_t nodeinfo;
+  //#endif
   } gasnet_seginfo_t;
 #endif
 

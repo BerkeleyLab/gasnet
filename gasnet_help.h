@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2010/04/10 07:17:01 $
- * $Revision: 1.105.10.1 $
+ *     $Date: 2010/04/10 19:06:59 $
+ * $Revision: 1.105.10.2 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -702,7 +702,6 @@ extern int gasneti_wait_mode; /* current waitmode hint */
           gasneti_getSegmentInfo(seginfo_table, numentries)
 #endif
 
-#define GASNET_NUMA 1
 #if GASNET_NUMA
   extern int gasneti_pinMemory(int local_rank);
   #define gasnet_pinMemory(local_rank) \
