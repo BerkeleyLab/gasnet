@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2010/04/04 06:57:36 $
- * $Revision: 1.8 $
+ *     $Date: 2010/04/11 21:58:53 $
+ * $Revision: 1.8.2.1 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -33,7 +33,13 @@
 /* Global vars */
 gasneti_pshmnet_t *gasneti_request_pshmnet = NULL;
 gasneti_pshmnet_t *gasneti_reply_pshmnet = NULL;
- 
+
+#define GASNET_PSHM_FULLEMPTY 1
+#if GASNET_PSHM_FULLEMPTY
+  gasneti_atomic_t *gasneti_pshm_fullempty_req;
+  gasneti_atomic_t *gasneti_pshm_fullempty_rep;
+#endif
+
 /* Structure for PSHM intra-supernode barrier */
 gasneti_pshm_barrier_t *gasneti_pshm_barrier = NULL; /* lives in shared space */
 
@@ -131,6 +137,10 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
     /* space for early barrier, sharing space with the items above: */
     info_sz = MAX(info_sz, gasneti_pshm_nodes * sizeof(sig_atomic_t));
     info_sz += offsetof(struct gasneti_pshm_info, u);
+
+#if GASNET_PSHM_FULLEMPTY
+    info_sz += 2*gasneti_pshm_nodes*sizeof(int);
+#endif
     /* final space requested: */
     mmapsz += round_up_to_pshmpage(info_sz);
   }
@@ -141,9 +151,21 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
     gasneti_fatalerror("Failed to mmap %lu bytes for shared memory Active Messages region.",
                        (unsigned long)mmapsz);
   }
-  
+#if GASNET_PSHM_FULLEMPTY
+  /* Initialize Full/Empty bits. */ 
+  gasneti_pshm_fullempty_req = (gasneti_atomic_t *)((uintptr_t)gasnetc_pshmnet_region + 2*vnetsz);
+  gasneti_pshm_fullempty_rep = (gasneti_atomic_t *)((uintptr_t)gasnetc_pshmnet_region + 2*vnetsz + gasneti_pshm_nodes*sizeof(int));
+  for (i = 0; i < 2*gasneti_pshm_nodes; ++i) {
+      gasneti_atomic_set(&gasneti_pshm_fullempty_req[i], 0, 0);
+  }
+#endif
+
   /* Prepare the shared info struct (including bootstrap barrier) */
+#if GASNET_PSHM_FULLEMPTY
+  gasneti_pshm_info = (struct gasneti_pshm_info *)((uintptr_t)gasnetc_pshmnet_region + 2*(vnetsz+gasneti_pshm_nodes*sizeof(int)));
+#else
   gasneti_pshm_info = (struct gasneti_pshm_info *)((uintptr_t)gasnetc_pshmnet_region + 2*vnetsz);
+#endif
   if (gasneti_pshm_mynode != 0) {
     /* For a few architectures we cannot assume that the pre-zeroed memory we
      * receive will correspond to an atomic counter of value zero. */
@@ -706,6 +728,13 @@ int gasneti_pshmnet_deliver_send_buffer(gasneti_pshmnet_t *vnet, void *buf,
   }
  
   gasneti_mutex_unlock(&q->send_lock);
+        
+#if GASNET_PSHM_FULLEMPTY
+  if (vnet == gasneti_request_pshmnet)
+    gasneti_atomic_increment(&gasneti_pshm_fullempty_req[target], GASNETI_ATOMIC_REL);
+  else
+    gasneti_atomic_increment(&gasneti_pshm_fullempty_rep[target], GASNETI_ATOMIC_REL);
+#endif
 
   return retval;
 }
@@ -749,6 +778,14 @@ int gasneti_pshmnet_recv(gasneti_pshmnet_t *vnet, void **pbuf, size_t *psize,
            q->recv_next = q->queue;
 
         gasneti_mutex_unlock(&q->recv_lock);
+  
+#if GASNET_PSHM_FULLEMPTY
+        if (vnet == gasneti_request_pshmnet)
+          gasneti_atomic_decrement(&gasneti_pshm_fullempty_req[gasneti_pshm_mynode], GASNETI_ATOMIC_REL);
+        else
+          gasneti_atomic_decrement(&gasneti_pshm_fullempty_rep[gasneti_pshm_mynode], GASNETI_ATOMIC_REL);
+#endif
+
         *from = nodeindex;
         return 0;
       }
@@ -1102,13 +1139,19 @@ int gasneti_AMPSHMPoll(int repliesOnly)
   GASNETI_CHECKATTACH();
 #endif
 
-  for (; i < GASNETI_AMPSHM_MAX_RECVMSGS_PER_POLL; i++) 
-    if (gasneti_AMPSHM_service_incoming_msg(gasneti_reply_pshmnet, 0))
-      break;
-  if (!repliesOnly)
+#if GASNET_PSHM_FULLEMPTY
+  if (gasneti_atomic_read(&gasneti_pshm_fullempty_rep[gasneti_pshm_mynode], 0) != 0)
+#endif
     for (; i < GASNETI_AMPSHM_MAX_RECVMSGS_PER_POLL; i++) 
-      if (gasneti_AMPSHM_service_incoming_msg(gasneti_request_pshmnet, 1))
+      if (gasneti_AMPSHM_service_incoming_msg(gasneti_reply_pshmnet, 0))
         break;
+  if (!repliesOnly)
+#if GASNET_PSHM_FULLEMPTY
+    if (gasneti_atomic_read(&gasneti_pshm_fullempty_req[gasneti_pshm_mynode], 0) != 0)
+#endif
+      for (; i < GASNETI_AMPSHM_MAX_RECVMSGS_PER_POLL; i++) 
+        if (gasneti_AMPSHM_service_incoming_msg(gasneti_request_pshmnet, 1))
+          break;
   return GASNET_OK;
 }
 
