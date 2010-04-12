@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2010/04/12 06:05:53 $
- * $Revision: 1.8.2.2 $
+ *     $Date: 2010/04/12 07:49:06 $
+ * $Revision: 1.8.2.3 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -746,7 +746,7 @@ int gasneti_pshmnet_deliver_send_buffer(gasneti_pshmnet_t *vnet, void *buf,
   gasneti_mutex_unlock(&q->send_lock);
         
 #if GASNET_PSHM_FULLEMPTY && GASNET_INC
-    gasneti_atomic_increment(&(vnet->gasneti_pshm_fullempty[target].febit), GASNETI_ATOMIC_REL);
+    gasneti_atomic_increment(&(vnet->gasneti_pshm_fullempty[target].febit), 0);
 #elif GASNET_PSHM_FULLEMPTY
     gasneti_atomic_set(&(vnet->gasneti_pshm_fullempty[target].febit), 1, 0);
 #endif
@@ -795,7 +795,7 @@ int gasneti_pshmnet_recv(gasneti_pshmnet_t *vnet, void **pbuf, size_t *psize,
         gasneti_mutex_unlock(&q->recv_lock);
   
 #if GASNET_PSHM_FULLEMPTY && GASNET_INC
-        gasneti_atomic_decrement(&(vnet->gasneti_pshm_fullempty[gasneti_pshm_mynode].febit), GASNETI_ATOMIC_REL);
+        gasneti_atomic_decrement(&(vnet->gasneti_pshm_fullempty[gasneti_pshm_mynode].febit), 0);
 #endif
 
         *from = nodeindex;
@@ -1152,24 +1152,28 @@ int gasneti_AMPSHMPoll(int repliesOnly)
 #endif
 
 #if GASNET_PSHM_FULLEMPTY && GASNET_INC
-  if (gasneti_atomic_read(&(gasneti_reply_pshmnet->gasneti_pshm_fullempty[gasneti_pshm_mynode].febit), 0) != 0)
+  if (gasneti_atomic_read(&(gasneti_reply_pshmnet->gasneti_pshm_fullempty[gasneti_pshm_mynode].febit), 0) != 0){
 #elif GASNET_PSHM_FULLEMPTY
-  if (gasneti_atomic_compare_and_swap(&(gasneti_reply_pshmnet->gasneti_pshm_fullempty[gasneti_pshm_mynode].febit), 1, 0, GASNETI_ATOMIC_ACQ_IF_TRUE))
+  if (gasneti_atomic_read(&(gasneti_reply_pshmnet->gasneti_pshm_fullempty[gasneti_pshm_mynode].febit), 0) != 0){
+    gasneti_atomic_set(&(gasneti_reply_pshmnet->gasneti_pshm_fullempty[gasneti_pshm_mynode].febit), 0, 0);
 #endif
     for (; i < GASNETI_AMPSHM_MAX_RECVMSGS_PER_POLL; i++) 
       if (gasneti_AMPSHM_service_incoming_msg(gasneti_reply_pshmnet, 0))
         break;
-  
+  }
+
   if (!repliesOnly)
 #if GASNET_PSHM_FULLEMPTY && GASNET_INC
-    if (gasneti_atomic_read(&(gasneti_request_pshmnet->gasneti_pshm_fullempty[gasneti_pshm_mynode].febit), 0) != 0)
+    if (gasneti_atomic_read(&(gasneti_request_pshmnet->gasneti_pshm_fullempty[gasneti_pshm_mynode].febit), 0) != 0){
 #elif GASNET_PSHM_FULLEMPTY
-    if (gasneti_atomic_compare_and_swap(&(gasneti_request_pshmnet->gasneti_pshm_fullempty[gasneti_pshm_mynode].febit), 1, 0, GASNETI_ATOMIC_ACQ_IF_TRUE))
+    if (gasneti_atomic_read(&(gasneti_request_pshmnet->gasneti_pshm_fullempty[gasneti_pshm_mynode].febit), 0) != 0){
+      gasneti_atomic_set(&(gasneti_request_pshmnet->gasneti_pshm_fullempty[gasneti_pshm_mynode].febit), 0, 0);
 #endif
       for (; i < GASNETI_AMPSHM_MAX_RECVMSGS_PER_POLL; i++) 
         if (gasneti_AMPSHM_service_incoming_msg(gasneti_request_pshmnet, 1))
           break;
-    
+    }
+
   return GASNET_OK;
 }
 
