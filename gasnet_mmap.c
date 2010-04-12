@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/04/10 19:06:59 $
- * $Revision: 1.74.2.2 $
+ *     $Date: 2010/04/12 06:05:53 $
+ * $Revision: 1.74.2.3 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1172,7 +1172,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
      * he should also touch it's portion of 
      * the shared heap. 
      * */
-    gasneti_pinMemory(0);
+    if (gasneti_pthreads) gasneti_pinMemory(0);
 #endif
 
 #if GASNET_PSHM
