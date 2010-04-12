@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2010/04/12 07:49:06 $
- * $Revision: 1.8.2.3 $
+ *     $Date: 2010/04/12 16:28:05 $
+ * $Revision: 1.8.2.4 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -38,7 +38,7 @@ gasneti_pshmnet_t *gasneti_request_pshmnet = NULL;
 gasneti_pshmnet_t *gasneti_reply_pshmnet = NULL;
 
 #define GASNET_PSHM_FULLEMPTY 1
-//#define GASNET_INC 1
+#define GASNET_INC 1
 #if GASNET_PSHM_FULLEMPTY
   struct gasneti_fullem{
     gasneti_atomic_t febit;
@@ -1160,7 +1160,9 @@ int gasneti_AMPSHMPoll(int repliesOnly)
     for (; i < GASNETI_AMPSHM_MAX_RECVMSGS_PER_POLL; i++) 
       if (gasneti_AMPSHM_service_incoming_msg(gasneti_reply_pshmnet, 0))
         break;
+#if GASNET_PSHM_FULLEMPTY
   }
+#endif
 
   if (!repliesOnly)
 #if GASNET_PSHM_FULLEMPTY && GASNET_INC
@@ -1172,7 +1174,9 @@ int gasneti_AMPSHMPoll(int repliesOnly)
       for (; i < GASNETI_AMPSHM_MAX_RECVMSGS_PER_POLL; i++) 
         if (gasneti_AMPSHM_service_incoming_msg(gasneti_request_pshmnet, 1))
           break;
+#if GASNET_PSHM_FULLEMPTY
     }
+#endif
 
   return GASNET_OK;
 }
