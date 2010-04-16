@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/04/16 23:21:44 $
-# $Revision: 1.580.2.3 $
+#     $Date: 2010/04/16 23:31:08 $
+# $Revision: 1.580.2.4 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.580.2.3 $)
+AC_REVISION($Revision: 1.580.2.4 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -515,6 +515,10 @@ case "$gasnet_cv_cc_family" in
     esac
     case "$target_os" in
       hpux*) GASNET_GET_HPUX_FLAGS(C,["-D__STDC_EXT__=1"]);;
+      darwin*) 
+        GASNET_TRY_CFLAG([-Wno-long-double],
+	                 [MISC_CFLAGS="$MISC_CFLAGS -Wno-long-double"])
+      ;; 
     esac
     ;;
   Cray) 
@@ -556,8 +560,6 @@ case "$gasnet_cv_cc_family" in
       darwin*) # add some options which are specific to the Apple Inc version of gcc
         GASNET_TRY_CFLAG([-no-cpp-precomp],
 	                 [MISC_CPPFLAGS="$MISC_CPPFLAGS -no-cpp-precomp"])
-        GASNET_TRY_CFLAG([-Wno-long-double],
-	                 [MISC_CPPFLAGS="$MISC_CPPFLAGS -Wno-long-double"])
       ;; 
     esac ;;
   *)  MISC_CPPFLAGS="" ;;
@@ -2160,6 +2162,19 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
 	GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
         GASNET_ENV_DEFAULT(MPIRUN_CMD_BATCH, "")
         ;;
+    darwin*) # Need to probe -Wno-long-double independently
+        GASNET_ENV_DEFAULT(MPI_CC, mpicc)
+        GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS,
+                                  `echo "$MISC_CFLAGS $CFLAGS" | sed -e 's/-Wno-long-double//'`,
+                                  $SAFE_MPI_CFLAGS)
+        GASNET_PUSHVAR(CC,"$MPI_CC")
+        GASNET_PUSHVAR(CFLAGS,"$MPI_CFLAGS")
+          GASNET_TRY_CFLAG([-Wno-long-double],[MPI_CFLAGS="$MPI_CFLAGS -Wno-long-double"])
+        GASNET_POPVAR(CC)
+        GASNET_POPVAR(CFLAGS)
+        GASNET_ENV_DEFAULT(MPI_LIBS, )
+        GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
+        ;;
     irix*)
 	# use SGI native MPI library
         # user may need to do a "module load mpt" to make this work
@@ -2264,12 +2279,17 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
     MPIHELPER_LIBS="$MPIHELPER_OBJ $LIBM"
     MPIHELPER_DECL="extern int mpihelper_cint; extern void mpihelper_cfunc(int val);"
     MPIHELPER_CODE="mpihelper_cfunc(mpihelper_cint);"
-    cat >$MPIHELPER_BASE.c <<_GASNET_EOF
+    if test x"$have_tls" = xyes; then
+      MPIHELPER_TLS_DECL='__thread long tlocal;'
+      MPIHELPER_TLS_CODE='tlocal = 4;'
+    fi
+    cat >$MPIHELPER_SRC <<_GASNET_EOF
     #include <stdio.h>
     #include <string.h>
     #include <assert.h>
     #include <math.h>
     int mpihelper_cint = 0xFFFF;
+    $MPIHELPER_TLS_DECL
     extern void mpihelper_cfunc(int val) {
       char s[[255]], s2[[255]];
       int a[[40]] = {1}; /* trigger Intel C issue */
@@ -2279,6 +2299,7 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
       strcpy(s2, s);
       memcpy(s2, s, strlen(s)); memmove(s2, s, strlen(s));
       memcpy(s2, s, 4); memmove(s2, s, 4);
+      $MPIHELPER_TLS_CODE
       fprintf(stdout,"hi\n");
     }
 _GASNET_EOF
@@ -2305,6 +2326,22 @@ _GASNET_EOF
       MPI_Init((void*)0,(void*)0);
       MPI_Finalize();
     ], [ mpi_test_worked=yes ], [ mpi_test_worked=no GASNET_ERR_SAVE() ] )
+    # Apple's gcc (and thus their mpicc) doesn't provide TLS support, but the
+    # FSF gcc does.  The two are link compatible IF we explicitly pass -lgcc_eh
+    # XXX: Really only needed for PAR and PARSYNC, but we don't distinguish.
+    if test "$mpi_test_worked$have_tls$gasnet_cv_cc_family" = noyesGNU; then
+      LIBS="$LIBS $LIBGCC -lgcc_eh"  # $LIBGCC appears in $GASNET_LIBS eventually
+      GASNET_TRY_CACHE_LINK(for working MPI configuration w/ added -lgcc_eh, mpi_works_gcc_eh, [
+        #include <mpi.h>
+        $MPIHELPER_DECL
+      ], [
+        $MPIHELPER_CODE
+        MPI_Init((void*)0,(void*)0);
+        MPI_Finalize();
+      ], [ mpi_test_worked=yes
+           MPI_LIBS="$MPI_LIBS -lgcc_eh"
+      ], [ mpi_test_worked=no GASNET_ERR_SAVE() ] )
+    fi
     GASNET_POPVAR(CC)
     GASNET_POPVAR(CFLAGS)
     GASNET_POPVAR(CPPFLAGS)
