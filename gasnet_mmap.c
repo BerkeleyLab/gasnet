@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/04/16 23:14:23 $
- * $Revision: 1.67.2.1 $
+ *     $Date: 2010/04/16 23:28:24 $
+ * $Revision: 1.67.2.2 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -274,11 +274,29 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
   if (gasneti_mmapfd == -1) {
     gasneti_fatalerror("failed to shm_open(%s): %s\n",filename,strerror(errno));
   }
+#if PLATFORM_OS_DARWIN
+  #error "Must fix resize problem before Darwin support for PSHM will work"
+  /* This shm_unlink() was added here for Darwin (which we don't currently
+     support w/ PSHM due to an apparent kernel memory leak when using PSHM).
+     Read and understand the following before reenabling this code.
+
+     It has been determined that this shm_unlink() causes the mmap()s done
+     at gasnet_init()-time to be NON shared, having undesired effects:
+     + If the client asked for the max available segment size, then Attach is
+       "smart" enough to reuse the mmap()s generated at Init-time.  However,
+       since this was NON shared, the segment was useless.
+     + The NON sharing here also was causing unexpected failures of the
+       ftruncate() on systems that disallow overcommit of swap (e.g. our
+       Solaris testers) since we were actually trying to map a factor of
+       gasneti_nodes more memory than our probe had determined was available.
+  */
   if (do_unlink) {
     /* Darwin requires an shm_unlink/shm_open to resize a shared memory object.
      * However, it is always safe and can help reduce the opportunities for a leak. */
+    /* XXX: NO IT IS *NEVER* SAFE.  See above */
     (void)shm_unlink(filename);
   }
+#endif
 
   if (gasneti_mmap_stretch(gasneti_mmapfd, segsize)) {
     int save_errno = errno;
@@ -899,20 +917,22 @@ void gasneti_segmentAttachLocal(uintptr_t segsize, uintptr_t minheapoffset,
                            gasnet_seginfo_t *seginfo,
                            gasneti_bootstrapExchangefn_t exchangefn) {
   void *segbase = NULL;
+  uintptr_t bias;
   gasneti_assert(seginfo);
   gasneti_assert(exchangefn);
   gasneti_assert(gasneti_segexch);
   gasneti_memcheck(gasneti_segexch);
 
   #ifndef GASNETI_SEGMENT_DISALIGN_BIAS
-    #if GASNET_DEBUG && !GASNET_ALIGNED_SEGMENTS
+    #if GASNET_DEBUG && !GASNET_ALIGNED_SEGMENTS && (GASNET_PAGESIZE < 1024*1024)
       /* force segment disalignment for debugging purposes */
-      #define GASNETI_SEGMENT_DISALIGN_BIAS \
-            ((GASNET_PAGESIZE < 1024*1024)?(GASNET_PAGESIZE*(gasneti_mynode%2)):0)
+      #define GASNETI_SEGMENT_DISALIGN_BIAS GASNET_PAGESIZE
     #else
       #define GASNETI_SEGMENT_DISALIGN_BIAS 0
     #endif
   #endif
+
+  bias = GASNETI_SEGMENT_DISALIGN_BIAS * (gasneti_mynode%2);
 
   #ifdef HAVE_MMAP
   { /* TODO: this assumes heap grows up */
@@ -953,17 +973,17 @@ void gasneti_segmentAttachLocal(uintptr_t segsize, uintptr_t minheapoffset,
       #if GASNETI_USE_HIGHSEGMENT
         segbase = (void *)((uintptr_t)gasneti_segment.addr + 
                            gasneti_segment.size - segsize);
-        if ((intptr_t)(gasneti_segment.size - segsize) >= GASNETI_SEGMENT_DISALIGN_BIAS) {
-          segbase = (void *)((uintptr_t)segbase - GASNETI_SEGMENT_DISALIGN_BIAS);
+        if ((intptr_t)(gasneti_segment.size - segsize) >= bias) {
+          segbase = (void *)((uintptr_t)segbase - bias);
         } else {
-          segbase = (void *)((uintptr_t)segbase + GASNETI_SEGMENT_DISALIGN_BIAS);
-          segsize -= GASNETI_SEGMENT_DISALIGN_BIAS;
+          segbase = (void *)((uintptr_t)segbase + bias);
+          segsize -= bias;
         }
       #else
         segbase = gasneti_segment.addr;
-        if (gasneti_segment.size > GASNETI_SEGMENT_DISALIGN_BIAS) {
-          segbase = (void *)((uintptr_t)segbase + GASNETI_SEGMENT_DISALIGN_BIAS);
-          segsize = MIN(segsize,gasneti_segment.size - GASNETI_SEGMENT_DISALIGN_BIAS);
+        if (gasneti_segment.size > bias) {
+          segbase = (void *)((uintptr_t)segbase + bias);
+          segsize = MIN(segsize,gasneti_segment.size - bias);
         }
       #endif
     #endif /* GASNETI_ALIGNED_SEGMENTS */
@@ -1004,15 +1024,15 @@ void gasneti_segmentAttachLocal(uintptr_t segsize, uintptr_t minheapoffset,
   }
   #else /* !HAVE_MMAP */
     /* for the T3E, and other platforms which don't support mmap */
-    segbase = gasneti_malloc_allowfail(segsize + GASNET_PAGESIZE + GASNETI_SEGMENT_DISALIGN_BIAS);
+    segbase = gasneti_malloc_allowfail(segsize + GASNET_PAGESIZE + bias);
     while (!segbase) {
       segsize = GASNETI_PAGE_ALIGNDOWN(segsize/2);
       if (segsize == 0) break; 
-      segbase = gasneti_malloc_allowfail(segsize + GASNET_PAGESIZE + GASNETI_SEGMENT_DISALIGN_BIAS);
+      segbase = gasneti_malloc_allowfail(segsize + GASNET_PAGESIZE + bias);
     }
     if (segbase) {
       segbase = (void *)GASNETI_PAGE_ALIGNUP(segbase);
-      segbase = (void *)(((uintptr_t)segbase)+GASNETI_SEGMENT_DISALIGN_BIAS);
+      segbase = (void *)(((uintptr_t)segbase)+bias);
     }
   #endif /* HAVE_MMAP */
   gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
@@ -1058,18 +1078,8 @@ int gasneti_AttachRemote(uintptr_t segsize, const gasnet_node_t pshm_node, uintp
     #if GASNETI_USE_HIGHSEGMENT
       segbase = (void *)((uintptr_t)gasneti_remote_segments[pshm_node].addr + 
                          gasneti_remote_segments[pshm_node].size - segsize);
-      if ((intptr_t)(gasneti_remote_segments[pshm_node].size - segsize) >= GASNETI_SEGMENT_DISALIGN_BIAS) {
-        segbase = (void *)((uintptr_t)segbase - GASNETI_SEGMENT_DISALIGN_BIAS);
-      } else {
-        segbase = (void *)((uintptr_t)segbase + GASNETI_SEGMENT_DISALIGN_BIAS);
-        segsize -= GASNETI_SEGMENT_DISALIGN_BIAS;
-      }
     #else
       segbase = gasneti_remote_segments[pshm_node].addr;
-      if (gasneti_remote_segments[pshm_node].size > GASNETI_SEGMENT_DISALIGN_BIAS) {
-        segbase = (void *)((uintptr_t)segbase + GASNETI_SEGMENT_DISALIGN_BIAS);
-        segsize = MIN(segsize,gasneti_remote_segments[pshm_node].size - GASNETI_SEGMENT_DISALIGN_BIAS);
-      }
     #endif
     
     if (segsize == 0) {
@@ -1334,6 +1344,10 @@ static gasneti_auxseg_request_t *gasneti_auxseg_alignedsz = NULL;
 static uintptr_t gasneti_auxseg_sz = 0;
 static uintptr_t gasneti_auxseg_client_request_sz = 0;
 
+#if GASNETI_SEGMENT_DISALIGN_BIAS
+  GASNETI_IDENT(gasneti_disalign_auxseg_IdentString, "$GASNetAuxSeg_disalign: "_STRINGIFY(GASNETI_SEGMENT_DISALIGN_BIAS)" $");
+#endif
+
 #if GASNET_DEBUG
   /* spawner hint of our auxseg requirements */
   #define GASNETI_AUXSEG_DUMMY_SZ    463
@@ -1398,6 +1412,10 @@ void gasneti_auxseg_init(void) {
   #if GASNET_SEGMENT_EVERYTHING
     GASNETI_TRACE_PRINTF(C, ("gasneti_auxseg_init(): gasneti_auxseg_sz = %lu", (unsigned long)gasneti_auxseg_sz));
   #else
+    #if GASNETI_SEGMENT_DISALIGN_BIAS
+      gasneti_auxseg_sz += GASNETI_SEGMENT_DISALIGN_BIAS;
+    #endif
+
     /* TODO: implement request downsizing down to minsz */
     if (gasneti_auxseg_sz >= gasneti_MaxGlobalSegmentSize)
       gasneti_fatalerror("GASNet internal auxseg size (%llu bytes) exceeds available segment size (%llu bytes)",
@@ -1466,6 +1484,9 @@ uintptr_t gasneti_auxseg_preattach(uintptr_t client_request_sz) {
     result = 0;
   }
   #else
+    #if GASNETI_SEGMENT_DISALIGN_BIAS
+      gasneti_auxseg_sz -= GASNETI_SEGMENT_DISALIGN_BIAS;
+    #endif
     gasneti_assert(client_request_sz % GASNET_PAGESIZE == 0);
     gasneti_auxseg_client_request_sz = client_request_sz;
     #if GASNETI_AUXSEG_PRESERVE_POW2_FULLSEGSZ
