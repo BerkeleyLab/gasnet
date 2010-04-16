@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/portable_platform.h,v $
- *     $Date: 2009/03/30 02:40:40 $
- * $Revision: 1.25 $
+ *     $Date: 2010/04/16 22:43:33 $
+ * $Revision: 1.25.4.1 $
  * Description: Portable platform detection header
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -91,7 +91,7 @@
     #define PLATFORM_COMPILER_PATHSCALE_C  1
   #endif
   #define PLATFORM_COMPILER_VERSION \
-          PLATFORM_COMPILER_VERSION_INT(__PATHCC__,__PATHCC_MINOR__,__PATHCC_PATCHLEVEL__)
+          PLATFORM_COMPILER_VERSION_INT(__PATHCC__,__PATHCC_MINOR__,__PATHCC_PATCHLEVEL__+0)
   #define PLATFORM_COMPILER_VERSION_STR __PATHSCALE__
 
 #elif defined(__PGI)
@@ -308,6 +308,33 @@
   #else
     #define PLATFORM_COMPILER_LCC_C  1
   #endif
+
+#elif defined(__OPENCC__)
+  #define PLATFORM_COMPILER_OPEN64  1
+  #define PLATFORM_COMPILER_FAMILYNAME OPEN64
+  #define PLATFORM_COMPILER_FAMILYID 17
+  #ifdef __cplusplus
+    #define PLATFORM_COMPILER_OPEN64_CXX  1
+  #else
+    #define PLATFORM_COMPILER_OPEN64_C  1
+  #endif
+  #define PLATFORM_COMPILER_VERSION \
+          PLATFORM_COMPILER_VERSION_INT(__OPENCC__,__OPENCC_MINOR__,__OPENCC_PATCHLEVEL__+0)
+  #define PLATFORM_COMPILER_VERSION_STR __OPEN64__
+
+#elif defined(__PCC__)
+  #define PLATFORM_COMPILER_PCC  1
+  #define PLATFORM_COMPILER_FAMILYNAME PCC
+  #define PLATFORM_COMPILER_FAMILYID 18
+  #ifdef __cplusplus
+    #define PLATFORM_COMPILER_PCC_CXX  1
+  #else
+    #define PLATFORM_COMPILER_PCC_C  1
+  #endif
+  #define PLATFORM_COMPILER_VERSION \
+          PLATFORM_COMPILER_VERSION_INT(__PCC__,__PCC_MINOR__,__PCC_MINORMINOR__)
+  #define PLATFORM_COMPILER_VERSION_STR \
+      _STRINGIFY(__PCC__)"."_STRINGIFY(__PCC_MINOR__)"."_STRINGIFY(__PCC_MINORMINOR__)
 
 #else /* unknown compiler */
   #define PLATFORM_COMPILER_UNKNOWN  1
@@ -552,7 +579,7 @@
    PLATFORM_ARCH_32              - 32-bit pointers
    PLATFORM_ARCH_64              - 64-bit pointers
    PLATFORM_ARCH_BIG_ENDIAN      - big-endian word order
-   PLATFORM_ARCH_LITTLE_ENDIAN   - big-endian word order
+   PLATFORM_ARCH_LITTLE_ENDIAN   - little-endian word order
      defined to positive value if CPU is known to have the indicated property, undef otherwise
  */
 
