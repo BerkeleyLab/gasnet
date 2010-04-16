@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2009/10/30 23:19:23 $
-# $Revision: 1.580 $
+#     $Date: 2010/04/16 23:09:52 $
+# $Revision: 1.580.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.580 $)
+AC_REVISION($Revision: 1.580.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1670,6 +1670,7 @@ GASNET_IF_ENABLED(force-posix-realtime,
   elif test -n "$enabled_gettimeofday" ; then
     AC_DEFINE(GASNETI_FORCE_GETTIMEOFDAY)
   elif test -n "$enabled_posix_realtime"; then
+    AC_SEARCH_LIBS(clock_gettime, [rt posix4])
     AC_DEFINE(GASNETI_FORCE_POSIX_REALTIME)
   fi
 GASNET_IF_ENABLED(force-yield-membars,
