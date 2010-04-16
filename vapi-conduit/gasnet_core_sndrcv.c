@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2009/10/19 02:13:05 $
- * $Revision: 1.245 $
+ *     $Date: 2010/04/16 23:32:50 $
+ * $Revision: 1.245.2.1 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -2388,7 +2388,7 @@ int gasnetc_get_rkey_index(const gasnetc_epid_t epid, uintptr_t start, size_t *l
   /* Compute in which region of the segment the address lies */
   index = (start - segbase) >> gasnetc_pin_maxsz_shift;
   gasneti_assert(index >= 0);
-  gasneti_assert(index < gasnetc_seg_reg_count);
+  gasneti_assert(index < gasnetc_max_regs);
 
   /* Now trim length to the end of the region */
 #if GASNET_ALIGNED_SEGMENTS
