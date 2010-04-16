@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_reqrep.c,v $
- *     $Date: 2009/04/02 00:03:22 $
- * $Revision: 1.40 $
+ *     $Date: 2010/04/16 22:41:00 $
+ * $Revision: 1.40.4.1 $
  * Description: AMMPI Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -194,8 +194,15 @@ static int sourceAddrToId(ep_t ep, en_t sourceAddr) {
 
 #define GET_PACKET_LENGTH(pbuf)                                       \
   (((char *)&pbuf->_Data[4*ACTUAL_NUM_ARGS(&pbuf->Msg) + pbuf->Msg.nBytes]) - ((char *)pbuf))
-#define PREDICT_PACKET_LENGTH(nArgs,nBytes)  /* conservative estimate of packet size */  \
+#define PREDICT_PACKET_LENGTH_(nArgs,nBytes)  /* conservative estimate of packet size */  \
   ((int)(uintptr_t)(char *)&(((ammpi_buf_t*)NULL)->_Data[4*(nArgs+1) + nBytes]))
+#if AMMPI_DEBUG
+  /* If we conservatively over-estimate too near the MAX, then we get an assertion failure */
+  #define PREDICT_PACKET_LENGTH(nArgs,nBytes) \
+      MIN(PREDICT_PACKET_LENGTH_(nArgs,nBytes),AMMPI_MAX_NETWORK_MSG)
+#else
+  #define PREDICT_PACKET_LENGTH(nArgs,nBytes) PREDICT_PACKET_LENGTH_(nArgs,nBytes)
+#endif
 #define GET_PACKET_DATA(pbuf)                                         \
   (&pbuf->_Data[4*ACTUAL_NUM_ARGS(&pbuf->Msg)])
 #define GET_PACKET_ARGS(pbuf)                                         \
