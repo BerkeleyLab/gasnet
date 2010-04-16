@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/04/16 23:09:52 $
-# $Revision: 1.580.2.1 $
+#     $Date: 2010/04/16 23:17:16 $
+# $Revision: 1.580.2.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.580.2.1 $)
+AC_REVISION($Revision: 1.580.2.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -535,7 +535,7 @@ case "$gasnet_cv_cc_family" in
   PGI) MISC_CFLAGS="-Masmkeyword -c9x -Msignextend";; # get inline assembly, restrict and sign-extended narrowing
   MTA) MISC_CFLAGS="-display_error_number -WS 111,174,238" ;;
   Sun) if test "$target_cpu" = "sparc"; then 
-         GASNET_GET_ULTRASPARC_FLAGS(C,["-xarch=v8plusb" "-xarch=v8plusa" "-xarch=v8plus"])
+         GASNET_GET_ULTRASPARC_FLAGS(C,["-xarch=v8plusb" "-xarch=v8plusa" "-xarch=v8plus" "-xarch=sparcvis2" "-xarch=sparcvis" "-xarch=sparc"])
        fi
        MISC_CFLAGS="$MISC_CFLAGS -errtags" ;; # show warning tag ids in warnings
   XLC) GASNET_GET_PPC64_FLAGS(C)
@@ -2022,7 +2022,7 @@ if test $enabled_udp = yes; then
       *) MISC_CXXFLAGS="$MISC_CXXFLAGS -qeh" ;;
      esac ;;
     Sun) if test "$target_cpu" = "sparc"; then 
-           GASNET_GET_ULTRASPARC_FLAGS(CXX,["-xarch=v8plusb" "-xarch=v8plusa" "-xarch=v8plus"])
+           GASNET_GET_ULTRASPARC_FLAGS(CXX,["-xarch=v8plusb" "-xarch=v8plusa" "-xarch=v8plus" "-xarch=sparcvis2" "-xarch=sparcvis" "-xarch=sparc"])
          fi
          CXXOPTFLAGS="-xO2" # Can we go higher to match "-xO5" of CCOPTFLAGS?
       ;;
