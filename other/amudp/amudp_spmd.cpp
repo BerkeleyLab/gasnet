@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.cpp,v $
- *     $Date: 2007/08/30 04:57:58 $
- * $Revision: 1.41 $
+ *     $Date: 2010/04/16 22:38:34 $
+ * $Revision: 1.41.30.1 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -889,7 +889,7 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
         try {
           masterAddr = SockAddr((uint32_t)DNSLookup(IPStr).IP(), (uint16_t)masterPort);
         } catch (xSocket &exn) {
-          AMUDP_RETURN_ERRFR(RESOURCE, "slave failed DNSLookup on master host name", exn.why());
+          AMUDP_RETURN_ERRFR(RESOURCE, AMUDP_SPMDStartup, "slave failed DNSLookup on master host name");
         }
         AMUDP_free(IPStr);
       }
