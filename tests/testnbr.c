@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testnbr.c,v $
- *     $Date: 2009/09/18 23:33:50 $
- * $Revision: 1.20 $
+ *     $Date: 2010/04/16 22:28:15 $
+ * $Revision: 1.20.2.1 $
  * Description: MG-like Neighbor exchange
  * Copyright 2005, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,7 +15,6 @@
 *************************************************************/
 
 #include "gasnet.h"
-#include "gasnet_handler.h"
 #include <math.h>
 uintptr_t maxsegmentsz;
 #ifndef TEST_SEGSZ
@@ -177,13 +176,11 @@ void	        ge_unpack(nbr_t *nb, double *src, size_t destp, int axis);
 void pairwise_signal_nbrs(nbr_t *nb, gasnet_handle_t *h_nbr, int axis_in, int phase);
 void pairwise_wait_nbrs  (nbr_t *nb, gasnet_handle_t *h_nbr, int axis_in, int phase);
 
-#define _hidx_ghostReqHandler 201
-#define _hidx_ghostRepHandler 202
+#define hidx_ghostReqHandler 201
 
-GASNETT_INLINE(ghostReqHandler_inner)
-void
-ghostReqHandler_inner(gasnet_token_t token, void *buf, size_t nbytes,
-	              int axis, int destp, int *flag)
+static
+void  ghostReqHandler(gasnet_token_t token, void *buf, size_t nbytes,
+	              int axis, int destp)
 {
     double *src = (double *)buf;
     int     face = (destp != 0);
@@ -195,30 +192,10 @@ ghostReqHandler_inner(gasnet_token_t token, void *buf, size_t nbytes,
 
     return;
 }
-LONG_HANDLER(ghostReqHandler,3,4,
-	     (token,addr,nbytes,a0,a1,UNPACK(a2)),
-	     (token,addr,nbytes,a0,a1,UNPACK2(a2,a3)));
-
-/*
- * This reply handler is currently unused.
- */
-GASNETT_INLINE(ghostRepHandler_inner)
-void
-ghostRepHandler_inner(gasnet_token_t token, volatile int *flag)
-{
-    *flag = 1;
-}
-SHORT_HANDLER(ghostRepHandler,1,2,
-	      (token, UNPACK(a0) ),
-	      (token, UNPACK2(a0,a1)));
 
 gasnet_handlerentry_t htable[] = {
-    gasneti_handler_tableentry_with_bits(ghostReqHandler),
-    gasneti_handler_tableentry_with_bits(ghostRepHandler),
+    { hidx_ghostReqHandler, ghostReqHandler }
 };
-
-void gam_amlong(nbr_t *nb, gasnet_node_t node, int axis, 
-	        int srcp, int destp, int *flag);
 
 #define init_stat \
   GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__), _init_stat
@@ -1299,8 +1276,7 @@ ge_put(nbr_t *nb, int type, int dir, int axis, int *flag)
 
     if (type == GHOST_TYPE_AMLONG) {
 	/* By now, send an AMLong with data */
-	LONGASYNC_REQ(3,4,(node,gasneti_handleridx(ghostReqHandler),src,len,dest,
-			   axis,destp,PACK(flag)));
+	GASNET_Safe(gasnet_AMRequestLongAsync2(node,hidx_ghostReqHandler,src,len,dest, axis,destp));
 	return GASNET_INVALID_HANDLE;
     }
     else {

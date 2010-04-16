@@ -981,17 +981,17 @@ void *thread_main(void *arg) {
     
     COLL_BARRIER();
 #if SINGLE_SINGLE_MODE_ENABLED || ALL_ADDR_MODE_ENABLED
-#if GASNET_ALIGNED_SEGMENTS
-      if(threads_per_node == 1) { 
+      if (!TEST_ALIGNED_SEGMENTS()) {
+        if(td->my_local_thread == 0 && !skip_msg_printed)
+          MSG0("Skipping SINGLE/SINGLE test (unaligned segments)");
+      } else if (threads_per_node != 1) { 
+	if(td->my_local_thread == 0 && !skip_msg_printed)
+          MSG0("skipping SINGLE/SINGLE test (multiple threads per node)");
+      } else {
 	for(size = 1; size<=max_data_size; size=size*2) {
 	  run_SINGLE_ADDR_test(td, all_dsts, all_srcs, size, root_thread, flags|GASNET_COLL_SINGLE);
 	}
-      } else {
-	if(td->my_local_thread == 0 && !skip_msg_printed) MSG0("skipping SINGLE/SINGLE test (multiple threads per node)");
       }
-#else
-      if(td->my_local_thread == 0 && !skip_msg_printed) MSG0("skipping SINGLE/SINGLE test (unaligned segments)");
-#endif
       skip_msg_printed =1;
 #endif
 

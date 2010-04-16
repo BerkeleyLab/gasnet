@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testslice.c,v $
- *     $Date: 2009/09/18 23:33:50 $
- * $Revision: 1.8 $
+ *     $Date: 2010/04/16 22:28:15 $
+ * $Revision: 1.8.2.1 $
  * Description: GASNet randomized get/put correctness validation test
  * Copyright 2007, Parry Husbands and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -109,8 +109,8 @@ int main(int argc, char **argv)
         /* Pick a starting point anywhere in the segment */
         int starting_point = TEST_RAND(0,(segsize-1));
 
-        local_base = TEST_SEG(0);
-        target_base = TEST_SEG(1);
+        local_base = TEST_SEG(myproc);
+        target_base = TEST_SEG(peerproc);
  
         for(j=0;j < inner_iterations;j++) {
           /* Pick a length */

@@ -119,16 +119,16 @@ void *thread_main(void *arg) {
     sync_node = myxml_createNode(temp, (char*)"sync_mode", (char*)"val", fill_flag_str(flags, buffer), NULL);
     /*do single addr tests*/
  
-    
-#if GASNET_ALIGNED_SEGMENTS
-    if(threads_per_node == 1) {
+    if (!TEST_ALIGNED_SEGMENTS()) {
+      if(td->mythread == 0 && !skip_msg_printed)
+        MSG0("Skipping SINGLE/SINGLE (unaligned segments)");
+    } else if(threads_per_node != 1) {
+      if(td->mythread == 0 && !skip_msg_printed)
+        MSG0("skipping SINGLE/SINGLE (multiple threads per node)");
+    } else {
       /*call the single address (coll single) test routines with testroot*/
       run_SINGLE_tree_tests(td, all_dsts, all_srcs, 0, flags | GASNET_COLL_SINGLE, sync_node);
-    } else {
-      if(td->mythread == 0 && !skip_msg_printed) MSG0("skipping SINGLE/SINGLE (multiple threads per node)");
     }
-#else
-    if(td->mythread == 0 && !skip_msg_printed) MSG0("skipping SINGLE/SINGLE (unaligned segments)");
 #endif
 
     if(threads_per_node == 1) {
@@ -141,7 +141,7 @@ void *thread_main(void *arg) {
     skip_msg_printed = 1;
     /*do multi addr tests*/
 
-#if GASNET_ALIGNED_SEGMENTS
+#if GASNET_ALIGNED_SEGMENTS /* Why this conditional? -PHH */
     if(threads_per_node > 1)
 #endif
     {
@@ -161,7 +161,7 @@ void *thread_main(void *arg) {
     FILE *outstream=fopen(outputfile, "w");
     myxml_printTreeBIN(outstream, tuning_root);
     fclose(outstream);
- //   myxml_printTreeXML(stdout, tuning_root, " ");
+ /*   myxml_printTreeXML(stdout, tuning_root, " "); */
     fflush(stdout);
     fflush(stdout);
   }
@@ -233,7 +233,7 @@ int main(int argc, char **argv) {
       strcpy(profile_file, argv[i+1]);
       i++;
     } else if(strcmp("-h", argv[i])==0 || strcmp("-help", argv[i])==0) {
-      if(gasneti_mynode == 0) printf("usage: %s (-i iters) (-f output file)\n", argv[0]);
+      MSG0("usage: %s (-i iters) (-f output file)\n", argv[0]);
       gasnet_exit(0);
     }
   }                    

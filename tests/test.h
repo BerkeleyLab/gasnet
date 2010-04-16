@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2009/10/25 04:50:39 $
- * $Revision: 1.134 $
+ *     $Date: 2010/04/16 22:28:15 $
+ * $Revision: 1.134.2.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -170,6 +170,7 @@ static void _test_makeErrMsg(const char *format, ...)) {
 static int _test_rand(int low, int high) {
   int result;
   assert(low <= high);
+  assert(low <= high+1); /* We will overflow otherwise */
   result = low+(int)(((double)(high-low+1))*rand()/(RAND_MAX+1.0));
   assert(result >= low && result <= high);
   return result;
@@ -393,7 +394,7 @@ GASNETT_IDENT(GASNetT_IdentString_HeapSz,
 #else
   GASNETT_IDENT(GASNetT_IdentString_PtrSz, "$UPCRSizeof: void_ptr=, $");
 #endif
-GASNETT_IDENT(GASNetT_IdentString_ABI, "$UPCRBinaryInterface: " GASNETI_SYSTEM_TUPLE " $");
+GASNETT_IDENT(GASNetT_IdentString_ABI, "$UPCRBinaryInterface: " GASNETT_SYSTEM_TUPLE " $");
 /* Ditto for Titanium tcrun */
 GASNETT_IDENT(GASNetT_TiBackend_IdentString, 
  "$TitaniumBackend: " TEST_TITANIUM_BACKEND " $");
@@ -416,6 +417,16 @@ GASNETT_IDENT(GASNetT_TiCompiler_IdentString,
   #else
     #define TEST_USE_PRIMORDIAL_THREAD 0
   #endif
+#endif
+#ifndef TEST_MAXTHREADS
+  #if defined(GASNETI_MAX_THREADS_CONFIGURE)
+    #define TEST_MAXTHREADS_SYSTEM GASNETI_MAX_THREADS_CONFIGURE
+  #elif defined(GASNETT_MAX_THREADS)
+    #define TEST_MAXTHREADS_SYSTEM GASNETT_MAX_THREADS
+  #else
+    #define TEST_MAXTHREADS_SYSTEM 256
+  #endif
+  #define TEST_MAXTHREADS (TEST_MAXTHREADS_SYSTEM + TEST_USE_PRIMORDIAL_THREAD - 1)
 #endif
 static void test_createandjoin_pthreads(int numthreads, void *(*start_routine)(void *), 
                                       void *threadarg_arr, size_t threadarg_elemsz) {
@@ -786,6 +797,29 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
 #endif
 
 #define TEST_MYSEG()          (TEST_SEG(gasnet_mynode()))
+
+/* ------------------------------------------------------------------------------------ */
+/* segment alignment */
+#if defined(GASNET_SEGMENT_EVERYTHING) || !GASNET_ALIGNED_SEGMENTS
+  static int TEST_ALIGNED_SEGMENTS(void) {
+    static volatile int is_aligned = -1;
+    if_pf (is_aligned < 0) {
+      int result = 1; /* Assume aligned until we find otherwise */
+      void *addr0 = _test_seginfo[0].addr;
+      gasnet_node_t i;
+      for (i = 1; i < gasnet_nodes(); i++) {
+        if (_test_seginfo[i].addr != addr0) {
+          result = 0;
+          break;
+        }
+      }
+      is_aligned = result;
+    }
+    return is_aligned;
+  }
+#else
+  #define TEST_ALIGNED_SEGMENTS() 1
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /* local process and thread count management */

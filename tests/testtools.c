@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testtools.c,v $
- *     $Date: 2009/04/06 02:58:54 $
- * $Revision: 1.95 $
+ *     $Date: 2010/04/16 22:28:15 $
+ * $Revision: 1.95.4.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,20 +16,17 @@
 #endif
 
 #ifdef HAVE_PTHREAD_H
-  #ifndef MAX_NUM_THREADS
-    #define MAX_NUM_THREADS 255
-  #endif
   int NUM_THREADS = 0;
-  gasnett_atomic_t thread_flag[MAX_NUM_THREADS];
-  int valX[MAX_NUM_THREADS];
-  int valY[MAX_NUM_THREADS];
-  gasnett_atomic_t atomicX[MAX_NUM_THREADS];
-  int32_t valX32[MAX_NUM_THREADS];
-  int32_t valY32[MAX_NUM_THREADS];
-  gasnett_atomic32_t atomicX32[MAX_NUM_THREADS];
-  int64_t valX64[MAX_NUM_THREADS];
-  int64_t valY64[MAX_NUM_THREADS];
-  gasnett_atomic64_t atomicX64[MAX_NUM_THREADS];
+  gasnett_atomic_t thread_flag[TEST_MAXTHREADS];
+  int valX[TEST_MAXTHREADS];
+  int valY[TEST_MAXTHREADS];
+  gasnett_atomic_t atomicX[TEST_MAXTHREADS];
+  int32_t valX32[TEST_MAXTHREADS];
+  int32_t valY32[TEST_MAXTHREADS];
+  gasnett_atomic32_t atomicX32[TEST_MAXTHREADS];
+  int64_t valX64[TEST_MAXTHREADS];
+  int64_t valY64[TEST_MAXTHREADS];
+  gasnett_atomic64_t atomicX64[TEST_MAXTHREADS];
 #endif
 
 #define DEFAULT_THREADS 10
@@ -106,7 +103,7 @@ int main(int argc, char **argv) {
   #ifdef HAVE_PTHREAD_H
     if (argc > 2) NUM_THREADS = atoi(argv[2]);
     if (NUM_THREADS < 1) NUM_THREADS = DEFAULT_THREADS;
-    if (NUM_THREADS > MAX_NUM_THREADS) NUM_THREADS = MAX_NUM_THREADS;
+    if (NUM_THREADS > TEST_MAXTHREADS) NUM_THREADS = TEST_MAXTHREADS;
   #else
     if (argc > 2 && atoi(argv[2]) != 1) { ERR("no pthreads - only one thread available."); test_usage(); }
   #endif
@@ -325,7 +322,7 @@ int main(int argc, char **argv) {
       ERR("incorrect return from gasnett_count0s_uint64_t(0)");
   }
 
-  TEST_HEADER("Testing local membar...")
+  TEST_HEADER("Testing local membars...")
   { /* local membar */
     int i;
     for (i=0;i<iters;i++) {
@@ -333,7 +330,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  TEST_HEADER("Testing local write membar...")
+  TEST_HEADER("Testing local write membars...")
   { /* local membar */
     int i;
     for (i=0;i<iters;i++) {
@@ -341,7 +338,7 @@ int main(int argc, char **argv) {
     }
   }
 
-  TEST_HEADER("Testing local read membar...")
+  TEST_HEADER("Testing local read membars...")
   { /* local membar */
     int i;
     for (i=0;i<iters;i++) {
@@ -922,6 +919,7 @@ void * thread_fn(void *arg) {
 
       valX[id] = 0;
       valY[id] = 0;
+
       THREAD_BARRIER();
       for (i=0;i<iters2;i++) {
         valX[id] = i;
@@ -933,6 +931,10 @@ void * thread_fn(void *arg) {
         lx = valX[partner];
         if (BIGGER(lx,ly)) ERR("mismatch in gasnett_local_wmb/gasnett_local_rmb test: lx=%u ly=%u", lx, ly);
       }
+      THREAD_BARRIER();
+
+      valX[id] = 0;
+      valY[id] = 0;
 
       THREAD_BARRIER();
       for (i=0;i<iters2;i++) {
@@ -945,6 +947,7 @@ void * thread_fn(void *arg) {
         lx = valX[partner];
         if (BIGGER(lx,ly)) ERR("mismatch in gasnett_local_mb/gasnett_local_mb test: lx=%u ly=%u", lx, ly);
       }
+      THREAD_BARRIER();
     }
   }
 

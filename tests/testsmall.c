@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testsmall.c,v $
- *     $Date: 2009/08/02 03:51:44 $
- * $Revision: 1.44 $
+ *     $Date: 2010/04/16 22:28:15 $
+ * $Revision: 1.44.2.1 $
  * Description: GASNet non-bulk get/put performance test
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet gets and puts
@@ -482,7 +482,7 @@ int main(int argc, char **argv)
     GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
     test_init("testsmall",1, "[options] (iters) (maxsz) (test_sections)\n"
                "  The 'in' or 'out' option selects whether the initiator-side\n"
-               "   memory is in the GASNet segment or not (default it not).\n"
+               "   memory is in the GASNet segment or not (default is not).\n"
                "  The -p/-g option selects puts only or gets only (default is both).\n"
                "  The -s option skips warm-up iterations\n"
                "  The -m option enables MB/sec units for bandwidth output (MB=2^20 bytes).\n"

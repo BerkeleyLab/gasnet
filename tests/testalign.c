@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testalign.c,v $
- *     $Date: 2006/10/18 02:43:13 $
- * $Revision: 1.18 $
+ *     $Date: 2010/04/16 22:28:15 $
+ * $Revision: 1.18.42.1 $
  * Description: GASNet get/put alignment-sensitivity test
  *   measures flood throughput of GASNet gets and puts
  *   over varying payload alignments and fixed payload size
@@ -253,7 +253,7 @@ int main(int argc, char **argv)
     test_init("testalign", 1,
                "[-in|-out] (iters) (size)\n"
                "  The 'in' or 'out' option selects whether the initiator-side\n"
-               "  memory is in the GASNet segment or not (default it not).\n"
+               "  memory is in the GASNet segment or not (default is not).\n"
                "  The -m option enables MB/sec units for bandwidth output (MB=2^20 bytes).");
     
     /* parse arguments */
