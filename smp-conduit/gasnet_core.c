@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/18 23:33:46 $
- * $Revision: 1.51 $
+ *     $Date: 2010/04/16 23:26:36 $
+ * $Revision: 1.51.2.1 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -188,7 +188,9 @@ static void gasnetc_fork_children(void) {
       gasneti_free((void*)gasnetc_child_tbl);
       gasneti_mynode = i; 
       if (gasneti_mynode != 0) {
-        (void)freopen("/dev/null", "r", stdin);
+        if (freopen("/dev/null", "r", stdin) != stdin) {
+          gasneti_fatalerror("GASNet node %d failed to redirect STDIN", i);
+        }
       }
       return;
     }
@@ -196,7 +198,11 @@ static void gasnetc_fork_children(void) {
 
   /* If I get here I am the parent and NOT a gasnet application process */
 
-  (void)freopen("/dev/null", "r", stdin);
+  if (freopen("/dev/null", "r", stdin) != stdin) {
+    gasnetc_signal_job(SIGTERM);
+    gasneti_fatalerror("Master process failed to redirect STDIN");
+  }
+
   gasneti_registerSignalHandlers(gasnetc_exit_sighand);
   gasneti_reghandler(SIGALRM, gasnetc_exit_sighand);
   gasneti_reghandler(SIGCHLD, SIG_DFL);
