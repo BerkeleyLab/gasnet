@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2010/04/16 23:26:36 $
- * $Revision: 1.51.2.1 $
+ *     $Date: 2010/04/16 23:32:19 $
+ * $Revision: 1.51.2.2 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -602,6 +602,11 @@ static void gasnetc_atexit(void) {
 extern void gasnetc_exit(int exitcode) {
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   gasneti_reghandler(SIGQUIT, SIG_IGN);
+
+#if GASNET_PSHM
+  /* same goes for the remote exit signal */
+  gasneti_reghandler(GASNETC_REMOTEEXIT_SIGNAL, SIG_IGN);
+#endif
 
   {  /* ensure only one thread ever continues past this point */
     static gasneti_mutex_t exit_lock = GASNETI_MUTEX_INITIALIZER;
