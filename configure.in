@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/04/16 23:35:22 $
-# $Revision: 1.580.2.5 $
+#     $Date: 2010/04/16 23:46:10 $
+# $Revision: 1.580.2.6 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.580.2.5 $)
+AC_REVISION($Revision: 1.580.2.6 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -704,60 +704,28 @@ GASNET_WITH(segment-mmap-max,
       *) AC_MSG_ERROR(Illegal value for --with-segment-mmap-max=$withval) ;;
     esac])
 
+dnl GASNET_GET_PLATFORM_ID(CCVAR, opt compiler-desc)
+dnl probe a compiler for version information
+AC_DEFUN([GASNET_GET_PLATFORM_COMPILER], [
+  GASNET_TRY_CACHE_EXTRACT_$4($2 for PLATFORM_COMPILER_$3, PLATFORM_$1_$3,
+    [ #include "portable_platform.h" ], [ PLATFORM_COMPILER_$3 ], GASNETI_PLATFORM_$1_$3)
+  AC_DEFINE_UNQUOTED(GASNETI_PLATFORM_$1_$3,
+                     ifelse([$4],[STR],["$GASNETI_PLATFORM_$1_$3"],[$GASNETI_PLATFORM_$1_$3]))
+])
+AC_DEFUN([GASNET_GET_PLATFORM_ID], [
+  GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other")
+  GASNET_GET_PLATFORM_COMPILER([$1],[$2],[IDSTR],[STR])
+  GASNET_GET_PLATFORM_COMPILER([$1],[$2],[FAMILYID],[EXPR])
+  GASNET_GET_PLATFORM_COMPILER([$1],[$2],[ID],[EXPR])
+  GASNET_GET_PLATFORM_COMPILER([$1],[$2],[VERSION],[EXPR])
+  GASNET_POPVAR(CPPFLAGS)
+])
+
 GASNET_LIBGCC
 GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CPPFLAGS $MISC_CFLAGS")
-GASNET_CHECK_RESTRICT
-GASNET_CHECK_GCC_ATTRIBUTE([__always_inline__],
-            [__attribute__((__always_inline__)) int dummy(void) { return 1; }])
-GASNET_CHECK_GCC_ATTRIBUTE([__noinline__],
-            [__attribute__((__noinline__)) int dummy(void) { return 1; }])
-GASNET_CHECK_GCC_ATTRIBUTE([__malloc__],
-            [#include <stdlib.h>
-	     __attribute__((__malloc__)) void * dummy(void) { return malloc(14); }])
-GASNET_CHECK_GCC_ATTRIBUTE([__warn_unused_result__],
-            [__attribute__((__warn_unused_result__)) void * dummy(void) { return 0; }])
-GASNET_CHECK_GCC_ATTRIBUTE([__used__],
-            [#include <stdlib.h>
-	     __attribute__((__used__)) void dummy(void) { abort(); }])
-GASNET_CHECK_GCC_ATTRIBUTE([__unused__],
-            [void dummy(void) { __attribute__((__unused__)) int pointless; return; }])
-GASNET_CHECK_GCC_ATTRIBUTE([__may_alias__],
-            [typedef int __attribute__((__may_alias__)) dummy;])
-GASNET_CHECK_GCC_ATTRIBUTE([__noreturn__],
-            [#include <stdlib.h>
-	     __attribute__((__noreturn__)) void dummy(void) { abort(); }])
-GASNET_CHECK_GCC_ATTRIBUTE([__const__],
-            [__attribute__((__const__)) int dummy(int x) { return x+1; }])
-GASNET_CHECK_GCC_ATTRIBUTE([__pure__],
-            [__attribute__((__pure__)) int dummy(int x) { return x+1; }])
-GASNET_CHECK_GCC_ATTRIBUTE([__format__],
-            [__attribute__((__format__ (__printf__, 1, 2))) void dummy(const char *fmt,...) { }])
-
-AC_MSG_CHECKING(for __attribute__((__format__)) on function pointers)
-GASNET_TRY_CCOMPILE_WITHWARN([
-    __attribute__((__format__ (__printf__, 1, 2))) extern void (*dummy)(const char *fmt,...);
-    ], [], [
-      AC_MSG_RESULT(yes)
-      AC_DEFINE(GASNETI_HAVE_GCC_ATTRIBUTE_FORMAT_FUNCPTR)
-    ],[ AC_MSG_RESULT([no/warning]) ],[ AC_MSG_RESULT([no/error]) 
-])
-
-GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other")
-AC_DEFUN([GASNET_GET_PLATFORM_COMPILER], [
-  GASNET_TRY_CACHE_EXTRACT_$2(PLATFORM_COMPILER_$1, PLATFORM_COMPILER_$1,
-    [ #include "portable_platform.h" ], [ PLATFORM_COMPILER_$1 ], GASNETI_PLATFORM_COMPILER_$1)
-  if test "$2" = "STR" ; then
-    AC_DEFINE_UNQUOTED(GASNETI_PLATFORM_COMPILER_$1,"$GASNETI_PLATFORM_COMPILER_$1")
-  else
-    AC_DEFINE_UNQUOTED(GASNETI_PLATFORM_COMPILER_$1,$GASNETI_PLATFORM_COMPILER_$1)
-  fi
-])
-GASNET_GET_PLATFORM_COMPILER([IDSTR],[STR])
-GASNET_GET_PLATFORM_COMPILER([FAMILYID],[EXPR])
-GASNET_GET_PLATFORM_COMPILER([ID],[EXPR])
-GASNET_GET_PLATFORM_COMPILER([VERSION],[EXPR])
-GASNET_POPVAR(CPPFLAGS)
-
+GASNET_CHECK_RESTRICT([GASNETI_CC])
+GASNET_GET_GNU_ATTRIBUTES([GASNETI_HAVE_CC])
+GASNET_GET_PLATFORM_ID([COMPILER])
 GASNET_POPVAR(CFLAGS)
 
 ########################################################################
@@ -2072,6 +2040,11 @@ if test $enabled_udp = yes; then
        else return 2;
      }
   ], [ "I can\'t figure out how to build and run a program that uses C++ exceptions" ] )  
+
+  GASNET_CHECK_RESTRICT([GASNETI_CXX],[C++ compiler])
+  GASNET_GET_GNU_ATTRIBUTES([GASNETI_HAVE_CXX],[C++ compiler])
+  GASNET_GET_PLATFORM_ID([CXX],[C++ compiler])
+
   GASNET_POPVAR(CXXFLAGS)
   GASNET_POPVAR(LDFLAGS)
   GASNET_POPVAR(LIBS)
@@ -2342,6 +2315,13 @@ _GASNET_EOF
            MPI_LIBS="$MPI_LIBS -lgcc_eh"
       ], [ mpi_test_worked=no GASNET_ERR_SAVE() ] )
     fi
+
+    if test "$mpi_test_worked" = yes ; then
+      GASNET_CHECK_RESTRICT([GASNETI_MPI_CC],[MPI_CC])
+      GASNET_GET_GNU_ATTRIBUTES([GASNETI_HAVE_MPI_CC],[MPI_CC])
+      GASNET_GET_PLATFORM_ID([MPI_CC],[MPI_CC])
+    fi
+
     GASNET_POPVAR(CC)
     GASNET_POPVAR(CFLAGS)
     GASNET_POPVAR(CPPFLAGS)
