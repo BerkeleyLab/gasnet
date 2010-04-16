@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_diagnostic.c,v $
- *     $Date: 2009/09/18 23:33:23 $
- * $Revision: 1.28 $
+ *     $Date: 2010/04/16 23:11:18 $
+ * $Revision: 1.28.2.1 $
  * Description: GASNet internal diagnostics
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -191,8 +191,11 @@ static void malloc_test(int id) {
   int maxobjs;
   void **ptrs;
   gasneti_heapstats_t stats_before, stats_after;
-  for (i=0; i < 100; i++) { /* try to trigger any warm-up allocations potentially caused by barrier */
-    PTHREAD_BARRIER(num_threads);
+
+  /* try to trigger any warm-up allocations potentially caused by barrier */
+  for (i=0; i < num_threads; i++) {
+    if (i == id) BARRIER(); /* each thread gets a chance */
+    PTHREAD_LOCALBARRIER(num_threads);
   }
 
   if (!id) gasneti_getheapstats(&stats_before);
