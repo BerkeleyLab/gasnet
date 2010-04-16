@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/04/16 23:31:08 $
-# $Revision: 1.580.2.4 $
+#     $Date: 2010/04/16 23:35:22 $
+# $Revision: 1.580.2.5 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.580.2.4 $)
+AC_REVISION($Revision: 1.580.2.5 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1177,7 +1177,7 @@ GASNET_IF_DISABLED([aligned-segments],
 		   [GASNETI_DISABLE_ALIGNED_SEGMENTS=1
 		    AC_DEFINE(GASNETI_DISABLE_ALIGNED_SEGMENTS)],
 		   [RVMFILE="/proc/sys/kernel/randomize_va_space"
-		    if test "$enabled_pshm" = no && test -f $RVMFILE && test "`cat $RVMFILE`" = "1" ; then
+		    if test "$enabled_pshm" = no && test -f $RVMFILE && test "`cat $RVMFILE`" != "0" ; then
 WMSG="$RVMFILE on this node indicates the Linux VM space randomization \
 security feature is enabled. If this feature is also enabled on the compute \
 nodes, you need to re-run configure with --disable-aligned-segments"
