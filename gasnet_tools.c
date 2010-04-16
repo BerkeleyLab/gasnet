@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2010/04/16 23:13:03 $
- * $Revision: 1.244.2.1 $
+ *     $Date: 2010/04/16 23:19:40 $
+ * $Revision: 1.244.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -687,6 +687,23 @@ extern void gasneti_freezeForDebuggerErr(void) {
 /* ------------------------------------------------------------------------------------ */
 /* Dynamic backtrace support */
 
+/* Prefix a string with the CWD, unless already fully qualified.
+ * path_out must have size at least PATH_MAX.
+ * Also used by gasnet_trace.c
+ */
+extern void gasneti_qualify_path(char *path_out, const char *path_in) {
+  if (path_in[0] == '/' || path_in[0] == '\\') {
+    path_out[0] = '\0';
+  } else {
+    if (getcwd(path_out, PATH_MAX)) {
+      strcat(path_out,"/");
+    } else {
+      strcpy(path_out,"/GETCWD_FAILED/");
+    }
+  }
+  strcat(path_out, path_in);
+}
+
 /* All configure-detected backtrace mechanisms available */
 #if HAVE_BACKTRACE
   #define GASNETI_BT_EXECINFO	&gasneti_bt_execinfo
@@ -710,6 +727,16 @@ extern void gasneti_freezeForDebuggerErr(void) {
   #define GASNETI_BT_PGDBG	&gasneti_bt_pgdbg
 #endif
 
+/* Because some glibc headers annotate nearly all system calls
+ * with "__attribute__ ((__warn_unused_result__))", we need to
+ * do "something" with return values to avoid gcc warnings.
+ * Since here in the backtrace code we are dealing with handling
+ * of a (presumed fatal) error case, we can't really deal with
+ * most errors in any intelligent way.
+ * This is a stupid hack to deal with this.
+ */
+static int gasneti_bt_rc_unused;
+
 #if !GASNETI_NO_FORK
 /* Execute system w/ stdout redirected to 'fd' and std{in,err} to /dev/null */
 static int gasneti_system_redirected(const char *cmd, int stdout_fd) {
@@ -717,8 +744,10 @@ static int gasneti_system_redirected(const char *cmd, int stdout_fd) {
   int saved_stdin, saved_stdout, saved_stderr;
   off_t beginpos, endpos;
 
-  write(stdout_fd, cmd, strlen(cmd));
-  write(stdout_fd, "\n", 1);
+
+  /* XXX: what if the following two writes fail? */
+  gasneti_bt_rc_unused = write(stdout_fd, cmd, strlen(cmd));
+  gasneti_bt_rc_unused = write(stdout_fd, "\n", 1);
 
   beginpos = lseek(stdout_fd, 0, SEEK_CUR); /* fetch current position */
 
@@ -770,7 +799,7 @@ static int gasneti_system_redirected_coprocess(const char *cmd, int stdout_fd) {
     if (!fork()) { /* the child - debugger co-process launcher */
       int retval = gasneti_system_redirected(cmd, tmpfd);
       if (retval) { /* system call failed - nuke the output */
-        ftruncate(tmpfd, 0);
+        gasneti_bt_rc_unused = ftruncate(tmpfd, 0);
       } 
       gasneti_filesystem_sync(); /* flush output */
       kill(parentpid, GASNETI_UNFREEZE_SIGNAL); /* signal the parent of completion */
@@ -810,7 +839,11 @@ static int gasneti_system_redirected_coprocess(const char *cmd, int stdout_fd) {
 }
 #endif
 
+#if (PATH_MAX < 1024)
 #define GASNETI_BT_PATHSZ 1024 /* OpenBSD warns if this is smaller than 1024 */
+#else
+#define GASNETI_BT_PATHSZ PATH_MAX
+#endif
 
 static char gasneti_exename_bt[GASNETI_BT_PATHSZ];
 
@@ -969,9 +1002,10 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
         }
       #endif
       sprintf(linebuf, "%i: %s ", i, (fnnames?fnnames[i]:""));
-      write(fd, linebuf, strlen(linebuf));
-      write(fd, xlstr, strlen(xlstr));
-      write(fd, "\n", 1);
+      /* XXX: what if these write()s fail? */
+      gasneti_bt_rc_unused = write(fd, linebuf, strlen(linebuf));
+      gasneti_bt_rc_unused = write(fd, xlstr, strlen(xlstr));
+      gasneti_bt_rc_unused = write(fd, "\n", 1);
     }
     /* if (fnnames) free(fnnames); */
     return 0;
@@ -1014,11 +1048,8 @@ const char *(*gasneti_backtraceid_fn)(void); /* allow client override of backtra
 gasnett_backtrace_type_t gasnett_backtrace_user; /* allow client provided backtrace function */
 extern void gasneti_backtrace_init(const char *exename) {
   static int user_is_init = 0;
-  char tmp[GASNETI_BT_PATHSZ];
-  if (exename[0] == '/' || exename[0] == '\\') tmp[0] = '\0';
-  else { getcwd(tmp, sizeof(tmp)); strcat(tmp,"/"); }
-  strcat(tmp, exename);
-  strcpy(gasneti_exename_bt,tmp);
+
+  gasneti_qualify_path(gasneti_exename_bt, exename);
 
   gasneti_backtrace_userenabled = gasneti_getenv_yesno_withdefault("GASNET_BACKTRACE",0);
 
@@ -1132,7 +1163,8 @@ extern int gasneti_print_backtrace(int fd) {
 	  GASNETT_TRACE_PRINTF_FORCE("========== BEGIN BACKTRACE ==========");
 	  rewind(file);
 	  while (fgets(p, len, file)) {
-	    write(fd, linebuf, strlen(linebuf)); /* w/ node prefix */
+            /* XXX: what if this write() fails? */
+            gasneti_bt_rc_unused = write(fd, linebuf, strlen(linebuf)); /* w/ node prefix */
             GASNETT_TRACE_PRINTF_FORCE("%s",p);/* w/o node prefix */
 	  }
 	  GASNETT_TRACE_PRINTF_FORCE("========== END BACKTRACE ==========");

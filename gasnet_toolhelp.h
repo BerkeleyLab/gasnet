@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_toolhelp.h,v $
- *     $Date: 2009/10/02 22:11:51 $
- * $Revision: 1.52 $
+ *     $Date: 2010/04/16 23:19:40 $
+ * $Revision: 1.52.2.1 $
  * Description: misc declarations needed by both gasnet_tools and libgasnet
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,6 +22,11 @@
    struct timespec; /* avoid an annoying warning on Linux */
   #endif
   #include <pthread.h>
+#endif
+
+#include <limits.h>
+#ifndef PATH_MAX
+  #define PATH_MAX 1024
 #endif
 
 #ifndef STDIN_FILENO
@@ -137,6 +142,7 @@ GASNETI_NORETURNP(gasneti_killmyprocess)
 extern void gasneti_freezeForDebuggerErr(void); /* freeze iff user enabled error freezing */
 extern void gasneti_freezeForDebuggerNow(volatile int *flag, const char *flagsymname);
 extern volatile int gasnet_frozen; /* export to simplify debugger restart */ 
+extern void gasneti_qualify_path(char *path_out, const char *path_in);
 extern void gasneti_backtrace_init(const char *exename);
 extern int (*gasneti_print_backtrace_ifenabled)(int fd);
 extern int gasneti_print_backtrace(int fd);

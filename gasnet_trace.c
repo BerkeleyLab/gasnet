@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.c,v $
- *     $Date: 2009/08/15 01:19:41 $
- * $Revision: 1.139 $
+ *     $Date: 2010/04/16 23:19:40 $
+ * $Revision: 1.139.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -629,7 +629,7 @@ extern void gasneti_trace_updatemask(const char *newmask, char *maskstr, char *t
   }
 }
 
-char gasneti_exename[1024];
+char gasneti_exename[PATH_MAX];
 static const char *gasneti_mallocreport_filename = NULL;
 
 extern void gasneti_trace_init(int *pargc, char ***pargv) {
@@ -638,9 +638,7 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
   /* ensure the arguments have been decoded */
   gasneti_decode_args(pargc, pargv); 
 
-  if ((*pargv)[0][0] == '/' || (*pargv)[0][0] == '\\') gasneti_exename[0] = '\0';
-  else { getcwd(gasneti_exename, sizeof(gasneti_exename)); strcat(gasneti_exename,"/"); }
-  strcat(gasneti_exename, (*pargv)[0]);
+  gasneti_qualify_path(gasneti_exename, (*pargv)[0]);
 
  #if GASNETI_STATS_OR_TRACE
   starttime = gasneti_ticks_now();
