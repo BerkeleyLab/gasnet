@@ -40,7 +40,7 @@ HOST_CXXFLAGS='' ; export HOST_CXXFLAGS
 MPI_CC="$CC" ; export MPI_CC     # MPI-enabled C compiler
 #MPI_CFLAGS='' ; export MPI_CFLAGS  # flags for MPI_CC
 MPI_LIBS='' ; export MPI_LIBS      # libs for linking with MPI_CC
-MPIRUN_CMD='aprun -n %N %C' ; export MPIRUN_CMD  # launch command for MPI jobs
+MPIRUN_CMD="${APRUN:-aprun} -n %N %C" ; export MPIRUN_CMD  # launch command for MPI jobs
 if test -f /usr/include/nptl/pthread.h -a -d /usr/lib64/nptl ; then # PE <= 2.0 use a patched version of NPTL
   NPTL_PTHREAD_ARGS='--enable-pthreads --with-pthreads-lib=/usr/lib64/nptl --with-pthreads-include=/usr/include/nptl --with-pthreads-patch=other/contrib/crayxt-nptl-pthread-patch'
 else
