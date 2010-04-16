@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2009/09/21 02:30:05 $
-dnl $Revision: 1.137 $
+dnl     $Date: 2010/04/16 23:08:18 $
+dnl $Revision: 1.137.2.1 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -186,7 +186,7 @@ dnl do AC_CHECK_SIZEOF and also AC_SUBST the result, second arg is optional pref
 AC_DEFUN([GASNET_CHECK_SIZEOF],[
   GASNET_FUN_BEGIN([$0($1,$2)])
   pushdef([typename],patsubst(patsubst([$1], [\ ], [_]), [\*], [p]))
-  pushdef([barename],translit(sizeof_[]typename,'A-Z','a-z'))
+  pushdef([barename],sizeof_[]typename)
   pushdef([lowername],translit($2[]barename,'A-Z','a-z'))
   pushdef([uppername],translit($2[]barename,'a-z','A-Z'))
 
