@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/09/21 03:14:50 $
- * $Revision: 1.40 $
+ *     $Date: 2010/04/16 23:05:34 $
+ * $Revision: 1.40.2.1 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -47,8 +47,12 @@ static void gasnetc_check_config(void) {
       (GASNETC_CHUNKSIZE%GASNETC_BYTES_PER_CREDIT?1:0);
     gasneti_assert_always(GASNETC_MIN_CREDITS == mincred);
   }
-  /* Medium header data: max of 15 args plus 8-byte alignment pad  = 16*4 */
+  /* Medium header data: max of 16 args + optional seq no + 8-byte alignment = 16*4 or 18*4 */
+#if GASNET_DEBUG
+  gasneti_assert_always(gasnet_AMMaxMedium() == (GASNETC_CHUNKSIZE - 18*4));
+#else
   gasneti_assert_always(gasnet_AMMaxMedium() == (GASNETC_CHUNKSIZE - 16*4));
+#endif
 }
 
 static int gasnetc_init(int *argc, char ***argv) {
