@@ -1,6 +1,6 @@
 GASNet inter-Process SHared Memory (PHSM) design
 ---------------------------------------------
-$Revision: 1.2 $
+$Revision: 1.2.2.1 $
 
 Document by:
     Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -154,7 +154,11 @@ Status:
     - Linux 2.6/ppc64     smp
     - AIX 5.3/ppc64       smp
     - Solaris 10/SPARC64  smp, udp
-    - Solaris 10/i686     smp
+    - Solaris 10/x86      smp
+    - Solaris 10/x64      smp
+    - OpenSolaris/x86     smp
+    - OpenSolaris/x64     smp
+    - FreeBSD 8/i386      smp
     - FreeBSD 8/amd64     smp
   We have no reason to think that any conduit listed above would NOT support
   PSHM on any OS/cpu above (assuming the conduit works on that platform at all).
