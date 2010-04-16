@@ -171,8 +171,12 @@ $(top_builddir)/other/Makefile-libgasnet.mak: $(top_srcdir)/other/Makefile-libga
 
 @GNU_NM_TRUE@check-exports: $(libraries)
 @GNU_NM_TRUE@	@echo Checking libgasnet exports...
-@GNU_NM_TRUE@	@for lib in $(libraries) ; do                                               \
-@GNU_NM_TRUE@	  failed=0 ;                                                                \
+@GNU_NM_TRUE@	@if test x$(CHECK_EXPORTS) = x0; then                                       \
+@GNU_NM_TRUE@	  echo Skipped by user request ;                                            \
+@GNU_NM_TRUE@	  exit 0 ;                                                                  \
+@GNU_NM_TRUE@	 fi ;                                                                       \
+@GNU_NM_TRUE@	 failed=0 ;                                                                 \
+@GNU_NM_TRUE@	 for lib in $(libraries) ; do                                               \
 @GNU_NM_TRUE@	  echo ;                                                                    \
 @GNU_NM_TRUE@	  echo $$lib: ;                                                             \
 @GNU_NM_TRUE@	  @NM@ --defined-only $$lib |                                               \
