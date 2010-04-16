@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_internal.h,v $
- *     $Date: 2009/03/30 02:40:45 $
- * $Revision: 1.35 $
+ *     $Date: 2010/04/16 22:39:30 $
+ * $Revision: 1.35.4.1 $
  * Description: AMUDP internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -244,11 +244,15 @@ static const char *AMUDP_ErrorDesc(int errval) {
 }
 //------------------------------------------------------------------------------------
 /* macros for returning errors that allow verbose error tracking */
+static const char *AMUDP_curr_function(const char *arg) {
+  /* hides a constant expression from compilers that whine about them */
+  return arg ? arg : "";
+}
 #define AMUDP_RETURN_ERR(type) do {                                        \
     if (AMUDP_VerboseErrors) {                                             \
       fprintf(stderr, "AMUDP %s returning an error code: AM_ERR_%s (%s)\n" \
         "  at %s:%i\n"                                                     \
-        ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")                          \
+        , AMUDP_curr_function(__CURR_FUNCTION)                             \
         , #type, AMUDP_ErrorDesc(AM_ERR_##type), __FILE__, __LINE__);      \
       fflush(stderr);                                                      \
     }                                                                      \
@@ -259,7 +263,7 @@ static const char *AMUDP_ErrorDesc(int errval) {
       fprintf(stderr, "AMUDP %s returning an error code: AM_ERR_%s (%s)\n"     \
         "  from function %s\n"                                                 \
         "  at %s:%i\n"                                                         \
-        ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")                              \
+        , AMUDP_curr_function(__CURR_FUNCTION)                                 \
         , #fromfn, #type, AMUDP_ErrorDesc(AM_ERR_##type), __FILE__, __LINE__); \
       fflush(stderr);                                                          \
     }                                                                          \
@@ -271,7 +275,7 @@ static const char *AMUDP_ErrorDesc(int errval) {
         "  from function %s\n"                                                         \
         "  at %s:%i\n"                                                                 \
         "  reason: %s\n"                                                               \
-        ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")                                      \
+        , AMUDP_curr_function(__CURR_FUNCTION)                                         \
         , #type, AMUDP_ErrorDesc(AM_ERR_##type), #fromfn, __FILE__, __LINE__, reason); \
       fflush(stderr);                                                                  \
     }                                                                                  \
@@ -282,7 +286,7 @@ static const char *AMUDP_ErrorDesc(int errval) {
   if (AMUDP_VerboseErrors && val != AM_OK) {                             \
     fprintf(stderr, "AMUDP %s returning an error code: %s (%s)\n"        \
       "  at %s:%i\n"                                                     \
-      ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")                          \
+      , AMUDP_curr_function(__CURR_FUNCTION)                             \
       , AMUDP_ErrorName(val), AMUDP_ErrorDesc(val), __FILE__, __LINE__); \
     fflush(stderr);                                                      \
   }                                                                      \
@@ -328,7 +332,7 @@ static const char *AMUDP_ErrorDesc(int errval) {
   #define AMUDP_assert(expr)                                \
     (PREDICT_TRUE(expr) ? (void)0 :                         \
       AMUDP_FatalErr("Assertion failure at %s %s:%i: %s\n", \
-        (__CURR_FUNCTION ? __CURR_FUNCTION : ""), __FILE__, __LINE__, #expr))
+        AMUDP_curr_function(__CURR_FUNCTION), __FILE__, __LINE__, #expr))
 #endif
 
 extern const char *sockErrDesc();
