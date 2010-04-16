@@ -1,7 +1,7 @@
 # @configure_input@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/perlstart.in,v $
-#     $Date: 2008/12/22 06:07:19 $
-# $Revision: 1.17 $
+#     $Date: 2010/04/16 23:16:02 $
+# $Revision: 1.17.8.1 $
 # Description: 
 # Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -102,7 +102,7 @@ export PERLSTART_FLAGS
 # esp when manipulating binary strings -- so we force it all to be turned off
 LC_ALL=C
 export LC_ALL
-LANG=en_US
+LANG=@GASNET_PERL_LANG@
 export LANG
 
 exec $perl $PERLSTART_FLAGS "${scriptname}.pl" "$@"

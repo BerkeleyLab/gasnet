@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2010/04/16 23:08:18 $
-dnl $Revision: 1.137.2.1 $
+dnl     $Date: 2010/04/16 23:15:58 $
+dnl $Revision: 1.137.2.2 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -1779,6 +1779,7 @@ GASNET_FUN_END([$0])
 dnl find working version of perl.  Checks to see if 'bytes' module is available,
 dnl and sets GASNET_PERL_BYTESFLAG to either '-Mbytes' or empty string, for
 dnl scripts that need to ward off Perl/UTF-8 issues 
+dnl similiarly determines if LANG=en_US is available, setting GASNET_PERL_LANG
 AC_DEFUN([GASNET_PROG_PERL],[
   GASNET_FUN_BEGIN([$0])
   GASNET_PATH_PROGS(PERL, perl5 perl, perl)
@@ -1795,6 +1796,12 @@ AC_DEFUN([GASNET_PROG_PERL],[
     GASNET_PERL_BYTESFLAG=
   fi
   AC_SUBST(GASNET_PERL_BYTESFLAG)
+  if test -n "`env LC_ALL=en_US LANG=en_US $PERL -e 'exit 0' 2>&1 | grep locale`"; then
+    GASNET_PERL_LANG=C
+  else
+    GASNET_PERL_LANG=en_US
+  fi
+  AC_SUBST(GASNET_PERL_LANG)
   GASNET_FUN_END([$0])
 ])
 
