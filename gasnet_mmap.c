@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2009/10/22 20:15:22 $
- * $Revision: 1.67 $
+ *     $Date: 2010/04/16 23:14:23 $
+ * $Revision: 1.67.2.1 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,7 +15,13 @@
 #include <fcntl.h>
 
 #ifdef HAVE_MMAP
-#include <sys/mman.h>
+ #if GASNET_PSHM && !defined(_POSIX_C_SOURCE) && PLATFORM_OS_SOLARIS
+  #define _POSIX_C_SOURCE 200112L /* Required for shm_{open,unlink} decls */
+  #include <sys/mman.h>
+  #undef _POSIX_C_SOURCE
+ #else
+  #include <sys/mman.h>
+ #endif
 
 #if PLATFORM_OS_IRIX
   #ifdef MAP_SGI_ANYADDR /* allow mmap to use 'reserved' 256MB region on O2k */
