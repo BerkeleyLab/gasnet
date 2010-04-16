@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2010/04/16 23:46:10 $ */
-/*  $Revision: 1.144.2.1 $ */
+/*      $Date: 2010/04/16 23:58:25 $ */
+/*  $Revision: 1.144.2.2 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -155,6 +155,9 @@
 #undef HAVE_ISASCII_DECL
 #undef HAVE_TOASCII_DECL
 
+/* ctype.h needs wrappers */
+#undef GASNETI_NEED_CTYPE_WRAPPERS
+
 /* Forbidden to use fork(), popen() and system()? */
 #undef GASNETI_NO_FORK
 
@@ -207,6 +210,9 @@
 
 /* gcc/gas support "LDCW,CO" psuedo-op on PA-RISC */
 #undef GASNETI_HAVE_PARISC_LDCW_CO
+
+/* gcc support for "U" and "h" register classes on SPARC32 */
+#undef GASNETI_HAVE_SPARC32_64BIT_ASM
 
 /* has __builtin_expect */
 #undef HAVE_BUILTIN_EXPECT

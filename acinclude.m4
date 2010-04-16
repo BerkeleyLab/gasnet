@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2010/04/16 23:46:10 $
-dnl $Revision: 1.137.2.3 $
+dnl     $Date: 2010/04/16 23:58:25 $
+dnl $Revision: 1.137.2.4 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -1045,6 +1045,11 @@ dnl Indirection for GASNET_TRY_CCOMPILE_WITHWARN or GASNET_TRY_CXXCOMPILE_WITHWA
 AC_DEFUN([GASNET_TRY_COMPILE_WITHWARN],
   GASNET_TRY_[$1]COMPILE_WITHWARN[([$2],[$3],[$4],[$5],[$6])])
 
+dnl GASNET_TRY_COMPILE_WITHWARN(type, ...) where type is C or CXX
+dnl Indirection for GASNET_TRY_CCOMPILE_WITHWARN or GASNET_TRY_CXXCOMPILE_WITHWARN
+AC_DEFUN([GASNET_TRY_COMPILE_WITHWARN],
+  GASNET_TRY_[$1]COMPILE_WITHWARN[([$2],[$3],[$4],[$5],[$6])])
+
 dnl GASNET_TRY_CFLAG(flags, action-if-supported, action-if-not-supported)
 AC_DEFUN([GASNET_TRY_CFLAG],[
 GASNET_FUN_BEGIN([$0($1)])
@@ -1922,6 +1927,7 @@ AC_CACHE_CHECK(for $1 compiler family, $3, [
     GASNET_IFDEF(__PATHCC__, $3=Pathscale, [], $_force_compile)
     GASNET_IFDEF(__PGI, $3=PGI, [], $_force_compile)
     GASNET_IFDEF(__INTEL_COMPILER, $3=Intel, [], $_force_compile)
+    GASNET_IFDEF(__OPENCC__, $3=Open64, [], $_force_compile)
   fi
   dnl other vendor compilers
   if test "$$3" = "unknown"; then

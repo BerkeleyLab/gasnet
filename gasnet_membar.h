@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_membar.h,v $
- *     $Date: 2008/10/12 06:12:06 $
- * $Revision: 1.122 $
+ *     $Date: 2010/04/16 23:58:25 $
+ * $Revision: 1.122.12.1 $
  * Description: GASNet header for portable memory barrier operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -122,7 +122,8 @@
       */
      #if (PLATFORM_COMPILER_PGI && !GASNETI_PGI_ASM_GNU) || PLATFORM_COMPILER_SUN_C
        GASNETI_ASM("lock; addl $0,0(%esp)");
-     #elif PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || PLATFORM_COMPILER_PGI
+     #elif PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
+           PLATFORM_COMPILER_PGI || PLATFORM_COMPILER_OPEN64
        /* For gcc, icc and other gcc look-alikes */
        __asm__ __volatile__ ("lock; addl $0,0(%%esp)" : : : "memory", "cc");
      #else
