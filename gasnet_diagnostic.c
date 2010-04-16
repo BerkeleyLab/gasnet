@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_diagnostic.c,v $
- *     $Date: 2010/04/16 23:11:18 $
- * $Revision: 1.28.2.1 $
+ *     $Date: 2010/04/16 23:24:42 $
+ * $Revision: 1.28.2.2 $
  * Description: GASNet internal diagnostics
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -527,10 +527,13 @@ static void lifo_test(int id) {
       if (tmp == NULL)
         ERR("failed lifo test: 1-each pop/push test failed at iteration %d", i);
     }
+    PTHREAD_BARRIER(num_threads); /* See bug 2711 */
     test_free(tmp);
   }
 
+#if 0 /* Redundant due to barrier inserted for bug2711 */
   PTHREAD_BARRIER(num_threads);
+#endif
     if (!id) {
       gasneti_lifo_init(&lifo2);
 
@@ -578,15 +581,29 @@ static void lifo_test(int id) {
 
   PTHREAD_BARRIER(num_threads);
 
+  {
+    void * head = NULL;
+
     for (i=0;i<iters2;i++) {
       void * tmp = gasneti_lifo_pop(&lifo2);
       if (tmp != NULL) {
-	test_free(tmp);
+	*(void **)tmp = head;
+	head = tmp;
 	gasneti_atomic_decrement(&counter, 0);
       }
     }
 
+    PTHREAD_BARRIER(num_threads); /* Barrier before free() for bug 2711 */
+    while (head != NULL) {
+      void * next = *(void **)head;
+      test_free(head);
+      head = next;
+    }
+  }
+
+#if 0 /* Redundant due to barrier inserted for bug2711 */
   PTHREAD_BARRIER(num_threads);
+#endif
 
     if ((gasneti_lifo_pop(&lifo2) != NULL) || (gasneti_atomic_read(&counter, 0) != 0))
       ERR("failed lifo test: push/pop pounding test failed");

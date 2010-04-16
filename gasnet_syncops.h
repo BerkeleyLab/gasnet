@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_syncops.h,v $
- *     $Date: 2009/09/18 23:33:23 $
- * $Revision: 1.53 $
+ *     $Date: 2010/04/16 23:24:42 $
+ * $Revision: 1.53.2.1 $
  * Description: GASNet header for synchronization operations used in GASNet implementation
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -589,6 +589,11 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
  * Unless GASNETI_LIFOS_NOT_SIGNALSAFE is defined, the operations "pop", "push", and
  * "push_many" are signal safe.  The operations "link" and "next" are always signal
  * safe since they don't involve access to any shared data structures.
+ *
+ * NOTE: Because a pop operation must derefence a potentially out-of-date "next"
+ * pointer, we prohibit any use of the LIFO in which a former element becomes unmapped
+ * unless one can ensure that no partially-completed POP could be referencing the
+ * object.
  */
 
 
