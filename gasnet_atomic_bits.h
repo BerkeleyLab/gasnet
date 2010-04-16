@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2009/09/18 23:33:23 $
- * $Revision: 1.311 $
+ *     $Date: 2010/04/16 23:48:17 $
+ * $Revision: 1.311.2.1 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -666,8 +666,8 @@
 
 	GASNETI_INLINE(gasneti_atomic128_set)
 	void gasneti_atomic128_set(gasneti_atomic128_t *p, uint64_t newhi, uint64_t newlo, int flags) {
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t oldlo = p->lo;
-	  GASNETI_ASM_REGISTER_KEYWORD uint32_t oldhi = p->hi;
+	  GASNETI_ASM_REGISTER_KEYWORD uint64_t oldlo = p->lo;
+	  GASNETI_ASM_REGISTER_KEYWORD uint64_t oldhi = p->hi;
           gasneti_assert(!(((uintptr_t)p) & 0xF)); /* cmpxchg16b requires 16-byte alignment */
 	  __asm__ __volatile__ (
 		"0:               \n\t"
