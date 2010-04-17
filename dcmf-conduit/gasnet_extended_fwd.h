@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended_fwd.h,v $
- *     $Date: 2009/10/28 00:16:11 $
- * $Revision: 1.6 $
+ *     $Date: 2010/04/17 05:19:02 $
+ * $Revision: 1.6.2.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -14,7 +14,7 @@
 #ifndef _GASNET_EXTENDED_FWD_H
 #define _GASNET_EXTENDED_FWD_H
 
-#define GASNET_EXTENDED_VERSION      1.1
+#define GASNET_EXTENDED_VERSION      1.2
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
 #define GASNET_EXTENDED_NAME         DCMF
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)

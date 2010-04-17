@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_extended_fwd.h,v $
- *     $Date: 2010/04/17 02:36:40 $
- * $Revision: 1.3.2.1 $
+ *     $Date: 2010/04/17 05:19:08 $
+ * $Revision: 1.3.2.2 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
