@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2010/04/17 02:09:20 $
- * $Revision: 1.3.2.1 $
+ *     $Date: 2010/04/17 02:36:27 $
+ * $Revision: 1.3.2.2 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -34,6 +34,9 @@
 gasneti_pshmnet_t *gasneti_request_pshmnet = NULL;
 gasneti_pshmnet_t *gasneti_reply_pshmnet = NULL;
  
+/* Structure for PSHM intra-supernode barrier */
+gasneti_pshm_barrier_t *gasneti_pshm_barrier = NULL; /* lives in shared space */
+
 static int gasneti_pshmnet_queue_depth = 0;
 static uintptr_t gasneti_pshmnet_queue_mem = 0;
 
@@ -121,6 +124,10 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
       info_sz = GASNETI_ALIGNUP(info_sz, sizeof(gasneti_pshm_rank_t));
       info_sz += gasneti_nodes * sizeof(gasneti_pshm_rank_t);
     }
+    /* space for the PSHM intra-node barrier: */
+    info_sz = GASNETI_ALIGNUP(info_sz, GASNETI_CACHE_LINE_BYTES);
+    info_sz += sizeof(gasneti_pshm_barrier_t) +
+	       (gasneti_pshm_nodes-1) * sizeof(gasneti_pshm_barrier->node);
     /* space for early barrier, sharing space with the items above: */
     info_sz = MAX(info_sz, gasneti_pshm_nodes * sizeof(sig_atomic_t));
     info_sz += offsetof(struct gasneti_pshm_info, u);
@@ -135,7 +142,7 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
                        (unsigned long)mmapsz);
   }
   
-  /* Prepare the shared info struct (including barrier) */
+  /* Prepare the shared info struct (including bootstrap barrier) */
   gasneti_pshm_info = (struct gasneti_pshm_info *)((uintptr_t)gasnetc_pshmnet_region + 2*vnetsz);
   if (gasneti_pshm_mynode != 0) {
     /* For a few architectures we cannot assume that the pre-zeroed memory we
@@ -167,6 +174,11 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
       gasneti_pshm_rankmap = (gasneti_pshm_rank_t *)addr;
       addr += gasneti_nodes * sizeof(gasneti_pshm_rank_t);
     }
+    /* intra-supernode barrier: */
+    addr = GASNETI_ALIGNUP(addr, GASNETI_CACHE_LINE_BYTES);
+    gasneti_pshm_barrier = (gasneti_pshm_barrier_t *)addr;
+    addr += sizeof(gasneti_pshm_barrier_t) +
+	    (gasneti_pshm_nodes-1) * sizeof(gasneti_pshm_barrier->node);
   }
 
   /* Populate gasneti_pshm_firsts[] */

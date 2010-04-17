@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2010/04/16 23:32:19 $
- * $Revision: 1.51.2.2 $
+ *     $Date: 2010/04/17 02:36:40 $
+ * $Revision: 1.51.2.3 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -343,12 +343,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
 
   #if GASNET_PSHM
-    {
-      /* Add space for PSHM-SMP barrier */
-      size_t pshmbar_sz = sizeof(gasneti_pshm_barrier_t)
-                          + (gasneti_nodes-1) * sizeof(gasneti_pshm_barrier->node); 
-      gasneti_pshm_barrier = gasneti_pshm_init(NULL, pshmbar_sz);
-    }
+    gasneti_pshm_init(NULL, 0);
   #endif
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE

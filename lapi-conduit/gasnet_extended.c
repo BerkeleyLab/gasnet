@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2009/09/16 01:13:31 $
- * $Revision: 1.115 $
+ *     $Date: 2010/04/17 02:36:35 $
+ * $Revision: 1.115.2.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1721,7 +1721,6 @@ static void gasnete_lapibarrier_init(int usegfence);
 static void gasnete_lapibarrier_notify(gasnete_coll_team_t team, int id, int flags);
 static int gasnete_lapibarrier_wait(gasnete_coll_team_t team, int id, int flags);
 static int gasnete_lapibarrier_try(gasnete_coll_team_t team, int id, int flags);
-static void dummy_fn(void) {}
 
 /* #define GASNETE_BARRIER_DEFAULT "LAPIGFENCE" See bug 2186 */
 #define GASNETE_BARRIER_READENV() do {                                   \
@@ -1736,12 +1735,14 @@ static void dummy_fn(void) {}
       (TEAM)->barrier_notify = &gasnete_lapibarrier_notify; \
       (TEAM)->barrier_wait =   &gasnete_lapibarrier_wait;   \
       (TEAM)->barrier_try =    &gasnete_lapibarrier_try;    \
-      gasnete_lapibarrier_init(1); gasnete_barrier_pf = &dummy_fn;\
+      (TEAM)->barrier_pf =     NULL;                        \
+      gasnete_lapibarrier_init(1);                          \
     } else if ((BARRIER_TYPE) == GASNETE_COLL_BARRIER_LAPIAM && (TEAM)==GASNET_TEAM_ALL) { \
       (TEAM)->barrier_notify = &gasnete_lapibarrier_notify; \
       (TEAM)->barrier_wait =   &gasnete_lapibarrier_wait;   \
       (TEAM)->barrier_try =    &gasnete_lapibarrier_try;    \
-      gasnete_lapibarrier_init(0); gasnete_barrier_pf = &dummy_fn;\
+      (TEAM)->barrier_pf =     NULL;                        \
+      gasnete_lapibarrier_init(0);                          \
     }                                                       \
   } while (0)
 
@@ -1935,7 +1936,7 @@ void* gasnete_lapi_barrier_hh(lapi_handle_t *context, void *uhdr, uint *uhdr_len
 #endif
 static void gasnete_lapibarrier_notify(gasnete_coll_team_t team, int id, int flags) {
   gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
-  if_pf(team->barrier_info->barrier_splitstate == INSIDE_BARRIER) 
+  if_pf(team->barrier_splitstate == INSIDE_BARRIER) 
       gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
 
   GASNETI_TRACE_PRINTF(B, ("BARRIER_NOTIFY(id=%i,flags=%i)", id, flags));
@@ -2013,7 +2014,7 @@ static void gasnete_lapibarrier_notify(gasnete_coll_team_t team, int id, int fla
     }
 
     /*  update state */
-    team->barrier_info->barrier_splitstate = INSIDE_BARRIER;
+    team->barrier_splitstate = INSIDE_BARRIER;
     gasneti_sync_writes(); /* ensure all state changes committed before return */
   }
 }
@@ -2025,7 +2026,7 @@ static int gasnete_lapibarrier_wait(gasnete_coll_team_t team, int id, int flags)
     int phase;
     gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
     phase = barrier_phase;
-    if_pf(team->barrier_info->barrier_splitstate == OUTSIDE_BARRIER) 
+    if_pf(team->barrier_splitstate == OUTSIDE_BARRIER) 
 	gasneti_fatalerror("gasnet_barrier_wait() called without a matching notify");
 
     GASNETI_TRACE_EVENT_TIME(B,BARRIER_NOTIFYWAIT,gasneti_ticks_now()-barrier_notifytime);
@@ -2044,7 +2045,7 @@ static int gasnete_lapibarrier_wait(gasnete_coll_team_t team, int id, int flags)
     
     { const int global_mismatch = barrier_response_done[phase] & GASNET_BARRIERFLAG_MISMATCH;
       /*  update local state */
-      team->barrier_info->barrier_splitstate = OUTSIDE_BARRIER;
+      team->barrier_splitstate = OUTSIDE_BARRIER;
       barrier_response_done[phase] = 0;
       gasneti_sync_writes(); /* ensure all state changes committed before return */
       if_pf((!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && id != barrier_value) || /* local mismatch */
@@ -2058,7 +2059,7 @@ static int gasnete_lapibarrier_wait(gasnete_coll_team_t team, int id, int flags)
 
 static int gasnete_lapibarrier_try(gasnete_coll_team_t team, int id, int flags) {
     gasneti_sync_reads(); /* ensure we read correct barrier_splitstate */
-    if_pf(team->barrier_info->barrier_splitstate == OUTSIDE_BARRIER) 
+    if_pf(team->barrier_splitstate == OUTSIDE_BARRIER) 
 	gasneti_fatalerror("gasnet_barrier_try() called without a matching notify");
 
     /* should we kick the network if not done? */

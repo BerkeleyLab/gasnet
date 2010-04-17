@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2009/10/15 19:02:10 $
- * $Revision: 1.59 $
+ *     $Date: 2010/04/17 02:36:33 $
+ * $Revision: 1.59.2.1 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -249,42 +249,6 @@ typedef enum {
 #endif
 } gasnete_coll_barrier_type_t;
 
-typedef struct gasnete_coll_team_barrier_t_ {
-  /* am based barrier state variables*/
-  gasnet_hsl_t amdbarrier_lock;/* = GASNET_HSL_INITIALIZER;*/
-  int volatile amdbarrier_value; /*  local ambarrier value */
-  int volatile amdbarrier_flags; /*  local ambarrier flags */
-  int volatile amdbarrier_step;  /*  local ambarrier step */
-  int volatile amdbarrier_size;/* = -1;   ceil(lg(nodes)), or -1 if uninitialized */
-  int volatile amdbarrier_phase;/* = 0;    2-phase operation to improve pipelining */
-  int volatile amdbarrier_step_done[2][GASNETE_AMDBARRIER_MAXSTEP];/* = { { 0 } };  non-zero when a step is complete */
-  int volatile amdbarrier_mismatch[2];/* = { 0, 0 };   non-zero if we detected a mismatch */
-  int volatile amdbarrier_recv_value[2]; /*  consensus ambarrier value */
-  int volatile amdbarrier_recv_value_present[2];/* = { 0, 0 };   consensus ambarrier value is present */
-  
-  int volatile amcbarrier_value; /*  local ambarrier value */
-  int volatile amcbarrier_flags; /*  local ambarrier flags */
-  int volatile amcbarrier_phase;/* = 0;    2-phase operation to improve pipelining */
-  int volatile amcbarrier_response_done[2];/* = { 0, 0 };   non-zero when ambarrier is complete */
-  int volatile amcbarrier_response_mismatch[2];/* = { 0, 0 };   non-zero if we detected a mismatch */
-  
-  /*  global state on master */
-  gasnet_hsl_t amcbarrier_lock;/* = GASNET_HSL_INITIALIZER;*/
-  int volatile amcbarrier_consensus_value[2]; /*  consensus ambarrier value */
-  int volatile amcbarrier_consensus_value_present[2];/* = { 0, 0 };   consensus ambarrier value found */
-  int volatile amcbarrier_consensus_mismatch[2];/* = { 0, 0 };   non-zero if we detected a mismatch */
-  int volatile amcbarrier_count[2];/* = { 0, 0 };   count of how many remotes have notified (on P0) */
-  
-  enum { OUTSIDE_BARRIER, INSIDE_BARRIER } barrier_splitstate;
-
-  /*let the conduits add their own stuff too*/
-#ifdef GASNETE_COLL_TEAM_BARRIER_EXTRA
-  GASNETE_COLL_TEAM_BARRIER_EXTRA
-#endif
-  
-} gasnete_coll_team_barrier_t;
-
-gasnete_coll_team_barrier_t *gasnete_coll_initialize_barrier(void);
 
 /* Type for collective teams: */
 struct gasnete_coll_team_t_ {
@@ -358,7 +322,9 @@ struct gasnete_coll_team_t_ {
   uint32_t consensus_issued_id;
   uint32_t consensus_id;
   
-  gasnete_coll_team_barrier_t *barrier_info;
+  /*Stuff for barrier*/
+  enum { OUTSIDE_BARRIER, INSIDE_BARRIER } barrier_splitstate;
+  void *barrier_data;
   gasnete_all_barrier_notify barrier_notify;
   gasnete_all_barrier_try barrier_try;
   gasnete_all_barrier_wait barrier_wait;

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_team.c,v $
- *     $Date: 2009/10/28 04:17:13 $
- * $Revision: 1.8 $
+ *     $Date: 2010/04/17 02:36:33 $
+ * $Revision: 1.8.2.1 $
  *
  * Description: GASNet generic team implementation for collectives 
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
@@ -139,10 +139,6 @@ static void initialize_team_fields(gasnete_coll_team_t team,
                                                    smallest_scratch_seg GASNETE_THREAD_PASS);
   team->consensus_issued_id = 0;
   team->consensus_id = 0;
-  if(team!=GASNET_TEAM_ALL) {
-    /*GASNET TEAM ALL already has a barrier attached to it*/
-    gasnete_coll_barrier_init(team, GASNETE_COLL_BARRIER_ENVDEFAULT);
-  }
   gasnete_coll_alloc_new_scratch_status(team);
   gasneti_weakatomic_set(&team->num_multi_addr_collectives_started, 0, GASNETT_ATOMIC_WMB_PRE);
   if(!team->fixed_image_count && team->myrank ==0) {
@@ -180,6 +176,10 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
   for (i=0; i<total_ranks; i++) 
     team->rel2act_map[i] = rel2act_map[i];
 
+  if(team!=GASNET_TEAM_ALL) {
+    /*GASNET TEAM ALL already has a barrier attached to it*/
+    gasnete_coll_barrier_init(team, GASNETE_COLL_BARRIER_ENVDEFAULT);
+  }
   
   /* lock the team direcotry (team_dir) */
   /* add the new team to the directory */
