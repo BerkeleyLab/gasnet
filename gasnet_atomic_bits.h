@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2010/04/16 23:58:25 $
- * $Revision: 1.311.2.2 $
+ *     $Date: 2010/04/17 00:06:10 $
+ * $Revision: 1.311.2.3 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -57,7 +57,7 @@
      * replacing "-fPIC" with your compiler-specific flag(s) as needed.
      */
   #if (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_PATHSCALE || \
-       PLATFORM_COMPILER_PGI || PLATFORM_COMPILER_OPENCC ) && \
+       PLATFORM_COMPILER_PGI || PLATFORM_COMPILER_OPEN64 ) && \
 	(defined(__PIC__) || defined(GASNETI_FORCE_PIC))
       /* Disable use of %ebx when building PIC, but only on affected compilers. */
       #define GASNETI_USE_X86_EBX 0
@@ -1284,11 +1284,10 @@
           return (int)(newval == oldval);
         }
 
-        #define GASNETI_HAVE_ATOMIC64_T 1
-        typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
-        #define _gasneti_atomic64_init(v)      { (v) }
-
         #if PLATFORM_ARCH_64
+          #define GASNETI_HAVE_ATOMIC64_T 1
+          typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
+          #define _gasneti_atomic64_init(v)      { (v) }
           #define _gasneti_atomic64_read(p)      ((p)->ctr)
           #define _gasneti_atomic64_set(p,v)     do { (p)->ctr = (v); } while(0)
           GASNETI_INLINE(_gasneti_atomic64_compare_and_swap)
@@ -1305,6 +1304,9 @@
           /* Note that the ldd/std instructions *are* atomic, even though they use 2 registers.
            * We wouldn't need asm here if we could be sure the compiler always used ldd/std.
            */
+          #define GASNETI_HAVE_ATOMIC64_T 1
+          typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
+          #define _gasneti_atomic64_init(v)      { (v) }
           GASNETI_INLINE(_gasneti_atomic64_set)
           void _gasneti_atomic64_set(gasneti_atomic64_t *p, uint64_t v) {
             __asm__ __volatile__ ( "std	%1, %0" : "=m"(p->ctr) : "U"(v) );
@@ -1333,43 +1335,7 @@
             return retval;
           }
         #else
-          /* version that doesn't need "h" and "U" constraints
-             fixed registers are allocated where these contraints would have been used */
-          GASNETI_INLINE(_gasneti_atomic64_set)
-          void _gasneti_atomic64_set(gasneti_atomic64_t *p, uint64_t v) {
-            register uint32_t vhi __asm__("%g2") = GASNETI_HIWORD(v);
-            register uint32_t vlo __asm__("%g3") = GASNETI_LOWORD(v);
-            __asm__ __volatile__ ( "std %%g2, %0" : "=m"(p->ctr) : "r"(vhi), "r"(vlo) );
-          }
-          GASNETI_INLINE(_gasneti_atomic64_read)
-          uint64_t _gasneti_atomic64_read(gasneti_atomic64_t *p) {
-            register uint32_t rethi __asm__("%g2");
-            register uint32_t retlo __asm__("%g3");
-            __asm__ __volatile__ ( "ldd %2, %%g2" : "=r"(rethi), "=r"(retlo) : "m"(p->ctr) );
-            return GASNETI_MAKEWORD(rethi, retlo);
-          }
-          GASNETI_INLINE(_gasneti_atomic64_compare_and_swap)
-          int _gasneti_atomic64_compare_and_swap(gasneti_atomic64_t *v, uint64_t oldval, uint64_t newval) {
-            register volatile uint64_t * addr = (volatile uint64_t *)&(v->ctr);
-            register uint32_t retval __asm__("%o1"); /* use the full 64-bit register */
-            register uint32_t tmp    __asm__("%g1"); /* use the full 64-bit register */
-            register uint32_t newhi = GASNETI_HIWORD(newval);
-            register uint32_t newlo = GASNETI_LOWORD(newval);
-            register uint32_t oldhi = GASNETI_HIWORD(oldval);
-            register uint32_t oldlo = GASNETI_LOWORD(oldval);
-            __asm__ __volatile__ (
-		"sllx	%5,32,%0	\n\t"	/* retval = HI(new) << 32 */
-		"sllx	%7,32,%1	\n\t"	/* tmp = HI(old) << 32 */
-		"or	%0,%6,%0	\n\t"	/* retval |= LO(new) */
-		"or	%1,%8,%1	\n\t"	/* tmp |= LO(old) */
-		"casx	[%3],%1,%0	\n\t"	/* atomic CAS, with read value -> retval */
-		"xor	%1,%0,%1	\n\t"	/* tmp = 0 IFF retval == tmp */
-		"clr	%0		\n\t"	/* retval = 0 */
-		"movrz	%1,1,%0"		/* retval = 1 IFF tmp == 0 */
-		: "=&r"(retval), "=&r"(tmp), "=m"(v->ctr)
-		: "r"(addr), "m"(v->ctr), "r"(newhi), "r"(newlo), "r"(oldhi), "r"(oldlo) );
-            return retval;
-          }
+          /* use generics, since fixed-register asm never did work right */
 	#endif
 
 	/* Using default fences, as our asm includes none */
