@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2010/04/17 00:08:35 $
- * $Revision: 1.98.2.2 $
+ *     $Date: 2010/04/17 00:31:51 $
+ * $Revision: 1.98.2.3 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -103,7 +103,7 @@
      GASNETT_USE_RESTRICT_ON_TYPEDEFS boolean
 */
 #ifdef GASNETT_USE_RESTRICT
-  #define GASNETI_RESTRICT
+  #define GASNETI_RESTRICT GASNETT_USE_RESTRICT
   #if GASNETT_USE_RESTRICT_ON_TYPEDEFS
     #define GASNETI_RESTRICT_MAY_QUALIFY_TYPEDEFS 1
   #else
@@ -211,8 +211,7 @@
 #endif
 
 /* work around bug 1620 unless client has explicitly set GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE */
-#if PLATFORM_COMPILER_PATHSCALE && PLATFORM_COMPILER_VERSION_LT(3,0,0) && \
-    !defined(GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE)
+#if PLATFORM_COMPILER_PATHSCALE && !defined(GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE)
   #define GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE 0
 #endif
 
