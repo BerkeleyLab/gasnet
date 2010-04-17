@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/04/16 23:32:50 $
- * $Revision: 1.245.2.1 $
+ *     $Date: 2010/04/17 00:11:40 $
+ * $Revision: 1.245.2.2 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1262,6 +1262,9 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
   gasnetc_rbuf_t rbuf;
   uint32_t flags;
   int length, checksum, zeros;
+#if !GASNETI_USE_ALLOCA
+  void *tmp_buffer = NULL;
+#endif
 
 #if GASNETI_THREADS
   gasneti_weakatomic_t *slot_lock = &cep->amrdma.recv_busy[recv_slot].spinlock;
@@ -1290,7 +1293,14 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
   if (GASNETC_MSG_CATEGORY(flags) == gasnetc_Medium) {
     /* Relocate the Medium to avoid problems w/ "late zeros" and provide 8-byte alignment */
     /* Note: no harm here if flags is not correct, since length must by ok */
-    void *tmp = (void*)GASNETI_ALIGNUP(alloca(length + 8), 8);
+#if GASNETI_USE_ALLOCA
+    void *tmp = alloca(length + 8);
+#else
+    /* XXX: Work around bug 2079 ("stack overflow" from alloca() w/ PGI compiler)
+       TODO: Try freelist or thread-specific buffers (of max size)? */
+    void *tmp = tmp_buffer = gasneti_malloc(length + 8);
+#endif
+    tmp = (void*)GASNETI_ALIGNUP(tmp, 8);
     zeros += gasneti_count0s_copy(tmp, msg_in, length);
     rbuf.rr_sg.addr = (uintptr_t)tmp;
   } else {
@@ -1303,10 +1313,16 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
       !gasneti_weakatomic_compare_and_swap(&cep->amrdma.recv_head, recv_head, recv_head+1, 0)) {
     /* If CAS failed then we've been "left behind" and are looking at the wrong slot */
     gasneti_weakatomic_set(slot_lock, 0, 0); /* No _REL, since nothing global was written */
+    #if !GASNETI_USE_ALLOCA
+      if (tmp_buffer) gasneti_free(tmp_buffer);
+    #endif
     return 0;
   }
 #else
   if (zeros != checksum) {
+    #if !GASNETI_USE_ALLOCA
+      if (tmp_buffer) gasneti_free(tmp_buffer);
+    #endif
     return 0;
   }
   gasneti_weakatomic_increment(&cep->amrdma.recv_head, 0);
@@ -1371,6 +1387,9 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
   gasneti_assert(gasneti_attach_done && gasnetc_amrdma_max_peers);
   gasnetc_amrdma_eligable(cep);
 
+#if !GASNETI_USE_ALLOCA
+  if (tmp_buffer) gasneti_free(tmp_buffer);
+#endif
   return 1;
 }
 
