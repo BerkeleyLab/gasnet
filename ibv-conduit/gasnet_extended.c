@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_extended.c,v $
- *     $Date: 2009/03/30 02:41:05 $
- * $Revision: 1.47 $
+ *     $Date: 2010/04/17 01:22:46 $
+ * $Revision: 1.47.4.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -233,16 +233,16 @@ int gasnete_op_try_free_clear(gasnet_handle_t *handle_p) {
 }
 
 /* Reply handler to complete an op - might be replaced w/ IB atomics one day */
-GASNETI_INLINE(gasnete_done_reph_inner)
-void gasnete_done_reph_inner(gasnet_token_t token, void *counter) {
+GASNETI_INLINE(gasnete_markdone_reph_inner)
+void gasnete_markdone_reph_inner(gasnet_token_t token, void *counter) {
   gasnetc_counter_dec((gasnetc_counter_t *)counter);
 }
-SHORT_HANDLER(gasnete_done_reph,1,2,
+SHORT_HANDLER(gasnete_markdone_reph,1,2,
               (token, UNPACK(a0)    ),
               (token, UNPACK2(a0, a1)));
 #define GASNETE_DONE(token, counter)                                               \
   GASNETI_SAFE(                                                                    \
-    SHORT_REP(1,2,((token), gasneti_handleridx(gasnete_done_reph), PACK(counter))) \
+    SHORT_REP(1,2,((token), gasneti_handleridx(gasnete_markdone_reph), PACK(counter))) \
   )
 
 /* ------------------------------------------------------------------------------------ */
@@ -251,10 +251,6 @@ SHORT_HANDLER(gasnete_done_reph,1,2,
   ========================
   Factored bits of extended API code common to most conduits, overridable when necessary
 */
-
-/* DOB: default_iop field should probably go away */
-#define GASNETE_NEW_THREADDATA_CALLBACK(threaddata) \
-  threaddata->default_iop = threaddata->current_iop
 
 #define GASNETE_IOP_ISDONE(iop) gasnete_iop_test(iop)
 
@@ -519,7 +515,7 @@ extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
   gasneti_assert(iop->threadidx == mythread->threadidx);
   gasneti_assert(iop->type == gasnete_opImplicit);
   #if GASNET_DEBUG
-    if (iop != mythread->default_iop)
+    if (iop->next != NULL)
       gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_gets() inside an NBI access region");
   #endif
 
@@ -536,7 +532,7 @@ extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
   gasneti_assert(iop->threadidx == mythread->threadidx);
   gasneti_assert(iop->type == gasnete_opImplicit);
   #if GASNET_DEBUG
-    if (iop != mythread->default_iop)
+    if (iop->next != NULL)
       gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_puts() inside an NBI access region");
   #endif
 
@@ -553,7 +549,7 @@ extern void gasnete_wait_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
   gasneti_assert(iop->threadidx == mythread->threadidx);
   gasneti_assert(iop->type == gasnete_opImplicit);
   #if GASNET_DEBUG
-    if (iop != mythread->default_iop)
+    if (iop->next != NULL)
       gasneti_fatalerror("VIOLATION: attempted to call gasnete_wait_syncnbi_gets() inside an NBI access region");
   #endif
 
@@ -567,7 +563,7 @@ extern void gasnete_wait_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
   gasneti_assert(iop->threadidx == mythread->threadidx);
   gasneti_assert(iop->type == gasnete_opImplicit);
   #if GASNET_DEBUG
-    if (iop != mythread->default_iop)
+    if (iop->next != NULL)
       gasneti_fatalerror("VIOLATION: attempted to call gasnete_wait_syncnbi_puts() inside an NBI access region");
   #endif
 
@@ -585,9 +581,10 @@ extern void            gasnete_begin_nbi_accessregion(int allowrecursion GASNETE
   gasnete_iop_t *iop = gasnete_iop_new(mythread);
   GASNETI_TRACE_PRINTF(S,("BEGIN_NBI_ACCESSREGION"));
   #if GASNET_DEBUG
-    if (mythread->current_iop != mythread->default_iop)
+    if (!allowrecursion && mythread->current_iop->next != NULL)
       gasneti_fatalerror("VIOLATION: tried to initiate a recursive NBI access region");
   #endif
+  iop->next = mythread->current_iop;
   mythread->current_iop = iop;
 }
 
@@ -596,10 +593,11 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   gasnete_iop_t *iop = mythread->current_iop;
   GASNETI_TRACE_EVENT_VAL(S,END_NBI_ACCESSREGION,gasnetc_counter_val(&iop->get_req_oust) + gasnetc_counter_val(&iop->put_req_oust));
   #if GASNET_DEBUG
-    if (iop == mythread->default_iop)
+    if (iop->next == NULL)
       gasneti_fatalerror("VIOLATION: call to gasnete_end_nbi_accessregion() outside access region");
   #endif
-  mythread->current_iop = mythread->default_iop;
+  mythread->current_iop = iop->next;
+  iop->next = NULL;
   return (gasnet_handle_t)iop;
 }
 
@@ -683,7 +681,7 @@ static gasnet_handlerentry_t const gasnete_handlers[] = {
   /* ptr-width independent handlers */
 
   /* ptr-width dependent handlers */
-  gasneti_handler_tableentry_with_bits(gasnete_done_reph),
+  gasneti_handler_tableentry_with_bits(gasnete_markdone_reph),
   gasneti_handler_tableentry_with_bits(gasnete_memset_reqh),
 
   { 0, NULL }
