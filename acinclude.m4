@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2010/04/16 23:58:25 $
-dnl $Revision: 1.137.2.4 $
+dnl     $Date: 2010/04/17 00:03:39 $
+dnl $Revision: 1.137.2.5 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -2419,3 +2419,8 @@ if test -n "$cv_prefix[]$2" ; then
 fi
 GASNET_FUN_END([$0($1,$2,...)])
 ])
+
+dnl We want AC_DISABLE_OPTION_CHECKING if it exists
+ifdef([AC_DISABLE_OPTION_CHECKING],
+      [define([GASNET_NO_CHECK_OPTS], defn([AC_DISABLE_OPTION_CHECKING]))],
+      [define([GASNET_NO_CHECK_OPTS], [])])

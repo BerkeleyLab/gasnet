@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/04/16 23:58:25 $
-# $Revision: 1.580.2.7 $
+#     $Date: 2010/04/17 00:03:39 $
+# $Revision: 1.580.2.8 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.580.2.7 $)
+AC_REVISION($Revision: 1.580.2.8 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -52,6 +52,9 @@ GASNET_START_CONFIGURE([AWK])
 GASNET_DEFINE_CONFIGURE_VARS([GASNETI])
 AM_CONDITIONAL(ALWAYS_TRUECOND, test -z "")
 AM_CONDITIONAL(ALWAYS_FALSECOND, test -n "")
+
+# Don't warn about unknown configure options (which probably belong to client)
+GASNET_NO_CHECK_OPTS
 
 # Set gasnet_toolsonly_mode based on how we Bootstrapped
 gasnet_toolsonly_mode=no
