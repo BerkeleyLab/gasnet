@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/04/17 00:03:39 $
-# $Revision: 1.580.2.8 $
+#     $Date: 2010/04/17 00:08:35 $
+# $Revision: 1.580.2.9 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.580.2.8 $)
+AC_REVISION($Revision: 1.580.2.9 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -289,7 +289,10 @@ case "$gasnet_cv_cc_family" in
   TINY) CCOPTFLAGS="" # optimization not supported
         SEPARATE_CC=1 # force separate compilation - multiple -c compilation not supported
   ;;
-  Open64) CCOPTFLAGS="-O3" ;;
+  Open64)
+        # See bug 2724 for info on "-OPT:wrap_around_unsafe=off"
+        CCOPTFLAGS="-O3 -OPT:wrap_around_unsafe=off"
+  ;;
   *)    CCOPTFLAGS="-O" ;;
 esac
 AC_SUBST(SEPARATE_CC)
@@ -1932,6 +1935,32 @@ AC_DEFUN([GASNET_IB_OPTIONS],[
   popdef([GASNETC_IB_MAX_HCAS])
   popdef([GASNET_IB_SPAWNER_CONF])
 ])
+
+dnl GASNET_ID_OTHER_COMPILER(CCVAR, lang-decr)
+dnl CCVAR is CXX|MPI_CC
+AC_DEFUN([GASNET_ID_OTHER_COMPILER],[
+  pushdef([lowername],translit($1,'A-Z','a-z'))
+  GASNET_GET_PLATFORM_ID([$1],[$2 compiler])
+  GASNET_FAMILY_CACHE_CHECK([$2], [$1], gasnet_cv_[]lowername[]_family)
+  if test x"$gasnet_cv_[]lowername[]_family" != x"$gasnet_cv_cc_family"; then
+    mismatch="families"
+  elif test x"$gasnet_cv_PLATFORM_[$1]_VERSION" != x"$gasnet_cv_PLATFORM_COMPILER_VERSION"; then
+    mismatch="version codes"
+  fi
+  if test -n "$mismatch"; then
+    pushdef([outfmt],[$AWK -F'|' '{ printf("%s\t%s",[$]2,[$]3); }'])
+    idstr1=`echo "$gasnet_cv_PLATFORM_COMPILER_IDSTR" | outfmt`
+    idstr2=`echo "$gasnet_cv_PLATFORM_[$1]_IDSTR" | outfmt`
+    popdef([outfmt])
+    GASNET_MSG_WARN([dnl
+The compiler $mismatch of \$CC and \$[$1] do not match:
+      CC:  $idstr1
+m4_substr([        ],len([$1]))$1:  $idstr2
+If this is not what you intended, then set \$[$1] to select a different $2 compiler.])
+  fi
+  popdef([lowername])
+])
+
 #---------------------------------------------------------------------------------------------------------------
 # CONDUIT CONFIGURATIONS
 #---------------------------------------------------------------------------------------------------------------
@@ -1976,7 +2005,7 @@ if test $enabled_udp = yes; then
 
  if test "$have_cxx" = yes; then
   AC_LANG_CPLUSPLUS
-  GASNET_FAMILY_CACHE_CHECK(C++, CXX, gasnet_cv_cxx_family)
+  GASNET_ID_OTHER_COMPILER([CXX], [C++])
   CXXDEBUGFLAGS="-g"
   CXXOPTFLAGS="-O2"
   GASNET_UDP_LIBS=""
@@ -2035,7 +2064,7 @@ if test $enabled_udp = yes; then
      esac ;;
     Pathscale)  CXXDEBUGFLAGS="-g3 -O0" ;; # consistent with CCDEBUGFLAGS
     Open64)
-       CXXOPTFLAGS="-O3"
+       CXXOPTFLAGS="-O3 -OPT:wrap_around_unsafe=off" # consistent with CCOPTFLAGS
        GASNET_PUSHVAR(CXXFLAGS,"-g3")
        GASNET_GET_GNUWARNINGFLAGS(CXX)
        CXXDEBUGFLAGS="$CXXFLAGS" 
@@ -2077,7 +2106,6 @@ if test $enabled_udp = yes; then
 
   GASNET_CHECK_RESTRICT([GASNETI_CXX],[C++ compiler])
   GASNET_GET_GNU_ATTRIBUTES([GASNETI_HAVE_CXX],[C++ compiler])
-  GASNET_GET_PLATFORM_ID([CXX],[C++ compiler])
 
   GASNET_POPVAR(CXXFLAGS)
   GASNET_POPVAR(LDFLAGS)
@@ -2176,7 +2204,9 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
                                   $SAFE_MPI_CFLAGS)
         GASNET_PUSHVAR(CC,"$MPI_CC")
         GASNET_PUSHVAR(CFLAGS,"$MPI_CFLAGS")
+        if test x"$MPI_CC" != xno; then
           GASNET_TRY_CFLAG([-Wno-long-double],[MPI_CFLAGS="$MPI_CFLAGS -Wno-long-double"])
+        fi
         GASNET_POPVAR(CC)
         GASNET_POPVAR(CFLAGS)
         GASNET_ENV_DEFAULT(MPI_LIBS, )
@@ -2272,8 +2302,14 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
       fi 
       ;;
   esac
+  if test x"$MPI_CC" = xno; then
+    # Avoid unecessary and potentially confusing probes and their errors/warnings
+    have_mpi=no
+    mpi_reason="was disabled"
+  else
   GASNET_GETFULLPATH(MPI_CC)
   GASNET_GETFULLPATH(MPIRUN_CMD)
+  fi
 
   # now run a basic test of the MPI configuration to make sure it works
   if test $have_mpi = yes; then
@@ -2351,9 +2387,9 @@ _GASNET_EOF
     fi
 
     if test "$mpi_test_worked" = yes ; then
+      GASNET_ID_OTHER_COMPILER([MPI_CC], [MPI])
       GASNET_CHECK_RESTRICT([GASNETI_MPI_CC],[MPI_CC])
       GASNET_GET_GNU_ATTRIBUTES([GASNETI_HAVE_MPI_CC],[MPI_CC])
-      GASNET_GET_PLATFORM_ID([MPI_CC],[MPI_CC])
     fi
 
     GASNET_POPVAR(CC)
@@ -2371,11 +2407,11 @@ _GASNET_EOF
       GASNET_CHECK_OPTIMIZEDDEBUG(MPI_CC,MPI_CFLAGS,[], [ 
         #include <mpi.h>
       ])
-  else
+  elif test "$mpi_reason" = ""; then
       GASNET_MSG_WARN([build test failed: I don't know how to build MPI programs on your system -- see $TOP_BUILDDIR/config.log for details: consider using \$MPI_CC \$MPI_CFLAGS and \$MPI_LIBS to configure MPI support for your site if you want the mpi conduit])
       have_mpi=no
   fi
-  if test "$have_mpi" = no ; then
+  if test "$have_mpi$mpi_reason" = no ; then
     mpi_reason="was not found"
   fi
 else
@@ -3749,57 +3785,50 @@ fi # use_backtrace
 ########################################################################
 # Try to discover the C compiler's inline modifier
 
+dnl INTERNAL USE BY GASNET_INLINE_MODIFIER ONLY
+AC_DEFUN([GASNET_TRY_INLINE],[
+  if test -z "$inlinemod"; then
+    GASNET_TRY_CACHE_CHECK([$1 for $3 modifier], $2[]mod$3,
+      [$3 int dummy(void) { return 1; }], [], [inlinemod="$3"])
+  fi
+])
+
+dnl GASNET_INLINE_MODIFIER(compiler-display-name, compiler-type)
+dnl Where compiler-type is CC|MPI_CC
+AC_DEFUN([GASNET_INLINE_MODIFIER],[
+pushdef([lowername],translit($2,'A-Z','a-z'))
+pushdef([uppername],translit($2,'a-z','A-Z'))
 inlinemod=""
-case "$gasnet_cv_cc_family" in
+case "$gasnet_cv_[]lowername[]_family" in
   Compaq) # force __inline on Compaq C, because it's the most effective
-    AC_DEFINE(CC_INLINE_MODIFIER, __inline)
     inlinemod=__inline
   ;;
   XLC) # force __inline on XLC, to avoid warnings
-    AC_DEFINE(CC_INLINE_MODIFIER, __inline)
     inlinemod=__inline
   ;;
   HP) # __inline crashes HP C when optimizations are disabled
     if test "$BUILDCONFIG" = "debug" ; then
-      AC_DEFINE(CC_INLINE_MODIFIER, [ ])
       inlinemod=" "
     fi
   ;;
 esac
-if test "$inlinemod" = ""; then
-  GASNET_TRY_CACHE_CHECK(for inline modifier, cc_modinline,
-    [inline int dummy() { return 1; }], [],
-    AC_DEFINE(CC_INLINE_MODIFIER, inline)
-    inlinemod=inline)
+GASNET_TRY_INLINE($1,lowername,[inline])
+GASNET_TRY_INLINE($1,lowername,[__inline__])
+GASNET_TRY_INLINE($1,lowername,[__inline])
+GASNET_TRY_INLINE($1,lowername,[_inline])
+GASNET_TRY_INLINE($1,lowername,[_Inline])
+if test -n "$inlinemod"; then
+  GASNET_TRY_CACHE_CHECK($1 for working 'static $inlinemod', lowername[_static_inline],
+   [static $inlinemod int dummy() { return 1; }], [], [inlinemod="static $inlinemod"])
+  AC_DEFINE_UNQUOTED(GASNET_[]uppername[]_INLINE_MODIFIER, $inlinemod)
 fi
-if test "$inlinemod" = ""; then
-  GASNET_TRY_CACHE_CHECK(for __inline__ modifier, cc_mod__inline__,
-    [__inline__ int dummy() { return 1; }], [],
-    AC_DEFINE(CC_INLINE_MODIFIER, __inline__)
-    inlinemod=__inline__)
-fi
-if test "$inlinemod" = ""; then
-  GASNET_TRY_CACHE_CHECK(for __inline modifier, cc_mod__inline,
-    [__inline int dummy() { return 1; }], [],
-    AC_DEFINE(CC_INLINE_MODIFIER, __inline)
-    inlinemod=__inline)
-fi
-if test "$inlinemod" = ""; then
-  GASNET_TRY_CACHE_CHECK(for _inline modifier, cc_mod_inline,
-    [_inline int dummy() { return 1; }], [],
-    AC_DEFINE(CC_INLINE_MODIFIER, _inline)
-    inlinemod=_inline)
-fi
-if test "$inlinemod" = ""; then
-  GASNET_TRY_CACHE_CHECK(for _Inline modifier, cc_mod_Inline,
-    [_Inline int dummy() { return 1; }], [],
-    AC_DEFINE(CC_INLINE_MODIFIER, _Inline)
-    inlinemod=_Inline)
-fi
+popdef([uppername])
+popdef([lowername])
+])
 
-if test "$inlinemod" != ""; then
-  GASNET_TRY_CACHE_CHECK(whether static $inlinemod works, cc_static_inline,
-   [static $inlinemod int dummy() { return 1; }], [], [AC_DEFINE(STATIC_INLINE_WORKS)])
+GASNET_INLINE_MODIFIER([C compiler],[CC])
+if test x"$have_mpi" = xyes ; then
+  GASNET_INLINE_MODIFIER([MPI_CC],[MPI_CC])
 fi
 
 # Runtime Var Arrays

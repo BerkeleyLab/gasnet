@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2010/04/16 23:46:10 $
- * $Revision: 1.98.2.1 $
+ *     $Date: 2010/04/17 00:08:35 $
+ * $Revision: 1.98.2.2 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -50,17 +50,14 @@
      indicating some of the configure-detected results may be invalid for this compilation
      this is permitted in certain VERY limited contexts, and activates conservative assumptions
 
-     as of 2010-01-22 used to control use of the following probed from $CC:
-       GASNETI_PLEASE_INLINE
-       GASNETI_THREADKEY_* (TLS support)
-     XXX: could/should provide probes of these items for $CXX and $MPI_CC
-     XXX: could/should provide GASNETT_USE_* as we now do for __attribute__
-     
-     2010-01-23:
-       Removed GASNETI_RESTRICT from list above (implemented probes and override)
-       Provide override for GASNETI_PLEASE_INLINE (but no probes of $CXX or $MPI_CC yet)
+     As of 2010-01-27 this has only two remaining uses:
+     + GASNETI_THREADKEY_*
+       TLS support will conservatively use library calls if compiler has changed
+     + GASNETT_CONFIGURE_MISMATCH
+       exported for use by client code
 
-     also exported as GASNETT_CONFIGURE_MISMATCH
+     Note that in the common case that $MPI_CC presents the same ID as $CC
+     this will not be set simply becuase one compiling with $MPI_CC.
    */
   #define GASNETI_CONFIGURE_MISMATCH 1
 #endif
@@ -496,10 +493,10 @@
   #define GASNETI_PLEASE_INLINE(fnname) GASNETT_USE_PLEASE_INLINE(fnname)
 #elif defined(__cplusplus)
   #define GASNETI_PLEASE_INLINE(fnname) inline
-#elif defined(STATIC_INLINE_WORKS) && !GASNETI_CONFIGURE_MISMATCH
-  #define GASNETI_PLEASE_INLINE(fnname) static CC_INLINE_MODIFIER
-#elif defined(CC_INLINE_MODIFIER) && !GASNETI_CONFIGURE_MISMATCH
-  #define GASNETI_PLEASE_INLINE(fnname) CC_INLINE_MODIFIER
+#elif GASNETI_COMPILER_IS_CC && defined(GASNET_CC_INLINE_MODIFIER)
+  #define GASNETI_PLEASE_INLINE(fnname) GASNET_CC_INLINE_MODIFIER
+#elif GASNETI_COMPILER_IS_MPI_CC && defined(GASNET_MPI_CC_INLINE_MODIFIER)
+  #define GASNETI_PLEASE_INLINE(fnname) GASNET_MPI_CC_INLINE_MODIFIER
 #else
   #define GASNETI_PLEASE_INLINE(fnname) static
 #endif

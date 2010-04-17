@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2010/04/17 00:03:39 $
-dnl $Revision: 1.137.2.5 $
+dnl     $Date: 2010/04/17 00:08:35 $
+dnl $Revision: 1.137.2.6 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -279,7 +279,7 @@ AC_DEFUN([GASNET_CHECK_INTTYPES],[
   AC_DEFINE([$2]HAVE_[]uppername)
   if test "$cross_compiling" = "yes" ; then
     dnl if cross-compiling, just ensure the header can build the inttypes program and hope for the best
-    GASNET_TRY_CACHE_CHECK([for a complete $1],[[$2]COMPLETE_[]uppername],[
+    GASNET_TRY_CACHE_CHECK([for a complete $1],[$2]COMPLETE_[]uppername,[
       GASNET_CHECK_INTTYPES_HELPERPROG($1)
     ],[ return check(); ], [
       [$2]COMPLETE_[]uppername=1
@@ -288,7 +288,7 @@ AC_DEFUN([GASNET_CHECK_INTTYPES],[
     ])
   else 
     dnl otherwise, build and run the inttypes program to ensure the header values are actually correct
-    GASNET_TRY_CACHE_RUN([for a complete $1],[[$2]COMPLETE_[]uppername],[
+    GASNET_TRY_CACHE_RUN([for a complete $1],[$2]COMPLETE_[]uppername,[
       GASNET_CHECK_INTTYPES_HELPERPROG($1)
       int main(void) { return check(); }
     ],[ 
@@ -668,6 +668,9 @@ AC_DEFUN([GASNET_START_CONFIGURE],[
   BUILD_ID="`date` $BUILD_USER"
   AC_MSG_RESULT( build id:       $BUILD_ID)
   AC_SUBST(BUILD_ID)
+
+  # ensure exec_list doesn't grow continuously each time we reconfigure
+  unset cv_prefix[]exec_list
 
   GASNET_RESTORE_AUTOCONF_ENV([CC CXX CFLAGS CXXFLAGS CPPFLAGS LIBS MAKE GMAKE AR AS RANLIB PERL SUM LEX YACC $1])
   GASNET_FUN_END([$0($1)])
@@ -1137,7 +1140,9 @@ dnl otherwise, if DEFAULT_CFLAGS works, then use it
 dnl otherwise, use SAFE_CFLAGS
 AC_DEFUN([GASNET_SET_CHECKED_CFLAGS],[
 GASNET_FUN_BEGIN([$0(...)])
-if test "$[$2]" != "" ; then
+if test "$[$1]" = "no" ; then
+  : # Skip
+elif test "$[$2]" != "" ; then
   GASNET_ENV_DEFAULT([$2], []) # user-provided flags
 else
   GASNET_ENV_DEFAULT([$2], [$3]) # try DEFAULT_CFLAGS
@@ -1895,12 +1900,12 @@ fi
 GASNET_FUN_END([$0($1,...,$4)])
 ])
 
-dnl GASNET_FAMILY_CACHE_CHECK(lang-display-name, (CC|CXX), family_output_var)
+dnl GASNET_FAMILY_CACHE_CHECK(lang-display-name, (CC|MPI_CC|CXX), family_output_var)
 AC_DEFUN([GASNET_FAMILY_CACHE_CHECK],[
 GASNET_FUN_BEGIN([$0($1,$2,$3)])
 AC_REQUIRE_CPP
 AC_CACHE_CHECK(for $1 compiler family, $3, [
-  if test "$2" = "CC" ; then
+  if test "$2" != "CXX" ; then
     _GASNET_FAMILY_CACHE_CHECK_PREPROC="$CPP"
   else
     _GASNET_FAMILY_CACHE_CHECK_PREPROC="$CXXCPP"

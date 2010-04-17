@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2010/04/16 23:58:25 $ */
-/*  $Revision: 1.144.2.2 $ */
+/*      $Date: 2010/04/17 00:08:35 $ */
+/*  $Revision: 1.144.2.3 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -95,8 +95,10 @@
 #undef GASNETI_PLATFORM_MPI_CC_ID
 #undef GASNETI_PLATFORM_MPI_CC_VERSION
 
-/* Defined to be the inline function modifier supported by the C compiler (if supported) */
-#undef CC_INLINE_MODIFIER
+/* Defined to be the inline function modifier supported by the C
+   compilers (if supported), prefixed by 'static' (if permitted) */
+#undef GASNET_CC_INLINE_MODIFIER
+#undef GASNET_MPI_CC_INLINE_MODIFIER
 
 /* C, C++ and MPI_CC compilers 'restrict' keywords (or empty) */
 #undef GASNETI_CC_RESTRICT
@@ -107,9 +109,6 @@
 #undef GASNETI_CC_RESTRICT_MAY_QUALIFY_TYPEDEFS
 #undef GASNETI_CXX_RESTRICT_MAY_QUALIFY_TYPEDEFS
 #undef GASNETI_MPI_CC_RESTRICT_MAY_QUALIFY_TYPEDEFS
-
-/* Functions may be declared "static inline" */
-#undef STATIC_INLINE_WORKS
 
 /* have mmap() */
 #undef HAVE_MMAP
