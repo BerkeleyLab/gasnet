@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2009/10/03 03:46:36 $
- * $Revision: 1.7 $
+ *     $Date: 2010/04/17 00:56:47 $
+ * $Revision: 1.7.2.1 $
  * Description: GASNet Extended API Implementation for DCMF
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -14,7 +14,6 @@
 #include <gasnet_core_internal.h>
 
 #include <gasnet_coll.h>
-//#include <gasnet_coll_autotune.h>
 #include <gasnet_coll_internal.h>
 #include <gasnet_coll_autotune_internal.h>
 
