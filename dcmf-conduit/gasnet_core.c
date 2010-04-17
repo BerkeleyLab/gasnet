@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2010/04/17 00:56:47 $
- * $Revision: 1.12.2.1 $
+ *     $Date: 2010/04/17 00:59:16 $
+ * $Revision: 1.12.2.2 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>, 
                    Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -203,7 +203,8 @@ DCMF_Send_Protocol gasnetc_get_protocol(gasnetc_dcmf_send_category_t sendcat) {
 static void gasnetc_dcmf_init(gasnet_node_t* mynode, gasnet_node_t *nodes) {
   int i,j,k;
   int ret;
-  GASNETC_DCMF_LOCK();
+  DCMF_Configure_t dcmf_config, dcmf_config_out;
+
   ret = DCMF_Messager_initialize();
   
   if(ret==0) {
@@ -211,10 +212,30 @@ static void gasnetc_dcmf_init(gasnet_node_t* mynode, gasnet_node_t *nodes) {
   } else {
     GASNETI_TRACE_PRINTF(C,("DCMF successfully intialized"));
   }
-    
+
+#if GASNET_SEQ
+  dcmf_config.thread_level = DCMF_THREAD_SINGLE;
+#else
+ #if PLATFORM_OS_BGP
+  if (gasnett_cpu_count() == 1) {
+    gasneti_fatalerror("A multi-threaded build of dcmf-conduit is not supported in VN mode");
+  }
+ #endif
+  dcmf_config.thread_level = DCMF_THREAD_MULTIPLE;
+#endif
+
+#if GASNETC_USE_INTERRUPTS
+  dcmf_config.interrupts = DCMF_INTERRUPTS_ON;
+#else
+  dcmf_config.interrupts = DCMF_INTERRUPTS_OFF;
+#endif
+ 
+  DCMF_Messager_configure(&dcmf_config, &dcmf_config_out);
+  gasneti_assert(dcmf_config.thread_level == dcmf_config_out.thread_level);
+  gasneti_assert(dcmf_config.interrupts == dcmf_config_out.interrupts);
+
   *mynode = DCMF_Messager_rank();
   *nodes = DCMF_Messager_size();
-  GASNETC_DCMF_UNLOCK();
     
   gasnetc_dcmf_bootstrap_coll_init();
   
@@ -257,19 +278,17 @@ static void gasnetc_dcmf_init(gasnet_node_t* mynode, gasnet_node_t *nodes) {
     /*register the exit barrier*/
    
     DCMF_GlobalAllreduce_Configuration_t config;
-    DCMF_CriticalSection_enter(0);
+    /* It should already be in DCMF_CriticalSection. */
     bzero(&config, sizeof(DCMF_GlobalAllreduce_Configuration_t));
     config.protocol = DCMF_DEFAULT_GLOBALALLREDUCE_PROTOCOL;
     GASNETC_DCMF_CHECK_PTR(&gasnetc_exit_barrier_registration);
     DCMF_GlobalAllreduce_register(&gasnetc_exit_barrier_registration, &config);
-    DCMF_CriticalSection_exit(0);
   }
 #endif
-  
-  do {
+
+  {
     DCMF_Hardware_t hw;
-    DCMF_Configure_t dcmf_config, dcmf_config_out;
-    DCMF_SAFE(DCMF_Hardware(&hw));
+    DCMF_Hardware(&hw);
     if(gasneti_getenv_yesno_withdefault("GASNET_DCMF_PRINT_TORUS_LOCATION", 0)) {
       fprintf(stderr, "%d/%d> (x,y,z,t) Location: (%d,%d,%d,%d) Sizes: (%d,%d,%d,%d) isTorus?: (%d,%d,%d,%d)\n",
               gasneti_mynode, gasneti_nodes, hw.xCoord, hw.yCoord, hw.zCoord, hw.tCoord,
@@ -282,29 +301,7 @@ static void gasnetc_dcmf_init(gasnet_node_t* mynode, gasnet_node_t *nodes) {
                               hw.xSize, hw.ySize, hw.zSize, hw.tSize,
                               hw.xTorus, hw.yTorus, hw.zTorus, hw.tTorus));
     }    
-
-    DCMF_SAFE(DCMF_Messager_configure(NULL, &dcmf_config_out));
-    
-#if GASNET_SEQ
-    dcmf_config.thread_level = DCMF_THREAD_SINGLE;
-#else
-    dcmf_config.thread_level = DCMF_THREAD_MULTIPLE;
-#endif
-
-#if GASNETC_USE_INTERRUPTS
-    dcmf_config.interrupts = DCMF_INTERRUPTS_ON;
-#else
-    dcmf_config.interrupts = DCMF_INTERRUPTS_OFF;
-#endif
- 
-    DCMF_SAFE(DCMF_Messager_configure(&dcmf_config, &dcmf_config_out));
-
-    gasneti_assert(dcmf_config.thread_level == dcmf_config_out.thread_level);
-    gasneti_assert(dcmf_config.interrupts == dcmf_config_out.interrupts);
-
-
-  } while(0);
-  
+  }
   
   GASNETC_DCMF_UNLOCK();  
 }
