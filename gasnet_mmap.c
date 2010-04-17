@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/04/16 23:28:24 $
- * $Revision: 1.67.2.2 $
+ *     $Date: 2010/04/17 02:09:20 $
+ * $Revision: 1.67.2.3 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1515,9 +1515,26 @@ void gasneti_auxseg_attach(void) {
   gasneti_seginfo_client = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
 
   if (gasneti_nodemap) {
-    for (i=0; i < gasneti_nodes; i++) {
-      gasneti_seginfo_client[i].nodeinfo = gasneti_nodemap[i];
+    /* N^2 computation rather than N^2 network exchange */
+    gasnet_node_t count = 1;
+    gasnet_node_t prev = 0;
+    for (i = 0; i < gasneti_nodes; ++i) {
+      gasnet_node_t match = gasneti_nodemap[i];
+      if (match == 0) { /* Special case avoids needing prev < 0 */
+        gasneti_seginfo_client[i].nodeinfo = 0;
+      } else if (match > prev){
+        prev = match;
+        gasneti_seginfo_client[i].nodeinfo = count;
+        for (j = i+1; j < gasneti_nodes; ++j) {
+          if (gasneti_nodemap[j] == match) {
+            gasneti_seginfo_client[j].nodeinfo = count;
+	  }
+        }
+        ++count;
+        gasneti_assert(count <= gasneti_nodemap_global_count);
+      }
     }
+    gasneti_assert(gasneti_seginfo_client[gasneti_mynode].nodeinfo == gasneti_nodemap_global_rank);
   } else {
     for (i=0; i < gasneti_nodes; i++) {
       gasneti_seginfo_client[i].nodeinfo = i;

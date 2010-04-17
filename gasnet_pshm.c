@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2009/10/01 02:51:40 $
- * $Revision: 1.3 $
+ *     $Date: 2010/04/17 02:09:20 $
+ * $Revision: 1.3.2.1 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -42,9 +42,10 @@ static void *gasnetc_pshmnet_region = NULL;
 static struct gasneti_pshm_info {
     gasneti_atomic_t    bootstrap_barrier;
     union { /* variable length arrays */
-        gasneti_pshm_rank_t rankmap[1];
         /* sig_atomic_t should be wide enough to avoid word-tearing, right? */
         volatile sig_atomic_t early_barrier[1];
+        gasnet_node_t node[1];
+        gasneti_pshm_rank_t rank[1];
     } u;
 } *gasneti_pshm_info = NULL;
 
@@ -58,6 +59,9 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
   size_t vnetsz, mmapsz;
   int discontig = 0;
   gasnet_node_t i;
+#if !GASNET_CONDUIT_SMP
+  gasnet_node_t j;
+#endif
 
   gasneti_pshm_nodes = gasneti_nodemap_local_count;
   gasneti_pshm_firstnode = gasneti_nodemap[gasneti_mynode];
@@ -69,13 +73,17 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
   gasneti_assert(gasneti_pshm_mynode == gasneti_mynode);
 #else
   /* TODO: Allow env var to limit size of a supernode. */
+  gasneti_assert(gasneti_nodemap[0] == 0);
   for (i=1; i<gasneti_nodes; ++i) {
+    /* Determine if supernode members are numbered contiguously */
     if (gasneti_nodemap[i-1] > gasneti_nodemap[i]) {
       discontig = 1;
       break;
     }
   }
 #endif
+
+  gasneti_assert(gasneti_pshm_supernodes > 0);
 
   /* setup filenames, unless exchangefn is NULL (indicating caller took care of it) */
   if (exchangefn != NULL) {
@@ -104,10 +112,19 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
    */
   vnetsz = gasneti_pshmnet_memory_needed(gasneti_pshm_nodes); 
   mmapsz = (2*vnetsz);
-  { /* gasneti_pshm_info contains one or two variable-length arrays in the same space */
-    size_t info_sz = gasneti_pshm_nodes * sizeof(sig_atomic_t);
-    if (discontig) info_sz = MAX(info_sz, gasneti_nodes * sizeof(gasneti_pshm_rank_t));
+  { /* gasneti_pshm_info contains multiple variable-length arrays in the same space */
+    size_t info_sz;
+    /* space for gasneti_pshm_firsts: */
+    info_sz = gasneti_pshm_supernodes * sizeof(gasnet_node_t);
+    /* optional space for gasneti_pshm_rankmap: */
+    if (discontig) {
+      info_sz = GASNETI_ALIGNUP(info_sz, sizeof(gasneti_pshm_rank_t));
+      info_sz += gasneti_nodes * sizeof(gasneti_pshm_rank_t);
+    }
+    /* space for early barrier, sharing space with the items above: */
+    info_sz = MAX(info_sz, gasneti_pshm_nodes * sizeof(sig_atomic_t));
     info_sz += offsetof(struct gasneti_pshm_info, u);
+    /* final space requested: */
     mmapsz += round_up_to_pshmpage(info_sz);
   }
   mmapsz += round_up_to_pshmpage(aux_sz);
@@ -137,10 +154,44 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
    * "early" barrier above ensures all procs have attached. */
   gasneti_unlink_vnet();
 
-  /* construct rankmap, if any. */
+  /* Carve out various allocations, reusing the "early barrier" space. */
+  gasneti_pshmnet_bootstrapBarrier();
+  {
+    uintptr_t addr = (uintptr_t)&gasneti_pshm_info->u;
+    /* gasneti_pshm_firsts, an array of gasneti_pshm_supernodes*sizeof(gasnet_node_t): */
+    gasneti_pshm_firsts = (gasnet_node_t *)addr;
+    addr += gasneti_pshm_supernodes * sizeof(gasnet_node_t);
+    /* optional rankmap: */
+    if (discontig) {
+      addr = GASNETI_ALIGNUP(addr, sizeof(gasneti_pshm_rank_t));
+      gasneti_pshm_rankmap = (gasneti_pshm_rank_t *)addr;
+      addr += gasneti_nodes * sizeof(gasneti_pshm_rank_t);
+    }
+  }
+
+  /* Populate gasneti_pshm_firsts[] */
+  if (!gasneti_pshm_mynode) gasneti_pshm_firsts[0] = 0;
+#if !GASNET_CONDUIT_SMP
+  for (i=j=1; i<gasneti_nodes; ++i) {
+    if (gasneti_nodemap[i] == i) {
+      if (!gasneti_pshm_mynode) gasneti_pshm_firsts[j] = i;
+      j += 1;
+      gasneti_assert(j <= gasneti_pshm_supernodes);
+    }
+  }
+#endif
+#if GASNET_DEBUG
+  /* Validate gasneti_pshm_firsts[] */
+  if (gasneti_pshm_mynode == 0) {
+    for (i=0; i<gasneti_pshm_supernodes; ++i) {
+      gasneti_assert(!i || (gasneti_pshm_firsts[i] > gasneti_pshm_firsts[i-1]));
+      gasneti_assert(gasneti_nodemap[gasneti_pshm_firsts[i]] == gasneti_pshm_firsts[i]);
+    }
+  }
+#endif
+
+  /* construct rankmap, if any, with first node doing all the work. */
   if (discontig) {
-    gasneti_pshmnet_bootstrapBarrier(); /* becasue rankmap reuses the "early barrier" space. */
-    gasneti_pshm_rankmap = gasneti_pshm_info->u.rankmap;
     if (gasneti_pshm_mynode == 0) { /* First node does all the work */
       memset(gasneti_pshm_rankmap, 0xff, gasneti_nodes * sizeof(gasneti_pshm_rank_t));
       for (i = 0; i < gasneti_pshm_nodes; ++i) {
@@ -234,14 +285,14 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
 
 
 /*******************************************************************************
- * "PSHM Net":  virtual network between peers in a shared memory supernode 
+ * PSHM global variables:
  ******************************************************************************/
-/* # of nodes in my supernode, lowest of gasnet node # in
- * supernode, and my 0-based rank within it */
 gasneti_pshm_rank_t gasneti_pshm_nodes = 0;
 gasnet_node_t gasneti_pshm_firstnode = (gasnet_node_t)(-1);
 gasneti_pshm_rank_t gasneti_pshm_mynode = (gasneti_pshm_rank_t)(-1);
+/* vectors constructed in shared space: */
 gasneti_pshm_rank_t *gasneti_pshm_rankmap = NULL;
+gasnet_node_t *gasneti_pshm_firsts = NULL;
 
 /*******************************************************************************
  * "PSHM Net":  message header formats
@@ -1140,9 +1191,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnet_node_t dest,
       memcpy(GASNETI_AMPSHM_MSG_MED_DATA(msg), source_addr, nbytes);
       break;
     case gasnetc_Long: {
-      void *local_dest_addr = (void*)((uintptr_t)dest_addr
-                                      - (uintptr_t)gasneti_seginfo[dest].addr
-                                      + (uintptr_t)gasneti_seginfo[dest].remote_addr);
+      void *local_dest_addr = gasneti_pshm_addr2local(dest, dest_addr);
 
       GASNETI_AMPSHM_MSG_LONG_DATA(msg) = dest_addr; 
       GASNETI_AMPSHM_MSG_LONG_NUMBYTES(msg) = nbytes;

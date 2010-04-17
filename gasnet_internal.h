@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2010/04/16 23:19:40 $
- * $Revision: 1.118.2.1 $
+ *     $Date: 2010/04/17 02:09:20 $
+ * $Revision: 1.118.2.2 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -651,6 +651,8 @@ extern gasnet_node_t *gasneti_nodemap;
 extern gasnet_node_t *gasneti_nodemap_local;
 extern gasnet_node_t gasneti_nodemap_local_count;
 extern gasnet_node_t gasneti_nodemap_local_rank;
+extern gasnet_node_t gasneti_nodemap_global_count;
+extern gasnet_node_t gasneti_nodemap_global_rank;
 
 extern void gasneti_nodemapInit(gasneti_bootstrapExchangefn_t exchangefn,
                                 const void *ids, size_t sz, size_t stride);

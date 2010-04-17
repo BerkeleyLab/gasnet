@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2009/10/12 03:20:19 $
- * $Revision: 1.206 $
+ *     $Date: 2010/04/17 02:09:20 $
+ * $Revision: 1.206.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -821,6 +821,8 @@ gasnet_node_t *gasneti_nodemap = NULL;
 gasnet_node_t *gasneti_nodemap_local = NULL;
 gasnet_node_t gasneti_nodemap_local_count = 0;
 gasnet_node_t gasneti_nodemap_local_rank = (gasnet_node_t)-1;
+gasnet_node_t gasneti_nodemap_global_count = 0;
+gasnet_node_t gasneti_nodemap_global_rank = (gasnet_node_t)-1;
 
 /* This code is "good" for all "sensible" process layouts, where "good"
  * means identifing all sharing for such a mapping in one pass and the
@@ -998,21 +1000,21 @@ static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
  *   gasneti_nodemap_local_count = number of GASNet nodes collocated w/ gasneti_mynode
  *   gasneti_nodemap_local_rank  = rank of gasneti_mynode among gasneti_nodemap_local_count
  *   gasneti_nodemap_local[]     = array (length gasneti_nodemap_local_count) of local nodes
+ *   gasneti_nodemap_global_count = number of unique values in the nodemap
+ *   gasneti_nodemap_global_rank  = rank of gasneti_mynode among gasneti_nodemap_global_count
  *
  */
 extern void gasneti_nodemapParse(void) {
-  
   gasnet_node_t i,j,first;
 
   gasneti_assert(gasneti_nodemap);
   gasneti_assert(gasneti_nodemap[0] == 0);
   gasneti_assert(gasneti_nodemap[gasneti_mynode] <= gasneti_mynode);
 
+  first = gasneti_nodemap[gasneti_mynode];
+
   /* Compute local stats */
   {
-    gasnet_node_t first = gasneti_nodemap[gasneti_mynode];
-    gasnet_node_t i;
-
     gasneti_assert(gasneti_nodemap_local_count == 0);
     for (i = first; i < gasneti_nodes; ++i) {
       if (i == gasneti_mynode) gasneti_nodemap_local_rank = gasneti_nodemap_local_count;
@@ -1023,17 +1025,22 @@ extern void gasneti_nodemapParse(void) {
   }
   gasneti_nodemap_local = gasneti_malloc(gasneti_nodemap_local_count*sizeof(gasnet_node_t));
 
-  /* construct array of local nodes */
-  first = gasneti_nodemap[gasneti_mynode];
-  for(i=first, j=0; j<gasneti_nodemap_local_count; i++){
+  /* construct array of local nodes and determine global count & rank */
+  gasneti_nodemap_global_count = 0;
+  for (i = j = 0; i < gasneti_nodes; ++i) {
     if (gasneti_nodemap[i] == first){
-        gasneti_nodemap_local[j++] = i;
+      gasneti_nodemap_local[j++] = i;
+    }
+    if (gasneti_nodemap[i] == i) {
+      if (i == first) {
+        gasneti_nodemap_global_rank = gasneti_nodemap_global_count;
+      }
+      ++gasneti_nodemap_global_count;
     }
   }
 
   #if GASNET_DEBUG_VERBOSE
   if (!gasneti_mynode) {
-    gasnet_node_t i;
     for (i = 0; i < gasneti_nodes; ++i) {
       fprintf(stderr, "gasneti_nodemap[%i] = %i\n", (int)i, (int)gasneti_nodemap[i]);
     }
@@ -1100,8 +1107,6 @@ extern void gasneti_nodemapFini(void) {
   /* To help catch any use-afer-Fini: */
   gasneti_nodemap = NULL;
   gasneti_nodemap_local = NULL;
-  gasneti_nodemap_local_count = 0;
-  gasneti_nodemap_local_rank = (gasnet_node_t)-1;
 #endif
 }
 
