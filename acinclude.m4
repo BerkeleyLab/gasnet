@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2010/04/17 00:08:35 $
-dnl $Revision: 1.137.2.6 $
+dnl     $Date: 2010/04/17 00:25:35 $
+dnl $Revision: 1.137.2.7 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -163,7 +163,7 @@ if test "$ac_cv_header_[]lowername" = "yes"; then
   fi
   if test -z "$header_pathname"; then
     AC_MSG_RESULT(unknown)
-    GASNET_MSG_WARN(Unable to detect pathname of lowername - pretending it doesn't exist)
+    GASNET_MSG_WARN(Unable to detect pathname of $1 - pretending it doesn't exist)
     have=0
   else
     AC_MSG_RESULT($header_pathname)
@@ -1048,11 +1048,6 @@ dnl Indirection for GASNET_TRY_CCOMPILE_WITHWARN or GASNET_TRY_CXXCOMPILE_WITHWA
 AC_DEFUN([GASNET_TRY_COMPILE_WITHWARN],
   GASNET_TRY_[$1]COMPILE_WITHWARN[([$2],[$3],[$4],[$5],[$6])])
 
-dnl GASNET_TRY_COMPILE_WITHWARN(type, ...) where type is C or CXX
-dnl Indirection for GASNET_TRY_CCOMPILE_WITHWARN or GASNET_TRY_CXXCOMPILE_WITHWARN
-AC_DEFUN([GASNET_TRY_COMPILE_WITHWARN],
-  GASNET_TRY_[$1]COMPILE_WITHWARN[([$2],[$3],[$4],[$5],[$6])])
-
 dnl GASNET_TRY_CFLAG(flags, action-if-supported, action-if-not-supported)
 AC_DEFUN([GASNET_TRY_CFLAG],[
 GASNET_FUN_BEGIN([$0($1)])
@@ -1194,15 +1189,17 @@ GASNET_FUN_BEGIN([$0])
   dnl Check for restrict keyword
   pushdef([cvprefix],translit([$1],'A-Z','a-z'))
   restrict_keyword=""
-  if test "$restrict_keyword" = ""; then
-    GASNET_TRY_CACHE_CHECK($2 for restrict keyword, cvprefix[]restrict,
-      [int dummy(void * restrict p) { return 1; }], [],
-      restrict_keyword="restrict")
-  fi
+  # Due to xlc/mpcc_r oddity on AIX, we check "__restrict__" before "restrict".
+  # Both ID the same, but xlc accepts either while mpcc_r only takes "__restrict__".
   if test "$restrict_keyword" = ""; then
     GASNET_TRY_CACHE_CHECK($2 for __restrict__ keyword, cvprefix[]__restrict__,
       [int dummy(void * __restrict__ p) { return 1; }], [],
       restrict_keyword="__restrict__")
+  fi
+  if test "$restrict_keyword" = ""; then
+    GASNET_TRY_CACHE_CHECK($2 for restrict keyword, cvprefix[]restrict,
+      [int dummy(void * restrict p) { return 1; }], [],
+      restrict_keyword="restrict")
   fi
   if test "$restrict_keyword" = ""; then
     GASNET_TRY_CACHE_CHECK($2 for __restrict keyword, cvprefix[]__restrict,
@@ -1219,18 +1216,18 @@ GASNET_FUN_END([$0])
 ])
 
 dnl INTERNL USE ONLY
-AC_DEFUN([GASNETI_C_OR_CXX],[ifelse(index([$1],[CXX])[]index([$1],[C++]),[-1-1],[C],[CXX])])
+AC_DEFUN([GASNETI_C_OR_CXX],[ifelse(index([$1],[CXX]),[-1],[C],[CXX])])
 
 dnl check whether a given gcc/g++ attribute is available
 dnl GASNET_CHECK_GNU_ATTRIBUTE(PREFIX, compiler-name, attribute-name, declaration, code)
-dnl If compiler-name contains "CXX" or "C++" then test is run as LANG_CPLUSPLUS
+dnl If PREFIX contains "CXX" then test is run as LANG_CPLUSPLUS
 dnl Caller is responsible for setting of CC and friends in the MPI_CC case
 AC_DEFUN([GASNET_CHECK_GNU_ATTRIBUTE],[
   GASNET_FUN_BEGIN([$0($1,$2,$3)])
   pushdef([uppername],translit(patsubst([$3], [_], []),'a-z','A-Z'))
   pushdef([cachevar],cv_prefix[]translit([$1]_attr_[]uppername,'A-Z','a-z'))
   AC_CACHE_CHECK($2 for __attribute__(($3)), cachevar,
-    GASNET_TRY_COMPILE_WITHWARN(GASNETI_C_OR_CXX([$2]), [$4], [$5], [
+    GASNET_TRY_COMPILE_WITHWARN(GASNETI_C_OR_CXX([$1]), [$4], [$5], [
           cachevar='yes'
       ],[ dnl cachevar="no/warning: $gasnet_cmd_stdout$gasnet_cmd_stderr"
           cachevar='no/warning'
@@ -1251,7 +1248,7 @@ AC_DEFUN([GASNET_CHECK_GNU_ATTRIBUTE],[
 
 dnl GASNET_GET_GNU_ATTRIBUTES(PREFIX, opt compiler-name)
 dnl Check all gcc attributes of interest/importance to GASNet
-dnl If compiler-name contains "CXX" or "C++" then test is run as LANG_CPLUSPLUS
+dnl If PREFIX contains "CXX"  then test is run as LANG_CPLUSPLUS
 dnl Caller must setup CC, CFLAGS, etc for MPI_CC case.
 AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__always_inline__],
@@ -1282,7 +1279,7 @@ AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
 
   pushdef([cachevar],cv_prefix[]translit([$1],'A-Z','a-z')[]_attr_format_funcptr)
   AC_CACHE_CHECK($2 for __attribute__((__format__)) on function pointers, cachevar,
-    GASNET_TRY_COMPILE_WITHWARN(GASNETI_C_OR_CXX([$2]), [
+    GASNET_TRY_COMPILE_WITHWARN(GASNETI_C_OR_CXX([$1]), [
           __attribute__((__format__ (__printf__, 1, 2))) extern void (*dummy)(const char *fmt,...);
       ], [], [ cachevar='yes' ],[ cachevar='no/warning' ],[ cachevar='no/error' ])
   )

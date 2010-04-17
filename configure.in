@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/04/17 00:08:35 $
-# $Revision: 1.580.2.9 $
+#     $Date: 2010/04/17 00:25:35 $
+# $Revision: 1.580.2.10 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.580.2.9 $)
+AC_REVISION($Revision: 1.580.2.10 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -290,18 +290,30 @@ case "$gasnet_cv_cc_family" in
         SEPARATE_CC=1 # force separate compilation - multiple -c compilation not supported
   ;;
   Open64)
+    if test "$GASNETI_PTR_BITS" = 32; then
+        # See bug 2725 for info on test failures at -O3
+        CCOPTFLAGS="-O2"
+    else
         # See bug 2724 for info on "-OPT:wrap_around_unsafe=off"
         CCOPTFLAGS="-O3 -OPT:wrap_around_unsafe=off"
+    fi
   ;;
   *)    CCOPTFLAGS="-O" ;;
 esac
 AC_SUBST(SEPARATE_CC)
 
+dnl GASNET_TRY_WNO_FLAG(type,flag,action-on-success)  type=C or CXX
+dnl As per bug 2718 gcc might silently ignore -Wno-such-flag, but not -Wsuch-flag
+dnl XXX: Probably sufficient to just probe for -Wsuch-flag (but lie in AC_MSG_CHECKING)
+AC_DEFUN([GASNET_TRY_WNO_FLAG],[
+        ]GASNET_TRY_[$1]FLAG[([$2],
+            ]GASNET_TRY_[$1]FLAG[(patsubst([$2],[Wno-],[W]),[$3]))])
+
 dnl GASNET_GET_GNUWARNINGFLAGS(type)  type=C or CXX
 AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
         ]GASNET_TRY_[$1]FLAG[([-Wall],[[$1]FLAGS="$[$1]FLAGS -Wall"])
-        ]GASNET_TRY_[$1]FLAG[([-Wno-unused],[[$1]FLAGS="$[$1]FLAGS -Wno-unused"])
-        ]GASNET_TRY_[$1]FLAG[([-Wno-address],[[$1]FLAGS="$[$1]FLAGS -Wno-address"])
+         GASNET_TRY_WNO_FLAG([$1],[-Wno-unused],[[$1]FLAGS="$[$1]FLAGS -Wno-unused"])
+         GASNET_TRY_WNO_FLAG([$1],[-Wno-address],[[$1]FLAGS="$[$1]FLAGS -Wno-address"])
         ]GASNET_TRY_[$1]FLAG[([-Wpointer-arith],[[$1]FLAGS="$[$1]FLAGS -Wpointer-arith"])
         ]GASNET_TRY_[$1]FLAG[([-Wnested-externs],[[$1]FLAGS="$[$1]FLAGS -Wnested-externs"])
         ]GASNET_TRY_[$1]FLAG[([-Wwrite-strings],[[$1]FLAGS="$[$1]FLAGS -Wwrite-strings"])
@@ -319,7 +331,7 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
         ]GASNET_TRY_[$1]COMPILE_WITHWARN[([#include <pthread.h>],
           [pthread_mutex_t fastmutex = PTHREAD_MUTEX_INITIALIZER;],
           [AC_MSG_RESULT(ok)], [AC_MSG_RESULT(buggy)
-          ]GASNET_TRY_[$1]FLAG[([-Wno-missing-braces],[old[$1]FLAGS="$old[$1]FLAGS -Wno-missing-braces"])],
+           GASNET_TRY_WNO_FLAG([$1],[-Wno-missing-braces],[old[$1]FLAGS="$old[$1]FLAGS -Wno-missing-braces"])],
           [#bug611: ignore failures here, which may be due to broken/missing pthreads support
            #AC_MSG_ERROR(failure while checking for buggy pthread.h mutexes)
 	   AC_MSG_RESULT(failure - ignored)
@@ -329,7 +341,7 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
 	fi
         case "$target_os" in 
           solaris*) # hide pragma warnings in system header files included by absolute path
-            ]GASNET_TRY_[$1]FLAG[([-Wno-unknown-pragmas],[[$1]FLAGS="$[$1]FLAGS -Wno-unknown-pragmas"])
+            GASNET_TRY_WNO_FLAG([$1],[-Wno-unknown-pragmas],[[$1]FLAGS="$[$1]FLAGS -Wno-unknown-pragmas"])
         esac
         #]GASNET_TRY_[$1]FLAG[([-ansi -U__STRICT_ANSI__],[[$1]FLAGS="$[$1]FLAGS -ansi -U__STRICT_ANSI__"])
 ])
@@ -528,8 +540,8 @@ case "$gasnet_cv_cc_family" in
     case "$target_os" in
       hpux*) GASNET_GET_HPUX_FLAGS(C,["-D__STDC_EXT__=1"]);;
       darwin*) 
-        GASNET_TRY_CFLAG([-Wno-long-double],
-	                 [MISC_CFLAGS="$MISC_CFLAGS -Wno-long-double"])
+        GASNET_TRY_WNO_FLAG([C],[-Wno-long-double],
+                            [MISC_CFLAGS="$MISC_CFLAGS -Wno-long-double"])
       ;; 
     esac
     ;;
@@ -571,7 +583,7 @@ case "$gasnet_cv_cc_family" in
     case "$target_os" in
       darwin*) # add some options which are specific to the Apple Inc version of gcc
         GASNET_TRY_CFLAG([-no-cpp-precomp],
-	                 [MISC_CPPFLAGS="$MISC_CPPFLAGS -no-cpp-precomp"])
+                         [MISC_CPPFLAGS="$MISC_CPPFLAGS -no-cpp-precomp"])
       ;; 
     esac ;;
   *)  MISC_CPPFLAGS="" ;;
@@ -1092,7 +1104,7 @@ if test "$segconfig$enabled_pshm" = everythingyes; then
 fi
 if expr "$enabled_pshm@$target_os" : "yes@darwin" >/dev/null; then
   GASNET_MSG_ERROR([User requested --enable-pshm but PSHM support is not permitted on Mac OS X.])
-  dnl We can crash Macs!  See bib 2629.
+  dnl We can crash Macs!  See bug 2629.
 fi
 if test "$enabled_pshm" = yes; then
   GASNET_PSHM_LIBS=""
@@ -1449,7 +1461,7 @@ AC_TRY_RUN([
   #if PLATFORM_ARCH_X86_64
     #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
         PLATFORM_COMPILER_PATHSCALE || GASNETI_PGI_ASM_GNU || \
-        PLATFORM_COMPILER_OPEN64__IS_NOT_WORKING_YET
+        PLATFORM_COMPILER_OPEN64_BROKEN_SEE_BUG_2726
 
 	unsigned long *array[3];
 	volatile unsigned long *p = (void *)(((unsigned long)array + 15) & ~(unsigned long)15);
@@ -1961,6 +1973,70 @@ If this is not what you intended, then set \$[$1] to select a different $2 compi
   popdef([lowername])
 ])
 
+dnl GASNET_LINKHELPER-*:
+dnl   GASNET_LINKHELPER_SETUP(lang-decr)
+dnl   GASNET_LINKHELPER_TRY_{RUN,LINK}(msg,cv_var,includes,body,on_success,on_failure)
+dnl   GASNET_LINKHELPER_CLEANUP()
+LINKHELPER_BASE=conftest_cfunc
+LINKHELPER_SRC=$LINKHELPER_BASE.c
+LINKHELPER_OBJ=$LINKHELPER_BASE.o
+LINKHELPER_LIBS="$LINKHELPER_OBJ $LIBM"
+LINKHELPER_DECL="extern int linkhelper_cint; extern void linkhelper_cfunc(int val);"
+LINKHELPER_CODE="linkhelper_cfunc(linkhelper_cint);"
+if test x"$have_tls" = xyes; then
+  LINKHELPER_TLS_DECL='__thread long tlocal;'
+  LINKHELPER_TLS_CODE='tlocal = 4;'
+fi
+AC_DEFUN([GASNET_LINKHELPER_SETUP],[
+  AC_MSG_CHECKING([building $1 helper object])
+  cat >$LINKHELPER_SRC <<_GASNET_EOF
+    #include <stdio.h>
+    #include <string.h>
+    #include <assert.h>
+    #include <math.h>
+    int linkhelper_cint = 0xFFFF;
+    $LINKHELPER_TLS_DECL
+    extern void linkhelper_cfunc(int val) {
+      char s[[255]], s2[[255]];
+      int a[[40]] = {1}; /* trigger Intel C issue */
+      assert(val == linkhelper_cint);
+      s[[4]] = '\0';
+      s[[5]] = (char)(sin((double)val)+cos((double)val))+sqrt((double)val)+log((double)val);
+      strcpy(s2, s);
+      memcpy(s2, s, strlen(s)); memmove(s2, s, strlen(s));
+      memcpy(s2, s, 4); memmove(s2, s, 4);
+      $LINKHELPER_TLS_CODE
+    }
+_GASNET_EOF
+  compile="$CC $CFLAGS $MISC_CFLAGS $CPPFLAGS -c $LINKHELPER_SRC -o $LINKHELPER_OBJ"
+  eval echo "$compile" >&5
+  if eval $compile 2>&5 && test -s $LINKHELPER_OBJ ; then
+    AC_MSG_RESULT(ok)
+  else
+    GASNET_MSG_ERROR(failed while building $1 helper object)
+  fi
+])
+AC_DEFUN([GASNET_LINKHELPER_CLEANUP],[ rm -f $LINKHELPER_OBJ ])
+AC_DEFUN([GASNET_LINKHELPER_TRY_INNER],[
+  GASNET_PUSHVAR(LIBS,"$LINKHELPER_LIBS $LIBS")
+  ]GASNET_TRY_CACHE_[$1][($2,$3,[
+    $4
+    #ifdef __cplusplus
+      extern "C" {
+    #endif
+      $LINKHELPER_DECL
+    #ifdef __cplusplus
+      }
+    #endif
+  ], [
+    $LINKHELPER_CODE
+    $5
+  ],$6,$7)
+  GASNET_POPVAR(LIBS)
+])
+AC_DEFUN([GASNET_LINKHELPER_TRY_LINK],[GASNET_LINKHELPER_TRY_INNER([LINK],$@)])
+AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$@)])
+
 #---------------------------------------------------------------------------------------------------------------
 # CONDUIT CONFIGURATIONS
 #---------------------------------------------------------------------------------------------------------------
@@ -2064,7 +2140,11 @@ if test $enabled_udp = yes; then
      esac ;;
     Pathscale)  CXXDEBUGFLAGS="-g3 -O0" ;; # consistent with CCDEBUGFLAGS
     Open64)
-       CXXOPTFLAGS="-O3 -OPT:wrap_around_unsafe=off" # consistent with CCOPTFLAGS
+       if test "$GASNETI_PTR_BITS" = 32; then # consistent with CCOPTFLAGS
+         CXXOPTFLAGS="-O2"
+       else
+         CXXOPTFLAGS="-O3 -OPT:wrap_around_unsafe=off"
+       fi
        GASNET_PUSHVAR(CXXFLAGS,"-g3")
        GASNET_GET_GNUWARNINGFLAGS(CXX)
        CXXDEBUGFLAGS="$CXXFLAGS" 
@@ -2106,6 +2186,30 @@ if test $enabled_udp = yes; then
 
   GASNET_CHECK_RESTRICT([GASNETI_CXX],[C++ compiler])
   GASNET_GET_GNU_ATTRIBUTES([GASNETI_HAVE_CXX],[C++ compiler])
+
+  # we link in an object compiled with CC that uses libc, to ensure that's working
+  # [at least initially this is almost a clone of the MPI helper test]
+  GASNET_LINKHELPER_SETUP([C++])
+
+  # Now try to link/run the helper (which was built earlier)
+  GASNET_LINKHELPER_TRY_RUN(for working C++ to C linkage, cxx_works, [], [],
+      [ cxx_helper_worked=yes ], [ cxx_helper_worked=no; GASNET_ERR_SAVE() ] )
+  # Apple's gcc/g++ don't provide TLS support, but the FSF gcc/g++ do.
+  # The two are link compatible IF we explicitly pass -lgcc_eh
+  # XXX: Really only needed for PAR and PARSYNC, but we don't distinguish.
+  if test "$cxx_helper_worked$have_tls$gasnet_cv_cc_family" = noyesGNU; then
+    LIBS="$LIBS $LIBGCC -lgcc_eh"  # $LIBGCC appears in $GASNET_LIBS eventually
+    GASNET_LINKHELPER_TRY_RUN(for working C++ to C linkage w/ added -lgcc_eh,
+        cxx_works_gcc_eh, [],[],
+        [ cxx_helper_worked=yes
+          GASNET_UDP_LIBS="$GASNET_UDP_LIBS -lgcc_eh" ],
+        [ cxx_helper_worked=no; GASNET_ERR_SAVE() ] )
+  fi
+  if test "$cxx_helper_worked" = no; then
+    have_cxx=no
+    GASNET_MSG_WARN([It appears your C++ and C compilers are not link-compatible. Disabling udp-conduit, which requires C++])
+  fi
+  GASNET_LINKHELPER_CLEANUP()
 
   GASNET_POPVAR(CXXFLAGS)
   GASNET_POPVAR(LDFLAGS)
@@ -2205,7 +2309,8 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
         GASNET_PUSHVAR(CC,"$MPI_CC")
         GASNET_PUSHVAR(CFLAGS,"$MPI_CFLAGS")
         if test x"$MPI_CC" != xno; then
-          GASNET_TRY_CFLAG([-Wno-long-double],[MPI_CFLAGS="$MPI_CFLAGS -Wno-long-double"])
+          GASNET_TRY_WNO_FLAG([C],[-Wno-long-double],
+	                      [MPI_CFLAGS="$MPI_CFLAGS -Wno-long-double"])
         fi
         GASNET_POPVAR(CC)
         GASNET_POPVAR(CFLAGS)
@@ -2314,58 +2419,19 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
   # now run a basic test of the MPI configuration to make sure it works
   if test $have_mpi = yes; then
 
-    AC_MSG_CHECKING(building MPI helper object)
     # we link in an object compiled with CC that uses libc, to ensure that's working
-    MPIHELPER_BASE=conftest_cfunc
-    MPIHELPER_SRC=$MPIHELPER_BASE.c
-    MPIHELPER_OBJ=$MPIHELPER_BASE.o
-    MPIHELPER_LIBS="$MPIHELPER_OBJ $LIBM"
-    MPIHELPER_DECL="extern int mpihelper_cint; extern void mpihelper_cfunc(int val);"
-    MPIHELPER_CODE="mpihelper_cfunc(mpihelper_cint);"
-    if test x"$have_tls" = xyes; then
-      MPIHELPER_TLS_DECL='__thread long tlocal;'
-      MPIHELPER_TLS_CODE='tlocal = 4;'
-    fi
-    cat >$MPIHELPER_SRC <<_GASNET_EOF
-    #include <stdio.h>
-    #include <string.h>
-    #include <assert.h>
-    #include <math.h>
-    int mpihelper_cint = 0xFFFF;
-    $MPIHELPER_TLS_DECL
-    extern void mpihelper_cfunc(int val) {
-      char s[[255]], s2[[255]];
-      int a[[40]] = {1}; /* trigger Intel C issue */
-      assert(val == mpihelper_cint);
-      s[[4]] = '\0';
-      s[[5]] = (char)(sin((double)val)+cos((double)val))+sqrt((double)val)+log((double)val);
-      strcpy(s2, s);
-      memcpy(s2, s, strlen(s)); memmove(s2, s, strlen(s));
-      memcpy(s2, s, 4); memmove(s2, s, 4);
-      $MPIHELPER_TLS_CODE
-      fprintf(stdout,"hi\n");
-    }
-_GASNET_EOF
-    compile="$CC $CFLAGS $MISC_CFLAGS $CPPFLAGS -c $MPIHELPER_SRC -o $MPIHELPER_OBJ"
-    eval echo "$compile" >&5
-    if eval $compile 2>&5 && test -s $MPIHELPER_OBJ ; then
-	AC_MSG_RESULT(ok)
-    else
-	GASNET_MSG_ERROR(failed while building MPI helper object)
-    fi
+    GASNET_LINKHELPER_SETUP(MPI)
 
     # we need a clean slate here because MPI config may be totally different
     GASNET_PUSHVAR(CC,"$MPI_CC")
     GASNET_PUSHVAR(CFLAGS,"$MPI_CFLAGS")
     GASNET_PUSHVAR(CPPFLAGS,"")
     GASNET_PUSHVAR(LDFLAGS,"")
-    GASNET_PUSHVAR(LIBS,"$MPIHELPER_LIBS $MPI_LIBS")
+    GASNET_PUSHVAR(LIBS,"$MPI_LIBS")
     # we just try to link an MPI app - running MPI apps is a whole new can of worms
-    GASNET_TRY_CACHE_LINK(for working MPI configuration, mpi_works, [
+    GASNET_LINKHELPER_TRY_LINK(for working MPI configuration, mpi_works, [
       #include <mpi.h>
-      $MPIHELPER_DECL
     ], [
-      $MPIHELPER_CODE
       MPI_Init((void*)0,(void*)0);
       MPI_Finalize();
     ], [ mpi_test_worked=yes ], [ mpi_test_worked=no GASNET_ERR_SAVE() ] )
@@ -2374,17 +2440,16 @@ _GASNET_EOF
     # XXX: Really only needed for PAR and PARSYNC, but we don't distinguish.
     if test "$mpi_test_worked$have_tls$gasnet_cv_cc_family" = noyesGNU; then
       LIBS="$LIBS $LIBGCC -lgcc_eh"  # $LIBGCC appears in $GASNET_LIBS eventually
-      GASNET_TRY_CACHE_LINK(for working MPI configuration w/ added -lgcc_eh, mpi_works_gcc_eh, [
+      GASNET_LINKHELPER_TRY_LINK(for working MPI configuration w/ added -lgcc_eh, mpi_works_gcc_eh, [
         #include <mpi.h>
-        $MPIHELPER_DECL
       ], [
-        $MPIHELPER_CODE
         MPI_Init((void*)0,(void*)0);
         MPI_Finalize();
       ], [ mpi_test_worked=yes
            MPI_LIBS="$MPI_LIBS -lgcc_eh"
       ], [ mpi_test_worked=no GASNET_ERR_SAVE() ] )
     fi
+    GASNET_LINKHELPER_CLEANUP()
 
     if test "$mpi_test_worked" = yes ; then
       GASNET_ID_OTHER_COMPILER([MPI_CC], [MPI])
@@ -2397,7 +2462,6 @@ _GASNET_EOF
     GASNET_POPVAR(CPPFLAGS)
     GASNET_POPVAR(LDFLAGS)
     GASNET_POPVAR(LIBS)
-    rm -f $MPIHELPER_OBJ
   fi
   if test "$mpi_test_worked" = yes ; then
       if echo "$MPI_CFLAGS" | grep -- "-DAMMPI_COEXIST_WITH_AM" > /dev/null ; then
