@@ -1103,13 +1103,12 @@ static void ReqSB_event(ptl_event_t *ev)
     gasneti_assert(msg_type & GASNETC_PTL_MSG_GET);
     gasnetc_return_ticket(&gasnetc_send_tickets);
     local_offset = GASNETI_HIWORD(mbits);
-    pdata = ((uint8_t*)ev->md.start + local_offset);
-    q = pdata - sizeof(void*);
+    q = ((uint8_t*)ev->md.start + local_offset);
+    pdata = q + sizeof(void*);
     /* q points to location where real destination address is stored */
-    dest = (void*)*(uintptr_t*)q;
+    dest = *(void**)q;
     memcpy(dest,pdata,ev->mlength);
     /* free the bounce buffer */
-    local_offset -= sizeof(void*);
     gasnetc_chunk_free(&gasnetc_ReqSB,local_offset);
     /* mark the get (isget=1) operation complete */
     /* Do we need membar here?  Above chunk free required lock/unlock
@@ -3902,9 +3901,9 @@ size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     md_h = gasnetc_ReqSB.md_h;
     /* store the dest address at this location */
     *(uintptr_t*)bb = (uintptr_t)dest;
+    match_bits |= ((ptl_match_bits_t)local_offset << 32); /* W/O the shift by sizeof(void*) */
     /* Let portals use the rest of the chunk */
     local_offset += sizeof(void*);
-    match_bits |= ((ptl_match_bits_t)local_offset << 32);
     GASNETI_TRACE_EVENT(C, GET_BB);
   } else GASNETC_IF_USE_FIREHOSE (
     /* alloc a firehose for the destination region */
