@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_extended.c,v $
- *     $Date: 2010/04/17 01:22:46 $
- * $Revision: 1.47.4.1 $
+ *     $Date: 2010/04/17 01:36:08 $
+ * $Revision: 1.47.4.2 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -337,14 +337,15 @@ extern void gasnete_init(void) {
 /* ------------------------------------------------------------------------------------ */
 GASNETI_INLINE(gasnete_memset_reqh_inner)
 void gasnete_memset_reqh_inner(gasnet_token_t token, 
-  gasnet_handlerarg_t val, gasnet_handlerarg_t nbytes, void *dest, void *counter) {
+  gasnet_handlerarg_t val, void *nbytes_arg, void *dest, void *counter) {
+  size_t nbytes = (uintptr_t)nbytes_arg;
   memset(dest, (int)(uint32_t)val, nbytes);
   gasneti_sync_writes();
   GASNETE_DONE(token, counter);
 }
-SHORT_HANDLER(gasnete_memset_reqh,4,6,
-              (token, a0, a1, UNPACK(a2),      UNPACK(a3)     ),
-              (token, a0, a1, UNPACK2(a2, a3), UNPACK2(a4, a5)));
+SHORT_HANDLER(gasnete_memset_reqh,4,7,
+              (token, a0, UNPACK(a1),      UNPACK(a2),      UNPACK(a3)     ),
+              (token, a0, UNPACK2(a1, a2), UNPACK2(a3, a4), UNPACK2(a5, a6)));
 /* ------------------------------------------------------------------------------------ */
 
 extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
@@ -381,8 +382,8 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
 
   gasnetc_counter_inc(&eop->req_oust);
   GASNETI_SAFE(
-    SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
-                 (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
+    SHORT_REQ(4,7,(node, gasneti_handleridx(gasnete_memset_reqh),
+                 (gasnet_handlerarg_t)val, PACK(nbytes),
                  PACK(dest), PACK(&eop->req_oust))));
 
   return (gasnet_handle_t)eop;
@@ -498,8 +499,8 @@ extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
 
   gasnetc_counter_inc(&iop->put_req_oust);
   GASNETI_SAFE(
-    SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
-                 (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
+    SHORT_REQ(4,7,(node, gasneti_handleridx(gasnete_memset_reqh),
+                 (gasnet_handlerarg_t)val, PACK(nbytes),
                  PACK(dest), PACK(&iop->put_req_oust))));
 }
 
@@ -627,8 +628,8 @@ extern void gasnete_memset (gasnet_node_t node, void *dest, int val,
 
   gasnetc_counter_inc(&req_oust);
   GASNETI_SAFE(
-    SHORT_REQ(4,6,(node, gasneti_handleridx(gasnete_memset_reqh),
-                 (gasnet_handlerarg_t)val, (gasnet_handlerarg_t)nbytes,
+    SHORT_REQ(4,7,(node, gasneti_handleridx(gasnete_memset_reqh),
+                 (gasnet_handlerarg_t)val, PACK(nbytes),
                  PACK(dest), PACK(&req_oust))));
 
   gasnetc_counter_wait(&req_oust, 0);
