@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v $
-#     $Date: 2010/04/16 22:28:15 $
-# $Revision: 1.108.2.1 $
+#     $Date: 2010/04/17 00:29:05 $
+# $Revision: 1.108.2.2 $
 # Description: Makefile for GASNet tests
 # @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -125,7 +125,7 @@ GASNET_CONFIG_STR=$(GASNET_SEGMENT_STR)-$(GASNET_DEBUG_STR)
 @CROSS_COMPILING_TRUE@CROSS_COMPILING=yes
 @CROSS_COMPILING_FALSE@CROSS_COMPILING=no
 
-@BUILDCONFIG_DEBUG_TRUE@@DEBUGMALLOC_TRUE@DEBUG_MALLOC=MALLOC_CHECK_=2
+@BUILDCONFIG_DEBUG_TRUE@@DEBUGMALLOC_TRUE@DEBUG_MALLOC=@DEBUGMALLOC_VAR@=$${@DEBUGMALLOC_VAR@-@DEBUGMALLOC_VAL@}
 TEST_ENV=$(DEBUG_MALLOC)
 
 # default node count
@@ -279,7 +279,7 @@ do-run-testexit: force
 	@echo "else"                                              >> $(TESTEXIT_SCRIPT)
 	@echo '  RUNCMD="$$INTERACTIVE_RUNCMD"'                   >> $(TESTEXIT_SCRIPT)
 	@echo "fi"                                                >> $(TESTEXIT_SCRIPT)
-	@echo "MALLOC_CHECK_=2; export MALLOC_CHECK_"             >> $(TESTEXIT_SCRIPT)
+	@echo "@DEBUGMALLOC_VAR@=$${@DEBUGMALLOC_VAR@-@DEBUGMALLOC_VAL@}; export @DEBUGMALLOC_VAR@" >> $(TESTEXIT_SCRIPT)
 	@if test "`echo ' mpi udp ' | grep ' $(CONDUIT_NAME) '`" != "" ; then \
 	   echo "have_interrupt=0"                                >> $(TESTEXIT_SCRIPT) ; \
 	 else                                                                             \
