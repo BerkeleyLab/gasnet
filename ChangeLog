@@ -1,6 +1,40 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.27 $
+$Revision: 1.27.2.1 $
+
+----------------------------------------------------------------------
+??-??-2010 : Release 1.16
+
+* General:
+  - Much improved support for heterogenous compilers (CC, CXX and MPI_CC)
+  - Work-around for broken MALLOC_CHECK_ support on some glibc versions
+  - Use MALLOC_OPTIONS variable on *BSD as we use MALLOC_CHECK_ on glibc
+  - Fix parsing of GASNET_{FREEZE,BACKTACE}_SIGNAL env vars
+
+* InfiniBand (vapi- and ibv-conduits):
+  - Fix bug 2079: stack overflow errors when vapi/ibv compiled with pgcc
+
+* Cray-XT series (portals-conduit):
+  - Improved scalablity of job startup
+  - Fixed a corner-case bug in AM Medium code
+
+* IBM BlueGene/P (dcmf-conduit):
+  - Fix bug 2756: PAR mode crashes with V1R4M0 drivers
+  - Fix bug 2766: performance problem with loopback AM LongAsnyc
+  - Conduit-level support for PSHM (some limitations due to BG/P platform)
+
+* Experimental Process-Shared Memory (PSHM) Support
+  - Shared-memory awarness added to default barrier implementations
+  - Shared-memory awarness added to Extended API and Collectives
+
+* Misc Platform support:
+  - Fix bug 2685: timers broken on variable-frequency x86_64 CPUs
+  - Resolve pthread link problems between Apple's and FSF's compilers
+  - Preliminary work to support build with Open64 compilers from AMD
+  - Preliminary work to support build with GCCFSS compilers from Sun
+
+* Build and configure:
+  - Allow client to control behavior on compiler-mismatch (eg for UPCR+GCCUPC)
 
 ----------------------------------------------------------------------
 11-02-2009 : Release 1.14
