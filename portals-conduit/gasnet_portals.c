@@ -1972,31 +1972,31 @@ static void exec_sys_msg(gasnetc_sys_t msg_id, int32_t arg0, int32_t arg1, int32
     }
     break;
 
-  case GASNETC_SYS_BARRIER_ARRIVE:
+  case GASNETC_SYS_BARRIER_UP:
     {
-      /* we are root and message that a node has arrived at a barrier */
+      /* message that a child node has arrived at a barrier */
     #if GASNET_DEBUG || GASNETI_STATS_OR_TRACE
       int sender = arg0;
       int b_cnt = arg1;
     #endif
-      gasneti_assert(gasneti_mynode == 0);
+      gasneti_assert(gasneti_mynode == ((sender - 1) / GASNETC_BOOTSTRAP_BARRIER_RADIX));
       gasneti_weakatomic_increment(&sys_barrier_checkin,0);
-      GASNETI_TRACE_PRINTF(C,("Got BARRIER_ARRIVE from node %d, cnt=%d",sender,b_cnt));
+      GASNETI_TRACE_PRINTF(C,("Got BARRIER_UP from node %d, cnt=%d",sender,b_cnt));
     }
     break;
 
-  case GASNETC_SYS_BARRIER_GO:
+  case GASNETC_SYS_BARRIER_DOWN:
     {
-      /* we are root and message that a node has arrived at a barrier */
+      /* message that parent has completed a barrier */
     #if GASNET_DEBUG || GASNETI_STATS_OR_TRACE
       int sender = arg0;
     #endif
       int b_cnt = arg1;
-      gasneti_assert(sender == 0);
+      gasneti_assert(sender == ((gasneti_mynode - 1) / GASNETC_BOOTSTRAP_BARRIER_RADIX));
       gasneti_assert(b_cnt == gasneti_weakatomic_read(&sys_barrier_cnt,0));
-      GASNETI_TRACE_PRINTF(C,("Got BARRIER_GO from node %d, cnt=%d",sender,b_cnt));
+      GASNETI_TRACE_PRINTF(C,("Got BARRIER_DOWN from node %d, cnt=%d",sender,b_cnt));
       /* let poller know its ok to proceed */
-      gasneti_weakatomic_set(&sys_barrier_got,b_cnt,0);
+      gasneti_weakatomic_set(&sys_barrier_got,1,0);
     }
     break;
 
@@ -2157,35 +2157,43 @@ extern void gasnetc_sys_SendMsg(gasnet_node_t node, gasnetc_sys_t msg_id,
 
 extern void gasnetc_sys_barrier(void)
 {
-  gasnet_node_t node;
   int barr_cnt;
+  gasnet_node_t left_child = GASNETC_BOOTSTRAP_BARRIER_RADIX * gasneti_mynode + 1;
+  int children = (left_child >= gasneti_nodes)
+                  ? 0 : GASNETC_MIN(GASNETC_BOOTSTRAP_BARRIER_RADIX, gasneti_nodes - left_child);
+
   gasneti_assert(portals_sysqueue_initialized);
+  gasneti_assert(GASNETC_BOOTSTRAP_BARRIER_RADIX > 1);
 
   gasneti_weakatomic_increment(&sys_barrier_cnt,0);
   barr_cnt = gasneti_weakatomic_read(&sys_barrier_cnt, 0);
   GASNETI_TRACE_PRINTF(C,("Entering SYS BARRIER cnt=%d",barr_cnt));
-  if (gasneti_mynode == 0) {
-    /* wait for all other nodes to check in */
-    while (gasneti_weakatomic_read(&sys_barrier_checkin,0) < gasneti_nodes-1) {
+
+  /* How many children do I have? */
+
+  /* step 1 - wait for children, if any */
+  if (children) {
+    while (gasneti_weakatomic_read(&sys_barrier_checkin,0) < children) {
       gasnetc_sys_poll(GASNETC_EQ_LOCK);
     }
+    gasneti_weakatomic_set(&sys_barrier_checkin, 0, 0);  /* reset for next time */
+  }
 
-    /* reset this for next barrier */
-    gasneti_weakatomic_set(&sys_barrier_checkin, 0, 0);
-
-    /* send message to all other nodes */
-    for (node = 1; node < gasneti_nodes; node++)
-      gasnetc_sys_SendMsg(node,GASNETC_SYS_BARRIER_GO,0,barr_cnt,0);
-  } else {
-
-    /* reply to this message will set this variable to 1 */
-    gasneti_weakatomic_set(&sys_barrier_got, 0, 0);
-    /* send signal to node 0 */
-    gasnetc_sys_SendMsg(0,GASNETC_SYS_BARRIER_ARRIVE,gasneti_mynode,barr_cnt,0);
-
-    /* wait for node 0 to reply */
+  /* steps 2 & 3 - notify parent and wait for parent, if any */
+  if (gasneti_mynode != 0) {
+    gasnet_node_t parent = (gasneti_mynode - 1) / GASNETC_BOOTSTRAP_BARRIER_RADIX;
+    gasnetc_sys_SendMsg(parent,GASNETC_SYS_BARRIER_UP,gasneti_mynode,barr_cnt,0);
     while (!gasneti_weakatomic_read(&sys_barrier_got,0)) {
       gasnetc_sys_poll(GASNETC_EQ_LOCK);
+    }
+    gasneti_weakatomic_set(&sys_barrier_got, 0, 0);  /* reset for next time */
+  }
+
+  /* step 4 - notify children, if any */
+  if (children) {
+    int i;
+    for (i=0; i<children; ++i) {
+      gasnetc_sys_SendMsg(left_child+i,GASNETC_SYS_BARRIER_DOWN,gasneti_mynode,barr_cnt,0);
     }
   }
 }
