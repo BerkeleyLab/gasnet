@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2010/04/16 23:58:26 $
- * $Revision: 1.91.4.1 $
+ *     $Date: 2010/04/17 00:15:37 $
+ * $Revision: 1.91.4.2 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -375,6 +375,7 @@ GASNETI_BEGIN_EXTERNC
     return ret;
   } 
  #endif
+  extern double gasneti_calibrate_tsc(void); /* safe to prototype even if unused */
   GASNETI_INLINE(gasneti_ticks_to_ns)
   uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
     static int firstTime = 1;
@@ -399,16 +400,12 @@ GASNETI_BEGIN_EXTERNC
           gasneti_fatalerror("*** ERROR: Failure in sysctl(CTL_HW.HW_CPUSPEED)=%s",strerror(errno));
         gasneti_assert(MHz > 1 && MHz < 100000); /* ensure it looks reasonable */
         Tick = 1000. / MHz;
-     #else /* PLATFORM_OS_LINUX || PLATFORM_OS_CNL */
+     #elif PLATFORM_ARCH_IA64  /* && ( PLATFORM_OS_LINUX || PLATFORM_OS_CNL ) */
       FILE *fp = fopen("/proc/cpuinfo","r");
       char input[255];
       if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
-      while (!feof(fp) && fgets(input, 255, fp)) {
-      #if PLATFORM_ARCH_IA64 /* itc and cpu need not run at the same rate */
+      while (!feof(fp) && fgets(input, sizeof(input), fp)) {
         if (strstr(input,"itc MHz")) {
-      #else
-        if (strstr(input,"cpu MHz")) {
-      #endif
           char *p = strchr(input,':');
 	  double MHz = 0.0;
           if (p) MHz = atof(p+1);
@@ -418,6 +415,8 @@ GASNETI_BEGIN_EXTERNC
         }
       }
       fclose(fp);
+     #else /* (X86 || X86_64) && (Linux || CNL) */
+      Tick = gasneti_calibrate_tsc(); /* Too much to inline */
      #endif
       gasneti_assert(Tick != 0.0);
       gasneti_sync_writes();

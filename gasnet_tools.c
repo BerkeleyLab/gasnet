@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2010/04/16 23:19:40 $
- * $Revision: 1.244.2.2 $
+ *     $Date: 2010/04/17 00:15:37 $
+ * $Revision: 1.244.2.3 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2353,5 +2353,73 @@ gasneti_count0s(const void * src, size_t bytes) {
 
   return zeros;
 }
+/* ------------------------------------------------------------------------------------ */
+/* "out-of-line" helper(s) for calibration of timers */
+
+#if (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64) && \
+    (PLATFORM_OS_LINUX || PLATFORM_OS_CNL)
+extern double gasneti_calibrate_tsc(void) {
+  double Tick = 0.0; /* Inverse GHz */
+  FILE *fp = fopen("/proc/cpuinfo","r");
+  char input[512]; /* 256 is too small for "flags" line in /proc/cpuino */
+  double MHz = 0.0;
+
+  if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
+
+  /* First pass gets speed from /proc/cpuinfo */
+  while (!feof(fp) && fgets(input, sizeof(input), fp)) {
+    if (strstr(input,"cpu MHz")) {
+      char *p = strchr(input,':');
+      if (p) MHz = atof(p+1);
+      gasneti_assert(MHz > 1 && MHz < 100000); /* ensure it looks reasonable */
+      Tick = 1000. / MHz;
+      break;
+    }
+  }
+
+  /* Now try to deal with variable frequency CPUs.
+     The TSC may still run at constant rate (or else is useless to us).
+     If so, this code will determine the proper rate.
+   */
+  {
+    FILE *fp2 = fopen("/sys/devices/system/cpu/cpu0/cpufreq/cpuinfo_max_freq","r");
+    if (fp2 && fgets(input, sizeof(input), fp2)) {
+      int good_tsc = 0;
+      int bogocount = 0;
+      double bogosum = 0.0;
+
+      /* cpuinfo_max_freq contains a "round" value in KHz */
+      MHz = atof(input) / 1000.0;
+      fclose(fp2);
+      gasneti_assert(MHz > 1 && MHz < 10000); /* ensure it looks reasonable */
+
+      /* Now use mean of measured bogomips values to correct the "round" MHz */
+      rewind(fp);
+      while (!feof(fp) && fgets(input, sizeof(input), fp)) {
+        if (strstr(input,"bogomips")) {
+          char *p = strchr(input,':');
+          double tmp;
+          if (p && (sscanf(p+1, "%lg", &tmp) == 1)) {
+            bogocount++;
+            bogosum += tmp;
+          }
+        } else if (strstr(input," constant_tsc") || strstr(input," tsc_reliable")) {
+          good_tsc = 1;
+        }
+      }
+      if (bogocount && good_tsc) {
+        double tmp = 12.0 * bogosum / bogocount; /* 12 allows 1/2, 1/3 or 1/4 steps */
+        int ratio = 0.5 + (tmp / MHz); /* truncates toward zero */
+        MHz = tmp / ratio;
+        Tick = 1000. / MHz;
+      } /* Else we are stuck trusting the "cpu MHz" from /proc/cpuinfo */
+    }
+  }
+
+  fclose(fp);
+
+  return Tick;
+}
+#endif
 /* ------------------------------------------------------------------------------------ */
 
