@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2009/09/18 23:33:54 $
- * $Revision: 1.159 $
+ *     $Date: 2010/04/17 00:11:40 $
+ * $Revision: 1.159.2.1 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -251,6 +251,13 @@ typedef union {
  * amount of memory we will pin. */
 #ifndef GASNETC_HONOR_RLIMIT_MEMLOCK
   #define GASNETC_HONOR_RLIMIT_MEMLOCK 0
+#endif
+
+/* Use alloca()?  (e.g. to work-around bug 2079) */
+#ifdef GASNETI_USE_ALLOCA
+  /* Keep defn */
+#elif !PLATFORM_COMPILER_PGI
+  #define GASNETI_USE_ALLOCA 1
 #endif
 
 /* ------------------------------------------------------------------------------------ */
