@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2010/04/17 00:59:16 $
- * $Revision: 1.12.2.2 $
+ *     $Date: 2010/04/17 02:19:07 $
+ * $Revision: 1.12.2.3 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>, 
                    Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -1862,8 +1862,9 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
     /*&while(send_done == 0) {
       gasneti_AMPoll();
       }*/
+  } else {
+    gasneti_AMPoll();
   }
-  
 
   
   /*if we waited for the send we can safely free the request here, otherwise a callback will handle it*/
