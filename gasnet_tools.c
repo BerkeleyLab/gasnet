@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2010/04/17 00:15:37 $
- * $Revision: 1.244.2.3 $
+ *     $Date: 2010/04/17 00:37:36 $
+ * $Revision: 1.244.2.4 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -585,6 +585,7 @@ gasnett_siginfo_t const *gasnett_siginfo_fromstr(const char *str) {
     while (*str && !isspace(*str)) {
       *(p++) = toupper(*(str++));
     }
+    *p = '\0';
     for (i=0; i<sizeof(gasneti_sigtable)/sizeof(gasnett_siginfo_t)-1; i++) {
       if (!strcmp(tmp, gasneti_sigtable[i].name)) return &gasneti_sigtable[i];
     }
