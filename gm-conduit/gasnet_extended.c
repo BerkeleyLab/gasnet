@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2009/03/30 02:40:34 $
- * $Revision: 1.45 $
+ *     $Date: 2010/04/17 01:36:02 $
+ * $Revision: 1.45.4.1 $
  * Description: GASNet Extended API GM Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -52,6 +52,12 @@ static void gasnete_check_config(void) {
 
   gasneti_assert_always(GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD <= gasnet_AMMaxMedium());
   gasneti_assert_always(gasnete_eopaddr_isnil(EOPADDR_NIL));
+
+#if 0 /* No AM-based Gets in gm-conduit */
+  /* The next two ensure nbytes in AM-based Gets will fit in handler_arg_t (bug 2770) */
+  gasneti_assert_always(gasnet_AMMaxMedium() <= (size_t)0xffffffff);
+  gasneti_assert_always(gasnet_AMMaxLongReply() <= (size_t)0xffffffff);
+#endif
 }
 
 extern void gasnete_init(void) {
