@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2010/04/17 02:36:29 $
- * $Revision: 1.7.2.3 $
+ *     $Date: 2010/04/17 03:14:19 $
+ * $Revision: 1.7.2.4 $
  * Description: GASNet Extended API Implementation for DCMF
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -33,6 +33,13 @@ static void empty_cb(void *arg, DCMF_Error_t *e) {
   return;
 }
 
+/* No loopback check should be required for gasnete_{get,put,memset}*:
+ *  For the external Extended API the wrappers in gasnet_extended.h check for loopback
+ *  For uses in vis, collectives, etc. the burden lies with the caller to check.
+ */
+#ifndef GASNETE_CHECK_LOOPBACK
+#define GASNETE_CHECK_LOOPBACK 0
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -559,10 +566,13 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
   gasnete_eop_t *op;
   DCMF_Callback_t done_cb;
 
+#if GASNETE_CHECK_LOOPBACK
   if(node == gasneti_mynode) {
     GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
     return GASNET_INVALID_HANDLE;
   }
+#endif
+  GASNETI_CHECKPSHM_GET(UNALIGNED,H);
   
   op = gasnete_eop_new(GASNETE_MYTHREAD);
   
@@ -591,11 +601,12 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
   volatile int local_put_done = 0; 
   DCMF_Callback_t local_done_cb, remote_done_cb;
   
-  
+#if GASNETE_CHECK_LOOPBACK
   if(node == gasneti_mynode) {
     GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
     return GASNET_INVALID_HANDLE;
   }
+#endif
   
   op = gasnete_eop_new(GASNETE_MYTHREAD);
 
@@ -685,14 +696,18 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
 #endif
 
 extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+  GASNETI_CHECKPSHM_PUT(ALIGNED,H);
   return gasnete_put_nb_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS);
 }
 
 extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+  GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
   return gasnete_put_nb_inner(node, dest, src, nbytes, 1 GASNETE_THREAD_PASS);
 }
 
 extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
+  GASNETI_CHECKPSHM_MEMSET(H);
+ {
   gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
 
   GASNETI_SAFE(
@@ -701,6 +716,7 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
                  PACK(dest), PACK(op))));
 
   return (gasnet_handle_t)op;
+ }
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -840,10 +856,12 @@ void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nby
   DCMF_Callback_t local_done_cb, remote_done_cb;
   gasnete_iop_dcmf_req_t *req = NULL;
   
+#if GASNETE_CHECK_LOOPBACK
   if(node == gasneti_mynode) {
     GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
     return;
   }
+#endif
   
   if(isbulk) {
     local_done_cb.function = empty_cb;
@@ -972,10 +990,13 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
   DCMF_Callback_t done_cb;
   gasnete_iop_dcmf_req_t *req = NULL;
 
+#if GASNETE_CHECK_LOOPBACK
   if(node == gasneti_mynode) {
     GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
     return;
   }
+#endif
+  GASNETI_CHECKPSHM_GET(UNALIGNED,V);
   
   req = gasnete_get_iop_dcmf_req(op);
   gasneti_assert(req);
@@ -1045,14 +1066,18 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
 }
 #endif
 extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+  GASNETI_CHECKPSHM_PUT(ALIGNED,V);
   gasnete_put_nbi_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS);
 }
 
 extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+  GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
   gasnete_put_nbi_inner(node, dest, src, nbytes, 1 GASNETE_THREAD_PASS);
 }
 
 extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
+  GASNETI_CHECKPSHM_MEMSET(V);
+ {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *op = mythread->current_iop;
   op->initiated_put_cnt++;
@@ -1061,6 +1086,7 @@ extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
     SHORT_REQ(4,7,(node, gasneti_handleridx(gasnete_memset_reqh),
                  (gasnet_handlerarg_t)val, PACK(nbytes),
                  PACK(dest), PACK(op))));
+ }
 }
 
 /* ------------------------------------------------------------------------------------ */

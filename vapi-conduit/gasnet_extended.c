@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2010/04/17 01:36:08 $
- * $Revision: 1.47.4.2 $
+ *     $Date: 2010/04/17 03:14:27 $
+ * $Revision: 1.47.4.3 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -349,15 +349,20 @@ SHORT_HANDLER(gasnete_memset_reqh,4,7,
 /* ------------------------------------------------------------------------------------ */
 
 extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+  GASNETI_CHECKPSHM_GET(UNALIGNED,H);
+ {
   gasnete_eop_t *eop = gasnete_eop_new(GASNETE_MYTHREAD);
 
   /* XXX check error returns */
   gasnetc_rdma_get(node, src, dest, nbytes, &eop->req_oust);
 
   return (gasnet_handle_t)eop;
+ }
 }
 
 extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+  GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
+ {
   gasnete_eop_t *eop = gasnete_eop_new(GASNETE_MYTHREAD);
   gasnetc_counter_t mem_oust = GASNETC_COUNTER_INITIALIZER;
 
@@ -366,18 +371,24 @@ extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void
   gasnetc_counter_wait(&mem_oust, 0);
 
   return (gasnet_handle_t)eop;
+ }
 }
 
 extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+  GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
+ {
   gasnete_eop_t *eop = gasnete_eop_new(GASNETE_MYTHREAD);
 
   /* XXX check error returns */
   gasnetc_rdma_put(node, src, dest, nbytes, NULL, &eop->req_oust);
 
   return (gasnet_handle_t)eop;
+ }
 }
 
 extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
+  GASNETI_CHECKPSHM_MEMSET(H);
+ {
   gasnete_eop_t *eop = gasnete_eop_new(GASNETE_MYTHREAD);
 
   gasnetc_counter_inc(&eop->req_oust);
@@ -387,6 +398,7 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
                  PACK(dest), PACK(&eop->req_oust))));
 
   return (gasnet_handle_t)eop;
+ }
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -467,15 +479,20 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 */
 
 extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+  GASNETI_CHECKPSHM_GET(UNALIGNED,V);
+ {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop;
 
   /* XXX check error returns */ 
   gasnetc_rdma_get(node, src, dest, nbytes, &iop->get_req_oust);
+ }
 }
 
 extern void gasnete_put_nbi (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   
+  GASNETI_CHECKPSHM_PUT(ALIGNED,V);
+ {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop;
   gasnetc_counter_t mem_oust = GASNETC_COUNTER_INITIALIZER;
@@ -483,17 +500,23 @@ extern void gasnete_put_nbi (gasnet_node_t node, void *dest, void *src, size_t n
   /* XXX check error returns */ 
   gasnetc_rdma_put(node, src, dest, nbytes, &mem_oust, &iop->put_req_oust);
   gasnetc_counter_wait(&mem_oust, 0);
+ }
 }
 
 extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+  GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
+ {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop;
 
   /* XXX check error returns */ 
   gasnetc_rdma_put(node, src, dest, nbytes, NULL, &iop->put_req_oust);
+ }
 }
 
 extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
+  GASNETI_CHECKPSHM_MEMSET(V);
+ {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop;
 
@@ -502,6 +525,7 @@ extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
     SHORT_REQ(4,7,(node, gasneti_handleridx(gasnete_memset_reqh),
                  (gasnet_handlerarg_t)val, PACK(nbytes),
                  PACK(dest), PACK(&iop->put_req_oust))));
+ }
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -610,20 +634,28 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
 
 extern void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
 			      size_t nbytes GASNETE_THREAD_FARG) {
+  GASNETI_CHECKPSHM_GET(UNALIGNED,V);
+ {
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
   gasnetc_rdma_get(node, src, dest, nbytes, &req_oust);
   gasnetc_counter_wait(&req_oust, 0);
+ }
 }
 
 extern void gasnete_put_bulk (gasnet_node_t node, void* dest, void *src,
 			      size_t nbytes GASNETE_THREAD_FARG) {
+  GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
+ {
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
   gasnetc_rdma_put(node, src, dest, nbytes, NULL, &req_oust);
   gasnetc_counter_wait(&req_oust, 0);
+ }
 }   
 
 extern void gasnete_memset (gasnet_node_t node, void *dest, int val,
 		            size_t nbytes GASNETE_THREAD_FARG) {
+  GASNETI_CHECKPSHM_MEMSET(V);
+ {
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
 
   gasnetc_counter_inc(&req_oust);
@@ -633,6 +665,7 @@ extern void gasnete_memset (gasnet_node_t node, void *dest, int val,
                  PACK(dest), PACK(&req_oust))));
 
   gasnetc_counter_wait(&req_oust, 0);
+ }
 }
 /* ------------------------------------------------------------------------------------ */
 /*
