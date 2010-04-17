@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core_internal.h,v $
- *     $Date: 2009/10/03 03:46:36 $
- * $Revision: 1.6 $
+ *     $Date: 2010/04/17 03:07:18 $
+ * $Revision: 1.6.2.1 $
  * Description: GASNet dcmf conduit header for internal definitions in Core API
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -130,14 +130,15 @@ typedef enum{
   GASNETC_NUM_AMTYPES
 } gasnetc_dcmf_amtype_t;
 
-
-typedef enum{
-  GASNETC_AMSHORT=0, 
-  GASNETC_AMMED,
-  GASNETC_AMLONG,
-  GASNETC_AMLONGASYNC,
+/* AM category (recommended impl if supporting PSHM) */
+typedef enum {
+  gasnetc_Short=0,
+  gasnetc_Medium=1,
+  gasnetc_Long=2,
+  /* conduit-specific additions: */
+  gasnetc_LongAsync=3,
   GASNETC_NUM_AMCATS
-} gasnetc_dcmf_amcategory_t;
+} gasnetc_category_t;
 
 
 typedef enum{
@@ -158,7 +159,7 @@ typedef struct gasnetc_replay_buffer_t_ {
   char _pad[16 - sizeof(void*)]; /*ensure the quads are aligned on 16 bytes*/
   DCQuad quads[GASNETC_MAXQUADS_PER_AM]; 
   gasnetc_dcmf_amtype_t amtype;
-  gasnetc_dcmf_amcategory_t amcat;
+  gasnetc_category_t amcat;
   gasnet_node_t dest_node;
   unsigned numquads;
   gasnetc_ambuf_t *buffer;
@@ -173,7 +174,7 @@ typedef struct gasnetc_token_t_ {
   gasnet_node_t srcnode;
   uint8_t sent_reply;
   gasnetc_dcmf_amtype_t amtype;
-  gasnetc_dcmf_amcategory_t amcat;
+  gasnetc_category_t amcat;
   gasnetc_dcmf_req_t *dcmf_req;
   unsigned remote_replay_buffer;
 } gasnetc_token_t;
@@ -308,11 +309,5 @@ void gasnetc_dcmf_bootstrapExchange(void *src, size_t nbytes, void *dst);
 extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 /* ------------------------------------------------------------------------------------ */
-/* AM category (recommended impl if supporting PSHM) */
-typedef enum {
-  gasnetc_Short=0,
-  gasnetc_Medium=1,
-  gasnetc_Long=2
-} gasnetc_category_t;
 
 #endif

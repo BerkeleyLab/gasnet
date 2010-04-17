@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/04/17 02:09:20 $
- * $Revision: 1.67.2.3 $
+ *     $Date: 2010/04/17 03:07:15 $
+ * $Revision: 1.67.2.4 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -70,6 +70,11 @@
 #endif
 #ifndef GASNETI_MMAP_NOTFIXED_FLAG
   #define GASNETI_MMAP_NOTFIXED_FLAG 0
+#endif
+
+#if GASNET_PSHM && PLATFORM_OS_BGP
+  /* MAP_FIXED is ignored for fd obtained from pshm_open() */
+  #define GASNETI_PSHM_MAP_FIXED_IGNORED 1
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -347,11 +352,13 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
     }
   }
 
+#if !GASNETI_PSHM_MAP_FIXED_IGNORED
   if (segbase && (segbase != ptr) && (ptr != MAP_FAILED)) {
     gasneti_cleanup_shm();
     gasneti_fatalerror("mmap fixed moved from "GASNETI_LADDRFMT" to "GASNETI_LADDRFMT" for size %lu",
             GASNETI_LADDRSTR(segbase), GASNETI_LADDRSTR(ptr), (unsigned long)segsize);
   }
+#endif
 
   return ptr;
 }
@@ -360,8 +367,8 @@ static void *gasneti_mmap_remote_shared(void *segbase, uintptr_t segsize, gasnet
   gasneti_assert(pshmnode < gasneti_pshm_nodes);
   return gasneti_mmap_shared_internal(pshmnode, segbase, segsize, 0, 0);
 }
-extern void gasneti_mmap_shared_fixed(void *segbase, uintptr_t segsize) {
-  gasneti_mmap_shared_internal(gasneti_pshm_mynode, segbase, segsize, 0, 0);
+extern void *gasneti_mmap_shared_fixed(void *segbase, uintptr_t segsize) {
+  return gasneti_mmap_shared_internal(gasneti_pshm_mynode, segbase, segsize, 0, 0);
 }
 extern void *gasneti_mmap_shared(uintptr_t segsize) {
   return gasneti_mmap_shared_internal(gasneti_pshm_mynode, NULL, segsize, 1, 1);
@@ -1018,6 +1025,9 @@ void gasneti_segmentAttachLocal(uintptr_t segsize, uintptr_t minheapoffset,
         gasneti_assert(segbase >= gasneti_segment.addr &&
                (uintptr_t)segbase + segsize <= (uintptr_t)gasneti_segment.addr + gasneti_segment.size);
         gasneti_munmap(gasneti_segment.addr, gasneti_segment.size);
+#if GASNETI_PSHM_MAP_FIXED_IGNORED
+        segbase =
+#endif
         gasneti_do_mmap_fixed(segbase, segsize);
       }
     }
@@ -1108,6 +1118,9 @@ int gasneti_AttachRemote(uintptr_t segsize, const gasnet_node_t pshm_node, uintp
         gasneti_assert(segbase >= gasneti_remote_segments[pshm_node].addr &&
                (uintptr_t)segbase + segsize <= (uintptr_t)gasneti_remote_segments[pshm_node].addr + gasneti_remote_segments[pshm_node].size);
         gasneti_munmap(gasneti_remote_segments[pshm_node].addr, gasneti_remote_segments[pshm_node].size);
+#if GASNETI_PSHM_MAP_FIXED_IGNORED
+        segbase =
+#endif
         gasneti_mmap_remote_shared(segbase, segsize, pshm_node);
         gasneti_remote_segments[pshm_node].addr = segbase;
         gasneti_remote_segments[pshm_node].size = segsize;
