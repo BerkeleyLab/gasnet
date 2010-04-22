@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v $
-#     $Date: 2010/04/17 00:29:05 $
-# $Revision: 1.108.2.2 $
+#     $Date: 2010/04/22 18:38:10 $
+# $Revision: 1.108.2.3 $
 # Description: Makefile for GASNet tests
 # @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -67,7 +67,6 @@ testprograms_seq =      \
         testcore1       \
         testcore2       \
         testcore3       \
-        testcore4       \
         testslice       \
         testbarrier     \
         testbarrierconf \
@@ -87,6 +86,7 @@ testprograms_seq =      \
         $(CONDUIT_TESTS) \
         $(MPI_TESTS_SEQ)
 
+# NOTE: testcore4 disabled by default pending resolution of bug 2796
 
 # tests that should only be built in PARSYNC and PAR modes
 testprograms_parsync =  \
