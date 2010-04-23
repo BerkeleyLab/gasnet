@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2010/04/17 00:47:20 $
- * $Revision: 1.81.2.1 $
+ *     $Date: 2010/04/23 03:22:55 $
+ * $Revision: 1.81.2.2 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -777,8 +777,12 @@ extern int gasnetc_AMReplyLongM(
     gasneti_tick_t NIStimestamp;
   } gasnetc_hsl_errcheckinfo_t;
   static gasnetc_hsl_errcheckinfo_t _info_init = { NULL, 0, 0, 0 };
+  static gasnetc_hsl_errcheckinfo_t _info_free = { NULL, 0, 0, 0 };
 
   #if GASNETI_CLIENT_THREADS
+    /*  pthread thread-specific ptr to our info (or NULL for a thread never-seen before) */
+    GASNETI_THREADKEY_DEFINE(gasnetc_hsl_errcheckinfo);
+
     static void gasnetc_hsl_cleanup_threaddata(void *_td) {
       gasnetc_hsl_errcheckinfo_t *info = (gasnetc_hsl_errcheckinfo_t *)_td;
       gasneti_assert(info->inuse);
@@ -786,10 +790,9 @@ extern int gasnetc_AMReplyLongM(
         gasneti_fatalerror("HSL USAGE VIOLATION: thread exit within AM handler");
       if (info->locksheld) GASNETI_TRACE_PRINTF(I,("Thread exiting while holding HSL locks"));
       info->inuse = 0;
+      gasneti_threadkey_set(gasnetc_hsl_errcheckinfo, &_info_free);
     }
   
-    /*  pthread thread-specific ptr to our info (or NULL for a thread never-seen before) */
-    GASNETI_THREADKEY_DEFINE(gasnetc_hsl_errcheckinfo);
     static gasnetc_hsl_errcheckinfo_t *gasnetc_get_errcheckinfo(void) {
       gasnetc_hsl_errcheckinfo_t *info = gasneti_threadkey_get(gasnetc_hsl_errcheckinfo);
       if_pt (info) return info;
@@ -833,6 +836,7 @@ extern int gasnetc_AMReplyLongM(
   extern void gasnetc_hold_interrupts(void) {
     GASNETI_CHECKATTACH();
     { gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
+      if_pf (info == &_info_free) return; /* TODO: assert that we are in the thread destruction path */
       if (info->inhandler) { /* NIS calls ignored within a handler */
         GASNETI_TRACE_PRINTF(I,("Warning: Called gasnet_hold_interrupts within a handler context -- call ignored"));
         return;
@@ -850,6 +854,7 @@ extern int gasnetc_AMReplyLongM(
   extern void gasnetc_resume_interrupts(void) {
     GASNETI_CHECKATTACH();
     { gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
+      if_pf (info == &_info_free) return; /* TODO: assert that we are in the thread destruction path */
       if (info->inhandler) { /* NIS calls ignored within a handler */
         GASNETI_TRACE_PRINTF(I,("Warning: Called gasnet_resume_interrupts within a handler context -- call ignored"));
         return;
