@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2010/04/16 22:28:15 $
- * $Revision: 1.134.2.1 $
+ *     $Date: 2010/04/24 03:52:58 $
+ * $Revision: 1.134.2.2 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -419,6 +419,7 @@ GASNETT_IDENT(GASNetT_TiCompiler_IdentString,
   #endif
 #endif
 #ifndef TEST_MAXTHREADS
+  /* TEST_MAXTHREADS is a compile-time constant */
   #if defined(GASNETI_MAX_THREADS_CONFIGURE)
     #define TEST_MAXTHREADS_SYSTEM GASNETI_MAX_THREADS_CONFIGURE
   #elif defined(GASNETT_MAX_THREADS)
@@ -428,6 +429,18 @@ GASNETT_IDENT(GASNetT_TiCompiler_IdentString,
   #endif
   #define TEST_MAXTHREADS (TEST_MAXTHREADS_SYSTEM + TEST_USE_PRIMORDIAL_THREAD - 1)
 #endif
+/* Runtime enforcement of TEST_MAXTHREADS, GASNET_TEST_THREAD_LIMIT, or platform-specific limits */
+static int test_thread_limit(int numthreads) {
+    int limit = gasnett_getenv_int_withdefault("GASNET_TEST_THREAD_LIMIT", TEST_MAXTHREADS, 0);
+    limit = MIN(limit, TEST_MAXTHREADS); /* Ignore attempt to raise above TEST_MAXTHREADS */
+  #if PLATFORM_OS_BGP 
+    { int cores = gasnett_cpu_count();
+      int depth = gasnett_getenv_int_withdefault("BG_APPTHREADDEPTH", 1, 0); /* V1R4M0 and later */
+      limit = MIN(limit, cores*depth);
+    }
+  #endif
+    return MIN(numthreads, limit);
+}
 static void test_createandjoin_pthreads(int numthreads, void *(*start_routine)(void *), 
                                       void *threadarg_arr, size_t threadarg_elemsz) {
     int i;

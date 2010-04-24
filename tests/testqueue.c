@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testqueue.c,v $
- *     $Date: 2010/04/16 22:28:15 $
- * $Revision: 1.16.2.1 $
+ *     $Date: 2010/04/24 03:52:58 $
+ * $Revision: 1.16.2.2 $
  * Description: GASNet put/get injection performance test
  *   measures the average non-blocking put/get injection time 
  *   for increasing number of back-to-back operations
@@ -200,7 +200,7 @@ int main(int argc, char **argv) {
     if (!firstlastmode) {
       /* Only allow 1 or even number for numprocs */
       if (numprocs > 1 && numprocs % 2 != 0) {
-        MSG("WARNING: This test requires a unary or even number of threads. Test skipped.\n");
+        MSG("WARNING: This test requires a unary or even number of nodes. Test skipped.\n");
         gasnet_exit(0); /* exit 0 to prevent false negatives in test harnesses for smp-conduit */
       }
     }

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testinternal.c,v $
- *     $Date: 2006/04/01 19:51:16 $
- * $Revision: 1.5 $
+ *     $Date: 2010/04/24 03:52:58 $
+ * $Revision: 1.5.68.1 $
  * Description: GASNet internal diagnostic tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -35,6 +35,7 @@ int main(int argc, char **argv) {
   if (argc > arg) threads = atoi(argv[arg++]);
   #endif
   if (threads < 1) threads = 4;
+  threads = test_thread_limit(threads);
   if (argc > arg) test_sections = argv[arg++];
 
   #if GASNET_PAR
