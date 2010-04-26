@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_diagnostic.c,v $
- *     $Date: 2010/04/17 00:33:33 $
- * $Revision: 1.28.2.3 $
+ *     $Date: 2010/04/26 16:07:24 $
+ * $Revision: 1.28.2.4 $
  * Description: GASNet internal diagnostics
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -197,6 +197,18 @@ static void malloc_test(int id) {
   gasneti_heapstats_t stats_before, stats_after;
 
   /* try to trigger any warm-up allocations potentially caused by barrier */
+  if (id == 0) {
+    /* each node takes a turn being a late arrival */
+    for (i=0; i < gasneti_nodes; i++) {
+      if (i == gasneti_mynode) {
+        uint64_t goal = gasnett_ticks_to_us(gasnett_ticks_now()) + 100000; /* 0.1s */
+        while (gasnett_ticks_to_us(gasnett_ticks_now()) < goal) {
+          gasnett_sched_yield();
+        }
+      }
+      BARRIER();
+    }
+  }
   for (i=0; i < num_threads; i++) {
     if (i == id) BARRIER(); /* each thread gets a chance */
     PTHREAD_LOCALBARRIER(num_threads);
