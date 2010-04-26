@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/04/17 05:23:31 $
-# $Revision: 1.580.2.13 $
+#     $Date: 2010/04/26 16:00:52 $
+# $Revision: 1.580.2.14 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.580.2.13 $)
+AC_REVISION($Revision: 1.580.2.14 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1962,6 +1962,7 @@ AC_DEFUN([GASNET_ID_OTHER_COMPILER],[
   pushdef([lowername],translit($1,'A-Z','a-z'))
   GASNET_GET_PLATFORM_ID([$1],[$2 compiler])
   GASNET_FAMILY_CACHE_CHECK([$2], [$1], gasnet_cv_[]lowername[]_family)
+  mismatch=""
   if test x"$gasnet_cv_[]lowername[]_family" != x"$gasnet_cv_cc_family"; then
     mismatch="families"
   elif test x"$gasnet_cv_PLATFORM_[$1]_VERSION" != x"$gasnet_cv_PLATFORM_COMPILER_VERSION"; then
