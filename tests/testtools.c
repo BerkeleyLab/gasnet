@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testtools.c,v $
- *     $Date: 2010/04/24 03:52:58 $
- * $Revision: 1.95.4.2 $
+ *     $Date: 2010/04/26 15:48:47 $
+ * $Revision: 1.95.4.3 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -451,7 +451,7 @@ int main(int argc, char **argv) {
     if (gasnett_atomic_signed(gasnett_atomic_read(&var,0)) != -1)
         ERR("gasnett_atomic_decrement could not reach -1");
 
-    gasnett_atomic_set(&var, GASNETT_ATOMIC_SIGNED_MIN, 0);
+    gasnett_atomic_set(&var, (gasnett_atomic_val_t)GASNETT_ATOMIC_SIGNED_MIN, 0);
     if (gasnett_atomic_signed(gasnett_atomic_read(&var,0)) != GASNETT_ATOMIC_SIGNED_MIN)
         ERR("gasnett_atomic_set/signed could not handle GASNETT_ATOMIC_SIGNED_MIN");
     gasnett_atomic_increment(&var, 0);
@@ -484,7 +484,7 @@ int main(int argc, char **argv) {
     gasnett_atomic_increment(&var, 0);
     if (gasnett_atomic_signed(gasnett_atomic_read(&var,0)) != GASNETT_ATOMIC_SIGNED_MIN)
         ERR("failed signed wrap-around at GASNETT_ATOMIC_SIGNED_MAX");
-    gasnett_atomic_set(&var, GASNETT_ATOMIC_SIGNED_MIN, 0);
+    gasnett_atomic_set(&var, (gasnett_atomic_val_t)GASNETT_ATOMIC_SIGNED_MIN, 0);
     gasnett_atomic_decrement(&var, 0);
     if (gasnett_atomic_signed(gasnett_atomic_read(&var,0)) != GASNETT_ATOMIC_SIGNED_MAX)
         ERR("failed signed wrap-around at GASNETT_ATOMIC_SIGNED_MIN");
@@ -511,7 +511,7 @@ int main(int argc, char **argv) {
       if (!gasnett_atomic_compare_and_swap(&var, stemp - 1, 0, 0))
         ERR("gasnett_atomic_compare_and_swap failed signed wrap-around at oldval=SIGNED_MIN-1");
 
-      gasnett_atomic_set(&var, GASNETT_ATOMIC_SIGNED_MIN, 0);
+      gasnett_atomic_set(&var, (gasnett_atomic_val_t)GASNETT_ATOMIC_SIGNED_MIN, 0);
       stemp = GASNETT_ATOMIC_SIGNED_MAX;
       if (!gasnett_atomic_compare_and_swap(&var, stemp + 1, 0, 0))
         ERR("gasnett_atomic_compare_and_swap failed signed wrap-around at oldval=SIGNED_MAX+1");
