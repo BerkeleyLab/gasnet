@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2010/04/17 03:07:18 $
- * $Revision: 1.12.2.4 $
+ *     $Date: 2010/04/26 16:05:46 $
+ * $Revision: 1.12.2.5 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>, 
                    Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -38,7 +38,7 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 #endif
 
 #ifndef GASNETC_DEFAULT_EXITTIMEOUT_MIN
-#define GASNETC_DEFAULT_EXITTIMEOUT_MIN   2 /* 2 seconds */
+#define GASNETC_DEFAULT_EXITTIMEOUT_MIN   5 /* 5 seconds */
 #endif
 
 #ifndef GASNETC_DEFAULT_EXITTIMEOUT_FACTOR
@@ -406,7 +406,6 @@ static int gasnetc_init(int *argc, char ***argv) {
   
   /*initialize file scoped global variables*/
 
-  /*XXX: change these to be environment tunable values*/
  {
    int64_t replay_buffer_count = gasneti_getenv_int_withdefault("GASNET_DCMF_MAX_REPLAY_BUFFERS", GASNETC_DEFAULT_MAX_REPLAY_BUFFERS, 0);
    int64_t incoming_buffer_count = gasneti_getenv_int_withdefault("GASNET_DCMF_INCOMING_BUFFERS", GASNETC_DEFAULT_MAX_INCOMING_BUFFERS, 0);
@@ -669,7 +668,7 @@ static void gasnetc_exit_timeout(int sig) {
 
 static void gasnetc_tryCollectiveExit(int exitcode) {
   /* general algorithm
-     Set an alarm timeout of 30 seconds (the timeout shoudl be variable)
+     Set an alarm timeout determined from env vars
      
      initiate a bootstrap barrier to test for collective exit
      if the bootstrap barrier completes, exit with whatever error code got passed in
@@ -681,7 +680,7 @@ static void gasnetc_tryCollectiveExit(int exitcode) {
   uint32_t outputexit_code;
   DCMF_Request_t req;
   DCMF_Callback_t cb_done;
-  volatile int done=0;
+  volatile uint32_t done=0;
 
 #if REGISTER_EXIT_BARRIER_AT_EXIT
   DCMF_Protocol_t gasnetc_exit_barrier_registration;
@@ -695,7 +694,7 @@ static void gasnetc_tryCollectiveExit(int exitcode) {
   inputexit_code |= exitcode;
   
   
-  alarm(1+(int)gasnetc_exittimeout); /*XXX: aquire value from env*/
+  alarm(1+(int)gasnetc_exittimeout); /* acquired from env */
 
 #if GASNET_DEBUG
   fprintf(stderr, "%d> exit initiated... checking for collective exit (exit code: %d) timeout: %d\n", gasneti_mynode, exitcode, 1+(int)gasnetc_exittimeout);
@@ -719,6 +718,7 @@ static void gasnetc_tryCollectiveExit(int exitcode) {
                                            -1, (char*) &inputexit_code,
                                            (char*) &outputexit_code, 1, DCMF_UNSIGNED_INT, DCMF_MAX));
    while(!done) DCMF_Messager_advance();
+   alarm(0); /* disarm ASAP */
  }
  DCMF_CriticalSection_exit(0);
     
@@ -1270,7 +1270,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
     
-#if GASNET_PSHM
+#if GASNETC_PSHM_CORE_API
   if (gasneti_AMPSHMGetMsgSource(token, &sourceid) != GASNET_OK)
 #endif
   sourceid = ((gasnetc_token_t*)token)->srcnode; 
@@ -1306,7 +1306,7 @@ extern int gasnetc_AMPoll(void) {
   
   GASNETI_CHECKATTACH();
 
-#if GASNET_PSHM 
+#if GASNETC_PSHM_CORE_API 
   /* If your conduit will support PSHM, let it make progress here. */
   gasneti_AMPSHMPoll(0);
 #endif
@@ -1768,7 +1768,7 @@ void gasnetc_send_am_req(gasnetc_category_t amcat, gasnet_node_t dest_node,
   unsigned replay_buffer = 0;
 #endif
   
-#if GASNET_PSHM
+#if GASNETC_PSHM_CORE_API
   if_pt (gasneti_pshm_in_supernode(dest_node)) {
     if(amcat == gasnetc_LongAsync) amcat = gasnetc_Long;
     (void) gasneti_AMPSHM_RequestGeneric(amcat, dest_node, handler_idx,
@@ -1823,7 +1823,7 @@ void gasnetc_send_am_req(gasnetc_category_t amcat, gasnet_node_t dest_node,
   /*if it is an AM w/ no payload or an AMLONGASYNC we don't need to wait for the Send to finish
     so set the callback to free the associated request*/
   
-  wait_for_send = !(amcat == gasnetc_LongAsync || nbytes == 0);
+  /* wait_for_send = !(amcat == gasnetc_LongAsync || nbytes == 0); */
 
   if(wait_for_send) {
     /*will need to wait for send to be locally complete*/
@@ -1911,7 +1911,7 @@ void gasnetc_send_am_rep(gasnetc_category_t amcat,
   int wait_for_send=1;
   gasnetc_dcmf_req_t *dcmf_req;
 
-#if GASNET_PSHM
+#if GASNETC_PSHM_CORE_API
   /* If your conduit will support PSHM, let it check the token first. */
   if_pt (gasnetc_token_is_pshm(token)) {
     (void) gasneti_AMPSHM_ReplyGeneric(amcat, token, handler_idx,
@@ -1947,7 +1947,7 @@ void gasnetc_send_am_rep(gasnetc_category_t amcat,
 #endif
 
   
-  wait_for_send = (nbytes != 0);
+  /* wait_for_send = (nbytes != 0); */
 
   if(wait_for_send) {
     /*will need to wait for send to be locally complete*/

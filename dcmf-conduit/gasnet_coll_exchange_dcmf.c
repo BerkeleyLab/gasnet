@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_coll_exchange_dcmf.c,v $
- *     $Date: 2009/10/28 03:01:34 $
- * $Revision: 1.7 $
+ *     $Date: 2010/04/26 16:05:46 $
+ * $Revision: 1.7.2.1 $
  * Description: GASNet exchange (alltoall) implementation on DCMF
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -181,6 +181,17 @@ static int gasnete_coll_pf_exchg_dcmf(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
     DCMF_Messager_advance();
     if (a2a->active)
       break;
+
+    {
+        gasnet_team_handle_t team = op->team;
+        char *dst, *src;
+        size_t nbytes;
+
+        dst = (char *)a2a->rcvbuf+a2a->rdispls[team->myrank];
+        src = (char *)a2a->sndbuf+a2a->sdispls[team->myrank];
+        nbytes = a2a->rcvlens[team->myrank];
+        GASNETE_FAST_UNALIGNED_MEMCPY(dst, src, nbytes);
+    }
     gasnete_dcmf_busy = 0;
     data->state = 3;
     
@@ -300,6 +311,16 @@ void gasnete_coll_exchange_dcmf(gasnet_team_handle_t team,
   
   while (a2a->active)
     DCMF_Messager_advance();
+
+  {
+      char *dst, *src;
+      size_t nbytes;
+      
+      dst = (char *)a2a->rcvbuf+a2a->rdispls[team->myrank];
+      src = (char *)a2a->sndbuf+a2a->sdispls[team->myrank];
+      nbytes = a2a->rcvlens[team->myrank];
+      GASNETE_FAST_UNALIGNED_MEMCPY(dst, src, nbytes);
+  }
   
   GASNETC_DCMF_UNLOCK();
 
