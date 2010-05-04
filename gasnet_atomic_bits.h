@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2010/04/17 00:14:23 $
- * $Revision: 1.311.2.4 $
+ *     $Date: 2010/05/04 01:45:13 $
+ * $Revision: 1.311.2.5 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -908,6 +908,29 @@
       #define GASNETI_HAVE_ATOMIC_CAS 1	/* Explicit */
       #define GASNETI_HAVE_ATOMIC_ADD_SUB 1	/* Derived */
       #define GASNETI_USING_SLOW_ATOMICS 1
+    #elif (PLATFORM_ARCH_X86_64 && PLATFORM_COMPILER_CRAY)
+      #define GASNETI_HAVE_ATOMIC32_T 1
+      typedef struct { volatile uint32_t ctr; } gasneti_atomic32_t;
+      #define _gasneti_atomic32_read(p)      ((p)->ctr)
+      #define _gasneti_atomic32_set(p,v)     ((p)->ctr = (v))
+      #define _gasneti_atomic32_init(v)      { (v) }
+      #define _gasneti_atomic32_fetchadd(p,op) \
+              __sync_fetch_and_add(&((p)->ctr), (op))
+      #define _gasneti_atomic32_compare_and_swap(p,oval,nval) \
+              (__sync_val_compare_and_swap(&((p)->ctr), (oval), (nval)) == (oval))
+
+      #define GASNETI_HAVE_ATOMIC64_T 1
+      typedef struct { volatile uint64_t ctr; } gasneti_atomic64_t;
+      #define _gasneti_atomic64_read(p)      ((p)->ctr)
+      #define _gasneti_atomic64_set(p,v)     ((p)->ctr = (v))
+      #define _gasneti_atomic64_init(v)      { (v) }
+      #define _gasneti_atomic64_fetchadd(p,op)\
+              __sync_fetch_and_add(&((p)->ctr), (op))
+      #define _gasneti_atomic64_compare_and_swap(p,oval,nval) \
+              (__sync_val_compare_and_swap(&((p)->ctr), (oval), (nval)) == (oval))
+
+      /* x86 and x86_64 include full memory fence in locked RMW insns */
+      #define GASNETI_ATOMIC_FENCE_RMW (GASNETI_ATOMIC_MB_PRE | GASNETI_ATOMIC_MB_POST)
     #else
       #error unrecognized x86 compiler - need to implement GASNet atomics (or #define GASNETI_USE_GENERIC_ATOMICOPS)
     #endif

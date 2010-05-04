@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_internal.h,v $
- *     $Date: 2009/03/29 06:54:28 $
- * $Revision: 1.42 $
+ *     $Date: 2010/05/04 01:45:16 $
+ * $Revision: 1.42.4.1 $
  * Description: AMMPI internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -741,7 +741,7 @@ extern int AMMPI_PostRecvBuffer(ammpi_buf_t *rxBuf, MPI_Request *prxHandle, MPI_
   char volatile identName[] = identText;    \
   extern char *_##identName##_identfn(void) { return (char*)identName; } \
   static int _dummy_##identName = sizeof(_dummy_##identName)
-#if PLATFORM_COMPILER_CRAY
+#if PLATFORM_COMPILER_CRAY && !PLATFORM_ARCH_X86_64 /* fouls up concatenation in ident string */
   #define AMMPI_IDENT(identName, identText) \
     AMMPI_PRAGMA(_CRI ident identText);     \
     _AMMPI_IDENT(identName, identText)

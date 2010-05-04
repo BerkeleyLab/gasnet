@@ -1,6 +1,6 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.27.2.1 $
+$Revision: 1.27.2.2 $
 
 ----------------------------------------------------------------------
 ??-??-2010 : Release 1.16
@@ -17,6 +17,7 @@ $Revision: 1.27.2.1 $
 * Cray-XT series (portals-conduit):
   - Improved scalablity of job startup
   - Fixed a corner-case bug in AM Medium code
+  - Preliminary work to support PrgEnv-cray (requires CCE 7.2 or newer)
 
 * IBM BlueGene/P (dcmf-conduit):
   - Fix bug 2756: PAR mode crashes with V1R4M0 drivers

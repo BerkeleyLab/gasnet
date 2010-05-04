@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2010/04/17 00:15:37 $
- * $Revision: 1.91.4.2 $
+ *     $Date: 2010/05/04 01:45:13 $
+ * $Revision: 1.91.4.3 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -306,7 +306,7 @@ GASNETI_BEGIN_EXTERNC
        (PLATFORM_OS_FREEBSD && GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ)) && \
      (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || PLATFORM_COMPILER_SUN || \
       PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_PGI || PLATFORM_COMPILER_TINY || \
-      PLATFORM_COMPILER_OPEN64) && \
+      PLATFORM_COMPILER_OPEN64 || PLATFORM_COMPILER_CRAY) && \
      (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_IA64) && \
       !GASNETI_ARCH_ALTIX /* bug 1622 */
   #if PLATFORM_ARCH_IA64 && PLATFORM_COMPILER_INTEL
@@ -349,7 +349,9 @@ GASNETI_BEGIN_EXTERNC
   GASNETI_INLINE(gasneti_ticks_now)
   uint64_t gasneti_ticks_now (void) {
     uint64_t ret;
-    #if PLATFORM_ARCH_X86_64 || \
+    #if PLATFORM_COMPILER_CRAY
+      ret = _rtc();
+    #elif PLATFORM_ARCH_X86_64 || \
         (PLATFORM_COMPILER_PGI && PLATFORM_ARCH_X86 && !GASNETI_PGI_ASM_X86_A)
       /* This asm() for x86-64 also works for x86 compilers w/o working support
        * for the "A" constraint (currently only pgcc 6.1-x, which crashes).
