@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/04/26 16:00:52 $
-# $Revision: 1.580.2.14 $
+#     $Date: 2010/05/04 01:49:09 $
+# $Revision: 1.580.2.15 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.580.2.14 $)
+AC_REVISION($Revision: 1.580.2.15 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -172,6 +172,15 @@ case "$gasnet_cv_cc_family" in
   GNU)  GASNET_GCC_VERSION_CHECK(CC) ;;
   MTA)  # override target_os for MTA, which may be wrong if cross-compiling
         target_os="mtx"   ;;
+  Cray) # Min supported version is 7.2 (which reports as 10.2)
+        AC_TRY_COMPILE([
+          #if (defined(__CRAYXT_COMPUTE_LINUX_TARGET) || defined(__LIBCATAMOUNT__)) && \
+              (((_RELEASE == 10) && (_RELEASE_MINOR < 2)) || (_RELEASE < 10))
+          # error
+          #endif
+        ],[ ], [:],
+        [AC_MSG_ERROR([GASNet does not support Cray compilers prior to CCE 7.2 on the CrayXT])])
+        ;;
 esac
 
 if test "$cross_compiling" = "yes" ; then
@@ -548,6 +557,7 @@ case "$gasnet_cv_cc_family" in
   Cray) 
     case "$target_cpu" in
       alphaev5) MISC_CFLAGS="-hnomessage=236 -htaskprivate $LIBCM" ;; # T3E
+      x86_64)   MISC_CFLAGS="-hnomessage=236" ;; # XT
       *)        MISC_CFLAGS="-hnomessage=236 $LIBCM" ;; # X1
     esac ;;
   MIPS) MISC_CFLAGS="-common -diag_error 1035 -diag_suppress1171,1174,1209,1552" # 1035 ensures "#error" is fatal
@@ -2145,6 +2155,7 @@ if test $enabled_udp = yes; then
      case "$target_cpu" in
        # Cray CC v3.3.0.2 fails to accept "-htaskprivate", but accepts "-htask private", v3.6.0.2 accepts neither
       alphaev5) MISC_CXXFLAGS="-hnomessage=236:611:997 -hexceptions -hnew_for_init $LIBCM" ;; # T3E
+      x86_64)   MISC_CXXFLAGS="-hnomessage=236 -hexceptions -hnew_for_init" ;; # XT
       *)        MISC_CXXFLAGS="-hnomessage=236:611:997 -hexceptions -hnew_for_init $LIBCM" ;; # X1
      esac ;;
     Pathscale)  CXXDEBUGFLAGS="-g3 -O0" ;; # consistent with CCDEBUGFLAGS
