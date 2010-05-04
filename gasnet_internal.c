@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2010/04/17 02:09:20 $
- * $Revision: 1.206.2.1 $
+ *     $Date: 2010/05/04 01:40:55 $
+ * $Revision: 1.206.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1117,6 +1117,26 @@ extern void gasneti_nodemapFini(void) {
                                              ptr returned by malloc ^
  */
 #if GASNET_DEBUG
+  /* READ BEFORE MODIFYING gasneti_memalloc_desc_t:
+   *
+   * malloc() is specified as returning memory "suitably aligned for any kind of variable".
+   * We don't know a priori what that alignment is, but we MUST preserve it in
+   * this debugging malloc implementation if we are to meet that same requirement.
+   * The current length of gasneti_memalloc_desc_t is:
+   *     ILP32: 32 bytes (4+4+4+4+8+8)
+   *   [I]LP64: 48 bytes (8+8+8+8+8+8)
+   * This means that any alignment up to 16-bytes will be preserved.  That is ideal
+   * since 16 is the strictest alignment requirement (long double on some platforms)
+   * that we have encountered in practice.
+   *
+   * If you change this structure, you MUST add padding to maintain the length
+   * at a multiple of 16-bytes AND please update the lengths above.
+   *
+   * NOTE: If the malloc() returns less than 16-byte alignment, then
+   * it is not our responsibility to create it where it did not exists.
+   * Any GASNet code needing larger alignment than 4- or 8-bytes should
+   * probably be using gasneti_{malloc,free}_aligned() (or gasnett_*).
+   */
   typedef struct gasneti_memalloc_desc {  
     struct gasneti_memalloc_desc * volatile prevdesc;
     struct gasneti_memalloc_desc * volatile nextdesc;
