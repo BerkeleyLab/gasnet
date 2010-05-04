@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testtools.c,v $
- *     $Date: 2010/04/26 15:48:47 $
- * $Revision: 1.95.4.3 $
+ *     $Date: 2010/05/04 01:26:24 $
+ * $Revision: 1.95.4.4 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -328,6 +328,9 @@ int main(int argc, char **argv) {
     for (i=0;i<iters;i++) {
       gasnett_local_mb();
     }
+    for (i=0;i<iters;i++) {
+      gasnett_weak_mb();
+    }
   }
 
   TEST_HEADER("Testing local write membars...")
@@ -336,6 +339,9 @@ int main(int argc, char **argv) {
     for (i=0;i<iters;i++) {
       gasnett_local_wmb();
     }
+    for (i=0;i<iters;i++) {
+      gasnett_weak_wmb();
+    }
   }
 
   TEST_HEADER("Testing local read membars...")
@@ -343,6 +349,9 @@ int main(int argc, char **argv) {
     int i;
     for (i=0;i<iters;i++) {
       gasnett_local_rmb();
+    }
+    for (i=0;i<iters;i++) {
+      gasnett_weak_rmb();
     }
   }
 
@@ -946,6 +955,38 @@ void * thread_fn(void *arg) {
         gasnett_local_mb();
         lx = valX[partner];
         if (BIGGER(lx,ly)) ERR("mismatch in gasnett_local_mb/gasnett_local_mb test: lx=%u ly=%u", lx, ly);
+      }
+      THREAD_BARRIER();
+
+      valX[id] = 0;
+      valY[id] = 0;
+
+      THREAD_BARRIER();
+      for (i=0;i<iters2;i++) {
+        valX[id] = i;
+        gasnett_weak_wmb();
+        valY[id] = i;
+
+        ly = valY[partner];
+        gasnett_weak_rmb();
+        lx = valX[partner];
+        if (BIGGER(lx,ly)) ERR("mismatch in gasnett_weak_wmb/gasnett_weak_rmb test: lx=%u ly=%u", lx, ly);
+      }
+      THREAD_BARRIER();
+
+      valX[id] = 0;
+      valY[id] = 0;
+
+      THREAD_BARRIER();
+      for (i=0;i<iters2;i++) {
+        valX[id] = i + iters2;
+        gasnett_weak_mb();
+        valY[id] = i + iters2;
+
+        ly = valY[partner];
+        gasnett_weak_mb();
+        lx = valX[partner];
+        if (BIGGER(lx,ly)) ERR("mismatch in gasnett_weak_mb/gasnett_weak_mb test: lx=%u ly=%u", lx, ly);
       }
       THREAD_BARRIER();
     }

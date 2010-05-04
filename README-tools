@@ -2,7 +2,7 @@
 README file for GASNet tools
 ============================
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.24.2.1 $
+$Revision: 1.24.2.2 $
 GASNet tools specification version: 1.5
 
 The GASNet tools are a set of communication-independent utilities that are used
@@ -159,11 +159,17 @@ the threads of a process.
    All oustanding loads and stores must be completed before any subsequent ones
    may begin.
 
+ gasnett_weak_wmb:
+ gasnett_weak_rmb:
+ gasnett_weak_mb:
+   These are equivalent to the corresponding gasnett_local_* except that in a build
+   without threads these compile away to nothing.
+  
  gasnett_compiler_fence:
    A barrier to compiler optimizations that would reorder any memory references across
    this point in the code.
 
-  Note that for all four memory barriers, we require only that a given architecture's
+  Note that for all of the memory barriers, we require only that a given architecture's
   "normal" loads and stores are ordered as required.  "Extended" instructions such as
   MMX, SSE, SSE2, Altivec and vector ISAs on various other machines often bypass some
   or all of the machine's memory hierarchy and therefore may not be ordered by the same
