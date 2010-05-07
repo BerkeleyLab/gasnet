@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_team.c,v $
- *     $Date: 2010/04/17 02:36:33 $
- * $Revision: 1.8.2.1 $
+ *     $Date: 2010/05/07 03:14:25 $
+ * $Revision: 1.8.2.2 $
  *
  * Description: GASNet generic team implementation for collectives 
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
@@ -171,8 +171,9 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
   team->team_id = team_id;
   team->total_ranks = total_ranks;
   team->myrank = myrank;
-  team->rel2act_map = (gasnet_node_t *)gasneti_malloc(sizeof(gasnet_node_t)*total_ranks);
-  gasneti_assert(team->rel2act_map != NULL);
+  if (team->rel2act_map == NULL)
+    team->rel2act_map = (gasnet_node_t *)gasneti_malloc(sizeof(gasnet_node_t)*total_ranks);
+
   for (i=0; i<total_ranks; i++) 
     team->rel2act_map[i] = rel2act_map[i];
 
@@ -257,8 +258,7 @@ gasnet_team_handle_t gasnete_coll_team_create(uint32_t total_ranks,
     new_team_id = ((team_lead << 12) | (my_team_seq & 0xfff));
     
     /* create the team locally */
-    team = (gasnet_team_handle_t)gasneti_malloc(sizeof(struct gasnete_coll_team_t_));
-    gasneti_assert(team != NULL);
+    team = (gasnet_team_handle_t)gasneti_calloc(1,sizeof(struct gasnete_coll_team_t_));
 #if GASNET_PAR
     gasneti_fatalerror("can't call team_init in PAR Builds yet");
 #endif
@@ -280,8 +280,7 @@ gasnet_team_handle_t gasnete_coll_team_create(uint32_t total_ranks,
     fflush(stderr);
 #endif
     /* create the team locally */
-    team = (gasnet_team_handle_t)gasneti_malloc(sizeof(struct gasnete_coll_team_t_));
-    gasneti_assert(team != NULL);
+    team = (gasnet_team_handle_t)gasneti_calloc(1,sizeof(struct gasnete_coll_team_t_));
     gasnete_coll_team_init(team, new_team_id, total_ranks, myrank, rel2act_map, scratch_segs, NULL GASNETE_THREAD_PASS);
     new_team_id = 0;
   }
