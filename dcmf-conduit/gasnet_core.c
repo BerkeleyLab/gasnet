@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2010/04/26 16:05:46 $
- * $Revision: 1.12.2.5 $
+ *     $Date: 2010/05/10 23:15:37 $
+ * $Revision: 1.12.2.6 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>, 
                    Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -1822,8 +1822,19 @@ void gasnetc_send_am_req(gasnetc_category_t amcat, gasnet_node_t dest_node,
 
   /*if it is an AM w/ no payload or an AMLONGASYNC we don't need to wait for the Send to finish
     so set the callback to free the associated request*/
-  
-  /* wait_for_send = !(amcat == gasnetc_LongAsync || nbytes == 0); */
+
+  /* Fix (workaround) for bug 2790. We wait for the send to complete
+     even for AMLONGASYNC because otherwise the underlying network
+     fifos may be overflowed in the case that a very large amount of
+     messages/data are sent without sufficient polling for reception
+     (e.g., the flooding test in testam.c).  Idealy, it would be
+     better to have some kind of flow-control backoff mechanism based
+     on network fifo feedbacks for regulating the message injection
+     rate but this is not easy to implement efficiently and is only
+     necessary for extreme cases.  As a workaround for long async
+     message flooding, we just poll the network more frequently for
+     every send operation. */
+  wait_for_send = !(nbytes == 0);
 
   if(wait_for_send) {
     /*will need to wait for send to be locally complete*/
@@ -1835,8 +1846,6 @@ void gasnetc_send_am_req(gasnetc_category_t amcat, gasnet_node_t dest_node,
     send_done_callback.function = gasnetc_free_dcmf_req_cb;
     send_done_callback.clientdata = (void*)dcmf_req;
   }
-  
-  
   
   GASNETC_DCMF_LOCK();
   
@@ -1877,7 +1886,7 @@ void gasnetc_send_am_req(gasnetc_category_t amcat, gasnet_node_t dest_node,
     GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(replay_buffer->buffer->data, src_addr, nbytes);
 #endif
   GASNETC_DCMF_UNLOCK();  
-  /*if we need to wait for hte send, wait here*/
+  /*if we need to wait for the send, wait here*/
   if(wait_for_send) {
     gasneti_polluntil(send_done!=0);
     /*&while(send_done == 0) {
@@ -1945,9 +1954,8 @@ void gasnetc_send_am_rep(gasnetc_category_t amcat,
     return;
   }
 #endif
-
   
-  /* wait_for_send = (nbytes != 0); */
+  wait_for_send = (nbytes != 0);
 
   if(wait_for_send) {
     /*will need to wait for send to be locally complete*/
