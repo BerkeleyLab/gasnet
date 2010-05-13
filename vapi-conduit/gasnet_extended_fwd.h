@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2010/04/17 05:19:10 $
- * $Revision: 1.22.2.1 $
+ *     $Date: 2010/05/13 23:32:33 $
+ * $Revision: 1.22.2.2 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,7 +15,7 @@
 
 #include <firehose_trace.h>
 
-#define GASNET_EXTENDED_VERSION      1.11
+#define GASNET_EXTENDED_VERSION      1.12
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
 #if GASNET_CONDUIT_VAPI
   #define GASNET_EXTENDED_NAME         VAPI
