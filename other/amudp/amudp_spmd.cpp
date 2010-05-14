@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.cpp,v $
- *     $Date: 2010/04/16 22:38:34 $
- * $Revision: 1.41.30.1 $
+ *     $Date: 2010/05/14 21:28:14 $
+ * $Revision: 1.41.30.2 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <stdio.h>
 #if PLATFORM_OS_MSWINDOWS
+  #undef sched_yield
   #define sched_yield() Sleep(0)
   #define sleep(x) Sleep(x*1000)
   #include <process.h>
@@ -19,6 +20,7 @@
   #if PLATFORM_ARCH_CRAYT3E || PLATFORM_OS_SUPERUX || PLATFORM_OS_NETBSD || \
       PLATFORM_OS_MTA || PLATFORM_OS_BLRTS || PLATFORM_OS_CATAMOUNT || PLATFORM_OS_OPENBSD
     /* these implement sched_yield() in libpthread only, which we may not want */
+    #undef sched_yield
     #define sched_yield() sleep(0)
   #else
     #include <sched.h>
