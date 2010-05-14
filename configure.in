@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/05/04 01:49:09 $
-# $Revision: 1.580.2.15 $
+#     $Date: 2010/05/14 22:33:59 $
+# $Revision: 1.580.2.16 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.580.2.15 $)
+AC_REVISION($Revision: 1.580.2.16 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1627,7 +1627,7 @@ GASNET_IF_ENABLED_WITH_AUTO(smp-safe, Enable build of SMP-safe libraries (defaul
           #endif
           ], [], [ uni_build=yes ])
         ;;
-      freebsd* | openbsd*)  
+      freebsd* | openbsd* | netbsd*)  
         if test "`/sbin/sysctl -n hw.ncpu 2>/dev/null`" = 1; then
           uni_build=yes
         fi
@@ -3967,7 +3967,7 @@ GASNET_TRY_CACHE_CHECK(for sched_yield(), cc_has_sched_yield, [
 
 # timer setup
 case "$target_os" in
-  freebsd*)  
+  freebsd* | netbsd*)  
     AC_MSG_CHECKING(for sysctl machdep.tsc_freq)
     res="`/sbin/sysctl -n machdep.tsc_freq 2> /dev/null`"
     if test "$res" != "" ; then

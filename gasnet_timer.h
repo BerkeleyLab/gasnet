@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2010/05/04 01:45:13 $
- * $Revision: 1.91.4.3 $
+ *     $Date: 2010/05/14 22:33:59 $
+ * $Revision: 1.91.4.4 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -303,7 +303,7 @@ GASNETI_BEGIN_EXTERNC
  #endif
 /* ------------------------------------------------------------------------------------ */
 #elif (PLATFORM_OS_LINUX || PLATFORM_OS_CNL || PLATFORM_OS_CATAMOUNT || PLATFORM_OS_OPENBSD || \
-       (PLATFORM_OS_FREEBSD && GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ)) && \
+       GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ) && \
      (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || PLATFORM_COMPILER_SUN || \
       PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_PGI || PLATFORM_COMPILER_TINY || \
       PLATFORM_COMPILER_OPEN64 || PLATFORM_COMPILER_CRAY) && \
@@ -313,7 +313,7 @@ GASNETI_BEGIN_EXTERNC
     #include <ia64intrin.h>
   #elif PLATFORM_OS_CATAMOUNT
     extern unsigned int __cpu_mhz; /* system provided */
-  #elif PLATFORM_OS_FREEBSD || PLATFORM_OS_OPENBSD
+  #elif GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ || PLATFORM_OS_OPENBSD
     #include <sys/sysctl.h> 
   #endif
   typedef uint64_t gasneti_tick_t;
@@ -385,7 +385,7 @@ GASNETI_BEGIN_EXTERNC
     if_pf (firstTime) {
      #if PLATFORM_OS_CATAMOUNT /* lacks /proc filesystem */
         Tick = 1000.0 / __cpu_mhz;
-     #elif PLATFORM_OS_FREEBSD
+     #elif GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ /* FreeBSD and NetBSD */
         int64_t cpuspeed = 0;
         size_t len = sizeof(cpuspeed);
         if (sysctlbyname("machdep.tsc_freq", &cpuspeed, &len, NULL, 0) == -1) 
