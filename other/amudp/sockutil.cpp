@@ -1,6 +1,6 @@
 //   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/sockutil.cpp,v $
-//     $Date: 2006/05/23 12:42:29 $
-// $Revision: 1.16 $
+//     $Date: 2010/05/14 23:50:05 $
+// $Revision: 1.16.50.1 $
 // Description: Simple sock utils
 // Copyright 1999, Dan Bonachea
 
@@ -650,6 +650,9 @@ int getSocketErrorCode() {
 #undef select
 extern int myselect(int  n,  fd_set *readfds, fd_set *writefds, fd_set *exceptfds,
             struct timeval *timeout) {
+  #ifdef FD_SETSIZE
+    assert(n <= FD_SETSIZE);
+  #endif
   #if PLATFORM_OS_MSWINDOWS
     return select(n, readfds, writefds, exceptfds, timeout);
   #else
