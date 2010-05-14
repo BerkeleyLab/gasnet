@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.129.2.2 $
+$Revision: 1.129.2.3 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -207,6 +207,8 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * FreeBSD/x86/gcc/32,64:  smp, mpi, udp
     * FreeBSD/Alpha/64:   smp, udp, #&
 
+    * OpenBSD/x86/gcc/32,64:  smp, mpi, udp
+
     * Tru64/Compaq-AlphaServer/Compaq C: smp, mpi, udp, elan &
 
     * AIX/IBM-SPPower3/VisualAgeC(xlc),gcc/32,64: smp, mpi, udp, lapi &
@@ -220,8 +222,10 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * HPUX/Itanium/gcc/64: smp, udp, mpi &
     * HPUX/Itanium/HPcc/64: smp, mpi &
  
-    * Solaris/SPARC/gcc,SunProC/32,64: smp, udp, mpi
-    * Solaris/x86/gcc,SunProC/32: smp, udp, mpi
+    * Solaris10/SPARC/gcc,SunProC/32,64: smp, udp, mpi
+    * Solaris10/x86/gcc,SunProC/32,64: smp, udp, mpi
+
+    * OpenSolaris/x86/gcc,SunProC/32,64: smp, udp, #
 
     * MSWindows-Cygwin/x86/gcc/32/: smp, udp, mpi (MPICH.NT,MPICH2)
 
