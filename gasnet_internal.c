@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2010/05/04 01:40:55 $
- * $Revision: 1.206.2.2 $
+ *     $Date: 2010/05/15 05:18:30 $
+ * $Revision: 1.206.2.3 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -980,6 +980,13 @@ static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
      */
     uint32_t *allids = gasneti_malloc(gasneti_nodes * sizeof(uint32_t));
     uint32_t myid = (uint32_t)gethostid();
+
+    /* Fall back to hashing the hostname if the hostid is obviously invalid */
+    if (!myid || !(~myid)) {
+      const char *myname = gasneti_gethostname();
+      uint64_t csum = gasneti_checksum(myname, strlen(myname));
+      myid = GASNETI_HIWORD(csum) ^ GASNETI_LOWORD(csum);
+    }
   
     gasneti_assert(exchangefn);
     (*exchangefn)(&myid, sizeof(uint32_t), allids);
