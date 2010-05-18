@@ -124,9 +124,9 @@
 #error "GASNETC_PUTGET_BOUNCE_LIMIT_DFLT MUST BE <= GASNETC_CHUNKSIZE"
 #endif
 
-/* Radix of the N-ary tree for bootstrap barrier */
-#ifndef GASNETC_BOOTSTRAP_BARRIER_RADIX
-#define GASNETC_BOOTSTRAP_BARRIER_RADIX 8
+/* Radix of the N-ary tree for bootstrap broadcast */
+#ifndef GASNETC_BOOTSTRAP_BCAST_RADIX
+#define GASNETC_BOOTSTRAP_BCAST_RADIX 8
 #endif
 
 /* Do we register an EQ handler with a queue or just poll ourselves */
@@ -214,6 +214,7 @@ extern unsigned gasnetc_sys_poll_limit;
 #define GASNETC_PTL_CB_BITS      0x03
 #define GASNETC_PTL_REQSB_BITS   0x04
 #define GASNETC_PTL_SYS_BITS     0x05
+#define GASNETC_PTL_BOOT_BITS    0x06
 
 /* Operation type */
 #define GASNETC_PTL_MSG_PUT      0x10
@@ -564,12 +565,12 @@ typedef gasneti_mutex_t gasnetc_statelock_t;
   } while(0)
 
 /* compact representation of a doubly linked list by using node ids rather than pointers */
-#define GASNETC_DLL_NULL ((uint16_t)(-1))
-typedef uint16_t gasnetc_dll_index_t;        /* NOTE: this works up to 64K nodes. */
+#define GASNETC_DLL_NULL GASNET_MAXNODES
 typedef struct _gasnetc_dll_link {
-  gasnetc_dll_index_t  prev;
-  gasnetc_dll_index_t  next;
+  gasnet_node_t  prev;
+  gasnet_node_t  next;
 } gasnetc_dll_link_t;
+
 typedef struct gconrec {
   gasnetc_statelock_t    lock;              /* spinlock/mutex for atomic update of this record */
   uint16_t               LoanCredits;       /* number of my credits allocated to this remote node */
@@ -612,7 +613,7 @@ extern gasneti_weakatomic_t gasnetc_AMRequest_count;/* counter of number of AMRe
 extern int gasnetc_epoch_duration;                  /* number of AMReq before epoch ends */
 extern int gasnetc_num_scavenge;                    /* number of nodes to hit-up for credits */
 extern gasneti_weakatomic_t gasnetc_scavenge_inflight;  /* number of outstanding scavange requests */
-extern gasnetc_dll_index_t gasnetc_scavenge_list; /* list of nodes to scavenge, those that have
+extern gasnet_node_t gasnetc_scavenge_list;       /* list of nodes to scavenge, those that have
 						   * more than min number of credits allocated */
 extern gasneti_mutex_t   gasnetc_scavenge_lock;   /* lock to control the scavenge list */
 extern int gasnetc_debug_node;                    /* used in debugging */
@@ -784,8 +785,7 @@ extern gasnetc_eq_t *gasnetc_SYS_EQ;               /* out-of-band system Event Q
 extern double gasnetc_shutdown_seconds;            /* number of seconds to poll before forceful shutdown */
 extern int gasnetc_shutdownInProgress;             /* set upon entry to gasnetc_exit */
 typedef enum{GASNETC_SYS_SHUTDOWN_REQUEST=0,
-	     GASNETC_SYS_BARRIER_UP,
-	     GASNETC_SYS_BARRIER_DOWN,
+	     GASNETC_SYS_BARRIER,
 	     GASNETC_SYS_CREDIT_REVOKE,
 	     GASNETC_SYS_CREDIT_RETURN,
 	     GASNETC_SYS_NUM} gasnetc_sys_t;
@@ -843,6 +843,7 @@ extern size_t gasnetc_putmsg(void *dest, gasnet_node_t node, void *src, size_t n
 extern void gasnetc_sys_SendMsg(gasnet_node_t node, gasnetc_sys_t msg_id,
 				int32_t arg0, int32_t arg1, int32_t arg2);
 extern void gasnetc_sys_barrier(void);
+extern int gasnetc_sys_exit(int *exitcode);
 /* need a special signal handler for Portals */
 extern void gasnetc_portalsSignalHandler(int sig);
 extern int gasnetc_issue_credit_request(gasnet_node_t node, int ncredit);

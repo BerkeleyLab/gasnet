@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2009/09/18 23:33:40 $
- * $Revision: 1.20 $
+ *     $Date: 2010/05/18 02:54:15 $
+ * $Revision: 1.20.2.1 $
  * Description: GASNet header for PORTALS conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,13 +13,25 @@
 #ifndef _GASNET_CORE_FWD_H
 #define _GASNET_CORE_FWD_H
 
-#define GASNET_CORE_VERSION      1.3
+#define GASNET_CORE_VERSION      1.4
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         PORTALS
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
 #define GASNET_CONDUIT_NAME      GASNET_CORE_NAME
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_PORTALS 1
+
+#ifndef GASNET_MAXNODES
+  #define GASNET_MAXNODES (0xFFFFu)
+#endif
+
+#if GASNET_MAXNODES <= 0xFFFFu
+  #define _GASNET_NODE_T
+  typedef uint16_t        gasnet_node_t;
+#else
+  #define _GASNET_NODE_T
+  typedef uint32_t        gasnet_node_t;
+#endif
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
   /*  at the same virtual address on all nodes. defined to 0 otherwise */
