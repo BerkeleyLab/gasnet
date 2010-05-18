@@ -1,6 +1,6 @@
 GASNet inter-Process SHared Memory (PHSM) design
 ---------------------------------------------
-$Revision: 1.2.2.1 $
+$Revision: 1.2.2.2 $
 
 Document by:
     Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -137,12 +137,6 @@ Known Problems / To do:
   system with plenty of memory, but dies on systems with less.  The work
   around is to set the GASNET_MAX_SEGSIZE small enough for a given system.
 * There are still error cases that will leak shared memory.
-* We have yet to make the extended API (Get, Put, VIS, Collectives, etc)
-  aware of supernodes.  They still use the conduit-specific Get/Put code
-  (except VIS and collective code that is already AM-based).  This is "OK"
-  for now because our only client (Berkeley UPC) is supernode-aware and will
-  completely bypass GASNet for a pointer-to-shared with affinity within the
-  supernode for Get and Put (but VIS and Collective may still suffer).
 
 Status:
 
@@ -160,10 +154,25 @@ Status:
     - OpenSolaris/x64     smp
     - FreeBSD 8/i386      smp
     - FreeBSD 8/amd64     smp
+    - IBM BG/P            smp, dcmf
   We have no reason to think that any conduit listed above would NOT support
   PSHM on any OS/cpu above (assuming the conduit works on that platform at all).
+* IBM BG/P platform-specific notes:
+  - PSHM does not work at all in "SMP" mode, only "DUAL" or "VN"
+  - Currently one must manually set up a few things to use PSHM on BG/P
+    + Shared segment size must be limited to a lower-than-default value
+    + BG_SHAREDMEMPOOLSIZE env var must be set to fit the shared segment plus
+      extra for Active Message buffers
+    + upcrun must be told to propagate BG_ environment vars to the job
+  - Example environment variable settings for 200MB shared heap in VN mode
+      UPC_ENVPREFIX=BG_
+      UPC_SHARED_HEAP_SIZE=200M
+      BG_SHAREDMEMPOOLSIZE=820
+  - Example environment variable settings for 400MB shared heap in DUAL mode
+      UPC_ENVPREFIX=BG_
+      UPC_SHARED_HEAP_SIZE=400M
+      BG_SHAREDMEMPOOLSIZE=810
 * Platforms known NOT to work:
   - MacOSX is NOT supported because we appear to trigger a kernel memory leak.
-  - BG/P can share memory, but there are non-trivial obstacles to overcome.
   - CNL (at least at our site) lacks support for shm_open().
   - Catamount can't share memory (in any way that we know of).
