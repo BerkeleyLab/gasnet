@@ -1,6 +1,6 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.27.2.4 $
+$Revision: 1.27.2.5 $
 
 ----------------------------------------------------------------------
 05-??-2010 : Release 1.14.2
@@ -15,7 +15,7 @@ $Revision: 1.27.2.4 $
   - Fix bug 2079: stack overflow errors when vapi/ibv compiled with pgcc
 
 * Cray-XT series (portals-conduit):
-  - Improved scalablity of job startup
+  - Improved reliability and scalability of job startup and termination code.
   - Fixed a corner-case bug in AM Medium code
   - Preliminary work to support PrgEnv-cray (requires CCE 7.2 or newer)
 
