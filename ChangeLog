@@ -1,9 +1,9 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.27.2.3 $
+$Revision: 1.27.2.4 $
 
 ----------------------------------------------------------------------
-??-??-2010 : Release 1.16
+05-??-2010 : Release 1.14.2
 
 * General:
   - Much improved support for heterogenous compilers (CC, CXX and MPI_CC)
