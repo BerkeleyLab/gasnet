@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/02/22 18:07:04 $
- * $Revision: 1.247 $
+ *     $Date: 2010/05/24 23:23:00 $
+ * $Revision: 1.247.10.1 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -63,6 +63,9 @@ size_t					gasnetc_packedlong_limit;
 int					gasnetc_use_rcv_thread = GASNETC_IB_RCV_THREAD;
 #if GASNETC_FH_OPTIONAL
   int					gasnetc_use_firehose = 1;
+#endif
+#if GASNET_CONDUIT_IBV
+  int					gasnetc_use_srq = 1;
 #endif
 int					gasnetc_am_credits_slack;
 int					gasnetc_num_qps;
@@ -482,7 +485,11 @@ void gasnetc_rcv_post(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf) {
 #else
   {
     struct ibv_recv_wr *bad_wr;
-    vstat = ibv_post_recv(cep->qp_handle, &rbuf->rr_desc, &bad_wr);
+    if (cep->hca->srq) {
+      vstat = ibv_post_srq_recv(cep->hca->srq, &rbuf->rr_desc, &bad_wr);
+    } else {
+      vstat = ibv_post_recv(cep->qp_handle, &rbuf->rr_desc, &bad_wr);
+    }
   }
 #endif
 
@@ -3143,6 +3150,18 @@ extern int gasnetc_sndrcv_init(void) {
 	/* XXX: also unwind CQ and reg for previous HCAs */
         GASNETI_RETURN_ERRR(RESOURCE, "Unable to allocate pinned memory for AM recv buffers");
       }
+
+#if GASNET_CONDUIT_IBV
+      /* create shared recv queue per HCA */
+      if (gasnetc_use_srq) {
+        struct ibv_srq_init_attr attr;
+        memset(&attr, 0, sizeof(attr));
+        attr.attr.max_wr = rcv_count;
+        attr.attr.max_sge = 1;
+        hca->srq = ibv_create_srq(hca->pd, &attr);
+        GASNETC_VAPI_CHECK_PTR(hca->srq, "from ibv_create_srq()");
+      }
+#endif
   
       /* Allocated normal memory for receive descriptors (rbuf's) */
       padded_size = GASNETI_ALIGNUP(sizeof(gasnetc_rbuf_t), GASNETI_CACHE_LINE_BYTES);
