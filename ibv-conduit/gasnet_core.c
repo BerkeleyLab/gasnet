@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2009/10/16 22:43:34 $
- * $Revision: 1.223 $
+ *     $Date: 2010/05/24 23:23:00 $
+ * $Revision: 1.223.12.1 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -533,6 +533,9 @@ static int gasnetc_load_settings(void) {
     fprintf(stderr,
 	    "WARNING: Environment variable GASNET_USE_FIREHOSE ignored.  It is only available in a DEBUG build of GASNet\n");
   }
+#endif
+#if GASNET_CONDUIT_IBV
+  gasnetc_use_srq = gasneti_getenv_yesno_withdefault("GASNET_USE_SRQ", 1);
 #endif
   if_pf (gasnetc_op_oust_limit && (gasnetc_am_oust_limit > gasnetc_op_oust_limit)) {
     fprintf(stderr,
@@ -1287,7 +1290,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     struct ibv_qp_init_attr	qp_init_attr;
 
     qp_init_attr.cap.max_send_wr     = gasnetc_op_oust_pp;
-    qp_init_attr.cap.max_recv_wr     = gasnetc_am_oust_pp * 2;
+    qp_init_attr.cap.max_recv_wr     = gasnetc_use_srq ? 0 : gasnetc_am_oust_pp * 2;
     qp_init_attr.cap.max_send_sge    = GASNETC_SND_SG;
     qp_init_attr.cap.max_recv_sge    = 1;
     qp_init_attr.cap.max_inline_data = gasnetc_inline_limit;
@@ -1305,6 +1308,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       hca = cep[i].hca;
       qp_init_attr.send_cq         = hca->snd_cq;
       qp_init_attr.recv_cq         = hca->rcv_cq;
+      qp_init_attr.srq             = hca->srq; /* NULL if SRQ disabled */
       while (1) {	/* No query for max_inline_data limit */
         hndl = ibv_create_qp(hca->pd, &qp_init_attr);
 	if (hndl != NULL) break;
