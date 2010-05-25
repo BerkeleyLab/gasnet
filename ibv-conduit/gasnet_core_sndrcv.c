@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/05/24 23:23:00 $
- * $Revision: 1.247.10.1 $
+ *     $Date: 2010/05/25 01:06:14 $
+ * $Revision: 1.247.10.2 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -476,16 +476,21 @@ void gasnetc_rcv_post(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf) {
   
   rbuf->cep = cep;
   rbuf->rr_sg.lkey = GASNETC_RCV_LKEY(cep);
-  GASNETI_TRACE_PRINTF(D,("POST_RR rbuf=%p peer=%d qp=%d hca=%d lkey=0x%08x", 
-			  rbuf, gasnetc_epid2node(cep->epid),
-			  gasnetc_epid2qpi(cep->epid) - 1, cep->hca_index,
+  GASNETI_TRACE_PRINTF(D,("POST_RR rbuf=%p hca=%d lkey=0x%08x", 
+			  rbuf, cep->hca_index,
 			  (unsigned int)(rbuf->rr_sg.lkey)));
+  if (!gasnetc_use_srq) {
+    GASNETI_TRACE_PRINTF(D,("POST_RR rbuf=%p peer=%d qp=%d",
+			    rbuf, gasnetc_epid2node(cep->epid),
+			    gasnetc_epid2qpi(cep->epid) - 1));
+  }
+
 #if GASNET_CONDUIT_VAPI
   vstat = VAPI_post_rr(cep->hca_handle, cep->qp_handle, &rbuf->rr_desc);
 #else
   {
     struct ibv_recv_wr *bad_wr;
-    if (cep->hca->srq) {
+    if (cep->hca->srq) { /* Equivalent to gasnetc_use_srq, but we need this value anyway */
       vstat = ibv_post_srq_recv(cep->hca->srq, &rbuf->rr_desc, &bad_wr);
     } else {
       vstat = ibv_post_recv(cep->qp_handle, &rbuf->rr_desc, &bad_wr);
@@ -1148,6 +1153,21 @@ void gasnetc_rcv_am(const gasnetc_wc_t *comp, gasnetc_rbuf_t **spare_p) {
   gasnetc_rbuf_t *spare;
 
   GASNETC_STAT_EVENT(RCV_AM_SNDRCV);
+
+#if GASNET_CONDUIT_IBV
+  if (gasnetc_use_srq) {
+    /* XXX: SRQ means rbuf->cep is "inexact", so must reconstruct */
+    cep = gasnetc_node2cep[GASNETC_MSG_SRCIDX(flags)];
+    if (gasnetc_num_qps > 1) {
+      gasnetc_hca_t * const hca = rbuf->cep->hca; /* this much is correct */
+      int i;
+      for (i=0; i<gasnetc_num_qps; ++i, ++cep) {
+        if ((cep->qp_handle->qp_num == comp->qp_num) && (cep->hca == hca)) break;
+      }
+      gasneti_assert(i < gasnetc_num_qps);
+    }
+  }
+#endif
 
   if (GASNETC_MSG_ISREPLY(flags)) {
 #if GASNETI_STATS_OR_TRACE
