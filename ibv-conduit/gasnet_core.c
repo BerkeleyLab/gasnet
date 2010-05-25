@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2010/05/24 23:23:00 $
- * $Revision: 1.223.12.1 $
+ *     $Date: 2010/05/25 23:30:55 $
+ * $Revision: 1.223.12.2 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -54,6 +54,9 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 
 /* Limit on prepinned send bounce buffers */
 #define GASNETC_DEFAULT_BBUF_COUNT		1024	/* Max bounce buffers prepinned, 0 = automatic */
+
+/* Limit on AM recv buffers when using SRQ */
+#define GASNETC_DEFAULT_RBUF_COUNT		1024	/* Max SRQ receive buffers posted, 0 = automatic */
 
 /* Limit on size of prepinned regions */
 #define GASNETC_DEFAULT_PIN_MAXSZ		0	/* 0 = automatic (VAPI->256K, IBV->max_msg_sz) */
@@ -153,6 +156,9 @@ int		gasnetc_op_oust_pp;
 int		gasnetc_am_oust_limit;
 int		gasnetc_am_oust_pp;
 int		gasnetc_bbuf_limit;
+#if GASNET_CONDUIT_IBV
+  int		gasnetc_rbuf_limit;
+#endif
 
 /* Maximum pinning capabilities of the HCA */
 typedef struct gasnetc_pin_info_t_ {
@@ -464,6 +470,9 @@ static int gasnetc_load_settings(void) {
   GASNETC_ENVINT(gasnetc_am_oust_limit, GASNET_AM_CREDITS_TOTAL, GASNETC_DEFAULT_AM_CREDITS_TOTAL, 0, 0);
   GASNETC_ENVINT(gasnetc_am_credits_slack, GASNET_AM_CREDITS_SLACK, GASNETC_DEFAULT_AM_CREDITS_SLACK, 0, 0);
   GASNETC_ENVINT(gasnetc_bbuf_limit, GASNET_BBUF_COUNT, GASNETC_DEFAULT_BBUF_COUNT, 0, 0);
+#if GASNET_CONDUIT_IBV
+  GASNETC_ENVINT(gasnetc_rbuf_limit, GASNET_RBUF_COUNT, GASNETC_DEFAULT_RBUF_COUNT, 0, 0);
+#endif
   GASNETC_ENVINT(gasnetc_num_qps, GASNET_NUM_QPS, GASNETC_DEFAULT_NUM_QPS, 0, 0);
   GASNETC_ENVINT(gasnetc_inline_limit, GASNET_INLINESEND_LIMIT, GASNETC_DEFAULT_INLINESEND_LIMIT, -1, 0);
   GASNETC_ENVINT(gasnetc_bounce_limit, GASNET_NONBULKPUT_BOUNCE_LIMIT, GASNETC_DEFAULT_NONBULKPUT_BOUNCE_LIMIT, 0, 1);
@@ -608,6 +617,10 @@ static int gasnetc_load_settings(void) {
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_AM_CREDITS_SLACK         = %d", gasnetc_am_credits_slack));
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_BBUF_COUNT               = %d%s",
 			  	gasnetc_bbuf_limit, gasnetc_bbuf_limit ? "": " (automatic)"));
+#if GASNET_CONDUIT_IBV
+  GASNETI_TRACE_PRINTF(C,  ("  GASNET_RBUF_COUNT               = %d%s",
+			  	gasnetc_rbuf_limit, gasnetc_rbuf_limit ? "": " (automatic)"));
+#endif
 #if GASNETC_PIN_SEGMENT
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_PIN_MAXSZ                = %lu%s", (unsigned long)gasnetc_pin_maxsz,
 				(!gasnetc_pin_maxsz ? " (automatic)" : "")));
@@ -1235,6 +1248,39 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
   #endif
   gasnetc_bounce_limit = MIN(gasnetc_max_msg_sz, gasnetc_bounce_limit);
+
+#if GASNET_CONDUIT_IBV
+  if (gasnetc_use_srq) {
+    unsigned int srq_wr_per_qp = gasnetc_rbuf_limit / gasnetc_num_qps;
+    int orig = gasnetc_rbuf_limit;
+
+    /* Ensure each path has some reasonable miniumum.
+     * Since this is not scaled w/ nodes it could safely be much larger than this.
+     */
+    const int min_wr_per_qp = 2;
+    if (srq_wr_per_qp && (srq_wr_per_qp < min_wr_per_qp)) {
+      srq_wr_per_qp = min_wr_per_qp;
+      fprintf(stderr,
+              "WARNING: Requested GASNET_RBUF_COUNT %d increased to %d\n",
+              orig, gasnetc_num_qps * srq_wr_per_qp);
+    }
+
+    /* Check against HCA limits */
+    GASNETC_FOR_ALL_HCA(hca) {
+      unsigned int tmp = hca->hca_cap.max_srq_wr / hca->qps;
+      if (!srq_wr_per_qp || (tmp < srq_wr_per_qp)) {
+        srq_wr_per_qp = tmp;
+      }
+    }
+    gasnetc_rbuf_limit = gasnetc_num_qps * srq_wr_per_qp;
+
+    if (orig && (gasnetc_rbuf_limit < orig)) {
+      fprintf(stderr,
+              "WARNING: Requested GASNET_RBUF_COUNT %d reduced by HCA's max_srq_wr to %d\n",
+              orig, gasnetc_rbuf_limit);
+    }
+  }
+#endif
 
   /* get a pd for the QPs and memory registration */
   GASNETC_FOR_ALL_HCA(hca) {
