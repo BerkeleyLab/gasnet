@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/05/25 02:39:51 $
- * $Revision: 1.247.10.3 $
+ *     $Date: 2010/05/25 06:10:30 $
+ * $Revision: 1.247.10.4 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -713,6 +713,9 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
         gasneti_assert(acks > 0);
         gasneti_weakatomic_add(&cep->amrdma.send_head, acks, 0);
       }
+      if (gasnetc_use_srq) {
+        /* XXX: SRQ doesn't use am_loc */
+      } else
       if (credits) {
         gasneti_semaphore_up_n(&cep->am_loc, credits);
       }
@@ -725,6 +728,9 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
 
     /* Available remotely posted (request) buffers */
     if (GASNETC_MSG_ISREPLY(flags)) { ++credits; } /* Credit for self */
+    if (!gasnetc_use_credits) {
+      /* XXX: SRQ alternative flow control logic goes here */
+    } else
     if (credits) {
       gasneti_semaphore_up_n(&cep->am_rem, credits);
     }
@@ -1156,6 +1162,13 @@ void gasnetc_rcv_am(const gasnetc_wc_t *comp, gasnetc_rbuf_t **spare_p) {
 
 #if GASNET_CONDUIT_IBV
   if (gasnetc_use_srq) {
+#if GASNETI_STATS_OR_TRACE
+    if (GASNETC_MSG_ISREPLY(flags)) {
+      gasneti_tick_t _starttime = ((gasnetc_buffer_t *)(uintptr_t)(rbuf->rr_sg.addr))->stamp;
+      GASNETI_TRACE_EVENT_TIME(C,AM_ROUNDTRIP_TIME,gasneti_ticks_now()-_starttime);
+    }
+#endif
+
     /* XXX: SRQ means rbuf->cep is "inexact", so must reconstruct */
     cep = gasnetc_node2cep[GASNETC_MSG_SRCIDX(flags)];
     if (gasnetc_num_qps > 1) {
@@ -1167,9 +1180,15 @@ void gasnetc_rcv_am(const gasnetc_wc_t *comp, gasnetc_rbuf_t **spare_p) {
       gasneti_assert(i < gasnetc_num_qps);
     }
     rbuf->cep = cep;
-  }
-#endif
 
+    /* Process and repost w/o any fancy tricks to keep credits perfectly accurate */
+    gasnetc_processPacket(cep, rbuf, flags);
+    if_pf (rbuf->rbuf_needReply) {
+      gasnetc_hidden_ack(rbuf, cep);
+    }
+    gasnetc_rcv_post(cep, rbuf);
+  } else
+#endif
   if (GASNETC_MSG_ISREPLY(flags)) {
 #if GASNETI_STATS_OR_TRACE
     gasneti_tick_t _starttime = ((gasnetc_buffer_t *)(uintptr_t)(rbuf->rr_sg.addr))->stamp;
@@ -1184,7 +1203,7 @@ void gasnetc_rcv_am(const gasnetc_wc_t *comp, gasnetc_rbuf_t **spare_p) {
   } else {
     /* Post a replacement buffer before processing the request.
      * This ensures that the credit sent with the reply will
-     * have a corresponding buffer available at this end */
+     * have a corresponding buffer available at this end. */
     spare = (*spare_p) ? (*spare_p) : gasneti_lifo_pop(cep->rbuf_freelist);
     if_pt (spare) {
       /* This is the normal case */
@@ -1360,6 +1379,9 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
 
   /* Account for any recv buffer that was reserved for the reply, but not used.
    * Must preced credit processing in gasnetc_processPacket (bug 2359) */
+  if (gasnetc_use_srq) {
+    /* XXX: SRQ doesn't use am_loc */
+  } else
   if (GASNETC_MSG_ISREPLY(flags)) {
     gasneti_semaphore_up(&cep->am_loc);
   }
@@ -2113,6 +2135,9 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
        * Note that we need a credit even for AM-over-RDMA, to avoid
        * posting all of our rbufs to one QP.
        */
+      if (!gasnetc_use_credits) {
+        /* XXX: SRQ alternative flow control logic goes here */
+      } else
       {
         gasneti_semaphore_t * const sema = &(cep->am_rem);
         GASNETC_STAT_EVENT(GET_AMREQ_CREDIT);
@@ -2127,6 +2152,10 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       }
   
       /* Post the rbuf needed for the Reply */
+      if (gasnetc_use_srq) {
+        /* XXX: SRQ doesn't use am_loc */
+        gasneti_assert(NULL == gasneti_lifo_pop(cep->rbuf_freelist));
+      } else
       if (gasneti_semaphore_trydown(&cep->am_loc)) {
         /* We'll use one that was left over due to ACK coalescing or reply via rdma */
       } else {
@@ -3356,15 +3385,30 @@ extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
       gasneti_weakatomic_set(&cep->amrdma.eligable, 0, 0);
       cep->amrdma_loc = NULL;
 
-      /* Prepost one rcv buffer for each possible incomming request */
+      if (gasnetc_use_srq) {
+        /* Prepost them all the first time (per hca) we get here */
+        gasnetc_rbuf_t *rbuf;
+        while (NULL != (rbuf = gasneti_lifo_pop(cep->rbuf_freelist))) {
+          gasnetc_rcv_post(cep, rbuf);
+        }
+      } else
       for (j = 0; j < gasnetc_am_oust_pp; ++j) {
+        /* Prepost one rcv buffer for each possible incomming request */
         gasnetc_rcv_post(cep, gasneti_lifo_pop(cep->rbuf_freelist));
       }
 
       /* Setup semaphores/counters */
       gasneti_semaphore_init(&cep->sq_sema, gasnetc_op_oust_pp, gasnetc_op_oust_pp);
-      gasneti_semaphore_init(&cep->am_rem, gasnetc_am_oust_pp, gasnetc_am_oust_pp);
-      gasneti_semaphore_init(&cep->am_loc, 0, gasnetc_am_oust_pp);
+      if (gasnetc_use_credits) {
+        gasneti_semaphore_init(&cep->am_rem, gasnetc_am_oust_pp, gasnetc_am_oust_pp);
+      } else {
+        gasneti_semaphore_init(&cep->am_rem, 0, 0);
+      }
+      if (gasnetc_use_srq) {
+        gasneti_semaphore_init(&cep->am_loc, 0, 0);
+      } else {
+        gasneti_semaphore_init(&cep->am_loc, 0, gasnetc_am_oust_pp);
+      }
       gasneti_weakatomic_set(&cep->am_flow.credit, 0, 0);
       gasneti_weakatomic_set(&cep->am_flow.ack, 0, 0);
       cep->snd_cq_sema_p = &gasnetc_cq_semas[cep->hca_index];
