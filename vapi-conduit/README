@@ -1,7 +1,7 @@
 README file for vapi-conduit and ibv-conduit
 ============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.55 $
+$Revision: 1.55.12.1 $
 
 @ TOC: @
 @ Section: VAPI vs IBV @
@@ -443,8 +443,23 @@ $Revision: 1.55 $
     Reducing this parameter to zero or setting it too high may
     increase the latency of Active Message traffic.
 
+  + GASNET_RBUF_COUNT
+    If SRQ support is unavailable or disabled, this parameter is ignored.
+    When SRQ is enabled this gives the max number of AM receive buffers
+    allocated on each node.  These buffers are needed for reception of
+    AM headers and the payload of mediums, but are not used for RDMA.
+    The actual number of buffers allocated is the lesser of the value of
+    GASNET_RBUF_COUNT or a value computed from the GASNET_AM_* and
+    GASNET_NETWORKDEPTH_* parameters described above.
+    If set to zero, the value is limited only by the HCA's capabilites.
+    The default value is 1024 (up to 4MB for buffers).
+    Reducing this parameter may limit Active Message throughput.  If you
+    believe your Active Message throughput is too low, you may try
+    increasing this value (or setting it to zero), at a cost in additional
+    pinned memory.
+
   + GASNET_BBUF_COUNT
-    This gives the number of pre-pinned buffers allocated on each node.
+    This gives the max number of pre-pinned buffers allocated on each node.
     These buffers are needed for assembly of AM headers and the payload
     of mediums, and for some PUTs (see GASNET_NONBULKPUT_BOUNCE_LIMIT).
     The actual number of buffers allocated is the lesser of the values of
