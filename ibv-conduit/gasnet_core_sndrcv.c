@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/05/25 06:10:30 $
- * $Revision: 1.247.10.4 $
+ *     $Date: 2010/05/25 23:30:55 $
+ * $Revision: 1.247.10.5 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3063,6 +3063,7 @@ extern int gasnetc_sndrcv_init(void) {
   int			am_repl_per_qp;
   int			am_rqst_per_qp;
   size_t		size;
+  int			rbufs_per_qp;
 
   /*
    * Check/compute limits before allocating anything
@@ -3156,13 +3157,26 @@ extern int gasnetc_sndrcv_init(void) {
   }
   GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_BBUF_COUNT = %d", gasnetc_bbuf_limit));
 
+  rbufs_per_qp = (am_rqst_per_qp + am_repl_per_qp) + (gasnetc_use_rcv_thread ? 1 : 0);
+#if GASNET_CONDUIT_IBV
+  if (gasnetc_use_srq) {
+    int tmp = MIN(rbufs_per_qp, gasnetc_rbuf_limit / gasnetc_num_qps);
+    gasneti_assert(gasnetc_rbuf_limit != 0);
+    GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_RBUF_COUNT = %d (SRQ limit: %d, w/o SRQ: %d)",
+                             tmp * gasnetc_num_qps,
+                             gasnetc_rbuf_limit,
+                             rbufs_per_qp * gasnetc_num_qps));
+    rbufs_per_qp = tmp;
+  }
+#endif
+
   /*
    * setup RCV resources
    */
 
   /* create one RCV CQ per HCA */
   GASNETC_FOR_ALL_HCA(hca) {
-    int rcv_count = hca->qps * (am_rqst_per_qp + am_repl_per_qp) + (gasnetc_use_rcv_thread ? 1 : 0);
+    const int rcv_count = hca->qps * rbufs_per_qp;
     vstat = gasnetc_create_cq(hca->handle, rcv_count, &hca->rcv_cq, &act_size);
     GASNETC_VAPI_CHECK(vstat, "from gasnetc_create_cq(rcv_cq)");
     gasneti_assert(act_size >= rcv_count);
