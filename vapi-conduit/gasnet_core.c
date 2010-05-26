@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/05/26 01:12:44 $
- * $Revision: 1.223.12.3 $
+ *     $Date: 2010/05/26 03:27:02 $
+ * $Revision: 1.223.12.4 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -158,6 +158,7 @@ int		gasnetc_am_oust_pp;
 int		gasnetc_bbuf_limit;
 #if GASNET_CONDUIT_IBV
   int		gasnetc_rbuf_limit;
+  int		gasnetc_rbuf_set;
 #endif
 
 /* Maximum pinning capabilities of the HCA */
@@ -471,6 +472,7 @@ static int gasnetc_load_settings(void) {
   GASNETC_ENVINT(gasnetc_am_credits_slack, GASNET_AM_CREDITS_SLACK, GASNETC_DEFAULT_AM_CREDITS_SLACK, 0, 0);
   GASNETC_ENVINT(gasnetc_bbuf_limit, GASNET_BBUF_COUNT, GASNETC_DEFAULT_BBUF_COUNT, 0, 0);
 #if GASNET_CONDUIT_IBV
+  gasnetc_rbuf_set = (NULL != gasneti_getenv("GASNET_RBUF_COUNT"));
   GASNETC_ENVINT(gasnetc_rbuf_limit, GASNET_RBUF_COUNT, GASNETC_DEFAULT_RBUF_COUNT, 0, 0);
 #endif
   GASNETC_ENVINT(gasnetc_num_qps, GASNET_NUM_QPS, GASNETC_DEFAULT_NUM_QPS, 0, 0);
@@ -1250,7 +1252,36 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
   gasnetc_bounce_limit = MIN(gasnetc_max_msg_sz, gasnetc_bounce_limit);
 
+  /* get a pd for the QPs, SRQ and memory registration */
+  GASNETC_FOR_ALL_HCA(hca) {
+    vstat = gasnetc_alloc_pd(hca);
+    GASNETC_VAPI_CHECK(vstat, "from gasnetc_alloc_pd()");
+  }
+
 #if GASNET_CONDUIT_IBV
+  if (gasnetc_use_srq) {
+    /* Check each HCA for support. */
+    GASNETC_FOR_ALL_HCA(hca) {
+      struct ibv_srq_init_attr attr;
+      struct ibv_srq *my_srq;
+
+      memset(&attr, 0, sizeof(attr));
+      attr.attr.max_wr = 4; /* Arbitrary */
+      attr.attr.max_sge = 1;
+
+      if (!hca->hca_cap.max_srq_wr ||
+          (NULL == (my_srq = ibv_create_srq(hca->pd, &attr))) ||
+          ibv_destroy_srq(my_srq)) {
+        gasnetc_use_srq = 0;
+        break;
+      }
+    }
+    
+    if (!gasnetc_use_srq) {
+      fprintf(stderr,
+              "WARNING: GASNET_USE_SRQ disabled because HCA lacks support\n");
+    }
+  }
   if (gasnetc_use_srq) {
     unsigned int srq_wr_per_qp = gasnetc_rbuf_limit / gasnetc_num_qps;
     int orig = gasnetc_rbuf_limit;
@@ -1275,19 +1306,14 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
     gasnetc_rbuf_limit = gasnetc_num_qps * srq_wr_per_qp;
 
-    if (orig && (gasnetc_rbuf_limit < orig)) {
+    /* Warn only if reduced relative to an explicit  non-zero value */
+    if (gasnetc_rbuf_set && orig && (gasnetc_rbuf_limit < orig)) {
       fprintf(stderr,
               "WARNING: Requested GASNET_RBUF_COUNT %d reduced by HCA's max_srq_wr to %d\n",
               orig, gasnetc_rbuf_limit);
     }
   }
 #endif
-
-  /* get a pd for the QPs and memory registration */
-  GASNETC_FOR_ALL_HCA(hca) {
-    vstat = gasnetc_alloc_pd(hca);
-    GASNETC_VAPI_CHECK(vstat, "from gasnetc_alloc_pd()");
-  }
 
   /* allocate/initialize transport resources */
   i = gasnetc_sndrcv_init();
