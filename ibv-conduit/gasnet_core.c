@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2010/05/26 03:27:02 $
- * $Revision: 1.223.12.4 $
+ *     $Date: 2010/05/26 03:54:35 $
+ * $Revision: 1.223.12.5 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -156,7 +156,7 @@ int		gasnetc_op_oust_pp;
 int		gasnetc_am_oust_limit;
 int		gasnetc_am_oust_pp;
 int		gasnetc_bbuf_limit;
-#if GASNET_CONDUIT_IBV
+#if HAVE_IBV_SRQ
   int		gasnetc_rbuf_limit;
   int		gasnetc_rbuf_set;
 #endif
@@ -471,7 +471,7 @@ static int gasnetc_load_settings(void) {
   GASNETC_ENVINT(gasnetc_am_oust_limit, GASNET_AM_CREDITS_TOTAL, GASNETC_DEFAULT_AM_CREDITS_TOTAL, 0, 0);
   GASNETC_ENVINT(gasnetc_am_credits_slack, GASNET_AM_CREDITS_SLACK, GASNETC_DEFAULT_AM_CREDITS_SLACK, 0, 0);
   GASNETC_ENVINT(gasnetc_bbuf_limit, GASNET_BBUF_COUNT, GASNETC_DEFAULT_BBUF_COUNT, 0, 0);
-#if GASNET_CONDUIT_IBV
+#if HAVE_IBV_SRQ
   gasnetc_rbuf_set = (NULL != gasneti_getenv("GASNET_RBUF_COUNT"));
   GASNETC_ENVINT(gasnetc_rbuf_limit, GASNET_RBUF_COUNT, GASNETC_DEFAULT_RBUF_COUNT, 0, 0);
 #endif
@@ -545,7 +545,7 @@ static int gasnetc_load_settings(void) {
 	    "WARNING: Environment variable GASNET_USE_FIREHOSE ignored.  It is only available in a DEBUG build of GASNet\n");
   }
 #endif
-#if GASNET_CONDUIT_IBV
+#if HAVE_IBV_SRQ
   /* Integer value now, becomes a boolean later in gasnetc_sndrcv_init() */
   gasnetc_use_srq = gasneti_getenv_int_withdefault("GASNET_USE_SRQ", -1, 0);
 #endif
@@ -620,7 +620,7 @@ static int gasnetc_load_settings(void) {
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_AM_CREDITS_SLACK         = %d", gasnetc_am_credits_slack));
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_BBUF_COUNT               = %d%s",
 			  	gasnetc_bbuf_limit, gasnetc_bbuf_limit ? "": " (automatic)"));
-#if GASNET_CONDUIT_IBV
+#if HAVE_IBV_SRQ
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_RBUF_COUNT               = %d%s",
 			  	gasnetc_rbuf_limit, gasnetc_rbuf_limit ? "": " (automatic)"));
 #endif
@@ -1258,7 +1258,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     GASNETC_VAPI_CHECK(vstat, "from gasnetc_alloc_pd()");
   }
 
-#if GASNET_CONDUIT_IBV
+#if HAVE_IBV_SRQ
   if (gasnetc_use_srq) {
     /* Check each HCA for support. */
     GASNETC_FOR_ALL_HCA(hca) {
@@ -1381,7 +1381,9 @@ static int gasnetc_init(int *argc, char ***argv) {
       hca = cep[i].hca;
       qp_init_attr.send_cq         = hca->snd_cq;
       qp_init_attr.recv_cq         = hca->rcv_cq;
-      qp_init_attr.srq             = hca->srq; /* NULL if SRQ disabled */
+      #if HAVE_IBV_SRQ
+        qp_init_attr.srq           = hca->srq; /* NULL if SRQ disabled */
+      #endif
       while (1) {	/* No query for max_inline_data limit */
         hndl = ibv_create_qp(hca->pd, &qp_init_attr);
 	if (hndl != NULL) break;
