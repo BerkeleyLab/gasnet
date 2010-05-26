@@ -1,7 +1,7 @@
 README file for vapi-conduit and ibv-conduit
 ============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.55.12.2 $
+$Revision: 1.55.12.3 $
 
 @ TOC: @
 @ Section: VAPI vs IBV @
@@ -362,7 +362,8 @@ $Revision: 1.55.12.2 $
 
   + GASNET_USE_SRQ
     This controls whether IBV Shared Receive Queue (SRQ) support is used.
-    This setting is ignored for VAPI, for which GASNet has no SRQ support.
+    This setting is ignored for VAPI, for which GASNet has no SRQ support,
+    and for IBV if GASNet was configured with --disable-ibv-srq.
     This setting defaults to -1, which means that SRQ will be used only
     if doing so would reduce memory usage (as determined from the value
     of the GASNET_RBUF_COUNT setting, described below).
