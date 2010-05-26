@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/05/25 23:30:55 $
- * $Revision: 1.247.10.5 $
+ *     $Date: 2010/05/26 01:12:44 $
+ * $Revision: 1.247.10.6 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3159,15 +3159,35 @@ extern int gasnetc_sndrcv_init(void) {
 
   rbufs_per_qp = (am_rqst_per_qp + am_repl_per_qp) + (gasnetc_use_rcv_thread ? 1 : 0);
 #if GASNET_CONDUIT_IBV
-  if (gasnetc_use_srq) {
+  /* As per README:
+     GASNET_USE_SRQ = 0: Never use SRQ
+     GASNET_USE_SRQ > 0: Use SRQ for nodes >= GASNET_USE_SRQ (so 1 == Always)
+     GASNET_USE_SRQ < 0: Use SRQ only if memory savings would result
+   */
+  if (!gasnetc_use_srq) {
+    GASNETI_TRACE_PRINTF(C, ("SRQ disabled explictly"));
+  } else if (gasnetc_use_srq > gasneti_nodes) {
+    /* Positive value of GASNET_USE_SRQ denotes a minumum node count */
+    GASNETI_TRACE_PRINTF(C, ("SRQ disabled because GASNET_USE_SRQ = %d is greater than nodes = %d",
+                             gasnetc_use_srq, gasneti_nodes));
+    gasnetc_use_srq = 0;
+  } else {
     int tmp = MIN(rbufs_per_qp, gasnetc_rbuf_limit / gasnetc_num_qps);
     gasneti_assert(gasnetc_rbuf_limit != 0);
     GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_RBUF_COUNT = %d (SRQ limit: %d, w/o SRQ: %d)",
                              tmp * gasnetc_num_qps,
                              gasnetc_rbuf_limit,
                              rbufs_per_qp * gasnetc_num_qps));
-    rbufs_per_qp = tmp;
+    if ((gasnetc_use_srq < 0) && (tmp == rbufs_per_qp)) {
+      GASNETI_TRACE_PRINTF(C, ("SRQ disabled because GASNET_USE_SRQ = -1 and no buffer savings would result"));
+      gasnetc_use_srq = 0;
+    } else {
+      GASNETI_TRACE_PRINTF(C, ("SRQ enabled"));
+      rbufs_per_qp = tmp;
+      gasnetc_use_srq = 1;
+    }
   }
+  /* gasnetc_use_srq is just 0 or 1 from here on */
 #endif
 
   /*
