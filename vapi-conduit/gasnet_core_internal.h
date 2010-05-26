@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2010/05/25 23:30:55 $
- * $Revision: 1.160.10.3 $
+ *     $Date: 2010/05/26 03:54:35 $
+ * $Revision: 1.160.10.4 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -454,7 +454,7 @@ typedef struct {
   gasnetc_memreg_t	*seg_reg;
   gasnetc_rkey_t	*rkeys;	/* RKey(s) registered at attach time */
 #endif
-#if GASNET_CONDUIT_IBV
+#if HAVE_IBV_SRQ
   struct ibv_srq	*srq;
 #endif
   gasnetc_cq_hndl_t	rcv_cq;
@@ -612,7 +612,7 @@ extern int		gasnetc_amrdma_depth;
 extern int		gasnetc_amrdma_slot_mask;
 extern gasneti_weakatomic_val_t gasnetc_amrdma_cycle;
 
-#if GASNET_CONDUIT_IBV
+#if HAVE_IBV_SRQ
   extern int			gasnetc_rbuf_limit;
   extern int			gasnetc_use_srq;
   /* If non-zero use normal credit system to throttle AMs */
