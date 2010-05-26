@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/05/26 19:01:14 $
- * $Revision: 1.223.12.7 $
+ *     $Date: 2010/05/26 19:32:40 $
+ * $Revision: 1.223.12.8 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1625,6 +1625,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   #if GASNET_PSHM
     /* Despite a comment to the contrary in earlier versions of this code, it is
      * "safe" to send over pshmnet despite the non-AM use via pshmnet_bootstrapBroadcast.
+     * One probably needs to drain the recvd ping and ack to ensure this is true.
      * However, we still skip this for a minor efficiency gain.
      */
     if (!gasneti_pshm_in_supernode(peer))
