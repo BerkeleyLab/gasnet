@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2010/05/26 03:54:35 $
- * $Revision: 1.223.12.5 $
+ *     $Date: 2010/05/26 05:18:11 $
+ * $Revision: 1.223.12.6 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1269,7 +1269,8 @@ static int gasnetc_init(int *argc, char ***argv) {
       attr.attr.max_wr = 4; /* Arbitrary */
       attr.attr.max_sge = 1;
 
-      if (!hca->hca_cap.max_srq_wr ||
+      if (!hca->hca_cap.max_srq ||
+          !hca->hca_cap.max_srq_wr ||
           (NULL == (my_srq = ibv_create_srq(hca->pd, &attr))) ||
           ibv_destroy_srq(my_srq)) {
         gasnetc_use_srq = 0;
