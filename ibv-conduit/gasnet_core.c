@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2010/05/26 05:18:11 $
- * $Revision: 1.223.12.6 $
+ *     $Date: 2010/05/26 19:01:14 $
+ * $Revision: 1.223.12.7 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1614,6 +1614,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     /* All QPs must reach RTS before we can test connectivity.
      * Otherwise the rcv thread (which has already been created) might try to
      * send a reply while still in RTR.
+     * XXX: Could probably spawn the rcv thread much later to avoid this.
      */
     gasneti_bootstrapBarrier();
   }
@@ -1622,8 +1623,9 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasnet_node_t peer;
     peer = (gasneti_mynode ? gasneti_mynode : gasneti_nodes) - 1;
   #if GASNET_PSHM
-    /* Send only off-node AMs (cannot use AMPSHM yet because gasneti_mmapLimit()
-     * still needs the "raw" vnet for pshmnet_bootstrapBroadcast).
+    /* Despite a comment to the contrary in earlier versions of this code, it is
+     * "safe" to send over pshmnet despite the non-AM use via pshmnet_bootstrapBroadcast.
+     * However, we still skip this for a minor efficiency gain.
      */
     if (!gasneti_pshm_in_supernode(peer))
   #endif
@@ -1633,6 +1635,11 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
   }
   #endif
+
+  /* XXX: From this point forward gasneti_bootstrap*() could safely be implemented
+   * via AMs or "raw" IB if desired for efficiency (but no segment for RDMA).
+   * Note that only Exchange (aka AllGather) and Barrier are currently used.
+   */
 
   /* Find max pinnable size before we start carving up memory w/ mmap()s.
    *
