@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/05/25 23:30:55 $
- * $Revision: 1.223.12.2 $
+ *     $Date: 2010/05/26 01:12:44 $
+ * $Revision: 1.223.12.3 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -544,7 +544,8 @@ static int gasnetc_load_settings(void) {
   }
 #endif
 #if GASNET_CONDUIT_IBV
-  gasnetc_use_srq = gasneti_getenv_yesno_withdefault("GASNET_USE_SRQ", 1);
+  /* Integer value now, becomes a boolean later in gasnetc_sndrcv_init() */
+  gasnetc_use_srq = gasneti_getenv_int_withdefault("GASNET_USE_SRQ", -1, 0);
 #endif
   if_pf (gasnetc_op_oust_limit && (gasnetc_am_oust_limit > gasnetc_op_oust_limit)) {
     fprintf(stderr,

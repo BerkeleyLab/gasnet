@@ -1,7 +1,7 @@
 README file for vapi-conduit and ibv-conduit
 ============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.55.12.1 $
+$Revision: 1.55.12.2 $
 
 @ TOC: @
 @ Section: VAPI vs IBV @
@@ -360,6 +360,26 @@ $Revision: 1.55.12.1 $
     The default value is 3KB (the current maximum value).
     A value of zero disables this optimization.
 
+  + GASNET_USE_SRQ
+    This controls whether IBV Shared Receive Queue (SRQ) support is used.
+    This setting is ignored for VAPI, for which GASNet has no SRQ support.
+    This setting defaults to -1, which means that SRQ will be used only
+    if doing so would reduce memory usage (as determined from the value
+    of the GASNET_RBUF_COUNT setting, described below).
+    If set to a non-negative value, this setting give the minimum GASNet
+    node count at which SRQ will be used, regardless of whether or not
+    the memory usage would increase or decrease.  A value of zero will
+    disable SRQ.  Examples:
+    - GASNET_USE_SRQ unset or explicitly set to -1:
+        SRQ is used ONLY if GASNET_RBUF_COUNT is less than the number
+        of receive buffers required for the non-SRQ case.
+    - GASNET_USE_SRQ <= gasnet_nodes()  [includes GASNET_USE_SRQ == 1]
+        SRQ is used and GASNET_RBUF_COUNT is enforced as a maximum
+    - GASNET_USE_SRQ > gasnet_nodes()
+        SRQ is NOT used and GASNET_RBUF_COUNT is ignored
+    Note that the interpretation of the values 0 and 1 allow one to use
+    this setting as a simple boolean if desired.
+
   Resource usage parameters:
   The following environment variables control how much memory is
   preallocated at startup time to serve various functions.  Because these
@@ -445,6 +465,7 @@ $Revision: 1.55.12.1 $
 
   + GASNET_RBUF_COUNT
     If SRQ support is unavailable or disabled, this parameter is ignored.
+    See GASNET_USE_SRQ documentation for details of when SRQ is enabled.
     When SRQ is enabled this gives the max number of AM receive buffers
     allocated on each node.  These buffers are needed for reception of
     AM headers and the payload of mediums, but are not used for RDMA.
