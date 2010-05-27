@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/05/26 19:32:40 $
- * $Revision: 1.223.12.8 $
+ *     $Date: 2010/05/27 03:45:02 $
+ * $Revision: 1.223.12.9 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -193,6 +193,11 @@ static void (*gasneti_bootstrapBroadcast_p)(void *src, size_t len, void *dest, i
 
 static char *gasnetc_vapi_ports;
 
+#if GASNET_TRACE
+  static unsigned int	gasnetc_pinned_blocks = 0;
+  static size_t		gasnetc_pinned_bytes = 0;
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization
@@ -219,6 +224,10 @@ static void setup_pin_maxsz(uint64_t size) {
 extern void gasnetc_unpin(gasnetc_hca_t *hca, gasnetc_memreg_t *reg) {
   int rc = gasnetc_dereg_mr(hca->handle, reg->handle);
   GASNETC_VAPI_CHECK(rc, "from gasnetc_dereg_mr()");
+#if GASNET_TRACE
+  gasnetc_pinned_blocks -= 1;
+  gasnetc_pinned_bytes -= reg->len;
+#endif
 }
 
 extern int gasnetc_pin(gasnetc_hca_t *hca, void *addr, size_t size, gasnetc_acl_t acl, gasnetc_memreg_t *reg) {
@@ -243,9 +252,9 @@ extern int gasnetc_pin(gasnetc_hca_t *hca, void *addr, size_t size, gasnetc_acl_
   reg->addr     = mr_out.start;
   reg->len      = mr_out.size;
   reg->end      = mr_out.start + (mr_out.size - 1);
-
-  return vstat;
 #else
+  const int vstat = 0;
+
   gasneti_assert(((uintptr_t)addr % GASNET_PAGESIZE) == 0);
   gasneti_assert(((uintptr_t)size % GASNET_PAGESIZE) == 0);
 
@@ -259,8 +268,13 @@ extern int gasnetc_pin(gasnetc_hca_t *hca, void *addr, size_t size, gasnetc_acl_
   reg->len      = size;
   reg->end      = (uintptr_t)addr + (size - 1);
 
-  return 0;
 #endif
+#if GASNET_TRACE
+  gasnetc_pinned_blocks += 1;
+  gasnetc_pinned_bytes += reg->len;
+#endif
+
+  return vstat;
 }
 
 static void *gasnetc_try_pin_inner(size_t size, gasnetc_memreg_t *reg) {
@@ -2670,6 +2684,21 @@ static void gasnetc_atexit(void) {
  * or possibly gasneti_defaultSignalHandler() responding to a termination signal.
  */
 extern void gasnetc_exit(int exitcode) {
+#if GASNET_TRACE
+  gasneti_heapstats_t stats;
+  gasneti_getheapstats(&stats);
+  GASNETI_TRACE_PRINTF(C, ("Conduit-internal memory use (%scludes segment):",
+                           GASNETC_PIN_SEGMENT ? "in" : "ex"));
+  GASNETI_TRACE_PRINTF(C, ("  allocated: %12llu bytes in %8llu objects",
+                           (long long unsigned)stats.live_bytes,
+                           (long long unsigned)stats.live_objects));
+  GASNETI_TRACE_PRINTF(C, ("     pinned: %12llu bytes in %8llu objects",
+                           (long long unsigned)gasnetc_pinned_bytes,
+                           (long long unsigned)gasnetc_pinned_blocks));
+  GASNETI_TRACE_PRINTF(C, ("      total: %12llu bytes in %8llu objects",
+                           (long long unsigned)(stats.live_bytes + gasnetc_pinned_bytes),
+                           (long long unsigned)(stats.live_objects + gasnetc_pinned_blocks)));
+#endif
   gasnetc_exit_head(exitcode);
   gasnetc_exit_body();
   gasnetc_exit_tail();
