@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/05/21 23:50:21 $
-# $Revision: 1.633 $
+#     $Date: 2010/05/27 04:56:58 $
+# $Revision: 1.633.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.633 $)
+AC_REVISION($Revision: 1.633.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1896,8 +1896,8 @@ AC_DEFUN([GASNET_IB_OPTIONS],[
   # See bug #1052 for evidence that xlc is affected.
   GASNET_FH_CFLAGS
 
-  GASNET_IF_ENABLED_WITH_AUTO(lowername[]-poll-lock, [See vapi-conduit/README (disabled by default)], 
-    enabled_ib_poll_lock=yes, enabled_ib_poll_lock=no, enabled_ib_poll_lock=no)
+  GASNET_IF_ENABLED(lowername[]-poll-lock, [See vapi-conduit/README (disabled by default)], 
+    enabled_ib_poll_lock=yes, enabled_ib_poll_lock=no)
     if test "$enabled_ib_poll_lock" = yes; then
       AC_DEFINE(GASNETC_IB_POLL_LOCK)
     fi
@@ -1939,7 +1939,7 @@ AC_DEFUN([GASNET_IB_OPTIONS],[
   AC_SUBST(GASNET_IB_SPAWNER_CONF)
 
   gasnetc_ib_max_hcas=2
-  GASNET_IF_ENABLED_WITH_AUTO(lowername[]-multirail, [Enable/disable uppername over multiple HCAs, see vapi-conduit/README (enabled by default)], enabled_ib_multirail=yes, enabled_ib_multirail=no, enabled_ib_multirail=yes)
+  GASNET_IF_DISABLED(lowername[]-multirail, [Disable uppername over multiple HCAs, see vapi-conduit/README (enabled by default)], enabled_ib_multirail=no, enabled_ib_multirail=yes)
   GASNET_WITH(lowername[]-max-hcas,
      [maximum number of uppername HCAs to open for multi-rail support (default is 2)],
      [if expr "${withval}" : "[[1-9]][[0-9]]*" >/dev/null; then
@@ -3196,6 +3196,10 @@ if test "$enabled_ibv" = yes; then
 
     # Collect IB-specifc configure options
     GASNET_IB_OPTIONS(IBV)
+
+    GASNET_IF_DISABLED([ibv-srq],
+                       [Disable Shared Receive Queue (SRQ) support in ibv-conduit (enabled by default)],
+		       [:], [AC_DEFINE(HAVE_IBV_SRQ)])
   fi
 fi
 AC_SUBST(IBV_INCLUDE)
