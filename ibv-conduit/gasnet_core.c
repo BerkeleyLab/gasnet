@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2010/06/01 22:53:19 $
- * $Revision: 1.223.12.10 $
+ *     $Date: 2010/06/01 23:45:23 $
+ * $Revision: 1.223.12.11 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -560,9 +560,25 @@ static int gasnetc_load_settings(void) {
   }
 #endif
 #if HAVE_IBV_SRQ
-  /* Integer value now, becomes a boolean later in gasnetc_sndrcv_init() */
+  /* Integer value becomes a boolean, though possibly not until gasnetc_sndrcv_init() */
   gasnetc_use_srq = gasneti_getenv_int_withdefault("GASNET_USE_SRQ", -1, 0);
+  /* My disabling SRQ early when possible we can avoid allocating resources we might not use.
+     XXX: If we can, we should move AM resource computation here so we can avoid ever
+          allocating unused resources.
+     As per README:
+     GASNET_USE_SRQ = 0: Never use SRQ
+     GASNET_USE_SRQ > 0: Use SRQ for nodes >= GASNET_USE_SRQ (so 1 == Always)
+     GASNET_USE_SRQ < 0: Use SRQ is memory savings would result (done in gasnetc_sndrcv_init()).
+   */
+  if (gasnetc_use_srq > gasneti_nodes) {
+    /* Positive value of GASNET_USE_SRQ denotes a minumum node count */
+    GASNETI_TRACE_PRINTF(C, ("SRQ disabled because GASNET_USE_SRQ = %d is greater than nodes = %d",
+                             gasnetc_use_srq, gasneti_nodes));
+    gasnetc_use_srq = 0;
+  }
 #endif
+
+  /* XXX: Does SRQ make any of these invalid? */
   if_pf (gasnetc_op_oust_limit && (gasnetc_am_oust_limit > gasnetc_op_oust_limit)) {
     fprintf(stderr,
             "WARNING: GASNET_AM_CREDITS_TOTAL reduced to GASNET_NETWORKDEPTH_TOTAL (from %d to %d)\n",
@@ -635,6 +651,7 @@ static int gasnetc_load_settings(void) {
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_BBUF_COUNT               = %d%s",
 			  	gasnetc_bbuf_limit, gasnetc_bbuf_limit ? "": " (automatic)"));
 #if HAVE_IBV_SRQ
+  GASNETI_TRACE_PRINTF(C,  ("  GASNET_USE_SRQ                  = %d", gasnetc_use_srq));
   GASNETI_TRACE_PRINTF(C,  ("  GASNET_RBUF_COUNT               = %d%s",
 			  	gasnetc_rbuf_limit, gasnetc_rbuf_limit ? "": " (automatic)"));
 #endif
