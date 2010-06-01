@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_syncops.h,v $
- *     $Date: 2010/01/07 03:02:58 $
- * $Revision: 1.54 $
+ *     $Date: 2010/06/01 04:02:13 $
+ * $Revision: 1.54.10.1 $
  * Description: GASNet header for synchronization operations used in GASNet implementation
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -802,7 +802,7 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
       gasneti_atomic128_t head_and_tag; /* Actually might be lower addr, in _pad0 */
       char                _pad1[GASNETI_CACHE_LINE_BYTES];
     } gasneti_lifo_head_t;
-    #define _GASNETI_LIFO_ALIGN(p) ((uintptr_t)p & ~(GASNETI_HAVE_ATOMIC128_T - 1))
+    #define _GASNETI_LIFO_ALIGN(p) ((uintptr_t)(&(p)->head_and_tag) & ~(GASNETI_HAVE_ATOMIC128_T - 1))
 
     GASNETI_INLINE(_gasneti_lifo_push)
     void _gasneti_lifo_push(gasneti_lifo_head_t *p, void **newhead, void **tail) {
