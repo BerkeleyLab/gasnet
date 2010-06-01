@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2010/05/26 03:54:35 $
- * $Revision: 1.160.10.4 $
+ *     $Date: 2010/06/01 22:53:19 $
+ * $Revision: 1.160.10.5 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -593,7 +593,8 @@ extern int		gasnetc_am_oust_pp;
 extern int		gasnetc_bbuf_limit;
 extern int		gasnetc_use_rcv_thread;
 extern int		gasnetc_am_credits_slack;
-extern int		gasnetc_num_qps;
+extern int		gasnetc_num_qps;    /* Number of QPs per node in gasnetc_ceps[] */
+extern int		gasnetc_normal_qps; /* How many of those (the leading ones) for normal use? */
 extern size_t		gasnetc_packedlong_limit;
 extern size_t		gasnetc_inline_limit;
 extern size_t		gasnetc_bounce_limit;
