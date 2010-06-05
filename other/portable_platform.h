@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/portable_platform.h,v $
- *     $Date: 2010/01/29 12:08:25 $
- * $Revision: 1.29 $
+ *     $Date: 2010/06/05 02:06:25 $
+ * $Revision: 1.29.10.1 $
  * Description: Portable platform detection header
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -318,8 +318,10 @@
   #else
     #define PLATFORM_COMPILER_OPEN64_C  1
   #endif
+  /* Note: can't use __OPENCC_PATCHLEVEL__ because it is sometimes non-integer (eg 3.2).
+     Adding a cast would not result in a preprocessor constant expression. */
   #define PLATFORM_COMPILER_VERSION \
-          PLATFORM_COMPILER_VERSION_INT(__OPENCC__,__OPENCC_MINOR__,__OPENCC_PATCHLEVEL__+0)
+          PLATFORM_COMPILER_VERSION_INT(__OPENCC__,__OPENCC_MINOR__,0)
   #define PLATFORM_COMPILER_VERSION_STR __OPEN64__
 
 #elif defined(__PCC__)
