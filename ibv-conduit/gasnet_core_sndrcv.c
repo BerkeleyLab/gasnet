@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/06/01 23:45:23 $
- * $Revision: 1.247.10.10 $
+ *     $Date: 2010/06/27 01:04:26 $
+ * $Revision: 1.247.10.11 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -64,7 +64,7 @@ int					gasnetc_use_rcv_thread = GASNETC_IB_RCV_THREAD;
 #if GASNETC_FH_OPTIONAL
   int					gasnetc_use_firehose = 1;
 #endif
-#if HAVE_IBV_SRQ
+#if GASNETC_IBV_SRQ
   int					gasnetc_use_srq = 1;
 #endif
 int					gasnetc_am_credits_slack;
@@ -491,7 +491,7 @@ void gasnetc_rcv_post(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf) {
 #else
   {
     struct ibv_recv_wr *bad_wr;
-  #if HAVE_IBV_SRQ
+  #if GASNETC_IBV_SRQ
     if (cep->hca->srq) { /* Equivalent to gasnetc_use_srq, but we need this value anyway */
       vstat = ibv_post_srq_recv(cep->hca->srq, &rbuf->rr_desc, &bad_wr);
     } else
@@ -1164,7 +1164,7 @@ void gasnetc_rcv_am(const gasnetc_wc_t *comp, gasnetc_rbuf_t **spare_p) {
 
   GASNETC_STAT_EVENT(RCV_AM_SNDRCV);
 
-#if HAVE_IBV_SRQ
+#if GASNETC_IBV_SRQ
   if (gasnetc_use_srq) {
 #if GASNETI_STATS_OR_TRACE
     if (GASNETC_MSG_ISREPLY(flags)) {
@@ -3162,7 +3162,7 @@ extern int gasnetc_sndrcv_init(void) {
   GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_BBUF_COUNT = %d", gasnetc_bbuf_limit));
 
   rbufs_per_qp = (am_rqst_per_qp + am_repl_per_qp) + (gasnetc_use_rcv_thread ? 1 : 0);
-#if HAVE_IBV_SRQ
+#if GASNETC_IBV_SRQ
   /* As per README:
      GASNET_USE_SRQ < 0: Use SRQ only if memory savings would result
    */
@@ -3236,7 +3236,7 @@ extern int gasnetc_sndrcv_init(void) {
         GASNETI_RETURN_ERRR(RESOURCE, "Unable to allocate pinned memory for AM recv buffers");
       }
 
-#if HAVE_IBV_SRQ
+#if GASNETC_IBV_SRQ
       /* create shared recv queue per HCA */
       if (gasnetc_use_srq) {
         struct ibv_srq_init_attr attr;
