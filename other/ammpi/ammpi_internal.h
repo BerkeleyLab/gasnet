@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_internal.h,v $
- *     $Date: 2010/04/26 05:11:46 $
- * $Revision: 1.43 $
+ *     $Date: 2010/06/27 02:04:33 $
+ * $Revision: 1.43.2.1 $
  * Description: AMMPI internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -416,7 +416,10 @@ struct ammpi_ep {
    in one direction and the branch is a bottleneck
  */
 #ifndef PREDICT_TRUE
-  #if defined(__GNUC__) && defined(HAVE_BUILTIN_EXPECT)
+  #if defined(GASNETT_PREDICT_TRUE)
+   #define PREDICT_TRUE(exp)  GASNETT_PREDICT_TRUE(exp)
+   #define PREDICT_FALSE(exp) GASNETT_PREDICT_FALSE(exp)
+  #elif defined(__GNUC__) && defined(HAVE_BUILTIN_EXPECT)
     /* cast to uintptr_t avoids warnings on some compilers about passing 
        non-integer arguments to __builtin_expect(), and we don't use (int)
        because on some systems this is smaller than (void*) and causes 

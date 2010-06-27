@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_syncops.h,v $
- *     $Date: 2010/06/01 04:02:13 $
- * $Revision: 1.54.10.1 $
+ *     $Date: 2010/06/27 02:04:14 $
+ * $Revision: 1.54.10.2 $
  * Description: GASNet header for synchronization operations used in GASNet implementation
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -162,7 +162,7 @@ GASNETI_BEGIN_EXTERNC
 	return 0;	/* Note: "break" here generates infinite loop w/ pathcc 2.4 (bug 1620) */
       }
       retval = gasneti_weakatomic_compare_and_swap(s, old, old - 1, GASNETI_ATOMIC_ACQ_IF_TRUE);
-    } while (PREDICT_FALSE(!retval));
+    } while (GASNETT_PREDICT_FALSE(!retval));
     return retval;
   }
   GASNETI_INLINE(_gasneti_semaphore_up_n)
@@ -174,7 +174,7 @@ GASNETI_BEGIN_EXTERNC
       do {
 	const gasneti_atomic_val_t old = gasneti_weakatomic_read(s, 0);
 	swap = gasneti_weakatomic_compare_and_swap(s, old, old + n, GASNETI_ATOMIC_REL);
-      } while (PREDICT_FALSE(!swap));
+      } while (GASNETT_PREDICT_FALSE(!swap));
     #endif
   }
   GASNETI_INLINE(_gasneti_semaphore_trydown_partial)
@@ -187,7 +187,7 @@ GASNETI_BEGIN_EXTERNC
         break;
       retval = MIN(old, n);
       swap = gasneti_weakatomic_compare_and_swap(s, old, old - retval, GASNETI_ATOMIC_ACQ_IF_TRUE);
-    } while (PREDICT_FALSE(!swap));
+    } while (GASNETT_PREDICT_FALSE(!swap));
     return retval;
   }
   GASNETI_INLINE(_gasneti_semaphore_trydown_n)
@@ -200,7 +200,7 @@ GASNETI_BEGIN_EXTERNC
         break;
       }
       swap = gasneti_weakatomic_compare_and_swap(s, old, old - n, GASNETI_ATOMIC_ACQ_IF_TRUE);
-    } while (PREDICT_FALSE(!swap));
+    } while (GASNETT_PREDICT_FALSE(!swap));
     return n;
   }
 #elif defined(GASNETI_HAVE_ATOMIC_ADD_SUB)

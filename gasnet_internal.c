@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2010/05/15 05:17:39 $
- * $Revision: 1.210 $
+ *     $Date: 2010/06/27 02:04:14 $
+ * $Revision: 1.210.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -949,9 +949,9 @@ static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
 
     GASNETI_BGP_SPR(sprg4.shmem, _BGP_SPRGRO_SHMem); /* SPRG4 30:31 = (processes per node) - 1 */
 
-    if ((0 == gasneti_getenv_int_withdefault("BG_SHAREDMEMPOOLSIZE",0,0)) ||
+    if ((0 == GASNET_PSHM) ||
         !sprg4.ShmNumProcs || (gasneti_nodes == 1)) {
-      /* Just build the trivial map if BG_SHAREDMEMPOOLSIZE is unset or zero,
+      /* Just build the trivial map if GASNET_PSHM is zero,
          or are in SMP mode, or we have just a single node */
       gasneti_nodemap_trivial();
     } else {

@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/Makefile.am,v $
-#     $Date: 2009/09/26 22:35:14 $
-# $Revision: 1.34 $
+#     $Date: 2010/06/27 02:04:31 $
+# $Revision: 1.34.12.1 $
 # Description: Makefile for GASNet other 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -25,6 +25,7 @@ CONDUITMODE_EXTRADIST = \
 	mpi-spawner \
 	smp-collectives	\
 	myxml	\
+	detect-pshm.c \
   # 	exclude these from distribution for now
   # 	cross-configure-help.c
 # GASNET_TOOLSONLY_FALSE_END
@@ -33,7 +34,6 @@ SUBDIRS = $(CONDUITMODE_SUBDIRS)
 EXTRA_DIST =        			\
         $(CONDUITMODE_EXTRADIST) 	\
 	detect-cachesz.c 		\
-	detect-pshm.c	 		\
 	tools-toggle.pl
 
 include_HEADERS = \

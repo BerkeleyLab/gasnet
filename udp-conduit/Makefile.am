@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/Makefile.am,v $
-#     $Date: 2009/04/18 21:53:37 $
-# $Revision: 1.23 $
+#     $Date: 2010/06/27 02:04:49 $
+# $Revision: 1.23.12.1 $
 # Description: Makefile for GASNet udp conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -34,11 +34,17 @@ CONDUIT_SOURCELIST =          \
 CONDUIT_EXTRALIBCFLAGS = -I$(top_srcdir)/other/amudp
 
 # additional conduit header files to install from external, non-standard directories
-CONDUIT_EXTRAHEADERS = $(top_srcdir)/other/amudp/*.h 
+CONDUIT_EXTRAHEADERS = \
+	$(top_srcdir)/other/amudp/amudp.h  \
+	$(top_srcdir)/other/amudp/socket.h \
+	$(top_srcdir)/other/amudp/ueth.h
+
+# headers selected by default rules that should NOT be installed
+CONDUIT_PRIVATEHEADERS =
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update
-CONDUIT_EXTRADEPS = $(top_builddir)/other/amudp/libamudp.a
+CONDUIT_EXTRADEPS = $(top_builddir)/other/amudp/libamudp.a $(top_srcdir)/other/amudp/*.h
 
 $(top_builddir)/other/amudp/libamudp.a: force
 	cd $(top_builddir)/other/amudp && $(MAKE) libamudp.a

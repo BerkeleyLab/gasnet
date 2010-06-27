@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_toolhelp.h,v $
- *     $Date: 2010/01/26 02:50:15 $
- * $Revision: 1.56 $
+ *     $Date: 2010/06/27 02:04:14 $
+ * $Revision: 1.56.10.1 $
  * Description: misc declarations needed by both gasnet_tools and libgasnet
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -71,7 +71,7 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
  * an assertion that never compiles away - for sanity checks in non-critical paths 
  */
 #define gasneti_assert_always(expr) \
-    (PREDICT_TRUE(expr) ? (void)0 : gasneti_fatalerror("Assertion failure at %s: %s", gasneti_current_loc, #expr))
+    (GASNETT_PREDICT_TRUE(expr) ? (void)0 : gasneti_fatalerror("Assertion failure at %s: %s", gasneti_current_loc, #expr))
 
 /* gasneti_assert():
  * an assertion that compiles away in non-debug mode - for sanity checks in critical paths 
@@ -618,7 +618,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
                                        _gasneti_threadkey_check((key), 1))
   #define gasneti_threadkey_get(key)       \
     ( _gasneti_threadkey_check(key, 0),    \
-      ( PREDICT_FALSE((key).isinit == 0) ? \
+      ( GASNETT_PREDICT_FALSE((key).isinit == 0) ? \
         gasneti_threadkey_init(key) :      \
         ((void)0) ),                       \
       gasneti_threadkey_get_noinit(key) )

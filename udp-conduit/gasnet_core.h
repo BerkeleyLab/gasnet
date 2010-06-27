@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core.h,v $
- *     $Date: 2009/09/21 01:05:38 $
- * $Revision: 1.16 $
+ *     $Date: 2010/06/27 02:04:49 $
+ * $Revision: 1.16.12.1 $
  * Description: GASNet header for UDP conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,7 +14,6 @@
 #define _GASNET_CORE_H
 
 #include <amudp.h>
-#include <amudp_spmd.h>
 
 #include <gasnet_core_help.h>
 

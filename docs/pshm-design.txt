@@ -1,6 +1,6 @@
 GASNet inter-Process SHared Memory (PHSM) design
 ---------------------------------------------
-$Revision: 1.5 $
+$Revision: 1.5.2.1 $
 
 Document by:
     Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -160,6 +160,7 @@ Status:
 * IBM BG/P platform-specific notes:
   - PSHM does not work at all in "SMP" mode, only "DUAL" or "VN"
   - Currently one must manually set up a few things to use PSHM on BG/P
+    + Must set CROSS_HAVE_SHM_OPEN=1 on configure command line
     + Shared segment size must be limited to a lower-than-default value
     + BG_SHAREDMEMPOOLSIZE env var must be set to fit the shared segment plus
       extra for Active Message buffers

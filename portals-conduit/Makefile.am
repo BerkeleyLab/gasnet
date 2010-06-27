@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/Makefile.am,v $
-#     $Date: 2009/08/07 20:20:01 $
-# $Revision: 1.17 $
+#     $Date: 2010/06/27 02:04:39 $
+# $Revision: 1.17.12.1 $
 # Description: Makefile for GASNet portals conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -51,6 +51,9 @@ CONDUIT_EXTRALIBCFLAGS = @PORTALS_INCLUDES@ $(fh_extralibcflags)
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS = $(fh_extraheaders)
+
+# headers selected by default rules that should NOT be installed
+CONDUIT_PRIVATEHEADERS = $(fh_privheaders) gasnet_portals.h
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update

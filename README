@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.135 $
+$Revision: 1.135.2.1 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -795,10 +795,16 @@ are exclusively for use in building the conduit libraries.
 <gasnet_internal.h> is the conduit-independent version of these files at the top level.
 Internal GASNet implementation should include <gasnet_internal.h> instead of <gasnet.h>.
 
+<gasnet_coll.h> and <gasnet_vis.h> are headers providing a set of proposed additions
+to the GASNet spec (for collective operations and non-contiguous put/get,
+respectively).  Since these interfaces are not finalized in a written specification,
+we strongly recommend you contact us before using them.
+
 <gasnet_tools.h> is header providing a set of conduit-independent general system 
 utilities which are not specified by the GASNet spec. The header can and is used 
 independently of libgasnet*.a (even on systems with no supported conduits) - 
 all that's required is a successful configure and #include <gasnet_tools.h>.
+See README-tools for documentation on the GASNet Tools interface.
 
 * config-aux: helper scripts for configure
 
