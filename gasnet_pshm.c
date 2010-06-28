@@ -1,20 +1,19 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2010/06/27 02:04:14 $
- * $Revision: 1.11.2.1 $
+ *     $Date: 2010/06/28 04:56:54 $
+ * $Revision: 1.11.2.2 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
  */
 
 #include <gasnet_internal.h>
+
+#if GASNET_PSHM /* Otherwise file is empty */
+
 #include <gasnet_core_internal.h> /* for gasnetc_{Short,Medium,Long} and gasnetc_handler[] */
 
 #include <sys/types.h>
 #include <signal.h>
-
-#ifndef GASNET_PSHM
-  #error "gasnet_pshm.c compiled in a non-PSHM build"
-#endif
 
 #if defined(GASNETI_USE_GENERIC_ATOMICOPS) || defined(GASNETI_USE_OS_ATOMICOPS)
   #error "GASNet PSHM support requires Native atomics"
@@ -1266,3 +1265,5 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnet_node_t dest,
   }
   return GASNET_OK;
 }
+
+#endif /* GASNET_PSHM */

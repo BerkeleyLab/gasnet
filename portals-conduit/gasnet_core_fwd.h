@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2010/05/13 23:23:57 $
- * $Revision: 1.23 $
+ *     $Date: 2010/06/28 04:57:08 $
+ * $Revision: 1.23.2.1 $
  * Description: GASNet header for PORTALS conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -31,6 +31,11 @@
 #else
   #define _GASNET_NODE_T
   typedef uint32_t        gasnet_node_t;
+#endif
+
+  /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
+#if GASNETI_PSHM_ENABLED
+/* #define GASNET_PSHM 1 */
 #endif
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */

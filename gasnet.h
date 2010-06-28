@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2009/09/18 23:33:23 $
- * $Revision: 1.63 $
+ *     $Date: 2010/06/28 04:56:54 $
+ * $Revision: 1.63.12.1 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -104,15 +104,6 @@
   #error bad def of GASNETI_STATS_OR_TRACE
 #endif
 
-#if defined(GASNET_PSHM)
-  #undef GASNET_PSHM
-  #define GASNET_PSHM 1
-  #define GASNETI_PSHM_CONFIG pshm
-#else
-  #define GASNET_PSHM 0
-  #define GASNETI_PSHM_CONFIG nopshm
-#endif
-
 /* basic utilities used in the headers */
 #include <gasnet_basic.h>
 
@@ -135,11 +126,18 @@
   #error Segment configuration must be exactly one of (GASNET_SEGMENT_FAST, GASNET_SEGMENT_LARGE, GASNET_SEGMENT_EVERYTHING) 
 #endif
 
+/* Too early to know if conduit supports PSHM, so safety check below uses this instead. */
+#if defined(GASNETI_PSHM_ENABLED)
+  #define GASNETI_PSHM_CONFIG_ENABLED pshm
+#else
+  #define GASNETI_PSHM_CONFIG_ENABLED nopshm
+#endif
+
 /* additional safety check, in case a very smart linker removes all of the checks at the end of this file */
 #define gasnet_init _CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT( \
                     gasnet_init_GASNET_,                             \
                     GASNETI_THREAD_MODEL),                           \
-                    GASNETI_PSHM_CONFIG),                            \
+                    GASNETI_PSHM_CONFIG_ENABLED),                    \
                     GASNETI_SEGMENT_CONFIG),                         \
                     GASNETI_DEBUG_CONFIG),                           \
                     GASNETI_TRACE_CONFIG),                           \
@@ -153,6 +151,13 @@
 
 #include <gasnet_vis_fwd.h>
 #include <gasnet_coll_fwd.h>
+
+/* GASNET_PSHM = GASNet conduit is using PSHM */
+#if defined(GASNET_PSHM) && (GASNET_PSHM != 1)
+  #error bad defn of GASNET_PSHM
+#elif !defined(GASNET_PSHM)
+  #define GASNET_PSHM 0
+#endif
 
 /* GASNETI_CONDUIT_THREADS = GASNet conduit has one or more private threads
                              which may be used to run AM handlers */
@@ -197,6 +202,12 @@
   #define GASNETI_ALIGN_CONFIG align
 #else 
   #define GASNETI_ALIGN_CONFIG noalign
+#endif
+
+#if GASNET_PSHM
+  #define GASNETI_PSHM_CONFIG pshm
+#else
+  #define GASNETI_PSHM_CONFIG nopshm
 #endif
 
 #ifndef GASNET_BARRIERFLAG_ANONYMOUS

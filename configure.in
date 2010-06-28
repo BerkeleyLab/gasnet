@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/06/28 04:49:22 $
-# $Revision: 1.633.2.4 $
+#     $Date: 2010/06/28 04:56:54 $
+# $Revision: 1.633.2.5 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.633.2.4 $)
+AC_REVISION($Revision: 1.633.2.5 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1186,7 +1186,7 @@ if test "$enabled_pshm" = yes; then
   # could search for other mechanisms here
 
   if test "$have_pshm" = yes; then
-    AC_DEFINE(GASNET_PSHM)
+    AC_DEFINE(GASNETI_PSHM_ENABLED)
   fi
 fi
 if test "$have_pshm$enabled_pshm" = noyes; then
@@ -1837,17 +1837,6 @@ AC_DEFUN([CONDUIT_DISALLOW_SEGMENT],[
     enabled_[]CONDUIT_NAME=no
   fi
   popdef([upperseg])
-])
-dnl CONDUIT_DISALLOW_PSHM()
-AC_DEFUN([CONDUIT_DISALLOW_PSHM],[
-    if test "$enabled_pshm$enabled_[]CONDUIT_NAME" = "yesyes" >/dev/null; then
-      msg="CONDUIT_NAME[]-conduit does not support PSHM"
-      if test "$force_[]CONDUIT_NAME" = yes ; then
-       GASNET_MSG_ERROR([User requested --enable-CONDUIT_NAME and --enable-pshm but $msg])
-      fi
-      GASNET_MSG_WARN([$msg - disabling CONDUIT_NAME])
-      enabled_[]CONDUIT_NAME=no
-    fi
 ])
 dnl CONDUIT_END(test_conduit_enabled)
 AC_DEFUN([CONDUIT_END],[
@@ -2672,7 +2661,6 @@ CONDUIT_END([test "$enabled_gm$have_gm" = yesyes])
 # LAPI configuration
 
 CONDUIT_BEGIN(lapi,[LAPI (IBM SP) network conduit (lapi)])
-CONDUIT_DISALLOW_PSHM()
 if test "$enabled_lapi$have_pthread" = yesno; then
   enabled_lapi=no
   GASNET_MSG_WARN([lapi-conduit requires pthread support but pthreads $pthread_reason - disabling lapi])
@@ -3236,7 +3224,6 @@ case "$target" in
   ;;
 esac
 CONDUIT_DISALLOW_SEGMENT(everything)
-CONDUIT_DISALLOW_PSHM()
 
 if test "$enabled_portals" = yes; then
   have_portals=yes # start by assuming we have it
@@ -3367,7 +3354,6 @@ CONDUIT_END([test "$have_portals" = yes])
 # SHMEM configuration
 
 CONDUIT_BEGIN(shmem,[Shmem network conduit (shmem)])
-CONDUIT_DISALLOW_PSHM()
 
 if test $enabled_shmem = yes; then
   SHMEM_FLAVOUR="unknown"
@@ -3587,7 +3573,6 @@ CONDUIT_END([test "$enabled_dcmf$have_dcmf" = yesyes])
 CONDUIT_BEGIN(sci,[Dolphin SISCI network conduit (sci)])
 CONDUIT_DISALLOW_SEGMENT(everything)
 CONDUIT_DISALLOW_SEGMENT(large)
-CONDUIT_DISALLOW_PSHM()
 
 if test "$enabled_sci" = yes; then
   # Look for sci binaries in our path
