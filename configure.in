@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/06/27 02:04:14 $
-# $Revision: 1.633.2.2 $
+#     $Date: 2010/06/28 03:33:40 $
+# $Revision: 1.633.2.3 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.633.2.2 $)
+AC_REVISION($Revision: 1.633.2.3 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -27,13 +27,13 @@ AC_VALIDATE_CACHED_SYSTEM_TUPLE
 dnl Public release version packaging identifier:
 AC_DEFUN([GASNET_RELEASE_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNET_RELEASE_VERSION_MINOR_D],[15])
-AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[3])
+AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[4])
 dnl GASNet spec version:
 AC_DEFUN([GASNET_SPEC_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNET_SPEC_VERSION_MINOR_D],[8])
 dnl GASNet tools spec version:
 AC_DEFUN([GASNETT_SPEC_VERSION_MAJOR_D],[1])
-AC_DEFUN([GASNETT_SPEC_VERSION_MINOR_D],[5])
+AC_DEFUN([GASNETT_SPEC_VERSION_MINOR_D],[7])
 
 AC_DEFUN([GASNET_RELEASE_VERSION_D],
          [GASNET_RELEASE_VERSION_MAJOR_D.GASNET_RELEASE_VERSION_MINOR_D.GASNET_RELEASE_VERSION_PATCH_D])

@@ -1,15 +1,41 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.39 $
+$Revision: 1.39.2.1 $
+
+----------------------------------------------------------------------
+06-28-2010 : Release 1.15.4 (ibv-conduit only beta release)
+  - This is a Beta release featuring an initial (re)implementation of
+    Active Messages for ibv-conduit via SRQ (Shared Receive Queue).
+  - SRQ is an InfiniBand API mechanism for more scalable memory usage as
+    the number of connected peers increases.
+  - In previous releases of ibv-conduit each additional peer required an
+    additional GASNET_AM_CREDITS_PP buffers (32 by default) be allocated
+    for receiving AM traffic.  At 4KB per buffer plus additional metadata
+    for management, this would amount to about 133KB per peer.
+  - The introduction of SRQ allows ibv-conduit to operate with no more
+    than 1024 AM receive buffers (4MB + management overheads) independent
+    of the number of peers, with little or no performance impact on well-
+    behaved applications.
+  - This initial implementation is known to deadlock under very rare AM-
+    intensive workloads, or when certain settings are reduced to values
+    much lower than their defaults.  This will be resolved in the next
+    Beta, prior to the 1.16.0 release.
+  - There is no SRQ implementation for vapi-conduit.
+  - Relative to the previous stable release, 1.14.2, this Beta includes
+    several miscellaneous changes not described here.  Most are fixes for
+    bugs or improvements to performance, and none are suspected to make
+    this release any less stable than 1.14.2.
+  - This Beta has been mostly tested on ibv-conduit systems, but is not
+    known or suspected to be less stable on any other specific platforms.
 
 ----------------------------------------------------------------------
 05-20-2010 : Release 1.14.2
 
 * General:
-  - Much improved support for heterogenous compilers (CC, CXX and MPI_CC)
+  - Much improved support for heterogeneous compilers (CC, CXX and MPI_CC)
   - Work-around for broken MALLOC_CHECK_ support on some glibc versions
   - Use MALLOC_OPTIONS variable on *BSD as we use MALLOC_CHECK_ on glibc
-  - Fix parsing of GASNET_{FREEZE,BACKTACE}_SIGNAL env vars
+  - Fix parsing of GASNET_{FREEZE,BACKTRACE}_SIGNAL env vars
 
 * InfiniBand (vapi- and ibv-conduits):
   - Fix bug 2079: stack overflow errors when vapi/ibv compiled with pgcc
