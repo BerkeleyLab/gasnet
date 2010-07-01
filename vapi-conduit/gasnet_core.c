@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/06/27 01:04:26 $
- * $Revision: 1.223.12.12 $
+ *     $Date: 2010/07/01 08:17:17 $
+ * $Revision: 1.223.12.13 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -572,7 +572,7 @@ static int gasnetc_load_settings(void) {
    */
   if (gasnetc_use_srq > gasneti_nodes) {
     /* Positive value of GASNET_USE_SRQ denotes a minumum node count */
-    GASNETI_TRACE_PRINTF(C, ("SRQ disabled because GASNET_USE_SRQ = %d is greater than nodes = %d",
+    GASNETI_TRACE_PRINTF(I, ("SRQ disabled because GASNET_USE_SRQ = %d is greater than nodes = %d",
                              gasnetc_use_srq, gasneti_nodes));
     gasnetc_use_srq = 0;
   }
@@ -606,80 +606,80 @@ static int gasnetc_load_settings(void) {
 
 
   /* Report */
-  GASNETI_TRACE_PRINTF(C,(GASNET_CONDUIT_NAME_STR_LC "-conduit build time configuration settings = {"));
-  GASNETI_TRACE_PRINTF(C,("  AM receives in internal thread %sabled (GASNETC_" GASNET_CONDUIT_NAME_STR"_RCV_THREAD)",
+  GASNETI_TRACE_PRINTF(I,(GASNET_CONDUIT_NAME_STR_LC "-conduit build time configuration settings = {"));
+  GASNETI_TRACE_PRINTF(I,("  AM receives in internal thread %sabled (GASNETC_" GASNET_CONDUIT_NAME_STR"_RCV_THREAD)",
 				GASNETC_IB_RCV_THREAD ? "en" : "dis"));
 #if GASNET_CONDUIT_VAPI && GASNETC_VAPI_POLL_LOCK
-  GASNETI_TRACE_PRINTF(C,("  Serialized CQ polls            YES (--enable-vapi-poll-lock)"));
+  GASNETI_TRACE_PRINTF(I,("  Serialized CQ polls            YES (--enable-vapi-poll-lock)"));
 #elif GASNET_CONDUIT_IBV && GASNETC_IBV_POLL_LOCK
-  GASNETI_TRACE_PRINTF(C,("  Serialized CQ polls            YES (--enable-ibv-poll-lock)"));
+  GASNETI_TRACE_PRINTF(I,("  Serialized CQ polls            YES (--enable-ibv-poll-lock)"));
 #else
-  GASNETI_TRACE_PRINTF(C,("  Serialized CQ polls            NO (default)"));
+  GASNETI_TRACE_PRINTF(I,("  Serialized CQ polls            NO (default)"));
 #endif
-  GASNETI_TRACE_PRINTF(C,("  Max. snd completions per poll  %d (GASNETC_SND_REAP_LIMIT)",
+  GASNETI_TRACE_PRINTF(I,("  Max. snd completions per poll  %d (GASNETC_SND_REAP_LIMIT)",
 				GASNETC_SND_REAP_LIMIT));
-  GASNETI_TRACE_PRINTF(C,("  Max. rcv completions per poll  %d (GASNETC_RCV_REAP_LIMIT)",
+  GASNETI_TRACE_PRINTF(I,("  Max. rcv completions per poll  %d (GASNETC_RCV_REAP_LIMIT)",
 				GASNETC_RCV_REAP_LIMIT));
-  GASNETI_TRACE_PRINTF(C,  ("}"));
+  GASNETI_TRACE_PRINTF(I,  ("}"));
 
-  GASNETI_TRACE_PRINTF(C,(GASNET_CONDUIT_NAME_STR_LC "-conduit run time configuration settings = {"));
+  GASNETI_TRACE_PRINTF(I,(GASNET_CONDUIT_NAME_STR_LC "-conduit run time configuration settings = {"));
 #if GASNET_CONDUIT_VAPI
   if (gasnetc_vapi_ports && strlen(gasnetc_vapi_ports)) {
-    GASNETI_TRACE_PRINTF(C,  ("  GASNET_VAPI_PORTS               = '%s'", gasnetc_vapi_ports));
+    GASNETI_TRACE_PRINTF(I,  ("  GASNET_VAPI_PORTS               = '%s'", gasnetc_vapi_ports));
   } else {
-    GASNETI_TRACE_PRINTF(C,  ("  GASNET_VAPI_PORTS               = empty or unset (probe all)"));
+    GASNETI_TRACE_PRINTF(I,  ("  GASNET_VAPI_PORTS               = empty or unset (probe all)"));
   }
 #else
   if (gasnetc_vapi_ports && strlen(gasnetc_vapi_ports)) {
-    GASNETI_TRACE_PRINTF(C,  ("  GASNET_IBV_PORTS                = '%s'", gasnetc_vapi_ports));
+    GASNETI_TRACE_PRINTF(I,  ("  GASNET_IBV_PORTS                = '%s'", gasnetc_vapi_ports));
   } else {
-    GASNETI_TRACE_PRINTF(C,  ("  GASNET_IBV_PORTS                = empty or unset (probe all)"));
+    GASNETI_TRACE_PRINTF(I,  ("  GASNET_IBV_PORTS                = empty or unset (probe all)"));
   }
 #endif
   if (gasnetc_num_qps) {
-    GASNETI_TRACE_PRINTF(C,  ("  GASNET_NUM_QPS                  = %d", gasnetc_num_qps));
+    GASNETI_TRACE_PRINTF(I,  ("  GASNET_NUM_QPS                  = %d", gasnetc_num_qps));
   } else {
-    GASNETI_TRACE_PRINTF(C,  ("  GASNET_NUM_QPS                  = 0 (automatic)"));
+    GASNETI_TRACE_PRINTF(I,  ("  GASNET_NUM_QPS                  = 0 (automatic)"));
   }
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_NETWORKDEPTH_PP          = %d", gasnetc_op_oust_pp));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_NETWORKDEPTH_TOTAL       = %d%s",
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_NETWORKDEPTH_PP          = %d", gasnetc_op_oust_pp));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_NETWORKDEPTH_TOTAL       = %d%s",
 			  	gasnetc_op_oust_limit, gasnetc_op_oust_limit ? "" : " (automatic)"));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_AM_CREDITS_PP            = %d", gasnetc_am_oust_pp));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_AM_CREDITS_TOTAL         = %d%s",
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_AM_CREDITS_PP            = %d", gasnetc_am_oust_pp));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_AM_CREDITS_TOTAL         = %d%s",
 			  	gasnetc_am_oust_limit, gasnetc_am_oust_limit ? "" : " (automatic)"));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_AM_CREDITS_SLACK         = %d", gasnetc_am_credits_slack));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_BBUF_COUNT               = %d%s",
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_AM_CREDITS_SLACK         = %d", gasnetc_am_credits_slack));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_BBUF_COUNT               = %d%s",
 			  	gasnetc_bbuf_limit, gasnetc_bbuf_limit ? "": " (automatic)"));
 #if GASNETC_IBV_SRQ
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_USE_SRQ                  = %d", gasnetc_use_srq));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_RBUF_COUNT               = %d%s",
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_USE_SRQ                  = %d", gasnetc_use_srq));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_RBUF_COUNT               = %d%s",
 			  	gasnetc_rbuf_limit, gasnetc_rbuf_limit ? "": " (automatic)"));
 #endif
 #if GASNETC_PIN_SEGMENT
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_PIN_MAXSZ                = %lu%s", (unsigned long)gasnetc_pin_maxsz,
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_PIN_MAXSZ                = %lu%s", (unsigned long)gasnetc_pin_maxsz,
 				(!gasnetc_pin_maxsz ? " (automatic)" : "")));
 #endif
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_INLINESEND_LIMIT         = %d%s", (int)gasnetc_inline_limit,
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_INLINESEND_LIMIT         = %d%s", (int)gasnetc_inline_limit,
 				(gasnetc_inline_limit == (size_t)-1 ? " (automatic)" : "")));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_NONBULKPUT_BOUNCE_LIMIT  = %u", (unsigned int)gasnetc_bounce_limit));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_NONBULKPUT_BOUNCE_LIMIT  = %u", (unsigned int)gasnetc_bounce_limit));
 #if !GASNETC_PIN_SEGMENT
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_PUTINMOVE_LIMIT          = %u", (unsigned int)gasnetc_putinmove_limit));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_PUTINMOVE_LIMIT          = %u", (unsigned int)gasnetc_putinmove_limit));
 #endif
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_MAX_PEERS         = %u", (unsigned int)gasnetc_amrdma_max_peers));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_DEPTH             = %u", (unsigned int)gasnetc_amrdma_depth));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_LIMIT             = %u", (unsigned int)gasnetc_amrdma_limit));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_CYCLE             = %lu", (unsigned long)gasnetc_amrdma_cycle));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_MAX_PEERS         = %u", (unsigned int)gasnetc_amrdma_max_peers));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_DEPTH             = %u", (unsigned int)gasnetc_amrdma_depth));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_LIMIT             = %u", (unsigned int)gasnetc_amrdma_limit));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_CYCLE             = %lu", (unsigned long)gasnetc_amrdma_cycle));
 #if GASNETC_IB_RCV_THREAD
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_RCV_THREAD               = %d (%sabled)", gasnetc_use_rcv_thread,
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_RCV_THREAD               = %d (%sabled)", gasnetc_use_rcv_thread,
 				gasnetc_use_rcv_thread ? "en" : "dis"));
 #else
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_RCV_THREAD               disabled at build time"));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_RCV_THREAD               disabled at build time"));
 #endif
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_QP_TIMEOUT               = %d (%g sec)", gasnetc_qp_timeout, 4.096e-6*(1<<gasnetc_qp_timeout)));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_QP_RETRY_COUNT           = %d", gasnetc_qp_retry_count));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_QP_RD_ATOM               = %d%s", gasnetc_qp_rd_atom,
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_QP_TIMEOUT               = %d (%g sec)", gasnetc_qp_timeout, 4.096e-6*(1<<gasnetc_qp_timeout)));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_QP_RETRY_COUNT           = %d", gasnetc_qp_retry_count));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_QP_RD_ATOM               = %d%s", gasnetc_qp_rd_atom,
 				!gasnetc_qp_rd_atom ? " (automatic)" : ""));
-  GASNETI_TRACE_PRINTF(C,  ("}"));
+  GASNETI_TRACE_PRINTF(I,  ("}"));
 
   gasnetc_exittimeout = gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
 						GASNETC_DEFAULT_EXITTIMEOUT_MIN,
@@ -1147,43 +1147,43 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasnetc_max_msg_sz = ~((uintptr_t)0);
   GASNETC_FOR_ALL_HCA_INDEX(h) {
     hca = &gasnetc_hca[h];
-    GASNETI_TRACE_PRINTF(C,(GASNET_CONDUIT_NAME_STR_LC "-conduit HCA properties (%d of %d) = {", h+1, gasnetc_num_hcas));
-    GASNETI_TRACE_PRINTF(C,("  HCA id                   = '%s'", hca->hca_id));
+    GASNETI_TRACE_PRINTF(I,(GASNET_CONDUIT_NAME_STR_LC "-conduit HCA properties (%d of %d) = {", h+1, gasnetc_num_hcas));
+    GASNETI_TRACE_PRINTF(I,("  HCA id                   = '%s'", hca->hca_id));
 #if GASNET_CONDUIT_VAPI
-    GASNETI_TRACE_PRINTF(C,("  HCA vendor id            = 0x%x", (unsigned int)hca->hca_vendor.vendor_id));
-    GASNETI_TRACE_PRINTF(C,("  HCA vendor part id       = 0x%x", (unsigned int)hca->hca_vendor.vendor_part_id));
-    GASNETI_TRACE_PRINTF(C,("  HCA hardware version     = 0x%x", (unsigned int)hca->hca_vendor.hw_ver));
-    GASNETI_TRACE_PRINTF(C,("  HCA firmware version     = 0x%x%08x", (unsigned int)(hca->hca_vendor.fw_ver >> 32), (unsigned int)(hca->hca_vendor.fw_ver & 0xffffffff)));
+    GASNETI_TRACE_PRINTF(I,("  HCA vendor id            = 0x%x", (unsigned int)hca->hca_vendor.vendor_id));
+    GASNETI_TRACE_PRINTF(I,("  HCA vendor part id       = 0x%x", (unsigned int)hca->hca_vendor.vendor_part_id));
+    GASNETI_TRACE_PRINTF(I,("  HCA hardware version     = 0x%x", (unsigned int)hca->hca_vendor.hw_ver));
+    GASNETI_TRACE_PRINTF(I,("  HCA firmware version     = 0x%x%08x", (unsigned int)(hca->hca_vendor.fw_ver >> 32), (unsigned int)(hca->hca_vendor.fw_ver & 0xffffffff)));
 #else
-    GASNETI_TRACE_PRINTF(C,("  HCA vendor id            = 0x%x", (unsigned int)hca->hca_cap.vendor_id));
-    GASNETI_TRACE_PRINTF(C,("  HCA vendor part id       = 0x%x", (unsigned int)hca->hca_cap.vendor_part_id));
-    GASNETI_TRACE_PRINTF(C,("  HCA hardware version     = 0x%x", (unsigned int)hca->hca_cap.hw_ver));
-    GASNETI_TRACE_PRINTF(C,("  HCA firmware version     = %64s", hca->hca_cap.fw_ver));
+    GASNETI_TRACE_PRINTF(I,("  HCA vendor id            = 0x%x", (unsigned int)hca->hca_cap.vendor_id));
+    GASNETI_TRACE_PRINTF(I,("  HCA vendor part id       = 0x%x", (unsigned int)hca->hca_cap.vendor_part_id));
+    GASNETI_TRACE_PRINTF(I,("  HCA hardware version     = 0x%x", (unsigned int)hca->hca_cap.hw_ver));
+    GASNETI_TRACE_PRINTF(I,("  HCA firmware version     = %64s", hca->hca_cap.fw_ver));
 #endif
-    GASNETI_TRACE_PRINTF(C,("  max_num_qp               = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_qp));
-    GASNETI_TRACE_PRINTF(C,("  max_qp_ous_wr            = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_qp_wr));
-    GASNETI_TRACE_PRINTF(C,("  max_num_sg_ent           = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_sge));
+    GASNETI_TRACE_PRINTF(I,("  max_num_qp               = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_qp));
+    GASNETI_TRACE_PRINTF(I,("  max_qp_ous_wr            = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_qp_wr));
+    GASNETI_TRACE_PRINTF(I,("  max_num_sg_ent           = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_sge));
     gasneti_assert_always(hca->hca_cap.gasnetc_f_max_sge >= GASNETC_SND_SG);
     gasneti_assert_always(hca->hca_cap.gasnetc_f_max_sge >= 1);
     #if 1 /* QP end points */
-      GASNETI_TRACE_PRINTF(C,("  max_qp_init_rd_atom      = %u", (unsigned int)hca->hca_cap.max_qp_init_rd_atom));
+      GASNETI_TRACE_PRINTF(I,("  max_qp_init_rd_atom      = %u", (unsigned int)hca->hca_cap.max_qp_init_rd_atom));
       gasneti_assert_always(hca->hca_cap.max_qp_init_rd_atom >= 1);	/* RDMA Read support required */
-      GASNETI_TRACE_PRINTF(C,("  max_qp_ous_rd_atom       = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_qp_rd_atom));
+      GASNETI_TRACE_PRINTF(I,("  max_qp_ous_rd_atom       = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_qp_rd_atom));
       gasneti_assert_always(hca->hca_cap.gasnetc_f_max_qp_rd_atom >= 1);	/* RDMA Read support required */
     #else
-      GASNETI_TRACE_PRINTF(C,("  max_ee_init_rd_atom      = %u", (unsigned int)hca->hca_cap.max_ee_init_rd_atom));
+      GASNETI_TRACE_PRINTF(I,("  max_ee_init_rd_atom      = %u", (unsigned int)hca->hca_cap.max_ee_init_rd_atom));
       gasneti_assert_always(hca->hca_cap.max_ee_init_rd_atom >= 1);	/* RDMA Read support required */
-      GASNETI_TRACE_PRINTF(C,("  max_ee_ous_rd_atom       = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_ee_rd_atom));
+      GASNETI_TRACE_PRINTF(I,("  max_ee_ous_rd_atom       = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_ee_rd_atom));
       gasneti_assert_always(hca->hca_cap.gasnetc_f_max_ee_rd_atom >= 1);	/* RDMA Read support required */
     #endif
-    GASNETI_TRACE_PRINTF(C,("  max_num_cq               = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_cq));
+    GASNETI_TRACE_PRINTF(I,("  max_num_cq               = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_cq));
     gasneti_assert_always(hca->hca_cap.gasnetc_f_max_cq >= 2);
-    GASNETI_TRACE_PRINTF(C,("  max_num_ent_cq           = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_cqe));
+    GASNETI_TRACE_PRINTF(I,("  max_num_ent_cq           = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_cqe));
   
   
-    GASNETI_TRACE_PRINTF(C,("  max_mr                   = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_mr));
+    GASNETI_TRACE_PRINTF(I,("  max_mr                   = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_mr));
     #if FIREHOSE_VAPI_USE_FMR
-      GASNETI_TRACE_PRINTF(C,("  max_num_fmr              = %u", (unsigned int)hca->hca_cap.max_num_fmr));
+      GASNETI_TRACE_PRINTF(I,("  max_num_fmr              = %u", (unsigned int)hca->hca_cap.max_num_fmr));
       if_pf (hca->hca_cap.max_num_fmr == 0) {
 	gasneti_fatalerror("GASNet's vapi-conduit was configured to use FMRs, but libvapi reports none available.  You must pass the --disable-vapi-fmr flag to configure.");
       }
@@ -1199,7 +1199,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       #if !GASNETC_VAPI_POLL_LOCK
         /* For firmware < 3.0 there is a thread safety bug with VAPI_poll_cq(). */
         defect = (hca->hca_vendor.fw_ver < (uint64_t)(0x300000000LL));
-        GASNETI_TRACE_PRINTF(C,("  Serialized CQ polls      : %srequired for this firmware",
+        GASNETI_TRACE_PRINTF(I,("  Serialized CQ polls      : %srequired for this firmware",
 			        defect ? "" : "not "));
 	if (defect) {
 	  GASNETI_RETURN_ERRR(RESOURCE, "\n"
@@ -1221,7 +1221,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 		  "firmware, or set GASNET_INLINESEND_LIMIT=0 in your environment.\n");
       }
     
-      GASNETI_TRACE_PRINTF(C,("  Inline perfomance defect : %ssuspected in this firmware",
+      GASNETI_TRACE_PRINTF(I,("  Inline perfomance defect : %ssuspected in this firmware",
 			      defect ? "" : "not "));
     }
 #else
@@ -1231,15 +1231,15 @@ static int gasnetc_init(int *argc, char ***argv) {
     /* Per-port: */
     for (i = 0; i < num_ports; ++i) {
       if (port_tbl[i].hca_index == h) {
-        GASNETI_TRACE_PRINTF(C,("  port %d properties = {", (int)port_tbl[i].port_num));
-        GASNETI_TRACE_PRINTF(C,("    LID                      = %u", (unsigned int)port_tbl[i].port.lid));
-        GASNETI_TRACE_PRINTF(C,("    max_msg_sz               = %u", (unsigned int)port_tbl[i].port.max_msg_sz));
-        GASNETI_TRACE_PRINTF(C,("  }"));
+        GASNETI_TRACE_PRINTF(I,("  port %d properties = {", (int)port_tbl[i].port_num));
+        GASNETI_TRACE_PRINTF(I,("    LID                      = %u", (unsigned int)port_tbl[i].port.lid));
+        GASNETI_TRACE_PRINTF(I,("    max_msg_sz               = %u", (unsigned int)port_tbl[i].port.max_msg_sz));
+        GASNETI_TRACE_PRINTF(I,("  }"));
         gasnetc_max_msg_sz = MIN(gasnetc_max_msg_sz, port_tbl[i].port.max_msg_sz);
       }
     }
 
-    GASNETI_TRACE_PRINTF(C,("}")); /* end of HCA report */
+    GASNETI_TRACE_PRINTF(I,("}")); /* end of HCA report */
   }
 
   /* Divide _pp bounds equally over the available QPs */
@@ -1275,7 +1275,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       setup_pin_maxsz(gasnetc_max_msg_sz);
 #endif
       gasneti_format_number(gasnetc_pin_maxsz, newval, sizeof(newval), 1);
-      GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_PIN_MAXSZ = %s", newval));
+      GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_PIN_MAXSZ = %s", newval));
 
       if (orig != 0) {
         char oldval[16];
@@ -1628,7 +1628,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
 #endif
   }
-  GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_INLINESEND_LIMIT = %d", (int)gasnetc_inline_limit));
+  GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_INLINESEND_LIMIT = %d", (int)gasnetc_inline_limit));
 
   gasneti_free(remote_addr);
   gasneti_free(local_addr);
@@ -2707,17 +2707,30 @@ extern void gasnetc_exit(int exitcode) {
 #if GASNET_TRACE
   gasneti_heapstats_t stats;
   gasneti_getheapstats(&stats);
-  GASNETI_TRACE_PRINTF(C, ("Conduit-internal memory use (%scludes segment):",
+  GASNETI_TRACE_PRINTF(I, ("Conduit-internal memory use (%scludes segment):",
                            GASNETC_PIN_SEGMENT ? "in" : "ex"));
-  GASNETI_TRACE_PRINTF(C, ("  allocated: %12llu bytes in %8llu objects",
+  GASNETI_TRACE_PRINTF(I, ("  allocated: %12llu bytes in %8llu objects",
                            (long long unsigned)stats.live_bytes,
                            (long long unsigned)stats.live_objects));
-  GASNETI_TRACE_PRINTF(C, ("     pinned: %12llu bytes in %8llu objects",
+  GASNETI_TRACE_PRINTF(I, ("     pinned: %12llu bytes in %8llu objects",
                            (long long unsigned)gasnetc_pinned_bytes,
                            (long long unsigned)gasnetc_pinned_blocks));
-  GASNETI_TRACE_PRINTF(C, ("      total: %12llu bytes in %8llu objects",
+  GASNETI_TRACE_PRINTF(I, ("      total: %12llu bytes in %8llu objects",
                            (long long unsigned)(stats.live_bytes + gasnetc_pinned_bytes),
                            (long long unsigned)(stats.live_objects + gasnetc_pinned_blocks)));
+ #if PLATFORM_OS_LINUX
+  { FILE *fp;
+    char line[256];
+    if (NULL != (fp = fopen("/proc/self/status","r"))) {
+      while (fgets(line, sizeof(line)-1, fp)) {
+        if (!strncmp(line, "Vm", 2)) {
+          GASNETI_TRACE_PRINTF(I, ("%s", line));
+        }
+      }
+      fclose(fp);
+    }
+  }
+ #endif
 #endif
   gasnetc_exit_head(exitcode);
   gasnetc_exit_body();

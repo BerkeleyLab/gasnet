@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/06/27 01:04:26 $
- * $Revision: 1.247.10.11 $
+ *     $Date: 2010/07/01 08:17:17 $
+ * $Revision: 1.247.10.12 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3090,7 +3090,7 @@ extern int gasnetc_sndrcv_init(void) {
   }
   op_oust_per_qp = MIN(op_oust_per_qp, gasnetc_op_oust_pp);
   gasnetc_op_oust_limit = gasnetc_normal_qps * op_oust_per_qp;
-  GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_NETWORKDEPTH_TOTAL = %d", gasnetc_op_oust_limit));
+  GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_NETWORKDEPTH_TOTAL = %d", gasnetc_op_oust_limit));
 
   /* AM recv buffer allocation.  There are 5 roles a rcv buffer might fill (counts per HCA):
    * (1) Either 0 or 1 for use by the AM rcv thread.
@@ -3133,7 +3133,7 @@ extern int gasnetc_sndrcv_init(void) {
     }
   }
   gasnetc_am_oust_limit = gasnetc_normal_qps * am_repl_per_qp;
-  GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_AM_CREDITS_TOTAL = %d", gasnetc_am_oust_limit));
+  GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_AM_CREDITS_TOTAL = %d", gasnetc_am_oust_limit));
 
   if (gasneti_nodes > 1) {
     gasnetc_am_credits_slack = MIN(gasnetc_am_credits_slack, gasnetc_am_oust_pp - 1);
@@ -3146,7 +3146,7 @@ extern int gasnetc_sndrcv_init(void) {
     }
   }
   gasnetc_am_credits_slack = MIN(gasnetc_am_credits_slack, 256);
-  GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_AM_CREDITS_SLACK = %d", gasnetc_am_credits_slack));
+  GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_AM_CREDITS_SLACK = %d", gasnetc_am_credits_slack));
 
   if (gasnetc_bbuf_limit == 0) { /* 0 = automatic limit computation */
     /* We effectively count local AMs against gasnetc_op_oust_limit for simplicity,
@@ -3159,7 +3159,7 @@ extern int gasnetc_sndrcv_init(void) {
     /* no AM or RDMA on the wire, but still need bufs for constructing AMs */
     gasnetc_bbuf_limit = gasnetc_normal_qps * gasnetc_am_oust_pp;
   }
-  GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_BBUF_COUNT = %d", gasnetc_bbuf_limit));
+  GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_BBUF_COUNT = %d", gasnetc_bbuf_limit));
 
   rbufs_per_qp = (am_rqst_per_qp + am_repl_per_qp) + (gasnetc_use_rcv_thread ? 1 : 0);
 #if GASNETC_IBV_SRQ
@@ -3169,26 +3169,26 @@ extern int gasnetc_sndrcv_init(void) {
   if (gasnetc_use_srq) {
     int tmp = MIN(rbufs_per_qp, gasnetc_rbuf_limit / gasnetc_normal_qps);
     gasneti_assert(gasnetc_rbuf_limit != 0);
-    GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_RBUF_COUNT = %d (SRQ limit: %d, w/o SRQ: %d)",
+    GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_RBUF_COUNT = %d (SRQ limit: %d, w/o SRQ: %d)",
                              tmp * gasnetc_normal_qps,
                              gasnetc_rbuf_limit,
                              rbufs_per_qp * gasnetc_normal_qps));
     if ((gasnetc_use_srq < 0) && (tmp == rbufs_per_qp)) {
-      GASNETI_TRACE_PRINTF(C, ("SRQ disabled because GASNET_USE_SRQ = -1 and no buffer savings would result"));
+      GASNETI_TRACE_PRINTF(I, ("SRQ disabled because GASNET_USE_SRQ = -1 and no buffer savings would result"));
       gasnetc_use_srq = 0;
     } else {
-      GASNETI_TRACE_PRINTF(C, ("SRQ enabled"));
+      GASNETI_TRACE_PRINTF(I, ("SRQ enabled"));
       rbufs_per_qp = tmp;
       gasnetc_use_srq = 1;
     }
   } else {
-    GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_RBUF_COUNT = %d", rbufs_per_qp * gasnetc_normal_qps));
-    GASNETI_TRACE_PRINTF(C, ("SRQ disabled"));
+    GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_RBUF_COUNT = %d", rbufs_per_qp * gasnetc_normal_qps));
+    GASNETI_TRACE_PRINTF(I, ("SRQ disabled"));
     gasnetc_use_srq = 0;
   }
   /* gasnetc_use_srq is just 0 or 1 from here on */
 #else
-  GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_RBUF_COUNT = %d", rbufs_per_qp * gasnetc_normal_qps));
+  GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_RBUF_COUNT = %d", rbufs_per_qp * gasnetc_normal_qps));
 #endif
 
   /*
