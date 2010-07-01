@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/07/01 08:17:17 $
- * $Revision: 1.223.12.13 $
+ *     $Date: 2010/07/01 22:27:51 $
+ * $Revision: 1.223.12.14 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1984,6 +1984,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     }
     reg_size = prereg[0].len;
     reg_count = 1;
+#if 0 /* If firehose is active, then there is no way one can initiate RDMA from a rcv buf */
     if (gasneti_nodes > 1) {
 	prereg[reg_count].addr             = gasnetc_hca[0].rcv_reg.addr;
 	prereg[reg_count].len              = gasnetc_hca[0].rcv_reg.len;
@@ -1995,6 +1996,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
         reg_size += prereg[reg_count].len;
 	reg_count++;
     }
+#endif
     /* Adjust for prepinned regions (they were pinned before init_pin_info probe) */
     firehose_mem += reg_size;
 
