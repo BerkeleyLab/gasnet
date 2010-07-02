@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/07/02 00:50:02 $
- * $Revision: 1.247.10.13 $
+ *     $Date: 2010/07/02 00:53:49 $
+ * $Revision: 1.247.10.14 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3063,7 +3063,7 @@ extern int gasnetc_sndrcv_init(void) {
   gasnetc_buffer_t	*buf;
   gasnetc_rbuf_t	*rbuf;
   int 			padded_size, h, i;
-  int			op_oust_per_qp
+  int			op_oust_per_qp;
   int			am_repl_per_qp;
   int			am_rqst_per_qp;
   size_t		size;
