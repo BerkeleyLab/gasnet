@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.c,v $
- *     $Date: 2009/12/24 17:45:39 $
- * $Revision: 1.140 $
+ *     $Date: 2010/07/02 08:07:39 $
+ * $Revision: 1.140.10.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -578,6 +578,32 @@ static FILE *gasneti_open_outputfile(const char *filename, const char *desc) {
   return fp;
 }
 
+/* check node restriction */
+static int gasneti_check_node_list(const char *listvar) {
+  unsigned long node = (unsigned long)gasnet_mynode();
+  char *p = gasneti_getenv_withdefault(listvar,"");
+  if (!p || !*p) return 1;
+
+  while (p && *p) {
+    unsigned long val1, val2;
+    int match;
+
+    if (*p == '*') return 1;
+
+    match = sscanf(p, "%lu-%lu", &val1, &val2);
+    if (match == 1) {
+      if (node == val1) return 1;
+    } else if (match == 2) {
+      if ((node >= val1) && (node <= val2)) return 1;
+    }
+
+    p = strchr(p, ',');
+    if (p) ++p;
+  }
+
+  return 0;
+}
+
 /* overwrite the current stats/trace mask (types) with the provided human-readable newmask,
    updating the human-readable maskstr. Unrecognized human-readable types are ignored.
  */
@@ -648,7 +674,9 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
     char *tracefilename = gasneti_getenv_withdefault("GASNET_TRACEFILE","");
     char *statsfilename = gasneti_getenv_withdefault("GASNET_STATSFILE","");
     if (tracefilename && !strcmp(tracefilename, "")) tracefilename = NULL;
+    if (!gasneti_check_node_list("GASNET_TRACENODES")) tracefilename = NULL;
     if (statsfilename && !strcmp(statsfilename, "")) statsfilename = NULL;
+    if (!gasneti_check_node_list("GASNET_STATSNODES")) statsfilename = NULL;
     #if GASNET_TRACE || (GASNET_STATS && GASNETI_STATS_ECHOED_TO_TRACEFILE)
       if (tracefilename) {
         gasneti_tracefile_tmp = gasneti_open_outputfile(tracefilename, 
@@ -734,6 +762,7 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
 
   gasneti_mallocreport_filename = gasneti_getenv_withdefault("GASNET_MALLOCFILE","");
   if (gasneti_mallocreport_filename && !strcmp(gasneti_mallocreport_filename, "")) gasneti_mallocreport_filename = NULL;
+  if (!gasneti_check_node_list("GASNET_MALLOCNODES")) gasneti_mallocreport_filename = NULL;
 
   #if GASNET_NDEBUG
   { char *NDEBUG_warning =
