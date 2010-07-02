@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/07/02 00:53:49 $
- * $Revision: 1.247.10.14 $
+ *     $Date: 2010/07/02 02:06:24 $
+ * $Revision: 1.247.10.15 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -423,9 +423,8 @@ void *gasnetc_sr_desc_init(gasnetc_snd_wr_t *result, gasnetc_sge_t *sg_lst_p, in
  *   8-9: category
  * 10-14: numargs (5 bits, but only 0-GASNETC_MAX_ARGS are legal values)
  *    15: request (0) or reply (1)
- * 16-29: source node (14 bit LID space in IB)
- *    30: carries AM flow-control info
- *    31: UNUSED
+ * 16-30: source node
+ *    31: boolean: carries AM flow-control info
  */
 
 #define GASNETC_MSG_HANDLERID(flags)    ((gasnet_handler_t)(flags))
@@ -433,16 +432,16 @@ void *gasnetc_sr_desc_init(gasnetc_snd_wr_t *result, gasnetc_sge_t *sg_lst_p, in
 #define GASNETC_MSG_NUMARGS(flags)      (((flags) >> 10) & 0x1f)
 #define GASNETC_MSG_ISREPLY(flags)      ((flags) & (1<<15))
 #define GASNETC_MSG_ISREQUEST(flags)    (!GASNETC_MSG_ISREPLY(flags))
-#define GASNETC_MSG_SRCIDX(flags)       ((gasnet_node_t)((flags) >> 16) & 0x3fff)
-#define GASNETC_MSG_FLOW(flags)         ((flags) & (1<<30))
+#define GASNETC_MSG_SRCIDX(flags)       ((gasnet_node_t)((flags) >> 16) & 0x7fff)
+#define GASNETC_MSG_FLOW(flags)         ((flags) & (1<<31))
 
 #define GASNETC_MSG_GENFLAGS(isreq, cat, nargs, hand, srcidx, flow)   \
- (gasneti_assert(0 == ((srcidx) & ~0x3fff)),    \
+ (gasneti_assert(0 == ((srcidx) & ~0x7fff)),    \
   gasneti_assert(0 == ((nargs)  & ~0x1f)),      \
   gasneti_assert(0 == ((cat)    & ~3)),         \
   gasneti_assert((nargs) <= GASNETC_MAX_ARGS),  \
   gasneti_assert((srcidx) < gasneti_nodes),     \
-  (uint32_t)(  ((flow)    ? (1<<30) : 0)        \
+  (uint32_t)(  ((flow)    ? (1<<31) : 0)        \
              | ((nargs)   << 10        )        \
              | ((isreq)   ? 0 : (1<<15))        \
              | ((srcidx)  << 16        )        \
