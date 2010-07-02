@@ -1,7 +1,7 @@
 README file for vapi-conduit and ibv-conduit
 ============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.55.12.3 $
+$Revision: 1.55.12.4 $
 
 @ TOC: @
 @ Section: VAPI vs IBV @
@@ -414,7 +414,7 @@ $Revision: 1.55.12.3 $
     is min(GASNET_NETWORKDEPTH_TOTAL, GASNET_NETWORKDEPTH_PP*(N-1)).
     If set to zero, the value is set to the maximum usable value computed
     from GASNET_NETWORKDEPTH_PP and the HCA's reported capabilities.
-    The default value is 0 (compute automatically).
+    The default value is 255.
     Reducing this parameter may limit small message throughput.  If you
     believe your small message throughput is too low, you may try
     increasing this value (or setting it to zero), at a cost in
