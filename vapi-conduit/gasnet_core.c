@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/07/02 06:35:31 $
- * $Revision: 1.223.12.15 $
+ *     $Date: 2010/07/02 09:44:15 $
+ * $Revision: 1.223.12.16 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -579,12 +579,6 @@ static int gasnetc_load_settings(void) {
 #endif
 
   /* XXX: Does SRQ make any of these invalid? */
-  if_pf (gasnetc_op_oust_limit && (gasnetc_am_oust_limit > gasnetc_op_oust_limit)) {
-    fprintf(stderr,
-            "WARNING: GASNET_AM_CREDITS_TOTAL reduced to GASNET_NETWORKDEPTH_TOTAL (from %d to %d)\n",
-            gasnetc_am_oust_limit, gasnetc_op_oust_limit);
-    gasnetc_am_oust_limit = gasnetc_op_oust_limit;
-  }
   if_pf (gasnetc_am_oust_pp > gasnetc_op_oust_pp) {
     fprintf(stderr,
             "WARNING: GASNET_AM_CREDITS_PP reduced to GASNET_NETWORKDEPTH_PP (from %d to %d)\n",
