@@ -1,7 +1,7 @@
 README file for vapi-conduit and ibv-conduit
 ============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.55.12.5 $
+$Revision: 1.55.12.6 $
 
 @ TOC: @
 @ Section: VAPI vs IBV @
@@ -442,7 +442,7 @@ $Revision: 1.55.12.5 $
     follows each AM Request.
     If set to zero, the value is set to the maximum usable value computed
     from GASNET_AM_CREDITS_PP and the HCA's reported capabilities.
-    The default value is MAX(1024, nodes).
+    The default value is MIN(1024, nodes*GASNET_AM_CREDITS_PP).
     Reducing this parameter may limit Active Message throughput.  If you
     believe your Active Message throughput is too low, you may try
     increasing this value (or setting it to zero), at a cost in additional
