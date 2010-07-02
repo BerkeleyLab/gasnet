@@ -1,7 +1,7 @@
 README file for vapi-conduit and ibv-conduit
 ============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.55.12.6 $
+$Revision: 1.55.12.7 $
 
 @ TOC: @
 @ Section: VAPI vs IBV @
@@ -427,8 +427,6 @@ $Revision: 1.55.12.6 $
     Reply has not yet been processed for AM flow control (described in
     another section of this README).  This is the number of buffers which
     must be preposted to each receive work queue for AM Requests.
-    This value should be less than or equal to GASNET_NETWORKDEPTH_PP,
-    and will be trimmed to GASNET_NETWORKDEPTH_PP if larger.
     The default value is 32 (128KB*(N-1) allocated for Request buffers).
     Reducing this parameter may limit Active Message throughput.  If you
     believe your Active Message throughput is too low, you may try
