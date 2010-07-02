@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/07/02 02:06:24 $
- * $Revision: 1.247.10.15 $
+ *     $Date: 2010/07/02 09:41:03 $
+ * $Revision: 1.247.10.16 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3327,6 +3327,7 @@ extern int gasnetc_sndrcv_init(void) {
 	  GASNETI_ALIGNUP(gasneti_malloc(gasnetc_num_hcas*sizeof(gasneti_semaphore_t)
 				  	 + GASNETI_CACHE_LINE_BYTES - 1),
 			  GASNETI_CACHE_LINE_BYTES);
+  op_oust_per_qp = MAX(1, op_oust_per_qp); /* Avoid error in single-node case */
   GASNETC_FOR_ALL_HCA_INDEX(h) {
     hca = &gasnetc_hca[h];
     vstat = gasnetc_create_cq(hca->handle, hca->qps * op_oust_per_qp, &hca->snd_cq, &act_size);
