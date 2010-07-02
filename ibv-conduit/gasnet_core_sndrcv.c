@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/07/01 08:17:17 $
- * $Revision: 1.247.10.12 $
+ *     $Date: 2010/07/02 00:50:02 $
+ * $Revision: 1.247.10.13 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3063,7 +3063,7 @@ extern int gasnetc_sndrcv_init(void) {
   gasnetc_buffer_t	*buf;
   gasnetc_rbuf_t	*rbuf;
   int 			padded_size, h, i;
-  int			op_oust_per_qp;
+  int			op_oust_per_qp
   int			am_repl_per_qp;
   int			am_rqst_per_qp;
   size_t		size;
@@ -3074,21 +3074,21 @@ extern int gasnetc_sndrcv_init(void) {
    */
 
   if (gasnetc_op_oust_limit == 0) { /* 0 = automatic limit computation */
-    op_oust_per_qp = gasnetc_hca[0].hca_cap.gasnetc_f_max_cqe / gasnetc_hca[0].total_qps;
+    op_oust_per_qp = gasnetc_hca[0].hca_cap.gasnetc_f_max_cqe / gasnetc_hca[0].qps;
     for (h = 1; h < gasnetc_num_hcas; ++h) {
       op_oust_per_qp = MIN(op_oust_per_qp,
-		          (gasnetc_hca[h].hca_cap.gasnetc_f_max_cqe / gasnetc_hca[h].total_qps));
+		          (gasnetc_hca[h].hca_cap.gasnetc_f_max_cqe / gasnetc_hca[h].qps));
     }
   } else {
     op_oust_per_qp = gasnetc_op_oust_limit / gasnetc_normal_qps;
     GASNETC_FOR_ALL_HCA(hca) {
-      int tmp = hca->total_qps * op_oust_per_qp;
+      int tmp = hca->qps * op_oust_per_qp;
       if (tmp > hca->hca_cap.gasnetc_f_max_cqe) {
         GASNETI_RETURN_ERRR(RESOURCE, "GASNET_NETWORKDEPTH_{PP,TOTAL} exceed HCA capabilities");
       }
     }
   }
-  op_oust_per_qp = MIN(op_oust_per_qp, gasnetc_op_oust_pp);
+  op_oust_per_qp = MIN(op_oust_per_qp, gasnetc_op_oust_pp*(gasneti_nodes-1));
   gasnetc_op_oust_limit = gasnetc_normal_qps * op_oust_per_qp;
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_NETWORKDEPTH_TOTAL = %d", gasnetc_op_oust_limit));
 
@@ -3200,6 +3200,7 @@ extern int gasnetc_sndrcv_init(void) {
     const int rcv_count = hca->qps * rbufs_per_qp;
     vstat = gasnetc_create_cq(hca->handle, rcv_count, &hca->rcv_cq, &act_size);
     GASNETC_VAPI_CHECK(vstat, "from gasnetc_create_cq(rcv_cq)");
+    GASNETI_TRACE_PRINTF(I, ("Recv CQ length: requested=%d actual=%d", rcv_count, (int)act_size));
     gasneti_assert(act_size >= rcv_count);
     /* We don't set rcv_count = act_size here, as that could nearly double the memory allocated below */
 
@@ -3329,9 +3330,10 @@ extern int gasnetc_sndrcv_init(void) {
 			  GASNETI_CACHE_LINE_BYTES);
   GASNETC_FOR_ALL_HCA_INDEX(h) {
     hca = &gasnetc_hca[h];
-    vstat = gasnetc_create_cq(hca->handle, hca->total_qps * op_oust_per_qp, &hca->snd_cq, &act_size);
+    vstat = gasnetc_create_cq(hca->handle, hca->qps * op_oust_per_qp, &hca->snd_cq, &act_size);
     GASNETC_VAPI_CHECK(vstat, "from gasnetc_create_cq(snd_cq)");
-    gasneti_assert(act_size >= hca->total_qps * op_oust_per_qp);
+    GASNETI_TRACE_PRINTF(I, ("Send CQ length: requested=%d actual=%d", (int)(hca->qps * op_oust_per_qp), (int)act_size));
+    gasneti_assert(act_size >= hca->qps * op_oust_per_qp);
     /* We use actual size here, since the memory has been allocated anyway */
     gasneti_semaphore_init(&gasnetc_cq_semas[h], act_size, act_size);
   }
