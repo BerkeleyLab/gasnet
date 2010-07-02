@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.c,v $
- *     $Date: 2010/07/02 08:07:39 $
- * $Revision: 1.140.10.1 $
+ *     $Date: 2010/07/02 21:59:13 $
+ * $Revision: 1.140.10.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -674,9 +674,9 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
     char *tracefilename = gasneti_getenv_withdefault("GASNET_TRACEFILE","");
     char *statsfilename = gasneti_getenv_withdefault("GASNET_STATSFILE","");
     if (tracefilename && !strcmp(tracefilename, "")) tracefilename = NULL;
-    if (!gasneti_check_node_list("GASNET_TRACENODES")) tracefilename = NULL;
+    if (tracefilename && !gasneti_check_node_list("GASNET_TRACENODES")) tracefilename = NULL;
     if (statsfilename && !strcmp(statsfilename, "")) statsfilename = NULL;
-    if (!gasneti_check_node_list("GASNET_STATSNODES")) statsfilename = NULL;
+    if (statsfilename && !gasneti_check_node_list("GASNET_STATSNODES")) statsfilename = NULL;
     #if GASNET_TRACE || (GASNET_STATS && GASNETI_STATS_ECHOED_TO_TRACEFILE)
       if (tracefilename) {
         gasneti_tracefile_tmp = gasneti_open_outputfile(tracefilename, 
@@ -762,7 +762,7 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
 
   gasneti_mallocreport_filename = gasneti_getenv_withdefault("GASNET_MALLOCFILE","");
   if (gasneti_mallocreport_filename && !strcmp(gasneti_mallocreport_filename, "")) gasneti_mallocreport_filename = NULL;
-  if (!gasneti_check_node_list("GASNET_MALLOCNODES")) gasneti_mallocreport_filename = NULL;
+  if (gasneti_mallocreport_filename && !gasneti_check_node_list("GASNET_MALLOCNODES")) gasneti_mallocreport_filename = NULL;
 
   #if GASNET_NDEBUG
   { char *NDEBUG_warning =
