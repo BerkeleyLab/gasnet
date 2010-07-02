@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2010/07/02 23:05:09 $
- * $Revision: 1.251.2.1 $
+ *     $Date: 2010/07/02 23:06:13 $
+ * $Revision: 1.251.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1057,7 +1057,7 @@ extern void gasneti_backtrace_init(const char *exename) {
 
   gasneti_backtrace_userenabled = gasneti_getenv_yesno_withdefault("GASNET_BACKTRACE",0);
 #ifndef GASNETT_BUILDING_TOOLS
-  if (gasneti_backtrace_userenabled && !gasneti_check_node_list("GASNET_BACKTRACENODES")) {
+  if (gasneti_backtrace_userenabled && !gasneti_check_node_list("GASNET_BACKTRACE_NODES")) {
     gasneti_backtrace_userdisabled = 1;
   }
 #endif
