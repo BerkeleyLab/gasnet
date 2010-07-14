@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/09/21 03:14:50 $
- * $Revision: 1.40 $
+ *     $Date: 2010/07/14 21:30:43 $
+ * $Revision: 1.40.10.1 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -77,6 +77,10 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
 
+  #if GASNET_PSHM
+      gasneti_pshm_init(&gasnetc_bootstrapExchange, 0);
+  #endif
+ 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     {
       /* try to determine the max amount of memory we can alloc and pin on each node */

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2010/04/12 16:28:05 $
- * $Revision: 1.8.2.4 $
+ *     $Date: 2010/07/14 21:30:41 $
+ * $Revision: 1.8.2.5 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -361,6 +361,8 @@ typedef struct {
   uint32_t numbytes;
 #endif
   uint8_t  mediumdata[6 + GASNETC_MAX_MEDIUM_PSHM]; /* Is 2, 4 or 8-byte aligned */
+  //in case of portals currently use this
+  //uint8_t  mediumdata[6 + 65536]; /* Is 2, 4 or 8-byte aligned */
 } gasneti_AMPSHM_medmsg_t;
 
 typedef struct {
