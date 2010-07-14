@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/04/12 06:05:53 $
- * $Revision: 1.74.2.3 $
+ *     $Date: 2010/07/14 03:41:51 $
+ * $Revision: 1.74.2.4 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -70,6 +70,93 @@
 #endif
 #ifndef GASNETI_MMAP_NOTFIXED_FLAG
   #define GASNETI_MMAP_NOTFIXED_FLAG 0
+#endif
+
+/* SYSV FUNCTIONS */
+/* Usage of SYSV depends on kernel parameters:
+ * shmmax (size of a single segment) and 
+ * shmall (total shared memory size) need to be large.
+ */
+#define GASNET_SYSV 1
+#if GASNET_SYSV
+#include <sys/shm.h>
+
+static key_t get_shm_key(int pshm_rank)
+{
+    key_t key;
+    /* We need to find a portable file name */
+    /* id is equal to the pshm rank */
+    key = ftok("/tmp", pshm_rank);
+    if (key == (key_t)-1){
+        perror("ftok");
+        gasneti_fatalerror("ftok");
+    }
+
+    return key;
+}
+
+static int sysv_open(size_t bytes, int pshm_rank)
+{
+    //printf("%d> sysv_open bytes %u id %d\n",gasneti_mynode,bytes,pshm_rank);
+    key_t key;
+    int shmget_id;
+
+    key = get_shm_key(pshm_rank);
+    shmget_id = shmget(key, bytes, IPC_CREAT | S_IRUSR | S_IWUSR);
+
+    if(shmget_id < 0){
+        perror("open shmget");
+        /* We do not need to exit here since
+         * shmget can legaly fail during the 
+         * binary segment search 
+         * */
+        //gasneti_fatalerror("open shmget");
+    }
+    
+    return shmget_id;
+}
+
+static void * sysv_mmap(void *segbase, int shmget_id){
+
+    //printf("%d> sysv_mmap\n",gasneti_mynode);
+    void *ptr;
+    
+    ptr = shmat(shmget_id, segbase, 0);
+    if (ptr == (void *)-1){
+        perror("shmat");
+        gasneti_fatalerror("open shmat");
+    }
+    return ptr;
+}
+
+static void sysv_unlink(int pshm_rank){
+
+    //printf("%d> sysv_unlink\n",gasneti_mynode);
+    key_t key;
+    int shmget_id;
+    
+    key = get_shm_key(pshm_rank);
+    shmget_id = shmget(key, 0, 0);
+    /*
+    if(shmget_id == -1){
+        perror("rm shmget");
+    }
+    */
+    shmctl(shmget_id, IPC_RMID, NULL);
+
+    /* No need to exit upon failure since
+     * it can legaly fail (if thesegment has
+     * already been removed
+     */
+}
+
+static int sysv_munmap(void *segbase){
+    //printf("%d> sysv_munmap\n",gasneti_mynode);
+    int rval;
+    rval = shmdt(segbase);
+    /* We do nothing here if rval !=0 */
+    return rval;
+}
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -202,7 +289,11 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
  */
 static void gasneti_unlink_segments(void) {
   gasneti_pshmnet_bootstrapBarrier();
+#if GASNET_SYSV
+    sysv_unlink(gasneti_pshm_mynode);
+#else
   (void)shm_unlink(gasneti_pshmname[gasneti_pshm_mynode]);
+#endif
   gasneti_pshmnet_bootstrapBarrier();
 }
 
@@ -212,10 +303,18 @@ static void gasneti_cleanup_shm(void) {
   if (gasneti_pshmname) {
     /* Unlink the segments */
     for (i=0; i<gasneti_pshm_nodes; ++i) {
+#if GASNET_SYSV
+      sysv_unlink(i);
+#else
       (void)shm_unlink(gasneti_pshmname[i]);
+#endif
     }
     /* Unlink the vnet */
+#if GASNET_SYSV
+    sysv_unlink(gasneti_pshm_nodes);
+#else
     (void)shm_unlink(gasneti_pshmname[gasneti_pshm_nodes]);
+#endif
     gasneti_free(gasneti_pshmname);
   }
   /* Remove the tmpfile that ensures uniqueness of our filenames */
@@ -260,7 +359,15 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
     return MAP_FAILED;
   }
 
+#if GASNET_SYSV
+  gasneti_mmapfd = sysv_open(segsize, pshmnode);
+  if(gasneti_mmapfd < 0){
+      return MAP_FAILED;
+  }
+#else
   gasneti_mmapfd = shm_open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+#endif
+
 #if PLATFORM_OS_DARWIN
   if ((gasneti_mmapfd == -1) && (errno == EEXIST)) {
     /* Work around Darwin stupidity observed by Filip */
@@ -298,6 +405,9 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
   }
 #endif
 
+#if GASNET_SYSV
+  ptr = sysv_mmap(segbase,gasneti_mmapfd);
+#else
   if (gasneti_mmap_stretch(gasneti_mmapfd, segsize)) {
     int save_errno = errno;
     (void)close(gasneti_mmapfd);
@@ -311,7 +421,9 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
   }
  
   t1 = gasneti_ticks_now();
+
   ptr = mmap(segbase, segsize, (PROT_READ|PROT_WRITE), flags, gasneti_mmapfd, 0);
+#endif
   mmap_errno = errno;
   t2 = gasneti_ticks_now();
   (void)close(gasneti_mmapfd);
@@ -372,7 +484,11 @@ extern void *gasneti_mmap_vnet(uintptr_t size) {
   return (ptr == MAP_FAILED) ? NULL : ptr;
 }
 extern void gasneti_unlink_vnet(void) {
+#if GASNET_SYSV
+  sysv_unlink(gasneti_pshm_nodes);
+#else
   (void)shm_unlink(gasneti_pshmname[gasneti_pshm_nodes]);
+#endif
 }
 #endif /* GASNET_PSHM */
 
@@ -390,7 +506,11 @@ extern void gasneti_munmap(void *segbase, uintptr_t segsize) {
         gasneti_fatalerror("msync("GASNETI_LADDRFMT",%lu) failed: %s\n",
 	        GASNETI_LADDRSTR(segbase), (unsigned long)segsize, strerror(errno));
     #endif
+#if GASNET_SYSV
+    if (sysv_munmap(segbase) != 0) 
+#else
     if (munmap(segbase, segsize) != 0) 
+#endif
       gasneti_fatalerror("munmap("GASNETI_LADDRFMT",%lu) failed: %s\n",
 	      GASNETI_LADDRSTR(segbase), (unsigned long)segsize, strerror(errno));
   t2 = gasneti_ticks_now();
@@ -695,6 +815,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
        * + size of the holes in the address space (especially on 32-bit arch)
        * NOTE: must use pshm's view of supernode, which may be less than nodemap's.
        */
+  
       if (se.size) gasneti_munmap(se.addr, se.size);
       gasneti_unlink_segments(); /* Includes barrier to complete munmap()s */
       se.size = 0;
@@ -714,7 +835,11 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
           sum = 0; done = 1;
           for (i = 0; i < gasneti_pshm_nodes; ++i) {
             tmp_se[i] = _gasneti_mmap_segment_search_inner(maxsz);
-            (void)shm_unlink(gasneti_pshmname[gasneti_pshm_mynode]);
+            #if GASNET_SYSV
+                sysv_unlink(gasneti_pshm_mynode);
+            #else
+                (void)shm_unlink(gasneti_pshmname[gasneti_pshm_mynode]);
+            #endif
             sum += tmp_se[i].size;
 	    if (tmp_se[i].size != maxsz) {
 	      done = 0;
