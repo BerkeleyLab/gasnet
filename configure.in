@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/06/28 04:50:53 $
-# $Revision: 1.639 $
+#     $Date: 2010/07/15 20:25:17 $
+# $Revision: 1.639.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.639 $)
+AC_REVISION($Revision: 1.639.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1211,6 +1211,45 @@ dnl GASNET_TOOLSONLY_FALSE_END
 
 AM_CONDITIONAL(USE_PSHM, test "$enabled_pshm$have_pshm" = yesyes)
 
+
+########################################################################
+## NVIDIA CUDA feature checks
+
+have_cuda=no
+enabled_cuda=no
+GASNET_IF_ENABLED(cuda,
+  [Enable/disable GASNet GPU extension support with NVIDIA CUDA (default disabled)],
+  [enabled_cuda=yes])
+
+if test "$enabled_cuda" = yes; then
+  if test "$segconfig" != everything; then
+    GASNET_MSG_ERROR([User requested --enable-cuda which only works with the EVERYTHING shared segment configuration, please use --enable-segment-everything together with --enable-cuda])
+  fi                     
+  
+  dnl check the CUDA compiler and its path
+  AC_MSG_CHECKING([NVIDIA CUDA compiler nvcc])
+  NVCC=`which nvcc 2>/dev/null`
+  if test "$NVCC"; then
+    CUDA_PATH=`dirname \`dirname $NVCC\``
+    have_cuda=yes
+  fi
+  
+  dnl It would be better to actually check compiling and linking a CUDA program.
+  AC_MSG_RESULT([$have_cuda])
+
+  AC_SUBST(NVCC)
+  AC_SUBST(CUDA_PATH)
+fi
+
+if test "$have_cuda$enabled_cuda" = noyes; then
+  GASNET_MSG_ERROR([User requested --enable-cuda but no supported CUDA was found])
+fi
+
+if test "$enabled_cuda$have_cuda" = yesyes; then
+  AC_DEFINE(GASNETE_CUDA_ENABLED)
+fi
+
+AM_CONDITIONAL(USE_CUDA, test "$enabled_cuda$have_cuda" = yesyes)
 
 ########################################################################
 ## CPU feature checks
@@ -4359,6 +4398,7 @@ cat >>$CONDUIT_LIST <<EOF
   MPI compatibility:      $have_mpi_compat
   Pthreads support:       $have_pthread
   Segment config:         $segconfig
+  GPU (CUDA) support:     $have_cuda
 EOF
 else
 cat >>$CONDUIT_LIST <<EOF

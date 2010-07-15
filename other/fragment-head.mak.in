@@ -1,7 +1,7 @@
 # Description: Makefile fragment for #conduit_name#-conduit, GASNET_#THREAD_MODEL# mode
 # #AUTOGEN#
 # @configure_input@
-# $Revision: 1.3 $
+# $Revision: 1.3.106.1 $
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
 
@@ -61,6 +61,13 @@
 
 GASNET_LD_OVERRIDE = @CC@
 GASNET_LDFLAGS_OVERRIDE = @CFLAGS@ @LDFLAGS@
+
+## CUDA
+NVCC = @NVCC@ 
+CUDA_PATH = @CUDA_PATH@
+CUDA_LIB64 = $(CUDA_PATH)/lib64
+@USE_CUDA_TRUE@CUDA_LIBS = -L$(CUDA_LIB64) -lcudart
+@USE_CUDA_FALSE@CUDA_LIBS = 
 
 # ----------------------------------------------------------------------
 # #conduit_name#-conduit/conduit.mak settings
