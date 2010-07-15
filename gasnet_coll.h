@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2009/09/16 01:13:20 $
- * $Revision: 1.55 $
+ *     $Date: 2010/07/15 21:34:26 $
+ * $Revision: 1.55.6.1 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -241,6 +241,15 @@ GASNETI_INLINE(_gasnet_coll_team_split)
 		  		int init_flags GASNETE_THREAD_FARG);
   #define gasnet_coll_init(im,mi,fn,fc,fl) \
 		gasnete_coll_init(im,mi,fn,fc,fl GASNETE_THREAD_GET)
+#endif
+
+/**
+ * gasnet_coll_fini: Finalize GASNet collectives
+ */
+#ifndef gasnet_coll_fini
+  GASNETI_COLL_FN_HEADER(gasnete_coll_fini) 
+  void gasnete_coll_fini(GASNETE_THREAD_FARG_ALONE);
+  #define gasnet_coll_fini() gasnete_coll_fini(GASNETE_THREAD_GET_ALONE)
 #endif
 
 /*---------------------------------------------------------------------------------*/

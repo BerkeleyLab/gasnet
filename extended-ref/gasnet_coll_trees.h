@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_trees.h,v $
- *     $Date: 2009/10/22 20:14:56 $
- * $Revision: 1.5 $
+ *     $Date: 2010/07/15 21:34:28 $
+ * $Revision: 1.5.6.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -130,7 +130,7 @@ struct gasnete_coll_tree_geom_t_ {
    /*** tree structure metadata*****/
    gasnete_coll_tree_type_t tree_type;
   /* don't need a root argument here since local_views[i] gives a tree rooted at i*/
-  gasnete_coll_team_t *team; /*a pointer back to the associated team*/
+  gasnete_coll_team_t team; /*a pointer back to the associated team*/
  };
 
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_autotune.c,v $
- *     $Date: 2009/10/22 20:14:56 $
- * $Revision: 1.25 $
+ *     $Date: 2010/07/15 21:34:28 $
+ * $Revision: 1.25.6.1 $
  * Description: GASNet Autotuner Implementation
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -144,13 +144,13 @@ int gasnete_coll_autotune_get_num_tree_types(gasnet_team_handle_t team) {
 
 
 gasnete_coll_tree_type_t gasnete_coll_autotune_get_tree_type_idx(gasnet_team_handle_t team, int idx) {
-  gasnete_coll_tree_type_t ret = gasnete_coll_get_tree_type();
   int log2_threads = fast_log2_32bit(MIN((uint32_t) team->total_ranks,128));
   int tree_class;
   int radix;
   gasneti_assert(idx < gasnete_coll_autotune_get_num_tree_types(team));
   if(team->autotune_info->allow_flat_tree) {
     if(idx == 0) {
+      gasnete_coll_tree_type_t ret = gasnete_coll_get_tree_type();
       ret->tree_class = GASNETE_COLL_FLAT_TREE;
       return ret;
     }
@@ -1350,6 +1350,109 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t te
 }
 
 
+void gasnete_coll_autotune_fini(gasnet_team_handle_t team)
+{
+  gasnete_coll_autotune_info_t *info;
+  int i;
+
+  gasneti_assert(team != NULL);
+  info = team->autotune_info;
+  gasneti_assert(info != NULL);
+  
+  /* free all data structures associated with team->autotune_info,
+     which are allocated in gasnete_coll_register_collectives(ret,
+     min_scratch_size); */
+  if (info->collective_algorithms[GASNET_COLL_BROADCAST_OP] != NULL) {
+    for (i=0; i<GASNETE_COLL_BROADCAST_NUM_ALGS; i++) {
+      gasneti_free(info->collective_algorithms[GASNET_COLL_BROADCAST_OP][i].parameter_list);
+    }
+    gasneti_free(info->collective_algorithms[GASNET_COLL_BROADCAST_OP]);
+  }
+  
+  if (info->collective_algorithms[GASNET_COLL_BROADCASTM_OP] != NULL) {
+    for (i=0; i<GASNETE_COLL_BROADCASTM_NUM_ALGS; i++) {
+      gasneti_free(info->collective_algorithms[GASNET_COLL_BROADCASTM_OP][i].parameter_list);
+    }
+    gasneti_free(info->collective_algorithms[GASNET_COLL_BROADCASTM_OP]);
+  }
+  
+  if (info->collective_algorithms[GASNET_COLL_SCATTER_OP] != NULL) {
+    for (i=0; i<GASNETE_COLL_SCATTER_NUM_ALGS; i++) {
+      gasneti_free(info->collective_algorithms[GASNET_COLL_SCATTER_OP][i].parameter_list);
+    }
+    gasneti_free(info->collective_algorithms[GASNET_COLL_SCATTER_OP]);
+  }
+  
+  if (info->collective_algorithms[GASNET_COLL_SCATTERM_OP] != NULL) {
+    for (i=0; i<GASNETE_COLL_SCATTERM_NUM_ALGS; i++) {
+      gasneti_free(info->collective_algorithms[GASNET_COLL_SCATTERM_OP][i].parameter_list);
+    }
+    gasneti_free(info->collective_algorithms[GASNET_COLL_SCATTERM_OP]);
+  }
+  
+  if (info->collective_algorithms[GASNET_COLL_GATHER_OP] != NULL) {
+    for (i=0; i<GASNETE_COLL_GATHER_NUM_ALGS; i++) {
+      gasneti_free(info->collective_algorithms[GASNET_COLL_GATHER_OP][i].parameter_list);
+    }
+    gasneti_free(info->collective_algorithms[GASNET_COLL_GATHER_OP]);
+  }
+
+  if (info->collective_algorithms[GASNET_COLL_GATHERM_OP] != NULL) {
+    for (i=0; i<GASNETE_COLL_GATHERM_NUM_ALGS; i++) {
+      gasneti_free(info->collective_algorithms[GASNET_COLL_GATHERM_OP][i].parameter_list);
+    }
+    gasneti_free(info->collective_algorithms[GASNET_COLL_GATHERM_OP]);
+  }
+  
+  if (info->collective_algorithms[GASNET_COLL_GATHER_ALL_OP] != NULL) {
+    for (i=0; i<GASNETE_COLL_GATHER_ALL_NUM_ALGS; i++) {
+      gasneti_free(info->collective_algorithms[GASNET_COLL_GATHER_ALL_OP][i].parameter_list);
+    }
+    gasneti_free(info->collective_algorithms[GASNET_COLL_GATHER_ALL_OP]);
+  }
+
+  if (info->collective_algorithms[GASNET_COLL_GATHER_ALLM_OP] != NULL) {
+    for (i=0; i<GASNETE_COLL_GATHER_ALLM_NUM_ALGS; i++) {
+      gasneti_free(info->collective_algorithms[GASNET_COLL_GATHER_ALLM_OP][i].parameter_list);
+    }
+    gasneti_free(info->collective_algorithms[GASNET_COLL_GATHER_ALLM_OP]);
+  }
+  
+  if (info->collective_algorithms[GASNET_COLL_EXCHANGE_OP] != NULL) {
+    for (i=0; i<GASNETE_COLL_EXCHANGE_NUM_ALGS; i++) {
+      gasneti_free(info->collective_algorithms[GASNET_COLL_EXCHANGE_OP][i].parameter_list);
+    }
+    gasneti_free(info->collective_algorithms[GASNET_COLL_EXCHANGE_OP]);
+  }
+
+  if (info->collective_algorithms[GASNET_COLL_EXCHANGEM_OP] != NULL) {
+    for (i=0; i<GASNETE_COLL_EXCHANGEM_NUM_ALGS; i++) {
+      gasneti_free(info->collective_algorithms[GASNET_COLL_EXCHANGEM_OP][i].parameter_list);
+    }
+    gasneti_free(info->collective_algorithms[GASNET_COLL_EXCHANGEM_OP]);
+  }
+ 
+  if (info->collective_algorithms[GASNET_COLL_REDUCE_OP] != NULL) {
+    for (i=0; i<GASNETE_COLL_REDUCE_NUM_ALGS; i++) {
+      gasneti_free(info->collective_algorithms[GASNET_COLL_REDUCE_OP][i].parameter_list);
+    }
+    gasneti_free(info->collective_algorithms[GASNET_COLL_REDUCE_OP]);
+  }
+
+  if (info->collective_algorithms[GASNET_COLL_REDUCEM_OP] != NULL) {
+    for (i=0; i<GASNETE_COLL_REDUCEM_NUM_ALGS; i++) {
+      gasneti_free(info->collective_algorithms[GASNET_COLL_REDUCEM_OP][i].parameter_list);
+    }
+    gasneti_free(info->collective_algorithms[GASNET_COLL_REDUCEM_OP]);
+  }
+  
+  if(allow_conduit_collectives) {
+    /* need to free and reset data structures used in
+       gasnete_coll_register_conduit_collectives(ret); */
+  }
+  
+  gasneti_free(info);
+}
 
 #define GASNETE_COLL_AUTOTUNE_BARRIER(TEAM) do { \
     gasnet_coll_barrier_notify(TEAM, 0,GASNET_BARRIERFLAG_ANONYMOUS); \

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/smp-collectives/smp_coll.c,v $
- *     $Date: 2009/10/22 20:24:55 $
- * $Revision: 1.3 $
+ *     $Date: 2010/07/15 21:34:31 $
+ * $Revision: 1.3.6.1 $
  * Description: Shared Memory Collectives
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -50,6 +50,30 @@ void smp_coll_reset_all_flags(smp_coll_t handle) {
     gasnett_atomic_set(&handle->atomic_vars[handle->THREADS*SMP_COLL_CACHE_LINE+handle->MYTHREAD*SMP_COLL_CACHE_LINE+i], 0, GASNETT_ATOMIC_MB_POST);
   }
   BOOTSTRAP_BARRIER(handle, 0);
+}
+
+void smp_coll_fini(smp_coll_t handle)
+{
+  gasneti_assert(handle != NULL);
+
+  gasneti_free(handle->aux_space_all);
+  gasneti_free(handle->aux_space);
+
+  if (handle->MYTHREAD == 0)
+    {
+      gasneti_free((void *)smp_coll_all_flags);
+      gasneti_free((void *)smp_coll_all_barrier_flags);
+      gasneti_free((void *)smp_coll_all_bcast_flags);
+      gasneti_free((void *)atomic_vars);
+    }
+
+#if HAVE_PTHREAD_BARRIER
+  gasneti_free(handle->pthread_barrier);
+#endif
+
+  gasneti_free(handle->tempaddrs);
+  
+  gasneti_free(handle);
 }
 
 smp_coll_t smp_coll_init(size_t aux_space_per_thread, int flags, int THREADS, int MYTHREAD){
@@ -116,6 +140,7 @@ smp_coll_t smp_coll_init(size_t aux_space_per_thread, int flags, int THREADS, in
   BOOTSTRAP_BARRIER(ret,0);
   ret->aux_space_all = gasneti_malloc(sizeof(uint8_t*)*THREADS);
   memcpy(ret->aux_space_all, allscratch, sizeof(uint8_t*)*THREADS);
+  if (MYTHREAD == 0) gasneti_free(allscratch);
   ret->flag_set = 0;
   ret->barrier_flag_set = 0;
   ret->flags = (volatile uint32_t*) ALIGNUP(smp_coll_all_flags,SMP_COLL_CACHE_LINE);

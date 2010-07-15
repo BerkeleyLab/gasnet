@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_team.c,v $
- *     $Date: 2010/03/08 00:16:19 $
- * $Revision: 1.9 $
+ *     $Date: 2010/07/15 21:34:28 $
+ * $Revision: 1.9.2.1 $
  *
  * Description: GASNet generic team implementation for collectives 
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
@@ -11,6 +11,7 @@
 #include <gasnet_coll.h>
 #include <gasnet_coll_internal.h>
 #include <gasnet_extended_refcoll.h>
+#include <gasnet_extended_internal.h>
 
 #include <gasnet_coll_team.h>
 #include <gasnet_coll_autotune_internal.h>
@@ -200,13 +201,51 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
   /* unlock */
 }
 
-void gasnete_coll_team_fini(gasnet_team_handle_t team)
+void gasnete_coll_tree_geom_release(gasnete_coll_tree_geom_t *geom);
+void gasnete_coll_team_fini(gasnet_team_handle_t team  GASNETE_THREAD_FARG)
 {
   gasneti_assert(team != NULL);
+
   /* free data members of the team, such as scratch space and etc. */
+  
+  /* free cached geometries */
+  {    
+    gasnete_coll_tree_geom_t *curr_geom = team->tree_geom_cache_head;
+    gasnete_coll_tree_geom_t *next_geom;
+    while(curr_geom != NULL) {
+      next_geom = curr_geom->next;
+      gasnete_coll_tree_geom_release(curr_geom);
+      curr_geom = next_geom;
+    }
+  }
+
+  {
+    gasnete_coll_dissem_info_t *curr = team->dissem_cache_head;
+    gasnete_coll_dissem_info_t *next;
+    while(curr != NULL) {
+      next = curr->next;
+      gasnete_coll_release_dissemination(curr, team);
+      curr = next;
+    }
+  }
+
+  /* undo gasnete_coll_alloc_new_scratch_status(team); */
+  gasnete_coll_free_scratch_status(team->scratch_status GASNETE_THREAD_PASS); 
+
   gasneti_free(team->rel2act_map);
   gasneti_assert(team_dir != NULL);
   gasnete_hashtable_remove(team_dir, team->team_id, NULL);
+
+#if !GASNET_SEQ
+  gasneti_free(team->image_to_node);
+#endif
+
+  gasnete_coll_autotune_fini(team);
+
+  
+  gasneti_free(team->all_offset);
+  gasneti_free(team->all_images);
+
 
 #ifdef gasnete_coll_team_fini_conduit
   /* conduit specific initialization for gasnet teams */
@@ -294,10 +333,10 @@ gasnet_team_handle_t gasnete_coll_team_create(uint32_t total_ranks,
   return team;
 }
 
-void gasnete_coll_team_free(gasnet_team_handle_t team)
+void gasnete_coll_team_free(gasnet_team_handle_t team GASNETE_THREAD_FARG)
 {
   gasneti_assert(team != NULL);
-  gasnete_coll_team_fini(team);
+  gasnete_coll_team_fini(team GASNETE_THREAD_PASS);
   gasneti_free(team);
 }
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_trees.c,v $
- *     $Date: 2009/10/22 20:14:56 $
- * $Revision: 1.13 $
+ *     $Date: 2010/07/15 21:34:28 $
+ * $Revision: 1.13.6.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -94,6 +94,7 @@ static gasnete_coll_tree_type_t make_tree_type_str_helper(char *tree_name) {
   for(i=0; i<ret->num_params; i++) {
     ret->params[i] = atoi(inner_split[i+1]);
   }
+  gasneti_free(inner_split[0]);
   gasneti_free(inner_split);
   return ret;
 }
@@ -131,10 +132,14 @@ gasnete_coll_tree_type_t gasnete_coll_make_tree_type_str(char *tree_name_str) {
       temp->subtree = make_tree_type_str_helper(outer_split[i]);
       temp = temp->subtree;
     }
+    gasneti_free(inner_split[0]);
+    gasneti_free(inner_split);
+
   } else {
     ret = make_tree_type_str_helper(tree_name_str);
   }
 
+  gasneti_free(outer_split[0]);
   gasneti_free(outer_split);
   return ret;
 }
@@ -767,11 +772,23 @@ void gasnete_coll_tree_type_to_str(char *outbuf, gasnete_coll_tree_type_t in) {
  However according to our design we will never free a geometry that is created
  It will be leaked away once the GASNet program finishes.
  */
-#if 0
-static void gasnete_coll_tree_geom_release(gasnete_coll_tree_geom_t *geom) {
-	gasneti_weakatomic_decrement(&(geom->ref_count), 0);
+void gasnete_coll_tree_geom_release(gasnete_coll_tree_geom_t *geom) 
+{
+	//gasneti_weakatomic_decrement(&(geom->ref_count), 0);
+  gasnet_node_t root;
+  gasnete_coll_team_t team = geom->team;
+
+  if (geom->local_views != NULL) {
+    for (root=0; root<team->total_ranks; root++)
+      {
+        if (geom->local_views[root] != NULL)
+          gasnete_coll_local_tree_geom_release(geom->local_views[root]);
+      }
+    gasneti_free(geom->local_views);
+  }
+  gasneti_free(geom);
 }
-#endif
+
 
 /* the helper function goes through the cache and then either returns the appropriate geometry
  or returns NULL indicating that the tree needs to be appended to the end of the cache 
@@ -834,6 +851,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
 #endif
     /* allocate new geometry */
     curr_geom = (gasnete_coll_tree_geom_t *) gasneti_malloc(sizeof(gasnete_coll_tree_geom_t));
+    curr_geom->team = team;
     curr_geom->local_views = (gasnete_coll_local_tree_geom_t**) 
     gasneti_malloc(sizeof(gasnete_coll_local_tree_geom_t*)*team->total_ranks);
     for(i=0; i<team->total_ranks; i++) {
@@ -885,10 +903,28 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
   return ret;
 }
 
-void gasnete_coll_local_tree_geom_release(gasnete_coll_local_tree_geom_t *geom) {
-	
-	/* for now don't do anything since we will reuse all our geometries*/
-	
+void gasnete_coll_local_tree_geom_free(gasnete_coll_local_tree_geom_t *geom) 
+{
+  printf("gasnete_coll_local_tree_geom_free is called().\n");
+  gasneti_assert(geom != NULL);
+
+  if (geom->child_list)
+    gasneti_free(geom->child_list);
+  
+  if (geom->subtree_sizes)
+    gasneti_free(geom->subtree_sizes);
+
+  if (geom->child_offset)
+    gasneti_free(geom->child_offset);
+  
+  if (geom->grand_children)
+    gasneti_free(geom->grand_children);
+}
+
+void gasnete_coll_local_tree_geom_release(gasnete_coll_local_tree_geom_t *geom) 
+{
+  gasnete_coll_local_tree_geom_free(geom);
+  
 }
 
 /**** Dissemination Stuff ****/
@@ -1091,6 +1127,11 @@ gasnete_coll_dissem_info_t *gasnete_coll_fetch_dissemination(int radix, gasnete_
   return temp;
 }
 
-void gasnete_coll_release_dissemination(gasnete_coll_dissem_info_t *obj, gasnete_coll_team_t team) {
-  /* do nothing for now */
+void gasnete_coll_release_dissemination(gasnete_coll_dissem_info_t *obj, gasnete_coll_team_t team) 
+{
+  gasneti_assert(obj != NULL);
+
+  gasneti_free(obj->exchange_in_order);
+  gasneti_free(obj->exchange_out_order);
+  gasneti_free(obj->ptr_vec);
 }

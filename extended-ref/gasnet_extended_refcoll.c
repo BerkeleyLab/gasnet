@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2009/10/22 20:14:56 $
- * $Revision: 1.90 $
+ *     $Date: 2010/07/15 21:34:28 $
+ * $Revision: 1.90.6.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -23,6 +23,7 @@
 #include <gasnet_coll_scratch.h>
 #include <gasnet_coll_trees.h>
 #include <gasnet_extended_refcoll.h>
+#include <gasnet_extended_internal.h>
 #include <gasnet_vis.h>
 
 /*TEMPORARY (Need to eventually change it such that 
@@ -750,11 +751,22 @@ static void gasnete_coll_cleanup_freelist(void **head) {
     gasneti_free(next);
   }
 }
+
 static void gasnete_coll_cleanup_threaddata(void *_td) {
   gasnete_coll_threaddata_t *td = (gasnete_coll_threaddata_t *)_td;
 
   /* these free lists are all linked by initial pointer */
   gasnete_coll_cleanup_freelist((void **)&(td->op_freelist));
+
+  {
+    void **head = &(td->tree_data_freelist); 
+    void **next;
+    while ((next = (void **)*head) != NULL) {
+      gasnete_coll_local_tree_geom_free((gasnete_coll_local_tree_geom_t *)next);
+      *head = *next;
+    }
+  }
+
   gasnete_coll_cleanup_freelist((void **)&(td->tree_data_freelist));
   gasnete_coll_cleanup_freelist((void **)&(td->generic_data_freelist));
 
@@ -1050,8 +1062,36 @@ gasneti_auxseg_request_t gasnete_coll_auxseg_alloc(gasnet_seginfo_t *auxseg_info
   return retval;
 }
   
+/* No collective operations (including gasnet_barrier_xxx()) can be
+   called after gasnete_coll_fini() and before gasnete_coll_init(). */
+extern void gasnete_coll_fini(GASNETE_THREAD_FARG_ALONE)
+{
+  gasnete_threaddata_t *td = GASNETE_MYTHREAD;
+  gasnete_coll_threaddata_t *coll_td = GASNETE_COLL_MYTHREAD;
 
+  gasnete_coll_barrier_notify(GASNET_TEAM_ALL, 0, 0 GASNETE_THREAD_PASS);
+  gasnete_coll_barrier_wait(GASNET_TEAM_ALL, 0, 0 GASNETE_THREAD_PASS);
 
+  if (!gasnete_coll_init_done)
+    gasneti_fatalerror("Trying to call gasnete_coll_fini before calling gasnete_coll_init!\n");
+  
+#ifdef gasnete_coll_fini_conduit
+  gasnete_coll_fini_conduit();
+#endif
+  
+  if (td->threadidx == 0) {
+    gasnete_coll_active_fini();
+    gasnete_coll_p2p_fini();
+    gasneti_free(gasnete_coll_fn_tbl);
+    gasnete_coll_team_fini(GASNET_TEAM_ALL GASNETE_THREAD_PASS);
+    gasnete_coll_init_done = 0;
+  }
+  
+  smp_coll_barrier(coll_td->smp_coll_handle, 0);
+
+  /* gasnet/other/smp-collectives */
+  smp_coll_fini(coll_td->smp_coll_handle); 
+}
 
 
 extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_image,
@@ -2234,7 +2274,7 @@ extern void gasnete_coll_tree_free(gasnete_coll_tree_data_t *tree GASNETE_THREAD
   
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   /*  gasnet_hsl_lock(&gasnete_coll_tree_lock);*/
-	gasnete_coll_local_tree_geom_release(tree->geom);
+	//gasnete_coll_local_tree_geom_release(tree->geom);
   *(gasnete_coll_tree_data_t **)tree = td->tree_data_freelist;
   td->tree_data_freelist = tree;
   /* gasnet_hsl_unlock(&gasnete_coll_tree_lock);*/

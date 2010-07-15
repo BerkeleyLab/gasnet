@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_team.h,v $ 
- *     $Date: 2009/10/28 04:17:13 $ 
- * $Revision: 1.3 $ 
+ *     $Date: 2010/07/15 21:34:28 $ 
+ * $Revision: 1.3.6.1 $ 
  * Description: GASNet team data structure
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt 
@@ -27,14 +27,13 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
                             const gasnet_image_t images[] GASNETE_THREAD_FARG);
 
 
-void gasnete_coll_team_fini(gasnet_team_handle_t team);
+void gasnete_coll_team_fini(gasnet_team_handle_t team  GASNETE_THREAD_FARG);
 
 gasnet_team_handle_t gasnete_coll_team_create(uint32_t total_ranks,
                                               gasnet_node_t myrank,
                                               gasnet_node_t *rel2act_map, gasnet_seginfo_t* scratch_segs GASNETE_THREAD_FARG);
 
-
-void gasnete_coll_team_free(gasnet_team_handle_t team);
+void gasnete_coll_team_free(gasnet_team_handle_t team GASNETE_THREAD_FARG);
 
 gasnet_team_handle_t gasnete_coll_team_lookup(uint32_t team_id);
 

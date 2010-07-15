@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.c,v $
- *     $Date: 2010/03/30 22:07:46 $
- * $Revision: 1.61.8.1 $
+ *     $Date: 2010/07/15 21:34:28 $
+ * $Revision: 1.61.8.2 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt

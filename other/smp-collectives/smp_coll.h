@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/smp-collectives/smp_coll.h,v $
- *     $Date: 2009/10/22 20:24:55 $
- * $Revision: 1.3 $
+ *     $Date: 2010/07/15 21:34:31 $
+ * $Revision: 1.3.6.1 $
  * Description: Shared Memory Collectives
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -27,6 +27,10 @@ typedef double (*RED_FN_DBL)(double, double);
 #define INLINE_ALL_COLLECTIVES 0
 void smp_coll_set_affinity(int location);
 smp_coll_t smp_coll_init(size_t aux_space_per_thread, int flags, int THREADS, int MYTHREAD);
+
+/* clean up data structures allocated in smp_coll_init() */
+void smp_coll_fini(smp_coll_t handle);
+
 void smp_coll_reset_all_flags(smp_coll_t handle);
 void smp_coll_tune_barrier(smp_coll_t handle);
 /*tuning knobs*/
