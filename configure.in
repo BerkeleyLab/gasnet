@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/02/28 23:28:29 $
-# $Revision: 1.625 $
+#     $Date: 2010/07/16 00:48:12 $
+# $Revision: 1.625.6.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.625 $)
+AC_REVISION($Revision: 1.625.6.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1116,9 +1116,15 @@ if test "$enabled_pshm" = yes; then
     if test "$cross_compiling" = "yes" ; then
       # To the best of my knowledge CNL, Catamount, BG/L and BG/P all lack
       # working shm_open() support, though at least CNL finds the symbol.
-      # So, we assume NO shm_open() when cross-compiling. -PHH
-      # We can add exceptions or CROSS_* should the need arise.
-      have_shm_open=no
+      # So, we default to NO shm_open() when cross-compiling. -PHH
+      # One can set CROSS_HAVE_SHM_OPEN=1 to force building for PSHM.
+      if test "x$CROSS_HAVE_SHM_OPEN" = x1; then
+       have_shm_open=yes
+       AC_MSG_RESULT([yes (from CROSS_HAVE_SHM_OPEN)])
+      else
+       have_shm_open=no
+       AC_MSG_RESULT([no (default when cross compiling)])
+      fi
     else
       GASNET_TRY_CACHE_RUN([for working shm_open()], have_shm_open, [
         #include <sys/types.h>
@@ -3200,7 +3206,6 @@ case "$target" in
   ;;
 esac
 CONDUIT_DISALLOW_SEGMENT(everything)
-CONDUIT_DISALLOW_PSHM()
 
 if test "$enabled_portals" = yes; then
   have_portals=yes # start by assuming we have it
