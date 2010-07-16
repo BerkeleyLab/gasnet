@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.c,v $
- *     $Date: 2010/04/04 06:57:40 $
- * $Revision: 1.63 $
+ *     $Date: 2010/07/16 18:35:42 $
+ * $Revision: 1.63.8.1 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -877,6 +877,17 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
 /* use reference implementation of collectives */
 #include "gasnet_extended_refcoll.h"
 
+
+/* ------------------------------------------------------------------------------------ */
+/*
+  GPU extensions:
+  ============
+*/
+#ifdef GASNETE_CUDA_ENABLED
+#include "gasnet_extended_gpu.h"
+#include "gasnet_gpu_amhandlers.h"
+#endif /* GASNETE_CUDA_ENABLED */
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Handlers:
@@ -891,6 +902,9 @@ static gasnet_handlerentry_t const gasnete_handlers[] = {
   #endif
   #ifdef GASNETE_REFCOLL_HANDLERS
     GASNETE_REFCOLL_HANDLERS()
+  #endif
+  #ifdef GASNETE_GPU_HANDLERS
+    GASNETE_GPU_HANDLERS()
   #endif
 
   /* ptr-width independent handlers */

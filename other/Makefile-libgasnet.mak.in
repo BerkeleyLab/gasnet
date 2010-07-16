@@ -8,6 +8,12 @@
 
 VPATH=$(srcdir)
 
+## CUDA 
+CUDA_PATH = @CUDA_PATH@
+NVCC = @NVCC@
+NVCC_CFLAGS = -I$(top_srcdir)/extended-ref -I$(CUDA_PATH)/include 
+NVCC_LFLAGS = 
+
 thread_defines = @GASNET_THREAD_DEFINES@
 SEPARATE_CC = @SEPARATE_CC@
 
@@ -16,6 +22,9 @@ SEPARATE_CC = @SEPARATE_CC@
 @USE_PLPA_TRUE@                $(top_srcdir)/other/plpa/src/libplpa/plpa_dispatch.c
 
 @USE_PSHM_TRUE@PSHM_SOURCES  = $(top_srcdir)/gasnet_pshm.c
+
+@USE_CUDA_TRUE@CUDA_SOURCES = $(top_srcdir)/extended-ref/gasnet_extended_gpu.c  
+@USE_CUDA_TRUE@GPU_GLUE_OBJS = gasnet_gpu_cuda.o
 
 TOOLLIBINCLUDES =         \
         @SYS_HEADER_BLD@  \
@@ -71,15 +80,21 @@ libgasnet_sources =                                         \
         $(top_srcdir)/extended-ref/gasnet_coll_eager.c      \
         $(top_srcdir)/extended-ref/gasnet_coll_rvous.c      \
         $(top_srcdir)/extended-ref/gasnet_coll_team.c				\
-        $(top_srcdir)/extended-ref/gasnet_coll_hashtable.c   \
-        $(top_srcdir)/gasnet_internal.c                     \
+        $(top_srcdir)/extended-ref/gasnet_coll_hashtable.c  \
+				$(top_srcdir)/gasnet_internal.c                     \
         $(top_srcdir)/gasnet_trace.c                        \
         $(top_srcdir)/gasnet_mmap.c                         \
-	$(top_srcdir)/gasnet_diagnostic.c
+	      $(top_srcdir)/gasnet_diagnostic.c                   \
+        $(CUDA_SOURCES)
 
 libgasnet_objects = \
 	`for file in $(libgasnet_sources) ; do echo \`basename $$file .c\`.o ; done` \
-	$(CONDUIT_SPECIAL_OBJS)
+  $(CONDUIT_SPECIAL_OBJS) \
+  $(GPU_GLUE_OBJS)
+
+## rule for compiling CUDA objects
+gasnet_gpu_cuda.o: $(top_srcdir)/extended-ref/gasnet_gpu_cuda.cu $(top_srcdir)/extended-ref/gasnet_gpu_cuda.h
+	$(NVCC) $(NVCC_CFLAGS)  -o $@ -c $<   
 
 libgasnet_tools_dependencies =  \
         $(CONFIG_HEADER)        \
@@ -99,8 +114,9 @@ libgasnet_dependencies =                  \
 THREAD_MODEL=SEQ
 THREAD_MODEL_LC=`echo "$(THREAD_MODEL)" | @AWK@ '{print tolower($$0)}'`
 LIBGASNET_NAME=libgasnet-$(CONDUIT_NAME)
-do-libgasnet: $(CONDUIT_SPECIAL_OBJS)
+do-libgasnet: $(CONDUIT_SPECIAL_OBJS) $(GPU_GLUE_OBJS)
 	@mkdir -p .$(THREAD_MODEL)
+	@USE_CUDA_TRUE@mv $(GPU_GLUE_OBJS) .$(THREAD_MODEL)
 	@libgasnet_objects="$(libgasnet_objects)" ; libgasnet_objects=`echo $$libgasnet_objects` ; \
 	pwd=`@PWD_PROG@`; keeptmps='$(KEEPTMPS)'; \
 	if test -z '$(KEEPTMPS)'; then rmcmd="&& rm -f $$libgasnet_objects"; fi; \

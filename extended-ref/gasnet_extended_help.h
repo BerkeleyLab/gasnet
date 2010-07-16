@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_help.h,v $
- *     $Date: 2009/10/25 23:24:44 $
- * $Revision: 1.52 $
+ *     $Date: 2010/07/16 18:35:42 $
+ * $Revision: 1.52.16.1 $
  * Description: GASNet Extended API Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -92,12 +92,18 @@ typedef struct _gasnete_thread_cleanup {
     void *context;
 } gasnete_thread_cleanup_t; /* thread exit cleanup function LIFO */
 
+#ifdef GASNETE_USE_CUDA
+#define GASNETE_GPU_THREADDATA_FIELD  void *gasnete_gpu_threaddata;        
+#else
+#define GASNETE_GPU_THREADDATA_FIELD
+#endif
 
 /* fields that should appear first in the threaddata struct for all conduits */
 #define GASNETE_COMMON_THREADDATA_FIELDS                                      \
   void *gasnetc_threaddata;     /* ptr reserved for use by the core */        \
   void *gasnete_coll_threaddata;/* ptr reserved for use by the collectives */ \
   void *gasnete_vis_threaddata; /* ptr reserved for use by the VIS */         \
+  GASNETE_GPU_THREADDATA_FIELD  /* ptr reserved for use by the GPU */         \
                                                                               \
   gasnete_threadidx_t threadidx;                                              \
                                                                               \
