@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2009/10/28 00:09:15 $
- * $Revision: 1.12 $
+ *     $Date: 2010/07/16 21:06:41 $
+ * $Revision: 1.12.6.1 $
  * Description: GASNet header for sci conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -20,6 +20,11 @@
 #define GASNET_CONDUIT_NAME      GASNET_CORE_NAME
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_SCI 1
+
+  /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
+#if GASNETI_PSHM_ENABLED
+/* #define GASNET_PSHM 1 */
+#endif
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
   /*  at the same virtual address on all nodes. defined to 0 otherwise */

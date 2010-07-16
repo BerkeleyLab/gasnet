@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_coll_exchange_dcmf.h,v $
- *     $Date: 2009/10/28 03:01:34 $
- * $Revision: 1.5 $
+ *     $Date: 2010/07/16 21:06:11 $
+ * $Revision: 1.5.6.1 $
  * Description: GASNet exchange (alltoall) implementation for DCMF
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -19,10 +19,10 @@ typedef enum {
 /** data structure for storing information of a dcmf alltoall
     operation */
 typedef struct {
-  DCMF_CollectiveProtocol_t  *registration;
   DCMF_CollectiveRequest_t request;
   DCMF_Callback_t cb_done;
   DCMF_Consistency consistency;
+  DCMF_CollectiveProtocol_t *registration;
   DCMF_Geometry_t *geometry;
   char *sndbuf;
   unsigned *sndlens;

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2010/03/30 22:07:54 $
- * $Revision: 1.135.2.1 $
+ *     $Date: 2010/07/16 21:06:49 $
+ * $Revision: 1.135.2.2 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -170,6 +170,7 @@ static void _test_makeErrMsg(const char *format, ...)) {
 static int _test_rand(int low, int high) {
   int result;
   assert(low <= high);
+  assert(low <= high+1); /* We will overflow otherwise */
   result = low+(int)(((double)(high-low+1))*rand()/(RAND_MAX+1.0));
   assert(result >= low && result <= high);
   return result;
@@ -417,6 +418,29 @@ GASNETT_IDENT(GASNetT_TiCompiler_IdentString,
     #define TEST_USE_PRIMORDIAL_THREAD 0
   #endif
 #endif
+#ifndef TEST_MAXTHREADS
+  /* TEST_MAXTHREADS is a compile-time constant */
+  #if defined(GASNETI_MAX_THREADS_CONFIGURE)
+    #define TEST_MAXTHREADS_SYSTEM GASNETI_MAX_THREADS_CONFIGURE
+  #elif defined(GASNETT_MAX_THREADS)
+    #define TEST_MAXTHREADS_SYSTEM GASNETT_MAX_THREADS
+  #else
+    #define TEST_MAXTHREADS_SYSTEM 256
+  #endif
+  #define TEST_MAXTHREADS (TEST_MAXTHREADS_SYSTEM + TEST_USE_PRIMORDIAL_THREAD - 1)
+#endif
+/* Runtime enforcement of TEST_MAXTHREADS, GASNET_TEST_THREAD_LIMIT, or platform-specific limits */
+static int test_thread_limit(int numthreads) {
+    int limit = gasnett_getenv_int_withdefault("GASNET_TEST_THREAD_LIMIT", TEST_MAXTHREADS, 0);
+    limit = MIN(limit, TEST_MAXTHREADS); /* Ignore attempt to raise above TEST_MAXTHREADS */
+  #if PLATFORM_OS_BGP 
+    { int cores = gasnett_cpu_count();
+      int depth = gasnett_getenv_int_withdefault("BG_APPTHREADDEPTH", 1, 0); /* V1R4M0 and later */
+      limit = MIN(limit, cores*depth);
+    }
+  #endif
+    return MIN(numthreads, limit);
+}
 static void test_createandjoin_pthreads(int numthreads, void *(*start_routine)(void *), 
                                       void *threadarg_arr, size_t threadarg_elemsz) {
     int i;

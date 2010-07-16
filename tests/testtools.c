@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testtools.c,v $
- *     $Date: 2009/04/06 02:58:54 $
- * $Revision: 1.95 $
+ *     $Date: 2010/07/16 21:06:49 $
+ * $Revision: 1.95.8.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,20 +16,17 @@
 #endif
 
 #ifdef HAVE_PTHREAD_H
-  #ifndef MAX_NUM_THREADS
-    #define MAX_NUM_THREADS 255
-  #endif
   int NUM_THREADS = 0;
-  gasnett_atomic_t thread_flag[MAX_NUM_THREADS];
-  int valX[MAX_NUM_THREADS];
-  int valY[MAX_NUM_THREADS];
-  gasnett_atomic_t atomicX[MAX_NUM_THREADS];
-  int32_t valX32[MAX_NUM_THREADS];
-  int32_t valY32[MAX_NUM_THREADS];
-  gasnett_atomic32_t atomicX32[MAX_NUM_THREADS];
-  int64_t valX64[MAX_NUM_THREADS];
-  int64_t valY64[MAX_NUM_THREADS];
-  gasnett_atomic64_t atomicX64[MAX_NUM_THREADS];
+  gasnett_atomic_t thread_flag[TEST_MAXTHREADS];
+  int valX[TEST_MAXTHREADS];
+  int valY[TEST_MAXTHREADS];
+  gasnett_atomic_t atomicX[TEST_MAXTHREADS];
+  int32_t valX32[TEST_MAXTHREADS];
+  int32_t valY32[TEST_MAXTHREADS];
+  gasnett_atomic32_t atomicX32[TEST_MAXTHREADS];
+  int64_t valX64[TEST_MAXTHREADS];
+  int64_t valY64[TEST_MAXTHREADS];
+  gasnett_atomic64_t atomicX64[TEST_MAXTHREADS];
 #endif
 
 #define DEFAULT_THREADS 10
@@ -106,7 +103,7 @@ int main(int argc, char **argv) {
   #ifdef HAVE_PTHREAD_H
     if (argc > 2) NUM_THREADS = atoi(argv[2]);
     if (NUM_THREADS < 1) NUM_THREADS = DEFAULT_THREADS;
-    if (NUM_THREADS > MAX_NUM_THREADS) NUM_THREADS = MAX_NUM_THREADS;
+    NUM_THREADS = test_thread_limit(NUM_THREADS);
   #else
     if (argc > 2 && atoi(argv[2]) != 1) { ERR("no pthreads - only one thread available."); test_usage(); }
   #endif
@@ -325,27 +322,36 @@ int main(int argc, char **argv) {
       ERR("incorrect return from gasnett_count0s_uint64_t(0)");
   }
 
-  TEST_HEADER("Testing local membar...")
+  TEST_HEADER("Testing local membars...")
   { /* local membar */
     int i;
     for (i=0;i<iters;i++) {
       gasnett_local_mb();
     }
+    for (i=0;i<iters;i++) {
+      gasnett_weak_mb();
+    }
   }
 
-  TEST_HEADER("Testing local write membar...")
+  TEST_HEADER("Testing local write membars...")
   { /* local membar */
     int i;
     for (i=0;i<iters;i++) {
       gasnett_local_wmb();
     }
+    for (i=0;i<iters;i++) {
+      gasnett_weak_wmb();
+    }
   }
 
-  TEST_HEADER("Testing local read membar...")
+  TEST_HEADER("Testing local read membars...")
   { /* local membar */
     int i;
     for (i=0;i<iters;i++) {
       gasnett_local_rmb();
+    }
+    for (i=0;i<iters;i++) {
+      gasnett_weak_rmb();
     }
   }
 
@@ -454,7 +460,7 @@ int main(int argc, char **argv) {
     if (gasnett_atomic_signed(gasnett_atomic_read(&var,0)) != -1)
         ERR("gasnett_atomic_decrement could not reach -1");
 
-    gasnett_atomic_set(&var, GASNETT_ATOMIC_SIGNED_MIN, 0);
+    gasnett_atomic_set(&var, (gasnett_atomic_val_t)GASNETT_ATOMIC_SIGNED_MIN, 0);
     if (gasnett_atomic_signed(gasnett_atomic_read(&var,0)) != GASNETT_ATOMIC_SIGNED_MIN)
         ERR("gasnett_atomic_set/signed could not handle GASNETT_ATOMIC_SIGNED_MIN");
     gasnett_atomic_increment(&var, 0);
@@ -487,7 +493,7 @@ int main(int argc, char **argv) {
     gasnett_atomic_increment(&var, 0);
     if (gasnett_atomic_signed(gasnett_atomic_read(&var,0)) != GASNETT_ATOMIC_SIGNED_MIN)
         ERR("failed signed wrap-around at GASNETT_ATOMIC_SIGNED_MAX");
-    gasnett_atomic_set(&var, GASNETT_ATOMIC_SIGNED_MIN, 0);
+    gasnett_atomic_set(&var, (gasnett_atomic_val_t)GASNETT_ATOMIC_SIGNED_MIN, 0);
     gasnett_atomic_decrement(&var, 0);
     if (gasnett_atomic_signed(gasnett_atomic_read(&var,0)) != GASNETT_ATOMIC_SIGNED_MAX)
         ERR("failed signed wrap-around at GASNETT_ATOMIC_SIGNED_MIN");
@@ -514,7 +520,7 @@ int main(int argc, char **argv) {
       if (!gasnett_atomic_compare_and_swap(&var, stemp - 1, 0, 0))
         ERR("gasnett_atomic_compare_and_swap failed signed wrap-around at oldval=SIGNED_MIN-1");
 
-      gasnett_atomic_set(&var, GASNETT_ATOMIC_SIGNED_MIN, 0);
+      gasnett_atomic_set(&var, (gasnett_atomic_val_t)GASNETT_ATOMIC_SIGNED_MIN, 0);
       stemp = GASNETT_ATOMIC_SIGNED_MAX;
       if (!gasnett_atomic_compare_and_swap(&var, stemp + 1, 0, 0))
         ERR("gasnett_atomic_compare_and_swap failed signed wrap-around at oldval=SIGNED_MAX+1");
@@ -922,6 +928,7 @@ void * thread_fn(void *arg) {
 
       valX[id] = 0;
       valY[id] = 0;
+
       THREAD_BARRIER();
       for (i=0;i<iters2;i++) {
         valX[id] = i;
@@ -933,6 +940,10 @@ void * thread_fn(void *arg) {
         lx = valX[partner];
         if (BIGGER(lx,ly)) ERR("mismatch in gasnett_local_wmb/gasnett_local_rmb test: lx=%u ly=%u", lx, ly);
       }
+      THREAD_BARRIER();
+
+      valX[id] = 0;
+      valY[id] = 0;
 
       THREAD_BARRIER();
       for (i=0;i<iters2;i++) {
@@ -945,6 +956,39 @@ void * thread_fn(void *arg) {
         lx = valX[partner];
         if (BIGGER(lx,ly)) ERR("mismatch in gasnett_local_mb/gasnett_local_mb test: lx=%u ly=%u", lx, ly);
       }
+      THREAD_BARRIER();
+
+      valX[id] = 0;
+      valY[id] = 0;
+
+      THREAD_BARRIER();
+      for (i=0;i<iters2;i++) {
+        valX[id] = i;
+        gasnett_weak_wmb();
+        valY[id] = i;
+
+        ly = valY[partner];
+        gasnett_weak_rmb();
+        lx = valX[partner];
+        if (BIGGER(lx,ly)) ERR("mismatch in gasnett_weak_wmb/gasnett_weak_rmb test: lx=%u ly=%u", lx, ly);
+      }
+      THREAD_BARRIER();
+
+      valX[id] = 0;
+      valY[id] = 0;
+
+      THREAD_BARRIER();
+      for (i=0;i<iters2;i++) {
+        valX[id] = i + iters2;
+        gasnett_weak_mb();
+        valY[id] = i + iters2;
+
+        ly = valY[partner];
+        gasnett_weak_mb();
+        lx = valX[partner];
+        if (BIGGER(lx,ly)) ERR("mismatch in gasnett_weak_mb/gasnett_weak_mb test: lx=%u ly=%u", lx, ly);
+      }
+      THREAD_BARRIER();
     }
   }
 

@@ -1,6 +1,6 @@
 GASNet inter-Process SHared Memory (PHSM) design
 ---------------------------------------------
-$Revision: 1.4 $
+$Revision: 1.4.4.1 $
 
 Document by:
     Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -14,11 +14,11 @@ Goal:
 
 Provide GASNet with a mechanism to communicate through shared memory among
 processes on the same compute node.  This is expected to be more robust than
-pthreads (which greatly complicate the Berkeley UPC runtime, and which prevent
-linking to any numeric libraries that that are not threadsafe).  It is also
+pthreads (which greatly complicates the Berkeley UPC runtime, and prevents
+linking to any numeric libraries that that are not thread-safe).  It is also
 expected to display lower latency than use of a network API's loopback
 capabilities (though the network hardware might provide other benfits such as
-asynchronous bulk memory copy).
+asynchronous bulk memory copy w/o cache polution).
 
 To use:
 
@@ -84,8 +84,9 @@ Q1) Do we need a separate build or separate configure of libgasnet and/or
 A1) Since the set of conduits supported by PSHM was initially a small subset
     of the total list, we chose not to complicate the UPC compiler with this.
     Thus we've chosen to configure everything (UPCR+gasnet) w/ --enable-pshm
-    or w/o.  The list of conduits NOT supporting PSHM is now small and we
-    might revisit this when we are happy w/ PSHM stability.
+    or w/o.  The number of conduits supporting PSHM is now irrelevant since in
+    a PSHM-enabled build of GASNet any conduits not supporting PSHM are simply
+    built w/o it (as opposed to not built at all as was once the case).
 
 Q2) If we want to use the same build, then how should GASNET_ALIGNED_SEGMENTS
     definition behave?  Never true when any supernode contains more than one
@@ -137,12 +138,6 @@ Known Problems / To do:
   system with plenty of memory, but dies on systems with less.  The work
   around is to set the GASNET_MAX_SEGSIZE small enough for a given system.
 * There are still error cases that will leak shared memory.
-* We have yet to make the extended API (Get, Put, VIS, Collectives, etc)
-  aware of supernodes.  They still use the conduit-specific Get/Put code
-  (except VIS and collective code that is already AM-based).  This is "OK"
-  for now because our only client (Berkeley UPC) is supernode-aware and will
-  completely bypass GASNet for a pointer-to-shared with affinity within the
-  supernode for Get and Put (but VIS and Collective may still suffer).
 
 Status:
 
@@ -160,10 +155,43 @@ Status:
     - OpenSolaris/x64     smp
     - FreeBSD 8/i386      smp
     - FreeBSD 8/amd64     smp
+    - IBM BG/P            smp, dcmf
   We have no reason to think that any conduit listed above would NOT support
   PSHM on any OS/cpu above (assuming the conduit works on that platform at all).
+* IBM BG/P platform-specific notes:
+  - PSHM does not work at all in "SMP" mode, only "DUAL" or "VN"
+  - Currently one must manually set up a few things to use PSHM on BG/P
+    + Must set CROSS_HAVE_SHM_OPEN=1 on configure command line
+    + Shared segment size must be limited to a lower-than-default value
+    + BG_SHAREDMEMPOOLSIZE env var must be set to fit the shared segment plus
+      extra for Active Message buffers
+    + upcrun must be told to propagate BG_ environment vars to the job
+  - Example environment variable settings for 200MB shared heap in VN mode
+      UPC_ENVPREFIX=BG_
+      UPC_SHARED_HEAP_SIZE=200M
+      BG_SHAREDMEMPOOLSIZE=820
+  - Example environment variable settings for 400MB shared heap in DUAL mode
+      UPC_ENVPREFIX=BG_
+      UPC_SHARED_HEAP_SIZE=400M
+      BG_SHAREDMEMPOOLSIZE=810
+* GASNet conduits known NOT to work:
+  - LAPI conduit requires "large pages" which cannot be obtained for POSIX
+    shared memory segments by any mechanism we are aware of.
+  - SHMEM conduit does not support PSHM, but there is no reason to think
+    that doing so would be constructive.
+  - Portals conduit does not support PSHM because we lack a platform with
+    support for both Portals and POSIX shared memory on which to develop.
+  - SCI conduit does not support PSHM because we no longer have any platform
+    on which to develop and test sci-conduit.
+  Keep in mind that if you use one of these conduits on a platform with the
+  necessary support for PSHM, you may still configure with --enable-pshm to
+  get PSHM support in other conduits (e.g. SMP and MPI), and these few
+  conduits will still build (they will simply be missing PSHM support).
 * Platforms known NOT to work:
   - MacOSX is NOT supported because we appear to trigger a kernel memory leak.
-  - BG/P can share memory, but there are non-trivial obstacles to overcome.
   - CNL (at least at our site) lacks support for shm_open().
   - Catamount can't share memory (in any way that we know of).
+  - The OpenBSD and NetBSD hosts we have access to lack shm_open() in
+    sys/mman.h.  However, should you encounter an OpenBSD or NetBSD host with
+    POSIX shared memeory support, it is likely GASNet's PSHM will "just work".
+

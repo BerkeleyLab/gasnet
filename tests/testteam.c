@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testteam.c,v $
- * $Date: 2010/03/30 22:07:54 $
- * $Revision: 1.2.8.1 $
+ * $Date: 2010/07/16 21:06:49 $
+ * $Revision: 1.2.8.2 $
  * LBNL 2009
  */
 
@@ -79,7 +79,7 @@ int main(int argc, char **argv)
   assert_always(nrows*ncols == nodes);
 
   MSG0("Running team test with a %u-by-%u grid and %i iterations...\n",
-           nrows, ncols, iters);
+           (int)nrows, (int)ncols, iters);
   BARRIER();
                  
   my_row = mynode / ncols;
@@ -97,7 +97,7 @@ int main(int argc, char **argv)
 
   if (my_col == 0) {
     printf("row team %u: Running team barrier test with row teams...\n",
-           my_row);
+           (int)my_row);
     fflush(stdout);
   }
 
@@ -111,13 +111,13 @@ int main(int argc, char **argv)
 
   if (my_col == 0) {
     printf("row team %u: total time: %8.3f sec, avg row team Barrier latency: %8.3f us\n",
-           my_row, ((float)total)/1000000, ((float)total)/iters);
+           (int)my_row, ((float)total)/1000000, ((float)total)/iters);
     fflush(stdout);
   }
 
   if (my_row == 0) {
     printf("col team %u: Running team barrier test with column teams...\n",
-           my_col);
+           (int)my_col);
     fflush(stdout);
   }
 
@@ -131,7 +131,7 @@ int main(int argc, char **argv)
   
   if (my_row == 0) {
     printf("col team %u: total time: %8.3f sec  Avg column team Barrier latency: %8.3f us\n",
-           my_col, ((float)total)/1000000, ((float)total)/iters);
+           (int)my_col, ((float)total)/1000000, ((float)total)/iters);
     fflush(stdout);
   }
   BARRIER();

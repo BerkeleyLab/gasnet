@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/21 01:59:12 $
- * $Revision: 1.41 $
+ *     $Date: 2010/07/16 21:06:52 $
+ * $Revision: 1.41.6.1 $
  * Description: GASNet UDP conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -668,6 +668,8 @@ extern int gasnetc_AMRequestMediumM(
   } else
 #endif
   {
+    if_pf (!nbytes) source_addr = (void*)(uintptr_t)1; /* Bug 2774 - anything but NULL */
+
     AMLOCK_TOSEND();
       GASNETI_AM_SAFE_NORETURN(retval,
                AMUDP_RequestIVA(gasnetc_endpoint, dest, handler, 
@@ -700,6 +702,8 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   {
     uintptr_t dest_offset;
     dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
+
+    if_pf (!nbytes) source_addr = (void*)(uintptr_t)1; /* Bug 2774 - anything but NULL */
 
     AMLOCK_TOSEND();
       GASNETI_AM_SAFE_NORETURN(retval,
@@ -756,6 +760,8 @@ extern int gasnetc_AMReplyMediumM(
   } else
 #endif
   {
+    if_pf (!nbytes) source_addr = (void*)(uintptr_t)1; /* Bug 2774 - anything but NULL */
+
     AM_ASSERT_LOCKED();
     GASNETI_AM_SAFE_NORETURN(retval,
               AMUDP_ReplyIVA(token, handler, source_addr, nbytes, numargs, argptr));
@@ -790,6 +796,8 @@ extern int gasnetc_AMReplyLongM(
 
     GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
     dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
+
+    if_pf (!nbytes) source_addr = (void*)(uintptr_t)1; /* Bug 2774 - anything but NULL */
 
     AM_ASSERT_LOCKED();
     GASNETI_AM_SAFE_NORETURN(retval,

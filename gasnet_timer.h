@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2010/02/10 02:28:52 $
- * $Revision: 1.94 $
+ *     $Date: 2010/07/16 21:06:09 $
+ * $Revision: 1.94.4.1 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -303,17 +303,17 @@ GASNETI_BEGIN_EXTERNC
  #endif
 /* ------------------------------------------------------------------------------------ */
 #elif (PLATFORM_OS_LINUX || PLATFORM_OS_CNL || PLATFORM_OS_CATAMOUNT || PLATFORM_OS_OPENBSD || \
-       (PLATFORM_OS_FREEBSD && GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ)) && \
+       GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ) && \
      (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || PLATFORM_COMPILER_SUN || \
       PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_PGI || PLATFORM_COMPILER_TINY || \
-      PLATFORM_COMPILER_OPEN64) && \
+      PLATFORM_COMPILER_OPEN64 || PLATFORM_COMPILER_CRAY) && \
      (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_IA64) && \
       !GASNETI_ARCH_ALTIX /* bug 1622 */
   #if PLATFORM_ARCH_IA64 && PLATFORM_COMPILER_INTEL
     #include <ia64intrin.h>
   #elif PLATFORM_OS_CATAMOUNT
     extern unsigned int __cpu_mhz; /* system provided */
-  #elif PLATFORM_OS_FREEBSD || PLATFORM_OS_OPENBSD
+  #elif GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ || PLATFORM_OS_OPENBSD
     #include <sys/sysctl.h> 
   #endif
   typedef uint64_t gasneti_tick_t;
@@ -349,7 +349,9 @@ GASNETI_BEGIN_EXTERNC
   GASNETI_INLINE(gasneti_ticks_now)
   uint64_t gasneti_ticks_now (void) {
     uint64_t ret;
-    #if PLATFORM_ARCH_X86_64 || \
+    #if PLATFORM_COMPILER_CRAY
+      ret = _rtc();
+    #elif PLATFORM_ARCH_X86_64 || \
         (PLATFORM_COMPILER_PGI && PLATFORM_ARCH_X86 && !GASNETI_PGI_ASM_X86_A)
       /* This asm() for x86-64 also works for x86 compilers w/o working support
        * for the "A" constraint (currently only pgcc 6.1-x, which crashes).
@@ -383,7 +385,7 @@ GASNETI_BEGIN_EXTERNC
     if_pf (firstTime) {
      #if PLATFORM_OS_CATAMOUNT /* lacks /proc filesystem */
         Tick = 1000.0 / __cpu_mhz;
-     #elif PLATFORM_OS_FREEBSD
+     #elif GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ /* FreeBSD and NetBSD */
         int64_t cpuspeed = 0;
         size_t len = sizeof(cpuspeed);
         if (sysctlbyname("machdep.tsc_freq", &cpuspeed, &len, NULL, 0) == -1) 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2010/07/15 21:34:28 $
- * $Revision: 1.52.2.2 $
+ *     $Date: 2010/07/16 21:06:17 $
+ * $Revision: 1.52.2.3 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1333,7 +1333,7 @@ extern void gasnete_coll_barrier_init(gasnete_coll_team_t team,  int barrier_typ
     
   }
   if(team==NULL) { /*global barrier hasn't been initialized yet so take care of it*/
-    team = GASNET_TEAM_ALL = (gasnete_coll_team_t) gasneti_malloc(sizeof(struct gasnete_coll_team_t_));
+    team = GASNET_TEAM_ALL = (gasnete_coll_team_t) gasneti_calloc(1,sizeof(struct gasnete_coll_team_t_));
     team->team_id=0;
     team->myrank = gasneti_mynode;
     team->total_ranks = gasneti_nodes;

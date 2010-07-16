@@ -12,6 +12,17 @@
 # Conduit-specific headers will overwrite any conflicts in extended-ref
 headers = $(top_srcdir)/extended-ref/*.h $(srcdir)/*.h $(CONDUIT_EXTRAHEADERS)
 
+# headers to exclude from $(headers) - please don't use wildcards
+# XXX: Probably not complete and we lack an automated update machanism
+private_headers = gasnet_coll_autotune.h \
+                  gasnet_coll_hashtable.h \
+                  gasnet_coll_scratch.h \
+                  gasnet_coll_team.h \
+                  gasnet_coll_trees.h \
+                  gasnet_extended_refcoll.h \
+                  gasnet_extended_refvis.h \
+                  $(CONDUIT_PRIVATEHEADERS)
+
 @BUILD_SEQ_LIBS_TRUE@     makefile_fragments_seq =     $(CONDUIT_NAME)-seq.mak
 @BUILD_PAR_LIBS_TRUE@     makefile_fragments_par =     $(CONDUIT_NAME)-par.mak 
 @BUILD_PARSYNC_LIBS_TRUE@ makefile_fragments_parsync = $(CONDUIT_NAME)-parsync.mak
@@ -189,9 +200,13 @@ do-clean-local: tests-clean
 
 do-install-data-local: force $(headers) $(makefile_fragments)
 	$(mkinstalldirs) $(DESTDIR)$(includedir)/$(CONDUIT_NAME)-conduit
-	@list='$(headers)'; for p in $$list; do \
+	@list='$(headers)'; privlist='$(private_headers)'; \
+         for p in $$list; do \
 	  if test -f $$p; then \
 	    filename=`basename $$p`; \
+            for q in $$privlist; do \
+              if test "$$filename" = "$$q"; then filename=something_internal.h; break; fi; \
+            done; \
             if test "$$filename" = "`basename $$p _internal.h`" ; then \
 	    echo " $(INSTALL_DATA) $$p $(DESTDIR)$(includedir)/$(CONDUIT_NAME)-conduit/$$filename"; \
 	    $(INSTALL_DATA) $$p $(DESTDIR)$(includedir)/$(CONDUIT_NAME)-conduit/$$filename || exit $$? ; \

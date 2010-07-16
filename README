@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.131 $
+$Revision: 1.131.4.1 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -204,13 +204,15 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
 
     * Linux/SGI-Altix-Itanium/{gcc,IntelC}/64: smp, mpi, udp, shmem
 
+    * FreeBSD/Alpha/64:       smp, udp, #&
     * FreeBSD/x86/gcc/32,64:  smp, mpi, udp
-    * FreeBSD/Alpha/64:   smp, udp, #&
+    * OpenBSD/x86/gcc/32,64:  smp, mpi, udp
+    * NetBSD/x86/gcc/32,64:   smp, mpi, udp
 
     * Tru64/Compaq-AlphaServer/Compaq C: smp, mpi, udp, elan &
 
-    * AIX/IBM-SPPower3/VisualAgeC(xlc),gcc/32,64: smp, mpi, udp, lapi
-    * AIX/IBM-SPPower4/VisualAgeC(xlc),gcc/32,64: smp, mpi, udp, lapi
+    * AIX/IBM-SPPower3/VisualAgeC(xlc),gcc/32,64: smp, mpi, udp, lapi &
+    * AIX/IBM-SPPower4/VisualAgeC(xlc),gcc/32,64: smp, mpi, udp, lapi &
 
     * IRIX/Origin2000/gcc,MIPSProC/32,64: smp, mpi, udp &
 
@@ -220,8 +222,10 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * HPUX/Itanium/gcc/64: smp, udp, mpi &
     * HPUX/Itanium/HPcc/64: smp, mpi &
  
-    * Solaris/SPARC/gcc,SunProC/32,64: smp, udp, mpi
-    * Solaris/x86/gcc,SunProC/32: smp, udp, mpi
+    * Solaris10/SPARC/gcc,SunProC/32,64: smp, udp, mpi
+    * Solaris10/x86/gcc,SunProC/32,64: smp, udp, mpi
+
+    * OpenSolaris/x86/gcc,SunProC/32,64: smp, udp, #
 
     * MSWindows-Cygwin/x86/gcc/32/: smp, udp, mpi (MPICH.NT,MPICH2)
 
@@ -233,7 +237,7 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
  
     * Unicos/Cray-X1/CrayC/64: smp, udp, mpi, shmem &
 
-    * Catamount/Cray-XT/{gcc,PGI}/64: smp, mpi, portals %
+    * Catamount/Cray-XT/{gcc,PGI}/64: smp, mpi, portals %&
     * CNL/Cray-XT/{gcc,PGI,PathScale,Intel}/64: smp, mpi, portals
 
     * Linux/Cray-XD1/{gcc,PGI}/64: smp, mpi
@@ -791,10 +795,16 @@ are exclusively for use in building the conduit libraries.
 <gasnet_internal.h> is the conduit-independent version of these files at the top level.
 Internal GASNet implementation should include <gasnet_internal.h> instead of <gasnet.h>.
 
+<gasnet_coll.h> and <gasnet_vis.h> are headers providing a set of proposed additions
+to the GASNet spec (for collective operations and non-contiguous put/get,
+respectively).  Since these interfaces are not finalized in a written specification,
+we strongly recommend you contact us before using them.
+
 <gasnet_tools.h> is header providing a set of conduit-independent general system 
 utilities which are not specified by the GASNet spec. The header can and is used 
 independently of libgasnet*.a (even on systems with no supported conduits) - 
 all that's required is a successful configure and #include <gasnet_tools.h>.
+See README-tools for documentation on the GASNet Tools interface.
 
 * config-aux: helper scripts for configure
 
@@ -936,6 +946,8 @@ All GASNet conduit code is required to meet the following coding standards:
   of Perl 5.005+.
 
 * Test code should follow these standards and also those listed in tests/README
+  Only the tests are currently using GNU-make specific features, and we'd stop
+  doing so if we could.
 
 GASNet porting guide
 ====================

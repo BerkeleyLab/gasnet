@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended_coll_dcmf.c,v $
- *     $Date: 2009/10/28 03:01:34 $
- * $Revision: 1.6 $
+ *     $Date: 2010/07/16 21:06:11 $
+ * $Revision: 1.6.6.1 $
  * Description: GASNet extended collectives implementation on DCMF
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -10,6 +10,7 @@
 #include <gasnet_coll_exchange_dcmf.h>
 #include <gasnet_coll_bcast_dcmf.h>
 #include <gasnet_coll_barrier_dcmf.h>
+#include <gasnet_coll_allreduce_dcmf.h>
 
 int gasnete_coll_dcmf_inited = 0;
 int gasnete_use_dcmf_coll;
@@ -50,6 +51,7 @@ void gasnete_coll_init_dcmf()
   gasnete_coll_barrier_proto_register();
   gasnete_coll_bcast_proto_register();
   gasnete_coll_a2a_proto_register();
+  gasnete_coll_allreduce_proto_register();
   
   gasnete_coll_dcmf_inited = 1;
   gasneti_mutex_unlock(&init_lock);
@@ -70,7 +72,7 @@ static gasnete_coll_team_dcmf_t * gasnete_coll_team_dcmf_new(void)
 #ifdef G_DCMF_TRACE
   fprintf(stderr, "gasnete_coll_team_dcmf_new is executed!\n");
 #endif 
-  p = gasneti_malloc(sizeof(gasnete_coll_team_dcmf_t));
+  p = gasneti_malloc_aligned(64, sizeof(gasnete_coll_team_dcmf_t));
   return (gasnete_coll_team_dcmf_t *)p;
 }
 
@@ -79,7 +81,7 @@ static void gasnete_coll_team_dcmf_delete(gasnete_coll_team_dcmf_t * dcmf_tp)
 #ifdef G_DCMF_TRACE
   fprintf(stderr, "gasnete_coll_team_dcmf_delete is executed!\n");
 #endif 
-  gasneti_free(dcmf_tp);
+  gasneti_free_aligned(dcmf_tp);
 }
 
 void gasnete_dcmf_team_init(gasnet_team_handle_t team,
@@ -95,6 +97,10 @@ void gasnete_dcmf_team_init(gasnet_team_handle_t team,
 #endif
 
   gasneti_assert(team != NULL);
+  
+  /* return if it has already been initialized */
+  if (team->dcmf_tp != NULL)
+    return;
   
   if (gasnete_coll_dcmf_inited == 0)
     gasnete_coll_init_dcmf();
@@ -141,6 +147,8 @@ void gasnete_dcmf_team_init(gasnet_team_handle_t team,
   /* set up collective protocols for the team */
   gasnete_coll_bcast_set_default_proto(team);
   gasnete_coll_a2a_set_default_proto(team);
+  gasnete_coll_allreduce_set_default_proto(team);
+  gasnete_coll_namedbarrier_set_default_proto(team);
 }
 
 /* DCMF conduit-specific team initialization, called outside the DCMF

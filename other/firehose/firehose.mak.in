@@ -13,8 +13,9 @@
 # one should include $(fh_sourcelist) in CONDUIT_SOURCELIST
 #
 # fh_sourcelist     - C files to build normally
-# fh_extralibcflags - CFLAGS need for firehose headers
-# fh_extraheaders   - firehose headers to install
+# fh_extralibcflags - CFLAGS needed for firehose headers
+# fh_extraheaders   - firehose header(s) to install from firehose directory
+# fh_privheaders    - firehose header(s) not to install from conduit directory
 # fh_extradeps      - dependencies on firehose .c and .h files
 # fh_special_objs   - firehose .o files with "abonormal" build requirements
 #
@@ -24,6 +25,7 @@ fh_srcdir = $(top_srcdir)/other/firehose
 fh_blddir = $(top_builddir)/other/firehose
 fh_sourcelist = 
 fh_extraheaders = $(fh_srcdir)/firehose_trace.h
+fh_privheaders = firehose_fwd.h
 fh_extralibcflags = -I$(fh_srcdir)
 fh_extradeps = $(fh_srcdir)/*.[ch] $(fh_blddir)/firehose.mak
 fh_special_objs =                                   \

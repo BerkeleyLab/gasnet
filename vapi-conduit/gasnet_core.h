@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2009/09/18 23:33:54 $
- * $Revision: 1.57 $
+ *     $Date: 2010/07/16 21:06:54 $
+ * $Revision: 1.57.6.1 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -172,7 +172,7 @@ void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context) {
 
 #define GASNETC_BUFSZ		4096
 
-#if GASNET_STATS
+#if GASNETI_STATS_OR_TRACE
   #define GASNETC_HDR_TIMESTAMP	8
 #else
   #define GASNETC_HDR_TIMESTAMP	0

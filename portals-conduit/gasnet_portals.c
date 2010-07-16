@@ -106,10 +106,10 @@ gasnetc_eq_t *gasnetc_SYS_EQ = NULL;        /* out-of-band system Event Queue */
 static int portals_sysqueue_initialized = 0;
 double gasnetc_shutdown_seconds = 0.;
 int gasnetc_shutdownInProgress = 0;
+static gasneti_atomic_t gasnetc_exitcode = gasneti_atomic_init(0);
+static uint32_t sys_exit_rcvd = 0;
 static double shutdown_max = 360.;  /* 6 minutes ... just a guess */
-static gasneti_weakatomic_t sys_barrier_cnt;
-static gasneti_weakatomic_t sys_barrier_got;
-static gasneti_weakatomic_t sys_barrier_checkin;
+static uint32_t sys_barrier_rcvd[2];
 /* stores signal number when signal occurs */
 gasneti_weakatomic_t gasnetc_got_signum;
 /* indicates when portals resources have been initialized on all nodes */
@@ -147,7 +147,7 @@ int gasnetc_max_cpn = 400;                    /* max number of credits that can 
 gasneti_mutex_t gasnetc_epoch_lock = GASNETI_MUTEX_INITIALIZER;  /* epoch update lock */
 gasneti_weakatomic_t gasnetc_AMRequest_count; /* Count of number of AMRequests we receive */
 int gasnetc_epoch_duration = 1024;            /* Number of AMRequests we receive before end of epoch */
-gasnetc_dll_index_t gasnetc_scavenge_list = GASNETC_DLL_NULL;    /* scavenge list */
+gasnet_node_t gasnetc_scavenge_list = GASNETC_DLL_NULL;    /* scavenge list */
 gasneti_mutex_t gasnetc_scavenge_lock = GASNETI_MUTEX_INITIALIZER;  /* lock for scavenge list */
 int gasnetc_num_scavenge = 6;                 /* Max number of nodes to hit-up each scavenge run */
 gasneti_weakatomic_t gasnetc_scavenge_inflight;  /* number of outstanding revoke requests */
@@ -1103,13 +1103,12 @@ static void ReqSB_event(ptl_event_t *ev)
     gasneti_assert(msg_type & GASNETC_PTL_MSG_GET);
     gasnetc_return_ticket(&gasnetc_send_tickets);
     local_offset = GASNETI_HIWORD(mbits);
-    pdata = ((uint8_t*)ev->md.start + local_offset);
-    q = pdata - sizeof(void*);
+    q = ((uint8_t*)ev->md.start + local_offset);
+    pdata = q + sizeof(void*);
     /* q points to location where real destination address is stored */
-    dest = (void*)*(uintptr_t*)q;
+    dest = *(void**)q;
     memcpy(dest,pdata,ev->mlength);
     /* free the bounce buffer */
-    local_offset -= sizeof(void*);
     gasnetc_chunk_free(&gasnetc_ReqSB,local_offset);
     /* mark the get (isget=1) operation complete */
     /* Do we need membar here?  Above chunk free required lock/unlock
@@ -1724,14 +1723,14 @@ void gasnetc_scavenge_list_add(gasnet_node_t node, int locked)
   gasneti_assert(s->link.next == GASNETC_DLL_NULL);
   gasneti_assert(s->link.prev == GASNETC_DLL_NULL);
   {
-    gasnetc_dll_index_t head = gasnetc_scavenge_list;
+    gasnet_node_t head = gasnetc_scavenge_list;
     if (head == GASNETC_DLL_NULL) {
       /* empty list */
       s->link.next = s->link.prev = node;
       gasnetc_scavenge_list = node;
     } else {
       /* add to the end of the list */
-      gasnetc_dll_index_t prev = gasnetc_conn_state[head].link.prev;
+      gasnet_node_t prev = gasnetc_conn_state[head].link.prev;
       s->link.next = head;
       s->link.prev = prev;
       gasnetc_conn_state[head].link.prev = node;
@@ -1756,8 +1755,8 @@ void gasnetc_scavenge_list_remove(gasnet_node_t node)
   gasneti_assert(s->link.next != GASNETC_DLL_NULL);
   gasneti_assert(s->link.prev != GASNETC_DLL_NULL);
   {
-    gasnetc_dll_index_t next = s->link.next;
-    gasnetc_dll_index_t prev = s->link.prev;
+    gasnet_node_t next = s->link.next;
+    gasnet_node_t prev = s->link.prev;
     gasneti_assert( gasnetc_scavenge_list != GASNETC_DLL_NULL );
     if (next == node) {
       /* this is the only node in the list */
@@ -1786,7 +1785,7 @@ void gasnetc_print_scavenge_list(void)
   gasneti_assert(gasnetc_use_dynamic_credits); 
   gasneti_mutex_lock(&gasnetc_scavenge_lock);
   {
-    gasnetc_dll_index_t node = gasnetc_scavenge_list;
+    gasnet_node_t node = gasnetc_scavenge_list;
     int finished = (node == GASNETC_DLL_NULL);
     printf("SCAVENGE_List[%d]:",gasneti_mynode);
     while (! finished) {
@@ -1962,41 +1961,49 @@ static void exec_sys_msg(gasnetc_sys_t msg_id, int32_t arg0, int32_t arg1, int32
   switch (msg_id) {
   case GASNETC_SYS_SHUTDOWN_REQUEST:
     {
-      gasnet_node_t sender = (gasnet_node_t)arg0;
+      uint32_t distance = arg0;
       int exitcode = arg1;
-      gasneti_assert(sender < gasneti_nodes);
-      /* mark that we got a shutdown message from this node */
-      gasnetc_conn_state[sender].flags |= GASNETC_SYS_GOT_SHUTDOWN_MSG;
-      GASNETI_TRACE_PRINTF(C,("Got SHUTDOWN Request from node %d",sender));
-      if (!gasnetc_shutdownInProgress) gasnetc_exit(exitcode);
+      int oldcode;
+    #if GASNET_DEBUG || GASNETI_STATS_OR_TRACE
+      int sender = arg2;
+      gasneti_assert(((uint32_t)sender + distance) % gasneti_nodes == gasneti_mynode);
+      GASNETI_TRACE_PRINTF(C,("Got SHUTDOWN Request from node %d w/ exitcode %d",sender,exitcode));
+    #endif
+      oldcode = gasneti_atomic_read(&gasnetc_exitcode, 0);
+      if (exitcode > oldcode) {
+        gasneti_atomic_set(&gasnetc_exitcode, exitcode, 0);
+      } else {
+        exitcode = oldcode;
+      }
+      sys_exit_rcvd |= distance;
+      if (!gasnetc_shutdownInProgress) {
+        gasneti_sighandlerfn_t handler = gasneti_reghandler(SIGQUIT, SIG_IGN);
+        if ((handler != gasneti_defaultSignalHandler) &&
+#ifdef SIG_HOLD
+            (handler != (gasneti_sighandlerfn_t)SIG_HOLD) &&
+#endif
+            (handler != (gasneti_sighandlerfn_t)SIG_ERR) &&
+            (handler != (gasneti_sighandlerfn_t)SIG_IGN) &&
+            (handler != (gasneti_sighandlerfn_t)SIG_DFL)) {
+          (void)gasneti_reghandler(SIGQUIT, handler);
+          raise(SIGQUIT);
+        }
+        gasnetc_exit(exitcode);
+      }
     }
     break;
 
-  case GASNETC_SYS_BARRIER_ARRIVE:
+  case GASNETC_SYS_BARRIER:
     {
-      /* we are root and message that a node has arrived at a barrier */
+      /* barrier notify message - never multithreaded */
+      int phase = arg0;
+      uint32_t distance = arg1;
     #if GASNET_DEBUG || GASNETI_STATS_OR_TRACE
-      int sender = arg0;
-      int b_cnt = arg1;
+      int sender = arg2;
+      GASNETI_TRACE_PRINTF(C,("Got BARRIER from node %d phase=%d distance=%d",sender,phase,(int)distance));
+      gasneti_assert(((uint32_t)sender + distance) % gasneti_nodes == gasneti_mynode);
     #endif
-      gasneti_assert(gasneti_mynode == 0);
-      gasneti_weakatomic_increment(&sys_barrier_checkin,0);
-      GASNETI_TRACE_PRINTF(C,("Got BARRIER_ARRIVE from node %d, cnt=%d",sender,b_cnt));
-    }
-    break;
-
-  case GASNETC_SYS_BARRIER_GO:
-    {
-      /* we are root and message that a node has arrived at a barrier */
-    #if GASNET_DEBUG || GASNETI_STATS_OR_TRACE
-      int sender = arg0;
-    #endif
-      int b_cnt = arg1;
-      gasneti_assert(sender == 0);
-      gasneti_assert(b_cnt == gasneti_weakatomic_read(&sys_barrier_cnt,0));
-      GASNETI_TRACE_PRINTF(C,("Got BARRIER_GO from node %d, cnt=%d",sender,b_cnt));
-      /* let poller know its ok to proceed */
-      gasneti_weakatomic_set(&sys_barrier_got,b_cnt,0);
+      sys_barrier_rcvd[phase] |= distance;
     }
     break;
 
@@ -2101,9 +2108,8 @@ static void sys_init(void)
 
   GASNETI_TRACE_PRINTF(C,("SYS_init: %s me=%lu md=%lu",gasnetc_SYS_Recv.name,(ulong)gasnetc_SYS_Recv.me_h,(ulong)gasnetc_SYS_Recv.md_h));
 
-  gasneti_weakatomic_set(&sys_barrier_cnt, 0, 0);
-  gasneti_weakatomic_set(&sys_barrier_got, 0, 0);
-  gasneti_weakatomic_set(&sys_barrier_checkin, 0, 0);
+  sys_barrier_rcvd[0] = 0;
+  sys_barrier_rcvd[1] = 0;
 
   /* make sure everyone has done this before proceeding */
   gasnetc_bootstrapBarrier();
@@ -2157,43 +2163,93 @@ extern void gasnetc_sys_SendMsg(gasnet_node_t node, gasnetc_sys_t msg_id,
 
 extern void gasnetc_sys_barrier(void)
 {
-  gasnet_node_t node;
-  int barr_cnt;
+  static int phase = 0;
+  uint32_t goal = 0;
+  uint32_t distance;
+
+#if GASNET_DEBUG || GASNETI_STATS_OR_TRACE
+  static int barr_cnt = 0;
+  GASNETI_TRACE_PRINTF(C,("Entering SYS BARRIER cnt=%d",barr_cnt));
+  barr_cnt += 1;
+#endif
+
   gasneti_assert(portals_sysqueue_initialized);
 
-  gasneti_weakatomic_increment(&sys_barrier_cnt,0);
-  barr_cnt = gasneti_weakatomic_read(&sys_barrier_cnt, 0);
-  GASNETI_TRACE_PRINTF(C,("Entering SYS BARRIER cnt=%d",barr_cnt));
-  if (gasneti_mynode == 0) {
-    /* wait for all other nodes to check in */
-    while (gasneti_weakatomic_read(&sys_barrier_checkin,0) < gasneti_nodes-1) {
-      gasnetc_sys_poll(GASNETC_EQ_LOCK);
+  for (distance = 1; distance < gasneti_nodes; distance *= 2) {
+    gasnet_node_t peer;
+
+    if (distance >= gasneti_nodes - gasneti_mynode) {
+      peer = gasneti_mynode - (gasneti_nodes - distance);
+    } else {
+      peer = gasneti_mynode + distance;
     }
 
-    /* reset this for next barrier */
-    gasneti_weakatomic_set(&sys_barrier_checkin, 0, 0);
+    gasnetc_sys_SendMsg(peer,GASNETC_SYS_BARRIER,phase,distance,gasneti_mynode);
 
-    /* send message to all other nodes */
-    for (node = 1; node < gasneti_nodes; node++)
-      gasnetc_sys_SendMsg(node,GASNETC_SYS_BARRIER_GO,0,barr_cnt,0);
-  } else {
-
-    /* reply to this message will set this variable to 1 */
-    gasneti_weakatomic_set(&sys_barrier_got, 0, 0);
-    /* send signal to node 0 */
-    gasnetc_sys_SendMsg(0,GASNETC_SYS_BARRIER_ARRIVE,gasneti_mynode,barr_cnt,0);
-
-    /* wait for node 0 to reply */
-    while (!gasneti_weakatomic_read(&sys_barrier_got,0)) {
+    /* wait for completion of the proper receive, which might arrive out of order */
+    goal |= distance;
+    while ((sys_barrier_rcvd[phase] & goal) != goal) {
       gasnetc_sys_poll(GASNETC_EQ_LOCK);
     }
   }
+
+  /* reset for next barrier */
+  sys_barrier_rcvd[phase] = 0;
+  phase ^= 1;
 }
 
 /* =================================================================================
  * This lower portion of the file is where exported functions are located.
  * These are exported to both the Core and Extended API implementations.
  * ================================================================================= */
+
+/* Reduction (op=MAX) over exitcodes using dissemination pattern.
+   Returns 0 on sucess, or non-zero on error (timeout).
+ */
+extern int gasnetc_sys_exit(int *exitcode_p)
+{
+  uint32_t goal = 0;
+  uint32_t distance;
+  int result = 0; /* success */
+  int exitcode = *exitcode_p;
+  int oldcode;
+  gasneti_tick_t timeout_us = 1e6 * gasnetc_shutdown_seconds;
+  gasneti_tick_t starttime = gasneti_ticks_now();
+
+  GASNETI_TRACE_PRINTF(C,("Entering SYS EXIT"));
+
+  gasneti_assert(portals_sysqueue_initialized);
+
+  for (distance = 1; distance < gasneti_nodes; distance *= 2) {
+    gasnet_node_t peer;
+
+    if (distance >= gasneti_nodes - gasneti_mynode) {
+      peer = gasneti_mynode - (gasneti_nodes - distance);
+    } else {
+      peer = gasneti_mynode + distance;
+    }
+
+    oldcode = gasneti_atomic_read(&gasnetc_exitcode, 0);
+    exitcode = MAX(exitcode, oldcode);
+    gasnetc_sys_SendMsg(peer,GASNETC_SYS_SHUTDOWN_REQUEST,distance,exitcode,gasneti_mynode);
+
+    /* wait for completion of the proper receive, which might arrive out of order */
+    goal |= distance;
+    while ((sys_exit_rcvd & goal) != goal) {
+      gasnetc_sys_poll(GASNETC_EQ_LOCK);
+      if (gasneti_ticks_to_us(gasneti_ticks_now() - starttime) > timeout_us) {
+        result = 1; /* failure */
+        goto out;
+      }
+    }
+  }
+
+out:
+  oldcode = gasneti_atomic_read(&gasnetc_exitcode, 0);
+  *exitcode_p = MAX(exitcode, oldcode);
+
+  return result;
+}
 
 /* ---------------------------------------------------------------------------------
  * Setup the portals network so that we can begin communicating
@@ -2216,7 +2272,6 @@ extern void gasnetc_init_portals_network(int *argc, char ***argv)
   int               rc, i, node;
   int               num_interfaces;
   int               pid_offset = 0;
-  uint32_t          maxnodes = (uint32_t)((gasnetc_dll_index_t)-1);
 
 #if HAVE_PMI_CNOS
   if (PMI_SUCCESS != PMI_Init(&rc)) {
@@ -2238,10 +2293,10 @@ extern void gasnetc_init_portals_network(int *argc, char ***argv)
   /* init tracing as early as possible */
   gasneti_trace_init(argc, argv);
 
-  if (gasneti_nodes >= maxnodes) {
+  if (gasneti_nodes > GASNET_MAXNODES) {
     gasneti_fatalerror("GASNet Portals conduit designed to work for up to %d nodes,"
-		       " this job uses %d nodes.  Modify size of gasnetc_dll_index_t "
-		       " and rebuild library",maxnodes-1,gasneti_nodes);
+		       " this job uses %d nodes.  Modify size of gasnet_node_t "
+		       " and rebuild library",GASNET_MAXNODES,gasneti_nodes);
   }
 
   /* Set up buffered IO for STDOUT */
@@ -2378,31 +2433,38 @@ extern void gasnetc_bootstrapBarrier(void) {
 }
 
 /* ---------------------------------------------------------------------------------
- * Bootstrap exchange function over portals
+ * Bootstrap broadcast function over portals
  * After the network has been initialized, but before all the conduit resources
  * have been allocated, can use this function to perform the equivelent of
  * an MPI_Broadcast.  The root node will broadcast its info to all other nodes.
  * --------------------------------------------------------------------------------- */
 extern void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode)
 {
+  gasnet_node_t left_child_rank, local_rank;
+  int children;
   ptl_md_t src_md, dest_md;
   ptl_handle_me_t dest_me_h;
   ptl_handle_md_t src_h, dest_h;
   ptl_handle_eq_t eq_h;
   ptl_event_t ev;
-  ptl_match_bits_t match_bits  = 0x0F0F0F0F0F0F0F0F;
-  ptl_match_bits_t ignore_bits = 0x0000000000000000;
-  int eq_len;
+  int eq_len = GASNETC_BOOTSTRAP_BCAST_RADIX + 2;
   int i, rc;
 
   GASNETI_TRACE_PRINTF(C,("bootBroadcast from %d len = %d, src=%p dest=%p",rootnode,(int)len,src,dest));
+  gasneti_assert(GASNETC_BOOTSTRAP_BCAST_RADIX > 1);
 
-  if (gasneti_mynode != rootnode) {
-    /* alloc an event queue for the action */
-    eq_len = 10;
-    GASNETC_PTLSAFE(PtlEQAlloc(gasnetc_ni_h, eq_len, NULL, &eq_h));
+  /* messy wrap stuff for rootnode != 0 */
+  local_rank = gasneti_mynode + gasneti_nodes - rootnode;
+  if (local_rank >= gasneti_nodes) local_rank -= gasneti_nodes; /* local_rank %= gasneti_nodes */
+  left_child_rank = GASNETC_BOOTSTRAP_BCAST_RADIX * local_rank + 1;
+  children = (left_child_rank >= gasneti_nodes)
+                  ? 0 : GASNETC_MIN(GASNETC_BOOTSTRAP_BCAST_RADIX, gasneti_nodes - left_child_rank);
 
-    /* register the dest md with an EQ on a match list */
+  /* alloc an event queue for the action */
+  GASNETC_PTLSAFE(PtlEQAlloc(gasnetc_ni_h, eq_len, NULL, &eq_h));
+
+  /* register the dest md with an EQ on a match list */
+  if (local_rank != 0) {
     dest_md.start = dest;
     dest_md.length = len;
     dest_md.threshold = PTL_MD_THRESH_INF;
@@ -2412,24 +2474,36 @@ extern void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int ro
     dest_md.eq_handle = eq_h;
 
     /* construct the match entry */
-    GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_AM_PTE, gasnetc_any_id, match_bits, ignore_bits, PTL_UNLINK, PTL_INS_AFTER, &dest_me_h));
+    GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_AM_PTE, gasnetc_any_id, GASNETC_PTL_BOOT_BITS, GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER, &dest_me_h));
 
     /* attach the dest memory descriptor */
     GASNETC_PTLSAFE(PtlMDAttach(dest_me_h, dest_md, PTL_RETAIN, &dest_h));
   }
 
-  /* need barrier here to insure everyone is ready to go */
+  /* wait for all dest_md registrations */
+  /* XXX: point-to-point sync would be preferable, but this code is unused anyway */
   gasnetc_bootstrapBarrier();
 
-  if (gasneti_mynode == rootnode) {
-    int found = 0;
-    /* alloc an event queue for the action */
-    eq_len = 2*gasneti_nodes;
+  /* step 1 - wait for data to arrive from parent, if any */
+  if (local_rank != 0) {
+    rc = PtlEQWait(eq_h, &ev);
+    switch (rc) {
+    case PTL_OK:
+      gasneti_assert_always( ev.type == PTL_EVENT_PUT_END );
+      break;
+    default:
+      gasneti_fatalerror("GASNet Portals Error in bootBroadcast waiting for PUT_END event: %s (%i)\n at %s\n",
+			 ptl_err_str[rc],rc,gasneti_current_loc);
+    };
+  
+    /* now remove the dest MD, which will also unlink the match-list entry */
+    GASNETC_PTLSAFE(PtlMDUnlink(dest_h));
+  }
 
-    GASNETC_PTLSAFE(PtlEQAlloc(gasnetc_ni_h, eq_len, NULL, &eq_h));
-
-    /* register the src md with no event queue */
-    src_md.start = src;
+  /* step 2 - put data to children, if any */
+  if (children) {
+    /* register the src md */
+    src_md.start = local_rank ? dest : src;
     src_md.length = len;
     src_md.threshold = PTL_MD_THRESH_INF;
     src_md.max_size = 0;
@@ -2438,140 +2512,173 @@ extern void gasnetc_bootstrapBroadcast(void *src, size_t len, void *dest, int ro
     src_md.eq_handle = eq_h;
     GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, src_md, PTL_RETAIN, &src_h));
 
-    /* spray out the message */
-    for (i = 0; i < gasneti_nodes; i++) {
-      if (i != gasneti_mynode) {
-	GASNETC_PTLSAFE(PtlPut(src_h,PTL_NOACK_REQ, gasnetc_procid_map[i].ptl_id,GASNETC_PTL_AM_PTE,GASNETC_PTL_AC_ID,match_bits,0,0));
-      }
+    /* issue puts */
+    for (i=0; i<children; ++i) {
+      gasnet_node_t child = left_child_rank + rootnode + i;
+      if (child >= gasneti_nodes) child -= gasneti_nodes; /* child %= gasneti_nodes */
+      GASNETC_PTLSAFE(PtlPut(src_h,PTL_NOACK_REQ, gasnetc_procid_map[child].ptl_id,GASNETC_PTL_AM_PTE,GASNETC_PTL_AC_ID,GASNETC_PTL_BOOT_BITS,0,0));
     }
 
-    while (found < (gasneti_nodes - 1)) {
+    /* wait for completion of puts */
+    for (i=0; i<children; ++i) {
       rc = PtlEQWait(eq_h, &ev);
       switch (rc) {
       case PTL_OK:
-	gasneti_assert_always( ev.type == PTL_EVENT_SEND_END );
-	break;
+        gasneti_assert_always( ev.type == PTL_EVENT_SEND_END );
+        break;
       default:
-	gasneti_fatalerror("GASNet Portals Error in bootExchange waiting for event: %s (%i)\n at %s\n",
+        gasneti_fatalerror("GASNet Portals Error in bootBroadcast waiting for SEND_END event: %s (%i)\n at %s\n",
 			   ptl_err_str[rc],rc,gasneti_current_loc);
       };
     }
 
     /* now remove the src MD */
     GASNETC_PTLSAFE(PtlMDUnlink(src_h));
-    /* reclaim the event queue */
-    GASNETC_PTLSAFE(PtlEQFree(eq_h));
+  }
 
-  } else {
-    /* wait for the message that data has arrived */
-    rc = PtlEQWait(eq_h, &ev);
-    switch (rc) {
-    case PTL_OK:
-      gasneti_assert_always( ev.type == PTL_EVENT_PUT_END );
-      break;
-    default:
-      gasneti_fatalerror("GASNet Portals Error in bootExchange waiting for event: %s (%i)\n at %s\n",
-			 ptl_err_str[rc],rc,gasneti_current_loc);
-    };
-  
-    /* now remove the dest MD, which will also unlink the match-list entry */
-    GASNETC_PTLSAFE(PtlMDUnlink(dest_h));
+  /* reclaim the event queue */
+  rc = PtlEQFree(eq_h);
+  if_pf (rc == PTL_EQ_IN_USE) { /* XXX: Not sure what causes this - it is not in Portals Spec */
+    int i;
+    for (i = 0; i < 4; ++i) { /* bounded retry */
+      rc = PtlEQGet(eq_h, &ev);
+      if (rc == PTL_OK) {
+        gasneti_fatalerror("Unexpected event at end of bootBroadcast w/ mbits=%p\n",(void*)ev.match_bits);
+      }
+      if (PtlEQFree(eq_h) == PTL_OK) break;
+    }
+  }
 
-    /* reclaim the event queue */
-    GASNETC_PTLSAFE(PtlEQFree(eq_h));
+  if (!local_rank && (dest != src)) {
+    memcpy(dest, src, len);
   }
 
   /* should not need a barrier here */
   GASNETI_TRACE_PRINTF(C,("bootBroadcast exit"));
 }
 
-
 /* ---------------------------------------------------------------------------------
  * Bootstrap exchange function over portals
  * After the network has been initialized, but before all the conduit resources
  * have been allocated, can use this function to perform the equivelent of
- * an MPI_Allgather.  Each node will broadcast its info to all other nodes.
+ * an MPI_Allgather.  Bruck's concatenation algorithm is used here.
  * --------------------------------------------------------------------------------- */
 extern void gasnetc_bootstrapExchange(void *src, size_t len, void *dest)
 {
-  ptl_md_t src_md, dest_md;
-  ptl_handle_me_t dest_me_h;
-  ptl_handle_md_t src_h, dest_h;
+  ptl_md_t temp_md;
+  ptl_handle_me_t temp_me_h;
+  ptl_handle_md_t temp_h;
   ptl_handle_eq_t eq_h;
-  int eq_len = gasneti_nodes * 4;
-  int found = 0;
   ptl_event_t ev;
-  ptl_match_bits_t match_bits  = 0xF0F0F0F0F0F0F0F0;
-  ptl_match_bits_t ignore_bits = 0x0000000000000000;
-  int dest_offset = gasneti_mynode*len;
-  int i;
+  const int eq_len = 64; /* 32 PUT_END + 32 SEND_END worst case */
+  ptl_hdr_data_t rcvd = 0;
+  ptl_hdr_data_t goal = 0;
+  ptl_hdr_data_t hdr_data = 1;
+  ptl_size_t offset = len;
+  void *temp;
+  uint32_t distance;
+  int rc, sends = 0;
 
   GASNETI_TRACE_PRINTF(C,("bootExch with len = %d, src = %p dest = %p",(int)len,src,dest));
+
+  temp = gasneti_malloc(len * gasneti_nodes);
 
   /* alloc an event queue for the action */
   GASNETC_PTLSAFE(PtlEQAlloc(gasnetc_ni_h, eq_len, NULL, &eq_h));
 
-  /* register the src md with EQ */
-  src_md.start = src;
-  src_md.length = len;
-  src_md.threshold = PTL_MD_THRESH_INF;
-  src_md.max_size = 0;
-  src_md.options = PTL_MD_EVENT_START_DISABLE;
-  src_md.user_ptr = 0;
-  src_md.eq_handle = eq_h;
-  GASNETC_PTLSAFE(PtlMDBind(gasnetc_ni_h, src_md, PTL_RETAIN, &src_h));
-
-  /* register the dest md with an EQ on a match list */
-  dest_md.start = dest;
-  dest_md.length = len*gasneti_nodes;
-  dest_md.threshold = PTL_MD_THRESH_INF;
-  dest_md.max_size = 0;
-  dest_md.options = PTL_MD_EVENT_START_DISABLE | PTL_MD_OP_PUT | PTL_MD_MANAGE_REMOTE;
-  dest_md.user_ptr = 0;
-  dest_md.eq_handle = eq_h;
+  /* register the temp md with an EQ on a match list */
+  temp_md.start = temp;
+  temp_md.length = len * gasneti_nodes;
+  temp_md.threshold = PTL_MD_THRESH_INF;
+  temp_md.max_size = 0;
+  temp_md.options = PTL_MD_EVENT_START_DISABLE | PTL_MD_OP_PUT | PTL_MD_MANAGE_REMOTE;
+  temp_md.user_ptr = 0;
+  temp_md.eq_handle = eq_h;
 
   /* construct the match entry */
-  GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_AM_PTE, gasnetc_any_id, match_bits, ignore_bits, PTL_UNLINK, PTL_INS_AFTER, &dest_me_h));
+  GASNETC_PTLSAFE(PtlMEAttach(gasnetc_ni_h, GASNETC_PTL_AM_PTE, gasnetc_any_id, GASNETC_PTL_BOOT_BITS, GASNETC_PTL_IGNORE_BITS, PTL_UNLINK, PTL_INS_AFTER, &temp_me_h));
 
-  /* attach the dest memory descriptor */
-  GASNETC_PTLSAFE(PtlMDAttach(dest_me_h, dest_md, PTL_RETAIN, &dest_h));
+  /* attach the temp memory descriptor */
+  GASNETC_PTLSAFE(PtlMDAttach(temp_me_h, temp_md, PTL_RETAIN, &temp_h));
+  gasnetc_sys_barrier();
 
-  /* need barrier here to insure everyone is ready to go */
-  gasnetc_bootstrapBarrier();
+  /* Bruck's Concatenation Algorithm */
+  memcpy(temp, src, len);
+  for (distance = 1; distance < gasneti_nodes; distance *= 2) {
+    ptl_size_t to_xfer;
+    gasnet_node_t peer;
 
-  /* spray out the message */
-  for (i = 0; i < gasneti_nodes; i++) {
-    if (i == gasneti_mynode) {
-      memcpy(((uint8_t*)dest+dest_offset),src,len); 
+    if (gasneti_mynode >= distance) {
+      peer = gasneti_mynode - distance;
     } else {
-      GASNETC_PTLSAFE(PtlPut(src_h,PTL_NOACK_REQ, gasnetc_procid_map[i].ptl_id,GASNETC_PTL_AM_PTE,GASNETC_PTL_AC_ID,match_bits,dest_offset,0));
+      peer = gasneti_mynode + (gasneti_nodes - distance);
     }
+
+    to_xfer = len * MIN(distance, gasneti_nodes - distance);
+    GASNETC_PTLSAFE(PtlPutRegion(temp_h, 0, to_xfer, PTL_NOACK_REQ, gasnetc_procid_map[peer].ptl_id,
+                                 GASNETC_PTL_AM_PTE, GASNETC_PTL_AC_ID, GASNETC_PTL_BOOT_BITS, offset, hdr_data));
+    sends += 1;
+
+    /* wait for completion of the proper receive, and keep count of uncompleted sends.
+       "rcvd" is an accumulator to deal with out-of-order receives, which are IDed by the hdr_data */
+    goal |= hdr_data;
+    while ((rcvd & goal) != goal) {
+      rc = PtlEQWait(eq_h, &ev);
+      switch (rc) {
+      case PTL_OK:
+        gasneti_assert(( ev.type == PTL_EVENT_PUT_END ) || ( ev.type == PTL_EVENT_SEND_END ));
+        if (ev.type == PTL_EVENT_SEND_END) {
+          sends -= 1;
+        } else {
+          rcvd |= ev.hdr_data;
+          gasneti_assert(ev.rlength == ev.mlength);
+          gasneti_assert((ev.rlength == to_xfer) || (ev.hdr_data != hdr_data));
+        }
+        break;
+      default:
+        gasneti_fatalerror("GASNet Portals Error in bootExchange waiting for event: %s (%i)\n at %s\n",
+                           ptl_err_str[rc],rc,gasneti_current_loc);
+      }
+    }
+
+    hdr_data <<= 1;
+    offset += to_xfer;
   }
 
-  /* now poll EQ until we see 2*(N-1) PUT_END/SEND_END events */
-  while (found < 2*(gasneti_nodes-1)) {
-    int rc = PtlEQWait(eq_h, &ev);
+  /* now remove the temp MD, which will also unlink the match-list entry */
+  GASNETC_PTLSAFE(PtlMDUnlink(temp_h));
+
+  /* wait for any SEND_END events not yet seen */
+  while (sends) {
+    rc = PtlEQWait(eq_h, &ev);
     switch (rc) {
     case PTL_OK:
-      gasneti_assert_always( (ev.type == PTL_EVENT_PUT_END) || (ev.type == PTL_EVENT_SEND_END) );
-      found++;
+      gasneti_assert( ev.type == PTL_EVENT_SEND_END );
+      sends -= 1;
       break;
     default:
       gasneti_fatalerror("GASNet Portals Error in bootExchange waiting for event: %s (%i)\n at %s\n",
-			 ptl_err_str[rc],rc,gasneti_current_loc);
-    };
+                         ptl_err_str[rc],rc,gasneti_current_loc);
+    }
   }
 
-  gasnetc_bootstrapBarrier(); /* MLW not needed */
-  
-  /* now remove the src MD */
-  GASNETC_PTLSAFE(PtlMDUnlink(src_h));
-
-  /* now remove the dest MD, which will also unlink the match-list entry */
-  GASNETC_PTLSAFE(PtlMDUnlink(dest_h));
-
   /* reclaim the event queue */
-  GASNETC_PTLSAFE(PtlEQFree(eq_h));
+  rc = PtlEQFree(eq_h);
+  if_pf (rc == PTL_EQ_IN_USE) { /* XXX: Not sure what causes this - it is not in Portals Spec */
+    int i;
+    for (i = 0; i < 4; ++i) { /* bounded retry */
+      rc = PtlEQGet(eq_h, &ev);
+      if (rc == PTL_OK) {
+        gasneti_fatalerror("Unexpected event at end of bootExchange w/ mbits=%p\n",(void*)ev.match_bits);
+      }
+      if (PtlEQFree(eq_h) == PTL_OK) break;
+    }
+  }
+
+  /* now rotate into final position */
+  memcpy(dest, (uint8_t*)temp + len * (gasneti_nodes - gasneti_mynode), len * gasneti_mynode);
+  memcpy((uint8_t*)dest + len * gasneti_mynode, temp, len * (gasneti_nodes - gasneti_mynode));
+  gasneti_free(temp);
 
   /* should not need a barrier here */
   GASNETI_TRACE_PRINTF(C,("bootExch exit"));
@@ -3894,9 +4001,9 @@ size_t gasnetc_getmsg(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     md_h = gasnetc_ReqSB.md_h;
     /* store the dest address at this location */
     *(uintptr_t*)bb = (uintptr_t)dest;
+    match_bits |= ((ptl_match_bits_t)local_offset << 32); /* W/O the shift by sizeof(void*) */
     /* Let portals use the rest of the chunk */
     local_offset += sizeof(void*);
-    match_bits |= ((ptl_match_bits_t)local_offset << 32);
     GASNETI_TRACE_EVENT(C, GET_BB);
   } else GASNETC_IF_USE_FIREHOSE (
     /* alloc a firehose for the destination region */

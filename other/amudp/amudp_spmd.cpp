@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.cpp,v $
- *     $Date: 2009/12/09 01:50:45 $
- * $Revision: 1.42 $
+ *     $Date: 2010/07/16 21:06:33 $
+ * $Revision: 1.42.4.1 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -11,6 +11,7 @@
 #include <errno.h>
 #include <stdio.h>
 #if PLATFORM_OS_MSWINDOWS
+  #undef sched_yield
   #define sched_yield() Sleep(0)
   #define sleep(x) Sleep(x*1000)
   #include <process.h>
@@ -19,6 +20,7 @@
   #if PLATFORM_ARCH_CRAYT3E || PLATFORM_OS_SUPERUX || PLATFORM_OS_NETBSD || \
       PLATFORM_OS_MTA || PLATFORM_OS_BLRTS || PLATFORM_OS_CATAMOUNT || PLATFORM_OS_OPENBSD
     /* these implement sched_yield() in libpthread only, which we may not want */
+    #undef sched_yield
     #define sched_yield() sleep(0)
   #else
     #include <sched.h>
@@ -548,6 +550,10 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
       int numset; // helpers for coord socket
       SOCKET *tempSockArr = (SOCKET*)AMUDP_malloc(sizeof(SOCKET)*AMUDP_SPMDNUMPROCS);
       while (1) {
+       #ifdef FD_SETSIZE /* Should always be present, but just in case */
+        if (allList.getMaxFd() >= FD_SETSIZE)
+          AMUDP_FatalErr("Open sockets exceed FD_SETSIZE. Exiting...");
+       #endif
         allList.makeFD_SET(psockset);
 
         if (select(allList.getMaxFd()+1, psockset, NULL, NULL, NULL) == -1) { // block for activity

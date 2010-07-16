@@ -2,8 +2,8 @@
 README file for GASNet tools
 ============================
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.25 $
-GASNet tools specification version: 1.5
+$Revision: 1.25.4.1 $
+GASNet tools specification version: 1.7
 
 The GASNet tools are a set of communication-independent utilities that are used
 to implement GASNet, and constitute a useful portability tool for GASNet
@@ -159,11 +159,17 @@ the threads of a process.
    All oustanding loads and stores must be completed before any subsequent ones
    may begin.
 
+ gasnett_weak_wmb:
+ gasnett_weak_rmb:
+ gasnett_weak_mb:
+   These are equivalent to the corresponding gasnett_local_* except that in a build
+   without threads these compile away to nothing.
+  
  gasnett_compiler_fence:
    A barrier to compiler optimizations that would reorder any memory references across
    this point in the code.
 
-  Note that for all four memory barriers, we require only that a given architecture's
+  Note that for all of the memory barriers, we require only that a given architecture's
   "normal" loads and stores are ordered as required.  "Extended" instructions such as
   MMX, SSE, SSE2, Altivec and vector ISAs on various other machines often bypass some
   or all of the machine's memory hierarchy and therefore may not be ordered by the same
@@ -560,6 +566,18 @@ if_pt(cond) S;
   if_pf and if_pt behave just like 'if' except they give the C compiler a hint that 
   the condition is predicted to be false (if_pf) and the branch not taken, 
   or predicted to be true (pt) and the branch taken.
+
+GASNETT_PREDICT_TRUE(expr)
+GASNETT_PREDICT_FALSE(expr)
+
+  These macros return the value of the expression given, but pass on a hint
+  that one expects the value to be true or false.  Use them to wrap a
+  conditional expression when you have strong reason to believe the branch
+  will frequently go in one direction and that the branch is a bottleneck.
+  The macros if_pf() and if_pf() are implemented in terms of these macros.
+  Examples:
+    do { S; } while(GASNETT_PREDICT_FALSE(expr)); // single-trip is common case
+    V = GASNETT_PREDICT_TRUE(expr) ? (val1) : (val2); // val1 is common case
 
 -----------------------------------------------------
 Error-checking System Mutexes and Condition Variables

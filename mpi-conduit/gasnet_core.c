@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/21 01:59:10 $
- * $Revision: 1.81 $
+ *     $Date: 2010/07/16 21:06:25 $
+ * $Revision: 1.81.6.1 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -71,6 +71,12 @@ static void gasnetc_check_config(void) {
   gasneti_assert(GASNET_ERR_NOT_INIT == AM_ERR_NOT_INIT);
   gasneti_assert(GASNET_ERR_RESOURCE == AM_ERR_RESOURCE);
   gasneti_assert(GASNET_ERR_BAD_ARG  == AM_ERR_BAD_ARG);
+
+#if GASNET_PSHM
+  gasneti_assert(gasnetc_Short  == ammpi_Short);
+  gasneti_assert(gasnetc_Medium == ammpi_Medium);
+  gasneti_assert(gasnetc_Long   == ammpi_Long);
+#endif
 }
 
 void gasnetc_bootstrapBarrier(void) {
@@ -612,6 +618,8 @@ extern int gasnetc_AMRequestMediumM(
   } else
 #endif
   { 
+    if_pf (!nbytes) source_addr = (void*)(uintptr_t)1; /* Bug 2774 - anything but NULL */
+
     AMLOCK_TOSEND();
       GASNETI_AM_SAFE_NORETURN(retval,
                AMMPI_RequestIVA(gasnetc_endpoint, dest, handler, 
@@ -645,6 +653,8 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   {   
     uintptr_t dest_offset;
     dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
+
+    if_pf (!nbytes) source_addr = (void*)(uintptr_t)1; /* Bug 2774 - anything but NULL */
 
     AMLOCK_TOSEND();
       GASNETI_AM_SAFE_NORETURN(retval,
@@ -703,6 +713,8 @@ extern int gasnetc_AMReplyMediumM(
   } else
 #endif
   {
+    if_pf (!nbytes) source_addr = (void*)(uintptr_t)1; /* Bug 2774 - anything but NULL */
+
     AM_ASSERT_LOCKED();
     GASNETI_AM_SAFE_NORETURN(retval,
               AMMPI_ReplyIVA(token, handler, source_addr, nbytes, numargs, argptr));
@@ -739,6 +751,8 @@ extern int gasnetc_AMReplyLongM(
     GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
     dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
 
+    if_pf (!nbytes) source_addr = (void*)(uintptr_t)1; /* Bug 2774 - anything but NULL */
+
     AM_ASSERT_LOCKED();
     GASNETI_AM_SAFE_NORETURN(retval,
               AMMPI_ReplyXferVA(token, handler, source_addr, nbytes, dest_offset, numargs, argptr));
@@ -769,8 +783,12 @@ extern int gasnetc_AMReplyLongM(
     gasneti_tick_t NIStimestamp;
   } gasnetc_hsl_errcheckinfo_t;
   static gasnetc_hsl_errcheckinfo_t _info_init = { NULL, 0, 0, 0 };
+  static gasnetc_hsl_errcheckinfo_t _info_free = { NULL, 0, 0, 0 };
 
   #if GASNETI_CLIENT_THREADS
+    /*  pthread thread-specific ptr to our info (or NULL for a thread never-seen before) */
+    GASNETI_THREADKEY_DEFINE(gasnetc_hsl_errcheckinfo);
+
     static void gasnetc_hsl_cleanup_threaddata(void *_td) {
       gasnetc_hsl_errcheckinfo_t *info = (gasnetc_hsl_errcheckinfo_t *)_td;
       gasneti_assert(info->inuse);
@@ -778,10 +796,9 @@ extern int gasnetc_AMReplyLongM(
         gasneti_fatalerror("HSL USAGE VIOLATION: thread exit within AM handler");
       if (info->locksheld) GASNETI_TRACE_PRINTF(I,("Thread exiting while holding HSL locks"));
       info->inuse = 0;
+      gasneti_threadkey_set(gasnetc_hsl_errcheckinfo, &_info_free);
     }
   
-    /*  pthread thread-specific ptr to our info (or NULL for a thread never-seen before) */
-    GASNETI_THREADKEY_DEFINE(gasnetc_hsl_errcheckinfo);
     static gasnetc_hsl_errcheckinfo_t *gasnetc_get_errcheckinfo(void) {
       gasnetc_hsl_errcheckinfo_t *info = gasneti_threadkey_get(gasnetc_hsl_errcheckinfo);
       if_pt (info) return info;
@@ -825,6 +842,7 @@ extern int gasnetc_AMReplyLongM(
   extern void gasnetc_hold_interrupts(void) {
     GASNETI_CHECKATTACH();
     { gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
+      if_pf (info == &_info_free) return; /* TODO: assert that we are in the thread destruction path */
       if (info->inhandler) { /* NIS calls ignored within a handler */
         GASNETI_TRACE_PRINTF(I,("Warning: Called gasnet_hold_interrupts within a handler context -- call ignored"));
         return;
@@ -842,6 +860,7 @@ extern int gasnetc_AMReplyLongM(
   extern void gasnetc_resume_interrupts(void) {
     GASNETI_CHECKATTACH();
     { gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
+      if_pf (info == &_info_free) return; /* TODO: assert that we are in the thread destruction path */
       if (info->inhandler) { /* NIS calls ignored within a handler */
         GASNETI_TRACE_PRINTF(I,("Warning: Called gasnet_resume_interrupts within a handler context -- call ignored"));
         return;
@@ -1039,6 +1058,27 @@ extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
 }
 #endif
 
+#if GASNETC_HSL_ERRCHECK && !GASNETC_NULL_HSL
+  extern void gasnetc_enteringHandler_hook_hsl(int cat, int isReq, int handlerId, gasnet_token_t token, 
+                                               void *buf, size_t nbytes, int numargs,
+                                               gasnet_handlerarg_t *args) {
+    gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
+    if (info->locksheld)
+        gasneti_fatalerror("HSL USAGE VIOLATION: tried to make a GASNet network call while holding an HSL");
+    if (info->inExplicitNIS)
+        gasneti_fatalerror("HSL USAGE VIOLATION: tried to make a GASNet network call with interrupts disabled");
+    info->inhandler++;
+  }
+  extern void gasnetc_leavingHandler_hook_hsl(int cat, int isReq) {
+    gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
+    gasneti_assert(info->inhandler > 0);
+    gasneti_assert(!info->inExplicitNIS);
+    if (info->locksheld)
+        gasneti_fatalerror("HSL USAGE VIOLATION: tried to exit a handler while holding an HSL");
+    info->inhandler--;
+  }
+#endif /* GASNETC_HSL_ERRCHECK && !GASNETC_NULL_HSL */
+
 #if (!GASNETC_NULL_HSL && GASNETC_HSL_ERRCHECK) || GASNET_TRACE
   /* called when entering/leaving handler - also called when entering/leaving AM_Reply call */
   extern void gasnetc_enteringHandler_hook(ammpi_category_t cat, int isReq, int handlerId, void *token, 
@@ -1059,14 +1099,8 @@ extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
       default: gasneti_fatalerror("Unknown handler type in gasnetc_enteringHandler_hook(): %i", cat);
     }
     #if (!GASNETC_NULL_HSL && GASNETC_HSL_ERRCHECK)
-    {
-      gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
-      if (info->locksheld)
-          gasneti_fatalerror("HSL USAGE VIOLATION: tried to make a GASNet network call while holding an HSL");
-      if (info->inExplicitNIS)
-          gasneti_fatalerror("HSL USAGE VIOLATION: tried to make a GASNet network call with interrupts disabled");
-      info->inhandler++;
-    }
+      gasnetc_enteringHandler_hook_hsl(cat, isReq, handlerId, token, buf, nbytes,
+                                       numargs, (gasnet_handlerarg_t *)args);
     #endif
   }
   extern void gasnetc_leavingHandler_hook(ammpi_category_t cat, int isReq) {
@@ -1083,14 +1117,7 @@ extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
       default: gasneti_fatalerror("Unknown handler type in gasnetc_leavingHandler_hook(): %i", cat);
     }
     #if (!GASNETC_NULL_HSL && GASNETC_HSL_ERRCHECK)
-    {
-      gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
-      gasneti_assert(info->inhandler > 0);
-      gasneti_assert(!info->inExplicitNIS);
-      if (info->locksheld)
-          gasneti_fatalerror("HSL USAGE VIOLATION: tried to exit a handler while holding an HSL");
-      info->inhandler--;
-    }
+      gasnetc_leavingHandler_hook_hsl(cat, isReq);
     #endif
   }
 #endif

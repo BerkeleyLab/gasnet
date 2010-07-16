@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2010/01/29 00:50:53 $
-dnl $Revision: 1.154 $
+dnl     $Date: 2010/07/16 21:06:08 $
+dnl $Revision: 1.154.4.1 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -1189,15 +1189,17 @@ GASNET_FUN_BEGIN([$0])
   dnl Check for restrict keyword
   pushdef([cvprefix],translit([$1],'A-Z','a-z'))
   restrict_keyword=""
-  if test "$restrict_keyword" = ""; then
-    GASNET_TRY_CACHE_CHECK($2 for restrict keyword, cvprefix[]restrict,
-      [int dummy(void * restrict p) { return 1; }], [],
-      restrict_keyword="restrict")
-  fi
+  # Due to xlc/mpcc_r oddity on AIX, we check "__restrict__" before "restrict".
+  # Both ID the same, but xlc accepts either while mpcc_r only takes "__restrict__".
   if test "$restrict_keyword" = ""; then
     GASNET_TRY_CACHE_CHECK($2 for __restrict__ keyword, cvprefix[]__restrict__,
       [int dummy(void * __restrict__ p) { return 1; }], [],
       restrict_keyword="__restrict__")
+  fi
+  if test "$restrict_keyword" = ""; then
+    GASNET_TRY_CACHE_CHECK($2 for restrict keyword, cvprefix[]restrict,
+      [int dummy(void * restrict p) { return 1; }], [],
+      restrict_keyword="restrict")
   fi
   if test "$restrict_keyword" = ""; then
     GASNET_TRY_CACHE_CHECK($2 for __restrict keyword, cvprefix[]__restrict,

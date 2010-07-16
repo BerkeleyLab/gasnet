@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2010/03/15 00:16:46 $
- * $Revision: 1.250 $
+ *     $Date: 2010/07/16 21:06:09 $
+ * $Revision: 1.250.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1759,7 +1759,7 @@ extern int gasneti_cpu_count(void) {
 #else
   #define _gasneti_getPhysMemSysconf() 0
 #endif
-#if PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_OPENBSD
+#if PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD || PLATFORM_OS_OPENBSD
   #include <sys/types.h>
   #include <sys/sysctl.h>
 #elif PLATFORM_OS_CATAMOUNT
@@ -1798,7 +1798,7 @@ extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
       fclose(fp);
     }
     #undef _BUFSZ
-  #elif PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_OPENBSD
+  #elif PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD || PLATFORM_OS_OPENBSD
     { /* see "man 3 sysctl" */    
       int mib[2];
       size_t len = 0;

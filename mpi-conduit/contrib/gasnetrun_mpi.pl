@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2009/10/12 08:42:32 $
-# $Revision: 1.80 $
+#     $Date: 2010/07/16 21:06:27 $
+# $Revision: 1.80.6.1 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -238,7 +238,7 @@ sub gasnet_encode($) {
         $spawner_desc = "IBM BG/P";
         if($ENV{'COBALT_JOBID'}) {
            %envfmt = ( 'pre' => '-env',
-                       'join' => ':',
+                       'inter' => '-env',
                        'val' => ''
                      );
         } else {
@@ -249,6 +249,7 @@ sub gasnet_encode($) {
         }   
         $encode_env = 1; # botches spaces in environment values
         $encode_args = 1; # and in arguments
+        @verbose_opt = ("-verbose", "2");
     } elsif ($is_jacquard) {
 	$spawner_desc = "NERSC/Jacquard mpirun";
 	if (`hostname` =~ m/jaccn/) {
@@ -686,23 +687,37 @@ if ($numproc && $is_bgp) {
     $extra_quote_argv++ if ($spawncmd =~ s/%Q/%A/);
   
     my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
+    my $mode = $ENV{'GASNETRUN_MODE'};
     
-    if ($ppn == 1) {
-      @numprocargs = ('-np', $numproc, '-mode', 'smp');
+    if ($mode) {
+      # Assume the user's value is valid
+    } elsif ($ppn == 1) {
+      $mode = 'smp';
     } elsif ($ppn == 2) {
-      @numprocargs = ('-np', $numproc, '-mode', 'dual');
+      $mode = 'dual';
     } elsif ($ppn == 4) {
-      @numprocargs = ('-np', $numproc, '-mode', 'vn');
+      $mode = 'vn';
     } else {
       die "BG/P only supports 1, 2 or 4 ppn.  See README.dcmf.";
     }
+    @numprocargs = ('-np', $numproc, '-mode', $mode);
   } else { # qsub requires
     my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
     if ($ppn * $numnode != $numproc) {
     warn "WARNING: non-uniform process distribution not supported\n";
     warn "WARNING: PROCESS LAYOUT MIGHT NOT MATCH YOUR REQUEST\n";
     }
-    if ($ppn == 1) {
+    if (my $mode = $ENV{'GASNETRUN_MODE'}) {
+      if ($mode eq 'smp') {
+        @numprocargs = ($numproc, '--mode', 'smp');
+      } elsif ($mode eq 'dual') {
+        @numprocargs = ($numproc/2, '--mode', 'dual');
+      } elsif ($mode eq 'vn') {
+        @numprocargs = ($numproc/4, '--mode', 'vn');
+      } else {
+        die "Invalid GASNETRUN_MODE=$mode";
+      }
+    } elsif ($ppn == 1) {
       @numprocargs = ($numproc, '--mode', 'smp');
     } elsif ($ppn == 2) {
       @numprocargs = ($numproc/2, '--mode', 'dual');
@@ -713,6 +728,25 @@ if ($numproc && $is_bgp) {
     }
   }
   $dashN_ok = 1;
+}
+
+if ($is_bgp && $ENV{'COBALT_JOBID'}) {
+  # Possibly deal with redirection by appending to @numprocargs
+  @numprocargs = ($numproc) unless (@numprocargs); # default
+  my $cwd = `pwd`;
+  chomp $cwd;
+  if (my $file = $ENV{'GASNETRUN_STDIN'}) {
+    $file = "$cwd/$file" unless ($file =~ m,^/,);
+    push @numprocargs, ('--stdin', $file);
+  }
+  if (my $file = $ENV{'GASNETRUN_STDOUT'}) {
+    $file = "$cwd/$file" unless ($file =~ m,^/,);
+    push @numprocargs, ('--stdout', $file);
+  }
+  if (my $file = $ENV{'GASNETRUN_STDERR'}) {
+    $file = "$cwd/$file" unless ($file =~ m,^/,);
+    push @numprocargs, ('--stderr', $file);
+  }
 }
 
 if ($numnode && $is_infinipath) {

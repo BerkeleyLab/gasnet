@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.h,v $
- *     $Date: 2010/03/30 22:07:40 $
- * $Revision: 1.7.2.1 $
+ *     $Date: 2010/07/16 21:06:08 $
+ * $Revision: 1.7.2.2 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -158,8 +158,12 @@ extern gasnet_node_t gasneti_pshm_firstnode;
 extern gasnet_node_t *gasneti_pshm_firsts;
 /* supernode number for an arbitrary node 
  * only available after gasneti_auxseg_attach() */
+#if GASNET_CONDUIT_SMP
+#define gasneti_pshm_node2supernode(n) 0
+#else
 #define gasneti_pshm_node2supernode(n) \
   (gasneti_assert(gasneti_seginfo_client), gasneti_seginfo_client[(n)].nodeinfo)
+#endif
 
 /* Non-NULL only when supernode members are non-contiguous */
 extern gasneti_pshm_rank_t *gasneti_pshm_rankmap;
@@ -173,6 +177,9 @@ extern gasneti_pshm_rank_t *gasneti_pshm_rankmap;
  */
 GASNETI_INLINE(gasneti_pshmnet_local_rank)
 gasneti_pshm_rank_t gasneti_pshm_local_rank(gasnet_node_t node) {
+#if GASNET_CONDUIT_SMP
+  return node;
+#else
   if_pt (gasneti_pshm_rankmap == NULL) {
     /* NOTE: gasnet_node_t is an unsigned type, so in the case of
      * (node < gasneti_pshm_firstnode), the subtraction will wrap to
@@ -182,6 +189,7 @@ gasneti_pshm_rank_t gasneti_pshm_local_rank(gasnet_node_t node) {
   } else {
     return gasneti_pshm_rankmap[node];
   }
+#endif
 }
 
 /* Returns 1 if given node is in the caller's supernode, or 0 if it's not.
@@ -189,8 +197,22 @@ gasneti_pshm_rank_t gasneti_pshm_local_rank(gasnet_node_t node) {
  */
 GASNETI_INLINE(gasneti_pshmnet_in_supernode)
 int gasneti_pshm_in_supernode(gasnet_node_t node) {
+#if GASNET_CONDUIT_SMP
+  return 1;
+#else
   return (gasneti_pshm_local_rank(node) < gasneti_pshm_nodes);
+#endif
 }
+
+/* Returns local version of remote in-supernode address.
+ * TODO: precompute the OFFSET to avoid doing the same subtraction each time
+ */
+GASNETI_INLINE(gasneti_pshm_addr2local)
+void *gasneti_pshm_addr2local(gasnet_node_t node, void *addr) {
+  return  (void*)((uintptr_t)addr
+                   - (uintptr_t)gasneti_seginfo[node].addr
+                   + (uintptr_t)gasneti_seginfo[node].remote_addr);
+} 
 
 /* Returns amount of memory needed (rounded up to a multiple of the system
  * page size) needed for a new gasneti_pshmnet_t.

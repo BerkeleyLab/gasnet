@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/Makefile.am,v $
-#     $Date: 2009/04/18 21:53:17 $
-# $Revision: 1.36 $
+#     $Date: 2010/07/16 21:06:15 $
+# $Revision: 1.36.6.1 $
 # Description: Makefile for GASNet elan conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -43,6 +43,9 @@ CONDUIT_EXTRALIBCFLAGS = -I@ELAN_INCLUDE@ '-DGASNETI_TOOLS_HELPER=gasnet_core_to
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS = 
+
+# headers selected by default rules that should NOT be installed
+CONDUIT_PRIVATEHEADERS =
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update

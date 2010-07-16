@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.h,v $
- *     $Date: 2009/09/16 01:13:29 $
- * $Revision: 1.4 $
+ *     $Date: 2010/07/16 21:06:17 $
+ * $Revision: 1.4.6.1 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -95,6 +95,6 @@ SHORT_HANDLER_NOBITS_DECL(gasnete_coll_teamid_reqh, 1);
                                                              \
   GASNETE_COLL_P2P_HANDLERS() GASNETE_COLL_SCRATCH_HANDLERS() GASNETE_COLL_TEAM_HANDLERS()
 
-
+extern int gasnete_coll_init_done;
 extern int gasnete_coll_opt_enabled;
 #endif

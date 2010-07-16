@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_membar.h,v $
- *     $Date: 2010/01/24 22:46:19 $
- * $Revision: 1.123 $
+ *     $Date: 2010/07/16 21:06:08 $
+ * $Revision: 1.123.4.1 $
  * Description: GASNet header for portable memory barrier operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -138,6 +138,16 @@
    #define GASNETI_LOCAL_WMB_BODY	GASNETI_ASM_SPECIAL("sfence")
    #define GASNETI_LOCAL_RMB_BODY	GASNETI_ASM_SPECIAL("lfence")
    #define GASNETI_LOCAL_MB_BODY	GASNETI_ASM_SPECIAL("mfence")
+ #elif PLATFORM_COMPILER_CRAY
+   GASNETI_INLINE(_gasneti_compiler_fence)
+   void _gasneti_compiler_fence(void) {
+     static int volatile x;
+     x = 1;
+   }
+   #define gasneti_compiler_fence() _gasneti_compiler_fence()
+   #define gasneti_local_wmb()      __builtin_ia32_sfence()
+   #define gasneti_local_rmb()      __builtin_ia32_lfence()
+   #define gasneti_local_mb()       __builtin_ia32_mfence()
  #else
    GASNETI_INLINE(gasneti_local_wmb)
    void gasneti_local_wmb(void) {

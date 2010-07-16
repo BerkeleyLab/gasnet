@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2010/01/24 22:46:19 $
- * $Revision: 1.128 $
+ *     $Date: 2010/07/16 21:06:08 $
+ * $Revision: 1.128.4.1 $
  * Description: GASNet header for semi-portable inline asm support
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -120,6 +120,9 @@
   /* platforms where inline assembly not supported or used */
   #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL 
   #undef GASNETI_ASM_AVAILABLE
+  #if PLATFORM_COMPILER_CRAY && PLATFORM_ARCH_X86_64
+    #include "intrinsics.h"
+  #endif
 #else
   #error "Don't know how to use inline assembly for your compiler"
 #endif

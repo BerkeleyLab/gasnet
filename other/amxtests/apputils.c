@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amxtests/apputils.c,v $
- *     $Date: 2009/03/30 02:40:47 $
- * $Revision: 1.18 $
+ *     $Date: 2010/07/16 21:06:35 $
+ * $Revision: 1.18.8.1 $
  * Description: AMX Application utilities
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -277,6 +277,39 @@ void writeSync(void) {
 #endif
 /* ------------------------------------------------------------------------------------ */
 void free_resource_handler(int sig) {
+  #if !PLATFORM_OS_MSWINDOWS
+    static int first = 1;
+    if (first) {
+      /* Avoid recursion if a fatal signal is raised while exiting */
+      signal (SIGHUP,  SIG_DFL);
+      signal (SIGINT,  SIG_DFL);
+      signal (SIGQUIT, SIG_DFL);
+      signal (SIGTERM, SIG_DFL);
+      signal (SIGABRT, SIG_DFL);
+      signal (SIGFPE,  SIG_DFL);
+      signal (SIGSEGV, SIG_DFL);
+      signal (SIGBUS,  SIG_DFL);
+
+      switch (sig) {
+        case SIGABRT: case SIGFPE: case SIGSEGV: case SIGBUS:
+        { /* Signal context may call write(), but not fprintf() */
+          char digits[] = "0123456789";
+          char msg[] = "XXXX: Terminating on fatal signal XX\n";
+          const size_t len = sizeof(msg); /* Includes \n and \0 */
+          int myproc = AMX_SPMDMyProc();
+          msg[0] = (myproc < 1000) ? ' ' : digits[(myproc / 1000) % 10];
+          msg[1] = (myproc < 100 ) ? ' ' : digits[(myproc / 100 ) % 10];
+          msg[2] = (myproc < 10  ) ? ' ' : digits[(myproc / 10  ) % 10];
+          msg[3] =                         digits[(myproc       ) % 10];
+          msg[len-3] = digits[sig % 10];
+          msg[len-4] = (sig < 10) ? ' ' : digits[sig / 10];
+          write(STDERR_FILENO, msg, len - 1);
+        }
+      }
+      first = 0;
+    }
+  #endif
+    
   sleep(2);
   AMX_SPMDExit(-1);
 }
