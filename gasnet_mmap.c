@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/07/14 21:30:41 $
- * $Revision: 1.74.2.5 $
+ *     $Date: 2010/07/16 00:49:20 $
+ * $Revision: 1.74.2.6 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -233,7 +233,7 @@ static char *gasneti_pshm_tmpfile = NULL;
 #define GASNETI_PSHM_PREFIX_LEN   (GASNETI_PSHM_PREFIX_LEN1 + GASNETI_PSHM_UNIQUE_LEN)
 
 extern const char *gasneti_pshm_makenames(const char *unique) {
-  static char prefix[] = "/GASNTXXXXXX";
+  /*static*/ char prefix[] = "/GASNTXXXXXX";
   int i;
 
   gasneti_assert(strlen(prefix) == GASNETI_PSHM_PREFIX_LEN);
@@ -1749,7 +1749,7 @@ void gasneti_auxseg_attach(void) {
   gasneti_assert(gasneti_auxsegfns[numfns] == NULL);
   gasneti_seginfo_client = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
 
-#ifndef GASNET_NUMA
+//#ifndef GASNET_NUMA
   /* In NUMA case, gasnet_seginfo_t does not have
    * nodeinfo field. nodema is passed to the UPC
    * level via gasneti_getNodeInfo()
@@ -1780,7 +1780,7 @@ void gasneti_auxseg_attach(void) {
       gasneti_seginfo_client[i].nodeinfo = i;
     }
   }
-#endif
+//#endif
 
   /* point si at the auxseg */
   #if GASNET_SEGMENT_EVERYTHING
