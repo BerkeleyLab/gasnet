@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/07/21 11:31:19 $
- * $Revision: 1.74.2.9 $
+ *     $Date: 2010/07/21 12:41:22 $
+ * $Revision: 1.74.2.10 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -267,7 +267,7 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
     if (tmpfd < 0) {
       gasneti_fatalerror("mkstemp() failed to find a unique prefix: %s", strerror(errno));
     }
-    close(tmpfd);
+    //close(tmpfd);
     /* Don't unlink() it until we no longer require uniqueness */
 
     /* Strip away the tmpdir to yield a unique prefix */
@@ -282,9 +282,6 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
     strcpy(gasneti_pshmname, tmpdir);
     strcat(gasneti_pshmname, "/GASNT");
     strcat(gasneti_pshmname, unique);
-
-    /* In case 'unique' is not NUL terminated */
-    gasneti_pshmname[strlen(tmpdir) + GASNETI_PSHM_PREFIX_LEN1 + strlen(unique) + 1] = '\0';
 
 #else
 
