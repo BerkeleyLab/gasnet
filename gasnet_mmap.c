@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/07/21 11:07:33 $
- * $Revision: 1.74.2.8 $
+ *     $Date: 2010/07/21 11:31:19 $
+ * $Revision: 1.74.2.9 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -228,7 +228,7 @@ static uintptr_t *gasneti_seginfo_correction = NULL;
 /* gasneti_pshmname needs to be dynamically 
  * allocated since we do not know the 
  * length of the path */
-static char *gasneti_pshmname[2]; 
+static char *gasneti_pshmname; 
 #else
 typedef char gasnet_pshmname_t[16];
 static gasnet_pshmname_t *gasneti_pshmname = NULL; /* length 1+gasneti_pshm_nodes, the +1 is for AMs */
@@ -238,11 +238,7 @@ static char *gasneti_pshm_tmpfile = NULL;
 #define GASNETI_PSHM_PREFIX_LEN1  6  /* "/GASNT" */
 #define GASNETI_PSHM_PREFIX_LEN   (GASNETI_PSHM_PREFIX_LEN1 + GASNETI_PSHM_UNIQUE_LEN)
 
-extern const char *gasneti_pshm_makenames(const char *unique
-#if GASNET_SYSV
-                                          , int id
-#endif
-                                          ) {
+extern const char *gasneti_pshm_makenames(const char *unique) {
   static char prefix[] = "/GASNTXXXXXX";
   int i;
     
@@ -282,10 +278,10 @@ extern const char *gasneti_pshm_makenames(const char *unique
 
 #if GASNET_SYSV
 
-    gasneti_pshmname[id] = (char *) gasneti_malloc(strlen(tmpdir) + GASNETI_PSHM_PREFIX_LEN1 + strlen(unique) + 1);
-    strcpy(gasneti_pshmname[id], tmpdir);
-    strcat(gasneti_pshmname[id], "/GASNT");
-    strcat(gasneti_pshmname[id], unique);
+    gasneti_pshmname = (char *) gasneti_malloc(strlen(tmpdir) + GASNETI_PSHM_PREFIX_LEN1 + strlen(unique) + 1);
+    strcpy(gasneti_pshmname, tmpdir);
+    strcat(gasneti_pshmname, "/GASNT");
+    strcat(gasneti_pshmname, unique);
 
     /* In case 'unique' is not NUL terminated */
     gasneti_pshmname[strlen(tmpdir) + GASNETI_PSHM_PREFIX_LEN1 + strlen(unique) + 1] = '\0';
@@ -322,7 +318,7 @@ extern const char *gasneti_pshm_makenames(const char *unique
 static void gasneti_unlink_segments(void) {
   gasneti_pshmnet_bootstrapBarrier();
 #if GASNET_SYSV
-    sysv_unlink(gasneti_pshmname[0],gasneti_pshm_mynode);
+    sysv_unlink(gasneti_pshmname,gasneti_pshm_mynode);
 #else
   (void)shm_unlink(gasneti_pshmname[gasneti_pshm_mynode]);
 #endif
@@ -336,23 +332,19 @@ static void gasneti_cleanup_shm(void) {
     /* Unlink the segments */
     for (i=0; i<gasneti_pshm_nodes; ++i) {
 #if GASNET_SYSV
-      sysv_unlink(gasneti_pshmname[0],i);
+      sysv_unlink(gasneti_pshmname,i);
 #else
       (void)shm_unlink(gasneti_pshmname[i]);
 #endif
     }
     /* Unlink the vnet */
 #if GASNET_SYSV
-    sysv_unlink(gasneti_pshmname[1], gasneti_pshm_nodes);
+    sysv_unlink(gasneti_pshmname, gasneti_pshm_nodes);
 #else
     (void)shm_unlink(gasneti_pshmname[gasneti_pshm_nodes]);
 #endif
-#if GASNET_SYSV
-    gasneti_free(gasneti_pshmname[0]);
-    gasneti_free(gasneti_pshmname[1]);
-#else
+
     gasneti_free(gasneti_pshmname);
-#endif
   }
   /* Remove the tmpfile that ensures uniqueness of our filenames */
   if (gasneti_pshm_tmpfile) {
@@ -381,10 +373,7 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
                                           int may_fail, int do_unlink) {
 #if GASNET_SYSV
   const char *filename;
-  if (pshmnode < gasneti_pshm_nodes)
-    filename = gasneti_pshmname[0];
-  else
-    filename = gasneti_pshmname[1];
+  filename = gasneti_pshmname;
 #else
   const char *filename = gasneti_pshmname[pshmnode];
 #endif
@@ -531,7 +520,7 @@ extern void *gasneti_mmap_vnet(uintptr_t size) {
 }
 extern void gasneti_unlink_vnet(void) {
 #if GASNET_SYSV
-  sysv_unlink(gasneti_pshmname[1], gasneti_pshm_nodes);
+  sysv_unlink(gasneti_pshmname, gasneti_pshm_nodes);
 #else
   (void)shm_unlink(gasneti_pshmname[gasneti_pshm_nodes]);
 #endif
@@ -888,7 +877,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
           for (i = 0; i < gasneti_pshm_nodes; ++i) {
             tmp_se[i] = _gasneti_mmap_segment_search_inner(maxsz);
             #if GASNET_SYSV
-                sysv_unlink(gasneti_pshmname[0], gasneti_pshm_mynode);
+                sysv_unlink(gasneti_pshmname, gasneti_pshm_mynode);
             #else
                 (void)shm_unlink(gasneti_pshmname[gasneti_pshm_mynode]);
             #endif
