@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2010/04/10 19:06:59 $
- * $Revision: 1.63.10.1 $
+ *     $Date: 2010/07/21 01:58:07 $
+ * $Revision: 1.63.10.2 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -269,6 +269,7 @@ GASNETI_END_EXTERNC
   } gasnet_handlerentry_t;
 #endif
 
+#define GASNET_SYSV 1
 #define GASNET_NUMA 1
 
 #ifndef _GASNET_SEGINFO_T

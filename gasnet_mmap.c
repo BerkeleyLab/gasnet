@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/07/16 00:49:20 $
- * $Revision: 1.74.2.6 $
+ *     $Date: 2010/07/21 01:58:07 $
+ * $Revision: 1.74.2.7 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -77,16 +77,15 @@
  * shmmax (size of a single segment) and 
  * shmall (total shared memory size) need to be large.
  */
-#define GASNET_SYSV 1
 #if GASNET_SYSV
 #include <sys/shm.h>
 
-static key_t get_shm_key(int pshm_rank)
+static key_t get_shm_key(const char *filename, int pshm_rank)
 {
     key_t key;
     /* We need to find a portable file name */
     /* id is equal to the pshm rank */
-    key = ftok("/tmp", pshm_rank);
+    key = ftok(filename, pshm_rank);
     if (key == (key_t)-1){
         perror("ftok");
         gasneti_fatalerror("ftok");
@@ -95,13 +94,13 @@ static key_t get_shm_key(int pshm_rank)
     return key;
 }
 
-static int sysv_open(size_t bytes, int pshm_rank)
+static int sysv_open(const char *filename, size_t bytes, int pshm_rank)
 {
     //printf("%d> sysv_open bytes %u id %d\n",gasneti_mynode,bytes,pshm_rank);
     key_t key;
     int shmget_id;
 
-    key = get_shm_key(pshm_rank);
+    key = get_shm_key(filename, pshm_rank);
     shmget_id = shmget(key, bytes, IPC_CREAT | S_IRUSR | S_IWUSR);
 
     if(shmget_id < 0){
@@ -129,13 +128,13 @@ static void * sysv_mmap(void *segbase, int shmget_id){
     return ptr;
 }
 
-static void sysv_unlink(int pshm_rank){
+static void sysv_unlink(char *filename,  int pshm_rank){
 
     //printf("%d> sysv_unlink\n",gasneti_mynode);
     key_t key;
     int shmget_id;
     
-    key = get_shm_key(pshm_rank);
+    key = get_shm_key(filename, pshm_rank);
     shmget_id = shmget(key, 0, 0);
     /*
     if(shmget_id == -1){
@@ -225,8 +224,15 @@ extern void *gasneti_mmap(uintptr_t segsize) {
 #if GASNET_PSHM
 static uintptr_t *gasneti_seginfo_correction = NULL;
 
+#if GASNET_SYSV
+/* gasneti_pshmname needs to be statically 
+ * allocated since we do not know the 
+ * length of the path */
+static char *gasneti_pshmname = NULL; /* length 1+gasneti_pshm_nodes, the +1 is for AMs */
+#else
 typedef char gasnet_pshmname_t[16];
 static gasnet_pshmname_t *gasneti_pshmname = NULL; /* length 1+gasneti_pshm_nodes, the +1 is for AMs */
+#endif
 
 static char *gasneti_pshm_tmpfile = NULL;
 #define GASNETI_PSHM_PREFIX_LEN1  6  /* "/GASNT" */
@@ -234,12 +240,13 @@ static char *gasneti_pshm_tmpfile = NULL;
 
 extern const char *gasneti_pshm_makenames(const char *unique) {
   /*static*/ char prefix[] = "/GASNTXXXXXX";
+    
   int i;
+  const char *tmpdir;
 
   gasneti_assert(strlen(prefix) == GASNETI_PSHM_PREFIX_LEN);
 
   if (!unique) { /* We get to pick the unique bits */
-    const char *tmpdir;
     int tmpfd;
 
     /* Find a directory to use */
@@ -260,7 +267,22 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
     unique = strrchr(gasneti_pshm_tmpfile, '/');
     gasneti_assert(strlen(unique) == GASNETI_PSHM_PREFIX_LEN);
     unique += GASNETI_PSHM_PREFIX_LEN1;
+  } 
+#if GASNET_SYSV
+  else{
+      /* ranks higher than 0 also need to get TMPDIR */
+      tmpdir = gasneti_getenv_withdefault("TMPDIR","/tmp");
   }
+
+  gasneti_pshmname = (char *) gasneti_malloc(strlen(tmpdir) + GASNETI_PSHM_PREFIX_LEN1 + strlen(unique) + 1);
+  strcpy(gasneti_pshmname, tmpdir);
+  strcat(gasneti_pshmname, "/GASNT");
+  strcat(gasneti_pshmname, unique);
+  
+  /* In case 'unique' is not NUL terminated */
+  gasneti_pshmname[strlen(tmpdir) + GASNETI_PSHM_PREFIX_LEN1 + strlen(unique) + 1] = '\0';
+
+#else
 
   /* Note: 'unique' might not be NUL terminated */
   memcpy(prefix + GASNETI_PSHM_PREFIX_LEN1, unique, GASNETI_PSHM_UNIQUE_LEN);
@@ -279,6 +301,7 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
     filename[GASNETI_PSHM_PREFIX_LEN+1] = tbl[i % 36];
     filename[GASNETI_PSHM_PREFIX_LEN+2] = '\0';
   }
+#endif
 
   return unique;
 }
@@ -290,7 +313,7 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
 static void gasneti_unlink_segments(void) {
   gasneti_pshmnet_bootstrapBarrier();
 #if GASNET_SYSV
-    sysv_unlink(gasneti_pshm_mynode);
+    sysv_unlink(gasneti_pshmname,gasneti_pshm_mynode);
 #else
   (void)shm_unlink(gasneti_pshmname[gasneti_pshm_mynode]);
 #endif
@@ -304,14 +327,14 @@ static void gasneti_cleanup_shm(void) {
     /* Unlink the segments */
     for (i=0; i<gasneti_pshm_nodes; ++i) {
 #if GASNET_SYSV
-      sysv_unlink(i);
+      sysv_unlink(gasneti_pshmname,i);
 #else
       (void)shm_unlink(gasneti_pshmname[i]);
 #endif
     }
     /* Unlink the vnet */
 #if GASNET_SYSV
-    sysv_unlink(gasneti_pshm_nodes);
+    sysv_unlink(gasneti_pshmname, gasneti_pshm_nodes);
 #else
     (void)shm_unlink(gasneti_pshmname[gasneti_pshm_nodes]);
 #endif
@@ -342,7 +365,11 @@ static int gasneti_mmap_stretch(int fd, uintptr_t size) {
 
 static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t segsize,
                                           int may_fail, int do_unlink) {
+#if GASNET_SYSV
+  const char *filename = gasneti_pshmname;
+#else
   const char *filename = gasneti_pshmname[pshmnode];
+#endif
   const int flags = MAP_SHARED | (segbase ? GASNETI_MMAP_FIXED_FLAG : GASNETI_MMAP_NOTFIXED_FLAG);
   int gasneti_mmapfd;
   int mmap_errno;
@@ -360,7 +387,7 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
   }
 
 #if GASNET_SYSV
-  gasneti_mmapfd = sysv_open(segsize, pshmnode);
+  gasneti_mmapfd = sysv_open(filename,segsize, pshmnode);
   if(gasneti_mmapfd < 0){
       return MAP_FAILED;
   }
@@ -406,6 +433,7 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
 #endif
 
 #if GASNET_SYSV
+  t1 = gasneti_ticks_now();
   ptr = sysv_mmap(segbase,gasneti_mmapfd);
 #else
   if (gasneti_mmap_stretch(gasneti_mmapfd, segsize)) {
@@ -485,7 +513,7 @@ extern void *gasneti_mmap_vnet(uintptr_t size) {
 }
 extern void gasneti_unlink_vnet(void) {
 #if GASNET_SYSV
-  sysv_unlink(gasneti_pshm_nodes);
+  sysv_unlink(gasneti_pshmname, gasneti_pshm_nodes);
 #else
   (void)shm_unlink(gasneti_pshmname[gasneti_pshm_nodes]);
 #endif
@@ -842,7 +870,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
           for (i = 0; i < gasneti_pshm_nodes; ++i) {
             tmp_se[i] = _gasneti_mmap_segment_search_inner(maxsz);
             #if GASNET_SYSV
-                sysv_unlink(gasneti_pshm_mynode);
+                sysv_unlink(gasneti_pshmname, gasneti_pshm_mynode);
             #else
                 (void)shm_unlink(gasneti_pshmname[gasneti_pshm_mynode]);
             #endif
@@ -1400,13 +1428,18 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
  */
 int gasneti_pinMemory(int mypthread){
 
+    uintptr_t segsize;
+    double *segbase;
+    double *segend;
+    int i;
+ 
     /* Wait for ptherad 0 to complet the memory attaching */
     while(!gasneti_localAttachCompleted);
-    uintptr_t segsize = gasneti_segment.size/gasneti_pthreads;
-    double *segbase = (double*)((uintptr_t)gasneti_segment.addr + mypthread*segsize);
-    double *segend = (double*)((uintptr_t)segbase + segsize);
+    segsize = gasneti_segment.size/gasneti_pthreads;
+    segbase = (double*)((uintptr_t)gasneti_segment.addr + mypthread*segsize);
+    segend = (double*)((uintptr_t)segbase + segsize);
 
-    int i=0;
+    i=0;
     while(&segbase[i]<segend){
         segbase[i]=0;
 	i+=512;
