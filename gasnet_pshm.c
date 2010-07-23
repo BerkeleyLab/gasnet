@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2010/07/21 12:41:22 $
- * $Revision: 1.8.2.8 $
+ *     $Date: 2010/07/23 19:48:19 $
+ * $Revision: 1.8.2.9 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -106,6 +106,34 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
   /* setup filenames, unless exchangefn is NULL (indicating caller took care of it) */
   if (exchangefn != NULL) {
     
+#if GASNET_SYSV
+    unsigned int *tmp_gasneti_pshm_sysvkeys;
+    
+    tmp_gasneti_pshm_sysvkeys = gasneti_malloc((gasneti_nodes+1)*sizeof(unsigned int));
+    /* gasneti_pshm_sysvkeys is a replacement for gasneti_pshmname (PSHM), so we free it later (in gasneti_cleanup_shm() */
+    gasneti_pshm_sysvkeys = gasneti_malloc((gasneti_pshm_nodes+1)*sizeof(unsigned int));
+
+    /* Each node gets the key for it's own memory region */
+    gasneti_pshm_makenames(tmp_gasneti_pshm_sysvkeys, gasneti_mynode);
+
+    /* The keys are exchanged */
+    (*exchangefn)(&tmp_gasneti_pshm_sysvkeys[gasneti_pshm_mynode], sizeof(unsigned int), tmp_gasneti_pshm_sysvkeys);
+    for(i=0; i<gasneti_pshm_nodes; i++){
+        gasneti_pshm_sysvkeys[i] = tmp_gasneti_pshm_sysvkeys[gasneti_pshm_firstnode+i];
+    }
+
+    /* PSHM rank 0 gets the key for vnet region */
+    if (gasneti_pshm_mynode==0) {
+        gasneti_pshm_makenames(tmp_gasneti_pshm_sysvkeys, gasneti_pshm_nodes);
+    }
+    /* vnet key is broadcasted */
+    (*exchangefn)(&tmp_gasneti_pshm_sysvkeys[gasneti_pshm_nodes], sizeof(unsigned int), tmp_gasneti_pshm_sysvkeys);
+    gasneti_pshm_sysvkeys[gasneti_pshm_nodes] = tmp_gasneti_pshm_sysvkeys[gasneti_pshm_firstnode];
+      
+    gasneti_free(tmp_gasneti_pshm_sysvkeys);
+
+#else
+
     char *exchg;
     char unique[GASNETI_PSHM_UNIQUE_LEN];
 
@@ -113,7 +141,6 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
     if (gasneti_pshm_mynode == 0) {
       const char *tmp = gasneti_pshm_makenames(NULL);
       memcpy(unique, tmp, GASNETI_PSHM_UNIQUE_LEN);
-    printf("%d> HEEREEEEEEE 2 unique %s\n",gasneti_mynode,unique);
     }
 
     /* Conduit's exchangefn is used as a supernode-scoped bcast to
@@ -121,13 +148,14 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
     exchg = gasneti_malloc(gasneti_nodes * (GASNETI_PSHM_UNIQUE_LEN+1));
     (*exchangefn)(unique, GASNETI_PSHM_UNIQUE_LEN+1, exchg);
 
-    printf("%d> HEEREEEEEEE 3 exchg %s\n",gasneti_mynode,(char*)(exchg+gasneti_pshm_firstnode));
     /* Non-first nodes now generate the same names from the unique identifier */
     if (gasneti_pshm_mynode != 0) {
       (void)gasneti_pshm_makenames((const char *)(exchg + gasneti_pshm_firstnode));
     }
       
     gasneti_free(exchg);
+#endif
+
   }
     
   /* setup vnet shared memory region for AM infrastructure and supernode barrier.
@@ -339,6 +367,10 @@ gasneti_pshm_rank_t gasneti_pshm_mynode = (gasneti_pshm_rank_t)(-1);
 /* vectors constructed in shared space: */
 gasneti_pshm_rank_t *gasneti_pshm_rankmap = NULL;
 gasnet_node_t *gasneti_pshm_firsts = NULL;
+
+#if GASNET_SYSV
+unsigned int * gasneti_pshm_sysvkeys;
+#endif
 
 /*******************************************************************************
  * "PSHM Net":  message header formats
