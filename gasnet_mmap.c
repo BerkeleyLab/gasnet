@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/07/23 19:48:19 $
- * $Revision: 1.74.2.11 $
+ *     $Date: 2010/07/23 21:02:45 $
+ * $Revision: 1.74.2.12 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -204,8 +204,12 @@ extern void *gasneti_mmap(uintptr_t segsize) {
 static uintptr_t *gasneti_seginfo_correction = NULL;
 
 #ifndef GASNET_SYSV
-typedef char gasnet_pshmname_t[16];
-static gasnet_pshmname_t *gasneti_pshmname = NULL; /* length 1+gasneti_pshm_nodes, the +1 is for AMs */
+  #if GASNET_DISKFILE
+  static char **gasneti_pshmname = NULL; /* length 1+gasneti_pshm_nodes, the +1 is for AMs */
+  #else
+  typedef char gasnet_pshmname_t[160];
+  static gasnet_pshmname_t *gasneti_pshmname = NULL; /* length 1+gasneti_pshm_nodes, the +1 is for AMs */
+  #endif
 #endif
 
 static char *gasneti_pshm_tmpfile = NULL;
@@ -241,14 +245,20 @@ void gasneti_pshm_makenames(unsigned int *pshm_sysvkeys, int pshmnode) {
 extern const char *gasneti_pshm_makenames(const char *unique) {
   static char prefix[] = "/GASNTXXXXXX";
   int i;
-    
+#if GASNET_DISKFILE
+  const char *tmpdir;
+  tmpdir = gasneti_getenv_withdefault("TMPDIR","/tmp");
+#endif
+
   gasneti_assert(strlen(prefix) == GASNETI_PSHM_PREFIX_LEN);
 
   if (!unique) { /* We get to pick the unique bits */
     int tmpfd;
+
+#ifndef GASNET_DISKFILE
     const char *tmpdir;
-    
     tmpdir = gasneti_getenv_withdefault("TMPDIR","/tmp");
+#endif
 
     /* Find a directory to use */
     gasneti_pshm_tmpfile = gasneti_malloc(strlen(tmpdir) + GASNETI_PSHM_PREFIX_LEN + 1);
@@ -276,15 +286,33 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
 #if GASNETI_PSHM_MAX_NODES > 255
   gasneti_assert_always(gasneti_pshm_nodes < (36*36));
 #endif
+
+  int tmpdir_len;
+#if GASNET_DISKFILE
+  tmpdir_len = strlen(tmpdir);
+  gasneti_pshmname = (char **)gasneti_malloc((gasneti_pshm_nodes+1)*sizeof(char*));
+#else
   gasneti_pshmname = (gasnet_pshmname_t *)gasneti_malloc((gasneti_pshm_nodes+1) * sizeof(gasnet_pshmname_t));
+  tmpdir_len = 0;
+#endif
+  tmpdir_len = strlen(tmpdir);
+
   for (i = 0; i <= gasneti_pshm_nodes; ++i) {
     const char tbl[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+#if GASNET_DISKFILE
+    char *filename = gasneti_pshmname[i] = (char *)gasneti_malloc(tmpdir_len + GASNETI_PSHM_PREFIX_LEN + 3);
+#else
     char *filename = gasneti_pshmname[i];
+#endif
 
-    memcpy(filename, prefix, GASNETI_PSHM_PREFIX_LEN);
-    filename[GASNETI_PSHM_PREFIX_LEN+0] = tbl[i / 36];
-    filename[GASNETI_PSHM_PREFIX_LEN+1] = tbl[i % 36];
-    filename[GASNETI_PSHM_PREFIX_LEN+2] = '\0';
+#if GASNET_DISKFILE
+    strcpy(filename, tmpdir);
+#endif
+    memcpy(filename + tmpdir_len, prefix, GASNETI_PSHM_PREFIX_LEN);
+    filename[tmpdir_len + GASNETI_PSHM_PREFIX_LEN+0] = tbl[i / 36];
+    filename[tmpdir_len + GASNETI_PSHM_PREFIX_LEN+1] = tbl[i % 36];
+    filename[tmpdir_len + GASNETI_PSHM_PREFIX_LEN+2] = '\0';
+
   }
 
   return unique;
@@ -300,7 +328,11 @@ static void gasneti_unlink_segments(void) {
 #if GASNET_SYSV
     sysv_unlink(gasneti_pshm_mynode);
 #else
+  #if GASNET_DISKFILE
+  (void)unlink(gasneti_pshmname[gasneti_pshm_mynode]);
+  #else
   (void)shm_unlink(gasneti_pshmname[gasneti_pshm_mynode]);
+  #endif
 #endif
   gasneti_pshmnet_bootstrapBarrier();
 }
@@ -322,12 +354,23 @@ static void gasneti_cleanup_shm(void) {
   if (gasneti_pshmname) {
     /* Unlink the segments */
     for (i=0; i<gasneti_pshm_nodes; ++i) {
+    #if GASNET_DISKFILE
+      (void)unlink(gasneti_pshmname[i]);
+    #else
       (void)shm_unlink(gasneti_pshmname[i]);
+    #endif
     }
 
     /* Unlink the vnet */
+    #if GASNET_DISKFILE
+    (void)unlink(gasneti_pshmname[gasneti_pshm_nodes]);
+    for (i=0; i<gasneti_pshm_nodes+1; ++i) {
+        gasneti_free(gasneti_pshmname[i]);
+    }
+    #else
     (void)shm_unlink(gasneti_pshmname[gasneti_pshm_nodes]);
-
+    #endif
+    
     gasneti_free(gasneti_pshmname);
   }
 #endif
@@ -386,7 +429,13 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
       return MAP_FAILED;
   }
 #else
+
+#if GASNET_DISKFILE
+  gasneti_mmapfd = open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+#else
   gasneti_mmapfd = shm_open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+#endif
+
 #endif
 
 #if PLATFORM_OS_DARWIN && !GASNET_SYSV
@@ -395,7 +444,11 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
     int retries_remain = 32;
     do {
       gasneti_sched_yield();
+#if GASNET_DISKFILE
+      gasneti_mmapfd = open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+#else
       gasneti_mmapfd = shm_open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+#endif
     } while ((gasneti_mmapfd == -1) && (errno == EEXIST) && retries_remain--);
   }
 #endif
@@ -403,7 +456,7 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
 #if GASNET_SYSV
     gasneti_fatalerror("failed to shm_open(%d): %s\n",pshmnode,strerror(errno));
 #else
-    gasneti_fatalerror("failed to shm_open(%s): %s\n",filename,strerror(errno));
+    gasneti_fatalerror("failed to shm_open/open(%s): %s\n",filename,strerror(errno));
 #endif
   }
 #if PLATFORM_OS_DARWIN && !GASNET_SYSV
@@ -426,7 +479,11 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
     /* Darwin requires an shm_unlink/shm_open to resize a shared memory object.
      * However, it is always safe and can help reduce the opportunities for a leak. */
     /* XXX: NO IT IS *NEVER* SAFE.  See above */
+    #if GASNET_DISKFILE
+    (void)unlink(filename);
+    #else
     (void)shm_unlink(filename);
+    #endif
   }
 #endif
 
@@ -513,7 +570,11 @@ extern void gasneti_unlink_vnet(void) {
 #if GASNET_SYSV
   sysv_unlink(gasneti_pshm_nodes);
 #else
+  #if GASNET_DISKFILE
+  (void)unlink(gasneti_pshmname[gasneti_pshm_nodes]);
+  #else
   (void)shm_unlink(gasneti_pshmname[gasneti_pshm_nodes]);
+  #endif
 #endif
 }
 #endif /* GASNET_PSHM */
@@ -870,7 +931,11 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
             #if GASNET_SYSV
                 sysv_unlink(gasneti_pshm_mynode);
             #else
+                #if GASNET_DISKFILE
+                (void)unlink(gasneti_pshmname[gasneti_pshm_mynode]);
+                #else
                 (void)shm_unlink(gasneti_pshmname[gasneti_pshm_mynode]);
+                #endif
             #endif
             sum += tmp_se[i].size;
 	    if (tmp_se[i].size != maxsz) {
