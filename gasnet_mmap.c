@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/07/23 21:02:45 $
- * $Revision: 1.74.2.12 $
+ *     $Date: 2010/07/24 00:23:18 $
+ * $Revision: 1.74.2.13 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -79,61 +79,32 @@
  */
 #if GASNET_SYSV
 #include <sys/shm.h>
-
 static key_t get_sysv_key(const char *filename, int pshm_rank){
     key_t key;
     key = ftok(filename, pshm_rank);
     if (key == (key_t)-1){
-        perror("ftok");
-        gasneti_fatalerror("ftok file is %s rank called %d, total ranks %d",filename,pshm_rank,gasneti_pshm_nodes);
+        gasneti_fatalerror("failed to provide the unique SYSV key value for %s and rank %d, for ftok: %s",filename,pshm_rank,strerror(errno));
     }
-
     return key;
 }
-
-static int sysv_open(size_t bytes, int pshm_rank)
-{
+static int sysv_open(size_t bytes, int pshm_rank){
     return shmget(gasneti_pshm_sysvkeys[pshm_rank], bytes, IPC_CREAT | S_IRUSR | S_IWUSR);
 }
-
 static void * sysv_mmap(void *segbase, int shmget_id){
-
-    //printf("%d> sysv_mmap\n",gasneti_mynode);
-    void *ptr;
-    
-    ptr = shmat(shmget_id, segbase, 0);
-    if (ptr == (void *)-1){
-        perror("shmat");
-        gasneti_fatalerror("open shmat");
-    }
-    return ptr;
+    return shmat(shmget_id, segbase, 0);
 }
-
 static void sysv_unlink(int pshm_rank){
-
-    //printf("%d> sysv_unlink\n",gasneti_mynode);
     int shmget_id;
-    
     shmget_id = shmget(gasneti_pshm_sysvkeys[pshm_rank], 0, 0);
-    /*
-    if(shmget_id == -1){
-        perror("rm shmget");
-    }
-    */
     shmctl(shmget_id, IPC_RMID, NULL);
 
-    /* No need to exit upon failure since
-     * it can legaly fail (if thesegment has
-     * already been removed
+    /* No need do anything upon failure since
+     * it can legaly fail (if the segment has
+     * already been removed)
      */
 }
-
 static int sysv_munmap(void *segbase){
-    //printf("%d> sysv_munmap\n",gasneti_mynode);
-    int rval;
-    rval = shmdt(segbase);
-    /* We do nothing here if rval !=0 */
-    return rval;
+    return shmdt(segbase);
 }
 #endif
 
@@ -425,18 +396,12 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
 
 #if GASNET_SYSV
   gasneti_mmapfd = sysv_open(segsize, pshmnode);
-  if(gasneti_mmapfd < 0){
-      return MAP_FAILED;
-  }
-#else
-
-#if GASNET_DISKFILE
+#elif GASNET_DISKFILE
   gasneti_mmapfd = open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
 #else
   gasneti_mmapfd = shm_open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
 #endif
 
-#endif
 
 #if PLATFORM_OS_DARWIN && !GASNET_SYSV
   if ((gasneti_mmapfd == -1) && (errno == EEXIST)) {
@@ -444,7 +409,9 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
     int retries_remain = 32;
     do {
       gasneti_sched_yield();
-#if GASNET_DISKFILE
+#if GASNET_SYSV
+  gasneti_mmapfd = sysv_open(segsize, pshmnode);
+#elif GASNET_DISKFILE
       gasneti_mmapfd = open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
 #else
       gasneti_mmapfd = shm_open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
@@ -452,6 +419,7 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
     } while ((gasneti_mmapfd == -1) && (errno == EEXIST) && retries_remain--);
   }
 #endif
+
   if (gasneti_mmapfd == -1) {
 #if GASNET_SYSV
     gasneti_fatalerror("failed to shm_open(%d): %s\n",pshmnode,strerror(errno));
@@ -488,7 +456,6 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
 #endif
 
 #if GASNET_SYSV
-  t1 = gasneti_ticks_now();
   ptr = sysv_mmap(segbase,gasneti_mmapfd);
 #else
   if (gasneti_mmap_stretch(gasneti_mmapfd, segsize)) {
@@ -506,10 +473,10 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
   t1 = gasneti_ticks_now();
 
   ptr = mmap(segbase, segsize, (PROT_READ|PROT_WRITE), flags, gasneti_mmapfd, 0);
-#endif
   mmap_errno = errno;
   t2 = gasneti_ticks_now();
   (void)close(gasneti_mmapfd);
+#endif
 
   GASNETI_TRACE_PRINTF(C, 
       ("mmap %s("GASNETI_LADDRFMT", %lu): %.3fus => "GASNETI_LADDRFMT"%s%s\n", 
@@ -931,11 +898,11 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
             #if GASNET_SYSV
                 sysv_unlink(gasneti_pshm_mynode);
             #else
-                #if GASNET_DISKFILE
+              #if GASNET_DISKFILE
                 (void)unlink(gasneti_pshmname[gasneti_pshm_mynode]);
-                #else
+              #else
                 (void)shm_unlink(gasneti_pshmname[gasneti_pshm_mynode]);
-                #endif
+              #endif
             #endif
             sum += tmp_se[i].size;
 	    if (tmp_se[i].size != maxsz) {
