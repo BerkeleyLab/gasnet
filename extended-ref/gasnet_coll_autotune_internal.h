@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_autotune_internal.h,v $                                                                                                                                                             
- *     $Date: 2009/10/22 20:14:56 $                                                                                                                                                              
- * $Revision: 1.6 $                                                                                                                                                             
+ *     $Date: 2010/08/03 03:43:31 $                                                                                                                                                              
+ * $Revision: 1.6.12.1 $                                                                                                                                                             
  * Description: GASNet Autotuner Implementation                                                                                                                             
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>                              
  * Terms of use are as specified in license.txt                                                                                                                             
@@ -363,6 +363,23 @@ struct gasnet_coll_tuning_parameter_t {
   uint32_t stride;
   int flags;
 };
+
+/* Macro to initialize a 1-element array of gasnet_coll_tuning_parameter_t.
+   Must deal w/ the fact that pre-C99 compilers don't allow initializers for
+   auto aggregates to contain non-constant expressions (which we may want for
+   start and end members).
+*/
+#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
+  #define GASNETE_COLL_TUNING_PARAMETER(_name,_param,_start,_end,_stride,_flags) \
+    struct gasnet_coll_tuning_parameter_t _name[1] = \
+       { { _param,_start,_end,_stride,_flags } } /* no semicolon */
+#else
+  #define GASNETE_COLL_TUNING_PARAMETER(_name,_param,_start,_end,_stride,_flags) \
+    struct gasnet_coll_tuning_parameter_t _name[1] = \
+       { { _param,0,0,_stride,_flags } };\
+    _name[0].start = _start; \
+    _name[0].end   = _end /* no semicolon */
+#endif
 
 /*contains an entry in the function table*/
 typedef struct gasnete_coll_allgorithm_t_ {

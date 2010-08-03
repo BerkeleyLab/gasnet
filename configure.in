@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/06/28 04:56:54 $
-# $Revision: 1.633.2.5 $
+#     $Date: 2010/08/03 03:43:27 $
+# $Revision: 1.633.2.6 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.633.2.5 $)
+AC_REVISION($Revision: 1.633.2.6 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -369,6 +369,11 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
 
 case "$gasnet_cv_cc_family" in
   GNU)  GASNET_PUSHVAR(CFLAGS,"-g3")
+        case "$target_os" in
+          darwin*) # Want -gstabs+ instead of -g3, if supported
+            GASNET_TRY_CFLAG([-gstabs+], [CFLAGS='-gstabs+'])
+            ;;
+        esac
         GASNET_GET_GNUWARNINGFLAGS(C)
         CCDEBUGFLAGS="$CFLAGS"
         GASNET_POPVAR(CFLAGS)
@@ -1291,11 +1296,6 @@ if expr "$enabled_sgi_ip27@$target_cpu" : "unknown@mips" >/dev/null; then
 fi
 if test "$enabled_sgi_ip27" = yes; then
   AC_DEFINE(GASNETI_ARCH_SGI_IP27)
-  # Suppress linker warning about our special branch instrution
-  case "$gasnet_cv_cc_family" in
-      # No inline asm to worry about MIPS) LDFLAGS="$LDFLAGS -LD_MSG:off=47" ;;
-      GNU) LDFLAGS="$LDFLAGS -Wl,-LD_MSG:off=47" ;;
-  esac
 fi
 
 ## Look for potentially buggy SiCortex ICE9A processor
@@ -2117,6 +2117,11 @@ if test $enabled_udp = yes; then
          hpux*) GASNET_GET_HPUX_FLAGS(CXX,["-D__STDC_EXT__=1"]);;
        esac
        GASNET_PUSHVAR(CXXFLAGS,"-g3")
+       case "$target_os" in
+         darwin*) # Want -gstabs+ instead of -g3, if supported
+           GASNET_TRY_CXXFLAG([-gstabs+], [CXXFLAGS='-gstabs+'])
+           ;;
+       esac
        GASNET_GET_GNUWARNINGFLAGS(CXX)
        MISC_CXXFLAGS="$MISC_CXXFLAGS $CXXFLAGS" 
        GASNET_POPVAR(CXXFLAGS)
@@ -4289,6 +4294,7 @@ case "$target_os" in
       MIPS) LDFLAGS="$LDFLAGS -LD_MSG:off=84" # don't warn about unused libm
       ;;
       GNU) LDFLAGS="$LDFLAGS -Wl,-LD_MSG:off=84" # don't warn about unused libm
+           LDFLAGS="$LDFLAGS -Wl,-LD_MSG:off=47" # don't warn about inline branch insn
       ;;
     esac
   ;;

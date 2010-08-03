@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2010/05/07 20:45:03 $
- * $Revision: 1.16 $
+ *     $Date: 2010/08/03 03:43:29 $
+ * $Revision: 1.16.2.1 $
  * Description: GASNet Extended API Implementation for DCMF
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -1398,7 +1398,8 @@ static void gasnete_dcmfbarrier_notify(gasnete_coll_team_t team, int id, int fla
   GASNETI_TRACE_PRINTF(B, ("finishing barrier notify (%d,%d)", id, flags));
 }
 
-static inline int finish_barrier(gasnete_coll_team_t team, int id, int flags) 
+GASNETI_INLINE(finish_barrier)
+int finish_barrier(gasnete_coll_team_t team, int id, int flags) 
 {
   int ret;
   
