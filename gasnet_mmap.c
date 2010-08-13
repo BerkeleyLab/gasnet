@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/07/24 00:23:18 $
- * $Revision: 1.74.2.13 $
+ *     $Date: 2010/08/13 22:11:56 $
+ * $Revision: 1.74.2.14 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -91,7 +91,11 @@ static int sysv_open(size_t bytes, int pshm_rank){
     return shmget(gasneti_pshm_sysvkeys[pshm_rank], bytes, IPC_CREAT | S_IRUSR | S_IWUSR);
 }
 static void * sysv_mmap(void *segbase, int shmget_id){
-    return shmat(shmget_id, segbase, 0);
+    void *to_ret;
+    to_ret = shmat(shmget_id, segbase, 0);
+    shmctl(shmget_id, IPC_RMID, NULL);
+    return to_ret;
+    //return shmat(shmget_id, segbase, 0);
 }
 static void sysv_unlink(int pshm_rank){
     int shmget_id;
