@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2010/08/14 03:11:16 $
- * $Revision: 1.8.2.10 $
+ *     $Date: 2010/08/14 03:23:57 $
+ * $Revision: 1.8.2.11 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -109,7 +109,7 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
 #if GASNET_SYSV
     unsigned int *tmp_gasneti_pshm_sysvkeys;
     
-    tmp_gasneti_pshm_sysvkeys = gasneti_malloc((gasneti_nodes+1)*sizeof(unsigned int));
+    tmp_gasneti_pshm_sysvkeys = gasneti_malloc((gasneti_nodes)*sizeof(unsigned int));
     /* gasneti_pshm_sysvkeys is a replacement for gasneti_pshmname (PSHM), so we free it later (in gasneti_cleanup_shm() */
     gasneti_pshm_sysvkeys = gasneti_malloc((gasneti_pshm_nodes+1)*sizeof(unsigned int));
 
