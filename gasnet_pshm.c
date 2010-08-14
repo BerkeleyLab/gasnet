@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2010/07/23 19:48:19 $
- * $Revision: 1.8.2.9 $
+ *     $Date: 2010/08/14 03:11:16 $
+ * $Revision: 1.8.2.10 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -117,19 +117,19 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
     gasneti_pshm_makenames(tmp_gasneti_pshm_sysvkeys, gasneti_mynode);
 
     /* The keys are exchanged */
-    (*exchangefn)(&tmp_gasneti_pshm_sysvkeys[gasneti_pshm_mynode], sizeof(unsigned int), tmp_gasneti_pshm_sysvkeys);
+    (*exchangefn)(&tmp_gasneti_pshm_sysvkeys[gasneti_mynode], sizeof(unsigned int), tmp_gasneti_pshm_sysvkeys);
     for(i=0; i<gasneti_pshm_nodes; i++){
         gasneti_pshm_sysvkeys[i] = tmp_gasneti_pshm_sysvkeys[gasneti_pshm_firstnode+i];
     }
-
+    
     /* PSHM rank 0 gets the key for vnet region */
     if (gasneti_pshm_mynode==0) {
-        gasneti_pshm_makenames(tmp_gasneti_pshm_sysvkeys, gasneti_pshm_nodes);
+        gasneti_pshm_makenames(tmp_gasneti_pshm_sysvkeys, gasneti_mynode);
     }
     /* vnet key is broadcasted */
-    (*exchangefn)(&tmp_gasneti_pshm_sysvkeys[gasneti_pshm_nodes], sizeof(unsigned int), tmp_gasneti_pshm_sysvkeys);
+    (*exchangefn)(&tmp_gasneti_pshm_sysvkeys[gasneti_mynode], sizeof(unsigned int), tmp_gasneti_pshm_sysvkeys);
     gasneti_pshm_sysvkeys[gasneti_pshm_nodes] = tmp_gasneti_pshm_sysvkeys[gasneti_pshm_firstnode];
-      
+    
     gasneti_free(tmp_gasneti_pshm_sysvkeys);
 
 #else
