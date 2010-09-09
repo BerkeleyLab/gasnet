@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/08/14 03:11:16 $
- * $Revision: 1.74.2.15 $
+ *     $Date: 2010/09/09 20:33:19 $
+ * $Revision: 1.74.2.16 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -263,11 +263,11 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
 #if GASNET_DISKFILE
   tmpdir_len = strlen(tmpdir);
   gasneti_pshmname = (char **)gasneti_malloc((gasneti_pshm_nodes+1)*sizeof(char*));
+  tmpdir_len = strlen(tmpdir);
 #else
   gasneti_pshmname = (gasnet_pshmname_t *)gasneti_malloc((gasneti_pshm_nodes+1) * sizeof(gasnet_pshmname_t));
   tmpdir_len = 0;
 #endif
-  tmpdir_len = strlen(tmpdir);
 
   for (i = 0; i <= gasneti_pshm_nodes; ++i) {
     const char tbl[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
