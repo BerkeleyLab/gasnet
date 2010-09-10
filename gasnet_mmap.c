@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/09/10 22:38:42 $
- * $Revision: 1.74.2.18 $
+ *     $Date: 2010/09/10 23:26:02 $
+ * $Revision: 1.74.2.19 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -176,12 +176,7 @@ extern void *gasneti_mmap(uintptr_t segsize) {
 static uintptr_t *gasneti_seginfo_correction = NULL;
 
 #ifndef GASNET_SYSV
-  #if GASNET_DISKFILE
   static char **gasneti_pshmname = NULL; /* length 1+gasneti_pshm_nodes, the +1 is for AMs */
-  #else
-  typedef char gasnet_pshmname_t[160];
-  static gasnet_pshmname_t *gasneti_pshmname = NULL; /* length 1+gasneti_pshm_nodes, the +1 is for AMs */
-  #endif
 #endif
 
 static char *gasneti_pshm_tmpfile = NULL;
@@ -209,19 +204,33 @@ static int gasneti_pshm_mkstemp(const char *prefix, const char *tmpdir) {
   }
 }
 
+/* Find a directory to use, trying multiple places until success. */
+static int gasneti_pshm_mkstemp_search(const char *prefix) {
+#if GASNET_SYSV || GASNET_DISKFILE
+  const char *tmpdir = gasneti_getenv_withdefault("TMPDIR", "/tmp");
+  if (!gasneti_pshm_mkstemp(prefix, tmpdir)) {
+    return 0;
+  }
+#else
+  /* We do NOT honor $TMPDIR, since setting it to a job-specific
+   * value would interfere with our purpose here of finding a
+   * name that is unique per-NODE. */
+#endif
+
+  return (   gasneti_pshm_mkstemp(prefix, "/tmp")
+          && gasneti_pshm_mkstemp(prefix, "/var/tmp")
+          && gasneti_pshm_mkstemp(prefix, "/usr/tmp")
+#if PLATFORM_OS_LINUX
+          && gasneti_pshm_mkstemp(prefix, "/dev/shm")
+#endif
+         );
+}
+
 #if GASNET_SYSV
 void gasneti_pshm_makenames(unsigned int *pshm_sysvkeys, int pshmnode) {
     static char prefix[] = "/GASNTXXXXXX";
-    const char *tmpdir = gasneti_getenv_withdefault("TMPDIR","/tmp");
 
-    /* Find a directory to use, trying multiple places until success. */
-    if (   gasneti_pshm_mkstemp(prefix, tmpdir)
-        && gasneti_pshm_mkstemp(prefix, "/var/tmp")
-        && gasneti_pshm_mkstemp(prefix, "/usr/tmp")
-#if PLATFORM_OS_LINUX
-        && gasneti_pshm_mkstemp(prefix, "/dev/shm")
-#endif
-       ) {
+    if (gasneti_pshm_mkstemp_search(prefix)) {
         gasneti_fatalerror("mkstemp() failed to find a unique prefix: %s", strerror(errno));
     }
     /* Don't unlink() it until we no longer require uniqueness */
@@ -233,34 +242,17 @@ void gasneti_pshm_makenames(unsigned int *pshm_sysvkeys, int pshmnode) {
 
 extern const char *gasneti_pshm_makenames(const char *unique) {
   static char prefix[] = "/GASNTXXXXXX";
-  static const char pattern[] = "/GASNT%06x";
   int i;
-#if GASNET_DISKFILE
-  const char *tmpdir;
-  tmpdir = gasneti_getenv_withdefault("TMPDIR","/tmp");
-#endif
 
   gasneti_assert(strlen(prefix) == GASNETI_PSHM_PREFIX_LEN);
 
   if (!unique) { /* We get to pick the unique bits */
-    /* Find a directory to use, trying multiple places until success. */
+    if (gasneti_pshm_mkstemp_search(prefix)) {
 #if GASNET_DISKFILE
-    const char *tmpdir = gasneti_getenv_withdefault("TMPDIR","/tmp");
+      gasneti_fatalerror("mkstemp() failed to find a unique prefix: %s", strerror(errno));
 #else
-    /* We do NOT honor $TMPDIR, since setting it to a job-specific
-     * value would interfere with our purpose here of finding a
-     * name that is unique per-NODE. */
-    const char *tmpdir = "/tmp";
-#endif
-    if (   gasneti_pshm_mkstemp(prefix, tmpdir)
-        && gasneti_pshm_mkstemp(prefix, "/var/tmp")
-        && gasneti_pshm_mkstemp(prefix, "/usr/tmp")
-#if PLATFORM_OS_LINUX
-        && gasneti_pshm_mkstemp(prefix, "/dev/shm")
-#endif
-       ) {
-#if !GASNET_DISKFILE
       /* We'll HOPE that our pid's low 24 bits are good enough for node-scope uniqueness */
+      static const char pattern[] = "/GASNT%06x";
       gasneti_pshm_tmpfile = gasneti_realloc(gasneti_pshm_tmpfile, sizeof(prefix)); /* inc. \0 */
       snprintf(gasneti_pshm_tmpfile, sizeof(prefix), pattern, (0xFFFFFFU & (unsigned int)getpid()));
 #endif
@@ -281,31 +273,26 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
   gasneti_assert_always(gasneti_pshm_nodes < (36*36));
 #endif
 
-  int tmpdir_len;
-#if GASNET_DISKFILE
-  tmpdir_len = strlen(tmpdir);
   gasneti_pshmname = (char **)gasneti_malloc((gasneti_pshm_nodes+1)*sizeof(char*));
-  tmpdir_len = strlen(tmpdir);
-#else
-  gasneti_pshmname = (gasnet_pshmname_t *)gasneti_malloc((gasneti_pshm_nodes+1) * sizeof(gasnet_pshmname_t));
-  tmpdir_len = 0;
-#endif
 
   for (i = 0; i <= gasneti_pshm_nodes; ++i) {
     const char tbl[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 #if GASNET_DISKFILE
-    char *filename = gasneti_pshmname[i] = (char *)gasneti_malloc(tmpdir_len + GASNETI_PSHM_PREFIX_LEN + 3);
+    const size_t len = strlen(gasneti_pshm_tmpfile);
+    const char *base = gasneti_pshm_tmpfile;
 #else
-    char *filename = gasneti_pshmname[i];
+    const size_t len = GASNETI_PSHM_PREFIX_LEN;
+    const char *base = prefix;
 #endif
 
-#if GASNET_DISKFILE
-    strcpy(filename, tmpdir);
-#endif
-    memcpy(filename + tmpdir_len, prefix, GASNETI_PSHM_PREFIX_LEN);
-    filename[tmpdir_len + GASNETI_PSHM_PREFIX_LEN+0] = tbl[i / 36];
-    filename[tmpdir_len + GASNETI_PSHM_PREFIX_LEN+1] = tbl[i % 36];
-    filename[tmpdir_len + GASNETI_PSHM_PREFIX_LEN+2] = '\0';
+    char *filename = (char *)gasneti_malloc(len + 3);
+    memcpy(filename, base, len);
+
+    filename[len + 0] = tbl[i / 36];
+    filename[len + 1] = tbl[i % 36];
+    filename[len + 2] = '\0';
+
+    gasneti_pshmname[i] = filename;
   }
 
   return unique;
@@ -357,13 +344,13 @@ static void gasneti_cleanup_shm(void) {
     /* Unlink the vnet */
     #if GASNET_DISKFILE
     (void)unlink(gasneti_pshmname[gasneti_pshm_nodes]);
-    for (i=0; i<gasneti_pshm_nodes+1; ++i) {
-        gasneti_free(gasneti_pshmname[i]);
-    }
     #else
     (void)shm_unlink(gasneti_pshmname[gasneti_pshm_nodes]);
     #endif
     
+    for (i=0; i<gasneti_pshm_nodes+1; ++i) {
+        gasneti_free(gasneti_pshmname[i]);
+    }
     gasneti_free(gasneti_pshmname);
   }
 #endif
