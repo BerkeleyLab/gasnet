@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/09/10 21:45:20 $
- * $Revision: 1.74.2.17 $
+ *     $Date: 2010/09/10 22:38:42 $
+ * $Revision: 1.74.2.18 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -188,26 +188,43 @@ static char *gasneti_pshm_tmpfile = NULL;
 #define GASNETI_PSHM_PREFIX_LEN1  6  /* "/GASNT" */
 #define GASNETI_PSHM_PREFIX_LEN   (GASNETI_PSHM_PREFIX_LEN1 + GASNETI_PSHM_UNIQUE_LEN)
 
+static int gasneti_pshm_mkstemp(const char *prefix, const char *tmpdir) {
+  int tmpfd;
+
+  if (!tmpdir || !strlen(tmpdir)) {
+    errno = ENOTDIR;
+    return -1;
+  }
+  gasneti_pshm_tmpfile = gasneti_realloc(gasneti_pshm_tmpfile, strlen(tmpdir) + GASNETI_PSHM_PREFIX_LEN + 1);
+  strcpy(gasneti_pshm_tmpfile, tmpdir);
+  strcat(gasneti_pshm_tmpfile, prefix);
+
+  /* Now try to create a unique file in the given directory */
+  tmpfd = mkstemp(gasneti_pshm_tmpfile);
+  if (tmpfd >= 0) {
+    close(tmpfd);
+    return 0;
+  } else {
+    return -1;
+  }
+}
+
 #if GASNET_SYSV
 void gasneti_pshm_makenames(unsigned int *pshm_sysvkeys, int pshmnode) {
-
     static char prefix[] = "/GASNTXXXXXX";
-    const char *tmpdir;
-    int tmpfd;
+    const char *tmpdir = gasneti_getenv_withdefault("TMPDIR","/tmp");
 
-    tmpdir = gasneti_getenv_withdefault("TMPDIR","/tmp");
-
-    /* Find a directory to use */
-    gasneti_pshm_tmpfile = gasneti_malloc(strlen(tmpdir) + GASNETI_PSHM_PREFIX_LEN + 1);
-    strcpy(gasneti_pshm_tmpfile, tmpdir);
-    strcat(gasneti_pshm_tmpfile, prefix);
-
-    /* Now create a unique file in the chosen directory */
-    tmpfd = mkstemp(gasneti_pshm_tmpfile);
-    if (tmpfd < 0) {
+    /* Find a directory to use, trying multiple places until success. */
+    if (   gasneti_pshm_mkstemp(prefix, tmpdir)
+        && gasneti_pshm_mkstemp(prefix, "/var/tmp")
+        && gasneti_pshm_mkstemp(prefix, "/usr/tmp")
+#if PLATFORM_OS_LINUX
+        && gasneti_pshm_mkstemp(prefix, "/dev/shm")
+#endif
+       ) {
         gasneti_fatalerror("mkstemp() failed to find a unique prefix: %s", strerror(errno));
     }
-    close(tmpfd);
+    /* Don't unlink() it until we no longer require uniqueness */
 
     pshm_sysvkeys[pshmnode] = get_sysv_key(gasneti_pshm_tmpfile, pshmnode);
 }
@@ -216,6 +233,7 @@ void gasneti_pshm_makenames(unsigned int *pshm_sysvkeys, int pshmnode) {
 
 extern const char *gasneti_pshm_makenames(const char *unique) {
   static char prefix[] = "/GASNTXXXXXX";
+  static const char pattern[] = "/GASNT%06x";
   int i;
 #if GASNET_DISKFILE
   const char *tmpdir;
@@ -225,24 +243,28 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
   gasneti_assert(strlen(prefix) == GASNETI_PSHM_PREFIX_LEN);
 
   if (!unique) { /* We get to pick the unique bits */
-    int tmpfd;
-
-#ifndef GASNET_DISKFILE
-    const char *tmpdir;
-    tmpdir = gasneti_getenv_withdefault("TMPDIR","/tmp");
+    /* Find a directory to use, trying multiple places until success. */
+#if GASNET_DISKFILE
+    const char *tmpdir = gasneti_getenv_withdefault("TMPDIR","/tmp");
+#else
+    /* We do NOT honor $TMPDIR, since setting it to a job-specific
+     * value would interfere with our purpose here of finding a
+     * name that is unique per-NODE. */
+    const char *tmpdir = "/tmp";
 #endif
-
-    /* Find a directory to use */
-    gasneti_pshm_tmpfile = gasneti_malloc(strlen(tmpdir) + GASNETI_PSHM_PREFIX_LEN + 1);
-    strcpy(gasneti_pshm_tmpfile, tmpdir);
-    strcat(gasneti_pshm_tmpfile, prefix);
-
-    /* Now create a unique file in the chosen directory */
-    tmpfd = mkstemp(gasneti_pshm_tmpfile);
-    if (tmpfd < 0) {
-      gasneti_fatalerror("mkstemp() failed to find a unique prefix: %s", strerror(errno));
+    if (   gasneti_pshm_mkstemp(prefix, tmpdir)
+        && gasneti_pshm_mkstemp(prefix, "/var/tmp")
+        && gasneti_pshm_mkstemp(prefix, "/usr/tmp")
+#if PLATFORM_OS_LINUX
+        && gasneti_pshm_mkstemp(prefix, "/dev/shm")
+#endif
+       ) {
+#if !GASNET_DISKFILE
+      /* We'll HOPE that our pid's low 24 bits are good enough for node-scope uniqueness */
+      gasneti_pshm_tmpfile = gasneti_realloc(gasneti_pshm_tmpfile, sizeof(prefix)); /* inc. \0 */
+      snprintf(gasneti_pshm_tmpfile, sizeof(prefix), pattern, (0xFFFFFFU & (unsigned int)getpid()));
+#endif
     }
-    close(tmpfd);
     /* Don't unlink() it until we no longer require uniqueness */
 
     /* Strip away the tmpdir to yield a unique prefix */
@@ -284,7 +306,6 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
     filename[tmpdir_len + GASNETI_PSHM_PREFIX_LEN+0] = tbl[i / 36];
     filename[tmpdir_len + GASNETI_PSHM_PREFIX_LEN+1] = tbl[i % 36];
     filename[tmpdir_len + GASNETI_PSHM_PREFIX_LEN+2] = '\0';
-
   }
 
   return unique;
