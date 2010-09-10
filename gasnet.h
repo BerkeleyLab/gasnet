@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2010/07/23 21:02:45 $
- * $Revision: 1.63.10.3 $
+ *     $Date: 2010/09/10 21:45:20 $
+ * $Revision: 1.63.10.4 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -272,6 +272,7 @@ GASNETI_END_EXTERNC
 #define GASNET_SYSV 1
 //#define GASNET_DISKFILE 1
 #define GASNET_NUMA 1
+void (*gasnet_NUMApin)(uintptr_t, uintptr_t, int);
 
 #ifndef _GASNET_SEGINFO_T
 #define _GASNET_SEGINFO_T

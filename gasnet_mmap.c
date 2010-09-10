@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/09/09 20:33:19 $
- * $Revision: 1.74.2.16 $
+ *     $Date: 2010/09/10 21:45:20 $
+ * $Revision: 1.74.2.17 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -411,7 +411,7 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
     do {
       gasneti_sched_yield();
 #if GASNET_SYSV
-  gasneti_mmapfd = sysv_open(segsize, pshmnode);
+      gasneti_mmapfd = sysv_open(segsize, pshmnode);
 #elif GASNET_DISKFILE
       gasneti_mmapfd = open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
 #else
@@ -1324,22 +1324,10 @@ int gasneti_AttachRemote(uintptr_t segsize, const gasnet_node_t pshm_node, uintp
 }
 #endif /* GASNET_PSHM */
 
-#if GASNET_NUMA  
-/* Used as a barrier, so that no thread would perform
- * pinning before local attach is completed */
-volatile static int gasneti_localAttachCompleted;
-/* Number of Pthreads passed from the UPC level */
-volatile static int gasneti_pthreads;
-/* Atomic variable used for sychronization of pthreads:
- * they should all pin their memory before anyone
- * proceeds running. 
- */
-static gasneti_atomic_t _gasneti_pinningdone = gasneti_atomic_init(0);
-#endif
-
 void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
                            gasnet_seginfo_t *seginfo,
                            gasneti_bootstrapExchangefn_t exchangefn) {
+    
 #if GASNET_PSHM
     int i;
     int ar; /* results of gasneti_AttachRemote */
@@ -1356,13 +1344,11 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
     (*exchangefn)(&gasneti_segment, sizeof(gasnet_seginfo_t), seginfo);
 
 #if GASNET_NUMA
-    /* Notify everyone that local attach is completed */
-    gasneti_localAttachCompleted=1;
     /* Pthread 0 attaches local memory, but
-     * he should also touch it's portion of 
-     * the shared heap. 
+     * should also touch it's portion of 
+     * the shared heap (in case of NUMA). 
      * */
-    if (gasneti_pthreads) gasneti_pinMemory(0);
+    if (gasnet_NUMApin) gasnet_NUMApin(gasneti_segment.addr, gasneti_segment.size, 0);
 #endif
 
 #if GASNET_PSHM
@@ -1452,43 +1438,6 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
 #endif /* !GASNET_SEGMENT_EVERYTHING */
 
 #if GASNET_NUMA
-/* This function touches the shared memory.
- * It is called by each pthread, and each 
- * pthread is bound to a specific CPU before
- * calling this function.
- */
-int gasneti_pinMemory(int mypthread){
-
-    uintptr_t segsize;
-    double *segbase;
-    double *segend;
-    int i;
- 
-    /* Wait for ptherad 0 to complet the memory attaching */
-    while(!gasneti_localAttachCompleted);
-    segsize = gasneti_segment.size/gasneti_pthreads;
-    segbase = (double*)((uintptr_t)gasneti_segment.addr + mypthread*segsize);
-    segend = (double*)((uintptr_t)segbase + segsize);
-
-    i=0;
-    while(&segbase[i]<segend){
-        segbase[i]=0;
-	i+=512;
-    }
-   
-    /* Pthread-level barrier: wait for all pthreads to complete memory pinning. */
-    gasneti_atomic_increment(&_gasneti_pinningdone, GASNETI_ATOMIC_REL);
-    while((int)gasneti_atomic_read(&_gasneti_pinningdone, 0) != gasneti_pthreads);
-
-    return 0;
-}
-/* Setting the number of pthreads. Called
- * from the UPC level.
- */
-void gasneti_setPthreads(int numpthreads){
-    gasneti_pthreads = numpthreads;
-}
-
 /* Used to pass the nodemap information to the UPC level.
  * Similar to gasneti_getSegmentInfo(). 
  * */
@@ -1815,7 +1764,7 @@ void gasneti_auxseg_attach(void) {
 
 //#ifndef GASNET_NUMA
   /* In NUMA case, gasnet_seginfo_t does not have
-   * nodeinfo field. nodema is passed to the UPC
+   * nodeinfo field. nodemap is passed to the UPC
    * level via gasneti_getNodeInfo()
    */
   if (gasneti_nodemap) {
