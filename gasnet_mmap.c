@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/09/11 00:36:46 $
- * $Revision: 1.74.2.21 $
+ *     $Date: 2010/09/11 02:18:16 $
+ * $Revision: 1.74.2.22 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -544,9 +544,9 @@ extern void gasneti_munmap(void *segbase, uintptr_t segsize) {
      * tries unmapping memory that was previously mapped with gasneti_mmap()
      * (without using SYSV). It works currently, but we might miss some errors
      * from sysv_munmap().
+     * XXX: should probably explore modifying the callers instead
      */
-    if (sysv_munmap(segbase) != 0) 
-        if (munmap(segbase, segsize) != 0) 
+    if ((sysv_munmap(segbase) != 0)  && (munmap(segbase, segsize) != 0))
 #else
     if (munmap(segbase, segsize) != 0) 
 #endif
