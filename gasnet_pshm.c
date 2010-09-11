@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2010/09/11 07:49:38 $
- * $Revision: 1.8.2.13 $
+ *     $Date: 2010/09/11 08:05:41 $
+ * $Revision: 1.8.2.14 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -166,7 +166,7 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
 
     /* Non-first nodes now generate the same names from the unique identifier */
     if (gasneti_pshm_mynode != 0) {
-      (void)gasneti_pshm_makenames((const char *)(exchg + gasneti_pshm_firstnode));
+      (void)gasneti_pshm_makenames((const char *)(exchg + gasneti_pshm_firstnode*(GASNETI_PSHM_UNIQUE_LEN+1)));
     }
     gasneti_free(exchg);
 #endif
