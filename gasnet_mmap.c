@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/09/11 00:02:49 $
- * $Revision: 1.74.2.20 $
+ *     $Date: 2010/09/11 00:36:46 $
+ * $Revision: 1.74.2.21 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -93,16 +93,6 @@ static int sysv_open(size_t bytes, int pshm_rank){
 }
 static void * sysv_mmap(void *segbase, int shmget_id){
     return shmat(shmget_id, segbase, 0);
-}
-static void sysv_unlink(int pshm_rank){
-    int shmget_id;
-    shmget_id = shmget(gasneti_pshm_sysvkeys[pshm_rank], 0, 0);
-    shmctl(shmget_id, IPC_RMID, NULL);
-
-    /* No need do anything upon failure since
-     * it can legaly fail (if the segment has
-     * already been removed)
-     */
 }
 static int sysv_munmap(void *segbase){
     return shmdt(segbase);
@@ -292,21 +282,28 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
 }
 #endif
 
+#if GASNET_SYSV
+static void gasneti_pshm_unlink(int pshm_rank){
+  int shmget_id = shmget(gasneti_pshm_sysvkeys[pshm_rank], 0, 0);
+  (void)shmctl(shmget_id, IPC_RMID, NULL);
+}
+#elif GASNET_DISKFILE
+static void gasneti_pshm_unlink(int pshm_rank){
+  (void)unlink(gasneti_pshmname[pshm_rank]);
+}
+#else
+static void gasneti_pshm_unlink(int pshm_rank){
+  (void)shm_unlink(gasneti_pshmname[pshm_rank]);
+}
+#endif
+
 /* shm_unlink() so the shared memory will disappear upon exit.
  * This must be called collectively, because barriers are
  * used to prevent races against shm_open() before or after.
  */
 static void gasneti_unlink_segments(void) {
   gasneti_pshmnet_bootstrapBarrier();
-#if GASNET_SYSV
-    sysv_unlink(gasneti_pshm_mynode);
-#else
-  #if GASNET_DISKFILE
-  (void)unlink(gasneti_pshmname[gasneti_pshm_mynode]);
-  #else
-  (void)shm_unlink(gasneti_pshmname[gasneti_pshm_mynode]);
-  #endif
-#endif
+  gasneti_pshm_unlink(gasneti_pshm_mynode);
   gasneti_pshmnet_bootstrapBarrier();
 }
 
@@ -315,42 +312,30 @@ static void gasneti_cleanup_shm(void) {
   int i;
 
 #if GASNET_SYSV
-  for (i=0; i<gasneti_pshm_nodes; ++i) {
-    sysv_unlink(i);
+  /* Unlink the segments and vnet */
+  for (i=0; i<gasneti_pshm_nodes+1; ++i) {
+    gasneti_pshm_unlink(i);
   }
-
-  /* Unlink the vnet */
-  sysv_unlink(gasneti_pshm_nodes);
     
   gasneti_free(gasneti_pshm_sysvkeys);
+  gasneti_pshm_sysvkeys = NULL;
 #else
   if (gasneti_pshmname) {
-    /* Unlink the segments */
-    for (i=0; i<gasneti_pshm_nodes; ++i) {
-    #if GASNET_DISKFILE
-      (void)unlink(gasneti_pshmname[i]);
-    #else
-      (void)shm_unlink(gasneti_pshmname[i]);
-    #endif
-    }
-
-    /* Unlink the vnet */
-    #if GASNET_DISKFILE
-    (void)unlink(gasneti_pshmname[gasneti_pshm_nodes]);
-    #else
-    (void)shm_unlink(gasneti_pshmname[gasneti_pshm_nodes]);
-    #endif
-    
+    /* Unlink the segments and vnet, and free the filenames */
     for (i=0; i<gasneti_pshm_nodes+1; ++i) {
-        gasneti_free(gasneti_pshmname[i]);
+      gasneti_pshm_unlink(i);
+      gasneti_free(gasneti_pshmname[i]);
     }
     gasneti_free(gasneti_pshmname);
+    gasneti_pshmname = NULL;
   }
 #endif
+
   /* Remove the tmpfile that ensures uniqueness of our filenames */
   if (gasneti_pshm_tmpfile) {
     (void)unlink(gasneti_pshm_tmpfile);
     gasneti_free(gasneti_pshm_tmpfile);
+    gasneti_pshm_tmpfile = NULL;
   }
 }
 
@@ -536,15 +521,7 @@ extern void *gasneti_mmap_vnet(uintptr_t size) {
   return (ptr == MAP_FAILED) ? NULL : ptr;
 }
 extern void gasneti_unlink_vnet(void) {
-#if GASNET_SYSV
-  sysv_unlink(gasneti_pshm_nodes);
-#else
-  #if GASNET_DISKFILE
-  (void)unlink(gasneti_pshmname[gasneti_pshm_nodes]);
-  #else
-  (void)shm_unlink(gasneti_pshmname[gasneti_pshm_nodes]);
-  #endif
-#endif
+  gasneti_pshm_unlink(gasneti_pshm_nodes);
 }
 #endif /* GASNET_PSHM */
 
@@ -897,15 +874,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
           sum = 0; done = 1;
           for (i = 0; i < gasneti_pshm_nodes; ++i) {
             tmp_se[i] = _gasneti_mmap_segment_search_inner(maxsz);
-            #if GASNET_SYSV
-                sysv_unlink(gasneti_pshm_mynode);
-            #else
-              #if GASNET_DISKFILE
-                (void)unlink(gasneti_pshmname[gasneti_pshm_mynode]);
-              #else
-                (void)shm_unlink(gasneti_pshmname[gasneti_pshm_mynode]);
-              #endif
-            #endif
+            gasneti_pshm_unlink(gasneti_pshm_mynode);
             sum += tmp_se[i].size;
 	    if (tmp_se[i].size != maxsz) {
 	      done = 0;
