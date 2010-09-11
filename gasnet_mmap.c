@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/09/11 07:21:03 $
- * $Revision: 1.74.2.27 $
+ *     $Date: 2010/09/11 17:45:30 $
+ * $Revision: 1.74.2.28 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1314,7 +1314,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
      * should also touch it's portion of 
      * the shared heap (in case of NUMA). 
      * */
-    if (gasnet_NUMApin) gasnet_NUMApin(gasneti_segment.addr, gasneti_segment.size, 0);
+    if (gasnet_NUMApin) gasnet_NUMApin(gasneti_segment.addr, gasneti_segment.size);
 #endif
 
 #if GASNET_PSHM
