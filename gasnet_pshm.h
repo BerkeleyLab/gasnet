@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.h,v $
- *     $Date: 2010/09/11 07:21:03 $
- * $Revision: 1.9.2.5 $
+ *     $Date: 2010/09/11 07:49:38 $
+ * $Revision: 1.9.2.6 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -252,7 +252,7 @@ extern size_t gasneti_pshmnet_memory_needed(gasneti_pshm_rank_t nodes);
  * - 'nodes': count of the nodes in the supernode.
  */
 extern gasneti_pshmnet_t *
-gasneti_pshmnet_init(void *start, size_t len, gasneti_pshm_rank_t node_count, int vnettype);
+gasneti_pshmnet_init(void *start, size_t len, gasneti_pshm_rank_t node_count);
 
 /* Bootstrap barrier via pshmnet.
  *
