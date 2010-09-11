@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/09/11 05:31:16 $
- * $Revision: 1.74.2.25 $
+ *     $Date: 2010/09/11 05:41:56 $
+ * $Revision: 1.74.2.26 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -846,7 +846,6 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
        * + size of the holes in the address space (especially on 32-bit arch)
        * NOTE: must use pshm's view of supernode, which may be less than nodemap's.
        */
-  
       if (se.size) gasneti_do_munmap(se.addr, se.size);
       gasneti_unlink_segments(); /* Includes barrier to complete munmap()s */
       se.size = 0;
@@ -1295,7 +1294,6 @@ int gasneti_AttachRemote(uintptr_t segsize, const gasnet_node_t pshm_node, uintp
 void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
                            gasnet_seginfo_t *seginfo,
                            gasneti_bootstrapExchangefn_t exchangefn) {
-    
 #if GASNET_PSHM
     int i;
     int ar; /* results of gasneti_AttachRemote */
