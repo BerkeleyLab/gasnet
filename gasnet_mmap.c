@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/09/11 03:02:55 $
- * $Revision: 1.74.2.23 $
+ *     $Date: 2010/09/11 05:26:41 $
+ * $Revision: 1.74.2.24 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -290,6 +290,17 @@ static void * gasneti_pshm_mmap(void *segbase, uintptr_t segsize, int flags, int
 #endif
 }
 
+#if GASNET_SYSV
+static void gasneti_pshm_munmap(void *segbase, uintptr_t segsize) {
+  gasneti_assert(segsize > 0);
+  if (shmdt(segbase) != 0)
+      gasneti_fatalerror("shmdt("GASNETI_LADDRFMT") failed: %s\n",
+	      GASNETI_LADDRSTR(segbase), strerror(errno));
+}
+#else
+  #define gasneti_pshm_munmap gasneti_munmap
+#endif
+
 static void gasneti_pshm_close(int fd_or_id){
 #if GASNET_SYSV
   /* empty */
@@ -521,17 +532,7 @@ extern void gasneti_munmap(void *segbase, uintptr_t segsize) {
         gasneti_fatalerror("msync("GASNETI_LADDRFMT",%lu) failed: %s\n",
 	        GASNETI_LADDRSTR(segbase), (unsigned long)segsize, strerror(errno));
     #endif
-#if GASNET_SYSV
-    /* We need to call munmap() here because code in the conduits
-     * tries unmapping memory that was previously mapped with gasneti_mmap()
-     * (without using SYSV). It works currently, but we might miss some errors
-     * from shmdt().
-     * XXX: should probably explore modifying the callers instead
-     */
-    if ((shmdt(segbase) != 0) && (munmap(segbase, segsize) != 0))
-#else
     if (munmap(segbase, segsize) != 0) 
-#endif
       gasneti_fatalerror("munmap("GASNETI_LADDRFMT",%lu) failed: %s\n",
 	      GASNETI_LADDRSTR(segbase), (unsigned long)segsize, strerror(errno));
   t2 = gasneti_ticks_now();
@@ -545,9 +546,11 @@ extern void gasneti_munmap(void *segbase, uintptr_t segsize) {
 #if GASNET_PSHM
   #define gasneti_do_mmap       gasneti_mmap_shared
   #define gasneti_do_mmap_fixed gasneti_mmap_shared_fixed
+  #define gasneti_do_munmap     gasneti_pshm_munmap
 #else
   #define gasneti_do_mmap       gasneti_mmap
   #define gasneti_do_mmap_fixed gasneti_mmap_fixed
+  #define gasneti_do_munmap     gasneti_munmap
 #endif
 
 /* binary search for segment - returns location, not mmaped */
@@ -569,7 +572,7 @@ static gasnet_seginfo_t gasneti_mmap_binary_segsrch(uintptr_t lowsz, uintptr_t h
     return gasneti_mmap_binary_segsrch(lowsz, si.size);
   else {
     gasnet_seginfo_t si_temp;
-    gasneti_munmap(si.addr, si.size);
+    gasneti_do_munmap(si.addr, si.size);
 
     si_temp = gasneti_mmap_binary_segsrch(si.size, highsz);
     if (si_temp.size) return si_temp;
@@ -600,13 +603,13 @@ static gasnet_seginfo_t gasneti_mmap_linearasc_segsrch(uintptr_t highsz) {
 
   while (si.addr != MAP_FAILED && si.size <= highsz) {
     last_si = si;
-    gasneti_munmap(last_si.addr, last_si.size);
+    gasneti_do_munmap(last_si.addr, last_si.size);
     si.size += GASNET_PAGESIZE;
     si.addr = gasneti_do_mmap(si.size);
   }
   if (si.addr == MAP_FAILED) return last_si;
   else {
-    gasneti_munmap(si.addr, si.size);
+    gasneti_do_munmap(si.addr, si.size);
     return si;
   }
 }
@@ -654,7 +657,7 @@ static gasnet_seginfo_t _gasneti_mmap_segment_search_inner(uintptr_t maxsz) {
   if (mmaped && ((uintptr_t)si.addr) % GASNET_PAGESIZE == 0) {
     /* aligned and mmaped - nothing to do */
   } else { /* need to page-align base */
-    if (mmaped) gasneti_munmap(si.addr, si.size); 
+    if (mmaped) gasneti_do_munmap(si.addr, si.size); 
     /*  ensure page-alignment of base and size */
     { uintptr_t begin = (uintptr_t)si.addr;
       uintptr_t end = (uintptr_t)si.addr + si.size;
@@ -837,7 +840,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
        * NOTE: must use pshm's view of supernode, which may be less than nodemap's.
        */
   
-      if (se.size) gasneti_munmap(se.addr, se.size);
+      if (se.size) gasneti_do_munmap(se.addr, se.size);
       gasneti_unlink_segments(); /* Includes barrier to complete munmap()s */
       se.size = 0;
 
@@ -864,7 +867,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
             }
           }
           for (i = 0; i < gasneti_pshm_nodes; ++i) {
-            if (tmp_se[i].size) gasneti_munmap(tmp_se[i].addr, tmp_se[i].size);
+            if (tmp_se[i].size) gasneti_do_munmap(tmp_se[i].addr, tmp_se[i].size);
             tmp_se[i].size = 0;
           }
           maxsz = GASNETI_PAGE_ALIGNDOWN(sum / gasneti_pshm_nodes);
@@ -882,7 +885,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
 
     /* Free held resources */
     gasneti_free(sz_exchg);
-    if (se.size) gasneti_munmap(se.addr, se.size);
+    if (se.size) gasneti_do_munmap(se.addr, se.size);
     if (barrierfn) (*barrierfn)(); /* Ensures munmap()s complete on-node before return */
   }
 
@@ -1131,7 +1134,7 @@ void gasneti_segmentAttachLocal(uintptr_t segsize, uintptr_t minheapoffset,
     #endif /* GASNETI_ALIGNED_SEGMENTS */
 
     if (segsize == 0) { /* no segment */
-      gasneti_munmap(gasneti_segment.addr, gasneti_segment.size);
+      gasneti_do_munmap(gasneti_segment.addr, gasneti_segment.size);
       segbase = NULL; 
     }
     else {
@@ -1159,7 +1162,7 @@ void gasneti_segmentAttachLocal(uintptr_t segsize, uintptr_t minheapoffset,
       if (gasneti_segment.addr != segbase || gasneti_segment.size != segsize) {
         gasneti_assert(segbase >= gasneti_segment.addr &&
                (uintptr_t)segbase + segsize <= (uintptr_t)gasneti_segment.addr + gasneti_segment.size);
-        gasneti_munmap(gasneti_segment.addr, gasneti_segment.size);
+        gasneti_do_munmap(gasneti_segment.addr, gasneti_segment.size);
         gasneti_do_mmap_fixed(segbase, segsize);
       }
     }
@@ -1225,7 +1228,7 @@ int gasneti_AttachRemote(uintptr_t segsize, const gasnet_node_t pshm_node, uintp
     #endif
     
     if (segsize == 0) {
-      gasneti_munmap(gasneti_remote_segments[pshm_node].addr, gasneti_remote_segments[pshm_node].size);
+      gasneti_do_munmap(gasneti_remote_segments[pshm_node].addr, gasneti_remote_segments[pshm_node].size);
       segbase = NULL; 
     }
     else {
@@ -1249,7 +1252,7 @@ int gasneti_AttachRemote(uintptr_t segsize, const gasnet_node_t pshm_node, uintp
       if (gasneti_remote_segments[pshm_node].addr != segbase || gasneti_remote_segments[pshm_node].size != segsize) {
         gasneti_assert(segbase >= gasneti_remote_segments[pshm_node].addr &&
                (uintptr_t)segbase + segsize <= (uintptr_t)gasneti_remote_segments[pshm_node].addr + gasneti_remote_segments[pshm_node].size);
-        gasneti_munmap(gasneti_remote_segments[pshm_node].addr, gasneti_remote_segments[pshm_node].size);
+        gasneti_do_munmap(gasneti_remote_segments[pshm_node].addr, gasneti_remote_segments[pshm_node].size);
         gasneti_mmap_remote_shared(segbase, segsize, pshm_node);
         gasneti_remote_segments[pshm_node].addr = segbase;
         gasneti_remote_segments[pshm_node].size = segsize;
