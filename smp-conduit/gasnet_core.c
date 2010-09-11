@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2010/07/23 19:48:21 $
- * $Revision: 1.54.6.3 $
+ *     $Date: 2010/09/11 07:21:05 $
+ * $Revision: 1.54.6.4 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -324,11 +324,12 @@ static int gasnetc_init(int *argc, char ***argv) {
    * PLUS its just plain simpler to do this pre-fork().
    */
   gasneti_pshm_nodes = gasneti_nodes;
-#if GASNET_SYSV
-  int i;
-  gasneti_pshm_sysvkeys = gasneti_malloc((gasneti_pshm_nodes+1)*sizeof(unsigned int));
-  for(i=0; i<gasneti_pshm_nodes+1; i++){
-    gasneti_pshm_makenames(&gasneti_pshm_sysvkeys[i], gasneti_mynode);
+#ifdef GASNETI_PSHM_SYSV
+  { int i;
+    gasneti_pshm_sysvkeys = gasneti_malloc((gasneti_pshm_nodes+1)*sizeof(unsigned int));
+    for(i=0; i<gasneti_pshm_nodes+1; i++){
+      gasneti_pshm_makenames(&gasneti_pshm_sysvkeys[i], gasneti_mynode);
+    }
   }
 #else
   (void)gasneti_pshm_makenames(NULL);

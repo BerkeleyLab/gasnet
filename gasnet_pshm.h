@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.h,v $
- *     $Date: 2010/07/23 19:48:19 $
- * $Revision: 1.9.2.4 $
+ *     $Date: 2010/09/11 07:21:03 $
+ * $Revision: 1.9.2.5 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -31,7 +31,18 @@
 /* In gasnet_mmap.c */
 #define GASNETI_PSHM_UNIQUE_LEN 6
 
-#if GASNET_SYSV
+/* Temporary measure until these move to configure */
+#if defined(GASNET_SYSV)
+  #define GASNETI_PSHM_SYSV
+  #undef GASNET_SYSV
+#elif defined(GASNET_DISKFILE)
+  #define GASNETI_PSHM_FILE
+  #undef GASNET_DISKFILE
+#else
+  #define GASNETI_PSHM_POSIX
+#endif
+
+#ifdef GASNETI_PSHM_SYSV
 void gasneti_pshm_makenames(unsigned int *pshm_sysvkeys, int pshmnode);
 #else
 extern const char *gasneti_pshm_makenames(const char *unique);
@@ -156,7 +167,7 @@ extern gasneti_pshm_rank_t gasneti_pshm_nodes;
 extern gasneti_pshm_rank_t gasneti_pshm_mynode;
 extern gasnet_node_t gasneti_pshm_firstnode;
 
-#if GASNET_SYSV
+#ifdef GASNETI_PSHM_SYSV
 extern unsigned int * gasneti_pshm_sysvkeys;
 #endif
 

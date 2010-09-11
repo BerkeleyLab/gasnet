@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/09/11 05:41:56 $
- * $Revision: 1.74.2.26 $
+ *     $Date: 2010/09/11 07:21:03 $
+ * $Revision: 1.74.2.27 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -143,7 +143,7 @@ extern void *gasneti_mmap(uintptr_t segsize) {
 #if GASNET_PSHM
 static uintptr_t *gasneti_seginfo_correction = NULL;
 
-#ifndef GASNET_SYSV
+#ifndef GASNETI_PSHM_SYSV
   static char **gasneti_pshmname = NULL; /* length 1+gasneti_pshm_nodes, the +1 is for AMs */
 #endif
 
@@ -172,7 +172,7 @@ static int gasneti_pshm_mkstemp(const char *prefix, const char *tmpdir) {
   }
 }
 
-#if GASNET_SYSV
+#ifdef GASNETI_PSHM_SYSV
 /* SYSV FUNCTIONS */
 /* Usage of SYSV depends on kernel parameters:
  * shmmax (size of a single segment) and 
@@ -204,7 +204,7 @@ void gasneti_pshm_makenames(unsigned int *pshm_sysvkeys, int pshmnode) {
 
 extern const char *gasneti_pshm_makenames(const char *unique) {
   static char prefix[] = "/GASNTXXXXXX";
-#if GASNET_DISKFILE
+#ifdef GASNETI_PSHM_FILE
   const char *tmpdir = gasneti_getenv_withdefault("TMPDIR", "/tmp");
   const size_t tmpdir_len = strlen(tmpdir);
 #else
@@ -216,7 +216,7 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
   gasneti_assert(strlen(prefix) == GASNETI_PSHM_PREFIX_LEN);
 
   if (!unique) { /* We get to pick the unique bits */
-#if GASNET_DISKFILE
+#ifdef GASNETI_PSHM_FILE
     if (gasneti_pshm_mkstemp(prefix, tmpdir)) {
       gasneti_fatalerror("mkstemp() failed to find a unique prefix: %s", strerror(errno));
     }
@@ -259,7 +259,7 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
     const char tbl[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     char *filename = (char *)gasneti_malloc(base_len + 3);
 
-#if GASNET_DISKFILE
+#ifdef GASNETI_PSHM_FILE
     memcpy(filename, tmpdir, tmpdir_len);
 #endif
     memcpy(filename + tmpdir_len, prefix, GASNETI_PSHM_PREFIX_LEN);
@@ -276,9 +276,9 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
 #endif
 
 static int gasneti_pshm_open(size_t bytes, int pshm_rank){
-#if GASNET_SYSV
+#if defined(GASNETI_PSHM_SYSV)
   return shmget(gasneti_pshm_sysvkeys[pshm_rank], bytes, IPC_CREAT | S_IRUSR | S_IWUSR);
-#elif GASNET_DISKFILE
+#elif defined(GASNETI_PSHM_FILE)
   const char *filename = gasneti_pshmname[pshm_rank];
   return open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
 #else
@@ -288,14 +288,14 @@ static int gasneti_pshm_open(size_t bytes, int pshm_rank){
 }
 
 static void * gasneti_pshm_mmap(void *segbase, uintptr_t segsize, int flags, int fd_or_id){
-#if GASNET_SYSV
+#ifdef GASNETI_PSHM_SYSV
   return shmat(fd_or_id, segbase, 0);
 #else
   return mmap(segbase, segsize, (PROT_READ|PROT_WRITE), flags, fd_or_id, 0);
 #endif
 }
 
-#if GASNET_SYSV
+#ifdef GASNETI_PSHM_SYSV
 static void gasneti_pshm_munmap(void *segbase, uintptr_t segsize) {
   gasneti_assert(segsize > 0);
   if (shmdt(segbase) != 0)
@@ -307,7 +307,7 @@ static void gasneti_pshm_munmap(void *segbase, uintptr_t segsize) {
 #endif
 
 static void gasneti_pshm_close(int fd_or_id){
-#if GASNET_SYSV
+#ifdef GASNETI_PSHM_SYSV
   /* empty */
 #else
   (void) close(fd_or_id);
@@ -315,10 +315,10 @@ static void gasneti_pshm_close(int fd_or_id){
 }
 
 static void gasneti_pshm_unlink(int pshm_rank){
-#if GASNET_SYSV
+#if defined(GASNETI_PSHM_SYSV)
   int shmget_id = shmget(gasneti_pshm_sysvkeys[pshm_rank], 0, 0);
   (void)shmctl(shmget_id, IPC_RMID, NULL);
-#elif GASNET_DISKFILE
+#elif defined(GASNETI_PSHM_FILE)
   const char *filename = gasneti_pshmname[pshm_rank];
   (void)unlink(filename);
 #else
@@ -341,7 +341,7 @@ static void gasneti_unlink_segments(void) {
 static void gasneti_cleanup_shm(void) {
   int i;
 
-#if GASNET_SYSV
+#ifdef GASNETI_PSHM_SYSV
   /* Unlink the segments and vnet */
   for (i=0; i<gasneti_pshm_nodes+1; ++i) {
     gasneti_pshm_unlink(i);
@@ -404,7 +404,7 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
 
   fd_or_id = gasneti_pshm_open(segsize, pshmnode);
 
-#if PLATFORM_OS_DARWIN && (!GASNET_SYSV && !GASNET_DISKFILE)
+#if PLATFORM_OS_DARWIN && defined(GASNETI_PSHM_POSIX)
   if ((fd_or_id == -1) && (errno == EEXIST)) {
     /* Work around Darwin stupidity observed by Filip */
     int retries_remain = 32;
@@ -420,7 +420,7 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
     gasneti_fatalerror("failed to open shared memory file/segment for node %d", pshmnode);
   }
 
-#if PLATFORM_OS_DARWIN && (!GASNET_SYSV && !GASNET_DISKFILE)
+#if PLATFORM_OS_DARWIN && defined(GASNETI_PSHM_POSIX)
   #error "Must fix resize problem before Darwin support for PSHM will work"
   /* This shm_unlink() was added here for Darwin (which we don't currently
      support w/ PSHM due to an apparent kernel memory leak when using PSHM).
@@ -444,7 +444,7 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
   }
 #endif
 
-#ifndef GASNET_SYSV
+#ifndef GASNETI_PSHM_SYSV
   if (gasneti_mmap_stretch(fd_or_id, segsize)) {
     int save_errno = errno;
     gasneti_pshm_close(fd_or_id);
