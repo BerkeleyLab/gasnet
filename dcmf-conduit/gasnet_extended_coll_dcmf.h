@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended_coll_dcmf.h,v $
- *     $Date: 2009/10/28 03:01:34 $
- * $Revision: 1.5 $
+ *     $Date: 2010/09/12 01:22:43 $
+ * $Revision: 1.5.10.1 $
  * Description: GASNet extended collectives implementation on DCMF
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -53,9 +53,12 @@ gasnete_coll_op_generic_init_with_scratch(gasnete_coll_team_t team, int flags,
 typedef struct {
   /* struct gasnete_coll_team_t_ baseteam; */
   DCMF_CollectiveRequest_t barrier_req;
+  DCMF_CollectiveRequest_t named_barrier_req;
   DCMF_Geometry_t geometry;
   DCMF_CollectiveProtocol_t *bcast_proto;
   DCMF_CollectiveProtocol_t *a2a_proto;
+  DCMF_CollectiveProtocol_t *allreduce_proto;
+  DCMF_CollectiveProtocol_t *named_barrier_proto;
   volatile int in_barrier;
 } gasnete_coll_team_dcmf_t;  
 

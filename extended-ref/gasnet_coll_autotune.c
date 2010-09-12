@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_autotune.c,v $
- *     $Date: 2009/10/22 20:14:56 $
- * $Revision: 1.25 $
+ *     $Date: 2010/09/12 01:22:49 $
+ * $Revision: 1.25.10.1 $
  * Description: GASNet Autotuner Implementation
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -279,10 +279,7 @@ void gasnete_coll_register_broadcast_collectives(gasnete_coll_autotune_info_t* i
                                            GASNETE_COLL_MAX_BYTES, 0, 0,
                                            0,NULL,(void*)gasnete_coll_bcast_ScatterAllgather, "BROADCAST_SCATTERALLGATHER");
   {
-    struct gasnet_coll_tuning_parameter_t tuning_params[1]=
-    { 
-      {GASNET_COLL_PIPE_SEG_SIZE, GASNET_COLL_MIN_PIPE_SEG_SIZE, MIN(GASNET_COLL_MAX_PIPE_SEG_SIZE,smallest_scratch), 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY | GASNET_COLL_TUNING_SIZE_PARAM}
-    }; 
+    GASNETE_COLL_TUNING_PARAMETER(tuning_params, GASNET_COLL_PIPE_SEG_SIZE, GASNET_COLL_MIN_PIPE_SEG_SIZE, MIN(GASNET_COLL_MAX_PIPE_SEG_SIZE,smallest_scratch), 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY | GASNET_COLL_TUNING_SIZE_PARAM); 
     
     info->collective_algorithms[GASNET_COLL_BROADCAST_OP][GASNETE_COLL_BROADCAST_TREE_PUT_SEG] = 
     gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCAST_OP, 
@@ -377,10 +374,7 @@ void gasnete_coll_register_broadcast_collectives(gasnete_coll_autotune_info_t* i
                                            0,NULL,(void*)gasnete_coll_bcastM_ScatterAllgather,"BROADCASTM_SCATTERALLGATHER");
   
   {
-    struct gasnet_coll_tuning_parameter_t tuning_params[1]=
-    { 
-      {GASNET_COLL_PIPE_SEG_SIZE, GASNET_COLL_MIN_PIPE_SEG_SIZE, MIN(GASNET_COLL_MAX_PIPE_SEG_SIZE,smallest_scratch), 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY | GASNET_COLL_TUNING_SIZE_PARAM}
-    }; 
+    GASNETE_COLL_TUNING_PARAMETER(tuning_params, GASNET_COLL_PIPE_SEG_SIZE, GASNET_COLL_MIN_PIPE_SEG_SIZE, MIN(GASNET_COLL_MAX_PIPE_SEG_SIZE,smallest_scratch), 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY | GASNET_COLL_TUNING_SIZE_PARAM); 
     
     info->collective_algorithms[GASNET_COLL_BROADCASTM_OP][GASNETE_COLL_BROADCASTM_TREE_PUT_SEG] = 
     gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCASTM_OP, 
@@ -459,10 +453,8 @@ void gasnete_coll_register_scatter_collectives(gasnete_coll_autotune_info_t* inf
   {
     size_t smallest_seg_size =  MIN(gasnet_AMMaxLongRequest(),GASNET_COLL_MIN_PIPE_SEG_SIZE)/(info->team->total_ranks);
     size_t largest_seg_size =  MIN(gasnet_AMMaxLongRequest(),MIN(GASNET_COLL_MAX_PIPE_SEG_SIZE,smallest_scratch))/(info->team->total_ranks);
-    struct gasnet_coll_tuning_parameter_t tuning_params[1]=
-    { 
-      {GASNET_COLL_PIPE_SEG_SIZE,smallest_seg_size, largest_seg_size, 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY | GASNET_COLL_TUNING_SIZE_PARAM}
-    }; 
+    GASNETE_COLL_TUNING_PARAMETER(tuning_params, GASNET_COLL_PIPE_SEG_SIZE,smallest_seg_size, largest_seg_size, 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY | GASNET_COLL_TUNING_SIZE_PARAM); 
+
     info->collective_algorithms[GASNET_COLL_SCATTER_OP][GASNETE_COLL_SCATTER_TREE_PUT_SEG] = 
     gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_SCATTER_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
                                              GASNET_COLL_DST_IN_SEGMENT, 0, 
@@ -526,10 +518,8 @@ void gasnete_coll_register_scatter_collectives(gasnete_coll_autotune_info_t* inf
   {
     size_t smallest_seg_size =  MIN(gasnet_AMMaxLongRequest(),GASNET_COLL_MIN_PIPE_SEG_SIZE)/(info->team->total_ranks*info->team->my_images);
     size_t largest_seg_size =  MIN(gasnet_AMMaxLongRequest(),MIN(GASNET_COLL_MAX_PIPE_SEG_SIZE,smallest_scratch))/(info->team->total_ranks*info->team->my_images);
-    struct gasnet_coll_tuning_parameter_t tuning_params[1]=
-    { 
-      {GASNET_COLL_PIPE_SEG_SIZE,smallest_seg_size, largest_seg_size, 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY | GASNET_COLL_TUNING_SIZE_PARAM}
-    }; 
+    GASNETE_COLL_TUNING_PARAMETER(tuning_params, GASNET_COLL_PIPE_SEG_SIZE,smallest_seg_size, largest_seg_size, 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY | GASNET_COLL_TUNING_SIZE_PARAM); 
+
     info->collective_algorithms[GASNET_COLL_SCATTERM_OP][GASNETE_COLL_SCATTERM_TREE_PUT_SEG] = 
     gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_SCATTERM_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
                                              GASNET_COLL_DST_IN_SEGMENT, 0, 
@@ -600,10 +590,8 @@ void gasnete_coll_register_gather_collectives(gasnete_coll_autotune_info_t* info
   {
     size_t smallest_seg_size =  MIN(gasnet_AMMaxLongRequest(),GASNET_COLL_MIN_PIPE_SEG_SIZE)/info->team->total_ranks;
     size_t largest_seg_size =  MIN(gasnet_AMMaxLongRequest(),MIN(GASNET_COLL_MAX_PIPE_SEG_SIZE,smallest_scratch))/info->team->total_ranks;
-    struct gasnet_coll_tuning_parameter_t tuning_params[1]=
-    { 
-      {GASNET_COLL_PIPE_SEG_SIZE,smallest_seg_size, largest_seg_size, 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY | GASNET_COLL_TUNING_SIZE_PARAM}
-    }; 
+    GASNETE_COLL_TUNING_PARAMETER(tuning_params, GASNET_COLL_PIPE_SEG_SIZE,smallest_seg_size, largest_seg_size, 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY | GASNET_COLL_TUNING_SIZE_PARAM); 
+
     info->collective_algorithms[GASNET_COLL_GATHER_OP][GASNETE_COLL_GATHER_TREE_PUT_SEG] = 
     gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_GATHER_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
                                              GASNET_COLL_DST_IN_SEGMENT, 0, 
@@ -660,10 +648,8 @@ void gasnete_coll_register_gather_collectives(gasnete_coll_autotune_info_t* info
   {
     size_t smallest_seg_size =  MIN(gasnet_AMMaxLongRequest(),GASNET_COLL_MIN_PIPE_SEG_SIZE)/info->team->total_images;
     size_t largest_seg_size =  MIN(gasnet_AMMaxLongRequest(),MIN(GASNET_COLL_MAX_PIPE_SEG_SIZE,smallest_scratch))/info->team->total_images;
-    struct gasnet_coll_tuning_parameter_t tuning_params[1]=
-    { 
-      {GASNET_COLL_PIPE_SEG_SIZE,smallest_seg_size, largest_seg_size, 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY | GASNET_COLL_TUNING_SIZE_PARAM}
-    }; 
+    GASNETE_COLL_TUNING_PARAMETER(tuning_params, GASNET_COLL_PIPE_SEG_SIZE,smallest_seg_size, largest_seg_size, 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY | GASNET_COLL_TUNING_SIZE_PARAM); 
+
     info->collective_algorithms[GASNET_COLL_GATHERM_OP][GASNETE_COLL_GATHERM_TREE_PUT_SEG] = 
     gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_GATHERM_OP, GASNETE_COLL_EVERY_SYNC_FLAG,
                                              GASNET_COLL_DST_IN_SEGMENT, 0, 
@@ -1146,10 +1132,8 @@ void gasnete_coll_register_reduce_collectives(gasnete_coll_autotune_info_t* info
   {
     size_t smallest_seg_size = MIN(MIN(gasnet_AMMaxLongRequest(),smallest_scratch/info->team->total_ranks),GASNET_COLL_MIN_PIPE_SEG_SIZE);
     size_t largest_seg_size = MIN(GASNET_COLL_MAX_PIPE_SEG_SIZE,smallest_scratch/info->team->total_ranks);
-    struct gasnet_coll_tuning_parameter_t tuning_params[1]=
-    { 
-      {GASNET_COLL_PIPE_SEG_SIZE, smallest_seg_size, largest_seg_size, 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY | GASNET_COLL_TUNING_SIZE_PARAM}
-    }; 
+    GASNETE_COLL_TUNING_PARAMETER(tuning_params, GASNET_COLL_PIPE_SEG_SIZE, smallest_seg_size, largest_seg_size, 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY | GASNET_COLL_TUNING_SIZE_PARAM); 
+
     info->collective_algorithms[GASNET_COLL_REDUCE_OP][GASNETE_COLL_REDUCE_TREE_PUT_SEG] = 
     gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_REDUCE_OP, 
                                              GASNETE_COLL_EVERY_SYNC_FLAG,
@@ -1188,10 +1172,8 @@ void gasnete_coll_register_reduce_collectives(gasnete_coll_autotune_info_t* info
   {
     size_t smallest_seg_size = MIN(MIN(gasnet_AMMaxLongRequest(),smallest_scratch/info->team->total_ranks),GASNET_COLL_MIN_PIPE_SEG_SIZE);
     size_t largest_seg_size = MIN(GASNET_COLL_MAX_PIPE_SEG_SIZE,smallest_scratch/info->team->total_ranks);
-    struct gasnet_coll_tuning_parameter_t tuning_params[1]=
-    { 
-      {GASNET_COLL_PIPE_SEG_SIZE, smallest_seg_size, largest_seg_size, 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY | GASNET_COLL_TUNING_SIZE_PARAM}
-    }; 
+    GASNETE_COLL_TUNING_PARAMETER(tuning_params, GASNET_COLL_PIPE_SEG_SIZE, smallest_seg_size, largest_seg_size, 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY | GASNET_COLL_TUNING_SIZE_PARAM); 
+
     info->collective_algorithms[GASNET_COLL_REDUCEM_OP][GASNETE_COLL_REDUCEM_TREE_PUT_SEG] = 
     gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_REDUCEM_OP, 
                                              GASNETE_COLL_EVERY_SYNC_FLAG,
@@ -1237,7 +1219,9 @@ void gasnete_coll_free_autotune_tree_node(gasnete_coll_autotune_tree_node_t *in)
   }
 }
 
+#if GASNETE_COLL_CONDUIT_COLLECTIVES
 static int allow_conduit_collectives=1;
+#endif
 static char* gasnete_coll_team_all_tuning_file;
 gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t team, gasnet_node_t mynode, gasnet_node_t total_nodes,
                                                          gasnet_image_t my_images, gasnet_image_t total_images, size_t min_scratch_size GASNETE_THREAD_FARG) {
@@ -1245,12 +1229,10 @@ gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t te
   /* read all the environment variables and setup the defaults*/
   gasnete_coll_autotune_info_t* ret;
   char *default_tree_type;
-  gasnet_node_t default_tree_fanout;
   size_t dissem_limit;
   size_t temp_size;
   size_t dissem_limit_per_thread;
-	int i;
-  gasnet_node_t fanout;
+  int i;
   
   ret = gasneti_calloc(1,sizeof(gasnete_coll_autotune_info_t));
   team->autotune_info = ret;
@@ -1370,11 +1352,10 @@ gasnete_coll_tree_type_t gasnete_coll_autotune_get_bcast_tree_type(gasnete_coll_
 #endif
 	
 	if(autotune_info->bcast_tree_radix_limits[log2_nbytes] == -1) {
-		int radix = 0; 
 		/*perform search across fanouts*/
 		/* do a barrier to ensure all threads have arrived*/
 		GASNETE_COLL_AUTOTUNE_BARRIER(autotune_info->team);
-    
+   /* XXX: Is something missing here? */ 
 		
 		
 		GASNETE_COLL_AUTOTUNE_BARRIER(autotune_info->team);
@@ -1854,8 +1835,6 @@ static gasnete_coll_autotune_index_entry_t *load_autotuner_defaults_helper(gasne
 }
 
 gasnete_coll_autotune_index_entry_t *gasnete_coll_load_autotuner_defaults(gasnete_coll_autotune_info_t* autotune_info, myxml_node_t *tuning_data) {
-  myxml_node_t *temp;
-  
   gasnete_coll_autotune_index_entry_t *root;
   const char *tree_levels[8] = {"machine", "num_nodes", "threads_per_node", "sync_mode", "address_mode", "collective", "root", "size"};
   
@@ -2202,10 +2181,10 @@ void gasnete_coll_tune_generic_op(gasnet_team_handle_t team, gasnet_coll_optype_
   int algidx = 0;
   int num_algs;
   gasnett_tick_t curr_best_time=GASNETT_TICK_MAX, alg_best_time=GASNETT_TICK_MAX;
-  int loc_num_params;
   uint32_t loc_best_param_list[GASNET_COLL_NUM_PARAM_TYPES];
   uint32_t sync_flags = (flags &  GASNET_COLL_SYNC_FLAG_MASK); /*strip the sync flags off the flags*/
   uint32_t req_flags = (flags & (~GASNET_COLL_SYNC_FLAG_MASK));
+  GASNETI_UNUSED_UNLESS_DEBUG
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   char *loc_best_tree;
 
@@ -2437,7 +2416,6 @@ gasnete_coll_autotune_index_entry_t *add_to_index(gasnet_coll_optype_t op, gasne
                                                   size_t nbytes, gasnet_image_t rootimg, int profile_mode) {
   gasnete_coll_autotune_index_entry_t *idx;
   gasnete_coll_autotune_index_entry_t *temp; 
-  gasnete_coll_implementation_t impl;
   
   if(profile_mode) {
     idx = team->autotune_info->collective_profile;
@@ -2533,7 +2511,9 @@ static gasnete_coll_implementation_t autotune_op(gasnet_team_handle_t team, gasn
     uint32_t best_algidx;
     uint32_t num_params;
     uint32_t *param_list;
+#if 0
     char flagstr[15];
+#endif
 
     char best_tree[GASNETE_COLL_MAX_TREE_TYPE_STRLEN];
     char all_best_tree[GASNETE_COLL_MAX_TREE_TYPE_STRLEN];
@@ -2595,8 +2575,6 @@ static gasnete_coll_implementation_t autotune_op(gasnet_team_handle_t team, gasn
 gasnete_coll_implementation_t gasnete_coll_autotune_get_bcast_algorithm(gasnet_team_handle_t team, void *dst, gasnet_image_t srcimage, void *src, size_t nbytes, uint32_t flags  GASNETE_THREAD_FARG) {
   
   const size_t eager_limit = MIN(gasnete_coll_p2p_eager_min, gasnet_AMMaxMedium());
-
-  
   gasnete_coll_implementation_t ret;
 
   /*first try to search our gasnet autotuner index to see if we have anything for it*/
@@ -2748,7 +2726,6 @@ gasnete_coll_implementation_t
 gasnete_coll_autotune_get_scatter_algorithm(gasnet_team_handle_t team, void *dst, gasnet_image_t srcimage, 
                                             void *src, size_t nbytes, size_t dist, uint32_t flags  GASNETE_THREAD_FARG) {
   const size_t eager_limit = MIN(gasnete_coll_p2p_eager_scale/team->my_images, gasnet_AMMaxMedium()/team->total_images);
-  gasnete_coll_tree_type_t tree_type;
   gasnete_coll_implementation_t ret;
 
   {
@@ -2814,7 +2791,6 @@ gasnete_coll_implementation_t
 gasnete_coll_autotune_get_scatterM_algorithm(gasnet_team_handle_t team, void * const dstlist[], gasnet_image_t srcimage, 
                                             void *src, size_t nbytes, size_t dist, uint32_t flags  GASNETE_THREAD_FARG) {
 
-  gasnete_coll_tree_type_t tree_type;
   gasnete_coll_implementation_t ret;
   const size_t eager_limit = MIN(gasnete_coll_p2p_eager_scale/team->my_images, gasnet_AMMaxMedium()/team->total_images);
   {
@@ -3041,7 +3017,6 @@ gasnete_coll_autotune_get_gather_all_algorithm(gasnet_team_handle_t team, void *
                                                size_t nbytes, uint32_t flags  GASNETE_THREAD_FARG) {
   
   size_t max_dissem_msg_size = team->total_images*nbytes;
-  size_t eager_limit = gasnete_coll_p2p_eager_scale/team->my_images;
   gasnete_coll_implementation_t ret;
   {
     gasnet_coll_args_t args = {0};
@@ -3079,10 +3054,6 @@ gasnete_coll_autotune_get_gather_all_algorithm(gasnet_team_handle_t team, void *
 gasnete_coll_implementation_t 
 gasnete_coll_autotune_get_gather_allM_algorithm(gasnet_team_handle_t team, void * const dstlist[], void * const srclist[], 
                                                 size_t nbytes, uint32_t flags  GASNETE_THREAD_FARG) {
-  
-  size_t max_dissem_msg_size = team->total_images*nbytes;
-  const size_t eager_limit = MIN(gasnete_coll_p2p_eager_scale/team->my_images, gasnet_AMMaxMedium()/team->total_images);
-
   gasnete_coll_implementation_t ret;
   {
     gasnet_coll_args_t args = {0};
@@ -3245,7 +3216,6 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_reduceM_algorithm(gasnet
 
 
 static void dump_tuning_state_helper(myxml_node_t *parent, gasnete_coll_autotune_index_entry_t *tuning_root) {
-  int i;
   gasnete_coll_autotune_index_entry_t *temp=tuning_root;
   while(temp!=NULL) {
     char buffer[50];
@@ -3313,7 +3283,6 @@ void gasnete_coll_dumpTuningState(char *filename, gasnete_coll_team_t team GASNE
 }
 
 static void dump_profile_helper(myxml_node_t *parent, gasnete_coll_autotune_index_entry_t *tuning_root) {
-  int i;
   gasnete_coll_autotune_index_entry_t *temp=tuning_root;
   while(temp!=NULL) {
     char buffer[50];

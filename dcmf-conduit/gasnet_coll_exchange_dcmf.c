@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_coll_exchange_dcmf.c,v $
- *     $Date: 2009/10/28 03:01:34 $
- * $Revision: 1.7 $
+ *     $Date: 2010/09/12 01:22:43 $
+ * $Revision: 1.7.10.1 $
  * Description: GASNet exchange (alltoall) implementation on DCMF
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -181,6 +181,22 @@ static int gasnete_coll_pf_exchg_dcmf(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
     DCMF_Messager_advance();
     if (a2a->active)
       break;
+
+    /* Fix for Bug 2786. Because DCMF_Alltoallv() doesn't copy the
+       data from the send buffer to the receive buffer when the send
+       node is the same as the receive node.  Therefore, the local
+       data copy is performed here in GASNet. */ 
+
+    {
+        gasnet_team_handle_t team = op->team;
+        char *dst, *src;
+        size_t nbytes;
+
+        dst = (char *)a2a->rcvbuf+a2a->rdispls[team->myrank];
+        src = (char *)a2a->sndbuf+a2a->sdispls[team->myrank];
+        nbytes = a2a->rcvlens[team->myrank];
+        GASNETE_FAST_UNALIGNED_MEMCPY(dst, src, nbytes);
+    }
     gasnete_dcmf_busy = 0;
     data->state = 3;
     
@@ -190,7 +206,7 @@ static int gasnete_coll_pf_exchg_dcmf(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 
     /* clean up storage space */
     gasnete_coll_dcmf_a2a_fini(a2a);
-    gasneti_free(a2a);
+    gasneti_free_aligned(a2a);
     gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
     return (GASNETE_COLL_OP_COMPLETE | GASNETE_COLL_OP_INACTIVE);
   }
@@ -230,7 +246,7 @@ gasnet_coll_handle_t gasnete_coll_exchange_nb_dcmf(gasnet_team_handle_t team,
 #endif
 
   a2a = (gasnete_dcmf_a2a_data_t *)
-    gasneti_malloc(sizeof(gasnete_dcmf_a2a_data_t));
+    gasneti_malloc_aligned(64, sizeof(gasnete_dcmf_a2a_data_t));
   gasnete_coll_dcmf_a2a_init(a2a, dcmf_tp->a2a_proto,
                              &dcmf_tp->geometry, nprocs, src, dst, nbytes);
   
@@ -279,7 +295,7 @@ void gasnete_coll_exchange_dcmf(gasnet_team_handle_t team,
   gasneti_assert(!(flags & GASNETE_COLL_SUBORDINATE));
   
   a2a = (gasnete_dcmf_a2a_data_t *)
-    gasneti_malloc(sizeof(gasnete_dcmf_a2a_data_t));
+    gasneti_malloc_aligned(64, sizeof(gasnete_dcmf_a2a_data_t));
   gasnete_coll_dcmf_a2a_init(a2a, dcmf_tp->a2a_proto,
                              &dcmf_tp->geometry, nprocs, src, dst, nbytes);
   
@@ -297,19 +313,30 @@ void gasnete_coll_exchange_dcmf(gasnet_team_handle_t team,
                            a2a->rdispls,
                            a2a->sndcounters, 
                            a2a->rcvcounters));
-  
-  while (a2a->active)
-    DCMF_Messager_advance();
-  
   GASNETC_DCMF_UNLOCK();
-
-  /* optional barrier for the out_allsync mode, should be a team barrier */
+  gasneti_polluntil(a2a->active == 0);
+  /* Fix for Bug 2786. Because DCMF_Alltoallv() doesn't copy the data
+     from the send buffer to the receive buffer when the send node is
+     the same as the receive node.  Therefore, the local data copy is
+     performed here in GASNet. */ 
+  {
+      char *dst, *src;
+      size_t nbytes;
+      
+      dst = (char *)a2a->rcvbuf+a2a->rdispls[team->myrank];
+      src = (char *)a2a->sndbuf+a2a->sdispls[team->myrank];
+      nbytes = a2a->rcvlens[team->myrank];
+      GASNETE_FAST_UNALIGNED_MEMCPY(dst, src, nbytes);
+  }
+  
+  /* optional barrier for the out_allsync mode, should be a team
+     barrier */
   if (flags & GASNET_COLL_OUT_ALLSYNC)
     gasnete_coll_teambarrier_dcmf(team);
   
   /* clean up storage space */
   gasnete_coll_dcmf_a2a_fini(a2a);
-  gasneti_free(a2a);
+  gasneti_free_aligned(a2a);
 }
 
 void  gasnete_coll_dcmf_a2a_print(FILE *fp, gasnete_dcmf_a2a_data_t * a2a, 

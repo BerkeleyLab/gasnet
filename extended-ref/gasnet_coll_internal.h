@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2010/03/07 09:06:04 $
- * $Revision: 1.60 $
+ *     $Date: 2010/09/12 01:22:49 $
+ * $Revision: 1.60.6.1 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -252,12 +252,6 @@ typedef enum {
 
 /* Type for collective teams: */
 struct gasnete_coll_team_t_ {
-#ifndef GASNETE_COLL_P2P_OVERRIDE
-  /* Default implementation of point-to-point syncs
-	 * does not (currently) have a team-specific portion.
-	 */
-#endif
-  
   /* read-only fields: */
   uint32_t			team_id;
   int					global_team;
@@ -330,13 +324,21 @@ struct gasnete_coll_team_t_ {
   gasnete_all_barrier_wait barrier_wait;
   gasneti_progressfn_t barrier_pf;
   
+#ifndef GASNETE_COLL_P2P_OVERRIDE
+  /* Default implementation of point-to-point syncs */
+  #ifndef GASNETE_COLL_P2P_TABLE_SIZE
+    #define GASNETE_COLL_P2P_TABLE_SIZE 16
+  #endif
+
+  gasnet_hsl_t p2p_lock; /* Protects freelist and table */
+  gasnete_coll_p2p_t *p2p_freelist;
+  gasnete_coll_p2p_t *p2p_table[GASNETE_COLL_P2P_TABLE_SIZE];
+#endif
+  
   /* Hook for conduit-specific extensions/overrides */
 #ifdef GASNETE_COLL_TEAM_EXTRA
   GASNETE_COLL_TEAM_EXTRA
 #endif
-    
-    
-    
 };
 
 #if 0
@@ -439,15 +441,16 @@ struct gasnete_coll_seg_interval_t_ {
 struct gasnete_coll_p2p_t_ {
   /* Linkage and bookkeeping */
   gasnete_coll_p2p_t	*p2p_next;
-  gasnete_coll_p2p_t	*p2p_prev;
+  gasnete_coll_p2p_t	**p2p_prev_p;
   
   /* Unique (team_id, sequence) tuple for the associated op */
-  /* XXX: could play games w/ a single 64-bit field to speed comparisions */
-  uint32_t		team_id;
+#if GASNET_DEBUG
+  uint32_t		team_id; /* Only needed when debugging */
+#endif
   uint32_t		sequence;
   
   /* Volatile arrays of data and state for the point-to-point synchronization */
-  uint8_t			*data;
+  uint8_t		*data;
   volatile uint32_t	*state;
   gasneti_weakatomic_t	*counter;
     
@@ -466,8 +469,6 @@ struct gasnete_coll_p2p_t_ {
 };
 #endif
 
-extern void gasnete_coll_p2p_init(void);
-extern void gasnete_coll_p2p_fini(void);
 extern gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence);
 extern void gasnete_coll_p2p_destroy(gasnete_coll_p2p_t *p2p);
 extern void gasnete_coll_p2p_signalling_put(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,

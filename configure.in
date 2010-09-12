@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/07/16 00:48:12 $
-# $Revision: 1.625.6.1 $
+#     $Date: 2010/09/12 01:22:40 $
+# $Revision: 1.625.6.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.625.6.1 $)
+AC_REVISION($Revision: 1.625.6.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -27,13 +27,13 @@ AC_VALIDATE_CACHED_SYSTEM_TUPLE
 dnl Public release version packaging identifier:
 AC_DEFUN([GASNET_RELEASE_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNET_RELEASE_VERSION_MINOR_D],[15])
-AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[3])
+AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[5])
 dnl GASNet spec version:
 AC_DEFUN([GASNET_SPEC_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNET_SPEC_VERSION_MINOR_D],[8])
 dnl GASNet tools spec version:
 AC_DEFUN([GASNETT_SPEC_VERSION_MAJOR_D],[1])
-AC_DEFUN([GASNETT_SPEC_VERSION_MINOR_D],[5])
+AC_DEFUN([GASNETT_SPEC_VERSION_MINOR_D],[7])
 
 AC_DEFUN([GASNET_RELEASE_VERSION_D],
          [GASNET_RELEASE_VERSION_MAJOR_D.GASNET_RELEASE_VERSION_MINOR_D.GASNET_RELEASE_VERSION_PATCH_D])
@@ -172,6 +172,15 @@ case "$gasnet_cv_cc_family" in
   GNU)  GASNET_GCC_VERSION_CHECK(CC) ;;
   MTA)  # override target_os for MTA, which may be wrong if cross-compiling
         target_os="mtx"   ;;
+  Cray) # Min supported version is 7.2 (which reports as 10.2)
+        AC_TRY_COMPILE([
+          #if (defined(__CRAYXT_COMPUTE_LINUX_TARGET) || defined(__LIBCATAMOUNT__)) && \
+              (((_RELEASE == 10) && (_RELEASE_MINOR < 2)) || (_RELEASE < 10))
+          # error
+          #endif
+        ],[ ], [:],
+        [AC_MSG_ERROR([GASNet does not support Cray compilers prior to CCE 7.2 on the CrayXT])])
+        ;;
 esac
 
 if test "$cross_compiling" = "yes" ; then
@@ -183,6 +192,16 @@ fi
 GASNET_CHECK_SIZEOF(void *)
 GASNETI_PTR_BITS=`expr $SIZEOF_VOID_P \* 8`
 AC_SUBST(GASNETI_PTR_BITS)
+
+###
+# Allow user forced ARCH and/or ISA settings w/o the corresponding probes
+# XXX: Incomplete...
+
+force_arch_altix=no
+GASNET_IF_ENABLED_NOHELP(arch-altix, [force_arch_altix=yes])
+
+force_arch_sicortex=no
+GASNET_IF_ENABLED_NOHELP(arch-sicortex, [force_arch_sicortex=yes])
 
 ### 
 #
@@ -285,7 +304,19 @@ case "$gasnet_cv_cc_family" in
   Compaq) CCOPTFLAGS="-fast -noifo -O4 -tune host -inline all" ;;
   Intel) CCOPTFLAGS="-O3" ;;
   MTA) CCOPTFLAGS="-O3" ;; # MTA C actually ignores -O, optimization controlled by presence/absence of -g
-  PGI) CCOPTFLAGS="-O2" ;;
+  PGI)
+    CCOPTFLAGS="-O2"  # Default
+    # Work-aroung bug 2842: bad code gen by pgcc 10.5-0 through 10.7-0 at -O2
+    # XXX: Need an ending version here when known
+    GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other")
+    GASNET_TRY_CACHE_CHECK([if PGI compiler misoptimizes assignment to (const char *)], bug2842, [
+      #include "portable_platform.h"
+      #if PLATFORM_COMPILER_VERSION_LT(10,5,0) || PLATFORM_COMPILER_VERSION_GT(10,7,0)
+      #error "GOOD pgcc version should FAIL this test"
+      #endif
+    ],[(void)0],[CCOPTFLAGS="-O1"])
+    GASNET_POPVAR(CPPFLAGS)
+  ;;
   TINY) CCOPTFLAGS="" # optimization not supported
         SEPARATE_CC=1 # force separate compilation - multiple -c compilation not supported
   ;;
@@ -348,6 +379,11 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
 
 case "$gasnet_cv_cc_family" in
   GNU)  GASNET_PUSHVAR(CFLAGS,"-g3")
+        case "$target_os" in
+          darwin*) # Want -gstabs+ instead of -g3, if supported
+            GASNET_TRY_CFLAG([-gstabs+], [CFLAGS='-gstabs+'])
+            ;;
+        esac
         GASNET_GET_GNUWARNINGFLAGS(C)
         CCDEBUGFLAGS="$CFLAGS"
         GASNET_POPVAR(CFLAGS)
@@ -548,6 +584,7 @@ case "$gasnet_cv_cc_family" in
   Cray) 
     case "$target_cpu" in
       alphaev5) MISC_CFLAGS="-hnomessage=236 -htaskprivate $LIBCM" ;; # T3E
+      x86_64)   MISC_CFLAGS="-hnomessage=236" ;; # XT
       *)        MISC_CFLAGS="-hnomessage=236 $LIBCM" ;; # X1
     esac ;;
   MIPS) MISC_CFLAGS="-common -diag_error 1035 -diag_suppress1171,1174,1209,1552" # 1035 ensures "#error" is fatal
@@ -834,12 +871,14 @@ case "$target_os" in
 	# that /dev/hw is specific (and standard) on their system
 	# DOB: as of 2.6.5-7.252-sn2 (possibly earlier) /dev/hw/cpunum no longer exists
 	# so now we use /dev/xpmem instead, which is not likely to disappear
-	if test -d "/dev/hw/cpunum" -o -c "/dev/xpmem"; then
+	if test $force_arch_altix = yes -o -d "/dev/hw/cpunum" -o -c "/dev/xpmem"; then
    	  GASNETI_ARCH_ALTIX=1
 	  AC_DEFINE(GASNETI_ARCH_ALTIX)
 	fi
 	# Check for SiCortex hardware by device or cpu name
-	if test -c "/dev/scfabric" || expr "`/usr/bin/uname -p 2>&1`" : SiCortex >/dev/null; then
+	if test $force_arch_sicortex = yes -o -c "/dev/scfabric" || 
+           expr "`/usr/bin/uname -p 2>&1`" : SiCortex >/dev/null; then
+	    GASNETI_ARCH_SICORTEX=1
 	    AC_DEFINE(GASNETI_ARCH_SICORTEX)
 	fi
         case "$target" in
@@ -1104,7 +1143,7 @@ if test "$segconfig$enabled_pshm" = everythingyes; then
 fi
 if expr "$enabled_pshm@$target_os" : "yes@darwin" >/dev/null; then
   GASNET_MSG_ERROR([User requested --enable-pshm but PSHM support is not permitted on Mac OS X.])
-  dnl We can crash Macs!  See bib 2629.
+  dnl We can crash Macs!  See bug 2629.
 fi
 if test "$enabled_pshm" = yes; then
   GASNET_PSHM_LIBS=""
@@ -1114,8 +1153,10 @@ if test "$enabled_pshm" = yes; then
   have_shm_open=no
   AC_SEARCH_LIBS(shm_open, [rt posix4], [
     if test "$cross_compiling" = "yes" ; then
-      # To the best of my knowledge CNL, Catamount, BG/L and BG/P all lack
+      AC_MSG_CHECKING([for working shm_open()])
+      # To the best of my knowledge CNL, Catamount, and BG/L all lack
       # working shm_open() support, though at least CNL finds the symbol.
+      # Our support on BG/P is marginal at the moment (see pshm-design.txt).
       # So, we default to NO shm_open() when cross-compiling. -PHH
       # One can set CROSS_HAVE_SHM_OPEN=1 to force building for PSHM.
       if test "x$CROSS_HAVE_SHM_OPEN" = x1; then
@@ -1162,7 +1203,7 @@ if test "$enabled_pshm" = yes; then
   # could search for other mechanisms here
 
   if test "$have_pshm" = yes; then
-    AC_DEFINE(GASNET_PSHM)
+    AC_DEFINE(GASNETI_PSHM_ENABLED)
   fi
 fi
 if test "$have_pshm$enabled_pshm" = noyes; then
@@ -1267,11 +1308,6 @@ if expr "$enabled_sgi_ip27@$target_cpu" : "unknown@mips" >/dev/null; then
 fi
 if test "$enabled_sgi_ip27" = yes; then
   AC_DEFINE(GASNETI_ARCH_SGI_IP27)
-  # Suppress linker warning about our special branch instrution
-  case "$gasnet_cv_cc_family" in
-      # No inline asm to worry about MIPS) LDFLAGS="$LDFLAGS -LD_MSG:off=47" ;;
-      GNU) LDFLAGS="$LDFLAGS -Wl,-LD_MSG:off=47" ;;
-  esac
 fi
 
 ## Look for potentially buggy SiCortex ICE9A processor
@@ -1615,7 +1651,7 @@ GASNET_IF_ENABLED_WITH_AUTO(smp-safe, Enable build of SMP-safe libraries (defaul
           #endif
           ], [], [ uni_build=yes ])
         ;;
-      freebsd* | openbsd*)  
+      freebsd* | openbsd* | netbsd*)  
         if test "`/sbin/sysctl -n hw.ncpu 2>/dev/null`" = 1; then
           uni_build=yes
         fi
@@ -1814,17 +1850,6 @@ AC_DEFUN([CONDUIT_DISALLOW_SEGMENT],[
   fi
   popdef([upperseg])
 ])
-dnl CONDUIT_DISALLOW_PSHM()
-AC_DEFUN([CONDUIT_DISALLOW_PSHM],[
-    if test "$enabled_pshm$enabled_[]CONDUIT_NAME" = "yesyes" >/dev/null; then
-      msg="CONDUIT_NAME[]-conduit does not support PSHM"
-      if test "$force_[]CONDUIT_NAME" = yes ; then
-       GASNET_MSG_ERROR([User requested --enable-CONDUIT_NAME and --enable-pshm but $msg])
-      fi
-      GASNET_MSG_WARN([$msg - disabling CONDUIT_NAME])
-      enabled_[]CONDUIT_NAME=no
-    fi
-])
 dnl CONDUIT_END(test_conduit_enabled)
 AC_DEFUN([CONDUIT_END],[
   if test "$gasnet_toolsonly_mode" = "no" ; then
@@ -1960,6 +1985,7 @@ AC_DEFUN([GASNET_ID_OTHER_COMPILER],[
   pushdef([lowername],translit($1,'A-Z','a-z'))
   GASNET_GET_PLATFORM_ID([$1],[$2 compiler])
   GASNET_FAMILY_CACHE_CHECK([$2], [$1], gasnet_cv_[]lowername[]_family)
+  mismatch=""
   if test x"$gasnet_cv_[]lowername[]_family" != x"$gasnet_cv_cc_family"; then
     mismatch="families"
   elif test x"$gasnet_cv_PLATFORM_[$1]_VERSION" != x"$gasnet_cv_PLATFORM_COMPILER_VERSION"; then
@@ -2103,6 +2129,11 @@ if test $enabled_udp = yes; then
          hpux*) GASNET_GET_HPUX_FLAGS(CXX,["-D__STDC_EXT__=1"]);;
        esac
        GASNET_PUSHVAR(CXXFLAGS,"-g3")
+       case "$target_os" in
+         darwin*) # Want -gstabs+ instead of -g3, if supported
+           GASNET_TRY_CXXFLAG([-gstabs+], [CXXFLAGS='-gstabs+'])
+           ;;
+       esac
        GASNET_GET_GNUWARNINGFLAGS(CXX)
        MISC_CXXFLAGS="$MISC_CXXFLAGS $CXXFLAGS" 
        GASNET_POPVAR(CXXFLAGS)
@@ -2142,6 +2173,7 @@ if test $enabled_udp = yes; then
      case "$target_cpu" in
        # Cray CC v3.3.0.2 fails to accept "-htaskprivate", but accepts "-htask private", v3.6.0.2 accepts neither
       alphaev5) MISC_CXXFLAGS="-hnomessage=236:611:997 -hexceptions -hnew_for_init $LIBCM" ;; # T3E
+      x86_64)   MISC_CXXFLAGS="-hnomessage=236 -hexceptions -hnew_for_init" ;; # XT
       *)        MISC_CXXFLAGS="-hnomessage=236:611:997 -hexceptions -hnew_for_init $LIBCM" ;; # X1
      esac ;;
     Pathscale)  CXXDEBUGFLAGS="-g3 -O0" ;; # consistent with CCDEBUGFLAGS
@@ -2646,7 +2678,6 @@ CONDUIT_END([test "$enabled_gm$have_gm" = yesyes])
 # LAPI configuration
 
 CONDUIT_BEGIN(lapi,[LAPI (IBM SP) network conduit (lapi)])
-CONDUIT_DISALLOW_PSHM()
 if test "$enabled_lapi$have_pthread" = yesno; then
   enabled_lapi=no
   GASNET_MSG_WARN([lapi-conduit requires pthread support but pthreads $pthread_reason - disabling lapi])
@@ -3336,7 +3367,6 @@ CONDUIT_END([test "$have_portals" = yes])
 # SHMEM configuration
 
 CONDUIT_BEGIN(shmem,[Shmem network conduit (shmem)])
-CONDUIT_DISALLOW_PSHM()
 
 if test $enabled_shmem = yes; then
   SHMEM_FLAVOUR="unknown"
@@ -3421,7 +3451,6 @@ CONDUIT_END([test "$enabled_shmem$have_shmem" = yesyes])
 #--------------------------------------------------------------------------------------------------------
 # DCMF configuration
 CONDUIT_BEGIN(dcmf,[BlueGene/P network conduit (dcmf)])
-CONDUIT_DISALLOW_PSHM()
 if test $enabled_dcmf = yes; then
   # Assume the best
   have_dcmf=yes
@@ -3557,7 +3586,6 @@ CONDUIT_END([test "$enabled_dcmf$have_dcmf" = yesyes])
 CONDUIT_BEGIN(sci,[Dolphin SISCI network conduit (sci)])
 CONDUIT_DISALLOW_SEGMENT(everything)
 CONDUIT_DISALLOW_SEGMENT(large)
-CONDUIT_DISALLOW_PSHM()
 
 if test "$enabled_sci" = yes; then
   # Look for sci binaries in our path
@@ -3953,10 +3981,10 @@ GASNET_TRY_CACHE_CHECK(for sched_yield(), cc_has_sched_yield, [
 
 # timer setup
 case "$target_os" in
-  freebsd*)  
+  freebsd* | netbsd*)  
     AC_MSG_CHECKING(for sysctl machdep.tsc_freq)
     res="`/sbin/sysctl -n machdep.tsc_freq 2> /dev/null`"
-    if test "$res" != "" ; then
+    if test "$res" != "" -a "$res" != 0; then
       AC_MSG_RESULT(yes: $res)
       AC_DEFINE(GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ)
     else
@@ -4274,6 +4302,7 @@ case "$target_os" in
       MIPS) LDFLAGS="$LDFLAGS -LD_MSG:off=84" # don't warn about unused libm
       ;;
       GNU) LDFLAGS="$LDFLAGS -Wl,-LD_MSG:off=84" # don't warn about unused libm
+           LDFLAGS="$LDFLAGS -Wl,-LD_MSG:off=47" # don't warn about inline branch insn
       ;;
     esac
   ;;

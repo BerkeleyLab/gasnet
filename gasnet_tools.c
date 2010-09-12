@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2010/03/15 00:16:46 $
- * $Revision: 1.250 $
+ *     $Date: 2010/09/12 01:22:40 $
+ * $Revision: 1.250.6.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1043,6 +1043,9 @@ static int gasneti_backtrace_mechanism_count = /* excludes the NULL */
 
 static int gasneti_backtrace_isinit = 0;
 static int gasneti_backtrace_userenabled = 0;
+#ifndef GASNETT_BUILDING_TOOLS
+static int gasneti_backtrace_userdisabled = 0;
+#endif
 static const char *gasneti_backtrace_list = 0;
 GASNETT_TENTATIVE_EXTERN
 const char *(*gasneti_backtraceid_fn)(void); /* allow client override of backtrace line prefix */
@@ -1053,6 +1056,11 @@ extern void gasneti_backtrace_init(const char *exename) {
   gasneti_qualify_path(gasneti_exename_bt, exename);
 
   gasneti_backtrace_userenabled = gasneti_getenv_yesno_withdefault("GASNET_BACKTRACE",0);
+#ifndef GASNETT_BUILDING_TOOLS
+  if (gasneti_backtrace_userenabled && !gasneti_check_node_list("GASNET_BACKTRACE_NODES")) {
+    gasneti_backtrace_userdisabled = 1;
+  }
+#endif
 
   gasneti_tmpdir_bt = gasneti_getenv_withdefault("TMPDIR", gasneti_tmpdir_bt);
 
@@ -1197,6 +1205,11 @@ static int _gasneti_print_backtrace_ifenabled(int fd) {
     fflush(stderr);
     return -1;
   }
+#ifndef GASNETT_BUILDING_TOOLS
+  if (gasneti_backtrace_userdisabled) {
+    return 1; /* User turned off backtrace, so don't whine */
+  } else
+#endif
   if (gasneti_backtrace_userenabled) {
     return gasneti_print_backtrace(fd);
   } else if (gasneti_backtrace_mechanism_count && !noticeshown) {
@@ -1759,7 +1772,7 @@ extern int gasneti_cpu_count(void) {
 #else
   #define _gasneti_getPhysMemSysconf() 0
 #endif
-#if PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_OPENBSD
+#if PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD || PLATFORM_OS_OPENBSD
   #include <sys/types.h>
   #include <sys/sysctl.h>
 #elif PLATFORM_OS_CATAMOUNT
@@ -1798,7 +1811,7 @@ extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
       fclose(fp);
     }
     #undef _BUFSZ
-  #elif PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_OPENBSD
+  #elif PLATFORM_OS_DARWIN || PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD || PLATFORM_OS_OPENBSD
     { /* see "man 3 sysctl" */    
       int mib[2];
       size_t len = 0;

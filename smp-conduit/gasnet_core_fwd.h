@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2010/01/02 22:48:56 $
- * $Revision: 1.17 $
+ *     $Date: 2010/09/12 01:23:21 $
+ * $Revision: 1.17.8.1 $
  * Description: GASNet header for smp conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -21,6 +21,11 @@
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 
 #define GASNET_CONDUIT_SMP       1
+
+  /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
+#if GASNETI_PSHM_ENABLED
+  #define GASNET_PSHM 1
+#endif
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
   /*  at the same virtual address on all nodes. defined to 0 otherwise */

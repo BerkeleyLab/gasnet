@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testhsl.c,v $
- *     $Date: 2009/04/01 23:34:36 $
- * $Revision: 1.23 $
+ *     $Date: 2010/09/12 01:23:25 $
+ * $Revision: 1.23.14.1 $
  * Description: GASNet HSL correctness test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -58,9 +58,7 @@ void donothing(gasnet_token_t token) {
 }
 
 #if GASNET_PAR
-  #ifndef NUM_THREADS
-    #define NUM_THREADS 4
-  #endif
+  int NUM_THREADS = 4;
   void * thread_fn(void *arg);
 #endif
 
@@ -225,6 +223,7 @@ int main(int argc, char **argv) {
    } else {
   #if GASNET_PAR
     MSG0("Spawning pthreads...");
+    NUM_THREADS = test_thread_limit(NUM_THREADS);
     test_createandjoin_pthreads(NUM_THREADS, &thread_fn, NULL, 0);
   #endif
    }

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/smp-collectives/smp_coll_barrier.c,v $
- *     $Date: 2009/10/22 20:24:55 $
- * $Revision: 1.5 $
+ *     $Date: 2010/09/12 01:23:13 $
+ * $Revision: 1.5.10.1 $
  * Description: Shared Memory Collectives
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -222,6 +222,7 @@ void smp_coll_barrier_cond_var(smp_coll_t handle, int flags){
 #else
 void smp_coll_barrier_cond_var(smp_coll_t handle, int flags){
   /* cond variables must be phased on some OS's (HPUX) */
+  GASNETI_UNUSED_UNLESS_THREADS
   static struct {
     gasnett_cond_t cond;
     gasnett_mutex_t mutex;
@@ -255,7 +256,6 @@ void smp_coll_barrier_dissem_atomic(smp_coll_t handle, int flags) {
   const dissem_info_t *dissem = handle->dissem_info;
   const dissem_vector_t *barrier_order = dissem->barrier_order;
   int i,j;
-  double a=2.0;
   gasnett_local_wmb();
   for(i=0; i<dissem->dissemination_phases; i++) {
     if(barrier_order[i].n > 0) {
@@ -281,7 +281,6 @@ void smp_coll_barrier_dissem_atomic(smp_coll_t handle, int flags) {
 /*this is a push based implementation since each thread signals on the remote thread when it is ready*/
 void smp_coll_barrier_tree_push_push(smp_coll_t handle, int flags) {
   int i;
-  double a=2.0;
   int flagset = handle->barrier_flag_set;
   int atomicset = handle->curr_atomic_set;
   gasnett_local_wmb();
@@ -310,8 +309,6 @@ void smp_coll_barrier_tree_push_push(smp_coll_t handle, int flags) {
 }
 
 void smp_coll_barrier_tree_push_pull(smp_coll_t handle, int flags) {
-  int i;
-  double a=2.0;
   int flagset = handle->barrier_flag_set;
   gasnett_local_wmb();
   
@@ -341,7 +338,6 @@ void smp_coll_barrier_tree_push_pull(smp_coll_t handle, int flags) {
 #define SPIN() gasnett_spinloop_hint()
 void smp_coll_barrier_tree_pull_push(smp_coll_t handle, int flags) {
   int i;
-  double a=2.0;
   int flagset = handle->barrier_flag_set;
   gasnett_local_wmb();
   for(i=0; i<handle->barrier_num_children; i++) {
@@ -370,7 +366,6 @@ void smp_coll_barrier_tree_pull_push(smp_coll_t handle, int flags) {
 
 void smp_coll_barrier_tree_pull_pull(smp_coll_t handle, int flags) {
   int i;
-  double a=2.0;
   int flagset = handle->barrier_flag_set;
   gasnett_local_wmb();
   for(i=0; i<handle->barrier_num_children; i++) {
@@ -410,7 +405,6 @@ void smp_coll_barrier_tree_flag(smp_coll_t handle, int flags) {
   int radix = handle->barrier_radix;
   int i,j,k;
   int parent=-1;
-  double a=2.0;
   
   gasnett_local_wmb();
 
@@ -463,7 +457,6 @@ void smp_coll_barrier_flag_tree_up_flat_down(smp_coll_t handle, int flags) {
   int radix = handle->barrier_radix;
   int i,j,k;
   int parent=-1;
-  double a=2.0;
   static volatile uint32_t barrier_done[2] = {0,0};
   static volatile uint32_t barrier_phase = 0;
   int myphase;
@@ -511,7 +504,6 @@ void smp_coll_barrier_flag_tree_up_tree_down(smp_coll_t handle, int flags) {
   int radixlog2 = handle->barrier_log_2_radix;
   int radix = handle->barrier_radix;
   int i,j,k;
-  double a=2.0;
 
   int flagset = handle->barrier_flag_set;
   int parent = SMP_COLL_MAKE_NUM_POWER2RADIX(handle->MYTHREAD, 0, 0, radix, radixlog2);

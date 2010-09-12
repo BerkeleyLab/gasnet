@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2010/09/11 07:21:05 $
- * $Revision: 1.54.6.4 $
+ *     $Date: 2010/09/12 01:23:21 $
+ * $Revision: 1.54.6.5 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -245,6 +245,10 @@ static void gasnetc_fork_children(void) {
 
     alarm(gasnetc_exit_timeout);
   }
+
+  /* Ensure gasneti_registerSignalHandlers() doesn't setup any user-requested handlers */
+  gasneti_unsetenv("GASNET_BACKTRACE_SIGNAL");
+  gasneti_unsetenv("GASNET_FREEZE_SIGNAL");
 
   gasneti_registerSignalHandlers(SIG_DFL);
   alarm(0);

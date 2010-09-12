@@ -161,7 +161,7 @@ void *thread_main(void *arg) {
     FILE *outstream=fopen(outputfile, "w");
     myxml_printTreeBIN(outstream, tuning_root);
     fclose(outstream);
- //   myxml_printTreeXML(stdout, tuning_root, " ");
+ /*   myxml_printTreeXML(stdout, tuning_root, " "); */
     fflush(stdout);
     fflush(stdout);
   }

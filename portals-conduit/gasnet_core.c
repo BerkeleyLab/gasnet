@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/07/16 00:41:31 $
- * $Revision: 1.40.10.2 $
+ *     $Date: 2010/09/12 01:23:15 $
+ * $Revision: 1.40.10.3 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -81,10 +81,12 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
 
-  #if GASNET_PSHM
-      gasneti_pshm_init(&gasnetc_bootstrapExchange, 0);
-  #endif
- 
+  /* gasneti_nodemapInit() was called in gasnetc_init_portals_network() */
+
+#if GASNET_PSHM
+  gasneti_pshm_init(&gasnetc_bootstrapExchange, 0);
+#endif
+
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     {
       /* try to determine the max amount of memory we can alloc and pin on each node */
@@ -379,6 +381,32 @@ extern void gasnetc_exit(int exitcode) {
   /* should prevent us from entering again */
   gasnetc_shutdownInProgress = 1;
 
+  { /* Based on code from taken from elan-conduit, the following defeats
+     * the locks that serialize polling of the EQs.  Since these locks are
+     * NOT required for correctness, just for performance, this should not
+     * be at risk of inducing crashes EXCEPT that there is a very minor
+     * race condition in the flow-control.
+     */
+    #define _GASNETC_CLOBBER_MUTEX(pm) do {                     \
+        gasneti_mutex_t dummy_lock = GASNETI_MUTEX_INITIALIZER; \
+        memcpy((pm), &dummy_lock, sizeof(gasneti_mutex_t));     \
+      } while (0)
+    #if GASNET_DEBUG 
+      /* prevent shutdown assertion failures in debug mode
+         if OTHER threads are holding the mutex at exit time */
+      #define GASNETC_CLOBBER_MUTEX(pm) \
+        if ((pm)->owner == GASNETI_THREADIDQUERY()) _GASNETC_CLOBBER_MUTEX(pm)
+    #else
+      /* clobber regardless of owner (which we don't know) */
+      #define GASNETC_CLOBBER_MUTEX(pm) _GASNETC_CLOBBER_MUTEX(pm)
+    #endif
+    GASNETC_CLOBBER_MUTEX(&gasnetc_AM_EQ->lock);
+    GASNETC_CLOBBER_MUTEX(&gasnetc_SAFE_EQ->lock);
+    GASNETC_CLOBBER_MUTEX(&gasnetc_SYS_EQ->lock);
+    #undef GASNETC_CLOBBER_MUTEX
+    #undef _GASNETC_CLOBBER_MUTEX
+  }
+
   /* NOTE: shutdown messages are sent in out-of-band SYS queue, which means they
    * get processed ahead of regular AMs on target nodes.
    * If program does not have a barrier at the end (before gasnetc_exit is called)
@@ -388,16 +416,24 @@ extern void gasnetc_exit(int exitcode) {
    * UPC runtime layer has barrier before calling gasnet_exit so this should not
    * be a problem.  However, if all threads call upc_global_exit() without
    * a preceeding barrier, this may cause some program threads to terminate
-   * before they reach their call to upc_global_exit().
+   * before they reach their call to upc_global_exit(). -MLW
+   *
+   * NOTE: Spec does say client should include a barrier before gasnet_exit().
+   * So, the behavior described above is fine in my opinion. -PHH
    */
+#if 0
   /* send a shutdown message to everyone */
   {
     gasnet_node_t node;
     gasnetc_conn_state[gasneti_mynode].flags |= GASNETC_SYS_GOT_SHUTDOWN_MSG;
     GASNETI_TRACE_PRINTF(C,("Sending SHUTDOWN Messages to all nodes"));
-    for (node = 0; node < gasneti_nodes; node++) {
-      if (node != gasneti_mynode) 
-	gasnetc_sys_SendMsg(node,GASNETC_SYS_SHUTDOWN_REQUEST, gasneti_mynode, exitcode, 0);
+    for (node = gasneti_mynode+1; node < gasneti_nodes; node++) {
+      gasnetc_sys_poll(GASNETC_EQ_TRYLOCK);
+      gasnetc_sys_SendMsg(node,GASNETC_SYS_SHUTDOWN_REQUEST, gasneti_mynode, exitcode, 0);
+    }
+    for (node = 0; node < gasneti_mynode; node++) {
+      gasnetc_sys_poll(GASNETC_EQ_TRYLOCK);
+      gasnetc_sys_SendMsg(node,GASNETC_SYS_SHUTDOWN_REQUEST, gasneti_mynode, exitcode, 0);
     }
   }
 
@@ -423,10 +459,31 @@ extern void gasnetc_exit(int exitcode) {
     if (cnt < gasneti_nodes) {
       /* have not heard back from some nodes, terminate job */
       printf("[%d] In shutdown, Only %d/%d nodes responded after %lu milliseconds\n",gasneti_mynode,cnt,gasneti_nodes,(stoptime-starttime)/1000000);
-      gasneti_reghandler(SIGINT,SIG_DFL);  /* SIGINT causes launcher to kill job */
-      raise(SIGINT);
+      raise(SIGKILL); /* Fatal signal causes launcher to kill job */
     }
   }
+#else
+  /* dump final credit state (if compiled with GASNETC_CREDIT_TESTING flag) */
+  GASNETC_DUMP_CREDITS(gasneti_weakatomic_read(&gasnetc_AMRequest_count,0));
+
+  #if PLATFORM_OS_CNL /* Never had a chance to test for alarm() on Catamount */
+    gasneti_reghandler(SIGALRM, SIG_DFL);
+    alarm(2 + gasnetc_shutdown_seconds);
+  #endif
+
+  if (gasnetc_sys_exit(&exitcode)) {
+    printf("[%d] Failed to coordinate shutdown after %lu milliseconds\n",gasneti_mynode,(unsigned long)(1e3*gasnetc_shutdown_seconds));
+    /* Death of any process by a fatal signal will cause launcher to kill entire job.
+     * We don't use INT or TERM since one could be blocked if we are in its handler. */
+    raise(SIGKILL);
+    gasneti_killmyprocess(exitcode); /* last chance */
+  }
+
+  #if PLATFORM_OS_CNL
+    alarm(0);
+  #endif
+
+#endif
 
   /* if we got here, this is a clean shutdown.  Clean up portals resources */
   gasnetc_portals_exit();

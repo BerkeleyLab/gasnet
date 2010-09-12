@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2010/01/24 22:46:19 $
- * $Revision: 1.128 $
+ *     $Date: 2010/09/12 01:22:40 $
+ * $Revision: 1.128.8.1 $
  * Description: GASNet header for semi-portable inline asm support
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -55,6 +55,10 @@
    *   Compiler suffers from "tpr 14969" in which extended asm() output constraints can't
    *   be met unless they appear in a specific order.  This is on 32-bit targets only
    *
+   * GASNETI_PGI_ASM_BUG2843
+   *   Compiler suffers from "tpr 17075" in which extended asm() may load only 32 bits of
+   *   a 64-bit operand at -O1 (but is OK at -O0 and -O2).
+   *
    * See GASNet bug 1621 (http://upc-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1621) for more
    * info on the bugs indicated by GASNETI_PGI_ASM_THREADSAFE and GASNETI_PGI_ASM_X86_A.
    *
@@ -91,6 +95,9 @@
   #if PLATFORM_ARCH_32 && PLATFORM_COMPILER_VERSION_GE(7,1,5) /* XXX: No end of range yet */
     #define GASNETI_PGI_ASM_BUG2294 1
   #endif
+  #if PLATFORM_COMPILER_VERSION_GE(7,0,0) && PLATFORM_COMPILER_VERSION_LT(10,8,0)
+    #define GASNETI_PGI_ASM_BUG2843 1
+  #endif
   #define GASNETI_ASM_SPECIAL(mnemonic) asm(mnemonic)
 #elif PLATFORM_COMPILER_COMPAQ
   #include <c_asm.h>
@@ -120,6 +127,9 @@
   /* platforms where inline assembly not supported or used */
   #define GASNETI_ASM(mnemonic)  ERROR_NO_INLINE_ASSEMBLY_AVAIL 
   #undef GASNETI_ASM_AVAILABLE
+  #if PLATFORM_COMPILER_CRAY && PLATFORM_ARCH_X86_64
+    #include "intrinsics.h"
+  #endif
 #else
   #error "Don't know how to use inline assembly for your compiler"
 #endif

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2010/04/07 03:14:06 $
- * $Revision: 1.111 $
+ *     $Date: 2010/09/12 01:22:40 $
+ * $Revision: 1.111.2.1 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -230,6 +230,7 @@
 /* If we have recognized the compiler, pick up its attribute support */
 #if GASNETI_COMPILER_IS_CC && GASNETI_HAVE_CC_ATTRIBUTE
   #define GASNETI_HAVE_GCC_ATTRIBUTE 1
+  #define GASNETI_HAVE_ATTRIBUTE_UNUSED_TYPEDEF GASNETI_HAVE_CC_ATTRIBUTE_UNUSED_TYPEDEF
   #ifndef GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE
     #define GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE GASNETI_HAVE_CC_ATTRIBUTE_ALWAYSINLINE
   #endif
@@ -268,6 +269,7 @@
   #endif
 #elif GASNETI_COMPILER_IS_MPI_CC && GASNETI_HAVE_MPI_CC_ATTRIBUTE
   #define GASNETI_HAVE_GCC_ATTRIBUTE 1
+  #define GASNETI_HAVE_ATTRIBUTE_UNUSED_TYPEDEF GASNETI_HAVE_MPI_CC_ATTRIBUTE_UNUSED_TYPEDEF
   #ifndef GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE
     #define GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE GASNETI_HAVE_MPI_CC_ATTRIBUTE_ALWAYSINLINE
   #endif
@@ -306,6 +308,7 @@
   #endif
 #elif GASNETI_COMPILER_IS_CXX && GASNETI_HAVE_CXX_ATTRIBUTE
   #define GASNETI_HAVE_GCC_ATTRIBUTE 1
+  #define GASNETI_HAVE_ATTRIBUTE_UNUSED_TYPEDEF GASNETI_HAVE_CXX_ATTRIBUTE_UNUSED_TYPEDEF
   #ifndef GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE
     #define GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE GASNETI_HAVE_CXX_ATTRIBUTE_ALWAYSINLINE
   #endif
@@ -559,7 +562,7 @@
   char volatile identName[] = identText;                             \
   extern char *_##identName##_identfn(void) { return (char*)identName; } \
   static int _dummy_##identName = sizeof(_dummy_##identName)
-#if PLATFORM_COMPILER_CRAY
+#if PLATFORM_COMPILER_CRAY && !PLATFORM_ARCH_X86_64 /* fouls up concatenation in ident string */
   #if PLATFORM_COMPILER_VERSION_LT(6,0,0)
     #define GASNETI_PRAGMA_SEMI ;
   #else
@@ -592,29 +595,29 @@
    you have strong reason to believe the branch will frequently go
    in one direction and the branch is a bottleneck
  */
-#ifndef PREDICT_TRUE
+#ifndef GASNETT_PREDICT_TRUE
   #if defined(__GNUC__) && defined(HAVE_BUILTIN_EXPECT)
     /* cast to uintptr_t avoids warnings on some compilers about passing 
        non-integer arguments to __builtin_expect(), and we don't use (int)
        because on some systems this is smaller than (void*) and causes 
        other warnings
      */
-   #define PREDICT_TRUE(exp)  __builtin_expect( ((uintptr_t)(exp)), 1 )
-   #define PREDICT_FALSE(exp) __builtin_expect( ((uintptr_t)(exp)), 0 )
+   #define GASNETT_PREDICT_TRUE(exp)  __builtin_expect( ((uintptr_t)(exp)), 1 )
+   #define GASNETT_PREDICT_FALSE(exp) __builtin_expect( ((uintptr_t)(exp)), 0 )
   #elif PLATFORM_COMPILER_XLC && __xlC__ > 0x0600 && \
        defined(_ARCH_PWR5) /* usually helps on Power5, usually hurts on Power3, mixed on other PPCs */
    #if 1 /* execution_frequency pragma only takes effect when it occurs within a block statement */
-     #define PREDICT_TRUE(exp)  ((exp) && ({; _Pragma("execution_frequency(very_high)"); 1; }))
-     #define PREDICT_FALSE(exp) ((exp) && ({; _Pragma("execution_frequency(very_low)"); 1; }))
+     #define GASNETT_PREDICT_TRUE(exp)  ((exp) && ({; _Pragma("execution_frequency(very_high)"); 1; }))
+     #define GASNETT_PREDICT_FALSE(exp) ((exp) && ({; _Pragma("execution_frequency(very_low)"); 1; }))
    #else /* experimentally determined that pragma is sometimes(?) ignored unless it is
             preceded by a non-trivial statement - unfortunately the dummy statement can also hurt performance */
      static __inline gasneti_xlc_pragma_dummy(void) {} 
-     #define PREDICT_TRUE(exp)  ((exp) && ({ gasneti_xlc_pragma_dummy(); _Pragma("execution_frequency(very_high)"); 1; }))
-     #define PREDICT_FALSE(exp) ((exp) && ({ gasneti_xlc_pragma_dummy(); _Pragma("execution_frequency(very_low)"); 1; }))
+     #define GASNETT_PREDICT_TRUE(exp)  ((exp) && ({ gasneti_xlc_pragma_dummy(); _Pragma("execution_frequency(very_high)"); 1; }))
+     #define GASNETT_PREDICT_FALSE(exp) ((exp) && ({ gasneti_xlc_pragma_dummy(); _Pragma("execution_frequency(very_low)"); 1; }))
    #endif
   #else
-   #define PREDICT_TRUE(exp)  (exp)
-   #define PREDICT_FALSE(exp) (exp)
+   #define GASNETT_PREDICT_TRUE(exp)  (exp)
+   #define GASNETT_PREDICT_FALSE(exp) (exp)
   #endif
 #endif
 
@@ -630,10 +633,10 @@
 #elif PLATFORM_COMPILER_SGI && _SGI_COMPILER_VERSION >= 720 && _MIPS_SIM != _ABIO32
   /* MIPSPro has a predict-false, but unfortunately no predict-true */
   #define if_pf(cond) if (cond) GASNETI_PRAGMA(mips_frequency_hint NEVER)
-  #define if_pt(cond) if (PREDICT_TRUE(cond))
+  #define if_pt(cond) if (GASNETT_PREDICT_TRUE(cond))
 #else
-  #define if_pf(cond) if (PREDICT_FALSE(cond))
-  #define if_pt(cond) if (PREDICT_TRUE(cond))
+  #define if_pf(cond) if (GASNETT_PREDICT_FALSE(cond))
+  #define if_pt(cond) if (GASNETT_PREDICT_TRUE(cond))
 #endif
 #endif
 

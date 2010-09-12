@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2009/10/15 19:02:11 $
- * $Revision: 1.67 $
+ *     $Date: 2010/09/12 01:22:49 $
+ * $Revision: 1.67.10.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -483,7 +483,6 @@ gasnete_coll_bcastM_TreeRVGet(gasnet_team_handle_t team,
 /* Requires GASNETE_COLL_GENERIC_OPT_P2P on all nodes */
 static int gasnete_coll_pf_bcastM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
-  gasnete_coll_p2p_t *p2p = data->p2p;
   const gasnete_coll_broadcastM_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, broadcastM);
   int result = 0;
 
@@ -783,7 +782,6 @@ gasnete_coll_scatM_RVGet(gasnet_team_handle_t team,
 /* Requires GASNETE_COLL_GENERIC_OPT_P2P on all nodes */
 static int gasnete_coll_pf_scatM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
   gasnete_coll_generic_data_t *data = op->data;
-  gasnete_coll_p2p_t *p2p = data->p2p;
   const gasnete_coll_scatterM_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, scatterM);
   int result = 0;
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcore4.c,v $
- *     $Date: 2010/04/07 18:14:03 $
- * $Revision: 1.6 $
+ *     $Date: 2010/09/12 01:23:25 $
+ * $Revision: 1.6.2.1 $
  * Description: GASNet Active Messages conformance/correctness test
  * Copyright (c) 2010, The Regents of the University of California
  * Terms of use are as specified in license.txt
@@ -90,6 +90,9 @@ uint8_t *peerseg = NULL;
 #define LARGS(dest,args,isRep) (dest, hidx_Lhandler(args), rand_payload, \
                                 longsz, peerseg + isRep*longsz, HARGS(args))
 
+/* NOTE: This extra step appears needed for pgcc (bug 2796) */
+#define DO_CALL(fn,args) GASNET_Safe(fn args)
+
 enum {
     op_done,
     op_srep,
@@ -110,16 +113,16 @@ enum {
         flag++;                                                    \
         break;                                                     \
       case op_srep:                                                \
-        GASNET_Safe(gasnet_AMReplyShort##args  SARGS(token,args)); \
+        DO_CALL(gasnet_AMReplyShort##args, SARGS(token,args));     \
         break;                                                     \
       case op_mrep:                                                \
-        GASNET_Safe(gasnet_AMReplyMedium##args MARGS(token,args)); \
+        DO_CALL(gasnet_AMReplyMedium##args, MARGS(token,args));    \
         break;                                                     \
       case op_lrep:                                                \
-        GASNET_Safe(gasnet_AMReplyLong##args LARGS(token,args,1)); \
+        DO_CALL(gasnet_AMReplyLong##args, LARGS(token,args,1));    \
         break;                                                     \
       default:                                                     \
-        FATALERR("Invalid operation = %d", operation);             \
+        FATALERR("Invalid operation = %d", (int)operation);        \
     }                                                              \
   } while(0);
 #define HDEFN(args) \
@@ -142,15 +145,15 @@ enum {
     int goal = flag + 1;                                             \
     randomize();                                                     \
     arg1 = op_srep;                                                  \
-      GASNET_Safe(gasnet_AMRequestShort##args SARGS(peer,args));     \
+      DO_CALL(gasnet_AMRequestShort##args,SARGS(peer,args));         \
       GASNET_BLOCKUNTIL(flag == goal); ++goal;                       \
     arg1 = op_mrep;                                                  \
-      GASNET_Safe(gasnet_AMRequestMedium##args MARGS(peer,args));    \
+      DO_CALL(gasnet_AMRequestMedium##args,MARGS(peer,args));        \
       GASNET_BLOCKUNTIL(flag == goal); ++goal;                       \
     arg1 = op_lrep;                                                  \
-      GASNET_Safe(gasnet_AMRequestLong##args LARGS(peer,args,0));    \
+      DO_CALL(gasnet_AMRequestLong##args,LARGS(peer,args,0));        \
       GASNET_BLOCKUNTIL(flag == goal); ++goal;                       \
-      GASNET_Safe(gasnet_AMRequestLongAsync##args LARGS(peer,args,0)); \
+      DO_CALL(gasnet_AMRequestLongAsync##args,LARGS(peer,args,0));   \
       GASNET_BLOCKUNTIL(flag == goal); ++goal;                       \
   }
 

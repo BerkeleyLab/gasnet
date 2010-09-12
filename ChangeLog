@@ -1,9 +1,9 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.31 $
+$Revision: 1.31.6.1 $
 
 ----------------------------------------------------------------------
-??-??-2010 : Release 1.16
+05-20-2010 : Release 1.14.2
 
 * General:
   - Much improved support for heterogenous compilers (CC, CXX and MPI_CC)
@@ -13,6 +13,21 @@ $Revision: 1.31 $
 
 * InfiniBand (vapi- and ibv-conduits):
   - Fix bug 2079: stack overflow errors when vapi/ibv compiled with pgcc
+
+* Cray-XT series (portals-conduit):
+  - Improved reliability and scalability of job startup and termination code.
+  - Fixed a corner-case bug in AM Medium code
+  - Preliminary work to support PrgEnv-cray (requires CCE 7.2 or newer)
+
+* IBM BlueGene/P (dcmf-conduit):
+  - Fix bug 2756: PAR mode crashes with V1R4M0 drivers
+  - Fix bug 2766: performance problem with loopback AM LongAsnyc
+  - Fix bug 2781 and 2791: deadlocks with some uses of DCMF collectives
+  - Conduit-level support for PSHM (some limitations due to BG/P platform)
+
+* Experimental Process-Shared Memory (PSHM) Support
+  - Shared-memory awarness added to default barrier implementations
+  - Shared-memory awarness added to Extended API and Collectives
 
 * Misc Platform support:
   - Fix bug 2685: timers broken on variable-frequency x86_64 CPUs

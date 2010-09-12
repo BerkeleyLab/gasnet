@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2009/04/06 03:18:48 $
- * $Revision: 1.126 $
+ *     $Date: 2010/09/12 01:22:40 $
+ * $Revision: 1.126.10.1 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -136,6 +136,9 @@ GASNETI_BEGIN_EXTERNC
 #define gasnett_local_wmb()          gasneti_local_wmb()
 #define gasnett_local_rmb()          gasneti_local_rmb()
 #define gasnett_local_mb()           gasneti_local_mb()
+#define gasnett_weak_wmb()           gasneti_sync_writes()
+#define gasnett_weak_rmb()           gasneti_sync_reads()
+#define gasnett_weak_mb()            gasneti_sync_mem()
 #define gasnett_compiler_fence()     gasneti_compiler_fence()
 #define GASNETT_MEMBAR_CONFIG        GASNETI_MEMBAR_CONFIG
 

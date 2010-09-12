@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2010/03/14 22:41:44 $
- * $Revision: 1.208 $
+ *     $Date: 2010/09/12 01:22:40 $
+ * $Revision: 1.208.6.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -949,9 +949,9 @@ static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
 
     GASNETI_BGP_SPR(sprg4.shmem, _BGP_SPRGRO_SHMem); /* SPRG4 30:31 = (processes per node) - 1 */
 
-    if ((0 == gasneti_getenv_int_withdefault("BG_SHAREDMEMPOOLSIZE",0,0)) ||
+    if ((0 == GASNET_PSHM) ||
         !sprg4.ShmNumProcs || (gasneti_nodes == 1)) {
-      /* Just build the trivial map if BG_SHAREDMEMPOOLSIZE is unset or zero,
+      /* Just build the trivial map if GASNET_PSHM is zero,
          or are in SMP mode, or we have just a single node */
       gasneti_nodemap_trivial();
     } else {
@@ -980,6 +980,13 @@ static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
      */
     uint32_t *allids = gasneti_malloc(gasneti_nodes * sizeof(uint32_t));
     uint32_t myid = (uint32_t)gethostid();
+
+    /* Fall back to hashing the hostname if the hostid is obviously invalid */
+    if (!myid || !(~myid)) {
+      const char *myname = gasneti_gethostname();
+      uint64_t csum = gasneti_checksum(myname, strlen(myname));
+      myid = GASNETI_HIWORD(csum) ^ GASNETI_LOWORD(csum);
+    }
   
     gasneti_assert(exchangefn);
     (*exchangefn)(&myid, sizeof(uint32_t), allids);
@@ -1117,6 +1124,26 @@ extern void gasneti_nodemapFini(void) {
                                              ptr returned by malloc ^
  */
 #if GASNET_DEBUG
+  /* READ BEFORE MODIFYING gasneti_memalloc_desc_t:
+   *
+   * malloc() is specified as returning memory "suitably aligned for any kind of variable".
+   * We don't know a priori what that alignment is, but we MUST preserve it in
+   * this debugging malloc implementation if we are to meet that same requirement.
+   * The current length of gasneti_memalloc_desc_t is:
+   *     ILP32: 32 bytes (4+4+4+4+8+8)
+   *   [I]LP64: 48 bytes (8+8+8+8+8+8)
+   * This means that any alignment up to 16-bytes will be preserved.  That is ideal
+   * since 16 is the strictest alignment requirement (long double on some platforms)
+   * that we have encountered in practice.
+   *
+   * If you change this structure, you MUST add padding to maintain the length
+   * at a multiple of 16-bytes AND please update the lengths above.
+   *
+   * NOTE: If the malloc() returns less than 16-byte alignment, then
+   * it is not our responsibility to create it where it did not exists.
+   * Any GASNet code needing larger alignment than 4- or 8-bytes should
+   * probably be using gasneti_{malloc,free}_aligned() (or gasnett_*).
+   */
   typedef struct gasneti_memalloc_desc {  
     struct gasneti_memalloc_desc * volatile prevdesc;
     struct gasneti_memalloc_desc * volatile nextdesc;

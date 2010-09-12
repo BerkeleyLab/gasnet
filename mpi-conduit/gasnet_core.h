@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.h,v $
- *     $Date: 2009/09/18 23:33:34 $
- * $Revision: 1.27 $
+ *     $Date: 2010/09/12 01:22:57 $
+ * $Revision: 1.27.10.1 $
  * Description: GASNet header for MPI conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -87,7 +87,7 @@ typedef struct _gasnet_hsl_t {
     /* more state may be required for conduits using interrupts */
     #error interrupts not implemented
   #endif
-} gasnet_hsl_t;
+} gasnet_hsl_t GASNETI_THREAD_TYPEDEF;
 
 #if GASNETI_STATS_OR_TRACE
   #define GASNETC_LOCK_STAT_INIT ,0 
@@ -145,6 +145,18 @@ typedef struct _gasnet_hsl_t {
   #define gasnet_hsl_unlock  gasnetc_hsl_unlock
   #define gasnet_hsl_trylock gasnetc_hsl_trylock
 #endif
+
+#if GASNET_PSHM && GASNETC_HSL_ERRCHECK && !GASNETC_NULL_HSL
+  extern void gasnetc_enteringHandler_hook_hsl(int cat, int isReq, int handlerId, gasnet_token_t token,
+                                               void *buf, size_t nbytes, int numargs,
+                                               gasnet_handlerarg_t *args);
+  extern void gasnetc_leavingHandler_hook_hsl(int cat, int isReq);
+
+  #define GASNETC_ENTERING_HANDLER_HOOK gasnetc_enteringHandler_hook_hsl
+  #define GASNETC_LEAVING_HANDLER_HOOK  gasnetc_leavingHandler_hook_hsl
+#endif
+
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Active Message Size Limits

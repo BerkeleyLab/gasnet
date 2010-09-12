@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2010/04/09 23:47:15 $
-# $Revision: 1.85 $
+#     $Date: 2010/09/12 01:22:59 $
+# $Revision: 1.85.2.1 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -687,23 +687,37 @@ if ($numproc && $is_bgp) {
     $extra_quote_argv++ if ($spawncmd =~ s/%Q/%A/);
   
     my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
+    my $mode = $ENV{'GASNETRUN_MODE'};
     
-    if ($ppn == 1) {
-      @numprocargs = ('-np', $numproc, '-mode', 'smp');
+    if ($mode) {
+      # Assume the user's value is valid
+    } elsif ($ppn == 1) {
+      $mode = 'smp';
     } elsif ($ppn == 2) {
-      @numprocargs = ('-np', $numproc, '-mode', 'dual');
+      $mode = 'dual';
     } elsif ($ppn == 4) {
-      @numprocargs = ('-np', $numproc, '-mode', 'vn');
+      $mode = 'vn';
     } else {
       die "BG/P only supports 1, 2 or 4 ppn.  See README.dcmf.";
     }
+    @numprocargs = ('-np', $numproc, '-mode', $mode);
   } else { # qsub requires
     my $ppn = int( ( $numproc + $numnode - 1 ) / $numnode );
     if ($ppn * $numnode != $numproc) {
     warn "WARNING: non-uniform process distribution not supported\n";
     warn "WARNING: PROCESS LAYOUT MIGHT NOT MATCH YOUR REQUEST\n";
     }
-    if ($ppn == 1) {
+    if (my $mode = $ENV{'GASNETRUN_MODE'}) {
+      if ($mode eq 'smp') {
+        @numprocargs = ($numproc, '--mode', 'smp');
+      } elsif ($mode eq 'dual') {
+        @numprocargs = ($numproc/2, '--mode', 'dual');
+      } elsif ($mode eq 'vn') {
+        @numprocargs = ($numproc/4, '--mode', 'vn');
+      } else {
+        die "Invalid GASNETRUN_MODE=$mode";
+      }
+    } elsif ($ppn == 1) {
       @numprocargs = ($numproc, '--mode', 'smp');
     } elsif ($ppn == 2) {
       @numprocargs = ($numproc/2, '--mode', 'dual');

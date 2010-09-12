@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2010/04/09 23:38:08 $
- * $Revision: 1.14 $
+ *     $Date: 2010/09/12 01:22:43 $
+ * $Revision: 1.14.2.1 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>, 
                    Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -38,7 +38,7 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 #endif
 
 #ifndef GASNETC_DEFAULT_EXITTIMEOUT_MIN
-#define GASNETC_DEFAULT_EXITTIMEOUT_MIN   2 /* 2 seconds */
+#define GASNETC_DEFAULT_EXITTIMEOUT_MIN   5 /* 5 seconds */
 #endif
 
 #ifndef GASNETC_DEFAULT_EXITTIMEOUT_FACTOR
@@ -363,6 +363,10 @@ static int gasnetc_init(int *argc, char ***argv) {
    * the case of BG/P won't actually use gasnetc_bootstrapExchange */
   gasneti_nodemapInit(gasnetc_bootstrapExchange, NULL, 0, 0);
 
+  #if GASNET_PSHM
+    gasneti_pshm_init(&gasnetc_bootstrapExchange, 0);
+  #endif
+
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
   { 
     DCMF_Hardware_t hw;
@@ -402,7 +406,6 @@ static int gasnetc_init(int *argc, char ***argv) {
   
   /*initialize file scoped global variables*/
 
-  /*XXX: change these to be environment tunable values*/
  {
    int64_t replay_buffer_count = gasneti_getenv_int_withdefault("GASNET_DCMF_MAX_REPLAY_BUFFERS", GASNETC_DEFAULT_MAX_REPLAY_BUFFERS, 0);
    int64_t incoming_buffer_count = gasneti_getenv_int_withdefault("GASNET_DCMF_INCOMING_BUFFERS", GASNETC_DEFAULT_MAX_INCOMING_BUFFERS, 0);
@@ -665,7 +668,7 @@ static void gasnetc_exit_timeout(int sig) {
 
 static void gasnetc_tryCollectiveExit(int exitcode) {
   /* general algorithm
-     Set an alarm timeout of 30 seconds (the timeout shoudl be variable)
+     Set an alarm timeout determined from env vars
      
      initiate a bootstrap barrier to test for collective exit
      if the bootstrap barrier completes, exit with whatever error code got passed in
@@ -677,7 +680,7 @@ static void gasnetc_tryCollectiveExit(int exitcode) {
   uint32_t outputexit_code;
   DCMF_Request_t req;
   DCMF_Callback_t cb_done;
-  volatile int done=0;
+  volatile uint32_t done=0;
 
 #if REGISTER_EXIT_BARRIER_AT_EXIT
   DCMF_Protocol_t gasnetc_exit_barrier_registration;
@@ -691,7 +694,7 @@ static void gasnetc_tryCollectiveExit(int exitcode) {
   inputexit_code |= exitcode;
   
   
-  alarm(1+(int)gasnetc_exittimeout); /*XXX: aquire value from env*/
+  alarm(1+(int)gasnetc_exittimeout); /* acquired from env */
 
 #if GASNET_DEBUG
   fprintf(stderr, "%d> exit initiated... checking for collective exit (exit code: %d) timeout: %d\n", gasneti_mynode, exitcode, 1+(int)gasnetc_exittimeout);
@@ -715,6 +718,7 @@ static void gasnetc_tryCollectiveExit(int exitcode) {
                                            -1, (char*) &inputexit_code,
                                            (char*) &outputexit_code, 1, DCMF_UNSIGNED_INT, DCMF_MAX));
    while(!done) DCMF_Messager_advance();
+   alarm(0); /* disarm ASAP */
  }
  DCMF_CriticalSection_exit(0);
     
@@ -936,7 +940,7 @@ void gasnetc_free_dcmf_nack_req(gasnetc_dcmf_nack_req_t *req){
 /*build a new token and fill the header information*/
 GASNETI_INLINE(gasnetc_construct_token) 
 gasnetc_token_t *gasnetc_construct_token(gasnet_node_t srcnode, gasnetc_dcmf_amtype_t amtype, 
-                   gasnetc_dcmf_amcategory_t amcat, unsigned remote_replay_buffer, int allocate_dcmf_req){
+                   gasnetc_category_t amcat, unsigned remote_replay_buffer, int allocate_dcmf_req){
   
   gasnetc_token_t *token;
   /*check the free list before allocating a new one*/
@@ -1044,7 +1048,7 @@ GASNETI_INLINE(gasnetc_free_replay_buffer)
 void gasnetc_free_replay_buffer(gasnetc_replay_buffer_t *replay_buf) {
   GASNETI_TRACE_PRINTF(C,("Free replay buffer: %p (%d,%d) dest: %d, numquads: %d, buffer: %p, buffer_size: %d, quads: %p\n",
                           replay_buf, replay_buf->amtype, replay_buf->amcat, replay_buf->dest_node, replay_buf->numquads, replay_buf->buffer, replay_buf->buffer_size, replay_buf->quads));
-  if(replay_buf->amcat == GASNETC_AMMED && replay_buf->buffer_size > 0) {
+  if(replay_buf->amcat == gasnetc_Medium && replay_buf->buffer_size > 0) {
     gasneti_assert(replay_buf->buffer);
     gasnetc_free_ambuf(replay_buf->buffer); 
   } else {
@@ -1189,7 +1193,7 @@ void gasnetc_run_amhandler_inner(gasnetc_amhandler_t *handler, int have_dcmf_loc
   GASNETI_TRACE_PRINTF(C,("running handler: %p am: (%d,%d) seq: %d\n", handler, handler->token->amtype, 
                           handler->token->amcat, handler->seq_number));
   switch(handler->token->amcat){
-  case GASNETC_AMSHORT: 
+  case gasnetc_Short: 
     GASNETI_RUN_HANDLER_SHORT((handler->token->amtype==GASNETC_AMREQ), 
             handler->handleridx,
             gasnetc_handler[handler->handleridx],
@@ -1197,7 +1201,7 @@ void gasnetc_run_amhandler_inner(gasnetc_amhandler_t *handler, int have_dcmf_loc
             handler->amargs,
             handler->numargs);
     break;
-  case GASNETC_AMMED: 
+  case gasnetc_Medium: 
     {
       void *ambuffer = NULL;
       uint8_t free_later = 0;
@@ -1229,8 +1233,8 @@ void gasnetc_run_amhandler_inner(gasnetc_amhandler_t *handler, int have_dcmf_loc
       handler->buffer=NULL;
       break;
     }
-  case GASNETC_AMLONG: 
-  case GASNETC_AMLONGASYNC: 
+  case gasnetc_Long: 
+  case gasnetc_LongAsync: 
     if(handler->nbytes > 0) gasneti_assert(handler->buffer);
     GASNETI_RUN_HANDLER_LONG((handler->token->amtype==GASNETC_AMREQ), 
            handler->handleridx,
@@ -1266,6 +1270,9 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
     
+#if GASNETC_PSHM_CORE_API
+  if (gasneti_AMPSHMGetMsgSource(token, &sourceid) != GASNET_OK)
+#endif
   sourceid = ((gasnetc_token_t*)token)->srcnode; 
     
   gasneti_assert(sourceid < gasneti_nodes);
@@ -1298,6 +1305,11 @@ extern int gasnetc_AMPoll(void) {
 
   
   GASNETI_CHECKATTACH();
+
+#if GASNETC_PSHM_CORE_API 
+  /* If your conduit will support PSHM, let it make progress here. */
+  gasneti_AMPSHMPoll(0);
+#endif
 
   /*kick the entire system once*/
   
@@ -1359,7 +1371,7 @@ void gasnetc_dcmf_handle_am_short_inner(void *clientdata,
   gasnet_handler_t handleridx;
   gasnetc_token_t *token;
   gasnetc_dcmf_amtype_t amtype;
-  gasnetc_dcmf_amcategory_t amcat;
+  gasnetc_category_t amcat;
   void *dstaddr; 
   unsigned transfer_size;
   unsigned remote_replay_buffer;
@@ -1398,7 +1410,7 @@ void gasnetc_dcmf_handle_am_short_inner(void *clientdata,
       GASNETI_TRACE_PRINTF(C,("short handler: AM REJECTED! not accepting args"));
       /*we can't accept the message so send a "NACK" back to teh sender*/
       /*if this was an AMLong copy the payload to the final destination but don't queue the AM*/
-      if((amcat == GASNETC_AMLONG) || (amcat == GASNETC_AMLONGASYNC)) {
+      if((amcat == gasnetc_Long) || (amcat == gasnetc_LongAsync)) {
         GASNETE_FAST_UNALIGNED_MEMCPY(dstaddr, src, bytes);
       }
       GASNETC_SEND_NACK(peer, remote_replay_buffer);
@@ -1421,13 +1433,13 @@ void gasnetc_dcmf_handle_am_short_inner(void *clientdata,
     argquads = (DCQuad*) &msginfo[1];
   }
 
-  if(amcat == GASNETC_AMSHORT) {
+  if(amcat == gasnetc_Short) {
     void *ambuf;
     gasneti_assert(dstaddr==NULL);
     gasneti_assert(transfer_size == 0);
     ambuf = NULL;
     amhandler = gasnetc_construct_new_amhandler(token, handleridx, NULL, 0, 0, argquads, argquadcount, numargs);
-  } else if(amcat == GASNETC_AMMED) {
+  } else if(amcat == gasnetc_Medium) {
     gasneti_assert(transfer_size == bytes);
     gasneti_assert(dstaddr == NULL);
     /*if the transfer is a medium request w/ a nonzero lenght 
@@ -1448,7 +1460,7 @@ void gasnetc_dcmf_handle_am_short_inner(void *clientdata,
       void* ambuf = (void*) src;
       amhandler = gasnetc_construct_new_amhandler(token, handleridx, (void*) ambuf, 0, transfer_size, argquads, argquadcount, numargs);
     }
-  } else if((amcat == GASNETC_AMLONG) || (amcat == GASNETC_AMLONGASYNC)) {
+  } else if((amcat == gasnetc_Long) || (amcat == gasnetc_LongAsync)) {
     void *ambuf;
     if(transfer_size > 0) gasneti_assert(dstaddr);
     ambuf = dstaddr;
@@ -1540,7 +1552,7 @@ DCMF_Request_t* gasnetc_dcmf_handle_am_header(void *clientdata,
   gasnet_handler_t handleridx;
   gasnetc_token_t *token;
   gasnetc_dcmf_amtype_t amtype; 
-  gasnetc_dcmf_amcategory_t amcat;
+  gasnetc_category_t amcat;
   void *dstaddr;
   unsigned remote_replay_buffer;
   
@@ -1589,7 +1601,7 @@ DCMF_Request_t* gasnetc_dcmf_handle_am_header(void *clientdata,
       request->peer = peer;
       /*we can't accept the message so send a "NACK" back to teh sender*/
       /*if this was an AMLong copy the payload to the final destination but don't queue the AM*/
-      if((amcat == GASNETC_AMLONG) || (amcat == GASNETC_AMLONGASYNC)) {
+      if((amcat == gasnetc_Long) || (amcat == gasnetc_LongAsync)) {
         *rcvbuf = dstaddr; 
         *rcvlen = sendlen;
       } else {
@@ -1615,14 +1627,14 @@ DCMF_Request_t* gasnetc_dcmf_handle_am_header(void *clientdata,
          headerquad.w0,  headerquad.w1, headerquad.w2, headerquad.w3,
          amtype, amcat, peer, dstaddr, transfer_size, numargs, count, handleridx));
 
-  if(amcat == GASNETC_AMSHORT) {
+  if(amcat == gasnetc_Short) {
     gasneti_assert(dstaddr==NULL);
     gasneti_assert(transfer_size == 0);
     /*no buffer needed to allocate since no payload*/ 
     *rcvbuf = NULL;
     *rcvlen = 0;
     amhandler = gasnetc_construct_new_amhandler(token, handleridx, NULL, 0, 0,argquads, argquadcount, numargs);
-  } else if(amcat == GASNETC_AMMED) {
+  } else if(amcat == gasnetc_Medium) {
     gasnetc_ambuf_t *ambuf;
     /*allocate a temporary buffer and queue the jobs*/
     gasneti_assert(transfer_size == sendlen);
@@ -1632,7 +1644,7 @@ DCMF_Request_t* gasnetc_dcmf_handle_am_header(void *clientdata,
     *rcvbuf = (char*) ambuf->data;
     *rcvlen = sendlen;
     amhandler = gasnetc_construct_new_amhandler(token, handleridx, (void*) ambuf, 1, transfer_size,argquads, argquadcount, numargs);
-  } else if((amcat == GASNETC_AMLONG) || (amcat == GASNETC_AMLONGASYNC)) {
+  } else if((amcat == gasnetc_Long) || (amcat == gasnetc_LongAsync)) {
     void *ambuf;
     /*since DCMF requires the short handler be invoked on zero-byte transfers
       the resends of a long will go through the short handler process
@@ -1702,7 +1714,7 @@ void gasnetc_resend_am_req(gasnetc_replay_buffer_t *replay_buffer) {
   /*Rendezvous doesn't seem to be delivering all the quads
     bug report has been sent to IBM until then always use "default" send protocol when over eager limit*/
 
-  if(replay_buffer->amcat!= GASNETC_AMMED) {
+  if(replay_buffer->amcat!= gasnetc_Medium) {
     /*in the case of a short there's no payload and in the case of a LONG or LONGASYNC the payload 
       is already ont he remote side*/
     /*check to see if we can just send a control message?!*/
@@ -1737,7 +1749,7 @@ void gasnetc_resend_am_req(gasnetc_replay_buffer_t *replay_buffer) {
 }
 
 GASNETI_INLINE(gasnetc_send_am_req)
-void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_node, 
+void gasnetc_send_am_req(gasnetc_category_t amcat, gasnet_node_t dest_node, 
                          int handler_idx, int numargs, void *dst_addr, void *src_addr, size_t nbytes, va_list argptr) {
   volatile uint8_t send_done=0;
   DCMF_Callback_t send_done_callback;
@@ -1756,6 +1768,15 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
   unsigned replay_buffer = 0;
 #endif
   
+#if GASNETC_PSHM_CORE_API
+  if_pt (gasneti_pshm_in_supernode(dest_node)) {
+    if(amcat == gasnetc_LongAsync) amcat = gasnetc_Long;
+    (void) gasneti_AMPSHM_RequestGeneric(amcat, dest_node, handler_idx,
+                                         src_addr, nbytes, dst_addr,
+                                         numargs, argptr);
+    return;
+  }
+#endif
   
 #if GASNETC_FLOW_CONTROL_ENABLED
   /*try to clear the NACK list before we inject another AM to avoid starvation*/
@@ -1763,7 +1784,7 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
   
   /*getting a replay buffer allocated implies that we have permission to send an AM from
    * this node*/
-  replay_buffer = gasnetc_get_replay_buffer(nbytes, (amcat == GASNETC_AMMED?1:0));
+  replay_buffer = gasnetc_get_replay_buffer(nbytes, (amcat == gasnetc_Medium?1:0));
   quads = replay_buffer->quads;
   numquads_ptr = &replay_buffer->numquads;
 
@@ -1801,8 +1822,19 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
 
   /*if it is an AM w/ no payload or an AMLONGASYNC we don't need to wait for the Send to finish
     so set the callback to free the associated request*/
-  
-  wait_for_send = !(amcat == GASNETC_AMLONGASYNC || nbytes == 0);
+
+  /* Fix (workaround) for bug 2790. We wait for the send to complete
+     even for AMLONGASYNC because otherwise the underlying network
+     fifos may be overflowed in the case that a very large amount of
+     messages/data are sent without sufficient polling for reception
+     (e.g., the flooding test in testam.c).  Idealy, it would be
+     better to have some kind of flow-control backoff mechanism based
+     on network fifo feedbacks for regulating the message injection
+     rate but this is not easy to implement efficiently and is only
+     necessary for extreme cases.  As a workaround for long async
+     message flooding, we just poll the network more frequently for
+     every send operation. */
+  wait_for_send = !(nbytes == 0);
 
   if(wait_for_send) {
     /*will need to wait for send to be locally complete*/
@@ -1814,8 +1846,6 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
     send_done_callback.function = gasnetc_free_dcmf_req_cb;
     send_done_callback.clientdata = (void*)dcmf_req;
   }
-  
-  
   
   GASNETC_DCMF_LOCK();
   
@@ -1852,11 +1882,11 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
   /*if its an AMMedium Request copy the payload so that we can replay it later if needed*/
   /*perform the send here to overlap the memcpy with the send operation*/
 #if GASNETC_FLOW_CONTROL_ENABLED
-  if(amcat== GASNETC_AMMED) 
+  if(amcat== gasnetc_Medium) 
     GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(replay_buffer->buffer->data, src_addr, nbytes);
 #endif
   GASNETC_DCMF_UNLOCK();  
-  /*if we need to wait for hte send, wait here*/
+  /*if we need to wait for the send, wait here*/
   if(wait_for_send) {
     gasneti_polluntil(send_done!=0);
     /*&while(send_done == 0) {
@@ -1876,7 +1906,7 @@ void gasnetc_send_am_req(gasnetc_dcmf_amcategory_t amcat, gasnet_node_t dest_nod
 
 
 GASNETI_INLINE(gasnetc_send_am_rep) 
-void gasnetc_send_am_rep(gasnetc_dcmf_amcategory_t amcat, 
+void gasnetc_send_am_rep(gasnetc_category_t amcat, 
                          int handler_idx, int numargs, 
                          void *dst_addr, void *src_addr, 
                          size_t nbytes, gasnetc_token_t* token, va_list argptr) {
@@ -1889,6 +1919,16 @@ void gasnetc_send_am_rep(gasnetc_dcmf_amcategory_t amcat,
   DCQuad quads[GASNETC_MAXQUADS_PER_AM];
   int wait_for_send=1;
   gasnetc_dcmf_req_t *dcmf_req;
+
+#if GASNETC_PSHM_CORE_API
+  /* If your conduit will support PSHM, let it check the token first. */
+  if_pt (gasnetc_token_is_pshm(token)) {
+    (void) gasneti_AMPSHM_ReplyGeneric(amcat, token, handler_idx,
+                                       src_addr, nbytes, dst_addr,
+                                       numargs, argptr);
+    return;
+  }
+#endif
   
   dest_node = token->srcnode;
   GASNETC_DCMF_CHECK_PTR(quads);
@@ -1914,7 +1954,6 @@ void gasnetc_send_am_rep(gasnetc_dcmf_amcategory_t amcat,
     return;
   }
 #endif
-
   
   wait_for_send = (nbytes != 0);
 
@@ -1991,7 +2030,7 @@ extern int gasnetc_AMRequestShortM(
   GASNETI_COMMON_AMREQUESTSHORT(dest,handler,numargs);
 
   va_start(argptr, numargs); /*  pass in last argument */
-  gasnetc_send_am_req(GASNETC_AMSHORT, dest, handler, numargs, NULL, NULL, 0, argptr);
+  gasnetc_send_am_req(gasnetc_Short, dest, handler, numargs, NULL, NULL, 0, argptr);
   va_end(argptr);
   
   retval = GASNET_OK; 
@@ -2007,7 +2046,7 @@ extern int gasnetc_AMRequestMediumM(
   va_list argptr;
   GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-  gasnetc_send_am_req(GASNETC_AMMED, dest, handler, numargs, NULL, source_addr, nbytes, argptr);
+  gasnetc_send_am_req(gasnetc_Medium, dest, handler, numargs, NULL, source_addr, nbytes, argptr);
   retval = GASNET_OK; 
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -2022,7 +2061,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   va_list argptr;
   GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-  gasnetc_send_am_req(GASNETC_AMLONG, dest, handler, numargs, dest_addr, source_addr, nbytes, argptr);
+  gasnetc_send_am_req(gasnetc_Long, dest, handler, numargs, dest_addr, source_addr, nbytes, argptr);
   retval = GASNET_OK;
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -2038,7 +2077,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
   GASNETI_COMMON_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
   
-  gasnetc_send_am_req(GASNETC_AMLONGASYNC, dest, handler, numargs, dest_addr, source_addr, nbytes, argptr);
+  gasnetc_send_am_req(gasnetc_LongAsync, dest, handler, numargs, dest_addr, source_addr, nbytes, argptr);
   
   retval = GASNET_OK;
   va_end(argptr);
@@ -2054,7 +2093,7 @@ extern int gasnetc_AMReplyShortM(
   GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
   gasneti_assert(token);
   va_start(argptr, numargs); /*  pass in last argument */
-  gasnetc_send_am_rep(GASNETC_AMSHORT, handler, numargs, NULL, NULL, 0, (gasnetc_token_t*)token, argptr);
+  gasnetc_send_am_rep(gasnetc_Short, handler, numargs, NULL, NULL, 0, (gasnetc_token_t*)token, argptr);
   retval = GASNET_OK;
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -2071,7 +2110,7 @@ extern int gasnetc_AMReplyMediumM(
   va_start(argptr, numargs); /*  pass in last argument */
   gasneti_assert(token);
 
-  gasnetc_send_am_rep(GASNETC_AMMED, handler, numargs, NULL, source_addr, nbytes, (gasnetc_token_t*)token, argptr);
+  gasnetc_send_am_rep(gasnetc_Medium, handler, numargs, NULL, source_addr, nbytes, (gasnetc_token_t*)token, argptr);
   retval = GASNET_OK; 
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -2088,7 +2127,7 @@ extern int gasnetc_AMReplyLongM(
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 
   va_start(argptr, numargs); /*  pass in last argument */
   gasneti_assert(token);
-  gasnetc_send_am_rep(GASNETC_AMLONG, handler, numargs, dest_addr, source_addr, nbytes, (gasnetc_token_t*)token, argptr);
+  gasnetc_send_am_rep(gasnetc_Long, handler, numargs, dest_addr, source_addr, nbytes, (gasnetc_token_t*)token, argptr);
   retval = GASNET_OK; 
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -2106,7 +2145,7 @@ extern int gasnetc_AMReplyLongM(
   (and this is one place you'll probably want to use it)
 */
 #if GASNETC_USE_INTERRUPTS
-//#error interrupts not implemented
+/*#error interrupts not implemented*/
 
 /*email communication from IBM DCMF Team (4/15/09)
   
@@ -2166,7 +2205,7 @@ extern void gasnetc_hsl_init   (gasnet_hsl_t *hsl) {
 
 #if GASNETC_USE_INTERRUPTS
   /* add code here to init conduit-specific HSL state */
-  //#error interrupts not implemented
+  /*#error interrupts not implemented*/
 #endif
 }
 
@@ -2176,7 +2215,7 @@ extern void gasnetc_hsl_destroy(gasnet_hsl_t *hsl) {
 
 #if GASNETC_USE_INTERRUPTS
   /* add code here to cleanup conduit-specific HSL state */
-  //#error interrupts not implemented
+  /*#error interrupts not implemented*/
 #endif
 }
 
@@ -2212,7 +2251,7 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
      disable handler interrupts on _this_ thread, (if this is the outermost
      HSL lock acquire and we're not inside an enclosing no-interrupt section)
   */
-  //#error interrupts not implemented
+  /*#error interrupts not implemented*/
 #endif
 }
 
@@ -2224,7 +2263,7 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
      re-enable handler interrupts on _this_ thread, (if this is the outermost
      HSL lock release and we're not inside an enclosing no-interrupt section)
   */
-  //#error interrupts not implemented
+  /*#error interrupts not implemented*/
 #endif
 
   GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_TICKS_NOW_IFENABLED(L)-hsl->acquiretime);
@@ -2248,7 +2287,7 @@ extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
    disable handler interrupts on _this_ thread, (if this is the outermost
    HSL lock acquire and we're not inside an enclosing no-interrupt section)
       */
-      //#error interrupts not implemented
+      /*#error interrupts not implemented*/
 #endif
     }
 

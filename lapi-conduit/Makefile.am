@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/Makefile.am,v $
-#     $Date: 2009/10/10 03:46:09 $
-# $Revision: 1.40 $
+#     $Date: 2010/09/12 01:22:55 $
+# $Revision: 1.40.10.1 $
 # Description: Makefile for GASNet lapi conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -53,6 +53,9 @@ CONDUIT_EXTRALIBCFLAGS = $(fh_extralibcflags)
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS = $(fh_extraheaders)
+
+# headers selected by default rules that should NOT be installed
+CONDUIT_PRIVATEHEADERS = $(fh_privheaders)
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update

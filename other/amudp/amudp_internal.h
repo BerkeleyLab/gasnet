@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_internal.h,v $
- *     $Date: 2010/01/25 22:48:51 $
- * $Revision: 1.36 $
+ *     $Date: 2010/09/12 01:23:05 $
+ * $Revision: 1.36.8.1 $
  * Description: AMUDP internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -141,14 +141,19 @@ extern uint32_t AMUDP_ExpectedBandwidth; /* expected half-duplex bandwidth in KB
    in one direction and the branch is a bottleneck
  */
 #ifndef PREDICT_TRUE
-  #if defined(__GNUC__) && __GNUC__ >= 3 && 0
+  #if defined(GASNETT_PREDICT_TRUE)
+   #define PREDICT_TRUE(exp)  GASNETT_PREDICT_TRUE(exp)
+   #define PREDICT_FALSE(exp) GASNETT_PREDICT_FALSE(exp)
+  #elif defined(__GNUC__) && __GNUC__ >= 3 && 0
     #define PREDICT_TRUE(exp)  __builtin_expect( (exp), 1 )
     #define PREDICT_FALSE(exp) __builtin_expect( (exp), 0 )
   #else
     #define PREDICT_TRUE(exp)  (exp)
     #define PREDICT_FALSE(exp) (exp)
   #endif
+#endif
 
+#ifndef if_pf
   /* if with branch prediction */
   #define if_pf(cond) if (PREDICT_FALSE(cond))
   #define if_pt(cond) if (PREDICT_TRUE(cond))
@@ -435,7 +440,7 @@ extern volatile int AMUDP_SPMDIsActiveControlSocket;
   extern char volatile identName[];         \
   char volatile identName[] = identText;    \
   extern char *_##identName##_identfn(void) { return (char*)identName; } 
-#if PLATFORM_COMPILER_CRAY
+#if PLATFORM_COMPILER_CRAY && !PLATFORM_ARCH_X86_64 /* fouls up concatenation in ident string */
   #define AMUDP_IDENT(identName, identText) \
     AMUDP_PRAGMA(_CRI ident identText);     \
     _AMUDP_IDENT(identName, identText)

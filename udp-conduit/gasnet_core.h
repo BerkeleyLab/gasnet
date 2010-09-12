@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core.h,v $
- *     $Date: 2009/09/21 01:05:38 $
- * $Revision: 1.16 $
+ *     $Date: 2010/09/12 01:23:27 $
+ * $Revision: 1.16.10.1 $
  * Description: GASNet header for UDP conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -14,7 +14,6 @@
 #define _GASNET_CORE_H
 
 #include <amudp.h>
-#include <amudp_spmd.h>
 
 #include <gasnet_core_help.h>
 
@@ -72,7 +71,7 @@ typedef struct _gasnet_hsl_t {
     /* more state may be required for conduits using interrupts */
     #error interrupts not implemented
   #endif
-} gasnet_hsl_t;
+} gasnet_hsl_t GASNETI_THREAD_TYPEDEF;
 
 #if GASNETI_STATS_OR_TRACE
   #define GASNETC_LOCK_STAT_INIT ,0 

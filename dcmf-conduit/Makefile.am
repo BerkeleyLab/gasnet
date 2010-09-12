@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/Makefile.am,v $
-#     $Date: 2009/12/02 02:15:55 $
-# $Revision: 1.5 $
+#     $Date: 2010/09/12 01:22:43 $
+# $Revision: 1.5.8.1 $
 # Description: Makefile for GASNet dcmf conduit
 # Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
 #                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -24,17 +24,19 @@ CONDUIT_FILELIST =                \
       gasnet_core_fwd.h           \
       gasnet_core_help.h          \
       gasnet_core_internal.h      \
-			gasnet_extended.c           \
-			gasnet_extended_fwd.h       \
+      gasnet_extended.c           \
+      gasnet_extended_fwd.h       \
       gasnet_extended_internal.h  \
-			gasnet_extended_coll_dcmf.c \
-			gasnet_extended_coll_dcmf.h \
-			gasnet_coll_exchange_dcmf.c \
-			gasnet_coll_exchange_dcmf.h \
-			gasnet_coll_bcast_dcmf.c \
-			gasnet_coll_bcast_dcmf.h \
-			gasnet_coll_barrier_dcmf.c \
-			gasnet_coll_barrier_dcmf.h 
+      gasnet_extended_coll_dcmf.c \
+      gasnet_extended_coll_dcmf.h \
+      gasnet_coll_exchange_dcmf.c \
+      gasnet_coll_exchange_dcmf.h \
+      gasnet_coll_bcast_dcmf.c \
+      gasnet_coll_bcast_dcmf.h \
+      gasnet_coll_barrier_dcmf.c \
+      gasnet_coll_barrier_dcmf.h \
+      gasnet_coll_allreduce_dcmf.c \
+      gasnet_coll_allreduce_dcmf.h 
 
 # list of conduit core and extended .c source files 
 # to be compiled into libgasnet on the compiler command line
@@ -42,10 +44,11 @@ CONDUIT_SOURCELIST =          \
       $(srcdir)/gasnet_core.c \
       $(srcdir)/gasnet_dcmf_bootstrapcoll.c \
       $(srcdir)/gasnet_extended.c \
-			$(srcdir)/gasnet_extended_coll_dcmf.c \
-			$(srcdir)/gasnet_coll_exchange_dcmf.c \
-			$(srcdir)/gasnet_coll_bcast_dcmf.c \
-			$(srcdir)/gasnet_coll_barrier_dcmf.c
+      $(srcdir)/gasnet_extended_coll_dcmf.c \
+      $(srcdir)/gasnet_coll_exchange_dcmf.c \
+      $(srcdir)/gasnet_coll_bcast_dcmf.c \
+      $(srcdir)/gasnet_coll_barrier_dcmf.c \
+      $(srcdir)/gasnet_coll_allreduce_dcmf.c
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
@@ -53,6 +56,14 @@ CONDUIT_EXTRALIBCFLAGS = -I@DCMF_INCLUDE@ -I@DCMF_SYS_INCLUDE@
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS = 
+
+# headers selected by default rules that should NOT be installed
+CONDUIT_PRIVATEHEADERS = \
+      gasnet_extended_coll_dcmf.h \
+      gasnet_coll_exchange_dcmf.h \
+      gasnet_coll_barrier_dcmf.h \
+      gasnet_coll_bcast_dcmf.h \
+      gasnet_coll_allreduce_dcmf.h
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update

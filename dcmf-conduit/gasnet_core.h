@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.h,v $
- *     $Date: 2009/04/01 23:32:56 $
- * $Revision: 1.4 $
+ *     $Date: 2010/09/12 01:22:43 $
+ * $Revision: 1.4.12.1 $
  * Description: GASNet header for dcmf conduit core
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -67,7 +67,7 @@ typedef struct _gasnet_hsl_t {
     /* more state may be required for conduits using interrupts */
     #error interrupts not implemented
   #endif
-} gasnet_hsl_t;
+} gasnet_hsl_t GASNETI_THREAD_TYPEDEF;
 
 #if GASNETI_STATS_OR_TRACE
   #define GASNETC_LOCK_STAT_INIT ,0 
@@ -123,11 +123,23 @@ typedef struct _gasnet_hsl_t {
   Active Message Size Limits
   ==========================
 */
+
+#ifndef GASNETC_PSHM_CORE_API
+/* By default use of PSHM-based Core API (AMs) is disabled due to progress problems.
+   See bug 2776 for a discussion of the problem(s).
+ */
+#define GASNETC_PSHM_CORE_API 0
+#endif
+
 /*declare as a pure number for static declarations*/
 #define GASNETC_AMMAXMED 512
 
 #define gasnet_AMMaxArgs()          ((size_t)16)
-#define gasnet_AMMaxMedium()        ((size_t)GASNETC_AMMAXMED)
+#if GASNETC_PSHM_CORE_API
+  #define gasnet_AMMaxMedium()      MIN((size_t)GASNETC_AMMAXMED, GASNETI_MAX_MEDIUM_PSHM)
+#else
+  #define gasnet_AMMaxMedium()      ((size_t)GASNETC_AMMAXMED)
+#endif
 #define gasnet_AMMaxLongRequest()   ((size_t)512*1024*1024)
 #define gasnet_AMMaxLongReply()     ((size_t)512*1024*1024)
 

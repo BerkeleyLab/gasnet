@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_coll_bcast_dcmf.c,v $
- *     $Date: 2009/10/28 03:01:34 $
- * $Revision: 1.8 $
+ *     $Date: 2010/09/12 01:22:43 $
+ * $Revision: 1.8.10.1 $
  * Description: GASNet broadcast implementation on DCMF
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -181,11 +181,12 @@ static int gasnete_coll_pf_bcast_dcmf(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
   
   switch (data->state) {
   case 0:	
-    /* DCMF_Broadcast has an explicit barrier for all processes at the
-     * beginning.
-     */
     if (gasnete_dcmf_busy)
       break;
+
+    if (!gasnete_coll_generic_insync(op->team, data))
+      break;
+
     data->state = 1;
 #ifdef G_DCMF_COLL_TRACE
     fprintf(stderr, "gasnete_coll_pf_bcast_dcmf state 1.\n");
@@ -242,7 +243,7 @@ static int gasnete_coll_pf_bcast_dcmf(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
       break;
     
     /* clean up storage space */
-    gasneti_free(bcast);
+    gasneti_free_aligned(bcast);
     gasnete_coll_generic_free(op->team, data GASNETE_THREAD_PASS);
 
 #ifdef G_DCMF_COLL_TRACE
@@ -297,10 +298,11 @@ gasnete_coll_broadcast_nb_dcmf(gasnet_team_handle_t team,
   data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
   gasneti_assert(data != NULL);
   GASNETE_COLL_GENERIC_SET_TAG(data, broadcast);
-  data->options=GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC);
+  data->options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF(flags & GASNET_COLL_IN_ALLSYNC) 
+    | GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC);
   
   /* initialize DCMF specific data structures */
-  bcast = (gasnete_dcmf_bcast_data_t *)gasneti_malloc(sizeof(gasnete_dcmf_bcast_data_t));
+  bcast = (gasnete_dcmf_bcast_data_t *)gasneti_malloc_aligned(64, sizeof(gasnete_dcmf_bcast_data_t));
   gasnete_coll_dcmf_bcast_init(bcast, team, &dcmf_tp->geometry, root, src, dst, nbytes);
   data->private_data = bcast;
   
@@ -313,6 +315,7 @@ gasnete_coll_broadcast_nb_dcmf(gasnet_team_handle_t team,
                                                    sequence, NULL, 0, NULL, NULL
                                                    GASNETE_THREAD_PASS);
 }
+
 
 void gasnete_coll_broadcast_dcmf(gasnet_team_handle_t team, void *dst,
                                  gasnet_image_t srcimage, void *src,
@@ -350,6 +353,10 @@ void gasnete_coll_broadcast_dcmf(gasnet_team_handle_t team, void *dst,
   cb_done.function = gasnete_dcmf_bcast_cb_done;
   cb_done.clientdata = (void *)&active;
   
+  /* optional barrier for the out_allsync mode, should be a team barrier */
+  if (flags & GASNET_COLL_IN_ALLSYNC)
+    gasnete_coll_teambarrier_dcmf(team);
+
   if (gasnete_dcmf_bcast_enabled[TREE_BROADCAST] && team==GASNET_TEAM_ALL)
     {
       DCMF_Request_t  request;
@@ -362,11 +369,15 @@ void gasnete_coll_broadcast_dcmf(gasnet_team_handle_t team, void *dst,
                                  team->rel2act_map[root],
                                  (team->myrank == root) ? src : dst,
                                  nbytes));
-      
-      while (active)
-        DCMF_Messager_advance();
-
       GASNETC_DCMF_UNLOCK();
+      /* Fix for bug 2791.  GASNet may deadlock if polling the
+         dcmf-network in a tight loop and not making necessary
+         progress in other GASNet components such as processing the AM
+         queue.  gasnetc_AMPoll() should be used in place of
+         Dcmf_Messager_Advance() because DCMF_Messager_Advance() only
+         makes progress in DCMF but not in GASNet.  gasnet_AMPoll()
+         makes progress in both GASNet and DCMF. */
+      gasneti_polluntil(active == 0);
     } 
   else 
     {
@@ -382,11 +393,8 @@ void gasnete_coll_broadcast_dcmf(gasnet_team_handle_t team, void *dst,
                      team->rel2act_map[root],
                      (team->myrank == root) ? src : dst,
                      nbytes);
-
-      while (active)
-        DCMF_Messager_advance();
-
       GASNETC_DCMF_UNLOCK();
+      gasneti_polluntil(active == 0);
     }
   
   if (team->myrank == root)
@@ -397,6 +405,7 @@ void gasnete_coll_broadcast_dcmf(gasnet_team_handle_t team, void *dst,
     gasnete_coll_teambarrier_dcmf(team);
 }
 
+ 
 void gasnete_coll_dcmf_bcast_print(FILE *fp, gasnete_dcmf_bcast_data_t *bcast)
 {
   gasneti_assert(bcast != NULL);

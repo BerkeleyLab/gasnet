@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2010/07/16 00:41:31 $
- * $Revision: 1.8.14.1 $
+ *     $Date: 2010/09/12 01:23:15 $
+ * $Revision: 1.8.14.2 $
  * Description: GASNet header for PORTALS conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -66,7 +66,7 @@ typedef struct _gasnet_hsl_t {
     /* more state may be required for conduits using interrupts */
     #error interrupts not implemented
   #endif
-} gasnet_hsl_t;
+} gasnet_hsl_t GASNETI_THREAD_TYPEDEF;
 
 #if GASNETI_STATS_OR_TRACE
   #define GASNETC_LOCK_STAT_INIT ,0 
@@ -131,7 +131,12 @@ typedef struct _gasnet_hsl_t {
 #else
 #define GASNETI_MEDBUF_OVERHEAD     (4*(gasnet_AMMaxArgs()))
 #endif
-#define gasnet_AMMaxMedium()        ((size_t)(GASNETC_CHUNKSIZE - GASNETI_ALIGNUP_NOASSERT(GASNETI_MEDBUF_OVERHEAD,GASNETI_MEDBUF_ALIGNMENT)))
+#define GASNETC_MAX_MEDIUM_         ((size_t)(GASNETC_CHUNKSIZE - GASNETI_ALIGNUP_NOASSERT(GASNETI_MEDBUF_OVERHEAD,GASNETI_MEDBUF_ALIGNMENT)))
+#if GASNET_PSHM
+  #define gasnet_AMMaxMedium()      MIN(GASNETC_MAX_MEDIUM_, GASNETI_MAX_MEDIUM_PSHM)
+#else
+  #define gasnet_AMMaxMedium()      GASNETC_MAX_MEDIUM_
+#endif
 #if PLATFORM_OS_CATAMOUNT
 #define gasnet_AMMaxLongRequest()   ((size_t)1073741824ULL)
 #define gasnet_AMMaxLongReply()     ((size_t)1073741824ULL)

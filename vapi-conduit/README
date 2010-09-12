@@ -1,7 +1,7 @@
 README file for vapi-conduit and ibv-conduit
 ============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.55 $
+$Revision: 1.55.10.1 $
 
 @ TOC: @
 @ Section: VAPI vs IBV @
@@ -279,9 +279,20 @@ $Revision: 1.55 $
     In ibv-conduit only, this option is currently ignored and the thread
     is never used.
 
-  Protocol configuration:
-  The following environment variables control the selection of protocols
-  for performing certain transfers.
+  Pinnable memory probe configuration:
+  In normal operation of vapi-conduit it is necessary to know how much memory
+  may be registered (aka pinned) with the InfiniBand HCA(s).  This is limited
+  by multiple factors and thus cannot be determined by a simple query.
+  Therefore, the default behavior is to attempt to mmap and register as much
+  memory as possible at startup, and then release all the memory.  When there
+  are multiple GASNet processes on a shared memory node, one representative
+  process will perform this probe.  There are at least two well-known reasons
+  why one may desire to limit or eliminate this probe.  The first is the time
+  spent performing the probe.  The second is the possibility that the O/S or
+  a batch execution environment may terminate a process that exceeds some
+  limit on the virtual memory size of a process and/or may terminate the
+  process with the largest size when memory is exhausted.  Use of the
+  following parameters allows one to bound, or to eliminate, this probe.
 
   These parameters must be equal across all nodes, and the behavior
   otherwise is undefined.
@@ -293,16 +304,28 @@ $Revision: 1.55 $
     which means to probe the limits imposed by the O/S and HCA.
     Setting to a non-zero value will limit how large the GASNet segment
     can be, and how much memory is available for firehose (see below),
-    but may speed startup by bounding the probe.
+    but may speed startup by bounding the probe.  Note, however that
+    setting only this variable bounds the probe, but does not elimitate it.
+    Also be aware that with multiple processes per shared memory node the
+    value given by this variable will be divided by the number of processes
+    per shared memory node to determine the memory available.
 
   + GASNET_PHYSMEM_NOPROBE
     This gives a boolean: "0" to disable or "1" to enable the use of
-    GASNET_PHYSMEM_MAX without probing.
+    GASNET_PHYSMEM_MAX without probing.  If GASNET_PHYSMEM_MAX is zero
+    or unset, this variable is ignored.
     Enabling this setting may greatly speed startup, but can lead to
     unexpected runtime failures if GASNET_PHYSMEM_MAX exceeds the limits
     imposed by the O/S and HCA.
     If GASNET_PHYSMEM_MAX is zero (or unset) this variable is ignored.
     The default is OFF.
+
+  Protocol configuration:
+  The following environment variables control the selection of protocols
+  for performing certain transfers.
+
+  These parameters must be equal across all nodes, and the behavior
+  otherwise is undefined.
 
   + GASNET_INLINESEND_LIMIT
     VAPI includes an "inline send" operation that transfers the data to
@@ -459,21 +482,6 @@ $Revision: 1.55 $
     If you believe that throughput of these operations is too small, you
     may try increasing this value (or setting it to zero), at a cost in
     additional pinned memory.
-   
-  + GASNET_PIN_MAXSZ
-    This gives the maximum size of a single VAPI pinned region, and must
-    be a power of two.  If the GASNet segment is larger than this size in a
-    GASNET_SEGMENT_FAST configuration, then it will be pinned using multiple
-    regions.  This works around an observed bug in Mellanox HCAs and VAPI
-    drivers in which large regions lead to premature thrashing of the HCA's
-    on board TPT (Translation and Protection Table) cache while pinning
-    the same memory with multiple smaller regions does not.
-    If you see throughput of large messages dropping off sharply with an
-    increase in message size, you may try reducing this value.
-    The suffixes "K", "M" and "G" are interpreted as Kilobytes, Megabytes
-    and Gigabytes respectively.
-    For VAPI the default is 256K.
-    For IBV the default is zero, which means to use the HCA's limits.
    
   AMRDMA configuration:
   The following environment variables control the AM-over-RDMA code in

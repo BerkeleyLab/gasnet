@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_internal.h,v $
- *     $Date: 2009/03/29 06:54:28 $
- * $Revision: 1.42 $
+ *     $Date: 2010/09/12 01:23:03 $
+ * $Revision: 1.42.12.1 $
  * Description: AMMPI internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -416,7 +416,10 @@ struct ammpi_ep {
    in one direction and the branch is a bottleneck
  */
 #ifndef PREDICT_TRUE
-  #if defined(__GNUC__) && defined(HAVE_BUILTIN_EXPECT)
+  #if defined(GASNETT_PREDICT_TRUE)
+   #define PREDICT_TRUE(exp)  GASNETT_PREDICT_TRUE(exp)
+   #define PREDICT_FALSE(exp) GASNETT_PREDICT_FALSE(exp)
+  #elif defined(__GNUC__) && defined(HAVE_BUILTIN_EXPECT)
     /* cast to uintptr_t avoids warnings on some compilers about passing 
        non-integer arguments to __builtin_expect(), and we don't use (int)
        because on some systems this is smaller than (void*) and causes 
@@ -741,7 +744,7 @@ extern int AMMPI_PostRecvBuffer(ammpi_buf_t *rxBuf, MPI_Request *prxHandle, MPI_
   char volatile identName[] = identText;    \
   extern char *_##identName##_identfn(void) { return (char*)identName; } \
   static int _dummy_##identName = sizeof(_dummy_##identName)
-#if PLATFORM_COMPILER_CRAY
+#if PLATFORM_COMPILER_CRAY && !PLATFORM_ARCH_X86_64 /* fouls up concatenation in ident string */
   #define AMMPI_IDENT(identName, identText) \
     AMMPI_PRAGMA(_CRI ident identText);     \
     _AMMPI_IDENT(identName, identText)

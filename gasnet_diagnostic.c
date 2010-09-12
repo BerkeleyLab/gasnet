@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_diagnostic.c,v $
- *     $Date: 2010/03/17 01:02:51 $
- * $Revision: 1.33 $
+ *     $Date: 2010/09/12 01:22:40 $
+ * $Revision: 1.33.4.1 $
  * Description: GASNet internal diagnostics
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -197,6 +197,18 @@ static void malloc_test(int id) {
   gasneti_heapstats_t stats_before, stats_after;
 
   /* try to trigger any warm-up allocations potentially caused by barrier */
+  if (id == 0) {
+    /* each node takes a turn being a late arrival */
+    for (i=0; i < gasneti_nodes; i++) {
+      if (i == gasneti_mynode) {
+        uint64_t goal = gasnett_ticks_to_us(gasnett_ticks_now()) + 100000; /* 0.1s */
+        while (gasnett_ticks_to_us(gasnett_ticks_now()) < goal) {
+          gasnett_sched_yield();
+        }
+      }
+      BARRIER();
+    }
+  }
   for (i=0; i < num_threads; i++) {
     if (i == id) BARRIER(); /* each thread gets a chance */
     PTHREAD_LOCALBARRIER(num_threads);
@@ -520,7 +532,6 @@ static void atomic128_test(int id) {
           (((uintptr_t)_var128 + GASNETI_HAVE_ATOMIC128_T - 1) & ~(GASNETI_HAVE_ATOMIC128_T - 1));
   uint64_t readhi, readlo;
   const uint64_t one64 = 1;
-  uint64_t tmp64;
   int i;
 
   TEST_HEADER("128-bit atomic CAS test"); else return;

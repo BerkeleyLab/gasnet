@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_toolhelp.h,v $
- *     $Date: 2010/01/26 02:50:15 $
- * $Revision: 1.56 $
+ *     $Date: 2010/09/12 01:22:40 $
+ * $Revision: 1.56.8.1 $
  * Description: misc declarations needed by both gasnet_tools and libgasnet
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -71,7 +71,7 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
  * an assertion that never compiles away - for sanity checks in non-critical paths 
  */
 #define gasneti_assert_always(expr) \
-    (PREDICT_TRUE(expr) ? (void)0 : gasneti_fatalerror("Assertion failure at %s: %s", gasneti_current_loc, #expr))
+    (GASNETT_PREDICT_TRUE(expr) ? (void)0 : gasneti_fatalerror("Assertion failure at %s: %s", gasneti_current_loc, #expr))
 
 /* gasneti_assert():
  * an assertion that compiles away in non-debug mode - for sanity checks in critical paths 
@@ -127,6 +127,11 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
 #else
   #define GASNETI_UNUSED_UNLESS_THREADS GASNETI_UNUSED
 #endif
+#if !GASNETI_HAVE_ATTRIBUTE_UNUSED_TYPEDEF || GASNETI_THREADS
+  #define GASNETI_THREAD_TYPEDEF
+#else
+  #define GASNETI_THREAD_TYPEDEF GASNETI_UNUSED
+#endif
 
 /* return physical memory of machine
    on failure, failureIsFatal nonzero => fatal error, failureIsFatal zero => return 0 */
@@ -147,6 +152,8 @@ extern void gasneti_backtrace_init(const char *exename);
 extern int (*gasneti_print_backtrace_ifenabled)(int fd);
 extern int gasneti_print_backtrace(int fd);
 extern void gasneti_ondemand_init(void);
+
+extern int gasneti_check_node_list(const char *listvar);
 
 extern void gasneti_flush_streams(void); /* flush all open streams */
 extern void gasneti_close_streams(void); /* close standard streams (for shutdown) */
@@ -310,7 +317,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
       pthread_mutex_t lock;
       _GASNETI_MUTEX_CAUTIOUS_INIT_FIELD
       GASNETI_BUG2231_WORKAROUND_PAD
-    } gasneti_mutex_t;
+    } gasneti_mutex_t GASNETI_THREAD_TYPEDEF;
     #if defined(PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP)
       /* These are faster, though less "featureful" than the default
        * mutexes on linuxthreads implementations which offer them.
@@ -363,7 +370,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
   #else /* GASNET_DEBUG non-pthread (error-check-only) mutexes */
     typedef struct {
       volatile GASNETI_THREADID_T owner;
-    } gasneti_mutex_t;
+    } gasneti_mutex_t GASNETI_THREAD_TYPEDEF;
     #define GASNETI_MUTEX_INITIALIZER   { GASNETI_MUTEX_NOOWNER }
     #define gasneti_mutex_lock(pl) do {                             \
               gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER); \
@@ -390,7 +397,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
 #else /* non-debug mutexes */
   #if GASNETI_USE_TRUE_MUTEXES
     #include <pthread.h>
-    typedef pthread_mutex_t           gasneti_mutex_t;
+    typedef pthread_mutex_t           gasneti_mutex_t GASNETI_THREAD_TYPEDEF;
     #if defined(PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP)
       /* These are faster, though less "featureful" than the default
        * mutexes on linuxthreads implementations which offer them.
@@ -407,7 +414,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
     #define gasneti_mutex_destroy_ignoreerr(pl)   pthread_mutex_destroy(pl)
     #define gasneti_mutex_destroy(pl)   gasneti_mutex_destroy_ignoreerr(pl)
   #else
-    typedef char           gasneti_mutex_t;
+    typedef char           gasneti_mutex_t GASNETI_THREAD_TYPEDEF;
     #define GASNETI_MUTEX_INITIALIZER '\0'
     #define gasneti_mutex_lock(pl)    ((void)0)
     #define gasneti_mutex_trylock(pl) 0
@@ -430,7 +437,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
   typedef struct {
     pthread_cond_t cond;
     GASNETI_BUG2231_WORKAROUND_PAD
-  } gasneti_cond_t;
+  } gasneti_cond_t GASNETI_THREAD_TYPEDEF;
 
   #define GASNETI_COND_INITIALIZER    { PTHREAD_COND_INITIALIZER }
   #define gasneti_cond_init(pc) do {                       \
@@ -474,7 +481,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
     } while (0)
   #endif
 #else
-  typedef char           gasneti_cond_t;
+  typedef char           gasneti_cond_t GASNETI_THREAD_TYPEDEF;
   #define GASNETI_COND_INITIALIZER  '\0'
   #define gasneti_cond_init(pc)       ((void)0)
   #define gasneti_cond_destroy(pc)    ((void)0)
@@ -511,13 +518,13 @@ int gasneti_count0s_uint32_t(uint32_t x) {
       gasneti_mutex_t initmutex;
       volatile int isinit;
       pthread_key_t value;
-  } _gasneti_threadkey_t;
+  } _gasneti_threadkey_t GASNETI_THREAD_TYPEDEF;
   #define _GASNETI_THREADKEY_INITIALIZER \
     { _GASNETI_THREADKEY_MAGIC_INIT      \
       GASNETI_MUTEX_INITIALIZER,         \
       0 /* value field left NULL */ }
 #else
-  typedef void *_gasneti_threadkey_t;
+  typedef void *_gasneti_threadkey_t GASNETI_THREAD_TYPEDEF;
   #define _GASNETI_THREADKEY_INITIALIZER NULL
 #endif
 
@@ -618,7 +625,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
                                        _gasneti_threadkey_check((key), 1))
   #define gasneti_threadkey_get(key)       \
     ( _gasneti_threadkey_check(key, 0),    \
-      ( PREDICT_FALSE((key).isinit == 0) ? \
+      ( GASNETT_PREDICT_FALSE((key).isinit == 0) ? \
         gasneti_threadkey_init(key) :      \
         ((void)0) ),                       \
       gasneti_threadkey_get_noinit(key) )
