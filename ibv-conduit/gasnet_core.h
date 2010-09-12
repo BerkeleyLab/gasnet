@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.h,v $
- *     $Date: 2009/09/18 23:33:54 $
- * $Revision: 1.57 $
+ *     $Date: 2010/09/12 01:23:29 $
+ * $Revision: 1.57.10.1 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -66,7 +66,7 @@ typedef struct _gasnet_hsl_t {
     /* more state may be required for conduits using interrupts */
     #error interrupts not implemented
   #endif
-} gasnet_hsl_t;
+} gasnet_hsl_t GASNETI_THREAD_TYPEDEF;
 
 #if GASNETI_STATS_OR_TRACE
   #define GASNETC_LOCK_STAT_INIT ,0 
@@ -172,7 +172,7 @@ void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context) {
 
 #define GASNETC_BUFSZ		4096
 
-#if GASNET_STATS
+#if GASNETI_STATS_OR_TRACE
   #define GASNETC_HDR_TIMESTAMP	8
 #else
   #define GASNETC_HDR_TIMESTAMP	0
