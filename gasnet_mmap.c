@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/09/12 07:31:26 $
- * $Revision: 1.74.2.31 $
+ *     $Date: 2010/09/12 22:54:50 $
+ * $Revision: 1.74.2.32 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -426,6 +426,14 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
 
   if (fd_or_id == -1) {
     int save_errno = errno;
+#ifdef GASNETI_PSHM_SYSV
+    if (may_fail && ((errno == ENOMEM) || (errno == EINVAL))) {
+      /* Since open/resize are a single step, this is a non-fatal (probe) failure.
+       * Note that EINVAL is documented behavior for size > SHMMAX. 
+       */
+      return MAP_FAILED;
+    }
+#endif
     gasneti_cleanup_shm();
     gasneti_fatalerror("failed to open shared memory file/segment for node %d: %s", pshmnode, strerror(save_errno));
   }
