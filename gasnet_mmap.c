@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/09/12 03:15:46 $
- * $Revision: 1.74.2.29 $
+ *     $Date: 2010/09/12 07:10:25 $
+ * $Revision: 1.74.2.30 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1300,6 +1300,8 @@ int gasneti_AttachRemote(uintptr_t segsize, const gasnet_node_t pshm_node, uintp
 }
 #endif /* GASNET_PSHM */
 
+void (*gasnett_attach_hook)(void *, uintptr_t) = NULL;
+
 void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
                            gasnet_seginfo_t *seginfo,
                            gasneti_bootstrapExchangefn_t exchangefn) {
@@ -1318,13 +1320,10 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
     gasneti_segmentAttachLocal(segsize, minheapoffset, seginfo, exchangefn);
     (*exchangefn)(&gasneti_segment, sizeof(gasnet_seginfo_t), seginfo);
 
-#if GASNET_NUMA
-    /* Pthread 0 attaches local memory, but
-     * should also touch it's portion of 
-     * the shared heap (in case of NUMA). 
-     * */
-    if (gasnet_NUMApin) gasnet_NUMApin(gasneti_segment.addr, gasneti_segment.size);
-#endif
+    /* After all local segments are attached, call optional client-provided hook */
+    if (gasnett_attach_hook) {
+        gasnett_attach_hook(gasneti_segment.addr, gasneti_segment.size);
+    }
 
 #if GASNET_PSHM
     gasneti_seginfo_correction = (uintptr_t *)gasneti_malloc(gasneti_nodes*gasneti_pshm_nodes*sizeof(uintptr_t));
@@ -1417,11 +1416,12 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
  * Similar to gasneti_getSegmentInfo(). 
  * */
 extern int gasneti_getNodeInfo(gasnet_node_t *nodeinfo_table, int numentries) {
+  gasnet_node_t *nodeinfo;
   int i,j;
   
   GASNETI_CHECKINIT();
 
-  gasnet_node_t nodeinfo[gasneti_nodes];
+  nodeinfo = (gasnet_node_t *)gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
   if (gasneti_nodemap) {
     /* N^2 computation rather than N^2 network exchange */
     gasnet_node_t count = 1;
@@ -1456,6 +1456,7 @@ extern int gasneti_getNodeInfo(gasnet_node_t *nodeinfo_table, int numentries) {
   gasneti_assert(nodeinfo_table);
   if_pf (numentries > gasneti_nodes) numentries = gasneti_nodes;
   memcpy(nodeinfo_table, nodeinfo, numentries*sizeof(gasnet_node_t));
+  gasneti_free(nodeinfo);
   return GASNET_OK;
 }
 #endif
