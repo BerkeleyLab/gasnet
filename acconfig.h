@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2010/09/12 01:22:40 $ */
-/*  $Revision: 1.151.8.1 $ */
+/*      $Date: 2010/09/12 05:34:31 $ */
+/*  $Revision: 1.151.8.2 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -163,9 +163,11 @@
 /* Forbidden to use fork(), popen() and system()? */
 #undef GASNETI_NO_FORK
 
-/* building Process SHared Memory support? */
+/* building Process SHared Memory support?  For which API? */
 #undef GASNETI_PSHM_ENABLED
-#undef HAVE_SHM_OPEN
+#undef GASNETI_PSHM_POSIX
+#undef GASNETI_PSHM_SYSV
+#undef GASNETI_PSHM_FILE
 
 /* support for backtracing */
 #undef HAVE_EXECINFO_H

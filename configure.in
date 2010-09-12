@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/09/12 01:22:40 $
-# $Revision: 1.625.6.2 $
+#     $Date: 2010/09/12 05:34:31 $
+# $Revision: 1.625.6.3 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.625.6.2 $)
+AC_REVISION($Revision: 1.625.6.3 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1133,21 +1133,40 @@ AC_CHECK_LIB(thread, thr_create, have_solthread=yes, have_solthread=no)
 ## Process-shared memory (pshm)
 
 dnl GASNET_TOOLSONLY_FALSE_BEGIN
-have_pshm=no
-enabled_pshm=no
-GASNET_IF_ENABLED(pshm,
-  [Enable/disable inter-process shared memory support (default disabled)],
-  [enabled_pshm=yes])
+with_pshm=no
+GASNET_PSHM_LIBS=""
+GASNET_IF_ENABLED_WITH_AUTO(pshm,
+  [Enable/disable inter-process shared memory support (default is system dependent)],
+  [enabled_pshm=yes], [enabled_pshm=no],
+  [ if test "$segconfig" = everything; then
+      enabled_pshm=no
+    else
+      # Current default is Linux YES, all others NO
+      case "$target_os" in
+       linux*) enabled_pshm=probe ;;
+            *) enabled_pshm=no ;;
+      esac
+    fi
+  ])
 if test "$segconfig$enabled_pshm" = everythingyes; then
   GASNET_MSG_ERROR([User requested --enable-segment-everything and --enable-pshm but PSHM support does not include GASNET_SEGMENT_EVERYTHING.])
 fi
-if expr "$enabled_pshm@$target_os" : "yes@darwin" >/dev/null; then
-  GASNET_MSG_ERROR([User requested --enable-pshm but PSHM support is not permitted on Mac OS X.])
-  dnl We can crash Macs!  See bug 2629.
-fi
-if test "$enabled_pshm" = yes; then
-  GASNET_PSHM_LIBS=""
-
+if test "$enabled_pshm" != no; then
+ # First check for POSIX (shm_open) support
+ GASNET_IF_ENABLED_WITH_AUTO(pshm-posix,
+   [Enable/disable use of POSIX shm_open() for inter-process shared memory support (default is system dependent)],
+   [enabled_pshm_posix=yes], [enabled_pshm_posix=no],
+   [ # Default is YES except on Darwin, due to bug 2629
+     case "$target_os" in
+     darwin*) enabled_pshm_posix=no ;;
+           *) enabled_pshm_posix=yes ;;
+     esac
+   ])
+ if expr "$enabled_pshm_posix@$target_os" : "yes@darwin" >/dev/null; then
+   GASNET_MSG_ERROR([User requested --enable-pshm-posix but POSIX shared memory support is not permitted on Mac OS X.])
+   dnl We can crash Macs!  See bug 2629.
+ fi
+ if test "$enabled_pshm_posix$with_pshm" = yesno; then
   # shm_open() might be in libc (e.g. AIX, Darwin) or librt (e.g. Linux, Solaris)
   GASNET_PUSHVAR(LIBS,"$LIBS")
   have_shm_open=no
@@ -1158,7 +1177,7 @@ if test "$enabled_pshm" = yes; then
       # working shm_open() support, though at least CNL finds the symbol.
       # Our support on BG/P is marginal at the moment (see pshm-design.txt).
       # So, we default to NO shm_open() when cross-compiling. -PHH
-      # One can set CROSS_HAVE_SHM_OPEN=1 to force building for PSHM.
+      # One can set CROSS_HAVE_SHM_OPEN=1 to force building PSHM for POSIX.
       if test "x$CROSS_HAVE_SHM_OPEN" = x1; then
        have_shm_open=yes
        AC_MSG_RESULT([yes (from CROSS_HAVE_SHM_OPEN)])
@@ -1193,20 +1212,39 @@ if test "$enabled_pshm" = yes; then
       ],[ have_shm_open=yes ])
     fi
     if test "$have_shm_open" = yes; then
-      AC_DEFINE(HAVE_SHM_OPEN)
+      AC_DEFINE(GASNETI_PSHM_POSIX)
       GASNET_PSHM_LIBS="$LIBS"
-      have_pshm=yes
+      with_pshm=posix
     fi
   ])
   GASNET_POPVAR(LIBS)
+ fi
 
-  # could search for other mechanisms here
+ # Second check is for SysV (shmget) support
+ GASNET_IF_ENABLED_WITH_AUTO(pshm-sysv,
+   [Enable/disable use of SysV shmat() for inter-process shared memory support (default probe)],
+   [enabled_pshm_sysv=yes], [enabled_pshm_sysv=no], [enabled_pshm_sysv=yes])
+ if test "$enabled_pshm_sysv$with_pshm" = yesno; then
+  dnl XXX Stronger probe?
+  AC_CHECK_FUNC(shmget, [
+    AC_DEFINE(GASNETI_PSHM_SYSV)
+    with_pshm=sysv
+  ])
+ fi
 
-  if test "$have_pshm" = yes; then
-    AC_DEFINE(GASNETI_PSHM_ENABLED)
-  fi
+ # Third check is for mmap()ed file support
+ GASNET_IF_ENABLED_WITH_AUTO(pshm-file,
+   [Enable/disable use of mmap() of temporary files for inter-process shared memory support (default disabled)],
+   [enabled_pshm_file=yes], [enabled_pshm_file=no], [enabled_pshm_file=no])
+ if test "$enabled_pshm_file$with_pshm" = yesno; then
+  dnl Currently if requested, this will get used.
+  AC_DEFINE(GASNETI_PSHM_FILE)
+  with_pshm=file
+ fi
 fi
-if test "$have_pshm$enabled_pshm" = noyes; then
+if test "$with_pshm" != no; then
+  AC_DEFINE(GASNETI_PSHM_ENABLED)
+elif test "$enabled_pshm" = yes; then
   GASNET_MSG_ERROR([User requested --enable-pshm but no supported implementation was found])
 fi
 AC_SUBST(GASNET_PSHM_LIBS)
@@ -1226,7 +1264,7 @@ nodes, you need to re-run configure with --disable-aligned-segments"
 		   ])
 dnl GASNET_TOOLSONLY_FALSE_END
 
-AM_CONDITIONAL(USE_PSHM, test "$enabled_pshm$have_pshm" = yesyes)
+AM_CONDITIONAL(USE_PSHM, test "$with_pshm" != no)
 
 
 ########################################################################
@@ -4100,8 +4138,9 @@ if test "$HAVE_MMAP" != "0" ; then
   GASNET_TRY_CACHE_LINK([for MAP_ANON],map_anon,
      [ #include <sys/mman.h> ],[ void *junk = mmap(0, 0, 0, MAP_ANON, 0, 0); ],
      [ AC_DEFINE(HAVE_MAP_ANON) ] )
-elif test "$enabled_pshm" = yes; then
-  GASNET_MSG_ERROR([--enable-pshm was passed, but required mmap functionality $mmap_reason])
+elif test "$with_pshm" != no; then
+  # XXX: SysV shouldn't really require mmap().
+  GASNET_MSG_ERROR([PSHM was enabled, but required mmap functionality $mmap_reason])
 fi
 
 case "$target" in
