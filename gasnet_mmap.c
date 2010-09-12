@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/09/12 07:10:25 $
- * $Revision: 1.74.2.30 $
+ *     $Date: 2010/09/12 07:31:26 $
+ * $Revision: 1.74.2.31 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -425,8 +425,9 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
 #endif
 
   if (fd_or_id == -1) {
+    int save_errno = errno;
     gasneti_cleanup_shm();
-    gasneti_fatalerror("failed to open shared memory file/segment for node %d", pshmnode);
+    gasneti_fatalerror("failed to open shared memory file/segment for node %d: %s", pshmnode, strerror(save_errno));
   }
 
 #if PLATFORM_OS_DARWIN && defined(GASNETI_PSHM_POSIX)
