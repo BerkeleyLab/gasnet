@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2010/09/12 01:23:21 $
- * $Revision: 1.54.6.5 $
+ *     $Date: 2010/09/12 03:15:48 $
+ * $Revision: 1.54.6.6 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -322,7 +322,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 #if GASNET_PSHM
   gasneti_nodes = gasnetc_get_pshm_nodecount();
 
-  /* Create unique names for shmem files.
+  /* Create unique names for shmem files or keys for sysv segments.
    * We do this here, since we get a chicken-and-egg problem if we
    * were to call gasneti_pshm_init() with our bootstrapExchange.
    * PLUS its just plain simpler to do this pre-fork().
@@ -330,9 +330,10 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasneti_pshm_nodes = gasneti_nodes;
 #ifdef GASNETI_PSHM_SYSV
   { int i;
-    gasneti_pshm_sysvkeys = gasneti_malloc((gasneti_pshm_nodes+1)*sizeof(unsigned int));
     for(i=0; i<gasneti_pshm_nodes+1; i++){
-      gasneti_pshm_makenames(&gasneti_pshm_sysvkeys[i], gasneti_mynode);
+      unsigned int key = gasneti_pshm_makekey(i);
+      /* gasneti_pshm_sysvkeys allocated on first call to makekey */
+      gasneti_pshm_sysvkeys[i] = key;
     }
   }
 #else

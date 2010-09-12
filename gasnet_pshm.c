@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2010/09/11 08:09:50 $
- * $Revision: 1.8.2.15 $
+ *     $Date: 2010/09/12 03:15:46 $
+ * $Revision: 1.8.2.16 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -125,30 +125,30 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
   /* setup filenames, unless exchangefn is NULL (indicating caller took care of it) */
   if (exchangefn != NULL) {
 #ifdef GASNETI_PSHM_SYSV
-    unsigned int *tmp_gasneti_pshm_sysvkeys;
+    unsigned int *exchg;
+    unsigned int tmp_sysvkey;
     
-    tmp_gasneti_pshm_sysvkeys = gasneti_malloc((gasneti_nodes)*sizeof(unsigned int));
-    /* gasneti_pshm_sysvkeys is a replacement for gasneti_pshmname (PSHM), so we free it later (in gasneti_cleanup_shm() */
-    gasneti_pshm_sysvkeys = gasneti_malloc((gasneti_pshm_nodes+1)*sizeof(unsigned int));
-
     /* Each node gets the key for it's own memory region */
-    gasneti_pshm_makenames(tmp_gasneti_pshm_sysvkeys, gasneti_mynode);
+    tmp_sysvkey = gasneti_pshm_makekey(gasneti_pshm_mynode);
 
     /* The keys are exchanged */
-    (*exchangefn)(&tmp_gasneti_pshm_sysvkeys[gasneti_mynode], sizeof(unsigned int), tmp_gasneti_pshm_sysvkeys);
+    exchg = gasneti_malloc((gasneti_nodes)*sizeof(unsigned int));
+    (*exchangefn)(&tmp_sysvkey, sizeof(unsigned int), exchg);
+
+    /* gasneti_pshm_sysvkeys was allocated by first call to pshm_makekey() */
     for(i=0; i<gasneti_pshm_nodes; i++){
-        gasneti_pshm_sysvkeys[i] = tmp_gasneti_pshm_sysvkeys[gasneti_pshm_firstnode+i];
+        gasneti_pshm_sysvkeys[i] = exchg[gasneti_pshm_firstnode+i];
     }
     
     /* PSHM rank 0 gets the key for vnet region */
     if (gasneti_pshm_mynode==0) {
-        gasneti_pshm_makenames(tmp_gasneti_pshm_sysvkeys, gasneti_mynode);
+        tmp_sysvkey = gasneti_pshm_makekey(gasneti_pshm_nodes);
     }
     /* vnet key is broadcasted */
-    (*exchangefn)(&tmp_gasneti_pshm_sysvkeys[gasneti_mynode], sizeof(unsigned int), tmp_gasneti_pshm_sysvkeys);
-    gasneti_pshm_sysvkeys[gasneti_pshm_nodes] = tmp_gasneti_pshm_sysvkeys[gasneti_pshm_firstnode];
+    (*exchangefn)(&tmp_sysvkey, sizeof(unsigned int), exchg);
+    gasneti_pshm_sysvkeys[gasneti_pshm_nodes] = exchg[gasneti_pshm_firstnode];
     
-    gasneti_free(tmp_gasneti_pshm_sysvkeys);
+    gasneti_free(exchg);
 #else
     char (*exchg)[GASNETI_PSHM_UNIQUE_LEN];
     char unique[GASNETI_PSHM_UNIQUE_LEN];
@@ -366,10 +366,6 @@ gasneti_pshm_rank_t gasneti_pshm_mynode = (gasneti_pshm_rank_t)(-1);
 /* vectors constructed in shared space: */
 gasneti_pshm_rank_t *gasneti_pshm_rankmap = NULL;
 gasnet_node_t *gasneti_pshm_firsts = NULL;
-
-#ifdef GASNETI_PSHM_SYSV
-unsigned int * gasneti_pshm_sysvkeys;
-#endif
 
 /*******************************************************************************
  * "PSHM Net":  message header formats

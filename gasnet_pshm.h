@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.h,v $
- *     $Date: 2010/09/11 07:49:38 $
- * $Revision: 1.9.2.6 $
+ *     $Date: 2010/09/12 03:15:46 $
+ * $Revision: 1.9.2.7 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -43,7 +43,8 @@
 #endif
 
 #ifdef GASNETI_PSHM_SYSV
-void gasneti_pshm_makenames(unsigned int *pshm_sysvkeys, int pshmnode);
+extern unsigned int * gasneti_pshm_sysvkeys;
+extern unsigned int gasneti_pshm_makekey(int pshm_rank);
 #else
 extern const char *gasneti_pshm_makenames(const char *unique);
 #endif
@@ -166,10 +167,6 @@ extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
 extern gasneti_pshm_rank_t gasneti_pshm_nodes;
 extern gasneti_pshm_rank_t gasneti_pshm_mynode;
 extern gasnet_node_t gasneti_pshm_firstnode;
-
-#ifdef GASNETI_PSHM_SYSV
-extern unsigned int * gasneti_pshm_sysvkeys;
-#endif
 
 /* # of supernodes */
 #define gasneti_pshm_supernodes (0+gasneti_nodemap_global_count)

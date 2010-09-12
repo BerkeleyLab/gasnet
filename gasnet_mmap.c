@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/09/11 17:45:30 $
- * $Revision: 1.74.2.28 $
+ *     $Date: 2010/09/12 03:15:46 $
+ * $Revision: 1.74.2.29 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -143,8 +143,11 @@ extern void *gasneti_mmap(uintptr_t segsize) {
 #if GASNET_PSHM
 static uintptr_t *gasneti_seginfo_correction = NULL;
 
-#ifndef GASNETI_PSHM_SYSV
-  static char **gasneti_pshmname = NULL; /* length 1+gasneti_pshm_nodes, the +1 is for AMs */
+/* Keys or names: an array length 1+gasneti_pshm_nodes, the +1 is for AMs */
+#ifdef GASNETI_PSHM_SYSV
+  unsigned int *gasneti_pshm_sysvkeys = NULL;
+#else
+  static char **gasneti_pshmname = NULL;
 #endif
 
 static char *gasneti_pshm_tmpfile = NULL;
@@ -188,7 +191,8 @@ static key_t get_sysv_key(const char *filename, int pshm_rank){
     }
     return key;
 }
-void gasneti_pshm_makenames(unsigned int *pshm_sysvkeys, int pshmnode) {
+unsigned int gasneti_pshm_makekey(int pshm_rank) {
+  if (gasneti_pshm_tmpfile == NULL) {
     static char prefix[] = "/GASNTXXXXXX";
     const char *tmpdir = gasneti_getenv_withdefault("TMPDIR", "/tmp");
 
@@ -197,7 +201,12 @@ void gasneti_pshm_makenames(unsigned int *pshm_sysvkeys, int pshmnode) {
     }
     /* Don't unlink() it until we no longer require uniqueness */
 
-    pshm_sysvkeys[pshmnode] = get_sysv_key(gasneti_pshm_tmpfile, pshmnode);
+    /* Also, since this si the first call: */
+    gasneti_assert(gasneti_pshm_sysvkeys == NULL);
+    gasneti_pshm_sysvkeys = (unsigned int *)gasneti_malloc((gasneti_pshm_nodes+1)*sizeof(unsigned int));
+  }
+
+  return get_sysv_key(gasneti_pshm_tmpfile, pshm_rank);
 }
 
 #else
