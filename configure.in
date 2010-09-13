@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/09/12 05:34:31 $
-# $Revision: 1.625.6.3 $
+#     $Date: 2010/09/13 21:31:27 $
+# $Revision: 1.625.6.4 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.625.6.3 $)
+AC_REVISION($Revision: 1.625.6.4 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1139,6 +1139,8 @@ GASNET_IF_ENABLED_WITH_AUTO(pshm,
   [Enable/disable inter-process shared memory support (default is system dependent)],
   [enabled_pshm=yes], [enabled_pshm=no],
   [ if test "$segconfig" = everything; then
+      enabled_pshm=no
+    elif test "$cross_compiling" = yes; then
       enabled_pshm=no
     else
       # Current default is Linux YES, all others NO
