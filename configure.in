@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/09/13 21:31:27 $
-# $Revision: 1.625.6.4 $
+#     $Date: 2010/09/13 21:45:02 $
+# $Revision: 1.625.6.5 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.625.6.4 $)
+AC_REVISION($Revision: 1.625.6.5 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1223,9 +1223,10 @@ if test "$enabled_pshm" != no; then
  fi
 
  # Second check is for SysV (shmget) support
- GASNET_IF_ENABLED_WITH_AUTO(pshm-sysv,
-   [Enable/disable use of SysV shmat() for inter-process shared memory support (default probe)],
-   [enabled_pshm_sysv=yes], [enabled_pshm_sysv=no], [enabled_pshm_sysv=yes])
+ enabled_pshm_sysv=no
+ GASNET_IF_ENABLED(pshm-sysv,
+   [Enable use of SysV shmat() for inter-process shared memory support (default disabled)],
+   [enabled_pshm_sysv=yes])
  if test "$enabled_pshm_sysv$with_pshm" = yesno; then
   dnl XXX Stronger probe?
   AC_CHECK_FUNC(shmget, [
@@ -1235,9 +1236,10 @@ if test "$enabled_pshm" != no; then
  fi
 
  # Third check is for mmap()ed file support
- GASNET_IF_ENABLED_WITH_AUTO(pshm-file,
-   [Enable/disable use of mmap() of temporary files for inter-process shared memory support (default disabled)],
-   [enabled_pshm_file=yes], [enabled_pshm_file=no], [enabled_pshm_file=no])
+ enabled_pshm_file=no
+ GASNET_IF_ENABLED(pshm-file,
+   [Enable use of mmap()ed temporary files for inter-process shared memory support (default disabled)],
+   [enabled_pshm_file=yes])
  if test "$enabled_pshm_file$with_pshm" = yesno; then
   dnl Currently if requested, this will get used.
   AC_DEFINE(GASNETI_PSHM_FILE)
