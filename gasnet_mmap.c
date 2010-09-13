@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/09/12 22:54:50 $
- * $Revision: 1.74.2.32 $
+ *     $Date: 2010/09/13 20:09:21 $
+ * $Revision: 1.74.2.33 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -205,6 +205,11 @@ unsigned int gasneti_pshm_makekey(int pshm_rank) {
     gasneti_assert(gasneti_pshm_sysvkeys == NULL);
     gasneti_pshm_sysvkeys = (unsigned int *)gasneti_malloc((gasneti_pshm_nodes+1)*sizeof(unsigned int));
   }
+
+  /* ftok() is documented (on at least some systems) as using only low 8 bits */
+#if GASNETI_PSHM_MAX_NODES > 255
+  gasneti_assert_always(gasneti_pshm_nodes < 256);
+#endif
 
   return get_sysv_key(gasneti_pshm_tmpfile, pshm_rank);
 }
