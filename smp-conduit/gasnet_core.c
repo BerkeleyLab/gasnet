@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2010/09/14 05:04:33 $
- * $Revision: 1.54.6.8 $
+ *     $Date: 2010/09/14 05:44:03 $
+ * $Revision: 1.54.6.9 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -94,6 +94,7 @@ static void gasnetc_bootstrapBarrier(void) {
 #define GASNETC_DEFAULT_EXITTIMEOUT_MIN       10.
 #define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR     0.25
 
+static pid_t gasnetc_parent_pid = 0;
 static volatile sig_atomic_t *gasnetc_child_tbl;
 static volatile sig_atomic_t gasnetc_child_count = 0;
 static volatile sig_atomic_t gasnetc_exit_timeout = (sig_atomic_t)GASNETC_DEFAULT_EXITTIMEOUT_MAX;
@@ -176,7 +177,10 @@ static void gasnetc_fork_children(void) {
   int i;
 
   gasneti_mynode = 0;
+  gasnetc_parent_pid = getpid();
   gasnetc_child_tbl = gasneti_malloc((gasneti_nodes - 1) * sizeof(sig_atomic_t));
+
+  gasneti_reghandler(GASNETC_REMOTEEXIT_SIGNAL, gasnetc_remote_exit_sighand);
 
   for (i = 1; i < gasneti_nodes; i++) {
     int fork_return = fork();
@@ -189,7 +193,6 @@ static void gasnetc_fork_children(void) {
       gasnetc_child_tbl[gasnetc_child_count++] = fork_return;
     } else {
       /* I am child */
-      gasneti_reghandler(GASNETC_REMOTEEXIT_SIGNAL, gasnetc_remote_exit_sighand);
       gasneti_free((void*)gasnetc_child_tbl);
       gasneti_mynode = i; 
       if (freopen("/dev/null", "r", stdin) != stdin) {
@@ -211,6 +214,7 @@ static int gasnetc_childsig(int exitcode) {
   while (gasnetc_child_count) {
     int status;
 
+    alarm(gasnetc_exit_timeout);
     rc = wait(&status);
     if (rc < 0) {
       if (errno == EINTR) continue;
@@ -238,15 +242,11 @@ static int gasnetc_childsig(int exitcode) {
     if (rc && !exitcode) {
       exitcode = rc;
     }
-
-    alarm(gasnetc_exit_timeout);
   }
 
-  /* Ensure gasneti_registerSignalHandlers() doesn't setup any user-requested handlers */
-  gasneti_unsetenv("GASNET_BACKTRACE_SIGNAL");
-  gasneti_unsetenv("GASNET_FREEZE_SIGNAL");
-
+  /* Disarm signals */
   gasneti_registerSignalHandlers(SIG_DFL);
+  gasneti_reghandler(SIGQUIT, SIG_IGN);
   alarm(0);
 
   return exitcode;
@@ -638,6 +638,8 @@ extern void gasnetc_exit(int exitcode) {
 #if GASNET_PSHM
   if (gasneti_mynode == 0) {
       exitcode = gasnetc_childsig(exitcode);
+  } else {
+      kill(gasnetc_parent_pid, GASNETC_REMOTEEXIT_SIGNAL);
   }
 #endif
   gasneti_killmyprocess(exitcode);
