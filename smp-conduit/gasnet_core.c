@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2010/09/14 05:44:03 $
- * $Revision: 1.54.6.9 $
+ *     $Date: 2010/09/14 06:02:08 $
+ * $Revision: 1.54.6.10 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -148,6 +148,13 @@ static void gasnetc_exit_sighand(int sig_recvd) {
 /* NOTE: This runs in the childen */
 static void gasnetc_remote_exit_sighand(int sig) {
   gasneti_sighandlerfn_t handler;
+
+  if (!gasneti_mynode) {
+    /* Might be a collective exit.  So allow delay for node 0 to "catch up". */
+    gasneti_reghandler(SIGALRM, gasnetc_exit);
+    alarm(gasnetc_exit_timeout);
+    return;
+  }
 
   /* Run the SIGQUIT handler, if any */
   handler = gasneti_reghandler(SIGQUIT, SIG_IGN);
