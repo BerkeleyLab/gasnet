@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2010/09/14 00:18:09 $
- * $Revision: 1.54.6.7 $
+ *     $Date: 2010/09/14 05:04:33 $
+ * $Revision: 1.54.6.8 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -80,6 +80,11 @@ static void gasnetc_bootstrapBarrier(void) {
   #endif
 }
 
+/* ------------------------------------------------------------------------------------ */
+/*
+  PSHM Support Functions
+  ======================
+*/
 #if GASNET_PSHM
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -114,7 +119,7 @@ static void gasnetc_exit_sighand(int sig_recvd) {
   int sig_to_send = sig_recvd;
   switch (sig_recvd) {
     case SIGABRT: case SIGILL: case SIGSEGV: case SIGBUS: case SIGFPE:
-      /* These signals indicates a bug in this "parent". */
+      /* These signals indicates a bug in the exit handling code. */
       fprintf(stderr, "ERROR: Parent process received fatal signal %d - Terminating\n", sig_recvd);
       sig_to_send = SIGTERM;
       break;
@@ -170,9 +175,10 @@ static void gasnetc_remote_exit_sighand(int sig) {
 static void gasnetc_fork_children(void) {
   int i;
 
-  gasnetc_child_tbl = gasneti_malloc(gasneti_nodes * sizeof(sig_atomic_t));
+  gasneti_mynode = 0;
+  gasnetc_child_tbl = gasneti_malloc((gasneti_nodes - 1) * sizeof(sig_atomic_t));
 
-  for (i = 0; i < gasneti_nodes - 1; i++) {
+  for (i = 1; i < gasneti_nodes; i++) {
     int fork_return = fork();
     if (fork_return < 0) {
       gasnetc_signal_job(SIGTERM);
@@ -186,40 +192,21 @@ static void gasnetc_fork_children(void) {
       gasneti_reghandler(GASNETC_REMOTEEXIT_SIGNAL, gasnetc_remote_exit_sighand);
       gasneti_free((void*)gasnetc_child_tbl);
       gasneti_mynode = i; 
-      if (gasneti_mynode != 0) {
-        if (freopen("/dev/null", "r", stdin) != stdin) {
-          gasneti_fatalerror("GASNet node %d failed to redirect STDIN", i);
-        }
+      if (freopen("/dev/null", "r", stdin) != stdin) {
+        gasneti_fatalerror("GASNet node %d failed to redirect STDIN", i);
       }
       return;
     }
   }
-    
-  gasneti_mynode = gasneti_nodes - 1;
-
-  /* If I get here I am the parent and NOT a gasnet application process */
-
-  if (freopen("/dev/null", "r", stdin) != stdin) {
-    gasnetc_signal_job(SIGTERM);
-    gasneti_fatalerror("Master process failed to redirect STDIN");
-  }
-
 }
 
 
-static void gasnetc_childsig(void) {
-
-  int gasnetc_exit_code = 0;
+static int gasnetc_childsig(int exitcode) {
   int i, rc;
 
   gasneti_registerSignalHandlers(gasnetc_exit_sighand);
   gasneti_reghandler(SIGALRM, gasnetc_exit_sighand);
   gasneti_reghandler(SIGCHLD, SIG_DFL);
-
-  gasnetc_exit_timeout = gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
-                                                 GASNETC_DEFAULT_EXITTIMEOUT_MIN,
-                                                 GASNETC_DEFAULT_EXITTIMEOUT_FACTOR,
-                                                 GASNETC_DEFAULT_EXITTIMEOUT_MIN);
 
   while (gasnetc_child_count) {
     int status;
@@ -246,10 +233,10 @@ static void gasnetc_childsig(void) {
     if (WIFEXITED(status)) {
       rc = WEXITSTATUS(status);
     } else if (WIFSIGNALED(status)) {
-      gasnetc_exit_code = 254;
+      exitcode = 254;
     }
-    if (rc && !gasnetc_exit_code) {
-      gasnetc_exit_code = rc;
+    if (rc && !exitcode) {
+      exitcode = rc;
     }
 
     alarm(gasnetc_exit_timeout);
@@ -262,7 +249,7 @@ static void gasnetc_childsig(void) {
   gasneti_registerSignalHandlers(SIG_DFL);
   alarm(0);
 
-  gasneti_killmyprocess(gasnetc_exit_code);
+  return exitcode;
 }
 
 static int gasnetc_get_pshm_nodecount(void)
@@ -306,7 +293,8 @@ static int gasnetc_get_pshm_nodecount(void)
   return nodes;
 }
 
-#endif 
+#endif  /* PSHM */
+/* ------------------------------------------------------------------------------------ */
 
 static int gasnetc_init(int *argc, char ***argv) {
   /*  check system sanity */
@@ -351,6 +339,11 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   /* A fork in the road! */
   gasnetc_fork_children();
+
+  gasnetc_exit_timeout = gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
+                                                 GASNETC_DEFAULT_EXITTIMEOUT_MIN,
+                                                 GASNETC_DEFAULT_EXITTIMEOUT_FACTOR,
+                                                 GASNETC_DEFAULT_EXITTIMEOUT_MIN);
 #endif
 
   /* enable tracing */
@@ -638,16 +631,16 @@ extern void gasnetc_exit(int exitcode) {
   gasneti_sched_yield();
 
 
-  if (gasneti_mynode == gasneti_nodes -  1){
-      gasnetc_childsig();
-  }else{
-      /*  add code here to terminate the job across _all_ nodes 
-          with gasneti_killmyprocess(exitcode) (not regular exit()), preferably
-          after raising a SIGQUIT to inform the client of the exit
-          */
-
-      gasneti_killmyprocess(exitcode);
+  /*  add code here to terminate the job across _all_ nodes 
+           with gasneti_killmyprocess(exitcode) (not regular exit()), preferably
+           after raising a SIGQUIT to inform the client of the exit
+  */
+#if GASNET_PSHM
+  if (gasneti_mynode == 0) {
+      exitcode = gasnetc_childsig(exitcode);
   }
+#endif
+  gasneti_killmyprocess(exitcode);
 }
 
 /* ------------------------------------------------------------------------------------ */
