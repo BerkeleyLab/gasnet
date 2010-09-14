@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2010/09/12 03:15:48 $
- * $Revision: 1.54.6.6 $
+ *     $Date: 2010/09/14 00:18:09 $
+ * $Revision: 1.54.6.7 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -168,12 +168,11 @@ static void gasnetc_remote_exit_sighand(int sig) {
 }
 
 static void gasnetc_fork_children(void) {
-  int gasnetc_exit_code = 0;
-  int i, rc;
+  int i;
 
   gasnetc_child_tbl = gasneti_malloc(gasneti_nodes * sizeof(sig_atomic_t));
 
-  for (i = 0; i < gasneti_nodes; i++) {
+  for (i = 0; i < gasneti_nodes - 1; i++) {
     int fork_return = fork();
     if (fork_return < 0) {
       gasnetc_signal_job(SIGTERM);
@@ -195,6 +194,8 @@ static void gasnetc_fork_children(void) {
       return;
     }
   }
+    
+  gasneti_mynode = gasneti_nodes - 1;
 
   /* If I get here I am the parent and NOT a gasnet application process */
 
@@ -202,6 +203,14 @@ static void gasnetc_fork_children(void) {
     gasnetc_signal_job(SIGTERM);
     gasneti_fatalerror("Master process failed to redirect STDIN");
   }
+
+}
+
+
+static void gasnetc_childsig(void) {
+
+  int gasnetc_exit_code = 0;
+  int i, rc;
 
   gasneti_registerSignalHandlers(gasnetc_exit_sighand);
   gasneti_reghandler(SIGALRM, gasnetc_exit_sighand);
@@ -628,12 +637,17 @@ extern void gasnetc_exit(int exitcode) {
   gasneti_trace_finish();
   gasneti_sched_yield();
 
-  /*  add code here to terminate the job across _all_ nodes 
-           with gasneti_killmyprocess(exitcode) (not regular exit()), preferably
-           after raising a SIGQUIT to inform the client of the exit
-  */
 
-  gasneti_killmyprocess(exitcode);
+  if (gasneti_mynode == gasneti_nodes -  1){
+      gasnetc_childsig();
+  }else{
+      /*  add code here to terminate the job across _all_ nodes 
+          with gasneti_killmyprocess(exitcode) (not regular exit()), preferably
+          after raising a SIGQUIT to inform the client of the exit
+          */
+
+      gasneti_killmyprocess(exitcode);
+  }
 }
 
 /* ------------------------------------------------------------------------------------ */
