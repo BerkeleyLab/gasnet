@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2010/09/14 06:02:08 $
- * $Revision: 1.54.6.10 $
+ *     $Date: 2010/09/14 06:45:26 $
+ * $Revision: 1.54.6.11 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -149,12 +149,14 @@ static void gasnetc_exit_sighand(int sig_recvd) {
 static void gasnetc_remote_exit_sighand(int sig) {
   gasneti_sighandlerfn_t handler;
 
+#if 0 /* Broken since alarm() may not work when gasnetc_exit() is called from ALARM handler */
   if (!gasneti_mynode) {
     /* Might be a collective exit.  So allow delay for node 0 to "catch up". */
     gasneti_reghandler(SIGALRM, gasnetc_exit);
     alarm(gasnetc_exit_timeout);
     return;
   }
+#endif
 
   /* Run the SIGQUIT handler, if any */
   handler = gasneti_reghandler(SIGQUIT, SIG_IGN);
@@ -646,6 +648,7 @@ extern void gasnetc_exit(int exitcode) {
   if (gasneti_mynode == 0) {
       exitcode = gasnetc_childsig(exitcode);
   } else {
+      sleep(1); /* XXX: A hack to prevent signalling node0 too eagerly */
       kill(gasnetc_parent_pid, GASNETC_REMOTEEXIT_SIGNAL);
   }
 #endif
