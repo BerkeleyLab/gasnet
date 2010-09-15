@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/09/13 21:45:02 $
-# $Revision: 1.625.6.5 $
+#     $Date: 2010/09/15 04:02:16 $
+# $Revision: 1.625.6.6 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.625.6.5 $)
+AC_REVISION($Revision: 1.625.6.6 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1135,6 +1135,7 @@ AC_CHECK_LIB(thread, thr_create, have_solthread=yes, have_solthread=no)
 dnl GASNET_TOOLSONLY_FALSE_BEGIN
 with_pshm=no
 GASNET_PSHM_LIBS=""
+GASNET_PSHM_ENABLED=no
 GASNET_IF_ENABLED_WITH_AUTO(pshm,
   [Enable/disable inter-process shared memory support (default is system dependent)],
   [enabled_pshm=yes], [enabled_pshm=no],
@@ -1248,9 +1249,11 @@ if test "$enabled_pshm" != no; then
 fi
 if test "$with_pshm" != no; then
   AC_DEFINE(GASNETI_PSHM_ENABLED)
+  GASNET_PSHM_ENABLED=yes
 elif test "$enabled_pshm" = yes; then
   GASNET_MSG_ERROR([User requested --enable-pshm but no supported implementation was found])
 fi
+AC_SUBST(GASNET_PSHM_ENABLED)
 AC_SUBST(GASNET_PSHM_LIBS)
 
 # Note that --enable-pshm disables aligned segments
