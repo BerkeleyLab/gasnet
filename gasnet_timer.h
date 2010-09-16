@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2010/05/14 22:23:26 $
- * $Revision: 1.97 $
+ *     $Date: 2010/09/16 21:52:59 $
+ * $Revision: 1.97.2.1 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -163,7 +163,7 @@ GASNETI_BEGIN_EXTERNC
   #define gasneti_ticks_to_ns(st)  (st)
   #define gasneti_ticks_now()      ((gasneti_tick_t)(dclock()*1E9))
 /* ------------------------------------------------------------------------------------ */
-#elif GASNETI_ARCH_ALTIX
+#elif (PLATFORM_ARCH_IA64 && GASNETI_ARCH_ALTIX)
   /* use IA-PC HPET (High Precision Event Timers) */
   #define GASNETI_HPET_MMAP 1
   #include <sys/ioctl.h>
@@ -308,7 +308,7 @@ GASNETI_BEGIN_EXTERNC
       PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_PGI || PLATFORM_COMPILER_TINY || \
       PLATFORM_COMPILER_OPEN64 || PLATFORM_COMPILER_CRAY) && \
      (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_IA64) && \
-      !GASNETI_ARCH_ALTIX /* bug 1622 */
+      !(PLATFORM_ARCH_IA64 && GASNETI_ARCH_ALTIX) /* bug 1622 */
   #if PLATFORM_ARCH_IA64 && PLATFORM_COMPILER_INTEL
     #include <ia64intrin.h>
   #elif PLATFORM_OS_CATAMOUNT

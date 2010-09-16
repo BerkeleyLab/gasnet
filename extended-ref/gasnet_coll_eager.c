@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_eager.c,v $
- *     $Date: 2009/10/22 20:14:56 $
- * $Revision: 1.70 $
+ *     $Date: 2010/09/16 21:53:05 $
+ * $Revision: 1.70.12.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -69,15 +69,7 @@ static int gasnete_coll_pf_bcast_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
   return result;
 }
 
-
-extern gasnet_coll_handle_t
-gasnete_coll_bcast_Eager(gasnet_team_handle_t team,
-                         void * dst,
-                         gasnet_image_t srcimage, void *src,
-                         size_t nbytes, int flags,
-                         gasnete_coll_implementation_t coll_params,
-                         uint32_t sequence
-                         GASNETE_THREAD_FARG)
+GASNETE_COLL_DECLARE_BCAST_ALG(Eager)
 {
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC)  |
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
@@ -101,10 +93,8 @@ static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_
   const gasnete_coll_broadcast_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, broadcast);
   gasnet_node_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
   const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
-  int barrier_count;
   int result = 0;
   int child;
-  
   
   switch (data->state) {
     case 0:	/* Thread barrier */
@@ -160,14 +150,7 @@ static int gasnete_coll_pf_bcast_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_
   return result;
 }
 
-extern gasnet_coll_handle_t
-gasnete_coll_bcast_TreeEager(gasnet_team_handle_t team,
-                             void *dst,
-                             gasnet_image_t srcimage, void *src,
-                             size_t nbytes, int flags,
-                             gasnete_coll_implementation_t coll_params,
-                             uint32_t sequence
-                             GASNETE_THREAD_FARG)
+GASNETE_COLL_DECLARE_BCAST_ALG(TreeEager)
 {
   int options = /*GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC)  |*/
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
@@ -238,12 +221,8 @@ static int gasnete_coll_pf_bcastM_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   
   return result;
 }
-extern gasnet_coll_handle_t
-gasnete_coll_bcastM_Eager(gasnet_team_handle_t team,
-                          void * const dstlist[],
-                          gasnet_image_t srcimage, void *src,
-                          size_t nbytes, int flags, gasnete_coll_implementation_t coll_params, uint32_t sequence
-                          GASNETE_THREAD_FARG)
+
+GASNETE_COLL_DECLARE_BCASTM_ALG(Eager)
 {
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
@@ -322,14 +301,8 @@ static int gasnete_coll_pf_bcastM_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD
   return result;
 }
 
-extern gasnet_coll_handle_t
-gasnete_coll_bcastM_TreeEager(gasnet_team_handle_t team,
-                              void * const dstlist[],
-                              gasnet_image_t srcimage, void *src,
-                              size_t nbytes, int flags, 
-                              gasnete_coll_implementation_t coll_params,
-                              uint32_t sequence
-                              GASNETE_THREAD_FARG)
+
+GASNETE_COLL_DECLARE_BCASTM_ALG(TreeEager)
 {
   int options = GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
   GASNETE_COLL_GENERIC_OPT_P2P;
@@ -400,14 +373,8 @@ static int gasnete_coll_pf_scat_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
   
   return result;
 }
-extern gasnet_coll_handle_t
-gasnete_coll_scat_Eager(gasnet_team_handle_t team,
-                        void *dst,
-                        gasnet_image_t srcimage, void *src,
-                        size_t nbytes, size_t dist, int flags, 
-                        gasnete_coll_implementation_t coll_params,
-                        uint32_t sequence
-                        GASNETE_THREAD_FARG)
+
+GASNETE_COLL_DECLARE_SCATTER_ALG(Eager)
 {
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
@@ -424,10 +391,8 @@ static int gasnete_coll_pf_scat_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_F
   const gasnete_coll_scatter_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, scatter);
   gasnet_node_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
   const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
-  int barrier_count;
   int result = 0;
   int child;
-  
   
   switch (data->state) {
     case 0:	/* Thread barrier */
@@ -450,7 +415,7 @@ static int gasnete_coll_pf_scat_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_F
       
     case 2:	/* Data movement */
       if (op->team->myrank == args->srcnode) {
-        uint8_t *src, *temp;
+        uint8_t *src;
       
         if(op->team->myrank !=0) {
           gasnete_coll_local_rotate_left(data->p2p->data, args->src, args->nbytes, op->team->total_ranks, tree->geom->rotation_points[0]);
@@ -462,11 +427,9 @@ static int gasnete_coll_pf_scat_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_F
           int8_t *send_arr = gasnete_coll_scale_ptr(src,(tree->geom->child_offset[child]+1),args->nbytes);
           gasnete_coll_p2p_eager_put_tree(op, GASNETE_COLL_REL2ACT(op->team,children[child]),
                                           send_arr, args->nbytes*tree->geom->subtree_sizes[child]);
-          
         }
         
         GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, src, args->nbytes);
-        
       } else if (data->p2p->state[0]) {
         uint8_t *src;
         gasneti_sync_reads();
@@ -498,14 +461,7 @@ static int gasnete_coll_pf_scat_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_F
   return result;
 }
 
-extern gasnet_coll_handle_t
-gasnete_coll_scat_TreeEager(gasnet_team_handle_t team,
-                             void *dst,
-                             gasnet_image_t srcimage, void *src,
-                             size_t nbytes, size_t dist, int flags,
-                             gasnete_coll_implementation_t coll_params,
-                             uint32_t sequence
-                             GASNETE_THREAD_FARG)
+GASNETE_COLL_DECLARE_SCATTER_ALG(TreeEager)
 {
   int options = /*GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC)  |*/
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
@@ -627,14 +583,8 @@ static int gasnete_coll_pf_scatM_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FARG
   
   return result;
 }
-extern gasnet_coll_handle_t
-gasnete_coll_scatM_Eager(gasnet_team_handle_t team,
-                         void * const dstlist[],
-                         gasnet_image_t srcimage, void *src,
-                         size_t nbytes, size_t dist, int flags, 
-                         gasnete_coll_implementation_t coll_params,
-                         uint32_t sequence
-                         GASNETE_THREAD_FARG)
+
+GASNETE_COLL_DECLARE_SCATTERM_ALG(Eager)
 {
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC)|
@@ -651,10 +601,8 @@ static int gasnete_coll_pf_scatM_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_
   const gasnete_coll_scatterM_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, scatterM);
   gasnet_node_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
   const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
-  int barrier_count;
   int result = 0;
   int child;
-  
   
   switch (data->state) {
     case 0:	/* Thread barrier */
@@ -677,7 +625,7 @@ static int gasnete_coll_pf_scatM_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_
       
     case 2:	/* Data movement */
       if (op->team->myrank == args->srcnode) {
-        uint8_t *src, *temp;
+        uint8_t *src;
         
         if(op->team->myrank !=0) {
           gasnete_coll_local_rotate_left(data->p2p->data, args->src, args->nbytes*op->team->my_images, op->team->total_ranks,
@@ -731,14 +679,7 @@ static int gasnete_coll_pf_scatM_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_
   return result;
 }
 
-extern gasnet_coll_handle_t
-gasnete_coll_scatM_TreeEager(gasnet_team_handle_t team,
-                            void * const dstlist[],
-                            gasnet_image_t srcimage, void *src,
-                            size_t nbytes, size_t dist, int flags,
-                            gasnete_coll_implementation_t coll_params,
-                            uint32_t sequence
-                            GASNETE_THREAD_FARG)
+GASNETE_COLL_DECLARE_SCATTERM_ALG(TreeEager)
 {
   int options = /*GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC)  |*/
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC) |
@@ -851,7 +792,6 @@ static int gasnete_coll_pf_gath_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_F
   gasnet_node_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
   const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
   gasnet_node_t parent = GASNETE_COLL_TREE_GEOM_PARENT(tree->geom);
-  int child;
   
   switch (data->state) {
     case 0:	/* Optional IN barrier */
@@ -869,7 +809,6 @@ static int gasnete_coll_pf_gath_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_F
       
     case 1:	/* Complete data movement */
       if(child_count > 0) {
-        int i;
         if (gasneti_weakatomic_read(&data->p2p->counter[0], 0) != child_count) {
           break;
         }
@@ -1040,7 +979,6 @@ static int gasnete_coll_pf_gathM_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_
   gasnet_node_t * const children = GASNETE_COLL_TREE_GEOM_CHILDREN(tree->geom);
   const int child_count = GASNETE_COLL_TREE_GEOM_CHILD_COUNT(tree->geom);
   gasnet_node_t parent = GASNETE_COLL_TREE_GEOM_PARENT(tree->geom);
-  int child;
   
   switch (data->state) {
     case 0:	/* Optional IN barrier */
@@ -1057,7 +995,6 @@ static int gasnete_coll_pf_gathM_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD_
       
     case 1:	/* Complete data movement */
     {
-      int i;
       if (gasneti_weakatomic_read(&data->p2p->counter[0], 0) != child_count) {
         break;
       }
@@ -1122,7 +1059,6 @@ static int gasnete_coll_pf_gall_FlatEagerPut(gasnete_coll_op_t *op GASNETE_THREA
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_coll_gather_all_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather_all);
   int result = 0;
-  int8_t *myscratch;
   
   /* State 0: In barrier (if needed)*/
   if(data->state == 0) {
@@ -1180,13 +1116,7 @@ static int gasnete_coll_pf_gall_FlatEagerPut(gasnete_coll_op_t *op GASNETE_THREA
   return result;
 }
 
-extern gasnet_coll_handle_t
-gasnete_coll_gall_FlatEagerPut(gasnet_team_handle_t team,
-                          void *dst, void *src,
-                          size_t nbytes, int flags, 
-                          gasnete_coll_implementation_t coll_params,
-                          uint32_t sequence
-                          GASNETE_THREAD_FARG)
+GASNETE_COLL_DECLARE_GATHER_ALL_ALG(FlatEagerPut)
 {
   /*Since the algorithm is naturally in_no / out_no use in-barrier if anything besides IN NOSYNC. 
    Use out barrier only if out_ALLSYNC since algorithm does not need a full barrier for OUT_MYSYNC*/
@@ -1208,7 +1138,6 @@ static int gasnete_coll_pf_gall_EagerDissem(gasnete_coll_op_t *op GASNETE_THREAD
   gasnete_coll_dissem_info_t *dissem = data->dissem_info;
   const gasnete_coll_gather_all_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather_all);
   int result = 0;
-  int8_t *myscratch;
   
   /* State 0: In barrier (if needed)*/
   if(data->state == 0) {
@@ -1284,14 +1213,7 @@ static int gasnete_coll_pf_gall_EagerDissem(gasnete_coll_op_t *op GASNETE_THREAD
   return result;
 }
 
-
-extern gasnet_coll_handle_t
-gasnete_coll_gall_EagerDissem(gasnet_team_handle_t team,
-                         void *dst, void *src,
-                         size_t nbytes, int flags, 
-                         gasnete_coll_implementation_t coll_params,
-                         uint32_t sequence
-                         GASNETE_THREAD_FARG)
+GASNETE_COLL_DECLARE_GATHER_ALL_ALG(EagerDissem)
 {
   /*Since the algorithm is naturally in_no / out_no use in-barrier if anything besides IN NOSYNC. 
    Use out barrier only if out_ALLSYNC since algorithm does not need a full barrier for OUT_MYSYNC*/
@@ -1315,7 +1237,6 @@ static int gasnete_coll_pf_gallM_FlatEagerPut(gasnete_coll_op_t *op GASNETE_THRE
   gasnete_coll_generic_data_t *data = op->data;
   const gasnete_coll_gather_allM_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather_allM);
   int result = 0;
-  int8_t *myscratch;
   
   /* State 0: In barrier (if needed)*/
   if(data->state == 0) {
@@ -1381,13 +1302,7 @@ static int gasnete_coll_pf_gallM_FlatEagerPut(gasnete_coll_op_t *op GASNETE_THRE
   return result;
 }
 
-extern gasnet_coll_handle_t
-gasnete_coll_gallM_FlatEagerPut(gasnet_team_handle_t team,
-                               void * const dstlist[], void * const srclist[],
-                               size_t nbytes, int flags, 
-                               gasnete_coll_implementation_t coll_params,
-                               uint32_t sequence
-                               GASNETE_THREAD_FARG)
+GASNETE_COLL_DECLARE_GATHER_ALLM_ALG(FlatEagerPut)
 {
   /*Since the algorithm is naturally in_no / out_no use in-barrier if anything besides IN NOSYNC. 
    Use out barrier only if out_ALLSYNC since algorithm does not need a full barrier for OUT_MYSYNC*/
@@ -1409,7 +1324,6 @@ static int gasnete_coll_pf_gallM_EagerDissem(gasnete_coll_op_t *op GASNETE_THREA
   gasnete_coll_dissem_info_t *dissem = data->dissem_info;
   const gasnete_coll_gather_allM_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gather_allM);
   int result = 0;
-  int8_t *myscratch;
   
   /* State 0: In barrier (if needed)*/
   if(data->state == 0) {
@@ -1493,14 +1407,7 @@ static int gasnete_coll_pf_gallM_EagerDissem(gasnete_coll_op_t *op GASNETE_THREA
   return result;
 }
 
-
-extern gasnet_coll_handle_t
-gasnete_coll_gallM_EagerDissem(gasnet_team_handle_t team,
-                              void * const dstlist[], void * const srclist[],
-                              size_t nbytes, int flags, 
-                              gasnete_coll_implementation_t coll_params,
-                              uint32_t sequence
-                              GASNETE_THREAD_FARG)
+GASNETE_COLL_DECLARE_GATHER_ALLM_ALG(EagerDissem)
 {
   /*Since the algorithm is naturally in_no / out_no use in-barrier if anything besides IN NOSYNC. 
    Use out barrier only if out_ALLSYNC since algorithm does not need a full barrier for OUT_MYSYNC*/
@@ -1603,16 +1510,9 @@ static int gasnete_coll_pf_reduce_Eager(gasnete_coll_op_t *op GASNETE_THREAD_FAR
   
   return result;
 }
-extern gasnet_coll_handle_t
-gasnete_coll_reduce_Eager(gasnet_team_handle_t team,
-                               gasnet_image_t dstimage, void *dst,
-                               void *src, size_t src_blksz, size_t src_offset,
-                               size_t elem_size, size_t elem_count,
-                               gasnet_coll_fn_handle_t func, int func_arg,
-                               int flags, 
-                               gasnete_coll_implementation_t coll_params,
-                               uint32_t sequence
-                               GASNETE_THREAD_FARG){
+
+GASNETE_COLL_DECLARE_REDUCE_ALG(Eager)
+{
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC)|
   GASNETE_COLL_GENERIC_OPT_P2P_IF(1);
@@ -1633,7 +1533,6 @@ static int gasnete_coll_pf_reduce_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD
   gasnete_coll_p2p_t *p2p = data->p2p;
   int result = 0;
   uintptr_t dst_addr, src_addr;
-  int i;
   
   switch (data->state) {
     case 0:	/* Optional IN barrier */
@@ -1722,16 +1621,9 @@ static int gasnete_coll_pf_reduce_TreeEager(gasnete_coll_op_t *op GASNETE_THREAD
   
   return result;
 }
-extern gasnet_coll_handle_t
-gasnete_coll_reduce_TreeEager(gasnet_team_handle_t team,
-                          gasnet_image_t dstimage, void *dst,
-                          void *src, size_t src_blksz, size_t src_offset,
-                          size_t elem_size, size_t elem_count,
-                          gasnet_coll_fn_handle_t func, int func_arg,
-                          int flags, 
-                          gasnete_coll_implementation_t coll_params,
-                          uint32_t sequence
-                          GASNETE_THREAD_FARG){
+
+GASNETE_COLL_DECLARE_REDUCE_ALG(TreeEager)
+{
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
 #if !FOLD_OUT_BARRIER
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF(flags & GASNET_COLL_OUT_ALLSYNC)|
@@ -1759,7 +1651,6 @@ static int gasnete_coll_pf_reduceM_TreeEager(gasnete_coll_op_t *op GASNETE_THREA
   gasnete_coll_p2p_t *p2p = data->p2p;
   int result = 0;
   uintptr_t dst_addr, src_addr;
-  int i;
   
   switch (data->state) {
     case 0:	/* Optional IN barrier */
@@ -1855,16 +1746,8 @@ static int gasnete_coll_pf_reduceM_TreeEager(gasnete_coll_op_t *op GASNETE_THREA
   return result;
 }
 
-extern gasnet_coll_handle_t
-gasnete_coll_reduceM_TreeEager(gasnet_team_handle_t team,
-                              gasnet_image_t dstimage, void *dst,
-                              void * const srclist[], size_t src_blksz, size_t src_offset,
-                              size_t elem_size, size_t elem_count,
-                              gasnet_coll_fn_handle_t func, int func_arg,
-                              int flags, 
-                              gasnete_coll_implementation_t coll_params,
-                              uint32_t sequence
-                              GASNETE_THREAD_FARG){
+GASNETE_COLL_DECLARE_REDUCEM_ALG(TreeEager)
+{
   int options = GASNETE_COLL_GENERIC_OPT_INSYNC_IF (flags & GASNET_COLL_IN_ALLSYNC) |
 #if !FOLD_OUT_BARRIER
     GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF (flags & GASNET_COLL_OUT_ALLSYNC) | 

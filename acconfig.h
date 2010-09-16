@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2010/06/28 04:56:54 $ */
-/*  $Revision: 1.151.10.2 $ */
+/*      $Date: 2010/09/16 21:52:59 $ */
+/*  $Revision: 1.151.10.3 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -40,6 +40,7 @@
 #undef GASNETI_HAVE_CC_ATTRIBUTE_WARNUNUSEDRESULT
 #undef GASNETI_HAVE_CC_ATTRIBUTE_USED
 #undef GASNETI_HAVE_CC_ATTRIBUTE_UNUSED
+#undef GASNETI_HAVE_CC_ATTRIBUTE_UNUSED_TYPEDEF
 #undef GASNETI_HAVE_CC_ATTRIBUTE_MAYALIAS
 #undef GASNETI_HAVE_CC_ATTRIBUTE_NORETURN
 #undef GASNETI_HAVE_CC_ATTRIBUTE_PURE
@@ -55,6 +56,7 @@
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_WARNUNUSEDRESULT
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_USED
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_UNUSED
+#undef GASNETI_HAVE_CXX_ATTRIBUTE_UNUSED_TYPEDEF
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_MAYALIAS
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_NORETURN
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_PURE
@@ -70,6 +72,7 @@
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_WARNUNUSEDRESULT
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_USED
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_UNUSED
+#undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_UNUSED_TYPEDEF
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_MAYALIAS
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_NORETURN
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_PURE
@@ -160,9 +163,11 @@
 /* Forbidden to use fork(), popen() and system()? */
 #undef GASNETI_NO_FORK
 
-/* building Process SHared Memory support? */
+/* building Process SHared Memory support?  For which API? */
 #undef GASNETI_PSHM_ENABLED
-#undef HAVE_SHM_OPEN
+#undef GASNETI_PSHM_POSIX
+#undef GASNETI_PSHM_SYSV
+#undef GASNETI_PSHM_FILE
 
 /* support for backtracing */
 #undef HAVE_EXECINFO_H

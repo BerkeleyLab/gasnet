@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_trees.c,v $
- *     $Date: 2009/10/22 20:14:56 $
- * $Revision: 1.13 $
+ *     $Date: 2010/09/16 21:53:05 $
+ * $Revision: 1.13.12.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -36,7 +36,6 @@ static int split_string(char ***split_strs, char *str, char *delim) {
   char *temp=NULL,*copy;
   int ret=0;
   size_t malloc_len = 8;
-  int j=0;
   static gasneti_mutex_t lock= GASNETI_MUTEX_INITIALIZER;
 
   copy = gasneti_malloc(sizeof(char)*(strlen(str)+1));
@@ -207,13 +206,10 @@ void gasnete_coll_print_tree(gasnete_coll_local_tree_geom_t *geom, int gasnete_c
 void gasnete_coll_set_dissemination_order(gasnete_coll_local_tree_geom_t *geom, int gasnete_coll_tree_mynode, int gasnete_coll_tree_nodes) {
   
   int i = gasnete_coll_tree_nodes;
-  int k;
+  int j, k;
   int factor;
   int lognp;
   gasnet_node_t *proc_list;
-  
-  int j;
-  
   
   lognp = 0;
   i = gasnete_coll_tree_nodes;
@@ -223,7 +219,6 @@ void gasnete_coll_set_dissemination_order(gasnete_coll_local_tree_geom_t *geom, 
   }
   
   proc_list = (gasnet_node_t*)gasneti_malloc(sizeof(gasnet_node_t)*lognp);
-  
   
   k=0;
   factor = 2;
@@ -356,7 +351,7 @@ static tree_node_t make_fork_tree(tree_node_t *nodes, int num_nodes,
 }
 
 static tree_node_t make_knomial_tree(tree_node_t *nodes, int num_nodes, int radix) {
-  int i,j;
+  int i;
   int num_children=0;
   
   gasneti_assert(radix>1);
@@ -525,8 +520,6 @@ static tree_node_t make_hiearchical_tree(gasnete_coll_tree_type_t tree_type, tre
   /*so a 64 node run with 8 flat trees grouped into a binomial tree w/ 8 ndoes would have
     2, 8*/
   int num_levels = tree_type->params[0];
-  int curr_idx = 2;
-  int i;
   gasneti_assert(tree_type->num_params >= 2);
   return make_hiearchical_tree_helper(tree_type->subtree, 0, num_levels-1, allnodes, num_nodes, tree_type->params+1);
 }
@@ -582,9 +575,9 @@ static void print_tree_node(tree_node_t main_node, int id) {
 }
 /*this fucntion is already serialized in the function that calls this 
   so from here on out there is no worry about locking*/
-gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll_tree_type_t in_type, int rootrank, gasnete_coll_team_t team)  {
+gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll_tree_type_t in_type, int rootrank, gasnete_coll_team_t team, gasnete_coll_tree_geom_t *base_geom)  {
   gasnete_coll_local_tree_geom_t *geom;
-  int i,j;
+  int i;
   gasnete_coll_tree_type_t intype_copy;
   tree_node_t *allnodes = (tree_node_t*) team->tree_construction_scratch;
   tree_node_t rootnode,mynode;
@@ -728,6 +721,13 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
       temp_offset+=geom->subtree_sizes[i];
     }
   }
+
+#if 0
+  /* Not using the reference counts for now */
+  gasneti_weakatomic_set(&(geom->ref_count), 0, 0);
+  geom->base_geom = base_geom;
+#endif
+
 #if 0  
   gasnete_coll_print_tree(geom, gasneti_mynode);
 #endif
@@ -768,8 +768,44 @@ void gasnete_coll_tree_type_to_str(char *outbuf, gasnete_coll_tree_type_t in) {
  It will be leaked away once the GASNet program finishes.
  */
 #if 0
-static void gasnete_coll_tree_geom_release(gasnete_coll_tree_geom_t *geom) {
+void gasnete_coll_tree_geom_release(gasnete_coll_tree_geom_t *geom) {
 	gasneti_weakatomic_decrement(&(geom->ref_count), 0);
+  /*
+  fprintf(stderr, "[%u] gasnete_coll_tree_geom_release: geom->ref_count %u\n",
+          gasnet_mynode(), gasneti_weakatomic_read(&(geom->ref_count), 0));
+  */
+}
+
+void gasnete_coll_tree_geom_print(gasnete_coll_tree_geom_t *geom)
+{
+  uint32_t ref_count, local_ref_count;
+  gasnet_node_t i;
+
+  ref_count = gasneti_weakatomic_read(&(geom->ref_count), 0);
+  
+  fprintf(stderr, "[%u] tree_geom %p, ref_count %u.\n", 
+          gasnet_mynode(), geom, ref_count);
+
+  for (i=0; i<gasnet_nodes(); i++) {
+    if (geom->local_views[i] != NULL) {
+      local_ref_count = 
+        gasneti_weakatomic_read(&(geom->local_views[i]->ref_count), 0);
+
+      fprintf(stderr, "[%u] localview[%u] ref_count %u\n", 
+              gasnet_mynode(), i, local_ref_count);
+    }
+  }
+}                 
+
+void gasnete_coll_print_all_tree_geom(gasnet_team_handle_t team)
+{
+  gasnete_coll_tree_geom_t *geom;
+
+  geom = team->tree_geom_cache_head;
+  while (geom != NULL) {
+    gasnete_coll_tree_geom_print(geom);
+    geom = geom->next;
+  }
 }
 #endif
 
@@ -798,10 +834,24 @@ int gasnete_coll_compare_tree_types(gasnete_coll_tree_type_t a, gasnete_coll_tre
   return 0;
   
 }
-static gasnete_coll_tree_geom_t *gasnete_coll_tree_geom_fetch_helper(gasnete_coll_tree_type_t in_type, gasnete_coll_tree_geom_t *geom_cache) {
-  gasnete_coll_tree_geom_t *curr_geom = geom_cache;
+static gasnete_coll_tree_geom_t *gasnete_coll_tree_geom_fetch_helper(gasnete_coll_tree_type_t in_type, gasnete_coll_team_t team) {
+  gasnete_coll_tree_geom_t *curr_geom = team->tree_geom_cache_head;
   while(curr_geom != NULL) {
     if(gasnete_coll_compare_tree_types(in_type, curr_geom->tree_type)){
+      /* Move the matched geometry to the head */
+      if (curr_geom != team->tree_geom_cache_head) {
+        if (curr_geom == team->tree_geom_cache_tail) {
+          team->tree_geom_cache_tail = curr_geom->prev;
+          curr_geom->prev->next = NULL; /* new tail */
+        } else {
+          curr_geom->next->prev = curr_geom->prev;
+          curr_geom->prev->next = curr_geom->next;
+        }
+        curr_geom->next = team->tree_geom_cache_head;
+        curr_geom->prev = NULL; /* new head */
+        team->tree_geom_cache_head->prev = curr_geom;
+        team->tree_geom_cache_head = curr_geom;
+      }
       return curr_geom;
     } else
       curr_geom = curr_geom->next;
@@ -819,14 +869,13 @@ static gasnete_coll_tree_geom_t *gasnete_coll_tree_geom_fetch_helper(gasnete_col
     
 gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_tree_type_t type, gasnet_node_t root,  gasnete_coll_team_t team) {
   gasnete_coll_tree_geom_t *geom_cache_head = team->tree_geom_cache_head;
-  gasnete_coll_tree_geom_t *geom_cache_tail = team->tree_geom_cache_tail;
   gasnete_coll_local_tree_geom_t *ret;
   gasnete_coll_tree_geom_t *curr_geom;
   
   
   /*lock here so that only one multiple threads don't try to build it*/
   gasneti_mutex_lock(&team->tree_geom_cache_lock);
-  curr_geom = gasnete_coll_tree_geom_fetch_helper(type, geom_cache_head);
+  curr_geom = gasnete_coll_tree_geom_fetch_helper(type, team);
   if(curr_geom == NULL) {
     int i;
 #if 0
@@ -839,21 +888,26 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
     for(i=0; i<team->total_ranks; i++) {
       curr_geom->local_views[i] = NULL;
     }
-    curr_geom->next = NULL;
     curr_geom->tree_type = type;
+#if 0
+    /* Not using the ref_count for now */
+    gasneti_weakatomic_set(&(curr_geom->ref_count), 0, 0);
+#endif
     /*	curr_geom->root = root; */
     /* link it into the cache*/
     if(geom_cache_head == NULL) {
       /*cache is empty*/
       curr_geom->prev = NULL;
+      curr_geom->next = NULL;
       team->tree_geom_cache_head = curr_geom;
       team->tree_geom_cache_tail = curr_geom;
     } else {
-      team->tree_geom_cache_tail->next = curr_geom;
-      curr_geom->prev = team->tree_geom_cache_tail;
-      team->tree_geom_cache_tail = curr_geom;
+      curr_geom->prev = NULL; /* new head */
+      curr_geom->next = team->tree_geom_cache_head;
+      team->tree_geom_cache_head->prev = curr_geom;
+      team->tree_geom_cache_head = curr_geom;
     }
-    curr_geom->local_views[root] = gasnete_coll_tree_geom_create_local(type, root, team);
+    curr_geom->local_views[root] = gasnete_coll_tree_geom_create_local(type, root, team, curr_geom);
     
     ret = curr_geom->local_views[root];
     
@@ -861,7 +915,7 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
   } else {
     /* if it is already allocated for root go ahead and return it ... this should be the fast path*/    
     if(curr_geom->local_views[root] == NULL) {
-      curr_geom->local_views[root] = gasnete_coll_tree_geom_create_local(type, root, team);
+      curr_geom->local_views[root] = gasnete_coll_tree_geom_create_local(type, root, team, curr_geom);
     }
     ret = curr_geom->local_views[root];
   } 
@@ -880,16 +934,30 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
                         GASNETE_COLL_TREE_GEOM_CHILDREN(ret));
   }
 #endif
-  
+
+#if 0
+  /* Not using the reference counts for now */
+  gasneti_weakatomic_increment(&(curr_geom->ref_count), 0);
+  gasneti_weakatomic_increment(&(ret->ref_count), 0);
+
+  /*
+  fprintf(stderr, "[%u] gasnete_coll_local_tree_geom_fetch: curr_geom->ref_count %u, ret->ref_count %u \n",
+          gasnet_mynode(), gasneti_weakatomic_read(&(curr_geom->ref_count), 0),
+          gasneti_weakatomic_read(&(ret->ref_count), 0));
+  */
+#endif
+
   gasneti_mutex_unlock(&team->tree_geom_cache_lock);
   return ret;
 }
 
+#if 0
 void gasnete_coll_local_tree_geom_release(gasnete_coll_local_tree_geom_t *geom) {
 	
 	/* for now don't do anything since we will reuse all our geometries*/
-	
+  gasneti_weakatomic_decrement(&(geom->ref_count), 0); 
 }
+#endif 
 
 /**** Dissemination Stuff ****/
 
@@ -990,8 +1058,7 @@ static int gasnete_coll_build_tree_mylogn(gasnet_node_t num, int base) {
 static
 gasnete_coll_dissem_info_t *gasnete_coll_build_dissemination(int r, gasnete_coll_team_t team) {
   gasnete_coll_dissem_info_t *ret;  
-  int h,w,i,j,distance,k,numpeers,destproc;
-  int num_out_peers, num_in_peers;
+  int h,w,i,j,distance,k;
   ret = (gasnete_coll_dissem_info_t*) gasneti_malloc(sizeof(gasnete_coll_dissem_info_t));
   
   w = gasnete_coll_build_tree_mylogn(team->total_ranks, r);

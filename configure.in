@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/08/03 03:43:27 $
-# $Revision: 1.633.2.6 $
+#     $Date: 2010/09/16 21:52:59 $
+# $Revision: 1.633.2.7 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.633.2.6 $)
+AC_REVISION($Revision: 1.633.2.7 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -193,6 +193,16 @@ GASNET_CHECK_SIZEOF(void *)
 GASNETI_PTR_BITS=`expr $SIZEOF_VOID_P \* 8`
 AC_SUBST(GASNETI_PTR_BITS)
 
+###
+# Allow user forced ARCH and/or ISA settings w/o the corresponding probes
+# XXX: Incomplete...
+
+force_arch_altix=no
+GASNET_IF_ENABLED_NOHELP(arch-altix, [force_arch_altix=yes])
+
+force_arch_sicortex=no
+GASNET_IF_ENABLED_NOHELP(arch-sicortex, [force_arch_sicortex=yes])
+
 ### 
 #
 # choose the default CC flags
@@ -296,12 +306,12 @@ case "$gasnet_cv_cc_family" in
   MTA) CCOPTFLAGS="-O3" ;; # MTA C actually ignores -O, optimization controlled by presence/absence of -g
   PGI)
     CCOPTFLAGS="-O2"  # Default
-    # Work-aroung bug 2842: bad code gen by pgcc 10.5-0 at -O2
+    # Work-aroung bug 2842: bad code gen by pgcc 10.5-0 through 10.7-0 at -O2
     # XXX: Need an ending version here when known
     GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other")
     GASNET_TRY_CACHE_CHECK([if PGI compiler misoptimizes assignment to (const char *)], bug2842, [
       #include "portable_platform.h"
-      #if PLATFORM_COMPILER_VERSION_LT(10,5,0)
+      #if PLATFORM_COMPILER_VERSION_LT(10,5,0) || PLATFORM_COMPILER_VERSION_GT(10,7,0)
       #error "GOOD pgcc version should FAIL this test"
       #endif
     ],[(void)0],[CCOPTFLAGS="-O1"])
@@ -861,12 +871,14 @@ case "$target_os" in
 	# that /dev/hw is specific (and standard) on their system
 	# DOB: as of 2.6.5-7.252-sn2 (possibly earlier) /dev/hw/cpunum no longer exists
 	# so now we use /dev/xpmem instead, which is not likely to disappear
-	if test -d "/dev/hw/cpunum" -o -c "/dev/xpmem"; then
+	if test $force_arch_altix = yes -o -d "/dev/hw/cpunum" -o -c "/dev/xpmem"; then
    	  GASNETI_ARCH_ALTIX=1
 	  AC_DEFINE(GASNETI_ARCH_ALTIX)
 	fi
 	# Check for SiCortex hardware by device or cpu name
-	if test -c "/dev/scfabric" || expr "`/usr/bin/uname -p 2>&1`" : SiCortex >/dev/null; then
+	if test $force_arch_sicortex = yes -o -c "/dev/scfabric" || 
+           expr "`/usr/bin/uname -p 2>&1`" : SiCortex >/dev/null; then
+	    GASNETI_ARCH_SICORTEX=1
 	    AC_DEFINE(GASNETI_ARCH_SICORTEX)
 	fi
         case "$target" in
@@ -1121,21 +1133,43 @@ AC_CHECK_LIB(thread, thr_create, have_solthread=yes, have_solthread=no)
 ## Process-shared memory (pshm)
 
 dnl GASNET_TOOLSONLY_FALSE_BEGIN
-have_pshm=no
-enabled_pshm=no
-GASNET_IF_ENABLED(pshm,
-  [Enable/disable inter-process shared memory support (default disabled)],
-  [enabled_pshm=yes])
+with_pshm=no
+GASNET_PSHM_LIBS=""
+GASNET_PSHM_ENABLED=no
+GASNET_IF_ENABLED_WITH_AUTO(pshm,
+  [Enable/disable inter-process shared memory support (default is system dependent)],
+  [enabled_pshm=yes], [enabled_pshm=no],
+  [ if test "$segconfig" = everything; then
+      enabled_pshm=no
+    elif test "$cross_compiling" = yes; then
+      enabled_pshm=no
+    else
+      # Current default is Linux YES, all others NO
+      case "$target_os" in
+       linux*) enabled_pshm=probe ;;
+            *) enabled_pshm=no ;;
+      esac
+    fi
+  ])
 if test "$segconfig$enabled_pshm" = everythingyes; then
   GASNET_MSG_ERROR([User requested --enable-segment-everything and --enable-pshm but PSHM support does not include GASNET_SEGMENT_EVERYTHING.])
 fi
-if expr "$enabled_pshm@$target_os" : "yes@darwin" >/dev/null; then
-  GASNET_MSG_ERROR([User requested --enable-pshm but PSHM support is not permitted on Mac OS X.])
-  dnl We can crash Macs!  See bug 2629.
-fi
-if test "$enabled_pshm" = yes; then
-  GASNET_PSHM_LIBS=""
-
+if test "$enabled_pshm" != no; then
+ # First check for POSIX (shm_open) support
+ GASNET_IF_ENABLED_WITH_AUTO(pshm-posix,
+   [Enable/disable use of POSIX shm_open() for inter-process shared memory support (default is system dependent)],
+   [enabled_pshm_posix=yes], [enabled_pshm_posix=no],
+   [ # Default is YES except on Darwin, due to bug 2629
+     case "$target_os" in
+     darwin*) enabled_pshm_posix=no ;;
+           *) enabled_pshm_posix=yes ;;
+     esac
+   ])
+ if expr "$enabled_pshm_posix@$target_os" : "yes@darwin" >/dev/null; then
+   GASNET_MSG_ERROR([User requested --enable-pshm-posix but POSIX shared memory support is not permitted on Mac OS X.])
+   dnl We can crash Macs!  See bug 2629.
+ fi
+ if test "$enabled_pshm_posix$with_pshm" = yesno; then
   # shm_open() might be in libc (e.g. AIX, Darwin) or librt (e.g. Linux, Solaris)
   GASNET_PUSHVAR(LIBS,"$LIBS")
   have_shm_open=no
@@ -1146,7 +1180,7 @@ if test "$enabled_pshm" = yes; then
       # working shm_open() support, though at least CNL finds the symbol.
       # Our support on BG/P is marginal at the moment (see pshm-design.txt).
       # So, we default to NO shm_open() when cross-compiling. -PHH
-      # One can set CROSS_HAVE_SHM_OPEN=1 to force building for PSHM.
+      # One can set CROSS_HAVE_SHM_OPEN=1 to force building PSHM for POSIX.
       if test "x$CROSS_HAVE_SHM_OPEN" = x1; then
        have_shm_open=yes
        AC_MSG_RESULT([yes (from CROSS_HAVE_SHM_OPEN)])
@@ -1181,22 +1215,45 @@ if test "$enabled_pshm" = yes; then
       ],[ have_shm_open=yes ])
     fi
     if test "$have_shm_open" = yes; then
-      AC_DEFINE(HAVE_SHM_OPEN)
+      AC_DEFINE(GASNETI_PSHM_POSIX)
       GASNET_PSHM_LIBS="$LIBS"
-      have_pshm=yes
+      with_pshm=posix
     fi
   ])
   GASNET_POPVAR(LIBS)
+ fi
 
-  # could search for other mechanisms here
+ # Second check is for SysV (shmget) support
+ enabled_pshm_sysv=no
+ GASNET_IF_ENABLED(pshm-sysv,
+   [Enable use of SysV shmat() for inter-process shared memory support (default disabled)],
+   [enabled_pshm_sysv=yes])
+ if test "$enabled_pshm_sysv$with_pshm" = yesno; then
+  dnl XXX Stronger probe?
+  AC_CHECK_FUNC(shmget, [
+    AC_DEFINE(GASNETI_PSHM_SYSV)
+    with_pshm=sysv
+  ])
+ fi
 
-  if test "$have_pshm" = yes; then
-    AC_DEFINE(GASNETI_PSHM_ENABLED)
-  fi
+ # Third check is for mmap()ed file support
+ enabled_pshm_file=no
+ GASNET_IF_ENABLED(pshm-file,
+   [Enable use of mmap()ed temporary files for inter-process shared memory support (default disabled)],
+   [enabled_pshm_file=yes])
+ if test "$enabled_pshm_file$with_pshm" = yesno; then
+  dnl Currently if requested, this will get used.
+  AC_DEFINE(GASNETI_PSHM_FILE)
+  with_pshm=file
+ fi
 fi
-if test "$have_pshm$enabled_pshm" = noyes; then
+if test "$with_pshm" != no; then
+  AC_DEFINE(GASNETI_PSHM_ENABLED)
+  GASNET_PSHM_ENABLED=yes
+elif test "$enabled_pshm" = yes; then
   GASNET_MSG_ERROR([User requested --enable-pshm but no supported implementation was found])
 fi
+AC_SUBST(GASNET_PSHM_ENABLED)
 AC_SUBST(GASNET_PSHM_LIBS)
 
 # Note that --enable-pshm disables aligned segments
@@ -1205,7 +1262,7 @@ GASNET_IF_DISABLED([aligned-segments],
 		   [GASNETI_DISABLE_ALIGNED_SEGMENTS=1
 		    AC_DEFINE(GASNETI_DISABLE_ALIGNED_SEGMENTS)],
 		   [RVMFILE="/proc/sys/kernel/randomize_va_space"
-		    if test "$enabled_pshm" = no && test -f $RVMFILE && test "`cat $RVMFILE`" != "0" ; then
+		    if test "$with_pshm" = no && test -f $RVMFILE && test "`cat $RVMFILE`" != "0" ; then
 WMSG="$RVMFILE on this node indicates the Linux VM space randomization \
 security feature is enabled. If this feature is also enabled on the compute \
 nodes, you need to re-run configure with --disable-aligned-segments"
@@ -1214,7 +1271,7 @@ nodes, you need to re-run configure with --disable-aligned-segments"
 		   ])
 dnl GASNET_TOOLSONLY_FALSE_END
 
-AM_CONDITIONAL(USE_PSHM, test "$enabled_pshm$have_pshm" = yesyes)
+AM_CONDITIONAL(USE_PSHM, test "$with_pshm" != no)
 
 
 ########################################################################
@@ -1753,11 +1810,15 @@ fi
 # So we assume that Generic and O/S atomics are insufficient.
 # If that is ever not the case, one can add exceptions as needed.
 dnl GASNET_TOOLSONLY_FALSE_BEGIN
-if test "$enabled_pshm" = yes; then
+if test "$with_pshm" != no; then
+  case "$enabled_pshm" in
+    yes) pshm_how='enabled explicitly by --enable-pshm';;
+      *) pshm_how='auto-enabled';;
+  esac
   if test -n "$enabled_generic_atomicops" ; then
-    GASNET_MSG_ERROR([User passed --enable-force-generic-atomicops and --enable-pshm, but PSHM support requires native atomics])
+    GASNET_MSG_ERROR([User passed --enable-force-generic-atomicops and PSHM was $pshm_how, but PSHM support requires native atomics])
   elif test -n "$enabled_os_atomicops"; then
-    GASNET_MSG_ERROR([User passed --enable-force-os-atomicops and --enable-pshm, but PSHM support requires native atomics])
+    GASNET_MSG_ERROR([User passed --enable-force-os-atomicops and PSHM was $pshm_how, but PSHM support requires native atomics])
   else
     dnl Check for non-native atomics on this platform
     dnl To avoid false positives should the compilation fail for unrelated reasons, this
@@ -1776,7 +1837,7 @@ if test "$enabled_pshm" = yes; then
         #error "Native atomics"
       #endif
     ], [
-      GASNET_MSG_ERROR([User passed --enable-pshm, but PSHM support requires native atomics which GASNet does not appear to support on your platform])
+      GASNET_MSG_ERROR([PSHM was $pshm_how, but PSHM support requires native atomics which GASNet does not appear to support on your platform])
     ])
     GASNET_POPVAR(CFLAGS)
   fi
@@ -3712,6 +3773,8 @@ AC_CHECK_HEADERS(sgidefs.h)
 AC_CHECK_HEADERS(features.h)
 AC_CHECK_FUNCS(fopen64)
 
+AC_CHECK_FUNCS(sigprocmask)
+
 AC_CHECK_HEADERS([sn/mmtimer.h linux/mmtimer.h])
 
 ########################################################################
@@ -4092,8 +4155,9 @@ if test "$HAVE_MMAP" != "0" ; then
   GASNET_TRY_CACHE_LINK([for MAP_ANON],map_anon,
      [ #include <sys/mman.h> ],[ void *junk = mmap(0, 0, 0, MAP_ANON, 0, 0); ],
      [ AC_DEFINE(HAVE_MAP_ANON) ] )
-elif test "$enabled_pshm" = yes; then
-  GASNET_MSG_ERROR([--enable-pshm was passed, but required mmap functionality $mmap_reason])
+elif test "$with_pshm" != no; then
+  # XXX: SysV shouldn't really require mmap().
+  GASNET_MSG_ERROR([PSHM was enabled, but required mmap functionality $mmap_reason])
 fi
 
 case "$target" in

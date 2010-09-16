@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2010/08/03 03:43:27 $
- * $Revision: 1.11.2.3 $
+ *     $Date: 2010/09/16 21:52:59 $
+ * $Revision: 1.11.2.4 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -34,7 +34,7 @@ gasneti_pshmnet_t *gasneti_request_pshmnet = NULL;
 gasneti_pshmnet_t *gasneti_reply_pshmnet = NULL;
  
 #ifndef GASNET_PSHM_FULLEMPTY
-#define GASNET_PSHM_FULLEMPTY 0
+#define GASNET_PSHM_FULLEMPTY 1
 #endif
 #ifndef GASNET_PSHM_FULLEMPTY_USE_SUB
 #define GASNET_PSHM_FULLEMPTY_USE_SUB 1
@@ -124,6 +124,32 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
 
   /* setup filenames, unless exchangefn is NULL (indicating caller took care of it) */
   if (exchangefn != NULL) {
+#ifdef GASNETI_PSHM_SYSV
+    unsigned int *exchg;
+    unsigned int tmp_sysvkey;
+    
+    /* Each node gets the key for it's own memory region */
+    tmp_sysvkey = gasneti_pshm_makekey(gasneti_pshm_mynode);
+
+    /* The keys are exchanged */
+    exchg = gasneti_malloc((gasneti_nodes)*sizeof(unsigned int));
+    (*exchangefn)(&tmp_sysvkey, sizeof(unsigned int), exchg);
+
+    /* gasneti_pshm_sysvkeys was allocated by first call to pshm_makekey() */
+    for(i=0; i<gasneti_pshm_nodes; i++){
+        gasneti_pshm_sysvkeys[i] = exchg[gasneti_pshm_firstnode+i];
+    }
+    
+    /* PSHM rank 0 gets the key for vnet region */
+    if (gasneti_pshm_mynode==0) {
+        tmp_sysvkey = gasneti_pshm_makekey(gasneti_pshm_nodes);
+    }
+    /* vnet key is broadcasted */
+    (*exchangefn)(&tmp_sysvkey, sizeof(unsigned int), exchg);
+    gasneti_pshm_sysvkeys[gasneti_pshm_nodes] = exchg[gasneti_pshm_firstnode];
+    
+    gasneti_free(exchg);
+#else
     char (*exchg)[GASNETI_PSHM_UNIQUE_LEN];
     char unique[GASNETI_PSHM_UNIQUE_LEN];
 
@@ -143,6 +169,7 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
       (void)gasneti_pshm_makenames((const char *)(exchg + gasneti_pshm_firstnode));
     }
     gasneti_free(exchg);
+#endif
   }
     
   /* setup vnet shared memory region for AM infrastructure and supernode barrier.

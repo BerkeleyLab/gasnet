@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_scratch.c,v $
- *     $Date: 2009/10/22 20:14:56 $
- * $Revision: 1.8 $
+ *     $Date: 2010/09/16 21:53:05 $
+ * $Revision: 1.8.12.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -176,8 +176,8 @@ uint8_t gasnete_coll_scratch_compare_config(gasnete_coll_scratch_config_t *A,
   else return 1;
 }
 
-GASNETI_INLINE(gasnete_coll_scratch_alloate_new_config)
-gasnete_coll_scratch_config_t * gasnete_coll_scratch_alloate_new_config(gasnete_coll_scratch_req_t * scratch_req){
+GASNETI_INLINE(gasnete_coll_scratch_allocate_new_config)
+gasnete_coll_scratch_config_t * gasnete_coll_scratch_allocate_new_config(gasnete_coll_scratch_req_t * scratch_req){
   gasnete_coll_scratch_config_t *ret;
   ret = gasneti_calloc(1, sizeof(gasnete_coll_scratch_config_t));
   ret->root = scratch_req->root;
@@ -186,6 +186,13 @@ gasnete_coll_scratch_config_t * gasnete_coll_scratch_alloate_new_config(gasnete_
   ret->tree_dir = scratch_req->tree_dir;
   return ret;
 }
+
+GASNETI_INLINE(gasnete_coll_scratch_free_config)
+void gasnete_coll_scratch_free_config(gasnete_coll_scratch_config_t *config)
+{
+  gasneti_free(config);
+}
+
 /* add the op to the tail of the configuration*/
 GASNETI_INLINE(gasnete_coll_scratch_add_op_to_config)
 void gasnete_coll_scratch_add_op_to_config(gasnete_coll_scratch_config_t *config,
@@ -228,12 +235,10 @@ void gasnete_coll_scratch_add_to_wait(gasnete_coll_scratch_req_t *scratch_req, g
   gasnete_coll_scratch_status_t *stat = scratch_req->team->scratch_status;
   gasnete_coll_op_info_t *new_op;
   gasnete_coll_scratch_config_t *temp;
-  int op_attached=0;
     
   gasneti_assert(op->waiting_scratch_op == 0);
   op->waiting_scratch_op = 1;
   op->active_scratch_op = 0;
-  
 
   new_op = (gasnete_coll_op_info_t*) gasneti_calloc(1,sizeof(gasnete_coll_op_info_t));
   new_op->next = NULL;
@@ -251,10 +256,10 @@ void gasnete_coll_scratch_add_to_wait(gasnete_coll_scratch_req_t *scratch_req, g
   } else {
     /* attach to the end of the list*/
     if(stat->waiting_config_and_ops_head == NULL) {
-      temp =  gasnete_coll_scratch_alloate_new_config(scratch_req);
+      temp =  gasnete_coll_scratch_allocate_new_config(scratch_req);
       stat->waiting_config_and_ops_tail = stat->waiting_config_and_ops_head = temp;
     } else {
-      temp = gasnete_coll_scratch_alloate_new_config(scratch_req);
+      temp = gasnete_coll_scratch_allocate_new_config(scratch_req);
       temp->prev = stat->waiting_config_and_ops_tail;
       temp->next = NULL;
       stat->waiting_config_and_ops_tail->next = temp;
@@ -363,7 +368,6 @@ GASNETI_INLINE(gasnete_coll_scratch_check_remote_alloc)
 uint8_t gasnete_coll_scratch_check_remote_alloc(gasnete_coll_scratch_req_t *req,
                                                 gasnete_coll_scratch_status_t *stat) {
   gasnet_node_t i;
-  int8_t check_for_clear=0;
   
   for(i=0; i<req->num_out_peers; i++) {
     if(stat->node_status[req->out_peers[i]].head + req->out_sizes[(req->op_type == GASNETE_COLL_DISSEM_OP ? 0 : i)] >  
@@ -398,12 +402,6 @@ void gasnete_coll_scratch_make_remote_alloc(gasnete_coll_scratch_req_t *req,
 int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETE_THREAD_FARG) {
   gasnete_coll_scratch_req_t *scratch_req = op->scratch_req;
   gasnete_coll_scratch_status_t *stat = scratch_req->team->scratch_status;
-  gasnete_coll_op_info_t *new_op;
-  gasnete_coll_node_scratch_status_t node_stat;
-  uint32_t my_head_pos;
-  uint32_t my_tail_pos;
-  uint64_t retpos;
-
 
   gasneti_assert(scratch_req);
   gasneti_assert(stat);
@@ -451,7 +449,10 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETE_THREAD_FARG) 
       if(stat->num_waiting_ops>0) {
         gasnete_coll_scratch_reconfigure(stat, scratch_req, stat->waiting_config_and_ops_head);
       } else {
-        gasnete_coll_scratch_reconfigure(stat, scratch_req, gasnete_coll_scratch_alloate_new_config(scratch_req));
+        gasnete_coll_scratch_config_t *tmp_config;
+        tmp_config = gasnete_coll_scratch_allocate_new_config(scratch_req);
+        gasnete_coll_scratch_reconfigure(stat, scratch_req, tmp_config);
+        gasnete_coll_scratch_free_config(tmp_config);
       } 
     }
     
@@ -467,7 +468,6 @@ int8_t gasnete_coll_scratch_alloc_nb(gasnete_coll_op_t* op GASNETE_THREAD_FARG) 
 
     if(gasnete_coll_scratch_check_remote_clear(scratch_req, stat)) {
       gasnete_coll_op_info_t *op_info;
-      uint64_t *positions;
       stat->scratch_empty = 0;
       stat->clear_signal_sent = 0;
       

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_toolhelp.h,v $
- *     $Date: 2010/07/02 23:05:09 $
- * $Revision: 1.56.10.2 $
+ *     $Date: 2010/09/16 21:52:59 $
+ * $Revision: 1.56.10.3 $
  * Description: misc declarations needed by both gasnet_tools and libgasnet
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -126,6 +126,11 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
   #define GASNETI_UNUSED_UNLESS_THREADS
 #else
   #define GASNETI_UNUSED_UNLESS_THREADS GASNETI_UNUSED
+#endif
+#if !GASNETI_HAVE_ATTRIBUTE_UNUSED_TYPEDEF || GASNETI_THREADS
+  #define GASNETI_THREAD_TYPEDEF
+#else
+  #define GASNETI_THREAD_TYPEDEF GASNETI_UNUSED
 #endif
 
 /* return physical memory of machine
@@ -312,7 +317,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
       pthread_mutex_t lock;
       _GASNETI_MUTEX_CAUTIOUS_INIT_FIELD
       GASNETI_BUG2231_WORKAROUND_PAD
-    } gasneti_mutex_t;
+    } gasneti_mutex_t GASNETI_THREAD_TYPEDEF;
     #if defined(PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP)
       /* These are faster, though less "featureful" than the default
        * mutexes on linuxthreads implementations which offer them.
@@ -365,7 +370,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
   #else /* GASNET_DEBUG non-pthread (error-check-only) mutexes */
     typedef struct {
       volatile GASNETI_THREADID_T owner;
-    } gasneti_mutex_t;
+    } gasneti_mutex_t GASNETI_THREAD_TYPEDEF;
     #define GASNETI_MUTEX_INITIALIZER   { GASNETI_MUTEX_NOOWNER }
     #define gasneti_mutex_lock(pl) do {                             \
               gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER); \
@@ -392,7 +397,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
 #else /* non-debug mutexes */
   #if GASNETI_USE_TRUE_MUTEXES
     #include <pthread.h>
-    typedef pthread_mutex_t           gasneti_mutex_t;
+    typedef pthread_mutex_t           gasneti_mutex_t GASNETI_THREAD_TYPEDEF;
     #if defined(PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP)
       /* These are faster, though less "featureful" than the default
        * mutexes on linuxthreads implementations which offer them.
@@ -409,7 +414,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
     #define gasneti_mutex_destroy_ignoreerr(pl)   pthread_mutex_destroy(pl)
     #define gasneti_mutex_destroy(pl)   gasneti_mutex_destroy_ignoreerr(pl)
   #else
-    typedef char           gasneti_mutex_t;
+    typedef char           gasneti_mutex_t GASNETI_THREAD_TYPEDEF;
     #define GASNETI_MUTEX_INITIALIZER '\0'
     #define gasneti_mutex_lock(pl)    ((void)0)
     #define gasneti_mutex_trylock(pl) 0
@@ -432,7 +437,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
   typedef struct {
     pthread_cond_t cond;
     GASNETI_BUG2231_WORKAROUND_PAD
-  } gasneti_cond_t;
+  } gasneti_cond_t GASNETI_THREAD_TYPEDEF;
 
   #define GASNETI_COND_INITIALIZER    { PTHREAD_COND_INITIALIZER }
   #define gasneti_cond_init(pc) do {                       \
@@ -476,7 +481,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
     } while (0)
   #endif
 #else
-  typedef char           gasneti_cond_t;
+  typedef char           gasneti_cond_t GASNETI_THREAD_TYPEDEF;
   #define GASNETI_COND_INITIALIZER  '\0'
   #define gasneti_cond_init(pc)       ((void)0)
   #define gasneti_cond_destroy(pc)    ((void)0)
@@ -513,13 +518,13 @@ int gasneti_count0s_uint32_t(uint32_t x) {
       gasneti_mutex_t initmutex;
       volatile int isinit;
       pthread_key_t value;
-  } _gasneti_threadkey_t;
+  } _gasneti_threadkey_t GASNETI_THREAD_TYPEDEF;
   #define _GASNETI_THREADKEY_INITIALIZER \
     { _GASNETI_THREADKEY_MAGIC_INIT      \
       GASNETI_MUTEX_INITIALIZER,         \
       0 /* value field left NULL */ }
 #else
-  typedef void *_gasneti_threadkey_t;
+  typedef void *_gasneti_threadkey_t GASNETI_THREAD_TYPEDEF;
   #define _GASNETI_THREADKEY_INITIALIZER NULL
 #endif
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2010/04/26 05:11:43 $
- * $Revision: 1.129 $
+ *     $Date: 2010/09/16 21:52:59 $
+ * $Revision: 1.129.2.1 $
  * Description: GASNet header for semi-portable inline asm support
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -55,6 +55,10 @@
    *   Compiler suffers from "tpr 14969" in which extended asm() output constraints can't
    *   be met unless they appear in a specific order.  This is on 32-bit targets only
    *
+   * GASNETI_PGI_ASM_BUG2843
+   *   Compiler suffers from "tpr 17075" in which extended asm() may load only 32 bits of
+   *   a 64-bit operand at -O1 (but is OK at -O0 and -O2).
+   *
    * See GASNet bug 1621 (http://upc-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1621) for more
    * info on the bugs indicated by GASNETI_PGI_ASM_THREADSAFE and GASNETI_PGI_ASM_X86_A.
    *
@@ -90,6 +94,9 @@
   #endif
   #if PLATFORM_ARCH_32 && PLATFORM_COMPILER_VERSION_GE(7,1,5) /* XXX: No end of range yet */
     #define GASNETI_PGI_ASM_BUG2294 1
+  #endif
+  #if PLATFORM_COMPILER_VERSION_GE(7,0,0) && PLATFORM_COMPILER_VERSION_LT(10,8,0)
+    #define GASNETI_PGI_ASM_BUG2843 1
   #endif
   #define GASNETI_ASM_SPECIAL(mnemonic) asm(mnemonic)
 #elif PLATFORM_COMPILER_COMPAQ

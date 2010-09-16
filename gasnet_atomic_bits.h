@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2010/06/27 02:04:14 $
- * $Revision: 1.320.2.1 $
+ *     $Date: 2010/09/16 21:52:59 $
+ * $Revision: 1.320.2.2 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -424,7 +424,7 @@
         #else
           GASNETI_INLINE(_gasneti_atomic64_compare_and_swap)
           int _gasneti_atomic64_compare_and_swap(gasneti_atomic64_t *p, uint64_t oldval, uint64_t newval) {
-          #if PLATFORM_COMPILER_PGI && PLATFORM_COMPILER_VERSION_GE(7,0,0) && GASNET_NDEBUG
+	  #if GASNETI_PGI_ASM_BUG2843 && GASNET_NDEBUG
             #pragma routine opt 2 /* Bug 2843 - pgcc miscompiles this code at -O1, so force -O2 */
           #endif
             GASNETI_ASM_REGISTER_KEYWORD unsigned char retval;
