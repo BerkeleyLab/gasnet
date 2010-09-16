@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2010/09/12 07:10:25 $
- * $Revision: 1.63.10.8 $
+ *     $Date: 2010/09/16 02:07:57 $
+ * $Revision: 1.63.10.9 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -281,7 +281,7 @@ GASNETI_END_EXTERNC
 #endif
 
 #define GASNET_NUMA 1
-extern void (*gasnett_attach_hook)(void *, uintptr_t);
+extern void (*gasnet_post_attach_hook)(void *, uintptr_t);
 
 #ifndef _GASNET_SEGINFO_T
 #define _GASNET_SEGINFO_T
