@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/09/16 01:36:09 $
-# $Revision: 1.625.6.7 $
+#     $Date: 2010/09/16 02:40:52 $
+# $Revision: 1.625.6.8 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.625.6.7 $)
+AC_REVISION($Revision: 1.625.6.8 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1262,7 +1262,7 @@ GASNET_IF_DISABLED([aligned-segments],
 		   [GASNETI_DISABLE_ALIGNED_SEGMENTS=1
 		    AC_DEFINE(GASNETI_DISABLE_ALIGNED_SEGMENTS)],
 		   [RVMFILE="/proc/sys/kernel/randomize_va_space"
-		    if test "$enabled_pshm" = no && test -f $RVMFILE && test "`cat $RVMFILE`" != "0" ; then
+		    if test "$with_pshm" = no && test -f $RVMFILE && test "`cat $RVMFILE`" != "0" ; then
 WMSG="$RVMFILE on this node indicates the Linux VM space randomization \
 security feature is enabled. If this feature is also enabled on the compute \
 nodes, you need to re-run configure with --disable-aligned-segments"
@@ -1810,11 +1810,15 @@ fi
 # So we assume that Generic and O/S atomics are insufficient.
 # If that is ever not the case, one can add exceptions as needed.
 dnl GASNET_TOOLSONLY_FALSE_BEGIN
-if test "$enabled_pshm" = yes; then
+if test "$with_pshm" != no; then
+  case "$enabled_pshm" in
+    yes) pshm_how='enabled explicitly by --enable-pshm';;
+      *) pshm_how='auto-enabled';;
+  esac
   if test -n "$enabled_generic_atomicops" ; then
-    GASNET_MSG_ERROR([User passed --enable-force-generic-atomicops and --enable-pshm, but PSHM support requires native atomics])
+    GASNET_MSG_ERROR([User passed --enable-force-generic-atomicops and PSHM was $pshm_how, but PSHM support requires native atomics])
   elif test -n "$enabled_os_atomicops"; then
-    GASNET_MSG_ERROR([User passed --enable-force-os-atomicops and --enable-pshm, but PSHM support requires native atomics])
+    GASNET_MSG_ERROR([User passed --enable-force-os-atomicops and PSHM was $pshm_how, but PSHM support requires native atomics])
   else
     dnl Check for non-native atomics on this platform
     dnl To avoid false positives should the compilation fail for unrelated reasons, this
@@ -1833,7 +1837,7 @@ if test "$enabled_pshm" = yes; then
         #error "Native atomics"
       #endif
     ], [
-      GASNET_MSG_ERROR([User passed --enable-pshm, but PSHM support requires native atomics which GASNet does not appear to support on your platform])
+      GASNET_MSG_ERROR([PSHM was $pshm_how, but PSHM support requires native atomics which GASNet does not appear to support on your platform])
     ])
     GASNET_POPVAR(CFLAGS)
   fi
