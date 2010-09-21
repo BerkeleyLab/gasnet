@@ -1,7 +1,7 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testteam.c,v $
- * $Date: 2010/07/16 21:06:49 $
- * $Revision: 1.2.8.2 $
- * LBNL 2009
+ * $Date: 2010/09/21 23:33:31 $
+ * $Revision: 1.2.8.3 $
+ * LBNL 2010
  */
 
 /* Description: basic GASNet team implementation test and team barrier
@@ -12,41 +12,149 @@
 #include <gasnet_coll.h>
 #include <gasnet_coll_team.h>
 
+#if GASNET_PAR
+#define DEFAULT_THREADS 2
+#else
+#define DEFAULT_THREADS 1
+#endif
+
+#if GASNET_PAR
+  #define local_barrier()	PTHREAD_LOCALBARRIER(threads)
+  #define global_barrier()	PTHREAD_BARRIER(threads)
+#else
+  #define local_barrier()	do {} while(0)
+  #define global_barrier()	BARRIER()
+#endif
+
+
 #define SEG_PER_THREAD (2*1024*1024)
 #define TEST_SEGSZ_EXPR (SEG_PER_THREAD)
 
 #include <math.h> /* for sqrt() */
 #include <test.h>
 
+typedef struct {
+  int local_id;
+  int mythread;
+  int mynode;
+  char _pad[GASNETT_CACHE_LINE_BYTES];
+} thread_data_t;
+
+
+/* global data */
+int iters = 0;
+int images;	 /* nodes * threads */
+
+gasnet_node_t mynode, nodes;
+gasnet_image_t nrows, ncols;
+gasnet_image_t threads, total_images;
+
+gasnet_seginfo_t teamA_scratch;
+gasnet_seginfo_t teamB_scratch;
+
+uint8_t *A, *B;
+/* end of global data */
+
+void *thread_main(void *arg) 
+{
+  thread_data_t *td = arg;
+  int i;
+  gasnet_team_handle_t my_row_team, my_col_team;
+  gasnet_image_t myimage = (gasnet_image_t)td->mythread;
+  gasnet_image_t my_row, my_col;
+  int64_t start, total;
+
+#if GASNET_PAR
+  gasnet_image_t *imagearray = test_malloc(nodes * sizeof(gasnet_image_t));
+  for (i=0; i<nodes; ++i) { imagearray[i] = threads; }
+  gasnet_coll_init(imagearray, td->mythread, NULL, 0, 0);
+  test_free(imagearray);
+#else
+  gasnet_coll_init(NULL, 0, NULL, 0, 0);
+#endif
+                 
+  my_row = myimage / ncols;
+  my_col = myimage % ncols;
+                 
+  MSG("Mythread %u, my row %u, my col %u, total images %u",
+      myimage, my_row, my_col, total_images);
+
+  global_barrier();
+
+  MSG("Creating row teams.");
+  my_row_team = gasnet_coll_team_split(GASNET_TEAM_ALL,
+                                       my_row,
+                                       my_col,
+                                       &teamA_scratch);
+
+  global_barrier();
+
+  MSG("Creating column teams.");
+  my_col_team = gasnet_coll_team_split(GASNET_TEAM_ALL,
+                                       my_col,
+                                       my_row,
+                                       &teamB_scratch);
+
+  global_barrier();
+
+  if (my_col == 0) {
+    printf("row team %u: Running team barrier test with row teams...\n",
+           (int)my_row);
+    fflush(stdout);
+  }
+
+  start = TIME();
+  for (i=0; i < iters; i++) {
+    gasnete_coll_teambarrier(my_row_team);
+  }
+  total = TIME() - start;
+
+  if (my_col == 0) {
+    printf("row team %u: total time: %8.3f sec, avg row team Barrier latency: %8.3f us\n",
+           (int)my_row, ((float)total)/1000000, ((float)total)/iters);
+    fflush(stdout);
+  }
+
+  global_barrier();
+
+  if (my_row == 0) {
+    printf("col team %u: Running team barrier test with column teams...\n",
+           (int)my_col);
+    fflush(stdout);
+  }
+
+  start = TIME();
+  for (i=0; i < iters; i++) {
+    gasnete_coll_teambarrier(my_col_team);
+  }
+  total = TIME() - start;
+  
+  if (my_row == 0) {
+    printf("col team %u: total time: %8.3f sec  Avg column team Barrier latency: %8.3f us\n",
+           (int)my_col, ((float)total)/1000000, ((float)total)/iters);
+    fflush(stdout);
+  }
+
+  /* MSG("Thread %u completes.\n", myimage); */
+
+  global_barrier();
+
+  return NULL;
+}
+
+
 int main(int argc, char **argv) 
 {
-  int mynode, nodes, iters=0;
-  int64_t start,total;
-  int i = 0;
-  gasnet_node_t nrows, ncols, my_row, my_col;
-  void *clientdata = NULL;
-  gasnet_team_handle_t my_row_team, my_col_team;
-  static uint8_t *A, *B;
+  int i;
 
-  
-  
-  gasnet_seginfo_t teamA_scratch;
-  gasnet_seginfo_t teamB_scratch;
   gasnet_seginfo_t const * test_segs;
   GASNET_Safe(gasnet_init(&argc, &argv));
 
   GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
   
-#if !GASNET_SEQ
-  MSG0("WARNING: This test does not work for NON-SEQ builds yet.. skipping test\n");
-  gasnet_exit(0);
-#endif
-
   A = TEST_MYSEG();
   
-  gasnet_coll_init(NULL, 0, NULL, 0, 0);
-
-  test_init("test_team", 1, "(iters) (nrows) (ncols)");
+  test_init("test_team", 1, "(iters) (nrows) (ncols) (threads)");
 
   mynode = gasnet_mynode();
   nodes = gasnet_nodes();
@@ -58,83 +166,67 @@ int main(int argc, char **argv)
   teamB_scratch.addr = (uint8_t*)teamA_scratch.addr + teamA_scratch.size;
   teamB_scratch.size = teamA_scratch.size;
 
-  if (argc > 4)
+  if (argc > 5)
     test_usage();
 
-  if (argc > 1) iters = atoi(argv[1]);
-  if (!iters) iters = 10000;
+  threads = 0;
+  if (argc > 4) {
+    threads = atoi(argv[4]);
+  }
+  if (!threads) {
+    threads = DEFAULT_THREADS;
+  }
+
+  total_images = nodes * threads;
+
+  iters = 0;
+  if (argc > 1) {
+    iters = atoi(argv[1]);
+  }
+  if (!iters) {
+    iters = 10000;
+  }
 
   if (argc > 2) {
     nrows = atoi(argv[2]);
   } else {
     /* search for as near to square as possible */
-    nrows = sqrt(nodes);
-    while (nodes % nrows) --nrows;
+    nrows = sqrt(total_images);
+    while (total_images % nrows) --nrows;
   }
   if (argc > 3) {
     ncols = atoi(argv[3]);
   } else {
-    ncols = nodes / nrows;
+    ncols = total_images / nrows;
   }
-  assert_always(nrows*ncols == nodes);
+  assert_always(nrows*ncols == total_images);
 
-  MSG0("Running team test with a %u-by-%u grid and %i iterations...\n",
-           (int)nrows, (int)ncols, iters);
-  BARRIER();
-                 
-  my_row = mynode / ncols;
-  my_col = mynode % ncols;
-                 
-  my_row_team = gasnet_coll_team_split(GASNET_TEAM_ALL,
-                                        my_row,
-                                        my_col,
-                                        &teamA_scratch);
+  MSG0("Running team test with a %u-by-%u grid (%u nodes %u threads per node) and %i iterations...\n",
+       (int)nrows, (int)ncols, (int)nodes, (int)threads, iters);
 
-  my_col_team = gasnet_coll_team_split(GASNET_TEAM_ALL,
-                                        my_col,
-                                        my_row,
-                                        &teamB_scratch);
-
-  if (my_col == 0) {
-    printf("row team %u: Running team barrier test with row teams...\n",
-           (int)my_row);
-    fflush(stdout);
+#if GASNET_PAR
+  MSG("Forking %d gasnet threads", threads);
+  {
+    int i;
+    thread_data_t* tt_thread_data = test_malloc(threads*sizeof(thread_data_t));
+    for (i = 0; i < threads; i++) {
+	    tt_thread_data[i].mynode = mynode;
+	    tt_thread_data[i].local_id = i;
+	    tt_thread_data[i].mythread = i + threads * mynode;
+    }
+    test_createandjoin_pthreads(threads, &thread_main, tt_thread_data, sizeof(tt_thread_data[0]));
+    test_free(tt_thread_data);
   }
+#else
+  { 
+    thread_data_t td;
+    td.mynode = mynode;
+    td.local_id = 0;
+    td.mythread = mynode;
 
-  BARRIER();
-  start = TIME();
-  for (i=0; i < iters; i++) {
-    gasnete_coll_teambarrier_notify(my_row_team);            
-    gasnete_coll_teambarrier_wait(my_row_team); 
+    thread_main(&td);
   }
-  total = TIME() - start;
-
-  if (my_col == 0) {
-    printf("row team %u: total time: %8.3f sec, avg row team Barrier latency: %8.3f us\n",
-           (int)my_row, ((float)total)/1000000, ((float)total)/iters);
-    fflush(stdout);
-  }
-
-  if (my_row == 0) {
-    printf("col team %u: Running team barrier test with column teams...\n",
-           (int)my_col);
-    fflush(stdout);
-  }
-
-  BARRIER();
-  start = TIME();
-  for (i=0; i < iters; i++) {
-    gasnete_coll_teambarrier_notify(my_col_team);            
-    gasnete_coll_teambarrier_wait(my_col_team); 
-  }
-  total = TIME() - start;
-  
-  if (my_row == 0) {
-    printf("col team %u: total time: %8.3f sec  Avg column team Barrier latency: %8.3f us\n",
-           (int)my_col, ((float)total)/1000000, ((float)total)/iters);
-    fflush(stdout);
-  }
-  BARRIER();
+#endif
 
   MSG("done.");
 

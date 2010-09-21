@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2010/07/16 21:06:17 $
- * $Revision: 1.52.2.3 $
+ *     $Date: 2010/09/21 23:33:33 $
+ * $Revision: 1.52.2.4 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -12,6 +12,7 @@
 
 #include <limits.h>
 #include <gasnet_coll_internal.h>
+#include <gasnet_coll_team.h>
 
 /*  TODO: add more reference barrier implementation options (bug 264) */
 
@@ -1184,13 +1185,24 @@ GASNETI_INLINE(gasnete_coll_barrier_notify_internal)
 void gasnete_coll_barrier_notify_internal(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   gasneti_assert(team->barrier_notify);
+
 #if GASNET_PAR
-  if(flags & GASNET_BARRIERFLAG_IMAGES) {
-    if(team->total_ranks >1) smp_coll_barrier(td->smp_coll_handle, 0);
-    if(td->my_local_image == 0) (*team->barrier_notify)(team, id, flags);
-  }  else 
+  if (flags & GASNET_BARRIERFLAG_IMAGES) {
+    if (team->total_images > 1) {
+      smp_coll_barrier(td->smp_coll_handle, 0);
+    }
+    
+    if (team->total_ranks > 1) {
+      if(gasnete_coll_team_my_local_image(team GASNETE_THREAD_PASS) == 0) {
+        (*team->barrier_notify)(team, id, flags);
+      }
+    }
+  } else
 #endif
-    (*team->barrier_notify)(team, id, flags);  
+    {
+      if (team->total_ranks > 1)
+        (*team->barrier_notify)(team, id, flags);  
+    }
 }
 
 GASNETI_INLINE(gasnete_coll_barrier_try_internal)
@@ -1228,16 +1240,29 @@ int gasnete_coll_barrier_wait_internal(gasnete_coll_team_t team, int id, int fla
 #if GASNET_PAR 
   if(flags & GASNET_BARRIERFLAG_IMAGES){
     gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
-    if(td->my_local_image == 0) ret = (*team->barrier_wait)(team, id, flags);
-    else ret = GASNET_OK;
+    gasnete_coll_team_threaddata_t *team_td;
+    team_td = gasnete_coll_team_get_threaddata(gasnete_coll_team_id(team), td);
+
+    // if(td->my_local_image == 0) ret = (*team->barrier_wait)(team, id, flags);
+    // else ret = GASNET_OK;
+    if(team->total_ranks > 1 && gasnete_coll_team_my_local_image(team GASNETE_THREAD_PASS) == 0)
+       ret = (*team->barrier_wait)(team, id, flags);
+    else 
+      ret = GASNET_OK;
     /*if the barrier has succeeded then call the local smp barrier on the way out*/
     /*if there is exactly one gasnet_node then the barrier on the notify is sufficient*/
-    if(ret == GASNET_OK) smp_coll_barrier(td->smp_coll_handle, 0);
+    // if(ret == GASNET_OK) smp_coll_barrier(td->smp_coll_handle, 0);
+    if(ret == GASNET_OK) smp_coll_barrier(team_td->smp_coll_handle, 0);
     return ret;
   } else
 #endif
-    return (*team->barrier_wait)(team, id, flags);
-  
+    {
+      if (team->total_ranks > 1) {
+        return (*team->barrier_wait)(team, id, flags);
+      } else {
+        return GASNET_OK;
+      }
+    }
 }
 
 void gasnete_coll_barrier_notify(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG) {

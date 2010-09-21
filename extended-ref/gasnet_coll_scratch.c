@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_scratch.c,v $
- *     $Date: 2010/07/15 21:34:28 $
- * $Revision: 1.8.6.1 $
+ *     $Date: 2010/09/21 23:33:33 $
+ * $Revision: 1.8.6.2 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -192,7 +192,7 @@ uint8_t gasnete_coll_scratch_compare_config(gasnete_coll_scratch_config_t *A,
   else return 1;
 }
 
-GASNETI_INLINE(gasnete_coll_scratch_allcoate_new_config)
+GASNETI_INLINE(gasnete_coll_scratch_allocate_new_config)
 gasnete_coll_scratch_config_t * gasnete_coll_scratch_allocate_new_config(gasnete_coll_scratch_req_t * scratch_req){
   gasnete_coll_scratch_config_t *ret;
   ret = gasneti_calloc(1, sizeof(gasnete_coll_scratch_config_t));

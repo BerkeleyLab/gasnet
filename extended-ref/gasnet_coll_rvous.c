@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2009/10/15 19:02:11 $
- * $Revision: 1.67 $
+ *     $Date: 2010/09/21 23:33:33 $
+ * $Revision: 1.67.6.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -11,6 +11,7 @@
 
 
 #include <gasnet_coll_internal.h>
+#include <gasnet_coll_team.h>
 #include <gasnet_coll_trees.h>
 #include <gasnet_coll_scratch.h>
 #include <gasnet_coll_autotune_internal.h>
@@ -212,7 +213,7 @@ gasnete_coll_bcast_TreeRVGet(gasnet_team_handle_t team,
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
                                            &gasnete_coll_pf_bcast_TreeRVGet, options,
                                            gasnete_coll_tree_init(coll_params->tree_type, 
-                                                                  gasnete_coll_image_node(team, srcimage), team
+                                                                  gasnete_coll_image2rank(team, srcimage), team
                                                                   GASNETE_THREAD_PASS),
                                            sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
@@ -472,7 +473,7 @@ gasnete_coll_bcastM_TreeRVGet(gasnet_team_handle_t team,
   return gasnete_coll_generic_broadcastM_nb(team, dstlist, srcimage, src, nbytes, flags,
                                             &gasnete_coll_pf_bcastM_TreeRVGet, options,
                                             gasnete_coll_tree_init(coll_params->tree_type, 
-                                                                   gasnete_coll_image_node(team, srcimage), team
+                                                                   gasnete_coll_image2rank(team, srcimage), team
                                                                    GASNETE_THREAD_PASS),
                                             sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
   

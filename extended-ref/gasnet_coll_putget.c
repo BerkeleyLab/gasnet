@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2009/10/22 20:14:56 $
- * $Revision: 1.78 $
+ *     $Date: 2010/09/21 23:33:33 $
+ * $Revision: 1.78.6.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -12,6 +12,7 @@
 #include <gasnet_coll.h>
 
 #include <gasnet_coll_internal.h>
+#include <gasnet_coll_team.h>
 #include <gasnet_coll_trees.h>
 #include <gasnet_coll_scratch.h>
 #include <gasnet_coll_autotune_internal.h>
@@ -295,7 +296,7 @@ gasnete_coll_bcast_TreePut(gasnet_team_handle_t team,
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
                                            &gasnete_coll_pf_bcast_TreePut, options,
                                            gasnete_coll_tree_init(coll_params->tree_type, 
-                                                                  gasnete_coll_image_node(team,srcimage), team
+                                                                  gasnete_coll_image2rank(team,srcimage), team
                                                                   GASNETE_THREAD_PASS),
                                            sequence, coll_params->num_params, coll_params->param_list
                                            GASNETE_THREAD_PASS);
@@ -404,7 +405,7 @@ gasnete_coll_bcast_TreePutScratch(gasnet_team_handle_t team,
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
                                            &gasnete_coll_pf_bcast_TreePutScratch, options,
                                            gasnete_coll_tree_init(coll_params->tree_type, 
-                                                                  gasnete_coll_image_node(team,srcimage), team
+                                                                  gasnete_coll_image2rank(team,srcimage), team
                                                                   GASNETE_THREAD_PASS),
                                            sequence, coll_params->num_params, coll_params->param_list
                                            GASNETE_THREAD_PASS);
@@ -543,7 +544,7 @@ gasnete_coll_bcast_TreePutSeg(gasnet_team_handle_t team,
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
                                            &gasnete_coll_pf_bcast_TreePutSeg, options,
                                            gasnete_coll_tree_init(coll_params->tree_type, 
-                                                                  gasnete_coll_image_node(team,srcimage), team
+                                                                  gasnete_coll_image2rank(team,srcimage), team
                                                                   GASNETE_THREAD_PASS), 
                                            (flags & GASNETE_COLL_SUBORDINATE ? sequence : num_segs), coll_params->num_params, coll_params->param_list
                                            GASNETE_THREAD_PASS);
@@ -1001,7 +1002,7 @@ gasnete_coll_bcastM_TreePut(gasnet_team_handle_t team,
 
   gasnete_coll_tree_data_t *tree_info = 
     gasnete_coll_tree_init(coll_params->tree_type, 
-      gasnete_coll_image_node(team,srcimage), team
+      gasnete_coll_image2rank(team,srcimage), team
       GASNETE_THREAD_PASS);
 
   return gasnete_coll_generic_broadcastM_nb(team, dstlist, srcimage, src, nbytes, flags,
@@ -1157,7 +1158,7 @@ gasnete_coll_bcastM_TreePutScratch(gasnet_team_handle_t team,
   return gasnete_coll_generic_broadcastM_nb(team, dstlist, srcimage, src, nbytes, flags,
                                             &gasnete_coll_pf_bcastM_TreePutScratch, options,
                                             gasnete_coll_tree_init(coll_params->tree_type, 
-                                                                   gasnete_coll_image_node(team,srcimage), team
+                                                                   gasnete_coll_image2rank(team,srcimage), team
                                                                    GASNETE_THREAD_PASS),
                                             sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }
@@ -1291,7 +1292,7 @@ gasnete_coll_bcastM_TreePutSeg(gasnet_team_handle_t team,
   return gasnete_coll_generic_broadcastM_nb(team, dstlist, srcimage, src, nbytes, flags,
                                             &gasnete_coll_pf_bcastM_TreePutSeg, options,
                                             gasnete_coll_tree_init(coll_params->tree_type, 
-                                                                   gasnete_coll_image_node(team,srcimage), team
+                                                                   gasnete_coll_image2rank(team,srcimage), team
                                                                    GASNETE_THREAD_PASS), 
                                             (flags & GASNETE_COLL_SUBORDINATE ? sequence : num_segs), coll_params->num_params, coll_params->param_list
                                             GASNETE_THREAD_PASS);
@@ -1811,7 +1812,7 @@ gasnete_coll_scat_TreePut(gasnet_team_handle_t team,
   return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, dist, flags,
                                          &gasnete_coll_pf_scat_TreePut, options,
                                          gasnete_coll_tree_init(coll_params->tree_type,
-                                                                gasnete_coll_image_node(team,srcimage), team
+                                                                gasnete_coll_image2rank(team,srcimage), team
                                                                 GASNETE_THREAD_PASS),
                                          sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }  
@@ -2001,7 +2002,7 @@ gasnete_coll_scat_TreePutNoCopy(gasnet_team_handle_t team,
     return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, dist, flags,
                                            &gasnete_coll_pf_scat_TreePutNoCopy, options,
                                            gasnete_coll_tree_init(coll_params->tree_type,
-                                                                  gasnete_coll_image_node(team,srcimage), team
+                                                                  gasnete_coll_image2rank(team,srcimage), team
                                                                   GASNETE_THREAD_PASS),
                                            sequence,coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
   }
@@ -2112,7 +2113,7 @@ gasnete_coll_scat_TreePutSeg(gasnet_team_handle_t team,
     return gasnete_coll_generic_scatter_nb(team, dst, srcimage, src, nbytes, dist, flags,
                                            &gasnete_coll_pf_scat_TreePutSeg, options,
                                            gasnete_coll_tree_init(coll_params->tree_type,
-                                                                  gasnete_coll_image_node(team,srcimage), team
+                                                                  gasnete_coll_image2rank(team,srcimage), team
                                                                   GASNETE_THREAD_PASS),
                                            (flags & GASNETE_COLL_SUBORDINATE ? sequence : num_segs),
                                            coll_params->num_params, coll_params->param_list
@@ -2540,7 +2541,7 @@ gasnete_coll_scatM_TreePut(gasnet_team_handle_t team,
   return gasnete_coll_generic_scatterM_nb(team, dstlist, srcimage, src, nbytes, dist, flags,
                                           &gasnete_coll_pf_scatM_TreePut, options,
                                           gasnete_coll_tree_init(coll_params->tree_type,
-                                                                 gasnete_coll_image_node(team,srcimage), team
+                                                                 gasnete_coll_image2rank(team,srcimage), team
                                                                  GASNETE_THREAD_PASS),
                                           sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }  
@@ -2722,7 +2723,7 @@ gasnete_coll_scatM_TreePutNoCopy(gasnet_team_handle_t team,
   return gasnete_coll_generic_scatterM_nb(team, dstlist, srcimage, src, nbytes, dist, flags,
                                           &gasnete_coll_pf_scatM_TreePutNoCopy, options,
                                           gasnete_coll_tree_init(coll_params->tree_type,
-                                                                 gasnete_coll_image_node(team,srcimage), team
+                                                                 gasnete_coll_image2rank(team,srcimage), team
                                                                  GASNETE_THREAD_PASS),
                                           sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 }  
@@ -2837,7 +2838,7 @@ gasnete_coll_scatM_TreePutSeg(gasnet_team_handle_t team,
   return gasnete_coll_generic_scatterM_nb(team, dstlist, srcimage, src, nbytes, dist, flags,
                                           &gasnete_coll_pf_scatM_TreePutSeg, options,
                                           gasnete_coll_tree_init(coll_params->tree_type,
-                                                                 gasnete_coll_image_node(team,srcimage), team
+                                                                 gasnete_coll_image2rank(team,srcimage), team
                                                                  GASNETE_THREAD_PASS),
                                           (flags & GASNETE_COLL_SUBORDINATE ? sequence : num_segs), coll_params->num_params, coll_params->param_list
                                           GASNETE_THREAD_PASS);
@@ -3160,7 +3161,7 @@ GASNETE_COLL_DECLARE_GATHER_ALG(TreePut) {
   return gasnete_coll_generic_gather_nb(team, dstimage, dst, src, nbytes, dist, flags,
                                         &gasnete_coll_pf_gath_TreePut, options,
                                         gasnete_coll_tree_init(coll_params->tree_type, 
-                                                               gasnete_coll_image_node(team,dstimage), team
+                                                               gasnete_coll_image2rank(team,dstimage), team
                                                                GASNETE_THREAD_PASS), sequence, 
                                         coll_params->num_params, coll_params->param_list  GASNETE_THREAD_PASS);
 }
@@ -3400,7 +3401,7 @@ GASNETE_COLL_DECLARE_GATHER_ALG(TreePutNoCopy)
     return gasnete_coll_generic_gather_nb(team, dstimage, dst, src, nbytes, dist, flags,
                                           &gasnete_coll_pf_gath_TreePutNoCopy, options,
                                           gasnete_coll_tree_init(coll_params->tree_type, 
-                                                                 gasnete_coll_image_node(team,dstimage), team
+                                                                 gasnete_coll_image2rank(team,dstimage), team
                                                                  GASNETE_THREAD_PASS), sequence, coll_params->num_params, coll_params->param_list
                                           GASNETE_THREAD_PASS);
   }
@@ -3505,7 +3506,7 @@ GASNETE_COLL_DECLARE_GATHER_ALG(TreePutSeg) {
   return gasnete_coll_generic_gather_nb(team, dstimage, dst, src, nbytes, nbytes, flags,
                                         &gasnete_coll_pf_gath_TreePutSeg, options,
                                         gasnete_coll_tree_init(coll_params->tree_type, 
-                                                               gasnete_coll_image_node(team,dstimage), team
+                                                               gasnete_coll_image2rank(team,dstimage), team
                                                                GASNETE_THREAD_PASS), 
                                         (flags & GASNETE_COLL_SUBORDINATE ? sequence : num_segs), 
                                         coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
@@ -3781,7 +3782,7 @@ GASNETE_COLL_DECLARE_GATHERM_ALG(TreePut) {
   return gasnete_coll_generic_gatherM_nb(team, dstimage, dst, srclist, nbytes, dist, flags,
                                          &gasnete_coll_pf_gathM_TreePut, options,
                                          gasnete_coll_tree_init(coll_params->tree_type, 
-                                                                gasnete_coll_image_node(team,dstimage), team
+                                                                gasnete_coll_image2rank(team,dstimage), team
                                                                 GASNETE_THREAD_PASS), sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
   
   
@@ -3890,7 +3891,7 @@ GASNETE_COLL_DECLARE_GATHERM_ALG(TreePutSeg) {
   return gasnete_coll_generic_gatherM_nb(team, dstimage, dst, srclist, nbytes, dist, flags,
                                          &gasnete_coll_pf_gathM_TreePutSeg, options,
                                          gasnete_coll_tree_init(coll_params->tree_type,
-                                                                gasnete_coll_image_node(team,dstimage), team
+                                                                gasnete_coll_image2rank(team,dstimage), team
                                                                 GASNETE_THREAD_PASS),
                                          (flags & GASNETE_COLL_SUBORDINATE ? sequence : num_segs), coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
   
@@ -4041,7 +4042,7 @@ gasnete_coll_gall_TreePut(gasnet_team_handle_t team,
   return gasnete_coll_generic_gather_all_nb(team, dst, src, nbytes, flags,
                                             &gasnete_coll_pf_gall_TreePut, options,
                                             gasnete_coll_tree_init(tree_type, 
-                                                                   gasnete_coll_image_node(team,GASNETE_COLL_TREE_ALL_GATHER_ALL_ROOT), team
+                                                                   gasnete_coll_image2rank(team,GASNETE_COLL_TREE_ALL_GATHER_ALL_ROOT), team
                                                                    GASNETE_THREAD_PASS), 
                                             sequence GASNETE_THREAD_PASS);
 }
@@ -6044,7 +6045,7 @@ gasnete_coll_reduce_TreePut(gasnet_team_handle_t team,
   gasnete_coll_tree_data_t *tree_info;
   size_t nbytes = elem_size*elem_count;
   tree_info = gasnete_coll_tree_init(coll_params->tree_type,
-                                     gasnete_coll_image_node(team,dstimage), team
+                                     gasnete_coll_image2rank(team,dstimage), team
                                      GASNETE_THREAD_PASS);
   
   scratch_req = (gasnete_coll_scratch_req_t*) gasneti_calloc(1,sizeof(gasnete_coll_scratch_req_t));
@@ -6064,7 +6065,7 @@ gasnete_coll_reduce_TreePut(gasnet_team_handle_t team,
   } else {
     scratch_req->in_peers = NULL;
   }
-  if(team->myrank == gasnete_coll_image_node(team, dstimage)) {
+  if(team->myrank == gasnete_coll_image2rank(team, dstimage)) {
     scratch_req->num_out_peers = 0;
     scratch_req->out_peers = NULL;      
     scratch_req->out_sizes = NULL;
@@ -6249,7 +6250,7 @@ gasnete_coll_reduce_TreeGet(gasnet_team_handle_t team,
   int i;
   
   tree_info = gasnete_coll_tree_init(coll_params->tree_type,
-                                     gasnete_coll_image_node(team,dstimage), team
+                                     gasnete_coll_image2rank(team,dstimage), team
                                      GASNETE_THREAD_PASS);
   
   scratch_req = (gasnete_coll_scratch_req_t*) gasneti_calloc(1,sizeof(gasnete_coll_scratch_req_t));
@@ -6264,7 +6265,7 @@ gasnete_coll_reduce_TreeGet(gasnet_team_handle_t team,
   scratch_req->incoming_size = nbytes*(tree_info->geom->child_count+1);
   /*  fprintf(stderr, "%d> requesting %d bytes as incoming\n", gasneti_mynode, scratch_req->incoming_size); */
   
-  if(team->myrank == gasnete_coll_image_node(team, dstimage)) {
+  if(team->myrank == gasnete_coll_image2rank(team, dstimage)) {
     scratch_req->num_in_peers = 0;
     scratch_req->in_peers = NULL;
   } else {
@@ -6413,7 +6414,7 @@ gasnete_coll_reduce_TreePutSeg(gasnet_team_handle_t team,
   
   
   tree_info = gasnete_coll_tree_init(coll_params->tree_type,
-                                     gasnete_coll_image_node(team,dstimage), team
+                                     gasnete_coll_image2rank(team,dstimage), team
                                      GASNETE_THREAD_PASS);
   
   
@@ -6578,7 +6579,7 @@ gasnete_coll_reduceM_TreePut(gasnet_team_handle_t team,
   gasnete_coll_tree_data_t *tree_info;
   size_t nbytes = elem_size*elem_count;
   tree_info = gasnete_coll_tree_init(coll_params->tree_type,
-                                     gasnete_coll_image_node(team,dstimage), team
+                                     gasnete_coll_image2rank(team,dstimage), team
                                      GASNETE_THREAD_PASS);
   
   if(td->my_local_image == 0) {
@@ -6599,7 +6600,7 @@ gasnete_coll_reduceM_TreePut(gasnet_team_handle_t team,
     } else {
       scratch_req->in_peers = NULL;
     }
-    if(team->myrank == gasnete_coll_image_node(team, dstimage)) {
+    if(team->myrank == gasnete_coll_image2rank(team, dstimage)) {
       scratch_req->num_out_peers = 0;
       scratch_req->out_peers = NULL;      
       scratch_req->out_sizes = NULL;
@@ -6785,7 +6786,7 @@ gasnete_coll_reduceM_TreeGet(gasnet_team_handle_t team,
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOALLOC;
   
   tree_info = gasnete_coll_tree_init(coll_params->tree_type,
-                                     gasnete_coll_image_node(team,dstimage), team
+                                     gasnete_coll_image2rank(team,dstimage), team
                                      GASNETE_THREAD_PASS);
   
   if(td->my_local_image == 0) {
@@ -6801,7 +6802,7 @@ gasnete_coll_reduceM_TreeGet(gasnet_team_handle_t team,
     scratch_req->incoming_size = nbytes*(tree_info->geom->child_count+1);
     /*  fprintf(stderr, "%d> requesting %d bytes as incoming\n", gasneti_mynode, scratch_req->incoming_size); */
     
-    if(team->myrank == gasnete_coll_image_node(team, dstimage)) {
+    if(team->myrank == gasnete_coll_image2rank(team, dstimage)) {
       scratch_req->num_in_peers = 0;
       scratch_req->in_peers = NULL;
     } else {
@@ -6957,7 +6958,7 @@ gasnete_coll_reduceM_TreePutSeg(gasnet_team_handle_t team,
   
   
   tree_info = gasnete_coll_tree_init(coll_params->tree_type,
-                                     gasnete_coll_image_node(team,dstimage), team
+                                     gasnete_coll_image2rank(team,dstimage), team
                                      GASNETE_THREAD_PASS);
   
   

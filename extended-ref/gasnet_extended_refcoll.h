@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.h,v $
- *     $Date: 2010/07/16 21:06:17 $
- * $Revision: 1.4.6.1 $
+ *     $Date: 2010/09/21 23:33:33 $
+ * $Revision: 1.4.6.2 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -42,11 +42,13 @@
 
 #define _hidx_gasnete_coll_scratch_update_reqh (GASNETE_COLL_SCRATCH_HANDLER_BASE+0)
 
-#define GASNETE_COLL_NUM_TEAM_HANDLERS 1
+#define GASNETE_COLL_NUM_TEAM_HANDLERS 2
 #ifndef GASNETE_COLL_TEAM_HANDLER_BASE
-#define GASNETE_COLL_TEAM_HANDLER_BASE (GASNETE_COLL_SCRATCH_HANDLER_BASE-GASNETE_COLL_NUM_SCRATCH_HANDLERS)
+#define GASNETE_COLL_TEAM_HANDLER_BASE (GASNETE_COLL_SCRATCH_HANDLER_BASE-GASNETE_COLL_NUM_TEAM_HANDLERS)
 #endif
 #define _hidx_gasnete_coll_teamid_reqh (GASNETE_COLL_TEAM_HANDLER_BASE+0)
+#define _hidx_gasnete_coll_teamid_reph (GASNETE_COLL_TEAM_HANDLER_BASE+1)
+
 
 #ifndef GASNETE_COLL_P2P_OVERRIDE
 
@@ -82,8 +84,12 @@ SHORT_HANDLER_NOBITS_DECL(gasnete_coll_scratch_update_reqh, 2);
 #endif
 
 #ifndef GASNETE_COLL_TEAM_OVERRIDE
-SHORT_HANDLER_NOBITS_DECL(gasnete_coll_teamid_reqh, 1);
-#define GASNETE_COLL_TEAM_HANDLERS() gasneti_handler_tableentry_no_bits(gasnete_coll_teamid_reqh),
+SHORT_HANDLER_DECL(gasnete_coll_teamid_reqh, 2, 3);
+SHORT_HANDLER_DECL(gasnete_coll_teamid_reph, 2, 3);
+
+#define GASNETE_COLL_TEAM_HANDLERS() \
+  gasneti_handler_tableentry_with_bits(gasnete_coll_teamid_reqh), \
+  gasneti_handler_tableentry_with_bits(gasnete_coll_teamid_reph),
 #endif
 
 #define GASNETE_REFCOLL_HANDLERS()                           \

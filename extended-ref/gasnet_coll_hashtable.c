@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_hashtable.c,v $
- *     $Date: 2009/10/28 04:17:13 $
- * $Revision: 1.4 $
+ *     $Date: 2010/09/21 23:33:33 $
+ * $Revision: 1.4.6.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -18,9 +18,7 @@
  * 2009
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <assert.h>
+#include <gasnet_internal.h>
 
 #include <gasnet_coll_hashtable.h>
 
@@ -30,12 +28,12 @@ gasnete_table_t * gasnete_table_create(uint32_t size)
 {
   gasnete_table_t * table;
 
-  assert(size > 0);
-  table = (gasnete_table_t *)malloc(sizeof(gasnete_table_t));
-  assert(table != NULL);
+  gasneti_assert(size > 0);
+  table = (gasnete_table_t *)gasneti_malloc(sizeof(gasnete_table_t));
+  gasneti_assert(table != NULL);
 
-  table->slots = (gasnete_table_item_t *)malloc(sizeof(gasnete_table_item_t)*size);
-  assert(table->slots != NULL);
+  table->slots = (gasnete_table_item_t *)gasneti_malloc(sizeof(gasnete_table_item_t)*size);
+  gasneti_assert(table->slots != NULL);
 
   table->size = size;
   table->num = 0;
@@ -48,7 +46,7 @@ gasnete_table_item_t * gasnete_table_search(const gasnete_table_t * const table,
   uint32_t i;
   gasnete_table_item_t * slots;
 
-  assert(table != NULL);
+  gasneti_assert(table != NULL);
   slots = table->slots;
   for (i=0; i<table->num; i++)
     if (key == slots[i].key)
@@ -75,7 +73,7 @@ uint32_t gasnete_table_remove(gasnete_table_t * const table, uint32_t key, gasne
   uint32_t i;
   gasnete_table_item_t * slots;
 
-  assert(table != NULL);
+  gasneti_assert(table != NULL);
   slots = table->slots;
   for (i=0; i<table->num; i++)
     if (key == slots[i].key) {
@@ -104,7 +102,7 @@ void gasnete_table_copy(const gasnete_table_t * const src, gasnete_table_t * con
   uint32_t i;
   gasnete_table_item_t * src_slots, * dst_slots;
 
-  assert(dst->size >= src->num);
+  gasneti_assert(dst->size >= src->num);
 
   src_slots = src->slots;
   dst_slots = dst->slots;
@@ -116,10 +114,10 @@ void gasnete_table_copy(const gasnete_table_t * const src, gasnete_table_t * con
 
 void gasnete_table_free(gasnete_table_t * const table)
 {
-  assert(table != NULL);
+  gasneti_assert(table != NULL);
 
-  free(table->slots);
-  free(table);
+  gasneti_free(table->slots);
+  gasneti_free(table);
 }
 
 
@@ -132,17 +130,17 @@ gasnete_hashtable_t * gasnete_hashtable_create(uint32_t size)
   gasnete_hashtable_t * ht;
   uint32_t i;
 
-  assert(size > 0);
-  ht = (gasnete_hashtable_t *)malloc(sizeof(gasnete_hashtable_t));
-  assert(ht != NULL);
-  ht->buckets = (gasnete_table_t **)malloc(sizeof(gasnete_table_t *)*size);
-  assert(ht->buckets != NULL);
+  gasneti_assert(size > 0);
+  ht = (gasnete_hashtable_t *)gasneti_malloc(sizeof(gasnete_hashtable_t));
+  gasneti_assert(ht != NULL);
+  ht->buckets = (gasnete_table_t **)gasneti_malloc(sizeof(gasnete_table_t *)*size);
+  gasneti_assert(ht->buckets != NULL);
   ht->size = size;
   ht->num = 0;
 
   for (i=0; i<size; i++) {
     ht->buckets[i] = gasnete_table_create(TABLE_INIT_SIZE);
-    assert(ht->buckets[i] != NULL);
+    gasneti_assert(ht->buckets[i] != NULL);
   }
  
   return ht;
@@ -152,16 +150,16 @@ void gasnete_hashtable_free(gasnete_hashtable_t * ht)
 {
   uint32_t i;
 
-  assert(ht != NULL);
-  assert(ht->buckets != NULL);
+  gasneti_assert(ht != NULL);
+  gasneti_assert(ht->buckets != NULL);
    
   for (i=0; i<ht->size; i++) {
-    assert(ht->buckets[i] != NULL);
+    gasneti_assert(ht->buckets[i] != NULL);
     gasnete_table_free(ht->buckets[i]);
   }
 
-  free(ht->buckets);
-  free(ht);
+  gasneti_free(ht->buckets);
+  gasneti_free(ht);
 }
 
 uint32_t gasnete_hashtable_search(gasnete_hashtable_t * ht, uint32_t key, void ** data)
@@ -169,10 +167,10 @@ uint32_t gasnete_hashtable_search(gasnete_hashtable_t * ht, uint32_t key, void *
   gasnete_table_t * table;
   gasnete_table_item_t * item;
 
-  assert(ht != NULL);
+  gasneti_assert(ht != NULL);
 
   table = ht->buckets[gasnete_hashtable_hash(ht, key)];
-  assert (table != NULL);
+  gasneti_assert (table != NULL);
 
   item = gasnete_table_search(table, key);
   if (item == NULL)
@@ -184,26 +182,27 @@ uint32_t gasnete_hashtable_search(gasnete_hashtable_t * ht, uint32_t key, void *
   return 0; /* success */
 }
 
+/* Should we check if the key has already been in the hash table? */
 uint32_t gasnete_hashtable_insert(gasnete_hashtable_t * ht, uint32_t key, void * data)
 {
   gasnete_table_t * table;
   gasnete_table_item_t item;
   uint32_t i;
 
-  assert(ht != NULL);
+  gasneti_assert(ht != NULL);
 
   item.key = key;
   item.data = data;
 
   i = gasnete_hashtable_hash(ht, key);
   table = ht->buckets[i];
-  assert (table != NULL);
+  gasneti_assert (table != NULL);
 
   /* double the size of the table if the table is full */
   if (table->num == table->size) {
     gasnete_table_t * new_table;
     new_table = gasnete_table_create(table->size*2);
-    assert(new_table != NULL);
+    gasneti_assert(new_table != NULL);
     gasnete_table_copy(table, new_table);
     ht->buckets[i] = new_table;
     table = new_table;
@@ -219,10 +218,10 @@ uint32_t gasnete_hashtable_remove(gasnete_hashtable_t * ht, uint32_t key, void *
   gasnete_table_item_t item;
   uint32_t i, rv;
 
-  assert(ht != NULL);
+  gasneti_assert(ht != NULL);
   i = gasnete_hashtable_hash(ht, key);
   table = ht->buckets[i];
-  assert (table != NULL);
+  gasneti_assert (table != NULL);
   if (table == NULL)
     return 1;
 
