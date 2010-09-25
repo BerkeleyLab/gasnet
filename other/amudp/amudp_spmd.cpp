@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.cpp,v $
- *     $Date: 2010/05/14 21:26:29 $
- * $Revision: 1.44 $
+ *     $Date: 2010/09/25 23:05:35 $
+ * $Revision: 1.44.2.1 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -1477,16 +1477,20 @@ extern int AMUDP_SPMDExit(int exitcode) {
   sched_yield();
 
   /* notify master we're exiting */
-  try {
+
+  // We disable exceptions on the following sendALL calls because the C++
+  // spec warns that exceptions may not be usable in signal handlers, and
+  // GASNet calls here when handling a fatal or termination signal.
+  /* try */ {
     int exitcode_nb = hton32(exitcode);
-    sendAll(AMUDP_SPMDControlSocket, "E");
-    sendAll(AMUDP_SPMDControlSocket, &exitcode_nb, sizeof(int32_t));
+    sendAll(AMUDP_SPMDControlSocket, "E", -1, 0);
+    sendAll(AMUDP_SPMDControlSocket, &exitcode_nb, sizeof(int32_t), 0);
     while (1) { // swallow everything and wait for master to close
       char temp;
       int retval = recv(AMUDP_SPMDControlSocket, &temp, 1, 0); 
       if (retval == 0 || retval == SOCKET_ERROR) break;
     }
-  } catch (xBase& ) { } // ignore errors that may happen on conn reset 
+  } /* catch (xBase& ) { } // ignore errors that may happen on conn reset  */
 
   AMUDP_SPMDStartupCalled = 0;
   DEBUG_SLAVE("AMUDP_SPMDShutdown..");

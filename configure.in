@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/09/16 21:52:59 $
-# $Revision: 1.633.2.7 $
+#     $Date: 2010/09/25 23:05:31 $
+# $Revision: 1.633.2.8 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.633.2.7 $)
+AC_REVISION($Revision: 1.633.2.8 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -169,7 +169,17 @@ GASNET_FAMILY_CACHE_CHECK(C, CC, gasnet_cv_cc_family)
 ## compiler family early initialization
 
 case "$gasnet_cv_cc_family" in
-  GNU)  GASNET_GCC_VERSION_CHECK(CC) ;;
+  GNU)  GASNET_GCC_VERSION_CHECK(CC)
+        GASNET_TRY_CACHE_EXTRACT_STR([for gcc version string],gcc_version_string,[
+          #ifndef __VERSION__
+            #define __VERSION__ "unknown"
+          #endif
+         ],[__VERSION__],[GASNETI_GCC_VERSION])
+        case "$GASNETI_GCC_VERSION" in
+          *gccfss*) AC_DEFINE(GASNETI_GCC_GCCFSS) ;;
+          *Apple*)  AC_DEFINE(GASNETI_GCC_APPLE) ;;
+        esac
+        ;;
   MTA)  # override target_os for MTA, which may be wrong if cross-compiling
         target_os="mtx"   ;;
   Cray) # Min supported version is 7.2 (which reports as 10.2)
@@ -1256,13 +1266,13 @@ fi
 AC_SUBST(GASNET_PSHM_ENABLED)
 AC_SUBST(GASNET_PSHM_LIBS)
 
-# Note that --enable-pshm disables aligned segments
+# Note that --enable-pshm disables aligned segments ONLY for conduits that USE it
 GASNET_IF_DISABLED([aligned-segments],
                    [Disable requirement to achieve aligned VM segments, for heterogeneous clusters],
 		   [GASNETI_DISABLE_ALIGNED_SEGMENTS=1
 		    AC_DEFINE(GASNETI_DISABLE_ALIGNED_SEGMENTS)],
 		   [RVMFILE="/proc/sys/kernel/randomize_va_space"
-		    if test "$with_pshm" = no && test -f $RVMFILE && test "`cat $RVMFILE`" != "0" ; then
+		    if test -f $RVMFILE && test "`cat $RVMFILE`" != "0" ; then
 WMSG="$RVMFILE on this node indicates the Linux VM space randomization \
 security feature is enabled. If this feature is also enabled on the compute \
 nodes, you need to re-run configure with --disable-aligned-segments"
@@ -4433,6 +4443,7 @@ cat >>$CONDUIT_LIST <<EOF
   MPI compatibility:      $have_mpi_compat
   Pthreads support:       $have_pthread
   Segment config:         $segconfig
+  PSHM support:           $with_pshm
 EOF
 else
 cat >>$CONDUIT_LIST <<EOF

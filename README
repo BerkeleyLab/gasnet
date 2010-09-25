@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.135.2.4 $
+$Revision: 1.135.2.5 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -205,7 +205,7 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * Linux/SGI-Altix-Itanium/{gcc,IntelC}/64: smp, mpi, udp, shmem
 
     * FreeBSD/Alpha/64:       smp, udp, #&
-    * FreeBSD/x86/gcc/32,64:  smp, mpi, udp
+    * FreeBSD/x86/gcc/32,64:  smp, mpi
     * OpenBSD/x86/gcc/32,64:  smp, mpi, udp
     * NetBSD/x86/gcc/32,64:   smp, mpi, udp
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2010/06/27 02:04:14 $
- * $Revision: 1.210.2.1 $
+ *     $Date: 2010/09/25 23:05:31 $
+ * $Revision: 1.210.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -319,6 +319,7 @@ static struct {
 
 void gasneti_defaultSignalHandler(int sig) {
   gasneti_sighandlerfn_t oldhandler = NULL;
+  gasneti_sighandlerfn_t oldsigpipe = NULL;
   const char *signame = NULL;
   int i;
   for (i = 0; i < sizeof(gasneti_signals)/sizeof(gasneti_signals[0]); i++) {
@@ -339,6 +340,8 @@ void gasneti_defaultSignalHandler(int sig) {
     case SIGSEGV:
     case SIGBUS:
     case SIGFPE:
+      oldsigpipe = gasneti_reghandler(SIGPIPE, SIG_IGN);
+
       GASNETC_FATALSIGNAL_CALLBACK(sig); /* give conduit first crack at it */
       fprintf(stderr,"*** Caught a fatal signal: %s(%i) on node %i/%i\n",
         signame, sig, (int)gasnet_mynode(), (int)gasnet_nodes()); 
@@ -347,6 +350,8 @@ void gasneti_defaultSignalHandler(int sig) {
       gasnett_freezeForDebuggerErr(); /* allow freeze */
 
       gasneti_print_backtrace_ifenabled(STDERR_FILENO); /* try to print backtrace */
+
+      (void) gasneti_reghandler(SIGPIPE, oldsigpipe);
 
       signal(sig, SIG_DFL); /* restore default core-dumping handler and re-raise */
       #if 1
@@ -365,9 +370,13 @@ void gasneti_defaultSignalHandler(int sig) {
           _exit(1);
         } else sigquit_raised = 1;
       }
+
+      oldsigpipe = gasneti_reghandler(SIGPIPE, SIG_IGN);
       fprintf(stderr,"*** Caught a signal: %s(%i) on node %i/%i\n",
         signame, sig, (int)gasnet_mynode(), (int)gasnet_nodes()); 
       fflush(stderr);
+      (void) gasneti_reghandler(SIGPIPE, oldsigpipe);
+
       #if 1
         raise(SIGQUIT);
       #elif 0

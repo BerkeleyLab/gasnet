@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.c,v $
- *     $Date: 2010/09/16 21:52:59 $
- * $Revision: 1.140.10.4 $
+ *     $Date: 2010/09/25 23:05:31 $
+ * $Revision: 1.140.10.5 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -47,9 +47,16 @@ static gasneti_tick_t starttime;
 #endif
 
 #if GASNET_STATS
+ #if PLATFORM_COMPILER_INTEL
+  /* Why can icc deal w/ GASNETI_FORMAT_PRINTF_FUNCPTR() in gasnet_trace.h but not here? */
+  void (*gasnett_stats_callback)(
+    void (*format)(const char *, ...)
+  ) = NULL;
+ #else
   void (*gasnett_stats_callback)(
     GASNETI_FORMAT_PRINTF_FUNCPTR(format,1,2,void (*format)(const char *, ...))
   ) = NULL;
+ #endif
 #endif
 
 

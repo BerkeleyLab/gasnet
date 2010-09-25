@@ -1,7 +1,7 @@
 README file for vapi-conduit and ibv-conduit
 ============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.55.12.8 $
+$Revision: 1.55.12.9 $
 
 @ TOC: @
 @ Section: VAPI vs IBV @
@@ -71,6 +71,28 @@ $Revision: 1.55.12.8 $
   + The environment variable MPIRUN_CMD can be used to configure how to
     invoke mpirun.  See mpi-conduit/README (or README-mpi) for more
     information.
+  + Since an InfiniBand-based MPI typically allocates a non-trivial amount
+    of memory for InfiniBand communication buffers, it may be desirable in
+    memory-constrained situations to use a non-IB MPI, or to disable the
+    use of IB by a multi-transport MPI.  The documentation for your chosen
+    MPI is the authoritative source for information, but here are the
+    settings required to force use of TCP/IP in several widely-used MPIs:
+    - LAM/MPI
+      Pass "-ssi rpi tcp" to mpirun, OR
+      Set environment variable LAM_MPI_SSI_rpi to "tcp".
+    - Open MPI
+      Pass "--mca btl tcp,self" to mpirun, OR
+      Set environment variable OMPI_MCA_BTL to "tcp,self".
+    - Intel MPI
+      Set environment variable I_MPI_DEVICE to "sock".
+    - HP-MPI
+      Set environment variable MPI_IC_ORDER to "tcp".
+    - MPICH or MPICH2
+      These don't use IB, so no special action is required.
+    - MVAPICH or MVAPICH2
+      These don't use TCP/IP unless explictly configured for IP-over-IB.
+      So, these are not recommended if one is concerned with memory use.
+    In all the setting above, omit the quotes from the value.
 
   If spawning using SSH, the following apply:
   + The -E option is not necessary, as the full environment is always
