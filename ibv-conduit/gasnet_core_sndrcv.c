@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/09/26 17:24:42 $
- * $Revision: 1.247.10.19 $
+ *     $Date: 2010/09/26 20:20:29 $
+ * $Revision: 1.247.10.20 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3065,17 +3065,30 @@ size_t gasnetc_fh_get_helper(gasnet_node_t node, gasnetc_sreq_t *sreq,
 /*
  * Check/compute limits before allocating anything
  */
-extern int gasnetc_sndrcv_limits(void) {
+extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
   gasnetc_hca_t		*hca;
   int 			h;
 
+  /* Count normal qps to be placed on each HCA */
+  if (gasneti_nodes == 1) {
+    GASNETC_FOR_ALL_HCA(hca) {
+      /* Avoid a later division by zero */
+      hca->total_qps = 1;
+      hca->qps = 1;
+    }
+  } else {
+    int i;
+    for (i = 0; i < gasnetc_normal_qps; ++i) {
+      hca = &gasnetc_hca[port_tbl[i % num_ports].hca_index];
+      hca->qps += 1;
+      hca->total_qps += (gasneti_nodes - 1);
+    }
+  }
+
   /* SRQ F/C will change this: */
   gasnetc_request_qps = gasnetc_normal_qps;
-  
-  /* Divide _pp bounds equally over the available QPs */
-  gasnetc_op_oust_pp /= gasnetc_normal_qps;
-  gasnetc_am_oust_pp /= gasnetc_request_qps;
 
+  /* Ops outstanding per peer and total: */
   if (gasnetc_op_oust_limit == 0) { /* 0 = automatic limit computation */
     gasnetc_op_oust_per_qp = gasnetc_hca[0].hca_cap.gasnetc_f_max_cqe / gasnetc_hca[0].qps;
     for (h = 1; h < gasnetc_num_hcas; ++h) {
@@ -3091,6 +3104,7 @@ extern int gasnetc_sndrcv_limits(void) {
       }
     }
   }
+  gasnetc_op_oust_pp /= gasnetc_normal_qps;
   gasnetc_op_oust_per_qp = MIN(gasnetc_op_oust_per_qp, gasnetc_op_oust_pp*(gasneti_nodes-1));
   gasnetc_op_oust_limit = gasnetc_normal_qps * gasnetc_op_oust_per_qp;
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_NETWORKDEPTH_TOTAL = %d", gasnetc_op_oust_limit));
@@ -3111,6 +3125,7 @@ extern int gasnetc_sndrcv_limits(void) {
    * We also (silently) reduce gasnetc_am_oust_limit to account for the fact that Replies
    * can never out number Requests.
    */
+  gasnetc_am_oust_pp /= gasnetc_request_qps;
   gasnetc_am_rqst_per_qp = gasnetc_am_oust_pp * (gasneti_nodes - 1);
   if (gasnetc_am_oust_limit == 0) {
     /* 0 = automatic limit computations.
@@ -3183,10 +3198,8 @@ extern int gasnetc_sndrcv_limits(void) {
     }
 
     /* Check against HCA limits */
-    /* XXX: hca->qps not set yet so must assume no more than 1 request qp per HCA
-       or else need to have more than one SRQ */
     GASNETC_FOR_ALL_HCA(hca) {
-      unsigned int tmp = hca->hca_cap.max_srq_wr /* / hca->qps */;
+      unsigned int tmp = hca->hca_cap.max_srq_wr / hca->qps;
       if (!srq_wr_per_qp || (tmp < srq_wr_per_qp)) {
         srq_wr_per_qp = tmp;
       }
