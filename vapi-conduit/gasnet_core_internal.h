@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2010/09/26 20:20:29 $
- * $Revision: 1.160.10.8 $
+ *     $Date: 2010/09/26 22:30:21 $
+ * $Revision: 1.160.10.9 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -606,9 +606,8 @@ extern int		gasnetc_am_oust_pp;
 extern int		gasnetc_bbuf_limit;
 extern int		gasnetc_use_rcv_thread;
 extern int		gasnetc_am_credits_slack;
-extern int		gasnetc_num_qps;    /* Number of QPs per node in gasnetc_ceps[] */
-extern int		gasnetc_normal_qps; /* How many of those (the leading ones) for normal use? */
-extern int		gasnetc_request_qps; /* How many of those (the trailing ones) for AM Requests? */
+extern int		gasnetc_alloc_qps;    /* Number of QPs per node in gasnetc_ceps[] */
+extern int		gasnetc_num_qps;      /* How many QPs to use per peer */
 extern size_t		gasnetc_packedlong_limit;
 extern size_t		gasnetc_inline_limit;
 extern size_t		gasnetc_bounce_limit;
