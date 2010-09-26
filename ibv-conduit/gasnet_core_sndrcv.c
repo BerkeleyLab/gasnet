@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/09/26 20:20:29 $
- * $Revision: 1.247.10.20 $
+ *     $Date: 2010/09/26 22:30:21 $
+ * $Revision: 1.247.10.21 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -68,9 +68,8 @@ int					gasnetc_use_rcv_thread = GASNETC_IB_RCV_THREAD;
   int					gasnetc_use_srq = 1;
 #endif
 int					gasnetc_am_credits_slack;
+int					gasnetc_alloc_qps;
 int					gasnetc_num_qps;
-int					gasnetc_normal_qps;
-int					gasnetc_request_qps;
 int					gasnetc_amrdma_max_peers;
 size_t					gasnetc_amrdma_limit;
 int					gasnetc_amrdma_depth;
@@ -479,7 +478,7 @@ void gasnetc_rcv_post(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf) {
   gasneti_assert(rbuf);
 
   /* check for attempted loopback traffic */
-  gasneti_assert((cep - gasnetc_cep)/gasnetc_num_qps != gasneti_mynode);
+  gasneti_assert((cep - gasnetc_cep)/gasnetc_alloc_qps != gasneti_mynode);
   
   rbuf->cep = cep;
   rbuf->rr_sg.lkey = GASNETC_RCV_LKEY(cep);
@@ -1084,7 +1083,7 @@ gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid,
     gasneti_assert(op != GASNETC_WR_SEND_WITH_IMM); /* AMs never wildcard */
     qpi = 0;
     best_space = gasneti_semaphore_read(&ceps[0].sq_sema);
-    for (i = 1; i < gasnetc_normal_qps; ++i) {
+    for (i = 1; i < gasnetc_num_qps; ++i) {
       space = gasneti_semaphore_read(&ceps[i].sq_sema);
       if (space > best_space) {
         best_space = space;
@@ -1096,14 +1095,14 @@ gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid,
     /* Note use of casts to volatile are require to work around bug 1586 */
     static int prev = 0;
     qpi = *(volatile int *)(&prev);
-    qpi = ((qpi == 0) ? gasnetc_normal_qps : qpi) - 1;
+    qpi = ((qpi == 0) ? gasnetc_num_qps : qpi) - 1;
     *(volatile int *)(&prev) = qpi;
 #endif
   } else {
     --qpi; /* offset */
   }
 
-  gasneti_assert(qpi < gasnetc_normal_qps);
+  gasneti_assert(qpi < gasnetc_num_qps);
   return qpi;
 #else
   return 0;
@@ -1181,13 +1180,13 @@ void gasnetc_rcv_am(const gasnetc_wc_t *comp, gasnetc_rbuf_t **spare_p) {
 
     /* XXX: SRQ means rbuf->cep is "inexact", so must reconstruct */
     cep = gasnetc_node2cep[GASNETC_MSG_SRCIDX(flags)];
-    if (gasnetc_normal_qps > 1) {
+    if (gasnetc_num_qps > 1) {
       gasnetc_hca_t * const hca = rbuf->cep->hca; /* this much is correct */
       int i;
-      for (i=0; i<gasnetc_normal_qps; ++i, ++cep) {
+      for (i=0; i<gasnetc_num_qps; ++i, ++cep) {
         if ((cep->qp_handle->qp_num == comp->qp_num) && (cep->hca == hca)) break;
       }
-      gasneti_assert(i < gasnetc_normal_qps);
+      gasneti_assert(i < gasnetc_num_qps);
     }
     rbuf->cep = cep;
 
@@ -1602,7 +1601,7 @@ void gasnetc_snd_validate(gasnetc_sreq_t *sreq, gasnetc_snd_wr_t *sr_desc, int c
 
   gasneti_assert(sreq);
   gasneti_assert(sreq->cep);
-  gasneti_assert((sreq->cep - gasnetc_cep)/gasnetc_num_qps != gasneti_mynode); /* detects loopback */
+  gasneti_assert((sreq->cep - gasnetc_cep)/gasnetc_alloc_qps != gasneti_mynode); /* detects loopback */
   gasneti_assert(sr_desc);
   gasneti_assert(sr_desc->gasnetc_f_wr_num_sge >= 1);
   gasneti_assert(sr_desc->gasnetc_f_wr_num_sge <= GASNETC_SND_SG);
@@ -2054,12 +2053,12 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
 #if 0
       /* Bind to a specific queue pair, selecting by largest credits */
       qpi = 0;
-      if (gasnetc_normal_qps > 1) {
+      if (gasnetc_num_qps > 1) {
         uint32_t best_credits;
         int i;
         /* gasnetc_poll_snd(); here? */
         best_credits = gasneti_semaphore_read(&cep[0].am_rem);
-        for (i = 1; i < gasnetc_normal_qps; ++i) {
+        for (i = 1; i < gasnetc_num_qps; ++i) {
 	  const uint32_t tmp = gasneti_semaphore_read(&cep[i].am_rem);
 	  if (tmp > best_credits) {
 	    best_credits = tmp;
@@ -3078,15 +3077,12 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
     }
   } else {
     int i;
-    for (i = 0; i < gasnetc_normal_qps; ++i) {
+    for (i = 0; i < gasnetc_num_qps; ++i) {
       hca = &gasnetc_hca[port_tbl[i % num_ports].hca_index];
       hca->qps += 1;
       hca->total_qps += (gasneti_nodes - 1);
     }
   }
-
-  /* SRQ F/C will change this: */
-  gasnetc_request_qps = gasnetc_normal_qps;
 
   /* Ops outstanding per peer and total: */
   if (gasnetc_op_oust_limit == 0) { /* 0 = automatic limit computation */
@@ -3096,7 +3092,7 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
 		          (gasnetc_hca[h].hca_cap.gasnetc_f_max_cqe / gasnetc_hca[h].qps));
     }
   } else {
-    gasnetc_op_oust_per_qp = gasnetc_op_oust_limit / gasnetc_normal_qps;
+    gasnetc_op_oust_per_qp = gasnetc_op_oust_limit / gasnetc_num_qps;
     GASNETC_FOR_ALL_HCA(hca) {
       int tmp = hca->qps * gasnetc_op_oust_per_qp;
       if (tmp > hca->hca_cap.gasnetc_f_max_cqe) {
@@ -3104,9 +3100,9 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
       }
     }
   }
-  gasnetc_op_oust_pp /= gasnetc_normal_qps;
+  gasnetc_op_oust_pp /= gasnetc_num_qps;
   gasnetc_op_oust_per_qp = MIN(gasnetc_op_oust_per_qp, gasnetc_op_oust_pp*(gasneti_nodes-1));
-  gasnetc_op_oust_limit = gasnetc_normal_qps * gasnetc_op_oust_per_qp;
+  gasnetc_op_oust_limit = gasnetc_num_qps * gasnetc_op_oust_per_qp;
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_NETWORKDEPTH_TOTAL = %d", gasnetc_op_oust_limit));
 
   /* AM recv buffer allocation.  There are 5 roles a rcv buffer might fill (counts per HCA):
@@ -3125,7 +3121,7 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
    * We also (silently) reduce gasnetc_am_oust_limit to account for the fact that Replies
    * can never out number Requests.
    */
-  gasnetc_am_oust_pp /= gasnetc_request_qps;
+  gasnetc_am_oust_pp /= gasnetc_num_qps;
   gasnetc_am_rqst_per_qp = gasnetc_am_oust_pp * (gasneti_nodes - 1);
   if (gasnetc_am_oust_limit == 0) {
     /* 0 = automatic limit computations.
@@ -3139,7 +3135,7 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
       gasnetc_am_repl_per_qp = MIN(gasnetc_am_repl_per_qp, tmp);
     }
   } else {
-    gasnetc_am_repl_per_qp = MIN((gasnetc_am_oust_limit / gasnetc_request_qps), gasnetc_am_rqst_per_qp);
+    gasnetc_am_repl_per_qp = MIN((gasnetc_am_oust_limit / gasnetc_num_qps), gasnetc_am_rqst_per_qp);
     if (!gasnetc_am_repl_per_qp) {
       gasnetc_am_repl_per_qp = 1;	/* Ensure at least 1 */
     }
@@ -3150,7 +3146,7 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
       }
     }
   }
-  gasnetc_am_oust_limit = gasnetc_request_qps * gasnetc_am_repl_per_qp;
+  gasnetc_am_oust_limit = gasnetc_num_qps * gasnetc_am_repl_per_qp;
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_AM_CREDITS_TOTAL = %d", gasnetc_am_oust_limit));
 
   if (gasneti_nodes > 1) {
@@ -3175,14 +3171,14 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
   }
   if (gasneti_nodes == 1) {
     /* no AM or RDMA on the wire, but still need bufs for constructing AMs */
-    gasnetc_bbuf_limit = gasnetc_request_qps * gasnetc_am_oust_pp;
+    gasnetc_bbuf_limit = gasnetc_num_qps * gasnetc_am_oust_pp;
   }
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_BBUF_COUNT = %d", gasnetc_bbuf_limit));
 
   gasnetc_am_rbufs_per_qp = (gasnetc_am_rqst_per_qp + gasnetc_am_repl_per_qp) + (gasnetc_use_rcv_thread ? 1 : 0);
 #if GASNETC_IBV_SRQ
   if (gasnetc_use_srq) {
-    unsigned int srq_wr_per_qp = gasnetc_rbuf_limit / gasnetc_request_qps;
+    unsigned int srq_wr_per_qp = gasnetc_rbuf_limit / gasnetc_num_qps;
     int orig = gasnetc_rbuf_limit;
     int tmp;
 
@@ -3194,7 +3190,7 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
       srq_wr_per_qp = min_wr_per_qp;
       fprintf(stderr,
               "WARNING: Requested GASNET_RBUF_COUNT %d increased to %d\n",
-              orig, gasnetc_request_qps * srq_wr_per_qp);
+              orig, gasnetc_num_qps * srq_wr_per_qp);
     }
 
     /* Check against HCA limits */
@@ -3204,7 +3200,7 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
         srq_wr_per_qp = tmp;
       }
     }
-    gasnetc_rbuf_limit = gasnetc_request_qps * srq_wr_per_qp;
+    gasnetc_rbuf_limit = gasnetc_num_qps * srq_wr_per_qp;
 
     /* Warn only if reduced relative to an explicit  non-zero value */
     if (gasnetc_rbuf_set && orig && (gasnetc_rbuf_limit < orig)) {
@@ -3216,12 +3212,12 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
     /* As per README:
        GASNET_USE_SRQ < 0: Use SRQ only if memory savings would result
      */
-    tmp = MIN(gasnetc_am_rbufs_per_qp, gasnetc_rbuf_limit / gasnetc_request_qps);
+    tmp = MIN(gasnetc_am_rbufs_per_qp, gasnetc_rbuf_limit / gasnetc_num_qps);
     gasneti_assert(gasnetc_rbuf_limit != 0);
     GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_RBUF_COUNT = %d (SRQ limit: %d, w/o SRQ: %d)",
-                             tmp * gasnetc_request_qps,
+                             tmp * gasnetc_num_qps,
                              gasnetc_rbuf_limit,
-                             gasnetc_am_rbufs_per_qp * gasnetc_request_qps));
+                             gasnetc_am_rbufs_per_qp * gasnetc_num_qps));
     if ((gasnetc_use_srq < 0) && (tmp == gasnetc_am_rbufs_per_qp)) {
       GASNETI_TRACE_PRINTF(I, ("SRQ disabled because GASNET_USE_SRQ = -1 and no buffer savings would result"));
       gasnetc_use_srq = 0;
@@ -3231,17 +3227,25 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
       gasnetc_use_srq = 1;
     }
   } else {
-    GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_RBUF_COUNT = %d", gasnetc_am_rbufs_per_qp * gasnetc_request_qps));
+    GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_RBUF_COUNT = %d", gasnetc_am_rbufs_per_qp * gasnetc_num_qps));
     GASNETI_TRACE_PRINTF(I, ("SRQ disabled"));
     gasnetc_use_srq = 0;
   }
   /* gasnetc_use_srq is just 0 or 1 from here on */
 #else
-  GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_RBUF_COUNT = %d", gasnetc_am_rbufs_per_qp * gasnetc_request_qps));
+  GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_RBUF_COUNT = %d", gasnetc_am_rbufs_per_qp * gasnetc_num_qps));
 #endif
 
-  /* SRQ F/C will change this: */
-  gasnetc_num_qps = gasnetc_normal_qps;
+#if GASNETC_IBV_SRQ
+  if (gasnetc_use_srq) {
+    gasnetc_alloc_qps = 2 * gasnetc_num_qps;
+    GASNETC_FOR_ALL_HCA(hca) {
+      hca->total_qps *= 2;
+      hca->qps       *= 2;
+    }
+  } else
+#endif
+    gasnetc_alloc_qps = gasnetc_num_qps;
 
   return GASNET_OK;
 }
@@ -3459,10 +3463,10 @@ extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
   gasnetc_cep_t *cep;
   int i, j;
   
-  cep = gasnetc_node2cep[node] = &(gasnetc_cep[node * gasnetc_num_qps]);
+  cep = gasnetc_node2cep[node] = &(gasnetc_cep[node * gasnetc_alloc_qps]);
 
   if (node != gasneti_mynode) {
-    for (i = 0; i < gasnetc_num_qps; ++i, ++cep) {
+    for (i = 0; i < gasnetc_alloc_qps; ++i, ++cep) {
       gasnetc_hca_t *hca = cep->hca;
       cep->epid = gasnetc_epid(node, i);
       cep->rbuf_freelist = &hca->rbuf_freelist;
@@ -3513,7 +3517,7 @@ extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
     }
   } else {
     /* Should never use these for loopback */
-    for (i = 0; i < gasnetc_num_qps; ++i, ++cep) {
+    for (i = 0; i < gasnetc_alloc_qps; ++i, ++cep) {
       cep->epid = gasnetc_epid(node, i);
       gasneti_semaphore_init(&cep->sq_sema, 0, 0);
       gasneti_semaphore_init(&cep->am_rem, 0, 0);
@@ -3525,7 +3529,7 @@ extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
     }
   }
 #if GASNET_DEBUG
-  for (i = gasnetc_num_qps; i < gasnetc_num_qps; ++i, ++cep) {
+  for (i = gasnetc_alloc_qps; i < gasnetc_alloc_qps; ++i, ++cep) {
     /* TODO: do we want some sort of invalidation? */
   }
 #endif
@@ -3546,7 +3550,7 @@ extern void gasnetc_sndrcv_attach_peer(gasnet_node_t node) {
   gasnetc_cep_t *cep = gasnetc_node2cep[node];
   int i;
 
-  for (i = 0; i < gasnetc_num_qps; ++i, ++cep) {
+  for (i = 0; i < gasnetc_alloc_qps; ++i, ++cep) {
     gasnetc_hca_t *hca = cep->hca;
     cep->keys.seg_reg = (node == gasneti_mynode) ? NULL : hca->seg_reg;
     cep->keys.rkeys   = (node == gasneti_mynode) ? NULL : &hca->rkeys[node * gasnetc_max_regs];
@@ -3618,7 +3622,7 @@ extern void gasnetc_sndrcv_fini_peer(gasnet_node_t node) {
 
   if (node != gasneti_mynode) {
     gasnetc_cep_t *cep = gasnetc_node2cep[node];
-    for (i = 0; i < gasnetc_num_qps; ++i, ++cep) {
+    for (i = 0; i < gasnetc_alloc_qps; ++i, ++cep) {
       vstat = gasnetc_destroy_qp(cep->hca_handle, cep->qp_handle);
       GASNETC_VAPI_CHECK(vstat, "from gasnetc_destroy_qp()");
     }
