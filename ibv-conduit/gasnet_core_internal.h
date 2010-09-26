@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2010/06/27 01:04:26 $
- * $Revision: 1.160.10.6 $
+ *     $Date: 2010/09/26 06:55:05 $
+ * $Revision: 1.160.10.7 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -567,6 +567,7 @@ struct gasnetc_cep_t_ {
 };
 
 /* Routines in gasnet_core_sndrcv.c */
+extern int gasnetc_sndrcv_limits(void);
 extern int gasnetc_sndrcv_init(void);
 extern void gasnetc_sndrcv_fini(void);
 extern void gasnetc_sndrcv_init_peer(gasnet_node_t node);
@@ -598,6 +599,7 @@ extern int		gasnetc_use_rcv_thread;
 extern int		gasnetc_am_credits_slack;
 extern int		gasnetc_num_qps;    /* Number of QPs per node in gasnetc_ceps[] */
 extern int		gasnetc_normal_qps; /* How many of those (the leading ones) for normal use? */
+extern int		gasnetc_request_qps; /* How many of those (the trailing ones) for AM Requests? */
 extern size_t		gasnetc_packedlong_limit;
 extern size_t		gasnetc_inline_limit;
 extern size_t		gasnetc_bounce_limit;
@@ -618,6 +620,7 @@ extern gasneti_weakatomic_val_t gasnetc_amrdma_cycle;
 
 #if GASNETC_IBV_SRQ
   extern int			gasnetc_rbuf_limit;
+  extern int			gasnetc_rbuf_set;
   extern int			gasnetc_use_srq;
   /* If non-zero use normal credit system to throttle AMs */
   #define gasnetc_use_credits	(!gasnetc_use_srq)
