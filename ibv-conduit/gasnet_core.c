@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2010/09/26 06:55:05 $
- * $Revision: 1.223.12.21 $
+ *     $Date: 2010/09/26 20:20:29 $
+ * $Revision: 1.223.12.22 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -714,12 +714,6 @@ static void gasneti_bootstrapInit(int *argc_p, char ***argv_p,
 }
 
 /* Info used while probing for HCAs/ports */
-typedef struct {
-  int			hca_index;	/* Slot in gasnetc_hca[] */
-  gasnetc_port_t	port_num;	/* Port number */
-  gasnetc_hca_port_t	port;		/* Port info */
-  int			rd_atom;
-} gasnetc_port_info_t;
 typedef struct gasnetc_port_list_ {
   struct gasnetc_port_list_	*next;
   char				*id;
@@ -1079,7 +1073,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   }
 
   /* compute various snd/rcv resource limits */
-  i = gasnetc_sndrcv_limits();
+  i = gasnetc_sndrcv_limits(num_ports, port_tbl);
   if (i != GASNET_OK) {
     return i;
   }
@@ -1103,20 +1097,13 @@ static int gasnetc_init(int *argc, char ***argv) {
       for (j = 0; j < gasnetc_num_qps; ++j, ++i) {
         port_map[i] = &port_tbl[j % num_ports];
         hca = &gasnetc_hca[port_map[i]->hca_index];
-	hca->total_qps++;
         gasnetc_cep[i].hca = hca;
         gasnetc_cep[i].hca_handle = hca->handle;
         gasnetc_cep[i].hca_index = hca->hca_index;
       }
     }
   }
-  if (gasneti_nodes == 1) {
-    GASNETC_FOR_ALL_HCA(hca) {
-      /* Avoid a later division by zero */
-      hca->total_qps = 1;
-      hca->qps = 1;
-    }
-  } else {
+  if (gasneti_nodes != 1) {
     GASNETC_FOR_ALL_HCA(hca) {
       int j;
       hca->cep = gasneti_calloc(hca->total_qps, sizeof(gasnetc_cep_t *));
@@ -1128,7 +1115,6 @@ static int gasnetc_init(int *argc, char ***argv) {
         }
       }
       gasneti_assert(j == hca->total_qps);
-      hca->qps = hca->total_qps / (gasneti_nodes - 1);
       hca->amrdma_rcv.max_peers = MIN(gasnetc_amrdma_max_peers, hca->total_qps);
     }
   }
