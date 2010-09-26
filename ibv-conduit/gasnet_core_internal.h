@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2010/09/26 06:55:05 $
- * $Revision: 1.160.10.7 $
+ *     $Date: 2010/09/26 20:20:29 $
+ * $Revision: 1.160.10.8 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -566,8 +566,17 @@ struct gasnetc_cep_t_ {
   char			_pad2[GASNETI_CACHE_LINE_BYTES];
 };
 
+/* Info used while probing for HCAs/ports */
+typedef struct {
+  int                   hca_index;      /* Slot in gasnetc_hca[] */
+  gasnetc_port_t        port_num;       /* Port number */
+  gasnetc_hca_port_t    port;           /* Port info */
+  int                   rd_atom;
+} gasnetc_port_info_t;
+
+
 /* Routines in gasnet_core_sndrcv.c */
-extern int gasnetc_sndrcv_limits(void);
+extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl);
 extern int gasnetc_sndrcv_init(void);
 extern void gasnetc_sndrcv_fini(void);
 extern void gasnetc_sndrcv_init_peer(gasnet_node_t node);
