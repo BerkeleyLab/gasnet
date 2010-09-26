@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/09/26 06:55:05 $
- * $Revision: 1.247.10.18 $
+ *     $Date: 2010/09/26 17:24:42 $
+ * $Revision: 1.247.10.19 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3166,9 +3166,6 @@ extern int gasnetc_sndrcv_limits(void) {
 
   gasnetc_am_rbufs_per_qp = (gasnetc_am_rqst_per_qp + gasnetc_am_repl_per_qp) + (gasnetc_use_rcv_thread ? 1 : 0);
 #if GASNETC_IBV_SRQ
-  /* As per README:
-     GASNET_USE_SRQ < 0: Use SRQ only if memory savings would result
-   */
   if (gasnetc_use_srq) {
     unsigned int srq_wr_per_qp = gasnetc_rbuf_limit / gasnetc_request_qps;
     int orig = gasnetc_rbuf_limit;
@@ -3203,6 +3200,9 @@ extern int gasnetc_sndrcv_limits(void) {
               orig, gasnetc_rbuf_limit);
     }
 
+    /* As per README:
+       GASNET_USE_SRQ < 0: Use SRQ only if memory savings would result
+     */
     tmp = MIN(gasnetc_am_rbufs_per_qp, gasnetc_rbuf_limit / gasnetc_request_qps);
     gasneti_assert(gasnetc_rbuf_limit != 0);
     GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_RBUF_COUNT = %d (SRQ limit: %d, w/o SRQ: %d)",
