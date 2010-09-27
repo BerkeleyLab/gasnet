@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/09/27 04:58:20 $
- * $Revision: 1.247.10.24 $
+ *     $Date: 2010/09/27 06:20:11 $
+ * $Revision: 1.247.10.25 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1192,15 +1192,14 @@ void gasnetc_rcv_am(const gasnetc_wc_t *comp, gasnetc_rbuf_t **spare_p) {
       }
       gasneti_assert(i < gasnetc_num_qps);
     }
-    if (GASNETC_MSG_ISREPLY(flags)) {
-      cep += gasnetc_num_qps; /* Shift to top half of table */
-    }
     rbuf->cep = cep;
 
     /* Process and repost w/o any fancy tricks to keep credits perfectly accurate */
     gasnetc_processPacket(cep, rbuf, flags);
     if_pf (rbuf->rbuf_needReply) {
-      gasnetc_hidden_ack(rbuf, cep);
+      /* MUST send back a reply - no coallescing */
+      GASNETI_SAFE(gasnetc_ReplySystem((gasnet_token_t)rbuf, NULL,
+				        gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */));
     }
     gasnetc_rcv_post(cep, rbuf);
   } else
