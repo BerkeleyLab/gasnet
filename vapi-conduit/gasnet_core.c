@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/09/26 22:30:21 $
- * $Revision: 1.223.12.23 $
+ *     $Date: 2010/09/27 21:01:09 $
+ * $Revision: 1.223.12.24 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1366,8 +1366,9 @@ static int gasnetc_init(int *argc, char ***argv) {
       hca = gasnetc_cep[i].hca;
       qp_init_attr.send_cq         = hca->snd_cq;
       qp_init_attr.recv_cq         = hca->rcv_cq;
-      #if GASNETC_IBV_SRQ
-        qp_init_attr.srq           = hca->srq; /* NULL if SRQ disabled */
+      #if GASNETC_IBV_SRQ  /* Note both hca fields are NULL if SRQ disabled */
+        gasnetc_cep[i].srq = qp_init_attr.srq =
+                ((i / gasnetc_num_qps) & 1) ? hca->rqst_srq : hca->repl_srq;
       #endif
       while (1) {	/* No query for max_inline_data limit */
         hndl = ibv_create_qp(hca->pd, &qp_init_attr);
