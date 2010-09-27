@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/09/27 06:20:11 $
- * $Revision: 1.247.10.25 $
+ *     $Date: 2010/09/27 18:50:08 $
+ * $Revision: 1.247.10.26 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3249,7 +3249,6 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
     gasnetc_alloc_qps = 2 * gasnetc_num_qps;
     GASNETC_FOR_ALL_HCA(hca) {
       hca->total_qps *= 2;
-      hca->qps       *= 2;
     }
   } else
 #endif
