@@ -1,7 +1,7 @@
 README file for vapi-conduit and ibv-conduit
 ============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.55.12.9 $
+$Revision: 1.55.12.10 $
 
 @ TOC: @
 @ Section: VAPI vs IBV @
@@ -501,7 +501,7 @@ $Revision: 1.55.12.9 $
     to the requester.
     The default value is 1.
     GASNET_AM_CREDITS_SLACK will be silently reduced if needed to
-    ensure deadlock will not occur.
+    ensure deadlock will not occur, and is ignored when SRQ is used.
     Reducing this parameter to zero or setting it too high may
     increase the latency of Active Message traffic.
 
