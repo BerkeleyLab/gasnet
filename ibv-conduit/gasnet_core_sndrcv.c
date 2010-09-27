@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/09/26 22:30:21 $
- * $Revision: 1.247.10.21 $
+ *     $Date: 2010/09/27 02:40:51 $
+ * $Revision: 1.247.10.22 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1098,11 +1098,12 @@ gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid,
     qpi = ((qpi == 0) ? gasnetc_num_qps : qpi) - 1;
     *(volatile int *)(&prev) = qpi;
 #endif
+    gasneti_assert(qpi < gasnetc_num_qps);
   } else {
     --qpi; /* offset */
+    gasneti_assert(qpi < gasnetc_alloc_qps);
   }
 
-  gasneti_assert(qpi < gasnetc_num_qps);
   return qpi;
 #else
   return 0;
@@ -1180,13 +1181,13 @@ void gasnetc_rcv_am(const gasnetc_wc_t *comp, gasnetc_rbuf_t **spare_p) {
 
     /* XXX: SRQ means rbuf->cep is "inexact", so must reconstruct */
     cep = gasnetc_node2cep[GASNETC_MSG_SRCIDX(flags)];
-    if (gasnetc_num_qps > 1) {
+    {
       gasnetc_hca_t * const hca = rbuf->cep->hca; /* this much is correct */
       int i;
-      for (i=0; i<gasnetc_num_qps; ++i, ++cep) {
+      for (i=0; i<gasnetc_alloc_qps; ++i, ++cep) {
         if ((cep->qp_handle->qp_num == comp->qp_num) && (cep->hca == hca)) break;
       }
-      gasneti_assert(i < gasnetc_num_qps);
+      gasneti_assert(i < gasnetc_alloc_qps);
     }
     rbuf->cep = cep;
 
@@ -2049,7 +2050,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       epid = cep->epid;
     } else {
       int qpi;
-      cep = gasnetc_node2cep[dest];
+      cep = gasnetc_node2cep[dest] + (gasnetc_use_srq * gasnetc_num_qps);
 #if 0
       /* Bind to a specific queue pair, selecting by largest credits */
       qpi = 0;
