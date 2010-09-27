@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/09/27 21:01:09 $
- * $Revision: 1.247.10.27 $
+ *     $Date: 2010/09/27 23:16:32 $
+ * $Revision: 1.247.10.28 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3525,7 +3525,7 @@ extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
       }
 
       /* Setup semaphores/counters */
-      gasneti_semaphore_init(&cep->sq_sema, gasnetc_op_oust_pp, gasnetc_op_oust_pp);
+      /* sq_sema now set when QP is created */
       if (gasnetc_use_credits) {
         gasneti_semaphore_init(&cep->am_rem, gasnetc_am_oust_pp, gasnetc_am_oust_pp);
       } else {
