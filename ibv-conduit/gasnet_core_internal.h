@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2010/09/26 22:30:21 $
- * $Revision: 1.160.10.9 $
+ *     $Date: 2010/09/27 21:01:09 $
+ * $Revision: 1.160.10.10 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -458,7 +458,8 @@ typedef struct {
   gasnetc_rkey_t	*rkeys;	/* RKey(s) registered at attach time */
 #endif
 #if GASNETC_IBV_SRQ
-  struct ibv_srq	*srq;
+  struct ibv_srq	*rqst_srq;
+  struct ibv_srq	*repl_srq;
 #endif
   gasnetc_cq_hndl_t	rcv_cq;
   gasnetc_cq_hndl_t	snd_cq;
@@ -562,6 +563,9 @@ struct gasnetc_cep_t_ {
   gasnetc_epid_t	epid;		/* == uint32_t */
   gasnetc_amrdma_buf_t	*amrdma_loc;	
   uintptr_t		amrdma_rem;
+#if GASNETC_IBV_SRQ
+  struct ibv_srq	*srq;
+#endif
 
   char			_pad2[GASNETI_CACHE_LINE_BYTES];
 };
