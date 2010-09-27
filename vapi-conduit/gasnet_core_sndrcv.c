@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/09/27 04:50:56 $
- * $Revision: 1.247.10.23 $
+ *     $Date: 2010/09/27 04:58:20 $
+ * $Revision: 1.247.10.24 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1181,13 +1181,19 @@ void gasnetc_rcv_am(const gasnetc_wc_t *comp, gasnetc_rbuf_t **spare_p) {
 
     /* XXX: SRQ means rbuf->cep is "inexact", so must reconstruct */
     cep = gasnetc_node2cep[GASNETC_MSG_SRCIDX(flags)];
-    {
+    if (GASNETC_MSG_ISREQUEST(flags)) {
+      cep += gasnetc_num_qps; /* Search top half of table */
+    }
+    if (gasnetc_num_qps > 1) {
       gasnetc_hca_t * const hca = rbuf->cep->hca; /* this much is correct */
       int i;
-      for (i=0; i<gasnetc_alloc_qps; ++i, ++cep) {
+      for (i=0; i<gasnetc_num_qps; ++i, ++cep) {
         if ((cep->qp_handle->qp_num == comp->qp_num) && (cep->hca == hca)) break;
       }
-      gasneti_assert(i < gasnetc_alloc_qps);
+      gasneti_assert(i < gasnetc_num_qps);
+    }
+    if (GASNETC_MSG_ISREPLY(flags)) {
+      cep += gasnetc_num_qps; /* Shift to top half of table */
     }
     rbuf->cep = cep;
 
@@ -2041,16 +2047,18 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
     gasnetc_epid_t epid;
     gasnetc_cep_t *cep;
     char tmp_buf[sizeof(gasnetc_am_tmp_buf_t) + 8];
+    const int qp_offset = gasnetc_use_srq ? gasnetc_num_qps : 0;
   
-    /* For a Reply, we must go back via the same qp that the Request came in on.
+    /* For a Reply, we must go back via the "same" qp that the Request came in on.
+     * However, w/ SRQ that means the one in the lower half of the table.
      * For a Request, we bind to a qp now to be sure everything goes on one qp.
      */
     if (token) {
-      cep = token->cep;
+      cep = token->cep - qp_offset;
       epid = cep->epid;
     } else {
       int qpi;
-      cep = gasnetc_node2cep[dest] + (gasnetc_use_srq * gasnetc_num_qps);
+      cep = gasnetc_node2cep[dest] + qp_offset;
 #if 0
       /* Bind to a specific queue pair, selecting by largest credits */
       qpi = 0;
@@ -2072,7 +2080,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
         qpi = gasnetc_epid_select_qpi(cep, dest, GASNETC_WR_SEND_WITH_IMM, rough_len);
       }
 #endif
-      epid = gasnetc_epid(dest, qpi + (gasnetc_use_srq * gasnetc_num_qps));
+      epid = gasnetc_epid(dest, qpi + qp_offset);
       cep += qpi;
     }
   
