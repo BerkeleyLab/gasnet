@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/09/28 03:22:31 $
- * $Revision: 1.247.10.30 $
+ *     $Date: 2010/09/28 08:28:23 $
+ * $Revision: 1.247.10.31 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3342,6 +3342,7 @@ extern int gasnetc_sndrcv_init(void) {
         attr.attr.max_sge = 1;
         hca->rqst_srq = ibv_create_srq(hca->pd, &attr);
         GASNETC_VAPI_CHECK_PTR(hca->rqst_srq, "from ibv_create_srq(Request)");
+        gasneti_semaphore_init(&hca->am_sema, rqst_count, rqst_count);
 
         memset(&attr, 0, sizeof(attr));
         attr.attr.max_wr = repl_count;
@@ -3437,6 +3438,9 @@ extern int gasnetc_sndrcv_init(void) {
     GASNETI_TRACE_PRINTF(I, ("Send CQ length: requested=%d actual=%d", (int)cqe_count, (int)act_size));
     gasneti_assert(act_size >= cqe_count);
     /* We use actual size here, since the memory has been allocated anyway */
+    if (gasnetc_use_srq) {
+        act_size -= hca->qps * gasnetc_am_rqst_per_qp; /* On hca->am_sema instead */
+    }
     gasneti_semaphore_init(&gasnetc_cq_semas[hca->hca_index], act_size, act_size);
   }
 
@@ -3555,6 +3559,11 @@ extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
       }
       gasneti_weakatomic_set(&cep->am_flow.credit, 0, 0);
       gasneti_weakatomic_set(&cep->am_flow.ack, 0, 0);
+#if GASNETC_IBV_SRQ
+      if (i >= gasnetc_num_qps) {
+        cep->snd_cq_sema_p = &hca->am_sema;
+      } else
+#endif
       cep->snd_cq_sema_p = &gasnetc_cq_semas[cep->hca_index];
     }
   } else {
