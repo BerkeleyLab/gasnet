@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/09/27 23:16:32 $
- * $Revision: 1.247.10.28 $
+ *     $Date: 2010/09/28 02:32:47 $
+ * $Revision: 1.247.10.29 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -282,6 +282,8 @@ static void gasnetc_free_aligned(void *ptr) {
 #define GASNETC_SREQS_GROWTHCNT 32 /* sreq list always grown by this size increment */
 static int gasnetc_snd_reap(int);
 
+static void gasnetc_rcv_am(const gasnetc_wc_t *, gasnetc_rbuf_t **);
+
 static void gasnetc_free_sreqs(void *_ptr) {
   gasnetc_sreq_t *ptr = (gasnetc_sreq_t *)_ptr;
   int i;
@@ -465,7 +467,7 @@ void *gasnetc_sr_desc_init(gasnetc_snd_wr_t *result, gasnetc_sge_t *sg_lst_p, in
   #define CQ_UNLOCK	do {} while (0)
 #endif
 
-#define gasnetc_poll_rcv()		gasnetc_do_poll(1,0)
+#define gasnetc_poll_rcv()		gasnetc_do_poll(1,gasnetc_use_srq /* Reply on snd_cq */)
 #define gasnetc_poll_snd()		gasnetc_do_poll(0,1)
 #define gasnetc_poll_both()		gasnetc_do_poll(1,1)
 
@@ -938,6 +940,15 @@ static int gasnetc_snd_reap(int limit) {
     } else if_pt (rc == GASNETC_POLL_CQ_OK) {
       if_pt (comp.status == GASNETC_WC_SUCCESS) {
         gasnetc_sreq_t *sreq = (gasnetc_sreq_t *)(uintptr_t)comp.gasnetc_f_wr_id;
+
+#if GASNETC_IBV_SRQ
+        if (comp.opcode == IBV_WC_RECV) {
+	  gasneti_assert(GASNETC_MSG_ISREPLY(comp.imm_data));
+	  gasnetc_rcv_am(&comp, NULL);
+	  continue;
+	}
+#endif
+
         if_pt (sreq) {
 	  gasneti_assert(sreq->opcode != GASNETC_OP_INVALID);
 	  #if GASNETC_USE_POST_LIST
@@ -1160,7 +1171,7 @@ void gasnetc_hidden_ack(gasnetc_rbuf_t *rbuf, gasnetc_cep_t *cep) {
   } while (!gasneti_weakatomic_compare_and_swap(&cep->am_flow.credit, old, old+1, 0));
 }
 
-GASNETI_INLINE(gasnetc_rcv_am)
+static
 void gasnetc_rcv_am(const gasnetc_wc_t *comp, gasnetc_rbuf_t **spare_p) {
   gasnetc_rbuf_t emergency_spare;
   gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)(uintptr_t)comp->gasnetc_f_wr_id;
@@ -3275,10 +3286,12 @@ extern int gasnetc_sndrcv_init(void) {
   /* create one RCV CQ per HCA */
   GASNETC_FOR_ALL_HCA(hca) {
     const int rcv_count = hca->qps * gasnetc_am_rbufs_per_qp;
-    vstat = gasnetc_create_cq(hca->handle, rcv_count, &hca->rcv_cq, &act_size);
+    const gasnetc_cqe_cnt_t cqe_count = gasnetc_use_srq ? MAX(1, hca->qps * gasnetc_am_rqst_per_qp)
+                                                        : rcv_count;
+    vstat = gasnetc_create_cq(hca->handle, cqe_count, &hca->rcv_cq, &act_size);
     GASNETC_VAPI_CHECK(vstat, "from gasnetc_create_cq(rcv_cq)");
-    GASNETI_TRACE_PRINTF(I, ("Recv CQ length: requested=%d actual=%d", rcv_count, (int)act_size));
-    gasneti_assert(act_size >= rcv_count);
+    GASNETI_TRACE_PRINTF(I, ("Recv CQ length: requested=%d actual=%d", (int)cqe_count, (int)act_size));
+    gasneti_assert(act_size >= cqe_count);
     /* We don't set rcv_count = act_size here, as that could nearly double the memory allocated below */
 
     gasneti_lifo_init(&hca->amrdma_freelist);
@@ -3413,14 +3426,15 @@ extern int gasnetc_sndrcv_init(void) {
   gasnetc_cq_semas = (gasneti_semaphore_t *)
 	  gasnett_malloc_aligned(GASNETI_CACHE_LINE_BYTES, gasnetc_num_hcas*sizeof(gasneti_semaphore_t));
   gasnetc_op_oust_per_qp = MAX(1, gasnetc_op_oust_per_qp); /* Avoid error in single-node case */
-  GASNETC_FOR_ALL_HCA_INDEX(h) {
-    hca = &gasnetc_hca[h];
-    vstat = gasnetc_create_cq(hca->handle, hca->qps * gasnetc_op_oust_per_qp, &hca->snd_cq, &act_size);
+  GASNETC_FOR_ALL_HCA(hca) {
+    const gasnetc_cqe_cnt_t cqe_count = hca->qps * (gasnetc_op_oust_per_qp +
+                                                    (gasnetc_use_srq * gasnetc_am_repl_per_qp));
+    vstat = gasnetc_create_cq(hca->handle, cqe_count, &hca->snd_cq, &act_size);
     GASNETC_VAPI_CHECK(vstat, "from gasnetc_create_cq(snd_cq)");
-    GASNETI_TRACE_PRINTF(I, ("Send CQ length: requested=%d actual=%d", (int)(hca->qps * gasnetc_op_oust_per_qp), (int)act_size));
-    gasneti_assert(act_size >= hca->qps * gasnetc_op_oust_per_qp);
+    GASNETI_TRACE_PRINTF(I, ("Send CQ length: requested=%d actual=%d", (int)cqe_count, (int)act_size));
+    gasneti_assert(act_size >= cqe_count);
     /* We use actual size here, since the memory has been allocated anyway */
-    gasneti_semaphore_init(&gasnetc_cq_semas[h], act_size, act_size);
+    gasneti_semaphore_init(&gasnetc_cq_semas[hca->hca_index], act_size, act_size);
   }
 
   /* Allocated pinned memory for AMs and bounce buffers */
@@ -3553,11 +3567,6 @@ extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
       cep->amrdma_loc = NULL;
     }
   }
-#if GASNET_DEBUG
-  for (i = gasnetc_alloc_qps; i < gasnetc_alloc_qps; ++i, ++cep) {
-    /* TODO: do we want some sort of invalidation? */
-  }
-#endif
 }
 
 extern void gasnetc_sndrcv_init_misc(void) {
