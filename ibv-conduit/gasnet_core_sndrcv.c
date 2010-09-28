@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/09/28 02:32:47 $
- * $Revision: 1.247.10.29 $
+ *     $Date: 2010/09/28 03:22:31 $
+ * $Revision: 1.247.10.30 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3193,7 +3193,7 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
     /* no AM or RDMA on the wire, but still need bufs for constructing AMs */
     gasnetc_bbuf_limit = gasnetc_num_qps * gasnetc_am_oust_pp;
   }
-  GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_BBUF_COUNT = %d", gasnetc_bbuf_limit));
+  /* SRQ may raise this.  So, report is deferred. */
 
   gasnetc_am_rbufs_per_qp = gasnetc_am_rqst_per_qp + gasnetc_am_repl_per_qp + rcv_spare;
 #if GASNETC_IBV_SRQ
@@ -3246,6 +3246,8 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
       gasnetc_am_rqst_per_qp = tmp - (gasnetc_am_repl_per_qp + rcv_spare);
       gasnetc_am_rbufs_per_qp = tmp;
       gasnetc_use_srq = 1;
+      /* Need to ensure some BBUFs avail even if max number of AM Requests are all blocked */
+      gasnetc_bbuf_limit = MAX(gasnetc_bbuf_limit, MIN(64, gasnetc_op_oust_limit) + gasnetc_am_oust_limit);
     }
   } else {
     GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_RBUF_COUNT = %d", gasnetc_am_rbufs_per_qp * gasnetc_num_qps));
@@ -3256,6 +3258,7 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
 #else
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_RBUF_COUNT = %d", gasnetc_am_rbufs_per_qp * gasnetc_num_qps));
 #endif
+  GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_BBUF_COUNT = %d", gasnetc_bbuf_limit));
 
 #if GASNETC_IBV_SRQ
   if (gasnetc_use_srq) {
