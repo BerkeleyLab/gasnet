@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2010/09/27 23:16:32 $
- * $Revision: 1.223.12.25 $
+ *     $Date: 2010/09/28 02:32:47 $
+ * $Revision: 1.223.12.26 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1349,11 +1349,9 @@ static int gasnetc_init(int *argc, char ***argv) {
   {
     struct ibv_qp_init_attr	qp_init_attr;
     const int			max_recv_wr = gasnetc_use_srq ? 0 : gasnetc_am_oust_pp * 2;
-  #if !GASNETC_IBV_SRQ
-    const int			max_send_wr = gasnetc_op_oust_pp;
-  #endif
+    int				max_send_wr = gasnetc_op_oust_pp;
 
-    qp_init_attr.cap.max_send_wr     = gasnetc_op_oust_pp;
+    qp_init_attr.cap.max_send_wr     = max_send_wr;
     qp_init_attr.cap.max_recv_wr     = max_recv_wr;
     qp_init_attr.cap.max_send_sge    = GASNETC_SND_SG;
     qp_init_attr.cap.max_recv_sge    = 1;
@@ -1364,11 +1362,6 @@ static int gasnetc_init(int *argc, char ***argv) {
     qp_init_attr.srq                 = NULL;
 
     for (i = 0; i < ceps; ++i) {
-    #if GASNETC_IBV_SRQ
-      const int is_request = gasnetc_use_srq && ((i / gasnetc_num_qps) & 1);
-      struct ibv_srq *srq = NULL;
-      int max_send_wr;
-    #endif
       gasnetc_qp_hndl_t hndl;
 
       if (!gasnetc_cep[i].hca) continue;
@@ -1378,16 +1371,22 @@ static int gasnetc_init(int *argc, char ***argv) {
       qp_init_attr.send_cq         = hca->snd_cq;
       qp_init_attr.recv_cq         = hca->rcv_cq;
     #if GASNETC_IBV_SRQ
-      if (is_request) {
-        srq = hca->rqst_srq;
-        max_send_wr = gasnetc_am_oust_pp;
-      } else {
-        srq = hca->repl_srq;
-        max_send_wr = gasnetc_op_oust_pp;
+      if (gasnetc_use_srq) {
+        const int is_request = ((i / gasnetc_num_qps) & 1);
+
+        if (is_request) {
+          qp_init_attr.srq = hca->rqst_srq;
+          qp_init_attr.cap.max_send_wr = gasnetc_am_oust_pp;
+        } else {
+          qp_init_attr.srq = hca->repl_srq;
+          qp_init_attr.cap.max_send_wr = gasnetc_op_oust_pp;
+          /* To make independent progress we want Reply traffic on the "snd" CQ */
+          qp_init_attr.recv_cq = hca->snd_cq;
+        }
+        gasnetc_cep[i].srq = qp_init_attr.srq;
+        max_send_wr = qp_init_attr.cap.max_send_wr;
       }
-      gasnetc_cep[i].srq = qp_init_attr.srq = srq; /* NULL if disabled */
     #endif
-      qp_init_attr.cap.max_send_wr = max_send_wr;
       while (1) {	/* No query for max_inline_data limit */
         hndl = ibv_create_qp(hca->pd, &qp_init_attr);
 	if (hndl != NULL) break;
