@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/09/29 04:56:19 $
- * $Revision: 1.247.10.32 $
+ *     $Date: 2010/09/29 06:49:29 $
+ * $Revision: 1.247.10.33 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1265,6 +1265,9 @@ void gasnetc_rcv_am(const gasnetc_wc_t *comp, gasnetc_rbuf_t **spare_p) {
     }
   }
 
+  if (gasnetc_use_srq && GASNETC_MSG_ISREPLY(flags)) {
+    /* XXX: SRQ has issue w/ the "grant" AM while collecting Replies from the SND CQ */
+  } else 
   if ((comp->byte_len <= gasnetc_amrdma_limit) && gasneti_attach_done && gasnetc_amrdma_max_peers) {
     gasnetc_amrdma_eligable(cep);
   }
