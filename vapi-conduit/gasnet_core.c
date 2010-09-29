@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/09/28 02:32:47 $
- * $Revision: 1.223.12.26 $
+ *     $Date: 2010/09/29 08:52:37 $
+ * $Revision: 1.223.12.27 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1380,8 +1380,6 @@ static int gasnetc_init(int *argc, char ***argv) {
         } else {
           qp_init_attr.srq = hca->repl_srq;
           qp_init_attr.cap.max_send_wr = gasnetc_op_oust_pp;
-          /* To make independent progress we want Reply traffic on the "snd" CQ */
-          qp_init_attr.recv_cq = hca->snd_cq;
         }
         gasnetc_cep[i].srq = qp_init_attr.srq;
         max_send_wr = qp_init_attr.cap.max_send_wr;
