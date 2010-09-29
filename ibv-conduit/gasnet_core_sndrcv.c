@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/09/28 08:28:23 $
- * $Revision: 1.247.10.31 $
+ *     $Date: 2010/09/29 04:56:19 $
+ * $Revision: 1.247.10.32 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1083,11 +1083,11 @@ static int gasnetc_snd_reap(int limit) {
 GASNETI_INLINE(gasnetc_epid_select_qpi)
 gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid,
 				       gasnetc_wr_opcode_t op, size_t len) {
-#if GASNETC_IB_MAX_HCAS > 1
   gasnetc_epid_t qpi = gasnetc_epid2qpi(epid);
 
   if_pt (qpi == 0) {
-#if 0
+#if GASNETC_IB_MAX_HCAS > 1
+ #if 0
     /* Select by largest space avail */
     uint32_t space, best_space;
     int i;
@@ -1101,24 +1101,22 @@ gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid,
         qpi = i;
       }
     }
-#else
+ #else
     /* Simple round-robin (w/ a harmless multi-thread race) */
     /* Note use of casts to volatile are require to work around bug 1586 */
     static int prev = 0;
     qpi = *(volatile int *)(&prev);
     qpi = ((qpi == 0) ? gasnetc_num_qps : qpi) - 1;
     *(volatile int *)(&prev) = qpi;
-#endif
+ #endif
     gasneti_assert(qpi < gasnetc_num_qps);
+#endif
   } else {
     --qpi; /* offset */
     gasneti_assert(qpi < gasnetc_alloc_qps);
   }
 
   return qpi;
-#else
-  return 0;
-#endif
 }
 
 /* Take (sreq,op,len) and bind the sreq to a specific (not wildcard) qp */
