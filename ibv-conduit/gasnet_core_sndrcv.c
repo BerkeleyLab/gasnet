@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/09/30 05:30:54 $
- * $Revision: 1.247.10.35 $
+ *     $Date: 2010/10/01 04:32:18 $
+ * $Revision: 1.247.10.36 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1404,12 +1404,12 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
 
   /* Account for any recv buffer that was reserved for the reply, but not used.
    * Must precede credit processing in gasnetc_processPacket (bug 2359) */
-#if GASNETC_IBV_SRQ
-  if (gasnetc_use_srq) {
-    gasneti_semaphore_up(&cep->hca->am_sema);
-  } else
-#endif
   if (GASNETC_MSG_ISREPLY(flags)) {
+#if GASNETC_IBV_SRQ
+    if (gasnetc_use_srq) {
+      gasneti_semaphore_up(&cep->hca->am_sema);
+    } else
+#endif
     gasneti_semaphore_up(&cep->am_loc);
   }
 
