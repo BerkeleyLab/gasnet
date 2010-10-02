@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/10/01 04:32:18 $
- * $Revision: 1.247.10.36 $
+ *     $Date: 2010/10/02 19:15:24 $
+ * $Revision: 1.247.10.37 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -554,9 +554,20 @@ static void gasnetc_do_select(gasnetc_hca_t *hca, int size) {
 }
 
 static void gasnetc_amrdma_grant(gasnetc_hca_t *hca, gasnetc_cep_t *cep) {
+  gasnet_node_t node = gasnetc_epid2node(cep->epid);
+  int qpi = gasnetc_epid2qpi(cep->epid);
+
+  if (gasnetc_use_srq) { /* Cross-over keeping in mind that qpi is 1-based */
+    if (qpi > gasnetc_num_qps) {
+      qpi -= gasnetc_num_qps;
+    } else {
+      qpi += gasnetc_num_qps;
+    }
+  }
+
   gasneti_assert(cep->amrdma_loc == NULL);
 
-  GASNETI_TRACE_PRINTF(C,("AMRDMA_GRANT_SND to node=%d qp=%d\n", (int)gasnetc_epid2node(cep->epid), (int)gasnetc_epid2qpi(cep->epid)-1));
+  GASNETI_TRACE_PRINTF(C,("AMRDMA_GRANT_SND to node=%d qp=%d\n", (int)node, (qpi - 1)));
 
   cep->amrdma_loc = gasneti_lifo_pop(&hca->amrdma_freelist);
   if (cep->amrdma_loc != NULL) {
@@ -580,8 +591,8 @@ static void gasnetc_amrdma_grant(gasnetc_hca_t *hca, gasnetc_cep_t *cep) {
     gasneti_weakatomic_set(&hca->amrdma_rcv.count, count+1, GASNETI_ATOMIC_REL);
 
     GASNETI_SAFE(
-	SHORT_REQ(3,4,(gasnetc_epid2node(cep->epid), gasneti_handleridx(gasnetc_amrdma_grant_reqh),
-		       (gasnet_handlerarg_t)gasnetc_epid2qpi(cep->epid),
+	SHORT_REQ(3,4,(node, gasneti_handleridx(gasnetc_amrdma_grant_reqh),
+		       (gasnet_handlerarg_t)qpi,
 		       (gasnet_handlerarg_t)hca->amrdma_reg.rkey,
 		       PACK(cep->amrdma_loc))));
   }
@@ -717,7 +728,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
       int acks = (args[0] >> 8) & 0xff;
       credits = args[0] & 0xff;
 
-      gasneti_assert(!gasnetc_use_srq);
+      gasneti_assert(!gasnetc_use_srq || !credits);
 
       if (acks) {
         gasneti_assert(acks <= gasnetc_amrdma_depth);
@@ -1151,6 +1162,7 @@ void gasnetc_hidden_ack(gasnetc_rbuf_t *rbuf, gasnetc_cep_t *cep) {
 				        gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */));
       break;
     }
+    gasneti_assert(!gasnetc_use_srq);
   } while (!gasneti_weakatomic_compare_and_swap(&cep->am_flow.credit, old, old+1, 0));
 }
 
@@ -1263,8 +1275,8 @@ void gasnetc_rcv_am(const gasnetc_wc_t *comp, gasnetc_rbuf_t **spare_p) {
     }
   }
 
-  if (gasnetc_use_srq) {
-    /* XXX: AM-over-RDMA not yet modified to deal w/ split QPs */
+  if (gasnetc_use_srq && GASNETC_MSG_ISREQUEST(flags)) {
+    /* XXX: SRQ has issues w/ AMRDMA on Requests */
   } else 
   if ((comp->byte_len <= gasnetc_amrdma_limit) && gasneti_attach_done && gasnetc_amrdma_max_peers) {
     gasnetc_amrdma_eligable(cep);
@@ -2101,8 +2113,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
      * allow a race where we allocate space for the args, but end up sending
      * pointless zero values in them.
      */
-    have_flow = !gasnetc_use_srq &&
-		(gasneti_weakatomic_read(&cep->am_flow.credit, 0) ||
+    have_flow = (gasneti_weakatomic_read(&cep->am_flow.credit, 0) ||
 		 gasneti_weakatomic_read(&cep->am_flow.ack, 0));
     if (have_flow) numargs += 1;
   
@@ -2295,6 +2306,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       i = 1;
 
       GASNETI_TRACE_PRINTF(C,("SND_AM_CREDITS credits=%d acks=%d\n", credits, acks));
+      gasneti_assert(!gasnetc_use_srq || !credits);
     }
     for (/*EMPTY*/; i < numargs; ++i) {
       args[i] = va_arg(argptr, gasnet_handlerarg_t);
@@ -3255,6 +3267,7 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
       gasnetc_am_rqst_per_qp = tmp - (gasnetc_am_repl_per_qp + rcv_spare);
       gasnetc_am_rbufs_per_qp = tmp;
       gasnetc_use_srq = 1;
+      gasnetc_am_credits_slack = 0;
       /* Need to ensure some BBUFs avail even if max number of AM Requests are all blocked */
       gasnetc_bbuf_limit = MAX(gasnetc_bbuf_limit, MIN(64, gasnetc_op_oust_limit) + gasnetc_am_oust_limit);
     }
