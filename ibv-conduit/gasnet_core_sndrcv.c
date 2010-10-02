@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/10/02 19:15:24 $
- * $Revision: 1.247.10.37 $
+ *     $Date: 2010/10/02 20:45:45 $
+ * $Revision: 1.247.10.38 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1162,7 +1162,7 @@ void gasnetc_hidden_ack(gasnetc_rbuf_t *rbuf, gasnetc_cep_t *cep) {
 				        gasneti_handleridx(gasnetc_SYS_ack), 0 /* no args */));
       break;
     }
-    gasneti_assert(!gasnetc_use_srq);
+    gasneti_assert(!gasnetc_use_srq); /* No coalescing when using SRQ */
   } while (!gasneti_weakatomic_compare_and_swap(&cep->am_flow.credit, old, old+1, 0));
 }
 
@@ -1200,14 +1200,14 @@ void gasnetc_rcv_am(const gasnetc_wc_t *comp, gasnetc_rbuf_t **spare_p) {
       }
       gasneti_assert(i < gasnetc_num_qps);
     }
-    rbuf->cep = cep;
 
-    /* All flow-control applies to opposite member of the pair */
+    /* All flow-control and any Reply belong to opposite member of the pair */
     if (GASNETC_MSG_ISREPLY(flags)) {
       cep += gasnetc_num_qps;
     } else {
       cep -= gasnetc_num_qps;
     }
+    rbuf->cep = cep;
 
     /* Process and repost w/o any fancy tricks to keep credits perfectly accurate */
     gasnetc_processPacket(cep, rbuf, flags);
@@ -1275,9 +1275,6 @@ void gasnetc_rcv_am(const gasnetc_wc_t *comp, gasnetc_rbuf_t **spare_p) {
     }
   }
 
-  if (gasnetc_use_srq && GASNETC_MSG_ISREQUEST(flags)) {
-    /* XXX: SRQ has issues w/ AMRDMA on Requests */
-  } else 
   if ((comp->byte_len <= gasnetc_amrdma_limit) && gasneti_attach_done && gasnetc_amrdma_max_peers) {
     gasnetc_amrdma_eligable(cep);
   }
@@ -2070,16 +2067,16 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
     gasnetc_epid_t epid;
     gasnetc_cep_t *cep;
     char tmp_buf[sizeof(gasnetc_am_tmp_buf_t) + 8];
-    const int qp_offset = gasnetc_use_srq ? gasnetc_num_qps : 0;
   
     /* For a Reply, we must go back via the "same" qp that the Request came in on.
-     * However, w/ SRQ that means the one in the lower half of the table.
+     * With SRQ the token already includes the cross-over to the Reply channel.
      * For a Request, we bind to a qp now to be sure everything goes on one qp.
      */
     if (token) {
-      cep = token->cep - qp_offset;
+      cep = token->cep;
       epid = cep->epid;
     } else {
+      const int qp_offset = gasnetc_use_srq ? gasnetc_num_qps : 0;
       int qpi;
       cep = gasnetc_node2cep[dest] + qp_offset;
 #if 0
@@ -2306,7 +2303,6 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       i = 1;
 
       GASNETI_TRACE_PRINTF(C,("SND_AM_CREDITS credits=%d acks=%d\n", credits, acks));
-      gasneti_assert(!gasnetc_use_srq || !credits);
     }
     for (/*EMPTY*/; i < numargs; ++i) {
       args[i] = va_arg(argptr, gasnet_handlerarg_t);
