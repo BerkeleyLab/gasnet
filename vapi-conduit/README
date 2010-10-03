@@ -1,7 +1,7 @@
 README file for vapi-conduit and ibv-conduit
 ============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.55.12.10 $
+$Revision: 1.55.12.11 $
 
 @ TOC: @
 @ Section: VAPI vs IBV @
@@ -447,7 +447,7 @@ $Revision: 1.55.12.10 $
     (for example, when the remote range of a PUT or GET covers more
     than one pinned region, due to GASNET_PIN_MAXSZ, or because an AM
     Long uses separate ops for the payload and header).
-    The default value is 64.
+    The default value is 24.
     Reducing this parameter may limit small message throughput.  If you
     believe your small message throughput is too low, you may try
     increasing this value.
@@ -472,7 +472,7 @@ $Revision: 1.55.12.10 $
     Reply has not yet been processed for AM flow control (described in
     another section of this README).  This is the number of buffers which
     must be preposted to each receive work queue for AM Requests.
-    The default value is 32 (128KB*(N-1) allocated for Request buffers).
+    The default value is 12 (48KB*(N-1) allocated for Request buffers).
     Reducing this parameter may limit Active Message throughput.  If you
     believe your Active Message throughput is too low, you may try
     increasing this value.
@@ -485,7 +485,7 @@ $Revision: 1.55.12.10 $
     follows each AM Request.
     If set to zero, the value is set to the maximum usable value computed
     from GASNET_AM_CREDITS_PP and the HCA's reported capabilities.
-    The default value is MIN(1024, nodes*GASNET_AM_CREDITS_PP).
+    The default value is MIN(256, nodes*GASNET_AM_CREDITS_PP).
     Reducing this parameter may limit Active Message throughput.  If you
     believe your Active Message throughput is too low, you may try
     increasing this value (or setting it to zero), at a cost in additional
