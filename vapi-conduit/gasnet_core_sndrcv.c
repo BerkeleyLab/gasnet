@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/10/03 02:21:25 $
- * $Revision: 1.247.10.40 $
+ *     $Date: 2010/10/03 03:14:34 $
+ * $Revision: 1.247.10.41 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1365,7 +1365,7 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
     return 0;
   }
 #endif
-  gasneti_assert(length > 0);
+  gasneti_assert(length >= 0);
   gasneti_assert(length <= gasnetc_amrdma_limit);
 
   flags = hdr->immediate_data;
@@ -2130,7 +2130,8 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       break;
   
     case gasnetc_Medium:
-      msg_len = nbytes ? (GASNETC_MSG_MED_ARGSEND(numargs) + nbytes) : 0;
+      /* XXX: When nbytes == 0 we still round up the header to 8-bytes */
+      msg_len = GASNETC_MSG_MED_ARGSEND(numargs) + nbytes;
       break;
   
     case gasnetc_Long:
