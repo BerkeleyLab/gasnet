@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/10/02 20:45:45 $
- * $Revision: 1.247.10.38 $
+ *     $Date: 2010/10/03 02:01:38 $
+ * $Revision: 1.247.10.39 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1697,7 +1697,9 @@ void gasnetc_snd_validate(gasnetc_sreq_t *sreq, gasnetc_snd_wr_t *sr_desc, int c
 
       for (i = 0; i < sr_desc->gasnetc_f_wr_num_sge; ++i) {
         sum += sr_desc->gasnetc_f_wr_sg_list[i].gasnetc_f_sg_len;
+#if GASNET_CONDUIT_VAPI
         gasneti_assert(sr_desc->gasnetc_f_wr_sg_list[i].gasnetc_f_sg_len != 0);
+#endif
         gasneti_assert(sr_desc->gasnetc_f_wr_sg_list[i].gasnetc_f_sg_len <= gasnetc_max_msg_sz);
         gasneti_assert(sr_desc->gasnetc_f_wr_sg_list[i].gasnetc_f_sg_len <= sum); /* check for overflow of 'sum' */
       }
@@ -2123,12 +2125,13 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
     case gasnetc_System: /* Currently System == Short.  Fall through... */
     case gasnetc_Short:
       msg_len = GASNETC_MSG_SHORT_ARGSEND(numargs);
+#if GASNET_CONDUIT_VAPI
       if (!msg_len) msg_len = 1; /* Mellanox bug (zero-length sends) work-around */
+#endif
       break;
   
     case gasnetc_Medium:
-      /* XXX: When nbytes == 0 we still round up the header to 8-bytes */
-      msg_len = GASNETC_MSG_MED_ARGSEND(numargs) + nbytes;
+      msg_len = nbytes ? (GASNETC_MSG_MED_ARGSEND(numargs) + nbytes) : 0;
       break;
   
     case gasnetc_Long:
