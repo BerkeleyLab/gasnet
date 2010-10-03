@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/10/03 02:01:38 $
- * $Revision: 1.247.10.39 $
+ *     $Date: 2010/10/03 02:21:25 $
+ * $Revision: 1.247.10.40 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1935,7 +1935,6 @@ GASNETI_INLINE(gasnetc_get_amrdma_slot)
 int gasnetc_get_amrdma_slot(gasnetc_cep_t *cep, size_t msg_len) {
   uint32_t send_tail;
 
-  gasneti_assert(msg_len != 0);
   if (!cep->amrdma_rem || (msg_len > gasnetc_amrdma_limit)) {
     return -1;
   }
