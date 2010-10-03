@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/10/03 04:48:35 $
- * $Revision: 1.247.10.44 $
+ *     $Date: 2010/10/03 22:52:11 $
+ * $Revision: 1.247.10.45 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -45,6 +45,9 @@
 
 /* Remove when post-list code is fixed or permanently removed */
 #define GASNETC_USE_POST_LIST 0
+
+/* Control via autoconf or runtime probe if/when we can determine which systems need this */
+#define GASNETC_ALLOW_0BYTE_MSG 0
 
 /* ------------------------------------------------------------------------------------ *
  *  Global variables                                                                    *
@@ -1365,7 +1368,7 @@ int gasnetc_rcv_amrdma(gasnetc_cep_t *cep) {
     return 0;
   }
 #endif
-  gasneti_assert(length >= 0);
+  gasneti_assert(GASNETC_ALLOW_0BYTE_MSG ? (length >= 0) : (length > 0));
   gasneti_assert(length <= gasnetc_amrdma_limit);
 
   flags = hdr->immediate_data;
@@ -1697,9 +1700,8 @@ void gasnetc_snd_validate(gasnetc_sreq_t *sreq, gasnetc_snd_wr_t *sr_desc, int c
 
       for (i = 0; i < sr_desc->gasnetc_f_wr_num_sge; ++i) {
         sum += sr_desc->gasnetc_f_wr_sg_list[i].gasnetc_f_sg_len;
-#if GASNET_CONDUIT_VAPI
-        gasneti_assert(sr_desc->gasnetc_f_wr_sg_list[i].gasnetc_f_sg_len != 0);
-#endif
+        gasneti_assert(GASNETC_ALLOW_0BYTE_MSG ||
+                       (sr_desc->gasnetc_f_wr_sg_list[i].gasnetc_f_sg_len != 0));
         gasneti_assert(sr_desc->gasnetc_f_wr_sg_list[i].gasnetc_f_sg_len <= gasnetc_max_msg_sz);
         gasneti_assert(sr_desc->gasnetc_f_wr_sg_list[i].gasnetc_f_sg_len <= sum); /* check for overflow of 'sum' */
       }
@@ -1934,6 +1936,7 @@ GASNETI_INLINE(gasnetc_get_amrdma_slot)
 int gasnetc_get_amrdma_slot(gasnetc_cep_t *cep, size_t msg_len) {
   uint32_t send_tail;
 
+  gasneti_assert(GASNETC_ALLOW_0BYTE_MSG || (msg_len != 0));
   if (!cep->amrdma_rem || (msg_len > gasnetc_amrdma_limit)) {
     return -1;
   }
@@ -2123,7 +2126,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
     case gasnetc_System: /* Currently System == Short.  Fall through... */
     case gasnetc_Short:
       msg_len = GASNETC_MSG_SHORT_ARGSEND(numargs);
-#if GASNET_CONDUIT_VAPI
+#if !GASNETC_ALLOW_0BYTE_MSG
       if (!msg_len) msg_len = 1; /* Mellanox bug (zero-length sends) work-around */
 #endif
       break;
