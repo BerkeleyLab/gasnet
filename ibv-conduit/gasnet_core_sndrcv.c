@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/10/03 03:30:31 $
- * $Revision: 1.247.10.42 $
+ *     $Date: 2010/10/03 04:34:41 $
+ * $Revision: 1.247.10.43 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -429,8 +429,7 @@ void *gasnetc_sr_desc_init(gasnetc_snd_wr_t *result, gasnetc_sge_t *sg_lst_p, in
  *   8-9: category
  * 10-14: numargs (5 bits, but only 0-GASNETC_MAX_ARGS are legal values)
  *    15: request (0) or reply (1)
- * 16-30: source node
- *    31: boolean: carries AM flow-control info
+ * 16-31: source node
  */
 
 #define GASNETC_MSG_HANDLERID(flags)    ((gasnet_handler_t)(flags))
@@ -438,17 +437,15 @@ void *gasnetc_sr_desc_init(gasnetc_snd_wr_t *result, gasnetc_sge_t *sg_lst_p, in
 #define GASNETC_MSG_NUMARGS(flags)      (((flags) >> 10) & 0x1f)
 #define GASNETC_MSG_ISREPLY(flags)      ((flags) & (1<<15))
 #define GASNETC_MSG_ISREQUEST(flags)    (!GASNETC_MSG_ISREPLY(flags))
-#define GASNETC_MSG_SRCIDX(flags)       ((gasnet_node_t)((flags) >> 16) & 0x7fff)
-#define GASNETC_MSG_FLOW(flags)         ((flags) & (1<<31))
+#define GASNETC_MSG_SRCIDX(flags)       ((gasnet_node_t)((flags) >> 16) & 0xffff)
 
-#define GASNETC_MSG_GENFLAGS(isreq, cat, nargs, hand, srcidx, flow)   \
- (gasneti_assert(0 == ((srcidx) & ~0x7fff)),    \
+#define GASNETC_MSG_GENFLAGS(isreq, cat, nargs, hand, srcidx)   \
+ (gasneti_assert(0 == ((srcidx) & ~0xffff)),    \
   gasneti_assert(0 == ((nargs)  & ~0x1f)),      \
   gasneti_assert(0 == ((cat)    & ~3)),         \
   gasneti_assert((nargs) <= GASNETC_MAX_ARGS),  \
   gasneti_assert((srcidx) < gasneti_nodes),     \
-  (uint32_t)(  ((flow)    ? (1<<31) : 0)        \
-             | ((nargs)   << 10        )        \
+  (uint32_t)(  ((nargs)   << 10        )        \
              | ((isreq)   ? 0 : (1<<15))        \
              | ((srcidx)  << 16        )        \
              | ((cat)     << 8         )        \
@@ -724,9 +721,11 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
   if_pt (GASNET_PSHM || (cep != NULL)) { /* Process any flow control info, unless loopback */
     int credits = 0;
 
-    if (GASNETC_MSG_FLOW(flags)) {
+    if (full_numargs == GASNETC_MAX_ARGS) {
       int acks = (args[0] >> 8) & 0xff;
       credits = args[0] & 0xff;
+      full_numargs = (args[0] >> 16) & 0x1f;
+      user_numargs = full_numargs - 1;
 
       gasneti_assert(!gasnetc_use_srq || !credits);
 
@@ -742,7 +741,6 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
       GASNETI_TRACE_PRINTF(C,("RCV_AM_CREDITS credits=%d acks=%d\n", credits, acks));
 
       args += 1;
-      user_numargs -= 1;
     }
 
     /* Available remotely posted (request) buffers */
@@ -750,6 +748,8 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
     if (credits) {
       gasneti_semaphore_up_n(&cep->am_rem, credits);
     }
+  } else {
+    gasneti_assert(full_numargs < GASNETC_MAX_ARGS); /* NOT equal */
   }
 
   /* Run the handler */
@@ -2040,7 +2040,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
   
     /* process the loopback AM */
     {
-      uint32_t flags = GASNETC_MSG_GENFLAGS(!token, category, numargs, handler, gasneti_mynode, 0);
+      uint32_t flags = GASNETC_MSG_GENFLAGS(!token, category, numargs, handler, gasneti_mynode);
       gasnetc_rbuf_t rbuf;
       rbuf.rr_sg.addr = (uintptr_t)buf;
       #if GASNET_DEBUG
@@ -2301,7 +2301,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       gasneti_assert(acks <= 255);
       gasneti_assert(credits <= 255);
 
-      args[0] = credits | (acks << 8);
+      args[0] = credits | (acks << 8) | (numargs << 16);
       i = 1;
 
       GASNETI_TRACE_PRINTF(C,("SND_AM_CREDITS credits=%d acks=%d\n", credits, acks));
@@ -2320,9 +2320,10 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       GASNETC_PERTHREAD_LOOKUP;	/* XXX: Reply could hide this in the token */
       GASNETC_DECL_SR_DESC(sr_desc, 1, 1);
       gasnetc_sreq_t *sreq;
+      int numargs_field = have_flow ? GASNETC_MAX_ARGS : numargs;
 
-      sr_desc->imm_data   = GASNETC_MSG_GENFLAGS(!token, category, numargs, handler,
-						 gasneti_mynode, have_flow);
+      sr_desc->imm_data   = GASNETC_MSG_GENFLAGS(!token, category, numargs_field, handler,
+						 gasneti_mynode);
       sr_desc->opcode     = GASNETC_WR_SEND_WITH_IMM;
       sr_desc->gasnetc_f_wr_num_sge = 1;
       sr_desc->gasnetc_f_wr_sg_list[0].addr             = (uintptr_t)buf;
