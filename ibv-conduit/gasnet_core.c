@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2010/09/29 08:52:37 $
- * $Revision: 1.223.12.27 $
+ *     $Date: 2010/10/03 03:30:31 $
+ * $Revision: 1.223.12.28 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1358,7 +1358,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     qp_init_attr.cap.max_inline_data = gasnetc_inline_limit;
     qp_init_attr.qp_context          = NULL; /* XXX: Can/should we use this? */
     qp_init_attr.qp_type             = IBV_QPT_RC;
-    qp_init_attr.sq_sig_all          = 0;
+    qp_init_attr.sq_sig_all          = 1; /* XXX: Unless we drop 1-to-1 WQE/CQE relationship */
     qp_init_attr.srq                 = NULL;
 
     for (i = 0; i < ceps; ++i) {
