@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2010/07/02 02:06:24 $
- * $Revision: 1.46.12.3 $
+ *     $Date: 2010/10/03 04:34:41 $
+ * $Revision: 1.46.12.4 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -35,8 +35,8 @@
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 
 /* 16K is the limit on the LID space, but we must allow more than 1 proc per node */
-/* XXX: For now we still only have 15 bits in the AM Header */
-#define GASNET_MAXNODES	32768
+/* 64K corresponds to 16 bits used in the AM Header and 16-bit gasnet_node_t */
+#define GASNET_MAXNODES	65535
 
 /* Explicitly set some types because we depend on their sizes when encoding them */
 #define _GASNET_NODE_T
