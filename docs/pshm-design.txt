@@ -1,11 +1,12 @@
-GASNet inter-Process SHared Memory (PHSM) design
+GASNet inter-Process SHared Memory (PSHM) design
 ---------------------------------------------
-$Revision: 1.4.8.2 $
+$Revision: 1.4.8.3 $
 
 Document by:
     Dan Bonachea <bonachea@cs.berkeley.edu>
     Paul H. Hargrove <PHHargrove@lbl.gov>
-Impelemtation by:
+    Filip Blagojevic <FBlagojevic@lbl.gov>
+Implementation by:
     Jason Duell
     Filip Blagojevic <FBlagojevic@lbl.gov>
     Paul H. Hargrove <PHHargrove@lbl.gov>
@@ -17,143 +18,112 @@ processes on the same compute node.  This is expected to be more robust than
 pthreads (which greatly complicates the Berkeley UPC runtime, and prevents
 linking to any numeric libraries that that are not thread-safe).  It is also
 expected to display lower latency than use of a network API's loopback
-capabilities (though the network hardware might provide other benefits such as
-asynchronous bulk memory copy w/o cache pollution).
-
-To use:
-------
-The PSHM feature in the Berkeley UPC runtime can be used through the POSIX
-shared memory, SYSV shared memory, or an mmaped disk file (we will use
-abbreviation MDF for the purpose of this document). PSHM is currently a 
-default Berkeley UPC option on Linux. Not using the PSHM option on Linux, 
-requires passing the --disable-pshm flag to the configure script. On all 
-other operating systems, PSHM is NOT a default option, and configuring 
-Berkeley UPC with PSHM requires specifying the --enable-pshm configure flag. 
-
-When --enable-pshm is specified (or no flag is specified, on Linux), only
-the POSIX shared memory is probed for existence/compatibility during 
-the configuration phase. If the POSIX shared memory is not available, 
-there is no automatic fallback to the other two options (SYSV and MDF). 
-
-If a user prefers to use PSHM through SYSV or MDF, the following flags 
-need to be passed to the configure script:
-1) --enable-pshm --enable-sysv (for using the SYSV shared memory),
-2) --enable-pshm --enable-file (for using an mmaped disk file)
-
-	Usage Summary (flags to be passed to the configure script):
-	----------------------------------------------------------
-	* Linux:
-		- PSHM on by default. Do not use PSHM: --disable-pshm
-		- POSIX: no flags.
-		- SYSV: --enable-pshm --enable-sysv
-		- MDF: --enable-pshm --enable-file
-
-	* Other OSes:
-		- PSHM off by default
-		- POSIX: --enable-pshm
-		- SYSV: --enable-pshm --enable-sysv
-		- MDF: --enable-pshm --enable-file
+capabilities (though the network hardware might provide other benefits such
+as asynchronous bulk memory copy w/o cache pollution).
 
 We appreciate your feedback related to PSHM (both positive and
 negative) and would be happy to work with you to improve PSHM.
 
+To use:
+------
+In the current release, GASNet's PSHM support is enabled by default only on
+Linux.  On all other platforms, one must pass --enable-pshm if PSHM support
+is desired.  On Linux PSHM can be disabled by passing --disable-pshm at
+configure time.
+
+The PSHM support in GASNet can operate via three possible mechanisms: POSIX
+shared memory, SystemV shared memory, or mmap()ed disk files.  When PSHM is
+enabled, the default is for the configure step to probe only for support
+via POSIX shared memory (except on MacOS, where it is known to be broken).
+If no POSIX shared memory support if found, there is no automatic fallback
+to any other mechanism.  So, if one wishes to use SystemV shared memory or
+mmap()ed files, one should explicitly disable the POSIX support and enable
+the desired mechanism:
+
+	Usage Summary (flags to be passed to the configure script):
+	----------------------------------------------------------
+          OFF: --disable-pshm
+        POSIX: --enable-pshm
+         SYSV: --enable-pshm --disable-pshm-posix --enable-pshm-sysv
+         FILE: --enable-pshm --disable-pshm-posix --enable-pshm-file
+
+        On Linux "--enable-pshm" is the default.
+        On all other platforms "--disable-pshm" is the default.
+
 Parameters Setting:
 ------------------
-Although recommended as the first option, the POSIX shared memory 
-does not exists on all systems. An example is CNL used on Cray XT5 
-nodes, at National Energy Research Scientific Computing Center 
-(NERSC). In the absence of the POSIX shared memory, users are
-advised to use the SYSV shared memory.
+Although recommended as the first option, POSIX shared memory is not
+available on all systems, even systems running Linux may not be configured
+to support it.  In the absence of the POSIX shared memory, users are
+advised to use the SystemV shared memory as the next-best option.
 
-In the absence of both, POSIX and SYSV shared memory, a user might
-try using MDF. On some systems we detected significant performance 
-degratdation when using MDF: some OSes commit the changes in the 
-mmaped file to disk, at runtime.
+In the absence of both, POSIX and SystemV shared memory, a user may try
+using mmap()ed disk files. However, on some systems we see significant
+performance degradation when using files (apparently due to committing the
+changes from memory to disk).
 
-On Linux, MacOS and Solaris the amount of the available SYSV shared 
-memory and the number of shared memory segment is controlled by the 
-kernel parameters: shmmax, shmall and shmmni. Insufficient amount 
-of SYSV shared memory will prevent the usage of the  Berkeley UPC 
-runtime configured with "--enable-pshm --enable-sysv". Setting the 
-sahred memory parameters requires administrator privileges.
+On Linux, MacOS and Solaris the amount of the available SystemV shared
+memory and the number of shared memory segment is controlled by the kernel
+parameters: shmmax, shmall and shmmni.  Other systems are similar.
+Insufficient amount of SystemV shared memory will lead to failures at
+start-up of any application using a runtime configured to use PSHM over
+SystemV.  Setting these parameters is system-specific and requires
+administrator privileges.
 
-Change of shmmax and shmall temporary (the values will be restored upon
-reboot):
 
-* Linux:	
+   - Linux:	
 	sudo /sbin/sysctl -w kernel.shmmax=<large value>
 	sudo /sbin/sysctl -w kernel.shmall=<large value>
 	sudo /sbin/sysctl -w kernel.shmmni=<larger than number of
-					    PSHM proceses + 1>
+					    PSHM processes + 1>
+   - MacOS:
+	sudo /sbin/sysctl -w kern.sysv.shmmax=<large value>
+	sudo /sbin/sysctl -w kern.sysv.shmall=<large value>
+	sudo /sbin/sysctl -w kern.sysv.shmmni=<larger than number of
+					 PSHM processes + 1>
 
-* MacOS:
-	sudo sysctl -w kern.sysv.shmmax=<large value>
-	sudo sysctl -w kern.sysv.shmall=<large value>
-	sudo sysctl -w kern.sysv.shmmni=<larger than number of
-					 PSHM proceses + 1>
-
-Change of shmmax and shmall permanently
-
-* Linux:
-	Add the following lines to sysctl.conf (sudo required):
+* To change parameters permanently:
+   - Linux:
+	Add the following lines to /etc/sysctl.conf (sudo required):
 	kernel.shmmax=<large value>
 	kernel.shmall=<large value>
 	kernel.shmmni=<larger than number of
-	               PSHM proceses + 1>
+	               PSHM processes + 1>
 
-	reload the new settings:
+	To reload the new settings:
 	sudo /sbin/sysctl -p /etc/sysctl.conf
-
-* MacOS:
-	Add the following lines to sysctl.conf (sudo required):
+   - MacOS:
+	Add the following lines to /etc/sysctl.conf (sudo required):
 	kern.sysv.shmmax=<large value>
 	kern.sysv.shmall=<large value>
 	kern.sysv.shmmni=<larger than number of
-	                  PSHM proceses + 1>
+	                  PSHM processes + 1>
 
-	reload the new settings:
-	reboot the machine.
+	To reload the new settings: reboot the machine.
 
-* Solaris:
-	- Prior to Solaris 10, add to /etc/system (sudo required):
-		set shmsys:shminfo_shmmax=<large value>
-		
-		set shmsys:shminfo_shmseg=<larger than 
-					   (#PSHM proc.)*(#PSHM proc.)+1>
-		#shmseg represents the maximum number of shared memory
-		#segments to which one process can attach. The parameter
-		#is obsolete on Solaris 9 and later.
-
-		set shmsys:shminfo_shmmni=<larger than number of
-	               			   PSHM proceses + 1>
-	- Solaris 10:
-		#max-shm-memory replaces shmmax
-		sudo /usr/sbin/projmod -sK "project.max-shm-memory=(priv,<large value>,deny)" <project>
-		#max-shm-ids replaces shmmni
-		sudo /usr/sbin/projmod -sK "project.max-shm-ids=(priv,<large value>,deny)" <project>
-		#<project> can be the name of any existing project or
-		#"default" - the defalt assigned project to every 
-		#otherwise unassigned user)
 
 IMPORTANT, SYSTEM CLEANING:
 --------------------------
-If the Berkeley UPC runtime execution is terminated before ending the
-initialization phase, there is a possibility that the shared memory 
-files will remain in the system. A large amount of memory or disk 
-space can remain trapped in these files, preventing users from fully 
-utilizing all available hardware resources. 
+If a GASNet application using PSHM is terminated before ending the
+initialization phase, there is a possibility that the shared memory objects
+will remain in the system.  A large amount of memory or disk space can
+remain allocated, preventing users from fully utilizing all available
+hardware resources.
 
-In the SYSV case, the allocated (but not released) shared memory segments 
-can be listed via the "ipcs" instruction. They can further be removed 
-via the "ipcrm" instruction. Note that on the systems with the batch
-scheduler, the "ipcs" and "ipcrm" instructions need to be run through the
-batch scheduler. 
+In the SystemV case, the allocated (but not released) shared memory
+segments can be listed via the "ipcs" command, and can be removed via the
+"ipcrm" command.  Note that on the systems with a batch scheduler, the
+"ipcs" and "ipcrm" instructions need to be run on the compute nodes.
 
-In the POSIX or MDF case, the allocated but not released shared memory
-files can be found in the directory pointed by the TMPDIR variable
-(default: /tmp). These files contain prefix GASNT, and can be deleted
-via the "rm" instruction.
+In the mmap()ed file case, the allocated but not released shared memory files
+can be found in the directory pointed by the TMPDIR environment variable
+(default: /tmp). These files are named with the prefix GASNT, and can be
+deleted using the "rm" command.
 
+In the case of POSIX shared memory, the implementation is system-specific.
+In the case of Linux and Solaris, POSIX shared memory objects are visible
+in the file system.  For Linux the default location is /dev/shm and on
+Solaris the default is /tmp.
 
 Scope:
 -----
@@ -164,15 +134,16 @@ Scope:
 
 Terminology:
 -----------
-* node: each UNIX process running gasnet
+* node: each UNIX process running GASNet
 * supernode: 1 or more nodes with cross-mapped segments using PSHM support
 * supernode peers: nodes which share a supernode
 
 Interface notes:
 ---------------
 * All node processes call gasnet_init(), each is a separate GASNet node
-* PSHM is enabled/disabled at configure time and GASNET_PSHM is #defined to
-  either 1 or 0.
+* PSHM is enabled/disabled at configure time and GASNETI_PSHM_ENABLED is
+  #defined to either 1 or 0.  Each conduit can then #define GASNET_PSHM
+  to 1 if it implements PSHM support.
 * gasnetc_init() performs super-node discovery, using OS-appropriate (or
   conduit-specific) mechanisms to figure out which nodes are capable of
   sharing memory with which other nodes:
@@ -183,7 +154,7 @@ Interface notes:
   gasnet_attach reflecting the per-node segment size they want. 
 * gasnet_attach takes care of mapping each processor's segments as usual, but
   also maps the segments of supernode peers into each nodes VM space using
-  OS-appropriate mechanisms. (only shm_open()+mmap() currently supported).
+  OS-appropriate mechanisms. (shm_open()+mmap(), shmget()+shmat(), etc.).
 * Nodes on a supernode typically have different virtual address map of the
   segments on that supernode.  They are typically not contiguous either.
 * Client calls getSegmentInfo to get the location of his segment and those of
@@ -202,7 +173,7 @@ Restrictions:
 * gasnet_hsl_t's are node-local and while they might reside in the segment,
   they may not be accessed by more than one node in a supernode
   - we can/should add a debug-mode check for this (also applies to shmem-conduit)
-* Use of gasnet atomics in the segment is allowed, but they must not be weak
+* Use of GASNet atomics in the segment is allowed, but they must not be weak
   atomics (which means using the explicitly "strong" ones in client code).
 
 Closed (previously "Open") questions:
@@ -295,32 +266,48 @@ Status:
       extra for Active Message buffers
     + upcrun must be told to propagate BG_ environment vars to the job
   - Example environment variable settings for 200MB shared heap in VN mode
+    when using Berkeley UPC's upcrun command:
       UPC_ENVPREFIX=BG_
       UPC_SHARED_HEAP_SIZE=200M
       BG_SHAREDMEMPOOLSIZE=820
   - Example environment variable settings for 400MB shared heap in DUAL mode
+    when using Berkeley UPC's upcrun command:
       UPC_ENVPREFIX=BG_
       UPC_SHARED_HEAP_SIZE=400M
       BG_SHAREDMEMPOOLSIZE=810
+* Cray XT and XE platform-specific notes:
+  - Portals conduit supports PSHM on the Cray XT
+  - We have no native conduit for the Cray XE, but mpi-conduit is supported
+  - CNL does not (at least on any systems we've encountered) support
+    POSIX shared memory, but SystemV shared memory is available.
+  - Add the following to your (cross-)configure options:
+       --enable-pshm --enable-pshm-sysv
+* MacOS X platform-specific notes:
+  - MacOS X with POSIX shared memory is NOT supported because we appear to 
+    trigger a kernel memory leak.
+  - SystemV shared memory is a valid choice:
+       --enable-pshm --enable-pshm-sysv
+  - Use of mmap()ed files has been seen to cause VERY slow start-up.
+* {Free,Open,Net}BSD platform-specific notes:
+  - FreeBSD supports POSIX shared memory and has been well tested
+  - OpenBSD and NetBSD do not support POSIX shared memory, but do
+    support SystemV:
+       --enable-pshm --enable-pshm-sysv
+
 * GASNet conduits known NOT to work:
   - LAPI conduit requires "large pages" which cannot be obtained for POSIX
-    shared memory segments by any mechanism we are aware of.
+    shared memory segments by any mechanism we are aware of.  While we now
+    have support for SystemV-based PSHM, we lack access to a LAPI system
+    to complete the required integration with the conduit.
   - SHMEM conduit does not support PSHM, but there is no reason to think
     that doing so would be constructive.
-  - Portals conduit does not support PSHM because we lack a platform with
-    support for both Portals and POSIX shared memory on which to develop.
   - SCI conduit does not support PSHM because we no longer have any platform
     on which to develop and test sci-conduit.
   Keep in mind that if you use one of these conduits on a platform with the
   necessary support for PSHM, you may still configure with --enable-pshm to
   get PSHM support in other conduits (e.g. SMP and MPI), and these few
   conduits will still build (they will simply be missing PSHM support).
+
 * Platforms known NOT to work:
-  - MacOSX with POSIX shared memory is NOT supported because we appear to 
-    trigger a kernel memory leak.
-  - CNL (at least at our site) lacks support for POSIX shared memory.
   - Catamount can't share memory (in any way that we know of).
-  - The OpenBSD and NetBSD hosts we have access to lack shm_open() in
-    sys/mman.h.  However, should you encounter an OpenBSD or NetBSD host with
-    POSIX shared memeory support, it is likely GASNet's PSHM will "just work".
 
