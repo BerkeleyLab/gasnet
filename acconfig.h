@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2010/09/12 05:34:31 $ */
-/*  $Revision: 1.151.8.2 $ */
+/*      $Date: 2010/10/12 23:52:28 $ */
+/*  $Revision: 1.151.8.3 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -268,6 +268,12 @@
 /* udp-conduit default custom spawn command */
 #undef GASNET_CSPAWN_CMD
 
+/* compiler is Sun's "gccfss" variant of GCC */
+#undef GASNETI_GCC_GCCFSS
+
+/* compiler is Apple's variant of GCC */
+#undef GASNETI_GCC_APPLE
+
 /* platform is an SGI Altix multiprocessor */
 #undef GASNETI_ARCH_ALTIX
 
@@ -325,6 +331,7 @@
 #undef GASNETC_VAPI_MAX_HCAS
 
 /* GASNet ibv-conduit features and bug work-arounds */
+#undef HAVE_IBV_SRQ
 #undef GASNETC_IBV_POLL_LOCK
 #undef GASNETC_IBV_RCV_THREAD
 #undef GASNETC_IBV_MAX_HCAS

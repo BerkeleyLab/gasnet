@@ -1,7 +1,7 @@
 README file for vapi-conduit and ibv-conduit
 ============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.55.10.1 $
+$Revision: 1.55.10.2 $
 
 @ TOC: @
 @ Section: VAPI vs IBV @
@@ -9,7 +9,7 @@ $Revision: 1.55.10.1 $
 @ Section: Multi-rail Support @
 @ Section: Runtime Configuration @
 @ Section: HCA Configuration @
-@ Section: Platform-specifc Notes @
+@ Section: Platform-specific Notes @
 @ Section: Core API @
 @ Section: Extended API @
 @ Section: Graceful exits @
@@ -71,6 +71,28 @@ $Revision: 1.55.10.1 $
   + The environment variable MPIRUN_CMD can be used to configure how to
     invoke mpirun.  See mpi-conduit/README (or README-mpi) for more
     information.
+  + Since an InfiniBand-based MPI typically allocates a non-trivial amount
+    of memory for InfiniBand communication buffers, it may be desirable in
+    memory-constrained situations to use a non-IB MPI, or to disable the
+    use of IB by a multi-transport MPI.  The documentation for your chosen
+    MPI is the authoritative source for information, but here are the
+    settings required to force use of TCP/IP in several widely-used MPIs:
+    - LAM/MPI
+      Pass "-ssi rpi tcp" to mpirun, OR
+      Set environment variable LAM_MPI_SSI_rpi to "tcp".
+    - Open MPI
+      Pass "--mca btl tcp,self" to mpirun, OR
+      Set environment variable OMPI_MCA_BTL to "tcp,self".
+    - Intel MPI
+      Set environment variable I_MPI_DEVICE to "sock".
+    - HP-MPI
+      Set environment variable MPI_IC_ORDER to "tcp".
+    - MPICH or MPICH2
+      These don't use IB, so no special action is required.
+    - MVAPICH or MVAPICH2
+      These don't use TCP/IP unless explicitly configured for IP-over-IB.
+      So, these are not recommended if one is concerned with memory use.
+    In all the setting above, omit the quotes from the value.
 
   If spawning using SSH, the following apply:
   + The -E option is not necessary, as the full environment is always
@@ -218,7 +240,7 @@ $Revision: 1.55.10.1 $
     by a ':'.  If a list of ports is given, only those ports may be used.
     Otherwise the first active port on the given HCA may be used.  The
     following example allows the first active port on HCA InfiniHost0,
-    and only port 2 on InifiniHost1:
+    and only port 2 on InfiniHost1:
 	GASNET_VAPI_PORTS="InfiniHost0+InfiniHost1:2".
     Note that this list is a *filter*, which means:
     + Duplicate entries do not cause multiple opens of a port or HCA
@@ -237,7 +259,7 @@ $Revision: 1.55.10.1 $
     This sets the timeout value used to configure InfiniBand QueuePairs.
     The IB specification uses (4.096us * 2^qp_timeout) as the length of
     time an HCA waits to receive and ACK from its peer before attempting
-    retransmisson.
+    retransmission.
     The default is currently 18 (roughly 1 second).
 
   + GASNET_QP_RETRY_COUNT
@@ -305,7 +327,7 @@ $Revision: 1.55.10.1 $
     Setting to a non-zero value will limit how large the GASNet segment
     can be, and how much memory is available for firehose (see below),
     but may speed startup by bounding the probe.  Note, however that
-    setting only this variable bounds the probe, but does not elimitate it.
+    setting only this variable bounds the probe, but does not eliminate it.
     Also be aware that with multiple processes per shared memory node the
     value given by this variable will be divided by the number of processes
     per shared memory node to determine the memory available.
@@ -383,6 +405,27 @@ $Revision: 1.55.10.1 $
     The default value is 3KB (the current maximum value).
     A value of zero disables this optimization.
 
+  + GASNET_USE_SRQ
+    This controls whether IBV Shared Receive Queue (SRQ) support is used.
+    This setting is ignored for VAPI, for which GASNet has no SRQ support,
+    and for IBV if GASNet was configured with --disable-ibv-srq.
+    This setting defaults to -1, which means that SRQ will be used only
+    if doing so would reduce memory usage (as determined from the value
+    of the GASNET_RBUF_COUNT setting, described below).
+    If set to a non-negative value, this setting give the minimum GASNet
+    node count at which SRQ will be used, regardless of whether or not
+    the memory usage would increase or decrease.  A value of zero will
+    disable SRQ.  Examples:
+    - GASNET_USE_SRQ unset or explicitly set to -1:
+        SRQ is used ONLY if GASNET_RBUF_COUNT is less than the number
+        of receive buffers required for the non-SRQ case.
+    - GASNET_USE_SRQ <= gasnet_nodes()  [includes GASNET_USE_SRQ == 1]
+        SRQ is used and GASNET_RBUF_COUNT is enforced as a maximum
+    - GASNET_USE_SRQ > gasnet_nodes()
+        SRQ is NOT used and GASNET_RBUF_COUNT is ignored
+    Note that the interpretation of the values 0 and 1 allow one to use
+    this setting as a simple boolean if desired.
+
   Resource usage parameters:
   The following environment variables control how much memory is
   preallocated at startup time to serve various functions.  Because these
@@ -404,7 +447,7 @@ $Revision: 1.55.10.1 $
     (for example, when the remote range of a PUT or GET covers more
     than one pinned region, due to GASNET_PIN_MAXSZ, or because an AM
     Long uses separate ops for the payload and header).
-    The default value is 64.
+    The default value is 24.
     Reducing this parameter may limit small message throughput.  If you
     believe your small message throughput is too low, you may try
     increasing this value.
@@ -416,7 +459,7 @@ $Revision: 1.55.10.1 $
     is min(GASNET_NETWORKDEPTH_TOTAL, GASNET_NETWORKDEPTH_PP*(N-1)).
     If set to zero, the value is set to the maximum usable value computed
     from GASNET_NETWORKDEPTH_PP and the HCA's reported capabilities.
-    The default value is 0 (compute automatically).
+    The default value is 255.
     Reducing this parameter may limit small message throughput.  If you
     believe your small message throughput is too low, you may try
     increasing this value (or setting it to zero), at a cost in
@@ -429,9 +472,7 @@ $Revision: 1.55.10.1 $
     Reply has not yet been processed for AM flow control (described in
     another section of this README).  This is the number of buffers which
     must be preposted to each receive work queue for AM Requests.
-    This value should be less than or equal to GASNET_NETWORKDEPTH_PP,
-    and will be trimmed to GASNET_NETWORKDEPTH_PP if larger.
-    The default value is 32 (128KB*(N-1) allocated for Request buffers).
+    The default value is 12 (48KB*(N-1) allocated for Request buffers).
     Reducing this parameter may limit Active Message throughput.  If you
     believe your Active Message throughput is too low, you may try
     increasing this value.
@@ -444,9 +485,7 @@ $Revision: 1.55.10.1 $
     follows each AM Request.
     If set to zero, the value is set to the maximum usable value computed
     from GASNET_AM_CREDITS_PP and the HCA's reported capabilities.
-    The default value is MAX(1024, nodes).
-    This value should be less than or equal to GASNET_NETWORKDEPTH_TOTAL,
-    and will be trimmed to GASNET_NETWORKDEPTH_TOTAL if larger.
+    The default value is MIN(256, nodes*GASNET_AM_CREDITS_PP).
     Reducing this parameter may limit Active Message throughput.  If you
     believe your Active Message throughput is too low, you may try
     increasing this value (or setting it to zero), at a cost in additional
@@ -462,12 +501,28 @@ $Revision: 1.55.10.1 $
     to the requester.
     The default value is 1.
     GASNET_AM_CREDITS_SLACK will be silently reduced if needed to
-    ensure deadlock will not occur.
+    ensure deadlock will not occur, and is ignored when SRQ is used.
     Reducing this parameter to zero or setting it too high may
     increase the latency of Active Message traffic.
 
+  + GASNET_RBUF_COUNT
+    If SRQ support is unavailable or disabled, this parameter is ignored.
+    See GASNET_USE_SRQ documentation for details of when SRQ is enabled.
+    When SRQ is enabled this gives the max number of AM receive buffers
+    allocated on each node.  These buffers are needed for reception of
+    AM headers and the payload of mediums, but are not used for RDMA.
+    The actual number of buffers allocated is the lesser of the value of
+    GASNET_RBUF_COUNT or a value computed from the GASNET_AM_* and
+    GASNET_NETWORKDEPTH_* parameters described above.
+    If set to zero, the value is limited only by the HCA's capabilities.
+    The default value is 1024 (up to 4MB for buffers).
+    Reducing this parameter may limit Active Message throughput.  If you
+    believe your Active Message throughput is too low, you may try
+    increasing this value (or setting it to zero), at a cost in additional
+    pinned memory.
+
   + GASNET_BBUF_COUNT
-    This gives the number of pre-pinned buffers allocated on each node.
+    This gives the max number of pre-pinned buffers allocated on each node.
     These buffers are needed for assembly of AM headers and the payload
     of mediums, and for some PUTs (see GASNET_NONBULKPUT_BOUNCE_LIMIT).
     The actual number of buffers allocated is the lesser of the values of
@@ -572,7 +627,7 @@ $Revision: 1.55.10.1 $
     for large PUTs and GETs, with little or no affect on small message
     latency.  It is available only for debugging purposes.
     In a GASNET_SEGMENT_LARGE or GASNET_SEGMENT_EVERYTHING configuration,
-    the GASNet segment is not preregistred and use of firehose is
+    the GASNet segment is not preregistered and use of firehose is
     required.  Thus it is an error to disable firehose in such a
     configuration.
 
@@ -641,7 +696,7 @@ $Revision: 1.55.10.1 $
     the value to 16 yielded approximately a 30% bandwidth improvement in an
     RDMA-GET benchmark.
 
-@ Section: Platform-specifc Notes @
+@ Section: Platform-specific Notes @
 
 + Crashes have been seen using QLogic's InfiniPath HCAs with ibv-conduit
   with default parameters.  If you see crashes with a message containing

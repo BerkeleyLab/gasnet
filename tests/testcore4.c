@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcore4.c,v $
- *     $Date: 2010/09/12 01:23:25 $
- * $Revision: 1.6.2.1 $
+ *     $Date: 2010/10/12 23:52:42 $
+ * $Revision: 1.6.2.2 $
  * Description: GASNet Active Messages conformance/correctness test
  * Copyright (c) 2010, The Regents of the University of California
  * Terms of use are as specified in license.txt
@@ -182,11 +182,11 @@ void pong_medhandler(gasnet_token_t token, void *buf, size_t nbytes) {
     flag++;
 }
 void ping_longhandler(gasnet_token_t token, void *buf, size_t nbytes) {
-    MSGCHECK(longsz);
-    GASNET_Safe(gasnet_AMReplyLong0(token, hidx_pong_longhandler, rand_payload, nbytes, peerseg));
+    MSGCHECK(longsz); memset(buf, 0xa5, nbytes);
+    GASNET_Safe(gasnet_AMReplyLong0(token, hidx_pong_longhandler, rand_payload, nbytes, peerseg + longsz));
 }
 void pong_longhandler(gasnet_token_t token, void *buf, size_t nbytes) {
-    MSGCHECK(longsz);
+    MSGCHECK(longsz); memset(buf, 0xa5, nbytes);
     flag++;
 }
 

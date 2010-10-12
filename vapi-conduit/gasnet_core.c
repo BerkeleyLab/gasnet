@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/10/16 22:43:34 $
- * $Revision: 1.223 $
+ *     $Date: 2010/10/12 23:52:44 $
+ * $Revision: 1.223.10.1 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -44,16 +44,19 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 #define GASNETC_DEFAULT_VAPI_PORTS		""
 
 /* Limits on in-flight (queued but not reaped) RDMA Ops */
-#define GASNETC_DEFAULT_NETWORKDEPTH_TOTAL	0	/* Max ops (RMDA + AM) outstanding at source, 0 = automatic */
-#define GASNETC_DEFAULT_NETWORKDEPTH_PP		64	/* Max ops (RMDA + AM) outstanding to each peer */
+#define GASNETC_DEFAULT_NETWORKDEPTH_TOTAL	255	/* Max ops (RDMA + AM) outstanding at source */
+#define GASNETC_DEFAULT_NETWORKDEPTH_PP		24	/* Max ops (RDMA + AM) outstanding to each peer */
 
 /* Limits on in-flight (queued but not acknowledged) AM Requests */
-#define GASNETC_DEFAULT_AM_CREDITS_TOTAL	MAX(1024,gasneti_nodes)	/* Max AM requests outstanding at source, 0 = automatic */
-#define GASNETC_DEFAULT_AM_CREDITS_PP		32	/* Max AM requests outstanding to each peer */
+#define GASNETC_DEFAULT_AM_CREDITS_TOTAL	MIN(256,gasneti_nodes*gasnetc_am_oust_pp)	/* Max AM requests outstanding at source, 0 = automatic */
+#define GASNETC_DEFAULT_AM_CREDITS_PP		12	/* Max AM requests outstanding to each peer */
 #define GASNETC_DEFAULT_AM_CREDITS_SLACK	1	/* Max AM credits delayed by coalescing */
 
 /* Limit on prepinned send bounce buffers */
 #define GASNETC_DEFAULT_BBUF_COUNT		1024	/* Max bounce buffers prepinned, 0 = automatic */
+
+/* Limit on AM recv buffers when using SRQ */
+#define GASNETC_DEFAULT_RBUF_COUNT		1024	/* Max SRQ receive buffers posted, 0 = automatic */
 
 /* Limit on size of prepinned regions */
 #define GASNETC_DEFAULT_PIN_MAXSZ		0	/* 0 = automatic (VAPI->256K, IBV->max_msg_sz) */
@@ -153,6 +156,10 @@ int		gasnetc_op_oust_pp;
 int		gasnetc_am_oust_limit;
 int		gasnetc_am_oust_pp;
 int		gasnetc_bbuf_limit;
+#if GASNETC_IBV_SRQ
+  int		gasnetc_rbuf_limit;
+  int		gasnetc_rbuf_set;
+#endif
 
 /* Maximum pinning capabilities of the HCA */
 typedef struct gasnetc_pin_info_t_ {
@@ -186,6 +193,11 @@ static void (*gasneti_bootstrapBroadcast_p)(void *src, size_t len, void *dest, i
 
 static char *gasnetc_vapi_ports;
 
+#if GASNET_TRACE
+  static unsigned int	gasnetc_pinned_blocks = 0;
+  static size_t		gasnetc_pinned_bytes = 0;
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization
@@ -212,6 +224,10 @@ static void setup_pin_maxsz(uint64_t size) {
 extern void gasnetc_unpin(gasnetc_hca_t *hca, gasnetc_memreg_t *reg) {
   int rc = gasnetc_dereg_mr(hca->handle, reg->handle);
   GASNETC_VAPI_CHECK(rc, "from gasnetc_dereg_mr()");
+#if GASNET_TRACE
+  gasnetc_pinned_blocks -= 1;
+  gasnetc_pinned_bytes -= reg->len;
+#endif
 }
 
 extern int gasnetc_pin(gasnetc_hca_t *hca, void *addr, size_t size, gasnetc_acl_t acl, gasnetc_memreg_t *reg) {
@@ -236,9 +252,9 @@ extern int gasnetc_pin(gasnetc_hca_t *hca, void *addr, size_t size, gasnetc_acl_
   reg->addr     = mr_out.start;
   reg->len      = mr_out.size;
   reg->end      = mr_out.start + (mr_out.size - 1);
-
-  return vstat;
 #else
+  const int vstat = 0;
+
   gasneti_assert(((uintptr_t)addr % GASNET_PAGESIZE) == 0);
   gasneti_assert(((uintptr_t)size % GASNET_PAGESIZE) == 0);
 
@@ -252,8 +268,13 @@ extern int gasnetc_pin(gasnetc_hca_t *hca, void *addr, size_t size, gasnetc_acl_
   reg->len      = size;
   reg->end      = (uintptr_t)addr + (size - 1);
 
-  return 0;
 #endif
+#if GASNET_TRACE
+  gasnetc_pinned_blocks += 1;
+  gasnetc_pinned_bytes += reg->len;
+#endif
+
+  return vstat;
 }
 
 static void *gasnetc_try_pin_inner(size_t size, gasnetc_memreg_t *reg) {
@@ -464,6 +485,10 @@ static int gasnetc_load_settings(void) {
   GASNETC_ENVINT(gasnetc_am_oust_limit, GASNET_AM_CREDITS_TOTAL, GASNETC_DEFAULT_AM_CREDITS_TOTAL, 0, 0);
   GASNETC_ENVINT(gasnetc_am_credits_slack, GASNET_AM_CREDITS_SLACK, GASNETC_DEFAULT_AM_CREDITS_SLACK, 0, 0);
   GASNETC_ENVINT(gasnetc_bbuf_limit, GASNET_BBUF_COUNT, GASNETC_DEFAULT_BBUF_COUNT, 0, 0);
+#if GASNETC_IBV_SRQ
+  gasnetc_rbuf_set = (NULL != gasneti_getenv("GASNET_RBUF_COUNT"));
+  GASNETC_ENVINT(gasnetc_rbuf_limit, GASNET_RBUF_COUNT, GASNETC_DEFAULT_RBUF_COUNT, 0, 0);
+#endif
   GASNETC_ENVINT(gasnetc_num_qps, GASNET_NUM_QPS, GASNETC_DEFAULT_NUM_QPS, 0, 0);
   GASNETC_ENVINT(gasnetc_inline_limit, GASNET_INLINESEND_LIMIT, GASNETC_DEFAULT_INLINESEND_LIMIT, -1, 0);
   GASNETC_ENVINT(gasnetc_bounce_limit, GASNET_NONBULKPUT_BOUNCE_LIMIT, GASNETC_DEFAULT_NONBULKPUT_BOUNCE_LIMIT, 0, 1);
@@ -534,18 +559,26 @@ static int gasnetc_load_settings(void) {
 	    "WARNING: Environment variable GASNET_USE_FIREHOSE ignored.  It is only available in a DEBUG build of GASNet\n");
   }
 #endif
-  if_pf (gasnetc_op_oust_limit && (gasnetc_am_oust_limit > gasnetc_op_oust_limit)) {
-    fprintf(stderr,
-            "WARNING: GASNET_AM_CREDITS_TOTAL reduced to GASNET_NETWORKDEPTH_TOTAL (from %d to %d)\n",
-            gasnetc_am_oust_limit, gasnetc_op_oust_limit);
-    gasnetc_am_oust_limit = gasnetc_op_oust_limit;
+#if GASNETC_IBV_SRQ
+  /* Integer value becomes a boolean, though possibly not until gasnetc_sndrcv_init() */
+  gasnetc_use_srq = gasneti_getenv_int_withdefault("GASNET_USE_SRQ", -1, 0);
+  /* My disabling SRQ early when possible we can avoid allocating resources we might not use.
+     XXX: If we can, we should move AM resource computation here so we can avoid ever
+          allocating unused resources.
+     As per README:
+     GASNET_USE_SRQ = 0: Never use SRQ
+     GASNET_USE_SRQ > 0: Use SRQ for nodes >= GASNET_USE_SRQ (so 1 == Always)
+     GASNET_USE_SRQ < 0: Use SRQ is memory savings would result (done in gasnetc_sndrcv_init()).
+   */
+  if (gasnetc_use_srq > gasneti_nodes) {
+    /* Positive value of GASNET_USE_SRQ denotes a minumum node count */
+    GASNETI_TRACE_PRINTF(I, ("SRQ disabled because GASNET_USE_SRQ = %d is greater than nodes = %d",
+                             gasnetc_use_srq, gasneti_nodes));
+    gasnetc_use_srq = 0;
   }
-  if_pf (gasnetc_am_oust_pp > gasnetc_op_oust_pp) {
-    fprintf(stderr,
-            "WARNING: GASNET_AM_CREDITS_PP reduced to GASNET_NETWORKDEPTH_PP (from %d to %d)\n",
-            gasnetc_am_oust_pp, gasnetc_op_oust_pp);
-    gasnetc_am_oust_pp = gasnetc_op_oust_pp;
-  }
+#endif
+
+  /* XXX: Does SRQ make any of these invalid? */
   if_pf (gasnetc_am_credits_slack >= gasnetc_am_oust_pp) {
     fprintf(stderr,
             "WARNING: GASNET_AM_CREDITS_SLACK reduced to GASNET_AM_CREDITS_PP-1 (from %d to %d)\n",
@@ -561,75 +594,80 @@ static int gasnetc_load_settings(void) {
 
 
   /* Report */
-  GASNETI_TRACE_PRINTF(C,(GASNET_CONDUIT_NAME_STR_LC "-conduit build time configuration settings = {"));
-  GASNETI_TRACE_PRINTF(C,("  AM receives in internal thread %sabled (GASNETC_" GASNET_CONDUIT_NAME_STR"_RCV_THREAD)",
+  GASNETI_TRACE_PRINTF(I,(GASNET_CONDUIT_NAME_STR_LC "-conduit build time configuration settings = {"));
+  GASNETI_TRACE_PRINTF(I,("  AM receives in internal thread %sabled (GASNETC_" GASNET_CONDUIT_NAME_STR"_RCV_THREAD)",
 				GASNETC_IB_RCV_THREAD ? "en" : "dis"));
 #if GASNET_CONDUIT_VAPI && GASNETC_VAPI_POLL_LOCK
-  GASNETI_TRACE_PRINTF(C,("  Serialized CQ polls            YES (--enable-vapi-poll-lock)"));
+  GASNETI_TRACE_PRINTF(I,("  Serialized CQ polls            YES (--enable-vapi-poll-lock)"));
 #elif GASNET_CONDUIT_IBV && GASNETC_IBV_POLL_LOCK
-  GASNETI_TRACE_PRINTF(C,("  Serialized CQ polls            YES (--enable-ibv-poll-lock)"));
+  GASNETI_TRACE_PRINTF(I,("  Serialized CQ polls            YES (--enable-ibv-poll-lock)"));
 #else
-  GASNETI_TRACE_PRINTF(C,("  Serialized CQ polls            NO (default)"));
+  GASNETI_TRACE_PRINTF(I,("  Serialized CQ polls            NO (default)"));
 #endif
-  GASNETI_TRACE_PRINTF(C,("  Max. snd completions per poll  %d (GASNETC_SND_REAP_LIMIT)",
+  GASNETI_TRACE_PRINTF(I,("  Max. snd completions per poll  %d (GASNETC_SND_REAP_LIMIT)",
 				GASNETC_SND_REAP_LIMIT));
-  GASNETI_TRACE_PRINTF(C,("  Max. rcv completions per poll  %d (GASNETC_RCV_REAP_LIMIT)",
+  GASNETI_TRACE_PRINTF(I,("  Max. rcv completions per poll  %d (GASNETC_RCV_REAP_LIMIT)",
 				GASNETC_RCV_REAP_LIMIT));
-  GASNETI_TRACE_PRINTF(C,  ("}"));
+  GASNETI_TRACE_PRINTF(I,  ("}"));
 
-  GASNETI_TRACE_PRINTF(C,(GASNET_CONDUIT_NAME_STR_LC "-conduit run time configuration settings = {"));
+  GASNETI_TRACE_PRINTF(I,(GASNET_CONDUIT_NAME_STR_LC "-conduit run time configuration settings = {"));
 #if GASNET_CONDUIT_VAPI
   if (gasnetc_vapi_ports && strlen(gasnetc_vapi_ports)) {
-    GASNETI_TRACE_PRINTF(C,  ("  GASNET_VAPI_PORTS               = '%s'", gasnetc_vapi_ports));
+    GASNETI_TRACE_PRINTF(I,  ("  GASNET_VAPI_PORTS               = '%s'", gasnetc_vapi_ports));
   } else {
-    GASNETI_TRACE_PRINTF(C,  ("  GASNET_VAPI_PORTS               = empty or unset (probe all)"));
+    GASNETI_TRACE_PRINTF(I,  ("  GASNET_VAPI_PORTS               = empty or unset (probe all)"));
   }
 #else
   if (gasnetc_vapi_ports && strlen(gasnetc_vapi_ports)) {
-    GASNETI_TRACE_PRINTF(C,  ("  GASNET_IBV_PORTS                = '%s'", gasnetc_vapi_ports));
+    GASNETI_TRACE_PRINTF(I,  ("  GASNET_IBV_PORTS                = '%s'", gasnetc_vapi_ports));
   } else {
-    GASNETI_TRACE_PRINTF(C,  ("  GASNET_IBV_PORTS                = empty or unset (probe all)"));
+    GASNETI_TRACE_PRINTF(I,  ("  GASNET_IBV_PORTS                = empty or unset (probe all)"));
   }
 #endif
   if (gasnetc_num_qps) {
-    GASNETI_TRACE_PRINTF(C,  ("  GASNET_NUM_QPS                  = %d", gasnetc_num_qps));
+    GASNETI_TRACE_PRINTF(I,  ("  GASNET_NUM_QPS                  = %d", gasnetc_num_qps));
   } else {
-    GASNETI_TRACE_PRINTF(C,  ("  GASNET_NUM_QPS                  = 0 (automatic)"));
+    GASNETI_TRACE_PRINTF(I,  ("  GASNET_NUM_QPS                  = 0 (automatic)"));
   }
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_NETWORKDEPTH_PP          = %d", gasnetc_op_oust_pp));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_NETWORKDEPTH_TOTAL       = %d%s",
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_NETWORKDEPTH_PP          = %d", gasnetc_op_oust_pp));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_NETWORKDEPTH_TOTAL       = %d%s",
 			  	gasnetc_op_oust_limit, gasnetc_op_oust_limit ? "" : " (automatic)"));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_AM_CREDITS_PP            = %d", gasnetc_am_oust_pp));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_AM_CREDITS_TOTAL         = %d%s",
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_AM_CREDITS_PP            = %d", gasnetc_am_oust_pp));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_AM_CREDITS_TOTAL         = %d%s",
 			  	gasnetc_am_oust_limit, gasnetc_am_oust_limit ? "" : " (automatic)"));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_AM_CREDITS_SLACK         = %d", gasnetc_am_credits_slack));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_BBUF_COUNT               = %d%s",
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_AM_CREDITS_SLACK         = %d", gasnetc_am_credits_slack));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_BBUF_COUNT               = %d%s",
 			  	gasnetc_bbuf_limit, gasnetc_bbuf_limit ? "": " (automatic)"));
+#if GASNETC_IBV_SRQ
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_USE_SRQ                  = %d", gasnetc_use_srq));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_RBUF_COUNT               = %d%s",
+			  	gasnetc_rbuf_limit, gasnetc_rbuf_limit ? "": " (automatic)"));
+#endif
 #if GASNETC_PIN_SEGMENT
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_PIN_MAXSZ                = %lu%s", (unsigned long)gasnetc_pin_maxsz,
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_PIN_MAXSZ                = %lu%s", (unsigned long)gasnetc_pin_maxsz,
 				(!gasnetc_pin_maxsz ? " (automatic)" : "")));
 #endif
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_INLINESEND_LIMIT         = %d%s", (int)gasnetc_inline_limit,
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_INLINESEND_LIMIT         = %d%s", (int)gasnetc_inline_limit,
 				(gasnetc_inline_limit == (size_t)-1 ? " (automatic)" : "")));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_NONBULKPUT_BOUNCE_LIMIT  = %u", (unsigned int)gasnetc_bounce_limit));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_NONBULKPUT_BOUNCE_LIMIT  = %u", (unsigned int)gasnetc_bounce_limit));
 #if !GASNETC_PIN_SEGMENT
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_PUTINMOVE_LIMIT          = %u", (unsigned int)gasnetc_putinmove_limit));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_PUTINMOVE_LIMIT          = %u", (unsigned int)gasnetc_putinmove_limit));
 #endif
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_MAX_PEERS         = %u", (unsigned int)gasnetc_amrdma_max_peers));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_DEPTH             = %u", (unsigned int)gasnetc_amrdma_depth));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_LIMIT             = %u", (unsigned int)gasnetc_amrdma_limit));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_AMRDMA_CYCLE             = %lu", (unsigned long)gasnetc_amrdma_cycle));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_MAX_PEERS         = %u", (unsigned int)gasnetc_amrdma_max_peers));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_DEPTH             = %u", (unsigned int)gasnetc_amrdma_depth));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_LIMIT             = %u", (unsigned int)gasnetc_amrdma_limit));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_AMRDMA_CYCLE             = %lu", (unsigned long)gasnetc_amrdma_cycle));
 #if GASNETC_IB_RCV_THREAD
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_RCV_THREAD               = %d (%sabled)", gasnetc_use_rcv_thread,
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_RCV_THREAD               = %d (%sabled)", gasnetc_use_rcv_thread,
 				gasnetc_use_rcv_thread ? "en" : "dis"));
 #else
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_RCV_THREAD               disabled at build time"));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_RCV_THREAD               disabled at build time"));
 #endif
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_QP_TIMEOUT               = %d (%g sec)", gasnetc_qp_timeout, 4.096e-6*(1<<gasnetc_qp_timeout)));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_QP_RETRY_COUNT           = %d", gasnetc_qp_retry_count));
-  GASNETI_TRACE_PRINTF(C,  ("  GASNET_QP_RD_ATOM               = %d%s", gasnetc_qp_rd_atom,
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_QP_TIMEOUT               = %d (%g sec)", gasnetc_qp_timeout, 4.096e-6*(1<<gasnetc_qp_timeout)));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_QP_RETRY_COUNT           = %d", gasnetc_qp_retry_count));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_QP_RD_ATOM               = %d%s", gasnetc_qp_rd_atom,
 				!gasnetc_qp_rd_atom ? " (automatic)" : ""));
-  GASNETI_TRACE_PRINTF(C,  ("}"));
+  GASNETI_TRACE_PRINTF(I,  ("}"));
 
   gasnetc_exittimeout = gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
 						GASNETC_DEFAULT_EXITTIMEOUT_MIN,
@@ -676,12 +714,6 @@ static void gasneti_bootstrapInit(int *argc_p, char ***argv_p,
 }
 
 /* Info used while probing for HCAs/ports */
-typedef struct {
-  int			hca_index;	/* Slot in gasnetc_hca[] */
-  gasnetc_port_t	port_num;	/* Port number */
-  gasnetc_hca_port_t	port;		/* Port info */
-  int			rd_atom;
-} gasnetc_port_info_t;
 typedef struct gasnetc_port_list_ {
   struct gasnetc_port_list_	*next;
   char				*id;
@@ -1019,6 +1051,11 @@ static int gasnetc_init(int *argc, char ***argv) {
   /* Now enable tracing of all the following steps */
   gasneti_trace_init(argc, argv);
 
+  /* boostrapInit may set gasneti_nodes==0 if would overflow gasnet_node_t */
+  if (!gasneti_nodes || (gasneti_nodes > GASNET_MAXNODES)) {
+    GASNETI_RETURN_ERRR(RESOURCE, "gasnet_nodes exceeds " GASNET_CONDUIT_NAME_STR_LC "-conduit capabilities");
+  }
+
   /* Process the environment for configuration/settings */
   i = gasnetc_load_settings();
   if (i != GASNET_OK) {
@@ -1040,50 +1077,58 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
   }
 
+  /* compute various snd/rcv resource limits */
+  i = gasnetc_sndrcv_limits(num_ports, port_tbl);
+  if (i != GASNET_OK) {
+    return i;
+  }
+  
   /* allocate resources */
-  ceps = gasneti_nodes * gasnetc_num_qps;
-  gasnetc_cep = (gasnetc_cep_t *)GASNETI_ALIGNUP(gasneti_calloc(1, ceps*sizeof(gasnetc_cep_t)
-									+ GASNETI_CACHE_LINE_BYTES - 1),
-						 GASNETI_CACHE_LINE_BYTES);
+  ceps = gasneti_nodes * gasnetc_alloc_qps;
+  gasnetc_cep = (gasnetc_cep_t *)
+      gasnett_malloc_aligned(GASNETI_CACHE_LINE_BYTES, ceps*sizeof(gasnetc_cep_t));
+  memset(gasnetc_cep, 0, ceps*sizeof(gasnetc_cep_t));
   local_addr = gasneti_calloc(ceps, sizeof(gasnetc_addr_t));
   remote_addr = gasneti_calloc(ceps, sizeof(gasnetc_addr_t));
   port_map = gasneti_calloc(ceps, sizeof(gasnetc_port_info_t *));
 
   /* Distribute the qps to each peer round-robin over the ports */
   for (i = 0; i < ceps; ) {
-    if (i/gasnetc_num_qps == gasneti_mynode) {
-      i += gasnetc_num_qps;
+    if (i/gasnetc_alloc_qps == gasneti_mynode) {
+      i += gasnetc_alloc_qps;
     } else {
       int j;
       for (j = 0; j < gasnetc_num_qps; ++j, ++i) {
         port_map[i] = &port_tbl[j % num_ports];
         hca = &gasnetc_hca[port_map[i]->hca_index];
-	hca->total_qps++;
         gasnetc_cep[i].hca = hca;
         gasnetc_cep[i].hca_handle = hca->handle;
         gasnetc_cep[i].hca_index = hca->hca_index;
       }
+#if GASNETC_IBV_SRQ
+      /* Second half (if any) duplicates first half.
+         This might NOT be the same as extending the loop above */
+      for (; j < gasnetc_alloc_qps; ++j, ++i) {
+        port_map[i]    = port_map[i - gasnetc_num_qps];
+        gasnetc_cep[i] = gasnetc_cep[i - gasnetc_num_qps];
+      }
+#else
+      gasneti_assert(j == gasnetc_alloc_qps);
+#endif
     }
   }
-  if (gasneti_nodes == 1) {
-    GASNETC_FOR_ALL_HCA(hca) {
-      /* Avoid a later division by zero */
-      hca->total_qps = 1;
-      hca->qps = 1;
-    }
-  } else {
+  if (gasneti_nodes != 1) {
     GASNETC_FOR_ALL_HCA(hca) {
       int j;
       hca->cep = gasneti_calloc(hca->total_qps, sizeof(gasnetc_cep_t *));
       for (i = j = 0; i < ceps; ++i) {
-        if (i/gasnetc_num_qps == gasneti_mynode) {
-          i += gasnetc_num_qps - 1;
+        if (i/gasnetc_alloc_qps == gasneti_mynode) {
+          i += gasnetc_alloc_qps - 1;
         } else if (gasnetc_cep[i].hca == hca) {
           hca->cep[j++] = &gasnetc_cep[i];
         }
       }
       gasneti_assert(j == hca->total_qps);
-      hca->qps = hca->total_qps / (gasneti_nodes - 1);
       hca->amrdma_rcv.max_peers = MIN(gasnetc_amrdma_max_peers, hca->total_qps);
     }
   }
@@ -1092,43 +1137,43 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasnetc_max_msg_sz = ~((uintptr_t)0);
   GASNETC_FOR_ALL_HCA_INDEX(h) {
     hca = &gasnetc_hca[h];
-    GASNETI_TRACE_PRINTF(C,(GASNET_CONDUIT_NAME_STR_LC "-conduit HCA properties (%d of %d) = {", h+1, gasnetc_num_hcas));
-    GASNETI_TRACE_PRINTF(C,("  HCA id                   = '%s'", hca->hca_id));
+    GASNETI_TRACE_PRINTF(I,(GASNET_CONDUIT_NAME_STR_LC "-conduit HCA properties (%d of %d) = {", h+1, gasnetc_num_hcas));
+    GASNETI_TRACE_PRINTF(I,("  HCA id                   = '%s'", hca->hca_id));
 #if GASNET_CONDUIT_VAPI
-    GASNETI_TRACE_PRINTF(C,("  HCA vendor id            = 0x%x", (unsigned int)hca->hca_vendor.vendor_id));
-    GASNETI_TRACE_PRINTF(C,("  HCA vendor part id       = 0x%x", (unsigned int)hca->hca_vendor.vendor_part_id));
-    GASNETI_TRACE_PRINTF(C,("  HCA hardware version     = 0x%x", (unsigned int)hca->hca_vendor.hw_ver));
-    GASNETI_TRACE_PRINTF(C,("  HCA firmware version     = 0x%x%08x", (unsigned int)(hca->hca_vendor.fw_ver >> 32), (unsigned int)(hca->hca_vendor.fw_ver & 0xffffffff)));
+    GASNETI_TRACE_PRINTF(I,("  HCA vendor id            = 0x%x", (unsigned int)hca->hca_vendor.vendor_id));
+    GASNETI_TRACE_PRINTF(I,("  HCA vendor part id       = 0x%x", (unsigned int)hca->hca_vendor.vendor_part_id));
+    GASNETI_TRACE_PRINTF(I,("  HCA hardware version     = 0x%x", (unsigned int)hca->hca_vendor.hw_ver));
+    GASNETI_TRACE_PRINTF(I,("  HCA firmware version     = 0x%x%08x", (unsigned int)(hca->hca_vendor.fw_ver >> 32), (unsigned int)(hca->hca_vendor.fw_ver & 0xffffffff)));
 #else
-    GASNETI_TRACE_PRINTF(C,("  HCA vendor id            = 0x%x", (unsigned int)hca->hca_cap.vendor_id));
-    GASNETI_TRACE_PRINTF(C,("  HCA vendor part id       = 0x%x", (unsigned int)hca->hca_cap.vendor_part_id));
-    GASNETI_TRACE_PRINTF(C,("  HCA hardware version     = 0x%x", (unsigned int)hca->hca_cap.hw_ver));
-    GASNETI_TRACE_PRINTF(C,("  HCA firmware version     = %64s", hca->hca_cap.fw_ver));
+    GASNETI_TRACE_PRINTF(I,("  HCA vendor id            = 0x%x", (unsigned int)hca->hca_cap.vendor_id));
+    GASNETI_TRACE_PRINTF(I,("  HCA vendor part id       = 0x%x", (unsigned int)hca->hca_cap.vendor_part_id));
+    GASNETI_TRACE_PRINTF(I,("  HCA hardware version     = 0x%x", (unsigned int)hca->hca_cap.hw_ver));
+    GASNETI_TRACE_PRINTF(I,("  HCA firmware version     = %64s", hca->hca_cap.fw_ver));
 #endif
-    GASNETI_TRACE_PRINTF(C,("  max_num_qp               = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_qp));
-    GASNETI_TRACE_PRINTF(C,("  max_qp_ous_wr            = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_qp_wr));
-    GASNETI_TRACE_PRINTF(C,("  max_num_sg_ent           = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_sge));
+    GASNETI_TRACE_PRINTF(I,("  max_num_qp               = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_qp));
+    GASNETI_TRACE_PRINTF(I,("  max_qp_ous_wr            = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_qp_wr));
+    GASNETI_TRACE_PRINTF(I,("  max_num_sg_ent           = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_sge));
     gasneti_assert_always(hca->hca_cap.gasnetc_f_max_sge >= GASNETC_SND_SG);
     gasneti_assert_always(hca->hca_cap.gasnetc_f_max_sge >= 1);
     #if 1 /* QP end points */
-      GASNETI_TRACE_PRINTF(C,("  max_qp_init_rd_atom      = %u", (unsigned int)hca->hca_cap.max_qp_init_rd_atom));
+      GASNETI_TRACE_PRINTF(I,("  max_qp_init_rd_atom      = %u", (unsigned int)hca->hca_cap.max_qp_init_rd_atom));
       gasneti_assert_always(hca->hca_cap.max_qp_init_rd_atom >= 1);	/* RDMA Read support required */
-      GASNETI_TRACE_PRINTF(C,("  max_qp_ous_rd_atom       = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_qp_rd_atom));
+      GASNETI_TRACE_PRINTF(I,("  max_qp_ous_rd_atom       = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_qp_rd_atom));
       gasneti_assert_always(hca->hca_cap.gasnetc_f_max_qp_rd_atom >= 1);	/* RDMA Read support required */
     #else
-      GASNETI_TRACE_PRINTF(C,("  max_ee_init_rd_atom      = %u", (unsigned int)hca->hca_cap.max_ee_init_rd_atom));
+      GASNETI_TRACE_PRINTF(I,("  max_ee_init_rd_atom      = %u", (unsigned int)hca->hca_cap.max_ee_init_rd_atom));
       gasneti_assert_always(hca->hca_cap.max_ee_init_rd_atom >= 1);	/* RDMA Read support required */
-      GASNETI_TRACE_PRINTF(C,("  max_ee_ous_rd_atom       = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_ee_rd_atom));
+      GASNETI_TRACE_PRINTF(I,("  max_ee_ous_rd_atom       = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_ee_rd_atom));
       gasneti_assert_always(hca->hca_cap.gasnetc_f_max_ee_rd_atom >= 1);	/* RDMA Read support required */
     #endif
-    GASNETI_TRACE_PRINTF(C,("  max_num_cq               = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_cq));
+    GASNETI_TRACE_PRINTF(I,("  max_num_cq               = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_cq));
     gasneti_assert_always(hca->hca_cap.gasnetc_f_max_cq >= 2);
-    GASNETI_TRACE_PRINTF(C,("  max_num_ent_cq           = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_cqe));
+    GASNETI_TRACE_PRINTF(I,("  max_num_ent_cq           = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_cqe));
   
   
-    GASNETI_TRACE_PRINTF(C,("  max_mr                   = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_mr));
+    GASNETI_TRACE_PRINTF(I,("  max_mr                   = %u", (unsigned int)hca->hca_cap.gasnetc_f_max_mr));
     #if FIREHOSE_VAPI_USE_FMR
-      GASNETI_TRACE_PRINTF(C,("  max_num_fmr              = %u", (unsigned int)hca->hca_cap.max_num_fmr));
+      GASNETI_TRACE_PRINTF(I,("  max_num_fmr              = %u", (unsigned int)hca->hca_cap.max_num_fmr));
       if_pf (hca->hca_cap.max_num_fmr == 0) {
 	gasneti_fatalerror("GASNet's vapi-conduit was configured to use FMRs, but libvapi reports none available.  You must pass the --disable-vapi-fmr flag to configure.");
       }
@@ -1144,7 +1189,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       #if !GASNETC_VAPI_POLL_LOCK
         /* For firmware < 3.0 there is a thread safety bug with VAPI_poll_cq(). */
         defect = (hca->hca_vendor.fw_ver < (uint64_t)(0x300000000LL));
-        GASNETI_TRACE_PRINTF(C,("  Serialized CQ polls      : %srequired for this firmware",
+        GASNETI_TRACE_PRINTF(I,("  Serialized CQ polls      : %srequired for this firmware",
 			        defect ? "" : "not "));
 	if (defect) {
 	  GASNETI_RETURN_ERRR(RESOURCE, "\n"
@@ -1166,7 +1211,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 		  "firmware, or set GASNET_INLINESEND_LIMIT=0 in your environment.\n");
       }
     
-      GASNETI_TRACE_PRINTF(C,("  Inline perfomance defect : %ssuspected in this firmware",
+      GASNETI_TRACE_PRINTF(I,("  Inline perfomance defect : %ssuspected in this firmware",
 			      defect ? "" : "not "));
     }
 #else
@@ -1176,31 +1221,27 @@ static int gasnetc_init(int *argc, char ***argv) {
     /* Per-port: */
     for (i = 0; i < num_ports; ++i) {
       if (port_tbl[i].hca_index == h) {
-        GASNETI_TRACE_PRINTF(C,("  port %d properties = {", (int)port_tbl[i].port_num));
-        GASNETI_TRACE_PRINTF(C,("    LID                      = %u", (unsigned int)port_tbl[i].port.lid));
-        GASNETI_TRACE_PRINTF(C,("    max_msg_sz               = %u", (unsigned int)port_tbl[i].port.max_msg_sz));
-        GASNETI_TRACE_PRINTF(C,("  }"));
+        GASNETI_TRACE_PRINTF(I,("  port %d properties = {", (int)port_tbl[i].port_num));
+        GASNETI_TRACE_PRINTF(I,("    LID                      = %u", (unsigned int)port_tbl[i].port.lid));
+        GASNETI_TRACE_PRINTF(I,("    max_msg_sz               = %u", (unsigned int)port_tbl[i].port.max_msg_sz));
+        GASNETI_TRACE_PRINTF(I,("  }"));
         gasnetc_max_msg_sz = MIN(gasnetc_max_msg_sz, port_tbl[i].port.max_msg_sz);
       }
     }
 
-    GASNETI_TRACE_PRINTF(C,("}")); /* end of HCA report */
+    GASNETI_TRACE_PRINTF(I,("}")); /* end of HCA report */
   }
-
-  /* Divide _pp bounds equally over the available QPs */
-  gasnetc_op_oust_pp /= gasnetc_num_qps;
-  gasnetc_am_oust_pp /= gasnetc_num_qps;
 
   /* sanity checks */
   GASNETC_FOR_ALL_HCA(hca) {
-    unsigned int max_qp = hca->hca_cap.gasnetc_f_max_qp;
-    unsigned int max_qp_wr = hca->hca_cap.gasnetc_f_max_qp_wr;
+    const unsigned int max_qp = hca->hca_cap.gasnetc_f_max_qp;
+    const unsigned int max_qp_wr = hca->hca_cap.gasnetc_f_max_qp_wr;
 
-    if_pf (gasneti_nodes*((gasnetc_num_qps+gasnetc_num_hcas-1)/gasnetc_num_hcas) > max_qp) {
+    if_pf (hca->total_qps > max_qp) {
       GASNETC_FOR_ALL_HCA(hca) { (void)gasnetc_close_hca(hca->handle); }
       GASNETI_RETURN_ERRR(RESOURCE, "gasnet_nodes exceeds HCA capabilities");
     }
-    if_pf (gasnetc_am_oust_pp * 2 > max_qp_wr) {
+    if_pf (gasnetc_am_oust_pp * 2 > max_qp_wr) { /* SRQ may change this */
       GASNETC_FOR_ALL_HCA(hca) { (void)gasnetc_close_hca(hca->handle); }
       GASNETI_RETURN_ERRR(RESOURCE, "GASNET_AM_CREDITS_PP exceeds HCA capabilities");
     }
@@ -1220,7 +1261,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       setup_pin_maxsz(gasnetc_max_msg_sz);
 #endif
       gasneti_format_number(gasnetc_pin_maxsz, newval, sizeof(newval), 1);
-      GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_PIN_MAXSZ = %s", newval));
+      GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_PIN_MAXSZ = %s", newval));
 
       if (orig != 0) {
         char oldval[16];
@@ -1233,11 +1274,38 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
   gasnetc_bounce_limit = MIN(gasnetc_max_msg_sz, gasnetc_bounce_limit);
 
-  /* get a pd for the QPs and memory registration */
+  /* get a pd for the QPs, SRQ and memory registration */
   GASNETC_FOR_ALL_HCA(hca) {
     vstat = gasnetc_alloc_pd(hca);
     GASNETC_VAPI_CHECK(vstat, "from gasnetc_alloc_pd()");
   }
+
+#if GASNETC_IBV_SRQ
+  if (gasnetc_use_srq) {
+    /* Check each HCA for support. */
+    GASNETC_FOR_ALL_HCA(hca) {
+      struct ibv_srq_init_attr attr;
+      struct ibv_srq *my_srq;
+
+      memset(&attr, 0, sizeof(attr));
+      attr.attr.max_wr = 4; /* Arbitrary */
+      attr.attr.max_sge = 1;
+
+      if (!hca->hca_cap.max_srq ||
+          !hca->hca_cap.max_srq_wr ||
+          (NULL == (my_srq = ibv_create_srq(hca->pd, &attr))) ||
+          ibv_destroy_srq(my_srq)) {
+        gasnetc_use_srq = 0;
+        break;
+      }
+    }
+    
+    if (!gasnetc_use_srq) {
+      fprintf(stderr,
+              "WARNING: GASNET_USE_SRQ disabled because HCA lacks support\n");
+    }
+  }
+#endif
 
   /* allocate/initialize transport resources */
   i = gasnetc_sndrcv_init();
@@ -1252,7 +1320,6 @@ static int gasnetc_init(int *argc, char ***argv) {
   /* create all the endpoints */
 #if GASNET_CONDUIT_VAPI
   {
-    gasnetc_cep_t *cep = &gasnetc_cep[0];
     VAPI_qp_init_attr_t	qp_init_attr;
     VAPI_qp_prop_t	qp_prop;
 
@@ -1266,45 +1333,63 @@ static int gasnetc_init(int *argc, char ***argv) {
     qp_init_attr.ts_type            = VAPI_TS_RC;
 
     for (i = 0; i < ceps; ++i) {
-      if (i/gasnetc_num_qps == gasneti_mynode) continue;
+      if (!gasnetc_cep[i].hca) continue;
 
       /* create the QP */
-      hca = cep[i].hca;
+      hca = gasnetc_cep[i].hca;
       qp_init_attr.pd_hndl         = hca->pd;
       qp_init_attr.rq_cq_hndl      = hca->rcv_cq;
       qp_init_attr.sq_cq_hndl      = hca->snd_cq;
-      vstat = VAPI_create_qp(hca->handle, &qp_init_attr, &cep[i].qp_handle, &qp_prop);
+      vstat = VAPI_create_qp(hca->handle, &qp_init_attr, &gasnetc_cep[i].qp_handle, &qp_prop);
       GASNETC_VAPI_CHECK(vstat, "from VAPI_create_qp()");
       gasneti_assert(qp_prop.cap.max_oust_wr_rq >= gasnetc_am_oust_pp * 2);
       gasneti_assert(qp_prop.cap.max_oust_wr_sq >= gasnetc_op_oust_pp);
       local_addr[i].qp_num = qp_prop.qp_num;
       local_addr[i].lid = port_map[i]->port.lid;
+      /* XXX: When could/should we use the ENTIRE allocated length? */
+      gasneti_semaphore_init(&gasnetc_cep[i].sq_sema, gasnetc_op_oust_pp, gasnetc_op_oust_pp);
     }
   }
 #else
   {
-    gasnetc_cep_t *cep = &gasnetc_cep[0];
     struct ibv_qp_init_attr	qp_init_attr;
+    const int			max_recv_wr = gasnetc_use_srq ? 0 : gasnetc_am_oust_pp * 2;
+    int				max_send_wr = gasnetc_op_oust_pp;
 
-    qp_init_attr.cap.max_send_wr     = gasnetc_op_oust_pp;
-    qp_init_attr.cap.max_recv_wr     = gasnetc_am_oust_pp * 2;
+    qp_init_attr.cap.max_send_wr     = max_send_wr;
+    qp_init_attr.cap.max_recv_wr     = max_recv_wr;
     qp_init_attr.cap.max_send_sge    = GASNETC_SND_SG;
     qp_init_attr.cap.max_recv_sge    = 1;
     qp_init_attr.cap.max_inline_data = gasnetc_inline_limit;
     qp_init_attr.qp_context          = NULL; /* XXX: Can/should we use this? */
     qp_init_attr.qp_type             = IBV_QPT_RC;
-    qp_init_attr.sq_sig_all          = 0;
+    qp_init_attr.sq_sig_all          = 1; /* XXX: Unless we drop 1-to-1 WQE/CQE relationship */
     qp_init_attr.srq                 = NULL;
 
     for (i = 0; i < ceps; ++i) {
       gasnetc_qp_hndl_t hndl;
 
-      if (i/gasnetc_num_qps == gasneti_mynode) continue;
+      if (!gasnetc_cep[i].hca) continue;
 
       /* create the QP */
-      hca = cep[i].hca;
+      hca = gasnetc_cep[i].hca;
       qp_init_attr.send_cq         = hca->snd_cq;
       qp_init_attr.recv_cq         = hca->rcv_cq;
+    #if GASNETC_IBV_SRQ
+      if (gasnetc_use_srq) {
+        const int is_request = ((i / gasnetc_num_qps) & 1);
+
+        if (is_request) {
+          qp_init_attr.srq = hca->rqst_srq;
+          qp_init_attr.cap.max_send_wr = gasnetc_am_oust_pp;
+        } else {
+          qp_init_attr.srq = hca->repl_srq;
+          qp_init_attr.cap.max_send_wr = gasnetc_op_oust_pp;
+        }
+        gasnetc_cep[i].srq = qp_init_attr.srq;
+        max_send_wr = qp_init_attr.cap.max_send_wr;
+      }
+    #endif
       while (1) {	/* No query for max_inline_data limit */
         hndl = ibv_create_qp(hca->pd, &qp_init_attr);
 	if (hndl != NULL) break;
@@ -1320,35 +1405,45 @@ static int gasnetc_init(int *argc, char ***argv) {
 	qp_init_attr.cap.max_inline_data = MIN(1024, qp_init_attr.cap.max_inline_data - 1);
 	/* Try again */
       }
-      cep[i].qp_handle = hndl;
-  #if 0	/* XXX: Bring back these checks */
-      gasneti_assert(qp_prop.cap.max_oust_wr_rq >= gasnetc_am_oust_pp * 2);
-      gasneti_assert(qp_prop.cap.max_oust_wr_sq >= gasnetc_op_oust_pp);
-  #endif
-      local_addr[i].qp_num = cep[i].qp_handle->qp_num;
+      gasnetc_cep[i].qp_handle = hndl;
+      gasneti_assert(qp_init_attr.cap.max_recv_wr >= max_recv_wr);
+      gasneti_assert(qp_init_attr.cap.max_send_wr >= max_send_wr);
+      local_addr[i].qp_num = gasnetc_cep[i].qp_handle->qp_num;
       local_addr[i].lid = port_map[i]->port.lid;
+      /* XXX: When could/should we use the ENTIRE allocated length? */
+      gasneti_semaphore_init(&gasnetc_cep[i].sq_sema, max_send_wr, max_send_wr);
     }
   }
 #endif
 
   /* exchange endpoint info for connecting */
-  gasneti_bootstrapAlltoall(local_addr, gasnetc_num_qps*sizeof(gasnetc_addr_t), remote_addr);
+  gasneti_bootstrapAlltoall(local_addr, gasnetc_alloc_qps*sizeof(gasnetc_addr_t), remote_addr);
 
   /* Derive nodemap from the LID info we have just exchanged */
   {
     if (gasneti_nodes > 1) { /* Would otherwise access non-existant localaddr[>0] */
         /* Fill in otherwise unused remote_addr[self].lid for the helper.
          * We use local_addr[!mynode] since local_addr[mynode] is always 0 */
-        remote_addr[gasnetc_num_qps * gasneti_mynode].lid =
-                             local_addr[gasnetc_num_qps * !gasneti_mynode].lid;
+        remote_addr[gasnetc_alloc_qps * gasneti_mynode].lid =
+                             local_addr[gasnetc_alloc_qps * !gasneti_mynode].lid;
     }
     gasneti_nodemapInit(NULL, &remote_addr[0].lid,
                         sizeof(remote_addr[0].lid),
-                        sizeof(remote_addr[0]) * gasnetc_num_qps);
+                        sizeof(remote_addr[0]) * gasnetc_alloc_qps);
   }
 
   #if GASNET_PSHM
     gasneti_pshm_init(&gasneti_bootstrapExchange, 0);
+
+    /* Prevent allocating QPs that will always be bypassed by PSHM */
+    for (i = 0; i < gasneti_nodes; ++i) {
+      if (gasneti_pshm_in_supernode(i)) {
+        int j;
+        for (j = 0 ; j < gasnetc_alloc_qps; ++j) {
+           gasnetc_cep[i*gasnetc_alloc_qps + j].hca = NULL;
+        }
+      }
+    }
   #endif
 
   /* connect the endpoints */
@@ -1376,7 +1471,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     qp_attr.remote_atomic_flags = VAPI_EN_REM_WRITE | VAPI_EN_REM_READ;
 
     for (i = 0; i < ceps; ++i) {
-      if (i/gasnetc_num_qps == gasneti_mynode) continue;
+      if (!gasnetc_cep[i].hca) continue;
       
       qp_attr.port = port_map[i]->port_num;
       vstat = VAPI_modify_qp(gasnetc_cep[i].hca_handle, gasnetc_cep[i].qp_handle, &qp_attr, &qp_mask, &qp_cap);
@@ -1389,7 +1484,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     qp_attr.qp_access_flags = IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
 
     for (i = 0; i < ceps; ++i) {
-      if (i/gasnetc_num_qps == gasneti_mynode) continue;
+      if (!gasnetc_cep[i].hca) continue;
       
       qp_attr.port_num = port_map[i]->port_num;
       rc = ibv_modify_qp(gasnetc_cep[i].qp_handle, &qp_attr, qp_mask);
@@ -1419,7 +1514,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     qp_attr.av.src_path_bits = 0;
     qp_attr.min_rnr_timer    = GASNETC_QP_MIN_RNR_TIMER;
     for (i = 0; i < ceps; ++i) {
-      if (i/gasnetc_num_qps == gasneti_mynode) continue;
+      if (!gasnetc_cep[i].hca) continue;
 
       qp_attr.qp_ous_rd_atom = port_map[i]->rd_atom;
       qp_attr.path_mtu       = MIN(GASNETC_QP_PATH_MTU, port_map[i]->port.max_mtu);
@@ -1439,7 +1534,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 
     qp_attr.min_rnr_timer    = GASNETC_QP_MIN_RNR_TIMER;
     for (i = 0; i < ceps; ++i) {
-      if (i/gasnetc_num_qps == gasneti_mynode) continue;
+      if (!gasnetc_cep[i].hca) continue;
 
       qp_attr.max_dest_rd_atomic = port_map[i]->rd_atom;
       qp_attr.path_mtu       = MIN(GASNETC_QP_PATH_MTU, port_map[i]->port.max_mtu);
@@ -1469,9 +1564,9 @@ static int gasnetc_init(int *argc, char ***argv) {
     qp_attr.retry_count      = gasnetc_qp_retry_count;
     qp_attr.rnr_retry        = GASNETC_QP_RNR_RETRY;
     for (i = 0; i < ceps; ++i) {
-      if (i/gasnetc_num_qps == gasneti_mynode) continue;
+      if (!gasnetc_cep[i].hca) continue;
 
-      qp_attr.sq_psn           = gasneti_mynode*gasnetc_num_qps + (i % gasnetc_num_qps);
+      qp_attr.sq_psn           = gasneti_mynode*gasnetc_alloc_qps + (i % gasnetc_alloc_qps);
       qp_attr.ous_dst_rd_atom  = port_map[i]->rd_atom;
       vstat = VAPI_modify_qp(gasnetc_cep[i].hca_handle, gasnetc_cep[i].qp_handle, &qp_attr, &qp_mask, &qp_cap);
       GASNETC_VAPI_CHECK(vstat, "from VAPI_modify_qp(RTS)");
@@ -1491,9 +1586,9 @@ static int gasnetc_init(int *argc, char ***argv) {
     qp_attr.retry_cnt        = gasnetc_qp_retry_count;
     qp_attr.rnr_retry        = GASNETC_QP_RNR_RETRY;
     for (i = 0; i < ceps; ++i) {
-      if (i/gasnetc_num_qps == gasneti_mynode) continue;
+      if (!gasnetc_cep[i].hca) continue;
 
-      qp_attr.sq_psn           = gasneti_mynode*gasnetc_num_qps + (i % gasnetc_num_qps);
+      qp_attr.sq_psn           = gasneti_mynode*gasnetc_alloc_qps + (i % gasnetc_alloc_qps);
       qp_attr.max_rd_atomic  = port_map[i]->rd_atom;
       rc = ibv_modify_qp(gasnetc_cep[i].qp_handle, &qp_attr, qp_mask);
       GASNETC_VAPI_CHECK(rc, "from ibv_modify_qp(RTS)");
@@ -1514,7 +1609,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
 #endif
   }
-  GASNETI_TRACE_PRINTF(C, ("Final/effective GASNET_INLINESEND_LIMIT = %d", (int)gasnetc_inline_limit));
+  GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_INLINESEND_LIMIT = %d", (int)gasnetc_inline_limit));
 
   gasneti_free(remote_addr);
   gasneti_free(local_addr);
@@ -1534,6 +1629,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     /* All QPs must reach RTS before we can test connectivity.
      * Otherwise the rcv thread (which has already been created) might try to
      * send a reply while still in RTR.
+     * XXX: Could probably spawn the rcv thread much later to avoid this.
      */
     gasneti_bootstrapBarrier();
   }
@@ -1542,8 +1638,10 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasnet_node_t peer;
     peer = (gasneti_mynode ? gasneti_mynode : gasneti_nodes) - 1;
   #if GASNET_PSHM
-    /* Send only off-node AMs (cannot use AMPSHM yet because gasneti_mmapLimit()
-     * still needs the "raw" vnet for pshmnet_bootstrapBroadcast).
+    /* Despite a comment to the contrary in earlier versions of this code, it is
+     * "safe" to send over pshmnet despite the non-AM use via pshmnet_bootstrapBroadcast.
+     * One probably needs to drain the recvd ping and ack to ensure this is true.
+     * However, we still skip this for a minor efficiency gain.
      */
     if (!gasneti_pshm_in_supernode(peer))
   #endif
@@ -1553,6 +1651,11 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
   }
   #endif
+
+  /* XXX: From this point forward gasneti_bootstrap*() could safely be implemented
+   * via AMs or "raw" IB if desired for efficiency (but no segment for RDMA).
+   * Note that only Exchange (aka AllGather) and Barrier are currently used.
+   */
 
   /* Find max pinnable size before we start carving up memory w/ mmap()s.
    *
@@ -1862,6 +1965,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     }
     reg_size = prereg[0].len;
     reg_count = 1;
+#if 0 /* If firehose is active, then there is no way one can initiate RDMA from a rcv buf */
     if (gasneti_nodes > 1) {
 	prereg[reg_count].addr             = gasnetc_hca[0].rcv_reg.addr;
 	prereg[reg_count].len              = gasnetc_hca[0].rcv_reg.len;
@@ -1873,6 +1977,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
         reg_size += prereg[reg_count].len;
 	reg_count++;
     }
+#endif
     /* Adjust for prepinned regions (they were pinned before init_pin_info probe) */
     firehose_mem += reg_size;
 
@@ -2582,6 +2687,34 @@ static void gasnetc_atexit(void) {
  * or possibly gasneti_defaultSignalHandler() responding to a termination signal.
  */
 extern void gasnetc_exit(int exitcode) {
+#if GASNET_TRACE
+  gasneti_heapstats_t stats;
+  gasneti_getheapstats(&stats);
+  GASNETI_TRACE_PRINTF(I, ("Conduit-internal memory use (%scludes segment):",
+                           GASNETC_PIN_SEGMENT ? "in" : "ex"));
+  GASNETI_TRACE_PRINTF(I, ("  allocated: %12llu bytes in %8llu objects",
+                           (long long unsigned)stats.live_bytes,
+                           (long long unsigned)stats.live_objects));
+  GASNETI_TRACE_PRINTF(I, ("     pinned: %12llu bytes in %8llu objects",
+                           (long long unsigned)gasnetc_pinned_bytes,
+                           (long long unsigned)gasnetc_pinned_blocks));
+  GASNETI_TRACE_PRINTF(I, ("      total: %12llu bytes in %8llu objects",
+                           (long long unsigned)(stats.live_bytes + gasnetc_pinned_bytes),
+                           (long long unsigned)(stats.live_objects + gasnetc_pinned_blocks)));
+ #if PLATFORM_OS_LINUX
+  { FILE *fp;
+    char line[256];
+    if (NULL != (fp = fopen("/proc/self/status","r"))) {
+      while (fgets(line, sizeof(line)-1, fp)) {
+        if (!strncmp(line, "Vm", 2)) {
+          GASNETI_TRACE_PRINTF(I, ("%s", line));
+        }
+      }
+      fclose(fp);
+    }
+  }
+ #endif
+#endif
   gasnetc_exit_head(exitcode);
   gasnetc_exit_body();
   gasnetc_exit_tail();
@@ -2608,7 +2741,7 @@ void gasnetc_amrdma_grant_reqh_inner(gasnet_token_t token, int qpi, gasnetc_rkey
   gasnet_node_t node;
 
   GASNETI_SAFE(gasnet_AMGetMsgSource(token, &node));
-  index = qpi + node * gasnetc_num_qps - 1;
+  index = qpi + node * gasnetc_alloc_qps - 1;
 
   gasnetc_cep[index].keys.amrdma_rkey = rkey;
   gasneti_sync_writes();

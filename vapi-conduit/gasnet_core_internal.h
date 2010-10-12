@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2010/02/22 18:07:04 $
- * $Revision: 1.160 $
+ *     $Date: 2010/10/12 23:52:44 $
+ * $Revision: 1.160.8.1 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -33,6 +33,9 @@
   #include <vapi_common.h>
 #else
   #include <infiniband/verbs.h>
+  #if HAVE_IBV_SRQ
+    #define GASNETC_IBV_SRQ 1
+  #endif
 #endif
 
 #if HAVE_MMAP
@@ -454,8 +457,13 @@ typedef struct {
   gasnetc_memreg_t	*seg_reg;
   gasnetc_rkey_t	*rkeys;	/* RKey(s) registered at attach time */
 #endif
+#if GASNETC_IBV_SRQ
+  struct ibv_srq	*rqst_srq;
+  struct ibv_srq	*repl_srq;
+  gasneti_semaphore_t	am_sema;
+#endif
   gasnetc_cq_hndl_t	rcv_cq;
-  gasnetc_cq_hndl_t	snd_cq;
+  gasnetc_cq_hndl_t	snd_cq; /* Includes Reply AMs when SRQ in use */
   gasnetc_pd_hndl_t	pd;
 #if FIREHOSE_VAPI_USE_FMR
   EVAPI_fmr_t		fmr_props;
@@ -556,11 +564,24 @@ struct gasnetc_cep_t_ {
   gasnetc_epid_t	epid;		/* == uint32_t */
   gasnetc_amrdma_buf_t	*amrdma_loc;	
   uintptr_t		amrdma_rem;
+#if GASNETC_IBV_SRQ
+  struct ibv_srq	*srq;
+#endif
 
   char			_pad2[GASNETI_CACHE_LINE_BYTES];
 };
 
+/* Info used while probing for HCAs/ports */
+typedef struct {
+  int                   hca_index;      /* Slot in gasnetc_hca[] */
+  gasnetc_port_t        port_num;       /* Port number */
+  gasnetc_hca_port_t    port;           /* Port info */
+  int                   rd_atom;
+} gasnetc_port_info_t;
+
+
 /* Routines in gasnet_core_sndrcv.c */
+extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl);
 extern int gasnetc_sndrcv_init(void);
 extern void gasnetc_sndrcv_fini(void);
 extern void gasnetc_sndrcv_init_peer(gasnet_node_t node);
@@ -590,7 +611,8 @@ extern int		gasnetc_am_oust_pp;
 extern int		gasnetc_bbuf_limit;
 extern int		gasnetc_use_rcv_thread;
 extern int		gasnetc_am_credits_slack;
-extern int		gasnetc_num_qps;
+extern int		gasnetc_alloc_qps;    /* Number of QPs per node in gasnetc_ceps[] */
+extern int		gasnetc_num_qps;      /* How many QPs to use per peer */
 extern size_t		gasnetc_packedlong_limit;
 extern size_t		gasnetc_inline_limit;
 extern size_t		gasnetc_bounce_limit;
@@ -609,6 +631,14 @@ extern int		gasnetc_amrdma_depth;
 extern int		gasnetc_amrdma_slot_mask;
 extern gasneti_weakatomic_val_t gasnetc_amrdma_cycle;
 
+#if GASNETC_IBV_SRQ
+  extern int			gasnetc_rbuf_limit;
+  extern int			gasnetc_rbuf_set;
+  extern int			gasnetc_use_srq;
+  /* If non-zero use normal credit system to throttle AMs */
+#else
+  #define gasnetc_use_srq	0
+#endif
 
 /* Global variables */
 extern int		gasnetc_num_hcas;

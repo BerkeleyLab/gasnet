@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_reqrep.c,v $
- *     $Date: 2010/04/09 18:00:25 $
- * $Revision: 1.41 $
+ *     $Date: 2010/10/12 23:52:32 $
+ * $Revision: 1.41.2.1 $
  * Description: AMMPI Implementations of request/reply operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -187,7 +187,12 @@ static int sourceAddrToId(ep_t ep, en_t sourceAddr) {
  * an extra unused 4-byte argument to make sure the data lands on a double-word boundary
  * TODO: remove padding arg for shorts and longs, where it's irrelevant
  */
+#if 0
 #define HEADER_EVEN_WORDLENGTH  (((int)(uintptr_t)((&((ammpi_buf_t *)NULL)->_Data)-1))%8==0?1:0)
+#else
+#define HEADER_EVEN_WORDLENGTH \
+    ( ( (((uint8_t *)&(((ammpi_buf_t *)NULL)->_Data)) - ((uint8_t *)NULL)) & 0x7) == 0 ? 1 : 0)
+#endif
 #define ACTUAL_NUM_ARGS(pMsg) (AMMPI_MSG_NUMARGS(pMsg)%2==0?       \
                             AMMPI_MSG_NUMARGS(pMsg)+!HEADER_EVEN_WORDLENGTH:  \
                             AMMPI_MSG_NUMARGS(pMsg)+HEADER_EVEN_WORDLENGTH)

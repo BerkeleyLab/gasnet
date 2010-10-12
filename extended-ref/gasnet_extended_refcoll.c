@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2010/09/12 01:22:49 $
- * $Revision: 1.90.10.1 $
+ *     $Date: 2010/10/12 23:52:30 $
+ * $Revision: 1.90.10.2 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2178,13 +2178,18 @@ extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_type_t
 }
 
 extern void gasnete_coll_tree_free(gasnete_coll_tree_data_t *tree GASNETE_THREAD_FARG) {
-  
+ if (tree) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   /*  gasnet_hsl_lock(&gasnete_coll_tree_lock);*/
+#if 0
+  /* The following two release functions do nothing  */
+  gasnete_coll_tree_geom_release(tree->geom->base_geom);
 	gasnete_coll_local_tree_geom_release(tree->geom);
+#endif
   *(gasnete_coll_tree_data_t **)tree = td->tree_data_freelist;
   td->tree_data_freelist = tree;
   /* gasnet_hsl_unlock(&gasnete_coll_tree_lock);*/
+ }
 }
 
 
@@ -3105,6 +3110,7 @@ gasnete_coll_generic_broadcast_nb(gasnet_team_handle_t team,
     data->tree_info = tree_info;
     result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, num_params, param_list, tree_info GASNETE_THREAD_PASS);
   } else {
+    gasnete_coll_tree_free(tree_info GASNETE_THREAD_PASS);
     result = gasnete_coll_threads_get_handle(GASNETE_THREAD_PASS_ALONE);
   }
   gasnete_coll_threads_unlock(GASNETE_THREAD_PASS_ALONE);
@@ -3278,6 +3284,7 @@ gasnete_coll_generic_broadcastM_nb(gasnet_team_handle_t team,
       data->tree_info = tree_info;
       result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, num_params, param_list, tree_info GASNETE_THREAD_PASS);
     } else {
+      gasnete_coll_tree_free(tree_info GASNETE_THREAD_PASS);
       result = gasnete_coll_threads_get_handle_and_data(&data GASNETE_THREAD_PASS);
       if (td->my_image == srcimage) {
         gasneti_assert(src != NULL);
@@ -3314,6 +3321,7 @@ gasnete_coll_generic_broadcastM_nb(gasnet_team_handle_t team,
     data->tree_info = tree_info;
     result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, num_params, param_list, tree_info GASNETE_THREAD_PASS);
   } else {
+    gasnete_coll_tree_free(tree_info GASNETE_THREAD_PASS);
     result = gasnete_coll_threads_get_handle(GASNETE_THREAD_PASS_ALONE);
   }
 
@@ -3389,6 +3397,7 @@ gasnete_coll_generic_broadcastM_nb(gasnet_team_handle_t team,
       gasnete_coll_post_multi_addr_collective(team, flags GASNETE_THREAD_PASS);
     } else {
       gasnete_coll_wait_multi_addr_collective(team, flags GASNETE_THREAD_PASS);
+      gasnete_coll_tree_free(tree_info GASNETE_THREAD_PASS);
       result = gasnete_coll_threads_get_handle_and_data(&data GASNETE_THREAD_PASS);
       if (td->my_image == srcimage) {
         gasneti_assert(src != NULL);
@@ -3427,6 +3436,7 @@ gasnete_coll_generic_broadcastM_nb(gasnet_team_handle_t team,
       gasnete_coll_post_multi_addr_collective(team, flags GASNETE_THREAD_PASS);
     } else {
       gasnete_coll_wait_multi_addr_collective(team, flags GASNETE_THREAD_PASS);
+      gasnete_coll_tree_free(tree_info GASNETE_THREAD_PASS);
       result = gasnete_coll_threads_get_handle(GASNETE_THREAD_PASS_ALONE);
     }
   }
@@ -3597,6 +3607,7 @@ gasnete_coll_generic_scatter_nb(gasnet_team_handle_t team,
     data->tree_info = tree_info;
     result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, num_params, param_list, tree_info GASNETE_THREAD_PASS);
   } else {
+    gasnete_coll_tree_free(tree_info GASNETE_THREAD_PASS);
     result = gasnete_coll_threads_get_handle(GASNETE_THREAD_PASS_ALONE);
   }
   gasnete_coll_threads_unlock(GASNETE_THREAD_PASS_ALONE);
@@ -3764,6 +3775,7 @@ gasnete_coll_generic_scatterM_nb(gasnet_team_handle_t team,
       data->tree_info=tree_info;
       result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, 0, NULL, tree_info GASNETE_THREAD_PASS);
     } else {
+      gasnete_coll_tree_free(tree_info GASNETE_THREAD_PASS);
       result = gasnete_coll_threads_get_handle_and_data(&data GASNETE_THREAD_PASS);
       if (td->my_image == srcimage) {
         gasneti_assert(src != NULL);
@@ -3801,6 +3813,7 @@ gasnete_coll_generic_scatterM_nb(gasnet_team_handle_t team,
     data->tree_info=tree_info;
     result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, 0, NULL, tree_info GASNETE_THREAD_PASS);
   } else {
+    gasnete_coll_tree_free(tree_info GASNETE_THREAD_PASS);
     result = gasnete_coll_threads_get_handle(GASNETE_THREAD_PASS_ALONE);
   }
 
@@ -3874,6 +3887,7 @@ gasnete_coll_generic_scatterM_nb(gasnet_team_handle_t team,
       gasnete_coll_post_multi_addr_collective(team, flags GASNETE_THREAD_PASS);
     } else {
       gasnete_coll_wait_multi_addr_collective(team, flags GASNETE_THREAD_PASS);
+      gasnete_coll_tree_free(tree_info GASNETE_THREAD_PASS);
       result = gasnete_coll_threads_get_handle_and_data(&data GASNETE_THREAD_PASS);
       if (td->my_image == srcimage) {
         gasneti_assert(src != NULL);
@@ -3912,6 +3926,7 @@ gasnete_coll_generic_scatterM_nb(gasnet_team_handle_t team,
       gasnete_coll_post_multi_addr_collective(team, flags GASNETE_THREAD_PASS);
     } else {
       gasnete_coll_wait_multi_addr_collective(team, flags GASNETE_THREAD_PASS);
+      gasnete_coll_tree_free(tree_info GASNETE_THREAD_PASS);
       result = gasnete_coll_threads_get_handle(GASNETE_THREAD_PASS_ALONE);
     }
   }
@@ -4099,6 +4114,7 @@ gasnete_coll_generic_gather_nb(gasnet_team_handle_t team,
     data->private_data = NULL; data->tree_info=tree_info;
     result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, num_params, param_list, tree_info GASNETE_THREAD_PASS);
   } else {
+    gasnete_coll_tree_free(tree_info GASNETE_THREAD_PASS);
     result = gasnete_coll_threads_get_handle(GASNETE_THREAD_PASS_ALONE);
   }
   gasnete_coll_threads_unlock(GASNETE_THREAD_PASS_ALONE);
@@ -4285,6 +4301,7 @@ gasnete_coll_generic_gatherM_nb(gasnet_team_handle_t team,
       data->private_data = NULL; 
       result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, 0, NULL,tree_info GASNETE_THREAD_PASS);
     } else {
+      gasnete_coll_tree_free(tree_info GASNETE_THREAD_PASS);
       result = gasnete_coll_threads_get_handle_and_data(&data GASNETE_THREAD_PASS);
       if (td->my_image == dstimage) {
         gasneti_assert(dst != NULL);
@@ -4324,6 +4341,7 @@ gasnete_coll_generic_gatherM_nb(gasnet_team_handle_t team,
     data->tree_info=tree_info;
     result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, 0, NULL, tree_info GASNETE_THREAD_PASS);
   } else {
+    gasnete_coll_tree_free(tree_info GASNETE_THREAD_PASS);
     result = gasnete_coll_threads_get_handle(GASNETE_THREAD_PASS_ALONE);
   }
   gasnete_coll_threads_unlock(GASNETE_THREAD_PASS_ALONE);
@@ -4398,6 +4416,7 @@ gasnete_coll_generic_gatherM_nb(gasnet_team_handle_t team,
       gasnete_coll_post_multi_addr_collective(team, flags GASNETE_THREAD_PASS);
     } else {
       gasnete_coll_wait_multi_addr_collective(team, flags GASNETE_THREAD_PASS);
+      gasnete_coll_tree_free(tree_info GASNETE_THREAD_PASS);
       result = gasnete_coll_threads_get_handle_and_data(&data GASNETE_THREAD_PASS);
       if (td->my_image == dstimage) {
         gasneti_assert(dst != NULL);
@@ -4439,6 +4458,7 @@ gasnete_coll_generic_gatherM_nb(gasnet_team_handle_t team,
         gasnete_coll_post_multi_addr_collective(team, flags GASNETE_THREAD_PASS);
       } else {
         gasnete_coll_wait_multi_addr_collective(team, flags GASNETE_THREAD_PASS);
+        gasnete_coll_tree_free(tree_info GASNETE_THREAD_PASS);
         result = gasnete_coll_threads_get_handle(GASNETE_THREAD_PASS_ALONE);
       }
     }
@@ -4922,6 +4942,7 @@ gasnete_coll_generic_gather_allM_nb(gasnet_team_handle_t team,
       data->dissem_info = dissem;
       result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, 0, NULL, NULL GASNETE_THREAD_PASS);
     } else {
+      gasnete_coll_tree_free(tree_info GASNETE_THREAD_PASS);
       result = gasnete_coll_threads_get_handle_and_data(&data GASNETE_THREAD_PASS);
     }
       gasneti_assert(*srclist != NULL);
@@ -4942,6 +4963,7 @@ gasnete_coll_generic_gather_allM_nb(gasnet_team_handle_t team,
     data->dissem_info = dissem;
     result = gasnete_coll_op_generic_init_with_scratch(team, flags, data, poll_fn, sequence, scratch_req, 0, NULL, NULL GASNETE_THREAD_PASS);
   } else {
+    gasnete_coll_tree_free(tree_info GASNETE_THREAD_PASS);
     result = gasnete_coll_threads_get_handle(GASNETE_THREAD_PASS_ALONE);
   }
 
@@ -5021,7 +5043,6 @@ gasnete_coll_generic_gather_allM_nb(gasnet_team_handle_t team,
     } else {
       gasnete_coll_wait_multi_addr_collective(team, flags GASNETE_THREAD_PASS);
       result = gasnete_coll_threads_get_handle(GASNETE_THREAD_PASS_ALONE);
-      
     }
   }
   return result;

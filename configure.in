@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/09/16 02:40:52 $
-# $Revision: 1.625.6.8 $
+#     $Date: 2010/10/12 23:52:28 $
+# $Revision: 1.625.6.9 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.625.6.8 $)
+AC_REVISION($Revision: 1.625.6.9 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -169,7 +169,17 @@ GASNET_FAMILY_CACHE_CHECK(C, CC, gasnet_cv_cc_family)
 ## compiler family early initialization
 
 case "$gasnet_cv_cc_family" in
-  GNU)  GASNET_GCC_VERSION_CHECK(CC) ;;
+  GNU)  GASNET_GCC_VERSION_CHECK(CC)
+        GASNET_TRY_CACHE_EXTRACT_STR([for gcc version string],gcc_version_string,[
+          #ifndef __VERSION__
+            #define __VERSION__ "unknown"
+          #endif
+         ],[__VERSION__],[GASNETI_GCC_VERSION])
+        case "$GASNETI_GCC_VERSION" in
+          *gccfss*) AC_DEFINE(GASNETI_GCC_GCCFSS) ;;
+          *Apple*)  AC_DEFINE(GASNETI_GCC_APPLE) ;;
+        esac
+        ;;
   MTA)  # override target_os for MTA, which may be wrong if cross-compiling
         target_os="mtx"   ;;
   Cray) # Min supported version is 7.2 (which reports as 10.2)
@@ -1256,13 +1266,13 @@ fi
 AC_SUBST(GASNET_PSHM_ENABLED)
 AC_SUBST(GASNET_PSHM_LIBS)
 
-# Note that --enable-pshm disables aligned segments
+# Note that --enable-pshm disables aligned segments ONLY for conduits that USE it
 GASNET_IF_DISABLED([aligned-segments],
                    [Disable requirement to achieve aligned VM segments, for heterogeneous clusters],
 		   [GASNETI_DISABLE_ALIGNED_SEGMENTS=1
 		    AC_DEFINE(GASNETI_DISABLE_ALIGNED_SEGMENTS)],
 		   [RVMFILE="/proc/sys/kernel/randomize_va_space"
-		    if test "$with_pshm" = no && test -f $RVMFILE && test "`cat $RVMFILE`" != "0" ; then
+		    if test -f $RVMFILE && test "`cat $RVMFILE`" != "0" ; then
 WMSG="$RVMFILE on this node indicates the Linux VM space randomization \
 security feature is enabled. If this feature is also enabled on the compute \
 nodes, you need to re-run configure with --disable-aligned-segments"
@@ -1958,8 +1968,8 @@ AC_DEFUN([GASNET_IB_OPTIONS],[
   # See bug #1052 for evidence that xlc is affected.
   GASNET_FH_CFLAGS
 
-  GASNET_IF_ENABLED_WITH_AUTO(lowername[]-poll-lock, [See vapi-conduit/README (disabled by default)], 
-    enabled_ib_poll_lock=yes, enabled_ib_poll_lock=no, enabled_ib_poll_lock=no)
+  GASNET_IF_ENABLED(lowername[]-poll-lock, [See vapi-conduit/README (disabled by default)], 
+    enabled_ib_poll_lock=yes, enabled_ib_poll_lock=no)
     if test "$enabled_ib_poll_lock" = yes; then
       AC_DEFINE(GASNETC_IB_POLL_LOCK)
     fi
@@ -2001,7 +2011,7 @@ AC_DEFUN([GASNET_IB_OPTIONS],[
   AC_SUBST(GASNET_IB_SPAWNER_CONF)
 
   gasnetc_ib_max_hcas=2
-  GASNET_IF_ENABLED_WITH_AUTO(lowername[]-multirail, [Enable/disable uppername over multiple HCAs, see vapi-conduit/README (enabled by default)], enabled_ib_multirail=yes, enabled_ib_multirail=no, enabled_ib_multirail=yes)
+  GASNET_IF_DISABLED(lowername[]-multirail, [Disable uppername over multiple HCAs, see vapi-conduit/README (enabled by default)], enabled_ib_multirail=no, enabled_ib_multirail=yes)
   GASNET_WITH(lowername[]-max-hcas,
      [maximum number of uppername HCAs to open for multi-rail support (default is 2)],
      [if expr "${withval}" : "[[1-9]][[0-9]]*" >/dev/null; then
@@ -3262,6 +3272,10 @@ if test "$enabled_ibv" = yes; then
 
     # Collect IB-specifc configure options
     GASNET_IB_OPTIONS(IBV)
+
+    GASNET_IF_DISABLED([ibv-srq],
+                       [Disable Shared Receive Queue (SRQ) support in ibv-conduit (enabled by default)],
+		       [:], [AC_DEFINE(HAVE_IBV_SRQ)])
   fi
 fi
 AC_SUBST(IBV_INCLUDE)
@@ -3445,10 +3459,14 @@ if test $enabled_shmem = yes; then
       if test -n "$GASNETI_ARCH_ALTIX"; then
 	SHMEM_FLAVOUR="SGI_SHMEM"
 	AC_MSG_RESULT(SGI/Altix)
-	GASNET_ENV_DEFAULT(SHMEM_INCLUDE, /usr/include)
+	GASNET_ENV_DEFAULT(MPI_ROOT, "/usr") # At least SGI UV sets this
+	GASNET_ENV_DEFAULT(SHMEM_INCLUDE, "${MPI_ROOT}/include")
+	GASNET_ENV_DEFAULT(SHMEM_LIBDIR, "${MPI_ROOT}/lib")
         # Work around stoopid bug in Intel ecc on Altix: programs won't compile
         # if -L/usr/lib is explicitly passed.
-	GASNET_ENV_DEFAULT(SHMEM_LIBDIR, /anything/but/usr/lib)
+	if test "$SHMEM_LIBDIR" = "/usr/lib"; then
+	  SHMEM_LIBDIR="/anything/but/usr/lib"
+	fi
         GASNET_ENV_DEFAULT(SHMEM_LIBS, [-lsma -lmpi])
       else
         AC_MSG_RESULT(unknown)
@@ -4044,9 +4062,17 @@ case "$target_os" in
   ;;
 esac
 
+enabled_plpa="no"
 if test "$cross_compiling" = "no" ; then
   case "$target_os" in
-    linux*)  
+    linux*) enabled_plpa="yes";;
+  esac
+else
+  case "$target" in
+    x86_64-cnl-linux*) enabled_plpa="yes";;
+  esac
+fi
+if test "$enabled_plpa" = "yes"; then
       GASNET_IF_ENABLED_WITH_AUTO(plpa, [use PLPA for CPU binding (default is to probe)],
 		[enabled_plpa="yes"; force_plpa="yes"],
 		[enabled_plpa="no - user disabled"],
@@ -4062,8 +4088,6 @@ if test "$cross_compiling" = "no" ; then
       elif test "$force_plpa" = yes; then
         AC_MSG_ERROR(User requested --enable-plpa but PLPA is not supported on your system)
       fi
-      ;;
-  esac
 fi
 AM_CONDITIONAL(USE_PLPA,test "$enabled_plpa" = "yes")
 
@@ -4429,6 +4453,7 @@ cat >>$CONDUIT_LIST <<EOF
   MPI compatibility:      $have_mpi_compat
   Pthreads support:       $have_pthread
   Segment config:         $segconfig
+  PSHM support:           $with_pshm
 EOF
 else
 cat >>$CONDUIT_LIST <<EOF

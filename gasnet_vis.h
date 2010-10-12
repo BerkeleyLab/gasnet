@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_vis.h,v $
- *     $Date: 2006/11/26 03:10:52 $
- * $Revision: 1.19 $
+ *     $Date: 2010/10/12 23:52:28 $
+ * $Revision: 1.19.46.1 $
  * Description: GASNet Extended API Vector, Indexed & Strided declarations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -58,7 +58,11 @@ gasneti_addrlist_stats_t gasnete_addrlist_stats(size_t count, void * const *list
   gasneti_addrlist_stats_t retval;
   char *minaddr = (char *)(intptr_t)(uintptr_t)-1;
   char *maxaddr = (char *)0;
+#if PLATFORM_COMPILER_GNU && PLATFORM_COMPILER_VERSION_EQ(4,5,1)
+  ssize_t i; /* size_t triggers an ICE exclusive to gcc-4.5.1, but this gets a warning instead */
+#else
   size_t i;
+#endif
   for (i = 0; i < count; i++) {
     char * const addr = (char *)list[i];
     if (addr < minaddr) minaddr = addr;

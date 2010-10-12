@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2010/09/12 01:22:40 $
- * $Revision: 1.250.6.1 $
+ *     $Date: 2010/10/12 23:52:28 $
+ * $Revision: 1.250.6.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1896,6 +1896,10 @@ extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
   #include "plpa.h"
 #elif PLATFORM_OS_AIX
   #include <sys/thread.h>
+#elif PLATFORM_OS_SOLARIS
+  #include <sys/types.h>
+  #include <sys/processor.h>
+  #include <sys/procset.h>
 #endif
 static int gasneti_set_affinity_cpus(void) {
     int cpus = gasneti_cpu_count();
@@ -1939,6 +1943,47 @@ void gasneti_set_affinity_default(int rank) {
     int local_rank = rank % cpus;
 
     gasneti_assert_zeroret(bindprocessor(BINDTHREAD, thread_self(), local_rank));
+  }
+  #elif PLATFORM_OS_SOLARIS
+  {
+    static processorid_t *avail_cpus = NULL;
+    static int num_cpus = 0;
+
+    if_pf (avail_cpus == NULL) {
+      static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
+
+      gasneti_mutex_lock(&lock);
+      if (avail_cpus == NULL) {
+        processorid_t i;
+        int j;
+
+        /* Find max possible CPU ID */
+        processorid_t cpuid_max = sysconf(_SC_CPUID_MAX);
+
+        /* Find the number of online CPUS. */
+        num_cpus = gasneti_set_affinity_cpus();
+
+        /* Allocate avail. CPU table. This will never get deallocated ? */
+        avail_cpus = (processorid_t *) malloc(num_cpus * sizeof(processorid_t));
+
+        /* Init avail. CPU table */
+        for (i = j = 0; i <= cpuid_max; i++) {
+            if (p_online(i, P_STATUS) != -1)
+              avail_cpus[j++] = i;
+        }
+      }
+      gasneti_mutex_unlock(&lock);
+    } else {
+      gasneti_local_rmb();
+    }
+
+    /* From the processor_bind man page:
+     * P_LWPID: the binding affects the LWP of the
+     *           current process with LWP ID id.
+     * P_MYID: the specified LWP, process, task, or  
+     *          process is the current one.
+     */
+    gasneti_assert_zeroret(processor_bind(P_LWPID, P_MYID, avail_cpus[rank % num_cpus], NULL));
   }
   #else
     /* No implementation -> NO-OP */

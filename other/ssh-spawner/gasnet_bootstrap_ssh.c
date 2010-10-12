@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ssh-spawner/gasnet_bootstrap_ssh.c,v $
- *     $Date: 2009/09/18 23:33:38 $
- * $Revision: 1.68 $
+ *     $Date: 2010/10/12 23:52:38 $
+ * $Revision: 1.68.10.1 $
  * Description: GASNet conduit-independent ssh-based spawner
  * Copyright 2005, The Regents of the University of California
  * Terms of use are as specified in license.txt
@@ -1233,7 +1233,13 @@ static void do_master(int argc, char **argv) {
   }
   if (argi >= argc) usage(argv[0]); /* ran out of args */
 
-  nproc = atoi(argv[argi]);
+  { 
+    int ltmp = atoi(argv[argi]);
+    nproc = ltmp;
+    if ((int)nproc != ltmp) { /* Overflow! */
+      die(1, "value %s is out-of-range of gasnet_node_t", argv[argi]);
+    }
+  }
   if (nproc < 1) usage(argv[0]); /* bad argument */
   p = strchr(argv[argi], ':');
   if (p) {
