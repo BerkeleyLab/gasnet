@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2010/10/12 23:52:40 $
- * $Revision: 1.54.6.13 $
+ *     $Date: 2010/10/13 02:40:56 $
+ * $Revision: 1.54.6.14 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -630,6 +630,11 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   #endif
   segbase = gasneti_seginfo[gasneti_mynode].addr;
   segsize = gasneti_seginfo[gasneti_mynode].size;
+
+  /* After all segments are attached, call optional client-provided hook */
+  if (gasnet_post_attach_hook) {
+    gasnet_post_attach_hook(segbase, segsize);
+  }
 
   /* ------------------------------------------------------------------------------------ */
   /*  gather segment information */

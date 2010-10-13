@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/21 02:58:21 $
- * $Revision: 1.63 $
+ *     $Date: 2010/10/13 02:40:58 $
+ * $Revision: 1.63.10.1 $
  * Description: GASNet <conduitname> conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -310,6 +310,13 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     segsize = (uintptr_t)-1;
     /* (###) add any code here needed to setup GASNET_SEGMENT_EVERYTHING support */
   #endif
+
+  /* After local segment is attached, call optional client-provided hook
+     (###) should call BEFORE any conduit-specific pinning/registration of the segment
+   */
+  if (gasnet_post_attach_hook) {
+    gasnet_post_attach_hook(segbase, segsize);
+  }
 
   /* ------------------------------------------------------------------------------------ */
   /*  gather segment information */

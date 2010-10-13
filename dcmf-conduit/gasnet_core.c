@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2010/09/12 01:22:43 $
- * $Revision: 1.14.2.1 $
+ *     $Date: 2010/10/13 02:40:40 $
+ * $Revision: 1.14.2.2 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>, 
                    Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -603,6 +603,13 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
    }
  }
 #endif
+
+  /* After local segment is attached, call optional client-provided hook
+     (###) should call BEFORE any conduit-specific pinning/registration of the segment
+   */
+  if (gasnet_post_attach_hook) {
+    gasnet_post_attach_hook(segbase, segsize);
+  }
 
   /* ------------------------------------------------------------------------------------ */
   /*  gather segment information */

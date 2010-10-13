@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/09/12 01:23:15 $
- * $Revision: 1.40.10.3 $
+ *     $Date: 2010/10/13 02:40:50 $
+ * $Revision: 1.40.10.4 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -328,6 +328,13 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     gasnetc_segend = (uintptr_t)-1;
     /* (###) add any code here needed to setup GASNET_SEGMENT_EVERYTHING support */
   #endif
+
+  /* After local segment is attached, call optional client-provided hook
+     (###) should call BEFORE any conduit-specific pinning/registration of the segment
+   */
+  if (gasnet_post_attach_hook) {
+    gasnet_post_attach_hook(segbase, segsize);
+  }
 
   /* ------------------------------------------------------------------------------------ */
   /*  gather segment information */

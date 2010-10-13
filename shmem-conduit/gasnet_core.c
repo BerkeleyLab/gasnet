@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/18 23:33:44 $
- * $Revision: 1.43 $
+ *     $Date: 2010/10/13 02:40:54 $
+ * $Revision: 1.43.10.1 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -537,6 +537,11 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     }
     #endif /* CRAY X1 */
   #endif
+
+  /* After local segment is attached, call optional client-provided hook */
+  if (gasnet_post_attach_hook) {
+    gasnet_post_attach_hook(segbase, segsize);
+  }
 
   /* ------------------------------------------------------------------------------------ */
   /*  gather segment information */

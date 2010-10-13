@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2010/10/13 01:25:15 $
- * $Revision: 1.208.6.3 $
+ *     $Date: 2010/10/13 02:40:38 $
+ * $Revision: 1.208.6.4 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -130,6 +130,8 @@ extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentr
   uintptr_t gasneti_MaxLocalSegmentSize = 0;
   uintptr_t gasneti_MaxGlobalSegmentSize = 0;
 #endif
+
+void (*gasnet_post_attach_hook)(void *, uintptr_t) = NULL;
 
 #ifdef _GASNETI_PROGRESSFNS_DEFAULT
   GASNETI_PROGRESSFNS_LIST(_GASNETI_PROGRESSFNS_DEFINE_FLAGS)

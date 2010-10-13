@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/10/10 03:38:25 $
- * $Revision: 1.134 $
+ *     $Date: 2010/10/13 02:40:46 $
+ * $Revision: 1.134.10.1 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -713,6 +713,9 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 	segsize = gasneti_seginfo[gasneti_mynode].size;
 	gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
 	gasneti_assert(segsize % GASNET_PAGESIZE == 0);
+        if (gasnet_post_attach_hook) {
+          gasnet_post_attach_hook(segbase, segsize);
+        }
     }
 #if GASNETC_LAPI_RDMA
     gasnetc_my_segbase = (lapi_long_t)segbase;
@@ -847,6 +850,9 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 	}
 	segbase = gasneti_seginfo[gasneti_mynode].addr;
 	segsize = gasneti_seginfo[gasneti_mynode].size;
+        if (gasnet_post_attach_hook) {
+          gasnet_post_attach_hook(segbase, segsize);
+        }
     }
 #endif
 

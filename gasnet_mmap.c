@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/10/13 01:25:15 $
- * $Revision: 1.74.2.36 $
+ *     $Date: 2010/10/13 02:40:38 $
+ * $Revision: 1.74.2.37 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1330,19 +1330,6 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
 #endif
     gasneti_segmentAttachLocal(segsize, minheapoffset, seginfo, exchangefn);
     (*exchangefn)(&gasneti_segment, sizeof(gasnet_seginfo_t), seginfo);
-
-    /* After all local segments are attached, call optional client-provided hook */
-    if (gasnet_post_attach_hook) {
-        int n;
-        uintptr_t smallest_segment = seginfo[0].size;
-        for (n = 1; n < gasneti_nodes; n++) {
-            uintptr_t segment_size = seginfo[n].size; 
-            if (smallest_segment < segment_size) {
-                smallest_segment = segment_size;
-            }
-        }
-        gasnet_post_attach_hook(gasneti_segment.addr, smallest_segment);
-    }
 
 #if GASNET_PSHM
     gasneti_seginfo_correction = (uintptr_t *)gasneti_malloc(gasneti_nodes*gasneti_pshm_nodes*sizeof(uintptr_t));

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2010/10/13 01:25:15 $
- * $Revision: 1.63.10.10 $
+ *     $Date: 2010/10/13 02:40:38 $
+ * $Revision: 1.63.10.11 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -280,9 +280,7 @@ GASNETI_END_EXTERNC
   } gasnet_handlerentry_t;
 #endif
 
-#if !GASNET_SEGMENT_EVERYTHING
-  extern void (*gasnet_post_attach_hook)(void *, uintptr_t);
-#endif
+extern void (*gasnet_post_attach_hook)(void *, uintptr_t);
 
 #ifndef _GASNET_SEGINFO_T
 #define _GASNET_SEGINFO_T

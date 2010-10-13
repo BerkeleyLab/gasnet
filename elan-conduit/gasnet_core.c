@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/09/21 01:59:08 $
- * $Revision: 1.82 $
+ *     $Date: 2010/10/13 02:40:42 $
+ * $Revision: 1.82.10.1 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -548,11 +548,17 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       }
       gasneti_seginfo[gasneti_mynode].addr = segbase;
       gasneti_seginfo[gasneti_mynode].size = segsize;
+      if (gasnet_post_attach_hook) {
+        gasnet_post_attach_hook(segbase, segsize);
+      }
       gasnetc_bootstrapExchange(&gasneti_seginfo[gasneti_mynode], sizeof(gasnet_seginfo_t), gasneti_seginfo);
     #else
       gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, &gasnetc_bootstrapExchange);
       segbase = gasneti_seginfo[gasneti_mynode].addr;
       segsize = gasneti_seginfo[gasneti_mynode].size;
+      if (gasnet_post_attach_hook) {
+        gasnet_post_attach_hook(segbase, segsize);
+      }
       { int i;
         uintptr_t maxsz = 0;
         for (i=0;i<gasneti_nodes;i++) {
@@ -656,6 +662,9 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       }
       segbase = gasneti_seginfo[gasneti_mynode].addr;
       segsize = gasneti_seginfo[gasneti_mynode].size;
+      if (gasnet_post_attach_hook) {
+        gasnet_post_attach_hook(segbase, segsize);
+      }
     }
   #endif
 
