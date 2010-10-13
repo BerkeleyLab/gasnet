@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/10/11 20:14:50 $
- * $Revision: 1.74.2.35 $
+ *     $Date: 2010/10/13 01:25:15 $
+ * $Revision: 1.74.2.36 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1314,8 +1314,6 @@ int gasneti_AttachRemote(uintptr_t segsize, const gasnet_node_t pshm_node, uintp
 }
 #endif /* GASNET_PSHM */
 
-void (*gasnet_post_attach_hook)(void *, uintptr_t) = NULL;
-
 void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
                            gasnet_seginfo_t *seginfo,
                            gasneti_bootstrapExchangefn_t exchangefn) {
@@ -1432,43 +1430,11 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
 } 
 #endif /* !GASNET_SEGMENT_EVERYTHING */
 
-#if GASNET_NUMA
-/* Used to pass the nodemap information to the UPC level.
+/* Used to pass the nodemap information to the client
  * Similar to gasneti_getSegmentInfo(). 
  * */
 extern int gasneti_getNodeInfo(gasnet_node_t *nodeinfo_table, int numentries) {
-  gasnet_node_t *nodeinfo;
-  int i,j;
-  
   GASNETI_CHECKINIT();
-
-  nodeinfo = (gasnet_node_t *)gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
-  if (gasneti_nodemap) {
-    /* N^2 computation rather than N^2 network exchange */
-    gasnet_node_t count = 1;
-    gasnet_node_t prev = 0;
-    for (i = 0; i < gasneti_nodes; ++i) {
-      gasnet_node_t match = gasneti_nodemap[i];
-      if (match == 0) { /* Special case avoids needing prev < 0 */
-        nodeinfo[i] = 0;
-      } else if (match > prev){
-        prev = match;
-        nodeinfo[i] = count;
-        for (j = i+1; j < gasneti_nodes; ++j) {
-          if (gasneti_nodemap[j] == match) {
-            nodeinfo[j] = count;
-	  }
-        }
-        ++count;
-        gasneti_assert(count <= gasneti_nodemap_global_count);
-      }
-    }
-    gasneti_assert(nodeinfo[gasneti_mynode] == gasneti_nodemap_global_rank);
-  } else {
-    for (i=0; i < gasneti_nodes; i++) {
-      nodeinfo[i] = i;
-    }
-  }
 
   if_pf (numentries <= 0) {
     if (numentries == 0) return GASNET_OK;
@@ -1476,11 +1442,19 @@ extern int gasneti_getNodeInfo(gasnet_node_t *nodeinfo_table, int numentries) {
   }
   gasneti_assert(nodeinfo_table);
   if_pf (numentries > gasneti_nodes) numentries = gasneti_nodes;
-  memcpy(nodeinfo_table, nodeinfo, numentries*sizeof(gasnet_node_t));
-  gasneti_free(nodeinfo);
+
+  if (gasneti_nodeinfo) {
+    memcpy(nodeinfo_table, gasneti_nodeinfo, numentries*sizeof(gasnet_node_t));
+  } else {
+    gasnet_node_t i;
+
+    for (i=0; i < numentries; i++) {
+      nodeinfo_table[i] = i;
+    }
+  }
+
   return GASNET_OK;
 }
-#endif
 
 /* ------------------------------------------------------------------------------------ */
 /* seginfo initialization and manipulation */
@@ -1758,39 +1732,6 @@ void gasneti_auxseg_attach(void) {
 
   gasneti_assert(gasneti_auxsegfns[numfns] == NULL);
   gasneti_seginfo_client = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
-
-//#ifndef GASNET_NUMA
-  /* In NUMA case, gasnet_seginfo_t does not have
-   * nodeinfo field. nodemap is passed to the UPC
-   * level via gasneti_getNodeInfo()
-   */
-  if (gasneti_nodemap) {
-    /* N^2 computation rather than N^2 network exchange */
-    gasnet_node_t count = 1;
-    gasnet_node_t prev = 0;
-    for (i = 0; i < gasneti_nodes; ++i) {
-      gasnet_node_t match = gasneti_nodemap[i];
-      if (match == 0) { /* Special case avoids needing prev < 0 */
-        gasneti_seginfo_client[i].nodeinfo = 0;
-      } else if (match > prev){
-        prev = match;
-        gasneti_seginfo_client[i].nodeinfo = count;
-        for (j = i+1; j < gasneti_nodes; ++j) {
-          if (gasneti_nodemap[j] == match) {
-            gasneti_seginfo_client[j].nodeinfo = count;
-	  }
-        }
-        ++count;
-        gasneti_assert(count <= gasneti_nodemap_global_count);
-      }
-    }
-    gasneti_assert(gasneti_seginfo_client[gasneti_mynode].nodeinfo == gasneti_nodemap_global_rank);
-  } else {
-    for (i=0; i < gasneti_nodes; i++) {
-      gasneti_seginfo_client[i].nodeinfo = i;
-    }
-  }
-//#endif
 
   /* point si at the auxseg */
   #if GASNET_SEGMENT_EVERYTHING

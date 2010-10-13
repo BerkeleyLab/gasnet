@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.h,v $
- *     $Date: 2010/09/12 05:34:31 $
- * $Revision: 1.9.2.8 $
+ *     $Date: 2010/10/13 01:25:15 $
+ * $Revision: 1.9.2.9 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -178,12 +178,12 @@ extern gasnet_node_t gasneti_pshm_firstnode;
 /* vector of first node within each supernode */
 extern gasnet_node_t *gasneti_pshm_firsts;
 /* supernode number for an arbitrary node 
- * only available after gasneti_auxseg_attach() */
+ * only available after gasnet_init() */
 #if GASNET_CONDUIT_SMP
 #define gasneti_pshm_node2supernode(n) 0
 #else
 #define gasneti_pshm_node2supernode(n) \
-  (gasneti_assert(gasneti_seginfo_client), gasneti_seginfo_client[(n)].nodeinfo)
+  (gasneti_assert(gasneti_nodeinfo), gasneti_nodeinfo[(n)])
 #endif
 
 /* Non-NULL only when supernode members are non-contiguous */

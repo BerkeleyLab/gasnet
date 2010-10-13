@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2010/10/12 23:52:28 $
- * $Revision: 1.208.6.2 $
+ *     $Date: 2010/10/13 01:25:15 $
+ * $Revision: 1.208.6.3 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -832,6 +832,7 @@ gasnet_node_t gasneti_nodemap_local_count = 0;
 gasnet_node_t gasneti_nodemap_local_rank = (gasnet_node_t)-1;
 gasnet_node_t gasneti_nodemap_global_count = 0;
 gasnet_node_t gasneti_nodemap_global_rank = (gasnet_node_t)-1;
+gasnet_node_t *gasneti_nodeinfo = NULL;
 
 /* This code is "good" for all "sensible" process layouts, where "good"
  * means identifing all sharing for such a mapping in one pass and the
@@ -1018,6 +1019,8 @@ static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
  *   gasneti_nodemap_local[]     = array (length gasneti_nodemap_local_count) of local nodes
  *   gasneti_nodemap_global_count = number of unique values in the nodemap
  *   gasneti_nodemap_global_rank  = rank of gasneti_mynode among gasneti_nodemap_global_count
+ * and constructs:
+ *   gasneti_nodeinfo[]          = array of length gasneti_nodes of supernode ids
  *
  */
 extern void gasneti_nodemapParse(void) {
@@ -1062,6 +1065,31 @@ extern void gasneti_nodemapParse(void) {
     }
   }
   #endif
+  
+  /* Construct nodeinfo using N^2 computation rather than N^2 network exchange */
+  gasneti_assert(!gasneti_nodeinfo);
+  gasneti_nodeinfo = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+  {
+    gasnet_node_t count = 1;
+    gasnet_node_t prev = 0;
+    for (i = 0; i < gasneti_nodes; ++i) {
+      gasnet_node_t match = gasneti_nodemap[i];
+      if (match == 0) { /* Special case avoids needing prev < 0 */
+        gasneti_nodeinfo[i] = 0;
+      } else if (match > prev){
+        prev = match;
+        gasneti_nodeinfo[i] = count;
+        for (j = i+1; j < gasneti_nodes; ++j) {
+          if (gasneti_nodemap[j] == match) {
+            gasneti_nodeinfo[j] = count;
+	  }
+        }
+        ++count;
+        gasneti_assert(count <= gasneti_nodemap_global_count);
+      }
+    }
+    gasneti_assert(gasneti_nodeinfo[gasneti_mynode] == gasneti_nodemap_global_rank);
+  }
 }
 
 /* gasneti_nodemapInit(exchangefn, ids, sz, stride)

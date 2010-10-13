@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2010/09/16 02:07:57 $
- * $Revision: 1.63.10.9 $
+ *     $Date: 2010/10/13 01:25:15 $
+ * $Revision: 1.63.10.10 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -280,8 +280,9 @@ GASNETI_END_EXTERNC
   } gasnet_handlerentry_t;
 #endif
 
-#define GASNET_NUMA 1
-extern void (*gasnet_post_attach_hook)(void *, uintptr_t);
+#if !GASNET_SEGMENT_EVERYTHING
+  extern void (*gasnet_post_attach_hook)(void *, uintptr_t);
+#endif
 
 #ifndef _GASNET_SEGINFO_T
 #define _GASNET_SEGINFO_T
@@ -292,12 +293,6 @@ extern void (*gasnet_post_attach_hook)(void *, uintptr_t);
     void *remote_addr;
     uintptr_t remote_size;
   #endif
-  //#ifndef GASNET_NUMA
-  /* We have to enable it for now, since some tests
-   * are using this field.
-   */
-    gasnet_node_t nodeinfo;
-  //#endif
   } gasnet_seginfo_t;
 #endif
 
