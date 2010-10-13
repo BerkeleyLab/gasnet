@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2010/10/12 23:52:44 $
- * $Revision: 1.223.10.1 $
+ *     $Date: 2010/10/13 02:41:02 $
+ * $Revision: 1.223.10.2 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1886,6 +1886,9 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     }
     segbase = (void *)0;
     segsize = (uintptr_t)-1;
+    if (gasnet_post_attach_hook) {
+      gasnet_post_attach_hook(segbase, segsize);
+    }
   }
   #elif GASNETC_PIN_SEGMENT
   {
@@ -1893,6 +1896,11 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, &gasneti_bootstrapExchange);
     segbase = gasneti_seginfo[gasneti_mynode].addr;
     segsize = gasneti_seginfo[gasneti_mynode].size;
+
+    /* After all segments are attached, call optional client-provided hook, BEFORE we pin */
+    if (gasnet_post_attach_hook) {
+      gasnet_post_attach_hook(segbase, segsize);
+    }
 
     gasnetc_seg_start = (uintptr_t)segbase;
     gasnetc_seg_end   = (uintptr_t)segbase + (segsize - 1);
@@ -1939,6 +1947,9 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, gasneti_bootstrapExchange);
     segbase = gasneti_seginfo[gasneti_mynode].addr;
     segsize = gasneti_seginfo[gasneti_mynode].size;
+    if (gasnet_post_attach_hook) {
+      gasnet_post_attach_hook(segbase, segsize);
+    }
   }
   #endif
 
