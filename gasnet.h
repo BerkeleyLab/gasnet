@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet.h,v $
- *     $Date: 2010/10/13 02:40:38 $
- * $Revision: 1.63.10.11 $
+ *     $Date: 2010/10/13 05:41:08 $
+ * $Revision: 1.63.10.12 $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -289,7 +289,6 @@ extern void (*gasnet_post_attach_hook)(void *, uintptr_t);
     uintptr_t size;
   #if GASNET_PSHM
     void *remote_addr;
-    uintptr_t remote_size;
   #endif
   } gasnet_seginfo_t;
 #endif
