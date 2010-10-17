@@ -1,9 +1,18 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.42 $
+$Revision: 1.42.2.1 $
 
 ----------------------------------------------------------------------
-1?-??-2010 : Release 1.16.0
+10-17-2010 : Release 1.15.6
+ This is a "stable snapshot" of the code that is expected to soon be
+ released as GASNet 1.16.0.  Unless significant issues are found
+ in testing, the code in that release should be the same as in this
+ snapshot.  However, documentation and auxiliary files (such as tests
+ and examples) ARE expected to change between this snapshot and the
+ final 1.16.0 release.
+
+ The following is the PRELIMINARY ChangeLog entry for 1.16.0:
+ 
 * General:
   - Environment vars to limit which nodes generate various outputs:
     + GASNET_BACKTRACE_NODES - limits GASNET_BACKTRACE output
