@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2010/05/23 03:42:57 $
- * $Revision: 1.84 $
+ *     $Date: 2010/10/18 15:58:08 $
+ * $Revision: 1.84.10.1 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -73,9 +73,9 @@ static void gasnetc_check_config(void) {
   gasneti_assert(GASNET_ERR_BAD_ARG  == AM_ERR_BAD_ARG);
 
 #if GASNET_PSHM
-  gasneti_assert(gasnetc_Short  == ammpi_Short);
-  gasneti_assert(gasnetc_Medium == ammpi_Medium);
-  gasneti_assert(gasnetc_Long   == ammpi_Long);
+  gasneti_assert(gasnetc_Short  == (gasnetc_category_t) ammpi_Short);
+  gasneti_assert(gasnetc_Medium == (gasnetc_category_t) ammpi_Medium);
+  gasneti_assert(gasnetc_Long   == (gasnetc_category_t) ammpi_Long);
 #endif
 }
 
