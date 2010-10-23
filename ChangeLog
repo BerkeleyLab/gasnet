@@ -1,17 +1,17 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.42.2.2 $
+$Revision: 1.42.2.3 $
 
 ----------------------------------------------------------------------
-10-17-2010 : Release 1.15.6
+10-24-2010 : Release 1.15.8
  This is a "stable snapshot" of the code that is expected to soon be
  released as GASNet 1.16.0.  Unless significant issues are found
  in testing, the code in that release should be the same as in this
- snapshot.  However, documentation and auxiliary files (such as tests
- and examples) ARE expected to change between this snapshot and the
- final 1.16.0 release.
+ snapshot.  Relative to the recent 1.15.6 this snapshot fixes some
+ very minor issues and updates documentation to what should be the
+ final versions.
 
- The following is the PRELIMINARY ChangeLog entry for 1.16.0:
+ The following is the EXPECTED ChangeLog entry for 1.16.0:
  
 * General:
   - Environment vars to limit which nodes generate various outputs:
