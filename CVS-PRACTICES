@@ -63,6 +63,7 @@ GASNet Release Procedure
 * Start from a clean checkout of the CVS tree.
   Do *NOT* use an existing source tree - otherwise it's very easy for stray files,
   bad keywords, etc to end up in the release.
+  Use the "-P" option to prune empty dirs (eg "cvs co -P ...")
 
 * Increment the version number for each item or software module that has changed
   since the last public release:
