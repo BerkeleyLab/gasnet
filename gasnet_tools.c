@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2010/10/14 20:36:50 $
- * $Revision: 1.254 $
+ *     $Date: 2010/10/23 22:57:46 $
+ * $Revision: 1.254.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1988,7 +1988,10 @@ void gasneti_set_affinity_default(int rank) {
      * P_MYID: the specified LWP, process, task, or  
      *          process is the current one.
      */
-    gasneti_assert_zeroret(processor_bind(P_LWPID, P_MYID, avail_cpus[rank % num_cpus], NULL));
+    {
+      int local_rank = rank % num_cpus;
+      gasneti_assert_zeroret(processor_bind(P_LWPID, P_MYID, avail_cpus[local_rank], NULL));
+    }
   }
   #else
     /* No implementation -> NO-OP */
