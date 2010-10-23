@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.cpp,v $
- *     $Date: 2010/09/23 20:04:52 $
- * $Revision: 1.45 $
+ *     $Date: 2010/10/23 06:15:26 $
+ * $Revision: 1.45.2.1 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -1490,7 +1490,7 @@ extern int AMUDP_SPMDExit(int exitcode) {
       int retval = recv(AMUDP_SPMDControlSocket, &temp, 1, 0); 
       if (retval == 0 || retval == SOCKET_ERROR) break;
     }
-  } /* catch (xBase& ) { } // ignore errors that may happen on conn reset  */
+  } /* catch (xBase& ) { } */ // ignore errors that may happen on conn reset
 
   AMUDP_SPMDStartupCalled = 0;
   DEBUG_SLAVE("AMUDP_SPMDShutdown..");
