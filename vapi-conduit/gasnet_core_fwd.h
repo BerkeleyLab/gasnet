@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2010/10/08 01:08:41 $
- * $Revision: 1.48 $
+ *     $Date: 2010/10/23 17:13:09 $
+ * $Revision: 1.48.2.1 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -21,7 +21,7 @@
   #undef VAPI
 #endif
 
-#define GASNET_CORE_VERSION      1.11
+#define GASNET_CORE_VERSION      1.12
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #if defined(GASNET_CONDUIT_VAPI)
   #define GASNET_CORE_NAME         VAPI
