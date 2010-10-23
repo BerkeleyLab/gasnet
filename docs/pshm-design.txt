@@ -1,6 +1,6 @@
 GASNet inter-Process SHared Memory (PSHM) design
 ---------------------------------------------
-$Revision: 1.8.2.2 $
+$Revision: 1.8.2.3 $
 
 Document by:
     Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -278,6 +278,8 @@ Status:
   PSHM on any OS/cpu above (assuming the conduit works on that platform at all).
 * IBM BG/P platform-specific notes:
   - PSHM does not work at all in "SMP" mode, only "DUAL" or "VN"
+  - In "VN" mode one cannot run a hybrid GASNet+MPI code (appears that some
+    scarce resource is exhausted in this case, but we have no details).
   - Currently one must manually set up a few things to use PSHM on BG/P
     + Must set CROSS_HAVE_SHM_OPEN=1 on configure command line
     + Shared segment size must be limited to a lower-than-default value
