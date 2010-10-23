@@ -1,6 +1,6 @@
 GASNet inter-Process SHared Memory (PSHM) design
 ---------------------------------------------
-$Revision: 1.8.2.1 $
+$Revision: 1.8.2.2 $
 
 Document by:
     Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -297,7 +297,7 @@ Status:
 * Cray XT and XE platform-specific notes:
   - Portals conduit supports PSHM on the Cray XT
   - We have no native conduit for the Cray XE, but mpi-conduit is supported
-  - CNL does not (at least on any systems we've encountered) support
+  - CNL/CLE does not (at least on any systems we've encountered) support
     POSIX shared memory, but SystemV shared memory is available.
   - Add the following to your (cross-)configure options:
        --enable-pshm --enable-pshm-sysv

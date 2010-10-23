@@ -1,6 +1,6 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.42.2.1 $
+$Revision: 1.42.2.2 $
 
 ----------------------------------------------------------------------
 10-17-2010 : Release 1.15.6
@@ -28,8 +28,9 @@ $Revision: 1.42.2.1 $
     nodes (processes), up from 16384.
 
 * Cray-XT and Cray-XE series:
+  - Added support for PSHM (requires optional PSHM-over-SystemV)
   - Fixed bug 2435: portals-conduit assertion failures if signalled
-  - gasnett_set_affinity() now implemented under CNL
+  - gasnett_set_affinity() now implemented under CNL/CLE
   - Initial testing on XE series (w/ mpi-conduit, no native support)
 
 * Process-Shared Memory (PSHM) Support
