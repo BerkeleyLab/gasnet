@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_core.c,v $
- *     $Date: 2010/10/13 03:24:00 $
- * $Revision: 1.44 $
+ *     $Date: 2010/10/24 23:03:50 $
+ * $Revision: 1.44.2.1 $
  * Description: GASNet shmem conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -127,7 +127,7 @@ static int gasnetc_init(int *argc, char ***argv) {
    * Print information about shmalloc segment search when verbose environment
    * or debug mode
    */
-  #ifdef GASNET_DEBUG_VERBOSE
+  #if GASNET_DEBUG_VERBOSE
     gasnetc_verbose_spawn = 1;
   #else
     gasnetc_verbose_spawn = !!gasnet_getenv("GASNET_SHMEM_DEBUGALLOC");
