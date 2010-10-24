@@ -1,17 +1,9 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.42.2.3 $
+$Revision: 1.42.2.4 $
 
 ----------------------------------------------------------------------
-10-24-2010 : Release 1.15.8
- This is a "stable snapshot" of the code that is expected to soon be
- released as GASNet 1.16.0.  Unless significant issues are found
- in testing, the code in that release should be the same as in this
- snapshot.  Relative to the recent 1.15.6 this snapshot fixes some
- very minor issues and updates documentation to what should be the
- final versions.
-
- The following is the EXPECTED ChangeLog entry for 1.16.0:
+11-01-2010 : Release 1.16.0
  
 * General:
   - Environment vars to limit which nodes generate various outputs:
@@ -50,6 +42,14 @@ $Revision: 1.42.2.3 $
 
 * Build and configure:
   - Fix bug 2688: installing extraneous internal headers
+
+----------------------------------------------------------------------
+10-24-2010 : Release 1.15.8
+* A "stable snapshot" - second release candidate for 1.16.0
+
+----------------------------------------------------------------------
+10-17-2010 : Release 1.15.6
+* A "stable snapshot" - first release candidate for 1.16.0
 
 ----------------------------------------------------------------------
 06-28-2010 : Release 1.15.4 (ibv-conduit only beta release)
