@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2010/11/15 23:16:10 $
- * $Revision: 1.27.4.1 $
+ *     $Date: 2010/11/16 00:16:34 $
+ * $Revision: 1.27.4.2 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -99,6 +99,21 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
 #if !GASNET_CONDUIT_SMP
   gasnet_node_t j;
 #endif
+
+  /* Testing if the number of PSHM nodes is always smaller than GASNETI_PSHM_MAX_NODES.
+   
+   * In case when exchangefn is not NULL, we will be fine since it will act as a barrier, but
+   * a problem might occurwhen exchangefn is NULL: one (or more) supernode could fail here, but 
+   * the rest of them continue allocating shared memory and fail upon allocating the shared 
+   * segments (due to gasneti_fatalerror() call). This might leave some shared segments in the 
+   * system. We could put a global barrier that would stop the progress until we know all 
+   * supernodes are good. But that would affect the initialization performance. 
+   */
+  if (gasneti_nodemap_local_count > GASNETI_PSHM_MAX_NODES) {
+      gasneti_fatalerror("PSHM nodes requested (%d) > maximum (%d)", 
+                         gasneti_nodemap_local_count,
+                         GASNETI_PSHM_MAX_NODES);
+  } 
 
   gasneti_pshm_nodes = gasneti_nodemap_local_count;
   gasneti_pshm_firstnode = gasneti_nodemap[gasneti_mynode];
