@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2010/11/16 00:16:34 $
- * $Revision: 1.27.4.2 $
+ *     $Date: 2010/11/17 01:14:46 $
+ * $Revision: 1.27.4.3 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -95,26 +95,26 @@ static struct gasneti_pshm_info {
 void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz) {
   size_t vnetsz, mmapsz;
   int discontig = 0;
+  gasneti_pshm_rank_t *pshm_max_nodes;
   gasnet_node_t i;
 #if !GASNET_CONDUIT_SMP
   gasnet_node_t j;
 #endif
 
-  /* Testing if the number of PSHM nodes is always smaller than GASNETI_PSHM_MAX_NODES.
-   
-   * In case when exchangefn is not NULL, we will be fine since it will act as a barrier, but
-   * a problem might occurwhen exchangefn is NULL: one (or more) supernode could fail here, but 
-   * the rest of them continue allocating shared memory and fail upon allocating the shared 
-   * segments (due to gasneti_fatalerror() call). This might leave some shared segments in the 
-   * system. We could put a global barrier that would stop the progress until we know all 
-   * supernodes are good. But that would affect the initialization performance. 
-   */
-  if (gasneti_nodemap_local_count > GASNETI_PSHM_MAX_NODES) {
-      gasneti_fatalerror("PSHM nodes requested (%d) > maximum (%d)", 
-                         gasneti_nodemap_local_count,
-                         GASNETI_PSHM_MAX_NODES);
-  } 
-
+  /* Testing if the number of PSHM nodes is always smaller than GASNETI_PSHM_MAX_NODES */
+  pshm_max_nodes = gasneti_malloc(gasneti_nodemap_global_count*sizeof(gasneti_pshm_rank_t));
+  memset(pshm_max_nodes, 0, gasneti_nodemap_global_count * sizeof(gasneti_pshm_rank_t));
+  for(i=0; i<gasneti_nodes; i++){
+    if ((pshm_max_nodes[gasneti_nodemap[i]]++) > GASNETI_PSHM_MAX_NODES){
+      if (gasneti_mynode==0){
+        fprintf(stderr, "\nPSHM nodes requested (%d) > maximum (%d)\n", 
+                        gasneti_nodemap_local_count, GASNETI_PSHM_MAX_NODES);
+      }
+      gasnet_exit(1);
+    }
+  }
+  gasneti_free(pshm_max_nodes);
+    
   gasneti_pshm_nodes = gasneti_nodemap_local_count;
   gasneti_pshm_firstnode = gasneti_nodemap[gasneti_mynode];
   gasneti_pshm_mynode = gasneti_nodemap_local_rank;
