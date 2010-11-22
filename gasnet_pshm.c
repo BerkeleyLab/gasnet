@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2010/11/17 01:14:46 $
- * $Revision: 1.27.4.3 $
+ *     $Date: 2010/11/22 22:37:07 $
+ * $Revision: 1.27.4.4 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -102,8 +102,7 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
 #endif
 
   /* Testing if the number of PSHM nodes is always smaller than GASNETI_PSHM_MAX_NODES */
-  pshm_max_nodes = gasneti_malloc(gasneti_nodemap_global_count*sizeof(gasneti_pshm_rank_t));
-  memset(pshm_max_nodes, 0, gasneti_nodemap_global_count * sizeof(gasneti_pshm_rank_t));
+  pshm_max_nodes = gasneti_calloc(gasneti_nodemap_global_count, sizeof(gasneti_pshm_rank_t));
   for(i=0; i<gasneti_nodes; i++){
     if ((pshm_max_nodes[gasneti_nodemap[i]]++) > GASNETI_PSHM_MAX_NODES){
       if (gasneti_mynode==0){
