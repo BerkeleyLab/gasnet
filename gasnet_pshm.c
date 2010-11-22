@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2010/11/22 22:37:07 $
- * $Revision: 1.27.4.4 $
+ *     $Date: 2010/11/22 22:41:19 $
+ * $Revision: 1.27.4.5 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -142,11 +142,8 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
     unsigned int *exchg;
     unsigned int tmp_sysvkey;
     
-    /* Each node gets the key for it's own memory region.
-     * We pass mynode+1 to makekey since this argument will 
-     * eventually be passed to ftok(), and therefore has to 
-     * be larger than 0 */
-    tmp_sysvkey = gasneti_pshm_makekey(gasneti_pshm_mynode + 1);
+    /* Each node gets the key for it's own memory region */
+    tmp_sysvkey = gasneti_pshm_makekey(gasneti_pshm_mynode);
 
     /* The keys are exchanged */
     exchg = gasneti_malloc((gasneti_nodes)*sizeof(unsigned int));
@@ -159,7 +156,7 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
     
     /* PSHM rank 0 gets the key for vnet region */
     if (gasneti_pshm_mynode==0) {
-        tmp_sysvkey = gasneti_pshm_makekey(gasneti_pshm_nodes + 1);
+        tmp_sysvkey = gasneti_pshm_makekey(gasneti_pshm_nodes);
     }
     /* vnet key is broadcasted */
     (*exchangefn)(&tmp_sysvkey, sizeof(unsigned int), exchg);
