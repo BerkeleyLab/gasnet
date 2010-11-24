@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2010/11/24 00:21:17 $
- * $Revision: 1.27.4.8 $
+ *     $Date: 2010/11/24 00:48:38 $
+ * $Revision: 1.27.4.9 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -107,10 +107,12 @@ void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz)
     /* Note combination of post-increment and == guard against overflow */
     if ((pshm_max_nodes[gasneti_nodemap[i]]++) == GASNETI_PSHM_MAX_NODES){
       if (gasneti_mynode == gasneti_nodemap[i]){
-        fprintf(stderr, "\nPSHM nodes requested on node '%s' exceeds maximum (%d)\n", 
+        gasneti_fatalerror("PSHM nodes requested on node '%s' exceeds maximum (%d)\n", 
                         gasneti_gethostname(), GASNETI_PSHM_MAX_NODES);
+      } else {
+        gasneti_fatalerror("PSHM nodes requested on some node exceeds maximum (%d)\n", 
+                        GASNETI_PSHM_MAX_NODES);
       }
-      gasnet_exit(1);
     }
   }
   gasneti_free(pshm_max_nodes);
