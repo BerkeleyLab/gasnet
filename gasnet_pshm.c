@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2010/11/23 23:25:06 $
- * $Revision: 1.27.4.7 $
+ *     $Date: 2010/11/24 00:21:17 $
+ * $Revision: 1.27.4.8 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -95,19 +95,20 @@ static struct gasneti_pshm_info {
 void *gasneti_pshm_init(gasneti_bootstrapExchangefn_t exchangefn, size_t aux_sz) {
   size_t vnetsz, mmapsz;
   int discontig = 0;
-  gasnet_node_t *pshm_max_nodes;
+  gasneti_pshm_rank_t *pshm_max_nodes;
   gasnet_node_t i;
 #if !GASNET_CONDUIT_SMP
   gasnet_node_t j;
 #endif
 
   /* Testing if the number of PSHM nodes is always smaller than GASNETI_PSHM_MAX_NODES */
-  pshm_max_nodes = gasneti_calloc(gasneti_nodes, sizeof(gasnet_node_t));
+  pshm_max_nodes = gasneti_calloc(gasneti_nodes, sizeof(gasneti_pshm_rank_t));
   for(i=0; i<gasneti_nodes; i++){
-    if ((pshm_max_nodes[gasneti_nodemap[i]]++) > GASNETI_PSHM_MAX_NODES){
-      if (gasneti_mynode==0){
-        fprintf(stderr, "\nPSHM nodes requested (%d) > maximum (%d)\n", 
-                        gasneti_nodemap_local_count, GASNETI_PSHM_MAX_NODES);
+    /* Note combination of post-increment and == guard against overflow */
+    if ((pshm_max_nodes[gasneti_nodemap[i]]++) == GASNETI_PSHM_MAX_NODES){
+      if (gasneti_mynode == gasneti_nodemap[i]){
+        fprintf(stderr, "\nPSHM nodes requested on node '%s' exceeds maximum (%d)\n", 
+                        gasneti_gethostname(), GASNETI_PSHM_MAX_NODES);
       }
       gasnet_exit(1);
     }
