@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2010/10/13 07:56:11 $
-# $Revision: 1.87 $
+#     $Date: 2010/12/05 22:21:11 $
+# $Revision: 1.87.2.1 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -95,7 +95,7 @@ sub gasnet_encode($) {
     my $is_mvich    = ($mpirun_help =~ m|MV(AP)?ICH|i);
     my $is_cray_mpi = ($mpirun_help =~ m|Psched|);
     my $is_crayt3e_mpi = ($uname =~ m|cray t3e|i );
-    my $is_irix_mpi = ($mpirun_help =~ m|\[-miser\]|);
+    my $is_sgi_mpi = ($mpirun_help =~ m|\[-miser\]|);
     my $is_poe      = ($mpirun_help =~ m|Parallel Operating Environment|);
     my $is_aprun    = ($mpirun_help =~ m|aprunwrapper\|rchitecture type.*?xt|);
     my $is_yod      = ($mpirun_help =~ m| yod |);
@@ -190,12 +190,12 @@ sub gasnet_encode($) {
 	$spawner_desc = "Cray T3E MPI";
 	# OS already propagates the environment for us automatically
 	%envfmt = ( 'noenv' => 1);
-    } elsif ($is_irix_mpi) {
-	$spawner_desc = "IRIX MPI";
+    } elsif ($is_sgi_mpi) {
+	$spawner_desc = "SGI MPI";
 	# OS already propagates the environment for us automatically
 	%envfmt = ( 'noenv' => 1 );
-	# but spawner botches the argv quoting
-        $extra_quote_argv = 1;
+	# Older spawner botches the argv quoting - BUT NOT RECENTLY
+	# Use MPIRUN_CMD='mpirun -np %N %P %Q' if still a problem
     } elsif ($is_poe) {
 	$spawner_desc = "IBM POE";
 	# the OS already propagates the environment for us automatically
