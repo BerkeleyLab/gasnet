@@ -2737,6 +2737,71 @@ extern void gasnetc_testBootExch(void)
 #endif
 
 /* ---------------------------------------------------------------------------------
+ * Helpers for try_pin() and gasnetc_portalsMaxPinMem()
+ * --------------------------------------------------------------------------------- */
+static void *try_pin_region = NULL;
+static uintptr_t try_pin_size = 0;
+
+#if HAVE_MMAP
+  static void *try_pin_alloc_inner(const uintptr_t size) {
+    void *addr = gasneti_mmap(size);
+    if (addr == MAP_FAILED) addr = NULL;
+    return addr;
+  }
+  static void try_pin_free_inner(void *addr, const uintptr_t size) {
+    gasneti_munmap(addr, size);
+  }
+#else
+  static void *try_pin_alloc_inner(const uintptr_t size) {
+    void *addr = gasneti_malloc_allowfail(size);
+    if (addr == NULL) addr = NULL;
+    return addr;
+  }
+  static void try_pin_free_inner(void *addr, const uintptr_t size) {
+    gasneti_free(addr);
+  }
+#endif
+
+static uintptr_t try_pin_alloc(uintptr_t size, const uintptr_t step) {
+  void *addr = try_pin_alloc_inner(size);
+
+  if (!addr) {
+    /* Binary search */
+    uintptr_t high = size;
+    uintptr_t low = step;
+    int found = 0;
+
+    while ((high - low) > step) {
+      uint64_t mid = (low + high)/2;
+      addr = try_pin_alloc_inner(mid);
+      if (addr) {
+        try_pin_free_inner(addr, mid);
+        low = mid;
+        found = 1;
+      } else {
+        high = mid;
+      }
+    }
+
+    if (!found) return 0;
+
+    size = low;
+    addr = try_pin_alloc_inner(low);
+    gasneti_assert_always(addr);
+  }
+
+  try_pin_region = addr;
+  try_pin_size = size;
+  return size;
+}
+
+static void try_pin_free(void) {
+  try_pin_free_inner(try_pin_region, try_pin_size);
+  try_pin_region = NULL;
+  try_pin_size = 0;
+}
+
+/* ---------------------------------------------------------------------------------
  * Function to determine if a chunk of memory of the given size can be allocated
  * and registered as a portals memory descriptor (pinned).
  * Returns true if can be, false if the memory either cannot be allocated or
@@ -2748,13 +2813,9 @@ static int try_pin(const uintptr_t size)
   ptl_md_t md;
   ptl_handle_md_t md_h;
   int rc, ok;
-#if HAVE_MMAP
-  void *mem = gasneti_mmap(size);
-  if (mem == MAP_FAILED) return 0;
-#else
-  void *mem = gasneti_malloc_allowfail(size);
-  if (mem == NULL) return 0;
-#endif
+  void *mem = try_pin_region;
+
+  if (size > try_pin_size) return 0;
 
   /* poll system queue here since these operations can take some time */
   gasnetc_sys_poll(GASNETC_EQ_LOCK);
@@ -2787,11 +2848,7 @@ static int try_pin(const uintptr_t size)
   if (ok) {
     GASNETC_PTLSAFE(PtlMDUnlink(md_h));
   }
-#if HAVE_MMAP
-  gasneti_munmap(mem, size);
-#else
-  gasneti_free(mem);
-#endif
+
   GASNETI_TRACE_PRINTF(C,("try_pin of %lu bytes %s",(unsigned long)size,(ok?"successful":"failed")));
   return ok;
 }
@@ -2803,10 +2860,9 @@ extern uintptr_t gasnetc_portalsMaxPinMem(void)
 {
 #define MBYTE 1048576ULL
   uint64_t granularity = 16ULL * MBYTE;
-  uint64_t low = granularity;
+  uint64_t low;
   uint64_t high;
   uint64_t limit = 16ULL * 1024ULL * MBYTE;
-  uint64_t prev;
 #undef MBYTE
 
 #if PLATFORM_OS_CNL
@@ -2815,47 +2871,51 @@ extern uintptr_t gasnetc_portalsMaxPinMem(void)
    * pinnable memory under CNL without dire consequences.
    * For this platform, we will simply try a large fraction of the physical
    * memory.  If that is too big, then the job will be killed at startup.
+   * The gasneti_mmapLimit() ensures limit is per compute node, not per process.
    */
-  double pm_ratio = gasneti_getenv_dbl_withdefault(
+  uint64_t pm_limit = gasneti_getPhysMemSz(1) *
+                      gasneti_getenv_dbl_withdefault(
                         "GASNET_PHYSMEM_PINNABLE_RATIO", 
                         GASNETC_DEFAULT_PHYSMEM_PINNABLE_RATIO);
 
-  limit = gasneti_mmapLimit(limit, pm_ratio * gasneti_getPhysMemSz(1),
+  pm_limit = gasneti_getenv_int_withdefault("GASNET_PHYSMEM_MAX", pm_limit, 1);
+
+  limit = gasneti_mmapLimit(limit, pm_limit,
                             &gasnetc_bootstrapExchange,
                             &gasnetc_bootstrapBarrier);
+#else
+  limit = gasneti_getenv_int_withdefault("GASNET_PHYSMEM_MAX", limit, 1);
 #endif
 
-  /* make sure we can pin at least the initial low watermark of memory */
-  if (! try_pin(low)) {
-    gasneti_fatalerror("Unable to alloc and pin minimal memory of size %d bytes",(int)low);
+  if_pf (gasneti_getenv_yesno_withdefault("GASNET_PHYSMEM_NOPROBE", 0)) {
+    /* User says to trust them... */
+    return (uintptr_t)limit;
   }
-  high = low;
 
-  /* move high boundary up (exponentially) until it will no longer pin, or we hit the limit */
-  prev = low;
-  high = prev*2;
-  if (high > limit) high = limit;
-  while (try_pin(high)) {
-    prev = high;
-    if (high >= limit) {
-	break;
-    }
-    high *= 2;
-    if (high > limit) high = limit;
-  }
-  low = prev;
+  /* Allocate a block of memory on which to try pinning */
+  high = try_pin_alloc(limit, granularity);
 
-  /* Now bisect until difference is within the granularity */
-  while ((high - low) > granularity) {
-    uint64_t mid = (low + high)/2;
-    if (try_pin(mid)) {
-      low = mid;
-    } else {
-      high = mid;
-    }
-  }
-  if ((low != high) && try_pin(high)) {
+  /* See how much of the block can be pinned */
+  if (try_pin(high)) {
     low = high;
+  } else {
+    /* Binary search */
+    low = 0;
+    while ((high - low) > granularity) {
+      uint64_t mid = (low + high)/2;
+      if (try_pin(mid)) {
+        low = mid;
+      } else {
+        high = mid;
+      }
+    }
+  }
+
+  /* Free the block we've been pinning */
+  try_pin_free();
+
+  if (low < granularity) {
+    gasneti_fatalerror("Unable to alloc and pin minimal memory of size %d bytes",(int)granularity);
   }
   GASNETI_TRACE_PRINTF(C,("MaxPinMem = %lu",(unsigned long)low));
   return (uintptr_t)low;
