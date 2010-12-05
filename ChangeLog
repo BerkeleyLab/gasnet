@@ -1,6 +1,19 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.42.2.4 $
+$Revision: 1.42.2.5 $
+
+----------------------------------------------------------------------
+12-??-2010 : Release 1.16.1 (minor bug fix release)
+ 
+* General:
+  - Eliminated an infrequent race in an assertion that caused rare crashes.
+  - Fixed a configure problem that would reject OSS12.2's sunCC.
+  - Fixed bug 2927: PSHM breaks with greater than 255 processes.
+  - Eliminated infinite recursion on some error exits in smp-conduit.
+  - Additional small fixes in the collectives and PSHM
+
+* Cray-XT series (portals-conduit):
+  - Improved speed of job startup on large-memory nodes.
 
 ----------------------------------------------------------------------
 11-01-2010 : Release 1.16.0
