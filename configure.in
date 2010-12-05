@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/10/24 20:34:36 $
-# $Revision: 1.653.2.4 $
+#     $Date: 2010/12/05 22:30:13 $
+# $Revision: 1.653.2.5 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.653.2.4 $)
+AC_REVISION($Revision: 1.653.2.5 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -2222,7 +2222,8 @@ if test $enabled_udp = yes; then
     Sun) if test "$target_cpu" = "sparc"; then 
            GASNET_GET_ULTRASPARC_FLAGS(CXX,["-xarch=v8plusb" "-xarch=v8plusa" "-xarch=v8plus" "-xarch=sparcvis2" "-xarch=sparcvis" "-xarch=sparc"])
          fi
-         CXXOPTFLAGS="-xO2" # Can we go higher to match "-xO5" of CCOPTFLAGS?
+         CXXOPTFLAGS="-xO2" # Can we go higher to match "-fast -xO5" of CCOPTFLAGS?
+         GASNET_TRY_CXXFLAG([-xlibmopt], [CXXOPTFLAGS="$CXXOPTFLAGS -xlibmopt"])
       ;;
     NEC)   MISC_CXXFLAGS="-woff=68:111:174:177:236:301:550:940 -Kexceptions" 
            CXXDEBUGFLAGS="-g -Cnoopt -Cdebug"
