@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2010/10/13 05:41:52 $
- * $Revision: 1.78 $
+ *     $Date: 2010/12/05 22:30:47 $
+ * $Revision: 1.78.2.1 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -183,7 +183,7 @@ static int gasneti_pshm_mkstemp(const char *prefix, const char *tmpdir) {
 #include <sys/shm.h>
 static key_t get_sysv_key(const char *filename, int pshm_rank){
     key_t key;
-    key = ftok(filename, pshm_rank);
+    key = ftok(filename, pshm_rank + 1);
     if (key == (key_t)-1){
         gasneti_fatalerror("failed to provide the unique SYSV key value for %s and rank %d, for ftok: %s",filename,pshm_rank,strerror(errno));
     }
