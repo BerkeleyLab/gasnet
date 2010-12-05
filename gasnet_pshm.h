@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.h,v $
- *     $Date: 2010/10/13 03:39:56 $
- * $Revision: 1.11 $
+ *     $Date: 2010/12/05 22:32:11 $
+ * $Revision: 1.11.2.1 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -197,7 +197,7 @@ extern gasneti_pshm_rank_t *gasneti_pshm_rankmap;
  * Otherwise returns an "impossible" value >= gasneti_pshm_nodes.
  */
 GASNETI_INLINE(gasneti_pshmnet_local_rank)
-gasneti_pshm_rank_t gasneti_pshm_local_rank(gasnet_node_t node) {
+unsigned int gasneti_pshm_local_rank(gasnet_node_t node) {
 #if GASNET_CONDUIT_SMP
   return node;
 #else
