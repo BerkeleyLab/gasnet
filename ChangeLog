@@ -1,9 +1,9 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.42.2.5 $
+$Revision: 1.42.2.6 $
 
 ----------------------------------------------------------------------
-12-??-2010 : Release 1.16.1 (minor bug fix release)
+12-08-2010 : Release 1.16.1 (minor bug fix release)
  
 * General:
   - Eliminated an infrequent race in an assertion that caused rare crashes.
