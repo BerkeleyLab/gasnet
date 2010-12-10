@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/12/10 03:29:06 $
- * $Revision: 1.251.6.1 $
+ *     $Date: 2010/12/10 08:49:52 $
+ * $Revision: 1.251.6.2 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3527,6 +3527,7 @@ extern int gasnetc_sndrcv_init(void) {
 }
 
 extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
+  static int first = 1;
   gasnetc_cep_t *cep;
   int i, j;
   
@@ -3556,7 +3557,7 @@ extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
 
       if (gasnetc_use_srq) {
         /* Prepost to SRQ for exactly one peer */
-        if (node == (!gasneti_mynode)) {
+        if (first) {
           if (i < gasnetc_num_qps) {
             for (j = 0; j < gasnetc_am_repl_per_qp; ++j) {
               gasnetc_rcv_post(cep, gasneti_lifo_pop(cep->rbuf_freelist));
@@ -3581,6 +3582,7 @@ extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
       gasneti_weakatomic_set(&cep->am_flow.ack, 0, 0);
       cep->snd_cq_sema_p = &gasnetc_cq_semas[cep->hca_index];
     }
+    first = 0;
   } else {
     /* Should never use these for loopback or same supernode */
     for (i = 0; i < gasnetc_alloc_qps; ++i, ++cep) {
