@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2010/10/08 01:08:41 $
- * $Revision: 1.161 $
+ *     $Date: 2010/12/10 09:40:10 $
+ * $Revision: 1.161.6.1 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -63,6 +63,13 @@
     if_pf ((rc) != 0) \
       { gasneti_fatalerror("Unexpected error %s (rc=%d errno=%d) %s",strerror(errno),(rc), errno,(msg)); }
   #define GASNETC_VAPI_CHECK_PTR(ptr,msg) GASNETC_VAPI_CHECK((ptr)==NULL,(msg))
+#endif
+
+/* Identify nodes we do NOT use IB to communicate with */
+#if GASNET_PSHM
+  #define gasnetc_non_ib(_node) gasneti_pshm_in_supernode(_node)
+#else
+  #define gasnetc_non_ib(_node) ((_node) == gasneti_mynode)
 #endif
 
 /* check for exit in progress */

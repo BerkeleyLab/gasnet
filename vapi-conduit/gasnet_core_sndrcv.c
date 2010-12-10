@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/12/10 09:00:21 $
- * $Revision: 1.251.6.3 $
+ *     $Date: 2010/12/10 09:40:10 $
+ * $Revision: 1.251.6.4 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -249,6 +249,7 @@ static int gasnetc_op_oust_per_qp;
 static int gasnetc_am_repl_per_qp;
 static int gasnetc_am_rqst_per_qp;
 static int gasnetc_am_rbufs_per_qp;
+static gasnet_node_t gasnetc_remote_nodes;
 
 /* ------------------------------------------------------------------------------------ *
  *  File-scoped functions and macros                                                    *
@@ -276,13 +277,6 @@ static int gasnetc_am_rbufs_per_qp;
   #define GASNETC_PERTHREAD_PASS
   #define GASNETC_MY_PERTHREAD()	(gasnetc_my_perthread())
   #define GASNETC_PERTHREAD_LOOKUP	const char _core_threadinfo_dummy = sizeof(_core_threadinfo_dummy) /* no semicolon */
-#endif
-
-/* Identify nodes we do NOT use IB to communicate with */
-#if GASNET_PSHM
-  #define gasnetc_non_ib(_node) gasneti_pshm_in_supernode(_node)
-#else
-  #define gasnetc_non_ib(_node) ((_node) == gasneti_mynode)
 #endif
 
 static void gasnetc_free_aligned(void *ptr) {
@@ -3118,6 +3112,12 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
   int 			h;
   const int 		rcv_spare = (gasnetc_use_rcv_thread ? 1 : 0);
 
+#if GASNET_PSHM
+  gasnetc_remote_nodes = gasneti_nodes - gasneti_pshm_nodes;
+#else
+  gasnetc_remote_nodes = gasneti_nodes - 1;
+#endif
+
   /* Count normal qps to be placed on each HCA */
   if (gasneti_nodes == 1) {
     GASNETC_FOR_ALL_HCA(hca) {
@@ -3130,7 +3130,7 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
     for (i = 0; i < gasnetc_num_qps; ++i) {
       hca = &gasnetc_hca[port_tbl[i % num_ports].hca_index];
       hca->qps += 1;
-      hca->total_qps += (gasneti_nodes - 1);
+      hca->total_qps += gasnetc_remote_nodes;
     }
   }
 
@@ -3170,6 +3170,10 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
    * as needed to ensure (4) < (3)
    * We also (silently) reduce gasnetc_am_oust_limit to account for the fact that Replies
    * can never out number Requests.
+   *
+   * Note that we use (gasneti_nodes - 1) rather than gasnetc_remote_nodes.  This is because
+   * gasnetc_remote_nodes may vary among processes, possibly leading to making different
+   * gasnet_use_srq decisions across nodes.
    */
   gasnetc_am_oust_pp /= gasnetc_num_qps;
   gasnetc_am_rqst_per_qp = gasnetc_am_oust_pp * (gasneti_nodes - 1);
@@ -3199,11 +3203,11 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
   gasnetc_am_oust_limit = gasnetc_num_qps * gasnetc_am_repl_per_qp;
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_AM_CREDITS_TOTAL = %d", gasnetc_am_oust_limit));
 
-  if (gasneti_nodes > 1) {
+  if (gasnetc_remote_nodes > 0) {
     gasnetc_am_credits_slack = MIN(gasnetc_am_credits_slack, gasnetc_am_oust_pp - 1);
     GASNETC_FOR_ALL_HCA(hca) {
       /* Ensure credit coallescing can't deadlock a Request (bug 1418) */
-      int limit = hca->qps * gasnetc_am_repl_per_qp - (gasneti_nodes - 1); /* might be negative */
+      int limit = hca->qps * gasnetc_am_repl_per_qp - gasnetc_remote_nodes; /* might be negative */
       while (gasnetc_am_credits_slack && (gasnetc_am_credits_slack * hca->total_qps > limit)) {
 	--gasnetc_am_credits_slack; /* easier to loop than get rounded arithmetic right */
       }
@@ -3219,9 +3223,13 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
   } else {
     gasnetc_bbuf_limit = MIN(gasnetc_bbuf_limit, gasnetc_op_oust_limit);
   }
-  if (gasneti_nodes == 1) {
-    /* no AM or RDMA on the wire, but still need bufs for constructing AMs */
-    gasnetc_bbuf_limit = gasnetc_num_qps * gasnetc_am_oust_pp;
+  if (gasnetc_remote_nodes == 0) {
+    #if GASNET_PSHM
+      /* PSHM will handle all of the loopback traffic */
+    #else
+      /* no AM or RDMA on the wire, but still need bufs for constructing AMs */
+      gasnetc_bbuf_limit = gasnetc_num_qps * gasnetc_am_oust_pp;
+    #endif
   }
   /* SRQ may raise this.  So, report is deferred. */
 
@@ -3473,6 +3481,7 @@ extern int gasnetc_sndrcv_init(void) {
   }
 
   /* Allocated pinned memory for AMs and bounce buffers */
+ if (gasnetc_bbuf_limit) {
   size = gasnetc_bbuf_limit * sizeof(gasnetc_buffer_t);
   buf = gasneti_mmap(size);
   if_pf (buf == MAP_FAILED) {
@@ -3512,6 +3521,7 @@ extern int gasnetc_sndrcv_init(void) {
     gasneti_lifo_push(&gasnetc_bbuf_freelist, buf);
     ++buf;
   }
+ }
 
   gasnetc_node2cep = (gasnetc_cep_t **)
 	  gasnett_malloc_aligned(GASNETI_CACHE_LINE_BYTES, gasneti_nodes*sizeof(gasnetc_cep_t *));
@@ -3652,7 +3662,7 @@ extern void gasnetc_sndrcv_fini(void) {
 #endif
 
   GASNETC_FOR_ALL_HCA(hca) {
-    if (gasneti_nodes > 1) {
+    if (gasnetc_remote_nodes) {
 #if GASNET_CONDUIT_VAPI
       if (gasnetc_use_rcv_thread) {
         int vstat = EVAPI_clear_comp_eventh(hca->handle, hca->rcv_handler);
