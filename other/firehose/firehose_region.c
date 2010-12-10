@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_region.c,v $
- *     $Date: 2009/04/27 21:37:04 $
- * $Revision: 1.39 $
+ *     $Date: 2010/12/10 07:11:45 $
+ * $Revision: 1.39.24.1 $
  * Description: 
  * Copyright 2004, Paul Hargrove <PHHargrove@lbl.gov>
  * Terms of use are as specified in license.txt
@@ -1517,6 +1517,8 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
 		firehose_private_t *priv;
 		firehose_region_t *tmp;
 	       
+		if (!regions[i].len) continue;
+
 		/* We can safely discard the const qualifier, we know
 		 * fhi_init_local_region won't actually modify the region.
 		 */

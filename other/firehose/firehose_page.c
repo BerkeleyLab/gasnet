@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_page.c,v $
- *     $Date: 2009/04/27 21:37:04 $
- * $Revision: 1.57 $
+ *     $Date: 2010/12/10 07:11:45 $
+ * $Revision: 1.57.24.1 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -672,6 +672,8 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
 
         for (i = 0; i < num_prepinned; i++) {
 	    end_addr = regions[i].addr + regions[i].len - 1;
+
+	    if (!regions[i].len) continue;
 
 	    FH_FOREACH_BUCKET(regions[i].addr, end_addr, bucket_addr) {
 
