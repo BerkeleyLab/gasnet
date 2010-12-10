@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/12/10 08:49:52 $
- * $Revision: 1.251.6.2 $
+ *     $Date: 2010/12/10 09:00:21 $
+ * $Revision: 1.251.6.3 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3416,7 +3416,7 @@ extern int gasnetc_sndrcv_init(void) {
       
       /* Initialize resources for AM-over-RDMA */
       gasneti_weakatomic_set(&hca->amrdma_rcv.count, 0, 0);
-      if (gasnetc_amrdma_max_peers) {
+      if (hca->amrdma_rcv.max_peers) {
 	const int max_peers = hca->amrdma_rcv.max_peers;
 	size_t alloc_size = GASNETI_PAGE_ALIGNUP(max_peers * (gasnetc_amrdma_depth << GASNETC_AMRDMA_SZ_LG2) + GASNETC_AMRDMA_PAD);
 	void *buf = gasneti_mmap(alloc_size);
