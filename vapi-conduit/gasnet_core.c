@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/12/10 02:33:17 $
- * $Revision: 1.228.2.1 $
+ *     $Date: 2010/12/10 03:29:06 $
+ * $Revision: 1.228.2.2 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1326,6 +1326,14 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   #if GASNET_PSHM
     gasneti_pshm_init(&gasneti_bootstrapExchange, 0);
+
+    /* ensure no resources will be allocated for intra-node comms */
+    for (i = 0; i < ceps; ++i) {
+      if (gasneti_pshm_in_supernode(i/gasnetc_alloc_qps)) {
+        /* XXX/XRC: Any counts to reduce? */
+        gasnetc_cep[i].hca = NULL;
+      }
+    }
   #endif
 
   /* allocate/initialize transport resources */
