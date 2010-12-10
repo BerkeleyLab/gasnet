@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2010/12/10 05:29:46 $
- * $Revision: 1.228.2.3 $
+ *     $Date: 2010/12/10 09:40:10 $
+ * $Revision: 1.228.2.4 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1113,7 +1113,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   /* Distribute the qps to each peer round-robin over the ports */
   for (i = 0; i < ceps; ) {
     const gasnet_node_t node = i/gasnetc_alloc_qps;
-    if (node == gasneti_mynode) {
+    if (gasnetc_non_ib(node)) {
       i += gasnetc_alloc_qps;
     } else {
       int j;
@@ -1143,7 +1143,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       int j;
       hca->cep = gasneti_calloc(hca->total_qps, sizeof(gasnetc_cep_t *));
       for (i = j = 0; i < ceps; ++i) {
-        if (i/gasnetc_alloc_qps == gasneti_mynode) {
+        if (gasnetc_non_ib(i/gasnetc_alloc_qps)) {
           i += gasnetc_alloc_qps - 1;
         } else if (gasnetc_cep[i].hca == hca) {
           hca->cep[j++] = &gasnetc_cep[i];
