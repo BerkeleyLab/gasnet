@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/10/13 17:04:13 $
- * $Revision: 1.251 $
+ *     $Date: 2010/12/10 03:29:06 $
+ * $Revision: 1.251.6.1 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -278,6 +278,13 @@ static int gasnetc_am_rbufs_per_qp;
   #define GASNETC_PERTHREAD_LOOKUP	const char _core_threadinfo_dummy = sizeof(_core_threadinfo_dummy) /* no semicolon */
 #endif
 
+/* Identify nodes we do NOT use IB to communicate with */
+#if GASNET_PSHM
+  #define gasnetc_non_ib(_node) gasneti_pshm_in_supernode(_node)
+#else
+  #define gasnetc_non_ib(_node) ((_node) == gasneti_mynode)
+#endif
+
 static void gasnetc_free_aligned(void *ptr) {
   gasneti_free_aligned(ptr);
 }
@@ -478,7 +485,7 @@ void gasnetc_rcv_post(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf) {
   gasneti_assert(rbuf);
 
   /* check for attempted loopback traffic */
-  gasneti_assert((cep - gasnetc_cep)/gasnetc_alloc_qps != gasneti_mynode);
+  gasneti_assert(!gasnetc_non_ib((cep - gasnetc_cep)/gasnetc_alloc_qps));
   
   rbuf->cep = cep;
   rbuf->rr_sg.lkey = GASNETC_RCV_LKEY(cep);
@@ -1631,7 +1638,7 @@ void gasnetc_snd_validate(gasnetc_sreq_t *sreq, gasnetc_snd_wr_t *sr_desc, int c
 
   gasneti_assert(sreq);
   gasneti_assert(sreq->cep);
-  gasneti_assert((sreq->cep - gasnetc_cep)/gasnetc_alloc_qps != gasneti_mynode); /* detects loopback */
+  gasneti_assert(!gasnetc_non_ib((sreq->cep - gasnetc_cep)/gasnetc_alloc_qps)); /* detects loopback */
   gasneti_assert(sr_desc);
   gasneti_assert(sr_desc->gasnetc_f_wr_num_sge >= 1);
   gasneti_assert(sr_desc->gasnetc_f_wr_num_sge <= GASNETC_SND_SG);
@@ -1723,7 +1730,7 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, gasnetc_snd_wr_t *sr_desc, in
 
   /* Must be bound to a qp by now */
   gasneti_assert(cep != NULL );
-  gasneti_assert(gasnetc_epid2node(sreq->epid) != gasneti_mynode);
+  gasneti_assert(!gasnetc_non_ib(gasnetc_epid2node(sreq->epid)));
 
   gasneti_assert(sreq->opcode != GASNETC_OP_FREE);
   gasneti_assert(sreq->opcode != GASNETC_OP_INVALID);
@@ -3525,7 +3532,7 @@ extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
   
   cep = gasnetc_node2cep[node] = &(gasnetc_cep[node * gasnetc_alloc_qps]);
 
-  if (node != gasneti_mynode) {
+  if (!gasnetc_non_ib(node)) {
     for (i = 0; i < gasnetc_alloc_qps; ++i, ++cep) {
       gasnetc_hca_t *hca = cep->hca;
       cep->epid = gasnetc_epid(node, i);
@@ -3575,7 +3582,7 @@ extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
       cep->snd_cq_sema_p = &gasnetc_cq_semas[cep->hca_index];
     }
   } else {
-    /* Should never use these for loopback */
+    /* Should never use these for loopback or same supernode */
     for (i = 0; i < gasnetc_alloc_qps; ++i, ++cep) {
       cep->epid = gasnetc_epid(node, i);
       gasneti_semaphore_init(&cep->sq_sema, 0, 0);
@@ -3606,8 +3613,8 @@ extern void gasnetc_sndrcv_attach_peer(gasnet_node_t node) {
 
   for (i = 0; i < gasnetc_alloc_qps; ++i, ++cep) {
     gasnetc_hca_t *hca = cep->hca;
-    cep->keys.seg_reg = (node == gasneti_mynode) ? NULL : hca->seg_reg;
-    cep->keys.rkeys   = (node == gasneti_mynode) ? NULL : &hca->rkeys[node * gasnetc_max_regs];
+    cep->keys.seg_reg = gasnetc_non_ib(node) ? NULL : hca->seg_reg;
+    cep->keys.rkeys   = gasnetc_non_ib(node) ? NULL : &hca->rkeys[node * gasnetc_max_regs];
   }
 
   if (node == gasneti_mynode) { /* Needed exactly once */
@@ -3674,7 +3681,7 @@ extern void gasnetc_sndrcv_fini_peer(gasnet_node_t node) {
   int vstat;
   int i;
 
-  if (node != gasneti_mynode) {
+  if (!gasnetc_non_ib(node)) {
     gasnetc_cep_t *cep = gasnetc_node2cep[node];
     for (i = 0; i < gasnetc_alloc_qps; ++i, ++cep) {
       vstat = gasnetc_destroy_qp(cep->hca_handle, cep->qp_handle);
