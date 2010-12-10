@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/12/10 09:40:10 $
- * $Revision: 1.251.6.4 $
+ *     $Date: 2010/12/10 23:32:41 $
+ * $Revision: 1.251.6.5 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3308,6 +3308,25 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
   } else
 #endif
     gasnetc_alloc_qps = gasnetc_num_qps;
+
+  /* sanity/bounds checks */
+  GASNETC_FOR_ALL_HCA(hca) {
+    const unsigned int max_qp = hca->hca_cap.gasnetc_f_max_qp;
+    const unsigned int max_qp_wr = hca->hca_cap.gasnetc_f_max_qp_wr;
+
+    if_pf (hca->total_qps > max_qp) {
+      GASNETC_FOR_ALL_HCA(hca) { (void)gasnetc_close_hca(hca->handle); }
+      GASNETI_RETURN_ERRR(RESOURCE, "gasnet_nodes exceeds HCA capabilities");
+    }
+    if_pf (gasnetc_am_oust_pp * 2 > max_qp_wr) {
+      GASNETC_FOR_ALL_HCA(hca) { (void)gasnetc_close_hca(hca->handle); }
+      GASNETI_RETURN_ERRR(RESOURCE, "GASNET_AM_CREDITS_PP exceeds HCA capabilities");
+    }
+    if_pf (gasnetc_op_oust_pp > max_qp_wr) {
+      GASNETC_FOR_ALL_HCA(hca) { (void)gasnetc_close_hca(hca->handle); }
+      GASNETI_RETURN_ERRR(RESOURCE, "GASNET_NETWORKDEPTH_PP exceeds HCA capabilities");
+    }
+  }
 
   return GASNET_OK;
 }
