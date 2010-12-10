@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/12/10 01:50:59 $
- * $Revision: 1.228 $
+ *     $Date: 2010/12/10 02:33:17 $
+ * $Revision: 1.228.2.1 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -141,13 +141,9 @@ int		gasnetc_qp_rd_atom;
 #endif
 firehose_info_t	gasnetc_firehose_info;
 
+/* Used to exchange addresses at connection time */
 typedef GASNETC_IB_CHOOSE(IB_lid_t, uint16_t) gasnetc_lid_t;
-
-/* Used only once, to exchange addresses at connection time */
-typedef struct _gasnetc_addr_t {
-  GASNETC_IB_CHOOSE(VAPI_qp_num_t, uint32_t)	qp_num;
-  gasnetc_lid_t                                 lid;
-} gasnetc_addr_t;
+typedef GASNETC_IB_CHOOSE(VAPI_qp_num_t, uint32_t) gasnetc_qpn_t;
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 
@@ -1023,8 +1019,10 @@ static gasnetc_port_info_t* gasnetc_probe_ports(int *port_count_p) {
 static int gasnetc_init(int *argc, char ***argv) {
   gasnetc_port_info_t	*port_tbl, **port_map;
   gasnetc_hca_t		*hca;
-  gasnetc_addr_t	*local_addr;
-  gasnetc_addr_t	*remote_addr;
+  gasnetc_lid_t		*local_lid;
+  gasnetc_lid_t		*remote_lid;
+  gasnetc_qpn_t		*local_qpn;
+  gasnetc_qpn_t		*remote_qpn;
   int			vstat;
   int			ceps;
   int 			num_ports;
@@ -1088,8 +1086,10 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasnetc_cep = (gasnetc_cep_t *)
       gasnett_malloc_aligned(GASNETI_CACHE_LINE_BYTES, ceps*sizeof(gasnetc_cep_t));
   memset(gasnetc_cep, 0, ceps*sizeof(gasnetc_cep_t));
-  local_addr = gasneti_calloc(ceps, sizeof(gasnetc_addr_t));
-  remote_addr = gasneti_calloc(ceps, sizeof(gasnetc_addr_t));
+  local_lid = gasneti_calloc(ceps, sizeof(gasnetc_lid_t));
+  remote_lid = gasneti_calloc(ceps, sizeof(gasnetc_lid_t));
+  local_qpn = gasneti_calloc(ceps, sizeof(gasnetc_qpn_t));
+  remote_qpn = gasneti_calloc(ceps, sizeof(gasnetc_qpn_t));
   port_map = gasneti_calloc(ceps, sizeof(gasnetc_port_info_t *));
 
   /* Distribute the qps to each peer round-robin over the ports */
@@ -1100,6 +1100,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       int j;
       for (j = 0; j < gasnetc_num_qps; ++j, ++i) {
         port_map[i] = &port_tbl[j % num_ports];
+        local_lid[i] = port_map[i]->port.lid;
         hca = &gasnetc_hca[port_map[i]->hca_index];
         gasnetc_cep[i].hca = hca;
         gasnetc_cep[i].hca_handle = hca->handle;
@@ -1110,6 +1111,7 @@ static int gasnetc_init(int *argc, char ***argv) {
          This might NOT be the same as extending the loop above */
       for (; j < gasnetc_alloc_qps; ++j, ++i) {
         port_map[i]    = port_map[i - gasnetc_num_qps];
+        local_lid[i] = port_map[i]->port.lid;
         gasnetc_cep[i] = gasnetc_cep[i - gasnetc_num_qps];
       }
 #else
@@ -1307,6 +1309,25 @@ static int gasnetc_init(int *argc, char ***argv) {
   }
 #endif
 
+  /* exchange lid info for nodemap and connecting */
+  gasneti_bootstrapAlltoall(local_lid, gasnetc_alloc_qps*sizeof(gasnetc_lid_t), remote_lid);
+  if (gasneti_nodes > 1) { /* Would otherwise access non-existant local_lid[>0] */
+    /* Fill in otherwise unused remote_lid[self] to ease later coding.
+     * We use local_lid[!mynode] since local_lid[mynode] is always 0 */
+    remote_lid[gasnetc_alloc_qps * gasneti_mynode] =
+                             local_lid[gasnetc_alloc_qps * !gasneti_mynode];
+  }
+  gasneti_free(local_lid);
+
+  /* Derive nodemap from the LID info we have just exchanged */
+  gasneti_nodemapInit(NULL, &remote_lid[0],
+                      sizeof(remote_lid[0]),
+                      sizeof(remote_lid[0]) * gasnetc_alloc_qps);
+
+  #if GASNET_PSHM
+    gasneti_pshm_init(&gasneti_bootstrapExchange, 0);
+  #endif
+
   /* allocate/initialize transport resources */
   i = gasnetc_sndrcv_init();
   if (i != GASNET_OK) {
@@ -1344,8 +1365,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       GASNETC_VAPI_CHECK(vstat, "from VAPI_create_qp()");
       gasneti_assert(qp_prop.cap.max_oust_wr_rq >= gasnetc_am_oust_pp * 2);
       gasneti_assert(qp_prop.cap.max_oust_wr_sq >= gasnetc_op_oust_pp);
-      local_addr[i].qp_num = qp_prop.qp_num;
-      local_addr[i].lid = port_map[i]->port.lid;
+      local_qpn[i] = qp_prop.qp_num;
       /* XXX: When could/should we use the ENTIRE allocated length? */
       gasneti_semaphore_init(&gasnetc_cep[i].sq_sema, gasnetc_op_oust_pp, gasnetc_op_oust_pp);
     }
@@ -1408,33 +1428,15 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasnetc_cep[i].qp_handle = hndl;
       gasneti_assert(qp_init_attr.cap.max_recv_wr >= max_recv_wr);
       gasneti_assert(qp_init_attr.cap.max_send_wr >= max_send_wr);
-      local_addr[i].qp_num = gasnetc_cep[i].qp_handle->qp_num;
-      local_addr[i].lid = port_map[i]->port.lid;
+      local_qpn[i] = gasnetc_cep[i].qp_handle->qp_num;
       /* XXX: When could/should we use the ENTIRE allocated length? */
       gasneti_semaphore_init(&gasnetc_cep[i].sq_sema, max_send_wr, max_send_wr);
     }
   }
 #endif
 
-  /* exchange endpoint info for connecting */
-  gasneti_bootstrapAlltoall(local_addr, gasnetc_alloc_qps*sizeof(gasnetc_addr_t), remote_addr);
-
-  /* Derive nodemap from the LID info we have just exchanged */
-  {
-    if (gasneti_nodes > 1) { /* Would otherwise access non-existant localaddr[>0] */
-        /* Fill in otherwise unused remote_addr[self].lid for the helper.
-         * We use local_addr[!mynode] since local_addr[mynode] is always 0 */
-        remote_addr[gasnetc_alloc_qps * gasneti_mynode].lid =
-                             local_addr[gasnetc_alloc_qps * !gasneti_mynode].lid;
-    }
-    gasneti_nodemapInit(NULL, &remote_addr[0].lid,
-                        sizeof(remote_addr[0].lid),
-                        sizeof(remote_addr[0]) * gasnetc_alloc_qps);
-  }
-
-  #if GASNET_PSHM
-    gasneti_pshm_init(&gasneti_bootstrapExchange, 0);
-  #endif
+  /* exchange qpn info for connecting */
+  gasneti_bootstrapAlltoall(local_qpn, gasnetc_alloc_qps*sizeof(gasnetc_qpn_t), remote_qpn);
 
   /* connect the endpoints */
   {
@@ -1509,8 +1511,8 @@ static int gasnetc_init(int *argc, char ***argv) {
       qp_attr.qp_ous_rd_atom = port_map[i]->rd_atom;
       qp_attr.path_mtu       = MIN(GASNETC_QP_PATH_MTU, port_map[i]->port.max_mtu);
       qp_attr.rq_psn         = i;
-      qp_attr.av.dlid        = remote_addr[i].lid;
-      qp_attr.dest_qp_num    = remote_addr[i].qp_num;
+      qp_attr.av.dlid        = remote_lid[i];
+      qp_attr.dest_qp_num    = remote_qpn[i];
       vstat = VAPI_modify_qp(gasnetc_cep[i].hca_handle, gasnetc_cep[i].qp_handle, &qp_attr, &qp_mask, &qp_cap);
       GASNETC_VAPI_CHECK(vstat, "from VAPI_modify_qp(RTR)");
     }
@@ -1529,9 +1531,9 @@ static int gasnetc_init(int *argc, char ***argv) {
       qp_attr.max_dest_rd_atomic = port_map[i]->rd_atom;
       qp_attr.path_mtu       = MIN(GASNETC_QP_PATH_MTU, port_map[i]->port.max_mtu);
       qp_attr.rq_psn         = i;
-      qp_attr.ah_attr.dlid        = remote_addr[i].lid;
+      qp_attr.ah_attr.dlid        = remote_lid[i];
       qp_attr.ah_attr.port_num = port_map[i]->port_num;
-      qp_attr.dest_qp_num    = remote_addr[i].qp_num;
+      qp_attr.dest_qp_num    = remote_qpn[i];
       rc = ibv_modify_qp(gasnetc_cep[i].qp_handle, &qp_attr, qp_mask);
       GASNETC_VAPI_CHECK(rc, "from ibv_modify_qp(RTR)");
     }
@@ -1601,8 +1603,9 @@ static int gasnetc_init(int *argc, char ***argv) {
   }
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_INLINESEND_LIMIT = %d", (int)gasnetc_inline_limit));
 
-  gasneti_free(remote_addr);
-  gasneti_free(local_addr);
+  gasneti_free(remote_qpn);
+  gasneti_free(local_qpn);
+  gasneti_free(remote_lid);
   gasneti_free(port_map);
   gasneti_free(port_tbl);
 
