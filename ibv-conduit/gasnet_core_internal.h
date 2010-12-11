@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2010/12/10 09:40:10 $
- * $Revision: 1.161.6.1 $
+ *     $Date: 2010/12/11 01:13:55 $
+ * $Revision: 1.161.6.2 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -35,6 +35,9 @@
   #include <infiniband/verbs.h>
   #if HAVE_IBV_SRQ
     #define GASNETC_IBV_SRQ 1
+  #endif
+  #if HAVE_IBV_XRC
+    #define GASNETC_IBV_XRC 1
   #endif
 #endif
 
@@ -642,9 +645,14 @@ extern gasneti_weakatomic_val_t gasnetc_amrdma_cycle;
   extern int			gasnetc_rbuf_limit;
   extern int			gasnetc_rbuf_set;
   extern int			gasnetc_use_srq;
-  /* If non-zero use normal credit system to throttle AMs */
 #else
   #define gasnetc_use_srq	0
+#endif
+
+#if GASNETC_IBV_XRC
+  extern int			gasnetc_use_xrc;
+#else
+  #define gasnetc_use_xrc	0
 #endif
 
 /* Global variables */
