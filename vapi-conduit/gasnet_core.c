@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/12/11 05:00:25 $
- * $Revision: 1.228.2.9 $
+ *     $Date: 2010/12/11 05:21:33 $
+ * $Revision: 1.228.2.10 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1130,6 +1130,26 @@ static int gasnetc_hca_report(int num_ports, const gasnetc_port_info_t *port_tbl
 }
 
 #if GASNETC_IBV_XRC
+/* Perform a supernode-scoped broadcast from first node of the supernode.
+   Note that 'src' must be a valid address on ALL callers.
+ */
+static void gasnetc_supernode_bcast(void *src, size_t len, void *dst) {
+  #if GASNET_PSHM
+    /* Can do w/ just supernode-scoped broadcast */
+    gasneti_assert(gasneti_request_pshmnet != NULL);
+    gasneti_pshmnet_bootstrapBroadcast(gasneti_request_pshmnet, src, len, dst, 0);
+  #else
+    /* Need global Exchange when PSHM is not available */
+    /* TODO: If/when is one Bcast per supernode cheaper than 1 Exchange? */
+    /* TODO: Push this case down to the Bootstrap support? */
+    void *all_data = gasneti_malloc(gasneti_nodes * len);
+    void *my_dst = (void *)((uintptr_t )all_data + (len * gasneti_nodemap_local[0]));
+    gasneti_bootstrapExchange(src, len, all_data);
+    memcpy(dst, my_dst, len);
+    gasneti_free(all_data);
+  #endif
+}
+
 static uint32_t *gasnetc_xrc_rcv_qpn[GASNETC_IB_MAX_HCAS];
 static int gasnetc_alloc_xrc_domain(gasnetc_hca_t *hca) {
   static char *tmpdir = NULL;
@@ -1153,19 +1173,7 @@ static int gasnetc_alloc_xrc_domain(gasnetc_hca_t *hca) {
 
   /* Get PID of first proc per supernode */
   pid = getpid(); /* Redundant, but harmless on other processes */
-  #if GASNET_PSHM
-  { /* Can do w/ just supernode-scoped broadcast */
-    gasneti_assert(gasneti_request_pshmnet != NULL);
-    gasneti_pshmnet_bootstrapBroadcast(gasneti_request_pshmnet, &pid, sizeof(pid_t), &pid, 0);
-  }
-  #else
-  { /* Need global Exchange when PSHM is not available */
-    pid_t *all_pids = gasneti_malloc(gasneti_nodes * sizeof(pid_t));
-    gasneti_bootstrapExchange(&pid, sizeof(pid_t), all_pids);
-    pid = all_pids[gasneti_nodemap_local[0]];
-    gasneti_free(all_pids);
-  }
-  #endif
+  gasnetc_supernode_bcast(&pid, sizeof(pid), &pid);
 
   /* Use per-supernode filename to create common XRC domain */
   sprintf(filename + strlen(filename), pattern,
@@ -1195,23 +1203,9 @@ static int gasnetc_alloc_xrc_domain(gasnetc_hca_t *hca) {
       }
     }
   }
-  #if GASNET_PSHM
-  { /* Can do w/ just supernode-scoped broadcast */
-    gasneti_assert(gasneti_request_pshmnet != NULL);
-    gasneti_pshmnet_bootstrapBroadcast(gasneti_request_pshmnet, gasnetc_xrc_rcv_qpn[h],
-                                       gasneti_nodemap_global_count * sizeof(uint32_t),
-                                       gasnetc_xrc_rcv_qpn[h], 0);
-  }
-  #else
-  { /* Need global Exchange when PSHM is not available */
-    size_t len = gasneti_nodemap_global_count * sizeof(uint32_t);
-    size_t offset = gasneti_nodemap_global_count * gasneti_nodemap_local[0];
-    uint32_t *all_qpns = gasneti_malloc(gasneti_nodes * len);
-    gasneti_bootstrapExchange(gasnetc_xrc_rcv_qpn[h], len, all_qpns);
-    memcpy(gasnetc_xrc_rcv_qpn[h], &all_qpns[offset], len);
-    gasneti_free(all_qpns);
-  }
-  #endif
+  gasnetc_supernode_bcast(gasnetc_xrc_rcv_qpn[h],
+                          gasneti_nodemap_global_count * sizeof(uint32_t),
+                          gasnetc_xrc_rcv_qpn[h]);
   if (gasneti_nodemap_local[0] != gasneti_mynode) {
     for (i=0; i<gasneti_nodemap_global_count; ++i) {
       if (i != gasneti_nodemap_global_rank) {
