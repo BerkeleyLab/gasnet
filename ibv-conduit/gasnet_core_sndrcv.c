@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/12/10 23:32:41 $
- * $Revision: 1.251.6.5 $
+ *     $Date: 2010/12/11 01:13:55 $
+ * $Revision: 1.251.6.6 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -69,6 +69,9 @@ int					gasnetc_use_rcv_thread = GASNETC_IB_RCV_THREAD;
 #endif
 #if GASNETC_IBV_SRQ
   int					gasnetc_use_srq = 1;
+#endif
+#if GASNETC_IBV_XRC
+  int					gasnetc_use_xrc = 1;
 #endif
 int					gasnetc_am_credits_slack;
 int					gasnetc_alloc_qps;
@@ -3299,15 +3302,28 @@ extern int gasnetc_sndrcv_limits(int num_ports, gasnetc_port_info_t *port_tbl) {
 #endif
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_BBUF_COUNT = %d", gasnetc_bbuf_limit));
 
+  gasnetc_alloc_qps = gasnetc_num_qps; /* Default w/o SRQ or XRC */
 #if GASNETC_IBV_SRQ
+ #if GASNETC_IBV_XRC
+  if (gasnetc_use_xrc && gasnetc_use_srq) {
+    /* XXX/XRC: setup for 2 * gasnetc_num_qps per *supernode* */
+    /* XXX/XRC: for NOW setup regular SRQ case */
+    gasnetc_alloc_qps = 2 * gasnetc_num_qps;
+    GASNETC_FOR_ALL_HCA(hca) {
+      hca->total_qps *= 2;
+    }
+  } else if (gasnetc_use_xrc) {
+    /* No SRQ means no XRC either */
+    gasnetc_use_xrc = 0;
+  } else
+ #endif
   if (gasnetc_use_srq) {
     gasnetc_alloc_qps = 2 * gasnetc_num_qps;
     GASNETC_FOR_ALL_HCA(hca) {
       hca->total_qps *= 2;
     }
-  } else
+  }
 #endif
-    gasnetc_alloc_qps = gasnetc_num_qps;
 
   /* sanity/bounds checks */
   GASNETC_FOR_ALL_HCA(hca) {
