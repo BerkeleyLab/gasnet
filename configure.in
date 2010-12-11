@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2010/12/04 23:52:51 $
-# $Revision: 1.658 $
+#     $Date: 2010/12/11 00:01:55 $
+# $Revision: 1.658.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.658 $)
+AC_REVISION($Revision: 1.658.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -3276,7 +3276,25 @@ if test "$enabled_ibv" = yes; then
 
     GASNET_IF_DISABLED([ibv-srq],
                        [Disable Shared Receive Queue (SRQ) support in ibv-conduit (enabled by default)],
-		       [:], [AC_DEFINE(HAVE_IBV_SRQ)])
+		       [enabled_ibv_srq=no], [AC_DEFINE(HAVE_IBV_SRQ)])
+
+    GASNET_IF_ENABLED_WITH_AUTO([ibv-xrc],
+        [Enable/disable eXtended Reliable Connection (XRC) support in ibv-conduit (default is to probe)],
+        [enabled_ibv_xrc="yes"; force_ibv_xrc="yes"],
+        [enabled_ibv_xrc="no"],
+        [enabled_ibv_xrc="yes"])
+    if test "x$force_ibv_xrc$enabled_ibv_srq" = xyesno; then
+      GASNET_MSG_ERROR([IBV XRC support was requested with --enable-ibv-xrc but requires SRQ support which has been disabled])
+    elif test "$enabled_ibv_xrc" = yes; then
+      GASNET_PUSHVAR(LIBS,"$LIBS -L$IBV_LIBDIR $IBV_LIBS $GASNET_THREAD_LIBS")
+      AC_CHECK_FUNCS([ibv_create_xrc_rcv_qp], [have_ibv_xrc=yes], [have_ibv_xrc=no])
+      GASNET_POPVAR(LIBS)
+      if test "$have_ibv_xrc" = yes; then
+        AC_DEFINE(HAVE_IBV_XRC)
+      elif test "x$force_ibv_xrc" = xyes; then
+        GASNET_MSG_ERROR([IBV XRC support was requested with --enable-ibv-xrc but is not available])
+      fi
+    fi
   fi
 fi
 AC_SUBST(IBV_INCLUDE)
