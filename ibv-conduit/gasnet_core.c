@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2010/12/11 03:32:55 $
- * $Revision: 1.228.2.8 $
+ *     $Date: 2010/12/11 05:00:25 $
+ * $Revision: 1.228.2.9 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1130,14 +1130,16 @@ static int gasnetc_hca_report(int num_ports, const gasnetc_port_info_t *port_tbl
 }
 
 #if GASNETC_IBV_XRC
+static uint32_t *gasnetc_xrc_rcv_qpn[GASNETC_IB_MAX_HCAS];
 static int gasnetc_alloc_xrc_domain(gasnetc_hca_t *hca) {
   static char *tmpdir = NULL;
   static const char pattern[] = "/GASNETxrc-%02x-%06x"; /* Max len 13 + 2 + 6 = 21 */
+  const int h = hca->hca_index;
   char *filename;
   pid_t pid;
-  int fd;
+  int i, fd;
 
-  /* Initialize tmpdir on first call */
+  /* Initialize tmpdir and rcv_qpn table on first call */
   if (!tmpdir) {
     struct stat s;
     tmpdir = gasneti_getenv_withdefault("TMPDIR", "/tmp");
@@ -1158,24 +1160,68 @@ static int gasnetc_alloc_xrc_domain(gasnetc_hca_t *hca) {
   }
   #else
   { /* Need global Exchange when PSHM is not available */
-    pid_t *all_pids = gasneti_calloc(gasneti_nodes, sizeof(pid_t));
+    pid_t *all_pids = gasneti_malloc(gasneti_nodes * sizeof(pid_t));
     gasneti_bootstrapExchange(&pid, sizeof(pid_t), all_pids);
     pid = all_pids[gasneti_nodemap_local[0]];
     gasneti_free(all_pids);
   }
   #endif
 
+  /* Use per-supernode filename to create common XRC domain */
   sprintf(filename + strlen(filename), pattern,
-          (unsigned int)(hca->hca_index & 0xff),
+          (unsigned int)(h & 0xff),
           (unsigned int)(pid & 0xffffff));
   fd = open(filename, O_CREAT, S_IWUSR|S_IRUSR);
   if (fd < 0) {
     gasneti_fatalerror("failed to create temporary file '%s': %d:%s", filename, errno, strerror(errno));
   }
-
   hca->xrc_domain = ibv_open_xrc_domain(hca->handle, fd, O_CREAT);
   GASNETC_VAPI_CHECK_PTR(hca->xrc_domain, "from ibv_open_xrc_domain()");
 
+  /* Create the RCV QPs once per supernode and register in the non-creating nodes */
+  gasnetc_xrc_rcv_qpn[h] = gasneti_malloc(gasneti_nodemap_global_count * sizeof(uint32_t));
+  if (gasneti_nodemap_local[0] == gasneti_mynode) {
+    for (i=0; i<gasneti_nodemap_global_count; ++i) {
+      if (i == gasneti_nodemap_global_rank) {
+        gasnetc_xrc_rcv_qpn[h][i] = ~0;
+      } else {
+        struct ibv_qp_init_attr attr;
+        int ret;
+
+        memset(&attr, 0, sizeof(attr));
+        attr.xrc_domain = hca->xrc_domain;
+        ret = ibv_create_xrc_rcv_qp(&attr, &(gasnetc_xrc_rcv_qpn[h][i]));
+        GASNETC_VAPI_CHECK(ret, "from ibv_create_xrc_rcv_qp()");
+      }
+    }
+  }
+  #if GASNET_PSHM
+  { /* Can do w/ just supernode-scoped broadcast */
+    gasneti_assert(gasneti_request_pshmnet != NULL);
+    gasneti_pshmnet_bootstrapBroadcast(gasneti_request_pshmnet, gasnetc_xrc_rcv_qpn[h],
+                                       gasneti_nodemap_global_count * sizeof(uint32_t),
+                                       gasnetc_xrc_rcv_qpn[h], 0);
+  }
+  #else
+  { /* Need global Exchange when PSHM is not available */
+    size_t len = gasneti_nodemap_global_count * sizeof(uint32_t);
+    size_t offset = gasneti_nodemap_global_count * gasneti_nodemap_local[0];
+    uint32_t *all_qpns = gasneti_malloc(gasneti_nodes * len);
+    gasneti_bootstrapExchange(gasnetc_xrc_rcv_qpn[h], len, all_qpns);
+    memcpy(gasnetc_xrc_rcv_qpn[h], &all_qpns[offset], len);
+    gasneti_free(all_qpns);
+  }
+  #endif
+  if (gasneti_nodemap_local[0] != gasneti_mynode) {
+    for (i=0; i<gasneti_nodemap_global_count; ++i) {
+      if (i != gasneti_nodemap_global_rank) {
+        int ret = ibv_reg_xrc_rcv_qp(hca->xrc_domain, gasnetc_xrc_rcv_qpn[h][i]);
+        GASNETC_VAPI_CHECK(ret, "from ibv_reg_xrc_rcv_qp()");
+      }
+    }
+  }
+
+  /* Yes, we do need this even w/ the Broadcast or Exchange above */
   #if GASNET_PSHM
     gasneti_pshmnet_bootstrapBarrier();
   #else
