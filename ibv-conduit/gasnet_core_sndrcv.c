@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/12/11 01:13:55 $
- * $Revision: 1.251.6.6 $
+ *     $Date: 2010/12/11 03:50:50 $
+ * $Revision: 1.251.6.7 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3413,14 +3413,30 @@ extern int gasnetc_sndrcv_init(void) {
         memset(&attr, 0, sizeof(attr));
         attr.attr.max_wr = rqst_count;
         attr.attr.max_sge = 1;
-        hca->rqst_srq = ibv_create_srq(hca->pd, &attr);
-        GASNETC_VAPI_CHECK_PTR(hca->rqst_srq, "from ibv_create_srq(Request)");
+  #if GASNETC_IBV_XRC
+        if (gasnetc_use_xrc) {
+          hca->rqst_srq = ibv_create_xrc_srq(hca->pd, hca->xrc_domain, hca->rcv_cq, &attr);
+          GASNETC_VAPI_CHECK_PTR(hca->rqst_srq, "from ibv_create_xrc_srq(Request)");
+        } else
+  #endif
+        {
+          hca->rqst_srq = ibv_create_srq(hca->pd, &attr);
+          GASNETC_VAPI_CHECK_PTR(hca->rqst_srq, "from ibv_create_srq(Request)");
+        }
 
         memset(&attr, 0, sizeof(attr));
         attr.attr.max_wr = repl_count;
         attr.attr.max_sge = 1;
-        hca->repl_srq = ibv_create_srq(hca->pd, &attr);
-        GASNETC_VAPI_CHECK_PTR(hca->repl_srq, "from ibv_create_srq(Reply)");
+  #if GASNETC_IBV_XRC
+        if (gasnetc_use_xrc) {
+          hca->repl_srq = ibv_create_xrc_srq(hca->pd, hca->xrc_domain, hca->rcv_cq, &attr);
+          GASNETC_VAPI_CHECK_PTR(hca->repl_srq, "from ibv_create_xrc_srq(Reply)");
+        } else
+  #endif
+        {
+          hca->repl_srq = ibv_create_srq(hca->pd, &attr);
+          GASNETC_VAPI_CHECK_PTR(hca->repl_srq, "from ibv_create_srq(Reply)");
+        }
 
         gasneti_semaphore_init(&hca->am_sema, rqst_count, rqst_count);
       }
