@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/12/11 06:33:05 $
- * $Revision: 1.228.2.11 $
+ *     $Date: 2010/12/11 08:19:39 $
+ * $Revision: 1.228.2.12 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1151,9 +1151,9 @@ static void gasnetc_supernode_bcast(void *src, size_t len, void *dst) {
 }
 
 /* Create the XRC domain (one per supernode) */
-static int gasnetc_alloc_xrc_domain(gasnetc_hca_t *hca) {
+static int gasnetc_alloc_xrc_domain(gasnetc_hca_t *hca, gasnetc_lid_t mylid) {
   static char *tmpdir = NULL;
-  static const char pattern[] = "/GASNETxrc-%02x-%06x"; /* Max len 13 + 2 + 6 = 21 */
+  static const char pattern[] = "/GASNETxrc-%04x%01x-%06x"; /* Max 11 + 5 + 1 + 6 + 1 = 24 */
   char *filename;
   pid_t pid;
   int fd;
@@ -1167,7 +1167,7 @@ static int gasnetc_alloc_xrc_domain(gasnetc_hca_t *hca) {
     }
   }
 
-  filename = gasneti_malloc(strlen(tmpdir) + 24);
+  filename = gasneti_malloc(strlen(tmpdir) + 28);
   strcpy(filename, tmpdir);
 
   /* Get PID of first proc per supernode */
@@ -1176,7 +1176,8 @@ static int gasnetc_alloc_xrc_domain(gasnetc_hca_t *hca) {
 
   /* Use per-supernode filename to create common XRC domain */
   sprintf(filename + strlen(filename), pattern,
-          (unsigned int)(hca->hca_index & 0xff),
+          (unsigned int)(mylid & 0xffff),
+          (unsigned int)(hca->hca_index & 0xf),
           (unsigned int)(pid & 0xffffff));
   fd = open(filename, O_CREAT, S_IWUSR|S_IRUSR);
   if (fd < 0) {
@@ -1481,7 +1482,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   /* allocate/initialize XRC support */
   if (gasnetc_use_xrc) {
     GASNETC_FOR_ALL_HCA(hca) {
-      vstat = gasnetc_alloc_xrc_domain(hca);
+      vstat = gasnetc_alloc_xrc_domain(hca, port_tbl[0].port.lid);
       GASNETC_VAPI_CHECK(vstat, "from gasnetc_alloc_xrc_domain()");
     }
   }
