@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/12/10 23:32:41 $
- * $Revision: 1.228.2.6 $
+ *     $Date: 2010/12/11 01:13:55 $
+ * $Revision: 1.228.2.7 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -572,6 +572,9 @@ static int gasnetc_load_settings(void) {
                              gasnetc_use_srq, gasneti_nodes));
     gasnetc_use_srq = 0;
   }
+#endif
+#if GASNETC_IBV_XRC
+  gasnetc_use_xrc = gasneti_getenv_int_withdefault("GASNET_USE_XRC", 1, 0);
 #endif
 
   /* XXX: Does SRQ make any of these invalid? */
@@ -1209,18 +1212,42 @@ static int gasnetc_init(int *argc, char ***argv) {
       }
     }
     
-    if (!gasnetc_use_srq) {
+    if (!gasnetc_use_srq && !gasneti_mynode) {
       fprintf(stderr,
               "WARNING: GASNET_USE_SRQ disabled because HCA lacks support.\n"
-              "      To suppress this message set environment variable\n"
-              "      GASNET_USE_SRQ=0 or reconfigure with --disble-ibv-srq.\n"
+              "         To suppress this message set environment variable\n"
+              "         GASNET_USE_SRQ=0 or reconfigure with --disble-ibv-srq.\n"
              );
     }
   }
-#if GASNETC_IBV_XRC
-  /* XXX/XRC: check for XRC support will go here */
-#endif /* GASNETC_IBV_XRC */
 #endif /* GASNETC_IBV_SRQ */
+#if GASNETC_IBV_XRC
+  if (gasnetc_use_xrc && !gasnetc_use_srq) {
+    gasnetc_use_xrc =0 ;
+    if (!gasneti_mynode) {
+      fprintf(stderr,
+              "WARNING: GASNET_USE_XRC disabled because SRQ is unavailable.\n"
+              "         To suppress this message set environment variable\n"
+              "         GASNET_USE_XRC=0 or reconfigure with --disble-ibv-xrc.\n"
+             );
+    }
+  } else if (gasnetc_use_xrc) {
+    GASNETC_FOR_ALL_HCA(hca) {
+      if (0 == (hca->hca_cap.device_cap_flags & IBV_DEVICE_XRC)) {
+        gasnetc_use_xrc =0 ;
+        break;
+      }
+    }
+
+    if (!gasnetc_use_xrc && !gasneti_mynode) {
+      fprintf(stderr,
+              "WARNING: GASNET_USE_XRC disabled because HCA lacks support.\n"
+              "         To suppress this message set environment variable\n"
+              "         GASNET_USE_XRC=0 or reconfigure with --disble-ibv-xrc.\n"
+             );
+    }
+  }
+#endif /* GASNETC_IBV_XRC */
 
   /* Determine gasnetc_max_msg_sz and dependent variables */
   gasnetc_max_msg_sz = port_tbl[0].port.max_msg_sz;
@@ -1275,6 +1302,12 @@ static int gasnetc_init(int *argc, char ***argv) {
     return i;
   }
   
+#if GASNETC_IBV_XRC
+  if (gasnetc_use_xrc) {
+    /* Create an XRC domain */
+  }
+#endif
+
   /* allocate resources */
   ceps = gasneti_nodes * gasnetc_alloc_qps;
   gasnetc_cep = (gasnetc_cep_t *)
