@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/12/11 01:13:55 $
- * $Revision: 1.228.2.7 $
+ *     $Date: 2010/12/11 03:32:55 $
+ * $Revision: 1.228.2.8 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -8,6 +8,12 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
+
+#if GASNETC_IBV_XRC /* For open(), stat(), O_CREAT, etc. */
+  #include <sys/types.h>
+  #include <sys/stat.h>
+  #include <fcntl.h>
+#endif
 
 #include <errno.h>
 #include <unistd.h>
@@ -1123,6 +1129,64 @@ static int gasnetc_hca_report(int num_ports, const gasnetc_port_info_t *port_tbl
   return GASNET_OK;
 }
 
+#if GASNETC_IBV_XRC
+static int gasnetc_alloc_xrc_domain(gasnetc_hca_t *hca) {
+  static char *tmpdir = NULL;
+  static const char pattern[] = "/GASNETxrc-%02x-%06x"; /* Max len 13 + 2 + 6 = 21 */
+  char *filename;
+  pid_t pid;
+  int fd;
+
+  /* Initialize tmpdir on first call */
+  if (!tmpdir) {
+    struct stat s;
+    tmpdir = gasneti_getenv_withdefault("TMPDIR", "/tmp");
+    if (stat(tmpdir, &s) || !S_ISDIR(s.st_mode)) {
+      gasneti_fatalerror("XRC support requires valid $TMPDIR or /tmp");
+    }
+  }
+
+  filename = gasneti_malloc(strlen(tmpdir) + 24);
+  strcpy(filename, tmpdir);
+
+  /* Get PID of first proc per supernode */
+  pid = getpid(); /* Redundant, but harmless on other processes */
+  #if GASNET_PSHM
+  { /* Can do w/ just supernode-scoped broadcast */
+    gasneti_assert(gasneti_request_pshmnet != NULL);
+    gasneti_pshmnet_bootstrapBroadcast(gasneti_request_pshmnet, &pid, sizeof(pid_t), &pid, 0);
+  }
+  #else
+  { /* Need global Exchange when PSHM is not available */
+    pid_t *all_pids = gasneti_calloc(gasneti_nodes, sizeof(pid_t));
+    gasneti_bootstrapExchange(&pid, sizeof(pid_t), all_pids);
+    pid = all_pids[gasneti_nodemap_local[0]];
+    gasneti_free(all_pids);
+  }
+  #endif
+
+  sprintf(filename + strlen(filename), pattern,
+          (unsigned int)(hca->hca_index & 0xff),
+          (unsigned int)(pid & 0xffffff));
+  fd = open(filename, O_CREAT, S_IWUSR|S_IRUSR);
+  if (fd < 0) {
+    gasneti_fatalerror("failed to create temporary file '%s': %d:%s", filename, errno, strerror(errno));
+  }
+
+  hca->xrc_domain = ibv_open_xrc_domain(hca->handle, fd, O_CREAT);
+  GASNETC_VAPI_CHECK_PTR(hca->xrc_domain, "from ibv_open_xrc_domain()");
+
+  #if GASNET_PSHM
+    gasneti_pshmnet_bootstrapBarrier();
+  #else
+    gasneti_bootstrapBarrier();
+  #endif
+  (void)unlink(filename);
+
+  return GASNET_OK;
+}
+#endif
+
 static int gasnetc_init(int *argc, char ***argv) {
   gasnetc_port_info_t	*port_tbl, **port_map;
   gasnetc_hca_t		*hca;
@@ -1362,6 +1426,16 @@ static int gasnetc_init(int *argc, char ***argv) {
       hca->amrdma_rcv.max_peers = MIN(gasnetc_amrdma_max_peers, hca->total_qps);
     }
   }
+
+#if GASNETC_IBV_XRC
+  /* allocate/initialize XRC support */
+  if (gasnetc_use_xrc) {
+    GASNETC_FOR_ALL_HCA(hca) {
+      vstat = gasnetc_alloc_xrc_domain(hca);
+      GASNETC_VAPI_CHECK(vstat, "from gasnetc_alloc_xrc_domain()");
+    }
+  }
+#endif
 
   /* allocate/initialize transport resources */
   i = gasnetc_sndrcv_init();
