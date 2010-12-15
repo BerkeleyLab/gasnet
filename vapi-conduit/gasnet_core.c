@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/12/15 05:05:54 $
- * $Revision: 1.228.2.17 $
+ *     $Date: 2010/12/15 09:43:29 $
+ * $Revision: 1.228.2.18 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1201,7 +1201,7 @@ static uint32_t *gasnetc_xrc_rcv_qpn;
 
 /* Create the XRC RCV Qps (once per supernode for each remote QP) */
 /* TODO: can we use normal ibv_create_qp() and not need to register? */
-static int gasnetc_alloc_xrc_rcv_qps() {
+static int gasnetc_alloc_xrc_rcv_qps(void) {
   int ceps = gasneti_nodes * gasnetc_alloc_qps;
   int i;
 
@@ -1569,7 +1569,7 @@ static int gasnetc_init(int *argc, char ***argv) {
         const gasnet_node_t first = gasneti_nodemap[node];
 
         if (node != first) {
-          const gasnet_node_t other = (first * gasnetc_alloc_qps) + qpi;
+          const int other = (first * gasnetc_alloc_qps) + qpi;
           hndl = gasnetc_cep[other].qp_handle;
           gasnetc_cep[i].qp_handle = hndl;
           local_qpn[i] = hndl->qp_num; /* XXX/XRC: but should we use it? */
