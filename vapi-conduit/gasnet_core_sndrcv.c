@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/12/11 03:50:50 $
- * $Revision: 1.251.6.7 $
+ *     $Date: 2010/12/15 09:48:18 $
+ * $Revision: 1.251.6.8 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -280,6 +280,13 @@ static gasnet_node_t gasnetc_remote_nodes;
   #define GASNETC_PERTHREAD_PASS
   #define GASNETC_MY_PERTHREAD()	(gasnetc_my_perthread())
   #define GASNETC_PERTHREAD_LOOKUP	const char _core_threadinfo_dummy = sizeof(_core_threadinfo_dummy) /* no semicolon */
+#endif
+
+/* When not supporting XRC we can drop one indirection used to reach sq_sema */
+#if GASNETC_IBV_XRC
+  #define GASNETC_CEP_SQ_SEMA(_cep) ((_cep)->sq_sema_p)
+#else
+  #define GASNETC_CEP_SQ_SEMA(_cep) (&(_cep)->sq_sema)
 #endif
 
 static void gasnetc_free_aligned(void *ptr) {
@@ -955,9 +962,9 @@ static int gasnetc_snd_reap(int limit) {
         if_pt (sreq) {
 	  gasneti_assert(sreq->opcode != GASNETC_OP_INVALID);
 	  #if GASNETC_USE_POST_LIST
-	    gasneti_semaphore_up_n(&sreq->cep->sq_sema, sreq->count);
+	    gasneti_semaphore_up_n(GASNETC_CEP_SQ_SEMA(sreq->cep), sreq->count);
 	  #else
-	    gasneti_semaphore_up(&sreq->cep->sq_sema);
+	    gasneti_semaphore_up(GASNETC_CEP_SQ_SEMA(sreq->cep));
 	  #endif
 	  gasneti_semaphore_up(sreq->cep->snd_cq_sema_p);
 
@@ -1096,9 +1103,9 @@ gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid,
     int i;
     gasneti_assert(op != GASNETC_WR_SEND_WITH_IMM); /* AMs never wildcard */
     qpi = 0;
-    best_space = gasneti_semaphore_read(&ceps[0].sq_sema);
+    best_space = gasneti_semaphore_read(GASNETC_CEP_SQ_SEMA(ceps+0));
     for (i = 1; i < gasnetc_num_qps; ++i) {
-      space = gasneti_semaphore_read(&ceps[i].sq_sema);
+      space = gasneti_semaphore_read(GASNETC_CEP_SQ_SEMA(ceps+1));
       if (space > best_space) {
         best_space = space;
         qpi = i;
@@ -1134,7 +1141,7 @@ gasnetc_cep_t *gasnetc_bind_cep(gasnetc_epid_t epid, gasnetc_sreq_t *sreq,
    * If we hold the last one then threads sending to the same node will stall. */
   qpi = gasnetc_epid_select_qpi(ceps, epid, op, len);
   cep = &ceps[qpi];
-  if_pf (!gasneti_semaphore_trydown(&cep->sq_sema)) {
+  if_pf (!gasneti_semaphore_trydown(GASNETC_CEP_SQ_SEMA(cep))) {
     GASNETC_TRACE_WAIT_BEGIN();
     do {
       if (!gasnetc_snd_reap(1)) {
@@ -1143,7 +1150,7 @@ gasnetc_cep_t *gasnetc_bind_cep(gasnetc_epid_t epid, gasnetc_sreq_t *sreq,
       /* Redo load balancing choice */
       qpi = gasnetc_epid_select_qpi(ceps, epid, op, len);
       cep = &ceps[qpi];
-    } while (!gasneti_semaphore_trydown(&cep->sq_sema));
+    } while (!gasneti_semaphore_trydown(GASNETC_CEP_SQ_SEMA(cep)));
     GASNETC_TRACE_WAIT_END(POST_SR_STALL_SQ);
   }
 
@@ -1814,7 +1821,7 @@ void gasnetc_snd_post_list_common(gasnetc_sreq_t *sreq, gasnetc_snd_wr_t *sr_des
 
   /* Loop until space is available on the SQ for at least 1 new entry.
    * If we hold the last one then threads sending to the same node will stall. */
-  sq_sema = &sreq->cep->sq_sema;
+  sq_sema = GASNETC_CEP_SQ_SEMA(sreq->cep);
   tmp = gasneti_semaphore_trydown_partial(sq_sema, count);
   if_pf (!tmp) {
     GASNETC_TRACE_WAIT_BEGIN();
@@ -3648,7 +3655,11 @@ extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
     /* Should never use these for loopback or same supernode */
     for (i = 0; i < gasnetc_alloc_qps; ++i, ++cep) {
       cep->epid = gasnetc_epid(node, i);
-      gasneti_semaphore_init(&cep->sq_sema, 0, 0);
+    #if GASNETC_IBV_XRC
+      gasneti_assert(GASNETC_CEP_SQ_SEMA(cep) == NULL);
+    #else
+      gasneti_semaphore_init(GASNETC_CEP_SQ_SEMA(cep), 0, 0);
+    #endif
       gasneti_semaphore_init(&cep->am_rem, 0, 0);
       gasneti_semaphore_init(&cep->am_loc, 0, 0);
       gasneti_weakatomic_set(&cep->am_flow.credit, 0, 0);

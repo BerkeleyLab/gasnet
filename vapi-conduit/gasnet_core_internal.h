@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2010/12/15 09:43:29 $
- * $Revision: 1.161.6.4 $
+ *     $Date: 2010/12/15 09:48:18 $
+ * $Revision: 1.161.6.5 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -544,6 +544,9 @@ struct gasnetc_cep_t_ {
   gasneti_semaphore_t	am_rem;		/* control in-flight AM Requests (remote rcv queue slots)*/
   gasneti_semaphore_t	am_loc;		/* control unmatched rcv buffers (local rcv queue slots) */
   gasneti_semaphore_t	*snd_cq_sema_p;	/* control in-flight ops (send completion queue slots) */
+#if GASNETC_IBV_XRC
+  gasneti_semaphore_t	*sq_sema_p;	/* Pointer to a sq_sema */
+#endif
   /* XXX: The atomics in the next 2 structs really should get padded to full cache lines */
   struct {	/* AM flow control coallescing */
   	gasneti_weakatomic_t	credit;

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/12/15 09:43:29 $
- * $Revision: 1.228.2.18 $
+ *     $Date: 2010/12/15 09:48:18 $
+ * $Revision: 1.228.2.19 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1573,7 +1573,7 @@ static int gasnetc_init(int *argc, char ***argv) {
           hndl = gasnetc_cep[other].qp_handle;
           gasnetc_cep[i].qp_handle = hndl;
           local_qpn[i] = hndl->qp_num; /* XXX/XRC: but should we use it? */
-          gasneti_semaphore_init(&gasnetc_cep[i].sq_sema, max_send_wr, max_send_wr); /* XXX/XRC: NO! must share sq_sema */
+          gasnetc_cep[i].sq_sema_p = &gasnetc_cep[other].sq_sema;
           continue;
         }
       }
@@ -1599,6 +1599,9 @@ static int gasnetc_init(int *argc, char ***argv) {
       local_qpn[i] = gasnetc_cep[i].qp_handle->qp_num;
       /* XXX: When could/should we use the ENTIRE allocated length? */
       gasneti_semaphore_init(&gasnetc_cep[i].sq_sema, max_send_wr, max_send_wr);
+    #if GASNETC_IBV_XRC
+      gasnetc_cep[i].sq_sema_p = &gasnetc_cep[i].sq_sema;
+    #endif
     }
 
   #if GASNETC_IBV_XRC
