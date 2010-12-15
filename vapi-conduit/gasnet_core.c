@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/12/11 08:26:07 $
- * $Revision: 1.228.2.13 $
+ *     $Date: 2010/12/15 01:20:48 $
+ * $Revision: 1.228.2.14 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1199,17 +1199,18 @@ static int gasnetc_alloc_xrc_domain(gasnetc_hca_t *hca, gasnetc_lid_t mylid) {
 
 static uint32_t *gasnetc_xrc_rcv_qpn[GASNETC_IB_MAX_HCAS];
 
-/* Create the XRC RCV Qps (one per supernode for each remote node) */
+/* Create the XRC RCV Qps (one per supernode for each remote QP) */
 /* TODO: can we use normal ibv_create_qp() and not need to register? */
 static int gasnetc_alloc_xrc_rcv_qps(gasnetc_hca_t *hca) {
   const int h = hca->hca_index;
+  int ceps = gasneti_nodes * gasnetc_alloc_qps;
   int i;
 
   /* Create the RCV QPs once per supernode and register in the non-creating nodes */
-  gasnetc_xrc_rcv_qpn[h] = gasneti_malloc(gasneti_nodes * sizeof(uint32_t));
+  gasnetc_xrc_rcv_qpn[h] = gasneti_malloc(ceps * sizeof(uint32_t));
   if (!gasneti_nodemap_local_rank) {
-    for (i=0; i<gasneti_nodes; ++i) {
-      if (gasneti_nodeinfo[i] == gasneti_nodemap_global_rank) {
+    for (i = 0; i < ceps; ++i) {
+      if (!gasnetc_cep[i].hca) {
         gasnetc_xrc_rcv_qpn[h][i] = ~0;
       } else {
         struct ibv_qp_init_attr attr;
@@ -1223,11 +1224,11 @@ static int gasnetc_alloc_xrc_rcv_qps(gasnetc_hca_t *hca) {
     }
   }
   gasnetc_supernode_bcast(gasnetc_xrc_rcv_qpn[h],
-                          gasneti_nodes * sizeof(uint32_t),
+                          ceps * sizeof(uint32_t),
                           gasnetc_xrc_rcv_qpn[h]);
   if (gasneti_nodemap_local_rank) {
-    for (i=0; i<gasneti_nodes; ++i) {
-      if (gasneti_nodeinfo[i] != gasneti_nodemap_global_rank) {
+    for (i = 0; i < ceps; ++i) {
+      if (!gasnetc_cep[i].hca) {
         int ret = ibv_reg_xrc_rcv_qp(hca->xrc_domain, gasnetc_xrc_rcv_qpn[h][i]);
         GASNETC_VAPI_CHECK(ret, "from ibv_reg_xrc_rcv_qp()");
       }
