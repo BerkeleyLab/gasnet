@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/12/15 01:20:48 $
- * $Revision: 1.228.2.14 $
+ *     $Date: 2010/12/15 01:51:32 $
+ * $Revision: 1.228.2.15 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1158,7 +1158,7 @@ static int gasnetc_alloc_xrc_domain(gasnetc_hca_t *hca, gasnetc_lid_t mylid) {
   pid_t pid;
   int fd;
 
-  /* Initialize tmpdir and rcv_qpn table on first call */
+  /* Initialize tmpdir table only on first call */
   if (!tmpdir) {
     struct stat s;
     tmpdir = gasneti_getenv_withdefault("TMPDIR", "/tmp");
@@ -1197,39 +1197,40 @@ static int gasnetc_alloc_xrc_domain(gasnetc_hca_t *hca, gasnetc_lid_t mylid) {
   return GASNET_OK;
 }
 
-static uint32_t *gasnetc_xrc_rcv_qpn[GASNETC_IB_MAX_HCAS];
+static uint32_t *gasnetc_xrc_rcv_qpn;
 
-/* Create the XRC RCV Qps (one per supernode for each remote QP) */
+/* Create the XRC RCV Qps (once per supernode for each remote QP) */
 /* TODO: can we use normal ibv_create_qp() and not need to register? */
-static int gasnetc_alloc_xrc_rcv_qps(gasnetc_hca_t *hca) {
-  const int h = hca->hca_index;
+static int gasnetc_alloc_xrc_rcv_qps() {
   int ceps = gasneti_nodes * gasnetc_alloc_qps;
   int i;
 
   /* Create the RCV QPs once per supernode and register in the non-creating nodes */
-  gasnetc_xrc_rcv_qpn[h] = gasneti_malloc(ceps * sizeof(uint32_t));
+  gasnetc_xrc_rcv_qpn = gasneti_malloc(ceps * sizeof(uint32_t));
   if (!gasneti_nodemap_local_rank) {
     for (i = 0; i < ceps; ++i) {
-      if (!gasnetc_cep[i].hca) {
-        gasnetc_xrc_rcv_qpn[h][i] = ~0;
-      } else {
+      gasnetc_hca_t *hca = gasnetc_cep[i].hca;
+      if (hca) {
         struct ibv_qp_init_attr attr;
         int ret;
 
         memset(&attr, 0, sizeof(attr));
         attr.xrc_domain = hca->xrc_domain;
-        ret = ibv_create_xrc_rcv_qp(&attr, &(gasnetc_xrc_rcv_qpn[h][i]));
+        ret = ibv_create_xrc_rcv_qp(&attr, &(gasnetc_xrc_rcv_qpn[i]));
         GASNETC_VAPI_CHECK(ret, "from ibv_create_xrc_rcv_qp()");
+      } else {
+        gasnetc_xrc_rcv_qpn[i] = ~0;
       }
     }
   }
-  gasnetc_supernode_bcast(gasnetc_xrc_rcv_qpn[h],
+  gasnetc_supernode_bcast(gasnetc_xrc_rcv_qpn,
                           ceps * sizeof(uint32_t),
-                          gasnetc_xrc_rcv_qpn[h]);
+                          gasnetc_xrc_rcv_qpn);
   if (gasneti_nodemap_local_rank) {
     for (i = 0; i < ceps; ++i) {
-      if (!gasnetc_cep[i].hca) {
-        int ret = ibv_reg_xrc_rcv_qp(hca->xrc_domain, gasnetc_xrc_rcv_qpn[h][i]);
+      gasnetc_hca_t *hca = gasnetc_cep[i].hca;
+      if (hca) {
+        int ret = ibv_reg_xrc_rcv_qp(hca->xrc_domain, gasnetc_xrc_rcv_qpn[i]);
         GASNETC_VAPI_CHECK(ret, "from ibv_reg_xrc_rcv_qp()");
       }
     }
@@ -1591,10 +1592,8 @@ static int gasnetc_init(int *argc, char ***argv) {
   #if GASNETC_IBV_XRC
     /* create RCV side QPs for XRC */
     if (gasnetc_use_xrc) {
-      GASNETC_FOR_ALL_HCA(hca) {
-        vstat = gasnetc_alloc_xrc_rcv_qps(hca);
-        GASNETC_VAPI_CHECK(vstat, "from gasnetc_alloc_xrc_rcv_qps()");
-      }
+      vstat = gasnetc_alloc_xrc_rcv_qps();
+      GASNETC_VAPI_CHECK(vstat, "from gasnetc_alloc_xrc_rcv_qps()");
     }
   #endif
   }
