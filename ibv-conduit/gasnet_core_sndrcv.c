@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/12/15 09:48:18 $
- * $Revision: 1.251.6.8 $
+ *     $Date: 2010/12/15 11:23:27 $
+ * $Revision: 1.251.6.9 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1060,7 +1060,7 @@ static int gasnetc_snd_reap(int limit) {
         /* disconnected */
 	break;	/* can't exit since we can be called in exit path */
       } else if (!gasneti_attach_done) {
-        gasneti_fatalerror("failed to connect (snd)");
+        gasneti_fatalerror("failed to connect (snd) status=%d", comp.status);
         break;
       } else {
 #if 1 
@@ -1314,7 +1314,7 @@ static int gasnetc_rcv_reap(gasnetc_hca_t *hca, int limit, gasnetc_rbuf_t **spar
         /* disconnected */
 	break;	/* can't exit since we can be called in exit path */
       } else if (!gasneti_attach_done) {
-        gasneti_fatalerror("failed to connect (rcv)");
+        gasneti_fatalerror("failed to connect (rcv) status=%d", comp.status);
         break;
       } else {
 #if 1
@@ -1783,6 +1783,9 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, gasnetc_snd_wr_t *sr_desc, in
     struct ibv_send_wr *bad_wr;
     sr_desc->next = NULL;
     sr_desc->send_flags = is_inline ? IBV_SEND_INLINE : (enum ibv_send_flags)0;
+  #if GASNETC_IBV_XRC
+    sr_desc->xrc_remote_srq_num = cep->xrc_remote_srq_num; /* Even if unused */
+  #endif
     vstat = ibv_post_send(cep->qp_handle, sr_desc, &bad_wr);
   }
 #endif
