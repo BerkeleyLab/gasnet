@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2010/12/11 03:32:55 $
- * $Revision: 1.161.6.3 $
+ *     $Date: 2010/12/15 09:43:29 $
+ * $Revision: 1.161.6.4 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -579,9 +579,9 @@ struct gasnetc_cep_t_ {
   uintptr_t		amrdma_rem;
 #if GASNETC_IBV_SRQ
   struct ibv_srq	*srq;
- #if GASNETC_IBV_XRC
+#endif
+#if GASNETC_IBV_XRC
   uint32_t		xrc_qp_num;
- #endif
 #endif
 
   char			_pad2[GASNETI_CACHE_LINE_BYTES];
