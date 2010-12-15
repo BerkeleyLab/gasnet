@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2010/12/15 01:51:32 $
- * $Revision: 1.228.2.15 $
+ *     $Date: 2010/12/15 02:59:32 $
+ * $Revision: 1.228.2.16 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1566,6 +1566,22 @@ static int gasnetc_init(int *argc, char ***argv) {
         max_send_wr = qp_init_attr.cap.max_send_wr;
       }
     #endif
+    #if GASNETC_IBV_XRC
+      if (gasnetc_use_xrc) {
+        const gasnet_node_t node = i / gasnetc_alloc_qps;
+        const int qpi = i % gasnetc_alloc_qps;
+        const gasnet_node_t first = gasneti_nodemap[node];
+
+        if (node != first) {
+          const int other = (first * gasnetc_alloc_qps) + qpi;
+          hndl = gasnetc_cep[other].qp_handle;
+          gasnetc_cep[i].qp_handle = hndl;
+          local_qpn[i] = hndl->qp_num; /* XXX/XRC: but should we use it? */
+          gasneti_semaphore_init(&gasnetc_cep[i].sq_sema, max_send_wr, max_send_wr); /* XXX/XRC: NO! must share sq_sema */
+          continue;
+        }
+      }
+    #endif
       while (1) {	/* No query for max_inline_data limit */
         hndl = ibv_create_qp(hca->pd, &qp_init_attr);
 	if (hndl != NULL) break;
@@ -1641,7 +1657,14 @@ static int gasnetc_init(int *argc, char ***argv) {
 
     for (i = 0; i < ceps; ++i) {
       if (!gasnetc_cep[i].hca) continue;
-      
+    #if GASNETC_IBV_XRC
+      if (gasnetc_use_xrc) {
+        const gasnet_node_t node = i / gasnetc_alloc_qps;
+        const gasnet_node_t first = gasneti_nodemap[node];
+        if (node != first) continue;
+      }
+    #endif
+
       qp_attr.port_num = port_map[i]->port_num;
       rc = ibv_modify_qp(gasnetc_cep[i].qp_handle, &qp_attr, qp_mask);
       GASNETC_VAPI_CHECK(rc, "from ibv_modify_qp(INIT)");
@@ -1691,6 +1714,13 @@ static int gasnetc_init(int *argc, char ***argv) {
     qp_attr.min_rnr_timer    = GASNETC_QP_MIN_RNR_TIMER;
     for (i = 0; i < ceps; ++i) {
       if (!gasnetc_cep[i].hca) continue;
+    #if GASNETC_IBV_XRC
+      if (gasnetc_use_xrc) {
+        const gasnet_node_t node = i / gasnetc_alloc_qps;
+        const gasnet_node_t first = gasneti_nodemap[node];
+        if (node != first) continue;
+      }
+    #endif
 
       qp_attr.max_dest_rd_atomic = port_map[i]->rd_atom;
       qp_attr.path_mtu       = MIN(GASNETC_QP_PATH_MTU, port_map[i]->port.max_mtu);
@@ -1743,6 +1773,13 @@ static int gasnetc_init(int *argc, char ***argv) {
     qp_attr.rnr_retry        = GASNETC_QP_RNR_RETRY;
     for (i = 0; i < ceps; ++i) {
       if (!gasnetc_cep[i].hca) continue;
+    #if GASNETC_IBV_XRC
+      if (gasnetc_use_xrc) {
+        const gasnet_node_t node = i / gasnetc_alloc_qps;
+        const gasnet_node_t first = gasneti_nodemap[node];
+        if (node != first) continue;
+      }
+    #endif
 
       qp_attr.sq_psn           = gasneti_mynode*gasnetc_alloc_qps + (i % gasnetc_alloc_qps);
       qp_attr.max_rd_atomic  = port_map[i]->rd_atom;
