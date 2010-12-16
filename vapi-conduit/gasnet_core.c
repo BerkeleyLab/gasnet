@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/12/16 09:02:22 $
- * $Revision: 1.228.2.26 $
+ *     $Date: 2010/12/16 19:45:33 $
+ * $Revision: 1.228.2.27 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1279,7 +1279,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   int			vstat;
   int			ceps;
   int 			num_ports;
-  int 			h, i, qpi;
+  int 			i, qpi;
 
   /* Convenience iterator */
   #define GASNETC_FOR_EACH_CEP(_i, _node, _qpi)  \
