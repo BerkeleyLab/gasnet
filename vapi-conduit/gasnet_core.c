@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/12/16 02:30:22 $
- * $Revision: 1.228.2.21 $
+ *     $Date: 2010/12/16 04:08:10 $
+ * $Revision: 1.228.2.22 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1221,7 +1221,6 @@ static int gasnetc_xrc_init_qps(void) {
         attr.xrc_domain = hca->xrc_domain;
         ret = ibv_create_xrc_rcv_qp(&attr, &(gasnetc_xrc_rcv_qpn_local[i]));
         GASNETC_VAPI_CHECK(ret, "from ibv_create_xrc_rcv_qp()");
-fprintf(stderr, "@ Create rcv_qp=%d for %d->%d\n", gasnetc_xrc_rcv_qpn_local[i], i/gasnetc_alloc_qps, gasneti_mynode);
       } else {
         gasnetc_xrc_rcv_qpn_local[i] = ~0;
       }
@@ -1630,7 +1629,6 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_assert(qp_init_attr.cap.max_recv_wr >= max_recv_wr);
       gasneti_assert(qp_init_attr.cap.max_send_wr >= max_send_wr);
       local_qpn[i] = gasnetc_cep[i].qp_handle->qp_num;
-fprintf(stderr, "@ Create qp=%d for %d->%d\n", local_qpn[i], gasneti_mynode, node);
       /* XXX: When could/should we use the ENTIRE allocated length? */
       gasneti_semaphore_init(&gasnetc_cep[i].sq_sema, max_send_wr, max_send_wr);
     #if GASNETC_IBV_XRC
@@ -1691,23 +1689,26 @@ fprintf(stderr, "@ Create qp=%d for %d->%d\n", local_qpn[i], gasneti_mynode, nod
     GASNETC_FOR_EACH_CEP(i, node, qpi) {
       if (!gasnetc_cep[i].hca) continue;
     #if GASNETC_IBV_XRC
-      if (gasnetc_use_xrc && !(remote_qpn[i] || local_qpn[i])) continue;
+      if (gasnetc_use_xrc && !local_qpn[i]) continue;
     #endif
 
       qp_attr.port_num = port_map[i]->port_num;
 
-      if (local_qpn[i]) {
-        rc = ibv_modify_qp(gasnetc_cep[i].qp_handle, &qp_attr, qp_mask);
-        GASNETC_VAPI_CHECK(rc, "from ibv_modify_qp(INIT)");
-      }
+      rc = ibv_modify_qp(gasnetc_cep[i].qp_handle, &qp_attr, qp_mask);
+      GASNETC_VAPI_CHECK(rc, "from ibv_modify_qp(INIT)");
+    }
 
-    #if GASNETC_IBV_XRC
-      if (gasnetc_use_xrc && !gasneti_nodemap_local_rank && remote_qpn[i]) {
+  #if GASNETC_IBV_XRC
+    if (gasnetc_use_xrc && !gasneti_nodemap_local_rank) {
+      GASNETC_FOR_EACH_CEP(i, node, qpi) {
+        if (!remote_qpn[i]) continue;
+
+        qp_attr.port_num = port_map[i]->port_num;
         rc = ibv_modify_xrc_rcv_qp(gasnetc_cep[i].hca->xrc_domain, gasnetc_xrc_rcv_qpn_local[i], &qp_attr, qp_mask);
         GASNETC_VAPI_CHECK(rc, "from ibv_modify_xrc_rcv_qp(INIT)");
       }
-    #endif
     }
+  #endif
 #endif
 
     /* post recv buffers and other local initialization */
@@ -1755,7 +1756,7 @@ fprintf(stderr, "@ Create qp=%d for %d->%d\n", local_qpn[i], gasneti_mynode, nod
     GASNETC_FOR_EACH_CEP(i, node, qpi) {
       if (!gasnetc_cep[i].hca) continue;
     #if GASNETC_IBV_XRC
-      if (gasnetc_use_xrc && !(remote_qpn[i] || local_qpn[i])) continue;
+      if (gasnetc_use_xrc && !local_qpn[i]) continue;
     #endif
 
       qp_attr.max_dest_rd_atomic = port_map[i]->rd_atom;
@@ -1770,21 +1771,27 @@ qp_attr.rq_psn = 0;
       qp_attr.dest_qp_num    = remote_qpn[i];
     #endif
 
-      if (local_qpn[i]) {
-        rc = ibv_modify_qp(gasnetc_cep[i].qp_handle, &qp_attr, qp_mask);
-fprintf(stderr, "@ RTR qp=%d from %d to %d:%d\n", local_qpn[i], gasneti_mynode, node, qp_attr.dest_qp_num);
-        GASNETC_VAPI_CHECK(rc, "from ibv_modify_qp(RTR)");
-      }
+      rc = ibv_modify_qp(gasnetc_cep[i].qp_handle, &qp_attr, qp_mask);
+      GASNETC_VAPI_CHECK(rc, "from ibv_modify_qp(RTR)");
+    }
 
-    #if GASNETC_IBV_XRC
-      if (gasnetc_use_xrc && !gasneti_nodemap_local_rank && remote_qpn[i]) {
-        qp_attr.dest_qp_num = remote_qpn[i];
+  #if GASNETC_IBV_XRC
+    if (gasnetc_use_xrc && !gasneti_nodemap_local_rank) {
+      GASNETC_FOR_EACH_CEP(i, node, qpi) {
+        if (!remote_qpn[i]) continue;
+
+        qp_attr.max_dest_rd_atomic = port_map[i]->rd_atom;
+        qp_attr.path_mtu           = MIN(GASNETC_QP_PATH_MTU, port_map[i]->port.max_mtu);
+        qp_attr.rq_psn             = i;
+qp_attr.rq_psn = 0;
+        qp_attr.ah_attr.dlid       = lid_map[i];
+        qp_attr.ah_attr.port_num   = port_map[i]->port_num;
+        qp_attr.dest_qp_num        = remote_qpn[i];
         rc = ibv_modify_xrc_rcv_qp(gasnetc_cep[i].hca->xrc_domain, gasnetc_xrc_rcv_qpn_local[i], &qp_attr, qp_mask);
         GASNETC_VAPI_CHECK(rc, "from ibv_modify_xrc_rcv_qp(RTR)");
-fprintf(stderr, "@ RTR rcv_qp=%d from %d:%d to %d\n", gasnetc_xrc_rcv_qpn_local[i], node, remote_qpn[i], gasneti_mynode);
       }
-    #endif
     }
+  #endif
 #endif
 
     /* QPs must reach RTR before their peer can advance to RTS */
