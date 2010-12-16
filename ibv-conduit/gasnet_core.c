@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2010/12/16 06:02:46 $
- * $Revision: 1.228.2.23 $
+ *     $Date: 2010/12/16 07:00:34 $
+ * $Revision: 1.228.2.24 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1206,7 +1206,7 @@ static int gasnetc_xrc_init_qps(void) {
   int ceps = gasneti_nodes * gasnetc_alloc_qps;
   int i;
 
-  gasnetc_xrc_rcv_qpn_local = gasneti_malloc(ceps * sizeof(gasnetc_qpn_t));
+  gasnetc_xrc_rcv_qpn_local = gasneti_calloc(ceps, sizeof(gasnetc_qpn_t));
   gasnetc_xrc_rcv_qpn_remote = gasneti_malloc(ceps * sizeof(gasnetc_qpn_t));
 
   /* Create the RCV QPs once per supernode and register in the non-creating nodes */
@@ -1222,7 +1222,7 @@ static int gasnetc_xrc_init_qps(void) {
         ret = ibv_create_xrc_rcv_qp(&attr, &(gasnetc_xrc_rcv_qpn_local[i]));
         GASNETC_VAPI_CHECK(ret, "from ibv_create_xrc_rcv_qp()");
       } else {
-        gasnetc_xrc_rcv_qpn_local[i] = ~0;
+        gasneti_assert(gasnetc_xrc_rcv_qpn_local[i] == 0); /* Note: qp0 is reserved */
       }
     }
   }
@@ -1232,7 +1232,7 @@ static int gasnetc_xrc_init_qps(void) {
   if (gasneti_nodemap_local_rank) {
     for (i = 0; i < ceps; ++i) {
       gasnetc_hca_t *hca = gasnetc_cep[i].hca;
-      if (hca) {
+      if (hca && gasnetc_xrc_rcv_qpn_local[i]) {
         int ret = ibv_reg_xrc_rcv_qp(hca->xrc_domain, gasnetc_xrc_rcv_qpn_local[i]);
         GASNETC_VAPI_CHECK(ret, "from ibv_reg_xrc_rcv_qp()");
       }
