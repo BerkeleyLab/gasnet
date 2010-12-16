@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/12/15 11:23:27 $
- * $Revision: 1.251.6.9 $
+ *     $Date: 2010/12/16 03:14:47 $
+ * $Revision: 1.251.6.10 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3761,6 +3761,10 @@ extern void gasnetc_sndrcv_fini_peer(gasnet_node_t node) {
   if (!gasnetc_non_ib(node)) {
     gasnetc_cep_t *cep = gasnetc_node2cep[node];
     for (i = 0; i < gasnetc_alloc_qps; ++i, ++cep) {
+    #if GASNETC_IBV_XRC
+      /* XXX: Is there a smarter wayto ID a "clone"? */
+      if (cep->sq_sema_p != &cep->sq_sema) continue;
+    #endif
       vstat = gasnetc_destroy_qp(cep->hca_handle, cep->qp_handle);
       GASNETC_VAPI_CHECK(vstat, "from gasnetc_destroy_qp()");
     }
