@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2010/12/16 07:00:34 $
- * $Revision: 1.228.2.24 $
+ *     $Date: 2010/12/16 08:53:18 $
+ * $Revision: 1.228.2.25 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1232,7 +1232,7 @@ static int gasnetc_xrc_init_qps(void) {
   if (gasneti_nodemap_local_rank) {
     for (i = 0; i < ceps; ++i) {
       gasnetc_hca_t *hca = gasnetc_cep[i].hca;
-      if (hca && gasnetc_xrc_rcv_qpn_local[i]) {
+      if (hca) {
         int ret = ibv_reg_xrc_rcv_qp(hca->xrc_domain, gasnetc_xrc_rcv_qpn_local[i]);
         GASNETC_VAPI_CHECK(ret, "from ibv_reg_xrc_rcv_qp()");
       }
