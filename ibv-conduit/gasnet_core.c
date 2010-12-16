@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2010/12/16 04:08:10 $
- * $Revision: 1.228.2.22 $
+ *     $Date: 2010/12/16 06:02:46 $
+ * $Revision: 1.228.2.23 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1762,7 +1762,6 @@ static int gasnetc_init(int *argc, char ***argv) {
       qp_attr.max_dest_rd_atomic = port_map[i]->rd_atom;
       qp_attr.path_mtu       = MIN(GASNETC_QP_PATH_MTU, port_map[i]->port.max_mtu);
       qp_attr.rq_psn         = i;
-qp_attr.rq_psn = 0;
       qp_attr.ah_attr.dlid     = lid_map[i];
       qp_attr.ah_attr.port_num = port_map[i]->port_num;
     #if GASNETC_IBV_XRC
@@ -1783,7 +1782,6 @@ qp_attr.rq_psn = 0;
         qp_attr.max_dest_rd_atomic = port_map[i]->rd_atom;
         qp_attr.path_mtu           = MIN(GASNETC_QP_PATH_MTU, port_map[i]->port.max_mtu);
         qp_attr.rq_psn             = i;
-qp_attr.rq_psn = 0;
         qp_attr.ah_attr.dlid       = lid_map[i];
         qp_attr.ah_attr.port_num   = port_map[i]->port_num;
         qp_attr.dest_qp_num        = remote_qpn[i];
@@ -1840,7 +1838,6 @@ qp_attr.rq_psn = 0;
     #endif
 
       qp_attr.sq_psn           = gasneti_mynode*gasnetc_alloc_qps + qpi;
-qp_attr.sq_psn = 0;
       qp_attr.max_rd_atomic  = port_map[i]->rd_atom;
       rc = ibv_modify_qp(gasnetc_cep[i].qp_handle, &qp_attr, qp_mask);
       GASNETC_VAPI_CHECK(rc, "from ibv_modify_qp(RTS)");
