@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2010/12/21 03:49:01 $
- * $Revision: 1.228.2.28 $
+ *     $Date: 2010/12/21 05:57:28 $
+ * $Revision: 1.228.2.29 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1250,6 +1250,9 @@ static int gasnetc_xrc_init_qps(void) {
     uint32_t *remote_tmp = gasneti_malloc(ceps * sizeof(uint32_t));
     for (i = 0; i < ceps; ++i) {
       if (gasnetc_cep[i].hca) {
+      #if !GASNET_PSHM
+        if (!gasnetc_cep[i].srq) continue; /* RCV only */
+      #endif
         local_tmp[i] = gasnetc_cep[i].srq->xrc_srq_num;
       }
     }
@@ -1476,9 +1479,16 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   /* Distribute the qps to each peer round-robin over the ports */
   GASNETC_FOR_EACH_CEP(i, node, qpi) {
+  #if !GASNET_PSHM
+    if (gasnetc_use_xrc) {
+      /* XRC w/o PSHM needs a rcv QP for self too.
+         So, we skip over the gasnetc_non_ib() check. */
+    } else
+  #endif
     if (gasnetc_non_ib(node)) {
       gasneti_assert(gasnetc_cep[i].hca == NULL);
-    } else
+      continue;
+    }
   #if GASNETC_IBV_SRQ
     if (qpi >= gasnetc_num_qps) {
       /* Second half of table (if any) duplicates first half.
@@ -1501,9 +1511,12 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasneti_free(remote_lid);
   if (gasneti_nodes != 1) {
     GASNETC_FOR_ALL_HCA(hca) {
-      int j;
+      int j = 0;
       hca->cep = gasneti_calloc(hca->total_qps, sizeof(gasnetc_cep_t *));
-      for (i = j = 0; i < ceps; ++i) {
+      GASNETC_FOR_EACH_CEP(i, node, qpi) {
+      #if !GASNET_PSHM
+        if (gasnetc_use_xrc && gasnetc_non_ib(node)) continue; /* RCV only - don't count toward total */
+      #endif
         if (gasnetc_cep[i].hca == hca) {
           hca->cep[j++] = &gasnetc_cep[i];
         }
@@ -1803,6 +1816,17 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
   #endif
 #endif
+
+  #if !GASNET_PSHM
+    if (gasnetc_use_xrc) {
+      /* Cleanup cep entries that were only non-NULL to allow XRC RCV setup */
+      GASNETC_FOR_EACH_CEP(i, node, qpi) {
+        if (gasnetc_non_ib(node)) {
+          gasnetc_cep[i].hca = NULL;
+        }
+      }
+    }
+  #endif
 
     /* QPs must reach RTR before their peer can advance to RTS */
     gasneti_bootstrapBarrier();
