@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2010/12/16 19:45:33 $
- * $Revision: 1.228.2.27 $
+ *     $Date: 2010/12/21 03:49:01 $
+ * $Revision: 1.228.2.28 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2723,6 +2723,36 @@ static void gasnetc_exit_body(void) {
 
   GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
+#if GASNET_TRACE
+  { gasneti_heapstats_t stats;
+    gasneti_getheapstats(&stats);
+    GASNETI_TRACE_PRINTF(I, ("Conduit-internal memory use (%scludes segment):",
+                             GASNETC_PIN_SEGMENT ? "in" : "ex"));
+    GASNETI_TRACE_PRINTF(I, ("  allocated: %12llu bytes in %8llu objects",
+                             (long long unsigned)stats.live_bytes,
+                             (long long unsigned)stats.live_objects));
+    GASNETI_TRACE_PRINTF(I, ("     pinned: %12llu bytes in %8llu objects",
+                             (long long unsigned)gasnetc_pinned_bytes,
+                             (long long unsigned)gasnetc_pinned_blocks));
+    GASNETI_TRACE_PRINTF(I, ("      total: %12llu bytes in %8llu objects",
+                             (long long unsigned)(stats.live_bytes + gasnetc_pinned_bytes),
+                             (long long unsigned)(stats.live_objects + gasnetc_pinned_blocks)));
+  }
+ #if PLATFORM_OS_LINUX
+  { FILE *fp;
+    char line[256];
+    if (NULL != (fp = fopen("/proc/self/status","r"))) {
+      while (fgets(line, sizeof(line)-1, fp)) {
+        if (!strncmp(line, "Vm", 2)) {
+          GASNETI_TRACE_PRINTF(I, ("%s", line));
+        }
+      }
+      fclose(fp);
+    }
+  }
+ #endif
+#endif
+
   /* Try to flush out all the output, allowing upto 30s */
   GASNETC_EXIT_STATE("flushing output");
   alarm(30);
@@ -2952,34 +2982,6 @@ static void gasnetc_atexit(void) {
  * or possibly gasneti_defaultSignalHandler() responding to a termination signal.
  */
 extern void gasnetc_exit(int exitcode) {
-#if GASNET_TRACE
-  gasneti_heapstats_t stats;
-  gasneti_getheapstats(&stats);
-  GASNETI_TRACE_PRINTF(I, ("Conduit-internal memory use (%scludes segment):",
-                           GASNETC_PIN_SEGMENT ? "in" : "ex"));
-  GASNETI_TRACE_PRINTF(I, ("  allocated: %12llu bytes in %8llu objects",
-                           (long long unsigned)stats.live_bytes,
-                           (long long unsigned)stats.live_objects));
-  GASNETI_TRACE_PRINTF(I, ("     pinned: %12llu bytes in %8llu objects",
-                           (long long unsigned)gasnetc_pinned_bytes,
-                           (long long unsigned)gasnetc_pinned_blocks));
-  GASNETI_TRACE_PRINTF(I, ("      total: %12llu bytes in %8llu objects",
-                           (long long unsigned)(stats.live_bytes + gasnetc_pinned_bytes),
-                           (long long unsigned)(stats.live_objects + gasnetc_pinned_blocks)));
- #if PLATFORM_OS_LINUX
-  { FILE *fp;
-    char line[256];
-    if (NULL != (fp = fopen("/proc/self/status","r"))) {
-      while (fgets(line, sizeof(line)-1, fp)) {
-        if (!strncmp(line, "Vm", 2)) {
-          GASNETI_TRACE_PRINTF(I, ("%s", line));
-        }
-      }
-      fclose(fp);
-    }
-  }
- #endif
-#endif
   gasnetc_exit_head(exitcode);
   gasnetc_exit_body();
   gasnetc_exit_tail();
