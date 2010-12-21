@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/12/21 08:43:03 $
- * $Revision: 1.228.2.32 $
+ *     $Date: 2010/12/21 09:08:22 $
+ * $Revision: 1.228.2.33 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1482,7 +1482,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   /* Distribute the qps to each peer round-robin over the ports */
   GASNETC_FOR_EACH_CEP(i, node, qpi) {
   #if !GASNET_PSHM
-    if (gasnetc_use_xrc) {
+    if (gasnetc_use_xrc && (gasneti_nodemap_local_count != 1)) {
       /* XRC w/o PSHM needs a rcv QP for self too.
          So, we skip over the gasnetc_non_ib() check. */
     } else
