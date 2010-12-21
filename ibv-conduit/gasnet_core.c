@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2010/12/21 06:41:24 $
- * $Revision: 1.228.2.30 $
+ *     $Date: 2010/12/21 08:26:56 $
+ * $Revision: 1.228.2.31 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1814,17 +1814,6 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
 #endif
 
-  #if !GASNET_PSHM
-    if (gasnetc_use_xrc) {
-      /* Cleanup cep entries that were only non-NULL to allow XRC RCV setup */
-      GASNETC_FOR_EACH_CEP(i, node, qpi) {
-        if (gasnetc_non_ib(node)) {
-          gasnetc_cep[i].hca = NULL;
-        }
-      }
-    }
-  #endif
-
     /* QPs must reach RTR before their peer can advance to RTS */
     gasneti_bootstrapBarrier();
 
@@ -1888,6 +1877,13 @@ static int gasnetc_init(int *argc, char ***argv) {
           gasnetc_inline_limit = qp_attr2.cap.max_inline_data;
         }
       }
+
+    #if !GASNET_PSHM && GASNET_DEBUG
+      /* Cleanup entries that only had non-NULL hca field to allow XRC RCV setup */
+      if (gasnetc_use_xrc && gasnetc_non_ib(node)) {
+        gasnetc_cep[i].hca = NULL;
+      }
+    #endif
     }
 #endif
   }
