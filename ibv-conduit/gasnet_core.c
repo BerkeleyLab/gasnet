@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2010/12/21 05:57:28 $
- * $Revision: 1.228.2.29 $
+ *     $Date: 2010/12/21 06:41:24 $
+ * $Revision: 1.228.2.30 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1250,9 +1250,6 @@ static int gasnetc_xrc_init_qps(void) {
     uint32_t *remote_tmp = gasneti_malloc(ceps * sizeof(uint32_t));
     for (i = 0; i < ceps; ++i) {
       if (gasnetc_cep[i].hca) {
-      #if !GASNET_PSHM
-        if (!gasnetc_cep[i].srq) continue; /* RCV only */
-      #endif
         local_tmp[i] = gasnetc_cep[i].srq->xrc_srq_num;
       }
     }
