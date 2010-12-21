@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2010/12/21 08:26:56 $
- * $Revision: 1.228.2.31 $
+ *     $Date: 2010/12/21 08:43:03 $
+ * $Revision: 1.228.2.32 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1407,6 +1407,11 @@ static int gasnetc_init(int *argc, char ***argv) {
               "         To suppress this message set environment variable\n"
               "         GASNET_USE_XRC=0 or reconfigure with --disble-ibv-xrc.\n"
              );
+    }
+
+    if (gasneti_nodes == 1) {
+      /* No warning - this just simplifies code that would SEGV otherwise */
+      gasnetc_use_xrc = 0;
     }
   }
 #endif /* GASNETC_IBV_XRC */
