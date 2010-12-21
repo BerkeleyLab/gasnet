@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/12/21 09:08:22 $
- * $Revision: 1.228.2.33 $
+ *     $Date: 2010/12/21 09:14:21 $
+ * $Revision: 1.228.2.34 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1372,18 +1372,6 @@ static int gasnetc_init(int *argc, char ***argv) {
   }
 #endif /* GASNETC_IBV_SRQ */
 #if GASNETC_IBV_XRC
-  if (gasnetc_use_xrc && !GASNET_PSHM) {
-    /* XXX/XRC: Fix this? */
-    gasnetc_use_xrc = 0;
-    if (!gasneti_mynode) {
-      fprintf(stderr,
-              "WARNING: GASNET_USE_XRC disabled because PSHM is unavailable.\n"
-              "         To suppress this message set environment variable\n"
-              "         GASNET_USE_XRC=0 or reconfigure with --disble-ibv-xrc.\n"
-              "         Or you may reconfigure with --enable-pshm if supported.\n"
-             );
-    }
-  }
   if (gasnetc_use_xrc && !gasnetc_use_srq) {
     gasnetc_use_xrc =0 ;
     if (!gasneti_mynode) {
