@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2010/12/21 06:21:46 $
- * $Revision: 1.251.6.12 $
+ *     $Date: 2010/12/21 09:08:22 $
+ * $Revision: 1.251.6.13 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3653,9 +3653,12 @@ extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
     for (i = 0; i < gasnetc_alloc_qps; ++i, ++cep) {
       cep->epid = gasnetc_epid(node, i);
     #if GASNETC_IBV_XRC
-      if (gasnetc_use_xrc && !GASNET_PSHM) {
+     #if !GASNET_PSHM
+      if (gasnetc_use_xrc && (gasneti_nodemap_local_count != 1)) {
         gasneti_assert(GASNETC_CEP_SQ_SEMA(cep) != NULL);
-      } else {
+      } else
+     #endif
+      {
         gasneti_assert(GASNETC_CEP_SQ_SEMA(cep) == NULL);
       }
     #else
