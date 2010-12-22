@@ -1,7 +1,7 @@
 README file for vapi-conduit and ibv-conduit
 ============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.60 $
+$Revision: 1.60.6.1 $
 
 @ TOC: @
 @ Section: VAPI vs IBV @
@@ -425,6 +425,15 @@ $Revision: 1.60 $
         SRQ is NOT used and GASNET_RBUF_COUNT is ignored
     Note that the interpretation of the values 0 and 1 allow one to use
     this setting as a simple boolean if desired.
+
+  + GASNET_USE_XRC
+    This controls whether IBV eXtended Reliable Connection (XRC) support
+    is used.  This setting is ignored for VAPI, and for IBV if GASNet was
+    was configured with --disable-ibv-xrc.  It is also ignored if SRQ
+    support is not used (regardless of why), or if XRC support was not
+    found at configure time.
+    This setting defaults to 1 if SRQ support was enabled at configure
+    time.  As a result XRC will be used anytime SRQ is used.
 
   Resource usage parameters:
   The following environment variables control how much memory is
