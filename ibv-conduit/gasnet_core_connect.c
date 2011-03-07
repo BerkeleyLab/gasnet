@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/01 23:23:19 $
- * $Revision: 1.44 $
+ *     $Date: 2011/03/07 00:17:41 $
+ * $Revision: 1.44.2.1 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -714,6 +714,74 @@ gasnetc_qp_rtr2rts(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
     return GASNET_OK;
 } /* rtr2rts */
 
+/* Create UD QP and advance all the way to RTS
+   Return QP handl on success, or zero on failure. */
+/* XXX: still much in-flux w.r.t. UD */
+static gasnetc_qp_hndl_t
+gasnetc_qp_create_ud(gasnetc_port_info_t *port)
+{
+    gasnetc_hca_t *hca = &gasnetc_hca[port->hca_index];
+    gasnetc_qp_attr_t qp_attr;
+    gasnetc_qp_mask_t qp_mask;
+    gasnetc_qp_hndl_t hndl;
+    int rc;
+
+    /* TODO: tune these?  honor env vars? */
+    const int max_recv_wr = 4;
+    const int max_send_wr = 4;
+
+#if GASNET_CONDUIT_VAPI
+    /* XXX: Not yet */
+    result = 0;
+#else
+    struct ibv_qp_init_attr     qp_init_attr;
+
+    /* CREATE */
+    qp_init_attr.cap.max_send_wr     = max_send_wr;
+    qp_init_attr.cap.max_recv_wr     = max_recv_wr;
+    qp_init_attr.cap.max_send_sge    = 1;
+    qp_init_attr.cap.max_recv_sge    = 1;
+    qp_init_attr.qp_context          = NULL; /* XXX: Can/should we use this? */
+    qp_init_attr.qp_type             = IBV_QPT_UD;
+    qp_init_attr.sq_sig_all          = 1; /* XXX: Unless we drop 1-to-1 WQE/CQE relationship */
+    qp_init_attr.srq                 = NULL;
+    qp_init_attr.send_cq             = hca->snd_cq;
+    qp_init_attr.recv_cq             = hca->rcv_cq;
+    qp_init_attr.cap.max_inline_data = 0; /* XXX: Really should consider using to avoid registration */
+
+    hndl = ibv_create_qp(hca->pd, &qp_init_attr);
+    if_pf (NULL == hndl) return hndl;
+
+    /* RESET -> INIT */
+    qp_mask = (enum ibv_qp_attr_mask)(IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_QKEY);
+    qp_attr.qp_state        = IBV_QPS_INIT;
+    qp_attr.pkey_index      = 0;
+    qp_attr.qkey            = 0;
+    qp_attr.port_num        = port->port_num;
+    rc = ibv_modify_qp(hndl, &qp_attr, qp_mask);
+    GASNETC_VAPI_CHECK(rc, "from ibv_modify_qp(UD INIT)");
+
+    /* Post RCVs */
+    /* XXX: Need to post RCV buffers here, before transition to RTR */
+
+    /* INIT -> RTR */
+    qp_mask = IBV_QP_STATE;
+    qp_attr.qp_state        = IBV_QPS_RTR;
+    rc = ibv_modify_qp(hndl, &qp_attr, qp_mask);
+    GASNETC_VAPI_CHECK(rc, "from ibv_modify_qp(UD RTR)");
+
+    /* RTR -> RTS */
+    qp_mask = (enum ibv_qp_attr_mask)(IBV_QP_STATE | IBV_QP_SQ_PSN);
+    qp_attr.qp_state        = IBV_QPS_RTS;
+    qp_attr.sq_psn          = 0xcafef00d;
+    rc = ibv_modify_qp(hndl, &qp_attr, qp_mask);
+    GASNETC_VAPI_CHECK(rc, "from ibv_modify_qp(UD RTS)");
+#endif
+
+    return hndl;
+} /* create_ud */
+
+
 #if GASNETC_DEBUG_CONNECT
 #include <stdlib.h>
 static void
@@ -1055,6 +1123,13 @@ done:
   gasneti_free(node_list);
 #endif
   gasneti_free(peer_mask);
+
+#if GASNET_CONDUIT_IBV /* XXX: Not (yet?) implemented for VAPI */
+  {
+    gasnetc_qp_hndl_t ud_hndl = gasnetc_qp_create_ud(&gasnetc_port_tbl[0]);
+fprintf(stderr, "@%d> UD = %p(%d)\n", gasneti_mynode, ud_hndl, ud_hndl?ud_hndl->qp_num:-1);
+  }
+#endif
 
   return GASNET_OK;
 } /* gasnetc_connect_static */
