@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/07 00:17:41 $
- * $Revision: 1.44.2.1 $
+ *     $Date: 2011/03/10 21:17:24 $
+ * $Revision: 1.44.2.2 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -35,6 +35,11 @@
       (_qpi) < gasnetc_alloc_qps; ++(_cep), ++(_qpi))
 
 /* ------------------------------------------------------------------------------------ */
+/* Global data */
+
+gasnetc_qp_hndl_t gasnetc_conn_qp = GASNETC_IB_CHOOSE(VAPI_INVAL_HNDL, NULL);
+
+/* ------------------------------------------------------------------------------------ */
 
 /* Common types */
 typedef GASNETC_IB_CHOOSE(VAPI_qp_attr_t,       struct ibv_qp_attr)     gasnetc_qp_attr_t;
@@ -52,6 +57,17 @@ typedef struct {
 #endif
   const gasnetc_port_info_t **port;
 } gasnetc_conn_info_t;
+
+/* Info exchanged for connection setup */
+#if GASNETC_IBV_XRC
+  typedef struct {
+    uint32_t        srq_num;
+    gasnetc_qpn_t   xrc_qpn;
+    gasnetc_qpn_t   qpn;
+  } gasnetc_xrc_conn_data_t;
+#else
+  /* Just exchange qpn.  So no struct required */
+#endif
 
 #if GASNETC_IBV_XRC
   #define GASNETC_SND_QP_NEEDS_MODIFY(_xrc_snd_qp,_state) \
@@ -714,16 +730,36 @@ gasnetc_qp_rtr2rts(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
     return GASNET_OK;
 } /* rtr2rts */
 
+
+/* Post a work request to the receive queue of the UD QP */
+/* XXX: much is in-flux w.r.t. UD */
+static void
+gasnetc_rcv_post_ud(gasnetc_rcv_wr_t *wr) {
+  gasnetc_hca_t *hca = &gasnetc_hca[0];
+  int vstat;
+
+#if GASNET_CONDUIT_VAPI
+  /* Not yet implemented */
+  vstat = VAPI_post_rr(hca->hca_handle, gasnetc_conn_qp, wr);
+#else
+  {
+    gasnetc_rcv_wr_t *bad_wr;
+    vstat = ibv_post_recv(gasnetc_conn_qp, wr, &bad_wr);
+  }
+#endif
+
+  GASNETC_VAPI_CHECK(vstat, "while posting a UD receive work request");
+}
+
 /* Create UD QP and advance all the way to RTS
    Return QP handl on success, or zero on failure. */
 /* XXX: still much in-flux w.r.t. UD */
-static gasnetc_qp_hndl_t
-gasnetc_qp_create_ud(gasnetc_port_info_t *port)
+static int
+gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
 {
     gasnetc_hca_t *hca = &gasnetc_hca[port->hca_index];
     gasnetc_qp_attr_t qp_attr;
     gasnetc_qp_mask_t qp_mask;
-    gasnetc_qp_hndl_t hndl;
     int rc;
 
     /* TODO: tune these?  honor env vars? */
@@ -749,8 +785,8 @@ gasnetc_qp_create_ud(gasnetc_port_info_t *port)
     qp_init_attr.recv_cq             = hca->rcv_cq;
     qp_init_attr.cap.max_inline_data = 0; /* XXX: Really should consider using to avoid registration */
 
-    hndl = ibv_create_qp(hca->pd, &qp_init_attr);
-    if_pf (NULL == hndl) return hndl;
+    gasnetc_conn_qp = ibv_create_qp(hca->pd, &qp_init_attr);
+    if_pf (NULL == gasnetc_conn_qp) return GASNET_ERR_RESOURCE;
 
     /* RESET -> INIT */
     qp_mask = (enum ibv_qp_attr_mask)(IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_QKEY);
@@ -758,7 +794,7 @@ gasnetc_qp_create_ud(gasnetc_port_info_t *port)
     qp_attr.pkey_index      = 0;
     qp_attr.qkey            = 0;
     qp_attr.port_num        = port->port_num;
-    rc = ibv_modify_qp(hndl, &qp_attr, qp_mask);
+    rc = ibv_modify_qp(gasnetc_conn_qp, &qp_attr, qp_mask);
     GASNETC_VAPI_CHECK(rc, "from ibv_modify_qp(UD INIT)");
 
     /* Post RCVs */
@@ -767,19 +803,19 @@ gasnetc_qp_create_ud(gasnetc_port_info_t *port)
     /* INIT -> RTR */
     qp_mask = IBV_QP_STATE;
     qp_attr.qp_state        = IBV_QPS_RTR;
-    rc = ibv_modify_qp(hndl, &qp_attr, qp_mask);
+    rc = ibv_modify_qp(gasnetc_conn_qp, &qp_attr, qp_mask);
     GASNETC_VAPI_CHECK(rc, "from ibv_modify_qp(UD RTR)");
 
     /* RTR -> RTS */
     qp_mask = (enum ibv_qp_attr_mask)(IBV_QP_STATE | IBV_QP_SQ_PSN);
     qp_attr.qp_state        = IBV_QPS_RTS;
     qp_attr.sq_psn          = 0xcafef00d;
-    rc = ibv_modify_qp(hndl, &qp_attr, qp_mask);
+    rc = ibv_modify_qp(gasnetc_conn_qp, &qp_attr, qp_mask);
     GASNETC_VAPI_CHECK(rc, "from ibv_modify_qp(UD RTS)");
 #endif
 
-    return hndl;
-} /* create_ud */
+    return GASNET_OK;
+} /* setup_ud */
 
 
 #if GASNETC_DEBUG_CONNECT
@@ -1126,8 +1162,7 @@ done:
 
 #if GASNET_CONDUIT_IBV /* XXX: Not (yet?) implemented for VAPI */
   {
-    gasnetc_qp_hndl_t ud_hndl = gasnetc_qp_create_ud(&gasnetc_port_tbl[0]);
-fprintf(stderr, "@%d> UD = %p(%d)\n", gasneti_mynode, ud_hndl, ud_hndl?ud_hndl->qp_num:-1);
+    gasnetc_qp_setup_ud(&gasnetc_port_tbl[0]);
   }
 #endif
 
