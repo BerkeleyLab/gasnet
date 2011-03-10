@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/10 21:17:24 $
- * $Revision: 1.44.2.2 $
+ *     $Date: 2011/03/10 21:28:16 $
+ * $Revision: 1.44.2.3 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1069,13 +1069,8 @@ gasnetc_connect_static(void)
 #if GASNETC_IBV_XRC
   if (gasnetc_use_xrc) {
     /* Use single larger exchange rather then multiple smaller ones */
-    struct exchange {
-      uint32_t srq_num;
-      gasnetc_qpn_t xrc_qpn;
-      gasnetc_qpn_t qpn;
-    };
-    struct exchange *local_tmp  = gasneti_calloc(ceps,  sizeof(struct exchange));
-    struct exchange *remote_tmp = gasneti_malloc(ceps * sizeof(struct exchange));
+    gasnetc_xrc_conn_data_t *local_tmp  = gasneti_calloc(ceps,  sizeof(gasnetc_xrc_conn_data_t));
+    gasnetc_xrc_conn_data_t *remote_tmp = gasneti_malloc(ceps * sizeof(gasnetc_xrc_conn_data_t));
     for (i = node = 0; node < gasneti_nodes; ++node) {
       cep = GASNETC_NODE2CEP(node);
       for (qpi = 0; qpi < gasnetc_alloc_qps; ++qpi, ++i) {
@@ -1089,7 +1084,7 @@ gasnetc_connect_static(void)
       }
     }
     gasneti_bootstrapAlltoall(local_tmp,
-                              gasnetc_alloc_qps * sizeof(struct exchange),
+                              gasnetc_alloc_qps * sizeof(gasnetc_xrc_conn_data_t),
                               remote_tmp);
     xrc_remote_rcv_qpn = gasneti_malloc(ceps * sizeof(gasnetc_qpn_t));
     xrc_remote_srq_num = gasneti_malloc(ceps * sizeof(uint32_t));
