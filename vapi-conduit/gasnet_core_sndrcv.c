@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2011/02/24 02:40:19 $
- * $Revision: 1.276 $
+ *     $Date: 2011/03/10 21:22:53 $
+ * $Revision: 1.276.2.1 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -42,9 +42,6 @@
 
 /* Define non-zero to allow loopback AMs to be assembled on the stack */
 #define GASNETC_LOOPBACK_AMS_ON_STACK 1
-
-/* Remove when post-list code is fixed or permanently removed */
-#define GASNETC_USE_POST_LIST 0
 
 /* Control via autoconf or runtime probe if/when we can determine which systems need this */
 #define GASNETC_ALLOW_0BYTE_MSG 0
@@ -147,11 +144,6 @@ typedef struct gasnetc_sreq_t_ {
   /* Communication end point */
   gasnetc_epid_t		epid;
   gasnetc_cep_t			*cep;
-
-#if GASNETC_USE_POST_LIST
-  /* Number of Work Request entries */
-  uint32_t			count;
-#endif
 
   /* Completion counters */
   gasnetc_counter_t		*mem_oust;	/* source memory refs outstanding (local completion)*/
@@ -410,21 +402,11 @@ const firehose_request_t *gasnetc_fh_aligned_local_pin(uintptr_t start, size_t l
 GASNETI_INLINE(gasnetc_sr_desc_init)
 void *gasnetc_sr_desc_init(gasnetc_snd_wr_t *result, gasnetc_sge_t *sg_lst_p, int sg_lst_len, int count)
 {
-  #if GASNETC_USE_POST_LIST
-    int i;
-    for (i=0; i<count; ++i, sg_lst_p += sg_lst_len) {
-          #if GASNET_DEBUG
-	    result[i].gasnetc_f_wr_num_sge = 0; /* invalid to ensure caller sets it */
-	  #endif
-	  result[i].gasnetc_f_wr_sg_list = sg_lst_p;
-    }
-  #else
     gasneti_assert(count == 1);
     #if GASNET_DEBUG
       result->gasnetc_f_wr_num_sge = 0; /* invalid to ensure caller sets it */
     #endif
     result->gasnetc_f_wr_sg_list = sg_lst_p;
-  #endif
   
   return result;
 }
@@ -943,11 +925,7 @@ static int gasnetc_snd_reap(int limit) {
         gasnetc_sreq_t *sreq = (gasnetc_sreq_t *)(uintptr_t)comp.gasnetc_f_wr_id;
         if_pt (sreq) {
 	  gasneti_assert(sreq->opcode != GASNETC_OP_INVALID);
-	  #if GASNETC_USE_POST_LIST
-	    gasneti_semaphore_up_n(GASNETC_CEP_SQ_SEMA(sreq->cep), sreq->count);
-	  #else
-	    gasneti_semaphore_up(GASNETC_CEP_SQ_SEMA(sreq->cep));
-	  #endif
+	  gasneti_semaphore_up(GASNETC_CEP_SQ_SEMA(sreq->cep));
 	  gasneti_semaphore_up(sreq->cep->snd_cq_sema_p);
 
 	  switch (sreq->opcode) {
@@ -1734,10 +1712,6 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, gasnetc_snd_wr_t *sr_desc, in
     GASNETC_TRACE_WAIT_END(POST_SR_STALL_CQ);
   }
 
-  #if GASNETC_USE_POST_LIST
-    sreq->count = 1;
-  #endif
-
   /* setup some invariant fields */
   sr_desc[0].gasnetc_f_wr_id = (uintptr_t)sreq;
 #if GASNET_CONDUIT_VAPI
@@ -1788,115 +1762,6 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, gasnetc_snd_wr_t *sr_desc, in
 }
 #define gasnetc_snd_post(x,y)		gasnetc_snd_post_common(x,y,0)
 #define gasnetc_snd_post_inline(x,y)	gasnetc_snd_post_common(x,y,1)
-
-#if GASNETC_USE_POST_LIST
-/* XXX: Broken now that FAST uses firehose, too.
- * In particular we don't do anything with firehose resources if we needed to
- * split the request across multiple sreqs.  The easiest way to correlate the
- * firehose_request_t's with the sr_desc's at the current time is by examining
- * the rkeys.
- * This code has also not been kept up-to-date as mutil-qp and multi-rail
- * support was added.
- * Finally, there is no support for this in OpenIB, to which we hope to port.
- */
-GASNETI_INLINE(gasnetc_snd_post_list_common)
-void gasnetc_snd_post_list_common(gasnetc_sreq_t *sreq, gasnetc_snd_wr_t *sr_desc, uint32_t count) {
-  gasneti_semaphore_t *sq_sema;
-  gasneti_semaphore_t *cq_sema;
-  uint32_t tmp;
-  int i;
-
-  /* Loop until space is available on the SQ for at least 1 new entry.
-   * If we hold the last one then threads sending to the same node will stall. */
-  sq_sema = GASNETC_CEP_SQ_SEMA(sreq->cep);
-  tmp = gasneti_semaphore_trydown_partial(sq_sema, count);
-  if_pf (!tmp) {
-    GASNETC_TRACE_WAIT_BEGIN();
-    do {
-      GASNETI_WAITHOOK();
-      gasnetc_poll_snd();
-      tmp = gasneti_semaphore_trydown_partial(sq_sema, count);
-    } while (!tmp);
-    GASNETC_TRACE_WAIT_END(POST_SR_STALL_SQ);
-  }
-
-  /* Loop until space is available for 1 new entry on the CQ.
-   * If we hold the last one then threads sending to ANY node will stall. */
-  cq_sema = sreq->cep->snd_cq_sema_p;
-  if_pf (!gasneti_semaphore_trydown(cq_sema)) {
-    GASNETC_TRACE_WAIT_BEGIN();
-    do {
-      GASNETI_WAITHOOK();
-      gasnetc_poll_snd();
-    } while (!gasneti_semaphore_trydown(cq_sema));
-    GASNETC_TRACE_WAIT_END(POST_SR_STALL_CQ);
-  }
-
-  /* setup some invariant fields */
-  sreq->count = tmp;
-  tmp -= 1;
-  for (i = 0; i < tmp; ++i) {
-    #if GASNET_DEBUG	/* unused otherwise */
-      sr_desc[i].gasnetc_f_wr_id      = 0;
-    #endif
-    sr_desc[i].comp_type = VAPI_UNSIGNALED;
-    sr_desc[i].set_se    = 0;
-    sr_desc[i].fence     = 0;
-  }
-  sr_desc[tmp].gasnetc_f_wr_id        = (uintptr_t)sreq;
-  sr_desc[tmp].comp_type = VAPI_SIGNALED;
-  sr_desc[tmp].set_se    = 0;
-  sr_desc[tmp].fence     = 0;
-}
-
-/* Post multiple work requests to the send queue of the given endpoint */
-GASNETI_INLINE(gasnetc_snd_post_list)
-void gasnetc_snd_post_list(gasnetc_sreq_t *sreq, int count, gasnetc_snd_wr_t *sr_desc) {
-
-  gasneti_assert(sr_desc->opcode != GASNETC_WR_SEND_WITH_IMM); /* Can't (yet?) handle SENDs (AMs) */
-  gasneti_assert(GASNETC_USE_FIREHOSE || (sreq->bb_buff == NULL)); /* Can't (yet?) handle BB GET/PUT */
-
-  GASNETC_STAT_EVENT_VAL(SND_POST_LIST,count);
-
-  do {
-    gasnetc_sreq_t *next = NULL;
-    int vstat;
-
-    gasnetc_snd_post_list_common(sreq, sr_desc, count);
-    gasneti_assert(sreq->count >= 1);
-    gasneti_assert(sreq->count <= count);
-
-    if_pf (sreq->count < count) {
-      /* If there is not enough SQ space, so we split the request list */
-      /* XXX: this is where we are most broken w.r.t. firehose resources */
-      next = gasnetc_get_sreq();
-      next->ep = sreq->cep;
-      next->opcode =
-      next->mem_oust = sreq->mem_oust;  sreq->mem_oust = NULL;
-      next->req_oust = sreq->req_oust;  sreq->req_oust = NULL;
-    }
-
-    GASNETC_STAT_EVENT_VAL(POST_SR_LIST,sreq->count);
-    gasnetc_snd_validate(sreq, sr_desc, sreq->count, "POST_SR_LIST");
-
-    vstat = EVAPI_post_sr_list(sreq->cep->hca_handle, sreq->cep->qp_handle, sreq->count, sr_desc);
-
-    if_pt (vstat == 0) {
-      /* SUCCESS, the requests are posted */
-    } else if (GASNETC_IS_EXITING()) {
-      /* disconnected by another thread */
-      gasnetc_exit(0);
-    } else {
-      /* unexpected error */
-      GASNETC_VAPI_CHECK(vstat, "while posting multiple send work requests");
-    }
-
-    count -= sreq->count;
-    sr_desc += sreq->count;
-    sreq = next;
-  } while (sreq != NULL);
-}
-#endif
 
 static void gasnetc_rcv_thread(gasnetc_hca_hndl_t	hca_hndl,
 			       gasnetc_cq_hndl_t	cq_hndl,
