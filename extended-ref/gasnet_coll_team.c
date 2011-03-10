@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_team.c,v $
- * $Date: 2010/09/21 23:33:33 $
- * $Revision: 1.9.2.3 $
+ * $Date: 2011/03/10 18:53:28 $
+ * $Revision: 1.9.2.4 $
  *
  * Description: GASNet team implementation for collectives 
  * Copyright 2010, E. O. Lawrence Berekely National Laboratory
@@ -87,6 +87,7 @@ void gasnete_coll_team_td_init(uint32_t team_id,
   team_td->threads_sequence = 0;
   team_td->threads_hold_lock = 0;
   team_td->smp_coll_handle = smp_coll_handle;
+  team_td->num_multi_addr_collectives_started = 0;
   gasnete_hashtable_insert(td->team_dir, team_id, team_td);
   /* Insert the team to the td->myteam list*/
   if (td->my_teams == NULL) {
@@ -149,6 +150,10 @@ gasnet_image_t gasnete_coll_team_my_local_image(gasnet_team_handle_t team
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOALLOC;
   gasnete_coll_team_threaddata_t *team_td;
 
+#if GASNET_SEQ
+  return 0;
+#endif 
+
   gasneti_assert(team != NULL);
   gasneti_assert(td != NULL);
   
@@ -165,6 +170,10 @@ gasnet_image_t gasnete_coll_team_my_image(gasnet_team_handle_t team)
 {
   gasnete_coll_threaddata_t *td;
   gasnete_coll_team_threaddata_t *team_td;
+
+#if GASNET_SEQ
+  return gasnet_mynode();
+#endif
 
   GASNETE_THREAD_LOOKUP; /* GASNETE_THREAD_FARG_ALONE = GASNETE_THREAD_GET_ALONE; */
     
@@ -569,10 +578,8 @@ void gasnete_coll_teamall_init(gasnet_node_t total_ranks,
                          scratch_segs GASNETE_THREAD_PASS);
 
   team->local_images = (gasnet_image_t *)gasneti_malloc(sizeof(gasnet_image_t) * team->my_images);
-  if (images != NULL) {
-    for (j=0; j<team->my_images; j++) {
+  for (j=0; j<team->my_images; j++) {
       team->local_images[j] = team->my_offset + j;
-    }
   }
 }
 
@@ -744,13 +751,21 @@ gasnete_coll_team_first_local_image_in_set(gasnet_team_handle_t team,
   gasnet_image_t i;
 
   for (i=0; i<team->my_images; i++) {
+#ifdef DEBUG_TEAM
+    fprintf(stderr, "[%u] team->local_images[%u]=%u\n", gasnete_coll_team_my_image(GASNET_TEAM_ALL),
+            i, team->local_images[i]);
+#endif
     if (gasnete_coll_team_find_image(image_set, image_count,
                                      team->local_images[i])) {
       return team->local_images[i];
     }
   }
 
-  gasneti_fatalerror("Cannot find local image in set!\n");
+#ifdef DEBUG_TEAM
+  gasnete_coll_team_print(team, stderr);
+#endif
+
+  gasneti_fatalerror("[%u] Cannot find local image in set!\n", gasnete_coll_team_my_image(GASNET_TEAM_ALL));
   return 0; /* never reach here */
 }
 
@@ -799,13 +814,10 @@ gasnet_team_handle_t gasnete_coll_team_create(gasnet_team_handle_t parent_team,
   if (my_new_imageid == GASNET_IMAGE_UNDEFINED)
     return NULL;
 
-  first_local = gasnete_coll_team_first_local_image_in_set(parent_team, images, total_images);
-
 #ifdef DEBUG_TEAM
   for (i=0; i<parent_team->total_images; i++) {
     if (gasnete_coll_team_my_image(parent_team) == i) {
       fprintf(stderr, "[%u] gasnete_coll_team_create: parent team %p, total_images %u, my_new_imageid %u\n",gasnete_coll_team_my_image(GASNET_TEAM_ALL), parent_team, total_images, my_new_imageid);
-      fprintf(stderr, "[%u] my image in parent team %u, my local image in team %u, first local image %u\n", gasnete_coll_team_my_image(GASNET_TEAM_ALL), gasnete_coll_team_my_image(parent_team), gasnete_coll_team_my_local_image(parent_team GASNETE_THREAD_PASS), first_local);
       fprintf(stderr, "[%u] gasnete_coll_team_create: images:\n", gasnete_coll_team_my_image(GASNET_TEAM_ALL));
       PRINT_ARRAY(stderr, images, total_images, "%u");
       fprintf(stderr, "\n\n");
@@ -813,6 +825,13 @@ gasnet_team_handle_t gasnete_coll_team_create(gasnet_team_handle_t parent_team,
     }
     gasnete_coll_teambarrier(parent_team);
   }
+#endif
+
+  first_local = gasnete_coll_team_first_local_image_in_set(parent_team, images, total_images);
+
+#ifdef DEBUG_TEAM
+  fprintf(stderr, "[%u] my image in parent team %u, my local image in team %u, first local image %u\n", gasnete_coll_team_my_image(GASNET_TEAM_ALL), gasnete_coll_team_my_image(parent_team), gasnete_coll_team_my_local_image(parent_team GASNETE_THREAD_PASS), first_local);
+
 #endif
 
   /* Only the first local thread in the process in the new team
@@ -1048,14 +1067,26 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t parent_team,
   gasnete_coll_teambarrier(parent_team);
 
 #ifdef DEBUG_TEAM
-  fprintf(stderr, "[%u] gasnete_coll_team_split: before gather_all. \n",
-          gasnete_coll_team_my_image(GASNET_TEAM_ALL));
+  fprintf(stderr, "[%u] gasnete_coll_team_split: before gather_all. parent_team->total_images %u,  all_split_info %p, &all_split_info %p\n",
+          gasnete_coll_team_my_image(GASNET_TEAM_ALL), parent_team->total_images, all_split_info, &all_split_info);
 #endif
 
-  
+
+  /* gasnet_coll_gather_all is broken because it tries to use an
+     GASNET_COLL_DST_IN_SEGMENT algorithm when the dst is not in
+     segment. */
+  /*
   gasnet_coll_gather_all(parent_team, all_split_info, &my_split_info, 
                          sizeof(gasnete_coll_team_split_info_t), 
                          GASNET_COLL_LOCAL | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_ALLSYNC);
+  */
+  gasnet_coll_gather(parent_team, 0, all_split_info, &my_split_info, 
+                     sizeof(gasnete_coll_team_split_info_t), 
+                     GASNET_COLL_LOCAL | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_ALLSYNC);
+ 
+  gasnet_coll_broadcast(parent_team, all_split_info, 0, all_split_info,
+                        sizeof(gasnete_coll_team_split_info_t) * parent_team->total_images, 
+                        GASNET_COLL_LOCAL | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_ALLSYNC);
 
 #ifdef DEBUG_TEAM
   fprintf(stderr, "[%u] gasnete_coll_team_split: after gather_all. \n",

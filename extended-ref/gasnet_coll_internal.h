@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- * $Date: 2010/09/21 23:33:33 $
- * $Revision: 1.60.2.1 $
+ * $Date: 2011/03/10 18:53:28 $
+ * $Revision: 1.60.2.2 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -179,7 +179,9 @@ struct gasnete_coll_tree_data_t_ {
 #endif
 #endif
 
-#define GASNETE_COLL_MAX_NUM_SEGS 2048
+// #define GASNETE_COLL_MAX_NUM_SEGS 2048
+#define GASNETE_COLL_MAX_NUM_SEGS 8192
+
 /*---------------------------------------------------------------------------------*/
 /* Type for global synchronization */
 
@@ -356,6 +358,7 @@ typedef struct gasnete_coll_team_threaddata_t_ {
   gasnet_image_t my_image;
   volatile uint32_t threads_sequence;
   int threads_hold_lock;
+	gasneti_atomic_val_t num_multi_addr_collectives_started;
   smp_coll_t smp_coll_handle;
 } gasnete_coll_team_threaddata_t;
 
@@ -653,6 +656,35 @@ void gasnete_coll_local_rotate_right(void *dst, const void *src, size_t elem_siz
 	gasneti_sync_writes();
 }
 
+/* Helper to perform in-memory data shuffling */
+gasnete_coll_shuffle_data(gasnet_image_t const dstindex[],
+                          void **dstlist,
+                          gasnet_image_t image_count,
+                          gasnet_image_t *srcimage, 
+                          void *src,
+                          size_t nbytes)
+{
+  gasnet_image_t i;
+  uint8_t *buf;
+  void **tmp_dstlist;
+
+  *scrimage = dstindex[*srcimage];
+  buf = gasneti_malloc(nbytes * image_count);
+  tmp_dstlist = (void **)gasneti_malloc(sizeof(void *) * image_count);
+
+  for (i=0; i<image_count; i) {
+    tmp_dstlist[i] = dstlist[dstindex[i]];
+    memcpy(buf+nbytes*i, src+nbytes*dstindex[i], nbytes);
+  }
+
+  memcpy(dstlist, tmp_dstlist, sizeof(void *)*image_count);
+  memcpy(src, buf, nbytes * image_count);
+
+  gasneti_free(tmp_dstlist);
+  gasneti_free(buf);
+}
+
+
 /* Helper to perform in-memory broadcast */
 GASNETI_INLINE(gasnete_coll_local_broadcast)
 void gasnete_coll_local_broadcast(size_t count, void * const dstlist[], const void *src, size_t nbytes) {
@@ -802,8 +834,9 @@ typedef struct {
   int threads_hold_lock;
 
 	/* XXX: more fields to come */
-	gasneti_atomic_val_t num_multi_addr_collectives_started;
-	smp_coll_t smp_coll_handle;
+  // Should be per-team
+	// gasneti_atomic_val_t num_multi_addr_collectives_started;
+	// smp_coll_t smp_coll_handle;
 	
   gasnete_hashtable_t *team_dir; /* store gasnete_coll_team_threaddata */
   struct gasnete_coll_team_t_ *my_teams; /* link list of my teams for polling collective operations */
