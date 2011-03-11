@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/10 21:28:16 $
- * $Revision: 1.44.2.3 $
+ *     $Date: 2011/03/11 22:09:38 $
+ * $Revision: 1.44.2.4 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -80,6 +80,36 @@ static int gasnetc_connectfile_in_base  = 10; /* Defaults to human readable/writ
 static int gasnetc_connectfile_out_base = 36; /* Defaults to most compact */
 
 /* ------------------------------------------------------------------------------------ */
+
+static gasneti_lifo_head_t sq_sema_freelist = GASNETI_LIFO_INITIALIZER;
+
+static void
+sq_sema_alloc(int count)
+{
+  gasneti_semaphore_t *p = gasneti_malloc(count * sizeof(gasneti_semaphore_t));
+  int i;
+
+  for (i=0; i<count; ++i, ++p) {
+    gasneti_lifo_push(&sq_sema_freelist,p);
+  }
+}
+
+static gasneti_semaphore_t * 
+sq_sema_get(void)
+{
+  gasneti_semaphore_t *result;
+ 
+  result = gasneti_lifo_pop(&sq_sema_freelist);
+  if_pf (NULL == result) {
+    sq_sema_alloc(1);
+    result = gasneti_lifo_pop(&sq_sema_freelist);
+    gasneti_assert(NULL != result);
+  }
+
+  return result;
+}
+
+/* ------------------------------------------------------------------------------------ */
 static const char *
 gasnetc_parse_filename(const char *filename)
 {
@@ -105,7 +135,7 @@ gasnetc_parse_filename(const char *filename)
 typedef struct gasnetc_xrc_snd_qp_s {
   gasnetc_qp_hndl_t handle;
   enum ibv_qp_state state;
-  gasneti_semaphore_t *sq_sema_p;
+  gasneti_semaphore_t sq_sema;
 } gasnetc_xrc_snd_qp_t;
 
 static gasnetc_xrc_snd_qp_t *gasnetc_xrc_snd_qp = NULL;
@@ -439,21 +469,24 @@ gasnetc_qp_create(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
       }
     #endif
     #if GASNETC_IBV_XRC
-      cep->sq_sema_p = &cep->sq_sema;
       if (gasnetc_use_xrc) {
+        cep->sq_sema_p = &xrc_snd_qp[qpi].sq_sema;
+
         gasnetc_xrc_create_qp(hca->xrc_domain, node, qpi);
 
         hndl = xrc_snd_qp[qpi].handle;
         if (hndl) {
             /* per-supernode QP was already created - just reference it */
-            cep->sq_sema_p = xrc_snd_qp[qpi].sq_sema_p;
             goto finish;
         }
   
         qp_init_attr.xrc_domain = hca->xrc_domain;
         qp_init_attr.srq        = NULL;
-      }
+      } else
     #endif
+      {
+        cep->sq_sema_p = sq_sema_get();
+      }
   
       while (1) { /* No query for max_inline_data limit */
         qp_init_attr.cap.max_inline_data = gasnetc_inline_limit;
@@ -481,7 +514,6 @@ gasnetc_qp_create(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
       if (gasnetc_use_xrc) {
         xrc_snd_qp[qpi].handle = hndl;
         xrc_snd_qp[qpi].state = IBV_QPS_RESET;
-        xrc_snd_qp[qpi].sq_sema_p = GASNETC_CEP_SQ_SEMA(cep);
       }
 
     finish:
@@ -1047,6 +1079,11 @@ gasnetc_connect_static(void)
       cep +=  gasnetc_alloc_qps;
     }
     gasneti_assert((cep - cep_table) == (static_nodes * gasnetc_alloc_qps));
+  }
+
+  /* Preallocate the SQ semaphores when not using XRC (which allocate differently) */
+  if (!gasnetc_use_xrc) {
+    sq_sema_alloc(static_nodes);
   }
 
   /* Initialize connection tracking info */
