@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2011/02/26 21:25:13 $
- * $Revision: 1.205 $
+ *     $Date: 2011/03/11 22:09:38 $
+ * $Revision: 1.205.2.1 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -75,12 +75,7 @@
   #define gasnetc_non_ib(_node) ((_node) == gasneti_mynode)
 #endif
 
-/* When not supporting XRC we can drop one indirection used to reach sq_sema */
-#if GASNETC_IBV_XRC
-  #define GASNETC_CEP_SQ_SEMA(_cep) ((_cep)->sq_sema_p)
-#else
-  #define GASNETC_CEP_SQ_SEMA(_cep) (&(_cep)->sq_sema)
-#endif
+#define GASNETC_CEP_SQ_SEMA(_cep) ((_cep)->sq_sema_p)
 
 #if GASNETC_IBV_SRQ 
   #define GASNETC_QPI_IS_REQ(_qpi) ((_qpi) >= gasnetc_num_qps)
@@ -567,13 +562,10 @@ typedef struct {
 struct gasnetc_cep_t_ {
   /* Read/write fields */
   int                   used;           /* boolean - true if cep has sent traffic */
-  gasneti_semaphore_t	sq_sema;	/* control in-flight ops (send queue slots) */
   gasneti_semaphore_t	am_rem;		/* control in-flight AM Requests (remote rcv queue slots)*/
   gasneti_semaphore_t	am_loc;		/* control unmatched rcv buffers (local rcv queue slots) */
   gasneti_semaphore_t	*snd_cq_sema_p;	/* control in-flight ops (send completion queue slots) */
-#if GASNETC_IBV_XRC
   gasneti_semaphore_t	*sq_sema_p;	/* Pointer to a sq_sema */
-#endif
   /* XXX: The atomics in the next 2 structs really should get padded to full cache lines */
   struct {	/* AM flow control coallescing */
   	gasneti_weakatomic_t	credit;
