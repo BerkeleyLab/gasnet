@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/11 22:09:38 $
- * $Revision: 1.44.2.4 $
+ *     $Date: 2011/03/11 22:27:26 $
+ * $Revision: 1.44.2.5 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -408,8 +408,7 @@ gasnetc_qp_create(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
       GASNETC_VAPI_CHECK(rc, "from VAPI_create_qp()");
       gasneti_assert(qp_prop.cap.max_oust_wr_rq >= gasnetc_am_oust_pp * 2);
       gasneti_assert(qp_prop.cap.max_oust_wr_sq >= gasnetc_op_oust_pp);
-      /* XXX: When could/should we use the ENTIRE allocated length? */
-      gasneti_semaphore_init(&cep->sq_sema, gasnetc_op_oust_pp, gasnetc_op_oust_pp);
+      gasneti_semaphore_init(GASNETC_CEP_SQ_SEMA(cep), 0, 0);
 
       conn_info->local_qpn[qpi] = qp_prop.qp_num;
     }
@@ -507,8 +506,7 @@ gasnetc_qp_create(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
       gasneti_assert(qp_init_attr.cap.max_recv_wr >= max_recv_wr);
       gasneti_assert(qp_init_attr.cap.max_send_wr >= max_send_wr);
 
-      /* XXX: When could/should we use the ENTIRE allocated length? */
-      gasneti_semaphore_init(GASNETC_CEP_SQ_SEMA(cep), max_send_wr, max_send_wr);
+      gasneti_semaphore_init(GASNETC_CEP_SQ_SEMA(cep), 0, 0);
   
     #if GASNETC_IBV_XRC
       if (gasnetc_use_xrc) {
@@ -718,6 +716,9 @@ gasnetc_qp_rtr2rts(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
       rc = VAPI_modify_qp(cep->hca_handle, cep->qp_handle, &qp_attr, &qp_mask, &qp_cap);
       GASNETC_VAPI_CHECK(rc, "from VAPI_modify_qp(RTS)");
       gasnetc_inline_limit = MIN(gasnetc_inline_limit, qp_cap.max_inline_data_sq);
+
+      /* XXX: When could/should we use the *allocated* length? */
+      gasneti_semaphore_init(GASNETC_CEP_SQ_SEMA(cep), gasnetc_op_oust_pp, gasnetc_op_oust_pp);
     }
 #else
   #if GASNETC_IBV_XRC
@@ -754,6 +755,14 @@ gasnetc_qp_rtr2rts(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
           rc = ibv_query_qp(cep->qp_handle, &qp_attr2, IBV_QP_CAP, &qp_init_attr);
           GASNETC_VAPI_CHECK(rc, "from ibv_query_qp(RTS)");
           gasnetc_inline_limit = MIN(gasnetc_inline_limit, qp_attr2.cap.max_inline_data);
+        }
+
+        {
+          int max_send_wr = (gasnetc_use_srq && GASNETC_QPI_IS_REQ(qpi))
+                              ? gasnetc_op_oust_pp : gasnetc_am_oust_pp;
+
+          /* XXX: When could/should we use the *allocated* length? */
+          gasneti_semaphore_init(GASNETC_CEP_SQ_SEMA(cep), max_send_wr, max_send_wr);
         }
       }
     }
