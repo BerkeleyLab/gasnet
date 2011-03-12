@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/12 21:45:19 $
- * $Revision: 1.44.2.9 $
+ *     $Date: 2011/03/12 21:50:29 $
+ * $Revision: 1.44.2.10 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -787,12 +787,11 @@ gasnetc_qp_rtr2rts(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
 /* XXX: much is in-flux w.r.t. UD */
 static void
 gasnetc_rcv_post_ud(gasnetc_rcv_wr_t *wr) {
-  gasnetc_hca_t *hca = &gasnetc_hca[0];
   int vstat;
 
 #if GASNET_CONDUIT_VAPI
   /* Not yet implemented */
-  vstat = VAPI_post_rr(hca->hca_handle, gasnetc_conn_qp, wr);
+  vstat = VAPI_post_rr(&gasnetc_hca[0], gasnetc_conn_qp, wr);
 #else
   {
     gasnetc_rcv_wr_t *bad_wr;
