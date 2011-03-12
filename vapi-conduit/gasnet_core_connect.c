@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/12 22:21:49 $
- * $Revision: 1.44.2.12 $
+ *     $Date: 2011/03/12 22:53:25 $
+ * $Revision: 1.44.2.13 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -70,6 +70,12 @@ typedef struct {
 #else
   /* Just exchange qpn.  So no struct required */
 #endif
+
+/* UD recv */
+typedef struct {
+  gasnetc_rcv_wr_t wr;
+  gasnetc_sge_t sg;
+} gasnetc_ud_rcv_desc_t;
 
 #if GASNETC_IBV_XRC
   #define GASNETC_SND_QP_NEEDS_MODIFY(_xrc_snd_qp,_state) \
@@ -815,6 +821,9 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
     const int max_recv_wr = 4;
     const int max_send_wr = 4;
 
+    /* TODO: somehow compute the actual size - but max_regs is not known until attach */
+    const int recv_sz = 128;
+
 #if GASNET_CONDUIT_VAPI
     /* XXX: Not yet */
 #else
@@ -846,7 +855,30 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
     GASNETC_VAPI_CHECK(rc, "from ibv_modify_qp(UD INIT)");
 
     /* Post RCVs */
-    /* XXX: Need to post RCV buffers here, before transition to RTR */
+    { const size_t size = GASNETI_PAGE_ALIGNUP(max_recv_wr * recv_sz);
+      uint8_t *buf = gasneti_mmap(size);
+      gasnetc_ud_rcv_desc_t *desc;
+      gasnetc_memreg_t mem_reg;
+      int i;
+
+      if_pf (MAP_FAILED == buf) {
+        gasneti_fatalerror("Failed to allocate recv space for dynamic connection setup");
+      }
+      rc = gasnetc_pin(&gasnetc_hca[0], buf, size,
+                       GASNETC_ACL_LOC_WR, &mem_reg);
+      GASNETC_VAPI_CHECK(rc, "while pinning recv space for dynamic connection setup");
+
+      desc = gasneti_malloc(max_recv_wr * sizeof(gasnetc_ud_rcv_desc_t));
+      for (i = 0; i < max_recv_wr; ++i, ++desc) {
+        desc->wr.gasnetc_f_wr_num_sge = 1;
+        desc->wr.gasnetc_f_wr_sg_list = &desc->sg;
+        desc->wr.gasnetc_f_wr_id      = (uintptr_t)desc;   /* CQE will point back to this request */
+        desc->wr.next                 = NULL;
+        desc->sg.gasnetc_f_sg_len = recv_sz;
+        desc->sg.addr             = (uintptr_t)buf + (i * recv_sz);
+        gasnetc_rcv_post_ud(&desc->wr);
+      }
+    }
 
     /* INIT -> RTR */
     qp_mask = IBV_QP_STATE;
