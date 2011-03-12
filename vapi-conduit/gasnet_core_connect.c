@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/11 22:27:26 $
- * $Revision: 1.44.2.5 $
+ *     $Date: 2011/03/12 01:31:33 $
+ * $Revision: 1.44.2.6 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -759,7 +759,7 @@ gasnetc_qp_rtr2rts(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
 
         {
           int max_send_wr = (gasnetc_use_srq && GASNETC_QPI_IS_REQ(qpi))
-                              ? gasnetc_op_oust_pp : gasnetc_am_oust_pp;
+                              ? gasnetc_am_oust_pp : gasnetc_op_oust_pp;
 
           /* XXX: When could/should we use the *allocated* length? */
           gasneti_semaphore_init(GASNETC_CEP_SQ_SEMA(cep), max_send_wr, max_send_wr);
