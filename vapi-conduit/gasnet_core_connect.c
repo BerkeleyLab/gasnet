@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/12 22:06:35 $
- * $Revision: 1.44.2.11 $
+ *     $Date: 2011/03/12 22:21:49 $
+ * $Revision: 1.44.2.12 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -789,7 +789,7 @@ gasnetc_rcv_post_ud(gasnetc_rcv_wr_t *wr) {
 
 #if GASNET_CONDUIT_VAPI
   /* Not yet implemented */
-  vstat = VAPI_post_rr(&gasnetc_hca[0], gasnetc_conn_qp, wr);
+  vstat = VAPI_post_rr(gasnetc_hca[0].handle, gasnetc_conn_qp, wr);
 #else
   {
     gasnetc_rcv_wr_t *bad_wr;
@@ -817,7 +817,6 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
 
 #if GASNET_CONDUIT_VAPI
     /* XXX: Not yet */
-    result = 0;
 #else
     struct ibv_qp_init_attr     qp_init_attr;
 
@@ -1114,9 +1113,12 @@ gasnetc_connect_static(void)
   }
 
   /* Preallocate the SQ semaphores */
+#if GASNETC_IBV_XRC
   if (gasnetc_use_xrc) {
     sq_sema_alloc(static_supernodes * gasnetc_alloc_qps);
-  } else {
+  } else
+#endif
+  {
     sq_sema_alloc(static_nodes * gasnetc_alloc_qps);
   }
 
