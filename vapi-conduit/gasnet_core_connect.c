@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/12 21:28:53 $
- * $Revision: 1.44.2.8 $
+ *     $Date: 2011/03/12 21:45:19 $
+ * $Revision: 1.44.2.9 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1085,8 +1085,6 @@ gasnetc_connect_static(void)
        }
        gasneti_free(transposed_mask);
       }
-
-      if_pf (!static_nodes) goto done;
 
     #if GASNETC_IBV_XRC
       if (gasnetc_use_xrc) {
