@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/12 21:50:29 $
- * $Revision: 1.44.2.10 $
+ *     $Date: 2011/03/12 22:06:35 $
+ * $Revision: 1.44.2.11 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -317,6 +317,10 @@ gasnetc_xrc_init(void) {
   gasneti_assert(index == gasnetc_num_hcas);
   (void)unlink(filename[index]); gasneti_free(filename[index]);
 
+  /* Allocate SND QP table */
+  gasnetc_xrc_snd_qp = gasneti_calloc(gasneti_nodemap_global_count * gasnetc_alloc_qps,
+                                      sizeof(gasnetc_xrc_snd_qp_t));
+
   return GASNET_OK;
 }
 #endif /* GASNETC_IBV_XRC */
@@ -419,13 +423,7 @@ gasnetc_qp_create(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
     const int                   max_recv_wr = gasnetc_use_srq ? 0 : gasnetc_am_oust_pp * 2;
     int                         max_send_wr = gasnetc_op_oust_pp;
   #if GASNETC_IBV_XRC
-    gasnetc_xrc_snd_qp_t       *xrc_snd_qp;
-
-    if_pf (gasnetc_use_xrc && !gasnetc_xrc_snd_qp) {
-      gasnetc_xrc_snd_qp = gasneti_calloc(gasneti_nodemap_global_count * gasnetc_alloc_qps,
-                                          sizeof(gasnetc_xrc_snd_qp_t));
-    }
-    xrc_snd_qp = GASNETC_NODE2SND_QP(node);
+    gasnetc_xrc_snd_qp_t       *xrc_snd_qp = GASNETC_NODE2SND_QP(node);
   #endif
 
     qp_init_attr.cap.max_send_wr     = max_send_wr;
