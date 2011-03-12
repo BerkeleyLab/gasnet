@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/12 01:31:33 $
- * $Revision: 1.44.2.6 $
+ *     $Date: 2011/03/12 20:42:18 $
+ * $Revision: 1.44.2.7 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -38,6 +38,8 @@
 /* Global data */
 
 gasnetc_qp_hndl_t gasnetc_conn_qp = GASNETC_IB_CHOOSE(VAPI_INVAL_HNDL, NULL);
+
+gasneti_semaphore_t gasnetc_zero_sema = GASNETI_SEMAPHORE_INITIALIZER(0, 0);
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -400,6 +402,7 @@ gasnetc_qp_create(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
     #if GASNETC_IB_MAX_HCAS > 1
       cep->hca_index = hca->hca_index;
     #endif
+      cep->sq_sema_p = &gasnetc_zero_sema;
 
       qp_init_attr.pd_hndl         = hca->pd;
       qp_init_attr.rq_cq_hndl      = hca->rcv_cq;
@@ -408,7 +411,6 @@ gasnetc_qp_create(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
       GASNETC_VAPI_CHECK(rc, "from VAPI_create_qp()");
       gasneti_assert(qp_prop.cap.max_oust_wr_rq >= gasnetc_am_oust_pp * 2);
       gasneti_assert(qp_prop.cap.max_oust_wr_sq >= gasnetc_op_oust_pp);
-      gasneti_semaphore_init(GASNETC_CEP_SQ_SEMA(cep), 0, 0);
 
       conn_info->local_qpn[qpi] = qp_prop.qp_num;
     }
@@ -448,6 +450,7 @@ gasnetc_qp_create(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
     #if GASNETC_IB_MAX_HCAS > 1
       cep->hca_index = hca->hca_index;
     #endif
+      cep->sq_sema_p = &gasnetc_zero_sema;
 
       qp_init_attr.send_cq         = hca->snd_cq;
       qp_init_attr.recv_cq         = hca->rcv_cq;
@@ -469,8 +472,6 @@ gasnetc_qp_create(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
     #endif
     #if GASNETC_IBV_XRC
       if (gasnetc_use_xrc) {
-        cep->sq_sema_p = &xrc_snd_qp[qpi].sq_sema;
-
         gasnetc_xrc_create_qp(hca->xrc_domain, node, qpi);
 
         hndl = xrc_snd_qp[qpi].handle;
@@ -481,11 +482,8 @@ gasnetc_qp_create(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
   
         qp_init_attr.xrc_domain = hca->xrc_domain;
         qp_init_attr.srq        = NULL;
-      } else
-    #endif
-      {
-        cep->sq_sema_p = sq_sema_get();
       }
+    #endif
   
       while (1) { /* No query for max_inline_data limit */
         qp_init_attr.cap.max_inline_data = gasnetc_inline_limit;
@@ -506,8 +504,6 @@ gasnetc_qp_create(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
       gasneti_assert(qp_init_attr.cap.max_recv_wr >= max_recv_wr);
       gasneti_assert(qp_init_attr.cap.max_send_wr >= max_send_wr);
 
-      gasneti_semaphore_init(GASNETC_CEP_SQ_SEMA(cep), 0, 0);
-  
     #if GASNETC_IBV_XRC
       if (gasnetc_use_xrc) {
         xrc_snd_qp[qpi].handle = hndl;
@@ -710,6 +706,7 @@ gasnetc_qp_rtr2rts(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
 
     GASNETC_FOR_EACH_QPI(conn_info, qpi, cep) {
       const gasnetc_port_info_t *port = conn_info->port[qpi];
+      gasneti_semaphore_t *sq_sema_p = sq_sema_get();
 
       qp_attr.sq_psn           = GASNETC_PSN(gasneti_mynode, qpi);
       qp_attr.ous_dst_rd_atom  = port->rd_atom;
@@ -718,7 +715,9 @@ gasnetc_qp_rtr2rts(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
       gasnetc_inline_limit = MIN(gasnetc_inline_limit, qp_cap.max_inline_data_sq);
 
       /* XXX: When could/should we use the *allocated* length? */
-      gasneti_semaphore_init(GASNETC_CEP_SQ_SEMA(cep), gasnetc_op_oust_pp, gasnetc_op_oust_pp);
+      gasneti_semaphore_init(sq_sema_p, gasnetc_op_oust_pp, gasnetc_op_oust_pp);
+      gasneti_sync_writes();
+      cep->sq_sema_p = sq_sema_p;
     }
 #else
   #if GASNETC_IBV_XRC
@@ -732,11 +731,17 @@ gasnetc_qp_rtr2rts(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
     qp_attr.rnr_retry        = GASNETC_QP_RNR_RETRY;
 
     GASNETC_FOR_EACH_QPI(conn_info, qpi, cep) {
+      gasneti_semaphore_t *sq_sema_p;
+
     #if GASNETC_IBV_XRC
       if (gasnetc_use_xrc) {
         cep->xrc_remote_srq_num = conn_info->xrc_remote_srq_num[qpi];
-      }
+        sq_sema_p = &xrc_snd_qp[qpi].sq_sema;
+      } else
     #endif
+      {
+        sq_sema_p = sq_sema_get();
+      }
 
       if (GASNETC_SND_QP_NEEDS_MODIFY(xrc_snd_qp[qpi], IBV_QPS_RTS)) {
         const gasnetc_port_info_t *port = conn_info->port[qpi];
@@ -762,9 +767,12 @@ gasnetc_qp_rtr2rts(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
                               ? gasnetc_am_oust_pp : gasnetc_op_oust_pp;
 
           /* XXX: When could/should we use the *allocated* length? */
-          gasneti_semaphore_init(GASNETC_CEP_SQ_SEMA(cep), max_send_wr, max_send_wr);
+          gasneti_semaphore_init(sq_sema_p, max_send_wr, max_send_wr);
         }
       }
+
+      gasneti_sync_writes();
+      cep->sq_sema_p = sq_sema_p;
     }
 #endif
 
