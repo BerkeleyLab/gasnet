@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/12 20:42:18 $
- * $Revision: 1.44.2.7 $
+ *     $Date: 2011/03/12 21:28:53 $
+ * $Revision: 1.44.2.8 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -137,7 +137,7 @@ gasnetc_parse_filename(const char *filename)
 typedef struct gasnetc_xrc_snd_qp_s {
   gasnetc_qp_hndl_t handle;
   enum ibv_qp_state state;
-  gasneti_semaphore_t sq_sema;
+  gasneti_semaphore_t *sq_sema_p;
 } gasnetc_xrc_snd_qp_t;
 
 static gasnetc_xrc_snd_qp_t *gasnetc_xrc_snd_qp = NULL;
@@ -736,7 +736,10 @@ gasnetc_qp_rtr2rts(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
     #if GASNETC_IBV_XRC
       if (gasnetc_use_xrc) {
         cep->xrc_remote_srq_num = conn_info->xrc_remote_srq_num[qpi];
-        sq_sema_p = &xrc_snd_qp[qpi].sq_sema;
+        if (NULL == xrc_snd_qp[qpi].sq_sema_p) {
+          xrc_snd_qp[qpi].sq_sema_p = sq_sema_get();
+        }
+        sq_sema_p = xrc_snd_qp[qpi].sq_sema_p;
       } else
     #endif
       {
@@ -1021,6 +1024,9 @@ gasnetc_connect_static(void)
 #endif
   gasnet_node_t         node;
   gasnet_node_t         static_nodes = gasnetc_remote_nodes;
+#if GASNETC_IBV_XRC
+  gasnet_node_t         static_supernodes = gasneti_nodemap_global_count - 1;
+#endif
   int                   i, qpi;
   size_t                orig_inline_limit = gasnetc_inline_limit;
   gasnetc_cep_t         *cep; /* First cep of given node */
@@ -1081,6 +1087,20 @@ gasnetc_connect_static(void)
       }
 
       if_pf (!static_nodes) goto done;
+
+    #if GASNETC_IBV_XRC
+      if (gasnetc_use_xrc) {
+        uint8_t *supernode_mask = gasneti_calloc(gasneti_nodemap_global_count, sizeof(uint8_t));
+        for (node = 0; node < gasneti_nodes; ++node) {
+          supernode_mask[gasneti_nodeinfo[node]] |= peer_mask[node];
+        }
+        for (static_supernodes = node = 0; node < gasneti_nodemap_global_count; ++node) {
+          gasneti_assert((supernode_mask[node] == 0) || (supernode_mask[node] == 1));
+          static_supernodes += supernode_mask[node];
+        }
+        gasneti_free(supernode_mask);
+      }
+    #endif
     }
   }
 
@@ -1098,9 +1118,11 @@ gasnetc_connect_static(void)
     gasneti_assert((cep - cep_table) == (static_nodes * gasnetc_alloc_qps));
   }
 
-  /* Preallocate the SQ semaphores when not using XRC (which allocate differently) */
-  if (!gasnetc_use_xrc) {
-    sq_sema_alloc(static_nodes);
+  /* Preallocate the SQ semaphores */
+  if (gasnetc_use_xrc) {
+    sq_sema_alloc(static_supernodes * gasnetc_alloc_qps);
+  } else {
+    sq_sema_alloc(static_nodes * gasnetc_alloc_qps);
   }
 
   /* Initialize connection tracking info */
