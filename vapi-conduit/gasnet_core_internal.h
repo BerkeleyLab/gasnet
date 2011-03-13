@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2011/03/11 22:09:38 $
- * $Revision: 1.205.2.1 $
+ *     $Date: 2011/03/13 04:08:01 $
+ * $Revision: 1.205.2.2 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -422,6 +422,7 @@ typedef GASNETC_IB_CHOOSE(VAPI_sg_lst_entry_t,	struct ibv_sge)		gasnetc_sge_t;
 #define gasnetc_f_wr_rem_addr	GASNETC_IB_CHOOSE(remote_addr,		wr.rdma.remote_addr)
 #define gasnetc_f_wr_rkey	GASNETC_IB_CHOOSE(r_key,		wr.rdma.rkey)
 #define gasnetc_f_sg_len	GASNETC_IB_CHOOSE(len,			length)
+#define gasnetc_f_wc_qpn	GASNETC_IB_CHOOSE(local_qp_num,		qp_num)
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -627,6 +628,8 @@ typedef struct {
 extern int gasnetc_connect_static(void);
 extern int gasnetc_connect_init(void);
 extern int gasnetc_connect_fini(void);
+extern void gasnetc_conn_rcv_wc(gasnetc_wc_t *comp);
+extern void gasnetc_conn_snd_wc(gasnetc_wc_t *comp);
 
 /* Routines in gasnet_core_sndrcv.c */
 extern int gasnetc_sndrcv_limits(void);
@@ -729,5 +732,6 @@ extern gasnetc_port_info_t      *gasnetc_port_tbl;
 extern int                      gasnetc_num_ports;
 extern gasnetc_cep_t            **gasnetc_node2cep;
 extern gasnet_node_t            gasnetc_remote_nodes;
+extern gasnetc_qpn_t            gasnetc_conn_qpn;
 
 #endif
