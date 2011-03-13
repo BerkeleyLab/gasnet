@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/13 07:25:57 $
- * $Revision: 1.44.2.15 $
+ *     $Date: 2011/03/13 07:30:19 $
+ * $Revision: 1.44.2.16 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -47,7 +47,7 @@ gasneti_semaphore_t gasnetc_zero_sema = GASNETI_SEMAPHORE_INITIALIZER(0, 0);
 typedef GASNETC_IB_CHOOSE(VAPI_qp_attr_t,       struct ibv_qp_attr)     gasnetc_qp_attr_t;
 typedef GASNETC_IB_CHOOSE(VAPI_qp_attr_mask_t,  enum ibv_qp_attr_mask)  gasnetc_qp_mask_t;
 typedef GASNETC_IB_CHOOSE(VAPI_ud_av_t,         struct ibv_ah_attr)     gasnetc_ah_attr_t;
-typedef GASNETC_IB_CHOOSE(VAPI_ud_av_hndl_t,    struct ibv_ah)          gasnetc_ah_t;
+typedef GASNETC_IB_CHOOSE(VAPI_ud_av_hndl_t,    struct ibv_ah *)        gasnetc_ah_t;
 
 /* Info used for connection establishment */
 typedef struct {
@@ -793,7 +793,7 @@ typedef struct {
 
 /* UD send */
 typedef struct {
-  gasnetc_ah_t *ah; /* shared space w/ freelist link ptr */
+  gasnetc_ah_t ah; /* shared space w/ freelist link ptr */
   gasnetc_snd_wr_t wr;
   gasnetc_sge_t sg;
 } gasnetc_ud_snd_desc_t;
@@ -807,12 +807,12 @@ static gasnetc_port_info_t *conn_ud_port = NULL;
 #define GASNETC_UD_QKEY 0x5551212
 
 
-static gasnetc_ah_t *
+static gasnetc_ah_t
 gasnetc_create_ah(gasnet_node_t node)
 {
   gasnetc_hca_t *hca = &gasnetc_hca[conn_ud_port->hca_index];
   gasnetc_ah_attr_t ah_attr;
-  gasnetc_ah_t *result;
+  gasnetc_ah_t result;
 
 #if GASNET_CONDUIT_VAPI
   { /* XXX: Not yet tested */
@@ -844,7 +844,7 @@ gasnetc_create_ah(gasnet_node_t node)
 }
 
 static void
-gasnetc_destroy_ah(gasnetc_ah_t *ah)
+gasnetc_destroy_ah(gasnetc_ah_t ah)
 {
 #if GASNET_CONDUIT_VAPI
   gasnetc_hca_t *hca = &gasnetc_hca[conn_ud_port->hca_index];
