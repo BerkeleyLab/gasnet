@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2011/03/14 20:14:54 $
- * $Revision: 1.279.2.1 $
+ *     $Date: 2011/03/14 23:47:36 $
+ * $Revision: 1.279.2.2 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1635,6 +1635,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
           gasneti_assert(j <= gasnetc_max_regs);
         }
 
+        /* XXX: hca->rkeys is one of the O(N) storage requirements we might reduce/eliminate.
+         * + When using PSHM we could store rkeys just once per supernode
+         * + When not fully connected, we could utilize sparse storage
+         */
         gasneti_bootstrapExchange(my_rkeys, gasnetc_max_regs*sizeof(gasnetc_rkey_t), hca->rkeys);
       }
       gasnetc_seg_reg_count = j;
@@ -1656,6 +1660,12 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     if (GASNETC_NODE2CEP(i)) {
       gasnetc_sndrcv_attach_peer(i);
     }
+  }
+
+  /* allocate/initialize dynamic connection resources */
+  i = gasnetc_connect_init_dynamic();
+  if (i != GASNET_OK) {
+    return i;
   }
 
   /* Initialize firehose */
