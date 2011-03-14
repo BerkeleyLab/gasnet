@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2011/03/13 04:08:01 $
- * $Revision: 1.276.2.2 $
+ *     $Date: 2011/03/14 20:14:54 $
+ * $Revision: 1.276.2.3 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3610,9 +3610,9 @@ extern gasnetc_amrdma_recv_t *gasnetc_amrdma_recv_alloc(gasnetc_hca_t *hca) {
   return result;
 }
 
-/* Just gasnetc_AMPoll w/o CHECKATTACH */
-extern void gasnetc_sndrcv_poll(void) {
-  gasnetc_poll_both();
+/* Just gasnetc_AMPoll w/o CHECKATTACH when !handler_context */
+extern void gasnetc_sndrcv_poll(int handler_context) {
+  gasnetc_do_poll(!handler_context, 1);
 }
 
 extern void gasnetc_counter_wait_aux(gasnetc_counter_t *counter, int handler_context)
