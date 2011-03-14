@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/13 07:30:19 $
- * $Revision: 1.44.2.16 $
+ *     $Date: 2011/03/14 22:47:46 $
+ * $Revision: 1.44.2.17 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -40,6 +40,8 @@
 gasnetc_qpn_t gasnetc_conn_qpn = 0;
 
 gasneti_semaphore_t gasnetc_zero_sema = GASNETI_SEMAPHORE_INITIALIZER(0, 0);
+
+int gasnetc_ud_rcvs = 0;
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -90,7 +92,8 @@ static gasneti_lifo_head_t sq_sema_freelist = GASNETI_LIFO_INITIALIZER;
 static void
 sq_sema_alloc(int count)
 {
-  gasneti_semaphore_t *p = gasneti_malloc(count * sizeof(gasneti_semaphore_t));
+  gasneti_semaphore_t *p = (gasneti_semaphore_t *)
+          gasnett_malloc_aligned(GASNETI_CACHE_LINE_BYTES, count * sizeof(gasneti_semaphore_t));
   int i;
 
   for (i=0; i<count; ++i, ++p) {
@@ -799,9 +802,12 @@ typedef struct {
 } gasnetc_ud_snd_desc_t;
 
 static gasnetc_qpn_t *conn_remote_ud_qpn = NULL;
-static gasnetc_qp_hndl_t conn_ud_qp = GASNETC_IB_CHOOSE(VAPI_INVAL_HNDL, NULL);
 static gasneti_lifo_head_t conn_snd_freelist = GASNETI_LIFO_INITIALIZER;
+
+/* TODO: group the following into a UD-endpoint struct */
+static gasnetc_qp_hndl_t conn_ud_qp = GASNETC_IB_CHOOSE(VAPI_INVAL_HNDL, NULL);
 static gasnetc_port_info_t *conn_ud_port = NULL;
+static gasnetc_hca_t *conn_ud_hca = NULL;
 
 #define GASNETC_GRH_SIZE 40 /* Global Route Header is always 40 bytes */
 #define GASNETC_UD_QKEY 0x5551212
@@ -810,7 +816,6 @@ static gasnetc_port_info_t *conn_ud_port = NULL;
 static gasnetc_ah_t
 gasnetc_create_ah(gasnet_node_t node)
 {
-  gasnetc_hca_t *hca = &gasnetc_hca[conn_ud_port->hca_index];
   gasnetc_ah_attr_t ah_attr;
   gasnetc_ah_t result;
 
@@ -824,7 +829,7 @@ gasnetc_create_ah(gasnet_node_t node)
     ah_attr.dlid          = conn_ud_port->remote_lids[node];
     ah_attr.port          = conn_ud_port->port_num;
 
-    vstat = VAPI_create_addr_hndl(hca->handle, hca->pd, &ah_attr, &result);
+    vstat = VAPI_create_addr_hndl(conn_ud_hca->handle, conn_ud_hca->pd, &ah_attr, &result);
     GASNETC_VAPI_CHECK(vstat, "from VAPI_create_addr_hndl()");
   }
 #else
@@ -835,7 +840,7 @@ gasnetc_create_ah(gasnet_node_t node)
     ah_attr.dlid          = conn_ud_port->remote_lids[node];
     ah_attr.port_num      = conn_ud_port->port_num;
 
-    result = ibv_create_ah(hca->pd, &ah_attr);
+    result = ibv_create_ah(conn_ud_hca->pd, &ah_attr);
     GASNETC_VAPI_CHECK_PTR(result, "from ibv_create_ah()");
   }
 #endif
@@ -847,8 +852,7 @@ static void
 gasnetc_destroy_ah(gasnetc_ah_t ah)
 {
 #if GASNET_CONDUIT_VAPI
-  gasnetc_hca_t *hca = &gasnetc_hca[conn_ud_port->hca_index];
-  int vstat = VAPI_destroy_addr_hndl(hca->handle, ah);
+  int vstat = VAPI_destroy_addr_hndl(conn_ud_hca->handle, ah);
   GASNETC_VAPI_CHECK(vstat, "from VAPI_destroy_addr_hndl()");
 #else
   int vstat = ibv_destroy_ah(ah);
@@ -864,8 +868,7 @@ gasnetc_rcv_post_ud(gasnetc_ud_rcv_desc_t *desc)
 
 #if GASNET_CONDUIT_VAPI
   { /* XXX: Not yet tested */
-    gasnetc_hca_t *hca = &gasnetc_hca[conn_ud_port->hca_index];
-    vstat = VAPI_post_rr(hca->handle, conn_ud_qp, &desc->wr);
+    vstat = VAPI_post_rr(conn_ud_hca->handle, conn_ud_qp, &desc->wr);
   }
 #else
   {
@@ -879,17 +882,27 @@ gasnetc_rcv_post_ud(gasnetc_ud_rcv_desc_t *desc)
 
 /* Post a work request to the send queue of the UD QP */
 static void
-gasnetc_snd_post_ud(gasnetc_ud_snd_desc_t *desc, gasnet_node_t node)
+gasnetc_snd_post_ud(gasnetc_ud_snd_desc_t *desc, gasnet_node_t node, int is_reply)
 {
-  gasnetc_hca_t *hca = &gasnetc_hca[conn_ud_port->hca_index];
+  gasneti_semaphore_t *snd_cq_sema_p = conn_ud_hca->snd_cq_sema_p;
   gasnetc_snd_wr_t *wr = &desc->wr;
   int vstat;
 
   desc->ah = gasnetc_create_ah(node);
 
+  /* Loop until space is available for 1 new entry on the CQ. */
+  if_pf (!gasneti_semaphore_trydown(snd_cq_sema_p)) {
+    GASNETC_TRACE_WAIT_BEGIN();
+    do {
+      GASNETI_WAITHOOK();
+      gasnetc_sndrcv_poll(is_reply);
+    } while (!gasneti_semaphore_trydown(snd_cq_sema_p));
+    GASNETC_TRACE_WAIT_END(POST_SR_STALL_CQ);
+  }
+
 #if GASNET_CONDUIT_VAPI
   { /* XXX: Not yet implemented */
-    vstat = VAPI_post_sr(hca->handle, conn_ud_qp, wr);
+    vstat = VAPI_post_sr(conn_ud_hca->handle, conn_ud_qp, wr);
   }
 #else
   {
@@ -909,13 +922,12 @@ gasnetc_snd_post_ud(gasnetc_ud_snd_desc_t *desc, gasnet_node_t node)
 static int
 gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
 {
-    gasnetc_hca_t *hca = &gasnetc_hca[port->hca_index];
     gasnetc_qp_attr_t qp_attr;
     gasnetc_qp_mask_t qp_mask;
     int rc;
 
     /* TODO: tune these?  honor env vars? */
-    const int max_recv_wr = 4;
+    const int max_recv_wr = gasnetc_ud_rcvs;
     const int max_send_wr = 4;
 
     /* TODO: somehow compute the actual size - but max_regs is not known until attach */
@@ -923,6 +935,7 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
     const int recv_sz = send_sz + GASNETC_GRH_SIZE; /* recv size sees 40-byte GRH */
 
     conn_ud_port = port;
+    conn_ud_hca = &gasnetc_hca[port->hca_index];
 
     /* CREATE */
 #if GASNET_CONDUIT_VAPI
@@ -939,11 +952,11 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
     qp_init_attr.qp_type             = IBV_QPT_UD;
     qp_init_attr.sq_sig_all          = 1; /* XXX: Unless we drop 1-to-1 WQE/CQE relationship */
     qp_init_attr.srq                 = NULL;
-    qp_init_attr.send_cq             = hca->snd_cq;
-    qp_init_attr.recv_cq             = hca->rcv_cq;
+    qp_init_attr.send_cq             = conn_ud_hca->snd_cq;
+    qp_init_attr.recv_cq             = conn_ud_hca->rcv_cq;
     qp_init_attr.cap.max_inline_data = 0; /* XXX: Really should consider using to avoid registration */
 
-    conn_ud_qp = ibv_create_qp(hca->pd, &qp_init_attr);
+    conn_ud_qp = ibv_create_qp(conn_ud_hca->pd, &qp_init_attr);
     if_pf (NULL == conn_ud_qp) return GASNET_ERR_RESOURCE;
     gasnetc_conn_qpn = conn_ud_qp->qp_num;
   }
@@ -1037,6 +1050,8 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
         desc->wr.opcode               = GASNETC_WR_SEND_WITH_IMM;
       #if GASNET_CONDUIT_VAPI
         desc->wr.comp_type            = VAPI_SIGNALED;
+        desc->wr.set_se               = 0;
+        desc->wr.fence                = 0;
       #else   
         desc->wr.send_flags           = (enum ibv_send_flags)0;
         desc->wr.next                 = NULL;
@@ -1062,7 +1077,7 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
   uint8_t *buf = (uint8_t *)(uintptr_t)desc->sg.addr;
 
   /* TODO: we need to process the message here */
-  fprintf(stderr, "%d> rcv %d bytes\n", gasneti_mynode, (int)comp->byte_len);
+  fprintf(stderr, "%d> rcv %d bytes from %d\n", gasneti_mynode, (int)comp->byte_len, (int)comp->imm_data);
 
   gasnetc_rcv_post_ud(desc);
 }
@@ -1071,6 +1086,8 @@ extern void
 gasnetc_conn_snd_wc(gasnetc_wc_t *comp)
 {
   gasnetc_ud_snd_desc_t *desc = (void *)(uintptr_t)comp->gasnetc_f_wr_id;
+
+  gasneti_semaphore_up(conn_ud_hca->snd_cq_sema_p);
   gasnetc_destroy_ah(desc->ah);
   gasneti_lifo_push(&conn_snd_freelist, desc);
 }
@@ -1444,6 +1461,17 @@ done:
   /* XXX: Needs to move to attach stage to get max_reg */
   {
     gasnetc_qp_setup_ud(&gasnetc_port_tbl[0]);
+#if 0 /* Generate UD traffic for testing */
+    for (node = 1; node < gasneti_nodes; ++node) {
+      gasnetc_ud_snd_desc_t *desc;
+      do {
+        gasnetc_sndrcv_poll(0);
+        desc = gasneti_lifo_pop(&conn_snd_freelist);
+      } while (!desc);
+      desc->wr.imm_data = gasneti_mynode;
+      gasnetc_snd_post_ud(desc, (gasneti_mynode + node) % gasneti_nodes, 0);
+    }
+#endif
   }
 #endif
 
@@ -1478,6 +1506,13 @@ gasnetc_connect_init(void)
   /* Must we disable barrier AMs from all but the supernode representative? */
   if (gasnet_getenv("GASNET_CONNECTFILE_IN") || gasnet_getenv("GASNET_CONNECTFILE_OUT")) {
     gasnete_barrier_fixed = 1;
+  }
+
+  /* Default to handling 2*lg(remote_nodes) incomming connection requests */
+  /* TODO: tune?  honor env vars? */
+  gasnetc_ud_rcvs = 1; 
+  while ((1 << gasnetc_ud_rcvs) < (2 * (int)gasnetc_remote_nodes)) {
+    ++gasnetc_ud_rcvs;
   }
 
   return GASNET_OK;
