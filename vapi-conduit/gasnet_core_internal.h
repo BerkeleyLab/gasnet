@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2011/03/14 20:14:54 $
- * $Revision: 1.205.2.3 $
+ *     $Date: 2011/03/14 22:47:46 $
+ * $Revision: 1.205.2.4 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -483,6 +483,7 @@ typedef struct {
   struct ibv_srq	*repl_srq;
   gasneti_semaphore_t	am_sema;
 #endif
+  gasneti_semaphore_t	*snd_cq_sema_p;
 #if GASNETC_IBV_XRC
   struct ibv_xrc_domain *xrc_domain;
 #endif
@@ -675,6 +676,7 @@ extern int		gasnetc_op_oust_pp;
 extern int		gasnetc_am_oust_limit;
 extern int		gasnetc_am_oust_pp;
 extern int		gasnetc_bbuf_limit;
+extern int		gasnetc_ud_rcvs;
 extern int		gasnetc_use_rcv_thread;
 extern int		gasnetc_am_credits_slack;
 extern int		gasnetc_alloc_qps;    /* Number of QPs per node in gasnetc_ceps[] */
