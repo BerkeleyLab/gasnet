@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/14 22:47:46 $
- * $Revision: 1.44.2.17 $
+ *     $Date: 2011/03/14 23:47:36 $
+ * $Revision: 1.44.2.18 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -84,6 +84,8 @@ typedef struct {
 
 static int gasnetc_connectfile_in_base  = 10; /* Defaults to human readable/writable */
 static int gasnetc_connectfile_out_base = 36; /* Defaults to most compact */
+
+static int gasnetc_fully_connected = 0;
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -808,6 +810,7 @@ static gasneti_lifo_head_t conn_snd_freelist = GASNETI_LIFO_INITIALIZER;
 static gasnetc_qp_hndl_t conn_ud_qp = GASNETC_IB_CHOOSE(VAPI_INVAL_HNDL, NULL);
 static gasnetc_port_info_t *conn_ud_port = NULL;
 static gasnetc_hca_t *conn_ud_hca = NULL;
+static int conn_ud_msg_sz = -1;
 
 #define GASNETC_GRH_SIZE 40 /* Global Route Header is always 40 bytes */
 #define GASNETC_UD_QKEY 0x5551212
@@ -930,12 +933,19 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
     const int max_recv_wr = gasnetc_ud_rcvs;
     const int max_send_wr = 4;
 
-    /* TODO: somehow compute the actual size - but max_regs is not known until attach */
-    const int send_sz = 128;
+    /* TODO: if/when rkeys are passed dynamically too this will need to account for them too */
+  #if GASNETC_IBV_XRC
+    const int send_sz = gasnetc_alloc_qps *
+                            (gasnetc_use_xrc ? sizeof(gasnetc_xrc_conn_data_t)
+                                             : sizeof(gasnetc_qpn_t));
+  #else
+    const int send_sz = gasnetc_alloc_qps * sizeof(gasnetc_qpn_t);
+  #endif
     const int recv_sz = send_sz + GASNETC_GRH_SIZE; /* recv size sees 40-byte GRH */
 
     conn_ud_port = port;
     conn_ud_hca = &gasnetc_hca[port->hca_index];
+    conn_ud_msg_sz = send_sz;
 
     /* CREATE */
 #if GASNET_CONDUIT_VAPI
@@ -1070,6 +1080,40 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
     return GASNET_OK;
 } /* setup_ud */
 
+extern int
+gasnetc_connect_init_dynamic(void)
+{
+
+#if !GASNETC_DEBUG_CONNECT
+  if (gasnetc_fully_connected) return GASNET_OK;
+#endif
+
+  /* TODO: allow env var to disable dynamic connections */
+
+#if GASNET_CONDUIT_VAPI
+  /* XXX: Not (yet?) implemented for VAPI */
+  return GASNET_OK;
+#endif
+
+  gasnetc_qp_setup_ud(&gasnetc_port_tbl[0]);
+
+#if 0 /* Generate UD traffic for testing */
+  { gasnet_node_t offset;
+    for (offset = 1; offset < gasneti_nodes; ++offset) {
+        gasnetc_ud_snd_desc_t *desc;
+        do {
+            gasnetc_sndrcv_poll(0);
+            desc = gasneti_lifo_pop(&conn_snd_freelist);
+        } while (!desc);
+        desc->wr.imm_data = gasneti_mynode;
+        gasnetc_snd_post_ud(desc, (gasneti_mynode + offset) % gasneti_nodes, 0);
+    }
+  }
+#endif
+
+  return GASNET_OK;
+} /* gasnetc_connect_init_dynamic */
+
 extern void
 gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
 {
@@ -1091,6 +1135,7 @@ gasnetc_conn_snd_wc(gasnetc_wc_t *comp)
   gasnetc_destroy_ah(desc->ah);
   gasneti_lifo_push(&conn_snd_freelist, desc);
 }
+
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -1456,24 +1501,7 @@ done:
 #endif
   gasneti_free(peer_mask);
 
-#if GASNET_CONDUIT_IBV
-  /* XXX: Not (yet?) implemented for VAPI */
-  /* XXX: Needs to move to attach stage to get max_reg */
-  {
-    gasnetc_qp_setup_ud(&gasnetc_port_tbl[0]);
-#if 0 /* Generate UD traffic for testing */
-    for (node = 1; node < gasneti_nodes; ++node) {
-      gasnetc_ud_snd_desc_t *desc;
-      do {
-        gasnetc_sndrcv_poll(0);
-        desc = gasneti_lifo_pop(&conn_snd_freelist);
-      } while (!desc);
-      desc->wr.imm_data = gasneti_mynode;
-      gasnetc_snd_post_ud(desc, (gasneti_mynode + node) % gasneti_nodes, 0);
-    }
-#endif
-  }
-#endif
+  gasnetc_fully_connected = (static_nodes == gasnetc_remote_nodes);
 
   return GASNET_OK;
 } /* gasnetc_connect_static */
