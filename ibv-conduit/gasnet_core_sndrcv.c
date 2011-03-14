@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2011/03/14 20:14:54 $
- * $Revision: 1.276.2.3 $
+ *     $Date: 2011/03/14 22:47:46 $
+ * $Revision: 1.276.2.4 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3220,7 +3220,7 @@ extern int gasnetc_sndrcv_init(void) {
   /* create one RCV CQ per HCA */
   GASNETC_FOR_ALL_HCA(hca) {
     const int rcv_count = hca->qps * gasnetc_am_rbufs_per_qp;
-    const gasnetc_cqe_cnt_t cqe_count = rcv_count;
+    const gasnetc_cqe_cnt_t cqe_count = rcv_count + (!hca->hca_index ? gasnetc_ud_rcvs : 0);
     vstat = gasnetc_create_cq(hca->handle, cqe_count, &hca->rcv_cq, &act_size);
     GASNETC_VAPI_CHECK(vstat, "from gasnetc_create_cq(rcv_cq)");
     GASNETI_TRACE_PRINTF(I, ("Recv CQ length: requested=%d actual=%d", (int)cqe_count, (int)act_size));
@@ -3384,6 +3384,7 @@ extern int gasnetc_sndrcv_init(void) {
     gasneti_assert(act_size >= cqe_count);
     /* We use actual size here, since the memory has been allocated anyway */
     gasneti_semaphore_init(&gasnetc_cq_semas[hca->hca_index], act_size, act_size);
+    hca->snd_cq_sema_p = &gasnetc_cq_semas[hca->hca_index];
   }
 
   /* Allocated pinned memory for AMs and bounce buffers
