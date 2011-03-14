@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2011/02/26 21:25:13 $
- * $Revision: 1.279 $
+ *     $Date: 2011/03/14 20:14:54 $
+ * $Revision: 1.279.2.1 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1805,7 +1805,7 @@ static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
   /* Wait for our children (if any) */
   while (gasneti_atomic_read(&gasnetc_exit_reds, 0) < gasnetc_exit_children) {
     if (gasneti_ticks_to_ns(gasneti_ticks_now() - start_time) / 1000 > timeout_us) return -1;
-    gasnetc_sndrcv_poll();
+    gasnetc_sndrcv_poll(0);
     if (gasneti_atomic_read(&gasnetc_exit_reqs, 0)) return -1;
   }
 
@@ -1820,7 +1820,7 @@ static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
 
     do {
       if (gasneti_ticks_to_ns(gasneti_ticks_now() - start_time) / 1000 > timeout_us) return -1;
-      gasnetc_sndrcv_poll();
+      gasnetc_sndrcv_poll(0);
       if (gasneti_atomic_read(&gasnetc_exit_reqs, 0)) return -1;
     } while (gasneti_atomic_read(&gasnetc_exit_reds, 0) == gasnetc_exit_children);
     exitcode = gasneti_atomic_read(&gasnetc_exit_code, GASNETI_ATOMIC_RMB_PRE);
@@ -1832,7 +1832,7 @@ static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
                                gasneti_handleridx(gasnetc_SYS_exit_reduce),
                                1, exitcode);
     if (rc != GASNET_OK) return -1;
-    gasnetc_sndrcv_poll();
+    gasnetc_sndrcv_poll(0);
     if (gasneti_atomic_read(&gasnetc_exit_reqs, 0)) return -1;
     if (gasneti_ticks_to_ns(gasneti_ticks_now() - start_time) / 1000 > timeout_us) return -1;
   }
@@ -1930,7 +1930,7 @@ static int gasnetc_get_exit_role(void)
 
     /* Now spin until somebody tells us what our role is */
     do {
-      gasnetc_sndrcv_poll(); /* works even before _attach */
+      gasnetc_sndrcv_poll(0); /* works even before _attach */
       role = gasneti_atomic_read(&gasnetc_exit_role, 0);
     } while (role == GASNETC_EXIT_ROLE_UNKNOWN);
   }
@@ -2116,7 +2116,7 @@ static int gasnetc_exit_master(int exitcode, int64_t timeout_us) {
   while (gasneti_atomic_read(&gasnetc_exit_reps, 0) < (gasneti_nodes - 1)) {
     if (gasneti_ticks_to_ns(gasneti_ticks_now() - start_time) / 1000 > timeout_us) return -1;
 
-    gasnetc_sndrcv_poll(); /* works even before _attach */
+    gasnetc_sndrcv_poll(0); /* works even before _attach */
   }
 
   return 0;
@@ -2141,7 +2141,7 @@ static int gasnetc_exit_slave(int64_t timeout_us) {
   while (gasneti_atomic_read(&gasnetc_exit_reqs, 0) == 0) {
     if (gasneti_ticks_to_ns(gasneti_ticks_now() - start_time) / 1000 > timeout_us) return -1;
 
-    gasnetc_sndrcv_poll(); /* works even before _attach */
+    gasnetc_sndrcv_poll(0); /* works even before _attach */
   }
 
   /* wait until out reply has been placed on the wire */
