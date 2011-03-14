@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2011/03/14 22:47:46 $
- * $Revision: 1.205.2.4 $
+ *     $Date: 2011/03/14 23:47:36 $
+ * $Revision: 1.205.2.5 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -90,7 +90,9 @@ extern gasneti_atomic_t gasnetc_exit_running;
 /* May eventually be a hash? */
 #define GASNETC_NODE2CEP(_node) (gasnetc_node2cep[_node])
 
+#ifndef GASNETC_DEBUG_CONNECT
 #define GASNETC_DEBUG_CONNECT 0
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 #define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
@@ -628,6 +630,7 @@ typedef struct {
 /* Routines in gasnet_core_connect.c */
 extern int gasnetc_connect_static(void);
 extern int gasnetc_connect_init(void);
+extern int gasnetc_connect_init_dynamic(void);
 extern int gasnetc_connect_fini(void);
 extern void gasnetc_conn_rcv_wc(gasnetc_wc_t *comp);
 extern void gasnetc_conn_snd_wc(gasnetc_wc_t *comp);
