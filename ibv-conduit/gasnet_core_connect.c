@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/14 23:47:36 $
- * $Revision: 1.44.2.18 $
+ *     $Date: 2011/03/15 00:55:41 $
+ * $Revision: 1.44.2.19 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -811,6 +811,7 @@ static gasnetc_qp_hndl_t conn_ud_qp = GASNETC_IB_CHOOSE(VAPI_INVAL_HNDL, NULL);
 static gasnetc_port_info_t *conn_ud_port = NULL;
 static gasnetc_hca_t *conn_ud_hca = NULL;
 static int conn_ud_msg_sz = -1;
+static gasnetc_memreg_t conn_ud_mem_reg;
 
 #define GASNETC_GRH_SIZE 40 /* Global Route Header is always 40 bytes */
 #define GASNETC_UD_QKEY 0x5551212
@@ -921,12 +922,71 @@ gasnetc_snd_post_ud(gasnetc_ud_snd_desc_t *desc, gasnet_node_t node, int is_repl
   GASNETC_VAPI_CHECK(vstat, "while posting a UD send work request");
 }
 
+typedef enum {
+  GASNETC_CONN_CMD_REQ = 1,
+  GASNETC_CONN_CMD_REP,
+  GASNETC_CONN_CMD_RTU,
+  GASNETC_CONN_CMD_ACK,
+} gasnetc_conn_cmd_t;
+
+static gasnetc_ud_snd_desc_t *
+conn_get_snd_desc(gasnetc_conn_cmd_t cmd, int is_reply)
+{
+  gasnetc_ud_snd_desc_t *desc;
+  while (NULL == (desc = gasneti_lifo_pop(&conn_snd_freelist))) {
+    gasnetc_sndrcv_poll(is_reply);
+  }
+  desc->wr.imm_data = cmd | (gasneti_mynode << 16);
+  return desc;
+}
+
+static void
+conn_send_data(gasnet_node_t node, gasnetc_conn_info_t *conn_info, int is_reply)
+{
+  gasnetc_conn_cmd_t cmd = is_reply ? GASNETC_CONN_CMD_REP : GASNETC_CONN_CMD_REQ;
+  gasnetc_ud_snd_desc_t *desc = conn_get_snd_desc(cmd, is_reply);
+  void *buf = (void *)(uintptr_t)desc->sg.addr;
+
+#if GASNETC_IBV_XRC
+  if (gasnetc_use_xrc) {
+    gasnetc_xrc_conn_data_t *data = (gasnetc_xrc_conn_data_t *)buf;
+    int qpi;
+
+    for (qpi = 0; qpi < gasnetc_alloc_qps; ++qpi) {
+      gasnetc_hca_t *hca = conn_info->cep[qpi].hca;
+      struct ibv_srq *srq = GASNETC_QPI_IS_REQ(qpi) ? hca->rqst_srq : hca->repl_srq;
+      data[qpi].srq_num = srq->xrc_srq_num;
+      data[qpi].xrc_qpn = conn_info->local_xrc_qpn[qpi];
+      data[qpi].qpn     = conn_info->local_qpn[qpi];
+    }
+  } else
+#else
+  {
+    memcpy(data, conn_info->local_qpn, conn_ud_msg_sz);
+  }
+#endif
+    
+  desc->sg.gasnetc_f_sg_len = conn_ud_msg_sz;
+  gasnetc_snd_post_ud(desc, node, is_reply);
+}
+
+static void
+conn_send_empty(gasnet_node_t node, int is_reply)
+{
+  gasnetc_conn_cmd_t cmd = is_reply ? GASNETC_CONN_CMD_ACK : GASNETC_CONN_CMD_RTU;
+  gasnetc_ud_snd_desc_t *desc = conn_get_snd_desc(cmd, is_reply);
+
+  desc->sg.gasnetc_f_sg_len = GASNETC_ALLOW_0BYTE_MSG ? 0 : 1;
+  gasnetc_snd_post_ud(desc, node, is_reply);
+}
+
 /* Create UD QP and advance all the way to RTS */
 static int
 gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
 {
     gasnetc_qp_attr_t qp_attr;
     gasnetc_qp_mask_t qp_mask;
+    uintptr_t addr;
     int rc;
 
     /* TODO: tune these?  honor env vars? */
@@ -972,6 +1032,21 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
   }
 #endif
 
+    /* Allocate pinned memory */
+    { const size_t size = GASNETI_PAGE_ALIGNUP((max_send_wr * send_sz) + /* XXX: Omit send if inline */
+                                               (max_recv_wr * recv_sz));
+      void *buf = gasneti_mmap(size);
+      if_pf (MAP_FAILED == buf) {
+        gasneti_fatalerror("Failed to allocate memory for dynamic connection setup");
+      }
+
+      rc = gasnetc_pin(&gasnetc_hca[0], buf, size,
+                       GASNETC_ACL_LOC_WR, &conn_ud_mem_reg);
+      GASNETC_VAPI_CHECK(rc, "while pinning memory for dynamic connection setup");
+
+      addr = (uintptr_t)buf;
+    }
+
 #if GASNET_CONDUIT_VAPI
     /* XXX: Not yet */
 #else
@@ -986,21 +1061,11 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
 #endif
 
     /* Post RCVs */
-    { const size_t size = GASNETI_PAGE_ALIGNUP(max_recv_wr * recv_sz);
-      uint8_t *buf = gasneti_mmap(size);
-      gasnetc_ud_rcv_desc_t *desc;
-      gasnetc_memreg_t mem_reg;
+    { gasnetc_ud_rcv_desc_t *desc;
       int i;
 
-      if_pf (MAP_FAILED == buf) {
-        gasneti_fatalerror("Failed to allocate recv space for dynamic connection setup");
-      }
-      rc = gasnetc_pin(&gasnetc_hca[0], buf, size,
-                       GASNETC_ACL_LOC_WR, &mem_reg);
-      GASNETC_VAPI_CHECK(rc, "while pinning recv space for dynamic connection setup");
-
       desc = gasneti_malloc(max_recv_wr * sizeof(gasnetc_ud_rcv_desc_t));
-      for (i = 0; i < max_recv_wr; ++i, ++desc) {
+      for (i = 0; i < max_recv_wr; ++i, ++desc, addr += recv_sz) {
         desc->wr.gasnetc_f_wr_num_sge = 1;
         desc->wr.gasnetc_f_wr_sg_list = &desc->sg;
         desc->wr.gasnetc_f_wr_id      = (uintptr_t)desc;   /* CQE will point back to this request */
@@ -1010,9 +1075,11 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
       #else   
         desc->wr.next                 = NULL;
       #endif  
-        desc->sg.gasnetc_f_sg_len = recv_sz;
-        desc->sg.addr             = (uintptr_t)buf + (i * recv_sz);
-        desc->sg.lkey             = mem_reg.lkey;
+      #if GASNET_DEBUG
+        desc->sg.gasnetc_f_sg_len = ~0;
+      #endif  
+        desc->sg.addr             = addr;
+        desc->sg.lkey             = conn_ud_mem_reg.lkey;
         gasnetc_rcv_post_ud(desc);
       }
     }
@@ -1039,21 +1106,11 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
 #endif
 
     /* Create SNDs */
-    { const size_t size = GASNETI_PAGE_ALIGNUP(max_send_wr * send_sz);
-      uint8_t *buf = gasneti_mmap(size);
-      gasnetc_ud_snd_desc_t *desc;
-      gasnetc_memreg_t mem_reg;
+    { gasnetc_ud_snd_desc_t *desc;
       int i;
 
-      if_pf (MAP_FAILED == buf) {
-        gasneti_fatalerror("Failed to allocate send space for dynamic connection setup");
-      }
-      rc = gasnetc_pin(&gasnetc_hca[0], buf, size,
-                       GASNETC_ACL_LOC_WR, &mem_reg);
-      GASNETC_VAPI_CHECK(rc, "while pinning send space for dynamic connection setup");
-
       desc = gasneti_malloc(max_send_wr * sizeof(gasnetc_ud_snd_desc_t));
-      for (i = 0; i < max_send_wr; ++i, ++desc) {
+      for (i = 0; i < max_send_wr; ++i, ++desc, addr += send_sz) {
         desc->wr.gasnetc_f_wr_num_sge = 1;
         desc->wr.gasnetc_f_wr_sg_list = &desc->sg;
         desc->wr.gasnetc_f_wr_id      = (uintptr_t)desc;   /* CQE will point back to this request */
@@ -1067,8 +1124,8 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
         desc->wr.next                 = NULL;
       #endif  
         desc->sg.gasnetc_f_sg_len = send_sz;
-        desc->sg.addr             = (uintptr_t)buf + (i * send_sz);
-        desc->sg.lkey             = mem_reg.lkey;
+        desc->sg.addr             = addr;
+        desc->sg.lkey             = conn_ud_mem_reg.lkey;
         gasneti_lifo_push(&conn_snd_freelist, desc);
       }
     }
@@ -1100,13 +1157,7 @@ gasnetc_connect_init_dynamic(void)
 #if 0 /* Generate UD traffic for testing */
   { gasnet_node_t offset;
     for (offset = 1; offset < gasneti_nodes; ++offset) {
-        gasnetc_ud_snd_desc_t *desc;
-        do {
-            gasnetc_sndrcv_poll(0);
-            desc = gasneti_lifo_pop(&conn_snd_freelist);
-        } while (!desc);
-        desc->wr.imm_data = gasneti_mynode;
-        gasnetc_snd_post_ud(desc, (gasneti_mynode + offset) % gasneti_nodes, 0);
+      conn_send_empty((gasneti_mynode + offset) % gasneti_nodes, 0);
     }
   }
 #endif
@@ -1119,9 +1170,12 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
 {
   gasnetc_ud_rcv_desc_t *desc = (gasnetc_ud_rcv_desc_t *)(uintptr_t)comp->gasnetc_f_wr_id;
   uint8_t *buf = (uint8_t *)(uintptr_t)desc->sg.addr;
+  int len = comp->byte_len;
+  gasnetc_conn_cmd_t cmd = comp->imm_data & 0xff;
+  gasnet_node_t srcid = comp->imm_data >> 16;
 
   /* TODO: we need to process the message here */
-  fprintf(stderr, "%d> rcv %d bytes from %d\n", gasneti_mynode, (int)comp->byte_len, (int)comp->imm_data);
+  fprintf(stderr, "%d> rcv %d bytes, cmd %d, from %d\n", gasneti_mynode, len, cmd, srcid);
 
   gasnetc_rcv_post_ud(desc);
 }
