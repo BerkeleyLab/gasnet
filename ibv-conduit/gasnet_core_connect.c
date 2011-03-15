@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/15 00:55:41 $
- * $Revision: 1.44.2.19 $
+ *     $Date: 2011/03/15 20:44:27 $
+ * $Revision: 1.44.2.20 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -960,11 +960,10 @@ conn_send_data(gasnet_node_t node, gasnetc_conn_info_t *conn_info, int is_reply)
       data[qpi].qpn     = conn_info->local_qpn[qpi];
     }
   } else
-#else
-  {
-    memcpy(data, conn_info->local_qpn, conn_ud_msg_sz);
-  }
 #endif
+  {
+    memcpy(buf, conn_info->local_qpn, conn_ud_msg_sz);
+  }
     
   desc->sg.gasnetc_f_sg_len = conn_ud_msg_sz;
   gasnetc_snd_post_ud(desc, node, is_reply);
