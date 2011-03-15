@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/15 21:46:22 $
- * $Revision: 1.44.2.21 $
+ *     $Date: 2011/03/15 23:18:18 $
+ * $Revision: 1.44.2.22 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -779,6 +779,7 @@ gasnetc_qp_rtr2rts(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
         }
       }
 
+      gasnetc_sndrcv_init_inline();
       gasneti_sync_writes();
       cep->sq_sema_p = sq_sema_p;
     }
@@ -1393,7 +1394,7 @@ gasnetc_connect_static(void)
   gasnet_node_t         static_supernodes = gasneti_nodemap_global_count - 1;
 #endif
   int                   i, qpi;
-  size_t                orig_inline_limit = gasnetc_inline_limit;
+  int                   orig_inline_limit = gasnetc_inline_limit;
   gasnetc_cep_t         *cep; /* First cep of given node */
   uint8_t               *peer_mask = NULL;
 #if GASNETC_DEBUG_CONNECT
@@ -1582,7 +1583,6 @@ gasnetc_connect_static(void)
               (int)orig_inline_limit, (int)gasnetc_inline_limit);
   }
   GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_INLINESEND_LIMIT = %d", (int)gasnetc_inline_limit));
-  gasnetc_sndrcv_init_inline();
 
 done:
 #if GASNETC_IBV_XRC

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2011/03/15 21:46:22 $
- * $Revision: 1.276.2.6 $
+ *     $Date: 2011/03/15 23:18:18 $
+ * $Revision: 1.276.2.7 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -48,14 +48,11 @@
  * ------------------------------------------------------------------------------------ */
 size_t					gasnetc_fh_align;
 size_t					gasnetc_fh_align_mask;
-size_t                   		gasnetc_inline_limit;
-size_t                   		gasnetc_am_inline_limit_sndrcv = 0;
-size_t                   		gasnetc_am_inline_limit_rdma = 0;
+volatile int                            gasnetc_inline_limit;
 size_t                   		gasnetc_bounce_limit;
 size_t					gasnetc_packedlong_limit;
 #if !GASNETC_PIN_SEGMENT
   size_t				gasnetc_putinmove_limit;
-  size_t				gasnetc_putinmove_limit_adjusted = 0;
 #endif
 int					gasnetc_use_rcv_thread = GASNETC_IB_RCV_THREAD;
 #if GASNETC_FH_OPTIONAL
@@ -222,6 +219,12 @@ typedef struct {
 /* ------------------------------------------------------------------------------------ *
  *  File-scoped variables
  * ------------------------------------------------------------------------------------ */
+
+static volatile int                     gasnetc_am_inline_limit_sndrcv = 0;
+static volatile int                     gasnetc_am_inline_limit_rdma = 0;
+#if !GASNETC_PIN_SEGMENT
+  static volatile int                   gasnetc_putinmove_limit_adjusted = 0;
+#endif
 
 static gasneti_lifo_head_t		gasnetc_bbuf_freelist = GASNETI_LIFO_INITIALIZER;
 
@@ -2825,6 +2828,7 @@ size_t gasnetc_fh_put_helper(gasnet_node_t node, gasnetc_sreq_t *sreq,
 		          uintptr_t loc_addr, uintptr_t rem_addr, size_t len) {
   const firehose_request_t *fh_rem;
   size_t putinmove = sreq->fh_putinmove = 0;
+  const int inline_limit = gasnetc_inline_limit;
 
   sreq->fh_rem_addr = rem_addr;
   sreq->fh_loc_addr = loc_addr;
@@ -2871,7 +2875,7 @@ size_t gasnetc_fh_put_helper(gasnet_node_t node, gasnetc_sreq_t *sreq,
    * done by the put-in-move optimization, under the assumption that
    * the original request len is representative of future requests.
    */
-  if ((len <= gasnetc_inline_limit) ||
+  if ((len <= inline_limit) ||
 	((sreq->mem_oust != NULL) && (len <= gasnetc_bounce_limit))) {
     sreq->fh_count = 1; /* Just the remote one */
   } else {
@@ -2895,7 +2899,7 @@ size_t gasnetc_fh_put_helper(gasnet_node_t node, gasnetc_sreq_t *sreq,
     sreq->fh_rem_addr += putinmove;
     sreq->fh_loc_addr += putinmove;
 
-    if (nbytes <= gasnetc_inline_limit) {
+    if (nbytes <= inline_limit) {
       /* Inline when small enough */
       sreq->opcode = GASNETC_OP_PUT_INLINE;
       if_pf (fh_rem == NULL) { /* Memory will be copied asynchronously */
@@ -3520,14 +3524,25 @@ extern void gasnetc_sndrcv_init_peer(gasnet_node_t node) {
   }
 }
 
+/* "apply" any changes to gasnetc_inline_limit to the AM-related versions */
+/* Care is taken to have exactly one read from or one write to the volatile vars */
 extern void gasnetc_sndrcv_init_inline(void) {
-  gasnetc_am_inline_limit_sndrcv = MIN(gasnetc_inline_limit, sizeof(gasnetc_am_tmp_buf_t));
-  gasnetc_am_inline_limit_rdma = MAX(GASNETC_AMRDMA_HDRSZ, gasnetc_am_inline_limit_sndrcv) - GASNETC_AMRDMA_HDRSZ;
-#if !GASNETC_PIN_SEGMENT
-  gasnetc_putinmove_limit_adjusted = gasnetc_putinmove_limit
-	  				? (gasnetc_putinmove_limit + gasnetc_inline_limit)
+  static int saved = ~0;
+  int tmp = gasnetc_inline_limit;
+
+  if_pf (tmp != saved) {
+    saved = tmp;
+
+    tmp = MIN(tmp, sizeof(gasnetc_am_tmp_buf_t));
+
+    gasnetc_am_inline_limit_sndrcv = tmp;
+    gasnetc_am_inline_limit_rdma = MAX(GASNETC_AMRDMA_HDRSZ, tmp) - GASNETC_AMRDMA_HDRSZ;
+  #if !GASNETC_PIN_SEGMENT
+    gasnetc_putinmove_limit_adjusted = gasnetc_putinmove_limit
+	  				? (gasnetc_putinmove_limit + saved)
 					: 0;
-#endif
+  #endif
+  }
 }
 
 extern void gasnetc_sndrcv_attach_peer(gasnet_node_t node) {
@@ -3657,15 +3672,20 @@ extern int gasnetc_rdma_put(gasnetc_epid_t epid, void *src_ptr, void *dst_ptr, s
   GASNETC_PERTHREAD_LOOKUP;
   uintptr_t src = (uintptr_t)src_ptr;
   uintptr_t dst = (uintptr_t)dst_ptr;
+  int inline_limit;
 
   gasneti_assert(nbytes != 0);
+
+  /* pre-connect to ensure inline limit is known */
+  (void)gasnetc_get_cep(gasnetc_epid2node(epid));
+  inline_limit = gasnetc_inline_limit;
   
   do {
     /* Loop over contiguous pinned regions on remote end */
     size_t count = nbytes;
     const int rkey_index = gasnetc_get_rkey_index(epid, dst, &count);
 
-    if (count <= gasnetc_inline_limit) {
+    if (count <= inline_limit) {
       /* Use a short-cut for sends that are short enough.
        *
        * Note that we do this based only on the size of the request, without bothering to check whether
@@ -3748,6 +3768,9 @@ extern int gasnetc_rdma_put_fh(gasnetc_epid_t epid, void *src_ptr, void *dst_ptr
   uintptr_t dst = (uintptr_t)dst_ptr;
 
   gasneti_assert(nbytes != 0);
+
+  /* pre-connect to ensure inline limit is known */
+  (void)gasnetc_get_cep(gasnetc_epid2node(epid));
 
   do {
     gasnetc_sreq_t * const sreq = gasnetc_get_sreq(GASNETC_OP_INVALID GASNETC_PERTHREAD_PASS);
