@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2011/03/15 00:55:41 $
- * $Revision: 1.276.2.5 $
+ *     $Date: 2011/03/15 21:46:22 $
+ * $Revision: 1.276.2.6 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1050,6 +1050,15 @@ static int gasnetc_snd_reap(int limit) {
   return count;
 }
 
+GASNETI_INLINE(gasnetc_get_cep)
+gasnetc_cep_t *gasnetc_get_cep(gasnet_node_t node) {
+  gasnetc_cep_t *result = GASNETC_NODE2CEP(node);
+  if_pf (!result) {
+    result = gasnetc_connect_to(node);
+  }
+  return result;
+}
+
 /* Take *unbound* epid, return a qp number */
 GASNETI_INLINE(gasnetc_epid_select_qpi)
 gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid,
@@ -1094,7 +1103,7 @@ gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid,
 GASNETI_INLINE(gasnetc_bind_cep)
 gasnetc_cep_t *gasnetc_bind_cep(gasnetc_epid_t epid, gasnetc_sreq_t *sreq,
 				gasnetc_wr_opcode_t op, size_t len) {
-  gasnetc_cep_t *ceps = GASNETC_NODE2CEP(gasnetc_epid2node(epid));
+  gasnetc_cep_t *ceps = gasnetc_get_cep(gasnetc_epid2node(epid));
   gasnetc_cep_t *cep;
   int qpi;
 
@@ -1950,7 +1959,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
     } else {
       const int qp_offset = gasnetc_use_srq ? gasnetc_num_qps : 0;
       int qpi;
-      cep = GASNETC_NODE2CEP(dest) + qp_offset;
+      cep = gasnetc_get_cep(dest) + qp_offset;
 #if 0
       /* Bind to a specific queue pair, selecting by largest credits */
       qpi = 0;
