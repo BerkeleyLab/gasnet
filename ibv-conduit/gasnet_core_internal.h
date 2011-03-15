@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2011/03/14 23:47:36 $
- * $Revision: 1.205.2.5 $
+ *     $Date: 2011/03/15 00:55:41 $
+ * $Revision: 1.205.2.6 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -89,6 +89,9 @@ extern gasneti_atomic_t gasnetc_exit_running;
 
 /* May eventually be a hash? */
 #define GASNETC_NODE2CEP(_node) (gasnetc_node2cep[_node])
+
+/* Control via autoconf or runtime probe if/when we can determine which systems need this */
+#define GASNETC_ALLOW_0BYTE_MSG 0
 
 #ifndef GASNETC_DEBUG_CONNECT
 #define GASNETC_DEBUG_CONNECT 0
