@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2011/03/14 22:47:46 $
- * $Revision: 1.276.2.4 $
+ *     $Date: 2011/03/15 00:55:41 $
+ * $Revision: 1.276.2.5 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -42,9 +42,6 @@
 
 /* Define non-zero to allow loopback AMs to be assembled on the stack */
 #define GASNETC_LOOPBACK_AMS_ON_STACK 1
-
-/* Control via autoconf or runtime probe if/when we can determine which systems need this */
-#define GASNETC_ALLOW_0BYTE_MSG 0
 
 /* ------------------------------------------------------------------------------------ *
  *  Global variables                                                                    *
