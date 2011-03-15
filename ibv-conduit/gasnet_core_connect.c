@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/15 20:44:27 $
- * $Revision: 1.44.2.20 $
+ *     $Date: 2011/03/15 21:46:22 $
+ * $Revision: 1.44.2.21 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1163,6 +1163,49 @@ gasnetc_connect_init_dynamic(void)
 
   return GASNET_OK;
 } /* gasnetc_connect_init_dynamic */
+
+extern gasnetc_cep_t *
+gasnetc_connect_to(gasnet_node_t node)
+{
+  gasnetc_cep_t *result = NULL;
+
+  /* TODO: Implement the following sketch:
+
+    #if GASNETI_THREADS
+       LOCK
+       If connection in progress {
+         UNLOCK;
+         BLOCKUNTIL(complete);
+         return;
+       }
+       Create conn_info;
+       UNLOCK
+    #else
+       Create conn_info;
+    #endif
+    gasnetc_qp_create();
+    send REQ
+    gasnetc_reset2init();
+    GASNET_BLOCKUNTIL(REP or REQ rcvd); AND resend REQ on timeout
+    if (REQ rcvd && I am lesser node) { // active-active resolution
+      GASNET_BLOCKUNTIL(ACK rcvd);
+      return;
+    }
+    gasnetc_init2rtr();
+    install in NODE2CEP
+    send RTU
+    gasnetc_sndrcv_attach_peer();
+    GASNET_BLOCKUNTIL(ACK rcvd); AND resend RTU on timeout
+    gasnetc_rtr2rts();
+    gasnetc_sndrcv_init_inline(); - possible race w/ rts?
+    cleanup
+
+   */
+  gasneti_fatalerror("Node %d attempting unimplemnted dynamic connection to node %d",
+                     (int)gasneti_mynode, (int)node);
+
+  return result;
+}
 
 extern void
 gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
