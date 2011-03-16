@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/16 10:17:19 $
- * $Revision: 1.44.2.28 $
+ *     $Date: 2011/03/16 10:57:52 $
+ * $Revision: 1.44.2.29 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1067,6 +1067,9 @@ conn_send_empty(gasnet_node_t node, int is_reply)
 static int
 gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
 {
+  #if GASNET_CONDUIT_VAPI
+    VAPI_qp_cap_t qp_cap;
+  #endif
     gasnetc_qp_attr_t qp_attr;
     gasnetc_qp_mask_t qp_mask;
     uintptr_t addr;
@@ -1092,7 +1095,26 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
 
     /* CREATE */
 #if GASNET_CONDUIT_VAPI
-    /* XXX: Not yet */
+  {
+    VAPI_qp_init_attr_t qp_init_attr;
+    VAPI_qp_prop_t      qp_prop;
+
+    qp_init_attr.cap.max_oust_wr_sq = max_send_wr;
+    qp_init_attr.cap.max_oust_wr_rq = max_recv_wr;
+    qp_init_attr.cap.max_sg_size_sq = 1;
+    qp_init_attr.cap.max_sg_size_rq = 1;
+    qp_init_attr.rdd_hndl           = 0;
+    qp_init_attr.rq_sig_type        = VAPI_SIGNAL_REQ_WR;
+    qp_init_attr.sq_sig_type        = VAPI_SIGNAL_REQ_WR;
+    qp_init_attr.ts_type            = VAPI_TS_UD;
+    qp_init_attr.pd_hndl            = conn_ud_hca->pd;
+    qp_init_attr.rq_cq_hndl         = conn_ud_hca->rcv_cq;
+    qp_init_attr.sq_cq_hndl         = conn_ud_hca->snd_cq;
+
+    rc = VAPI_create_qp(conn_ud_hca->handle, &qp_init_attr, &conn_ud_qp, &qp_prop);
+    if (rc != 0) return GASNET_ERR_RESOURCE;
+    gasnetc_conn_qpn = qp_prop.qp_num;
+  }
 #else
   {
     struct ibv_qp_init_attr     qp_init_attr;
@@ -1101,13 +1123,13 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
     qp_init_attr.cap.max_recv_wr     = max_recv_wr;
     qp_init_attr.cap.max_send_sge    = 1;
     qp_init_attr.cap.max_recv_sge    = 1;
-    qp_init_attr.qp_context          = NULL; /* XXX: Can/should we use this? */
+    qp_init_attr.qp_context          = NULL;
     qp_init_attr.qp_type             = IBV_QPT_UD;
-    qp_init_attr.sq_sig_all          = 1; /* XXX: Unless we drop 1-to-1 WQE/CQE relationship */
+    qp_init_attr.sq_sig_all          = 1;
     qp_init_attr.srq                 = NULL;
     qp_init_attr.send_cq             = conn_ud_hca->snd_cq;
     qp_init_attr.recv_cq             = conn_ud_hca->rcv_cq;
-    qp_init_attr.cap.max_inline_data = 0; /* XXX: Really should consider using to avoid registration */
+    qp_init_attr.cap.max_inline_data = 0;
 
     conn_ud_qp = ibv_create_qp(conn_ud_hca->pd, &qp_init_attr);
     if_pf (NULL == conn_ud_qp) return GASNET_ERR_RESOURCE;
@@ -1130,10 +1152,21 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
       addr = (uintptr_t)buf;
     }
 
-#if GASNET_CONDUIT_VAPI
-    /* XXX: Not yet */
-#else
     /* RESET -> INIT */
+#if GASNET_CONDUIT_VAPI
+    QP_ATTR_MASK_CLR_ALL(qp_mask);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_QP_STATE);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_PKEY_IX);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_PORT);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_QKEY);
+    qp_attr.qp_state            = VAPI_INIT;
+    qp_attr.pkey_ix             = 0;
+    qp_attr.qkey                = GASNETC_UD_QKEY;
+    qp_attr.port                = port->port_num;
+
+    rc = VAPI_modify_qp(conn_ud_hca->handle, conn_ud_qp, &qp_attr, &qp_mask, &qp_cap);
+    GASNETC_VAPI_CHECK(rc, "from VAPI_modify_qp(UD INIT)");
+#else
     qp_mask = (enum ibv_qp_attr_mask)(IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_QKEY);
     qp_attr.qp_state        = IBV_QPS_INIT;
     qp_attr.pkey_index      = 0;
@@ -1169,7 +1202,11 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
 
     /* INIT -> RTR */
 #if GASNET_CONDUIT_VAPI
-    /* XXX: Not yet */
+    QP_ATTR_MASK_CLR_ALL(qp_mask);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_QP_STATE);
+    qp_attr.qp_state         = VAPI_RTR;
+    rc = VAPI_modify_qp(conn_ud_hca->handle, conn_ud_qp, &qp_attr, &qp_mask, &qp_cap);
+    GASNETC_VAPI_CHECK(rc, "from VAPI_modify_qp(UD RTR)");
 #else
     qp_mask = IBV_QP_STATE;
     qp_attr.qp_state        = IBV_QPS_RTR;
@@ -1179,7 +1216,13 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
 
     /* RTR -> RTS */
 #if GASNET_CONDUIT_VAPI
-    /* XXX: Not yet */
+    QP_ATTR_MASK_CLR_ALL(qp_mask);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_QP_STATE);
+    QP_ATTR_MASK_SET(qp_mask, QP_ATTR_SQ_PSN);
+    qp_attr.qp_state         = VAPI_RTS;
+    qp_attr.sq_psn           = 0xcafef00d;
+    rc = VAPI_modify_qp(conn_ud_hca->handle, conn_ud_qp, &qp_attr, &qp_mask, &qp_cap);
+    GASNETC_VAPI_CHECK(rc, "from VAPI_modify_qp(UD RTS)");
 #else
     qp_mask = (enum ibv_qp_attr_mask)(IBV_QP_STATE | IBV_QP_SQ_PSN);
     qp_attr.qp_state        = IBV_QPS_RTS;
@@ -1229,11 +1272,6 @@ gasnetc_connect_init_dynamic(void)
 #endif
 
   /* TODO: allow env var to disable dynamic connections */
-
-#if GASNET_CONDUIT_VAPI
-  /* XXX: Not (yet?) implemented for VAPI */
-  return GASNET_OK;
-#endif
 
   gasnetc_qp_setup_ud(&gasnetc_port_tbl[0]);
 
