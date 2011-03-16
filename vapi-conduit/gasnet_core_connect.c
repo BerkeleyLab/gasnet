@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/16 00:56:20 $
- * $Revision: 1.44.2.23 $
+ *     $Date: 2011/03/16 01:00:35 $
+ * $Revision: 1.44.2.24 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -407,7 +407,7 @@ gasnetc_check_inline_limit(int port_num, int send_wr, int send_sge)
     qp_init_attr.sq_cq_hndl         = hca->snd_cq;
 
     (void) VAPI_create_qp(hca->handle, &qp_init_attr, &qp_handle, &qp_prop);
-    (void) VAPI_destroy_qp(hca->handle, &qp_handle);
+    (void) VAPI_destroy_qp(hca->handle, qp_handle);
 
     gasnetc_inline_limit = MIN(gasnetc_inline_limit, qp_prop.cap.max_inline_data_sq);
   }
