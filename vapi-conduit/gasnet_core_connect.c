@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/16 18:39:33 $
- * $Revision: 1.44.2.34 $
+ *     $Date: 2011/03/16 21:51:58 $
+ * $Revision: 1.44.2.35 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1356,6 +1356,9 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
                         void (*fn)(gasnetc_conn_t *, int))
 {
   uint64_t timeout_us = 10000; /* XXX: Env var? */
+#if GASNETI_STATS_OR_TRACE
+  int resends = 0;
+#endif
 
   gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
   while (timeout_us < (1 << 24)) { /* XXX: how long do we really want wait? */
@@ -1368,6 +1371,9 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
 
     (*fn)(conn, 0);
     timeout_us *= 2;
+  #if GASNETI_STATS_OR_TRACE
+    ++resends;
+  #endif
   }
   gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
 
@@ -1375,6 +1381,19 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
     gasneti_fatalerror("Node %d timed out attempting dynamic connection to node %d",
                        (int)gasneti_mynode, (int)conn->info.node);
   }
+
+#if GASNETI_STATS_OR_TRACE
+  switch(state) {
+  case GASNETC_CONN_STATE_REQ_SENT:
+    GASNETC_STAT_EVENT_VAL(CONN_REQ, resends);
+    break;
+  case GASNETC_CONN_STATE_RTU_SENT:
+    GASNETC_STAT_EVENT_VAL(CONN_RTU, resends);
+    break;
+  default:
+    break;
+  }
+#endif
 }
 
 static void
@@ -1393,13 +1412,25 @@ conn_send_rtu(gasnetc_conn_t *conn, int lock_held)
   if (lock_held) gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
 }
 
-#define conn_send_rep(_conn) conn_send_data(&(_conn)->info,1)
-#define conn_send_ack(_node) conn_send_empty(_node,1)
+static void
+conn_send_rep(gasnetc_conn_t *conn)
+{
+  conn_send_data(&conn->info, 1);
+  GASNETC_STAT_EVENT(CONN_REP);
+}
+
+static void
+conn_send_ack(gasnet_node_t node)
+{
+  conn_send_empty(node, 1);
+  GASNETC_STAT_EVENT(CONN_ACK);
+}
 
 extern gasnetc_cep_t *
 gasnetc_connect_to(gasnet_node_t node)
 {
   gasnetc_cep_t *result = NULL;
+  GASNETC_TRACE_WAIT_BEGIN();
 
   gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
   do {
@@ -1437,10 +1468,14 @@ gasnetc_connect_to(gasnet_node_t node)
 
     (void) gasnetc_qp_rtr2rts(&conn->info);
     gasnetc_free_conn(conn);
+    GASNETC_STAT_EVENT(CONN_DYNAMIC);
+    GASNETI_TRACE_PRINTF(C, ("Dynamic connection to node %d", (int)node));
   } while (0);
   gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
 
   gasneti_polluntil(NULL != (result = GASNETC_NODE2CEP(node)));
+
+  GASNETC_TRACE_WAIT_END(CONN_TIME);
   return result;
 }
 
@@ -1500,9 +1535,11 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
         if (node > gasneti_mynode) {
           (void) gasnetc_qp_init2rtr(&conn->info);
           state = GASNETC_CONN_STATE_REP_SENT;
-	} else {
+          GASNETC_STAT_EVENT(CONN_AAP);
+        } else {
           state = GASNETC_CONN_STATE_REP_RCVD;
-	}
+          GASNETC_STAT_EVENT(CONN_AAA);
+        }
       }
       break;
 
@@ -1540,6 +1577,8 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
       conn->state = state;
     } else if (conn) {
       gasnetc_free_conn(conn);
+      GASNETC_STAT_EVENT(CONN_DYNAMIC);
+      GASNETI_TRACE_PRINTF(C, ("Dynamic connection from node %d", (int)node));
     }
   } while(0);
   gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
@@ -1924,6 +1963,7 @@ gasnetc_connect_static(void)
   /* Advance state RTR -> RTS */
   GASNETC_FOR_EACH_REMOTE_NODE(node) {
     (void)gasnetc_qp_rtr2rts(&conn_info[node]);
+    GASNETC_STAT_EVENT(CONN_STATIC);
   }
 
 done:
@@ -1940,6 +1980,9 @@ done:
   gasneti_free(peer_mask);
 
   gasnetc_fully_connected = (static_nodes == gasnetc_remote_nodes);
+  GASNETI_TRACE_PRINTF(C, ("%s connected at startup to %d of %d remote nodes",
+                           gasnetc_fully_connected ? "Fully" : "Partially",
+                           (int)static_nodes, (int)gasnetc_remote_nodes));
 
   return GASNET_OK;
 } /* gasnetc_connect_static */

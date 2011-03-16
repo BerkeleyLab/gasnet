@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2011/03/10 21:22:53 $
- * $Revision: 1.50.2.1 $
+ *     $Date: 2011/03/16 21:51:58 $
+ * $Revision: 1.50.2.2 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -114,6 +114,15 @@ typedef uint16_t gasnetc_handler_t;
 	VAL(C, POST_SR_LIST, requests)            \
 	VAL(C, SND_REAP, reaped)                  \
 	VAL(C, RCV_REAP, reaped)                  \
+	CNT(C, CONN_STATIC, peers)                \
+	CNT(C, CONN_DYNAMIC, peers)               \
+	TIME(C, CONN_TIME, connect time)          \
+	VAL(C, CONN_REQ, resends)                 \
+	VAL(C, CONN_RTU, resends)                 \
+	CNT(C, CONN_REP, sent)                    \
+	CNT(C, CONN_ACK, sent)                    \
+	CNT(C, CONN_AAA, remained Active)         \
+	CNT(C, CONN_AAP, became Passive)          \
 	TIME(C, FIREHOSE_MOVE, processing time)   \
 	VAL(C, FIREHOSE_PIN, pages)               \
 	VAL(C, FIREHOSE_UNPIN, pages)
