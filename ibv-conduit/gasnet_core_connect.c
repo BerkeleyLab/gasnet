@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/16 11:32:18 $
- * $Revision: 1.44.2.32 $
+ *     $Date: 2011/03/16 11:56:19 $
+ * $Revision: 1.44.2.33 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1314,6 +1314,7 @@ gasnetc_get_conn(gasnet_node_t node)
     conn->info.cep = (gasnetc_cep_t *)
                        gasnett_malloc_aligned(GASNETI_CACHE_LINE_BYTES,
                                               gasnetc_alloc_qps * sizeof(gasnetc_cep_t));
+    memset(conn->info.cep, 0, gasnetc_alloc_qps * sizeof(gasnetc_cep_t));
     conn->info.local_qpn = gasneti_malloc(2 * gasnetc_alloc_qps * sizeof(gasnetc_qpn_t));
     conn->info.remote_qpn = conn->info.local_qpn + gasnetc_alloc_qps;
   #if GASNETC_IBV_XRC
