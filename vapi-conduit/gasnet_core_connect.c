@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/15 23:18:18 $
- * $Revision: 1.44.2.22 $
+ *     $Date: 2011/03/16 00:56:20 $
+ * $Revision: 1.44.2.23 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -381,6 +381,83 @@ gasnetc_setup_ports(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
   return GASNET_OK;
 }
 
+/* Create and destroy QPs to determine the inline data limit */
+static void
+gasnetc_check_inline_limit(int port_num, int send_wr, int send_sge)
+{
+  const gasnetc_port_info_t *port = &gasnetc_port_tbl[port_num];
+  gasnetc_hca_t *hca = &gasnetc_hca[port->hca_index];
+  gasnetc_qp_hndl_t qp_handle;
+
+#if GASNET_CONDUIT_VAPI
+  {
+    VAPI_qp_init_attr_t qp_init_attr;
+    VAPI_qp_prop_t      qp_prop;
+
+    qp_init_attr.cap.max_oust_wr_rq = gasnetc_am_oust_pp * 2;
+    qp_init_attr.cap.max_oust_wr_sq = send_wr;
+    qp_init_attr.cap.max_sg_size_rq = 1;
+    qp_init_attr.cap.max_sg_size_sq = send_sge;
+    qp_init_attr.rdd_hndl           = 0;
+    qp_init_attr.rq_sig_type        = VAPI_SIGNAL_REQ_WR;
+    qp_init_attr.sq_sig_type        = VAPI_SIGNAL_REQ_WR;
+    qp_init_attr.ts_type            = VAPI_TS_RC;
+    qp_init_attr.pd_hndl            = hca->pd;
+    qp_init_attr.rq_cq_hndl         = hca->rcv_cq;
+    qp_init_attr.sq_cq_hndl         = hca->snd_cq;
+
+    (void) VAPI_create_qp(hca->handle, &qp_init_attr, &qp_handle, &qp_prop);
+    (void) VAPI_destroy_qp(hca->handle, &qp_handle);
+
+    gasnetc_inline_limit = MIN(gasnetc_inline_limit, qp_prop.cap.max_inline_data_sq);
+  }
+#else
+  {
+    struct ibv_qp_init_attr qp_init_attr;
+
+    qp_init_attr.cap.max_send_wr     = send_wr;
+    qp_init_attr.cap.max_recv_wr     = gasnetc_use_srq ? 0 : gasnetc_am_oust_pp * 2;
+    qp_init_attr.cap.max_send_sge    = send_sge;
+    qp_init_attr.cap.max_recv_sge    = 1;
+    qp_init_attr.qp_context          = NULL; /* XXX: Can/should we use this? */
+  #if GASNETC_IBV_XRC
+    qp_init_attr.qp_type             = gasnetc_use_xrc ? IBV_QPT_XRC : IBV_QPT_RC;
+  #else
+    qp_init_attr.qp_type             = IBV_QPT_RC;
+  #endif
+    qp_init_attr.sq_sig_all          = 1; /* XXX: Unless we drop 1-to-1 WQE/CQE relationship */
+    qp_init_attr.srq                 = NULL; /* Should not influence inline data */
+    qp_init_attr.send_cq             = hca->snd_cq;
+    qp_init_attr.recv_cq             = hca->rcv_cq;
+
+  #if GASNETC_IBV_XRC
+    if (gasnetc_use_xrc) {
+      qp_init_attr.xrc_domain = hca->xrc_domain;
+    }
+  #endif
+  
+    /* TODO: Binary search? */
+    while (1) { /* No query for max_inline_data limit */
+      qp_init_attr.cap.max_inline_data = gasnetc_inline_limit;
+      qp_handle = ibv_create_qp(hca->pd, &qp_init_attr);
+      if (qp_handle != NULL) break;
+      if (qp_init_attr.cap.max_inline_data == -1) {
+        /* Automatic max not working, fall back on manual search */
+        gasnetc_inline_limit = 1024;
+        continue;
+      }
+      if ((errno != EINVAL) || (gasnetc_inline_limit == 0)) {
+        GASNETC_VAPI_CHECK_PTR(qp_handle, "from ibv_create_qp()");
+        /* NOT REACHED */
+      }
+      gasnetc_inline_limit = MIN(1024, gasnetc_inline_limit - 1);
+      /* Try again */
+    }
+    (void) ibv_destroy_qp(qp_handle);
+  }
+#endif
+}
+
 /* Create endpoint(s) for a given peer
  * Outputs the qpn values in the array provided.
  */
@@ -422,6 +499,7 @@ gasnetc_qp_create(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
       GASNETC_VAPI_CHECK(rc, "from VAPI_create_qp()");
       gasneti_assert(qp_prop.cap.max_oust_wr_rq >= gasnetc_am_oust_pp * 2);
       gasneti_assert(qp_prop.cap.max_oust_wr_sq >= gasnetc_op_oust_pp);
+      gasneti_assert(qp_prop.cap.max_inline_data_sq >= gasnetc_inline_limit);
 
       conn_info->local_qpn[qpi] = qp_prop.qp_num;
     }
@@ -433,6 +511,7 @@ gasnetc_qp_create(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
     gasnetc_xrc_snd_qp_t       *xrc_snd_qp = GASNETC_NODE2SND_QP(node);
   #endif
 
+    qp_init_attr.cap.max_inline_data = gasnetc_inline_limit;
     qp_init_attr.cap.max_send_wr     = max_send_wr;
     qp_init_attr.cap.max_recv_wr     = max_recv_wr;
     qp_init_attr.cap.max_send_sge    = GASNETC_SND_SG;
@@ -490,24 +569,11 @@ gasnetc_qp_create(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
       }
     #endif
   
-      while (1) { /* No query for max_inline_data limit */
-        qp_init_attr.cap.max_inline_data = gasnetc_inline_limit;
-        hndl = ibv_create_qp(hca->pd, &qp_init_attr);
-        if (hndl != NULL) break;
-        if (qp_init_attr.cap.max_inline_data == -1) {
-          /* Automatic max not working, fall back on manual search */
-          gasnetc_inline_limit = 1024;
-          continue;
-        }
-        if ((errno != EINVAL) || (gasnetc_inline_limit == 0)) {
-          GASNETC_VAPI_CHECK_PTR(hndl, "from ibv_create_qp()");
-          /* NOT REACHED */
-        }
-        gasnetc_inline_limit = MIN(1024, gasnetc_inline_limit - 1);
-        /* Try again */
-      }
+      hndl = ibv_create_qp(hca->pd, &qp_init_attr);
+      GASNETC_VAPI_CHECK_PTR(hndl, "from ibv_create_qp()");
       gasneti_assert(qp_init_attr.cap.max_recv_wr >= max_recv_wr);
       gasneti_assert(qp_init_attr.cap.max_send_wr >= max_send_wr);
+      gasneti_assert(qp_init_attr.cap.max_inline_data >= gasnetc_inline_limit);
 
     #if GASNETC_IBV_XRC
       if (gasnetc_use_xrc) {
@@ -717,7 +783,6 @@ gasnetc_qp_rtr2rts(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
       qp_attr.ous_dst_rd_atom  = port->rd_atom;
       rc = VAPI_modify_qp(cep->hca_handle, cep->qp_handle, &qp_attr, &qp_mask, &qp_cap);
       GASNETC_VAPI_CHECK(rc, "from VAPI_modify_qp(RTS)");
-      gasnetc_inline_limit = MIN(gasnetc_inline_limit, qp_cap.max_inline_data_sq);
 
       /* XXX: When could/should we use the *allocated* length? */
       gasneti_semaphore_init(sq_sema_p, gasnetc_op_oust_pp, gasnetc_op_oust_pp);
@@ -763,14 +828,6 @@ gasnetc_qp_rtr2rts(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
       #endif
 
         {
-          struct ibv_qp_attr qp_attr2;
-          struct ibv_qp_init_attr qp_init_attr;
-          rc = ibv_query_qp(cep->qp_handle, &qp_attr2, IBV_QP_CAP, &qp_init_attr);
-          GASNETC_VAPI_CHECK(rc, "from ibv_query_qp(RTS)");
-          gasnetc_inline_limit = MIN(gasnetc_inline_limit, qp_attr2.cap.max_inline_data);
-        }
-
-        {
           int max_send_wr = (gasnetc_use_srq && GASNETC_QPI_IS_REQ(qpi))
                               ? gasnetc_am_oust_pp : gasnetc_op_oust_pp;
 
@@ -779,7 +836,6 @@ gasnetc_qp_rtr2rts(gasnet_node_t node, gasnetc_conn_info_t *conn_info)
         }
       }
 
-      gasnetc_sndrcv_init_inline();
       gasneti_sync_writes();
       cep->sq_sema_p = sq_sema_p;
     }
@@ -1198,7 +1254,6 @@ gasnetc_connect_to(gasnet_node_t node)
     gasnetc_sndrcv_attach_peer();
     GASNET_BLOCKUNTIL(ACK rcvd); AND resend RTU on timeout
     gasnetc_rtr2rts();
-    gasnetc_sndrcv_init_inline(); - possible race w/ rts?
     cleanup
 
    */
@@ -1394,7 +1449,6 @@ gasnetc_connect_static(void)
   gasnet_node_t         static_supernodes = gasneti_nodemap_global_count - 1;
 #endif
   int                   i, qpi;
-  int                   orig_inline_limit = gasnetc_inline_limit;
   gasnetc_cep_t         *cep; /* First cep of given node */
   uint8_t               *peer_mask = NULL;
 #if GASNETC_DEBUG_CONNECT
@@ -1403,6 +1457,33 @@ gasnetc_connect_static(void)
 #endif
 
   if_pf (!gasnetc_remote_nodes) goto done;
+
+  /* Determine the inline data limit given the QP parameters we will use.
+     Logically this belongs in connect_init(), but there the CQs don't yet exist.
+     Do this even if no static connections so that dynamic can use it too. */
+  {
+    const size_t orig_inline_limit = gasnetc_inline_limit;
+ 
+    for (i = 0; i < gasnetc_num_ports; ++i) {
+      gasnetc_check_inline_limit(i, gasnetc_op_oust_pp, GASNETC_SND_SG);
+      if (gasnetc_use_srq) {
+        /* Corresponds to a Request QP */
+        gasnetc_check_inline_limit(i, gasnetc_am_oust_pp, 1);
+      }
+    }
+
+    /* warn on reduced inline limit */
+    if ((orig_inline_limit != (size_t)-1) && (gasnetc_inline_limit < orig_inline_limit)) {
+    #if GASNET_CONDUIT_IBV
+      if (gasnet_getenv("GASNET_INLINESEND_LIMIT") != NULL)
+    #endif
+        fprintf(stderr,
+                "WARNING: Requested GASNET_INLINESEND_LIMIT %d reduced to HCA limit %d\n",
+                (int)orig_inline_limit, (int)gasnetc_inline_limit);
+    }
+    GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_INLINESEND_LIMIT = %d", (int)gasnetc_inline_limit));
+    gasnetc_sndrcv_init_inline();
+  }
 
   #define GASNETC_IS_REMOTE_NODE(_node) \
     (peer_mask ? peer_mask[_node] : !gasnetc_non_ib(_node))
@@ -1572,17 +1653,6 @@ gasnetc_connect_static(void)
   GASNETC_FOR_EACH_REMOTE_NODE(node) {
     (void)gasnetc_qp_rtr2rts(node, &conn_info[node]);
   }
-
-  /* check inline limit */
-  if ((orig_inline_limit != (size_t)-1) && (gasnetc_inline_limit < orig_inline_limit)) {
-#if GASNET_CONDUIT_IBV
-    if (gasnet_getenv("GASNET_INLINESEND_LIMIT") != NULL)
-#endif
-      fprintf(stderr,
-              "WARNING: Requested GASNET_INLINESEND_LIMIT %d reduced to HCA limit %d\n",
-              (int)orig_inline_limit, (int)gasnetc_inline_limit);
-  }
-  GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_INLINESEND_LIMIT = %d", (int)gasnetc_inline_limit));
 
 done:
 #if GASNETC_IBV_XRC
