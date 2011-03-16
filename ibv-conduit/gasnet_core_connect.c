@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/16 10:14:34 $
- * $Revision: 1.44.2.27 $
+ *     $Date: 2011/03/16 10:17:19 $
+ * $Revision: 1.44.2.28 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1426,7 +1426,7 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
         int qpi;
 
         for (qpi = 0; qpi < gasnetc_alloc_qps; ++qpi) {
-          conn_info->xrc_remote_srq_num[qpi] = data[qpi].srq_num
+          conn_info->xrc_remote_srq_num[qpi] = data[qpi].srq_num;
           conn_info->remote_xrc_qpn[qpi]     = data[qpi].xrc_qpn;
           conn_info->remote_qpn[qpi]         = data[qpi].qpn;
         }
