@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/16 21:51:58 $
- * $Revision: 1.44.2.35 $
+ *     $Date: 2011/03/16 22:12:21 $
+ * $Revision: 1.44.2.36 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -965,7 +965,7 @@ gasnetc_snd_post_ud(gasnetc_ud_snd_desc_t *desc, gasnet_node_t node, int is_repl
       GASNETI_WAITHOOK();
       gasnetc_sndrcv_poll(is_reply);
     } while (!gasneti_semaphore_trydown(snd_cq_sema_p));
-    GASNETC_TRACE_WAIT_END(POST_SR_STALL_CQ);
+    GASNETC_TRACE_WAIT_END(CONN_STALL_CQ);
   }
 
 #if GASNET_CONDUIT_VAPI
@@ -1017,9 +1017,15 @@ typedef enum {
 static gasnetc_ud_snd_desc_t *
 conn_get_snd_desc(gasnetc_conn_cmd_t cmd, int is_reply)
 {
-  gasnetc_ud_snd_desc_t *desc;
-  while (NULL == (desc = gasneti_lifo_pop(&conn_snd_freelist))) {
-    gasnetc_sndrcv_poll(is_reply);
+  gasnetc_ud_snd_desc_t *desc =  gasneti_lifo_pop(&conn_snd_freelist);
+  GASNETC_TRACE_WAIT_BEGIN();
+
+  if (NULL == desc) {
+    do {
+      gasnetc_sndrcv_poll(is_reply);
+      desc = gasneti_lifo_pop(&conn_snd_freelist);
+    } while (NULL == desc);
+    GASNETC_TRACE_WAIT_END(CONN_STALL_DESC);
   }
   desc->wr.imm_data = cmd | (gasneti_mynode << 16);
   return desc;
