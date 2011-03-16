@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2011/03/16 09:27:19 $
- * $Revision: 1.276.2.9 $
+ *     $Date: 2011/03/16 11:20:18 $
+ * $Revision: 1.276.2.10 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -833,9 +833,10 @@ void gasnetc_dump_cqs(gasnetc_wc_t *comp, gasnetc_hca_t *hca, const int is_snd))
   gasnet_hsl_lock(&lock);
 
   if (is_snd) {
+    int is_ud = (comp->gasnetc_f_wc_qpn == gasnetc_conn_qpn);
     gasnetc_sreq_t *sreq = (gasnetc_sreq_t *)(uintptr_t)comp->gasnetc_f_wr_id;
-    gasnet_node_t node = gasnetc_epid2node(sreq->cep->epid);
-    int qpi = gasnetc_epid2qpi(sreq->cep->epid);
+    int node = is_ud ? -1 : gasnetc_epid2node(sreq->cep->epid);
+    int qpi = is_ud ? 1 : gasnetc_epid2qpi(sreq->cep->epid);
     if (comp->status == GASNETC_WC_RETRY_EXC_ERR) {
       fprintf(stderr, "@ %d> snd status=TIMEOUT opcode=%d dst_node=%d dst_qp=%d\n", gasneti_mynode, comp->opcode, (int)node, qpi-1);
     } else {
