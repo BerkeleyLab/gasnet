@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/16 11:22:06 $
- * $Revision: 1.44.2.30 $
+ *     $Date: 2011/03/16 11:27:24 $
+ * $Revision: 1.44.2.31 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -970,9 +970,9 @@ gasnetc_snd_post_ud(gasnetc_ud_snd_desc_t *desc, gasnet_node_t node, int is_repl
 
 #if GASNET_CONDUIT_VAPI
   { 
-    wr->wr.remote_qp   = conn_remote_ud_qpn[node];
-    wr->wr.remote_qkey = GASNETC_UD_QKEY;
-    wr->wr.remote_ah   = desc->ah;
+    wr->remote_qp   = conn_remote_ud_qpn[node];
+    wr->remote_qkey = GASNETC_UD_QKEY;
+    wr->remote_ah   = desc->ah;
     vstat = VAPI_post_sr(conn_ud_hca->handle, conn_ud_qp, wr);
   }
 #else
