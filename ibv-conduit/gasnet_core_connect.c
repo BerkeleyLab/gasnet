@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/16 11:27:24 $
- * $Revision: 1.44.2.31 $
+ *     $Date: 2011/03/16 11:32:18 $
+ * $Revision: 1.44.2.32 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1194,9 +1194,7 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
       #else   
         desc->wr.next                 = NULL;
       #endif  
-      #if GASNET_DEBUG
-        desc->sg.gasnetc_f_sg_len = ~0;
-      #endif  
+        desc->sg.gasnetc_f_sg_len = recv_sz;
         desc->sg.addr             = addr;
         desc->sg.lkey             = conn_ud_mem_reg.lkey;
         gasnetc_rcv_post_ud(desc);
@@ -1252,7 +1250,9 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
         desc->wr.send_flags           = (enum ibv_send_flags)0;
         desc->wr.next                 = NULL;
       #endif  
-        desc->sg.gasnetc_f_sg_len = send_sz;
+      #if GASNET_DEBUG
+        desc->sg.gasnetc_f_sg_len = ~0;
+      #endif  
         desc->sg.addr             = addr;
         desc->sg.lkey             = conn_ud_mem_reg.lkey;
         gasneti_lifo_push(&conn_snd_freelist, desc);
