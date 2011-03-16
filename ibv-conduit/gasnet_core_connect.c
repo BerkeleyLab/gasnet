@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/16 09:27:19 $
- * $Revision: 1.44.2.25 $
+ *     $Date: 2011/03/16 09:34:42 $
+ * $Revision: 1.44.2.26 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -979,6 +979,25 @@ gasnetc_snd_post_ud(gasnetc_ud_snd_desc_t *desc, gasnet_node_t node, int is_repl
   GASNETC_VAPI_CHECK(vstat, "while posting a UD send work request");
 }
 
+/* ------------------------------------------------------------------------------------ */
+
+typedef enum {
+  GASNETC_CONN_STATE_NONE = 0, /* Newly created */
+  GASNETC_CONN_STATE_REQ_SENT, /* I am ACTIVE peer and am waiting for REP */
+  GASNETC_CONN_STATE_REP_SENT, /* I am PASSIVE peer and have sent REP */
+  GASNETC_CONN_STATE_REP_RCVD, /* I am ACTIVE peer and have received REP */
+  GASNETC_CONN_STATE_RTU_SENT, /* I am ACTIVE peer and am waiting for ACK */
+  GASNETC_CONN_STATE_ACK_RCVD, /* I am ACTIVE peer and have received ACK */
+  GASNETC_CONN_STATE_DONE      /* Never seen in state, just transient. */
+} gasnetc_conn_state_t;
+
+typedef struct gasnetc_conn_s {
+  struct gasnetc_conn_s *next, *prev;
+  gasnet_node_t         node;
+  gasnetc_conn_state_t  state;
+  gasnetc_conn_info_t   info;
+} gasnetc_conn_t;
+
 typedef enum {
   GASNETC_CONN_CMD_REQ = 1,
   GASNETC_CONN_CMD_REP,
@@ -1025,16 +1044,23 @@ conn_send_data(gasnet_node_t node, gasnetc_conn_info_t *conn_info, int is_reply)
   desc->sg.gasnetc_f_sg_len = conn_ud_msg_sz;
   gasnetc_snd_post_ud(desc, node, is_reply);
 }
+#define conn_send_req(c) conn_send_data((c)->node,&(c)->info,0)
+#define conn_send_rep(c) conn_send_data((c)->node,&(c)->info,1)
 
 static void
-conn_send_empty(gasnet_node_t node, int is_reply)
+conn_send_empty(gasnet_node_t node, gasnetc_conn_info_t *conn_info, int is_reply)
 {
+  /* conn_info unused but is needed to match signature of send_data */
   gasnetc_conn_cmd_t cmd = is_reply ? GASNETC_CONN_CMD_ACK : GASNETC_CONN_CMD_RTU;
   gasnetc_ud_snd_desc_t *desc = conn_get_snd_desc(cmd, is_reply);
 
   desc->sg.gasnetc_f_sg_len = GASNETC_ALLOW_0BYTE_MSG ? 0 : 1;
   gasnetc_snd_post_ud(desc, node, is_reply);
 }
+#define conn_send_rtu(n) conn_send_empty(n,NULL,0)
+#define conn_send_ack(n) conn_send_empty(n,NULL,1)
+
+/* ------------------------------------------------------------------------------------ */
 
 /* Create UD QP and advance all the way to RTS */
 static int
@@ -1210,56 +1236,154 @@ gasnetc_connect_init_dynamic(void)
 
   gasnetc_qp_setup_ud(&gasnetc_port_tbl[0]);
 
-#if 0 /* Generate UD traffic for testing */
-  { gasnet_node_t offset;
-    for (offset = 1; offset < gasneti_nodes; ++offset) {
-      conn_send_empty((gasneti_mynode + offset) % gasneti_nodes, 0);
-    }
-  }
-#endif
-
   return GASNET_OK;
 } /* gasnetc_connect_init_dynamic */
+
+/* ------------------------------------------------------------------------------------ */
+
+static gasnet_hsl_t gasnetc_conn_tbl_lock = GASNET_HSL_INITIALIZER;
+static gasnetc_conn_t *gasnetc_conn_tbl = NULL;
+
+static gasnetc_conn_t *
+gasnetc_get_conn(gasnet_node_t node)
+{
+  gasnetc_conn_t *conn = gasnetc_conn_tbl;
+
+  while (conn && (conn->node != node)) {
+    conn = conn->next;
+  }
+
+  if (conn) {
+    /* Found it - nothing more to do */
+  } else if (GASNETC_NODE2CEP(node)) {
+    /* Connection complete - nothing more to do */
+  } else {
+    /* Create new */
+    conn = gasneti_malloc(sizeof(*conn));
+    conn->next = gasnetc_conn_tbl;
+    conn->prev = NULL;
+    if (gasnetc_conn_tbl) {
+      gasnetc_conn_tbl->prev = conn;
+    }
+    gasnetc_conn_tbl = conn;
+
+    conn->node = node;
+    conn->state = GASNETC_CONN_STATE_NONE;
+    conn->info.cep = (gasnetc_cep_t *)
+                       gasnett_malloc_aligned(GASNETI_CACHE_LINE_BYTES,
+                                              gasnetc_alloc_qps * sizeof(gasnetc_cep_t));
+    conn->info.local_qpn = gasneti_malloc(2 * gasnetc_alloc_qps * sizeof(gasnetc_qpn_t));
+    conn->info.remote_qpn = conn->info.local_qpn + gasnetc_alloc_qps;
+  #if GASNETC_IBV_XRC
+    if (gasnetc_use_xrc) {
+      conn->info.local_xrc_qpn = &gasnetc_xrc_rcv_qpn[node * gasnetc_alloc_qps];
+      conn->info.remote_xrc_qpn = gasneti_malloc(gasnetc_alloc_qps * sizeof(gasnetc_qpn_t));
+      conn->info.xrc_remote_srq_num = gasneti_malloc(gasnetc_alloc_qps * sizeof(uint32_t));
+    }
+  #endif
+    gasnetc_setup_ports(node, &conn->info);
+  }
+
+  return conn;
+}
+
+static void
+gasnetc_free_conn(gasnetc_conn_t *conn)
+{
+  if (conn->next) {
+    conn->next->prev = conn->prev;
+  }
+  if (conn->prev) {
+    conn->prev->next = conn->next;
+  } else {
+    gasnetc_conn_tbl = conn->next;
+  }
+  gasneti_free(conn->info.local_qpn);
+#if GASNETC_IBV_XRC
+  if (gasnetc_use_xrc) {
+    gasneti_free(conn->info.remote_xrc_qpn);
+    gasneti_free(conn->info.xrc_remote_srq_num);
+  }
+#endif
+  gasneti_free(conn);
+}
+
+static void
+gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state, 
+                        void (*fn)(gasnet_node_t, gasnetc_conn_info_t *, int))
+{
+  uint64_t timeout_us = 10000; /* XXX: Env var? */
+
+  gasnet_hsl_unlock(&gasnetc_conn_tbl_lock);
+  while (timeout_us < (1 << 24)) { /* XXX: how long do we really want wait? */
+    gasneti_tick_t start_time = gasneti_ticks_now();
+
+    gasneti_polluntil(((conn->state != state) ||
+                       (gasneti_ticks_to_us(gasneti_ticks_now() - start_time) > timeout_us)));
+
+    if (conn->state != state) break; /* Done */
+
+    (*fn)(conn->node, &conn->info, 0);
+    timeout_us *= 2;
+  }
+  gasnet_hsl_lock(&gasnetc_conn_tbl_lock);
+
+  if (conn->state == state) {
+    gasneti_fatalerror("Node %d timed out attempting dynamic connection to node %d",
+                       (int)gasneti_mynode, (int)conn->node);
+  }
+}
 
 extern gasnetc_cep_t *
 gasnetc_connect_to(gasnet_node_t node)
 {
   gasnetc_cep_t *result = NULL;
 
-  /* TODO: Implement the following sketch:
+  gasnet_hsl_lock(&gasnetc_conn_tbl_lock);
+  do {
+    gasnetc_conn_t *conn = gasnetc_get_conn(node);
 
-    #if GASNETI_THREADS
-       LOCK
-       If connection in progress {
-         UNLOCK;
-         BLOCKUNTIL(complete);
-         return;
-       }
-       Create conn_info;
-       UNLOCK
-    #else
-       Create conn_info;
-    #endif
-    gasnetc_qp_create();
-    send REQ
-    gasnetc_reset2init();
-    GASNET_BLOCKUNTIL(REP or REQ rcvd); AND resend REQ on timeout
-    if (REQ rcvd && I am lesser node) { // active-active resolution
-      GASNET_BLOCKUNTIL(ACK rcvd);
-      return;
+    if (!conn || (conn->state != GASNETC_CONN_STATE_NONE)) {
+      /* We are not the first to request this connection */
+      break;
     }
-    gasnetc_init2rtr();
-    install in NODE2CEP
-    send RTU
-    gasnetc_sndrcv_attach_peer();
-    GASNET_BLOCKUNTIL(ACK rcvd); AND resend RTU on timeout
-    gasnetc_rtr2rts();
-    cleanup
 
-   */
-  gasneti_fatalerror("Node %d attempting unimplemnted dynamic connection to node %d",
-                     (int)gasneti_mynode, (int)node);
+    (void) gasnetc_qp_create(node, &conn->info);
+    conn->state = GASNETC_CONN_STATE_REQ_SENT;
 
+    gasnet_hsl_unlock(&gasnetc_conn_tbl_lock);
+    conn_send_req(conn);
+    gasnet_hsl_lock(&gasnetc_conn_tbl_lock);
+
+    (void) gasnetc_qp_reset2init(node, &conn->info);
+    gasnetc_sndrcv_init_peer(node, conn->info.cep);
+    gasnetc_timed_conn_wait(conn, GASNETC_CONN_STATE_REQ_SENT, &conn_send_data);
+
+    if (conn->state == GASNETC_CONN_STATE_REP_SENT) {
+      /* Resolved the active-active case by becoming the Passive peer */
+      break;
+    }
+    gasneti_assert(conn->state == GASNETC_CONN_STATE_REP_RCVD);
+
+    (void) gasnetc_qp_init2rtr(node, &conn->info);
+    gasneti_sync_writes(); /* "finalize" cep data */
+    GASNETC_NODE2CEP(node) = conn->info.cep;
+    conn->state = GASNETC_CONN_STATE_RTU_SENT;
+
+    gasnet_hsl_unlock(&gasnetc_conn_tbl_lock);
+    conn_send_rtu(node);
+    gasnet_hsl_lock(&gasnetc_conn_tbl_lock);
+
+    gasnetc_sndrcv_attach_peer(node, conn->info.cep);
+    gasnetc_timed_conn_wait(conn, GASNETC_CONN_STATE_RTU_SENT, &conn_send_empty);
+    gasneti_assert(conn->state == GASNETC_CONN_STATE_ACK_RCVD);
+
+    (void) gasnetc_qp_rtr2rts(node, &conn->info);
+    gasnetc_free_conn(conn);
+  } while (0);
+  gasnet_hsl_unlock(&gasnetc_conn_tbl_lock);
+
+  gasneti_polluntil(NULL != (result = GASNETC_NODE2CEP(node)));
   return result;
 }
 
@@ -1267,15 +1391,102 @@ extern void
 gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
 {
   gasnetc_ud_rcv_desc_t *desc = (gasnetc_ud_rcv_desc_t *)(uintptr_t)comp->gasnetc_f_wr_id;
-  uint8_t *buf = (uint8_t *)(uintptr_t)desc->sg.addr;
-  int len = comp->byte_len;
+  void *payload = (void *)((uintptr_t)desc->sg.addr + GASNETC_GRH_SIZE);
   gasnetc_conn_cmd_t cmd = comp->imm_data & 0xff;
-  gasnet_node_t srcid = comp->imm_data >> 16;
+  gasnet_node_t node = comp->imm_data >> 16;
 
-  /* TODO: we need to process the message here */
-  fprintf(stderr, "%d> rcv %d bytes, cmd %d, from %d\n", gasneti_mynode, len, cmd, srcid);
+  gasnet_hsl_lock(&gasnetc_conn_tbl_lock);
+  {
+    gasnetc_conn_t *conn = gasnetc_get_conn(node);
+    gasnetc_conn_state_t state;
 
-  gasnetc_rcv_post_ud(desc);
+    /* extract any remote data from the payload and repost desc ASAP */
+    if (conn && (conn->state < GASNETC_CONN_STATE_REP_SENT) &&
+        ((cmd == GASNETC_CONN_CMD_REQ) || (cmd == GASNETC_CONN_CMD_REP))) {
+      gasnetc_conn_info_t *conn_info = &conn->info;
+
+    #if GASNETC_IBV_XRC
+      if (gasnetc_use_xrc) {
+        gasnetc_xrc_conn_data_t *data = (gasnetc_xrc_conn_data_t *)payload;
+        int qpi;
+
+        for (qpi = 0; qpi < gasnetc_alloc_qps; ++qpi) {
+          conn_info->xrc_remote_srq_num[qpi] = data[qpi].srq_num
+          conn_info->remote_xrc_qpn[qpi]     = data[qpi].xrc_qpn;
+          conn_info->remote_qpn[qpi]         = data[qpi].qpn;
+        }
+      } else
+    #endif
+      {
+        memcpy(conn_info->remote_qpn, payload, conn_ud_msg_sz);
+      }
+    }
+    gasnetc_rcv_post_ud(desc);
+    payload = NULL;
+
+    /* Now determine the action to take */
+    state = conn ? conn->state : GASNETC_CONN_STATE_DONE;
+    switch (cmd) {
+    case GASNETC_CONN_CMD_REQ:
+      if (state == GASNETC_CONN_STATE_NONE) {
+        /* Normal case */
+        (void) gasnetc_qp_create(node, &conn->info);
+        (void) gasnetc_qp_reset2init(node, &conn->info);
+        gasnetc_sndrcv_init_peer(node, conn->info.cep);
+        (void) gasnetc_qp_init2rtr(node, &conn->info);
+        state = GASNETC_CONN_STATE_REP_SENT;
+        /* ...falls through... */
+      }
+      if (state == GASNETC_CONN_STATE_REP_SENT) {
+        conn_send_rep(conn);
+      } else if (state == GASNETC_CONN_STATE_REQ_SENT) {
+        /* Resolve the active-active case by picking a winner and a loser. */
+        if (node > gasneti_mynode) {
+          (void) gasnetc_qp_init2rtr(node, &conn->info);
+          state = GASNETC_CONN_STATE_REP_SENT;
+	} else {
+          state = GASNETC_CONN_STATE_REP_RCVD;
+	}
+      }
+      break;
+
+    case GASNETC_CONN_CMD_REP:
+      if (state == GASNETC_CONN_STATE_REQ_SENT) {
+        /* Normal case */
+        state = GASNETC_CONN_STATE_REP_RCVD;
+      }
+      break;
+
+   case GASNETC_CONN_CMD_RTU:
+      if (state == GASNETC_CONN_STATE_REP_SENT) {
+        /* Normal case */
+        gasnetc_sndrcv_attach_peer(node, conn->info.cep);
+        (void) gasnetc_qp_rtr2rts(node, &conn->info);
+        gasneti_sync_writes(); /* "finalize" cep data */
+        GASNETC_NODE2CEP(node) = conn->info.cep;
+        state = GASNETC_CONN_STATE_DONE;
+        /* ...falls through... */
+      }
+      if (state == GASNETC_CONN_STATE_DONE) {
+        conn_send_ack(node);
+      }
+      break;
+
+   case GASNETC_CONN_CMD_ACK:
+      if (state == GASNETC_CONN_STATE_RTU_SENT) {
+        /* Normal case */
+        state = GASNETC_CONN_STATE_ACK_RCVD;
+      }
+      break;
+    }
+
+    if (state != GASNETC_CONN_STATE_DONE) {
+      conn->state = state;
+    } else if (conn) {
+      gasnetc_free_conn(conn);
+    }
+  } while(0);
+  gasnet_hsl_unlock(&gasnetc_conn_tbl_lock);
 }
 
 extern void
@@ -1483,6 +1694,11 @@ gasnetc_connect_static(void)
     }
     GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_INLINESEND_LIMIT = %d", (int)gasnetc_inline_limit));
     gasnetc_sndrcv_init_inline();
+  }
+
+  if_pf (!gasneti_getenv_int_withdefault("GASNET_CONNECT_STATIC", 1, 0)) {
+    static_nodes = 0;
+    goto done;
   }
 
   #define GASNETC_IS_REMOTE_NODE(_node) \
