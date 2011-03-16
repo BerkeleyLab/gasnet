@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/16 01:00:35 $
- * $Revision: 1.44.2.24 $
+ *     $Date: 2011/03/16 09:27:19 $
+ * $Revision: 1.44.2.25 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1627,7 +1627,7 @@ gasnetc_connect_static(void)
      This could be overlapped with the AlltoAll if it were non-blocking*/
   GASNETC_FOR_EACH_REMOTE_NODE(node) {
     (void)gasnetc_qp_reset2init(node, &conn_info[node]);
-    gasnetc_sndrcv_init_peer(node);
+    gasnetc_sndrcv_init_peer(node, conn_info[node].cep);
   }
 
   /* Would sync the AlltoAll here if it were non-blocking */
