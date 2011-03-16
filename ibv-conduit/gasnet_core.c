@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2011/03/15 23:18:18 $
- * $Revision: 1.279.2.3 $
+ *     $Date: 2011/03/16 00:56:20 $
+ * $Revision: 1.279.2.4 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -634,8 +634,8 @@ static int gasnetc_load_settings(void) {
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_PIN_MAXSZ                = %lu%s", (unsigned long)gasnetc_pin_maxsz,
 				(!gasnetc_pin_maxsz ? " (automatic)" : "")));
 #endif
-  GASNETI_TRACE_PRINTF(I,  ("  GASNET_INLINESEND_LIMIT         = %d%s", gasnetc_inline_limit,
-				(gasnetc_inline_limit == -1 ? " (automatic)" : "")));
+  GASNETI_TRACE_PRINTF(I,  ("  GASNET_INLINESEND_LIMIT         = %d%s", (int)gasnetc_inline_limit,
+				(gasnetc_inline_limit == (size_t)-1 ? " (automatic)" : "")));
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_NONBULKPUT_BOUNCE_LIMIT  = %u", (unsigned int)gasnetc_bounce_limit));
 #if !GASNETC_PIN_SEGMENT
   GASNETI_TRACE_PRINTF(I,  ("  GASNET_PUTINMOVE_LIMIT          = %u", (unsigned int)gasnetc_putinmove_limit));
