@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/16 11:56:19 $
- * $Revision: 1.44.2.33 $
+ *     $Date: 2011/03/16 18:39:33 $
+ * $Revision: 1.44.2.34 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1283,7 +1283,7 @@ gasnetc_connect_init_dynamic(void)
 
 /* ------------------------------------------------------------------------------------ */
 
-static gasnet_hsl_t gasnetc_conn_tbl_lock = GASNET_HSL_INITIALIZER;
+static gasneti_mutex_t gasnetc_conn_tbl_lock = GASNETI_MUTEX_INITIALIZER;
 static gasnetc_conn_t *gasnetc_conn_tbl = NULL;
 
 static gasnetc_conn_t *
@@ -1357,7 +1357,7 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
 {
   uint64_t timeout_us = 10000; /* XXX: Env var? */
 
-  gasnet_hsl_unlock(&gasnetc_conn_tbl_lock);
+  gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
   while (timeout_us < (1 << 24)) { /* XXX: how long do we really want wait? */
     gasneti_tick_t start_time = gasneti_ticks_now();
 
@@ -1369,7 +1369,7 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
     (*fn)(conn, 0);
     timeout_us *= 2;
   }
-  gasnet_hsl_lock(&gasnetc_conn_tbl_lock);
+  gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
 
   if (conn->state == state) {
     gasneti_fatalerror("Node %d timed out attempting dynamic connection to node %d",
@@ -1380,17 +1380,17 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
 static void
 conn_send_req(gasnetc_conn_t *conn, int lock_held)
 {
-  if (lock_held) gasnet_hsl_unlock(&gasnetc_conn_tbl_lock);
+  if (lock_held) gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
   conn_send_data(&conn->info, 0);
-  if (lock_held) gasnet_hsl_lock(&gasnetc_conn_tbl_lock);
+  if (lock_held) gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
 }
 
 static void
 conn_send_rtu(gasnetc_conn_t *conn, int lock_held)
 {
-  if (lock_held) gasnet_hsl_unlock(&gasnetc_conn_tbl_lock);
+  if (lock_held) gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
   conn_send_empty(conn->info.node, 0);
-  if (lock_held) gasnet_hsl_lock(&gasnetc_conn_tbl_lock);
+  if (lock_held) gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
 }
 
 #define conn_send_rep(_conn) conn_send_data(&(_conn)->info,1)
@@ -1401,7 +1401,7 @@ gasnetc_connect_to(gasnet_node_t node)
 {
   gasnetc_cep_t *result = NULL;
 
-  gasnet_hsl_lock(&gasnetc_conn_tbl_lock);
+  gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
   do {
     gasnetc_conn_t *conn = gasnetc_get_conn(node);
 
@@ -1438,7 +1438,7 @@ gasnetc_connect_to(gasnet_node_t node)
     (void) gasnetc_qp_rtr2rts(&conn->info);
     gasnetc_free_conn(conn);
   } while (0);
-  gasnet_hsl_unlock(&gasnetc_conn_tbl_lock);
+  gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
 
   gasneti_polluntil(NULL != (result = GASNETC_NODE2CEP(node)));
   return result;
@@ -1452,7 +1452,7 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
   gasnetc_conn_cmd_t cmd = comp->imm_data & 0xff;
   gasnet_node_t node = comp->imm_data >> 16;
 
-  gasnet_hsl_lock(&gasnetc_conn_tbl_lock);
+  gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
   {
     gasnetc_conn_t *conn = gasnetc_get_conn(node);
     gasnetc_conn_state_t state;
@@ -1542,7 +1542,7 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
       gasnetc_free_conn(conn);
     }
   } while(0);
-  gasnet_hsl_unlock(&gasnetc_conn_tbl_lock);
+  gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
 }
 
 extern void
