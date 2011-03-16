@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2011/03/16 00:56:20 $
- * $Revision: 1.205.2.9 $
+ *     $Date: 2011/03/16 09:27:19 $
+ * $Revision: 1.205.2.10 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -642,9 +642,9 @@ extern void gasnetc_conn_snd_wc(gasnetc_wc_t *comp);
 /* Routines in gasnet_core_sndrcv.c */
 extern int gasnetc_sndrcv_limits(void);
 extern int gasnetc_sndrcv_init(void);
-extern void gasnetc_sndrcv_init_peer(gasnet_node_t node);
+extern void gasnetc_sndrcv_init_peer(gasnet_node_t node, gasnetc_cep_t *cep);
 extern void gasnetc_sndrcv_init_inline(void);
-extern void gasnetc_sndrcv_attach_peer(gasnet_node_t node);
+extern void gasnetc_sndrcv_attach_peer(gasnet_node_t node, gasnetc_cep_t *cep);
 extern void gasnetc_sndrcv_attach_segment(void);
 extern gasnetc_amrdma_send_t *gasnetc_amrdma_send_alloc(gasnetc_rkey_t rkey, void *addr);
 extern gasnetc_amrdma_recv_t *gasnetc_amrdma_recv_alloc(gasnetc_hca_t *hca);
