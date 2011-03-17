@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2011/03/17 03:51:53 $
- * $Revision: 1.276.2.11 $
+ *     $Date: 2011/03/17 23:48:01 $
+ * $Revision: 1.276.2.12 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1126,7 +1126,7 @@ gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_epid_t epid, gasnetc_sreq_t *sreq,
        * The Passive node reaches RTS at the time it sends its ACK and
        * thus cannot send us a Request until ready to send the ACK.
        */
-      gasnet_conn_implied_ack(gasnetc_epid2node(epid));
+      gasnetc_conn_implied_ack(gasnetc_epid2node(epid));
     }
 
     do {
