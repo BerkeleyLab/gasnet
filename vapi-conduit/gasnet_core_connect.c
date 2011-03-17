@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/16 22:12:21 $
- * $Revision: 1.44.2.36 $
+ *     $Date: 2011/03/17 00:57:42 $
+ * $Revision: 1.44.2.37 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -862,7 +862,7 @@ typedef struct {
 
 /* UD send */
 typedef struct {
-  gasnetc_ah_t ah; /* shared space w/ freelist link ptr */
+  gasnetc_ah_t tmp_ah; /* shared space w/ freelist link ptr */
   gasnetc_snd_wr_t wr;
   gasnetc_sge_t sg;
 } gasnetc_ud_snd_desc_t;
@@ -880,7 +880,13 @@ static gasnetc_memreg_t conn_ud_mem_reg;
 #define GASNETC_GRH_SIZE 40 /* Global Route Header is always 40 bytes */
 #define GASNETC_UD_QKEY 0x5551212
 
+#define GASNETC_INVAL_AH GASNETC_IB_CHOOSE(VAPI_INVAL_HNDL, NULL)
 
+/* TODO: If this continues to be a performance bottleneck then
+ * consider cacheing since the AH is per Destination LID (the
+ * target HCA's equivalent of a "MAC"), rather than per process.
+ * Therefore reuse is possible w/ SMP/multi-core nodes.
+ */
 static gasnetc_ah_t
 gasnetc_create_ah(gasnet_node_t node)
 {
@@ -888,7 +894,7 @@ gasnetc_create_ah(gasnet_node_t node)
   gasnetc_ah_t result;
 
 #if GASNET_CONDUIT_VAPI
-  { /* XXX: Not yet tested */
+  {
     int vstat;
 
     ah_attr.grh_flag      = 0;
@@ -950,13 +956,18 @@ gasnetc_rcv_post_ud(gasnetc_ud_rcv_desc_t *desc)
 
 /* Post a work request to the send queue of the UD QP */
 static void
-gasnetc_snd_post_ud(gasnetc_ud_snd_desc_t *desc, gasnet_node_t node, int is_reply)
+gasnetc_snd_post_ud(gasnetc_ud_snd_desc_t *desc, gasnetc_ah_t ah, gasnet_node_t node, int is_reply)
 {
   gasneti_semaphore_t *snd_cq_sema_p = conn_ud_hca->snd_cq_sema_p;
   gasnetc_snd_wr_t *wr = &desc->wr;
   int vstat;
 
-  desc->ah = gasnetc_create_ah(node);
+  if (ah == GASNETC_INVAL_AH) {
+    desc->tmp_ah =
+    ah = gasnetc_create_ah(node);
+  } else {
+    desc->tmp_ah = GASNETC_INVAL_AH;
+  }
 
   /* Loop until space is available for 1 new entry on the CQ. */
   if_pf (!gasneti_semaphore_trydown(snd_cq_sema_p)) {
@@ -972,7 +983,7 @@ gasnetc_snd_post_ud(gasnetc_ud_snd_desc_t *desc, gasnet_node_t node, int is_repl
   { 
     wr->remote_qp   = conn_remote_ud_qpn[node];
     wr->remote_qkey = GASNETC_UD_QKEY;
-    wr->remote_ah   = desc->ah;
+    wr->remote_ah   = ah;
     vstat = VAPI_post_sr(conn_ud_hca->handle, conn_ud_qp, wr);
   }
 #else
@@ -980,7 +991,7 @@ gasnetc_snd_post_ud(gasnetc_ud_snd_desc_t *desc, gasnet_node_t node, int is_repl
     gasnetc_snd_wr_t *bad_wr;
     wr->wr.ud.remote_qpn  = conn_remote_ud_qpn[node];
     wr->wr.ud.remote_qkey = GASNETC_UD_QKEY;
-    wr->wr.ud.ah          = desc->ah;
+    wr->wr.ud.ah          = ah;
 
     vstat = ibv_post_send(conn_ud_qp, wr, &bad_wr);
   }
@@ -1005,6 +1016,7 @@ typedef struct gasnetc_conn_s {
   struct gasnetc_conn_s *next, *prev;
   gasnetc_conn_state_t  state;
   gasnetc_conn_info_t   info;
+  gasnetc_ah_t ah;
 } gasnetc_conn_t;
 
 typedef enum {
@@ -1032,8 +1044,9 @@ conn_get_snd_desc(gasnetc_conn_cmd_t cmd, int is_reply)
 }
 
 static void
-conn_send_data(gasnetc_conn_info_t *conn_info, int is_reply)
+conn_send_data(gasnetc_conn_t *conn, int is_reply)
 {
+  gasnetc_conn_info_t *conn_info = &conn->info;
   gasnetc_conn_cmd_t cmd = is_reply ? GASNETC_CONN_CMD_REP : GASNETC_CONN_CMD_REQ;
   gasnetc_ud_snd_desc_t *desc = conn_get_snd_desc(cmd, is_reply);
   void *buf = (void *)(uintptr_t)desc->sg.addr;
@@ -1057,17 +1070,17 @@ conn_send_data(gasnetc_conn_info_t *conn_info, int is_reply)
   }
     
   desc->sg.gasnetc_f_sg_len = conn_ud_msg_sz;
-  gasnetc_snd_post_ud(desc, conn_info->node, is_reply);
+  gasnetc_snd_post_ud(desc, conn->ah, conn_info->node, is_reply);
 }
 
 static void
-conn_send_empty(gasnet_node_t node, int is_reply)
+conn_send_empty(gasnetc_ah_t ah, gasnet_node_t node, int is_reply)
 {
   gasnetc_conn_cmd_t cmd = is_reply ? GASNETC_CONN_CMD_ACK : GASNETC_CONN_CMD_RTU;
   gasnetc_ud_snd_desc_t *desc = conn_get_snd_desc(cmd, is_reply);
 
   desc->sg.gasnetc_f_sg_len = GASNETC_ALLOW_0BYTE_MSG ? 0 : 1;
-  gasnetc_snd_post_ud(desc, node, is_reply);
+  gasnetc_snd_post_ud(desc, ah, node, is_reply);
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -1331,6 +1344,7 @@ gasnetc_get_conn(gasnet_node_t node)
     }
   #endif
     gasnetc_setup_ports(&conn->info);
+    conn->ah = gasnetc_create_ah(node);
   }
 
   return conn;
@@ -1354,6 +1368,7 @@ gasnetc_free_conn(gasnetc_conn_t *conn)
     gasneti_free(conn->info.xrc_remote_srq_num);
   }
 #endif
+  gasnetc_destroy_ah(conn->ah);
   gasneti_free(conn);
 }
 
@@ -1406,7 +1421,7 @@ static void
 conn_send_req(gasnetc_conn_t *conn, int lock_held)
 {
   if (lock_held) gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
-  conn_send_data(&conn->info, 0);
+  conn_send_data(conn, 0);
   if (lock_held) gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
 }
 
@@ -1414,21 +1429,21 @@ static void
 conn_send_rtu(gasnetc_conn_t *conn, int lock_held)
 {
   if (lock_held) gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
-  conn_send_empty(conn->info.node, 0);
+  conn_send_empty(conn->ah, conn->info.node, 0);
   if (lock_held) gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
 }
 
 static void
 conn_send_rep(gasnetc_conn_t *conn)
 {
-  conn_send_data(&conn->info, 1);
+  conn_send_data(conn, 1);
   GASNETC_STAT_EVENT(CONN_REP);
 }
 
 static void
-conn_send_ack(gasnet_node_t node)
+conn_send_ack(gasnetc_conn_t *conn, gasnet_node_t node)
 {
-  conn_send_empty(node, 1);
+  conn_send_empty(conn ? conn->ah : GASNETC_INVAL_AH, node, 1);
   GASNETC_STAT_EVENT(CONN_ACK);
 }
 
@@ -1567,7 +1582,7 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
         /* ...falls through... */
       }
       if (state == GASNETC_CONN_STATE_DONE) {
-        conn_send_ack(node);
+        conn_send_ack(conn, node);
       }
       break;
 
@@ -1596,7 +1611,9 @@ gasnetc_conn_snd_wc(gasnetc_wc_t *comp)
   gasnetc_ud_snd_desc_t *desc = (void *)(uintptr_t)comp->gasnetc_f_wr_id;
 
   gasneti_semaphore_up(conn_ud_hca->snd_cq_sema_p);
-  gasnetc_destroy_ah(desc->ah);
+  if (desc->tmp_ah != GASNETC_INVAL_AH) {
+    gasnetc_destroy_ah(desc->tmp_ah);
+  }
   gasneti_lifo_push(&conn_snd_freelist, desc);
 }
 
