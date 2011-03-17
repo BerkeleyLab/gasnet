@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/17 00:57:42 $
- * $Revision: 1.44.2.37 $
+ *     $Date: 2011/03/17 03:51:53 $
+ * $Revision: 1.44.2.38 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1009,6 +1009,7 @@ typedef enum {
   GASNETC_CONN_STATE_REP_RCVD, /* I am ACTIVE peer and have received REP */
   GASNETC_CONN_STATE_RTU_SENT, /* I am ACTIVE peer and am waiting for ACK */
   GASNETC_CONN_STATE_ACK_RCVD, /* I am ACTIVE peer and have received ACK */
+  GASNETC_CONN_STATE_ACK_IMPL, /* I am ACTIVE peer and have received an AM before ACK */
   GASNETC_CONN_STATE_DONE      /* Never seen in state, just transient. */
 } gasnetc_conn_state_t;
 
@@ -1485,9 +1486,15 @@ gasnetc_connect_to(gasnet_node_t node)
 
     gasnetc_sndrcv_attach_peer(node, conn->info.cep);
     gasnetc_timed_conn_wait(conn, GASNETC_CONN_STATE_RTU_SENT, &conn_send_rtu);
-    gasneti_assert(conn->state == GASNETC_CONN_STATE_ACK_RCVD);
 
-    (void) gasnetc_qp_rtr2rts(&conn->info);
+    if (conn->state == GASNETC_CONN_STATE_ACK_IMPL) {
+      /* An was AM received from the Passive peer while polling for the ACK.
+       * The gasnetc_qp_rtr2rts() call has already been made. */
+    } else {
+      gasneti_assert(conn->state == GASNETC_CONN_STATE_ACK_RCVD);
+      (void) gasnetc_qp_rtr2rts(&conn->info);
+    }
+
     gasnetc_free_conn(conn);
     GASNETC_STAT_EVENT(CONN_DYNAMIC);
     GASNETI_TRACE_PRINTF(C, ("Dynamic connection to node %d", (int)node));
@@ -1498,6 +1505,26 @@ gasnetc_connect_to(gasnet_node_t node)
 
   GASNETC_TRACE_WAIT_END(CONN_TIME);
   return result;
+}
+
+extern void
+gasnet_conn_implied_ack(gasnet_node_t node)
+{
+  gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
+  do {
+    gasnetc_conn_t *conn = gasnetc_get_conn(node);
+
+    if (!conn || (conn->state != GASNETC_CONN_STATE_RTU_SENT)) {
+      /* We are not the first thread to notice the situation */
+      break;
+    }
+
+    (void) gasnetc_qp_rtr2rts(&conn->info);
+    conn->state = GASNETC_CONN_STATE_ACK_IMPL;
+
+    GASNETC_STAT_EVENT(CONN_IMPLIED_ACK);
+  } while (0);
+  gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
 }
 
 extern void
