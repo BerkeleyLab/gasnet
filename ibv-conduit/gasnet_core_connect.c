@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/17 05:01:51 $
- * $Revision: 1.44.2.39 $
+ *     $Date: 2011/03/17 20:01:28 $
+ * $Revision: 1.44.2.40 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1024,6 +1024,9 @@ typedef struct gasnetc_conn_s {
   gasnetc_conn_state_t  state;
   gasnetc_conn_info_t   info;
   gasnetc_ah_t *ah;
+#if GASNETI_STATS_OR_TRACE
+  gasneti_tick_t start_time;
+#endif
 } gasnetc_conn_t;
 
 typedef enum {
@@ -1335,6 +1338,10 @@ gasnetc_get_conn(gasnet_node_t node)
     }
     gasnetc_conn_tbl = conn;
 
+#if GASNETI_STATS_OR_TRACE
+   conn->start_time = GASNETI_TICKS_NOW_IFENABLED(C);
+#endif
+
     conn->state = GASNETC_CONN_STATE_NONE;
     conn->info.node = node;
     conn->info.cep = (gasnetc_cep_t *)
@@ -1460,7 +1467,6 @@ extern gasnetc_cep_t *
 gasnetc_connect_to(gasnet_node_t node)
 {
   gasnetc_cep_t *result = NULL;
-  GASNETC_TRACE_WAIT_BEGIN();
 
   gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
   do {
@@ -1503,15 +1509,18 @@ gasnetc_connect_to(gasnet_node_t node)
       (void) gasnetc_qp_rtr2rts(&conn->info);
     }
 
-    gasnetc_free_conn(conn);
+  #if GASNETI_STATS_OR_TRACE
+    GASNETI_TRACE_EVENT_TIME(C, CONN_TIME_ACTV, (gasneti_ticks_now() - conn->start_time));
     GASNETC_STAT_EVENT(CONN_DYNAMIC);
     GASNETI_TRACE_PRINTF(C, ("Dynamic connection to node %d", (int)node));
+  #endif
+
+    gasnetc_free_conn(conn);
   } while (0);
   gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
 
   gasneti_polluntil(NULL != (result = GASNETC_NODE2CEP(node)));
 
-  GASNETC_TRACE_WAIT_END(CONN_TIME);
   return result;
 }
 
@@ -1632,9 +1641,13 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
     if (state != GASNETC_CONN_STATE_DONE) {
       conn->state = state;
     } else if (conn) {
-      gasnetc_free_conn(conn);
+    #if GASNETI_STATS_OR_TRACE
+      GASNETI_TRACE_EVENT_TIME(C, CONN_TIME_PASV, (gasneti_ticks_now() - conn->start_time));
       GASNETC_STAT_EVENT(CONN_DYNAMIC);
       GASNETI_TRACE_PRINTF(C, ("Dynamic connection from node %d", (int)node));
+    #endif
+
+      gasnetc_free_conn(conn);
     }
   } while(0);
   gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
