@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2011/03/16 09:27:19 $
- * $Revision: 1.205.2.10 $
+ *     $Date: 2011/03/17 03:51:53 $
+ * $Revision: 1.205.2.11 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -636,6 +636,7 @@ extern int gasnetc_connect_init(void);
 extern int gasnetc_connect_init_dynamic(void);
 extern int gasnetc_connect_fini(void);
 extern gasnetc_cep_t *gasnetc_connect_to(gasnet_node_t node);
+extern void gasnetc_connect_implied_ack(gasnet_node_t node);
 extern void gasnetc_conn_rcv_wc(gasnetc_wc_t *comp);
 extern void gasnetc_conn_snd_wc(gasnetc_wc_t *comp);
 
@@ -742,5 +743,6 @@ extern int                      gasnetc_num_ports;
 extern gasnetc_cep_t            **gasnetc_node2cep;
 extern gasnet_node_t            gasnetc_remote_nodes;
 extern gasnetc_qpn_t            gasnetc_conn_qpn;
+extern gasneti_semaphore_t      gasnetc_zero_sema;
 
 #endif

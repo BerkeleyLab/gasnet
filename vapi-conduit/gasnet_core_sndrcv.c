@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2011/03/16 11:20:18 $
- * $Revision: 1.276.2.10 $
+ *     $Date: 2011/03/17 03:51:53 $
+ * $Revision: 1.276.2.11 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -1104,9 +1104,9 @@ gasnetc_epid_t gasnetc_epid_select_qpi(gasnetc_cep_t *ceps, gasnetc_epid_t epid,
 }
 
 /* Take (sreq,op,len) and bind the sreq to a specific (not wildcard) qp */
-GASNETI_INLINE(gasnetc_bind_cep)
-gasnetc_cep_t *gasnetc_bind_cep(gasnetc_epid_t epid, gasnetc_sreq_t *sreq,
-				gasnetc_wr_opcode_t op, size_t len) {
+GASNETI_INLINE(gasnetc_bind_cep_inner)
+gasnetc_cep_t *gasnetc_bind_cep_inner(gasnetc_epid_t epid, gasnetc_sreq_t *sreq,
+				      gasnetc_wr_opcode_t op, size_t len, int is_reply) {
   gasnetc_cep_t *ceps = gasnetc_get_cep(gasnetc_epid2node(epid));
   gasnetc_cep_t *cep;
   int qpi;
@@ -1117,6 +1117,18 @@ gasnetc_cep_t *gasnetc_bind_cep(gasnetc_epid_t epid, gasnetc_sreq_t *sreq,
   cep = &ceps[qpi];
   if_pf (!gasneti_semaphore_trydown(GASNETC_CEP_SQ_SEMA(cep))) {
     GASNETC_TRACE_WAIT_BEGIN();
+
+    /* Close the one dynamic connection race condition. */
+    if ((GASNETC_CEP_SQ_SEMA(cep) == &gasnetc_zero_sema) && is_reply) {
+      /* We are in the "gap" between RTR and RTS and waiting for the ACK.
+       * However, since we are trying to send an AM Reply we KNOW that
+       * the ACK was sent since we only Reply in response to a Request.
+       * The Passive node reaches RTS at the time it sends its ACK and
+       * thus cannot send us a Request until ready to send the ACK.
+       */
+      gasnet_conn_implied_ack(gasnetc_epid2node(epid));
+    }
+
     do {
       if (!gasnetc_snd_reap(1)) {
         GASNETI_WAITHOOK();
@@ -1134,6 +1146,8 @@ gasnetc_cep_t *gasnetc_bind_cep(gasnetc_epid_t epid, gasnetc_sreq_t *sreq,
 
   return cep;
 }
+
+#define gasnetc_bind_cep(e,s,o,l) gasnetc_bind_cep_inner((e),(s),(o),(l),0)
 
 GASNETI_INLINE (gasnetc_hidden_ack)
 void gasnetc_hidden_ack(gasnetc_rbuf_t *rbuf, gasnetc_cep_t *cep) {
@@ -2223,7 +2237,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
         sreq->opcode = GASNETC_OP_AM_BLOCK;
       }
   
-      (void)gasnetc_bind_cep(epid, sreq, GASNETC_WR_SEND_WITH_IMM, msg_len);
+      (void)gasnetc_bind_cep_inner(epid, sreq, GASNETC_WR_SEND_WITH_IMM, msg_len, token != NULL);
 
       if (rdma_slot >= 0) {
         msg_len = gasnetc_encode_amrdma(sreq->cep, sr_desc, rdma_slot);

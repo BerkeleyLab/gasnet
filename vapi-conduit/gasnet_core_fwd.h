@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2011/03/16 22:12:21 $
- * $Revision: 1.50.2.3 $
+ *     $Date: 2011/03/17 03:51:53 $
+ * $Revision: 1.50.2.4 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -123,6 +123,7 @@ typedef uint16_t gasnetc_handler_t;
 	CNT(C, CONN_ACK, sent)                    \
 	CNT(C, CONN_AAA, remained Active)         \
 	CNT(C, CONN_AAP, became Passive)          \
+	CNT(C, CONN_IMPLIED_ACK, cnt)             \
 	TIME(C, CONN_STALL_CQ, stalled time)      \
 	TIME(C, CONN_STALL_DESC, stalled time)    \
 	TIME(C, FIREHOSE_MOVE, processing time)   \
