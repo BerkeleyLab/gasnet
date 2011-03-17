@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/17 20:01:28 $
- * $Revision: 1.44.2.40 $
+ *     $Date: 2011/03/17 23:48:01 $
+ * $Revision: 1.44.2.41 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1525,7 +1525,7 @@ gasnetc_connect_to(gasnet_node_t node)
 }
 
 extern void
-gasnet_conn_implied_ack(gasnet_node_t node)
+gasnetc_conn_implied_ack(gasnet_node_t node)
 {
   gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
   do {
