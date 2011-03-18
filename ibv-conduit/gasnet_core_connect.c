@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/18 02:59:59 $
- * $Revision: 1.44.2.48 $
+ *     $Date: 2011/03/18 05:00:34 $
+ * $Revision: 1.44.2.49 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1633,7 +1633,10 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
         conn_send_rep(conn);
       } else if (state == GASNETC_CONN_STATE_REQ_SENT) {
         /* Resolve the active-active case by picking a winner and a loser. */
-        if (node > gasneti_mynode) {
+        /* Use of odd/even spreads choice uniformly (not biased to high or low nodes) */
+        int higher = (node > gasneti_mynode);
+        int odd_even = (node ^ gasneti_mynode) & 1;
+        if (higher ^ odd_even) {
           (void) gasnetc_qp_init2rtr(&conn->info);
           state = GASNETC_CONN_STATE_REP_SENT;
           GASNETC_STAT_EVENT(CONN_AAP);
