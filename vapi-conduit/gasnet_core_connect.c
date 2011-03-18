@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/18 02:50:04 $
- * $Revision: 1.44.2.47 $
+ *     $Date: 2011/03/18 02:59:59 $
+ * $Revision: 1.44.2.48 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -92,6 +92,7 @@ static int gasnetc_connectfile_in_base  = 10; /* Defaults to human readable/writ
 static int gasnetc_connectfile_out_base = 36; /* Defaults to most compact */
 
 static int gasnetc_fully_connected = 0;
+static int gasnetc_conn_static = 0;
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -1891,7 +1892,7 @@ gasnetc_connect_static(void)
     gasnetc_sndrcv_init_inline();
   }
 
-  if_pf (!gasneti_getenv_int_withdefault("GASNET_CONNECT_STATIC", 1, 0)) {
+  if (!gasnetc_conn_static) {
     static_nodes = 0;
     goto done;
   }
@@ -2112,8 +2113,12 @@ gasnetc_connect_init(void)
         gasneti_getenv_int_withdefault("GASNET_CONNECTFILE_BASE",
                                        gasnetc_connectfile_out_base, 0);
 
+  /* Will we perform static (at startup) connections? */
+  gasnetc_conn_static == gasneti_getenv_int_withdefault("GASNET_CONNECT_STATIC", 1, 0);
+
   /* Must we disable barrier AMs from all but the supernode representative? */
-  if (gasnet_getenv("GASNET_CONNECTFILE_IN") || gasnet_getenv("GASNET_CONNECTFILE_OUT")) {
+  if (!gasnetc_conn_static ||
+      gasnet_getenv("GASNET_CONNECTFILE_IN") || gasnet_getenv("GASNET_CONNECTFILE_OUT")) {
     gasnete_barrier_fixed = 1;
   }
 
