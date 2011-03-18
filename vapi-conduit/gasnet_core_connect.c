@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/18 00:44:50 $
- * $Revision: 1.44.2.43 $
+ *     $Date: 2011/03/18 01:30:24 $
+ * $Revision: 1.44.2.44 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1388,17 +1388,27 @@ gasnetc_free_conn(gasnetc_conn_t *conn)
   gasneti_free(conn);
 }
 
+/* TODO: Need env vars for min and max timeouts, and perhaps better defaults.
+ * Currenly:
+ *   Min is 1000us (1ms) which at least 25% more than the ENTIRE connect should take.
+ *   Max is (1 << 24), which, doubling from an inital min=1ms, means 16.384s.
+ * Sum is upto 32s spent retrying EACH of the two round-trip message exchanges.
+ */
+static uint64_t gasnetc_conn_retransmit_min = 1000;
+static uint64_t gasnetc_conn_retransmit_max = (1 << 24);
+
+/* NOTE: releases and reacquires the lock */
 static void
 gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state, 
                         void (*fn)(gasnetc_conn_t *, int))
 {
-  uint64_t timeout_us = 10000; /* XXX: Env var? */
+  uint64_t timeout_us = gasnetc_conn_retransmit_min;
 #if GASNETI_STATS_OR_TRACE
   int resends = 0;
 #endif
 
   gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
-  while (timeout_us < (1 << 24)) { /* XXX: how long do we really want wait? */
+  while (timeout_us <= gasnetc_conn_retransmit_max) {
     gasneti_tick_t start_time = gasneti_ticks_now();
 
     gasneti_polluntil(((conn->state != state) ||
@@ -1406,6 +1416,7 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
 
     if (conn->state != state) break; /* Done */
 
+    /* We send one last (useless) msg immediately before giving up - not worth fixing. */
     (*fn)(conn, 0);
     timeout_us *= 2;
   #if GASNETI_STATS_OR_TRACE
