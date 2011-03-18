@@ -1,12 +1,12 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testteam.c,v $
- * $Date: 2010/09/21 23:33:31 $
- * $Revision: 1.2.8.3 $
- * LBNL 2010
+ * $Date: 2011/03/18 23:05:03 $
+ * $Revision: 1.2.8.4 $
+ *
+ * Description: GASNet team split and barrier test. Each thread
+ * participates in two teams: row team and column team.
+ *
+ * Copyright 2010, E. O. Lawrence Berekely National Laboratory                                                     * Terms of use are as specified in license.txt           
  */
-
-/* Description: basic GASNet team implementation test and team barrier
-   test.  Column teams and row teams of a process grid are created and
-   team barriers are performed on these teams. */
 
 #include <gasnet.h>
 #include <gasnet_coll.h>
@@ -39,7 +39,6 @@ typedef struct {
   int mynode;
   char _pad[GASNETT_CACHE_LINE_BYTES];
 } thread_data_t;
-
 
 /* global data */
 int iters = 0;

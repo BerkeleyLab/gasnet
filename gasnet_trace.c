@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.c,v $
- *     $Date: 2009/12/24 17:45:39 $
- * $Revision: 1.140 $
+ *     $Date: 2011/03/18 23:05:01 $
+ * $Revision: 1.140.4.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -42,12 +42,21 @@ char gasneti_stats_maskstr[GASNETI_MAX_MASKBITS+1];
 int gasneti_trace_suppresslocal;
 FILE *gasneti_tracefile = NULL;
 FILE *gasneti_statsfile = NULL;
+#if GASNETI_STATS_OR_TRACE
 static gasneti_tick_t starttime;
+#endif
 
 #if GASNET_STATS
+ #if PLATFORM_COMPILER_INTEL
+  /* Why can icc deal w/ GASNETI_FORMAT_PRINTF_FUNCPTR() in gasnet_trace.h but not here? */
+  void (*gasnett_stats_callback)(
+    void (*format)(const char *, ...)
+  ) = NULL;
+ #else
   void (*gasnett_stats_callback)(
     GASNETI_FORMAT_PRINTF_FUNCPTR(format,1,2,void (*format)(const char *, ...))
   ) = NULL;
+ #endif
 #endif
 
 
@@ -94,6 +103,7 @@ extern size_t gasneti_format_memveclist_bufsz(size_t count) {
   return 200+count*50;
 }
 extern gasneti_memveclist_stats_t gasneti_format_memveclist(char *buf, size_t count, gasnet_memvec_t const *list) {
+  GASNETI_UNUSED_UNLESS_DEBUG
   const int bufsz = gasneti_format_memveclist_bufsz(count);
   char * p = buf;
   int i, j=0;
@@ -125,6 +135,7 @@ extern size_t gasneti_format_putvgetv_bufsz(size_t dstcount, size_t srccount) {
 extern size_t gasneti_format_putvgetv(char *buf, gasnet_node_t node, 
                                     size_t dstcount, gasnet_memvec_t const dstlist[], 
                                     size_t srccount, gasnet_memvec_t const srclist[]) {
+  GASNETI_UNUSED_UNLESS_DEBUG
   const int bufsz = gasneti_format_putvgetv_bufsz(dstcount, srccount);
   char * dstlist_str = (char *)gasneti_malloc(gasneti_format_memveclist_bufsz(dstcount));
   char * srclist_str = (char *)gasneti_malloc(gasneti_format_memveclist_bufsz(srccount));
@@ -144,6 +155,7 @@ extern size_t gasneti_format_addrlist_bufsz(size_t count) {
   return 200+count*25;
 }
 extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count, void * const *list, size_t len) {
+  GASNETI_UNUSED_UNLESS_DEBUG
   const int bufsz = gasneti_format_addrlist_bufsz(count);
   char * p = buf;
   int i,j=0;
@@ -174,6 +186,7 @@ extern size_t gasneti_format_putigeti_bufsz(size_t dstcount, size_t srccount) {
 extern size_t gasneti_format_putigeti(char *buf, gasnet_node_t node, 
                                     size_t dstcount, void * const dstlist[], size_t dstlen,
                                     size_t srccount, void * const srclist[], size_t srclen) {
+  GASNETI_UNUSED_UNLESS_DEBUG
   const int bufsz = gasneti_format_putigeti_bufsz(dstcount, srccount);
   char * dstlist_str = (char *)gasneti_malloc(gasneti_format_addrlist_bufsz(dstcount));
   char * srclist_str = (char *)gasneti_malloc(gasneti_format_addrlist_bufsz(srccount));
@@ -194,6 +207,7 @@ extern size_t gasneti_format_strides_bufsz(size_t count) {
   return count*30+10;
 }
 extern void gasneti_format_strides(char *buf, size_t count, const size_t *list) {
+  GASNETI_UNUSED_UNLESS_DEBUG
   const int bufsz = gasneti_format_strides_bufsz(count);
   char * p = buf;
   int i;
@@ -218,6 +232,7 @@ extern size_t gasneti_format_putsgets(char *buf, void *_pstats,
                                     const size_t count[], size_t stridelevels) {
   gasnete_strided_stats_t *pstats = _pstats;
   gasnete_strided_stats_t stats;
+  GASNETI_UNUSED_UNLESS_DEBUG
   const int bufsz = gasneti_format_putsgets_bufsz(stridelevels);
   char * srcstrides_str = (char *)gasneti_malloc(gasneti_format_strides_bufsz(stridelevels));
   char * dststrides_str = (char *)gasneti_malloc(gasneti_format_strides_bufsz(stridelevels));
@@ -578,6 +593,32 @@ static FILE *gasneti_open_outputfile(const char *filename, const char *desc) {
   return fp;
 }
 
+/* check node restriction */
+extern int gasneti_check_node_list(const char *listvar) {
+  unsigned long node = (unsigned long)gasnet_mynode();
+  char *p = gasneti_getenv_withdefault(listvar,NULL);
+  if (!p || !*p) return 1;
+
+  while (p && *p) {
+    unsigned long val1, val2;
+    int match;
+
+    if (*p == '*') return 1;
+
+    match = sscanf(p, "%lu-%lu", &val1, &val2);
+    if (match == 1) {
+      if (node == val1) return 1;
+    } else if (match == 2) {
+      if ((node >= val1) && (node <= val2)) return 1;
+    }
+
+    p = strchr(p, ',');
+    if (p) ++p;
+  }
+
+  return 0;
+}
+
 /* overwrite the current stats/trace mask (types) with the provided human-readable newmask,
    updating the human-readable maskstr. Unrecognized human-readable types are ignored.
  */
@@ -630,7 +671,9 @@ extern void gasneti_trace_updatemask(const char *newmask, char *maskstr, char *t
 }
 
 char gasneti_exename[PATH_MAX];
+#if GASNETI_STATS_OR_TRACE
 static const char *gasneti_mallocreport_filename = NULL;
+#endif
 
 extern void gasneti_trace_init(int *pargc, char ***pargv) {
   gasneti_free(gasneti_malloc(1)); /* touch the malloc system to ensure it's intialized */
@@ -648,7 +691,9 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
     char *tracefilename = gasneti_getenv_withdefault("GASNET_TRACEFILE","");
     char *statsfilename = gasneti_getenv_withdefault("GASNET_STATSFILE","");
     if (tracefilename && !strcmp(tracefilename, "")) tracefilename = NULL;
+    if (tracefilename && !gasneti_check_node_list("GASNET_TRACENODES")) tracefilename = NULL;
     if (statsfilename && !strcmp(statsfilename, "")) statsfilename = NULL;
+    if (statsfilename && !gasneti_check_node_list("GASNET_STATSNODES")) statsfilename = NULL;
     #if GASNET_TRACE || (GASNET_STATS && GASNETI_STATS_ECHOED_TO_TRACEFILE)
       if (tracefilename) {
         gasneti_tracefile_tmp = gasneti_open_outputfile(tracefilename, 
@@ -734,6 +779,7 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
 
   gasneti_mallocreport_filename = gasneti_getenv_withdefault("GASNET_MALLOCFILE","");
   if (gasneti_mallocreport_filename && !strcmp(gasneti_mallocreport_filename, "")) gasneti_mallocreport_filename = NULL;
+  if (gasneti_mallocreport_filename && !gasneti_check_node_list("GASNET_MALLOCNODES")) gasneti_mallocreport_filename = NULL;
 
   #if GASNET_NDEBUG
   { char *NDEBUG_warning =

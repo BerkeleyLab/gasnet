@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.h,v $
- *     $Date: 2010/07/16 21:06:08 $
- * $Revision: 1.7.2.2 $
+ *     $Date: 2011/03/18 23:05:01 $
+ * $Revision: 1.7.2.3 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -13,6 +13,20 @@
   #error "gasnet_pshm.h included in a non-PSHM build"
 #endif
 
+/* Must defined EXACTLY one */
+/* TO DO: add to GASNet's config string */
+#if defined(GASNETI_PSHM_POSIX) && !defined(GASNETI_PSHM_SYSV) && !defined(GASNETI_PSHM_FILE)
+  #undef GASNETI_PSHM_POSIX
+  #define GASNETI_PSHM_POSIX 1
+#elif !defined(GASNETI_PSHM_POSIX) && defined(GASNETI_PSHM_SYSV) && !defined(GASNETI_PSHM_FILE)
+  #undef GASNETI_PSHM_SYSV
+  #define GASNETI_PSHM_SYSV 1
+#elif !defined(GASNETI_PSHM_POSIX) && !defined(GASNETI_PSHM_SYSV) && defined(GASNETI_PSHM_FILE)
+  #undef GASNETI_PSHM_FILE
+  #define GASNETI_PSHM_FILE 1
+#else
+  #error PSHM configuration must be exactly one of (GASNETI_PSHM_POSIX, GASNETI_PSHM_SYSV, GASNETI_PSHM_FILE)
+#endif
 #include <gasnet_handler.h> /* Need gasneti_handler_fn_t */
 
 #if GASNET_PAGESIZE < 4096
@@ -30,7 +44,14 @@
 
 /* In gasnet_mmap.c */
 #define GASNETI_PSHM_UNIQUE_LEN 6
+
+#ifdef GASNETI_PSHM_SYSV
+extern unsigned int * gasneti_pshm_sysvkeys;
+extern unsigned int gasneti_pshm_makekey(int pshm_rank);
+#else
 extern const char *gasneti_pshm_makenames(const char *unique);
+#endif
+
 extern void *gasneti_mmap_vnet(uintptr_t segsize);
 extern void gasneti_unlink_vnet(void);
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_diagnostic.c,v $
- *     $Date: 2010/07/16 21:06:08 $
- * $Revision: 1.32.4.2 $
+ *     $Date: 2011/03/18 23:05:01 $
+ * $Revision: 1.32.4.3 $
  * Description: GASNet internal diagnostics
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -532,7 +532,6 @@ static void atomic128_test(int id) {
           (((uintptr_t)_var128 + GASNETI_HAVE_ATOMIC128_T - 1) & ~(GASNETI_HAVE_ATOMIC128_T - 1));
   uint64_t readhi, readlo;
   const uint64_t one64 = 1;
-  uint64_t tmp64;
   int i;
 
   TEST_HEADER("128-bit atomic CAS test"); else return;

@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.131.4.1 $
+$Revision: 1.131.4.2 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -205,7 +205,7 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
     * Linux/SGI-Altix-Itanium/{gcc,IntelC}/64: smp, mpi, udp, shmem
 
     * FreeBSD/Alpha/64:       smp, udp, #&
-    * FreeBSD/x86/gcc/32,64:  smp, mpi, udp
+    * FreeBSD/x86/gcc/32,64:  smp, mpi
     * OpenBSD/x86/gcc/32,64:  smp, mpi, udp
     * NetBSD/x86/gcc/32,64:   smp, mpi, udp
 
@@ -286,8 +286,9 @@ application-specific support.
  specify a signal that will cause the process to freeze and await debugger attach.
 
 * GASNET_TRACEFILE, GASNET_TRACEMASK, GASNET_STATSFILE, GASNET_STATSMASK, 
-  GASNET_TRACEFLUSH, GASNET_TRACELOCAL: control tracing & statistical features, 
- if enabled at configure time.  See usage information below.
+  GASNET_TRACEFLUSH, GASNET_TRACELOCAL, GASNET_TRACENODES, GASNET_STATSNODES:
+   control tracing & statistical features, if enabled at configure time.
+   See usage information below.
 
 * GASNET_TEST_POLITE_SYNC: set to 1 to enable polite-mode synchronization
   for the GASNet tests (only), for running with overcommitted CPUs.
@@ -329,6 +330,11 @@ application-specific support.
  non-debug build.  If tracing is active (see below) then a copy of the
  backtrace will be sent to the trace file.  This file may provide developers
  with potentially useful information about activities prior to the error.
+
+* GASNET_BACKTRACE_NODES - if enabled by GASNET_BACKTRACE then this provides
+ an optional list of nodes on which to permit backtraces.  The list may
+ contain one or more integers or ranges separated by commas, such as "0,2-4,6".
+ If unset, empty, or equal to "*" then all nodes may generate backtraces.
 
 * GASNET_BACKTRACE_SIGNAL: set to a signal name (e.g. "SIGINT" or "SIGUSR1") to
  specify a signal that will cause the process to generate an immediate backtrace,
@@ -456,8 +462,16 @@ Optional environment variable settings:
    unsetting this environment variable (or setting it to empty) disables 
    tracing output (although the trace code still has performance impact)
 
+ GASNET_TRACENODES - specify an optional list of nodes on which to generate
+   tracing output (if enabled by GASNET_TRACEFILE).  List may contain one
+   or more integers or ranges separated by commas, such as "0,2-4,6".
+   If empty or equal to "*" then all nodes may generate tracing output.
+
  GASNET_STATSFILE - specify a filename to receive statistical output
    operates analogously to GASNET_TRACEFILE
+
+ GASNET_STATSNODES - limit nodes to generate statistical output
+   operates analogously to GASNET_TRACENODES
 
  GASNET_TRACEMASK - specify the types of trace messages to report
    A string containing one or more of the following letters:
@@ -564,6 +578,9 @@ GASNET_MALLOCFILE: specify a file name to receive a report of malloc heap
  and any '%' character in the value is replaced by the node number at runtime
  (e.g. GASNET_MALLOCFILE="mallocreport-%"). These output files are
  human-readable, but can be passed to gasnet_trace for summarization.
+
+GASNET_MALLOCNODES: limit which nodes will generate a malloc report.
+   operates analogously to GASNET_TRACENODES
 
 MPI Interoperability
 ====================

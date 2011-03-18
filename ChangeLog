@@ -1,6 +1,6 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.31.2.1 $
+$Revision: 1.31.2.2 $
 
 ----------------------------------------------------------------------
 05-20-2010 : Release 1.14.2
@@ -9,7 +9,7 @@ $Revision: 1.31.2.1 $
   - Much improved support for heterogenous compilers (CC, CXX and MPI_CC)
   - Work-around for broken MALLOC_CHECK_ support on some glibc versions
   - Use MALLOC_OPTIONS variable on *BSD as we use MALLOC_CHECK_ on glibc
-  - Fix parsing of GASNET_{FREEZE,BACKTACE}_SIGNAL env vars
+  - Fix parsing of GASNET_{FREEZE,BACKTRACE}_SIGNAL env vars
 
 * InfiniBand (vapi- and ibv-conduits):
   - Fix bug 2079: stack overflow errors when vapi/ibv compiled with pgcc

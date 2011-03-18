@@ -1068,7 +1068,7 @@ int main(int argc, char **argv)
     threads_per_node = atoi(argv[5]);
   } else {
     threads_per_node = gasnett_cpu_count(); 
-    threads_per_node = MIN(threads_per_node, 8);
+    threads_per_node = MIN(threads_per_node, 4);
   }
   if (threads_per_node > TEST_MAXTHREADS || threads_per_node < 1) {
     printf("ERROR: Threads must be between 1 and %d\n", TEST_MAXTHREADS);

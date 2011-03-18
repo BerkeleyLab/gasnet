@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2010/07/16 21:06:09 $
- * $Revision: 1.250.2.1 $
+ *     $Date: 2011/03/18 23:05:01 $
+ * $Revision: 1.250.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1043,6 +1043,9 @@ static int gasneti_backtrace_mechanism_count = /* excludes the NULL */
 
 static int gasneti_backtrace_isinit = 0;
 static int gasneti_backtrace_userenabled = 0;
+#ifndef GASNETT_BUILDING_TOOLS
+static int gasneti_backtrace_userdisabled = 0;
+#endif
 static const char *gasneti_backtrace_list = 0;
 GASNETT_TENTATIVE_EXTERN
 const char *(*gasneti_backtraceid_fn)(void); /* allow client override of backtrace line prefix */
@@ -1053,6 +1056,11 @@ extern void gasneti_backtrace_init(const char *exename) {
   gasneti_qualify_path(gasneti_exename_bt, exename);
 
   gasneti_backtrace_userenabled = gasneti_getenv_yesno_withdefault("GASNET_BACKTRACE",0);
+#ifndef GASNETT_BUILDING_TOOLS
+  if (gasneti_backtrace_userenabled && !gasneti_check_node_list("GASNET_BACKTRACE_NODES")) {
+    gasneti_backtrace_userdisabled = 1;
+  }
+#endif
 
   gasneti_tmpdir_bt = gasneti_getenv_withdefault("TMPDIR", gasneti_tmpdir_bt);
 
@@ -1197,6 +1205,11 @@ static int _gasneti_print_backtrace_ifenabled(int fd) {
     fflush(stderr);
     return -1;
   }
+#ifndef GASNETT_BUILDING_TOOLS
+  if (gasneti_backtrace_userdisabled) {
+    return 1; /* User turned off backtrace, so don't whine */
+  } else
+#endif
   if (gasneti_backtrace_userenabled) {
     return gasneti_print_backtrace(fd);
   } else if (gasneti_backtrace_mechanism_count && !noticeshown) {
