@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/18 02:44:10 $
- * $Revision: 1.44.2.46 $
+ *     $Date: 2011/03/18 02:50:04 $
+ * $Revision: 1.44.2.47 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1535,7 +1535,7 @@ gasnetc_connect_to(gasnet_node_t node)
        * The gasnetc_dynamic_rtr2rts() call has already been made. */
     } else {
       gasneti_assert(conn->state == GASNETC_CONN_STATE_ACK_RCVD);
-      gasnetc_dynamic_rtr2rts(conn. 1);
+      gasnetc_dynamic_rtr2rts(conn, 1);
     }
 
     gasnetc_free_conn(conn);
@@ -1574,7 +1574,7 @@ gasnetc_conn_implied_ack(gasnet_node_t node)
 
       GASNETC_STAT_EVENT(CONN_IMPLIED_ACK);
 
-      gasnetc_dynamic_rtr2rts(conn. 1);
+      gasnetc_dynamic_rtr2rts(conn, 1);
     }
   gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
 }
