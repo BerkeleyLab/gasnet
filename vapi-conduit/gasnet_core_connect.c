@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/18 02:39:14 $
- * $Revision: 1.44.2.45 $
+ *     $Date: 2011/03/18 02:44:10 $
+ * $Revision: 1.44.2.46 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1476,13 +1476,13 @@ conn_send_ack(gasnetc_conn_t *conn, gasnet_node_t node)
 
 /* "wrapper" to centralize tracing/stats */
 GASNETI_INLINE(gasnetc_dynamic_rtr2rts)
-void gasnetc_dynamic_rtr2rts(gasnetc_conn_t *conn)
+void gasnetc_dynamic_rtr2rts(gasnetc_conn_t *conn, int active)
 {
   (void) gasnetc_qp_rtr2rts(&conn->info);
 
 #if GASNETI_STATS_OR_TRACE
   GASNETC_STAT_EVENT(CONN_DYNAMIC);
-  if (conn->state == GASNETC_CONN_STATE_DONE) {
+  if (active) {
     GASNETI_TRACE_EVENT_TIME(C, CONN_TIME_PASV, (gasneti_ticks_now() - conn->start_time));
     GASNETI_TRACE_PRINTF(C, ("Dynamic connection from node %d", (int)conn->info.node));
   } else {
@@ -1535,7 +1535,7 @@ gasnetc_connect_to(gasnet_node_t node)
        * The gasnetc_dynamic_rtr2rts() call has already been made. */
     } else {
       gasneti_assert(conn->state == GASNETC_CONN_STATE_ACK_RCVD);
-      gasnetc_dynamic_rtr2rts(conn);
+      gasnetc_dynamic_rtr2rts(conn. 1);
     }
 
     gasnetc_free_conn(conn);
@@ -1574,7 +1574,7 @@ gasnetc_conn_implied_ack(gasnet_node_t node)
 
       GASNETC_STAT_EVENT(CONN_IMPLIED_ACK);
 
-      gasnetc_dynamic_rtr2rts(conn);
+      gasnetc_dynamic_rtr2rts(conn. 1);
     }
   gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
 }
@@ -1654,7 +1654,7 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
       if (state == GASNETC_CONN_STATE_REP_SENT) {
         /* Normal case */
         gasnetc_sndrcv_attach_peer(node, conn->info.cep);
-        gasnetc_dynamic_rtr2rts(conn);
+        gasnetc_dynamic_rtr2rts(conn, 0);
         gasneti_sync_writes(); /* "finalize" cep data */
         GASNETC_NODE2CEP(node) = conn->info.cep;
         state = GASNETC_CONN_STATE_DONE;
