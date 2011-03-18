@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/17 23:48:01 $
- * $Revision: 1.44.2.41 $
+ *     $Date: 2011/03/18 00:31:11 $
+ * $Revision: 1.44.2.42 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1528,19 +1528,31 @@ extern void
 gasnetc_conn_implied_ack(gasnet_node_t node)
 {
   gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
-  do {
-    gasnetc_conn_t *conn = gasnetc_get_conn(node);
-
-    if (!conn || (conn->state != GASNETC_CONN_STATE_RTU_SENT)) {
+  #if !GASNETI_THREADS
+    gasneti_assert((GASNETC_NODE2CEP(node))->sq_sema_p == &gasnetc_zero_sema);
+  #else
+    if (GASNETC_NODE2CEP(node)->sq_sema_p != &gasnetc_zero_sema) {
       /* We are not the first thread to notice the situation */
-      break;
+    } else
+  #endif
+    {
+      gasnetc_conn_t *conn = gasnetc_get_conn(node);
+
+      /* The only valid states are
+       * + GASNETC_CONN_STATE_RTU_SENT
+       *     The ACK has not yet been received
+       * + GASNETC_CONN_STATE_ACK_RCVD
+       *     The ACK was received in the same Poll as the current AM Request
+       *     and therefore gasnetc_connect_to() has not yet regained control.
+       */
+      gasneti_assert(conn && ((conn->state == GASNETC_CONN_STATE_RTU_SENT) ||
+                              (conn->state == GASNETC_CONN_STATE_ACK_RCVD)));
+
+      (void) gasnetc_qp_rtr2rts(&conn->info);
+      conn->state = GASNETC_CONN_STATE_ACK_IMPL;
+
+      GASNETC_STAT_EVENT(CONN_IMPLIED_ACK);
     }
-
-    (void) gasnetc_qp_rtr2rts(&conn->info);
-    conn->state = GASNETC_CONN_STATE_ACK_IMPL;
-
-    GASNETC_STAT_EVENT(CONN_IMPLIED_ACK);
-  } while (0);
   gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
 }
 
