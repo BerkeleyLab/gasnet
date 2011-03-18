@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/18 06:55:03 $
- * $Revision: 1.44.2.50 $
+ *     $Date: 2011/03/18 08:39:02 $
+ * $Revision: 1.44.2.51 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1024,10 +1024,11 @@ typedef struct gasnetc_conn_s {
   struct gasnetc_conn_s *next, *prev;
   gasnetc_conn_state_t  state;
   gasnetc_conn_info_t   info;
-  gasnetc_ah_t *ah;
+  gasnetc_ah_t          *ah;
 #if GASNETI_STATS_OR_TRACE
-  gasneti_tick_t start_time;
+  gasneti_tick_t         start_time;
 #endif
+  int                    ref_count;
 } gasnetc_conn_t;
 
 typedef enum {
@@ -1360,6 +1361,7 @@ gasnetc_get_conn(gasnet_node_t node)
   #endif
     gasnetc_setup_ports(&conn->info);
     conn->ah = gasnetc_create_ah(node);
+    conn->ref_count = 1;
   }
 
   return conn;
@@ -1368,6 +1370,8 @@ gasnetc_get_conn(gasnet_node_t node)
 static void
 gasnetc_free_conn(gasnetc_conn_t *conn)
 {
+  if (--conn->ref_count) return;
+
   if (conn->next) {
     conn->next->prev = conn->prev;
   }
@@ -1517,6 +1521,7 @@ gasnetc_connect_to(gasnet_node_t node)
 
     if (conn->state == GASNETC_CONN_STATE_REP_SENT) {
       /* Resolved the active-active case by becoming the Passive peer */
+      gasnetc_free_conn(conn);
       break;
     }
     gasneti_assert(conn->state == GASNETC_CONN_STATE_REP_RCVD);
@@ -1639,6 +1644,7 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
         if (higher ^ odd_even) {
           (void) gasnetc_qp_init2rtr(&conn->info);
           state = GASNETC_CONN_STATE_REP_SENT;
+          conn->ref_count = 2;
           GASNETC_STAT_EVENT(CONN_AAP);
         } else {
           state = GASNETC_CONN_STATE_REP_RCVD;
