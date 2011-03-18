@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/18 00:31:11 $
- * $Revision: 1.44.2.42 $
+ *     $Date: 2011/03/18 00:44:50 $
+ * $Revision: 1.44.2.43 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1463,6 +1463,24 @@ conn_send_ack(gasnetc_conn_t *conn, gasnet_node_t node)
   GASNETC_STAT_EVENT(CONN_ACK);
 }
 
+/* "wrapper" to centralize tracing/stats */
+GASNETI_INLINE(gasnetc_dynamic_rtr2rts)
+void gasnetc_dynamic_rtr2rts(gasnetc_conn_t *conn)
+{
+  (void) gasnetc_qp_rtr2rts(&conn->info);
+
+#if GASNETI_STATS_OR_TRACE
+  GASNETC_STAT_EVENT(CONN_DYNAMIC);
+  if (conn->state == GASNETC_CONN_STATE_DONE) {
+    GASNETI_TRACE_EVENT_TIME(C, CONN_TIME_PASV, (gasneti_ticks_now() - conn->start_time));
+    GASNETI_TRACE_PRINTF(C, ("Dynamic connection from node %d", (int)conn->info.node));
+  } else {
+    GASNETI_TRACE_EVENT_TIME(C, CONN_TIME_ACTV, (gasneti_ticks_now() - conn->start_time));
+    GASNETI_TRACE_PRINTF(C, ("Dynamic connection to node %d", (int)conn->info.node));
+  }
+#endif
+}
+
 extern gasnetc_cep_t *
 gasnetc_connect_to(gasnet_node_t node)
 {
@@ -1503,17 +1521,11 @@ gasnetc_connect_to(gasnet_node_t node)
 
     if (conn->state == GASNETC_CONN_STATE_ACK_IMPL) {
       /* An was AM received from the Passive peer while polling for the ACK.
-       * The gasnetc_qp_rtr2rts() call has already been made. */
+       * The gasnetc_dynamic_rtr2rts() call has already been made. */
     } else {
       gasneti_assert(conn->state == GASNETC_CONN_STATE_ACK_RCVD);
-      (void) gasnetc_qp_rtr2rts(&conn->info);
+      gasnetc_dynamic_rtr2rts(conn);
     }
-
-  #if GASNETI_STATS_OR_TRACE
-    GASNETI_TRACE_EVENT_TIME(C, CONN_TIME_ACTV, (gasneti_ticks_now() - conn->start_time));
-    GASNETC_STAT_EVENT(CONN_DYNAMIC);
-    GASNETI_TRACE_PRINTF(C, ("Dynamic connection to node %d", (int)node));
-  #endif
 
     gasnetc_free_conn(conn);
   } while (0);
@@ -1547,11 +1559,11 @@ gasnetc_conn_implied_ack(gasnet_node_t node)
        */
       gasneti_assert(conn && ((conn->state == GASNETC_CONN_STATE_RTU_SENT) ||
                               (conn->state == GASNETC_CONN_STATE_ACK_RCVD)));
-
-      (void) gasnetc_qp_rtr2rts(&conn->info);
       conn->state = GASNETC_CONN_STATE_ACK_IMPL;
 
       GASNETC_STAT_EVENT(CONN_IMPLIED_ACK);
+
+      gasnetc_dynamic_rtr2rts(conn);
     }
   gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
 }
@@ -1631,7 +1643,7 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
       if (state == GASNETC_CONN_STATE_REP_SENT) {
         /* Normal case */
         gasnetc_sndrcv_attach_peer(node, conn->info.cep);
-        (void) gasnetc_qp_rtr2rts(&conn->info);
+        gasnetc_dynamic_rtr2rts(conn);
         gasneti_sync_writes(); /* "finalize" cep data */
         GASNETC_NODE2CEP(node) = conn->info.cep;
         state = GASNETC_CONN_STATE_DONE;
@@ -1653,12 +1665,6 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
     if (state != GASNETC_CONN_STATE_DONE) {
       conn->state = state;
     } else if (conn) {
-    #if GASNETI_STATS_OR_TRACE
-      GASNETI_TRACE_EVENT_TIME(C, CONN_TIME_PASV, (gasneti_ticks_now() - conn->start_time));
-      GASNETC_STAT_EVENT(CONN_DYNAMIC);
-      GASNETI_TRACE_PRINTF(C, ("Dynamic connection from node %d", (int)node));
-    #endif
-
       gasnetc_free_conn(conn);
     }
   } while(0);
