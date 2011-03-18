@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/18 01:30:24 $
- * $Revision: 1.44.2.44 $
+ *     $Date: 2011/03/18 02:39:14 $
+ * $Revision: 1.44.2.45 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -2120,9 +2120,10 @@ gasnetc_connect_init(void)
   /* Default to handling 2*lg(remote_nodes) incomming connection requests */
   /* TODO: tune?  honor env vars? */
   gasnetc_ud_rcvs = 1; 
-  while ((1 << gasnetc_ud_rcvs) < (2 * (int)gasnetc_remote_nodes)) {
+  while ((1 << gasnetc_ud_rcvs) < (int)gasnetc_remote_nodes) {
     ++gasnetc_ud_rcvs;
   }
+  gasnetc_ud_rcvs *= 2;
 
   return GASNET_OK;
 } /* gasnetc_connect_init */
