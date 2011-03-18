@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/18 05:00:34 $
- * $Revision: 1.44.2.49 $
+ *     $Date: 2011/03/18 06:55:03 $
+ * $Revision: 1.44.2.50 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -2117,7 +2117,7 @@ gasnetc_connect_init(void)
                                        gasnetc_connectfile_out_base, 0);
 
   /* Will we perform static (at startup) connections? */
-  gasnetc_conn_static == gasneti_getenv_int_withdefault("GASNET_CONNECT_STATIC", 1, 0);
+  gasnetc_conn_static = gasneti_getenv_int_withdefault("GASNET_CONNECT_STATIC", 1, 0);
 
   /* Must we disable barrier AMs from all but the supernode representative? */
   if (!gasnetc_conn_static ||
