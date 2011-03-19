@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/18 08:39:02 $
- * $Revision: 1.44.2.51 $
+ *     $Date: 2011/03/19 17:54:10 $
+ * $Revision: 1.44.2.52 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1416,8 +1416,11 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
   while (timeout_us <= gasnetc_conn_retransmit_max) {
     gasneti_tick_t start_time = gasneti_ticks_now();
 
-    gasneti_polluntil(((conn->state != state) ||
-                       (gasneti_ticks_to_us(gasneti_ticks_now() - start_time) > timeout_us)));
+    while (conn->state == state) {
+      if (gasneti_ticks_to_us(gasneti_ticks_now() - start_time) > timeout_us) break;
+		      
+      gasnetc_sndrcv_poll(0); /* works even before _attach */
+    }
 
     if (conn->state != state) break; /* Done */
 
