@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2011/03/16 09:27:19 $
- * $Revision: 1.279.2.5 $
+ *     $Date: 2011/03/19 17:54:10 $
+ * $Revision: 1.279.2.6 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1413,6 +1413,12 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
   }
 
+  /* allocate/initialize dynamic connection resources */
+  i = gasnetc_connect_init_dynamic();
+  if (i != GASNET_OK) {
+    return i;
+  }
+
   #if 0
     /* Done earlier to allow tracing */
     gasneti_init_done = 1;  
@@ -1661,12 +1667,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     if (cep) {
       gasnetc_sndrcv_attach_peer(i, cep);
     }
-  }
-
-  /* allocate/initialize dynamic connection resources */
-  i = gasnetc_connect_init_dynamic();
-  if (i != GASNET_OK) {
-    return i;
   }
 
   /* Initialize firehose */
