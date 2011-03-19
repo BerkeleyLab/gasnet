@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/19 17:54:10 $
- * $Revision: 1.44.2.52 $
+ *     $Date: 2011/03/19 18:08:43 $
+ * $Revision: 1.44.2.53 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -2128,11 +2128,13 @@ gasnetc_connect_init(void)
   /* Will we perform static (at startup) connections? */
   gasnetc_conn_static = gasneti_getenv_int_withdefault("GASNET_CONNECT_STATIC", 1, 0);
 
+#if 0 /* DISABLED - still appears that fixed-comms barrier code might be buggy */
   /* Must we disable barrier AMs from all but the supernode representative? */
   if (!gasnetc_conn_static ||
       gasnet_getenv("GASNET_CONNECTFILE_IN") || gasnet_getenv("GASNET_CONNECTFILE_OUT")) {
     gasnete_barrier_fixed = 1;
   }
+#endif
 
   /* Default to handling 2*lg(remote_nodes) incomming connection requests */
   /* TODO: tune?  honor env vars? */
