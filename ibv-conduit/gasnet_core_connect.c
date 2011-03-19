@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/19 18:08:43 $
- * $Revision: 1.44.2.53 $
+ *     $Date: 2011/03/19 18:28:45 $
+ * $Revision: 1.44.2.54 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1017,7 +1017,7 @@ typedef enum {
   GASNETC_CONN_STATE_RTU_SENT, /* I am ACTIVE peer and am waiting for ACK */
   GASNETC_CONN_STATE_ACK_RCVD, /* I am ACTIVE peer and have received ACK */
   GASNETC_CONN_STATE_ACK_IMPL, /* I am ACTIVE peer and have received an AM before ACK */
-  GASNETC_CONN_STATE_DONE      /* Never seen in state, just transient. */
+  GASNETC_CONN_STATE_DONE      /* Have reached RTS */
 } gasnetc_conn_state_t;
 
 typedef struct gasnetc_conn_s {
@@ -1368,7 +1368,7 @@ gasnetc_get_conn(gasnet_node_t node)
 }
 
 static void
-gasnetc_free_conn(gasnetc_conn_t *conn)
+gasnetc_put_conn(gasnetc_conn_t *conn)
 {
   if (--conn->ref_count) return;
 
@@ -1522,9 +1522,10 @@ gasnetc_connect_to(gasnet_node_t node)
     (void) gasnetc_qp_reset2init(&conn->info);
     gasnetc_timed_conn_wait(conn, GASNETC_CONN_STATE_REQ_SENT, &conn_send_req);
 
-    if (conn->state == GASNETC_CONN_STATE_REP_SENT) {
+    if ((conn->state == GASNETC_CONN_STATE_REP_SENT) ||
+        (conn->state == GASNETC_CONN_STATE_DONE)) {
       /* Resolved the active-active case by becoming the Passive peer */
-      gasnetc_free_conn(conn);
+      gasnetc_put_conn(conn);
       break;
     }
     gasneti_assert(conn->state == GASNETC_CONN_STATE_REP_RCVD);
@@ -1545,9 +1546,10 @@ gasnetc_connect_to(gasnet_node_t node)
     } else {
       gasneti_assert(conn->state == GASNETC_CONN_STATE_ACK_RCVD);
       gasnetc_dynamic_rtr2rts(conn, 1);
+      conn->state = GASNETC_CONN_STATE_DONE;
     }
 
-    gasnetc_free_conn(conn);
+    gasnetc_put_conn(conn);
   } while (0);
   gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
 
@@ -1686,10 +1688,11 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
       break;
     }
 
-    if (state != GASNETC_CONN_STATE_DONE) {
+    if (conn && conn->state != state) {
       conn->state = state;
-    } else if (conn) {
-      gasnetc_free_conn(conn);
+      if (state == GASNETC_CONN_STATE_DONE) {
+        gasnetc_put_conn(conn);
+      }
     }
   } while(0);
   gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
