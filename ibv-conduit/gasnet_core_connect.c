@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/19 18:28:45 $
- * $Revision: 1.44.2.54 $
+ *     $Date: 2011/03/19 20:16:17 $
+ * $Revision: 1.44.2.55 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1056,11 +1056,10 @@ conn_get_snd_desc(gasnetc_conn_cmd_t cmd, int is_reply)
 }
 
 static void
-conn_send_data(gasnetc_conn_t *conn, int is_reply)
+conn_send_data(gasnetc_conn_t *conn, gasnetc_conn_cmd_t cmd, int handler_context)
 {
   gasnetc_conn_info_t *conn_info = &conn->info;
-  gasnetc_conn_cmd_t cmd = is_reply ? GASNETC_CONN_CMD_REP : GASNETC_CONN_CMD_REQ;
-  gasnetc_ud_snd_desc_t *desc = conn_get_snd_desc(cmd, is_reply);
+  gasnetc_ud_snd_desc_t *desc = conn_get_snd_desc(cmd, handler_context);
   void *buf = (void *)(uintptr_t)desc->sg.addr;
 
 #if GASNETC_IBV_XRC
@@ -1082,7 +1081,7 @@ conn_send_data(gasnetc_conn_t *conn, int is_reply)
   }
     
   desc->sg.gasnetc_f_sg_len = conn_ud_msg_sz;
-  gasnetc_snd_post_ud(desc, conn->ah, conn_info->node, is_reply);
+  gasnetc_snd_post_ud(desc, conn->ah, conn_info->node, handler_context);
 }
 
 static void
@@ -1434,8 +1433,8 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
   gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
 
   if (conn->state == state) {
-    gasneti_fatalerror("Node %d timed out attempting dynamic connection to node %d",
-                       (int)gasneti_mynode, (int)conn->info.node);
+    gasneti_fatalerror("Node %d timed out attempting dynamic connection to node %d (state = %d)",
+                       (int)gasneti_mynode, (int)conn->info.node, state);
   }
 
 #if GASNETI_STATS_OR_TRACE
@@ -1456,7 +1455,7 @@ static void
 conn_send_req(gasnetc_conn_t *conn, int lock_held)
 {
   if (lock_held) gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
-  conn_send_data(conn, 0);
+  conn_send_data(conn, GASNETC_CONN_CMD_REQ, 0);
   if (lock_held) gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
 }
 
@@ -1471,7 +1470,7 @@ conn_send_rtu(gasnetc_conn_t *conn, int lock_held)
 static void
 conn_send_rep(gasnetc_conn_t *conn)
 {
-  conn_send_data(conn, 1);
+  conn_send_data(conn, GASNETC_CONN_CMD_REP, 1);
   GASNETC_STAT_EVENT(CONN_REP);
 }
 
@@ -1655,6 +1654,9 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
           state = GASNETC_CONN_STATE_REP_RCVD;
           GASNETC_STAT_EVENT(CONN_AAA);
         }
+      } else if (state == GASNETC_CONN_STATE_RTU_SENT) {
+        /* We must have "won" the active-active race while peer must have missed our REQ */
+        conn_send_data(conn, GASNETC_CONN_CMD_REQ, 1);
       }
       break;
 
