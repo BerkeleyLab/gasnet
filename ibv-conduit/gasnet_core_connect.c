@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/19 20:16:17 $
- * $Revision: 1.44.2.55 $
+ *     $Date: 2011/03/19 21:04:48 $
+ * $Revision: 1.44.2.56 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1596,6 +1596,14 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
   void *payload = (void *)((uintptr_t)desc->sg.addr + GASNETC_GRH_SIZE);
   gasnetc_conn_cmd_t cmd = comp->imm_data & 0xff;
   gasnet_node_t node = comp->imm_data >> 16;
+
+#define GASNETC_CONN_DROP_RATE 0
+#if GASNETC_CONN_DROP_RATE /* Drop 1 in N to aid debugging */
+  if (0 == (int)(((double)(GASNETC_CONN_DROP_RATE+1))*rand()/(RAND_MAX+1.0))) {
+    gasnetc_rcv_post_ud(desc);
+    return;
+  }
+#endif
 
   gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
   {
