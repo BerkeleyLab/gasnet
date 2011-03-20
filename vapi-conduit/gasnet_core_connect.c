@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/20 04:22:33 $
- * $Revision: 1.44.2.59 $
+ *     $Date: 2011/03/20 04:42:20 $
+ * $Revision: 1.44.2.60 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1015,7 +1015,6 @@ gasnetc_snd_post_ud(gasnetc_ud_snd_desc_t *desc, gasnetc_ah_t *ah, gasnet_node_t
 #if GASNET_CONDUIT_VAPI
   { 
     wr->remote_qp   = conn_remote_ud_qpn[node];
-    wr->remote_qkey = GASNETC_UD_QKEY;
     wr->remote_ah   = ah->ib_ah;
     vstat = VAPI_post_sr(conn_ud_hca->handle, conn_ud_qp, wr);
   }
@@ -1023,7 +1022,6 @@ gasnetc_snd_post_ud(gasnetc_ud_snd_desc_t *desc, gasnetc_ah_t *ah, gasnet_node_t
   {
     gasnetc_snd_wr_t *bad_wr;
     wr->wr.ud.remote_qpn  = conn_remote_ud_qpn[node];
-    wr->wr.ud.remote_qkey = GASNETC_UD_QKEY;
     wr->wr.ud.ah          = ah->ib_ah;
 
     vstat = ibv_post_send(conn_ud_qp, wr, &bad_wr);
@@ -1304,9 +1302,11 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
         desc->wr.comp_type            = VAPI_SIGNALED;
         desc->wr.set_se               = 0;
         desc->wr.fence                = 0;
+        desc->wr.remote_qkey          = GASNETC_UD_QKEY;
       #else   
         desc->wr.send_flags           = (enum ibv_send_flags)0;
         desc->wr.next                 = NULL;
+        desc->wr.wr.ud.remote_qkey    = GASNETC_UD_QKEY;
       #endif  
       #if GASNET_DEBUG
         desc->sg.gasnetc_f_sg_len = ~0;
