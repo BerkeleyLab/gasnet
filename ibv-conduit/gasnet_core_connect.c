@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/20 19:43:49 $
- * $Revision: 1.44.2.62 $
+ *     $Date: 2011/03/20 22:13:03 $
+ * $Revision: 1.44.2.63 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1579,11 +1579,11 @@ void gasnetc_dynamic_rtr2rts(gasnetc_conn_t *conn, int active)
 #if GASNETI_STATS_OR_TRACE
   GASNETC_STAT_EVENT(CONN_DYNAMIC);
   if (active) {
-    GASNETI_TRACE_EVENT_TIME(C, CONN_TIME_PASV, (gasneti_ticks_now() - conn->start_time));
-    GASNETI_TRACE_PRINTF(C, ("Dynamic connection from node %d", (int)conn->info.node));
-  } else {
     GASNETI_TRACE_EVENT_TIME(C, CONN_TIME_ACTV, (gasneti_ticks_now() - conn->start_time));
     GASNETI_TRACE_PRINTF(C, ("Dynamic connection to node %d", (int)conn->info.node));
+  } else {
+    GASNETI_TRACE_EVENT_TIME(C, CONN_TIME_PASV, (gasneti_ticks_now() - conn->start_time));
+    GASNETI_TRACE_PRINTF(C, ("Dynamic connection from node %d", (int)conn->info.node));
   }
 #endif
 }
