@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/20 22:13:03 $
- * $Revision: 1.44.2.63 $
+ *     $Date: 2011/03/20 22:24:30 $
+ * $Revision: 1.44.2.64 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1112,6 +1112,7 @@ typedef struct gasnetc_conn_s {
   gasnetc_ah_t          *ah;
 #if GASNETI_STATS_OR_TRACE
   gasneti_tick_t         start_time;
+  int                    start_active;
 #endif
   int                    ref_count;
 } gasnetc_conn_t;
@@ -1427,9 +1428,10 @@ gasnetc_get_conn(gasnet_node_t node)
     }
     gasnetc_conn_tbl = conn;
 
-#if GASNETI_STATS_OR_TRACE
-   conn->start_time = GASNETI_TICKS_NOW_IFENABLED(C);
-#endif
+  #if GASNETI_STATS_OR_TRACE
+    conn->start_time = GASNETI_TICKS_NOW_IFENABLED(C);
+    conn->start_active = 0;
+  #endif
 
     conn->state = GASNETC_CONN_STATE_NONE;
     conn->info.node = node;
@@ -1581,6 +1583,9 @@ void gasnetc_dynamic_rtr2rts(gasnetc_conn_t *conn, int active)
   if (active) {
     GASNETI_TRACE_EVENT_TIME(C, CONN_TIME_ACTV, (gasneti_ticks_now() - conn->start_time));
     GASNETI_TRACE_PRINTF(C, ("Dynamic connection to node %d", (int)conn->info.node));
+  } else if (conn->start_active) {
+    GASNETI_TRACE_EVENT_TIME(C, CONN_TIME_A2P, (gasneti_ticks_now() - conn->start_time));
+    GASNETI_TRACE_PRINTF(C, ("Dynamic connection with node %d", (int)conn->info.node));
   } else {
     GASNETI_TRACE_EVENT_TIME(C, CONN_TIME_PASV, (gasneti_ticks_now() - conn->start_time));
     GASNETI_TRACE_PRINTF(C, ("Dynamic connection from node %d", (int)conn->info.node));
@@ -1601,6 +1606,9 @@ gasnetc_connect_to(gasnet_node_t node)
       /* We are not the first to request this connection */
       break;
     }
+  #if GASNETI_STATS_OR_TRACE
+    conn->start_active = 1;
+  #endif
 
     (void) gasnetc_qp_create(&conn->info);
     conn->state = GASNETC_CONN_STATE_REQ_SENT;
