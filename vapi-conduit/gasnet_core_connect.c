@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/20 03:07:14 $
- * $Revision: 1.44.2.58 $
+ *     $Date: 2011/03/20 04:22:33 $
+ * $Revision: 1.44.2.59 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -176,7 +176,7 @@ gasnetc_parse_filename(const char *filename)
 #if GASNETC_IBV_XRC
 typedef struct gasnetc_xrc_snd_qp_s {
   gasnetc_qp_hndl_t handle;
-  volatile enum ibv_qp_state state;
+  enum ibv_qp_state state;
   gasneti_semaphore_t *sq_sema_p;
 } gasnetc_xrc_snd_qp_t;
 
@@ -1048,6 +1048,7 @@ typedef enum {
 
 typedef struct gasnetc_conn_s {
   struct gasnetc_conn_s *next, *prev;
+  volatile
   gasnetc_conn_state_t  state;
   gasnetc_conn_info_t   info;
   gasnetc_ah_t          *ah;
