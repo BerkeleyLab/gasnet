@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2011/03/17 23:48:01 $
- * $Revision: 1.276.2.12 $
+ *     $Date: 2011/03/20 01:02:00 $
+ * $Revision: 1.276.2.13 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -926,8 +926,7 @@ static int gasnetc_snd_reap(int limit) {
         gasnetc_sreq_t *sreq = (gasnetc_sreq_t *)(uintptr_t)comp.gasnetc_f_wr_id;
         if_pf (comp.gasnetc_f_wc_qpn == gasnetc_conn_qpn) {
           gasnetc_conn_snd_wc(&comp);
-          continue;
-        }
+        } else
         if_pt (sreq) {
 	  gasneti_assert(sreq->opcode != GASNETC_OP_INVALID);
 	  gasneti_semaphore_up(GASNETC_CEP_SQ_SEMA(sreq->cep));
@@ -1300,7 +1299,7 @@ static int gasnetc_rcv_reap(gasnetc_hca_t *hca, int limit, gasnetc_rbuf_t **spar
       if_pt (comp.status == GASNETC_WC_SUCCESS) {
         if_pf (comp.gasnetc_f_wc_qpn == gasnetc_conn_qpn) {
           gasnetc_conn_rcv_wc(&comp);
-          continue;
+          break; /* lower latency (and fewer implied ACKS) if we cease polling */
         }
         gasnetc_rcv_am(&comp, spare_p);
       } else if (GASNETC_IS_EXITING()) {
