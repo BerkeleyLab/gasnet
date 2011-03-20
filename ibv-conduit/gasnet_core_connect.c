@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/19 21:04:48 $
- * $Revision: 1.44.2.56 $
+ *     $Date: 2011/03/20 02:56:46 $
+ * $Revision: 1.44.2.57 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -93,6 +93,32 @@ static int gasnetc_connectfile_out_base = 36; /* Defaults to most compact */
 
 static int gasnetc_fully_connected = 0;
 static int gasnetc_conn_static = 0;
+
+/* ------------------------------------------------------------------------------------ */
+
+/* Drop some UD packets randomly to aid debugging */
+static unsigned int gasnetc_conn_drop_denom = 0;
+
+#if GASNET_DEBUG
+#include <stdlib.h>
+/* Uniformly distributed int in range [0..max_val] */
+static unsigned int
+gasnetc_conn_rand_int(unsigned int max_val)
+{
+  static unsigned short state[3];
+  static int done_init = 0;
+
+  if_pf (!done_init) {
+    gasneti_tick_t now = gasneti_ticks_now();
+    state[0] = getpid();
+    state[1] = (unsigned short) now;
+    state[2] = (unsigned short) (now >> 16);
+    done_init = 1;
+  }
+
+  return (unsigned int)(((double)(max_val+1.0)) * erand48(state));
+}
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -948,7 +974,7 @@ gasnetc_rcv_post_ud(gasnetc_ud_rcv_desc_t *desc)
   int vstat;
 
 #if GASNET_CONDUIT_VAPI
-  { /* XXX: Not yet tested */
+  {
     vstat = VAPI_post_rr(conn_ud_hca->handle, conn_ud_qp, &desc->wr);
   }
 #else
@@ -1597,9 +1623,8 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
   gasnetc_conn_cmd_t cmd = comp->imm_data & 0xff;
   gasnet_node_t node = comp->imm_data >> 16;
 
-#define GASNETC_CONN_DROP_RATE 0
-#if GASNETC_CONN_DROP_RATE /* Drop 1 in N to aid debugging */
-  if (0 == (int)(((double)(GASNETC_CONN_DROP_RATE+1))*rand()/(RAND_MAX+1.0))) {
+#if GASNET_DEBUG /* Drop 1 in N to aid debugging */
+  if (gasnetc_conn_drop_denom && !gasnetc_conn_rand_int(gasnetc_conn_drop_denom)) {
     gasnetc_rcv_post_ud(desc);
     return;
   }
@@ -1724,18 +1749,13 @@ gasnetc_conn_snd_wc(gasnetc_wc_t *comp)
 /* ------------------------------------------------------------------------------------ */
 
 #if GASNETC_DEBUG_CONNECT
-#include <stdlib.h>
 static void
 permute_nodes(gasnet_node_t *node_list)
 {
-  static int done_init = 0;
   gasnet_node_t node,swap;
 
-  if_pf (!done_init) srand(getpid());
-  done_init = 1;
-
   for (node = 0; node < gasneti_nodes; ++node) {
-    swap = (gasnet_node_t)(((double)(node+1))*rand()/(RAND_MAX+1.0));
+    swap = (gasnet_node_t) gasnetc_conn_rand_int(node);
     gasneti_assert(swap <= node);
     if (swap == node) {
       node_list[node] = node;
@@ -2132,6 +2152,11 @@ gasnetc_connect_init(void)
     int ret = gasnetc_xrc_init();
     if (ret) return ret;
   }
+#endif
+
+#if GASNET_DEBUG
+  gasnetc_conn_drop_denom =
+        gasneti_getenv_int_withdefault("GASNET_CONNECT_DROP_DENOM", 0, 0);
 #endif
 
   gasnetc_connectfile_out_base =
