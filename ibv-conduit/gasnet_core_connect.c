@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/20 17:43:43 $
- * $Revision: 1.44.2.61 $
+ *     $Date: 2011/03/20 19:43:49 $
+ * $Revision: 1.44.2.62 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1033,14 +1033,75 @@ gasnetc_snd_post_ud(gasnetc_ud_snd_desc_t *desc, gasnetc_ah_t *ah, gasnet_node_t
 
 /* ------------------------------------------------------------------------------------ */
 
+/* Sketch of the connection progress engine state space.
+ *
+ *                           [NONE]
+ *                              |
+ *                              v
+ *                    +---------+---------+
+ *                    |                   |
+ *                    v                   |
+ *                (send REQ)              |
+ *                [REQ_SENT]----+         |
+ *                    |         |         |
+ *                    |         v         |
+ *                    |    (*recv REQ)    v
+ *                    v         |     (recv REP)
+ *                (recv REP)    |     (send REP)
+ *                [REP_RCVD]<---+---->[REP_SENT]
+ *                    |                   |
+ *                    v                   |
+ *                (send RTU)              |
+ *                [RTU_SENT]              v
+ *                    |               (recv RTU)
+ *                    v               (send ACK)
+ *                (recv ACK)              |
+ *                [ACK_RCVD]              |
+ *                    |                   |
+ *                    v                   v
+ *                    +---------+---------+
+ * Key:                         |
+ * (foo) = Comm. events         v
+ * [FOO] = States            [DONE]
+ *
+ *
+ * *: When both peers begin by sending a REQ, we have the "ACTIVE-ACTIVE" case.
+ * This is resolved by BOTH peers treating one of the REQs as if it were a REP
+ * instead (they carry the same payload).  So, when a REQ is received in the
+ * REQ_SENT state, one peer will move to REP_SENT and the other to REP_RCVD
+ * (selected deterministically and without additional communication).
+ *
+ * If a message is lost then a resend will occur without a state change.
+ * The following are the resends and are NOT depicted in the diagram above:
+ *    + Timer expires in REQ_SENT state - resend the REQ msg
+ *    + Timer expires in RTU_SENT state - resend the RTU msg
+ *    + REQ recvd in the REP_SENT state - resend the REP msg
+ *    + RTU recvd in the DONE state     - resend the ACK msg
+ *    + REQ recvd in the RTU_SENT state - resend the REQ msg
+ * The last one (recv REQ in RTU_SENT resends REQ) could use some explanation:
+ *  In this case because we are receiving REQ (rather than REP) from our peer,
+ *  we know that we are in the ACTIVE-ACTIVE case and we can reason that the
+ *  peer may not realize this yet (the other option is that this REQ is just
+ *  late).  If our peer never received our REQ then it cannot move forward
+ *  without the data contained in a REQ or REP.  So, the resolution is to
+ *  resend our REQ.
+ */
+
 typedef enum {
-  GASNETC_CONN_STATE_NONE = 0, /* Newly created */
-  GASNETC_CONN_STATE_REQ_SENT, /* I am ACTIVE peer and am waiting for REP */
-  GASNETC_CONN_STATE_REP_SENT, /* I am PASSIVE peer and have sent REP */
-  GASNETC_CONN_STATE_REP_RCVD, /* I am ACTIVE peer and have received REP */
-  GASNETC_CONN_STATE_RTU_SENT, /* I am ACTIVE peer and am waiting for ACK */
-  GASNETC_CONN_STATE_ACK_RCVD, /* I am ACTIVE peer and have received ACK */
-  GASNETC_CONN_STATE_DONE      /* Have reached RTS */
+  /* State valid for both the ACTIVE and PASSIVE peer: */
+  GASNETC_CONN_STATE_NONE = 0, /* Newly created ACTIVE or PASSIVE */
+
+  /* States valid only for ACTIVE peer: */
+  GASNETC_CONN_STATE_REQ_SENT, /* Have sent REQ and am waiting for REP */
+  GASNETC_CONN_STATE_REP_RCVD, /* Have received REP but have not yet acted on it */
+  GASNETC_CONN_STATE_RTU_SENT, /* Have sent RTU and am waiting for ACK */
+  GASNETC_CONN_STATE_ACK_RCVD, /* Have received ACK but have not yet acted on it */
+
+  /* States valid only for PASIVE peer: */
+  GASNETC_CONN_STATE_REP_SENT, /* Have sent REP and am waiting for RTU */
+
+  /* State valid for both the ACTIVE and PASSIVE peer: */
+  GASNETC_CONN_STATE_DONE      /* Have reached RTS - connection is ready */
 } gasnetc_conn_state_t;
 
 typedef struct gasnetc_conn_s {
