@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- * $Date: 2011/03/10 18:53:28 $
- * $Revision: 1.60.2.2 $
+ * $Date: 2011/03/20 23:22:55 $
+ * $Revision: 1.60.2.3 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -657,24 +657,24 @@ void gasnete_coll_local_rotate_right(void *dst, const void *src, size_t elem_siz
 }
 
 /* Helper to perform in-memory data shuffling */
-gasnete_coll_shuffle_data(gasnet_image_t const dstindex[],
-                          void **dstlist,
-                          gasnet_image_t image_count,
-                          gasnet_image_t *srcimage, 
-                          void *src,
-                          size_t nbytes)
+void gasnete_coll_shuffle_data(gasnet_image_t const dstindex[],
+                               void **dstlist,
+                               gasnet_image_t image_count,
+                               gasnet_image_t *srcimage, 
+                               void *src,
+                               size_t nbytes)
 {
   gasnet_image_t i;
   uint8_t *buf;
   void **tmp_dstlist;
 
-  *scrimage = dstindex[*srcimage];
+  *srcimage = dstindex[*srcimage];
   buf = gasneti_malloc(nbytes * image_count);
   tmp_dstlist = (void **)gasneti_malloc(sizeof(void *) * image_count);
 
   for (i=0; i<image_count; i) {
     tmp_dstlist[i] = dstlist[dstindex[i]];
-    memcpy(buf+nbytes*i, src+nbytes*dstindex[i], nbytes);
+    memcpy(buf+nbytes*i, ((uint8_t *)src)+nbytes*dstindex[i], nbytes);
   }
 
   memcpy(dstlist, tmp_dstlist, sizeof(void *)*image_count);

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/smp-collectives/smp_coll_barrier.c,v $
- *     $Date: 2009/10/22 20:24:55 $
- * $Revision: 1.5 $
+ *     $Date: 2011/03/20 23:22:57 $
+ * $Revision: 1.5.6.1 $
  * Description: Shared Memory Collectives
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,7 +10,9 @@
 
 #if !(INLINE_ALL_COLLECTIVES)
 void smp_coll_barrier(smp_coll_t handle, int flags) {
-  (*handle->barr_fns[handle->curr_barrier_routine])(handle, flags);
+  if (handle->THREADS > 1) {
+    (*handle->barr_fns[handle->curr_barrier_routine])(handle, flags);
+  }
 }
 #endif
 

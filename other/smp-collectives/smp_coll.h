@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/smp-collectives/smp_coll.h,v $
- *     $Date: 2010/07/15 21:34:31 $
- * $Revision: 1.3.6.1 $
+ *     $Date: 2011/03/20 23:22:57 $
+ * $Revision: 1.3.6.2 $
  * Description: Shared Memory Collectives
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -71,9 +71,11 @@ void smp_coll_set_exchange_routine(smp_coll_t handle, smp_coll_exchange_routine_
 void smp_coll_safe_barrier(smp_coll_t handle, int flags);
 
 #if INLINE_ALL_COLLECTIVES
-#define smp_coll_barrier(HANDLE, FLAGS) do {\
-(*(HANDLE)->barr_fns[(HANDLE)->curr_barrier_routine])(HANDLE, (FLAGS));\
-}while(0)
+#define smp_coll_barrier(HANDLE, FLAGS) do {                                    \
+  if (HANDLE->THREADS > 1) {                                                    \
+    (*(HANDLE)->barr_fns[(HANDLE)->curr_barrier_routine])(HANDLE, (FLAGS));     \
+  }                                                                             \
+} while (0)
 #else
 void smp_coll_barrier(smp_coll_t handle, int flags);
 #endif
