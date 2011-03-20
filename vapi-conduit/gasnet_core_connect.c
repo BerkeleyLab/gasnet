@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/20 22:24:30 $
- * $Revision: 1.44.2.64 $
+ *     $Date: 2011/03/20 23:29:44 $
+ * $Revision: 1.44.2.65 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1705,7 +1705,8 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
   gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
   {
     gasnetc_conn_t *conn = gasnetc_get_conn(node);
-    gasnetc_conn_state_t state = conn ? conn->state : GASNETC_CONN_STATE_DONE;
+    const gasnetc_conn_state_t orig_state = conn ? conn->state : GASNETC_CONN_STATE_DONE;
+    gasnetc_conn_state_t state = orig_state;
 
     /* extract any remote data from the payload and repost desc ASAP */
     if (((state == GASNETC_CONN_STATE_NONE) || (state == GASNETC_CONN_STATE_REQ_SENT)) &&
@@ -1737,31 +1738,43 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
       if (state == GASNETC_CONN_STATE_NONE) {
         /* Normal case */
         (void) gasnetc_qp_create(&conn->info);
-        (void) gasnetc_qp_reset2init(&conn->info);
-        (void) gasnetc_qp_init2rtr(&conn->info);
         state = GASNETC_CONN_STATE_REP_SENT;
-        /* ...falls through... */
+        /* ...falls through to send REP... */
       }
       if (state == GASNETC_CONN_STATE_REP_SENT) {
         conn_send_rep(conn);
+        if_pf (orig_state == state) break; /* Do not advance QP state on resend */
+        /* ...falls through to advance QP... */
       } else if (state == GASNETC_CONN_STATE_REQ_SENT) {
         /* Resolve the active-active case by picking a winner and a loser. */
         /* Use of odd/even spreads choice uniformly (not biased to high or low nodes) */
         int higher = (node > gasneti_mynode);
         int odd_even = (node ^ gasneti_mynode) & 1;
         if (higher ^ odd_even) {
-          (void) gasnetc_qp_init2rtr(&conn->info);
           state = GASNETC_CONN_STATE_REP_SENT;
           conn->ref_count = 2;
           GASNETC_STAT_EVENT(CONN_AAP);
+          /* ...falls through to advance QP... */
         } else {
           state = GASNETC_CONN_STATE_REP_RCVD;
           GASNETC_STAT_EVENT(CONN_AAA);
+          break; /* do not advance QP state */
         }
       } else if (state == GASNETC_CONN_STATE_RTU_SENT) {
         /* We must have "won" the active-active race while peer must have missed our REQ */
         conn_send_req(conn, 0);
+        break; /* Do not advance QP state */
+      } else {
+        break; /* Do not advance QP state */
       }
+
+      /* Advance QP state, overlapped w/ network round-trip (if any) and remote work: */
+      if (orig_state == GASNETC_CONN_STATE_NONE) {
+        (void) gasnetc_qp_reset2init(&conn->info);
+      }
+      (void) gasnetc_qp_init2rtr(&conn->info);
+      gasnetc_sndrcv_attach_peer(node, conn->info.cep);
+      gasnetc_dynamic_rtr2rts(conn, 0);
       break;
 
     case GASNETC_CONN_CMD_REP:
@@ -1774,12 +1787,10 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
    case GASNETC_CONN_CMD_RTU:
       if (state == GASNETC_CONN_STATE_REP_SENT) {
         /* Normal case */
-        gasnetc_sndrcv_attach_peer(node, conn->info.cep);
-        gasnetc_dynamic_rtr2rts(conn, 0);
         gasneti_sync_writes(); /* "finalize" cep data */
         GASNETC_NODE2CEP(node) = conn->info.cep;
         state = GASNETC_CONN_STATE_DONE;
-        /* ...falls through... */
+        /* ...falls through to send ACK... */
       }
       if (state == GASNETC_CONN_STATE_DONE) {
         conn_send_ack(conn, node);
