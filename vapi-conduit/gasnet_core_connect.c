@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/20 02:56:46 $
- * $Revision: 1.44.2.57 $
+ *     $Date: 2011/03/20 03:07:14 $
+ * $Revision: 1.44.2.58 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -176,7 +176,7 @@ gasnetc_parse_filename(const char *filename)
 #if GASNETC_IBV_XRC
 typedef struct gasnetc_xrc_snd_qp_s {
   gasnetc_qp_hndl_t handle;
-  enum ibv_qp_state state;
+  volatile enum ibv_qp_state state;
   gasneti_semaphore_t *sq_sema_p;
 } gasnetc_xrc_snd_qp_t;
 
@@ -1072,6 +1072,7 @@ conn_get_snd_desc(gasnetc_conn_cmd_t cmd, int is_reply)
 
   if (NULL == desc) {
     do {
+      GASNETI_WAITHOOK();
       gasnetc_sndrcv_poll(is_reply);
       desc = gasneti_lifo_pop(&conn_snd_freelist);
     } while (NULL == desc);
@@ -1444,6 +1445,7 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
     while (conn->state == state) {
       if (gasneti_ticks_to_us(gasneti_ticks_now() - start_time) > timeout_us) break;
 		      
+      GASNETI_WAITHOOK();
       gasnetc_sndrcv_poll(0); /* works even before _attach */
     }
 
