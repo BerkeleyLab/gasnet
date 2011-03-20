@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/20 04:42:20 $
- * $Revision: 1.44.2.60 $
+ *     $Date: 2011/03/20 17:43:43 $
+ * $Revision: 1.44.2.61 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1040,7 +1040,6 @@ typedef enum {
   GASNETC_CONN_STATE_REP_RCVD, /* I am ACTIVE peer and have received REP */
   GASNETC_CONN_STATE_RTU_SENT, /* I am ACTIVE peer and am waiting for ACK */
   GASNETC_CONN_STATE_ACK_RCVD, /* I am ACTIVE peer and have received ACK */
-  GASNETC_CONN_STATE_ACK_IMPL, /* I am ACTIVE peer and have received an AM before ACK */
   GASNETC_CONN_STATE_DONE      /* Have reached RTS */
 } gasnetc_conn_state_t;
 
@@ -1484,7 +1483,7 @@ static void
 conn_send_req(gasnetc_conn_t *conn, int lock_held)
 {
   if (lock_held) gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
-  conn_send_data(conn, GASNETC_CONN_CMD_REQ, 0);
+  conn_send_data(conn, GASNETC_CONN_CMD_REQ, !lock_held);
   if (lock_held) gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
 }
 
@@ -1568,13 +1567,12 @@ gasnetc_connect_to(gasnet_node_t node)
     gasnetc_sndrcv_attach_peer(node, conn->info.cep);
     gasnetc_timed_conn_wait(conn, GASNETC_CONN_STATE_RTU_SENT, &conn_send_rtu);
 
-    if (conn->state == GASNETC_CONN_STATE_ACK_IMPL) {
-      /* An was AM received from the Passive peer while polling for the ACK.
-       * The gasnetc_dynamic_rtr2rts() call has already been made. */
-    } else {
+    if (conn->state != GASNETC_CONN_STATE_DONE) {
       gasneti_assert(conn->state == GASNETC_CONN_STATE_ACK_RCVD);
       gasnetc_dynamic_rtr2rts(conn, 1);
       conn->state = GASNETC_CONN_STATE_DONE;
+    } else {
+      /* Connection completed by gasnetc_conn_implied_ack() */
     }
 
     gasnetc_put_conn(conn);
@@ -1606,10 +1604,13 @@ gasnetc_conn_implied_ack(gasnet_node_t node)
        * + GASNETC_CONN_STATE_ACK_RCVD
        *     The ACK was received in the same Poll as the current AM Request
        *     and therefore gasnetc_connect_to() has not yet regained control.
+       *
+       * The !conn case is impossible in the single-threaded case, and in the
+       * multi-threaded case is caught by (sq_sema_p != gasnetc_zero_sema) above.
        */
       gasneti_assert(conn && ((conn->state == GASNETC_CONN_STATE_RTU_SENT) ||
                               (conn->state == GASNETC_CONN_STATE_ACK_RCVD)));
-      conn->state = GASNETC_CONN_STATE_ACK_IMPL;
+      conn->state = GASNETC_CONN_STATE_DONE;
 
       GASNETC_STAT_EVENT(CONN_IMPLIED_ACK);
 
@@ -1622,7 +1623,6 @@ extern void
 gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
 {
   gasnetc_ud_rcv_desc_t *desc = (gasnetc_ud_rcv_desc_t *)(uintptr_t)comp->gasnetc_f_wr_id;
-  void *payload = (void *)((uintptr_t)desc->sg.addr + GASNETC_GRH_SIZE);
   gasnetc_conn_cmd_t cmd = comp->imm_data & 0xff;
   gasnet_node_t node = comp->imm_data >> 16;
 
@@ -1636,12 +1636,13 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
   gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
   {
     gasnetc_conn_t *conn = gasnetc_get_conn(node);
-    gasnetc_conn_state_t state;
+    gasnetc_conn_state_t state = conn ? conn->state : GASNETC_CONN_STATE_DONE;
 
     /* extract any remote data from the payload and repost desc ASAP */
-    if (conn && (conn->state < GASNETC_CONN_STATE_REP_SENT) &&
+    if (((state == GASNETC_CONN_STATE_NONE) || (state == GASNETC_CONN_STATE_REQ_SENT)) &&
         ((cmd == GASNETC_CONN_CMD_REQ) || (cmd == GASNETC_CONN_CMD_REP))) {
       gasnetc_conn_info_t *conn_info = &conn->info;
+      void *payload = (void *)((uintptr_t)desc->sg.addr + GASNETC_GRH_SIZE);
 
     #if GASNETC_IBV_XRC
       if (gasnetc_use_xrc) {
@@ -1660,10 +1661,8 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
       }
     }
     gasnetc_rcv_post_ud(desc);
-    payload = NULL;
 
     /* Now determine the action to take */
-    state = conn ? conn->state : GASNETC_CONN_STATE_DONE;
     switch (cmd) {
     case GASNETC_CONN_CMD_REQ:
       if (state == GASNETC_CONN_STATE_NONE) {
@@ -1692,7 +1691,7 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
         }
       } else if (state == GASNETC_CONN_STATE_RTU_SENT) {
         /* We must have "won" the active-active race while peer must have missed our REQ */
-        conn_send_data(conn, GASNETC_CONN_CMD_REQ, 1);
+        conn_send_req(conn, 0);
       }
       break;
 
