@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/21 21:35:17 $
- * $Revision: 1.44.2.74 $
+ *     $Date: 2011/03/21 23:22:57 $
+ * $Revision: 1.44.2.75 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -42,6 +42,7 @@ gasnetc_qpn_t gasnetc_conn_qpn = 0;
 gasneti_semaphore_t gasnetc_zero_sema = GASNETI_SEMAPHORE_INITIALIZER(0, 0);
 
 int gasnetc_ud_rcvs = 0;
+int gasnetc_ud_snds = 0;
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -1213,9 +1214,8 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port, int fully_connected)
     uintptr_t addr;
     int rc;
 
-    /* TODO: tune these?  honor env vars? */
     const int max_recv_wr = gasnetc_ud_rcvs;
-    const int max_send_wr = 4;
+    const int max_send_wr = gasnetc_ud_snds;
 
     /* TODO: if/when rkeys are passed dynamically too this will need to account for them too */
   #if GASNETC_IBV_XRC
@@ -1507,8 +1507,7 @@ gasnetc_put_conn(gasnetc_conn_t *conn)
   gasneti_free(conn);
 }
 
-/* TODO: Need env vars for min and max timeouts, and perhaps better defaults.
- * Currenly:
+/* Defaults:
  *   Min is 1000us (1ms) which at least 25% more than the ENTIRE connect should take.
  *   Max is (1 << 24), which, doubling from an inital min=1ms, means 16.384s.
  * Sum is upto 32s spent retrying EACH of the two round-trip message exchanges.
@@ -2157,6 +2156,7 @@ extern int
 gasnetc_connect_init(void)
 {
   int do_static = 0;
+  int do_dynamic = 0;
   int fully_connected = 0;
 
   /* Allocate node->cep lookup table */
@@ -2181,7 +2181,33 @@ gasnetc_connect_init(void)
   gasnetc_connectfile_out_base =
         gasneti_getenv_int_withdefault("GASNET_CONNECTFILE_BASE",
                                        gasnetc_connectfile_out_base, 0);
+
   do_static = gasneti_getenv_int_withdefault("GASNET_CONNECT_STATIC", 1, 0);
+  do_dynamic = gasneti_getenv_int_withdefault("GASNET_CONNECT_DYNAMIC", 1, 0);
+  if (!do_static && !do_dynamic) {
+    if (!gasneti_mynode) {
+      fprintf(stderr, "WARNING: Both GASNET_CONNECT_STATIC and GASNET_CONNECT_DYNAMIC are non-zero.\n"
+                      "         Enabling dynamic connection support.\n");
+    }
+    do_dynamic = 1;
+  }
+
+  {
+    uint64_t tmp_min =
+          gasneti_getenv_int_withdefault("GASNET_CONNECT_RETRANS_MIN", gasnetc_conn_retransmit_min, 0);
+    uint64_t tmp_max =
+          gasneti_getenv_int_withdefault("GASNET_CONNECT_RETRANS_MAX", gasnetc_conn_retransmit_max, 0);
+
+    if (tmp_min >= tmp_max) {
+      if (!gasneti_mynode) {
+        fprintf(stderr, "WARNING: GASNET_CONNECT_RETRANS_MIN >= GASNET_CONNECT_RETRANS_MAX.  "
+                        "Using default values instead.\n");
+      }
+    } else {
+      gasnetc_conn_retransmit_min = tmp_min;
+      gasnetc_conn_retransmit_max = tmp_max;
+    }
+  }
 
 #if 0 /* DISABLED - still appears that fixed-comms barrier code might be buggy */
   /* Must we disable barrier AMs from all but the supernode representative? */
@@ -2190,9 +2216,7 @@ gasnetc_connect_init(void)
   }
 #endif
 
-  /* Determine the inline data limit given the QP parameters we will use.
-     Logically this belongs in connect_init(), but there the CQs don't yet exist.
-   */
+  /* Determine the inline data limit given the QP parameters we will use. */
   {
     const size_t orig_inline_limit = gasnetc_inline_limit;
     int i;
@@ -2214,6 +2238,7 @@ gasnetc_connect_init(void)
                 "WARNING: Requested GASNET_INLINESEND_LIMIT %d reduced to HCA limit %d\n",
                 (int)orig_inline_limit, (int)gasnetc_inline_limit);
     }
+
     GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_INLINESEND_LIMIT = %d", (int)gasnetc_inline_limit));
     gasnetc_sndrcv_init_inline();
   }
@@ -2226,12 +2251,13 @@ gasnetc_connect_init(void)
                              fully_connected ? "Fully" : "Partially",
                              (int)static_nodes, (int)gasnetc_remote_nodes));
   } else {
-    GASNETI_TRACE_PRINTF(I, ("Static connection at startup has been disabled"));
+    GASNETI_TRACE_PRINTF(I, ("Static connection at startup has been disabled at user request"));
   }
 
-  /* TODO: allow env var to disable dynamic connections */
-  if (do_static && !gasnetc_connectfile_in) {
-    GASNETI_TRACE_PRINTF(I, ("Dynamic connection has been disabled for fully-connected job"));
+  if (!do_dynamic) {
+    GASNETI_TRACE_PRINTF(I, ("Dynamic connection has been disabled at user request"));
+  } else if (do_static && !gasnetc_connectfile_in) {
+    GASNETI_TRACE_PRINTF(I, ("Dynamic connection automatically disabled for fully-connected job"));
   } else {
     /* TODO: allow env var to select specific port for UD */
     gasnetc_qp_setup_ud(&gasnetc_port_tbl[0], fully_connected);
