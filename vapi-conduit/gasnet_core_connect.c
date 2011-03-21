@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/20 23:29:44 $
- * $Revision: 1.44.2.65 $
+ *     $Date: 2011/03/21 00:46:26 $
+ * $Revision: 1.44.2.66 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -816,17 +816,11 @@ gasnetc_qp_rtr2rts(gasnetc_conn_info_t *conn_info)
 
     GASNETC_FOR_EACH_QPI(conn_info, qpi, cep) {
       const gasnetc_port_info_t *port = conn_info->port[qpi];
-      gasneti_semaphore_t *sq_sema_p = sq_sema_get();
 
       qp_attr.sq_psn           = GASNETC_PSN(gasneti_mynode, qpi);
       qp_attr.ous_dst_rd_atom  = port->rd_atom;
       rc = VAPI_modify_qp(cep->hca_handle, cep->qp_handle, &qp_attr, &qp_mask, &qp_cap);
       GASNETC_VAPI_CHECK(rc, "from VAPI_modify_qp(RTS)");
-
-      /* XXX: When could/should we use the *allocated* length? */
-      gasneti_semaphore_init(sq_sema_p, gasnetc_op_oust_pp, gasnetc_op_oust_pp);
-      gasneti_sync_writes();
-      cep->sq_sema_p = sq_sema_p;
     }
 #else
   #if GASNETC_IBV_XRC
@@ -840,21 +834,6 @@ gasnetc_qp_rtr2rts(gasnetc_conn_info_t *conn_info)
     qp_attr.rnr_retry        = GASNETC_QP_RNR_RETRY;
 
     GASNETC_FOR_EACH_QPI(conn_info, qpi, cep) {
-      gasneti_semaphore_t *sq_sema_p;
-
-    #if GASNETC_IBV_XRC
-      if (gasnetc_use_xrc) {
-        cep->xrc_remote_srq_num = conn_info->xrc_remote_srq_num[qpi];
-        if (NULL == xrc_snd_qp[qpi].sq_sema_p) {
-          xrc_snd_qp[qpi].sq_sema_p = sq_sema_get();
-        }
-        sq_sema_p = xrc_snd_qp[qpi].sq_sema_p;
-      } else
-    #endif
-      {
-        sq_sema_p = sq_sema_get();
-      }
-
       if (GASNETC_SND_QP_NEEDS_MODIFY(xrc_snd_qp[qpi], IBV_QPS_RTS)) {
         const gasnetc_port_info_t *port = conn_info->port[qpi];
 
@@ -865,23 +844,55 @@ gasnetc_qp_rtr2rts(gasnetc_conn_info_t *conn_info)
       #if GASNETC_IBV_XRC
         if (gasnetc_use_xrc) xrc_snd_qp[qpi].state = IBV_QPS_RTS;
       #endif
-
-        {
-          int max_send_wr = (gasnetc_use_srq && GASNETC_QPI_IS_REQ(qpi))
-                              ? gasnetc_am_oust_pp : gasnetc_op_oust_pp;
-
-          /* XXX: When could/should we use the *allocated* length? */
-          gasneti_semaphore_init(sq_sema_p, max_send_wr, max_send_wr);
-        }
       }
-
-      gasneti_sync_writes();
-      cep->sq_sema_p = sq_sema_p;
     }
 #endif
 
     return GASNET_OK;
 } /* rtr2rts */
+
+/* Install Send Queue semaphore() */
+static int
+gasnetc_set_sq_sema(gasnetc_conn_info_t *conn_info)
+{
+    const gasnet_node_t node = conn_info->node;
+    gasnetc_cep_t *cep;
+    int qpi;
+  #if GASNETC_IBV_XRC
+    gasnetc_xrc_snd_qp_t *xrc_snd_qp = GASNETC_NODE2SND_QP(node);
+  #endif
+
+    GASNETC_FOR_EACH_QPI(conn_info, qpi, cep) {
+      gasneti_semaphore_t *sq_sema_p;
+      int max_send_wr = (gasnetc_use_srq && GASNETC_QPI_IS_REQ(qpi))
+                          ? gasnetc_am_oust_pp : gasnetc_op_oust_pp;
+
+    #if GASNETC_IBV_XRC
+      if (gasnetc_use_xrc) {
+        sq_sema_p = xrc_snd_qp[qpi].sq_sema_p;
+        if (sq_sema_p) goto skip_init;
+
+        xrc_snd_qp[qpi].sq_sema_p = sq_sema_get();
+        sq_sema_p = xrc_snd_qp[qpi].sq_sema_p;
+      } else
+    #endif
+      {
+        sq_sema_p = sq_sema_get();
+      }
+
+
+      /* XXX: When could/should we use the *allocated* length? */
+      gasneti_semaphore_init(sq_sema_p, max_send_wr, max_send_wr);
+
+    #if GASNETC_IBV_XRC
+    skip_init:
+    #endif
+      gasneti_sync_writes();
+      cep->sq_sema_p = sq_sema_p;
+    }
+
+    return GASNET_OK;
+} /* set_qp_sema */
 
 /* ------------------------------------------------------------------------------------ */
 /* Support for UD endpoint used for dynamic connenction setup */
@@ -1573,12 +1584,10 @@ conn_send_ack(gasnetc_conn_t *conn, gasnet_node_t node)
 }
 
 /* "wrapper" to centralize tracing/stats */
-GASNETI_INLINE(gasnetc_dynamic_rtr2rts)
-void gasnetc_dynamic_rtr2rts(gasnetc_conn_t *conn, int active)
-{
-  (void) gasnetc_qp_rtr2rts(&conn->info);
-
 #if GASNETI_STATS_OR_TRACE
+GASNETI_INLINE(gasnetc_dynamic_done)
+void gasnetc_dynamic_done(gasnetc_conn_t *conn, int active)
+{
   GASNETC_STAT_EVENT(CONN_DYNAMIC);
   if (active) {
     GASNETI_TRACE_EVENT_TIME(C, CONN_TIME_ACTV, (gasneti_ticks_now() - conn->start_time));
@@ -1590,8 +1599,10 @@ void gasnetc_dynamic_rtr2rts(gasnetc_conn_t *conn, int active)
     GASNETI_TRACE_EVENT_TIME(C, CONN_TIME_PASV, (gasneti_ticks_now() - conn->start_time));
     GASNETI_TRACE_PRINTF(C, ("Dynamic connection from node %d", (int)conn->info.node));
   }
-#endif
 }
+#else
+#define gasnetc_dynamic_done(c,a) ((void)0)
+#endif
 
 extern gasnetc_cep_t *
 gasnetc_connect_to(gasnet_node_t node)
@@ -1634,12 +1645,14 @@ gasnetc_connect_to(gasnet_node_t node)
     conn_send_rtu(conn, 1);
 
     gasnetc_sndrcv_attach_peer(node, conn->info.cep);
+    (void) gasnetc_qp_rtr2rts(&conn->info);
     gasnetc_timed_conn_wait(conn, GASNETC_CONN_STATE_RTU_SENT, &conn_send_rtu);
 
     if (conn->state != GASNETC_CONN_STATE_DONE) {
       gasneti_assert(conn->state == GASNETC_CONN_STATE_ACK_RCVD);
-      gasnetc_dynamic_rtr2rts(conn, 1);
+      (void) gasnetc_set_sq_sema(&conn->info);
       conn->state = GASNETC_CONN_STATE_DONE;
+      gasnetc_dynamic_done(conn, 1);
     } else {
       /* Connection completed by gasnetc_conn_implied_ack() */
     }
@@ -1679,11 +1692,11 @@ gasnetc_conn_implied_ack(gasnet_node_t node)
        */
       gasneti_assert(conn && ((conn->state == GASNETC_CONN_STATE_RTU_SENT) ||
                               (conn->state == GASNETC_CONN_STATE_ACK_RCVD)));
+
+      (void) gasnetc_set_sq_sema(&conn->info);
       conn->state = GASNETC_CONN_STATE_DONE;
-
+      gasnetc_dynamic_done(conn, 1);
       GASNETC_STAT_EVENT(CONN_IMPLIED_ACK);
-
-      gasnetc_dynamic_rtr2rts(conn, 1);
     }
   gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
 }
@@ -1774,7 +1787,8 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
       }
       (void) gasnetc_qp_init2rtr(&conn->info);
       gasnetc_sndrcv_attach_peer(node, conn->info.cep);
-      gasnetc_dynamic_rtr2rts(conn, 0);
+      (void) gasnetc_qp_rtr2rts(&conn->info);
+      (void) gasnetc_set_sq_sema(&conn->info);
       break;
 
     case GASNETC_CONN_CMD_REP:
@@ -1790,6 +1804,7 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
         gasneti_sync_writes(); /* "finalize" cep data */
         GASNETC_NODE2CEP(node) = conn->info.cep;
         state = GASNETC_CONN_STATE_DONE;
+        gasnetc_dynamic_done(conn, 0);
         /* ...falls through to send ACK... */
       }
       if (state == GASNETC_CONN_STATE_DONE) {
@@ -2191,6 +2206,7 @@ gasnetc_connect_static(void)
   /* Advance state RTR -> RTS */
   GASNETC_FOR_EACH_REMOTE_NODE(node) {
     (void)gasnetc_qp_rtr2rts(&conn_info[node]);
+    (void)gasnetc_set_sq_sema(&conn_info[node]);
     GASNETC_STAT_EVENT(CONN_STATIC);
   }
 
