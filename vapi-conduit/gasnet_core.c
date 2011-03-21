@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2011/03/19 17:54:10 $
- * $Revision: 1.279.2.6 $
+ *     $Date: 2011/03/21 20:55:29 $
+ * $Revision: 1.279.2.7 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1138,7 +1138,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   /* Now enable tracing of all the following steps */
   gasneti_trace_init(argc, argv);
 
-  /* boostrapInit may set gasneti_nodes==0 if would overflow gasnet_node_t */
+  /* bootstrapInit may set gasneti_nodes==0 if would overflow gasnet_node_t */
   if (!gasneti_nodes /* || (gasneti_nodes > GASNET_MAXNODES) */) {
     GASNETI_RETURN_ERRR(RESOURCE, "gasnet_nodes exceeds " GASNET_CONDUIT_NAME_STR_LC "-conduit capabilities");
   }
@@ -1296,11 +1296,15 @@ static int gasnetc_init(int *argc, char ***argv) {
     return i;
   }
   
-  /* allocate/initialize connection resources */
-  i = gasnetc_connect_init();
-  if (i != GASNET_OK) {
-    return i;
+#if GASNETC_IBV_XRC
+  /* allocate/initialize XRC resources, if any */
+  if (gasnetc_use_xrc) {
+    i = gasnetc_xrc_init();
+    if (i != GASNET_OK) {
+      return i;
+    }
   }
+#endif
 
   /* allocate/initialize transport resources */
   i = gasnetc_sndrcv_init();
@@ -1308,8 +1312,11 @@ static int gasnetc_init(int *argc, char ***argv) {
     return i;
   }
 
-  /* Establish static connections */
-  gasnetc_connect_static();
+  /* Establish static connections and prepare for dynamic ones */
+  i = gasnetc_connect_init();
+  if (i != GASNET_OK) {
+    return i;
+  }
 
   #if GASNET_DEBUG_VERBOSE
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
@@ -1318,7 +1325,7 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   /* XXX: From this point forward gasneti_bootstrap*() could safely be implemented
    * via AMs or "raw" IB if desired for efficiency (but no segment for RDMA).
-   * Note that only Exchange (aka AllGather) and Barrier are currently used.
+   * Currently only Exchange (aka AllGather) and Barrier are used beyond this point.
    */
 
   /* Find max pinnable size before we start carving up memory w/ mmap()s.
@@ -1411,12 +1418,6 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_assert(j < gasneti_mynode);
       gasnetc_exit_parent = j;
     }
-  }
-
-  /* allocate/initialize dynamic connection resources */
-  i = gasnetc_connect_init_dynamic();
-  if (i != GASNET_OK) {
-    return i;
   }
 
   #if 0
