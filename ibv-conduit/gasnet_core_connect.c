@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/21 20:55:29 $
- * $Revision: 1.44.2.73 $
+ *     $Date: 2011/03/21 21:35:17 $
+ * $Revision: 1.44.2.74 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -96,10 +96,10 @@ static int gasnetc_connectfile_out_base = 36; /* Defaults to most compact */
 
 /* ------------------------------------------------------------------------------------ */
 
+#if GASNET_DEBUG
 /* Drop some UD packets randomly to aid debugging */
 static unsigned int gasnetc_conn_drop_denom = 0;
 
-#if GASNET_DEBUG
 #include <stdlib.h>
 /* Uniformly distributed int in range [0..max_val] */
 static unsigned int
@@ -924,8 +924,6 @@ static gasnetc_qp_hndl_t conn_ud_qp = GASNETC_IB_CHOOSE(VAPI_INVAL_HNDL, NULL);
 static gasnetc_port_info_t *conn_ud_port = NULL;
 static gasnetc_hca_t *conn_ud_hca = NULL;
 static int conn_ud_msg_sz = -1;
-static gasnetc_memreg_t conn_ud_mem_reg;
-static uint32_t conn_ud_qkey = 0;
 
 #define GASNETC_GRH_SIZE 40 /* Global Route Header is always 40 bytes */
 
@@ -1210,6 +1208,8 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port, int fully_connected)
   #endif
     gasnetc_qp_attr_t qp_attr;
     gasnetc_qp_mask_t qp_mask;
+    gasnetc_memreg_t mem_reg;
+    uint32_t my_qkey = 0;
     uintptr_t addr;
     int rc;
 
@@ -1297,9 +1297,9 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port, int fully_connected)
      * TODO: Is there some info already available to make this more unique?
      */
     { gasnet_node_t node;
-      gasneti_assert(conn_ud_qkey == 0);
+      gasneti_assert(my_qkey == 0);
       for (node = 0; node < gasneti_nodes; ++node) {
-        conn_ud_qkey ^= conn_remote_ud_qpn[node];
+        my_qkey ^= conn_remote_ud_qpn[node];
       }
     }
 
@@ -1312,7 +1312,7 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port, int fully_connected)
       }
 
       rc = gasnetc_pin(&gasnetc_hca[0], buf, size,
-                       GASNETC_ACL_LOC_WR, &conn_ud_mem_reg);
+                       GASNETC_ACL_LOC_WR, &mem_reg);
       GASNETC_VAPI_CHECK(rc, "while pinning memory for dynamic connection setup");
 
       addr = (uintptr_t)buf;
@@ -1327,7 +1327,7 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port, int fully_connected)
     QP_ATTR_MASK_SET(qp_mask, QP_ATTR_QKEY);
     qp_attr.qp_state            = VAPI_INIT;
     qp_attr.pkey_ix             = 0;
-    qp_attr.qkey                = conn_ud_qkey;
+    qp_attr.qkey                = my_qkey;
     qp_attr.port                = port->port_num;
 
     rc = VAPI_modify_qp(conn_ud_hca->handle, conn_ud_qp, &qp_attr, &qp_mask, &qp_cap);
@@ -1336,7 +1336,7 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port, int fully_connected)
     qp_mask = (enum ibv_qp_attr_mask)(IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_QKEY);
     qp_attr.qp_state        = IBV_QPS_INIT;
     qp_attr.pkey_index      = 0;
-    qp_attr.qkey            = conn_ud_qkey;
+    qp_attr.qkey            = my_qkey;
     qp_attr.port_num        = port->port_num;
     rc = ibv_modify_qp(conn_ud_qp, &qp_attr, qp_mask);
     GASNETC_VAPI_CHECK(rc, "from ibv_modify_qp(UD INIT)");
@@ -1359,7 +1359,7 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port, int fully_connected)
       #endif  
         desc->sg.gasnetc_f_sg_len = recv_sz;
         desc->sg.addr             = addr;
-        desc->sg.lkey             = conn_ud_mem_reg.lkey;
+        desc->sg.lkey             = mem_reg.lkey;
         gasnetc_rcv_post_ud(desc);
       }
     }
@@ -1409,17 +1409,17 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port, int fully_connected)
         desc->wr.comp_type            = VAPI_SIGNALED;
         desc->wr.set_se               = 0;
         desc->wr.fence                = 0;
-        desc->wr.remote_qkey          = conn_ud_qkey;
+        desc->wr.remote_qkey          = my_qkey;
       #else   
         desc->wr.send_flags           = (enum ibv_send_flags)0;
         desc->wr.next                 = NULL;
-        desc->wr.wr.ud.remote_qkey    = conn_ud_qkey;
+        desc->wr.wr.ud.remote_qkey    = my_qkey;
       #endif  
       #if GASNET_DEBUG
         desc->sg.gasnetc_f_sg_len = ~0;
       #endif  
         desc->sg.addr             = addr;
-        desc->sg.lkey             = conn_ud_mem_reg.lkey;
+        desc->sg.lkey             = mem_reg.lkey;
         gasneti_lifo_push(&conn_snd_freelist, desc);
       }
     }
