@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/21 00:46:26 $
- * $Revision: 1.44.2.66 $
+ *     $Date: 2011/03/21 04:59:16 $
+ * $Revision: 1.44.2.67 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -834,6 +834,12 @@ gasnetc_qp_rtr2rts(gasnetc_conn_info_t *conn_info)
     qp_attr.rnr_retry        = GASNETC_QP_RNR_RETRY;
 
     GASNETC_FOR_EACH_QPI(conn_info, qpi, cep) {
+    #if GASNETC_IBV_XRC
+      if (gasnetc_use_xrc) {
+        cep->xrc_remote_srq_num = conn_info->xrc_remote_srq_num[qpi];
+      }
+    #endif
+
       if (GASNETC_SND_QP_NEEDS_MODIFY(xrc_snd_qp[qpi], IBV_QPS_RTS)) {
         const gasnetc_port_info_t *port = conn_info->port[qpi];
 
