@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/21 04:59:16 $
- * $Revision: 1.44.2.67 $
+ *     $Date: 2011/03/21 17:31:47 $
+ * $Revision: 1.44.2.68 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1006,7 +1006,7 @@ gasnetc_rcv_post_ud(gasnetc_ud_rcv_desc_t *desc)
 
 /* Post a work request to the send queue of the UD QP */
 static void
-gasnetc_snd_post_ud(gasnetc_ud_snd_desc_t *desc, gasnetc_ah_t *ah, gasnet_node_t node, int is_reply)
+gasnetc_snd_post_ud(gasnetc_ud_snd_desc_t *desc, gasnetc_ah_t *ah, gasnet_node_t node)
 {
   gasneti_semaphore_t *snd_cq_sema_p = conn_ud_hca->snd_cq_sema_p;
   gasnetc_snd_wr_t *wr = &desc->wr;
@@ -1024,7 +1024,7 @@ gasnetc_snd_post_ud(gasnetc_ud_snd_desc_t *desc, gasnetc_ah_t *ah, gasnet_node_t
     GASNETC_TRACE_WAIT_BEGIN();
     do {
       GASNETI_WAITHOOK();
-      gasnetc_sndrcv_poll(is_reply);
+      gasnetc_sndrcv_poll(1);
     } while (!gasneti_semaphore_trydown(snd_cq_sema_p));
     GASNETC_TRACE_WAIT_END(CONN_STALL_CQ);
   }
@@ -1142,7 +1142,7 @@ typedef enum {
 } gasnetc_conn_cmd_t;
 
 static gasnetc_ud_snd_desc_t *
-conn_get_snd_desc(gasnetc_conn_cmd_t cmd, int is_reply)
+conn_get_snd_desc(gasnetc_conn_cmd_t cmd)
 {
   gasnetc_ud_snd_desc_t *desc =  gasneti_lifo_pop(&conn_snd_freelist);
   GASNETC_TRACE_WAIT_BEGIN();
@@ -1150,7 +1150,7 @@ conn_get_snd_desc(gasnetc_conn_cmd_t cmd, int is_reply)
   if (NULL == desc) {
     do {
       GASNETI_WAITHOOK();
-      gasnetc_sndrcv_poll(is_reply);
+      gasnetc_sndrcv_poll(1);
       desc = gasneti_lifo_pop(&conn_snd_freelist);
     } while (NULL == desc);
     GASNETC_TRACE_WAIT_END(CONN_STALL_DESC);
@@ -1160,10 +1160,10 @@ conn_get_snd_desc(gasnetc_conn_cmd_t cmd, int is_reply)
 }
 
 static void
-conn_send_data(gasnetc_conn_t *conn, gasnetc_conn_cmd_t cmd, int handler_context)
+conn_send_data(gasnetc_conn_t *conn, gasnetc_conn_cmd_t cmd)
 {
   gasnetc_conn_info_t *conn_info = &conn->info;
-  gasnetc_ud_snd_desc_t *desc = conn_get_snd_desc(cmd, handler_context);
+  gasnetc_ud_snd_desc_t *desc = conn_get_snd_desc(cmd);
   void *buf = (void *)(uintptr_t)desc->sg.addr;
 
 #if GASNETC_IBV_XRC
@@ -1185,17 +1185,16 @@ conn_send_data(gasnetc_conn_t *conn, gasnetc_conn_cmd_t cmd, int handler_context
   }
     
   desc->sg.gasnetc_f_sg_len = conn_ud_msg_sz;
-  gasnetc_snd_post_ud(desc, conn->ah, conn_info->node, handler_context);
+  gasnetc_snd_post_ud(desc, conn->ah, conn_info->node);
 }
 
 static void
-conn_send_empty(gasnetc_ah_t *ah, gasnet_node_t node, int is_reply)
+conn_send_empty(gasnetc_ah_t *ah, gasnet_node_t node, gasnetc_conn_cmd_t cmd)
 {
-  gasnetc_conn_cmd_t cmd = is_reply ? GASNETC_CONN_CMD_ACK : GASNETC_CONN_CMD_RTU;
-  gasnetc_ud_snd_desc_t *desc = conn_get_snd_desc(cmd, is_reply);
+  gasnetc_ud_snd_desc_t *desc = conn_get_snd_desc(cmd);
 
   desc->sg.gasnetc_f_sg_len = GASNETC_ALLOW_0BYTE_MSG ? 0 : 1;
-  gasnetc_snd_post_ud(desc, ah, node, is_reply);
+  gasnetc_snd_post_ud(desc, ah, node);
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -1511,7 +1510,7 @@ static uint64_t gasnetc_conn_retransmit_max = (1 << 24);
 /* NOTE: releases and reacquires the lock */
 static void
 gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state, 
-                        void (*fn)(gasnetc_conn_t *, int))
+                        void (*fn)(gasnetc_conn_t *))
 {
   uint64_t timeout_us = gasnetc_conn_retransmit_min;
 #if GASNETI_STATS_OR_TRACE
@@ -1532,7 +1531,7 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
     if (conn->state != state) break; /* Done */
 
     /* We send one last (useless) msg immediately before giving up - not worth fixing. */
-    (*fn)(conn, 0);
+    (*fn)(conn);
     timeout_us *= 2;
   #if GASNETI_STATS_OR_TRACE
     ++resends;
@@ -1560,32 +1559,28 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
 }
 
 static void
-conn_send_req(gasnetc_conn_t *conn, int lock_held)
+conn_send_req(gasnetc_conn_t *conn)
 {
-  if (lock_held) gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
-  conn_send_data(conn, GASNETC_CONN_CMD_REQ, !lock_held);
-  if (lock_held) gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
+  conn_send_data(conn, GASNETC_CONN_CMD_REQ);
 }
 
 static void
-conn_send_rtu(gasnetc_conn_t *conn, int lock_held)
+conn_send_rtu(gasnetc_conn_t *conn)
 {
-  if (lock_held) gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
-  conn_send_empty(conn->ah, conn->info.node, 0);
-  if (lock_held) gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
+  conn_send_empty(conn->ah, conn->info.node, GASNETC_CONN_CMD_RTU);
 }
 
 static void
 conn_send_rep(gasnetc_conn_t *conn)
 {
-  conn_send_data(conn, GASNETC_CONN_CMD_REP, 1);
+  conn_send_data(conn, GASNETC_CONN_CMD_REP);
   GASNETC_STAT_EVENT(CONN_REP);
 }
 
 static void
 conn_send_ack(gasnetc_conn_t *conn, gasnet_node_t node)
 {
-  conn_send_empty(conn ? conn->ah : NULL, node, 1);
+  conn_send_empty(conn ? conn->ah : NULL, node, GASNETC_CONN_CMD_ACK);
   GASNETC_STAT_EVENT(CONN_ACK);
 }
 
@@ -1630,7 +1625,7 @@ gasnetc_connect_to(gasnet_node_t node)
     (void) gasnetc_qp_create(&conn->info);
     conn->state = GASNETC_CONN_STATE_REQ_SENT;
 
-    conn_send_req(conn, 1);
+    conn_send_req(conn);
 
     (void) gasnetc_qp_reset2init(&conn->info);
     gasnetc_timed_conn_wait(conn, GASNETC_CONN_STATE_REQ_SENT, &conn_send_req);
@@ -1648,7 +1643,7 @@ gasnetc_connect_to(gasnet_node_t node)
     GASNETC_NODE2CEP(node) = conn->info.cep;
     conn->state = GASNETC_CONN_STATE_RTU_SENT;
 
-    conn_send_rtu(conn, 1);
+    conn_send_rtu(conn);
 
     gasnetc_sndrcv_attach_peer(node, conn->info.cep);
     (void) gasnetc_qp_rtr2rts(&conn->info);
@@ -1781,7 +1776,7 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
         }
       } else if (state == GASNETC_CONN_STATE_RTU_SENT) {
         /* We must have "won" the active-active race while peer must have missed our REQ */
-        conn_send_req(conn, 0);
+        conn_send_req(conn);
         break; /* Do not advance QP state */
       } else {
         break; /* Do not advance QP state */
