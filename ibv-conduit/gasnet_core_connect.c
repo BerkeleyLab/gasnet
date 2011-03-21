@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/21 20:20:49 $
- * $Revision: 1.44.2.72 $
+ *     $Date: 2011/03/21 20:55:29 $
+ * $Revision: 1.44.2.73 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -88,11 +88,11 @@ typedef struct {
   #define GASNETC_SND_QP_NEEDS_MODIFY(_xrc_snd_qp,_state) 1
 #endif
 
+static const char *gasnetc_connectfile_in  = NULL;
+static const char *gasnetc_connectfile_out = NULL;
+
 static int gasnetc_connectfile_in_base  = 10; /* Defaults to human readable/writable */
 static int gasnetc_connectfile_out_base = 36; /* Defaults to most compact */
-
-static int gasnetc_fully_connected = 0;
-static int gasnetc_conn_static = 0;
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -310,7 +310,7 @@ gasnetc_xrc_tmpname(gasnetc_lid_t mylid, int index) {
 
 /* Create an XRC domain per HCA (once per supernode) and a shared memory file */
 /* XXX: Requires that the call is collective */
-static int
+extern int
 gasnetc_xrc_init(void) {
   const gasnetc_lid_t mylid = gasnetc_port_tbl[0].port.lid;
   char *filename[GASNETC_IB_MAX_HCAS+1];
@@ -1203,7 +1203,7 @@ conn_send_empty(gasnetc_ah_t *ah, gasnet_node_t node, gasnetc_conn_cmd_t cmd)
 
 /* Create UD QP and advance all the way to RTS */
 static int
-gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
+gasnetc_qp_setup_ud(gasnetc_port_info_t *port, int fully_connected)
 {
   #if GASNET_CONDUIT_VAPI
     VAPI_qp_cap_t qp_cap;
@@ -1227,6 +1227,18 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
   #endif
     const int recv_sz = send_sz + GASNETC_GRH_SIZE; /* recv size sees 40-byte GRH */
 
+    /* If this node is fully connected, just participate in the qpn Exchange,
+     * but don't allocate any resources for the UD communications.
+     */
+    if (fully_connected) {
+      gasnetc_qpn_t *tmp = gasneti_malloc(gasneti_nodes * sizeof(gasnetc_qpn_t));
+      gasneti_assert(gasnetc_conn_qpn == 0);
+      gasneti_bootstrapExchange(&gasnetc_conn_qpn, sizeof(gasnetc_conn_qpn), tmp);
+      gasneti_free(tmp);
+      return GASNET_OK;
+    }
+
+    /* Record frequently needed paramaters */
     conn_ud_port = port;
     conn_ud_hca = &gasnetc_hca[port->hca_index];
     conn_ud_msg_sz = send_sz;
@@ -1414,16 +1426,6 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
 
     return GASNET_OK;
 } /* setup_ud */
-
-extern int
-gasnetc_connect_init_dynamic(void)
-{
-  /* TODO: allow env var to disable dynamic connections */
-
-  gasnetc_qp_setup_ud(&gasnetc_port_tbl[0]);
-
-  return GASNET_OK;
-} /* gasnetc_connect_init_dynamic */
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -1849,7 +1851,7 @@ gasnetc_conn_snd_wc(gasnetc_wc_t *comp)
 }
 
 /* ------------------------------------------------------------------------------------ */
-/* Support code for gasnetc_connect_static() */
+/* Support code for gasnetc_connect() */
 
 /* Convert positive integer to string in base 2 to 36.
  * Returns count of digits actually written, or 0 on overflow.
@@ -1965,7 +1967,7 @@ get_next_conn(FILE *fp)
 /* ------------------------------------------------------------------------------------ */
 
 /* Setup statically-connected communication */
-extern int
+static int
 gasnetc_connect_static(void)
 {
   const int             ceps = gasneti_nodes * gasnetc_alloc_qps;
@@ -1985,43 +1987,8 @@ gasnetc_connect_static(void)
   gasnetc_cep_t         *cep; /* First cep of given node */
   uint8_t               *peer_mask = NULL;
 
-  if_pf (!gasnetc_remote_nodes) goto done;
-
-  /* Determine the inline data limit given the QP parameters we will use.
-     Logically this belongs in connect_init(), but there the CQs don't yet exist.
-     Do this even if no static connections so that dynamic can use it too. */
-  {
-    const size_t orig_inline_limit = gasnetc_inline_limit;
- 
-    for (i = 0; i < gasnetc_num_ports; ++i) {
-      gasnetc_check_inline_limit(i, gasnetc_op_oust_pp, GASNETC_SND_SG);
-      if (gasnetc_use_srq) {
-        /* Corresponds to a Request QP */
-        gasnetc_check_inline_limit(i, gasnetc_am_oust_pp, 1);
-      }
-    }
-
-    /* warn on reduced inline limit */
-    if ((orig_inline_limit != (size_t)-1) && (gasnetc_inline_limit < orig_inline_limit)) {
-    #if GASNET_CONDUIT_IBV
-      if (gasnet_getenv("GASNET_INLINESEND_LIMIT") != NULL)
-    #endif
-        fprintf(stderr,
-                "WARNING: Requested GASNET_INLINESEND_LIMIT %d reduced to HCA limit %d\n",
-                (int)orig_inline_limit, (int)gasnetc_inline_limit);
-    }
-    GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_INLINESEND_LIMIT = %d", (int)gasnetc_inline_limit));
-    gasnetc_sndrcv_init_inline();
-  }
-
-  /* Skip to end if finding the inline limit was our only task. */
-  if (!gasnetc_conn_static) {
-    static_nodes = 0;
-    goto done;
-  }
-
   /* Honor user's connections file if given */
-  { const char *envstr = gasnet_getenv("GASNET_CONNECTFILE_IN");
+  { const char *envstr = gasnetc_connectfile_in;
     if (envstr) {
       const char *filename = gasnetc_parse_filename(envstr);
       FILE *fp;
@@ -2031,7 +1998,7 @@ gasnetc_connect_static(void)
       fp = fopen(filename, "r");
     #endif
       if (!fp) {
-        fprintf(stderr, "ERROR: unable to open connection table inout file '%s'\n", filename);
+        fprintf(stderr, "ERROR: unable to open connection table input file '%s'\n", filename);
       }
       if (filename != envstr) gasneti_free((/* not const */ char *)filename);
 
@@ -2181,20 +2148,16 @@ done:
   gasneti_free(local_qpn);
   gasneti_free(peer_mask);
 
-  gasnetc_fully_connected = (static_nodes == gasnetc_remote_nodes);
-  GASNETI_TRACE_PRINTF(C, ("%s connected at startup to %d of %d remote nodes",
-                           gasnetc_fully_connected ? "Fully" : "Partially",
-                           (int)static_nodes, (int)gasnetc_remote_nodes));
 
-  return GASNET_OK;
+  return static_nodes;
 } /* gasnetc_connect_static */
 
-/* ------------------------------------------------------------------------------------ */
-
-/* Early setup for connection resources */
+/* Setup statically-connected communication and prepare for dynamic connections */
 extern int
 gasnetc_connect_init(void)
 {
+  int do_static = 0;
+  int fully_connected = 0;
 
   /* Allocate node->cep lookup table */
   { size_t size = gasneti_nodes*sizeof(gasnetc_cep_t *);
@@ -2203,40 +2166,76 @@ gasnetc_connect_init(void)
     memset(gasnetc_node2cep, 0, size);
   }
 
-#if GASNETC_IBV_XRC
-  if (gasnetc_use_xrc) {
-    int ret = gasnetc_xrc_init();
-    if (ret) return ret;
+  if_pf (!gasnetc_remote_nodes) {
+    GASNETI_TRACE_PRINTF(I, ("No connection setup since there are no remote nodes"));
+    return GASNET_OK;
   }
-#endif
 
+  /* Parse connection related env vars */
 #if GASNET_DEBUG
   gasnetc_conn_drop_denom =
         gasneti_getenv_int_withdefault("GASNET_CONNECT_DROP_DENOM", 0, 0);
 #endif
-
+  gasnetc_connectfile_in  = gasnet_getenv("GASNET_CONNECTFILE_IN");
+  gasnetc_connectfile_out = gasnet_getenv("GASNET_CONNECTFILE_OUT");
   gasnetc_connectfile_out_base =
         gasneti_getenv_int_withdefault("GASNET_CONNECTFILE_BASE",
                                        gasnetc_connectfile_out_base, 0);
-
-  /* Will we perform static (at startup) connections? */
-  gasnetc_conn_static = gasneti_getenv_int_withdefault("GASNET_CONNECT_STATIC", 1, 0);
+  do_static = gasneti_getenv_int_withdefault("GASNET_CONNECT_STATIC", 1, 0);
 
 #if 0 /* DISABLED - still appears that fixed-comms barrier code might be buggy */
   /* Must we disable barrier AMs from all but the supernode representative? */
-  if (!gasnetc_conn_static ||
-      gasnet_getenv("GASNET_CONNECTFILE_IN") || gasnet_getenv("GASNET_CONNECTFILE_OUT")) {
+  if (!do_static || gasnetc_connectfile_in || gasnetc_connectfile_out) {
     gasnete_barrier_fixed = 1;
   }
 #endif
 
-  /* Default to handling 2*lg(remote_nodes) incomming connection requests */
-  /* TODO: tune?  honor env vars? */
-  gasnetc_ud_rcvs = 1; 
-  while ((1 << gasnetc_ud_rcvs) < (int)gasnetc_remote_nodes) {
-    ++gasnetc_ud_rcvs;
+  /* Determine the inline data limit given the QP parameters we will use.
+     Logically this belongs in connect_init(), but there the CQs don't yet exist.
+   */
+  {
+    const size_t orig_inline_limit = gasnetc_inline_limit;
+    int i;
+ 
+    for (i = 0; i < gasnetc_num_ports; ++i) {
+      gasnetc_check_inline_limit(i, gasnetc_op_oust_pp, GASNETC_SND_SG);
+      if (gasnetc_use_srq) {
+        /* Corresponds to a Request QP */
+        gasnetc_check_inline_limit(i, gasnetc_am_oust_pp, 1);
+      }
+    }
+
+    /* warn on reduced inline limit */
+    if ((orig_inline_limit != (size_t)-1) && (gasnetc_inline_limit < orig_inline_limit)) {
+    #if GASNET_CONDUIT_IBV
+      if (gasnet_getenv("GASNET_INLINESEND_LIMIT") != NULL)
+    #endif
+        fprintf(stderr,
+                "WARNING: Requested GASNET_INLINESEND_LIMIT %d reduced to HCA limit %d\n",
+                (int)orig_inline_limit, (int)gasnetc_inline_limit);
+    }
+    GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_INLINESEND_LIMIT = %d", (int)gasnetc_inline_limit));
+    gasnetc_sndrcv_init_inline();
   }
-  gasnetc_ud_rcvs *= 2;
+
+  /* Create static connections unless disabled */
+  if (do_static) {
+    gasnet_node_t static_nodes = gasnetc_connect_static();
+    fully_connected = (static_nodes == gasnetc_remote_nodes);
+    GASNETI_TRACE_PRINTF(I, ("%s connected at startup to %d of %d remote nodes",
+                             fully_connected ? "Fully" : "Partially",
+                             (int)static_nodes, (int)gasnetc_remote_nodes));
+  } else {
+    GASNETI_TRACE_PRINTF(I, ("Static connection at startup has been disabled"));
+  }
+
+  /* TODO: allow env var to disable dynamic connections */
+  if (do_static && !gasnetc_connectfile_in) {
+    GASNETI_TRACE_PRINTF(I, ("Dynamic connection has been disabled for fully-connected job"));
+  } else {
+    /* TODO: allow env var to select specific port for UD */
+    gasnetc_qp_setup_ud(&gasnetc_port_tbl[0], fully_connected);
+  }
 
   return GASNET_OK;
 } /* gasnetc_connect_init */
@@ -2339,7 +2338,7 @@ gasnetc_connect_fini(void)
   int fd = -1;
 
   /* Open file replacing any '%' in filename with node number */
-  { const char *envstr = gasnet_getenv("GASNET_CONNECTFILE_OUT");
+  { const char *envstr = gasnetc_connectfile_out;
     if (envstr) {
       const char *filename = gasnetc_parse_filename(envstr);
       int flags = O_APPEND | O_CREAT | O_WRONLY;
