@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/21 18:08:04 $
- * $Revision: 1.44.2.69 $
+ *     $Date: 2011/03/21 18:20:19 $
+ * $Revision: 1.44.2.70 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -973,15 +973,17 @@ gasnetc_create_ah(gasnet_node_t node)
 }
 
 static void
-gasnetc_destroy_ah(gasnetc_ah_t *ah)
+gasnetc_put_ah(gasnetc_ah_t *ah)
 {
+  if (gasneti_weakatomic_decrement_and_test(&ah->ref_count, 0)) {
 #if GASNET_CONDUIT_VAPI
-  int vstat = VAPI_destroy_addr_hndl(conn_ud_hca->handle, ah->ib_ah);
-  GASNETC_VAPI_CHECK(vstat, "from VAPI_destroy_addr_hndl()");
+    int vstat = VAPI_destroy_addr_hndl(conn_ud_hca->handle, ah->ib_ah);
+    GASNETC_VAPI_CHECK(vstat, "from VAPI_destroy_addr_hndl()");
 #else
-  int vstat = ibv_destroy_ah(ah->ib_ah);
-  GASNETC_VAPI_CHECK(vstat, "from ibv__destroy_ah()");
+    int vstat = ibv_destroy_ah(ah->ib_ah);
+    GASNETC_VAPI_CHECK(vstat, "from ibv__destroy_ah()");
 #endif
+  }
 }
 
 /* Post a work request to the receive queue of the UD QP */
@@ -1492,9 +1494,7 @@ gasnetc_put_conn(gasnetc_conn_t *conn)
     gasneti_free(conn->info.xrc_remote_srq_num);
   }
 #endif
-  if (gasneti_weakatomic_decrement_and_test(&conn->ah->ref_count, 0)) {
-    gasnetc_destroy_ah(conn->ah);
-  }
+  gasnetc_put_ah(conn->ah);
   gasneti_free(conn);
 }
 
@@ -1837,9 +1837,7 @@ gasnetc_conn_snd_wc(gasnetc_wc_t *comp)
   gasnetc_ud_snd_desc_t *desc = (void *)(uintptr_t)comp->gasnetc_f_wr_id;
 
   gasneti_semaphore_up(conn_ud_hca->snd_cq_sema_p);
-  if (gasneti_weakatomic_decrement_and_test(&desc->ah->ref_count, 0)) {
-    gasnetc_destroy_ah(desc->ah);
-  }
+  gasnetc_put_ah(desc->ah);
   gasneti_lifo_push(&conn_snd_freelist, desc);
 }
 
