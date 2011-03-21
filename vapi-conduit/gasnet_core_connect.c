@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/21 19:23:13 $
- * $Revision: 1.44.2.71 $
+ *     $Date: 2011/03/21 20:20:49 $
+ * $Revision: 1.44.2.72 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1418,11 +1418,6 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
 extern int
 gasnetc_connect_init_dynamic(void)
 {
-
-#if !GASNETC_DEBUG_CONNECT
-  if (gasnetc_fully_connected) return GASNET_OK;
-#endif
-
   /* TODO: allow env var to disable dynamic connections */
 
   gasnetc_qp_setup_ud(&gasnetc_port_tbl[0]);
