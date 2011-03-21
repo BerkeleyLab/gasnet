@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/21 18:20:19 $
- * $Revision: 1.44.2.70 $
+ *     $Date: 2011/03/21 19:23:13 $
+ * $Revision: 1.44.2.71 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -925,9 +925,9 @@ static gasnetc_port_info_t *conn_ud_port = NULL;
 static gasnetc_hca_t *conn_ud_hca = NULL;
 static int conn_ud_msg_sz = -1;
 static gasnetc_memreg_t conn_ud_mem_reg;
+static uint32_t conn_ud_qkey = 0;
 
 #define GASNETC_GRH_SIZE 40 /* Global Route Header is always 40 bytes */
-#define GASNETC_UD_QKEY 0x5551212
 
 /* TODO: If this continues to be a performance bottleneck then
  * consider cacheing since the AH is per Destination LID (the
@@ -1275,6 +1275,22 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
   }
 #endif
 
+    /* Exchange the qpns */
+    conn_remote_ud_qpn = gasneti_malloc(gasneti_nodes * sizeof(gasnetc_qpn_t));
+    gasneti_bootstrapExchange(&gasnetc_conn_qpn, sizeof(gasnetc_conn_qpn), conn_remote_ud_qpn);
+
+    /* Generate a per-job QKey from the qpns.
+     * This value is "unpredictable" but might not be unique.  In fact,
+     * consecutive runs on the same nodes can produce the same value.
+     * TODO: Is there some info already available to make this more unique?
+     */
+    { gasnet_node_t node;
+      gasneti_assert(conn_ud_qkey == 0);
+      for (node = 0; node < gasneti_nodes; ++node) {
+        conn_ud_qkey ^= conn_remote_ud_qpn[node];
+      }
+    }
+
     /* Allocate pinned memory */
     { const size_t size = GASNETI_PAGE_ALIGNUP((max_send_wr * send_sz) + /* XXX: Omit send if inline */
                                                (max_recv_wr * recv_sz));
@@ -1299,7 +1315,7 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
     QP_ATTR_MASK_SET(qp_mask, QP_ATTR_QKEY);
     qp_attr.qp_state            = VAPI_INIT;
     qp_attr.pkey_ix             = 0;
-    qp_attr.qkey                = GASNETC_UD_QKEY;
+    qp_attr.qkey                = conn_ud_qkey;
     qp_attr.port                = port->port_num;
 
     rc = VAPI_modify_qp(conn_ud_hca->handle, conn_ud_qp, &qp_attr, &qp_mask, &qp_cap);
@@ -1308,7 +1324,7 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
     qp_mask = (enum ibv_qp_attr_mask)(IBV_QP_STATE | IBV_QP_PKEY_INDEX | IBV_QP_PORT | IBV_QP_QKEY);
     qp_attr.qp_state        = IBV_QPS_INIT;
     qp_attr.pkey_index      = 0;
-    qp_attr.qkey            = GASNETC_UD_QKEY;
+    qp_attr.qkey            = conn_ud_qkey;
     qp_attr.port_num        = port->port_num;
     rc = ibv_modify_qp(conn_ud_qp, &qp_attr, qp_mask);
     GASNETC_VAPI_CHECK(rc, "from ibv_modify_qp(UD INIT)");
@@ -1381,11 +1397,11 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
         desc->wr.comp_type            = VAPI_SIGNALED;
         desc->wr.set_se               = 0;
         desc->wr.fence                = 0;
-        desc->wr.remote_qkey          = GASNETC_UD_QKEY;
+        desc->wr.remote_qkey          = conn_ud_qkey;
       #else   
         desc->wr.send_flags           = (enum ibv_send_flags)0;
         desc->wr.next                 = NULL;
-        desc->wr.wr.ud.remote_qkey    = GASNETC_UD_QKEY;
+        desc->wr.wr.ud.remote_qkey    = conn_ud_qkey;
       #endif  
       #if GASNET_DEBUG
         desc->sg.gasnetc_f_sg_len = ~0;
@@ -1395,10 +1411,6 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port)
         gasneti_lifo_push(&conn_snd_freelist, desc);
       }
     }
-
-    /* Exchange the qpns */
-    conn_remote_ud_qpn = gasneti_malloc(gasneti_nodes * sizeof(gasnetc_qpn_t));
-    gasneti_bootstrapExchange(&gasnetc_conn_qpn, sizeof(gasnetc_conn_qpn), conn_remote_ud_qpn);
 
     return GASNET_OK;
 } /* setup_ud */
