@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/21 17:31:47 $
- * $Revision: 1.44.2.68 $
+ *     $Date: 2011/03/21 18:08:04 $
+ * $Revision: 1.44.2.69 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1843,30 +1843,8 @@ gasnetc_conn_snd_wc(gasnetc_wc_t *comp)
   gasneti_lifo_push(&conn_snd_freelist, desc);
 }
 
-
 /* ------------------------------------------------------------------------------------ */
-
-#if GASNETC_DEBUG_CONNECT
-static void
-permute_nodes(gasnet_node_t *node_list)
-{
-  gasnet_node_t node,swap;
-
-  for (node = 0; node < gasneti_nodes; ++node) {
-    swap = (gasnet_node_t) gasnetc_conn_rand_int(node);
-    gasneti_assert(swap <= node);
-    if (swap == node) {
-      node_list[node] = node;
-    } else {
-      node_list[node] = node_list[swap];
-      node_list[swap] = node;
-    }
-  }
-}
-#endif /* GASNETC_DEBUG_CONNECT */
-
-/* ------------------------------------------------------------------------------------ */
-/* Support code for gasneti_connect_all() */
+/* Support code for gasnetc_connect_static() */
 
 /* Convert positive integer to string in base 2 to 36.
  * Returns count of digits actually written, or 0 on overflow.
@@ -2001,10 +1979,6 @@ gasnetc_connect_static(void)
   int                   i, qpi;
   gasnetc_cep_t         *cep; /* First cep of given node */
   uint8_t               *peer_mask = NULL;
-#if GASNETC_DEBUG_CONNECT
-  gasnet_node_t *node_list = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
-  gasnet_node_t node_idx;
-#endif
 
   if_pf (!gasnetc_remote_nodes) goto done;
 
@@ -2035,25 +2009,11 @@ gasnetc_connect_static(void)
     gasnetc_sndrcv_init_inline();
   }
 
+  /* Skip to end if finding the inline limit was our only task. */
   if (!gasnetc_conn_static) {
     static_nodes = 0;
     goto done;
   }
-
-  #define GASNETC_IS_REMOTE_NODE(_node) \
-    (peer_mask ? peer_mask[_node] : !gasnetc_non_ib(_node))
-
-  /* Debug build loops in random order to help ensure connect code is order-independent */
-#if GASNETC_DEBUG_CONNECT
-  #define GASNETC_FOR_EACH_REMOTE_NODE(_node) \
-    for (permute_nodes(node_list), node_idx=0, (_node) = node_list[0]; \
-         node_idx < gasneti_nodes; (_node) = node_list[++node_idx]) \
-      if (GASNETC_IS_REMOTE_NODE(_node))
-#else
-  #define GASNETC_FOR_EACH_REMOTE_NODE(_node) \
-    for ((_node) = 0; (_node) < gasneti_nodes; ++(_node)) \
-      if (GASNETC_IS_REMOTE_NODE(_node))
-#endif
 
   /* Honor user's connections file if given */
   { const char *envstr = gasnet_getenv("GASNET_CONNECTFILE_IN");
@@ -2104,6 +2064,13 @@ gasnetc_connect_static(void)
     }
   }
 
+  #define GASNETC_IS_REMOTE_NODE(_node) \
+    (peer_mask ? peer_mask[_node] : !gasnetc_non_ib(_node))
+
+  #define GASNETC_FOR_EACH_REMOTE_NODE(_node) \
+    for ((_node) = 0; (_node) < gasneti_nodes; ++(_node)) \
+      if (GASNETC_IS_REMOTE_NODE(_node))
+
   /* Allocate the dense CEP table and populate the node2cep table. */
   {
     gasnetc_cep_t *cep_table = (gasnetc_cep_t *)
@@ -2128,7 +2095,7 @@ gasnetc_connect_static(void)
     sq_sema_alloc(static_nodes * gasnetc_alloc_qps);
   }
 
-  /* Initialize connection tracking info */
+  /* Initialize connection tracking info and create QPs */
   GASNETC_FOR_EACH_REMOTE_NODE(node) {
     i = node * gasnetc_alloc_qps;
     conn_info[node].node           = node;
@@ -2138,10 +2105,6 @@ gasnetc_connect_static(void)
     conn_info[node].local_xrc_qpn  = &gasnetc_xrc_rcv_qpn[i];
   #endif
     gasnetc_setup_ports(&conn_info[node]);
-  }
-
-  /* create all QPs */
-  GASNETC_FOR_EACH_REMOTE_NODE(node) {
     (void)gasnetc_qp_create(&conn_info[node]);
   }
 
@@ -2179,13 +2142,7 @@ gasnetc_connect_static(void)
 #endif
   gasneti_bootstrapAlltoall(local_qpn, gasnetc_alloc_qps*sizeof(gasnetc_qpn_t), remote_qpn);
 
-  /* Advance state RESET -> INIT and perform local endpoint init.
-     This could be overlapped with the AlltoAll if it were non-blocking*/
-  GASNETC_FOR_EACH_REMOTE_NODE(node) {
-    (void)gasnetc_qp_reset2init(&conn_info[node]);
-  }
-
-  /* Would sync the AlltoAll here if it were non-blocking */
+  /* Advance state RESET -> INIT -> RTR. */
   GASNETC_FOR_EACH_REMOTE_NODE(node) {
     i = node * gasnetc_alloc_qps;
     conn_info[node].remote_qpn     = &remote_qpn[i];
@@ -2193,10 +2150,8 @@ gasnetc_connect_static(void)
     conn_info[node].remote_xrc_qpn = &xrc_remote_rcv_qpn[i];
     conn_info[node].xrc_remote_srq_num = &xrc_remote_srq_num[i];
   #endif
-  }
 
-  /* Advance state INIT -> RTR */
-  GASNETC_FOR_EACH_REMOTE_NODE(node) {
+    (void)gasnetc_qp_reset2init(&conn_info[node]);
     (void)gasnetc_qp_init2rtr(&conn_info[node]);
   }
 
@@ -2219,9 +2174,6 @@ done:
   gasneti_free(conn_info);
   gasneti_free(remote_qpn);
   gasneti_free(local_qpn);
-#if GASNETC_DEBUG_CONNECT
-  gasneti_free(node_list);
-#endif
   gasneti_free(peer_mask);
 
   gasnetc_fully_connected = (static_nodes == gasnetc_remote_nodes);
