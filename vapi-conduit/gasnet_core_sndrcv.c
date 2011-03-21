@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2011/03/21 20:55:29 $
- * $Revision: 1.276.2.14 $
+ *     $Date: 2011/03/21 23:22:57 $
+ * $Revision: 1.276.2.15 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3236,17 +3236,21 @@ extern int gasnetc_sndrcv_init(void) {
   int 			padded_size, h, i;
   size_t		size;
 
-  /*
-   * setup RCV resources
-   */
-
-  /* Default to handling 2*lg(remote_nodes) incomming UD requests */
-  /* TODO: tune?  honor env vars? */
+  /* Default to handling 2*lg(remote_nodes) incomming UD requests and 4 outgoing */
   gasnetc_ud_rcvs = 1;
   while ((1 << gasnetc_ud_rcvs) < (int)gasnetc_remote_nodes) {
     ++gasnetc_ud_rcvs;
   }
   gasnetc_ud_rcvs *= 2;
+  gasnetc_ud_snds = 4;
+  gasnetc_ud_rcvs = gasneti_getenv_int_withdefault("GASNET_CONNECT_RCVS", gasnetc_ud_rcvs, 0);
+  gasnetc_ud_snds = gasneti_getenv_int_withdefault("GASNET_CONNECT_SNDS", gasnetc_ud_snds, 0);
+  GASNETI_TRACE_PRINTF(I, ("Buffers for dynamic connections: rcv=%d snd=%d",
+                            gasnetc_ud_rcvs, gasnetc_ud_snds));
+
+  /*
+   * setup RCV resources
+   */
 
   /* create one RCV CQ per HCA */
   GASNETC_FOR_ALL_HCA(hca) {
