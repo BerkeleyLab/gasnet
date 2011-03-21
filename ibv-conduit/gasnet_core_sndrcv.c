@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_sndrcv.c,v $
- *     $Date: 2011/03/20 01:02:00 $
- * $Revision: 1.276.2.13 $
+ *     $Date: 2011/03/21 20:55:29 $
+ * $Revision: 1.276.2.14 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3239,6 +3239,14 @@ extern int gasnetc_sndrcv_init(void) {
   /*
    * setup RCV resources
    */
+
+  /* Default to handling 2*lg(remote_nodes) incomming UD requests */
+  /* TODO: tune?  honor env vars? */
+  gasnetc_ud_rcvs = 1;
+  while ((1 << gasnetc_ud_rcvs) < (int)gasnetc_remote_nodes) {
+    ++gasnetc_ud_rcvs;
+  }
+  gasnetc_ud_rcvs *= 2;
 
   /* create one RCV CQ per HCA */
   GASNETC_FOR_ALL_HCA(hca) {
