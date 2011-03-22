@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/22 22:17:31 $
- * $Revision: 1.44.2.80 $
+ *     $Date: 2011/03/22 23:56:16 $
+ * $Revision: 1.44.2.81 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1129,6 +1129,7 @@ typedef struct gasnetc_conn_s {
   gasnetc_conn_info_t   info;
   gasnetc_ah_t          *ah;
   gasneti_tick_t        xmit_time;
+  gasneti_tick_t        reply_time;
 #if GASNETI_STATS_OR_TRACE
   gasneti_tick_t         start_time;
   int                    start_active;
@@ -1726,6 +1727,7 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
   gasnetc_ud_rcv_desc_t *desc = (gasnetc_ud_rcv_desc_t *)(uintptr_t)comp->gasnetc_f_wr_id;
   gasnetc_conn_cmd_t cmd = comp->imm_data & 0xff;
   gasnet_node_t node = comp->imm_data >> 16;
+  gasneti_tick_t now = gasneti_ticks_now();
 
 #if GASNET_DEBUG /* Drop 1 in N to aid debugging */
   if (gasnetc_conn_drop_denom && !gasnetc_conn_rand_int(gasnetc_conn_drop_denom)) {
@@ -1737,8 +1739,7 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
   gasneti_mutex_lock(&gasnetc_conn_tbl_lock);
   {
     gasnetc_conn_t *conn = gasnetc_get_conn(node);
-    const gasnetc_conn_state_t orig_state = conn ? conn->state : GASNETC_CONN_STATE_DONE;
-    gasnetc_conn_state_t state = orig_state;
+    gasnetc_conn_state_t state = conn ? conn->state : GASNETC_CONN_STATE_DONE;
 
     /* extract any remote data from the payload and repost desc ASAP */
     if (((state == GASNETC_CONN_STATE_NONE) || (state == GASNETC_CONN_STATE_REQ_SENT)) &&
@@ -1771,12 +1772,18 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
         /* Normal case */
         (void) gasnetc_qp_create(&conn->info);
         state = GASNETC_CONN_STATE_REP_SENT;
-        /* ...falls through to send REP... */
-      }
-      if (state == GASNETC_CONN_STATE_REP_SENT) {
         conn_send_rep(conn);
-        if_pf (orig_state == state) break; /* Do not advance QP state on resend */
-        /* ...falls through to advance QP... */
+        conn->reply_time = now;
+      } else
+      if (state == GASNETC_CONN_STATE_REP_SENT) {
+        /* Resend case */
+        if (gasneti_ticks_to_us(now - conn->reply_time) < gasnetc_conn_retransmit_min) {
+          /* Recvd impossibly fast, indicating we were inattentive - don't resend yet. */
+          GASNETC_STAT_EVENT(CONN_NOREP);
+        } else {
+          conn_send_rep(conn);
+        }
+        break; /* Do not advance QP state on resend */
       } else if (state == GASNETC_CONN_STATE_REQ_SENT) {
         /* Resolve the active-active case by picking a winner and a loser. */
         /* Use of odd/even spreads choice uniformly (not biased to high or low nodes) */
@@ -1801,7 +1808,7 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
       }
 
       /* Advance QP state, overlapped w/ network round-trip (if any) and remote work: */
-      if (orig_state == GASNETC_CONN_STATE_NONE) {
+      if (conn->state == GASNETC_CONN_STATE_NONE) {
         (void) gasnetc_qp_reset2init(&conn->info);
       }
       (void) gasnetc_qp_init2rtr(&conn->info);
@@ -1817,21 +1824,38 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
       }
       break;
 
-   case GASNETC_CONN_CMD_RTU:
+    case GASNETC_CONN_CMD_RTU:
+     {
+      static gasneti_tick_t prev_ack_time = 0;
+      static gasnet_node_t  prev_ack_node = GASNET_MAXNODES;
       if (state == GASNETC_CONN_STATE_REP_SENT) {
         /* Normal case */
         gasneti_sync_writes(); /* "finalize" cep data */
         GASNETC_NODE2CEP(node) = conn->info.cep;
         state = GASNETC_CONN_STATE_DONE;
         gasnetc_dynamic_done(conn, 0);
-        /* ...falls through to send ACK... */
-      }
-      if (state == GASNETC_CONN_STATE_DONE) {
         conn_send_ack(conn, node);
+        prev_ack_time = now;
+        prev_ack_node = node;
+      } else
+      if (state == GASNETC_CONN_STATE_DONE) {
+        /* Resend case */
+        /* Since conn is freed after sending the first ACK this is the best
+           we can do "on the cheap" w/o something like TCP's TIME_WAIT.
+           XXX: Implement a simple TIME_WAIT state.
+         */
+        if ((node == prev_ack_node) &&
+            (gasneti_ticks_to_us(now - prev_ack_time) < gasnetc_conn_retransmit_min)) {
+          /* Recvd impossibly fast, indicating we were inattentive - don't resend yet. */
+          GASNETC_STAT_EVENT(CONN_NOACK);
+        } else {
+          conn_send_ack(conn, node);
+        }
       }
       break;
+     }
 
-   case GASNETC_CONN_CMD_ACK:
+    case GASNETC_CONN_CMD_ACK:
       if (state == GASNETC_CONN_STATE_RTU_SENT) {
         /* Normal case */
         state = GASNETC_CONN_STATE_ACK_RCVD;
