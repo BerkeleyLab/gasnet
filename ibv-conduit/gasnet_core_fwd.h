@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2011/03/22 20:42:20 $
- * $Revision: 1.50.2.7 $
+ *     $Date: 2011/03/22 23:56:16 $
+ * $Revision: 1.50.2.8 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -124,7 +124,9 @@ typedef uint16_t gasnetc_handler_t;
 	VAL(C, CONN_REQ, resends)                 \
 	VAL(C, CONN_RTU, resends)                 \
 	CNT(C, CONN_REP, sent)                    \
+	CNT(C, CONN_NOREP, not sent)              \
 	CNT(C, CONN_ACK, sent)                    \
+	CNT(C, CONN_NOACK, not sent)              \
 	CNT(C, CONN_AAA, remained Active)         \
 	CNT(C, CONN_AAP, became Passive)          \
 	CNT(C, CONN_IMPLIED_ACK, cnt)             \
