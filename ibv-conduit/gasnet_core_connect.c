@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/22 20:42:20 $
- * $Revision: 1.44.2.79 $
+ *     $Date: 2011/03/22 22:17:31 $
+ * $Revision: 1.44.2.80 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1524,6 +1524,7 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
   uint64_t timeout_us = gasnetc_conn_retransmit_min;
   gasneti_tick_t prev_time = conn->xmit_time;
 #if GASNETI_STATS_OR_TRACE
+  gasneti_tick_t end_time;
   int resends = 0;
 #endif
 
@@ -1534,6 +1535,9 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
       GASNETI_WAITHOOK();
       gasnetc_sndrcv_poll(0); /* works even before _attach */
     }
+  #if GASNETI_STATS_OR_TRACE
+    end_time = GASNETI_TICKS_NOW_IFENABLED(C);
+  #endif
 
     if (conn->state != state) break; /* Done */
 
@@ -1557,11 +1561,11 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
 #if GASNETI_STATS_OR_TRACE
   switch(state) {
   case GASNETC_CONN_STATE_REQ_SENT:
-    GASNETI_TRACE_EVENT_TIME(C, CONN_REQ2REP, (gasneti_ticks_now() - conn->xmit_time));
+    GASNETI_TRACE_EVENT_TIME(C, CONN_REQ2REP, (end_time - conn->xmit_time));
     GASNETC_STAT_EVENT_VAL(CONN_REQ, resends);
     break;
   case GASNETC_CONN_STATE_RTU_SENT:
-    GASNETI_TRACE_EVENT_TIME(C, CONN_RTU2ACK, (gasneti_ticks_now() - conn->xmit_time));
+    GASNETI_TRACE_EVENT_TIME(C, CONN_RTU2ACK, (end_time - conn->xmit_time));
     GASNETC_STAT_EVENT_VAL(CONN_RTU, resends);
     break;
   default:
