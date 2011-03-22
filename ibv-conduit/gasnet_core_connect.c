@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/22 17:28:44 $
- * $Revision: 1.44.2.78 $
+ *     $Date: 2011/03/22 20:42:20 $
+ * $Revision: 1.44.2.79 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1128,6 +1128,7 @@ typedef struct gasnetc_conn_s {
   gasnetc_conn_state_t  state;
   gasnetc_conn_info_t   info;
   gasnetc_ah_t          *ah;
+  gasneti_tick_t        xmit_time;
 #if GASNETI_STATS_OR_TRACE
   gasneti_tick_t         start_time;
   int                    start_active;
@@ -1521,26 +1522,27 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
                         void (*fn)(gasnetc_conn_t *))
 {
   uint64_t timeout_us = gasnetc_conn_retransmit_min;
+  gasneti_tick_t prev_time = conn->xmit_time;
 #if GASNETI_STATS_OR_TRACE
   int resends = 0;
 #endif
 
   gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
-  while (timeout_us <= gasnetc_conn_retransmit_max) {
-    gasneti_tick_t start_time = gasneti_ticks_now();
-
-    while (conn->state == state) {
-      if (gasneti_ticks_to_us(gasneti_ticks_now() - start_time) > timeout_us) break;
-		      
+  while (1) {
+    while ((conn->state == state) &&
+           (gasneti_ticks_to_us(gasneti_ticks_now() - prev_time) < timeout_us)) {
       GASNETI_WAITHOOK();
       gasnetc_sndrcv_poll(0); /* works even before _attach */
     }
 
     if (conn->state != state) break; /* Done */
 
-    /* We send one last (useless) msg immediately before giving up - not worth fixing. */
-    (*fn)(conn);
     timeout_us *= 2;
+    if (timeout_us > gasnetc_conn_retransmit_max) break; /* limit reached */
+
+    /* retransmit */
+    (*fn)(conn);
+    prev_time = gasneti_ticks_now();
   #if GASNETI_STATS_OR_TRACE
     ++resends;
   #endif
@@ -1555,9 +1557,11 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
 #if GASNETI_STATS_OR_TRACE
   switch(state) {
   case GASNETC_CONN_STATE_REQ_SENT:
+    GASNETI_TRACE_EVENT_TIME(C, CONN_REQ2REP, (gasneti_ticks_now() - conn->xmit_time));
     GASNETC_STAT_EVENT_VAL(CONN_REQ, resends);
     break;
   case GASNETC_CONN_STATE_RTU_SENT:
+    GASNETI_TRACE_EVENT_TIME(C, CONN_RTU2ACK, (gasneti_ticks_now() - conn->xmit_time));
     GASNETC_STAT_EVENT_VAL(CONN_RTU, resends);
     break;
   default:
@@ -1634,6 +1638,7 @@ gasnetc_connect_to(gasnet_node_t node)
     conn->state = GASNETC_CONN_STATE_REQ_SENT;
 
     conn_send_req(conn);
+    conn->xmit_time = gasneti_ticks_now();
 
     (void) gasnetc_qp_reset2init(&conn->info);
     gasnetc_timed_conn_wait(conn, GASNETC_CONN_STATE_REQ_SENT, &conn_send_req);
@@ -1652,6 +1657,7 @@ gasnetc_connect_to(gasnet_node_t node)
     conn->state = GASNETC_CONN_STATE_RTU_SENT;
 
     conn_send_rtu(conn);
+    conn->xmit_time = gasneti_ticks_now();
 
     gasnetc_sndrcv_attach_peer(node, conn->info.cep);
     (void) gasnetc_qp_rtr2rts(&conn->info);
