@@ -1,7 +1,7 @@
 README file for vapi-conduit and ibv-conduit
 ============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.62.2.1 $
+$Revision: 1.62.2.2 $
 
 @ TOC: @
 @ Section: VAPI vs IBV @
@@ -92,7 +92,7 @@ $Revision: 1.62.2.1 $
     - MVAPICH or MVAPICH2
       These don't use TCP/IP unless explicitly configured for IP-over-IB.
       So, these are not recommended if one is concerned with memory use.
-    In all the setting above, omit the quotes from the value.
+    In all of the settings above, omit the quotes from the value.
 
   If spawning using SSH, the following apply:
   + The -E option is not necessary, as the full environment is always
@@ -276,48 +276,139 @@ $Revision: 1.62.2.1 $
     value reported by the HCA.
     Other valid setting are typically in the range from 1 to 4.
 
-  + GASNET_CONNECT_STATIC
   + GASNET_CONNECT_DYNAMIC
-XXX Document me!
-    Notes:
-    + Defaults are both 1.
-    + STATIC setting gates" GASNET__CONNECTFILE_{IN,OUT,BASE}
-    + DYNAMIC setting "gates" GASNET_CONNECT_{RCVS,SNDS,RETRANS_{MIN,MAX}}
+    This boolean setting determines if connections can be established
+    on demand.
+    When GASNET_CONNECT_DYNAMIC is enabled, a node will connect on
+    demand to any peer that was not connected at startup.  If a node
+    is already fully connected to all peers at startup, then dynamic
+    connection is automatically disabled on that node.  Otherwise
+    the default is TRUE.
 
-  + GASNET_CONNECTFILE_OUT
-  + GASNET_CONNECTFILE_BASE
-XXX Document me!
-    Notes:
-    + Default file is none
-    + Default base is 36 (for small output)
-    + '%' is expanded to node number
-    + Single name is OK on *some* filesystems, but notably NOT on NFS
-    + Describe "cat" (or some short script?) for merging separate files
-    + Ignored if !STATIC
+  + GASNET_CONNECT_STATIC
+    This setting determines if connections are established at startup.
+    When GASNET_CONNECT_STATIC is enabled, a node will connect at
+    startup to all peers indicated by the GASNET_CONNECTFILE_IN
+    setting (see below), or to ALL peers if that variable is unset.
+    The value is a boolean with a default of TRUE.
 
   + GASNET_CONNECTFILE_IN
-XXX Document me!
-    Notes:
-    + Default file is none
-    + Default base is 10 (for humans to write files) but is read from the file if present
-    + Ignored if !STATIC
+    This setting provides a filename used to limit the connections
+    established at startup, and is ignored if GASNET_CONNECT_STATIC is
+    FALSE.
+    Any '%' character in the value is replaced with the node number to
+    allow (but not require) separate per-node files.
+    The format of a connect file is a series of lines of the form:
+       node: peer1 peer2 ...
+    without leading whitespace.  For example, to request that node 7
+    connect to nodes 0, 4 and 6:
+       7: 0 4 6
+    Line lengths are not limited, but the same node number may appear
+    to the left of the colon on multiple lines to limit line lengths.
+    So, the following is equivalent to the previous example:
+       7:0 4
+       7:6
+    Ranges are supported.  So, the following connects node 6 with
+    nodes 9, 10, 11 and 12:
+       6:9-12
+    Order is not significant (except in ranges), so neither lines nor
+    peer numbers need to be sorted.
+    Connections are bidirectional so the following:
+       1:0
+       0:1
+    describes only 1 connection between nodes 0 and 1 and only one of
+    these two lines is required to establish it (though there is no
+    error in specifying both).  This is true regardless of whether
+    using a single file or per-node files.
+    An optional line
+       size: N
+    indicates the number of nodes in the job, and is validated against
+    the size of the current job if present.
+    An optional line
+       base: N
+    specifies a numeric base for interpretation of all node numbers on
+    lines that follow.  The default is 10 (decimal), and legal values
+    range from 2 (binary) to 36 (uses digits '0'-'9' and 'a'-'z').  If
+    present, the 'base' line only affects node numbers read from later
+    lines, and therefore should appear at the start of the file.
+    Values on the 'size' and 'base' lines are always read as decimal.
+    The default is unset/empty (no limit on which nodes are connected
+    at startup).
 
-  + GASNET_CONNECT_RCVS
+  + GASNET_CONNECTFILE_OUT
+    This setting specifies a filename in which to generate connection
+    information suitable for later use as GASNET_CONNECTFILE_IN.
+    Any '%' character in the value is replaced with the node number to
+    allow separate per-node files.  Use of per-node files is strongly
+    recommended, and on some file systems (notably NFS) is REQUIRED
+    for correct operation.  If desired, the separate files may be
+    concatenated together after the run completes to produce a single
+    file suitable for use as GASNET_CONNECTFILE_IN.  Alternatively, the
+    following perl one-liner will concatenate the files while removing
+    all but the first instance of the 'base' and 'size' lines:
+       perl -ne 'print unless (/(base|size)/ && $X{$_}++);' -- [FILES]
+    where [FILES] denotes the list of per-node connection files and the
+    combined file is generated on stdout.
+    The connection information produced in the output file(s) lists
+    only those connections actually used in the current run.
+    Therefore a common use case is to set GASNET_CONNECTFILE_OUT on a
+    fully-connected run, and then use the generated file(s) to limit
+    static connections in subsequent runs.
+    The default is to use base-36 for node numbers, which results in
+    more compact files but is difficult for a human to read.  See
+    GASNET_CONNECTFILE_BASE, below, for how to change this.
+    The default is unset/empty (no output files are generated).
+
+  + GASNET_CONNECTFILE_BASE
+    This setting controls the numeric base used for node numbers in
+    GASNET_CONNECTFILE_OUT files.
+    Valid values range from 2 (binary) to 36 (uses digits '0'-'9' and
+    'a'-'z').  The value of the setting is always parsed as base-10.
+    The default value is 36.
+
   + GASNET_CONNECT_SNDS
-XXX Document me!
-    Notes:
-    + Default snds is 4
-    + Default rcvs is 2*ceil(log_2(remote_nodes))
-    + Ignored if !DYNAMIC
+  + GASNET_CONNECT_RCVS
+    These two settings control the number of small buffers allocated
+    to send and to receive dynamic connection requests, and are
+    ignored if GASNET_CONNECT_DYNAMIC is FALSE, or on any node that is
+    already fully connected at startup.
+    Because the buffers are small and allocation is page granular
+    there is seldom any benefit to reducing the default values.
+    However, there are conditions under which increasing one or both
+    may help reduce the latency of dynamic connections:
+    + Dynamic connection setup is blocking at the initiator, but if
+      using pthreads it is possible that one node may have dynamic
+      connection requests in-progress to multiple nodes.  So, if
+      an application is highly-threaded it may be beneficial to
+      increase GASNET_CONNECT_SNDS for greater concurrency of sends.
+    + If a given node receives many simultaneous connection requests,
+      any requests in excess of the allocated buffers will be dropped.
+      The connection will be delayed until the requester retransmits.
+      So, the average connection setup time in the presence of "bursty"
+      requests may be reduced by increasing GASNET_CONNECT_RCVS.
+    The default value of GASNET_CONNECT_SNDS is 4.
+    The default value of GASNET_CONNECT_RCVS is
+            2*ceil(log_2(N_remote))
+    where "ceil()" denotes rounding up to an integer, "log_2()" is
+    the base-2 logarithm and "N_remote" is the number of GASNet nodes
+    minus "self" and any nodes reachable through shared memory (PSHM).
 
   + GASNET_CONNECT_RETRANS_MIN
   + GASNET_CONNECT_RETRANS_MAX
-XXX Document me!
-    Notes:
-    + Units of us (1e-6)
-    + Default MIN 1000 (1ms or 1e-3s)
-    + Default MAX 2^24 (16million us or just over 16s)
-    + Ignored if !DYNAMIC
+    These two settings control the minimum and maximum intervals
+    between retransmission of messages used in establishing dynamic
+    connections, and are ignored if GASNET_CONNECT_DYNAMIC is FALSE,
+    or on  any node that is already fully connected at startup.
+    Values are in units of microseconds (10^-6 sec).
+    The value of GASNET_CONNECT_RETRANS_MIN is the interval between
+    sending an initial request and the first retransmission.  Each
+    retransmission doubles the interval before the next, up to the
+    maximum value given by GASNET_CONNECT_RETRANS_MAX, after which the
+    connection setup fails.
+    Adjustment of these settings may help resolve timeouts on networks
+    with high rates of UD packet loss.  However, this is not
+    recommended without consulting with the author and the defaults
+    are therefore not documented here.
 
   Software configuration settings:
   There are some optional behaviors in vapi-conduit that can be turned
