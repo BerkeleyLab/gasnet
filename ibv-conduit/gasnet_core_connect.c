@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/21 23:22:57 $
- * $Revision: 1.44.2.75 $
+ *     $Date: 2011/03/22 08:30:42 $
+ * $Revision: 1.44.2.76 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1311,7 +1311,7 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port, int fully_connected)
         gasneti_fatalerror("Failed to allocate memory for dynamic connection setup");
       }
 
-      rc = gasnetc_pin(&gasnetc_hca[0], buf, size,
+      rc = gasnetc_pin(&conn_ud_hca, buf, size,
                        GASNETC_ACL_LOC_WR, &mem_reg);
       GASNETC_VAPI_CHECK(rc, "while pinning memory for dynamic connection setup");
 
