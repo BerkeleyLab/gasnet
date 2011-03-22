@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/22 09:20:25 $
- * $Revision: 1.44.2.77 $
+ *     $Date: 2011/03/22 17:28:44 $
+ * $Revision: 1.44.2.78 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -2177,7 +2177,13 @@ gasnetc_connect_init(void)
         gasneti_getenv_int_withdefault("GASNET_CONNECT_DROP_DENOM", 0, 0);
 #endif
   gasnetc_connectfile_in  = gasnet_getenv("GASNET_CONNECTFILE_IN");
+  if (gasnetc_connectfile_in && !gasnetc_connectfile_in[0]) { /* empty string */
+    gasnetc_connectfile_in = NULL;
+  }
   gasnetc_connectfile_out = gasnet_getenv("GASNET_CONNECTFILE_OUT");
+  if (gasnetc_connectfile_out && !gasnetc_connectfile_out[0]) { /* empty string */
+    gasnetc_connectfile_out = NULL;
+  }
   gasnetc_connectfile_out_base =
         gasneti_getenv_int_withdefault("GASNET_CONNECTFILE_BASE",
                                        gasnetc_connectfile_out_base, 0);
