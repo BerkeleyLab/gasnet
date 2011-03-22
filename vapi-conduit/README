@@ -1,7 +1,7 @@
 README file for vapi-conduit and ibv-conduit
 ============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.62 $
+$Revision: 1.62.2.1 $
 
 @ TOC: @
 @ Section: VAPI vs IBV @
@@ -275,6 +275,49 @@ $Revision: 1.62 $
     The default value is '0', which means to use the maximum supported
     value reported by the HCA.
     Other valid setting are typically in the range from 1 to 4.
+
+  + GASNET_CONNECT_STATIC
+  + GASNET_CONNECT_DYNAMIC
+XXX Document me!
+    Notes:
+    + Defaults are both 1.
+    + STATIC setting gates" GASNET__CONNECTFILE_{IN,OUT,BASE}
+    + DYNAMIC setting "gates" GASNET_CONNECT_{RCVS,SNDS,RETRANS_{MIN,MAX}}
+
+  + GASNET_CONNECTFILE_OUT
+  + GASNET_CONNECTFILE_BASE
+XXX Document me!
+    Notes:
+    + Default file is none
+    + Default base is 36 (for small output)
+    + '%' is expanded to node number
+    + Single name is OK on *some* filesystems, but notably NOT on NFS
+    + Describe "cat" (or some short script?) for merging separate files
+    + Ignored if !STATIC
+
+  + GASNET_CONNECTFILE_IN
+XXX Document me!
+    Notes:
+    + Default file is none
+    + Default base is 10 (for humans to write files) but is read from the file if present
+    + Ignored if !STATIC
+
+  + GASNET_CONNECT_RCVS
+  + GASNET_CONNECT_SNDS
+XXX Document me!
+    Notes:
+    + Default snds is 4
+    + Default rcvs is 2*ceil(log_2(remote_nodes))
+    + Ignored if !DYNAMIC
+
+  + GASNET_CONNECT_RETRANS_MIN
+  + GASNET_CONNECT_RETRANS_MAX
+XXX Document me!
+    Notes:
+    + Units of us (1e-6)
+    + Default MIN 1000 (1ms or 1e-3s)
+    + Default MAX 2^24 (16million us or just over 16s)
+    + Ignored if !DYNAMIC
 
   Software configuration settings:
   There are some optional behaviors in vapi-conduit that can be turned
