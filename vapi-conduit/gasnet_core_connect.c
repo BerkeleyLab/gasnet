@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/22 23:56:16 $
- * $Revision: 1.44.2.81 $
+ *     $Date: 2011/03/23 01:09:50 $
+ * $Revision: 1.44.2.82 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1826,8 +1826,14 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
 
     case GASNETC_CONN_CMD_RTU:
      {
-      static gasneti_tick_t prev_ack_time = 0;
-      static gasnet_node_t  prev_ack_node = GASNET_MAXNODES;
+      /* Since conn is freed after sending the first ACK this "cache" is the
+       * best we can do "on the cheap" w/o something like TCP's TIME_WAIT.
+       */
+      #define GASNETC_ACK_CACHE_SLOTS 8 /* Must be a power of 2 */
+      static gasneti_tick_t prev_ack_time[GASNETC_ACK_CACHE_SLOTS] = {0};
+      static gasnet_node_t  prev_ack_node[GASNETC_ACK_CACHE_SLOTS] = {0};
+      const unsigned int slot = ((unsigned int)node) & (GASNETC_ACK_CACHE_SLOTS - 1);
+
       if (state == GASNETC_CONN_STATE_REP_SENT) {
         /* Normal case */
         gasneti_sync_writes(); /* "finalize" cep data */
@@ -1835,21 +1841,17 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
         state = GASNETC_CONN_STATE_DONE;
         gasnetc_dynamic_done(conn, 0);
         conn_send_ack(conn, node);
-        prev_ack_time = now;
-        prev_ack_node = node;
+        prev_ack_time[slot] = now;
+        prev_ack_node[slot] = node;
       } else
       if (state == GASNETC_CONN_STATE_DONE) {
         /* Resend case */
-        /* Since conn is freed after sending the first ACK this is the best
-           we can do "on the cheap" w/o something like TCP's TIME_WAIT.
-           XXX: Implement a simple TIME_WAIT state.
-         */
-        if ((node == prev_ack_node) &&
-            (gasneti_ticks_to_us(now - prev_ack_time) < gasnetc_conn_retransmit_min)) {
+        if ((node == prev_ack_node[slot]) &&
+            (gasneti_ticks_to_us(now - prev_ack_time[slot]) < gasnetc_conn_retransmit_min)) {
           /* Recvd impossibly fast, indicating we were inattentive - don't resend yet. */
           GASNETC_STAT_EVENT(CONN_NOACK);
         } else {
-          conn_send_ack(conn, node);
+          conn_send_ack(NULL, node);
         }
       }
       break;
