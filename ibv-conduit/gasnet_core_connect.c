@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/23 20:57:31 $
- * $Revision: 1.44.2.85 $
+ *     $Date: 2011/03/23 21:37:59 $
+ * $Revision: 1.44.2.86 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1427,6 +1427,10 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port, int fully_connected)
       }
     }
 
+    /* "warmup" the timers to ensure we don't pay the potentially high cost
+       of the tick normalization while trying to manage retransmissions. */
+    (void) gasneti_tick_granularity();
+
     return GASNET_OK;
 } /* setup_ud */
 
@@ -1511,8 +1515,8 @@ gasnetc_put_conn(gasnetc_conn_t *conn)
 }
 
 /* Defaults:
- *   Min is 1000us (1ms) which at least 25% more than the ENTIRE connect should take.
- *   Max is (1 << 24), which, doubling from an inital min=1ms, means 16.384s.
+ *   Min is 1ms which at least 25% more than the ENTIRE connect should take.
+ *   Max is (1 << 24) us, which, doubling from an inital min=1ms, means 16.384s.
  * Sum is upto 32s spent retrying EACH of the two round-trip message exchanges.
  *
  * TODO: It *might* be helpful to "learn" retransmit intervals dynamically.
@@ -1563,15 +1567,17 @@ gasnetc_put_conn(gasnetc_conn_t *conn)
  *
  * All of this may be more important if/when we want to to AM-over-UD or multicast.
  */
-static uint64_t gasnetc_conn_retransmit_min = 1000;
-static uint64_t gasnetc_conn_retransmit_max = (1 << 24);
+
+/* While env vars are in us, these store ns */
+static uint64_t gasnetc_conn_retransmit_min_ns = 1000 * 1000;
+static uint64_t gasnetc_conn_retransmit_max_ns = ((uint64_t)1 << 24) * 1000;
 
 /* NOTE: releases and reacquires the lock */
 static void
 gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state, 
                         void (*fn)(gasnetc_conn_t *))
 {
-  uint64_t timeout_us = gasnetc_conn_retransmit_min;
+  uint64_t timeout_ns = gasnetc_conn_retransmit_min_ns;
   gasneti_tick_t prev_time = conn->xmit_time;
 #if GASNETI_STATS_OR_TRACE
   gasneti_tick_t end_time;
@@ -1581,7 +1587,7 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
   gasneti_mutex_unlock(&gasnetc_conn_tbl_lock);
   while (1) {
     while ((conn->state == state) &&
-           (gasneti_ticks_to_us(gasneti_ticks_now() - prev_time) < timeout_us)) {
+           (gasneti_ticks_to_ns(gasneti_ticks_now() - prev_time) < timeout_ns)) {
       GASNETI_WAITHOOK();
       gasnetc_sndrcv_poll(0); /* works even before _attach */
     }
@@ -1591,8 +1597,8 @@ gasnetc_timed_conn_wait(gasnetc_conn_t *conn, gasnetc_conn_state_t state,
 
     if (conn->state != state) break; /* Done */
 
-    timeout_us *= 2;
-    if (timeout_us > gasnetc_conn_retransmit_max) break; /* limit reached */
+    timeout_ns *= 2;
+    if (timeout_ns > gasnetc_conn_retransmit_max_ns) break; /* limit reached */
 
     /* retransmit */
     (*fn)(conn);
@@ -1826,7 +1832,7 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
       } else
       if (state == GASNETC_CONN_STATE_REP_SENT) {
         /* Resend case */
-        if (gasneti_ticks_to_us(now - conn->reply_time) < gasnetc_conn_retransmit_min) {
+        if (gasneti_ticks_to_ns(now - conn->reply_time) < gasnetc_conn_retransmit_min_ns) {
           /* Recvd impossibly fast, indicating we were inattentive - don't resend yet. */
           GASNETC_STAT_EVENT(CONN_NOREP);
         } else {
@@ -1896,7 +1902,7 @@ gasnetc_conn_rcv_wc(gasnetc_wc_t *comp)
       if (state == GASNETC_CONN_STATE_DONE) {
         /* Resend case */
         if ((node == prev_ack_node[slot]) &&
-            (gasneti_ticks_to_us(now - prev_ack_time[slot]) < gasnetc_conn_retransmit_min)) {
+            (gasneti_ticks_to_ns(now - prev_ack_time[slot]) < gasnetc_conn_retransmit_min_ns)) {
           /* Recvd impossibly fast, indicating we were inattentive - don't resend yet. */
           GASNETC_STAT_EVENT(CONN_NOACK);
         } else {
@@ -2283,11 +2289,12 @@ gasnetc_connect_init(void)
     do_dynamic = 1;
   }
 
-  {
-    uint64_t tmp_min =
-          gasneti_getenv_int_withdefault("GASNET_CONNECT_RETRANS_MIN", gasnetc_conn_retransmit_min, 0);
-    uint64_t tmp_max =
-          gasneti_getenv_int_withdefault("GASNET_CONNECT_RETRANS_MAX", gasnetc_conn_retransmit_max, 0);
+  { /* Env var is is us, but internal vasr are ns */
+    int64_t tmp_min, tmp_max;
+    tmp_min = gasnetc_conn_retransmit_min_ns / 1000;
+    tmp_min = gasneti_getenv_int_withdefault("GASNET_CONNECT_RETRANS_MIN", tmp_min, 0);
+    tmp_max = gasnetc_conn_retransmit_max_ns / 1000;
+    tmp_max = gasneti_getenv_int_withdefault("GASNET_CONNECT_RETRANS_MAX", tmp_max, 0);
 
     if (tmp_min >= tmp_max) {
       if (!gasneti_mynode) {
@@ -2295,8 +2302,8 @@ gasnetc_connect_init(void)
                         "Using default values instead.\n");
       }
     } else {
-      gasnetc_conn_retransmit_min = tmp_min;
-      gasnetc_conn_retransmit_max = tmp_max;
+      gasnetc_conn_retransmit_min_ns = tmp_min * 1000;
+      gasnetc_conn_retransmit_max_ns = tmp_max * 1000;
     }
   }
 
