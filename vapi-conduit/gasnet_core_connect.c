@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/23 21:45:39 $
- * $Revision: 1.44.2.87 $
+ *     $Date: 2011/03/23 23:17:46 $
+ * $Revision: 1.44.2.88 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1220,7 +1220,6 @@ gasnetc_qp_setup_ud(gasnetc_port_info_t *port, int fully_connected)
     const int max_recv_wr = gasnetc_ud_rcvs;
     const int max_send_wr = gasnetc_ud_snds;
 
-    /* TODO: if/when rkeys are passed dynamically too this will need to account for them too */
   #if GASNETC_IBV_XRC
     const int send_sz = gasnetc_alloc_qps *
                             (gasnetc_use_xrc ? sizeof(gasnetc_xrc_conn_data_t)
