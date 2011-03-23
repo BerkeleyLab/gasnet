@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/23 20:28:50 $
- * $Revision: 1.44.2.83 $
+ *     $Date: 2011/03/23 20:42:50 $
+ * $Revision: 1.44.2.84 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1525,20 +1525,20 @@ gasnetc_put_conn(gasnetc_conn_t *conn)
  *   remote attentiveness is a factor in the RTT.
  * + Summary of previous 3 items: not clear that smoothed-RTT estimators are useful.
  * + IF using SRTT estimators, then we should follow advice given in RFC 1122:
- *   - Use Karn's algorithm (but see below) to 1) use only unabmiguous RTT values in
+ *   - Use Karn's algorithm (but see below) to 1) use only unambiguous RTT values in
  *     updating the SRTT, and 2) carry-over backed-off RTO to next packet when no
  *     updated SRTT is available to compute a "fresh" RTO.
  *   - Use Van Jacobson's variance-aware RTO computation.  However, we should probably
  *     use the original (a+2v) version, not the (a+4v) version that was updated based
- *     on behaviour of TCP slow-start over SLIP.  The reasoning is 2-fold: we are NOT
+ *     on behavior of TCP slow-start over SLIP.  The reasoning is 2-fold: we are NOT
  *     dealing with bandwidth-dominated links; and our variance is already going to
  *     be artificially high if pooled over multiple peers.
  * + Karn's algorithm says to discard any RTT measurement for a packet that has been
  *   retransmitted, because we cannot know if the response is to the original or one
- *   of the resends.  However, unlike TCP we have the opton to put info in the header
+ *   of the resends.  However, unlike TCP we have the option to put info in the header
  *   that would allow us to keep Karn's rule about using only "unambiguous" RTT
  *   measurements while admitting a larger set of measurements.  Some options:
- *   - A single header bit would distingish the orignal packet and replies to it.  This
+ *   - A single header bit would distinguish the original packet and replies to it.  This
  *     allows us to use RTT for any replies to the original, even if there were some
  *     resends.  This could help to more quickly raise a SRTT estimate that is too low.
  *   - A counter in the header could give the sequence for each resend, and be echoed
@@ -1547,13 +1547,13 @@ gasnetc_put_conn(gasnetc_conn_t *conn)
  *     most recent resend.  Since both the first and last send timestamps are on hand
  *     at the sender, unambiguous RTT computations would be possible for both these
  *     cases.  Would only need 4 or 5 bits, and at least 8 are easily available.
- *   - Using the same counter as the prevous item with the addition of a "log" of the
- *     (re)send times would allow unabmiguous RTT computation regardless of which of
+ *   - Using the same counter as the previous item with the addition of a "log" of the
+ *     (re)send times would allow unambiguous RTT computation regardless of which of
  *     multiple sends was the one to receive a reply.
  *   - Sending a timestamp on a request (again echoed back in the reply) would allow
- *     unambiguous RTT computation w/o the log, but at the expense of upto an 8-byte
- *     timestamp.  For the non-XRC case current payload is only 4 bytes, making this
- *     timestamp a non-trival expansion of the payload.  The log feels "cheaper".
+ *     unambiguous RTT computation w/o the log, but at the expense of up to an 8-byte
+ *     timestamp.  For the non-SRQ case current payload is only 4 bytes, making this
+ *     timestamp a non-trivial expansion of the payload.  The log feels "cheaper".
  * + Use of the resend-sequence number mentioned above would allow use to independently
  *   estimate loss rate in addition to RTT time, with the caveat that we cannot be
  *   sure if loss was due to congestion in the fabric or overrun at the receiver.
