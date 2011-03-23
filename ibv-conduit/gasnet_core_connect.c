@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/23 20:42:50 $
- * $Revision: 1.44.2.84 $
+ *     $Date: 2011/03/23 20:57:31 $
+ * $Revision: 1.44.2.85 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -982,6 +982,7 @@ gasnetc_put_ah(gasnetc_ah_t *ah)
     int vstat = ibv_destroy_ah(ah->ib_ah);
     GASNETC_VAPI_CHECK(vstat, "from ibv__destroy_ah()");
 #endif
+    gasneti_free(ah);
   }
 }
 
