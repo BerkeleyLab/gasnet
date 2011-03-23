@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/23 21:37:59 $
- * $Revision: 1.44.2.86 $
+ *     $Date: 2011/03/23 21:45:39 $
+ * $Revision: 1.44.2.87 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -2289,7 +2289,7 @@ gasnetc_connect_init(void)
     do_dynamic = 1;
   }
 
-  { /* Env var is is us, but internal vasr are ns */
+  { /* Env vars are in us, but internal vars are in ns */
     int64_t tmp_min, tmp_max;
     tmp_min = gasnetc_conn_retransmit_min_ns / 1000;
     tmp_min = gasneti_getenv_int_withdefault("GASNET_CONNECT_RETRANS_MIN", tmp_min, 0);
