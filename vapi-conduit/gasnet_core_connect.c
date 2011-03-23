@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/23 23:17:46 $
- * $Revision: 1.44.2.88 $
+ *     $Date: 2011/03/23 23:33:20 $
+ * $Revision: 1.44.2.89 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1104,6 +1104,27 @@ gasnetc_snd_post_ud(gasnetc_ud_snd_desc_t *desc, gasnetc_ah_t *ah, gasnet_node_t
  *  late).  If our peer never received our REQ then it cannot move forward
  *  without the data contained in a REQ or REP.  So, the resolution is to
  *  resend our REQ.
+ *
+ * GASNet-level state transitions:
+ * + On the ACTIVE side the GASNet-level CEP is installed in the NODE2CEP
+ *   table on the transition to GASNETC_CONN_STATE_RTU_SENT, but it in a
+ *   receive-only state (Send Queue semaphore is zero).
+ * + The ACTIVE peer transitions to the full send-and-receive state when
+ *   it receives the ACK that ensures the PASSIVE peer is ready to receive.
+ * + The PASSIVE peer installs the CEP in the NODE2CEP table with full
+ *   capability to both send and receive when it receives the RTU, which
+ *   indicates the ACTIVE peer is ready to receive.
+ *
+ * Note that it is possible that due to multi-threading or packet loss an
+ * AM sent from the PASSIVE peer to the ACTIVE one could arrive after the
+ * ACTIVE peer has sent RTU, but before it has received the ACK.  In this
+ * case (and ONLY this case) it is possible for the ACTIVE peer to find
+ * itself needing to send (an AMReply) even though the Send Queue semaphore
+ * is zero!  Fortunately, this case is easily detected in the code that
+ * deals with the failed semaphore_try_down() and is already outside the
+ * normal "fast path".  The function gasnetc_conn_implied_ack() is called
+ * to perform the work that would otherwise have been done when the
+ * poll loop in the ACTIVE peer notices the ACK.
  */
 
 typedef enum {
@@ -1450,7 +1471,7 @@ gasnetc_get_conn(gasnet_node_t node)
   if (conn) {
     /* Found it - nothing more to do */
   } else if (GASNETC_NODE2CEP(node)) {
-    /* Connection complete - nothing more to do */
+    /* Connection complet(ing) - nothing more to do */
   } else {
     /* Create new */
     conn = gasneti_malloc(sizeof(*conn));
