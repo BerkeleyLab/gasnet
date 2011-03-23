@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/03/23 01:09:50 $
- * $Revision: 1.44.2.82 $
+ *     $Date: 2011/03/23 20:28:50 $
+ * $Revision: 1.44.2.83 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -1513,6 +1513,54 @@ gasnetc_put_conn(gasnetc_conn_t *conn)
  *   Min is 1000us (1ms) which at least 25% more than the ENTIRE connect should take.
  *   Max is (1 << 24), which, doubling from an inital min=1ms, means 16.384s.
  * Sum is upto 32s spent retrying EACH of the two round-trip message exchanges.
+ *
+ * TODO: It *might* be helpful to "learn" retransmit intervals dynamically.
+ * Here are some notes based on initial experiments run on Carver.
+ * + The number of "packets" sent to an given peer is just 2, making tuning per
+ *   peer nearly pointless.
+ * + If pooling the RTT data across all connections then the number of packets may
+ *   often be too small to gain statistically meaningful RTT information, given the
+ *   high variance that will result from pooling info from multiple nodes.
+ * + If pooling info per-supernode the data may still be high-variance because the
+ *   remote attentiveness is a factor in the RTT.
+ * + Summary of previous 3 items: not clear that smoothed-RTT estimators are useful.
+ * + IF using SRTT estimators, then we should follow advice given in RFC 1122:
+ *   - Use Karn's algorithm (but see below) to 1) use only unabmiguous RTT values in
+ *     updating the SRTT, and 2) carry-over backed-off RTO to next packet when no
+ *     updated SRTT is available to compute a "fresh" RTO.
+ *   - Use Van Jacobson's variance-aware RTO computation.  However, we should probably
+ *     use the original (a+2v) version, not the (a+4v) version that was updated based
+ *     on behaviour of TCP slow-start over SLIP.  The reasoning is 2-fold: we are NOT
+ *     dealing with bandwidth-dominated links; and our variance is already going to
+ *     be artificially high if pooled over multiple peers.
+ * + Karn's algorithm says to discard any RTT measurement for a packet that has been
+ *   retransmitted, because we cannot know if the response is to the original or one
+ *   of the resends.  However, unlike TCP we have the opton to put info in the header
+ *   that would allow us to keep Karn's rule about using only "unambiguous" RTT
+ *   measurements while admitting a larger set of measurements.  Some options:
+ *   - A single header bit would distingish the orignal packet and replies to it.  This
+ *     allows us to use RTT for any replies to the original, even if there were some
+ *     resends.  This could help to more quickly raise a SRTT estimate that is too low.
+ *   - A counter in the header could give the sequence for each resend, and be echoed
+ *     back in the reply.  This could easily be used to distinguish not only replies
+ *     to the first send (as with the 1-bit modification), but also replies to the
+ *     most recent resend.  Since both the first and last send timestamps are on hand
+ *     at the sender, unambiguous RTT computations would be possible for both these
+ *     cases.  Would only need 4 or 5 bits, and at least 8 are easily available.
+ *   - Using the same counter as the prevous item with the addition of a "log" of the
+ *     (re)send times would allow unabmiguous RTT computation regardless of which of
+ *     multiple sends was the one to receive a reply.
+ *   - Sending a timestamp on a request (again echoed back in the reply) would allow
+ *     unambiguous RTT computation w/o the log, but at the expense of upto an 8-byte
+ *     timestamp.  For the non-XRC case current payload is only 4 bytes, making this
+ *     timestamp a non-trival expansion of the payload.  The log feels "cheaper".
+ * + Use of the resend-sequence number mentioned above would allow use to independently
+ *   estimate loss rate in addition to RTT time, with the caveat that we cannot be
+ *   sure if loss was due to congestion in the fabric or overrun at the receiver.
+ *   While I have not done (or searched for in literature) the corresponding analysis,
+ *   I suspect that something intelligent might be done with this additional data.
+ *
+ * All of this may be more important if/when we want to to AM-over-UD or multicast.
  */
 static uint64_t gasnetc_conn_retransmit_min = 1000;
 static uint64_t gasnetc_conn_retransmit_max = (1 << 24);
