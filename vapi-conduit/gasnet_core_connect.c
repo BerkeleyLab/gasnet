@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_connect.c,v $
- *     $Date: 2011/03/23 23:33:20 $
- * $Revision: 1.44.2.89 $
+ *     $Date: 2011/03/24 02:48:18 $
+ * $Revision: 1.44.2.90 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -2326,13 +2326,6 @@ gasnetc_connect_init(void)
       gasnetc_conn_retransmit_max_ns = tmp_max * 1000;
     }
   }
-
-#if 0 /* DISABLED - still appears that fixed-comms barrier code might be buggy */
-  /* Must we disable barrier AMs from all but the supernode representative? */
-  if (!do_static || gasnetc_connectfile_in || gasnetc_connectfile_out) {
-    gasnete_barrier_fixed = 1;
-  }
-#endif
 
   /* Determine the inline data limit given the QP parameters we will use. */
   {

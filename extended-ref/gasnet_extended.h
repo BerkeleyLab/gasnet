@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.h,v $
- *     $Date: 2011/03/01 23:23:17 $
- * $Revision: 1.47 $
+ *     $Date: 2011/03/24 02:48:16 $
+ * $Revision: 1.47.2.1 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -816,10 +816,6 @@ gasnet_register_value_t _gasnet_get_val (gasnet_node_t node, void *src, size_t n
   =========
 */
 
-/* Set non-zero to force deterministic comms in barriers.
-   Initialy 0 if conduit does not set.
- */
-extern int gasnete_barrier_fixed;
 
 #ifndef GASNET_TEAM_ALL
 extern gasnet_team_handle_t gasnete_coll_team_all;
