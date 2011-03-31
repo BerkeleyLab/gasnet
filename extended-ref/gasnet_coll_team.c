@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_team.c,v $
- * $Date: 2011/03/10 18:53:28 $
- * $Revision: 1.9.2.4 $
+ * $Date: 2011/03/31 06:09:07 $
+ * $Revision: 1.9.2.5 $
  *
  * Description: GASNet team implementation for collectives 
  * Copyright 2010, E. O. Lawrence Berekely National Laboratory
@@ -79,6 +79,11 @@ void gasnete_coll_team_td_init(uint32_t team_id,
 {
   gasnete_coll_team_threaddata_t *team_td;
 
+#ifdef DEBUG_TEAM
+  fprintf(stderr, "[%u]: gasnete_coll_team_td_init: team_id %d, team handle %p, my_image %u, my_local_image %u\n",
+          td->my_image, team_id, team, my_image, my_local_image);
+#endif
+
   gasneti_assert (td->team_dir != NULL); 
   team_td = (gasnete_coll_team_threaddata_t *)gasneti_malloc(sizeof(gasnete_coll_team_threaddata_t));
   team_td->team = team;
@@ -134,8 +139,9 @@ gasnet_team_handle_t gasnete_coll_team_lookup(uint32_t team_id)
 void gasnete_coll_team_print(gasnet_team_handle_t team, FILE *fp)
 {
   int i;
-  fprintf(fp, "[%u] team id %u, total ranks %u, my rank %u, total images %u, my image %u\n",
-          gasnete_coll_team_my_image(GASNET_TEAM_ALL), team->team_id, team->total_ranks, team->myrank, 
+  fprintf(fp, "[%u] team handle %p,  team id %u, total ranks %u, my rank %u, total images %u, my image %u\n",
+          gasnete_coll_team_my_image(GASNET_TEAM_ALL), team, team->team_id, 
+          team->total_ranks, team->myrank, 
           team->total_images, gasnete_coll_team_my_image(team));
   fprintf(fp, "rel2act_map:\n");
   for (i=0; i<team->total_ranks; i++) {
@@ -172,7 +178,7 @@ gasnet_image_t gasnete_coll_team_my_image(gasnet_team_handle_t team)
   gasnete_coll_team_threaddata_t *team_td;
 
 #if GASNET_SEQ
-  return gasnet_mynode();
+  return team->myrank;
 #endif
 
   GASNETE_THREAD_LOOKUP; /* GASNETE_THREAD_FARG_ALONE = GASNETE_THREAD_GET_ALONE; */
@@ -185,8 +191,11 @@ gasnet_image_t gasnete_coll_team_my_image(gasnet_team_handle_t team)
   if (team == GASNET_TEAM_ALL)
     return td->my_image;
 
-  if (gasnete_hashtable_search(td->team_dir, team->team_id, (void **)&team_td))
+  if (gasnete_hashtable_search(td->team_dir, team->team_id, (void **)&team_td)) {
+    fprintf(stderr, "[thread %u] gasnete_coll_team_my_image error:: cannot find team_id %d!\n",
+            td->my_image, team->team_id);
     return GASNET_IMAGE_UNDEFINED; /* if the image is not found is the team */
+  }
 
   return team_td->my_image;
 }
@@ -684,8 +693,10 @@ void gasnete_coll_teamid_reqh_inner(gasnet_token_t token,
                                     void *clientdata)
 {
   uint32_t teamid;
+  gasnet_node_t src;
 
   gasneti_assert(gasnet_mynode() == 0);
+  gasneti_assert(gasnet_AMGetMsgSource (token, &src) == GASNET_OK);
 
   gasnet_hsl_lock(&gasnete_coll_team_id_lock);
   teamid = gasnete_coll_team_id_seq;
@@ -693,8 +704,8 @@ void gasnete_coll_teamid_reqh_inner(gasnet_token_t token,
   gasnet_hsl_unlock(&gasnete_coll_team_id_lock);
 
 #ifdef DEBUG_TEAM
-  fprintf(stderr, "gasnete_coll_teamid_reqh: new_teamid %u, team_id_count %u\n", 
-          teamid, (uint32_t)team_id_count);
+  fprintf(stderr, "gasnete_coll_teamid_reqh: src node %u, new_teamid %u, team_id_count %u\n", 
+          src, teamid, (uint32_t)team_id_count);
   fflush(stderr);
 #endif
   
@@ -768,12 +779,12 @@ gasnete_coll_team_first_local_image_in_set(gasnet_team_handle_t team,
   gasneti_fatalerror("[%u] Cannot find local image in set!\n", gasnete_coll_team_my_image(GASNET_TEAM_ALL));
   return 0; /* never reach here */
 }
-
                                            
 typedef struct _gasnete_coll_team_member_tuple_t {
   gasnet_image_t team_imageid;
   gasnet_image_t act_imageid;
   gasnet_node_t act_rank;
+  int done;
 } gasnete_coll_team_member_tuple_t;
 
 /* team image id comparison function for use in qsort */
@@ -799,7 +810,7 @@ gasnet_team_handle_t gasnete_coll_team_create(gasnet_team_handle_t parent_team,
                                               GASNETE_THREAD_FARG)
 {
   gasnet_team_handle_t new_team;
-  uint32_t i, local_image_count;
+  uint32_t i, j, local_image_count;
   gasnet_node_t myrank, total_ranks, my_act_rank, current_act_rank, current_rank;
   gasnet_image_t *all_images, first_local, my_offset, *new_team_local_images;
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOALLOC;
@@ -852,8 +863,33 @@ gasnet_team_handle_t gasnete_coll_team_create(gasnet_team_handle_t parent_team,
       new_team_members[i].team_imageid = i;
       new_team_members[i].act_imageid = parent_team->image_rel2act_map[images[i]];
       new_team_members[i].act_rank = gasnete_coll_image2node(parent_team, images[i]);
+      new_team_members[i].done = 0;
+      new_team->image_rel2act_map[i] = new_team_members[i].act_imageid;
     }
     
+    current_rank = 0;                           
+    for (i=0; i<total_images; i++) {
+      if (new_team_members[i].done == 0) {
+        new_team->image2rank_map[i] = current_rank;
+        local_image_count = 1;
+        new_team_members[i].done = 1;
+
+        for (j=i+1; j<total_images; j++) {
+          if (new_team_members[j].done == 0 && 
+              new_team_members[i].act_rank == new_team_members[j].act_rank) {
+            new_team->image2rank_map[j] = current_rank; 
+            local_image_count++;
+            new_team_members[j].done = 1;
+          }
+        }
+
+        all_images[current_rank] = local_image_count;
+        new_team->rel2act_map[current_rank] = new_team_members[i].act_rank;
+        current_rank++;
+      } /* end of if */
+    }
+    
+#if 0
     qsort(new_team_members, total_images, sizeof(gasnete_coll_team_member_tuple_t),
           &gasnete_coll_team_image_cmp_func);
 
@@ -874,8 +910,9 @@ gasnet_team_handle_t gasnete_coll_team_create(gasnet_team_handle_t parent_team,
       all_images[current_rank] = local_image_count;
       new_team->image2rank_map[i] = current_rank;
     }                                                                    
+#endif /* if 0 */
 
-    total_ranks = current_rank+1;
+    total_ranks = current_rank;
     myrank = new_team->image2rank_map[my_new_imageid];
     new_team->local_images = (gasnet_image_t *) gasneti_calloc(all_images[myrank], sizeof(gasnet_image_t));
 
@@ -1080,12 +1117,12 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t parent_team,
                          sizeof(gasnete_coll_team_split_info_t), 
                          GASNET_COLL_LOCAL | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_ALLSYNC);
   */
-  gasnet_coll_gather(parent_team, 0, all_split_info, &my_split_info, 
-                     sizeof(gasnete_coll_team_split_info_t), 
+  gasnet_coll_gather(parent_team, 0, all_split_info, &my_split_info,
+                     sizeof(gasnete_coll_team_split_info_t),
                      GASNET_COLL_LOCAL | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_ALLSYNC);
  
   gasnet_coll_broadcast(parent_team, all_split_info, 0, all_split_info,
-                        sizeof(gasnete_coll_team_split_info_t) * parent_team->total_images, 
+                        sizeof(gasnete_coll_team_split_info_t) * parent_team->total_images,
                         GASNET_COLL_LOCAL | GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_ALLSYNC);
 
 #ifdef DEBUG_TEAM
@@ -1146,13 +1183,17 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t parent_team,
     first_new_team_id = 0;
     SHORT_REQ(2, 3, (0, gasneti_handleridx(gasnete_coll_teamid_reqh), 
                      new_team_count, PACK(&first_new_team_id)));
-    gasneti_waituntil(first_new_team_id != 0);
+    gasneti_polluntil(first_new_team_id != 0);
+    
+#ifdef DEBUG_TEAM
+    fprintf(stderr, "[%u] team imageid %u, gasnete_coll_team_split: first_new_team_id %u.\n", 
+            gasnete_coll_team_my_image(GASNET_TEAM_ALL), 
+            gasnete_coll_team_my_image(parent_team),
+            first_new_team_id);
+#endif
   }
   
-#ifdef DEBUG_TEAM
-  fprintf(stderr, "[%u] gasnete_coll_team_split: first_new_team_id %u.\n", 
-          gasnete_coll_team_my_image(GASNET_TEAM_ALL), first_new_team_id);
-#endif
+  gasnete_coll_teambarrier(parent_team);
 
   /* parent team root broadcast team_ids to all other threads */ 
   gasnet_coll_broadcast(parent_team, (void *)&first_new_team_id, 0, 

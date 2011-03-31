@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_autotune.c,v $
- *     $Date: 2011/03/10 18:53:28 $
- * $Revision: 1.25.6.2 $
+ *     $Date: 2011/03/31 06:09:07 $
+ * $Revision: 1.25.6.3 $
  * Description: GASNet Autotuner Implementation
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -3059,6 +3059,9 @@ gasnete_coll_autotune_get_gather_algorithm(gasnet_team_handle_t team,gasnet_imag
   } else {
     ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_GATHER_OP][GASNETE_COLL_GATHER_RVOUS].fn_ptr.gather_fn;
   }
+
+  ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_GATHER_OP][GASNETE_COLL_GATHER_RVOUS].fn_ptr.gather_fn;
+
   return ret;
   
   
@@ -3173,7 +3176,9 @@ gasnete_coll_autotune_get_gather_all_algorithm(gasnet_team_handle_t team, void *
       ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_GATHER_ALL_OP][GASNETE_COLL_GATHER_ALL_GATH].fn_ptr.gather_all_fn;
     }
   }
-  
+
+  ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_GATHER_ALL_OP][GASNETE_COLL_GATHER_ALL_GATH].fn_ptr.gather_all_fn;
+
   return ret;
   
   
@@ -3206,7 +3211,10 @@ gasnete_coll_autotune_get_gather_allM_algorithm(gasnet_team_handle_t team, void 
     ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_GATHER_ALLM_OP][GASNETE_COLL_GATHER_ALLM_DISSEM_NOSCRATCH_SEG].fn_ptr.gather_allM_fn;
   } else {
     ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_GATHER_ALLM_OP][GASNETE_COLL_GATHER_ALLM_GATH].fn_ptr.gather_allM_fn;
-  } 
+  }
+
+  ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_GATHER_ALLM_OP][GASNETE_COLL_GATHER_ALLM_GATH].fn_ptr.gather_allM_fn;
+
   return ret;
 }
 

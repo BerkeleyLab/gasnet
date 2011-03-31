@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- * $Date: 2011/03/10 18:53:28 $
- * $Revision: 1.90.6.3 $
+ * $Date: 2011/03/31 06:09:07 $
+ * $Revision: 1.90.6.4 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2094,6 +2094,8 @@ void gasnete_coll_p2p_send_rtrM(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
 void gasnete_coll_p2p_send_rtr(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
                                uint32_t offset, void *dst,
                                gasnet_node_t node, size_t nbytes) {
+  /* printf("gasnete_coll_p2p_send_rtr: mynode %d, myrank %d, node %d\n", */
+  /*        gasneti_mynode, op->team->myrank, node); */
   gasnete_coll_p2p_send_rtrM(op, p2p, offset, &dst, node, nbytes, 1);
 }
 

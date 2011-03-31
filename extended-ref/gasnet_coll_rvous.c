@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2010/09/21 23:33:33 $
- * $Revision: 1.67.6.1 $
+ *     $Date: 2011/03/31 06:09:07 $
+ * $Revision: 1.67.6.2 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -943,23 +943,36 @@ static int gasnete_coll_pf_gath_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
       data->state = 1;
 
     case 1:	/* Root send addrs */
+      /* printf("gasnete_coll_pf_gath_RVous stage 1 called! mynode %d, myrank %d, dstnode %d\n", */
+      /*        gasneti_mynode, op->team->myrank, args->dstnode); */
+
       if (op->team->myrank == args->dstnode) {
 	gasnet_node_t i;
 	for (i = 0; i < op->team->total_ranks; ++i) {
 	  if (i == op->team->myrank) continue;
-	  gasnete_coll_p2p_send_rtr(op, data->p2p, 0,
-				    gasnete_coll_scale_ptr(args->dst, i, args->nbytes),
-				    GASNETE_COLL_REL2ACT(op->team, i), args->nbytes);
+	  gasnete_coll_p2p_send_rtr(op, 
+                              data->p2p, 
+                              0,
+                              gasnete_coll_scale_ptr(args->dst, 
+                                                     i, 
+                                                     args->nbytes),
+                              GASNETE_COLL_REL2ACT(op->team, i), 
+                              args->nbytes);
 	}
-	GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(gasnete_coll_scale_ptr(args->dst, op->team->myrank, args->nbytes),
-				      args->src, args->nbytes);
+	GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(gasnete_coll_scale_ptr(args->dst, 
+                                                             op->team->myrank, 
+                                                             args->nbytes),
+                                      args->src, 
+                                      args->nbytes);
       }
       data->state = 2;
 
     case 2:
+      /* printf("gasnete_coll_pf_gath_RVous stage 2 called!\n"); */
+
       if (op->team->myrank != args->dstnode) {
-	/* non-root nodes send at most one AM per poll */
-	int done = gasnete_coll_p2p_send_data(op, data->p2p, GASNETE_COLL_REL2ACT(op->team, args->dstnode), 0, args->src, args->nbytes);
+        /* non-root nodes send at most one AM per poll */
+        int done = gasnete_coll_p2p_send_data(op, data->p2p, GASNETE_COLL_REL2ACT(op->team, args->dstnode), 0, args->src, args->nbytes);
 	if (!done) {break;}
       } else if (!gasnete_coll_p2p_send_done(data->p2p)) {
 	/* Not all data has arrived yet */

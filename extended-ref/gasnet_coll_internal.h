@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- * $Date: 2011/03/20 23:22:55 $
- * $Revision: 1.60.2.3 $
+ * $Date: 2011/03/31 06:09:07 $
+ * $Revision: 1.60.2.4 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -657,12 +657,12 @@ void gasnete_coll_local_rotate_right(void *dst, const void *src, size_t elem_siz
 }
 
 /* Helper to perform in-memory data shuffling */
-void gasnete_coll_shuffle_data(gasnet_image_t const dstindex[],
-                               void **dstlist,
-                               gasnet_image_t image_count,
-                               gasnet_image_t *srcimage, 
-                               void *src,
-                               size_t nbytes)
+static void gasnete_coll_shuffle_data(gasnet_image_t const dstindex[],
+                                      void **dstlist,
+                                      gasnet_image_t image_count,
+                                      gasnet_image_t *srcimage, 
+                                      void *src,
+                                      size_t nbytes)
 {
   gasnet_image_t i;
   uint8_t *buf;
