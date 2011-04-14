@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/smp-collectives/smp_coll_barrier.c,v $
- *     $Date: 2011/03/20 23:22:57 $
- * $Revision: 1.5.6.1 $
+ *     $Date: 2011/04/14 05:56:12 $
+ * $Revision: 1.5.6.2 $
  * Description: Shared Memory Collectives
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -81,8 +81,6 @@ void smp_coll_set_barrier_routine_with_root(smp_coll_t handle, smp_coll_barrier_
     
     handle->barrier_children = (int*) gasneti_malloc(sizeof(int)*child_count);
     
-
-    
     /*     if(child_count > 0) { */
     
     /*     } else { */
@@ -136,16 +134,12 @@ void smp_coll_tune_barrier(smp_coll_t handle) {
   if(handle->MYTHREAD==0) fprintf(stderr, "starting autotuning of local barrier\n");
 #endif
   for(root=0; root<1; root++) {
-
     if(handle->MYTHREAD==0 && VERBOSE_TUNING) fprintf(stderr, "ROOT: %d\n", root);
     for(i=0; i<SMP_COLL_NUM_BARR_ROUTINES; i++) {
-      if(i==SMP_COLL_BARRIER_COND_VAR) continue;
+      /* if(i==SMP_COLL_BARRIER_COND_VAR) continue; */
       if(handle->MYTHREAD==0 && VERBOSE_TUNING) fprintf(stderr, "\t routine: %d\n",i);
       for(radix=2; radix<=handle->THREADS; radix*=2) {
-        
-        
-        
-        if(i==SMP_COLL_BARRIER_COND_VAR && radix>2) continue;
+        /* if(i==SMP_COLL_BARRIER_COND_VAR && radix>2) continue; */
         if(i==SMP_COLL_BARRIER_PTHREAD && radix>2) continue;
         if(handle->MYTHREAD==0 && VERBOSE_TUNING) fprintf(stderr, "\t\t radix: %d\n",radix);
         smp_coll_set_barrier_routine_with_root(handle, i, radix, root);
@@ -157,7 +151,6 @@ void smp_coll_tune_barrier(smp_coll_t handle) {
         stop = gasnett_ticks_now();
         smp_coll_safe_barrier(handle, 0);
         time = ((double) gasnett_ticks_to_ns(stop-start))/barrier_iters;
-        
         
         if(time < best_time && handle->MYTHREAD==0) {
           best_barrier_radix=radix;
@@ -175,8 +168,6 @@ void smp_coll_tune_barrier(smp_coll_t handle) {
   if(handle->MYTHREAD==0) fprintf(stderr, "setting best barrier: routine: %d radix: %d root: %d time: %g ns\n", best_barrier_routine, best_barrier_radix, best_root, best_time);
 #endif
   smp_coll_set_barrier_routine_with_root(handle, best_barrier_routine, best_barrier_radix, best_root);
-  
-  
 }
 
 
@@ -189,11 +180,11 @@ void smp_coll_barrier_pthread(smp_coll_t handle, int flags) {
 
 /*condition variable based pthread implementation*/
 /*all threads except last to arrive at barrier grab a lock and then fall asleep on a condition variable*/
-/*last thread grabs the lock and broadcats to all other threads to wake up*/
+/*last thread grabs the lock and broadcasts to all other threads to wake up*/
 #if PLATFORM_ARCH_CRAYX1 || PLATFORM_OS_CYGWIN
 /* pthread_cond is unreliable on some versions of these OS's - use semaphores */
 #include <semaphore.h>
-void smp_coll_barrier_cond_var(smp_coll_t handle, int flags){
+void smp_coll_barrier_cond_var(int THREADS, int flags){
   static gasneti_mutex_t barrier_mutex = GASNETT_MUTEX_INITIALIZER;
   static volatile int phase = 0;
   static volatile unsigned int barrier_count = 0;
@@ -207,7 +198,7 @@ void smp_coll_barrier_cond_var(smp_coll_t handle, int flags){
       firsttime = 0;
     }
     barrier_count++;
-    if (barrier_count < handle->THREADS) {
+    if (barrier_count < THREADS) {
       gasneti_mutex_unlock(&barrier_mutex); 
       gasneti_assert_zeroret(sem_wait(&sem[myphase]));
     } else {
@@ -215,14 +206,14 @@ void smp_coll_barrier_cond_var(smp_coll_t handle, int flags){
       barrier_count = 0;
       phase = !phase;
       gasneti_mutex_unlock(&barrier_mutex);
-      for (i=0; i < (handle->THREADS-1); i++) {
+      for (i=0; i < (THREADS-1); i++) {
         gasneti_assert_zeroret(sem_post(&sem[myphase]));
       }
     }
   }
 }
 #else
-void smp_coll_barrier_cond_var(smp_coll_t handle, int flags){
+void smp_coll_barrier_cond_var(int THREADS, int flags){
   /* cond variables must be phased on some OS's (HPUX) */
   static struct {
     gasnett_cond_t cond;
@@ -234,7 +225,7 @@ void smp_coll_barrier_cond_var(smp_coll_t handle, int flags){
   const int myphase = phase;
   gasneti_mutex_lock(&(barrier[myphase].mutex));
   barrier_count++;
-  if (barrier_count != handle->THREADS) {
+  if (barrier_count != THREADS) {
     /* CAUTION: changing the "do-while" to a "while" triggers a bug in the SunStudio 2006-08
      * compiler for x86_64.  See http://upc-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1858
      * which includes a link to Sun's own database entry for this issue.
@@ -294,7 +285,7 @@ void smp_coll_barrier_tree_push_push(smp_coll_t handle, int flags) {
 
   /*if i'm not root*/
   if(handle->MYTHREAD!=handle->barrier_root) {
-    /*singal parent and wait for parent to signal us*/
+    /*signal parent and wait for parent to signal us*/
     SMP_COLL_INC_ATOMIC(handle, handle->barrier_parent, 0, atomicset);
     gasneti_waitwhile(SMP_COLL_GET_BARRIER_FLAG(handle, handle->MYTHREAD, flagset)==0);
     SMP_COLL_SET_BARRIER_FLAG(handle, handle->MYTHREAD, flagset, 0);
@@ -321,7 +312,7 @@ void smp_coll_barrier_tree_push_pull(smp_coll_t handle, int flags) {
   gasneti_waitwhile(SMP_COLL_READ_ATOMIC(handle, handle->MYTHREAD, 0, handle->curr_atomic_set)!=handle->barrier_num_children);
   SMP_COLL_RESET_ATOMIC(handle, handle->MYTHREAD, 0, handle->curr_atomic_set);
   
-  /*signal parent and wiat for parent*/
+  /*signal parent and wait for parent*/
   if(handle->MYTHREAD!=handle->barrier_root) { 
     SMP_COLL_INC_ATOMIC(handle, handle->barrier_parent, 0, handle->curr_atomic_set);
     gasneti_waitwhile(SMP_COLL_GET_BARRIER_FLAG(handle, handle->barrier_parent, flagset)==0);

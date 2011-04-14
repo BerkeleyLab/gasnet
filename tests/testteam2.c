@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Attic/testteam2.c,v $
- * $Date: 2011/03/31 06:09:09 $
- * $Revision: 1.1.2.1 $
+ * $Date: 2011/04/14 05:56:14 $
+ * $Revision: 1.1.2.2 $
  *
  * Description: GASNet team collectives test. Each thread participates
  * in three teams: shuffle team, row team and column team.
@@ -98,7 +98,7 @@ void *thread_main(void *arg)
                                        &teamA_scratch);
 
   global_barrier();
-
+  //exit(1);
   MSG("Creating column teams from the shuffled team.");
   my_col_team = gasnet_coll_team_split(my_shuffle_team,
                                        my_col,
@@ -189,9 +189,11 @@ int main(int argc, char **argv)
   nodes = gasnet_nodes();
   test_segs = TEST_SEGINFO();
   
+  /* \TODO: each thread should create its own scratch space!! */
   teamA_scratch.addr = test_segs[mynode].addr;
   teamA_scratch.size = test_segs[mynode].size/2;
-  
+
+  /* \TODO: each thread should create its own scratch space!! */
   teamB_scratch.addr = (uint8_t*)teamA_scratch.addr + teamA_scratch.size;
   teamB_scratch.size = teamA_scratch.size;
 

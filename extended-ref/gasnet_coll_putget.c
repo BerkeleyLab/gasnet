@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2010/09/21 23:33:33 $
- * $Revision: 1.78.6.1 $
+ *     $Date: 2011/04/14 05:56:10 $
+ * $Revision: 1.78.6.2 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -42,7 +42,10 @@ static int gasnete_coll_pf_bcast_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
       
       case 1:	/* Initiate data movement */
       if (op->team->myrank == args->srcnode) {
-        GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, args->src, args->nbytes);
+        // GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, args->src, args->nbytes);
+        if (args->dst != args->src) {
+          GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, args->src, args->nbytes);
+        }
       } else {
         if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
         data->handle = gasnete_get_nb_bulk(args->dst, GASNETE_COLL_REL2ACT(op->team, args->srcnode), args->src,
@@ -130,7 +133,9 @@ static int gasnete_coll_pf_bcast_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         
         /* Do local copy LAST, perhaps overlapping with communication */
-        GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dst, src, nbytes);
+        if (dst != src) {
+          GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(dst, src, nbytes);
+        }
       }
       data->state = 2;
       
@@ -225,7 +230,9 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
         }
         data->handle  = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
-        GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, args->src, args->nbytes);
+        if (args->dst != args->src) {
+          GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, args->src, args->nbytes);
+        }
       } else if (child_count == 0) {
         /* leaves fall right through*/
       } else if (data->p2p->state[0]) {
@@ -353,7 +360,10 @@ static int gasnete_coll_pf_bcast_TreePutScratch(gasnete_coll_op_t *op GASNETE_TH
                                           args->src, args->nbytes, 0, 1);
           
         }
-        GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, args->src, args->nbytes);
+        // GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, args->src, args->nbytes);
+        if (args->dst != args->src) {
+          GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, args->src, args->nbytes);
+        }
       } else if (data->p2p->state[0]) {
         gasneti_sync_reads();
         
@@ -803,6 +813,7 @@ static int gasnete_coll_pf_bcastM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         
         /* Do local copy LAST, perhaps overlapping with communication */
+        // YZ: broken with pthread team collectives
         gasnete_coll_local_broadcast(op->team->my_images,
                                      &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->dstlist, 0),
                                      src, nbytes);

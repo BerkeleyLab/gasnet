@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/smp-collectives/smp_coll_internal.h,v $
- *     $Date: 2009/10/22 20:24:55 $
- * $Revision: 1.4 $
+ *     $Date: 2011/04/14 05:56:12 $
+ * $Revision: 1.4.6.1 $
  * Description: Shared Memory Collectives
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -102,7 +102,7 @@ gasnett_atomic_set(&((HANDLE)->atomic_vars)[(FLAG_SET)*(HANDLE)->THREADS*SMP_COL
 
 typedef void (*SMP_COLL_BARR_FN)(smp_coll_t handle, int);
 
-void smp_coll_barrier_cond_var(smp_coll_t handle, int flags);
+void smp_coll_barrier_cond_var(int THREADS, int flags);
 void smp_coll_barrier_dissem_atomic(smp_coll_t handle, int flags);
 void smp_coll_barrier_tree_push_push(smp_coll_t handle, int flags);
 void smp_coll_barrier_tree_push_pull(smp_coll_t handle, int flags);
@@ -113,24 +113,24 @@ void smp_coll_barrier_pthread(smp_coll_t handle, int flags);
 
 #if HAVE_PTHREAD_BARRIER
 #define SMP_COLL_CONSTRUCT_BARR_ROUTINES(HANDLE) do{\
-(HANDLE)->barr_fns[0] = smp_coll_barrier_cond_var; \
-(HANDLE)->barr_fns[1] = smp_coll_barrier_dissem_atomic; \
-(HANDLE)->barr_fns[2] = smp_coll_barrier_tree_push_push; \
-(HANDLE)->barr_fns[3] = smp_coll_barrier_tree_push_pull; \
-(HANDLE)->barr_fns[4] = smp_coll_barrier_tree_pull_push; \
-(HANDLE)->barr_fns[5] = smp_coll_barrier_tree_pull_pull; \
-(HANDLE)->barr_fns[6] = smp_coll_barrier_pthread; \
-(HANDLE)->curr_barrier_routine=3;\
+/* (HANDLE)->barr_fns[0] = smp_coll_barrier_cond_var; */ \
+(HANDLE)->barr_fns[SMP_COLL_BARRIER_DISSEM_ATOMIC] = smp_coll_barrier_dissem_atomic; \
+(HANDLE)->barr_fns[SMP_COLL_BARRIER_TREE_PUSH_PUSH] = smp_coll_barrier_tree_push_push; \
+(HANDLE)->barr_fns[SMP_COLL_BARRIER_TREE_PUSH_PULL] = smp_coll_barrier_tree_push_pull; \
+(HANDLE)->barr_fns[SMP_COLL_BARRIER_TREE_PULL_PUSH] = smp_coll_barrier_tree_pull_push; \
+(HANDLE)->barr_fns[SMP_COLL_BARRIER_TREE_PULL_PULL] = smp_coll_barrier_tree_pull_pull; \
+(HANDLE)->barr_fns[SMP_COLL_BARRIER_PTHREAD] = smp_coll_barrier_pthread; \
+(HANDLE)->curr_barrier_routine=SMP_COLL_BARRIER_TREE_PUSH_PULL;\
 } while(0)
 #else
 #define SMP_COLL_CONSTRUCT_BARR_ROUTINES(HANDLE) do{\
-(HANDLE)->barr_fns[0] = smp_coll_barrier_cond_var; \
-(HANDLE)->barr_fns[1] = smp_coll_barrier_dissem_atomic; \
-(HANDLE)->barr_fns[2] = smp_coll_barrier_tree_push_push; \
-(HANDLE)->barr_fns[3] = smp_coll_barrier_tree_push_pull; \
-(HANDLE)->barr_fns[4] = smp_coll_barrier_tree_pull_push; \
-(HANDLE)->barr_fns[5] = smp_coll_barrier_tree_pull_pull; \
-(HANDLE)->curr_barrier_routine=3;\
+/* (HANDLE)->barr_fns[0] = smp_coll_barrier_cond_var; */ \
+(HANDLE)->barr_fns[SMP_COLL_BARRIER_DISSEM_ATOMIC] = smp_coll_barrier_dissem_atomic; \
+(HANDLE)->barr_fns[SMP_COLL_BARRIER_TREE_PUSH_PUSH] = smp_coll_barrier_tree_push_push; \
+(HANDLE)->barr_fns[SMP_COLL_BARRIER_TREE_PUSH_PULL] = smp_coll_barrier_tree_push_pull; \
+(HANDLE)->barr_fns[SMP_COLL_BARRIER_TREE_PULL_PUSH] = smp_coll_barrier_tree_pull_push; \
+(HANDLE)->barr_fns[SMP_COLL_BARRIER_TREE_PULL_PULL] = smp_coll_barrier_tree_pull_pull; \
+(HANDLE)->curr_barrier_routine=SMP_COLL_BARRIER_TREE_PUSH_PULL;\
 } while(0)
 #endif
 
@@ -305,6 +305,7 @@ void smp_coll_exchange_hierarchical_overlap(smp_coll_t handle,  int num_addrs,
 struct smp_coll_t_{
   int THREADS;
   int MYTHREAD;
+  int team_lead;
   volatile uint32_t *flags;
   volatile uint32_t *barrier_flags;
   volatile uint32_t *bcast_flags;
@@ -367,10 +368,13 @@ struct smp_coll_t_{
   uint8_t **aux_space_all;
   void **tempaddrs;
   
-
-  
-  
+  /* team specific data */
+  volatile uint32_t *all_flags;
+  volatile uint32_t *all_barrier_flags;
+  volatile uint32_t *all_bcast_flags;
+  gasnett_atomic_t *all_atomic_vars;
 };
-#endif
+
+#endif /* #ifdef __SMP_COLL_INTERNAL_H_INC__ */
 
 
