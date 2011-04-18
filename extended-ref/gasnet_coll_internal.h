@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- * $Date: 2011/03/31 06:09:07 $
- * $Revision: 1.60.2.4 $
+ * $Date: 2011/04/18 23:37:42 $
+ * $Revision: 1.60.2.5 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -360,6 +360,7 @@ typedef struct gasnete_coll_team_threaddata_t_ {
   int threads_hold_lock;
 	gasneti_atomic_val_t num_multi_addr_collectives_started;
   smp_coll_t smp_coll_handle;
+  struct gasnete_coll_team_threaddata_t_ *next;
 } gasnete_coll_team_threaddata_t;
 
 typedef struct gasnete_coll_team_mailbox_t_ {
@@ -419,8 +420,9 @@ struct gasnete_coll_team_t_ {
 
 	gasnet_image_t *local_images;  /**< store the team image ids of local images indexed by gasnete_coll_team_threaddata_t->local_offset. */
 
-  gasnet_image_t *image_rel2act_map; /**< map images in the team to the canonical contiguous image order  */
+  gasnet_image_t *image_rel2act_map; /**< map an image in the team to its actual image id */
   gasnet_node_t *image2rank_map; 	/**< map an image in the team to the relative process rank to which it belongs */
+  gasnet_image_t *image_compact_order; /**< list the images in an node-rank ascending order, images of the same rank are contiguous */
 
   gasnete_coll_team_mailbox_t *mailbox; /* one mail box per member thread */
 
@@ -460,7 +462,7 @@ struct gasnete_coll_team_t_ {
 #endif
 
   /* Linkage */
-  struct gasnete_coll_team_t_ *next;
+  //struct gasnete_coll_team_t_ *next;
 }; /* end of struct gasnete_coll_team_t_ */
 
 #define gasnete_coll_image_is_local(TEAM, I)	\
@@ -658,11 +660,26 @@ void gasnete_coll_local_rotate_right(void *dst, const void *src, size_t elem_siz
 
 /* Helper to perform in-memory data shuffling */
 static void gasnete_coll_shuffle_data(gasnet_image_t const dstindex[],
-                                      void **dstlist,
                                       gasnet_image_t image_count,
-                                      gasnet_image_t *srcimage, 
-                                      void *src,
+                                      void *buf,
                                       size_t nbytes)
+{
+  gasnet_image_t i;
+  uint8_t *tmp;
+  tmp = gasneti_malloc(nbytes * image_count);
+  for (i=0; i<image_count; i++) {
+    memcpy(tmp+nbytes*dstindex[i], ((uint8_t *)buf)+nbytes*i, nbytes);
+  }
+  memcpy(buf, tmp, nbytes * image_count);
+  gasneti_free(tmp);
+}
+
+static void gasnete_coll_shuffle_all(gasnet_image_t const dstindex[],
+                                     void **dstlist,
+                                     gasnet_image_t image_count,
+                                     gasnet_image_t *srcimage, 
+                                     void *src,
+                                     size_t nbytes)
 {
   gasnet_image_t i;
   uint8_t *buf;
@@ -672,7 +689,7 @@ static void gasnete_coll_shuffle_data(gasnet_image_t const dstindex[],
   buf = gasneti_malloc(nbytes * image_count);
   tmp_dstlist = (void **)gasneti_malloc(sizeof(void *) * image_count);
 
-  for (i=0; i<image_count; i) {
+  for (i=0; i<image_count; i++) {
     tmp_dstlist[i] = dstlist[dstindex[i]];
     memcpy(buf+nbytes*i, ((uint8_t *)src)+nbytes*dstindex[i], nbytes);
   }
@@ -839,7 +856,7 @@ typedef struct {
 	// smp_coll_t smp_coll_handle;
 	
   gasnete_hashtable_t *team_dir; /* store gasnete_coll_team_threaddata */
-  struct gasnete_coll_team_t_ *my_teams; /* link list of my teams for polling collective operations */
+  gasnete_coll_team_threaddata_t *my_teams; /* link list of my teams for polling collective operations */
 
 	/* Macro for conduit-specific extension */
 #ifdef GASNETE_COLL_THREADDATA_EXTRA

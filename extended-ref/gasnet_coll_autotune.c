@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_autotune.c,v $
- *     $Date: 2011/04/14 05:56:10 $
- * $Revision: 1.25.6.4 $
+ *     $Date: 2011/04/18 23:37:42 $
+ * $Revision: 1.25.6.5 $
  * Description: GASNet Autotuner Implementation
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2846,6 +2846,7 @@ gasnete_coll_implementation_t gasnete_coll_autotune_get_bcastM_algorithm(gasnet_
   // use the rendezvous algorithm for now
   ret->fn_ptr = (void*)team->autotune_info->collective_algorithms[GASNET_COLL_BROADCASTM_OP][GASNETE_COLL_BROADCASTM_RVOUS].fn_ptr.bcastM_fn; 
   
+  // printf("get algorthm\n");
   return ret;
 }
 

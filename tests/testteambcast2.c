@@ -1,6 +1,6 @@
-/* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testteambcast.c,v $
+/* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Attic/testteambcast2.c,v $
  * $Date: 2011/04/18 23:37:44 $
- * $Revision: 1.1.4.3 $
+ * $Revision: 1.1.2.1 $
  *
  * Description: GASNet team collectives test. Each thread participates
  * in two teams: row team and column team.
@@ -16,8 +16,8 @@
 
 #define SCRATCH_SIZE (4*1024*1024)
 #define COLL_BUFF_SIZE (8*1024*1024)
-#define SEG_PER_THREAD (SCRATCH_SIZE+COLL_BUFF_SIZE)
-#define TEST_SEGSZ_EXPR (SEG_PER_THREAD*threads*2)
+#define SEG_PER_THREAD (SCRATCH_SIZE*3+COLL_BUFF_SIZE*2)
+#define TEST_SEGSZ_EXPR (SEG_PER_THREAD*threads)
 
 #define MAX_SIZE (1*1024*1024)
 
@@ -45,6 +45,7 @@ typedef struct {
   int *mydst;
   gasnet_seginfo_t teamA_scratch;
   gasnet_seginfo_t teamB_scratch;
+  gasnet_seginfo_t teamC_scratch;
 } thread_data_t;
 
 
@@ -71,9 +72,9 @@ void *thread_main(void *arg)
 {
   thread_data_t *td = arg;
   int i;
-  gasnet_team_handle_t my_row_team, my_col_team;
+  gasnet_team_handle_t my_row_team, my_col_team, my_shuffle_team;
   gasnet_image_t myimage = (gasnet_image_t)td->mythread;
-  gasnet_image_t my_row, my_col;
+  gasnet_image_t my_row, my_col, my_shuffle_rank;
   int64_t start, total;
   size_t sz;
 
@@ -88,22 +89,33 @@ void *thread_main(void *arg)
 
   my_row = myimage / ncols;
   my_col = myimage % ncols;
-                 
-  MSG("Mythread %u, my row %u, my col %u, total images %u",
-      myimage, my_row, my_col, total_images);
+
+  my_shuffle_rank = (myimage+1)%total_images;
+  MSG("Mythread %u, my row %u, my col %u, my shuffled rank %u, total images %u",
+      myimage, my_row, my_col, my_shuffle_rank, total_images);
+
 
   global_barrier();
 
-  MSG("Creating row teams.");
-  my_row_team = gasnet_coll_team_split(GASNET_TEAM_ALL,
+  MSG("Creating a shuffled team.");
+  my_shuffle_team = gasnet_coll_team_split(GASNET_TEAM_ALL,
+                                           0, // same color for all threads
+                                           my_shuffle_rank,
+                                           &td->teamC_scratch);
+
+  global_barrier();
+
+
+  MSG("Creating row teams from the shuffled team.");
+  my_row_team = gasnet_coll_team_split(my_shuffle_team,
                                        my_row,
                                        my_col,
                                        &td->teamA_scratch);
 
   global_barrier();
 
-  MSG("Creating column teams.");
-  my_col_team = gasnet_coll_team_split(GASNET_TEAM_ALL,
+  MSG("Creating column teams from the shuffled team.");
+  my_col_team = gasnet_coll_team_split(my_shuffle_team,
                                        my_col,
                                        my_row,
                                        &td->teamB_scratch);
@@ -148,44 +160,46 @@ void *thread_main(void *arg)
   /*   fflush(stdout); */
   /* } */
 
+  
 
-  /*first do team all broadcast*/
-  /* for (sz = 1; sz<=MAX_SIZE; sz=sz*2) { */
-  /*   int root = 0; */
-  /*   if (sz >= 1024*1024 && iters >= 1000) { */
-  /*     iters = iters/10; */
-  /*   } */
-  /*   for(i=0; i<sz; i++) { */
-  /*     td->mysrc[i] = myimage*sz+42+i; */
-  /*     td->mydst[i] = -1; */
-  /*   } */
-  /*   global_barrier(); */
-  /*   gasnet_coll_broadcast(GASNET_TEAM_ALL, td->mydst, root, td->mysrc, sz*sizeof(int),  */
-  /*                         GASNET_COLL_IN_MYSYNC|GASNET_COLL_OUT_MYSYNC|GASNET_COLL_LOCAL); */
+  MSG("%d> start shuffled team broadcast tests...\n", gasnete_coll_team_my_image(GASNET_TEAM_ALL));
+  for (sz = 1; sz<=MAX_SIZE; sz=sz*2) {
+    int root = 0;
+    if (sz >= 1024*1024 && iters >= 1000) {
+      iters = iters/10;
+    }
+    for(i=0; i<sz; i++) {
+      td->mysrc[i] =  gasnete_coll_team_my_image(my_shuffle_team)*sz+42+i;
+      td->mydst[i] = -1;
+    }
+    global_barrier();
+    gasnet_coll_broadcast(my_shuffle_team, td->mydst, root, td->mysrc, sz*sizeof(int),
+                          GASNET_COLL_IN_MYSYNC|GASNET_COLL_OUT_MYSYNC|GASNET_COLL_LOCAL);
 
-  /*   global_barrier(); */
-  /*   for(i=0; i<sz; i++) { */
-  /*     int expected = root*sz+42+i; */
-  /*     if(expected != td->mydst[i]) { */
-  /*       fprintf(stderr, "%d> %d %d (expecting %d)\n", mynode, i, td->mydst[i], expected); */
-  /*       gasnet_exit(1); */
-  /*     } */
-  /*   } */
-  /*   global_barrier(); */
-  /*   /\*time this*\/ */
-  /*   start = TIME(); */
-  /*   for(i=0; i<iters; i++) { */
-  /*     gasnet_coll_broadcast(GASNET_TEAM_ALL, td->mydst, root, td->mysrc, sz*sizeof(int),  */
-  /*                           GASNET_COLL_IN_MYSYNC|GASNET_COLL_OUT_MYSYNC|GASNET_COLL_LOCAL); */
-  /*   } */
-  /*   total = TIME() - start; */
+    global_barrier();
+    for(i=0; i<sz; i++) {
+      int expected = root*sz+42+i;
+      if(expected != td->mydst[i]) {
+        fprintf(stderr, "[%d] %d %d (expecting %d)\n", 
+                gasnete_coll_team_my_image(my_shuffle_team), i, td->mydst[i], expected);
+        gasnet_exit(1);
+      }
+    }
+    global_barrier();
+    /*time this*/
+    start = TIME();
+    for(i=0; i<iters; i++) {
+      gasnet_coll_broadcast(my_shuffle_team, td->mydst, root, td->mysrc, sz*sizeof(int),
+                            GASNET_COLL_IN_MYSYNC|GASNET_COLL_OUT_MYSYNC|GASNET_COLL_LOCAL);
+    }
+    total = TIME() - start;
     
-  /*   if(mynode == 0){ */
-  /*     printf("%u> %lu byte broadcast team all time: %8.3f usec\n", */
-  /*            mynode, sz*sizeof(int), ((double)total)/(iters)); */
-  /*     fflush(stdout); */
-  /*   } */
-  /* } */
+    if(mynode == 0){
+      printf("%u> %lu byte shuffled team broadcast time: %8.3f usec\n",
+             gasnete_coll_team_my_image(my_shuffle_team), sz*sizeof(int), ((double)total)/(iters));
+      fflush(stdout);
+    }
+  }
   global_barrier();
   MSG("%d> start row team broadcast tests...\n", gasnete_coll_team_my_image(GASNET_TEAM_ALL));
 
@@ -340,7 +354,6 @@ int main(int argc, char **argv)
   MSG0("Running team collectives test with a %u-by-%u grid (%u nodes %u threads per node) and %i iterations...\n",
        (int)nrows, (int)ncols, (int)nodes, (int)threads, iters);
  
-  B = A + (SEG_PER_THREAD*threads);
   my_srcs =  (uint8_t**)test_malloc(sizeof(uint8_t*)*threads);
   my_dsts =  (uint8_t**)test_malloc(sizeof(uint8_t*)*threads);
   all_srcs = (uint8_t**)test_malloc(sizeof(uint8_t*)*total_images);
@@ -348,22 +361,25 @@ int main(int argc, char **argv)
   td_arr = (thread_data_t*) test_malloc(sizeof(thread_data_t)*threads);
   
   for(i=0; i<threads; i++) {
-    my_srcs[i] = A + i*SEG_PER_THREAD + SCRATCH_SIZE;
-    my_dsts[i] = B + i*SEG_PER_THREAD + SCRATCH_SIZE ;
+    my_srcs[i] = A + i*SEG_PER_THREAD + 3*SCRATCH_SIZE;
+    my_dsts[i] = my_srcs[i] + COLL_BUFF_SIZE;
     td_arr[i].local_id = i;
     td_arr[i].mythread = mynode*threads+i;
     td_arr[i].mysrc = (int *)my_srcs[i];
     td_arr[i].mydst = (int *)my_dsts[i];
     td_arr[i].teamA_scratch.addr = A + (i*SEG_PER_THREAD); 
     td_arr[i].teamA_scratch.size = SCRATCH_SIZE;
-    td_arr[i].teamB_scratch.addr = B + (i*SEG_PER_THREAD); 
+    td_arr[i].teamB_scratch.addr = (uint8_t *)td_arr[i].teamA_scratch.addr + SCRATCH_SIZE;
     td_arr[i].teamB_scratch.size = SCRATCH_SIZE;
+    td_arr[i].teamC_scratch.addr = (uint8_t *)td_arr[i].teamB_scratch.addr + SCRATCH_SIZE;
+    td_arr[i].teamC_scratch.size = SCRATCH_SIZE;
+
   }
   for(i=0; i<nodes; i++) {
     gasneti_assert(TEST_SEGINFO()[i].size >= SEG_PER_THREAD*threads); 
     for(j=0; j<threads; j++) {
-      all_srcs[i*threads+j] = (uint8_t*) TEST_SEG(i) + j*SEG_PER_THREAD;
-      all_dsts[i*threads+j] = (uint8_t*) TEST_SEG(i) + SEG_PER_THREAD*(threads + j);
+      all_srcs[i*threads+j] = (uint8_t*) TEST_SEG(i) + j*SEG_PER_THREAD + 3*SCRATCH_SIZE;
+      all_dsts[i*threads+j] = all_srcs[i*threads+j] + COLL_BUFF_SIZE;
     }
   }
   
