@@ -1,11 +1,12 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/Attic/gasnet_extended_gpu.c,v $
- * $Date: 2010/07/16 18:35:42 $
- * $Revision: 1.1.4.2 $
+ * $Date: 2011/04/21 19:07:27 $
+ * $Revision: 1.1.4.3 $
  *
  * Description: GASNet Extended API Reference Implementation for GPU extensions
  * 
  * Yili Zheng
- * LBNL 2010
+ * Copyright 2010, E. O. Lawrence Berekely National Laboratory
+ * Terms of use are as specified in license.txt 
  */
 
 /* This file is to be included in gasnet_extended.c */
@@ -514,11 +515,11 @@ LONG_HANDLER(gasnete_get_markdone_reph, 1, 2,
  * Non-blocking memory-to-memory transfers (implicit handle)
  * ---------------------------------------------------------------------------- 
  */
-GASNETI_INLINE(gasnete_get_togpu_nbi_inner)
-void gasnete_get_togpu_nbi_inner(void *dest, gasnet_node_t node, void *src, 
-                                 size_t nbytes, gasnet_handler_t reqhandler,
-                                 gasnet_handler_t reqhandler2
-                                 GASNETE_THREAD_FARG) 
+GASNETI_INLINE(gasnete_get_togpu_nbi)
+void gasnete_get_togpu_nbi(void *dest, gasnet_node_t node, void *src, 
+                            size_t nbytes, gasnet_handler_t reqhandler,
+                            gasnet_handler_t reqhandler2
+                            GASNETE_THREAD_FARG) 
 {
   gasneti_iop_t *iop;
   unsigned int nops;
@@ -584,38 +585,36 @@ void gasnete_get_togpu_nbi_inner(void *dest, gasnet_node_t node, void *src,
   }
 }
 
-void gasnete_get_hosttogpu_nbi(void *dest, gasnet_node_t node, void *src, 
-                               size_t nbytes GASNETE_THREAD_FARG) 
+void gasnete_get_hosttogpu_nbi(void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) 
 {
   if (gasnet_mynode() == node) {
     gasnete_gpu_store(dest, src, nbytes);
     return;
   }
 
-  gasnete_get_togpu_nbi_inner(dest, node, src, nbytes, 
-                              gasneti_handleridx(gasnete_get_hosttogpu_reqh),
-                              gasneti_handleridx(gasnete_get_hosttogpu_reqh2)
-                              GASNETE_THREAD_PASS); 
+  gasnete_get_togpu_nbi(dest, node, src, nbytes, 
+                         gasneti_handleridx(gasnete_get_hosttogpu_reqh),
+                         gasneti_handleridx(gasnete_get_hosttogpu_reqh2)
+                         GASNETE_THREAD_PASS); 
 }
 
-void gasnete_get_gputogpu_nbi(void *dest, gasnet_node_t node, void *src, 
-                              size_t nbytes GASNETE_THREAD_FARG) 
+void gasnete_get_gputogpu_nbi(void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG)
 {
-  gasnete_get_togpu_nbi_inner(dest, node, src, nbytes, 
-                              gasneti_handleridx(gasnete_get_gputogpu_reqh), 
-                              gasneti_handleridx(gasnete_get_gputogpu_reqh2)
-                              GASNETE_THREAD_PASS); 
+  gasnete_get_togpu_nbi(dest, node, src, nbytes, 
+                         gasneti_handleridx(gasnete_get_gputogpu_reqh), 
+                         gasneti_handleridx(gasnete_get_gputogpu_reqh2)
+                         GASNETE_THREAD_PASS); 
 }
 
-void gasnete_get_gputohost_nbi(void *dest, gasnet_node_t node, void *src, 
-                               size_t nbytes GASNETE_THREAD_FARG) 
+void gasnete_get_gputohost_nbi(void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG)
 {
-
   gasneti_iop_t *iop;
   unsigned int nops;
   size_t chunk_sz, remain_sz;
   uint8_t *psrc = src;
   uint8_t *pdest = dest;
+  
+  GASNET_BEGIN_FUNCTION(); /* get gasnet thread info */
 
 #ifdef DEBUG_GPU
   fprintf(stderr, "gasnete_get_gputohost_nbi: mynode %u, dest %p, src node %u, src %p, nbytes %lu.\n",
@@ -647,7 +646,7 @@ void gasnete_get_gputohost_nbi(void *dest, gasnet_node_t node, void *src,
   iop = gasneti_iop_register(nops, 1 GASNETE_THREAD_PASS);
 
 #ifdef DEBUG_GPU
-  fprintf(stderr, "gasnete_get_gputohst_inner: mynode %u, chunk_sz %lu, nops %d.\n", 
+  fprintf(stderr, "gasnete_get_gputohost: mynode %u, chunk_sz %lu, nops %d.\n", 
           gasnet_mynode(), chunk_sz, nops);
 
 #endif
@@ -663,14 +662,15 @@ void gasnete_get_gputohost_nbi(void *dest, gasnet_node_t node, void *src,
   }    
 }
 
-void gasnete_put_hosttogpu_nbi(gasnet_node_t node, void *dest, void *src, 
-                               size_t nbytes GASNETE_THREAD_FARG) 
+void gasnete_put_hosttogpu_nbi(gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG)
 {
   gasneti_iop_t *iop;
   unsigned int nops;
   size_t chunk_sz, remain_sz;
   uint8_t *psrc = src;
   uint8_t *pdest = dest;
+
+  GASNET_BEGIN_FUNCTION(); /* get gasnet thread info */
 
 #ifdef DEBUG_GPU
   fprintf(stderr, "gasnete_put_hosttogpu_nbi: node %d, dest %p, src %p, nbytes %lu\n",
@@ -795,8 +795,7 @@ void gasnete_put_hosttogpu_nbi(gasnet_node_t node, void *dest, void *src,
   }
 }
 
-void gasnete_put_gputogpu_nbi(gasnet_node_t node, void *dest, void *src, 
-                              size_t nbytes GASNETE_THREAD_FARG) 
+void gasnete_put_gputogpu_nbi(gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG)
 {
   void *buf;
   gasneti_iop_t *iop;
@@ -805,6 +804,8 @@ void gasnete_put_gputogpu_nbi(gasnet_node_t node, void *dest, void *src,
   uint8_t *psrc = src;
   uint8_t *pdest = dest;
   int stream_id;
+
+  GASNET_BEGIN_FUNCTION(); /* get gasnet thread info */
 
 #ifdef DEBUG_GPU
   fprintf(stderr, "gasnete_put_gputogpu_nbi: node %d, dest %p, src %p, nbytes %lu\n",
@@ -937,8 +938,7 @@ void gasnete_put_gputogpu_nbi(gasnet_node_t node, void *dest, void *src,
   gasnete_gpu_buf_free(buf);
 }
 
-void gasnete_put_gputohost_nbi(gasnet_node_t node, void *dest, void *src, 
-                               size_t nbytes GASNETE_THREAD_FARG)
+void gasnete_put_gputohost_nbi(gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG)
 {
   gasneti_iop_t *iop;
   unsigned int nops;
@@ -949,6 +949,8 @@ void gasnete_put_gputohost_nbi(gasnet_node_t node, void *dest, void *src,
   size_t chunk_sz, remain_sz, next_chunk_sz;
   gasnet_node_t mynode = gasnet_mynode();
   int stream_id, next_stream_id;
+
+  GASNET_BEGIN_FUNCTION(); /* get gasnet thread info */
 
 #ifdef DEBUG_GPU
   fprintf(stderr, "gasnete_put_gputohost_nbi: mynode %u, dst node %u, dest %p, src %p, nbytes %lu.\n",
@@ -1020,8 +1022,7 @@ void gasnete_put_gputohost_nbi(gasnet_node_t node, void *dest, void *src,
   //gasnete_gpu_buf_free(buf);
 }
 
-void gasnete_memset_togpu_nbi(gasnet_node_t node, void *dest, int val, 
-                              size_t nbytes GASNETE_THREAD_FARG) 
+void gasnete_memset_togpu_nbi(gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG)
 {
   gasneti_iop_t *iop;
 
@@ -1039,81 +1040,8 @@ void gasnete_memset_togpu_nbi(gasnet_node_t node, void *dest, int val,
  * Non-blocking memory-to-memory transfers (explicit handle)
  * ---------------------------------------------------------------------------- 
  */
-gasnet_handle_t gasnete_get_hosttogpu_nb(void *dest, gasnet_node_t node, 
-                                         void *src, size_t nbytes 
-                                         GASNETE_THREAD_FARG) 
-{
-  if (nbytes == 0)
-    return GASNET_INVALID_HANDLE;
 
-  gasnete_begin_nbi_accessregion(1 /* enable recursion */ GASNETE_THREAD_PASS);
-  gasnete_get_hosttogpu_nbi(dest, node, src, nbytes GASNETE_THREAD_PASS);
-  return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
-}
-
-gasnet_handle_t gasnete_get_gputogpu_nb(void *dest, gasnet_node_t node, 
-                                        void *src, size_t nbytes 
-                                        GASNETE_THREAD_FARG) 
-{
-  if (nbytes == 0)
-    return GASNET_INVALID_HANDLE;
-
-  gasnete_begin_nbi_accessregion(1 /* enable recursion */ GASNETE_THREAD_PASS);
-  gasnete_get_gputogpu_nbi(dest, node, src, nbytes GASNETE_THREAD_PASS);
-  return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
-}
-
-gasnet_handle_t gasnete_get_gputohost_nb(void *dest, gasnet_node_t node, 
-                                         void *src, size_t nbytes 
-                                         GASNETE_THREAD_FARG) 
-{
-  if (nbytes == 0)
-    return GASNET_INVALID_HANDLE;
-
-  gasnete_begin_nbi_accessregion(1 /* enable recursion */ GASNETE_THREAD_PASS);
-  gasnete_get_gputohost_nbi(dest, node, src, nbytes GASNETE_THREAD_PASS);
-  return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
-}
-
-gasnet_handle_t gasnete_put_hosttogpu_nb(gasnet_node_t node, void *dest, 
-                                         void *src, size_t nbytes
-                                         GASNETE_THREAD_FARG) 
-{
-  if (nbytes == 0)
-    return GASNET_INVALID_HANDLE;
-
-  gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
-  gasnete_put_hosttogpu_nbi(node, dest, src, nbytes GASNETE_THREAD_PASS);
-  return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
-}
-
-gasnet_handle_t gasnete_put_gputogpu_nb(gasnet_node_t node, void *dest, 
-                                        void *src, size_t nbytes
-                                        GASNETE_THREAD_FARG) 
-{
-  if (nbytes == 0)
-    return GASNET_INVALID_HANDLE;
-
-  gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
-  gasnete_put_gputogpu_nbi(node, dest, src, nbytes GASNETE_THREAD_PASS);
-  return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
-}
-
-gasnet_handle_t gasnete_put_gputohost_nb(gasnet_node_t node, void *dest, 
-                                         void *src, size_t nbytes
-                                         GASNETE_THREAD_FARG) 
-{
-  if (nbytes == 0)
-    return GASNET_INVALID_HANDLE;
-
-  gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
-  gasnete_put_gputohost_nbi(node, dest, src, nbytes GASNETE_THREAD_PASS);
-  return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
-}
-
-gasnet_handle_t gasnete_memset_togpu_nb(gasnet_node_t node, void *dest, 
-                                        int val, size_t nbytes 
-                                        GASNETE_THREAD_FARG) 
+gasnet_handle_t gasnete_memset_togpu_nb(gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG)
 {
   gasneti_eop_t *eop;
 
@@ -1128,6 +1056,7 @@ gasnet_handle_t gasnete_memset_togpu_nb(gasnet_node_t node, void *dest,
   
   return gasneti_eop_to_handle(eop);
 }
+
 
 
 /* ---------------------------------------------------------------------------- 

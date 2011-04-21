@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Attic/testgpuperf.c,v $
- * $Date: 2010/07/16 18:35:46 $
- * $Revision: 1.1.4.2 $
+ * $Date: 2011/04/21 19:07:29 $
+ * $Revision: 1.1.4.3 $
  *
  * Description: Point-to-poing communication tests for GASNet GPU
  * extensions. It requires to run with two gasnet nodes/processes.
@@ -90,8 +90,7 @@ void test_put_host2host(size_t nelems, int iters)
     start_time = TIME();
     for (i=0; i<iters; i++) {
       /* put from host to remote gpu */
-      h = gasnet_put_nb(dstNode, hostB_ptrs[dstNode], hostA, nbytes 
-                        GASNETE_THREAD_PASS);
+      h = gasnet_put_nb(dstNode, hostB_ptrs[dstNode], hostA, nbytes);
       gasnet_wait_syncnb(h);
     }
     total_time = TIME() - start_time;
@@ -128,8 +127,7 @@ void test_put_host2gpu(size_t nelems, int iters)
     start_time = TIME();
     for (i=0; i<iters; i++) {
       /* put from host to remote gpu */
-      h = gasnete_put_hosttogpu_nb(dstNode, devA_ptrs[dstNode], hostA, nbytes 
-                                   GASNETE_THREAD_PASS);
+      h = gasnete_put_hosttogpu_nb(dstNode, devA_ptrs[dstNode], hostA, nbytes);
       gasnet_wait_syncnb(h);
     }
     total_time = TIME() - start_time;
@@ -161,8 +159,7 @@ void test_get_host2gpu(size_t nelems)
   BARRIER();
  
   /* put from host to remote gpu */
-  h = gasnete_get_hosttogpu_nb(devA, dstNode, hostA_ptrs[dstNode], nbytes 
-                               GASNETE_THREAD_PASS);
+  h = gasnete_get_hosttogpu_nb(devA, dstNode, hostA_ptrs[dstNode], nbytes);
   gasnet_wait_syncnb(h);
 
   BARRIER();
@@ -209,8 +206,7 @@ void test_put_gpu2host(size_t nelems, int iters)
   if (mynode == 0) {    
     start_time = TIME();
     for (i=0; i<iters; i++) {
-      h = gasnete_put_gputohost_nb(dstNode, hostB_ptrs[dstNode], devA, nbytes 
-                              GASNETE_THREAD_PASS);
+      h = gasnete_put_gputohost_nb(dstNode, hostB_ptrs[dstNode], devA, nbytes);
       gasnet_wait_syncnb(h);
     }
     total_time = TIME() - start_time;
@@ -245,8 +241,7 @@ void test_get_gpu2host(size_t nelems)
 
   /* put from gpu to remote host */
   dstNode = !mynode; /* 0 <-> 1*/
-  h = gasnete_get_gputohost_nb(hostB, dstNode, devA_ptrs[dstNode], nbytes 
-                               GASNETE_THREAD_PASS);
+  h = gasnete_get_gputohost_nb(hostB, dstNode, devA_ptrs[dstNode], nbytes);
   gasnet_wait_syncnb(h);
     
   BARRIER();
@@ -288,8 +283,7 @@ void test_put_gpu2gpu(size_t nelems, int iters)
   if (mynode == 0) {    
     start_time = TIME();
     for (i=0; i<iters; i++) {
-      h = gasnete_put_gputogpu_nb(dstNode, devB_ptrs[dstNode], devA, nbytes 
-                              GASNETE_THREAD_PASS);
+      h = gasnete_put_gputogpu_nb(dstNode, devB_ptrs[dstNode], devA, nbytes);
       gasnet_wait_syncnb(h);
     }
     total_time = TIME() - start_time;
@@ -323,8 +317,7 @@ void test_get_gpu2gpu(size_t nelems)
   BARRIER();
 
   /* get from gpu to remote host */
-  h = gasnete_get_gputogpu_nb(devB, dstNode, devA_ptrs[dstNode], nbytes 
-                              GASNETE_THREAD_PASS);
+  h = gasnete_get_gputogpu_nb(devB, dstNode, devA_ptrs[dstNode], nbytes);
   gasnet_wait_syncnb(h);
   
   gasnete_gpu_load(hostB, devB, nbytes);
@@ -401,18 +394,22 @@ int main(int argc, char **argv)
   hostB =  (int *)((char *)hostB_ptrs + (sizeof(hostB) * gasnet_nodes()));
 
   /* gather all gpu device pointers */
-  gasnet_coll_gather_all(GASNET_TEAM_ALL, devA_ptrs, &devA, sizeof(devA), 
-                         GASNET_COLL_LOCAL | GASNET_COLL_SRC_IN_SEGMENT | GASNET_COLL_DST_IN_SEGMENT | GASNET_COLL_IN_MYSYNC |  GASNET_COLL_OUT_MYSYNC
-                         GASNETE_THREAD_PASS);
-  gasnet_coll_gather_all(GASNET_TEAM_ALL, devB_ptrs, &devB, sizeof(devB), 
-                         GASNET_COLL_LOCAL | GASNET_COLL_SRC_IN_SEGMENT | GASNET_COLL_DST_IN_SEGMENT | GASNET_COLL_IN_MYSYNC |  GASNET_COLL_OUT_MYSYNC
-                         GASNETE_THREAD_PASS);
-  gasnet_coll_gather_all(GASNET_TEAM_ALL, hostA_ptrs, &hostA, sizeof(hostA), 
-                         GASNET_COLL_LOCAL | GASNET_COLL_SRC_IN_SEGMENT | GASNET_COLL_DST_IN_SEGMENT | GASNET_COLL_IN_MYSYNC |  GASNET_COLL_OUT_MYSYNC
-                         GASNETE_THREAD_PASS);
-  gasnet_coll_gather_all(GASNET_TEAM_ALL, hostB_ptrs, &hostB, sizeof(hostB), 
-                         GASNET_COLL_LOCAL | GASNET_COLL_SRC_IN_SEGMENT | GASNET_COLL_DST_IN_SEGMENT | GASNET_COLL_IN_MYSYNC |  GASNET_COLL_OUT_MYSYNC
-                         GASNETE_THREAD_PASS);
+  {
+    gasnete_threaddata_t *_threadinfo = gasnete_mythread(); /* for GASNETE_MYTHREAD */
+
+    gasnet_coll_gather_all(GASNET_TEAM_ALL, devA_ptrs, &devA, sizeof(devA), 
+                           GASNET_COLL_LOCAL | GASNET_COLL_SRC_IN_SEGMENT | GASNET_COLL_DST_IN_SEGMENT | GASNET_COLL_IN_MYSYNC |  GASNET_COLL_OUT_MYSYNC
+                           GASNETE_THREAD_PASS);
+    gasnet_coll_gather_all(GASNET_TEAM_ALL, devB_ptrs, &devB, sizeof(devB), 
+                           GASNET_COLL_LOCAL | GASNET_COLL_SRC_IN_SEGMENT | GASNET_COLL_DST_IN_SEGMENT | GASNET_COLL_IN_MYSYNC |  GASNET_COLL_OUT_MYSYNC
+                           GASNETE_THREAD_PASS);
+    gasnet_coll_gather_all(GASNET_TEAM_ALL, hostA_ptrs, &hostA, sizeof(hostA), 
+                           GASNET_COLL_LOCAL | GASNET_COLL_SRC_IN_SEGMENT | GASNET_COLL_DST_IN_SEGMENT | GASNET_COLL_IN_MYSYNC |  GASNET_COLL_OUT_MYSYNC
+                           GASNETE_THREAD_PASS);
+    gasnet_coll_gather_all(GASNET_TEAM_ALL, hostB_ptrs, &hostB, sizeof(hostB), 
+                           GASNET_COLL_LOCAL | GASNET_COLL_SRC_IN_SEGMENT | GASNET_COLL_DST_IN_SEGMENT | GASNET_COLL_IN_MYSYNC |  GASNET_COLL_OUT_MYSYNC
+                           GASNETE_THREAD_PASS);
+  }
 
 #ifdef DEBUG_GPU
   for (i=0; i<gasnet_nodes(); i++)
