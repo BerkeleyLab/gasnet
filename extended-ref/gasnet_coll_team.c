@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_team.c,v $
- * $Date: 2011/04/18 23:37:42 $
- * $Revision: 1.9.2.7 $
+ * $Date: 2011/04/21 16:56:46 $
+ * $Revision: 1.9.2.8 $
  *
  * Description: GASNet team implementation for collectives 
  * Copyright 2010, E. O. Lawrence Berkeley National Laboratory
@@ -113,7 +113,10 @@ gasnete_coll_team_get_threaddata(uint32_t team_id,
                                  gasnete_coll_threaddata_t *td)
 {
   gasnete_coll_team_threaddata_t *team_td;
-  gasnete_hashtable_search(td->team_dir, team_id, (void **)&team_td);
+  if (gasnete_hashtable_search(td->team_dir, team_id, (void **)&team_td)) {
+    gasneti_fatalerror("[%u] gasnete_coll_team_get_threaddata() failed: team_id %d.  This is likely because the thread is trying to call a collective operation with a team that the thread doesn't belong to!\n",
+                       gasnete_coll_team_my_image(GASNET_TEAM_ALL), team_id);
+  }
 
   return team_td;
 }
@@ -175,7 +178,9 @@ gasnet_image_t gasnete_coll_team_my_local_image(gasnet_team_handle_t team
     my_local_image = td->my_local_image; 
   } else {
     if (gasnete_hashtable_search(td->team_dir, team->team_id, (void **)&team_td)) {
-      my_local_image = GASNET_IMAGE_UNDEFINED; /* if the image is not found is the team */
+    gasneti_fatalerror("[%u] gasnete_coll_team_my_local_image() failed: team_id %d.  This is likely because the thread is trying to call collective an operation with a team that the thread doesn't belong to!\n",
+                       gasnete_coll_team_my_image(GASNET_TEAM_ALL), team->team_id);
+    // my_local_image = GASNET_IMAGE_UNDEFINED; /* if the image is not found is the team */
     } else {
       gasneti_assert(team != GASNET_TEAM_ALL);
       my_local_image = team_td->my_local_image;
@@ -210,9 +215,12 @@ gasnet_image_t gasnete_coll_team_my_image(gasnet_team_handle_t team)
     return td->my_image;
 
   if (gasnete_hashtable_search(td->team_dir, team->team_id, (void **)&team_td)) {
-    fprintf(stderr, "[thread %u] gasnete_coll_team_my_image error:: cannot find team_id %d!\n",
-            td->my_image, team->team_id);
-    return GASNET_IMAGE_UNDEFINED; /* if the image is not found is the team */
+    gasneti_fatalerror("[%u] gasnete_coll_team_my_local_image() failed: team_id %d.  This is likely because the thread is trying to call collective an operation with a team that the thread doesn't belong to!\n",
+                       gasnete_coll_team_my_image(GASNET_TEAM_ALL), team->team_id);
+
+    /* fprintf(stderr, "[thread %u] gasnete_coll_team_my_image error:: cannot find team_id %d!\n", */
+    /*         td->my_image, team->team_id); */
+    // return GASNET_IMAGE_UNDEFINED; /* if the image is not found is the team */
   }
 
   return team_td->my_image;
@@ -1047,7 +1055,8 @@ gasnet_team_handle_t gasnete_coll_team_create(gasnet_team_handle_t parent_team,
                            new_team->image_rel2act_map[new_team->local_images[0]]);
     } else {
       smp_coll_handle = 
-        smp_coll_team_init(1024*1024, SMP_COLL_SKIP_TUNE_BARRIERS, 1, 0, 0);
+        smp_coll_team_init(1024*1024, SMP_COLL_SKIP_TUNE_BARRIERS, 1, 0, 
+                           new_team->image_rel2act_map[new_team->local_images[0]]);
     }
     
     /* each thread inserts the team into its thread-specific direction */

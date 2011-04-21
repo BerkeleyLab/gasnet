@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- * $Date: 2011/03/20 23:22:55 $
- * $Revision: 1.52.2.6 $
+ * $Date: 2011/04/21 16:56:46 $
+ * $Revision: 1.52.2.7 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1261,7 +1261,8 @@ int gasnete_coll_barrier_wait_internal(gasnete_coll_team_t team, int id, int fla
     /*if there is exactly one gasnet_node then the barrier on the notify is sufficient*/
     if(ret == GASNET_OK) {
       gasnete_coll_team_threaddata_t *team_td = gasnete_coll_team_get_threaddata(gasnete_coll_team_id(team), td);
-      smp_coll_barrier(team_td->smp_coll_handle, 0);
+      if (team->my_images > 1)
+        smp_coll_barrier(team_td->smp_coll_handle, 0);
     }
     return ret;
   } else

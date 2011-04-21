@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- * $Date: 2011/04/18 23:37:42 $
- * $Revision: 1.90.6.6 $
+ * $Date: 2011/04/21 16:56:46 $
+ * $Revision: 1.90.6.7 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2759,9 +2759,13 @@ GASNETI_COLL_FN_HEADER(gasnete_coll_gather_all)
      void gasnete_coll_gather_all(gasnet_team_handle_t team,
                                   void *dst, void *src,
                                   size_t nbytes, int flags GASNETE_THREAD_FARG) {
-  gasnet_coll_handle_t handle;
-  handle = gasnete_coll_gather_all_nb(team,dst,src,nbytes,flags,0 GASNETE_THREAD_PASS);
-  gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+  //gasnet_coll_handle_t handle;
+  //handle = gasnete_coll_gather_all_nb(team,dst,src,nbytes,flags,0 GASNETE_THREAD_PASS);
+  //gasnete_coll_wait_sync(handle GASNETE_THREAD_PASS);
+  //printf("gasnete_coll_gather_all \n");
+  gasnete_coll_gather(team, 0, dst, src, nbytes, flags GASNETE_THREAD_PASS);
+  gasnete_coll_broadcast(team, dst, 0, dst, nbytes*team->total_images, 
+                         flags GASNETE_THREAD_PASS);
 }
 #endif
 GASNETI_COLL_FN_HEADER(_gasnet_coll_gather_all)
