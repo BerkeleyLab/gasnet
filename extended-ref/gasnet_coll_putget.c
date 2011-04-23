@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_putget.c,v $
- *     $Date: 2011/04/14 05:56:10 $
- * $Revision: 1.78.6.2 $
+ *     $Date: 2011/04/23 02:16:13 $
+ * $Revision: 1.78.6.3 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -6661,11 +6661,13 @@ static int gasnete_coll_pf_reduceM_TreeGet(gasnete_coll_op_t *op GASNETE_THREAD_
       if(op->team->myrank == args->dstnode) {
         
         /*perform local reduction into the args->dst*/
+        // need to fix for multi-threaded teams
         gasnete_coll_local_reduce(op->team->my_images, args->dst, &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->srclist, op->flags),
                                   args->elem_size, args->elem_count, args->func, args->func_arg);
       } else  {
         int8_t *myscratch = ((int8_t*)op->team->scratch_segs[op->team->myrank].addr)+op->myscratchpos;
         /*perform local reduction into the scratchspace*/
+        // need to fix for multi-threaded teams
         gasnete_coll_local_reduce(op->team->my_images, (void*) myscratch, &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->srclist, op->flags),
                                   args->elem_size, args->elem_count, args->func, args->func_arg);
       } 
@@ -6795,12 +6797,14 @@ gasnete_coll_reduceM_TreeGet(gasnet_team_handle_t team,
   size_t nbytes = elem_size*elem_count;
   int i;
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOALLOC;
-  
+  gasnet_image_t my_local_image = gasnete_coll_team_my_local_image(team GASNETE_THREAD_PASS);
+
   tree_info = gasnete_coll_tree_init(coll_params->tree_type,
                                      gasnete_coll_image2rank(team,dstimage), team
                                      GASNETE_THREAD_PASS);
   
-  if(td->my_local_image == 0) {
+  //if(td->my_local_image == 0) {
+  if(my_local_image == 0) {
     scratch_req = (gasnete_coll_scratch_req_t*) gasneti_calloc(1,sizeof(gasnete_coll_scratch_req_t));
     /*fill out the tree information*/
     scratch_req->tree_type = tree_info->geom->tree_type;

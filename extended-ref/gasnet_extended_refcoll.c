@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- * $Date: 2011/04/21 16:56:46 $
- * $Revision: 1.90.6.7 $
+ * $Date: 2011/04/23 02:16:13 $
+ * $Revision: 1.90.6.8 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -5965,11 +5965,14 @@ gasnete_coll_generic_reduceM_nb(gasnet_team_handle_t team,
                                GASNETE_THREAD_FARG) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   gasnet_coll_handle_t result;
+  gasnet_image_t my_local_image = gasnete_coll_team_my_local_image(team GASNETE_THREAD_PASS);
+
 #if GASNET_PAR
   if (flags & GASNETE_COLL_THREAD_LOCAL) {
     gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD_NOALLOC;
     gasnete_coll_generic_data_t *data;
-    if (td->my_local_image == 0) {
+    //if (td->my_local_image == 0) {
+    if (my_local_image == 0) {
       data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
       GASNETE_COLL_GENERIC_SET_TAG(data, reduceM);
       data->threads.data = gasneti_calloc(team->my_images, sizeof(void *));
@@ -5993,18 +5996,21 @@ gasnete_coll_generic_reduceM_nb(gasnet_team_handle_t team,
     } else {
       gasnete_coll_wait_multi_addr_collective(team, flags GASNETE_THREAD_PASS);
       result = gasnete_coll_threads_get_handle_and_data(team, &data GASNETE_THREAD_PASS);
-      if (td->my_image == dstimage) {
+      //if (td->my_image == dstimage) {
+      if (gasnete_coll_team_my_image(team) == dstimage) {
         gasneti_assert(dst != NULL);
         data->args.reduceM.dst = dst;
         gasneti_sync_writes();
       }
     }
     gasneti_assert(*srclist != NULL);
-    data->args.reduceM.srclist[td->my_local_image] = *srclist; /* signalling write */
+    //data->args.reduceM.srclist[td->my_local_image] = *srclist; /* Signaling write */
+    data->args.reduceM.srclist[my_local_image] = *srclist; /* Signaling write */
   } else
 #endif
   {
-    if (td->my_local_image == 0) {
+    //if (td->my_local_image == 0) {
+  	if (my_local_image == 0) {
       gasnete_coll_generic_data_t *data = gasnete_coll_generic_alloc(GASNETE_THREAD_PASS_ALONE);
       int num_addrs = (flags & GASNET_COLL_LOCAL ? team->my_images : team->total_images);
 
