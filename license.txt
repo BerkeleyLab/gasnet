@@ -1,9 +1,9 @@
-/* $Header: /Users/kamil/work/gasnet-cvs2/gasnet/license.txt,v 1.14 2009/10/27 22:01:49 phargrov Exp $
+/* $Header: /Users/kamil/work/gasnet-cvs2/gasnet/license.txt,v 1.14.26.1 2011/05/16 23:27:41 phargrov Exp $
  * All files in this directory and all sub-directories (except where otherwise noted)
  * are subject to the following licensing terms: 
  *
  * ---------------------------------------------------------------------------
- * "Copyright (c) 2000-2003 The Regents of the University of California.
+ * "Copyright (c) 2000-2011 The Regents of the University of California.
  * All rights reserved.
  * 
  * Permission to use, copy, modify, and distribute this software and its
