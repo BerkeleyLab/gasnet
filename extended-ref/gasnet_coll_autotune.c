@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_autotune.c,v $
- *     $Date: 2010/12/16 19:40:10 $
- * $Revision: 1.31 $
+ *     $Date: 2011/05/16 23:27:43 $
+ * $Revision: 1.31.2.1 $
  * Description: GASNet Autotuner Implementation
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -125,7 +125,7 @@ static uint32_t fast_log2_32bit(uint32_t number) {
   
 }
 
-/*register teh collective algorithm
+/*register the collective algorithm
   optype is the type of collective op
   syncflags is an ored list of the valid sync flags for this colelctive
   requirements is an or'ed list of the required flags (i.e. DST/SRC in segment, etc)
@@ -2538,7 +2538,7 @@ static gasnete_coll_implementation_t autotune_op(gasnet_team_handle_t team, gasn
     char buf1[256], buf2[256];
     print_op_str(buf1, op, flags);
     print_flag_str(buf2, flags);
-    fprintf(stderr, "Autotuning %s: flags %s, nbytes %lu, root %u\n", buf1, buf2, (unsigned long)args.nbytes, args.rootimg);
+    fprintf(stderr, "Autotuning %s: flags %s, nbytes %lu, root %u\n", buf1, buf2, (unsigned long)args.nbytes, (unsigned int)args.rootimg);
   }
 
   /*if a tuning file has been specified for TEAM ALL and hasn't been yet loaded load it now*/
@@ -3687,7 +3687,7 @@ void gasnete_coll_implementation_print(gasnete_coll_implementation_t impl, FILE 
   fprintf(fp, "Num of params: %d; ", impl->num_params);
   if (impl->param_list != NULL) {
     for (i=0; i<impl->num_params; i++) {
-      fprintf(fp, "params[%d]=%u ", i, impl->param_list[i]);
+      fprintf(fp, "params[%d]=%u ", i, (unsigned int)impl->param_list[i]);
     }
   }
   fprintf(fp, "\n\n");
