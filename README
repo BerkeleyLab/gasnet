@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.139 $
+$Revision: 1.139.6.1 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -224,8 +224,8 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
  
     * Solaris10/SPARC/gcc,SunProC/32,64: smp, udp, mpi
     * Solaris10/x86/gcc,SunProC/32,64: smp, udp, mpi
-
-    * OpenSolaris/x86/gcc,SunProC/32,64: smp, udp, #
+    * Solaris11Express/x86/gcc,SunStudio12/32,64: smp, udp, mpi, ibv
+    * OpenSolaris/x86/gcc,SunStudio12/32,64: smp, udp, #
 
     * MSWindows-Cygwin/x86/gcc/32/: smp, udp, mpi (MPICH.NT,MPICH2)
 
