@@ -1,9 +1,9 @@
-$Header: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/license.txt,v 1.2 2006/12/15 22:54:23 phargrov Exp $
+$Header: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/license.txt,v 1.2.66.1 2011/05/16 23:27:47 phargrov Exp $
 All files in this directory (except where otherwise noted) are subject to the
 following licensing terms: 
 
 ---------------------------------------------------------------------------
-Copyright (c) 2003, The Regents of the University of California, through
+Copyright (c) 2003-2011, The Regents of the University of California, through
 Lawrence Berkeley National Laboratory (subject to receipt of any required
 approvals from U.S. Dept. of Energy)
 
