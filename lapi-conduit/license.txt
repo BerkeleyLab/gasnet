@@ -1,9 +1,9 @@
-$Header: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/license.txt,v 1.2 2004/08/26 04:53:40 bonachea Exp $
+$Header: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/license.txt,v 1.2.118.1 2011/05/16 23:27:49 phargrov Exp $
 All files in this directory (except where otherwise noted) are subject to the
 following licensing terms: 
 
 ---------------------------------------------------------------------------
-Copyright (c) 2003, The Regents of the University of California, through
+Copyright (c) 2003-2011, The Regents of the University of California, through
 Lawrence Berkeley National Laboratory (subject to receipt of any required
 approvals from U.S. Dept. of Energy)
 
