@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_team.c,v $
- * $Date: 2011/04/21 16:56:46 $
- * $Revision: 1.9.2.8 $
+ * $Date: 2011/06/20 22:25:33 $
+ * $Revision: 1.9.2.9 $
  *
  * Description: GASNet team implementation for collectives 
  * Copyright 2010, E. O. Lawrence Berkeley National Laboratory
@@ -22,6 +22,8 @@
 #ifdef GASNETE_COLL_TEAM_CONDUIT_DECLS
 GASNETE_COLL_TEAM_CONDUIT_DECLS
 #endif
+
+#define GASNET_COLL_TEAM_ROOT_BITS 16
 
 /**
  * Print an array for debugging
@@ -50,10 +52,8 @@ gasnete_hashtable_t *global_team_dir;
 
 int gasnete_coll_smp_tune_barriers;
 
-/* gasnete_coll_team_id_lock and gasnete_coll_team_id_seq are only
-   meaninful on gasnet node 0 */
 gasnet_hsl_t gasnete_coll_team_id_lock;
-static uint32_t gasnete_coll_team_id_seq;
+static uint32_t gasnete_coll_team_id_seq = 0;
 
 gasnet_node_t gasnete_coll_team_size(gasnet_team_handle_t team)
 {
@@ -892,7 +892,7 @@ gasnet_team_handle_t gasnete_coll_team_create(gasnet_team_handle_t parent_team,
 #endif
 
   /* Only the first local thread in the process in the new team
-     initializes the team data structure shared by other threadds in
+     initializes the team data structure shared by other threads in
      the same process in the team. */
   if (gasnete_coll_team_my_image(parent_team) == first_local) {
     gasnet_image_t current_image;
@@ -1083,6 +1083,7 @@ typedef struct gasnete_coll_team_split_info_t_ {
   gasnet_image_t color;
   gasnet_image_t imageid;
   gasnet_seginfo_t seg_info;
+  uint32_t team_id_seq;
 } gasnete_coll_team_split_info_t;
 
 static int gasnete_coll_team_color_cmp_func(const void *a, const void *b)
@@ -1107,8 +1108,8 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t parent_team,
   gasnete_coll_team_split_info_t my_split_info;
   gasnete_coll_team_split_info_t *all_split_info;
   uint32_t i, new_team_id, my_team_color_rank, new_team_count, current_color;
-  volatile uint32_t first_new_team_id;
-
+  gasnet_image_t my_root_act_rank;
+  uint32_t my_root_seq_num;
 
 #ifdef DEBUG_TEAM
   fprintf(stderr, "[%u] gasnete_coll_team_split() begins: parent team handle %p, mycolor %u, my_image %u clientdata %p\n",
@@ -1129,6 +1130,14 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t parent_team,
   my_split_info.color = mycolor;
   my_split_info.imageid = my_image;
   memcpy(&my_split_info.seg_info, myscratch_seginfo, sizeof(gasnet_seginfo_t));
+
+  if (my_image == 0) {
+    gasnet_hsl_lock(&gasnete_coll_team_id_lock);
+    my_split_info.team_id_seq = gasnete_coll_team_id_seq++;
+    gasnet_hsl_unlock(&gasnete_coll_team_id_lock);
+  } else {
+    my_split_info.team_id_seq = 0; /* shouldn't be actually used */
+  }
 
 #ifdef DEBUG_TEAM
   fprintf(stderr, "[%u] gasnete_coll_team_split: before teambarrier. \n",
@@ -1179,6 +1188,11 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t parent_team,
         gasneti_assert(all_split_info[i].imageid < parent_team->total_images);
         new_team_images[all_split_info[i].imageid] = i;
         team_segs[all_split_info[i].imageid] = all_split_info[i].seg_info;
+        if (all_split_info[i].imageid == 0) {
+          my_root_act_rank = parent_team->rel2act_map[parent_team->image2rank_map[i]];
+          my_root_seq_num = all_split_info[i].team_id_seq;
+          gasneti_assert(my_root_seq_num != 0);
+        }
         new_total_images++;
       }
     }
@@ -1227,33 +1241,34 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t parent_team,
   
   /* The first image in the parent team request N unique team id's
      from node 0. */
-  if (gasnete_coll_team_my_image(parent_team) == 0) {
-    first_new_team_id = 0;
-    SHORT_REQ(2, 3, (0, gasneti_handleridx(gasnete_coll_teamid_reqh), 
-                     new_team_count, PACK(&first_new_team_id)));
-    gasneti_polluntil(first_new_team_id != 0);
+/*   if (gasnete_coll_team_my_image(parent_team) == 0) { */
+/*     first_new_team_id = 0; */
+/*     SHORT_REQ(2, 3, (0, gasneti_handleridx(gasnete_coll_teamid_reqh),  */
+/*                      new_team_count, PACK(&first_new_team_id))); */
+/*     gasneti_polluntil(first_new_team_id != 0); */
     
-#ifdef DEBUG_TEAM
-    fprintf(stderr, "[%u] team imageid %u, gasnete_coll_team_split: first_new_team_id %u.\n", 
-            gasnete_coll_team_my_image(GASNET_TEAM_ALL), 
-            gasnete_coll_team_my_image(parent_team),
-            first_new_team_id);
-#endif
-  }
+/* #ifdef DEBUG_TEAM */
+/*     fprintf(stderr, "[%u] team imageid %u, gasnete_coll_team_split: first_new_team_id %u.\n",  */
+/*             gasnete_coll_team_my_image(GASNET_TEAM_ALL),  */
+/*             gasnete_coll_team_my_image(parent_team), */
+/*             first_new_team_id); */
+/* #endif */
+/*   } */
   
   gasnete_coll_teambarrier(parent_team);
 
   /* parent team root broadcast team_ids to all other threads */ 
-  gasnet_coll_broadcast(parent_team, (void *)&first_new_team_id, 0, 
-                        (void *)&first_new_team_id, sizeof(uint32_t),
-                        GASNET_COLL_LOCAL | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);
+/*   gasnet_coll_broadcast(parent_team, (void *)&first_new_team_id, 0,  */
+/*                         (void *)&first_new_team_id, sizeof(uint32_t), */
+/*                         GASNET_COLL_LOCAL | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC); */
   
 #ifdef DEBUG_TEAM
   fprintf(stderr, "[%u] gasnete_coll_team_split: first_new_team_id %u, my_team_color_rank %u.\n", gasnete_coll_team_my_image(GASNET_TEAM_ALL), first_new_team_id, my_team_color_rank);
 #endif
   
   gasneti_assert(my_image != GASNET_IMAGE_UNDEFINED);
-  new_team_id = first_new_team_id + my_team_color_rank;    
+  // new_team_id = first_new_team_id + my_team_color_rank;    
+  new_team_id = my_root_act_rank << GASNET_COLL_TEAM_ROOT_BITS | my_root_seq_num;
   for (i=0; i<new_team_count; i++) {
     /* Create one team at a time to avoid some race conditions in
        smp_coll due to the use of static variables */
