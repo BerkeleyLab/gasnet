@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/Attic/gasnet_gpu_cuda.h,v $
- * $Date: 2010/07/16 18:35:42 $
- * $Revision: 1.1.4.2 $
+ * $Date: 2011/07/07 23:20:31 $
+ * $Revision: 1.1.4.3 $
  *
  * Description: Interface between GASNet runtime and NVIDIA CUDA
  *
@@ -32,6 +32,9 @@ extern "C" {
   void * _gasnete_gpu_device_alloc(size_t nbytes);
 
   void _gasnete_gpu_device_free(void *devPtr);
+
+  //void cudaHostRegister();
+  void _gasnete_cudaHostRegister();
 
   /* put data from local host memory to attached GPU memory */
   void _gasnete_gpu_store(void *devDst, void *hostSrc, size_t nbytes);

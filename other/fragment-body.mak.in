@@ -1,4 +1,4 @@
-# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/other/fragment-body.mak.in,v 1.7.16.1 2010/07/16 18:35:44 yzheng Exp $
+# $Header: /Users/kamil/work/gasnet-cvs2/gasnet/other/fragment-body.mak.in,v 1.7.16.2 2011/07/07 23:20:33 yzheng Exp $
 # ----------------------------------------------------------------------
 # Following section @configure_input@
 
@@ -53,8 +53,8 @@ GASNET_LIBS =                             \
     $(CONDUIT_LIBS)                       \
     $(CONDUIT_LIBS_#THREAD_MODEL#)        \
     $(GASNET_EXTRALIBS_#THREAD_MODEL#)    \
+    $(CUDA_LIBS)                          \
     @GASNET_PSHM_LIBS@                    \
-    @CUDA_LIBS@                           \
     @LIBGCC@                              \
     @LIBS@                                \
     @LIBM@                                \
