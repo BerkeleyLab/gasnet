@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_internal.h,v $
- *     $Date: 2011/07/28 07:35:51 $
- * $Revision: 1.210 $
+ *     $Date: 2011/08/01 21:42:20 $
+ * $Revision: 1.210.2.1 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -114,6 +114,7 @@ extern gasneti_atomic_t gasnetc_exit_running;
 #define _hidx_gasnetc_exit_role_reph          (GASNETC_HANDLER_BASE+4)
 #define _hidx_gasnetc_exit_reqh               (GASNETC_HANDLER_BASE+5)
 #define _hidx_gasnetc_exit_reph               (GASNETC_HANDLER_BASE+6)
+#define _hidx_gasnetc_sys_barrier_reqh        (GASNETC_HANDLER_BASE+7)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
 #ifndef GASNETE_HANDLER_BASE
@@ -633,16 +634,14 @@ extern void gasnetc_unpin(gasnetc_hca_t *hca, gasnetc_memreg_t *reg);
 /* Bootstrap support */
 extern void (*gasneti_bootstrapFini_p)(void);
 extern void (*gasneti_bootstrapAbort_p)(int exitcode);
-extern void (*gasneti_bootstrapBarrier_p)(void);
-extern void (*gasneti_bootstrapExchange_p)(void *src, size_t len, void *dest);
 extern void (*gasneti_bootstrapAlltoall_p)(void *src, size_t len, void *dest);
 extern void (*gasneti_bootstrapBroadcast_p)(void *src, size_t len, void *dest, int rootnode);
 #define gasneti_bootstrapFini           (*gasneti_bootstrapFini_p)
 #define gasneti_bootstrapAbort          (*gasneti_bootstrapAbort_p)
-#define gasneti_bootstrapBarrier        (*gasneti_bootstrapBarrier_p)
-#define gasneti_bootstrapExchange       (*gasneti_bootstrapExchange_p)
 #define gasneti_bootstrapAlltoall       (*gasneti_bootstrapAlltoall_p)
 #define gasneti_bootstrapBroadcast      (*gasneti_bootstrapBroadcast_p)
+extern void gasneti_bootstrapBarrier(void);
+extern void gasneti_bootstrapExchange(void *src, size_t len, void *dest);
 
 /* Global configuration variables */
 extern int		gasnetc_op_oust_limit;

@@ -1,7 +1,7 @@
 README file for vapi-conduit and ibv-conduit
 ============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.64 $
+$Revision: 1.64.4.1 $
 
 @ TOC: @
 @ Section: VAPI vs IBV @
@@ -1034,7 +1034,7 @@ is through gasnetc_exit(), which may be called by the user, by the
 conduit in certain error cases, and by the default signal handler for
 "termination signals".  The second is via a remote exit request,
 passed between nodes to ensure full-job termination from
-non-collective exits.  The third is via an atexit() handler,
+non-collective exits.  The third is via an atexit/on_exit handler,
 registered by gasnetc_init(), used to catch returns from main() and
 user calls to exit().
 
@@ -1119,8 +1119,8 @@ canceling our alarm timer and return to our caller.
 
 The final common routine is gasnetc_exit_tail().  This function just
 does the last bit of work to terminate the job.  It is not included in
-_body because we let the atexit() case terminate "normally" after
-_body returns.  However, in the case of exits initiated via
+_body because we let the atexit/on_exit() case terminate "normally"
+after _body returns.  However, in the case of exits initiated via
 gasnet_exit() or remote exit request we call _tail to complete the
 exit.  In _tail we set an atomic variable to wake any threads which
 were stuck polling in _body due to being other than the first thread
@@ -1134,7 +1134,7 @@ three types of exit are pretty trivial.  In particular, gasnetc_exit()
 just calls _head, _body and _tail with no additional logic.  In the
 request handler for the exit request AM, we look at the return from
 _head to determine if this exit request is the first we've seen
-(inclusive of local calls to gasnet_exit() and our atexit handler).  If
+(inclusive of local calls to gasnet_exit() and our atexit/on_exit handler).  If
 it IS the first exit request, then we raise a SIGQUIT, as required by
 the GASNet spec, to allow the user's handler to perform its cleanup.
 However, to get the most robust exit code we don't want to run the
@@ -1170,9 +1170,15 @@ If support is detected at configure time for on_exit(), then it is
 used rather than atexit(), and the problem of the missing return code
 vanishes.
 
-In the normal case of a collective exit, each node but 0 will send one
-AM "up" a tree and will receive one coming "down" the tree, for a total
-of 2*(N-1) AMs in 2*ceil(log_2(N)) levels.
+In the normal case of a collective exit, the reduce-to-all-with-timeout
+is performed in 3 steps.  The first is an intra-supernode reduction.
+The second is a reduce-to-all over supernodes using the same
+communication pattern as the dissemination barrier, requiring
+ceil(log_2(SN)) rounds in which each supernode sends and receives one
+AM (where "SN" is number of supernodes).  The third step is a
+supernode-scoped broadcast.  For non-PSHM builds, only a dissemination
+based reduce-to-all is performed (steps 1 and 3 are eliminated and
+"supernode" is replace by "node" in the description of step 2).
 
 For the non-collective exits, there is both a "best case" and a
 "worst case" to consider:
@@ -1181,8 +1187,8 @@ Best case: one node is way ahead of the others and can win the
 master election and send remote exit requests before the others attempt
 the election.  In this case the coordinated shutdown needs 1 round-trip
 for the election, followed by (N-1) round-trips for the remote exit
-request/reply, for a total of 2*N AMs sent (not counting up to 2*N-2
-from the failed reduction).
+request/reply, for a total of 2*N AMs sent (not counting those from
+the failed reduction).
 
 Worst case: all nodes attempt the election at roughly the same time
 and a full N round-trips take place for the election, followed by (N-1)
