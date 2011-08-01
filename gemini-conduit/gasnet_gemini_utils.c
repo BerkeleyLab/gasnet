@@ -1,16 +1,18 @@
 #include <stdint.h>
 #include <assert.h>
-#include <gc.h>
+#include <gasnet_gemini.h>
 #include <pmi_cray.h>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <gni_pub.h>
-#include <mpi.h>
 
 uint32_t gc_num_ranks;
 uint32_t gc_rank;
 
+#ifndef MPI_SUCCESS
+#define MPI_SUCCESS 0
+#endif
 
 long int mygetenv(const char *name)
 {
