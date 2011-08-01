@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_sndrcv.c,v $
- *     $Date: 2011/08/01 21:34:02 $
- * $Revision: 1.282 $
+ *     $Date: 2011/08/01 22:50:16 $
+ * $Revision: 1.282.2.1 $
  * Description: GASNet vapi conduit implementation, transport send/receive logic
  * Copyright 2003, LBNL
  * Terms of use are as specified in license.txt
@@ -3945,6 +3945,24 @@ extern int gasnetc_RequestSysShort(gasnet_node_t dest,
   return retval;
 }
 
+extern int gasnetc_RequestSysMedium(gasnet_node_t dest,
+                                    gasnetc_counter_t *req_oust,
+                                    gasnet_handler_t handler,
+                                    void *source_addr, size_t nbytes,
+                                    int numargs, ...) {
+  int retval;
+  va_list argptr;
+
+  GASNETI_TRACE_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
+
+  va_start(argptr, numargs);
+  retval = gasnetc_RequestGeneric(gasnetc_Medium, dest, handler,
+                                  source_addr, nbytes, NULL,
+                                  numargs, NULL, req_oust, argptr);
+  va_end(argptr);
+  GASNETI_RETURN(retval);
+}
+
 extern int gasnetc_ReplySysShort(gasnet_token_t token,
 			       gasnetc_counter_t *req_oust,
                                gasnet_handler_t handler,
@@ -3957,6 +3975,24 @@ extern int gasnetc_ReplySysShort(gasnet_token_t token,
   va_start(argptr, numargs);
   retval = gasnetc_ReplyGeneric(gasnetc_Short, token, handler,
                                 NULL, 0, NULL,
+                                numargs, NULL, req_oust, argptr);
+  va_end(argptr);
+  return retval;
+}
+
+extern int gasnetc_ReplySysMedium(gasnet_token_t token,
+                                  gasnetc_counter_t *req_oust,
+                                  gasnet_handler_t handler,
+                                  void *source_addr, size_t nbytes,
+                                  int numargs, ...) {
+  int retval;
+  va_list argptr;
+
+  GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs); 
+
+  va_start(argptr, numargs);
+  retval = gasnetc_ReplyGeneric(gasnetc_Medium, token, handler,
+                                source_addr, nbytes, NULL,
                                 numargs, NULL, req_oust, argptr);
   va_end(argptr);
   return retval;
