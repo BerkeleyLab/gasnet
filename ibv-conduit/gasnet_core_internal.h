@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2011/08/01 21:42:20 $
- * $Revision: 1.210.2.1 $
+ *     $Date: 2011/08/01 22:50:16 $
+ * $Revision: 1.210.2.2 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -192,11 +192,21 @@ extern int gasnetc_RequestSysShort(gasnet_node_t dest,
                                    gasnetc_counter_t *req_oust, /* counter for local completion */
                                    gasnet_handler_t handler,
                                    int numargs, ...);
+extern int gasnetc_RequestSysMedium(gasnet_node_t dest,
+                                    gasnetc_counter_t *req_oust, /* counter for local completion */
+                                    gasnet_handler_t handler,
+                                    void *source_addr, size_t nbytes,
+                                    int numargs, ...);
 
 extern int gasnetc_ReplySysShort(gasnet_token_t token,
                                  gasnetc_counter_t *req_oust, /* counter for local completion */
                                  gasnet_handler_t handler,
                                  int numargs, ...);
+extern int gasnetc_ReplySysMedium(gasnet_token_t token,
+                                  gasnetc_counter_t *req_oust, /* counter for local completion */
+                                  gasnet_handler_t handler,
+                                  void *source_addr, size_t nbytes,
+                                  int numargs, ...);
 
 /* ------------------------------------------------------------------------------------ */
 
