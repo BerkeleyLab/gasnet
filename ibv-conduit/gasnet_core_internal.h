@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_internal.h,v $
- *     $Date: 2011/08/01 22:50:16 $
- * $Revision: 1.210.2.2 $
+ *     $Date: 2011/08/02 01:39:23 $
+ * $Revision: 1.210.2.3 $
  * Description: GASNet vapi conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -115,6 +115,7 @@ extern gasneti_atomic_t gasnetc_exit_running;
 #define _hidx_gasnetc_exit_reqh               (GASNETC_HANDLER_BASE+5)
 #define _hidx_gasnetc_exit_reph               (GASNETC_HANDLER_BASE+6)
 #define _hidx_gasnetc_sys_barrier_reqh        (GASNETC_HANDLER_BASE+7)
+#define _hidx_gasnetc_sys_exchange_reqh       (GASNETC_HANDLER_BASE+8)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
 #ifndef GASNETE_HANDLER_BASE
