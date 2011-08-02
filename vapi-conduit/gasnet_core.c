@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2011/08/01 21:42:20 $
- * $Revision: 1.289.2.1 $
+ *     $Date: 2011/08/02 01:39:23 $
+ * $Revision: 1.289.2.2 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -312,57 +312,128 @@ extern void gasneti_bootstrapBarrier(void)
 #error "Update gasneti_bootstrapExchange for > 16-bit node count"
 #endif
 
-static gasneti_weakatomic_t gasnetc_sys_exchange_rcvd[2][16] =
-  { { gasneti_weakatomic_init(0), gasneti_weakatomic_init(0),
-      gasneti_weakatomic_init(0), gasneti_weakatomic_init(0),
-      gasneti_weakatomic_init(0), gasneti_weakatomic_init(0),
-      gasneti_weakatomic_init(0), gasneti_weakatomic_init(0),
-      gasneti_weakatomic_init(0), gasneti_weakatomic_init(0),
-      gasneti_weakatomic_init(0), gasneti_weakatomic_init(0),
-      gasneti_weakatomic_init(0), gasneti_weakatomic_init(0),
-      gasneti_weakatomic_init(0), gasneti_weakatomic_init(0) },
-    { gasneti_weakatomic_init(0), gasneti_weakatomic_init(0),
-      gasneti_weakatomic_init(0), gasneti_weakatomic_init(0),
-      gasneti_weakatomic_init(0), gasneti_weakatomic_init(0),
-      gasneti_weakatomic_init(0), gasneti_weakatomic_init(0),
-      gasneti_weakatomic_init(0), gasneti_weakatomic_init(0),
-      gasneti_weakatomic_init(0), gasneti_weakatomic_init(0),
-      gasneti_weakatomic_init(0), gasneti_weakatomic_init(0),
-      gasneti_weakatomic_init(0), gasneti_weakatomic_init(0) } };
+#if GASNETC_IB_RCV_THREAD
+  static gasneti_atomic_t gasnetc_sys_exchange_rcvd[2][16] =
+  { { gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0) },
+    { gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0),
+      gasneti_atomic_init(0), gasneti_atomic_init(0) } };
+  #define gasnetc_sys_exchange_inc(_phase, _step) \
+    gasneti_atomic_increment(&gasnetc_sys_exchange_rcvd[_phase][_step], GASNETI_ATOMIC_REL)
+  #define gasnetc_sys_exchange_read(_phase, _step) \
+    gasneti_atomic_read(&gasnetc_sys_exchange_rcvd[_phase][_step], GASNETI_ATOMIC_NONE)
+  #define gasnetc_sys_exchange_reset(_phase, _step) \
+    gasneti_atomic_set(&gasnetc_sys_exchange_rcvd[_phase][_step], 0, GASNETI_ATOMIC_ACQ)
+#else
+  static gasneti_atomic_val_t gasnetc_sys_exchange_rcvd[2][16] =
+  { { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
+    { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 } };
+  #define gasnetc_sys_exchange_inc(_phase, _step) \
+    ((void)(++gasnetc_sys_exchange_rcvd[_phase][_step]))
+  #define gasnetc_sys_exchange_read(_phase, _step) \
+    (gasnetc_sys_exchange_rcvd[_phase][_step])
+  #define gasnetc_sys_exchange_reset(_phase, _step) \
+    ((void)(gasnetc_sys_exchange_rcvd[_phase][_step] = 0))
+#endif
 
 static uint8_t *gasnetc_sys_exchange_buf[2] = { NULL, NULL };
 
 static uint8_t *gasnetc_sys_exchange_addr(int phase, size_t elemsz)
 {
   if (gasnetc_sys_exchange_buf[phase] == NULL) {
+  #if GASNETC_IB_RCV_THREAD
     static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
     gasneti_mutex_lock(&lock);
+  #endif
     gasnetc_sys_exchange_buf[phase] = gasneti_malloc(elemsz * gasneti_nodes);
+  #if GASNETC_IB_RCV_THREAD
     gasneti_mutex_unlock(&lock);
+  #endif
   }
   return gasnetc_sys_exchange_buf[phase];
 }
 
-static void gasnetc_sys_exchange(gasnet_token_t token, void *buf,
+#define GASNETC_SYS_EXCHANGE_MAX GASNETC_MAX_MEDIUM
+
+static void gasnetc_sys_exchange_reqh(gasnet_token_t token, void *buf,
                                  size_t nbytes, uint32_t arg0,
                                  uint32_t elemsz)
 {
   const int phase = arg0 & 1;
-  const int step = (arg0 >> 1) & 15;
+  const int step = (arg0 >> 1) & 0x0f;
   const int seq = (arg0 >> 5);
   uint8_t *dest = gasnetc_sys_exchange_addr(phase, elemsz)
-                  + (elemsz << step) + seq * GASNETC_MAX_MEDIUM ;
+                  + (elemsz << step) + (seq * GASNETC_SYS_EXCHANGE_MAX);
 
   memcpy(dest, buf, nbytes);
-  gasneti_weakatomic_increment(&gasnetc_sys_exchange_rcvd[phase][step], GASNETI_ATOMIC_REL);
+  gasnetc_sys_exchange_inc(phase, step);
 }
 
 extern void gasneti_bootstrapExchange(void *src, size_t len, void *dest)
 {
-  if (gasneti_bootstrap_native_coll && 0) {
-  /* TODO: implement native version using Bruck's alg. */
+  if (gasneti_bootstrap_native_coll) {
     static int phase = 0;
-    int i;
+
+    uint8_t *temp = gasnetc_sys_exchange_addr(phase, len);
+    int step, distance;
+
+    /* Copy in local contribution */
+    memcpy(temp, src, len);
+
+    /* Bruck's concatenation algorithm: */
+    for (step = 0, distance = 1; distance < gasneti_nodes; ++step, distance *= 2) {
+      const gasnet_node_t peer = (gasneti_mynode >= distance)
+                                  ? (gasneti_mynode - distance)
+                                  : (gasneti_mynode + (gasneti_nodes - distance));
+      size_t nbytes = len * MIN(distance, gasneti_nodes - distance);
+      size_t offset = 0;
+      uint32_t seq = 0;
+
+      gasneti_assert(step < 16);
+
+      /* Send payload using AMMedium(s) */
+      do {
+        const size_t to_xfer = MIN(nbytes, GASNETC_SYS_EXCHANGE_MAX);
+
+        (void) gasnetc_RequestSysMedium(peer, NULL,
+                                        gasneti_handleridx(gasnetc_sys_exchange_reqh),
+                                        temp + offset, to_xfer,
+                                        2, phase | (step << 1) | (seq << 5), len);
+
+        ++seq;
+        offset += to_xfer;
+        nbytes -= to_xfer;
+        gasneti_assert(seq < (1<<(32-5)));
+      } while (nbytes);
+
+      /* poll until number of messages received matches number sent */
+      while (gasnetc_sys_exchange_read(phase, step) != seq) {
+        gasnetc_sndrcv_poll(0);
+      }
+      gasnetc_sys_exchange_reset(phase, step); /* Includes the RMB, if any, for the data */
+    }
+
+    /* Copy to destination while performing the "rotation" */
+    memcpy(dest, temp + len * (gasneti_nodes - gasneti_mynode), len * gasneti_mynode);
+    memcpy((uint8_t*)dest + len * gasneti_mynode, temp, len * (gasneti_nodes - gasneti_mynode));
+
+    /* Prepare for next */
+    gasneti_free(temp);
+    gasnetc_sys_exchange_buf[phase] = NULL;
+    gasneti_sync_writes();
+    phase ^= 1;
   } else {
     (*gasneti_bootstrapExchange_p)(src, len, dest);
   }
@@ -1537,7 +1608,6 @@ static int gasnetc_init(int *argc, char ***argv) {
   /* From this point forward gasneti_bootstrap*() can safely be implemented
    * via AMs or "raw" IB if desired for efficiency (but no segment for RDMA).
    * Currently only Exchange (aka GatherAll) and Barrier are used beyond this point.
-   * XXX: Currently only Barrier is "native"
    */
   gasnetc_sys_coll_init();
 
@@ -3022,6 +3092,7 @@ static gasnet_handlerentry_t const gasnetc_handlers[] = {
   gasneti_handler_tableentry_no_bits(gasnetc_exit_reqh),
   gasneti_handler_tableentry_no_bits(gasnetc_exit_reph),
   gasneti_handler_tableentry_no_bits(gasnetc_sys_barrier_reqh),
+  gasneti_handler_tableentry_no_bits(gasnetc_sys_exchange_reqh),
 
   /* ptr-width dependent handlers */
   gasneti_handler_tableentry_with_bits(gasnetc_amrdma_grant_reqh),
