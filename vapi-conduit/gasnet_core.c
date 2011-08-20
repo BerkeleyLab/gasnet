@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2011/08/02 01:39:23 $
- * $Revision: 1.289.2.2 $
+ *     $Date: 2011/08/20 03:20:55 $
+ * $Revision: 1.289.2.3 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -217,18 +217,9 @@ static void gasnetc_sys_coll_init(void)
 
 #if GASNET_PSHM
   /* Convert supernode numbers to node numbers */
-  {
-    for (i = 0; i < gasnetc_dissem_peers; ++i) {
-      const gasnet_node_t peer = gasnetc_dissem_peer[i];
-      int j;
-      for (j = 0; j < gasneti_nodes; ++j) {
-        if (peer == gasneti_nodeinfo[j]) {
-          gasnetc_dissem_peer[i] = j;
-          gasneti_assert(gasneti_nodemap[j] == j);
-          break;
-        }
-      }
-    }
+  for (i = 0; i < gasnetc_dissem_peers; ++i) {
+    const gasnet_node_t peer = gasnetc_dissem_peer[i];
+    gasnetc_dissem_peer[i] = gasneti_pshm_firsts[peer];
   }
 #endif
 
