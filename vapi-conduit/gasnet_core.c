@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2011/08/20 03:20:55 $
- * $Revision: 1.289.2.3 $
+ *     $Date: 2011/08/20 03:51:09 $
+ * $Revision: 1.289.2.4 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -210,18 +210,16 @@ static void gasnetc_sys_coll_init(void)
   gasnetc_dissem_peer = gasneti_malloc(gasnetc_dissem_peers * sizeof(gasnet_node_t));
   for (i = 0; i < gasnetc_dissem_peers; ++i) {
     const gasnet_node_t distance = 1 << i;
-    gasnetc_dissem_peer[i] = (distance >= size - rank)
+    const gasnet_node_t peer = (distance >= size - rank)
                                 ? (rank - (size - distance))
                                 : (rank + distance);
-  }
-
-#if GASNET_PSHM
-  /* Convert supernode numbers to node numbers */
-  for (i = 0; i < gasnetc_dissem_peers; ++i) {
-    const gasnet_node_t peer = gasnetc_dissem_peer[i];
+  #if GASNET_PSHM
+    /* Convert supernode numbers to node numbers */
     gasnetc_dissem_peer[i] = gasneti_pshm_firsts[peer];
+  #else
+    gasnetc_dissem_peer[i] = peer;
+  #endif
   }
-#endif
 
 done:
   gasneti_bootstrap_native_coll = 1;
