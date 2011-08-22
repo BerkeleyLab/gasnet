@@ -1,0 +1,167 @@
+number of bounce buffers, make clear the effects of, in the readme
+
+see vapi conduit for example
+
+use gprofile or oprofile to measure startup of a large job
+(magic argument for testcollperf?  correctnmess and performance iterations both > 0)
+replace bootstrap exhcange with a faster one
+replace pmi_barrier with a faster one
+
+dont need segment addr and size info in peersegmentdata because gasnet already has that
+
+the smsg peer data is almost all constant and doesn't need to be exchanged or kept around in the runtime array of structs
+
+in gc_init_messaging, loop around
+
+multiplier sizing completion queue creates endpoints for the local supernode, which are not used when pshm is in use  there is a gasneti_pshm_in_supernode to test if we need an endpoint for them
+
+can save memory for smsg buffering and cq sizing as well (and endpoints)
+
+round up gc_post_descriptor to mulitple of cache line  (only in PAR bulds?)
+  probablyu a good idea everywhere since gni libraries and kernel write fields in it.
+
+fix name of gc.h to be longer
+
+LCS DONE remove am packet sequence number (only debug field or delete)
+or maybe a timestamp field
+
+
+eliminate from and to fields, could pack packet type together with numargs
+
+
+remove unused and constant fields from all structs
+
+LCS DONE insert padding in front of am medium payload if necessary to assure 64 bit alignment, just so the memcpy at destination will be faster  (use gasneti_align? call in call to gc_send inAMMediumRequest
+
+
+
+
+if you want to piggyback credit return on amreply, AND use the smsg buffer to pass directly to the handler, then be sure to save at least one credit per currently executing handler
+
+DONE in medium dispatch, there are two memcpy's one for data and one for header,
+you could use just one, if the data was 64 aligned.  Now there are no memcpys
+
+
+tell Paul that Backtrace doesn't work on hopper
+
+could memcpy the varargs arg list in amrequest, then revers the args in the call to the handler if necessary (too twisty)
+
+LCS NOT DONE replace gc_atomic_dec_if_positive with gasneti_semaphore_trydown
+Paul suggests semaphore is bigger, so it is fine the way it is
+
+is a poll needed in the amrequest routines?  (yes! see other conduits)
+put it up front
+
+but NOT in the reply fns
+
+
+typeof is not portable, so change gc_post_descriptor_t to put the gni_post_descriptor first, and then cast to a gc_post_descriptor
+
+
+
+
+
+to piggyback credit return, use pointer to struct as token, then the handler can set a flag if it sends a reply
+
+struct tokenstruct {
+  gasnet_node_t source;
+  int reply_sent;
+}
+
+then token is pointer to
+
+gc_debug is not used
+
+gasnete_put_nb always blocks, but it doesn't have to if the data is shorter than the bounce-register cutover (if source is outside segme)
+if source is inside segment, then if source length is less than 128, then could copy to the immediate bounce buffer and return before the put is complete
+
+
+when there are multiple 1 MB transfrer for GET, make the first one shorter, to end on an aligned boundary so that <all> the transfers are not misaligned
+
+first could be MAX - misalignment, pr perhaps very small, try both ways
+
+see testalign
+
+if add quota for registrations, could ifre off all the 1 MB blocks and synchronize all of them at once,
+for nbi, just increment the counters
+
+for put_bni_bulk , create a recursive nbi access region and return the handle for it as the handle for the put_nb_bulk
+
+for put_nb, for small puts, copy the data to the immediate bounce buffer just so you can return faster
+
+for medium size out-of segment puts, return as soon as data copied into bounce buffer
+but before the rdma is finished
+
+for medium in-segmgnet puts, just block
+
+be careful to get 1M plus 17 bytes correct
+
+
+
+consider having a 512 byte zero block somewher in mapped semgnet to use as source for short memset  
+
+(or memset the immediate buffer)
+
+
+
+cray requires 4 byte align,ent for get, could break up into a small transfer to reach alignment
+(only owrks for same misalignment)
+
+OR together the source, est, and length, then & 3 only once
+
+short misalighned messages should get an aligned block to the immediate buffer then
+copy on completion
+
+if we fire off multiple chunks then make sure that the registrations don't overlap
+and break on page boundaries
+to prevent duplicaton
+
+nb. try to understand use of huge_tlb
+
+read -h output for the tests
+testlarge and testsmall have -in to have source be in-segment
+
+
+gc_rdma_get doesn't use immediate bounce buffer!
+
+gc_rdma_get doesn't retry memregister the way gc_rdma_put does
+
+
+
+Separate concept of size of immediate bounce buffer from the concept of when to switch from FMA to RDMA  (fma->rdma at 1 K for MPI 4K for libpgas)
+
+INLINE the small fry
+
+
+
+consider changing queue for smsg work queue into a circular buffer, becvause it cannto be more than gc_ranks
+
+enqueus and dequeues do not need to share a lock, but they need an atomic coiunter for space available.
+
+gc_queue push not used
+
+on-queue indication could be a flag, rather than a pointer to which queue you are on, since there is only the smsg_work_queue
+
+note, queue item and gni_post cannot both be first in the gc_post_descriptor
+
+
+
+If I call handlers from the smsg buffer must assure that a handler cannot internally call poll_smsng_q
+
+ook for unused fields (initialized only)
+
+close smsg_fd 
+
+remembery why /dev/zero instead of anon
+
+either the sync synchronize in handle_am_X isn;t needed, or it doesn't work anyway
+
+
+
+Alternate atomic thing is a gasnet_semaphore_t 
+implementation is efficient.
+
+get rid of loop around printf failed to coordinate shutdown
+
+what does PMI_Finalize really mean? Is there a timer that is started?  Otherwise, bould move it above the flush_streams and trace_finish
+

@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_receive.c,v $
- * $Date: 2009/09/18 23:33:30 $
- * $Revision: 1.49 $
+ * $Date: 2011/08/22 23:24:28 $
+ * $Revision: 1.49.6.1 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -324,7 +324,6 @@ void
 gasnetc_process_AMSystem(gasnetc_bufdesc_t *bufd)
 {
 	uint8_t	     h_idx, numargs, *ptr, *payptr;
-	uintptr_t    dest_addr;
 	size_t	     paylen, hdr_len;
 	int32_t	    *argptr;
 

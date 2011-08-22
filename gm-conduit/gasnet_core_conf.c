@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_conf.c,v $
- * $Date: 2006/08/19 10:48:56 $
- * $Revision: 1.24 $
+ * $Date: 2011/08/22 23:24:28 $
+ * $Revision: 1.24.50.1 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -162,9 +162,8 @@ static
 char *
 gasnetc_gexec_ip(char *buf, size_t buflen, gasnet_node_t nodeid)
 {
-	char	*svrs, *rank, *c, *e, *hostname;
-	int	id, procs, i, len;
-	size_t	s;
+	char	*svrs, *c;
+	int	i, len;
 
 	svrs = getenv("GEXEC_SVRS");
 	if (svrs == NULL || *svrs == '\0')
@@ -238,7 +237,7 @@ void
 gasnetc_getconf_mpiexec()
 {
 	char	*magic, *master, *port;
-	char	*np, *board;
+	char	*board;
 	char	buffer[GASNETC_SOCKET_BUFSIZ];
 	char	*temp;
 	int	sockfd, sockfd2;
@@ -249,8 +248,6 @@ gasnetc_getconf_mpiexec()
 	unsigned int	board_id, port_id, temp_id, temp_local_id;
 	unsigned int	i, j;
 
-	struct sockaddr_in	sa;
-		
 	/* gasnetrun with sockets */
 	GASNETC_GETENV ("GMPI_MAGIC", magic, "the job magic number");
 	GASNETC_GETENV ("GMPI_MASTER", master, "the master's hostname");
@@ -323,7 +320,6 @@ gasnetc_getconf_mpiexec()
 	else {
 		char	buf[256];
 		char	*slave;
-		int	hostlen;
 		uint32_t slave_n;
 
 		slave = getenv("GMPI_SLAVE");
@@ -366,7 +362,6 @@ gasnetc_getconf_mpiexec()
 	else {
 		gm_u64_t    start_time, stop_time;
 		ssize_t	    b;
-		int	    junk;
 		uint32_t    master_n;
 
 		master_n = gasnetc_parse_addr(master);
@@ -396,7 +391,7 @@ gasnetc_getconf_mpiexec()
 		 */
 
 		count = 0;
-		sprintf (buffer, 
+		snprintf (buffer, sizeof(buffer),
 			"<<<%d:%d:%d:%d:%u:%d:%d::%d>>>\n", 
 			magic_number, gasneti_mynode, port_id, board_id, 
 			(unsigned) _gmc.my_id, 0, (int) getpid(), slave_port);

@@ -1,6 +1,6 @@
 //   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/sockutil.h,v $
-//     $Date: 2006/04/16 09:28:42 $
-// $Revision: 1.5 $
+//     $Date: 2011/08/22 23:24:46 $
+// $Revision: 1.5.62.1 $
 // Description: Simple sock utils
 // Copyright 1999, Dan Bonachea
 
@@ -42,10 +42,10 @@ int recvLine(SOCKET s, char* buf, int bufsiz);
   // returns size with CRLF removed
   // may throw exception if bufsiz is too small
 
-void sendAll(SOCKET s, const void* buffer, int numbytes);
-void sendAll(SOCKET s, const char* buffer, int numbytes=-1);
+void sendAll(SOCKET s, const void* buffer, int numbytes, int dothrow=1);
+void sendAll(SOCKET s, const char* buffer, int numbytes=-1, int dothrow=1);
   // blocks until it can send numbytes on s from buffer
-  // (throws xSocket on close)
+  // (throws xSocket on close by default)
 void sendEOL(SOCKET s); // send CR LF
 
 uint32_t recv32(SOCKET s);

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/09/21 01:59:08 $
- * $Revision: 1.82 $
+ *     $Date: 2011/08/22 23:24:22 $
+ * $Revision: 1.82.6.1 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -402,7 +402,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
       }
       if (newindex > highlimit) {
         char s[255];
-        sprintf(s,"Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
+        snprintf(s, sizeof(s), "Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
         GASNETI_RETURN_ERRR(BAD_ARG, s);
       }
     }
@@ -410,7 +410,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     /*  ensure handlers fall into the proper range of pre-assigned values */
     if (newindex < lowlimit || newindex > highlimit) {
       char s[255];
-      sprintf(s, "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
+      snprintf(s, sizeof(s), "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
       GASNETI_RETURN_ERRR(BAD_ARG, s);
     }
 
@@ -714,7 +714,8 @@ static void gasnetc_atexit(void) {
       /* prefer the use of rcontrol, because it avoids ugly intermitted rms database 
          warnings, and avoids the need to link all the RMS libraries */
       { char cmd[1024];
-        sprintf(cmd, "%s kill resource name = %i signal = %i", 
+        snprintf(cmd, sizeof(cmd),
+                     "%s kill resource name = %i signal = %i", 
                      _STRINGIFY(RMS_RCONTROL_PATH), resourceid, sig);
         system(cmd);
       }
@@ -745,7 +746,7 @@ static void gasnetc_atexit(void) {
     { /* prefer the scancel system call mechanism, 
          because slurm_kill_job malfunctions in static executables */
       char cmd[1024];
-      sprintf(cmd,"%s --signal=%i %s", _STRINGIFY(SLURM_SCANCEL_PATH), sig, batchid);
+      snprintf(cmd, sizeof(cmd), "%s --signal=%i %s", _STRINGIFY(SLURM_SCANCEL_PATH), sig, batchid);
       system(cmd);
     }
     #else /* HAVE_SLURM_KILL_JOB */

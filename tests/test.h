@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2010/07/16 21:06:49 $
- * $Revision: 1.135.2.2 $
+ *     $Date: 2011/08/22 23:25:10 $
+ * $Revision: 1.135.2.3 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -836,30 +836,46 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
 
 /* ------------------------------------------------------------------------------------ */
 /* local process and thread count management */
+static gasnet_node_t *_test_nodeinfo = NULL;
 static int _test_localprocs(void) { /* First call is not thread safe */
   static int count = 0;
   if (!count) {
     gasnet_node_t my_nodeinfo;
     gasnet_node_t i;
-    assert(_test_seginfo);
-    my_nodeinfo = _test_seginfo[gasnet_mynode()].nodeinfo;
+
+    assert(_test_nodeinfo == NULL);
+    _test_nodeinfo = (gasnet_node_t *)test_malloc(gasnet_nodes()*sizeof(gasnet_node_t));
+    GASNET_Safe(gasnet_getNodeInfo(_test_nodeinfo, gasnet_nodes()));
+
+    my_nodeinfo = _test_nodeinfo[gasnet_mynode()];
     for (i=0; i < gasnet_nodes(); i++) {
-      if (_test_seginfo[i].nodeinfo == my_nodeinfo) count++;
+      if (_test_nodeinfo[i] == my_nodeinfo) count++;
     }
   }
+  assert(_test_nodeinfo);
   assert(count > 0);
   return count;
 }
 #define TEST_LOCALPROCS() (_test_localprocs())
 
 static void _test_set_waitmode(int threads) {
+  const int local_procs = TEST_LOCALPROCS();
   if (gasnett_getenv_yesno_withdefault("GASNET_TEST_POLITE_SYNC",0)) return;
-  threads *= TEST_LOCALPROCS();
+#if PLATFORM_OS_OPENBSD /* userland pthreads impl. runs on a single cpu core */
+  if (threads > 1) {
+    if (_test_nodeinfo[gasnet_mynode()] == gasnet_mynode())
+      MSG("WARNING: per-proc thread count (%i) exceeds platform's concurrency "
+          "- enabling  \"polite\", low-performance synchronization algorithms",
+          threads);
+    gasnet_set_waitmode(GASNET_WAIT_BLOCK);
+  }
+#endif
+  threads *= local_procs;
   if (threads > gasnett_cpu_count()) {
-    if (_test_seginfo[gasnet_mynode()].nodeinfo == gasnet_mynode())
+    if (_test_nodeinfo[gasnet_mynode()] == gasnet_mynode())
       MSG("WARNING: per-node thread count (%i) exceeds physical cpu count (%i) "
           "- enabling  \"polite\", low-performance synchronization algorithms",
-          (int) threads, gasnett_cpu_count());
+          threads, gasnett_cpu_count());
     gasnet_set_waitmode(GASNET_WAIT_BLOCK);
   }
 }

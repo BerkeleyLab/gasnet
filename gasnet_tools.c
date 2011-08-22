@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2011/03/18 23:05:01 $
- * $Revision: 1.250.2.2 $
+ *     $Date: 2011/08/22 23:24:16 $
+ * $Revision: 1.250.2.3 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -251,54 +251,45 @@ static gasneti_atomic_t gasneti_backtrace_enabled = gasneti_atomic_init(1);
 
 
 extern const char *gasnett_performance_warning_str(void) {
-  static char *result = NULL;
-  GASNETI_UNUSED_UNLESS_THREADS
-  static gasneti_mutex_t gasnett_performance_warning_lock = GASNETI_MUTEX_INITIALIZER;
-  gasnett_mutex_lock(&gasnett_performance_warning_lock);
-    if (result) return result;
-    else result = malloc(1024);
-    result[0] = '\0';
-    #ifdef GASNET_DEBUG
-      strcat(result,"debugging ");
+  static const char *result =
+    #if defined(GASNET_DEBUG) || defined(GASNETI_STATS_OR_TRACE)
+      "        "  /* Leading white space: */
+      #ifdef GASNET_DEBUG
+        "debugging "
+      #endif
+      #ifdef GASNET_TRACE
+        "tracing "
+      #endif
+      #ifdef GASNET_STATS
+        "statistical collection "
+      #endif
+      "\n" /* Trailing white space: */
     #endif
-    #ifdef GASNET_TRACE
-      strcat(result,"tracing ");
-    #endif
-    #ifdef GASNET_STATS
-      strcat(result,"statistical collection ");
-    #endif
-    if (result[0]) {
-        char tmp[80];
-        strcpy(tmp,"        ");  /* Leading white space: */
-        strcat(tmp,result);
-        strcat(tmp,"\n"); /* Trailing white space: */
-        strcpy(result,tmp);
-    }
     #if defined(GASNETI_FORCE_GENERIC_ATOMICOPS)
-      strcat(result,"        FORCED mutex-based atomicops\n");
+      "        FORCED mutex-based atomicops\n"
     #elif defined(GASNETI_FORCE_OS_ATOMICOPS)
-      strcat(result,"        FORCED os-provided atomicops\n");
+      "        FORCED os-provided atomicops\n"
     #endif
     #if defined(GASNETI_FORCE_TRUE_WEAKATOMICS) && GASNETI_THREAD_SINGLE
-      strcat(result,"        FORCED atomics in sequential code\n");
+      "        FORCED atomics in sequential code\n"
     #endif
     #if defined(GASNETI_FORCE_GENERIC_SEMAPHORES) && GASNETT_THREAD_SAFE
-      strcat(result,"        FORCED mutex-based semaphores\n");
+      "        FORCED mutex-based semaphores\n"
     #endif
     #if defined(GASNETI_FORCE_YIELD_MEMBARS)
-      strcat(result,"        FORCED sched_yield() in memory barriers\n");
+      "        FORCED sched_yield() in memory barriers\n"
     #elif defined(GASNETI_FORCE_SLOW_MEMBARS)
-      strcat(result,"        FORCED non-inlined memory barriers\n");
+      "        FORCED non-inlined memory barriers\n"
     #endif
     #if defined(GASNETI_FORCE_GETTIMEOFDAY)
-      strcat(result,"        FORCED timers using gettimeofday()\n");
+      "        FORCED timers using gettimeofday()\n"
     #elif defined(GASNETI_FORCE_POSIX_REALTIME)
-      strcat(result,"        FORCED timers using clock_gettime()\n");
+      "        FORCED timers using clock_gettime()\n"
     #endif
     #if defined(GASNETI_BUG1389_WORKAROUND)
-      strcat(result,"        FORCED conservative byte-wise local access\n");
+      "        FORCED conservative byte-wise local access\n"
     #endif
-  gasnett_mutex_unlock(&gasnett_performance_warning_lock);
+      ""; 
   return result;
 }
 
@@ -396,6 +387,12 @@ extern void gasneti_filesystem_sync(void) {
   }
 }
 extern void gasneti_flush_streams(void) {
+  if (fflush(stdout)) 
+    gasneti_fatalerror("failed to flush stdout: %s", strerror(errno));
+  if (fflush(stderr)) 
+    gasneti_fatalerror("failed to flush stderr: %s", strerror(errno));
+  fsync(STDOUT_FILENO); /* ignore errors for output is a console */
+  fsync(STDERR_FILENO); /* ignore errors for output is a console */
   if (fflush(NULL)) { /* passing NULL to fflush causes it to flush all open FILE streams */
     if (errno == EBADF) {
       /* AIX has been seen to return this rarely, and at least one other libc (one
@@ -403,12 +400,6 @@ extern void gasneti_flush_streams(void) {
     } else
       gasneti_fatalerror("failed to fflush(NULL): %s", strerror(errno));
   }
-  if (fflush(stdout)) 
-    gasneti_fatalerror("failed to flush stdout: %s", strerror(errno));
-  if (fflush(stderr)) 
-    gasneti_fatalerror("failed to flush stderr: %s", strerror(errno));
-  fsync(STDOUT_FILENO); /* ignore errors for output is a console */
-  fsync(STDERR_FILENO); /* ignore errors for output is a console */
   gasneti_filesystem_sync();
   gasneti_sched_yield();
 }
@@ -636,8 +627,8 @@ static int gasneti_backtracesignal = 0;
 static void gasneti_ondemandHandler(int sig) {
   gasnett_siginfo_t const *siginfo = gasnett_siginfo_fromval(sig);
   char sigstr[80];
-  if (siginfo) sprintf(sigstr, "%s(%i)", siginfo->name, sig);
-  else  sprintf(sigstr, "(%i)", sig);
+  if (siginfo) snprintf(sigstr, sizeof(sigstr), "%s(%i)", siginfo->name, sig);
+  else  snprintf(sigstr, sizeof(sigstr), "(%i)", sig);
   if (sig == gasneti_freezesignal) {
     fprintf(stderr,"Caught GASNET_FREEZE_SIGNAL: signal %s\n", sigstr);
     gasneti_freezeForDebuggerNow(&gasnet_frozen,"gasnet_frozen");
@@ -878,8 +869,8 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
     static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
     /* Try to be smart if not in same place as at configure time */
     const char *ladebug = (access(LADEBUG_PATH, X_OK) ? "ladebug" : LADEBUG_PATH);
-    int rc = sprintf(cmd, fmt, (int)getpid(), ladebug, gasneti_exename_bt);
-    if (rc < 0) return -1;
+    int rc = snprintf(cmd, sizeof(cmd), fmt, (int)getpid(), ladebug, gasneti_exename_bt);
+    if ((rc < 0) || (rc >= sizeof(cmd))) return -1;
     return gasneti_system_redirected(cmd, fd);
   }
 #endif
@@ -890,8 +881,8 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
     const char fmt[] = "echo 'attach %d; where; quit' | %s '%s'";  
     static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
     const char *dbx = (access(DBX_PATH, X_OK) ? "dbx" : DBX_PATH);
-    int rc = sprintf(cmd, fmt, (int)getpid(), dbx, gasneti_exename_bt);
-    if (rc < 0) return -1;
+    int rc = snprintf(cmd, sizeof(cmd), fmt, (int)getpid(), dbx, gasneti_exename_bt);
+    if ((rc < 0) || (rc >= sizeof(cmd))) return -1;
     return gasneti_system_redirected(cmd, fd);
   }
 #endif
@@ -905,8 +896,8 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
     #endif
     static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
     const char *idb = (access(IDB_PATH, X_OK) ? "idb" : IDB_PATH);
-    int rc = sprintf(cmd, fmt, (int)getpid(), idb, gasneti_exename_bt);
-    if (rc < 0) return -1;
+    int rc = snprintf(cmd, sizeof(cmd), fmt, (int)getpid(), idb, gasneti_exename_bt);
+    if ((rc < 0) || (rc >= sizeof(cmd))) return -1;
     return gasneti_system_redirected_coprocess(cmd, fd);
   }
 #endif
@@ -920,8 +911,8 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
     #endif
     static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
     const char *pgdbg = (access(PGDBG_PATH, X_OK) ? "pgdbg" : PGDBG_PATH);
-    int rc = sprintf(cmd, fmt, pgdbg, (int)getpid(), gasneti_exename_bt);
-    if (rc < 0) return -1;
+    int rc = snprintf(cmd, sizeof(cmd), fmt, pgdbg, (int)getpid(), gasneti_exename_bt);
+    if ((rc < 0) || (rc >= sizeof(cmd))) return -1;
     return gasneti_system_redirected_coprocess(cmd, fd);
   }
 #endif
@@ -955,8 +946,8 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
       if (rc < 0) return -1;
     }
 
-    rc = sprintf(cmd, fmt, gdb, filename, gasneti_exename_bt, (int)getpid());
-    if (rc < 0) return -1;
+    rc = snprintf(cmd, sizeof(cmd), fmt, gdb, filename, gasneti_exename_bt, (int)getpid());
+    if ((rc < 0) || (rc >= sizeof(cmd))) return -1;
 
     rc = gasneti_system_redirected(cmd, fd);
 
@@ -978,34 +969,42 @@ static int gasneti_bt_mkstemp(char *filename, int limit) {
       fnnames = backtrace_symbols(btaddrs, entries);
     #endif
     for (i=0; i < entries; i++) {
-      FILE *xlate;
-      #define XLBUF 1024
-      static char xlstr[XLBUF];
-      static char linebuf[XLBUF];
-      xlstr[0] = '\0';
+      /* XXX: what if the write()s fail? */
+      static char linebuf[16];
+      snprintf(linebuf, sizeof(linebuf), "%i: ", i);
+      gasneti_bt_rc_unused = write(fd, linebuf, strlen(linebuf));
+
+      if (fnnames) {
+        gasneti_bt_rc_unused = write(fd, fnnames[i], strlen(fnnames[i]));
+        gasneti_bt_rc_unused = write(fd, " ", 1);
+      }
+
       #if defined(ADDR2LINE_PATH) && !GASNETI_NO_FORK
         /* use addr2line when available to retrieve symbolic info */
+        #define XLBUF 64 /* even as short as 2 bytes is still safe */
         { const char fmt[] = "%s -f -e '%s' %p";
-          static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ];
-          sprintf(cmd, fmt, ADDR2LINE_PATH, gasneti_exename_bt, btaddrs[i]);
+          static char cmd[sizeof(fmt) + 2*GASNETI_BT_PATHSZ + 10];
+          static char xlstr[XLBUF];
+          FILE *xlate;
+          int rc;
+          xlstr[0] = '\0';
+          rc = snprintf(cmd, sizeof(cmd), fmt, ADDR2LINE_PATH, gasneti_exename_bt, btaddrs[i]);
+          if ((rc < 0) || (rc >= sizeof(cmd))) {
+            return -1;
+          }
           xlate = popen(cmd, "r");
           if (xlate) {
-            char *p = xlstr;
-            int sz = XLBUF;
-            while (fgets(p, sz, xlate)) {
-              p += strlen(p) - 1;
-              if (*p != '\n') p++;
-              strcpy(p, " ");
-              p += strlen(p);
+            while (fgets(xlstr, sizeof(xlstr), xlate)) {
+              size_t len = strlen(xlstr);
+              if (xlstr[len-1] == '\n') xlstr[len-1] = ' ';
+              gasneti_bt_rc_unused = write(fd, xlstr, len);
             }
             pclose(xlate);
           }
         }
+        #undef XLBUF
       #endif
-      sprintf(linebuf, "%i: %s ", i, (fnnames?fnnames[i]:""));
-      /* XXX: what if these write()s fail? */
-      gasneti_bt_rc_unused = write(fd, linebuf, strlen(linebuf));
-      gasneti_bt_rc_unused = write(fd, xlstr, strlen(xlstr));
+
       gasneti_bt_rc_unused = write(fd, "\n", 1);
     }
     /* if (fnnames) free(fnnames); */
@@ -1062,7 +1061,12 @@ extern void gasneti_backtrace_init(const char *exename) {
   }
 #endif
 
-  gasneti_tmpdir_bt = gasneti_getenv_withdefault("TMPDIR", gasneti_tmpdir_bt);
+  gasneti_tmpdir_bt = gasneti_tmpdir();
+  if (!gasneti_tmpdir_bt) {
+    fprintf(stderr,"WARNING: Failed to init backtrace support because none of $GASNET_TMPDIR, $TMPDIR or /tmp is usable\n");
+    fflush(stderr);
+    return;
+  }
 
   if (!user_is_init && gasnett_backtrace_user.name && gasnett_backtrace_user.fnp) {
     memcpy(&gasneti_backtrace_mechanisms[gasneti_backtrace_mechanism_count++], &gasnett_backtrace_user, sizeof(gasnett_backtrace_user));
@@ -1254,12 +1258,12 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
   sz = fnlen + strlen(filename) + 20;
   loc = malloc(sz);
   if (*funcname)
-    sprintf(loc,"%s%s at %s:%i",
+    snprintf(loc,sz,"%s%s at %s:%i",
            funcname,
            (fnlen && funcname[fnlen-1] != ')'?"()":""),
            filename, linenum);
   else
-    sprintf(loc,"%s:%i", filename, linenum);
+    snprintf(loc,sz,"%s:%i", filename, linenum);
   return loc;
 }
 /* ------------------------------------------------------------------------------------ */
@@ -1482,9 +1486,14 @@ extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt
     static gasneti_verboseenv_t *displaylist_tail = NULL;
     static int notyet = 1;
     gasneti_verboseenv_t *p;
-    char displaystr[255];
+    char tmpstr[255];
+    char *displaystr = tmpstr;
     int width = MAX(10,55 - strlen(key) - strlen(displayval));
-    sprintf(displaystr, "ENV parameter: %s = %s%*s", key, displayval, width, dflt);
+    int len = snprintf(tmpstr, sizeof(tmpstr), "ENV parameter: %s = %s%*s", key, displayval, width, dflt);
+    if (len >= sizeof(tmpstr)) { /* Too long for the static buffer */
+      displaystr = malloc(len + 1);
+      snprintf(displaystr, len+1, "ENV parameter: %s = %s%*s", key, displayval, width, dflt);
+    }
     gasneti_mutex_lock(&envmutex);
       for (p = displaylist; p; p = p->next) { /* check for previous report */
         if (!strcmp(key,p->key)) break;
@@ -1514,6 +1523,7 @@ extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt
         notyet = 0;
       }
     gasneti_mutex_unlock(&envmutex);
+    if (displaystr != tmpstr) free(displaystr);
   }
 }
 extern void gasneti_envdbl_display(const char *key, double val, int is_dflt) {
@@ -1622,6 +1632,36 @@ extern double gasneti_getenv_dbl_withdefault(const char *keyname, double default
   return retval;
 }
 
+static int _gasneti_tmpdir_valid(const char *dir) {
+  struct stat s;
+  /* non-empty */
+  if (!dir || !strlen(dir)) return 0;
+  /* an absolute path */
+  if (dir[0] != '/') return 0;
+  /* an existing directory (stat follows symlinks) */
+  if (stat(dir, &s) || !S_ISDIR(s.st_mode)) return 0;
+  /* allow us to search and write */
+  if (access(dir, (X_OK | W_OK))) return 0;
+  return 1;
+}
+extern const char *gasneti_tmpdir(void) {
+  static const char slash_tmp[] = "/tmp";
+  static const char *result = NULL;
+  const char *tmpdir;
+
+  if_pt (result) return result;
+
+  if (_gasneti_tmpdir_valid(tmpdir = gasneti_getenv_withdefault("GASNET_TMPDIR", NULL))) {
+    result = tmpdir;
+  } else if (_gasneti_tmpdir_valid(tmpdir = gasneti_getenv_withdefault("TMPDIR", NULL))) {
+    result = tmpdir;
+  } else if (_gasneti_tmpdir_valid(slash_tmp)) {
+    result = slash_tmp;
+  }
+
+  return result;
+}
+
 /* ------------------------------------------------------------------------------------ */
 /* Resource limit control */
 
@@ -1678,11 +1718,11 @@ int gasnett_maximize_rlimit(int res, const char *lim_desc) {
       if (newval.rlim_cur == RLIM_INFINITY ||                                                   \
         newval.rlim_max == RLIM_INFINITY) {                                                     \
         newval.rlim_cur = RLIM_INFINITY;                                                        \
-        strcpy(newvalstr, "RLIM_INFINITY");                                                     \
+        strncpy(newvalstr, "RLIM_INFINITY", sizeof(newvalstr));                                 \
       } else {                                                                                  \
         gasneti_assert(newval.rlim_cur <= newval.rlim_max);                                     \
         newval.rlim_cur = newval.rlim_max;                                                      \
-        sprintf(newvalstr, "%llu", (unsigned long long)newval.rlim_cur);                        \
+        snprintf(newvalstr, sizeof(newvalstr), "%llu", (unsigned long long)newval.rlim_cur);    \
       }                                                                                         \
       if (newval.rlim_cur != oldval.rlim_cur) {                                                 \
         if (RLIM_CALL(setrlimit,structname)(res, &newval)) {                                    \
@@ -1896,6 +1936,10 @@ extern uint64_t gasneti_getPhysMemSz(int failureIsFatal) {
   #include "plpa.h"
 #elif PLATFORM_OS_AIX
   #include <sys/thread.h>
+#elif PLATFORM_OS_SOLARIS
+  #include <sys/types.h>
+  #include <sys/processor.h>
+  #include <sys/procset.h>
 #endif
 static int gasneti_set_affinity_cpus(void) {
     int cpus = gasneti_cpu_count();
@@ -1939,6 +1983,55 @@ void gasneti_set_affinity_default(int rank) {
     int local_rank = rank % cpus;
 
     gasneti_assert_zeroret(bindprocessor(BINDTHREAD, thread_self(), local_rank));
+  }
+  #elif PLATFORM_OS_SOLARIS
+  {
+    static processorid_t *avail_cpus = NULL;
+    static int num_cpus = 0;
+
+    if_pf (!num_cpus) {
+      static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
+
+      gasneti_mutex_lock(&lock);
+      if (!num_cpus) {
+        processorid_t i;
+        int tmp_cpus;
+        int j;
+
+        /* Find max possible CPU ID */
+        processorid_t cpuid_max = sysconf(_SC_CPUID_MAX);
+
+        /* Find the number of online CPUS. */
+        tmp_cpus = gasneti_set_affinity_cpus();
+
+        /* Allocate avail. CPU table. */
+        avail_cpus = (processorid_t *) malloc(tmp_cpus * sizeof(processorid_t));
+
+        /* Init avail. CPU table */
+        for (i = j = 0; i <= cpuid_max; i++) {
+            if (p_online(i, P_STATUS) != -1)
+              avail_cpus[j++] = i;
+        }
+
+        /* Ensure avail_cpus written/populated before num_cpus is written */
+        gasneti_sync_writes();
+        num_cpus = tmp_cpus;
+      }
+      gasneti_mutex_unlock(&lock);
+    } else {
+      gasneti_sync_reads();
+    }
+
+    /* From the processor_bind man page:
+     * P_LWPID: the binding affects the LWP of the
+     *           current process with LWP ID id.
+     * P_MYID: the specified LWP, process, task, or  
+     *          process is the current one.
+     */
+    {
+      int local_rank = rank % num_cpus;
+      gasneti_assert_zeroret(processor_bind(P_LWPID, P_MYID, avail_cpus[local_rank], NULL));
+    }
   }
   #else
     /* No implementation -> NO-OP */
@@ -2373,11 +2466,14 @@ gasneti_count0s(const void * src, size_t bytes) {
 #if (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64) && \
     (PLATFORM_OS_LINUX || PLATFORM_OS_CNL)
 extern double gasneti_calibrate_tsc(void) {
-  double Tick = 0.0; /* Inverse GHz */
-  FILE *fp = fopen("/proc/cpuinfo","r");
+  static int firstTime = 1;
+  static double Tick = 0.0; /* Inverse GHz */
+  FILE *fp = NULL;
   char input[512]; /* 256 is too small for "flags" line in /proc/cpuino */
   double MHz = 0.0;
 
+ if_pf (firstTime) {
+  fp = fopen("/proc/cpuinfo","r");
   if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
 
   /* First pass gets speed from /proc/cpuinfo */
@@ -2431,6 +2527,10 @@ extern double gasneti_calibrate_tsc(void) {
   }
 
   fclose(fp);
+
+  gasneti_sync_writes();
+  firstTime = 0;
+ } else gasneti_sync_reads();
 
   return Tick;
 }

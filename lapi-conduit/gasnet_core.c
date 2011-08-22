@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/10/10 03:38:25 $
- * $Revision: 1.134 $
+ *     $Date: 2011/08/22 23:24:34 $
+ * $Revision: 1.134.6.1 $
  * Description: GASNet lapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,7 +22,9 @@
 #include <unistd.h>
 #include <string.h>
 #include <signal.h>
+#if PLATFORM_OS_AIX
 #include <sys/processor.h>
+#endif
 
 #ifndef GASNETC_VERBOSE_EXIT
 #define GASNETC_VERBOSE_EXIT 0
@@ -423,7 +425,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
 	    }
 	    if (newindex > highlimit) {
 		char s[255];
-		sprintf(s,"Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
+		snprintf(s, sizeof(s), "Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
 		GASNETI_RETURN_ERRR(BAD_ARG, s);
 	    }
 	}
@@ -431,7 +433,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
 	/*  ensure handlers fall into the proper range of pre-assigned values */
 	if (newindex < lowlimit || newindex > highlimit) {
 	    char s[255];
-	    sprintf(s, "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
+	    snprintf(s, sizeof(s), "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
 	    GASNETI_RETURN_ERRR(BAD_ARG, s);
 	}
 
@@ -729,6 +731,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 	 int total_num_pvos;
          int i=0;
          uintptr_t tmp_offset = 0;
+  #if PLATFORM_OS_AIX
          if (segbase) { /* bug 2176: warn if segment is not large page */
            size_t large_pagesz = sysconf(_SC_LARGE_PAGESIZE);
            size_t segment_pagesz = gasnetc_get_pagesize(segbase);
@@ -741,6 +744,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
              fflush(stderr);
            }
          }
+  #endif
 	 /* Break up the segment */
 	 my_num_pvos = (segsize + (GASNETC_LAPI_PVO_EXTENT-1)) >> GASNETC_LAPI_PVO_EXTENT_BITS;
          GASNETI_TRACE_PRINTF(C,("num_pvos = %d pvo_extent = %ld",my_num_pvos,GASNETC_LAPI_PVO_EXTENT));
@@ -2281,7 +2285,6 @@ void* gasnetc_lapi_AMreq_hh(lapi_handle_t *context, void *uhdr, uint *uhdr_len,
 void gasnetc_lapi_AMch(lapi_handle_t *context, void *uinfo)
 {
     gasnetc_token_t *token = (gasnetc_token_t*)uinfo;
-    gasnetc_token_t *q_token = NULL;
     int do_schedule = (token == NULL ? 1 : 0);
 
 
@@ -2488,6 +2491,7 @@ int gasnetc_uhdr_more(int want)
     return want;
 }
 
+#if PLATFORM_OS_AIX
 #include <sys/vminfo.h>
 /* return the AIX page size for a given memory address */
 size_t gasnetc_get_pagesize(void *addr) {
@@ -2496,4 +2500,5 @@ size_t gasnetc_get_pagesize(void *addr) {
     vmgetinfo(&vi,VM_PAGE_INFO,sizeof(struct vm_page_info));
     return (size_t)vi.pagesize;
 }
+#endif
 

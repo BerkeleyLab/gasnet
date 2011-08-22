@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_region.c,v $
- *     $Date: 2009/04/27 21:37:04 $
- * $Revision: 1.39 $
+ *     $Date: 2011/08/22 23:24:50 $
+ * $Revision: 1.39.6.1 $
  * Description: 
  * Copyright 2004, Paul Hargrove <PHHargrove@lbl.gov>
  * Terms of use are as specified in license.txt
@@ -16,7 +16,7 @@
 
 typedef
 struct _fh_bucket_t {
-        fh_int_t         fh_key;	/* cached key for hash table */
+        fh_key_t         fh_key;	/* cached key for hash table */
         void            *fh_next;	/* linked list in hash table */
 					/* _must_ be in this order */
 
@@ -141,7 +141,7 @@ int fh_bucket_is_better(const fh_bucket_t *a, const fh_bucket_t *b)
   gasneti_assert(a->priv != NULL);
   gasneti_assert(b != NULL);
   gasneti_assert(b->priv != NULL);
-  gasneti_assert(a->fh_key == b->fh_key);
+  gasneti_assert(FH_KEY_EQ(a->fh_key, b->fh_key));
 
   end_a = fh_bucket_end(a);
   end_b = fh_bucket_end(b);
@@ -222,7 +222,7 @@ static fh_bucket_t
 }
 
 static void
-fh_bucket_hash(fh_bucket_t *bucket, fh_int_t key)
+fh_bucket_hash(fh_bucket_t *bucket, fh_key_t key)
 {
 	fh_bucket_t *other;
 	fh_hash_t *hash;
@@ -256,7 +256,7 @@ fh_bucket_hash(fh_bucket_t *bucket, fh_int_t key)
 static void
 fh_bucket_unhash(fh_bucket_t *bucket)
 {
-    fh_int_t key;
+    fh_key_t key;
 
     FH_TABLE_ASSERT_LOCKED;
     gasneti_assert(bucket != NULL);
@@ -297,7 +297,7 @@ static void
 fh_bucket_rehash(fh_bucket_t *bucket)
 {
     fh_bucket_t *other;
-    fh_int_t key;
+    fh_key_t key;
 
     FH_TABLE_ASSERT_LOCKED;
     gasneti_assert(bucket != NULL);
@@ -329,7 +329,16 @@ fh_bucket_t *fh_bucket_new(void)
 	fhi_bucket_freelist = bucket->fh_next;
     }
     else {
-        bucket = gasneti_malloc(sizeof(fh_bucket_t));
+        /* Allocate a full page of buckets to amortize overheads */
+        const int count = GASNET_PAGESIZE / sizeof(fh_bucket_t);
+        int i;
+        bucket = gasneti_malloc(count * sizeof(fh_bucket_t));
+        for (i = 0; i < count - 1; ++i) {
+            bucket[i].fh_next = &bucket[i+1];
+        }
+        gasneti_assert(count > 1);
+        bucket[count-1].fh_next = NULL;
+        fhi_bucket_freelist = bucket + 1;
     }
     memset(bucket, 0, sizeof(fh_bucket_t));
 
@@ -395,7 +404,9 @@ fh_hash_t *fh_PrivTable;
  * However, that currently creates lifetime problems when creating
  * and destroying private_t's.
  */
-#ifndef FIREHOSE_HASH_PRIV
+#if defined(FIREHOSE_HASH_PRIV)
+  /* Keep it */
+#else
   #define FIREHOSE_HASH_PRIV(addr, len) \
 	FH_KEYMAKE((addr), ((len) >> FH_BUCKET_SHIFT))
 #endif
@@ -405,7 +416,7 @@ firehose_private_t *
 fh_region_to_priv(const firehose_region_t *reg)
 {
 	firehose_private_t *priv;
-        fh_int_t key;
+        fh_key_t key;
 
         FH_TABLE_ASSERT_LOCKED;
 
@@ -417,7 +428,8 @@ fh_region_to_priv(const firehose_region_t *reg)
 
 /* Given a node and a region_t, create the necessary hash table entries.
  * The FIFO linkage is NOT initialized */
-static firehose_private_t * GASNETI_MALLOC
+static GASNETI_MALLOC
+firehose_private_t *
 fh_create_priv(gasnet_node_t node, const firehose_region_t *reg)
 {
     uintptr_t end_addr, bucket_addr;
@@ -431,7 +443,16 @@ fh_create_priv(gasnet_node_t node, const firehose_region_t *reg)
 	fhi_priv_freelist = priv->fh_next;
     }
     else {
-        priv = gasneti_malloc(sizeof(firehose_private_t));
+        /* Allocate a full page of private_t's to amortize overheads */
+        const int count = GASNET_PAGESIZE / sizeof(firehose_private_t);
+        int i;
+        priv = gasneti_malloc(count * sizeof(firehose_private_t));
+        for (i = 0; i < count - 1; ++i) {
+            priv[i].fh_next = &priv[i+1];
+        }
+        gasneti_assert(count > 1);
+        priv[count-1].fh_next = NULL;
+        fhi_priv_freelist = priv + 1;
     }
     memset(priv, 0, sizeof(firehose_private_t));
 
@@ -1329,6 +1350,8 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
 	}
 	/* Round down to multiple of FH_BUCKET_SIZE for sanity */
 	param_RS &= ~FH_PAGE_MASK;
+	/* Ensure max size fits in available bits of fh_key_t */
+	param_RS = MIN(param_RS, ((FH_BUCKET_SIZE - 1) << FH_BUCKET_SHIFT));
 
 
 	/* Try to work it all out with the given RS
@@ -1517,6 +1540,8 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
 		firehose_private_t *priv;
 		firehose_region_t *tmp;
 	       
+		if (!regions[i].len) continue;
+
 		/* We can safely discard the const qualifier, we know
 		 * fhi_init_local_region won't actually modify the region.
 		 */

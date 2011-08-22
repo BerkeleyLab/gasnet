@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testvis.c,v $
- *     $Date: 2009/04/01 18:38:54 $
- * $Revision: 1.26 $
+ *     $Date: 2011/08/22 23:25:10 $
+ * $Revision: 1.26.10.1 $
  * Description: GASNet Vector, Indexed & Strided correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -611,7 +611,7 @@ void _verify_strided_desc_data_both(test_strided_desc *desc, void *result,
       char *p = idxstr;
       size_t i;
       for (i=0; i < dim; i++) {
-        sprintf(p, "%i", (int)idx[i]);
+        snprintf(p, sizeof(idxstr) - (p - idxstr), "%i", (int)idx[i]);
         if (i < dim-1) strcat(p, ", ");
         p+=strlen(p);
       }

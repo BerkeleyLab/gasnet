@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudprun.c,v $
- *     $Date: 2006/05/23 12:42:29 $
- * $Revision: 1.2 $
+ *     $Date: 2011/08/22 23:24:46 $
+ * $Revision: 1.2.60.1 $
  * Description: Stand-alone AMUDP job launcher
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -11,7 +11,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
+#ifdef HAVE_GASNET_TOOLS
+#define GASNETT_LITE_MODE // preserves AMUDP's threading neutrality
+#include <gasnet_tools.h> // for ctype.h wrappers
+#else
 #include <ctype.h>
+#endif
 
 static const char *argvzero;
 static void Usage(const char *msg) {

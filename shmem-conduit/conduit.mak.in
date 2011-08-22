@@ -8,5 +8,6 @@
 #INSTRUCTIONS# or $(top_srcdir)/other/fragment-head.mak.in for usage info.
 
 CONDUIT_DEFINES = @SHMEM_FLAGS@
+CONDUIT_LIBDIRS = -L@SHMEM_LIBDIR@
 CONDUIT_LIBS = @SHMEM_LIBS@
 

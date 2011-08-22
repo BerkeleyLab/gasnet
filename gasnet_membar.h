@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_membar.h,v $
- *     $Date: 2011/03/18 23:05:01 $
- * $Revision: 1.123.4.2 $
+ *     $Date: 2011/08/22 23:24:16 $
+ * $Revision: 1.123.4.3 $
  * Description: GASNet header for portable memory barrier operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -47,7 +47,8 @@
       GASNETI_ASM("membar #LoadStore | #LoadLoad | #StoreLoad | #StoreStore");
     }
     #define gasneti_local_mb() _gasneti_local_mb()
-    #ifdef GASNETI_ARCH_SPARC_RMO /* Provide an option for SPARC RMO mode (no OS support?) */
+    #if defined(GASNETI_ARCH_SPARC_RMO) || PLATFORM_OS_LINUX
+      /* Provide an option for SPARC RMO mode, used by Linux on 64-bit SPARC */
       GASNETI_INLINE(_gasneti_local_rmb)
       void _gasneti_local_rmb(void) {
         GASNETI_ASM("membar #LoadStore | #LoadLoad"); 

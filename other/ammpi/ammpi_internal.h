@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ammpi/ammpi_internal.h,v $
- *     $Date: 2010/07/16 21:06:31 $
- * $Revision: 1.42.8.1 $
+ *     $Date: 2011/08/22 23:24:44 $
+ * $Revision: 1.42.8.2 $
  * Description: AMMPI internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -494,6 +494,7 @@ AMMPI_BEGIN_EXTERNC
 #endif
 #if PLATFORM_COMPILER_SUN
   #pragma error_messages(off, E_END_OF_LOOP_CODE_NOT_REACHED)
+  #pragma error_messages(off, E_STATEMENT_NOT_REACHED)
 #endif
 static const char *AMMPI_ErrorName(int errval) {
   switch (errval) {

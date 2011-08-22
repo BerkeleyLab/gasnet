@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_firehose.c,v $
- * $Date: 2010/07/16 21:06:19 $
- * $Revision: 1.58.8.1 $
+ * $Date: 2011/08/22 23:24:28 $
+ * $Revision: 1.58.8.2 $
  * Description: GASNet GM conduit Firehose DMA Registration Algorithm
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -154,10 +154,14 @@ firehose_move_callback(gasnet_node_t node,
 void
 gasnete_fh_callback_put(struct gm_port *p, void *context, 
 			      gm_status_t status) {
+        #ifndef GASNET_SEGMENT_FAST
         GASNET_BEGIN_FUNCTION(); /* thread cache for *_IN_UNKNOWN */
+        #endif
 	gasnete_eop_t		*pop = (gasnete_eop_t *) context;
+	#if defined(GASNET_DEBUG) || defined(GASNETI_STATS_OR_TRACE)
 	gasnet_node_t		node = pop->node;
 	gasneti_tick_t      starttime = GASNETI_TICKS_NOW_IFENABLED(C);
+	#endif
 	const firehose_request_t	*fhreqs[2];
 	int				numreqs = 1;
 
@@ -219,7 +223,6 @@ gasnete_fh_request_put(void *_pop, const firehose_request_t *req,
 			int allLocalHit)
 {
 	gasnete_eop_t	*pop = (gasnete_eop_t *) _pop;
-	gm_status_t	status;
 	gasnet_node_t	node;
 
 	gasneti_assert(pop != NULL);
@@ -656,7 +659,9 @@ gasnete_firehose_get(void *dest, gasnet_node_t node, void *src,
 	/* Request a Get in terms of a DMA put */
 	gasnete_eop_t	*gop;
 
+	#ifndef GASNET_SEGMENT_FAST
 	firehose_remotecallback_args_t	args;
+	#endif
 
 	if (iop) /* use a "dummy" eop */
           gop = gasneti_calloc(1, sizeof(gasnete_eop_t));

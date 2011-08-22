@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/smp-collectives/smp_coll.c,v $
- * $Date: 2011/04/14 05:56:12 $
- * $Revision: 1.3.6.2 $
+ * $Date: 2011/08/22 23:24:56 $
+ * $Revision: 1.3.6.3 $
  * Description: Shared Memory Collectives
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -142,7 +142,6 @@ smp_coll_t smp_coll_team_init(size_t aux_space_per_thread, int flags,
 {
 	uint8_t **allscratch;
 	smp_coll_t ret, team_lead_handle;
-	int i;
 
 #ifdef DEBUG_SMP
   fprintf(stderr, "smp_coll_team_init: THREADS %d, MYTHREAD %d, team_lead %d\n",
@@ -176,7 +175,6 @@ smp_coll_t smp_coll_team_init(size_t aux_space_per_thread, int flags,
   smp_team_barrier(team_lead, THREADS, MYTHREAD);
 
 	if (MYTHREAD == 0) {
-		int t;
 		/* Each thread has its own cache line. The extra +1 cache line is
 		 for cache line alignment for the start address. Need to make
 		 sure a cache line has enough space. */

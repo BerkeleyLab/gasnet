@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_coll_exchange_dcmf.c,v $
- *     $Date: 2010/07/16 21:06:11 $
- * $Revision: 1.7.6.1 $
+ *     $Date: 2011/08/22 23:24:18 $
+ * $Revision: 1.7.6.2 $
  * Description: GASNet exchange (alltoall) implementation on DCMF
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -222,7 +222,6 @@ gasnet_coll_handle_t gasnete_coll_exchange_nb_dcmf(gasnet_team_handle_t team,
                                                    GASNETE_THREAD_FARG)
 {
   gasnete_coll_generic_data_t *data;
-  int i;
   int nprocs =  team->total_ranks;
   gasnete_dcmf_a2a_data_t *a2a;
   gasnete_coll_team_dcmf_t *dcmf_tp;
@@ -268,7 +267,6 @@ void gasnete_coll_exchange_dcmf(gasnet_team_handle_t team,
                                 size_t nbytes, int flags
                                 GASNETE_THREAD_FARG)
 {
-  int i;
   int  nprocs = team->total_ranks;
   gasnete_dcmf_a2a_data_t * a2a;
   gasnete_coll_team_dcmf_t *dcmf_tp; 

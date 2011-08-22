@@ -1,7 +1,7 @@
 #!/usr/bin/perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/contrib/Attic/gasnetrun_gm.pl,v $
-#     $Date: 2006/11/01 22:11:24 $
-# $Revision: 1.25 $
+#     $Date: 2011/08/22 23:24:30 $
+# $Revision: 1.25.46.1 $
 #
 # Included here as a contrib/ from the mpich 1.2.5..10 mpirun script,
 # since this is the closest thing myricom ships to a spawner interface.
@@ -11,6 +11,7 @@
 use Socket;
 use Sys::Hostname;
 use Cwd;
+use Fcntl;
 
 use constant MAX_RECV_LEN => 65536;
 
@@ -740,6 +741,12 @@ if ($rexec_type eq "gexec") {
 }
 
 if (!$dry_run) {
+  # Try to set O_APPEND to avoid badly intermixed output
+  $flags = fcntl(STDOUT, F_GETFL, 0)
+    and fcntl(STDOUT, F_SETFL, $flags | O_APPEND);
+  $flags = fcntl(STDERR, F_GETFL, 0)
+    and fcntl(STDERR, F_SETFL, $flags | O_APPEND);
+
   $pid_socket = fork;
   if ($pid_socket == 0) {
     # Gather the information from all remote processes via sockets.

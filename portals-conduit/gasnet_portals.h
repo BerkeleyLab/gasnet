@@ -320,7 +320,7 @@ extern unsigned gasnetc_sys_poll_limit;
     int i;					\
     for (i = 0; i < 16; i++) hargs[i]=0;	\
   } while(0)
-#define GASNETC_DEF_HARGS() gasnet_handlerarg_t hargs[16]; int hargcnt=0; uint32_t db_seqno=0; int db_cntr=0; GASNETC_INIT_HARGS
+#define GASNETC_DEF_HARGS() gasnet_handlerarg_t hargs[16]; GASNETI_UNUSED int hargcnt=0; uint32_t db_seqno=0; GASNETI_UNUSED int db_cntr=0; GASNETC_INIT_HARGS
 #define GASNETC_ADD_HARG(foo) hargs[hargcnt++] = foo
 #define GASNETC_GET_SEQNO(ptoken) db_seqno = (ptoken)->seqno
 #define GASNETC_EXTRACT_SEQNO(data32,tok) do {\

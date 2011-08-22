@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_hash.c,v $
- *     $Date: 2009/04/27 21:37:04 $
- * $Revision: 1.13 $
+ *     $Date: 2011/08/22 23:24:50 $
+ * $Revision: 1.13.6.1 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -40,8 +40,8 @@ struct _fh_hash_t {
 /* In firehose, hash tables are created for both local bucket addresses and
  * remote firehoses.  Local bucket addresses are hashed on page addresses (as
  * integers) and remote firehoses are hashed on the bitwise or of
- * page_address|remote_node (this assumes 12 available lower order bits for
- * node).
+ * page_address|remote_node when enough lower order bits are available for node,
+ * or their exclusive-or when node numbers are larger than the available bits.
  */
 
 #define IS_POWER_OF_2(x)	(!((x)&((x)-1)))
@@ -56,21 +56,16 @@ struct _fh_hash_t {
 #define _fh_entries_del(hash)
 #endif
 
-#define FH_KEY_DELETED	((void *)-1)
-#define FH_KEY_NONE	((void *)0)
-#define FH_IS_EMPTY(x)	(x == FH_KEY_NONE)
-#define FH_IS_DELETED(x)(x == FH_KEY_DELETED)
-
 typedef
 struct fh_dummy_entry {
-	fh_int_t	hash_key;
+	fh_key_t	hash_key;
 	void		*hash_next;
 }
 fh_dummy_entry_t;
 
 /*
 int 
-inthash(fh_int_t key)
+inthash(fh_key_t key)
 {
 	key += (key << 12);
 	key ^= (key >> 22);
@@ -87,8 +82,9 @@ inthash(fh_int_t key)
 #if 1
 GASNETI_ALWAYS_INLINE(inthash)
 int
-inthash(fh_int_t key)
+inthash(fh_key_t full_key)
 {
+	intptr_t key = FH_KEY2INT(full_key);
 	key += ~(key << 15);
 	key ^=  (key >> 10);
 	key +=  (key << 3);
@@ -100,8 +96,9 @@ inthash(fh_int_t key)
 #else
 GASNETI_ALWAYS_INLINE(inthash)
 int
-inthash(fh_int_t key)
+inthash(fh_key_t full_key)
 {
+	intptr_t key = FH_KEY2INT(full_key);
 	key += ~(key << 32);
 	key ^= (key >> 22);
 	key += ~(key << 13);
@@ -175,14 +172,14 @@ fh_hash_destroy(fh_hash_t *hash)
  * since space occupied by each entry must be minimized. */
 static
 void *
-fh_hash_find(fh_hash_t *hash, fh_int_t key)
+fh_hash_find(fh_hash_t *hash, fh_key_t key)
 {
 	void		*val;
-	fh_int_t	keyhash = inthash(key) & hash->fh_mask;
+	int		keyhash = inthash(key) & hash->fh_mask;
 
 	val = hash->fh_table[keyhash];
 
-	while (val != NULL && key != ((fh_dummy_entry_t *) val)->hash_key) {
+	while (val != NULL && !FH_KEY_EQ(key, ((fh_dummy_entry_t *) val)->hash_key)) {
 		val = ((fh_dummy_entry_t *) val)->hash_next;
 	}
 
@@ -195,9 +192,9 @@ fh_hash_find(fh_hash_t *hash, fh_int_t key)
  */
 static
 void *
-fh_hash_insert(fh_hash_t *hash, fh_int_t key, void *newval)
+fh_hash_insert(fh_hash_t *hash, fh_key_t key, void *newval)
 {
-	fh_int_t	keyhash;
+	int		keyhash;
 	void		*val;
 
 	keyhash = inthash(key) & hash->fh_mask;
@@ -217,7 +214,7 @@ fh_hash_insert(fh_hash_t *hash, fh_int_t key, void *newval)
 			 * If the key matches, adjust list and return the entry.
 			 * 
 			 */
-			if (cur->hash_key == key) {
+			if (FH_KEY_EQ(cur->hash_key, key)) {
 				if (prev == NULL)
 					hash->fh_table[keyhash] = 
 						cur->hash_next;
@@ -263,7 +260,7 @@ fh_hash_insert(fh_hash_t *hash, fh_int_t key, void *newval)
  */
 void fh_hash_apply(fh_hash_t *hash, void (*fn)(void *val, void *arg), void *arg)
 {
-	fh_int_t i;
+	int i;
 
 	for (i = 0; i < hash->fh_entries; ++i) {
 		void *val = hash->fh_table[i];
@@ -285,11 +282,11 @@ static
 void *
 fh_hash_next(fh_hash_t *hash, void *val)
 {
-	fh_int_t	key = ((fh_dummy_entry_t *) val)->hash_key;
+	fh_key_t	key = ((fh_dummy_entry_t *) val)->hash_key;
 
 	do {
 		val = ((fh_dummy_entry_t *) val)->hash_next;
-	} while (val != NULL && key != ((fh_dummy_entry_t *) val)->hash_key);
+	} while (val != NULL && !FH_KEY_EQ(key, ((fh_dummy_entry_t *) val)->hash_key));
 
 	return val;
 }
@@ -301,7 +298,7 @@ static
 void
 fh_hash_replace(fh_hash_t *hash, void *val, void *newval)
 {
-	fh_int_t         keyhash;
+	int         keyhash;
 	fh_dummy_entry_t *cur;
 
 	keyhash = inthash(((fh_dummy_entry_t *)val)->hash_key) & hash->fh_mask;

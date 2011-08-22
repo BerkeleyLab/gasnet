@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testteam.c,v $
- * $Date: 2011/03/18 23:05:03 $
- * $Revision: 1.2.8.4 $
+ * $Date: 2011/08/22 23:25:10 $
+ * $Revision: 1.2.8.5 $
  *
  * Description: GASNet team split and barrier test. Each thread
  * participates in two teams: row team and column team.
@@ -77,8 +77,6 @@ void *thread_main(void *arg)
                  
   MSG("Mythread %u, my row %u, my col %u, total images %u",
       myimage, my_row, my_col, total_images);
-
-  global_barrier();
 
   MSG("Creating row teams.");
   my_row_team = gasnet_coll_team_split(GASNET_TEAM_ALL,

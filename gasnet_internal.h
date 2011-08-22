@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2010/03/08 03:16:55 $
- * $Revision: 1.120 $
+ *     $Date: 2011/08/22 23:24:16 $
+ * $Revision: 1.120.2.1 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -229,6 +229,12 @@ char *_gasneti_strndup(const char *s, size_t n GASNETI_CURLOCFARG) {
 }
 GASNETI_MALLOCP(_gasneti_strndup)
 
+/* Version of glibc's getline compatible w/ gasneti_free() */
+#if defined(__GLIBC__) && GASNET_NDEBUG
+  #define gasneti_getline getline
+#else
+  extern ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp);
+#endif
 /* ------------------------------------------------------------------------------------ */
 
 extern void gasneti_freezeForDebugger(void);
@@ -488,8 +494,10 @@ extern int gasneti_VerboseErrors;
    int retcode = (fncall);                                   \
    if_pf (gasneti_VerboseErrors && retcode != GASNET_OK) {   \
      char msg[1024];                                         \
-     sprintf(msg, "\nGASNet encountered an error: %s(%i)\n", \
+     snprintf(msg, sizeof(msg),                              \
+        "\nGASNet encountered an error: %s(%i)\n",           \
         gasnet_ErrorName(retcode), retcode);                 \
+     msg[sizeof(msg)-2] = '\n'; msg[sizeof(msg)-1] = '\0';   \
      GASNETI_RETURN_ERRFR(RESOURCE, fncall, msg);            \
    }                                                         \
  } while (0)
@@ -653,6 +661,7 @@ extern gasnet_node_t gasneti_nodemap_local_count;
 extern gasnet_node_t gasneti_nodemap_local_rank;
 extern gasnet_node_t gasneti_nodemap_global_count;
 extern gasnet_node_t gasneti_nodemap_global_rank;
+extern gasnet_node_t *gasneti_nodeinfo;
 
 extern void gasneti_nodemapInit(gasneti_bootstrapExchangefn_t exchangefn,
                                 const void *ids, size_t sz, size_t stride);

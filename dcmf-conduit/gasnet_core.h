@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.h,v $
- *     $Date: 2010/07/16 21:06:11 $
- * $Revision: 1.4.8.1 $
+ *     $Date: 2011/08/22 23:24:18 $
+ * $Revision: 1.4.8.2 $
  * Description: GASNet header for dcmf conduit core
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -67,7 +67,7 @@ typedef struct _gasnet_hsl_t {
     /* more state may be required for conduits using interrupts */
     #error interrupts not implemented
   #endif
-} gasnet_hsl_t;
+} gasnet_hsl_t GASNETI_THREAD_TYPEDEF;
 
 #if GASNETI_STATS_OR_TRACE
   #define GASNETC_LOCK_STAT_INIT ,0 

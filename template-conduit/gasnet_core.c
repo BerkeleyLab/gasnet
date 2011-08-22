@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/gasnet_core.c,v $
- *     $Date: 2009/09/21 02:58:21 $
- * $Revision: 1.63 $
+ *     $Date: 2011/08/22 23:25:08 $
+ * $Revision: 1.63.6.1 $
  * Description: GASNet <conduitname> conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -75,15 +75,23 @@ static int gasnetc_init(int *argc, char ***argv) {
   #endif
 
   /* (###) Add code here to determine which GASNet nodes may share memory.
+     The collection of nodes sharing memory are known as a "supernode".
+     The (first) data structure to describe this is gasneti_nodemap[]:
+        For all i: gasneti_nodemap[i] is the lowest node number collocated w/ node i
+     where nodes are considered collocated if they have the same node "ID".
+     Or in English:
+       "gasneti_nodemap[] maps from node to first node on the same supernode."
+
      If the conduit has already communicated endpoint address information or
      a similar identifier that is unique per shared-memory compute node, then
      that info can be passed via arguments 2 through 4.
      Otherwise the conduit should pass a non-null gasnetc_bootstrapExchange
      as argument 1 to use platform-specific IDs, such as gethostid().
+     See gasneti_nodemapInit() in gasnet_internal.c for more usage documentation.
      See below for info on gasnetc_bootstrapExchange()
 
      If the conduit can build gasneti_nodemap[] w/o assistance, it should
-     call gasneti_nodemapParse() after constructing it.
+     call gasneti_nodemapParse() after constructing it (instead of nodemapInit()).
   */
   gasneti_nodemapInit(###);
 
@@ -173,7 +181,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
       }
       if (newindex > highlimit) {
         char s[255];
-        sprintf(s,"Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
+        snprintf(s, sizeof(s), "Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
         GASNETI_RETURN_ERRR(BAD_ARG, s);
       }
     }
@@ -181,7 +189,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     /*  ensure handlers fall into the proper range of pre-assigned values */
     if (newindex < lowlimit || newindex > highlimit) {
       char s[255];
-      sprintf(s, "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
+      snprintf(s, sizeof(s), "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
       GASNETI_RETURN_ERRR(BAD_ARG, s);
     }
 
@@ -382,7 +390,7 @@ extern void gasnetc_exit(int exitcode) {
  *   If your conduit will support PSHM, then there needs to be a way
  *   for PSHM to see your handler table.  If you use the recommended
  *   implementation (gasnetc_handler[]) then you don't need to do
- *   anything special.  Othwerwise, #define GASNETC_GET_TOKEN in
+ *   anything special.  Othwerwise, #define GASNETC_GET_HANDLER in
  *   gasnet_core_fwd.h and implement gasnetc_get_handler() here, or
  *   as a macro or inline in gasnet_core_internal.h
  *

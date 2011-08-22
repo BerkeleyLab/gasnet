@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/Makefile.am,v $
-#     $Date: 2009/03/31 01:03:35 $
-# $Revision: 1.42 $
+#     $Date: 2011/08/22 23:24:46 $
+# $Revision: 1.42.8.1 $
 # Description: Makefile for AMUDP/GASNet 
 # Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -29,9 +29,9 @@ else
 endif
 
 CC  = @CC@
-CFLAGS = @CFLAGS@ @MISC_CFLAGS@ $(MANUAL_CFLAGS) $(apputils_flags) $(strict_proto_flags)
+CFLAGS = @CFLAGS@ @MISC_CFLAGS@ @SYS_HEADER_BLD@ $(MANUAL_CFLAGS) $(apputils_flags) $(strict_proto_flags)
 CXX = @CXX@
-CXXFLAGS = @CXXFLAGS@ @MISC_CXXFLAGS@ $(MANUAL_CXXFLAGS)
+CXXFLAGS = @CXXFLAGS@ @MISC_CXXFLAGS@  @SYS_HEADER_BLD@ $(MANUAL_CXXFLAGS)
 LDFLAGS = @LDFLAGS@ @cxxLDFLAGS@ $(MANUAL_LDFLAGS)
 
 PERL = @PERL@

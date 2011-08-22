@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/myxml/myxml.c,v $
- *     $Date: 2009/10/22 20:24:53 $
- * $Revision: 1.4 $
+ *     $Date: 2011/08/22 23:24:54 $
+ * $Revision: 1.4.6.1 $
  * Description: code to manage xml data
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,7 +10,7 @@
 #define STR_ALLOC_AND_COPY(OUTSTR, INSTR) do {(OUTSTR) = gasneti_malloc(strlen(INSTR)+1); strcpy((OUTSTR), (INSTR));} while(0)
 
 myxml_node_t *myxml_createNode_attr_list(myxml_node_t* parent, const char *tag, const char **attribute_list, const char **attribute_vals, int num_attributes, const char *value) {
-  int i,j;
+  int i;
   myxml_node_t *ret=gasneti_calloc(1,sizeof(myxml_node_t));
   ret->parent = parent;
   ret->num_children = 0;
@@ -243,13 +243,10 @@ myxml_node_t* myxml_loadTreeHelper(FILE *instream, myxml_node_t *parent_node) {
 
 
 myxml_node_t* myxml_loadTreeBIN(FILE *instream) {
-   uint32_t *offset_idx;
    uint32_t num_nodes;
    uint32_t temp;
-   int i;
    SAFE_READ(&temp, sizeof(uint32_t), instream);
    num_nodes = MYNTOHL(temp);
-   
    
    return myxml_loadTreeHelper(instream, NULL);
 }
@@ -328,10 +325,8 @@ myxml_node_t* myxml_loadTreeHelper_bytestream(myxml_bytestream_t *instream, myxm
 
 
 myxml_node_t* myxml_loadTreeBYTESTREAM(char *bytes, size_t nbytes) {
-  uint32_t *offset_idx;
   uint32_t num_nodes;
   uint32_t temp;
-  int i;
   myxml_bytestream_t bytestream;
   bytestream.bytes = bytes;
   bytestream.size = nbytes;
@@ -344,8 +339,6 @@ myxml_node_t* myxml_loadTreeBYTESTREAM(char *bytes, size_t nbytes) {
 }
 
 myxml_bytestream_t myxml_loadFile_into_bytestream(FILE *instream) {
-  char *buffer;
-  
   myxml_bytestream_t ret;
   
   ret.offset = 0;
@@ -471,17 +464,12 @@ static void dump_TreeBIN(FILE *outstream, myxml_node_t *node) {
 void myxml_printTreeBIN(FILE *outstream, myxml_node_t *node) {
   /*first go through and count the number of nodes and the get the size of each one*/
   int num_nodes = myxml_countAndLabelNodes(node, 0);
-  int i;
-  uint32_t temp;
-  
-
-  temp = MYHTONL(num_nodes);
+  uint32_t temp = MYHTONL(num_nodes);
   SAFE_WRITE(&temp, sizeof(uint32_t), outstream);
 
   dump_TreeBIN(outstream, node);
 
   fprintf(stdout, "tree size: %d nodes\n", num_nodes);
-  
 }
 
 #undef SAFE_READ

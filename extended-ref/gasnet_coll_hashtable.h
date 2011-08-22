@@ -1,27 +1,19 @@
-/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_hashtable.h,v $
- *     $Date: 2009/10/28 04:17:13 $
- * $Revision: 1.4 $
- * Description: Reference implemetation of GASNet Collectives team
+/* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_hashtable.h,v $
+ * $Date: 2011/08/22 23:24:24 $
+ * $Revision: 1.4.6.1 $
+ *
+ * Description: Implement hash table data structure using vectors
+ * (chaining) to solve collisions. For information about the data
+ * structures and algorithms used in the implementation, please see
+ * Ch. 12 of Introduction to Algorithms by Thomas H. Cormen, Charles
+ * E. Leiserson, Ronald L. Rivest.
+ *
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
  */
 
-/**
- * Implement hash table data structure using vectors (chaining) to
- * solve collisions
- *
- * For information about the data structures and algorithms used in the
- * implementation, please see Ch. 12 of Introduction to Algorithms
- * by Thomas H. Cormen, Charles E. Leiserson, Ronald L. Rivest.
- *
- * Lawrence Berkeley National Laboratory
- * 2009
- */
-
 #ifndef GASNET_COLL_HASHTABLE_H_
 #define GASNET_COLL_HASHTABLE_H_
-
-#include "portable_inttypes.h"
 
 /* Part I: Table */
 
@@ -65,7 +57,8 @@ typedef struct gasnete_hashtable
 /**
  * Hash function that determines the bucket for the element with a key
  */
-static inline uint32_t gasnete_hashtable_hash(gasnete_hashtable_t * ht, uint32_t key)
+GASNETI_INLINE(gasnete_hashtable_hash)
+uint32_t gasnete_hashtable_hash(gasnete_hashtable_t * ht, uint32_t key)
 {
   return (key % ht->size);
 }

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2011/03/18 23:05:01 $
- * $Revision: 1.208.2.2 $
+ *     $Date: 2011/08/22 23:24:16 $
+ * $Revision: 1.208.2.3 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -832,6 +832,7 @@ gasnet_node_t gasneti_nodemap_local_count = 0;
 gasnet_node_t gasneti_nodemap_local_rank = (gasnet_node_t)-1;
 gasnet_node_t gasneti_nodemap_global_count = 0;
 gasnet_node_t gasneti_nodemap_global_rank = (gasnet_node_t)-1;
+gasnet_node_t *gasneti_nodeinfo = NULL;
 
 /* This code is "good" for all "sensible" process layouts, where "good"
  * means identifing all sharing for such a mapping in one pass and the
@@ -953,7 +954,6 @@ void gasneti_nodemap_trivial(void) {
 static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
 #if PLATFORM_OS_BGP && GASNETI_HAVE_BGP_INLINES
     /* Build gasneti_nodemap from <X,Y,Z> coords of all ranks. */
-    gasnet_node_t i;
     _BGP_SprgShMem sprg4;
 
     GASNETI_BGP_SPR(sprg4.shmem, _BGP_SPRGRO_SHMem); /* SPRG4 30:31 = (processes per node) - 1 */
@@ -991,7 +991,15 @@ static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
     uint32_t myid = (uint32_t)gethostid();
 
     /* Fall back to hashing the hostname if the hostid is obviously invalid */
-    if (!myid || !(~myid)) {
+    if (!myid || !(~myid)        /* 0.0.0.0 or 255.255.255.255 */
+#if PLATFORM_ARCH_BIG_ENDIAN
+        || (myid == 0x7f000001) /* 127.0.0.1 */
+        || (myid == 0x00017f00) /* 127.0.0.1 w/ 16-bit words swapped - glibc does this */
+#else /* LITTLE ENDIAN */
+        || (myid == 0x0100007f) /* 127.0.0.1 */
+        || (myid == 0x007f0100) /* 127.0.0.1 w/ 16-bit words swapped - glibc does this */
+#endif
+       ) {
       const char *myname = gasneti_gethostname();
       uint64_t csum = gasneti_checksum(myname, strlen(myname));
       myid = GASNETI_HIWORD(csum) ^ GASNETI_LOWORD(csum);
@@ -1018,6 +1026,8 @@ static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
  *   gasneti_nodemap_local[]     = array (length gasneti_nodemap_local_count) of local nodes
  *   gasneti_nodemap_global_count = number of unique values in the nodemap
  *   gasneti_nodemap_global_rank  = rank of gasneti_mynode among gasneti_nodemap_global_count
+ * and constructs:
+ *   gasneti_nodeinfo[]          = array of length gasneti_nodes of supernode ids
  *
  */
 extern void gasneti_nodemapParse(void) {
@@ -1062,6 +1072,31 @@ extern void gasneti_nodemapParse(void) {
     }
   }
   #endif
+  
+  /* Construct nodeinfo using N^2 computation rather than N^2 network exchange */
+  gasneti_assert(!gasneti_nodeinfo);
+  gasneti_nodeinfo = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+  {
+    gasnet_node_t count = 1;
+    gasnet_node_t prev = 0;
+    for (i = 0; i < gasneti_nodes; ++i) {
+      gasnet_node_t match = gasneti_nodemap[i];
+      if (match == 0) { /* Special case avoids needing prev < 0 */
+        gasneti_nodeinfo[i] = 0;
+      } else if (match > prev){
+        prev = match;
+        gasneti_nodeinfo[i] = count;
+        for (j = i+1; j < gasneti_nodes; ++j) {
+          if (gasneti_nodemap[j] == match) {
+            gasneti_nodeinfo[j] = count;
+	  }
+        }
+        ++count;
+        gasneti_assert(count <= gasneti_nodemap_global_count);
+      }
+    }
+    gasneti_assert(gasneti_nodeinfo[gasneti_mynode] == gasneti_nodemap_global_rank);
+  }
 }
 
 /* gasneti_nodemapInit(exchangefn, ids, sz, stride)
@@ -1125,6 +1160,51 @@ extern void gasneti_nodemapFini(void) {
   gasneti_nodemap_local = NULL;
 #endif
 }
+
+/* ------------------------------------------------------------------------------------ */
+/* Get a line up to '\n' or EOF using dynamicly grown buffer
+ *  If buffer is too small (or NULL) then it is gasneti_realloc()ed.
+ *  Buffer and length written to *buf_p and *n_p, even on error.
+ *  Subsequent calls may reuse the buffer and length.
+ *  Caller is responsible for eventual gasneti_free().
+ *  Buffer is always terminated by '\0', even on error.
+ *  If a '\n' was read, it is perserved.
+ *  A '\n' is NOT added if EOF was reached first.
+ *  Returns bytes read on success; -1 on EOF or other error.
+ */
+#ifdef gasneti_getline
+/* Using glibc version */
+#else
+ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp) {
+    char   *buf = *buf_p;
+    char   *p   = buf;
+    size_t  n   = buf ? *n_p : 0;
+    ssize_t len = 0;
+
+    gasneti_assert((ssize_t)n >= 0);
+
+    do {
+        size_t space = n - len;
+        if_pf (space < 2) {
+            n += MAX(2, n);
+            buf = gasneti_realloc(buf, n);
+            p = buf + len;
+            space = n - len;
+        }
+        if (fgets(p, space, fp) == NULL) {
+            *p = '\0';
+            len = -1;
+            break; /* error before full line read */
+        }
+        len += strlen(p);
+        p = buf + len;
+    } while (!feof(fp) && (p[-1] != '\n'));
+
+    *buf_p = buf;
+    *n_p = n;
+    return len;
+}
+#endif /* gasneti_getline */
 
 /* ------------------------------------------------------------------------------------ */
 /* Debug memory management
@@ -1312,18 +1392,18 @@ extern void gasneti_nodemapFini(void) {
   extern void _gasneti_memcheck_one(const char *curloc) {
     if (gasneti_memalloc_extracheck) _gasneti_memcheck_all(curloc);
     else {
-      if_pt (gasneti_attach_done) gasnet_hold_interrupts();
+      if_pt (gasneti_attach_done) { gasnet_hold_interrupts(); }
       gasneti_mutex_lock(&gasneti_memalloc_lock);
         if (gasneti_memalloc_pos) {
           _gasneti_memcheck(gasneti_memalloc_pos+1, curloc, 2);
           gasneti_memalloc_pos = gasneti_memalloc_pos->nextdesc;
         } else gasneti_assert(gasneti_memalloc_ringobjects == 0 && gasneti_memalloc_ringbytes == 0);
       gasneti_mutex_unlock(&gasneti_memalloc_lock);
-      if_pt (gasneti_attach_done) gasnet_resume_interrupts();
+      if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
     }
   }
   extern void _gasneti_memcheck_all(const char *curloc) {
-    if_pt (gasneti_attach_done) gasnet_hold_interrupts();
+    if_pt (gasneti_attach_done) { gasnet_hold_interrupts(); }
     gasneti_mutex_lock(&gasneti_memalloc_lock);
       if (gasneti_memalloc_pos) {
         gasneti_memalloc_desc_t *begin = gasneti_memalloc_pos;
@@ -1342,7 +1422,7 @@ extern void gasneti_nodemapFini(void) {
         }
       } else gasneti_assert(gasneti_memalloc_ringobjects == 0 && gasneti_memalloc_ringbytes == 0);
     gasneti_mutex_unlock(&gasneti_memalloc_lock);
-    if_pt (gasneti_attach_done) gasnet_resume_interrupts();
+    if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
   }
 
   /* assert the integrity of given memory block and return size of the user object 
@@ -1458,9 +1538,9 @@ extern void gasneti_nodemapFini(void) {
     gasneti_memalloc_envinit();
     _gasneti_memcheck_one(curloc);
     GASNETI_STAT_EVENT_VAL(I, GASNET_MALLOC, nbytes);
-    if_pt (gasneti_attach_done) gasnet_hold_interrupts();
+    if_pt (gasneti_attach_done) { gasnet_hold_interrupts(); }
     if_pf (nbytes == 0) {
-      if_pt (gasneti_attach_done) gasnet_resume_interrupts();
+      if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
       return NULL;
     }
     ret = malloc(nbytes+GASNETI_MEM_EXTRASZ);
@@ -1468,7 +1548,7 @@ extern void gasneti_nodemapFini(void) {
     if_pf (ret == NULL) {
       char curlocstr[GASNETI_MAX_LOCSZ];
       if (allowfail) {
-        if_pt (gasneti_attach_done) gasnet_resume_interrupts();
+        if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
         GASNETI_TRACE_PRINTF(I,("Warning: returning NULL for a failed gasneti_malloc(%lu): %s",
                                 (unsigned long)nbytes, _gasneti_format_curloc(curlocstr,curloc)));
         return NULL;
@@ -1522,7 +1602,7 @@ extern void gasneti_nodemapFini(void) {
       ret = desc+1;
       if (gasneti_memalloc_init > 0) gasneti_memalloc_valset(ret, nbytes, gasneti_memalloc_initval);
     }
-    if_pt (gasneti_attach_done) gasnet_resume_interrupts();
+    if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
     _gasneti_memcheck(ret,curloc,0);
     return ret;
   }
@@ -1539,7 +1619,7 @@ extern void gasneti_nodemapFini(void) {
     gasneti_memalloc_envinit();
     _gasneti_memcheck_one(curloc);
     if_pf (ptr == NULL) return;
-    if_pt (gasneti_attach_done) gasnet_hold_interrupts();
+    if_pt (gasneti_attach_done) { gasnet_hold_interrupts(); }
     nbytes = _gasneti_memcheck(ptr, curloc, 1);
     GASNETI_STAT_EVENT_VAL(I, GASNET_FREE, nbytes);
     desc = ((gasneti_memalloc_desc_t *)ptr) - 1;
@@ -1564,7 +1644,7 @@ extern void gasneti_nodemapFini(void) {
     gasneti_mutex_unlock(&gasneti_memalloc_lock);
 
     if (gasneti_memalloc_leakall <= 0) free(desc);
-    if_pt (gasneti_attach_done) gasnet_resume_interrupts();
+    if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
   }
 
   extern void *_gasneti_calloc(size_t N, size_t S, const char *curloc) {
@@ -1601,7 +1681,7 @@ extern void gasneti_nodemapFini(void) {
   }
 
   extern void gasneti_malloc_dump_liveobjects(FILE *fp) {
-    if_pt (gasneti_attach_done) gasnet_hold_interrupts();
+    if_pt (gasneti_attach_done) { gasnet_hold_interrupts(); }
     gasneti_mutex_lock(&gasneti_memalloc_lock);
       if (gasneti_memalloc_pos) {
         gasneti_memalloc_desc_t *pos = gasneti_memalloc_pos;
@@ -1623,7 +1703,7 @@ extern void gasneti_nodemapFini(void) {
         } 
       } 
     gasneti_mutex_unlock(&gasneti_memalloc_lock);
-    if_pt (gasneti_attach_done) gasnet_resume_interrupts();
+    if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
   }
 
 #endif

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testvisperf.c,v $
- *     $Date: 2010/07/16 21:06:49 $
- * $Revision: 1.5.48.1 $
+ *     $Date: 2011/08/22 23:25:10 $
+ * $Revision: 1.5.48.2 $
  * Description: GASNet VIS performance test
  * Copyright 2006 Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -266,8 +266,8 @@ int main(int argc, char **argv) {
             size_t datasz = aligndown(rawdatasz,contigsz);
             if (datasz == lastdatasz) continue;
             lastdatasz = datasz;
-            if (singlesender) sprintf(mystr,"%8i: ", (int)datasz);
-            else  sprintf(mystr,"P%i: %6i: ", myproc, (int)datasz);
+            if (singlesender) snprintf(mystr, sizeof(mystr), "%8i: ", (int)datasz);
+            else  snprintf(mystr, sizeof(mystr), "P%i: %6i: ", myproc, (int)datasz);
             for (di = 0; di < densitysteps; di++) {
               gasnett_tick_t begin, end;
               size_t Lcnt = (localcontig ? 1 : datasz/contigsz);
@@ -359,7 +359,7 @@ int main(int argc, char **argv) {
                 char tmp[80];
                 double secs = gasnett_ticks_to_ns(end - begin)/1.0E9;
                 double dataMB = ((double)datasz) * iters / (1024*1024);
-                sprintf(tmp, " %8.3f", dataMB / secs);
+                snprintf(tmp, sizeof(tmp), " %8.3f", dataMB / secs);
                 strcat(mystr, tmp);
               }
               if (Lilist) test_free(Lilist);

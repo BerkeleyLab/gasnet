@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_internal.h,v $
- *     $Date: 2010/07/16 21:06:33 $
- * $Revision: 1.36.4.1 $
+ *     $Date: 2011/08/22 23:24:46 $
+ * $Revision: 1.36.4.2 $
  * Description: AMUDP internal header file
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -22,7 +22,9 @@
 #include <sockutil.h> /* for SPMD TCP stuff */
 #include <amudp.h>
 #ifdef HAVE_GASNET_TOOLS 
+  #ifndef GASNETT_LITE_MODE
   #define GASNETT_LITE_MODE /* use lite mode, to preserve AMUDP's threading neutrality */
+  #endif
   #include <gasnet_tools.h> /* must precede internal assert defs */
   #define AMUDP_FORMAT_PRINTF GASNETT_FORMAT_PRINTF
 #elif defined (__GNUC__) || defined (__attribute__)

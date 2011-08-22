@@ -1,12 +1,132 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.31.2.2 $
+$Revision: 1.31.2.3 $
+
+----------------------------------------------------------------------
+05-18-2011 : Release 1.16.2 (feature and bug fix release)
+
+* General:
+  - Fixed bug 2951: exitcode=1 from smp-conduit under unusual conditions
+  - Fixed an infrequent race in PHSM debugging code that caused rare crashes
+  - Fixed minor bugs in the non-default AMCENTRAL barrier
+  - Fixed many additional minor bug fixes and performance improvements
+
+* InfiniBand (ibv- and vapi-conduits):
+  - Fixed bug 2950: ibv-conduit page alignment problem on ia64
+  - Improved InfiniBand scalability
+    + This release adds support for the XRC extension to the InfiniBand
+      specification which can greatly reduce the memory and HCA resource
+      requirements for large node counts, when used together with SRQ.
+      For more details on SRQ and XRC see vapi-conduit/README (source)
+      or share/doc/gasnet/README-ibv (installed).
+    + This release adds support for operating ibv- and vapi-conduits
+      without connecting all pairs of nodes at startup (avoiding the
+      associated costs in time, memory and HCA resources).
+      For more information see vapi-conduit/README (source) or
+      share/doc/gasnet/README-{ibv,vapi} (installed) for documentation
+      on the GASNET_CONNECT_* family of environment variables.
+    + Several additional reductions in memory use
+
+* IBM SP (lapi-conduit):
+  - Enable partial PSHM support when not using lapi-rdma
+  - Link w/ "big TOC" by default
+
+* Build and configure:
+  - Improved configure support for AIX 6.x
+
+----------------------------------------------------------------------
+12-08-2010 : Release 1.16.1 (minor bug fix release)
+ 
+* General:
+  - Eliminated an infrequent race in an assertion that caused rare crashes.
+  - Fixed a configure problem that would reject OSS12.2's sunCC.
+  - Fixed bug 2927: PSHM breaks with greater than 255 processes.
+  - Eliminated infinite recursion on some error exits in smp-conduit.
+  - Additional small fixes in the collectives and PSHM
+
+* Cray-XT series (portals-conduit):
+  - Improved speed of job startup on large-memory nodes.
+
+----------------------------------------------------------------------
+11-01-2010 : Release 1.16.0
+ 
+* General:
+  - Environment vars to limit which nodes generate various outputs:
+    + GASNET_BACKTRACE_NODES - limits GASNET_BACKTRACE output
+    + GASNET_TRACENODES      - limits GASNET_TRACEFILE output
+    + GASNET_STATSNODES      - limits GASNET_STATSFILE output
+    + GASNET_MALLOCNODES     - limits GASNET_MALLOCFILE output
+
+* InfiniBand (ibv-conduit):
+  - This release features a (re)implementation of Active Messages for
+    ibv-conduit via SRQ (Shared Receive Queue) which greatly reduces
+    the memory requirements for large node counts.
+  - Implementation now supports (in theory) as many as 65535 GASNet
+    nodes (processes), up from 16384.
+
+* Cray-XT and Cray-XE series:
+  - Added support for PSHM (requires optional PSHM-over-SystemV)
+  - Fixed bug 2435: portals-conduit assertion failures if signalled
+  - gasnett_set_affinity() now implemented under CNL/CLE
+  - Initial testing on XE series (w/ mpi-conduit, no native support)
+
+* Process-Shared Memory (PSHM) Support
+  - Now enabled by default on Linux
+  - Enabling PSHM no longer disables conduits lacking PSHM support
+  - Optional implementation via SystemV shared memory
+  - Optional implementation via mmap()ed files
+  - AMPoll operation now O(1), rather than O(procs_per_node)
+  - Fix bug 2826: testhsl failures with PSHM + mpi-conduit
+
+* Misc Platform support:
+  - Fix bug 2530: bad addressing for 128-bit atomics on x86-64
+  - Added gasnett_set_affinity() implementation for Solaris
+  - Improved support for SGI Altix models w/ x86-64 CPUs including
+    the ICE and UV family platforms.
+  - Improved debugger support for MacOSX
+
+* Build and configure:
+  - Fix bug 2688: installing extraneous internal headers
+
+----------------------------------------------------------------------
+10-24-2010 : Release 1.15.8
+* A "stable snapshot" - second release candidate for 1.16.0
+
+----------------------------------------------------------------------
+10-17-2010 : Release 1.15.6
+* A "stable snapshot" - first release candidate for 1.16.0
+
+----------------------------------------------------------------------
+06-28-2010 : Release 1.15.4 (ibv-conduit only beta release)
+  - This is a Beta release featuring an initial (re)implementation of
+    Active Messages for ibv-conduit via SRQ (Shared Receive Queue).
+  - SRQ is an InfiniBand API mechanism for more scalable memory usage as
+    the number of connected peers increases.
+  - In previous releases of ibv-conduit each additional peer required an
+    additional GASNET_AM_CREDITS_PP buffers (32 by default) be allocated
+    for receiving AM traffic.  At 4KB per buffer plus additional metadata
+    for management, this would amount to about 133KB per peer.
+  - The introduction of SRQ allows ibv-conduit to operate with no more
+    than 1024 AM receive buffers (4MB + management overheads) independent
+    of the number of peers, with little or no performance impact on well-
+    behaved applications.
+  - This initial implementation is known to deadlock under very rare AM-
+    intensive workloads, or when certain settings are reduced to values
+    much lower than their defaults.  This will be resolved in the next
+    Beta, prior to the 1.16.0 release.
+  - There is no SRQ implementation for vapi-conduit.
+  - Relative to the previous stable release, 1.14.2, this Beta includes
+    several miscellaneous changes not described here.  Most are fixes for
+    bugs or improvements to performance, and none are suspected to make
+    this release any less stable than 1.14.2.
+  - This Beta has been mostly tested on ibv-conduit systems, but is not
+    known or suspected to be less stable on any other specific platforms.
 
 ----------------------------------------------------------------------
 05-20-2010 : Release 1.14.2
 
 * General:
-  - Much improved support for heterogenous compilers (CC, CXX and MPI_CC)
+  - Much improved support for heterogeneous compilers (CC, CXX and MPI_CC)
   - Work-around for broken MALLOC_CHECK_ support on some glibc versions
   - Use MALLOC_OPTIONS variable on *BSD as we use MALLOC_CHECK_ on glibc
   - Fix parsing of GASNET_{FREEZE,BACKTRACE}_SIGNAL env vars

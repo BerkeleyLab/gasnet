@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose.c,v $
- *     $Date: 2009/08/15 10:01:31 $
- * $Revision: 1.38 $
+ *     $Date: 2011/08/22 23:24:50 $
+ * $Revision: 1.38.6.1 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -126,6 +126,7 @@ firehose_init(uintptr_t max_pinnable_memory,
 	FH_TAILQ_INIT(&fh_LocalFifo);
 
 	/* hit the request_t freelist for first allocation */
+	if (0) /* DISABLED - most clients now manage their own allocations */
 	{
 		firehose_request_t *req = fh_request_new(NULL, 0);
 		gasneti_assert(req != NULL);

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spmd.cpp,v $
- *     $Date: 2010/07/16 21:06:33 $
- * $Revision: 1.42.4.1 $
+ *     $Date: 2011/08/22 23:24:46 $
+ * $Revision: 1.42.4.2 $
  * Description: AMUDP Implementations of SPMD operations (bootstrapping and parallel job control)
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -540,6 +540,16 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
       bootstrapinfo.stdoutMaster = hton16(0);
       bootstrapinfo.stderrMaster = hton16(0);
     }
+#if !PLATFORM_OS_MSWINDOWS
+    else {
+      // Insurance against strangely intermixed stdout/stderr
+      int rc;
+      rc = fcntl(STDOUT_FILENO, F_GETFL, 0);
+      if (rc >= 0) (void)fcntl(STDOUT_FILENO, F_SETFL, rc | O_APPEND);
+      rc = fcntl(STDERR_FILENO, F_GETFL, 0);
+      if (rc >= 0) (void)fcntl(STDERR_FILENO, F_SETFL, rc | O_APPEND);
+    }
+#endif 
 
     // main communication loop for master
     try {
@@ -1477,16 +1487,20 @@ extern int AMUDP_SPMDExit(int exitcode) {
   sched_yield();
 
   /* notify master we're exiting */
-  try {
+
+  // We disable exceptions on the following sendALL calls because the C++
+  // spec warns that exceptions may not be usable in signal handlers, and
+  // GASNet calls here when handling a fatal or termination signal.
+  /* try */ {
     int exitcode_nb = hton32(exitcode);
-    sendAll(AMUDP_SPMDControlSocket, "E");
-    sendAll(AMUDP_SPMDControlSocket, &exitcode_nb, sizeof(int32_t));
+    sendAll(AMUDP_SPMDControlSocket, "E", -1, 0);
+    sendAll(AMUDP_SPMDControlSocket, &exitcode_nb, sizeof(int32_t), 0);
     while (1) { // swallow everything and wait for master to close
       char temp;
       int retval = recv(AMUDP_SPMDControlSocket, &temp, 1, 0); 
       if (retval == 0 || retval == SOCKET_ERROR) break;
     }
-  } catch (xBase& ) { } // ignore errors that may happen on conn reset 
+  } /* catch (xBase& ) { } */ // ignore errors that may happen on conn reset
 
   AMUDP_SPMDStartupCalled = 0;
   DEBUG_SLAVE("AMUDP_SPMDShutdown..");

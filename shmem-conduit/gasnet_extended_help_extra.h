@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended_help_extra.h,v $
- *     $Date: 2009/04/27 10:43:12 $
- * $Revision: 1.10 $
+ *     $Date: 2011/08/22 23:25:04 $
+ * $Revision: 1.10.6.1 $
  * Description: GASNet Extended Shmem-specific Header 
  * Copyright 2005, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -289,7 +289,7 @@ extern int *	    gasnete_nbisync_cur;
 #else
   #define gasnete_put_nbi(pe,dest,src,nbytes)			\
 	    do { shmem_putmem(dest,src,nbytes,pe); GASNETE_NBISYNC_HAS_PUT; } while (0)
-  #define gasnete_put_nbi_bulk					\
+  #define gasnete_put_nbi_bulk(pe,dest,src,nbytes)		\
 	    do { shmem_putmem(dest,src,nbytes,pe); GASNETE_NBISYNC_HAS_PUT; } while (0)
 
   #define gasnete_get_nbi(dest,pe,src,nbytes)	   shmem_getmem(dest,src,nbytes,pe)
@@ -396,8 +396,8 @@ _gasnete_get_nb_bulk(void *dest, gasnet_node_t node, void *src, size_t nbytes)
          gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val, size_t nbytes);
 
   #define gasnete_memset_nb gasnete_am_memset_nb
-  #define gasnete_memset_nbi(node,dest,src,val,nbytes)	\
-			    (void)gasnete_am_memset_nb(node,dest,src,val,nbytes)
+  #define gasnete_memset_nbi(node,dest,val,nbytes)	\
+			    (void)gasnete_am_memset_nb(node,dest,val,nbytes)
 #endif
 
 
@@ -594,14 +594,16 @@ gasnete_get_nb_val(gasnet_node_t node, void *src,
 	    #endif
 	case 1:
 	    {
+#ifdef GASNETE_GLOBAL_ADDRESS
 		uint8_t	val;
 		val = *((uint8_t *) shmem_ptr(src,node));
 		return (gasnet_valget_handle_t) val;
-	    }
-#if 0
+#else
+		static uint8_t temp8;
 		shmem_getmem((void *) &temp8,src,1,node);
 		return (gasnet_valget_handle_t) temp8;
 #endif
+	    }
 
 	case 0: return 0;
 	default:

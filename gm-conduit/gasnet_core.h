@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.h,v $
- * $Date: 2009/04/01 23:33:00 $
- * $Revision: 1.28 $
+ * $Date: 2011/08/22 23:24:28 $
+ * $Revision: 1.28.8.1 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -67,7 +67,7 @@ typedef struct _gasnet_hsl_t {
     /* more state may be required for conduits using interrupts */
     #error interrupts not implemented
   #endif
-} gasnet_hsl_t;
+} gasnet_hsl_t GASNETI_THREAD_TYPEDEF;
 
 #if GASNETI_STATS_OR_TRACE
   #define GASNETC_LOCK_STAT_INIT ,0 

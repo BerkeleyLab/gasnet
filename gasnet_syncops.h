@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_syncops.h,v $
- *     $Date: 2011/03/18 23:05:01 $
- * $Revision: 1.54.4.2 $
+ *     $Date: 2011/08/22 23:24:16 $
+ * $Revision: 1.54.4.3 $
  * Description: GASNet header for synchronization operations used in GASNet implementation
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -18,7 +18,8 @@ GASNETI_BEGIN_EXTERNC
 /* ------------------------------------------------------------------------------------ */
 
 /* 
- * The gasnet mutex and spinlock code are in gasnet_help.h.
+ * The gasnet mutex code is in gasnet_toolhelp.h
+ * The gasnet spinlock code is in gasnet_help.h
  */
 
 /* ------------------------------------------------------------------------------------ */
@@ -680,7 +681,7 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
     void _gasneti_lifo_destroy(gasneti_lifo_head_t *p) {
       /* NOTHING */
     }
-    #define GASNETI_LIFO_INITIALIZER	{{0,}, gasneti_atomic_ptr_init(0),}
+    #define GASNETI_LIFO_INITIALIZER	{{0,}, gasneti_atomic_ptr_init(0), {0,}}
     #define GASNETI_HAVE_ARCH_LIFO	1
   #elif PLATFORM_COMPILER_XLC
     typedef struct {
@@ -751,7 +752,7 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
     void _gasneti_lifo_destroy(gasneti_lifo_head_t *p) {
       /* NOTHING */
     }
-    #define GASNETI_LIFO_INITIALIZER	{{0,}, gasneti_atomic_ptr_init(0),}
+    #define GASNETI_LIFO_INITIALIZER	{{0,}, gasneti_atomic_ptr_init(0), {0,}}
     #define GASNETI_HAVE_ARCH_LIFO	1
   #endif
 #elif defined(GASNETI_HAVE_ATOMIC_DBLPTR_CAS)
@@ -793,7 +794,7 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
     void _gasneti_lifo_destroy(gasneti_lifo_head_t *p) {
       /* NOTHING */
     }
-    #define GASNETI_LIFO_INITIALIZER	{{0,}, gasneti_atomic_dblptr_init(0,0),}
+    #define GASNETI_LIFO_INITIALIZER	{{0,}, gasneti_atomic_dblptr_init(0,0), {0,}}
     #define GASNETI_HAVE_ARCH_LIFO	1
 #elif PLATFORM_ARCH_64 && defined(GASNETI_HAVE_ATOMIC128_T)
     /* Same algorithm as dblptr_cas, above, but with alignment worries added in */
@@ -851,7 +852,7 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
     void _gasneti_lifo_destroy(gasneti_lifo_head_t *p) {
       /* NOTHING */
     }
-    #define GASNETI_LIFO_INITIALIZER    {{0,}, }
+    #define GASNETI_LIFO_INITIALIZER    {{0,}, gasneti_atomic128_init(0,0), {0,}}
     #define GASNETI_HAVE_ARCH_LIFO      1
 #elif PLATFORM_ARCH_IA64 && PLATFORM_ARCH_64 && GASNETI_HAVE_IA64_CMP8XCHG16
     /* Use the SCDS (Single-compare, double-swap) cmp8xchg16 instruction added to
@@ -1011,7 +1012,7 @@ gasneti_atomic_val_t gasneti_semaphore_trydown_partial(gasneti_semaphore_t *s, g
     void _gasneti_lifo_destroy(gasneti_lifo_head_t *p) {
       gasneti_mutex_destroy(&(p->lock));
     }
-    #define GASNETI_LIFO_INITIALIZER	{ GASNETI_MUTEX_INITIALIZER, NULL }
+    #define GASNETI_LIFO_INITIALIZER	{ GASNETI_MUTEX_INITIALIZER, NULL, {0,} }
     #define GASNETI_HAVE_ARCH_LIFO	0
     #define GASNETI_LIFOS_NOT_SIGNALSAFE 1
 #endif

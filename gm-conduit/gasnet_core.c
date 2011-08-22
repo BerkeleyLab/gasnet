@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2009/09/21 02:22:32 $
- * $Revision: 1.128 $
+ * $Date: 2011/08/22 23:24:28 $
+ * $Revision: 1.128.6.1 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -251,7 +251,7 @@ gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
       }
       if (newindex > highlimit) {
         char s[255];
-        sprintf(s,"Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
+        snprintf(s, sizeof(s), "Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
         GASNETI_RETURN_ERRR(BAD_ARG, s);
       }
     }
@@ -259,7 +259,7 @@ gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     /*  ensure handlers fall into the proper range of pre-assigned values */
     if (newindex < lowlimit || newindex > highlimit) {
       char s[255];
-      sprintf(s, "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
+      snprintf(s, sizeof(s), "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
       GASNETI_RETURN_ERRR(BAD_ARG, s);
     }
 
@@ -287,7 +287,10 @@ extern int
 gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 	       uintptr_t minheapoffset)
 {
-	int i = 0, fidx = 0;
+	#if GASNET_TRACE
+	int i;
+	#endif
+	int fidx = 0;
 
 	#if GASNET_DEBUG_VERBOSE
 	printf("%d> starting attach\n", gasneti_mynode);
@@ -461,6 +464,7 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 			    gasneti_seginfo, &gasnetc_bootstrapExchange);
 		}
 		#else
+		    int i;
 		    for (i=0;i<gasneti_nodes;i++) {
 			gasneti_seginfo[i].addr = (void *)0;
 			gasneti_seginfo[i].size = (uintptr_t)-1;
@@ -942,7 +946,7 @@ static int gasnetc_exit_slave(int64_t timeout_us) {
  * XXX: timouts contained here are entirely arbitrary
  */
 static void gasnetc_exit_body(void) {
-  int i, role, exitcode;
+  int role, exitcode;
   int graceful = 0;
   int tok_drain = 0;
   int64_t timeout_us;
@@ -1562,8 +1566,6 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 	else {
 		/* XXX gasneti_assert(GASNET_LONG_OFFSET >= LONG_HEADER) */
 		if_pt (nbytes > 0) { /* Handle zero-length messages */
-			const firehose_request_t	*req;
-			
 		    #if defined(GASNET_SEGMENT_FAST)
 			/* Remote is always pinned */
 	                GASNETI_TRACE_EVENT_VAL(C, AMREQUESTLONG_ONECOPY, nbytes);
@@ -1571,6 +1573,8 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 			    source_addr, nbytes, NULL, 
 			    (uintptr_t) dest_addr, numargs, argptr);
 		    #else
+			const firehose_request_t	*req;
+			
 			req = firehose_try_remote_pin(dest, 
 				(uintptr_t) dest_addr, nbytes, 0, NULL);
 
@@ -2118,7 +2122,7 @@ gasnetc_AMReplyLongAsyncM(
 						     source_addr, nbytes, dest_addr,
 						     numargs, argptr);
 	    va_end(argptr);
-	    return GASNET_OK;
+	    return retval;
 	}
 #endif
 
@@ -2667,8 +2671,6 @@ gasnetc_SysBroadcastAlloc_reqh(gasnet_token_t token, gasnet_handlerarg_t phase,
 void *
 gasnetc_bootstrapGatherSend(void *data, size_t len)
 {
-	uint8_t	 *hdr, *payload;
-	uint16_t *phase_ptr;
 	int	 i, phase;
 	size_t	 exchsz;
 	int	 sent = 0;

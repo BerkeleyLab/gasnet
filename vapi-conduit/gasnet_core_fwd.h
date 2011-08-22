@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2010/07/16 21:06:54 $
- * $Revision: 1.46.6.1 $
+ *     $Date: 2011/08/22 23:25:14 $
+ * $Revision: 1.46.6.2 $
  * Description: GASNet header for vapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -21,7 +21,7 @@
   #undef VAPI
 #endif
 
-#define GASNET_CORE_VERSION      1.11
+#define GASNET_CORE_VERSION      1.13
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #if defined(GASNET_CONDUIT_VAPI)
   #define GASNET_CORE_NAME         VAPI
@@ -35,6 +35,7 @@
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 
 /* 16K is the limit on the LID space, but we must allow more than 1 proc per node */
+/* 64K corresponds to 16 bits used in the AM Header and 16-bit gasnet_node_t */
 #define GASNET_MAXNODES	65535
 
 /* Explicitly set some types because we depend on their sizes when encoding them */
@@ -76,17 +77,12 @@ typedef uint8_t gasnet_handler_t;
   /* define these to 1 if your conduit supports PSHM, but cannot use the
      default interfaces. (see template-conduit/gasnet_core.c and gasnet_pshm.h)
    */
-#define GASNETC_GET_HANDLER 1 /* Need wider type to encode System category AMs */
-typedef uint16_t gasnetc_handler_t;
+/* #define GASNETC_GET_HANDLER 1 */
 /* #define GASNETC_TOKEN_CREATE 1 */
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME)       \
-        CNT(C, AMREQUEST_SYS, cnt)                \
-        CNT(C, AMREPLY_SYS, cnt)                  \
-        CNT(C, AMREQUEST_SYS_HANDLER, cnt)        \
-        CNT(C, AMREPLY_SYS_HANDLER, cnt)          \
         CNT(C, SND_AM_SNDRCV, cnt)                \
         CNT(C, SND_AM_RDMA, cnt)                  \
         CNT(C, RCV_AM_SNDRCV, cnt)                \
@@ -110,16 +106,30 @@ typedef uint16_t gasnetc_handler_t;
 	CNT(C, POST_INLINE_SR, cnt)               \
 	TIME(C, POST_SR_STALL_CQ, stalled time)   \
 	TIME(C, POST_SR_STALL_SQ, stalled time)   \
-	VAL(C, SND_POST_LIST, requests)           \
 	VAL(C, POST_SR_LIST, requests)            \
 	VAL(C, SND_REAP, reaped)                  \
 	VAL(C, RCV_REAP, reaped)                  \
+	CNT(C, CONN_STATIC, peers)                \
+	CNT(C, CONN_DYNAMIC, peers)               \
+	TIME(C, CONN_TIME_ACTV, active connect time) \
+	TIME(C, CONN_TIME_PASV, passive connect time) \
+	TIME(C, CONN_TIME_A2P, active-became-passive connect time) \
+	TIME(C, CONN_REQ2REP, REQ-to-REP delay)   \
+	TIME(C, CONN_RTU2ACK, RTU-to-ACK delay)   \
+	VAL(C, CONN_REQ, resends)                 \
+	VAL(C, CONN_RTU, resends)                 \
+	CNT(C, CONN_REP, sent)                    \
+	CNT(C, CONN_NOREP, not sent)              \
+	CNT(C, CONN_ACK, sent)                    \
+	CNT(C, CONN_NOACK, not sent)              \
+	CNT(C, CONN_AAA, remained Active)         \
+	CNT(C, CONN_AAP, became Passive)          \
+	CNT(C, CONN_IMPLIED_ACK, cnt)             \
+	TIME(C, CONN_STALL_CQ, stalled time)      \
+	TIME(C, CONN_STALL_DESC, stalled time)    \
 	TIME(C, FIREHOSE_MOVE, processing time)   \
 	VAL(C, FIREHOSE_PIN, pages)               \
 	VAL(C, FIREHOSE_UNPIN, pages)
-
-#define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
-extern void gasnetc_fatalsignal_callback(int sig);
 
 #if PLATFORM_OS_DARWIN && !GASNET_SEQ
   #define GASNETC_PTHREAD_CREATE_OVERRIDE(create_fn, thread, attr, start_routine, arg) \

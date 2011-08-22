@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/smp-collectives/smp_coll_dissem.c,v $
- *     $Date: 2009/10/22 20:24:55 $
- * $Revision: 1.3 $
+ *     $Date: 2011/08/22 23:24:56 $
+ * $Revision: 1.3.6.1 $
  * Description: Shared Memory Collectives
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -35,8 +35,6 @@ void smp_coll_dump_dissem_order(dissem_info_t *obj, int MYTHREAD) {
   int i;
   int j;
 
-  char buffer[100];
-
   for(i=0; i<obj->dissemination_phases; i++) {
     if(obj->barrier_order[i].n > 0) {
       for(j=0; j<obj->barrier_order[i].n; j++) {
@@ -52,17 +50,14 @@ void smp_coll_dump_dissem_order(dissem_info_t *obj, int MYTHREAD) {
 
 dissem_info_t *smp_coll_build_dissemination(int r, int MYTHREAD, int THREADS) {
   dissem_info_t *ret;
-  int h,w,i,j,distance,x,numpeers,destproc;
+  int h,w,i,j,distance;
   ret = (dissem_info_t*) gasneti_malloc(sizeof(dissem_info_t));
   
   w = smp_coll_mylogn(THREADS, r);
   ret->dissemination_radix = r;
   ret->dissemination_phases = w;
 
-  
-
   ret->barrier_order = (dissem_vector_t*) gasneti_malloc(sizeof(dissem_vector_t)*ret->dissemination_phases);
-
 
   distance = 1;
   /* phase 2: communication in log_r(THREADS) steps*/

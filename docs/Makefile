@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/docs/Makefile,v $
-#     $Date: 2007/10/15 20:02:16 $
-# $Revision: 1.13 $
+#     $Date: 2011/08/22 23:24:20 $
+# $Revision: 1.13.32.1 $
 # Description: Makefile for GASNet documentation
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 
@@ -60,5 +60,13 @@ clean: temp-clean
 
 dist-hook: all temp-clean
 	rm -f texinfo.tex gasnet.texi Makefile
+	@: # Use "blessed" GASNet docs if specified
+	@if test -n "$(GASNET_DOCS)"; then \
+	   list=`cd $(GASNET_DOCS) && echo gasnet.*`; for f in $$list; do \
+	     if test -f $$f; then rm -f $$f; fi; \
+	     cmd="cp -p $(GASNET_DOCS)/$$f . && chmod a=r $$f"; \
+	     echo $$cmd; eval $$cmd || exit $$?; \
+	   done; \
+	 fi
 
 .PHONY: unix info gasnet clean

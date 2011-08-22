@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2011/03/18 23:05:01 $
- * $Revision: 1.319.4.2 $
+ *     $Date: 2011/08/22 23:24:16 $
+ * $Revision: 1.319.4.3 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -654,6 +654,7 @@
       #if GASNETI_HAVE_X86_CMPXCHG16B
 	#define GASNETI_HAVE_ATOMIC128_T 16 /* Encodes aligment */
 	typedef struct { volatile uint64_t lo, hi; } gasneti_atomic128_t;
+	#define gasneti_atomic128_init(hi,lo) {(lo),(hi)}
 
 	GASNETI_INLINE(gasneti_atomic128_compare_and_swap)
 	int gasneti_atomic128_compare_and_swap(gasneti_atomic128_t *p, uint64_t oldhi, uint64_t oldlo, uint64_t newhi, uint64_t newlo, int flags) {
@@ -1846,8 +1847,8 @@
          atomic64_t works on 64-bit types without any extra alignment, we may need
          to use mutex-based atomics when not aligned.  See bug 1595 for more info.
        */
-      #if (PLATFORM_OS_DARWIN || PLATFORM_OS_AIX)
-        /* + Apple's ABI only guarantees 4-byte minimum aligment for 64-bit integers and doubles.
+      #if ((PLATFORM_OS_DARWIN && PLATFORM_ARCH_32) || PLATFORM_OS_AIX)
+        /* + Apple's 32-bit ABI only guarantees 4-byte minimum aligment for 64-bit integers and doubles.
          * + AIX's ABI only guarantees 4-byte minimum aligment for doubles.
          */
         #define GASNETI_HYBRID_ATOMIC64	1

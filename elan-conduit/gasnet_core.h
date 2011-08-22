@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2009/09/20 23:34:19 $
- * $Revision: 1.24 $
+ *     $Date: 2011/08/22 23:24:22 $
+ * $Revision: 1.24.6.1 $
  * Description: GASNet header for elan conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -67,7 +67,7 @@ typedef struct _gasnet_hsl_t {
     /* more state may be required for conduits using interrupts */
     #error interrupts not implemented
   #endif
-} gasnet_hsl_t;
+} gasnet_hsl_t GASNETI_THREAD_TYPEDEF;
 
 #if GASNETI_STATS_OR_TRACE
   #define GASNETC_LOCK_STAT_INIT ,0 

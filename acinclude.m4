@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2011/03/18 23:05:01 $
-dnl $Revision: 1.154.4.2 $
+dnl     $Date: 2011/08/22 23:24:16 $
+dnl $Revision: 1.154.4.3 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -44,6 +44,7 @@ GASNET_FUN_BEGIN([$0])
     program_suffix=NONE
   fi
   # canonicalize transforms caused by empty prefix/suffix
+  program_transform_name=`echo "$program_transform_name" | sed -e 's/; *$//;'`
   if expr "$program_transform_name" : 's.^..$' >/dev/null || \
      expr "$program_transform_name" : 's.$$..$' >/dev/null || \
      expr "$program_transform_name" : 's.$$..;s.^..$' >/dev/null ; then
@@ -1290,6 +1291,20 @@ AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
   fi
   popdef([cachevar])
 
+  pushdef([cachevar],cv_prefix[]translit([$1],'A-Z','a-z')[]_attr_format_funcptr_arg)
+  AC_CACHE_CHECK($2 for __attribute__((__format__)) on function pointers as arguments, cachevar,
+    GASNET_TRY_COMPILE_WITHWARN(GASNETI_C_OR_CXX([$1]), [
+         extern void dummy(__attribute__((__format__ (__printf__, 1, 2)))
+                              void (*dummy2)(const char *fmt,...));
+      ], [], [ cachevar='yes' ],[ cachevar='no/warning' ],[ cachevar='no/error' ])
+  )
+  if test "$cachevar" = yes; then
+      AC_DEFINE([$1]_ATTRIBUTE_FORMAT_FUNCPTR_ARG)
+  else
+      AC_DEFINE([$1]_ATTRIBUTE_FORMAT_FUNCPTR_ARG, 0)
+  fi
+  popdef([cachevar])
+
   pushdef([cachevar],cv_prefix[]translit([$1],'A-Z','a-z')[]_attr_unused_typedef)
   AC_CACHE_CHECK($2 for __attribute__((__unused__)) on typedefs, cachevar,
     GASNET_TRY_COMPILE_WITHWARN(GASNETI_C_OR_CXX([$1]), [
@@ -1945,6 +1960,7 @@ AC_CACHE_CHECK(for $1 compiler family, $3, [
     GASNET_IFDEF(__PGI, $3=PGI, [], $_force_compile)
     GASNET_IFDEF(__INTEL_COMPILER, $3=Intel, [], $_force_compile)
     GASNET_IFDEF(__OPENCC__, $3=Open64, [], $_force_compile)
+    GASNET_IFDEF(__PCC__, $3=PCC, [], $_force_compile)
   fi
   dnl other vendor compilers
   if test "$$3" = "unknown"; then

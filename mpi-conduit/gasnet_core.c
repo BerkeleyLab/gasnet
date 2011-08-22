@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core.c,v $
- *     $Date: 2010/07/16 21:06:25 $
- * $Revision: 1.81.6.1 $
+ *     $Date: 2011/08/22 23:24:36 $
+ * $Revision: 1.81.6.2 $
  * Description: GASNet MPI conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -73,9 +73,9 @@ static void gasnetc_check_config(void) {
   gasneti_assert(GASNET_ERR_BAD_ARG  == AM_ERR_BAD_ARG);
 
 #if GASNET_PSHM
-  gasneti_assert(gasnetc_Short  == ammpi_Short);
-  gasneti_assert(gasnetc_Medium == ammpi_Medium);
-  gasneti_assert(gasnetc_Long   == ammpi_Long);
+  gasneti_assert(gasnetc_Short  == (gasnetc_category_t) ammpi_Short);
+  gasneti_assert(gasnetc_Medium == (gasnetc_category_t) ammpi_Medium);
+  gasneti_assert(gasnetc_Long   == (gasnetc_category_t) ammpi_Long);
 #endif
 }
 
@@ -146,7 +146,8 @@ static int gasnetc_init(int *argc, char ***argv) {
         if (!res) { 
           #if GASNETI_THREADS
           { static char tmsg[255];
-            sprintf(tmsg, "*** WARNING: The pthreaded version of mpi-conduit requires an MPI implementation "
+            snprintf(tmsg, sizeof(tmsg),
+                          "*** WARNING: The pthreaded version of mpi-conduit requires an MPI implementation "
                           "which supports threading mode MPI_THREAD_SERIALIZED, "
                           "but this implementation reports it can only support %s\n", pstr);
             #if GASNET_DEBUG_VERBOSE
@@ -251,7 +252,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
       }
       if (newindex > highlimit) {
         char s[255];
-        sprintf(s,"Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
+        snprintf(s, sizeof(s), "Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
         GASNETI_RETURN_ERRR(BAD_ARG, s);
       }
     }
@@ -259,7 +260,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     /*  ensure handlers fall into the proper range of pre-assigned values */
     if (newindex < lowlimit || newindex > highlimit) {
       char s[255];
-      sprintf(s, "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
+      snprintf(s, sizeof(s), "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
       GASNETI_RETURN_ERRR(BAD_ARG, s);
     }
 

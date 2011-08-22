@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.c,v $
- *     $Date: 2011/03/18 23:05:01 $
- * $Revision: 1.140.4.1 $
+ *     $Date: 2011/08/22 23:24:16 $
+ * $Revision: 1.140.4.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -47,16 +47,9 @@ static gasneti_tick_t starttime;
 #endif
 
 #if GASNET_STATS
- #if PLATFORM_COMPILER_INTEL
-  /* Why can icc deal w/ GASNETI_FORMAT_PRINTF_FUNCPTR() in gasnet_trace.h but not here? */
   void (*gasnett_stats_callback)(
-    void (*format)(const char *, ...)
+    GASNETI_FORMAT_PRINTF_FUNCPTR_ARG(format,1,2,void (*format)(const char *, ...))
   ) = NULL;
- #else
-  void (*gasnett_stats_callback)(
-    GASNETI_FORMAT_PRINTF_FUNCPTR(format,1,2,void (*format)(const char *, ...))
-  ) = NULL;
- #endif
 #endif
 
 
@@ -576,11 +569,18 @@ static FILE *gasneti_open_outputfile(const char *filename, const char *desc) {
       strcpy(pathtemp,temp);
     }
     filename = pathtemp;
-    #ifdef HAVE_FOPEN64
-      fp = fopen64(filename, "wt");
+    {
+    #if PLATFORM_OS_CYGWIN
+      const char mode[] = "wt";
     #else
-      fp = fopen(filename, "wt");
+      const char mode[] = "w";
     #endif
+    #ifdef HAVE_FOPEN64
+      fp = fopen64(filename, mode);
+    #else
+      fp = fopen(filename, mode);
+    #endif
+    }
     if (!fp) {
       fprintf(stderr, "ERROR: Failed to open '%s' for %s output (%s). Redirecting output to stderr.\n",
               filename, desc, strerror(errno));
@@ -671,7 +671,7 @@ extern void gasneti_trace_updatemask(const char *newmask, char *maskstr, char *t
 }
 
 char gasneti_exename[PATH_MAX];
-#if GASNETI_STATS_OR_TRACE
+#if GASNET_DEBUG
 static const char *gasneti_mallocreport_filename = NULL;
 #endif
 
@@ -777,10 +777,6 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
     gasneti_trace_printf("GASNET_TRACELOCAL: %i", !gasneti_trace_suppresslocal);
   #endif
 
-  gasneti_mallocreport_filename = gasneti_getenv_withdefault("GASNET_MALLOCFILE","");
-  if (gasneti_mallocreport_filename && !strcmp(gasneti_mallocreport_filename, "")) gasneti_mallocreport_filename = NULL;
-  if (gasneti_mallocreport_filename && !gasneti_check_node_list("GASNET_MALLOCNODES")) gasneti_mallocreport_filename = NULL;
-
   #if GASNET_NDEBUG
   { char *NDEBUG_warning =
      "WARNING: tracing/statistical collection may adversely affect application performance.";
@@ -801,6 +797,12 @@ extern void gasneti_trace_init(int *pargc, char ***pargv) {
    gasneti_tick_granularity(), gasneti_tick_overhead());
 
   fflush(NULL);
+ #endif
+
+ #if GASNET_DEBUG
+  gasneti_mallocreport_filename = gasneti_getenv_withdefault("GASNET_MALLOCFILE","");
+  if (gasneti_mallocreport_filename && !strcmp(gasneti_mallocreport_filename, "")) gasneti_mallocreport_filename = NULL;
+  if (gasneti_mallocreport_filename && !gasneti_check_node_list("GASNET_MALLOCNODES")) gasneti_mallocreport_filename = NULL;
  #endif
 }
 

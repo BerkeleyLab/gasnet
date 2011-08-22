@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/smp-collectives/smp_coll_bcast_scatter_gather.c,v $
- *     $Date: 2009/10/22 20:24:55 $
- * $Revision: 1.4 $
+ *     $Date: 2011/08/22 23:24:56 $
+ * $Revision: 1.4.6.1 $
  * Description: Shared Memory Collectives
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -70,8 +70,6 @@ void smp_coll_broadcast_flat(smp_coll_t handle, int num_addrs, void * const dstl
 #if 0
 void smp_coll_broadcast_tree_atomic(smp_coll_t handle, int num_addrs, void * const dstlist[], const void *src, 
                              size_t nbytes, int flags, int radix){
-  int idx = 0;
-  
   int num_digits = smp_coll_mylogn(handle->THREADS, radix); 
   int radixlog2 = smp_coll_mylogn(radix,2);
   int i,j,k;
@@ -113,14 +111,10 @@ void smp_coll_broadcast_tree_atomic(smp_coll_t handle, int num_addrs, void * con
 
 void smp_coll_broadcast_tree_flag(smp_coll_t handle, int num_addrs, void * const dstlist[], const void *src, 
                                     size_t nbytes, int flags, int radix){
-  int idx = 0;
-  
-  
   int num_digits = smp_coll_mylogn(handle->THREADS, radix); 
   int radixlog2 = smp_coll_mylogn(radix,2);
 
   int i,j,k;
-  int parent=-1;
   
   if((flags & SMP_COLL_ALL_SYNC)) smp_coll_barrier(handle, flags);
   /*first thing all threads do is set their flag to be 1 indicating they have arrived*/
@@ -167,7 +161,6 @@ void smp_coll_broadcast_tree_flag(smp_coll_t handle, int num_addrs, void * const
 #if 0
 void smp_coll_broadcast_tree_leaf_get_flag(smp_coll_t handle, int num_addrs, void * const dstlist[], const void *src, 
                                   size_t nbytes, int flags){
-  int idx = 0;
   int num_digits = handle->broadcast_log_radix_THREADS;
   int radixlog2 = handle->broadcast_log_2_radix;
   int radix = handle->broadcast_radix;

@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2010/07/16 21:06:27 $
-# $Revision: 1.80.6.1 $
+#     $Date: 2011/08/22 23:24:38 $
+# $Revision: 1.80.6.2 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -95,7 +95,7 @@ sub gasnet_encode($) {
     my $is_mvich    = ($mpirun_help =~ m|MV(AP)?ICH|i);
     my $is_cray_mpi = ($mpirun_help =~ m|Psched|);
     my $is_crayt3e_mpi = ($uname =~ m|cray t3e|i );
-    my $is_irix_mpi = ($mpirun_help =~ m|\[-miser\]|);
+    my $is_sgi_mpi = ($mpirun_help =~ m|\[-miser\]|);
     my $is_poe      = ($mpirun_help =~ m|Parallel Operating Environment|);
     my $is_aprun    = ($mpirun_help =~ m|aprunwrapper\|rchitecture type.*?xt|);
     my $is_yod      = ($mpirun_help =~ m| yod |);
@@ -118,7 +118,7 @@ sub gasnet_encode($) {
     my $spawner_desc = undef;
 
     if ($ENV{'MPIRUN_CMD_BATCH'}) {
-      print "WARNING: MPIRUN_CMD_BATCH only has siginificant on the BlueGene/P" unless($is_bgp);
+      print "WARNING: MPIRUN_CMD_BATCH only has significance on the BlueGene/P" unless($is_bgp);
     }
 
     if ($is_lam) {
@@ -190,12 +190,12 @@ sub gasnet_encode($) {
 	$spawner_desc = "Cray T3E MPI";
 	# OS already propagates the environment for us automatically
 	%envfmt = ( 'noenv' => 1);
-    } elsif ($is_irix_mpi) {
-	$spawner_desc = "IRIX MPI";
+    } elsif ($is_sgi_mpi) {
+	$spawner_desc = "SGI MPI";
 	# OS already propagates the environment for us automatically
 	%envfmt = ( 'noenv' => 1 );
-	# but spawner botches the argv quoting
-        $extra_quote_argv = 1;
+	# Older spawner botches the argv quoting - BUT NOT RECENTLY
+	# Use MPIRUN_CMD='mpirun -np %N %P %Q' if still a problem
     } elsif ($is_poe) {
 	$spawner_desc = "IBM POE";
 	# the OS already propagates the environment for us automatically
@@ -759,6 +759,17 @@ if ($numnode && $is_infinipath) {
     if (defined($numnode) && !(($spawncmd =~ m/%M/) || $dashN_ok)) {
 	warn "WARNING: Don't know how to control process->node layout with your mpirun\n";
 	warn "WARNING: PROCESS LAYOUT MIGHT NOT MATCH YOUR REQUEST\n";
+    }
+
+# Fix output
+    if (!$dryrun) {
+	# Try to set O_APPEND to avoid badly intermixed output
+	use Fcntl;
+	my $flags;
+	$flags = fcntl(STDOUT, F_GETFL, 0)
+	     and fcntl(STDOUT, F_SETFL, $flags | O_APPEND);
+	$flags = fcntl(STDERR, F_GETFL, 0)
+	     and fcntl(STDERR, F_SETFL, $flags | O_APPEND);
     }
 
 # Exec it

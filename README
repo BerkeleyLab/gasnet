@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.131.4.2 $
+$Revision: 1.131.4.3 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -79,10 +79,10 @@ For example to build 64-bit code when your gcc and g++ default to 32-bit:
       2) If you configure on an SMP for execution ONLY on uniprocessors, then
          you MAY specify --disable-smp-safe for a performance improvement.
     --enable-pshm - Build GASNet with inter-Process SHared Memory (PSHM) support.
-      This experimental feature uses shared memory communication among the
-      processes (aka GASNet nodes) within a single compute node (where the other
-      alternatives are multi-threading via a PAR or PARSYNC build; or
-      use of the conduit's API to perform the communication).
+      This feature uses shared memory communication among the processes (aka
+      GASNet nodes) within a single compute node (where the other alternatives
+      are multi-threading via a PAR or PARSYNC build; or use of the conduit's
+      API to perform the communication).
       Note that not all conduits and operating systems support this feature.
       For more information, see the file pshm-design.txt in the docs directory.
 
@@ -224,8 +224,8 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
  
     * Solaris10/SPARC/gcc,SunProC/32,64: smp, udp, mpi
     * Solaris10/x86/gcc,SunProC/32,64: smp, udp, mpi
-
-    * OpenSolaris/x86/gcc,SunProC/32,64: smp, udp, #
+    * Solaris11Express/x86/gcc,SunStudio12/32,64: smp, udp, mpi, ibv
+    * OpenSolaris/x86/gcc,SunStudio12/32,64: smp, udp, #
 
     * MSWindows-Cygwin/x86/gcc/32/: smp, udp, mpi (MPICH.NT,MPICH2)
 
@@ -434,6 +434,9 @@ application-specific support.
  Currently vapi-, ibv-, gm-, lapi-, dcmf-, and portals-conduits honor these settings.
  Smp-conduit also honors these settings when PSHM-support is enabled.
  Default values differ among these conduits.
+
+* GASNET_TMPDIR: if set to a valid directory name this is used instead of TMPDIR
+ or "/tmp" as a location for creating temporary files.
 
 * see conduit-specific documentation in conduit directories for more settings
  

@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2011/03/18 23:05:01 $
-# $Revision: 1.625.2.2 $
+#     $Date: 2011/08/22 23:24:16 $
+# $Revision: 1.625.2.3 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.625.2.2 $)
+AC_REVISION($Revision: 1.625.2.3 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -26,8 +26,8 @@ AC_VALIDATE_CACHED_SYSTEM_TUPLE
 
 dnl Public release version packaging identifier:
 AC_DEFUN([GASNET_RELEASE_VERSION_MAJOR_D],[1])
-AC_DEFUN([GASNET_RELEASE_VERSION_MINOR_D],[15])
-AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[5])
+AC_DEFUN([GASNET_RELEASE_VERSION_MINOR_D],[17])
+AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[3])
 dnl GASNet spec version:
 AC_DEFUN([GASNET_SPEC_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNET_SPEC_VERSION_MINOR_D],[8])
@@ -113,7 +113,7 @@ GASNET_IF_ENABLED(conservative-local-copy, [enable use of conservative (slower) 
 
 dnl     Store full paths, so we find right ones even if users have
 dnl     some other version in their path
-GASNET_PATH_PROGS(GMAKE, $GMAKE gmake make $MAKE, GNU make)
+GASNET_PATH_PROGS(GMAKE, gmake make $MAKE, GNU make)
 AC_MSG_CHECKING(for GNU make)
 if $GMAKE --version | grep GNU ; then
   AC_MSG_RESULT(yes)
@@ -124,16 +124,7 @@ else
 fi
 AC_SUBST(GMAKE)
 
-# we do not require nm
-AC_PATH_PROG(NM, $NM nm, nm utility)
-AC_MSG_CHECKING(for GNU nm)
-if test "`${NM:-nm} --version 2>&1 | grep GNU`" = "" ; then
-  gnu_nm=no
-else
-  gnu_nm=yes
-fi
-AC_MSG_RESULT($gnu_nm)
-AM_CONDITIONAL(GNU_NM, test "$gnu_nm" = "yes")
+dnl Other tools checked later, after PROG_CC check sets cross_compiling
 
 ########################################################################
 ##
@@ -169,7 +160,17 @@ GASNET_FAMILY_CACHE_CHECK(C, CC, gasnet_cv_cc_family)
 ## compiler family early initialization
 
 case "$gasnet_cv_cc_family" in
-  GNU)  GASNET_GCC_VERSION_CHECK(CC) ;;
+  GNU)  GASNET_GCC_VERSION_CHECK(CC)
+        GASNET_TRY_CACHE_EXTRACT_STR([for gcc version string],gcc_version_string,[
+          #ifndef __VERSION__
+            #define __VERSION__ "unknown"
+          #endif
+         ],[__VERSION__],[GASNETI_GCC_VERSION])
+        case "$GASNETI_GCC_VERSION" in
+          *gccfss*) AC_DEFINE(GASNETI_GCC_GCCFSS) ;;
+          *Apple*)  AC_DEFINE(GASNETI_GCC_APPLE) ;;
+        esac
+        ;;
   MTA)  # override target_os for MTA, which may be wrong if cross-compiling
         target_os="mtx"   ;;
   Cray) # Min supported version is 7.2 (which reports as 10.2)
@@ -570,7 +571,7 @@ case "$gasnet_cv_cc_family" in
   GNU)
     case "$target_cpu" in
       sparc) GASNET_GET_ULTRASPARC_FLAGS(C,["-mcpu=ultrasparc3 -mtune=ultrasparc3" "-mcpu=ultrasparc -mtune=ultrasparc"]);;
-      powerpc*) GASNET_GET_PPC64_FLAGS(C,["-force_cpusubtype_ALL" "-Wa,-mppc64"]);;
+      rs6000|powerpc*) GASNET_GET_PPC64_FLAGS(C,["-force_cpusubtype_ALL" "-Wa,-mppc64"]);;
       ia64) GASNET_TRY_CFLAG([-mtls-size=64], [MISC_CFLAGS="$MISC_CFLAGS -mtls-size=64"]);;
     esac
     case "$target_os" in
@@ -796,6 +797,36 @@ GASNET_POPVAR(CFLAGS)
 GASNET_SETUP_INTTYPES()
 
 ########################################################################
+# get sizes of additional types for the "anytype" unions
+
+GASNET_CHECK_SIZEOF(float)
+GASNET_CHECK_SIZEOF(double)
+
+dnl Grumble!  Can't use AC_CHECK_TYPE or AC_CHECK_TYPES in autoconf 2.13
+dnl Additionally, this duplicates a check in recent AC_SIZEOF() just
+dnl for the sake of avoiding the error abort in GASNET_CHECK_SIZEOF.
+AC_DEFUN([GASNET_CHECK_SIZEOF_OPTIONAL], [
+  pushdef([uppername],translit($1,'a-z ','A-Z_'))
+  pushdef([lowername],translit($1,'A-Z ','a-z_'))
+  GASNET_TRY_CACHE_CHECK([for type $1],[type_]lowername,[],
+    [ if (($1 *) 0) return 0;
+      if (sizeof ($1)) return 0;
+    ],
+    [GASNET_CHECK_SIZEOF($1)],
+    [dnl see GASNET_CHECK_SIZEOF for a desciption of this little gem:
+     ac_cv_SIZEOF_[]uppername[]_indirect=SIZEOF_[]uppername
+     AC_DEFINE_UNQUOTED($ac_cv_SIZEOF_[]uppername[]_indirect,0)
+    ])
+  popdef([lowername])
+  popdef([uppername])
+])
+GASNET_CHECK_SIZEOF_OPTIONAL(_Bool)
+GASNET_CHECK_SIZEOF_OPTIONAL(long double)
+GASNET_CHECK_SIZEOF_OPTIONAL(float _Complex)
+dnl NOT YET - GASNET_CHECK_SIZEOF_OPTIONAL(double _Complex)
+dnl NOT YET - GASNET_CHECK_SIZEOF_OPTIONAL(long double _Complex)
+
+########################################################################
 ##
 ##  Page size
 ##
@@ -874,6 +905,9 @@ case "$target_os" in
 	if test $force_arch_altix = yes -o -d "/dev/hw/cpunum" -o -c "/dev/xpmem"; then
    	  GASNETI_ARCH_ALTIX=1
 	  AC_DEFINE(GASNETI_ARCH_ALTIX)
+	  if test $target_cpu = ia64 -o -c "/dev/mmtimer"; then
+	    AC_DEFINE(GASNETI_USE_MMTIMER)
+	  fi
 	fi
 	# Check for SiCortex hardware by device or cpu name
 	if test $force_arch_sicortex = yes -o -c "/dev/scfabric" || 
@@ -912,11 +946,11 @@ case "$target_os" in
         fi
 	;;
   netbsd*) 
-	GASNET_THREAD_DEFINES="-D_REENTRANT"
+	GASNET_THREAD_DEFINES="-pthread -D_REENTRANT" # _REENTRANT probably redundant
         GASNET_THREAD_LIBS="-pthread" # bug 1205: do not explicitly select threading lib
 	;;
   openbsd*) 
-	GASNET_THREAD_DEFINES="-D_REENTRANT"
+	GASNET_THREAD_DEFINES="-pthread -D_REENTRANT" # _REENTRANT probably redundant
         GASNET_THREAD_LIBS="-pthread" # bug 1205: do not explicitly select threading lib
 	;;
   cygwin*) 
@@ -1175,18 +1209,23 @@ if test "$enabled_pshm" != no; then
   have_shm_open=no
   AC_SEARCH_LIBS(shm_open, [rt posix4], [
     if test "$cross_compiling" = "yes" ; then
-      AC_MSG_CHECKING([for working shm_open()])
       # To the best of my knowledge CNL, Catamount, and BG/L all lack
       # working shm_open() support, though at least CNL finds the symbol.
       # Our support on BG/P is marginal at the moment (see pshm-design.txt).
       # So, we default to NO shm_open() when cross-compiling. -PHH
+      # Update: CNL on Cray XE *does* have working shm_open(). -PHH
       # One can set CROSS_HAVE_SHM_OPEN=1 to force building PSHM for POSIX.
-      if test "x$CROSS_HAVE_SHM_OPEN" = x1; then
+      AC_CACHE_CHECK([for working shm_open()], gasnet_cv_have_shm_open, [
+        if test "x$CROSS_HAVE_SHM_OPEN" = x1; then
+          gasnet_cv_have_shm_open='yes (from CROSS_HAVE_SHM_OPEN)'
+        else
+          gasnet_cv_have_shm_open='no (default when cross compiling)'
+        fi
+      ])
+      if expr "$gasnet_cv_have_shm_open" : "yes" >/dev/null; then
        have_shm_open=yes
-       AC_MSG_RESULT([yes (from CROSS_HAVE_SHM_OPEN)])
       else
        have_shm_open=no
-       AC_MSG_RESULT([no (default when cross compiling)])
       fi
     else
       GASNET_TRY_CACHE_RUN([for working shm_open()], have_shm_open, [
@@ -1548,7 +1587,7 @@ AC_TRY_RUN([
   #if PLATFORM_ARCH_X86_64
     #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
         PLATFORM_COMPILER_PATHSCALE || GASNETI_PGI_ASM_GNU || \
-        PLATFORM_COMPILER_OPEN64_BROKEN_SEE_BUG_2726
+        PLATFORM_COMPILER_OPEN64
 
 	unsigned long *array[3];
 	volatile unsigned long *p = (void *)(((unsigned long)array + 15) & ~(unsigned long)15);
@@ -1558,21 +1597,21 @@ AC_TRY_RUN([
 	register unsigned long oldhi = 0x1234llu << 32;
 	register unsigned long newlo = 1234;
 	register unsigned long newhi = 5678;
+	register unsigned char result;
 
 	p[0] = 0;
 	p[1] = 0x1234llu << 32;
 
 	__asm__ __volatile__ (
 		"lock;			"
-		"cmpxchg16b	%0	\n\t"
-		"sete		%b1	"
-		: "+m" (*p), "+&a" (oldlo), "+&d" (oldhi)
+		"cmpxchg16b	%1	\n\t"
+		"sete		%0	"
+		: "=q" (result), "+m" (*p), "+&a" (oldlo), "+&d" (oldhi)
 		: "b" (newlo), "c" (newhi)
 		: "cc", "memory");
-	oldlo &= 0xff;
 
 	/* Want SUCCESS and changed values */
-       	return (!oldlo || (p[0] != 1234) || (p[1] != 5678));
+       	return (!result || (p[0] != 1234) || (p[1] != 5678));
     #else
 	/* Don't know, but also don't currently care */
 	return 1;
@@ -1958,8 +1997,8 @@ AC_DEFUN([GASNET_IB_OPTIONS],[
   # See bug #1052 for evidence that xlc is affected.
   GASNET_FH_CFLAGS
 
-  GASNET_IF_ENABLED_WITH_AUTO(lowername[]-poll-lock, [See vapi-conduit/README (disabled by default)], 
-    enabled_ib_poll_lock=yes, enabled_ib_poll_lock=no, enabled_ib_poll_lock=no)
+  GASNET_IF_ENABLED(lowername[]-poll-lock, [See vapi-conduit/README (disabled by default)], 
+    enabled_ib_poll_lock=yes, enabled_ib_poll_lock=no)
     if test "$enabled_ib_poll_lock" = yes; then
       AC_DEFINE(GASNETC_IB_POLL_LOCK)
     fi
@@ -2001,7 +2040,7 @@ AC_DEFUN([GASNET_IB_OPTIONS],[
   AC_SUBST(GASNET_IB_SPAWNER_CONF)
 
   gasnetc_ib_max_hcas=2
-  GASNET_IF_ENABLED_WITH_AUTO(lowername[]-multirail, [Enable/disable uppername over multiple HCAs, see vapi-conduit/README (enabled by default)], enabled_ib_multirail=yes, enabled_ib_multirail=no, enabled_ib_multirail=yes)
+  GASNET_IF_DISABLED(lowername[]-multirail, [Disable uppername over multiple HCAs, see vapi-conduit/README (enabled by default)], enabled_ib_multirail=no, enabled_ib_multirail=yes)
   GASNET_WITH(lowername[]-max-hcas,
      [maximum number of uppername HCAs to open for multi-rail support (default is 2)],
      [if expr "${withval}" : "[[1-9]][[0-9]]*" >/dev/null; then
@@ -2171,7 +2210,7 @@ if test $enabled_udp = yes; then
        GASNET_GCC_VERSION_CHECK(CXX)
        case "$target_cpu" in
          sparc) GASNET_GET_ULTRASPARC_FLAGS(CXX,["-mcpu=ultrasparc3 -mtune=ultrasparc3" "-mcpu=ultrasparc -mtune=ultrasparc"]);;
-         powerpc*) GASNET_GET_PPC64_FLAGS(CXX,["-force_cpusubtype_ALL" "-Wa,-mppc64"]);;
+         rs6000|powerpc*) GASNET_GET_PPC64_FLAGS(CXX,["-force_cpusubtype_ALL" "-Wa,-mppc64"]);;
          ia64) GASNET_TRY_CXXFLAG([-mtls-size=64], [MISC_CXXFLAGS="$MISC_CXXFLAGS -mtls-size=64"]);;
        esac
        case "$target_os" in
@@ -2212,7 +2251,8 @@ if test $enabled_udp = yes; then
     Sun) if test "$target_cpu" = "sparc"; then 
            GASNET_GET_ULTRASPARC_FLAGS(CXX,["-xarch=v8plusb" "-xarch=v8plusa" "-xarch=v8plus" "-xarch=sparcvis2" "-xarch=sparcvis" "-xarch=sparc"])
          fi
-         CXXOPTFLAGS="-xO2" # Can we go higher to match "-xO5" of CCOPTFLAGS?
+         CXXOPTFLAGS="-xO2" # Can we go higher to match "-fast -xO5" of CCOPTFLAGS?
+         GASNET_TRY_CXXFLAG([-xlibmopt], [CXXOPTFLAGS="$CXXOPTFLAGS -xlibmopt"])
       ;;
     NEC)   MISC_CXXFLAGS="-woff=68:111:174:177:236:301:550:940 -Kexceptions" 
            CXXDEBUGFLAGS="-g -Cnoopt -Cdebug"
@@ -2635,7 +2675,13 @@ if test $enabled_gm = yes; then
     ;;
     *)	# All unknown for now
         GASNET_ENV_DEFAULT(GM_INCLUDE, $GMHOME/include)
-	GASNET_ENV_DEFAULT(GM_LIB, $GMHOME/lib)
+        # Note 'test -d $foo/.' works even if $foo is a symlink
+        if test x"$ac_cv_sizeof_void_p" = x8 -a -d $GMHOME/lib64/.; then
+          gm_libdir_default=$GMHOME/lib64
+        else
+          gm_libdir_default=$GMHOME/lib
+        fi
+	GASNET_ENV_DEFAULT(GM_LIB, $gm_libdir_default)
 	if test "$GM_INCLUDE" = "" || test ! -d "$GM_INCLUDE"; then
 	  have_gm=no
 	fi
@@ -2732,9 +2778,15 @@ if test "$enabled_lapi$have_pthread" = yesno; then
   GASNET_MSG_WARN([lapi-conduit requires pthread support but pthreads $pthread_reason - disabling lapi])
 fi
 if test "$enabled_lapi" = yes; then
+  # try to find proper LAPI lib
+  lapi_orig_LIBS="$LIBS"
+  GASNET_PUSHVAR(LIBS,"-lpthread")
+  AC_SEARCH_LIBS([LAPI_Init], [lapi_r lapi], [:], [:], [$lapi_orig_LIBS])
+  LAPI_LIBS="$LIBS"
+  GASNET_POPVAR(LIBS)
 
   # try to compile and link a simple LAPI program
-  GASNET_PUSHVAR(LIBS,"$LIBS -llapi_r -lpthread")
+  GASNET_PUSHVAR(LIBS,"$LIBS $LAPI_LIBS")
   GASNET_TRY_CACHE_LINK(for working LAPI configuration, lapi_works, [
     #include <lapi.h>
     #include <string.h>
@@ -2842,7 +2894,7 @@ if test "$enabled_lapi" = yes; then
       fi
     fi
     if test "$enable_lapi_rdma" != no; then
-      GASNET_PUSHVAR(LIBS,"$LIBS -llapi_r -lpthread")
+      GASNET_PUSHVAR(LIBS,"$LIBS $LAPI_LIBS")
       GASNET_TRY_CACHE_LINK([for LAPI RDMA support], lapi_rdma, [
         #include <lapi.h>
         #include <string.h>
@@ -2882,10 +2934,11 @@ if test "$enabled_lapi" = yes; then
   fi
 
   if test x"$ac_cv_sizeof_void_p" = x4; then
-    LAPI_LD="mpcc_r"
+    lapi_ld_dflt="mpcc_r -bbigtoc"
   else
-    LAPI_LD="mpcc_r -q64 -blpdata"
+    lapi_ld_dflt="mpcc_r -q64 -blpdata -bbigtoc"
   fi
+  GASNET_ENV_DEFAULT(LAPI_LD, $lapi_ld_dflt)
   AC_SUBST(LAPI_LD)
 
 fi
@@ -3154,11 +3207,12 @@ if test "$enabled_vapi" = yes; then
   GASNET_POPVAR(LIBS)
 
   if test "$have_vapi" = yes; then
+    GASNET_PUSHVAR(CFLAGS,"$CFLAGS -I$VAPI_INCLUDE $GASNET_THREAD_DEFINES $VAPI_LIBCFLAGS")
+    GASNET_PUSHVAR(LIBS,"$LIBS -L$VAPI_LIBDIR $VAPI_LIBS $GASNET_THREAD_LIBS")
+
     GASNET_IF_ENABLED_WITH_AUTO(vapi-fmr, support/use VAPI Fast Memory Regions (default is to probe),
                  [enabled_vapi_fmr="yes"], [enabled_vapi_fmr="no"], [enabled_vapi_fmr="try"])
     if test "$enabled_vapi_fmr" != no; then
-      GASNET_PUSHVAR(CFLAGS,"$CFLAGS -I$VAPI_INCLUDE $GASNET_THREAD_DEFINES $VAPI_LIBCFLAGS")
-      GASNET_PUSHVAR(LIBS,"$LIBS -L$VAPI_LIBDIR $VAPI_LIBS $GASNET_THREAD_LIBS")
       GASNET_TRY_CACHE_LINK(for VAPI FMR support, vapi_fmr, [
         #include <vapi.h>
         #include <evapi.h>
@@ -3167,14 +3221,15 @@ if test "$enabled_vapi" = yes; then
         EVAPI_fmr_hndl_t handles[1];
         EVAPI_unmap_fmr(my_hca, 1, handles);
       }], [ have_vapi_fmr="yes" ], [ have_vapi_fmr="no" ])
-      GASNET_POPVAR(CFLAGS)
-      GASNET_POPVAR(LIBS)
       if test "$have_vapi_fmr" = yes; then
         AC_DEFINE(HAVE_VAPI_FMR)
       elif test "$enabled_vapi_fmr" = yes; then
         AC_MSG_ERROR(User requested --enable-vapi-fmr but support was not found.)
       fi
     fi
+
+    GASNET_POPVAR(CFLAGS)
+    GASNET_POPVAR(LIBS)
 
     # Collect IB-specifc configure options
     GASNET_IB_OPTIONS(VAPI)
@@ -3262,6 +3317,30 @@ if test "$enabled_ibv" = yes; then
 
     # Collect IB-specifc configure options
     GASNET_IB_OPTIONS(IBV)
+
+    GASNET_IF_DISABLED([ibv-srq],
+                       [Disable Shared Receive Queue (SRQ) support in ibv-conduit (enabled by default)],
+		       [enabled_ibv_srq=no], [AC_DEFINE(HAVE_IBV_SRQ)])
+
+    GASNET_IF_ENABLED_WITH_AUTO([ibv-xrc],
+        [Enable/disable eXtended Reliable Connection (XRC) support in ibv-conduit (default is to probe)],
+        [enabled_ibv_xrc="yes"; force_ibv_xrc="yes"],
+        [enabled_ibv_xrc="no"],
+        [enabled_ibv_xrc="yes"])
+    if test "x$enabled_ibv_srq" = xno; then
+      if test "x$force_ibv_xrc" = xyes; then
+        GASNET_MSG_ERROR([IBV XRC support was requested with --enable-ibv-xrc but requires SRQ support which has been disabled])
+      fi
+    elif test "$enabled_ibv_xrc" = yes; then
+      GASNET_PUSHVAR(LIBS,"$LIBS -L$IBV_LIBDIR $IBV_LIBS $GASNET_THREAD_LIBS")
+      AC_CHECK_FUNCS([ibv_create_xrc_rcv_qp], [have_ibv_xrc=yes], [have_ibv_xrc=no])
+      GASNET_POPVAR(LIBS)
+      if test "$have_ibv_xrc" = yes; then
+        AC_DEFINE(HAVE_IBV_XRC)
+      elif test "x$force_ibv_xrc" = xyes; then
+        GASNET_MSG_ERROR([IBV XRC support was requested with --enable-ibv-xrc but is not available])
+      fi
+    fi
   fi
 fi
 AC_SUBST(IBV_INCLUDE)
@@ -3413,6 +3492,47 @@ AM_CONDITIONAL(USE_PORTALS_CONDUIT, test "$have_portals" = yes)
 CONDUIT_END([test "$have_portals" = yes])
 
 #--------------------------------------------------------------------------------------------------------
+# Gemini Conduit
+
+CONDUIT_BEGIN(gemini,[Gemini network conduit (gemini)])
+# gni only supported on compute node linux for now (cnl)
+case "$target" in
+  *-cnl-*) ;;
+  *) if test "$force_gemini" != "yes"; then
+       enabled_gemini=no 
+     fi
+  ;;
+esac
+# for now don't support everything
+CONDUIT_DISALLOW_SEGMENT(everything)
+
+# set up include path for gni headers and pmi
+if test "$enabled_gemini" = yes; then
+  have_gemini=yes # start by assuming we have it
+  GASNET_ENV_DEFAULT(PE_DIR, /opt/cray)
+  GASNET_ENV_DEFAULT(PMI_INCLUDE, $PE_DIR/pmi/default/include)
+  GASNET_ENV_DEFAULT(GEMINI_INCLUDE, $PE_DIR/gni-headers/default/include)
+  GEMINI_INCLUDES="-I${GEMINI_INCLUDE} -I${PMI_INCLUDE} "
+  GASNET_ENV_DEFAULT(GEMINI_LIBS, )
+
+  if test $have_gemini = yes; then
+    # If/when we use firehose we need to disable certain optimizations.
+    #GASNET_FH_CFLAGS
+
+    GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS ${GEMINI_INCLUDES}")
+
+    AC_CHECK_HEADERS(pmi_cray.h, [:], [have_gemini=no])
+
+    GASNET_POPVAR(CPPFLAGS)
+  fi
+  AC_SUBST(GEMINI_LIBS)
+  AC_SUBST(GEMINI_INCLUDES)
+fi
+
+AM_CONDITIONAL(USE_GEMINI_CONDUIT, test "$have_gemini" = yes)
+CONDUIT_END([test "$have_gemini" = yes])
+
+#--------------------------------------------------------------------------------------------------------
 # SHMEM configuration
 
 CONDUIT_BEGIN(shmem,[Shmem network conduit (shmem)])
@@ -3445,10 +3565,17 @@ if test $enabled_shmem = yes; then
       if test -n "$GASNETI_ARCH_ALTIX"; then
 	SHMEM_FLAVOUR="SGI_SHMEM"
 	AC_MSG_RESULT(SGI/Altix)
-	GASNET_ENV_DEFAULT(SHMEM_INCLUDE, /usr/include)
+	GASNET_ENV_DEFAULT(MPI_ROOT, "/usr") # At least SGI UV sets this
+	GASNET_ENV_DEFAULT(SHMEM_INCLUDE, "${MPI_ROOT}/include")
+	GASNET_ENV_DEFAULT(SHMEM_LIBDIR, "${MPI_ROOT}/lib")
         # Work around stoopid bug in Intel ecc on Altix: programs won't compile
-        # if -L/usr/lib is explicitly passed.
-	GASNET_ENV_DEFAULT(SHMEM_LIBDIR, /anything/but/usr/lib)
+        # if -L/usr/lib or -I/usr/include is explicitly passed.
+	if test "$SHMEM_LIBDIR" = "/usr/lib"; then
+	  SHMEM_LIBDIR="/anything/but/usr/lib"
+	fi
+	if test "$SHMEM_INCLUDE" = "/usr/include"; then
+	  SHMEM_INCLUDE="/anything/but/usr/include"
+	fi
         GASNET_ENV_DEFAULT(SHMEM_LIBS, [-lsma -lmpi])
       else
         AC_MSG_RESULT(unknown)
@@ -3463,9 +3590,13 @@ if test $enabled_shmem = yes; then
 
 
   if test $have_shmem = yes; then
-    GASNET_PUSHVAR(CFLAGS,"$CFLAGS -I${SHMEM_INCLUDE} -I${SHMEM_INCLUDE}/mpp")
+    if test "$SHMEM_INCLUDE" = "/anything/but/usr/include"; then
+      SHMEM_INC2="/usr/include/mpp"
+    else
+      SHMEM_INC2="${SHMEM_INCLUDE}/mpp"
+    fi
+    GASNET_PUSHVAR(CFLAGS,"$CFLAGS -I${SHMEM_INCLUDE} -I${SHMEM_INC2}")
     GASNET_PUSHVAR(LIBS,"$LIBS -L${SHMEM_LIBDIR} ${SHMEM_LIBS}")
-    SHMEM_FLAGS="-D${SHMEM_FLAVOUR}"
 
     # only include shmem.h even if some prescribe <mpp/shmem.h> and rely on the
     # include search directories to be correct.  This approach is more general
@@ -3482,7 +3613,7 @@ if test $enabled_shmem = yes; then
     GASNET_POPVAR(LIBS)
   
     if test "$shmem_test_worked" = yes; then
-      SHMEM_FLAGS="-D${SHMEM_FLAVOUR} "
+      SHMEM_FLAGS="-D${SHMEM_FLAVOUR} -I${SHMEM_INCLUDE}"
     else
       GASNET_MSG_WARN(build test failed: I don't know how to build SHMEM programs on your system)
       have_shmem=no
@@ -3491,7 +3622,7 @@ if test $enabled_shmem = yes; then
 fi
 
 #AC_SUBST(SHMEM_INCLUDE)  XXX: not currently used outside configure
-#AC_SUBST(SHMEM_LIBDIR)   XXX: not currently used outside configure
+AC_SUBST(SHMEM_LIBDIR)
 AC_SUBST(SHMEM_LIBS)
 AC_SUBST(SHMEM_FLAGS)
 AM_CONDITIONAL(USE_SHMEM_CONDUIT, test "$enabled_shmem$have_shmem" = yesyes)
@@ -3703,10 +3834,12 @@ fi
 dnl GASNET_TOOLSONLY_FALSE_END
 AC_DEFINE_UNQUOTED(GASNETI_CONDUITS,"$CONDUITS")
 
+dnl GASNET_TOOLSONLY_FALSE_BEGIN
 ########################################################################
 # Configure conduit-independent spawners
 
 # Things needed by ssh spawner
+SSH_SPAWNER_LIBS=""
 AC_CHECK_HEADERS(sys/socket.h netinet/tcp.h)
 case "$target_os" in
   linux*)
@@ -3718,7 +3851,20 @@ case "$target_os" in
         ], [ AC_DEFINE(HAVE_PR_SET_PDEATHSIG) ])
       ])
   ;;
+  solaris*)
+    GASNET_PUSHVAR(LIBS,"")
+      AC_SEARCH_LIBS(socket, socket, have_ssh_libs=yes, have_ssh_libs=no)
+      AC_SEARCH_LIBS(gethostbyname, nsl, , no)
+
+      if test "x$have_ssh_libs" = xno ; then
+        : # XXX: what to do in this case?
+      else
+        SSH_SPAWNER_LIBS="$LIBS"
+      fi
+    GASNET_POPVAR(LIBS)
+  ;;
 esac
+AC_SUBST(SSH_SPAWNER_LIBS)
 
 AC_MSG_CHECKING([for socklen_t or its equivalent])
 AC_CACHE_VAL(gasnet_cv_socklen_t,[
@@ -3749,6 +3895,56 @@ else
   AC_DEFINE_UNQUOTED(GASNET_SOCKLEN_T, $gasnet_cv_socklen_t)
 fi
 
+GASNET_WITH(ssh-cmd,
+   [default value for GASNET_SSH_CMD environment variable (default "ssh")],
+   [case "$withval" in
+      yes|no) AC_MSG_ERROR([--with-ssh-cmd requires an argument]) ;;
+           *) gasnet_ssh_cmd="$withval" ;;
+    esac],
+   [AC_MSG_ERROR([--with-ssh-cmd requires an argument])],
+   [gasnet_ssh_cmd="ssh"])
+AC_DEFINE_UNQUOTED(GASNETI_DEFAULT_SSH_CMD, "$gasnet_ssh_cmd")
+
+GASNET_WITH(ssh-options,
+   [default value for GASNET_SSH_OPTIONS environment variable (defaults to empty)],
+   [case "$withval" in
+      yes|no) AC_MSG_ERROR([--with-ssh-options requires an argument]) ;;
+           *) gasnet_ssh_options="$withval" ;;
+    esac],
+   [AC_MSG_ERROR([--with-ssh-options requires an argument])],
+   [gasnet_ssh_options=""])
+AC_DEFINE_UNQUOTED(GASNETI_DEFAULT_SSH_OPTIONS, "$gasnet_ssh_options")
+
+GASNET_WITH(ssh-nodefile,
+   [default value for GASNET_SSH_NODEFILE environment variable (defaults to empty - no fixed filename)],
+   [case "$withval" in
+      yes|no) AC_MSG_ERROR([--with-ssh-nodefile requires an argument]) ;;
+           *) gasnet_ssh_nodefile="$withval" ;;
+    esac],
+   [AC_MSG_ERROR([--with-ssh-nodefile requires an argument])],
+   [gasnet_ssh_nodefile=""])
+AC_DEFINE_UNQUOTED(GASNETI_DEFAULT_SSH_NODEFILE, "$gasnet_ssh_nodefile")
+    
+GASNET_WITH(ssh-topology,
+   [connection topology when using ssh-spawner ("flat" or "nary[[:N]]", where default is "flat")],
+   [case "$withval" in
+         flat) AC_DEFINE(GASNETI_SSH_TOPO_FLAT) ;;
+         nary) AC_DEFINE(GASNETI_SSH_TOPO_NARY) ;;
+       nary:*) tmpval=`echo $withval | cut -d: -f2-`
+               if expr "${tmpval}" : '[[1-9]][[0-9]]*$' >/dev/null; then
+                 AC_DEFINE(GASNETI_SSH_TOPO_NARY)
+                 AC_DEFINE_UNQUOTED(GASNETI_SSH_NARY_DEGREE, $tmpval)
+               else
+                 AC_MSG_ERROR([--with-ssh-topology nary: suffix "$tmpval" is not a positive integer])
+               fi
+               ;;
+          yes) AC_MSG_ERROR([--with-ssh-topology requires an argument]) ;;
+            *) AC_MSG_ERROR([--with-ssh-topology argument "$withval" is not a valid choice]) ;;
+    esac],
+   [AC_MSG_ERROR([--with-ssh-topology requires an argument])],
+   [AC_DEFINE(GASNETI_SSH_TOPO_FLAT)])
+
+dnl GASNET_TOOLSONLY_FALSE_END
 ########################################################################
 
 # Check for alloca in C code
@@ -4044,9 +4240,17 @@ case "$target_os" in
   ;;
 esac
 
+enabled_plpa="no"
 if test "$cross_compiling" = "no" ; then
   case "$target_os" in
-    linux*)  
+    linux*) enabled_plpa="yes";;
+  esac
+else
+  case "$target" in
+    x86_64-cnl-linux*) enabled_plpa="yes";;
+  esac
+fi
+if test "$enabled_plpa" = "yes"; then
       GASNET_IF_ENABLED_WITH_AUTO(plpa, [use PLPA for CPU binding (default is to probe)],
 		[enabled_plpa="yes"; force_plpa="yes"],
 		[enabled_plpa="no - user disabled"],
@@ -4062,8 +4266,6 @@ if test "$cross_compiling" = "no" ; then
       elif test "$force_plpa" = yes; then
         AC_MSG_ERROR(User requested --enable-plpa but PLPA is not supported on your system)
       fi
-      ;;
-  esac
 fi
 AM_CONDITIONAL(USE_PLPA,test "$enabled_plpa" = "yes")
 
@@ -4299,14 +4501,30 @@ if test x"$BOURNE_SHELL" = x; then
     BOURNE_SHELL="/bin/sh"
 fi
 
-GASNET_PATH_PROGS(AR, $AR ar gar, archiver)
-#AC_PROG_RANLIB
-GASNET_PATH_PROGS(RANLIB, $RANLIB ranlib touch, ranlib)
+if test "$cross_compiling" = yes ; then
+  CROSS_NM="${CROSS_NM:-${target_alias}-nm}"
+  CROSS_AR="${CROSS_AR:-${target_alias}-ar}"
+  CROSS_RANLIB="${CROSS_RANLIB:-${target_alias}-ranlib}"
+fi
+
+# we want but do not require nm
+AC_PATH_PROGS(NM, $NM $CROSS_NM nm)
+AC_MSG_CHECKING(for GNU nm)
+if test "`${NM:-nm} --version 2>&1 | grep GNU`" = "" ; then
+  gnu_nm=no
+else
+  gnu_nm=yes
+fi
+AC_MSG_RESULT($gnu_nm)
+AM_CONDITIONAL(GNU_NM, test "$gnu_nm" = "yes")
+
+GASNET_PATH_PROGS(AR, $CROSS_AR ar gar, archiver)
+GASNET_PATH_PROGS(RANLIB, $CROSS_RANLIB ranlib touch, ranlib)
 case "$target_os" in
     darwin*) RANLIB="$RANLIB -s -c" ;; # ensure correct common block behavior on darwin
 esac
-GASNET_PATH_PROGS(BASENAME, $BASENAME basename, basename)
-GASNET_PATH_PROGS(DIRNAME, $DIRNAME dirname, dirname)
+GASNET_PATH_PROGS(BASENAME, basename, basename)
+GASNET_PATH_PROGS(DIRNAME, dirname, dirname)
 # Some platforms are lacking readlink, and we currently do not require it
 AC_PATH_PROGS(READLINK, $READLINK readlink)
 # other optional commands
@@ -4497,6 +4715,9 @@ shmem-conduit/conduit.mak
 
 portals-conduit/Makefile
 portals-conduit/conduit.mak
+
+gemini-conduit/Makefile
+gemini-conduit/conduit.mak
 
 other/Makefile-conduit.mak
 other/fragment-head.mak

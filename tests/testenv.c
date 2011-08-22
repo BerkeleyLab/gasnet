@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testenv.c,v $
- *     $Date: 2007/01/10 10:43:06 $
- * $Revision: 1.4 $
+ *     $Date: 2011/08/22 23:25:10 $
+ * $Revision: 1.4.42.1 $
  * Description: GASNet environment variable propagation test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -59,10 +59,10 @@ int main(int argc, char **argv) {
 
   BARRIER();
 
-  sprintf(tmp, "argc=%i, argv[] = ", argc);
+  snprintf(tmp, sizeof(tmp), "argc=%i, argv[] = ", argc);
   for (i=0; i < argc; i++) {
     char tmp2[255];
-    sprintf(tmp2, "%s'%s'", (i>0?", ":""), argv[i]);
+    snprintf(tmp2, sizeof(tmp2), "%s'%s'", (i>0?", ":""), argv[i]);
     strcat(tmp, tmp2);
   }
   MSG("%s",tmp);

@@ -1,6 +1,6 @@
 GASNet smp-conduit documentation
 Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.2 $
+$Revision: 1.2.98.1 $
 
 User Information:
 -----------------
@@ -33,6 +33,6 @@ Design Overview:
 ----------------
 
 All puts/gets are local accesses (with the locality check removed at compile
-time), and all AM handlers execute synchronously on the calling thread. Segment
-alignment is trivially guaranteed.
+time).  When PSHM is not in use all AM handlers execute synchronously on the
+calling thread, and segment alignment is trivially guaranteed.
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core_internal.c,v $
- *     $Date: 2009/03/30 02:40:55 $
- * $Revision: 1.16 $
+ *     $Date: 2011/08/22 23:25:02 $
+ * $Revision: 1.16.8.1 $
  * Description: GASNet sci conduit c-file for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -724,7 +724,7 @@ int gasnetc_SCI_connect_cmd(void) {
 
 	for (index = 0; index < gasneti_nodes ; index++)
 	{
-		void * arg;
+		void * arg = NULL;
 		counter = 0;
 		do {
 			SCIConnectSegment(gasnetc_sci_sd_gb[index], &gasnetc_sci_remoteSegment_gb[index],

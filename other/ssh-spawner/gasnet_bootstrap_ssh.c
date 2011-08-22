@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ssh-spawner/gasnet_bootstrap_ssh.c,v $
- *     $Date: 2009/09/18 23:33:38 $
- * $Revision: 1.68 $
+ *     $Date: 2011/08/22 23:24:58 $
+ * $Revision: 1.68.6.1 $
  * Description: GASNet conduit-independent ssh-based spawner
  * Copyright 2005, The Regents of the University of California
  * Terms of use are as specified in license.txt
@@ -30,8 +30,8 @@
    * gracefully).  Not safe on some Linux kernels.
    */
   #include <sys/prctl.h>
-  #include <signal.h>
 #endif
+#include <signal.h>
 #include <unistd.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -46,11 +46,13 @@
    intended to be conduit-neutral.
   
    In the interest of scalability the ssh processes are started up in
-   a balanced N-ary tree, where N is determined at compile-time (the
-   value of "OUT_DEGREE", set below.  Typically we want this value to
+   a balanced N-ary tree, where N can be controlled at run time (via
+   env var GASNET_SSH_OUT_DEGREE).  Typically we want this value to
    be resonably large, since deep trees would result in multiple steps
    of forwarding for standard I/O (which is performed entirely by the
-   ssh processes at this point).
+   ssh processes at this point).  (IF GASNETI_SSH_TOPO_FLAT is set
+   non-zero then the tree effectively has inifinite out-degree and
+   the "parent of node 0" is the only non-leaf node).
 
    The process corresponding to gasnet node zero is the root of this
    tree, but it also has a parent: the original process started by the
@@ -75,7 +77,8 @@
    before exiting.
 
    If a child has the same hostname as its parent, it will be started
-   directly, rather than via ssh.
+   directly, rather than via ssh IFF GASNETI_BOOTSTRAP_LOCAL_SPAWN is 1.
+   By default this is enabled if aligned segments are disabled.
 
    The tree structure is used to provide scalable implementations of
    the following "service" routines for use during the bootstrap, as
@@ -109,7 +112,6 @@
 
    XXX: still to do
    + Make flat-tree a runtime switch rather than compile time.
-   + Consider making OUT_DEGREE a runtime variable.
    + Implement "custom" spawner in the spirit of udp-conduit.
    + Look at udp-conduit for things missing from this list. :-)
    + We probably leak small strings in a few places.
@@ -117,14 +119,22 @@
  */
 
 /* Defaults if conduit has not set these values */
-#ifndef GASNETI_BOOTSTRAP_OUT_DEGREE
-  #define GASNETI_BOOTSTRAP_OUT_DEGREE 32
+#ifndef GASNETI_SSH_NARY_DEGREE
+  /* Default only, env var can override */
+  #define GASNETI_SSH_NARY_DEGREE 32
 #endif
 #ifndef GASNETI_BOOTSTRAP_LOCAL_SPAWN
+ #if GASNET_ALIGNED_SEGMENTS
   #define GASNETI_BOOTSTRAP_LOCAL_SPAWN 0
+ #else
+  #define GASNETI_BOOTSTRAP_LOCAL_SPAWN 1
+ #endif
 #endif
-#ifndef GASNETI_BOOTSTRAP_FLAT_TREE
-  #define GASNETI_BOOTSTRAP_FLAT_TREE 1
+
+#if !defined(GASNETI_SSH_TOPO_FLAT) && !defined(GASNETI_SSH_TOPO_NARY)
+  #error "ssh-spawner topology setting is missing"
+#elif defined(GASNETI_SSH_TOPO_FLAT) && defined(GASNETI_SSH_TOPO_NARY)
+  #error "ssh-spawner topology setting is invalid"
 #endif
 
 #define WHITESPACE " \t\n\r"
@@ -165,24 +175,33 @@ enum {
     int			sock;
     pid_t		pid;	/* pid of ssh (or locally exec()ed app) */
     gasnet_node_t	rank;
+    char **		nodelist;
+#if GASNETI_SSH_TOPO_NARY
     gasnet_node_t	procs;	/* size in procs of subtree rooted at this child */
     gasnet_node_t	nodes;	/* size in nodes of subtree rooted at this child */
-    char **		nodelist;
+#endif
   } *child = NULL;
   static int children = 0;
   static volatile int accepted = 0;
   static int finalized = 0;
   static gasneti_atomic_t live = gasneti_atomic_init(0);
   static volatile int in_abort = 0;
+#if GASNETI_SSH_TOPO_NARY
+  static gasnet_node_t out_degree = GASNETI_SSH_NARY_DEGREE;
+#endif
 /* Slaves only */
   static gasnet_node_t myproc = (gasnet_node_t)(-1L);
+#if GASNETI_SSH_TOPO_NARY
   static gasnet_node_t tree_procs = (gasnet_node_t)(-1L);
   static gasnet_node_t tree_nodes = (gasnet_node_t)(-1L);
+#endif
   static int parent = -1; /* socket */
   static int mypid;
 /* Master only */
+  static char master_host[1024];
   static volatile int exit_status = 0;
   static gasnet_node_t nnodes = 0;	/* nodes, as distinct from procs */
+  static int nnodes_set = 0;		/* non-zero if nnodes set explicitly */
   static pid_t *all_pids;
 
 static void gather_pids(void);
@@ -280,6 +299,7 @@ static char *do_getenv(const char *var) {
 }
 
 static void kill_one(const char *rem_host, pid_t rem_pid) {
+  int is_local = (GASNETI_BOOTSTRAP_LOCAL_SPAWN && !strcmp(rem_host, master_host));
   pid_t pid;
  
   gasneti_assert(is_master);
@@ -296,14 +316,21 @@ static void kill_one(const char *rem_host, pid_t rem_pid) {
     (void)dup2(STDOUT_FILENO, devnull);
     (void)dup2(STDERR_FILENO, devnull);
 #endif
-    ssh_argv[ssh_argc] = (/* noconst */ char *)rem_host;
-    ssh_argv[ssh_argc+1] = sappendf(NULL, "cd %s; exec %s -GASNET-SPAWN-kill %d",
-				      quote_arg(cwd), quote_arg(argv0), rem_pid);
-    execvp(ssh_argv[0], ssh_argv);
-    gasneti_fatalerror("execvp(ssh kill) failed");
+
+    if (is_local) {
+      execlp(argv0, argv0, "-GASNET-SPAWN-kill",
+             sappendf(NULL, "%d", (int)rem_pid), NULL);
+      gasneti_fatalerror("execlp(kill) failed");
+    } else {
+      ssh_argv[ssh_argc] = (/* noconst */ char *)rem_host;
+      ssh_argv[ssh_argc+1] = sappendf(NULL, "cd %s; exec %s -GASNET-SPAWN-kill %d",
+				      quote_arg(cwd), quote_arg(argv0), (int)rem_pid);
+      execvp(ssh_argv[0], ssh_argv);
+      gasneti_fatalerror("execvp(ssh kill) failed");
+    }
   }
-  BOOTSTRAP_VERBOSE(("[-1] Pid %d killing %s:%d\n", pid, rem_host, (int)rem_pid));
-  gasneti_atomic_increment(&live, 0);
+  BOOTSTRAP_VERBOSE(("[-1] Pid %d killing %s:%d\n", (int)pid, rem_host, (int)rem_pid));
+  if (!is_local) gasneti_atomic_increment(&live, 0);
 }
 
 static void clean_up(void)
@@ -331,13 +358,17 @@ static void clean_up(void)
 
 /* Note that these are fired off asynchronously */
 static void signal_one(const char *rem_host, pid_t rem_pid, int sig) {
-  /* XXX: could avoid ssh for local case */
   pid_t pid;
  
   gasneti_assert(is_master);
   gasneti_assert(rem_host != NULL);
 
   if (rem_pid == 0) return;
+
+  if (GASNETI_BOOTSTRAP_LOCAL_SPAWN && !strcmp(rem_host, master_host)) {
+    (void) kill(rem_pid, sig);
+    return;
+  }
 
   pid = fork();
   if (pid < 0) {
@@ -350,7 +381,7 @@ static void signal_one(const char *rem_host, pid_t rem_pid, int sig) {
     (void)dup2(STDERR_FILENO, devnull);
 #endif
     ssh_argv[ssh_argc] = (/* noconst */ char *)rem_host;
-    ssh_argv[ssh_argc+1] = sappendf(NULL, "sh -c 'kill -s %d %d 2>/dev/null'", sig, rem_pid);
+    ssh_argv[ssh_argc+1] = sappendf(NULL, "sh -c 'kill -s %d %d 2>/dev/null'", sig, (int)rem_pid);
     execvp(ssh_argv[0], ssh_argv);
     gasneti_fatalerror("execvp(ssh kill) failed");
   }
@@ -689,22 +720,29 @@ static char **parse_options(const char *string, int *count_p, const char *where)
   return list;
 }
 
-/* wrapper that maps default/empty to NULL */
-static char *my_getenv(const char *key) {
-  char *env_string = gasneti_getenv_withdefault(key, "");
+/* wrappers that map unset/empty to NULL */
+static const char *my_getenv_withdefault(const char *key, const char *defval) {
+  char *env_string = gasneti_getenv_withdefault(key, defval);
   return ((env_string != NULL) && strlen(env_string)) ? env_string : NULL;
+}
+static const char *my_getenv(const char *key) {
+  return my_getenv_withdefault(key, NULL);
 }
 
 static void configure_ssh(void) {
-  char *env_string;
-  char *ssh_argv0;
+  const char *env_string;
+  const char *ssh_argv0;
   char **ssh_options = NULL;
   int is_openssh = 0;
   int optcount = 0;
   int i, argi;
 
   /* Determine the ssh command */
-  ssh_argv0 = gasneti_getenv_withdefault(ENV_PREFIX "SSH_CMD", "ssh");
+  ssh_argv0 = my_getenv_withdefault(ENV_PREFIX "SSH_CMD", GASNETI_DEFAULT_SSH_CMD);
+  if (ssh_argv0 == NULL) {
+      BOOTSTRAP_VERBOSE(("Ignoring empty value in environment variable " ENV_PREFIX "SSH_CMD\n"));
+      ssh_argv0 = GASNETI_DEFAULT_SSH_CMD;
+  }
 
   /* Check for OpenSSH */
   {
@@ -715,14 +753,14 @@ static void configure_ssh(void) {
   }
 
   /* Check for user-supplied options */
-  if ((env_string = my_getenv(ENV_PREFIX "SSH_OPTIONS")) != NULL) {
+  if ((env_string = my_getenv_withdefault(ENV_PREFIX "SSH_OPTIONS", GASNETI_DEFAULT_SSH_OPTIONS)) != NULL) {
     ssh_options = parse_options(env_string, &optcount, "while parsing " ENV_PREFIX "SSH_OPTIONS");
   }
 
   /* Now build the command line */
   ssh_argc = optcount + (is_openssh ? 9 : 1);
   ssh_argv = gasneti_calloc((ssh_argc + 3 /* host + cmd + NULL = 3 */), sizeof(char *));
-  ssh_argv[0] = ssh_argv0;
+  ssh_argv[0] = gasneti_strdup(ssh_argv0);
   argi = 1;
   if (is_openssh) {
     ssh_argv[argi++] = (char *)"-o"; ssh_argv[argi++] = (char *)"StrictHostKeyChecking no";
@@ -744,6 +782,20 @@ static void configure_ssh(void) {
   BOOTSTRAP_VERBOSE(("\tHOST\n\tCMD\n"));
 }
 
+/* Reduce nnodes when presented with a short nodelist */
+static char ** short_nodelist(char **nodelist, gasnet_node_t count) {
+  if (nnodes_set) {
+    fprintf(stderr, "WARNING: Request for %d nodes ignored because only %d nodes are available.\n", nnodes, count);
+    fflush(stderr);
+  }
+
+  nnodes = count;
+  nodelist = gasneti_realloc(nodelist, nnodes * sizeof(char *));
+  BOOTSTRAP_VERBOSE(("Node count set to available: %d\n", (int)nnodes));
+
+  return nodelist;
+}
+
 /* Build an array of hostnames from a file */
 static char ** parse_nodefile(const char *filename) {
   char **result = NULL;
@@ -763,7 +815,8 @@ static char ** parse_nodefile(const char *filename) {
 
     if (!fgets(buf, sizeof(buf), fp)) {
       /* ran out of lines */
-      die(1, "Out of lines in nodefile '%s'", filename);
+      result = short_nodelist(result, i);
+      break;
     }
  
     p = buf;
@@ -771,18 +824,17 @@ static char ** parse_nodefile(const char *filename) {
     if (*p != '#') {
       p[strcspn(p, WHITESPACE)] = '\0';
       result[i] = gasneti_strdup(p);
-#if 0
-      /* XXX: Eat consecutive duplicates ?
+
+      /* Discard consecutive duplicates unless nnodes was given explicitly.
        * When running w/ PBS and nodes=2:ppn=2 we see NODE0,NODE0,NODE1,NODE1
        * while running the same config w/ LSF gives just NODE0,NODE1.
-       * We'd get consistent results by squeezing out the PBS style dups,
-       * but the upcrun handling currently doesn't do this so we don't either.
+       * We get consistent results by squeezing out the PBS style dups.
+       * TODO: O(N^2) work to remove ALL duplicates?
        */
-      if ((i > 0) && !strcmp(result[i], result[i-1])) {
+      if (!nnodes_set && (i > 0) && !strcmp(result[i], result[i-1])) {
         gasneti_free(result[i]);
 	continue;
       }
-#endif
       ++i;
       BOOTSTRAP_VERBOSE(("\t%s\n", p));
     }
@@ -807,7 +859,9 @@ static char ** parse_servers(const char *list) {
     char *p;
     while (*string && strchr(delims,*string)) ++string; /* eat leading delimiters */
     if (!*string) {
-      die(1, "Too few hosts in " ENV_PREFIX "SSH_SERVERS");
+      /* ran out of words */
+      result = short_nodelist(result, i);
+      break;
     }
     p = string;
     string += strcspn(string, delims);
@@ -824,21 +878,15 @@ static void build_nodelist(void)
 {
   const char *env_string;
 
-  if (nproc < nnodes) {
-    fprintf(stderr, "Warning: %d nodes is larger than %d processes, nodes reduced to %d\n", nnodes, nproc, nproc);
-    nnodes = nproc;
-  }
-
-  if ((env_string = my_getenv(ENV_PREFIX "SSH_NODEFILE")) != NULL) {
+  if ((env_string = my_getenv_withdefault(ENV_PREFIX "SSH_NODEFILE",
+                                          GASNETI_DEFAULT_SSH_NODEFILE)) != NULL) {
     nodelist = parse_nodefile(env_string);
   } else if ((env_string = my_getenv(ENV_PREFIX "SSH_SERVERS")) != NULL) {
     nodelist = parse_servers(env_string);
   } else if ((env_string = my_getenv("PBS_NODEFILE")) != NULL) {
     nodelist = parse_nodefile(env_string);
   } else if ((env_string = my_getenv("PE_HOSTFILE")) != NULL) {
-    char *filename = sappendf(NULL, "%s/machines", gasneti_getenv_withdefault("TMPDIR",""));
-    nodelist = parse_nodefile(filename);
-    gasneti_free(filename);
+    nodelist = parse_nodefile(env_string);
   } else if ((env_string = my_getenv("SSS_HOSTLIST")) != NULL) {
     nodelist = parse_servers(env_string);
   } else if ((env_string = my_getenv("LSB_HOSTS")) != NULL) {
@@ -962,7 +1010,7 @@ static void recv_argv(int s, int *argc_p, char ***argv_p) {
 static void pre_spawn(int count) {
   struct sockaddr_in sock_addr;
   GASNET_SOCKLEN_T addr_len;
-  char *env_string;
+  const char *env_string;
 
   /* Get the cwd */
   if ((env_string = my_getenv(ENV_PREFIX "SSH_REMOTE_PATH")) != NULL) {
@@ -1023,14 +1071,17 @@ static void post_spawn(int count, int argc, char * const *argv) {
     ch = &(child[child_id]);
     child[child_id].sock = s;
     gasneti_assert(ch->rank < nproc);
-    gasneti_assert(ch->procs > 0);
-    gasneti_assert(ch->procs <= nproc);
     do_write(s, &ch->rank, sizeof(gasnet_node_t));
     do_write(s, &nproc, sizeof(gasnet_node_t));
+#if GASNETI_SSH_TOPO_NARY
+    gasneti_assert(ch->procs > 0);
+    gasneti_assert(ch->procs <= nproc);
     do_write(s, &ch->procs, sizeof(gasnet_node_t));
     do_write(s, &ch->nodes, sizeof(gasnet_node_t));
-    send_env(s);
+    do_write(s, &out_degree, sizeof(gasnet_node_t));
     send_nodelist(s, ch->nodes, ch->nodelist);
+#endif
+    send_env(s);
     send_ssh_argv(s);
     do_write_string(s, wrapper);
     send_argv(s, argc, argv);
@@ -1040,6 +1091,7 @@ static void post_spawn(int count, int argc, char * const *argv) {
   /* Close listener */
   close(listener);
 
+#if GASNETI_SSH_TOPO_NARY
   if (!is_master) {
     close(devnull);
 
@@ -1059,6 +1111,7 @@ static void post_spawn(int count, int argc, char * const *argv) {
       gasneti_free(ssh_argv);
     }
   }
+#endif
 }
 
 static void do_connect(gasnet_node_t child_id, const char *parent_name, int parent_port, int *argc_p, char ***argv_p) {
@@ -1094,21 +1147,24 @@ static void do_connect(gasnet_node_t child_id, const char *parent_name, int pare
   do_write(parent, &child_id, sizeof(gasnet_node_t));
   do_read(parent, &myproc, sizeof(gasnet_node_t));
   do_read(parent, &nproc, sizeof(gasnet_node_t));
+#if GASNETI_SSH_TOPO_NARY
   do_read(parent, &tree_procs, sizeof(gasnet_node_t));
   do_read(parent, &tree_nodes, sizeof(gasnet_node_t));
-  gasneti_assert(nproc > 0);
-  gasneti_assert(myproc < nproc);
+  do_read(parent, &out_degree, sizeof(gasnet_node_t));
   gasneti_assert(tree_procs > 0);
   gasneti_assert(tree_procs <= nproc);
-  recv_env(parent);
   recv_nodelist(parent, tree_nodes);
+#endif
+  gasneti_assert(nproc > 0);
+  gasneti_assert(myproc < nproc);
+  recv_env(parent);
   recv_ssh_argv(parent);
   wrapper = do_read_string(parent);
   recv_argv(parent, argc_p, argv_p);
   BOOTSTRAP_VERBOSE(("[%d] connected\n", myproc));
 }
 
-static void spawn_one(gasnet_node_t child_id, const char *myhost) {
+static void spawn_one(gasnet_node_t child_id, char *myhost) {
   const char *host = child[child_id].nodelist ? child[child_id].nodelist[0] : nodelist[0];
   pid_t pid;
   int is_local = (GASNETI_BOOTSTRAP_LOCAL_SPAWN && (!host || !strcmp(host, myhost)));
@@ -1118,23 +1174,26 @@ static void spawn_one(gasnet_node_t child_id, const char *myhost) {
   if (pid < 0) {
     gasneti_fatalerror("fork() failed");
   } else if (pid == 0) {
+    char *cmd;
     /* For all children except the root do </dev/null */
     if (child[child_id].rank != 0) {
       if (dup2(STDIN_FILENO, devnull) < 0) {
         gasneti_fatalerror("dup2(STDIN_FILENO, /dev/null) failed");
       }
     }
-    if (is_local && !wrapper) {
+    cmd = sappendf(NULL, "cd %s; exec %s %s -GASNET-SPAWN-slave %s %d %d%s",
+                                      quote_arg(cwd),
+                                      (wrapper ? wrapper : ""),
+                                      quote_arg(argv0),
+                                      (is_local ? "localhost" : myhost),
+                                      listen_port, (int)child_id,
+                                      (is_verbose ? " -v" : ""));
+    if (is_local) {
       /* XXX: if we are clever enough, we might be able to "unwind" w/o the exec() */
-      /* XXX: Should add wrapper support? */
       BOOTSTRAP_VERBOSE(("[%d] spawning process %d on %s via fork()\n",
 			 (is_master ? -1 : (int)myproc),
 			 (int)child[child_id].rank, myhost));
-      execlp(argv0, argv0, "-GASNET-SPAWN-slave", "localhost",
-	     sappendf(NULL, "%d", listen_port),
-	     sappendf(NULL, "%d", (int)child_id),
-	     is_verbose ? "-v" : NULL,
-	     NULL);
+      execlp("sh", "sh", "-c", cmd, NULL);
       gasneti_fatalerror("execlp(sh) failed");
     } else {
       #if HAVE_PR_SET_PDEATHSIG
@@ -1145,12 +1204,7 @@ static void spawn_one(gasnet_node_t child_id, const char *myhost) {
 			 (is_master ? -1 : (int)myproc),
 			 (int)child[child_id].rank, host, ssh_argv[0]));
       ssh_argv[ssh_argc] = (/* noconst */ char *)host;
-      ssh_argv[ssh_argc+1] = sappendf(NULL, "cd %s; exec %s %s -GASNET-SPAWN-slave %s %d %d%s",
-				      quote_arg(cwd),
-				      (wrapper ? wrapper : ""),
-				      quote_arg(argv0),
-				      myhost, listen_port, (int)child_id,
-				      (is_verbose ? " -v" : ""));
+      ssh_argv[ssh_argc+1] = cmd;
       execvp(ssh_argv[0], ssh_argv);
       gasneti_fatalerror("execvp(ssh) failed");
     }
@@ -1203,19 +1257,8 @@ extern int (*gasneti_verboseenv_fn)(void);
 
 static void do_master(int argc, char **argv) GASNETI_NORETURN;
 static void do_master(int argc, char **argv) {
-  char myhost[1024];
   char *p;
   int argi=1;
-
-  #if PLATFORM_OS_LINUX
-  { /* Work around for bug 2136 by setting O_APPEND on stdout and stderr */
-    int tmp;
-    tmp = fcntl(STDOUT_FILENO, F_GETFL, 0);
-    if (tmp >= 0) (void)fcntl(STDOUT_FILENO, F_SETFL, tmp | O_APPEND);
-    tmp = fcntl(STDERR_FILENO, F_GETFL, 0);
-    if (tmp >= 0) (void)fcntl(STDERR_FILENO, F_SETFL, tmp | O_APPEND);
-  }
-  #endif
 
   is_master = 1;
   gasneti_reghandler(SIGURG, &sigurg_handler);
@@ -1233,16 +1276,29 @@ static void do_master(int argc, char **argv) {
   }
   if (argi >= argc) usage(argv[0]); /* ran out of args */
 
-  nproc = atoi(argv[argi]);
+  { 
+    int ltmp = atoi(argv[argi]);
+    nproc = ltmp;
+    if ((int)nproc != ltmp) { /* Overflow! */
+      die(1, "value %s is out-of-range of gasnet_node_t", argv[argi]);
+    }
+  }
   if (nproc < 1) usage(argv[0]); /* bad argument */
   p = strchr(argv[argi], ':');
   if (p) {
     nnodes = atoi(p+1);
+    nnodes_set = 1;
     if (nnodes < 1) usage(argv[0]); /* bad argument */
+    if (nproc < nnodes) {
+      fprintf(stderr, "WARNING: requested node count reduced from %d to process count of %d\n", (int)nnodes, (int)nproc);
+      fflush(stderr);
+      nnodes = nproc;
+    }
+    BOOTSTRAP_VERBOSE(("Spawning '%s': %d processes on %d nodes\n", argv[0], (int)nproc, (int)nnodes));
   } else {
     nnodes = nproc;
+    BOOTSTRAP_VERBOSE(("Spawning '%s': %d processes\n", argv[0], (int)nproc));
   }
-  BOOTSTRAP_VERBOSE(("Spawning '%s': %d processes on %d nodes\n", argv[0], (int)nproc, (int)nnodes));
   argi++;
 
   if ((argi < argc) && (strcmp(argv[argi], "--") == 0)) {
@@ -1253,7 +1309,7 @@ static void do_master(int argc, char **argv) {
   argc -= argi-1;
   argv += argi-1;
 
-  if (gethostname(myhost, sizeof(myhost)) < 0) {
+  if (gethostname(master_host, sizeof(master_host)) < 0) {
     die(1, "gethostname() failed");
   }
 
@@ -1261,7 +1317,7 @@ static void do_master(int argc, char **argv) {
   gasneti_verboseenv_fn = NULL;
 
   configure_ssh();
-  build_nodelist();
+  build_nodelist(); /* May reduce nnodes */
   all_pids = gasneti_calloc(nproc, sizeof(pid_t));
 
   /* Arrange to forward termination signals */
@@ -1272,7 +1328,7 @@ static void do_master(int argc, char **argv) {
   gasneti_reghandler(SIGPIPE, &sigforward);
 
   /* Configure child(ren) */
-  #if GASNETI_BOOTSTRAP_FLAT_TREE
+  #if GASNETI_SSH_TOPO_FLAT
   {
     gasnet_node_t p_quot = nproc / nnodes;
     gasnet_node_t p_rem = nproc % nnodes;
@@ -1285,30 +1341,41 @@ static void do_master(int argc, char **argv) {
       gasnet_node_t i;
       for (i = p_quot + ((j<p_rem)?1:0); i != 0; --i, ++rank) {
         child[rank].rank = rank;
-        child[rank].procs = 1;
-        child[rank].nodes = 1;
         child[rank].nodelist = nodelist+j;
       }
     }
   }
-  #else
+  #elif GASNETI_SSH_TOPO_NARY
     children = 1;
     child = gasneti_calloc(children, sizeof(struct child));
     child[0].rank = 0;
     child[0].procs = nproc;
     child[0].nodes = nnodes;
     child[0].nodelist = nodelist;
+    { const char *env_string = my_getenv_withdefault(ENV_PREFIX "SSH_OUT_DEGREE",
+                                                     _STRINGIFY(GASNETI_SSH_NARY_DEGREE));
+      if (env_string) {
+        int ltmp = atoi(env_string);
+        out_degree = ltmp;
+        if (!out_degree || (out_degree > nproc) ||
+           ((int)out_degree != ltmp /* Overflow or negative */)) {
+          out_degree = nproc;
+        }
+      }
+    }
+  #else
+    #error
   #endif
 
   /* Start the process(es) */
   mypid = getpid();
-  do_spawn(argc, argv, myhost);
+  do_spawn(argc, argv, master_host);
 
   /* Locate all procs */
   gather_pids();
 
   /* Wait on the child(ren) */
-#if GASNETI_BOOTSTRAP_FLAT_TREE
+#if GASNETI_SSH_TOPO_FLAT
   { int done = 0;
 
     while (!done && !in_abort) {
@@ -1375,7 +1442,7 @@ static void do_master(int argc, char **argv) {
       }
     }
   }
-#else
+#elif GASNETI_SSH_TOPO_NARY
   {
     char cmd;
     ssize_t rc;
@@ -1389,6 +1456,8 @@ static void do_master(int argc, char **argv) {
       }
     } while ((rc < 0) && (errno == EINTR));
   }
+#else
+  #error
 #endif
 
   /* Wait for all children to terminate */
@@ -1430,10 +1499,11 @@ static void do_slave(int *argc_p, char ***argv_p, gasnet_node_t *nodes_p, gasnet
   /* Connect w/ parent to find out who we are */
   do_connect(child_id, parent_name, parent_port, argc_p, argv_p);
 
+#if GASNETI_SSH_TOPO_NARY
   /* Start any children */
   if (tree_procs > 1) {
     gasnet_node_t p_quot, p_rem; /* quotient and remainder of nproc/nodes */
-    gasnet_node_t n_quot, n_rem; /* quotient and remainder of nodes/GASNETI_BOOTSTRAP_OUT_DEGREE */
+    gasnet_node_t n_quot, n_rem; /* quotient and remainder of nodes/out_degree */
     gasnet_node_t local_procs; /* the local processes (proc-per-node), excluding self */
     gasnet_node_t rank, j;
     char **sublist;
@@ -1445,7 +1515,7 @@ static void do_slave(int *argc_p, char ***argv_p, gasnet_node_t *nodes_p, gasnet
     p_rem -= (p_rem?1:0);
 
     /* Children = (local_procs other than self) + (child nodes) */
-    children = local_procs + MIN(GASNETI_BOOTSTRAP_OUT_DEGREE, (tree_nodes - 1));
+    children = local_procs + MIN(out_degree, (tree_nodes - 1));
     child = gasneti_calloc(children, sizeof(struct child));
     rank = myproc + 1;
 
@@ -1458,8 +1528,8 @@ static void do_slave(int *argc_p, char ***argv_p, gasnet_node_t *nodes_p, gasnet
     }
 
     /* Map out the child nodes */
-    n_quot = (tree_nodes - 1) / GASNETI_BOOTSTRAP_OUT_DEGREE;
-    n_rem = (tree_nodes - 1) % GASNETI_BOOTSTRAP_OUT_DEGREE;
+    n_quot = (tree_nodes - 1) / out_degree;
+    n_rem = (tree_nodes - 1) % out_degree;
     sublist = nodelist + 1;
     for (j = local_procs; rank < (myproc + tree_procs); j++) {
       gasnet_node_t nodes = n_quot + (n_rem?1:0);
@@ -1481,6 +1551,7 @@ static void do_slave(int *argc_p, char ***argv_p, gasnet_node_t *nodes_p, gasnet
     /* Spawn them */
     do_spawn(*argc_p, *argv_p, nodelist[0]);
   }
+#endif
 
   gather_pids();
 
@@ -1489,7 +1560,7 @@ static void do_slave(int *argc_p, char ***argv_p, gasnet_node_t *nodes_p, gasnet
   gasneti_conduit_getenv = &do_getenv;
 }
 
-#if !GASNETI_BOOTSTRAP_FLAT_TREE
+#if GASNETI_SSH_TOPO_NARY
 /* dest is >= len*tree_procs, used as temp space on all but root */
 static void do_gath0(void *src, size_t len, void *dest)
 {
@@ -1539,7 +1610,7 @@ static void do_bcast0(size_t len, void *dest) {
 #endif
 
 static void gather_pids(void) {
-#if GASNETI_BOOTSTRAP_FLAT_TREE
+#if GASNETI_SSH_TOPO_FLAT
   if (is_master) {
     int j;
     for (j = 0; j < children; ++j) {
@@ -1548,7 +1619,7 @@ static void gather_pids(void) {
   } else {
     do_write(parent, &mypid, sizeof(pid_t));
   }
-#else
+#elif GASNETI_SSH_TOPO_NARY
   if (is_master) {
     do_read(child[0].sock, all_pids, sizeof(pid_t) * nproc);
   } else {
@@ -1563,6 +1634,8 @@ static void gather_pids(void) {
 
     gasneti_free(pids);
   }
+#else
+  #error
 #endif
 }
 
@@ -1590,6 +1663,14 @@ void gasneti_bootstrapInit_ssh(int *argc_p, char ***argv_p, gasnet_node_t *nodes
 
   argv0 = argv[0];
 
+  { /* set O_APPEND on stdout and stderr (see bug 2136) */
+    int tmp;
+    tmp = fcntl(STDOUT_FILENO, F_GETFL, 0);
+    if (tmp >= 0) (void)fcntl(STDOUT_FILENO, F_SETFL, tmp | O_APPEND);
+    tmp = fcntl(STDERR_FILENO, F_GETFL, 0);
+    if (tmp >= 0) (void)fcntl(STDERR_FILENO, F_SETFL, tmp | O_APPEND);
+  }
+
   if (strcmp(argv[1], "-GASNET-SPAWN-slave") == 0) {
     do_slave(argc_p, argv_p, nodes_p, mynode_p);
   } else if (strcmp(argv[1], "-GASNET-SPAWN-kill") == 0) {
@@ -1605,7 +1686,7 @@ void gasneti_bootstrapFini_ssh(void) {
   char cmd;
   int j;
 
-#if GASNETI_BOOTSTRAP_FLAT_TREE
+#if GASNETI_SSH_TOPO_FLAT
   if (is_master) {
     for (j = 0; j < children; ++j) {
       do_read(child[j].sock, &cmd, sizeof(cmd));
@@ -1623,7 +1704,7 @@ void gasneti_bootstrapFini_ssh(void) {
     do_read(parent, &cmd, sizeof(cmd));
     gasneti_assert(cmd == BOOTSTRAP_CMD_FINI1);
   }
-#else
+#elif GASNETI_SSH_TOPO_NARY
   gasneti_assert(!is_master);
   for (j = 0; j < children; ++j) {
     do_read(child[j].sock, &cmd, sizeof(cmd));
@@ -1651,6 +1732,8 @@ void gasneti_bootstrapFini_ssh(void) {
   /* Wait for all children to exit */
   wait_for_all();
 #endif
+#else
+  #error
 #endif
 }
 
@@ -1669,7 +1752,7 @@ void gasneti_bootstrapBarrier_ssh(void) {
   char cmd;
   int j;
 
-#if GASNETI_BOOTSTRAP_FLAT_TREE
+#if GASNETI_SSH_TOPO_FLAT
   if (is_master) {
     for (j = 0; j < children; ++j) {
       do_read(child[j].sock, &cmd, sizeof(cmd));
@@ -1691,7 +1774,7 @@ void gasneti_bootstrapBarrier_ssh(void) {
     do_read(parent, &cmd, sizeof(cmd));
     gasneti_assert(cmd == BOOTSTRAP_CMD_BARR1);
   }
-#else
+#elif GASNETI_SSH_TOPO_NARY
   gasneti_assert(!is_master);
   /* UP */
   for (j = 0; j < children; ++j) {
@@ -1707,13 +1790,15 @@ void gasneti_bootstrapBarrier_ssh(void) {
   cmd = BOOTSTRAP_CMD_BARR1;
   do_bcast0(sizeof(cmd), &cmd);
   gasneti_assert(cmd == BOOTSTRAP_CMD_BARR1);
+#else
+  #error
 #endif
 }
 
 void gasneti_bootstrapExchange_ssh(void *src, size_t len, void *dest) {
   int j;
 
-#if GASNETI_BOOTSTRAP_FLAT_TREE
+#if GASNETI_SSH_TOPO_FLAT
   if (is_master) {
     char cmd, *tmp, *p;
     for (j = 0; j < children; ++j) {
@@ -1742,7 +1827,7 @@ void gasneti_bootstrapExchange_ssh(void *src, size_t len, void *dest) {
     do_write(parent, src, len);
     do_read(parent, dest, len*nproc);
   }
-#else
+#elif GASNETI_SSH_TOPO_NARY
   gasneti_assert(!is_master);
   /* Gather data up the tree, assembling partial results in-place in dest */
   do_gath0(src, len, (void *)((uintptr_t)dest + len*myproc));
@@ -1759,11 +1844,13 @@ void gasneti_bootstrapExchange_ssh(void *src, size_t len, void *dest) {
     do_write(child[j].sock, dest, len*child[j].rank);
     do_write(child[j].sock, (void *)((uintptr_t)dest + len*next), len*(nproc - next));
   }
+#else
+  #error
 #endif
 }
 
 void gasneti_bootstrapAlltoall_ssh(void *src, size_t len, void *dest) {
-#if GASNETI_BOOTSTRAP_FLAT_TREE
+#if GASNETI_SSH_TOPO_FLAT
   if (is_master) {
     char cmd, *tmp, *tmp2, *p, *q;
     gasnet_node_t j;
@@ -1807,7 +1894,7 @@ void gasneti_bootstrapAlltoall_ssh(void *src, size_t len, void *dest) {
     do_write(parent, src, len*nproc);
     do_read(parent, dest, len*nproc);
   }
-#else
+#elif GASNETI_SSH_TOPO_NARY
   size_t row_len = len * nproc;
   char *tmp;
                                                                                                               
@@ -1836,13 +1923,15 @@ void gasneti_bootstrapAlltoall_ssh(void *src, size_t len, void *dest) {
   do_scat0(tmp, row_len, dest);
 
   gasneti_free(tmp);
+#else
+  #error
 #endif
 }
 
 void gasneti_bootstrapBroadcast_ssh(void *src, size_t len, void *dest, int rootnode) {
   int j;
 
-#if GASNETI_BOOTSTRAP_FLAT_TREE
+#if GASNETI_SSH_TOPO_FLAT
   if (is_master) {
     char cmd, *tmp;
     for (j = 0; j < children; ++j) {
@@ -1873,7 +1962,7 @@ void gasneti_bootstrapBroadcast_ssh(void *src, size_t len, void *dest, int rootn
     }
     do_read(parent, dest, len);
   }
-#else
+#elif GASNETI_SSH_TOPO_NARY
   gasneti_assert(!is_master);
   /* Move up the tree to proc 0 */
   if (rootnode != 0) {
@@ -1895,5 +1984,7 @@ void gasneti_bootstrapBroadcast_ssh(void *src, size_t len, void *dest, int rootn
 
   /* Now move it down */
   do_bcast0(len, dest);
+#else
+  #error
 #endif
 }

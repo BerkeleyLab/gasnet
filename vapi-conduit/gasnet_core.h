@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2010/07/16 21:06:54 $
- * $Revision: 1.57.6.1 $
+ *     $Date: 2011/08/22 23:25:14 $
+ * $Revision: 1.57.6.2 $
  * Description: GASNet header for vapi conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -66,7 +66,7 @@ typedef struct _gasnet_hsl_t {
     /* more state may be required for conduits using interrupts */
     #error interrupts not implemented
   #endif
-} gasnet_hsl_t;
+} gasnet_hsl_t GASNETI_THREAD_TYPEDEF;
 
 #if GASNETI_STATS_OR_TRACE
   #define GASNETC_LOCK_STAT_INIT ,0 
@@ -215,24 +215,6 @@ extern int gasnetc_AMPoll(void);
 #define gasnet_AMGetMsgSource  gasnetc_AMGetMsgSource
 
 #define GASNET_BLOCKUNTIL(cond) gasneti_polluntil(cond)
-
-/* ------------------------------------------------------------------------------------ */
-/*
-  System AM Request/Reply Functions
-  =================================
-*/
-
-extern int gasnetc_RequestSystem( 
-                            gasnet_node_t dest,       /* destination node */
-			    gasnetc_counter_t *req_oust, /* counter to wait for send */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
-                            int numargs, ...);
-
-extern int gasnetc_ReplySystem( 
-                            gasnet_token_t token,     /* token provided on handler entry */
-			    gasnetc_counter_t *req_oust, /* counter to wait for send */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
-                            int numargs, ...);
 
 /* ------------------------------------------------------------------------------------ */
 /*

@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_team.h,v $ 
- * $Date: 2010/09/21 23:33:33 $ 
- * $Revision: 1.3.6.2 $ 
+ * $Date: 2011/08/22 23:24:24 $ 
+ * $Revision: 1.3.6.3 $ 
  *
  * Description: GASNet team implementation for collectives
  * Copyright 2010, E. O. Lawrence Berekely National Laboratory
@@ -17,16 +17,6 @@
 /* Team functions                                           */
 /************************************************************/
 
-/* /\* return the relative node rank to which the image belongs *\/ */
-/* #if GASNET_SEQ */
-/* /\* There is only one image per process rank in SEQ build *\/ */
-/* #define gasnete_coll_image2rank(TEAM, I)  I */
-/* #else                  */
-/* #define gasnete_coll_image2rank(TEAM, I) \ */
-/* 	(gasneti_assert((TEAM)->image2rank_map != NULL), (TEAM)->image2rank_map[I]) */
-/* #endif */
-
-/* redefine gasnete_coll_team_lookup in gasnet_coll_team.c */
 #define GASNETE_COLL_TEAMS_OVERRIDE 
 gasnet_team_handle_t gasnete_coll_team_lookup(uint32_t team_id);
 
@@ -37,7 +27,7 @@ void gasnete_coll_team_print(gasnet_team_handle_t team, FILE *fp);
 gasnet_image_t gasnete_coll_team_my_local_image(gasnet_team_handle_t team
                                                 GASNETE_THREAD_FARG);
 
-extern gasnete_hashtable_t *global_team_dir;
+extern gasnete_hashtable_t *gasnete_global_team_dir;
 
 /**
  * return the my image id in the team 

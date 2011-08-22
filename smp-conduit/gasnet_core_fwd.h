@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2010/07/16 21:06:45 $
- * $Revision: 1.17.4.1 $
+ *     $Date: 2011/08/22 23:25:06 $
+ * $Revision: 1.17.4.2 $
  * Description: GASNet header for smp conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -72,5 +72,10 @@
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
+
+#if GASNET_PSHM
+  #define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
+  extern void gasnetc_fatalsignal_callback(int sig);
+#endif
 
 #endif

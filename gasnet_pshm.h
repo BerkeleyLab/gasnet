@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.h,v $
- *     $Date: 2011/03/18 23:05:01 $
- * $Revision: 1.7.2.3 $
+ *     $Date: 2011/08/22 23:24:16 $
+ * $Revision: 1.7.2.4 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -178,12 +178,12 @@ extern gasnet_node_t gasneti_pshm_firstnode;
 /* vector of first node within each supernode */
 extern gasnet_node_t *gasneti_pshm_firsts;
 /* supernode number for an arbitrary node 
- * only available after gasneti_auxseg_attach() */
+ * only available after gasnet_init() */
 #if GASNET_CONDUIT_SMP
 #define gasneti_pshm_node2supernode(n) 0
 #else
 #define gasneti_pshm_node2supernode(n) \
-  (gasneti_assert(gasneti_seginfo_client), gasneti_seginfo_client[(n)].nodeinfo)
+  (gasneti_assert(gasneti_nodeinfo), gasneti_nodeinfo[(n)])
 #endif
 
 /* Non-NULL only when supernode members are non-contiguous */
@@ -197,7 +197,7 @@ extern gasneti_pshm_rank_t *gasneti_pshm_rankmap;
  * Otherwise returns an "impossible" value >= gasneti_pshm_nodes.
  */
 GASNETI_INLINE(gasneti_pshmnet_local_rank)
-gasneti_pshm_rank_t gasneti_pshm_local_rank(gasnet_node_t node) {
+unsigned int gasneti_pshm_local_rank(gasnet_node_t node) {
 #if GASNET_CONDUIT_SMP
   return node;
 #else
@@ -283,6 +283,12 @@ void gasneti_pshmnet_bootstrapBroadcast(gasneti_pshmnet_t *vnet, void *src,
 extern
 void gasneti_pshmnet_bootstrapExchange(gasneti_pshmnet_t *vnet, void *src, 
                                        size_t len, void *dest);
+
+/* "critical sections" in which we notify peers if we abort() while
+ * they are potentially blocked in gasneti_pshmnet_bootstrapBarrier().
+  */
+extern void gasneti_pshm_cs_enter(void);
+extern void gasneti_pshm_cs_leave(void);
 
 /* returns the maximum size payload that pshmnet can offer.  This is the
  * maximum size one can ask of gasneti_pshmnet_get_send_buffer.

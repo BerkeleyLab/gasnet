@@ -72,6 +72,9 @@ Future work:
 
 * Port the conduit to other shmem flavors, particularly those on cluster-based
   systems for which nothing other than MPI and shmem is available.
+  While we still can't compile for Quadrics SHMEM (for example), there
+  has been significant work on the !GASNETE_GLOBAL_ADDRESS case by
+  Yuri Gribov <tetra2005@googlemail.com>
 * Possibly complete the testing and debugging of support on IRIX.
 
 ===============================================================================

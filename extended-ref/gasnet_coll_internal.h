@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- * $Date: 2011/04/18 23:37:42 $
- * $Revision: 1.60.2.5 $
+ * $Date: 2011/08/22 23:24:24 $
+ * $Revision: 1.60.2.6 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,14 +22,12 @@
 /* ***	Macros and Constants *** */
 /*---------------------------------------------------------------------------------*/
 
-#if GASNET_PAR
-#define GASNETE_COLL_THREAD_LOCAL				 (1<<29)
-#endif
-#define GASNETE_COLL_SUBORDINATE				 (1<<30)
-#define GASNETE_COLL_USE_SCRATCH				 (1<<28)
-#define GASNETE_COLL_USE_SCRATCH_TREE		 (1<<27)
+#define GASNETE_COLL_SUBORDINATE	       (1<<30)
+#define GASNETE_COLL_THREAD_LOCAL        (1<<29)
+#define GASNETE_COLL_USE_SCRATCH         (1<<28)
+#define GASNETE_COLL_USE_SCRATCH_TREE    (1<<27)
 #define GASNETE_COLL_USE_SCRATCH_DISSSEM (1<<26)
-#define GASNETE_COLL_USE_TREE						 (1<<25)
+#define GASNETE_COLL_USE_TREE		         (1<<25)
 #define GASNETE_COLL_NONROOT_SUBORDINATE (1<<24)
 #define GASNETE_COLL_SKIP								 (1<<23)
 
@@ -99,9 +97,6 @@ typedef struct gasnete_coll_autotune_info_t_ gasnete_coll_autotune_info_t;
 struct gasnete_coll_implementation_t_;
 typedef struct gasnete_coll_implementation_t_ *gasnete_coll_implementation_t;
 
-//struct gasnete_coll_team_t_;
-//typedef struct gasnete_coll_team_t_ *gasnete_coll_team_t;
-
 /*---------------------------------------------------------------------------------*/
 
 extern size_t gasnete_coll_p2p_eager_min;
@@ -144,7 +139,6 @@ extern int gasnete_coll_smp_tune_barriers;
 /*---------------------------------------------------------------------------------*/
 /* Operations of the active list */
 
-extern gasneti_mutex_t gasnete_coll_active_lock; // global lock, may be unnecessary 
 extern void gasnete_coll_active_init(gasnete_coll_team_t team);
 extern void gasnete_coll_active_fini(gasnete_coll_team_t team);
 extern gasnete_coll_op_t *gasnete_coll_active_first(gasnete_coll_team_t team);
@@ -179,7 +173,6 @@ struct gasnete_coll_tree_data_t_ {
 #endif
 #endif
 
-// #define GASNETE_COLL_MAX_NUM_SEGS 2048
 #define GASNETE_COLL_MAX_NUM_SEGS 8192
 
 /*---------------------------------------------------------------------------------*/
@@ -218,11 +211,11 @@ typedef int (*gasnete_all_barrier_wait)(gasnete_coll_team_t team, int id, int fl
 typedef int (*gasnete_all_barrier_try)(gasnete_coll_team_t team, int id, int flags);
 
 typedef enum {
-	GASNETE_COLL_BARRIER_ENVDEFAULT=0,
-	GASNETE_COLL_BARRIER_AMDISSEM,
-	GASNETE_COLL_BARRIER_AMCENTRAL,
+  GASNETE_COLL_BARRIER_ENVDEFAULT=0,
+  GASNETE_COLL_BARRIER_AMDISSEM,
+  GASNETE_COLL_BARRIER_AMCENTRAL
 #ifdef GASNETE_COLL_CONDUIT_BARRIERS
-	GASNETE_COLL_CONDUIT_BARRIERS
+  , GASNETE_COLL_CONDUIT_BARRIERS
 #endif
 } gasnete_coll_barrier_type_t;
 
@@ -385,7 +378,8 @@ struct gasnete_coll_team_t_ {
 	gasnete_all_barrier_try barrier_try;
 	gasnete_all_barrier_wait barrier_wait;
 	gasneti_progressfn_t barrier_pf;
-	
+  int ret;
+
   gasneti_weakatomic_t num_multi_addr_collectives_started;
 		
 	/* tree geometry cache, each team should have its own cache .... */
@@ -407,7 +401,7 @@ struct gasnete_coll_team_t_ {
    */
   gasnete_coll_op_t	*gasnete_coll_active_head;
   gasnete_coll_op_t	**gasnete_coll_active_tail_p;
-  gasneti_mutex_t gasnete_coll_active_lock; //  = GASNETI_MUTEX_INITIALIZER;
+  gasneti_mutex_t gasnete_coll_active_lock; 
 
 	/* fileds for multi-image (multi-thread) team collectives */
 	gasnet_image_t total_images; /**< total number of images in the team */
@@ -461,15 +455,11 @@ struct gasnete_coll_team_t_ {
 	GASNETE_COLL_TEAM_EXTRA
 #endif
 
-  /* Linkage */
-  //struct gasnete_coll_team_t_ *next;
 }; /* end of struct gasnete_coll_team_t_ */
 
 #define gasnete_coll_image_is_local(TEAM, I)	\
 	((TEAM)->myrank == gasnete_coll_image2rank(TEAM, I))
 
-//extern void gasnete_coll_p2p_init(void);
-//extern void gasnete_coll_p2p_fini(void);
 extern gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence);
 extern void gasnete_coll_p2p_destroy(gasnete_coll_p2p_t *p2p);
 extern void gasnete_coll_p2p_signalling_put(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
@@ -843,18 +833,9 @@ typedef struct {
 	/* Default implementation of coll_ops active list */
 #endif
 	
-	/* struct { */
-	/* 	uint32_t		sequence; */
-	/* 	int					hold_lock; */
-	/* } threads; */
   volatile uint32_t threads_sequence;
   int threads_hold_lock;
 
-	/* XXX: more fields to come */
-  // Should be per-team
-	// gasneti_atomic_val_t num_multi_addr_collectives_started;
-	// smp_coll_t smp_coll_handle;
-	
   gasnete_hashtable_t *team_dir; /* store gasnete_coll_team_threaddata */
   gasnete_coll_team_threaddata_t *my_teams; /* link list of my teams for polling collective operations */
 
@@ -1461,9 +1442,9 @@ int gasnete_coll_generic_all_threads(gasnete_coll_generic_data_t *data) {
 }
 #else
 #define gasnete_coll_threads_lock(team, flags)		do { } while (0)
-#define gasnete_coll_threads_unlock(thrarg)	do { } while (0)
-#define gasnete_coll_threads_first(thrarg)		1
-#define gasnete_coll_threads_get_handle(thrarg)	\
+#define gasnete_coll_threads_unlock(team)	do { } while (0)
+#define gasnete_coll_threads_first(team)		1
+#define gasnete_coll_threads_get_handle(team)	\
 (gasneti_fatalerror("Call to gasnete_coll_threads_get_handle() in non-PAR build"), \
  GASNET_COLL_INVALID_HANDLE)
 #define gasnete_coll_threads_insert(op)		\

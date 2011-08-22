@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2011/03/18 23:05:01 $ */
-/*  $Revision: 1.151.4.2 $ */
+/*      $Date: 2011/08/22 23:24:16 $ */
+/*  $Revision: 1.151.4.3 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -47,6 +47,7 @@
 #undef GASNETI_HAVE_CC_ATTRIBUTE_CONST
 #undef GASNETI_HAVE_CC_ATTRIBUTE_FORMAT
 #undef GASNETI_HAVE_CC_ATTRIBUTE_FORMAT_FUNCPTR
+#undef GASNETI_HAVE_CC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
 
 /* CXX attributes support */
 #undef GASNETI_HAVE_CXX_ATTRIBUTE
@@ -63,6 +64,7 @@
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_CONST
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_FORMAT
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_FORMAT_FUNCPTR
+#undef GASNETI_HAVE_CXX_ATTRIBUTE_FORMAT_FUNCPTR_ARG
 
 /* MPI_CC attributes support */
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE
@@ -79,6 +81,7 @@
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_CONST
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_FORMAT
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_FORMAT_FUNCPTR
+#undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
 
 /* identification of the C compiler used at configure time */
 #undef GASNETI_PLATFORM_COMPILER_IDSTR
@@ -268,8 +271,15 @@
 /* udp-conduit default custom spawn command */
 #undef GASNET_CSPAWN_CMD
 
+/* compiler is Sun's "gccfss" variant of GCC */
+#undef GASNETI_GCC_GCCFSS
+
+/* compiler is Apple's variant of GCC */
+#undef GASNETI_GCC_APPLE
+
 /* platform is an SGI Altix multiprocessor */
 #undef GASNETI_ARCH_ALTIX
+#undef GASNETI_USE_MMTIMER
 
 /* platform is an IBM BlueGene/P multiprocessor */
 #undef GASNETI_ARCH_BGP
@@ -325,6 +335,8 @@
 #undef GASNETC_VAPI_MAX_HCAS
 
 /* GASNet ibv-conduit features and bug work-arounds */
+#undef HAVE_IBV_SRQ
+#undef HAVE_IBV_XRC
 #undef GASNETC_IBV_POLL_LOCK
 #undef GASNETC_IBV_RCV_THREAD
 #undef GASNETC_IBV_MAX_HCAS
@@ -363,6 +375,16 @@
 
 /* GASNet bug1389 detection/work-around */
 #undef GASNETI_BUG1389_WORKAROUND
+
+/* Defaults for GASNET_SSH_* env vars */
+#undef GASNETI_DEFAULT_SSH_CMD
+#undef GASNETI_DEFAULT_SSH_OPTIONS
+#undef GASNETI_DEFAULT_SSH_NODEFILE
+
+/* Settings for ssh-spawner */
+#undef GASNETI_SSH_TOPO_FLAT
+#undef GASNETI_SSH_TOPO_NARY
+#undef GASNETI_SSH_NARY_DEGREE
 
 @BOTTOM@
 

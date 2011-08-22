@@ -98,23 +98,23 @@ uint8_t **all_dsts;
 void fill_flag_str(int flags, char *outstr) {
   
   if(flags & GASNET_COLL_IN_NOSYNC && flags & GASNET_COLL_OUT_NOSYNC) {
-    sprintf(outstr, "no/no");
+    strcpy(outstr, "no/no");
   } else if(flags & GASNET_COLL_IN_NOSYNC && flags & GASNET_COLL_OUT_MYSYNC) {
-    sprintf(outstr, "no/my");
+    strcpy(outstr, "no/my");
   } else if(flags & GASNET_COLL_IN_NOSYNC && flags & GASNET_COLL_OUT_ALLSYNC) {
-    sprintf(outstr, "no/all");
+    strcpy(outstr, "no/all");
   } else if(flags & GASNET_COLL_IN_MYSYNC && flags & GASNET_COLL_OUT_NOSYNC) {
-    sprintf(outstr, "my/no");
+    strcpy(outstr, "my/no");
   } else if(flags & GASNET_COLL_IN_MYSYNC && flags & GASNET_COLL_OUT_MYSYNC) {
-    sprintf(outstr, "my/my");
+    strcpy(outstr, "my/my");
   } else if(flags & GASNET_COLL_IN_MYSYNC && flags & GASNET_COLL_OUT_ALLSYNC) {
-    sprintf(outstr, "my/all");
+    strcpy(outstr, "my/all");
   } else if(flags & GASNET_COLL_IN_ALLSYNC && flags & GASNET_COLL_OUT_NOSYNC) {
-    sprintf(outstr, "all/no");
+    strcpy(outstr, "all/no");
   } else if(flags & GASNET_COLL_IN_ALLSYNC && flags & GASNET_COLL_OUT_MYSYNC) {
-    sprintf(outstr, "all/my");
+    strcpy(outstr, "all/my");
   } else if(flags & GASNET_COLL_IN_ALLSYNC && flags & GASNET_COLL_OUT_ALLSYNC) {
-    sprintf(outstr, "all/all");
+    strcpy(outstr, "all/all");
   }
 }
 
@@ -176,11 +176,11 @@ void run_SINGLE_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_ar
   if(flags & GASNET_COLL_SINGLE) {
     src = (int*) (src_arr[0]); /* all threads have the same address so just use slot 0*/
     dst = (int*) (dst_arr[0]); /* all threads have the same address so just use slot 0*/
-    sprintf(output_str, "SINGLE");
+    strcpy(output_str, "SINGLE");
   } else {
     src = ((int*) td->mysrc);
     dst = ((int*) td->mydest);
-    sprintf(output_str, "LOCAL");
+    strcpy(output_str, "LOCAL");
   }
   
 #if BROADCAST_ENABLED || ALL_COLL_ENABLED  
@@ -547,12 +547,12 @@ void run_MULTI_ADDR_test(thread_data_t *td, uint8_t **dst_arr, uint8_t **src_arr
     src = (int*) src_arr[root_thread]; /* all threads have the same address so just use slot 0*/
     dst = (int*) dst_arr[root_thread]; /* all threads have the same address so just use slot 0*/
     num_addrs = THREADS;
-    sprintf(output_str, "SINGLE");
+    strcpy(output_str, "SINGLE");
   } else {
     src = ((int*)src_arr[root_thread % threads_per_node]); 
     dst = ((int*)dst_arr[root_thread % threads_per_node]); 
     num_addrs = threads_per_node;
-    sprintf(output_str, "LOCAL");
+    strcpy(output_str, "LOCAL");
   }
   
   mysrc = ((int*) td->mysrc);
@@ -1122,7 +1122,7 @@ int main(int argc, char **argv)
   
  
   GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-  test_init("testcollperf",0,"(max data size) (outer_verification_iters) (inner_verification_iters) (performance_iters) (thread count per node) ");
+  test_init("testcollperf",0,"(max data size) (outer_verification_iters) (inner_verification_iters) (performance_iters) (thread count per node) (test sections)");
   TEST_SET_WAITMODE(threads_per_node);
   A = TEST_MYSEG();
   B = A+(SEG_PER_THREAD*threads_per_node);

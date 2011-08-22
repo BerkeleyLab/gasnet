@@ -346,7 +346,7 @@ static int exec_amshort_handler(gasnetc_ptl_token_t *ptok, uint32_t *data32, int
 {
   gasnet_token_t token;
   int  isReq = ptok->need_reply;
-#if GASNET_DEBUG || GASNETI_STATS_OR_TRACE
+#if GASNET_DEBUG
   gasnetc_threaddata_t *th = gasnetc_mythread();
 #endif
 
@@ -396,9 +396,8 @@ static int exec_ammedium_handler(gasnetc_ptl_token_t *ptok, uint32_t *data32,
                                  int numarg, int ghandler, int nbytes)
 {
   gasnet_token_t token;
-  uint32_t cred_len;
   int      isReq = ptok->need_reply;
-#if GASNET_DEBUG || GASNETI_STATS_OR_TRACE
+#if GASNET_DEBUG
   gasnetc_threaddata_t *th = gasnetc_mythread();
 #endif
 
@@ -460,7 +459,7 @@ static int exec_amlong_header(gasnetc_ptl_token_t *ptok, int isPacked,
   gasnet_token_t token;
   int      ran_handler = 1; /* assume the best */
   int      isReq = ptok->need_reply;
-#if GASNET_DEBUG || GASNETI_STATS_OR_TRACE
+#if GASNET_DEBUG
   gasnetc_threaddata_t *th = gasnetc_mythread();
 #endif
 
@@ -638,7 +637,7 @@ static void exec_amlong_data(int isReq, ptl_event_t *ev)
   uint8_t* dataaddr = (uint8_t*)ev->md.start + ev->offset;
   size_t   datalen = ev->mlength;
   gasnetc_amlongcache_t *p;
-#if GASNET_DEBUG || GASNETI_STATS_OR_TRACE
+#if GASNET_DEBUG
   gasnetc_threaddata_t *th = gasnetc_mythread();
 #endif
 
@@ -1510,7 +1509,7 @@ static void ReqRB_init(void)
     gasnetc_PtlBuffer_t *p;
     size_t skip = GASNETI_ALIGNUP(sizeof(gasnetc_PtlBuffer_t),GASNETI_MEDBUF_ALIGNMENT);
 
-    sprintf(&name[0],"ReqRB_%02d",i);
+    snprintf(name,sizeof(name),"ReqRB_%02d",i);
 
     p = gasnetc_ReqRB[i] = gasnetc_malloc_aligned(GASNETI_MEDBUF_ALIGNMENT,nbytes + skip);
     gasnetc_buf_init(p,name,nbytes,(void *)((uintptr_t)p + skip));
@@ -1604,7 +1603,7 @@ void gasnetc_dump_credits(int epoch_count)
   int i;
   /* if opening the first time, over-write old file, otherwise append */
   const char *mode = (first_dump_credits ? "w" : "a");
-  sprintf(&filename[0],"credits.%03d",gasneti_mynode);
+  snprintf(filename,sizeof(filename),"credits.%03d",gasneti_mynode);
   if ( (fh = fopen(filename,mode)) == NULL) {
     gasneti_fatalerror("Failed to create or append file named %s",filename);
   }
@@ -1964,7 +1963,7 @@ static void exec_sys_msg(gasnetc_sys_t msg_id, int32_t arg0, int32_t arg1, int32
       uint32_t distance = arg0;
       int exitcode = arg1;
       int oldcode;
-    #if GASNET_DEBUG || GASNETI_STATS_OR_TRACE
+    #if GASNET_DEBUG || GASNET_TRACE
       int sender = arg2;
       gasneti_assert(((uint32_t)sender + distance) % gasneti_nodes == gasneti_mynode);
       GASNETI_TRACE_PRINTF(C,("Got SHUTDOWN Request from node %d w/ exitcode %d",sender,exitcode));
@@ -1998,7 +1997,7 @@ static void exec_sys_msg(gasnetc_sys_t msg_id, int32_t arg0, int32_t arg1, int32
       /* barrier notify message - never multithreaded */
       int phase = arg0;
       uint32_t distance = arg1;
-    #if GASNET_DEBUG || GASNETI_STATS_OR_TRACE
+    #if GASNET_DEBUG || GASNET_TRACE
       int sender = arg2;
       GASNETI_TRACE_PRINTF(C,("Got BARRIER from node %d phase=%d distance=%d",sender,phase,(int)distance));
       gasneti_assert(((uint32_t)sender + distance) % gasneti_nodes == gasneti_mynode);
@@ -2737,6 +2736,71 @@ extern void gasnetc_testBootExch(void)
 #endif
 
 /* ---------------------------------------------------------------------------------
+ * Helpers for try_pin() and gasnetc_portalsMaxPinMem()
+ * --------------------------------------------------------------------------------- */
+static void *try_pin_region = NULL;
+static uintptr_t try_pin_size = 0;
+
+#if HAVE_MMAP
+  static void *try_pin_alloc_inner(const uintptr_t size) {
+    void *addr = gasneti_mmap(size);
+    if (addr == MAP_FAILED) addr = NULL;
+    return addr;
+  }
+  static void try_pin_free_inner(void *addr, const uintptr_t size) {
+    gasneti_munmap(addr, size);
+  }
+#else
+  static void *try_pin_alloc_inner(const uintptr_t size) {
+    void *addr = gasneti_malloc_allowfail(size);
+    if (addr == NULL) addr = NULL;
+    return addr;
+  }
+  static void try_pin_free_inner(void *addr, const uintptr_t size) {
+    gasneti_free(addr);
+  }
+#endif
+
+static uintptr_t try_pin_alloc(uintptr_t size, const uintptr_t step) {
+  void *addr = try_pin_alloc_inner(size);
+
+  if (!addr) {
+    /* Binary search */
+    uintptr_t high = size;
+    uintptr_t low = step;
+    int found = 0;
+
+    while ((high - low) > step) {
+      uint64_t mid = (low + high)/2;
+      addr = try_pin_alloc_inner(mid);
+      if (addr) {
+        try_pin_free_inner(addr, mid);
+        low = mid;
+        found = 1;
+      } else {
+        high = mid;
+      }
+    }
+
+    if (!found) return 0;
+
+    size = low;
+    addr = try_pin_alloc_inner(low);
+    gasneti_assert_always(addr);
+  }
+
+  try_pin_region = addr;
+  try_pin_size = size;
+  return size;
+}
+
+static void try_pin_free(void) {
+  try_pin_free_inner(try_pin_region, try_pin_size);
+  try_pin_region = NULL;
+  try_pin_size = 0;
+}
+
+/* ---------------------------------------------------------------------------------
  * Function to determine if a chunk of memory of the given size can be allocated
  * and registered as a portals memory descriptor (pinned).
  * Returns true if can be, false if the memory either cannot be allocated or
@@ -2748,13 +2812,9 @@ static int try_pin(const uintptr_t size)
   ptl_md_t md;
   ptl_handle_md_t md_h;
   int rc, ok;
-#if HAVE_MMAP
-  void *mem = gasneti_mmap(size);
-  if (mem == MAP_FAILED) return 0;
-#else
-  void *mem = gasneti_malloc_allowfail(size);
-  if (mem == NULL) return 0;
-#endif
+  void *mem = try_pin_region;
+
+  if (size > try_pin_size) return 0;
 
   /* poll system queue here since these operations can take some time */
   gasnetc_sys_poll(GASNETC_EQ_LOCK);
@@ -2787,11 +2847,7 @@ static int try_pin(const uintptr_t size)
   if (ok) {
     GASNETC_PTLSAFE(PtlMDUnlink(md_h));
   }
-#if HAVE_MMAP
-  gasneti_munmap(mem, size);
-#else
-  gasneti_free(mem);
-#endif
+
   GASNETI_TRACE_PRINTF(C,("try_pin of %lu bytes %s",(unsigned long)size,(ok?"successful":"failed")));
   return ok;
 }
@@ -2803,10 +2859,9 @@ extern uintptr_t gasnetc_portalsMaxPinMem(void)
 {
 #define MBYTE 1048576ULL
   uint64_t granularity = 16ULL * MBYTE;
-  uint64_t low = granularity;
+  uint64_t low;
   uint64_t high;
   uint64_t limit = 16ULL * 1024ULL * MBYTE;
-  uint64_t prev;
 #undef MBYTE
 
 #if PLATFORM_OS_CNL
@@ -2815,47 +2870,58 @@ extern uintptr_t gasnetc_portalsMaxPinMem(void)
    * pinnable memory under CNL without dire consequences.
    * For this platform, we will simply try a large fraction of the physical
    * memory.  If that is too big, then the job will be killed at startup.
+   * The gasneti_mmapLimit() ensures limit is per compute node, not per process.
    */
-  double pm_ratio = gasneti_getenv_dbl_withdefault(
+  uint64_t pm_limit = gasneti_getPhysMemSz(1) *
+                      gasneti_getenv_dbl_withdefault(
                         "GASNET_PHYSMEM_PINNABLE_RATIO", 
                         GASNETC_DEFAULT_PHYSMEM_PINNABLE_RATIO);
 
-  limit = gasneti_mmapLimit(limit, pm_ratio * gasneti_getPhysMemSz(1),
+  pm_limit = gasneti_getenv_int_withdefault("GASNET_PHYSMEM_MAX", pm_limit, 1);
+
+  limit = gasneti_mmapLimit(limit, pm_limit,
                             &gasnetc_bootstrapExchange,
                             &gasnetc_bootstrapBarrier);
+#else
+  limit = gasneti_getenv_int_withdefault("GASNET_PHYSMEM_MAX", limit, 1);
 #endif
 
-  /* make sure we can pin at least the initial low watermark of memory */
-  if (! try_pin(low)) {
-    gasneti_fatalerror("Unable to alloc and pin minimal memory of size %d bytes",(int)low);
+  if_pf (gasneti_getenv_yesno_withdefault("GASNET_PHYSMEM_NOPROBE", 0)) {
+    /* User says to trust them... */
+    return (uintptr_t)limit;
   }
-  high = low;
 
-  /* move high boundary up (exponentially) until it will no longer pin, or we hit the limit */
-  prev = low;
-  high = prev*2;
-  if (high > limit) high = limit;
-  while (try_pin(high)) {
-    prev = high;
-    if (high >= limit) {
-	break;
-    }
-    high *= 2;
-    if (high > limit) high = limit;
-  }
-  low = prev;
+  /* Allocate a block of memory on which to try pinning */
+  high = try_pin_alloc(limit, granularity);
 
-  /* Now bisect until difference is within the granularity */
-  while ((high - low) > granularity) {
-    uint64_t mid = (low + high)/2;
-    if (try_pin(mid)) {
-      low = mid;
-    } else {
-      high = mid;
-    }
-  }
-  if ((low != high) && try_pin(high)) {
+  /* See how much of the block can be pinned */
+  if (try_pin(high)) {
     low = high;
+  } else {
+    /* Binary search */
+    low = 0;
+    while ((high - low) > granularity) {
+      uint64_t mid = (low + high)/2;
+      if (try_pin(mid)) {
+        low = mid;
+      } else {
+        high = mid;
+      }
+    }
+  }
+
+  /* Free the block we've been pinning */
+  try_pin_free();
+
+  if (low < granularity) {
+    uintptr_t too_low = granularity;
+    const char *envstr = gasneti_getenv("GASNET_MAX_SEGSIZE");
+    if (envstr) {
+      uintptr_t tmp = gasneti_parse_int(envstr, 1);
+      too_low = MIN(too_low, tmp);
+    }
+    if (low < too_low)
+      gasneti_fatalerror("Unable to alloc and pin minimal memory of size %d bytes",(int)too_low);
   }
   GASNETI_TRACE_PRINTF(C,("MaxPinMem = %lu",(unsigned long)low));
   return (uintptr_t)low;
@@ -3038,8 +3104,10 @@ extern void gasnetc_free_tmpmd(ptl_handle_md_t md_h)
   GASNETC_PTLSAFE(PtlMDUnlink(md_h));
 #if GASNETI_STATS_OR_TRACE
       {
+  #if GASNET_TRACE
 	int inuse = gasnetc_max_tmpmd - (int)gasnetc_num_tickets(&gasnetc_tmpmd_tickets);
 	GASNETI_TRACE_PRINTF(C,("FREE TMPMD, inuse=%d",inuse));
+  #endif
 	GASNETI_TRACE_EVENT(C, TMPMD_FREE);
       }
 #endif
@@ -3772,15 +3840,17 @@ extern void gasnetc_portals_exit(void)
  * 
  */
 
-static const char* poll_name[] = {"NO_POLL","SAFE_POLL","FULL_POLL"};
 extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
 {
+#if defined(GASNET_DEBUG) || defined(GASNET_TRACE)
+  static const char* poll_name[] = {"NO_POLL","SAFE_POLL","FULL_POLL"};
+#endif
   int processed = 0;
   ptl_event_t ev;
   unsigned safe_cnt = 0;
   unsigned am_cnt = 0;
 
-#if defined(GASNET_DEBUG) || defined(GASNETI_STATS_OR_TRACE)
+#if defined(GASNET_DEBUG) || defined(GASNET_TRACE)
   static int poll_level = 0;
   poll_level++;
   GASNETI_TRACE_PRINTF(C,("Enter Poll with %s, level %d",poll_name[poll_type],poll_level));
@@ -3800,7 +3870,7 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
    */
   while (safe_cnt < gasnetc_safe_poll_limit) {
     if ( gasnetc_get_event(gasnetc_SAFE_EQ, &ev, GASNETC_EQ_TRYLOCK) ) {
-#if GASNETI_STATS_OR_TRACE
+#if GASNET_TRACE
       gasnete_threaddata_t *td = gasnete_mythread();
       GASNETI_TRACE_PRINTF(C,("Got event %s from SAFE_EQ, md=%lu, mbits=0x%lx, th_id=%d",ptl_event_str[ev.type],(ulong)ev.md_handle,(unsigned long)ev.match_bits,td->threadidx));
 #endif
@@ -3868,7 +3938,7 @@ extern void gasnetc_portals_poll(gasnetc_pollflag_t poll_type)
   }
 
   out:
-#if defined(GASNET_DEBUG) || defined(GASNETI_STATS_OR_TRACE)
+#if defined(GASNET_DEBUG) || defined(GASNET_TRACE)
   GASNETI_TRACE_PRINTF(C,("Leave Poll with %s level %d",poll_name[poll_type],poll_level));
   poll_level--;
 #endif

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2009/04/30 09:14:00 $
- * $Revision: 1.105 $
+ *     $Date: 2011/08/22 23:24:16 $
+ * $Revision: 1.105.6.1 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -294,6 +294,68 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
       }
   }
   #define GASNETI_HAVE_SPINLOCK 1
+#elif defined(GASNETI_HAVE_ATOMIC_ADD_SUB)
+  /* Here we use a binary semaphore algorithm implemented "upside-down": 0=free, 1=held */
+  #define GASNETI_SPINLOCK_UNLOCKED	0
+  #define GASNETI_SPINLOCK_DESTROYED	GASNETI_ATOMIC_MAX
+  #if GASNET_DEBUG
+    GASNETI_INLINE(gasneti_spinlock_is_valid)
+    int gasneti_spinlock_is_valid(gasneti_atomic_t *plock) {
+      uint32_t tmp = gasneti_atomic_read(plock, GASNETI_ATOMIC_RMB_PRE);
+      if_pf (tmp == GASNETI_SPINLOCK_DESTROYED)
+        gasneti_fatalerror("Detected use of destroyed spinlock");
+      return 1;
+    }
+    GASNETI_INLINE(gasneti_spinlock_is_locked)
+    int gasneti_spinlock_is_locked(gasneti_atomic_t *plock) {
+      gasneti_atomic_val_t tmp = gasneti_atomic_read(plock, GASNETI_ATOMIC_RMB_PRE);
+      return (tmp != GASNETI_SPINLOCK_UNLOCKED);
+    }
+  #else
+    #define gasneti_spinlock_is_valid(plock) 1
+  #endif
+  #define GASNETI_SPINLOCK_INITIALIZER gasneti_atomic_init(GASNETI_SPINLOCK_UNLOCKED)
+  #define gasneti_spinlock_init(plock) \
+      gasneti_atomic_set((plock), GASNETI_SPINLOCK_UNLOCKED, GASNETI_ATOMIC_WMB_POST)
+  #define gasneti_spinlock_destroy(plock) do {                                          \
+      gasneti_assert(!gasneti_spinlock_is_locked(plock));                               \
+      gasneti_atomic_set((plock), GASNETI_SPINLOCK_DESTROYED, GASNETI_ATOMIC_WMB_POST); \
+  } while (0)
+  GASNETI_INLINE(_gasneti_spinlock_try) GASNETI_WARN_UNUSED_RESULT
+  int _gasneti_spinlock_try(gasneti_atomic_t *plock) {
+    gasneti_assert(gasneti_spinlock_is_valid(plock));
+    if_pt (gasneti_atomic_read(plock, 0) == 0) {
+      if_pt (gasneti_atomic_add(plock, 1, 0) == 1) {
+        return 1;
+      } else {
+        gasneti_atomic_decrement(plock, 0);
+      }
+    }
+    return 0;
+  }
+  #define gasneti_spinlock_lock(plock) do {              \
+      gasneti_waituntil(                                 \
+        _gasneti_spinlock_try(plock)                     \
+      );                                                 \
+      gasneti_assert(gasneti_spinlock_is_locked(plock)); \
+  } while (0)
+  GASNETI_INLINE(gasneti_spinlock_unlock)
+  int gasneti_spinlock_unlock(gasneti_atomic_t *plock) {
+    gasneti_assert(gasneti_spinlock_is_locked(plock));
+    gasneti_atomic_decrement(plock, GASNETI_ATOMIC_REL);
+    return 0;
+  }
+  /* return 0/EBUSY on success/failure to match pthreads */
+  GASNETI_INLINE(gasneti_spinlock_trylock) GASNETI_WARN_UNUSED_RESULT
+  int gasneti_spinlock_trylock(gasneti_atomic_t *plock) {
+    int retval = EBUSY;
+    if_pt (_gasneti_spinlock_try(plock)) {
+      gasneti_local_rmb(); /* Acquire */
+      retval = 0;
+    }
+    return retval;
+  }
+  #define GASNETI_HAVE_SPINLOCK 1
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -316,7 +378,7 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
       and discard the unused variables
      We need 2 separate variables to ensure correct name-binding semantics for GASNET_POST_THREADINFO(GASNET_GET_THREADINFO())
    */
-  static uint8_t gasnete_threadinfo_cache = 0;
+  static gasnet_threadinfo_t gasnete_threadinfo_cache = 0;
   static uint8_t gasnete_threadinfo_available = 
     sizeof(gasnete_threadinfo_cache) + sizeof(gasnete_threadinfo_available);
     /* silly little trick to prevent unused variable warning on gcc -Wall */
@@ -333,9 +395,9 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
       ( (sizeof(gasnete_threadinfo_available) == 1) ?            \
         (gasnet_threadinfo_t)gasnete_mythread() :                \
         ( (uintptr_t)gasnete_threadinfo_cache == 0 ?             \
-          ((*(gasnet_threadinfo_t *)&gasnete_threadinfo_cache) = \
+          (gasnete_threadinfo_cache =                            \
             (gasnet_threadinfo_t)gasnete_mythread()) :           \
-          (gasnet_threadinfo_t)(uintptr_t)gasnete_threadinfo_cache) )
+          gasnete_threadinfo_cache) )
   #else
     #define GASNET_GET_THREADINFO()                   \
       ( (sizeof(gasnete_threadinfo_available) == 1) ? \
@@ -700,6 +762,13 @@ extern int gasneti_wait_mode; /* current waitmode hint */
   extern int gasneti_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries);
   #define gasnet_getSegmentInfo(seginfo_table, numentries) \
           gasneti_getSegmentInfo(seginfo_table, numentries)
+#endif
+
+#ifndef _GASNET_GETNODEINFO
+#define _GASNET_GETNODEINFO
+  extern int gasneti_getNodeInfo(gasnet_node_t *nodeinfo_table, int numentries);
+  #define gasnet_getNodeInfo(nodeinfo_table, numentries) \
+          gasneti_getNodeInfo(nodeinfo_table, numentries)
 #endif
 
 #ifndef _GASNETI_SEGINFO

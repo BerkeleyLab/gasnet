@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_internal.h,v $
- * $Date: 2009/09/18 23:33:30 $
- * $Revision: 1.79 $
+ * $Date: 2011/08/22 23:24:28 $
+ * $Revision: 1.79.6.1 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -568,7 +568,6 @@ GASNETI_INLINE(gasnetc_fifo_progress)
 void
 gasnetc_fifo_progress(void)
 {
-	gasnetc_bufdesc_t *bufd;
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
 
 	while (gasnetc_fifo_head() && GASNETC_TOKEN_HI_AVAILABLE()) {
