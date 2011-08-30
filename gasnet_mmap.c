@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2011/08/30 05:45:27 $
- * $Revision: 1.88.2.3 $
+ *     $Date: 2011/08/30 05:53:55 $
+ * $Revision: 1.88.2.4 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -305,10 +305,23 @@ static int gasneti_pshm_open(size_t bytes, int pshm_rank){
   const int flags = exclusive ? ( O_CREAT | O_EXCL ) : 0;
   const char *filename = gasneti_pshmname[pshm_rank];
   return open(filename, flags | O_RDWR, S_IRUSR | S_IWUSR);
-#else
+#elif defined(GASNETI_PSHM_POSIX)
   const int flags = exclusive ? ( O_CREAT | O_EXCL ) : 0;
   const char *filename = gasneti_pshmname[pshm_rank];
-  return shm_open(filename, flags | O_RDWR, S_IRUSR | S_IWUSR);
+  int result = shm_open(filename, flags | O_RDWR, S_IRUSR | S_IWUSR);
+  #if PLATFORM_OS_DARWIN
+    if_pf ((result == -1) && (errno == EEXIST)) {
+      /* Work around Darwin stupidity observed by Filip */
+      int retries_remain = 32;
+      do {
+        gasneti_sched_yield();
+        result = shm_open(filename, flags | O_RDWR, S_IRUSR | S_IWUSR)
+      } while ((result == -1) && (errno == EEXIST) && retries_remain--);
+    }
+  #endif
+  return result;
+#else
+  #error
 #endif
 }
 
@@ -428,17 +441,6 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
   }
 
   fd_or_id = gasneti_pshm_open(segsize, pshmnode);
-
-#if PLATFORM_OS_DARWIN && defined(GASNETI_PSHM_POSIX)
-  if ((fd_or_id == -1) && (errno == EEXIST)) {
-    /* Work around Darwin stupidity observed by Filip */
-    int retries_remain = 32;
-    do {
-      gasneti_sched_yield();
-      fd_or_id = gasneti_pshm_open(segsize, pshmnode);
-    } while ((fd_or_id == -1) && (errno == EEXIST) && retries_remain--);
-  }
-#endif
 
   if (fd_or_id == -1) {
     int save_errno = errno;
