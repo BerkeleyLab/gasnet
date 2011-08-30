@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2011/08/30 02:06:56 $
- * $Revision: 1.88.2.1 $
+ *     $Date: 2011/08/30 04:44:19 $
+ * $Revision: 1.88.2.2 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -141,9 +141,10 @@ extern void *gasneti_mmap(uintptr_t segsize) {
 }
 
 #if GASNET_PSHM
-/* Keys or names: an array length 1+gasneti_pshm_nodes, the +1 is for AMs */
+/* an array of filenames/keys with length 1+gasneti_pshm_nodes, the +1 is for AMs */
 #ifdef GASNETI_PSHM_SYSV
-  unsigned int *gasneti_pshm_sysvkeys = NULL;
+  #include <sys/shm.h>
+  static key_t *gasneti_pshm_sysvkeys = NULL;
 #else
   static char **gasneti_pshmname = NULL;
 #endif
@@ -174,45 +175,38 @@ static int gasneti_pshm_mkstemp(const char *prefix, const char *tmpdir) {
 }
 
 #ifdef GASNETI_PSHM_SYSV
-/* SYSV FUNCTIONS */
-/* Usage of SYSV depends on kernel parameters:
- * shmmax (size of a single segment) and 
- * shmall (total shared memory size) need to be large.
- */
+static int gasneti_pshm_settemp(const char *unique, const char *prefix, const char *tmpdir) {
+  int tmpfd;
+  int len;
 
-#include <sys/shm.h>
-static key_t get_sysv_key(const char *filename, int pshm_rank){
-    key_t key;
-    key = ftok(filename, pshm_rank + 1);
-    if (key == (key_t)-1){
-        gasneti_fatalerror("failed to provide the unique SYSV key value for %s and rank %d, for ftok: %s",filename,pshm_rank,strerror(errno));
-    }
-    return key;
-}
-unsigned int gasneti_pshm_makekey(int pshm_rank) {
-  if (gasneti_pshm_tmpfile == NULL) {
-    static char prefix[] = "/GASNTXXXXXX";
-    const char *tmpdir = gasneti_getenv_withdefault("TMPDIR", "/tmp");
+  if (gasneti_pshm_tmpfile) return 0;
 
-    if (gasneti_pshm_mkstemp(prefix, tmpdir)) {
-        gasneti_fatalerror("mkstemp() failed to find a unique prefix: %s", strerror(errno));
-    }
-    /* Don't unlink() it until we no longer require uniqueness */
+  if (!tmpdir || !strlen(tmpdir)) {
+    errno = ENOTDIR;
+    return -1;
   }
+  gasneti_pshm_tmpfile = gasneti_realloc(gasneti_pshm_tmpfile, strlen(tmpdir) + GASNETI_PSHM_PREFIX_LEN + 1);
+  strcpy(gasneti_pshm_tmpfile, tmpdir);
+  strcat(gasneti_pshm_tmpfile, prefix);
 
-  /* ftok() is documented (on at least some systems) as using only low 8 bits */
-#if GASNETI_PSHM_MAX_NODES > 255
-  gasneti_assert_always(gasneti_pshm_nodes < 256);
+  /* Note: 'unique' might not be NUL terminated */
+  len = strlen(gasneti_pshm_tmpfile);
+  memcpy(gasneti_pshm_tmpfile + len - GASNETI_PSHM_UNIQUE_LEN, unique, GASNETI_PSHM_UNIQUE_LEN);
+
+  /* Now try to verify the file exists */
+  tmpfd = open(gasneti_pshm_tmpfile, O_RDWR);
+  if (tmpfd >= 0) {
+    close(tmpfd);
+    return 0;
+  } else {
+    return -1;
+  }
+}
 #endif
 
-  return get_sysv_key(gasneti_pshm_tmpfile, pshm_rank);
-}
-
-#else
-
-extern const char *gasneti_pshm_makenames(const char *unique) {
+static const char *gasneti_pshm_makeunique(const char *unique) {
   static char prefix[] = "/GASNTXXXXXX";
-#ifdef GASNETI_PSHM_FILE
+#if defined(GASNETI_PSHM_FILE) || defined(GASNETI_PSHM_SYSV)
   const char *tmpdir = gasneti_tmpdir();
   const size_t tmpdir_len = strlen(tmpdir);
 #else
@@ -224,7 +218,7 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
   gasneti_assert(strlen(prefix) == GASNETI_PSHM_PREFIX_LEN);
 
   if (!unique) { /* We get to pick the unique bits */
-#ifdef GASNETI_PSHM_FILE
+#if defined(GASNETI_PSHM_FILE) || defined(GASNETI_PSHM_SYSV)
     if (gasneti_pshm_mkstemp(prefix, tmpdir)) {
       gasneti_fatalerror("mkstemp() failed to find a unique prefix: %s", strerror(errno));
     }
@@ -253,13 +247,30 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
     unique += GASNETI_PSHM_PREFIX_LEN1;
   }
 
+#if defined(GASNETI_PSHM_SYSV)
+ #if GASNETI_PSHM_MAX_NODES > 255
+  /* ftok() is documented (on at least some systems) as using only low 8 bits */
+  gasneti_assert_always(gasneti_pshm_nodes + 1 < 256);
+ #endif
+
+  gasneti_pshm_settemp(unique, prefix, tmpdir);
+  gasneti_pshm_sysvkeys = (key_t *)gasneti_malloc((gasneti_pshm_nodes+1)*sizeof(key_t));
+  for (i = 0; i <= gasneti_pshm_nodes; ++i) {
+    key_t key = ftok(gasneti_pshm_tmpfile, i + 1);
+    if (key == (key_t)-1){
+        gasneti_fatalerror("failed to provide the unique SYSV key value for %s and rank %d, for ftok: %s",
+                           gasneti_pshm_tmpfile, i, strerror(errno));
+    }
+    gasneti_pshm_sysvkeys[i] = key;
+  }
+#else
+  /* Two base-36 "digits" provide 1296 unique names, even if case-insensitive. */
+ #if GASNETI_PSHM_MAX_NODES > 255
+  gasneti_assert_always(gasneti_pshm_nodes < (36*36));
+ #endif
+
   /* Note: 'unique' might not be NUL terminated */
   memcpy(prefix + GASNETI_PSHM_PREFIX_LEN1, unique, GASNETI_PSHM_UNIQUE_LEN);
-
-  /* Two base-36 "digits" provide 1296 unique names, even if case-insensitive. */
-#if GASNETI_PSHM_MAX_NODES > 255
-  gasneti_assert_always(gasneti_pshm_nodes < (36*36));
-#endif
 
   gasneti_pshmname = (char **)gasneti_malloc((gasneti_pshm_nodes+1)*sizeof(char*));
 
@@ -267,9 +278,9 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
     const char tbl[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     char *filename = (char *)gasneti_malloc(base_len + 3);
 
-#ifdef GASNETI_PSHM_FILE
+ #ifdef GASNETI_PSHM_FILE
     memcpy(filename, tmpdir, tmpdir_len);
-#endif
+ #endif
     memcpy(filename + tmpdir_len, prefix, GASNETI_PSHM_PREFIX_LEN);
 
     filename[base_len + 0] = tbl[i / 36];
@@ -278,10 +289,10 @@ extern const char *gasneti_pshm_makenames(const char *unique) {
 
     gasneti_pshmname[i] = filename;
   }
+#endif
 
   return unique;
 }
-#endif
 
 static int gasneti_pshm_open(size_t bytes, int pshm_rank){
 #if defined(GASNETI_PSHM_SYSV)
@@ -533,8 +544,33 @@ extern void *gasneti_mmap_shared(uintptr_t segsize) {
   return gasneti_mmap_shared_internal(gasneti_pshm_mynode, NULL, segsize, 1, 1);
 }
 
-extern void *gasneti_mmap_vnet(uintptr_t size) {
-  void *ptr = gasneti_mmap_shared_internal(gasneti_pshm_nodes, NULL, size, 1, 0);
+extern void *gasneti_mmap_vnet(uintptr_t size, gasneti_bootstrapExchangefn_t exchangefn) {
+  void *ptr;
+
+  {
+    char (*exchg)[GASNETI_PSHM_UNIQUE_LEN];
+    char unique[GASNETI_PSHM_UNIQUE_LEN];
+
+    /* First in each supernode generates the names/keys and returns the unique identifier */
+    if (gasneti_pshm_mynode == 0) {
+      const char *tmp = gasneti_pshm_makeunique(NULL);
+      memcpy(unique, tmp, GASNETI_PSHM_UNIQUE_LEN);
+    }
+
+    /* Conduit's exchangefn is used as a supernode-scoped bcast to
+     * communicate the unique identifier generated by the firsts */
+    exchg = gasneti_malloc(gasneti_nodes * GASNETI_PSHM_UNIQUE_LEN);
+    (*exchangefn)(unique, GASNETI_PSHM_UNIQUE_LEN, exchg);
+
+    /* Non-first nodes now generate the same names/keys from the unique identifier */
+    if (gasneti_pshm_mynode != 0) {
+      (void)gasneti_pshm_makeunique((const char *)(exchg + gasneti_pshm_firstnode));
+    }
+
+    gasneti_free(exchg);
+  }
+
+  ptr = gasneti_mmap_shared_internal(gasneti_pshm_nodes, NULL, size, 1, 0);
   return (ptr == MAP_FAILED) ? NULL : ptr;
 }
 extern void gasneti_unlink_vnet(void) {

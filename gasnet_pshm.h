@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.h,v $
- *     $Date: 2011/08/20 01:53:34 $
- * $Revision: 1.14 $
+ *     $Date: 2011/08/30 04:44:19 $
+ * $Revision: 1.14.2.1 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -45,14 +45,7 @@
 /* In gasnet_mmap.c */
 #define GASNETI_PSHM_UNIQUE_LEN 6
 
-#ifdef GASNETI_PSHM_SYSV
-extern unsigned int * gasneti_pshm_sysvkeys;
-extern unsigned int gasneti_pshm_makekey(int pshm_rank);
-#else
-extern const char *gasneti_pshm_makenames(const char *unique);
-#endif
-
-extern void *gasneti_mmap_vnet(uintptr_t segsize);
+extern void *gasneti_mmap_vnet(uintptr_t segsize, gasneti_bootstrapExchangefn_t exchangefn);
 extern void gasneti_unlink_vnet(void);
 
 /* Virtual network between processes within a shared
