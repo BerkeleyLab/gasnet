@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2011/08/30 04:44:19 $
- * $Revision: 1.88.2.2 $
+ *     $Date: 2011/08/30 05:45:27 $
+ * $Revision: 1.88.2.3 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -295,14 +295,20 @@ static const char *gasneti_pshm_makeunique(const char *unique) {
 }
 
 static int gasneti_pshm_open(size_t bytes, int pshm_rank){
+  const int exclusive = (pshm_rank == gasneti_pshm_mynode) ||
+                       ((pshm_rank == gasneti_pshm_nodes) && !gasneti_pshm_mynode);
+
 #if defined(GASNETI_PSHM_SYSV)
-  return shmget(gasneti_pshm_sysvkeys[pshm_rank], bytes, IPC_CREAT | S_IRUSR | S_IWUSR);
+  const int flags = exclusive ? ( IPC_CREAT | IPC_EXCL ) : 0;
+  return shmget(gasneti_pshm_sysvkeys[pshm_rank], bytes, flags | S_IRUSR | S_IWUSR);
 #elif defined(GASNETI_PSHM_FILE)
+  const int flags = exclusive ? ( O_CREAT | O_EXCL ) : 0;
   const char *filename = gasneti_pshmname[pshm_rank];
-  return open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+  return open(filename, flags | O_RDWR, S_IRUSR | S_IWUSR);
 #else
+  const int flags = exclusive ? ( O_CREAT | O_EXCL ) : 0;
   const char *filename = gasneti_pshmname[pshm_rank];
-  return shm_open(filename, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR);
+  return shm_open(filename, flags | O_RDWR, S_IRUSR | S_IWUSR);
 #endif
 }
 
@@ -551,10 +557,11 @@ extern void *gasneti_mmap_vnet(uintptr_t size, gasneti_bootstrapExchangefn_t exc
     char (*exchg)[GASNETI_PSHM_UNIQUE_LEN];
     char unique[GASNETI_PSHM_UNIQUE_LEN];
 
-    /* First in each supernode generates the names/keys and returns the unique identifier */
+    /* First in each supernode creates the segment plus the names/keys and returns the unique identifier */
     if (gasneti_pshm_mynode == 0) {
       const char *tmp = gasneti_pshm_makeunique(NULL);
       memcpy(unique, tmp, GASNETI_PSHM_UNIQUE_LEN);
+      ptr = gasneti_mmap_shared_internal(gasneti_pshm_nodes, NULL, size, 1, 0);
     }
 
     /* Conduit's exchangefn is used as a supernode-scoped bcast to
@@ -562,15 +569,15 @@ extern void *gasneti_mmap_vnet(uintptr_t size, gasneti_bootstrapExchangefn_t exc
     exchg = gasneti_malloc(gasneti_nodes * GASNETI_PSHM_UNIQUE_LEN);
     (*exchangefn)(unique, GASNETI_PSHM_UNIQUE_LEN, exchg);
 
-    /* Non-first nodes now generate the same names/keys from the unique identifier */
+    /* Non-first nodes attach and generate the same names/keys from the unique identifier */
     if (gasneti_pshm_mynode != 0) {
       (void)gasneti_pshm_makeunique((const char *)(exchg + gasneti_pshm_firstnode));
+      ptr = gasneti_mmap_shared_internal(gasneti_pshm_nodes, NULL, size, 1, 0);
     }
 
     gasneti_free(exchg);
   }
 
-  ptr = gasneti_mmap_shared_internal(gasneti_pshm_nodes, NULL, size, 1, 0);
   return (ptr == MAP_FAILED) ? NULL : ptr;
 }
 extern void gasneti_unlink_vnet(void) {
