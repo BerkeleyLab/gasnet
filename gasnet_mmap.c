@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2011/08/23 04:44:03 $
- * $Revision: 1.87 $
+ *     $Date: 2011/08/30 00:22:49 $
+ * $Revision: 1.88 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1400,9 +1400,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
         if (i == gasneti_pshm_mynode) continue;
         if (min_corrections[i] < initial_sizes[i]){
            ar = gasneti_AttachRemote(min_corrections[i], i, minheapoffset, seginfo);
-           #if GASNETI_PSHM_CORRECTION
            seginfo_correction[i] = ar;
-           #endif
            if (ar) break;
         }
     }
