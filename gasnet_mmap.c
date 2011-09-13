@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2011/08/30 05:53:55 $
- * $Revision: 1.88.2.4 $
+ *     $Date: 2011/09/13 04:00:57 $
+ * $Revision: 1.88.2.5 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -141,11 +141,12 @@ extern void *gasneti_mmap(uintptr_t segsize) {
 }
 
 #if GASNET_PSHM
+
 /* an array of filenames/keys with length 1+gasneti_pshm_nodes, the +1 is for AMs */
-#ifdef GASNETI_PSHM_SYSV
+#if defined(GASNETI_PSHM_SYSV)
   #include <sys/shm.h>
   static key_t *gasneti_pshm_sysvkeys = NULL;
-#else
+#elif defined(GASNETI_PSHM_FILE) || defined(GASNETI_PSHM_POSIX)
   static char **gasneti_pshmname = NULL;
 #endif
 
@@ -229,9 +230,9 @@ static const char *gasneti_pshm_makeunique(const char *unique) {
     if (   gasneti_pshm_mkstemp(prefix, "/tmp")
         && gasneti_pshm_mkstemp(prefix, "/var/tmp")
         && gasneti_pshm_mkstemp(prefix, "/usr/tmp")
-#if PLATFORM_OS_LINUX
+  #if PLATFORM_OS_LINUX
         && gasneti_pshm_mkstemp(prefix, "/dev/shm")
-#endif
+  #endif
        ) {
       /* We'll HOPE that our pid's low 24 bits are good enough for node-scope uniqueness */
       static const char pattern[] = "/GASNT%06x";
@@ -294,64 +295,89 @@ static const char *gasneti_pshm_makeunique(const char *unique) {
   return unique;
 }
 
-static int gasneti_pshm_open(size_t bytes, int pshm_rank){
-  const int exclusive = (pshm_rank == gasneti_pshm_mynode) ||
-                       ((pshm_rank == gasneti_pshm_nodes) && !gasneti_pshm_mynode);
+/* create the object/region/segment and return its address */
+static void * gasneti_pshm_mmap(int pshm_rank, void *segbase, size_t segsize) {
+  const int create = (pshm_rank == gasneti_pshm_mynode) ||
+                     ((pshm_rank == gasneti_pshm_nodes) && !gasneti_pshm_mynode);
+  void * ptr = MAP_FAILED;
 
 #if defined(GASNETI_PSHM_SYSV)
-  const int flags = exclusive ? ( IPC_CREAT | IPC_EXCL ) : 0;
-  return shmget(gasneti_pshm_sysvkeys[pshm_rank], bytes, flags | S_IRUSR | S_IWUSR);
-#elif defined(GASNETI_PSHM_FILE)
-  const int flags = exclusive ? ( O_CREAT | O_EXCL ) : 0;
+  const int flags = S_IRUSR | S_IWUSR | (create ? ( IPC_CREAT | IPC_EXCL ) : 0);
+
+  /* Create and size in 1 step */
+  int id = shmget(gasneti_pshm_sysvkeys[pshm_rank], segsize, flags);
+  if (id == -1) return MAP_FAILED;
+
+  /* map */
+  ptr = shmat(id, segbase, 0);
+
+  if (ptr == (void *)(intptr_t)(-1)) ptr = MAP_FAILED;
+#elif defined(GASNETI_PSHM_FILE) || defined(GASNETI_PSHM_POSIX)
+  const int flags = O_RDWR | (create ? ( O_CREAT | O_EXCL ) : 0);
   const char *filename = gasneti_pshmname[pshm_rank];
-  return open(filename, flags | O_RDWR, S_IRUSR | S_IWUSR);
-#elif defined(GASNETI_PSHM_POSIX)
-  const int flags = exclusive ? ( O_CREAT | O_EXCL ) : 0;
-  const char *filename = gasneti_pshmname[pshm_rank];
-  int result = shm_open(filename, flags | O_RDWR, S_IRUSR | S_IWUSR);
-  #if PLATFORM_OS_DARWIN
-    if_pf ((result == -1) && (errno == EEXIST)) {
-      /* Work around Darwin stupidity observed by Filip */
-      int retries_remain = 32;
-      do {
-        gasneti_sched_yield();
-        result = shm_open(filename, flags | O_RDWR, S_IRUSR | S_IWUSR)
-      } while ((result == -1) && (errno == EEXIST) && retries_remain--);
-    }
+  int fd = -1;
+
+  /* create or open */
+  #if defined(GASNETI_PSHM_FILE)
+    fd = open(filename, flags, S_IRUSR | S_IWUSR);
+  #elif defined(GASNETI_PSHM_POSIX)
+    fd = shm_open(filename, flags, S_IRUSR | S_IWUSR);
+    #if PLATFORM_OS_DARWIN
+      if ((fd == -1) && (errno == EEXIST)) {
+        /* Work around Darwin stupidity observed by Filip */
+        int retries_remain = 32;
+        do {
+          gasneti_sched_yield();
+          fd = shm_open(filename, flags, S_IRUSR | S_IWUSR)
+        } while ((fd == -1) && (errno == EEXIST) && retries_remain--);
+      }
+    #endif
+  #else
+    #error
   #endif
-  return result;
+  if (fd == -1) return MAP_FAILED;
+
+  /* size on create only */
+  if (create && ftruncate(fd, segsize)) {
+    /* resize failed - fall through */
+  } else {
+    /* map */
+    const int mmap_flags = MAP_SHARED | (segbase ? GASNETI_MMAP_FIXED_FLAG : GASNETI_MMAP_NOTFIXED_FLAG);
+    ptr = mmap(segbase, segsize, (PROT_READ|PROT_WRITE), mmap_flags, fd, 0);
+  }
+
+  {
+    const int save_errno = errno;
+    (void) close(fd);
+    errno = save_errno;
+  }
+#elif defined(GASNETI_PSHM_XPMEM)
+  #error NOT YET!
 #else
   #error
 #endif
+
+  return ptr;
 }
 
-static void * gasneti_pshm_mmap(void *segbase, uintptr_t segsize, int flags, int fd_or_id){
-#ifdef GASNETI_PSHM_SYSV
-  return shmat(fd_or_id, segbase, 0);
-#else
-  return mmap(segbase, segsize, (PROT_READ|PROT_WRITE), flags, fd_or_id, 0);
-#endif
-}
-
-#ifdef GASNETI_PSHM_SYSV
+/* Helper: remove object's mapping from address space */
 static void gasneti_pshm_munmap(void *segbase, uintptr_t segsize) {
   gasneti_assert(segsize > 0);
-  if (shmdt(segbase) != 0)
+#if defined(GASNETI_PSHM_SYSV)
+  if (shmdt(segbase) != 0) {
       gasneti_fatalerror("shmdt("GASNETI_LADDRFMT") failed: %s\n",
 	      GASNETI_LADDRSTR(segbase), strerror(errno));
-}
+  }
+#elif defined(GASNETI_PSHM_FILE) || defined(GASNETI_PSHM_POSIX)
+  gasneti_munmap(segbase, segsize);
+#elif defined(GASNETI_PSHM_XPMEM)
+  #error NOT YET!
 #else
-  #define gasneti_pshm_munmap gasneti_munmap
-#endif
-
-static void gasneti_pshm_close(int fd_or_id){
-#ifdef GASNETI_PSHM_SYSV
-  /* empty */
-#else
-  (void) close(fd_or_id);
+  #erro
 #endif
 }
 
+/* Helper: destroy the "attach point" */
 static void gasneti_pshm_unlink(int pshm_rank){
 #if defined(GASNETI_PSHM_SYSV)
   int shmget_id = shmget(gasneti_pshm_sysvkeys[pshm_rank], 0, 0);
@@ -359,9 +385,13 @@ static void gasneti_pshm_unlink(int pshm_rank){
 #elif defined(GASNETI_PSHM_FILE)
   const char *filename = gasneti_pshmname[pshm_rank];
   (void)unlink(filename);
-#else
+#elif defined(GASNETI_PSHM_POSIX)
   const char *filename = gasneti_pshmname[pshm_rank];
   (void)shm_unlink(filename);
+#elif defined(GASNETI_PSHM_XPMEM)
+  #error NOT YET!
+#else
+  #error
 #endif
 }
 
@@ -387,7 +417,7 @@ static void gasneti_cleanup_shm(void) {
     
   gasneti_free(gasneti_pshm_sysvkeys);
   gasneti_pshm_sysvkeys = NULL;
-#else
+#elif defined(GASNETI_PSHM_FILE) || defined(GASNETI_PSHM_POSIX)
   if (gasneti_pshmname) {
     /* Unlink the segments and vnet, and free the filenames */
     for (i=0; i<gasneti_pshm_nodes+1; ++i) {
@@ -397,6 +427,10 @@ static void gasneti_cleanup_shm(void) {
     gasneti_free(gasneti_pshmname);
     gasneti_pshmname = NULL;
   }
+#elif defined(GASNETI_PSHM_XPMEM)
+  #error NOT YET!
+#else
+  #error
 #endif
 
   /* Remove the tmpfile that ensures uniqueness of our filenames */
@@ -407,26 +441,9 @@ static void gasneti_cleanup_shm(void) {
   }
 }
 
-static int gasneti_mmap_stretch(int fd, uintptr_t size) {
-  /* Use of ftruncate is from the example code in IEEE Std 1003.1-2001/Cor 2-2004 */
-  int rc = ftruncate(fd, size);
-#if PLATFORM_OS_DARWIN || 1
-  /* Darwin won't let you resize a POSIX shared memory object, but this check is
-   * always safe.  So, enabled unconditionally for portability.
-   */
-  if ((rc < 0) && (errno == EINVAL)) {
-    struct stat s;
-    if (!fstat(fd,&s) && (s.st_size == size)) rc = 0; /* OK if size already correct */
-    errno = EINVAL;
-  }
-#endif
-  return rc;
-}
-
 static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t segsize,
-                                          int may_fail, int do_unlink) {
-  const int flags = MAP_SHARED | (segbase ? GASNETI_MMAP_FIXED_FLAG : GASNETI_MMAP_NOTFIXED_FLAG);
-  int fd_or_id;
+                                          int may_fail) {
+  int handle;
   int mmap_errno;
   gasneti_tick_t t1, t2;
   void	*ptr;
@@ -440,64 +457,10 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
     return MAP_FAILED;
   }
 
-  fd_or_id = gasneti_pshm_open(segsize, pshmnode);
-
-  if (fd_or_id == -1) {
-    int save_errno = errno;
-#ifdef GASNETI_PSHM_SYSV
-    if (may_fail && ((errno == ENOMEM) || (errno == EINVAL))) {
-      /* Since open/resize are a single step, this is a non-fatal (probe) failure.
-       * Note that EINVAL is documented behavior for size > SHMMAX. 
-       */
-      return MAP_FAILED;
-    }
-#endif
-    gasneti_cleanup_shm();
-    gasneti_fatalerror("failed to open shared memory file/segment for node %d: %s", pshmnode, strerror(save_errno));
-  }
-
-#if PLATFORM_OS_DARWIN && defined(GASNETI_PSHM_POSIX)
-  #error "Must fix resize problem before Darwin support for PSHM will work"
-  /* This shm_unlink() was added here for Darwin (which we don't currently
-     support w/ PSHM due to an apparent kernel memory leak when using PSHM).
-     Read and understand the following before reenabling this code.
-
-     It has been determined that this shm_unlink() causes the mmap()s done
-     at gasnet_init()-time to be NON shared, having undesired effects:
-     + If the client asked for the max available segment size, then Attach is
-       "smart" enough to reuse the mmap()s generated at Init-time.  However,
-       since this was NON shared, the segment was useless.
-     + The NON sharing here also was causing unexpected failures of the
-       ftruncate() on systems that disallow overcommit of swap (e.g. our
-       Solaris testers) since we were actually trying to map a factor of
-       gasneti_nodes more memory than our probe had determined was available.
-  */
-  if (do_unlink) {
-    /* Darwin requires an shm_unlink/shm_open to resize a shared memory object.
-     * However, it is always safe and can help reduce the opportunities for a leak. */
-    /* XXX: NO IT IS *NEVER* SAFE.  See above */
-    gasneti_pshm_unlink(pshmnode);
-  }
-#endif
-
-#ifndef GASNETI_PSHM_SYSV
-  if (gasneti_mmap_stretch(fd_or_id, segsize)) {
-    int save_errno = errno;
-    gasneti_pshm_close(fd_or_id);
-    if (!may_fail) {
-      gasneti_cleanup_shm();
-      gasneti_fatalerror("failed to set shared memory file %d to %lu bytes: %s",pshmnode,(unsigned long)segsize,strerror(save_errno));
-    }
-    errno = save_errno;
-    return MAP_FAILED;
-  }
-#endif
- 
   t1 = gasneti_ticks_now();
-  ptr = gasneti_pshm_mmap(segbase,segsize,flags,fd_or_id);
+  ptr = gasneti_pshm_mmap(pshmnode, segbase, segsize);
   mmap_errno = errno;
   t2 = gasneti_ticks_now();
-  gasneti_pshm_close(fd_or_id);
 
   GASNETI_TRACE_PRINTF(C, 
       ("mmap %s("GASNETI_LADDRFMT", %lu): %.3fus => "GASNETI_LADDRFMT"%s%s\n", 
@@ -543,13 +506,13 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
 
 static void *gasneti_mmap_remote_shared(void *segbase, uintptr_t segsize, gasnet_node_t pshmnode) {
   gasneti_assert(pshmnode < gasneti_pshm_nodes);
-  return gasneti_mmap_shared_internal(pshmnode, segbase, segsize, 0, 0);
+  return gasneti_mmap_shared_internal(pshmnode, segbase, segsize, 0);
 }
 extern void *gasneti_mmap_shared_fixed(void *segbase, uintptr_t segsize) {
-  return gasneti_mmap_shared_internal(gasneti_pshm_mynode, segbase, segsize, 0, 0);
+  return gasneti_mmap_shared_internal(gasneti_pshm_mynode, segbase, segsize, 0);
 }
 extern void *gasneti_mmap_shared(uintptr_t segsize) {
-  return gasneti_mmap_shared_internal(gasneti_pshm_mynode, NULL, segsize, 1, 1);
+  return gasneti_mmap_shared_internal(gasneti_pshm_mynode, NULL, segsize, 1);
 }
 
 extern void *gasneti_mmap_vnet(uintptr_t size, gasneti_bootstrapExchangefn_t exchangefn) {
@@ -563,7 +526,7 @@ extern void *gasneti_mmap_vnet(uintptr_t size, gasneti_bootstrapExchangefn_t exc
     if (gasneti_pshm_mynode == 0) {
       const char *tmp = gasneti_pshm_makeunique(NULL);
       memcpy(unique, tmp, GASNETI_PSHM_UNIQUE_LEN);
-      ptr = gasneti_mmap_shared_internal(gasneti_pshm_nodes, NULL, size, 1, 0);
+      ptr = gasneti_mmap_shared_internal(gasneti_pshm_nodes, NULL, size, 1);
     }
 
     /* Conduit's exchangefn is used as a supernode-scoped bcast to
@@ -574,7 +537,7 @@ extern void *gasneti_mmap_vnet(uintptr_t size, gasneti_bootstrapExchangefn_t exc
     /* Non-first nodes attach and generate the same names/keys from the unique identifier */
     if (gasneti_pshm_mynode != 0) {
       (void)gasneti_pshm_makeunique((const char *)(exchg + gasneti_pshm_firstnode));
-      ptr = gasneti_mmap_shared_internal(gasneti_pshm_nodes, NULL, size, 1, 0);
+      ptr = gasneti_mmap_shared_internal(gasneti_pshm_nodes, NULL, size, 1);
     }
 
     gasneti_free(exchg);
