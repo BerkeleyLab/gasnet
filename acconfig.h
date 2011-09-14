@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2011/07/07 00:00:13 $ */
-/*  $Revision: 1.165 $ */
+/*      $Date: 2011/09/14 01:22:27 $ */
+/*  $Revision: 1.165.2.1 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -171,6 +171,7 @@
 #undef GASNETI_PSHM_POSIX
 #undef GASNETI_PSHM_SYSV
 #undef GASNETI_PSHM_FILE
+#undef GASNETI_PSHM_XPMEM
 
 /* support for backtracing */
 #undef HAVE_EXECINFO_H
