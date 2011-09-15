@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2011/09/15 02:21:56 $
- * $Revision: 1.88.2.7 $
+ *     $Date: 2011/09/15 02:31:17 $
+ * $Revision: 1.88.2.8 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -332,10 +332,13 @@ static long pick_pagesz(uintptr_t *size_p) {
   int i;
 
   if (!tbl) {
+    long dflt = gethugepagesize();
     count = gethugepagesizes(NULL, 0);
     tbl = gasneti_calloc(count+1, sizeof(long)); /* final 0 marks end */
     gethugepagesizes(tbl, count);
     qsort(tbl, count, sizeof(long), compare_long);
+    /* remove from consideration any smaller than the default */
+    while (*tbl && (*tbl < dflt)) { ++tbl; --count; }
   }
 
   size = *size_p;
