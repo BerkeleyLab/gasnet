@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2011/09/14 01:22:27 $
-# $Revision: 1.691.2.1 $
+#     $Date: 2011/09/15 02:21:56 $
+# $Revision: 1.691.2.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.691.2.1 $)
+AC_REVISION($Revision: 1.691.2.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -3525,18 +3525,23 @@ if test "$enabled_gemini" = yes; then
   GASNET_ENV_DEFAULT(PMI_INCLUDE, $PE_DIR/pmi/default/include)
   GASNET_ENV_DEFAULT(GEMINI_INCLUDE, $PE_DIR/gni-headers/default/include)
   GEMINI_INCLUDES="-I${GEMINI_INCLUDE} -I${PMI_INCLUDE} "
-  GASNET_ENV_DEFAULT(GEMINI_LIBS, )
+  GASNET_ENV_DEFAULT(GEMINI_LIBS, "-lhugetlbfs")
 
   if test $have_gemini = yes; then
     # If/when we use firehose we need to disable certain optimizations.
     #GASNET_FH_CFLAGS
 
     GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS ${GEMINI_INCLUDES}")
+    GASNET_PUSHVAR(LIBS,"$LIBS ${GEMINI_LIBS}")
 
     AC_CHECK_HEADERS(pmi_cray.h, [:], [have_gemini=no])
 
+    AC_CHECK_FUNCS(hugetlbfs_unlinked_fd_for_size hugetlbfs_unlinked_fd)
+
+    GASNET_POPVAR(LIBS)
     GASNET_POPVAR(CPPFLAGS)
   fi
+
   AC_SUBST(GEMINI_LIBS)
   AC_SUBST(GEMINI_INCLUDES)
 fi
