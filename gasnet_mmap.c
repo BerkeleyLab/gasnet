@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2011/09/15 02:31:17 $
- * $Revision: 1.88.2.8 $
+ *     $Date: 2011/09/15 03:47:46 $
+ * $Revision: 1.88.2.9 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -308,27 +308,29 @@ static const char *gasneti_pshm_makeunique(const char *unique) {
 #if defined(GASNETI_PSHM_XPMEM)
 #include <hugetlbfs.h>
 
-/* Must disable features that destroy hugepage alignment: */
-#undef GASNETI_USE_HIGHSEGMENT
-#undef GASNETI_SEGMENT_DISALIGN_BIAS
-#define GASNETI_SEGMENT_DISALIGN_BIAS 0
-
+#if defined(HAVE_HUGETLBFS_UNLINKED_FD_FOR_SIZE)
 static int compare_long(const void *a_p, const void *b_p) {
   long a = *(long *)a_p;
   long b = *(long *)b_p;
   return (a==b) ? 0 : ((a<b) ? -1 : 1);
 }
+#endif
 
 /* Pick an available hugepage size for mapping of the requested size.
- * Currently pick largest size less than the rounded request.
- * Other possibilities exists, of course.
- * The given size is overwritten with the rounded size.
+ * With older libhugetlbfs this will always pick the default size.
+ * The given addr and size are adjusted for proper alignment.
  */
-static long pick_pagesz(uintptr_t *size_p) {
+static long pick_pagesz(void **addr_p, uintptr_t *size_p) {
+  uintptr_t size = *size_p;
+
 #if defined(HAVE_HUGETLBFS_UNLINKED_FD_FOR_SIZE)
+  /* Currently pick largest size less than the rounded request.
+   * Other possibilities exists, of course.
+   */
+  #define gasneti_unlinked_huge_fd(pgsz) hugetlbfs_unlinked_fd_for_size(pgsz)
   static long *tbl = NULL;
   static int count = 0;
-  uintptr_t size;
+  long pagesz;
   int i;
 
   if (!tbl) {
@@ -341,42 +343,52 @@ static long pick_pagesz(uintptr_t *size_p) {
     while (*tbl && (*tbl < dflt)) { ++tbl; --count; }
   }
 
-  size = *size_p;
   for (i=0; i<count; ++i) {
-    long pagesz = tbl[i];
     long next = tbl[i+1];
-    size = GASNETI_ALIGNUP(size, pagesz);
-    if (!next || (size < next)) break;
+    pagesz = tbl[i];
+    if (!next || (GASNETI_ALIGNUP(size, pagesz) < next)) break;
   }
-  *size_p = size;
-
-  return tbl[i];
 #elif defined(HAVE_HUGETLBFS_UNLINKED_FD)
+  #define gasneti_unlinked_huge_fd(pgsz) hugetlbfs_unlinked_fd()
   static long pagesz = 0;
   if (!pagesz) pagesz = gethugepagesize();
-  *size_p = GASNETI_ALIGNUP(*size_p, pagesz);
-  return pagesz;
 #else
   #error
 #endif
+
+  if (addr_p) {
+    uintptr_t addr = (uintptr_t)(*addr_p);
+    uintptr_t new_addr = GASNETI_ALIGNDOWN(addr, pagesz);
+    *addr_p = (void*)new_addr;
+    size = GASNETI_ALIGNUP(size + (addr - new_addr), pagesz);
+  } else {
+    size = GASNETI_ALIGNUP(size, pagesz);
+  }
+  *size_p = size;
+
+  return pagesz;
 }
 
 static void *gasneti_huge_mmap(void *addr, uintptr_t size) {
-#if HAVE_HUGETLBFS_UNLINKED_FD_FOR_SIZE
-  long pagesz = pick_pagesz(&size);
-  int fd = hugetlbfs_unlinked_fd_for_size(pagesz);
-#elif HAVE_HUGETLBFS_UNLINKED_FD
-  GASNETI_UNUSED long pagesz = pick_pagesz(&size);
-  int fd = hugetlbfs_unlinked_fd();
-#endif
+  void *real_addr = addr;
+  GASNETI_UNUSED long pagesz = pick_pagesz(&real_addr, &size);
+  int fd = gasneti_unlinked_huge_fd(pagesz);
   const int mmap_flags = MAP_SHARED | (addr ? GASNETI_MMAP_FIXED_FLAG : GASNETI_MMAP_NOTFIXED_FLAG);
-  void *ptr = mmap(addr, size, (PROT_READ|PROT_WRITE), mmap_flags, fd, 0);
+  void *ptr = mmap(real_addr, size, (PROT_READ|PROT_WRITE), mmap_flags, fd, 0);
+
   (void) close(fd);
+
+  /* If expanded a fixed mmap then be sure to return the requested fixed addr */
+  if (real_addr != addr) {
+    gasneti_assert(ptr == real_addr);
+    ptr = addr;
+  }
+
   return ptr;
 }
 
 static void gasneti_huge_munmap(void *addr, uintptr_t size) {
-  (void)pick_pagesz(&size); /* XXX: assumes we only mmap the ENTIRE region */
+  (void)pick_pagesz(&addr, &size);
   if (munmap(addr, size) != 0) 
     gasneti_fatalerror("munmap("GASNETI_LADDRFMT",%lu) failed: %s\n",
                        GASNETI_LADDRSTR(addr), (unsigned long)size, strerror(errno));
