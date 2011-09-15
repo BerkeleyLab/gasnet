@@ -456,11 +456,6 @@ void gc_process_smsg_q(gasnet_node_t pe)
   uint32_t head_length;
   uint32_t length;
   uint32_t numargs;
-  static int first = 0;
-  if (first == 0) {
-    fprintf(stderr, "sequential version\n");
-    first = 1;
-  }
   for (;;) {
     GASNETC_LOCK_GNI();
     status = GNI_SmsgGetNext(bound_ep_handles[pe], 
@@ -600,11 +595,6 @@ void gc_process_smsg_q(gasnet_node_t pe)
   void *im_data;
   uint32_t head_length;
   uint32_t numargs;
-  static int first = 0;
-  if (first == 0) {
-    fprintf(stderr, "parallel version\n");
-    first = 1;
-  }
   for (;;) {
     GASNETC_LOCK_GNI();
     status = GNI_SmsgGetNext(bound_ep_handles[pe], 
