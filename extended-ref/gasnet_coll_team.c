@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_team.c,v $
- * $Date: 2011/08/22 23:24:24 $
- * $Revision: 1.9.2.10 $
+ * $Date: 2011/09/19 22:56:42 $
+ * $Revision: 1.9.2.11 $
  *
  * Description: GASNet team implementation for collectives 
  * Copyright 2010, E. O. Lawrence Berkeley National Laboratory
@@ -93,15 +93,16 @@ void gasnete_coll_team_td_init(uint32_t team_id,
   team_td->threads_hold_lock = 0;
   team_td->smp_coll_handle = smp_coll_handle;
   team_td->num_multi_addr_collectives_started = 0;
+  team_td->next = NULL;
   gasnete_hashtable_insert(td->team_dir, team_id, team_td);
   /* Insert the team to the td->myteam list*/
   if (td->my_teams == NULL) {
     gasneti_assert(team == GASNET_TEAM_ALL);
     td->my_teams = team_td;
-    team_td->next = NULL;
   } else {
-    team_td->next = td->my_teams;
-    td->my_teams = team_td;
+    gasnete_coll_team_threaddata_t *current = td->my_teams;
+    while (current->next != NULL) current = current->next;
+    current->next = team_td;
   }
 
   /* gasnete_coll_team_td_print(team_td); */
@@ -113,6 +114,9 @@ gasnete_coll_team_get_threaddata(uint32_t team_id,
                                  gasnete_coll_threaddata_t *td)
 {
   gasnete_coll_team_threaddata_t *team_td;
+
+  if (team_id == 0) return td->my_teams;
+
   if (gasnete_hashtable_search(td->team_dir, team_id, (void **)&team_td)) {
     gasneti_fatalerror("[%u] gasnete_coll_team_get_threaddata() failed: team_id %d.  This is likely because the thread is trying to call a collective operation with a team that the thread doesn't belong to!\n",
                        gasnete_coll_team_my_image(GASNET_TEAM_ALL), team_id);
