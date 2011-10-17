@@ -1,16 +1,29 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.50 $
+$Revision: 1.50.4.1 $
 
 ----------------------------------------------------------------------
-10-xx-2011 : Release 1.18.0
+10-17-2011 : Release 1.17.6
 
-* General
-  - Field remote_addr in gasnet_seginfo_t has been removed and the signature
-    of gasnet_getNodeInfo() has changed.  If your GASNet client was using
-    these undocumented interfaces, then it will need to be updated.
+* A "stable snapshot" - first release candidate for 1.18.0
+  - This release contains what we hope is the final version of all code
+    changes that will soon appear as the GASNet 1.18.0 release.
+    However, the documentation in this release (including this ChangeLog)
+    has not yet been updated to describe the changes.
 
-* PLACE HOLDER
+----------------------------------------------------------------------
+09-23-2011 : Release 1.17.4 (gemini-conduit only beta release)
+
+  - This is a Beta release featuring an initial native implementation
+    for the Gemini interconnect of the Cray XE.
+  - The performance of gemini-conduit has not been tuned, but we believe
+    that the implementation is correct.
+  - Relative to the previous stable release, 1.16.2, this Beta includes
+    several miscellaneous changes not described here.  Most are fixes for
+    bugs or improvements to performance, and none are suspected to make
+    this release any less stable than 1.16.2.
+  - This Beta has been mostly tested on Cray XE6 systems, but is not
+    known or suspected to be less stable on any other specific platforms.
 
 ----------------------------------------------------------------------
 05-18-2011 : Release 1.16.2 (feature and bug fix release)
