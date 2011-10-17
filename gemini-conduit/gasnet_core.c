@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2011/09/26 22:48:19 $
- * $Revision: 1.7 $
+ *     $Date: 2011/10/17 22:59:22 $
+ * $Revision: 1.7.2.1 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -200,6 +200,21 @@ static int gasnetc_init(int *argc, char ***argv) {
 
     if ((ret = gasnetc_gem_init(&gasneti_nodes, &gasneti_mynode, &errstring)) != GASNET_OK) {
       GASNETI_RETURN_ERRR(NOT_INIT, errstring);
+    }
+
+    if (!gasneti_mynode) {
+      fflush(NULL);
+      fprintf(stdout,
+              "-----------------------------------------------------------------------\n"
+              " WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING\n"
+              "\n"
+              " GASNet's gemini-conduit is currently in BETA status.\n"
+              " You should NOT trust any performance numbers from this run as\n"
+              " predictive of the performace of the conduit when completed.\n"
+              "\n"
+              " WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING\n"
+              "-----------------------------------------------------------------------\n");
+      fflush(NULL);
     }
 
   #if GASNET_DEBUG_VERBOSE
