@@ -1,15 +1,27 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.50.4.1 $
+$Revision: 1.50.4.2 $
+
+----------------------------------------------------------------------
+10-30-2011 : Release 1.18.0
+
+* General
+  - Field remote_addr in gasnet_seginfo_t has been removed and the signature
+    of gasnet_getNodeInfo() has changed.  If your GASNet client was using
+    these undocumented interfaces, then it will need to be updated.
+  - PLACE HOLDER
+
+* PLACE HOLDER
+  - Fix bug 2565/2940: Makefile fragment for GASNet-Tools clients
+  - Fix bug 2648/2748: problems with autoconf 2.64+
+  - Fix bug 2768: errors with firehose at node counts over 4096
+  - Fix bug 2880: support /dev/mmtimer on x86-64-based Altix platforms
+  - Fix bug 3041: eliminate "hybrid" 64-bit atomics on Darwin/PPC64
+  - Fix bug 3043: support PSHM w/o atomic C-A-S
 
 ----------------------------------------------------------------------
 10-17-2011 : Release 1.17.6
-
 * A "stable snapshot" - first release candidate for 1.18.0
-  - This release contains what we hope is the final version of all code
-    changes that will soon appear as the GASNet 1.18.0 release.
-    However, the documentation in this release (including this ChangeLog)
-    has not yet been updated to describe the changes.
 
 ----------------------------------------------------------------------
 09-23-2011 : Release 1.17.4 (gemini-conduit only beta release)
