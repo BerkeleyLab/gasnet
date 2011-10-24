@@ -1,23 +1,51 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.50.4.2 $
+$Revision: 1.50.4.3 $
 
 ----------------------------------------------------------------------
 10-30-2011 : Release 1.18.0
 
+* Cray-XE series (gemini-conduit):
+  - This release includes a BETA of native support for the Cray XE network.
+  - The performance of gemini-conduit has not been tuned, however we believe
+    that the implementation is correct (with only minor bugs remaining).
+  - This is still only a BETA-quality implementation, and significant
+    performance improvements are anticipated in future releases.
+
 * General
+  - Implemented faster atomics for x86, x86-64 and PPC64.
+  - Improved signal handling for smp-conduit for fewer "orphans" when
+    an application is terminated by a signal.
+  - Fix output corruption sometimes seen when redirecting stdout/stderr.
+  - GASNET_TMPDIR env var to control placement of most temporary files.
+  - Better support for systems where gethostid() returns 127.0.0.1.
+  - Fixed PSHM-over-SYSV bug with non-contiguous process distributions.
   - Field remote_addr in gasnet_seginfo_t has been removed and the signature
     of gasnet_getNodeInfo() has changed.  If your GASNet client was using
     these undocumented interfaces, then it will need to be updated.
-  - PLACE HOLDER
 
-* PLACE HOLDER
-  - Fix bug 2565/2940: Makefile fragment for GASNet-Tools clients
-  - Fix bug 2648/2748: problems with autoconf 2.64+
-  - Fix bug 2768: errors with firehose at node counts over 4096
-  - Fix bug 2880: support /dev/mmtimer on x86-64-based Altix platforms
-  - Fix bug 3041: eliminate "hybrid" 64-bit atomics on Darwin/PPC64
-  - Fix bug 3043: support PSHM w/o atomic C-A-S
+* Platform support/portability
+  - Enabled partial backtrace support for Cray-XT and XE series systems.
+  - Make allowances for odd sbrk() implementation on Darwin.
+  - Probe for /dev/mmtimer on x86-64-based Altix platforms (bug 2880).
+  - Improved support for systems lacking an atomic C-A-S (bug 3043).
+  - Added work-arounds for Open64 and PathScale compiler bugs.
+  - Fixed various warnings seen with recent gcc and icc versions.
+  - Made corrections to MIPS support for "o32" ABI.
+  - Extended ARM support to a wider range of ISA revisions.
+
+* InfiniBand (ibv- and vapi-conduits):
+  - Cleanup/simplify AM code for InfiniBand.
+  - Ignore Mellanox HCA ports configured for Ethernet.
+
+* Firehose dynamic-memory registration library (several conduits):
+  - Fixed bug 2768: errors with firehose at node counts over 4096.
+  - Reduced memory usage in firehose library
+
+* Build and configure:
+  - Provide Makefile fragments for GASNet-Tools clients (bugs 2565 and 2940).
+  - Fixed problems with autoconf 2.64 and newer (bugs 2648 and 2748).
+  - Now ship with updated config.guess and friends.
 
 ----------------------------------------------------------------------
 10-17-2011 : Release 1.17.6
