@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2011/10/17 19:44:45 $
-# $Revision: 1.710.2.1 $
+#     $Date: 2011/10/24 01:24:18 $
+# $Revision: 1.710.2.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.710.2.1 $)
+AC_REVISION($Revision: 1.710.2.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1449,6 +1449,7 @@ fi
 
 # Check how to reference MIPS assembler temporary register ("$1" or "$at")
 if expr "$target_cpu" : "mips" >/dev/null; then
+  AC_CHECK_HEADERS(sgidefs.h)
   GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CPPFLAGS $MISC_CFLAGS -I$TOP_SRCDIR -I$TOP_SRCDIR/other -D_IN_CONFIGURE")
   GASNET_TRY_CACHE_CHECK(for MIPS register '\$[]1', mips_reg_1, [
     #include "gasnet_asm.h"
@@ -4095,7 +4096,6 @@ AC_CHECK_HEADERS(sys/resource.h)
 
 AC_CHECK_HEADERS(sys/table.h)
 
-AC_CHECK_HEADERS(sgidefs.h)
 AC_CHECK_HEADERS(features.h)
 AC_CHECK_FUNCS(fopen64)
 

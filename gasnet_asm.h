@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2011/10/04 02:54:22 $
- * $Revision: 1.132 $
+ *     $Date: 2011/10/24 01:24:18 $
+ * $Revision: 1.132.2.1 $
  * Description: GASNet header for semi-portable inline asm support
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -232,6 +232,11 @@
 	"	sub	" #_tmp ", " #_tmp ", #" #_offset " @ _tmp -= _offset     \n" \
 	"	blx	" #_tmp "                           @ call _tmp           \n"
   #endif
+#endif
+
+#if PLATFORM_ARCH_MIPS && defined(HAVE_SGIDEFS_H)
+  /* For _MIPS_ISA and _MIPS_SIM values on some MIPS platforms */
+  #include <sgidefs.h>
 #endif
 
 #endif /* _GASNET_ASM_H */
