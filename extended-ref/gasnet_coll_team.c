@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_team.c,v $
- * $Date: 2011/09/19 22:56:42 $
- * $Revision: 1.9.2.11 $
+ * $Date: 2011/10/27 22:50:40 $
+ * $Revision: 1.9.2.12 $
  *
  * Description: GASNet team implementation for collectives 
  * Copyright 2010, E. O. Lawrence Berkeley National Laboratory
@@ -151,6 +151,9 @@ void gasnete_coll_team_print(gasnet_team_handle_t team, FILE *fp)
           gasnete_coll_team_my_image(GASNET_TEAM_ALL), team, team->team_id, 
           team->total_ranks, team->myrank, 
           team->total_images, gasnete_coll_team_my_image(team));
+  fprintf(fp, "[%u] team handle %p,  team id %u, my_offset %u, my images %u\n",
+          gasnete_coll_team_my_image(GASNET_TEAM_ALL), team, team->team_id, 
+          team->my_offset, team->my_images);
   fprintf(fp, "rel2act_map:\n");
   for (i=0; i<team->total_ranks; i++) {
     fprintf(fp, "%u -> %u\n", i, (unsigned int)team->rel2act_map[i]);

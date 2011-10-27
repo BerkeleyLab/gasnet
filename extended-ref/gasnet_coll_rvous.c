@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_rvous.c,v $
- *     $Date: 2011/08/22 23:24:24 $
- * $Revision: 1.67.6.5 $
+ *     $Date: 2011/10/27 22:50:40 $
+ * $Revision: 1.67.6.6 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1079,7 +1079,7 @@ static int gasnete_coll_pf_gathM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
   const gasnete_coll_gatherM_args_t *args = GASNETE_COLL_GENERIC_ARGS(data, gatherM);
   int result = 0;
   
-  // printf("gasnete_coll_pf_gathM_RVous called\n");
+  /* printf("gasnete_coll_pf_gathM_RVous called\n"); */
   switch (data->state) {
   case 0:	/* Optional IN barrier */
     if (!gasnete_coll_threads_ready1(op, args->srclist GASNETE_THREAD_PASS) ||
@@ -1134,7 +1134,8 @@ static int gasnete_coll_pf_gathM_RVous(gasnete_coll_op_t *op GASNETE_THREAD_FARG
           /* Not all data has arrived yet */
           break;
         }
-        // can check if need to shuffle to speed it up
+        /* can check if need to shuffle to speed it up */
+        /* fprintf(stderr, "%u:, before gasnete_coll_shuffle_data\n", gasneti_mynode); */
         gasnete_coll_shuffle_data(op->team->image_compact_order,
                                   op->team->total_images,
                                   args->dst,

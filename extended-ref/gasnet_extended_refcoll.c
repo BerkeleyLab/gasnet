@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- * $Date: 2011/09/19 22:56:42 $
- * $Revision: 1.90.6.10 $
+ * $Date: 2011/10/27 22:50:40 $
+ * $Revision: 1.90.6.11 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -4901,6 +4901,7 @@ gasnete_coll_gather_all_nb_default(gasnet_team_handle_t team,
   gasnete_coll_implementation_t impl;
   gasnet_coll_handle_t ret;
 #if GASNET_PAR
+  /* fprintf(stderr, "In gasnete_coll_gather_all_nb_default\n"); */
   /* Thread-local addr(s) - forward to gallM_nb() */
   if (flags & GASNET_COLL_LOCAL  && !(flags & GASNETE_COLL_SUBORDINATE)) {
     return gasnete_coll_gather_allM_nb(team, &dst, &src, nbytes,
@@ -4975,6 +4976,7 @@ static int gasnete_coll_pf_gallM_Gath(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
 #pragma error_messages(default, E_DEAD_NONCONST)
 #endif
 
+        /* fprintf(stderr, "In gasnete_coll_pf_gallM_Gath\n"); */
         for (i = 0; i < op->team->total_images; ++i, ++h) {
           void *dst = gasnete_coll_image_is_local(team, i) ? *(p++) : NULL;
           /* should pass GASNETE_COLL_SUBORDINATE for "flags"?? */
@@ -5018,7 +5020,8 @@ gasnete_coll_gallM_Gath(gasnet_team_handle_t team,
                                                NULL, sequence, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 
   } else {
-       return gasnete_coll_generic_gather_allM_nb(team, dstlist, srclist, nbytes, flags,
+    /* fprintf(stderr, "In gasnete_coll_gallM_Gath\n"); */
+    return gasnete_coll_generic_gather_allM_nb(team, dstlist, srclist, nbytes, flags,
                                                &gasnete_coll_pf_gallM_Gath, options,
                                                NULL, team->total_images, coll_params->num_params, coll_params->param_list GASNETE_THREAD_PASS);
 
@@ -5138,6 +5141,8 @@ gasnete_coll_generic_gather_allM_nb(gasnet_team_handle_t team,
 
 
 #if GASNET_PAR
+  /* fprintf(stderr, "In gasnete_coll_generic_gather_allM_nb\n"); */
+
   if (flags & GASNETE_COLL_THREAD_LOCAL) {
 
     gasnete_coll_generic_data_t *data;
