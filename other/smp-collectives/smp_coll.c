@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/smp-collectives/smp_coll.c,v $
- * $Date: 2011/08/22 23:24:56 $
- * $Revision: 1.3.6.3 $
+ * $Date: 2011/11/02 23:20:06 $
+ * $Revision: 1.3.6.4 $
  * Description: Shared Memory Collectives
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -147,6 +147,11 @@ smp_coll_t smp_coll_team_init(size_t aux_space_per_thread, int flags,
   fprintf(stderr, "smp_coll_team_init: THREADS %d, MYTHREAD %d, team_lead %d\n",
           THREADS, MYTHREAD, team_lead);
 #endif
+
+  if (MYTHREAD >= THREADS || team_lead >= SMP_COLL_MAX_NUM_THREADS) {
+    gasneti_fatalerror("smp_coll_team_init error: MYTHREAD %d, THREADS %d, team_lead %d, SMP_COLL_MAX_NUM_THREADS %d\n",
+                       MYTHREAD, THREADS, team_lead, SMP_COLL_MAX_NUM_THREADS);
+  }
 
 	ret = (struct smp_coll_t_*) gasneti_malloc(sizeof(struct smp_coll_t_));
 	ret->MYTHREAD = MYTHREAD;

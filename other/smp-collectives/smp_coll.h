@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/smp-collectives/smp_coll.h,v $
- *     $Date: 2011/04/14 05:56:12 $
- * $Revision: 1.3.6.3 $
+ *     $Date: 2011/11/02 23:20:06 $
+ * $Revision: 1.3.6.4 $
  * Description: Shared Memory Collectives
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,7 +10,7 @@
 #include <pthread.h>
 #include <gasnet_tools.h>
 
-#define SMP_COLL_MAX_NUM_THREADS 1024
+#define SMP_COLL_MAX_NUM_THREADS 4096
 
 #define HAVE_PTHREAD_BARRIER 0
 
