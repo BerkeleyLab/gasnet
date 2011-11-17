@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_scratch.h,v $
- *     $Date: 2009/10/22 20:14:56 $
- * $Revision: 1.3 $
+ *     $Date: 2011/11/17 17:24:34 $
+ * $Revision: 1.3.34.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,6 +17,12 @@
 
 struct gasnete_coll_node_scratch_status_t_;
 typedef struct gasnete_coll_node_scratch_status_t_ gasnete_coll_node_scratch_status_t;
+
+struct gasnete_coll_op_info_t_;
+typedef struct gasnete_coll_op_info_t_ gasnete_coll_op_info_t;
+
+struct gasnete_coll_scratch_config_t_;
+typedef struct gasnete_coll_scratch_config_t_ gasnete_coll_scratch_config_t;
 
 /* down tree means we send to relative ranks that are higher than us*/
 /* up tree means that we send to relative ranks that are lower than us*/
@@ -66,5 +72,6 @@ void gasnete_coll_free_scratch(gasnete_coll_op_t *op);
 void gasnete_coll_alloc_new_scratch_status(gasnete_coll_team_t team);
 void gasnete_coll_free_scratch_status(gasnete_coll_scratch_status_t *in GASNETE_THREAD_FARG);
 
+void gasnete_coll_free_scratch_config(gasnete_coll_scratch_config_t *sconfig);
 
 #endif

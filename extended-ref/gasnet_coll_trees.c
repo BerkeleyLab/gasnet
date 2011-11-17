@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_trees.c,v $
- *     $Date: 2011/07/07 01:35:14 $
- * $Revision: 1.17 $
+ *     $Date: 2011/11/17 17:24:34 $
+ * $Revision: 1.17.8.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -93,6 +93,7 @@ static gasnete_coll_tree_type_t make_tree_type_str_helper(char *tree_name) {
   for(i=0; i<ret->num_params; i++) {
     ret->params[i] = atoi(inner_split[i+1]);
   }
+  gasneti_free(inner_split[0]);
   gasneti_free(inner_split);
   return ret;
 }
@@ -130,10 +131,14 @@ gasnete_coll_tree_type_t gasnete_coll_make_tree_type_str(char *tree_name_str) {
       temp->subtree = make_tree_type_str_helper(outer_split[i]);
       temp = temp->subtree;
     }
+    gasneti_free(inner_split[0]);
+    gasneti_free(inner_split);
+
   } else {
     ret = make_tree_type_str_helper(tree_name_str);
   }
 
+  gasneti_free(outer_split[0]);
   gasneti_free(outer_split);
   return ret;
 }
@@ -722,11 +727,8 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_tree_geom_create_local(gasnete_coll
     }
   }
 
-#if 0
-  /* Not using the reference counts for now */
   gasneti_weakatomic_set(&(geom->ref_count), 0, 0);
   geom->base_geom = base_geom;
-#endif
 
 #if 0  
   gasnete_coll_print_tree(geom, gasneti_mynode);
@@ -762,18 +764,29 @@ void gasnete_coll_tree_type_to_str(char *outbuf, gasnete_coll_tree_type_t in) {
 /*---------------------------------------------------------------------------------*/
 /* Operations to access the tree geometry cache */
 
-/*
- Just keep track of the number of refs to an object for debug reasons
- However according to our design we will never free a geometry that is created
- It will be leaked away once the GASNet program finishes.
- */
+void gasnete_coll_tree_geom_release(gasnete_coll_tree_geom_t *geom) 
+{
+
+  gasnet_node_t root;
+  gasnete_coll_team_t team = geom->team;
+
 #if 0
-void gasnete_coll_tree_geom_release(gasnete_coll_tree_geom_t *geom) {
-	gasneti_weakatomic_decrement(&(geom->ref_count), 0);
-  /*
   fprintf(stderr, "[%u] gasnete_coll_tree_geom_release: geom->ref_count %u\n",
           gasnet_mynode(), gasneti_weakatomic_read(&(geom->ref_count), 0));
-  */
+#endif
+
+	gasneti_weakatomic_decrement(&(geom->ref_count), 0);
+  if ((int)gasneti_weakatomic_read(&(geom->ref_count), 0) == 0) {
+    if (geom->local_views != NULL) {
+      for (root=0; root<team->total_ranks; root++)
+        {
+          if (geom->local_views[root] != NULL)
+            gasnete_coll_local_tree_geom_release(geom->local_views[root]);
+        }
+      gasneti_free(geom->local_views);
+    }
+    gasneti_free(geom);
+  }
 }
 
 void gasnete_coll_tree_geom_print(gasnete_coll_tree_geom_t *geom)
@@ -782,7 +795,6 @@ void gasnete_coll_tree_geom_print(gasnete_coll_tree_geom_t *geom)
   gasnet_node_t i;
 
   ref_count = gasneti_weakatomic_read(&(geom->ref_count), 0);
-  
   fprintf(stderr, "[%u] tree_geom %p, ref_count %u.\n", 
           gasnet_mynode(), geom, ref_count);
 
@@ -807,12 +819,11 @@ void gasnete_coll_print_all_tree_geom(gasnet_team_handle_t team)
     geom = geom->next;
   }
 }
-#endif
 
-/* the helper function goes through the cache and then either returns the appropriate geometry
- or returns NULL indicating that the tree needs to be appended to the end of the cache 
+/* the helper function goes through the cache and then either returns
+ * the appropriate geometry or returns NULL indicating that the tree
+ * needs to be appended to the end of the cache
  */
-
 int gasnete_coll_compare_tree_types(gasnete_coll_tree_type_t a, gasnete_coll_tree_type_t b) {
   
   if(a==NULL && b==NULL) {
@@ -863,11 +874,14 @@ static gasnete_coll_tree_geom_t *gasnete_coll_tree_geom_fetch_helper(gasnete_col
 /* XXX: should per-team */
 
 /*
- this routine will initially just return a pointer into a localview and create one if needed. 
- it will do the simple thing and not create new views and just keep reusing old views as needed
+ * this routine will initially just return a pointer into a localview
+ * and create one if needed.  it will do the simple thing and not
+ * create new views and just keep reusing old views as needed
  */
-    
-gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_tree_type_t type, gasnet_node_t root,  gasnete_coll_team_t team) {
+gasnete_coll_local_tree_geom_t *
+gasnete_coll_local_tree_geom_fetch(gasnete_coll_tree_type_t type, 
+                                   gasnet_node_t root,  
+                                   gasnete_coll_team_t team) {
   gasnete_coll_tree_geom_t *geom_cache_head = team->tree_geom_cache_head;
   gasnete_coll_local_tree_geom_t *ret;
   gasnete_coll_tree_geom_t *curr_geom;
@@ -883,16 +897,15 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
 #endif
     /* allocate new geometry */
     curr_geom = (gasnete_coll_tree_geom_t *) gasneti_malloc(sizeof(gasnete_coll_tree_geom_t));
+    curr_geom->team = team;
     curr_geom->local_views = (gasnete_coll_local_tree_geom_t**) 
     gasneti_malloc(sizeof(gasnete_coll_local_tree_geom_t*)*team->total_ranks);
     for(i=0; i<team->total_ranks; i++) {
       curr_geom->local_views[i] = NULL;
     }
     curr_geom->tree_type = type;
-#if 0
-    /* Not using the ref_count for now */
     gasneti_weakatomic_set(&(curr_geom->ref_count), 0, 0);
-#endif
+
     /*	curr_geom->root = root; */
     /* link it into the cache*/
     if(geom_cache_head == NULL) {
@@ -935,29 +948,45 @@ gasnete_coll_local_tree_geom_t *gasnete_coll_local_tree_geom_fetch(gasnete_coll_
   }
 #endif
 
-#if 0
-  /* Not using the reference counts for now */
   gasneti_weakatomic_increment(&(curr_geom->ref_count), 0);
   gasneti_weakatomic_increment(&(ret->ref_count), 0);
 
-  /*
+#if 0
   fprintf(stderr, "[%u] gasnete_coll_local_tree_geom_fetch: curr_geom->ref_count %u, ret->ref_count %u \n",
           gasnet_mynode(), gasneti_weakatomic_read(&(curr_geom->ref_count), 0),
           gasneti_weakatomic_read(&(ret->ref_count), 0));
-  */
 #endif
 
   gasneti_mutex_unlock(&team->tree_geom_cache_lock);
   return ret;
 }
 
-#if 0
-void gasnete_coll_local_tree_geom_release(gasnete_coll_local_tree_geom_t *geom) {
-	
+void gasnete_coll_local_tree_geom_free(gasnete_coll_local_tree_geom_t *geom) 
+{
+  printf("gasnete_coll_local_tree_geom_free is called().\n");
+  gasneti_assert(geom != NULL);
+
+  if (geom->child_list)
+    gasneti_free(geom->child_list);
+  
+  if (geom->subtree_sizes)
+    gasneti_free(geom->subtree_sizes);
+
+  if (geom->child_offset)
+    gasneti_free(geom->child_offset);
+  
+  if (geom->grand_children)
+    gasneti_free(geom->grand_children);
+}
+
+void gasnete_coll_local_tree_geom_release(gasnete_coll_local_tree_geom_t *geom) 
+{
 	/* for now don't do anything since we will reuse all our geometries*/
   gasneti_weakatomic_decrement(&(geom->ref_count), 0); 
+  if ((int)gasneti_weakatomic_read(&(geom->ref_count), 0) == 0)
+    gasnete_coll_local_tree_geom_free(geom);
 }
-#endif 
+
 
 /**** Dissemination Stuff ****/
 
@@ -1158,6 +1187,11 @@ gasnete_coll_dissem_info_t *gasnete_coll_fetch_dissemination(int radix, gasnete_
   return temp;
 }
 
-void gasnete_coll_release_dissemination(gasnete_coll_dissem_info_t *obj, gasnete_coll_team_t team) {
-  /* do nothing for now */
+void gasnete_coll_release_dissemination(gasnete_coll_dissem_info_t *obj, gasnete_coll_team_t team) 
+{
+  gasneti_assert(obj != NULL);
+
+  gasneti_free(obj->exchange_in_order);
+  gasneti_free(obj->exchange_out_order);
+  gasneti_free(obj->ptr_vec);
 }

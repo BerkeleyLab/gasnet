@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2011/07/08 19:21:09 $
- * $Revision: 1.57 $
+ *     $Date: 2011/11/17 17:24:32 $
+ * $Revision: 1.57.8.1 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -173,7 +173,7 @@ typedef struct {
 
 /* Handle type for collective teams: */
 #ifndef GASNETE_COLL_TEAMS_OVERRIDE
-struct gasnete_coll_team_t_;
+struct gasnete_coll_team_;
 typedef struct gasnete_coll_team_t_ *gasnete_coll_team_t;
 typedef gasnete_coll_team_t gasnet_team_handle_t;
 /*change this so even the TEAM_ALL has a default team allocated rather than NULL*/
@@ -185,9 +185,7 @@ extern gasnet_team_handle_t gasnete_coll_team_all;
 
 #endif
 
-
-
-extern gasnet_node_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank);
+extern gasnet_node_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, gasnet_node_t rank);
 extern gasnet_node_t gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnet_node_t node);
 extern gasnet_node_t gasnete_coll_team_size(gasnete_coll_team_t team);
 
@@ -196,18 +194,25 @@ extern gasnet_node_t gasnete_coll_team_size(gasnete_coll_team_t team);
 #define gasnet_coll_team_node2rank(TEAM, NODE) gasnete_coll_team_node2rank(TEAM, NODE)
 #define gasnet_coll_team_size(TEAM) gasnete_coll_team_size(TEAM)
 
-extern gasnet_team_handle_t gasnete_coll_team_split(gasnete_coll_team_t parent_team, gasnet_node_t color,
-						    gasnet_node_t relrank, void *clientdata GASNETE_THREAD_FARG);
+extern 
+gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t parent_team,
+                                             gasnet_image_t mycolor,
+                                             gasnet_image_t my_image,
+                                             gasnet_seginfo_t *myscratch_seginfo
+                                             GASNETE_THREAD_FARG);
 
 GASNETI_INLINE(_gasnet_coll_team_split)
-     gasnet_team_handle_t _gasnet_coll_team_split(gasnet_team_handle_t parent_team, gasnet_node_t color, gasnet_node_t relrank, 
-						  void *clientdata GASNETE_THREAD_FARG) {
-  return gasnete_coll_team_split(parent_team, color, relrank, clientdata GASNETE_THREAD_PASS);
-  
+gasnet_team_handle_t _gasnet_coll_team_split(gasnet_team_handle_t parent_team, 
+                                             gasnet_node_t color, 
+                                             gasnet_node_t relrank, 
+                                             gasnet_seginfo_t *myscratch_seginfo
+                                             GASNETE_THREAD_FARG) 
+{
+  return gasnete_coll_team_split(parent_team, color, relrank, myscratch_seginfo GASNETE_THREAD_PASS);
 }
 
-#define gasnet_coll_team_split(parent_team, color, relrank, clientdata)  \
-  _gasnet_coll_team_split(parent_team, color, relrank, clientdata GASNETE_THREAD_GET)
+#define gasnet_coll_team_split(parent_team, color, relrank, myscratch_seginfo)  \
+  _gasnet_coll_team_split(parent_team, color, relrank, myscratch_seginfo GASNETE_THREAD_GET)
 
 /*---------------------------------------------------------------------------------*/
 
@@ -239,6 +244,15 @@ GASNETI_INLINE(_gasnet_coll_team_split)
 		  		int init_flags GASNETE_THREAD_FARG);
   #define gasnet_coll_init(im,mi,fn,fc,fl) \
 		gasnete_coll_init(im,mi,fn,fc,fl GASNETE_THREAD_GET)
+#endif
+
+/**
+ * gasnet_coll_fini: Finalize GASNet collectives
+ */
+#ifndef gasnet_coll_fini
+  GASNETI_COLL_FN_HEADER(gasnete_coll_fini) 
+  void gasnete_coll_fini(GASNETE_THREAD_FARG_ALONE);
+  #define gasnet_coll_fini() gasnete_coll_fini(GASNETE_THREAD_GET_ALONE)
 #endif
 
 /*---------------------------------------------------------------------------------*/

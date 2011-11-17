@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/smp-collectives/smp_coll.h,v $
- *     $Date: 2009/10/22 20:24:55 $
- * $Revision: 1.3 $
+ *     $Date: 2011/11/17 17:24:36 $
+ * $Revision: 1.3.34.1 $
  * Description: Shared Memory Collectives
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -9,6 +9,8 @@
 #define __SMP_COLL_H_INC__ 1
 #include <pthread.h>
 #include <gasnet_tools.h>
+
+#define SMP_COLL_MAX_NUM_THREADS 4096
 
 #define HAVE_PTHREAD_BARRIER 0
 
@@ -27,18 +29,32 @@ typedef double (*RED_FN_DBL)(double, double);
 #define INLINE_ALL_COLLECTIVES 0
 void smp_coll_set_affinity(int location);
 smp_coll_t smp_coll_init(size_t aux_space_per_thread, int flags, int THREADS, int MYTHREAD);
+
+/* clean up data structures allocated in smp_coll_init() */
+void smp_coll_fini(smp_coll_t handle);
+
+smp_coll_t smp_coll_team_init(size_t aux_space_per_thread, int flags,
+		                          int THREADS, int MYTHREAD, int team_lead);
+void smp_coll_team_fini(smp_coll_t handle);
+
 void smp_coll_reset_all_flags(smp_coll_t handle);
 void smp_coll_tune_barrier(smp_coll_t handle);
 /*tuning knobs*/
 
 #if HAVE_PTHREAD_BARRIER
-#define SMP_COLL_NUM_BARR_ROUTINES 7
-#else
 #define SMP_COLL_NUM_BARR_ROUTINES 6
+#else
+#define SMP_COLL_NUM_BARR_ROUTINES 5
 #endif
 
-typedef enum{SMP_COLL_BARRIER_COND_VAR=0, SMP_COLL_BARRIER_DISSEM_ATOMIC, 
-SMP_COLL_BARRIER_TREE_PUSH_PUSH, SMP_COLL_BARRIER_TREE_PUSH_PULL, SMP_COLL_BARRIER_TREE_PULL_PUSH, SMP_COLL_BARRIER_TREE_PULL_PULL, SMP_COLL_BARRIER_PTHREAD} smp_coll_barrier_routine_t;
+typedef enum {
+	SMP_COLL_BARRIER_DISSEM_ATOMIC=0,
+	SMP_COLL_BARRIER_TREE_PUSH_PUSH,
+	SMP_COLL_BARRIER_TREE_PUSH_PULL,
+	SMP_COLL_BARRIER_TREE_PULL_PUSH,
+	SMP_COLL_BARRIER_TREE_PULL_PULL,
+	SMP_COLL_BARRIER_PTHREAD
+} smp_coll_barrier_routine_t;
 void smp_coll_set_barrier_routine(smp_coll_t handle, smp_coll_barrier_routine_t routine_id, int in_radix);
 
 #define SMP_COLL_NUM_BROADCAST_ROUTINES 4
@@ -67,9 +83,11 @@ void smp_coll_set_exchange_routine(smp_coll_t handle, smp_coll_exchange_routine_
 void smp_coll_safe_barrier(smp_coll_t handle, int flags);
 
 #if INLINE_ALL_COLLECTIVES
-#define smp_coll_barrier(HANDLE, FLAGS) do {\
-(*(HANDLE)->barr_fns[(HANDLE)->curr_barrier_routine])(HANDLE, (FLAGS));\
-}while(0)
+#define smp_coll_barrier(HANDLE, FLAGS) do {                                    \
+  if (HANDLE->THREADS > 1) {                                                    \
+    (*(HANDLE)->barr_fns[(HANDLE)->curr_barrier_routine])(HANDLE, (FLAGS));     \
+  }                                                                             \
+} while (0)
 #else
 void smp_coll_barrier(smp_coll_t handle, int flags);
 #endif

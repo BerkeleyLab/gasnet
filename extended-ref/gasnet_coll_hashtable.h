@@ -1,21 +1,15 @@
-/*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_hashtable.h,v $
- *     $Date: 2010/07/28 07:05:03 $
- * $Revision: 1.6 $
- * Description: Reference implemetation of GASNet Collectives team
+/* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_hashtable.h,v $
+ * $Date: 2011/11/17 17:24:34 $
+ * $Revision: 1.6.18.1 $
+ *
+ * Description: Implement hash table data structure using vectors
+ * (chaining) to solve collisions. For information about the data
+ * structures and algorithms used in the implementation, please see
+ * Ch. 12 of Introduction to Algorithms by Thomas H. Cormen, Charles
+ * E. Leiserson, Ronald L. Rivest.
+ *
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
- */
-
-/**
- * Implement hash table data structure using vectors (chaining) to
- * solve collisions
- *
- * For information about the data structures and algorithms used in the
- * implementation, please see Ch. 12 of Introduction to Algorithms
- * by Thomas H. Cormen, Charles E. Leiserson, Ronald L. Rivest.
- *
- * Lawrence Berkeley National Laboratory
- * 2009
  */
 
 #ifndef GASNET_COLL_HASHTABLE_H_

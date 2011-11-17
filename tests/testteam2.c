@@ -1,14 +1,12 @@
-/* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testteam.c,v $
+/* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Attic/testteam2.c,v $
  * $Date: 2011/11/17 17:24:40 $
- * $Revision: 1.7.10.1 $
+ * $Revision: 1.1.4.2 $
  *
- * Description: GASNet team split and barrier test.  Row teams and
- * column teams of a process grid are created and team barriers are
- * performed on these teams. Each thread participates in two teams:
- * row team and column team.
- * 
- * Copyright 2010, E. O. Lawrence Berekely National Laboratory                                                     
- * Terms of use are as specified in license.txt 
+ * Description: GASNet team collectives test. Each thread participates
+ * in three teams: shuffle team, row team and column team.
+ *
+ * Copyright 2010, E. O. Lawrence Berekely National Laboratory 
+ * Terms of use are as specified in license.txt           
  */
 
 #include <gasnet.h>
@@ -61,9 +59,9 @@ void *thread_main(void *arg)
 {
   thread_data_t *td = arg;
   int i;
-  gasnet_team_handle_t my_row_team, my_col_team;
+  gasnet_team_handle_t my_row_team, my_col_team, my_shuffle_team;
   gasnet_image_t myimage = (gasnet_image_t)td->mythread;
-  gasnet_image_t my_row, my_col;
+  gasnet_image_t my_row, my_col, my_shuffle_rank;
   int64_t start, total;
 
 #if GASNET_PAR
@@ -77,23 +75,54 @@ void *thread_main(void *arg)
                  
   my_row = myimage / ncols;
   my_col = myimage % ncols;
-                 
-  MSG("Mythread %u, my row %u, my col %u, total images %u",
-      myimage, my_row, my_col, total_images);
+  my_shuffle_rank = (myimage+1)%total_images;
 
-  MSG("Creating row teams.");
-  my_row_team = gasnet_coll_team_split(GASNET_TEAM_ALL,
+  MSG("Mythread %u, my row %u, my col %u, my shuffled rank %u, total images %u",
+      myimage, my_row, my_col, my_shuffle_rank, total_images);
+
+
+  global_barrier();
+
+  MSG("Creating a shuffled team.");
+  my_shuffle_team = gasnet_coll_team_split(GASNET_TEAM_ALL,
+                                           0, // same color for all threads
+                                           my_shuffle_rank,
+                                           &teamA_scratch);
+
+  global_barrier();
+
+  MSG("Creating row teams from the shuffled team.");
+  my_row_team = gasnet_coll_team_split(my_shuffle_team,
                                        my_row,
                                        my_col,
                                        &teamA_scratch);
 
   global_barrier();
-
-  MSG("Creating column teams.");
-  my_col_team = gasnet_coll_team_split(GASNET_TEAM_ALL,
+  //exit(1);
+  MSG("Creating column teams from the shuffled team.");
+  my_col_team = gasnet_coll_team_split(my_shuffle_team,
                                        my_col,
                                        my_row,
                                        &teamB_scratch);
+
+  global_barrier();
+
+  if (my_shuffle_rank == 0) {
+    printf("Running team barrier test with the shuffled team...\n");
+    fflush(stdout);
+  }
+
+  start = TIME();
+  for (i=0; i < iters; i++) {
+    gasnete_coll_teambarrier(my_shuffle_team);
+  }
+  total = TIME() - start;
+
+  if (my_shuffle_rank == 0) {
+    printf("Total time: %8.3f sec, avg shuffled team Barrier latency: %8.3f us\n",
+           ((float)total)/1000000, ((float)total)/iters);
+    fflush(stdout);
+  }
 
   global_barrier();
 
@@ -160,9 +189,11 @@ int main(int argc, char **argv)
   nodes = gasnet_nodes();
   test_segs = TEST_SEGINFO();
   
+  /* \TODO: each thread should create its own scratch space!! */
   teamA_scratch.addr = test_segs[mynode].addr;
   teamA_scratch.size = test_segs[mynode].size/2;
-  
+
+  /* \TODO: each thread should create its own scratch space!! */
   teamB_scratch.addr = (uint8_t*)teamA_scratch.addr + teamA_scratch.size;
   teamB_scratch.size = teamA_scratch.size;
 
@@ -233,4 +264,3 @@ int main(int argc, char **argv)
   gasnet_exit(0); /* for faster exit */
   return 0;
 }
-

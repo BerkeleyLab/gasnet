@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_trees.h,v $
- *     $Date: 2010/09/15 00:37:51 $
- * $Revision: 1.6 $
+ *     $Date: 2011/11/17 17:24:34 $
+ * $Revision: 1.6.16.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -109,34 +109,31 @@ struct gasnete_coll_local_tree_geom_t_ {
   gasnet_node_t *dissem_order;
   int dissem_count;
 
-#if 0  
   /* Not using the reference counts for now */
   gasneti_weakatomic_t	ref_count;
   gasnete_coll_tree_geom_t *base_geom; /* pointer to the tree geometry base */
-#endif
-
 } ;
 
 /*for now i will only assume that one gasnet thread will be involved in the tree communication 
  and thus assume no locks are needed since only one given thread in a node will ever access the tree*/
  
 struct gasnete_coll_tree_geom_t_ {
-   /* linked list pointers 
-	  used in the caching of tree geometries
-   */
-   gasnete_coll_tree_geom_t *next;
-   gasnete_coll_tree_geom_t *prev;
-  /* gasneti_weakatomic_t	ref_count; */
+  /* linked list pointers 
+     used in the caching of tree geometries
+  */
+  gasnete_coll_tree_geom_t *next;
+  gasnete_coll_tree_geom_t *prev;
+  gasneti_weakatomic_t	ref_count;
    
-   /*an array of local views that represents the global view*/
-   gasnete_coll_local_tree_geom_t **local_views; 
+  /*an array of local views that represents the global view*/
+  gasnete_coll_local_tree_geom_t **local_views; 
    int local_views_allocated;
-   
-   /*** tree structure metadata*****/
-   gasnete_coll_tree_type_t tree_type;
+  
+  /*** tree structure metadata*****/
+  gasnete_coll_tree_type_t tree_type;
   /* don't need a root argument here since local_views[i] gives a tree rooted at i*/
-  gasnete_coll_team_t *team; /*a pointer back to the associated team*/
- };
+  gasnete_coll_team_t team; /*a pointer back to the associated team*/
+};
 
 
 /* 

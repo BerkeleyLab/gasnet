@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_autotune_internal.h,v $                                                                                                                                                             
- *     $Date: 2011/10/12 04:53:39 $                                                                                                                                                              
- * $Revision: 1.10 $                                                                                                                                                             
+ *     $Date: 2011/11/17 17:24:34 $                                                                                                                                                              
+ * $Revision: 1.10.4.1 $                                                                                                                                                             
  * Description: GASNet Autotuner Implementation                                                                                                                             
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>                              
  * Terms of use are as specified in license.txt                                                                                                                             
@@ -487,8 +487,8 @@ struct gasnete_coll_autotune_info_t_ {
   int profile_enabled;
 };
 
-
-
+/* clean up data structures allocated during gasnete_coll_autotune_init() */
+void gasnete_coll_autotune_fini(gasnet_team_handle_t team);
 
 gasnete_coll_autotune_info_t* gasnete_coll_autotune_init(gasnet_team_handle_t team, gasnet_node_t mynode, gasnet_node_t total_nodes, 
                                                          gasnet_image_t my_images, gasnet_image_t total_images, 

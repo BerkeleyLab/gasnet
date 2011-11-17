@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_scratch.c,v $
- *     $Date: 2010/09/15 00:37:51 $
- * $Revision: 1.10 $
+ *     $Date: 2011/11/17 17:24:34 $
+ * $Revision: 1.10.16.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -9,12 +9,6 @@
 
 #include "gasnet_coll_scratch.h"
 #define GASNETE_COLL_SCRATCH_DEBUG_PRINTS 0
-struct gasnete_coll_op_info_t_;
-typedef struct gasnete_coll_op_info_t_ gasnete_coll_op_info_t;
-
-struct gasnete_coll_scratch_config_t_;
-typedef struct gasnete_coll_scratch_config_t_ gasnete_coll_scratch_config_t;
-
 
 typedef enum {GASNETE_COLL_SCRATCH_NO_WAIT=0, GASNETE_COLL_SCRATCH_BAD_CONFIG, 
   GASNETE_COLL_SCRATCH_FULL, GASNETE_COLL_SCRATCH_DRAIN_IN_PROGRESS} gasnete_coll_scratch_reason_t;
@@ -125,10 +119,32 @@ void gasnete_coll_alloc_new_scratch_status(gasnete_coll_team_t team) {
 }
 
 
-void gasnete_coll_free_scratch_status(gasnete_coll_scratch_status_t *in GASNETE_THREAD_FARG) {
- /* do nothing for now*/
+void gasnete_coll_free_scratch_status(gasnete_coll_scratch_status_t *in 
+                                      GASNETE_THREAD_FARG) 
+{
+
+  gasneti_assert(in != NULL);
+
+  
+  /* need to check all configs and ops have been done and freed */
+  if (in->active_config_and_ops != NULL)
+    gasnete_coll_free_scratch_config(in->active_config_and_ops);
+  
+  gasneti_assert(in->waiting_config_and_ops_head == NULL);
+  gasneti_assert(in->waiting_config_and_ops_tail == NULL);
+
+  gasneti_assert(in->node_status != NULL);
+  gasneti_free(in->node_status);
+  gasneti_free(in);
 }
 
+void gasnete_coll_free_scratch_config(gasnete_coll_scratch_config_t *sconfig)
+{
+  gasneti_assert(sconfig != NULL);
+  gasneti_assert(sconfig->num_ops == 0);
+  
+  gasneti_free(sconfig);
+}
 
 void gasnete_coll_scratch_send_updates(gasnete_coll_team_t team, int seq) {
   int i;
