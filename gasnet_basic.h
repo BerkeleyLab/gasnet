@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2011/08/22 23:24:16 $
- * $Revision: 1.109.4.4 $
+ *     $Date: 2011/11/17 04:09:19 $
+ * $Revision: 1.109.4.5 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,11 +17,6 @@
 /* must precede everything else to ensure correct operation */
 #include "portable_inttypes.h"
 #include "portable_platform.h"
-
-/* This is needed for _MIPS_ISA_* on MIPS platforms */
-#if PLATFORM_ARCH_MIPS && defined(HAVE_SGIDEFS_H)
-# include <sgidefs.h>
-#endif
 
 /* try to recognize the compiler in use as one present at configure time.
    note this can set both GASNETI_COMPILER_IS_CC and

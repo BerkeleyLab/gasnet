@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2011/03/18 23:05:01 $
- * $Revision: 1.128.4.2 $
+ *     $Date: 2011/11/17 04:09:19 $
+ * $Revision: 1.128.4.3 $
  * Description: GASNet header for semi-portable inline asm support
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -211,6 +211,32 @@
   #endif
 
   #define GASNETI_HAVE_BGP_INLINES 1
+#endif
+
+#if PLATFORM_ARCH_ARM && PLATFORM_OS_LINUX
+  /* This helper macro hides ISA differences going from ARMv4 to ARMv5 */
+  #if defined(__thumb__)
+    #error "GASNet does not support ARM Thumb mode"
+    #define GASNETI_ARM_ASMCALL(_tmp, _offset) "choke me"
+  #elif defined(__ARM_ARCH_2__)
+    #error "GASNet does not support ARM versions earlier than ARMv3"
+    #define GASNETI_ARM_ASMCALL(_tmp, _offset) "choke me"
+  #elif defined(__ARM_ARCH_3__) || defined(__ARM_ARCH_4__) || defined(__ARM_ARCH_4T__)
+    #define GASNETI_ARM_ASMCALL(_tmp, _offset) \
+	"	mov	" #_tmp ", #0xffff0fff              @ _tmp = base addr    \n" \
+	"	mov	lr, pc                              @ lr = return addr    \n" \
+	"	sub	pc, " #_tmp ", #" #_offset "        @ call _tmp - _offset \n"
+  #else
+    #define GASNETI_ARM_ASMCALL(_tmp, _offset) \
+	"	mov	" #_tmp ", #0xffff0fff              @ _tmp = base addr    \n" \
+	"	sub	" #_tmp ", " #_tmp ", #" #_offset " @ _tmp -= _offset     \n" \
+	"	blx	" #_tmp "                           @ call _tmp           \n"
+  #endif
+#endif
+
+#if PLATFORM_ARCH_MIPS && defined(HAVE_SGIDEFS_H)
+  /* For _MIPS_ISA and _MIPS_SIM values on some MIPS platforms */
+  #include <sgidefs.h>
 #endif
 
 #endif /* _GASNET_ASM_H */

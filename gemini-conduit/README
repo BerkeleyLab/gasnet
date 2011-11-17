@@ -1,6 +1,6 @@
 GASNet gemini-conduit documentation
-Your Name <stewart@serissa.com> ###
-$Revision: 1.2.2.2 $
+Larry Stewart <stewart@serissa.com> 
+$Revision: 1.2.2.3 $
 
 User Information:
 -----------------
@@ -475,28 +475,5 @@ registrations are a scarce resource.
 
 == Build notes ==
 
- * dependency on MPI headers
-
-PMI2_init returns MPI_SUCCESS. Who knows why, but this introduces a dependency on MPI headers, which is otherwise unneccessary.
-
- * module environment
-
-gemini-conduit build depends on the following module environment:
-
-# Use GNU compilers instead of PGI
-module swap PrgEnv-pgi PrgEnv-gnu
-# unload the Cray MPI
-module unload xt-mpt
-# Load Mpich2
-module load xt-mpich2
-
-
- * explicit inclusion of pmi and gni_headers
-
-On the Hopper system at LBL, the predefined compilation include paths are normally defined by modules, but are missing gni_headers and pmi, so they are added explicitly. This may not always be neccessary:
-
-
-CONDUIT_EXTRALIBCFLAGS = -I/opt/cray/gni-headers/default/include \
-			-I/opt/cray/pmi/default/include
 
 

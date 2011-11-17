@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2011/08/22 23:24:16 $
- * $Revision: 1.120.2.1 $
+ *     $Date: 2011/11/17 04:09:19 $
+ * $Revision: 1.120.2.2 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -661,12 +661,19 @@ extern gasnet_node_t gasneti_nodemap_local_count;
 extern gasnet_node_t gasneti_nodemap_local_rank;
 extern gasnet_node_t gasneti_nodemap_global_count;
 extern gasnet_node_t gasneti_nodemap_global_rank;
-extern gasnet_node_t *gasneti_nodeinfo;
+extern gasnet_nodeinfo_t *gasneti_nodeinfo;
 
 extern void gasneti_nodemapInit(gasneti_bootstrapExchangefn_t exchangefn,
                                 const void *ids, size_t sz, size_t stride);
 extern void gasneti_nodemapParse(void);
 extern void gasneti_nodemapFini(void);
+
+#if GASNET_CONDUIT_SMP
+  #define gasneti_node2supernode(n) 0
+#else
+  #define gasneti_node2supernode(n) \
+    (gasneti_assert(gasneti_nodeinfo), gasneti_nodeinfo[(n)].supernode)
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 

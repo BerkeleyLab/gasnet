@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2011/08/22 23:24:16 $
-dnl $Revision: 1.154.4.3 $
+dnl     $Date: 2011/11/17 04:09:19 $
+dnl $Revision: 1.154.4.4 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -1561,6 +1561,8 @@ GASNET_FUN_END([$0($1,$2,...)])
 AC_DEFUN([GASNET_PROG_CPP], [
   GASNET_FUN_BEGIN([$0])
   AC_PROVIDE([$0])
+  AC_REQUIRE([AC_PROG_CC]) dnl bug 2648, 2748 
+  AC_REQUIRE([AC_PROG_CPP])
   AC_PROG_CC
   AC_PROG_CPP
   GASNET_GETFULLPATH(CPP)
@@ -1605,6 +1607,8 @@ AC_DEFUN([GASNET_PROG_CPP], [
 AC_DEFUN([GASNET_PROG_CXXCPP], [
   GASNET_FUN_BEGIN([$0])
   AC_PROVIDE([$0])
+  AC_REQUIRE([AC_PROG_CXX]) dnl bug 2648, 2748 
+  AC_REQUIRE([AC_PROG_CXXCPP])
   AC_PROG_CXX
   AC_PROG_CXXCPP
   GASNET_GETFULLPATH(CXXCPP)
@@ -1754,6 +1758,7 @@ AC_DEFUN([GASNET_HOSTCC_BEGIN], [
   GASNET_PUSHVAR_UNSET(ac_cv_c_compiler_gnu)
   GASNET_PUSHVAR_UNSET(ac_cv_prog_cc_g)
   GASNET_PUSHVAR_UNSET(ac_cv_prog_cc_stdc)
+  GASNET_PUSHVAR_UNSET(ac_cv_objext)
   GASNET_PUSHVAR(cross_compiling,"no")
 
   GASNET_FUN_END([$0])
@@ -1776,6 +1781,7 @@ AC_DEFUN([GASNET_HOSTCC_END], [
   GASNET_POPVAR(ac_cv_c_compiler_gnu)
   GASNET_POPVAR(ac_cv_prog_cc_g)
   GASNET_POPVAR(ac_cv_prog_cc_stdc)
+  GASNET_POPVAR(ac_cv_objext)
   GASNET_POPVAR(cross_compiling)
 
   GASNET_FUN_END([$0])
@@ -2169,13 +2175,14 @@ GASNET_FUN_END([$0($1)])
 ])
 
 dnl fetch a cross-compilation variable, if we are cross compiling
-dnl GASNET_CROSS_VAR(variable-to-set, basicname)
+dnl if a default is not provided (or is empty) then var must be set
+dnl GASNET_CROSS_VAR(variable-to-set, basicname, default-value)
 AC_DEFUN([GASNET_CROSS_VAR],[
-  GASNET_FUN_BEGIN([$0($1,$2)])
+  GASNET_FUN_BEGIN([$0($1,$2,$3)])
   pushdef([cross_varname],CROSS_$2)
   if test "$cross_compiling" = "yes" ; then
     pushdef([GASNET_ENV_DEFAULT_SUPPRESSHELP],1)
-    GASNET_ENV_DEFAULT(cross_varname,)
+    GASNET_ENV_DEFAULT(cross_varname,$3)
     popdef([GASNET_ENV_DEFAULT_SUPPRESSHELP])
     if test "$cross_varname" = "" ; then
       AC_MSG_ERROR([This configure script requires \$cross_varname be set for cross-compilation])
@@ -2184,7 +2191,7 @@ AC_DEFUN([GASNET_CROSS_VAR],[
     fi
   fi
   popdef([cross_varname])
-  GASNET_FUN_END([$0($1,$2)])
+  GASNET_FUN_END([$0($1,$2,$3)])
 ])
 
 dnl query the numerical value of a system signal and AC_SUBST it

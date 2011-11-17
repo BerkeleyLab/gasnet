@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_membar.h,v $
- *     $Date: 2011/08/22 23:24:16 $
- * $Revision: 1.123.4.3 $
+ *     $Date: 2011/11/17 04:09:19 $
+ * $Revision: 1.123.4.4 $
  * Description: GASNet header for portable memory barrier operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -387,9 +387,7 @@
      GASNETI_INLINE(gasneti_local_mb)
      void gasneti_local_mb(void) {
        __asm__ __volatile__ (
-	  "  mov   r0, #0xffff0fff\n"
-	  "  mov   lr, pc\n"
-	  "  sub   pc, r0, #0x5f\n"
+	  GASNETI_ARM_ASMCALL(r0, 0x5f)
 	  : : : "r0", "lr", "cc", "memory" );
      }
      #define gasneti_local_mb()  gasneti_local_mb()

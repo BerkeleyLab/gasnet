@@ -1,6 +1,6 @@
 GASNet inter-Process SHared Memory (PSHM) design
 ---------------------------------------------
-$Revision: 1.4.4.2 $
+$Revision: 1.4.4.3 $
 
 Document by:
     Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -81,14 +81,19 @@ using mmap()ed disk files. However, on some systems we see significant
 performance degradation when using files (apparently due to committing the
 changes from memory to disk).
 
-On Linux, MacOS and Solaris the amount of the available SystemV shared
-memory and the number of shared memory segment is controlled by the kernel
-parameters: shmmax, shmall and shmmni.  Other systems are similar.
+On most operating systems the amount of available SystemV shared memory
+and the number of shared memory segments is controlled by the kernel
+parameters: shmmax, shmall and shmmni.
+   shmmax = largest size of a shared memory segment (in bytes)
+   shmall = total amount of memory allocatable as shared (in pages)
+   shmmni = maximum number of shared memory segments
+
 Insufficient amount of SystemV shared memory will lead to failures at
 start-up of any application using a runtime configured to use PSHM over
 SystemV.  Setting these parameters is system-specific and requires
 administrator privileges.
 
+* Examples to set:
 
    - Linux:	
 	sudo /sbin/sysctl -w kernel.shmmax=<large value>
@@ -101,7 +106,11 @@ administrator privileges.
 	sudo /sbin/sysctl -w kern.sysv.shmmni=<larger than number of
 					 PSHM processes + 1>
 
+   - Solaris:
+        Depends on version.  Please see the Sun/Oracle documentation.
+
 * To change parameters permanently:
+
    - Linux:
 	Add the following lines to /etc/sysctl.conf (sudo required):
 	kernel.shmmax=<large value>
@@ -111,6 +120,7 @@ administrator privileges.
 
 	To reload the new settings:
 	sudo /sbin/sysctl -p /etc/sysctl.conf
+
    - MacOS:
 	Add the following lines to /etc/sysctl.conf (sudo required):
 	kern.sysv.shmmax=<large value>
@@ -119,6 +129,9 @@ administrator privileges.
 	                  PSHM processes + 1>
 
 	To reload the new settings: reboot the machine.
+
+   - Solaris:
+        Depends on version.  Please see the Sun/Oracle documentation.
 
 
 IMPORTANT, SYSTEM CLEANING:
@@ -285,15 +298,12 @@ Status:
     + Shared segment size must be limited to a lower-than-default value
     + BG_SHAREDMEMPOOLSIZE env var must be set to fit the shared segment plus
       extra for Active Message buffers
-    + upcrun must be told to propagate BG_ environment vars to the job
   - Example environment variable settings for 200MB shared heap in VN mode
     when using Berkeley UPC's upcrun command:
-      UPC_ENVPREFIX=BG_
       UPC_SHARED_HEAP_SIZE=200M
       BG_SHAREDMEMPOOLSIZE=820
   - Example environment variable settings for 400MB shared heap in DUAL mode
     when using Berkeley UPC's upcrun command:
-      UPC_ENVPREFIX=BG_
       UPC_SHARED_HEAP_SIZE=400M
       BG_SHAREDMEMPOOLSIZE=810
 * Cray XT and XE platform-specific notes:

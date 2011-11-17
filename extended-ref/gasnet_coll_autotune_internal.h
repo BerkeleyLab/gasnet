@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_autotune_internal.h,v $                                                                                                                                                             
- *     $Date: 2011/08/22 23:24:24 $                                                                                                                                                              
- * $Revision: 1.6.6.2 $                                                                                                                                                             
+ *     $Date: 2011/11/17 04:09:26 $                                                                                                                                                              
+ * $Revision: 1.6.6.3 $                                                                                                                                                             
  * Description: GASNet Autotuner Implementation                                                                                                                             
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>                              
  * Terms of use are as specified in license.txt                                                                                                                             
@@ -372,7 +372,7 @@ struct gasnet_coll_tuning_parameter_t {
    auto aggregates to contain non-constant expressions (which we may want for
    start and end members).
 */
-#if defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 199901L)
+#if HAVE_NONCONST_STRUCT_INIT
   #define GASNETE_COLL_TUNING_PARAMETER(_name,_param,_start,_end,_stride,_flags) \
     struct gasnet_coll_tuning_parameter_t _name[1] = \
        { { _param,_start,_end,_stride,_flags } } /* no semicolon */

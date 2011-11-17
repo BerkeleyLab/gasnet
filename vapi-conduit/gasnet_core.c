@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2011/08/22 23:25:14 $
- * $Revision: 1.223.6.1 $
+ *     $Date: 2011/11/17 04:09:44 $
+ * $Revision: 1.223.6.2 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2436,7 +2436,7 @@ static void gasnetc_atexit(void) {
 #endif
 
 static void gasnetc_exit_init(void) {
-  const int exit_radix  = 2;
+  #define GASNETC_EXIT_RADIX 2
 
   /* Handler for non-collective returns from main() */
   #if HAVE_ON_EXIT
@@ -2449,20 +2449,20 @@ static void gasnetc_exit_init(void) {
   if (gasneti_nodemap_local_rank) {
     gasnetc_exit_parent = gasneti_nodemap[gasneti_mynode];
   } else {
-    gasnet_node_t children, child[exit_radix];
+    gasnet_node_t children, child[GASNETC_EXIT_RADIX];
     gasnet_node_t rank, i, j;
 
     /* Enumerate our non-local children */
     children = 0;
-    for (i = 0; i < exit_radix; ++i) {
-      rank = i + 1 + exit_radix * gasneti_nodemap_global_rank;
+    for (i = 0; i < GASNETC_EXIT_RADIX; ++i) {
+      rank = i + 1 + GASNETC_EXIT_RADIX * gasneti_nodemap_global_rank;
 
       /* Check overflow or out-of-range */
       if ((rank < gasneti_nodemap_global_rank) || (rank >= gasneti_nodemap_global_count)) break;
 
       /* Convert global rank to node number */
       for (j = gasneti_mynode+1; j < gasneti_nodes; ++j) {
-        if (gasneti_nodeinfo[j] == rank) break;
+        if (gasneti_node2supernode(j) == rank) break;
       }
       gasneti_assert(j < gasneti_nodes);
       child[i] = j;
@@ -2480,9 +2480,9 @@ static void gasnetc_exit_init(void) {
     }
 
     if (gasneti_mynode) {
-      rank = (gasneti_nodemap_global_rank - 1) / exit_radix;
+      rank = (gasneti_nodemap_global_rank - 1) / GASNETC_EXIT_RADIX;
       for (j = 0; j < gasneti_mynode; ++j) {
-        if (gasneti_nodeinfo[j] == rank) break;
+        if (gasneti_node2supernode(j) == rank) break;
       }
       gasneti_assert(j < gasneti_mynode);
       gasnetc_exit_parent = j;

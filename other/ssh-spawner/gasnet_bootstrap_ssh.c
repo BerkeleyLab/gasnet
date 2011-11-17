@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/ssh-spawner/gasnet_bootstrap_ssh.c,v $
- *     $Date: 2011/08/22 23:24:58 $
- * $Revision: 1.68.6.1 $
+ *     $Date: 2011/11/17 04:09:36 $
+ * $Revision: 1.68.6.2 $
  * Description: GASNet conduit-independent ssh-based spawner
  * Copyright 2005, The Regents of the University of California
  * Terms of use are as specified in license.txt
@@ -21,7 +21,7 @@
 #if HAVE_NETINET_TCP_H
   #include <netinet/tcp.h>
 #endif
-#if HAVE_PR_SET_PDEATHSIG
+#ifdef HAVE_PR_SET_PDEATHSIG
   /* Under Linux we can ask to be sent a given signal when our parent exits.
    * We use if mainly because of a bug in some versions of OpenSSH that
    * fail to kill spawned children when the ssh exits.  However, this will
@@ -29,7 +29,9 @@
    * SIGKILL to our processes (which leaves us no other way to cleanup
    * gracefully).  Not safe on some Linux kernels.
    */
+  #include <sys/utsname.h>
   #include <sys/prctl.h>
+  static int use_pdeathsig = 0;
 #endif
 #include <signal.h>
 #include <unistd.h>
@@ -1197,8 +1199,10 @@ static void spawn_one(gasnet_node_t child_id, char *myhost) {
       gasneti_fatalerror("execlp(sh) failed");
     } else {
       #if HAVE_PR_SET_PDEATHSIG
+      if (use_pdeathsig) {
 	/* If parent exits before us (an abnormal condition) then we exit too */
 	(void)prctl(PR_SET_PDEATHSIG, SIGHUP);
+      }
       #endif
       BOOTSTRAP_VERBOSE(("[%d] spawning process %d on %s via %s\n",
 			 (is_master ? -1 : (int)myproc),
@@ -1479,8 +1483,10 @@ static void do_slave(int *argc_p, char ***argv_p, gasnet_node_t *nodes_p, gasnet
   gasneti_reghandler(SIGURG, &sigurg_handler);
 
   #if HAVE_PR_SET_PDEATHSIG
+  if (use_pdeathsig) {
     /* If parent exits before us (an abnormal condition) then trigger an abort */
     (void)prctl(PR_SET_PDEATHSIG, SIGURG);
+  }
   #endif
 
   if ((argc < 5) || (argc > 6)){
@@ -1670,6 +1676,20 @@ void gasneti_bootstrapInit_ssh(int *argc_p, char ***argv_p, gasnet_node_t *nodes
     tmp = fcntl(STDERR_FILENO, F_GETFL, 0);
     if (tmp >= 0) (void)fcntl(STDERR_FILENO, F_SETFL, tmp | O_APPEND);
   }
+
+  #ifdef HAVE_PR_SET_PDEATHSIG
+  { /* check safety of prctl(PR_SET_PDEATHSIG, ...) */
+    struct utsname name;
+    if (0 == uname(&name)) {
+      const char *dot = strchr(name.release,'.');
+      if (NULL != dot) {
+        int major = atoi(name.release);
+        int minor = atoi(dot + 1);
+	use_pdeathsig = ((100 * major + minor) >= 206); /* 2.6.0 kernel or newer */
+      }
+    }
+  }
+  #endif
 
   if (strcmp(argv[1], "-GASNET-SPAWN-slave") == 0) {
     do_slave(argc_p, argv_p, nodes_p, mynode_p);

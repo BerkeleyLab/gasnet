@@ -10,6 +10,8 @@ if test "$USE_GCC" != "" ; then
 # GCC-based compilers
 CC='/bgsys/drivers/ppcfloor/gnu-linux/bin/powerpc-bgp-linux-gcc -Wno-unused' ; export CC  # vanilla target C compiler
 CXX='/bgsys/drivers/ppcfloor/gnu-linux/bin/powerpc-bgp-linux-g++ -Wno-unused' ; export CXX  # vanilla target C++ compiler
+#CC='powerpc-bgp-linux-gcc -Wno-unused' ; export CC  # vanilla target C compiler
+#CXX='powerpc-bgp-linux-g++ -Wno-unused' ; export CXX  # vanilla target C++ compiler
 # for dynamic linking add: -dynamic -Wl,-rpath,/bgsys/drivers/V1R1M2_500_2007-071213P/ppc/runtime/SPI
 else
 # XLC-based compilers

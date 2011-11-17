@@ -179,12 +179,22 @@ extern unsigned gasnetc_sys_poll_limit;
 #define GASNETC_CHECKSIG() ((void)0)
 #endif
 
+#ifdef PTL_MAX_ERRNO
+  #define GASNETC_PTL_VALIDERRNO(_retcode) \
+	((_retcode >= 0) && (_retcode < PTL_MAX_ERRNO))
+#else
+  #define GASNETC_PTL_VALIDERRNO(_retcode) \
+	(_retcode >= 0)
+#endif
+
 /* Macro that checks return code from a Portals calls */
 #define GASNETC_PTLCHECK(_retcode, _message) do {			\
     if_pf (_retcode != (int)PTL_OK) {					\
+      const char *_err_msg = GASNETC_PTL_VALIDERRNO(_retcode)		\
+		 	? ptl_err_str[_retcode] : "unknown";		\
       gasneti_fatalerror("\nGASNet Portals encountered an error: %s (%i)\n" \
 			 "  %s\n  at %s",				\
-			 ptl_err_str[_retcode], _retcode, _message, gasneti_current_loc); \
+			 _err_msg, _retcode, _message, gasneti_current_loc); \
     }									\
  } while (0)
 

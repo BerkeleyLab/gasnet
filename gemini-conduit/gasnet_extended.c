@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_extended.c,v $
- *     $Date: 2011/08/22 23:24:26 $
- * $Revision: 1.3.2.2 $
+ *     $Date: 2011/11/17 04:09:28 $
+ * $Revision: 1.3.2.3 $
  * Description: GASNet Extended API Reference Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -487,7 +487,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk_am (void *dest, gasnet_node_t node, v
 
 extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_eop_t *op;
-  gc_post_descriptor_t *gpd;
+  gasnetc_post_descriptor_t *gpd;
   size_t thiscount;
   GASNETI_CHECKPSHM_GET(UNALIGNED,H);
   if (((uintptr_t) dest & 3) || ((uintptr_t) src & 3) || (nbytes & 3)) {
@@ -497,10 +497,10 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
     thiscount = nbytes;
     if (thiscount > GC_MAXRDMA) thiscount = GC_MAXRDMA;
     op = gasnete_eop_new(GASNETE_MYTHREAD);
-    gpd = gc_alloc_post_descriptor();
+    gpd = gasnetc_alloc_post_descriptor();
     gpd->completion = (gasnete_op_t *) op;
     gpd->flags = GC_POST_COMPLETION_EOP;
-    gc_rdma_get(node, dest, src, thiscount, gpd);
+    gasnetc_rdma_get(node, dest, src, thiscount, gpd);
     dest = (char *) dest + thiscount;
     src = (char *) src + thiscount;
     nbytes -= thiscount;
@@ -563,17 +563,17 @@ extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void
 
 extern gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_eop_t *op;
-  gc_post_descriptor_t *gpd;
+  gasnetc_post_descriptor_t *gpd;
   size_t thiscount;
   GASNETI_CHECKPSHM_PUT(ALIGNED,H);
   //  if (gasnetc_am_put_nb) return(gasnete_put_nb_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS));
   if (nbytes <= GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) {
     op = gasnete_eop_new(GASNETE_MYTHREAD);
-    gpd = gc_alloc_post_descriptor();
+    gpd = gasnetc_alloc_post_descriptor();
     gpd->completion = (gasnete_op_t *) op;
     gpd->flags = GC_POST_COMPLETION_EOP;
     memcpy(gpd->u.immediate, src, nbytes);
-    gc_rdma_put(node, dest, gpd->u.immediate, nbytes, gpd);
+    gasnetc_rdma_put(node, dest, gpd->u.immediate, nbytes, gpd);
     return (gasnet_handle_t) op;
   }
 
@@ -581,10 +581,10 @@ extern gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src
     thiscount = nbytes;
     if (thiscount > GC_MAXRDMA) thiscount = GC_MAXRDMA;
     op = gasnete_eop_new(GASNETE_MYTHREAD);
-    gpd = gc_alloc_post_descriptor();
+    gpd = gasnetc_alloc_post_descriptor();
     gpd->completion = (gasnete_op_t *) op;
     gpd->flags = GC_POST_COMPLETION_EOP;
-    gc_rdma_put(node, dest, src, thiscount, gpd);
+    gasnetc_rdma_put(node, dest, src, thiscount, gpd);
     dest = (char *) dest + thiscount;
     src = (char *) src + thiscount;
     nbytes -= thiscount;
@@ -595,7 +595,7 @@ extern gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src
 
 extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_eop_t *op = (gasnete_eop_t *)GASNET_INVALID_HANDLE;
-  gc_post_descriptor_t *gpd;
+  gasnetc_post_descriptor_t *gpd;
   size_t thiscount;
   GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
   //  if (gasnetc_am_put_nb_bulk)   return gasnete_put_nb_inner(node, dest, src, nbytes, 1 GASNETE_THREAD_PASS);
@@ -604,10 +604,10 @@ extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void
     thiscount = nbytes;
     if (thiscount > GC_MAXRDMA) thiscount = GC_MAXRDMA;
     op = gasnete_eop_new(GASNETE_MYTHREAD);
-    gpd = gc_alloc_post_descriptor();
+    gpd = gasnetc_alloc_post_descriptor();
     gpd->completion = (gasnete_op_t *) op;
     gpd->flags = GC_POST_COMPLETION_EOP;
-    gc_rdma_put(node, dest, src, thiscount, gpd);
+    gasnetc_rdma_put(node, dest, src, thiscount, gpd);
     dest = (char *) dest + thiscount;
     src = (char *) src + thiscount;
     nbytes -= thiscount;
@@ -761,7 +761,7 @@ extern void gasnete_get_nbi_bulk_am (void *dest, gasnet_node_t node, void *src, 
 extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *op;
-  gc_post_descriptor_t *gpd;
+  gasnetc_post_descriptor_t *gpd;
   size_t thiscount;
   gasneti_atomic_t done;
 
@@ -773,21 +773,21 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
   while (nbytes > GC_MAXRDMA) {
     gasneti_atomic_set(&done, 0, 0);
     thiscount = GC_MAXRDMA;
-    gpd = gc_alloc_post_descriptor();
+    gpd = gasnetc_alloc_post_descriptor();
     gpd->completion = (gasnete_op_t *) &done;
     gpd->flags = GC_POST_COMPLETION_FLAG;
-    gc_rdma_get(node, dest, src, thiscount, gpd);
+    gasnetc_rdma_get(node, dest, src, thiscount, gpd);
     dest = (char *) dest + thiscount;
     src = (char *) src + thiscount;
     nbytes -= thiscount;
-    while(!gasneti_atomic_read(&done, 0)) gc_poll();
+    while(!gasneti_atomic_read(&done, 0)) gasnetc_poll();
   }
   op = mythread->current_iop;
   op->initiated_get_cnt++;
-  gpd = gc_alloc_post_descriptor();
+  gpd = gasnetc_alloc_post_descriptor();
   gpd->completion = (gasnete_op_t *) op;
   gpd->flags = GC_POST_COMPLETION_EOP;
-  gc_rdma_get(node, dest, src, nbytes, gpd);
+  gasnetc_rdma_get(node, dest, src, nbytes, gpd);
 }
 
 GASNETI_INLINE(gasnete_put_nbi_inner)
@@ -868,7 +868,7 @@ extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, siz
 extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *op;
-  gc_post_descriptor_t *gpd;
+  gasnetc_post_descriptor_t *gpd;
   gasneti_atomic_t done;
   size_t thiscount;
   GASNETI_CHECKPSHM_PUT(ALIGNED,V);
@@ -876,25 +876,25 @@ extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, siz
   op = mythread->current_iop;
   op->initiated_put_cnt++;
   if (nbytes <= GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) {
-    gpd = gc_alloc_post_descriptor();
+    gpd = gasnetc_alloc_post_descriptor();
     gpd->completion = (gasnete_op_t *) op;
     gpd->flags = GC_POST_COMPLETION_EOP;
     memcpy(gpd->u.immediate, src, nbytes);
-    gc_rdma_put(node, dest, gpd->u.immediate, nbytes, gpd);
+    gasnetc_rdma_put(node, dest, gpd->u.immediate, nbytes, gpd);
     return;
   }
   while (nbytes > 0) {
     gasneti_atomic_set(&done, 0, 0);
     thiscount = nbytes;
     if (thiscount > GC_MAXRDMA) thiscount = GC_MAXRDMA;
-    gpd = gc_alloc_post_descriptor();
+    gpd = gasnetc_alloc_post_descriptor();
     gpd->completion = (gasnete_op_t *) &done;
     gpd->flags = GC_POST_COMPLETION_FLAG;
-    gc_rdma_put(node, dest, src, thiscount, gpd);
+    gasnetc_rdma_put(node, dest, src, thiscount, gpd);
     dest = (char *) dest + thiscount;
     src = (char *) src + thiscount;
     nbytes -= thiscount;
-    while(!gasneti_atomic_read(&done, 0)) gc_poll();
+    while(!gasneti_atomic_read(&done, 0)) gasnetc_poll();
   }
   gasnete_op_markdone((gasnet_handle_t) op, 0);
 }
@@ -908,7 +908,7 @@ extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, siz
 extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *op;
-  gc_post_descriptor_t *gpd;
+  gasnetc_post_descriptor_t *gpd;
   size_t thiscount;
   gasneti_atomic_t done;
   GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
@@ -916,21 +916,21 @@ extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, siz
   while (nbytes > GC_MAXRDMA) {
     gasneti_atomic_set(&done, 0, 0);
     thiscount = GC_MAXRDMA;
-    gpd = gc_alloc_post_descriptor();
+    gpd = gasnetc_alloc_post_descriptor();
     gpd->completion = (gasnete_op_t *) &done;
     gpd->flags = GC_POST_COMPLETION_FLAG;
-    gc_rdma_put(node, dest, src, thiscount, gpd);
+    gasnetc_rdma_put(node, dest, src, thiscount, gpd);
     dest = (char *) dest + thiscount;
     src = (char *) src + thiscount;
     nbytes -= thiscount;
-    while(!gasneti_atomic_read(&done, 0)) gc_poll();
+    while(!gasneti_atomic_read(&done, 0)) gasnetc_poll();
   }
   op = mythread->current_iop;
   op->initiated_put_cnt++;
-  gpd = gc_alloc_post_descriptor();
+  gpd = gasnetc_alloc_post_descriptor();
   gpd->completion = (gasnete_op_t *) op;
   gpd->flags = GC_POST_COMPLETION_EOP;
-  gc_rdma_put(node, dest, src, nbytes, gpd);
+  gasnetc_rdma_put(node, dest, src, nbytes, gpd);
 }
 
 extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {

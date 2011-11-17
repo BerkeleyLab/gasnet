@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2011/08/22 23:24:26 $
- * $Revision: 1.5.2.2 $
+ *     $Date: 2011/11/17 04:09:28 $
+ * $Revision: 1.5.2.3 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -50,7 +50,7 @@ static void gasnetc_bootstrapBarrier(void) {
 }
 
 static void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
-  GNIT_Allgather(src, len, dest);
+  gasnetc_GNIT_Allgather(src, len, dest);
 }
 
 
@@ -163,7 +163,7 @@ extern uintptr_t gasnetc_portalsMaxPinMem(void)
   try_pin_free();
 
   if (low < granularity) {
-    GNIT_Abort("Unable to alloc and pin minimal memory of size %d bytes",(int)granularity);
+    gasnetc_GNIT_Abort("Unable to alloc and pin minimal memory of size %d bytes",(int)granularity);
   }
   GASNETI_TRACE_PRINTF(C,("MaxPinMem = %lu",(unsigned long)low));
   return (uintptr_t)low;
@@ -193,17 +193,32 @@ static int gasnetc_init(int *argc, char ***argv) {
 
 #if GASNET_DEBUG_VERBOSE
     /* note - can't call trace macros during gasnet_init because trace system not yet initialized */
-    fprintf(stderr,"gasnetc_init(): about to call gc_init...\n"); fflush(stderr);
+    fprintf(stderr,"gasnetc_init(): about to call gasnetc_init...\n"); fflush(stderr);
 #endif
 
     /* LCS Gemini init */
 
-    if ((ret = gc_init(&gasneti_nodes, &gasneti_mynode, &errstring)) != GASNET_OK) {
+    if ((ret = gasnetc_gem_init(&gasneti_nodes, &gasneti_mynode, &errstring)) != GASNET_OK) {
       GASNETI_RETURN_ERRR(NOT_INIT, errstring);
     }
 
+    if (!gasneti_mynode) {
+      fflush(NULL);
+      fprintf(stdout,
+              "-----------------------------------------------------------------------\n"
+              " WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING\n"
+              "\n"
+              " GASNet's gemini-conduit is currently in BETA status.\n"
+              " You should NOT trust any performance numbers from this run as\n"
+              " predictive of the performance of the conduit when completed.\n"
+              "\n"
+              " WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING\n"
+              "-----------------------------------------------------------------------\n");
+      fflush(NULL);
+    }
+
   #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr,"gasnetc_init(): gc_init done - node %i/%i starting...\n", 
+    fprintf(stderr,"gasnetc_init(): gasnetc_init done - node %i/%i starting...\n", 
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
 
@@ -238,7 +253,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     fprintf(stderr, "\n"); fflush(stderr);
   }
 #endif
-  GNIT_Allgather(&minlocalrank, sizeof(uint32_t), gasneti_nodemap);
+  gasnetc_GNIT_Allgather(&minlocalrank, sizeof(uint32_t), gasneti_nodemap);
   for (i = 0; i < gasneti_nodes; i += 1) {
     gasneti_assert(gasneti_nodemap[i] >= 0);  /* it is unsigned, so this is moot */
     gasneti_assert(gasneti_nodemap[i] < gasneti_nodes);
@@ -247,12 +262,12 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasneti_nodemapParse();
 
   #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr,"gasnetc_init(): node %i/%i calling gc_init_messaging.\n", 
+    fprintf(stderr,"gasnetc_init(): node %i/%i calling gasnetc_init_messaging.\n", 
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
-  gc_init_messaging();
+  gasnetc_init_messaging();
   #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr,"gasnetc_init(): node %i/%i finished gc_init_messaging.\n", 
+    fprintf(stderr,"gasnetc_init(): node %i/%i finished gasnetc_init_messaging.\n", 
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
 
@@ -516,15 +531,15 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   gasneti_auxseg_attach(); /* provide auxseg */
   /* LCS After this, puts, and gets should work */
-  gc_init_segment(segbase, segsize);
+  gasnetc_init_segment(segbase, segsize);
 
   gasnete_init(); /* init the extended API */
 
   gasneti_nodemapFini();
 
-  gc_init_bounce_buffer_pool();  /* auxseg should be set by now */
+  gasnetc_init_bounce_buffer_pool();  /* auxseg should be set by now */
 
-  gc_init_post_descriptor_pool();
+  gasnetc_init_post_descriptor_pool();
   /* ensure extended API is initialized across nodes */
   gasnetc_bootstrapBarrier();
 
@@ -557,17 +572,12 @@ extern void gasnetc_exit(int exitcode) {
   /* should prevent us from entering again */
   gasnetc_shutdownInProgress = 1;
 
-    #if PLATFORM_OS_CNL /* Never had a chance to test for alarm() on Catamount */
     gasneti_reghandler(SIGALRM, SIG_DFL);
     alarm(2 + gasnetc_shutdown_seconds);
-  #endif
 
   if (gasnetc_sys_exit(&exitcode)) {
-    int i;
-    for (i = 0; i < 10; i += 1) {
     fprintf(stderr, "node %i Failed to coordinate shutdown after %lu milliseconds\n",gasneti_mynode,(unsigned long)(1e3*gasnetc_shutdown_seconds));
     fflush(stderr);
-    }
     /* Death of any process by a fatal signal will cause launcher to kill entire job.
      * We don't use INT or TERM since one could be blocked if we are in its handler. */
     
@@ -579,11 +589,11 @@ extern void gasnetc_exit(int exitcode) {
   gasneti_flush_streams();
   gasneti_trace_finish();
   gasneti_sched_yield();
-  gc_shutdown();
+  gasnetc_shutdown();
 
-  GNIT_Finalize();  // normal exit via PMI
+  gasnetc_GNIT_Finalize();  // normal exit via PMI
   gasneti_killmyprocess(exitcode); /* last chance */
-  GNIT_Abort("gasnetc_exit failed!");
+  gasnetc_GNIT_Abort("gasnetc_exit failed!");
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -649,7 +659,7 @@ extern int gasnetc_AMPoll(void) {
 
   /* (###) add code here to run your AM progress engine */
   /* LCS */
-  gc_poll();
+  gasnetc_poll();
   return GASNET_OK;
 }
 
@@ -682,20 +692,20 @@ extern int gasnetc_AMRequestShortM(
      */
     /* LCS send a short gni message (all header) */
 
-    gc_am_short_packet_max_t m;
-    gc_get_am_credit(dest);
+    gasnetc_am_short_packet_max_t m;
+    gasnetc_get_am_credit(dest);
     m.header.command = GC_CMD_AM_SHORT;
     m.header.handler = handler;
     m.header.numargs = numargs;
     for (i = 0; i < numargs; i += 1) {
       m.args[i] = va_arg(argptr, uint32_t);
     }
-    retval = gc_send(dest, &m, sizeof(struct gc_am_short_packet) 
+    retval = gasnetc_send(dest, &m, sizeof(struct gasnetc_am_short_packet) 
 		     + (numargs * sizeof(uint32_t)), 
 		     NULL, 0);
   }
   va_end(argptr);
-  //  gc_poll();
+  //  gasnetc_poll();
   GASNETI_RETURN(retval);
 }
 
@@ -723,8 +733,8 @@ extern int gasnetc_AMRequestMediumM(
      */
     /* LCS send short message, using header for args and body for nbytes data */
 
-    struct gc_am_medium_packet_max m;
-    gc_get_am_credit(dest);
+    struct gasnetc_am_medium_packet_max m;
+    gasnetc_get_am_credit(dest);
     m.header.command = GC_CMD_AM_MEDIUM;
     m.header.handler = handler;
     m.header.numargs = numargs;
@@ -733,14 +743,14 @@ extern int gasnetc_AMRequestMediumM(
       m.args[i] = va_arg(argptr, uint32_t);
     }
     /* align up the length of data to avoid rmw at receiving nic */
-    retval = gc_send(dest, &m, 
+    retval = gasnetc_send(dest, &m, 
 		     GASNETI_ALIGNUP(
-				     sizeof(struct gc_am_medium_packet) 
+				     sizeof(struct gasnetc_am_medium_packet) 
 				     + (numargs * sizeof(uint32_t)), 8),
 		     source_addr, nbytes);
   }
   va_end(argptr);
-  //  gc_poll();
+  //  gasnetc_poll();
   GASNETI_RETURN(retval);
 }
 
@@ -771,8 +781,8 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
      * if size is large, use RDMA plus SMSG
      * for blocking, wait for completion of the rdma, then smsg
      */
-    struct gc_am_long_packet_max m;
-    gc_get_am_credit(dest);
+    struct gasnetc_am_long_packet_max m;
+    gasnetc_get_am_credit(dest);
     /* fma credit needed here? LCS XXX */
     if (nbytes <= gasnet_AMMaxMedium()) {
       /* send data in packet payload */
@@ -786,26 +796,26 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 	m.args[i] = va_arg(argptr, uint32_t);
       }
       //     if (nbytes > 0) printf("long send %p %lx [%lx]\n", dest, nbytes, ((uint64_t *) source_addr)[0]);
-      /* In this call to gc_send, the argument list length is rounded up
+      /* In this call to gasnetc_send, the argument list length is rounded up
        * to an 8 byte boundary so that the immediate data can be aligned.
        * The imm data length is rounded up to avoid rmw at destination
        */
       {
-	uint32_t hlen = GASNETI_ALIGNUP(sizeof(gc_am_long_packet_t) 
+	uint32_t hlen = GASNETI_ALIGNUP(sizeof(gasnetc_am_long_packet_t) 
 					+ (numargs * sizeof(uint32_t)), 8);
 	uint32_t dlen = nbytes;
-	retval = gc_send(dest, &m, hlen, source_addr, dlen);
+	retval = gasnetc_send(dest, &m, hlen, source_addr, dlen);
       }
       
     } else {
-      gc_post_descriptor_t *gpd = gc_alloc_post_descriptor();
+      gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
       gasneti_atomic_t done = gasneti_atomic_init(0);
       gasneti_assert(gpd);
       gpd->completion = (gasnete_op_t *) &done;
       gpd->flags = GC_POST_COMPLETION_FLAG;
 
       /* Rdma data, then send header */
-      gc_rdma_put(dest, dest_addr, source_addr, nbytes, gpd);
+      gasnetc_rdma_put(dest, dest_addr, source_addr, nbytes, gpd);
 
       m.header.command = GC_CMD_AM_LONG;
       m.header.handler = handler;
@@ -815,14 +825,14 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
       for (i = 0; i < numargs; i += 1) {
 	m.args[i] = va_arg(argptr, uint32_t);
       }
-      while(!gasneti_atomic_read(&done, 0)) gc_poll_local_queue();
-      retval = gc_send(dest, &m, sizeof(gc_am_long_packet_t) 
+      while(!gasneti_atomic_read(&done, 0)) gasnetc_poll_local_queue();
+      retval = gasnetc_send(dest, &m, sizeof(gasnetc_am_long_packet_t) 
 		       + (numargs * sizeof(uint32_t)), NULL, 0);
     }
 
   }
   va_end(argptr);
-  //  gc_poll();
+  //  gasnetc_poll();
   GASNETI_RETURN(retval);
 }
 
@@ -845,9 +855,9 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
   } else
 #endif
   {
-    gc_get_am_credit(dest);
+    gasnetc_get_am_credit(dest);
     if (nbytes <= gasnet_AMMaxMedium()) {
-      struct gc_am_long_packet_max m;
+      struct gasnetc_am_long_packet_max m;
       /* send data in packet payload */
       m.header.command = GC_CMD_AM_LONG;
       m.header.handler = handler;
@@ -857,13 +867,13 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
       for (i = 0; i < numargs; i += 1) {
 	m.args[i] = va_arg(argptr, uint32_t);
       }
-      retval = gc_send(dest, &m, 
-		       GASNETI_ALIGNUP(sizeof(gc_am_long_packet_t) 
+      retval = gasnetc_send(dest, &m, 
+		       GASNETI_ALIGNUP(sizeof(gasnetc_am_long_packet_t) 
 				       + (numargs * sizeof(uint32_t)), 8),
 		       source_addr, nbytes);
     } else {
-      gc_post_descriptor_t *gpd;
-      gpd = gc_alloc_post_descriptor();
+      gasnetc_post_descriptor_t *gpd;
+      gpd = gasnetc_alloc_post_descriptor();
       gasneti_assert(gpd);
       gpd->flags = GC_POST_SEND;
       gpd->dest = dest;
@@ -876,12 +886,12 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 	gpd->u.galp.args[i] = va_arg(argptr, uint32_t);
       }
       /* Rdma data, then send header as part of completion*/
-      gc_rdma_put(dest, dest_addr, source_addr, nbytes, gpd);
+      gasnetc_rdma_put(dest, dest_addr, source_addr, nbytes, gpd);
       retval = GASNET_OK;
     }
   }
   va_end(argptr);
-  //  gc_poll();
+  //  gasnetc_poll();
   GASNETI_RETURN(retval);
 }
 
@@ -909,7 +919,7 @@ extern int gasnetc_AMReplyShortM(
      */
 
 
-    struct gc_am_short_packet_max m;
+    struct gasnetc_am_short_packet_max m;
     GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &dest));
     m.header.command = GC_CMD_AM_SHORT_REPLY;
     m.header.handler = handler;
@@ -917,7 +927,7 @@ extern int gasnetc_AMReplyShortM(
     for (i = 0; i < numargs; i += 1) {
       m.args[i] = va_arg(argptr, uint32_t);
     }
-    retval = gc_send(dest, &m, sizeof(struct gc_am_short_packet) 
+    retval = gasnetc_send(dest, &m, sizeof(struct gasnetc_am_short_packet) 
 		     + (numargs * sizeof(uint32_t)), NULL, 0);
   }
   va_end(argptr);
@@ -947,7 +957,7 @@ extern int gasnetc_AMReplyMediumM(
     /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t) 
              and send the active message 
      */
-    struct gc_am_medium_packet_max m;
+    struct gasnetc_am_medium_packet_max m;
     GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &dest));
     m.header.command = GC_CMD_AM_MEDIUM_REPLY;
     m.header.handler = handler;
@@ -956,8 +966,8 @@ extern int gasnetc_AMReplyMediumM(
     for (i = 0; i < numargs; i += 1) {
       m.args[i] = va_arg(argptr, uint32_t);
     }
-    retval = gc_send(dest, &m,
-		     GASNETI_ALIGNUP(sizeof(struct gc_am_medium_packet) 
+    retval = gasnetc_send(dest, &m,
+		     GASNETI_ALIGNUP(sizeof(struct gasnetc_am_medium_packet) 
 				     + (numargs * sizeof(uint32_t)), 8),
 		     source_addr, nbytes);
   }
@@ -989,7 +999,7 @@ extern int gasnetc_AMReplyLongM(
     /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t) 
              and send the active message 
      */
-    struct gc_am_long_packet_max m;
+    struct gasnetc_am_long_packet_max m;
     GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &dest));
     if (nbytes <= gasnet_AMMaxMedium()) {
       m.header.command = GC_CMD_AM_LONG_REPLY;
@@ -1002,18 +1012,18 @@ extern int gasnetc_AMReplyLongM(
       }
       /* send data in packet payload */
       //   if (nbytes > 0) printf("long repl %p %lx [%lx]\n", dest, nbytes, ((uint64_t *) source_addr)[0]);
-      retval = gc_send(dest, &m, 
-		       GASNETI_ALIGNUP(sizeof(gc_am_long_packet_t) 
+      retval = gasnetc_send(dest, &m, 
+		       GASNETI_ALIGNUP(sizeof(gasnetc_am_long_packet_t) 
 				       + (numargs * sizeof(uint32_t)), 8),
 		       source_addr, nbytes);
     } else {
-      gc_post_descriptor_t *gpd = gc_alloc_post_descriptor();
+      gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
       gasneti_atomic_t done = gasneti_atomic_init(0);
       gasneti_assert(gpd);
       gpd->completion = (gasnete_op_t *) &done;
       gpd->flags = GC_POST_COMPLETION_FLAG;
       /* Rdma data, then send header */
-      gc_rdma_put(dest, dest_addr, source_addr, nbytes, gpd);
+      gasnetc_rdma_put(dest, dest_addr, source_addr, nbytes, gpd);
 
       m.header.command = GC_CMD_AM_LONG_REPLY;
       m.header.handler = handler;
@@ -1024,9 +1034,9 @@ extern int gasnetc_AMReplyLongM(
 	m.args[i] = va_arg(argptr, uint32_t);
       }
       /* cannot process more ams here! */
-      while(!gasneti_atomic_read(&done, 0)) gc_poll_local_queue();
+      while(!gasneti_atomic_read(&done, 0)) gasnetc_poll_local_queue();
 
-      retval = gc_send(dest, &m, sizeof(gc_am_long_packet_t) 
+      retval = gasnetc_send(dest, &m, sizeof(gasnetc_am_long_packet_t) 
 		       + (numargs * sizeof(uint32_t)), NULL, 0);
     }
   }
@@ -1182,8 +1192,8 @@ gasnet_handlerentry_t const *gasnetc_get_handlertable(void) {
 }
 
 /* ------------------------------------------------------------------------------------ */
-int gc_debug = 0;
-void gc_enable_debug(int enable)
+int gasnetc_debug = 0;
+void gasnetc_enable_debug(int enable)
 {
-  gc_debug = enable;
+  gasnetc_debug = enable;
 }

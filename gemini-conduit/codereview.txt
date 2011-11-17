@@ -1,3 +1,6 @@
+Gemini-conduit design notes, from code review 8/2010
+$Revision: 1.1.1.1.2.3 $
+
 number of bounce buffers, make clear the effects of, in the readme
 
 see vapi conduit for example
@@ -35,14 +38,11 @@ LCS DONE insert padding in front of am medium payload if necessary to assure 64 
 
 
 
-
 if you want to piggyback credit return on amreply, AND use the smsg buffer to pass directly to the handler, then be sure to save at least one credit per currently executing handler
 
 DONE in medium dispatch, there are two memcpy's one for data and one for header,
 you could use just one, if the data was 64 aligned.  Now there are no memcpys
 
-
-tell Paul that Backtrace doesn't work on hopper
 
 could memcpy the varargs arg list in amrequest, then revers the args in the call to the handler if necessary (too twisty)
 
@@ -56,9 +56,6 @@ but NOT in the reply fns
 
 
 typeof is not portable, so change gc_post_descriptor_t to put the gni_post_descriptor first, and then cast to a gc_post_descriptor
-
-
-
 
 
 to piggyback credit return, use pointer to struct as token, then the handler can set a flag if it sends a reply
@@ -102,8 +99,6 @@ consider having a 512 byte zero block somewher in mapped semgnet to use as sourc
 
 (or memset the immediate buffer)
 
-
-
 cray requires 4 byte align,ent for get, could break up into a small transfer to reach alignment
 (only owrks for same misalignment)
 
@@ -127,12 +122,9 @@ gc_rdma_get doesn't use immediate bounce buffer!
 gc_rdma_get doesn't retry memregister the way gc_rdma_put does
 
 
-
 Separate concept of size of immediate bounce buffer from the concept of when to switch from FMA to RDMA  (fma->rdma at 1 K for MPI 4K for libpgas)
 
 INLINE the small fry
-
-
 
 consider changing queue for smsg work queue into a circular buffer, becvause it cannto be more than gc_ranks
 
@@ -145,7 +137,6 @@ on-queue indication could be a flag, rather than a pointer to which queue you ar
 note, queue item and gni_post cannot both be first in the gc_post_descriptor
 
 
-
 If I call handlers from the smsg buffer must assure that a handler cannot internally call poll_smsng_q
 
 ook for unused fields (initialized only)
@@ -156,12 +147,11 @@ remembery why /dev/zero instead of anon
 
 either the sync synchronize in handle_am_X isn;t needed, or it doesn't work anyway
 
-
-
 Alternate atomic thing is a gasnet_semaphore_t 
 implementation is efficient.
 
 get rid of loop around printf failed to coordinate shutdown
 
 what does PMI_Finalize really mean? Is there a timer that is started?  Otherwise, bould move it above the flush_streams and trace_finish
+
 

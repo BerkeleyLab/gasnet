@@ -9,14 +9,18 @@
 /* LCS MSG_MAXSIZE should be AM medium sized */
 #define MB_MAXCREDIT 64
 #define CACHELINE_SIZE 64
-#define MSG_MAXSIZE (((sizeof(gc_am_medium_packet_max_t) + \
+#define MSG_MAXSIZE (((sizeof(gasnetc_am_medium_packet_max_t) + \
 		       gasnet_AMMaxMedium() + CACHELINE_SIZE - 1) \
 		     / CACHELINE_SIZE) * CACHELINE_SIZE)
-int gc_poll_burst = 10;
-gc_queue_t smsg_work_queue;
+int gasnetc_poll_burst = 10;
+static gasnetc_queue_t smsg_work_queue;
+
+static double shutdown_max;
+static uint32_t sys_exit_rcvd;
+
 
 typedef struct peer_struct {
-  gc_queue_item_t qi;
+  gasnetc_queue_item_t qi;
   uint32_t rank;
   uint32_t nic_address;
   void *heap_base;
@@ -33,24 +37,24 @@ typedef struct peer_segment_struct {
   gni_mem_handle_t segment_mem_handle;
 } peer_segment_struct_t;
 
-peer_struct_t mypeerdata;
-peer_struct_t *peer_data;
-peer_segment_struct_t mypeersegmentdata;
-peer_segment_struct_t *peer_segment_data;
+static peer_struct_t mypeerdata;
+static peer_struct_t *peer_data;
+static peer_segment_struct_t mypeersegmentdata;
+static peer_segment_struct_t *peer_segment_data;
 
-uint32_t *MPID_UGNI_AllAddr;
+uint32_t *gasnetc_UGNI_AllAddr;
 
-gni_cdm_handle_t cdm_handle;
-gni_nic_handle_t nic_handle;
-gni_ep_handle_t *bound_ep_handles;
-gni_cq_handle_t bound_cq_handle;
-gni_cq_handle_t smsg_cq_handle;
+static gni_cdm_handle_t cdm_handle;
+static gni_nic_handle_t nic_handle;
+static gni_ep_handle_t *bound_ep_handles;
+static gni_cq_handle_t bound_cq_handle;
+static gni_cq_handle_t smsg_cq_handle;
 
-void *smsg_mmap_ptr;
-size_t smsg_mmap_bytes;
+static void *smsg_mmap_ptr;
+static size_t smsg_mmap_bytes;
 
-int smsg_fd;
-const char *gni_return_string(gni_return_t status)
+static int smsg_fd;
+static const char *gni_return_string(gni_return_t status)
 {
   if (status == GNI_RC_SUCCESS) return ("GNI_RC_SUCCESS");
   if (status == GNI_RC_NOT_DONE) return ("GNI_RC_NOT_DONE");
@@ -70,7 +74,7 @@ const char *gni_return_string(gni_return_t status)
 }
 
 
-const char *gc_type_string(int type)
+const char *gasnetc_type_string(int type)
 {
   if (type == GC_CMD_NULL) return("GC_CMD_AM_NULL");
   if (type == GC_CMD_AM_SHORT) return ("GC_CMD_AM_SHORT");
@@ -88,7 +92,7 @@ const char *gc_type_string(int type)
 /* called after segment init. See gasneti_seginfo */
 /* allgather the memory handles for the segments */
 /* create endpoints */
-void gc_init_segment(void *segment_start, size_t segment_size)
+void gasnetc_init_segment(void *segment_start, size_t segment_size)
 {
   gni_return_t status;
   /* Map the shared segment */
@@ -117,15 +121,15 @@ void gc_init_segment(void *segment_start, size_t segment_size)
 			       
   assert (status == GNI_RC_SUCCESS);
 #if GASNETC_DEBUG
-  GNIT_Log("segment mapped %p, %p", segment_start, (void *) segment_size);
+  gasnetc_GNIT_Log("segment mapped %p, %p", segment_start, (void *) segment_size);
 #endif
-  peer_segment_data = gasneti_malloc(gc_num_ranks * sizeof(peer_segment_struct_t));
+  peer_segment_data = gasneti_malloc(gasnetc_num_ranks * sizeof(peer_segment_struct_t));
   assert(peer_segment_data);
   
-  GNIT_Allgather(&mypeersegmentdata, sizeof(peer_segment_struct_t), peer_segment_data);
+  gasnetc_GNIT_Allgather(&mypeersegmentdata, sizeof(peer_segment_struct_t), peer_segment_data);
 }
 
-void gc_init_messaging()
+void gasnetc_init_messaging()
 {
   gni_return_t status;
   uint32_t peer;
@@ -136,26 +140,26 @@ void gc_init_messaging()
   int modes = 0;
 
 #if GASNETC_DEBUG
-  GNIT_Log("entering");
+  gasnetc_GNIT_Log("entering");
 #endif
 
   GASNETC_INITLOCK_GNI();
 
-  gc_queue_init(&smsg_work_queue);
+  gasnetc_queue_init(&smsg_work_queue);
 
-  status = GNI_CdmCreate(gc_rank, GNIT_Ptag(), GNIT_Cookie(), 
+  status = GNI_CdmCreate(gasnetc_rank, gasnetc_GNIT_Ptag(), gasnetc_GNIT_Cookie(), 
 			 modes,
 			 &cdm_handle);
   gasneti_assert_always (status == GNI_RC_SUCCESS);
 
-  status = GNI_CdmAttach(cdm_handle, GNIT_Device_Id(),
+  status = GNI_CdmAttach(cdm_handle, gasnetc_GNIT_Device_Id(),
 			 &mypeerdata.nic_address,
 			 &nic_handle);
 
   gasneti_assert_always (status == GNI_RC_SUCCESS);
 
 #if GASNETC_DEBUG
-  GNIT_Log("cdmattach");
+  gasnetc_GNIT_Log("cdmattach");
 #endif
 
   status = GNI_CqCreate(nic_handle, 1024, 0, GNI_CQ_NOBLOCK, NULL, NULL, &bound_cq_handle);
@@ -163,18 +167,18 @@ void gc_init_messaging()
   gasneti_assert_always (status == GNI_RC_SUCCESS);
 
 
-  bound_ep_handles = (gni_ep_handle_t *)gasneti_malloc(gc_num_ranks * sizeof(gni_ep_handle_t));
+  bound_ep_handles = (gni_ep_handle_t *)gasneti_malloc(gasnetc_num_ranks * sizeof(gni_ep_handle_t));
   gasneti_assert_always(bound_ep_handles != NULL);
-  MPID_UGNI_AllAddr = (uint32_t *)gather_nic_addresses();
+  gasnetc_UGNI_AllAddr = (uint32_t *)gasnetc_gather_nic_addresses();
 
-  for (i=0; i<gc_num_ranks; i++) {
+  for (i=0; i<gasnetc_num_ranks; i++) {
     status = GNI_EpCreate(nic_handle, bound_cq_handle, &bound_ep_handles[i]);
     gasneti_assert_always (status == GNI_RC_SUCCESS);
-    remote_addr = MPID_UGNI_AllAddr[i];
+    remote_addr = gasnetc_UGNI_AllAddr[i];
     status = GNI_EpBind(bound_ep_handles[i], remote_addr, i);
     gasneti_assert_always (status == GNI_RC_SUCCESS);
 #if GASNETC_DEBUG
-    GNIT_Log("ep bound to %d, addr %d", i, remote_addr);
+    gasnetc_GNIT_Log("ep bound to %d, addr %d", i, remote_addr);
 #endif
   }
 
@@ -185,9 +189,9 @@ void gc_init_messaging()
    * allocate a CQ in which to receive message notifications
    */
 
-  status = GNI_CqCreate(nic_handle,gc_num_ranks * MB_MAXCREDIT * 2,0,GNI_CQ_NOBLOCK,NULL,NULL,&smsg_cq_handle);
+  status = GNI_CqCreate(nic_handle,gasnetc_num_ranks * MB_MAXCREDIT * 2,0,GNI_CQ_NOBLOCK,NULL,NULL,&smsg_cq_handle);
   if (status != GNI_RC_SUCCESS) {
-    GNIT_Abort("GNI_CqCreate returned error %s\n", gni_return_string(status));
+    gasnetc_GNIT_Abort("GNI_CqCreate returned error %s\n", gni_return_string(status));
   }
   
   /*
@@ -200,30 +204,30 @@ void gc_init_messaging()
   mypeerdata.smsg_attr.mbox_maxcredit = MB_MAXCREDIT;
   mypeerdata.smsg_attr.msg_maxsize = MSG_MAXSIZE;
 #if GASNETC_DEBUG
-  fprintf(stderr,"r %d maxcredit %d msg_maxsize %d\n", gc_rank, MB_MAXCREDIT, (int)MSG_MAXSIZE);
+  fprintf(stderr,"r %d maxcredit %d msg_maxsize %d\n", gasnetc_rank, MB_MAXCREDIT, (int)MSG_MAXSIZE);
 #endif
 
   status = GNI_SmsgBufferSizeNeeded(&mypeerdata.smsg_attr,&bytes_per_mbox);
   if (status != GNI_RC_SUCCESS){
-    GNIT_Abort("GNI_GetSmsgBufferSize returned error %s\n",gni_return_string(status));
+    gasnetc_GNIT_Abort("GNI_GetSmsgBufferSize returned error %s\n",gni_return_string(status));
   }
 #if GASNETC_DEBUG
-  fprintf(stderr,"r %d GetSmsgBufferSize says %d bytes for each mailbox\n", gc_rank, bytes_per_mbox);
+  fprintf(stderr,"r %d GetSmsgBufferSize says %d bytes for each mailbox\n", gasnetc_rank, bytes_per_mbox);
 #endif
   bytes_per_mbox = ((bytes_per_mbox + CACHELINE_SIZE - 1)/CACHELINE_SIZE) * CACHELINE_SIZE;
   /* test */
   bytes_per_mbox += mypeerdata.smsg_attr.mbox_maxcredit 
     * mypeerdata.smsg_attr.msg_maxsize;
-  bytes_needed = gc_num_ranks * bytes_per_mbox;
+  bytes_needed = gasnetc_num_ranks * bytes_per_mbox;
   
 #if GASNETC_DEBUG
   fprintf(stderr,"Allocating %d bytes for each mailbox\n",bytes_per_mbox);
   fprintf(stderr,"max medium %d, sizeof medium %d\n",(int)gasnet_AMMaxMedium(),
-	  (int)sizeof(gc_am_medium_packet_max_t));
+	  (int)sizeof(gasnetc_am_medium_packet_max_t));
 #endif
   smsg_fd = open("/dev/zero", O_RDWR, 0);
   if (smsg_fd == -1) {
-    GNIT_Abort("open of /dev/zero failed: ");
+    gasnetc_GNIT_Abort("open of /dev/zero failed: ");
   }
   
   /* do a shared mapping just to test if things can go wrong */
@@ -231,11 +235,11 @@ void gc_init_messaging()
   smsg_mmap_ptr = mmap(NULL, bytes_needed, PROT_READ | PROT_WRITE, MAP_PRIVATE, smsg_fd, 0);
   smsg_mmap_bytes = bytes_needed;
   if (smsg_mmap_ptr == (char *)MAP_FAILED) {
-    GNIT_Abort("mmap of /dev/zero failed: ");
+    gasnetc_GNIT_Abort("mmap of /dev/zero failed: ");
   }
   
 #if GASNETC_DEBUG
-  GNIT_Log("mmap %p", smsg_mmap_ptr);
+  gasnetc_GNIT_Log("mmap %p", smsg_mmap_ptr);
 #endif
   {
     int count = 0;
@@ -260,7 +264,7 @@ void gc_init_messaging()
     }
   }
   if (status != GNI_RC_SUCCESS) {
-    GNIT_Abort("GNI_MemRegister returned error %s\n",gni_return_string(status));
+    gasnetc_GNIT_Abort("GNI_MemRegister returned error %s\n",gni_return_string(status));
   }
   
   mypeerdata.smsg_attr.msg_type = GNI_SMSG_TYPE_MBOX;
@@ -271,47 +275,46 @@ void gc_init_messaging()
   
 
 #if GASNETC_DEBUG
-  GNIT_Log("segment registered");
+  gasnetc_GNIT_Log("segment registered");
 #endif
 
     /* exchange peer data */
-  mypeerdata.rank = gc_rank;
-  mypeerdata.nic_address = MPID_UGNI_AllAddr[gc_rank];
+  mypeerdata.rank = gasnetc_rank;
+  mypeerdata.nic_address = gasnetc_UGNI_AllAddr[gasnetc_rank];
   
-  peer_data = gasneti_malloc(gc_num_ranks * sizeof(peer_struct_t));
+  peer_data = gasneti_malloc(gasnetc_num_ranks * sizeof(peer_struct_t));
   gasneti_assert_always(peer_data);
   
-  GNIT_Allgather(&mypeerdata, sizeof(peer_struct_t), peer_data);
+  gasnetc_GNIT_Allgather(&mypeerdata, sizeof(peer_struct_t), peer_data);
   
   /* At this point, peer_data has information for everyone */
   /* We need to patch up the smsg data, fixing the remote start addresses */
-  for (i = 0; i < gc_num_ranks; i += 1) {
+  for (i = 0; i < gasnetc_num_ranks; i += 1) {
     /* each am takes 2 credits (req and reply) and he pool is split between
      * requests travelling each way
      */
     gasneti_mutex_init(&peer_data[i].lock);
     gasneti_weakatomic_set(&peer_data[i].am_credit, MB_MAXCREDIT / 4, 0);
     gasneti_weakatomic_set(&peer_data[i].fma_credit, 1, 0);
-    gc_queue_item_init(&peer_data[i].qi);
-    peer_data[i].smsg_attr.mbox_offset = bytes_per_mbox * gc_rank;
+    gasnetc_queue_item_init(&peer_data[i].qi);
+    peer_data[i].smsg_attr.mbox_offset = bytes_per_mbox * gasnetc_rank;
     mypeerdata.smsg_attr.mbox_offset = bytes_per_mbox * i;
     status = GNI_SmsgInit(bound_ep_handles[i],
 			  &mypeerdata.smsg_attr,
 			  &peer_data[i].smsg_attr);
     if (status != GNI_RC_SUCCESS) {
-      GNIT_Abort("GNI_SmsgInit returned error %s\n", gni_return_string(status));
+      gasnetc_GNIT_Abort("GNI_SmsgInit returned error %s\n", gni_return_string(status));
     }
   }
 
   /* Now make sure everyone is ready */
 #if GASNETC_DEBUG
-  GNIT_Log("finishing");
+  gasnetc_GNIT_Log("finishing");
 #endif
-  /* set the number of seconds we poll until forceful shutdown.  May be over-ridden
-   * by env-var when they are processed as part of gasnetc_attach
+  /* set the number of seconds we poll until forceful shutdown.
+   * May be over-ridden by env-vars.
    */
-  gasnetc_shutdown_seconds = 3. + gasneti_nodes/8.;
-  gasnetc_shutdown_seconds = (gasnetc_shutdown_seconds > shutdown_max ? shutdown_max : gasnetc_shutdown_seconds);
+  gasnetc_shutdown_seconds = gasneti_get_exittimeout(shutdown_max, 3., 0.125, 0.);
 
   gasnetc_fma_rdma_cutover = 
     gasneti_getenv_int_withdefault("GASNETC_GNI_FMA_RDMA_CUTOVER",
@@ -321,10 +324,10 @@ void gc_init_messaging()
   if (gasnetc_fma_rdma_cutover > GASNETC_GNI_FMA_RDMA_CUTOVER_MAX)
     gasnetc_fma_rdma_cutover = GASNETC_GNI_FMA_RDMA_CUTOVER_MAX;
 
-  GNIT_Barrier();
+  gasnetc_GNIT_Barrier();
 }
 
-void gc_shutdown(void)
+void gasnetc_shutdown(void)
 {
   int i;
   int tries;
@@ -338,20 +341,20 @@ void gc_shutdown(void)
 
   // for each rank
   tries = 0;
-  left = gc_num_ranks;
+  left = gasnetc_num_ranks;
   while (left > 0) {
     tries += 1;
-    for (i = 0; i < gc_num_ranks; i += 1) {
+    for (i = 0; i < gasnetc_num_ranks; i += 1) {
       if (bound_ep_handles[i] != NULL) {
 	status = GNI_EpUnbind(bound_ep_handles[i]);
 	if (status != GNI_RC_SUCCESS) {
 	  fprintf(stderr, "node %d shutdown epunbind %d try %d  got %s\n",
-		  gc_rank, i, tries, gni_return_string(status));
+		  gasnetc_rank, i, tries, gni_return_string(status));
 	} 
 	status = GNI_EpDestroy(bound_ep_handles[i]);
 	if (status != GNI_RC_SUCCESS) {
 	  fprintf(stderr, "node %d shutdown epdestroy %d try %d  got %s\n",
-		  gc_rank, i, tries, gni_return_string(status));
+		  gasnetc_rank, i, tries, gni_return_string(status));
 	} else {
 	  bound_ep_handles[i] = NULL;
 	  left -= 1;
@@ -362,7 +365,7 @@ void gc_shutdown(void)
   }
   if (left > 0) {
     fprintf(stderr, "node %d %d endpoints left after 10 tries\n", 
-	    gc_rank, left);
+	    gasnetc_rank, left);
   }
   status = GNI_MemDeregister(nic_handle,
 			     &mypeersegmentdata.segment_mem_handle);
@@ -385,13 +388,13 @@ void gc_shutdown(void)
 
   status = GNI_CdmDestroy(cdm_handle);
   gasneti_assert_always (status == GNI_RC_SUCCESS);
-  //  fprintf(stderr, "node %d gc_shutdown done\n", gc_rank);
+  //  fprintf(stderr, "node %d gasnetc_shutdown done\n", gasnetc_rank);
 }
 
 
 
-void gc_handle_am_short_packet(int req, uint32_t source, 
-			       gc_am_short_packet_t *am)
+void gasnetc_handle_am_short_packet(int req, uint32_t source, 
+			       gasnetc_am_short_packet_t *am)
 {
   int handlerindex = am->header.handler;
   gasneti_handler_fn_t handler = gasnetc_handler[handlerindex];
@@ -406,8 +409,8 @@ void gc_handle_am_short_packet(int req, uint32_t source,
 			    numargs);
 }
 
-void gc_handle_am_medium_packet(int req, uint32_t source, 
-				gc_am_medium_packet_t *am, void* data)
+void gasnetc_handle_am_medium_packet(int req, uint32_t source, 
+				gasnetc_am_medium_packet_t *am, void* data)
 {
   int handlerindex = am->header.handler;
   gasneti_handler_fn_t handler = gasnetc_handler[handlerindex];
@@ -424,8 +427,8 @@ void gc_handle_am_medium_packet(int req, uint32_t source,
 			     am->data_length);
 
 }
-void gc_handle_am_long_packet(int req, uint32_t source, 
-			      gc_am_long_packet_t *am)
+void gasnetc_handle_am_long_packet(int req, uint32_t source, 
+			      gasnetc_am_long_packet_t *am)
 {
   int handlerindex = am->header.handler;
   gasneti_handler_fn_t handler = gasnetc_handler[handlerindex];
@@ -443,12 +446,12 @@ void gc_handle_am_long_packet(int req, uint32_t source,
 }
 
 
-extern void gc_handle_sys_shutdown_packet(uint32_t source, gc_sys_shutdown_packet_t *sys);
-extern void  gc_poll_smsg_completion_queue(void);
+extern void gasnetc_handle_sys_shutdown_packet(uint32_t source, gasnetc_sys_shutdown_packet_t *sys);
+extern void  gasnetc_poll_smsg_completion_queue(void);
 
 #if GASNET_SEQ
 
-void gc_process_smsg_q(gasnet_node_t pe)
+void gasnetc_process_smsg_q(gasnet_node_t pe)
 {
   gni_return_t status;
   GC_Header_t *recv_header;
@@ -456,11 +459,6 @@ void gc_process_smsg_q(gasnet_node_t pe)
   uint32_t head_length;
   uint32_t length;
   uint32_t numargs;
-  static int first = 0;
-  if (first == 0) {
-    fprintf(stderr, "sequential version\n");
-    first = 1;
-  }
   for (;;) {
     GASNETC_LOCK_GNI();
     status = GNI_SmsgGetNext(bound_ep_handles[pe], 
@@ -470,103 +468,103 @@ void gc_process_smsg_q(gasnet_node_t pe)
       gasneti_assert((((uintptr_t) recv_header) & 7) == 0);
       numargs = recv_header->numargs;
       if (numargs > gasnet_AMMaxArgs()) {
-	GNIT_Abort("numargs %d, max is %ld\n", numargs, gasnet_AMMaxArgs());
+	gasnetc_GNIT_Abort("numargs %d, max is %ld\n", numargs, gasnet_AMMaxArgs());
       }
       /* this only works for fewer than 256 ranks
-      if (gc_rank != recv_header->to) {
-	GNIT_Abort("rank %d but from %d\n", gc_rank, recv_header->to);
+      if (gasnetc_rank != recv_header->to) {
+	gasnetc_GNIT_Abort("rank %d but from %d\n", gasnetc_rank, recv_header->to);
       }
       */
-      GASNETI_TRACE_PRINTF(A, ("smsg r from %d to %d type %s\n", pe, gc_rank, gc_type_string(recv_header->command)));
+      GASNETI_TRACE_PRINTF(A, ("smsg r from %d to %d type %s\n", pe, gasnetc_rank, gasnetc_type_string(recv_header->command)));
       switch (recv_header->command) {
       case GC_CMD_AM_NOP_REPLY: {
 	GASNETC_SMSGRELEASE(status, bound_ep_handles[pe]);
-	gc_return_am_credit(pe);
+	gasnetc_return_am_credit(pe);
 	break;
       }
       case GC_CMD_AM_SHORT: {
-	gc_handle_am_short_packet(1, pe, (gc_am_short_packet_t *) recv_header);
+	gasnetc_handle_am_short_packet(1, pe, (gasnetc_am_short_packet_t *) recv_header);
 	GASNETC_SMSGRELEASE(status, bound_ep_handles[pe]);
-	gc_send_am_nop(pe);
+	gasnetc_send_am_nop(pe);
 	break;
       }
       case GC_CMD_AM_MEDIUM: {
-	head_length = GASNETI_ALIGNUP(sizeof(gc_am_medium_packet_t) 
+	head_length = GASNETI_ALIGNUP(sizeof(gasnetc_am_medium_packet_t) 
 				      + (numargs * sizeof(uint32_t)), 8);
 	im_data = (void *) ((uintptr_t) recv_header + head_length);
-	length = ((gc_am_medium_packet_t *) recv_header)->data_length;
+	length = ((gasnetc_am_medium_packet_t *) recv_header)->data_length;
 	if (length > gasnet_AMMaxMedium()) {
-	  GNIT_Abort("medium data_length %d, max is %ld\n", 
+	  gasnetc_GNIT_Abort("medium data_length %d, max is %ld\n", 
 		     length, gasnet_AMMaxMedium());
 	}
-	gc_handle_am_medium_packet(1, 
+	gasnetc_handle_am_medium_packet(1, 
 				   pe, 
-				   (gc_am_medium_packet_t *) recv_header, 
+				   (gasnetc_am_medium_packet_t *) recv_header, 
 				   im_data);
 	GASNETC_SMSGRELEASE(status, bound_ep_handles[pe]);
-	gc_send_am_nop(pe);
+	gasnetc_send_am_nop(pe);
 	break;
       }
       case GC_CMD_AM_LONG: {
-	length = ((gc_am_long_packet_t *) recv_header)->data_length;
+	length = ((gasnetc_am_long_packet_t *) recv_header)->data_length;
 	if (length <= gasnet_AMMaxMedium()) {
-	  head_length = GASNETI_ALIGNUP(sizeof(gc_am_long_packet_t) 
+	  head_length = GASNETI_ALIGNUP(sizeof(gasnetc_am_long_packet_t) 
 					+ (numargs * sizeof(uint32_t)), 8);
 	  im_data = (void *) (((uintptr_t) recv_header) + head_length);
-	  memcpy(((gc_am_long_packet_t *) recv_header)->data, 
+	  memcpy(((gasnetc_am_long_packet_t *) recv_header)->data, 
 		 im_data,
 		 length);
 	}
-	gc_handle_am_long_packet(1, pe, (gc_am_long_packet_t *) recv_header);
+	gasnetc_handle_am_long_packet(1, pe, (gasnetc_am_long_packet_t *) recv_header);
 	GASNETC_SMSGRELEASE(status, bound_ep_handles[pe]);
-	gc_send_am_nop(pe);
+	gasnetc_send_am_nop(pe);
 	break;
       }
       case GC_CMD_AM_SHORT_REPLY: {
-	gc_handle_am_short_packet(0, pe, (gc_am_short_packet_t *) recv_header);
+	gasnetc_handle_am_short_packet(0, pe, (gasnetc_am_short_packet_t *) recv_header);
 	GASNETC_SMSGRELEASE(status, bound_ep_handles[pe]);
 	break;
       }
       case GC_CMD_AM_MEDIUM_REPLY: {
-	head_length = GASNETI_ALIGNUP(sizeof(gc_am_medium_packet_t) +
+	head_length = GASNETI_ALIGNUP(sizeof(gasnetc_am_medium_packet_t) +
 				      (numargs * sizeof(uint32_t)), 8);
 	im_data = (void *) ((uintptr_t) recv_header + head_length);
-	length = ((gc_am_medium_packet_t *) recv_header)->data_length;
+	length = ((gasnetc_am_medium_packet_t *) recv_header)->data_length;
 	if (length > gasnet_AMMaxMedium()) {
-	  GNIT_Abort("medium data_length %d, max is %ld\n", 
+	  gasnetc_GNIT_Abort("medium data_length %d, max is %ld\n", 
 		     length, gasnet_AMMaxMedium());
 	}
-	gc_handle_am_medium_packet(0, 
+	gasnetc_handle_am_medium_packet(0, 
 				   pe, 
-				   (gc_am_medium_packet_t *) recv_header, 
+				   (gasnetc_am_medium_packet_t *) recv_header, 
 				   im_data);
 	GASNETC_SMSGRELEASE(status, bound_ep_handles[pe]);
 	break;
       }
       case GC_CMD_AM_LONG_REPLY: {
-	length = ((gc_am_long_packet_t *) recv_header)->data_length;
+	length = ((gasnetc_am_long_packet_t *) recv_header)->data_length;
 	if (length <= gasnet_AMMaxMedium()) {
-	  head_length = GASNETI_ALIGNUP(sizeof(gc_am_long_packet_t) 
+	  head_length = GASNETI_ALIGNUP(sizeof(gasnetc_am_long_packet_t) 
 					+ (numargs * sizeof(uint32_t)), 8);
 	  im_data = (void *) (((uintptr_t) recv_header) + head_length);
 	  /* The data is in the packet, so copy it cout */
-	  memcpy(((gc_am_long_packet_t *) recv_header)->data, 
+	  memcpy(((gasnetc_am_long_packet_t *) recv_header)->data, 
 		 im_data,
 		 length);
 	}
-	gc_handle_am_long_packet(0, pe, (gc_am_long_packet_t *) recv_header);
+	gasnetc_handle_am_long_packet(0, pe, (gasnetc_am_long_packet_t *) recv_header);
 	GASNETC_SMSGRELEASE(status, bound_ep_handles[pe]);
 	break;
       }
       case GC_CMD_SYS_SHUTDOWN_REQUEST: {
-	gc_sys_shutdown_packet_t packet;
-	memcpy(&packet, recv_header, sizeof(gc_sys_shutdown_packet_t));
+	gasnetc_sys_shutdown_packet_t packet;
+	memcpy(&packet, recv_header, sizeof(gasnetc_sys_shutdown_packet_t));
 	GASNETC_SMSGRELEASE(status, bound_ep_handles[pe]);
-	gc_handle_sys_shutdown_packet(pe, (gc_sys_shutdown_packet_t *)& packet);
+	gasnetc_handle_sys_shutdown_packet(pe, (gasnetc_sys_shutdown_packet_t *)& packet);
 	break;
       }
       default: {
-	GNIT_Abort("unknown packet type");
+	gasnetc_GNIT_Abort("unknown packet type");
       }
       }
       /* now check the SmsgRelease status */      
@@ -576,35 +574,30 @@ void gc_process_smsg_q(gasnet_node_t pe)
 	/* LCS SmsgRelease Failed */
 	/* GNI_RC_INVALID_PARAM here means bad endpoint */
 	/* GNI_RC_NOT_DONE here means there was no smsg */
-	GNIT_Log("SmsgRelease from pe %d fail with %s\n",
+	gasnetc_GNIT_Log("SmsgRelease from pe %d fail with %s\n",
 		   pe, gni_return_string(status));
       }
     } else if (status == GNI_RC_NOT_DONE) {
       break;  /* GNI_RC_NOT_DONE here means there was no smsg */
     } else {
-      GNIT_Abort("SmsgGetNext from pe %d fail with %s", 
+      gasnetc_GNIT_Abort("SmsgGetNext from pe %d fail with %s", 
 		 pe, gni_return_string(status));
     }
-    gc_poll_smsg_completion_queue();
+    gasnetc_poll_smsg_completion_queue();
   }
 }
 
 #else
 /* PAR and PARSYNC */
-void gc_process_smsg_q(gasnet_node_t pe)
+void gasnetc_process_smsg_q(gasnet_node_t pe)
 {
   gni_return_t status;
   GC_Header_t *recv_header;
-  gc_packet_t packet;
+  gasnetc_packet_t packet;
   uint64_t buffer[gasnet_AMMaxMedium() / sizeof(uint64_t)];
   void *im_data;
   uint32_t head_length;
   uint32_t numargs;
-  static int first = 0;
-  if (first == 0) {
-    fprintf(stderr, "parallel version\n");
-    first = 1;
-  }
   for (;;) {
     GASNETC_LOCK_GNI();
     status = GNI_SmsgGetNext(bound_ep_handles[pe], 
@@ -612,99 +605,99 @@ void gc_process_smsg_q(gasnet_node_t pe)
     if (status == GNI_RC_SUCCESS) {
       numargs = recv_header->numargs;
       if (numargs > gasnet_AMMaxArgs()) {
-	GNIT_Abort("numargs %d, max is %ld\n", numargs, gasnet_AMMaxArgs());
+	gasnetc_GNIT_Abort("numargs %d, max is %ld\n", numargs, gasnet_AMMaxArgs());
       }
-      GASNETI_TRACE_PRINTF(A, ("smsg r from %d to %d type %s\n", pe, gc_rank, gc_type_string(recv_header->command)));
+      GASNETI_TRACE_PRINTF(A, ("smsg r from %d to %d type %s\n", pe, gasnetc_rank, gasnetc_type_string(recv_header->command)));
       switch (recv_header->command) {
       case GC_CMD_AM_NOP_REPLY: {
 	GASNETC_SMSGRELEASEUNLOCK(status, bound_ep_handles[pe]);
-	gc_return_am_credit(pe);
+	gasnetc_return_am_credit(pe);
 	break;
       }
       case GC_CMD_AM_SHORT: {
-	memcpy(&packet, recv_header, sizeof(gc_am_short_packet_t) +
+	memcpy(&packet, recv_header, sizeof(gasnetc_am_short_packet_t) +
 	       numargs * sizeof(uint32_t));
 	GASNETC_SMSGRELEASEUNLOCK(status, bound_ep_handles[pe]);
-	gc_handle_am_short_packet(1, pe, (gc_am_short_packet_t *) &packet);
-	gc_send_am_nop(pe);
+	gasnetc_handle_am_short_packet(1, pe, (gasnetc_am_short_packet_t *) &packet);
+	gasnetc_send_am_nop(pe);
 	break;
       }
       case GC_CMD_AM_MEDIUM: {
-	head_length = GASNETI_ALIGNUP(sizeof(gc_am_medium_packet_t) 
+	head_length = GASNETI_ALIGNUP(sizeof(gasnetc_am_medium_packet_t) 
 				      + (numargs * sizeof(uint32_t)), 8);
 	im_data = (void *) ((uintptr_t) recv_header + head_length);
-	memcpy(&packet, recv_header, sizeof(gc_am_medium_packet_t) +
+	memcpy(&packet, recv_header, sizeof(gasnetc_am_medium_packet_t) +
 	       numargs * sizeof(uint32_t));
 
 	if (packet.gamp.data_length > gasnet_AMMaxMedium()) {
-	  GNIT_Abort("medium data_length %ld, max is %ld\n", 
+	  gasnetc_GNIT_Abort("medium data_length %ld, max is %ld\n", 
 		     packet.gamp.data_length, gasnet_AMMaxMedium());
 	}
 	memcpy(buffer, im_data, packet.gamp.data_length);
 	GASNETC_SMSGRELEASEUNLOCK(status, bound_ep_handles[pe]);
-	gc_handle_am_medium_packet(1, pe, (gc_am_medium_packet_t *) &packet, buffer);
-	gc_send_am_nop(pe);
+	gasnetc_handle_am_medium_packet(1, pe, (gasnetc_am_medium_packet_t *) &packet, buffer);
+	gasnetc_send_am_nop(pe);
 	break;
       }
       case GC_CMD_AM_LONG: {
-	memcpy(&packet, recv_header, sizeof(gc_am_long_packet_t) +
+	memcpy(&packet, recv_header, sizeof(gasnetc_am_long_packet_t) +
 	       numargs * sizeof(uint32_t));
 	if (packet.galp.data_length <= gasnet_AMMaxMedium()) {
-	  head_length = GASNETI_ALIGNUP(sizeof(gc_am_long_packet_t) 
+	  head_length = GASNETI_ALIGNUP(sizeof(gasnetc_am_long_packet_t) 
 					+ (numargs * sizeof(uint32_t)), 8);
 	  im_data = (void *) (((uintptr_t) recv_header) + head_length);
 	  memcpy(packet.galp.data, im_data, packet.galp.data_length);
 	}
 	GASNETC_SMSGRELEASEUNLOCK(status, bound_ep_handles[pe]);
-	gc_handle_am_long_packet(1, pe, (gc_am_long_packet_t *) &packet);
-	gc_send_am_nop(pe);
+	gasnetc_handle_am_long_packet(1, pe, (gasnetc_am_long_packet_t *) &packet);
+	gasnetc_send_am_nop(pe);
 	break;
       }
       case GC_CMD_AM_SHORT_REPLY: {
-	memcpy(&packet, recv_header, sizeof(gc_am_short_packet_t) +
+	memcpy(&packet, recv_header, sizeof(gasnetc_am_short_packet_t) +
 	       numargs * sizeof(uint32_t));
 	GASNETC_SMSGRELEASEUNLOCK(status, bound_ep_handles[pe]);
-	gc_handle_am_short_packet(0, pe, (gc_am_short_packet_t *) &packet);
+	gasnetc_handle_am_short_packet(0, pe, (gasnetc_am_short_packet_t *) &packet);
 	break;
       }
       case GC_CMD_AM_MEDIUM_REPLY: {
-	memcpy(&packet, recv_header, sizeof(gc_am_medium_packet_t) +
+	memcpy(&packet, recv_header, sizeof(gasnetc_am_medium_packet_t) +
 	       numargs * sizeof(uint32_t));
 
 	if (packet.gamp.data_length > gasnet_AMMaxMedium()) {
-	  GNIT_Abort("medium data_length %ld, max is %ld\n", 
+	  gasnetc_GNIT_Abort("medium data_length %ld, max is %ld\n", 
 		     packet.gamp.data_length, gasnet_AMMaxMedium());
 	}
-	head_length = GASNETI_ALIGNUP(sizeof(gc_am_medium_packet_t) +
+	head_length = GASNETI_ALIGNUP(sizeof(gasnetc_am_medium_packet_t) +
 				      (numargs * sizeof(uint32_t)), 8);
 	im_data = (void *) ((uintptr_t) recv_header + head_length);
 	memcpy(buffer, im_data, packet.gamp.data_length);
 	GASNETC_SMSGRELEASEUNLOCK(status, bound_ep_handles[pe]);
-	gc_handle_am_medium_packet(0, pe, (gc_am_medium_packet_t *) &packet, buffer);
+	gasnetc_handle_am_medium_packet(0, pe, (gasnetc_am_medium_packet_t *) &packet, buffer);
 	break;
       }
       case GC_CMD_AM_LONG_REPLY: {
-	memcpy(&packet, recv_header, sizeof(gc_am_long_packet_t) +
+	memcpy(&packet, recv_header, sizeof(gasnetc_am_long_packet_t) +
 	       numargs * sizeof(uint32_t));
 	if (packet.galp.data_length <= gasnet_AMMaxMedium()) {
-	  head_length = GASNETI_ALIGNUP(sizeof(gc_am_long_packet_t) 
+	  head_length = GASNETI_ALIGNUP(sizeof(gasnetc_am_long_packet_t) 
 					+ (numargs * sizeof(uint32_t)), 8);
 	  im_data = (void *) (((uintptr_t) recv_header) + head_length);
 	  /* The data is in the packet, so copy it cout */
 	  memcpy(packet.galp.data, im_data, packet.galp.data_length);
 	}
 	GASNETC_SMSGRELEASEUNLOCK(status, bound_ep_handles[pe]);
-	gc_handle_am_long_packet(0, pe, (gc_am_long_packet_t *) &packet);
+	gasnetc_handle_am_long_packet(0, pe, (gasnetc_am_long_packet_t *) &packet);
 	break;
       }
       case GC_CMD_SYS_SHUTDOWN_REQUEST: {
-	memcpy(&packet, recv_header, sizeof(gc_sys_shutdown_packet_t));
+	memcpy(&packet, recv_header, sizeof(gasnetc_sys_shutdown_packet_t));
 	GASNETC_SMSGRELEASEUNLOCK(status, bound_ep_handles[pe]);
-	gc_handle_sys_shutdown_packet(pe, (gc_sys_shutdown_packet_t *)& packet);
+	gasnetc_handle_sys_shutdown_packet(pe, (gasnetc_sys_shutdown_packet_t *)& packet);
 	break;
       }
       default: {
-	GNIT_Abort("unknown packet type");
+	gasnetc_GNIT_Abort("unknown packet type");
       }
       }
       /* now check the SmsgRelease status */      
@@ -714,17 +707,17 @@ void gc_process_smsg_q(gasnet_node_t pe)
 	/* LCS SmsgRelease Failed */
 	/* GNI_RC_INVALID_PARAM here means bad endpoint */
 	/* GNI_RC_NOT_DONE here means there was no smsg */
-	GNIT_Log("SmsgRelease from pe %d fail with %s\n",
+	gasnetc_GNIT_Log("SmsgRelease from pe %d fail with %s\n",
 		   pe, gni_return_string(status));
       }
     } else if (status == GNI_RC_NOT_DONE) {
       GASNETC_UNLOCK_GNI();
       break;  /* GNI_RC_NOT_DONE here means there was no smsg */
     } else {
-      GNIT_Abort("SmsgGetNext from pe %d fail with %s", 
+      gasnetc_GNIT_Abort("SmsgGetNext from pe %d fail with %s", 
 		 pe, gni_return_string(status));
     }
-    gc_poll_smsg_completion_queue();
+    gasnetc_poll_smsg_completion_queue();
   }
 }
 
@@ -750,7 +743,7 @@ void gc_process_smsg_q(gasnet_node_t pe)
  *  try to dequeue a peer and process messages from them
  */
 
-void gc_poll_smsg_completion_queue()
+void gasnetc_poll_smsg_completion_queue()
 {
   gni_return_t status;
   gasnet_node_t source;
@@ -776,12 +769,12 @@ void gc_poll_smsg_completion_queue()
     GASNETC_LOCK_QUEUE(&smsg_work_queue);
     for (i = 0; i < messages; i += 1) {
       source = gni_cq_get_inst_id(event_data[i]);
-      gasneti_assert(source < gc_num_ranks);
+      gasneti_assert(source < gasnetc_num_ranks);
       /* atomically enqueue the peer on the smsg queue if it isn't
 	 already there.  */
       if (peer_data[source].qi.queue == NULL)
-	gc_queue_enqueue_no_lock(&smsg_work_queue, 
-				 (gc_queue_item_t *) &peer_data[source]);
+	gasnetc_queue_enqueue_no_lock(&smsg_work_queue, 
+				 (gasnetc_queue_item_t *) &peer_data[source]);
     }
     GASNETC_UNLOCK_QUEUE(&smsg_work_queue);
   }
@@ -801,57 +794,57 @@ void gc_poll_smsg_completion_queue()
       if (status == GNI_RC_SUCCESS) continue;
       if (status == GNI_RC_ERROR_RESOURCE) continue;
       if (status == GNI_RC_NOT_DONE) break;
-      GNIT_Abort("CqGetEvent(smsg_cq) drain returns error %s", gni_return_string(status));
+      gasnetc_GNIT_Abort("CqGetEvent(smsg_cq) drain returns error %s", gni_return_string(status));
     }
     GASNETC_UNLOCK_GNI();
     /* and enqueue everyone on the work queue, who isn't already */
     GASNETC_LOCK_QUEUE(&smsg_work_queue);
-    for (source = 0; source < gc_num_ranks; source += 1) {
+    for (source = 0; source < gasnetc_num_ranks; source += 1) {
       if (peer_data[source].qi.queue == NULL)
-	gc_queue_enqueue_no_lock(&smsg_work_queue, 
-				 (gc_queue_item_t *) &peer_data[source]);
+	gasnetc_queue_enqueue_no_lock(&smsg_work_queue, 
+				 (gasnetc_queue_item_t *) &peer_data[source]);
     }
     GASNETC_UNLOCK_QUEUE(&smsg_work_queue);
-    GNIT_Log("smsg queue overflow");
+    gasnetc_GNIT_Log("smsg queue overflow");
   } else {
     /* anything else is a fatal error */
-    GNIT_Abort("CqGetEvent(smsg_cq) returns error %s", gni_return_string(status));
+    gasnetc_GNIT_Abort("CqGetEvent(smsg_cq) returns error %s", gni_return_string(status));
   }
 }
 
-void gc_poll_smsg_queue()
+void gasnetc_poll_smsg_queue()
 {
   int i;
   gasnet_node_t source;
-  gc_poll_smsg_completion_queue();
+  gasnetc_poll_smsg_completion_queue();
   /* Now see about processing some peers off the smsg_work_queue */
   for (i = 0; i < SMSG_PEER_BURST; i += 1) {
-    peer_struct_t *peer = (peer_struct_t *) gc_queue_pop(&smsg_work_queue);
+    peer_struct_t *peer = (peer_struct_t *) gasnetc_queue_pop(&smsg_work_queue);
     if (peer == NULL) break;
     source = peer->rank;
-    gc_process_smsg_q(source);
+    gasnetc_process_smsg_q(source);
   }
 }
 
 
-void gc_poll_local_queue()
+void gasnetc_poll_local_queue()
 {
   gni_return_t status;
   gni_cq_entry_t event_data;
   int i;
   gni_post_descriptor_t *pd;
-  gc_post_descriptor_t *gpd;
+  gasnetc_post_descriptor_t *gpd;
 
   GASNETC_LOCK_GNI();
-  for (i = 0; i < gc_poll_burst; i += 1) {
+  for (i = 0; i < gasnetc_poll_burst; i += 1) {
     /* Poll the bound_ep completion queue */
     status = GNI_CqGetEvent(bound_cq_handle,&event_data);
     if (status == GNI_RC_SUCCESS) {
       status = GNI_GetCompleted(bound_cq_handle, event_data, &pd);
       if (status != GNI_RC_SUCCESS)
-	GNIT_Abort("GetCompleted(%p) failed %s\n",
+	gasnetc_GNIT_Abort("GetCompleted(%p) failed %s\n",
 		   (void *) event_data, gni_return_string(status));
-      gpd = gasnetc_get_struct_addr_from_field_addr(gc_post_descriptor_t, pd, pd);
+      gpd = gasnetc_get_struct_addr_from_field_addr(gasnetc_post_descriptor_t, pd, pd);
       
 
       /* handle remaining work */
@@ -863,11 +856,11 @@ void gc_poll_local_queue()
 	gasneti_assert_always (status == GNI_RC_SUCCESS);
       }
       if (gpd->flags & GC_POST_UNBOUNCE) {
-	gc_free_bounce_buffer(gpd->bounce_buffer);
+	gasnetc_free_bounce_buffer(gpd->bounce_buffer);
       }
       if (gpd->flags & GC_POST_SEND) {
 	status = GNI_SmsgSend(bound_ep_handles[gpd->dest], &gpd->u.galp, 
-			      sizeof(gc_am_long_packet_t) + 
+			      sizeof(gasnetc_am_long_packet_t) + 
 			      (gpd->u.galp.header.numargs * sizeof(uint32_t)),
 			      NULL, 0, 0);
 	gasneti_assert_always (status == GNI_RC_SUCCESS);
@@ -881,37 +874,37 @@ void gc_poll_local_queue()
       if (gpd->flags & GC_POST_COMPLETION_EOP) {
 	gasnete_op_markdone(gpd->completion, (gpd->flags & GC_POST_GET) != 0);
       }
-      gc_free_post_descriptor(gpd);
+      gasnetc_free_post_descriptor(gpd);
     } else if (status == GNI_RC_NOT_DONE) {
       break;
     } else {
-      GNIT_Log("bound CqGetEvent %s\n", gni_return_string(status));
+      gasnetc_GNIT_Log("bound CqGetEvent %s\n", gni_return_string(status));
     }
   }
   GASNETC_UNLOCK_GNI();
 }
   
-void gc_poll()
+void gasnetc_poll()
 {
-  gc_poll_smsg_queue();
-  gc_poll_local_queue();
+  gasnetc_poll_smsg_queue();
+  gasnetc_poll_local_queue();
 }
 
-void gc_send_am_nop(uint32_t pe)
+void gasnetc_send_am_nop(uint32_t pe)
 {
-  gc_am_nop_packet_t m;
+  gasnetc_am_nop_packet_t m;
   m.header.command = GC_CMD_AM_NOP_REPLY;
   m.header.numargs = 0;
-  gc_send(pe, &m, sizeof(gc_am_nop_packet_t), NULL, 0);
+  gasnetc_send(pe, &m, sizeof(gasnetc_am_nop_packet_t), NULL, 0);
 }
 
 
-int gc_send(gasnet_node_t dest, 
+int gasnetc_send(gasnet_node_t dest, 
 	    void *header, int header_length, 
 	    void *data, int data_length)
 {
   gni_return_t status;
-  GASNETI_TRACE_PRINTF(A, ("smsg s from %d to %d type %s\n", gc_rank, dest, gc_type_string(((GC_Header_t *) header)->command)));
+  GASNETI_TRACE_PRINTF(A, ("smsg s from %d to %d type %s\n", gasnetc_rank, dest, gasnetc_type_string(((GC_Header_t *) header)->command)));
   for (;;) {
     GASNETC_LOCK_GNI();
 
@@ -920,38 +913,37 @@ int gc_send(gasnet_node_t dest,
     GASNETC_UNLOCK_GNI();
     if (status == GNI_RC_SUCCESS) break;
     /*if (status == GNI_RC_NOT_DONE) continue; */
-    GNIT_Abort("GNI_SmsgSend returned error %s\n", gni_return_string(status));
+    gasnetc_GNIT_Abort("GNI_SmsgSend returned error %s\n", gni_return_string(status));
   }
   return(GASNET_OK);
 }
 
 
-void print_post_desc(char *title, gni_post_descriptor_t *cmd)
-{
-  printf("r %d %s, desc addr %p\n", gc_rank, title, cmd);
-  printf("r %d status: %ld\n", gc_rank, cmd->status);
-  printf("r %d cq_mode_complete: 0x%x\n", gc_rank, cmd->cq_mode_complete);
-  printf("r %d cq_mode_type: %d\n", gc_rank, cmd->type);
-  printf("r %d cq_mode: 0x%x\n", gc_rank, cmd->cq_mode);
-  printf("r %d dlvr_mode: 0x%x\n", gc_rank, cmd->dlvr_mode);
-  printf("r %d local_address: %p(0x%lx, 0x%lx)\n", gc_rank, (void *) cmd->local_addr, 
+static void print_post_desc(char *title, gni_post_descriptor_t *cmd) {
+  printf("r %d %s, desc addr %p\n", gasnetc_rank, title, cmd);
+  printf("r %d status: %ld\n", gasnetc_rank, cmd->status);
+  printf("r %d cq_mode_complete: 0x%x\n", gasnetc_rank, cmd->cq_mode_complete);
+  printf("r %d cq_mode_type: %d\n", gasnetc_rank, cmd->type);
+  printf("r %d cq_mode: 0x%x\n", gasnetc_rank, cmd->cq_mode);
+  printf("r %d dlvr_mode: 0x%x\n", gasnetc_rank, cmd->dlvr_mode);
+  printf("r %d local_address: %p(0x%lx, 0x%lx)\n", gasnetc_rank, (void *) cmd->local_addr, 
 	 cmd->local_mem_hndl.qword1, cmd->local_mem_hndl.qword2);
-  printf("r %d remote_address: %p(0x%lx, 0x%lx)\n", gc_rank, (void *) cmd->remote_addr, 
+  printf("r %d remote_address: %p(0x%lx, 0x%lx)\n", gasnetc_rank, (void *) cmd->remote_addr, 
 	 cmd->remote_mem_hndl.qword1, cmd->remote_mem_hndl.qword2);
-  printf("r %d length: 0x%lx\n", gc_rank, cmd->length);
-  printf("r %d rdma_mode: 0x%x\n", gc_rank, cmd->rdma_mode);
-  printf("r %d src_cq_hndl: %p\n", gc_rank, cmd->src_cq_hndl);
-  printf("r %d sync: (0x%lx,0x%lx)\n", gc_rank, cmd->sync_flag_value, cmd->sync_flag_addr);
-  printf("r %d amo_cmd: %d\n", gc_rank, cmd->amo_cmd);
-  printf("r %d amo: 0x%lx, 0x%lx\n", gc_rank, cmd->first_operand, cmd->second_operand);
-  printf("r %d cqwrite_value: 0x%lx\n", gc_rank, cmd->cqwrite_value);
+  printf("r %d length: 0x%lx\n", gasnetc_rank, cmd->length);
+  printf("r %d rdma_mode: 0x%x\n", gasnetc_rank, cmd->rdma_mode);
+  printf("r %d src_cq_hndl: %p\n", gasnetc_rank, cmd->src_cq_hndl);
+  printf("r %d sync: (0x%lx,0x%lx)\n", gasnetc_rank, cmd->sync_flag_value, cmd->sync_flag_addr);
+  printf("r %d amo_cmd: %d\n", gasnetc_rank, cmd->amo_cmd);
+  printf("r %d amo: 0x%lx, 0x%lx\n", gasnetc_rank, cmd->first_operand, cmd->second_operand);
+  printf("r %d cqwrite_value: 0x%lx\n", gasnetc_rank, cmd->cqwrite_value);
 }
 
 /* These are here due to transient resource problems in PostRdma
  *  They are not expected to happen (often)
  */
 
-gni_return_t myPostRdma(gni_ep_handle_t ep, gni_post_descriptor_t *pd)
+static gni_return_t myPostRdma(gni_ep_handle_t ep, gni_post_descriptor_t *pd)
 {
   gni_return_t status;
   int i;
@@ -965,13 +957,13 @@ gni_return_t myPostRdma(gni_ep_handle_t ep, gni_post_descriptor_t *pd)
 	break;
       }
       GASNETC_UNLOCK_GNI();
-      gc_poll_local_queue();
+      gasnetc_poll_local_queue();
       GASNETC_LOCK_GNI();
   }
   return (status);
 }
 
-gni_return_t myPostFma(gni_ep_handle_t ep, gni_post_descriptor_t *pd)
+static gni_return_t myPostFma(gni_ep_handle_t ep, gni_post_descriptor_t *pd)
 {
   gni_return_t status;
   int i;
@@ -985,15 +977,15 @@ gni_return_t myPostFma(gni_ep_handle_t ep, gni_post_descriptor_t *pd)
 	break;
       }
       GASNETC_UNLOCK_GNI();
-      gc_poll_local_queue();
+      gasnetc_poll_local_queue();
       GASNETC_LOCK_GNI();
   }
   return (status);
 }
 
-void gc_rdma_put(gasnet_node_t dest,
+void gasnetc_rdma_put(gasnet_node_t dest,
 		 void *dest_addr, void *source_addr,
-		 size_t nbytes, gc_post_descriptor_t *gpd)
+		 size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
   gni_post_descriptor_t *pd;
   gni_return_t status;
@@ -1005,9 +997,9 @@ void gc_rdma_put(gasnet_node_t dest,
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   /* confirm that the destination is in-segment on the far end */
   gasneti_boundscheck(dest, dest_addr, nbytes);
-  if (!gasneti_in_segment(gc_rank, source_addr, nbytes)) {
+  if (!gasneti_in_segment(gasnetc_rank, source_addr, nbytes)) {
     /* source not (entirely) in segment */
-    /* if (nbytes < gc_bounce_register_cutover)  then use bounce buffer
+    /* if (nbytes < gasnetc_bounce_register_cutover)  then use bounce buffer
      * else mem-register
      */
     pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
@@ -1023,7 +1015,7 @@ void gc_rdma_put(gasnet_node_t dest,
       pd->local_mem_hndl = mypeersegmentdata.segment_mem_handle;
     } else if (nbytes <  gasnetc_bounce_register_cutover) {
       gpd->flags |= GC_POST_UNBOUNCE;
-      gpd->bounce_buffer = gc_alloc_bounce_buffer();
+      gpd->bounce_buffer = gasnetc_alloc_bounce_buffer();
       memcpy(gpd->bounce_buffer, source_addr, nbytes);
       pd->local_addr = (uint64_t) gpd->bounce_buffer;
       pd->local_mem_hndl = mypeersegmentdata.segment_mem_handle;
@@ -1061,7 +1053,7 @@ void gc_rdma_put(gasnet_node_t dest,
       GASNETC_UNLOCK_GNI();
       if (status != GNI_RC_SUCCESS) {
 	print_post_desc((char *) "non-segment-postfma", pd);
-	GNIT_Abort("PostFMA failed with %s\n", gni_return_string(status));
+	gasnetc_GNIT_Abort("PostFMA failed with %s\n", gni_return_string(status));
       }
     } else {
       pd->type = GNI_POST_RDMA_PUT;
@@ -1070,7 +1062,7 @@ void gc_rdma_put(gasnet_node_t dest,
       GASNETC_UNLOCK_GNI();
       if (status != GNI_RC_SUCCESS) {
 	print_post_desc((char *) "non-segment-postrdma", pd);
-	GNIT_Abort("PostRdma failed with %s\n", gni_return_string(status));
+	gasnetc_GNIT_Abort("PostRdma failed with %s\n", gni_return_string(status));
       }
     }
 
@@ -1090,7 +1082,7 @@ void gc_rdma_put(gasnet_node_t dest,
       GASNETC_UNLOCK_GNI();
       if (status != GNI_RC_SUCCESS) {
 	print_post_desc((char *) "in-segment-postfma", pd);
-	GNIT_Abort("Postfma failed with %s\n", gni_return_string(status));
+	gasnetc_GNIT_Abort("Postfma failed with %s\n", gni_return_string(status));
       }
     } else {
       pd->type = GNI_POST_RDMA_PUT;
@@ -1106,7 +1098,7 @@ void gc_rdma_put(gasnet_node_t dest,
       GASNETC_UNLOCK_GNI();
       if (status != GNI_RC_SUCCESS) {
 	print_post_desc((char *) "in-segment-postrdma", pd);
-	GNIT_Abort("PostRdma failed with %s\n", gni_return_string(status));
+	gasnetc_GNIT_Abort("PostRdma failed with %s\n", gni_return_string(status));
       }
     }
   }
@@ -1134,9 +1126,9 @@ void gc_rdma_put(gasnet_node_t dest,
 
 
 /* for get, source_addr is remote */
-void gc_rdma_get(gasnet_node_t dest,
+void gasnetc_rdma_get(gasnet_node_t dest,
 		 void *dest_addr, void *source_addr,
-		 size_t nbytes, gc_post_descriptor_t *gpd)
+		 size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
   gni_post_descriptor_t *pd;
   gni_return_t status;
@@ -1149,9 +1141,9 @@ void gc_rdma_get(gasnet_node_t dest,
   /* confirm that the destination is in-segment on the far end */
   gasneti_boundscheck(dest, source_addr, nbytes);
   /* check where the local addr is */
-  if (!gasneti_in_segment(gc_rank, dest_addr, nbytes)) {
+  if (!gasneti_in_segment(gasnetc_rank, dest_addr, nbytes)) {
     /* dest not (entirely) in segment */
-    /* if (nbytes < gc_bounce_register_cutover)  then use bounce buffer
+    /* if (nbytes < gasnetc_bounce_register_cutover)  then use bounce buffer
      * else mem-register
      */
     pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
@@ -1169,7 +1161,7 @@ void gc_rdma_get(gasnet_node_t dest,
       pd->local_mem_hndl = mypeersegmentdata.segment_mem_handle;
     } else if (nbytes < gasnetc_bounce_register_cutover) {
       gpd->flags |= GC_POST_UNBOUNCE | GC_POST_COPY;
-      gpd->bounce_buffer = gc_alloc_bounce_buffer();
+      gpd->bounce_buffer = gasnetc_alloc_bounce_buffer();
       gpd->get_target = dest_addr;
       gpd->get_nbytes = nbytes;
       pd->local_addr = (uint64_t) gpd->bounce_buffer;
@@ -1208,7 +1200,7 @@ void gc_rdma_get(gasnet_node_t dest,
       GASNETC_UNLOCK_GNI();
       if (status != GNI_RC_SUCCESS) {
 	print_post_desc((char *) "non-segment-postfma", pd);
-	GNIT_Abort("PostFMA failed with %s\n", gni_return_string(status));
+	gasnetc_GNIT_Abort("PostFMA failed with %s\n", gni_return_string(status));
       }
     } else {
       pd->type = GNI_POST_RDMA_GET;
@@ -1217,7 +1209,7 @@ void gc_rdma_get(gasnet_node_t dest,
       GASNETC_UNLOCK_GNI();
       if (status != GNI_RC_SUCCESS) {
 	print_post_desc((char *) "non-segment-postrdma", pd);
-	GNIT_Abort("PostRdma failed with %s\n", gni_return_string(status));
+	gasnetc_GNIT_Abort("PostRdma failed with %s\n", gni_return_string(status));
       }
     }
   } else {
@@ -1235,7 +1227,7 @@ void gc_rdma_get(gasnet_node_t dest,
       GASNETC_UNLOCK_GNI();
       if (status != GNI_RC_SUCCESS) {
 	print_post_desc((char *) "in-segment-postfma", pd);
-	GNIT_Abort("PostFMA failed with %s\n", gni_return_string(status));
+	gasnetc_GNIT_Abort("PostFMA failed with %s\n", gni_return_string(status));
       }
     } else {
       pd->type = GNI_POST_RDMA_GET;
@@ -1244,7 +1236,7 @@ void gc_rdma_get(gasnet_node_t dest,
       GASNETC_UNLOCK_GNI();
       if (status != GNI_RC_SUCCESS) {
 	print_post_desc((char *) "in-segment-postrdma", pd);
-	GNIT_Abort("PostRdma failed with %s\n", gni_return_string(status));
+	gasnetc_GNIT_Abort("PostRdma failed with %s\n", gni_return_string(status));
       }
     }
   }
@@ -1252,8 +1244,8 @@ void gc_rdma_get(gasnet_node_t dest,
 
 
 /* returns 1 if-and-only-if value was decremented.  based on gasneti_semaphore_trydown() */
-GASNETI_INLINE(gc_atomic_dec_if_positive)
-int gc_atomic_dec_if_positive(gasneti_weakatomic_t *p)
+GASNETI_INLINE(gasnetc_atomic_dec_if_positive)
+int gasnetc_atomic_dec_if_positive(gasneti_weakatomic_t *p)
 {
   int swapped;
   do {
@@ -1265,55 +1257,55 @@ int gc_atomic_dec_if_positive(gasneti_weakatomic_t *p)
   } while (GASNETT_PREDICT_FALSE(!swapped));
   return 1;
 }
-void gc_get_am_credit(uint32_t pe)
+void gasnetc_get_am_credit(uint32_t pe)
 {
   gasneti_weakatomic_t *p = &peer_data[pe].am_credit;
 #if GASNETC_DEBUG
   fprintf(stderr, "r %d get am credit for %d, before is %d\n",
-	 gc_rank, pe, (int)gasneti_weakatomic_read(&peer_data[pe].am_credit, 0));
+	 gasnetc_rank, pe, (int)gasneti_weakatomic_read(&peer_data[pe].am_credit, 0));
 #endif
   /* poll at least once, to assure forward progress */
   do {
-    gc_poll();
-  }  while (gc_atomic_dec_if_positive(p) == 0);
+    gasnetc_poll();
+  }  while (gasnetc_atomic_dec_if_positive(p) == 0);
 }
 
-void gc_return_am_credit(uint32_t pe)
+void gasnetc_return_am_credit(uint32_t pe)
 {
   gasneti_weakatomic_increment(&peer_data[pe].am_credit, GASNETI_ATOMIC_NONE);
 #if GASNETC_DEBUG
   fprintf(stderr, "r %d return am credit for %d, after is %d\n",
-	 gc_rank, pe, (int)gasneti_weakatomic_read(&peer_data[pe].am_credit, 0));
+	 gasnetc_rank, pe, (int)gasneti_weakatomic_read(&peer_data[pe].am_credit, 0));
 #endif
 }
 
-void gc_get_fma_credit(uint32_t pe)
+void gasnetc_get_fma_credit(uint32_t pe)
 {
   gasneti_weakatomic_t *p = &peer_data[pe].fma_credit;
-  while (gc_atomic_dec_if_positive(p) == 0) gc_poll_local_queue();
+  while (gasnetc_atomic_dec_if_positive(p) == 0) gasnetc_poll_local_queue();
 }
 
-void gc_return_fma_credit(uint32_t pe)
+void gasnetc_return_fma_credit(uint32_t pe)
 {
   gasneti_weakatomic_increment(&peer_data[pe].fma_credit, GASNETI_ATOMIC_NONE);
 }
 
 
-void gc_queue_init(gc_queue_t *q) 
+void gasnetc_queue_init(gasnetc_queue_t *q) 
 {
   q->head = NULL;
   q->tail = NULL;
   GASNETC_INITLOCK_QUEUE(q);
 }
 
-void gc_queue_item_init(gc_queue_item_t *qi) 
+void gasnetc_queue_item_init(gasnetc_queue_item_t *qi) 
 {
   qi->next = NULL;
   qi->queue = NULL;
 }
 
 #if 0
-gc_queue_item_t *gc_dequeue(gc_queue_t *q, gc_queue_item_t *qi)
+gasnetc_queue_item_t *gasnetc_dequeue(gasnetc_queue_t *q, gasnetc_queue_item_t *qi)
 {
   gasneti_assert(q != NULL);
   GASNETC_LOCK_QUEUE(q);
@@ -1330,9 +1322,9 @@ gc_queue_item_t *gc_dequeue(gc_queue_t *q, gc_queue_item_t *qi)
 }
 #endif 
 
-gc_queue_item_t *gc_queue_pop(gc_queue_t *q)
+gasnetc_queue_item_t *gasnetc_queue_pop(gasnetc_queue_t *q)
 {
-  gc_queue_item_t *qi;
+  gasnetc_queue_item_t *qi;
   gasneti_assert(q != NULL);
   GASNETC_LOCK_QUEUE(q);
   qi = q->head;
@@ -1347,7 +1339,7 @@ gc_queue_item_t *gc_queue_pop(gc_queue_t *q)
   return(qi);
 }
 
-void gc_queue_push(gc_queue_t *q, gc_queue_item_t *qi)
+void gasnetc_queue_push(gasnetc_queue_t *q, gasnetc_queue_item_t *qi)
 {
   gasneti_assert(q != NULL);
   gasneti_assert(qi != NULL);
@@ -1360,7 +1352,7 @@ void gc_queue_push(gc_queue_t *q, gc_queue_item_t *qi)
   GASNETC_UNLOCK_QUEUE(q);
 }
 
-void gc_queue_enqueue(gc_queue_t *q, gc_queue_item_t *qi)
+void gasnetc_queue_enqueue(gasnetc_queue_t *q, gasnetc_queue_item_t *qi)
 {
   gasneti_assert(q != NULL);
   gasneti_assert(qi != NULL);
@@ -1382,7 +1374,7 @@ void gc_queue_enqueue(gc_queue_t *q, gc_queue_item_t *qi)
  * to amortize locking costs
  */
 
-void gc_queue_enqueue_no_lock(gc_queue_t *q, gc_queue_item_t *qi)
+void gasnetc_queue_enqueue_no_lock(gasnetc_queue_t *q, gasnetc_queue_item_t *qi)
 {
   gasneti_assert(q != NULL);
   gasneti_assert(qi != NULL);
@@ -1400,32 +1392,32 @@ void gc_queue_enqueue_no_lock(gc_queue_t *q, gc_queue_item_t *qi)
   // GASNETC_UNLOCK_QUEUE(q);
 }
 
-int gc_queue_on_queue(gc_queue_item_t *qi)
+int gasnetc_queue_on_queue(gasnetc_queue_item_t *qi)
 {
   gasneti_assert(qi != NULL);
   return (qi->queue != NULL);
 }
 
-gasneti_lifo_head_t post_descriptor_pool = GASNETI_LIFO_INITIALIZER;
+static gasneti_lifo_head_t post_descriptor_pool = GASNETI_LIFO_INITIALIZER;
 
 /* Needs no lock because it is called only from the init code */
-void gc_init_post_descriptor_pool(void)
+void gasnetc_init_post_descriptor_pool(void)
 {
   int i;
-  gc_post_descriptor_t *data = gc_pd_buffers.addr;
+  gasnetc_post_descriptor_t *data = gasnetc_pd_buffers.addr;
   gasneti_assert_always(data);
-  for (i = 0; i < (gc_pd_buffers.size / sizeof(gc_post_descriptor_t)); i += 1) {
+  for (i = 0; i < (gasnetc_pd_buffers.size / sizeof(gasnetc_post_descriptor_t)); i += 1) {
     gasneti_lifo_push(&post_descriptor_pool, &data[i]);
   }
 }
 
 /* This needs no lock because there is an internal lock in the queue */
-gc_post_descriptor_t *gc_alloc_post_descriptor()
+gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor()
 {
-  gc_post_descriptor_t *gpd;
-  while ((gpd = (gc_post_descriptor_t *) 
+  gasnetc_post_descriptor_t *gpd;
+  while ((gpd = (gasnetc_post_descriptor_t *) 
 	  gasneti_lifo_pop(&post_descriptor_pool)) == NULL)
-    gc_poll_local_queue();
+    gasnetc_poll_local_queue();
   gpd->completion = NULL;
   return(gpd);
 }
@@ -1433,7 +1425,7 @@ gc_post_descriptor_t *gc_alloc_post_descriptor()
 
 /* This needs no lock because there is an internal lock in the queue */
 /* LCS inline this */
-void gc_free_post_descriptor(gc_post_descriptor_t *gpd)
+void gasnetc_free_post_descriptor(gasnetc_post_descriptor_t *gpd)
 {
   gasneti_lifo_push(&post_descriptor_pool, gpd);
 }
@@ -1441,24 +1433,24 @@ void gc_free_post_descriptor(gc_post_descriptor_t *gpd)
 /* exit related */
 volatile int gasnetc_shutdownInProgress = 0;
 double gasnetc_shutdown_seconds = 0.0;
-double shutdown_max = 10.;  /*  .05 seconds * ln(1000000) */
-uint32_t sys_exit_rcvd = 0;
+static double shutdown_max = 120.;  /* 2 minutes */
+static uint32_t sys_exit_rcvd = 0;
 
 
 extern void gasnetc_sys_SendShutdownMsg(gasnet_node_t node, uint32_t distance, int exitcode)
 {
-  gc_sys_shutdown_packet_t shutdown;
+  gasnetc_sys_shutdown_packet_t shutdown;
   GASNETI_TRACE_PRINTF(C,("Send SHUTDOWN Request to node %d w/ distance %d, exitcode %d",node, distance, exitcode));
   shutdown.header.command = GC_CMD_SYS_SHUTDOWN_REQUEST;
   shutdown.header.numargs = 0;
   shutdown.distance = distance;
   shutdown.exitcode = exitcode;
-  gc_send(node, &shutdown, sizeof(gc_sys_shutdown_packet_t), NULL, 0);
+  gasnetc_send(node, &shutdown, sizeof(gasnetc_sys_shutdown_packet_t), NULL, 0);
 }
 
 
 /* this is called from poll when a shutdown packet arrives */
-void gc_handle_sys_shutdown_packet(uint32_t source, gc_sys_shutdown_packet_t *sys)
+void gasnetc_handle_sys_shutdown_packet(uint32_t source, gasnetc_sys_shutdown_packet_t *sys)
 {
   uint32_t distance = sys->distance;
   int32_t exitcode = sys->exitcode;
@@ -1526,7 +1518,7 @@ extern int gasnetc_sys_exit(int *exitcode_p)
     /* wait for completion of the proper receive, which might arrive out of order */
     goal |= distance;
     while ((sys_exit_rcvd & goal) != goal) {
-      gc_poll();
+      gasnetc_poll();
       if (gasneti_ticks_to_us(gasneti_ticks_now() - starttime) > timeout_us) {
         result = 1; /* failure */
         goto out;
@@ -1564,10 +1556,10 @@ gasneti_auxseg_request_t gasnetc_bounce_auxseg_alloc(gasnet_seginfo_t *auxseg_in
   }	
   else { /* auxseg granted */
     /* The only one we care about is our own node */
-    gc_bounce_buffers = auxseg_info[gc_rank];
+    gasnetc_bounce_buffers = auxseg_info[gasnetc_rank];
 #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr, "got auxseg %p size %ld\n", gc_bounce_buffers.addr,
-	    gc_bounce_buffers.size);
+    fprintf(stderr, "got auxseg %p size %ld\n", gasnetc_bounce_buffers.addr,
+	    gasnetc_bounce_buffers.size);
 #endif
   }
 
@@ -1580,11 +1572,11 @@ gasneti_auxseg_request_t gasnetc_pd_auxseg_alloc(gasnet_seginfo_t *auxseg_info) 
   
   retval.minsz = gasneti_getenv_int_withdefault("GASNETC_GNI_MIN_NUM_PD",
                                                 GASNETC_GNI_MIN_NUM_PD_DEFAULT,1)
-    * sizeof(gc_post_descriptor_t);
+    * sizeof(gasnetc_post_descriptor_t);
   retval.optimalsz = gasneti_getenv_int_withdefault("GASNETC_GNI_NUM_PD",
 
                                                     GASNETC_GNI_NUM_PD_DEFAULT,1) 
-    * sizeof(gc_post_descriptor_t);
+    * sizeof(gasnetc_post_descriptor_t);
   if (retval.optimalsz < retval.minsz) retval.optimalsz = retval.minsz;
 #if GASNET_DEBUG_VERBOSE
   fprintf(stderr, "auxseg post descriptor asking for min  %ld opt %ld\n", retval.minsz, retval.optimalsz);
@@ -1594,47 +1586,47 @@ gasneti_auxseg_request_t gasnetc_pd_auxseg_alloc(gasnet_seginfo_t *auxseg_info) 
   }	
   else { /* auxseg granted */
     /* The only one we care about is our own node */
-    gc_pd_buffers = auxseg_info[gc_rank];
+    gasnetc_pd_buffers = auxseg_info[gasnetc_rank];
 #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr, "got pd auxseg %p size %ld\n", gc_pd_buffers.addr,
-	    gc_pd_buffers.size);
+    fprintf(stderr, "got pd auxseg %p size %ld\n", gasnetc_pd_buffers.addr,
+	    gasnetc_pd_buffers.size);
 #endif
   }
 
   return retval;
 }
 
-gasneti_lifo_head_t gc_bounce_buffer_pool = GASNETI_LIFO_INITIALIZER;
+gasneti_lifo_head_t gasnetc_bounce_buffer_pool = GASNETI_LIFO_INITIALIZER;
 
-void gc_init_bounce_buffer_pool(void)
+void gasnetc_init_bounce_buffer_pool(void)
 {
   int i;
   int num_bounce;
-  gasneti_assert_always(gc_bounce_buffers.addr != NULL);
-  gasneti_assert_always(gc_bounce_buffers.size >= GASNETC_GNI_MIN_BOUNCE_SIZE_DEFAULT);
+  gasneti_assert_always(gasnetc_bounce_buffers.addr != NULL);
+  gasneti_assert_always(gasnetc_bounce_buffers.size >= GASNETC_GNI_MIN_BOUNCE_SIZE_DEFAULT);
   gasnetc_bounce_register_cutover = 
     gasneti_getenv_int_withdefault("GASNETC_GNI_BOUNCE_REGISTER_CUTOVER",
 				   GASNETC_GNI_BOUNCE_REGISTER_CUTOVER_DEFAULT,1);
   if (gasnetc_bounce_register_cutover > GASNETC_GNI_BOUNCE_REGISTER_CUTOVER_MAX)
     gasnetc_bounce_register_cutover = GASNETC_GNI_BOUNCE_REGISTER_CUTOVER_MAX;
-  if (gasnetc_bounce_register_cutover > gc_bounce_buffers.size)
-    gasnetc_bounce_register_cutover = gc_bounce_buffers.size;
-  num_bounce = gc_bounce_buffers.size / gasnetc_bounce_register_cutover;
+  if (gasnetc_bounce_register_cutover > gasnetc_bounce_buffers.size)
+    gasnetc_bounce_register_cutover = gasnetc_bounce_buffers.size;
+  num_bounce = gasnetc_bounce_buffers.size / gasnetc_bounce_register_cutover;
   for(i = 0; i < num_bounce; i += 1) {
-    gasneti_lifo_push(&gc_bounce_buffer_pool, (char *) gc_bounce_buffers.addr + 
+    gasneti_lifo_push(&gasnetc_bounce_buffer_pool, (char *) gasnetc_bounce_buffers.addr + 
 		      (gasnetc_bounce_register_cutover * i));
   }
 }
 
-void *gc_alloc_bounce_buffer()
+void *gasnetc_alloc_bounce_buffer()
 {
   void *buf;
-  while ((buf = gasneti_lifo_pop(&gc_bounce_buffer_pool)) == NULL) 
-	 gc_poll_local_queue();
+  while ((buf = gasneti_lifo_pop(&gasnetc_bounce_buffer_pool)) == NULL) 
+	 gasnetc_poll_local_queue();
   return(buf);
 }
 
-void gc_free_bounce_buffer(void *gcb)
+void gasnetc_free_bounce_buffer(void *gcb)
 {
-  gasneti_lifo_push(&gc_bounce_buffer_pool, gcb);
+  gasneti_lifo_push(&gasnetc_bounce_buffer_pool, gcb);
 }

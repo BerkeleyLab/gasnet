@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2011/08/22 23:24:16 $
- * $Revision: 1.105.6.1 $
+ *     $Date: 2011/11/17 04:09:19 $
+ * $Revision: 1.105.6.2 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -766,7 +766,7 @@ extern int gasneti_wait_mode; /* current waitmode hint */
 
 #ifndef _GASNET_GETNODEINFO
 #define _GASNET_GETNODEINFO
-  extern int gasneti_getNodeInfo(gasnet_node_t *nodeinfo_table, int numentries);
+  extern int gasneti_getNodeInfo(gasnet_nodeinfo_t *nodeinfo_table, int numentries);
   #define gasnet_getNodeInfo(nodeinfo_table, numentries) \
           gasneti_getNodeInfo(nodeinfo_table, numentries)
 #endif

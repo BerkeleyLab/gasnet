@@ -49,6 +49,8 @@ fi
 EXTRA_CONFIGURE_ARGS="--enable-mpi --disable-gemini --disable-udp --disable-amudp --disable-aligned-segments $NPTL_PTHREAD_ARGS"
 # OS string for test harness purposes
 EXTRA_CONFIGURE_ARGS="$EXTRA_CONFIGURE_ARGS --with-feature-list=os_cnl"
+# minimal backtracing support
+EXTRA_CONFIGURE_ARGS="$EXTRA_CONFIGURE_ARGS --enable-backtrace-execinfo"
 
 # 2. Fill in the canonical target machine type. You can usually obtain this
 #   by running config-aux/config.guess on the target machine

@@ -1,19 +1,20 @@
 README file for ssh-spawner
 ================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.5.78.1 $
+$Revision: 1.5.78.2 $
 
 See vapi-conduit for an example of how to use this code in a conduit.
 
 Configure Options:
-  --{en,dis}able-ssh-prctl (disabled by default)
+  --disable-pdeathsig (auto-detect by default)
     On Linux, it is possible to request a signal be delivered to a
     process when its parent process dies.  This can be used by the
     ssh-based spawner to reduce the possibility of orphan (run away)
     processes in certain abnormal termination scenarios.  
-    Because there are versions of Linux on which use of this option
+    Because are 2.4.x versions of Linux on which use of this option
     can lock up the machine (as the result of a kernel bug), this
-    option is disabled by default.
+    option is disabled for kernels prior to 2.6.0, and can also be
+    explicitly disabled at configure time.
 
   --with-ssh-{cmd,options,nodefile}=<VALUE>
     These control the default values used when the corresponding

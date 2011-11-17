@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.131.4.3 $
+$Revision: 1.131.4.4 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -239,6 +239,8 @@ Platforms where GASNet and Berkeley UPC have been successfully tested:
 
     * Catamount/Cray-XT/{gcc,PGI}/64: smp, mpi, portals %&
     * CNL/Cray-XT/{gcc,PGI,PathScale,Intel}/64: smp, mpi, portals
+
+    * CNL/Cray-XE/{gcc,PGI,PathScale,Intel}/64: smp, mpi, gemini(beta)
 
     * Linux/Cray-XD1/{gcc,PGI}/64: smp, mpi
 

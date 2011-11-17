@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core.c,v $
- *     $Date: 2011/08/22 23:25:06 $
- * $Revision: 1.54.2.1 $
+ *     $Date: 2011/11/17 04:09:40 $
+ * $Revision: 1.54.2.2 $
  * Description: GASNet smp conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -90,6 +90,8 @@ static void gasnetc_bootstrapBarrier(void) {
 #include <sys/types.h>
 #include <sys/wait.h>
 
+static int *gasnetc_fds = NULL;
+
 #define GASNETC_DEFAULT_EXITTIMEOUT_MAX       20.
 #define GASNETC_DEFAULT_EXITTIMEOUT_MIN       10.
 #define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR     0.25
@@ -104,8 +106,20 @@ static struct gasnetc_exit_data {
     (offsetof(struct gasnetc_exit_data, pid_tbl[0]) + \
      gasneti_nodes * sizeof(gasnetc_exit_data->pid_tbl[0]))
 
+#ifdef GASNETC_USE_SOCKETPAIR
+  #include <sys/socket.h>
+  static int gasnetc_using_socketpair = 1;
+#endif
+#ifdef HAVE_PR_SET_PDEATHSIG
+  #include <sys/utsname.h>
+  #include <sys/prctl.h>
+  static int gasnetc_use_pdeathsig = 0;
+#endif 
+
 #ifndef GASNETC_REMOTEEXIT_SIGNAL
-  #ifdef SIGURG
+  #ifdef GASNETC_USE_SOCKETPAIR
+    #define GASNETC_REMOTEEXIT_SIGNAL  SIGIO
+  #elif defined(SIGURG)
     #define GASNETC_REMOTEEXIT_SIGNAL  SIGURG
   #else
     #define GASNETC_REMOTEEXIT_SIGNAL  SIGUSR1
@@ -279,6 +293,12 @@ static void gasnetc_fork_children(void) {
       }
       gasneti_free(gasnetc_exit_data);
       gasnetc_exit_data = NULL;
+      #ifdef HAVE_PR_SET_PDEATHSIG
+      if (gasnetc_use_pdeathsig) {
+        /* Request generation of signal when parent exits */
+        prctl(PR_SET_PDEATHSIG, GASNETC_REMOTEEXIT_SIGNAL);
+      }
+      #endif
       return;
     }
   }
@@ -327,6 +347,33 @@ static void gasnetc_join_children(void) {
   alarm(0);
 }
 
+/* Broadcast from node0 to peers
+   This is a sufficient substitute for full Exchange in gasneti_pshm_init() */
+static void gasnet_bootstrap_bcast0(void *src, size_t len, void *dest)
+{
+  ssize_t rc;
+  int i;
+
+  gasneti_assert(gasnetc_fds != NULL);
+
+  if (gasneti_mynode == 0) {
+    for (i = 1; i < gasneti_nodes; ++i) {
+      do {
+        rc = write(gasnetc_fds[2 * i + 1], src, len);
+        /* retry on interruption */
+      } while ((rc == -1) && (errno == EINTR));
+      gasneti_assert(rc == len);
+    }
+    memmove(dest, src, len);
+  } else {
+    do {
+      rc = read(gasnetc_fds[2 * gasneti_mynode], dest, len);
+      /* retry on interruption */
+    } while ((rc == -1) && (errno == EINTR));
+    gasneti_assert(rc == len);
+  }
+}
+
 static int gasnetc_get_pshm_nodecount(void)
 {
   gasnet_node_t nodes = gasneti_getenv_int_withdefault("GASNET_PSHM_NODES", 0, 0);
@@ -351,6 +398,9 @@ static int gasnetc_get_pshm_nodecount(void)
 /* ------------------------------------------------------------------------------------ */
 
 static int gasnetc_init(int *argc, char ***argv) {
+#if GASNET_PSHM
+  int i;
+#endif
   /*  check system sanity */
   gasnetc_check_config();
 
@@ -373,31 +423,75 @@ static int gasnetc_init(int *argc, char ***argv) {
 #if GASNET_PSHM
   gasneti_nodes = gasnetc_get_pshm_nodecount();
 
-  /* Create unique names for shmem files or keys for sysv segments.
-   * We do this here, since we get a chicken-and-egg problem if we
-   * were to call gasneti_pshm_init() with our bootstrapExchange.
-   * PLUS its just plain simpler to do this pre-fork().
-   */
-  gasneti_pshm_nodes = gasneti_nodes;
-#ifdef GASNETI_PSHM_SYSV
-  { int i;
-    for(i=0; i<gasneti_pshm_nodes+1; i++){
-      unsigned int key = gasneti_pshm_makekey(i);
-      /* gasneti_pshm_sysvkeys allocated on first call to makekey */
-      gasneti_pshm_sysvkeys[i] = key;
-    }
-  }
-#else
-  (void)gasneti_pshm_makenames(NULL);
-#endif
-
-  /* A fork in the road! */
-  gasnetc_fork_children();
-
   gasnetc_exittimeout =  gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
                                                  GASNETC_DEFAULT_EXITTIMEOUT_MIN,
                                                  GASNETC_DEFAULT_EXITTIMEOUT_FACTOR,
                                                  GASNETC_DEFAULT_EXITTIMEOUT_MIN);
+
+  #ifdef HAVE_PR_SET_PDEATHSIG
+  { /* check safety of prctl(PR_SET_PDEATHSIG, ...) */
+    struct utsname name;
+    if (0 == uname(&name)) {
+      const char *dot = strchr(name.release,'.');
+      if (NULL != dot) {
+        int major = atoi(name.release);
+        int minor = atoi(dot + 1);
+        gasnetc_use_pdeathsig = ((100 * major + minor) >= 206); /* 2.6.0 kernel or newer */
+      }
+    }
+    #ifdef GASNETC_USE_SOCKETPAIR
+    /* Disable socketpair if we are able to use PDEATHSIG */
+    gasnetc_using_socketpair = !gasnetc_use_pdeathsig;
+    #endif
+  }
+  #endif
+
+  /* pipes or sockets for intra-process bootstrap comms.
+   * Sockets are used on systems where they can trigger a signal on disconnect,
+   * and the linux-specific prctl(PDEATHSIG) is unavailable.
+   * Otherwise, we use pipes (which we assume are cheaper than PF_LOCAL sockets).
+   */
+  gasnetc_fds = gasneti_malloc(2 * gasneti_nodes * sizeof(int));
+  for (i = 1; i < gasneti_nodes; ++i) {
+  #ifdef GASNETC_USE_SOCKETPAIR
+    if (gasnetc_using_socketpair) {
+      #if defined(PF_LOCAL)
+      gasneti_assert_zeroret( socketpair(PF_LOCAL, SOCK_STREAM, 0, &gasnetc_fds[2 * i]) );
+      #elif defined(PF_UNIX)
+      gasneti_assert_zeroret( socketpair(PF_UNIX, SOCK_STREAM, 0, &gasnetc_fds[2 * i]) );
+      #endif
+    } else
+  #endif
+    gasneti_assert_zeroret( pipe(&gasnetc_fds[2 * i]) );
+  }
+
+  /* A fork in the road! */
+  gasnetc_fork_children();
+
+  /* close/shutdown unused portion of pipe/socket resources */
+  if (0 == gasneti_mynode) {
+    for (i = 1; i < gasneti_nodes; ++i) {
+      gasneti_assert_zeroret( close(gasnetc_fds[2 * i]) );
+      #ifdef GASNETC_USE_SOCKETPAIR
+      if (gasnetc_using_socketpair) {
+        (void) shutdown(gasnetc_fds[2 * i + 1], SHUT_RD);
+      }
+      #endif
+    }
+  } else {
+    for (i = 1; i < gasneti_nodes; ++i) {
+      gasneti_assert_zeroret( close(gasnetc_fds[2 * i + 1]) );
+      if (i == gasneti_mynode) {
+        #ifdef GASNETC_USE_SOCKETPAIR
+        if (gasnetc_using_socketpair) {
+          (void) shutdown(gasnetc_fds[2 * i], SHUT_WR);
+        }
+        #endif
+      } else {
+        gasneti_assert_zeroret( close(gasnetc_fds[2 * i]) );
+      }
+    }
+  }
 #endif
 
   /* enable tracing */
@@ -412,9 +506,22 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
 
-  #if GASNET_PSHM
+#if GASNET_PSHM
+  #ifdef HAVE_PR_SET_PDEATHSIG
+  if (gasnetc_use_pdeathsig){
+    GASNETI_TRACE_PRINTF(C,("using PR_SET_PDEATHSIG for process control"));
+  }
+  #endif
+  #ifdef GASNETC_USE_SOCKETPAIR
+  if (gasnetc_using_socketpair) {
+    GASNETI_TRACE_PRINTF(C,("using socketpair/SIGIO for process control"));
+  }
+  #endif
+
   {
-    struct gasnetc_exit_data *tmp = gasneti_pshm_init(NULL, GASNETC_EXIT_DATA_SZ);
+    struct gasnetc_exit_data *tmp;
+
+    tmp = gasneti_pshm_init(&gasnet_bootstrap_bcast0, GASNETC_EXIT_DATA_SZ);
     if (!gasneti_mynode) {
       /* Relocate the pid table to shared space */
       memcpy(tmp, gasnetc_exit_data, GASNETC_EXIT_DATA_SZ);
@@ -424,7 +531,34 @@ static int gasnetc_init(int *argc, char ***argv) {
     }
     gasnetc_exit_data = tmp;
   }
-  #endif
+
+  /* Done w/ bootstrap comms (move later if it becomes necessary) */
+  if (0 == gasneti_mynode) {
+    #ifdef GASNETC_USE_SOCKETPAIR
+    if (gasnetc_using_socketpair) {
+      /* Nothing to do here */
+    } else
+    #endif
+    for (i = 1; i < gasneti_nodes; ++i) {
+      gasneti_assert_zeroret( close(gasnetc_fds[2 * i + 1]) );
+    }
+  } else {
+    const int fd = gasnetc_fds[2 * gasneti_mynode];
+    #ifdef GASNETC_USE_SOCKETPAIR
+    if (gasnetc_using_socketpair) {
+      /* Arm for SIGIO when parent (node0) closes the socket */
+      int flags = fcntl(fd, F_GETFL);
+      if (flags >= 0) {
+        const pid_t mypid = getpid();
+        gasneti_assert_zeroret( fcntl(fd, F_SETFL, flags|O_ASYNC) );
+        gasneti_assert_zeroret( fcntl(fd, F_SETOWN, getpid()) );
+      }
+    } else
+    #endif
+    /* Done w/ bootstrap comms */
+    gasneti_assert_zeroret( close(fd) );
+  }
+#endif
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
       { uintptr_t limit;
@@ -681,6 +815,18 @@ extern void gasnetc_exit(int exitcode) {
 #if GASNET_PSHM
   /* same goes for the remote exit signal */
   gasneti_reghandler(GASNETC_REMOTEEXIT_SIGNAL, SIG_IGN);
+  #ifdef HAVE_PR_SET_PDEATHSIG
+  if (gasneti_mynode && gasnetc_use_pdeathsig) {
+    /* Disable generation of signal when parent exits */
+    prctl(PR_SET_PDEATHSIG, 0);
+  }
+  #endif
+  #ifdef GASNETC_USE_SOCKETPAIR
+  if (gasneti_mynode && gasnetc_using_socketpair) {
+    /* Disable generation of SIGIO when parent exits */
+    close(gasnetc_fds[2 * gasneti_mynode]);
+  }
+  #endif
 
   gasnetc_exit_barrier_notify(exitcode);
 #endif

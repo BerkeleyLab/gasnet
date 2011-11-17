@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2011/08/22 23:24:16 $ */
-/*  $Revision: 1.151.4.3 $ */
+/*      $Date: 2011/11/17 04:09:19 $ */
+/*  $Revision: 1.151.4.4 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -111,6 +111,9 @@
 #undef GASNETI_CXX_RESTRICT
 #undef GASNETI_MPI_CC_RESTRICT
 
+/* Does CC support C99-stype non-constant initializers for structs? */
+#undef HAVE_NONCONST_STRUCT_INIT
+
 /* true iff GASNETI_RESTRICT may be applied to types which are not pointer types until after typedef expansion */
 #undef GASNETI_CC_RESTRICT_MAY_QUALIFY_TYPEDEFS
 #undef GASNETI_CXX_RESTRICT_MAY_QUALIFY_TYPEDEFS
@@ -171,6 +174,7 @@
 #undef GASNETI_PSHM_POSIX
 #undef GASNETI_PSHM_SYSV
 #undef GASNETI_PSHM_FILE
+#undef GASNETI_PSHM_XPMEM
 
 /* support for backtracing */
 #undef HAVE_EXECINFO_H
@@ -323,6 +327,9 @@
 
 /* GASNet ref-extended settings */
 #undef GASNETE_USE_AMDISSEMINATION_REFBARRIER
+
+/* GASNet smp-conduit */
+#undef GASNETC_USE_SOCKETPAIR
 
 /* GASNet gm-conduit broken 2.x versions */
 #undef GASNETC_GM_ENABLE_BROKEN_VERSIONS

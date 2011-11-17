@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.h,v $
- *     $Date: 2011/08/22 23:24:16 $
- * $Revision: 1.7.2.4 $
+ *     $Date: 2011/11/17 04:09:19 $
+ * $Revision: 1.7.2.5 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -15,17 +15,20 @@
 
 /* Must defined EXACTLY one */
 /* TO DO: add to GASNet's config string */
-#if defined(GASNETI_PSHM_POSIX) && !defined(GASNETI_PSHM_SYSV) && !defined(GASNETI_PSHM_FILE)
+#if defined(GASNETI_PSHM_POSIX) && !defined(GASNETI_PSHM_SYSV) && !defined(GASNETI_PSHM_FILE) && !defined(GASNETI_PSHM_XPMEM)
   #undef GASNETI_PSHM_POSIX
   #define GASNETI_PSHM_POSIX 1
-#elif !defined(GASNETI_PSHM_POSIX) && defined(GASNETI_PSHM_SYSV) && !defined(GASNETI_PSHM_FILE)
+#elif !defined(GASNETI_PSHM_POSIX) && defined(GASNETI_PSHM_SYSV) && !defined(GASNETI_PSHM_FILE) && !defined(GASNETI_PSHM_XPMEM)
   #undef GASNETI_PSHM_SYSV
   #define GASNETI_PSHM_SYSV 1
-#elif !defined(GASNETI_PSHM_POSIX) && !defined(GASNETI_PSHM_SYSV) && defined(GASNETI_PSHM_FILE)
+#elif !defined(GASNETI_PSHM_POSIX) && !defined(GASNETI_PSHM_SYSV) && defined(GASNETI_PSHM_FILE) && !defined(GASNETI_PSHM_XPMEM)
   #undef GASNETI_PSHM_FILE
   #define GASNETI_PSHM_FILE 1
+#elif !defined(GASNETI_PSHM_POSIX) && !defined(GASNETI_PSHM_SYSV) && !defined(GASNETI_PSHM_FILE) && defined(GASNETI_PSHM_XPMEM)
+  #undef GASNETI_PSHM_XPMEM
+  #define GASNETI_PSHM_XPMEM 1
 #else
-  #error PSHM configuration must be exactly one of (GASNETI_PSHM_POSIX, GASNETI_PSHM_SYSV, GASNETI_PSHM_FILE)
+  #error PSHM configuration must be exactly one of (GASNETI_PSHM_POSIX, GASNETI_PSHM_SYSV, GASNETI_PSHM_FILE,GASNETI_PSHM_XPMEM)
 #endif
 #include <gasnet_handler.h> /* Need gasneti_handler_fn_t */
 
@@ -45,14 +48,7 @@
 /* In gasnet_mmap.c */
 #define GASNETI_PSHM_UNIQUE_LEN 6
 
-#ifdef GASNETI_PSHM_SYSV
-extern unsigned int * gasneti_pshm_sysvkeys;
-extern unsigned int gasneti_pshm_makekey(int pshm_rank);
-#else
-extern const char *gasneti_pshm_makenames(const char *unique);
-#endif
-
-extern void *gasneti_mmap_vnet(uintptr_t segsize);
+extern void *gasneti_mmap_vnet(uintptr_t segsize, gasneti_bootstrapExchangefn_t exchangefn);
 extern void gasneti_unlink_vnet(void);
 
 /* Virtual network between processes within a shared
@@ -177,14 +173,6 @@ extern gasnet_node_t gasneti_pshm_firstnode;
 #define gasneti_pshm_mysupernode (0+gasneti_nodemap_global_rank)
 /* vector of first node within each supernode */
 extern gasnet_node_t *gasneti_pshm_firsts;
-/* supernode number for an arbitrary node 
- * only available after gasnet_init() */
-#if GASNET_CONDUIT_SMP
-#define gasneti_pshm_node2supernode(n) 0
-#else
-#define gasneti_pshm_node2supernode(n) \
-  (gasneti_assert(gasneti_nodeinfo), gasneti_nodeinfo[(n)])
-#endif
 
 /* Non-NULL only when supernode members are non-contiguous */
 extern gasneti_pshm_rank_t *gasneti_pshm_rankmap;
@@ -226,13 +214,11 @@ int gasneti_pshm_in_supernode(gasnet_node_t node) {
 }
 
 /* Returns local version of remote in-supernode address.
- * TODO: precompute the OFFSET to avoid doing the same subtraction each time
  */
 GASNETI_INLINE(gasneti_pshm_addr2local)
 void *gasneti_pshm_addr2local(gasnet_node_t node, void *addr) {
   return  (void*)((uintptr_t)addr
-                   - (uintptr_t)gasneti_seginfo[node].addr
-                   + (uintptr_t)gasneti_seginfo[node].remote_addr);
+                   + (uintptr_t)gasneti_nodeinfo[node].offset);
 } 
 
 /* Returns amount of memory needed (rounded up to a multiple of the system

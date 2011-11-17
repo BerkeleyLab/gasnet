@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2011/08/22 23:24:16 $
- * $Revision: 1.208.2.3 $
+ *     $Date: 2011/11/17 04:09:19 $
+ * $Revision: 1.208.2.4 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -832,7 +832,7 @@ gasnet_node_t gasneti_nodemap_local_count = 0;
 gasnet_node_t gasneti_nodemap_local_rank = (gasnet_node_t)-1;
 gasnet_node_t gasneti_nodemap_global_count = 0;
 gasnet_node_t gasneti_nodemap_global_rank = (gasnet_node_t)-1;
-gasnet_node_t *gasneti_nodeinfo = NULL;
+gasnet_nodeinfo_t *gasneti_nodeinfo = NULL;
 
 /* This code is "good" for all "sensible" process layouts, where "good"
  * means identifing all sharing for such a mapping in one pass and the
@@ -1027,7 +1027,7 @@ static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
  *   gasneti_nodemap_global_count = number of unique values in the nodemap
  *   gasneti_nodemap_global_rank  = rank of gasneti_mynode among gasneti_nodemap_global_count
  * and constructs:
- *   gasneti_nodeinfo[]          = array of length gasneti_nodes of supernode ids
+ *   gasneti_nodeinfo[] = array of length gasneti_nodes of supernode ids and mmap offsets
  *
  */
 extern void gasneti_nodemapParse(void) {
@@ -1075,27 +1075,27 @@ extern void gasneti_nodemapParse(void) {
   
   /* Construct nodeinfo using N^2 computation rather than N^2 network exchange */
   gasneti_assert(!gasneti_nodeinfo);
-  gasneti_nodeinfo = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+  gasneti_nodeinfo = gasneti_calloc(gasneti_nodes, sizeof(gasnet_nodeinfo_t));
   {
     gasnet_node_t count = 1;
     gasnet_node_t prev = 0;
     for (i = 0; i < gasneti_nodes; ++i) {
       gasnet_node_t match = gasneti_nodemap[i];
       if (match == 0) { /* Special case avoids needing prev < 0 */
-        gasneti_nodeinfo[i] = 0;
+        gasneti_assert(gasneti_nodeinfo[i].supernode == 0);
       } else if (match > prev){
         prev = match;
-        gasneti_nodeinfo[i] = count;
+        gasneti_nodeinfo[i].supernode = count;
         for (j = i+1; j < gasneti_nodes; ++j) {
           if (gasneti_nodemap[j] == match) {
-            gasneti_nodeinfo[j] = count;
+            gasneti_nodeinfo[j].supernode = count;
 	  }
         }
         ++count;
         gasneti_assert(count <= gasneti_nodemap_global_count);
       }
     }
-    gasneti_assert(gasneti_nodeinfo[gasneti_mynode] == gasneti_nodemap_global_rank);
+    gasneti_assert(gasneti_nodeinfo[gasneti_mynode].supernode == gasneti_nodemap_global_rank);
   }
 }
 
