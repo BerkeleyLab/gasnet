@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_connect.c,v $
- *     $Date: 2011/08/22 23:25:14 $
- * $Revision: 1.65.4.2 $
+ *     $Date: 2011/11/17 04:09:44 $
+ * $Revision: 1.65.4.3 $
  * Description: Connection management code
  * Copyright 2011, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -181,7 +181,7 @@ typedef struct gasnetc_xrc_snd_qp_s {
 
 static gasnetc_xrc_snd_qp_t *gasnetc_xrc_snd_qp = NULL;
 #define GASNETC_NODE2SND_QP(_node) \
-	(&gasnetc_xrc_snd_qp[gasneti_nodeinfo[(_node)] * gasnetc_alloc_qps])
+	(&gasnetc_xrc_snd_qp[gasneti_node2supernode(_node) * gasnetc_alloc_qps])
 
 static gasnetc_qpn_t *gasnetc_xrc_rcv_qpn = NULL;
 
@@ -2152,7 +2152,7 @@ gasnetc_connect_static(void)
       if (gasnetc_use_xrc) {
         uint8_t *supernode_mask = gasneti_calloc(gasneti_nodemap_global_count, sizeof(uint8_t));
         for (node = 0; node < gasneti_nodes; ++node) {
-          supernode_mask[gasneti_nodeinfo[node]] |= peer_mask[node];
+          supernode_mask[gasneti_node2supernode(node)] |= peer_mask[node];
         }
         for (static_supernodes = node = 0; node < gasneti_nodemap_global_count; ++node) {
           gasneti_assert((supernode_mask[node] == 0) || (supernode_mask[node] == 1));
