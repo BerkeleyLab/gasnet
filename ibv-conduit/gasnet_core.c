@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core.c,v $
- *     $Date: 2011/08/20 03:51:09 $
- * $Revision: 1.289.2.4 $
+ *     $Date: 2012/01/04 22:43:54 $
+ * $Revision: 1.289.2.5 $
  * Description: GASNet vapi conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2055,7 +2055,7 @@ static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
   gasneti_tick_t start_time = gasneti_ticks_now();
   int rc, i;
 
-  if (GASNETC_IS_EXITING()) GASNETC_EXIT_STATE("exitcode reduction");
+  GASNETC_EXIT_STATE("exitcode reduction");
 
   gasneti_assert(timeout_us > 0); 
 
@@ -2064,14 +2064,14 @@ static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
 
 #if GASNET_PSHM
   if (gasnetc_exit_children == gasneti_nodes) { /* Non-lead node */
-    if (GASNETC_IS_EXITING()) GASNETC_EXIT_STATE("exitcode reduction: send to parent");
+    GASNETC_EXIT_STATE("exitcode reduction: send to parent");
     rc = gasnetc_RequestSysShort(gasnetc_exit_parent, NULL,
                                  gasneti_handleridx(gasnetc_exit_reduce_reqh),
                                  2, exitcode, 0);
     if (rc != GASNET_OK) return -1;
     if (gasneti_atomic_read(&gasnetc_exit_reqs, 0)) return -1;
 
-    if (GASNETC_IS_EXITING()) GASNETC_EXIT_STATE("exitcode reduction: wait for parent");
+    GASNETC_EXIT_STATE("exitcode reduction: wait for parent");
     do {
       if (gasneti_ticks_to_ns(gasneti_ticks_now() - start_time) / 1000 > timeout_us) return -1;
       gasnetc_sndrcv_poll(0);
@@ -2079,7 +2079,7 @@ static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
     } while (gasneti_atomic_read(&gasnetc_exit_reds, 0) == 0);
     return 0;
   } else { /* Lead node */
-    if (GASNETC_IS_EXITING()) GASNETC_EXIT_STATE("exitcode reduction: wait for children");
+    GASNETC_EXIT_STATE("exitcode reduction: wait for children");
     while (gasneti_atomic_read(&gasnetc_exit_reds, 0) < gasnetc_exit_children) {
       if (gasneti_ticks_to_ns(gasneti_ticks_now() - start_time) / 1000 > timeout_us) return -1;
       gasnetc_sndrcv_poll(0);
@@ -2089,7 +2089,7 @@ static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
   }
 #endif
 
-  if (GASNETC_IS_EXITING()) GASNETC_EXIT_STATE("exitcode reduction: dissemination");
+  GASNETC_EXIT_STATE("exitcode reduction: dissemination");
   for (i = 0; i < gasnetc_dissem_peers; ++i) {
     const uint32_t distance = 1 << i;
     rc = gasnetc_RequestSysShort(gasnetc_dissem_peer[i], NULL,
@@ -2105,7 +2105,7 @@ static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
   }
 
 #if GASNET_PSHM
-  if (GASNETC_IS_EXITING()) GASNETC_EXIT_STATE("exitcode reduction: send to children");
+  GASNETC_EXIT_STATE("exitcode reduction: send to children");
   for (i = 0; i < gasnetc_exit_children; ++i) {
     rc = gasnetc_RequestSysShort(gasnetc_exit_child[i], NULL,
                                  gasneti_handleridx(gasnetc_exit_reduce_reqh),
@@ -2756,17 +2756,7 @@ static void gasnetc_exit_init(void) {
   }
 #endif
 
-#if 0 /* No warm-up needed 'cause bootstrapBarrier uses same connections */
-  /* Warm-up (for dynamic connections in particular) and then reset */
-  /* XXX: Could do warm-up more cheaply than the full reduction:
-   *  1) AM to parent 
-   *  2) Poll until AM rcvd from all children
-   * However, the plan is to change the topology soon anyway.
-   */
-  (void)gasnetc_exit_reduce(0, MAX(60., gasnetc_exittimeout) * 1.0e6);
-  gasneti_atomic_set(&gasnetc_exit_reds, 0, 0);
-  gasneti_atomic_set(&gasnetc_exit_dist, 0, 0);
-#endif
+  /* No warm-up needed because bootstrapBarrier uses same connections */
 }
 
 /* gasnetc_exit
