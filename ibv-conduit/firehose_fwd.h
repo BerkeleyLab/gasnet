@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/firehose_fwd.h,v $
- *     $Date: 2008/03/05 23:54:28 $
- * $Revision: 1.15 $
+ *     $Date: 2012/01/04 19:01:16 $
+ * $Revision: 1.15.46.1 $
  * Description: Configuration of firehose code to fit vapi-conduit
  * Copyright 2003, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -24,7 +24,14 @@
     /* Supress warnings about out-of-range constants in an enum (an explict 0xFFFFFFFF) */
     #pragma error_messages(off, E_ENUM_VAL_OVERFLOWS_INT_MAX)
   #endif
-  #include <vapi_types.h>
+  #if defined(__GNUC__) && !defined(inline)
+    /* ANSI-ify the vapi headers */
+    #define inline __inline__
+    #include <vapi_types.h>
+    #undef inline
+  #else
+    #include <vapi_types.h>
+  #endif
   #if PLATFORM_COMPILER_SUN_C
     #pragma error_messages(default, E_ENUM_VAL_OVERFLOWS_INT_MAX)
   #endif
@@ -50,7 +57,14 @@
     #define GASNETC_IB_MAX_HCAS 1
   #endif
 #elif GASNET_CONDUIT_IBV
-  #include <infiniband/verbs.h>
+  #if defined(__GNUC__) && !defined(inline)
+    /* ANSI-ify the IB Verbs headers */
+    #define inline __inline__
+    #include <infiniband/verbs.h>
+    #undef inline
+  #else
+    #include <infiniband/verbs.h>
+  #endif
   #define _FIREHOSE_VAPI_MR_HNDL_T	struct ibv_mr *
   #define _FIREHOSE_VAPI_LKEY_T		uint32_t
   #define _FIREHOSE_VAPI_RKEY_T		uint32_t
