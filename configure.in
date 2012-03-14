@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2012/03/14 09:08:32 $
-# $Revision: 1.751.2.1 $
+#     $Date: 2012/03/14 19:42:53 $
+# $Revision: 1.751.2.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.751.2.1 $)
+AC_REVISION($Revision: 1.751.2.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -970,6 +970,7 @@ GASNET_LIBM()
 #---------------------------------------------------------------------------------------------------------------
 # Machine defs
 
+GASNET_PLATFORM=generic
 GASNET_THREAD_DEFINES=""
 GASNET_THREAD_LIBS=""
 case "$target_os" in
@@ -987,6 +988,7 @@ case "$target_os" in
 	if test $force_arch_altix = yes -o -d "/dev/hw/cpunum" -o -c "/dev/xpmem"; then
    	  GASNETI_ARCH_ALTIX=1
 	  AC_DEFINE(GASNETI_ARCH_ALTIX)
+	  GASNET_PLATFORM=altix
 	  if test $target_cpu = ia64 -o -c "/dev/mmtimer"; then
 	    AC_DEFINE(GASNETI_USE_MMTIMER)
 	  fi
@@ -995,6 +997,7 @@ case "$target_os" in
 	if test $force_arch_sicortex = yes -o -c "/dev/scfabric" || 
            expr "`/usr/bin/uname -p 2>&1`" : SiCortex >/dev/null; then
 	    GASNETI_ARCH_SICORTEX=1
+	    GASNET_PLATFORM=sicortex
 	    AC_DEFINE(GASNETI_ARCH_SICORTEX)
 	fi
         case "$target" in
@@ -1003,13 +1006,18 @@ case "$target_os" in
 	      GASNET_MSG_ERROR([Compiling for a catamount target, but __LIBCATAMOUNT__ is not predefined! Are you using the right compiler? (perhaps try mpicc)])
 	    ])
           ;;
+          powerpc-blrts-linux*)
+	    GASNET_PLATFORM=bgl
+	    ;;
           powerpc-bgp-linux*) # apparently lacks any identifying preprocessor macro
 	    GASNETI_ARCH_BGP=1
 	    AC_DEFINE(GASNETI_ARCH_BGP)
+	    GASNET_PLATFORM=bgp
 	    ;;
           powerpc64-bgq-linux*) # apparently lacks any identifying preprocessor macro
 	    GASNETI_ARCH_BGQ=1
 	    AC_DEFINE(GASNETI_ARCH_BGQ)
+	    GASNET_PLATFORM=bgq
 	    ;;
         esac
         # Defining _GNU_SOURCE gives us accesss to the "adaptive"
@@ -1106,6 +1114,7 @@ esac
 AC_SUBST(GASNET_MACHINE_DEFINES)
 AC_SUBST(GASNET_THREAD_DEFINES)
 AC_SUBST(GASNET_THREAD_LIBS)
+AC_SUBST(GASNET_PLATFORM)
 
 # Find the appropriate OS suffix for executables
 case "$target_os" in
