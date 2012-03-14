@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2012/03/14 04:26:18 $
-# $Revision: 1.97 $
+#     $Date: 2012/03/14 19:20:11 $
+# $Revision: 1.97.2.1 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -782,25 +782,6 @@ if (($is_bgp || $is_bgq) && $ENV{'COBALT_JOBID'}) {
   }
 }
 
-if ($is_bgq_cqsub) {
-  @numprocargs = ($numproc) unless (@numprocargs); # default
-
-  my $cwd = `pwd`;
-  chomp $cwd;
-  if (my $file = $ENV{'GASNETRUN_STDIN'}) {
-    $file = "$cwd/$file" unless ($file =~ m,^/,);
-    push @numprocargs, ('-i', $file);
-  }
-  if (my $file = $ENV{'GASNETRUN_STDOUT'}) {
-    $file = "$cwd/$file" unless ($file =~ m,^/,);
-    push @numprocargs, ('-o', $file);
-  }
-  if (my $file = $ENV{'GASNETRUN_STDERR'}) {
-    $file = "$cwd/$file" unless ($file =~ m,^/,);
-    push @numprocargs, ('-e', $file);
-  }
-}
-
 if ($is_bgl_cqsub) {
   if ($numproc) {
     if(!defined($numnode)) {
@@ -831,22 +812,6 @@ if ($is_bgl_cqsub) {
     $dashN_ok = 1;
   } else {
     @numprocargs = ($numproc); # default
-  }
-
-  # Possibly deal with redirection by appending to @numprocargs
-  my $cwd = `pwd`;
-  chomp $cwd;
-  if (my $file = $ENV{'GASNETRUN_STDIN'}) {
-    $file = "$cwd/$file" unless ($file =~ m,^/,);
-    push @numprocargs, ('-i', $file);
-  }
-  if (my $file = $ENV{'GASNETRUN_STDOUT'}) {
-    $file = "$cwd/$file" unless ($file =~ m,^/,);
-    push @numprocargs, ('-o', $file);
-  }
-  if (my $file = $ENV{'GASNETRUN_STDERR'}) {
-    $file = "$cwd/$file" unless ($file =~ m,^/,);
-    push @numprocargs, ('-E', $file);
   }
 }
 
@@ -957,6 +922,18 @@ if (!$numnode) {
             print "gasnetrun: blocking for completion of job $jobid\n" if ($verbose);
             { local $/; my $wait_for_it = <PIPE>; } # slurp!
             close(PIPE); # XXX: error handling?
+        }
+
+        # Collect stderr and stdout
+        if (open(ERRFILE, "<$jobid.error")) {
+            while (<ERRFILE>) { print STDERR $_; }
+            close(ERRFILE);
+            unlink("$jobid.error") unless ($keep);
+        }
+        if (open(OUTFILE, "<$jobid.output")) {
+            while (<OUTFILE>) { print STDOUT $_; }
+            close(OUTFILE);
+            unlink("$jobid.output") unless ($keep);
         }
     } elsif (@tmpfiles || defined($tmpdir)) {
 	system(@spawncmd);
