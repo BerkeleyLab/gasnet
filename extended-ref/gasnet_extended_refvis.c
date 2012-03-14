@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refvis.c,v $
- *     $Date: 2009/03/30 02:40:31 $
- * $Revision: 1.22 $
+ *     $Date: 2012/03/14 09:08:34 $
+ * $Revision: 1.22.38.1 $
  * Description: Reference implementation of GASNet Vector, Indexed & Strided
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -80,6 +80,9 @@ extern void gasneti_vis_progressfn(void) {
            GASNETE_VIS_PROGRESSFN_EXTRA(visop, lastp)
     #endif
     switch (visop->type) {
+// HACK: Do NOT merge this back to CVS HEAD
+// THis is only intended to allow testing w/ a buggy XLC
+#if !(PLATFORM_COMPILER_XLC && GASNET_NDEBUG)
     #ifdef GASNETE_PUTV_GATHER_SELECTOR
       case GASNETI_VIS_CAT_PUTV_GATHER:
         if (gasnete_try_syncnb(visop->handle) == GASNET_OK) { /* TODO: remove recursive poll */
@@ -133,6 +136,7 @@ extern void gasneti_vis_progressfn(void) {
         }
       break;
     #endif
+#endif /* !(PLATFORM_COMPILER_XLC && GASNET_NDEBUG) */
       default: gasneti_fatalerror("unrecognized visop category: %i", visop->type);
     }
     lastp = &(visop->next); /* advance */

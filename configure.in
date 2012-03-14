@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2012/03/14 08:25:20 $
-# $Revision: 1.751 $
+#     $Date: 2012/03/14 09:08:32 $
+# $Revision: 1.751.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.751 $)
+AC_REVISION($Revision: 1.751.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -4069,6 +4069,41 @@ AC_SUBST(DCMF_LIBS)
 AM_CONDITIONAL(USE_DCMF_CONDUIT, test "$enabled_dcmf$have_dcmf" = yesyes)
 CONDUIT_END([test "$enabled_dcmf$have_dcmf" = yesyes])
 
+#--------------------------------------------------------------------------------------------------------
+# PAMI configuration
+CONDUIT_BEGIN(pami,[IBM PAMI network conduit (pami)])
+if test $enabled_pami = yes; then
+  have_pami=yes
+
+  if test -n "$GASNETI_ARCH_BGQ"; then
+    GASNET_ENV_DEFAULT(PAMI_HOME, [/bgsys/drivers/ppcfloor])
+    GASNET_ENV_DEFAULT(PAMI_INCLUDE, [$PAMI_HOME/comm/sys/include]) 
+    GASNET_ENV_DEFAULT(PAMI_LIBDIR, [$PAMI_HOME/comm/sys/lib])
+    GASNET_ENV_DEFAULT(PAMI_LIBS, [-lpami])
+    GASNET_ENV_DEFAULT(PAMI_SYS_LIBDIR, [$PAMI_HOME/spi/lib])
+    GASNET_ENV_DEFAULT(PAMI_SYS_LIBS, [-lSPI -lSPI_cnk])
+  fi
+
+  GASNET_PUSHVAR(CFLAGS,"$CFLAGS -I$PAMI_INCLUDE")
+  GASNET_PUSHVAR(LIBS,"$LIBS -L$PAMI_LIBDIR $PAMI_LIBS -L$PAMI_SYS_LIBDIR $PAMI_SYS_LIBS -lpthread -lrt -lstdc++")
+  # try to compile and link a simple PAMI program
+  GASNET_TRY_CACHE_LINK(for working PAMI configuration, pami_works, [
+     #include <pami.h>
+  ], [{ pami_result_t rc = PAMI_ERROR;
+        pami_client_t client;
+        rc = PAMI_Client_create("conftest", &client, NULL, 0);
+      }], [:], [ have_pami=no GASNET_ERR_SAVE() ] )
+  GASNET_POPVAR(CFLAGS)
+  GASNET_POPVAR(LIBS)
+fi #END ENABLE PAMI
+
+AC_SUBST(PAMI_INCLUDE)
+AC_SUBST(PAMI_LIBDIR)
+AC_SUBST(PAMI_LIBS)
+AC_SUBST(PAMI_SYS_LIBDIR)
+AC_SUBST(PAMI_SYS_LIBS)
+AM_CONDITIONAL(USE_PAMI_CONDUIT, test "$enabled_pami$have_pami" = yesyes)
+CONDUIT_END([test "$enabled_pami$have_pami" = yesyes])
 
 #--------------------------------------------------------------------------------------------------------
 # SCI configuration
@@ -4955,6 +4990,9 @@ dcmf-conduit/Makefile
 dcmf-conduit/conduit.mak
 dcmf-conduit/contrib/Makefile
 dcmf-conduit/contrib/gasnetrun_dcmf
+
+pami-conduit/Makefile
+pami-conduit/conduit.mak
 
 vapi-conduit/Makefile
 vapi-conduit/conduit.mak

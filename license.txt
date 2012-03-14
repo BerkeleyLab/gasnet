@@ -1,4 +1,4 @@
-/* $Header: /Users/kamil/work/gasnet-cvs2/gasnet/license.txt,v 1.16 2011/10/13 18:44:16 bonachea Exp $
+/* $Header: /Users/kamil/work/gasnet-cvs2/gasnet/license.txt,v 1.16.6.1 2012/03/14 09:08:32 phargrov Exp $
  * All files in this directory and all sub-directories (except where otherwise noted)
  * are subject to the following licensing terms: 
  *
@@ -39,7 +39,8 @@
  *    template-conduit
  *  Christian Bell <csbell@cs.berkeley.edu>: gm-conduit, shmem-conduit
  *  Mike Welcome <mlwelcome@lbl.gov>: lapi-conduit, portals-conduit
- *  Paul H. Hargrove <PHHargrove@lbl.gov>: vapi-conduit, ibv-conduit, atomics
+ *  Paul H. Hargrove <PHHargrove@lbl.gov>:
+ *     vapi-conduit, ibv-conduit, pami-conduit, atomics
  *  Rajesh Nishtala <rajeshn@cs.berkeley.edu>: collectives, dcmf-conduit
  *  Parry Husbands <PJRHusbands@lbl.gov>: lapi-conduit
  *  Filip Blagojevic <FBlagojevic@lbl.gov>: shared-memory support
