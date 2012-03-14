@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2012/03/14 20:48:17 $
-# $Revision: 1.97.2.2 $
+#     $Date: 2012/03/14 22:01:22 $
+# $Revision: 1.97.2.3 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -927,15 +927,29 @@ if (!$numnode) {
         }
 
         # Collect stderr and stdout
-        if (open(ERRFILE, "<$jobid.error")) {
+        my $poll_limit = 15;
+        my ($have_stderr, $have_stdout);
+        while (!($have_stderr = open(ERRFILE, "<$jobid.error")) && $poll_limit) {
+            sleep 5;
+            $poll_limit--;
+        }
+        while (!($have_stdout = open(OUTFILE, "<$jobid.output")) && $poll_limit) {
+            sleep 5;
+            $poll_limit--;
+        }
+        if ($have_stderr) {
             while (<ERRFILE>) { print STDERR $_; }
             close(ERRFILE);
-            unlink("$jobid.error") unless ($keep);
+            #unlink("$jobid.error") unless ($keep);
+        } else {
+            warn "gasnetrun: Missing $jobid.error\n";
         }
-        if (open(OUTFILE, "<$jobid.output")) {
+        if ($have_stdout) {
             while (<OUTFILE>) { print STDOUT $_; }
             close(OUTFILE);
-            unlink("$jobid.output") unless ($keep);
+            #unlink("$jobid.ouput") unless ($keep);
+        } else {
+            warn "gasnetrun: Missing $jobid.output\n";
         }
     } elsif (@tmpfiles || defined($tmpdir)) {
 	system(@spawncmd);
