@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2012/03/14 19:20:11 $
-# $Revision: 1.97.2.1 $
+#     $Date: 2012/03/14 20:48:17 $
+# $Revision: 1.97.2.2 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -88,6 +88,8 @@ sub gasnet_encode($) {
     #print "probing: $mpirun_cmd\n";
     my $mpirun_help = `$mpirun_cmd 2>&1`;
     #print "probe result: $mpirun_help\n";
+    my $platform    = $ENV{'GASNET_PLATFORM'};
+    #print "using platform hint: $platform\n";
     my $is_lam      = ($mpirun_help =~ m|LAM/MPI|);
     my $is_ompi     = ($mpirun_help =~ m|OpenRTE|);
     my $is_mpich2   = ($mpirun_help =~ m|MPICH1 compatibility|);
@@ -102,12 +104,12 @@ sub gasnet_encode($) {
     my $is_poe      = ($mpirun_help =~ m|Parallel Operating Environment|);
     my $is_aprun    = ($mpirun_help =~ m|aprunwrapper\|rchitecture type.*?xt|);
     my $is_yod      = ($mpirun_help =~ m| yod |);
-    my $is_bgl_mpi  = ($mpirun_help =~ m|COprocessor or VirtualNode mode|);
-    my $is_bgl_cqsub = ($mpirun_help =~ m| cqsub .*?co/vn|s);
-#   my $is_bgp_mpi  = ($mpirun_help =~ m|fake-mpirun| && $mpirun_help =~ m|-partition|);
-    my $is_bgp = ($mpirun_help =~ m|--mode <mode co/vn>|s);
-    my $is_bgq_cqsub = ($mpirun_help =~ m| <cobaltlog file path>|);
-    my $is_bgq = 0;  # Not yet available to test
+    my $is_bgl_mpi   = ($platform eq 'bgl' && $mpirun_help =~ m|COprocessor or VirtualNode mode|);
+    my $is_bgl_cqsub = ($platform eq 'bgl' && $mpirun_help =~ m| cqsub .*?co/vn|s);
+#   my $is_bgp_mpi   = ($platform eq 'bgp' && $mpirun_help =~ m|fake-mpirun| && $mpirun_help =~ m|-partition|);
+    my $is_bgp       = ($platform eq 'bgp' && $mpirun_help =~ m|--mode <mode co/vn>|s);
+    my $is_bgq_cqsub = ($platform eq 'bgq' && $mpirun_help =~ m| <cobaltlog file path>|);
+    my $is_bgq       = ($platform eq 'bgq' && $mpirun_help =~ m|--mode <mode co/vn>|s);
     my $is_hp_mpi  = ($mpirun_help =~ m|-universe_size|);
     my $is_elan_mpi  = ($mpirun_help =~ m|MPIRUN_ELANIDMAP_FILE|);
     my $is_jacquard = ($mpirun_help =~ m| \[-noenv\] |) && !$is_elan_mpi;
@@ -123,7 +125,7 @@ sub gasnet_encode($) {
     my $spawner_desc = undef;
 
     if ($ENV{'MPIRUN_CMD_BATCH'}) {
-      print "WARNING: MPIRUN_CMD_BATCH only has significance on the BlueGene/P or /Q"
+      print "WARNING: MPIRUN_CMD_BATCH only has significance on the BlueGene/P or /Q\n"
            unless($is_bgp || $is_bgq || $is_bgq_cqsub);
     }
 
