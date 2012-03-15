@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2012/03/15 01:33:24 $
-# $Revision: 1.97.2.4 $
+#     $Date: 2012/03/15 02:07:56 $
+# $Revision: 1.97.2.5 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -262,13 +262,29 @@ sub gasnet_encode($) {
         @verbose_opt = (); # ??
     } elsif ($is_bgq_cqsub) {
         $spawner_desc = "IBM BG/Q Cobalt qsub";
-        %envfmt = ( 'pre' => '--env',
-                    'join' => ':',
-                    'val' => ''
-                  );
-        $encode_env = 1; # botches spaces in environment values
+        if($ENV{'COBALT_JOBID'}) { # Automatic personality change
+           print "inside cobalt job spawner\n" if ($verbose);
+           $spawner_desc = "IBM BG/Q runjob";
+           $spawncmd = $ENV{'MPIRUN_CMD_BATCH'} || 'runjob -n %N : %P %A';
+           $spawncmd = stripouterquotes($spawncmd);
+           $spawncmd =~ s/%C/%P %A/;  # deal with common alias
+           $extra_quote_argv++ if ($spawncmd =~ s/%Q/%A/);
+	   # pass as: --exp-env A --exp-env B
+	   %envfmt = ( 'pre' => '--exp-env',
+		       'inter' => '--exp-env'
+		     );
+           @verbose_opt = (); # ??
+           $is_bgq_runjob = 1;
+           $is_bgq_cqsub = 0;
+        } else {
+           %envfmt = ( 'pre' => '--env',
+                       'join' => ':',
+                       'val' => ''
+                     );
+           @verbose_opt = ("-v");
+        }   
+        $encode_env = 1; # may? botch spaces in environment values
         $encode_args = 1; # and in arguments
-        @verbose_opt = ("-v");
     } elsif ($is_bgq) {
         $spawner_desc = "IBM BG/Q";
         %envfmt = ( 'pre' => '-env',
