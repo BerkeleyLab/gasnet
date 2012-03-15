@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2012/02/04 22:44:57 $
- * $Revision: 1.227 $
+ *     $Date: 2012/03/15 20:37:05 $
+ * $Revision: 1.227.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -766,6 +766,9 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         const char *desc;
         int hwid;
       } known_devs[] = {
+      #if PLATFORM_OS_BGL || PLATFORM_OS_BGP || PLATFORM_OS_BGQ
+        { "/dont_probe_an_io_node", S_IFDIR, "", 0 }
+      #else
         #if PLATFORM_OS_LINUX && PLATFORM_ARCH_IA64 && GASNET_SEQ
           { "/dev/hw/cpunum",      S_IFDIR, "SGI Altix", 0 },
           { "/dev/xpmem",          S_IFCHR, "SGI Altix", 0 },
@@ -784,6 +787,7 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
           { "/dev/ukbridge",         S_IFCHR, "Cray XT", 5 },
           { "/proc/portals/meminfo", S_IFREG, "Cray Portals", 5 }
         #endif
+      #endif
       };
       int i, lim = sizeof(known_devs)/sizeof(known_devs[0]);
       for (i = 0; i < lim; i++) {
