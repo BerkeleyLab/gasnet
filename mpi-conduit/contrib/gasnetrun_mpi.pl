@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2012/03/14 22:01:22 $
-# $Revision: 1.97.2.3 $
+#     $Date: 2012/03/15 01:33:24 $
+# $Revision: 1.97.2.4 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -110,6 +110,7 @@ sub gasnet_encode($) {
     my $is_bgp       = ($platform eq 'bgp' && $mpirun_help =~ m|--mode <mode co/vn>|s);
     my $is_bgq_cqsub = ($platform eq 'bgq' && $mpirun_help =~ m| <cobaltlog file path>|);
     my $is_bgq       = ($platform eq 'bgq' && $mpirun_help =~ m|--mode <mode co/vn>|s);
+    my $is_bgq_runjob= ($platform eq 'bgq' && $mpirun_help =~ m|five dimensional sub-block|s);
     my $is_hp_mpi  = ($mpirun_help =~ m|-universe_size|);
     my $is_elan_mpi  = ($mpirun_help =~ m|MPIRUN_ELANIDMAP_FILE|);
     my $is_jacquard = ($mpirun_help =~ m| \[-noenv\] |) && !$is_elan_mpi;
@@ -126,7 +127,7 @@ sub gasnet_encode($) {
 
     if ($ENV{'MPIRUN_CMD_BATCH'}) {
       print "WARNING: MPIRUN_CMD_BATCH only has significance on the BlueGene/P or /Q\n"
-           unless($is_bgp || $is_bgq || $is_bgq_cqsub);
+           unless($is_bgp || $is_bgq || $is_bgq_cqsub || $is_bgq_runjob);
     }
 
     if ($is_lam) {
@@ -250,6 +251,15 @@ sub gasnet_encode($) {
 		  );
         $encode_env = 1; # botches spaces in environment values
         $encode_args = 1; # and in arguments
+    } elsif ($is_bgq_runjob) {
+        $spawner_desc = "IBM BG/Q runjob";
+	# pass as: --exp-env A --exp-env B
+	%envfmt = ( 'pre' => '--exp-env',
+		    'inter' => '--exp-env'
+		  );
+        $encode_env = 1; # just in case
+        $encode_args = 1; # just in case
+        @verbose_opt = (); # ??
     } elsif ($is_bgq_cqsub) {
         $spawner_desc = "IBM BG/Q Cobalt qsub";
         %envfmt = ( 'pre' => '--env',
@@ -782,6 +792,47 @@ if (($is_bgp || $is_bgq) && $ENV{'COBALT_JOBID'}) {
     $file = "$cwd/$file" unless ($file =~ m,^/,);
     push @numprocargs, ('--stderr', $file);
   }
+}
+
+if ($is_bgq_runjob) {
+  my $partition = $ENV{'COBALT_PARTNAME'};
+  die "ERROR: runjob used outside cobalt job spawner\n" unless ($partition);
+
+  if(!defined($numproc)) {
+    $numproc = $ENV{'COBALT_JOBSIZE'};
+  }
+  if(!defined($numnode)) {
+    $numnode = $numproc;
+  }
+
+  my $ppn;
+  if (my $mode = $ENV{'GASNETRUN_MODE'}) {
+    # Assume the user's value is valid
+    $ppn = $mode;
+    $ppn =~ s/^c//; # Treat "c16" and "16" as equivalent
+  } else {
+    my $orig = int( ( $numproc + $numnode - 1 ) / $numnode );
+    # Round ppn up to next power of 2 by "filling" lower bits
+    $ppn = $orig - 1;
+    $ppn |= $ppn >> 1;
+    $ppn |= $ppn >> 2;
+    $ppn |= $ppn >> 4;
+    $ppn++;
+    if ($ppn > 64) {
+      die "ERROR: required ppn value ($ppn) exceeds the maximum (64)\n";
+    } elsif ($ppn != $orig) {
+      warn "WARNING: requested ppn value ($orig) is not a power-of-two.\n";
+      warn "WARNING: PROCESS LAYOUT MIGHT NOT MATCH YOUR REQUEST\n";
+    }
+  }
+  @numprocargs = ($numproc, '-p', $ppn, '--block', $partition);
+  $dashN_ok = 1;
+
+  # Need envargs to appear before the ":" which introduces %P
+  push @numprocargs, @envargs;
+  @envargs = ();
+
+  # No GASNETRUN_STD{IN,OUT,ERR} goop is required.
 }
 
 if ($is_bgl_cqsub) {
