@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/16 03:10:15 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2012/03/16 03:42:44 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -13,9 +13,6 @@
 #include <errno.h>
 #include <unistd.h>
 #include <signal.h>
-
-#undef GASNET_DEBUG_VERBOSE
-#define GASNET_DEBUG_VERBOSE 1  // ### Remove this
 
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
@@ -160,11 +157,12 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   /* (###) add code here to bootstrap the nodes for your conduit */
 
+  /* For error messages only */
+  gasneti_mynode = -1;
+  gasneti_nodes  = -1;
+
   rc = PAMI_Client_create("GASNet", &gasnetc_pami_client, NULL, 0);
   GASNETC_PAMI_CHECK(rc, "calling PAMI_Client_create");
-
-  rc = PAMI_Context_createv(gasnetc_pami_client, NULL, 0, &gasnetc_pami_context, 1);
-  GASNETC_PAMI_CHECK(rc, "calling PAMI_Context_createv");
 
   { pami_configuration_t conf[2];
     conf[0].name = PAMI_CLIENT_TASK_ID;
@@ -177,6 +175,9 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_nodes  = conf[1].value.intval;
   }
 
+  rc = PAMI_Context_createv(gasnetc_pami_client, NULL, 0, &gasnetc_pami_context, 1);
+  GASNETC_PAMI_CHECK(rc, "calling PAMI_Context_createv");
+
   rc = PAMI_Geometry_world(gasnetc_pami_client, &gasnetc_pami_geom);
   GASNETC_PAMI_CHECK(rc, "calling PAMI_Geometry_world()");
 
@@ -184,6 +185,10 @@ static int gasnetc_init(int *argc, char ***argv) {
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
+
+  /* Now enable tracing of all the following steps */
+  gasneti_init_done = 1; /* required to allow tracing */
+  gasneti_trace_init(argc, argv);
 
   /* (###) Add code here to determine which GASNet nodes may share memory.
      The collection of nodes sharing memory are known as a "supernode".
@@ -249,7 +254,9 @@ static int gasnetc_init(int *argc, char ***argv) {
                                    gasnetc_bootstrapExchange, gasnetc_bootstrapBroadcast);
   #endif
 
+#if 0 /* was done above to allow early init of tracing */
   gasneti_init_done = 1;  
+#endif
 
   gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
 
@@ -260,7 +267,9 @@ static int gasnetc_init(int *argc, char ***argv) {
 extern int gasnet_init(int *argc, char ***argv) {
   int retval = gasnetc_init(argc, argv);
   if (retval != GASNET_OK) GASNETI_RETURN(retval);
+#if 0 /* was done in gasnetc_init() to allow tracing of init steps */
   gasneti_trace_init(argc, argv);
+#endif
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
