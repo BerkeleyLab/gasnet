@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2012/03/15 20:37:05 $
- * $Revision: 1.227.2.1 $
+ *     $Date: 2012/03/16 02:34:17 $
+ * $Revision: 1.227.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -983,7 +983,7 @@ static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
 
       gasneti_free(allids);
     }
-#elif PLATFORM_OS_BGP || PLATFORM_OS_BLRTS  || PLATFORM_OS_CATAMOUNT || !HAVE_GETHOSTID
+#elif PLATFORM_OS_BGQ || PLATFORM_OS_BGP || PLATFORM_OS_BLRTS || PLATFORM_OS_CATAMOUNT || !HAVE_GETHOSTID
     /* Nodes are either (at least effectively) single process,
      * or we don't have a usable gethostid().  So, build a trivial nodemap. */
     gasneti_nodemap_trivial();
