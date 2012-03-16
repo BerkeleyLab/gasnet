@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/16 00:27:52 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2012/03/16 03:10:15 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -47,29 +47,99 @@ static void gasnetc_check_config(void) {
    * and/or segment sizes */ 
 }
 
+/* callback to decrement a simple (non-atomic) counter */
+extern void gasnetc_cb_dec(pami_context_t context, void *cookie, pami_result_t status) {
+  int *counter_p = cookie;
+  (*counter_p) -= 1;
+}
+
+/* callback to decrement an atomic counter */
+extern void gasnetc_cb_dec_atomic(pami_context_t context, void *cookie, pami_result_t status) {
+  gasneti_weakatomic_t *counter_p = cookie;
+  gasneti_weakatomic_decrement(counter_p, 0);
+}
+
+/* callback to decrement an atomic counter, with release */
+extern void gasnetc_cb_dec_release(pami_context_t context, void *cookie, pami_result_t status) {
+  gasneti_weakatomic_t *counter_p = cookie;
+  gasneti_weakatomic_decrement(counter_p, GASNETI_ATOMIC_REL);
+}
+
+/* Get the first "always works" algorithm for a given collective operation */
+static void default_coll_alg(pami_xfer_type_t op, pami_algorithm_t *alg_p) {
+  pami_result_t rc;
+  size_t counts[2];
+  pami_algorithm_t *req_algs, *opt_algs;
+  pami_metadata_t *req_meta, *opt_meta;
+
+  rc = PAMI_Geometry_algorithms_num(gasnetc_pami_geom, op, counts);
+  GASNETC_PAMI_CHECK(rc, "calling PAMI_Geometry_algorithms_num()");
+  gasneti_assert_always(counts[0] != 0);
+
+  /* Space for required ("always works") alogorithms and metadata */
+  req_algs = alloca(counts[0] * sizeof(pami_algorithm_t));
+  req_meta = alloca(counts[0] * sizeof(pami_metadata_t));
+
+  /* Space for optional ("must query") alogorithms and metadata */
+  opt_algs = alloca(counts[1] * sizeof(pami_algorithm_t));
+  opt_meta = alloca(counts[1] * sizeof(pami_metadata_t));
+
+  /* XXX: can we pass null or zero counts for "don't care" items */
+  rc = PAMI_Geometry_algorithms_query(gasnetc_pami_geom, op,
+                                      req_algs, req_meta, counts[0],
+                                      opt_algs, opt_meta, counts[1]);
+  GASNETC_PAMI_CHECK(rc, "calling PAMI_Geometry_algorithms_query()");
+
+  *alg_p = req_algs[0];
+}
+
+static void bootstrap_collective(pami_xfer_t *op_p) {
+  pami_result_t rc;
+  int counter = 1;
+
+  op_p->cb_done = &gasnetc_cb_dec;
+  op_p->cookie = &counter;
+
+  rc = PAMI_Collective(gasnetc_pami_context, op_p);
+  GASNETC_PAMI_CHECK(rc, "initiating a bootstrap collective");
+
+  while (counter) {
+    rc = PAMI_Context_advance(gasnetc_pami_context, 1);
+    GASNETC_PAMI_CHECK(rc, "polling a bootstrap collective");
+  }
+}
+
 static void gasnetc_bootstrapBarrier(void) {
-  /* (###) add code here to implement an external barrier 
-      this barrier should not rely on AM or the GASNet API because it's used 
-      during bootstrapping before such things are fully functional
-     It need not be particularly efficient, because we only call it a few times
-      and only during bootstrapping - it just has to work correctly
-     If your underlying spawning or batch system provides barrier functionality,
-      that would probably be a good choice for this
-   */
-// Outline:
-// if (first_call) {
-//     PAMI_Geometry_algorithms_num(geom,PAMI_XFER_BARRIER,&num) to get count of avail algs
-//     alloca() space for that many values
-//     PAMI_Geometry_algorithms_query() to get the metadata
-//     Use always_works_alg[0] to initialize a (static) pami_operation_t
-//     Free the _query results
-// }
-// PAMI_Collective(context, operation);
-// while(callback_not_run) PAMI_Context_advance(context, 1);
-//
-// Other bootstrap collectives will be similar, leading to much code reuse.
-// PAMI_XFER_BROADCAST
-// PAMI_XFER_ALLGATHER
+  static pami_xfer_t op;
+  static int is_init = 0;
+
+  if_pf (!is_init) {
+    memset(&op, 0, sizeof(op)); /* Shouldn't need for static, but let's be safe */
+    default_coll_alg(PAMI_XFER_BARRIER, &op.algorithm);
+    is_init = 1;
+  }
+
+  bootstrap_collective(&op);
+}
+
+static void gasnetc_bootstrapExchange(void *src, size_t len, void *dst) {
+  static pami_xfer_t op;
+  static int is_init = 0;
+
+  if_pf (!is_init) {
+    memset(&op, 0, sizeof(op)); /* Shouldn't need for static, but let's be safe */
+    default_coll_alg(PAMI_XFER_ALLGATHER, &op.algorithm);
+    is_init = 1;
+  }
+
+  op.cmd.xfer_allgather.sndbuf     = src;
+  op.cmd.xfer_allgather.stype      = PAMI_TYPE_BYTE;
+  op.cmd.xfer_allgather.stypecount = len;
+  op.cmd.xfer_allgather.rcvbuf     = dst;
+  op.cmd.xfer_allgather.rtype      = PAMI_TYPE_BYTE;
+  op.cmd.xfer_allgather.rtypecount = len; /* times gasneti_nodes */
+
+  bootstrap_collective(&op);
 }
 
 static int gasnetc_init(int *argc, char ***argv) {
@@ -115,9 +185,6 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
 
-// Nothing good expected yet beyond this point
-exit(0);
-
   /* (###) Add code here to determine which GASNet nodes may share memory.
      The collection of nodes sharing memory are known as a "supernode".
      The (first) data structure to describe this is gasneti_nodemap[]:
@@ -137,8 +204,7 @@ exit(0);
      If the conduit can build gasneti_nodemap[] w/o assistance, it should
      call gasneti_nodemapParse() after constructing it (instead of nodemapInit()).
   */
-  // ### pass exchg and use platform-specific IDS (but they're not yet implemented for BG/Q)
-  gasneti_nodemapInit(NULL, NULL, 0, 0);
+  gasneti_nodemapInit(&gasnetc_bootstrapExchange, NULL, 0, 0);
 
   #if GASNET_PSHM
     /* (###) If your conduit will support PSHM, you should initialize it here.
@@ -147,26 +213,16 @@ exit(0);
      * conduit-specific uses.  The return value is a pointer to the space
      * requested by the 2nd argument.
      */
-    ### = gasneti_pshm_init(###, ###);
+    ### = gasneti_pshm_init(&gasnetc_bootstrapExchange, 0);
   #endif
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { 
-      /* (###) Add code here to determine optimistic maximum segment size */
-      gasneti_MaxLocalSegmentSize = 1024 * 1024 * 64; // ### a horrible initial value
-
-      /* (###) Add code here to find the MIN(MaxLocalSegmentSize) over all nodes */
-      gasneti_MaxGlobalSegmentSize =  1024 * 1024 * 64; //### a horrible initial value
-
-      /* it may be appropriate to use gasneti_segmentInit() here to set 
-         gasneti_MaxLocalSegmentSize and gasneti_MaxGlobalSegmentSize,
-         if your conduit can use memory anywhere in the address space
-         (you may want to tune GASNETI_MMAP_MAX_SIZE to limit the max size)
-
-         it may also be appropriate to first call gasneti_mmapLimit() to
-         account for limitations imposed by having multiple GASNet nodes
-         per shared-memory compute node
-      */
+      // XXX: platform specific query for upper limit
+      uintptr_t limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
+                                          &gasnetc_bootstrapExchange,
+                                          &gasnetc_bootstrapBarrier);
+      gasneti_segmentInit(limit, &gasnetc_bootstrapExchange);
     }
   #elif GASNET_SEGMENT_EVERYTHING
     /* segment is everything - nothing to do */
@@ -355,6 +411,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
          (ensuring alignment across all nodes if this conduit sets GASNET_ALIGNED_SEGMENTS==1) 
          you can use gasneti_segmentAttach() here if you used gasneti_segmentInit() above
       */
+      gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, &gasnetc_bootstrapExchange);
+      segbase = gasneti_seginfo[gasneti_mynode].addr;
+      segsize = gasneti_seginfo[gasneti_mynode].size;
+
       gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
       gasneti_assert(segsize % GASNET_PAGESIZE == 0);
     }
@@ -423,6 +483,9 @@ extern void gasnetc_exit(int exitcode) {
            with gasneti_killmyprocess(exitcode) (not regular exit()), preferably
            after raising a SIGQUIT to inform the client of the exit
   */
+
+  _exit(0); // Temporary
+
   gasneti_fatalerror("gasnetc_exit failed!");
 }
 
