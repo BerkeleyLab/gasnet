@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/16 07:46:11 $
- * $Revision: 1.1.2.7 $
+ *     $Date: 2012/03/16 21:28:43 $
+ * $Revision: 1.1.2.8 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -23,6 +23,7 @@ static int gasnetc_exit_init(void);
 
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
 
+/* ------------------------------------------------------------------------------------ */
 /* Global Data */
 pami_client_t      gasnetc_pami_client;
 pami_context_t     gasnetc_context; /* XXX: More than one */
@@ -39,24 +40,6 @@ static void gasnetc_check_config(void) {
 
   /* (###) add code to do some sanity checks on the number of nodes, handlers
    * and/or segment sizes */ 
-}
-
-/* callback to decrement a simple (non-atomic) counter */
-extern void gasnetc_cb_dec(pami_context_t context, void *cookie, pami_result_t status) {
-  int *counter_p = cookie;
-  (*counter_p) -= 1;
-}
-
-/* callback to decrement an atomic counter */
-extern void gasnetc_cb_dec_atomic(pami_context_t context, void *cookie, pami_result_t status) {
-  gasneti_weakatomic_t *counter_p = cookie;
-  gasneti_weakatomic_decrement(counter_p, 0);
-}
-
-/* callback to decrement an atomic counter, with release */
-extern void gasnetc_cb_dec_release(pami_context_t context, void *cookie, pami_result_t status) {
-  gasneti_weakatomic_t *counter_p = cookie;
-  gasneti_weakatomic_decrement(counter_p, GASNETI_ATOMIC_REL);
 }
 
 /* Get the first "always works" algorithm for a given collective operation */
@@ -89,19 +72,17 @@ static void default_coll_alg(pami_xfer_type_t op, pami_algorithm_t *alg_p) {
 
 static void bootstrap_collective(pami_xfer_t *op_p) {
   pami_result_t rc;
-  int counter = 1;
+  volatile unsigned int counter = 0;
 
-  op_p->cb_done = &gasnetc_cb_dec;
-  op_p->cookie = &counter;
+  op_p->cb_done = &gasnetc_cb_inc_uint;
+  op_p->cookie = (void *)&counter;
   op_p->options.multicontext = PAMI_HINT_DISABLE;
 
   rc = PAMI_Collective(gasnetc_context, op_p);
   GASNETC_PAMI_CHECK(rc, "initiating a bootstrap collective");
 
-  while (counter) {
-    rc = PAMI_Context_advance(gasnetc_context, 1);
-    GASNETC_PAMI_CHECK(rc, "polling a bootstrap collective");
-  }
+  rc = gasnetc_wait_uint(gasnetc_context, &counter, 1);
+  GASNETC_PAMI_CHECK(rc, "polling a bootstrap collective");
 }
 
 static void gasnetc_bootstrapBarrier(void) {
@@ -506,9 +487,9 @@ static int gasnetc_exit_reduce(void) {
   uint8_t exitcode;
   pami_result_t rc;
 
-  gasneti_weakatomic_t counter = gasneti_weakatomic_init(1);
+  gasneti_weakatomic_t counter = gasneti_weakatomic_init(0);
   gasnetc_exit_reduce_op.cookie = (void *)&counter;
-  gasnetc_exit_reduce_op.cb_done = &gasnetc_cb_dec_release;
+  gasnetc_exit_reduce_op.cb_done = &gasnetc_cb_inc_release;
   gasnetc_exit_reduce_op.options.multicontext = PAMI_HINT_DISABLE;
 
   gasnetc_exit_reduce_op.cmd.xfer_allreduce.sndbuf = &gasnetc_exitcode;
@@ -524,7 +505,7 @@ static int gasnetc_exit_reduce(void) {
   rc = PAMI_Collective(gasnetc_context, &gasnetc_exit_reduce_op);
   if (rc != PAMI_SUCCESS) return 1;
 
-  while (gasneti_weakatomic_read(&counter, 0)) {
+  while (! gasneti_weakatomic_read(&counter, 0)) { /* TODO: Factor poll-with-timeout? */
     if ((PAMI_SUCCESS != PAMI_Context_advance(gasnetc_context, 1)) ||
         (timeout_ns < gasneti_ticks_to_ns(gasneti_ticks_now() - start_time))) {
       return 1;
@@ -979,6 +960,27 @@ static gasnet_handlerentry_t const gasnetc_handlers[] = {
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void) {
   return gasnetc_handlers;
+}
+
+/* ------------------------------------------------------------------------------------ */
+/* Completion counter call-backs */
+
+/* callback to increment a simple (non-atomic) counter */
+extern void gasnetc_cb_inc_uint(pami_context_t context, void *cookie, pami_result_t status) {
+  volatile unsigned int *counter_p = (volatile unsigned int *)cookie;
+  ++(*counter_p);
+}
+
+/* callback to increment an atomic counter */
+extern void gasnetc_cb_inc_atomic(pami_context_t context, void *cookie, pami_result_t status) {
+  gasneti_weakatomic_t *counter_p = (gasneti_weakatomic_t *)cookie;
+  gasneti_weakatomic_increment(counter_p, 0);
+}
+
+/* callback to increment an atomic counter, with RELease */
+extern void gasnetc_cb_inc_release(pami_context_t context, void *cookie, pami_result_t status) {
+  gasneti_weakatomic_t *counter_p = (gasneti_weakatomic_t *)cookie;
+  gasneti_weakatomic_increment(counter_p, GASNETI_ATOMIC_REL);
 }
 
 /* ------------------------------------------------------------------------------------ */
