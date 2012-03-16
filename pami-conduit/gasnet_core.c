@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/16 07:02:51 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2012/03/16 07:46:11 $
+ * $Revision: 1.1.2.7 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -19,15 +19,14 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 
-static pami_context_t gasnetc_exit_context;
 static int gasnetc_exit_init(void);
 
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
 
 /* Global Data */
 pami_client_t      gasnetc_pami_client;
-pami_context_t     gasnetc_pami_context; /* XXX: More than one */
-pami_geometry_t    gasnetc_pami_geom;
+pami_context_t     gasnetc_context; /* XXX: More than one */
+pami_geometry_t    gasnetc_world_geom;
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -67,7 +66,7 @@ static void default_coll_alg(pami_xfer_type_t op, pami_algorithm_t *alg_p) {
   pami_algorithm_t *req_algs, *opt_algs;
   pami_metadata_t *req_meta, *opt_meta;
 
-  rc = PAMI_Geometry_algorithms_num(gasnetc_pami_geom, op, counts);
+  rc = PAMI_Geometry_algorithms_num(gasnetc_world_geom, op, counts);
   GASNETC_PAMI_CHECK(rc, "calling PAMI_Geometry_algorithms_num()");
   gasneti_assert_always(counts[0] != 0);
 
@@ -80,7 +79,7 @@ static void default_coll_alg(pami_xfer_type_t op, pami_algorithm_t *alg_p) {
   opt_meta = alloca(counts[1] * sizeof(pami_metadata_t));
 
   /* XXX: can we pass null or zero counts for "don't care" items */
-  rc = PAMI_Geometry_algorithms_query(gasnetc_pami_geom, op,
+  rc = PAMI_Geometry_algorithms_query(gasnetc_world_geom, op,
                                       req_algs, req_meta, counts[0],
                                       opt_algs, opt_meta, counts[1]);
   GASNETC_PAMI_CHECK(rc, "calling PAMI_Geometry_algorithms_query()");
@@ -96,11 +95,11 @@ static void bootstrap_collective(pami_xfer_t *op_p) {
   op_p->cookie = &counter;
   op_p->options.multicontext = PAMI_HINT_DISABLE;
 
-  rc = PAMI_Collective(gasnetc_pami_context, op_p);
+  rc = PAMI_Collective(gasnetc_context, op_p);
   GASNETC_PAMI_CHECK(rc, "initiating a bootstrap collective");
 
   while (counter) {
-    rc = PAMI_Context_advance(gasnetc_pami_context, 1);
+    rc = PAMI_Context_advance(gasnetc_context, 1);
     GASNETC_PAMI_CHECK(rc, "polling a bootstrap collective");
   }
 }
@@ -174,16 +173,15 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_nodes  = conf[1].value.intval;
   }
 
-  { pami_context_t contexts[2];
+  { pami_context_t contexts[1];
 
-    rc = PAMI_Context_createv(gasnetc_pami_client, NULL, 0, contexts, 2);
+    rc = PAMI_Context_createv(gasnetc_pami_client, NULL, 0, contexts, 1);
     GASNETC_PAMI_CHECK(rc, "calling PAMI_Context_createv");
 
-    gasnetc_pami_context = contexts[0];
-    gasnetc_exit_context = contexts[1];
+    gasnetc_context = contexts[0];
   }
 
-  rc = PAMI_Geometry_world(gasnetc_pami_client, &gasnetc_pami_geom);
+  rc = PAMI_Geometry_world(gasnetc_pami_client, &gasnetc_world_geom);
   GASNETC_PAMI_CHECK(rc, "calling PAMI_Geometry_world()");
 
   gasneti_assert_zeroret(gasnetc_exit_init());
@@ -523,11 +521,11 @@ static int gasnetc_exit_reduce(void) {
   gasnetc_exit_reduce_op.cmd.xfer_allreduce.data_cookie = NULL;
   gasnetc_exit_reduce_op.cmd.xfer_allreduce.commutative = 1;
 
-  rc = PAMI_Collective(gasnetc_exit_context, &gasnetc_exit_reduce_op);
+  rc = PAMI_Collective(gasnetc_context, &gasnetc_exit_reduce_op);
   if (rc != PAMI_SUCCESS) return 1;
 
   while (gasneti_weakatomic_read(&counter, 0)) {
-    if ((PAMI_SUCCESS != PAMI_Context_advance(gasnetc_exit_context, 1)) ||
+    if ((PAMI_SUCCESS != PAMI_Context_advance(gasnetc_context, 1)) ||
         (timeout_ns < gasneti_ticks_to_ns(gasneti_ticks_now() - start_time))) {
       return 1;
     }
