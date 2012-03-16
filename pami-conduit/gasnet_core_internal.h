@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core_internal.h,v $
- *     $Date: 2012/03/16 06:48:32 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2012/03/16 06:54:19 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet PAMI conduit header for internal definitions in Core API
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -11,6 +11,8 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_handler.h>
+
+#include <pami.h>
 
 #define GASNETC_PAMI_CHECK(rc,msg) \
   if_pf ((rc) != PAMI_SUCCESS) \
