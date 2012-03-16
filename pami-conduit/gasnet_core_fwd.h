@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2012/03/14 09:08:36 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2012/03/16 00:27:52 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet header for PAMI conduit core (forward definitions)
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -23,7 +23,7 @@
 
   /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
 #if GASNETI_PSHM_ENABLED
-/* #define GASNET_PSHM 1 */ ###
+/* #define GASNET_PSHM 1 */ ### Not *yet* implemented
 #endif
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
@@ -31,32 +31,32 @@
 #if GASNETI_DISABLE_ALIGNED_SEGMENTS || GASNET_PSHM
   #define GASNET_ALIGNED_SEGMENTS   0 /* user or PSHM disabled segment alignment */
 #else
-  #define GASNET_ALIGNED_SEGMENTS   ###
+  #define GASNET_ALIGNED_SEGMENTS   1
 #endif
 
   /* conduits should define GASNETI_CONDUIT_THREADS to 1 if they have one or more 
      "private" threads which may be used to run AM handlers, even under GASNET_SEQ
      this ensures locking is still done correctly, etc
    */
-#if ###
+#if 0
 #define GASNETI_CONDUIT_THREADS 1
 #endif
 
   /* define to 1 if your conduit may interrupt an application thread 
      (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
    */
-#if ###
+#if 0
 #define GASNETC_USE_INTERRUPTS 1
 #endif
 
   /* define these to 1 if your conduit supports PSHM, but cannot use the
      default interfaces. (see template-conduit/gasnet_core.c and gasnet_pshm.h)
    */
-#if ###
+#if 0
 #define GASNETC_GET_HANDLER 1
 typedef ### gasnetc_handler_t;
 #endif
-#if ###
+#if 0
 #define GASNETC_TOKEN_CREATE 1
 #endif
 

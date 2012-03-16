@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core_internal.h,v $
- *     $Date: 2012/03/14 09:08:36 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2012/03/16 00:27:52 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet PAMI conduit header for internal definitions in Core API
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -12,8 +12,15 @@
 #include <gasnet_internal.h>
 #include <gasnet_handler.h>
 
+#include <pami.h>
+
+#define GASNETC_PAMI_CHECK(rc,msg) \
+  if_pf ((rc) != PAMI_SUCCESS) \
+    { gasneti_fatalerror("Unexpected error %d %s",(rc),(msg)); }
+
+/* ------------------------------------------------------------------------------------ */
 /*  whether or not to use spin-locking for HSL's */
-#define GASNETC_HSL_SPINLOCK 1
+#define GASNETC_HSL_SPINLOCK 0
 
 /* ------------------------------------------------------------------------------------ */
 #define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */

@@ -1,7 +1,7 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/14 09:08:36 $
- * $Revision: 1.1.2.1 $
- * Description: GASNet PAMPI conduit Implementation
+ *     $Date: 2012/03/16 00:27:52 $
+ * $Revision: 1.1.2.2 $
+ * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
  */
@@ -14,6 +14,9 @@
 #include <unistd.h>
 #include <signal.h>
 
+#undef GASNET_DEBUG_VERBOSE
+#define GASNET_DEBUG_VERBOSE 1  // ### Remove this
+
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
@@ -25,6 +28,11 @@ static void gasnetc_atexit(void);
 #endif
 
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
+
+/* Global Data */
+pami_client_t      gasnetc_pami_client;
+pami_context_t     gasnetc_pami_context; /* XXX: More than one */
+pami_geometry_t    gasnetc_pami_geom;
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -48,9 +56,25 @@ static void gasnetc_bootstrapBarrier(void) {
      If your underlying spawning or batch system provides barrier functionality,
       that would probably be a good choice for this
    */
+// Outline:
+// if (first_call) {
+//     PAMI_Geometry_algorithms_num(geom,PAMI_XFER_BARRIER,&num) to get count of avail algs
+//     alloca() space for that many values
+//     PAMI_Geometry_algorithms_query() to get the metadata
+//     Use always_works_alg[0] to initialize a (static) pami_operation_t
+//     Free the _query results
+// }
+// PAMI_Collective(context, operation);
+// while(callback_not_run) PAMI_Context_advance(context, 1);
+//
+// Other bootstrap collectives will be similar, leading to much code reuse.
+// PAMI_XFER_BROADCAST
+// PAMI_XFER_ALLGATHER
 }
 
 static int gasnetc_init(int *argc, char ***argv) {
+  pami_result_t rc;
+
   /*  check system sanity */
   gasnetc_check_config();
 
@@ -66,13 +90,33 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   /* (###) add code here to bootstrap the nodes for your conduit */
 
-  gasneti_mynode = ###;
-  gasneti_nodes = ###;
+  rc = PAMI_Client_create("GASNet", &gasnetc_pami_client, NULL, 0);
+  GASNETC_PAMI_CHECK(rc, "calling PAMI_Client_create");
+
+  rc = PAMI_Context_createv(gasnetc_pami_client, NULL, 0, &gasnetc_pami_context, 1);
+  GASNETC_PAMI_CHECK(rc, "calling PAMI_Context_createv");
+
+  { pami_configuration_t conf[2];
+    conf[0].name = PAMI_CLIENT_TASK_ID;
+    conf[1].name = PAMI_CLIENT_NUM_TASKS;
+
+    rc = PAMI_Client_query(gasnetc_pami_client, conf, 2);
+    GASNETC_PAMI_CHECK(rc, "calling PAMI_Client_query() for TASK_ID and NUM_TASKS");
+
+    gasneti_mynode = conf[0].value.intval;
+    gasneti_nodes  = conf[1].value.intval;
+  }
+
+  rc = PAMI_Geometry_world(gasnetc_pami_client, &gasnetc_pami_geom);
+  GASNETC_PAMI_CHECK(rc, "calling PAMI_Geometry_world()");
 
   #if GASNET_DEBUG_VERBOSE
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
       gasneti_mynode, gasneti_nodes); fflush(stderr);
   #endif
+
+// Nothing good expected yet beyond this point
+exit(0);
 
   /* (###) Add code here to determine which GASNet nodes may share memory.
      The collection of nodes sharing memory are known as a "supernode".
@@ -93,7 +137,8 @@ static int gasnetc_init(int *argc, char ***argv) {
      If the conduit can build gasneti_nodemap[] w/o assistance, it should
      call gasneti_nodemapParse() after constructing it (instead of nodemapInit()).
   */
-  gasneti_nodemapInit(###);
+  // ### pass exchg and use platform-specific IDS (but they're not yet implemented for BG/Q)
+  gasneti_nodemapInit(NULL, NULL, 0, 0);
 
   #if GASNET_PSHM
     /* (###) If your conduit will support PSHM, you should initialize it here.
@@ -108,10 +153,10 @@ static int gasnetc_init(int *argc, char ***argv) {
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { 
       /* (###) Add code here to determine optimistic maximum segment size */
-      gasneti_MaxLocalSegmentSize = ###;
+      gasneti_MaxLocalSegmentSize = 1024 * 1024 * 64; // ### a horrible initial value
 
       /* (###) Add code here to find the MIN(MaxLocalSegmentSize) over all nodes */
-      gasneti_MaxGlobalSegmentSize = ###;
+      gasneti_MaxGlobalSegmentSize =  1024 * 1024 * 64; //### a horrible initial value
 
       /* it may be appropriate to use gasneti_segmentInit() here to set 
          gasneti_MaxLocalSegmentSize and gasneti_MaxGlobalSegmentSize,
@@ -129,7 +174,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     #error Bad segment config
   #endif
 
-  #if ###
+  #if 0 /* Current supported systems ensure environment is propogated */
     /* Enable this if you wish to use the default GASNet services for broadcasting 
         the environment from one compute node to all the others (for use in gasnet_getenv(),
         which needs to return environment variable values from the "spawning console").
@@ -422,7 +467,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
 #endif
   {
     /* (###) add code here to write the source index into sourceid. */
-    sourceid = ###;
+    sourceid = -1; // ###
   }
 
   gasneti_assert(sourceid < gasneti_nodes);
@@ -471,7 +516,7 @@ extern int gasnetc_AMRequestShortM(
              and send the active message 
      */
 
-    retval = ###;
+    retval = GASNET_OK;
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -499,7 +544,7 @@ extern int gasnetc_AMRequestMediumM(
              and send the active message 
      */
 
-    retval = ###;
+    retval = GASNET_OK;
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -527,7 +572,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
              and send the active message 
      */
 
-    retval = ###;
+    retval = GASNET_OK;
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -555,7 +600,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
              and send the active message 
      */
 
-    retval = ###;
+    retval = GASNET_OK;
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -582,7 +627,7 @@ extern int gasnetc_AMReplyShortM(
              and send the active message 
      */
 
-    retval = ###;
+    retval = GASNET_OK;
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -610,7 +655,7 @@ extern int gasnetc_AMReplyMediumM(
              and send the active message 
      */
 
-    retval = ###;
+    retval = GASNET_OK;
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -639,7 +684,7 @@ extern int gasnetc_AMReplyLongM(
              and send the active message 
      */
 
-    retval = ###;
+    retval = GASNET_OK;
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
