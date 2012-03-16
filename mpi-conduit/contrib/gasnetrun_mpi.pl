@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2012/03/15 02:07:56 $
-# $Revision: 1.97.2.5 $
+#     $Date: 2012/03/16 02:41:55 $
+# $Revision: 1.97.2.6 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -259,7 +259,7 @@ sub gasnet_encode($) {
 		  );
         $encode_env = 1; # just in case
         $encode_args = 1; # just in case
-        @verbose_opt = (); # ??
+        @verbose_opt = ("-verbose", "2");
     } elsif ($is_bgq_cqsub) {
         $spawner_desc = "IBM BG/Q Cobalt qsub";
         if($ENV{'COBALT_JOBID'}) { # Automatic personality change
@@ -273,7 +273,7 @@ sub gasnet_encode($) {
 	   %envfmt = ( 'pre' => '--exp-env',
 		       'inter' => '--exp-env'
 		     );
-           @verbose_opt = (); # ??
+           @verbose_opt = ("-verbose", "2");
            $is_bgq_runjob = 1;
            $is_bgq_cqsub = 0;
         } else {
