@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/16 03:42:44 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2012/03/16 05:45:08 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -18,11 +18,8 @@ GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
-#if HAVE_ON_EXIT
-static void gasnetc_on_exit(int, void*);
-#else
-static void gasnetc_atexit(void);
-#endif
+
+static int gasnetc_exit_init(void);
 
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
 
@@ -180,6 +177,8 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   rc = PAMI_Geometry_world(gasnetc_pami_client, &gasnetc_pami_geom);
   GASNETC_PAMI_CHECK(rc, "calling PAMI_Geometry_world()");
+
+  gasneti_assert_zeroret(gasnetc_exit_init());
 
   #if GASNET_DEBUG_VERBOSE
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
@@ -401,12 +400,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
    *        (e.g. to support interrupt-based messaging)
    */
 
-  #if HAVE_ON_EXIT
-    on_exit(gasnetc_on_exit, NULL);
-  #else
-    atexit(gasnetc_atexit);
-  #endif
-
   /* ------------------------------------------------------------------------------------ */
   /*  register segment  */
 
@@ -473,6 +466,74 @@ static void gasnetc_atexit(void) {
 }
 #endif
 
+/* Exit coordination timeouts */
+#define GASNETC_DEFAULT_EXITTIMEOUT_MAX         360.0   /* 6 minutes! */
+#define GASNETC_DEFAULT_EXITTIMEOUT_MIN         2       /* 2 seconds */
+#define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR      0.25    /* 1/4 second */
+static double gasnetc_exittimeout = GASNETC_DEFAULT_EXITTIMEOUT_MAX;
+
+/* Exit coordination vars */
+static uint8_t gasnetc_exitcode = 0;
+static pami_context_t gasnetc_exit_context;
+static pami_xfer_t gasnetc_exit_reduce_op;
+
+static int gasnetc_exit_init(void) {
+  pami_result_t rc = PAMI_Context_createv(gasnetc_pami_client, NULL, 0, &gasnetc_exit_context, 1);
+  GASNETC_PAMI_CHECK(rc, "calling PAMI_Context_createv(exit_context)");
+
+  gasnetc_exittimeout = gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
+                                                GASNETC_DEFAULT_EXITTIMEOUT_MIN,
+                                                GASNETC_DEFAULT_EXITTIMEOUT_FACTOR,
+                                                GASNETC_DEFAULT_EXITTIMEOUT_MIN);
+
+  memset(&gasnetc_exit_reduce_op, 0, sizeof(gasnetc_exit_reduce_op));
+  default_coll_alg(PAMI_XFER_ALLREDUCE, &gasnetc_exit_reduce_op.algorithm);
+
+#if HAVE_ON_EXIT
+  on_exit(gasnetc_on_exit, NULL);
+#else
+  atexit(gasnetc_atexit);
+#endif
+
+  return GASNET_OK;
+}
+
+static int gasnetc_exit_reduce(void) {
+  gasneti_tick_t start_time = gasneti_ticks_now();
+  int64_t timeout_ns = gasnetc_exittimeout * 1.0e9;
+  uint8_t exitcode;
+  pami_result_t rc;
+
+  gasneti_weakatomic_t counter = gasneti_weakatomic_init(1);
+  gasnetc_exit_reduce_op.cookie = (void *)&counter;
+  gasnetc_exit_reduce_op.cb_done = &gasnetc_cb_dec_release;
+
+  gasnetc_exit_reduce_op.cmd.xfer_allreduce.sndbuf = &gasnetc_exitcode;
+  gasnetc_exit_reduce_op.cmd.xfer_allreduce.stype = PAMI_TYPE_UNSIGNED_CHAR;
+  gasnetc_exit_reduce_op.cmd.xfer_allreduce.stypecount = 1;
+  gasnetc_exit_reduce_op.cmd.xfer_allreduce.rcvbuf = &exitcode;
+  gasnetc_exit_reduce_op.cmd.xfer_allreduce.rtype = PAMI_TYPE_UNSIGNED_CHAR;
+  gasnetc_exit_reduce_op.cmd.xfer_allreduce.rtypecount = 1;
+  gasnetc_exit_reduce_op.cmd.xfer_allreduce.op = PAMI_DATA_MAX;
+  gasnetc_exit_reduce_op.cmd.xfer_allreduce.data_cookie = NULL;
+  gasnetc_exit_reduce_op.cmd.xfer_allreduce.commutative = 1;
+
+  rc = PAMI_Collective(gasnetc_exit_context, &gasnetc_exit_reduce_op);
+  if (rc != PAMI_SUCCESS) return 1;
+
+  while (gasneti_weakatomic_read(&counter, 0)) {
+    if ((PAMI_SUCCESS != PAMI_Context_advance(gasnetc_exit_context, 1)) ||
+        (timeout_ns < gasneti_ticks_to_ns(gasneti_ticks_now() - start_time))) {
+      return 1;
+    }
+  }
+
+  gasneti_sync_reads();
+  gasnetc_exitcode = exitcode;
+
+  return 0;
+}
+
 extern void gasnetc_exit(int exitcode) {
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   gasneti_reghandler(SIGQUIT, SIG_IGN);
@@ -493,7 +554,15 @@ extern void gasnetc_exit(int exitcode) {
            after raising a SIGQUIT to inform the client of the exit
   */
 
-  _exit(0); // Temporary
+  /* Detect collective exit while performing reduce(MAX(exitcode))
+   * The reduction has a timeout to distinguish non-collective exits */
+  gasnetc_exitcode = exitcode;
+  if (0 != gasnetc_exit_reduce()) {
+    /* Failed to coordinate shutdown */
+    // XXX: can we raise SIGQUIT remotely, etc.
+    gasnetc_exitcode = 1; /* on BG/Q this forces global termination */
+  }
+  gasneti_killmyprocess(gasnetc_exitcode);
 
   gasneti_fatalerror("gasnetc_exit failed!");
 }
