@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/16 05:45:08 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2012/03/16 07:02:51 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -19,6 +19,7 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 
+static pami_context_t gasnetc_exit_context;
 static int gasnetc_exit_init(void);
 
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
@@ -93,6 +94,7 @@ static void bootstrap_collective(pami_xfer_t *op_p) {
 
   op_p->cb_done = &gasnetc_cb_dec;
   op_p->cookie = &counter;
+  op_p->options.multicontext = PAMI_HINT_DISABLE;
 
   rc = PAMI_Collective(gasnetc_pami_context, op_p);
   GASNETC_PAMI_CHECK(rc, "initiating a bootstrap collective");
@@ -172,8 +174,14 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_nodes  = conf[1].value.intval;
   }
 
-  rc = PAMI_Context_createv(gasnetc_pami_client, NULL, 0, &gasnetc_pami_context, 1);
-  GASNETC_PAMI_CHECK(rc, "calling PAMI_Context_createv");
+  { pami_context_t contexts[2];
+
+    rc = PAMI_Context_createv(gasnetc_pami_client, NULL, 0, contexts, 2);
+    GASNETC_PAMI_CHECK(rc, "calling PAMI_Context_createv");
+
+    gasnetc_pami_context = contexts[0];
+    gasnetc_exit_context = contexts[1];
+  }
 
   rc = PAMI_Geometry_world(gasnetc_pami_client, &gasnetc_pami_geom);
   GASNETC_PAMI_CHECK(rc, "calling PAMI_Geometry_world()");
@@ -474,13 +482,9 @@ static double gasnetc_exittimeout = GASNETC_DEFAULT_EXITTIMEOUT_MAX;
 
 /* Exit coordination vars */
 static uint8_t gasnetc_exitcode = 0;
-static pami_context_t gasnetc_exit_context;
 static pami_xfer_t gasnetc_exit_reduce_op;
 
 static int gasnetc_exit_init(void) {
-  pami_result_t rc = PAMI_Context_createv(gasnetc_pami_client, NULL, 0, &gasnetc_exit_context, 1);
-  GASNETC_PAMI_CHECK(rc, "calling PAMI_Context_createv(exit_context)");
-
   gasnetc_exittimeout = gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
                                                 GASNETC_DEFAULT_EXITTIMEOUT_MIN,
                                                 GASNETC_DEFAULT_EXITTIMEOUT_FACTOR,
@@ -507,6 +511,7 @@ static int gasnetc_exit_reduce(void) {
   gasneti_weakatomic_t counter = gasneti_weakatomic_init(1);
   gasnetc_exit_reduce_op.cookie = (void *)&counter;
   gasnetc_exit_reduce_op.cb_done = &gasnetc_cb_dec_release;
+  gasnetc_exit_reduce_op.options.multicontext = PAMI_HINT_DISABLE;
 
   gasnetc_exit_reduce_op.cmd.xfer_allreduce.sndbuf = &gasnetc_exitcode;
   gasnetc_exit_reduce_op.cmd.xfer_allreduce.stype = PAMI_TYPE_UNSIGNED_CHAR;
