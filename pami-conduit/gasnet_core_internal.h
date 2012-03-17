@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core_internal.h,v $
- *     $Date: 2012/03/17 06:56:51 $
- * $Revision: 1.1.2.7 $
+ *     $Date: 2012/03/17 08:39:57 $
+ * $Revision: 1.1.2.8 $
  * Description: GASNet PAMI conduit header for internal definitions in Core API
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -80,6 +80,11 @@ typedef union {
   gasnetc_medmsg_t      medmsg;
   gasnetc_longmsg_t     longmsg;
 } gasnetc_anymsg_t;
+
+#define GASNETC_ARGSEND_AUX(s,nargs) \
+        (offsetof(s,args)+(nargs*sizeof(gasnet_handlerarg_t)))
+#define GASNETC_ARGSEND(cat,nargs) \
+        GASNETC_ARGSEND_AUX(gasnetc_##cat##msg_t,(nargs))
 
 /* ------------------------------------------------------------------------------------ */
 /* Global data */

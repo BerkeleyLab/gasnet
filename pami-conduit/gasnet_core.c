@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/17 06:56:51 $
- * $Revision: 1.1.2.10 $
+ *     $Date: 2012/03/17 08:39:57 $
+ * $Revision: 1.1.2.11 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -632,10 +632,9 @@ static void am_SQ_dispatch(pami_context_t context, void *cookie,
                            const void *pipe_addr, size_t pipe_size,
                            pami_endpoint_t origin, pami_recv_t *recv)
 {
-  // Only implement immediate recv case right now
-  gasneti_assert_always(pipe_addr && !recv);
+  gasneti_assert(!recv); // Only implement immediate recv case right now
+  gasneti_assert(pipe_addr); // Only use header right now
 
-// XXX: can't do this because Reply can be send from this context
   run_short((/*const*/ gasnetc_shortmsg_t *)head_addr, &origin, 1);
 }
 
@@ -644,8 +643,8 @@ static void am_SP_dispatch(pami_context_t context, void *cookie,
                            const void *pipe_addr, size_t pipe_size,
                            pami_endpoint_t origin, pami_recv_t *recv)
 {
-  // Only implement immediate recv case right now
-  gasneti_assert_always(pipe_addr && !recv);
+  gasneti_assert(!recv); // Only implement immediate recv case right now
+  gasneti_assert(pipe_addr); // Only use header right now
 
   run_short((/*const*/ gasnetc_shortmsg_t *)head_addr, &origin, 0);
 }
@@ -847,7 +846,7 @@ extern int gasnetc_AMRequestShortM(
 
     memset(&send.hints, 0, sizeof(send.hints));
     send.header.iov_base = (char *)&msg;
-    send.header.iov_len = offsetof(gasnetc_shortmsg_t, numargs);
+    send.header.iov_len = GASNETC_ARGSEND(short, numargs);
     send.data.iov_base = NULL;
     send.data.iov_len = 0;
     send.dest = gasnetc_endpoint(dest);
@@ -986,7 +985,7 @@ extern int gasnetc_AMReplyShortM(
 
     memset(&send.hints, 0, sizeof(send.hints));
     send.header.iov_base = (char *)&msg;
-    send.header.iov_len = offsetof(gasnetc_shortmsg_t, numargs);
+    send.header.iov_len = GASNETC_ARGSEND(short, numargs);
     send.data.iov_base = NULL;
     send.data.iov_len = 0;
     send.dest = gasnetc_endpoint(dest);
