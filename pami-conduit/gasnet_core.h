@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.h,v $
- *     $Date: 2012/03/16 00:27:52 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2012/03/17 06:56:51 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet header for PAMI conduit core
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -123,15 +123,18 @@ typedef struct _gasnet_hsl_t {
   ==========================
 */
 
-#define gasnet_AMMaxArgs()          ((size_t)16)
+#define GASNETC_MAX_ARGS            16
+#define GASNETC_MAX_MED             512
+
+#define gasnet_AMMaxArgs()          ((size_t)GASNETC_MAX_ARGS)
 #if GASNET_PSHM
   /* (###) If supporting PSHM a conduit must "negotiate" the maximum size of a
    * Medium message.  This can either be done by lowering the conduit's value to
    * the default PSHM value (as shown here), or GASNETI_MAX_MEDIUM_PSHM can be
    * defined in gasnet_core_fwd.h to give the conduit complete control. */
-  #define gasnet_AMMaxMedium()      ((size_t)MIN(512, GASNETI_MAX_MEDIUM_PSHM))
+  #define gasnet_AMMaxMedium()      ((size_t)MIN(GASNETC_MAX_MED, GASNETI_MAX_MEDIUM_PSHM))
 #else
-  #define gasnet_AMMaxMedium()      ((size_t)512) 
+  #define gasnet_AMMaxMedium()      ((size_t)GASNETC_MAX_MED) 
 #endif
 #define gasnet_AMMaxLongRequest()   ((size_t)512*1024*1024) /* XXX: best guess */
 #define gasnet_AMMaxLongReply()     ((size_t)512*1024*1024) /* XXX: best guess */

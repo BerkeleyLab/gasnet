@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core_internal.h,v $
- *     $Date: 2012/03/16 21:28:43 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2012/03/17 06:56:51 $
+ * $Revision: 1.1.2.7 $
  * Description: GASNet PAMI conduit header for internal definitions in Core API
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -40,6 +40,71 @@ typedef enum {
   gasnetc_Medium=1,
   gasnetc_Long=2
 } gasnetc_category_t;
+
+/* ------------------------------------------------------------------------------------ */
+
+enum {
+  GASNETC_DISP_NOOP = 0, /* dispatch id 0 may be reserved? */
+  GASNETC_DISP_SQ, /* Short reQuest */
+  GASNETC_DISP_SP, /* Short rePly */
+  GASNETC_DISP_MQ, /* Med.  reQuest */
+  GASNETC_DISP_MP, /* Med.  rePly */
+  GASNETC_DISP_LQ, /* Long  reQuest */
+  GASNETC_DISP_LP, /* Long  rePly */
+  GASNETC_NUM_DISP
+};
+
+typedef struct {
+  gasnet_handler_t      handler;
+  uint8_t               numargs;
+  gasnet_handlerarg_t   args[GASNETC_MAX_ARGS];
+} gasnetc_shortmsg_t;
+
+typedef struct {
+  gasnet_handler_t      handler;
+  uint8_t               numargs;
+  uint16_t              nBytes;
+  gasnet_handlerarg_t   args[GASNETC_MAX_ARGS];
+} gasnetc_medmsg_t;
+
+typedef struct {
+  gasnet_handler_t      handler;
+  uint8_t               numargs;
+  uint32_t              nBytes; /* limits our MaxLong */
+  uintptr_t             destLoc;
+  gasnet_handlerarg_t   args[GASNETC_MAX_ARGS];
+} gasnetc_longmsg_t;
+
+typedef union {
+  gasnetc_shortmsg_t    shortmsg;
+  gasnetc_medmsg_t      medmsg;
+  gasnetc_longmsg_t     longmsg;
+} gasnetc_anymsg_t;
+
+/* ------------------------------------------------------------------------------------ */
+/* Global data */
+
+extern pami_client_t      gasnetc_pami_client;
+extern pami_context_t     gasnetc_context; /* XXX: More than one */
+extern pami_geometry_t    gasnetc_world_geom;
+extern pami_endpoint_t    *gasnetc_endpoint_tbl;
+
+/* ------------------------------------------------------------------------------------ */
+/* Endpoints */
+
+/* TODO: multiple contexts? */
+GASNETI_INLINE(gasnetc_endpoint)
+pami_endpoint_t gasnetc_endpoint(gasnet_node_t node) {
+  pami_endpoint_t result = gasnetc_endpoint_tbl[node];
+  gasneti_assert(node != gasneti_mynode);
+  gasneti_assert(node < gasneti_nodes);
+  if_pf (result == PAMI_ENDPOINT_NULL) {
+    /* NOTE: thread-safety based on fact that type is single word */
+    PAMI_Endpoint_create(gasnetc_pami_client, node, 0, &result);
+    gasnetc_endpoint_tbl[node] = result;
+  }
+  return result;
+}
 
 /* ------------------------------------------------------------------------------------ */
 /* Completion counters */

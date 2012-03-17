@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2012/03/16 06:54:19 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2012/03/17 06:56:51 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet header for PAMI conduit core (forward definitions)
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -63,5 +63,8 @@ typedef ### gasnetc_handler_t;
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
+
+#define _GASNET_HANDLER_T
+typedef uint8_t gasnet_handler_t;
 
 #endif
