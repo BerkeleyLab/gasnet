@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/16 21:28:43 $
- * $Revision: 1.1.2.8 $
+ *     $Date: 2012/03/17 04:12:30 $
+ * $Revision: 1.1.2.9 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -46,28 +46,22 @@ static void gasnetc_check_config(void) {
 static void default_coll_alg(pami_xfer_type_t op, pami_algorithm_t *alg_p) {
   pami_result_t rc;
   size_t counts[2];
-  pami_algorithm_t *req_algs, *opt_algs;
-  pami_metadata_t *req_meta, *opt_meta;
+  pami_algorithm_t *algorithms;
 
   rc = PAMI_Geometry_algorithms_num(gasnetc_world_geom, op, counts);
   GASNETC_PAMI_CHECK(rc, "calling PAMI_Geometry_algorithms_num()");
   gasneti_assert_always(counts[0] != 0);
 
-  /* Space for required ("always works") alogorithms and metadata */
-  req_algs = alloca(counts[0] * sizeof(pami_algorithm_t));
-  req_meta = alloca(counts[0] * sizeof(pami_metadata_t));
+  /* Space for required ("always works") alogorithms */
+  algorithms = alloca(counts[0] * sizeof(pami_algorithm_t));
 
-  /* Space for optional ("must query") alogorithms and metadata */
-  opt_algs = alloca(counts[1] * sizeof(pami_algorithm_t));
-  opt_meta = alloca(counts[1] * sizeof(pami_metadata_t));
-
-  /* XXX: can we pass null or zero counts for "don't care" items */
+  /* pass NULL or zero count for data we don't need */
   rc = PAMI_Geometry_algorithms_query(gasnetc_world_geom, op,
-                                      req_algs, req_meta, counts[0],
-                                      opt_algs, opt_meta, counts[1]);
+                                      algorithms, NULL, counts[0],
+                                      NULL, NULL, 0);
   GASNETC_PAMI_CHECK(rc, "calling PAMI_Geometry_algorithms_query()");
 
-  *alg_p = req_algs[0];
+  *alg_p = algorithms[0];
 }
 
 static void bootstrap_collective(pami_xfer_t *op_p) {
