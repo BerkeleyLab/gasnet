@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/18 22:35:42 $
- * $Revision: 1.1.2.18 $
+ *     $Date: 2012/03/18 22:44:39 $
+ * $Revision: 1.1.2.19 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -742,14 +742,14 @@ static void am_MQ_dispatch(pami_context_t context, void *cookie,
   gasnetc_medmsg_t *medmsg = (gasnetc_medmsg_t *)head_addr;
 
   if (!recv) {
-    /* Entire message has arrived - run in-place now */
+    /* Entire message has arrived - copy to aligned memory and run now */
     gasnetc_msg_t msg;
     msg.is_request = 1;
     msg.header = head_addr;
-    msg.payload = (void*)pipe_addr; // Is this legal?  Is this aligned?
-    gasneti_assert(0 == ((uintptr_t)pipe_addr % GASNETI_MEDBUF_ALIGNMENT));
+    msg.payload = memcpy(gasneti_malloc(pipe_size), pipe_addr, pipe_size);
     gasneti_assert(pipe_size == medmsg->nbytes);
     run_medium(&msg);
+    gasneti_free(msg.payload);
   } else {
     /* Only our header has arrived - setup copy data and async run */
     gasnetc_msg_t *msg = gasneti_malloc(head_size + sizeof(gasnetc_msg_t));
@@ -777,13 +777,14 @@ static void am_MP_dispatch(pami_context_t context, void *cookie,
   gasnetc_medmsg_t *medmsg = (gasnetc_medmsg_t *)head_addr;
 
   if (!recv) {
-    /* Entire message has arrived - run in-place now */
+    /* Entire message has arrived - copy to aligned memory and run now */
     gasnetc_msg_t msg;
     msg.is_request = 0;
     msg.header = head_addr;
-    msg.payload = (void*)pipe_addr; // Is this legal?
+    msg.payload = memcpy(gasneti_malloc(pipe_size), pipe_addr, pipe_size);
     gasneti_assert(pipe_size == medmsg->nbytes);
     run_medium(&msg);
+    gasneti_free(msg.payload);
   } else {
     /* Only our header has arrived - setup copy data and async run */
     gasnetc_msg_t *msg = gasneti_malloc(head_size + sizeof(gasnetc_msg_t));
