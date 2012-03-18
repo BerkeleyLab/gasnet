@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2012/03/16 02:41:55 $
-# $Revision: 1.97.2.6 $
+#     $Date: 2012/03/18 08:21:44 $
+# $Revision: 1.97.2.7 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -842,6 +842,8 @@ if ($is_bgq_runjob) {
     }
   }
   @numprocargs = ($numproc, '-p', $ppn, '--block', $partition);
+  push @numprocargs, ('--corner', $ENV{'COBALT_CORNER'}) if exists $ENV{'COBALT_CORNER'};
+  push @numprocargs, ('--shape', $ENV{'COBALT_SHAPE'}) if exists $ENV{'COBALT_SHAPE'};
   $dashN_ok = 1;
 
   # Need envargs to appear before the ":" which introduces %P

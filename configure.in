@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2012/03/14 19:42:53 $
-# $Revision: 1.751.2.2 $
+#     $Date: 2012/03/18 08:21:42 $
+# $Revision: 1.751.2.3 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.751.2.2 $)
+AC_REVISION($Revision: 1.751.2.3 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -5002,6 +5002,8 @@ dcmf-conduit/contrib/gasnetrun_dcmf
 
 pami-conduit/Makefile
 pami-conduit/conduit.mak
+pami-conduit/contrib/Makefile
+pami-conduit/contrib/gasnetrun_pami
 
 vapi-conduit/Makefile
 vapi-conduit/conduit.mak

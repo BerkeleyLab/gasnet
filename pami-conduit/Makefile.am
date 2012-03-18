@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/Makefile.am,v $
-#     $Date: 2012/03/16 00:27:52 $
-# $Revision: 1.1.2.2 $
+#     $Date: 2012/03/18 08:21:46 $
+# $Revision: 1.1.2.3 $
 # Description: Makefile for GASNet PAMI conduit
 # Copyright 2012, Lawrence Berkeley National Laboratory
 # Terms of use are as specified in license.txt
@@ -11,7 +11,7 @@ AUTOMAKE_OPTIONS = foreign 1.4
 CONDUIT_NAME=pami
 
 # any conduit-specific subdirectories containing Makefile.am's
-SUBDIRS = .
+SUBDIRS = contrib
 
 # complete list of files in the conduit directory
 # include all headers, documentation, etc. 
@@ -56,7 +56,7 @@ CONDUIT_SPECIAL_OBJS =
 #   %Q = program arguments w/ an extra level of quotes
 #   %D = the current working directory
 #   %H = hostfile (if any)
-CONDUIT_RUNCMD = mpirun -np %N %P %A
+CONDUIT_RUNCMD = @TOP_BUILDDIR@/pami-conduit/contrib/gasnetrun_pami -np %N %P %A
 
 # conduit-specific tests in ../tests directory
 CONDUIT_TESTS =
