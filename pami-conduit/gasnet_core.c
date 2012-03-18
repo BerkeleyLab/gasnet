@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/17 08:39:57 $
- * $Revision: 1.1.2.11 $
+ *     $Date: 2012/03/18 02:03:40 $
+ * $Revision: 1.1.2.12 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -612,17 +612,78 @@ static void noop_dispatch(pami_context_t context, void *cookie,
   }
 }
 
-GASNETI_ALWAYS_INLINE(run_short)
-void run_short(gasnetc_shortmsg_t *msg, void *token, int is_request) {
-  gasnet_handler_t handler_id = msg->handler;
-  int numargs = msg->numargs;
-  gasnet_handlerarg_t *args = msg->args;
-  gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id];
+/* AM "run" functions inlined into event and dispatch functions invoked by PAMI */
 
-  GASNETI_RUN_HANDLER_SHORT(is_request,handler_id,handler_fn,token,args,numargs);
+typedef struct {
+  pami_endpoint_t origin;
+  int is_request;
+  int is_immediate;
+  const void * header;
+  void * payload; /* Only Medium */
+} gasnetc_msg_t;
+
+GASNETI_ALWAYS_INLINE(run_short)
+void run_short(gasnetc_msg_t *msg) {
+  const gasnetc_shortmsg_t *header = msg->header;
+  const int is_request = msg->is_request;
+  const gasnet_handler_t handler_id = header->handler;
+  const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id];
+  const gasnet_handlerarg_t *args = header->args;
+  const int numargs = header->numargs;
+
+  GASNETI_RUN_HANDLER_SHORT(is_request,handler_id,handler_fn,msg,args,numargs);
 }
 
-/* AM dispatch functions with names encoded as
+GASNETI_ALWAYS_INLINE(run_medium)
+void run_medium(gasnetc_msg_t *msg) {
+  const gasnetc_medmsg_t *header = msg->header;
+  const int is_request = msg->is_request;
+  const gasnet_handler_t handler_id = header->handler;
+  const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id];
+  const gasnet_handlerarg_t *args = header->args;
+  const int numargs = header->numargs;
+  void * const data = msg->payload;
+  const size_t nbytes = header->nbytes;
+
+  GASNETI_RUN_HANDLER_MEDIUM(is_request,handler_id,handler_fn,msg,args,numargs,data,nbytes);
+}
+
+GASNETI_ALWAYS_INLINE(run_long)
+void run_long(gasnetc_msg_t *msg) {
+  const gasnetc_longmsg_t *header = msg->header;
+  const int is_request = msg->is_request;
+  const gasnet_handler_t handler_id = header->handler;
+  const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id];
+  const gasnet_handlerarg_t *args = header->args;
+  const int numargs = header->numargs;
+  void * const data = (void*)header->addr;
+  const size_t nbytes = header->nbytes;
+
+  GASNETI_RUN_HANDLER_LONG(is_request,handler_id,handler_fn,msg,args,numargs,data,nbytes);
+}
+
+/* AM event functions, run when payload has been written */
+
+// No Short event functions - only "immediate" is implemented
+
+static void am_Med_event(pami_context_t context, void *cookie, pami_result_t status)
+{
+  gasnetc_msg_t * const msg = (gasnetc_msg_t *)cookie;
+  GASNETC_PAMI_CHECK(status, "while receiving AM Medium payload");
+  run_medium(msg);
+  if (! msg->is_immediate) gasneti_free(msg); // use freelist
+}
+
+static void am_Long_event(pami_context_t context, void *cookie, pami_result_t status)
+{
+  gasnetc_msg_t * const msg = (gasnetc_msg_t *)cookie;
+  GASNETC_PAMI_CHECK(status, "while receiving AM Long payload");
+  run_long(msg);
+  if (! msg->is_immediate) gasneti_free(msg); // use freelist
+}
+
+/* AM dispatch functions, run as soon as header has arrived.
+ * Names encoded as
  *    [SML] = category 
  *    [QP]  = reQuest vs rePly
  */
@@ -632,10 +693,19 @@ static void am_SQ_dispatch(pami_context_t context, void *cookie,
                            const void *pipe_addr, size_t pipe_size,
                            pami_endpoint_t origin, pami_recv_t *recv)
 {
-  gasneti_assert(!recv); // Only implement immediate recv case right now
-  gasneti_assert(pipe_addr); // Only use header right now
+  gasneti_assert(pipe_addr); /* Short only uses header */
 
-  run_short((/*const*/ gasnetc_shortmsg_t *)head_addr, &origin, 1);
+  if (!recv) {
+    /* Entire message has arrived - run now */
+    gasnetc_msg_t msg;
+    msg.origin = origin;
+    msg.is_request = 1;
+    msg.is_immediate = 1;
+    msg.header = head_addr;
+    run_short(&msg);
+  } else {
+    gasneti_fatalerror("Async receive for Short Request UNIMPLEMENTED"); // TODO
+  }
 }
 
 static void am_SP_dispatch(pami_context_t context, void *cookie,
@@ -643,10 +713,19 @@ static void am_SP_dispatch(pami_context_t context, void *cookie,
                            const void *pipe_addr, size_t pipe_size,
                            pami_endpoint_t origin, pami_recv_t *recv)
 {
-  gasneti_assert(!recv); // Only implement immediate recv case right now
-  gasneti_assert(pipe_addr); // Only use header right now
+  gasneti_assert(pipe_addr); /* Short only uses header */
 
-  run_short((/*const*/ gasnetc_shortmsg_t *)head_addr, &origin, 0);
+  if (!recv) {
+    /* Entire message has arrived - run now */
+    gasnetc_msg_t msg;
+    msg.origin = origin;
+    msg.is_request = 0;
+    msg.is_immediate = 1;
+    msg.header = head_addr;
+    run_short(&msg);
+  } else {
+    gasneti_fatalerror("Async receive for Short Reply UNIMPLEMENTED"); // TODO
+  }
 }
 
 
@@ -674,8 +753,36 @@ static void am_LP_dispatch(pami_context_t context, void *cookie,
                            const void *pipe_addr, size_t pipe_size,
                            pami_endpoint_t origin, pami_recv_t *recv)
 {
-  noop_dispatch(context, cookie, head_addr, head_size,
-                pipe_addr, pipe_size, origin, recv);
+  gasnetc_longmsg_t *longmsg = (gasnetc_longmsg_t *)head_addr;
+  if (!recv) { // PAMI bug: we've disabled this explicitly!
+    /* Entire message has arrived - copy data and run now */
+    gasnetc_msg_t msg;
+    msg.origin = origin;
+    msg.is_request = 1;
+    msg.is_immediate = 1;
+    msg.header = head_addr;
+    gasneti_assert(pipe_size == longmsg->nbytes);
+    memcpy((void*)longmsg->addr, pipe_addr, pipe_size);
+    run_long(&msg);
+  } else {
+    /* Only our header has arrived - setup copy data and async run */
+    gasnetc_msg_t *msg = gasneti_malloc(head_size + sizeof(gasnetc_msg_t));
+    msg->origin = origin;
+    msg->is_request = 1;
+    msg->is_immediate = 0;
+    /* copy header right after 'msg' */
+    msg->header = memcpy((msg+1), head_addr, head_size);
+    /* instruct PAMI how to deliver payload */
+    recv->cookie = msg;
+    recv->local_fn = &am_Long_event;
+    recv->addr = (void*)longmsg->addr;
+#if 0 /* the hints recv_contiguous and recv_copy ensure we can ignore these */
+    recv->type = PAMI_TYPE_BYTE;
+    recv->offset = 0;
+    recv->data_fn = PAMI_DATA_COPY;
+    recv->data_cookie = NULL;
+#endif
+  }
 }
 
 static void am_LQ_dispatch(pami_context_t context, void *cookie,
@@ -780,7 +887,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
     size_t offset;
     pami_result_t rc;
 
-    rc = PAMI_Endpoint_query(*(pami_endpoint_t *)token, &task, &offset);
+    rc = PAMI_Endpoint_query(((gasnetc_msg_t *)token)->origin, &task, &offset);
     GASNETC_PAMI_CHECK(rc, "calling PAMI_Endpoint_query()");
 
     sourceid = task; // simplify if/when gasnet_node_t == pami_task_t
@@ -911,7 +1018,38 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
     /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t) 
              and send the active message 
      */
-gasneti_fatalerror("AMRequestLong unimplemented");
+    pami_send_t send;
+    pami_result_t rc;
+    gasnetc_longmsg_t msg;
+    volatile unsigned int counter = 0;
+    int i;
+
+    // factor most of this
+    msg.addr = (uintptr_t)dest_addr;
+    msg.nbytes = nbytes;
+    msg.handler = handler;
+    msg.numargs = numargs;
+    for (i=0; i < numargs; ++i) {
+      msg.args[i] = va_arg(argptr, gasnet_handlerarg_t);
+    }
+
+// Register segment and apply appropriate hint(s) here
+    memset(&send.send.hints, 0, sizeof(send.send.hints));
+    send.send.header.iov_base = (char *)&msg;
+    send.send.header.iov_len = GASNETC_ARGSEND(long, numargs);
+    send.send.data.iov_base = (char *)source_addr;
+    send.send.data.iov_len = nbytes;
+    send.send.dest = gasnetc_endpoint(dest);
+    send.send.dispatch = GASNETC_DISP_LQ;
+    send.events.cookie = (void*)&counter;
+    send.events.local_fn = &gasnetc_cb_inc_uint;
+    send.events.remote_fn = NULL;
+
+    rc = PAMI_Send(gasnetc_context, &send);
+    GASNETC_PAMI_CHECK(rc, "from PAMI_Send(AMReqestLong)");
+
+    rc = gasnetc_wait_uint(gasnetc_context, &counter, 1);
+    GASNETC_PAMI_CHECK(rc, "progressing an AMRequestLong");
 
     retval = GASNET_OK;
   }

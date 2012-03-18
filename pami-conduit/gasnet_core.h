@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.h,v $
- *     $Date: 2012/03/17 06:56:51 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2012/03/18 02:03:40 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet header for PAMI conduit core
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -125,6 +125,7 @@ typedef struct _gasnet_hsl_t {
 
 #define GASNETC_MAX_ARGS            16
 #define GASNETC_MAX_MED             512
+#define GASNETC_MAX_LONG            0x7FFFFFFF
 
 #define gasnet_AMMaxArgs()          ((size_t)GASNETC_MAX_ARGS)
 #if GASNET_PSHM
@@ -136,8 +137,8 @@ typedef struct _gasnet_hsl_t {
 #else
   #define gasnet_AMMaxMedium()      ((size_t)GASNETC_MAX_MED) 
 #endif
-#define gasnet_AMMaxLongRequest()   ((size_t)512*1024*1024) /* XXX: best guess */
-#define gasnet_AMMaxLongReply()     ((size_t)512*1024*1024) /* XXX: best guess */
+#define gasnet_AMMaxLongRequest()   ((size_t)GASNETC_MAX_LONG)
+#define gasnet_AMMaxLongReply()     ((size_t)GASNETC_MAX_MED) // Assumes we cannot Advance in handler
 
 /* ------------------------------------------------------------------------------------ */
 /*
