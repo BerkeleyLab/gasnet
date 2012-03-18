@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testam.c,v $
- *     $Date: 2011/06/03 22:24:22 $
- * $Revision: 1.33 $
+ *     $Date: 2012/03/18 06:27:28 $
+ * $Revision: 1.33.10.1 $
  * Description: GASNet Active Messages performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -453,7 +453,7 @@ void doAMShort(void) {
     if (TEST_SECTION_BEGIN_ENABLED()) {                                          \
       uintptr_t sz; int64_t start;                                               \
       char msg[255];                                                             \
-      for (sz = 0; sz <= MAXREQREP; ) {                                          \
+      for (sz = 0; sz <= MAXREQ; ) {                                             \
         snprintf(msg, sizeof(msg), "%7llu "DESC_STR" flood     roundtrip ReqReq",\
                      (unsigned long long)sz);                                    \
         flag = 0;                                                                \
