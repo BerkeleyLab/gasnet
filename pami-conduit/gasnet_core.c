@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/18 07:47:01 $
- * $Revision: 1.1.2.17 $
+ *     $Date: 2012/03/18 22:35:42 $
+ * $Revision: 1.1.2.18 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -511,11 +511,16 @@ static int gasnetc_exit_reduce(void) {
   gasnetc_exit_reduce_op.cmd.xfer_allreduce.data_cookie = NULL;
   gasnetc_exit_reduce_op.cmd.xfer_allreduce.commutative = 1;
 
+  GASNETC_PAMI_LOCK(gasnetc_context);
   rc = PAMI_Collective(gasnetc_context, &gasnetc_exit_reduce_op);
   if (rc != PAMI_SUCCESS) return 1;
+  GASNETC_PAMI_UNLOCK(gasnetc_context);
 
   while (! gasneti_weakatomic_read(&counter, 0)) { /* TODO: Factor poll-with-timeout? */
-    if ((PAMI_SUCCESS != PAMI_Context_advance(gasnetc_context, 1)) ||
+    GASNETC_PAMI_LOCK(gasnetc_context);
+    rc = PAMI_Context_advance(gasnetc_context, 1);
+    GASNETC_PAMI_UNLOCK(gasnetc_context);
+    if ((rc != PAMI_SUCCESS) ||
         (timeout_ns < gasneti_ticks_to_ns(gasneti_ticks_now() - start_time))) {
       return 1;
     }
@@ -741,7 +746,8 @@ static void am_MQ_dispatch(pami_context_t context, void *cookie,
     gasnetc_msg_t msg;
     msg.is_request = 1;
     msg.header = head_addr;
-    msg.payload = (void*)pipe_addr; // Is this legal?
+    msg.payload = (void*)pipe_addr; // Is this legal?  Is this aligned?
+    gasneti_assert(0 == ((uintptr_t)pipe_addr % GASNETI_MEDBUF_ALIGNMENT));
     gasneti_assert(pipe_size == medmsg->nbytes);
     run_medium(&msg);
   } else {
@@ -973,7 +979,11 @@ extern int gasnetc_AMPoll(void) {
 #endif
 
   /* (###) add code here to run your AM progress engine */
+#if GASNET_PAR
+  PAMI_Context_trylock_advancev(&gasnetc_context, 1, 1);
+#else
   PAMI_Context_advance(gasnetc_context, 1);
+#endif
 
   return GASNET_OK;
 }
@@ -1041,8 +1051,10 @@ extern int gasnetc_AMRequestShortM(
     send.dest = gasnetc_endpoint(dest);
     send.dispatch = GASNETC_DISP_SQ;
 
+    GASNETC_PAMI_LOCK(gasnetc_context);
     rc = PAMI_Send_immediate(gasnetc_context, &send);
     GASNETC_PAMI_CHECK(rc, "from PAMI_Send_immediate(AMReqestShort)");
+    GASNETC_PAMI_UNLOCK(gasnetc_context);
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -1103,8 +1115,10 @@ extern int gasnetc_AMRequestMediumM(
     send.events.local_fn = &gasnetc_cb_free;
     send.events.remote_fn = NULL;
 
+    GASNETC_PAMI_LOCK(gasnetc_context);
     rc = PAMI_Send(gasnetc_context, &send);
     GASNETC_PAMI_CHECK(rc, "from PAMI_Send(AMReqestMedium)");
+    GASNETC_PAMI_UNLOCK(gasnetc_context);
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -1160,11 +1174,13 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
     send.events.local_fn = &gasnetc_cb_inc_uint;
     send.events.remote_fn = NULL;
 
+    GASNETC_PAMI_LOCK(gasnetc_context);
     rc = PAMI_Send(gasnetc_context, &send);
     GASNETC_PAMI_CHECK(rc, "from PAMI_Send(AMReqestLong)");
 
     rc = gasnetc_wait_uint(gasnetc_context, &counter, 1);
     GASNETC_PAMI_CHECK(rc, "progressing an AMRequestLong");
+    GASNETC_PAMI_UNLOCK(gasnetc_context);
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -1219,8 +1235,10 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     send.events.local_fn = &gasnetc_cb_free;
     send.events.remote_fn = NULL;
 
+    GASNETC_PAMI_LOCK(gasnetc_context);
     rc = PAMI_Send(gasnetc_context, &send);
     GASNETC_PAMI_CHECK(rc, "from PAMI_Send(AMReqestLongAsync)");
+    GASNETC_PAMI_UNLOCK(gasnetc_context);
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -1270,6 +1288,7 @@ extern int gasnetc_AMReplyShortM(
     send.dest = gasnetc_endpoint(dest);
     send.dispatch = GASNETC_DISP_SP;
 
+    /* Lock is held in handler context */
     rc = PAMI_Send_immediate(gasnetc_context, &send);
     GASNETC_PAMI_CHECK(rc, "from PAMI_Send_immediate(AMReplyShort)");
   }
@@ -1335,6 +1354,7 @@ extern int gasnetc_AMReplyMediumM(
     send.events.local_fn = &gasnetc_cb_free;
     send.events.remote_fn = NULL;
 
+    /* Lock is held in handler context */
     rc = PAMI_Send(gasnetc_context, &send);
     GASNETC_PAMI_CHECK(rc, "from PAMI_Send(AMReplyMedium)");
   }
@@ -1400,6 +1420,7 @@ extern int gasnetc_AMReplyLongM(
     send.events.local_fn = &gasnetc_cb_free;
     send.events.remote_fn = NULL;
 
+    /* Lock is held in handler context */
     rc = PAMI_Send(gasnetc_context, &send);
     GASNETC_PAMI_CHECK(rc, "from PAMI_Send(AMReplyLong)");
   }

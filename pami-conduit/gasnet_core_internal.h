@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core_internal.h,v $
- *     $Date: 2012/03/18 06:18:28 $
- * $Revision: 1.1.2.11 $
+ *     $Date: 2012/03/18 22:35:42 $
+ * $Revision: 1.1.2.12 $
  * Description: GASNet PAMI conduit header for internal definitions in Core API
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -98,9 +98,21 @@ extern pami_geometry_t    gasnetc_world_geom;
 extern pami_endpoint_t    *gasnetc_endpoint_tbl;
 
 /* ------------------------------------------------------------------------------------ */
+/* Thread safety */
+
+// TODO: debug checks?
+#if GASNET_PAR
+  #define GASNETC_PAMI_LOCK(context)   PAMI_Context_lock(context)
+  #define GASNETC_PAMI_UNLOCK(context) PAMI_Context_unlock(context)
+#else
+  #define GASNETC_PAMI_LOCK(context)   do { } while (0)
+  #define GASNETC_PAMI_UNLOCK(context) do { } while (0)
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 /* Endpoints */
 
-/* TODO: multiple contexts? */
+// TODO: multiple contexts?
 GASNETI_INLINE(gasnetc_endpoint)
 pami_endpoint_t gasnetc_endpoint(gasnet_node_t node) {
   pami_endpoint_t result = gasnetc_endpoint_tbl[node];
