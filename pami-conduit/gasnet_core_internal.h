@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core_internal.h,v $
- *     $Date: 2012/03/18 22:35:42 $
- * $Revision: 1.1.2.12 $
+ *     $Date: 2012/03/18 22:49:36 $
+ * $Revision: 1.1.2.13 $
  * Description: GASNet PAMI conduit header for internal definitions in Core API
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -70,11 +70,11 @@ typedef struct {
 } gasnetc_medmsg_t;
 
 typedef struct {
-  uintptr_t             addr;
   gasnet_node_t         srcnode;
-  uint32_t              nbytes; /* type limits our MaxLong */
   gasnet_handler_t      handler;
   uint8_t               numargs;
+  uint32_t              nbytes; /* type limits our MaxLong */
+  uintptr_t             addr;
   gasnet_handlerarg_t   args[GASNETC_MAX_ARGS];
 } gasnetc_longmsg_t;
 
