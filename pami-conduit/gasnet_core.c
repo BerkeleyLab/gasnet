@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/18 02:03:40 $
- * $Revision: 1.1.2.12 $
+ *     $Date: 2012/03/18 05:51:37 $
+ * $Revision: 1.1.2.13 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -588,6 +588,7 @@ extern void gasnetc_exit(int exitcode) {
  */
 #endif
 
+static gasnet_node_t *gasnetc_loopback_token = &gasneti_mynode;
 static size_t      gasnetc_send_imm_max;
 static size_t      gasnetc_recv_imm_max;
 
@@ -615,7 +616,7 @@ static void noop_dispatch(pami_context_t context, void *cookie,
 /* AM "run" functions inlined into event and dispatch functions invoked by PAMI */
 
 typedef struct {
-  pami_endpoint_t origin;
+  gasnet_node_t srcnode; /* MUST be first */
   int is_request;
   int is_immediate;
   const void * header;
@@ -631,6 +632,7 @@ void run_short(gasnetc_msg_t *msg) {
   const gasnet_handlerarg_t *args = header->args;
   const int numargs = header->numargs;
 
+  msg->srcnode = header->srcnode;
   GASNETI_RUN_HANDLER_SHORT(is_request,handler_id,handler_fn,msg,args,numargs);
 }
 
@@ -645,6 +647,7 @@ void run_medium(gasnetc_msg_t *msg) {
   void * const data = msg->payload;
   const size_t nbytes = header->nbytes;
 
+  msg->srcnode = header->srcnode;
   GASNETI_RUN_HANDLER_MEDIUM(is_request,handler_id,handler_fn,msg,args,numargs,data,nbytes);
 }
 
@@ -659,6 +662,7 @@ void run_long(gasnetc_msg_t *msg) {
   void * const data = (void*)header->addr;
   const size_t nbytes = header->nbytes;
 
+  msg->srcnode = header->srcnode;
   GASNETI_RUN_HANDLER_LONG(is_request,handler_id,handler_fn,msg,args,numargs,data,nbytes);
 }
 
@@ -698,7 +702,6 @@ static void am_SQ_dispatch(pami_context_t context, void *cookie,
   if (!recv) {
     /* Entire message has arrived - run now */
     gasnetc_msg_t msg;
-    msg.origin = origin;
     msg.is_request = 1;
     msg.is_immediate = 1;
     msg.header = head_addr;
@@ -718,7 +721,6 @@ static void am_SP_dispatch(pami_context_t context, void *cookie,
   if (!recv) {
     /* Entire message has arrived - run now */
     gasnetc_msg_t msg;
-    msg.origin = origin;
     msg.is_request = 0;
     msg.is_immediate = 1;
     msg.header = head_addr;
@@ -748,16 +750,16 @@ static void am_MP_dispatch(pami_context_t context, void *cookie,
 }
 
 
-static void am_LP_dispatch(pami_context_t context, void *cookie,
+static void am_LQ_dispatch(pami_context_t context, void *cookie,
                            const void *head_addr, size_t head_size,
                            const void *pipe_addr, size_t pipe_size,
                            pami_endpoint_t origin, pami_recv_t *recv)
 {
   gasnetc_longmsg_t *longmsg = (gasnetc_longmsg_t *)head_addr;
+
   if (!recv) { // PAMI bug: we've disabled this explicitly!
     /* Entire message has arrived - copy data and run now */
     gasnetc_msg_t msg;
-    msg.origin = origin;
     msg.is_request = 1;
     msg.is_immediate = 1;
     msg.header = head_addr;
@@ -767,7 +769,6 @@ static void am_LP_dispatch(pami_context_t context, void *cookie,
   } else {
     /* Only our header has arrived - setup copy data and async run */
     gasnetc_msg_t *msg = gasneti_malloc(head_size + sizeof(gasnetc_msg_t));
-    msg->origin = origin;
     msg->is_request = 1;
     msg->is_immediate = 0;
     /* copy header right after 'msg' */
@@ -785,7 +786,7 @@ static void am_LP_dispatch(pami_context_t context, void *cookie,
   }
 }
 
-static void am_LQ_dispatch(pami_context_t context, void *cookie,
+static void am_LP_dispatch(pami_context_t context, void *cookie,
                            const void *head_addr, size_t head_size,
                            const void *pipe_addr, size_t pipe_size,
                            pami_endpoint_t origin, pami_recv_t *recv)
@@ -883,14 +884,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
 #endif
   {
     /* (###) add code here to write the source index into sourceid. */
-    pami_task_t task;
-    size_t offset;
-    pami_result_t rc;
-
-    rc = PAMI_Endpoint_query(((gasnetc_msg_t *)token)->origin, &task, &offset);
-    GASNETC_PAMI_CHECK(rc, "calling PAMI_Endpoint_query()");
-
-    sourceid = task; // simplify if/when gasnet_node_t == pami_task_t
+    sourceid = *(gasnet_node_t *)token;
   }
 
   gasneti_assert(sourceid < gasneti_nodes);
@@ -919,11 +913,27 @@ extern int gasnetc_AMPoll(void) {
   ================================
 */
 
+#define GASNETC_AM_COPY_ARGS(_args, _numargs, _argptr)           \
+  do {                                                           \
+    int _i;                                                      \
+    for (_i = 0; _i < _numargs; ++_i) {                          \
+      (_args)[_i] = va_arg(_argptr, gasnet_handlerarg_t);        \
+    }                                                            \
+  } while (0)
+
+#define GASNETC_AM_MSG_COMMON(_msg, _handler, _numargs, _argptr) \
+  do {                                                           \
+    (_msg).srcnode = gasneti_mynode;                             \
+    (_msg).handler = _handler;                                   \
+    (_msg).numargs = _numargs;                                   \
+    GASNETC_AM_COPY_ARGS((_msg).args, _numargs, _argptr);        \
+  } while (0)
+
 extern int gasnetc_AMRequestShortM( 
                             gasnet_node_t dest,       /* destination node */
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             int numargs, ...) {
-  int retval;
+  int retval = GASNET_OK;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTSHORT(dest,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
@@ -933,6 +943,13 @@ extern int gasnetc_AMRequestShortM(
     retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Short, dest, handler,
                                            0, 0, 0,
                                            numargs, argptr);
+  } else
+#else
+  if (dest == gasneti_mynode) {
+    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
+    gasnet_handlerarg_t args[GASNETC_MAX_ARGS];
+    GASNETC_AM_COPY_ARGS(args, numargs, argptr);
+    GASNETI_RUN_HANDLER_SHORT(1,handler,handler_fn,gasnetc_loopback_token,args,numargs);
   } else
 #endif
   {
@@ -944,12 +961,7 @@ extern int gasnetc_AMRequestShortM(
     gasnetc_shortmsg_t msg;
     int i;
 
-    // factor most of this
-    msg.handler = handler;
-    msg.numargs = numargs;
-    for (i=0; i < numargs; ++i) {
-      msg.args[i] = va_arg(argptr, gasnet_handlerarg_t);
-    }
+    GASNETC_AM_MSG_COMMON(msg, handler, numargs, argptr);
 
     memset(&send.hints, 0, sizeof(send.hints));
     send.header.iov_base = (char *)&msg;
@@ -961,8 +973,6 @@ extern int gasnetc_AMRequestShortM(
 
     rc = PAMI_Send_immediate(gasnetc_context, &send);
     GASNETC_PAMI_CHECK(rc, "from PAMI_Send_immediate(AMReqestShort)");
-
-    retval = GASNET_OK;
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -973,7 +983,7 @@ extern int gasnetc_AMRequestMediumM(
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             int numargs, ...) {
-  int retval;
+  int retval = GASNET_OK;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
@@ -984,14 +994,19 @@ extern int gasnetc_AMRequestMediumM(
                                            source_addr, nbytes, 0,
                                            numargs, argptr);
   } else
+#else
+  if (dest == gasneti_mynode) {
+    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
+    gasnet_handlerarg_t args[GASNETC_MAX_ARGS];
+    GASNETC_AM_COPY_ARGS(args, numargs, argptr);
+gasneti_fatalerror("AMRequestMedium unimplemented");
+  } else
 #endif
   {
     /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t) 
              and send the active message 
      */
 gasneti_fatalerror("AMRequestMedium unimplemented");
-
-    retval = GASNET_OK;
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -1002,7 +1017,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
-  int retval;
+  int retval = GASNET_OK;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1012,6 +1027,14 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
     retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Long, dest, handler,
                                            source_addr, nbytes, dest_addr,
                                            numargs, argptr);
+  } else
+#else
+  if (dest == gasneti_mynode) {
+    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
+    gasnet_handlerarg_t args[GASNETC_MAX_ARGS];
+    GASNETC_AM_COPY_ARGS(args, numargs, argptr);
+    memcpy(dest_addr, source_addr, nbytes);
+    GASNETI_RUN_HANDLER_LONG(1,handler,handler_fn,gasnetc_loopback_token,args,numargs,dest_addr,nbytes);
   } else
 #endif
   {
@@ -1024,14 +1047,9 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
     volatile unsigned int counter = 0;
     int i;
 
-    // factor most of this
+    GASNETC_AM_MSG_COMMON(msg, handler, numargs, argptr);
     msg.addr = (uintptr_t)dest_addr;
     msg.nbytes = nbytes;
-    msg.handler = handler;
-    msg.numargs = numargs;
-    for (i=0; i < numargs; ++i) {
-      msg.args[i] = va_arg(argptr, gasnet_handlerarg_t);
-    }
 
 // Register segment and apply appropriate hint(s) here
     memset(&send.send.hints, 0, sizeof(send.send.hints));
@@ -1050,8 +1068,6 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 
     rc = gasnetc_wait_uint(gasnetc_context, &counter, 1);
     GASNETC_PAMI_CHECK(rc, "progressing an AMRequestLong");
-
-    retval = GASNET_OK;
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -1062,7 +1078,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
-  int retval;
+  int retval = GASNET_OK;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1073,14 +1089,20 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
                                            source_addr, nbytes, dest_addr,
                                            numargs, argptr);
   } else
+#else
+  if (dest == gasneti_mynode) {
+    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
+    gasnet_handlerarg_t args[GASNETC_MAX_ARGS];
+    GASNETC_AM_COPY_ARGS(args, numargs, argptr);
+    memcpy(dest_addr, source_addr, nbytes);
+    GASNETI_RUN_HANDLER_LONG(1,handler,handler_fn,gasnetc_loopback_token,args,numargs,dest_addr,nbytes);
+  } else
 #endif
   {
     /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t) 
              and send the active message 
      */
 gasneti_fatalerror("AMRequestLongAsync unimplemented");
-
-    retval = GASNET_OK;
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -1090,7 +1112,7 @@ extern int gasnetc_AMReplyShortM(
                             gasnet_token_t token,       /* token provided on handler entry */
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             int numargs, ...) {
-  int retval;
+  int retval = GASNET_OK;
   va_list argptr;
   GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1100,6 +1122,13 @@ extern int gasnetc_AMReplyShortM(
     retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Short, token, handler,
                                          0, 0, 0,
                                          numargs, argptr);
+  } else
+#else
+  if (token == gasnetc_loopback_token) {
+    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
+    gasnet_handlerarg_t args[GASNETC_MAX_ARGS];
+    GASNETC_AM_COPY_ARGS(args, numargs, argptr);
+    GASNETI_RUN_HANDLER_SHORT(0,handler,handler_fn,gasnetc_loopback_token,args,numargs);
   } else
 #endif
   { 
@@ -1114,12 +1143,7 @@ extern int gasnetc_AMReplyShortM(
     gasnet_node_t dest;
     GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &dest));
 
-    // factor most of this
-    msg.handler = handler;
-    msg.numargs = numargs;
-    for (i=0; i < numargs; ++i) {
-      msg.args[i] = va_arg(argptr, gasnet_handlerarg_t);
-    }
+    GASNETC_AM_MSG_COMMON(msg, handler, numargs, argptr);
 
     memset(&send.hints, 0, sizeof(send.hints));
     send.header.iov_base = (char *)&msg;
@@ -1131,8 +1155,6 @@ extern int gasnetc_AMReplyShortM(
 
     rc = PAMI_Send_immediate(gasnetc_context, &send);
     GASNETC_PAMI_CHECK(rc, "from PAMI_Send_immediate(AMReplyShort)");
-
-    retval = GASNET_OK;
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -1143,7 +1165,7 @@ extern int gasnetc_AMReplyMediumM(
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             int numargs, ...) {
-  int retval;
+  int retval = GASNET_OK;
   va_list argptr;
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1154,14 +1176,19 @@ extern int gasnetc_AMReplyMediumM(
                                          source_addr, nbytes, 0,
                                          numargs, argptr);
   } else
+#else
+  if (token == gasnetc_loopback_token) {
+    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
+    gasnet_handlerarg_t args[GASNETC_MAX_ARGS];
+    GASNETC_AM_COPY_ARGS(args, numargs, argptr);
+gasneti_fatalerror("AMReplyMedium unimplemented");
+  } else
 #endif
   {
     /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t) 
              and send the active message 
      */
 gasneti_fatalerror("AMReplyMedium unimplemented");
-
-    retval = GASNET_OK;
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -1173,7 +1200,7 @@ extern int gasnetc_AMReplyLongM(
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
-  int retval;
+  int retval = GASNET_OK;
   va_list argptr;
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1184,14 +1211,20 @@ extern int gasnetc_AMReplyLongM(
                                          source_addr, nbytes, dest_addr,
                                          numargs, argptr);
   } else
+#else
+  if (token == gasnetc_loopback_token) {
+    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
+    gasnet_handlerarg_t args[GASNETC_MAX_ARGS];
+    GASNETC_AM_COPY_ARGS(args, numargs, argptr);
+    memcpy(dest_addr, source_addr, nbytes);
+    GASNETI_RUN_HANDLER_LONG(0,handler,handler_fn,gasnetc_loopback_token,args,numargs,dest_addr,nbytes);
+  } else
 #endif
   {
     /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t) 
              and send the active message 
      */
 gasneti_fatalerror("AMReplyLong unimplemented");
-
-    retval = GASNET_OK;
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
