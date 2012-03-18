@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/18 06:18:28 $
- * $Revision: 1.1.2.14 $
+ *     $Date: 2012/03/18 06:43:23 $
+ * $Revision: 1.1.2.15 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -998,8 +998,11 @@ extern int gasnetc_AMRequestMediumM(
   if (dest == gasneti_mynode) {
     const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
     gasnet_handlerarg_t args[GASNETC_MAX_ARGS];
+    void *dest_addr = alloca(nbytes); 
+    gasneti_assert(0 == ((uintptr_t)dest_addr % GASNETI_MEDBUF_ALIGNMENT));
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
-gasneti_fatalerror("AMRequestMedium unimplemented");
+    memcpy(dest_addr, source_addr, nbytes);
+    GASNETI_RUN_HANDLER_MEDIUM(1,handler,handler_fn,gasnetc_loopback_token,args,numargs,dest_addr,nbytes);
   } else
 #endif
   {
@@ -1007,6 +1010,7 @@ gasneti_fatalerror("AMRequestMedium unimplemented");
              and send the active message 
      */
 gasneti_fatalerror("AMRequestMedium unimplemented");
+// TODO: send in-place if fits w/i immediate limit
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -1202,8 +1206,11 @@ extern int gasnetc_AMReplyMediumM(
   if (token == gasnetc_loopback_token) {
     const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
     gasnet_handlerarg_t args[GASNETC_MAX_ARGS];
+    void *dest_addr = alloca(nbytes); 
+    gasneti_assert(0 == ((uintptr_t)dest_addr % GASNETI_MEDBUF_ALIGNMENT));
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
-gasneti_fatalerror("AMReplyMedium unimplemented");
+    memcpy(dest_addr, source_addr, nbytes);
+    GASNETI_RUN_HANDLER_MEDIUM(0,handler,handler_fn,gasnetc_loopback_token,args,numargs,dest_addr,nbytes);
   } else
 #endif
   {
