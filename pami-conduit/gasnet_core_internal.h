@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core_internal.h,v $
- *     $Date: 2012/03/18 05:51:37 $
- * $Revision: 1.1.2.10 $
+ *     $Date: 2012/03/18 06:18:28 $
+ * $Revision: 1.1.2.11 $
  * Description: GASNet PAMI conduit header for internal definitions in Core API
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -120,6 +120,7 @@ pami_endpoint_t gasnetc_endpoint(gasnet_node_t node) {
 extern void gasnetc_cb_inc_uint(pami_context_t, void *, pami_result_t);
 extern void gasnetc_cb_inc_atomic(pami_context_t, void *, pami_result_t);
 extern void gasnetc_cb_inc_release(pami_context_t, void *, pami_result_t);
+extern void gasnetc_cb_free(pami_context_t, void *, pami_result_t);
 
 /* spin-poll a simple (non-atomic) counter */
 GASNETI_INLINE(gasnetc_wait_uint)

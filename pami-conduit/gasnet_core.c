@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/18 05:51:37 $
- * $Revision: 1.1.2.13 $
+ *     $Date: 2012/03/18 06:18:28 $
+ * $Revision: 1.1.2.14 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -1102,7 +1102,29 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t) 
              and send the active message 
      */
-gasneti_fatalerror("AMRequestLongAsync unimplemented");
+    pami_send_t send;
+    pami_result_t rc;
+    gasnetc_longmsg_t *msg_p = gasneti_malloc(sizeof(gasnetc_longmsg_t)); // use freelist
+    int i;
+
+    GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr);
+    msg_p->addr = (uintptr_t)dest_addr;
+    msg_p->nbytes = nbytes;
+
+// Register segment and apply appropriate hint(s) here
+    memset(&send.send.hints, 0, sizeof(send.send.hints));
+    send.send.header.iov_base = (char *)msg_p;
+    send.send.header.iov_len = GASNETC_ARGSEND(long, numargs);
+    send.send.data.iov_base = (char *)source_addr;
+    send.send.data.iov_len = nbytes;
+    send.send.dest = gasnetc_endpoint(dest);
+    send.send.dispatch = GASNETC_DISP_LQ;
+    send.events.cookie = (void*)msg_p;
+    send.events.local_fn = &gasnetc_cb_free;
+    send.events.remote_fn = NULL;
+
+    rc = PAMI_Send(gasnetc_context, &send);
+    GASNETC_PAMI_CHECK(rc, "from PAMI_Send(AMReqestLongAsync)");
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -1396,6 +1418,11 @@ extern void gasnetc_cb_inc_atomic(pami_context_t context, void *cookie, pami_res
 extern void gasnetc_cb_inc_release(pami_context_t context, void *cookie, pami_result_t status) {
   gasneti_weakatomic_t *counter_p = (gasneti_weakatomic_t *)cookie;
   gasneti_weakatomic_increment(counter_p, GASNETI_ATOMIC_REL);
+}
+
+/* callback to free the cookie */
+extern void gasnetc_cb_free(pami_context_t context, void *cookie, pami_result_t status) {
+  gasneti_free(cookie);
 }
 
 /* ------------------------------------------------------------------------------------ */
