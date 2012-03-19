@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/19 17:21:00 $
- * $Revision: 1.1.2.28 $
+ *     $Date: 2012/03/19 17:25:58 $
+ * $Revision: 1.1.2.29 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -755,7 +755,8 @@ static void am_Short_dispatch(
                            pami_endpoint_t origin, pami_recv_t *recv)
 {
   gasnetc_shortmsg_t *shortmsg = (gasnetc_shortmsg_t *)head_addr;
-  gasneti_assert(pipe_addr); /* Short only uses header */
+
+  gasneti_assert(head_size == GASNETC_ARGSEND(short, shortmsg->numargs));
 
   if (!recv) {
     /* Entire message has arrived - run now */
@@ -776,6 +777,8 @@ static void am_Med_dispatch(
   gasnetc_medmsg_t *medmsg = (gasnetc_medmsg_t *)head_addr;
   gasnetc_token_t *token = gasnetc_get_big_token();
   void *data = GASNETC_TOKEN_PAYLOAD(token);
+
+  gasneti_assert(head_size == GASNETC_ARGSEND(med, medmsg->numargs));
 
   memcpy(token, head_addr, head_size);
 
@@ -807,6 +810,8 @@ static void am_Long_dispatch(
 {
   gasnetc_longmsg_t *longmsg = (gasnetc_longmsg_t *)head_addr;
   void * const data = (void*)longmsg->addr;
+
+  gasneti_assert(head_size == GASNETC_ARGSEND(long, longmsg->numargs));
 
   if (!recv) { // PAMI bug: we've disabled this explicitly!
     /* Entire message has arrived - copy data and run now */
