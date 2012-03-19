@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/19 01:03:46 $
- * $Revision: 1.1.2.21 $
+ *     $Date: 2012/03/19 01:05:36 $
+ * $Revision: 1.1.2.22 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -48,9 +48,6 @@ static void gasnetc_check_config(void) {
 
   /* (###) add code to do some sanity checks on the number of nodes, handlers
    * and/or segment sizes */ 
-  printf("S:%d\n", (int)sizeof(gasnetc_shortmsg_t) );
-  printf("M:%d\n", (int)sizeof(gasnetc_medmsg_t) );
-  printf("L:%d\n", (int)sizeof(gasnetc_longmsg_t) );
 }
 
 /* Get the first "always works" algorithm for a given collective operation */
