@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/19 03:32:03 $
- * $Revision: 1.1.2.25 $
+ *     $Date: 2012/03/19 03:51:51 $
+ * $Revision: 1.1.2.26 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -831,6 +831,8 @@ static int gasnetc_am_init(void) {
   pami_dispatch_callback_function fn;
   pami_configuration_t conf[2];
   pami_result_t rc;
+
+  gasneti_assert_always(GASNETC_MAX_MED_RESRV >= sizeof(gasnetc_token_t));
 
   conf[0].name = PAMI_CONTEXT_DISPATCH_ID_MAX;
   rc = PAMI_Context_query(gasnetc_context, conf, 1);
