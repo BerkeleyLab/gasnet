@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.h,v $
- *     $Date: 2012/03/19 02:52:49 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2012/03/19 03:50:54 $
+ * $Revision: 1.1.2.7 $
  * Description: GASNet header for PAMI conduit core
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -125,10 +125,10 @@ typedef struct _gasnet_hsl_t {
 
 #define GASNETC_MAX_ARGS            16
 #define GASNETC_MAX_MED_ALLOC       4096 /* Space allocated per AM Medium */
-#define GASNETC_MAX_MED_RESRV       128 /* Space used for header and bookkeeping */
+#define GASNETC_MAX_MED_RESRV       128 /* Space used for header and bookkeeping (cache aligned) */
 #define GASNETC_MAX_MED             (GASNETC_MAX_MED_ALLOC - GASNETC_MAX_MED_RESRV)
 #define GASNETC_MAX_LONG_REQ        0x7FFFFFFF
-#define GASNETC_MAX_LONG_REP        GASNETC_MAX_MED_ALLOC /* Use same buffer pool as Medium */
+#define GASNETC_MAX_LONG_REP        GASNETC_MAX_MED /* Uses same scheme as Medium */
 
 #define gasnet_AMMaxArgs()          ((size_t)GASNETC_MAX_ARGS)
 #if GASNET_PSHM
