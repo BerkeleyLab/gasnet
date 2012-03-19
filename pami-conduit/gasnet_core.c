@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/19 03:26:57 $
- * $Revision: 1.1.2.24 $
+ *     $Date: 2012/03/19 03:32:03 $
+ * $Revision: 1.1.2.25 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -493,7 +493,7 @@ static int gasnetc_exit_init(void) {
 static int gasnetc_exit_reduce(void) {
   gasneti_tick_t start_time = gasneti_ticks_now();
   int64_t timeout_ns = gasnetc_exittimeout * 1.0e9;
-  uint8_t exitcode;
+  static uint8_t exitcode;
   pami_result_t rc;
 
   gasneti_weakatomic_t counter = gasneti_weakatomic_init(0);
@@ -501,10 +501,10 @@ static int gasnetc_exit_reduce(void) {
   gasnetc_exit_reduce_op.cb_done = &gasnetc_cb_inc_release;
   gasnetc_exit_reduce_op.options.multicontext = PAMI_HINT_DISABLE;
 
-  gasnetc_exit_reduce_op.cmd.xfer_allreduce.sndbuf = &gasnetc_exitcode;
+  gasnetc_exit_reduce_op.cmd.xfer_allreduce.sndbuf = (char*)&gasnetc_exitcode;
   gasnetc_exit_reduce_op.cmd.xfer_allreduce.stype = PAMI_TYPE_UNSIGNED_CHAR;
   gasnetc_exit_reduce_op.cmd.xfer_allreduce.stypecount = 1;
-  gasnetc_exit_reduce_op.cmd.xfer_allreduce.rcvbuf = &exitcode;
+  gasnetc_exit_reduce_op.cmd.xfer_allreduce.rcvbuf = (char*)&exitcode;
   gasnetc_exit_reduce_op.cmd.xfer_allreduce.rtype = PAMI_TYPE_UNSIGNED_CHAR;
   gasnetc_exit_reduce_op.cmd.xfer_allreduce.rtypecount = 1;
   gasnetc_exit_reduce_op.cmd.xfer_allreduce.op = PAMI_DATA_MAX;
