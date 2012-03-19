@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/19 17:10:24 $
- * $Revision: 1.1.2.27 $
+ *     $Date: 2012/03/19 17:21:00 $
+ * $Revision: 1.1.2.28 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -1006,7 +1006,7 @@ extern int gasnetc_AMRequestShortM(
     pami_result_t rc;
     gasnetc_shortmsg_t msg;
 
-    GASNETC_AM_MSG_COMMON(msg, handler, numargs, argptr, 0);
+    GASNETC_AM_MSG_COMMON(msg, handler, numargs, argptr, 1);
 
     memset(&send.hints, 0, sizeof(send.hints));
     send.header.iov_base = (char *)&msg;
@@ -1062,7 +1062,7 @@ extern int gasnetc_AMRequestMediumM(
     gasnetc_medmsg_t *msg_p = &(gasnetc_get_big_token()->medmsg);
     char * payload = GASNETC_TOKEN_PAYLOAD(msg_p);
 
-    GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr, 0);
+    GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr, 1);
     msg_p->nbytes = nbytes;
     memcpy(payload, source_addr, nbytes);
 
@@ -1121,7 +1121,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
     gasnetc_longmsg_t msg;
     volatile unsigned int counter = 0;
 
-    GASNETC_AM_MSG_COMMON(msg, handler, numargs, argptr, 0);
+    GASNETC_AM_MSG_COMMON(msg, handler, numargs, argptr, 1);
     msg.addr = (uintptr_t)dest_addr;
     msg.nbytes = nbytes;
 
@@ -1182,7 +1182,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     pami_result_t rc;
     gasnetc_longmsg_t *msg_p = &(gasnetc_get_token()->longmsg);
 
-    GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr, 0);
+    GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr, 1);
     msg_p->addr = (uintptr_t)dest_addr;
     msg_p->nbytes = nbytes;
 
@@ -1242,7 +1242,7 @@ extern int gasnetc_AMReplyShortM(
     GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &dest));
 
     GASNETC_AM_VALIDATE_TOKEN(short, token);
-    GASNETC_AM_MSG_COMMON(msg, handler, numargs, argptr, 1);
+    GASNETC_AM_MSG_COMMON(msg, handler, numargs, argptr, 0);
 
     memset(&send.hints, 0, sizeof(send.hints));
     send.header.iov_base = (char *)&msg;
@@ -1301,7 +1301,7 @@ extern int gasnetc_AMReplyMediumM(
     GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &dest));
 
     GASNETC_AM_VALIDATE_TOKEN(med, token);
-    GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr, 1);
+    GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr, 0);
     msg_p->nbytes = nbytes;
     memcpy(payload, source_addr, nbytes);
 
@@ -1365,7 +1365,7 @@ extern int gasnetc_AMReplyLongM(
     GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &dest));
 
     GASNETC_AM_VALIDATE_TOKEN(long, token);
-    GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr, 1);
+    GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr, 0);
     msg_p->nbytes = nbytes;
     msg_p->addr = (uintptr_t)dest_addr;
     memcpy(payload, source_addr, nbytes);
