@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/19 01:05:36 $
- * $Revision: 1.1.2.22 $
+ *     $Date: 2012/03/19 02:52:49 $
+ * $Revision: 1.1.2.23 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -620,15 +620,65 @@ static void noop_dispatch(pami_context_t context, void *cookie,
 
 /* AM "run" functions inlined into event and dispatch functions invoked by PAMI */
 
-/* The received header and additional metadata contitute our "token" */
+/* The received header (and debugging metadata) contitute our "token" */
 typedef struct {
   union {
     gasnetc_shortmsg_t    shortmsg;
     gasnetc_medmsg_t      medmsg;
     gasnetc_longmsg_t     longmsg;
   } header;
-  void * payload; /* Only Medium */
+// TODO: add reply_sent and any other debug support here
 } gasnetc_token_t;
+
+
+// Does serialization of handlers reduce sync requirements here?
+static gasneti_lifo_head_t gasnetc_token_pool = GASNETI_LIFO_INITIALIZER;
+
+GASNETI_INLINE(gasnetc_get_token)
+gasnetc_token_t * gasnetc_get_token(void) {
+  gasnetc_token_t *token = gasneti_lifo_pop(&gasnetc_token_pool);
+  if_pf (!token) {
+    token = gasneti_malloc(sizeof(gasnetc_token_t));
+  }
+  return token;
+}
+
+GASNETI_INLINE(gasnetc_put_token)
+void gasnetc_put_token(gasnetc_token_t *token) {
+  gasneti_lifo_push(&gasnetc_token_pool, token);
+}
+
+/* callback to free a token */
+extern void gasnetc_cb_put_token(pami_context_t context, void *cookie, pami_result_t status) {
+  gasnetc_put_token(cookie);
+}
+
+
+/* A token and a payload together in larger block form a "big_token" */
+
+#define GASNETC_TOKEN_PAYLOAD(_token) ((char *)(_token) + GASNETC_MAX_MED_RESRV)
+
+// Does serialization of handlers reduce sync requirements here?
+static gasneti_lifo_head_t gasnetc_big_token_pool = GASNETI_LIFO_INITIALIZER;
+
+GASNETI_INLINE(gasnetc_get_big_token)
+gasnetc_token_t * gasnetc_get_big_token(void) {
+  gasnetc_token_t *token = gasneti_lifo_pop(&gasnetc_big_token_pool);
+  if_pf (!token) {
+    token = gasneti_malloc(GASNETC_MAX_MED_ALLOC);
+  }
+  return token;
+}
+
+GASNETI_INLINE(gasnetc_put_big_token)
+void gasnetc_put_big_token(gasnetc_token_t *token) {
+  gasneti_lifo_push(&gasnetc_big_token_pool, token);
+}
+
+/* callback to free a big_token */
+extern void gasnetc_cb_put_big_token(pami_context_t context, void *cookie, pami_result_t status) {
+  gasnetc_put_big_token(cookie);
+}
 
 /* Define non-zero to use structure copy for headers.
  * Otherwise memcpy only as many args as used. */
@@ -654,7 +704,7 @@ void run_medium(gasnetc_token_t *token) {
   const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id];
   const gasnet_handlerarg_t       *args = header->args;
   const int                     numargs = header->numargs;
-  void * const                     data = token->payload;
+  void * const                     data = GASNETC_TOKEN_PAYLOAD(token);
   const size_t                   nbytes = header->nbytes;
 
   GASNETI_RUN_HANDLER_MEDIUM(is_req,handler_id,handler_fn,token,args,numargs,data,nbytes);
@@ -683,8 +733,7 @@ static void am_Med_event(pami_context_t context, void *cookie, pami_result_t sta
   gasnetc_token_t * const token = (gasnetc_token_t *)cookie;
   GASNETC_PAMI_CHECK(status, "while receiving AM Medium payload");
   run_medium(token);
-  gasneti_free(token->payload); // use freelist
-  gasneti_free(token); // use freelist
+  gasnetc_put_big_token(token);
 }
 
 static void am_Long_event(pami_context_t context, void *cookie, pami_result_t status)
@@ -692,7 +741,7 @@ static void am_Long_event(pami_context_t context, void *cookie, pami_result_t st
   gasnetc_token_t * const token = (gasnetc_token_t *)cookie;
   GASNETC_PAMI_CHECK(status, "while receiving AM Long payload");
   run_long(token);
-  gasneti_free(token); // use freelist
+  gasnetc_put_token(token);
 }
 
 /* AM dispatch functions, run as soon as header has arrived. */
@@ -727,32 +776,26 @@ static void am_Med_dispatch(
                            pami_endpoint_t origin, pami_recv_t *recv)
 {
   gasnetc_medmsg_t *medmsg = (gasnetc_medmsg_t *)head_addr;
+  gasnetc_token_t *token = gasnetc_get_big_token();
+  void *data = GASNETC_TOKEN_PAYLOAD(token);
+
+#if GASNETC_TOKEN_STRUCT_COPY
+  token->header.medmsg = *medmsg;
+#else
+  memcpy(token, head_addr, GASNETC_ARGSEND(med, medmsg->numargs)); 
+#endif
 
   if (!recv) {
     /* Entire message has arrived - copy to aligned memory and run now */
-    gasnetc_token_t token;
-#if GASNETC_TOKEN_STRUCT_COPY
-    token.header.medmsg = *medmsg;
-#else
-    memcpy(&token, head_addr, GASNETC_ARGSEND(med, medmsg->numargs)); 
-#endif
-    token.payload = memcpy(gasneti_malloc(pipe_size), pipe_addr, pipe_size);
+    memcpy(data, pipe_addr, pipe_size);
     gasneti_assert(pipe_size == medmsg->nbytes);
-    run_medium(&token);
-    gasneti_free(token.payload);
+    run_medium(token);
+    gasnetc_put_big_token(token);
   } else {
-    /* Only our header has arrived - setup copy data and async run */
-    gasnetc_token_t *token = gasneti_malloc(sizeof(gasnetc_token_t));
-#if GASNETC_TOKEN_STRUCT_COPY
-    token->header.medmsg = *medmsg;
-#else
-    memcpy(token, head_addr, GASNETC_ARGSEND(med, medmsg->numargs)); 
-#endif
-    token->payload = gasneti_malloc(medmsg->nbytes);
     /* instruct PAMI how to deliver payload */
     recv->cookie = token;
     recv->local_fn = &am_Med_event;
-    recv->addr = token->payload;
+    recv->addr = data;
 #if 0 /* the hints recv_contiguous and recv_copy ensure we can ignore these */
     recv->type = PAMI_TYPE_BYTE;
     recv->offset = 0;
@@ -769,6 +812,7 @@ static void am_Long_dispatch(
                            pami_endpoint_t origin, pami_recv_t *recv)
 {
   gasnetc_longmsg_t *longmsg = (gasnetc_longmsg_t *)head_addr;
+  void * const data = (void*)longmsg->addr;
 
   if (!recv) { // PAMI bug: we've disabled this explicitly!
     /* Entire message has arrived - copy data and run now */
@@ -779,11 +823,11 @@ static void am_Long_dispatch(
     memcpy(&token, head_addr, GASNETC_ARGSEND(long, longmsg->numargs)); 
 #endif
     gasneti_assert(pipe_size == longmsg->nbytes);
-    memcpy((void*)longmsg->addr, pipe_addr, pipe_size);
+    memcpy(data, pipe_addr, pipe_size);
     run_long(&token);
   } else {
     /* Only our header has arrived - setup copy data and async run */
-    gasnetc_token_t *token = gasneti_malloc(sizeof(gasnetc_token_t));
+    gasnetc_token_t *token = gasnetc_get_token();
 #if GASNETC_TOKEN_STRUCT_COPY
     token->header.longmsg = *longmsg;
 #else
@@ -792,7 +836,7 @@ static void am_Long_dispatch(
     /* instruct PAMI how to deliver payload */
     recv->cookie = token;
     recv->local_fn = &am_Long_event;
-    recv->addr = (void*)longmsg->addr;
+    recv->addr = data;
 #if 0 /* the hints recv_contiguous and recv_copy ensure we can ignore these */
     recv->type = PAMI_TYPE_BYTE;
     recv->offset = 0;
@@ -1016,10 +1060,8 @@ extern int gasnetc_AMRequestMediumM(
 // TODO: send in-place if fits w/i immediate limit
     pami_send_t send;
     pami_result_t rc;
-    const size_t head_size = GASNETI_ALIGNUP(GASNETC_ARGSEND(med, numargs),
-                                             GASNETI_CACHE_LINE_BYTES); // less?
-    gasnetc_medmsg_t *msg_p = gasneti_malloc(head_size + nbytes);
-    void * payload = (void*)((uintptr_t)msg_p + head_size);
+    gasnetc_medmsg_t *msg_p = &(gasnetc_get_big_token()->header.medmsg);
+    char * payload = GASNETC_TOKEN_PAYLOAD(msg_p);
 
     GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr, 0);
     msg_p->nbytes = nbytes;
@@ -1029,12 +1071,12 @@ extern int gasnetc_AMRequestMediumM(
     memset(&send.send.hints, 0, sizeof(send.send.hints));
     send.send.header.iov_base = (char *)msg_p;
     send.send.header.iov_len = GASNETC_ARGSEND(med, numargs);
-    send.send.data.iov_base = (char *)payload;
+    send.send.data.iov_base = payload;
     send.send.data.iov_len = nbytes;
     send.send.dest = gasnetc_endpoint(dest);
     send.send.dispatch = GASNETC_DISP_MED;
     send.events.cookie = (void*)msg_p;
-    send.events.local_fn = &gasnetc_cb_free;
+    send.events.local_fn = &gasnetc_cb_put_big_token;
     send.events.remote_fn = NULL;
 
     GASNETC_PAMI_LOCK(gasnetc_context);
@@ -1139,7 +1181,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
      */
     pami_send_t send;
     pami_result_t rc;
-    gasnetc_longmsg_t *msg_p = gasneti_malloc(sizeof(gasnetc_longmsg_t)); // use freelist
+    gasnetc_longmsg_t *msg_p = &(gasnetc_get_token()->header.longmsg);
 
     GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr, 0);
     msg_p->addr = (uintptr_t)dest_addr;
@@ -1154,7 +1196,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     send.send.dest = gasnetc_endpoint(dest);
     send.send.dispatch = GASNETC_DISP_LONG;
     send.events.cookie = (void*)msg_p;
-    send.events.local_fn = &gasnetc_cb_free;
+    send.events.local_fn = &gasnetc_cb_put_token;
     send.events.remote_fn = NULL;
 
     GASNETC_PAMI_LOCK(gasnetc_context);
@@ -1252,10 +1294,8 @@ extern int gasnetc_AMReplyMediumM(
 // TODO: send in-place if fits w/i immediate limit
     pami_send_t send;
     pami_result_t rc;
-    const size_t head_size = GASNETI_ALIGNUP(GASNETC_ARGSEND(med, numargs),
-                                             GASNETI_CACHE_LINE_BYTES); // less?
-    gasnetc_medmsg_t *msg_p = gasneti_malloc(head_size + nbytes);
-    void * payload = (void*)((uintptr_t)msg_p + head_size);
+    gasnetc_medmsg_t *msg_p = &(gasnetc_get_big_token()->header.medmsg);
+    char * payload = GASNETC_TOKEN_PAYLOAD(msg_p);
 
     gasnet_node_t dest;
     GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &dest));
@@ -1268,12 +1308,12 @@ extern int gasnetc_AMReplyMediumM(
     memset(&send.send.hints, 0, sizeof(send.send.hints));
     send.send.header.iov_base = (char *)msg_p;
     send.send.header.iov_len = GASNETC_ARGSEND(med, numargs);
-    send.send.data.iov_base = (char *)payload;
+    send.send.data.iov_base = payload;
     send.send.data.iov_len = nbytes;
     send.send.dest = gasnetc_endpoint(dest);
     send.send.dispatch = GASNETC_DISP_MED;
     send.events.cookie = (void*)msg_p;
-    send.events.local_fn = &gasnetc_cb_free;
+    send.events.local_fn = &gasnetc_cb_put_big_token;
     send.events.remote_fn = NULL;
 
     /* Lock is held in handler context */
@@ -1317,10 +1357,8 @@ extern int gasnetc_AMReplyLongM(
 // TODO: send in-place if fits w/i immediate limit
     pami_send_t send;
     pami_result_t rc;
-    const size_t head_size = GASNETI_ALIGNUP(GASNETC_ARGSEND(long, numargs),
-                                             GASNETI_CACHE_LINE_BYTES); // less?
-    gasnetc_longmsg_t *msg_p = gasneti_malloc(head_size + nbytes);
-    void * payload = (void*)((uintptr_t)msg_p + head_size);
+    gasnetc_longmsg_t *msg_p = &(gasnetc_get_big_token()->header.longmsg);
+    char * payload = GASNETC_TOKEN_PAYLOAD(msg_p);
 
     gasnet_node_t dest;
     GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &dest));
@@ -1334,12 +1372,12 @@ extern int gasnetc_AMReplyLongM(
     memset(&send.send.hints, 0, sizeof(send.send.hints));
     send.send.header.iov_base = (char *)msg_p;
     send.send.header.iov_len = GASNETC_ARGSEND(long, numargs);
-    send.send.data.iov_base = (char *)payload;
+    send.send.data.iov_base = payload;
     send.send.data.iov_len = nbytes;
     send.send.dest = gasnetc_endpoint(dest);
     send.send.dispatch = GASNETC_DISP_LONG;
     send.events.cookie = (void*)msg_p;
-    send.events.local_fn = &gasnetc_cb_free;
+    send.events.local_fn = &gasnetc_cb_put_big_token;
     send.events.remote_fn = NULL;
 
     /* Lock is held in handler context */
