@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2012/03/16 02:34:17 $
- * $Revision: 1.227.2.2 $
+ *     $Date: 2012/03/19 23:06:54 $
+ * $Revision: 1.227.2.3 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -954,6 +954,11 @@ void gasneti_nodemap_trivial(void) {
   for (i = 0; i < gasneti_nodes; ++i) gasneti_nodemap[i] = i;
 }
 
+#if PLATFORM_OS_BGQ && 0 /* Disabled until I figure out all necessary the -I/-L/-l bits  -PHH */
+/* For nodemap constructor */
+#include "spi/include/kernel/location.h"
+#endif
+
 /* Platform-depended default nodemap constructor
  * Used when no conduit-specific IDs are provided.
  */
@@ -983,6 +988,21 @@ static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
 
       gasneti_free(allids);
     }
+#elif PLATFORM_OS_BGQ && 0 /* Disabled until I figure out all necessary the -I/-L/-l bits  -PHH */
+    BG_CoordinateMapping_t *allids = gasneti_malloc(gasneti_nodes * sizeof(BG_CoordinateMapping_t));
+    uint64_t count;
+    int i;
+
+    gasneti_assert_zeroret(Kernel_RanksToCoords(sizeof(allids), allids, &count));
+    gasneti_assert(count == gasneti_nodes);
+
+    /* Zero out the fields we don't want to have significance and then comparison */
+    for (i = 0; i < gasneti_nodes; ++i) {
+      allids[i].reserved = allids[i].t = 0;
+    }
+    gasneti_nodemap_helper(allids, sizeof(BG_CoordinateMapping_t), sizeof(BG_CoordinateMapping_t));
+
+    gasneti_free(allids);
 #elif PLATFORM_OS_BGQ || PLATFORM_OS_BGP || PLATFORM_OS_BLRTS || PLATFORM_OS_CATAMOUNT || !HAVE_GETHOSTID
     /* Nodes are either (at least effectively) single process,
      * or we don't have a usable gethostid().  So, build a trivial nodemap. */
