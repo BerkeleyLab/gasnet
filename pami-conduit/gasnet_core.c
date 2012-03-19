@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/19 17:25:58 $
- * $Revision: 1.1.2.29 $
+ *     $Date: 2012/03/19 21:10:58 $
+ * $Revision: 1.1.2.30 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -757,15 +757,19 @@ static void am_Short_dispatch(
   gasnetc_shortmsg_t *shortmsg = (gasnetc_shortmsg_t *)head_addr;
 
   gasneti_assert(head_size == GASNETC_ARGSEND(short, shortmsg->numargs));
+  gasneti_assert(!recv); /* Never use payload */
 
-  if (!recv) {
-    /* Entire message has arrived - run now */
+  /* Entire message (only a header) has arrived - run now */
+#if GASNET_DEBUG
+  { /* Must copy because debugging code will write to header */
     gasnetc_token_t token;
     memcpy(&token, head_addr, head_size);
     run_short(&token);
-  } else {
-    gasneti_fatalerror("Async receive for Short AMs UNIMPLEMENTED"); // TODO
   }
+#else
+  /* We can run in-place */
+  run_short((gasnetc_token_t *)head_addr);
+#endif
 }
 
 static void am_Med_dispatch(
