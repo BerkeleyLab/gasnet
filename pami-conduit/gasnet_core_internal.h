@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core_internal.h,v $
- *     $Date: 2012/03/19 01:03:46 $
- * $Revision: 1.1.2.14 $
+ *     $Date: 2012/03/19 17:10:24 $
+ * $Revision: 1.1.2.15 $
  * Description: GASNet PAMI conduit header for internal definitions in Core API
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -51,28 +51,35 @@ enum {
   GASNETC_NUM_DISP
 };
 
+
+#if GASNET_DEBUG
+#define GASNETC_MSG_DEBUG_HDR \
+  uint8_t               rep_sent : 1;
+#else
+#define GASNETC_MSG_DEBUG_HDR \
+  /* empty */
+#endif
+
+#define GASNETC_MSG_COMMON_HDR                        \
+  gasnet_node_t         srcnode; /* must be first */  \
+  gasnet_handler_t      handler;                      \
+  uint8_t               numargs : 5;                  \
+  uint8_t               is_req  : 1;                  \
+  GASNETC_MSG_DEBUG_HDR
+
 typedef struct {
-  gasnet_node_t         srcnode; /* must be first */
-  gasnet_handler_t      handler;
-  uint8_t               numargs : 5;
-  uint8_t               is_req  : 1;
+  GASNETC_MSG_COMMON_HDR
   gasnet_handlerarg_t   args[GASNETC_MAX_ARGS];
 } gasnetc_shortmsg_t;
 
 typedef struct {
-  gasnet_node_t         srcnode; /* must be first */
-  gasnet_handler_t      handler;
-  uint8_t               numargs : 5;
-  uint8_t               is_req  : 1;
+  GASNETC_MSG_COMMON_HDR
   uint16_t              nbytes;
   gasnet_handlerarg_t   args[GASNETC_MAX_ARGS];
 } gasnetc_medmsg_t;
 
 typedef struct {
-  gasnet_node_t         srcnode; /* must be first */
-  gasnet_handler_t      handler;
-  uint8_t               numargs : 5;
-  uint8_t               is_req  : 1;
+  GASNETC_MSG_COMMON_HDR
   uintptr_t             addr;
   uint32_t              nbytes; /* type limits our MaxLong */
   gasnet_handlerarg_t   args[GASNETC_MAX_ARGS];

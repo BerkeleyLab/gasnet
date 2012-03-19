@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/19 03:51:51 $
- * $Revision: 1.1.2.26 $
+ *     $Date: 2012/03/19 17:10:24 $
+ * $Revision: 1.1.2.27 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -621,13 +621,10 @@ static void noop_dispatch(pami_context_t context, void *cookie,
 /* AM "run" functions inlined into event and dispatch functions invoked by PAMI */
 
 /* The received header (and debugging metadata) contitute our "token" */
-typedef struct {
-  union {
+typedef union {
     gasnetc_shortmsg_t    shortmsg;
     gasnetc_medmsg_t      medmsg;
     gasnetc_longmsg_t     longmsg;
-  } header;
-// TODO: add reply_sent and any other debug support here
 } gasnetc_token_t;
 
 
@@ -682,19 +679,22 @@ extern void gasnetc_cb_put_big_token(pami_context_t context, void *cookie, pami_
 
 GASNETI_ALWAYS_INLINE(run_short)
 void run_short(gasnetc_token_t *token) {
-  const gasnetc_shortmsg_t      *header = &token->header.shortmsg;
+  gasnetc_shortmsg_t            *header = &token->shortmsg;
   const int                      is_req = header->is_req;
   const gasnet_handler_t     handler_id = header->handler;
   const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id];
   const gasnet_handlerarg_t       *args = header->args;
   const int                     numargs = header->numargs;
 
+#if GASNET_DEBUG
+  header->rep_sent = 0;
+#endif
   GASNETI_RUN_HANDLER_SHORT(is_req,handler_id,handler_fn,token,args,numargs);
 }
 
 GASNETI_ALWAYS_INLINE(run_medium)
 void run_medium(gasnetc_token_t *token) {
-  const gasnetc_medmsg_t        *header = &token->header.medmsg;
+  gasnetc_medmsg_t              *header = &token->medmsg;
   const int                      is_req = header->is_req;
   const gasnet_handler_t     handler_id = header->handler;
   const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id];
@@ -703,12 +703,15 @@ void run_medium(gasnetc_token_t *token) {
   void * const                     data = GASNETC_TOKEN_PAYLOAD(token);
   const size_t                   nbytes = header->nbytes;
 
+#if GASNET_DEBUG
+  header->rep_sent = 0;
+#endif
   GASNETI_RUN_HANDLER_MEDIUM(is_req,handler_id,handler_fn,token,args,numargs,data,nbytes);
 }
 
 GASNETI_ALWAYS_INLINE(run_long)
 void run_long(gasnetc_token_t *token) {
-  const gasnetc_longmsg_t       *header = &token->header.longmsg;
+  gasnetc_longmsg_t             *header = &token->longmsg;
   const int                      is_req = header->is_req;
   const gasnet_handler_t     handler_id = header->handler;
   const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id];
@@ -717,6 +720,9 @@ void run_long(gasnetc_token_t *token) {
   void * const                     data = (void*)header->addr;
   const size_t                   nbytes = header->nbytes;
 
+#if GASNET_DEBUG
+  header->rep_sent = 0;
+#endif
   GASNETI_RUN_HANDLER_LONG(is_req,handler_id,handler_fn,token,args,numargs,data,nbytes);
 }
 
@@ -949,6 +955,17 @@ extern int gasnetc_AMPoll(void) {
     }                                                            \
   } while (0)
 
+#if GASNET_DEBUG
+  #define GASNETC_AM_VALIDATE_TOKEN(_cat,_token) do {            \
+      gasnetc_token_t *real_token = (gasnetc_token_t *)(_token); \
+      gasneti_assert(real_token->_cat##msg.is_req);              \
+      gasneti_assert(!real_token->_cat##msg.rep_sent);           \
+      real_token->_cat##msg.rep_sent = 1;                        \
+    } while (0)
+#else
+  #define GASNETC_AM_VALIDATE_TOKEN(_cat,_token) do { } while (0)
+#endif
+
 #define GASNETC_AM_MSG_COMMON(_msg, _handler, _numargs, _argptr, _is_req) \
   do {                                                           \
     (_msg).srcnode = gasneti_mynode;                             \
@@ -1042,7 +1059,7 @@ extern int gasnetc_AMRequestMediumM(
 // TODO: send in-place if fits w/i immediate limit
     pami_send_t send;
     pami_result_t rc;
-    gasnetc_medmsg_t *msg_p = &(gasnetc_get_big_token()->header.medmsg);
+    gasnetc_medmsg_t *msg_p = &(gasnetc_get_big_token()->medmsg);
     char * payload = GASNETC_TOKEN_PAYLOAD(msg_p);
 
     GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr, 0);
@@ -1163,7 +1180,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
      */
     pami_send_t send;
     pami_result_t rc;
-    gasnetc_longmsg_t *msg_p = &(gasnetc_get_token()->header.longmsg);
+    gasnetc_longmsg_t *msg_p = &(gasnetc_get_token()->longmsg);
 
     GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr, 0);
     msg_p->addr = (uintptr_t)dest_addr;
@@ -1224,6 +1241,7 @@ extern int gasnetc_AMReplyShortM(
     gasnet_node_t dest;
     GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &dest));
 
+    GASNETC_AM_VALIDATE_TOKEN(short, token);
     GASNETC_AM_MSG_COMMON(msg, handler, numargs, argptr, 1);
 
     memset(&send.hints, 0, sizeof(send.hints));
@@ -1276,12 +1294,13 @@ extern int gasnetc_AMReplyMediumM(
 // TODO: send in-place if fits w/i immediate limit
     pami_send_t send;
     pami_result_t rc;
-    gasnetc_medmsg_t *msg_p = &(gasnetc_get_big_token()->header.medmsg);
+    gasnetc_medmsg_t *msg_p = &(gasnetc_get_big_token()->medmsg);
     char * payload = GASNETC_TOKEN_PAYLOAD(msg_p);
 
     gasnet_node_t dest;
     GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &dest));
 
+    GASNETC_AM_VALIDATE_TOKEN(med, token);
     GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr, 1);
     msg_p->nbytes = nbytes;
     memcpy(payload, source_addr, nbytes);
@@ -1339,12 +1358,13 @@ extern int gasnetc_AMReplyLongM(
 // TODO: send in-place if fits w/i immediate limit
     pami_send_t send;
     pami_result_t rc;
-    gasnetc_longmsg_t *msg_p = &(gasnetc_get_big_token()->header.longmsg);
+    gasnetc_longmsg_t *msg_p = &(gasnetc_get_big_token()->longmsg);
     char * payload = GASNETC_TOKEN_PAYLOAD(msg_p);
 
     gasnet_node_t dest;
     GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &dest));
 
+    GASNETC_AM_VALIDATE_TOKEN(long, token);
     GASNETC_AM_MSG_COMMON((*msg_p), handler, numargs, argptr, 1);
     msg_p->nbytes = nbytes;
     msg_p->addr = (uintptr_t)dest_addr;
