@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core_internal.h,v $
- *     $Date: 2012/03/18 22:49:36 $
- * $Revision: 1.1.2.13 $
+ *     $Date: 2012/03/19 01:03:46 $
+ * $Revision: 1.1.2.14 $
  * Description: GASNet PAMI conduit header for internal definitions in Core API
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -45,44 +45,38 @@ typedef enum {
 
 enum {
   GASNETC_DISP_NOOP = 0, /* dispatch id 0 may be reserved? */
-  GASNETC_DISP_SQ, /* Short reQuest */
-  GASNETC_DISP_SP, /* Short rePly */
-  GASNETC_DISP_MQ, /* Med.  reQuest */
-  GASNETC_DISP_MP, /* Med.  rePly */
-  GASNETC_DISP_LQ, /* Long  reQuest */
-  GASNETC_DISP_LP, /* Long  rePly */
+  GASNETC_DISP_SHORT,
+  GASNETC_DISP_MED,
+  GASNETC_DISP_LONG,
   GASNETC_NUM_DISP
 };
 
 typedef struct {
-  gasnet_node_t         srcnode;
+  gasnet_node_t         srcnode; /* must be first */
   gasnet_handler_t      handler;
-  uint8_t               numargs;
+  uint8_t               numargs : 5;
+  uint8_t               is_req  : 1;
   gasnet_handlerarg_t   args[GASNETC_MAX_ARGS];
 } gasnetc_shortmsg_t;
 
 typedef struct {
-  gasnet_node_t         srcnode;
+  gasnet_node_t         srcnode; /* must be first */
   gasnet_handler_t      handler;
-  uint8_t               numargs;
+  uint8_t               numargs : 5;
+  uint8_t               is_req  : 1;
   uint16_t              nbytes;
   gasnet_handlerarg_t   args[GASNETC_MAX_ARGS];
 } gasnetc_medmsg_t;
 
 typedef struct {
-  gasnet_node_t         srcnode;
+  gasnet_node_t         srcnode; /* must be first */
   gasnet_handler_t      handler;
-  uint8_t               numargs;
-  uint32_t              nbytes; /* type limits our MaxLong */
+  uint8_t               numargs : 5;
+  uint8_t               is_req  : 1;
   uintptr_t             addr;
+  uint32_t              nbytes; /* type limits our MaxLong */
   gasnet_handlerarg_t   args[GASNETC_MAX_ARGS];
 } gasnetc_longmsg_t;
-
-typedef union {
-  gasnetc_shortmsg_t    shortmsg;
-  gasnetc_medmsg_t      medmsg;
-  gasnetc_longmsg_t     longmsg;
-} gasnetc_anymsg_t;
 
 #define GASNETC_ARGSEND_AUX(s,nargs) \
         (offsetof(s,args)+(nargs*sizeof(gasnet_handlerarg_t)))
