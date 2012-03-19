@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/19 02:52:49 $
- * $Revision: 1.1.2.23 $
+ *     $Date: 2012/03/19 03:26:57 $
+ * $Revision: 1.1.2.24 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -680,10 +680,6 @@ extern void gasnetc_cb_put_big_token(pami_context_t context, void *cookie, pami_
   gasnetc_put_big_token(cookie);
 }
 
-/* Define non-zero to use structure copy for headers.
- * Otherwise memcpy only as many args as used. */
-#define GASNETC_TOKEN_STRUCT_COPY 1
-
 GASNETI_ALWAYS_INLINE(run_short)
 void run_short(gasnetc_token_t *token) {
   const gasnetc_shortmsg_t      *header = &token->header.shortmsg;
@@ -758,11 +754,7 @@ static void am_Short_dispatch(
   if (!recv) {
     /* Entire message has arrived - run now */
     gasnetc_token_t token;
-#if GASNETC_TOKEN_STRUCT_COPY
-    token.header.shortmsg = *shortmsg;
-#else
-    memcpy(&token, head_addr, GASNETC_ARGSEND(short, shortmsg->numargs)); 
-#endif
+    memcpy(&token, head_addr, head_size);
     run_short(&token);
   } else {
     gasneti_fatalerror("Async receive for Short AMs UNIMPLEMENTED"); // TODO
@@ -779,11 +771,7 @@ static void am_Med_dispatch(
   gasnetc_token_t *token = gasnetc_get_big_token();
   void *data = GASNETC_TOKEN_PAYLOAD(token);
 
-#if GASNETC_TOKEN_STRUCT_COPY
-  token->header.medmsg = *medmsg;
-#else
-  memcpy(token, head_addr, GASNETC_ARGSEND(med, medmsg->numargs)); 
-#endif
+  memcpy(token, head_addr, head_size);
 
   if (!recv) {
     /* Entire message has arrived - copy to aligned memory and run now */
@@ -817,22 +805,14 @@ static void am_Long_dispatch(
   if (!recv) { // PAMI bug: we've disabled this explicitly!
     /* Entire message has arrived - copy data and run now */
     gasnetc_token_t token;
-#if GASNETC_TOKEN_STRUCT_COPY
-    token.header.longmsg = *longmsg;
-#else
-    memcpy(&token, head_addr, GASNETC_ARGSEND(long, longmsg->numargs)); 
-#endif
+    memcpy(&token, head_addr, head_size);
     gasneti_assert(pipe_size == longmsg->nbytes);
     memcpy(data, pipe_addr, pipe_size);
     run_long(&token);
   } else {
     /* Only our header has arrived - setup copy data and async run */
     gasnetc_token_t *token = gasnetc_get_token();
-#if GASNETC_TOKEN_STRUCT_COPY
-    token->header.longmsg = *longmsg;
-#else
-    memcpy(token, head_addr, GASNETC_ARGSEND(long, longmsg->numargs)); 
-#endif
+    memcpy(token, head_addr, head_size);
     /* instruct PAMI how to deliver payload */
     recv->cookie = token;
     recv->local_fn = &am_Long_event;
