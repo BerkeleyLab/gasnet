@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2012/03/20 04:03:33 $
- * $Revision: 1.272.2.1 $
+ *     $Date: 2012/03/20 04:40:18 $
+ * $Revision: 1.272.2.2 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1802,6 +1802,12 @@ extern int gasneti_cpu_count(void) {
         register _BGP_SprgShMem sprg4;
         GASNETI_BGP_SPR(sprg4.shmem, _BGP_SPRGRO_SHMem); /* SPRG4 28:29 = (cores in my process) - 1 */
         hwprocs = sprg4.ShmNumCores + 1;
+      }
+  #elif defined(GASNETI_HAVE_BGQ_INLINES) && 0 /* correct, but sysconf() gives same result */
+      { 
+        const uint64_t sprg7 = mfspr(SPRN_SPRG7RO);
+        const uint8_t ppn = (sprg7 >> 8) & 0xff; /* Byte 6 is processes per node: 1,2,4,8,16,32 or 64 */
+        hwprocs = 64 / ppn; /* XXX: this counts all SMT threads as cpus */
       }
   #elif PLATFORM_OS_SUPERUX || PLATFORM_OS_MTA
       hwprocs = 0; /* appears to be no way to query CPU count on these */
