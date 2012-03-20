@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2012/01/06 23:30:57 $
- * $Revision: 1.272 $
+ *     $Date: 2012/03/20 04:03:33 $
+ * $Revision: 1.272.2.1 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2071,6 +2071,11 @@ void gasneti_set_affinity(int rank) {
  #include <common/bgp_personality.h>
  #undef MAXHOSTNAMELEN
  #define MAXHOSTNAMELEN 18
+#elif defined(GASNETI_HAVE_BGQ_INLINES)
+ #include <hwi/include/common/uci.h>
+ #include <firmware/include/personality.h>
+ #undef MAXHOSTNAMELEN
+ #define MAXHOSTNAMELEN 19
 #elif PLATFORM_OS_CATAMOUNT
  #include <catamount/data.h>
 #else
@@ -2114,6 +2119,33 @@ const char *gasneti_gethostname(void) {
                /* Proc = myCore >> log_2_cores_per_proc
                 * where log_2_cores_per_proc expression is valid for 1,2,4 */
                sprg5.CoreID >> ((sprg4.ShmNumCores + 1) >> 1)
+              );
+    #elif GASNETI_HAVE_BGQ_INLINES
+      uint64_t cc_uci;
+      unsigned int proc;
+      { /* Need entire Personality struct to extract the UCI  */
+        Personality_t pers;
+        int rc = CNK_SPI_SYSCALL_2(GET_PERSONALITY, (uintptr_t)&pers, (uint64_t)sizeof(pers));
+        if (rc)
+          gasnett_fatalerror("gasneti_gethostname() failed to get hostname: aborting");
+        cc_uci = pers.Kernel_Config.UCI;
+      }
+      gasneti_assert(BG_UCI_GET_COMPONENT(cc_uci) == BG_UCI_Component_ComputeCardOnNodeBoard);
+      { /* Extract process rank from SPRG7 */
+        const uint64_t sprg7 = mfspr(SPRN_SPRG7RO);
+        uint8_t ppn = (sprg7 >> 8) & 0xff; /* Byte 6 is processes per node: 1,2,4,8,16,32 or 64 */
+        uint8_t cpu = (sprg7 & 0x3f); /* Byte 7 is logic processor id: 0 ... 63 */
+        /* Shift the "process-local" bits out of the processor id */
+        while (ppn & 0x3f) { ppn <<= 1; cpu >>= 1; }
+        proc = cpu;
+      }
+      /* Rrc-Mm-Nnn-Jjj-Ppp.  All but "-Ppp" is standard BG/Q component naming. */
+      snprintf(hostname, MAXHOSTNAMELEN, "R%1x%1x-M%1u-N%02u-J%02u-P%02u",
+                         BG_UCI_GET_ROW(cc_uci), BG_UCI_GET_COLUMN(cc_uci),
+                         BG_UCI_GET_MIDPLANE(cc_uci),
+                         BG_UCI_GET_NODE_BOARD(cc_uci),
+                         BG_UCI_GET_COMPUTE_CARD(cc_uci),
+                         proc
               );
     #elif PLATFORM_OS_CATAMOUNT
       /* TODO: can we do anything special for VN? */

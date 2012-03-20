@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2012/03/20 01:56:16 $
- * $Revision: 1.134.2.1 $
+ *     $Date: 2012/03/20 04:03:33 $
+ * $Revision: 1.134.2.2 $
  * Description: GASNet header for semi-portable inline asm support
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -219,6 +219,7 @@
    * a debug build.  At least on BG/P there was a lib we could have linked.
    */
   #include "cnk/include/SPI_syscalls.h"
+  #include "hwi/include/bqc/A2_inlines.h"
   #define GASNETI_HAVE_BGQ_INLINES 1
 #endif
 
