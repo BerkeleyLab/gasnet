@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2012/03/19 23:06:54 $
- * $Revision: 1.227.2.3 $
+ *     $Date: 2012/03/20 01:56:16 $
+ * $Revision: 1.227.2.4 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -954,11 +954,6 @@ void gasneti_nodemap_trivial(void) {
   for (i = 0; i < gasneti_nodes; ++i) gasneti_nodemap[i] = i;
 }
 
-#if PLATFORM_OS_BGQ && 0 /* Disabled until I figure out all necessary the -I/-L/-l bits  -PHH */
-/* For nodemap constructor */
-#include "spi/include/kernel/location.h"
-#endif
-
 /* Platform-depended default nodemap constructor
  * Used when no conduit-specific IDs are provided.
  */
@@ -988,12 +983,13 @@ static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
 
       gasneti_free(allids);
     }
-#elif PLATFORM_OS_BGQ && 0 /* Disabled until I figure out all necessary the -I/-L/-l bits  -PHH */
-    BG_CoordinateMapping_t *allids = gasneti_malloc(gasneti_nodes * sizeof(BG_CoordinateMapping_t));
-    uint64_t count;
+#elif PLATFORM_OS_BGQ && GASNETI_HAVE_BGQ_INLINES
+  #if 0 /* "Clean" but not usable in general due to (non)inlined implementation */
+    uint64_t count, size = gasneti_nodes * sizeof(BG_CoordinateMapping_t);
+    BG_CoordinateMapping_t *allids = gasneti_malloc(size);
     int i;
 
-    gasneti_assert_zeroret(Kernel_RanksToCoords(sizeof(allids), allids, &count));
+    gasneti_assert_zeroret(Kernel_RanksToCoords(size, allids, &count));
     gasneti_assert(count == gasneti_nodes);
 
     /* Zero out the fields we don't want to have significance and then comparison */
@@ -1003,6 +999,22 @@ static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
     gasneti_nodemap_helper(allids, sizeof(BG_CoordinateMapping_t), sizeof(BG_CoordinateMapping_t));
 
     gasneti_free(allids);
+  #else /* Same as above but w/o the candy-coating provided by location.h */
+    uint64_t count, size = gasneti_nodes * sizeof(uint32_t);
+    uint32_t *allids = gasneti_malloc(size);
+    int i;
+
+    gasneti_assert_zeroret(CNK_SPI_SYSCALL_3(RANKS2COORDS, size, allids, &count));
+    gasneti_assert(count == gasneti_nodes);
+
+    /* Zero out the fields we don't want to have significance and then comparison */
+    for (i = 0; i < gasneti_nodes; ++i) {
+      allids[i] &= 0xbfffffc0;
+    }
+    gasneti_nodemap_helper(allids, sizeof(uint32_t), sizeof(uint32_t));
+
+    gasneti_free(allids);
+  #endif
 #elif PLATFORM_OS_BGQ || PLATFORM_OS_BGP || PLATFORM_OS_BLRTS || PLATFORM_OS_CATAMOUNT || !HAVE_GETHOSTID
     /* Nodes are either (at least effectively) single process,
      * or we don't have a usable gethostid().  So, build a trivial nodemap. */

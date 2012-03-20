@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2011/11/29 07:07:44 $
- * $Revision: 1.134 $
+ *     $Date: 2012/03/20 01:56:16 $
+ * $Revision: 1.134.2.1 $
  * Description: GASNet header for semi-portable inline asm support
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -211,6 +211,15 @@
   #endif
 
   #define GASNETI_HAVE_BGP_INLINES 1
+#endif
+
+#if PLATFORM_OS_BGQ && (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_XLC)
+  /* The situation on BG/Q is either as bad as on BG/P, or perhaps worse.
+   * The use of 'extern inline' means we can't get what we need at all in
+   * a debug build.  At least on BG/P there was a lib we could have linked.
+   */
+  #include "cnk/include/SPI_syscalls.h"
+  #define GASNETI_HAVE_BGQ_INLINES 1
 #endif
 
 #if PLATFORM_ARCH_ARM && PLATFORM_OS_LINUX

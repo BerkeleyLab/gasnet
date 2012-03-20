@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2012/03/18 09:02:00 $
-# $Revision: 1.751.2.4 $
+#     $Date: 2012/03/20 01:56:16 $
+# $Revision: 1.751.2.5 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.751.2.4 $)
+AC_REVISION($Revision: 1.751.2.5 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -655,6 +655,23 @@ if expr "$target" : powerpc-bgp-linux >/dev/null; then
   if test -e "$BGP_SYS_INCLUDE/common"; then
     tmp_flag="-isystem $BGP_SYS_INCLUDE"
     GASNET_TRY_CFLAG([$tmp_flag], [:], [tmp_flag="-I$BGP_SYS_INCLUDE"])
+    SYS_HEADER_BLD="$SYS_HEADER_BLD $tmp_flag"
+    SYS_HEADER_INST="$SYS_HEADER_INST $tmp_flag"
+  fi
+  AC_SUBST(SYS_HEADER_BLD) dnl "Hook" shared with GASNET_CHECK_OVERRIDE_PTHREADS
+  AC_SUBST(SYS_HEADER_INST) dnl "Hook" shared with GASNET_CHECK_OVERRIDE_PTHREADS
+fi
+
+# Locate system directories for BG/Q
+if expr "$target" : powerpc64-bgq-linux >/dev/null; then
+  # TODO: Something like bgpmaster to search on?
+  bgsys_guess=/bgsys/drivers/ppcfloor
+
+  GASNET_ENV_DEFAULT(BGQ_SYS_HOME, $bgsys_guess)
+  GASNET_ENV_DEFAULT(BGQ_SYS_INCLUDE, $BGQ_SYS_HOME)
+  if test -e "$BGQ_SYS_INCLUDE/cnk/include"; then
+    tmp_flag="-isystem $BGQ_SYS_INCLUDE"
+    GASNET_TRY_CFLAG([$tmp_flag], [:], [tmp_flag="-I$BGQ_SYS_INCLUDE"])
     SYS_HEADER_BLD="$SYS_HEADER_BLD $tmp_flag"
     SYS_HEADER_INST="$SYS_HEADER_INST $tmp_flag"
   fi
