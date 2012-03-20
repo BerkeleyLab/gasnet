@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/20 06:31:58 $
- * $Revision: 1.1.2.32 $
+ *     $Date: 2012/03/20 08:01:35 $
+ * $Revision: 1.1.2.33 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -171,6 +171,21 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   gasneti_assert_zeroret(gasnetc_exit_init());
   gasneti_assert_zeroret(gasnetc_am_init());
+
+  if (!gasneti_mynode) {
+    fflush(NULL);
+    fprintf(stdout,
+            "-----------------------------------------------------------------------\n"
+            " WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING\n"
+            "\n"
+            " GASNet's pami-conduit is currently in BETA status.\n"
+            " You should NOT trust any performance numbers from this run as\n"
+            " predictive of the performance of the conduit when completed.\n"
+            "\n"
+            " WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING\n"
+            "-----------------------------------------------------------------------\n");
+    fflush(NULL);
+  }
 
   #if GASNET_DEBUG_VERBOSE
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
