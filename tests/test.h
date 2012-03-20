@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2011/11/22 01:41:05 $
- * $Revision: 1.146 $
+ *     $Date: 2012/03/20 02:45:26 $
+ * $Revision: 1.146.2.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -978,7 +978,7 @@ static void _test_init(const char *testname, int reports_performance, int early,
     if (!early) {
       TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
       BARRIER();
-    #if GASNET_PSHM
+    #if GASNET_PSHM || 1 /* supernode info still of intested when PSHM not used */
       MSG("hostname is: %s (supernode=%i pid=%i)", gasnett_gethostname(), (int)_test_nodeinfo[gasnet_mynode()].supernode, (int)getpid());
     #else
       MSG("hostname is: %s (pid=%i)", gasnett_gethostname(), (int)getpid());
