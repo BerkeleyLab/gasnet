@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2012/03/20 04:40:18 $
- * $Revision: 1.272.2.2 $
+ *     $Date: 2012/03/20 05:43:28 $
+ * $Revision: 1.272.2.3 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2147,11 +2147,12 @@ const char *gasneti_gethostname(void) {
       }
       /* Rrc-Mm-Nnn-Jjj-Ppp.  All but "-Ppp" is standard BG/Q component naming. */
       snprintf(hostname, MAXHOSTNAMELEN, "R%1x%1x-M%1u-N%02u-J%02u-P%02u",
-                         BG_UCI_GET_ROW(cc_uci), BG_UCI_GET_COLUMN(cc_uci),
-                         BG_UCI_GET_MIDPLANE(cc_uci),
-                         BG_UCI_GET_NODE_BOARD(cc_uci),
-                         BG_UCI_GET_COMPUTE_CARD(cc_uci),
-                         proc
+                         (unsigned int)BG_UCI_GET_ROW(cc_uci),
+                         (unsigned int)BG_UCI_GET_COLUMN(cc_uci),
+                         (unsigned int)BG_UCI_GET_MIDPLANE(cc_uci),
+                         (unsigned int)BG_UCI_GET_NODE_BOARD(cc_uci),
+                         (unsigned int)BG_UCI_GET_COMPUTE_CARD(cc_uci),
+                         (unsigned int)proc
               );
     #elif PLATFORM_OS_CATAMOUNT
       /* TODO: can we do anything special for VN? */
