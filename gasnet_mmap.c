@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2012/03/14 02:02:46 $
- * $Revision: 1.112 $
+ *     $Date: 2012/03/20 06:15:41 $
+ * $Revision: 1.112.2.1 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1080,6 +1080,31 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
   gasneti_assert(exchangefn);
   gasneti_assert(barrierfn); /* No longer optional */
   gasneti_assert(gasneti_nodemap);
+
+  /* Apply system-dependent defaults, if any */
+#if defined(GASNETI_HAVE_BGP_INLINES) && 0 /* Not implemented */
+    /* XXX: should be able to do something like done for BG/Q, below */
+#elif defined(GASNETI_HAVE_BGQ_INLINES)
+  if ((localLimit == (uintptr_t)-1) || (sharedLimit == (uint64_t)-1)) {
+    const uint64_t nodemem = gasneti_getPhysMemSz(1); /* sysconf() reports phys mem for full node */
+    const uint64_t safemem = (nodemem * 4) / 5; /* 80% as a safety margin (but just a guess) */
+    if (sharedLimit == (uint64_t)-1) {
+      sharedLimit = safemem;
+    }
+    if (localLimit == (uintptr_t)-1) {
+      /* Use node's configured ppn value, even if running fewer actual procs */
+      const uint64_t sprg7 = mfspr(SPRN_SPRG7RO);
+      const uint8_t ppn = (sprg7 >> 8) & 0xff; /* Byte 6 is processes per node: 1,2,4,8,16,32 or 64 */
+      localLimit = safemem / ppn;
+    }
+  }
+#else
+  if (sharedLimit == (uint64_t)-1) {
+    /* Start at something reasonable if we expect to avoid swapping */
+    const uint64_t nodemem = gasneti_getPhysMemSz(0);
+    if (nodemem) sharedLimit = nodemem; /* no change if getPhysMemSz failed */
+  }
+#endif
 
   /* Apply intial limits, even if not sharing nodes */
   maxsz = GASNETI_MMAP_LIMIT;
