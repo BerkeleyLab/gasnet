@@ -186,8 +186,11 @@ int main(void) {
   printf("\n# 2. Fill in the canonical target machine type. You can usually obtain this\n");
   printf("#   by running config-aux/config.guess on the target machine\n");
   printf("TARGET_ID=''\n");
-  printf("\n# 3. Review the automatically-detected settings below and make corrections as necessary.\n");
-  printf("\n# 4. Place this output script in your top-level source directory and run it,\n");
+  printf("\n# 3. Optionally cross-compile and run the detect-cachesz.c utility and\n");
+  printf("#    fill in the value below and uncomment.  If not set the default is 128.\n");
+  printf("#CROSS_CACHE_LINE_BYTES=???; export CROSS_CACHE_LINE_BYTES
+  printf("\n# 4. Review the automatically-detected settings below and make corrections as necessary.\n");
+  printf("\n# 5. Place this output script in your top-level source directory and run it,\n");
   printf("#   passing it any additional configure arguments as usual (see configure --help).\n");
 
   printf("\n################################################\n");
