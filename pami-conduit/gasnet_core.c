@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/20 08:01:35 $
- * $Revision: 1.1.2.33 $
+ *     $Date: 2012/03/20 08:47:53 $
+ * $Revision: 1.1.2.34 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -216,7 +216,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   #if GASNET_PSHM
     /* (###) If your conduit will support PSHM, you should initialize it here.
      * The 1st argument is normally "&gasnetc_bootstrapExchange" (described below).
-     * The 2nd argument is the amout of shared memory space needed for any
+     * The 2nd argument is the amount of shared memory space needed for any
      * conduit-specific uses.  The return value is a pointer to the space
      * requested by the 2nd argument.
      */

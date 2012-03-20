@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2012/01/08 23:25:05 $
- * $Revision: 1.11 $
+ *     $Date: 2012/03/20 08:47:49 $
+ * $Revision: 1.11.2.1 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -273,7 +273,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   #if GASNET_PSHM
     /* If your conduit will support PSHM, you should initialize it here.
      * The 1st argument is normally "&gasnetc_bootstrapExchange" (described below).
-     * The 2nd argument is the amout of shared memory space needed for any
+     * The 2nd argument is the amount of shared memory space needed for any
      * conduit-specific uses.  The return value is a pointer to the space
      * requested by the 2nd argument.
      */
