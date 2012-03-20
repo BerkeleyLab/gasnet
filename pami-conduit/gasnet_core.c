@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/20 06:15:43 $
- * $Revision: 1.1.2.31 $
+ *     $Date: 2012/03/20 06:31:58 $
+ * $Revision: 1.1.2.32 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -221,8 +221,6 @@ static int gasnetc_init(int *argc, char ***argv) {
       uintptr_t limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
                                           &gasnetc_bootstrapExchange,
                                           &gasnetc_bootstrapBarrier);
-if (!gasneti_mynode)
-fprintf(stderr, "@ limit = %g GB\n", (double)limit/(1024*1024*1024.0));
       gasneti_segmentInit(limit, &gasnetc_bootstrapExchange);
     }
   #elif GASNET_SEGMENT_EVERYTHING
