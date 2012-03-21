@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/21 15:39:23 $
- * $Revision: 1.1.2.36 $
+ *     $Date: 2012/03/21 16:05:24 $
+ * $Revision: 1.1.2.37 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -945,8 +945,11 @@ static int gasnetc_am_init(void) {
   rc = PAMI_Dispatch_set(gasnetc_context, GASNETC_DISP_LONG, fn, NULL, hints);
   GASNETC_PAMI_CHECK(rc, "registering GASNETC_DISP_LONG");
 
-  // Need a non-WAG default value
-  { unsigned int depth = gasneti_getenv_int_withdefault("GASNET_NETWORK_DEPTH", 0, 0);
+  { 
+    #define GASNETC_NETWORK_DEPTH_DEFAULT 1024 // Need a non-WAG default value
+    unsigned int depth =
+        gasneti_getenv_int_withdefault("GASNET_NETWORK_DEPTH", GASNETC_NETWORK_DEPTH_DEFAULT, 0);
+    depth = MAX(depth, 4); /* Min value is 4 */
     gasneti_semaphore_init(&gasnetc_requests_oust, depth, depth);
   }
 
