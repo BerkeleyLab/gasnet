@@ -1,12 +1,13 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2012/03/18 08:21:44 $
-# $Revision: 1.97.2.7 $
+#     $Date: 2012/03/21 19:56:31 $
+# $Revision: 1.97.2.8 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
 require 5.004;
 use strict;
+sleep 5; # HACK for some systems problems on BG/Q - DO NOT MERGE TO HEAD XXX!!!
 
 # NOTE: The value of $ENV{'MPIRUN_CMD'} may be set in the shell wrapper
 my $orig_spawncmd = $ENV{'MPIRUN_CMD'} || 'mpirun -np %N %P %A';
