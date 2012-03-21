@@ -1,11 +1,34 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.52 $
+$Revision: 1.52.2.1 $
 
 ----------------------------------------------------------------------
-??-??-2012 : Release 1.18.2
-PLACE HOLDER
-  - Extend PSHM-via-XPMEM support to SGI Altix series
+03-21-2012 : Release 1.19.1-pami
+
+If you can see this you are a luck recipient of the first SNAPSHOT
+release of GASNet for PAMI.  This has been developed and tested ONLY
+on a BG/Q system at Argonne.  Your milage on any other PAMI system
+may vary.
+
+There is a cross-configure-bgq script in contrib/other.
+I will assume you already know how to cross-configure GASNet.
+
+This release is beleived to be correct and robust on the BG/Q when
+using gcc.  XLC has been seen to crash building GASNet, and when one
+works around that bad code generation results - DO NOT USE XLC.
+This means you *must* set "USE_GCC=1" in you environment when you
+configure GASNet.
+
+This is a "core-only" port, meaning that GASNet's Active Message
+interfaces have been implemented directly over PAMI, and everything
+else uses GASNet's reference implementation in terms of PAMI.  So,
+there is still MUCH room for performance improvement.
+
+Please DO email upc-devel@lbl.gov with any bug reports.
+Please DO NOT publish or publicly present performance results
+(as if you were permitted to do that with a BG/Q yet anyway).
+
+-Paul
 
 ----------------------------------------------------------------------
 10-30-2011 : Release 1.18.0
