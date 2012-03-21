@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/20 08:47:53 $
- * $Revision: 1.1.2.34 $
+ *     $Date: 2012/03/21 15:27:37 $
+ * $Revision: 1.1.2.35 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -632,10 +632,30 @@ static void noop_dispatch(pami_context_t context, void *cookie,
   }
 }
 
+/* Bound the number of AM requests we have outstanding */
+
+static gasneti_semaphore_t gasnetc_requests_oust;
+
+GASNETI_INLINE(gasnetc_get_request_credit)
+void gasnetc_get_request_credit(void) {
+  if_pf (!gasneti_semaphore_trydown(&gasnetc_requests_oust)) {
+    do {
+      gasneti_AMPoll();
+      gasneti_spinloop_hint();
+    } while (!gasneti_semaphore_trydown(&gasnetc_requests_oust));
+  }
+}
+
+GASNETI_INLINE(gasnetc_put_request_credit)
+void gasnetc_put_request_credit(void) {
+  gasneti_semaphore_up(&gasnetc_requests_oust);
+}
+
 /* AM "run" functions inlined into event and dispatch functions invoked by PAMI */
 
 /* The received header (and debugging metadata) contitute our "token" */
 typedef union {
+    gasnetc_genmsg_t      generic;
     gasnetc_shortmsg_t    shortmsg;
     gasnetc_medmsg_t      medmsg;
     gasnetc_longmsg_t     longmsg;
@@ -659,9 +679,11 @@ void gasnetc_put_token(gasnetc_token_t *token) {
   gasneti_lifo_push(&gasnetc_token_pool, token);
 }
 
-/* callback to free a token */
-extern void gasnetc_cb_put_token(pami_context_t context, void *cookie, pami_result_t status) {
+/* callback to free a token and release request credit, if any */
+extern void gasnetc_cb_token(pami_context_t context, void *cookie, pami_result_t status) {
+  const int is_req = ((gasnetc_token_t *)cookie)->generic.is_req;
   gasnetc_put_token(cookie);
+  if (is_req) gasnetc_put_request_credit();
 }
 
 
@@ -686,9 +708,11 @@ void gasnetc_put_big_token(gasnetc_token_t *token) {
   gasneti_lifo_push(&gasnetc_big_token_pool, token);
 }
 
-/* callback to free a big_token */
-extern void gasnetc_cb_put_big_token(pami_context_t context, void *cookie, pami_result_t status) {
+/* callback to free a big_token and release request credit, if any */
+extern void gasnetc_cb_big_token(pami_context_t context, void *cookie, pami_result_t status) {
+  const int is_req = ((gasnetc_token_t *)cookie)->generic.is_req;
   gasnetc_put_big_token(cookie);
+  if (is_req) gasnetc_put_request_credit();
 }
 
 GASNETI_ALWAYS_INLINE(run_short)
@@ -831,7 +855,7 @@ static void am_Long_dispatch(
 
   gasneti_assert(head_size == GASNETC_ARGSEND(long, longmsg->numargs));
 
-  if (!recv) { // PAMI bug: we've disabled this explicitly!
+  if_pf (!recv) { // PAMI bug: we've disabled this explicitly! (fixed in later rev)
     /* Entire message has arrived - copy data and run now */
     gasnetc_token_t token;
     memcpy(&token, head_addr, head_size);
@@ -921,6 +945,11 @@ static int gasnetc_am_init(void) {
   rc = PAMI_Dispatch_set(gasnetc_context, GASNETC_DISP_LONG, fn, NULL, hints);
   GASNETC_PAMI_CHECK(rc, "registering GASNETC_DISP_LONG");
 
+  // Need a non-WAG default value
+  { unsigned int depth = gasneti_getenv_int_withdefault("GASNET_NETWORK_DEPTH", 0, 0);
+    gasneti_semaphore_init(&gasnetc_requests_oust, depth, depth);
+  }
+
   return GASNET_OK;
 }
 
@@ -1005,6 +1034,7 @@ extern int gasnetc_AMRequestShortM(
   int retval = GASNET_OK;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTSHORT(dest,handler,numargs);
+  gasneti_AMPoll();
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the dest first. */
@@ -1039,10 +1069,14 @@ extern int gasnetc_AMRequestShortM(
     send.dest = gasnetc_endpoint(dest);
     send.dispatch = GASNETC_DISP_SHORT;
 
+    gasnetc_get_request_credit();
+
     GASNETC_PAMI_LOCK(gasnetc_context);
     rc = PAMI_Send_immediate(gasnetc_context, &send);
     GASNETC_PAMI_CHECK(rc, "from PAMI_Send_immediate(AMReqestShort)");
     GASNETC_PAMI_UNLOCK(gasnetc_context);
+
+    gasnetc_put_request_credit();
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -1056,6 +1090,7 @@ extern int gasnetc_AMRequestMediumM(
   int retval = GASNET_OK;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
+  gasneti_AMPoll();
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the dest first. */
@@ -1098,8 +1133,10 @@ extern int gasnetc_AMRequestMediumM(
     send.send.dest = gasnetc_endpoint(dest);
     send.send.dispatch = GASNETC_DISP_MED;
     send.events.cookie = (void*)msg_p;
-    send.events.local_fn = &gasnetc_cb_put_big_token;
+    send.events.local_fn = &gasnetc_cb_big_token;
     send.events.remote_fn = NULL;
+
+    gasnetc_get_request_credit();
 
     GASNETC_PAMI_LOCK(gasnetc_context);
     rc = PAMI_Send(gasnetc_context, &send);
@@ -1118,6 +1155,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   int retval = GASNET_OK;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
+  gasneti_AMPoll();
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the dest first. */
@@ -1160,6 +1198,8 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
     send.events.local_fn = &gasnetc_cb_inc_uint;
     send.events.remote_fn = NULL;
 
+    gasnetc_get_request_credit();
+
     GASNETC_PAMI_LOCK(gasnetc_context);
     rc = PAMI_Send(gasnetc_context, &send);
     GASNETC_PAMI_CHECK(rc, "from PAMI_Send(AMReqestLong)");
@@ -1167,6 +1207,8 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
     rc = gasnetc_wait_uint(gasnetc_context, &counter, 1);
     GASNETC_PAMI_CHECK(rc, "progressing an AMRequestLong");
     GASNETC_PAMI_UNLOCK(gasnetc_context);
+
+    gasnetc_put_request_credit();
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -1180,6 +1222,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
   int retval = GASNET_OK;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs);
+  gasneti_AMPoll();
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the dest first. */
@@ -1218,8 +1261,10 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     send.send.dest = gasnetc_endpoint(dest);
     send.send.dispatch = GASNETC_DISP_LONG;
     send.events.cookie = (void*)msg_p;
-    send.events.local_fn = &gasnetc_cb_put_token;
+    send.events.local_fn = &gasnetc_cb_token;
     send.events.remote_fn = NULL;
+
+    gasnetc_get_request_credit();
 
     GASNETC_PAMI_LOCK(gasnetc_context);
     rc = PAMI_Send(gasnetc_context, &send);
@@ -1337,7 +1382,7 @@ extern int gasnetc_AMReplyMediumM(
     send.send.dest = gasnetc_endpoint(dest);
     send.send.dispatch = GASNETC_DISP_MED;
     send.events.cookie = (void*)msg_p;
-    send.events.local_fn = &gasnetc_cb_put_big_token;
+    send.events.local_fn = &gasnetc_cb_big_token;
     send.events.remote_fn = NULL;
 
     /* Lock is held in handler context */
@@ -1402,7 +1447,7 @@ extern int gasnetc_AMReplyLongM(
     send.send.dest = gasnetc_endpoint(dest);
     send.send.dispatch = GASNETC_DISP_LONG;
     send.events.cookie = (void*)msg_p;
-    send.events.local_fn = &gasnetc_cb_put_big_token;
+    send.events.local_fn = &gasnetc_cb_big_token;
     send.events.remote_fn = NULL;
 
     /* Lock is held in handler context */

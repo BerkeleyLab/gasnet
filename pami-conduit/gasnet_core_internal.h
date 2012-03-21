@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core_internal.h,v $
- *     $Date: 2012/03/19 17:10:24 $
- * $Revision: 1.1.2.15 $
+ *     $Date: 2012/03/21 15:27:37 $
+ * $Revision: 1.1.2.16 $
  * Description: GASNet PAMI conduit header for internal definitions in Core API
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -66,6 +66,10 @@ enum {
   uint8_t               numargs : 5;                  \
   uint8_t               is_req  : 1;                  \
   GASNETC_MSG_DEBUG_HDR
+
+typedef struct {
+  GASNETC_MSG_COMMON_HDR
+} gasnetc_genmsg_t;  /* Generic portions of header */
 
 typedef struct {
   GASNETC_MSG_COMMON_HDR
