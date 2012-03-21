@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2011/12/06 09:54:11 $
- * $Revision: 1.343 $
+ *     $Date: 2012/03/21 19:52:54 $
+ * $Revision: 1.343.2.1 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2068,7 +2068,7 @@
       #endif
 
       /* Using default fences as we have none in our asms */
-    #elif PLATFORM_COMPILER_GNU
+    #elif PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_CLANG
       #define GASNETI_HAVE_ATOMIC32_T 1
       typedef struct { volatile uint32_t ctr; } gasneti_atomic32_t;
       #define _gasneti_atomic32_read(p)      ((p)->ctr)
