@@ -10,6 +10,10 @@ if test -n "$USE_GCC" ; then
     # GCC-based compilers
     CC='/bgsys/drivers/ppcfloor/gnu-linux/bin/powerpc64-bgq-linux-gcc -Wno-unused'
     CXX='/bgsys/drivers/ppcfloor/gnu-linux/bin/powerpc64-bgq-linux-g++ -Wno-unused'
+elif test -n "$USE_CLANG" ; then
+    # CLANG-based compilers
+    CC='bgclang -Wno-unused -U__GNUC__'
+    CXX='bgclang++ -Wno-unused -U__GNUC__'
 else
     # XLC-based compilers
     CC='bgxlc_r -qarch=qp -qtune=qp'
@@ -33,6 +37,9 @@ HOST_CXXFLAGS='' ; export HOST_CXXFLAGS
 if test -n "$USE_GCC" ; then
     # GCC-based compilers
     MPI_CC='mpicc'
+elif test -n "$USE_CLANG" ; then
+    # CLANG-based compilers
+    MPI_CC='mpiclang' # a one-liner: MPICC=clang exec mpicc "$@"
 else
     # XLC-based compilers
     MPI_CC='mpixlc -qarch=qp -qtune=qp'
@@ -52,7 +59,7 @@ EXTRA_CONFIGURE_ARGS='--with-max-pthreads-per-node=64 --disable-udp --disable-am
 EXTRA_CONFIGURE_ARGS="$EXTRA_CONFIGURE_ARGS --disable-aligned-segments"
 EXTRA_CONFIGURE_ARGS="$EXTRA_CONFIGURE_ARGS --with-segment-mmap-max=12G"
 EXTRA_CONFIGURE_ARGS="$EXTRA_CONFIGURE_ARGS --with-feature-list=os_bgq"
-if test -z "$USE_GCC" ; then
+if test -z "$USE_GCC$USE_CLANG" ; then
 EXTRA_CONFIGURE_ARGS="$EXTRA_CONFIGURE_ARGS --disable-tls"
 fi
 export EXTRA_CONFIGURE_ARGS  # misc configure args to pass
