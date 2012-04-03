@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2012/03/14 00:50:16 $
- * $Revision: 1.101 $
+ *     $Date: 2012/04/03 16:59:00 $
+ * $Revision: 1.101.2.1 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -428,13 +428,13 @@ GASNETI_BEGIN_EXTERNC
   }
 /* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_ARCH_POWERPC && \
-      ( PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_XLC ) && \
+      ( PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_XLC || PLATFORM_COMPILER_CLANG ) && \
       ( PLATFORM_OS_LINUX || PLATFORM_OS_BLRTS || PLATFORM_OS_BGP || PLATFORM_OS_BGQ)
   /* Use the 64-bit "timebase" register on both 32- and 64-bit PowerPC CPUs */
   #include <sys/types.h>
   #include <dirent.h>
   typedef uint64_t gasneti_tick_t;
- #if PLATFORM_COMPILER_GNU
+ #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_CLANG
   GASNETI_INLINE(gasneti_ticks_now)
   uint64_t gasneti_ticks_now(void) {
     uint64_t ret;
