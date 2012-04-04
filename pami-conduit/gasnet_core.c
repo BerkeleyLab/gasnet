@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/21 16:05:24 $
- * $Revision: 1.1.2.37 $
+ *     $Date: 2012/04/04 23:52:08 $
+ * $Revision: 1.1.2.38 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -534,7 +534,7 @@ static int gasnetc_exit_reduce(void) {
     GASNETC_PAMI_LOCK(gasnetc_context);
     rc = PAMI_Context_advance(gasnetc_context, 1);
     GASNETC_PAMI_UNLOCK(gasnetc_context);
-    if ((rc != PAMI_SUCCESS) ||
+    if ((rc != PAMI_SUCCESS && rc != PAMI_EAGAIN) ||
         (timeout_ns < gasneti_ticks_to_ns(gasneti_ticks_now() - start_time))) {
       return 1;
     }

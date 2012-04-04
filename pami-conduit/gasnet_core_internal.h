@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core_internal.h,v $
- *     $Date: 2012/04/04 23:14:28 $
- * $Revision: 1.1.2.17 $
+ *     $Date: 2012/04/04 23:52:08 $
+ * $Revision: 1.1.2.18 $
  * Description: GASNet PAMI conduit header for internal definitions in Core API
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -151,7 +151,7 @@ pami_result_t gasnetc_wait_uint(pami_context_t context,
                                 unsigned int goal) {
   while (*counter_p != goal) {
     pami_result_t rc = PAMI_Context_advance(context, 1);
-    if_pf (rc != PAMI_SUCCESS) return rc;
+    if_pf (rc != PAMI_SUCCESS && rc != PAMI_EAGAIN) return rc;
   }
   return PAMI_SUCCESS;
 }
@@ -163,7 +163,7 @@ pami_result_t gasnetc_wait_atomic(pami_context_t context,
                                   gasneti_weakatomic_val_t goal) {
   while (gasneti_weakatomic_read(counter_p, 0) != goal) {
     pami_result_t rc = PAMI_Context_advance(context, 1);
-    if_pf (rc != PAMI_SUCCESS) return rc;
+    if_pf (rc != PAMI_SUCCESS && rc != PAMI_EAGAIN) return rc;
   }
   return PAMI_SUCCESS;
 }
