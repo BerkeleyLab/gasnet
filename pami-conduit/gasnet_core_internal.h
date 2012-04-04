@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core_internal.h,v $
- *     $Date: 2012/03/21 15:27:37 $
- * $Revision: 1.1.2.16 $
+ *     $Date: 2012/04/04 23:14:28 $
+ * $Revision: 1.1.2.17 $
  * Description: GASNet PAMI conduit header for internal definitions in Core API
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -13,6 +13,11 @@
 #include <gasnet_handler.h>
 
 #include <pami.h>
+
+#if !PLATFORM_OS_BGQ // XXX: work-around hidden symbol on PERCS
+  #undef PAMI_ENDPOINT_NULL
+  #define PAMI_ENDPOINT_NULL ((pami_endpoint_t)(~0))
+#endif
 
 #define GASNETC_PAMI_CHECK(rc,msg) \
   if_pf ((rc) != PAMI_SUCCESS) \
