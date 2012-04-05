@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2012/03/17 06:56:51 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2012/04/05 04:25:55 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet header for PAMI conduit core (forward definitions)
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -23,7 +23,7 @@
 
   /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
 #if GASNETI_PSHM_ENABLED
-/* #define GASNET_PSHM 1 */ ### Not *yet* implemented
+ #define GASNET_PSHM 1
 #endif
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */

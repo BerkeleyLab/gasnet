@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/04/05 01:31:45 $
- * $Revision: 1.1.2.40 $
+ *     $Date: 2012/04/05 04:25:55 $
+ * $Revision: 1.1.2.41 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -220,7 +220,7 @@ static int gasnetc_init(int *argc, char ***argv) {
      * conduit-specific uses.  The return value is a pointer to the space
      * requested by the 2nd argument.
      */
-    ### = gasneti_pshm_init(&gasnetc_bootstrapExchange, 0);
+    (void) gasneti_pshm_init(&gasnetc_bootstrapExchange, 0);
   #endif
 
   /* TODO: when PSHM support is in place, consider moving table to shared mem */
