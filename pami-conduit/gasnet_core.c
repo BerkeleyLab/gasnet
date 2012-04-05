@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/04/05 00:10:18 $
- * $Revision: 1.1.2.39 $
+ *     $Date: 2012/04/05 01:31:45 $
+ * $Revision: 1.1.2.40 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -930,9 +930,13 @@ static int gasnetc_am_init(void) {
   /* Register dispatch fn for AMMedium */
   hints.long_header = (gasnetc_recv_imm_max >= sizeof(gasnetc_medmsg_t))
                       ? PAMI_HINT_DISABLE : PAMI_HINT_ENABLE;
+#if !PLATFORM_OS_BGQ // PERCS claims 10MB recv imm, but fails around 2K
+  hints.recv_immediate = PAMI_HINT_DEFAULT;
+#else
   hints.recv_immediate = (gasnetc_recv_imm_max >= 
                              (sizeof(gasnetc_medmsg_t) + gasnet_AMMaxMedium()))
                          ? PAMI_HINT_ENABLE : PAMI_HINT_DEFAULT;
+#endif
   fn.p2p = &am_Med_dispatch;
   rc = PAMI_Dispatch_set(gasnetc_context, GASNETC_DISP_MED, fn, NULL, hints);
   GASNETC_PAMI_CHECK(rc, "registering GASNETC_DISP_MED");
@@ -988,7 +992,14 @@ extern int gasnetc_AMPoll(void) {
 
   /* (###) add code here to run your AM progress engine */
 #if GASNET_PAR
+ #if !PLATFORM_OS_BGQ // Work-around hidden symbol on PERCS
+  if (PAMI_SUCCESS == PAMI_Context_trylock(gasnetc_context)) {
+    PAMI_Context_advance(gasnetc_context, 1);
+    PAMI_Context_unlock(gasnetc_context);
+  }
+ #else
   PAMI_Context_trylock_advancev(&gasnetc_context, 1, 1);
+ #endif
 #else
   PAMI_Context_advance(gasnetc_context, 1);
 #endif
