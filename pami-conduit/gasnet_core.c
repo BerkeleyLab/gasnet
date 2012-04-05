@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/04/04 23:52:08 $
- * $Revision: 1.1.2.38 $
+ *     $Date: 2012/04/05 00:10:18 $
+ * $Revision: 1.1.2.39 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -1076,7 +1076,7 @@ extern int gasnetc_AMRequestShortM(
 
     GASNETC_PAMI_LOCK(gasnetc_context);
     rc = PAMI_Send_immediate(gasnetc_context, &cmd);
-    GASNETC_PAMI_CHECK(rc, "from PAMI_Send_immediate(AMReqestShort)");
+    GASNETC_PAMI_CHECK(rc, "from PAMI_Send_immediate(AMRequestShort)");
     GASNETC_PAMI_UNLOCK(gasnetc_context);
 
     gasnetc_put_request_credit();
@@ -1143,7 +1143,7 @@ extern int gasnetc_AMRequestMediumM(
 
     GASNETC_PAMI_LOCK(gasnetc_context);
     rc = PAMI_Send(gasnetc_context, &cmd);
-    GASNETC_PAMI_CHECK(rc, "from PAMI_Send(AMReqestMedium)");
+    GASNETC_PAMI_CHECK(rc, "from PAMI_Send(AMRequestMedium)");
     GASNETC_PAMI_UNLOCK(gasnetc_context);
   }
   va_end(argptr);
@@ -1205,7 +1205,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 
     GASNETC_PAMI_LOCK(gasnetc_context);
     rc = PAMI_Send(gasnetc_context, &cmd);
-    GASNETC_PAMI_CHECK(rc, "from PAMI_Send(AMReqestLong)");
+    GASNETC_PAMI_CHECK(rc, "from PAMI_Send(AMRequestLong)");
 
     rc = gasnetc_wait_uint(gasnetc_context, &counter, 1);
     GASNETC_PAMI_CHECK(rc, "progressing an AMRequestLong");
@@ -1271,7 +1271,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 
     GASNETC_PAMI_LOCK(gasnetc_context);
     rc = PAMI_Send(gasnetc_context, &cmd);
-    GASNETC_PAMI_CHECK(rc, "from PAMI_Send(AMReqestLongAsync)");
+    GASNETC_PAMI_CHECK(rc, "from PAMI_Send(AMRequestLongAsync)");
     GASNETC_PAMI_UNLOCK(gasnetc_context);
   }
   va_end(argptr);
