@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/04/05 04:25:55 $
- * $Revision: 1.1.2.41 $
+ *     $Date: 2012/04/06 03:48:38 $
+ * $Revision: 1.1.2.42 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -909,8 +909,15 @@ static int gasnetc_am_init(void) {
   /* Query immediate limits */
   conf[0].name = PAMI_DISPATCH_SEND_IMMEDIATE_MAX;
   conf[1].name = PAMI_DISPATCH_RECV_IMMEDIATE_MAX;
+#if !PLATFORM_OS_BGQ // PERCS only implements num_configs=1
+  rc = PAMI_Dispatch_query(gasnetc_context, GASNETC_DISP_NOOP, &conf[0], 1);
+  GASNETC_PAMI_CHECK(rc, "querying DISPATCH send immediate limit");
+  rc = PAMI_Dispatch_query(gasnetc_context, GASNETC_DISP_NOOP, &conf[1], 1);
+  GASNETC_PAMI_CHECK(rc, "querying DISPATCH recv immediate limit");
+#else
   rc = PAMI_Dispatch_query(gasnetc_context, GASNETC_DISP_NOOP, conf, 2);
   GASNETC_PAMI_CHECK(rc, "querying DISPATCH immediate limits");
+#endif
   gasnetc_send_imm_max = conf[0].value.intval;
   GASNETI_TRACE_PRINTF(C,("PAMI_DISPATCH_SEND_IMMEDIATE_MAX = %ld",
                           (long)gasnetc_send_imm_max));
@@ -930,13 +937,9 @@ static int gasnetc_am_init(void) {
   /* Register dispatch fn for AMMedium */
   hints.long_header = (gasnetc_recv_imm_max >= sizeof(gasnetc_medmsg_t))
                       ? PAMI_HINT_DISABLE : PAMI_HINT_ENABLE;
-#if !PLATFORM_OS_BGQ // PERCS claims 10MB recv imm, but fails around 2K
-  hints.recv_immediate = PAMI_HINT_DEFAULT;
-#else
   hints.recv_immediate = (gasnetc_recv_imm_max >= 
                              (sizeof(gasnetc_medmsg_t) + gasnet_AMMaxMedium()))
                          ? PAMI_HINT_ENABLE : PAMI_HINT_DEFAULT;
-#endif
   fn.p2p = &am_Med_dispatch;
   rc = PAMI_Dispatch_set(gasnetc_context, GASNETC_DISP_MED, fn, NULL, hints);
   GASNETC_PAMI_CHECK(rc, "registering GASNETC_DISP_MED");
