@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/04/06 03:48:38 $
- * $Revision: 1.1.2.42 $
+ *     $Date: 2012/04/06 04:51:58 $
+ * $Revision: 1.1.2.43 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -855,6 +855,7 @@ static void am_Long_dispatch(
 
   gasneti_assert(head_size == GASNETC_ARGSEND(long, longmsg->numargs));
 
+#if PLATFORM_OS_BGQ
   if_pf (!recv) { // PAMI bug: we've disabled this explicitly! (fixed in later rev)
     /* Entire message has arrived - copy data and run now */
     gasnetc_token_t token;
@@ -862,7 +863,9 @@ static void am_Long_dispatch(
     gasneti_assert(pipe_size == longmsg->nbytes);
     memcpy(data, pipe_addr, pipe_size);
     run_long(&token);
-  } else {
+  } else
+#endif
+  {
     /* Only our header has arrived - setup copy data and async run */
     gasnetc_token_t *token = gasnetc_get_token();
     memcpy(token, head_addr, head_size);
