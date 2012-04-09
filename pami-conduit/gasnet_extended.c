@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_extended.c,v $
- *     $Date: 2012/04/09 07:04:41 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2012/04/09 16:58:41 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet Extended API PAMI-conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2012, Lawrence Berkeley National Laboratory
@@ -495,20 +495,27 @@ SHORT_HANDLER(gasnete_markdone_reph,1,2,
 
 extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   GASNETI_CHECKPSHM_GET(UNALIGNED,H);
-  if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
-    gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
+  {
+    gasnete_eop_t *eop = gasnete_eop_new(GASNETE_MYTHREAD);
+    pami_get_simple_t cmd;
 
-    GASNETI_SAFE(
-      SHORT_REQ(4,7,(node, gasneti_handleridx(gasnete_get_reqh), 
-                   (gasnet_handlerarg_t)nbytes, PACK(dest), PACK(src), PACK(op))));
+    cmd.rma.dest = gasnetc_endpoint(node);
+    memset(&cmd.rma.hints, 0, sizeof(cmd.rma.hints)); // Any hints we can set?
+    cmd.rma.bytes = nbytes;
+    cmd.rma.cookie = eop;
+    cmd.rma.done_fn = gasnete_cb_eop_done;
+    cmd.addr.local = dest;
+    cmd.addr.remote = src;
 
-    return (gasnet_handle_t)op;
-  } else {
-    /*  need many messages - use an access region to coalesce them into a single handle */
-    /*  (note this relies on the fact that our implementation of access regions allows recursion) */
-    gasnete_begin_nbi_accessregion(1 /* enable recursion */ GASNETE_THREAD_PASS);
-    gasnete_get_nbi_bulk(dest, node, src, nbytes GASNETE_THREAD_PASS);
-    return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+    PAMI_Context_lock(gasnetc_context);
+    { pami_result_t rc;
+
+      rc = PAMI_Get(gasnetc_context, &cmd);
+      GASNETC_PAMI_CHECK(rc, "calling PAMI_Get");
+    }
+    PAMI_Context_unlock(gasnetc_context);
+
+    return (gasnet_handle_t)eop;
   }
 }
 
@@ -531,7 +538,7 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
   { pami_result_t rc;
 
     rc = PAMI_Put(gasnetc_context, &cmd);
-    GASNETC_PAMI_CHECK(rc, "initiating a non-blocking Put");
+    GASNETC_PAMI_CHECK(rc, "calling PAMI_Put");
 
     if (!isbulk) {
       do {
