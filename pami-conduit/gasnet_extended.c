@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_extended.c,v $
- *     $Date: 2012/04/09 19:45:36 $
- * $Revision: 1.1.2.6 $
+ *     $Date: 2012/04/09 21:48:21 $
+ * $Revision: 1.1.2.7 $
  * Description: GASNet Extended API PAMI-conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2012, Lawrence Berkeley National Laboratory
@@ -355,6 +355,66 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 
 /* ------------------------------------------------------------------------------------ */
 /*
+  Non-blocking memory-to-memory transfers (helpers)
+  ==========================================================
+*/
+
+// TODO: use Rput when both src and dest are in-segment
+GASNETI_INLINE(gasnete_put_common)
+void gasnete_put_common(gasnet_node_t node, void *dest, void *src, size_t nbytes,
+                        gasnete_op_t *op, int need_lc, int is_eop GASNETE_THREAD_FARG) {
+  pami_put_simple_t cmd;
+
+  cmd.rma.dest = gasnetc_endpoint(node);
+  memset(&cmd.rma.hints, 0, sizeof(cmd.rma.hints)); // Any hints we can set?
+  cmd.rma.bytes = nbytes;
+  cmd.rma.cookie = op;
+  cmd.rma.done_fn = need_lc ? gasnete_cb_op_lc : NULL;
+  cmd.addr.local = src;
+  cmd.addr.remote = dest;
+  cmd.put.rdone_fn = is_eop ? gasnete_cb_eop_done : gasnete_cb_iput_done;
+
+  PAMI_Context_lock(gasnetc_context);
+  {
+    pami_result_t  rc = PAMI_Put(gasnetc_context, &cmd);
+    GASNETC_PAMI_CHECK(rc, "calling PAMI_Put");
+  }
+  if (need_lc) {
+    do {
+      pami_result_t rc = PAMI_Context_advance(gasnetc_context, 1);
+      if (rc != PAMI_EAGAIN) {
+        GASNETC_PAMI_CHECK(rc, "waiting on local completion of Put");
+      }
+    } while (! gasnete_op_read_lc((gasnete_op_t *)op));
+  }
+  PAMI_Context_unlock(gasnetc_context);
+}
+
+// TODO: use Rget when both src and dest are in-segment
+GASNETI_INLINE(gasnete_get_common)
+void gasnete_get_common(void *dest, gasnet_node_t node, void *src, size_t nbytes,
+                        gasnete_op_t *op, int is_eop GASNETE_THREAD_FARG) {
+  pami_get_simple_t cmd;
+
+  cmd.rma.dest = gasnetc_endpoint(node);
+  memset(&cmd.rma.hints, 0, sizeof(cmd.rma.hints)); // Any hints we can set?
+  cmd.rma.bytes = nbytes;
+  cmd.rma.cookie = op;
+  cmd.rma.done_fn = is_eop ? gasnete_cb_eop_done : gasnete_cb_iget_done;
+  cmd.addr.local = dest;
+  cmd.addr.remote = src;
+
+  PAMI_Context_lock(gasnetc_context);
+  { pami_result_t rc;
+
+    rc = PAMI_Get(gasnetc_context, &cmd);
+    GASNETC_PAMI_CHECK(rc, "calling PAMI_Get");
+  }
+  PAMI_Context_unlock(gasnetc_context);
+}
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Non-blocking memory-to-memory transfers (explicit handle)
   ==========================================================
 */
@@ -387,71 +447,26 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
   GASNETI_CHECKPSHM_GET(UNALIGNED,H);
   {
     gasnete_eop_t * op = gasnete_eop_new(GASNETE_MYTHREAD);
-    pami_get_simple_t cmd;
-
-    cmd.rma.dest = gasnetc_endpoint(node);
-    memset(&cmd.rma.hints, 0, sizeof(cmd.rma.hints)); // Any hints we can set?
-    cmd.rma.bytes = nbytes;
-    cmd.rma.cookie = op;
-    cmd.rma.done_fn = gasnete_cb_eop_done;
-    cmd.addr.local = dest;
-    cmd.addr.remote = src;
-
-    PAMI_Context_lock(gasnetc_context);
-    { pami_result_t rc;
-
-      rc = PAMI_Get(gasnetc_context, &cmd);
-      GASNETC_PAMI_CHECK(rc, "calling PAMI_Get");
-    }
-    PAMI_Context_unlock(gasnetc_context);
-
+    gasnete_get_common(dest, node, src, nbytes, (gasnete_op_t *)op, 1 GASNETE_THREAD_PASS);
     return (gasnet_handle_t)op;
   }
 }
 
-// TODO: use Rput when both src and dest are in-segment
-GASNETI_INLINE(gasnete_put_nb_inner)
-gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes, int isbulk GASNETE_THREAD_FARG) {
-  gasnete_eop_t * op = gasnete_eop_new(GASNETE_MYTHREAD);
-  pami_put_simple_t cmd;
-
-  cmd.rma.dest = gasnetc_endpoint(node);
-  memset(&cmd.rma.hints, 0, sizeof(cmd.rma.hints)); // Any hints we can set?
-  cmd.rma.bytes = nbytes;
-  cmd.rma.cookie = op;
-  cmd.rma.done_fn = isbulk ? NULL : gasnete_cb_op_lc;
-  cmd.addr.local = src;
-  cmd.addr.remote = dest;
-  cmd.put.rdone_fn = gasnete_cb_eop_done;
-
-  PAMI_Context_lock(gasnetc_context);
-  { pami_result_t rc;
-
-    rc = PAMI_Put(gasnetc_context, &cmd);
-    GASNETC_PAMI_CHECK(rc, "calling PAMI_Put");
-
-    if (!isbulk) {
-      do {
-        rc = PAMI_Context_advance(gasnetc_context, 1);
-        if (rc != PAMI_EAGAIN) {
-          GASNETC_PAMI_CHECK(rc, "waiting on local completion of non-blocking Put");
-        }
-      } while (! gasnete_op_read_lc((gasnete_op_t *)op));
-    }
-  }
-  PAMI_Context_unlock(gasnetc_context);
-
-  return (gasnet_handle_t)op;
-}
-
 extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   GASNETI_CHECKPSHM_PUT(ALIGNED,H);
-  return gasnete_put_nb_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS);
+  { gasnete_eop_t * op = gasnete_eop_new(GASNETE_MYTHREAD);
+    gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)op, 1, 1 GASNETE_THREAD_PASS);
+    gasneti_assert(gasnete_op_read_lc((gasnete_op_t *)op));
+    return (gasnet_handle_t)op;
+  }
 }
 
 extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
-  return gasnete_put_nb_inner(node, dest, src, nbytes, 1 GASNETE_THREAD_PASS);
+  { gasnete_eop_t * op = gasnete_eop_new(GASNETE_MYTHREAD);
+    gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)op, 0, 1 GASNETE_THREAD_PASS);
+    return (gasnet_handle_t)op;
+  }
 }
 
 extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
@@ -547,76 +562,36 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
   gasnete_iop_t * const op = mythread->current_iop;
   GASNETI_CHECKPSHM_GET(UNALIGNED,V);
   {
-    pami_get_simple_t cmd;
-
     op->initiated_get_cnt++;
-
-    cmd.rma.dest = gasnetc_endpoint(node);
-    memset(&cmd.rma.hints, 0, sizeof(cmd.rma.hints)); // Any hints we can set?
-    cmd.rma.bytes = nbytes;
-    cmd.rma.cookie = op;
-    cmd.rma.done_fn = gasnete_cb_iget_done;
-    cmd.addr.local = dest;
-    cmd.addr.remote = src;
-
-    PAMI_Context_lock(gasnetc_context);
-    { pami_result_t rc;
-
-      rc = PAMI_Get(gasnetc_context, &cmd);
-      GASNETC_PAMI_CHECK(rc, "calling PAMI_Get");
-    }
-    PAMI_Context_unlock(gasnetc_context);
+    gasnete_get_common(dest, node, src, nbytes, (gasnete_op_t *)op, 0 GASNETE_THREAD_PASS);
   }
-}
-
-GASNETI_INLINE(gasnete_put_nbi_inner)
-void gasnete_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes, int isbulk GASNETE_THREAD_FARG) {
-  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-  gasnete_iop_t * const op = mythread->current_iop;
-  pami_put_simple_t cmd;
-
-  op->initiated_put_cnt++;
-
-  cmd.rma.dest = gasnetc_endpoint(node);
-  memset(&cmd.rma.hints, 0, sizeof(cmd.rma.hints)); // Any hints we can set?
-  cmd.rma.bytes = nbytes;
-  cmd.rma.cookie = op;
-  cmd.rma.done_fn = isbulk ? NULL : gasnete_cb_op_lc;
-  cmd.addr.local = src;
-  cmd.addr.remote = dest;
-  cmd.put.rdone_fn = gasnete_cb_iput_done;
-
-  PAMI_Context_lock(gasnetc_context);
-  { pami_result_t rc;
-
-    rc = PAMI_Put(gasnetc_context, &cmd);
-    GASNETC_PAMI_CHECK(rc, "calling PAMI_Put");
-
-    if (!isbulk) {
-      do {
-        rc = PAMI_Context_advance(gasnetc_context, 1);
-        if (rc != PAMI_EAGAIN) {
-          GASNETC_PAMI_CHECK(rc, "waiting on local completion of non-blocking Put");
-        }
-      } while (! gasnete_op_read_lc((gasnete_op_t *)op));
-#if 0
-      gasnete_op_clr_lc((gasnete_op_t *)op)); /* Ready for next time */
-#else
-      op->flags = OPTYPE_IMPLICIT;
-#endif
-    }
-  }
-  PAMI_Context_unlock(gasnetc_context);
 }
 
 extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+  gasnete_iop_t * const op = mythread->current_iop;
   GASNETI_CHECKPSHM_PUT(ALIGNED,V);
-  gasnete_put_nbi_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS);
+  {
+    op->initiated_put_cnt++;
+    gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)op, 1, 0 GASNETE_THREAD_PASS);
+    /* reset LC flag for next time: */
+    gasneti_assert(gasnete_op_read_lc((gasnete_op_t *)op));
+  #if 0
+    gasnete_op_clr_lc((gasnete_op_t *)op));
+  #else
+    op->flags = OPTYPE_IMPLICIT; /* Should be cheaper than r-m-w */
+  #endif
+  }
 }
 
 extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+  gasnete_iop_t * const op = mythread->current_iop;
   GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
-  gasnete_put_nbi_inner(node, dest, src, nbytes, 1 GASNETE_THREAD_PASS);
+  {
+    op->initiated_put_cnt++;
+    gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)op, 0, 0 GASNETE_THREAD_PASS);
+  }
 }
 
 extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
