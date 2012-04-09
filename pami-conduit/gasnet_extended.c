@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_extended.c,v $
- *     $Date: 2012/04/06 21:19:17 $
- * $Revision: 1.1.2.1 $
+ *     $Date: 2012/04/09 07:04:41 $
+ * $Revision: 1.1.2.2 $
  * Description: GASNet Extended API PAMI-conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2012, Lawrence Berkeley National Laboratory
@@ -8,6 +8,7 @@
  */
 
 #include <gasnet_internal.h>
+#include <gasnet_core_internal.h>
 #include <gasnet_extended_internal.h>
 #include <gasnet_handler.h>
 
@@ -107,7 +108,12 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
     gasneti_assert(eop->threadidx == thread->threadidx);
     gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);
     gasneti_assert(OPTYPE(eop) == OPSTATE_FREE);
+#if 0
+    eop->flags &= ~OPFLAG_LC;
     SET_OPSTATE(eop, OPSTATE_INFLIGHT);
+#else
+    eop->flags = OPSTATE_INFLIGHT;
+#endif
     return eop;
   } else { /*  free list empty - need more eops */
     int bufidx = thread->eop_num_bufs;
@@ -246,6 +252,36 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
   }
 }
 
+/* callbacks implementing subsets of gasnete_op_markdone */
+static void gasnete_cb_eop_done(pami_context_t context, void *cookie, pami_result_t status) {
+  gasnete_eop_t *eop = (gasnete_eop_t *)cookie;
+  gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT);
+  gasnete_eop_check(eop);
+  SET_OPSTATE(eop, OPSTATE_COMPLETE);
+}
+static void gasnete_cb_iput_done(pami_context_t context, void *cookie, pami_result_t status) {
+  gasnete_iop_t *iop = (gasnete_iop_t *)cookie;
+  gasnete_iop_check(iop);
+  gasneti_weakatomic_increment(&(iop->completed_put_cnt), 0);
+}
+static void gasnete_cb_iget_done(pami_context_t context, void *cookie, pami_result_t status) {
+  gasnete_iop_t *iop = (gasnete_iop_t *)cookie;
+  gasnete_iop_check(iop);
+  gasneti_weakatomic_increment(&(iop->completed_get_cnt), 0);
+}
+
+/* callback for local completion of a non-bulk/nb eop
+ * While not common, it is possible for the REMOTE completion event to be
+ * processed, BEFORE the LOCAL one.
+ */
+static void gasnete_cb_eop_lc(pami_context_t context, void *cookie, pami_result_t status) {
+  gasnete_eop_t *eop = (gasnete_eop_t *)cookie;
+  gasneti_assert((OPSTATE(eop) == OPSTATE_INFLIGHT) ||
+                 (OPSTATE(eop) == OPSTATE_COMPLETE));
+  gasnete_eop_check(eop);
+  gasnete_eop_set_lc(eop);
+}
+
 /*  free an op */
 void gasnete_op_free(gasnete_op_t *op) {
   gasnete_threaddata_t * const thread = gasnete_threadtable[op->threadidx];
@@ -303,7 +339,7 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 }
 /* ------------------------------------------------------------------------------------ */
 /*
- * Design/Approach for gets/puts in Extended Reference API in terms of Core
+ * Design/Approach for gets/puts in Extended API in terms of PAMI+Core
  * ========================================================================
  *
  * The extended API implements gasnet_put and gasnet_put_nbi differently, 
@@ -318,13 +354,7 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
  * gasnet_put(_bulk) is translated to a gasnete_put_nb(_bulk) + sync
  * gasnet_get(_bulk) is translated to a gasnete_get_nb(_bulk) + sync
  *
- * gasnete_put_nb(_bulk) translates to
- *    if nbytes < GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD
- *      AMMedium(payload)
- *    else if nbytes < AMMaxLongRequest
- *      AMLongRequest(payload)
- *    else
- *      gasnete_put_nbi(_bulk)(payload)
+ * gasnete_put_nb(_bulk) translates to PAMI_Put()
  *
  * gasnete_get_nb(_bulk) translates to
  *    if nbytes < GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD
@@ -482,41 +512,39 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
   }
 }
 
+// TODO: use Rput when both src and dest are in-segment
 GASNETI_INLINE(gasnete_put_nb_inner)
 gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes, int isbulk GASNETE_THREAD_FARG) {
-  if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
-    gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
+  gasnete_eop_t *eop = gasnete_eop_new(GASNETE_MYTHREAD);
+  pami_put_simple_t cmd;
 
-    GASNETI_SAFE(
-      MEDIUM_REQ(2,4,(node, gasneti_handleridx(gasnete_put_reqh),
-                    src, nbytes,
-                    PACK(dest), PACK(op))));
+  cmd.rma.dest = gasnetc_endpoint(node);
+  memset(&cmd.rma.hints, 0, sizeof(cmd.rma.hints)); // Any hints we can set?
+  cmd.rma.bytes = nbytes;
+  cmd.rma.cookie = eop;
+  cmd.rma.done_fn = isbulk ? NULL : gasnete_cb_eop_lc;
+  cmd.addr.local = src;
+  cmd.addr.remote = dest;
+  cmd.put.rdone_fn = gasnete_cb_eop_done;
 
-    return (gasnet_handle_t)op;
-  } else if (nbytes <= gasnet_AMMaxLongRequest()) {
-    gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
+  PAMI_Context_lock(gasnetc_context);
+  { pami_result_t rc;
 
-    if (isbulk) {
-      GASNETI_SAFE(
-        LONGASYNC_REQ(1,2,(node, gasneti_handleridx(gasnete_putlong_reqh),
-                    src, nbytes, dest,
-                    PACK(op))));
-    } else {
-      GASNETI_SAFE(
-        LONG_REQ(1,2,(node, gasneti_handleridx(gasnete_putlong_reqh),
-                    src, nbytes, dest,
-                    PACK(op))));
+    rc = PAMI_Put(gasnetc_context, &cmd);
+    GASNETC_PAMI_CHECK(rc, "initiating a non-blocking Put");
+
+    if (!isbulk) {
+      do {
+        rc = PAMI_Context_advance(gasnetc_context, 1);
+        if (rc != PAMI_EAGAIN) {
+          GASNETC_PAMI_CHECK(rc, "waiting on local completion of non-blocking Put");
+        }
+      } while (! gasnete_eop_read_lc(eop));
     }
-
-    return (gasnet_handle_t)op;
-  } else { 
-    /*  need many messages - use an access region to coalesce them into a single handle */
-    /*  (note this relies on the fact that our implementation of access regions allows recursion) */
-    gasnete_begin_nbi_accessregion(1 /* enable recursion */ GASNETE_THREAD_PASS);
-      if (isbulk) gasnete_put_nbi_bulk(node, dest, src, nbytes GASNETE_THREAD_PASS);
-      else        gasnete_put_nbi    (node, dest, src, nbytes GASNETE_THREAD_PASS);
-    return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
   }
+  PAMI_Context_unlock(gasnetc_context);
+
+  return (gasnet_handle_t)eop;
 }
 
 extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
