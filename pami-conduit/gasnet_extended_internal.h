@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2012/04/09 19:37:27 $
- * $Revision: 1.1.2.5 $
+ *     $Date: 2012/04/09 19:45:36 $
+ * $Revision: 1.1.2.6 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2012, Lawrence Berkeley National Laboratory
@@ -171,14 +171,8 @@ void gasnete_op_free(gasnete_op_t *op);
 #define _hidx_gasnete_amdbarrier_notify_reqh (GASNETE_HANDLER_BASE+0) 
 #define _hidx_gasnete_amcbarrier_notify_reqh (GASNETE_HANDLER_BASE+1) 
 #define _hidx_gasnete_amcbarrier_done_reqh   (GASNETE_HANDLER_BASE+2)
-#define _hidx_gasnete_get_reqh               (GASNETE_HANDLER_BASE+3)
-#define _hidx_gasnete_get_reph               (GASNETE_HANDLER_BASE+4)
-#define _hidx_gasnete_getlong_reqh           (GASNETE_HANDLER_BASE+5)
-#define _hidx_gasnete_getlong_reph           (GASNETE_HANDLER_BASE+6)
-#define _hidx_gasnete_put_reqh               (GASNETE_HANDLER_BASE+7)
-#define _hidx_gasnete_putlong_reqh           (GASNETE_HANDLER_BASE+8)
-#define _hidx_gasnete_memset_reqh            (GASNETE_HANDLER_BASE+9)
-#define _hidx_gasnete_markdone_reph          (GASNETE_HANDLER_BASE+10)
+#define _hidx_gasnete_memset_reqh            (GASNETE_HANDLER_BASE+3)
+#define _hidx_gasnete_markdone_reph          (GASNETE_HANDLER_BASE+4)
 /* add new extended API handlers here and to the bottom of gasnet_extended.c */
 
 #endif
