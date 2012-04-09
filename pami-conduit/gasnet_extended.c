@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_extended.c,v $
- *     $Date: 2012/04/09 16:58:41 $
- * $Revision: 1.1.2.3 $
+ *     $Date: 2012/04/09 17:14:48 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet Extended API PAMI-conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2012, Lawrence Berkeley National Laboratory
@@ -279,7 +279,7 @@ static void gasnete_cb_eop_lc(pami_context_t context, void *cookie, pami_result_
   gasneti_assert((OPSTATE(eop) == OPSTATE_INFLIGHT) ||
                  (OPSTATE(eop) == OPSTATE_COMPLETE));
   gasnete_eop_check(eop);
-  gasnete_eop_set_lc(eop);
+  gasnete_op_set_lc((gasnete_op_t *)eop);
 }
 
 /*  free an op */
@@ -356,11 +356,7 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
  *
  * gasnete_put_nb(_bulk) translates to PAMI_Put()
  *
- * gasnete_get_nb(_bulk) translates to
- *    if nbytes < GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD
- *      AMSmall request + AMMedium(payload) reply
- *    else
- *      gasnete_get_nbi(_bulk)()
+ * gasnete_get_nb(_bulk) translates to PAMI_Get()
  *
  * gasnete_put_nbi(_bulk) translates to
  *    if nbytes < GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD
@@ -496,13 +492,13 @@ SHORT_HANDLER(gasnete_markdone_reph,1,2,
 extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   GASNETI_CHECKPSHM_GET(UNALIGNED,H);
   {
-    gasnete_eop_t *eop = gasnete_eop_new(GASNETE_MYTHREAD);
+    gasnete_eop_t * op = gasnete_eop_new(GASNETE_MYTHREAD);
     pami_get_simple_t cmd;
 
     cmd.rma.dest = gasnetc_endpoint(node);
     memset(&cmd.rma.hints, 0, sizeof(cmd.rma.hints)); // Any hints we can set?
     cmd.rma.bytes = nbytes;
-    cmd.rma.cookie = eop;
+    cmd.rma.cookie = op;
     cmd.rma.done_fn = gasnete_cb_eop_done;
     cmd.addr.local = dest;
     cmd.addr.remote = src;
@@ -515,20 +511,20 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
     }
     PAMI_Context_unlock(gasnetc_context);
 
-    return (gasnet_handle_t)eop;
+    return (gasnet_handle_t)op;
   }
 }
 
 // TODO: use Rput when both src and dest are in-segment
 GASNETI_INLINE(gasnete_put_nb_inner)
 gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes, int isbulk GASNETE_THREAD_FARG) {
-  gasnete_eop_t *eop = gasnete_eop_new(GASNETE_MYTHREAD);
+  gasnete_eop_t * op = gasnete_eop_new(GASNETE_MYTHREAD);
   pami_put_simple_t cmd;
 
   cmd.rma.dest = gasnetc_endpoint(node);
   memset(&cmd.rma.hints, 0, sizeof(cmd.rma.hints)); // Any hints we can set?
   cmd.rma.bytes = nbytes;
-  cmd.rma.cookie = eop;
+  cmd.rma.cookie = op;
   cmd.rma.done_fn = isbulk ? NULL : gasnete_cb_eop_lc;
   cmd.addr.local = src;
   cmd.addr.remote = dest;
@@ -546,12 +542,12 @@ gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest, void *src, 
         if (rc != PAMI_EAGAIN) {
           GASNETC_PAMI_CHECK(rc, "waiting on local completion of non-blocking Put");
         }
-      } while (! gasnete_eop_read_lc(eop));
+      } while (! gasnete_op_read_lc((gasnete_op_t *)op));
     }
   }
   PAMI_Context_unlock(gasnetc_context);
 
-  return (gasnet_handle_t)eop;
+  return (gasnet_handle_t)op;
 }
 
 extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2012/04/09 07:04:41 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2012/04/09 17:14:48 $
+ * $Revision: 1.1.2.4 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2012, Lawrence Berkeley National Laboratory
@@ -53,7 +53,7 @@ typedef struct _gasnete_iop_t {
   struct _gasnete_iop_t *next;    /*  next cell while in free list, deferred iop while being filled */
 
   /*  make sure the counters live on different cache lines for SMP's */
-  uint8_t pad[MAX(8,(ssize_t)(GASNETI_CACHE_LINE_BYTES - sizeof(void*) - sizeof(int)))]; 
+  uint8_t pad[GASNETI_CACHE_PAD(4 + 2*sizeof(int) + sizeof(void*))];
 
   gasneti_weakatomic_t completed_get_cnt;     /*  count of get ops completed */
   gasneti_weakatomic_t completed_put_cnt;     /*  count of put ops completed */
@@ -99,14 +99,14 @@ void SET_OPSTATE(gasnete_eop_t *op, uint8_t state) {
   gasneti_assert(state == OPSTATE_COMPLETE ? 1 : OPSTATE(op) == state);
 }
 
-/*  local completion flag - valid only for eops which block for local-completion */
+/*  local completion flag - valid only for ops which block for local-completion */
 #define OPFLAG_LC  4
-GASNETI_INLINE(gasnete_eop_read_lc)
-int gasnete_eop_read_lc(gasnete_eop_t *op) {
+GASNETI_INLINE(gasnete_op_read_lc)
+int gasnete_op_read_lc(gasnete_op_t *op) {
   return (op->flags & OPFLAG_LC);
 }
-GASNETI_INLINE(gasnete_eop_set_lc)
-void gasnete_eop_set_lc(gasnete_eop_t *op) {
+GASNETI_INLINE(gasnete_op_set_lc)
+void gasnete_op_set_lc(gasnete_op_t *op) {
   op->flags |= OPFLAG_LC;
 }
 
