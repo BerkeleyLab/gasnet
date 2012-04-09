@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2012/04/09 17:14:48 $
- * $Revision: 1.1.2.4 $
+ *     $Date: 2012/04/09 19:37:27 $
+ * $Revision: 1.1.2.5 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2012, Lawrence Berkeley National Laboratory
@@ -108,6 +108,10 @@ int gasnete_op_read_lc(gasnete_op_t *op) {
 GASNETI_INLINE(gasnete_op_set_lc)
 void gasnete_op_set_lc(gasnete_op_t *op) {
   op->flags |= OPFLAG_LC;
+}
+GASNETI_INLINE(gasnete_op_clr_lc)
+void gasnete_op_clr_lc(gasnete_op_t *op) {
+  op->flags &= ~OPFLAG_LC;
 }
 
 /*  get a new op and mark it in flight */
