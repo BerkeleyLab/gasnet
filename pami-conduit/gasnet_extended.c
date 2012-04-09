@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_extended.c,v $
- *     $Date: 2012/04/09 21:48:21 $
- * $Revision: 1.1.2.7 $
+ *     $Date: 2012/04/09 22:12:43 $
+ * $Revision: 1.1.2.8 $
  * Description: GASNet Extended API PAMI-conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2012, Lawrence Berkeley National Laboratory
@@ -362,7 +362,7 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 // TODO: use Rput when both src and dest are in-segment
 GASNETI_INLINE(gasnete_put_common)
 void gasnete_put_common(gasnet_node_t node, void *dest, void *src, size_t nbytes,
-                        gasnete_op_t *op, int need_lc, int is_eop GASNETE_THREAD_FARG) {
+                        gasnete_op_t *op, int need_lc, int is_eop) {
   pami_put_simple_t cmd;
 
   cmd.rma.dest = gasnetc_endpoint(node);
@@ -393,7 +393,7 @@ void gasnete_put_common(gasnet_node_t node, void *dest, void *src, size_t nbytes
 // TODO: use Rget when both src and dest are in-segment
 GASNETI_INLINE(gasnete_get_common)
 void gasnete_get_common(void *dest, gasnet_node_t node, void *src, size_t nbytes,
-                        gasnete_op_t *op, int is_eop GASNETE_THREAD_FARG) {
+                        gasnete_op_t *op, int is_eop) {
   pami_get_simple_t cmd;
 
   cmd.rma.dest = gasnetc_endpoint(node);
@@ -411,6 +411,15 @@ void gasnete_get_common(void *dest, gasnet_node_t node, void *src, size_t nbytes
     GASNETC_PAMI_CHECK(rc, "calling PAMI_Get");
   }
   PAMI_Context_unlock(gasnetc_context);
+}
+
+GASNETI_INLINE(gasnete_memset_common)
+void gasnete_memset_common(gasnet_node_t node, void *dest, int val, size_t nbytes,
+                           gasnete_op_t *op) {
+  GASNETI_SAFE(
+    SHORT_REQ(4,7,(node, gasneti_handleridx(gasnete_memset_reqh),
+                   (gasnet_handlerarg_t)val, PACK(nbytes),
+                   PACK(dest), PACK(op))));
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -447,15 +456,16 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
   GASNETI_CHECKPSHM_GET(UNALIGNED,H);
   {
     gasnete_eop_t * op = gasnete_eop_new(GASNETE_MYTHREAD);
-    gasnete_get_common(dest, node, src, nbytes, (gasnete_op_t *)op, 1 GASNETE_THREAD_PASS);
+    gasnete_get_common(dest, node, src, nbytes, (gasnete_op_t *)op, 1);
     return (gasnet_handle_t)op;
   }
 }
 
 extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   GASNETI_CHECKPSHM_PUT(ALIGNED,H);
-  { gasnete_eop_t * op = gasnete_eop_new(GASNETE_MYTHREAD);
-    gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)op, 1, 1 GASNETE_THREAD_PASS);
+  {
+    gasnete_eop_t * op = gasnete_eop_new(GASNETE_MYTHREAD);
+    gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)op, 1, 1);
     gasneti_assert(gasnete_op_read_lc((gasnete_op_t *)op));
     return (gasnet_handle_t)op;
   }
@@ -463,8 +473,9 @@ extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void
 
 extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
-  { gasnete_eop_t * op = gasnete_eop_new(GASNETE_MYTHREAD);
-    gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)op, 0, 1 GASNETE_THREAD_PASS);
+  {
+    gasnete_eop_t * op = gasnete_eop_new(GASNETE_MYTHREAD);
+    gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)op, 0, 1);
     return (gasnet_handle_t)op;
   }
 }
@@ -473,12 +484,7 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
  GASNETI_CHECKPSHM_MEMSET(H);
  {
   gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
-
-  GASNETI_SAFE(
-    SHORT_REQ(4,7,(node, gasneti_handleridx(gasnete_memset_reqh),
-                 (gasnet_handlerarg_t)val, PACK(nbytes),
-                 PACK(dest), PACK(op))));
-
+  gasnete_memset_common(node, dest, val, nbytes, (gasnete_op_t *)op);
   return (gasnet_handle_t)op;
  }
 }
@@ -558,22 +564,22 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 */
 
 extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-  gasnete_iop_t * const op = mythread->current_iop;
   GASNETI_CHECKPSHM_GET(UNALIGNED,V);
   {
+    gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+    gasnete_iop_t * const op = mythread->current_iop;
     op->initiated_get_cnt++;
-    gasnete_get_common(dest, node, src, nbytes, (gasnete_op_t *)op, 0 GASNETE_THREAD_PASS);
+    gasnete_get_common(dest, node, src, nbytes, (gasnete_op_t *)op, 0);
   }
 }
 
 extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-  gasnete_iop_t * const op = mythread->current_iop;
   GASNETI_CHECKPSHM_PUT(ALIGNED,V);
   {
+    gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+    gasnete_iop_t * const op = mythread->current_iop;
     op->initiated_put_cnt++;
-    gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)op, 1, 0 GASNETE_THREAD_PASS);
+    gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)op, 1, 0);
     /* reset LC flag for next time: */
     gasneti_assert(gasnete_op_read_lc((gasnete_op_t *)op));
   #if 0
@@ -585,26 +591,23 @@ extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, siz
 }
 
 extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-  gasnete_iop_t * const op = mythread->current_iop;
   GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
   {
+    gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+    gasnete_iop_t * const op = mythread->current_iop;
     op->initiated_put_cnt++;
-    gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)op, 0, 0 GASNETE_THREAD_PASS);
+    gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)op, 0, 0);
   }
 }
 
 extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
-  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-  gasnete_iop_t *op = mythread->current_iop;
   GASNETI_CHECKPSHM_MEMSET(V);
-
-  op->initiated_put_cnt++;
-
-  GASNETI_SAFE(
-    SHORT_REQ(4,7,(node, gasneti_handleridx(gasnete_memset_reqh),
-                 (gasnet_handlerarg_t)val, PACK(nbytes),
-                 PACK(dest), PACK(op))));
+  {
+    gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+    gasnete_iop_t *op = mythread->current_iop;
+    op->initiated_put_cnt++;
+    gasnete_memset_common(node, dest, val, nbytes, (gasnete_op_t *)op);
+  }
 }
 
 /* ------------------------------------------------------------------------------------ */
