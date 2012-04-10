@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testam.c,v $
- *     $Date: 2012/03/18 06:27:28 $
- * $Revision: 1.33.10.1 $
+ *     $Date: 2012/04/10 21:13:09 $
+ * $Revision: 1.33.10.2 $
  * Description: GASNet Active Messages performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -466,7 +466,7 @@ void doAMShort(void) {
         report(msg,TIME() - start, iters, sz, 1);                                \
                                                                                  \
         BARRIER();                                                               \
-        ADVANCESZ(sz, MAXREQREP);                                                \
+        ADVANCESZ(sz, MAXREQ);                                                   \
       }                                                                          \
       if (mynode == 0) { printf("\n"); fflush(stdout); }                         \
     }                                                                            \
