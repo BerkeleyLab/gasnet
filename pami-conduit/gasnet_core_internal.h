@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core_internal.h,v $
- *     $Date: 2012/04/04 23:52:08 $
- * $Revision: 1.1.2.18 $
+ *     $Date: 2012/04/10 04:33:39 $
+ * $Revision: 1.1.2.19 $
  * Description: GASNet PAMI conduit header for internal definitions in Core API
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -21,6 +21,11 @@
 
 #define GASNETC_PAMI_CHECK(rc,msg) \
   if_pf ((rc) != PAMI_SUCCESS) \
+    { gasneti_fatalerror("Unexpected error %d on node %i/%i %s",\
+                         (rc), gasneti_mynode, gasneti_nodes, (msg)); }
+
+#define GASNETC_PAMI_CHECK_ADVANCE(rc,msg) \
+  if_pf ((rc) != PAMI_SUCCESS && (rc) != PAMI_EAGAIN) \
     { gasneti_fatalerror("Unexpected error %d on node %i/%i %s",\
                          (rc), gasneti_mynode, gasneti_nodes, (msg)); }
 
