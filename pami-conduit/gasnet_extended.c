@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_extended.c,v $
- *     $Date: 2012/04/09 22:12:43 $
- * $Revision: 1.1.2.8 $
+ *     $Date: 2012/04/10 00:30:58 $
+ * $Revision: 1.1.2.9 $
  * Description: GASNet Extended API PAMI-conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2012, Lawrence Berkeley National Laboratory
@@ -239,7 +239,7 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
 static void gasnete_cb_eop_done(pami_context_t context, void *cookie, pami_result_t status) {
   gasnete_eop_t *eop = (gasnete_eop_t *)cookie;
   gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT);
-  gasnete_eop_check(eop);
+  /* gasnete_eop_check(eop);  XXX: conflicts w/ on-stack EOP used for blocking ops */
   SET_OPSTATE(eop, OPSTATE_COMPLETE);
 }
 static void gasnete_cb_iput_done(pami_context_t context, void *cookie, pami_result_t status) {
@@ -331,8 +331,11 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
  * Design/Approach for gets/puts in Extended API in terms of PAMI
  * ========================================================================
  *
- * gasnet_put(_bulk) is translated to a gasnete_put_nb(_bulk) + sync
- * gasnet_get(_bulk) is translated to a gasnete_get_nb(_bulk) + sync
+ * gasnet_put(_bulk) is translated to PAMI_Put()
+ *   and blocks on an on-stack eop
+ *
+ * gasnet_get(_bulk) is translated to PAMI_Get()
+ *   and blocks on an on-stack eop
  *
  * gasnete_put_nb(_bulk) translates to PAMI_Put()
  *   non-bulk spin-polls for local-completion flag in the eop
@@ -703,6 +706,32 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   iop->next = NULL;
   return (gasnet_handle_t)iop;
 }
+
+/* ------------------------------------------------------------------------------------ */
+/*
+  Blocking memory-to-memory transfers
+  ===================================
+*/
+
+extern void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
+			      size_t nbytes GASNETE_THREAD_FARG) {
+  GASNETI_CHECKPSHM_GET(UNALIGNED,V);
+  {
+    volatile gasnete_eop_t op = { OPSTATE_INFLIGHT, };
+    gasnete_get_common(dest, node, src, nbytes, (gasnete_op_t *)&op, 1);
+    gasneti_polluntil(op.flags == OPSTATE_COMPLETE);
+  }
+}
+
+extern void gasnete_put_bulk (gasnet_node_t node, void* dest, void *src,
+			      size_t nbytes GASNETE_THREAD_FARG) {
+  GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
+  {
+    volatile gasnete_eop_t op = { OPSTATE_INFLIGHT, };
+    gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)&op, 0, 1);
+    gasneti_polluntil(op.flags == OPSTATE_COMPLETE);
+  }
+}   
 
 /* ------------------------------------------------------------------------------------ */
 /*

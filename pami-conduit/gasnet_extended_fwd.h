@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_extended_fwd.h,v $
- *     $Date: 2012/04/06 22:10:17 $
- * $Revision: 1.1.2.2 $
+ *     $Date: 2012/04/10 00:30:58 $
+ * $Revision: 1.1.2.3 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2012, Lawrence Berkeley National Laboratory
@@ -108,6 +108,10 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
  *   unset: extern gasnete_get_val() in gasnet_extended.c (or a macro)
  *   set: conduit provides own gasnete_get_val() as an inline
  */
+
+/* The following using an ON-STACK eop to avoid alloc/free overheads: */
+#define GASNETI_DIRECT_GET_BULK 1
+#define GASNETI_DIRECT_PUT_BULK 1
 
 #endif
 
