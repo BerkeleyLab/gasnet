@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/04/06 04:51:58 $
- * $Revision: 1.1.2.43 $
+ *     $Date: 2012/04/10 04:13:11 $
+ * $Revision: 1.1.2.44 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -607,6 +607,7 @@ extern void gasnetc_exit(int exitcode) {
  */
 #endif
 
+static pami_send_hint_t gasnetc_null_send_hint;
 static gasnet_node_t *gasnetc_loopback_token = &gasneti_mynode;
 static size_t      gasnetc_send_imm_max;
 static size_t      gasnetc_recv_imm_max;
@@ -888,6 +889,11 @@ static int gasnetc_am_init(void) {
   pami_configuration_t conf[2];
   pami_result_t rc;
 
+  memset(&gasnetc_null_send_hint, 0, sizeof(gasnetc_null_send_hint));
+#if GASNET_PSHM
+  gasnetc_null_send_hint.use_shmem = PAMI_HINT_DISABLE;
+#endif
+
   gasneti_assert_always(GASNETC_MAX_MED_RESRV >= sizeof(gasnetc_token_t));
 
   conf[0].name = PAMI_CONTEXT_DISPATCH_ID_MAX;
@@ -902,7 +908,7 @@ static int gasnetc_am_init(void) {
   // TODO: Others hints?
   hints.multicontext = PAMI_HINT_DISABLE;
   hints.recv_contiguous = PAMI_HINT_ENABLE;
-  hints.recv_copy = PAMI_HINT_ENABLE; // XXX: LIES! we use PAMI_DATA_NOOP in addition to PAMI_DATA_COPY
+  hints.recv_copy = PAMI_HINT_ENABLE;
 
   /* Must register a dummy dispatch just so we can query immediate limits.  Sigh. */
   fn.p2p = &noop_dispatch;
@@ -1081,13 +1087,13 @@ extern int gasnetc_AMRequestShortM(
 
     GASNETC_AM_MSG_COMMON(msg, handler, numargs, argptr, 1);
 
-    memset(&cmd.hints, 0, sizeof(cmd.hints));
     cmd.header.iov_base = (char *)&msg;
     cmd.header.iov_len = GASNETC_ARGSEND(short, numargs);
     cmd.data.iov_base = NULL;
     cmd.data.iov_len = 0;
     cmd.dest = gasnetc_endpoint(dest);
     cmd.dispatch = GASNETC_DISP_SHORT;
+    cmd.hints = gasnetc_null_send_hint;
 
     gasnetc_get_request_credit();
 
@@ -1145,13 +1151,13 @@ extern int gasnetc_AMRequestMediumM(
     memcpy(payload, source_addr, nbytes);
 
 // Register bounce buffers and apply appropriate hint(s) here
-    memset(&cmd.send.hints, 0, sizeof(cmd.send.hints));
     cmd.send.header.iov_base = (char *)msg_p;
     cmd.send.header.iov_len = GASNETC_ARGSEND(med, numargs);
     cmd.send.data.iov_base = payload;
     cmd.send.data.iov_len = nbytes;
     cmd.send.dest = gasnetc_endpoint(dest);
     cmd.send.dispatch = GASNETC_DISP_MED;
+    cmd.send.hints = gasnetc_null_send_hint;
     cmd.events.cookie = (void*)msg_p;
     cmd.events.local_fn = &gasnetc_cb_big_token;
     cmd.events.remote_fn = NULL;
@@ -1207,13 +1213,13 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
     msg.nbytes = nbytes;
 
 // Register segment and apply appropriate hint(s) here
-    memset(&cmd.send.hints, 0, sizeof(cmd.send.hints));
     cmd.send.header.iov_base = (char *)&msg;
     cmd.send.header.iov_len = GASNETC_ARGSEND(long, numargs);
     cmd.send.data.iov_base = (char *)source_addr;
     cmd.send.data.iov_len = nbytes;
     cmd.send.dest = gasnetc_endpoint(dest);
     cmd.send.dispatch = GASNETC_DISP_LONG;
+    cmd.send.hints = gasnetc_null_send_hint;
     cmd.events.cookie = (void*)&counter;
     cmd.events.local_fn = &gasnetc_cb_inc_uint;
     cmd.events.remote_fn = NULL;
@@ -1273,13 +1279,13 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     msg_p->nbytes = nbytes;
 
 // Register segment and apply appropriate hint(s) here
-    memset(&cmd.send.hints, 0, sizeof(cmd.send.hints));
     cmd.send.header.iov_base = (char *)msg_p;
     cmd.send.header.iov_len = GASNETC_ARGSEND(long, numargs);
     cmd.send.data.iov_base = (char *)source_addr;
     cmd.send.data.iov_len = nbytes;
     cmd.send.dest = gasnetc_endpoint(dest);
     cmd.send.dispatch = GASNETC_DISP_LONG;
+    cmd.send.hints = gasnetc_null_send_hint;
     cmd.events.cookie = (void*)msg_p;
     cmd.events.local_fn = &gasnetc_cb_token;
     cmd.events.remote_fn = NULL;
@@ -1332,13 +1338,13 @@ extern int gasnetc_AMReplyShortM(
     GASNETC_AM_VALIDATE_TOKEN(short, token);
     GASNETC_AM_MSG_COMMON(msg, handler, numargs, argptr, 0);
 
-    memset(&cmd.hints, 0, sizeof(cmd.hints));
     cmd.header.iov_base = (char *)&msg;
     cmd.header.iov_len = GASNETC_ARGSEND(short, numargs);
     cmd.data.iov_base = NULL;
     cmd.data.iov_len = 0;
     cmd.dest = gasnetc_endpoint(dest);
     cmd.dispatch = GASNETC_DISP_SHORT;
+    cmd.hints = gasnetc_null_send_hint;
 
     /* Lock is held in handler context */
     rc = PAMI_Send_immediate(gasnetc_context, &cmd);
@@ -1394,13 +1400,13 @@ extern int gasnetc_AMReplyMediumM(
     memcpy(payload, source_addr, nbytes);
 
 // Register bounce buffers and apply appropriate hint(s) here
-    memset(&cmd.send.hints, 0, sizeof(cmd.send.hints));
     cmd.send.header.iov_base = (char *)msg_p;
     cmd.send.header.iov_len = GASNETC_ARGSEND(med, numargs);
     cmd.send.data.iov_base = payload;
     cmd.send.data.iov_len = nbytes;
     cmd.send.dest = gasnetc_endpoint(dest);
     cmd.send.dispatch = GASNETC_DISP_MED;
+    cmd.send.hints = gasnetc_null_send_hint;
     cmd.events.cookie = (void*)msg_p;
     cmd.events.local_fn = &gasnetc_cb_big_token;
     cmd.events.remote_fn = NULL;
@@ -1459,13 +1465,13 @@ extern int gasnetc_AMReplyLongM(
     memcpy(payload, source_addr, nbytes);
 
 // Register bounce buffers and apply appropriate hint(s) here
-    memset(&cmd.send.hints, 0, sizeof(cmd.send.hints));
     cmd.send.header.iov_base = (char *)msg_p;
     cmd.send.header.iov_len = GASNETC_ARGSEND(long, numargs);
     cmd.send.data.iov_base = payload;
     cmd.send.data.iov_len = nbytes;
     cmd.send.dest = gasnetc_endpoint(dest);
     cmd.send.dispatch = GASNETC_DISP_LONG;
+    cmd.send.hints = gasnetc_null_send_hint;
     cmd.events.cookie = (void*)msg_p;
     cmd.events.local_fn = &gasnetc_cb_big_token;
     cmd.events.remote_fn = NULL;

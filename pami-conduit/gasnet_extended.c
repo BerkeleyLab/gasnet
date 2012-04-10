@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_extended.c,v $
- *     $Date: 2012/04/10 00:30:58 $
- * $Revision: 1.1.2.9 $
+ *     $Date: 2012/04/10 04:13:11 $
+ * $Revision: 1.1.2.10 $
  * Description: GASNet Extended API PAMI-conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2012, Lawrence Berkeley National Laboratory
@@ -12,6 +12,7 @@
 #include <gasnet_extended_internal.h>
 #include <gasnet_handler.h>
 
+static pami_send_hint_t gasnete_null_send_hint;
 static const gasnete_eopaddr_t EOPADDR_NIL = { { 0xFF, 0xFF } };
 extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 
@@ -43,6 +44,11 @@ extern void gasnete_init(void) {
   firstcall = 0;
 
   gasnete_check_config(); /*  check for sanity */
+
+  memset(&gasnete_null_send_hint, 0, sizeof(gasnete_null_send_hint));
+#if GASNET_PSHM
+  gasnete_null_send_hint.use_shmem = PAMI_HINT_DISABLE;
+#endif
 
   gasneti_assert(gasneti_nodes >= 1 && gasneti_mynode < gasneti_nodes);
 
@@ -369,7 +375,7 @@ void gasnete_put_common(gasnet_node_t node, void *dest, void *src, size_t nbytes
   pami_put_simple_t cmd;
 
   cmd.rma.dest = gasnetc_endpoint(node);
-  memset(&cmd.rma.hints, 0, sizeof(cmd.rma.hints)); // Any hints we can set?
+  cmd.rma.hints = gasnete_null_send_hint;
   cmd.rma.bytes = nbytes;
   cmd.rma.cookie = op;
   cmd.rma.done_fn = need_lc ? gasnete_cb_op_lc : NULL;
@@ -400,7 +406,7 @@ void gasnete_get_common(void *dest, gasnet_node_t node, void *src, size_t nbytes
   pami_get_simple_t cmd;
 
   cmd.rma.dest = gasnetc_endpoint(node);
-  memset(&cmd.rma.hints, 0, sizeof(cmd.rma.hints)); // Any hints we can set?
+  cmd.rma.hints = gasnete_null_send_hint;
   cmd.rma.bytes = nbytes;
   cmd.rma.cookie = op;
   cmd.rma.done_fn = is_eop ? gasnete_cb_eop_done : gasnete_cb_iget_done;
