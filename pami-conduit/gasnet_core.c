@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/04/10 04:13:11 $
- * $Revision: 1.1.2.44 $
+ *     $Date: 2012/04/10 04:55:31 $
+ * $Revision: 1.1.2.45 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -909,6 +909,9 @@ static int gasnetc_am_init(void) {
   hints.multicontext = PAMI_HINT_DISABLE;
   hints.recv_contiguous = PAMI_HINT_ENABLE;
   hints.recv_copy = PAMI_HINT_ENABLE;
+#if GASNET_PSHM
+  hints.use_shmem = PAMI_HINT_DISABLE;
+#endif
 
   /* Must register a dummy dispatch just so we can query immediate limits.  Sigh. */
   fn.p2p = &noop_dispatch;
