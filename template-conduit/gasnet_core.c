@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/gasnet_core.c,v $
- *     $Date: 2012/03/20 08:47:51 $
- * $Revision: 1.67.2.1 $
+ *     $Date: 2012/04/11 18:49:47 $
+ * $Revision: 1.67.2.2 $
  * Description: GASNet <conduitname> conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -314,10 +314,16 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       gasneti_assert(segsize % GASNET_PAGESIZE == 0);
     }
   #else
-    /* GASNET_SEGMENT_EVERYTHING */
+  { /* GASNET_SEGMENT_EVERYTHING */
+    gasnet_node_t i;
+    for (i=0; i<gasneti_nodes; i++) {
+      gasneti_seginfo[i].addr = (void *)0;
+      gasneti_seginfo[i].size = (uintptr_t)-1;
+    }
     segbase = (void *)0;
     segsize = (uintptr_t)-1;
     /* (###) add any code here needed to setup GASNET_SEGMENT_EVERYTHING support */
+  }
   #endif
 
   /* ------------------------------------------------------------------------------------ */
