@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_extended.c,v $
- *     $Date: 2012/04/10 04:33:39 $
- * $Revision: 1.1.2.11 $
+ *     $Date: 2012/04/11 20:09:46 $
+ * $Revision: 1.1.2.12 $
  * Description: GASNet Extended API PAMI-conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2012, Lawrence Berkeley National Laboratory
@@ -722,6 +722,7 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   ===================================
 */
 
+#if GASNETI_DIRECT_GET_BULK
 extern void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
 			      size_t nbytes GASNETE_THREAD_FARG) {
   GASNETI_CHECKPSHM_GET(UNALIGNED,V);
@@ -731,7 +732,9 @@ extern void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
     gasneti_polluntil(op.flags == OPSTATE_COMPLETE);
   }
 }
+#endif
 
+#if GASNETI_DIRECT_PUT_BULK
 extern void gasnete_put_bulk (gasnet_node_t node, void* dest, void *src,
 			      size_t nbytes GASNETE_THREAD_FARG) {
   GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
@@ -741,6 +744,7 @@ extern void gasnete_put_bulk (gasnet_node_t node, void* dest, void *src,
     gasneti_polluntil(op.flags == OPSTATE_COMPLETE);
   }
 }   
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /*
