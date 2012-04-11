@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/04/10 11:03:50 $
- * $Revision: 1.1.2.46 $
+ *     $Date: 2012/04/11 00:14:37 $
+ * $Revision: 1.1.2.47 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -27,6 +27,7 @@ pami_client_t      gasnetc_pami_client;
 pami_context_t     gasnetc_context; /* XXX: More than one */
 pami_geometry_t    gasnetc_world_geom;
 pami_endpoint_t    *gasnetc_endpoint_tbl;
+size_t             gasnetc_num_contexts;            
 
 /* ------------------------------------------------------------------------------------ */
 /* Static Data */
@@ -145,15 +146,17 @@ static int gasnetc_init(int *argc, char ***argv) {
   rc = PAMI_Client_create("GASNet", &gasnetc_pami_client, NULL, 0);
   GASNETC_PAMI_CHECK(rc, "calling PAMI_Client_create");
 
-  { pami_configuration_t conf[2];
+  { pami_configuration_t conf[3];
     conf[0].name = PAMI_CLIENT_TASK_ID;
     conf[1].name = PAMI_CLIENT_NUM_TASKS;
+    conf[2].name = PAMI_CLIENT_NUM_CONTEXTS;
 
-    rc = PAMI_Client_query(gasnetc_pami_client, conf, 2);
-    GASNETC_PAMI_CHECK(rc, "calling PAMI_Client_query() for TASK_ID and NUM_TASKS");
+    rc = PAMI_Client_query(gasnetc_pami_client, conf, 3);
+    GASNETC_PAMI_CHECK(rc, "calling PAMI_Client_query()");
 
     gasneti_mynode = conf[0].value.intval;
     gasneti_nodes  = conf[1].value.intval;
+    gasnetc_num_contexts = conf[2].value.intval;
   }
 
   /* Now enable tracing of all the following steps */

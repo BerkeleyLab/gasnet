@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core_internal.h,v $
- *     $Date: 2012/04/10 04:33:39 $
- * $Revision: 1.1.2.19 $
+ *     $Date: 2012/04/11 00:14:37 $
+ * $Revision: 1.1.2.20 $
  * Description: GASNet PAMI conduit header for internal definitions in Core API
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -111,6 +111,7 @@ extern pami_client_t      gasnetc_pami_client;
 extern pami_context_t     gasnetc_context; /* XXX: More than one */
 extern pami_geometry_t    gasnetc_world_geom;
 extern pami_endpoint_t    *gasnetc_endpoint_tbl;
+extern size_t             gasnetc_num_contexts;
 
 /* ------------------------------------------------------------------------------------ */
 /* Thread safety */
