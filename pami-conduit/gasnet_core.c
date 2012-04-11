@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/04/11 22:41:35 $
- * $Revision: 1.1.2.50 $
+ *     $Date: 2012/04/11 22:55:15 $
+ * $Revision: 1.1.2.51 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -867,7 +867,7 @@ static void am_Long_dispatch(
 
   gasneti_assert(head_size == GASNETC_ARGSEND(long, longmsg->numargs));
 
-#if PLATFORM_OS_BGQ
+#if GASNETI_ARCH_BGQ
   if_pf (!recv) { // PAMI bug: we've disabled this explicitly! (fixed in later rev)
     /* Entire message has arrived - copy data and run now */
     gasnetc_token_t token;
@@ -932,7 +932,7 @@ static int gasnetc_am_init(void) {
   /* Query immediate limits */
   conf[0].name = PAMI_DISPATCH_SEND_IMMEDIATE_MAX;
   conf[1].name = PAMI_DISPATCH_RECV_IMMEDIATE_MAX;
-#if !PLATFORM_OS_BGQ // PERCS only implements num_configs=1
+#if GASNETI_ARCH_IBMPE // PERCS only implements num_configs=1
   rc = PAMI_Dispatch_query(gasnetc_context, GASNETC_DISP_NOOP, &conf[0], 1);
   GASNETC_PAMI_CHECK(rc, "querying DISPATCH send immediate limit");
   rc = PAMI_Dispatch_query(gasnetc_context, GASNETC_DISP_NOOP, &conf[1], 1);
@@ -1019,7 +1019,7 @@ extern int gasnetc_AMPoll(void) {
 
   /* (###) add code here to run your AM progress engine */
 #if GASNET_PAR
- #if !PLATFORM_OS_BGQ // Work-around hidden symbol on PERCS
+ #if GASNETI_ARCH_IBMPE // Work-around hidden symbol on PERCS - fixed in later rev
   if (PAMI_SUCCESS == PAMI_Context_trylock(gasnetc_context)) {
     PAMI_Context_advance(gasnetc_context, poll_limit);
     PAMI_Context_unlock(gasnetc_context);
