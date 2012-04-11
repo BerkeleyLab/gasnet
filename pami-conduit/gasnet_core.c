@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/04/11 18:48:43 $
- * $Revision: 1.1.2.48 $
+ *     $Date: 2012/04/11 21:13:48 $
+ * $Revision: 1.1.2.49 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -1008,6 +1008,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
 }
 
 extern int gasnetc_AMPoll(void) {
+  const size_t poll_limit = 16; // Env-var to replace "16"
   int retval;
   GASNETI_CHECKATTACH();
 
@@ -1020,14 +1021,14 @@ extern int gasnetc_AMPoll(void) {
 #if GASNET_PAR
  #if !PLATFORM_OS_BGQ // Work-around hidden symbol on PERCS
   if (PAMI_SUCCESS == PAMI_Context_trylock(gasnetc_context)) {
-    PAMI_Context_advance(gasnetc_context, 1);
+    PAMI_Context_advance(gasnetc_context, poll_limit);
     PAMI_Context_unlock(gasnetc_context);
   }
  #else
-  PAMI_Context_trylock_advancev(&gasnetc_context, 1, 1);
+  PAMI_Context_trylock_advancev(&gasnetc_context, 1, poll_limit);
  #endif
 #else
-  PAMI_Context_advance(gasnetc_context, 1);
+  PAMI_Context_advance(gasnetc_context, poll_limit);
 #endif
 
   return GASNET_OK;
