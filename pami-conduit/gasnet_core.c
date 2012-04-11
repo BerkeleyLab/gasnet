@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/04/11 21:13:48 $
- * $Revision: 1.1.2.49 $
+ *     $Date: 2012/04/11 22:41:35 $
+ * $Revision: 1.1.2.50 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -583,7 +583,7 @@ extern void gasnetc_exit(int exitcode) {
   if (0 != gasnetc_exit_reduce()) {
     /* Failed to coordinate shutdown */
     // XXX: can we raise SIGQUIT remotely, etc.
-    gasnetc_exitcode = 1; /* on BG/Q this forces global termination */
+    gasnetc_exitcode = 1; /* on both BG/Q and IBM PE this forces global termination */
   }
   gasneti_killmyprocess(gasnetc_exitcode);
 
