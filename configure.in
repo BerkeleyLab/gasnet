@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2012/04/04 23:12:30 $
-# $Revision: 1.751.2.6 $
+#     $Date: 2012/04/11 04:34:51 $
+# $Revision: 1.751.2.7 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.751.2.6 $)
+AC_REVISION($Revision: 1.751.2.7 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -200,11 +200,9 @@ AC_SUBST(GASNETI_PTR_BITS)
 # Allow user forced ARCH and/or ISA settings w/o the corresponding probes
 # XXX: Incomplete...
 
-force_arch_altix=no
 GASNET_IF_ENABLED_NOHELP(arch-altix, [force_arch_altix=yes])
-
-force_arch_sicortex=no
 GASNET_IF_ENABLED_NOHELP(arch-sicortex, [force_arch_sicortex=yes])
+GASNET_IF_ENABLED_NOHELP(arch-ibmpe, [force_arch_ibmpe=yes])
 
 ### 
 #
@@ -1002,7 +1000,7 @@ case "$target_os" in
 	# that /dev/hw is specific (and standard) on their system
 	# DOB: as of 2.6.5-7.252-sn2 (possibly earlier) /dev/hw/cpunum no longer exists
 	# so now we use /dev/xpmem instead, which is not likely to disappear
-	if test $force_arch_altix = yes -o -d "/dev/hw/cpunum" -o -c "/dev/xpmem"; then
+	if test x$force_arch_altix = xyes -o -d "/dev/hw/cpunum" -o -c "/dev/xpmem"; then
    	  GASNETI_ARCH_ALTIX=1
 	  AC_DEFINE(GASNETI_ARCH_ALTIX)
 	  GASNET_PLATFORM=altix
@@ -1011,11 +1009,18 @@ case "$target_os" in
 	  fi
 	fi
 	# Check for SiCortex hardware by device or cpu name
-	if test $force_arch_sicortex = yes -o -c "/dev/scfabric" || 
+	if test x$force_arch_sicortex = xyes -o -c "/dev/scfabric" || 
            expr "`/usr/bin/uname -p 2>&1`" : SiCortex >/dev/null; then
 	    GASNETI_ARCH_SICORTEX=1
 	    GASNET_PLATFORM=sicortex
 	    AC_DEFINE(GASNETI_ARCH_SICORTEX)
+	fi
+	# Check for IBM PE by presence of POE
+	if test x$force_arch_imbpe = xyes || 
+           ( env PAGER=cat poe -h | grep 'Parallel Operating Environment' ) >/dev/null 2>&1; then
+	    GASNETI_ARCH_IBMPE=1
+	    GASNET_PLATFORM=ibmpe
+	    AC_DEFINE(GASNETI_ARCH_IBMPE)
 	fi
         case "$target" in
           *-catamount-*) 
@@ -2629,12 +2634,21 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
         if test -n "$GASNETI_ARCH_ALTIX"; then
           GASNET_ENV_DEFAULT(MPI_CC, "$CC")
     	  GASNET_ENV_DEFAULT(MPI_LIBS, -lmpi)
+	  GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
+        elif test -n "$GASNETI_ARCH_IBMPE"; then
+          if test "$GASNETI_PTR_BITS" = 32; then
+            GASNET_ENV_DEFAULT(MPI_CC, mpcc -m32)
+          else
+            GASNET_ENV_DEFAULT(MPI_CC, mpcc -m64)
+          fi
+    	  GASNET_ENV_DEFAULT(MPI_LIBS, )
+	  GASNET_ENV_DEFAULT(MPIRUN_CMD, env PAGER=cat MP_FENCE=-- poe %P -nodes %M -procs %N -- %A)
         else
     	  GASNET_ENV_DEFAULT(MPI_CC, mpicc)
     	  GASNET_ENV_DEFAULT(MPI_LIBS, )
+	  GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
         fi
         GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $MISC_CFLAGS $CFLAGS, $SAFE_MPI_CFLAGS)
-	GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
         GASNET_ENV_DEFAULT(MPIRUN_CMD_BATCH, "")
         ;;
     darwin*) # Need to probe -Wno-long-double independently
@@ -4108,13 +4122,28 @@ if test $enabled_pami = yes; then
     GASNET_ENV_DEFAULT(PAMI_LIBS, [-lpami])
     GASNET_ENV_DEFAULT(PAMI_SYS_LIBDIR, [$PAMI_HOME/spi/lib])
     GASNET_ENV_DEFAULT(PAMI_SYS_LIBS, [-lSPI -lSPI_cnk])
-  else
+  elif test -n "$GASNETI_ARCH_IBMPE"; then
+    # XXX: Shouldn't we just be using "mpcc" instead?
     GASNET_ENV_DEFAULT(PAMI_HOME, [/opt/ibmhpc/pecurrent/ppe.pami])
     GASNET_ENV_DEFAULT(PAMI_INCLUDE, [$PAMI_HOME/include]) 
     if test x"$ac_cv_sizeof_void_p" = x8; then
       GASNET_ENV_DEFAULT(PAMI_LIBDIR, [$PAMI_HOME/lib/pami64])
     else
       GASNET_ENV_DEFAULT(PAMI_LIBDIR, [$PAMI_HOME/lib/pami32])
+    fi
+    GASNET_ENV_DEFAULT(PAMI_LIBS, [-lpami])
+    GASNET_ENV_DEFAULT(PAMI_SYS_LIBDIR, [$PAMI_LIBDIR]) # HACK: can't be empty because we prepend -L
+    GASNET_ENV_DEFAULT(PAMI_SYS_LIBS, [])
+  else
+    # Just a wild guess:
+    GASNET_ENV_DEFAULT(PAMI_HOME, [/usr])
+    GASNET_ENV_DEFAULT(PAMI_INCLUDE, [$PAMI_HOME/include]) 
+    if test x"$ac_cv_sizeof_void_p" = x8 -a -e "$PAMI_HOME/lib64"; then
+      GASNET_ENV_DEFAULT(PAMI_LIBDIR, [$PAMI_HOME/lib64])
+    elif test x"$ac_cv_sizeof_void_p" = x4 -a -e "$PAMI_HOME/lib32"; then
+      GASNET_ENV_DEFAULT(PAMI_LIBDIR, [$PAMI_HOME/lib32])
+    else
+      GASNET_ENV_DEFAULT(PAMI_LIBDIR, [$PAMI_HOME/lib])
     fi
     GASNET_ENV_DEFAULT(PAMI_LIBS, [-lpami])
     GASNET_ENV_DEFAULT(PAMI_SYS_LIBDIR, [$PAMI_LIBDIR]) # HACK: can't be empty because we prepend -L
