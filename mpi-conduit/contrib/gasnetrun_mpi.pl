@@ -1,7 +1,7 @@
 #!/usr/bin/env perl
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/contrib/gasnetrun_mpi.pl,v $
-#     $Date: 2012/03/21 19:56:31 $
-# $Revision: 1.97.2.8 $
+#     $Date: 2012/04/11 02:33:47 $
+# $Revision: 1.97.2.9 $
 # Description: GASNet MPI spawner
 # Terms of use are as specified in license.txt
 
@@ -216,10 +216,12 @@ sub gasnet_encode($) {
 	# Use MPIRUN_CMD='mpirun -np %N %P %Q' if still a problem
     } elsif ($is_poe) {
 	$spawner_desc = "IBM POE";
-	# the OS already propagates the environment for us automatically
-	%envfmt = ( 'noenv' => 1
-                  );
-        $extra_quote_argv = 1;
+	# POE already propagates the environment for us automatically
+	%envfmt = ( 'noenv' => 1);
+	# Used to need extra quoting but either recent versions of the
+	# transition of our testing from AIX to Linux has eliminated it.
+	# $extra_quote_argv = 1;
+	# If still a problem: uncomment above or change '%A' to '%Q' in your MPIRUN_CMD
     } elsif ($is_aprun) {
 	$spawner_desc = "Cray aprun";
 	# the OS already propagates the environment for us automatically
