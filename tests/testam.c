@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testam.c,v $
- *     $Date: 2012/04/10 21:13:09 $
- * $Revision: 1.33.10.2 $
+ *     $Date: 2012/04/11 00:06:02 $
+ * $Revision: 1.33.10.3 $
  * Description: GASNet Active Messages performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -454,7 +454,7 @@ void doAMShort(void) {
       uintptr_t sz; int64_t start;                                               \
       char msg[255];                                                             \
       for (sz = 0; sz <= MAXREQ; ) {                                             \
-        snprintf(msg, sizeof(msg), "%7llu "DESC_STR" flood     roundtrip ReqReq",\
+        snprintf(msg, sizeof(msg), "%7llu "DESC_STR" flood     two-way   Req",   \
                      (unsigned long long)sz);                                    \
         flag = 0;                                                                \
         BARRIER();                                                               \
@@ -463,7 +463,7 @@ void doAMShort(void) {
           GASNET_Safe(AMREQUEST(peer, PONG_HIDX##_flood, myseg, sz DEST));       \
         }                                                                        \
         GASNET_BLOCKUNTIL(flag == iters);                                        \
-        report(msg,TIME() - start, iters, sz, 1);                                \
+        report(msg,TIME() - start, iters, sz, 0);                                \
                                                                                  \
         BARRIER();                                                               \
         ADVANCESZ(sz, MAXREQ);                                                   \
