@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_core.c,v $
- *     $Date: 2012/04/12 01:42:12 $
- * $Revision: 1.1.2.52 $
+ *     $Date: 2012/04/12 05:19:55 $
+ * $Revision: 1.1.2.53 $
  * Description: GASNet PAMI conduit Implementation
  * Copyright 2012, Lawrence Berkeley National Laboratory
  * Terms of use are as specified in license.txt
@@ -20,6 +20,11 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
+
+/* ------------------------------------------------------------------------------------ */
+/* Defaults for environment variables */
+#define GASNETC_AMPOLL_MAX_DEFAULT 16
+#define GASNETC_NETWORK_DEPTH_DEFAULT 1024
 
 /* ------------------------------------------------------------------------------------ */
 /* Global Data */
@@ -622,6 +627,7 @@ static pami_send_hint_t gasnetc_null_send_hint;
 static gasnet_node_t *gasnetc_loopback_token = &gasneti_mynode;
 static size_t      gasnetc_send_imm_max;
 static size_t      gasnetc_recv_imm_max;
+static size_t      gasnetc_ampoll_max;
 
 // debugging aide - to be removed
 static void noop_dispatch(pami_context_t context, void *cookie,
@@ -890,6 +896,9 @@ static int gasnetc_am_init(void) {
   pami_configuration_t conf[2];
   pami_result_t rc;
 
+  gasnetc_ampoll_max = gasneti_getenv_int_withdefault("GASNET_AMPOLL_MAX", GASNETC_AMPOLL_MAX_DEFAULT, 0);
+  gasnetc_ampoll_max = MAX(1, gasnetc_ampoll_max); /* Min is 1 */
+
   memset(&gasnetc_null_send_hint, 0, sizeof(gasnetc_null_send_hint));
 #if GASNET_PSHM
   gasnetc_null_send_hint.use_shmem = PAMI_HINT_DISABLE;
@@ -966,7 +975,6 @@ static int gasnetc_am_init(void) {
   GASNETC_PAMI_CHECK(rc, "registering GASNETC_DISP_LONG");
 
   { 
-    #define GASNETC_NETWORK_DEPTH_DEFAULT 1024 // Need a non-WAG default value
     unsigned int depth =
         gasneti_getenv_int_withdefault("GASNET_NETWORK_DEPTH", GASNETC_NETWORK_DEPTH_DEFAULT, 0);
     depth = MAX(depth, 4); /* Min value is 4 */
@@ -998,7 +1006,6 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
 }
 
 extern int gasnetc_AMPoll(void) {
-  const size_t poll_limit = 16; // Env-var to replace "16"
   int retval;
   GASNETI_CHECKATTACH();
 
@@ -1011,14 +1018,14 @@ extern int gasnetc_AMPoll(void) {
 #if GASNET_PAR
  #if GASNETI_ARCH_IBMPE // Work-around hidden symbol on PERCS - fixed in later rev
   if (PAMI_SUCCESS == PAMI_Context_trylock(gasnetc_context)) {
-    PAMI_Context_advance(gasnetc_context, poll_limit);
+    PAMI_Context_advance(gasnetc_context, gasnetc_ampoll_max);
     PAMI_Context_unlock(gasnetc_context);
   }
  #else
-  PAMI_Context_trylock_advancev(&gasnetc_context, 1, poll_limit);
+  PAMI_Context_trylock_advancev(&gasnetc_context, 1, gasnetc_ampoll_max);
  #endif
 #else
-  PAMI_Context_advance(gasnetc_context, poll_limit);
+  PAMI_Context_advance(gasnetc_context, gasnetc_ampoll_max);
 #endif
 
   return GASNET_OK;

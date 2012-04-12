@@ -1,6 +1,6 @@
 GASNet pami-conduit documentation
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.1.2.2 $
+$Revision: 1.1.2.3 $
 
 User Information:
 -----------------
@@ -10,7 +10,7 @@ Recognized environment variables:
 
 * All the standard GASNet environment variables (see top-level README)
 
-* GASNET_NETWORK_DEPTH - depth of AM Request queues (default TBD)
+* GASNET_NETWORK_DEPTH - depth of AM Request queues (default 1024)
   This integer parameter sets the limit on the number of outstanding
   Active Message Requests, where outstanding is defined in terms of
   local completion of the network send.
@@ -22,6 +22,10 @@ Recognized environment variables:
   the value of this parameter.
   [BUT, keep in mind that current reference implementation of the
    extended API implements all Put and Get operations over AMs.]
+
+* GASNET_AMPOLL_MAX - limit on work done in AMPoll (default 16)
+  This integer parameter sets the maxumum number of PAMI operations
+  to be retired by a call to gasnet_AMPoll().
 
 Optional compile-time settings:
 ------------------------------
