@@ -1,7 +1,7 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_extended.c,v $
- *     $Date: 2012/01/07 07:00:25 $
- * $Revision: 1.5 $
- * Description: GASNet Extended API Reference Implementation
+ *     $Date: 2012/03/22 05:50:56 $
+ * $Revision: 1.6 $
+ * Description: GASNet Extended API over Gemini Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */

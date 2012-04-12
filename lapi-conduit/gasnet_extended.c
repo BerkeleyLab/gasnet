@@ -1,7 +1,7 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2012/01/07 07:00:27 $
- * $Revision: 1.119 $
- * Description: GASNet Extended API Reference Implementation
+ *     $Date: 2012/03/22 05:50:58 $
+ * $Revision: 1.120 $
+ * Description: GASNet Extended API over LAPI Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */

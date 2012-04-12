@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.146 $
+$Revision: 1.148 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -86,6 +86,14 @@ For example to build 64-bit code when your gcc and g++ default to 32-bit:
       API to perform the communication).
       Note that not all conduits and operating systems support this feature.
       For more information, see the file pshm-design.txt in the docs directory.
+    --with-segment-mmap-max=<n>GB - configure maximum segment size.
+      Many of the GASNet network conduits obtain memory for the shared segment
+      (in FAST and LARGE segment configurations) using mmap().  By default
+      GASNet will use a very conservative (2GB minus pagesize) maximum value
+      for calls to mmap().  This configure option allows one to raise that
+      to a value more appropriate to your platform.  See also the description
+      below for the GASNET_MAX_SEGSIZE environment variable, for information
+      on the two setings which take precedence over this configure setting.
 
   Configure will detect various interesting features about your system and
 compilers, including which GASNet conduits are supported.
@@ -170,7 +178,7 @@ For example:
   include /install/path/include/mpi-conduit/mpi-seq.mak 
 
   .c.o:
-	  $(GASNET_CC) $(GASNET_CFLAGS) -c -o $@ $<
+	  $(GASNET_CC) $(GASNET_CPPFLAGS) $(GASNET_CFLAGS) -c -o $@ $<
 
   myprog: myprog.o
 	  $(GASNET_LD) $(GASNET_LDFLAGS) -o $@ $< $(GASNET_LIBS)
