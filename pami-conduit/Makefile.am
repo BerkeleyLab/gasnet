@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/Makefile.am,v $
-#     $Date: 2012/04/06 21:19:17 $
-# $Revision: 1.1.2.5 $
+#     $Date: 2012/04/12 04:53:28 $
+# $Revision: 1.1.2.6 $
 # Description: Makefile for GASNet PAMI conduit
 # Copyright 2012, Lawrence Berkeley National Laboratory
 # Terms of use are as specified in license.txt
@@ -35,7 +35,7 @@ CONDUIT_SOURCELIST =          \
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = -I@PAMI_INCLUDE@
+CONDUIT_EXTRALIBCFLAGS = @PAMI_INCLUDE@
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS = 

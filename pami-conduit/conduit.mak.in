@@ -7,5 +7,5 @@
 #INSTRUCTIONS# See the conduit-writer instructions in the generated fragments
 #INSTRUCTIONS# or $(top_srcdir)/other/fragment-head.mak.in for usage info.
 
-CONDUIT_LIBDIRS = -L@PAMI_LIBDIR@ -L@PAMI_SYS_LIBDIR@
+CONDUIT_LIBDIRS = @PAMI_LIBDIR@ @PAMI_SYS_LIBDIR@
 CONDUIT_LIBS = @PAMI_LIBS@ @PAMI_SYS_LIBS@ -lpthread -lrt -lstdc++

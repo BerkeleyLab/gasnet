@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2012/04/12 03:17:18 $
-# $Revision: 1.751.2.9 $
+#     $Date: 2012/04/12 04:53:26 $
+# $Revision: 1.751.2.10 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.751.2.9 $)
+AC_REVISION($Revision: 1.751.2.10 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -4117,41 +4117,43 @@ if test $enabled_pami = yes; then
 
   if test -n "$GASNETI_ARCH_BGQ"; then
     GASNET_ENV_DEFAULT(PAMI_HOME, [/bgsys/drivers/ppcfloor])
-    GASNET_ENV_DEFAULT(PAMI_INCLUDE, [$PAMI_HOME/comm/sys/include]) 
-    GASNET_ENV_DEFAULT(PAMI_LIBDIR, [$PAMI_HOME/comm/sys/lib])
+    GASNET_ENV_DEFAULT(PAMI_INCLUDE, [-I$PAMI_HOME/comm/sys/include]) 
+    GASNET_ENV_DEFAULT(PAMI_LIBDIR, [-L$PAMI_HOME/comm/sys/lib])
     GASNET_ENV_DEFAULT(PAMI_LIBS, [-lpami])
-    GASNET_ENV_DEFAULT(PAMI_SYS_LIBDIR, [$PAMI_HOME/spi/lib])
+    GASNET_ENV_DEFAULT(PAMI_SYS_LIBDIR, [-L$PAMI_HOME/spi/lib])
     GASNET_ENV_DEFAULT(PAMI_SYS_LIBS, [-lSPI -lSPI_cnk])
   elif test -n "$GASNETI_ARCH_IBMPE"; then
-    # XXX: Shouldn't we just be using "mpcc" instead?
+    # XXX: Couldn't we just be using "mpcc" instead?
+    #      Doing so would link MPI and POE libs we don't
+    #      need, but is there any harm in that?
     GASNET_ENV_DEFAULT(PAMI_HOME, [/opt/ibmhpc/pecurrent/ppe.pami])
-    GASNET_ENV_DEFAULT(PAMI_INCLUDE, [$PAMI_HOME/include]) 
-    if test x"$ac_cv_sizeof_void_p" = x8; then
-      GASNET_ENV_DEFAULT(PAMI_LIBDIR, [$PAMI_HOME/lib/pami64])
+    GASNET_ENV_DEFAULT(PAMI_INCLUDE, [-I$PAMI_HOME/include]) 
+    if test "$GASNETI_PTR_BITS" = 64; then
+      GASNET_ENV_DEFAULT(PAMI_LIBDIR, [-L$PAMI_HOME/lib/pami64])
     else
-      GASNET_ENV_DEFAULT(PAMI_LIBDIR, [$PAMI_HOME/lib/pami32])
+      GASNET_ENV_DEFAULT(PAMI_LIBDIR, [-L$PAMI_HOME/lib/pami32])
     fi
     GASNET_ENV_DEFAULT(PAMI_LIBS, [-lpami])
-    GASNET_ENV_DEFAULT(PAMI_SYS_LIBDIR, [$PAMI_LIBDIR]) # HACK: can't be empty because we prepend -L
+    GASNET_ENV_DEFAULT(PAMI_SYS_LIBDIR, [])
     GASNET_ENV_DEFAULT(PAMI_SYS_LIBS, [])
   else
-    # Just a wild guess:
+    # We'll just make a reasonable guess:
     GASNET_ENV_DEFAULT(PAMI_HOME, [/usr])
-    GASNET_ENV_DEFAULT(PAMI_INCLUDE, [$PAMI_HOME/include]) 
-    if test x"$ac_cv_sizeof_void_p" = x8 -a -e "$PAMI_HOME/lib64"; then
-      GASNET_ENV_DEFAULT(PAMI_LIBDIR, [$PAMI_HOME/lib64])
-    elif test x"$ac_cv_sizeof_void_p" = x4 -a -e "$PAMI_HOME/lib32"; then
-      GASNET_ENV_DEFAULT(PAMI_LIBDIR, [$PAMI_HOME/lib32])
+    GASNET_ENV_DEFAULT(PAMI_INCLUDE, [-I$PAMI_HOME/include]) 
+    if test "$GASNETI_PTR_BITS" = 64 -a -e "$PAMI_HOME/lib64"; then
+      GASNET_ENV_DEFAULT(PAMI_LIBDIR, [-L$PAMI_HOME/lib64])
+    elif test "$GASNETI_PTR_BITS" = 32 -a -e "$PAMI_HOME/lib32"; then
+      GASNET_ENV_DEFAULT(PAMI_LIBDIR, [-L$PAMI_HOME/lib32])
     else
-      GASNET_ENV_DEFAULT(PAMI_LIBDIR, [$PAMI_HOME/lib])
+      GASNET_ENV_DEFAULT(PAMI_LIBDIR, [-L$PAMI_HOME/lib])
     fi
     GASNET_ENV_DEFAULT(PAMI_LIBS, [-lpami])
-    GASNET_ENV_DEFAULT(PAMI_SYS_LIBDIR, [$PAMI_LIBDIR]) # HACK: can't be empty because we prepend -L
+    GASNET_ENV_DEFAULT(PAMI_SYS_LIBDIR, [])
     GASNET_ENV_DEFAULT(PAMI_SYS_LIBS, [])
   fi
 
-  GASNET_PUSHVAR(CFLAGS,"$CFLAGS -I$PAMI_INCLUDE")
-  GASNET_PUSHVAR(LIBS,"$LIBS -L$PAMI_LIBDIR $PAMI_LIBS -L$PAMI_SYS_LIBDIR $PAMI_SYS_LIBS -lpthread -lrt -lstdc++")
+  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $PAMI_INCLUDE")
+  GASNET_PUSHVAR(LIBS,"$LIBS $PAMI_LIBDIR $PAMI_LIBS $PAMI_SYS_LIBDIR $PAMI_SYS_LIBS -lpthread -lrt -lstdc++")
   # try to compile and link a simple PAMI program
   GASNET_TRY_CACHE_LINK(for working PAMI configuration, pami_works, [
      #include <pami.h>
