@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2012/04/12 05:28:31 $
-# $Revision: 1.751.2.12 $
+#     $Date: 2012/04/12 05:49:34 $
+# $Revision: 1.751.2.13 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.751.2.12 $)
+AC_REVISION($Revision: 1.751.2.13 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -4135,7 +4135,7 @@ if test $enabled_pami = yes; then
     fi
     GASNET_ENV_DEFAULT(PAMI_LIBS, [-lpami])
     GASNET_ENV_DEFAULT(PAMI_SYS_LIBDIR, [])
-    GASNET_ENV_DEFAULT(PAMI_SYS_LIBS, [-lpthread -lrt -lstdc++])
+    GASNET_ENV_DEFAULT(PAMI_SYS_LIBS, [])
   else
     # We'll just make a reasonable guess:
     GASNET_ENV_DEFAULT(PAMI_HOME, [/usr])
@@ -4149,7 +4149,7 @@ if test $enabled_pami = yes; then
     fi
     GASNET_ENV_DEFAULT(PAMI_LIBS, [-lpami])
     GASNET_ENV_DEFAULT(PAMI_SYS_LIBDIR, [])
-    GASNET_ENV_DEFAULT(PAMI_SYS_LIBS, [-lpthread -lrt -lstdc++])
+    GASNET_ENV_DEFAULT(PAMI_SYS_LIBS, [])
   fi
 
   GASNET_PUSHVAR(CFLAGS,"$CFLAGS $PAMI_INCLUDE")
