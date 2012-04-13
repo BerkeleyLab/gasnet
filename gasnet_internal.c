@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.c,v $
- *     $Date: 2012/03/20 06:21:35 $
- * $Revision: 1.227.2.5 $
+ *     $Date: 2012/04/13 23:49:50 $
+ * $Revision: 1.227.2.6 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -766,7 +766,7 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
         const char *desc;
         int hwid;
       } known_devs[] = {
-      #if PLATFORM_OS_BGL || PLATFORM_OS_BGP || PLATFORM_OS_BGQ
+      #if PLATFORM_OS_BLRTS || PLATFORM_OS_BGP || PLATFORM_OS_BGQ
         { "/dont_probe_an_io_node", S_IFDIR, "", 0 }
       #else
         #if PLATFORM_OS_LINUX && PLATFORM_ARCH_IA64 && GASNET_SEQ
