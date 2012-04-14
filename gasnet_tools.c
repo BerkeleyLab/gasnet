@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.c,v $
- *     $Date: 2012/03/20 05:43:28 $
- * $Revision: 1.272.2.3 $
+ *     $Date: 2012/04/14 00:20:38 $
+ * $Revision: 1.272.2.4 $
  * Description: GASNet implementation of internal helpers
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2140,7 +2140,7 @@ const char *gasneti_gethostname(void) {
       { /* Extract process rank from SPRG7 */
         const uint64_t sprg7 = mfspr(SPRN_SPRG7RO);
         uint8_t ppn = (sprg7 >> 8) & 0xff; /* Byte 6 is processes per node: 1,2,4,8,16,32 or 64 */
-        uint8_t cpu = (sprg7 & 0x3f); /* Byte 7 is logic processor id: 0 ... 63 */
+        uint8_t cpu = (sprg7 & 0x3f); /* Byte 7 is logical processor id: 0 ... 63 */
         /* Shift the "process-local" bits out of the processor id */
         while (ppn & 0x3f) { ppn <<= 1; cpu >>= 1; }
         proc = cpu;
