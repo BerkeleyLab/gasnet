@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2012/05/14 22:27:41 $
- * $Revision: 1.148 $
+ *     $Date: 2012/04/14 00:37:55 $
+ * $Revision: 1.147 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -973,8 +973,7 @@ static void _test_init(const char *testname, int reports_performance, int early,
         _STRINGIFY(PLATFORM_COMPILER_FAMILYNAME), PLATFORM_COMPILER_VERSION_STR,
         GASNETT_SYSTEM_TUPLE);
     assert(_test_nodeinfo == NULL);
-    /* must use malloc here, pre-attach if "early" */
-    _test_nodeinfo = (gasnet_nodeinfo_t *)malloc(gasnet_nodes()*sizeof(gasnet_nodeinfo_t));
+    _test_nodeinfo = (gasnet_nodeinfo_t *)test_malloc(gasnet_nodes()*sizeof(gasnet_nodeinfo_t));
     GASNET_Safe(gasnet_getNodeInfo(_test_nodeinfo, gasnet_nodes()));
     if (!early) {
       TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
