@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/Makefile.am,v $
-#     $Date: 2010/06/26 23:57:10 $
-# $Revision: 1.35 $
+#     $Date: 2012/07/27 03:56:48 $
+# $Revision: 1.35.4.1 $
 # Description: Makefile for GASNet other 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -64,6 +64,14 @@ dist-hook:
 
 all-local: $(CONDUITMODE_TARGETS) perlstart
 
+# GASNET_TOOLSONLY_FALSE_BEGIN
+## Docs to install from any subdirs
+docdir = $(datadir)/doc/gasnet
+install-data-local:
+	$(INSTALL_DATA) $(srcdir)/ssh-spawner/README $(DESTDIR)$(docdir)/README-ssh-spawner
+uninstall-local:
+	rm -Rf $(DESTDIR)$(docdir)
+# GASNET_TOOLSONLY_FALSE_END
 
 .PHONY: force clean tests tests-clean run-tests
 

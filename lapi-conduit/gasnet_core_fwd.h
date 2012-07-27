@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_core_fwd.h,v $
- *     $Date: 2010/06/27 03:56:36 $
- * $Revision: 1.34 $
+ *     $Date: 2012/07/27 03:56:40 $
+ * $Revision: 1.34.4.1 $
  * Description: GASNet header for lapi conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -64,7 +64,8 @@
 
   /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
 #if GASNETI_PSHM_ENABLED
-/* #define GASNET_PSHM 1 */
+  /* Define now, but may undef below... */
+  #define GASNET_PSHM 1
 #endif
 
 /* defined to be 1 if gasnet_init guarantees that the remote-access
@@ -77,6 +78,7 @@
 #if GASNETC_LAPI_RDMA /* bug 2176 - must use large-page malloc (and unaligned segments) for LAPI-RDMA */
    #define GASNET_ALIGNED_SEGMENTS   0 
    #undef HAVE_MMAP
+   #undef GASNET_PSHM
 #elif GASNETI_DISABLE_ALIGNED_SEGMENTS || GASNET_PSHM
   #define GASNET_ALIGNED_SEGMENTS   0 /* user or PSHM disabled segment alignment */
 #else

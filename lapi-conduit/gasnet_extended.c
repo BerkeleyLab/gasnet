@@ -1,7 +1,7 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2010/03/15 06:32:39 $
- * $Revision: 1.118 $
- * Description: GASNet Extended API Reference Implementation
+ *     $Date: 2012/07/27 03:56:40 $
+ * $Revision: 1.118.12.1 $
+ * Description: GASNet Extended API over LAPI Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
@@ -147,6 +147,7 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
 	if (bufidx == 256) gasneti_fatalerror("GASNet Extended API: Ran out of explicit handles (limit=65535)");
 	thread->eop_num_bufs++;
 	buf = (gasnete_eop_t *)gasneti_calloc(256,sizeof(gasnete_eop_t));
+	gasneti_leak(buf);
 	for (i=0; i < 256; i++) {
 	    gasnete_eopaddr_t addr;
 	    addr.bufferidx = bufidx;
@@ -229,6 +230,7 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
 	gasneti_assert(iop->threadidx == thread->threadidx);
     } else {
 	iop = (gasnete_iop_t *)gasneti_malloc(sizeof(gasnete_iop_t));
+	gasneti_leak(iop);
 	SET_OPTYPE((gasnete_op_t *)iop, OPTYPE_IMPLICIT);
 	iop->threadidx = thread->threadidx;
     }
@@ -1285,10 +1287,13 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
 */
 
 extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
+#if 0
+    /* polling now takes place in callers which needed and NOT in those which don't */
     GASNETI_SAFE(gasneti_AMPoll());
+#endif
 
     if (handle == GASNET_INVALID_HANDLE)
-	return GASNET_OK;
+	return GASNET_OK; /* Redundant? */
 
     if (gasnete_op_isdone(handle)) {
 	gasneti_sync_reads();
@@ -1301,7 +1306,10 @@ extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
 extern int gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles) {
     int success = 0;
     int empty = 1;
+#if 0
+    /* polling for syncnb now happens in header file to avoid duplication */
     GASNETI_SAFE(gasneti_AMPoll());
+#endif
 
     gasneti_assert(phandle);
 
@@ -1326,7 +1334,10 @@ extern int gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles)
 
 extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles) {
     int success = 1;
+#if 0
+    /* polling for syncnb now happens in header file to avoid duplication */
     GASNETI_SAFE(gasneti_AMPoll());
+#endif
 
     gasneti_assert(phandle);
 

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testexit.c,v $
- *     $Date: 2009/10/04 00:33:27 $
- * $Revision: 1.29 $
+ *     $Date: 2012/07/27 03:57:24 $
+ * $Revision: 1.29.16.1 $
  * Description: GASNet gasnet_exit correctness test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -193,7 +193,8 @@ int main(int argc, char **argv) {
 
   GASNET_Safe(gasnet_init(&argc, &argv));
   { int i;
-    sprintf(usagestr,"(exittestnum:1..%i | crashtestnum:100..%i)", (int)NUMTEST, (int)(100+NUMCRASHTEST_WITH_PAR-1));
+    snprintf(usagestr,sizeof(usagestr),
+             "(exittestnum:1..%i | crashtestnum:100..%i)", (int)NUMTEST, (int)(100+NUMCRASHTEST_WITH_PAR-1));
     #ifdef GASNET_PAR
       strcat(usagestr, " (num_pthreads)");
     #endif
@@ -241,12 +242,12 @@ int main(int argc, char **argv) {
       numpthreads <= 1) test_usage_early();
 
   if (testid < 100) {
-    sprintf(testdescstr, "Running exit test %i: %s",testid, testdesc[testid-1]);
+    snprintf(testdescstr, sizeof(testdescstr), "Running exit test %i: %s",testid, testdesc[testid-1]);
   } else if (testid-100<NUMCRASHTEST) {
-    sprintf(testdescstr, "Running crash test %i: %s",testid, 
+    snprintf(testdescstr, sizeof(testdescstr), "Running crash test %i: %s",testid, 
             crashtestdesc[testid-100]);
   } else {
-    sprintf(testdescstr, "Running crash test %i: %s from one pthread, others in thread barrier",testid, 
+    snprintf(testdescstr, sizeof(testdescstr), "Running crash test %i: %s from one pthread, others in thread barrier",testid, 
       crashtestdesc[testid-100-NUMCRASHTEST]);
   }
   if (testid == 6 || testid == 7) {

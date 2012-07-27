@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_dcmf_bootstrapcoll.c,v $
- *     $Date: 2009/09/16 01:13:22 $
- * $Revision: 1.4 $
+ *     $Date: 2012/07/27 03:56:16 $
+ * $Revision: 1.4.16.1 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>, 
                    Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -12,7 +12,8 @@
 
 #if 0
 static gasnetc_dcmf_req_t *gasnetc_dcmf_req_free_list;
-static inline gasnetc_dcmf_req_t * gasnetc_get_dcmf_req(void) {
+GASNETI_INLINE(gasnetc_get_dcmf_req)
+gasnetc_dcmf_req_t * gasnetc_get_dcmf_req(void) {
     gasnetc_dcmf_req_t *req;
     if(gasnetc_dcmf_req_free_list) {
   req = gasnetc_dcmf_req_free_list;
@@ -23,7 +24,8 @@ static inline gasnetc_dcmf_req_t * gasnetc_get_dcmf_req(void) {
     return req;
 }
 
-static inline void gasnetc_free_dcmf_req(gasnetc_dcmf_req_t *req){
+GASNETI_INLINE(gasnetc_free_dcmf_req)
+void gasnetc_free_dcmf_req(gasnetc_dcmf_req_t *req){
     req->next = gasnetc_dcmf_req_free_list;
     gasnetc_dcmf_req_free_list = req;
 }

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_trace.h,v $
- *     $Date: 2009/04/05 23:29:23 $
- * $Revision: 1.60 $
+ *     $Date: 2012/07/27 03:56:11 $
+ * $Revision: 1.60.16.1 $
  * Description: GASNet Tracing Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -215,7 +215,7 @@ GASNETI_BEGIN_EXTERNC
 
 #if GASNETI_STATS_OR_TRACE
 #define GASNETI_TRACE_PUT_NAMED(name,locality,node,dest,src,nbytes) do {                       \
-  void *_src = (src);  /* workaround for CrayC warning */                                      \
+  GASNETI_UNUSED void *_src = (src);  /* workaround for CrayC warning, unused if !TRACE */     \
   GASNETI_TRACE_EVENT_VAL_##locality(P,name,(nbytes));                                         \
   GASNETI_TRACE_PRINTF(D,(#name ": "GASNETI_RADDRFMT" <- "GASNETI_LADDRFMT" (%llu bytes): %s", \
                           GASNETI_RADDRSTR((node),(dest)), GASNETI_LADDRSTR(_src),             \
@@ -268,7 +268,7 @@ GASNETI_BEGIN_EXTERNC
 #if GASNET_STATS
   typedef void (*gasnett_stats_callback_t)(void (*)(const char *, ...));
   extern void (*gasnett_stats_callback)(
-    GASNETI_FORMAT_PRINTF_FUNCPTR(format,1,2,void (*format)(const char *, ...))
+    GASNETI_FORMAT_PRINTF_FUNCPTR_ARG(format,1,2,void (*format)(const char *, ...))
   );
 #endif
 
@@ -280,14 +280,14 @@ GASNETI_BEGIN_EXTERNC
   char argstr[256];                                                 \
   do {                                                              \
     int i;                                                          \
+    char *aptr = argstr; int aspace = sizeof(argstr);               \
     va_list _argptr;                                                \
-    *argstr='\0';                                                   \
+    *aptr = '\0';                                                   \
     va_start(_argptr, numargs); /*  assumes last arg was numargs */ \
       for (i=0;i<numargs;i++) {                                     \
-        char temp[20];                                              \
         /* must be int due to default argument promotion */         \
-        sprintf(temp," 0x%08x",(int)(uint32_t)va_arg(_argptr,int)); \
-        strcat(argstr,temp);                                        \
+        int len = snprintf(aptr,aspace," 0x%08x",(int)(uint32_t)va_arg(_argptr,int)); \
+        aptr += len; aspace -= len;                                 \
       }                                                             \
     va_end(_argptr);                                                \
   } while(0)
@@ -384,12 +384,12 @@ GASNETI_BEGIN_EXTERNC
     char argstr[256];                                                       \
     do {                                                                    \
       int i;                                                                \
-      *argstr='\0';                                                         \
+      char *aptr = argstr; int aspace = sizeof(argstr);                     \
+      *aptr = '\0';                                                         \
       for (i=0;i<numargs;i++) {                                             \
-        char temp[20];                                                      \
         /* here we assume args are stored in an array named by arghandle */ \
-        sprintf(temp," 0x%08x",(int)((uint32_t*)arghandle)[i]);             \
-        strcat(argstr,temp);                                                \
+        int len = snprintf(aptr,aspace," 0x%08x",(int)((uint32_t*)arghandle)[i]); \
+        aptr += len; aspace -= len;                                         \
       }                                                                     \
     } while(0)
 
@@ -756,6 +756,9 @@ extern void gasneti_trace_finish(void);
         VAL(S, TRY_SYNCNB, success)                       \
         VAL(S, TRY_SYNCNB_ALL, success)                   \
         VAL(S, TRY_SYNCNB_SOME, success)                  \
+        VAL(S, TRY_SYNCNB_NP, success)                    \
+        VAL(S, TRY_SYNCNB_ALL_NP, success)                \
+        VAL(S, TRY_SYNCNB_SOME_NP, success)               \
         TIME(S, WAIT_SYNCNB, waittime)                    \
         TIME(S, WAIT_SYNCNB_ALL, waittime)                \
         TIME(S, WAIT_SYNCNB_SOME, waittime)               \

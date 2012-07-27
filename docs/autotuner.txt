@@ -1,4 +1,48 @@
 GASNet autotuner usage and design notes
+
+=======================================
+
+* Quick user guide for GASNet collectives autotuning:
+
+The environment variables GASNET_COLL_ENABLE_SEARCH and
+GASNET_COLL_TUNING_FILE control GASNet's collectives autotuning:
+
+1) Use the default algorithm for each collective and no autotuning
+   (the default):
+
+    GASNET_COLL_ENABLE_SEARCH is unset (or "no").
+    GASNET_COLL_TUNING_FILE is unset.
+
+2) Search for the best algorithm for each new collective operation
+   without using an existing tuning data file:
+
+    GASNET_COLL_ENABLE_SEARCH=yes
+    GASNET_COLL_TUNING_FILE is unset
+
+3) Load and use the existing tuning data from a file. Search for the
+   best algorithm if a collective operation is not in the existing
+   tuning database:
+
+    GASNET_COLL_ENABLE_SEARCH=yes
+    GASNET_COLL_TUNING_FILE=<path to tuning file> 
+
+4) Load and use the existing tuning data from a file. If a collective
+   operation is not in the existing tuning database, then it uses the
+   default algorithm (no search is performed.):
+ 
+    GASNET_COLL_ENABLE_SEARCH is unset (or "no")
+    GASNET_COLL_TUNING_FILE=<path to tuning file> 
+
+5) If search is enabled (GASNET_COLL_ENABLE_SEARCH=yes), the user
+   application can store the tuning data into a file for future use
+   by calling the following, collectively from all GASNet processes,
+   near the end of the application:
+
+    gasnet_coll_dumpTuningState(char *filename, GASNET_TEAM_ALL);
+
+   New tuning data will be appended to the tuning data if it already
+   exists.  GASNet doesn't save tuning data to a file by default.
+
 =======================================
 
 * Interface:

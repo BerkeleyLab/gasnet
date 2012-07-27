@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testmpi.c,v $
- *     $Date: 2009/04/01 20:25:36 $
- * $Revision: 1.18 $
+ *     $Date: 2012/07/27 03:57:25 $
+ * $Revision: 1.18.20.1 $
  * Description: General GASNet correctness tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -41,7 +41,7 @@ static char *MPI_ErrorName(int errval) {
     }
   if (MPI_Error_string(errval, systemErrDesc, &len) != MPI_SUCCESS || len == 0)
     strcpy(systemErrDesc, "(no description available)");
-  sprintf(msg, "%s(%i): %s", code, errval, systemErrDesc);
+  snprintf(msg, sizeof(msg), "%s(%i): %s", code, errval, systemErrDesc);
   return msg;
   }
 
@@ -49,7 +49,7 @@ static char *MPI_ErrorName(int errval) {
    int retcode = (fncall);                                                                        \
    if_pf (retcode != MPI_SUCCESS) {                                                               \
      char msg[1024];                                                                              \
-     sprintf(msg, "\ntestmpi encountered an MPI ERROR: %s(%i)\n", MPI_ErrorName(retcode), retcode); \
+     snprintf(msg, sizeof(msg), "\ntestmpi encountered an MPI ERROR: %s(%i)\n", MPI_ErrorName(retcode), retcode); \
    }                                                                                              \
  } while (0)
 

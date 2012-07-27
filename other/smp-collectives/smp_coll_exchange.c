@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/smp-collectives/smp_coll_exchange.c,v $
- *     $Date: 2009/10/22 20:24:55 $
- * $Revision: 1.4 $
+ *     $Date: 2012/07/27 03:57:03 $
+ * $Revision: 1.4.16.1 $
  * Description: Shared Memory Collectives
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -46,8 +46,9 @@ void smp_coll_exchange_flat(smp_coll_t handle,  int num_addrs,
   if(!(flags & SMP_COLL_NO_SYNC)) smp_coll_barrier(handle, flags); 
 }
 
-static inline int pack_all_to_all_msg(void *src, void *dest, size_t nbytes,
-                                     int digit, int radix, int j, int total_ranks) {
+GASNETT_INLINE(pack_all_to_all_msg)
+int pack_all_to_all_msg(void *src, void *dest, size_t nbytes,
+                        int digit, int radix, int j, int total_ranks) {
   int i_idx;
   
   int ret=0;
@@ -72,8 +73,9 @@ static inline int pack_all_to_all_msg(void *src, void *dest, size_t nbytes,
   return ret;
 }
 
-static inline void unpack_all_to_all_msg(void *src, void *dest, size_t nbytes,
-                                        int digit, int radix, int j, int total_ranks) {
+GASNETT_INLINE(unpack_all_to_all_msg)
+void unpack_all_to_all_msg(void *src, void *dest, size_t nbytes,
+                           int digit, int radix, int j, int total_ranks) {
   int i_idx;
   
   int blk_count=0;
@@ -95,7 +97,8 @@ static inline void unpack_all_to_all_msg(void *src, void *dest, size_t nbytes,
   }
 }
 
-static inline void print_arr(int MYTHREAD, uint8_t* arr, int nbytes, char *id_str) {
+GASNETT_INLINE(print_arr)
+void print_arr(int MYTHREAD, uint8_t* arr, int nbytes, char *id_str) {
   int i;
   int* myarr = (int*) arr;
   int nelem = nbytes/sizeof(int);
@@ -173,7 +176,8 @@ void smp_coll_exchange_dissemk_flag(smp_coll_t handle,  int num_addrs,
 }
 #define MEMCPY_CHECK(DST, SRC, SIZE) do{if((DST)!=(SRC)) memcpy((DST), (SRC), (SIZE));} while(0)
 
-static inline void scale_ptrM(void * out_ptr[], void * const in_ptr[], size_t elem_count, size_t elem_size, int num_addrs) {
+GASNETT_INLINE(scale_ptrM)
+void scale_ptrM(void * out_ptr[], void * const in_ptr[], size_t elem_count, size_t elem_size, int num_addrs) {
   int i;
   for(i=0; i<num_addrs; i++) {
     out_ptr[i] = (void *)((uintptr_t)in_ptr[i] + (elem_count * elem_size));
@@ -181,7 +185,8 @@ static inline void scale_ptrM(void * out_ptr[], void * const in_ptr[], size_t el
 }
 
 
-static inline void local_gather(size_t count, void * dst, void * const srclist[], size_t nbytes) {
+GASNETT_INLINE(local_gather)
+void local_gather(size_t count, void * dst, void * const srclist[], size_t nbytes) {
   uint8_t *dst_addr = (uint8_t *)dst;
   
   while (count--) {
@@ -192,7 +197,8 @@ static inline void local_gather(size_t count, void * dst, void * const srclist[]
   
 }
 
-static inline void local_scatter(size_t count, void * const dstlist[], const void *src, size_t nbytes) {
+GASNETT_INLINE(local_scatter)
+void local_scatter(size_t count, void * const dstlist[], const void *src, size_t nbytes) {
   const uint8_t *src_addr = (const uint8_t *)src;
   
   while (count--) {
@@ -203,7 +209,8 @@ static inline void local_scatter(size_t count, void * const dstlist[], const voi
   
 }
 
-static inline void local_broadcast(size_t count, void * const dstlist[], const void *src, size_t nbytes) {
+GASNETT_INLINE(local_broadcast)
+void local_broadcast(size_t count, void * const dstlist[], const void *src, size_t nbytes) {
   const uint8_t *src_addr = (const uint8_t *)src;
   
   while (count--) {

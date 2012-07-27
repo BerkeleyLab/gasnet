@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_trees.h,v $
- *     $Date: 2009/10/22 20:14:56 $
- * $Revision: 1.5 $
+ *     $Date: 2012/07/27 03:56:26 $
+ * $Revision: 1.5.16.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -108,8 +108,13 @@ struct gasnete_coll_local_tree_geom_t_ {
   gasnet_node_t num_leaf_children;
   gasnet_node_t *dissem_order;
   int dissem_count;
-  
-  
+
+#if 0  
+  /* Not using the reference counts for now */
+  gasneti_weakatomic_t	ref_count;
+  gasnete_coll_tree_geom_t *base_geom; /* pointer to the tree geometry base */
+#endif
+
 } ;
 
 /*for now i will only assume that one gasnet thread will be involved in the tree communication 
@@ -121,7 +126,7 @@ struct gasnete_coll_tree_geom_t_ {
    */
    gasnete_coll_tree_geom_t *next;
    gasnete_coll_tree_geom_t *prev;
- /* gasneti_weakatomic_t	ref_count; */
+  /* gasneti_weakatomic_t	ref_count; */
    
    /*an array of local views that represents the global view*/
    gasnete_coll_local_tree_geom_t **local_views; 

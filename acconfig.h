@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2010/07/16 18:35:40 $ */
-/*  $Revision: 1.154.4.1 $ */
+/*      $Date: 2012/07/27 03:56:08 $ */
+/*  $Revision: 1.154.4.2 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -40,12 +40,14 @@
 #undef GASNETI_HAVE_CC_ATTRIBUTE_WARNUNUSEDRESULT
 #undef GASNETI_HAVE_CC_ATTRIBUTE_USED
 #undef GASNETI_HAVE_CC_ATTRIBUTE_UNUSED
+#undef GASNETI_HAVE_CC_ATTRIBUTE_UNUSED_TYPEDEF
 #undef GASNETI_HAVE_CC_ATTRIBUTE_MAYALIAS
 #undef GASNETI_HAVE_CC_ATTRIBUTE_NORETURN
 #undef GASNETI_HAVE_CC_ATTRIBUTE_PURE
 #undef GASNETI_HAVE_CC_ATTRIBUTE_CONST
 #undef GASNETI_HAVE_CC_ATTRIBUTE_FORMAT
 #undef GASNETI_HAVE_CC_ATTRIBUTE_FORMAT_FUNCPTR
+#undef GASNETI_HAVE_CC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
 
 /* CXX attributes support */
 #undef GASNETI_HAVE_CXX_ATTRIBUTE
@@ -55,12 +57,14 @@
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_WARNUNUSEDRESULT
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_USED
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_UNUSED
+#undef GASNETI_HAVE_CXX_ATTRIBUTE_UNUSED_TYPEDEF
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_MAYALIAS
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_NORETURN
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_PURE
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_CONST
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_FORMAT
 #undef GASNETI_HAVE_CXX_ATTRIBUTE_FORMAT_FUNCPTR
+#undef GASNETI_HAVE_CXX_ATTRIBUTE_FORMAT_FUNCPTR_ARG
 
 /* MPI_CC attributes support */
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE
@@ -70,12 +74,14 @@
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_WARNUNUSEDRESULT
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_USED
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_UNUSED
+#undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_UNUSED_TYPEDEF
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_MAYALIAS
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_NORETURN
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_PURE
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_CONST
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_FORMAT
 #undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_FORMAT_FUNCPTR
+#undef GASNETI_HAVE_MPI_CC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
 
 /* identification of the C compiler used at configure time */
 #undef GASNETI_PLATFORM_COMPILER_IDSTR
@@ -104,6 +110,11 @@
 #undef GASNETI_CC_RESTRICT
 #undef GASNETI_CXX_RESTRICT
 #undef GASNETI_MPI_CC_RESTRICT
+
+/* Does CC support C99-type non-constant initializers for structs? */
+#undef HAVE_NONCONST_STRUCT_INIT
+/* Does CC support C99-type constructor expressions? */
+#undef HAVE_CONSTRUCTOR_EXPR
 
 /* true iff GASNETI_RESTRICT may be applied to types which are not pointer types until after typedef expansion */
 #undef GASNETI_CC_RESTRICT_MAY_QUALIFY_TYPEDEFS
@@ -160,9 +171,18 @@
 /* Forbidden to use fork(), popen() and system()? */
 #undef GASNETI_NO_FORK
 
-/* building Process SHared Memory support? */
+/* building Process SHared Memory support?  For which API? */
 #undef GASNETI_PSHM_ENABLED
-#undef HAVE_SHM_OPEN
+#undef GASNETI_PSHM_POSIX
+#undef GASNETI_PSHM_SYSV
+#undef GASNETI_PSHM_FILE
+#undef GASNETI_PSHM_XPMEM
+
+/* hugetlbfs support available */
+#undef HAVE_HUGETLBFS
+
+/* hugetlbfs support enabled */
+#undef GASNETI_USE_HUGETLBFS
 
 /* building CUDA support ? */
 #undef GASNETE_CUDA_ENABLED
@@ -266,11 +286,24 @@
 /* udp-conduit default custom spawn command */
 #undef GASNET_CSPAWN_CMD
 
+/* compiler is Sun's "gccfss" variant of GCC */
+#undef GASNETI_GCC_GCCFSS
+
+/* compiler is Apple's variant of GCC */
+#undef GASNETI_GCC_APPLE
+
 /* platform is an SGI Altix multiprocessor */
 #undef GASNETI_ARCH_ALTIX
+#undef GASNETI_USE_MMTIMER
+
+/* platform is a Linux cluster running IBM PE software */
+#undef GASNETI_ARCH_IBMPE
 
 /* platform is an IBM BlueGene/P multiprocessor */
 #undef GASNETI_ARCH_BGP
+
+/* platform is an IBM BlueGene/Q multiprocessor */
+#undef GASNETI_ARCH_BGQ
 
 /* platform is a SiCortex multiprocessor */
 #undef GASNETI_ARCH_SICORTEX
@@ -297,6 +330,7 @@
 #undef GASNET_NDEBUG
 #undef GASNET_TRACE
 #undef GASNET_STATS
+#undef GASNET_DEBUGMALLOC
 #undef GASNET_SRCLINES
 #undef GASNET_DEBUG_VERBOSE
 #undef GASNET_USE_STRICT_PROTOTYPES
@@ -312,6 +346,10 @@
 /* GASNet ref-extended settings */
 #undef GASNETE_USE_AMDISSEMINATION_REFBARRIER
 
+/* GASNet smp-conduit */
+#undef GASNETC_HAVE_O_ASYNC
+#undef GASNETC_USE_SOCKETPAIR
+
 /* GASNet gm-conduit broken 2.x versions */
 #undef GASNETC_GM_ENABLE_BROKEN_VERSIONS
 #undef GASNETC_GM_MPI_COMPAT
@@ -320,11 +358,15 @@
 #undef HAVE_VAPI_FMR
 #undef GASNETC_VAPI_POLL_LOCK
 #undef GASNETC_VAPI_RCV_THREAD
+#undef GASNETC_VAPI_CONN_THREAD
 #undef GASNETC_VAPI_MAX_HCAS
 
 /* GASNet ibv-conduit features and bug work-arounds */
+#undef HAVE_IBV_SRQ
+#undef HAVE_IBV_XRC
 #undef GASNETC_IBV_POLL_LOCK
 #undef GASNETC_IBV_RCV_THREAD
+#undef GASNETC_IBV_CONN_THREAD
 #undef GASNETC_IBV_MAX_HCAS
 
 /* GASNet lapi-conduit specific */
@@ -361,6 +403,16 @@
 
 /* GASNet bug1389 detection/work-around */
 #undef GASNETI_BUG1389_WORKAROUND
+
+/* Defaults for GASNET_SSH_* env vars */
+#undef GASNETI_DEFAULT_SSH_CMD
+#undef GASNETI_DEFAULT_SSH_OPTIONS
+#undef GASNETI_DEFAULT_SSH_NODEFILE
+
+/* Settings for ssh-spawner */
+#undef GASNETI_SSH_TOPO_FLAT
+#undef GASNETI_SSH_TOPO_NARY
+#undef GASNETI_SSH_NARY_DEGREE
 
 @BOTTOM@
 

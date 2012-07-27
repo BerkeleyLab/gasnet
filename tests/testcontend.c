@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testcontend.c,v $
- *     $Date: 2010/04/24 03:25:34 $
- * $Revision: 1.18 $
+ *     $Date: 2012/07/27 03:57:24 $
+ * $Revision: 1.18.6.1 $
  *
  * Description: GASNet threaded contention tester.
  *   The test initializes GASNet and forks off up to 256 threads.  
@@ -94,7 +94,7 @@ const char *getreport(void) {
 }
 void report(gasnett_tick_t ticks) {
   double timeus = (double)gasnett_ticks_to_us(ticks);
-  sprintf(_reportstr, 
+  snprintf(_reportstr, sizeof(_reportstr),
      "%7.3f us\t%5.3f sec", 
      timeus/iters, timeus/1000000);
   _havereport = 1;

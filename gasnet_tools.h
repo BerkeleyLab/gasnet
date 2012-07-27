@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_tools.h,v $
- *     $Date: 2010/04/14 19:30:49 $
- * $Revision: 1.127 $
+ *     $Date: 2012/07/27 03:56:11 $
+ * $Revision: 1.127.6.1 $
  * Description: GASNet Tools library 
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -501,7 +501,7 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
 
   #define GASNETT_MAX_THREADS GASNETI_MAX_THREADS 
 
-  #if GASNET_DEBUG
+  #if GASNET_DEBUGMALLOC
     #define gasnett_debug_malloc(sz)      gasneti_extern_malloc(sz) 
     #define gasnett_debug_realloc(ptr,sz) gasneti_extern_realloc((ptr),(sz))
     #define gasnett_debug_calloc(N,S)     gasneti_extern_calloc((N),(S))

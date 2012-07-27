@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_coll.h,v $
- *     $Date: 2009/09/16 01:13:20 $
- * $Revision: 1.55 $
+ *     $Date: 2012/07/27 03:56:09 $
+ * $Revision: 1.55.16.1 $
  * Description: GASNet Extended API Collective declarations
  * Copyright 2004, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -227,8 +227,6 @@ GASNETI_INLINE(_gasnet_coll_team_split)
  *              the functions which can be invoked for the
  *              computational collectives.  This may safely differ
  *              in contents (but not size) across nodes.
- *              Upon return the 'handle' field of each entry is set
- *              to the value that must be passed to the collective.
  *  fn_count:   The number of entries in 'fn_tbl'.  Must agree across
  *              all nodes or the behavior is undefined.
  *  init_flags: Presently unused.  Must be 0.
@@ -305,6 +303,7 @@ typedef struct gasnet_coll_args_t_ {
   gasnet_coll_fn_handle_t func; 
   int func_arg;
 } gasnet_coll_args_t;
+#define GASNET_COLL_ARGS_INITIALIZER { NULL, NULL, 0, 0, 0, 0, 0, 0, 0, 0 }
 
 void gasnete_coll_tune_generic_op(gasnet_team_handle_t team, gasnet_coll_optype_t op, 
                                   gasnet_coll_args_t coll_args, int flags,

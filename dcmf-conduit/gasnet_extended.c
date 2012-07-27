@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_extended.c,v $
- *     $Date: 2010/05/07 20:45:03 $
- * $Revision: 1.16 $
+ *     $Date: 2012/07/27 03:56:16 $
+ * $Revision: 1.16.6.1 $
  * Description: GASNet Extended API Implementation for DCMF
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>
  *                 Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -133,7 +133,6 @@ extern void gasnete_init(void) {
    size_t bytes_in;
    
    DCMF_Hardware_t hw;
-   size_t memsize;
    GASNETC_DCMF_LOCK();
    DCMF_SAFE(DCMF_Hardware(&hw));
    bytes_in = (hw.memSize/hw.tSize)*1024*1024;
@@ -224,6 +223,7 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
     if (bufidx == 256) gasneti_fatalerror("GASNet Extended API: Ran out of explicit handles (limit=65535)");
     thread->eop_num_bufs++;
     buf = (gasnete_eop_t *)gasneti_calloc(256,sizeof(gasnete_eop_t));
+    gasneti_leak(buf);
     /* buf = (gasnete_eop_t *)gasneti_malloc_aligned(16,256*sizeof(gasnete_eop_t));
        bzero(buf, sizeof(gasnete_eop_t)*256); */
     for (i=0; i < 256; i++) {
@@ -308,6 +308,7 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
     gasneti_assert(iop->threadidx == thread->threadidx);
   } else {
     iop = (gasnete_iop_t *)gasneti_malloc(sizeof(gasnete_iop_t));
+    gasneti_leak(iop);
     #if GASNET_DEBUG
       memset(iop, 0, sizeof(gasnete_iop_t)); /* set pad to known value */
     #endif
@@ -751,7 +752,10 @@ extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int 
 */
 
 extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
+#if 0
+  /* polling now takes place in callers which needed and NOT in those which don't */
   GASNETI_SAFE(gasneti_AMPoll());
+#endif
 
   if (gasnete_op_isdone(handle)) {
     gasneti_sync_reads();
@@ -764,7 +768,10 @@ extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
 extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles) {
   int success = 0;
   int empty = 1;
+#if 0
+  /* polling for syncnb now happens in header file to avoid duplication */
   GASNETI_SAFE(gasneti_AMPoll());
+#endif
 
   gasneti_assert(phandle);
 
@@ -789,7 +796,10 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
 
 extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles) {
   int success = 1;
+#if 0
+  /* polling for syncnb now happens in header file to avoid duplication */
   GASNETI_SAFE(gasneti_AMPoll());
+#endif
 
   gasneti_assert(phandle);
 
@@ -1121,7 +1131,7 @@ extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
 */
 
 extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
-  #if 1
+  #if 0
     /* polling for syncnbi now happens in header file to avoid duplication */
     GASNETI_SAFE(gasneti_AMPoll());
   #endif
@@ -1259,7 +1269,6 @@ static long long named_barrier_source[2];
 static long long named_barrier_result[2];
 static DCMF_Request_t barrier_req;
 static DCMF_Protocol_t anon_barrier_registration;
-static DCMF_Protocol_t named_barrier_registration;
 
 static int gasnete_allow_hw_barrier;
 
@@ -1339,7 +1348,6 @@ static void gasnete_dcmfbarrier_init(gasnete_coll_team_t team) {
 
 static void gasnete_dcmfbarrier_notify(gasnete_coll_team_t team, int id, int flags) 
 {
-  int barrier_id;
   DCMF_Callback_t cb_done;
   
   gasneti_sync_reads();
@@ -1398,7 +1406,8 @@ static void gasnete_dcmfbarrier_notify(gasnete_coll_team_t team, int id, int fla
   GASNETI_TRACE_PRINTF(B, ("finishing barrier notify (%d,%d)", id, flags));
 }
 
-static inline int finish_barrier(gasnete_coll_team_t team, int id, int flags) 
+GASNETI_INLINE(finish_barrier)
+int finish_barrier(gasnete_coll_team_t team, int id, int flags) 
 {
   int ret;
   

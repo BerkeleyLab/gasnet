@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core.h,v $
- *     $Date: 2009/04/01 23:33:08 $
- * $Revision: 1.13 $
+ *     $Date: 2012/07/27 03:57:16 $
+ * $Revision: 1.13.18.1 $
  * Description: GASNet header for sci conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -66,7 +66,7 @@ typedef struct _gasnet_hsl_t {
     /* more state may be required for conduits using interrupts */
     #error interrupts not implemented
   #endif
-} gasnet_hsl_t;
+} gasnet_hsl_t GASNETI_THREAD_TYPEDEF;
 
 #if GASNETI_STATS_OR_TRACE
   #define GASNETC_LOCK_STAT_INIT ,0

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_diagnostic.c,v $
- *     $Date: 2010/04/24 00:46:17 $
- * $Revision: 1.34 $
+ *     $Date: 2012/07/27 03:56:10 $
+ * $Revision: 1.34.6.1 $
  * Description: GASNet internal diagnostics
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -253,6 +253,9 @@ static void malloc_test(int id) {
       } else {
         p = gasneti_calloc(1,TEST_RAND(1,1024));
       }
+      if (TEST_RAND_ONEIN(4)) {
+        gasneti_leak(p);
+      }
       gasneti_memcheck(p);
       assert_always(p);
       assert_always(ptrs[cnt] == NULL);
@@ -277,6 +280,9 @@ static void malloc_test(int id) {
       assert_always(p);
       assert_always((((uintptr_t)p) & (alignsz-1)) == 0);
       p[0] = 'x'; p[sz - 1] = 'y';
+      if (TEST_RAND_ONEIN(4)) {
+        gasneti_leak_aligned(p);
+      }
       gasnett_free_aligned(p);
     }
   }
@@ -532,7 +538,6 @@ static void atomic128_test(int id) {
           (((uintptr_t)_var128 + GASNETI_HAVE_ATOMIC128_T - 1) & ~(GASNETI_HAVE_ATOMIC128_T - 1));
   uint64_t readhi, readlo;
   const uint64_t one64 = 1;
-  uint64_t tmp64;
   int i;
 
   TEST_HEADER("128-bit atomic CAS test"); else return;

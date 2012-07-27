@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.h,v $
- *     $Date: 2010/04/04 06:57:36 $
- * $Revision: 1.9 $
+ *     $Date: 2012/07/27 03:56:10 $
+ * $Revision: 1.9.8.1 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -13,6 +13,23 @@
   #error "gasnet_pshm.h included in a non-PSHM build"
 #endif
 
+/* Must defined EXACTLY one */
+/* TO DO: add to GASNet's config string */
+#if defined(GASNETI_PSHM_POSIX) && !defined(GASNETI_PSHM_SYSV) && !defined(GASNETI_PSHM_FILE) && !defined(GASNETI_PSHM_XPMEM)
+  #undef GASNETI_PSHM_POSIX
+  #define GASNETI_PSHM_POSIX 1
+#elif !defined(GASNETI_PSHM_POSIX) && defined(GASNETI_PSHM_SYSV) && !defined(GASNETI_PSHM_FILE) && !defined(GASNETI_PSHM_XPMEM)
+  #undef GASNETI_PSHM_SYSV
+  #define GASNETI_PSHM_SYSV 1
+#elif !defined(GASNETI_PSHM_POSIX) && !defined(GASNETI_PSHM_SYSV) && defined(GASNETI_PSHM_FILE) && !defined(GASNETI_PSHM_XPMEM)
+  #undef GASNETI_PSHM_FILE
+  #define GASNETI_PSHM_FILE 1
+#elif !defined(GASNETI_PSHM_POSIX) && !defined(GASNETI_PSHM_SYSV) && !defined(GASNETI_PSHM_FILE) && defined(GASNETI_PSHM_XPMEM)
+  #undef GASNETI_PSHM_XPMEM
+  #define GASNETI_PSHM_XPMEM 1
+#else
+  #error PSHM configuration must be exactly one of (GASNETI_PSHM_POSIX, GASNETI_PSHM_SYSV, GASNETI_PSHM_FILE,GASNETI_PSHM_XPMEM)
+#endif
 #include <gasnet_handler.h> /* Need gasneti_handler_fn_t */
 
 #if GASNET_PAGESIZE < 4096
@@ -30,8 +47,8 @@
 
 /* In gasnet_mmap.c */
 #define GASNETI_PSHM_UNIQUE_LEN 6
-extern const char *gasneti_pshm_makenames(const char *unique);
-extern void *gasneti_mmap_vnet(uintptr_t segsize);
+
+extern void *gasneti_mmap_vnet(uintptr_t segsize, gasneti_bootstrapExchangefn_t exchangefn);
 extern void gasneti_unlink_vnet(void);
 
 /* Virtual network between processes within a shared
@@ -156,14 +173,6 @@ extern gasnet_node_t gasneti_pshm_firstnode;
 #define gasneti_pshm_mysupernode (0+gasneti_nodemap_global_rank)
 /* vector of first node within each supernode */
 extern gasnet_node_t *gasneti_pshm_firsts;
-/* supernode number for an arbitrary node 
- * only available after gasneti_auxseg_attach() */
-#if GASNET_CONDUIT_SMP
-#define gasneti_pshm_node2supernode(n) 0
-#else
-#define gasneti_pshm_node2supernode(n) \
-  (gasneti_assert(gasneti_seginfo_client), gasneti_seginfo_client[(n)].nodeinfo)
-#endif
 
 /* Non-NULL only when supernode members are non-contiguous */
 extern gasneti_pshm_rank_t *gasneti_pshm_rankmap;
@@ -176,7 +185,7 @@ extern gasneti_pshm_rank_t *gasneti_pshm_rankmap;
  * Otherwise returns an "impossible" value >= gasneti_pshm_nodes.
  */
 GASNETI_INLINE(gasneti_pshmnet_local_rank)
-gasneti_pshm_rank_t gasneti_pshm_local_rank(gasnet_node_t node) {
+unsigned int gasneti_pshm_local_rank(gasnet_node_t node) {
 #if GASNET_CONDUIT_SMP
   return node;
 #else
@@ -205,13 +214,11 @@ int gasneti_pshm_in_supernode(gasnet_node_t node) {
 }
 
 /* Returns local version of remote in-supernode address.
- * TODO: precompute the OFFSET to avoid doing the same subtraction each time
  */
 GASNETI_INLINE(gasneti_pshm_addr2local)
 void *gasneti_pshm_addr2local(gasnet_node_t node, void *addr) {
   return  (void*)((uintptr_t)addr
-                   - (uintptr_t)gasneti_seginfo[node].addr
-                   + (uintptr_t)gasneti_seginfo[node].remote_addr);
+                   + (uintptr_t)gasneti_nodeinfo[node].offset);
 } 
 
 /* Returns amount of memory needed (rounded up to a multiple of the system
@@ -262,6 +269,12 @@ void gasneti_pshmnet_bootstrapBroadcast(gasneti_pshmnet_t *vnet, void *src,
 extern
 void gasneti_pshmnet_bootstrapExchange(gasneti_pshmnet_t *vnet, void *src, 
                                        size_t len, void *dest);
+
+/* "critical sections" in which we notify peers if we abort() while
+ * they are potentially blocked in gasneti_pshmnet_bootstrapBarrier().
+  */
+extern void gasneti_pshm_cs_enter(void);
+extern void gasneti_pshm_cs_leave(void);
 
 /* returns the maximum size payload that pshmnet can offer.  This is the
  * maximum size one can ask of gasneti_pshmnet_get_send_buffer.

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_toolhelp.h,v $
- *     $Date: 2010/06/26 03:46:36 $
- * $Revision: 1.57 $
+ *     $Date: 2012/07/27 03:56:11 $
+ * $Revision: 1.57.4.1 $
  * Description: misc declarations needed by both gasnet_tools and libgasnet
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -127,6 +127,11 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
 #else
   #define GASNETI_UNUSED_UNLESS_THREADS GASNETI_UNUSED
 #endif
+#if !GASNETI_HAVE_ATTRIBUTE_UNUSED_TYPEDEF || GASNETI_THREADS
+  #define GASNETI_THREAD_TYPEDEF
+#else
+  #define GASNETI_THREAD_TYPEDEF GASNETI_UNUSED
+#endif
 
 /* return physical memory of machine
    on failure, failureIsFatal nonzero => fatal error, failureIsFatal zero => return 0 */
@@ -147,6 +152,8 @@ extern void gasneti_backtrace_init(const char *exename);
 extern int (*gasneti_print_backtrace_ifenabled)(int fd);
 extern int gasneti_print_backtrace(int fd);
 extern void gasneti_ondemand_init(void);
+
+extern int gasneti_check_node_list(const char *listvar);
 
 extern void gasneti_flush_streams(void); /* flush all open streams */
 extern void gasneti_close_streams(void); /* close standard streams (for shutdown) */
@@ -310,7 +317,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
       pthread_mutex_t lock;
       _GASNETI_MUTEX_CAUTIOUS_INIT_FIELD
       GASNETI_BUG2231_WORKAROUND_PAD
-    } gasneti_mutex_t;
+    } gasneti_mutex_t GASNETI_THREAD_TYPEDEF;
     #if defined(PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP)
       /* These are faster, though less "featureful" than the default
        * mutexes on linuxthreads implementations which offer them.
@@ -356,14 +363,34 @@ int gasneti_count0s_uint32_t(uint32_t x) {
               (pl)->owner = GASNETI_MUTEX_NOOWNER;                            \
               _GASNETI_MUTEX_CAUTIOUS_INIT_INIT(pl);                          \
             } while (0)
-    #define gasneti_mutex_destroy_ignoreerr(pl) \
+    #if PLATFORM_OS_NETBSD
+      /* bug 1476: destroying a locked mutex has undefined effects by POSIX, and some
+       * systems whine about it. So instead use the following sequence which
+       * accomplishes the same effect, but leaks the mutex if it's held by another
+       * thread (unlocking another thread's held lock also has undefined effects).
+       */
+      GASNETI_INLINE(gasneti_mutex_destroy_ignoreerr)
+      int gasneti_mutex_destroy_ignoreerr(gasneti_mutex_t *pl) {
+        if (((pl)->owner == GASNETI_THREADIDQUERY()) || !gasneti_mutex_trylock(pl)) {
+          /* held by us */
+          gasneti_mutex_unlock(pl);
+          return pthread_mutex_destroy(&((pl)->lock));
+        } else {
+          /* held by someone else */
+          memset(pl,0,sizeof(*pl)); /* clobber */
+          return 0;
+        }
+      }
+    #else
+      #define gasneti_mutex_destroy_ignoreerr(pl) \
               pthread_mutex_destroy(&((pl)->lock))
+    #endif
     #define gasneti_mutex_destroy(pl) \
               gasneti_assert_zeroret(gasneti_mutex_destroy_ignoreerr(pl))
   #else /* GASNET_DEBUG non-pthread (error-check-only) mutexes */
     typedef struct {
       volatile GASNETI_THREADID_T owner;
-    } gasneti_mutex_t;
+    } gasneti_mutex_t GASNETI_THREAD_TYPEDEF;
     #define GASNETI_MUTEX_INITIALIZER   { GASNETI_MUTEX_NOOWNER }
     #define gasneti_mutex_lock(pl) do {                             \
               gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER); \
@@ -390,7 +417,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
 #else /* non-debug mutexes */
   #if GASNETI_USE_TRUE_MUTEXES
     #include <pthread.h>
-    typedef pthread_mutex_t           gasneti_mutex_t;
+    typedef pthread_mutex_t           gasneti_mutex_t GASNETI_THREAD_TYPEDEF;
     #if defined(PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP)
       /* These are faster, though less "featureful" than the default
        * mutexes on linuxthreads implementations which offer them.
@@ -404,10 +431,31 @@ int gasneti_count0s_uint32_t(uint32_t x) {
     #define gasneti_mutex_unlock(pl)    pthread_mutex_unlock(pl)
     #define gasneti_mutex_init(pl)      (GASNETI_MUTEX_INITCLEAR(pl),  \
                                          pthread_mutex_init((pl),NULL))
-    #define gasneti_mutex_destroy_ignoreerr(pl)   pthread_mutex_destroy(pl)
+    #if PLATFORM_OS_NETBSD
+      /* bug 1476: destroying a locked mutex has undefined effects by POSIX, and some
+       * systems whine about it. So instead use the following sequence which
+       * accomplishes the same effect, but leaks the mutex if it's held by another
+       * thread (unlocking another thread's held lock also has undefined effects),
+       * or if held by the caller and gasneti_mutex_trylock() is non-recursive.
+       */
+      GASNETI_INLINE(gasneti_mutex_destroy_ignoreerr)
+      int gasneti_mutex_destroy_ignoreerr(gasneti_mutex_t *pl) {
+        if (!gasneti_mutex_trylock(pl)) {
+          /* held by us */
+          gasneti_mutex_unlock(pl);
+          return pthread_mutex_destroy(pl);
+        } else {
+          /* held by someone, possibly us */
+          memset(pl,0,sizeof(*pl)); /* clobber */
+          return 0;
+        }
+      }
+    #else
+      #define gasneti_mutex_destroy_ignoreerr(pl)   pthread_mutex_destroy(pl)
+    #endif
     #define gasneti_mutex_destroy(pl)   gasneti_mutex_destroy_ignoreerr(pl)
   #else
-    typedef char           gasneti_mutex_t;
+    typedef char           gasneti_mutex_t GASNETI_THREAD_TYPEDEF;
     #define GASNETI_MUTEX_INITIALIZER '\0'
     #define gasneti_mutex_lock(pl)    ((void)0)
     #define gasneti_mutex_trylock(pl) 0
@@ -430,7 +478,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
   typedef struct {
     pthread_cond_t cond;
     GASNETI_BUG2231_WORKAROUND_PAD
-  } gasneti_cond_t;
+  } gasneti_cond_t GASNETI_THREAD_TYPEDEF;
 
   #define GASNETI_COND_INITIALIZER    { PTHREAD_COND_INITIALIZER }
   #define gasneti_cond_init(pc) do {                       \
@@ -474,7 +522,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
     } while (0)
   #endif
 #else
-  typedef char           gasneti_cond_t;
+  typedef char           gasneti_cond_t GASNETI_THREAD_TYPEDEF;
   #define GASNETI_COND_INITIALIZER  '\0'
   #define gasneti_cond_init(pc)       ((void)0)
   #define gasneti_cond_destroy(pc)    ((void)0)
@@ -511,13 +559,13 @@ int gasneti_count0s_uint32_t(uint32_t x) {
       gasneti_mutex_t initmutex;
       volatile int isinit;
       pthread_key_t value;
-  } _gasneti_threadkey_t;
+  } _gasneti_threadkey_t GASNETI_THREAD_TYPEDEF;
   #define _GASNETI_THREADKEY_INITIALIZER \
     { _GASNETI_THREADKEY_MAGIC_INIT      \
       GASNETI_MUTEX_INITIALIZER,         \
       0 /* value field left NULL */ }
 #else
-  typedef void *_gasneti_threadkey_t;
+  typedef void *_gasneti_threadkey_t GASNETI_THREAD_TYPEDEF;
   #define _GASNETI_THREADKEY_INITIALIZER NULL
 #endif
 
@@ -669,6 +717,8 @@ extern int gasneti_verboseenv(void);
 extern void gasneti_envint_display(const char *key, int64_t val, int is_dflt, int is_mem_size);
 extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt);
 extern void gasneti_envdbl_display(const char *key, double val, int is_dflt);
+
+extern const char *gasneti_tmpdir(void);
 
 /* Conduit-specific supplement to gasneti_getenv
  * If set to non-NULL this has precedence over gasneti_globalEnv.

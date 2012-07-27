@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose.c,v $
- *     $Date: 2009/08/15 10:01:31 $
- * $Revision: 1.38 $
+ *     $Date: 2012/07/27 03:56:57 $
+ * $Revision: 1.38.16.1 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -126,6 +126,7 @@ firehose_init(uintptr_t max_pinnable_memory,
 	FH_TAILQ_INIT(&fh_LocalFifo);
 
 	/* hit the request_t freelist for first allocation */
+	if (0) /* DISABLED - most clients now manage their own allocations */
 	{
 		firehose_request_t *req = fh_request_new(NULL, 0);
 		gasneti_assert(req != NULL);
@@ -176,6 +177,12 @@ firehose_fini()
 {
 	int	i;
 
+	/* Acquire the lock(s) and DO NOT release */
+	FH_TABLE_LOCK;
+#ifndef FH_POLL_NOOP
+	FH_POLLQ_LOCK;
+#endif
+
 	fh_fini_plugin();
 
 	/* Free the per-node firehose FIFO queues and counters */
@@ -190,6 +197,7 @@ firehose_fini()
 		fhi_RegionPool_t *rpool;
 		rpool = FH_STAILQ_FIRST(&fhi_regpool_list);
 		FH_STAILQ_REMOVE_HEAD(&fhi_regpool_list);
+		gasneti_free(rpool->regions);
 		gasneti_free(rpool);
 	}
 
@@ -547,8 +555,6 @@ fh_alloc_completion_callback()
 	FH_TABLE_ASSERT_LOCKED;
 
 	cc = gasneti_malloc(sizeof(fh_completion_callback_t));
-	if_pf (cc == NULL)
-		gasneti_fatalerror("malloc in remote callback");
 	cc->flags = FH_CALLBACK_TYPE_COMPLETION;
 
 	return cc;
@@ -620,14 +626,11 @@ fh_request_new(firehose_request_t *ureq, int block)
 		GASNETI_STAT_EVENT_VAL(C, FH_REQUEST_ALLOC, FH_REQUEST_ALLOC_PERIDX);
 
 		buf = (firehose_request_t *)
-			gasneti_malloc(FH_REQUEST_ALLOC_PERIDX*
+			gasneti_calloc(FH_REQUEST_ALLOC_PERIDX,
 				       sizeof(firehose_request_t));
 
 		fh_request_bufs[fh_request_bufidx] = buf;
 		fh_request_bufidx++;
-
-		memset(buf, 0, FH_REQUEST_ALLOC_PERIDX*
-		       sizeof(firehose_request_t));
 
 		for (i = 1; i < FH_REQUEST_ALLOC_PERIDX-1; i++)
 			buf[i].internal = (firehose_private_t *) &buf[i+1];
@@ -1154,8 +1157,6 @@ fhi_AllocRegionPool(int count)
 			rpool->len     = sizeof(firehose_region_t) * count;
 			rpool->regions = (firehose_region_t *) 
 					    gasneti_malloc(rpool->len);
-			if_pf (rpool->regions == NULL)
-				gasneti_fatalerror("malloc in RegionPool");
 			fhi_regpool_numbig++;
 			return rpool;
 		}
@@ -1165,8 +1166,6 @@ fhi_AllocRegionPool(int count)
 						sizeof(firehose_region_t);
 			rpool->regions = (firehose_region_t *) 
 					    gasneti_malloc(rpool->len);
-			if_pf (rpool->regions == NULL)
-				gasneti_fatalerror("malloc in RegionPool");
 
 			fhi_regpool_num++;
 			return rpool;

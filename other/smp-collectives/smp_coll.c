@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/smp-collectives/smp_coll.c,v $
- *     $Date: 2009/10/22 20:24:55 $
- * $Revision: 1.3 $
+ *     $Date: 2012/07/27 03:57:03 $
+ * $Revision: 1.3.16.1 $
  * Description: Shared Memory Collectives
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -56,7 +56,6 @@ smp_coll_t smp_coll_init(size_t aux_space_per_thread, int flags, int THREADS, in
 
   static uint8_t **allscratch;
   smp_coll_t ret;
-  int i;
   ret = (struct smp_coll_t_*) gasneti_malloc(sizeof(struct smp_coll_t_));
   ret->MYTHREAD = MYTHREAD;
   ret->THREADS = THREADS;
@@ -100,7 +99,6 @@ smp_coll_t smp_coll_init(size_t aux_space_per_thread, int flags, int THREADS, in
   
   BOOTSTRAP_BARRIER(ret,0);
   if(MYTHREAD==0) {
-    int t;
     smp_coll_all_flags = (volatile uint32_t*) gasneti_malloc(SMP_COLL_CACHE_LINE*THREADS*sizeof(uint32_t)+SMP_COLL_CACHE_LINE);
     smp_coll_all_barrier_flags = (volatile uint32_t*) gasneti_malloc(SMP_COLL_CACHE_LINE*THREADS*sizeof(uint32_t)+SMP_COLL_CACHE_LINE);
     smp_coll_all_bcast_flags = (volatile uint32_t*) gasneti_malloc(SMP_COLL_CACHE_LINE*THREADS*sizeof(uint32_t)+SMP_COLL_CACHE_LINE);
@@ -131,7 +129,7 @@ smp_coll_t smp_coll_init(size_t aux_space_per_thread, int flags, int THREADS, in
   if(!(flags & SMP_COLL_SKIP_TUNE_BARRIERS)) {
     smp_coll_tune_barrier(ret);
   } else {
-    smp_coll_set_barrier_routine(ret, 3, 4);
+    smp_coll_set_barrier_routine(ret, SMP_COLL_BARRIER_TREE_PUSH_PULL, 4);
   }
 #if 0
   smp_coll_set_broadcast_routine(ret, SMP_COLL_BROADCAST_TREE_FLAG, 2);

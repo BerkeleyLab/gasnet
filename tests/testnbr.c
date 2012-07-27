@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testnbr.c,v $
- *     $Date: 2010/03/17 00:07:09 $
- * $Revision: 1.21 $
+ *     $Date: 2012/07/27 03:57:25 $
+ * $Revision: 1.21.10.1 $
  * Description: MG-like Neighbor exchange
  * Copyright 2005, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -399,6 +399,7 @@ main(int argc, char **argv)
       "   level=3 dims=<32,64,96,128, .. 928,960,992,1024>\n\n"
     );
     if (help) test_usage();
+    TEST_SET_WAITMODE(1);
 
     initNbr(&Nbr);
 
@@ -1020,6 +1021,9 @@ ghostExchGASNetNonBlock(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
 		    sfaces++;
 		    sent++;
 		}
+
+		/* Try to progress handles in sput[] */
+	        gasnet_try_syncnb_all(sput, sent);
 	    }
 	    /* When the loop ends, we've received face updates from both
 	     * nbrs */

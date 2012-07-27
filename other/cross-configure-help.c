@@ -186,8 +186,11 @@ int main(void) {
   printf("\n# 2. Fill in the canonical target machine type. You can usually obtain this\n");
   printf("#   by running config-aux/config.guess on the target machine\n");
   printf("TARGET_ID=''\n");
-  printf("\n# 3. Review the automatically-detected settings below and make corrections as necessary.\n");
-  printf("\n# 4. Place this output script in your top-level source directory and run it,\n");
+  printf("\n# 3. Optionally cross-compile and run the detect-cachesz.c utility and\n");
+  printf("#    fill in the value below and uncomment.  If not set the default is 128.\n");
+  printf("#CROSS_CACHE_LINE_BYTES=???; export CROSS_CACHE_LINE_BYTES
+  printf("\n# 4. Review the automatically-detected settings below and make corrections as necessary.\n");
+  printf("\n# 5. Place this output script in your top-level source directory and run it,\n");
   printf("#   passing it any additional configure arguments as usual (see configure --help).\n");
 
   printf("\n################################################\n");
@@ -312,7 +315,23 @@ int main(void) {
 #endif
 
 #if defined(__arm__)
-  #if CHECK_ARM_CMPXCHG
+  #if defined(__thumb__)
+    /* "GASNet does not support ARM Thumb mode" */
+  #elif defined(__ARM_ARCH_2__)
+    /* "GASNet does not support ARM versions earlier than ARMv3" */
+  #elif defined(__ARM_ARCH_3__) || defined(__ARM_ARCH_4__) || defined(__ARM_ARCH_4T__)
+    #define GASNETI_ARM_ASMCALL(_tmp, _offset) \
+	"	mov	" #_tmp ", #0xffff0fff              @ _tmp = base addr    \n" \
+	"       mov	lr, pc                              @ lr = return addr    \n" \
+	"	sub	pc, " #_tmp ", #" #_offset "        @ call _tmp - _offset \n"
+  #else
+    #define GASNETI_ARM_ASMCALL(_tmp, _offset) \
+	"	mov	" #_tmp ", #0xffff0fff              @ _tmp = base addr    \n" \
+	"	sub	" #_tmp ", " #_tmp ", #" #_offset " @ _tmp -= _offset     \n" \
+	"       blx	" #_tmp "                           @ call _tmp           \n"
+  #endif
+
+  #if defined(GASNETI_ARM_ASMCALL) && CHECK_ARM_CMPXCHG
     #include <sys/types.h>
     #include <sys/wait.h>
     #include <unistd.h>
@@ -329,9 +348,7 @@ int main(void) {
 	 */
 	__asm__ __volatile__ (
 		"0:	mov	r0, r4          @ r0 = oldval              \n"
-		"	mov	r3, #0xffff0fff @ r3 = base addr           \n"
-		"	mov	lr, pc		@ lr = return addr         \n"
-		"	sub	pc, r3, #0x3f   @ call 0xffff0fc0          \n"
+	    	GASNETI_ARM_ASMCALL(r3, 0x3f)
 		"	ldrcc	ip, [r2, #0]	@ if (!swapped) ip=v->ctr  \n"
 		"	eorcs	ip, r4, #1	@ else ip=oldval^1         \n"
 		"	teq	r4, ip		@ if (ip == oldval)        \n"
@@ -373,15 +390,13 @@ int main(void) {
     NOOP_CHECK(int,arm_cmpxchg_check,"ARM cmpxchg support")
   #endif
 
-  #if CHECK_ARM_MEMBAR
+  #if defined(GASNETI_ARM_ASMCALL) && CHECK_ARM_MEMBAR
     #include <sys/types.h>
     #include <sys/wait.h>
     #include <unistd.h>
     #define arm_membar()                           \
 	__asm__ __volatile__ (                     \
-		"       mov     r0, #0xffff0fff\n" \
-		"       mov     lr, pc\n"          \
-		"       sub     pc, r0, #0x5f\n"   \
+		GASNETI_ARM_ASMCALL(r0, 0x5f)      \
 		: : : "r0", "lr", "cc", "memory" )
     int arm_membar_check(void) {
 	/* Since failure may crash, run in a child process */

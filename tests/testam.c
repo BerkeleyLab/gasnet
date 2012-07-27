@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testam.c,v $
- *     $Date: 2009/05/15 20:56:06 $
- * $Revision: 1.32 $
+ *     $Date: 2012/07/27 03:57:24 $
+ * $Revision: 1.32.16.1 $
  * Description: GASNet Active Messages performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,7 +22,7 @@ void *peerseg = NULL;
 void report(const char *desc, int64_t totaltime, int iters, uintptr_t sz, int rt) {
   if (sender) {
       char nodestr[10];
-      if (gasnet_nodes() > 2) sprintf(nodestr,"%i: ",mynode);
+      if (gasnet_nodes() > 2) snprintf(nodestr,sizeof(nodestr),"%i: ",mynode);
       else nodestr[0] = '\0';
       printf("%c: %s%-46s: %6.3f sec %8.3f us", TEST_SECTION_NAME(),
         nodestr, desc, ((double)totaltime)/1000000, ((double)totaltime)/iters);
@@ -340,7 +340,7 @@ void doAMShort(void) {
       uintptr_t sz;                                                              \
       char msg[255];                                                             \
       for (sz = 0; sz <= MAXREQREP; ) {                                          \
-        sprintf(msg, "%7llu "DESC_STR" ping-pong roundtrip ReqRep",              \
+        snprintf(msg, sizeof(msg), "%7llu "DESC_STR" ping-pong roundtrip ReqRep",\
                      (unsigned long long)sz);                                    \
         BARRIER();                                                               \
         if (sender) {                                                            \
@@ -363,7 +363,7 @@ void doAMShort(void) {
       uintptr_t sz;                                                              \
       char msg[255];                                                             \
       for (sz = 0; sz <= MAXREQ; ) {                                             \
-        sprintf(msg, "%7llu "DESC_STR" ping-pong roundtrip ReqReq",              \
+        snprintf(msg, sizeof(msg), "%7llu "DESC_STR" ping-pong roundtrip ReqReq",\
                      (unsigned long long)sz);                                    \
         BARRIER();                                                               \
         {                                                                        \
@@ -405,7 +405,7 @@ void doAMShort(void) {
       char msg[255];                                                             \
       for (sz = 0; sz <= MAXREQ; ) {                                             \
         flag = 0;                                                                \
-        sprintf(msg, "%7llu "DESC_STR" flood     one-way   Req",                 \
+        snprintf(msg, sizeof(msg), "%7llu "DESC_STR" flood     one-way   Req",   \
                      (unsigned long long)sz);                                    \
         BARRIER();                                                               \
         if (sender) {                                                            \
@@ -431,7 +431,7 @@ void doAMShort(void) {
       uintptr_t sz;                                                              \
       char msg[255];                                                             \
       for (sz = 0; sz <= MAXREQREP; ) {                                          \
-        sprintf(msg, "%7llu "DESC_STR" flood     roundtrip ReqRep",              \
+        snprintf(msg, sizeof(msg), "%7llu "DESC_STR" flood     roundtrip ReqRep",\
                      (unsigned long long)sz);                                    \
         BARRIER();                                                               \
         if (sender) {                                                            \
@@ -453,8 +453,8 @@ void doAMShort(void) {
     if (TEST_SECTION_BEGIN_ENABLED()) {                                          \
       uintptr_t sz; int64_t start;                                               \
       char msg[255];                                                             \
-      for (sz = 0; sz <= MAXREQREP; ) {                                          \
-        sprintf(msg, "%7llu "DESC_STR" flood     roundtrip ReqReq",              \
+      for (sz = 0; sz <= MAXREQ; ) {                                             \
+        snprintf(msg, sizeof(msg), "%7llu "DESC_STR" flood     two-way   Req",   \
                      (unsigned long long)sz);                                    \
         flag = 0;                                                                \
         BARRIER();                                                               \
@@ -463,10 +463,10 @@ void doAMShort(void) {
           GASNET_Safe(AMREQUEST(peer, PONG_HIDX##_flood, myseg, sz DEST));       \
         }                                                                        \
         GASNET_BLOCKUNTIL(flag == iters);                                        \
-        report(msg,TIME() - start, iters, sz, 1);                                \
+        report(msg,TIME() - start, iters, sz, 0);                                \
                                                                                  \
         BARRIER();                                                               \
-        ADVANCESZ(sz, MAXREQREP);                                                \
+        ADVANCESZ(sz, MAXREQ);                                                   \
       }                                                                          \
       if (mynode == 0) { printf("\n"); fflush(stdout); }                         \
     }                                                                            \

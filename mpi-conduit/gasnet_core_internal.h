@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/mpi-conduit/gasnet_core_internal.h,v $
- *     $Date: 2009/09/18 23:33:34 $
- * $Revision: 1.21 $
+ *     $Date: 2012/07/27 03:56:42 $
+ * $Revision: 1.21.16.1 $
  * Description: GASNet MPI conduit header for internal definitions in Core API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -52,7 +52,8 @@ const char *gasneti_AMErrorName(int errval) {
    int const _retcode = (fncall);                               \
    if_pf (_retcode != AM_OK) {                                  \
      char msg[128];                                             \
-     sprintf(msg, "\nGASNet encountered an AM Error: %s(%i)\n", \
+     snprintf(msg, sizeof(msg),                                 \
+        "\nGASNet encountered an AM Error: %s(%i)\n",           \
         gasneti_AMErrorName(_retcode), _retcode);               \
      GASNETI_RETURN_ERRFR(RESOURCE, fncall, msg);               \
    }                                                            \

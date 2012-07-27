@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_spawn.cpp,v $
- *     $Date: 2006/05/23 12:42:29 $
- * $Revision: 1.15 $
+ *     $Date: 2012/07/27 03:56:52 $
+ * $Revision: 1.15.64.1 $
  * Description: AMUDP Implementations of SPMD spawn functions for various environments
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -387,6 +387,9 @@ int AMUDP_SPMDCustomSpawn(int nproc, int argc, char **argv) {
   char nproc_str[10];
   char cwd[1024];
   char cmd[1024];
+#if PLATFORM_OS_MSWINDOWS || PLATFORM_OS_CYGWIN
+  int spawn_use_create_process;
+#endif
   int spawn_route_output;
   int pid;
 
@@ -406,6 +409,10 @@ int AMUDP_SPMDCustomSpawn(int nproc, int argc, char **argv) {
   if (!strlen(spawn_servers)) spawn_servers = NULL;
   spawn_route_output = 
     strcmp(AMUDP_getenv_prefixed_withdefault("CSPAWN_ROUTE_OUTPUT","0"),"0");
+#if PLATFORM_OS_MSWINDOWS || PLATFORM_OS_CYGWIN
+  spawn_use_create_process =
+    strcmp(AMUDP_getenv_prefixed_withdefault("CSPAWN_USE_CREATE_PROCESS","0"),"0");
+#endif
 
 
   if (spawn_servers) { /* build server list */
@@ -451,10 +458,14 @@ int AMUDP_SPMDCustomSpawn(int nproc, int argc, char **argv) {
     }
     AMUDP_assert(!argv[i]);
 
+  #if PLATFORM_OS_MSWINDOWS || PLATFORM_OS_CYGWIN
+    strcpy(workercmd, temp);
+  #else
     sprintf(workercmd, "/bin/sh -c \"%s%s\" || ( echo \"spawn failed.\" ; kill %i ) ",
       (AMUDP_SilentMode?"":"echo connected to `uname -n`... ; "),
       temp, pid
     );
+  #endif
   }
 
   strcpy(cmd, spawn_cmd);
@@ -504,7 +515,26 @@ int AMUDP_SPMDCustomSpawn(int nproc, int argc, char **argv) {
     {  /*  this is the child - exec the new process */
       if (!AMUDP_SilentMode) 
         printf("system(%s)\n", cmd); fflush(stdout);
-      if (system(cmd) == -1)
+    #if PLATFORM_OS_MSWINDOWS || PLATFORM_OS_CYGWIN
+      if (spawn_use_create_process) {
+        STARTUPINFO si;
+        PROCESS_INFORMATION pi;
+        DWORD code;
+
+        ZeroMemory(&si, sizeof(STARTUPINFO));
+        si.cb = sizeof(STARTUPINFO);
+        si.hStdError = GetStdHandle(STD_OUTPUT_HANDLE); 
+        si.hStdOutput = GetStdHandle(STD_ERROR_HANDLE); 
+        si.dwFlags |= STARTF_USESTDHANDLES;
+
+        if (   TRUE != CreateProcess(0, strdup(cmd), 0, 0, TRUE, 0, 0, 0, &si, &pi)
+            || WAIT_FAILED == WaitForSingleObject(pi.hProcess, INFINITE)
+            || 0 == GetExitCodeProcess(pi.hProcess, &code)
+            || 0 != code)
+          AMUDP_FatalErr("Failed while calling CreateProcess() with custom spawn command:\n%s", cmd);
+      } else
+    #endif
+      if (system(cmd) != 0)
          AMUDP_FatalErr("Failed while calling system() with custom spawn command:\n%s", cmd);
       exit(0);
     }

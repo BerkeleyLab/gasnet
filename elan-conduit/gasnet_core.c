@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/09/21 01:59:08 $
- * $Revision: 1.82 $
+ *     $Date: 2012/07/27 03:56:22 $
+ * $Revision: 1.82.16.1 $
  * Description: GASNet elan conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,7 +10,13 @@
 #include <gasnet_core_internal.h>
 
 #if GASNETC_ALLOW_ELAN_PERM_REMAP
+#if defined(__GNUC__) && !defined(inline)
+#define inline __inline__
 #include <elan3/elan3.h> /* for elan3_setperm */
+#undef inline
+#else
+#include <elan3/elan3.h> /* for elan3_setperm */
+#endif
 #endif
 
 #include <errno.h>
@@ -91,7 +97,13 @@ extern uint64_t gasnetc_clock(void) {
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
 
 #ifdef GASNETC_ELAN4
+#if defined(__GNUC__) && !defined(inline)
+#define inline __inline__
 #include <elan4/library.h>
+#undef inline
+#else
+#include <elan4/library.h>
+#endif
 extern int gasnetc_ispatchfree_driver(void) {
   int patchfree_flag = -1;
   int patchfree;
@@ -402,7 +414,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
       }
       if (newindex > highlimit) {
         char s[255];
-        sprintf(s,"Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
+        snprintf(s, sizeof(s), "Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
         GASNETI_RETURN_ERRR(BAD_ARG, s);
       }
     }
@@ -410,7 +422,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     /*  ensure handlers fall into the proper range of pre-assigned values */
     if (newindex < lowlimit || newindex > highlimit) {
       char s[255];
-      sprintf(s, "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
+      snprintf(s, sizeof(s), "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
       GASNETI_RETURN_ERRR(BAD_ARG, s);
     }
 
@@ -535,6 +547,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /*  register segment  */
 
   gasneti_seginfo = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
+  gasneti_leak(gasneti_seginfo);
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     #if GASNETC_USE_STATIC_SEGMENT
@@ -714,7 +727,8 @@ static void gasnetc_atexit(void) {
       /* prefer the use of rcontrol, because it avoids ugly intermitted rms database 
          warnings, and avoids the need to link all the RMS libraries */
       { char cmd[1024];
-        sprintf(cmd, "%s kill resource name = %i signal = %i", 
+        snprintf(cmd, sizeof(cmd),
+                     "%s kill resource name = %i signal = %i", 
                      _STRINGIFY(RMS_RCONTROL_PATH), resourceid, sig);
         system(cmd);
       }
@@ -745,7 +759,7 @@ static void gasnetc_atexit(void) {
     { /* prefer the scancel system call mechanism, 
          because slurm_kill_job malfunctions in static executables */
       char cmd[1024];
-      sprintf(cmd,"%s --signal=%i %s", _STRINGIFY(SLURM_SCANCEL_PATH), sig, batchid);
+      snprintf(cmd, sizeof(cmd), "%s --signal=%i %s", _STRINGIFY(SLURM_SCANCEL_PATH), sig, batchid);
       system(cmd);
     }
     #else /* HAVE_SLURM_KILL_JOB */

@@ -7,14 +7,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stddef.h>
-#include <inttypes.h>
 #include <unistd.h>
 #include <sys/types.h>
 #include <sys/mman.h>
 #include <sys/stat.h>
-#include <stdint.h>
 #include <fcntl.h>
-#include <stdint.h>
 
 
 #define SHM_NAME "/posixshmemelem"

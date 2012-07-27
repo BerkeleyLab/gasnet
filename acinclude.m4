@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2010/04/07 04:13:39 $
-dnl $Revision: 1.155 $
+dnl     $Date: 2012/07/27 03:56:08 $
+dnl $Revision: 1.155.8.1 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -44,6 +44,7 @@ GASNET_FUN_BEGIN([$0])
     program_suffix=NONE
   fi
   # canonicalize transforms caused by empty prefix/suffix
+  program_transform_name=`echo "$program_transform_name" | sed -e 's/; *$//;'`
   if expr "$program_transform_name" : 's.^..$' >/dev/null || \
      expr "$program_transform_name" : 's.$$..$' >/dev/null || \
      expr "$program_transform_name" : 's.$$..;s.^..$' >/dev/null ; then
@@ -842,6 +843,7 @@ GASNET_FUN_END([$0($1,$2,$3)])
 dnl GASNET_GETFULLPATH(var)
 dnl var contains a program name, optionally followed by arguments
 dnl expand the program name to a fully qualified pathname if not already done
+dnl will special case "env var1=val1 var2-val2 prog args" ("env" must be exact)
 AC_DEFUN([GASNET_GETFULLPATH_CHECK],[
 GASNET_IF_DISABLED(full-path-expansion, [Disable expansion of program names to full pathnames], 
                    [cv_prefix[]_gfp_disable=1])
@@ -851,8 +853,16 @@ GASNET_FUN_BEGIN([$0($1)])
 AC_REQUIRE([AC_PROG_AWK])
 AC_REQUIRE([GASNET_GETFULLPATH_CHECK])
 if test "$cv_prefix[]_gfp_disable" = ""; then
-  gasnet_gfp_progname=`echo "$$1" | $AWK -F' ' '{ print [$]1 }'`
-  gasnet_gfp_progargs=`echo "$$1" | $AWK -F' ' 'BEGIN { ORS=" "; } { for (i=2;i<=NF;i++) print $i; }'`
+  if expr "$$1" : 'env ' >/dev/null; then
+    AC_PATH_PROGS(ENVCMD, $ENVCMD env, , /usr/bin:${PATH})
+    gasnet_gfp_progenv="$ENVCMD "`echo "$$1" | $AWK -F' ' 'BEGIN { ORS=" "; } { for (i=2;i<=NF;i++) { if ($i ~ /=/) print $i; else break; } }'`
+    gasnet_gfp_progname=`echo "$$1" | $AWK -F' ' 'BEGIN { ORS=" "; } { for (i=2;i<=NF;i++) { if ($i !~ /=/) { print $i; break; } } }'`
+    gasnet_gfp_progargs=`echo "$$1" | $AWK -F' ' 'BEGIN { ORS=" "; } { for (i=2;i<NF;i++) { if ($i !~ /=/) { for (j=i+1;j<=NF;j++) { print $j; } break; } } }'`
+  else
+    gasnet_gfp_progenv=""
+    gasnet_gfp_progname=`echo "$$1" | $AWK -F' ' '{ print [$]1 }'`
+    gasnet_gfp_progargs=`echo "$$1" | $AWK -F' ' 'BEGIN { ORS=" "; } { for (i=2;i<=NF;i++) print $i; }'`
+  fi
   gasnet_gfp_progname0=`echo "$gasnet_gfp_progname" | $AWK '{ print sub[]str([$]0,1,1) }'`
   if test "$gasnet_gfp_progname0" != "/" ; then
     if test "`echo $gasnet_gfp_progname | grep '/'`" != "" ; then
@@ -865,7 +875,7 @@ if test "$cv_prefix[]_gfp_disable" = ""; then
     AC_PATH_PROG(cv_prefix[]_gfp_fullprogname_$1, $gasnet_gfp_progname,[])
     AC_MSG_CHECKING(for full path expansion of $1)
     if test "$cv_prefix[]_gfp_fullprogname_$1" != "" ; then
-      $1="$cv_prefix[]_gfp_fullprogname_$1 $gasnet_gfp_progargs"
+      $1="$gasnet_gfp_progenv$cv_prefix[]_gfp_fullprogname_$1 $gasnet_gfp_progargs"
     fi
     AC_MSG_RESULT($$1)
   fi
@@ -1153,9 +1163,11 @@ fi
 GASNET_FUN_END([$0(...)])
 ])
 
-dnl GASNET_CHECK_OPTIMIZEDDEBUG CCVAR CFLAGSVAR EXTRAARGS INCLUDES 
+dnl GASNET_CHECK_OPTIMIZEDDEBUG CCVAR CFLAGSVAR EXTRAARGS INCLUDES [ACTION]
 dnl Ensure the compiler CC doesn't create a conflict between
 dnl optimization and debugging.
+dnl If no ACTION is given, the default is an error message suggesting
+dnl changes to the CCVAR and/or CFLAGSVAR.
 AC_DEFUN([GASNET_CHECK_OPTIMIZEDDEBUG],[
 GASNET_FUN_BEGIN([$0(...)])
  if test "$enable_debug" = "yes" ; then
@@ -1169,13 +1181,16 @@ GASNET_FUN_BEGIN([$0(...)])
     #if defined(__OPTIMIZE__) || defined(NDEBUG)
 	choke me
     #endif
-  ], [ ], [ AC_MSG_RESULT(no) ], [
-    AC_MSG_RESULT([yes])
-    GASNET_MSG_ERROR([User requested --enable-debug but $1 or $2 has enabled optimization (-O) or disabled assertions (-DNDEBUG). Try setting $1='$[$1] -O0 -UNDEBUG' or changing $2])
-  ])
+  ], [ ], [ gasnet_result=no ], [ gasnet_result=yes ])
+  AC_MSG_RESULT([$gasnet_result])
   GASNET_POPVAR(CC)
   GASNET_POPVAR(CFLAGS)
   AC_LANG_RESTORE
+  if test "$gasnet_result" = yes; then
+    ifelse([$5],[],[ dnl m4_ifval not present in older autotools
+    GASNET_MSG_ERROR([User requested --enable-debug but $1 or $2 has enabled optimization (-O) or disabled assertions (-DNDEBUG). Try setting $1='$[$1] -O0 -UNDEBUG' or changing $2])
+    ],[$5])
+  fi
  fi
 GASNET_FUN_END([$0(...)])
 ])
@@ -1250,9 +1265,20 @@ dnl GASNET_GET_GNU_ATTRIBUTES(PREFIX, opt compiler-name)
 dnl Check all gcc attributes of interest/importance to GASNet
 dnl If PREFIX contains "CXX"  then test is run as LANG_CPLUSPLUS
 dnl Caller must setup CC, CFLAGS, etc for MPI_CC case.
+dnl XXX: treatment of inline modifier is not generic
 AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
+  pushdef([inline_modifier],ifelse(index([$1],[MPI_CC]),
+                                   [-1],[GASNET_CC_INLINE_MODIFIER],
+                                        [GASNET_MPICC_INLINE_MODIFIER]))
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__always_inline__],
-            [__attribute__((__always_inline__)) int dummy(void) { return 1; }])
+            [__attribute__((__always_inline__))
+             #if defined __cplusplus
+                inline
+             #elif defined ]inline_modifier[
+                ]inline_modifier[
+             #endif
+             int dummy(void) { return 1; }])
+  popdef([inline_modifier])
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__noinline__],
             [__attribute__((__noinline__)) int dummy(void) { return 1; }])
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__malloc__],
@@ -1271,11 +1297,19 @@ AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
             [#include <stdlib.h>
 	     __attribute__((__noreturn__)) void dummy(void) { abort(); }])
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__const__],
-            [__attribute__((__const__)) int dummy(int x) { return x+1; }])
+            [__attribute__((__const__))
+             char *dummy(char *x) { return x+1; }],
+            [char c; char *x = dummy(&c);])
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__pure__],
             [__attribute__((__pure__)) int dummy(int x) { return x+1; }])
   GASNET_CHECK_GNU_ATTRIBUTE([$1], [$2], [__format__],
-            [__attribute__((__format__ (__printf__, 1, 2))) void dummy(const char *fmt,...) { }])
+            [#include <stdarg.h>
+             __attribute__((__format__ (__printf__, 1, 2)))
+             void dummy(const char *fmt,...) {
+               va_list argptr;
+               va_start(argptr, fmt);
+               va_end(argptr);
+             }])
 
   pushdef([cachevar],cv_prefix[]translit([$1],'A-Z','a-z')[]_attr_format_funcptr)
   AC_CACHE_CHECK($2 for __attribute__((__format__)) on function pointers, cachevar,
@@ -1287,6 +1321,35 @@ AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
       AC_DEFINE([$1]_ATTRIBUTE_FORMAT_FUNCPTR)
   else
       AC_DEFINE([$1]_ATTRIBUTE_FORMAT_FUNCPTR, 0)
+  fi
+  popdef([cachevar])
+
+  pushdef([cachevar],cv_prefix[]translit([$1],'A-Z','a-z')[]_attr_format_funcptr_arg)
+  AC_CACHE_CHECK($2 for __attribute__((__format__)) on function pointers as arguments, cachevar,
+    GASNET_TRY_COMPILE_WITHWARN(GASNETI_C_OR_CXX([$1]), [
+         extern void dummy(__attribute__((__format__ (__printf__, 1, 2)))
+                              void (*dummy2)(const char *fmt,...));
+      ], [], [ cachevar='yes' ],[ cachevar='no/warning' ],[ cachevar='no/error' ])
+  )
+  if test "$cachevar" = yes; then
+      AC_DEFINE([$1]_ATTRIBUTE_FORMAT_FUNCPTR_ARG)
+  else
+      AC_DEFINE([$1]_ATTRIBUTE_FORMAT_FUNCPTR_ARG, 0)
+  fi
+  popdef([cachevar])
+
+  pushdef([cachevar],cv_prefix[]translit([$1],'A-Z','a-z')[]_attr_unused_typedef)
+  AC_CACHE_CHECK($2 for __attribute__((__unused__)) on typedefs, cachevar,
+    GASNET_TRY_COMPILE_WITHWARN(GASNETI_C_OR_CXX([$1]), [
+          typedef struct foo_s { int i; long l; } foo_t __attribute__((__unused__));
+      ], [
+          foo_t pointless;
+      ], [ cachevar='yes' ],[ cachevar='no/warning' ],[ cachevar='no/error' ])
+  )
+  if test "$cachevar" = yes; then
+      AC_DEFINE([$1]_ATTRIBUTE_UNUSED_TYPEDEF)
+  else
+      AC_DEFINE([$1]_ATTRIBUTE_UNUSED_TYPEDEF, 0)
   fi
   popdef([cachevar])
 ])
@@ -1531,6 +1594,8 @@ GASNET_FUN_END([$0($1,$2,...)])
 AC_DEFUN([GASNET_PROG_CPP], [
   GASNET_FUN_BEGIN([$0])
   AC_PROVIDE([$0])
+  AC_REQUIRE([AC_PROG_CC]) dnl bug 2648, 2748 
+  AC_REQUIRE([AC_PROG_CPP])
   AC_PROG_CC
   AC_PROG_CPP
   GASNET_GETFULLPATH(CPP)
@@ -1575,6 +1640,8 @@ AC_DEFUN([GASNET_PROG_CPP], [
 AC_DEFUN([GASNET_PROG_CXXCPP], [
   GASNET_FUN_BEGIN([$0])
   AC_PROVIDE([$0])
+  AC_REQUIRE([AC_PROG_CXX]) dnl bug 2648, 2748 
+  AC_REQUIRE([AC_PROG_CXXCPP])
   AC_PROG_CXX
   AC_PROG_CXXCPP
   GASNET_GETFULLPATH(CXXCPP)
@@ -1724,6 +1791,7 @@ AC_DEFUN([GASNET_HOSTCC_BEGIN], [
   GASNET_PUSHVAR_UNSET(ac_cv_c_compiler_gnu)
   GASNET_PUSHVAR_UNSET(ac_cv_prog_cc_g)
   GASNET_PUSHVAR_UNSET(ac_cv_prog_cc_stdc)
+  GASNET_PUSHVAR_UNSET(ac_cv_objext)
   GASNET_PUSHVAR(cross_compiling,"no")
 
   GASNET_FUN_END([$0])
@@ -1746,6 +1814,7 @@ AC_DEFUN([GASNET_HOSTCC_END], [
   GASNET_POPVAR(ac_cv_c_compiler_gnu)
   GASNET_POPVAR(ac_cv_prog_cc_g)
   GASNET_POPVAR(ac_cv_prog_cc_stdc)
+  GASNET_POPVAR(ac_cv_objext)
   GASNET_POPVAR(cross_compiling)
 
   GASNET_FUN_END([$0])
@@ -1930,6 +1999,8 @@ AC_CACHE_CHECK(for $1 compiler family, $3, [
     GASNET_IFDEF(__PGI, $3=PGI, [], $_force_compile)
     GASNET_IFDEF(__INTEL_COMPILER, $3=Intel, [], $_force_compile)
     GASNET_IFDEF(__OPENCC__, $3=Open64, [], $_force_compile)
+    GASNET_IFDEF(__PCC__, $3=PCC, [], $_force_compile)
+    GASNET_IFDEF(__clang__, $3=Clang, [], $_force_compile)
   fi
   dnl other vendor compilers
   if test "$$3" = "unknown"; then
@@ -2138,13 +2209,14 @@ GASNET_FUN_END([$0($1)])
 ])
 
 dnl fetch a cross-compilation variable, if we are cross compiling
-dnl GASNET_CROSS_VAR(variable-to-set, basicname)
+dnl if a default is not provided (or is empty) then var must be set
+dnl GASNET_CROSS_VAR(variable-to-set, basicname, default-value)
 AC_DEFUN([GASNET_CROSS_VAR],[
-  GASNET_FUN_BEGIN([$0($1,$2)])
+  GASNET_FUN_BEGIN([$0($1,$2,$3)])
   pushdef([cross_varname],CROSS_$2)
   if test "$cross_compiling" = "yes" ; then
     pushdef([GASNET_ENV_DEFAULT_SUPPRESSHELP],1)
-    GASNET_ENV_DEFAULT(cross_varname,)
+    GASNET_ENV_DEFAULT(cross_varname,$3)
     popdef([GASNET_ENV_DEFAULT_SUPPRESSHELP])
     if test "$cross_varname" = "" ; then
       AC_MSG_ERROR([This configure script requires \$cross_varname be set for cross-compilation])
@@ -2153,7 +2225,7 @@ AC_DEFUN([GASNET_CROSS_VAR],[
     fi
   fi
   popdef([cross_varname])
-  GASNET_FUN_END([$0($1,$2)])
+  GASNET_FUN_END([$0($1,$2,$3)])
 ])
 
 dnl query the numerical value of a system signal and AC_SUBST it

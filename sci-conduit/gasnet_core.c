@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/sci-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2009/09/21 04:01:01 $
- * $Revision: 1.29 $
+ *     $Date: 2012/07/27 03:57:16 $
+ * $Revision: 1.29.16.1 $
  * Description: GASNet sci conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *				   Hung-Hsun Su <su@hcs.ufl.edu>
@@ -203,7 +203,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
       }
       if (newindex > highlimit) {
         char s[255];
-        sprintf(s,"Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
+        snprintf(s, sizeof(s), "Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
         GASNETI_RETURN_ERRR(BAD_ARG, s);
       }
     }
@@ -211,7 +211,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     /*  ensure handlers fall into the proper range of pre-assigned values */
     if (newindex < lowlimit || newindex > highlimit) {
       char s[255];
-      sprintf(s, "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
+      snprintf(s, sizeof(s), "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
       GASNETI_RETURN_ERRR(BAD_ARG, s);
     }
 
@@ -223,7 +223,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     /* register the handler */
     /* (###) add code here to register table[i].fnptr
              on index (gasnet_handler_t)newindex */
-      gasnetc_sci_handler_table[(gasnet_handler_t) newindex] = table[i].fnptr;
+      gasnetc_sci_handler_table[(gasnet_handler_t) newindex] = (void *)table[i].fnptr;
 
     /* The check below for !table[i].index is redundant and present
      * only to defeat the over-aggressive optimizer in pathcc 2.1
@@ -267,7 +267,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /*  register handlers */
   { int i;
     for (i = 0; i < GASNETC_SCI_MAX_HANDLER_NUMBER; i++) 
-      gasnetc_sci_handler_table[i] = &gasneti_defaultAMHandler;
+      gasnetc_sci_handler_table[i] = (void *)&gasneti_defaultAMHandler;
   }
   { /*  core API handlers */
     gasnet_handlerentry_t *ctable = (gasnet_handlerentry_t *)gasnetc_get_handlertable();
@@ -315,7 +315,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /*  (###) register any custom signal handlers required by your conduit
    *        (e.g. to support interrupt-based messaging)
    */
-   gasnetc_sci_handler_table[63] = gasnetc_sci_call_exit;
+   gasnetc_sci_handler_table[63] = (void *)gasnetc_sci_call_exit;
 
   #if HAVE_ON_EXIT
     on_exit(gasnetc_on_exit, NULL);
@@ -327,6 +327,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /*  register segment  */
 
   gasneti_seginfo = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
+  gasneti_leak(gasneti_seginfo);
 
   #if GASNET_SEGMENT_FAST
     if (segsize == 0) segbase = NULL; /* no segment */

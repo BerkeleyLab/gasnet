@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testqueue.c,v $
- *     $Date: 2010/04/24 02:20:50 $
- * $Revision: 1.18 $
+ *     $Date: 2012/07/27 03:57:25 $
+ * $Revision: 1.18.6.1 $
  * Description: GASNet put/get injection performance test
  *   measures the average non-blocking put/get injection time 
  *   for increasing number of back-to-back operations
@@ -270,9 +270,12 @@ int main(int argc, char **argv) {
       MSG0("\n%s\n--------------------\n", OPDESC);                         \
       { char header[1024];                                                  \
         char *pheader = header;                                             \
-        sprintf(pheader, "        "); pheader += strlen(pheader);           \
+        size_t hused = 0;                                                   \
+        snprintf(pheader, sizeof(header) - hused, "        ");              \
+        pheader += strlen(pheader); hused = pheader - header;               \
         for (depth = 1; depth <= maxdepth; depth *= 2) {                    \
-          sprintf(pheader, " %7i", depth); pheader += strlen(pheader);      \
+          snprintf(pheader, sizeof(header) - hused, " %7i", depth);         \
+          pheader += strlen(pheader); hused = pheader - header;             \
         }                                                                   \
         PUTS0(header);                                                      \
       }                                                                     \
@@ -281,9 +284,14 @@ int main(int argc, char **argv) {
       for (payload = min_payload; payload <= last_payload; payload *= 2) {  \
         char row[1024];                                                     \
         char *prow = row;                                                   \
+        size_t rused = 0;                                                   \
         if (payload < 0) break; /* Overflow */                              \
-        sprintf(prow, "%-8i", payload); prow += strlen(prow);               \
-        if (!multisender) { printf("%s",row); fflush(stdout); prow = row; } \
+        snprintf(prow, sizeof(row) - rused, "%-8i", payload);               \
+        prow += strlen(prow); rused = prow - row;                           \
+        if (!multisender) {                                                 \
+          fputs(row,stdout); fflush(stdout);                                \
+          prow = row; rused = 0;                                            \
+        }                                                                   \
         depth = 1;                                                          \
         if (iamsender) { /* Prime i-cache, free-lists, firehose, etc. */    \
           GASNETI_UNUSED /* 'i' not used in all expansions of QUEUE_TEST */ \
@@ -329,9 +337,11 @@ int main(int argc, char **argv) {
               else if (avgus < 10000.0) prec = 2;                           \
               else if (avgus < 100000.0) prec = 1;                          \
               else prec = 0;                                                \
-              sprintf(prow, " %7.*f", prec, avgus); prow += strlen(prow);   \
+              snprintf(prow, sizeof(row) - rused, " %7.*f", prec, avgus);   \
+              prow += strlen(prow); rused = prow - row;                     \
               if (!multisender) {                                           \
-                  printf("%s",row); fflush(stdout); prow = row;             \
+                  fputs(row,stdout); fflush(stdout);                        \
+                  prow = row; rused = 0;                                    \
               }                                                             \
             }                                                               \
           } else {                                                          \
@@ -344,7 +354,7 @@ int main(int argc, char **argv) {
           }                                                                 \
         }                                                                   \
         if (iamsender) {                                                    \
-          printf("%s\n", row); fflush(stdout);                              \
+          puts(row); fflush(stdout);                                        \
         }                                                                   \
       }                                                                     \
     } while (0)

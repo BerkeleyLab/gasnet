@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_coll_bcast_dcmf.c,v $
- *     $Date: 2010/05/05 15:24:17 $
- * $Revision: 1.9 $
+ *     $Date: 2012/07/27 03:56:16 $
+ * $Revision: 1.9.6.1 $
  * Description: GASNet broadcast implementation on DCMF
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -27,7 +27,6 @@ void gasnete_coll_bcast_proto_register(void)
   DCMF_GlobalBcast_Configuration_t gbcast_conf;
   DCMF_Broadcast_Configuration_t bcast_conf;
   DCMF_AsyncBroadcast_Configuration_t a_bcast_conf;
-  char *tmp_str;
 
   GASNETC_DCMF_LOCK(); /* for DCMF_SAFE */
   

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2010/04/04 06:57:42 $
- * $Revision: 1.47 $
+ *     $Date: 2012/07/27 03:56:33 $
+ * $Revision: 1.47.8.1 $
  * Description: GASNet Extended API GM Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -100,7 +100,10 @@ extern void gasnete_init(void) {
 */
 
 extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
+#if 0
+	/* polling now takes place in callers which needed and NOT in those which don't */
 	GASNETI_SAFE(gasneti_AMPoll());
+#endif
 
 	if (gasnete_op_isdone(handle)) {
 		gasneti_sync_reads();
@@ -116,7 +119,10 @@ gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles)
 	int success = 0;
 	int empty = 1;
 
+#if 0
+	/* polling for syncnb now happens in header file to avoid duplication */
 	GASNETI_SAFE(gasneti_AMPoll());
+#endif
 	gasneti_assert(phandle);
 
 	{ 
@@ -144,7 +150,10 @@ extern int
 gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 {
 	int success = 1;
+#if 0
+	/* polling for syncnb now happens in header file to avoid duplication */
 	GASNETI_SAFE(gasneti_AMPoll());
+#endif
 
 	gasneti_assert(phandle);
 

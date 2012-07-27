@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_coll_barrier_dcmf.c,v $
- *     $Date: 2009/10/28 03:01:34 $
- * $Revision: 1.6 $
+ *     $Date: 2012/07/27 03:56:16 $
+ * $Revision: 1.6.16.1 $
  * Description: GASNet barrier implementation on DCMF
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -27,9 +27,7 @@ static void gasnete_dcmf_coll_cb_done(void *clientdata, DCMF_Error_t *e)
 
 void gasnete_coll_barrier_proto_register(void)
 {
-  DCMF_Result rv;
   DCMF_Barrier_Configuration_t barrier_conf;
-  char *tmp_str;
 
   GASNETC_DCMF_LOCK(); /* for DCMF_SAFE */
 

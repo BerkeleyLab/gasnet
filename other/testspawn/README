@@ -3,3 +3,5 @@ enough to test the conduit-independent bootstrappers.
 
 It is not meant to be built as part of a GASNet conduit and is simply used as
 a debug mechanism for the ssh and mpi spawners.
+
+NOTE: This code has not been maintained and does not currently build.

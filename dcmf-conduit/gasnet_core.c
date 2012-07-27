@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/dcmf-conduit/gasnet_core.c,v $
- *     $Date: 2010/05/05 15:24:17 $
- * $Revision: 1.22 $
+ *     $Date: 2012/07/27 03:56:16 $
+ * $Revision: 1.22.6.1 $
  * Description: GASNet dcmf conduit Implementation
  * Copyright 2008, Rajesh Nishtala <rajeshn@cs.berkeley.edu>, 
                    Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -98,7 +98,6 @@ static unsigned gasnetc_curr_seq_number;
 static DCMF_Protocol_t gasnetc_dcmf_ack_registration;
 static DCMF_Protocol_t gasnetc_dcmf_nack_registration;
 static DCMF_Protocol_t gasnetc_dcmf_short_msg_registration;
-static DCMF_Protocol_t gasnetc_force_exit_registration;
 
 /*if this is set to one the exit barrier is initialized at exit time
   see BUG 2441
@@ -337,7 +336,6 @@ static void gasnetc_bootstrapExchange(void *src, size_t len, void *dest) {
 
 
 static int gasnetc_init(int *argc, char ***argv) {
-  int i;
   /*  check system sanity */
   gasnetc_check_config();
 
@@ -455,7 +453,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
       }
       if (newindex > highlimit) {
         char s[255];
-        sprintf(s,"Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
+        snprintf(s, sizeof(s), "Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
         GASNETI_RETURN_ERRR(BAD_ARG, s);
       }
     }
@@ -463,7 +461,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     /*  ensure handlers fall into the proper range of pre-assigned values */
     if (newindex < lowlimit || newindex > highlimit) {
       char s[255];
-      sprintf(s, "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
+      snprintf(s, sizeof(s), "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
       GASNETI_RETURN_ERRR(BAD_ARG, s);
     }
 
@@ -578,6 +576,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /*  register segment  */
 
   gasneti_seginfo = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
+  gasneti_leak(gasneti_seginfo);
 
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
   if (segsize == 0) segbase = NULL; /* no segment */
@@ -696,7 +695,7 @@ static void gasnetc_tryCollectiveExit(int exitcode) {
   
   alarm(1+(int)gasnetc_exittimeout); /* acquired from env */
 
-#if GASNET_DEBUG
+#if GASNET_DEBUG_VERBOSE
   fprintf(stderr, "%d> exit initiated... checking for collective exit (exit code: %d) timeout: %d\n", gasneti_mynode, exitcode, 1+(int)gasnetc_exittimeout);
 #endif
   
@@ -722,7 +721,7 @@ static void gasnetc_tryCollectiveExit(int exitcode) {
  }
  DCMF_CriticalSection_exit(0);
     
-#if GASNET_DEBUG
+#if GASNET_DEBUG_VERBOSE
   fprintf(stderr, "%d> collective exit succeeded. Exiting with code %d\n", gasneti_mynode,
           outputexit_code & 0x000000ff);
 #endif
@@ -1099,8 +1098,10 @@ void gasnetc_ack_msg_cb(void *client_data,
                         const DCMF_Control_t *info,
                         unsigned peer){
   gasnetc_replay_buffer_t* buffer = (gasnetc_replay_buffer_t*) (*info[0]).w0;
+#if GASNETI_TRACE
   uint32_t seq = (uint32_t) (*info[0]).w1;
   GASNETI_TRACE_PRINTF(C,("Freeing replay buffer: %p %d", buffer, seq));
+#endif
   gasnetc_free_replay_buffer(buffer);
 }
 
@@ -1109,8 +1110,10 @@ void gasnetc_add_to_nack_list_cb(void *client_data,
     const DCMF_Control_t *info,
     unsigned peer) {
   gasnetc_replay_buffer_t* buffer = (gasnetc_replay_buffer_t*) (*info[0]).w0;
+#if GASNETI_TRACE
   uint32_t seq = (uint32_t) (*info[0]).w1;
   GASNETI_TRACE_PRINTF(C,("adding replay buffer to nack: %p %d", buffer, seq));
+#endif
   gasnetc_add_replay_to_nack_list(buffer);
 }
 
@@ -1300,7 +1303,6 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
 #endif
 
 extern int gasnetc_AMPoll(void) {
-  int retval;
   gasnetc_amhandler_t *amhandler;
 
   
@@ -1683,7 +1685,6 @@ DCMF_Request_t* gasnetc_dcmf_handle_am_header(void *clientdata,
 */
 /*GASNETI_INLINE(gasnetc_resend_am_req) */
 void gasnetc_resend_am_req(gasnetc_replay_buffer_t *replay_buffer) {
-  volatile uint8_t send_done=0;
   DCMF_Callback_t send_done_callback;
   gasnetc_dcmf_req_t *dcmf_req;
     

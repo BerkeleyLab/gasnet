@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testlockcontend.c,v $
- *     $Date: 2009/04/20 06:40:08 $
- * $Revision: 1.7 $
+ *     $Date: 2012/07/27 03:57:25 $
+ * $Revision: 1.7.18.1 $
  * Description: GASNet lock performance test
  *   Measures the overhead associated with contended locks
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -27,7 +27,7 @@ void header(const char *desc) {
 }
 void report(int threads, int64_t totaltime, int iters) {
       char format[80];
-      sprintf(format, "%c:  %%6i     %%%i.%if s  %%%i.%if us\n", 
+      snprintf(format, sizeof(format), "%c:  %%6i     %%%i.%if s  %%%i.%if us\n", 
               TEST_SECTION_NAME(), (4+accuracy), accuracy, (4+accuracy), accuracy);
       printf(format, threads, totaltime/1.0E9, (totaltime/1000.0)/iters);
       fflush(stdout);

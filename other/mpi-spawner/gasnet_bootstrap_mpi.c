@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/mpi-spawner/gasnet_bootstrap_mpi.c,v $
- *     $Date: 2006/05/11 09:43:44 $
- * $Revision: 1.17 $
+ *     $Date: 2012/07/27 03:56:59 $
+ * $Revision: 1.17.68.1 $
  * Description: GASNet conduit-independent mpi-based spawner
  * Copyright 2003, The Regents of the University of California
  * Terms of use are as specified in license.txt
@@ -9,6 +9,7 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
+#include <mpi-spawner/gasnet_bootstrap_internal.h>
 #include <signal.h>
 #include <mpi.h>
 
@@ -40,6 +41,7 @@ void gasneti_bootstrapInit_mpi(int *argc, char ***argv, gasnet_node_t *nodes, ga
   err = MPI_Comm_size(gasnetc_mpi_comm, &tmp);
   gasneti_assert(err == MPI_SUCCESS);
   *nodes = tmp;
+  if ((int)(*nodes) != tmp) *nodes = 0; /* Overflow! */
 
   err = MPI_Comm_rank(gasnetc_mpi_comm, &tmp);
   gasneti_assert(err == MPI_SUCCESS);

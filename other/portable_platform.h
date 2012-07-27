@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/portable_platform.h,v $
- *     $Date: 2010/06/03 23:50:45 $
- * $Revision: 1.30 $
+ *     $Date: 2012/07/27 03:56:48 $
+ * $Revision: 1.30.4.1 $
  * Description: Portable platform detection header
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -338,6 +338,19 @@
   #define PLATFORM_COMPILER_VERSION_STR \
       _STRINGIFY(__PCC__)"."_STRINGIFY(__PCC_MINOR__)"."_STRINGIFY(__PCC_MINORMINOR__)
 
+#elif defined(__clang__)
+  #define PLATFORM_COMPILER_CLANG  1
+  #define PLATFORM_COMPILER_FAMILYNAME CLANG
+  #define PLATFORM_COMPILER_FAMILYID 19
+  #ifdef __cplusplus
+    #define PLATFORM_COMPILER_CLANG_CXX  1
+  #else
+    #define PLATFORM_COMPILER_CLANG_C  1
+  #endif
+  #define PLATFORM_COMPILER_VERSION \
+          PLATFORM_COMPILER_VERSION_INT(__clang_major__,__clang_minor__,__clang_patchlevel__)
+  #define PLATFORM_COMPILER_VERSION_STR __clang_version__
+
 #else /* unknown compiler */
   #define PLATFORM_COMPILER_UNKNOWN  1
 #endif
@@ -491,6 +504,10 @@
 #elif defined(GASNETI_ARCH_BGP) || defined(__bgp__)
   #define PLATFORM_OS_BGP 1
   #define PLATFORM_OS_FAMILYNAME BGP
+
+#elif defined(GASNETI_ARCH_BGQ) || defined(__bgq__)
+  #define PLATFORM_OS_BGQ 1
+  #define PLATFORM_OS_FAMILYNAME BGQ
 
 #elif defined(__K42)
   #define PLATFORM_OS_K42 1

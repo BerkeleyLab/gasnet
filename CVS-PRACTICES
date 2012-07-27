@@ -63,6 +63,8 @@ GASNet Release Procedure
 * Start from a clean checkout of the CVS tree.
   Do *NOT* use an existing source tree - otherwise it's very easy for stray files,
   bad keywords, etc to end up in the release.
+  Use the "-P" option to prune empty dirs (eg "cvs -f co -P ...")
+  The "-f" ensures we don't pickup any undesired options from ~/.cvsrc
 
 * Increment the version number for each item or software module that has changed
   since the last public release:
@@ -95,8 +97,10 @@ GASNet Release Procedure
 
 * ./Bootstrap the srcdir
 
-* From a separate builddir, do a configure, then gmake all distcheck to build 
-  the release candidate archive
+* From a separate builddir, do a configure, then
+     gmake all distcheck [GASNET_DOCS=PATH_TO_GASNET_DOCUMENTATION]
+  the release candidate archive.  See below for info on the optional
+  GASNET_DOCS setting.
 
 * cd into $(blddir)/other/ammpi and gmake amxdist to build the AMMPI release
 
@@ -117,13 +121,15 @@ GASNet Release Procedure
 * Verify that ./unBootstrap removes all generated files:
   In the srcdir:
     ./unBootstrap
-    cvs up | grep ^?
+    cvs up -P | grep ^?
   If there is any output then you'll need to update unBootstrap.
 
 * Check the spec documents were generated correctly & clean up if necessary 
   (regenerate the .ps on Linux)
   If the spec has not changed since the previous release, consider reusing
-  the generated files.
+  the generated files.  That can be automated by adding
+     GASNET_DOCS=PATH_TO_GASNET_DOCUMENTATION
+  to the distcheck step.
 
 * Test the release candidate on all directly supported systems and conduits,
   with both debug-stats-trace and ndebug configs, and all supported backend

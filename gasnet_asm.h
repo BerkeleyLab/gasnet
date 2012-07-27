@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_asm.h,v $
- *     $Date: 2010/04/26 05:11:43 $
- * $Revision: 1.129 $
+ *     $Date: 2012/07/27 03:56:09 $
+ * $Revision: 1.129.6.1 $
  * Description: GASNet header for semi-portable inline asm support
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,7 +17,7 @@
 
 #define GASNETI_ASM_AVAILABLE 1
 #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || PLATFORM_COMPILER_PATHSCALE || \
-    PLATFORM_COMPILER_TINY || PLATFORM_COMPILER_OPEN64
+    PLATFORM_COMPILER_TINY || PLATFORM_COMPILER_OPEN64 || PLATFORM_COMPILER_CLANG
   #define GASNETI_ASM(mnemonic) __asm__ __volatile__ (mnemonic : : : "memory")
 #elif PLATFORM_COMPILER_PGI 
   /* Some definitions:
@@ -55,6 +55,10 @@
    *   Compiler suffers from "tpr 14969" in which extended asm() output constraints can't
    *   be met unless they appear in a specific order.  This is on 32-bit targets only
    *
+   * GASNETI_PGI_ASM_BUG2843
+   *   Compiler suffers from "tpr 17075" in which extended asm() may load only 32 bits of
+   *   a 64-bit operand at -O1 (but is OK at -O0 and -O2).
+   *
    * See GASNet bug 1621 (http://upc-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1621) for more
    * info on the bugs indicated by GASNETI_PGI_ASM_THREADSAFE and GASNETI_PGI_ASM_X86_A.
    *
@@ -90,6 +94,9 @@
   #endif
   #if PLATFORM_ARCH_32 && PLATFORM_COMPILER_VERSION_GE(7,1,5) /* XXX: No end of range yet */
     #define GASNETI_PGI_ASM_BUG2294 1
+  #endif
+  #if PLATFORM_COMPILER_VERSION_GE(7,0,0) && PLATFORM_COMPILER_VERSION_LT(10,8,0)
+    #define GASNETI_PGI_ASM_BUG2843 1
   #endif
   #define GASNETI_ASM_SPECIAL(mnemonic) asm(mnemonic)
 #elif PLATFORM_COMPILER_COMPAQ
@@ -204,6 +211,59 @@
   #endif
 
   #define GASNETI_HAVE_BGP_INLINES 1
+#endif
+
+#if PLATFORM_OS_BGQ && (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_XLC)
+  /* The situation on BG/Q is either as bad as on BG/P, or perhaps worse.
+   * The use of 'extern inline' means we can't get what we need at all in
+   * a debug build.  At least on BG/P there was a lib we could have linked.
+   */
+  #ifndef __INLINE__
+    #if GASNET_DEBUG
+      #define GASNETI_DEFINE__INLINE__ static
+    #elif defined(__cplusplus)
+      #define GASNETI_DEFINE__INLINE__ inline
+    #elif GASNETI_COMPILER_IS_CC && defined(GASNET_CC_INLINE_MODIFIER)
+      #define GASNETI_DEFINE__INLINE__ GASNET_CC_INLINE_MODIFIER
+    #elif GASNETI_COMPILER_IS_MPI_CC && defined(GASNET_MPI_CC_INLINE_MODIFIER)
+      #define GASNETI_DEFINE__INLINE__ GASNET_MPI_CC_INLINE_MODIFIER
+    #else
+      #define GASNETI_DEFINE__INLINE__ static
+    #endif
+    #define __INLINE__ GASNETI_DEFINE__INLINE__
+  #endif
+  #include "cnk/include/SPI_syscalls.h"
+  #include "hwi/include/bqc/A2_inlines.h"
+  #ifdef GASNETI_DEFINE__INLINE__
+    #undef __INLINE__
+  #endif
+  #define GASNETI_HAVE_BGQ_INLINES 1
+#endif
+
+#if PLATFORM_ARCH_ARM && PLATFORM_OS_LINUX
+  /* This helper macro hides ISA differences going from ARMv4 to ARMv5 */
+  #if defined(__thumb__)
+    #error "GASNet does not support ARM Thumb mode"
+    #define GASNETI_ARM_ASMCALL(_tmp, _offset) "choke me"
+  #elif defined(__ARM_ARCH_2__)
+    #error "GASNet does not support ARM versions earlier than ARMv3"
+    #define GASNETI_ARM_ASMCALL(_tmp, _offset) "choke me"
+  #elif defined(__ARM_ARCH_3__) || defined(__ARM_ARCH_4__) || defined(__ARM_ARCH_4T__)
+    #define GASNETI_ARM_ASMCALL(_tmp, _offset) \
+	"	mov	" #_tmp ", #0xffff0fff              @ _tmp = base addr    \n" \
+	"	mov	lr, pc                              @ lr = return addr    \n" \
+	"	sub	pc, " #_tmp ", #" #_offset "        @ call _tmp - _offset \n"
+  #else
+    #define GASNETI_ARM_ASMCALL(_tmp, _offset) \
+	"	mov	" #_tmp ", #0xffff0fff              @ _tmp = base addr    \n" \
+	"	sub	" #_tmp ", " #_tmp ", #" #_offset " @ _tmp -= _offset     \n" \
+	"	blx	" #_tmp "                           @ call _tmp           \n"
+  #endif
+#endif
+
+#if PLATFORM_ARCH_MIPS && defined(HAVE_SGIDEFS_H)
+  /* For _MIPS_ISA and _MIPS_SIM values on some MIPS platforms */
+  #include <sgidefs.h>
 #endif
 
 #endif /* _GASNET_ASM_H */

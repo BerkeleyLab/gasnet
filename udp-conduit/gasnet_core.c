@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/udp-conduit/gasnet_core.c,v $
- *     $Date: 2010/04/06 22:36:01 $
- * $Revision: 1.42 $
+ *     $Date: 2012/07/27 03:57:28 $
+ * $Revision: 1.42.8.1 $
  * Description: GASNet UDP conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -154,9 +154,16 @@ static int gasnetc_init(int *argc, char ***argv) {
     spawnfn = *gasneti_getenv_withdefault("GASNET_SPAWNFN", _STRINGIFY(GASNETC_DEFAULT_SPAWNFN));
 
     { /* ensure we pass the effective spawnfn to worker env */
-      char spawnstr[255];
-      sprintf(spawnstr,"%c",toupper(spawnfn));
+      char spawnstr[2];
+      spawnstr[0] = toupper(spawnfn);
+      spawnstr[1] = '\0';
       gasneti_setenv("GASNET_SPAWNFN",spawnstr);
+    }
+
+    /* ensure reliable localhost operation by forcing use of 127.0.0.1
+     * setting GASNET_MASTERIP to the empty string will prevent this */
+    if (('L' == toupper(spawnfn)) && !gasneti_getenv("GASNET_MASTERIP")) {
+      gasneti_setenv("GASNET_MASTERIP","127.0.0.1");
     }
 
     for (i=0; AMUDP_Spawnfn_Desc[i].abbrev; i++) {
@@ -296,7 +303,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
       }
       if (newindex > highlimit) {
         char s[255];
-        sprintf(s,"Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
+        snprintf(s, sizeof(s), "Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
         GASNETI_RETURN_ERRR(BAD_ARG, s);
       }
     }
@@ -304,7 +311,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     /*  ensure handlers fall into the proper range of pre-assigned values */
     if (newindex < lowlimit || newindex > highlimit) {
       char s[255];
-      sprintf(s, "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
+      snprintf(s, sizeof(s), "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
       GASNETI_RETURN_ERRR(BAD_ARG, s);
     }
 
@@ -427,6 +434,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     /*  register segment  */
 
     gasneti_seginfo = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
+    gasneti_leak(gasneti_seginfo);
 
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
       gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, &gasnetc_bootstrapExchange);

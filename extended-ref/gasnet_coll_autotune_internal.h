@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_autotune_internal.h,v $                                                                                                                                                             
- *     $Date: 2009/10/22 20:14:56 $                                                                                                                                                              
- * $Revision: 1.6 $                                                                                                                                                             
+ *     $Date: 2012/07/27 03:56:25 $                                                                                                                                                              
+ * $Revision: 1.6.16.1 $                                                                                                                                                             
  * Description: GASNet Autotuner Implementation                                                                                                                             
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>                              
  * Terms of use are as specified in license.txt                                                                                                                             
@@ -29,6 +29,9 @@ struct gasnete_coll_implementation_t_{
   struct gasnete_coll_implementation_t_ *next;
   void* fn_ptr;
   int fn_idx;
+  gasnet_team_handle_t team;
+  gasnet_coll_optype_t optype;
+  uint32_t flags;
   int num_params;
   int need_to_free;
   gasnete_coll_tree_type_t tree_type;
@@ -364,6 +367,23 @@ struct gasnet_coll_tuning_parameter_t {
   int flags;
 };
 
+/* Macro to initialize a 1-element array of gasnet_coll_tuning_parameter_t.
+   Must deal w/ the fact that pre-C99 compilers don't allow initializers for
+   auto aggregates to contain non-constant expressions (which we may want for
+   start and end members).
+*/
+#if HAVE_NONCONST_STRUCT_INIT
+  #define GASNETE_COLL_TUNING_PARAMETER(_name,_param,_start,_end,_stride,_flags) \
+    struct gasnet_coll_tuning_parameter_t _name[1] = \
+       { { _param,_start,_end,_stride,_flags } } /* no semicolon */
+#else
+  #define GASNETE_COLL_TUNING_PARAMETER(_name,_param,_start,_end,_stride,_flags) \
+    struct gasnet_coll_tuning_parameter_t _name[1] = \
+       { { _param,0,0,_stride,_flags } };\
+    _name[0].start = _start; \
+    _name[0].end   = _end /* no semicolon */
+#endif
+
 /*contains an entry in the function table*/
 typedef struct gasnete_coll_allgorithm_t_ {
   struct gasnete_coll_allgorithm_t_ *next;
@@ -564,6 +584,6 @@ gasnete_coll_autotune_index_entry_t *gasnete_coll_load_autotuner_defaults(gasnet
 gasnete_coll_implementation_t gasnete_coll_get_implementation(void);
 void gasnete_coll_free_implementation(gasnete_coll_implementation_t in);
 
-
+void gasnete_coll_implementation_print(gasnete_coll_implementation_t impl, FILE *fp);
 
 #endif

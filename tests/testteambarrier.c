@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testteambarrier.c,v $
- *     $Date: 2009/09/28 00:28:37 $
- * $Revision: 1.3 $
+ *     $Date: 2012/07/27 03:57:25 $
+ * $Revision: 1.3.16.1 $
  * Description: GASNet barrier performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -98,7 +98,7 @@ int main(int argc, char **argv) {
   if (argc > 1) iters = atoi(argv[1]);
   if (!iters) iters = 10000;
 #if GASNET_PAR
-  test_init("testteambarrier", 2, "(iters) (threadcount)");
+  test_init("testteambarrier", 2, "(iters) (threadcount) (test sections)");
   if (argc > 2) {
     threads_per_node = atoi(argv[2]);
   } else {
@@ -112,7 +112,7 @@ int main(int argc, char **argv) {
   if (argc > 3) TEST_SECTION_PARSE(argv[3]);
   if (argc > 4) test_usage();
 #else
-  test_init("testteambarrier", 1, "(iters)");
+  test_init("testteambarrier", 1, "(iters) (test sections)");
   threads_per_node = 1;
   if (argc > 3) test_usage();
   if (argc > 2) TEST_SECTION_PARSE(argv[2]);

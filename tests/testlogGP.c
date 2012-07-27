@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testlogGP.c,v $
- *     $Date: 2010/04/24 02:20:50 $
- * $Revision: 1.32 $
+ *     $Date: 2012/07/27 03:57:25 $
+ * $Revision: 1.32.6.1 $
  * Description: GASNet logGP tester.
  *   measures the ping-pong average round-trip time and
  *   average flood throughput of GASNet gets and puts
@@ -355,7 +355,7 @@ int main(int argc, char **argv)
     /* call startup */
     GASNET_Safe(gasnet_init(&argc, &argv));
     GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-    sprintf(usagestr, "iters pollcnt sizes...\n"
+    snprintf(usagestr, sizeof(usagestr), "iters pollcnt sizes...\n"
                       "    sizes are limited to %ld", (long)TEST_SEGSZ);
     test_init("testlogGP",1, usagestr);
     

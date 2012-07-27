@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_dump.c,v $
- *     $Date: 2009/03/30 02:40:29 $
- * $Revision: 1.20 $
+ *     $Date: 2012/07/27 03:56:22 $
+ * $Revision: 1.20.18.1 $
  * Description: GASNet elan conduit - elan informational dumps
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -8,7 +8,13 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
+#if defined(__GNUC__) && !defined(inline)
+#define inline __inline__
 #include <elan3/elan3.h> /* for DMA_BYTE */
+#undef inline
+#else
+#include <elan3/elan3.h> /* for DMA_BYTE */
+#endif
 
 #ifdef GASNETC_ELAN4
  extern int gasnetc_ispatchfree_driver(void);
@@ -56,7 +62,7 @@ extern void gasnetc_dump_base(void) {
     switch(b->waitType) {
       case ELAN_POLL_EVENT: strcpy(waitType,"ELAN_POLL_EVENT"); break;
       case ELAN_WAIT_EVENT: strcpy(waitType,"ELAN_WAIT_EVENT"); break;
-      default: sprintf(waitType,"spin-poll iterations: %i",(int)b->waitType);
+      default: snprintf(waitType,sizeof(waitType),"spin-poll iterations: %i",(int)b->waitType);
     }
     GASNETI_STATS_PRINTF(C,(" waitType= %s",waitType));
   }
@@ -180,14 +186,14 @@ extern void gasnetc_dump_state(void) {
     idstr[0] = '\0';
     for (i=0; i < s->nLocalIds; i++) {
       char tmp[10];
-      sprintf(tmp," %i ", s->localIds[i]);
+      snprintf(tmp, sizeof(tmp), " %i ", s->localIds[i]);
       strcat(idstr,tmp);
     }
     GASNETI_STATS_PRINTF(C,("local_ids= (%s)",idstr));
   }
 
   GASNETI_STATS_PRINTF(C,("}"));
-  #if ELAN_VERSION_GE(1,4,8)
+  #if ELAN_VERSION_GE(1,4,8) && defined(GASNET_STATS)
   { int nrails = elan_nRails(s);
    GASNETI_STATS_PRINTF(C,(" elan_nRails()= %i", (int)nrails));
   }
@@ -206,7 +212,7 @@ extern void gasnetc_dump_group(void) {
     vpstr[0] = '\0';
     for (i=0; i < g->size; i++) {
       char tmp[10];
-      sprintf(tmp," %i ", g->lookupFn(g->handle, i));
+      snprintf(tmp, sizeof(tmp), " %i ", g->lookupFn(g->handle, i));
       strcat(vpstr,tmp);
     }
     GASNETI_STATS_PRINTF(C,("VPs= (%s)",vpstr));
@@ -221,7 +227,6 @@ extern void gasnetc_dump_group(void) {
 }
 /* ------------------------------------------------------------------------------------ */
 extern void gasnetc_dump_envvars(void) {
-  FILE *out = stdout;
   const char *ev[] = {
     "LIBELAN_WAITTYPE",
     "LIBELAN_DATATYPE",
@@ -359,7 +364,7 @@ void gasnetc_dump_tportstats(void) {
       for (i=0;i<64;i++) {
         if (stats.ts_txBin[i]) {
           char msg[80];
-          sprintf(msg,"Tx msg count(sz=%i)",(1<<i));
+          snprintf(msg,sizeof(msg),"Tx msg count(sz=%i)",(1<<i));
           DUMP_STAT(txBin[i], msg);
         }
       }

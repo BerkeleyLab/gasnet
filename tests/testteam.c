@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testteam.c,v $
- * $Date: 2010/05/21 03:39:32 $
- * $Revision: 1.6 $
+ * $Date: 2012/07/27 03:57:25 $
+ * $Revision: 1.6.6.1 $
  * LBNL 2009
  */
 
@@ -46,7 +46,7 @@ int main(int argc, char **argv)
   
   gasnet_coll_init(NULL, 0, NULL, 0, 0);
 
-  test_init("test_team", 1, "(iters) (nrows) (ncols)");
+  test_init("testteam", 1, "(iters) (nrows) (ncols)");
 
   mynode = gasnet_mynode();
   nodes = gasnet_nodes();

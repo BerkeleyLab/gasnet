@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Makefile.am,v $
-#     $Date: 2010/06/26 23:05:10 $
-# $Revision: 1.86 $
+#     $Date: 2012/07/27 03:56:08 $
+# $Revision: 1.86.4.1 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -34,6 +34,8 @@ CONDUITMODE_DIST_SUBDIRS =    	\
 	vapi-conduit 		\
 	ibv-conduit 		\
 	portals-conduit         \
+	gemini-conduit          \
+	pami-conduit            \
 	dcmf-conduit
 CONDUITMODE_headers = 		\
 	gasnet.h           	\
@@ -111,12 +113,15 @@ force:
 if BUILD_SEQ_LIBS
 libgasnet_tools_seq_a_SOURCES =
 libraries_seq = libgasnet_tools-seq.a 
+fragments_seq = gasnet_tools-seq.mak
 endif
 if BUILD_PAR_LIBS
 libgasnet_tools_par_a_SOURCES =
 libraries_par = libgasnet_tools-par.a 
+fragments_par = gasnet_tools-par.mak
 endif
 libraries = $(libraries_seq) $(libraries_par)
+fragments = $(fragments_seq) $(fragments_par)
 
 # leading - prevents distclean failures
 -include $(top_builddir)/other/Makefile-libgasnet.mak
@@ -231,10 +236,11 @@ recurse_special:
 	    cd $$dir && $(MAKE) $(DO_WHAT) || exit $$? ; \
 	  fi ; \
 	 done
-all-local: $(lib_LIBRARIES)
+all-local: $(lib_LIBRARIES) $(fragments)
 	@$(MAKE) $(recurse_local) DO_WHAT=$${DO_WHAT=all}
 	@$(MAKE) recurse_special  DO_WHAT=$${DO_WHAT=all}
 clean-local:
+	rm -f $(fragments)
 	@if test -f Makefile -a -f smp-conduit/Makefile; then \
 	  $(MAKE) $(recurse_local) DO_WHAT=clean || exit $$? ; \
 	 fi
@@ -266,6 +272,13 @@ install-data-local:
 	    $(INSTALL_DATA) $(top_srcdir)/$$file $(DESTDIR)$(docdir)/`basename $$file` || exit $$? ; \
 	  fi ; \
 	done
+	@list='$(fragments)'; for p in $$list; do \
+          if test -f $$p; then \
+            filename=`basename $$p`; \
+            echo "@GASNET_INSTALL_CMD@ < $$p > $(DESTDIR)$(includedir)/$$filename"; \
+            @GASNET_INSTALL_CMD@ < $$p > $(DESTDIR)$(includedir)/$$filename || exit $$? ; \
+          else :; fi; \
+        done
 	for file in @PATCHED_HEADER@ DUMMY ; do \
 	  if test -f $$file ; then \
 	    $(mkinstalldirs) $(DESTDIR)$(includedir)/patched-headers ; \
@@ -295,6 +308,9 @@ uninstall-local:
 	@$(MAKE) $(recurse_local) DO_WHAT=uninstall
 	@$(MAKE) recurse_special DO_WHAT=uninstall
 	rm -Rf $(DESTDIR)$(docdir)
+	for file in $(fragments) ; do \
+	  rm -f $(DESTDIR)$(includedir)/$$file ; \
+	done
 	for file in @PATCHED_HEADER@ ; do \
 	  rm -f $(DESTDIR)$(includedir)/patched-headers/$$file ; \
 	done

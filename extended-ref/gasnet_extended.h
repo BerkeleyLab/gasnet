@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended.h,v $
- *     $Date: 2010/04/04 06:57:40 $
- * $Revision: 1.46 $
+ *     $Date: 2012/07/27 03:56:26 $
+ * $Revision: 1.46.8.1 $
  * Description: GASNet Extended API Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -223,25 +223,53 @@ extern int gasnete_try_syncnb_some(gasnet_handle_t *phandle, size_t numhandles);
 extern int gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles);
 #endif
 
+/* TODO: document the following "new" entry point: */
+GASNETI_INLINE(gasnet_try_syncnb_nopoll) GASNETI_WARN_UNUSED_RESULT
+int  gasnet_try_syncnb_nopoll(gasnet_handle_t handle) {
+  int result = GASNET_OK;
+  if_pt (handle != GASNET_INVALID_HANDLE)
+    result = gasnete_try_syncnb(handle);
+  GASNETI_TRACE_TRYSYNC(TRY_SYNCNB_NP,result);
+  return result;
+}
+
 GASNETI_INLINE(gasnet_try_syncnb) GASNETI_WARN_UNUSED_RESULT
 int  gasnet_try_syncnb(gasnet_handle_t handle) {
   int result = GASNET_OK;
-  if_pt (handle != GASNET_INVALID_HANDLE) 
+  if_pt (handle != GASNET_INVALID_HANDLE)  {
+    gasneti_AMPoll();
     result = gasnete_try_syncnb(handle);
+  }
   GASNETI_TRACE_TRYSYNC(TRY_SYNCNB,result);
+  return result;
+}
+
+/* TODO: document the following "new" entry point: */
+GASNETI_INLINE(gasnet_try_syncnb_some_nopoll)
+int gasnet_try_syncnb_some_nopoll(gasnet_handle_t *phandle, size_t numhandles) {
+  int result = gasnete_try_syncnb_some(phandle,numhandles);
+  GASNETI_TRACE_TRYSYNC(TRY_SYNCNB_SOME_NP,result);
   return result;
 }
 
 GASNETI_INLINE(gasnet_try_syncnb_some)
 int gasnet_try_syncnb_some(gasnet_handle_t *phandle, size_t numhandles) {
-  int result = gasnete_try_syncnb_some(phandle,numhandles);
+  int result = (gasneti_AMPoll(), gasnete_try_syncnb_some(phandle,numhandles));
   GASNETI_TRACE_TRYSYNC(TRY_SYNCNB_SOME,result);
+  return result;
+}
+
+/* TODO: document the following "new" entry point: */
+GASNETI_INLINE(gasnet_try_syncnb_all_nopoll)
+int gasnet_try_syncnb_all_nopoll(gasnet_handle_t *phandle, size_t numhandles) {
+  int result = gasnete_try_syncnb_all(phandle,numhandles);
+  GASNETI_TRACE_TRYSYNC(TRY_SYNCNB_ALL_NP,result);
   return result;
 }
 
 GASNETI_INLINE(gasnet_try_syncnb_all)
 int gasnet_try_syncnb_all(gasnet_handle_t *phandle, size_t numhandles) {
-  int result = gasnete_try_syncnb_all(phandle,numhandles);
+  int result = (gasneti_AMPoll(), gasnete_try_syncnb_all(phandle,numhandles));
   GASNETI_TRACE_TRYSYNC(TRY_SYNCNB_ALL,result);
   return result;
 }
@@ -251,8 +279,10 @@ int gasnet_try_syncnb_all(gasnet_handle_t *phandle, size_t numhandles) {
 #elif !defined(gasnete_wait_syncnb)
   #define gasnete_wait_syncnb(handle) do {                                      \
       gasnet_handle_t _handle = (handle);                                       \
-      if_pt (_handle != GASNET_INVALID_HANDLE)                                  \
-        gasneti_waitwhile(gasnete_try_syncnb(_handle) == GASNET_ERR_NOT_READY); \
+      if_pt (_handle != GASNET_INVALID_HANDLE) {                                \
+        gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */        \
+        gasneti_pollwhile(gasnete_try_syncnb(_handle) == GASNET_ERR_NOT_READY); \
+      }                                                                         \
     } while(0)
 #endif
 
@@ -266,8 +296,10 @@ void gasnet_wait_syncnb(gasnet_handle_t handle) {
 #if GASNETI_DIRECT_WAIT_SYNCNB_SOME
   extern void gasnete_wait_syncnb_some(gasnet_handle_t *phandle, size_t numhandles);
 #else
-  #define gasnete_wait_syncnb_some(phandle, numhandles)                                      \
-    gasneti_waitwhile(gasnete_try_syncnb_some(phandle, numhandles) == GASNET_ERR_NOT_READY)
+  #define gasnete_wait_syncnb_some(phandle, numhandles) do {                                   \
+      gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */                         \
+      gasneti_pollwhile(gasnete_try_syncnb_some(phandle, numhandles) == GASNET_ERR_NOT_READY); \
+    } while(0)
 #endif
 
 GASNETI_INLINE(gasnet_wait_syncnb_some)
@@ -280,8 +312,10 @@ void gasnet_wait_syncnb_some(gasnet_handle_t *phandle, size_t numhandles) {
 #if GASNETI_DIRECT_WAIT_SYNCNB_ALL
   extern void gasnete_wait_syncnb_all(gasnet_handle_t *phandle, size_t numhandles);
 #else
-  #define gasnete_wait_syncnb_all(phandle, numhandles)                                      \
-    gasneti_waitwhile(gasnete_try_syncnb_all(phandle, numhandles) == GASNET_ERR_NOT_READY)
+  #define gasnete_wait_syncnb_all(phandle, numhandles) do {                                   \
+      gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */                        \
+      gasneti_pollwhile(gasnete_try_syncnb_all(phandle, numhandles) == GASNET_ERR_NOT_READY); \
+    } while(0)
 #endif
 
 GASNETI_INLINE(gasnet_wait_syncnb_all)

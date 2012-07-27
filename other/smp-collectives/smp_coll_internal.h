@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/smp-collectives/smp_coll_internal.h,v $
- *     $Date: 2009/10/22 20:24:55 $
- * $Revision: 1.4 $
+ *     $Date: 2012/07/27 03:57:03 $
+ * $Revision: 1.4.16.1 $
  * Description: Shared Memory Collectives
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -25,7 +25,8 @@
 
 #define SMP_COLL_CACHE_LINE MAX(GASNETT_CACHE_LINE_BYTES,64)
 #define SMP_COLL_AUX_SPACE_SIZE 64*1024
-static inline int smp_coll_mylogn(int num, int base) {
+GASNETT_INLINE(smp_coll_mylogn)
+int smp_coll_mylogn(int num, int base) {
   int ret=1;
   int mult = base;
   while (num > mult) {
@@ -36,7 +37,8 @@ static inline int smp_coll_mylogn(int num, int base) {
   
 }
 
-static inline int smp_coll_mypown(int base, int power) {  
+GASNETT_INLINE(smp_coll_mypown)
+int smp_coll_mypown(int base, int power) {  
   int ret=1;
   
   while(power>0) {

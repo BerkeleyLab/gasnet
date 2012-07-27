@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refvis.c,v $
- *     $Date: 2009/03/30 02:40:31 $
- * $Revision: 1.22 $
+ *     $Date: 2012/07/27 03:56:27 $
+ * $Revision: 1.22.18.1 $
  * Description: Reference implementation of GASNet Vector, Indexed & Strided
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -82,7 +82,7 @@ extern void gasneti_vis_progressfn(void) {
     switch (visop->type) {
     #ifdef GASNETE_PUTV_GATHER_SELECTOR
       case GASNETI_VIS_CAT_PUTV_GATHER:
-        if (gasnete_try_syncnb(visop->handle) == GASNET_OK) { /* TODO: remove recursive poll */
+        if (gasnete_try_syncnb(visop->handle) == GASNET_OK) {
           GASNETE_VISOP_SIGNAL_AND_FREE(visop, 0);
         }
       break;

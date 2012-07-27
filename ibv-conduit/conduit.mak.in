@@ -13,11 +13,14 @@
 @IBV_BOOTSTRAP_MPI_TRUE@GASNET_LDFLAGS_OVERRIDE = @MPI_CFLAGS@ @LDFLAGS@
 @IBV_BOOTSTRAP_MPI_TRUE@MPI_COMPAT_LIBS = @MPI_LIBS@
 
+# Some platforms need extra -libs for the socket calls in ssh-spawner:
+@IBV_BOOTSTRAP_SSH_TRUE@SSH_LIBS = @SSH_SPAWNER_LIBS@
+
 CONDUIT_INCLUDES = -DGASNET_CONDUIT_IBV
 CONDUIT_INCLUDES = -DGASNET_CONDUIT_IBV -I@TOP_SRCDIR@/other/firehose -I@TOP_SRCDIR@/vapi-conduit ###NOINSTALL###
 
 CONDUIT_LIBDIRS = -L@IBV_LIBDIR@
-CONDUIT_LIBS = @IBV_LIBS@ $(MPI_COMPAT_LIBS)
+CONDUIT_LIBS = @IBV_LIBS@ $(MPI_COMPAT_LIBS) $(SSH_LIBS)
 
 # If ibv-conduit has internal conduit threads, then it needs 
 # threading flags and libs - even in GASNET_SEQ mode

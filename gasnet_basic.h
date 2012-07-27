@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_basic.h,v $
- *     $Date: 2010/06/26 03:46:36 $
- * $Revision: 1.113 $
+ *     $Date: 2012/07/27 03:56:09 $
+ * $Revision: 1.113.4.1 $
  * Description: GASNet basic header utils
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -17,11 +17,6 @@
 /* must precede everything else to ensure correct operation */
 #include "portable_inttypes.h"
 #include "portable_platform.h"
-
-/* This is needed for _MIPS_ISA_* on MIPS platforms */
-#if PLATFORM_ARCH_MIPS && defined(HAVE_SGIDEFS_H)
-# include <sgidefs.h>
-#endif
 
 /* try to recognize the compiler in use as one present at configure time.
    note this can set both GASNETI_COMPILER_IS_CC and
@@ -230,6 +225,7 @@
 /* If we have recognized the compiler, pick up its attribute support */
 #if GASNETI_COMPILER_IS_CC && GASNETI_HAVE_CC_ATTRIBUTE
   #define GASNETI_HAVE_GCC_ATTRIBUTE 1
+  #define GASNETI_HAVE_ATTRIBUTE_UNUSED_TYPEDEF GASNETI_HAVE_CC_ATTRIBUTE_UNUSED_TYPEDEF
   #ifndef GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE
     #define GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE GASNETI_HAVE_CC_ATTRIBUTE_ALWAYSINLINE
   #endif
@@ -266,8 +262,12 @@
   #ifndef GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR
     #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR GASNETI_HAVE_CC_ATTRIBUTE_FORMAT_FUNCPTR
   #endif
+  #ifndef GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
+    #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG GASNETI_HAVE_CC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
+  #endif
 #elif GASNETI_COMPILER_IS_MPI_CC && GASNETI_HAVE_MPI_CC_ATTRIBUTE
   #define GASNETI_HAVE_GCC_ATTRIBUTE 1
+  #define GASNETI_HAVE_ATTRIBUTE_UNUSED_TYPEDEF GASNETI_HAVE_MPI_CC_ATTRIBUTE_UNUSED_TYPEDEF
   #ifndef GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE
     #define GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE GASNETI_HAVE_MPI_CC_ATTRIBUTE_ALWAYSINLINE
   #endif
@@ -304,8 +304,12 @@
   #ifndef GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR
     #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR GASNETI_HAVE_MPI_CC_ATTRIBUTE_FORMAT_FUNCPTR
   #endif
+  #ifndef GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
+    #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG GASNETI_HAVE_MPI_CC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
+  #endif
 #elif GASNETI_COMPILER_IS_CXX && GASNETI_HAVE_CXX_ATTRIBUTE
   #define GASNETI_HAVE_GCC_ATTRIBUTE 1
+  #define GASNETI_HAVE_ATTRIBUTE_UNUSED_TYPEDEF GASNETI_HAVE_CXX_ATTRIBUTE_UNUSED_TYPEDEF
   #ifndef GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE
     #define GASNETT_USE_GCC_ATTRIBUTE_ALWAYSINLINE GASNETI_HAVE_CXX_ATTRIBUTE_ALWAYSINLINE
   #endif
@@ -341,6 +345,9 @@
   #endif
   #ifndef GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR
     #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR GASNETI_HAVE_CXX_ATTRIBUTE_FORMAT_FUNCPTR
+  #endif
+  #ifndef GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
+    #define GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG GASNETI_HAVE_CXX_ATTRIBUTE_FORMAT_FUNCPTR_ARG
   #endif
 #endif
 
@@ -438,7 +445,7 @@
   #define GASNETI_PUREP(fnname) 
 #endif
 
-/* GASNETI_PURE: assert that function is "const" */
+/* GASNETI_CONST: assert that function is "const" */
   /* const function: a more restricted form of pure function, with all the
    * same restrictions, except additionally the return value must NOT
    * depend on global variables or anything pointed to by the arguments
@@ -548,6 +555,13 @@
   #define GASNETI_FORMAT_PRINTF_FUNCPTR GASNETI_FORMAT_PRINTF
 #else
   #define GASNETI_FORMAT_PRINTF_FUNCPTR(fnpname,fmtarg,firstvararg,declarator) declarator
+#endif
+
+/* GASNETI_FORMAT_PRINTF_FUNCPTR_ARG: GASNETI_FORMAT_PRINTF_FUNCPTR applied to a function argument  */
+#if GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
+  #define GASNETI_FORMAT_PRINTF_FUNCPTR_ARG GASNETI_FORMAT_PRINTF
+#else
+  #define GASNETI_FORMAT_PRINTF_FUNCPTR_ARG(fnpname,fmtarg,firstvararg,declarator) declarator
 #endif
 
 /* ------------------------------------------------------------------------------------ */

@@ -1,6 +1,6 @@
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/Makefile.in,v $
-#     $Date: 2010/04/26 15:38:30 $
-# $Revision: 1.114 $
+#     $Date: 2012/07/27 03:57:24 $
+# $Revision: 1.114.6.1 $
 # Description: Makefile for GASNet tests
 # @configure_input@
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -19,7 +19,16 @@ srcdir="@TOP_SRCDIR@/tests"
 configfile=/dev/null # must be overridden by caller
 include $(configfile)
 
-Makefile: @TOP_SRCDIR@/tests/Makefile.in
+@HAVE_PTHREAD_TRUE@fragment = @TOP_BUILDDIR@/gasnet_tools-par.mak
+@HAVE_PTHREAD_FALSE@fragment = @TOP_BUILDDIR@/gasnet_tools-seq.mak
+
+$(fragment): force
+	cd @TOP_BUILDDIR@ && $(MAKE) `basename $@`
+
+-include $(fragment)
+
+
+Makefile: @TOP_SRCDIR@/tests/Makefile.in $(fragment)
 	cd @TOP_BUILDDIR@ ; \
 	CONFIG_HEADERS= CONFIG_FILES=tests/Makefile ./config.status
 
@@ -72,6 +81,7 @@ testprograms_seq =      \
         testbarrier     \
         testbarrierconf \
         testbarrierlate \
+        testmemset      \
         testlogGP       \
         testalign       \
         testrand        \
@@ -328,28 +338,23 @@ do-run-testexit: force
 KEEPTMP_CFLAGS = $(patsubst %,@KEEPTMP_CFLAGS@,$(KEEPTMPS))
 
 # testtools is a special minimal case for an app that just uses GASNet tools
-@BUILDCONFIG_DEBUG_FALSE@ TESTTOOLS_DEBUGFLAGS = -DNDEBUG
-@HAVE_PTHREAD_TRUE@       TESTTOOLS_THREADFLAGS = -DGASNETT_THREAD_SAFE @GASNET_THREAD_DEFINES@
-@HAVE_PTHREAD_TRUE@       TESTTOOLS_TOOLLIB_NAME = gasnet_tools-par
-@HAVE_PTHREAD_TRUE@       TESTTOOLS_TOOLLIB = -L@TOP_BUILDDIR@ -l$(TESTTOOLS_TOOLLIB_NAME) @GASNET_THREAD_LIBS@
-@HAVE_PTHREAD_FALSE@      TESTTOOLS_TOOLLIB_NAME = gasnet_tools-seq
-@HAVE_PTHREAD_FALSE@      TESTTOOLS_TOOLLIB = -L@TOP_BUILDDIR@ -l$(TESTTOOLS_TOOLLIB_NAME)
-TOOLS_CPPFLAGS = $(TESTTOOLS_DEBUGFLAGS) $(TESTTOOLS_THREADFLAGS)
+# it uses the variables provided by the gasnet_tools-{seq,par}.mak
+@USE_MPI_CONDUIT_TRUE@@CROSS_COMPILING_TRUE@FAKE_DEFS = -DGASNETI_TOOLS_CONDUIT=MPI
 testtools: force
-	@cd @TOP_BUILDDIR@ && $(MAKE) lib$(TESTTOOLS_TOOLLIB_NAME).a
-	@CC@ @CFLAGS@ @MISC_CFLAGS@ @MISC_CPPFLAGS@ $(GASNET_INCLUDES) $(TOOLS_CPPFLAGS) $(KEEPTMP_CFLAGS) $(MANUAL_CFLAGS) -c -o $@.o $(srcdir)/$@.c
-	@CC@ @CFLAGS@ @MISC_CFLAGS@ @LDFLAGS@ $(MANUAL_LDFLAGS) -o $@ $@.o $(TESTTOOLS_TOOLLIB) @LIBS@ @LIBM@ $(MANUAL_LIBS)
+	@cd @TOP_BUILDDIR@ && $(MAKE) lib$(GASNETTOOLS_TOOLLIB_NAME).a
+	$(GASNETTOOLS_CC) $(GASNETTOOLS_CPPFLAGS) $(GASNETTOOLS_CFLAGS) $(FAKE_DEFS) -c -o $@.o $(srcdir)/$@.c
+	$(GASNETTOOLS_LD) $(GASNETTOOLS_LDFLAGS) -o $@ $@.o $(GASNETTOOLS_LIBS)
 	@test -n '$(KEEPTMPS)' || ( cmd="rm -f $@.o"; echo "$$cmd"; eval "$$cmd" )
 
 # As above w/ a c++ tools client
 testtoolscxx: force
-	@if test -z "@CXX@"; then \
+	@if test -z "$(GASNETTOOLS_CXX)"; then \
 		echo "ERROR: testtoolscxx target requested, but no c++ compiler is configured"; \
 		exit 1; \
 	 fi
-	@cd @TOP_BUILDDIR@ && $(MAKE) lib$(TESTTOOLS_TOOLLIB_NAME).a
-	@CXX@ @CXXFLAGS@ @MISC_CXXFLAGS@ @MISC_CPPFLAGS@ $(GASNET_INCLUDES) $(TOOLS_CPPFLAGS) $(KEEPTMP_CFLAGS) $(MANUAL_CXXFLAGS) -c -o $@.o $(srcdir)/$@.cc
-	@CXX@ @CXXFLAGS@ @MISC_CXXFLAGS@ @LDFLAGS@ $(MANUAL_LDFLAGS) -o $@ $@.o $(TESTTOOLS_TOOLLIB) @LIBS@ @LIBM@ $(MANUAL_LIBS)
+	@cd @TOP_BUILDDIR@ && $(MAKE) lib$(GASNETTOOLS_TOOLLIB_NAME).a
+	$(GASNETTOOLS_CXX) $(GASNETTOOLS_CPPFLAGS) $(GASNETTOOLS_CXXFLAGS) $(FAKE_DEFS) -c -o $@.o $(srcdir)/$@.cc
+	$(GASNETTOOLS_CXX) $(GASNETTOOLS_CXXFLAGS) $(GASNETTOOLS_LDFLAGS) -o $@ $@.o $(GASNETTOOLS_LIBS)
 	@test -n '$(KEEPTMPS)' || ( cmd="rm -f $@.o"; echo "$$cmd"; eval "$$cmd" )
 
 # some tests need delay.o

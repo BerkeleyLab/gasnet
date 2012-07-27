@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_internal.h,v $
- *     $Date: 2009/05/18 04:44:53 $
- * $Revision: 1.40 $
+ *     $Date: 2012/07/27 03:56:57 $
+ * $Revision: 1.40.16.1 $
  * Description: Internal Header file
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -43,9 +43,6 @@
 #define FIREHOSE_AMPOLL() gasneti_AMPoll()
 #endif
 
-typedef uintptr_t	fh_uint_t;
-typedef intptr_t	fh_int_t;
-
 extern int fh_verbose;
 
 /* 
@@ -63,11 +60,13 @@ extern int fh_verbose;
 extern gasneti_mutex_t		fh_table_lock;
 
 #define FH_TABLE_LOCK		do { gasneti_mutex_lock(&fh_table_lock);               \
+				     gasneti_compiler_fence();                         \
 				     gasneti_assert(FHC_MAXVICTIM_BUCKETS_AVAIL >= 0); \
 				     fhi_debug_local_table();                          \
 				} while (0)
 #define FH_TABLE_UNLOCK		do { gasneti_assert(FHC_MAXVICTIM_BUCKETS_AVAIL >= 0); \
 				     fhi_debug_local_table();                          \
+				     gasneti_compiler_fence();                         \
 				     gasneti_mutex_unlock(&fh_table_lock);             \
 				} while (0)
 #define FH_TABLE_ASSERT_LOCKED	gasneti_mutex_assertlocked(&fh_table_lock)
@@ -150,11 +149,7 @@ extern int	*fhc_RemoteVictimFifoBuckets;
 #endif
 
 #ifndef FH_BUCKET_SHIFT
-  #ifdef GASNETT_PAGESHIFT
-  #define FH_BUCKET_SHIFT GASNETT_PAGESHIFT
-  #else
-  #define FH_BUCKET_SHIFT 12
-  #endif
+#define FH_BUCKET_SHIFT GASNETT_PAGESHIFT
 #endif
 
 /* Utility Macros */
@@ -165,6 +160,38 @@ extern int	*fhc_RemoteVictimFifoBuckets;
 				 GASNETI_ALIGNDOWN(addr, FH_BUCKET_SIZE))
 #define FH_NUM_BUCKETS(addr,len)(FH_SIZE_ALIGN(addr,len)>>FH_BUCKET_SHIFT)
 #define FH_ASSERT_BUCKET_ADDR(bucket) (gasneti_assert((bucket) % FH_BUCKET_SIZE == 0))
+
+#if !defined(GASNET_MAXNODES)
+  #error "GASNET_MAXNODES undefined"
+#elif GASNET_MAXNODES <= GASNET_PAGESIZE
+  #define FH_KEY_PACKED 1
+  typedef uintptr_t              fh_key_t;
+  #define FH_KEYMAKE(addr,node)  ((addr) | (node))
+  #define FH_KEY_EQ(x,y)         ((x) == (y))
+  #define FH_KEY2INT(x)          ((intptr_t)(x))
+
+  #define FH_NODE(priv)    ((*(fh_key_t*)(priv)) & FH_PAGE_MASK)
+  #define FH_BADDR(priv)   ((*(fh_key_t*)(priv)) & ~FH_PAGE_MASK)
+#else
+  #define FH_KEY_STRUCT 1
+  typedef struct {
+    uintptr_t     addr;
+    uintptr_t     node; /* Might instead hold len in region case */
+  }	  fh_key_t;
+  #if defined(HAVE_CONSTRUCTOR_EXPR)
+    #define FH_KEYMAKE(addr,node) ((fh_key_t){(addr),(node)})
+  #else
+    GASNETI_ALWAYS_INLINE(fh_keymake)
+    fh_key_t fh_keymake(uintptr_t addr, gasnet_node_t node)
+    { fh_key_t key; key.addr = addr; key.node = node; return key; }
+    #define FH_KEYMAKE(addr,node) fh_keymake(addr,node)
+  #endif
+  #define FH_KEY_EQ(x,y)   (((x).addr == (y).addr) && ((x).node == ((y).node)))
+  #define FH_KEY2INT(x)    ((intptr_t)(x).addr ^ (intptr_t)(x).node)
+
+  #define FH_NODE(priv)    (((fh_key_t*)(priv))->node)
+  #define FH_BADDR(priv)   (((fh_key_t*)(priv))->addr)
+#endif
 
 /* fh_bucket_t
  *
@@ -185,7 +212,7 @@ typedef uint16_t	fh_refc_uint_t;
 typedef uint32_t	fh_refc_uint_t;
 #endif
 
-/* The 'refcount' type is stored as a logical union with the fh_tqe_prev field
+/* The 'refcount' type is stored as a union with the fh_tqe_prev field
  * and must therefore be the same size as a pointer */
 typedef struct _fh_refc_t {
 	fh_refc_uint_t	refc_l;
@@ -212,7 +239,7 @@ fh_refc_t;
 struct _fh_bucket_t; /* forward decl of type */
 
 struct _firehose_private_t {
-        fh_int_t         fh_key;                 /* cached key for hash table */
+        fh_key_t         fh_key;                 /* cached key for hash table */
 
         void            *fh_next;		 /* linked list in hash table */
 						 /* _must_ be in this order */
@@ -221,8 +248,11 @@ struct _firehose_private_t {
 	firehose_private_t *fh_tqe_next;	/* -1 when not in FIFO, 
 						   NULL when end of list,
 						   else next pointer in FIFO */
+    union {
 	firehose_private_t **fh_tqe_prev;	/* refcount when not in FIFO,
 						   prev pointer otherwise    */
+	fh_refc_t fh_refc;
+    } u;
 
 	#ifdef DEBUG_BUCKETS
 	fh_bstate_t	fh_state;
@@ -241,10 +271,7 @@ struct _firehose_private_t {
 	#endif /* REGION */
 };
 
-#define FH_KEYMAKE(addr,node)	(addr | node)
-#define FH_NODE(priv)    ((priv)->fh_key & FH_PAGE_MASK)
-#define FH_BADDR(priv)   ((priv)->fh_key & ~FH_PAGE_MASK)
-#define FH_BUCKET_REFC(priv) ((fh_refc_t *) (&(priv)->fh_tqe_prev))
+#define FH_BUCKET_REFC(priv) (&(priv)->u.fh_refc)
 
 /* Local and Remote buckets can be in various states.
  *
@@ -348,8 +375,8 @@ typedef struct _fh_hash_t fh_hash_t;
 #if 0 /* We now #include <firehose_hash.c> into firehose_{page,region}.c */
 fh_hash_t *	fh_hash_create(size_t entries);
 void		fh_hash_destroy(fh_hash_t *hash);
-void *		fh_hash_find(fh_hash_t *hash, fh_int_t key);
-void *		fh_hash_insert(fh_hash_t *hash, fh_int_t key, void *newval);
+void *		fh_hash_find(fh_hash_t *hash, fh_key_t key);
+void *		fh_hash_insert(fh_hash_t *hash, fh_key_t key, void *newval);
 void *		fh_hash_next(fh_hash_t *hash, void *val);
 void		fh_hash_replace(fh_hash_t *hash, void *val, void *newval);
 void		fh_hash_apply(fh_hash_t *hash, void (*fn)(void *val, void *arg), void *arg);
@@ -442,7 +469,7 @@ struct name {				\
 #define FH_TAILQ_LAST(head)	((head)->fh_tqh_last)
 #define FH_TAILQ_EMPTY(head)	((head)->fh_tqh_first == NULL)
 #define FH_TAILQ_NEXT(elem)	((elem)->fh_tqe_next)
-#define FH_TAILQ_PREV(elem)	((elem)->fh_tqe_prev)
+#define FH_TAILQ_PREV(elem)	((elem)->u.fh_tqe_prev)
 
 #define FH_STAILQ_FIRST(head)	((head)->fh_tqh_first)
 #define FH_STAILQ_LAST(head)	((head)->fh_tqh_last)
@@ -568,7 +595,10 @@ typedef
 struct _fh_remote_callback_t {
 	uint32_t		flags;
 	struct _fh_remote_callback_t	*fh_tqe_next;
+    union {
 	struct _fh_remote_callback_t	**fh_tqe_prev; /* used in locpendq */
+	uintptr_t                       unused;
+    } u;
 
 	gasnet_node_t			node;
 	firehose_remotecallback_args_t	args;
@@ -716,7 +746,7 @@ int fhi_FreeVictimRemote(gasnet_node_t node, int count, firehose_region_t *reg)
    * This hack lets us grab the info from the "key" field of the first
    * bucket w/o exposing the bucket_t outside of firehose_region.c
    */
-  #define FH_PRIV_NODE(p) ((p)->bucket ? (*(fh_int_t*)((p)->bucket) & FH_PAGE_MASK) : -1)
+  #define FH_PRIV_NODE(p) ((p)->bucket ? FH_NODE((p)->bucket) : -1)
 #else
   #define FH_PRIV_NODE(p) FH_NODE(p)
 #endif

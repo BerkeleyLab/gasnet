@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/amudp/amudp_ep.cpp,v $
- *     $Date: 2008/10/02 07:56:51 $
- * $Revision: 1.29 $
+ *     $Date: 2012/07/27 03:56:52 $
+ * $Revision: 1.29.26.1 $
  * Description: AMUDP Implementations of endpoint and bundle operations
  * Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -26,7 +26,7 @@ uint32_t AMUDP_MaxRequestTimeout_us = AMUDP_MAX_REQUESTTIMEOUT_MICROSEC;
 uint32_t AMUDP_InitialRequestTimeout_us = AMUDP_INITIAL_REQUESTTIMEOUT_MICROSEC;
 
 int AMUDP_SilentMode = 0; 
-AMUDP_IDENT(AMUDP_IdentString_Version, "$AMUDPLibraryVersion: " AMUDP_LIBRARY_VERSION_STR " $");
+AMUDP_IDENT(AMUDP_IdentString_Version, "$AMUDPLibraryVersion: " AMUDP_LIBRARY_VERSION_STR " $")
 #ifdef UETH
   ep_t AMUDP_UETH_endpoint = NULL; /* the one-and-only UETH endpoint */
 #endif
@@ -48,10 +48,11 @@ const amudp_stats_t AMUDP_initial_stats = /* the initial state for stats type */
 /* error handling */
 AMUDP_FORMAT_PRINTF(AMUDP_Msg,2,0,
 static int AMUDP_Msg(const char *prefix, const char *msg, va_list argptr)) {
-  char *expandedmsg = (char *)AMUDP_malloc(strlen(msg)+strlen(prefix)+50);
+  const size_t len = strlen(msg)+strlen(prefix)+50;
+  char *expandedmsg = (char *)AMUDP_malloc(len);
   int retval;
 
-  sprintf(expandedmsg, "*** %s: %s\n", prefix, msg);
+  snprintf(expandedmsg, len, "*** %s: %s\n", prefix, msg);
   retval = vfprintf(stderr, expandedmsg, argptr);
   fflush(stderr);
   AMUDP_free(expandedmsg);
@@ -806,7 +807,7 @@ extern int AM_SetExpectedResources(ep_t ea, int n_endpoints, int n_outstanding_r
         long val;                                         \
         char defval[80];                                  \
         const char *valstr;                               \
-        sprintf(defval, "%u", (unsigned int)var);         \
+        snprintf(defval, sizeof(defval), "%u", (unsigned int)var); \
         valstr = AMUDP_getenv_prefixed_withdefault(name,defval); \
         if (valstr) {                                     \
            val = atol(valstr);                            \
@@ -1025,7 +1026,7 @@ extern const char *AMUDP_DumpStatistics(void *_fp, amudp_stats_t *stats, int glo
   getCPUTicks(); /* ensure this has been called at least once, even if stats are empty */
 
   #if !AMUDP_COLLECT_STATS
-    sprintf(msg, "(AMUDP_COLLECT_STATS disabled)\n");
+    snprintf(msg, sizeof(msg), "(AMUDP_COLLECT_STATS disabled)\n");
     if (fp != NULL) fprintf(fp, "%s", msg);
     return msg;
   #endif
@@ -1093,7 +1094,7 @@ extern const char *AMUDP_DumpStatistics(void *_fp, amudp_stats_t *stats, int glo
   #endif
 
   /* batch lines together to improve chance of output together */
-  sprintf(msg, 
+  snprintf(msg, sizeof(msg),
     " Requests: %8lu sent, %4lu retransmitted, %8lu received\n"
     " Replies:  %8lu sent, %4lu retransmitted, %8lu received\n"
     " Returned messages:  %8lu\n"

@@ -179,12 +179,28 @@ extern unsigned gasnetc_sys_poll_limit;
 #define GASNETC_CHECKSIG() ((void)0)
 #endif
 
+#ifdef PTL_MAX_ERRNO
+  #define GASNETC_PTL_VALIDERRNO(_retcode) \
+	((_retcode >= 0) && (_retcode < PTL_MAX_ERRNO))
+#else
+  #define GASNETC_PTL_VALIDERRNO(_retcode) \
+	(_retcode >= 0)
+#endif
+
 /* Macro that checks return code from a Portals calls */
 #define GASNETC_PTLCHECK(_retcode, _message) do {			\
     if_pf (_retcode != (int)PTL_OK) {					\
-      gasneti_fatalerror("\nGASNet Portals encountered an error: %s (%i)\n" \
+      const char *_err_msg = GASNETC_PTL_VALIDERRNO(_retcode)		\
+			? ptl_err_str[_retcode] : "invalid error code";	\
+      const char *_alt_msg = GASNETC_PTL_VALIDERRNO(-(_retcode))	\
+			? ptl_err_str[-(_retcode)] : NULL;		\
+      gasneti_fatalerror("\nGASNet Portals encountered an error: %s (%i)%s%s%s\n" \
 			 "  %s\n  at %s",				\
-			 ptl_err_str[_retcode], _retcode, _message, gasneti_current_loc); \
+			 _err_msg, _retcode,				\
+			 _alt_msg ? "\n  perhaps negative of "	: "",	\
+			 _alt_msg ? _alt_msg			: "",	\
+			 _alt_msg ? "?"				: "",	\
+			 _message, gasneti_current_loc);		\
     }									\
  } while (0)
 
@@ -320,7 +336,7 @@ extern unsigned gasnetc_sys_poll_limit;
     int i;					\
     for (i = 0; i < 16; i++) hargs[i]=0;	\
   } while(0)
-#define GASNETC_DEF_HARGS() gasnet_handlerarg_t hargs[16]; int hargcnt=0; uint32_t db_seqno=0; int db_cntr=0; GASNETC_INIT_HARGS
+#define GASNETC_DEF_HARGS() gasnet_handlerarg_t hargs[16]; GASNETI_UNUSED int hargcnt=0; uint32_t db_seqno=0; GASNETI_UNUSED int db_cntr=0; GASNETC_INIT_HARGS
 #define GASNETC_ADD_HARG(foo) hargs[hargcnt++] = foo
 #define GASNETC_GET_SEQNO(ptoken) db_seqno = (ptoken)->seqno
 #define GASNETC_EXTRACT_SEQNO(data32,tok) do {\

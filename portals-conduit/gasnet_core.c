@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_core.c,v $
- *     $Date: 2010/07/16 00:38:05 $
- * $Revision: 1.48 $
+ *     $Date: 2012/07/27 03:57:14 $
+ * $Revision: 1.48.2.1 $
  * Description: GASNet portals conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  *                 Michael Welcome <mlwelcome@lbl.gov>
@@ -175,7 +175,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
       }
       if (newindex > highlimit) {
         char s[255];
-        sprintf(s,"Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
+        snprintf(s, sizeof(s), "Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
         GASNETI_RETURN_ERRR(BAD_ARG, s);
       }
     }
@@ -183,7 +183,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     /*  ensure handlers fall into the proper range of pre-assigned values */
     if (newindex < lowlimit || newindex > highlimit) {
       char s[255];
-      sprintf(s, "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
+      snprintf(s, sizeof(s), "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
       GASNETI_RETURN_ERRR(BAD_ARG, s);
     }
 
@@ -308,6 +308,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /*  register segment  */
 
   gasneti_seginfo = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
+  gasneti_leak(gasneti_seginfo);
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     if (segsize == 0) segbase = NULL; /* no segment */
@@ -380,6 +381,32 @@ extern void gasnetc_exit(int exitcode) {
 
   /* should prevent us from entering again */
   gasnetc_shutdownInProgress = 1;
+
+  { /* Based on code from taken from elan-conduit, the following defeats
+     * the locks that serialize polling of the EQs.  Since these locks are
+     * NOT required for correctness, just for performance, this should not
+     * be at risk of inducing crashes EXCEPT that there is a very minor
+     * race condition in the flow-control.
+     */
+    #define _GASNETC_CLOBBER_MUTEX(pm) do {                     \
+        gasneti_mutex_t dummy_lock = GASNETI_MUTEX_INITIALIZER; \
+        memcpy((pm), &dummy_lock, sizeof(gasneti_mutex_t));     \
+      } while (0)
+    #if GASNET_DEBUG 
+      /* prevent shutdown assertion failures in debug mode
+         if OTHER threads are holding the mutex at exit time */
+      #define GASNETC_CLOBBER_MUTEX(pm) \
+        if ((pm)->owner == GASNETI_THREADIDQUERY()) _GASNETC_CLOBBER_MUTEX(pm)
+    #else
+      /* clobber regardless of owner (which we don't know) */
+      #define GASNETC_CLOBBER_MUTEX(pm) _GASNETC_CLOBBER_MUTEX(pm)
+    #endif
+    GASNETC_CLOBBER_MUTEX(&gasnetc_AM_EQ->lock);
+    GASNETC_CLOBBER_MUTEX(&gasnetc_SAFE_EQ->lock);
+    GASNETC_CLOBBER_MUTEX(&gasnetc_SYS_EQ->lock);
+    #undef GASNETC_CLOBBER_MUTEX
+    #undef _GASNETC_CLOBBER_MUTEX
+  }
 
   /* NOTE: shutdown messages are sent in out-of-band SYS queue, which means they
    * get processed ahead of regular AMs on target nodes.
@@ -680,7 +707,6 @@ extern int gasnetc_AMRequestMediumM(
   ptl_match_bits_t   mbits;
   ptl_hdr_data_t     hdr_data;
   gasnetc_conn_t    *state = gasnetc_conn_state + dest;
-  int                i;
   int                msg_bytes;
   uint32_t           *data32;
   gasnetc_threaddata_t *th = gasnetc_mythread();

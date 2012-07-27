@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core.c,v $
- * $Date: 2009/09/21 02:22:32 $
- * $Revision: 1.128 $
+ * $Date: 2012/07/27 03:56:33 $
+ * $Revision: 1.128.16.1 $
  * Description: GASNet GM conduit Implementation
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -224,7 +224,7 @@ gasnetc_AM_SetHandlerAny(gasnet_handler_t *handler, gasneti_handler_fn_t func)
 		GASNETI_RETURN_ERRR(BAD_ARG, "Invalid handler paramaters set");
 
 	for (i = 1; i < GASNETC_AM_MAX_HANDLERS; i++) {
-		if (_gmc.handlers[i] == gasneti_defaultAMHandler) {
+		if (_gmc.handlers[i] == (gasneti_handler_fn_t) gasneti_defaultAMHandler) {
 			_gmc.handlers[i] = func;
 			*handler = i;
 			return GASNET_OK;
@@ -251,7 +251,7 @@ gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
       }
       if (newindex > highlimit) {
         char s[255];
-        sprintf(s,"Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
+        snprintf(s, sizeof(s), "Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
         GASNETI_RETURN_ERRR(BAD_ARG, s);
       }
     }
@@ -259,7 +259,7 @@ gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     /*  ensure handlers fall into the proper range of pre-assigned values */
     if (newindex < lowlimit || newindex > highlimit) {
       char s[255];
-      sprintf(s, "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
+      snprintf(s, sizeof(s), "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
       GASNETI_RETURN_ERRR(BAD_ARG, s);
     }
 
@@ -287,7 +287,10 @@ extern int
 gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 	       uintptr_t minheapoffset)
 {
-	int i = 0, fidx = 0;
+	#if GASNET_TRACE
+	int i;
+	#endif
+	int fidx = 0;
 
 	#if GASNET_DEBUG_VERBOSE
 	printf("%d> starting attach\n", gasneti_mynode);
@@ -422,6 +425,7 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 
 	gasneti_seginfo = (gasnet_seginfo_t *)
 	    gasneti_calloc(gasneti_nodes, sizeof(gasnet_seginfo_t));
+	gasneti_leak(gasneti_seginfo);
 
 	#if GASNET_DEBUG_VERBOSE
 	printf("%d> before firehose init\n", gasneti_mynode);
@@ -461,6 +465,7 @@ gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize,
 			    gasneti_seginfo, &gasnetc_bootstrapExchange);
 		}
 		#else
+		    int i;
 		    for (i=0;i<gasneti_nodes;i++) {
 			gasneti_seginfo[i].addr = (void *)0;
 			gasneti_seginfo[i].size = (uintptr_t)-1;
@@ -942,7 +947,7 @@ static int gasnetc_exit_slave(int64_t timeout_us) {
  * XXX: timouts contained here are entirely arbitrary
  */
 static void gasnetc_exit_body(void) {
-  int i, role, exitcode;
+  int role, exitcode;
   int graceful = 0;
   int tok_drain = 0;
   int64_t timeout_us;
@@ -994,7 +999,6 @@ static void gasnetc_exit_body(void) {
   alarm(30);
   {
     gasneti_flush_streams();
-    gasneti_trace_finish();
     alarm(0);
     gasneti_sched_yield();
   }
@@ -1075,16 +1079,23 @@ static void gasnetc_exit_body(void) {
 
 	if (gasneti_init_done) {
   		gm_close(_gmc.port);
+		gasneti_free(_gmc.gm_nodes);
+		gasneti_free(_gmc.gm_nodes_rev);
+	      #if !GASNET_SEQ
+		gasneti_free(_gmc.reqs_pool);
+		gasneti_free(_gmc.bd_ptr);
+	      #endif
 		if (gasneti_attach_done)
 			firehose_fini();
 	}
 	gm_finalize();
   }
 
-  /* Try again to flush out any recent output, allowing upto 5s */
-  alarm(5);
+  /* Try again to flush out any recent output, allowing upto 10s */
+  alarm(10);
   {
     gasneti_flush_streams();
+    gasneti_trace_finish();
     #if !GASNET_DEBUG_VERBOSE
       gasneti_close_streams();
     #endif
@@ -1562,8 +1573,6 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 	else {
 		/* XXX gasneti_assert(GASNET_LONG_OFFSET >= LONG_HEADER) */
 		if_pt (nbytes > 0) { /* Handle zero-length messages */
-			const firehose_request_t	*req;
-			
 		    #if defined(GASNET_SEGMENT_FAST)
 			/* Remote is always pinned */
 	                GASNETI_TRACE_EVENT_VAL(C, AMREQUESTLONG_ONECOPY, nbytes);
@@ -1571,6 +1580,8 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 			    source_addr, nbytes, NULL, 
 			    (uintptr_t) dest_addr, numargs, argptr);
 		    #else
+			const firehose_request_t	*req;
+			
 			req = firehose_try_remote_pin(dest, 
 				(uintptr_t) dest_addr, nbytes, 0, NULL);
 
@@ -2118,7 +2129,7 @@ gasnetc_AMReplyLongAsyncM(
 						     source_addr, nbytes, dest_addr,
 						     numargs, argptr);
 	    va_end(argptr);
-	    return GASNET_OK;
+	    return retval;
 	}
 #endif
 
@@ -2355,10 +2366,8 @@ gasnetc_DestroyPinnedBufs(void)
 	if (_gmc.dma_bufs != NULL)
 		gm_free_pages(_gmc.dma_bufs, 
 		    _gmc.bd_list_num << GASNETC_AM_SIZE);
-	if (_gmc.bd_ptr != NULL)
-		gasneti_free(_gmc.bd_ptr);
-	if (_gmc.reqs_pool != NULL)
-		gasneti_free(_gmc.reqs_pool);
+	gasneti_free(_gmc.bd_ptr);
+	gasneti_free(_gmc.reqs_pool);
 }
 
 int	
@@ -2558,12 +2567,12 @@ gasnetc_AllocGatherBufs(void)
 void
 gasnetc_DestroyGatherBufs(void)
 {
-    if (gasnetc_bootstrapGather_buf[0] != NULL)
-	    gasneti_free(gasnetc_bootstrapGather_buf[0]);
+    gasneti_free(gasnetc_bootstrapGather_buf[0]);
+    gasnetc_bootstrapGather_buf[0] = NULL;
     gasnetc_bootstrapGather_bufsz[0] = 0;
 
-    if (gasnetc_bootstrapGather_buf[1] != NULL)
-	    gasneti_free(gasnetc_bootstrapGather_buf[1]);
+    gasneti_free(gasnetc_bootstrapGather_buf[1]);
+    gasnetc_bootstrapGather_buf[1] = NULL;
     gasnetc_bootstrapGather_bufsz[1] = 0;
 }
 
@@ -2653,8 +2662,7 @@ gasnetc_SysBroadcastAlloc_reqh(gasnet_token_t token, gasnet_handlerarg_t phase,
     gasneti_assert(gasnetc_bootstrapGather_bufsz[phase] < exchsz);
     gasneti_assert(gasnetc_bootstrapGather_bufalloc[phase] == 0);
 
-    if (gasnetc_bootstrapGather_buf[phase] != NULL)
-	gasneti_free(gasnetc_bootstrapGather_buf[phase]);
+    gasneti_free(gasnetc_bootstrapGather_buf[phase]);
 
     gasnetc_bootstrapGather_buf[phase] = gasneti_malloc(exchsz);
     gasnetc_bootstrapGather_bufsz[phase] = exchsz;
@@ -2667,8 +2675,6 @@ gasnetc_SysBroadcastAlloc_reqh(gasnet_token_t token, gasnet_handlerarg_t phase,
 void *
 gasnetc_bootstrapGatherSend(void *data, size_t len)
 {
-	uint8_t	 *hdr, *payload;
-	uint16_t *phase_ptr;
 	int	 i, phase;
 	size_t	 exchsz;
 	int	 sent = 0;

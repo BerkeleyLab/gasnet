@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_core_internal.h,v $
- * $Date: 2009/09/18 23:33:30 $
- * $Revision: 1.79 $
+ * $Date: 2012/07/27 03:56:33 $
+ * $Revision: 1.79.16.1 $
  * Description: GASNet gm conduit header for internal definitions in Core API
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -19,10 +19,11 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <errno.h>
-#if defined(__i386__) && !defined(i386)	/* fix gm. cpu detection */
+#if PLATFORM_ARCH_X86 && !defined(i386)	/* fix gm. cpu detection */
 #define i386
 #endif
-#ifdef __GNUC__
+#if defined(__GNUC__) && !defined(inline)
+  /* ANSI-ify */
   #define inline __inline__
   #include <gm.h>
   #undef inline
@@ -568,7 +569,6 @@ GASNETI_INLINE(gasnetc_fifo_progress)
 void
 gasnetc_fifo_progress(void)
 {
-	gasnetc_bufdesc_t *bufd;
 	gasneti_mutex_assertlocked(&gasnetc_lock_gm);
 
 	while (gasnetc_fifo_head() && GASNETC_TOKEN_HI_AVAILABLE()) {

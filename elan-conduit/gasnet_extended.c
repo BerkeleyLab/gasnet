@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2010/04/04 06:57:38 $
- * $Revision: 1.94 $
+ *     $Date: 2012/07/27 03:56:22 $
+ * $Revision: 1.94.8.1 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -9,7 +9,13 @@
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
 #include <gasnet_extended_internal.h>
+#if defined(__GNUC__) && !defined(inline)
+#define inline __inline__
 #include <elan3/elan3.h> /* for ELAN_POLL_EVENT */
+#undef inline
+#else
+#include <elan3/elan3.h> /* for ELAN_POLL_EVENT */
+#endif
 
 static int gasnete_nbi_throttle = 0;
 static const gasnete_eopaddr_t EOPADDR_NIL = { { 0xFF, 0xFF } };
@@ -245,6 +251,7 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread, uint8_t cons
     if (bufidx == 256) gasneti_fatalerror("GASNet Extended API: Ran out of explicit handles (limit=65535)");
     thread->eop_num_bufs++;
     buf = (gasnete_eop_t *)gasneti_calloc(256,sizeof(gasnete_eop_t));
+    gasneti_leak(buf);
     GASNETE_ASSERT_ALIGNED(buf);
     for (i=0; i < 256; i++) {
       gasnete_eopaddr_t addr;
@@ -334,6 +341,7 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
     gasneti_assert(sizeof(gasnete_iop_t) % sizeof(void*) == 0);
     sz += 2*gasnete_nbi_throttle*sizeof(ELAN_EVENT*);
     iop = (gasnete_iop_t *)gasneti_malloc(sz);
+    gasneti_leak(iop);
     SET_OPTYPE((gasnete_op_t *)iop, OPTYPE_IMPLICIT);
     iop->threadidx = thread->threadidx;
   }
@@ -501,7 +509,8 @@ static int gasnete_warned_nbp_AM = 0;
   if_pf (!gasnete_warned_##varname) {                                   \
     char msg[255];                                                      \
     gasnete_warned_##varname = 1;                                       \
-    sprintf(msg, "PERFORMANCE WARNING: %s, compensating with %s.",      \
+    snprintf(msg, sizeof(msg),                                          \
+            "PERFORMANCE WARNING: %s, compensating with %s.",           \
             problem, alternative);                                      \
     GASNETI_TRACE_PRINTF(I, ("%s", msg));                               \
     if (!gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {          \
@@ -855,7 +864,11 @@ extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
   return GASNET_ERR_NOT_READY;
  #endif
 #else
+#if 0
+  /* polling now takes place in callers which needed and NOT in those which don't */
   GASNETI_SAFE(gasneti_AMPoll());
+#endif
+
   return gasnete_try_syncnb_inner(handle);
 #endif
 }
@@ -863,7 +876,10 @@ extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
 extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles) {
   int success = 0;
   int empty = 1;
+#if 0
+  /* polling for syncnb now happens in header file to avoid duplication */
   GASNETI_SAFE(gasneti_AMPoll());
+#endif
 
   gasneti_assert(phandle);
 
@@ -889,7 +905,10 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
 
 extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles) {
   int success = 1;
+#if 0
+  /* polling for syncnb now happens in header file to avoid duplication */
   GASNETI_SAFE(gasneti_AMPoll());
+#endif
 
   gasneti_assert(phandle);
 

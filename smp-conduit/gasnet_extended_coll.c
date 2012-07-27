@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_extended_coll.c,v $
- *     $Date: 2009/10/28 02:49:59 $
- * $Revision: 1.3 $
+ *     $Date: 2012/07/27 03:57:20 $
+ * $Revision: 1.3.16.1 $
  * Description: Shared Memory Collectives
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -314,10 +314,7 @@ void gasnete_coll_register_conduit_collectives(gasnete_coll_autotune_info_t* inf
                                              (void*) gasnete_coll_smp_bcast_flat_put, "SMP_BCAST_FLAT_PUT");
 
   {
-    struct gasnet_coll_tuning_parameter_t tuning_params[1]=
-    { 
-      {GASNETE_COLL_SMP_COLL_TREE_RADIX, 2, MAX(2,info->team->my_images), 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY}
-    }; 
+    GASNETE_COLL_TUNING_PARAMETER(tuning_params, GASNETE_COLL_SMP_COLL_TREE_RADIX, 2, MAX(2,info->team->my_images), 2, GASNET_COLL_TUNING_STRIDE_MULTIPLY); 
     
   info->collective_algorithms[GASNET_COLL_BROADCASTM_OP][GASNETE_COLL_BROADCAST_SMP_TREE_INTFLAGS] =
 	  gasnete_coll_autotune_register_algorithm(info->team, GASNET_COLL_BROADCASTM_OP, GASNETE_COLL_EVERY_SYNC_FLAG,

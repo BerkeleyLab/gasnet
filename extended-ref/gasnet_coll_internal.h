@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2010/03/07 09:06:04 $
- * $Revision: 1.60 $
+ *     $Date: 2012/07/27 03:56:25 $
+ * $Revision: 1.60.12.1 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -21,14 +21,13 @@
 /* ***  Macros and Constants *** */
 /*---------------------------------------------------------------------------------*/
 
-#if GASNET_PAR
+
+#define GASNETE_COLL_SUBORDINATE	       (1<<30)
 #define GASNETE_COLL_THREAD_LOCAL        (1<<29)
-#endif
-#define GASNETE_COLL_SUBORDINATE	 (1<<30)
 #define GASNETE_COLL_USE_SCRATCH         (1<<28)
 #define GASNETE_COLL_USE_SCRATCH_TREE    (1<<27)
 #define GASNETE_COLL_USE_SCRATCH_DISSSEM (1<<26)
-#define GASNETE_COLL_USE_TREE		 (1<<25)
+#define GASNETE_COLL_USE_TREE		         (1<<25)
 #define GASNETE_COLL_NONROOT_SUBORDINATE (1<<24)
 #define GASNETE_COLL_SKIP (1<<23)
 
@@ -243,21 +242,15 @@ typedef int (*gasnete_all_barrier_try)(gasnete_coll_team_t team, int id, int fla
 typedef enum {
   GASNETE_COLL_BARRIER_ENVDEFAULT=0,
   GASNETE_COLL_BARRIER_AMDISSEM,
-  GASNETE_COLL_BARRIER_AMCENTRAL,
+  GASNETE_COLL_BARRIER_AMCENTRAL
 #ifdef GASNETE_COLL_CONDUIT_BARRIERS
-  GASNETE_COLL_CONDUIT_BARRIERS
+  , GASNETE_COLL_CONDUIT_BARRIERS
 #endif
 } gasnete_coll_barrier_type_t;
 
 
 /* Type for collective teams: */
 struct gasnete_coll_team_t_ {
-#ifndef GASNETE_COLL_P2P_OVERRIDE
-  /* Default implementation of point-to-point syncs
-	 * does not (currently) have a team-specific portion.
-	 */
-#endif
-  
   /* read-only fields: */
   uint32_t			team_id;
   int					global_team;
@@ -330,13 +323,21 @@ struct gasnete_coll_team_t_ {
   gasnete_all_barrier_wait barrier_wait;
   gasneti_progressfn_t barrier_pf;
   
+#ifndef GASNETE_COLL_P2P_OVERRIDE
+  /* Default implementation of point-to-point syncs */
+  #ifndef GASNETE_COLL_P2P_TABLE_SIZE
+    #define GASNETE_COLL_P2P_TABLE_SIZE 16
+  #endif
+
+  gasnet_hsl_t p2p_lock; /* Protects freelist and table */
+  gasnete_coll_p2p_t *p2p_freelist;
+  gasnete_coll_p2p_t *p2p_table[GASNETE_COLL_P2P_TABLE_SIZE];
+#endif
+  
   /* Hook for conduit-specific extensions/overrides */
 #ifdef GASNETE_COLL_TEAM_EXTRA
   GASNETE_COLL_TEAM_EXTRA
 #endif
-    
-    
-    
 };
 
 #if 0
@@ -439,15 +440,16 @@ struct gasnete_coll_seg_interval_t_ {
 struct gasnete_coll_p2p_t_ {
   /* Linkage and bookkeeping */
   gasnete_coll_p2p_t	*p2p_next;
-  gasnete_coll_p2p_t	*p2p_prev;
+  gasnete_coll_p2p_t	**p2p_prev_p;
   
   /* Unique (team_id, sequence) tuple for the associated op */
-  /* XXX: could play games w/ a single 64-bit field to speed comparisions */
-  uint32_t		team_id;
+#if GASNET_DEBUG
+  uint32_t		team_id; /* Only needed when debugging */
+#endif
   uint32_t		sequence;
   
   /* Volatile arrays of data and state for the point-to-point synchronization */
-  uint8_t			*data;
+  uint8_t		*data;
   volatile uint32_t	*state;
   gasneti_weakatomic_t	*counter;
     
@@ -466,8 +468,6 @@ struct gasnete_coll_p2p_t_ {
 };
 #endif
 
-extern void gasnete_coll_p2p_init(void);
-extern void gasnete_coll_p2p_fini(void);
 extern gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence);
 extern void gasnete_coll_p2p_destroy(gasnete_coll_p2p_t *p2p);
 extern void gasnete_coll_p2p_signalling_put(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
@@ -926,7 +926,7 @@ gasneti_in_fullsegment(_node, _addr, _len)
 
 /* The flags GASNET_COLL_SRC_IN_SEGMENT and GASNET_COLL_DST_IN_SEGMENT are just
 * assertions from the caller.  If they are NOT set, we will try to determine (when
-                                                                              * possible) if the addresses are in-segment to allow a one-sided implementation
+* possible) if the addresses are in-segment to allow a one-sided implementation
 * to be used.
 * gasnete_coll_segment_check and gasnete_coll_segment_checkM return a new set of flags.
 */

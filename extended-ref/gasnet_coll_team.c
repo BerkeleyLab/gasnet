@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_team.c,v $
- *     $Date: 2010/05/07 03:09:14 $
- * $Revision: 1.12 $
+ *     $Date: 2012/07/27 03:56:26 $
+ * $Revision: 1.12.6.1 $
  *
  * Description: GASNet generic team implementation for collectives 
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
@@ -43,11 +43,12 @@ static void initialize_team_fields(gasnete_coll_team_t team,
   size_t image_size = num_members*sizeof(gasnet_image_t);
   int i;
   static size_t smallest_scratch_seg;
+
+#if 0
 #if GASNET_DEBUG
   static int team_all_made=0;
 #endif
   
-#if 0
   if(!allocating_team_all) {
     /*the space for team all has already been initialized in gasnete_init()*/
 
@@ -146,6 +147,13 @@ static void initialize_team_fields(gasnete_coll_team_t team,
     fprintf(stderr, "WARNING: of threads per process for optimized collectives.\n");
   }
   
+#ifndef GASNETE_COLL_P2P_OVERRIDE
+  gasnet_hsl_init(&team->p2p_lock);
+  team->p2p_freelist = NULL;
+  for (i = 0; i < GASNETE_COLL_P2P_TABLE_SIZE; ++i) {
+    team->p2p_table[i] = NULL;
+  }
+#endif
 }
 
 void gasnete_coll_team_init(gasnet_team_handle_t team, 
@@ -182,7 +190,7 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
     gasnete_coll_barrier_init(team, GASNETE_COLL_BARRIER_ENVDEFAULT);
   }
   
-  /* lock the team direcotry (team_dir) */
+  /* lock the team directory (team_dir) */
   /* add the new team to the directory */
   if (team_dir == NULL) {
     team_dir = gasnete_hashtable_create(TEAM_DIR_SIZE);
@@ -203,11 +211,19 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
 
 void gasnete_coll_team_fini(gasnet_team_handle_t team)
 {
+  GASNETI_UNUSED_UNLESS_DEBUG int i;
   gasneti_assert(team != NULL);
   /* free data members of the team, such as scratch space and etc. */
   gasneti_free(team->rel2act_map);
   gasneti_assert(team_dir != NULL);
   gasnete_hashtable_remove(team_dir, team->team_id, NULL);
+
+#if !defined(GASNETE_COLL_P2P_OVERRIDE) && GASNET_DEBUG
+  for (i = 0; i < GASNETE_COLL_P2P_TABLE_SIZE; ++i) {
+    /* Check that table is actually empty */
+    gasneti_assert(team->p2p_table[i] == NULL);
+  }
+#endif
 
 #ifdef gasnete_coll_team_fini_conduit
   /* conduit specific initialization for gasnet teams */
@@ -320,9 +336,7 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
 #endif
 
   colors = (gasnet_node_t *)gasneti_malloc(sizeof(mycolor)*team->total_ranks);
-  gasneti_assert(colors != NULL);
   relranks = (gasnet_node_t *)gasneti_malloc(sizeof(myrelrank)*team->total_ranks);
-  gasneti_assert(relranks != NULL);
   allsegs = (gasnet_seginfo_t*) gasneti_malloc(sizeof(gasnet_seginfo_t)*team->total_ranks);
  
   
@@ -367,7 +381,6 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
 
 gasnet_team_handle_t gasnete_coll_team_lookup(uint32_t team_id) 
 {
-  uint32_t rv;
   gasnet_team_handle_t team;
   
 #ifdef DEBUG_TEAM
@@ -375,9 +388,9 @@ gasnet_team_handle_t gasnete_coll_team_lookup(uint32_t team_id)
   fflush(stderr);
 #endif
 
-	if (team_id == 0)
+  if (team_id == 0) {
     team = GASNET_TEAM_ALL;
-  else {
+  } else {
     if (gasnete_hashtable_search(team_dir, team_id, (void **)&team))
       team = NULL; /* cannot find team_id the hash table */
   }

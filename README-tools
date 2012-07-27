@@ -2,7 +2,7 @@
 README file for GASNet tools
 ============================
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.28 $
+$Revision: 1.28.4.1 $
 GASNet tools specification version: 1.7
 
 The GASNet tools are a set of communication-independent utilities that are used
@@ -67,6 +67,13 @@ tools).
   Additionally, client code used to build shared libraries (compiled with
   -fPIC, -KPIC or a similar compiler-dependent flag) should pass
   -DGASNETI_FORCE_PIC=1 to ensure use of PIC-safe code in gasnet_tools.h.
+
+  On a few platforms, additional system libraries or compiler flags may be required
+  for gasnet_tools to work correctly. Clients seeking maximum portability 
+  are recommended to get their compiler and linker flags by including the 
+  generated Makefile fragments $prefix/include/gasnet_tools-{seq,par}.mak
+  in their Makefile and using the provided make variables they provide.
+  See the comments at the top of those files for exact usage documentation.
 
 ===============================
 GASNet Tools User Documentation
@@ -1054,6 +1061,9 @@ COMPILER.
       Compiler supports __attribute__((__format__ (...))) 
     GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR
       Compiler supports __attribute__((__format__ (...))) applied to a function pointer
+    GASNETT_USE_GCC_ATTRIBUTE_FORMAT_FUNCPTR_ARG
+      Compiler supports __attribute__((__format__ (...))) applied to a function pointer
+      as an argument to a function (in its declaration and/or definition).
 
   The following can be defined to control use of "restrict"
     GASNETT_USE_RESTRICT

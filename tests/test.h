@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/test.h,v $
- *     $Date: 2010/04/24 03:25:34 $
- * $Revision: 1.139 $
+ *     $Date: 2012/07/27 03:57:24 $
+ * $Revision: 1.139.6.1 $
  * Description: helpers for GASNet tests
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -346,15 +346,12 @@ static int64_t test_calibrate_delay(int iters, int pollcnt, int64_t *time_p)
   #define TEST_CONFIG_STRING GASNET_CONFIG_STRING
   #define TEST_TITANIUM_BACKEND "gasnet-" GASNET_CONDUIT_NAME_STR "-uni"
 #else
-  #if GASNETI_CROSS_COMPILING
-    #define GASNETI_TOOLS_CONDUIT "MPI"
-    #define TEST_TITANIUM_BACKEND "mpi-cluster-uniprocess"
-  #else
-    #define GASNETI_TOOLS_CONDUIT "SMP"
-    #define TEST_TITANIUM_BACKEND "sequential"
+  #ifndef GASNETI_TOOLS_CONDUIT
+  #define GASNETI_TOOLS_CONDUIT SMP
   #endif
+  #define TEST_TITANIUM_BACKEND "sequential"
   #define TEST_CONFIG_STRING \
-    "RELEASE=x,SPEC=x,CONDUIT="GASNETI_TOOLS_CONDUIT"("GASNETI_TOOLS_CONDUIT"-x/REFERENCE-x),THREADMODEL=PAR,SEGMENT=FAST,PTR=x,align,nodebug,notrace,nostats"
+    "RELEASE=x,SPEC=x,CONDUIT="_STRINGIFY(GASNETI_TOOLS_CONDUIT)"("_STRINGIFY(GASNETI_TOOLS_CONDUIT)"-x/REFERENCE-x),THREADMODEL=PAR,SEGMENT=FAST,PTR=x,align,nodebug,notrace,nostats"
 #endif
 /* mimic Berkeley UPC build config strings, to allow running GASNet tests using upcrun */
 GASNETT_IDENT(GASNetT_IdentString_link_GASNetConfig, 
@@ -836,15 +833,21 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
 
 /* ------------------------------------------------------------------------------------ */
 /* local process and thread count management */
+static gasnet_nodeinfo_t *_test_nodeinfo = NULL;
+static gasnet_node_t _test_firstnode;
 static int _test_localprocs(void) { /* First call is not thread safe */
   static int count = 0;
   if (!count) {
-    gasnet_node_t my_nodeinfo;
+    gasnet_node_t my_supernode;
     gasnet_node_t i;
-    assert(_test_seginfo);
-    my_nodeinfo = _test_seginfo[gasnet_mynode()].nodeinfo;
+
+    assert(_test_nodeinfo);
+    my_supernode = _test_nodeinfo[gasnet_mynode()].supernode;
     for (i=0; i < gasnet_nodes(); i++) {
-      if (_test_seginfo[i].nodeinfo == my_nodeinfo) count++;
+      if (_test_nodeinfo[i].supernode == my_supernode) {
+        if (!count) _test_firstnode = i;
+        count++;
+      }
     }
   }
   assert(count > 0);
@@ -853,13 +856,23 @@ static int _test_localprocs(void) { /* First call is not thread safe */
 #define TEST_LOCALPROCS() (_test_localprocs())
 
 static void _test_set_waitmode(int threads) {
+  const int local_procs = TEST_LOCALPROCS();
   if (gasnett_getenv_yesno_withdefault("GASNET_TEST_POLITE_SYNC",0)) return;
-  threads *= TEST_LOCALPROCS();
+#if PLATFORM_OS_OPENBSD /* userland pthreads impl. runs on a single cpu core */
+  if (threads > 1) {
+    if (_test_firstnode == gasnet_mynode())
+      MSG("WARNING: per-proc thread count (%i) exceeds platform's concurrency "
+          "- enabling  \"polite\", low-performance synchronization algorithms",
+          threads);
+    gasnet_set_waitmode(GASNET_WAIT_BLOCK);
+  }
+#endif
+  threads *= local_procs;
   if (threads > gasnett_cpu_count()) {
-    if (_test_seginfo[gasnet_mynode()].nodeinfo == gasnet_mynode())
+    if (_test_firstnode == gasnet_mynode())
       MSG("WARNING: per-node thread count (%i) exceeds physical cpu count (%i) "
           "- enabling  \"polite\", low-performance synchronization algorithms",
-          (int) threads, gasnett_cpu_count());
+          threads, gasnett_cpu_count());
     gasnet_set_waitmode(GASNET_WAIT_BLOCK);
   }
 }
@@ -959,10 +972,18 @@ static void _test_init(const char *testname, int reports_performance, int early,
         testname, (int)gasnet_nodes(), GASNET_CONFIG_STRING,
         _STRINGIFY(PLATFORM_COMPILER_FAMILYNAME), PLATFORM_COMPILER_VERSION_STR,
         GASNETT_SYSTEM_TUPLE);
+    assert(_test_nodeinfo == NULL);
+    /* must use malloc here, pre-attach if "early" */
+    _test_nodeinfo = (gasnet_nodeinfo_t *)malloc(gasnet_nodes()*sizeof(gasnet_nodeinfo_t));
+    GASNET_Safe(gasnet_getNodeInfo(_test_nodeinfo, gasnet_nodes()));
     if (!early) {
       TEST_SEG(gasnet_mynode()); /* ensure we got the segment requested */
       BARRIER();
+    #if GASNET_PSHM || 1 /* supernode info still of intested when PSHM not used */
+      MSG("hostname is: %s (supernode=%i pid=%i)", gasnett_gethostname(), (int)_test_nodeinfo[gasnet_mynode()].supernode, (int)getpid());
+    #else
       MSG("hostname is: %s (pid=%i)", gasnett_gethostname(), (int)getpid());
+    #endif
       fflush(NULL);
       BARRIER();
     }

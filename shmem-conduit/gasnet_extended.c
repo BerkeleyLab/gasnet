@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended.c,v $
- *     $Date: 2010/03/27 21:54:07 $
- * $Revision: 1.35 $
+ *     $Date: 2012/07/27 03:57:18 $
+ * $Revision: 1.35.8.1 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -48,7 +48,6 @@ extern uint64_t gasneti_max_threads(void) { return 1; }
 
 
 extern void gasnete_init(void) {
-  int	    i;
   static int firstcall = 1;
   GASNETI_TRACE_PRINTF(C,("gasnete_init()"));
   gasneti_assert(firstcall); /*  make sure we haven't been called before */
@@ -92,6 +91,7 @@ extern gasnet_handle_t
 gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val, 
 		     size_t nbytes GASNETE_THREAD_FARG) 
 {
+#ifdef GASNETE_GLOBAL_ADDRESS
     int	 *ptr = GASNETE_SHMPTR_AM(dest,node);
     int	 isdone = 0;
     void *pdone = (void*)&isdone;
@@ -103,6 +103,16 @@ gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val,
 
     /* Always blocking, even if an AM */
     GASNET_BLOCKUNTIL(isdone != 0);
+#else
+    /* TODO: keep this dynamic array */
+
+    char *tmp = gasneti_malloc(nbytes);
+    memset(tmp, val, nbytes);
+
+    shmem_putmem(dest, tmp, nbytes, node);
+
+    gasneti_free(tmp);
+#endif
 
     return GASNETE_SYNC_NONE;
 }
@@ -259,11 +269,11 @@ static int gasnete_shmembarrier_try(gasnete_coll_team_t team, int id, int flags)
 #ifdef SGI_SHMEM
 #define BARRIER_READ_NOTIFYCTR	1
 #define _BARRIER_PAD(name)  \
-	static char __barrier_pad ## name[BARRIER_PAD_CACHELINE_SIZE] = { 0 }
+	GASNETI_UNUSED static char __barrier_pad ## name[BARRIER_PAD_CACHELINE_SIZE] = { 0 }
 #else
 #define BARRIER_READ_NOTIFYCTR	0
 #define _BARRIER_PAD(name)  \
-	static char __barrier_pad ## name[BARRIER_PAD_CACHELINE_SIZE] = { 0 }
+	GASNETI_UNUSED static char __barrier_pad ## name[BARRIER_PAD_CACHELINE_SIZE] = { 0 }
 #endif
 
 typedef struct {
@@ -292,7 +302,11 @@ GASNETI_NEVER_INLINE(gasnete_barrier_broadcastmismatch,
 static void gasnete_barrier_broadcastmismatch(void)) {
   int i;
   for (i=0; i < gasneti_nodes; i++) 
+#ifdef GASNETE_GLOBAL_ADDRESS
     *((int *)shmem_ptr(&barrier_mismatch[barrier_phase], i)) = 1;
+#else
+    shmem_int_p(&barrier_mismatch[barrier_phase], 1, i);
+#endif
   shmem_quiet();
   gasneti_local_wmb();
 }
@@ -311,7 +325,6 @@ static void gasnete_barrier_broadcastmismatch(void)) {
 #endif
 
 static void gasnete_shmembarrier_notify(gasnete_coll_team_t team, int id, int flags) {
-    int i;
     uint64_t curval;
     if_pf (team->barrier_splitstate == INSIDE_BARRIER)
 	gasneti_fatalerror("gasnet_barrier_notify() called twice in a row");
@@ -357,7 +370,10 @@ static void gasnete_shmembarrier_notify(gasnete_coll_team_t team, int id, int fl
 }
 
 static int gasnete_shmembarrier_wait(gasnete_coll_team_t team, int id, int flags) {
-    int  i, local_mismatch = 0;
+    #if !BARRIER_READ_NOTIFYCTR
+    int i;
+    #endif
+    int local_mismatch = 0;
     long volatile *done_ctr = &barrier_done[barrier_phase];
 
     gasneti_sync_reads();

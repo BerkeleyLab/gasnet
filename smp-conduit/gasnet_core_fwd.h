@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/smp-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2010/06/27 03:56:46 $
- * $Revision: 1.18 $
+ *     $Date: 2012/07/27 03:57:20 $
+ * $Revision: 1.18.4.1 $
  * Description: GASNet header for smp conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 #ifndef _GASNET_CORE_FWD_H
 #define _GASNET_CORE_FWD_H
 
-#define GASNET_CORE_VERSION      1.8
+#define GASNET_CORE_VERSION      1.9
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         SMP
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
@@ -30,8 +30,8 @@
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */
   /*  at the same virtual address on all nodes. defined to 0 otherwise */
 /* segment alignment on smp is moot, as there is only a single node */
-#if GASNETI_DISABLE_ALIGNED_SEGMENTS || GASNET_PSHM
-  #define GASNET_ALIGNED_SEGMENTS   0 /* user or PSHM disabled segment alignment */
+#if GASNETI_PSHM_ENABLED
+  #define GASNET_ALIGNED_SEGMENTS   0 /* use of PSHM prevents segment alignment */
 #else
   #define GASNET_ALIGNED_SEGMENTS   1
 #endif
@@ -72,5 +72,10 @@
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
+
+#if GASNET_PSHM
+  #define GASNETC_FATALSIGNAL_CALLBACK(sig) gasnetc_fatalsignal_callback(sig)
+  extern void gasnetc_fatalsignal_callback(int sig);
+#endif
 
 #endif

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_core_reqrep.c,v $
- *     $Date: 2009/09/20 23:34:19 $
- * $Revision: 1.36 $
+ *     $Date: 2012/07/27 03:56:22 $
+ * $Revision: 1.36.16.1 $
  * Description: GASNet elan conduit - AM request/reply implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -8,7 +8,13 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
+#if defined(__GNUC__) && !defined(inline)
+#define inline __inline__
 #include <elan3/elan3.h> /* for ELAN_POLL_EVENT */
+#undef inline
+#else
+#include <elan3/elan3.h> /* for ELAN_POLL_EVENT */
+#endif
 #include <unistd.h>
 
 /* 

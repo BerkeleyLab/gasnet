@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_op.c,v $
- * $Date: 2006/04/05 23:13:25 $
- * $Revision: 1.17 $
+ * $Date: 2012/07/27 03:56:34 $
+ * $Revision: 1.17.76.1 $
  * Description: GASNet Extended API OPs interface
  * Copyright 2002, Christian Bell <csbell@cs.berkeley.edu>
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -44,6 +44,7 @@ gasnete_eop_new(gasnete_threaddata_t * const thread)
 		thread->eop_num_bufs++;
 		buf = (gasnete_eop_t *)
 		gasneti_calloc(256, sizeof(gasnete_eop_t));
+		gasneti_leak(buf);
 		for (i=0; i < 256; i++) {
 			gasnete_eopaddr_t addr;
 			addr.bufferidx = bufidx;
@@ -119,6 +120,7 @@ gasnete_iop_new(gasnete_threaddata_t * const thread)
 		gasneti_assert(iop->threadidx == thread->threadidx);
 	} else {
 		iop = (gasnete_iop_t *)gasneti_malloc(sizeof(gasnete_iop_t));
+		gasneti_leak(iop);
 		SET_OPTYPE((gasnete_op_t *)iop, OPTYPE_IMPLICIT);
 		iop->threadidx = thread->threadidx;
 	}

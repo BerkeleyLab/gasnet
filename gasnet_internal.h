@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2010/03/08 03:16:55 $
- * $Revision: 1.120 $
+ *     $Date: 2012/07/27 03:56:10 $
+ * $Revision: 1.120.12.1 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -61,14 +61,16 @@ extern double gasneti_get_exittimeout(double dflt_max, double dflt_min, double d
 #define gasneti_calloc(N,S)          _gasneti_calloc(N,S GASNETI_CURLOCAARG)
 #define gasneti_realloc(ptr,sz)      _gasneti_realloc((ptr),(sz) GASNETI_CURLOCAARG)
 #define gasneti_free(ptr)	     _gasneti_free((ptr) GASNETI_CURLOCAARG)
+#define gasneti_leak(ptr)	     _gasneti_leak((ptr) GASNETI_CURLOCAARG)
 #define gasneti_strdup(ptr)	     _gasneti_strdup((ptr) GASNETI_CURLOCAARG)
 #define gasneti_strndup(ptr,sz)      _gasneti_strndup((ptr),(sz) GASNETI_CURLOCAARG)
 /* corresponding gasneti_memcheck fns are in gasnet_help.h */
 
-#if GASNET_DEBUG
+#if GASNET_DEBUGMALLOC
   extern void *_gasneti_malloc(size_t nbytes, const char *curloc) GASNETI_MALLOC;
   extern void *_gasneti_malloc_allowfail(size_t nbytes, const char *curloc) GASNETI_MALLOC;
   extern void _gasneti_free(void *ptr, const char *curloc);
+  extern void _gasneti_leak(void *ptr, const char *curloc);
   extern void *_gasneti_realloc(void *ptr, size_t sz, const char *curloc);
   extern void *_gasneti_calloc(size_t N, size_t S, const char *curloc) GASNETI_MALLOC;
   extern size_t _gasneti_memcheck(void *ptr, const char *curloc, int checktype);
@@ -126,6 +128,8 @@ extern double gasneti_get_exittimeout(double dflt_max, double dflt_min, double d
     free(ptr);
     if_pt (gasneti_attach_done) gasnet_resume_interrupts();
   }
+  /* the following allows "gasneti_leak(p = gasneti_malloc(sz));" */
+  #define _gasneti_leak(_expr) ((void)(_expr))
 #endif
 GASNETI_MALLOCP(_gasneti_malloc)
 GASNETI_MALLOCP(_gasneti_malloc_allowfail)
@@ -229,6 +233,12 @@ char *_gasneti_strndup(const char *s, size_t n GASNETI_CURLOCFARG) {
 }
 GASNETI_MALLOCP(_gasneti_strndup)
 
+/* Version of glibc's getline compatible w/ gasneti_free() */
+#if defined(__GLIBC__) && !defined(GASNET_DEBUGMALLOC)
+  #define gasneti_getline getline
+#else
+  extern ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp);
+#endif
 /* ------------------------------------------------------------------------------------ */
 
 extern void gasneti_freezeForDebugger(void);
@@ -246,11 +256,18 @@ extern void gasneti_freezeForDebugger(void);
 void gasneti_registerSignalHandlers(gasneti_sighandlerfn_t handler);
 void gasneti_defaultSignalHandler(int sig);
 
-#ifdef HAVE_MMAP
+#if defined(HAVE_MMAP) || (GASNET_PSHM && defined(GASNETI_PSHM_SYSV))
+  #define GASNETI_MMAP_OR_SYSV 1
   extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz);
+ #if defined(HAVE_MMAP)
   extern void gasneti_mmap_fixed(void *segbase, uintptr_t segsize);
   extern void *gasneti_mmap(uintptr_t segsize);
   extern void gasneti_munmap(void *segbase, uintptr_t segsize);
+ #endif
+ #if defined(GASNETI_USE_HUGETLBFS)
+  extern void *gasneti_huge_mmap(void *addr, uintptr_t size);
+  extern void gasneti_huge_munmap(void *addr, uintptr_t size);
+ #endif
   #ifndef GASNETI_MMAP_MAX_SIZE
     /* GASNETI_MMAP_MAX_SIZE controls the maz size segment attempted by the mmap binary search
        can't use a full 2 GB due to sign bit problems 
@@ -488,8 +505,10 @@ extern int gasneti_VerboseErrors;
    int retcode = (fncall);                                   \
    if_pf (gasneti_VerboseErrors && retcode != GASNET_OK) {   \
      char msg[1024];                                         \
-     sprintf(msg, "\nGASNet encountered an error: %s(%i)\n", \
+     snprintf(msg, sizeof(msg),                              \
+        "\nGASNet encountered an error: %s(%i)\n",           \
         gasnet_ErrorName(retcode), retcode);                 \
+     msg[sizeof(msg)-2] = '\n'; msg[sizeof(msg)-1] = '\0';   \
      GASNETI_RETURN_ERRFR(RESOURCE, fncall, msg);            \
    }                                                         \
  } while (0)
@@ -653,11 +672,19 @@ extern gasnet_node_t gasneti_nodemap_local_count;
 extern gasnet_node_t gasneti_nodemap_local_rank;
 extern gasnet_node_t gasneti_nodemap_global_count;
 extern gasnet_node_t gasneti_nodemap_global_rank;
+extern gasnet_nodeinfo_t *gasneti_nodeinfo;
 
 extern void gasneti_nodemapInit(gasneti_bootstrapExchangefn_t exchangefn,
                                 const void *ids, size_t sz, size_t stride);
 extern void gasneti_nodemapParse(void);
 extern void gasneti_nodemapFini(void);
+
+#if GASNET_CONDUIT_SMP
+  #define gasneti_node2supernode(n) 0
+#else
+  #define gasneti_node2supernode(n) \
+    (gasneti_assert(gasneti_nodeinfo), gasneti_nodeinfo[(n)].supernode)
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 

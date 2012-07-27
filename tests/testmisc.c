@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testmisc.c,v $
- *     $Date: 2010/03/16 23:35:17 $
- * $Revision: 1.46 $
+ *     $Date: 2012/07/27 03:57:25 $
+ * $Revision: 1.46.10.1 $
  * Description: GASNet misc performance test
  *   Measures the overhead associated with a number of purely local 
  *   operations that involve no communication. 
@@ -18,7 +18,7 @@ int accuracy = 0;
 void report(const char *desc, int64_t totaltime, int iters) {
   if (mynode == 0) {
       char format[80];
-      sprintf(format, "%c: %%-50s: %%%i.%if s  %%%i.%if us\n", 
+      snprintf(format, sizeof(format), "%c: %%-50s: %%%i.%if s  %%%i.%if us\n", 
               TEST_SECTION_NAME(), (4+accuracy), accuracy, (4+accuracy), accuracy);
       printf(format, desc, totaltime/1.0E9, (totaltime/1000.0)/iters);
       fflush(stdout);

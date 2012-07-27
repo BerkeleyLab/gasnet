@@ -1,7 +1,7 @@
 README file for vapi-conduit and ibv-conduit
 ============================================
 Paul H. Hargrove <PHHargrove@lbl.gov>
-$Revision: 1.55 $
+$Revision: 1.55.16.1 $
 
 @ TOC: @
 @ Section: VAPI vs IBV @
@@ -9,7 +9,7 @@ $Revision: 1.55 $
 @ Section: Multi-rail Support @
 @ Section: Runtime Configuration @
 @ Section: HCA Configuration @
-@ Section: Platform-specifc Notes @
+@ Section: Platform-specific Notes @
 @ Section: Core API @
 @ Section: Extended API @
 @ Section: Graceful exits @
@@ -71,6 +71,28 @@ $Revision: 1.55 $
   + The environment variable MPIRUN_CMD can be used to configure how to
     invoke mpirun.  See mpi-conduit/README (or README-mpi) for more
     information.
+  + Since an InfiniBand-based MPI typically allocates a non-trivial amount
+    of memory for InfiniBand communication buffers, it may be desirable in
+    memory-constrained situations to use a non-IB MPI, or to disable the
+    use of IB by a multi-transport MPI.  The documentation for your chosen
+    MPI is the authoritative source for information, but here are the
+    settings required to force use of TCP/IP in several widely-used MPIs:
+    - LAM/MPI
+      Pass "-ssi rpi tcp" to mpirun, OR
+      Set environment variable LAM_MPI_SSI_rpi to "tcp".
+    - Open MPI
+      Pass "--mca btl tcp,self" to mpirun, OR
+      Set environment variable OMPI_MCA_BTL to "tcp,self".
+    - Intel MPI
+      Set environment variable I_MPI_DEVICE to "sock".
+    - HP-MPI
+      Set environment variable MPI_IC_ORDER to "tcp".
+    - MPICH or MPICH2
+      These don't use IB, so no special action is required.
+    - MVAPICH or MVAPICH2
+      These don't use TCP/IP unless explicitly configured for IP-over-IB.
+      So, these are not recommended if one is concerned with memory use.
+    In all of the settings above, omit the quotes from the value.
 
   If spawning using SSH, the following apply:
   + The -E option is not necessary, as the full environment is always
@@ -101,7 +123,7 @@ $Revision: 1.55 $
     password or accepting new host keys).
   + Any firewall or port filtering must allow the ssh/rsh connections
     described above, plus TCP connections on untrusted port (those
-    with numbers over 1024) from a compute node to the master node and
+    with numbers over 1024) from a compute node to the master node
     and among compute nodes.
   + Resolution for all given hostnames must be possible from both the
     master node and the compute nodes.
@@ -163,6 +185,10 @@ $Revision: 1.55 $
   performance improvement by disabling multi-rail support with
   '--disable-vapi-multirail' at configure time.
   
+  When using dynamic connections (see GASNET_CONNECT_DYNAMIC env var,
+  below) there is an extra thread spawned to block for the arrival of
+  connection requests.  If needed, this can be disabled at configure
+  time using '--disable-vapi-conn-thread'.
 
 @ Section: Runtime Configuration @
 
@@ -171,7 +197,8 @@ $Revision: 1.55 $
 
   General settings:
   Vapi-conduit supports all of the standard GASNet environment variables
-  and the optional GASNET_EXITTIMEOUT family of environment variables.
+  and the optional GASNET_EXITTIMEOUT and GASNET_THREAD_STACK families
+  of environment variables.
   See GASNet's top-level README for documentation.
 
   Connection settings:
@@ -210,7 +237,7 @@ $Revision: 1.55 $
     Setting GASNET_VAPI_PORTS will specify a filter for which ports will
     be used.  This can be used for instance to cause multiple physical
     ports to be used per HCA, or to specify specific ports and/or HCAs
-    to be considered (up to GASNETC_NUM_QPS if it is non-zero).
+    to be considered (up to GASNET_NUM_QPS if it is non-zero).
     This variable is a string of one or more HCA/port specifications,
     separated by '+' characters.  Each such specification gives an HCA
     identifier and an optional comma-separated list of port numbers.
@@ -218,7 +245,7 @@ $Revision: 1.55 $
     by a ':'.  If a list of ports is given, only those ports may be used.
     Otherwise the first active port on the given HCA may be used.  The
     following example allows the first active port on HCA InfiniHost0,
-    and only port 2 on InifiniHost1:
+    and only port 2 on InfiniHost1:
 	GASNET_VAPI_PORTS="InfiniHost0+InfiniHost1:2".
     Note that this list is a *filter*, which means:
     + Duplicate entries do not cause multiple opens of a port or HCA
@@ -237,7 +264,7 @@ $Revision: 1.55 $
     This sets the timeout value used to configure InfiniBand QueuePairs.
     The IB specification uses (4.096us * 2^qp_timeout) as the length of
     time an HCA waits to receive and ACK from its peer before attempting
-    retransmisson.
+    retransmission.
     The default is currently 18 (roughly 1 second).
 
   + GASNET_QP_RETRY_COUNT
@@ -254,34 +281,191 @@ $Revision: 1.55 $
     value reported by the HCA.
     Other valid setting are typically in the range from 1 to 4.
 
+  + GASNET_CONNECT_DYNAMIC
+    This boolean setting determines if connections can be established
+    on demand.  The default value is TRUE.
+    When GASNET_CONNECT_DYNAMIC is enabled, a node will connect on
+    demand to any peer not previously connected at startup.  However,
+    if a node is fully connected to all peers at startup, then dynamic
+    connections are automatically disabled on that node.  Therefore,
+    unless GASNET_CONNECT_STATIC or GASNET_CONNECTFILE_IN is set to a
+    non-default value this variable has no effect.
+
+  + GASNET_CONNECT_STATIC
+    This setting determines if connections are established at startup.
+    When GASNET_CONNECT_STATIC is enabled, a node will connect at
+    startup to all peers indicated by the GASNET_CONNECTFILE_IN
+    setting (see below), or to ALL peers if that variable is unset.
+    The value is a boolean with a default of TRUE.
+
+  + GASNET_CONNECTFILE_IN
+    This setting provides a filename used to limit the connections
+    established at startup, and is ignored if GASNET_CONNECT_STATIC is
+    FALSE.
+    Any '%' character in the value is replaced with the node number to
+    allow (but not require) separate per-node files.
+    The format of a connect file is a series of lines of the form:
+       node: peer1 peer2 ...
+    without leading whitespace.  For example, to request that node 7
+    connect to nodes 0, 4 and 6:
+       7: 0 4 6
+    Line lengths are not limited, but the same node number may appear
+    to the left of the colon on multiple lines to limit line lengths.
+    So, the following is equivalent to the previous example:
+       7:0 4
+       7:6
+    Ranges are supported.  So, the following connects node 6 with
+    nodes 9, 10, 11 and 12:
+       6:9-12
+    Order is not significant (except in ranges), so neither lines nor
+    peer numbers need to be sorted.
+    Connections are bidirectional so the following:
+       1:0
+       0:1
+    describes only 1 connection between nodes 0 and 1 and only one of
+    these two lines is required to establish it (though there is no
+    error in specifying both).  This is true regardless of whether
+    using a single file or per-node files.
+    An optional line
+       size: N
+    indicates the number of nodes in the job, and is validated against
+    the size of the current job if present.
+    An optional line
+       base: N
+    specifies a numeric base for interpretation of all node numbers on
+    lines that follow.  The default is 10 (decimal), and legal values
+    range from 2 (binary) to 36 (uses digits '0'-'9' and 'a'-'z').  If
+    present, the 'base' line only affects node numbers read from later
+    lines, and therefore should appear at the start of the file.
+    Values on the 'size' and 'base' lines are always read as decimal.
+    The default is unset/empty (no limit on which nodes are connected
+    at startup).
+
+  + GASNET_CONNECTFILE_OUT
+    This setting specifies a filename in which to generate connection
+    information suitable for later use as GASNET_CONNECTFILE_IN.
+    Any '%' character in the value is replaced with the node number to
+    allow separate per-node files.  Use of per-node files is strongly
+    recommended, and on some file systems (notably NFS) is REQUIRED
+    for correct operation.  If desired, the separate files may be
+    concatenated together after the run completes to produce a single
+    file suitable for use as GASNET_CONNECTFILE_IN.  Alternatively, the
+    following perl one-liner will concatenate the files while removing
+    all but the first instance of the 'base' and 'size' lines:
+       perl -ne 'print unless (/(base|size)/ && $X{$_}++);' -- [FILES]
+    where [FILES] denotes the list of per-node connection files and the
+    combined file is generated on stdout.
+    The connection information produced in the output file(s) lists
+    only those connections actually used in the current run.
+    Therefore a common use case is to set GASNET_CONNECTFILE_OUT on a
+    fully-connected run, and then use the generated file(s) to limit
+    static connections in subsequent runs.
+    The default is to use base-36 for node numbers, which results in
+    more compact files but is difficult for a human to read.  See
+    GASNET_CONNECTFILE_BASE, below, for how to change this.
+    The default is unset/empty (no output files are generated).
+
+  + GASNET_CONNECTFILE_BASE
+    This setting controls the numeric base used for node numbers in
+    GASNET_CONNECTFILE_OUT files.
+    Valid values range from 2 (binary) to 36 (uses digits '0'-'9' and
+    'a'-'z').  The value of the setting is always parsed as base-10.
+    The default value is 36.
+
+  + GASNET_CONNECT_SNDS
+  + GASNET_CONNECT_RCVS
+    These two settings control the number of small buffers allocated
+    to send and to receive dynamic connection requests, and are
+    ignored if GASNET_CONNECT_DYNAMIC is FALSE, or on any node that is
+    already fully connected at startup.
+    Because the buffers are small and allocation is page granular
+    there is seldom any benefit to reducing the default values.
+    However, there are conditions under which increasing one or both
+    may help reduce the latency of dynamic connections:
+    + Dynamic connection setup is blocking at the initiator, but if
+      using pthreads it is possible that one node may have dynamic
+      connection requests in-progress to multiple nodes.  So, if
+      an application is highly-threaded it may be beneficial to
+      increase GASNET_CONNECT_SNDS for greater concurrency of sends.
+    + If a given node receives many simultaneous connection requests,
+      any requests in excess of the allocated buffers will be dropped.
+      The connection will be delayed until the requester retransmits.
+      So, the average connection setup time in the presence of "bursty"
+      requests may be reduced by increasing GASNET_CONNECT_RCVS.
+    The default value of GASNET_CONNECT_SNDS is 4.
+    The default value of GASNET_CONNECT_RCVS is
+            MAX(6, 4 + 2*ceil(log_2(N_remote)))
+    where "ceil()" denotes rounding up to an integer, "log_2()" is
+    the base-2 logarithm and "N_remote" is the number of GASNet nodes
+    minus "self" and any nodes reachable through shared memory (PSHM).
+
+  + GASNET_CONNECT_RETRANS_MIN
+  + GASNET_CONNECT_RETRANS_MAX
+    These two settings control the minimum and maximum intervals
+    between retransmission of messages used in establishing dynamic
+    connections, and are ignored if GASNET_CONNECT_DYNAMIC is FALSE,
+    or on any node that is already fully connected at startup.
+    Values are in units of microseconds (10^-6 sec).
+    The value of GASNET_CONNECT_RETRANS_MIN is the interval between
+    sending an initial request and the first retransmission.  Each
+    retransmission doubles the interval before the next, up to the
+    maximum value given by GASNET_CONNECT_RETRANS_MAX, after which the
+    connection setup fails.
+    Adjustment of these settings may help resolve timeouts on networks
+    with high rates of UD packet loss.  However, this is not
+    recommended without consulting with the author and the defaults
+    are therefore not documented here.
+
   Software configuration settings:
   There are some optional behaviors in vapi-conduit that can be turned
   ON or OFF.  These parameters may legally take different values on each
   node, but doing so may not be useful.
 
   + GASNET_RCV_THREAD
-    This gives a boolean: "0" to disable or "1" to enable the use
-    of an extra thread that blocks waiting for vapi to wake it when an
-    Active Message request arrives.  This allows vapi-conduit to be
-    more attentive to incoming AMs even while the application may not
-    be making any calls to GASNet.  The down side is that each time
-    this thread wakes it must contend for CPU resources.  Thus for an
+    This gives a boolean: "0" to disable, or "1" to enable, the use of
+    an extra thread that blocks waiting for an Active Message Request
+    or Reply to arrive.  This allows vapi-conduit to remain attentive
+    to incoming AM traffic even while the application is not making any
+    calls to GASNet.  The down side is that when this thread wakes it
+    must contend for CPU resources and for locks.  Therefore, for an
     application that is calling GASNet sufficiently often, use of this
     thread may significantly INCREASE running time.  However, on an SMP
     where an otherwise idle processor is available the use of this
     thread can REDUCE running time by relieving the application thread
-    of the burden of servicing incoming AM requests and replies.
+    of the burden of servicing incoming AM Requests and Replies.
     Note that if '--disable-vapi-rcv-thread' was specified at build time
     then the extra thread is unavailable and this environment variable
     is ignored.
-    Currently the default is disabled (0), but this is subject to change
-    in a future version.
-    In ibv-conduit only, this option is currently ignored and the thread
-    is never used.
+    Currently the default is disabled (0), but this is subject to change.
+    NOTE: In releases prior to GASNet 1.18.2 the AM receive thread was
+    unavailable for ibv-conduit, but that is no longer the case.
+    Both VAPI and IBV now support the AM receive thread.
 
-  Protocol configuration:
-  The following environment variables control the selection of protocols
-  for performing certain transfers.
+  + GASNET_RCV_THREAD_RATE
+    If GASNET_RCV_THREAD is enabled, then this setting can be used to
+    impose a limit on how frequently the AM receive thread may wake.
+    This may be used to limit interference between the AM receive thread
+    and the main application thread(s), while providing some network
+    attentiveness when the application is not making GASNet calls.
+    A non-zero value gives the maximum rate in wake-ups per second.
+    The default value is 0, which means no limit is imposed.
+    NOTE: A future release may implement GASNET_RCV_THREAD_LOAD to
+    impose a limit on the *fraction* of time the thread spends awake.
+
+  Pinnable memory probe configuration:
+  In normal operation of vapi-conduit it is necessary to know how much memory
+  may be registered (aka pinned) with the InfiniBand HCA(s).  This is limited
+  by multiple factors and thus cannot be determined by a simple query.
+  Therefore, the default behavior is to attempt to mmap and register as much
+  memory as possible at startup, and then release all the memory.  When there
+  are multiple GASNet processes on a shared memory node, one representative
+  process will perform this probe.  There are at least two well-known reasons
+  why one may desire to limit or eliminate this probe.  The first is the time
+  spent performing the probe.  The second is the possibility that the O/S or
+  a batch execution environment may terminate a process that exceeds some
+  limit on the virtual memory size of a process and/or may terminate the
+  process with the largest size when memory is exhausted.  Use of the
+  following parameters allows one to bound, or to eliminate, this probe.
 
   These parameters must be equal across all nodes, and the behavior
   otherwise is undefined.
@@ -293,16 +477,28 @@ $Revision: 1.55 $
     which means to probe the limits imposed by the O/S and HCA.
     Setting to a non-zero value will limit how large the GASNet segment
     can be, and how much memory is available for firehose (see below),
-    but may speed startup by bounding the probe.
+    but may speed startup by bounding the probe.  Note, however that
+    setting only this variable bounds the probe, but does not eliminate it.
+    Also be aware that with multiple processes per shared memory node the
+    value given by this variable will be divided by the number of processes
+    per shared memory node to determine the memory available.
 
   + GASNET_PHYSMEM_NOPROBE
     This gives a boolean: "0" to disable or "1" to enable the use of
-    GASNET_PHYSMEM_MAX without probing.
+    GASNET_PHYSMEM_MAX without probing.  If GASNET_PHYSMEM_MAX is zero
+    or unset, this variable is ignored.
     Enabling this setting may greatly speed startup, but can lead to
     unexpected runtime failures if GASNET_PHYSMEM_MAX exceeds the limits
     imposed by the O/S and HCA.
     If GASNET_PHYSMEM_MAX is zero (or unset) this variable is ignored.
     The default is OFF.
+
+  Protocol configuration:
+  The following environment variables control the selection of protocols
+  for performing certain transfers.
+
+  These parameters must be equal across all nodes, and the behavior
+  otherwise is undefined.
 
   + GASNET_INLINESEND_LIMIT
     VAPI includes an "inline send" operation that transfers the data to
@@ -360,6 +556,36 @@ $Revision: 1.55 $
     The default value is 3KB (the current maximum value).
     A value of zero disables this optimization.
 
+  + GASNET_USE_SRQ
+    This controls whether IBV Shared Receive Queue (SRQ) support is used.
+    This setting is ignored for VAPI, for which GASNet has no SRQ support,
+    and for IBV if GASNet was configured with --disable-ibv-srq.
+    This setting defaults to -1, which means that SRQ will be used only
+    if doing so would reduce memory usage (as determined from the value
+    of the GASNET_RBUF_COUNT setting, described below).
+    If set to a non-negative value, this setting give the minimum GASNet
+    node count at which SRQ will be used, regardless of whether or not
+    the memory usage would increase or decrease.  A value of zero will
+    disable SRQ.  Examples:
+    - GASNET_USE_SRQ unset or explicitly set to -1:
+        SRQ is used ONLY if GASNET_RBUF_COUNT is less than the number
+        of receive buffers required for the non-SRQ case.
+    - GASNET_USE_SRQ <= gasnet_nodes()  [includes GASNET_USE_SRQ == 1]
+        SRQ is used and GASNET_RBUF_COUNT is enforced as a maximum
+    - GASNET_USE_SRQ > gasnet_nodes()
+        SRQ is NOT used and GASNET_RBUF_COUNT is ignored
+    Note that the interpretation of the values 0 and 1 allow one to use
+    this setting as a simple boolean if desired.
+
+  + GASNET_USE_XRC
+    This controls whether IBV eXtended Reliable Connection (XRC) support
+    is used.  This setting is ignored for VAPI, and for IBV if GASNet was
+    was configured with --disable-ibv-xrc.  It is also ignored if SRQ
+    support is not used (regardless of why), or if XRC support was not
+    found at configure time.
+    This setting defaults to 1 if SRQ support was enabled at configure
+    time.  As a result XRC will be used anytime SRQ is used.
+
   Resource usage parameters:
   The following environment variables control how much memory is
   preallocated at startup time to serve various functions.  Because these
@@ -381,7 +607,7 @@ $Revision: 1.55 $
     (for example, when the remote range of a PUT or GET covers more
     than one pinned region, due to GASNET_PIN_MAXSZ, or because an AM
     Long uses separate ops for the payload and header).
-    The default value is 64.
+    The default value is 24.
     Reducing this parameter may limit small message throughput.  If you
     believe your small message throughput is too low, you may try
     increasing this value.
@@ -393,7 +619,7 @@ $Revision: 1.55 $
     is min(GASNET_NETWORKDEPTH_TOTAL, GASNET_NETWORKDEPTH_PP*(N-1)).
     If set to zero, the value is set to the maximum usable value computed
     from GASNET_NETWORKDEPTH_PP and the HCA's reported capabilities.
-    The default value is 0 (compute automatically).
+    The default value is 255.
     Reducing this parameter may limit small message throughput.  If you
     believe your small message throughput is too low, you may try
     increasing this value (or setting it to zero), at a cost in
@@ -406,9 +632,7 @@ $Revision: 1.55 $
     Reply has not yet been processed for AM flow control (described in
     another section of this README).  This is the number of buffers which
     must be preposted to each receive work queue for AM Requests.
-    This value should be less than or equal to GASNET_NETWORKDEPTH_PP,
-    and will be trimmed to GASNET_NETWORKDEPTH_PP if larger.
-    The default value is 32 (128KB*(N-1) allocated for Request buffers).
+    The default value is 12 (48KB*(N-1) allocated for Request buffers).
     Reducing this parameter may limit Active Message throughput.  If you
     believe your Active Message throughput is too low, you may try
     increasing this value.
@@ -421,9 +645,7 @@ $Revision: 1.55 $
     follows each AM Request.
     If set to zero, the value is set to the maximum usable value computed
     from GASNET_AM_CREDITS_PP and the HCA's reported capabilities.
-    The default value is MAX(1024, nodes).
-    This value should be less than or equal to GASNET_NETWORKDEPTH_TOTAL,
-    and will be trimmed to GASNET_NETWORKDEPTH_TOTAL if larger.
+    The default value is MIN(256, nodes*GASNET_AM_CREDITS_PP).
     Reducing this parameter may limit Active Message throughput.  If you
     believe your Active Message throughput is too low, you may try
     increasing this value (or setting it to zero), at a cost in additional
@@ -439,12 +661,28 @@ $Revision: 1.55 $
     to the requester.
     The default value is 1.
     GASNET_AM_CREDITS_SLACK will be silently reduced if needed to
-    ensure deadlock will not occur.
+    ensure deadlock will not occur, and is ignored when SRQ is used.
     Reducing this parameter to zero or setting it too high may
     increase the latency of Active Message traffic.
 
+  + GASNET_RBUF_COUNT
+    If SRQ support is unavailable or disabled, this parameter is ignored.
+    See GASNET_USE_SRQ documentation for details of when SRQ is enabled.
+    When SRQ is enabled this gives the max number of AM receive buffers
+    allocated on each node.  These buffers are needed for reception of
+    AM headers and the payload of mediums, but are not used for RDMA.
+    The actual number of buffers allocated is the lesser of the value of
+    GASNET_RBUF_COUNT or a value computed from the GASNET_AM_* and
+    GASNET_NETWORKDEPTH_* parameters described above.
+    If set to zero, the value is limited only by the HCA's capabilities.
+    The default value is 1024 (up to 4MB for buffers).
+    Reducing this parameter may limit Active Message throughput.  If you
+    believe your Active Message throughput is too low, you may try
+    increasing this value (or setting it to zero), at a cost in additional
+    pinned memory.
+
   + GASNET_BBUF_COUNT
-    This gives the number of pre-pinned buffers allocated on each node.
+    This gives the max number of pre-pinned buffers allocated on each node.
     These buffers are needed for assembly of AM headers and the payload
     of mediums, and for some PUTs (see GASNET_NONBULKPUT_BOUNCE_LIMIT).
     The actual number of buffers allocated is the lesser of the values of
@@ -459,21 +697,6 @@ $Revision: 1.55 $
     If you believe that throughput of these operations is too small, you
     may try increasing this value (or setting it to zero), at a cost in
     additional pinned memory.
-   
-  + GASNET_PIN_MAXSZ
-    This gives the maximum size of a single VAPI pinned region, and must
-    be a power of two.  If the GASNet segment is larger than this size in a
-    GASNET_SEGMENT_FAST configuration, then it will be pinned using multiple
-    regions.  This works around an observed bug in Mellanox HCAs and VAPI
-    drivers in which large regions lead to premature thrashing of the HCA's
-    on board TPT (Translation and Protection Table) cache while pinning
-    the same memory with multiple smaller regions does not.
-    If you see throughput of large messages dropping off sharply with an
-    increase in message size, you may try reducing this value.
-    The suffixes "K", "M" and "G" are interpreted as Kilobytes, Megabytes
-    and Gigabytes respectively.
-    For VAPI the default is 256K.
-    For IBV the default is zero, which means to use the HCA's limits.
    
   AMRDMA configuration:
   The following environment variables control the AM-over-RDMA code in
@@ -564,7 +787,7 @@ $Revision: 1.55 $
     for large PUTs and GETs, with little or no affect on small message
     latency.  It is available only for debugging purposes.
     In a GASNET_SEGMENT_LARGE or GASNET_SEGMENT_EVERYTHING configuration,
-    the GASNet segment is not preregistred and use of firehose is
+    the GASNet segment is not preregistered and use of firehose is
     required.  Thus it is an error to disable firehose in such a
     configuration.
 
@@ -633,7 +856,7 @@ $Revision: 1.55 $
     the value to 16 yielded approximately a 30% bandwidth improvement in an
     RDMA-GET benchmark.
 
-@ Section: Platform-specifc Notes @
+@ Section: Platform-specific Notes @
 
 + Crashes have been seen using QLogic's InfiniPath HCAs with ibv-conduit
   with default parameters.  If you see crashes with a message containing
@@ -828,7 +1051,7 @@ is through gasnetc_exit(), which may be called by the user, by the
 conduit in certain error cases, and by the default signal handler for
 "termination signals".  The second is via a remote exit request,
 passed between nodes to ensure full-job termination from
-non-collective exits.  The third is via an atexit() handler,
+non-collective exits.  The third is via an atexit/on_exit handler,
 registered by gasnetc_init(), used to catch returns from main() and
 user calls to exit().
 
@@ -863,6 +1086,12 @@ be certain that the correct exit code is still generated.
 
 Once the signal handlers are established, _body closes down the
 tracing and stats gathering and flushes stdout and stderr.  Then _body
+calls gasnetc_exit_reduce() to try to perform a collective reduce-to-all
+over the exit codes.  If this completes within a given timeout then we
+know the exit is collective and skip over the master/slave logic
+decribed in the next 2 paragraphs.
+
+If the reduction does not complete within the timeout, then _body next
 calls gasnetc_get_exit_role() to "elect" a master node for the exit.
 This is done with an alarm() timer in force.  The use of an "election"
 with a timeout ensures that we will exit, even if node 0 is wedged.
@@ -890,16 +1119,14 @@ the exit procedure, as described later.  From _body, the slave nodes all
 call gasnetc_exit_slave(), which simply spins until the remote exit request
 has arrived from the master.
 
-Regardless of whether the sending of exit requests and replies completed
-within the timeout, _body proceeds to shutdown the transport and release
-the conduit's resources.  This is, again, protected by an alarm() in case
-we get wedged.  Once the transport resources are released, _body flushes
+Regardless of whether exit coordination (the reduction, or exit requests
+and replies) completed within their timeouts, _body proceeds to flush
 stdout and stderr one last time and closes stdin, stdout and stderr.
-Finally, _body shuts down its bootstrap support.  If the coordination
+Finally, _body shuts down its bootstrap support.  If either coordination
 was completed within the timeout, then the gasnetc_bootstrapFini()
 routine is called indicating that we'll not be making any more calls
-to the bootstrap code and expect to exit shortly.  However, if the
-coordination did timeout we call gasnetc_bootstrapAbort(exitcode).  This
+to the bootstrap code and expect to exit shortly.  However, if both
+coordinations did fail we call gasnetc_bootstrapAbort(exitcode).  This
 call is meant to request that the bootstrap terminate our job "with
 prejudice" since we failed to coordinate a graceful shutdown on our
 own.  We do this to try to avoid orphans, but risk lots of unsightly
@@ -909,8 +1136,8 @@ canceling our alarm timer and return to our caller.
 
 The final common routine is gasnetc_exit_tail().  This function just
 does the last bit of work to terminate the job.  It is not included in
-_body because we let the atexit() case terminate "normally" after
-_body returns.  However, in the case of exits initiated via
+_body because we let the atexit/on_exit() case terminate "normally"
+after _body returns.  However, in the case of exits initiated via
 gasnet_exit() or remote exit request we call _tail to complete the
 exit.  In _tail we set an atomic variable to wake any threads which
 were stuck polling in _body due to being other than the first thread
@@ -924,7 +1151,7 @@ three types of exit are pretty trivial.  In particular, gasnetc_exit()
 just calls _head, _body and _tail with no additional logic.  In the
 request handler for the exit request AM, we look at the return from
 _head to determine if this exit request is the first we've seen
-(inclusive of local calls to gasnet_exit() and our atexit handler).  If
+(inclusive of local calls to gasnet_exit() and our atexit/on_exit handler).  If
 it IS the first exit request, then we raise a SIGQUIT, as required by
 the GASNet spec, to allow the user's handler to perform its cleanup.
 However, to get the most robust exit code we don't want to run the
@@ -956,18 +1183,36 @@ becomes the exit code for the parallel job.  Therefore, using zero
 here gives the specified exit code from the parallel job for both
 collective and non-collective returns from main.
 
-In the best case one node is way ahead of the others and can win the
+If support is detected at configure time for on_exit(), then it is
+used rather than atexit(), and the problem of the missing return code
+vanishes.
+
+In the normal case of a collective exit, the reduce-to-all-with-timeout
+is performed in 3 steps.  The first is an intra-supernode reduction.
+The second is a reduce-to-all over supernodes using the same
+communication pattern as the dissemination barrier, requiring
+ceil(log_2(SN)) rounds in which each supernode sends and receives one
+AM (where "SN" is number of supernodes).  The third step is a
+supernode-scoped broadcast.  For non-PSHM builds, only a dissemination
+based reduce-to-all is performed (steps 1 and 3 are eliminated and
+"supernode" is replace by "node" in the description of step 2).
+
+For the non-collective exits, there is both a "best case" and a
+"worst case" to consider:
+
+Best case: one node is way ahead of the others and can win the
 master election and send remote exit requests before the others attempt
 the election.  In this case the coordinated shutdown needs 1 round-trip
 for the election, followed by (N-1) round-trips for the remote exit
-request/reply, for a total of 2*N AMs sent.
+request/reply, for a total of 2*N AMs sent (not counting those from
+the failed reduction).
 
-In the worst case all nodes attempt the election at roughly the same time
+Worst case: all nodes attempt the election at roughly the same time
 and a full N round-trips take place for the election, followed by (N-1)
 round trips for the remote exit request/reply, for a total of 4*N-2 AMs
-sent.
+sent (plus those from the failed reduction).
 
-The average case is somewhere between these two.
+The average case for non-collective exits is somewhere between those two.
 
 @ Section: References @
 

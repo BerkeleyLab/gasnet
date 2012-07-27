@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/firehose/firehose_page.c,v $
- *     $Date: 2009/04/27 21:37:04 $
- * $Revision: 1.57 $
+ *     $Date: 2012/07/27 03:56:57 $
+ * $Revision: 1.57.16.1 $
  * Description: 
  * Copyright 2004, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -220,13 +220,8 @@ fh_bucket_add(gasnet_node_t node, uintptr_t bucket_addr)
 				FH_BUCKETS_BUFS*fh_buckets_per_alloc);
 
 		buf = (fh_bucket_t *) 
-			gasneti_malloc(fh_buckets_per_alloc*
+			gasneti_calloc(fh_buckets_per_alloc,
 				       sizeof(fh_bucket_t));
-		if (buf == NULL)
-			gasneti_fatalerror("Couldn't allocate buffer "
-			    "of buckets");
-
-		memset(buf, 0, fh_buckets_per_alloc*sizeof(fh_bucket_t));
 
 		fh_buckets_bufs[fh_buckets_bufidx] = buf;
 		fh_buckets_bufidx++;
@@ -673,6 +668,8 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
         for (i = 0; i < num_prepinned; i++) {
 	    end_addr = regions[i].addr + regions[i].len - 1;
 
+	    if (!regions[i].len) continue;
+
 	    FH_FOREACH_BUCKET(regions[i].addr, end_addr, bucket_addr) {
 
 		bd = fh_bucket_add(gasneti_mynode, bucket_addr);
@@ -759,8 +756,7 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
     	gasneti_malloc(sizeof(fh_bucket_t *) * fh_max_regions);
 
     #if FIREHOSE_SMP
-    fh_da = (int *) gasneti_malloc(sizeof(int) * gasneti_nodes);
-    memset(fh_da, 0, sizeof(int)*gasneti_nodes);
+    fh_da = (int *) gasneti_calloc(gasneti_nodes,sizeof(int));
     #endif
 
     return;
@@ -788,11 +784,11 @@ fh_fini_plugin(void)
 {
 	int			i;
 
+	FH_TABLE_ASSERT_LOCKED;
+
 #ifdef DEBUG_BUCKETS
 	if (fh_verbose) {
-	    FH_TABLE_LOCK;
 	    fh_hash_apply(fh_BucketTable, &fh_priv_check_fn, NULL);
-	    FH_TABLE_UNLOCK;
 	}
 #endif
 
@@ -804,6 +800,9 @@ fh_fini_plugin(void)
         }
 
 	fh_hash_destroy(fh_BucketTable);
+
+	gasneti_free(fh_temp_buckets);
+	gasneti_free(fh_temp_bucket_ptrs);
 
 	return;
 }

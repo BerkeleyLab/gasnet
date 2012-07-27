@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_timer.h,v $
- *     $Date: 2010/05/14 22:23:26 $
- * $Revision: 1.97 $
+ *     $Date: 2012/07/27 03:56:11 $
+ * $Revision: 1.97.6.1 $
  * Description: GASNet Timer library (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -163,7 +163,7 @@ GASNETI_BEGIN_EXTERNC
   #define gasneti_ticks_to_ns(st)  (st)
   #define gasneti_ticks_now()      ((gasneti_tick_t)(dclock()*1E9))
 /* ------------------------------------------------------------------------------------ */
-#elif GASNETI_ARCH_ALTIX
+#elif GASNETI_USE_MMTIMER
   /* use IA-PC HPET (High Precision Event Timers) */
   #define GASNETI_HPET_MMAP 1
   #include <sys/ioctl.h>
@@ -306,9 +306,9 @@ GASNETI_BEGIN_EXTERNC
        GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ) && \
      (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || PLATFORM_COMPILER_SUN || \
       PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_PGI || PLATFORM_COMPILER_TINY || \
-      PLATFORM_COMPILER_OPEN64 || PLATFORM_COMPILER_CRAY) && \
+      PLATFORM_COMPILER_OPEN64 || PLATFORM_COMPILER_CRAY || PLATFORM_COMPILER_CLANG) && \
      (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_IA64) && \
-      !GASNETI_ARCH_ALTIX /* bug 1622 */
+      !(PLATFORM_ARCH_IA64 && GASNETI_ARCH_ALTIX) /* bug 1622 */
   #if PLATFORM_ARCH_IA64 && PLATFORM_COMPILER_INTEL
     #include <ia64intrin.h>
   #elif PLATFORM_OS_CATAMOUNT
@@ -428,13 +428,13 @@ GASNETI_BEGIN_EXTERNC
   }
 /* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_ARCH_POWERPC && \
-      ( PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_XLC ) && \
-      ( PLATFORM_OS_LINUX || PLATFORM_OS_BLRTS || PLATFORM_OS_BGP )
+      ( PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_XLC || PLATFORM_COMPILER_CLANG ) && \
+      ( PLATFORM_OS_LINUX || PLATFORM_OS_BLRTS || PLATFORM_OS_BGP || PLATFORM_OS_BGQ)
   /* Use the 64-bit "timebase" register on both 32- and 64-bit PowerPC CPUs */
   #include <sys/types.h>
   #include <dirent.h>
   typedef uint64_t gasneti_tick_t;
- #if PLATFORM_COMPILER_GNU
+ #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_CLANG
   GASNETI_INLINE(gasneti_ticks_now)
   uint64_t gasneti_ticks_now(void) {
     uint64_t ret;
@@ -505,6 +505,9 @@ GASNETI_BEGIN_EXTERNC
      #elif PLATFORM_OS_BGP
       /* don't know how to query this, so hard-code it for now */
       freq = 850000000;
+     #elif PLATFORM_OS_BGQ
+      /* don't know how to query this, so hard-code it for now */
+      freq = 1600000000;
      #else 
       DIR *dp = opendir("/proc/device-tree/cpus");
       struct dirent *de = NULL;
@@ -542,7 +545,7 @@ GASNETI_BEGIN_EXTERNC
         fclose(fp);
       }
      #endif
-      gasneti_assert(freq > 1000000 && freq < 1000000000); /* ensure it looks reasonable (1MHz to 1Ghz) */
+      gasneti_assert(freq > 1000000 && freq < 2000000000); /* ensure it looks reasonable (1MHz to 2Ghz) */
       Tick = 1.0e9 / freq;
       gasneti_sync_writes();
       firstTime = 0;

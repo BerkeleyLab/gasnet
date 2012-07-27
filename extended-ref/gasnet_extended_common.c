@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_common.c,v $
- *     $Date: 2010/04/04 06:57:40 $
- * $Revision: 1.4 $
+ *     $Date: 2012/07/27 03:56:26 $
+ * $Revision: 1.4.8.1 $
  * Description: GASNet Extended API Common code
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -185,6 +185,7 @@ static void gasnete_free_threaddata(gasnete_threaddata_t *thread) {
 extern void gasnete_register_threadcleanup(void (*cleanupfn)(void *), void *context) {
   gasnete_threaddata_t *thread = NULL;
   gasnete_thread_cleanup_t *newcleanup = gasneti_malloc(sizeof(gasnete_thread_cleanup_t));
+  gasneti_leak(newcleanup);
   newcleanup->cleanupfn = cleanupfn;
   newcleanup->context = context;
 
@@ -279,6 +280,7 @@ static gasnete_threaddata_t * gasnete_new_threaddata(void) {
   int idx;
   uint64_t maxthreads = gasneti_max_threads();
   gasneti_assert(maxthreads <= (((uint64_t)1)<<(sizeof(gasnete_threadidx_t)*8)));
+  gasneti_leak(threaddata);
 
   gasneti_mutex_lock(&threadtable_lock);
     #if GASNETI_DYNAMIC_THREADTABLE
@@ -363,6 +365,7 @@ extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, 
     gasneti_memcheck(retval);
   } else {
     retval = (gasnete_valget_op_t*)gasneti_malloc(sizeof(gasnete_valget_op_t));
+    gasneti_leak(retval);
     retval->threadidx = mythread->threadidx;
   }
 
