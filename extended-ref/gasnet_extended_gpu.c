@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/Attic/gasnet_extended_gpu.c,v $
- * $Date: 2011/04/21 19:07:27 $
- * $Revision: 1.1.4.3 $
+ * $Date: 2012/07/29 17:29:58 $
+ * $Revision: 1.1.4.4 $
  *
  * Description: GASNet Extended API Reference Implementation for GPU extensions
  * 
@@ -1115,10 +1115,21 @@ int gasnete_gpu_read_deviceid_map(const char *fn, int *dev_id_map)
     gasneti_fatalerror("Failed to open the gpu device id map file %s\n", fn);
   }
   while (!feof(dev_id_file)) {
-    fscanf(dev_id_file, "%u %d\n", &node_id, &dev_id);
-    gasneti_assert(node_id < gasnet_nodes());
-    dev_id_map[node_id] = dev_id;
-    num_gpus++;
+    if (fscanf(dev_id_file, "%u %d", &node_id, &dev_id) == 2) {
+      if (node_id < gasnet_nodes()) {
+        gasneti_assert_always(node_id < gasnet_nodes());
+        if (dev_id > 7) {
+          fprintf(stderr, "Warning: node %u has a local device id %u that seems to be too large!\n", 
+                  node_id, dev_id);
+        }
+        if (dev_id_map[node_id] != -1) {
+          fprintf(stderr, "Warning: node %u's local device id is overwritten, old %u, new %u.\n",
+                  node_id, dev_id_map[node_id], dev_id);
+        }
+        dev_id_map[node_id] = dev_id;
+        num_gpus++;
+      }
+    }
   }
   fclose(dev_id_file);
 
