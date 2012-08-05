@@ -1,8 +1,8 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2012/01/09 22:00:57 $
- * $Revision: 1.47 $
+ *     $Date: 2012/08/05 00:41:12 $
+ * $Revision: 1.47.6.1 $
  * Description: GASNet infrastructure for shared memory communications
- * Copyright 2009, E. O. Lawrence Berekely National Laboratory
+ * Copyright 2012, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
  */
 
@@ -19,80 +19,18 @@
   #error "GASNet PSHM support requires Native atomics"
 #endif
 
-/* max # of incoming requests per node, per supernode peer */
-#define GASNETI_PSHMNET_DEFAULT_QUEUE_DEPTH 8
-#define GASNETI_PSHMNET_MAX_QUEUE_DEPTH 1024
-#define GASNETI_PSHMNET_MIN_QUEUE_DEPTH 2
-
 /* payload memory available for outstanding requests, per node
  * default will be silently raised as needed for large node count */
 #define GASNETI_PSHMNET_DEFAULT_QUEUE_MEMORY (1<<20)
-#define GASNETI_PSHMNET_MAX_QUEUE_MEMORY (1<<28) 
+#define GASNETI_PSHMNET_MAX_QUEUE_MEMORY MIN((1<<28),GASNETI_ATOMIC_MAX)
 
 /* Global vars */
 gasneti_pshmnet_t *gasneti_request_pshmnet = NULL;
 gasneti_pshmnet_t *gasneti_reply_pshmnet = NULL;
  
-#ifndef GASNET_PSHM_FULLEMPTY
-#define GASNET_PSHM_FULLEMPTY 1
-#endif
-#ifndef GASNET_PSHM_FULLEMPTY_USE_SUB
-#define GASNET_PSHM_FULLEMPTY_USE_SUB 1
-#endif
-#ifndef GASNET_PSHM_FULLEMPTY_USE_DEC
-#define GASNET_PSHM_FULLEMPTY_USE_DEC 1
-#endif
-#if GASNET_PSHM_FULLEMPTY
-  typedef struct {
-    gasneti_atomic_t value; /* Might be a boolean or counter */
-    char _pad[GASNETI_CACHE_PAD(sizeof(gasneti_atomic_t))];
-  } gasneti_pshmnet_fullempty_t;
-  #define _GASNETI_PSHMNET_FE(vnet,node)	(&((vnet)->fullempty[(node)].value))
-  #define GASNETI_PSHMNET_FE_READ(vnet,node) \
-		gasneti_atomic_read(_GASNETI_PSHMNET_FE((vnet),(node)), 0)
-  #define GASNETI_PSHMNET_FE_INIT(vnet,node) \
-		gasneti_atomic_set(_GASNETI_PSHMNET_FE((vnet),(node)), 0, 0)
-  #if defined(GASNETI_HAVE_ATOMIC_ADD_SUB) && GASNET_PSHM_FULLEMPTY_USE_SUB
-    /* inc/sub of counter 'value' */
-    #define GASNETI_PSHMNET_FE_INC(vnet,node) \
-		gasneti_atomic_increment(_GASNETI_PSHMNET_FE((vnet),(node)), 0)
-    #define GASNETI_PSHMNET_FE_DEC(vnet,node)		((void)0)
-    #define GASNETI_PSHMNET_FE_SUB(vnet,node,val)	\
-	do { \
-		int _val = (val); \
-		if (_val) gasneti_atomic_subtract(_GASNETI_PSHMNET_FE((vnet),(node)), (_val), 0); \
-	} while (0)
-    #define GASNETI_PSHMNET_FE_ACK(vnet,node)		((void)0)
-  #elif GASNET_PSHM_FULLEMPTY_USE_DEC
-    /* inc/dec of counter 'value' */
-    #define GASNETI_PSHMNET_FE_INC(vnet,node) \
-		gasneti_atomic_increment(_GASNETI_PSHMNET_FE((vnet),(node)), 0)
-    #define GASNETI_PSHMNET_FE_DEC(vnet,node) \
-		gasneti_atomic_decrement(_GASNETI_PSHMNET_FE((vnet),(node)), 0)
-    #define GASNETI_PSHMNET_FE_SUB(vnet,node,val)	((void)0)
-    #define GASNETI_PSHMNET_FE_ACK(vnet,node)		((void)0)
-  #else
-    /* set/clear of boolean 'value' */
-    #define GASNETI_PSHMNET_FE_INC(vnet,node) \
-		gasneti_atomic_set(_GASNETI_PSHMNET_FE((vnet),(node)), 1, 0)
-    #define GASNETI_PSHMNET_FE_DEC(vnet,node)		((void)0)
-    #define GASNETI_PSHMNET_FE_SUB(vnet,node,val)	((void)0)
-    #define GASNETI_PSHMNET_FE_ACK(vnet,node) \
-		gasneti_atomic_set(_GASNETI_PSHMNET_FE((vnet),(node)), 0, 0)
-  #endif
-#else
-  #define GASNETI_PSHMNET_FE_READ(vnet,node)	1
-  #define GASNETI_PSHMNET_FE_INIT(vnet,node)	((void)0)
-  #define GASNETI_PSHMNET_FE_INC(vnet,node)	((void)0)
-  #define GASNETI_PSHMNET_FE_DEC(vnet,node)	((void)0)
-  #define GASNETI_PSHMNET_FE_SUB(vnet,node,val)	((void)0)
-  #define GASNETI_PSHMNET_FE_ACK(vnet,node)	((void)0)
-#endif
-
 /* Structure for PSHM intra-supernode barrier */
 gasneti_pshm_barrier_t *gasneti_pshm_barrier = NULL; /* lives in shared space */
 
-static int gasneti_pshmnet_queue_depth = 0;
 static uintptr_t gasneti_pshmnet_queue_mem = 0;
 
 static void *gasnetc_pshmnet_region = NULL;
@@ -396,116 +334,93 @@ typedef union {
   gasneti_AMPSHM_longmsg_t  Long;
 } gasneti_AMPSHM_maxmsg_t;
 
-/* Values for gasneti_pshmnet_msg_t.state */
-enum {
-  GASNETI_PSHMNET_EMPTY = 0,
-  GASNETI_PSHMNET_FULL,
-  GASNETI_PSHMNET_BUSY
-};
-
-/* state of message queue entry */
+/* atomic operations on queue tail */
 #if defined(GASNETI_HAVE_ATOMIC_CAS)
-  typedef gasneti_atomic_t gasneti_pshmnet_msg_state_t;
-  #define gasneti_pshmnet_state_init(_s)\
-	          gasneti_atomic_set((_s), GASNETI_PSHMNET_EMPTY, 0)
-  #define gasneti_pshmnet_state_set(_s,_v,_f)\
-                  gasneti_atomic_set((_s),(_v),(_f))
-  #define gasneti_pshmnet_state_swap(_s,_o,_n,_f)\
-                  gasneti_atomic_compare_and_swap((_s),(_o),(_n),(_f))
-  #define gasneti_pshmnet_state_read(_s)\
-                  gasneti_atomic_read((_s),0)
+  typedef gasneti_atomic_t gasneti_pshmnet_tail_t;
+  #define gasneti_pshmnet_tail_init(_t)\
+                  gasneti_atomic_set((_t),0,0)
+  #define gasneti_pshmnet_tail_cas(_t,_o,_n)\
+                  gasneti_atomic_compare_and_swap((_t),(_o),(_n),0)
+  GASNETI_INLINE(gasneti_pshmnet_tail_swap)
+  gasneti_atomic_val_t gasneti_pshmnet_tail_swap(gasneti_atomic_t *t, gasneti_atomic_val_t val) {
+    gasneti_atomic_val_t old_val;
+    gasneti_local_wmb();
+    do {
+      old_val = gasneti_atomic_read(t, 0);
+    } while (!gasneti_atomic_compare_and_swap(t, old_val, val, 0));
+    return old_val;
+  }
 #elif defined(GASNETI_HAVE_ATOMIC_ADD_SUB)
-  typedef struct gasneti_pshmnet_msg_state_ {
+  typedef struct {
     gasneti_atomic_t last_ticket;
     gasneti_atomic_t curr_ticket;
-    int value;
-  } gasneti_pshmnet_msg_state_t;
+    gasneti_atomic_val_t value;
+  } gasneti_pshmnet_tail_t;
 
-  GASNETI_INLINE(gasneti_pshmnet_state_init)
-  void gasneti_pshmnet_state_init(gasneti_pshmnet_msg_state_t *s) {
-    s->value = GASNETI_PSHMNET_EMPTY;
-    gasneti_atomic_set(&s->last_ticket, 0, 0);
-    gasneti_atomic_set(&s->curr_ticket, 1, 0);
+  GASNETI_INLINE(gasneti_pshmnet_tail_init)
+  void gasneti_pshmnet_tail_init(gasneti_pshmnet_tail_t *t) {
+    t->value = 0;
+    gasneti_atomic_set(&t->last_ticket, 0, 0);
+    gasneti_atomic_set(&t->curr_ticket, 1, 0);
   }
-  GASNETI_INLINE(gasneti_pshmnet_state_lock)
-  void gasneti_pshmnet_state_lock(gasneti_pshmnet_msg_state_t *s) {
-    const gasneti_atomic_val_t my_ticket = gasneti_atomic_add(&s->last_ticket, 1, 0);
-    gasneti_waituntil(my_ticket == gasneti_atomic_read(&s->curr_ticket, 0)); /* includes RMB */
+  GASNETI_INLINE(gasneti_pshmnet_tail_lock)
+  gasneti_atomic_val_t gasneti_pshmnet_tail_lock(gasneti_pshmnet_tail_t *t) {
+    const gasneti_atomic_val_t my_ticket = gasneti_atomic_add(&t->last_ticket, 1, 0);
+    gasneti_waituntil(my_ticket == gasneti_atomic_read(&t->curr_ticket, 0)); /* includes RMB */
+    return my_ticket;
   }
-  GASNETI_INLINE(gasneti_pshmnet_state_unlock)
-  void gasneti_pshmnet_state_unlock(gasneti_pshmnet_msg_state_t *s) {
-    gasneti_atomic_increment(&s->curr_ticket, GASNETI_ATOMIC_REL);
+  GASNETI_INLINE(gasneti_pshmnet_tail_unlock)
+  void gasneti_pshmnet_tail_unlock(gasneti_pshmnet_tail_t *t, gasneti_atomic_val_t my_ticket) {
+    gasneti_atomic_set(&t->curr_ticket, my_ticket+1, GASNETI_ATOMIC_REL);
   }
-  GASNETI_INLINE(gasneti_pshmnet_state_set)
-  void gasneti_pshmnet_state_set(gasneti_pshmnet_msg_state_t *s, int value, int fence) {
-    /* ignore "fence" since lock+unlock is an unconditional full MB */
-    gasneti_pshmnet_state_lock(s);
-    s->value = value;
-    gasneti_pshmnet_state_unlock(s);
-  }
-  GASNETI_INLINE(gasneti_pshmnet_state_swap)
-  int gasneti_pshmnet_state_swap(gasneti_pshmnet_msg_state_t *s, int oldval, int newval, int fence) {
-    /* ignore "fence" since lock+unlock is an unconditional full MB */
+  GASNETI_INLINE(gasneti_pshmnet_tail_cas)
+  int gasneti_pshmnet_tail_cas(gasneti_pshmnet_tail_t *t, gasneti_atomic_val_t oldval, gasneti_atomic_val_t newval) {
+    gasneti_atomic_val_t my_ticket = gasneti_pshmnet_tail_lock(t);
     int result;
-    gasneti_pshmnet_state_lock(s);
-    if_pt (result = (s->value == oldval))
-      s->value = newval;
-    gasneti_pshmnet_state_unlock(s);
+      if_pt (result = (t->value == oldval))
+        t->value = newval;
+    gasneti_pshmnet_tail_unlock(t, my_ticket);
     return result;
   }
-  #define gasneti_pshmnet_state_read(_s)\
-                  ((_s)->value)
+  GASNETI_INLINE(gasneti_pshmnet_tail_swap)
+  gasneti_atomic_val_t gasneti_pshmnet_tail_swap(gasneti_pshmnet_tail_t *t, gasneti_atomic_val_t newval) {
+    gasneti_atomic_val_t my_ticket = gasneti_pshmnet_tail_lock(t);
+    gasneti_atomic_val_t result;
+      result = t->value;
+      t->value = newval;
+    gasneti_pshmnet_tail_unlock(t, my_ticket);
+    return result;
+  }
 #else
   #error "Platform is missing both atomic ADD and atomic CAS"
 #endif
 
-/* data about an incoming message */
-typedef struct gasneti_pshmnet_msg {
-  void * addr;
-  size_t len;
-  unsigned int next_idx;
-  gasneti_pshmnet_msg_state_t state;
-  /* Paul informs me that padding with GASNETI_CACHE_PAD ensures the struct
-   * is sizeof(cache_line), but not that it's aligned on a single cache line.
-   * But we enforce cache line alignment, so we're OK */
-  #if 1
-    char _pad[GASNETI_CACHE_PAD(sizeof(void *)
-                               +sizeof(size_t)
-                               +sizeof(int)
-                               +sizeof(gasneti_pshmnet_msg_state_t))];
-  #else
-   /* Alternative: pad out the struct to two cache lines, to ensure we'll have
-    * no spurious cache line conflicts.  Many vapi structs use this too. */
-    char _pad[GASNETI_CACHE_LINE_BYTES];
-  #endif
-} gasneti_pshmnet_msg_t;
-
-/* Used in place of NULL, since zero-offset is legal */
-#define GASNETI_PSHMNET_MSG_NULL ((gasneti_pshmnet_msg_t *)(~(uintptr_t)0))
-
-/* Circular queue of info about messages received or sent */
+/* queue of descriptors for messages received */
 typedef struct gasneti_pshmnet_queue {
-  /* Only need to lock queue ptr if client multithreaded */
+#if GASNET_PAR
   gasneti_mutex_t lock;
-  gasneti_pshmnet_msg_t *next;
-  gasneti_pshmnet_msg_t *queue;
-  #if 1
-    /* See above comment about cache alignment.  Not that we might not
-     * get perfect cache line alignment, since internal padding might
-     * cause us to add too much (but never too little) padding here */
-    char _pad[GASNETI_CACHE_PAD(sizeof(void *)*2
-                               +sizeof(gasneti_mutex_t))];
-  #else
-    char _pad[GASNETI_CACHE_LINE_BYTES];
-  #endif
+#endif
+  gasneti_pshmnet_tail_t tail;
+  volatile gasneti_atomic_val_t head;
+#if GASNET_PAR
+  char _pad[GASNETI_CACHE_PAD(sizeof(gasneti_mutex_t)
+                            + sizeof(gasneti_pshmnet_tail_t)
+                            + sizeof(gasneti_atomic_val_t))];
+#else
+  /* TODO: pad exactly, even when struct contains padding */
+  char _pad[GASNETI_CACHE_PAD(sizeof(gasneti_pshmnet_tail_t)
+                            + sizeof(gasneti_atomic_val_t))];
+#endif
 } gasneti_pshmnet_queue_t;
 
 struct gasneti_pshmnet_allocator;  /* forward definition */
 
 /* message payload metadata */
 typedef struct gasneti_pshmnet_payload {
-  gasneti_pshmnet_msg_t *msg;
+  volatile gasneti_atomic_val_t next;
   struct gasneti_pshmnet_allocator *allocator;
+  gasneti_pshm_rank_t from;
+  size_t len;
   gasneti_AMPSHM_maxmsg_t data;
 } gasneti_pshmnet_payload_t;
 
@@ -523,6 +438,7 @@ typedef struct gasneti_pshmnet_payload {
  *    2) A gasneti_pshmnet_payload_t, used by pshmnet
  *
  * Allocator returns #2 to the caller
+ * NOTE: placement of #1 ensures no reference to offset==0 is ever used
  */ 
 
 typedef struct {
@@ -563,57 +479,37 @@ typedef struct gasneti_pshmnet_allocator {
  * - returns NULL if no memory available
  */
 static gasneti_pshmnet_allocator_t *gasneti_pshmnet_init_allocator(void *region, size_t len);
-static void * gasneti_pshmnet_alloc(gasneti_pshmnet_allocator_t *a, size_t nbytes);
+static gasneti_pshmnet_payload_t * gasneti_pshmnet_alloc(gasneti_pshmnet_allocator_t *a, size_t nbytes);
 /* Frees memory.  Note that this must be callable by a different node */
-static void gasneti_pshmnet_free(gasneti_pshmnet_allocator_t *a, void *p);
+static void gasneti_pshmnet_free(gasneti_pshmnet_payload_t *p);
 
 /******************************************************************************
  * </Payload memory allocator interface>
  ******************************************************************************/
 
 /* Per node view of 'network' of queues in supernode 
- * - Note that this struct itself is not stored in shared memory. 
+ * This struct is stored in private memory. 
  */
 struct gasneti_pshmnet {
-  gasneti_pshm_rank_t nodecount;    /* nodes in supernode */ 
-  gasneti_weakatomic_t nextindex;   /* index of next node to check for msgs */
-  /* arrays of queue pointers and their locks */
-  gasneti_pshmnet_queue_t *in_queues;
-  gasneti_pshmnet_queue_t *out_queues;
+  gasneti_pshm_rank_t nodecount;    /* nodes in supernode */
+  gasneti_pshmnet_queue_t *queues;  /* array of queue heads */
+  gasneti_pshmnet_queue_t *my_queue;
   /* only need to see one's own allocator */
   gasneti_pshmnet_allocator_t *my_allocator;
-#if GASNET_PSHM_FULLEMPTY
-  /* array of full/empty bits */
-  gasneti_pshmnet_fullempty_t *fullempty;
-#endif
 };
 
 #define gasneti_assert_align(p, align) \
         gasneti_assert((((uintptr_t)p) % align) == 0)
 
 /* Macros for determining the offset and the real address, used for
- * the addresses inside the sysnet region */
+ * the addresses inside the pshmnet region */
 #define gasneti_pshm_offset(addr) \
-                (void *)((uintptr_t)(addr) - (uintptr_t)gasnetc_pshmnet_region)
+               (gasneti_assert(addr != gasnetc_pshmnet_region), \
+                (gasneti_atomic_val_t)((uintptr_t)(addr) - (uintptr_t)gasnetc_pshmnet_region))
+#define gasneti_pshm_addr(offset) \
+               (gasneti_assert(offset), \
+                (void *)((uintptr_t)(offset) + (uintptr_t)gasnetc_pshmnet_region))
 
-#define gasneti_pshm_addr(addr) \
-                (void *)((uintptr_t)(addr) + (uintptr_t)gasnetc_pshmnet_region)
-
-
-static int get_queue_depth(gasneti_pshm_rank_t nodes) 
-{
-  int val = gasneti_getenv_int_withdefault("GASNET_PSHMNET_QUEUE_DEPTH", GASNETI_PSHMNET_DEFAULT_QUEUE_DEPTH, 0);
-  if (val > GASNETI_PSHMNET_MAX_QUEUE_DEPTH) {
-    fprintf(stderr, "GASNET_PSHMNET_QUEUE_DEPTH (%d) larger than max: using %d\n",
-            val, GASNETI_PSHMNET_MAX_QUEUE_DEPTH);
-    val = GASNETI_PSHMNET_MAX_QUEUE_DEPTH;
-  } else if (val < GASNETI_PSHMNET_MIN_QUEUE_DEPTH) {
-    fprintf(stderr, "GASNET_PSHMNET_QUEUE_DEPTH (%d) smaller than min: using %d\n",
-            val, GASNETI_PSHMNET_MIN_QUEUE_DEPTH);
-    val = GASNETI_PSHMNET_MIN_QUEUE_DEPTH;
-  }
-  return val;
-}
 
 static uintptr_t get_queue_mem(int nodes) 
 {
@@ -640,59 +536,24 @@ static uintptr_t get_queue_mem(int nodes)
 
 static size_t gasneti_pshmnet_memory_needed_pernode(gasneti_pshm_rank_t nodes)
 {
-  size_t size = 0;
-
-  /* Message info */
-  if_pf (!gasneti_pshmnet_queue_depth) {
-    gasneti_pshmnet_queue_depth = get_queue_depth(nodes);
-  }
-  size += sizeof(gasneti_pshmnet_msg_t)*gasneti_pshmnet_queue_depth*(nodes-1);
-  size = round_up_to_pshmpage(size);
-
-  /* Message payloads */
+  /* Space for the message payloads */
   if_pf (!gasneti_pshmnet_queue_mem) {
     gasneti_pshmnet_queue_mem = get_queue_mem(nodes);
   }
-  size += gasneti_pshmnet_queue_mem;  
-  size = round_up_to_pshmpage(size);
+  return round_up_to_pshmpage(gasneti_pshmnet_queue_mem);
+}
 
-  return size;
+static size_t gasneti_pshmnet_memory_needed_once(gasneti_pshm_rank_t nodes)
+{
+  /* Space for the queue headers */
+  return round_up_to_pshmpage(nodes * sizeof(gasneti_pshmnet_queue_t));
 }
 
 size_t gasneti_pshmnet_memory_needed(gasneti_pshm_rank_t nodes)
 {
   size_t pernode = gasneti_pshmnet_memory_needed_pernode(nodes);
-  size_t once = 0;
-#if GASNET_PSHM_FULLEMPTY
-  once = round_up_to_pshmpage(nodes * sizeof(gasneti_pshmnet_fullempty_t));
-#endif
+  size_t once = gasneti_pshmnet_memory_needed_once(nodes);
   return once + nodes * pernode;
-}
-
-static void gasneti_pshmnet_init_my_pshm(gasneti_pshmnet_t *pvnet, void *myregion, 
-                                         gasneti_pshm_rank_t nodes)
-{
-  int i, j;
-  gasneti_pshmnet_msg_t   *mymsgs;
-  void *alloc_region;
-  gasneti_assert_align(myregion, GASNETI_PSHMNET_PAGESIZE);
-
-  /* NOTE: other init code relies on msgs being at start of region */
-  mymsgs = (gasneti_pshmnet_msg_t *)myregion;
-  for (i = 0; i < nodes; i++) {
-    if (i != gasneti_pshm_mynode) {
-      for (j = 0; j < gasneti_pshmnet_queue_depth; j++) {
-        gasneti_pshmnet_state_init(&mymsgs[j].state);
-        mymsgs[j].next_idx = (j+1) % gasneti_pshmnet_queue_depth;
-      }
-      mymsgs += gasneti_pshmnet_queue_depth;
-    }
-  }
-
-  alloc_region = (void*) round_up_to_pshmpage(mymsgs);
-  pvnet->my_allocator = 
-    gasneti_pshmnet_init_allocator(alloc_region, gasneti_pshmnet_queue_mem);
-  gasneti_weakatomic_set(&pvnet->nextindex, 0, 0);
 }
 
 /* Initializes the pshmnet region. Called from each node twice: 
@@ -701,9 +562,7 @@ gasneti_pshmnet_t *
 gasneti_pshmnet_init(void *start, size_t nbytes, gasneti_pshm_rank_t pshmnodes)
 {
   gasneti_pshmnet_t *vnet;
-  gasneti_pshm_rank_t i;
-  size_t szpernode, regionlen;
-  size_t szonce = 0;
+  size_t szonce, szpernode, regionlen;
   void *region, *myregion;
 
   /* make sure that our max buffer size fits all possible AMs */
@@ -712,82 +571,40 @@ gasneti_pshmnet_init(void *start, size_t nbytes, gasneti_pshm_rank_t pshmnodes)
   region = start;
   region = (void *)round_up_to_pshmpage(region);
 
-  regionlen = nbytes - ( ((uintptr_t)region)-((uintptr_t)start));
   szpernode = gasneti_pshmnet_memory_needed_pernode(pshmnodes);
-#if GASNET_PSHM_FULLEMPTY
-  szonce = sizeof(gasneti_pshmnet_fullempty_t);
-#endif
-  if (regionlen < (szpernode + szonce) * pshmnodes) 
+  szonce = gasneti_pshmnet_memory_needed_once(pshmnodes);
+
+  regionlen = nbytes - ( ((uintptr_t)region)-((uintptr_t)start));
+  if (regionlen < (szonce + szpernode * pshmnodes))
     gasneti_fatalerror("Internal error: not enough memory for pshmnet: \n"
                        " given %lu effective bytes, but need %lu", 
-                       (unsigned long)regionlen, (unsigned long)((szpernode + szonce) * pshmnodes));
+                       (unsigned long)regionlen, (unsigned long)(szonce + szpernode * pshmnodes));
+
   vnet = gasneti_malloc(sizeof(gasneti_pshmnet_t));
   vnet->nodecount = pshmnodes;
-  myregion = (void *)( ((uintptr_t)region) + (szpernode*gasneti_pshm_mynode));
-  /* collective call, so each process inits its own region.
-   * To allow non-fixed mapping of the pshmnet memory, we initialize
-   * each reqion using the offset-addresses */
-  gasneti_pshmnet_init_my_pshm(vnet, myregion, pshmnodes);
 
-#if GASNET_PSHM_FULLEMPTY
-  /* initialize the full/empty bits array */
-  vnet->fullempty = (gasneti_pshmnet_fullempty_t *)(((uintptr_t)region) + (szpernode*pshmnodes));
-  GASNETI_PSHMNET_FE_INIT(vnet,gasneti_pshm_mynode);
+  /* initialize my own allocator */
+  myregion = (void *)((uintptr_t)region + (szpernode * gasneti_pshm_mynode));
+  gasneti_assert_align(myregion, GASNETI_PSHMNET_PAGESIZE);
+  vnet->my_allocator = gasneti_pshmnet_init_allocator(myregion, gasneti_pshmnet_queue_mem);
+
+  /* initialize my own queue header */
+  vnet->queues = (gasneti_pshmnet_queue_t*)((uintptr_t)region + szpernode * pshmnodes);
+  gasneti_assert_align(vnet->queues, GASNETI_PSHMNET_PAGESIZE);
+  vnet->my_queue = &vnet->queues[gasneti_pshm_mynode];
+#if GASNET_PAR
+  gasneti_mutex_init(&vnet->my_queue->lock);
 #endif
-
-  /* initialize queue pointers */
-  vnet->in_queues = gasneti_malloc(2*sizeof(gasneti_pshmnet_queue_t)*pshmnodes);
-  vnet->out_queues =  vnet->in_queues + pshmnodes;
-  for (i = 0; i < pshmnodes; i++) {
-    if (i == gasneti_pshm_mynode) {
-#if GASNET_DEBUG
-      memset(&vnet->in_queues[i], 0xff, sizeof(gasneti_pshmnet_queue_t));
-      memset(&vnet->out_queues[i], 0xff, sizeof(gasneti_pshmnet_queue_t));
-#endif
-    } else {
-      /* Locations of message queue regions */
-      gasneti_pshmnet_msg_t *in_msgs = (gasneti_pshmnet_msg_t *)myregion;
-      gasneti_pshmnet_msg_t *out_msgs = (gasneti_pshmnet_msg_t *)((uintptr_t)region + (szpernode*i));
-      /* Addresses of proper portions of queue regions */
-      const int more = (i > gasneti_pshm_mynode);
-      gasneti_pshmnet_msg_t *in_queue = in_msgs + gasneti_pshmnet_queue_depth * (i - more);
-      gasneti_pshmnet_msg_t *out_queue = out_msgs + gasneti_pshmnet_queue_depth * (gasneti_pshm_mynode - !more);
-
-      gasneti_mutex_init(&vnet->in_queues[i].lock);
-      vnet->in_queues[i].next = vnet->in_queues[i].queue = in_queue;
-
-      gasneti_mutex_init(&vnet->out_queues[i].lock);
-      vnet->out_queues[i].next = vnet->out_queues[i].queue = out_queue;
-    }
-  }
+  vnet->my_queue->head = 0;
+  gasneti_pshmnet_tail_init(&vnet->my_queue->tail);
 
   gasneti_leak(vnet);
-  gasneti_leak(vnet->in_queues);
-
   return vnet;
 }
 
-/* Return the next message if it is in the desired state, otherwise NULL.
-   Atomically changes state of the acquired message to BUSY */
-GASNETI_INLINE(gasneti_pshmnet_next_msg)
-gasneti_pshmnet_msg_t *gasneti_pshmnet_next_msg(gasneti_pshmnet_queue_t * const q, int state, int fence)
-{
-  gasneti_pshmnet_msg_t *msg;
-
-  gasneti_mutex_lock(&q->lock);
-  msg = q->next;
-  if (gasneti_pshmnet_state_swap(&msg->state, state, GASNETI_PSHMNET_BUSY, fence)) {
-    q->next = q->queue + msg->next_idx;
-  } else {
-    msg = NULL;
-  }
-  gasneti_mutex_unlock(&q->lock);
-
-  return msg;
-}
 
 void * gasneti_pshmnet_get_send_buffer(gasneti_pshmnet_t *vnet, size_t nbytes, 
-                                       gasneti_pshm_rank_t target)
+                                       gasneti_pshm_rank_t target /* currently unused */)
 {
   gasneti_pshmnet_payload_t *p;
   void *retval = NULL;
@@ -796,7 +613,8 @@ void * gasneti_pshmnet_get_send_buffer(gasneti_pshmnet_t *vnet, size_t nbytes,
 
   p = gasneti_pshmnet_alloc(vnet->my_allocator, nbytes);
   if (p != NULL) {
-    p->msg = GASNETI_PSHMNET_MSG_NULL;
+    p->next = 0;
+    p->from = gasneti_pshm_mynode;
     p->allocator = vnet->my_allocator;
     retval = &p->data;
   }
@@ -804,91 +622,59 @@ void * gasneti_pshmnet_get_send_buffer(gasneti_pshmnet_t *vnet, size_t nbytes,
   return retval;
 }
 
-
-int gasneti_pshmnet_deliver_send_buffer(gasneti_pshmnet_t *vnet, void *buf, 
-                                        size_t nbytes, gasneti_pshm_rank_t target)
+void gasneti_pshmnet_deliver_send_buffer(gasneti_pshmnet_t *vnet, void *buf, 
+                                         size_t nbytes, gasneti_pshm_rank_t target)
 {
-  int retval = -1;
-  gasneti_pshmnet_msg_t *q_send_next;
-  gasneti_pshmnet_payload_t *p;
-  gasneti_pshmnet_queue_t *q = &vnet->out_queues[target];
+  gasneti_pshmnet_payload_t *p =
+          pshmnet_get_struct_addr_from_field_addr(gasneti_pshmnet_payload_t, data, buf);
+  gasneti_pshmnet_queue_t *q = &vnet->queues[target];
+  gasneti_atomic_val_t my_offset = gasneti_pshm_offset(p);
+  gasneti_atomic_val_t prev_offset;
 
-   /* This code assumes that if the current 'send_node' isn't free yet, there
-   * are no free slots in the recipient's queue.  Since there is only one
-   * sender, one receiver, and the receiver consumes messages in order, this
-   * should be true, so no scan over the list is needed. */
-  q_send_next = gasneti_pshmnet_next_msg(q, GASNETI_PSHMNET_EMPTY, 0);
-  if (q_send_next) {
-    /* fill in message info. Instead of buf we use offset since it
-     * will be read by another node wich does not have identical pshmnet
-     * memory mapping */
-    q_send_next->addr = gasneti_pshm_offset(buf);
-    q_send_next->len = nbytes;
-    /* set pointer to msg in buffer */
-    p = pshmnet_get_struct_addr_from_field_addr(gasneti_pshmnet_payload_t, data, buf);
-    gasneti_assert(buf == &p->data);
-    p->msg = gasneti_pshm_offset(q_send_next);
-    /* Perform write flush before writing ready bit */
-    gasneti_pshmnet_state_set(&q_send_next->state, GASNETI_PSHMNET_FULL, GASNETI_ATOMIC_REL);
-    retval = 0;
+  p->len = nbytes;
+  prev_offset = gasneti_pshmnet_tail_swap(&q->tail, my_offset);
+  if (prev_offset) {
+    gasneti_pshmnet_payload_t *prev = gasneti_pshm_addr(prev_offset);
+    prev->next = my_offset;
+  } else {
+    q->head = my_offset;
   }
-
-  return retval;
 }
 
 
 int gasneti_pshmnet_recv(gasneti_pshmnet_t *vnet, void **pbuf, size_t *psize, 
-                         gasneti_pshm_rank_t *from)
+                         gasneti_pshm_rank_t *pfrom)
 {
-  const int nodecount = vnet->nodecount;
-  int i;
-   
-  for (i = 0; i < nodecount; i++) {
-    /* Ensure fairness: next check starts with next node: */
-#if !defined(GASNETI_THREADS)
-    int nodeindex = gasneti_weakatomic_read(&vnet->nextindex, 0);
-    int tmp = nodeindex + 1;
-    if (tmp == nodecount) tmp = 0;
-    gasneti_weakatomic_set(&vnet->nextindex, tmp, 0);
-#elif defined(GASNETI_HAVE_ATOMIC_CAS)
-    /* 
-       There can be a multithread race here.  However, it is harmless
-       because the worst that happens is that multiple threads will
-       concurrently poll the same node.  Even then the 'nextindex' will
-       still advance eventually.
-     */
-    int nodeindex = gasneti_weakatomic_read(&vnet->nextindex, 0);
-    int tmp = nodeindex + 1;
-    if (tmp == nodecount) tmp = 0;
-    (void)gasneti_weakatomic_compare_and_swap(&vnet->nextindex, nodeindex, tmp, 0);
-#elif defined(GASNETI_HAVE_ATOMIC_ADD_SUB)
-    /*
-       Here we assume that avoiding branches and atomics is worth the cost of
-       the '%=' operation, but sacrifice 'continuity' when the counter wraps.
-     */
-    int nodeindex = gasneti_weakatomic_add(&vnet->nextindex, 1, 0);
-    nodeindex %= nodecount;
-#else
-  #error "Platform is missing both atomic ADD and atomic CAS"
-#endif
- 
-    if (nodeindex != gasneti_pshm_mynode) {
-      gasneti_pshmnet_queue_t * const q = &vnet->in_queues[nodeindex];
-      gasneti_pshmnet_msg_t *q_recv_next;
-      
-      q_recv_next = gasneti_pshmnet_next_msg(q, GASNETI_PSHMNET_FULL, GASNETI_ATOMIC_ACQ_IF_TRUE);
-      if (q_recv_next) {
-        /* Transform the offset in q_recv_next->addr into a real address */
-        *pbuf = gasneti_pshm_addr(q_recv_next->addr);
-        *psize = q_recv_next->len;
+  gasneti_atomic_val_t head, next;
+  gasneti_pshmnet_payload_t *p = NULL;
+  gasneti_pshmnet_queue_t *q = vnet->my_queue;
 
-        *from = nodeindex;
-        return 0;
+#if GASNET_PAR
+  if (q->head) {
+    gasneti_mutex_lock(&q->lock);
+#endif
+    head = q->head;
+    if_pt (head) {
+      p = gasneti_pshm_addr(head);
+      next = p->next;
+      q->head = next;
+      if (!next && !gasneti_pshmnet_tail_cas(&q->tail, head, 0)) {
+        gasneti_waituntil(0 != (next = p->next));
+        q->head = next;
       }
     }
+#if GASNET_PAR
+    gasneti_mutex_unlock(&q->lock);
+  }
+#endif
+
+  if (p) {
+    *pbuf  = &p->data;
+    *psize = p->len;
+    *pfrom = p->from;
   }
   
-  return -1;
+  return !p;
 }
 
 
@@ -903,18 +689,7 @@ void gasneti_pshmnet_recv_release(gasneti_pshmnet_t *vnet, void *buf)
   gasneti_pshmnet_payload_t *p = 
     pshmnet_get_struct_addr_from_field_addr(gasneti_pshmnet_payload_t,
                                             data, buf);
-  gasneti_pshmnet_msg_t *msg;
-  gasneti_assert(buf == &p->data);
-  gasneti_assert(p && (p->msg != GASNETI_PSHMNET_MSG_NULL) && p->allocator);
-  /* mark msg as free */
-  msg = gasneti_pshm_addr(p->msg);
-#if GASNET_DEBUG
-  p->msg = GASNETI_PSHMNET_MSG_NULL;
-  gasneti_local_wmb();
-#endif
-  gasneti_assert(gasneti_pshmnet_state_read(&msg->state) == GASNETI_PSHMNET_BUSY);
-  gasneti_pshmnet_state_set(&msg->state, GASNETI_PSHMNET_EMPTY, 0);
-  gasneti_pshmnet_free(p->allocator, p);
+  gasneti_pshmnet_free(p);
 }
 
 
@@ -986,7 +761,7 @@ static void gasneti_pshmnet_coll_send(gasneti_pshmnet_t *vnet, void *src, size_t
     if (i == gasneti_pshm_mynode) continue;
     gasneti_waitwhile (NULL == (msg = gasneti_pshmnet_get_send_buffer(vnet, len, i)));
     memcpy(msg, src, len);
-    gasneti_waitwhile (gasneti_pshmnet_deliver_send_buffer(vnet, msg, len, i));
+    gasneti_pshmnet_deliver_send_buffer(vnet, msg, len, i);
   }
 }
 
@@ -1105,7 +880,8 @@ static gasneti_pshmnet_allocator_t *gasneti_pshmnet_init_allocator(void *region,
 
 /* Basic page-granular first-fit allocator
    This allocator is NOT thread-safe - the callers are responsible for serialization. */
-static void * gasneti_pshmnet_alloc(gasneti_pshmnet_allocator_t *a, size_t nbytes)
+static gasneti_pshmnet_payload_t *
+gasneti_pshmnet_alloc(gasneti_pshmnet_allocator_t *a, size_t nbytes)
 {
   void *retval = NULL;
   unsigned int curr;
@@ -1158,7 +934,7 @@ static void * gasneti_pshmnet_alloc(gasneti_pshmnet_allocator_t *a, size_t nbyte
         break; /* do {} while (remain); */
       }
 
-      /* Assume write is cheaper than brancing again when length is unchanged */
+      /* Assume write is cheaper than branching again when length is unchanged */
       a->length[curr] = length;
     }
 
@@ -1169,11 +945,9 @@ static void * gasneti_pshmnet_alloc(gasneti_pshmnet_allocator_t *a, size_t nbyte
   return retval;
 }
 
-static void gasneti_pshmnet_free(gasneti_pshmnet_allocator_t *a, void *p)
+static void gasneti_pshmnet_free(gasneti_pshmnet_payload_t *p)
 {
-  /* We don't need the allocator ptr, but other implementations might  */
-
-  /* Address we handed out was the addr of the 'payload_t' field */
+  /* Address we handed out was the addr of the 'payload' field */
   gasneti_pshmnet_allocator_block_t *block = 
       pshmnet_get_struct_addr_from_field_addr(gasneti_pshmnet_allocator_block_t,
                                               payload, p);
@@ -1238,7 +1012,6 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
 
   if (gasneti_pshmnet_recv(vnet, &msg, &msgsz, &from))
     return -1;
-  GASNETI_PSHMNET_FE_DEC(vnet,gasneti_pshm_mynode);
 
   token = gasnetc_token_create(GASNETI_AMPSHM_MSG_SOURCE(msg), isReq);
   category = GASNETI_AMPSHM_MSG_CATEGORY(msg);
@@ -1292,19 +1065,15 @@ int gasneti_AMPSHMPoll(int repliesOnly)
   GASNETI_CHECKATTACH();
 #endif
 
-  if (GASNETI_PSHMNET_FE_READ(gasneti_reply_pshmnet,gasneti_pshm_mynode)) {
-    GASNETI_PSHMNET_FE_ACK(gasneti_reply_pshmnet,gasneti_pshm_mynode);
+  if (gasneti_reply_pshmnet->my_queue->head) {
     for (i = 0; i < GASNETI_AMPSHM_MAX_REPLY_PER_POLL; i++) 
       if (gasneti_AMPSHM_service_incoming_msg(gasneti_reply_pshmnet, 0))
         break;
-    GASNETI_PSHMNET_FE_SUB(gasneti_reply_pshmnet,gasneti_pshm_mynode,i);
   }
-  if (!repliesOnly && GASNETI_PSHMNET_FE_READ(gasneti_request_pshmnet,gasneti_pshm_mynode)) {
-    GASNETI_PSHMNET_FE_ACK(gasneti_request_pshmnet,gasneti_pshm_mynode);
+  if (!repliesOnly && gasneti_request_pshmnet->my_queue->head) {
     for (i = 0; i < GASNETI_AMPSHM_MAX_REQUEST_PER_POLL; i++) 
       if (gasneti_AMPSHM_service_incoming_msg(gasneti_request_pshmnet, 1))
         break;
-    GASNETI_PSHMNET_FE_SUB(gasneti_request_pshmnet,gasneti_pshm_mynode,i);
   }
   return GASNET_OK;
 }
@@ -1439,14 +1208,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnet_node_t dest,
     gasneti_lifo_push(&loopback_freepool, msg);
     gasnetc_token_destroy(token);
   } else {
-    
-    while (gasneti_pshmnet_deliver_send_buffer(vnet, msg, msgsz, target)) {
-      /* If reply, only poll reply network: avoids deadlock  */
-      if (isReq) gasnetc_AMPoll(); /* No progress functions */
-      else gasneti_AMPSHMPoll(1);
-      GASNETI_WAITHOOK();
-    }
-    GASNETI_PSHMNET_FE_INC(vnet,target);
+    gasneti_pshmnet_deliver_send_buffer(vnet, msg, msgsz, target);
   }
   return GASNET_OK;
 }

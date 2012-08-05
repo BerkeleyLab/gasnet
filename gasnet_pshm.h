@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.h,v $
- *     $Date: 2011/09/15 04:09:50 $
- * $Revision: 1.16 $
+ *     $Date: 2012/08/05 00:41:12 $
+ * $Revision: 1.16.12.1 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -224,8 +224,7 @@ void *gasneti_pshm_addr2local(gasnet_node_t node, void *addr) {
 /* Returns amount of memory needed (rounded up to a multiple of the system
  * page size) needed for a new gasneti_pshmnet_t.
  * - Takes the number of nodes in the gasnet supernode.
- * - Reads the GASNET_PSHMNET_QUEUE_DEPTH and GASNET_PSHMNET_QUEUE_MEMORY
- *   environment variables, if present.
+ * - Reads the GASNET_PSHMNET_QUEUE_MEMORY environment variable, if set.
  */
 extern size_t gasneti_pshmnet_memory_needed(gasneti_pshm_rank_t nodes);
 
@@ -298,14 +297,12 @@ void * gasneti_pshmnet_get_send_buffer(gasneti_pshmnet_t *vnet, size_t nbytes,
  * Notifies target that message is ready to be received.  After calling, 'buf'
  * logically belongs to the target process, and the caller should not touch
  * the memory pointed to by 'buf' again.
+ * 'nbytes' must be no larger than was passed to get_send_buffer
  * 'target' is rank relative to the supernode
- *
- * Returns nonzero if no message can be sent (message queue full).  Poll your
- * own queues and try again later.
  */
 extern
-int gasneti_pshmnet_deliver_send_buffer(gasneti_pshmnet_t *vnet, void *buf, size_t nbytes,
-                                        gasneti_pshm_rank_t target);
+void gasneti_pshmnet_deliver_send_buffer(gasneti_pshmnet_t *vnet, void *buf, size_t nbytes,
+                                         gasneti_pshm_rank_t target);
 
 
 /* Polls receipt queue for any messages from any sender.
