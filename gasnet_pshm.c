@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2012/08/05 04:53:00 $
- * $Revision: 1.47.6.3 $
+ *     $Date: 2012/08/05 05:12:17 $
+ * $Revision: 1.47.6.4 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2012, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -447,7 +447,7 @@ typedef struct {
 } gasneti_pshmnet_allocator_block_t;
 
 #define GASNETI_PSHMNET_ALLOC_MAXSZ \
-    GASNETI_ALIGNUP(sizeof(gasneti_pshmnet_allocator_block_t), GASNETI_PSHMNET_PAGESIZE)
+    round_up_to_pshmpage(sizeof(gasneti_pshmnet_allocator_block_t))
 #define GASNETI_PSHMNET_ALLOC_MAXPG (GASNETI_PSHMNET_ALLOC_MAXSZ >> GASNETI_PSHMNET_PAGESHIFT)
 
 #define GASNETI_PSHMNET_MAX_PAYLOAD \
@@ -535,7 +535,7 @@ static uintptr_t get_queue_mem(int nodes)
   gasneti_assert(pernode > 0);
 
   /* round up to multiple of allocator page size */
-  return GASNETI_ALIGNUP(pernode, GASNETI_PSHMNET_PAGESIZE);
+  return round_up_to_pshmpage(pernode);
 }
 
 static size_t gasneti_pshmnet_memory_needed_pernode(gasneti_pshm_rank_t nodes)
