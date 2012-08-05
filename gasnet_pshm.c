@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2012/08/05 04:23:00 $
- * $Revision: 1.47.6.2 $
+ *     $Date: 2012/08/05 04:53:00 $
+ * $Revision: 1.47.6.3 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2012, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -403,19 +403,12 @@ typedef union {
  * in Proc. CCGRID, 2006, pp.521-530.
  */
 typedef struct gasneti_pshmnet_queue {
-#if GASNET_PAR
-  gasneti_mutex_t lock;
-#endif
+  /* Producers' cache line: */
   gasneti_pshmnet_tail_t tail;
   volatile gasneti_atomic_val_t head;
-#if GASNET_PAR
-  char _pad[GASNETI_CACHE_PAD(sizeof(gasneti_mutex_t)
-                            + sizeof(gasneti_pshmnet_tail_t)
-                            + sizeof(gasneti_atomic_val_t))];
-#else
-  char _pad[GASNETI_CACHE_PAD(sizeof(gasneti_pshmnet_tail_t)
-                            + sizeof(gasneti_atomic_val_t))];
-#endif
+  char _pad0[GASNETI_CACHE_PAD(sizeof(gasneti_pshmnet_tail_t)
+                             + sizeof(gasneti_atomic_val_t))];
+  /* Consumers' cache line: */
   volatile gasneti_atomic_val_t shead; /* shadow head */
   char _pad1[GASNETI_CACHE_PAD(sizeof(gasneti_atomic_val_t))];
 } gasneti_pshmnet_queue_t;
@@ -503,6 +496,10 @@ struct gasneti_pshmnet {
   gasneti_pshmnet_queue_t *my_queue;
   /* only need to see one's own allocator */
   gasneti_pshmnet_allocator_t *my_allocator;
+#if GASNET_PAR
+  /* serializes dequeue operations */
+  gasneti_mutex_t lock;
+#endif
 };
 
 #define gasneti_assert_align(p, align) \
@@ -589,6 +586,9 @@ gasneti_pshmnet_init(void *start, size_t nbytes, gasneti_pshm_rank_t pshmnodes)
 
   vnet = gasneti_malloc(sizeof(gasneti_pshmnet_t));
   vnet->nodecount = pshmnodes;
+#if GASNET_PAR
+  gasneti_mutex_init(&vnet->lock);
+#endif
 
   /* initialize my own allocator */
   myregion = (void *)((uintptr_t)region + (szpernode * gasneti_pshm_mynode));
@@ -599,9 +599,6 @@ gasneti_pshmnet_init(void *start, size_t nbytes, gasneti_pshm_rank_t pshmnodes)
   vnet->queues = (gasneti_pshmnet_queue_t*)((uintptr_t)region + szpernode * pshmnodes);
   gasneti_assert_align(vnet->queues, GASNETI_PSHMNET_PAGESIZE);
   vnet->my_queue = &vnet->queues[gasneti_pshm_mynode];
-#if GASNET_PAR
-  gasneti_mutex_init(&vnet->my_queue->lock);
-#endif
   vnet->my_queue->head = 0;
   vnet->my_queue->shead = 0;
   gasneti_pshmnet_tail_init(&vnet->my_queue->tail);
@@ -666,7 +663,7 @@ int gasneti_pshmnet_recv(gasneti_pshmnet_t *vnet, void **pbuf, size_t *psize,
 
 #if GASNET_PAR
   if (gasneti_pshmnet_queue_peek(q)) {
-    gasneti_mutex_lock(&q->lock);
+    gasneti_mutex_lock(&vnet->lock);
 #endif
     /* Nemesis dequeue: */
     head = q->shead;
@@ -687,7 +684,7 @@ int gasneti_pshmnet_recv(gasneti_pshmnet_t *vnet, void **pbuf, size_t *psize,
     #endif
     }
 #if GASNET_PAR
-    gasneti_mutex_unlock(&q->lock);
+    gasneti_mutex_unlock(&vnet->lock);
   }
 #endif
 
