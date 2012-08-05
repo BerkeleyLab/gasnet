@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2012/08/05 00:41:12 $
- * $Revision: 1.47.6.1 $
+ *     $Date: 2012/08/05 04:23:00 $
+ * $Revision: 1.47.6.2 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2012, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -395,7 +395,13 @@ typedef union {
   #error "Platform is missing both atomic ADD and atomic CAS"
 #endif
 
-/* queue of descriptors for messages received */
+/* queue of descriptors for messages received
+ *
+ * Based on Nemesis queues as documented in
+ * D. Buntinas, G. Mercier, and W. Gropp, "Design and Evaluation of Nemesis,
+ * a Scalable, Low-Latency, Message-Passing Communication Subsystem",
+ * in Proc. CCGRID, 2006, pp.521-530.
+ */
 typedef struct gasneti_pshmnet_queue {
 #if GASNET_PAR
   gasneti_mutex_t lock;
@@ -407,10 +413,11 @@ typedef struct gasneti_pshmnet_queue {
                             + sizeof(gasneti_pshmnet_tail_t)
                             + sizeof(gasneti_atomic_val_t))];
 #else
-  /* TODO: pad exactly, even when struct contains padding */
   char _pad[GASNETI_CACHE_PAD(sizeof(gasneti_pshmnet_tail_t)
                             + sizeof(gasneti_atomic_val_t))];
 #endif
+  volatile gasneti_atomic_val_t shead; /* shadow head */
+  char _pad1[GASNETI_CACHE_PAD(sizeof(gasneti_atomic_val_t))];
 } gasneti_pshmnet_queue_t;
 
 struct gasneti_pshmnet_allocator;  /* forward definition */
@@ -596,6 +603,7 @@ gasneti_pshmnet_init(void *start, size_t nbytes, gasneti_pshm_rank_t pshmnodes)
   gasneti_mutex_init(&vnet->my_queue->lock);
 #endif
   vnet->my_queue->head = 0;
+  vnet->my_queue->shead = 0;
   gasneti_pshmnet_tail_init(&vnet->my_queue->tail);
 
   gasneti_leak(vnet);
@@ -632,6 +640,8 @@ void gasneti_pshmnet_deliver_send_buffer(gasneti_pshmnet_t *vnet, void *buf,
   gasneti_atomic_val_t prev_offset;
 
   p->len = nbytes;
+
+  /* Nemesis enqueue: */
   prev_offset = gasneti_pshmnet_tail_swap(&q->tail, my_offset);
   if (prev_offset) {
     gasneti_pshmnet_payload_t *prev = gasneti_pshm_addr(prev_offset);
@@ -641,6 +651,11 @@ void gasneti_pshmnet_deliver_send_buffer(gasneti_pshmnet_t *vnet, void *buf,
   }
 }
 
+GASNETI_ALWAYS_INLINE(gasneti_pshmnet_queue_peek)
+int gasneti_pshmnet_queue_peek(const gasneti_pshmnet_queue_t * const q)
+{
+  return q->shead || q->head;
+}
 
 int gasneti_pshmnet_recv(gasneti_pshmnet_t *vnet, void **pbuf, size_t *psize, 
                          gasneti_pshm_rank_t *pfrom)
@@ -650,18 +665,26 @@ int gasneti_pshmnet_recv(gasneti_pshmnet_t *vnet, void **pbuf, size_t *psize,
   gasneti_pshmnet_queue_t *q = vnet->my_queue;
 
 #if GASNET_PAR
-  if (q->head) {
+  if (gasneti_pshmnet_queue_peek(q)) {
     gasneti_mutex_lock(&q->lock);
 #endif
-    head = q->head;
+    /* Nemesis dequeue: */
+    head = q->shead;
+    if (!head && q->head) {
+      head = q->shead = q->head;
+      q->head = 0;
+    }
     if_pt (head) {
       p = gasneti_pshm_addr(head);
       next = p->next;
-      q->head = next;
+      q->shead = next;
       if (!next && !gasneti_pshmnet_tail_cas(&q->tail, head, 0)) {
-        gasneti_waituntil(0 != (next = p->next));
-        q->head = next;
+        while (0 == (next = p->next)) GASNETI_WAITHOOK(); /* waituntil() has excess RMB */
+        q->shead = next;
       }
+    #if !GASNET_PAR
+      gasneti_local_rmb(); /* ACQ */
+    #endif
     }
 #if GASNET_PAR
     gasneti_mutex_unlock(&q->lock);
@@ -1065,12 +1088,12 @@ int gasneti_AMPSHMPoll(int repliesOnly)
   GASNETI_CHECKATTACH();
 #endif
 
-  if (gasneti_reply_pshmnet->my_queue->head) {
+  if (gasneti_pshmnet_queue_peek(gasneti_reply_pshmnet->my_queue)) {
     for (i = 0; i < GASNETI_AMPSHM_MAX_REPLY_PER_POLL; i++) 
       if (gasneti_AMPSHM_service_incoming_msg(gasneti_reply_pshmnet, 0))
         break;
   }
-  if (!repliesOnly && gasneti_request_pshmnet->my_queue->head) {
+  if (!repliesOnly && gasneti_pshmnet_queue_peek(gasneti_request_pshmnet->my_queue)) {
     for (i = 0; i < GASNETI_AMPSHM_MAX_REQUEST_PER_POLL; i++) 
       if (gasneti_AMPSHM_service_incoming_msg(gasneti_request_pshmnet, 1))
         break;
