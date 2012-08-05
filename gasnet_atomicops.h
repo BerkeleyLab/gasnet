@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2009/03/30 07:55:10 $
- * $Revision: 1.208 $
+ *     $Date: 2012/08/05 22:04:29 $
+ * $Revision: 1.209 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -328,14 +328,14 @@
   /* No default atomics built when using "slow" atomics. */
 #elif defined(gasneti_atomic_addfetch)
   #ifndef gasneti_atomic_increment
-    #define gasneti_atomic_increment(p,f)	((void)gasneti_atomic_addfetch(((p),(f)),1))
+    #define gasneti_atomic_increment(p,f)	((void)gasneti_atomic_addfetch((p),1,(f))
   #endif
   #ifndef gasneti_atomic_decrement
-    #define gasneti_atomic_decrement(p,f)	((void)gasneti_atomic_addfetch(((p),(f)),-1))
+    #define gasneti_atomic_decrement(p,f)	((void)gasneti_atomic_addfetch((p),-1,(f)))
   #endif
   #ifndef gasneti_atomic_decrement_and_test
     #define gasneti_atomic_decrement_and_test(p,f) \
-						(gasneti_atomic_addfetch(((p),(f)),-1) == 0)
+						(gasneti_atomic_addfetch((p),-1,(f)) == 0)
   #endif
   #ifndef gasneti_atomic_add
     #define gasneti_atomic_add(p,op,f)		((gasneti_atomic_val_t)(gasneti_atomic_addfetch((p),(op),(f))))
