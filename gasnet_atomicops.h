@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2012/08/06 00:11:36 $
- * $Revision: 1.209.2.1 $
+ *     $Date: 2012/08/06 00:40:17 $
+ * $Revision: 1.209.2.2 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -420,7 +420,9 @@
  *       "AM Ping-pong vs. spin-AMPoll" case from testcontend-par.  The finding is
  *       that using "xchgl" vs. the loop on "cmpxcgl" shows NO positive benefit,
  *       and might even hurt (though variance is too high to say that for certain).
- * TODO: The result on an ll/sc platform might be quite different than on x86.
+ * NOTE: The PPC-specific "lwarx/stwcx" version *does* show measurable improvement
+ *       in both uncontended (testam-seq) and contended (testcontend-par) cases.
+ *
  * TODO: SWAP not defined yet for GENERIC or WEAK because the need for a temporary
  *       doesn't fit the established _gasneti_scalar_atomic_FOO pattern.  However,
  *       until I am conviced of the benefit, I am not yet doing the extra work.

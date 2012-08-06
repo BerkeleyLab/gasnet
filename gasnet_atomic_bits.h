@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2012/08/06 00:11:36 $
- * $Revision: 1.345.2.1 $
+ *     $Date: 2012/08/06 00:40:17 $
+ * $Revision: 1.345.2.2 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2106,6 +2106,22 @@
       #define _gasneti_atomic32_addfetch gasneti_atomic32_addandfetch
 
       /* Default impls of inc, dec, dec-and-test, add and sub */
+
+      GASNETI_INLINE(_gasneti_atomic32_swap)
+      uint32_t _gasneti_atomic32_swap(gasneti_atomic32_t *v, uint32_t newval) {
+        register uint32_t oldval;
+        __asm__ __volatile__ ( 
+          "Lga.0.%=:\t"                 /* AIX assembler doesn't grok "0:"-type local labels */
+          "lwarx    %0,0,%2 \n\t" 
+          "stwcx.   %3,0,%2 \n\t"
+          "bne-     Lga.0.%= \n\t" 
+          : "=&r"(oldval), "=m" (v->ctr)
+          : "r" (v), "r"(newval) , "m"(v->ctr)
+          : "cr0");
+        return oldval;
+      }
+      #define _gasneti_atomic_swap _gasneti_atomic32_swap
+      #define GASNETI_HAVE_ATOMIC_SWAP 1
 
       GASNETI_INLINE(_gasneti_atomic32_compare_and_swap)
       int _gasneti_atomic32_compare_and_swap(gasneti_atomic32_t *p, uint32_t oldval, uint32_t newval) {
