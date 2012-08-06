@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2012/08/06 00:40:17 $
- * $Revision: 1.345.2.2 $
+ *     $Date: 2012/08/06 02:33:26 $
+ * $Revision: 1.345.2.3 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1319,6 +1319,18 @@
         #define _gasneti_atomic32_read(p)      ((p)->ctr)
         #define _gasneti_atomic32_set(p,v)     ((p)->ctr = (v))
         #define _gasneti_atomic32_init(v)      { (v) }
+
+        GASNETI_INLINE(_gasneti_atomic32_swap)
+        uint32_t _gasneti_atomic32_swap(gasneti_atomic32_t *v, uint32_t newval) {
+          register uint32_t volatile * addr = (uint32_t volatile *)(&v->ctr);
+          register uint32_t val = newval;
+          __asm__ __volatile__ ( 
+            "swap %1, %0"   
+            : "+r" (val), "=m" (*addr) );
+          return val;
+        }
+        #define _gasneti_atomic_swap _gasneti_atomic32_swap
+        #define GASNETI_HAVE_ATOMIC_SWAP 1
 
         /* Default impls of inc, dec, dec-and-test, add and sub */
         GASNETI_INLINE(_gasneti_atomic32_fetchadd)

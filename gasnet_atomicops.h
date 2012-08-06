@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2012/08/06 00:40:17 $
- * $Revision: 1.209.2.2 $
+ *     $Date: 2012/08/06 02:33:26 $
+ * $Revision: 1.209.2.3 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -422,6 +422,8 @@
  *       and might even hurt (though variance is too high to say that for certain).
  * NOTE: The PPC-specific "lwarx/stwcx" version *does* show measurable improvement
  *       in both uncontended (testam-seq) and contended (testcontend-par) cases.
+ * NOTE: The SPARCv9 "swap" version does shows mixed results.  The AMShort latency
+ *       (testam-seq) is HALVED, but contended (testcontend-par) performance drops.
  *
  * TODO: SWAP not defined yet for GENERIC or WEAK because the need for a temporary
  *       doesn't fit the established _gasneti_scalar_atomic_FOO pattern.  However,
