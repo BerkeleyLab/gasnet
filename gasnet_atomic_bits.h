@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2012/05/17 04:21:05 $
- * $Revision: 1.345 $
+ *     $Date: 2012/08/06 00:11:36 $
+ * $Revision: 1.345.2.1 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -324,6 +324,20 @@
       #else
 	#define GASNETI_ASM_REGISTER_KEYWORD register
       #endif
+
+      GASNETI_INLINE(_gasneti_atomic32_swap)
+      uint32_t _gasneti_atomic32_swap(gasneti_atomic32_t *v, uint32_t value) {
+        register uint32_t x = value;
+        __asm__ __volatile__(
+                GASNETI_X86_LOCK_PREFIX  /* 'lock' is implied, but is the fence? */
+		"xchgl %0, %1"
+                : "=r" (x)
+                : "m" (v->ctr), "0" (x)
+                : "cc", "memory" /* instead of listing (v->ctr) as an output */ );
+        return x;
+      }
+      #define _gasneti_atomic_swap _gasneti_atomic32_swap
+      #define GASNETI_HAVE_ATOMIC_SWAP 1
 
       #define _gasneti_atomic32_read(p)      ((p)->ctr)
       #define _gasneti_atomic32_set(p,v)     ((p)->ctr = (v))

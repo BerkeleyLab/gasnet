@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.c,v $
- *     $Date: 2012/08/05 05:17:41 $
- * $Revision: 1.48 $
+ *     $Date: 2012/08/06 00:11:36 $
+ * $Revision: 1.48.2.1 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2012, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -341,6 +341,10 @@ typedef union {
                   gasneti_atomic_set((_t),0,0)
   #define gasneti_pshmnet_tail_cas(_t,_o,_n)\
                   gasneti_atomic_compare_and_swap((_t),(_o),(_n),0)
+ #if GASNETI_HAVE_ATOMIC_SWAP
+  #define gasneti_pshmnet_tail_swap(_t,_v)\
+                  gasneti_atomic_swap((_t),(_v),GASNETI_ATOMIC_REL)
+ #else
   GASNETI_INLINE(gasneti_pshmnet_tail_swap)
   gasneti_atomic_val_t gasneti_pshmnet_tail_swap(gasneti_atomic_t *t, gasneti_atomic_val_t val) {
     gasneti_atomic_val_t old_val;
@@ -350,6 +354,7 @@ typedef union {
     } while (!gasneti_atomic_compare_and_swap(t, old_val, val, 0));
     return old_val;
   }
+ #endif /* HAVE_SWAP */
 #elif defined(GASNETI_HAVE_ATOMIC_ADD_SUB)
   typedef struct {
     gasneti_atomic_t last_ticket;

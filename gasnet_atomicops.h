@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomicops.h,v $
- *     $Date: 2012/08/05 22:04:29 $
- * $Revision: 1.209 $
+ *     $Date: 2012/08/06 00:11:36 $
+ * $Revision: 1.209.2.1 $
  * Description: GASNet header for portable atomic memory operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -414,6 +414,48 @@
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+/* Default atomic swap in terms of compare-and-swap.
+ *
+ * NOTE: The arch-specific x86/x86-64 version has beem written and tested using the
+ *       "AM Ping-pong vs. spin-AMPoll" case from testcontend-par.  The finding is
+ *       that using "xchgl" vs. the loop on "cmpxcgl" shows NO positive benefit,
+ *       and might even hurt (though variance is too high to say that for certain).
+ * TODO: The result on an ll/sc platform might be quite different than on x86.
+ * TODO: SWAP not defined yet for GENERIC or WEAK because the need for a temporary
+ *       doesn't fit the established _gasneti_scalar_atomic_FOO pattern.  However,
+ *       until I am conviced of the benefit, I am not yet doing the extra work.
+ */
+
+#if defined(GASNETI_HAVE_ATOMIC_SWAP)
+  /* Platform-specific version has been provided */
+#elif defined(GASNETI_USING_SLOW_ATOMICS)
+  /* No default swap built when using "slow" atomics. */
+#elif defined(GASNETI_USE_GENERIC_ATOMICOPS)
+  /* No default swap built when using "generic" atomics (at least not yet). */
+#elif defined (GASNETI_HAVE_ATOMIC_CAS) \
+   || defined(gasneti_atomic_compare_and_swap) || defined(_gasneti_atomic_compare_and_swap)
+    /* If needed, build swap from compare-and-swap. */
+    GASNETI_INLINE(_gasneti_atomic_swap)
+    gasneti_atomic_val_t _gasneti_atomic_swap(gasneti_atomic_t *p, gasneti_atomic_val_t val) {
+      gasneti_atomic_val_t _old;
+      do {
+        #ifdef _gasneti_atomic_read
+          _old = _gasneti_atomic_read(p);
+        #else 
+          _old = gasneti_atomic_read(p,0);
+        #endif 
+      } while
+      #ifdef _gasneti_atomic_compare_and_swap
+         (!_gasneti_atomic_compare_and_swap(p, _old, val));
+      #else
+         (!gasneti_atomic_compare_and_swap(p, _old, val, 0));
+      #endif
+      return _old;
+    }
+    #define GASNETI_HAVE_ATOMIC_SWAP 	1
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 /* Uniform memory fences for GASNet atomics.
  */
 
@@ -802,6 +844,15 @@
       return retval;                                                \
     }                                                               \
   }
+#define GASNETI_ATOMIC_FENCED_SWAP_DEFN_NOT_INLINE(group,func,_func,stem) \
+  stem##val_t func(stem##t *p, stem##sval_t val, const int flags) {  \
+    GASNETI_ATOMIC_CHECKALIGN(stem,p);                              \
+    _gasneti_##group##_fence_before_rmw(p,flags)                    \
+    { const stem##val_t retval = _func(p, val);                     \
+      _gasneti_##group##_fence_after_rmw(p,flags)                   \
+      return retval;                                                \
+    }                                                               \
+  }
 
 #define GASNETI_ATOMIC_FENCED_SET_DEFN(group,func,_func,stem)       \
 	GASNETI_INLINE(func)                                        \
@@ -824,6 +875,9 @@
 #define GASNETI_ATOMIC_FENCED_ADDFETCH_DEFN(group,func,_func,stem)  \
 	GASNETI_INLINE(func)                                        \
         GASNETI_ATOMIC_FENCED_ADDFETCH_DEFN_NOT_INLINE(group,func,_func,stem)
+#define GASNETI_ATOMIC_FENCED_SWAP_DEFN(group,func,_func,stem)      \
+	GASNETI_INLINE(func)                                        \
+        GASNETI_ATOMIC_FENCED_SWAP_DEFN_NOT_INLINE(group,func,_func,stem)
 
 /* ------------------------------------------------------------------------------------ */
 /* Fenced generic atomics, if needed, using per-platform defns and the macros of Part 4, above.
@@ -1099,6 +1153,9 @@ typedef int64_t gasneti_atomic64_sval_t;	/* For consistency in fencing macros */
 #endif
 #if defined(GASNETI_HAVE_ATOMIC_ADD_SUB) && !defined(gasneti_atomic_subtract)
   GASNETI_ATOMIC_FENCED_ADDSUB_DEFN(atomic,gasneti_atomic_subtract,_gasneti_atomic_subtract,gasneti_atomic_)
+#endif
+#if defined(GASNETI_HAVE_ATOMIC_SWAP) && !defined(gasneti_atomic_swap)
+  GASNETI_ATOMIC_FENCED_SWAP_DEFN(atomic,gasneti_atomic_swap,_gasneti_atomic_swap,gasneti_atomic_)
 #endif
 #ifndef gasneti_atomic_signed
   #define gasneti_atomic_signed(val)	((gasneti_atomic_sval_t)(val))
