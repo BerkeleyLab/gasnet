@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2009/10/28 00:39:41 $
- * $Revision: 1.10 $
+ *     $Date: 2012/08/09 05:07:36 $
+ * $Revision: 1.10.40.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -48,6 +48,10 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
 	CNT(C, EOP_ALLOC, count)             \
 	CNT(C, EOP_FREE, count)              \
 	CNT(C, EOP_BUCKETS, cnt)
+
+#define GASNETE_AUXSEG_DECLS \
+    extern gasneti_auxseg_request_t gasnete_barr_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
+#define GASNETE_AUXSEG_FNS() gasnete_barr_auxseg_alloc, 
 
 /* Define an extended API exit function to cleanup Portals
  * resources at exit time.

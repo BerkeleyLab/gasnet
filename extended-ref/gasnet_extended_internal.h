@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_internal.h,v $
- *     $Date: 2012/08/09 01:31:20 $
- * $Revision: 1.26.20.1 $
+ *     $Date: 2012/08/09 05:07:26 $
+ * $Revision: 1.26.20.2 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -163,7 +163,6 @@ void gasnete_op_free(gasnete_op_t *op);
 #define _hidx_gasnete_putlong_reqh           (GASNETE_HANDLER_BASE+8)
 #define _hidx_gasnete_memset_reqh            (GASNETE_HANDLER_BASE+9)
 #define _hidx_gasnete_markdone_reph          (GASNETE_HANDLER_BASE+10)
-#define _hidx_gasnete_rmdbarrier_notify_reqh (GASNETE_HANDLER_BASE+11)  /* XXX: remove! */
 /* add new extended API handlers here and to the bottom of gasnet_extended.c */
 
 #endif

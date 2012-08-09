@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_extended_fwd.h,v $
- *     $Date: 2012/05/13 04:45:52 $
- * $Revision: 1.4 $
+ *     $Date: 2012/08/09 05:07:28 $
+ * $Revision: 1.4.6.1 $
  * Description: GASNet Extended API Header for Gemin Conduit (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -32,6 +32,10 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
         GASNETI_VIS_STATS(CNT,VAL,TIME)      \
         GASNETI_COLL_STATS(CNT,VAL,TIME)     \
         CNT(C, DYNAMIC_THREADLOOKUP, cnt)    
+
+#define GASNETE_AUXSEG_DECLS \
+    extern gasneti_auxseg_request_t gasnete_barr_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
+#define GASNETE_AUXSEG_FNS() gasnete_barr_auxseg_alloc, 
 
 /*
  * When implementing a conduit-specific implementation of the Extended API, one

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_extended_internal.h,v $
- *     $Date: 2012/08/09 01:31:22 $
- * $Revision: 1.27.36.1 $
+ *     $Date: 2012/08/09 05:07:42 $
+ * $Revision: 1.27.36.2 $
  * Description: GASNet header for internal definitions in Extended API
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -120,7 +120,6 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t *thread);
 #define _hidx_gasnete_amcbarrier_done_reqh   (GASNETE_HANDLER_BASE+2)
 #define _hidx_gasnete_markdone_reph          (GASNETE_HANDLER_BASE+3)
 #define _hidx_gasnete_memset_reqh            (GASNETE_HANDLER_BASE+4)
-#define _hidx_gasnete_rmdbarrier_notify_reqh (GASNETE_HANDLER_BASE+11) /* XXX: remove! */
 /* add new extended API handlers here and to the bottom of gasnet_extended.c */
 
 #endif

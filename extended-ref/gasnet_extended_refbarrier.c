@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2012/08/09 01:35:09 $
- * $Revision: 1.89.2.2 $
+ *     $Date: 2012/08/09 05:07:26 $
+ * $Revision: 1.89.2.3 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -860,82 +860,82 @@ static void gasnete_amdbarrier_init(gasnete_coll_team_t team) {
      The main difference is that RDMA-Puts are used to signal the peers
      instead of using AMs.  This results in polling of "inboxes" in
      memory instead of simply checking for the done bits set by AMs.
-     Consequently some work moves from the AM handler to the "kick".
+     Consequently work from the AM handler moves to the "kick", but is
+     silghtly simpler since we'll not run the "kick" before the local
+     notify has run.
  */
-#define GASNETE_RMDBARRIER_MAXSTEP GASNETE_AMDBARRIER_MAXSTEP
 
 typedef struct {
   gasneti_mutex_t barrier_lock;
-  gasnet_node_t *barrier_peers; /* precomputed list of peers to communicate with */
+  struct {
+    gasnet_node_t node;
+    uintptr_t     addr;
+  } *barrier_peers;           /*  precomputed list of peers to communicate with */
 #if GASNETI_PSHM_BARRIER_HIER
   gasnete_pshmbarrier_data_t *barrier_pshm; /* non-NULL if using hierarchical code */
-  int barrier_passive;          /* 2 if some other node makes progress for me, 0 otherwise */
+  int barrier_passive;        /*  2 if some other node makes progress for me, 0 otherwise */
 #endif
   int barrier_notify_value;   /*  local value at notify */
   int barrier_notify_flags;   /*  local flags at notify */
   int barrier_size;           /*  ceil(lg(nodes)) */
-  volatile int barrier_phase; /*  2-phase operation to improve pipelining */
-  volatile int barrier_value; /*  barrier value (evolves from local value) */
-  volatile int barrier_flags; /*  barrier flags (evolves from local value) */
-  volatile int barrier_step;  /*  local barrier step */
-  // TODO: need handle management for Puts (w/ thread affinity info)
-  struct gasnete_coll_rmdbarrier_inbox {
-    volatile int value;
-    volatile short flags, flags2;
-    volatile int value2;
-    uint8_t _pad[GASNETI_CACHE_PAD(2*(sizeof(int)+sizeof(short)))];
-    // TODO: move to segment
-  } *barrier_inbox[2];
+  int volatile barrier_phase; /*  2-phase operation to improve pipelining */
+  int volatile barrier_value; /*  barrier value (evolves from local value) */
+  int volatile barrier_flags; /*  barrier flags (evolves from local value) */
+  int volatile barrier_step;  /*  local barrier step */
+  void *barrier_inbox;        /*  in-segment memory to recv notifications */
+  /* TODO: need handle management for NB Puts (w/ thread affinity info) */
 } gasnete_coll_rmdbarrier_t;
-typedef struct gasnete_coll_rmdbarrier_inbox gasnete_coll_rmdbarrier_inbox_t;
+
+/* So, what's this inbox structure all about?
+ * We cannot assume RDMA will deliver the payload entirely in order.
+ * So, we need some sort of checksum to tell when it has all arrived.
+ * The "best" checksum is to simply send the data twice, but we go one
+ * step further and invert the second copy to protect against an
+ * imagined implementation that zeros the payload area first.
+ * Additionally, this ordering of fields ensures that for the "normal"
+ * case of in-order delivery the _poll will detect incomplete payloads
+ * in just 2 reads instead of 4.
+ */
+typedef struct gasnete_coll_rmdbarrier_inbox_s {
+  /* WARNING: if you reorder fields then you must change the initializer in _send */
+  int volatile value;
+  int volatile flags;
+  int volatile flags2;
+  int volatile value2;
+} gasnete_coll_rmdbarrier_inbox_t;
   
+/* Pad struct to a specfic size and interleave */
+#define GASNETE_RDMABARRIER_INBOX_SZ 64 /* requires max 4K total space */
+#define GASNETE_RDMABARRIER_INBOX(_bd,_phase,_step)     \
+            ((gasnete_coll_rmdbarrier_inbox_t *)        \
+             ((uintptr_t)((_bd)->barrier_inbox)         \
+                       + ((_phase) + 2*(_step)) * GASNETE_RDMABARRIER_INBOX_SZ))
+#define GASNETE_RDMABARRIER_INBOX_REMOTE(_bd,_phase,_step)  \
+            ((gasnete_coll_rmdbarrier_inbox_t *)            \
+             ((_bd)->barrier_peers[(_step)].addr    \
+                       + ((_phase) + 2*(_step)) * GASNETE_RDMABARRIER_INBOX_SZ))
+#define GASNETE_RDMABARRIER_INBOX_NEXT(_addr)    \
+            ((gasnete_coll_rmdbarrier_inbox_t *) \
+             ((uintptr_t)(_addr) + 2 * GASNETE_RDMABARRIER_INBOX_SZ))
 
-// "simulates" target of RDMA write
-static void gasnete_rmdbarrier_notify_reqh(gasnet_token_t token, 
-                                           gasnet_handlerarg_t teamid, gasnet_handlerarg_t phase, gasnet_handlerarg_t step, gasnet_handlerarg_t value, gasnet_handlerarg_t flags) {
-  gasnete_coll_team_t team = gasnete_coll_team_lookup((uint32_t)teamid);
-  gasnete_coll_rmdbarrier_t *barrier_data = team->barrier_data;
-  gasnete_coll_rmdbarrier_inbox_t *inbox = &barrier_data->barrier_inbox[phase][step];
+GASNETI_INLINE(gasnete_rmdbarrier_send)
+void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
+                             gasnet_handlerarg_t phase, gasnet_handlerarg_t step,
+                             gasnet_handlerarg_t value, gasnet_handlerarg_t flags
+                             GASNETE_THREAD_FARG) {
+  const gasnet_node_t node = barrier_data->barrier_peers[step].node;
+  void * addr = GASNETE_RDMABARRIER_INBOX_REMOTE(barrier_data, phase, step);
+#if HAVE_NONCONST_STRUCT_INIT
+  gasnete_coll_rmdbarrier_inbox_t payload = { value, flags, ~flags, ~value };
+#else
+  gasnete_coll_rmdbarrier_inbox_t payload;
+  payload.value  = value;
+  payload.flags  = flags;
+  payload.flags2 = ~flags;
+  payload.value2 = ~value;
+#endif
 
-  /* NOTE: "randomization" of order and lack of memory fences are both intentional */
-  switch ((step^phase) & 3) {
-  case 0:
-    inbox->value = value;
-    inbox->flags = flags;
-    inbox->flags2 = ~flags;
-    inbox->value2 = ~value;
-    break;
-  case 1:
-    inbox->value2 = ~value;
-    inbox->flags2 = ~flags;
-    inbox->flags = flags;
-    inbox->value = value;
-    break;
-  case 2:
-    inbox->value = value;
-    inbox->value2 = ~value;
-    inbox->flags = flags;
-    inbox->flags2 = ~flags;
-    break;
-  default:
-    inbox->flags = flags;
-    inbox->flags2 = ~flags;
-    inbox->value = value;
-    inbox->value2 = ~value;
-    break;
-  }
-}
-
-// "simulates" initiator of RDMA write
-static void gasnete_rmdbarrier_send(gasnet_node_t peer,
-                                    gasnet_handlerarg_t teamid,
-				    gasnet_handlerarg_t phase,
-				    gasnet_handlerarg_t step,
-				    gasnet_handlerarg_t value,
-				    gasnet_handlerarg_t flags) {
-  GASNETI_SAFE(
-      gasnet_AMRequestShort5(peer, gasneti_handleridx(gasnete_rmdbarrier_notify_reqh), 
-                             teamid, phase, step, value, flags));
+  gasnete_put_bulk(node, addr, &payload, sizeof(payload) GASNETE_THREAD_PASS);
 }
 
 GASNETI_INLINE(gasnete_rmdbarrier_poll)
@@ -956,7 +956,7 @@ void gasnete_rmdbarrier_kick(gasnete_coll_team_t team) {
   phase = barrier_data->barrier_phase;
   step = barrier_data->barrier_step;
   if (step == barrier_data->barrier_size ||
-      !gasnete_rmdbarrier_poll(&barrier_data->barrier_inbox[phase][step]))
+      !gasnete_rmdbarrier_poll(GASNETE_RDMABARRIER_INBOX(barrier_data,phase,step)))
     return; /* nothing to do */
 
   if (gasneti_mutex_trylock(&barrier_data->barrier_lock))
@@ -985,8 +985,8 @@ void gasnete_rmdbarrier_kick(gasnete_coll_team_t team) {
   }
 
   /* process all consecutive steps which have arrived since we last ran */
-  inbox = &barrier_data->barrier_inbox[phase][step];
-  for (i = step; i < barrier_data->barrier_size && gasnete_rmdbarrier_poll(inbox); ++i, ++inbox) {
+  inbox = GASNETE_RDMABARRIER_INBOX(barrier_data,phase,step);
+  for (i = step; i < barrier_data->barrier_size && gasnete_rmdbarrier_poll(inbox); ++i) {
     const int step_value = inbox->value;
     const int step_flags = inbox->flags;
 
@@ -1007,6 +1007,7 @@ void gasnete_rmdbarrier_kick(gasnete_coll_team_t team) {
     }
 
     ++numsteps;
+    inbox = GASNETE_RDMABARRIER_INBOX_NEXT(inbox);
   }
 
   if (numsteps) { /* completed one or more steps */
@@ -1026,15 +1027,18 @@ void gasnete_rmdbarrier_kick(gasnete_coll_team_t team) {
 
   gasneti_mutex_unlock(&barrier_data->barrier_lock);
 
-  for ( ; numsteps; numsteps--) {
-    step++;
-    if (step == barrier_data->barrier_size) { /* no send upon reaching last step */
-      gasneti_assert(numsteps == 1);
-      break;
-    }
+  if (numsteps) {
+    GASNETE_THREAD_LOOKUP /* TODO: remove this lookup? */
 
-    gasnete_rmdbarrier_send(barrier_data->barrier_peers[step],
-                            team->team_id, phase, step, value, flags);
+    while (numsteps--) {
+      step++;
+      if (step == barrier_data->barrier_size) { /* no send upon reaching last step */
+        gasneti_assert(!numsteps);
+        break;
+      }
+
+      gasnete_rmdbarrier_send(barrier_data, phase, step, value, flags GASNETE_THREAD_PASS);
+    }
   }
 }
 
@@ -1076,9 +1080,10 @@ static void gasnete_rmdbarrier_notify(gasnete_coll_team_t team, int id, int flag
 
   if (barrier_data->barrier_size) {
     /*  (possibly) send notify msg to peer */
-    if (do_send)
-      gasnete_rmdbarrier_send(barrier_data->barrier_peers[0],
-                              team->team_id, phase, 0, id, flags);
+    if (do_send) {
+      GASNETE_THREAD_LOOKUP /* TODO: remove this lookup? */
+      gasnete_rmdbarrier_send(barrier_data, phase, 0, id, flags GASNETE_THREAD_PASS);
+    }
 #if GASNETI_PSHM_BARRIER_HIER
     if (!barrier_data->barrier_passive)
 #endif
@@ -1186,6 +1191,8 @@ void gasnete_rmdbarrier_kick_team_all(void) {
   gasnete_rmdbarrier_kick(GASNET_TEAM_ALL);
 }
 
+static gasnet_seginfo_t *gasnete_rmdbarrier_auxseg = NULL;
+
 static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
   gasnete_coll_rmdbarrier_t *barrier_data = gasneti_calloc(1,sizeof(gasnete_coll_rmdbarrier_t));
   int steps;
@@ -1203,6 +1210,8 @@ static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
   }
 #endif
 
+  gasneti_assert(team == GASNET_TEAM_ALL); /* TODO: deal w/ in-segment allocation */
+
   gasneti_leak(barrier_data);
   team->barrier_data = barrier_data;
   gasneti_mutex_init(&barrier_data->barrier_lock);
@@ -1219,15 +1228,14 @@ static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
 #endif
     int step;
 
-    barrier_data->barrier_inbox[0] = gasneti_calloc(2*steps,sizeof(gasnete_coll_rmdbarrier_inbox_t));
-    barrier_data->barrier_inbox[1] = barrier_data->barrier_inbox[0] + steps;
-    gasneti_leak(barrier_data->barrier_inbox[0]);
+    gasneti_assert(gasnete_rmdbarrier_auxseg);
+    barrier_data->barrier_inbox = gasnete_rmdbarrier_auxseg[gasneti_mynode].addr;
 
-    barrier_data->barrier_peers = gasneti_calloc(steps, sizeof(gasnet_node_t));
+    barrier_data->barrier_peers = gasneti_malloc(steps * sizeof(* barrier_data->barrier_peers));
     gasneti_leak(barrier_data->barrier_peers);
   
     for (step = 0; step < steps; ++step) {
-      gasnet_node_t distance, tmp, peer;
+      gasnet_node_t distance, tmp, peer, node;
 
       distance = (1 << step);
       tmp = total_ranks - myrank;
@@ -1236,12 +1244,18 @@ static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
 
 #if GASNETI_PSHM_BARRIER_HIER
       if (pshm_bdata) {
-        barrier_data->barrier_peers[step] = nodes[peer];
+        node = nodes[peer];
       } else
 #endif
-      barrier_data->barrier_peers[step] = GASNETE_COLL_REL2ACT(team, peer);
+      {
+        node = GASNETE_COLL_REL2ACT(team, peer);
+      }
+
+      barrier_data->barrier_peers[step].node = node;
+      barrier_data->barrier_peers[step].addr = (uintptr_t)gasnete_rmdbarrier_auxseg[node].addr;
     }
   }
+  gasneti_free(gasnete_rmdbarrier_auxseg);
 
 #if GASNETI_PSHM_BARRIER_HIER
   gasneti_free(supernode_reps);
@@ -1259,12 +1273,7 @@ static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
   team->barrier_wait =   &gasnete_rmdbarrier_wait;
   team->barrier_try =    &gasnete_rmdbarrier_try;
   team->barrier_pf =     (team == GASNET_TEAM_ALL) ? &gasnete_rmdbarrier_kick_team_all : NULL;
-
-  gasneti_assert_always((GASNET_BARRIERFLAG_ANONYMOUS|GASNET_BARRIERFLAG_MISMATCH) <= USHRT_MAX);
 }
-
-#define GASNETE_RMDBARRIER_HANDLERS()                                 \
-  gasneti_handler_tableentry_no_bits(gasnete_rmdbarrier_notify_reqh)
 
 /* ------------------------------------------------------------------------------------ */
 /* AM-based centralized implementation of barrier */
@@ -1774,7 +1783,13 @@ extern void gasnete_coll_barrier_init(gasnete_coll_team_t team,  int barrier_typ
   } else if (barrier_type == GASNETE_COLL_BARRIER_AMDISSEM) {
     /*we explicitly specify that we want an AM DISSEM Barrier*/
     gasnete_amdbarrier_init(team);
-  } else if (barrier_type == GASNETE_COLL_BARRIER_RDMADISSEM) {
+  } else if ((barrier_type == GASNETE_COLL_BARRIER_RDMADISSEM) && (team == GASNET_TEAM_ALL)) {
+    /* TODO: Currently only support TEAM_ALL due to static allocation of in-segment space.
+             However SEGMENT_EVERYTHING and GASNETI_SUPPORTS_OUTOFSEGMENT_PUTGET both
+             offer the option to use regular heap memory.
+             Additionally, if TEAM_ALL doesn't require the entire block of space then
+             one could imaging allocating space from it for some number of teams.
+     */
     /*we explicitly specify that we want an RDMA DISSEM Barrier*/
     gasnete_rmdbarrier_init(team);
   } else {
@@ -1785,5 +1800,44 @@ extern void gasnete_coll_barrier_init(gasnete_coll_team_t team,  int barrier_typ
 /* ------------------------------------------------------------------------------------ */
 #define GASNETE_REFBARRIER_HANDLERS() \
         GASNETE_AMDBARRIER_HANDLERS(), \
-        GASNETE_RMDBARRIER_HANDLERS(), \
         GASNETE_AMCBARRIER_HANDLERS()
+/* ------------------------------------------------------------------------------------ */
+/* AuxSeg setup for RDMA-dissem space */
+/* Should modify to allocate for other barriers as required */
+
+/* worst case assumption is lg(2^32 peers) * (2 phases) */
+#if GASNETE_RDMABARRIER_INBOX_SZ == 32
+  #define GASNETE_BARR_AUXSEGSZ 2048
+#elif GASNETE_RDMABARRIER_INBOX_SZ == 64
+  #define GASNETE_BARR_AUXSEGSZ 4096
+#else
+  #error "Please update GASNETE_BARR_AUXSEGSZ to match GASNETE_RDMABARRIER_INBOX_SZ"
+#endif
+
+/* spawner hint of our auxseg requirements: */
+GASNETI_IDENT(gasnete_barr_auxseg_IdentString,
+              "$GASNetAuxSeg_barr: " _STRINGIFY(GASNETE_BARR_AUXSEGSZ) " $");
+
+gasneti_auxseg_request_t gasnete_barr_auxseg_alloc(gasnet_seginfo_t *auxseg_info) {
+  const char *barrier = gasneti_getenv_withdefault("GASNET_BARRIER",GASNETE_BARRIER_DEFAULT);
+  gasneti_auxseg_request_t retval;
+
+  if (!strcmp(barrier, "RDMADISSEM")) {
+    retval.minsz = GASNETE_BARR_AUXSEGSZ;
+    retval.optimalsz = GASNETE_BARR_AUXSEGSZ;
+  } else {
+    retval.minsz = 0;
+    retval.optimalsz = 0;
+  }
+
+  if (auxseg_info == NULL){
+    return retval; /* initial query */
+  }
+  else if (auxseg_info[0].size) { /* auxseg granted */
+    gasneti_assert(!gasnete_rmdbarrier_auxseg);
+    gasnete_rmdbarrier_auxseg = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
+    memcpy(gasnete_rmdbarrier_auxseg, auxseg_info, gasneti_nodes*sizeof(gasnet_seginfo_t));
+  }
+
+  return retval;
+}
