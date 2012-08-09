@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2012/08/09 01:31:20 $
- * $Revision: 1.89.2.1 $
+ *     $Date: 2012/08/09 01:35:09 $
+ * $Revision: 1.89.2.2 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1193,8 +1193,6 @@ static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
   int myrank = team->myrank;
   int64_t j;
 
-  gasneti_assert_always((GASNET_BARRIERFLAG_ANONYMOUS|GASNET_BARRIERFLAG_MISMATCH) <= USHRT_MAX);
-
 #if GASNETI_PSHM_BARRIER_HIER
   gasnet_node_t *supernode_reps = NULL;
   PSHM_BDATA_DECL(pshm_bdata, gasnete_pshmbarrier_init_hier(team, &total_ranks, &myrank, &supernode_reps));
@@ -1261,6 +1259,8 @@ static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
   team->barrier_wait =   &gasnete_rmdbarrier_wait;
   team->barrier_try =    &gasnete_rmdbarrier_try;
   team->barrier_pf =     (team == GASNET_TEAM_ALL) ? &gasnete_rmdbarrier_kick_team_all : NULL;
+
+  gasneti_assert_always((GASNET_BARRIERFLAG_ANONYMOUS|GASNET_BARRIERFLAG_MISMATCH) <= USHRT_MAX);
 }
 
 #define GASNETE_RMDBARRIER_HANDLERS()                                 \
