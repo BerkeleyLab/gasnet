@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2012/08/10 22:36:30 $
- * $Revision: 1.89.2.4 $
+ *     $Date: 2012/08/10 22:45:22 $
+ * $Revision: 1.89.2.5 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -883,7 +883,7 @@ typedef struct {
   int volatile barrier_flags; /*  barrier flags (evolves from local value) */
   int volatile barrier_step;  /*  local barrier step */
   void *barrier_inbox;        /*  in-segment memory to recv notifications */
-#if GASNET_SEQ
+#if !GASNETI_THREADS /* XXX: Can we weaken to just check SEQ? */
   /* TODO: want/need handle management for PAR/PARSYNC, where handles are thread-specific */
   gasnet_handle_t *barrier_handles; /* array of handles for non-blocking puts */
 #endif
@@ -938,7 +938,7 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
   u.payload.flags2 = ~flags;
   u.payload.value2 = ~value;
 
-#if GASNET_SEQ
+#if !GASNETI_THREADS
   /* use a non-blocking non-bulk put and collect the handles */
   gasneti_assert(barrier_data->barrier_handles != NULL);
   gasneti_assert(barrier_data->barrier_handles[step] == GASNET_INVALID_HANDLE);
@@ -967,7 +967,7 @@ void gasnete_rmdbarrier_kick(gasnete_coll_team_t team) {
   phase = barrier_data->barrier_phase;
   step = barrier_data->barrier_step;
 
-#if GASNET_SEQ && 0 /* enable if Put doesn't make progress until a sync call */
+#if !GASNETI_THREADS && 0 /* enable if Put doesn't make progress until a sync call */
   if (barrier_data->barrier_handles) {
     gasnete_try_syncnb_all(barrier_data->barrier_handles, step);
   }
@@ -1166,7 +1166,7 @@ static int gasnete_rmdbarrier_wait(gasnete_coll_team_t team, int id, int flags) 
     retval = GASNET_ERR_BARRIER_MISMATCH;
   }
 
-#if GASNET_SEQ
+#if !GASNETI_THREADS
   /*  "drain" the put_nb handles, if any */
   if (barrier_data->barrier_handles) {
     gasnete_wait_syncnb_all(barrier_data->barrier_handles, barrier_data->barrier_size);
@@ -1253,7 +1253,7 @@ static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
 #endif
     int step;
 
-#if GASNET_SEQ
+#if !GASNETI_THREADS
   #if GASNETI_PSHM_BARRIER_HIER
     if (!barrier_data->barrier_passive)
   #endif
