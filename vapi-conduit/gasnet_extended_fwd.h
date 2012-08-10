@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/vapi-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2012/08/09 05:07:42 $
- * $Revision: 1.27.18.1 $
+ *     $Date: 2011/03/01 23:23:19 $
+ * $Revision: 1.27 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -41,10 +41,6 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
 	GASNETI_COLL_STATS(CNT,VAL,TIME)     \
 	GASNETI_FIREHOSE_STATS(CNT,VAL,TIME) \
         CNT(C, DYNAMIC_THREADLOOKUP, cnt)           
-
-#define GASNETE_AUXSEG_DECLS \
-    extern gasneti_auxseg_request_t gasnete_barr_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
-#define GASNETE_AUXSEG_FNS() gasnete_barr_auxseg_alloc, 
 
 #define GASNETI_DIRECT_GET_BULK 1
 #define GASNETI_DIRECT_PUT_BULK 1

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended_fwd.h,v $
- *     $Date: 2012/08/09 05:07:38 $
- * $Revision: 1.19.40.1 $
+ *     $Date: 2009/10/28 00:39:43 $
+ * $Revision: 1.19 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -37,10 +37,6 @@ typedef uintptr_t gasnet_register_value_t;
         CNT(C, DYNAMIC_THREADLOOKUP, cnt)    \
 	GASNETI_VIS_STATS(CNT,VAL,TIME)      \
 	GASNETI_COLL_STATS(CNT,VAL,TIME)
-
-#define GASNETE_AUXSEG_DECLS \
-    extern gasneti_auxseg_request_t gasnete_barr_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
-#define GASNETE_AUXSEG_FNS() gasnete_barr_auxseg_alloc, 
 
 #define GASNETE_HAVE_EXTENDED_HELP_EXTRA_H
 

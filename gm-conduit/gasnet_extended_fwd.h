@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_fwd.h,v $
- *     $Date: 2012/08/09 05:07:30 $
- * $Revision: 1.36.32.1 $
+ *     $Date: 2010/04/04 06:57:42 $
+ * $Revision: 1.36 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -83,10 +83,6 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
 	TIME(C, FIREHOSE_GET_ONE, gets one fh move)	\
 	TIME(C, FIREHOSE_GET_MANY, gets many fh moves)	\
 	TIME(C, FIREHOSE_GET_ONESIDED, gets one-sided)
-
-#define GASNETE_AUXSEG_DECLS \
-    extern gasneti_auxseg_request_t gasnete_barr_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
-#define GASNETE_AUXSEG_FNS() gasnete_barr_auxseg_alloc, 
 
 
 #endif
