@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2012/08/09 05:07:26 $
- * $Revision: 1.89.2.3 $
+ *     $Date: 2012/08/10 22:36:30 $
+ * $Revision: 1.89.2.4 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -883,7 +883,10 @@ typedef struct {
   int volatile barrier_flags; /*  barrier flags (evolves from local value) */
   int volatile barrier_step;  /*  local barrier step */
   void *barrier_inbox;        /*  in-segment memory to recv notifications */
-  /* TODO: need handle management for NB Puts (w/ thread affinity info) */
+#if GASNET_SEQ
+  /* TODO: want/need handle management for PAR/PARSYNC, where handles are thread-specific */
+  gasnet_handle_t *barrier_handles; /* array of handles for non-blocking puts */
+#endif
 } gasnete_coll_rmdbarrier_t;
 
 /* So, what's this inbox structure all about?
@@ -891,13 +894,13 @@ typedef struct {
  * So, we need some sort of checksum to tell when it has all arrived.
  * The "best" checksum is to simply send the data twice, but we go one
  * step further and invert the second copy to protect against an
- * imagined implementation that zeros the payload area first.
+ * imagined implementation that zeros the payload area first (which,
+ * for instance, some memcpy() implementations are known to do).
  * Additionally, this ordering of fields ensures that for the "normal"
  * case of in-order delivery the _poll will detect incomplete payloads
  * in just 2 reads instead of 4.
  */
 typedef struct gasnete_coll_rmdbarrier_inbox_s {
-  /* WARNING: if you reorder fields then you must change the initializer in _send */
   int volatile value;
   int volatile flags;
   int volatile flags2;
@@ -925,17 +928,25 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
                              GASNETE_THREAD_FARG) {
   const gasnet_node_t node = barrier_data->barrier_peers[step].node;
   void * addr = GASNETE_RDMABARRIER_INBOX_REMOTE(barrier_data, phase, step);
-#if HAVE_NONCONST_STRUCT_INIT
-  gasnete_coll_rmdbarrier_inbox_t payload = { value, flags, ~flags, ~value };
-#else
-  gasnete_coll_rmdbarrier_inbox_t payload;
-  payload.value  = value;
-  payload.flags  = flags;
-  payload.flags2 = ~flags;
-  payload.value2 = ~value;
-#endif
+  union {
+    gasnete_coll_rmdbarrier_inbox_t payload;
+    gasnete_anytype64_t any64; /* For alignment */
+  } u;
 
-  gasnete_put_bulk(node, addr, &payload, sizeof(payload) GASNETE_THREAD_PASS);
+  u.payload.value  = value;
+  u.payload.flags  = flags;
+  u.payload.flags2 = ~flags;
+  u.payload.value2 = ~value;
+
+#if GASNET_SEQ
+  /* use a non-blocking non-bulk put and collect the handles */
+  gasneti_assert(barrier_data->barrier_handles != NULL);
+  gasneti_assert(barrier_data->barrier_handles[step] == GASNET_INVALID_HANDLE);
+  barrier_data->barrier_handles[step] = gasnete_put_nb(node, addr, &u, sizeof(u) GASNETE_THREAD_PASS);
+#else
+  /* until/unless we devise handle-management for threaded case, use a blocking put */
+  gasnete_put(node, addr, &u, sizeof(u) GASNETE_THREAD_PASS);
+#endif
 }
 
 GASNETI_INLINE(gasnete_rmdbarrier_poll)
@@ -955,6 +966,13 @@ void gasnete_rmdbarrier_kick(gasnete_coll_team_t team) {
   /* early unlocked reads: */
   phase = barrier_data->barrier_phase;
   step = barrier_data->barrier_step;
+
+#if GASNET_SEQ && 0 /* enable if Put doesn't make progress until a sync call */
+  if (barrier_data->barrier_handles) {
+    gasnete_try_syncnb_all(barrier_data->barrier_handles, step);
+  }
+#endif
+
   if (step == barrier_data->barrier_size ||
       !gasnete_rmdbarrier_poll(GASNETE_RDMABARRIER_INBOX(barrier_data,phase,step)))
     return; /* nothing to do */
@@ -1028,7 +1046,7 @@ void gasnete_rmdbarrier_kick(gasnete_coll_team_t team) {
   gasneti_mutex_unlock(&barrier_data->barrier_lock);
 
   if (numsteps) {
-    GASNETE_THREAD_LOOKUP /* TODO: remove this lookup? */
+    GASNETE_THREAD_LOOKUP /* XXX: can we remove/avoid this lookup? */
 
     while (numsteps--) {
       step++;
@@ -1081,7 +1099,7 @@ static void gasnete_rmdbarrier_notify(gasnete_coll_team_t team, int id, int flag
   if (barrier_data->barrier_size) {
     /*  (possibly) send notify msg to peer */
     if (do_send) {
-      GASNETE_THREAD_LOOKUP /* TODO: remove this lookup? */
+      GASNETE_THREAD_LOOKUP /* XXX: can we remove/avoid this lookup? */
       gasnete_rmdbarrier_send(barrier_data, phase, 0, id, flags GASNETE_THREAD_PASS);
     }
 #if GASNETI_PSHM_BARRIER_HIER
@@ -1147,6 +1165,13 @@ static int gasnete_rmdbarrier_wait(gasnete_coll_team_t team, int id, int flags) 
          || (flags != barrier_data->barrier_notify_flags)) {
     retval = GASNET_ERR_BARRIER_MISMATCH;
   }
+
+#if GASNET_SEQ
+  /*  "drain" the put_nb handles, if any */
+  if (barrier_data->barrier_handles) {
+    gasnete_wait_syncnb_all(barrier_data->barrier_handles, barrier_data->barrier_size);
+  }
+#endif
 
   /*  update state */
   team->barrier_splitstate = OUTSIDE_BARRIER;
@@ -1227,6 +1252,15 @@ static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
     gasnet_node_t *nodes = supernode_reps ? supernode_reps : gasneti_pshm_firsts;
 #endif
     int step;
+
+#if GASNET_SEQ
+  #if GASNETI_PSHM_BARRIER_HIER
+    if (!barrier_data->barrier_passive)
+  #endif
+    {
+      barrier_data->barrier_handles = gasneti_calloc(steps, sizeof(gasnet_handle_t));
+    }
+#endif
 
     gasneti_assert(gasnete_rmdbarrier_auxseg);
     barrier_data->barrier_inbox = gasnete_rmdbarrier_auxseg[gasneti_mynode].addr;
