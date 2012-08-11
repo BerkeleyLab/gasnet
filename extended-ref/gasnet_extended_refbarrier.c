@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2012/08/11 08:56:12 $
- * $Revision: 1.89.2.8 $
+ *     $Date: 2012/08/11 09:50:20 $
+ * $Revision: 1.89.2.9 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -506,19 +506,23 @@ static void gasnete_amdbarrier_notify_reqh(gasnet_token_t token,
      * In subsequent steps we check for mismatch of received values.
      * The local value is compared in the kick function.
      */
-    if (!(flags & (GASNET_BARRIERFLAG_ANONYMOUS|GASNET_BARRIERFLAG_MISMATCH)) && 
-        !barrier_data->amdbarrier_recv_value_present[phase]) {  /* first named value we've seen */
+    if (flags & GASNET_BARRIERFLAG_MISMATCH) {
+      /* explicit mismatch */
+      barrier_data->amdbarrier_mismatch[phase] = 1;
+    } else if (!barrier_data->amdbarrier_recv_value_present[phase]) {
+      /* could be the first named value we've seen */
+      /* we write even if anonymous to avoid more branches */
       barrier_data->amdbarrier_recv_value[phase] = (int)value;
-      barrier_data->amdbarrier_recv_value_present[phase] = 1;
-    } else if ((flags & GASNET_BARRIERFLAG_MISMATCH) || /* explicit mismatch */
-               (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && /* 2nd+ named value and mismatch */
-                 barrier_data->amdbarrier_recv_value[phase] != (int)value)) {
+      barrier_data->amdbarrier_recv_value_present[phase] = !(flags & GASNET_BARRIERFLAG_ANONYMOUS);
+    } else if (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) &&
+               (barrier_data->amdbarrier_recv_value[phase] != (int)value)) {
+      /* 2nd+ named value and mismatch */
       barrier_data->amdbarrier_mismatch[phase] = 1;
     }
-    
-    gasneti_assert(barrier_data->amdbarrier_step_done[phase][step] == 0);
   }
   gasnet_hsl_unlock(&barrier_data->amdbarrier_lock);
+
+  gasneti_assert(barrier_data->amdbarrier_step_done[phase][step] == 0);
   barrier_data->amdbarrier_step_done[phase][step] = 1;
 }
 
