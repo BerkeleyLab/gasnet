@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2012/08/11 05:01:53 $
- * $Revision: 1.89.2.7 $
+ *     $Date: 2012/08/11 08:56:12 $
+ * $Revision: 1.89.2.8 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -509,7 +509,6 @@ static void gasnete_amdbarrier_notify_reqh(gasnet_token_t token,
     if (!(flags & (GASNET_BARRIERFLAG_ANONYMOUS|GASNET_BARRIERFLAG_MISMATCH)) && 
         !barrier_data->amdbarrier_recv_value_present[phase]) {  /* first named value we've seen */
       barrier_data->amdbarrier_recv_value[phase] = (int)value;
-      gasneti_sync_writes();
       barrier_data->amdbarrier_recv_value_present[phase] = 1;
     } else if ((flags & GASNET_BARRIERFLAG_MISMATCH) || /* explicit mismatch */
                (!(flags & GASNET_BARRIERFLAG_ANONYMOUS) && /* 2nd+ named value and mismatch */
@@ -518,22 +517,9 @@ static void gasnete_amdbarrier_notify_reqh(gasnet_token_t token,
     }
     
     gasneti_assert(barrier_data->amdbarrier_step_done[phase][step] == 0);
-    
-    gasneti_sync_writes();
-    barrier_data->amdbarrier_step_done[phase][step] = 1;
   }
   gasnet_hsl_unlock(&barrier_data->amdbarrier_lock);
-}
-
-/* For a rmb() between unlocked reads of _recv_value_present and _recv_value
- * Equivalent to ``(gasneti_sync_reads(), ambarrier_recv_value[phase])'',
- * except w/o assuming gasneti_sync_reads() to be valid in expression context.
- */
-GASNETI_INLINE(amdbarrier_recv_value_synced)
-int amdbarrier_recv_value_synced(gasnete_coll_team_t team, int phase) {
-  gasnete_coll_amdbarrier_t *barrier_data = team->barrier_data;
-  gasneti_sync_reads();
-  return barrier_data->amdbarrier_recv_value[phase];
+  barrier_data->amdbarrier_step_done[phase][step] = 1;
 }
 
 void gasnete_amdbarrier_kick(gasnete_coll_team_t team) {
@@ -574,11 +560,10 @@ void gasnete_amdbarrier_kick(gasnete_coll_team_t team) {
 #endif
 
     if (numsteps) { /* completed one or more steps */
-      gasneti_sync_reads(); /* between unlocked reads of _step_done and _mismatch */
       if_pf (barrier_data->amdbarrier_mismatch[phase] ||
 	     ((barrier_data->amdbarrier_flags == 0) && 
 	      barrier_data->amdbarrier_recv_value_present[phase] &&
-	      (amdbarrier_recv_value_synced(team, phase) != barrier_data->amdbarrier_value))) {
+	      (barrier_data->amdbarrier_recv_value[phase] != barrier_data->amdbarrier_value))) {
         barrier_data->amdbarrier_flags = GASNET_BARRIERFLAG_MISMATCH;
         barrier_data->amdbarrier_mismatch[phase] = 1;
       }
@@ -594,7 +579,6 @@ void gasnete_amdbarrier_kick(gasnete_coll_team_t team) {
 	   * may have received a barrier name from another node.  If so we
 	   * must forward it to allow for matching tests.
 	   */
-	  gasneti_sync_reads(); /* Between unlocked reads of _recv_value_present and _recv_value */
 	  flags = 0;
 	  value = barrier_data->amdbarrier_recv_value[phase];
         } else {
