@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.150 $
+$Revision: 1.150.4.1 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -364,8 +364,19 @@ application-specific support.
  in to order to ensure their safe delivery to the GASNet client program.
 
 * GASNET_BARRIER - select the communication algorithm for use in GASNet barriers.
- Values AMDISSEM and AMCENTRAL are available on all conduits, and many conduits
- have additional network-specific barrier algorithms documented in conduit READMEs.
+ The following values are available on all conduits:
+  AMCENTRAL - uses Active Messages to manipulate a single centralized counter.
+  AMDISSEM - uses Active Messages to implement the Dissemination barrier
+   algorithm as described in section 3.3 of
+    John M. Mellor-Crummey and Michael L. Scott. "Algorithms for scalable
+    synchronization on shared-memory multiprocessors." ACM ToCS, 9(1):21 65, 1991.
+  RDMADISSEM - uses Put operations to implement the Dissemination algorithm.
+  DISSEM - auto-selects either AMDISSEM or RDMADISSEM
+   The AMDISSEM algorithm is used on conduits where the GASNet Extended API
+   implements Puts via Active Messages.  Otherwise, RDMADISSEM is chosen.
+ In addition to those choices, many conduits have additional network-specific
+ barrier algorithms documented in the corresponding conduit READMEs.
+ The default is AMDISSEM, unless the conduit README documents another default.
 
 * GASNET_NODEMAP_EXACT - enables exact algorithm for discovery of shared memory nodes.
  Several GASNet conduits use mmap() and/or conduit-specific memory registration

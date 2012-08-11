@@ -1,7 +1,7 @@
 README file for dcmf-conduit
 ============================
 Rajesh Nishtala <rajeshn@cs.berkeley.edu>
-$Revision: 1.9 $
+$Revision: 1.9.40.1 $
 
 
 GASNet's DCMF conduit is the native port of GASNet to the BlueGene/P
@@ -98,6 +98,8 @@ Section: Running on the BlueGene/P Systems
   The following are a list of environment variables that DCMF conduit
   recognizes to adjust parameters that could influence the parameters. 
 
+  GASNET_BARRIER=DCMF_BARRIER (default)
+    + Enables dcmf-specific implementation of GASNet barriers
   GASNET_DCMF_PRINT_TORUS_LOCATION (yes/no): 
     + Each nodes prints it's X,Y,Z,T location in the 3D Torus (set
       to 1 to enable)
