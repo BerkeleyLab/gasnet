@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2012/08/11 02:33:43 $
- * $Revision: 1.89.2.6 $
+ *     $Date: 2012/08/11 05:01:53 $
+ * $Revision: 1.89.2.7 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1742,7 +1742,7 @@ int gasnet_barrier_try(int id, int flags) {
 extern void gasnete_coll_barrier_init(gasnete_coll_team_t team,  int barrier_type_in) {
 #ifndef GASNETE_BARRIER_DEFAULT
   /* conduit plugin for default barrier mechanism */
-#define GASNETE_BARRIER_DEFAULT "AMDISSEM"
+#define GASNETE_BARRIER_DEFAULT "DISSEM"
 #endif
   gasnete_coll_barrier_type_t barrier_type= (gasnete_coll_barrier_type_t) barrier_type_in;
   static int envdefault_set = 0;
@@ -1764,7 +1764,8 @@ extern void gasnete_coll_barrier_init(gasnete_coll_team_t team,  int barrier_typ
 ((options[0]?strcat(options, ", "),(void)0:(void)0),strcat(options, namestr), \
 !strcmp(selection, namestr))
     
-    if(GASNETE_ISBARRIER("AMDISSEM")) gasnete_coll_default_barrier_type = GASNETE_COLL_BARRIER_AMDISSEM;
+    if(GASNETE_ISBARRIER("DISSEM")) gasnete_coll_default_barrier_type = GASNETE_COLL_BARRIER_DISSEM;
+    else if(GASNETE_ISBARRIER("AMDISSEM")) gasnete_coll_default_barrier_type = GASNETE_COLL_BARRIER_AMDISSEM;
     else if(GASNETE_ISBARRIER("RDMADISSEM")) gasnete_coll_default_barrier_type = GASNETE_COLL_BARRIER_RDMADISSEM;
     else if(GASNETE_ISBARRIER("AMCENTRAL")) gasnete_coll_default_barrier_type = GASNETE_COLL_BARRIER_AMCENTRAL;
 #ifdef GASNETE_BARRIER_READENV
@@ -1821,6 +1822,16 @@ extern void gasnete_coll_barrier_init(gasnete_coll_team_t team,  int barrier_typ
      */
     /*we explicitly specify that we want an RDMA DISSEM Barrier*/
     gasnete_rmdbarrier_init(team);
+  } else if (barrier_type == GASNETE_COLL_BARRIER_DISSEM) {
+    /*we specify that we want to auto-select either AMDISSEM or RDMADISSEM Barrier*/
+  #if !GASNETE_USING_REF_EXTENDED
+    if (team == GASNET_TEAM_ALL) {
+      gasnete_rmdbarrier_init(team);
+    } else
+  #endif
+    {
+      gasnete_amdbarrier_init(team);
+    }
   } else {
     /* fallback to AM DISSEM */
     gasnete_amdbarrier_init(team);
@@ -1854,7 +1865,14 @@ gasneti_auxseg_request_t gasnete_barr_auxseg_alloc(gasnet_seginfo_t *auxseg_info
   if (!strcmp(barrier, "RDMADISSEM")) {
     retval.minsz = GASNETE_BARR_AUXSEGSZ;
     retval.optimalsz = GASNETE_BARR_AUXSEGSZ;
-  } else {
+  } else
+#if !GASNETE_USING_REF_EXTENDED
+  if (!strcmp(barrier, "DISSEM")) {
+    retval.minsz = GASNETE_BARR_AUXSEGSZ;
+    retval.optimalsz = GASNETE_BARR_AUXSEGSZ;
+  } else
+#endif
+  {
     retval.minsz = 0;
     retval.optimalsz = 0;
   }
