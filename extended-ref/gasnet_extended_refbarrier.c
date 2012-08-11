@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2012/08/10 22:45:22 $
- * $Revision: 1.89.2.5 $
+ *     $Date: 2012/08/11 02:33:43 $
+ * $Revision: 1.89.2.6 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -968,9 +968,7 @@ void gasnete_rmdbarrier_kick(gasnete_coll_team_t team) {
   step = barrier_data->barrier_step;
 
 #if !GASNETI_THREADS && 0 /* enable if Put doesn't make progress until a sync call */
-  if (barrier_data->barrier_handles) {
-    gasnete_try_syncnb_all(barrier_data->barrier_handles, step);
-  }
+  gasnete_try_syncnb_all(barrier_data->barrier_handles, step);
 #endif
 
   if (step == barrier_data->barrier_size ||
@@ -1129,6 +1127,10 @@ static int gasnete_rmdbarrier_wait(gasnete_coll_team_t team, int id, int flags) 
     const int passive_shift = barrier_data->barrier_passive;
     retval = gasnete_pshmbarrier_wait_inner(barrier_data->barrier_pshm, id, flags, passive_shift);
     if (passive_shift) {
+    #if !GASNETI_THREADS
+      /* "drain" at most one put_nb handle (we could have sent step 0) */
+      gasnete_wait_syncnb_all(barrier_data->barrier_handles, 1);
+   #endif
       /* Once the active peer signals done, we can return */
       team->barrier_splitstate = OUTSIDE_BARRIER;
       gasneti_sync_writes(); /* ensure all state changes committed before return */
@@ -1168,9 +1170,7 @@ static int gasnete_rmdbarrier_wait(gasnete_coll_team_t team, int id, int flags) 
 
 #if !GASNETI_THREADS
   /*  "drain" the put_nb handles, if any */
-  if (barrier_data->barrier_handles) {
-    gasnete_wait_syncnb_all(barrier_data->barrier_handles, barrier_data->barrier_size);
-  }
+  gasnete_wait_syncnb_all(barrier_data->barrier_handles, barrier_data->barrier_size);
 #endif
 
   /*  update state */
@@ -1254,12 +1254,7 @@ static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
     int step;
 
 #if !GASNETI_THREADS
-  #if GASNETI_PSHM_BARRIER_HIER
-    if (!barrier_data->barrier_passive)
-  #endif
-    {
-      barrier_data->barrier_handles = gasneti_calloc(steps, sizeof(gasnet_handle_t));
-    }
+    barrier_data->barrier_handles = gasneti_calloc(steps, sizeof(gasnet_handle_t));
 #endif
 
     gasneti_assert(gasnete_rmdbarrier_auxseg);
