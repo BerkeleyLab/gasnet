@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2012/08/12 02:48:42 $
- * $Revision: 1.89.2.11 $
+ *     $Date: 2012/08/12 04:22:12 $
+ * $Revision: 1.89.2.12 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -871,10 +871,7 @@ typedef struct {
   int volatile barrier_flags; /*  barrier flags (evolves from local value) */
   int volatile barrier_step;  /*  local barrier step */
   void *barrier_inbox;        /*  in-segment memory to recv notifications */
-#if !GASNETI_THREADS /* XXX: Can we weaken to just check SEQ? */
-  /* TODO: want/need handle management for PAR/PARSYNC, where handles are thread-specific */
   gasnet_handle_t *barrier_handles; /* array of handles for non-blocking puts */
-#endif
 } gasnete_coll_rmdbarrier_t;
 
 /* So, what's this inbox structure all about?
@@ -929,16 +926,10 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
   payload->flags2 = ~flags;
   payload->value2 = ~value;
 
-#if !GASNETI_THREADS
   /* use a non-blocking bulk put and collect the handles */
-  gasneti_assert(barrier_data->barrier_handles != NULL);
   gasneti_assert(barrier_data->barrier_handles[step] == GASNET_INVALID_HANDLE);
   barrier_data->barrier_handles[step] =
                 gasnete_put_nb_bulk(node, addr, payload, sizeof(*payload) GASNETE_THREAD_PASS);
-#else
-  /* until/unless we devise handle-management for threaded case, use a blocking put */
-  gasnete_put(node, addr, payload, sizeof(*payload) GASNETE_THREAD_PASS);
-#endif
 }
 
 GASNETI_INLINE(gasnete_rmdbarrier_poll)
@@ -1051,6 +1042,10 @@ void gasnete_rmdbarrier_kick(gasnete_coll_team_t team) {
   gasneti_mutex_unlock(&barrier_data->barrier_lock);
 
   if (numsteps) {
+  #if GASNETI_THREADS
+    const int first_sent = step + 1;
+    const int count = numsteps;
+  #endif
     GASNETE_THREAD_LOOKUP /* XXX: can we remove/avoid this lookup? */
 
     while (numsteps--) {
@@ -1062,6 +1057,13 @@ void gasnete_rmdbarrier_kick(gasnete_coll_team_t team) {
 
       gasnete_rmdbarrier_send(barrier_data, phase, step, value, flags GASNETE_THREAD_PASS);
     }
+
+  #if GASNETI_THREADS
+    /* sync the new handles, since we can't know this thread will re-enter the barrier code
+     * XXX: at the final step this will "sync" an extra handle allocated for this purpose
+     */
+    gasnete_wait_syncnb_all(barrier_data->barrier_handles + first_sent, count);
+  #endif
   }
 }
 
@@ -1106,6 +1108,10 @@ static void gasnete_rmdbarrier_notify(gasnete_coll_team_t team, int id, int flag
     if (do_send) {
       GASNETE_THREAD_LOOKUP /* XXX: can we remove/avoid this lookup? */
       gasnete_rmdbarrier_send(barrier_data, phase, 0, id, flags GASNETE_THREAD_PASS);
+    #if GASNETI_THREADS
+      /* sync the handle, since we can't know this thread will re-enter the barrier code */
+      gasnete_wait_syncnb_all(barrier_data->barrier_handles, 1);
+    #endif
     }
 #if GASNETI_PSHM_BARRIER_HIER
     if (!barrier_data->barrier_passive)
@@ -1137,7 +1143,7 @@ static int gasnete_rmdbarrier_wait(gasnete_coll_team_t team, int id, int flags) 
     #if !GASNETI_THREADS
       /* "drain" at most one put_nb handle (we could have sent step 0) */
       gasnete_wait_syncnb_all(barrier_data->barrier_handles, 1);
-   #endif
+    #endif
       /* Once the active peer signals done, we can return */
       team->barrier_splitstate = OUTSIDE_BARRIER;
       gasneti_sync_writes(); /* ensure all state changes committed before return */
@@ -1260,9 +1266,8 @@ static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
 #endif
     int step;
 
-#if !GASNETI_THREADS
-    barrier_data->barrier_handles = gasneti_calloc(steps, sizeof(gasnet_handle_t));
-#endif
+    /* Note steps+1 simplifies handle tracking in _kick, though we never use the extra one */
+    barrier_data->barrier_handles = gasneti_calloc(steps+1, sizeof(gasnet_handle_t));
 
     gasneti_assert(gasnete_rmdbarrier_auxseg);
     gasneti_assert_always(2 * sizeof(gasnete_coll_rmdbarrier_inbox_t) <= GASNETE_RDMABARRIER_INBOX_SZ);
