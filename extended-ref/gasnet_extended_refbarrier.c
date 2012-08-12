@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2012/08/12 22:21:30 $
- * $Revision: 1.89.2.14 $
+ *     $Date: 2012/08/12 23:43:56 $
+ * $Revision: 1.89.2.15 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -12,8 +12,6 @@
 
 #include <limits.h>
 #include <gasnet_coll_internal.h>
-
-/*  TODO: add more reference barrier implementation options (bug 264) */
 
 /* ------------------------------------------------------------------------------------ */
 /* state shared between barrier implementations */
@@ -947,10 +945,6 @@ void gasnete_rmdbarrier_kick(gasnete_coll_team_t team, int is_blocking) {
   /* early unlocked reads: */
   phase = barrier_data->barrier_phase;
   step = barrier_data->barrier_step;
-
-#if !GASNETI_THREADS && 0 /* enable if Put doesn't make progress until a sync call */
-  gasnete_try_syncnb_all(barrier_data->barrier_handles, step);
-#endif
 
   if (step == barrier_data->barrier_size ||
       !gasnete_rmdbarrier_poll(GASNETE_RDMABARRIER_INBOX(barrier_data,phase,step)))
