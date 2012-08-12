@@ -1,6 +1,6 @@
 README file for GASNet
 by: Dan Bonachea <bonachea@cs.berkeley.edu>
-$Revision: 1.150.4.2 $
+$Revision: 1.150.4.3 $
 
 This is a combination user manual and design document for GASNet. Anyone
 planning on using, modifying or adding to the GASNet code base should read this
@@ -372,8 +372,9 @@ application-specific support.
     synchronization on shared-memory multiprocessors." ACM ToCS, 9(1):21 65, 1991.
   RDMADISSEM - uses Put operations to implement the Dissemination algorithm.
   DISSEM - auto-selects either AMDISSEM or RDMADISSEM
-   The AMDISSEM algorithm is used on conduits where the GASNet Extended API
-   implements Puts via Active Messages.  Otherwise, RDMADISSEM is chosen.
+   The AMDISSEM or RDMADISSEM algorithm is selected automatically based on
+   conduit-specific critera.  In general RDMADISSEM is favored when the GASNet
+   Extended API is implemented natively.
  In addition to those choices, many conduits have additional network-specific
  barrier algorithms documented in the corresponding conduit READMEs.
  The default is DISSEM, unless the conduit README documents another default.

@@ -1,6 +1,6 @@
 /* $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gm-conduit/Attic/gasnet_extended_ref.c,v $
- * $Date: 2010/03/27 21:54:03 $
- * $Revision: 1.25 $
+ * $Date: 2012/08/12 05:53:53 $
+ * $Revision: 1.25.32.1 $
  * Description: GASNet GM conduit Extended API Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -397,6 +397,11 @@ void gasnete_extref_memset_nbi   (gasnet_node_t node, void *dest, int val, size_
   Barriers:
   =========
 */
+ 
+/* Timings show that gm_send is just simply faster than gm_put */
+#define GASNETE_BARRIER_INIT(TEAM, BARRIER_TYPE) \
+   if ((BARRIER_TYPE) == GASNETE_COLL_BARRIER_DISSEM) BARRIER_TYPE = GASNETE_COLL_BARRIER_AMDISSEM
+
 /* reference implementation of barrier */
 #define GASNETI_GASNET_EXTENDED_REFBARRIER_C 1
 #include "gasnet_extended_refbarrier.c"
