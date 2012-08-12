@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2012/08/12 00:35:20 $
- * $Revision: 1.89.2.10 $
+ *     $Date: 2012/08/12 02:48:42 $
+ * $Revision: 1.89.2.11 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -916,24 +916,28 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
                              GASNETE_THREAD_FARG) {
   const gasnet_node_t node = barrier_data->barrier_peers[step].node;
   void * addr = GASNETE_RDMABARRIER_INBOX_REMOTE(barrier_data, phase, step);
-  union {
-    gasnete_coll_rmdbarrier_inbox_t payload;
-    gasnete_anytype64_t any64; /* For alignment */
-  } u;
+  gasnete_coll_rmdbarrier_inbox_t *payload;
 
-  u.payload.value  = value;
-  u.payload.flags  = flags;
-  u.payload.flags2 = ~flags;
-  u.payload.value2 = ~value;
+  /* Use the upper half (padding) of "other phase" inbox as an in-segment temporary.
+   * This has sufficient lifetime for bulk and sufficient alignment for non-bulk.
+   * Use of opposite phase prevents cacheline contention with arrivals.
+   */
+  payload = 1 + GASNETE_RDMABARRIER_INBOX(barrier_data, (phase^1), step);
+
+  payload->value  = value;
+  payload->flags  = flags;
+  payload->flags2 = ~flags;
+  payload->value2 = ~value;
 
 #if !GASNETI_THREADS
-  /* use a non-blocking non-bulk put and collect the handles */
+  /* use a non-blocking bulk put and collect the handles */
   gasneti_assert(barrier_data->barrier_handles != NULL);
   gasneti_assert(barrier_data->barrier_handles[step] == GASNET_INVALID_HANDLE);
-  barrier_data->barrier_handles[step] = gasnete_put_nb(node, addr, &u, sizeof(u) GASNETE_THREAD_PASS);
+  barrier_data->barrier_handles[step] =
+                gasnete_put_nb_bulk(node, addr, payload, sizeof(*payload) GASNETE_THREAD_PASS);
 #else
   /* until/unless we devise handle-management for threaded case, use a blocking put */
-  gasnete_put(node, addr, &u, sizeof(u) GASNETE_THREAD_PASS);
+  gasnete_put(node, addr, payload, sizeof(*payload) GASNETE_THREAD_PASS);
 #endif
 }
 
@@ -1261,6 +1265,7 @@ static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
 #endif
 
     gasneti_assert(gasnete_rmdbarrier_auxseg);
+    gasneti_assert_always(2 * sizeof(gasnete_coll_rmdbarrier_inbox_t) <= GASNETE_RDMABARRIER_INBOX_SZ);
     barrier_data->barrier_inbox = gasnete_rmdbarrier_auxseg[gasneti_mynode].addr;
 
     barrier_data->barrier_peers = gasneti_malloc(steps * sizeof(* barrier_data->barrier_peers));
