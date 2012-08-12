@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2012/08/11 09:50:20 $
- * $Revision: 1.89.2.9 $
+ *     $Date: 2012/08/12 00:35:20 $
+ * $Revision: 1.89.2.10 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -997,9 +997,24 @@ void gasnete_rmdbarrier_kick(gasnete_coll_team_t team) {
     gasneti_assert(inbox->value2 == ~step_value);
     gasneti_assert(inbox->flags2 == ~step_flags);
 
-    /* "reset" the inbox */
-    inbox->value = ~step_value;
-    inbox->flags = ~step_flags;
+    /* "reset" the inbox
+     *
+     * We need to protect against "late arrivals", which are bytes written by the NIC
+     * after we reset.  These late arrivals are possible if we've passed the _poll
+     * check "too early" because one or more bytes already contained the proper value
+     * by chance.  The risk is that the late arrivial byte(s) might match their peer
+     * (e.g. value vs value2) BEFORE the next barrier leads to an actual arrival.
+     * So, we must ensure that every (non-padding) byte is changed by the reset.
+     */
+    {
+  #if SIZEOF_INT == 8
+      unsigned int mask = 0x0101010101010101;
+  #else
+      unsigned int mask = 0x01010101;
+  #endif
+      inbox->value = inbox->value2 = step_value ^ mask;
+      inbox->flags = inbox->flags2 = step_flags ^ mask;
+    }
 
     if ((flags | step_flags) & GASNET_BARRIERFLAG_MISMATCH) {
       flags = GASNET_BARRIERFLAG_MISMATCH; 
