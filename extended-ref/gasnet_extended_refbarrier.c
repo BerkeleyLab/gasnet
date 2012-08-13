@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2012/08/13 02:04:54 $
- * $Revision: 1.89.2.17 $
+ *     $Date: 2012/08/13 02:37:11 $
+ * $Revision: 1.89.2.18 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -867,9 +867,8 @@ typedef struct {
   int volatile barrier_flags; /*  barrier flags (evolves from local value) */
   int volatile barrier_step;  /*  local barrier step */
   void *barrier_inbox;        /*  in-segment memory to recv notifications */
+#if !GASNETI_THREADS
   gasnet_handle_t *barrier_handles; /* array of handles for non-blocking puts */
-#if GASNETI_THREADS
-  volatile int barrier_busy;  /*  kick function is NOT reentrant */
 #endif
 } gasnete_coll_rmdbarrier_t;
 
@@ -907,6 +906,7 @@ typedef struct gasnete_coll_rmdbarrier_inbox_s {
 
 GASNETI_INLINE(gasnete_rmdbarrier_send)
 void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
+                             gasnet_handle_t *handle_array,
                              gasnet_handlerarg_t phase, gasnet_handlerarg_t step,
                              gasnet_handlerarg_t value, gasnet_handlerarg_t flags
                              GASNETE_THREAD_FARG) {
@@ -926,9 +926,10 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
   payload->value2 = ~value;
 
   /* use a non-blocking bulk put and collect the handles */
-  gasneti_assert(barrier_data->barrier_handles[step] == GASNET_INVALID_HANDLE);
-  barrier_data->barrier_handles[step] =
-                gasnete_put_nb_bulk(node, addr, payload, sizeof(*payload) GASNETE_THREAD_PASS);
+#if !GASNETI_THREADS
+  gasneti_assert(handle_array[step] == GASNET_INVALID_HANDLE);
+#endif
+  handle_array[step] = gasnete_put_nb_bulk(node, addr, payload, sizeof(*payload) GASNETE_THREAD_PASS);
 }
 
 GASNETI_INLINE(gasnete_rmdbarrier_poll)
@@ -1035,22 +1036,27 @@ void gasnete_rmdbarrier_kick(gasnete_coll_team_t team) {
     barrier_data->barrier_step = cursor;
   } 
 
+  gasneti_mutex_unlock(&barrier_data->barrier_lock);
+
   if (numsteps) { /* need to issue one or more Puts */
+  #if GASNETI_THREADS
+    gasnet_handle_t handles[32];
+  #else
+    gasnet_handle_t * const handles = barrier_data->barrier_handles;
+  #endif
     const int first = step + 1;
     const int limit = first + numsteps;
     GASNETE_THREAD_LOOKUP /* XXX: can we remove/avoid this lookup? */
 
     for (step = first; step < limit; ++step) {
-      gasnete_rmdbarrier_send(barrier_data, phase, step, value, flags GASNETE_THREAD_PASS);
+      gasnete_rmdbarrier_send(barrier_data, handles, phase, step, value, flags GASNETE_THREAD_PASS);
     }
 
   #if GASNETI_THREADS
     /* sync the new handles, since we can't know this thread will re-enter the barrier code */
-    gasnete_wait_syncnb_all(barrier_data->barrier_handles + first, numsteps);
+    gasnete_wait_syncnb_all(handles + first, numsteps);
   #endif
   }
-
-  gasneti_mutex_unlock(&barrier_data->barrier_lock);
 }
 
 static void gasnete_rmdbarrier_notify(gasnete_coll_team_t team, int id, int flags) {
@@ -1092,11 +1098,18 @@ static void gasnete_rmdbarrier_notify(gasnete_coll_team_t team, int id, int flag
   if (barrier_data->barrier_size) {
     /*  (possibly) send notify msg to peer */
     if (do_send) {
+    #if GASNETI_THREADS
+      gasnet_handle_t handles[1];
+    #else
+      gasnet_handle_t * const handles = barrier_data->barrier_handles;
+    #endif
       GASNETE_THREAD_LOOKUP /* XXX: can we remove/avoid this lookup? */
-      gasnete_rmdbarrier_send(barrier_data, phase, 0, id, flags GASNETE_THREAD_PASS);
+
+      gasnete_rmdbarrier_send(barrier_data, handles, phase, 0, id, flags GASNETE_THREAD_PASS);
+
     #if GASNETI_THREADS
       /* sync the handle, since we can't know this thread will re-enter the barrier code */
-      gasnete_wait_syncnb_all(barrier_data->barrier_handles, 1);
+      gasnete_wait_syncnb_all(handles, 1);
     #endif
     }
 #if GASNETI_PSHM_BARRIER_HIER
@@ -1144,13 +1157,11 @@ static int gasnete_rmdbarrier_wait(gasnete_coll_team_t team, int id, int flags) 
   } else {
     /* wait for response */
     /* cannot BLOCKUNTIL since progess may occur on non-AM events */
-    barrier_data->barrier_busy = 1;
     do {
       GASNETI_WAITHOOK();
       GASNETI_SAFE(gasneti_AMPoll());
       gasnete_rmdbarrier_kick(team);
     } while (barrier_data->barrier_step != barrier_data->barrier_size);
-    barrier_data->barrier_busy = 0;
   }
   gasneti_sync_reads(); /* ensure correct barrier_flags will be read */
 
@@ -1196,10 +1207,8 @@ static int gasnete_rmdbarrier_try(gasnete_coll_team_t team, int id, int flags) {
   if_pf(team->barrier_splitstate == OUTSIDE_BARRIER) 
     gasneti_fatalerror("gasnet_barrier_try() called without a matching notify");
 
-  barrier_data->barrier_busy = 1;
   GASNETI_SAFE(gasneti_AMPoll());
   gasnete_rmdbarrier_kick(team);
-  barrier_data->barrier_busy = 0;
 
 #if GASNETI_PSHM_BARRIER_HIER
   if (barrier_data->barrier_pshm) {
@@ -1216,10 +1225,7 @@ static int gasnete_rmdbarrier_try(gasnete_coll_team_t team, int id, int flags) {
 }
 
 void gasnete_rmdbarrier_kick_team_all(void) {
-  gasnete_coll_rmdbarrier_t *barrier_data = GASNET_TEAM_ALL->barrier_data;
-  if (!barrier_data->barrier_busy) { /* prevent re-entrance when called from _try or _wait */
-    gasnete_rmdbarrier_kick(GASNET_TEAM_ALL);
-  }
+  gasnete_rmdbarrier_kick(GASNET_TEAM_ALL);
 }
 
 static gasnet_seginfo_t *gasnete_rmdbarrier_auxseg = NULL;
@@ -1259,7 +1265,9 @@ static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
 #endif
     int step;
 
+#if !GASNETI_THREADS
     barrier_data->barrier_handles = gasneti_calloc(steps, sizeof(gasnet_handle_t));
+#endif
 
     gasneti_assert(gasnete_rmdbarrier_auxseg);
     gasneti_assert_always(2 * sizeof(gasnete_coll_rmdbarrier_inbox_t) <= GASNETE_RDMABARRIER_INBOX_SZ);
