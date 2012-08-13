@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2012/08/13 00:30:31 $
- * $Revision: 1.89.2.16 $
+ *     $Date: 2012/08/13 02:04:54 $
+ * $Revision: 1.89.2.17 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -868,6 +868,9 @@ typedef struct {
   int volatile barrier_step;  /*  local barrier step */
   void *barrier_inbox;        /*  in-segment memory to recv notifications */
   gasnet_handle_t *barrier_handles; /* array of handles for non-blocking puts */
+#if GASNETI_THREADS
+  volatile int barrier_busy;  /*  kick function is NOT reentrant */
+#endif
 } gasnete_coll_rmdbarrier_t;
 
 /* So, what's this inbox structure all about?
@@ -1032,9 +1035,7 @@ void gasnete_rmdbarrier_kick(gasnete_coll_team_t team) {
     barrier_data->barrier_step = cursor;
   } 
 
-  gasneti_mutex_unlock(&barrier_data->barrier_lock);
-
-  if (numsteps) {
+  if (numsteps) { /* need to issue one or more Puts */
     const int first = step + 1;
     const int limit = first + numsteps;
     GASNETE_THREAD_LOOKUP /* XXX: can we remove/avoid this lookup? */
@@ -1048,6 +1049,8 @@ void gasnete_rmdbarrier_kick(gasnete_coll_team_t team) {
     gasnete_wait_syncnb_all(barrier_data->barrier_handles + first, numsteps);
   #endif
   }
+
+  gasneti_mutex_unlock(&barrier_data->barrier_lock);
 }
 
 static void gasnete_rmdbarrier_notify(gasnete_coll_team_t team, int id, int flags) {
@@ -1141,11 +1144,13 @@ static int gasnete_rmdbarrier_wait(gasnete_coll_team_t team, int id, int flags) 
   } else {
     /* wait for response */
     /* cannot BLOCKUNTIL since progess may occur on non-AM events */
+    barrier_data->barrier_busy = 1;
     do {
       GASNETI_WAITHOOK();
       GASNETI_SAFE(gasneti_AMPoll());
       gasnete_rmdbarrier_kick(team);
     } while (barrier_data->barrier_step != barrier_data->barrier_size);
+    barrier_data->barrier_busy = 0;
   }
   gasneti_sync_reads(); /* ensure correct barrier_flags will be read */
 
@@ -1191,8 +1196,10 @@ static int gasnete_rmdbarrier_try(gasnete_coll_team_t team, int id, int flags) {
   if_pf(team->barrier_splitstate == OUTSIDE_BARRIER) 
     gasneti_fatalerror("gasnet_barrier_try() called without a matching notify");
 
+  barrier_data->barrier_busy = 1;
   GASNETI_SAFE(gasneti_AMPoll());
   gasnete_rmdbarrier_kick(team);
+  barrier_data->barrier_busy = 0;
 
 #if GASNETI_PSHM_BARRIER_HIER
   if (barrier_data->barrier_pshm) {
@@ -1209,7 +1216,10 @@ static int gasnete_rmdbarrier_try(gasnete_coll_team_t team, int id, int flags) {
 }
 
 void gasnete_rmdbarrier_kick_team_all(void) {
-  gasnete_rmdbarrier_kick(GASNET_TEAM_ALL);
+  gasnete_coll_rmdbarrier_t *barrier_data = GASNET_TEAM_ALL->barrier_data;
+  if (!barrier_data->barrier_busy) { /* prevent re-entrance when called from _try or _wait */
+    gasnete_rmdbarrier_kick(GASNET_TEAM_ALL);
+  }
 }
 
 static gasnet_seginfo_t *gasnete_rmdbarrier_auxseg = NULL;
