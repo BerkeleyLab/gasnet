@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2012/08/13 02:37:11 $
- * $Revision: 1.89.2.18 $
+ *     $Date: 2012/08/13 03:31:57 $
+ * $Revision: 1.89.2.19 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -693,6 +693,7 @@ static int gasnete_amdbarrier_wait(gasnete_coll_team_t team, int id, int flags) 
   if (barrier_data->amdbarrier_step == barrier_data->amdbarrier_size) { /* completed asynchronously before wait (via progressfns or try) */
     GASNETI_TRACE_EVENT_TIME(B,BARRIER_ASYNC_COMPLETION,GASNETI_TICKS_NOW_IFENABLED(B)-gasnete_barrier_notifytime);
   } else { /*  wait for response */
+    gasnete_barrier_pf_disable(team);
     GASNET_BLOCKUNTIL((gasnete_amdbarrier_kick(team), barrier_data->amdbarrier_step == barrier_data->amdbarrier_size));
   }
 
@@ -1522,6 +1523,7 @@ static int gasnete_amcbarrier_wait(gasnete_coll_team_t team, int id, int flags) 
     GASNETI_TRACE_EVENT_TIME(B,BARRIER_ASYNC_COMPLETION,GASNETI_TICKS_NOW_IFENABLED(B)-gasnete_barrier_notifytime);
     gasneti_sync_reads(); /* ensure we read correct amcbarrier_response_mismatch[] */
   } else { /*  wait for response */
+    gasnete_barrier_pf_disable(team);
     GASNET_BLOCKUNTIL((gasnete_amcbarrier_kick(team), barrier_data->amcbarrier_response_done[phase]));
     /* GASNET_BLOCKUNTIL contains RMB needed for read of amcbarrier_response_mismatch[] */
   }
