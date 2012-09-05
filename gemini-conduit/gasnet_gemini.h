@@ -14,7 +14,13 @@
 #include "gasnet_core_internal.h"
 #include <gasnet_extended_internal.h>
 
-#define GASNETC_DEBUG 0
+#define GASNETC_DEBUG 		0
+
+#define OPTIMIZE_LIMIT_CQ 	1
+#define OPTIMIZE_RELAXED 	1
+#define OPTIMIZE_RELAXED_AM 1
+
+
 
 #ifdef GASNETC_DEBUG
 #define GC_DEBUG(x) x
@@ -205,7 +211,9 @@ int gasnetc_GNIT_Device_Id(void);
 void gasnetc_GNIT_Allgather(void *local, long length, void *global);
 void gasnetc_GNIT_Finalize(void);
 void gasnetc_GNIT_Barrier(void);
-
+#if OPTIMIZE_LIMIT_CQ
+int gasnetc_GNIT_numpes_on_smp(void);
+#endif
 
 void gasnetc_get_am_credit(uint32_t pe);
 void gasnetc_return_am_credit(uint32_t pe);

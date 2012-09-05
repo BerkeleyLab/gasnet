@@ -6,7 +6,12 @@
 #include <sys/mman.h>
 #include <signal.h>
 
+#if OPTIMIZE_CQ_LIMIT
+#define GASNETC_NETWORKDEPTH_DEFAULT 32
+#else
 #define GASNETC_NETWORKDEPTH_DEFAULT 12
+#endif
+
 static unsigned int gasnetc_mb_maxcredit;
 
 int gasnetc_poll_burst = 10;
@@ -49,6 +54,12 @@ static gni_cq_handle_t smsg_cq_handle;
 
 static void *smsg_mmap_ptr;
 static size_t smsg_mmap_bytes;
+
+#if OPTIMIZE_LIMIT_CQ
+static int  numpes_on_smp;
+static int  max_outstanding_req;
+static int  outstanding_req;
+#endif
 
 static const char *gni_return_string(gni_return_t status)
 {
@@ -100,8 +111,12 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
     for (;;) {
       status = GNI_MemRegister(nic_handle, (uint64_t) segment_start, 
 			       (uint64_t) segment_size, NULL,
-			       GNI_MEM_STRICT_PI_ORDERING | GNI_MEM_PI_FLUSH 
-			       | GNI_MEM_READWRITE, -1, 
+#if OPTIMIZE_RELAXED    
+				GNI_MEM_RELAXED_PI_ORDERING |
+#else
+				GNI_MEM_STRICT_PI_ORDERING | GNI_MEM_PI_FLUSH|
+#endif
+			      GNI_MEM_READWRITE, -1, 
 			       &mypeersegmentdata.segment_mem_handle);
       if (status == GNI_RC_SUCCESS) break;
       if (status == GNI_RC_ERROR_RESOURCE) {
@@ -156,8 +171,18 @@ uintptr_t gasnetc_init_messaging(void)
 #if GASNETC_DEBUG
   gasnetc_GNIT_Log("cdmattach");
 #endif
-
-  status = GNI_CqCreate(nic_handle, 1024, 0, GNI_CQ_NOBLOCK, NULL, NULL, &bound_cq_handle);
+#if OPTIMIZE_LIMIT_CQ
+	  int depth = gasneti_getenv_int_withdefault("GASNET_NETWORKDEPTH", GASNETC_NETWORKDEPTH_DEFAULT, 0);
+  	gasnetc_mb_maxcredit = 2 * MAX(1,depth); 
+    numpes_on_smp = gasnetc_GNIT_numpes_on_smp();
+	int cpu_count = gasneti_cpu_count();
+	int multiplier = MAX(1,cpu_count/numpes_on_smp);  max_outstanding_req = multiplier*depth;
+	outstanding_req = 0;  
+	int cq_entries = max_outstanding_req+2;
+	status = GNI_CqCreate(nic_handle, cq_entries, 0, GNI_CQ_NOBLOCK, NULL, NULL, &bound_cq_handle);
+#else
+	status = GNI_CqCreate(nic_handle, 1024, 0, GNI_CQ_NOBLOCK, NULL, NULL, &bound_cq_handle);
+#endif
 
   gasneti_assert_always (status == GNI_RC_SUCCESS);
 
@@ -179,10 +204,11 @@ uintptr_t gasnetc_init_messaging(void)
 
 
   /* Initialize the short message system */
-
+#if !OPTIMIZE_LIMIT_CQ
   { int tmp = gasneti_getenv_int_withdefault("GASNET_NETWORKDEPTH", GASNETC_NETWORKDEPTH_DEFAULT, 0);
     gasnetc_mb_maxcredit = 2 * MAX(1,tmp); /* silently "fix" zero or negative values */
   }
+#endif
 
   /*
    * allocate a CQ in which to receive message notifications
@@ -240,8 +266,12 @@ uintptr_t gasnetc_init_messaging(void)
 			       (unsigned long)smsg_mmap_ptr, 
 			       bytes_needed,
 			       smsg_cq_handle,
-			       GNI_MEM_STRICT_PI_ORDERING | GNI_MEM_PI_FLUSH 
-			       |GNI_MEM_READWRITE,
+#if OPTIMIZE_RELAXED_AM
+				    GNI_MEM_RELAXED_PI_ORDERING |
+#else
+					GNI_MEM_STRICT_PI_ORDERING | GNI_MEM_PI_FLUSH |
+#endif
+			       GNI_MEM_READWRITE,
 			       -1,
 			       &mypeerdata.smsg_attr.mem_hndl);
       if (status == GNI_RC_SUCCESS) break;
@@ -686,7 +716,10 @@ void gasnetc_poll_local_queue(void)
 	gasnetc_GNIT_Abort("GetCompleted(%p) failed %s\n",
 		   (void *) event_data, gni_return_string(status));
       gpd = gasnetc_get_struct_addr_from_field_addr(gasnetc_post_descriptor_t, pd, pd);
-      
+#if OPTIMIZE_LIMIT_CQ
+		outstanding_req--;  // already lock protected
+#endif
+
 
       /* handle remaining work */
       if (gpd->flags & GC_POST_COPY) {
@@ -802,9 +835,25 @@ static gni_return_t myPostRdma(gni_ep_handle_t ep, gni_post_descriptor_t *pd)
   gni_return_t status;
   int i;
   i = 0;
+#if OPTIMIZE_LIMIT_CQ
+    while(outstanding_req >= max_outstanding_req) {
+		GASNETC_UNLOCK_GNI();
+		gasnetc_poll_local_queue();
+		GASNETC_LOCK_GNI();
+	}
+#endif
+
   for (;;) {
       status = GNI_PostRdma(ep, pd);
+#if OPTIMIZE_LIMIT_CQ
+	   i++; //BUGFIX
+	   if (status == GNI_RC_SUCCESS) {
+			outstanding_req++; // already lock protected
+			break;
+		}
+#else
       if (status == GNI_RC_SUCCESS) break;
+#endif
       if (status != GNI_RC_ERROR_RESOURCE) break;
       if (i >= 1000) {
 	fprintf(stderr, "postrdma retry failed\n");
@@ -824,7 +873,15 @@ static gni_return_t myPostFma(gni_ep_handle_t ep, gni_post_descriptor_t *pd)
   i = 0;
   for (;;) {
       status = GNI_PostFma(ep, pd);
+#if OPTIMIZE_LIMIT_CQ
+	  i++; //BUGFIX
+	  if (status == GNI_RC_SUCCESS) {
+			outstanding_req++;  // already lock protected
+			break;
+		}
+#else
       if (status == GNI_RC_SUCCESS) break;
+#endif
       if (status != GNI_RC_ERROR_RESOURCE) break;
       if (i >= 1000) {
 	fprintf(stderr, "postrdma retry failed\n");
@@ -881,8 +938,12 @@ void gasnetc_rdma_put(gasnet_node_t dest,
 	for (;;) {
 	  status = GNI_MemRegister(nic_handle, (uint64_t) source_addr, 
 				   (uint64_t) nbytes, NULL,
-				   GNI_MEM_STRICT_PI_ORDERING | GNI_MEM_PI_FLUSH 
-				   |GNI_MEM_READWRITE, -1, &gpd->mem_handle);
+#if OPTIMIZE_RELAXED
+				    GNI_MEM_RELAXED_PI_ORDERING |
+#else
+					GNI_MEM_STRICT_PI_ORDERING | GNI_MEM_PI_FLUSH |
+#endif
+				   GNI_MEM_READWRITE, -1, &gpd->mem_handle);
 	  if (status == GNI_RC_SUCCESS) break;
 	  if (status == GNI_RC_ERROR_RESOURCE) {
 	    fprintf(stderr, "MemRegister fault %d at  %p %lx, code %s\n", count, source_addr, nbytes,
