@@ -7,7 +7,7 @@
 #include <signal.h>
 
 #if OPTIMIZE_CQ_LIMIT
-#define GASNETC_NETWORKDEPTH_DEFAULT 32
+#define GASNETC_NETWORKDEPTH_DEFAULT 16
 #else
 #define GASNETC_NETWORKDEPTH_DEFAULT 12
 #endif
@@ -111,10 +111,11 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
     for (;;) {
       status = GNI_MemRegister(nic_handle, (uint64_t) segment_start, 
 			       (uint64_t) segment_size, NULL,
-#if OPTIMIZE_RELAXED    
-				GNI_MEM_RELAXED_PI_ORDERING |
-#else
-				GNI_MEM_STRICT_PI_ORDERING | GNI_MEM_PI_FLUSH|
+#if (MEM_CONSISTENCY == STRICT_MEM_CONSISTENCY)
+				GNI_MEM_STRICT_PI_ORDERING | GNI_MEM_PI_FLUSH |
+#elif (MEM_CONSISTENCY == RELAXED_MEM_CONSISTENCY) 
+				GNI_MEM_RELAXED_PI_ORDERING | 
+#else // DEFAULT_MEM_CONSISTENCY
 #endif
 			      GNI_MEM_READWRITE, -1, 
 			       &mypeersegmentdata.segment_mem_handle);
@@ -149,6 +150,10 @@ uintptr_t gasnetc_init_messaging(void)
   unsigned int bytes_needed;
   int modes = 0;
 
+#if (MEM_CONSISTENCY == RELAXED_MEM_CONSISTENCY)
+  modes |= GNI_CDM_MODE_ERR_NO_KILL| GNI_CDM_MODE_BTE_SINGLE_CHANNEL;
+#endif
+
 #if GASNETC_DEBUG
   gasnetc_GNIT_Log("entering");
 #endif
@@ -172,14 +177,17 @@ uintptr_t gasnetc_init_messaging(void)
   gasnetc_GNIT_Log("cdmattach");
 #endif
 #if OPTIMIZE_LIMIT_CQ
-	  int depth = gasneti_getenv_int_withdefault("GASNET_NETWORKDEPTH", GASNETC_NETWORKDEPTH_DEFAULT, 0);
+  {
+	  int depth, cpu_count,cq_entries,multiplier;
+	 depth = gasneti_getenv_int_withdefault("GASNET_NETWORKDEPTH", GASNETC_NETWORKDEPTH_DEFAULT, 0);
   	gasnetc_mb_maxcredit = 2 * MAX(1,depth); 
     numpes_on_smp = gasnetc_GNIT_numpes_on_smp();
-	int cpu_count = gasneti_cpu_count();
-	int multiplier = MAX(1,cpu_count/numpes_on_smp);  max_outstanding_req = multiplier*depth;
+	cpu_count = gasneti_cpu_count();
+	multiplier = MAX(1,cpu_count/numpes_on_smp);  max_outstanding_req = multiplier*depth;
 	outstanding_req = 0;  
-	int cq_entries = max_outstanding_req+2;
+	cq_entries = max_outstanding_req+2;
 	status = GNI_CqCreate(nic_handle, cq_entries, 0, GNI_CQ_NOBLOCK, NULL, NULL, &bound_cq_handle);
+  }
 #else
 	status = GNI_CqCreate(nic_handle, 1024, 0, GNI_CQ_NOBLOCK, NULL, NULL, &bound_cq_handle);
 #endif
@@ -266,10 +274,11 @@ uintptr_t gasnetc_init_messaging(void)
 			       (unsigned long)smsg_mmap_ptr, 
 			       bytes_needed,
 			       smsg_cq_handle,
-#if OPTIMIZE_RELAXED_AM
-				    GNI_MEM_RELAXED_PI_ORDERING |
-#else
-					GNI_MEM_STRICT_PI_ORDERING | GNI_MEM_PI_FLUSH |
+#if (AM_MEM_CONSISTENCY == STRICT_MEM_CONSISTENCY)
+				GNI_MEM_STRICT_PI_ORDERING | GNI_MEM_PI_FLUSH |
+#elif (AM_MEM_CONSISTENCY == RELAXED_MEM_CONSISTENCY) 
+				GNI_MEM_RELAXED_PI_ORDERING | 
+#else // DEFAULT_MEM_CONSISTENCY
 #endif
 			       GNI_MEM_READWRITE,
 			       -1,
@@ -843,6 +852,10 @@ static gni_return_t myPostRdma(gni_ep_handle_t ep, gni_post_descriptor_t *pd)
 	}
 #endif
 
+#if (MEM_CONSISTENCY == RELAXED_MEM_CONSISTENCY)
+	if(pd->type ==  GNI_POST_RDMA_PUT)
+		pd->rdma_mode |= GNI_RDMAMODE_FENCE;
+#endif
   for (;;) {
       status = GNI_PostRdma(ep, pd);
 #if OPTIMIZE_LIMIT_CQ
@@ -871,6 +884,7 @@ static gni_return_t myPostFma(gni_ep_handle_t ep, gni_post_descriptor_t *pd)
   gni_return_t status;
   int i;
   i = 0;
+
   for (;;) {
       status = GNI_PostFma(ep, pd);
 #if OPTIMIZE_LIMIT_CQ
@@ -938,12 +952,13 @@ void gasnetc_rdma_put(gasnet_node_t dest,
 	for (;;) {
 	  status = GNI_MemRegister(nic_handle, (uint64_t) source_addr, 
 				   (uint64_t) nbytes, NULL,
-#if OPTIMIZE_RELAXED
-				    GNI_MEM_RELAXED_PI_ORDERING |
-#else
-					GNI_MEM_STRICT_PI_ORDERING | GNI_MEM_PI_FLUSH |
+#if (MEM_CONSISTENCY == STRICT_MEM_CONSISTENCY)
+				GNI_MEM_STRICT_PI_ORDERING | GNI_MEM_PI_FLUSH |
+#elif (MEM_CONSISTENCY == RELAXED_MEM_CONSISTENCY) 
+				GNI_MEM_RELAXED_PI_ORDERING | 
+#else // DEFAULT_MEM_CONSISTENCY
 #endif
-				   GNI_MEM_READWRITE, -1, &gpd->mem_handle);
+				GNI_MEM_READWRITE, -1, &gpd->mem_handle);
 	  if (status == GNI_RC_SUCCESS) break;
 	  if (status == GNI_RC_ERROR_RESOURCE) {
 	    fprintf(stderr, "MemRegister fault %d at  %p %lx, code %s\n", count, source_addr, nbytes,
@@ -1088,8 +1103,13 @@ void gasnetc_rdma_get(gasnet_node_t dest,
 	for (;;) {
 	  status = GNI_MemRegister(nic_handle, (uint64_t) dest_addr, 
 				   (uint64_t) nbytes, NULL,
-				   GNI_MEM_STRICT_PI_ORDERING | GNI_MEM_PI_FLUSH 
-				   |GNI_MEM_READWRITE, -1, &gpd->mem_handle);
+#if (MEM_CONSISTENCY == STRICT_MEM_CONSISTENCY)
+				GNI_MEM_STRICT_PI_ORDERING | GNI_MEM_PI_FLUSH |
+#elif (MEM_CONSISTENCY == RELAXED_MEM_CONSISTENCY) 
+				GNI_MEM_RELAXED_PI_ORDERING | 
+#else // DEFAULT_MEM_CONSISTENCY
+#endif
+				   GNI_MEM_READWRITE, -1, &gpd->mem_handle);
 	  if (status == GNI_RC_SUCCESS) break;
 	  if (status == GNI_RC_ERROR_RESOURCE) {
 	    fprintf(stderr, "MemRegister fault %d at  %p %lx, code %s\n",
