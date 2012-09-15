@@ -13,6 +13,14 @@ test%-parsync: force
 	@$(MAKE) -C $(CONDUIT_DIR) $@ MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)"
 	cp -f $(CONDUIT_DIR)/`basename $@ -parsync`$(EXESUFFIX) $@$(EXESUFFIX)
 
+testbarrierconf_t-seq: force
+	@$(MAKE) -C $(CONDUIT_DIR) testbarrierconf-seq MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)"
+	cp -f $(CONDUIT_DIR)/testbarrierconf$(EXESUFFIX) $@$(EXESUFFIX)
+
+testbarrierconf_t-par: force
+	@$(MAKE) -C $(CONDUIT_DIR) testbarrierconf-par MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)"
+	cp -f $(CONDUIT_DIR)/testbarrierconf$(EXESUFFIX) $@$(EXESUFFIX)
+
 testconduitspecific: force
 	@if test "$(NETWORK)" = "mpi" ; then 	\
            conduit_test=testmpi ;		\
