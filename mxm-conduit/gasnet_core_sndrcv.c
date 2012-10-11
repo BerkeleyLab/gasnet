@@ -141,7 +141,7 @@ static inline void gasnetc_PostSend(mxm_send_req_t * mxm_sreq,
 
 /* -------------------------------------------------------------------------- */
 
-extern void gasnetc_barrier_fence()
+extern void gasnetc_barrier_fence(void)
 {
     gasnet_mxm_send_req_t * sreqs;
     mxm_send_req_t * mxm_sreq;

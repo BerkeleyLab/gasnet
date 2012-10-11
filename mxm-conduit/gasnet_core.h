@@ -194,7 +194,7 @@ extern int gasnetc_AMPoll(void);
  * Misc. auxiliary functions
  * =========================
  */
-extern void gasnetc_barrier_fence();
+extern void gasnetc_barrier_fence(void);
 
 /* ------------------------------------------------------------------------------------ */
 
