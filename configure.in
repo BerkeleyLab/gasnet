@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2012/10/11 18:47:48 $
-# $Revision: 1.767.2.2 $
+#     $Date: 2012/10/11 19:26:59 $
+# $Revision: 1.767.2.3 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.767.2.2 $)
+AC_REVISION($Revision: 1.767.2.3 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -5188,16 +5188,15 @@ GASNET_WITH(tool-prefix, [Naming prefix to use for contributed tools],
             TOOL_PREFIX=$withval)
 AC_SUBST(TOOL_PREFIX)
 
+dnl GASNET_TOOLSONLY_FALSE_BEGIN
 ########################################################################
 ##                        FCA SUPPORT
+dnl echo "----------------------- Configuring FCA support -----------------------"
+GASNET_IF_ENABLED(fca,  # NOTE: no auto-detect option currently because FCA disables pthreads -PHH
+  [enable FCA for acceleration of collective - disables pthreads support (default is no)],
+  [enable_fca="yes";force_fca=yes],[enable_fca="no"])
 
-
-echo "----------------------- Configuring FCA support -----------------------"
-AC_ARG_ENABLE(fca,
-              [  --enable-fca/--disable-fca  Turn on/off FCA support, will look for standard FCA install path],
-              [],[enable_fca="yes"])
-
-enable_fca_support="no"
+have_fca=no
 user_fca_home=''
 fca_user_provided=no
 AC_ARG_WITH(fca,
@@ -5215,18 +5214,16 @@ AC_ARG_WITH(fca-enabled-by-default,
 ENABLE_FCA_BY_DEFAULT=$enable_fca_by_default
 AC_SUBST([ENABLE_FCA_BY_DEFAULT])
 
-if [test "$enable_fca" = "no" ]; then
-    echo "***FCA support is disabled from command line***"
-elif [ test "$fca_user_provided" = "yes" ] || [ test "$enable_fca" = "yes" ] ; then
-fca_home=''
-if test "$fca_user_provided" = yes; then
+if test "$enable_fca" != "no"; then
+  fca_home=''
+  if test "$fca_user_provided" = yes; then
     fca_home=$user_fca_home
-else
+  else
     fca_home=/opt/mellanox/fca
-fi
+  fi
 
-enabled_fca=yes
-if test "$fca_user_provided" != yes; then
+  have_fca=yes # assume success
+  if test "$fca_user_provided" != yes; then
     # looking for FCA in standard locations only if user didn't provide its location
     fca_have_header=no
     fca_have_lib=no
@@ -5238,73 +5235,71 @@ if test "$fca_user_provided" != yes; then
         fca_in_path=yes
     fi
     AC_MSG_RESULT([$fca_in_path])
-fi
+  fi
 
-fca_have_header=no
-fca_have_lib=no
-fca_in_fca_home=no
-fca_have_lib64=no
+  fca_have_header=no
+  fca_have_lib=no
+  fca_in_fca_home=no
+  fca_have_lib64=no
 
-AC_CHECK_FILES($fca_home/include/fca/fca_api.h, fca_have_header=yes)
-AC_CHECK_FILE($fca_home/lib/libfca.so, fca_have_lib=yes)
-AC_CHECK_FILE($fca_home/lib64/libfca.so, fca_have_lib64=yes)
-fca_lib_path=$fca_home/lib
-if  test "$fca_have_lib64" = yes; then
-    fca_have_lib = yes
-    fca_lib_path=$fca_home/lib64
-fi
+  AC_CHECK_FILES($fca_home/include/fca/fca_api.h, fca_have_header=yes)
+  AC_CHECK_FILE($fca_home/lib/libfca.so, fca_have_lib=yes)
+  AC_CHECK_FILE($fca_home/lib64/libfca.so, fca_have_lib64=yes)
+  fca_lib_path=$fca_home/lib
+  if  test "$fca_have_lib64" = yes; then
+      fca_have_lib = yes
+      fca_lib_path=$fca_home/lib64
+  fi
 
-AC_MSG_CHECKING(for FCA in $fca_home)
+  AC_MSG_CHECKING(for FCA in $fca_home)
     if test "$fca_have_header$fca_have_lib" = yesyes; then
         fca_in_fca_home=yes
     fi
-AC_MSG_RESULT([$fca_in_fca_home])
+  AC_MSG_RESULT([$fca_in_fca_home])
 
-if test "$fca_user_provided" = yes; then
-    if test "$fca_in_fca_home" = no; then
-        AC_MSG_ERROR(FCA not found in $user_fca_home - aborting)
-        enabled_fca=no
-        fi
-elif test "$fca_in_path$fca_in_fca_home" = nono; then
-        # fca not found - disable it
-        AC_MSG_WARN(FCA not found - disabling it)
-        enabled_fca=no
+  if test "$fca_user_provided$fca_in_fca_home" = yesno; then
+    GASNET_MSG_WARN(FCA not found in user-provided $user_fca_home - disabling FCA)
+    have_fca=no
+  elif test "$fca_in_path$fca_in_fca_home" = nono; then
+    have_fca=no
+  fi
+
+  if test "$force_fca$have_fca" = yesno; then
+    GASNET_MSG_ERROR([User requested --enable-fca but FCA support could not be found])
+  elif test "$have_fca" = yes; then
+dnl        if test "$fca_user_provided" = yes; then
+dnl            echo "Using user-provided FCA from $fca_home"
+dnl        elif test "$fca_in_path" = yes; then
+dnl            echo "Using standard FCA location"
+dnl        elif test "$fca_in_opt" = yes; then
+dnl            echo "Using FCA from $fca_home"
+dnl        fi
+
+    FCA_INCLUDE=$fca_home/include
+    FCA_LIBDIR=$fca_lib_path
+    FCA_LIBS="-lfca"
+    FCA_HOME=$fca_home
+    FCA_SUBDIR=fca
+
+    GASNET_FCA_CFLAGS="-DFCA_HOME=$FCA_HOME -I$FCA_INCLUDE/fca -I$FCA_INCLUDE/fca_core"
+    AC_SUBST([GASNET_FCA_CFLAGS])
+    AC_SUBST([FCA_HOME])
+    AC_SUBST([FCA_INCLUDE])
+    AC_SUBST([FCA_LIBDIR])
+    AC_SUBST([FCA_LIBS])
+    AC_SUBST([FCA_SUBDIR])
+    CFLAGS="$CFLAGS $GASNET_FCA_CFLAGS"
+    CC="$CC $GASNET_FCA_CFLAGS"
+
+    # XXX: This really should be repalced w/ proper use of #if in the sources -PHH
+    # disable PAR and PARSYNC modes since FCA does support SEQ only
+    AM_CONDITIONAL(BUILD_PAR_LIBS, test "no" = "yes")
+    AM_CONDITIONAL(BUILD_PARSYNC_LIBS, test "no" = "yes")
+    GASNET_MSG_WARN([Warning: FCA support was enabled which works in SEQ mode only. PAR and PARSYNC modes have been disabled!])
+  fi
 fi
-
-
-if test "$enabled_fca" != no; then
-        if test "$fca_user_provided" = yes; then
-            echo "Using user-provided FCA from $fca_home"
-        elif test "$fca_in_path" = yes; then
-            echo "Using standard FCA location"
-        elif test "$fca_in_opt" = yes; then
-            echo "Using FCA from $fca_home"
-        fi
-
-FCA_INCLUDE=$fca_home/include
-FCA_LIBDIR=$fca_lib_path
-FCA_LIBS="-lfca"
-FCA_HOME=$fca_home
-FCA_SUBDIR=fca
-
-GASNET_FCA_CFLAGS="-DFCA_HOME=$FCA_HOME -I$FCA_INCLUDE/fca -I$FCA_INCLUDE/fca_core"
-AC_SUBST([GASNET_FCA_CFLAGS])
-AC_SUBST([FCA_HOME])
-AC_SUBST([FCA_INCLUDE])
-AC_SUBST([FCA_LIBDIR])
-AC_SUBST([FCA_LIBS])
-AC_SUBST([FCA_SUBDIR])
-enable_fca_support="yes"
-CFLAGS="$CFLAGS $GASNET_FCA_CFLAGS"
-CC="$CC $GASNET_FCA_CFLAGS"
-
-#disable PAR and PARSYNC modes since FCA does support SEQ only
-AM_CONDITIONAL(BUILD_PAR_LIBS, test "no" = "yes")
-AM_CONDITIONAL(BUILD_PARSYNC_LIBS, test "no" = "yes")
-GASNET_MSG_WARN([Warning: Fca support was enabled which works in SEQ mode only. PAR and PARSYNC modes have been disabled!])
-fi
-fi
-AM_CONDITIONAL(FCA_ENABLED, test "$enable_fca_support" = "yes")
+AM_CONDITIONAL(FCA_ENABLED, test "$have_fca" = "yes")
+dnl GASNET_TOOLSONLY_FALSE_END
 
 ########################################################################
 ##
@@ -5334,7 +5329,7 @@ cat >>$CONDUIT_LIST <<EOF
   Pthreads support:       $have_pthread
   Segment config:         $segconfig
   PSHM support:           $with_pshm
-  FCA support:            $enable_fca_support
+  FCA support:            $have_fca
 EOF
 else
 cat >>$CONDUIT_LIST <<EOF
