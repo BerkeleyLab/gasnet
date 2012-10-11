@@ -11,9 +11,19 @@ AUTOMAKE_OPTIONS = foreign 1.4
 
 SUBDIRS = .
 
+if FCA_ENABLED
+docdir = $(datadir)/doc/gasnet
+docs = README-fca.txt
+install-data-local:
+	$(mkinstalldirs) $(DESTDIR)$(docdir)
+	for f in $(docs); do \
+          $(INSTALL_DATA) $(srcdir)/$$f $(DESTDIR)$(docdir)/ || exit $$? ; \
+        done
+endif
+
 EXTRA_DIST =        		\
 	gasnet_fca_component.c	\
 	gasnet_fca_ops.c	\
 	gasnet_fca.h 		\
 	gasnet_fca_api.h 	\
-	README-fca.txt
+	$(docs)
