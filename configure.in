@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2012/10/11 20:27:44 $
-# $Revision: 1.767.2.5 $
+#     $Date: 2012/10/11 20:34:21 $
+# $Revision: 1.767.2.6 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.767.2.5 $)
+AC_REVISION($Revision: 1.767.2.6 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -3773,6 +3773,7 @@ elif test "$enabled_mxm" != no; then
     mxm_have_lib64=no
     mxm_in_mxm_home=no
     mxm_lib_path=$mxm_home/lib
+    dnl TODO: AC_CHECK_FILE(S) don't support cross-compilation
     AC_CHECK_FILES($mxm_home/include/mxm/api/mxm_api.h, mxm_have_header=yes)
     AC_CHECK_FILES($mxm_home/lib/libmxm.so $mxm_home/lib64/libmxm.so, mxm_have_lib=yes)
     AC_CHECK_FILE($mxm_home/lib64/libmxm.so, mxm_have_lib64=yes)
@@ -5238,6 +5239,7 @@ if test "$enable_fca" != "no"; then
   fca_in_fca_home=no
   fca_have_lib64=no
 
+  dnl TODO: AC_CHECK_FILE(S) don't support cross-compilation
   AC_CHECK_FILES($fca_home/include/fca/fca_api.h, fca_have_header=yes)
   AC_CHECK_FILE($fca_home/lib/libfca.so, fca_have_lib=yes)
   AC_CHECK_FILE($fca_home/lib64/libfca.so, fca_have_lib64=yes)
