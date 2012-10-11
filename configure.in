@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2012/10/11 20:22:47 $
-# $Revision: 1.767.2.4 $
+#     $Date: 2012/10/11 20:27:44 $
+# $Revision: 1.767.2.5 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.767.2.4 $)
+AC_REVISION($Revision: 1.767.2.5 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -5187,8 +5187,9 @@ dnl GASNET_TOOLSONLY_FALSE_BEGIN
 ########################################################################
 ##                        FCA SUPPORT
 dnl echo "----------------------- Configuring FCA support -----------------------"
-GASNET_IF_ENABLED(fca,  # NOTE: no auto-detect option currently because FCA disables pthreads -PHH
-  [enable FCA for acceleration of collective - disables pthreads support (default is no)],
+dnl NOTE: no auto-detect option currently because FCA disables pthreads -PHH
+GASNET_IF_ENABLED(fca,
+  [Enable FCA for acceleration of collectives - disables pthreads support (default is no)],
   [enable_fca="yes";force_fca=yes],[enable_fca="no"])
 
 have_fca=no
