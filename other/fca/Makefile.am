@@ -4,7 +4,7 @@
 # Terms of use are as specified in license.txt
 
 # No objects are built here, but we need a proper Makefile.am
-# to ensure the built firehose.mak is handled correctly.
+# to ensure the built fca.mak is handled correctly.
 all: fca.mak
 
 AUTOMAKE_OPTIONS = foreign 1.4

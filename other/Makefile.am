@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/Makefile.am,v $
-#     $Date: 2011/04/22 10:31:28 $
-# $Revision: 1.37 $
+#     $Date: 2012/10/11 22:00:22 $
+# $Revision: 1.37.20.1 $
 # Description: Makefile for GASNet other 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -18,6 +18,7 @@ CONDUITMODE_SUBDIRS = \
 	amudp	   \
 	contrib    \
 	firehose   \
+	fca	   \
 	testspawn
 CONDUITMODE_EXTRADIST = \
 	amxtests    \
