@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2012/10/11 19:26:59 $
-# $Revision: 1.767.2.3 $
+#     $Date: 2012/10/11 20:22:47 $
+# $Revision: 1.767.2.4 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.767.2.3 $)
+AC_REVISION($Revision: 1.767.2.4 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -3738,18 +3738,13 @@ elif test "$enabled_mxm" != no; then
 
     user_mxm_home=''
     AC_MSG_CHECKING(for --with-mxmhome)
-    AC_ARG_WITH(mxmhome,
-                AC_HELP_STRING([--with-mxmhome=dir],
-                [    Define a custom MXM install directory]),
-                [ case "$withval" in
-                    no)
-                        mxm_user_provided=no
-                        ;;
-                    *)
-                        user_mxm_home=$withval
-                        mxm_user_provided=yes
-                    ;;
-                esac ] )
+    GASNET_WITH(mxmhome, [Specify a custom MXM install directory],
+                [if test "$withval" = 'yes'; then
+                   GASNET_MSG_ERROR(["--with-mxmhome requires an argument (MXM install directory)"])
+                 fi
+                 user_mxm_home="$withval"
+                 mxm_user_provided=yes],
+                [mxm_user_provided=no])
     AC_MSG_RESULT($user_mxm_home)
 
     mxm_home=''
@@ -5198,19 +5193,19 @@ GASNET_IF_ENABLED(fca,  # NOTE: no auto-detect option currently because FCA disa
 
 have_fca=no
 user_fca_home=''
-fca_user_provided=no
-AC_ARG_WITH(fca,
-            AC_HELP_STRING([--with-fca=dir],
-                           [    Define a custom FCA install directory]),
-                           [user_fca_home=$withval
-                             fca_user_provided=yes
-                            ], [fca_user_provided=no] )
-
-enable_fca_by_default=yes
-AC_ARG_WITH(fca-enabled-by-default,
-            AC_HELP_STRING([--with-fca-enabled-by-default],
-                           [Enable FCA support for collective operations by default]),
-                           [enable_fca_by_default=$withval])
+GASNET_WITH(fca, [Specifiy a custom FCA install directory],
+            [if test "$withval" = 'yes'; then
+                GASNET_MSG_ERROR(["--with-fca requires an argument (FCA install directory)"])
+             fi
+             user_fca_home="$withval"
+             fca_user_provided=yes],
+            [GASNET_MSG_ERROR(["--with-fca requires an argument (FCA install directory).  Use --diable-fca if you wish to disable FCA support."])],
+            [fca_user_provided=no])
+GASNET_WITH(fca-enabled-by-default,
+            [Enable FCA support for collective operations by default],
+            [enable_fca_by_default="$withval"],
+            [enable_fca_by_default=no],
+            [enable_fca_by_default=yes])
 ENABLE_FCA_BY_DEFAULT=$enable_fca_by_default
 AC_SUBST([ENABLE_FCA_BY_DEFAULT])
 
