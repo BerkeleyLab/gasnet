@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2012/10/11 17:44:08 $
-# $Revision: 1.767.2.1 $
+#     $Date: 2012/10/11 18:47:48 $
+# $Revision: 1.767.2.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.767.2.1 $)
+AC_REVISION($Revision: 1.767.2.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -3726,19 +3726,11 @@ CONDUIT_END([test "$have_ibv" = yes])
 #
 
 CONDUIT_BEGIN(mxm,[Mellanox MXM conduit])
-if test "$have_fork" = no; then
-    if test "$enabled_mxm" != no; then
-        GASNET_MSG_WARN([mxm-conduit requires or fork() ($fork_reason) for startup - disabling mxm])
-        if test "$enabled_mxm" = yes; then
-            GASNET_MSG_ERROR(Please disable MXM - aborting)
-        fi
-        enabled_mxm=no
-    fi
-fi
-
 have_mxm=no
-
-if test "$enabled_mxm" != no; then
+if test "$have_fork" = no; then
+    GASNET_MSG_WARN([mxm-conduit requires or fork() ($fork_reason) for startup - disabling mxm])
+elif test "$enabled_mxm" != no; then
+    have_mxm=yes  # assume success
 
     #
     # Either MXM was required explicitly, or we just need to probe for its existence
@@ -3800,38 +3792,28 @@ if test "$enabled_mxm" != no; then
     AC_MSG_RESULT([$mxm_in_mxm_home])
 
 
-    if test "$mxm_user_provided" = yes; then
-        if test "$mxm_in_mxm_home" = no; then
-            GASNET_MSG_ERROR(MXM not found in $user_mxm_home - aborting)
-        fi
+    if test "$mxm_user_provided$mxm_in_mxm_home" = yesno; then
+        GASNET_MSG_WARN(MXM files not found in user-specified $user_mxm_home - disabling mxm)
+        have_mxm=no
     elif test "$mxm_in_path$mxm_in_mxm_home" = nono; then
-        # MXM not found - disable it
-        GASNET_MSG_WARN(MXM not found - disabling it)
-        if test "$enabled_mxm" = yes; then
-            # If it was requested explicitly, this is an error
-            GASNET_MSG_ERROR(Please disable MXM - aborting)
-        fi
-        enabled_mxm=no
+        have_mxm=no
     fi
 fi
 
-if test "$enabled_mxm" != no; then
+if test "$have_mxm" = yes; then
 
-    if test "$mxm_user_provided" = yes; then
-        echo "Using user-provided MXM from $mxm_home"
-    elif test "$mxm_in_path" = yes; then
-        echo "Using standard MXM location"
-    elif test "$mxm_in_opt" = yes; then
-        echo "Using MXM from $mxm_home"
-    fi
+dnl    if test "$mxm_user_provided" = yes; then
+dnl        echo "Using user-provided MXM from $mxm_home"
+dnl    elif test "$mxm_in_path" = yes; then
+dnl        echo "Using standard MXM location"
+dnl    elif test "$mxm_in_opt" = yes; then
+dnl        echo "Using MXM from $mxm_home"
+dnl    fi
 
     MXM_LIBCFLAGS=''
     MXM_INCLUDE=$mxm_home/include
     MXM_LIBDIR=$mxm_lib_path
     MXM_LIBS='-lmxm'
-
-    # Everything went OK - declare that we have MXM
-    have_mxm=yes
 fi
   GASNET_WITH(mxm-spawner,
      [mxm job spawner ("ssh" or "mpi", default is mpi when available)],
