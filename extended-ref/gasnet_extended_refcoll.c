@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refcoll.c,v $
- *     $Date: 2012/07/20 20:04:31 $
- * $Revision: 1.103 $
+ *     $Date: 2012/10/11 17:44:10 $
+ * $Revision: 1.103.6.1 $
  * Description: Reference implemetation of GASNet Collectives team
  * Copyright 2009, Rajesh Nishtala <rajeshn@eecs.berkeley.edu>, Paul H. Hargrove <PHHargrove@lbl.gov>, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1210,6 +1210,9 @@ extern void gasnete_coll_init(const gasnet_image_t images[], gasnet_image_t my_i
   }
 #endif
 
+#ifdef GASNET_FCA_ENABLED
+  gasnet_team_fca_enable(GASNET_TEAM_ALL);
+#endif
 }
 
 /*---------------------------------------------------------------------------------*/
@@ -2219,10 +2222,22 @@ _gasnet_coll_broadcast_nb(gasnet_team_handle_t team,
                           gasnet_image_t srcimage, void *src,
                           size_t nbytes, int flags GASNETE_THREAD_FARG) {
   gasnet_coll_handle_t handle;
+#ifdef GASNET_FCA_ENABLED
+  int rc = -1;
+  if (team_fca_is_active(team,_FCA_BCAST)){
+    rc = gasnet_fca_broadcast(src,dst,(int)srcimage,nbytes,team, flags);
+    handle = GASNET_COLL_INVALID_HANDLE;
+  }
+  if (rc < 0){
+#endif 
+
   GASNETI_TRACE_COLL_BROADCAST(COLL_BROADCAST_NB,team,dst,srcimage,src,nbytes,flags);
   GASNETE_COLL_VALIDATE_BROADCAST(team,dst,srcimage,src,nbytes,flags);
   handle = gasnete_coll_broadcast_nb(team,dst,srcimage,src,nbytes,flags,0 GASNETE_THREAD_PASS);
   gasnete_coll_poll(GASNETE_THREAD_PASS_ALONE);
+#ifdef GASNET_FCA_ENABLED
+  }
+#endif
   return handle;
 }
 
@@ -2249,9 +2264,19 @@ GASNETI_COLL_FN_HEADER(_gasnet_coll_broadcast)
                                  void *dst,
                                  gasnet_image_t srcimage, void *src,
                                  size_t nbytes, int flags GASNETE_THREAD_FARG) {
+#ifdef GASNET_FCA_ENABLED
+  int rc = -1;
+  if (team_fca_is_active(team,_FCA_BCAST)){
+    rc = gasnet_fca_broadcast(src,dst,(int)srcimage,nbytes,team, flags);
+  }
+  if (rc < 0){
+#endif     
   GASNETI_TRACE_COLL_BROADCAST(COLL_BROADCAST,team,dst,srcimage,src,nbytes,flags);
   GASNETE_COLL_VALIDATE_BROADCAST(team,dst,srcimage,src,nbytes,flags);
   gasnete_coll_broadcast(team,dst,srcimage,src,nbytes,flags GASNETE_THREAD_PASS);
+#ifdef GASNET_FCA_ENABLED
+  }
+#endif
 }
 
 
@@ -2279,10 +2304,29 @@ _gasnet_coll_broadcastM_nb(gasnet_team_handle_t team,
                            gasnet_image_t srcimage, void *src,
                            size_t nbytes, int flags GASNETE_THREAD_FARG) {
   gasnet_coll_handle_t handle;
+#ifdef GASNET_FCA_ENABLED
+  int rc = -1;
+  if (team_fca_is_active(team,_FCA_BCAST)){
+    void *dst;
+    if (flags & GASNET_COLL_LOCAL){
+        dst = dstlist[0];
+    }
+    else {
+        dst = dstlist[team->myrank];
+    }
+    rc = gasnet_fca_broadcast(src,dst,(int)srcimage,nbytes,team, flags);
+    handle = GASNET_COLL_INVALID_HANDLE;
+  }
+  if (rc < 0){
+#endif 
+
   GASNETI_TRACE_COLL_BROADCAST_M(COLL_BROADCAST_M_NB,team,dstlist,srcimage,src,nbytes,flags);
   GASNETE_COLL_VALIDATE_BROADCAST_M(team,dstlist,srcimage,src,nbytes,flags);
   handle = gasnete_coll_broadcastM_nb(team,dstlist,srcimage,src,nbytes,flags,0 GASNETE_THREAD_PASS);
   gasnete_coll_poll(GASNETE_THREAD_PASS_ALONE);
+#ifdef GASNET_FCA_ENABLED
+  }
+#endif
   return handle;
 }
 
@@ -2309,9 +2353,26 @@ GASNETI_COLL_FN_HEADER(_gasnet_coll_broadcastM)
                                   void * const dstlist[],
                                   gasnet_image_t srcimage, void *src,
                                   size_t nbytes, int flags GASNETE_THREAD_FARG) {
+#ifdef GASNET_FCA_ENABLED
+  int rc = -1;
+  if (team_fca_is_active(team,_FCA_BCAST)){
+    void *dst;
+    if (flags & GASNET_COLL_LOCAL){
+        dst = dstlist[0];
+    }
+    else {
+        dst = dstlist[team->myrank];
+    }
+    rc = gasnet_fca_broadcast(src,dst,(int)srcimage,nbytes,team, flags);
+  }
+  if (rc < 0){
+#endif 
   GASNETI_TRACE_COLL_BROADCAST_M(COLL_BROADCAST_M,team,dstlist,srcimage,src,nbytes,flags);
   GASNETE_COLL_VALIDATE_BROADCAST_M(team,dstlist,srcimage,src,nbytes,flags);
   gasnete_coll_broadcastM(team,dstlist,srcimage,src,nbytes,flags GASNETE_THREAD_PASS);
+#ifdef GASNET_FCA_ENABLED
+  }
+#endif
 }
 
 
@@ -2572,10 +2633,21 @@ _gasnet_coll_gather_all_nb(gasnet_team_handle_t team,
                            void *dst, void *src,
                            size_t nbytes, int flags GASNETE_THREAD_FARG) {
   gasnet_coll_handle_t handle;
+#ifdef GASNET_FCA_ENABLED
+  int rc = -1;
+  if (team_fca_is_active(team,_FCA_ALLGATHER)){
+    rc = gasnet_fca_all_gather_all(dst,src,nbytes,team, flags);
+    handle = GASNET_COLL_INVALID_HANDLE;
+  }
+  if (rc < 0){
+#endif
   GASNETI_TRACE_COLL_GATHER_ALL(COLL_GATHER_ALL_NB,team,dst,src,nbytes,flags);
   GASNETE_COLL_VALIDATE_GATHER_ALL(team,dst,src,nbytes,flags);
   handle = gasnete_coll_gather_all_nb(team,dst,src,nbytes,flags,0 GASNETE_THREAD_PASS);
   gasnete_coll_poll(GASNETE_THREAD_PASS_ALONE);
+#ifdef GASNET_FCA_ENABLED
+  }
+#endif
   return handle;
 }
 
@@ -2598,9 +2670,19 @@ GASNETI_COLL_FN_HEADER(_gasnet_coll_gather_all)
      void _gasnet_coll_gather_all(gasnet_team_handle_t team,
                                   void *dst, void *src,
                                   size_t nbytes, int flags GASNETE_THREAD_FARG) {
+#ifdef GASNET_FCA_ENABLED
+  int rc = -1;
+  if (team_fca_is_active(team,_FCA_ALLGATHER)){
+    rc = gasnet_fca_all_gather_all(dst,src,nbytes,team, flags);
+  }
+  if (rc < 0){
+#endif
   GASNETI_TRACE_COLL_GATHER_ALL(COLL_GATHER_ALL,team,dst,src,nbytes,flags);
   GASNETE_COLL_VALIDATE_GATHER_ALL(team,dst,src,nbytes,flags);
   gasnete_coll_gather_all(team,dst,src,nbytes,flags GASNETE_THREAD_PASS);
+#ifdef GASNET_FCA_ENABLED
+  }
+#endif
 }
 
 /**** Gather All Multiaddr*****/
@@ -2624,10 +2706,30 @@ _gasnet_coll_gather_allM_nb(gasnet_team_handle_t team,
                             void * const dstlist[], void * const srclist[],
                             size_t nbytes, int flags GASNETE_THREAD_FARG) {
   gasnet_coll_handle_t handle;
+#ifdef GASNET_FCA_ENABLED
+  int rc = -1;
+  if (team_fca_is_active(team,_FCA_ALLGATHER)){
+    void *dst, *src;
+    if (flags & GASNET_COLL_LOCAL){
+        dst = dstlist[0];
+        src = srclist[0];
+    }
+    else {
+        dst = dstlist[team->myrank];
+        src = srclist[team->myrank];
+    }
+    rc = gasnet_fca_all_gather_all(dst,src,nbytes,team, flags);
+    handle = GASNET_COLL_INVALID_HANDLE;
+  }
+  if (rc < 0){
+#endif
   GASNETI_TRACE_COLL_GATHER_ALL_M(COLL_GATHER_ALL_M_NB,team,dstlist,srclist,nbytes,flags);
   GASNETE_COLL_VALIDATE_GATHER_ALL_M(team,dstlist,srclist,nbytes,flags);
   handle = gasnete_coll_gather_allM_nb(team,dstlist,srclist,nbytes,flags,0 GASNETE_THREAD_PASS);
   gasnete_coll_poll(GASNETE_THREAD_PASS_ALONE);
+#ifdef GASNET_FCA_ENABLED
+  }
+#endif
   return handle;
 }
 
@@ -2650,9 +2752,28 @@ GASNETI_COLL_FN_HEADER(_gasnet_coll_gather_allM)
      void _gasnet_coll_gather_allM(gasnet_team_handle_t team,
                                    void * const dstlist[], void * const srclist[],
                                    size_t nbytes, int flags GASNETE_THREAD_FARG) {
+#ifdef GASNET_FCA_ENABLED
+  int rc = -1;
+  if (team_fca_is_active(team,_FCA_ALLGATHER)){
+    void *dst, *src;
+    if (flags & GASNET_COLL_LOCAL){
+        dst = dstlist[0];
+        src = srclist[0];
+    }
+    else {
+        dst = dstlist[team->myrank];
+        src = srclist[team->myrank];
+    }
+    rc = gasnet_fca_all_gather_all(dst,src,nbytes,team, flags);
+  }
+  if (rc < 0){
+#endif
   GASNETI_TRACE_COLL_GATHER_ALL_M(COLL_GATHER_ALL_M,team,dstlist,srclist,nbytes,flags);
   GASNETE_COLL_VALIDATE_GATHER_ALL_M(team,dstlist,srclist,nbytes,flags);
   gasnete_coll_gather_allM(team,dstlist,srclist,nbytes,flags GASNETE_THREAD_PASS);
+#ifdef GASNET_FCA_ENABLED
+  }
+#endif
 }
 
 

@@ -1,0 +1,48 @@
+# FCA Makefile fragment
+# This Makefile fragment is used to build GASNet conduits 
+# it is not meant to be used directly 
+#
+# To use in a conduit Makefile.am, set fca_type to either "region" or
+# "page" (no quotes, no whitespace) and then include this fragment.
+# Example:
+#    fh_type=region
+#    include $(top_builddir)/other/firehose/firehose.mak
+#
+# This fragment defines the following variables for use
+# in the corresponding CONDUIT_* variables.  For instance,
+# one should include $(fh_sourcelist) in CONDUIT_SOURCELIST
+#
+# fh_sourcelist     - C files to build normally
+# fh_extralibcflags - CFLAGS needed for firehose headers
+# fh_extraheaders   - firehose header(s) to install from firehose directory
+# fh_privheaders    - firehose header(s) not to install from conduit directory
+# fh_extradeps      - dependencies on firehose .c and .h files
+# fh_special_objs   - firehose .o files with "abonormal" build requirements
+#
+# fh_{src,bld}dir are also set, but probably aren't needed outside this fragment
+
+fca_srcdir = $(top_srcdir)/other/fca
+fca_blddir = $(top_builddir)/other/fca
+fca_sourcelist = 
+fca_extraheaders = $(fca_srcdir)/gasnet_fca.h
+fca_privheaders = gasnet_fca_api.h
+fca_extralibcflags = -I$(fca_srcdir) -DGASNET_FCA_ENABLED
+fca_extradeps = $(fca_srcdir)/*.[ch] $(fca_blddir)/fca.mak
+fca_special_objs =                                   \
+	$(builddir)/fca-component-$(THREAD_MODEL).o      \
+	$(builddir)/fca-ops-$(THREAD_MODEL).o
+
+# Some Firehose source files need $(FH_CFLAGS) to disable strict/ANSI aliasing
+# optimizations.  By building them as "special" we can avoid disabling these
+# useful optimizations for the entire conduit.
+$(builddir)/fca-component-$(THREAD_MODEL).o: force
+	keeptmps='$(KEEPTMPS)'; \
+	@CC@ $(LIBCFLAGS)  @GASNET_FCA_CFLAGS@ -o $@ -c $(fca_srcdir)/gasnet_fca_component.c
+
+$(builddir)/fca-ops-$(THREAD_MODEL).o: force
+	keeptmps='$(KEEPTMPS)'; \
+    @CC@ $(LIBCFLAGS)  @GASNET_FCA_CFLAGS@ -o $@ -c $(fca_srcdir)/gasnet_fca_ops.c
+
+# How to rebuild this file
+$(fca_blddir)/fca.mak: $(fca_srcdir)/fca.mak.in
+	cd $(@D) && $(MAKE) $(@F)

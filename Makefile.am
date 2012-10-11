@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/Makefile.am,v $
-#     $Date: 2012/04/14 00:37:34 $
-# $Revision: 1.89 $
+#     $Date: 2012/10/11 17:44:08 $
+# $Revision: 1.89.8.1 $
 # Description: Makefile for GASNet 
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -33,6 +33,7 @@ CONDUITMODE_DIST_SUBDIRS =    	\
 	udp-conduit  		\
 	vapi-conduit 		\
 	ibv-conduit 		\
+	mxm-conduit		\
 	portals-conduit         \
 	gemini-conduit          \
 	pami-conduit            \

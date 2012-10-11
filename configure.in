@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2012/09/25 20:13:16 $
-# $Revision: 1.767 $
+#     $Date: 2012/10/11 17:44:08 $
+# $Revision: 1.767.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.767 $)
+AC_REVISION($Revision: 1.767.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -3722,6 +3722,153 @@ AM_CONDITIONAL(IBV_RCV_THREAD,test "$enabled_ibv_rcv_thread" = yes)
 CONDUIT_END([test "$have_ibv" = yes])
 
 #--------------------------------------------------------------------------------------------------------
+# MXM configuration
+#
+
+CONDUIT_BEGIN(mxm,[Mellanox MXM conduit])
+if test "$have_fork" = no; then
+    if test "$enabled_mxm" != no; then
+        GASNET_MSG_WARN([mxm-conduit requires or fork() ($fork_reason) for startup - disabling mxm])
+        if test "$enabled_mxm" = yes; then
+            GASNET_MSG_ERROR(Please disable MXM - aborting)
+        fi
+        enabled_mxm=no
+    fi
+fi
+
+have_mxm=no
+
+if test "$enabled_mxm" != no; then
+
+    #
+    # Either MXM was required explicitly, or we just need to probe for its existence
+    #
+
+    user_mxm_home=''
+    AC_MSG_CHECKING(for --with-mxmhome)
+    AC_ARG_WITH(mxmhome,
+                AC_HELP_STRING([--with-mxmhome=dir],
+                [    Define a custom MXM install directory]),
+                [ case "$withval" in
+                    no)
+                        mxm_user_provided=no
+                        ;;
+                    *)
+                        user_mxm_home=$withval
+                        mxm_user_provided=yes
+                    ;;
+                esac ] )
+    AC_MSG_RESULT($user_mxm_home)
+
+    mxm_home=''
+    if test "$mxm_user_provided" = yes; then
+        mxm_home=$user_mxm_home
+    else
+        mxm_home=/opt/mellanox/mxm
+    fi
+
+    if test "$mxm_user_provided" != yes; then
+        # looking for MXM in standard locations only if user didn't provide its location
+        mxm_have_header=no
+        mxm_have_lib=no
+        mxm_in_path=no
+        AC_CHECK_HEADERS(mxm/api/mxm_api.h, mxm_have_header=yes)
+        AC_CHECK_LIB(mxm, mxm_init, mxm_have_lib=yes)
+        AC_MSG_CHECKING(for MXM in standard locations)
+        if test "$mxm_have_header$mxm_have_lib" = yesyes; then
+            mxm_in_path=yes
+        fi
+        AC_MSG_RESULT([$mxm_in_path])
+    fi
+
+    mxm_have_header=no
+    mxm_have_lib=no
+    mxm_have_lib64=no
+    mxm_in_mxm_home=no
+    mxm_lib_path=$mxm_home/lib
+    AC_CHECK_FILES($mxm_home/include/mxm/api/mxm_api.h, mxm_have_header=yes)
+    AC_CHECK_FILES($mxm_home/lib/libmxm.so $mxm_home/lib64/libmxm.so, mxm_have_lib=yes)
+    AC_CHECK_FILE($mxm_home/lib64/libmxm.so, mxm_have_lib64=yes)
+
+    if test "$mxm_have_lib64" = yes; then
+        mxm_lib_path=$mxm_home/lib64
+    fi
+    AC_MSG_CHECKING(for MXM in $mxm_home)
+    if test "$mxm_have_header$mxm_have_lib" = yesyes; then
+        mxm_in_mxm_home=yes
+    fi
+    AC_MSG_RESULT([$mxm_in_mxm_home])
+
+
+    if test "$mxm_user_provided" = yes; then
+        if test "$mxm_in_mxm_home" = no; then
+            GASNET_MSG_ERROR(MXM not found in $user_mxm_home - aborting)
+        fi
+    elif test "$mxm_in_path$mxm_in_mxm_home" = nono; then
+        # MXM not found - disable it
+        GASNET_MSG_WARN(MXM not found - disabling it)
+        if test "$enabled_mxm" = yes; then
+            # If it was requested explicitly, this is an error
+            GASNET_MSG_ERROR(Please disable MXM - aborting)
+        fi
+        enabled_mxm=no
+    fi
+fi
+
+if test "$enabled_mxm" != no; then
+
+    if test "$mxm_user_provided" = yes; then
+        echo "Using user-provided MXM from $mxm_home"
+    elif test "$mxm_in_path" = yes; then
+        echo "Using standard MXM location"
+    elif test "$mxm_in_opt" = yes; then
+        echo "Using MXM from $mxm_home"
+    fi
+
+    MXM_LIBCFLAGS=''
+    MXM_INCLUDE=$mxm_home/include
+    MXM_LIBDIR=$mxm_lib_path
+    MXM_LIBS='-lmxm'
+
+    # Everything went OK - declare that we have MXM
+    have_mxm=yes
+fi
+  GASNET_WITH(mxm-spawner,
+     [mxm job spawner ("ssh" or "mpi", default is mpi when available)],
+     [case "$withval" in
+        ssh|mpi) gasnet_mxm_spawner_conf=$withval
+             ;;
+        yes) AC_MSG_ERROR([--with-mxm-spawner requires an argument ("ssh" or "mpi")])
+             ;;
+        *)   AC_MSG_ERROR([--with-mxm-spawner argument must be "ssh" or "mpi"])
+             ;;
+      esac],
+     [AC_MSG_ERROR([--with-mxm-spawner argument must be "ssh" or "mpi"])],
+     [if test "$have_mpi_compat" = yes; then
+        gasnet_mxm_spawner_conf=mpi
+      else
+        gasnet_mxm_spawner_conf=ssh
+      fi])
+  if test "$gasnet_mxm_spawner_conf$have_mpi_compat" = mpino; then
+    AC_MSG_ERROR([--with-mxm-spawner=mpi requires MPI compatibility support which $mpi_compat_reason])
+  fi
+  if test "$gasnet_mxm_spawner_conf$have_fork" = sshno; then
+    AC_MSG_ERROR([--with-mxm-spawner=ssh requires fork() support which $fork_reason])
+  fi
+  GASNET_MXM_SPAWNER_CONF=$gasnet_mxm_spawner_conf
+  AC_SUBST(GASNET_MXM_SPAWNER_CONF)
+
+AC_SUBST(MXM_INCLUDE)
+AC_SUBST(MXM_LIBDIR)
+AC_SUBST(MXM_LIBS)
+AC_SUBST(MXM_LIBCFLAGS)
+AM_CONDITIONAL(USE_MXM_CONDUIT, test "$have_mxm" = yes)
+AM_CONDITIONAL(MXM_BOOTSTRAP_SSH, test "$have_fork" = yes)
+AM_CONDITIONAL(MXM_BOOTSTRAP_MPI, test "$have_mpi_compat" = yes)	# Option to omit MPI support?
+CONDUIT_END([test "$have_mxm" = yes])
+
+#--------------------------------------------------------------------------------------------------------
+
 # Portals Conduit
 
 CONDUIT_BEGIN(portals,[Portals network conduit (portals)])
@@ -5060,6 +5207,124 @@ GASNET_WITH(tool-prefix, [Naming prefix to use for contributed tools],
 AC_SUBST(TOOL_PREFIX)
 
 ########################################################################
+##                        FCA SUPPORT
+
+
+echo "----------------------- Configuring FCA support -----------------------"
+AC_ARG_ENABLE(fca,
+              [  --enable-fca/--disable-fca  Turn on/off FCA support, will look for standard FCA install path],
+              [],[enable_fca="yes"])
+
+enable_fca_support="no"
+user_fca_home=''
+fca_user_provided=no
+AC_ARG_WITH(fca,
+            AC_HELP_STRING([--with-fca=dir],
+                           [    Define a custom FCA install directory]),
+                           [user_fca_home=$withval
+                             fca_user_provided=yes
+                            ], [fca_user_provided=no] )
+
+enable_fca_by_default=yes
+AC_ARG_WITH(fca-enabled-by-default,
+            AC_HELP_STRING([--with-fca-enabled-by-default],
+                           [Enable FCA support for collective operations by default]),
+                           [enable_fca_by_default=$withval])
+ENABLE_FCA_BY_DEFAULT=$enable_fca_by_default
+AC_SUBST([ENABLE_FCA_BY_DEFAULT])
+
+if [test "$enable_fca" = "no" ]; then
+    echo "***FCA support is disabled from command line***"
+elif [ test "$fca_user_provided" = "yes" ] || [ test "$enable_fca" = "yes" ] ; then
+fca_home=''
+if test "$fca_user_provided" = yes; then
+    fca_home=$user_fca_home
+else
+    fca_home=/opt/mellanox/fca
+fi
+
+enabled_fca=yes
+if test "$fca_user_provided" != yes; then
+    # looking for FCA in standard locations only if user didn't provide its location
+    fca_have_header=no
+    fca_have_lib=no
+    fca_in_path=no
+    AC_CHECK_HEADERS(fca/include/fca/fca_api.h, fca_have_header=yes)
+    AC_CHECK_LIB(fca, fca_init, fca_have_lib=yes)
+    AC_MSG_CHECKING(for FCA in standard locations)
+    if test "$fca_have_header$fca_have_lib" = yesyes; then
+        fca_in_path=yes
+    fi
+    AC_MSG_RESULT([$fca_in_path])
+fi
+
+fca_have_header=no
+fca_have_lib=no
+fca_in_fca_home=no
+fca_have_lib64=no
+
+AC_CHECK_FILES($fca_home/include/fca/fca_api.h, fca_have_header=yes)
+AC_CHECK_FILE($fca_home/lib/libfca.so, fca_have_lib=yes)
+AC_CHECK_FILE($fca_home/lib64/libfca.so, fca_have_lib64=yes)
+fca_lib_path=$fca_home/lib
+if  test "$fca_have_lib64" = yes; then
+    fca_have_lib = yes
+    fca_lib_path=$fca_home/lib64
+fi
+
+AC_MSG_CHECKING(for FCA in $fca_home)
+    if test "$fca_have_header$fca_have_lib" = yesyes; then
+        fca_in_fca_home=yes
+    fi
+AC_MSG_RESULT([$fca_in_fca_home])
+
+if test "$fca_user_provided" = yes; then
+    if test "$fca_in_fca_home" = no; then
+        AC_MSG_ERROR(FCA not found in $user_fca_home - aborting)
+        enabled_fca=no
+        fi
+elif test "$fca_in_path$fca_in_fca_home" = nono; then
+        # fca not found - disable it
+        AC_MSG_WARN(FCA not found - disabling it)
+        enabled_fca=no
+fi
+
+
+if test "$enabled_fca" != no; then
+        if test "$fca_user_provided" = yes; then
+            echo "Using user-provided FCA from $fca_home"
+        elif test "$fca_in_path" = yes; then
+            echo "Using standard FCA location"
+        elif test "$fca_in_opt" = yes; then
+            echo "Using FCA from $fca_home"
+        fi
+
+FCA_INCLUDE=$fca_home/include
+FCA_LIBDIR=$fca_lib_path
+FCA_LIBS="-lfca"
+FCA_HOME=$fca_home
+FCA_SUBDIR=fca
+
+GASNET_FCA_CFLAGS="-DFCA_HOME=$FCA_HOME -I$FCA_INCLUDE/fca -I$FCA_INCLUDE/fca_core"
+AC_SUBST([GASNET_FCA_CFLAGS])
+AC_SUBST([FCA_HOME])
+AC_SUBST([FCA_INCLUDE])
+AC_SUBST([FCA_LIBDIR])
+AC_SUBST([FCA_LIBS])
+AC_SUBST([FCA_SUBDIR])
+enable_fca_support="yes"
+CFLAGS="$CFLAGS $GASNET_FCA_CFLAGS"
+CC="$CC $GASNET_FCA_CFLAGS"
+
+#disable PAR and PARSYNC modes since FCA does support SEQ only
+AM_CONDITIONAL(BUILD_PAR_LIBS, test "no" = "yes")
+AM_CONDITIONAL(BUILD_PARSYNC_LIBS, test "no" = "yes")
+GASNET_MSG_WARN([Warning: Fca support was enabled which works in SEQ mode only. PAR and PARSYNC modes have been disabled!])
+fi
+fi
+AM_CONDITIONAL(FCA_ENABLED, test "$enable_fca_support" = "yes")
+
+########################################################################
 ##
 ##  Final Output
 ##
@@ -5069,6 +5334,7 @@ GASNET_FIX_EXEC(mpi-conduit/contrib/gasnetrun_mpi)
 GASNET_FIX_EXEC(sci-conduit/contrib/gasnetrun_sci)
 GASNET_FIX_EXEC(vapi-conduit/contrib/gasnetrun_vapi)
 GASNET_FIX_EXEC(ibv-conduit/contrib/gasnetrun_ibv)
+GASNET_FIX_EXEC(mxm-conduit/contrib/gasnetrun_mxm)
 GASNET_FIX_EXEC(dcmf-conduit/contrib/gasnetrun_dcmf)
 GASNET_FIX_EXEC(pami-conduit/contrib/gasnetrun_pami)
 GASNET_FIX_EXEC(other/contrib/gasnet_trace)
@@ -5086,6 +5352,7 @@ cat >>$CONDUIT_LIST <<EOF
   Pthreads support:       $have_pthread
   Segment config:         $segconfig
   PSHM support:           $with_pshm
+  FCA support:            $enable_fca_support
 EOF
 else
 cat >>$CONDUIT_LIST <<EOF
@@ -5153,6 +5420,11 @@ ibv-conduit/conduit.mak
 ibv-conduit/contrib/Makefile
 ibv-conduit/contrib/gasnetrun_ibv
 
+mxm-conduit/Makefile
+mxm-conduit/conduit.mak
+mxm-conduit/contrib/Makefile
+mxm-conduit/contrib/gasnetrun_mxm
+
 shmem-conduit/Makefile
 shmem-conduit/conduit.mak
 
@@ -5172,6 +5444,8 @@ other/contrib/gasnet_trace
 other/testspawn/Makefile
 other/firehose/Makefile
 other/firehose/firehose.mak
+other/fca/Makefile
+other/fca/fca.mak
 dnl GASNET_TOOLSONLY_FALSE_END
 
 other/Makefile

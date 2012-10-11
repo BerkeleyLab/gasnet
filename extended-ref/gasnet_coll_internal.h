@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2012/08/13 03:51:05 $
- * $Revision: 1.67 $
+ *     $Date: 2012/10/11 17:44:10 $
+ * $Revision: 1.67.4.1 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -10,6 +10,10 @@
 
 #ifndef _GASNET_COLL_INTERNAL_H
 #define _GASNET_COLL_INTERNAL_H
+
+#ifdef GASNET_FCA_ENABLED
+#include <other/fca/gasnet_fca.h>
+#endif
 #include <gasnet_coll.h>
 #include <gasnet_handler.h>
 
@@ -339,6 +343,11 @@ struct gasnete_coll_team_t_ {
   /* Hook for conduit-specific extensions/overrides */
 #ifdef GASNETE_COLL_TEAM_EXTRA
   GASNETE_COLL_TEAM_EXTRA
+#endif
+
+#ifdef GASNET_FCA_ENABLED
+  fca_comm_data_t fca_comm_data;
+  int use_fca;
 #endif
 };
 
