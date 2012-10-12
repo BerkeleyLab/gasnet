@@ -1,7 +1,7 @@
 ## Process this file with automake to produce Makefile.in	-*- makefile -*-
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/Makefile.am,v $
-#     $Date: 2012/03/06 02:20:31 $
-# $Revision: 1.12 $
+#     $Date: 2012/10/12 22:22:31 $
+# $Revision: 1.12.10.1 $
 # Description: Makefile for GASNet ibv conduit
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Terms of use are as specified in license.txt
@@ -9,6 +9,10 @@
 AUTOMAKE_OPTIONS = foreign 1.4
 
 CONDUIT_NAME=ibv
+## Fca
+if FCA_ENABLED
+include $(top_builddir)/other/fca/fca.mak
+endif
 
 ##
 ## vapi-conduit holds the actual sources
@@ -73,27 +77,28 @@ CONDUIT_SOURCELIST =                 \
       $(vapi_srcdir)/gasnet_core_thread.c \
       $(vapi_srcdir)/gasnet_extended.c    \
       $(vapi_srcdir)/gasnet_firehose.c    \
-      $(fh_sourcelist) $(ssh_sources)
+      $(fca_sourcelist) $(fh_sourcelist) $(ssh_sources)
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = -I@IBV_INCLUDE@ -I$(vapi_srcdir) $(fh_extralibcflags) $(ssh_defines) $(mpi_defines)\
+CONDUIT_EXTRALIBCFLAGS = -I@IBV_INCLUDE@ -I$(vapi_srcdir) $(fh_extralibcflags) $(ssh_defines) $(mpi_defines) $(fca_extralibcflags)\
 			 @IBV_LIBCFLAGS@ $(rcv_thread_defines) -DGASNET_CONDUIT_IBV
 
 # additional conduit header files to install from external, non-standard directories
-CONDUIT_EXTRAHEADERS = $(vapi_install_hdrs) $(fh_extraheaders)
+CONDUIT_EXTRAHEADERS = $(vapi_install_hdrs) $(fh_extraheaders) $(fca_extraheaders)
+
 
 # headers selected by default rules that should NOT be installed
-CONDUIT_PRIVATEHEADERS = $(fh_privheaders)
+CONDUIT_PRIVATEHEADERS = $(fh_privheaders) $(fca_privheaders)
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update
-CONDUIT_EXTRADEPS = $(vapi_srcdir)/*.[ch] $(fh_extradeps) $(ssh_deps) $(mpi_deps)
+CONDUIT_EXTRADEPS = $(vapi_srcdir)/*.[ch] $(fh_extradeps) $(ssh_deps) $(mpi_deps) $(fca_extradeps)
 
 # additional object files to be included in libgasnet that need to be compiled 
 # using a special, conduit-specific command. These should also be included as
 # forced targets in this file, and should probably use LIBINCLUDES/LIBDEFINES
-CONDUIT_SPECIAL_OBJS = $(mpi_special_objs) $(fh_special_objs)
+CONDUIT_SPECIAL_OBJS = $(mpi_special_objs) $(fh_special_objs) $(fca_special_objs)
 
 # the default job spawn command to be used for "make run-tests"
 # The following substitutions are performed:
