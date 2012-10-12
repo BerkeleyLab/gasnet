@@ -395,7 +395,7 @@ gasnet_mxm_send_req_t * gasnete_fill_fence_request(gasnet_node_t node, void *cal
     mxm_sreq->base.data.buffer.mkey = MXM_MKEY_NONE;
     mxm_sreq->base.data_type = MXM_REQ_DATA_BUFFER;
 
-    mxm_sreq->base.completed_cb = callback_fn;
+    mxm_sreq->base.completed_cb = (void (*)(void *))callback_fn;
     mxm_sreq->base.context = callback_data;
 
     return gasnet_mxm_sreq;

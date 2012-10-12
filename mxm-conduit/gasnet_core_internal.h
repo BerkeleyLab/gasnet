@@ -146,7 +146,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 #define GASNETC_MSG_HANDLERID(num)   ( (gasnet_handler_t)( (((uint32_t)(num)) >>  8) & ((uint32_t)0xFF)) )
 #define GASNETC_MSG_NUMARGS(num)     ( (uint8_t)( (((uint32_t)(num)) >> 16) & ((uint32_t)0xFF)) )
 #define GASNETC_MSG_NUMBER(num)      ( (uint8_t)( (((uint32_t)(num)) >> 24) & ((uint32_t)0xFF)) )
-#define GASNETC_MSG_CATEGORY(num)    ( (uint8_t)((uint32_t)(num) & 3) )
+#define GASNETC_MSG_CATEGORY(num)    ( (gasnetc_category_t)((uint32_t)(num) & 3) )
 #define GASNETC_MSG_ISREQUEST(num)   ( (uint8_t)(((uint32_t)(num) >> 2 ) & 1) )
 #define GASNETC_MSG_ISREPLY(num)     (!GASNETC_MSG_ISREQUEST(num))
 #define GASNETC_MSG_ISSYNC(num)      ( (uint8_t)(((uint32_t)(num) >> 3 ) & 1) )

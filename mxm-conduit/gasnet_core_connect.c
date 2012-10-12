@@ -101,7 +101,7 @@ gasnetc_connect_init(void)
     return GASNET_ERR_NOT_INIT;
 #endif
 
-    mxm_status = gasnetc_connect_static();
+    mxm_status = (mxm_error_t)gasnetc_connect_static();
     if (mxm_status != MXM_OK) {
         MXM_ERROR("Connection initialization failed\n");
         return GASNET_ERR_NOT_INIT;

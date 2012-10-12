@@ -97,8 +97,8 @@ int gasnet_fca_reduce(int root,  void *target, const void *source,
     FCA_VERBOSE(5,"DOING FCA_ALL_GATHER");
     spec.sbuf = (void *)source;
     spec.rbuf = target;
-    spec.dtype = fca_dtype;
-    spec.op = fca_op;
+    spec.dtype = (enum fca_reduce_dtype_t)fca_dtype;
+    spec.op = (enum fca_reduce_op_t)fca_op;
     spec.root = root;
     spec.length = length;
     ret = gasnet_fca_component.fca_ops.do_reduce(fca_comm_data->fca_comm, &spec);
@@ -121,8 +121,8 @@ int gasnet_fca_reduce_all( void *target, const void *source, int fca_op,
     FCA_VERBOSE(5,"DOING FCA_REDUCE_ALL");
     spec.sbuf = (void *)source;
     spec.rbuf = target;
-    spec.dtype = fca_dtype;
-    spec.op = fca_op;
+    spec.dtype = (enum fca_reduce_dtype_t)fca_dtype;
+    spec.op = (enum fca_reduce_op_t)fca_op;
     spec.length = length;
     ret = gasnet_fca_component.fca_ops.do_all_reduce(fca_comm_data->fca_comm, &spec);
     if (GASNET_COLL_OUT_ALLSYNC & flags){
