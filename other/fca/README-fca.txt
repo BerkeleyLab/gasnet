@@ -64,10 +64,10 @@
                                    allgather (ag).
                                    Each operation can be also enabled/disabled 
                                    via environment variable:
-                                                    BUPC_FCA_ENABLE_BARRIER,
-                                                    BUPC_FCA_ENABLE_BCAST,
-                                                    BUPC_FCA_ENABLE_REDUCE,
-                                                    BUPC_FCA_ENABLE_ALLGATHER.
+                                                    GASNET_FCA_ENABLE_BARRIER,
+                                                    GASNET_FCA_ENABLE_BCAST,
+                                                    GASNET_FCA_ENABLE_REDUCE,
+                                                    GASNET_FCA_ENABLE_ALLGATHER.
                                    +/- provided without op_list enables/disables
                                    all operations. By default all operations
                                    are enabled.
