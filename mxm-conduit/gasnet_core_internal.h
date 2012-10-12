@@ -59,7 +59,7 @@ enum {
 
 #define GASNETC_MXM_CHECK_PTR(ptr,msg) GASNETC_MXM_CHECK((ptr)==NULL,(msg))
 
-#if GASNET_DEBUG
+#if GASNET_DEBUG_VERBOSE
 #define MXM_LOG(fmt, ...) do { \
                 printf("[I] [node %d] %s(): " fmt, \
                        gasneti_mynode, __FUNCTION__, ## __VA_ARGS__); \
