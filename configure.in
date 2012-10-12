@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2012/10/11 20:34:21 $
-# $Revision: 1.767.2.6 $
+#     $Date: 2012/10/12 02:14:26 $
+# $Revision: 1.767.2.7 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.767.2.6 $)
+AC_REVISION($Revision: 1.767.2.7 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -5286,8 +5286,6 @@ dnl        fi
     AC_SUBST([FCA_LIBDIR])
     AC_SUBST([FCA_LIBS])
     AC_SUBST([FCA_SUBDIR])
-    CFLAGS="$CFLAGS $GASNET_FCA_CFLAGS"
-    CC="$CC $GASNET_FCA_CFLAGS"
 
     # XXX: This really should be repalced w/ proper use of #if in the sources -PHH
     # disable PAR and PARSYNC modes since FCA does support SEQ only
