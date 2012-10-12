@@ -132,7 +132,7 @@ static int operation_enabled(gasnet_fca_coll_t coll){
             return -1;
     }
 }
-int team_fca_is_active(gasnet_team_handle_t team, gasnet_fca_coll_t coll){
+int gasnet_team_fca_is_active(gasnet_team_handle_t team, gasnet_fca_coll_t coll){
 
     return team->use_fca && operation_enabled(coll);
 }

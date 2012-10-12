@@ -70,7 +70,8 @@ typedef enum gasnet_fca_coll_t{
     _FCA_ALLREDUCE  = 3,
     _FCA_ALLGATHER  = 4
 } gasnet_fca_coll_t;
-extern int team_fca_is_active(gasnet_team_handle_t team, gasnet_fca_coll_t coll);
+
+extern int gasnet_team_fca_is_active(gasnet_team_handle_t team, gasnet_fca_coll_t coll);
 
 
 

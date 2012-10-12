@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2012/10/11 21:22:18 $
- * $Revision: 1.140.2.2 $
+ *     $Date: 2012/10/12 03:28:22 $
+ * $Revision: 1.140.2.3 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1937,7 +1937,7 @@ int gasnete_coll_barrier_wait(gasnete_coll_team_t team, int id, int flags GASNET
 void gasnete_coll_barrier_single_phase(gasnete_coll_team_t team) {
     GASNETE_CONDUIT_PRE_BARRIER(team);
 #ifdef GASNET_FCA_ENABLED
-    if (!team_fca_is_active(team,_FCA_BARRIER) ||
+    if (!gasnet_team_fca_is_active(team,_FCA_BARRIER) ||
         (gasnet_fca_barrier(team) < 0))
 #endif
       gasnete_coll_teambarrier(team);
