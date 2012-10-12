@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2012/10/12 02:14:26 $
-# $Revision: 1.767.2.7 $
+#     $Date: 2012/10/12 02:47:42 $
+# $Revision: 1.767.2.8 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.767.2.7 $)
+AC_REVISION($Revision: 1.767.2.8 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -5273,19 +5273,15 @@ dnl        elif test "$fca_in_opt" = yes; then
 dnl            echo "Using FCA from $fca_home"
 dnl        fi
 
-    FCA_INCLUDE=$fca_home/include
+    FCA_INCLUDES="-I$fca_home/include/fca -I$fca_home/include/fca_core"
     FCA_LIBDIR=$fca_lib_path
     FCA_LIBS="-lfca"
-    FCA_HOME=$fca_home
-    FCA_SUBDIR=fca
 
-    GASNET_FCA_CFLAGS="-DFCA_HOME=$FCA_HOME -I$FCA_INCLUDE/fca -I$FCA_INCLUDE/fca_core"
-    AC_SUBST([GASNET_FCA_CFLAGS])
-    AC_SUBST([FCA_HOME])
-    AC_SUBST([FCA_INCLUDE])
+    AC_SUBST([FCA_INCLUDES])
     AC_SUBST([FCA_LIBDIR])
     AC_SUBST([FCA_LIBS])
-    AC_SUBST([FCA_SUBDIR])
+
+    AC_DEFINE_UNQUOTED(GASNET_FCA_HOME, "$fca_home")
 
     # XXX: This really should be repalced w/ proper use of #if in the sources -PHH
     # disable PAR and PARSYNC modes since FCA does support SEQ only

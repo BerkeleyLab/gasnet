@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2012/09/19 21:32:06 $ */
-/*  $Revision: 1.183 $ */
+/*      $Date: 2012/10/12 02:47:41 $ */
+/*  $Revision: 1.183.2.1 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -186,6 +186,9 @@
 
 /* hugetlbfs support enabled */
 #undef GASNETI_USE_HUGETLBFS
+
+/* location of FCA installation, if any */
+#undef GASNET_FCA_HOME
 
 /* support for backtracing */
 #undef HAVE_EXECINFO_H

@@ -33,9 +33,6 @@ gasnet_fca_component_t gasnet_fca_component={0};
     } \
 }
 
-#define FCA_TOSTR_NO_EXPAND(X) #X
-#define FCA_TOSTR_EXPAND(X) FCA_TOSTR_NO_EXPAND(X)
-
 static void dlsym_quiet(void **p, const char *name)
 {
     *p = dlsym(gasnet_fca_component.fca_lib_handle, name);
@@ -263,8 +260,8 @@ int gasnet_fca_open(int my_rank)
 {
     gasnet_fca_component.fca_lib_handle = NULL;
     gasnet_fca_component.fca_context = NULL;
-    gasnet_fca_component.fca_lib_path = (char *)FCA_TOSTR_EXPAND(FCA_HOME)"/lib/libfca.so";
-    gasnet_fca_component.fca_spec_file = (char *)FCA_TOSTR_EXPAND(FCA_HOME)"/etc/fca_mpi_spec.ini";
+    gasnet_fca_component.fca_lib_path = (char *)GASNET_FCA_HOME "/lib/libfca.so";
+    gasnet_fca_component.fca_spec_file = (char *)GASNET_FCA_HOME "/etc/fca_mpi_spec.ini";
 
     if (GASNET_FCA_SUCCESS != register_gasnet_fca_params()){
         FCA_ERROR("error: register_gasnet_fca_params failed!");
