@@ -305,7 +305,7 @@ static int gasneti_load_settings(void)
 
 /* -------------------------------------------------------------------------- */
 
-size_t inline gasneti_AMMaxMedium()
+size_t inline gasneti_AMMaxMedium(void)
 {
     //return gasnet_mxm_module.max_am_med -
     //          (sizeof(gasnet_handlerarg_t) * GASNETC_MAX_ARGS));
@@ -524,7 +524,7 @@ static void gasnetc_init_pin_info(int first_local, int ppn)
 
 /* -------------------------------------------------------------------------- */
 
-static inline int gasnetc_post_recv()
+static inline int gasnetc_post_recv(void)
 {
     mxm_recv_req_t * p_req = &gasnet_mxm_module.recv_req;
     mxm_req_base_t * p_base = &gasnet_mxm_module.recv_req.base;
@@ -1181,7 +1181,7 @@ static void gasnetc_atexit(void)
 
 /* ------------------------------------------------------------------------------------ */
 
-static void gasneti_mxm_finalize()
+static void gasneti_mxm_finalize(void)
 {
     int i;
     mxm_error_t mxm_res;
@@ -2005,7 +2005,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
     return GASNET_OK;
 }
 
-extern void gasnetc_ProcessRecv();
+extern void gasnetc_ProcessRecv(void);
 
 static int gasnetc_AMPoll_nocheckattach(void) {
 #ifdef MXM_MUTEX_AMPOLL_LOCK

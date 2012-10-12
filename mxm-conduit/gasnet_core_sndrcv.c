@@ -610,7 +610,7 @@ static void gasnetc_HandleSystemMessage(gasnetc_am_token_t * token,
 
 /* -------------------------------------------------------------------------- */
 
-void gasnetc_ProcessRecv()
+void gasnetc_ProcessRecv(void)
 {
     gasnetc_am_token_t token;
     gasnetc_am_token_t * p_token = &token;
