@@ -6,7 +6,7 @@
  */
 
 #ifndef _IN_GASNET_H
-//#error This file is not meant to be included directly- clients should include gasnet.h
+#error This file is not meant to be included directly- clients should include gasnet.h
 #endif
 
 #ifndef _GASNET_CORE_H
