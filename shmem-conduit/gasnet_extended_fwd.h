@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended_fwd.h,v $
- *     $Date: 2012/08/13 03:51:17 $
- * $Revision: 1.20 $
+ *     $Date: 2012/10/15 21:44:14 $
+ * $Revision: 1.20.6.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -13,7 +13,7 @@
 #ifndef _GASNET_EXTENDED_FWD_H
 #define _GASNET_EXTENDED_FWD_H
 
-#define GASNET_EXTENDED_VERSION      1.8
+#define GASNET_EXTENDED_VERSION      1.9
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
 #define GASNET_EXTENDED_NAME         SHMEM
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
