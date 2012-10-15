@@ -1,11 +1,9 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.66 $
+$Revision: 1.66.2.1 $
 
 ----------------------------------------------------------------------
-??-??-2012 : Release 1.20.0
-
-* PLACEHOLDER
+10-30-2012 : Release 1.20.0
 
 * IBM PAMI (pami-conduit)
   - With this release PAMI conduit has graduated out of BETA status.
