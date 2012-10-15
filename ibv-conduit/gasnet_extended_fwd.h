@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_extended_fwd.h,v $
- *     $Date: 2012/09/14 00:57:57 $
- * $Revision: 1.29 $
+ *     $Date: 2012/10/15 21:44:18 $
+ * $Revision: 1.29.4.1 $
  * Description: GASNet Extended API Header (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,7 +15,7 @@
 
 #include <firehose_trace.h>
 
-#define GASNET_EXTENDED_VERSION      1.12
+#define GASNET_EXTENDED_VERSION      1.13
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
 #if GASNET_CONDUIT_VAPI
   #define GASNET_EXTENDED_NAME         VAPI
