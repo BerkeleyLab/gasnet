@@ -1,5 +1,5 @@
 /*
- * Description: GASNet Extended API Reference Implementation
+ * Description: GASNet Extended API Implementation for MXM conduit
  * Copyright (c)  2012, Mellanox Technologies LTD. All rights reserved.
  * Terms of use are as specified in license.txt
  */
@@ -7,7 +7,7 @@
 #ifndef _GASNET_EXTENDED_FWD_H
 #define _GASNET_EXTENDED_FWD_H
 
-#define GASNET_EXTENDED_VERSION      GASNET_RELEASE_VERSION_MAJOR.GASNET_RELEASE_VERSION_MINOR
+#define GASNET_EXTENDED_VERSION      1.0
 #define GASNET_EXTENDED_VERSION_STR  _STRINGIFY(GASNET_EXTENDED_VERSION)
 #define GASNET_EXTENDED_NAME         MXM
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
