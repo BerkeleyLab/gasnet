@@ -1,7 +1,7 @@
 #!/bin/sh
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/unBootstrap,v $
-#     $Date: 2012/10/12 23:46:43 $
-# $Revision: 1.25 $
+#     $Date: 2012/10/15 22:10:07 $
+# $Revision: 1.25.2.1 $
 # Terms of use are as specified in license.txt
 # Description:
 # This scripts undoes the effects of a "Bootstrap", 
@@ -45,6 +45,7 @@ rm -f Makefile.in              \
       other/ammpi/Makefile.in  \
       other/amudp/Makefile.in  \
       other/contrib/Makefile.in \
+      other/fca/Makefile.in \
       other/firehose/Makefile.in \
       other/testspawn/Makefile.in \
       tests/Makefile
