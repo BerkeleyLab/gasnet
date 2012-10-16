@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/portable_platform.h,v $
- *     $Date: 2012/03/13 23:48:55 $
- * $Revision: 1.32 $
+ *     $Date: 2012/10/16 22:02:13 $
+ * $Revision: 1.32.12.1 $
  * Description: Portable platform detection header
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -73,13 +73,18 @@
   #endif
   /* patch number is a decimal build date: YYYYMMDD */
   #define PLATFORM_COMPILER_VERSION_INT(maj,min,pat)         \
-        (((((maj) * 10) | (min)) << 20) |                    \
+        (((((maj) * 100) + (min)) << 20) |                    \
            ((pat) < _PLATFORM_COMPILER_INTEL_MIN_BUILDDATE ? \
             _PLATFORM_COMPILER_INTEL_MIN_BUILDDATE : ((pat)-_PLATFORM_COMPILER_INTEL_MIN_BUILDDATE)))
+  #if __INTEL_COMPILER == 9999  /* Seen in 20110811 release of 12.1.0 - overflows VERSION_INT() */
+    #define _PLATFORM__INTEL_COMPILER 1210
+  #else
+    #define _PLATFORM__INTEL_COMPILER __INTEL_COMPILER
+  #endif
   #define PLATFORM_COMPILER_VERSION \
-          PLATFORM_COMPILER_VERSION_INT(__INTEL_COMPILER/10, __INTEL_COMPILER/100, _PLATFORM_INTEL_COMPILER_BUILD_DATE)
+          PLATFORM_COMPILER_VERSION_INT(_PLATFORM__INTEL_COMPILER/100, _PLATFORM__INTEL_COMPILER%100, _PLATFORM_INTEL_COMPILER_BUILD_DATE)
   #define PLATFORM_COMPILER_VERSION_STR \
-          _STRINGIFY(__INTEL_COMPILER)"."_STRINGIFY(_PLATFORM_INTEL_COMPILER_BUILD_DATE)
+          _STRINGIFY(_PLATFORM__INTEL_COMPILER)"."_STRINGIFY(_PLATFORM_INTEL_COMPILER_BUILD_DATE)
 
 #elif defined(__PATHSCALE__)
   #define PLATFORM_COMPILER_PATHSCALE  1
