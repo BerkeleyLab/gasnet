@@ -170,7 +170,12 @@ extern void gasnetc_barrier_fence(void)
 
         mxm_sreq->base.data.buffer.ptr = NULL;
         mxm_sreq->base.data.buffer.length = 0;
+
+#if MXM_API < MXM_VERSION(1,5)
         mxm_sreq->base.data.buffer.mkey = MXM_MKEY_NONE;
+#else
+        mxm_sreq->base.data.buffer.memh = NULL;
+#endif
         mxm_sreq->base.data_type = MXM_REQ_DATA_BUFFER;
 
         mxm_sreq->base.completed_cb = NULL;
@@ -238,6 +243,8 @@ static gasnetc_memreg_t * gasnetc_find_reg(void *src_addr, int nbytes, int rank)
 
 /* -------------------------------------------------------------------------- */
 
+#if MXM_API < MXM_VERSION(1,5)
+
 inline uint32_t gasnetc_find_lkey(void *src_addr, int nbytes)
 {
 #if GASNET_SEGMENT_FAST
@@ -261,6 +268,25 @@ inline uint32_t gasnetc_find_rkey(void *src_addr, int nbytes, int rank)
     return MXM_MKEY_NONE;
 #endif
 }
+
+#else
+
+inline mxm_mem_h gasnetc_find_memh(void *addr, int nbytes)
+{
+#if GASNET_SEGMENT_FAST
+    gasnetc_memreg_t * reg = gasnetc_find_reg(addr, nbytes, gasnet_mynode());
+    return (reg) ? reg->memh : NULL;
+#else
+    return NULL;
+#endif
+}
+
+inline mxm_mem_h gasnetc_find_remote_memh(void *addr, int nbytes, int rank)
+{
+    return NULL; /* No zcopy on receive side, so don't bother */
+}
+
+#endif
 
 /* -------------------------------------------------------------------------- */
 
@@ -381,13 +407,17 @@ int gasnetc_AM_Generic(gasnetc_category_t category,
         if_pt (numargs) {
             mxm_sreq->base.data.buffer.ptr = p_sreq->args_buf;
             mxm_sreq->base.data.buffer.length = numargs * sizeof(gasnet_handlerarg_t);
-            mxm_sreq->base.data.buffer.mkey = MXM_MKEY_NONE;
         }
         else {
             mxm_sreq->base.data.buffer.ptr = NULL;
             mxm_sreq->base.data.buffer.length = 0;
-            mxm_sreq->base.data.buffer.mkey = MXM_MKEY_NONE;
         }
+
+#if MXM_API < MXM_VERSION(1,5)
+        mxm_sreq->base.data.buffer.mkey = MXM_MKEY_NONE;
+#else
+        mxm_sreq->base.data.buffer.memh = NULL;
+#endif
 
         mxm_sreq->base.data_type = MXM_REQ_DATA_BUFFER;
 
@@ -402,14 +432,22 @@ int gasnetc_AM_Generic(gasnetc_category_t category,
             p_sreq->sendiov[sge_idx].length = GASNETI_ALIGNUP(
                                                   numargs * sizeof(gasnet_handlerarg_t),
                                                   GASNETI_MEDBUF_ALIGNMENT);
+#if MXM_API < MXM_VERSION(1,5)
             p_sreq->sendiov[sge_idx].mkey = MXM_MKEY_NONE;
+#else
+            p_sreq->sendiov[sge_idx].memh = NULL;
+#endif
             sge_idx++;
         }
 
         if_pt (nbytes && src_addr) {
             p_sreq->sendiov[sge_idx].ptr = src_addr;
             p_sreq->sendiov[sge_idx].length = nbytes;
+#if MXM_API < MXM_VERSION(1,5)
             p_sreq->sendiov[sge_idx].mkey = gasnetc_find_lkey(src_addr, nbytes);
+#else
+            p_sreq->sendiov[sge_idx].memh = gasnetc_find_memh(src_addr, nbytes);
+#endif
             sge_idx++;
         }
 
@@ -444,10 +482,14 @@ int gasnetc_AM_Generic(gasnetc_category_t category,
 
             put_mxm_sreq->base.data.buffer.ptr = src_addr;
             put_mxm_sreq->base.data.buffer.length = nbytes;
-            put_mxm_sreq->base.data.buffer.mkey = gasnetc_find_lkey(src_addr, nbytes);
-
             put_mxm_sreq->op.mem.remote_vaddr = (mxm_vaddr_t)dst_addr;
+#if MXM_API < MXM_VERSION(1,5)
+            put_mxm_sreq->base.data.buffer.mkey = gasnetc_find_lkey(src_addr, nbytes);
             put_mxm_sreq->op.mem.remote_mkey = gasnetc_find_rkey(dst_addr, nbytes, dest);
+#else
+            put_mxm_sreq->base.data.buffer.memh = gasnetc_find_memh(src_addr, nbytes);
+            put_mxm_sreq->op.mem.remote_memh = gasnetc_find_remote_memh(dst_addr, nbytes, dest);
+#endif
 
             /*
              * If this is a blocking send, then MXM doesn't have to call
@@ -480,7 +522,11 @@ int gasnetc_AM_Generic(gasnetc_category_t category,
         if_pt (numargs) {
             p_sreq->sendiov[sge_idx].ptr = p_sreq->args_buf;
             p_sreq->sendiov[sge_idx].length = numargs * sizeof(gasnet_handlerarg_t);
+#if MXM_API < MXM_VERSION(1,5)
             p_sreq->sendiov[sge_idx].mkey = MXM_MKEY_NONE;
+#else
+            p_sreq->sendiov[sge_idx].memh = NULL;
+#endif
             sge_idx++;
         }
 
@@ -493,7 +539,11 @@ int gasnetc_AM_Generic(gasnetc_category_t category,
         }
         p_sreq->sendiov[sge_idx].ptr = p_sreq->long_info;
         p_sreq->sendiov[sge_idx].length = sizeof(p_sreq->long_info);
+#if MXM_API < MXM_VERSION(1,5)
         p_sreq->sendiov[sge_idx].mkey = MXM_MKEY_NONE;
+#else
+        p_sreq->sendiov[sge_idx].memh = NULL;
+#endif
         sge_idx++;
 
         mxm_sreq->base.data_type = MXM_REQ_DATA_IOV;

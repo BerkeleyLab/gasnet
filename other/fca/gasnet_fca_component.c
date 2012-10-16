@@ -106,6 +106,13 @@ int gasnet_fca_get_fca_lib(int my_rank)
     spec->progress.arg = NULL;
 
     ret = gasnet_fca_component.fca_ops.init(spec, &gasnet_fca_component.fca_context);
+    /* FCA library uses random numbers internally and specifies rand seed with it's 
+     * specific value. As a result the seed is different for different processes.
+     * Howevere, if GASNet client relies on the default value of seed, that implies all
+     * the processes have the same random numbers, he would fail. So, restore seed
+     * to the fixed value.
+     */
+    srand(1);
     if (ret < 0) {
         FCA_ERROR("Failed to initialize FCA: %s", gasnet_fca_component.fca_ops.strerror(ret));
         return GASNET_FCA_ERROR;

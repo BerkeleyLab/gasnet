@@ -114,15 +114,23 @@ enum {
 #include <sys/mman.h> /* For MAP_FAILED */
 #endif
 
+#ifndef MXM_VERSION
+#define MXM_VERSION(major, minor) (((major)<<MXM_MAJOR_BIT) | ((minor)<<MXM_MINOR_BIT))
+#endif
+
 extern uintptr_t gasnetc_max_msg_sz;
 
 /* Description of a pre-pinned memory region */
 typedef struct {
-    uint32_t   lkey;   /* used for local access by HCA */
-    uint32_t   rkey;   /* used for remote access by HCA */
     uintptr_t  addr;
     size_t     len;
     uintptr_t  end;    /* inclusive */
+#if MXM_API < MXM_VERSION(1,5)
+    uint32_t   lkey;   /* used for local access by HCA */
+    uint32_t   rkey;   /* used for remote access by HCA */
+#else
+    mxm_mem_h  memh;
+#endif
 } gasnetc_memreg_t;
 
 extern int gasnetc_connect_init(void);

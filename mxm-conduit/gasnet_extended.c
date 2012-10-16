@@ -17,8 +17,13 @@ extern void _gasnete_iop_check(gasnete_iop_t *iop) {
 
 /* -------------------------------------------------------------------------- */
 
-extern uint32_t gasnetc_find_lkey(void *src_addr, int nbytes);
-extern uint32_t gasnetc_find_rkey(void *src_addr, int nbytes, int rank);
+#if MXM_API < MXM_VERSION(1,5)
+extern uint32_t gasnetc_find_lkey(void *addr, int nbytes);
+extern uint32_t gasnetc_find_rkey(void *addr, int nbytes, int rank);
+#else
+extern mxm_mem_h gasnetc_find_memh(void *addr, int nbytes);
+extern mxm_mem_h gasnetc_find_remote_memh(void *addr, int nbytes, int rank);
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -392,7 +397,11 @@ gasnet_mxm_send_req_t * gasnete_fill_fence_request(gasnet_node_t node, void *cal
 
     mxm_sreq->base.data.buffer.ptr = NULL;
     mxm_sreq->base.data.buffer.length = 0;
+#if MXM_API < MXM_VERSION(1,5)
     mxm_sreq->base.data.buffer.mkey = MXM_MKEY_NONE;
+#else
+    mxm_sreq->base.data.buffer.memh = NULL;
+#endif
     mxm_sreq->base.data_type = MXM_REQ_DATA_BUFFER;
 
     mxm_sreq->base.completed_cb = (void (*)(void *))callback_fn;
@@ -603,10 +612,15 @@ void gasnete_fill_get_request(mxm_send_req_t * mxm_sreq, void *dest,
 
     mxm_sreq->base.data.buffer.ptr = dest;
     mxm_sreq->base.data.buffer.length = nbytes;
-    mxm_sreq->base.data.buffer.mkey = gasnetc_find_lkey(dest, nbytes);
-
     mxm_sreq->op.mem.remote_vaddr = (mxm_vaddr_t)src;
+
+#if MXM_API < MXM_VERSION(1,5)
+    mxm_sreq->base.data.buffer.mkey = gasnetc_find_lkey(dest, nbytes);
     mxm_sreq->op.mem.remote_mkey = gasnetc_find_rkey(src, nbytes, (int)node);
+#else
+    mxm_sreq->base.data.buffer.memh = gasnetc_find_memh(dest, nbytes);
+    mxm_sreq->op.mem.remote_memh = gasnetc_find_remote_memh(src, nbytes, (int)node);
+#endif
 
     mxm_sreq->base.completed_cb = NULL;
     mxm_sreq->base.context = NULL;
@@ -628,10 +642,15 @@ void gasnete_fill_put_request(mxm_send_req_t * mxm_sreq, void *dest,
 
     mxm_sreq->base.data.buffer.ptr = src;
     mxm_sreq->base.data.buffer.length = nbytes;
-    mxm_sreq->base.data.buffer.mkey = gasnetc_find_lkey(src, nbytes);
-
     mxm_sreq->op.mem.remote_vaddr = (mxm_vaddr_t)dest;
+
+#if MXM_API < MXM_VERSION(1,5)
+    mxm_sreq->base.data.buffer.mkey = gasnetc_find_lkey(src, nbytes);
     mxm_sreq->op.mem.remote_mkey = gasnetc_find_rkey(dest, nbytes, (int)node);
+#else
+    mxm_sreq->base.data.buffer.memh = gasnetc_find_memh(src, nbytes);
+    mxm_sreq->op.mem.remote_memh = gasnetc_find_remote_memh(dest, nbytes, (int)node);
+#endif
 
     mxm_sreq->base.completed_cb = NULL;
     mxm_sreq->base.context = NULL;

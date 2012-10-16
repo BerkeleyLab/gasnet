@@ -344,13 +344,20 @@ static void gasnetc_fakepin(uintptr_t limit, uintptr_t step)
 
 extern int gasnetc_pin(void *addr, size_t size, gasnetc_memreg_t *reg)
 {
+    mxm_error_t res;
     gasneti_assert(((uintptr_t)addr % GASNET_PAGESIZE) == 0);
     gasneti_assert(((uintptr_t)size % GASNET_PAGESIZE) == 0);
 
-    if_pf (MXM_OK != mxm_reg_mr(gasnet_mxm_module.mxm_ep, MXM_PTL_RDMA,
-                                addr, size, &reg->lkey, &reg->rkey)) {
+#if MXM_API < MXM_VERSION(1,5)
+    res = mxm_reg_mr(gasnet_mxm_module.mxm_ep, MXM_PTL_RDMA,
+                     addr, size, &reg->lkey, &reg->rkey);
+#else
+    res = mxm_mem_register(gasnet_mxm_module.mxm_context,
+                           addr, size, &reg->memh);
+#endif
+
+    if_pf (MXM_OK != res)
         return 1;
-    }
 
     reg->addr     = (uintptr_t)addr;
     reg->len      = size;
@@ -368,10 +375,15 @@ extern int gasnetc_pin(void *addr, size_t size, gasnetc_memreg_t *reg)
 
 static void gasnetc_unpin(gasnetc_memreg_t *reg)
 {
+#if MXM_API < MXM_VERSION(1,5)
     if_pf (MXM_OK != mxm_dereg_mr(gasnet_mxm_module.mxm_ep, MXM_PTL_RDMA,
                                   (void *)reg->addr, reg->len)) {
         MXM_ERROR("Failed deregistering memory region\n");
     }
+#else
+    mxm_mem_destroy(reg->memh);
+#endif
+
 #if GASNET_TRACE
     gasnetc_pinned_blocks -= 1;
     gasnetc_pinned_bytes -= reg->len;
@@ -538,7 +550,11 @@ static inline int gasnetc_post_recv(void)
     p_base->data_type = MXM_REQ_DATA_BUFFER;
     p_base->data.buffer.ptr = (void *)gasnet_mxm_module.recv_reg.addr;
     p_base->data.buffer.length = gasnet_mxm_module.recv_reg.len;
+#if MXM_API < MXM_VERSION(1,5)
     p_base->data.buffer.mkey = gasnet_mxm_module.recv_reg.lkey;
+#else
+    p_base->data.buffer.memh = gasnet_mxm_module.recv_reg.memh;
+#endif
     return mxm_req_recv(p_req);
 }
 
@@ -546,10 +562,15 @@ static inline int gasnetc_post_recv(void)
 
 static int gasnetc_init(int *argc, char ***argv)
 {
+#if MXM_API < MXM_VERSION(1,5)
     struct sockaddr_mxm_local_proc  sockaddr_bind_self;
     struct sockaddr_mxm_ib_local    sockaddr_bind_rdma;
     mxm_ep_opts_t                   mxm_ep_opts;
     mxm_context_opts_t              mxm_opts;
+#else
+    mxm_ep_opts_t                 * mxm_ep_opts;
+    mxm_context_opts_t            * mxm_opts;
+#endif
     gasnet_mxm_ep_conn_info_t       local_ep;
     mxm_error_t                     mxm_status;
     int                             i;
@@ -595,18 +616,28 @@ static int gasnetc_init(int *argc, char ***argv)
 
     /*
      * Initialize MXM
-     */
-
-    mxm_fill_context_opts(&mxm_opts);
-    /*
+     *
      * There are three modes:
      *   - MXM_ASYNC_MODE_NONE
      *   - MXM_ASYNC_MODE_SIGNAL
      *   - MXM_ASYNC_MODE_THREAD
      * We need a progress thread or at least signal - otherwise AM won't work.
      */
+#if MXM_API < MXM_VERSION(1,5)
+    mxm_fill_context_opts(&mxm_opts);
     mxm_opts.async_mode = MXM_ASYNC_MODE_THREAD;
     mxm_status = mxm_init(&mxm_opts, &gasnet_mxm_module.mxm_context);
+#else
+    res = mxm_config_read_context_opts(&mxm_opts);
+    if_pf (res != MXM_OK) {
+        MXM_ERROR("Failed to parse MXM configuration");
+        return GASNET_ERR_NOT_INIT;
+    }
+    mxm_opts->async_mode = MXM_ASYNC_MODE_THREAD;
+    mxm_opts->ptl_bitmap = MXM_BIT(MXM_PTL_SELF) | MXM_BIT(MXM_PTL_RDMA);
+    mxm_status = mxm_init(mxm_opts, &gasnet_mxm_module.mxm_context);
+#endif
+
     if (mxm_status != MXM_OK) {
         if (mxm_status == MXM_ERR_NO_DEVICE)
             MXM_ERROR("No supported device found, disqualifying MXM\n");
@@ -636,6 +667,7 @@ static int gasnetc_init(int *argc, char ***argv)
      * Setup the endpoint options and local addresses to bind to
      */
 
+#if MXM_API < MXM_VERSION(1,5)
     sockaddr_bind_self.sa_family = AF_MXM_LOCAL_PROC;
     sockaddr_bind_self.context_id = jobid;
     sockaddr_bind_self.process_id = getpid();
@@ -658,14 +690,34 @@ static int gasnetc_init(int *argc, char ***argv)
 
     mxm_status = mxm_ep_create(gasnet_mxm_module.mxm_context,
                                &mxm_ep_opts, &gasnet_mxm_module.mxm_ep);
+#else
+    mxm_status = mxm_config_read_ep_opts(&mxm_ep_opts);
+    if (mxm_status != MXM_OK) {
+        MXM_ERROR("Failed to parse MXM configuration (%s)\n",
+                  mxm_error_string(mxm_status));
+        return GASNET_ERR_NOT_INIT;
+    }
+    mxm_ep_opts->job_id = jobid;
+    mxm_ep_opts->local_rank = gasneti_nodemap_local_rank;
+    mxm_ep_opts->num_local_procs = gasneti_nodemap_local_count;
+    mxm_status = mxm_ep_create(gasnet_mxm_module.mxm_context,
+                        mxm_ep_opts, &gasnet_mxm_module.mxm_ep);
+    mxm_config_free(mxm_ep_opts);
+#endif
+
     if (mxm_status != MXM_OK) {
         MXM_ERROR("Unable to create MXM endpoint (%s)\n",
                   mxm_error_string(mxm_status));
         return GASNET_ERR_NOT_INIT;
     }
 
+#if MXM_API < MXM_VERSION(1,5)
     gasnet_mxm_module.rndv_thresh = mxm_ep_opts.rdma.rndv_thresh;
     gasnet_mxm_module.zcopy_thresh = mxm_ep_opts.rdma.zcopy_thresh;
+#else
+    gasnet_mxm_module.rndv_thresh = mxm_ep_opts->rdma.rndv_thresh;
+    gasnet_mxm_module.zcopy_thresh = mxm_ep_opts->rdma.zcopy_thresh;
+#endif
 
     /*
      * Get address for each PTL on this endpoint and exchange it
