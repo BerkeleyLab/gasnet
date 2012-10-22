@@ -398,8 +398,6 @@ uintptr_t gasnetc_init_messaging(void)
 				   GASNETC_GNI_FMA_RDMA_CUTOVER_DEFAULT,1);
   if (gasnetc_fma_rdma_cutover > GASNETC_GNI_FMA_RDMA_CUTOVER_MAX)
     gasnetc_fma_rdma_cutover = GASNETC_GNI_FMA_RDMA_CUTOVER_MAX;
-  if (gasnetc_fma_rdma_cutover > GASNETC_GNI_FMA_RDMA_CUTOVER_MAX)
-    gasnetc_fma_rdma_cutover = GASNETC_GNI_FMA_RDMA_CUTOVER_MAX;
 
   gasnetc_GNIT_Barrier();
 
