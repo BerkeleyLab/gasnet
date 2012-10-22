@@ -186,7 +186,7 @@ void gasnetc_GNIT_Barrier(void)
   PMI_Barrier();
 }
 
-#if OPTIMIZE_LIMIT_CQ
+#if GASNETC_OPTIMIZE_LIMIT_CQ
 int gasnetc_GNIT_numpes_on_smp(void)
 {
 	int size = 1;
