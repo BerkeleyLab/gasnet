@@ -1,4 +1,4 @@
-/* $Header: /Users/kamil/work/gasnet-cvs2/gasnet/license.txt,v 1.17.10.1 2012/10/21 04:10:05 phargrov Exp $
+/* $Header: /Users/kamil/work/gasnet-cvs2/gasnet/license.txt,v 1.17.10.2 2012/10/22 00:07:19 phargrov Exp $
  * All files in this directory and all sub-directories (except where otherwise noted)
  * are subject to the following licensing terms: 
  *
@@ -45,6 +45,8 @@
  *  Filip Blagojevic <FBlagojevic@lbl.gov>: shared-memory support
  *  Yili Zheng <YZheng@lbl.gov>: team collectives, DCMF native collectives
  *  Larry Stewart <stewart@serissa.com>: gemini-conduit
+ *  Yevgeny Kliteynik <kliteyn@mellanox.com>: FCA and mxm-conduit
+ *  Valentin Petrov <valentin.petrov@itseez.com>: FCA and mxm-conduit
  * 
  * For more information about GASNet, visit our home page at:
  *  http://gasnet.cs.berkeley.edu/
