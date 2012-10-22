@@ -1,6 +1,6 @@
 GASNet gemini-conduit documentation
 Larry Stewart <stewart@serissa.com> 
-$Revision: 1.7.12.1 $
+$Revision: 1.7.12.2 $
 
 User Information:
 -----------------
@@ -68,6 +68,11 @@ The legal values are the strings "strict", "relaxed" or "default".
 The value of GASNETC_GNI_MEM_CONSISTENCY controls memory registration
 for RDMA, while GASNETC_GNI_AM_MEM_CONSISTENCY is for registration
 of memory used to receive Active Messages.
+In this release both settings default to "strict", which was the only
+option available prior to GASNET 1.20.0.  Experiments with "relaxed"
+ordering for RDMA have shown a measurable improvement in speed of
+certain benchmarks, but is also known to produce incorrect results for
+at least one realistic usage pattern.
 
 
 GASNETC_DEFAULT_PHYSMEM_PINNBLE_RATIO - default 0.75
@@ -80,7 +85,7 @@ Provided by Cray runtime system.  Don't mess with these.
 PMI_GNI_LOC_ADDR   - NIC address on local node
 PMI_GNI_COOKIE     - Access code shared by all nodes in job
 PMI_GNI_PTAG       - Protection tag shared by all nodes in job
-PMI-GNI_DEV_ID     - Device ID (Selects which NIC is in use)
+PMI_GNI_DEV_ID     - Device ID (Selects which NIC is in use)
 
 
 
@@ -109,8 +114,8 @@ The desired number of Post Descriptors
 #define GASNETC_GNI_BOUNCE_REGISTER_CUTOVER_DEFAULT 8192
 #define GASNETC_GNI_BOUNCE_REGISTER_CUTOVER_MAX 32768
 /* a particular message up to this size goes via fma */
-#define GASNETC_GNI_FMA_RDMA_CUTOVER_DEFAULT 128
-#define GASNETC_GNI_FMA_RDMA_CUTOVER_MAX 128 /* bloats descriptor storage */
+#define GASNETC_GNI_FMA_RDMA_CUTOVER_DEFAULT 4096
+#define GASNETC_GNI_FMA_RDMA_CUTOVER_MAX (4096*4)
 
 
 in gemini-conduit/gasnet_gemini.c
