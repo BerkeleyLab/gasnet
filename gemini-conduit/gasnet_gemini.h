@@ -16,6 +16,20 @@
 
 #define GASNETC_DEBUG 0
 
+#define GASNETC_OPTIMIZE_LIMIT_CQ	1
+
+#define GASNETC_STRICT_MEM_CONSISTENCY  1 /* use GNI_MEM_STRICT_PI_ORDERING */
+#define GASNETC_RELAXED_MEM_CONSISTENCY 2 /* use GNI_MEM_RELAXED_PI_ORDERING */
+#define GASNETC_DEFAULT_MEM_CONSISTENCY 3 /* use neither */
+#if 0
+  /* These settings are still the subject of some experimentation */
+  #define GASNETC_DEFAULT_RDMA_MEM_CONSISTENCY  GASNETC_RELAXED_MEM_CONSISTENCY
+  #define GASNETC_DEFAULT_AM_MEM_CONSISTENCY    GASNETC_DEFAULT_MEM_CONSISTENCY
+#else
+  #define GASNETC_DEFAULT_RDMA_MEM_CONSISTENCY  GASNETC_STRICT_MEM_CONSISTENCY
+  #define GASNETC_DEFAULT_AM_MEM_CONSISTENCY    GASNETC_STRICT_MEM_CONSISTENCY
+#endif
+
 #ifdef GASNETC_DEBUG
 #define GC_DEBUG(x) x
 #define STATS(x) x
@@ -205,7 +219,9 @@ int gasnetc_GNIT_Device_Id(void);
 void gasnetc_GNIT_Allgather(void *local, long length, void *global);
 void gasnetc_GNIT_Finalize(void);
 void gasnetc_GNIT_Barrier(void);
-
+#if GASNETC_OPTIMIZE_LIMIT_CQ
+int gasnetc_GNIT_numpes_on_smp(void);
+#endif
 
 void gasnetc_get_am_credit(uint32_t pe);
 void gasnetc_return_am_credit(uint32_t pe);
@@ -252,7 +268,7 @@ void gasnetc_init_post_descriptor_pool(void);
 #define GASNETC_GNI_BOUNCE_REGISTER_CUTOVER_MAX 32768
 /* a particular message up to this size goes via fma */
 #define GASNETC_GNI_FMA_RDMA_CUTOVER_DEFAULT 4096
-#define GASNETC_GNI_FMA_RDMA_CUTOVER_MAX 4096
+#define GASNETC_GNI_FMA_RDMA_CUTOVER_MAX (4096*4)
 #define GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE 128
 gasnet_seginfo_t gasnetc_bounce_buffers;   /* fields addr and size */
 gasnet_seginfo_t gasnetc_pd_buffers;   /* fields addr and size */
