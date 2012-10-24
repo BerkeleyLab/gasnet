@@ -49,9 +49,6 @@ typedef struct gasnet_handle_t * gasnet_handle_t;
 
 #define GASNETE_CONDUIT_PRE_BARRIER(x) gasnetc_barrier_fence()
 
-/* XXX: RDMADISSEM leads to error which need to be investigated! */
-#define GASNETE_BARRIER_DEFAULT "AMDISSEM"
-
 #define GASNETE_AUXSEG_DECLS \
                    extern gasneti_auxseg_request_t gasnete_barr_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
 #define GASNETE_AUXSEG_FNS() gasnete_barr_auxseg_alloc,
