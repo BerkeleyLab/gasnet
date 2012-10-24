@@ -531,8 +531,13 @@ int gasnetc_AM_Generic(gasnetc_category_t category,
             sge_idx++;
         }
 
-        p_sreq->long_info[0] = (uint64_t) dst_addr;
-        p_sreq->long_info[1] = (uint64_t) nbytes;
+        if_pt (nbytes && src_addr && dst_addr) {
+            p_sreq->long_info[0] = (uint64_t) dst_addr;
+            p_sreq->long_info[1] = (uint64_t) nbytes;
+        }
+        else {
+            p_sreq->long_info[0] = p_sreq->long_info[1] = 0;
+        }
         p_sreq->sendiov[sge_idx].ptr = p_sreq->long_info;
         p_sreq->sendiov[sge_idx].length = sizeof(p_sreq->long_info);
 #if MXM_API < MXM_VERSION(1,5)
