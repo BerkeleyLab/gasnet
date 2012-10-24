@@ -1,9 +1,9 @@
-/* $Header: /Users/kamil/work/gasnet-cvs2/gasnet/license.txt,v 1.18 2012/10/24 00:23:08 phargrov Exp $
+/* $Header: /Users/kamil/work/gasnet-cvs2/gasnet/license.txt,v 1.17 2012/04/14 00:37:34 phargrov Exp $
  * All files in this directory and all sub-directories (except where otherwise noted)
  * are subject to the following licensing terms: 
  *
  * ---------------------------------------------------------------------------
- * "Copyright (c) 2000-2012 The Regents of the University of California.
+ * "Copyright (c) 2000-2011 The Regents of the University of California.
  * All rights reserved.
  * 
  * Permission to use, copy, modify, and distribute this software and its
@@ -23,8 +23,9 @@
  * PROVIDE MAINTENANCE, SUPPORT, UPDATES, ENHANCEMENTS, OR MODIFICATIONS."
  * ---------------------------------------------------------------------------
  *
- * Please see the license.txt file, if any, within each *-conduit directory
- * for the licensing terms governing those contributed components.
+ * Please see the license.txt files within the gm-conduit, lapi-conduit and
+ * vapi-conduit directories for the licensing terms governing those
+ * contributed components.
  *
  * The authors/contributors of GASNet include:
  *
@@ -45,8 +46,6 @@
  *  Filip Blagojevic <FBlagojevic@lbl.gov>: shared-memory support
  *  Yili Zheng <YZheng@lbl.gov>: team collectives, DCMF native collectives
  *  Larry Stewart <stewart@serissa.com>: gemini-conduit
- *  Yevgeny Kliteynik <kliteyn@mellanox.com>: FCA and mxm-conduit
- *  Valentin Petrov <valentin.petrov@itseez.com>: FCA and mxm-conduit
  * 
  * For more information about GASNet, visit our home page at:
  *  http://gasnet.cs.berkeley.edu/
