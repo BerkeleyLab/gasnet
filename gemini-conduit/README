@@ -1,6 +1,6 @@
 GASNet gemini-conduit documentation
 Larry Stewart <stewart@serissa.com> 
-$Revision: 1.10 $
+$Revision: 1.7.12.2 $
 
 User Information:
 -----------------
@@ -12,75 +12,82 @@ Recognized environment variables:
 
 GASNET_NETWORKDEPTH - depth of per-peer AM queues - default 12, min 1
 
-GASNETC_GNI_MIN_NUM_PD    - default 4096, minimum number of post descriptors
-GASNETC_GNI_NUM_PD  	  - optimum 16384, standard number of post descriptors
-  RDMA operations, whether short Fast Memory Access or longer RDMA, use
-  a control block called a Post Descriptor. These variables control how
-  many of these are preallocated into a pool.  Each one can also hold a
-  set of AM arguments or a small bounce buffer (128 bytes).
-
-GASNETC_GNI_FMA_RDMA_CUTOVER - default 4096 max 16384
-  This one sets the cutover from Fast Memory Access (RDMA commanded in
-  user mode) to RDMA commanded via device driver.  Every Post Descriptor
-  has a small bounce buffer (128 bytes) for handling out-of-segment FMAs
-  without the overhead of bounce buffers or dynamic registration (128
-  also happens to be the max size for a single packet FMA).  Larger
-  out-of-segment transfers will use either bounce buffers or dynamic
-  registration (see below).
-
-GASNETC_GNI_BOUNCE_REGISTER_CUTOVER  - default 8192, max 32768
-  Puts and Long Active messages whose source is not in the segment and
-  don't fit within GASNETC_GNI_FMA_RDMA_CUTOVER can be copied to a bounce
-  buffer in the auxiliary segment if the size is no larger than the value
-  GASNETC_GNI_BOUNCE_REGISTER_CUTOVER.  Otherwise, a temporary memory
-  segment is registered.
+Long Active messages whose destination is not in the segment are first
+copied to a bounce buffer that is in the auxiliary segment.  There is
+a pool of bounce buffers, each of a fixed size determined by the
+following environment variables.  If a Long Active Message has a
+larger data block, a special memory segment is mapped and zero copy
+RDMA is used instead.  The BOUNCE_REGISTER_CUTOVER determines the size
+of a bounce buffer, and should be chosen to minimize the performance
+discontinuity for switching to a registration protocol.  The
+BOUNCE_SIZE value determines the entire pool of memory for bounce
+buffers.  The number available is typically 262144/8192 or 32.  If you
+want to allocate a bounce buffer and the pool is empty, poll the rdma
+completion queue until one is returned.
 
 GASNETC_GNI_MIN_BOUNCE_SIZE  - default 65536
 GASNETC_GNI_BOUNCE_SIZE      - default 262144
-  There is a pool of bounce buffers, each of a fixed size determined by
-  these environment variables.  The BOUNCE_SIZE value determines the
-  entire pool of memory for bounce buffers.  The number available is
-     GASNETC_GNI_BOUNCE_SIZE / GASNETC_GNI_BOUNCE_REGISTER_CUTOVER
-  which is 262144 / 8192 == 32 by default.
+GASNETC_GNI_BOUNCE_REGISTER_CUTOVER  - default 8192, max 32768
 
-  If an operation must allocate a bounce buffer and the pool is empty,
-  it will poll the rdma completion queue until one is returned.
+
+RDMA operations, whether short Fast Memory Access or longer RDMA, use
+a control block called a Post Descriptor. These variables control how
+many of these are preallocated into a pool.  Each one can also hold a
+set of AM arguments or a small bounce buffer.
+
+
+GASNETC_GNI_MIN_NUM_PD    - default 4096, minimum number of post descriptors
+GASNETC_GNI_NUM_PD  	  - optimum 16384, standard number of post descriptors
+
+
+This one sets the cutover from Fast Memory Access (RDMA commanded in
+user mode) to RDMA commanded via device driver.  The size is set quite
+small because it is a very common case that the source of a PUT or
+target of a GET is not in the segment.  Every Post Decriptor has a
+small bounce buffer for this and making the value larger will bloat
+descriptor storage.  (Idea for improvement - use regular bounce
+buffers for FMA larger than this).  128 also happens to be the max
+size for a single packet FMA.
+
+
+GASNETC_GNI_FMA_RDMA_CUTOVER - default 128 max 128
+
+The logic for setting the maximum size of the segment is copied from
+portals-conduit, which uses the following setting to control the
+maximum size of the segment.  If you set PINNABLE_RATIO 1 (or higher)
+and PHYSMEM_MAX, and PHYSMEM_NOPROBE you will bypass all the checking.
+Of course mmap might fail, or you might be swapping the segment...
+
 
 GASNETC_GNI_MEM_CONSISTENCY
 GASNETC_GNI_AM_MEM_CONSISTENCY
-  These control the use of the flag GNI_MEM_STRICT_PI_ORDERING,
-  GNI_MEM_RELAXED_PI_ORDERING, or neither when registering memory.  The
-  legal values are the strings "strict", "relaxed" or "default".  The
-  value of GASNETC_GNI_MEM_CONSISTENCY controls memory registration for
-  RDMA, while GASNETC_GNI_AM_MEM_CONSISTENCY is for registration of
-  memory used to receive Active Messages.
 
-  In this release both settings default to "strict", which was the only
-  option available prior to GASNET 1.20.0.
+These control the use of the flag GNI_MEM_STRICT_PI_ORDERING, 
+GNI_MEM_RELAXED_PI_ORDERING, or neither when registering memory.
+The legal values are the strings "strict", "relaxed" or "default".
+The value of GASNETC_GNI_MEM_CONSISTENCY controls memory registration
+for RDMA, while GASNETC_GNI_AM_MEM_CONSISTENCY is for registration
+of memory used to receive Active Messages.
+In this release both settings default to "strict", which was the only
+option available prior to GASNET 1.20.0.  Experiments with "relaxed"
+ordering for RDMA have shown a measurable improvement in speed of
+certain benchmarks, but is also known to produce incorrect results for
+at least one realistic usage pattern.
 
-  NOTICE: Experiments with "relaxed" ordering for RDMA have shown a
-  measurable improvement in speed of certain benchmarks, but is also
-  known to produce subtle violations of the GASNet memory consistency
-  model.  Specifically remote Puts are considered complete "too early",
-  resulting in the possible return of out-of-date results from remote
-  Gets of the same location.  In testing, this leads to incorrect
-  results in at least one high-level usage pattern (reduction via
-  lock-protected accumulator).
 
 GASNETC_DEFAULT_PHYSMEM_PINNBLE_RATIO - default 0.75
 GASNETC_PHYSMEM_MAX - default <size of physmem> * <pinnable ratio>
 GASNET_PHYSMEM_NOPROBE - default 0
-  The logic for setting the maximum size of the segment is copied from
-  portals-conduit, which uses the following setting to control the
-  maximum size of the segment.  If you set PINNABLE_RATIO 1 (or higher)
-  and PHYSMEM_MAX, and PHYSMEM_NOPROBE you will bypass all the checking.
-  Of course mmap might fail, or you might be swapping the segment...
+
+
+Provided by Cray runtime system.  Don't mess with these.
 
 PMI_GNI_LOC_ADDR   - NIC address on local node
 PMI_GNI_COOKIE     - Access code shared by all nodes in job
 PMI_GNI_PTAG       - Protection tag shared by all nodes in job
 PMI_GNI_DEV_ID     - Device ID (Selects which NIC is in use)
-  Provided by Cray runtime system.  Don't mess with these.
+
+
 
 Optional compile-time settings:
 ------------------------------
@@ -198,10 +205,10 @@ Data necessary to get permit ranks of a parallel application to
 communicate are provided via environment variables and PMI interfaces.
 
 In gemini, the address information for a remote rank is stored in a
-software structure called an Endpoint.  Generally a separate endpoint
+softare structure called an Endpoint.  Generally a separate endpoint
 is needed for each rank of the job.  Each endpoint is associated with
 a Completion Queue (CQ) which signals when locally originated
-operations to a particular endpoint have finished.  Cqs may be used by
+operations to a partiular endpoint have finished.  Cqs may be used by
 multiple endpoints.
 
 To use the short message system (SMSG), the application allocates
@@ -219,7 +226,7 @@ be registered using the GNI API.
 
 The Gemini interconnect provides two flavors of RDMA.  FMA, or Fast
 Memory Access, provides remote atomic operations, and remote get and
-put. These operations are commanded by user-mode applications directly
+put. These operations are commanded by user-mode appliations directly
 to the hardware, (so called OS Bypass).  For larger messages, Cray
 provides an RDMA facility based on a hardware Byte Transfer Engine,
 but its use is mediated by the kernel mode device driver.  It isn't
@@ -237,7 +244,7 @@ announcing the completion of locally originated messages.
 Next the gemini conduit allocates and registers storage for buffers
 for the gemini short message system.  The setup allocates buffers
 large enough to hold a complete AMMedium message.  Arriving short
-messages are signaled on a second completion queue.  Using defaults,
+messages are signalled on a second completion queue.  Using defaults,
 about 32K per rank are reserved on each rank.
 
 ==Active Message design==
@@ -282,7 +289,7 @@ sent by the completion routine.
 
 Within the Gemini API (GNI), RDMA is commanded by creating a Post
 Descriptor and passing it to GNI. Both the source and destination
-memory of an RDMA transfer must be registered.  The knowledge of RDMA
+memory of an RDMA transfer must be registered.  The knowlege of RDMA
 is encapsulated in the functions gc_rdma_put and gc_rdma_get.
 
 GASNet requires that the remote address of a put or get will be within
@@ -319,14 +326,14 @@ what to do when the RDMA is finished, and a set of flags that control
 completion behavior.
 
 RDMA Completion event processing is done by gc_poll_local_queue.  A
-number of types of follow-on activities are implemented:
+number of types of follow-on activities are implmeneted:
 
  * For a GET, potentially copy data from a bounce buffer to the actual
    target
 
  * Potentially De-register specially registered memory
 
- * Potentially free a dedicated bounce buffer
+ * Potentially free a dediated bounce buffer
 
  * Potentially send an Active Message that was waiting for the RDMA
    completion
@@ -335,7 +342,7 @@ number of types of follow-on activities are implemented:
    RDMA completion
 
 
-The GASNet Core API only uses RDMA PUT. The extended API uses both GET
+The GASNet Core API only uses RDMA PUT. THe extended API uses both GET
 and PUT.  The logic for GET is similar to that for PUT.
 
 ==Extended API==
@@ -345,7 +352,7 @@ completions.
 
 Due to occasional failures of memory registration of large blocks, if
 an RDMA transfer is larger than one megabyte, it is broken into
-smaller segments and all but the last are sent by blocking protocol.
+smaller sements and all but the last are sent by blocking protocol.
 
 NOTE: The breakup of large blocks should probably be done for Long AMs
 as well.
@@ -358,7 +365,7 @@ GASNETC_LOCK_GNI, GASNETC_UNLOCK_GNI
 
 The Cray gni API is not thread-safe, so the gemini conduit uses a
 single big lock around calls to gni.  Certain cases might be thread
-safe, but without knowledge of the internals of gni it is hard to tell.
+safe, but without knowlege of the internals of gni it is hard to tell.
 
 Queue Locks
 
@@ -398,17 +405,17 @@ are checked and post-completion activities performed:
 
 When a short message arrives, an event is sent to the completion queue
 associated with the endpoint of the message source.  The receiver
-looks at the event to figure out which endpoint signaled, then calls
+looks at the event to figure out which endpoint signalled, then calls
 GNI_SmsgGetNext(endpoint) to get the message.  However, events are
 generated whenever a message arrives, but they may be out of order,
 and SmsgGetNext only delivers messages in-order. Consequently, when
 you get an event, there may appear to be no message waiting, or there
-may be several messages waiting.  It is necessary to keep calling
+may be several messages waiting.  It is neccessary to keep calling
 SmsgGetNext until you get all the waiting messages. At the same time,
 it is necessary to read the completion queue at least once for every
 message received or the completion queue will fill up.  If the
 completion queue overflows, some events may be lost and it will be
-necessary to drain all endpoints to make sure no messages are left
+neccessary to drain all endpoints to make sure no messages are left
 waiting.
 
 The work starts in gc_poll_smsg_queue.
@@ -452,13 +459,13 @@ The logic to determine the maximum size pinnable segment is borrowed
 from the portals-conduit.
 
 The module gc_utils.c contains the interface to PMI.  It also includes
-the implementation of AllGather for GASNet bootstrapExchange and GNI
+the impleemntation of AllGather for GASNet bootstrapExchange and GNI
 initialization.  It uses PMI_AllGather.  For some reason,
 PMI_AllGather does not return data in rank order, so it is sorted into
 the usual AllGather order internally.
 
 gasnet_core.c routine gasnetc_init also contains code to determine
-which ranks have shared memory. This is done using the
+which ranks ahave shared memory. This is done using the
 PMI_Get_pes_on_smp() call, translated into the right format for
 gasnet_nodemap[].
 

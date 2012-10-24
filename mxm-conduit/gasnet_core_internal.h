@@ -114,12 +114,6 @@ enum {
 #include <sys/mman.h> /* For MAP_FAILED */
 #endif
 
-#ifdef GASNETI_USE_ALLOCA
-/* Keep defined */
-#elif !PLATFORM_COMPILER_PGI
-#define GASNETI_USE_ALLOCA 1
-#endif
-
 #ifndef MXM_VERSION
 #define MXM_VERSION(major, minor) (((major)<<MXM_MAJOR_BIT) | ((minor)<<MXM_MINOR_BIT))
 #endif
