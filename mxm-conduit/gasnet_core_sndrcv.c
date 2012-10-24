@@ -531,8 +531,13 @@ int gasnetc_AM_Generic(gasnetc_category_t category,
             sge_idx++;
         }
 
-        p_sreq->long_info[0] = (uint64_t) dst_addr;
-        p_sreq->long_info[1] = (uint64_t) nbytes;
+        if_pt (nbytes && src_addr && dst_addr) {
+            p_sreq->long_info[0] = (uint64_t) dst_addr;
+            p_sreq->long_info[1] = (uint64_t) nbytes;
+        }
+        else {
+            p_sreq->long_info[0] = p_sreq->long_info[1] = 0;
+        }
         p_sreq->sendiov[sge_idx].ptr = p_sreq->long_info;
         p_sreq->sendiov[sge_idx].length = sizeof(p_sreq->long_info);
 #if MXM_API < MXM_VERSION(1,5)
@@ -621,27 +626,11 @@ void gasnetc_ProcessRecvSelf(gasnetc_category_t category,
     break;
 
     case gasnetc_Medium: {
-        void *med_buf = NULL;
-        void *al_buf = NULL;
-        if (src_addr && nbytes) {
-#if GASNETI_USE_ALLOCA
-            med_buf = alloca(nbytes + GASNETI_MEDBUF_ALIGNMENT);
-#else
-            med_buf = gasneti_malloc(nbytes + GASNETI_MEDBUF_ALIGNMENT);
-#endif
-            al_buf = (void*)GASNETI_ALIGNUP(med_buf, GASNETI_MEDBUF_ALIGNMENT);
-
-            GASNETE_FAST_UNALIGNED_MEMCPY(al_buf, src_addr, nbytes);
-        }
         GASNETI_RUN_HANDLER_MEDIUM(token.is_request,
                                    handler_id, handler_fn,
                                    p_token,
                                    args, numargs,
-                                   al_buf, nbytes);
-#if !GASNETI_USE_ALLOCA
-        if (med_buf)
-            gasneti_free(med_buf);
-#endif
+                                   src_addr, nbytes);
     }
     break;
 
@@ -708,7 +697,8 @@ int gasnetc_AM_Generic_Self(gasnetc_category_t category,
 
     gasnetc_ProcessRecvSelf(category, handler_id,
                             nbytes ? src_addr : NULL,
-                            nbytes, dst_addr,
+                            nbytes,
+                            nbytes ? dst_addr : NULL,
                             is_request, is_sync_request, msg_num,
                             numargs,
                             numargs ? args_buf : NULL);
