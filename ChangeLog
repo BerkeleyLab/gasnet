@@ -1,6 +1,6 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.68 $
+$Revision: 1.67 $
 
 ----------------------------------------------------------------------
 10-30-2012 : Release 1.20.0
@@ -10,13 +10,6 @@ $Revision: 1.68 $
   - This release now implements GASNet's collectives via the PAMI
     collectives, yielding much-improved performance in many cases.
   - A faster default barrier implementation (PAMIDISSEM).
-
-* Cray XE & XK series (gemini-conduit)
-  - Improved performance for 129 to 4096 byte transfers.
-  - This release includes *experimental* support (OFF by default) for
-    improved performance via uGNI's "RELAXED_PI_ORDERING", which can be
-    enabled using an environment variable.
-    See the conduit README for more information.
 
 * Mellanox ConnectX series HCAs (mxm-conduit)
   - This is the first official release of GASNet support for the "MXM" API

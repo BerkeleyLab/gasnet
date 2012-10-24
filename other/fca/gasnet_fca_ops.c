@@ -92,7 +92,6 @@ int gasnet_fca_reduce(int root,  void *target, const void *source,
     fca_comm_data_t *fca_comm_data = &team->fca_comm_data;
     int ret;
     if (GASNET_COLL_IN_ALLSYNC & flags){
-        FCA_VERBOSE(5,"FCA REDUCE: performing GASNET_COLL_IN_ALLSYNC barrier");
         gasnet_fca_barrier(team);
     }
     FCA_VERBOSE(5,"DOING FCA_ALL_GATHER");
@@ -104,7 +103,6 @@ int gasnet_fca_reduce(int root,  void *target, const void *source,
     spec.length = length;
     ret = gasnet_fca_component.fca_ops.do_reduce(fca_comm_data->fca_comm, &spec);
     if (GASNET_COLL_OUT_ALLSYNC & flags){
-        FCA_VERBOSE(5,"FCA REDUCE: performing GASNET_COLL_OUT_ALLSYNC barrier");
         gasnet_fca_barrier(team);
     }
     return ret;
@@ -118,7 +116,6 @@ int gasnet_fca_reduce_all( void *target, const void *source, int fca_op,
     fca_comm_data_t *fca_comm_data = &team->fca_comm_data;
     int ret;
     if (GASNET_COLL_IN_ALLSYNC & flags){
-        FCA_VERBOSE(5,"FCA ALL REDUCE: performing GASNET_COLL_IN_ALLSYNC barrier");
         gasnet_fca_barrier(team);
     }
     FCA_VERBOSE(5,"DOING FCA_REDUCE_ALL");
@@ -129,7 +126,6 @@ int gasnet_fca_reduce_all( void *target, const void *source, int fca_op,
     spec.length = length;
     ret = gasnet_fca_component.fca_ops.do_all_reduce(fca_comm_data->fca_comm, &spec);
     if (GASNET_COLL_OUT_ALLSYNC & flags){
-        FCA_VERBOSE(5,"FCA ALL REDUCE: performing GASNET_COLL_OUT_ALLSYNC barrier");
         gasnet_fca_barrier(team);
     }
     return ret;

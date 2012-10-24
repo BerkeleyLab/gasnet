@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2012/10/24 02:27:34 $
-# $Revision: 1.768.2.3 $
+#     $Date: 2012/10/16 00:28:23 $
+# $Revision: 1.768.2.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.768.2.3 $)
+AC_REVISION($Revision: 1.768.2.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -4907,11 +4907,9 @@ if test "$HAVE_MMAP" != "0" ; then
   GASNET_TRY_CACHE_LINK([for MAP_ANON],map_anon,
      [ #include <sys/mman.h> ],[ void *junk = mmap(0, 0, 0, MAP_ANON, 0, 0); ],
      [ AC_DEFINE(HAVE_MAP_ANON) ] )
-dnl GASNET_TOOLSONLY_FALSE_BEGIN
 elif test "$with_pshm" != no -a "$with_pshm" != sysv; then
   # Only SysV doesn't require mmap()
   GASNET_MSG_ERROR([PSHM was enabled, but required mmap functionality $mmap_reason])
-dnl GASNET_TOOLSONLY_FALSE_END
 fi
 
 case "$target" in
