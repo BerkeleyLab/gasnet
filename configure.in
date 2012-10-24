@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2012/10/24 02:27:34 $
-# $Revision: 1.768.2.3 $
+#     $Date: 2012/10/12 23:46:43 $
+# $Revision: 1.768 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.768.2.3 $)
+AC_REVISION($Revision: 1.768 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -26,8 +26,8 @@ AC_VALIDATE_CACHED_SYSTEM_TUPLE
 
 dnl Public release version packaging identifier:
 AC_DEFUN([GASNET_RELEASE_VERSION_MAJOR_D],[1])
-AC_DEFUN([GASNET_RELEASE_VERSION_MINOR_D],[20])
-AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[0])
+AC_DEFUN([GASNET_RELEASE_VERSION_MINOR_D],[19])
+AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[3])
 dnl GASNet spec version:
 AC_DEFUN([GASNET_SPEC_VERSION_MAJOR_D],[1])
 AC_DEFUN([GASNET_SPEC_VERSION_MINOR_D],[8])
@@ -3770,19 +3770,17 @@ elif test "$enabled_mxm" != no; then
 
     mxm_have_header=no
     mxm_have_lib=no
+    mxm_have_lib64=no
     mxm_in_mxm_home=no
+    mxm_lib_path=$mxm_home/lib
+    dnl TODO: AC_CHECK_FILE(S) don't support cross-compilation
+    AC_CHECK_FILES($mxm_home/include/mxm/api/mxm_api.h, mxm_have_header=yes)
+    AC_CHECK_FILES($mxm_home/lib/libmxm.so $mxm_home/lib64/libmxm.so, mxm_have_lib=yes)
+    AC_CHECK_FILE($mxm_home/lib64/libmxm.so, mxm_have_lib64=yes)
 
-    if test -e "$mxm_home/include/mxm/api/mxm_api.h" ; then
-        mxm_have_header=yes
+    if test "$mxm_have_lib64" = yes; then
+        mxm_lib_path=$mxm_home/lib64
     fi
-    if test -e "$mxm_home/lib64/libmxm.so" -a "$GASNETI_PTR_BITS" = 64 ; then
-        mxm_have_lib=yes
-        mxm_lib_path="$mxm_home/lib64"
-    elif test -e "$mxm_home/lib/libmxm.so" ; then
-        mxm_have_lib=yes
-        mxm_lib_path="$mxm_home/lib"
-    fi
-
     AC_MSG_CHECKING(for MXM in $mxm_home)
     if test "$mxm_have_header$mxm_have_lib" = yesyes; then
         mxm_in_mxm_home=yes
@@ -4907,11 +4905,9 @@ if test "$HAVE_MMAP" != "0" ; then
   GASNET_TRY_CACHE_LINK([for MAP_ANON],map_anon,
      [ #include <sys/mman.h> ],[ void *junk = mmap(0, 0, 0, MAP_ANON, 0, 0); ],
      [ AC_DEFINE(HAVE_MAP_ANON) ] )
-dnl GASNET_TOOLSONLY_FALSE_BEGIN
 elif test "$with_pshm" != no -a "$with_pshm" != sysv; then
   # Only SysV doesn't require mmap()
   GASNET_MSG_ERROR([PSHM was enabled, but required mmap functionality $mmap_reason])
-dnl GASNET_TOOLSONLY_FALSE_END
 fi
 
 case "$target" in
@@ -5241,16 +5237,16 @@ if test "$enable_fca" != "no"; then
   fca_have_header=no
   fca_have_lib=no
   fca_in_fca_home=no
+  fca_have_lib64=no
 
-  if test -e "$fca_home/include/fca/fca_api.h" ; then
-      fca_have_header=yes
-  fi
-  if test -e "$fca_home/lib64/libfca.so" -a "$GASNETI_PTR_BITS" = 64 ; then
-      fca_have_lib=yes
-      fca_lib_path="$fca_home/lib64"
-  elif test -e "$fca_home/lib/libfca.so" ; then
-      fca_have_lib=yes
-      fca_lib_path="$fca_home/lib"
+  dnl TODO: AC_CHECK_FILE(S) don't support cross-compilation
+  AC_CHECK_FILES($fca_home/include/fca/fca_api.h, fca_have_header=yes)
+  AC_CHECK_FILE($fca_home/lib/libfca.so, fca_have_lib=yes)
+  AC_CHECK_FILE($fca_home/lib64/libfca.so, fca_have_lib64=yes)
+  fca_lib_path=$fca_home/lib
+  if  test "$fca_have_lib64" = yes; then
+      fca_have_lib = yes
+      fca_lib_path=$fca_home/lib64
   fi
 
   AC_MSG_CHECKING(for FCA in $fca_home)
