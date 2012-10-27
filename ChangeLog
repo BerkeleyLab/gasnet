@@ -1,6 +1,6 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.68 $
+$Revision: 1.69 $
 
 ----------------------------------------------------------------------
 10-30-2012 : Release 1.20.0
@@ -46,6 +46,7 @@ $Revision: 1.68 $
     the semantics expected to appear in the UPC 1.3 specification.  The
     changes legalize some calling cases which were previously erroneous.
     No cases which were legal before have become illegal.
+  - SLURM integration in ssh-spawner.
 
 ----------------------------------------------------------------------
 05-14-2012 : Release 1.18.2
