@@ -15,13 +15,14 @@
 #include <gasnet_extended_internal.h>
 
 #define GASNETC_DEBUG 0
+#define FIX_RELAXED 1
 
 #define GASNETC_OPTIMIZE_LIMIT_CQ	1
 
 #define GASNETC_STRICT_MEM_CONSISTENCY  1 /* use GNI_MEM_STRICT_PI_ORDERING */
 #define GASNETC_RELAXED_MEM_CONSISTENCY 2 /* use GNI_MEM_RELAXED_PI_ORDERING */
 #define GASNETC_DEFAULT_MEM_CONSISTENCY 3 /* use neither */
-#if 0
+#if 1
   /* These settings are still the subject of some experimentation */
   #define GASNETC_DEFAULT_RDMA_MEM_CONSISTENCY  GASNETC_RELAXED_MEM_CONSISTENCY
   #define GASNETC_DEFAULT_AM_MEM_CONSISTENCY    GASNETC_DEFAULT_MEM_CONSISTENCY

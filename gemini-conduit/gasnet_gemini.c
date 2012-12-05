@@ -51,6 +51,10 @@ static gni_nic_handle_t nic_handle;
 static gni_ep_handle_t *bound_ep_handles;
 static gni_cq_handle_t bound_cq_handle;
 static gni_cq_handle_t smsg_cq_handle;
+#if FIX_RELAXED
+static gni_cq_handle_t destination_cq_handle;
+#endif
+
 
 static void *smsg_mmap_ptr;
 static size_t smsg_mmap_bytes;
@@ -103,6 +107,9 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
 {
   gni_return_t status;
   /* Map the shared segment */
+#if FIX_RELAXED
+ 	destination_cq_handle = NULL;
+#endif
 
   gasnetc_mem_consistency = GASNETC_DEFAULT_RDMA_MEM_CONSISTENCY;
   { char * envval = gasneti_getenv("GASNETC_GNI_MEM_CONSISTENCY");
@@ -127,6 +134,12 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
       break;
     case GASNETC_RELAXED_MEM_CONSISTENCY:
       gasnetc_memreg_flags = GNI_MEM_RELAXED_PI_ORDERING;
+#if FIX_RELAXED
+	  gasnetc_memreg_flags |=GNI_MEM_PI_FLUSH; 
+	  /* One completion entry is not an issue as this queue will always overflow */
+	  status = GNI_CqCreate(nic_handle, 1, 0, GNI_CQ_NOBLOCK, NULL, NULL, &destination_cq_handle);
+	  gasneti_assert_always (status == GNI_RC_SUCCESS);
+#endif
       break;
     case GASNETC_DEFAULT_MEM_CONSISTENCY:
       gasnetc_memreg_flags = 0;
@@ -139,10 +152,17 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
   {
     int count = 0;
     for (;;) {
+#if FIX_RELAXED
+	 status = GNI_MemRegister(nic_handle, (uint64_t) segment_start, 
+			       (uint64_t) segment_size, destination_cq_handle,
+			       gasnetc_memreg_flags, -1, 
+			       &mypeersegmentdata.segment_mem_handle);
+#else
       status = GNI_MemRegister(nic_handle, (uint64_t) segment_start, 
 			       (uint64_t) segment_size, NULL,
 			       gasnetc_memreg_flags, -1, 
 			       &mypeersegmentdata.segment_mem_handle);
+#endif
       if (status == GNI_RC_SUCCESS) break;
       if (status == GNI_RC_ERROR_RESOURCE) {
 	fprintf(stderr, "MemRegister segment fault %d at  %p %lx, code %s\n", 
@@ -204,8 +224,13 @@ uintptr_t gasnetc_init_messaging(void)
       break;
   }
 
-  if (gasnetc_mem_consistency == GASNETC_RELAXED_MEM_CONSISTENCY)
-    modes |= GNI_CDM_MODE_BTE_SINGLE_CHANNEL;
+  if (gasnetc_mem_consistency == GASNETC_RELAXED_MEM_CONSISTENCY) {
+   #if FIX_RELAXED
+	modes |= GNI_CDM_MODE_DUAL_EVENTS;
+	#else
+	modes |= GNI_CDM_MODE_BTE_SINGLE_CHANNEL;
+	#endif
+  }
 
 #if GASNETC_DEBUG
   gasnetc_GNIT_Log("entering");
@@ -242,7 +267,7 @@ uintptr_t gasnetc_init_messaging(void)
     cq_entries = max_outstanding_req+2;
     status = GNI_CqCreate(nic_handle, cq_entries, 0, GNI_CQ_NOBLOCK, NULL, NULL, &bound_cq_handle);
   }
-#else
+
   status = GNI_CqCreate(nic_handle, 1024, 0, GNI_CQ_NOBLOCK, NULL, NULL, &bound_cq_handle);
 #endif
 
@@ -457,6 +482,12 @@ void gasnetc_shutdown(void)
 			     &mypeerdata.smsg_attr.mem_hndl);
   gasneti_assert_always (status == GNI_RC_SUCCESS);
 
+#if FIX_RELAXED
+	if(destination_cq_handle) {
+  		status = GNI_CqDestroy(destination_cq_handle);
+  		gasneti_assert_always (status == GNI_RC_SUCCESS);
+	}
+#endif
 
   status = GNI_CqDestroy(smsg_cq_handle);
   gasneti_assert_always (status == GNI_RC_SUCCESS);
@@ -898,8 +929,10 @@ static gni_return_t myPostRdma(gni_ep_handle_t ep, gni_post_descriptor_t *pd)
   }
 #endif
 
+#if !FIX_RELAXED
   if (gasnetc_mem_consistency == GASNETC_RELAXED_MEM_CONSISTENCY && pd->type == GNI_POST_RDMA_PUT)
     pd->rdma_mode |= GNI_RDMAMODE_FENCE;
+#endif
   for (;;) {
       status = GNI_PostRdma(ep, pd);
       i++;
@@ -929,6 +962,10 @@ static gni_return_t myPostFma(gni_ep_handle_t ep, gni_post_descriptor_t *pd)
   int i;
   i = 0;
 
+#if FIX_RELAXED
+  if(pd->type == GNI_POST_FMA_PUT)
+		pd->cq_mode|=GNI_CQMODE_REMOTE_EVENT;
+#endif
   for (;;) {
       status = GNI_PostFma(ep, pd);
       i++;
