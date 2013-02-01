@@ -290,14 +290,14 @@ uint32_t gasnetc_fma_rdma_cutover;
 #define GC_POST_COMPLETION_EOP 64
 #define GC_POST_COMPLETION_FLAG 128
 
+/* WARNING: if sizeof(gasnetc_post_descriptor_t) changes, then
+ * you must update the value in gasneti_pd_auxseg_IdentString */
 typedef struct gasnetc_post_descriptor {
-  gasnetc_queue_item_t qi;  /* not needed XXX */
   void *bounce_buffer;
   void *get_target;
   uint32_t get_nbytes;
   uint32_t flags;
   gasnet_node_t dest;
-  gni_mem_handle_t mem_handle;
   gasnete_op_t *completion;
   gni_post_descriptor_t pd;
   union {
