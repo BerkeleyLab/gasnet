@@ -168,6 +168,8 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
 uintptr_t gasnetc_init_messaging(void)
 {
   gni_return_t status;
+  gni_nic_device_t device_type;
+  gni_smsg_type_t smsg_type;
   uint32_t remote_addr;
   uint32_t i;
   unsigned int bytes_per_mbox;
@@ -230,6 +232,21 @@ uintptr_t gasnetc_init_messaging(void)
 #if GASNETC_DEBUG
   gasnetc_GNIT_Log("cdmattach");
 #endif
+
+  status = GNI_GetDeviceType(&device_type);
+  gasneti_assert_always (status == GNI_RC_SUCCESS);
+  if (device_type == GNI_DEVICE_GEMINI) {
+    smsg_type = GNI_SMSG_TYPE_MBOX;
+  } else {
+    smsg_type = GNI_SMSG_TYPE_MBOX_AUTO_RETRANSMIT;
+    if (!gasneti_mynode)
+      fprintf(stderr, "@@@@ WARNING: the port to Aries is incomplete and known to be buggy\n");
+#if 0
+    status = GNI_SmsgSetMaxRetrans(nic_handle, 1);
+    gasneti_assert_always (status == GNI_RC_SUCCESS);
+#endif
+  }
+ 
 #if GASNETC_OPTIMIZE_LIMIT_CQ
   {
     int depth, cpu_count,cq_entries,multiplier;
@@ -287,7 +304,7 @@ uintptr_t gasnetc_init_messaging(void)
    * much memory is needed for each mailbox.
    */
 
-  mypeerdata.smsg_attr.msg_type = GNI_SMSG_TYPE_MBOX;
+  mypeerdata.smsg_attr.msg_type = smsg_type;
   mypeerdata.smsg_attr.mbox_maxcredit = gasnetc_mb_maxcredit;
   mypeerdata.smsg_attr.msg_maxsize = GASNETC_MSG_MAXSIZE;
 #if GASNETC_DEBUG
@@ -346,7 +363,7 @@ uintptr_t gasnetc_init_messaging(void)
     gasnetc_GNIT_Abort("GNI_MemRegister returned error %s\n",gni_return_string(status));
   }
   
-  mypeerdata.smsg_attr.msg_type = GNI_SMSG_TYPE_MBOX;
+  mypeerdata.smsg_attr.msg_type = smsg_type;
   mypeerdata.smsg_attr.msg_buffer = smsg_mmap_ptr;
   mypeerdata.smsg_attr.buff_size = bytes_per_mbox;
   mypeerdata.smsg_attr.mbox_maxcredit = gasnetc_mb_maxcredit;
@@ -425,6 +442,7 @@ void gasnetc_shutdown(void)
       if (bound_ep_handles[i] != NULL) {
 	status = GNI_EpUnbind(bound_ep_handles[i]);
 	if (status != GNI_RC_SUCCESS) {
+          /* XXX: [ARIES] GNI_RC_NOT_DONE *likely* due to shutdown AMs - so drain first? */
 	  fprintf(stderr, "node %d shutdown epunbind %d try %d  got %s\n",
 		  gasneti_mynode, i, tries, gni_return_string(status));
 	} 
@@ -765,7 +783,12 @@ void gasnetc_poll_local_queue(void)
   for (i = 0; i < gasnetc_poll_burst; i += 1) {
     /* Poll the bound_ep completion queue */
     status = GNI_CqGetEvent(bound_cq_handle,&event_data);
-    if (status == GNI_RC_SUCCESS) {
+    if_pt (status == GNI_RC_SUCCESS) {
+      if (GNI_CQ_GET_TYPE(event_data) == GNI_CQ_EVENT_TYPE_SMSG) {
+        /* XXX: [ARIES] Will need to release Smsg header and data here */
+	continue;
+      }
+
       status = GNI_GetCompleted(bound_cq_handle, event_data, &pd);
       if (status != GNI_RC_SUCCESS)
 	gasnetc_GNIT_Abort("GetCompleted(%p) failed %s\n",
@@ -825,10 +848,13 @@ void gasnetc_send_am_nop(uint32_t pe)
   m.header.misc    = 0;
   m.header.numargs = 0;
   m.header.handler = 0;
+  /* XXX: [ARIES] header must be preserved: trivial to use static header */
   gasnetc_send(pe, &m, sizeof(gasnetc_am_nop_packet_t), NULL, 0);
 }
 
 
+/* XXX: [ARIES] header and data must be preserved until Global event.
+        That logic should probably be at least partly in the caller(s). */
 int gasnetc_send(gasnet_node_t dest, 
 	    void *header, int header_length, 
 	    void *data, int data_length)
@@ -1354,6 +1380,11 @@ extern void gasnetc_sys_SendShutdownMsg(gasnet_node_t node, int shift, int exitc
   shutdown.header.misc    = exitcode; /* only 15 bits, but exit() only preserves low 8-bits anyway */
   shutdown.header.numargs = 0;
   shutdown.header.handler = shift; /* log(distance) */
+  /* XXX: [ARIES] header must be preserved:
+   * Option 1) dynamically allocate and leak
+   * Option 2) dynamically allocate and track
+   * Option 3) statically allocate 32 (one per "shift")
+   */
   gasnetc_send(node, &shutdown, sizeof(gasnetc_sys_shutdown_packet_t), NULL, 0);
 }
 
