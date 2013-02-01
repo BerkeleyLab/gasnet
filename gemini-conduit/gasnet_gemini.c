@@ -233,11 +233,14 @@ uintptr_t gasnetc_init_messaging(void)
   gasnetc_GNIT_Log("cdmattach");
 #endif
 
+#if 0 /* XXX: while port is in progress, run AUTO_RETRANSMIT code on Gemini too */
   status = GNI_GetDeviceType(&device_type);
   gasneti_assert_always (status == GNI_RC_SUCCESS);
   if (device_type == GNI_DEVICE_GEMINI) {
     smsg_type = GNI_SMSG_TYPE_MBOX;
-  } else {
+  } else
+#endif
+  {
     smsg_type = GNI_SMSG_TYPE_MBOX_AUTO_RETRANSMIT;
     if (!gasneti_mynode)
       fprintf(stderr, "@@@@ WARNING: the port to Aries is incomplete and known to be buggy\n");
