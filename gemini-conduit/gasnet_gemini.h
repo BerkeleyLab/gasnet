@@ -205,13 +205,13 @@ typedef union gasnetc_eq_packet {
 #define GASNETC_MAX_PACKED_LONG(nargs) \
         (GASNETC_MSG_MAXSIZE - GASNETC_HEADLEN(long, (nargs)) - 8)
 
+/* XXX: warning if this changes then also edit gasnet_gemini.c:gasnetc_send_am_nop() */
 typedef struct gasnetc_smsg_s {
   gasnetc_packet_t header;
   void *to_free;
   uint32_t msgid;
 } gasnetc_smsg_t;
 
-gasnetc_smsg_t *gasnetc_alloc_smsg(int take_lock);
 
 /* Routines in gc_utils.c */
 
@@ -338,6 +338,12 @@ void gasnetc_shutdown(void); /* clean up all gni state */
 
 void gasnetc_poll_local_queue(void);
 void gasnetc_poll(void);
+
+gasnetc_smsg_t *gasnetc_alloc_smsg(int take_lock);
+
+int gasnetc_send_smsg(gasnet_node_t dest,
+            gasnetc_smsg_t *smsg, int header_length,
+            void *data, int data_length);
 
 int gasnetc_send(gasnet_node_t dest, 
 	    void *header, int header_length, 
