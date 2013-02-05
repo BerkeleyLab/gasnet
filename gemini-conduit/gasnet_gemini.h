@@ -205,6 +205,14 @@ typedef union gasnetc_eq_packet {
 #define GASNETC_MAX_PACKED_LONG(nargs) \
         (GASNETC_MSG_MAXSIZE - GASNETC_HEADLEN(long, (nargs)) - 8)
 
+typedef struct gasnetc_smsg_s {
+  gasnetc_packet_t header;
+  void *to_free;
+  uint32_t msgid;
+} gasnetc_smsg_t;
+
+gasnetc_smsg_t *gasnetc_alloc_smsg(int take_lock);
+
 /* Routines in gc_utils.c */
 
 uint32_t *gasnetc_UGNI_AllAddr;
@@ -332,8 +340,9 @@ void gasnetc_poll_local_queue(void);
 void gasnetc_poll(void);
 
 int gasnetc_send(gasnet_node_t dest, 
-	     void *header, int header_length, 
-	    void *data, int data_length);
+	    void *header, int header_length, 
+	    void *data, int data_length,
+	    int async);
 
 void gasnetc_rdma_put(gasnet_node_t dest,
 		 void *dest_addr, void *source_addr,

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/02/01 22:52:02 $
- * $Revision: 1.26.14.1 $
+ *     $Date: 2013/02/05 02:59:41 $
+ * $Revision: 1.26.14.2 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -720,8 +720,7 @@ extern int gasnetc_AMRequestShortM(
     for (i = 0; i < numargs; i += 1) {
       m.args[i] = va_arg(argptr, uint32_t);
     }
-    /* XXX: [ARIES] header must be preserved - freelist? */
-    retval = gasnetc_send(dest, &m, GASNETC_HEADLEN(short, numargs), NULL, 0);
+    retval = gasnetc_send(dest, &m, GASNETC_HEADLEN(short, numargs), NULL, 0, 1);
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -762,8 +761,7 @@ extern int gasnetc_AMRequestMediumM(
       m.args[i] = va_arg(argptr, uint32_t);
     }
     /* TODO: round up nbytes to multiple of 8 to avoid rmw at dest nic */
-    /* XXX: [ARIES] header and data must both be preserved */
-    retval = gasnetc_send(dest, &m, GASNETC_HEADLEN(medium, numargs), source_addr, nbytes);
+    retval = gasnetc_send(dest, &m, GASNETC_HEADLEN(medium, numargs), source_addr, nbytes, 0);
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -815,8 +813,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
        * to an 8 byte boundary so that the immediate data can be aligned.
        */
       /* TODO: round up nbytes to multiple of 8 to avoid rmw at dest nic */
-      /* XXX: [ARIES] header and data must both be preserved */
-      retval = gasnetc_send(dest, &m, GASNETC_HEADLEN(long, numargs), source_addr, nbytes);
+      retval = gasnetc_send(dest, &m, GASNETC_HEADLEN(long, numargs), source_addr, nbytes, 0);
       
     } else {
       gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
@@ -838,8 +835,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 	m.args[i] = va_arg(argptr, uint32_t);
       }
       while(!gasneti_atomic_read(&done, 0)) gasnetc_poll_local_queue();
-      /* XXX: [ARIES] header must be preserved */
-      retval = gasnetc_send(dest, &m, GASNETC_HEADLEN(long, numargs), NULL, 0);
+      retval = gasnetc_send(dest, &m, GASNETC_HEADLEN(long, numargs), NULL, 0, 1);
     }
 
   }
@@ -881,8 +877,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 	m.args[i] = va_arg(argptr, uint32_t);
       }
       /* TODO: round up nbytes to multiple of 8 to avoid rmw at dest nic */
-      /* XXX: [ARIES] header (but NOT data due to Async) must be preserved */
-      retval = gasnetc_send(dest, &m, GASNETC_HEADLEN(long, numargs), source_addr, nbytes);
+      retval = gasnetc_send(dest, &m, GASNETC_HEADLEN(long, numargs), source_addr, nbytes, 1/*Async*/);
     } else {
       gasnetc_post_descriptor_t *gpd;
       gpd = gasnetc_alloc_post_descriptor();
@@ -899,7 +894,6 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 	gpd->u.galp.args[i] = va_arg(argptr, uint32_t);
       }
       /* Rdma data, then send header as part of completion*/
-      /* XXX: [ARIES] header in "galp" must be preserved */
       gasnetc_rdma_put(dest, dest_addr, source_addr, nbytes, gpd);
       retval = GASNET_OK;
     }
@@ -943,8 +937,7 @@ extern int gasnetc_AMReplyShortM(
     for (i = 0; i < numargs; i += 1) {
       m.args[i] = va_arg(argptr, uint32_t);
     }
-    /* XXX: [ARIES] header must be preserved */
-    retval = gasnetc_send(dest, &m, GASNETC_HEADLEN(short, numargs), NULL, 0);
+    retval = gasnetc_send(dest, &m, GASNETC_HEADLEN(short, numargs), NULL, 0, 1);
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -985,8 +978,7 @@ extern int gasnetc_AMReplyMediumM(
       m.args[i] = va_arg(argptr, uint32_t);
     }
     /* TODO: round up nbytes to multiple of 8 to avoid rmw at dest nic */
-    /* XXX: [ARIES] header and data must both be preserved */
-    retval = gasnetc_send(dest, &m, GASNETC_HEADLEN(medium, numargs), source_addr, nbytes);
+    retval = gasnetc_send(dest, &m, GASNETC_HEADLEN(medium, numargs), source_addr, nbytes, 0);
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -1032,8 +1024,7 @@ extern int gasnetc_AMReplyLongM(
       }
       /* send data in packet payload */
       /* TODO: round up payload to 8-byte boundary to avoid rmw at dest */
-      /* XXX: [ARIES] header and data must both be preserved */
-      retval = gasnetc_send(dest, &m, GASNETC_HEADLEN(long, numargs), source_addr, nbytes);
+      retval = gasnetc_send(dest, &m, GASNETC_HEADLEN(long, numargs), source_addr, nbytes, 0);
     } else {
       gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
       gasneti_atomic_t done = gasneti_atomic_init(0);
@@ -1055,8 +1046,7 @@ extern int gasnetc_AMReplyLongM(
       /* cannot process more ams here! */
       while(!gasneti_atomic_read(&done, 0)) gasnetc_poll_local_queue();
 
-      /* XXX: [ARIES] header must be preserved */
-      retval = gasnetc_send(dest, &m, GASNETC_HEADLEN(long, numargs), NULL, 0);
+      retval = gasnetc_send(dest, &m, GASNETC_HEADLEN(long, numargs), NULL, 0, 1);
     }
   }
   va_end(argptr);
