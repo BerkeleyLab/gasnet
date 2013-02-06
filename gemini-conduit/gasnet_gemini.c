@@ -856,8 +856,6 @@ gasnetc_send_smsg(gasnet_node_t dest,
   const int max_trial = 4;
   int trial = 0;
 
-  /* TODO: round up data_length to multiple of 8 (or 16?) to avoid rmw at dest nic? */
-
   GASNETI_TRACE_PRINTF(A, ("smsg s from %d to %d type %s\n", gasneti_mynode, dest, gasnetc_type_string(((GC_Header_t *) header)->command)));
 
   smsg->buffer = !do_copy ? NULL :
