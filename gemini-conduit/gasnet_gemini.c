@@ -798,12 +798,12 @@ void gasnetc_free_smsg(uint32_t msgid)
   }
 }
 
-gasnetc_smsg_t *gasnetc_alloc_smsg(int take_lock)
+gasnetc_smsg_t *gasnetc_alloc_smsg(void)
 {
   gasnetc_smsg_t *result = (gasnetc_smsg_t *)gasneti_lifo_pop(&gasnetc_smsg_pool);
 
   if_pf (NULL == result) {
-    if (take_lock) GASNETC_LOCK_GNI();
+    GASNETC_LOCK_GNI();
 
     /* retry holding lock to avoid redundant growers */
     result = (gasnetc_smsg_t *)gasneti_lifo_pop(&gasnetc_smsg_pool);
@@ -827,7 +827,7 @@ gasnetc_smsg_t *gasnetc_alloc_smsg(int take_lock)
       result = &new_chunk[0];
     }
 
-    if (take_lock) GASNETC_UNLOCK_GNI();
+    GASNETC_UNLOCK_GNI();
   }
 
   gasneti_assert(NULL != result);
@@ -878,7 +878,7 @@ int gasnetc_send(gasnet_node_t dest,
 	    void *header, int header_length, 
 	    void *data, int data_length, int async)
 {
-  gasnetc_smsg_t *smsg = gasnetc_alloc_smsg(1);
+  gasnetc_smsg_t *smsg = gasnetc_alloc_smsg();
 
   gasneti_assert(header_length <= sizeof(smsg->header));
   memcpy(&smsg->header, header, header_length);
@@ -929,10 +929,9 @@ void gasnetc_poll_local_queue(void)
 	gasnetc_free_bounce_buffer(gpd->bounce_buffer);
       }
       if (gpd->flags & GC_POST_SEND) {
-        gasnetc_smsg_t *smsg = gasnetc_alloc_smsg(0);
-        const size_t header_length = GASNETC_HEADLEN(long, gpd->u.galp.header.numargs);
-        memcpy(&smsg->header, &gpd->u.galp, header_length);
-        smsg->to_free = NULL;
+        gasnetc_smsg_t *smsg = gpd->u.galp;
+        gasnetc_am_long_packet_t *galp = &smsg->header.galp;
+        const size_t header_length = GASNETC_HEADLEN(long, galp->header.numargs);
         status = GNI_SmsgSend(bound_ep_handles[gpd->dest],
                               &smsg->header, header_length,
                               NULL, 0,  smsg->msgid);

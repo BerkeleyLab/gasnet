@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/02/05 02:59:41 $
- * $Revision: 1.26.14.2 $
+ *     $Date: 2013/02/06 00:20:36 $
+ * $Revision: 1.26.14.3 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -879,19 +879,25 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
       /* TODO: round up nbytes to multiple of 8 to avoid rmw at dest nic */
       retval = gasnetc_send(dest, &m, GASNETC_HEADLEN(long, numargs), source_addr, nbytes, 1/*Async*/);
     } else {
-      gasnetc_post_descriptor_t *gpd;
-      gpd = gasnetc_alloc_post_descriptor();
-      gasneti_assert(gpd);
+      gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
+      gasnetc_smsg_t *smsg = gasnetc_alloc_smsg();
+      gasnetc_am_long_packet_t *galp;
+
       gpd->flags = GC_POST_SEND;
       gpd->dest = dest;
-      gpd->u.galp.header.command = GC_CMD_AM_LONG;
-      gpd->u.galp.header.misc    = 0;
-      gpd->u.galp.header.numargs = numargs;
-      gpd->u.galp.header.handler = handler;
-      gpd->u.galp.data_length = nbytes;
-      gpd->u.galp.data = dest_addr;
+      gpd->u.galp = smsg;
+
+      smsg->to_free = NULL;
+
+      galp = &smsg->header.galp;
+      galp->header.command = GC_CMD_AM_LONG;
+      galp->header.misc    = 0;
+      galp->header.numargs = numargs;
+      galp->header.handler = handler;
+      galp->data_length = nbytes;
+      galp->data = dest_addr;
       for (i = 0; i < numargs; i += 1) {
-	gpd->u.galp.args[i] = va_arg(argptr, uint32_t);
+	galp->args[i] = va_arg(argptr, uint32_t);
       }
       /* Rdma data, then send header as part of completion*/
       gasnetc_rdma_put(dest, dest_addr, source_addr, nbytes, gpd);

@@ -206,7 +206,7 @@ typedef union gasnetc_eq_packet {
         (GASNETC_MSG_MAXSIZE - GASNETC_HEADLEN(long, (nargs)) - 8)
 
 /* XXX: warning if this changes then also edit gasnet_gemini.c:gasnetc_send_am_nop() */
-typedef struct gasnetc_smsg_s {
+typedef struct {
   gasnetc_packet_t header;
   void *to_free;
   uint32_t msgid;
@@ -309,7 +309,7 @@ typedef struct gasnetc_post_descriptor {
   gasnete_op_t *completion;
   gni_post_descriptor_t pd;
   union {
-    gasnetc_am_long_packet_t galp;
+    gasnetc_smsg_t *galp;
     char immediate[GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE];
   } u;
 } gasnetc_post_descriptor_t;
@@ -339,7 +339,7 @@ void gasnetc_shutdown(void); /* clean up all gni state */
 void gasnetc_poll_local_queue(void);
 void gasnetc_poll(void);
 
-gasnetc_smsg_t *gasnetc_alloc_smsg(int take_lock);
+gasnetc_smsg_t *gasnetc_alloc_smsg(void);
 
 int gasnetc_send_smsg(gasnet_node_t dest,
             gasnetc_smsg_t *smsg, int header_length,
