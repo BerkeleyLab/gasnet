@@ -839,7 +839,7 @@ gasnetc_send_smsg(gasnet_node_t dest,
                   gasnetc_smsg_t *smsg, int header_length, 
                   void *data, int data_length)
 {
-  void * const header = &smsg->header;
+  void * const header = &smsg->smsg_header;
   gni_return_t status;
   const int max_trial = 4;
   int trial = 0;
@@ -880,8 +880,8 @@ int gasnetc_send(gasnet_node_t dest,
 {
   gasnetc_smsg_t *smsg = gasnetc_alloc_smsg();
 
-  gasneti_assert(header_length <= sizeof(smsg->header));
-  memcpy(&smsg->header, header, header_length);
+  gasneti_assert(header_length <= sizeof(smsg->smsg_header));
+  memcpy(&smsg->smsg_header, header, header_length);
   smsg->to_free = async ? NULL :
     (data = data_length ? memcpy(gasneti_malloc(data_length), data, data_length) : NULL);
   return gasnetc_send_smsg(dest, smsg, header_length, data, data_length);
@@ -930,10 +930,10 @@ void gasnetc_poll_local_queue(void)
       }
       if (gpd->flags & GC_POST_SEND) {
         gasnetc_smsg_t *smsg = gpd->u.galp;
-        gasnetc_am_long_packet_t *galp = &smsg->header.galp;
+        gasnetc_am_long_packet_t *galp = &smsg->smsg_header.galp;
         const size_t header_length = GASNETC_HEADLEN(long, galp->header.numargs);
         status = GNI_SmsgSend(bound_ep_handles[gpd->dest],
-                              &smsg->header, header_length,
+                              &smsg->smsg_header, header_length,
                               NULL, 0,  smsg->msgid);
         gasneti_assert_always (status == GNI_RC_SUCCESS);
       }
@@ -1458,7 +1458,7 @@ extern void gasnetc_sys_SendShutdownMsg(gasnet_node_t node, int shift, int exitc
   int result;
 
   gasnetc_smsg_t *smsg = &shutdown_smsg[shift];
-  gasnetc_sys_shutdown_packet_t *gssp = &smsg->header.gssp;
+  gasnetc_sys_shutdown_packet_t *gssp = &smsg->smsg_header.gssp;
   GASNETI_TRACE_PRINTF(C,("Send SHUTDOWN Request to node %d w/ shift %d, exitcode %d",node,shift,exitcode));
   gssp->header.command = GC_CMD_SYS_SHUTDOWN_REQUEST;
   gssp->header.misc    = exitcode; /* only 15 bits, but exit() only preserves low 8-bits anyway */

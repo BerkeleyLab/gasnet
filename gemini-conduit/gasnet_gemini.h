@@ -207,7 +207,7 @@ typedef union gasnetc_eq_packet {
 
 /* XXX: warning if this changes then also edit gasnet_gemini.c:gasnetc_send_am_nop() */
 typedef struct {
-  gasnetc_packet_t header;
+  gasnetc_packet_t smsg_header;
   void *to_free;
   uint32_t msgid;
 } gasnetc_smsg_t;
