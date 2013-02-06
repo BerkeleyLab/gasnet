@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/02/06 01:53:09 $
- * $Revision: 1.26.14.5 $
+ *     $Date: 2013/02/06 03:26:42 $
+ * $Revision: 1.26.14.6 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -687,12 +687,6 @@ extern int gasnetc_AMPoll(void) {
   ================================
 */
 
-GASNETI_INLINE(gasnetc_buffer_payload)
-void *gasnetc_buffer_payload(void *source_addr, size_t nbytes) {
-  /* XXX: [ARIES] Need buffer pool instead of malloc/free */
-  return nbytes ? memcpy(gasneti_malloc(nbytes), source_addr, nbytes) : NULL;
-}
-
 extern int gasnetc_AMRequestShortM( 
                             gasnet_node_t dest,       /* destination node */
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
@@ -721,14 +715,13 @@ extern int gasnetc_AMRequestShortM(
     gasnetc_am_short_packet_t *m = &smsg->smsg_header.gasp;
     gasnetc_get_am_credit(dest);
     m->header.command = GC_CMD_AM_SHORT;
-    m->header.misc    = 0;
+  /*m->header.misc    = 0;  -- field is unused by shorts */
     m->header.numargs = numargs;
     m->header.handler = handler;
     for (i = 0; i < numargs; i += 1) {
       m->args[i] = va_arg(argptr, uint32_t);
     }
-    smsg->buffer = NULL;
-    retval = gasnetc_send_smsg(dest, smsg, GASNETC_HEADLEN(short, numargs), NULL, 0);
+    retval = gasnetc_send_smsg(dest, smsg, GASNETC_HEADLEN(short, numargs), NULL, 0, 0);
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -769,8 +762,7 @@ extern int gasnetc_AMRequestMediumM(
     for (i = 0; i < numargs; i += 1) {
       m->args[i] = va_arg(argptr, uint32_t);
     }
-    smsg->buffer = gasnetc_buffer_payload(source_addr, nbytes);
-    retval = gasnetc_send_smsg(dest, smsg, GASNETC_HEADLEN(medium, numargs), smsg->buffer, nbytes);
+    retval = gasnetc_send_smsg(dest, smsg, GASNETC_HEADLEN(medium, numargs), source_addr, nbytes, 1);
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -804,10 +796,12 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
      * if size is large, use RDMA plus SMSG
      * for blocking, wait for completion of the rdma, then smsg
      */
+    const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
     gasnetc_smsg_t *smsg = gasnetc_alloc_smsg();
     gasnetc_am_long_packet_t *m = &smsg->smsg_header.galp;
     gasnetc_get_am_credit(dest);
     m->header.command = GC_CMD_AM_LONG;
+    m->header.misc    = is_packed;
     m->header.numargs = numargs;
     m->header.handler = handler;
     m->data_length = nbytes;
@@ -816,11 +810,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
       m->args[i] = va_arg(argptr, uint32_t);
     }
     /* fma credit needed here? LCS XXX */
-    if (nbytes <= GASNETC_MAX_PACKED_LONG(numargs)) {
-      /* send data in packet payload */
-      m->header.misc = 1; /* indicates packed format */
-      smsg->buffer = gasnetc_buffer_payload(source_addr, nbytes);
-    } else {
+    if (!is_packed) {
       gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
       gasneti_atomic_t done = gasneti_atomic_init(0);
       gasneti_assert(gpd);
@@ -829,15 +819,12 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 
       /* Rdma data, block, then fall through to send header only */
       gasnetc_rdma_put(dest, dest_addr, source_addr, nbytes, gpd);
-
-      m->header.misc = 0;
-      smsg->buffer = NULL;
-      nbytes = 0;
-
       while(!gasneti_atomic_read(&done, 0)) gasnetc_poll_local_queue();
+
+      nbytes = 0;
     }
 
-    retval = gasnetc_send_smsg(dest, smsg, GASNETC_HEADLEN(long, numargs), smsg->buffer, nbytes);
+    retval = gasnetc_send_smsg(dest, smsg, GASNETC_HEADLEN(long, numargs), source_addr, nbytes, is_packed);
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -863,11 +850,13 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
   } else
 #endif
   {
+    const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
     gasnetc_smsg_t *smsg = gasnetc_alloc_smsg();
     gasnetc_am_long_packet_t *m = &smsg->smsg_header.galp;
     gasnetc_get_am_credit(dest);
 
     m->header.command = GC_CMD_AM_LONG;
+    m->header.misc    = is_packed;
     m->header.numargs = numargs;
     m->header.handler = handler;
     m->data_length = nbytes;
@@ -875,19 +864,16 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     for (i = 0; i < numargs; i += 1) {
       m->args[i] = va_arg(argptr, uint32_t);
     }
-    smsg->buffer = NULL;
 
-    if (nbytes <= GASNETC_MAX_PACKED_LONG(numargs)) {
+    if (is_packed) {
       /* send data in smsg payload */
-      m->header.misc = 1; /* indicates packed format */
-      retval = gasnetc_send_smsg(dest, smsg, GASNETC_HEADLEN(long, numargs), source_addr, nbytes);
+      retval = gasnetc_send_smsg(dest, smsg, GASNETC_HEADLEN(long, numargs), source_addr, nbytes, 0);
     } else {
       gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
 
       gpd->flags = GC_POST_SEND;
       gpd->dest = dest;
       gpd->u.galp = smsg;
-      m->header.misc = 0;
 
       /* Rdma data, then send header as part of completion*/
       gasnetc_rdma_put(dest, dest_addr, source_addr, nbytes, gpd);
@@ -926,14 +912,13 @@ extern int gasnetc_AMReplyShortM(
     gasneti_assert(((gasnetc_token_t *)token)->need_reply);
     ((gasnetc_token_t *)token)->need_reply = 0;
     m->header.command = GC_CMD_AM_SHORT_REPLY;
-    m->header.misc    = 0;
+  /*m->header.misc    = 0;  -- field is unused by shorts */
     m->header.numargs = numargs;
     m->header.handler = handler;
     for (i = 0; i < numargs; i += 1) {
       m->args[i] = va_arg(argptr, uint32_t);
     }
-    smsg->buffer = NULL;
-    retval = gasnetc_send_smsg(dest, smsg, GASNETC_HEADLEN(short, numargs), NULL, 0);
+    retval = gasnetc_send_smsg(dest, smsg, GASNETC_HEADLEN(short, numargs), NULL, 0, 0);
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -974,8 +959,7 @@ extern int gasnetc_AMReplyMediumM(
     for (i = 0; i < numargs; i += 1) {
       m->args[i] = va_arg(argptr, uint32_t);
     }
-    smsg->buffer = gasnetc_buffer_payload(source_addr, nbytes);
-    retval = gasnetc_send_smsg(dest, smsg, GASNETC_HEADLEN(medium, numargs), smsg->buffer, nbytes);
+    retval = gasnetc_send_smsg(dest, smsg, GASNETC_HEADLEN(medium, numargs), source_addr, nbytes, 1);
   }
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -1005,12 +989,14 @@ extern int gasnetc_AMReplyLongM(
     /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t) 
              and send the active message 
      */
+    const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
     gasnetc_smsg_t *smsg = gasnetc_alloc_smsg();
     gasnetc_am_long_packet_t *m = &smsg->smsg_header.galp;
     GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &dest));
     gasneti_assert(((gasnetc_token_t *)token)->need_reply);
     ((gasnetc_token_t *)token)->need_reply = 0;
     m->header.command = GC_CMD_AM_LONG_REPLY;
+    m->header.misc    = is_packed;
     m->header.numargs = numargs;
     m->header.handler = handler;
     m->data_length = nbytes;
@@ -1018,11 +1004,7 @@ extern int gasnetc_AMReplyLongM(
     for (i = 0; i < numargs; i += 1) {
       m->args[i] = va_arg(argptr, uint32_t);
     }
-    if (nbytes <= GASNETC_MAX_PACKED_LONG(numargs)) {
-      /* send data in packet payload */
-      m->header.misc = 1; /* indicates packed format */
-      smsg->buffer = gasnetc_buffer_payload(source_addr, nbytes);
-    } else {
+    if (!is_packed) {
       gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
       gasneti_atomic_t done = gasneti_atomic_init(0);
       gasneti_assert(gpd);
@@ -1031,16 +1013,12 @@ extern int gasnetc_AMReplyLongM(
 
       /* Rdma data, block, then fall through to send header only */
       gasnetc_rdma_put(dest, dest_addr, source_addr, nbytes, gpd);
-
-      m->header.misc = 0;
-      smsg->buffer = NULL;
-      nbytes = 0;
-
-      /* cannot process more ams here! */
       while(!gasneti_atomic_read(&done, 0)) gasnetc_poll_local_queue();
+
+      nbytes = 0;
     }
 
-    retval = gasnetc_send_smsg(dest, smsg, GASNETC_HEADLEN(long, numargs), smsg->buffer, nbytes);
+    retval = gasnetc_send_smsg(dest, smsg, GASNETC_HEADLEN(long, numargs), source_addr, nbytes, is_packed);
   }
   va_end(argptr);
   GASNETI_RETURN(retval);

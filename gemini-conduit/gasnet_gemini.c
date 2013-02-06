@@ -239,16 +239,16 @@ uintptr_t gasnetc_init_messaging(void)
   if (device_type == GNI_DEVICE_GEMINI) {
     smsg_type = GNI_SMSG_TYPE_MBOX;
   } else
-#endif
   {
     smsg_type = GNI_SMSG_TYPE_MBOX_AUTO_RETRANSMIT;
-    if (!gasneti_mynode)
-      fprintf(stderr, "@@@@ WARNING: the port to Aries is incomplete and known to be buggy\n");
 #if 0
     status = GNI_SmsgSetMaxRetrans(nic_handle, 1);
     gasneti_assert_always (status == GNI_RC_SUCCESS);
 #endif
   }
+#else
+  smsg_type = GNI_SMSG_TYPE_MBOX_AUTO_RETRANSMIT;
+#endif
  
 #if GASNETC_OPTIMIZE_LIMIT_CQ
   {
@@ -445,7 +445,6 @@ void gasnetc_shutdown(void)
       if (bound_ep_handles[i] != NULL) {
 	status = GNI_EpUnbind(bound_ep_handles[i]);
 	if (status != GNI_RC_SUCCESS) {
-          /* XXX: [ARIES] GNI_RC_NOT_DONE *likely* due to shutdown AMs - so drain first? */
 	  fprintf(stderr, "node %d shutdown epunbind %d try %d  got %s\n",
 		  gasneti_mynode, i, tries, gni_return_string(status));
 	} 
@@ -774,6 +773,7 @@ void gasnetc_poll_smsg_queue(void)
 }
 
 static gasneti_lifo_head_t gasnetc_smsg_pool = GASNETI_LIFO_INITIALIZER;
+static gasneti_lifo_head_t gasnetc_smsg_buffers = GASNETI_LIFO_INITIALIZER;
 static gasnetc_smsg_t **gasnetc_smsg_table = NULL;
 #define GC_SMGS_POOL_CHUNKLEN 64
 #define GC_SMGS_LAST_MSGID 0xFFFF0000 /* Values above this are "special" */
@@ -783,6 +783,12 @@ static gasnetc_smsg_t **gasnetc_smsg_table = NULL;
 /* For exit code, here for use in gasnetc_free_smsg */
 static gasneti_weakatomic_t shutdown_smsg_counter = gasneti_weakatomic_init(0);
 
+GASNETI_INLINE(gasnetc_smsg_buffer)
+void * gasnetc_smsg_buffer(size_t buffer_len) {
+  void *result = gasneti_lifo_pop(&gasnetc_smsg_buffers);
+  return result ? result : gasneti_malloc(GASNETC_MSG_MAXSIZE); /* XXX: less? */
+}
+
 /* MUST call with GNI lock held */
 GASNETI_INLINE(gasnetc_free_smsg)
 void gasnetc_free_smsg(uint32_t msgid)
@@ -791,7 +797,9 @@ void gasnetc_free_smsg(uint32_t msgid)
     const uint32_t chunk = msgid / GC_SMGS_POOL_CHUNKLEN;
     const uint32_t index = msgid % GC_SMGS_POOL_CHUNKLEN;
     gasnetc_smsg_t *smsg = &gasnetc_smsg_table[chunk][index];
-    gasneti_free(smsg->buffer);
+    if (smsg->buffer) {
+      gasneti_lifo_push(&gasnetc_smsg_buffers, smsg->buffer);
+    }
     gasneti_lifo_push(&gasnetc_smsg_pool, smsg);
   } else if_pf (msgid == GC_SMGS_SHUTDOWN) {
     gasneti_weakatomic_increment(&shutdown_smsg_counter, GASNETI_ATOMIC_NONE);
@@ -841,7 +849,7 @@ gasnetc_smsg_t *gasnetc_alloc_smsg(void)
 int
 gasnetc_send_smsg(gasnet_node_t dest, 
                   gasnetc_smsg_t *smsg, int header_length, 
-                  void *data, int data_length)
+                  void *data, int data_length, int do_copy)
 {
   void * const header = &smsg->smsg_header;
   gni_return_t status;
@@ -851,6 +859,9 @@ gasnetc_send_smsg(gasnet_node_t dest,
   /* TODO: round up data_length to multiple of 8 (or 16?) to avoid rmw at dest nic? */
 
   GASNETI_TRACE_PRINTF(A, ("smsg s from %d to %d type %s\n", gasneti_mynode, dest, gasnetc_type_string(((GC_Header_t *) header)->command)));
+
+  smsg->buffer = !do_copy ? NULL :
+    (data = data_length ? memcpy(gasnetc_smsg_buffer(data_length), data, data_length) : NULL);
 
   for (;;) {
     GASNETC_LOCK_GNI();
@@ -956,7 +967,7 @@ void gasnetc_poll(void)
 void gasnetc_send_am_nop(uint32_t pe)
 {
   static gasnetc_smsg_t m = { { { {GC_CMD_AM_NOP_REPLY, } } }, NULL, GC_SMGS_NOP };
-  gasneti_assert_zeroret(gasnetc_send_smsg(pe, &m, sizeof(gasnetc_am_nop_packet_t), NULL, 0));
+  gasneti_assert_zeroret(gasnetc_send_smsg(pe, &m, sizeof(gasnetc_am_nop_packet_t), NULL, 0, 0));
 }
 
 
@@ -1458,7 +1469,7 @@ extern void gasnetc_sys_SendShutdownMsg(gasnet_node_t node, int shift, int exitc
   gssp->header.numargs = 0;
   gssp->header.handler = shift; /* log(distance) */
   smsg->msgid = GC_SMGS_SHUTDOWN;
-  gasneti_assert_zeroret(gasnetc_send_smsg(node, smsg, sizeof(gasnetc_sys_shutdown_packet_t), NULL, 0));
+  gasneti_assert_zeroret(gasnetc_send_smsg(node, smsg, sizeof(gasnetc_sys_shutdown_packet_t), NULL, 0, 0));
 }
 
 

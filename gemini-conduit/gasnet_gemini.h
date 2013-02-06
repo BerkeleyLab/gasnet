@@ -343,7 +343,7 @@ gasnetc_smsg_t *gasnetc_alloc_smsg(void);
 
 int gasnetc_send_smsg(gasnet_node_t dest,
             gasnetc_smsg_t *smsg, int header_length,
-            void *data, int data_length);
+            void *data, int data_length, int do_copy);
 
 void gasnetc_rdma_put(gasnet_node_t dest,
 		 void *dest_addr, void *source_addr,
