@@ -818,11 +818,15 @@ gasnetc_smsg_t *gasnetc_alloc_smsg(void)
       gasnetc_smsg_table = gasneti_realloc(gasnetc_smsg_table, (chunks+1) * sizeof(gasnetc_smsg_t *));
       gasnetc_smsg_table[chunks] = new_chunk;
 
+    #if GC_SMGS_POOL_CHUNKLEN > 1
       for (i=0; i<GC_SMGS_POOL_CHUNKLEN; ++i) {
         new_chunk[i].msgid = next_msgid++;
         gasneti_lifo_link(new_chunk+i, new_chunk+i+1);
       }
       gasneti_lifo_push_many(&gasnetc_smsg_pool, new_chunk+1, new_chunk+GC_SMGS_POOL_CHUNKLEN-1);
+    #else
+      new_chunk[0].msgid = next_msgid++;
+    #endif
 
       result = &new_chunk[0];
     }
