@@ -208,7 +208,7 @@ typedef union gasnetc_eq_packet {
 /* XXX: warning if this changes then also edit gasnet_gemini.c:gasnetc_send_am_nop() */
 typedef struct {
   gasnetc_packet_t smsg_header;
-  void *to_free;
+  void *buffer;
   uint32_t msgid;
 } gasnetc_smsg_t;
 
@@ -344,11 +344,6 @@ gasnetc_smsg_t *gasnetc_alloc_smsg(void);
 int gasnetc_send_smsg(gasnet_node_t dest,
             gasnetc_smsg_t *smsg, int header_length,
             void *data, int data_length);
-
-int gasnetc_send(gasnet_node_t dest, 
-	    void *header, int header_length, 
-	    void *data, int data_length,
-	    int async);
 
 void gasnetc_rdma_put(gasnet_node_t dest,
 		 void *dest_addr, void *source_addr,

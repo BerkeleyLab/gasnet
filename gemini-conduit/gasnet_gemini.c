@@ -791,7 +791,7 @@ void gasnetc_free_smsg(uint32_t msgid)
     const uint32_t chunk = msgid / GC_SMGS_POOL_CHUNKLEN;
     const uint32_t index = msgid % GC_SMGS_POOL_CHUNKLEN;
     gasnetc_smsg_t *smsg = &gasnetc_smsg_table[chunk][index];
-    gasneti_free(smsg->to_free);
+    gasneti_free(smsg->buffer);
     gasneti_lifo_push(&gasnetc_smsg_pool, smsg);
   } else if_pf (msgid == GC_SMGS_SHUTDOWN) {
     gasneti_weakatomic_increment(&shutdown_smsg_counter, GASNETI_ATOMIC_NONE);
@@ -844,6 +844,8 @@ gasnetc_send_smsg(gasnet_node_t dest,
   const int max_trial = 4;
   int trial = 0;
 
+  /* TODO: round up data_length to multiple of 8 (or 16?) to avoid rmw at dest nic? */
+
   GASNETI_TRACE_PRINTF(A, ("smsg s from %d to %d type %s\n", gasneti_mynode, dest, gasnetc_type_string(((GC_Header_t *) header)->command)));
 
   for (;;) {
@@ -873,19 +875,6 @@ gasnetc_send_smsg(gasnet_node_t dest,
   return(GASNET_OK);
 }
 
-/* XXX: [ARIES] callers should construct header in place to avoid copying it */
-int gasnetc_send(gasnet_node_t dest, 
-	    void *header, int header_length, 
-	    void *data, int data_length, int async)
-{
-  gasnetc_smsg_t *smsg = gasnetc_alloc_smsg();
-
-  gasneti_assert(header_length <= sizeof(smsg->smsg_header));
-  memcpy(&smsg->smsg_header, header, header_length);
-  smsg->to_free = async ? NULL :
-    (data = data_length ? memcpy(gasneti_malloc(data_length), data, data_length) : NULL);
-  return gasnetc_send_smsg(dest, smsg, header_length, data, data_length);
-}
 
 void gasnetc_poll_local_queue(void)
 {
