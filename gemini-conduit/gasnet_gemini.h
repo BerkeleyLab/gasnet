@@ -212,6 +212,8 @@ typedef struct {
   uint32_t msgid;
 } gasnetc_smsg_t;
 
+extern int gasnetc_smsg_retransmit;
+
 
 /* Routines in gc_utils.c */
 
@@ -309,7 +311,8 @@ typedef struct gasnetc_post_descriptor {
   gasnete_op_t *completion;
   gni_post_descriptor_t pd;
   union {
-    gasnetc_smsg_t *galp;
+    gasnetc_smsg_t smsg;
+    gasnetc_smsg_t *smsg_p;
     char immediate[GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE];
   } u;
 } gasnetc_post_descriptor_t;

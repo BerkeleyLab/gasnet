@@ -14,6 +14,8 @@ static int gasnetc_am_mem_consistency;
 
 static unsigned int gasnetc_mb_maxcredit;
 
+int gasnetc_smsg_retransmit = 0;
+
 int gasnetc_poll_burst = 10;
 static gasnetc_queue_t smsg_work_queue;
 
@@ -233,22 +235,17 @@ uintptr_t gasnetc_init_messaging(void)
   gasnetc_GNIT_Log("cdmattach");
 #endif
 
-#if 0 /* XXX: while port is in progress, run AUTO_RETRANSMIT code on Gemini too */
   status = GNI_GetDeviceType(&device_type);
   gasneti_assert_always (status == GNI_RC_SUCCESS);
-  if (device_type == GNI_DEVICE_GEMINI) {
-    smsg_type = GNI_SMSG_TYPE_MBOX;
-  } else
-  {
+  gasnetc_smsg_retransmit = (device_type != GNI_DEVICE_GEMINI);
+
+  if (gasnetc_smsg_retransmit) {
     smsg_type = GNI_SMSG_TYPE_MBOX_AUTO_RETRANSMIT;
-#if 0
     status = GNI_SmsgSetMaxRetrans(nic_handle, 1);
     gasneti_assert_always (status == GNI_RC_SUCCESS);
-#endif
+  } else {
+    smsg_type = GNI_SMSG_TYPE_MBOX;
   }
-#else
-  smsg_type = GNI_SMSG_TYPE_MBOX_AUTO_RETRANSMIT;
-#endif
  
 #if GASNETC_OPTIMIZE_LIMIT_CQ
   {
@@ -836,6 +833,8 @@ gasnetc_smsg_t *gasnetc_alloc_smsg(void)
       new_chunk[0].msgid = next_msgid++;
     #endif
 
+      GASNETI_TRACE_PRINTF(A, ("smsg pool grew to %u\n", (unsigned int)next_msgid));
+
       result = &new_chunk[0];
     }
 
@@ -858,7 +857,7 @@ gasnetc_send_smsg(gasnet_node_t dest,
 
   GASNETI_TRACE_PRINTF(A, ("smsg s from %d to %d type %s\n", gasneti_mynode, dest, gasnetc_type_string(((GC_Header_t *) header)->command)));
 
-  smsg->buffer = !do_copy ? NULL :
+  smsg->buffer = !(do_copy && gasnetc_smsg_retransmit) ? NULL :
     (data = data_length ? memcpy(gasnetc_smsg_buffer(data_length), data, data_length) : NULL);
 
   for (;;) {
@@ -931,7 +930,7 @@ void gasnetc_poll_local_queue(void)
 	gasnetc_free_bounce_buffer(gpd->bounce_buffer);
       }
       if (gpd->flags & GC_POST_SEND) {
-        gasnetc_smsg_t *smsg = gpd->u.galp;
+        gasnetc_smsg_t *smsg = gasnetc_smsg_retransmit ? gpd->u.smsg_p : &gpd->u.smsg;
         gasnetc_am_long_packet_t *galp = &smsg->smsg_header.galp;
         const size_t header_length = GASNETC_HEADLEN(long, galp->header.numargs);
         status = GNI_SmsgSend(bound_ep_handles[gpd->dest],
@@ -1550,11 +1549,13 @@ extern int gasnetc_sys_exit(int *exitcode_p)
   }
 
   /* drain send completion events to avoid NOT_DONE at unbind: */
-  while (gasneti_weakatomic_read(&shutdown_smsg_counter, GASNETI_ATOMIC_NONE) != shift) {
-    gasnetc_poll_local_queue();
-    if (gasneti_ticks_to_us(gasneti_ticks_now() - starttime) > timeout_us) {
-      result = 1; /* failure */
-      goto out;
+  if (gasnetc_smsg_retransmit) {
+    while (gasneti_weakatomic_read(&shutdown_smsg_counter, GASNETI_ATOMIC_NONE) != shift) {
+      gasnetc_poll_local_queue();
+      if (gasneti_ticks_to_us(gasneti_ticks_now() - starttime) > timeout_us) {
+        result = 1; /* failure */
+        goto out;
+      }
     }
   }
     

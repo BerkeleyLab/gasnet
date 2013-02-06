@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/02/06 03:26:42 $
- * $Revision: 1.26.14.6 $
+ *     $Date: 2013/02/06 05:24:13 $
+ * $Revision: 1.26.14.7 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -16,6 +16,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <signal.h>
+#include <alloca.h>
 
 #include <sys/mman.h>
 
@@ -687,6 +688,9 @@ extern int gasnetc_AMPoll(void) {
   ================================
 */
 
+#define GASNETC_ALLOC_SMSG() \
+    (gasnetc_smsg_retransmit ? gasnetc_alloc_smsg() : alloca(sizeof(gasnetc_smsg_t)))
+
 extern int gasnetc_AMRequestShortM( 
                             gasnet_node_t dest,       /* destination node */
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
@@ -711,7 +715,7 @@ extern int gasnetc_AMRequestShortM(
      */
     /* LCS send a short gni message (all header) */
 
-    gasnetc_smsg_t *smsg = gasnetc_alloc_smsg();
+    gasnetc_smsg_t *smsg = GASNETC_ALLOC_SMSG();
     gasnetc_am_short_packet_t *m = &smsg->smsg_header.gasp;
     gasnetc_get_am_credit(dest);
     m->header.command = GC_CMD_AM_SHORT;
@@ -752,7 +756,7 @@ extern int gasnetc_AMRequestMediumM(
      */
     /* LCS send short message, using header for args and body for nbytes data */
 
-    gasnetc_smsg_t *smsg = gasnetc_alloc_smsg();
+    gasnetc_smsg_t *smsg = GASNETC_ALLOC_SMSG();
     gasnetc_am_medium_packet_t *m = &smsg->smsg_header.gamp;
     gasnetc_get_am_credit(dest);
     m->header.command = GC_CMD_AM_MEDIUM;
@@ -797,7 +801,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
      * for blocking, wait for completion of the rdma, then smsg
      */
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
-    gasnetc_smsg_t *smsg = gasnetc_alloc_smsg();
+    gasnetc_smsg_t *smsg = GASNETC_ALLOC_SMSG();
     gasnetc_am_long_packet_t *m = &smsg->smsg_header.galp;
     gasnetc_get_am_credit(dest);
     m->header.command = GC_CMD_AM_LONG;
@@ -851,10 +855,23 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 #endif
   {
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
-    gasnetc_smsg_t *smsg = gasnetc_alloc_smsg();
-    gasnetc_am_long_packet_t *m = &smsg->smsg_header.galp;
+    gasnetc_smsg_t *smsg = GASNETC_ALLOC_SMSG();
+    gasnetc_am_long_packet_t *m;
+    gasnetc_post_descriptor_t *gpd = NULL;
     gasnetc_get_am_credit(dest);
 
+    if (!is_packed) {
+      gpd = gasnetc_alloc_post_descriptor();
+      gpd->flags = GC_POST_SEND;
+      gpd->dest = dest;
+      if (gasnetc_smsg_retransmit)  {
+        gpd->u.smsg_p = smsg;
+      } else {
+        smsg = &gpd->u.smsg;
+      }
+    }
+
+    m = &smsg->smsg_header.galp;
     m->header.command = GC_CMD_AM_LONG;
     m->header.misc    = is_packed;
     m->header.numargs = numargs;
@@ -869,12 +886,6 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
       /* send data in smsg payload */
       retval = gasnetc_send_smsg(dest, smsg, GASNETC_HEADLEN(long, numargs), source_addr, nbytes, 0);
     } else {
-      gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
-
-      gpd->flags = GC_POST_SEND;
-      gpd->dest = dest;
-      gpd->u.galp = smsg;
-
       /* Rdma data, then send header as part of completion*/
       gasnetc_rdma_put(dest, dest_addr, source_addr, nbytes, gpd);
       retval = GASNET_OK;
@@ -906,7 +917,7 @@ extern int gasnetc_AMReplyShortM(
     /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t) 
              and send the active message 
      */
-    gasnetc_smsg_t *smsg = gasnetc_alloc_smsg();
+    gasnetc_smsg_t *smsg = GASNETC_ALLOC_SMSG();
     gasnetc_am_short_packet_t *m = &smsg->smsg_header.gasp;
     GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &dest));
     gasneti_assert(((gasnetc_token_t *)token)->need_reply);
@@ -947,7 +958,7 @@ extern int gasnetc_AMReplyMediumM(
     /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t) 
              and send the active message 
      */
-    gasnetc_smsg_t *smsg = gasnetc_alloc_smsg();
+    gasnetc_smsg_t *smsg = GASNETC_ALLOC_SMSG();
     gasnetc_am_medium_packet_t *m = &smsg->smsg_header.gamp;
     GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &dest));
     gasneti_assert(((gasnetc_token_t *)token)->need_reply);
@@ -990,7 +1001,7 @@ extern int gasnetc_AMReplyLongM(
              and send the active message 
      */
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
-    gasnetc_smsg_t *smsg = gasnetc_alloc_smsg();
+    gasnetc_smsg_t *smsg = GASNETC_ALLOC_SMSG();
     gasnetc_am_long_packet_t *m = &smsg->smsg_header.galp;
     GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &dest));
     gasneti_assert(((gasnetc_token_t *)token)->need_reply);
