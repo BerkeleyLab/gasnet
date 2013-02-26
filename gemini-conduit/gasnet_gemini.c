@@ -31,7 +31,7 @@ static double shutdown_max;
 static uint32_t sys_exit_rcvd;
 
 typedef union {
-  volatile int64_t full; /* is zero until filled */
+  volatile uint64_t full; /* is zero until filled */
   GC_Header_t header;
   uint8_t raw[GASNETC_MSG_MAXSIZE];
 } gasnetc_mailbox_t;
@@ -413,7 +413,7 @@ uintptr_t gasnetc_init_messaging(void)
    * Set up an mmap region to contain all of my mailboxes.
    */
 
-  bytes_per_mbox = mb_slots * GASNETC_MSG_MAXSIZE;
+  bytes_per_mbox = mb_slots * sizeof(gasnetc_mailbox_t);
   bytes_needed = MAX(1,remote_nodes) * bytes_per_mbox;
   
   smsg_mmap_ptr = gasneti_huge_mmap(NULL, bytes_needed);
@@ -871,8 +871,8 @@ gasnetc_smsg_t *gasnetc_alloc_smsg(void)
 }
 
 
-int
-gasnetc_send_msg(gasnet_node_t dest, int take_lock,
+static int
+gasnetc_send_smsg(gasnet_node_t dest, int take_lock,
                  gasnetc_smsg_t *smsg, unsigned int length)
 {
   peer_struct_t * const peer = &peer_data[dest];
@@ -965,7 +965,7 @@ gasnetc_send_am(gasnet_node_t dest,
     memcpy(buffer + header_length, data, data_length);
   }
 
-  return gasnetc_send_msg(dest, 1, smsg, total_len);
+  return gasnetc_send_smsg(dest, 1, smsg, total_len);
 }
 
 
@@ -1003,7 +1003,7 @@ void gasnetc_poll_local_queue(void))
         int rc;
         gasnetc_smsg_t *smsg = gpd->u.smsg_p;
         gasnetc_am_long_packet_t * const galp = &smsg->smsg_header.galp;
-        rc = gasnetc_send_msg(gpd->dest, 0, smsg,
+        rc = gasnetc_send_smsg(gpd->dest, 0, smsg,
                               GASNETC_HEADLEN(long, galp->header.numargs));
         gasneti_assert_always (rc == GASNET_OK);
       } else if (gpd->flags & GC_POST_COPY) {
@@ -1063,7 +1063,7 @@ void gasnetc_send_credit(uint32_t pe)
   #endif
     smsg->payload = NULL;
 
-    rc = gasnetc_send_msg(pe, 1, smsg, MAX(8, sizeof(gasnetc_am_nop_packet_t)));
+    rc = gasnetc_send_smsg(pe, 1, smsg, MAX(8, sizeof(gasnetc_am_nop_packet_t)));
     if_pf (rc) {
       gasnetc_GNIT_Abort("Failed to return AM implicit credit");
     }
@@ -1633,10 +1633,10 @@ extern void gasnetc_sys_SendShutdownMsg(gasnet_node_t peeridx, int shift, int ex
 
   gasnetc_get_am_credit(dest);
 
-  result = gasnetc_send_msg(dest, 1, smsg, MAX(8, sizeof(gasnetc_sys_shutdown_packet_t)));
+  result = gasnetc_send_smsg(dest, 1, smsg, MAX(8, sizeof(gasnetc_sys_shutdown_packet_t)));
 #if GASNET_DEBUG
   if_pf (result) {
-    gasnetc_GNIT_Log("WARNING: gasnetc_send_msg() call at Shutdown failed");
+    gasnetc_GNIT_Log("WARNING: gasnetc_send_smsg() call at Shutdown failed");
   }
 #endif
 }
