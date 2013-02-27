@@ -20,15 +20,14 @@
 #define GASNETC_DEFAULT_RDMA_MEM_CONSISTENCY  GASNETC_RELAXED_MEM_CONSISTENCY
 
 /* Define exactly one of these to 1
- * GASNETC_SMSG_GEMINI  GNI_Smsg with local completion
- * GASNETC_SMSG_ARIES   GNI_Smsg withglobal completion 
- * GASNETC_SMSG_GASNET  Scratch implementation via FMA_PUT_W_SYNCFLAG 
+ * GASNETC_SMSG_GEMINI  GNI_Smsg with local completion (Gemini, but not Aries)
+ * GASNETC_SMSG_PUTSYNC Scratch implementation via FMA_PUT_W_SYNCFLAG 
  */
 
 #if defined(GASNET_CONDUIT_GEMINI)
   #define GASNETC_SMSG_GEMINI 1
 #elif defined(GASNET_CONDUIT_ARIES)
-  #define GASNETC_SMSG_GASNET 1
+  #define GASNETC_SMSG_PUTSYNC 1
 #else
   #error
 #endif
@@ -37,11 +36,8 @@
 #ifndef GASNETC_SMSG_GEMINI
 #define GASNETC_SMSG_GEMINI 0
 #endif
-#ifndef GASNETC_SMSG_ARIES
-#define GASNETC_SMSG_ARIES 0
-#endif
-#ifndef GASNETC_SMSG_GASNET
-#define GASNETC_SMSG_GASNET 0
+#ifndef GASNETC_SMSG_PUTSYNC
+#define GASNETC_SMSG_PUTSYNC 0
 #endif
 
 /* debug support */
@@ -222,13 +218,13 @@ typedef union gasnetc_eq_packet {
         (GASNETC_MSG_MAXSIZE - GASNETC_HEADLEN(long, (nargs)) - 8)
 
 typedef struct {
-#if GASNETC_SMSG_ARIES || GASNETC_SMSG_GASNET
+#if GASNETC_SMSG_PUTSYNC
   void *buffer;
 #endif
   gasnetc_packet_t smsg_header;
 } gasnetc_smsg_t;
 
-#if GASNETC_SMSG_ARIES || GASNETC_SMSG_GASNET
+#if GASNETC_SMSG_PUTSYNC
   #define GASNETC_DECL_SMSG(_name) \
     gasnetc_smsg_t *_name = gasnetc_alloc_smsg() /* no semi-colon */
 #else
@@ -295,7 +291,7 @@ typedef struct gasnetc_post_descriptor {
   } completion;
   gni_post_descriptor_t pd;
   union {
-  #if GASNETC_SMSG_ARIES || GASNETC_SMSG_GASNET
+  #if GASNETC_SMSG_PUTSYNC
     gasnetc_smsg_t *smsg_p;
   #endif
     gasnetc_smsg_t smsg;
@@ -327,7 +323,7 @@ void gasnetc_shutdown(void); /* clean up all gni state */
 void gasnetc_poll_local_queue(void);
 void gasnetc_poll(void);
 
-#if GASNETC_SMSG_ARIES || GASNETC_SMSG_GASNET
+#if GASNETC_SMSG_PUTSYNC
 gasnetc_smsg_t *gasnetc_alloc_smsg(void);
 #endif
 
