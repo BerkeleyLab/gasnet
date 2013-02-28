@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/02/27 23:33:02 $
- * $Revision: 1.54.2.3 $
+ *     $Date: 2013/02/28 00:21:05 $
+ * $Revision: 1.54.2.4 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -988,7 +988,6 @@ extern int gasnetc_AMRequestShortM(
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             int numargs, ...) {
   int retval;  
-  int i;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTSHORT(dest,handler,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
@@ -1012,7 +1011,6 @@ extern int gasnetc_AMRequestMediumM(
                             void *source_addr, size_t nbytes,   /* data payload */
                             int numargs, ...) {
   int retval;
-  int i;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
@@ -1036,7 +1034,6 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
   int retval;
-  int i;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
@@ -1078,7 +1075,6 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     gasnetc_token_t the_token = { gasneti_mynode, 1 };
     gasnet_token_t req_token = (gasnet_token_t)&the_token; /* RUN macros need an lvalue */
     gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
-    int i;
 
     for (i = 0; i < numargs; i++) {
       args[i] = (gasnet_handlerarg_t)va_arg(argptr, gasnet_handlerarg_t);
@@ -1137,7 +1133,6 @@ extern int gasnetc_AMReplyShortM(
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             int numargs, ...) {
   int retval;
-  int i;
   va_list argptr;
   gasnet_node_t dest;
   GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
@@ -1168,7 +1163,6 @@ extern int gasnetc_AMReplyMediumM(
                             void *source_addr, size_t nbytes,   /* data payload */
                             int numargs, ...) {
   int retval;
-  int i;
   va_list argptr;
   gasnet_node_t dest;
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
@@ -1200,7 +1194,6 @@ extern int gasnetc_AMReplyLongM(
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
   int retval;
-  int i;
   va_list argptr;
   gasnet_node_t dest;
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 

@@ -403,7 +403,6 @@ uintptr_t gasnetc_init_messaging(void)
   gni_smsg_type_t smsg_type;
 #endif
   uint32_t *all_addr;
-  uint32_t remote_addr;
   uint32_t local_address;
   uint32_t i;
   unsigned int bytes_per_mbox;
@@ -1110,10 +1109,10 @@ gasnetc_send_am(gasnet_node_t dest,
                   gasnetc_smsg_t *smsg, int header_length, 
                   void *data, int data_length, int do_copy)
 {
+#if GASNETC_SMSG_PUTSYNC
   gasnetc_packet_t * const smsg_header = &smsg->smsg_header;
   const size_t total_len = header_length + data_length;
 
-#if GASNETC_SMSG_PUTSYNC
   smsg->buffer = NULL;
   if (data_length) {
     const size_t imm_limit = GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE - offsetof(gasnetc_smsg_t,smsg_header);
@@ -1673,7 +1672,6 @@ int gasnetc_rdma_get_buff(gasnet_node_t dest, void *source_addr,
   /* Compute length of "overfetch" required, if any */
   unsigned int pre = (uintptr_t) source_addr & 3;
   size_t       length = GASNETI_ALIGNUP(nbytes + pre, 4);
-  unsigned int overfetch = length - nbytes;
 
   gasneti_assert(!node_is_local(dest));
   gasneti_assert(nbytes  <= GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE);
@@ -1786,7 +1784,7 @@ extern void gasnetc_sys_SendShutdownMsg(gasnet_node_t peeridx, int shift, int ex
   const gasnet_node_t dest = peeridx;
 #endif
   gasnetc_sys_shutdown_packet_t *gssp;
-  int result;
+  GASNETI_UNUSED_UNLESS_DEBUG int result;
 
 #if GASNETC_SMSG_PUTSYNC
   if (0 == gasnetc_pd_buffers.addr) {
@@ -1892,7 +1890,6 @@ extern int gasnetc_sys_exit(int *exitcode_p)
 
     goto out;
   } else {
-    gasnetc_exitcode_t * const self = &gasnetc_exitcodes[0];
     int i;
 
     /* collect exit codes */

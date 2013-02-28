@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_extended.c,v $
- *     $Date: 2013/02/23 07:42:34 $
- * $Revision: 1.38 $
+ *     $Date: 2013/02/28 00:21:05 $
+ * $Revision: 1.38.2.1 $
  * Description: GASNet Extended API over Gemini Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -438,6 +438,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
 
   if_pf (3 & (nbytes | (uintptr_t)dest | (uintptr_t)src)) {
     /* unaligned xfer - handled separately, and always via an iop */
+    GASNETI_UNUSED_UNLESS_THREADS
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
     gasnete_get_bulk_unaligned(dest, node, src, nbytes GASNETE_THREAD_PASS);
