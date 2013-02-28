@@ -275,6 +275,7 @@ uint32_t gasnetc_fma_rdma_cutover;
 #define GC_POST_COMPLETION_OP 256
 #define GC_POST_GET 512
 #define GC_POST_KEEP_GPD 1024
+#define GC_POST_SMSG 2048
 
 /* WARNING: if sizeof(gasnetc_post_descriptor_t) changes, then
  * you must update the value in gasneti_pd_auxseg_IdentString */
