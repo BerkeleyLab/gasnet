@@ -992,15 +992,16 @@ gasnetc_smsg_t *gasnetc_alloc_smsg(void)
 
 #endif /* GASNETC_SMSG_PUTSYNC */
 
-static int
 #if GASNETC_SMSG_PUTSYNC
 #define GASNETC_SEND_SMSG(_dest,_lock,_smsg,_hlen,_data,_dlen) \
   gasnetc_send_smsg((_dest),(_lock),(_smsg),(_hlen)+(_dlen))
+static int
 gasnetc_send_smsg(gasnet_node_t dest, int take_lock, gasnetc_smsg_t *smsg,
                   size_t length)
 #else
 #define GASNETC_SEND_SMSG(_dest,_lock,_smsg,_hlen,_data,_dlen) \
   gasnetc_send_smsg((_dest),(_lock),(_smsg),(_hlen),(_data),(_dlen))
+static int
 gasnetc_send_smsg(gasnet_node_t dest, int take_lock, gasnetc_smsg_t *smsg,
                   int header_length, void *data, int data_length)
 #endif
@@ -1795,6 +1796,7 @@ extern void gasnetc_sys_SendShutdownMsg(gasnet_node_t peeridx, int shift, int ex
     gasnetc_init_post_descriptor_pool();
   }
   smsg = gasnetc_alloc_smsg();
+  smsg->buffer = NULL;
   gasneti_weakatomic_increment(&shutdown_smsg_counter, GASNETI_ATOMIC_NONE);
 #endif
 
@@ -1809,9 +1811,6 @@ extern void gasnetc_sys_SendShutdownMsg(gasnet_node_t peeridx, int shift, int ex
 
   gasnetc_get_am_credit(dest);
 
-#if GASNETC_SMSG_PUTSYNC
-  smsg->buffer = NULL;
-#endif
   result = GASNETC_SEND_SMSG(dest, 1, smsg, sizeof(gasnetc_sys_shutdown_packet_t), NULL, 0);
 
 #if GASNET_DEBUG
