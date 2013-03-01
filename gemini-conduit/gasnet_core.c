@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/03/01 20:20:44 $
- * $Revision: 1.54.2.10 $
+ *     $Date: 2013/03/01 20:33:07 $
+ * $Revision: 1.54.2.11 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -960,15 +960,14 @@ int gasnetc_long_common(gasnet_node_t dest, int cmd,
       m->args[i] = va_arg(argptr, gasnet_handlerarg_t);
     }
     if (!is_packed) {
-      gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
+      gasnetc_post_descriptor_t *put_gpd = gasnetc_alloc_post_descriptor();
       gasneti_weakatomic_t done = gasneti_weakatomic_init(0);
-      gasneti_assert(gpd);
-      gpd->completion.flag = &done;
-      gpd->flags = GC_POST_COMPLETION_FLAG;
+      put_gpd->completion.flag = &done;
+      put_gpd->flags = GC_POST_COMPLETION_FLAG;
 
       /* Rdma data, block, then fall through to send header only */
       /* TODO: use POST_SEND and block only long enough for local completion? */
-      gasnetc_rdma_put_bulk(dest, dest_addr, source_addr, nbytes, gpd);
+      gasnetc_rdma_put_bulk(dest, dest_addr, source_addr, nbytes, put_gpd);
       gasnetc_poll_local_queue();
       while(!gasneti_weakatomic_read(&done, 0)) {
         GASNETI_WAITHOOK();
