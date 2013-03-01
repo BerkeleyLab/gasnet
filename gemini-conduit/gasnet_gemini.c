@@ -31,7 +31,7 @@ static double shutdown_max;
 
 typedef union {
   volatile uint64_t full; /* is zero until filled */
-  GC_Header_t header;
+  gasnetc_packet_t packet;
   uint8_t raw[GASNETC_MSG_MAXSIZE];
 } gasnetc_mailbox_t;
 
@@ -222,7 +222,7 @@ int my_smsg_index(gasnet_node_t remote_node) {
 
 /* NOTE: will leave with per-peer mb lock held IFF returning non-NULL */
 GASNETI_INLINE(gasnetc_smsg_get_next)
-GC_Header_t *gasnetc_smsg_get_next(peer_struct_t *peer)
+gasnetc_mailbox_t *gasnetc_smsg_get_next(peer_struct_t *peer)
 {
 #if GASNETI_USE_TRUE_MUTEXES || GASNET_DEBUG
   gasneti_mutex_lock(&peer->mb.lock);
@@ -232,7 +232,7 @@ GC_Header_t *gasnetc_smsg_get_next(peer_struct_t *peer)
     if (mb->full) { /* First word is zero until mailbox is filled */
       gasneti_sync_reads();
       peer->mb.recv_pos = slot ? slot : mb_slots;
-      return &mb->header; /* lock still held */
+      return mb; /* lock still held */
     }
   }
 #if GASNETI_USE_TRUE_MUTEXES || GASNET_DEBUG
@@ -243,10 +243,8 @@ GC_Header_t *gasnetc_smsg_get_next(peer_struct_t *peer)
 
 /* NOTE: will release per-peer mb lock */
 GASNETI_INLINE(gasnetc_smsg_release)
-void gasnetc_smsg_release(peer_struct_t *peer, GC_Header_t *header)
+void gasnetc_smsg_release(peer_struct_t *peer, gasnetc_mailbox_t * mb)
 {
-  gasnetc_mailbox_t * mb =
-    gasnetc_get_struct_addr_from_field_addr(gasnetc_mailbox_t, header, header);
   mb->full = 0;
 #if GASNETI_USE_TRUE_MUTEXES || GASNET_DEBUG
   gasneti_mutex_unlock(&peer->mb.lock);
@@ -622,13 +620,14 @@ int gasnetc_handle_am_short_packet(int req, gasnet_node_t source,
 
 GASNETI_INLINE(gasnetc_handle_am_medium_packet)
 int gasnetc_handle_am_medium_packet(int req, gasnet_node_t source, 
-				gasnetc_am_medium_packet_t *am, void* data)
+				gasnetc_am_medium_packet_t *am, size_t data_offset)
 {
   int handlerindex = am->header.handler;
   gasneti_handler_fn_t handler = gasnetc_handler[handlerindex];
   gasnetc_token_t the_token = { source, req };
   gasnet_token_t token = (gasnet_token_t)&the_token; /* RUN macro needs al lvalue */
   gasnet_handlerarg_t *pargs = (gasnet_handlerarg_t *) am->args;
+  void * data = data_offset + (uint8_t*) am;
   int numargs = am->header.numargs;
   GASNETI_RUN_HANDLER_MEDIUM(req, 
 			     handlerindex,
@@ -670,29 +669,26 @@ static void gasnetc_send_credit(uint32_t pe);
 void gasnetc_process_smsg_q(gasnet_node_t pe)
 {
   peer_struct_t * const peer = &peer_data[pe];
-  union {
-    gasnetc_packet_t packet;
-    uint8_t raw[GASNETC_MSG_MAXSIZE];
-    uint64_t dummy_for_alignment;
-  } buffer;
+  gasnetc_mailbox_t buffer;
   for (;;) {
-    GC_Header_t * const recv_header = gasnetc_smsg_get_next(peer);
-
-    if (NULL != recv_header) {
-      const uint32_t numargs = recv_header->numargs;
-      const int is_req = GASNETC_CMD_IS_REQ(recv_header->command);
-      const unsigned int credits = recv_header->credit + !is_req;
+    gasnetc_mailbox_t * const mb = gasnetc_smsg_get_next(peer);
+    
+    if (NULL != mb) {
+      gasnetc_packet_t * msg = &mb->packet;
+      const uint32_t numargs = msg->header.numargs;
+      const int is_req = GASNETC_CMD_IS_REQ(msg->header.command);
+      const unsigned int credits = msg->header.credit + !is_req;
       int need_reply = 0;
 
-      gasneti_assert((((uintptr_t) recv_header) & 7) == 0);
+      gasneti_assert((((uintptr_t) msg) & 7) == 0);
       gasneti_assert(numargs <= gasnet_AMMaxArgs());
       GASNETI_TRACE_PRINTF(D, ("smsg r from %d type %s%s\n", pe,
-                               gasnetc_type_string(recv_header->command),
-                               recv_header->credit ? " (+credit)" : ""));
+                               gasnetc_type_string(msg->header.command),
+                               msg->header.credit ? " (+credit)" : ""));
 
-      switch (recv_header->command) {
+      switch (msg->header.command) {
       case GC_CMD_AM_NOP_REPLY: {
-	gasnetc_smsg_release(peer, recv_header);
+	gasnetc_smsg_release(peer, mb);
 	gasneti_assert(is_req == 0); /* ensure implied credit */
 	gasneti_assert(need_reply == 0); /* ensure no reply is generated */
  	/* fall through to credit handling */
@@ -701,37 +697,37 @@ void gasnetc_process_smsg_q(gasnet_node_t pe)
       case GC_CMD_AM_SHORT:
       case GC_CMD_AM_SHORT_REPLY: {
 	const size_t head_length = GASNETC_HEADLEN(short, numargs);
-	memcpy(&buffer, recv_header, head_length);
-	gasnetc_smsg_release(peer, recv_header);
-	need_reply = gasnetc_handle_am_short_packet(is_req, pe, &buffer.packet.gasp);
+	msg = memcpy(&buffer, msg, head_length);
+	gasnetc_smsg_release(peer, mb);
+	need_reply = gasnetc_handle_am_short_packet(is_req, pe, &msg->gasp);
 	break;
       }
       case GC_CMD_AM_MEDIUM:
       case GC_CMD_AM_MEDIUM_REPLY: {
 	const size_t head_length = GASNETC_HEADLEN(medium, numargs);
-	const size_t length = head_length + recv_header->misc;
-	memcpy(&buffer, recv_header, length);
-	gasneti_assert(recv_header->misc <= gasnet_AMMaxMedium());
-	gasnetc_smsg_release(peer, recv_header);
-	need_reply = gasnetc_handle_am_medium_packet(is_req, pe, &buffer.packet.gamp, &buffer.raw[head_length]);
+	const size_t length = head_length + msg->header.misc;
+	msg = memcpy(&buffer, msg, length);
+	gasneti_assert(msg->header.misc <= gasnet_AMMaxMedium());
+	gasnetc_smsg_release(peer, mb);
+	need_reply = gasnetc_handle_am_medium_packet(is_req, pe, &msg->gamp, head_length);
 	break;
       }
       case GC_CMD_AM_LONG:
       case GC_CMD_AM_LONG_REPLY: {
 	const size_t head_length = GASNETC_HEADLEN(long, numargs);
-	memcpy(&buffer, recv_header, head_length);
-	if (buffer.packet.galp.header.misc) { /* payload follows header - copy it into place */
-	  void *im_data = (void *) (((uintptr_t) recv_header) + head_length);
-	  memcpy(buffer.packet.galp.data, im_data, buffer.packet.galp.data_length);
+	if (msg->galp.header.misc) { /* payload follows header - copy it into place */
+	  void *im_data = head_length + (uint8_t*) msg;
+	  memcpy(msg->galp.data, im_data, msg->galp.data_length);
 	}
-	gasnetc_smsg_release(peer, recv_header);
-	need_reply = gasnetc_handle_am_long_packet(is_req, pe, &buffer.packet.galp);
+	msg = memcpy(&buffer, msg, head_length);
+	gasnetc_smsg_release(peer, mb);
+	need_reply = gasnetc_handle_am_long_packet(is_req, pe, &msg->galp);
 	break;
       }
       case GC_CMD_SYS_SHUTDOWN_REQUEST: {
-	memcpy(&buffer, recv_header, sizeof(buffer.packet.gssp));
-	gasnetc_smsg_release(peer, recv_header);
-	gasnetc_handle_sys_shutdown_packet(pe, &buffer.packet.gssp);
+	msg = memcpy(&buffer, msg, sizeof(buffer.packet.gssp));
+	gasnetc_smsg_release(peer, mb);
+	gasnetc_handle_sys_shutdown_packet(pe, &msg->gssp);
 	gasneti_assert(is_req == 1); /* ensure no implied credit */
 	gasneti_assert(need_reply == 0); /* ensure no reply is generated */
 	break;
