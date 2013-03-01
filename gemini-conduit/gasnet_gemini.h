@@ -248,7 +248,7 @@ typedef struct gasnetc_post_descriptor {
     gasnete_eop_t *eop;
     gasnete_iop_t *iop;
     gasnete_op_t *op;
-    gasnetc_smsg_t *smsg;
+    struct gasnetc_post_descriptor *smsg;
   } completion;
   gni_post_descriptor_t pd;
   union {
@@ -280,10 +280,8 @@ void gasnetc_shutdown(void); /* clean up all gni state */
 void gasnetc_poll_local_queue(void);
 void gasnetc_poll(void);
 
-gasnetc_smsg_t *gasnetc_alloc_smsg(void);
-
 int gasnetc_send_am(gasnet_node_t dest,
-            gasnetc_smsg_t *smsg, int header_length,
+            gasnetc_post_descriptor_t *gpd, int header_length,
             void *data, int data_length, int do_copy);
 
 void gasnetc_rdma_put_bulk(gasnet_node_t dest,

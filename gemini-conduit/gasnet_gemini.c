@@ -864,14 +864,8 @@ void * gasnetc_smsg_buffer(size_t buffer_len) {
 }
 #endif
 
-gasnetc_smsg_t *gasnetc_alloc_smsg(void)
-{
-  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
-  return &gpd->u.smsg;
-}
-
 static int
-gasnetc_send_smsg(gasnet_node_t dest, int take_lock, gasnetc_smsg_t *smsg,
+gasnetc_send_smsg(gasnet_node_t dest, int take_lock, gasnetc_post_descriptor_t *gpd,
                   size_t length)
 {
   peer_struct_t * const peer = &peer_data[dest];
@@ -879,10 +873,9 @@ gasnetc_send_smsg(gasnet_node_t dest, int take_lock, gasnetc_smsg_t *smsg,
   const int max_trials = 4;
   int trial = 0;
 
+  gasnetc_smsg_t * const smsg = &gpd->u.smsg;
   gasnetc_packet_t * const smsg_header = smsg->buffer ? smsg->buffer : &smsg->smsg_header;
   gasnetc_mailbox_t * mb;
-  gasnetc_post_descriptor_t * const gpd =
-          gasnetc_get_struct_addr_from_field_addr(gasnetc_post_descriptor_t, u.smsg, smsg);
   gni_post_descriptor_t * const pd = &gpd->pd;
   const uint64_t *buffer = (uint64_t *)smsg_header;
   gasneti_assert(length > 0);
@@ -946,9 +939,10 @@ gasnetc_send_smsg(gasnet_node_t dest, int take_lock, gasnetc_smsg_t *smsg,
 
 int
 gasnetc_send_am(gasnet_node_t dest, 
-                  gasnetc_smsg_t *smsg, int header_length, 
+                  gasnetc_post_descriptor_t *gpd, int header_length, 
                   void *data, int data_length, int do_copy)
 {
+  gasnetc_smsg_t * const smsg = &gpd->u.smsg;
   gasnetc_packet_t * const smsg_header = &smsg->smsg_header;
   const size_t total_len = header_length + data_length;
 #if GASNET_CONDUIT_GEMINI
@@ -971,7 +965,7 @@ gasnetc_send_am(gasnet_node_t dest,
     memcpy(buffer + header_length, data, data_length);
   }
 
-  return gasnetc_send_smsg(dest, 1, smsg, total_len);
+  return gasnetc_send_smsg(dest, 1, gpd, total_len);
 }
 
 
@@ -999,8 +993,8 @@ void gasnetc_poll_local_queue(void))
 
       /* handle remaining work */
       if (gpd->flags & GC_POST_SEND) {
-        gasnetc_smsg_t *smsg = gpd->completion.smsg;
-        gasnetc_am_long_packet_t * const galp = &smsg->smsg_header.galp;
+        gasnetc_post_descriptor_t *smsg = gpd->completion.smsg;
+        gasnetc_am_long_packet_t * const galp = &smsg->u.smsg.smsg_header.galp;
         int rc = gasnetc_send_smsg(gpd->dest, 0, smsg,
                                    GASNETC_HEADLEN(long, galp->header.numargs));
         gasneti_assert_always (rc == GASNET_OK);
@@ -1062,7 +1056,8 @@ void gasnetc_send_credit(uint32_t pe)
    * bank_credits = 1: send only if 1 credit is alrady banked, otherwise bank this one
    */
   if (!bank_credits || gasnetc_weakatomic_swap(&peer_data[pe].am_credit_bank, 1)) {
-    gasnetc_smsg_t * const smsg = gasnetc_alloc_smsg();
+    gasnetc_post_descriptor_t * const gpd = gasnetc_alloc_post_descriptor();
+    gasnetc_smsg_t * const smsg = &gpd->u.smsg;
     gasnetc_am_nop_packet_t *ganp = &smsg->smsg_header.ganp;
     int rc;
 
@@ -1072,7 +1067,7 @@ void gasnetc_send_credit(uint32_t pe)
   #endif
 
     smsg->buffer = NULL;
-    rc = gasnetc_send_smsg(pe, 1, smsg, sizeof(gasnetc_am_nop_packet_t));
+    rc = gasnetc_send_smsg(pe, 1, gpd, sizeof(gasnetc_am_nop_packet_t));
 
     if_pf (rc) {
       gasnetc_GNIT_Abort("Failed to return AM implicit credit");
@@ -1612,6 +1607,7 @@ gasnetc_exitcode_t *gasnetc_exitcodes = NULL;
 
 extern void gasnetc_sys_SendShutdownMsg(gasnet_node_t peeridx, int shift, int exitcode)
 {
+  gasnetc_post_descriptor_t *gpd;
   gasnetc_smsg_t *smsg;
 #if GASNET_PSHM
   const gasnet_node_t dest = gasneti_pshm_firsts[peeridx];
@@ -1629,7 +1625,8 @@ extern void gasnetc_sys_SendShutdownMsg(gasnet_node_t peeridx, int shift, int ex
     gasnetc_pd_buffers.size = count * sizeof(gasnetc_post_descriptor_t);
     gasnetc_init_post_descriptor_pool();
   }
-  smsg = gasnetc_alloc_smsg();
+  gpd = gasnetc_alloc_post_descriptor();
+  smsg = &gpd->u.smsg;
   smsg->buffer = NULL;
   gasneti_weakatomic_increment(&shutdown_smsg_counter, GASNETI_ATOMIC_NONE);
 
@@ -1644,7 +1641,7 @@ extern void gasnetc_sys_SendShutdownMsg(gasnet_node_t peeridx, int shift, int ex
 
   gasnetc_get_am_credit(dest);
 
-  result = gasnetc_send_smsg(dest, 1, smsg, sizeof(gasnetc_sys_shutdown_packet_t));
+  result = gasnetc_send_smsg(dest, 1, gpd, sizeof(gasnetc_sys_shutdown_packet_t));
 
 #if GASNET_DEBUG
   if_pf (result) {
