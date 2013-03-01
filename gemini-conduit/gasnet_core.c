@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/03/01 20:33:07 $
- * $Revision: 1.54.2.11 $
+ *     $Date: 2013/03/01 20:37:46 $
+ * $Revision: 1.54.2.12 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1087,19 +1087,9 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
   {
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
-    gasnetc_am_long_packet_t *m;
-    gasnetc_post_descriptor_t *put_gpd = NULL;
+    gasnetc_am_long_packet_t *m = &gpd->u.packet.galp;
     gasnetc_get_am_credit(dest);
 
-    if (!is_packed) {
-      put_gpd = gasnetc_alloc_post_descriptor();
-      put_gpd->flags = GC_POST_SEND;
-      put_gpd->dest = dest;
-      put_gpd->completion.smsg = gpd;
-      gpd->bounce_buffer = NULL;
-    }
-
-    m = &gpd->u.packet.galp;
     m->header.command = GC_CMD_AM_LONG;
     m->header.misc    = is_packed;
     m->header.numargs = numargs;
@@ -1115,6 +1105,11 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
       retval = gasnetc_send_am(dest, gpd, GASNETC_HEADLEN(long, numargs), source_addr, nbytes);
     } else {
       /* Rdma data, then send header as part of completion*/
+      gasnetc_post_descriptor_t *put_gpd = gasnetc_alloc_post_descriptor();
+      put_gpd->flags = GC_POST_SEND;
+      put_gpd->dest = dest;
+      put_gpd->completion.smsg = gpd;
+      gpd->bounce_buffer = NULL;
       gasnetc_rdma_put_bulk(dest, dest_addr, source_addr, nbytes, put_gpd);
       retval = GASNET_OK;
     }
