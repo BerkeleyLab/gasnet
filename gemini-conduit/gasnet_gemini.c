@@ -999,11 +999,12 @@ void gasnetc_poll_local_queue(void))
 
       /* handle remaining work */
       if (gpd->flags & GC_POST_SEND) {
-        gasnetc_smsg_t *smsg = gpd->u.smsg_p;
+        gasnetc_smsg_t *smsg = gpd->completion.smsg;
         gasnetc_am_long_packet_t * const galp = &smsg->smsg_header.galp;
         int rc = gasnetc_send_smsg(gpd->dest, 0, smsg,
                                    GASNETC_HEADLEN(long, galp->header.numargs));
         gasneti_assert_always (rc == GASNET_OK);
+        gasneti_assert(0 == (gpd->flags & (GC_POST_COMPLETION_FLAG|GC_POST_COMPLETION_OP)));
       } else if (gpd->flags & GC_POST_COPY) {
         void * const buffer = gpd->bounce_buffer;
         size_t length = gpd->pd.length - (gpd->flags & GC_POST_COPY_TRIM);

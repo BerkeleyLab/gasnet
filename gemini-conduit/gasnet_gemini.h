@@ -248,10 +248,10 @@ typedef struct gasnetc_post_descriptor {
     gasnete_eop_t *eop;
     gasnete_iop_t *iop;
     gasnete_op_t *op;
+    gasnetc_smsg_t *smsg;
   } completion;
   gni_post_descriptor_t pd;
   union {
-    gasnetc_smsg_t *smsg_p;
     gasnetc_smsg_t smsg;
     char immediate[GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE];
   } u;
