@@ -960,16 +960,18 @@ void gasnetc_poll_smsg_queue(void)
 
 #if GASNETC_SMSG_PUTSYNC
 
-static gasneti_lifo_head_t gasnetc_smsg_buffers = GASNETI_LIFO_INITIALIZER;
-
 /* For exit code, but decl earlier for use in gasnetc_poll_local_queue */
 static gasneti_weakatomic_t shutdown_smsg_counter = gasneti_weakatomic_init(0);
+
+#if !GASNET_CONDUIT_GEMINI
+static gasneti_lifo_head_t gasnetc_smsg_buffers = GASNETI_LIFO_INITIALIZER;
 
 GASNETI_INLINE(gasnetc_smsg_buffer)
 void * gasnetc_smsg_buffer(size_t buffer_len) {
   void *result = gasneti_lifo_pop(&gasnetc_smsg_buffers);
   return result ? result : gasneti_malloc(GASNETC_MSG_MAXSIZE); /* XXX: less? */
 }
+#endif
 
 gasnetc_smsg_t *gasnetc_alloc_smsg(void)
 {
@@ -1102,13 +1104,20 @@ gasnetc_send_am(gasnet_node_t dest,
 #if GASNETC_SMSG_PUTSYNC
   gasnetc_packet_t * const smsg_header = &smsg->smsg_header;
   const size_t total_len = header_length + data_length;
+#if GASNET_CONDUIT_GEMINI
+  uint8_t imm_buffer[GASNETC_MSG_MAXSIZE];
+#endif
 
   smsg->buffer = NULL;
   if (data_length) {
     const size_t imm_limit = GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE - offsetof(gasnetc_smsg_t,smsg_header);
     uint8_t * buffer = (uint8_t*) smsg_header;
     if (total_len > imm_limit) {
+    #if GASNET_CONDUIT_GEMINI
+      buffer = imm_buffer;
+    #else
       buffer = gasnetc_smsg_buffer(total_len);
+    #endif
       memcpy(buffer, smsg_header, header_length);
       smsg->buffer = buffer;
     }
@@ -1163,9 +1172,12 @@ void gasnetc_poll_local_queue(void))
 #if GASNETC_SMSG_PUTSYNC
       else if (gpd->flags & GC_POST_SMSG) {
         gasnetc_smsg_t * const smsg = &gpd->u.smsg;
+      #if !GASNET_CONDUIT_GEMINI
         if (smsg->buffer) {
           gasneti_lifo_push(&gasnetc_smsg_buffers, smsg->buffer);
-        } else if_pf (smsg->smsg_header.header.command == GC_CMD_SYS_SHUTDOWN_REQUEST) {
+        } else
+      #endif
+        if_pf (smsg->smsg_header.header.command == GC_CMD_SYS_SHUTDOWN_REQUEST) {
           gasneti_weakatomic_decrement(&shutdown_smsg_counter, GASNETI_ATOMIC_NONE);
         }
       }
