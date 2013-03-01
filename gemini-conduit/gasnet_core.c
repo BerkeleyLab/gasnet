@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/02/28 00:21:05 $
- * $Revision: 1.54.2.4 $
+ *     $Date: 2013/03/01 06:19:51 $
+ * $Revision: 1.54.2.5 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -867,7 +867,7 @@ int gasnetc_short_common(gasnet_node_t dest, int cmd,
   } else
 #endif
   {
-    GASNETC_DECL_SMSG(smsg);
+    gasnetc_smsg_t * const smsg = gasnetc_alloc_smsg();
     gasnetc_am_short_packet_t *m = &smsg->smsg_header.gasp;
     if (isReq) gasnetc_get_am_credit(dest);
     m->header.command = cmd;
@@ -906,7 +906,7 @@ int gasnetc_medium_common(gasnet_node_t dest, int cmd,
   } else
 #endif
   {
-    GASNETC_DECL_SMSG(smsg);
+    gasnetc_smsg_t * const smsg = gasnetc_alloc_smsg();
     gasnetc_am_medium_packet_t *m = &smsg->smsg_header.gamp;
     if (isReq) gasnetc_get_am_credit(dest);
     m->header.command = cmd;
@@ -947,7 +947,7 @@ int gasnetc_long_common(gasnet_node_t dest, int cmd,
 #endif
   {
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
-    GASNETC_DECL_SMSG(smsg);
+    gasnetc_smsg_t * const smsg = gasnetc_alloc_smsg();
     gasnetc_am_long_packet_t *m = &smsg->smsg_header.galp;
     if (isReq) gasnetc_get_am_credit(dest);
     m->header.command = cmd;
@@ -1087,7 +1087,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 #endif
   {
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
-    GASNETC_DECL_SMSG(smsg);
+    gasnetc_smsg_t * const smsg = gasnetc_alloc_smsg();
     gasnetc_am_long_packet_t *m;
     gasnetc_post_descriptor_t *gpd = NULL;
     gasnetc_get_am_credit(dest);
@@ -1096,12 +1096,8 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
       gpd = gasnetc_alloc_post_descriptor();
       gpd->flags = GC_POST_SEND;
       gpd->dest = dest;
-    #if GASNETC_SMSG_PUTSYNC
       gpd->u.smsg_p = smsg;
       smsg->buffer = NULL;
-    #else
-      smsg = &gpd->u.smsg;
-    #endif
     }
 
     m = &smsg->smsg_header.galp;
