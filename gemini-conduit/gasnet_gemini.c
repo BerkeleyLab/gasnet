@@ -799,7 +799,7 @@ void gasnetc_poll_smsg_completion_queue(void)
   if (messages > 0) {
     GASNETC_LOCK_QUEUE(&smsg_work_queue);
     for (i = 0; i < messages; i += 1) {
-      source = gni_cq_get_inst_id(event_data[i]);
+      source = GNI_CQ_GET_INST_ID(event_data[i]);
       gasneti_assert(source < gasneti_nodes);
       /* atomically enqueue the peer on the smsg queue if it isn't
 	 already there.  */
