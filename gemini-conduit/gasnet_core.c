@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/03/01 19:24:51 $
- * $Revision: 1.54.2.7 $
+ *     $Date: 2013/03/01 19:53:09 $
+ * $Revision: 1.54.2.8 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1097,7 +1097,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
       put_gpd->flags = GC_POST_SEND;
       put_gpd->dest = dest;
       put_gpd->completion.smsg = gpd;
-      gpd->u.smsg.buffer = NULL;
+      gpd->bounce_buffer = NULL;
     }
 
     m = &gpd->u.smsg.smsg_header.galp;

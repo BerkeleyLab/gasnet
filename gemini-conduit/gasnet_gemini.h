@@ -188,7 +188,6 @@ typedef union gasnetc_eq_packet {
         (GASNETC_MSG_MAXSIZE - GASNETC_HEADLEN(long, (nargs)))
 
 typedef struct {
-  void *buffer;
   gasnetc_packet_t smsg_header; /* must be last */
 } gasnetc_smsg_t;
 
