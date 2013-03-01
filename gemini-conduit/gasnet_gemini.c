@@ -696,8 +696,11 @@ void gasnetc_process_smsg_q(gasnet_node_t pe)
       }
       case GC_CMD_AM_SHORT:
       case GC_CMD_AM_SHORT_REPLY: {
-	const size_t head_length = GASNETC_HEADLEN(short, numargs);
-	msg = memcpy(&buffer, msg, head_length);
+      #if 1 /* (small) constant memcpy cheaper than variable length */
+	msg = memcpy(&buffer, msg, GASNETC_HEADLEN(short, gasnet_AMMaxArgs()));
+      #else
+	msg = memcpy(&buffer, msg, GASNETC_HEADLEN(short, numargs));
+      #endif
 	gasnetc_smsg_release(peer, mb);
 	need_reply = gasnetc_handle_am_short_packet(is_req, pe, &msg->gasp);
 	break;
@@ -719,7 +722,11 @@ void gasnetc_process_smsg_q(gasnet_node_t pe)
 	  void *im_data = head_length + (uint8_t*) msg;
 	  memcpy(msg->galp.data, im_data, msg->galp.data_length);
 	}
-	msg = memcpy(&buffer, msg, head_length);
+      #if 1 /* (small) constant memcpy cheaper than variable length */
+	msg = memcpy(&buffer, msg, GASNETC_HEADLEN(long, gasnet_AMMaxArgs()));
+      #else
+	msg = memcpy(&buffer, msg, head_len);
+      #endif
 	gasnetc_smsg_release(peer, mb);
 	need_reply = gasnetc_handle_am_long_packet(is_req, pe, &msg->galp);
 	break;
