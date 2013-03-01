@@ -187,10 +187,6 @@ typedef union gasnetc_eq_packet {
 #define GASNETC_MAX_PACKED_LONG(nargs) \
         (GASNETC_MSG_MAXSIZE - GASNETC_HEADLEN(long, (nargs)))
 
-typedef struct {
-  gasnetc_packet_t smsg_header; /* must be last */
-} gasnetc_smsg_t;
-
 void gasnetc_get_am_credit(uint32_t pe);
 
 void gasnetc_init_post_descriptor_pool(void);
@@ -251,8 +247,8 @@ typedef struct gasnetc_post_descriptor {
   } completion;
   gni_post_descriptor_t pd;
   union {
-    gasnetc_smsg_t smsg;
     char immediate[GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE];
+    gasnetc_packet_t packet;
   } u;
 } gasnetc_post_descriptor_t;
 

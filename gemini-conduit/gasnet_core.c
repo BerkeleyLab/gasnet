@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/03/01 19:53:09 $
- * $Revision: 1.54.2.8 $
+ *     $Date: 2013/03/01 20:17:34 $
+ * $Revision: 1.54.2.9 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -868,7 +868,7 @@ int gasnetc_short_common(gasnet_node_t dest, int cmd,
 #endif
   {
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
-    gasnetc_am_short_packet_t *m = &gpd->u.smsg.smsg_header.gasp;
+    gasnetc_am_short_packet_t *m = &gpd->u.packet.gasp;
     if (isReq) gasnetc_get_am_credit(dest);
     m->header.command = cmd;
   /*m->header.misc    = 0;  -- field is unused by shorts */
@@ -907,7 +907,7 @@ int gasnetc_medium_common(gasnet_node_t dest, int cmd,
 #endif
   {
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
-    gasnetc_am_medium_packet_t *m = &gpd->u.smsg.smsg_header.gamp;
+    gasnetc_am_medium_packet_t *m = &gpd->u.packet.gamp;
     if (isReq) gasnetc_get_am_credit(dest);
     m->header.command = cmd;
     m->header.misc    = nbytes;
@@ -948,7 +948,7 @@ int gasnetc_long_common(gasnet_node_t dest, int cmd,
   {
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
-    gasnetc_am_long_packet_t *m = &gpd->u.smsg.smsg_header.galp;
+    gasnetc_am_long_packet_t *m = &gpd->u.packet.galp;
     if (isReq) gasnetc_get_am_credit(dest);
     m->header.command = cmd;
     m->header.misc    = is_packed;
@@ -1100,7 +1100,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
       gpd->bounce_buffer = NULL;
     }
 
-    m = &gpd->u.smsg.smsg_header.galp;
+    m = &gpd->u.packet.galp;
     m->header.command = GC_CMD_AM_LONG;
     m->header.misc    = is_packed;
     m->header.numargs = numargs;

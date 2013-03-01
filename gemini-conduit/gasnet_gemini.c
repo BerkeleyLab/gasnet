@@ -873,21 +873,20 @@ gasnetc_send_smsg(gasnet_node_t dest, int take_lock, gasnetc_post_descriptor_t *
   const int max_trials = 4;
   int trial = 0;
 
-  gasnetc_smsg_t * const smsg = &gpd->u.smsg;
-  gasnetc_packet_t * const smsg_header = gpd->bounce_buffer ? gpd->bounce_buffer : &smsg->smsg_header;
+  gasnetc_packet_t * const msg = gpd->bounce_buffer ? gpd->bounce_buffer : &gpd->u.packet;
   gasnetc_mailbox_t * mb;
   gni_post_descriptor_t * const pd = &gpd->pd;
-  const uint64_t *buffer = (uint64_t *)smsg_header;
+  const uint64_t *buffer = (uint64_t *)msg;
   gasneti_assert(length > 0);
   gasneti_assert(length <= GASNETC_MSG_MAXSIZE);
 
   gasneti_assert(!node_is_local(dest));
 
-  smsg_header->header.credit = gasnetc_weakatomic_swap(&peer->am_credit_bank, 0);
+  msg->header.credit = gasnetc_weakatomic_swap(&peer->am_credit_bank, 0);
 
   GASNETI_TRACE_PRINTF(D, ("smsg to %d type %s%s\n", dest,
-                           gasnetc_type_string(smsg_header->header.command),
-                           smsg_header->header.credit ? " (+credit)" : ""));
+                           gasnetc_type_string(msg->header.command),
+                           msg->header.credit ? " (+credit)" : ""));
 
   gpd->flags = GC_POST_SMSG;
 
@@ -942,8 +941,7 @@ gasnetc_send_am(gasnet_node_t dest,
                   gasnetc_post_descriptor_t *gpd, int header_length, 
                   void *data, int data_length, int do_copy)
 {
-  gasnetc_smsg_t * const smsg = &gpd->u.smsg;
-  gasnetc_packet_t * const smsg_header = &smsg->smsg_header;
+  gasnetc_packet_t * const msg = &gpd->u.packet;
   const size_t total_len = header_length + data_length;
 #if GASNET_CONDUIT_GEMINI
   uint8_t imm_buffer[GASNETC_MSG_MAXSIZE];
@@ -951,15 +949,15 @@ gasnetc_send_am(gasnet_node_t dest,
 
   gpd->bounce_buffer = NULL;
   if (data_length) {
-    const size_t imm_limit = GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE - offsetof(gasnetc_smsg_t,smsg_header);
-    uint8_t * buffer = (uint8_t*) smsg_header;
+    const size_t imm_limit = GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE;
+    uint8_t * buffer = (uint8_t*) msg;
     if (total_len > imm_limit) {
     #if GASNET_CONDUIT_GEMINI
       buffer = imm_buffer;
     #else
       buffer = gasnetc_smsg_buffer(total_len);
     #endif
-      memcpy(buffer, smsg_header, header_length);
+      memcpy(buffer, msg, header_length);
       gpd->bounce_buffer = buffer;
     }
     memcpy(buffer + header_length, data, data_length);
@@ -994,7 +992,7 @@ void gasnetc_poll_local_queue(void))
       /* handle remaining work */
       if (gpd->flags & GC_POST_SEND) {
         gasnetc_post_descriptor_t * const smsg_gpd = gpd->completion.smsg;
-        gasnetc_am_long_packet_t * const galp = &smsg_gpd->u.smsg.smsg_header.galp;
+        gasnetc_am_long_packet_t * const galp = &smsg_gpd->u.packet.galp;
         int rc = gasnetc_send_smsg(gpd->dest, 0, smsg_gpd,
                                    GASNETC_HEADLEN(long, galp->header.numargs));
         gasneti_assert_always (rc == GASNET_OK);
@@ -1005,13 +1003,12 @@ void gasnetc_poll_local_queue(void))
 	memcpy(gpd->get_target, gpd->bounce_buffer, length);
 	gpd->bounce_buffer = (void*)(~3 & (uintptr_t)buffer); /* fixup for possible UNBOUNCE */
       } else if (gpd->flags & GC_POST_SMSG) {
-        gasnetc_smsg_t * const smsg = &gpd->u.smsg;
       #if !GASNET_CONDUIT_GEMINI
         if (gpd->bounce_buffer) {
           gasneti_lifo_push(&gasnetc_smsg_buffers, gpd->bounce_buffer);
         } else
       #endif
-        if_pf (smsg->smsg_header.header.command == GC_CMD_SYS_SHUTDOWN_REQUEST) {
+        if_pf (gpd->u.packet.header.command == GC_CMD_SYS_SHUTDOWN_REQUEST) {
           gasneti_weakatomic_decrement(&shutdown_smsg_counter, GASNETI_ATOMIC_NONE);
         }
       }
@@ -1057,8 +1054,7 @@ void gasnetc_send_credit(uint32_t pe)
    */
   if (!bank_credits || gasnetc_weakatomic_swap(&peer_data[pe].am_credit_bank, 1)) {
     gasnetc_post_descriptor_t * const gpd = gasnetc_alloc_post_descriptor();
-    gasnetc_smsg_t * const smsg = &gpd->u.smsg;
-    gasnetc_am_nop_packet_t *ganp = &smsg->smsg_header.ganp;
+    gasnetc_am_nop_packet_t *ganp = &gpd->u.packet.ganp;
     int rc;
 
     ganp->header.command = GC_CMD_AM_NOP_REPLY;
@@ -1608,7 +1604,6 @@ gasnetc_exitcode_t *gasnetc_exitcodes = NULL;
 extern void gasnetc_sys_SendShutdownMsg(gasnet_node_t peeridx, int shift, int exitcode)
 {
   gasnetc_post_descriptor_t *gpd;
-  gasnetc_smsg_t *smsg;
 #if GASNET_PSHM
   const gasnet_node_t dest = gasneti_pshm_firsts[peeridx];
 #else
@@ -1627,11 +1622,10 @@ extern void gasnetc_sys_SendShutdownMsg(gasnet_node_t peeridx, int shift, int ex
   }
   gpd = gasnetc_alloc_post_descriptor();
   gpd->bounce_buffer = NULL;
-  smsg = &gpd->u.smsg;
   gasneti_weakatomic_increment(&shutdown_smsg_counter, GASNETI_ATOMIC_NONE);
 
   GASNETI_TRACE_PRINTF(C,("Send SHUTDOWN Request to node %d w/ shift %d, exitcode %d",dest,shift,exitcode));
-  gssp = &smsg->smsg_header.gssp;
+  gssp = &gpd->u.packet.gssp;
   gssp->header.command = GC_CMD_SYS_SHUTDOWN_REQUEST;
   gssp->header.misc    = exitcode; /* only 14 bits, but exit() only preserves low 8-bits anyway */
 #if GASNET_DEBUG
