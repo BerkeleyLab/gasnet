@@ -275,7 +275,6 @@ void gasnetc_free_post_descriptor(gasnetc_post_descriptor_t *pd);
 #endif
 
 /* exit related */
-int gasnetc_exitcode;
 volatile int gasnetc_shutdownInProgress;
 double gasnetc_shutdown_seconds; /* number of seconds to poll before forceful shutdown */
 int gasnetc_sys_exit(int *exitcode);

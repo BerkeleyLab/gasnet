@@ -28,7 +28,6 @@ int gasnetc_poll_burst = 10;
 static int bank_credits;
 
 static double shutdown_max;
-static uint32_t sys_exit_rcvd;
 
 typedef union {
   volatile uint64_t full; /* is zero until filled */
@@ -666,8 +665,7 @@ void gasnetc_process_smsg_q(gasnet_node_t pe)
   for (;;) {
     /* TODO: Use a different/new lock since there are no longer
      *       any GNI calls in this critical section.
-     *       Per-peer is possible, but requires extra serialization
-     *       be added around or in gasnetc_handle_sys_shutdown_packet.
+     *       Per-peer is possible (and preferable).
      */
     GC_Header_t *recv_header;
 
@@ -731,8 +729,8 @@ void gasnetc_process_smsg_q(gasnet_node_t pe)
       case GC_CMD_SYS_SHUTDOWN_REQUEST: {
 	memcpy(&buffer, recv_header, sizeof(buffer.packet.gssp));
 	gasnetc_smsg_release(recv_header);
-	gasnetc_handle_sys_shutdown_packet(pe, &buffer.packet.gssp); /* <- run w/ lock held */
 	GASNETC_UNLOCK_GNI_IF_PAR();
+	gasnetc_handle_sys_shutdown_packet(pe, &buffer.packet.gssp);
 	gasneti_assert(is_req == 1); /* ensure no implied credit */
 	gasneti_assert(need_reply == 0); /* ensure no reply is generated */
 	break;
@@ -1608,7 +1606,8 @@ void gasnetc_free_post_descriptor(gasnetc_post_descriptor_t *gpd)
 volatile int gasnetc_shutdownInProgress = 0;
 double gasnetc_shutdown_seconds = 0.0;
 static double shutdown_max = 120.;  /* 2 minutes */
-static uint32_t sys_exit_rcvd = 0;
+static gasneti_weakatomic_t sys_exit_rcvd = gasneti_weakatomic_init(0);
+static gasneti_weakatomic_t sys_exit_code = gasneti_weakatomic_init(0);
 
 #if GASNET_PSHM
 gasnetc_exitcode_t *gasnetc_exitcodes = NULL;
@@ -1659,23 +1658,29 @@ extern void gasnetc_sys_SendShutdownMsg(gasnet_node_t peeridx, int shift, int ex
 
 
 /* this is called from poll when a shutdown packet arrives */
-/* NOTE: serialized by GNI_LOCK in caller */
 void gasnetc_handle_sys_shutdown_packet(uint32_t source, gasnetc_sys_shutdown_packet_t *sys)
 {
   uint32_t distance = 1 << sys->header.handler;
   uint8_t exitcode = sys->header.misc;
   uint8_t oldcode;
 #if GASNET_DEBUG || GASNETI_STATS_OR_TRACE
-  int sender = source;
-  GASNETI_TRACE_PRINTF(C,("Got SHUTDOWN Request from node %d w/ exitcode %d",sender,exitcode));
+  GASNETI_TRACE_PRINTF(C,("Got SHUTDOWN Request from node %d w/ exitcode %d",(int)source,exitcode));
 #endif
-  oldcode = gasneti_atomic_read((gasneti_atomic_t *) &gasnetc_exitcode, 0);
-  if (exitcode > oldcode) {
-    gasneti_atomic_set((gasneti_atomic_t *) &gasnetc_exitcode, exitcode, 0);
-  } else {
-    exitcode = oldcode;
-  }
-  sys_exit_rcvd |= distance;
+
+#if GASNETI_THREADS || defined(GASNETI_FORCE_TRUE_WEAKATOMICS)
+  /* Atomic MAX via C-A-S: */
+  do {
+    oldcode = gasneti_atomic_read(&sys_exit_code, 0);
+  } while ((exitcode > oldcode) &&
+           !gasneti_atomic_compare_and_swap(&sys_exit_code, oldcode, exitcode, 0));
+#else
+  oldcode = gasneti_weakatomic_read(&sys_exit_code, 0);
+  gasneti_weakatomic_set(&sys_exit_code, MAX(oldcode, exitcode), 0);
+#endif
+
+  /* Atomic-OR via atomic-add: */
+  gasneti_assert(GASNETI_POWEROFTWO(distance));
+  gasneti_weakatomic_add(&sys_exit_rcvd, distance, 0);
 }
 
 
@@ -1751,14 +1756,14 @@ extern int gasnetc_sys_exit(int *exitcode_p)
     gasnet_node_t peeridx = (distance >= size - rank) ? rank - (size - distance)
                                                       : rank + distance;
 
-    oldcode = gasneti_atomic_read((gasneti_atomic_t *) &gasnetc_exitcode, 0);
+    oldcode = gasneti_weakatomic_read(&sys_exit_code, 0);
     exitcode = MAX(exitcode, oldcode);
 
     gasnetc_sys_SendShutdownMsg(peeridx, shift, exitcode);
 
     /* wait for completion of the proper receive, which might arrive out of order */
     goal |= distance;
-    while ((sys_exit_rcvd & goal) != goal) {
+    while ((gasneti_weakatomic_read(&sys_exit_rcvd, 0) & goal) != goal) {
       gasnetc_poll();
       if (gasneti_ticks_to_us(gasneti_ticks_now() - starttime) > timeout_us) {
         result = 1; /* failure */
@@ -1788,13 +1793,11 @@ extern int gasnetc_sys_exit(int *exitcode_p)
     }
     
 out:
-  oldcode = gasneti_atomic_read((gasneti_atomic_t *) &gasnetc_exitcode, 0);
+  oldcode = gasneti_weakatomic_read(&sys_exit_code, 0);
   *exitcode_p = MAX(exitcode, oldcode);
 
   return result;
 }
-
-
 
 
 
