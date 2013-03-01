@@ -939,7 +939,7 @@ gasnetc_send_smsg(gasnet_node_t dest, int take_lock, gasnetc_post_descriptor_t *
 int
 gasnetc_send_am(gasnet_node_t dest, 
                   gasnetc_post_descriptor_t *gpd, int header_length, 
-                  void *data, int data_length, int do_copy)
+                  void *data, int data_length)
 {
   gasnetc_packet_t * const msg = &gpd->u.packet;
   const size_t total_len = header_length + data_length;

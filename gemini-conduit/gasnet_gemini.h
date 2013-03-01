@@ -277,7 +277,7 @@ void gasnetc_poll(void);
 
 int gasnetc_send_am(gasnet_node_t dest,
             gasnetc_post_descriptor_t *gpd, int header_length,
-            void *data, int data_length, int do_copy);
+            void *data, int data_length);
 
 void gasnetc_rdma_put_bulk(gasnet_node_t dest,
 		 void *dest_addr, void *source_addr,

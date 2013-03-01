@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/03/01 20:17:34 $
- * $Revision: 1.54.2.9 $
+ *     $Date: 2013/03/01 20:20:44 $
+ * $Revision: 1.54.2.10 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -877,7 +877,7 @@ int gasnetc_short_common(gasnet_node_t dest, int cmd,
     for (i = 0; i < numargs; i++) {
       m->args[i] = va_arg(argptr, gasnet_handlerarg_t);
     }
-    retval = gasnetc_send_am(dest, gpd, GASNETC_HEADLEN(short, numargs), NULL, 0, 0);
+    retval = gasnetc_send_am(dest, gpd, GASNETC_HEADLEN(short, numargs), NULL, 0);
   }
   return retval;
 }
@@ -916,7 +916,7 @@ int gasnetc_medium_common(gasnet_node_t dest, int cmd,
     for (i = 0; i < numargs; i++) {
       m->args[i] = va_arg(argptr, gasnet_handlerarg_t);
     }
-    retval = gasnetc_send_am(dest, gpd, GASNETC_HEADLEN(medium, numargs), source_addr, nbytes, 1);
+    retval = gasnetc_send_am(dest, gpd, GASNETC_HEADLEN(medium, numargs), source_addr, nbytes);
   }
   return retval;
 }
@@ -978,7 +978,7 @@ int gasnetc_long_common(gasnet_node_t dest, int cmd,
       nbytes = 0;
     }
 
-    retval = gasnetc_send_am(dest, gpd, GASNETC_HEADLEN(long, numargs), source_addr, nbytes, is_packed);
+    retval = gasnetc_send_am(dest, gpd, GASNETC_HEADLEN(long, numargs), source_addr, nbytes);
   }
   return retval;
 }
@@ -1113,7 +1113,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 
     if (is_packed) {
       /* send data in smsg payload */
-      retval = gasnetc_send_am(dest, gpd, GASNETC_HEADLEN(long, numargs), source_addr, nbytes, 0);
+      retval = gasnetc_send_am(dest, gpd, GASNETC_HEADLEN(long, numargs), source_addr, nbytes);
     } else {
       /* Rdma data, then send header as part of completion*/
       gasnetc_rdma_put_bulk(dest, dest_addr, source_addr, nbytes, put_gpd);
