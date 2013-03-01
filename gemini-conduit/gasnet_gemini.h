@@ -90,14 +90,6 @@ typedef gasneti_mutex_t gasnetc_queuelock_t;
   gasneti_mutex_unlock(&gasnetc_conn_queue[srcnode].lock)
 #endif
 
-#if GASNET_SEQ
-  #define GASNETC_UNLOCK_GNI_IF_SEQ() GASNETC_UNLOCK_GNI()
-  #define GASNETC_UNLOCK_GNI_IF_PAR() ((void)0)
-#else
-  #define GASNETC_UNLOCK_GNI_IF_SEQ() ((void)0)
-  #define GASNETC_UNLOCK_GNI_IF_PAR() GASNETC_UNLOCK_GNI()
-#endif
-
 typedef struct {
   gasnet_node_t source;
   int need_reply;
