@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/03/01 20:37:46 $
- * $Revision: 1.54.2.12 $
+ *     $Date: 2013/03/01 21:10:05 $
+ * $Revision: 1.54.2.13 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -960,6 +960,7 @@ int gasnetc_long_common(gasnet_node_t dest, int cmd,
       m->args[i] = va_arg(argptr, gasnet_handlerarg_t);
     }
     if (!is_packed) {
+      /* TODO: if (NUM_PD < 2*pthreads) this alloction might deadlock: */
       gasnetc_post_descriptor_t *put_gpd = gasnetc_alloc_post_descriptor();
       gasneti_weakatomic_t done = gasneti_weakatomic_init(0);
       put_gpd->completion.flag = &done;
@@ -1105,6 +1106,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
       retval = gasnetc_send_am(dest, gpd, GASNETC_HEADLEN(long, numargs), source_addr, nbytes);
     } else {
       /* Rdma data, then send header as part of completion*/
+      /* TODO: if (NUM_PD < 2*pthreads) this alloction might deadlock: */
       gasnetc_post_descriptor_t *put_gpd = gasnetc_alloc_post_descriptor();
       put_gpd->flags = GC_POST_SEND;
       put_gpd->dest = dest;
