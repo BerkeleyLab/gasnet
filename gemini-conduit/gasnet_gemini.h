@@ -183,10 +183,9 @@ typedef union gasnetc_eq_packet {
                           + gasnet_AMMaxMedium()), GASNETC_CACHELINE_SIZE)
 
 /* max data one can pack into SMSG with a long header: */
-/* XXX: note 8-byte "fudge" because Larry K. has indicated some overhead exists */
 /* TODO: runtime control of cut-off via an env var */
 #define GASNETC_MAX_PACKED_LONG(nargs) \
-        (GASNETC_MSG_MAXSIZE - GASNETC_HEADLEN(long, (nargs)) - 8)
+        (GASNETC_MSG_MAXSIZE - GASNETC_HEADLEN(long, (nargs)))
 
 typedef struct {
   void *buffer;
