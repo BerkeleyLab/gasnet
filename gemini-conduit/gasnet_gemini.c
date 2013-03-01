@@ -782,13 +782,10 @@ void gasnetc_poll_smsg_completion_queue(void)
    * CqGetEvent as fast as possible, saving the interpretation
    * for later.  The GNI lock is global, for all GNI api activity.
    */
-  messages = 0;
   GASNETC_LOCK_GNI();
-  for (;;) {
+  for (messages = 0; messages < SMSG_BURST; ++messages) {
     status = GNI_CqGetEvent(smsg_cq_handle,&event_data[messages]);
     if (status != GNI_RC_SUCCESS) break;
-    messages += 1;
-    if (messages >= SMSG_BURST) break;
   }
   GASNETC_UNLOCK_GNI();
   /* Now run through what you found */
