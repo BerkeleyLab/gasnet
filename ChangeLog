@@ -1,6 +1,6 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.74 $
+$Revision: 1.74.2.1 $
 
 ----------------------------------------------------------------------
 04-30-2013 : Release 1.20.2
@@ -13,6 +13,9 @@ $Revision: 1.74 $
 * Cray XE & XK series (gemini-conduit)
   - With this release support for the Gemini interconnect of the Cray
     XE and XK series systems has graduated out of BETA status.
+  - Significantly improved performance via uGNI's "RELAXED_PI_ORDERING",
+    increased overlap in non-blocking operations, and a lower latency
+    machanism for small Puts.
 
 * IBM PAMI (pami-conduit)
   - Updated to support BlueGene/Q driver V1R2M0
