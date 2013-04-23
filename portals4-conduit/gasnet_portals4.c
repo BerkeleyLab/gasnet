@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals4-conduit/gasnet_portals4.c,v $
- *     $Date: 2013/04/16 01:14:46 $
- * $Revision: 1.30 $
+ *     $Date: 2013/04/23 01:08:24 $
+ * $Revision: 1.30.2.1 $
  * Description: Portals 4 specific configuration
  * Copyright 2012, Sandia National Laboratories
  * Terms of use are as specified in license.txt
@@ -74,6 +74,17 @@ static gasneti_weakatomic_t p4_op_count = gasneti_weakatomic_init(0);
   (0 == ((uintptr_t)(x) & (GASNETI_MEDBUF_ALIGNMENT-1)))
 
 
+/* Possible encode/decode options include (for a 32-bit ptl_process_t):
+ *   hexadecimal: 8 bytes (100% expansion) <- CURRENT
+ *   base64: 6 bytes (50% expansion)
+ *   asci85: 5 bytes (25% expansion)
+ * See http://en.wikipedia.org/wiki/Binary-to-text_encoding
+ * If we start getting concerned w/ scalability, we may consider
+ * paying the added complexity of the more efficient encodings.
+ * However, we can still save space by more shortening of the Keys.
+ *    -PHH 2013.04.18
+ */
+
 static int
 p4_encode(const void *inval, int invallen, char *outval, int outvallen)
 {
@@ -129,7 +140,7 @@ p4_decode(const char *inval, void *outval, int outvallen)
 static void
 p4_info_put(const char *key, void *value, size_t valuelen) 
 {
-    snprintf(kvs_key, max_key_len, "gasnet-%lu-%s", (long unsigned) gasneti_mynode, key);
+    snprintf(kvs_key, max_key_len, "gsnt-%lx-%s", (long unsigned) gasneti_mynode, key);
     if (0 != p4_encode(value, valuelen, kvs_value, max_val_len)) {
         gasneti_fatalerror("gasnetc_info_put() encode failed");
     }
@@ -142,7 +153,7 @@ p4_info_put(const char *key, void *value, size_t valuelen)
 static void
 p4_info_get(int pe, const char *key, void *value, size_t valuelen)
 {
-    snprintf(kvs_key, max_key_len, "gasnet-%lu-%s", (long unsigned) pe, key);
+    snprintf(kvs_key, max_key_len, "gsnt-%lx-%s", (long unsigned) pe, key);
     if (PMI_SUCCESS != PMI_KVS_Get(kvs_name, kvs_key, kvs_value, max_val_len)) {
         gasneti_fatalerror("gasnetc_info_get() PMI_KVS_Get() failed");
     }
@@ -348,11 +359,11 @@ gasnetc_p4_init(int *rank, int *size)
     if_pf (PTL_OK != ret) p4_fatalerror(ret, "PtlGetPhysId()");
 
     /* build id map */
-    p4_info_put("portals4-procid", &my_id, sizeof(my_id));
+    p4_info_put("ptl4-pid", &my_id, sizeof(my_id));
     p4_info_exchange();
     desired = gasneti_malloc(sizeof(ptl_process_t) * gasneti_nodes);
     for (i = 0 ; i < gasneti_nodes; ++i) {
-        p4_info_get(i, "portals4-procid",
+        p4_info_get(i, "ptl4-pid",
                          &desired[i], sizeof(ptl_process_t));
     }
 
@@ -577,6 +588,10 @@ gasnetc_p4_exit(void)
 #if 0 /* TODO: are these safe to do here? */
     PtlNIFini(matching_ni_h);
     PtlFini();
+#endif
+
+#if 0 /* If we make this call then non-collective exits will hang */
+    PMI_Finalize();
 #endif
 }
 
@@ -1027,6 +1042,8 @@ gasnetc_p4_TransferGeneric(int category, ptl_match_bits_t req_type, gasnet_node_
     int num_credits = (gasnetc_Long == category || gasnetc_LongAsync == category) ? 2 : 1;
     volatile int32_t long_send_complete  = 0;
 
+    /* TODO: Count credits downward and use gasneti_semaphore_trydown_n()?
+     *       -PHH 2013.04.18 */
     /* attempt to get the right number of send credits */
  retry:
     tmp = gasneti_weakatomic_add(&p4_send_credits, num_credits, 0);
@@ -1393,15 +1410,21 @@ gasnetc_bootstrapExchange(void *src, size_t len, void *dest)
 
     ret = PtlMDRelease(md_h);
     if_pf (PTL_OK != ret) p4_fatalerror(ret, "gasnetc_bootstrapExchange() PtlMDRelease()");
+#if 1
     /* There appears to be a race condition in the reference implementation
      * where we're getting PTL_IN_USE from MEUnlink even though there are no
      * events pending (and if you try to wait for an event, you'll wait
      * forever).  For now, just wait for the implementation to right itself and
-     * move on. */
+     * move on.  -BWB 2013.04.12 */
+    /* portals4 issue #28 "Unlink / in_use race" was fixed in svn r2182.
+       For now we retain the retry loop "just in case" -PHH 2013.04.18 */
     do {
       ret = PtlMEUnlink(me_h);
       if (PTL_IN_USE == ret) sleep(1);
     } while (PTL_IN_USE == ret);
+#else
+    ret = PtlMEUnlink(me_h);
+#endif
     if_pf (PTL_OK != ret) p4_fatalerror(ret, "gasnetc_bootstrapExchange() PtlMEUnlink()");
 
     /* now rotate into final position */

@@ -4,6 +4,18 @@ Brian Barrett <bwbarre@sandia.gov>
 User Information:
 -----------------
 
+Portals 4 is the next generation network programming interface developed
+at Sandia National Laboratories, building on the lessons learned from the
+Portals 3.3 specification.  Information on Portals, including a copy of
+the specification,  can be found at the Sandia Portals page:
+
+  http://www.cs.sandia.gov/Portals/
+
+A reference implementation of Portals 4.0 which runs over InfiniBand and
+UDP is available at:
+
+  https://code.google.com/p/portals4/
+
 Recognized environment variables:
 ---------------------------------
 
@@ -21,6 +33,9 @@ Known problems:
 
 Future work:
 ------------
+
+* Implement the extended API directly over Portals 4.
+
 
 ==============================================================================
 

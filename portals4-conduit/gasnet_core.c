@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/portals4-conduit/gasnet_core.c,v $
- *     $Date: 2013/04/11 19:26:08 $
- * $Revision: 1.1 $
+ *     $Date: 2013/04/23 01:08:24 $
+ * $Revision: 1.1.1.1.2.1 $
  * Description: GASNet portals4 conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -79,7 +79,12 @@ static int gasnetc_init(int *argc, char ***argv) {
 #endif
 
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-    gasneti_segmentInit((uintptr_t)-1, &gasnetc_bootstrapExchange);
+  { uintptr_t limit;
+    limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
+                              &gasnetc_bootstrapExchange,
+                              &gasnetc_bootstrapBarrier);
+    gasneti_segmentInit(limit, &gasnetc_bootstrapExchange);
+  }
 #elif GASNET_SEGMENT_EVERYTHING
     /* segment is everything - nothing to do */
 #else
