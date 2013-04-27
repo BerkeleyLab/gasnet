@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/template-conduit/gasnet_core.c,v $
- *     $Date: 2012/08/24 23:20:16 $
- * $Revision: 1.70 $
+ *     $Date: 2013/04/27 04:14:18 $
+ * $Revision: 1.70.14.1 $
  * Description: GASNet <conduitname> conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -119,8 +119,11 @@ static int gasnetc_init(int *argc, char ***argv) {
          (you may want to tune GASNETI_MMAP_MAX_SIZE to limit the max size)
 
          it may also be appropriate to first call gasneti_mmapLimit() to
+         get a good value for the first argument to gasneti_segmentInit(), to
          account for limitations imposed by having multiple GASNet nodes
-         per shared-memory compute node
+         per shared-memory compute node (this is recommended for all
+         systems with virtual memory unless there can be only one
+         process per compute node).
       */
     }
   #elif GASNET_SEGMENT_EVERYTHING
