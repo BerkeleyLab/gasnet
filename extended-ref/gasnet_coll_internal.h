@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_coll_internal.h,v $
- *     $Date: 2012/10/12 23:46:45 $
- * $Revision: 1.68 $
+ *     $Date: 2013/05/30 23:39:19 $
+ * $Revision: 1.68.12.1 $
  * Description: GASNet Collectives conduit header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -220,6 +220,7 @@ extern int gasnete_coll_consensus_wait(gasnete_coll_team_t team GASNETE_THREAD_F
 typedef void (*gasnete_all_barrier_notify)(gasnete_coll_team_t team, int id, int flags);
 typedef int (*gasnete_all_barrier_wait)(gasnete_coll_team_t team, int id, int flags);
 typedef int (*gasnete_all_barrier_try)(gasnete_coll_team_t team, int id, int flags);
+typedef int (*gasnete_all_barrier_result)(gasnete_coll_team_t team, int *id);
 
 /*XXX: TEMPORARY ONLY*/
 /* If the conduit hasn't defined team barrier define it here*/
@@ -327,6 +328,7 @@ struct gasnete_coll_team_t_ {
   gasnete_all_barrier_notify barrier_notify;
   gasnete_all_barrier_try barrier_try;
   gasnete_all_barrier_wait barrier_wait;
+  gasnete_all_barrier_result barrier_result;
   gasneti_progressfn_t barrier_pf;
   
 #ifndef GASNETE_COLL_P2P_OVERRIDE

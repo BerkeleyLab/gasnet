@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2013/05/24 23:11:29 $
- * $Revision: 1.150 $
+ *     $Date: 2013/05/30 23:39:19 $
+ * $Revision: 1.150.2.1 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -15,6 +15,11 @@
 
 /* ------------------------------------------------------------------------------------ */
 /* state shared between barrier implementations */
+
+#ifndef GASNETE_BARRIER_DEFAULT
+/* conduit plugin for default barrier mechanism */
+#define GASNETE_BARRIER_DEFAULT "DISSEM"
+#endif
 
 #if GASNETI_STATS_OR_TRACE
   gasneti_tick_t gasnete_barrier_notifytime; /* for statistical purposes */ 
@@ -649,6 +654,19 @@ static int gasnete_pshmbarrier_try(gasnete_coll_team_t team, int id, int flags) 
   }
 }
 
+static int gasnete_pshmbarrier_result(gasnete_coll_team_t team, int *id) {
+  gasneti_sync_reads();
+  if_pf (team->barrier_splitstate != OUTSIDE_BARRIER) {
+    gasneti_fatalerror("gasnet_barrier_result() called between notify and wait/try");
+  }
+
+  { const gasnete_pshmbarrier_data_t * const pshm_bdata = team->barrier_data;
+    const gasneti_pshm_barrier_t * const shared_data = pshm_bdata->shared;
+    *id = shared_data->value;
+    return (GASNET_BARRIERFLAG_ANONYMOUS & shared_data->flags);
+  }
+}
+
 static void gasnete_pshmbarrier_init(gasnete_coll_team_t team) {
   team->barrier_data = (void *)gasnete_pshmbarrier_init_inner(team);
 
@@ -657,6 +675,7 @@ static void gasnete_pshmbarrier_init(gasnete_coll_team_t team) {
   team->barrier_notify = &gasnete_pshmbarrier_notify;
   team->barrier_wait =   &gasnete_pshmbarrier_wait;
   team->barrier_try =    &gasnete_pshmbarrier_try;
+  team->barrier_result = &gasnete_pshmbarrier_result;
 }
 #endif /* !GASNETI_PSHM_BARRIER_HIER */
 
@@ -900,6 +919,8 @@ static int gasnete_amdbarrier_wait(gasnete_coll_team_t team, int id, int flags) 
     retval = gasnete_pshmbarrier_wait_inner(pshm_bdata, id, flags, passive_shift);
     if (passive_shift) {
       /* Once the active peer signals done, we can return */
+      barrier_data->amdbarrier_value = pshm_bdata->shared->value;
+      barrier_data->amdbarrier_flags = pshm_bdata->shared->flags;
       team->barrier_splitstate = OUTSIDE_BARRIER;
       gasneti_sync_writes(); /* ensure all state changes committed before return */
       return retval;
@@ -924,12 +945,10 @@ static int gasnete_amdbarrier_wait(gasnete_coll_team_t team, int id, int flags) 
 	 ((gasnet_handlerarg_t)id != barrier_data->amdbarrier_recv_value[phase])) {
     retval = GASNET_ERR_BARRIER_MISMATCH;
   }
-#if GASNETI_PSHM_BARRIER_HIER
-  else {
-    id    = barrier_data->amdbarrier_recv_value[phase];
-    flags = barrier_data->amdbarrier_recv_flags[phase];
-  }
-#endif
+
+  /*  preserve state for possible _result call */
+  barrier_data->amdbarrier_value = barrier_data->amdbarrier_recv_value[phase];
+  barrier_data->amdbarrier_flags = barrier_data->amdbarrier_recv_flags[phase];
 
   /*  update state */
   team->barrier_splitstate = OUTSIDE_BARRIER;
@@ -937,8 +956,8 @@ static int gasnete_amdbarrier_wait(gasnete_coll_team_t team, int id, int flags) 
 #if GASNETI_PSHM_BARRIER_HIER
   if (pshm_bdata) {
     /* Signal any passive peers w/ the final result */
-    pshm_bdata->shared->value = id;
-    pshm_bdata->shared->flags = flags;
+    pshm_bdata->shared->value = barrier_data->amdbarrier_value;
+    pshm_bdata->shared->flags = barrier_data->amdbarrier_flags;
     PSHM_BSTATE_SIGNAL(pshm_bdata, retval, pshm_bdata->private.two_to_phase << 2); /* includes a WMB */
     gasneti_assert(!barrier_data->amdbarrier_passive);
   } else
@@ -971,6 +990,18 @@ static int gasnete_amdbarrier_try(gasnete_coll_team_t team, int id, int flags) {
 
   if (barrier_data->amdbarrier_step == barrier_data->amdbarrier_size) return gasnete_amdbarrier_wait(team, id, flags);
   else return GASNET_ERR_NOT_READY;
+}
+
+static int gasnete_amdbarrier_result(gasnete_coll_team_t team, int *id) {
+  gasneti_sync_reads();
+  if_pf (team->barrier_splitstate != OUTSIDE_BARRIER) {
+    gasneti_fatalerror("gasnet_barrier_result() called between notify and wait/try");
+  }
+
+  { const gasnete_coll_amdbarrier_t * const barrier_data = team->barrier_data;
+    *id = barrier_data->amdbarrier_value;
+    return (GASNET_BARRIERFLAG_ANONYMOUS & barrier_data->amdbarrier_flags);
+  }
 }
 
 void gasnete_amdbarrier_kick_team_all(void) {
@@ -1049,6 +1080,7 @@ static void gasnete_amdbarrier_init(gasnete_coll_team_t team) {
   team->barrier_notify = steps ? &gasnete_amdbarrier_notify : &gasnete_amdbarrier_notify_singleton;
   team->barrier_wait =   &gasnete_amdbarrier_wait;
   team->barrier_try =    &gasnete_amdbarrier_try;
+  team->barrier_result = &gasnete_amdbarrier_result;
   team->barrier_pf =     (team == GASNET_TEAM_ALL) ? &gasnete_amdbarrier_kick_team_all : NULL;
 }
 
@@ -1358,6 +1390,8 @@ static int gasnete_rmdbarrier_wait(gasnete_coll_team_t team, int id, int flags) 
     retval = gasnete_pshmbarrier_wait_inner(pshm_bdata, id, flags, passive_shift);
     if (passive_shift) {
       /* Once the active peer signals done, we can return */
+      barrier_data->barrier_value = pshm_bdata->shared->value;
+      barrier_data->barrier_flags = pshm_bdata->shared->flags;
       team->barrier_splitstate = OUTSIDE_BARRIER;
       gasneti_sync_writes(); /* ensure all state changes committed before return */
       return retval;
@@ -1437,6 +1471,18 @@ static int gasnete_rmdbarrier_try(gasnete_coll_team_t team, int id, int flags) {
 
   if (barrier_data->barrier_slot >= barrier_data->barrier_goal) return gasnete_rmdbarrier_wait(team, id, flags);
   else return GASNET_ERR_NOT_READY;
+}
+
+static int gasnete_rmdbarrier_result(gasnete_coll_team_t team, int *id) {
+  gasneti_sync_reads();
+  if_pf (team->barrier_splitstate != OUTSIDE_BARRIER) {
+    gasneti_fatalerror("gasnet_barrier_result() called between notify and wait/try");
+  }
+
+  { const gasnete_coll_rmdbarrier_t * const barrier_data = team->barrier_data;
+    *id = barrier_data->barrier_value;
+    return (GASNET_BARRIERFLAG_ANONYMOUS & barrier_data->barrier_flags);
+  }
 }
 
 void gasnete_rmdbarrier_kick_team_all(void) {
@@ -1539,6 +1585,7 @@ static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
   team->barrier_notify = steps ? &gasnete_rmdbarrier_notify : &gasnete_rmdbarrier_notify_singleton;
   team->barrier_wait =   &gasnete_rmdbarrier_wait;
   team->barrier_try =    &gasnete_rmdbarrier_try;
+  team->barrier_result = &gasnete_rmdbarrier_result;
   team->barrier_pf =     (team == GASNET_TEAM_ALL) ? &gasnete_rmdbarrier_kick_team_all : NULL;
 }
 
@@ -1733,6 +1780,8 @@ static int gasnete_amcbarrier_wait(gasnete_coll_team_t team, int id, int flags) 
     retval = gasnete_pshmbarrier_wait_inner(pshm_bdata, id, flags, passive_shift);
     if (passive_shift) {
       /* Once the active peer signals done, we can return */
+      barrier_data->amcbarrier_response_value[phase] = pshm_bdata->shared->value;
+      barrier_data->amcbarrier_response_flags[phase] = pshm_bdata->shared->flags;
       team->barrier_splitstate = OUTSIDE_BARRIER;
       gasneti_sync_writes(); /* ensure all state changes committed before return */
       return retval;
@@ -1801,6 +1850,19 @@ static int gasnete_amcbarrier_try(gasnete_coll_team_t team, int id, int flags) {
   else return GASNET_ERR_NOT_READY;
 }
 
+static int gasnete_amcbarrier_result(gasnete_coll_team_t team, int *id) {
+  gasneti_sync_reads();
+  if_pf (team->barrier_splitstate != OUTSIDE_BARRIER) {
+    gasneti_fatalerror("gasnet_barrier_result() called between notify and wait/try");
+  }
+
+  { const gasnete_coll_amcbarrier_t * const barrier_data = team->barrier_data;
+    const int phase = barrier_data->amcbarrier_phase;
+    *id = barrier_data->amcbarrier_response_value[phase];
+    return (GASNET_BARRIERFLAG_ANONYMOUS & barrier_data->amcbarrier_response_flags[phase]);
+  }
+}
+
 void gasnete_amcbarrier_kick_team_all(void) {
   gasnete_amcbarrier_kick(GASNET_TEAM_ALL);
 }
@@ -1851,6 +1913,7 @@ static void gasnete_amcbarrier_init(gasnete_coll_team_t team) {
   team->barrier_notify = &gasnete_amcbarrier_notify;
   team->barrier_wait =   &gasnete_amcbarrier_wait;
   team->barrier_try =    &gasnete_amcbarrier_try;
+  team->barrier_result = &gasnete_amcbarrier_result;
   team->barrier_pf =     (team == GASNET_TEAM_ALL) ? &gasnete_amcbarrier_kick_team_all : NULL;
 }
 
@@ -1919,6 +1982,13 @@ int gasnete_coll_barrier_wait_internal(gasnete_coll_team_t team, int id, int fla
     return (*team->barrier_wait)(team, id, flags);
 }
 
+GASNETI_INLINE(gasnete_coll_barrier_result_internal)
+int gasnete_coll_barrier_result_internal(gasnete_coll_team_t team, int *id GASNETE_THREAD_FARG) {
+  gasneti_assert(team->barrier_result);
+  gasneti_assert(id);
+  return (*team->barrier_result)(team, id);
+}
+
 void gasnete_coll_barrier_notify(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG) {
   gasnete_coll_barrier_notify_internal(team, id, flags GASNETE_THREAD_PASS);
 }
@@ -1929,6 +1999,10 @@ int gasnete_coll_barrier_try(gasnete_coll_team_t team, int id, int flags GASNETE
 
 int gasnete_coll_barrier_wait(gasnete_coll_team_t team, int id, int flags GASNETE_THREAD_FARG) {
   return gasnete_coll_barrier_wait_internal(team, id, flags GASNETE_THREAD_PASS);
+}
+
+int gasnete_coll_barrier_result(gasnete_coll_team_t team, int *id GASNETE_THREAD_FARG) {
+  return gasnete_coll_barrier_result_internal(team, id GASNETE_THREAD_PASS);
 }
 
 #ifndef GASNETE_CONDUIT_PRE_BARRIER
@@ -1991,11 +2065,23 @@ int gasnet_barrier_try(int id, int flags) {
   return retval;
 }
 
-extern void gasnete_coll_barrier_init(gasnete_coll_team_t team,  int barrier_type_in) {
-#ifndef GASNETE_BARRIER_DEFAULT
-  /* conduit plugin for default barrier mechanism */
-#define GASNETE_BARRIER_DEFAULT "DISSEM"
+int gasnet_barrier_result(int *id) {
+  gasneti_assert(GASNET_TEAM_ALL->barrier_result);
+  return gasnete_coll_barrier_result_internal(GASNET_TEAM_ALL, id GASNETE_THREAD_GET);
+}
+
+/* TODO: this should only be kept as a temporary measure */
+static int gasnete_barrier_result_default(gasnete_coll_team_t team, int *id) {
+#if 0
+  const char *barr = gasneti_getenv_withdefault("GASNET_BARRIER",GASNETE_BARRIER_DEFAULT);
+  gasneti_fatalerror("gasnet_barrier_result() unimplemented for GASNET_BARRIER=%s", barr);
+#else
+  /* Pretend all barriers are anonymous if no _result is implemented */
+  return 1;
 #endif
+}
+
+extern void gasnete_coll_barrier_init(gasnete_coll_team_t team,  int barrier_type_in) {
   gasnete_coll_barrier_type_t barrier_type= (gasnete_coll_barrier_type_t) barrier_type_in;
   static int envdefault_set = 0;
   
@@ -2054,6 +2140,7 @@ extern void gasnete_coll_barrier_init(gasnete_coll_team_t team,  int barrier_typ
   team->barrier_notify = NULL;
   team->barrier_wait = NULL;
   team->barrier_try = NULL;
+  team->barrier_result = &gasnete_barrier_result_default;
   GASNETE_BARRIER_INIT(team, barrier_type);
   if (team->barrier_notify) { /* conduit has identified a barrier mechanism */
     /*make sure that wait and try were also defined*/
