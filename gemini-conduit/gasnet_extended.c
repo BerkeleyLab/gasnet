@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_extended.c,v $
- *     $Date: 2013/05/26 21:52:50 $
- * $Revision: 1.65 $
+ *     $Date: 2013/05/31 00:28:40 $
+ * $Revision: 1.65.2.1 $
  * Description: GASNet Extended API over Gemini Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1330,6 +1330,8 @@ static int gasnete_gdbarrier_wait(gasnete_coll_team_t team, int id, int flags) {
     retval = gasnete_pshmbarrier_wait_inner(pshm_bdata, id, flags, passive_shift);
     if (passive_shift) {
       /* Once the active peer signals done, we can return */
+      barrier_data->barrier_value = pshm_bdata->shared->value;
+      barrier_data->barrier_flags = pshm_bdata->shared->flags;
       team->barrier_splitstate = OUTSIDE_BARRIER;
       gasneti_sync_writes(); /* ensure all state changes committed before return */
       return retval;
@@ -1401,6 +1403,18 @@ static int gasnete_gdbarrier_try(gasnete_coll_team_t team, int id, int flags) {
 
   if (barrier_data->barrier_slot >= barrier_data->barrier_goal) return gasnete_gdbarrier_wait(team, id, flags);
   else return GASNET_ERR_NOT_READY;
+}
+
+static int gasnete_gdbarrier_result(gasnete_coll_team_t team, int *id) {
+  gasneti_sync_reads();
+  if_pf (team->barrier_splitstate != OUTSIDE_BARRIER) {
+    gasneti_fatalerror("gasnet_barrier_result() called between notify and wait/try");
+  }
+
+  { const gasnete_coll_gdbarrier_t * const barrier_data = team->barrier_data;
+    *id = barrier_data->barrier_value;
+    return (GASNET_BARRIERFLAG_ANONYMOUS & barrier_data->barrier_flags);
+  }
 }
 
 void gasnete_gdbarrier_kick_team_all(void) {
@@ -1494,6 +1508,7 @@ static void gasnete_gdbarrier_init(gasnete_coll_team_t team) {
   team->barrier_notify = steps ? &gasnete_gdbarrier_notify : &gasnete_gdbarrier_notify_singleton;
   team->barrier_wait =   &gasnete_gdbarrier_wait;
   team->barrier_try =    &gasnete_gdbarrier_try;
+  team->barrier_result = &gasnete_gdbarrier_result;
   team->barrier_pf =     (team == GASNET_TEAM_ALL) ? &gasnete_gdbarrier_kick_team_all : NULL;
 }
 
