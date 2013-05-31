@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/shmem-conduit/gasnet_extended.c,v $
- *     $Date: 2012/09/14 23:19:42 $
- * $Revision: 1.40 $
+ *     $Date: 2013/05/31 01:38:35 $
+ * $Revision: 1.40.14.1 $
  * Description: GASNet Extended API SHMEM Implementation
  * Copyright 2003, Christian Bell <csbell@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -202,10 +202,7 @@ gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
 #endif
 
 #if GASNETE_USE_SHMEM_BARRIER
-static void gasnete_shmembarrier_init(void);
-static void gasnete_shmembarrier_notify(gasnete_coll_team_t team, int id, int flags);
-static int gasnete_shmembarrier_wait(gasnete_coll_team_t team, int id, int flags);
-static int gasnete_shmembarrier_try(gasnete_coll_team_t team, int id, int flags);
+static void gasnete_shmembarrier_init(gasnete_coll_team_t team);
 
 #define GASNETE_BARRIER_READENV() do { \
   if(GASNETE_ISBARRIER("SHMEM")) gasnete_coll_default_barrier_type = GASNETE_COLL_BARRIER_SHMEM; \
@@ -213,11 +210,7 @@ static int gasnete_shmembarrier_try(gasnete_coll_team_t team, int id, int flags)
 
 #define GASNETE_BARRIER_INIT(TEAM, BARRIER_TYPE) do {        \
     if ((BARRIER_TYPE) == GASNETE_COLL_BARRIER_SHMEM && (TEAM)==GASNET_TEAM_ALL) { \
-      (TEAM)->barrier_notify = &gasnete_shmembarrier_notify; \
-      (TEAM)->barrier_wait =   &gasnete_shmembarrier_wait;   \
-      (TEAM)->barrier_try =    &gasnete_shmembarrier_try;    \
-      (TEAM)->barrier_pf =     NULL;                         \
-      gasnete_shmembarrier_init();                           \
+      gasnete_shmembarrier_init(TEAM);                       \
     }                                                        \
   } while (0)
 #endif /* GASNETE_USE_SHMEM_BARRIER */
@@ -289,6 +282,7 @@ typedef struct {
 static uint64_t barrier_value[2] = { BARRIER_INITVAL, BARRIER_INITVAL };
 static int  barrier_mismatch[2] = { 0, 0 };
 static int  barrier_phase = 0;
+static uint64_t barrier_result = BARRIER_INITVAL;
 
 /* On Altix, ensure value, done and notify_ctr live on different cache lines */
 _BARRIER_PAD(n0);
@@ -296,10 +290,6 @@ static uint64_t volatile            barrier_final[2] = { BARRIER_INITVAL, BARRIE
 _BARRIER_PAD(n1);
 static long volatile		    barrier_notify_ctr[2] = { 0, 0 };
 static gasnete_barrier_state_t	    barrier_state[2];
-
-static void gasnete_shmembarrier_init(void) {
-  /* nothing to do.. */
-}
 
 GASNETI_NEVER_INLINE(gasnete_barrier_broadcastmismatch,
 static void gasnete_barrier_broadcastmismatch(void)) {
@@ -439,6 +429,7 @@ static int gasnete_shmembarrier_wait(gasnete_coll_team_t team, int id, int flags
 
     }
 
+    barrier_result = consensus;
     gasneti_sync_writes();
 
     if (barrier_mismatch[barrier_phase]) {
@@ -459,6 +450,24 @@ static int gasnete_shmembarrier_try(gasnete_coll_team_t team, int id, int flags)
 	gasneti_fatalerror("gasnet_barrier_try() called without a matching notify");
     return gasnete_shmembarrier_wait(team, id, flags);
 }
+
+static int gasnete_shmembarrier_result(gasnete_coll_team_t team, int *id) {
+    if_pf(team->barrier_splitstate != OUTSIDE_BARRIER)
+	gasneti_fatalerror("gasnet_barrier_result() called between notify and wait/try");
+
+   *id = GASNETI_LOWORD(barrier_result);
+   return (barrier_result == BARRIER_ANONVAL);
+}
+
+static void gasnete_shmembarrier_init(gasnete_coll_team_t team) {
+  team->barrier_notify = &gasnete_shmembarrier_notify;
+  team->barrier_wait =   &gasnete_shmembarrier_wait;
+  team->barrier_try =    &gasnete_shmembarrier_try;
+  team->barrier_result = &gasnete_shmembarrier_result;
+  team->barrier_pf =     NULL;
+  /* nothing else to do.. */
+}
+
 #endif /* GASNETE_USE_SHMEM_BARRIER */
 
 /* ------------------------------------------------------------------------ */
