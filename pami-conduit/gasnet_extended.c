@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/pami-conduit/gasnet_extended.c,v $
- *     $Date: 2012/09/17 05:46:35 $
- * $Revision: 1.43 $
+ *     $Date: 2013/05/31 02:13:19 $
+ * $Revision: 1.43.14.1 $
  * Description: GASNet Extended API PAMI-conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Copyright 2012, Lawrence Berkeley National Laboratory
@@ -993,6 +993,18 @@ static int gasnete_parbarrier_try(gasnete_coll_team_t team, int id, int flags) {
   return (barr->done == barr->count) ? gasnete_parbarrier_finish(team, id, flags) : GASNET_ERR_NOT_READY;
 }
 
+static int gasnete_parbarrier_result(gasnete_coll_team_t team, int *id) {
+  gasneti_sync_reads();
+  if_pf (team->barrier_splitstate != OUTSIDE_BARRIER) {
+    gasneti_fatalerror("gasnet_barrier_result() called between notify and wait/try");
+  }
+
+  { const gasnete_parbarrier_t * const barr = team->barrier_data;
+    *id = GASNETI_LOWORD(barr->rcvbuf[0]);
+    return !GASNETI_HIWORD(barr->rcvbuf[0]);
+  }
+}
+
 static void gasnete_parbarrier_init(gasnete_coll_team_t team) {
   gasnete_parbarrier_t *barr;
   pami_geometry_t geom = PAMI_GEOMETRY_NULL;
@@ -1040,6 +1052,7 @@ static void gasnete_parbarrier_init(gasnete_coll_team_t team) {
   team->barrier_notify = &gasnete_parbarrier_notify;
   team->barrier_wait =   &gasnete_parbarrier_wait;
   team->barrier_try =    &gasnete_parbarrier_try;
+  team->barrier_result = &gasnete_parbarrier_result;
   team->barrier_pf =     NULL; /* AMPoll is sufficient */
 
   team->barrier_splitstate = OUTSIDE_BARRIER;
@@ -1061,6 +1074,7 @@ typedef struct {
   gasnet_node_t pshm_rep;                /* the "representative" member of my supernode */
   int pshm_shift;                        /* "shift" if this node is not the representative */
 #endif
+  volatile int prev_value, prev_flags;   /* for gasnet_barrier_result() */
   struct gasnete_pdbarrier_state {
     int value, flags;
     uint64_t arrived;   /* Which messages have arrived (bit map) need 33 bits */
@@ -1227,6 +1241,10 @@ int gasnete_pdbarrier_finish(
     retval = GASNET_ERR_BARRIER_MISMATCH;
   }
   
+  /* Preserve state for gasnet_barrier_result(): */
+  barr->prev_value = final_value;
+  barr->prev_flags = final_flags;
+
   /* Reset: */
   state->flags   = GASNET_BARRIERFLAG_ANONYMOUS;
   state->arrived = 0;
@@ -1264,6 +1282,8 @@ static int gasnete_pdbarrier_wait(gasnete_coll_team_t team, int id, int flags) {
     retval = gasnete_pshmbarrier_wait_inner(barr->pshm_data, id, flags, passive_shift);
     if (passive_shift) {
       /* Once the active peer signals done, we can return */
+      barr->prev_value = pshm_bdata->shared->value;
+      barr->prev_flags = pshm_bdata->shared->flags;
       team->barrier_splitstate = OUTSIDE_BARRIER;
       gasneti_sync_writes(); /* ensure all state changes committed before return */
       return retval;
@@ -1306,6 +1326,18 @@ static int gasnete_pdbarrier_try(gasnete_coll_team_t team, int id, int flags) {
     retval = gasnete_pdbarrier_finish(team, barr, state, id, flags);
   }
   return retval;
+}
+
+static int gasnete_pdbarrier_result(gasnete_coll_team_t team, int *id) {
+  gasneti_sync_reads();
+  if_pf (team->barrier_splitstate != OUTSIDE_BARRIER) {
+    gasneti_fatalerror("gasnet_barrier_result() called between notify and wait/try");
+  }
+
+  { const gasnete_pdbarrier_t * const barr = team->barrier_data;
+    *id = barr->prev_value;
+    return (GASNET_BARRIERFLAG_ANONYMOUS & barr->prev_flags);
+  }
 }
 
 static void gasnete_pdbarrier_init(gasnete_coll_team_t team) {
@@ -1401,6 +1433,7 @@ static void gasnete_pdbarrier_init(gasnete_coll_team_t team) {
   team->barrier_notify = &gasnete_pdbarrier_notify;
   team->barrier_wait =   &gasnete_pdbarrier_wait;
   team->barrier_try =    &gasnete_pdbarrier_try;
+  team->barrier_result = &gasnete_pdbarrier_result;
   team->barrier_pf =     NULL; /* AMPoll is sufficient */
 
   team->barrier_splitstate = OUTSIDE_BARRIER;
