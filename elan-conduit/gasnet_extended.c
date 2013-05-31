@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/elan-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2012/09/14 00:29:16 $
- * $Revision: 1.105 $
+ *     $Date: 2013/05/31 03:28:58 $
+ * $Revision: 1.105.14.1 $
  * Description: GASNet Extended API ELAN Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1411,7 +1411,7 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   Barriers:
   =========
 */
-static void gasnete_elanbarrier_init(void);
+static void gasnete_elanbarrier_init(gasnete_coll_team_t team);
 static void gasnete_elanbarrier_notify(gasnete_coll_team_t team, int id, int flags);
 static int gasnete_elanbarrier_wait(gasnete_coll_team_t team, int id, int flags);
 static int gasnete_elanbarrier_try(gasnete_coll_team_t team, int id, int flags);
@@ -1426,17 +1426,9 @@ int gasnete_elanbarrier_fast = 0;
 #define GASNETE_BARRIER_INIT(TEAM, BARRIER_TYPE) do {                         \
     if ((BARRIER_TYPE) == GASNETE_COLL_BARRIER_ELANFAST && (TEAM)==GASNET_TEAM_ALL) {                    \
       gasnete_elanbarrier_fast = 1;                         \
-      (TEAM)->barrier_notify = &gasnete_elanbarrier_notify; \
-      (TEAM)->barrier_wait =   &gasnete_elanbarrier_wait;   \
-      (TEAM)->barrier_try =    &gasnete_elanbarrier_try;    \
-      (TEAM)->barrier_pf =     NULL;                        \
-      gasnete_elanbarrier_init();                           \
+      gasnete_elanbarrier_init(TEAM);                       \
     } else if ((BARRIER_TYPE) == GASNETE_COLL_BARRIER_ELANSLOW && (TEAM)==GASNET_TEAM_ALL) {             \
-      (TEAM)->barrier_notify = &gasnete_elanbarrier_notify; \
-      (TEAM)->barrier_wait =   &gasnete_elanbarrier_wait;   \
-      (TEAM)->barrier_try =    &gasnete_elanbarrier_try;    \
-      (TEAM)->barrier_pf =     NULL;                        \
-      gasnete_elanbarrier_init();                           \
+      gasnete_elanbarrier_init(TEAM);                       \
     } \
  } while (0)
 
@@ -1489,7 +1481,13 @@ int gasnete_barrier_poll(void *handle, unsigned int *ready) {
   return 0; /* return 0 => don't delay the elan blocking */
 }
 
-static void gasnete_elanbarrier_init(void) {
+static void gasnete_elanbarrier_init(gasnete_coll_team_t team) {
+  team->barrier_notify = &gasnete_elanbarrier_notify;
+  team->barrier_wait =   &gasnete_elanbarrier_wait;
+  team->barrier_try =    &gasnete_elanbarrier_try;
+  team->barrier_result = &gasnete_barrier_result_default;
+  team->barrier_pf =     NULL;
+
   #ifdef ELAN_VER_1_2
     barrier_state = elan_gallocMain(BASE()->galloc, GROUP(), 64, 6*sizeof(gasnete_barrier_state_t));
   #else

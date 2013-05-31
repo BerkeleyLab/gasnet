@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2013/05/30 23:39:19 $
- * $Revision: 1.150.2.1 $
+ *     $Date: 2013/05/31 03:29:00 $
+ * $Revision: 1.150.2.2 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -2070,15 +2070,10 @@ int gasnet_barrier_result(int *id) {
   return gasnete_coll_barrier_result_internal(GASNET_TEAM_ALL, id GASNETE_THREAD_GET);
 }
 
-/* TODO: this should only be kept as a temporary measure */
+/* This is for use by conduits that don't have a conforming version */
 static int gasnete_barrier_result_default(gasnete_coll_team_t team, int *id) {
-#if 0
-  const char *barr = gasneti_getenv_withdefault("GASNET_BARRIER",GASNETE_BARRIER_DEFAULT);
-  gasneti_fatalerror("gasnet_barrier_result() unimplemented for GASNET_BARRIER=%s", barr);
-#else
   /* Pretend all barriers are anonymous if no _result is implemented */
   return 1;
-#endif
 }
 
 extern void gasnete_coll_barrier_init(gasnete_coll_team_t team,  int barrier_type_in) {
@@ -2140,7 +2135,7 @@ extern void gasnete_coll_barrier_init(gasnete_coll_team_t team,  int barrier_typ
   team->barrier_notify = NULL;
   team->barrier_wait = NULL;
   team->barrier_try = NULL;
-  team->barrier_result = &gasnete_barrier_result_default;
+  team->barrier_result = NULL;
   GASNETE_BARRIER_INIT(team, barrier_type);
   if (team->barrier_notify) { /* conduit has identified a barrier mechanism */
     /*make sure that wait and try were also defined*/

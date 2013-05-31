@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/lapi-conduit/Attic/gasnet_extended.c,v $
- *     $Date: 2012/09/19 02:37:09 $
- * $Revision: 1.129 $
+ *     $Date: 2013/05/31 03:29:02 $
+ * $Revision: 1.129.14.1 $
  * Description: GASNet Extended API over LAPI Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1728,7 +1728,7 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   Barriers:
   =========
 */
-static void gasnete_lapibarrier_init(int usegfence);
+static void gasnete_lapibarrier_init(gasnete_coll_team_t team, int usegfence);
 static void gasnete_lapibarrier_notify(gasnete_coll_team_t team, int id, int flags);
 static int gasnete_lapibarrier_wait(gasnete_coll_team_t team, int id, int flags);
 static int gasnete_lapibarrier_try(gasnete_coll_team_t team, int id, int flags);
@@ -1743,17 +1743,9 @@ static int gasnete_lapibarrier_try(gasnete_coll_team_t team, int id, int flags);
 
 #define GASNETE_BARRIER_INIT(TEAM, BARRIER_TYPE) do {       \
     if ((BARRIER_TYPE) == GASNETE_COLL_BARRIER_LAPIGFENCE && (TEAM)==GASNET_TEAM_ALL) { \
-      (TEAM)->barrier_notify = &gasnete_lapibarrier_notify; \
-      (TEAM)->barrier_wait =   &gasnete_lapibarrier_wait;   \
-      (TEAM)->barrier_try =    &gasnete_lapibarrier_try;    \
-      (TEAM)->barrier_pf =     NULL;                        \
-      gasnete_lapibarrier_init(1);                          \
+      gasnete_lapibarrier_init((TEAM), 1);                  \
     } else if ((BARRIER_TYPE) == GASNETE_COLL_BARRIER_LAPIAM && (TEAM)==GASNET_TEAM_ALL) { \
-      (TEAM)->barrier_notify = &gasnete_lapibarrier_notify; \
-      (TEAM)->barrier_wait =   &gasnete_lapibarrier_wait;   \
-      (TEAM)->barrier_try =    &gasnete_lapibarrier_try;    \
-      (TEAM)->barrier_pf =     NULL;                        \
-      gasnete_lapibarrier_init(0);                          \
+      gasnete_lapibarrier_init((TEAM), 0);                  \
     }                                                       \
   } while (0)
 
@@ -1799,7 +1791,12 @@ static int volatile barrier_consensus_value_present[2] = { 0, 0 }; /*  consensus
 static int volatile barrier_consensus_mismatch[2] = { 0, 0 }; /*  mismatch bit set if root detected a mismatch */
 static int volatile barrier_count[2] = { 0, 0 }; /*  count of how many remotes have notified (on P0) */
 
-static void gasnete_lapibarrier_init(int usegfence) {
+static void gasnete_lapibarrier_init(gasnete_coll_team_t team, int usegfence) {
+  team->barrier_notify = &gasnete_lapibarrier_notify;
+  team->barrier_wait =   &gasnete_lapibarrier_wait;
+  team->barrier_try =    &gasnete_lapibarrier_try;
+  team->barrier_result = &gasnete_barrier_result_default;
+  team->barrier_pf =     NULL;
   barrier_gfence = usegfence;
 }
 
