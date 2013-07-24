@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/extended-ref/gasnet_extended_refbarrier.c,v $
- *     $Date: 2013/07/11 22:26:01 $
- * $Revision: 1.176 $
+ *     $Date: 2013/07/24 22:50:04 $
+ * $Revision: 1.176.6.1 $
  * Description: Reference implemetation of GASNet Barrier, using Active Messages
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -856,6 +856,7 @@ static void gasnete_amdbarrier_notify(gasnete_coll_team_t team, int id, int flag
   gasneti_sync_reads(); /* ensure we read up-to-date phase, etc */
   GASNETE_SPLITSTATE_NOTIFY_ENTER(team);
 
+
 #if GASNETI_PSHM_BARRIER_HIER
   if (barrier_data->amdbarrier_pshm) {
     PSHM_BDATA_DECL(pshm_bdata, barrier_data->amdbarrier_pshm);
@@ -1366,6 +1367,7 @@ static void gasnete_rmdbarrier_notify(gasnete_coll_team_t team, int id, int flag
 
   GASNETE_SPLITSTATE_NOTIFY_ENTER(team);
 
+
 #if GASNETI_PSHM_BARRIER_HIER
   if (barrier_data->barrier_pshm) {
     PSHM_BDATA_DECL(pshm_bdata, barrier_data->barrier_pshm);
@@ -1789,6 +1791,7 @@ static void gasnete_amcbarrier_notify(gasnete_coll_team_t team, int id, int flag
   gasneti_sync_reads(); /* ensure we read up-to-date phase, etc */
   GASNETE_SPLITSTATE_NOTIFY_ENTER(team);
 
+
   phase = !barrier_data->amcbarrier_phase; /*  enter new phase */
   barrier_data->amcbarrier_phase = phase;
 
@@ -1980,6 +1983,7 @@ static void gasnete_amcbarrier_init(gasnete_coll_team_t team) {
 GASNETI_INLINE(gasnete_barrier_notify_common)
 void gasnete_barrier_notify_common(gasnete_coll_team_t team, int id, int flags) {
   gasneti_assert(team->barrier_notify);
+
   (*team->barrier_notify)(team, id, flags);  
 }
 
