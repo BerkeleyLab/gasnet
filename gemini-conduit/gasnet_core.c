@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/07/10 22:21:58 $
- * $Revision: 1.81 $
+ *     $Date: 2013/08/01 22:09:25 $
+ * $Revision: 1.81.4.1 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -240,7 +240,11 @@ void gasnetc_bootstrapBarrier(void))
 
       /* wait for completion of the proper receive, which might arrive out of order */
       while (!(gasnetc_sys_barrier_rcvd[phase] & mask)) {
+#if GNI_MULTI_DOMAIN
+         gasnetc_poll(0); /*FIXME: AMs go through domain 0*/ 
+#else
          gasnetc_poll(); /* No PSHM progress required here */
+#endif
       }
     }
 
@@ -948,9 +952,16 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   /* After these, puts, and gets should work */
   gasnetc_init_segment(segbase, segsize);
+#if GNI_MULTI_DOMAIN
+  {
+    const int didx = 0;
+    gasnetc_init_post_descriptor_pool(didx);
+	  gasnetc_init_bounce_buffer_pool(didx);
+  }
+#else
   gasnetc_init_bounce_buffer_pool();
   gasnetc_init_post_descriptor_pool();
-
+#endif
   gasnete_init(); /* init the extended API */
 
   gasneti_nodemapFini();
@@ -1042,7 +1053,11 @@ extern void gasnetc_exit(int exitcode) {
     /* clobber the lock, even if held by another thread! */
     #define GASNETC_CLOBBER_LOCK _GASNETC_CLOBBER_LOCK
   #endif
+#if GNI_MULTI_DOMAIN
+  GASNETC_CLOBBER_LOCK(gasnetc_gni_lock());
+#else
   GASNETC_CLOBBER_LOCK(&gasnetc_gni_lock);
+#endif
   /* TODO: AM mailbox locks */
   #undef GASNETC_CLOBBER_LOCK
   #undef _GASNETC_CLOBBER_LOCK
@@ -1145,6 +1160,15 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   return GASNET_OK;
 }
 
+#if GNI_MULTI_DOMAIN
+inline unsigned long long rdtsc(void)
+{
+   unsigned hi, lo; 
+	 __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
+	 return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
+}
+#endif
+
 extern int gasnetc_AMPoll(void) {
   GASNETI_CHECKATTACH();
 
@@ -1155,7 +1179,47 @@ extern int gasnetc_AMPoll(void) {
 
   /* (###) add code here to run your AM progress engine */
   /* LCS */
+#if GNI_MULTI_DOMAIN
+  {
+	/* 
+	 *  FIXME: Can AMPoll requester tell which thread is calling 
+   *  Currently, we use gasnete_mythread(), which cost us at least 180 
+	 *  cycles on hopper. 
+	 */
+/*	  unsigned long long start, end;
+	  static int poll = 0;
+		start = rdtsc(); 	*/
+		int tidx, didx;
+#if 0
+		static int poll = 0;
+		int global_poll = (((poll++) & 0x7f) == 0);
+		if(global_poll)
+			didx = -1;
+		else {
+     gasnete_threaddata_t * threaddata = gasnete_mythread();
+		 if(threaddata != NULL) {
+    	tidx = gasnete_mythread()->threadidx;
+/*		end = rdtsc();*/
+			didx = gasnetc_get_domain_idx(tidx);
+     } 
+		 else didx = -1;
+		 }
+    gasnetc_poll(didx); 
+/*		if((poll++)%1000 == 500)
+		  printf("overhead of mythread data access is %lld cycles\n", end-start);
+			It is about 170-180 cycles 
+			*/
+
+#endif
+    gasnete_threaddata_t * threaddata = gasnete_mythread();
+    tidx = gasnete_mythread()->threadidx;
+		didx = gasnetc_get_domain_idx(tidx);
+		gasnetc_poll(didx); 
+
+	}
+#else
   gasnetc_poll();
+#endif
   return GASNET_OK;
 }
 
@@ -1201,7 +1265,12 @@ int gasnetc_short_common(gasnet_node_t dest, int is_req,
 #endif
   {
     const size_t head_len = GASNETC_HEADLEN(short, numargs);
+#if GNI_MULTI_DOMAIN
+		const int didx = 0;
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
+#else
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
+#endif
     gasnetc_packet_t *m;
 
     if (is_req) gasnetc_get_am_credit(dest);
@@ -1249,7 +1318,12 @@ int gasnetc_medium_common(gasnet_node_t dest, int is_req,
     const size_t head_len = GASNETC_HEADLEN(medium, numargs);
     const size_t total_len = head_len + nbytes;
     const uint32_t flags = (total_len > GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) ? GC_POST_SMSG_BUF : 0;
+#if GNI_MULTI_DOMAIN
+		const int didx = 0;
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
+#else
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
+#endif
     gasnetc_packet_t *m;
 
     if (is_req) gasnetc_get_am_credit(dest);
@@ -1300,7 +1374,12 @@ int gasnetc_long_common(gasnet_node_t dest, int is_req,
     const size_t head_len = GASNETC_HEADLEN(long, numargs);
     const size_t total_len = head_len + (is_packed ? nbytes : 0);
     const uint32_t flags = (total_len > GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) ? GC_POST_SMSG_BUF : 0;
+#if GNI_MULTI_DOMAIN
+		const int didx = 0;
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
+#else
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
+#endif
     gasnetc_packet_t *m;
 
     if (!is_packed) {
@@ -1308,8 +1387,11 @@ int gasnetc_long_common(gasnet_node_t dest, int is_req,
       gpd->gpd_completion = (uintptr_t) &done;
       gpd->flags = GC_POST_COMPLETION_FLAG;
       gasnetc_rdma_put_bulk(dest, dest_addr, source_addr, nbytes, gpd);
-
+#if GNI_MULTI_DOMAIN
+      gpd = gasnetc_alloc_post_descriptor(didx);
+#else
       gpd = gasnetc_alloc_post_descriptor();
+#endif
     }
 
     /* Overlap header setup and credit stall w/ the RDMA */
@@ -1331,11 +1413,20 @@ int gasnetc_long_common(gasnet_node_t dest, int is_req,
       memcpy((void*)((uintptr_t)m + head_len), source_addr, nbytes);
     } else {
       /* Poll for the RDMA completion */
+#if GNI_MULTI_DOMAIN
+  		gasnetc_poll_local_queue(didx);
+      while(! done) {
+        GASNETI_WAITHOOK();
+        gasnetc_poll_local_queue(didx);
+      }
+
+#else
       gasnetc_poll_local_queue();
       while(! done) {
         GASNETI_WAITHOOK();
         gasnetc_poll_local_queue();
       }
+#endif
     }
 
     retval = gasnetc_send_smsg(dest, gpd, m, total_len);
@@ -1450,7 +1541,11 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     const size_t head_len = GASNETC_HEADLEN(long, numargs);
     const size_t total_len = head_len + (is_packed ? nbytes : 0);
     const uint32_t flags = (total_len > GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) ? GC_POST_SMSG_BUF : 0;
+#if GNI_MULTI_DOMAIN
+		gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0);
+#else
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
+#endif
     gasnetc_packet_t *m;
 
     gasnetc_get_am_credit(dest);
@@ -1723,5 +1818,21 @@ static gasnet_handlerentry_t const gasnetc_handlers[] = {
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void) {
   return gasnetc_handlers;
 }
+
+#if defined(GASNETC_PTHREAD_CREATE_OVERRIDE)
+typedef int (gasnetc_pthread_create_fn_t)(pthread_t *, const pthread_attr_t *, void *(*)(void *), void *);
+/* One's already created, count extras.*/
+static int gasnetc_thread_count = 1;
+
+extern int gasnetc_pthread_create(gasnetc_pthread_create_fn_t *create_fn, pthread_t *thread, const pthread_attr_t *attr, void * (*fn)(void *), void * arg) {
+#if GNI_MULTI_DOMAIN
+     gasnetc_create_parallel_domain(gasnetc_thread_count++);
+#endif
+     return (*create_fn)(thread, attr, fn, arg);
+}
+#endif /* defined(GASNETC_PTHREAD_CREATE_OVERRIDE) */
+
+
+
 
 /* ------------------------------------------------------------------------------------ */
