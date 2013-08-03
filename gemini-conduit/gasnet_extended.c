@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_extended.c,v $
- *     $Date: 2013/08/01 22:09:25 $
- * $Revision: 1.89.4.1 $
+ *     $Date: 2013/08/03 20:19:17 $
+ * $Revision: 1.89.4.2 $
  * Description: GASNet Extended API over Gemini Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1304,8 +1304,9 @@ void gasnete_gdbarrier_send(gasnete_coll_gdbarrier_t *barrier_data,
     const gasnet_node_t node = barrier_data->barrier_peers[step].node;
     uint64_t * const dst = GASNETE_GDBARRIER_INBOX_REMOTE(barrier_data, step, slot);
 #if GNI_MULTI_DOMAIN
-   /*FIXME: how to get the thread id?*/ 
-    const int didx = 0;
+    gasnete_threaddata_t * threaddata = gasnete_mythread();
+    int tidx = gasnete_mythread()->threadidx;
+    const int didx = gasnetc_get_domain_idx(tidx);
     gasnetc_post_descriptor_t * const gpd = gasnetc_alloc_post_descriptor(didx);
 #else
     gasnetc_post_descriptor_t * const gpd = gasnetc_alloc_post_descriptor();

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/08/01 22:09:25 $
- * $Revision: 1.81.4.1 $
+ *     $Date: 2013/08/03 20:19:17 $
+ * $Revision: 1.81.4.2 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -241,7 +241,7 @@ void gasnetc_bootstrapBarrier(void))
       /* wait for completion of the proper receive, which might arrive out of order */
       while (!(gasnetc_sys_barrier_rcvd[phase] & mask)) {
 #if GNI_MULTI_DOMAIN
-         gasnetc_poll(0); /*FIXME: AMs go through domain 0*/ 
+         gasnetc_poll(GNI_DEFAULT_DOMAIN); 
 #else
          gasnetc_poll(); /* No PSHM progress required here */
 #endif
@@ -954,7 +954,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasnetc_init_segment(segbase, segsize);
 #if GNI_MULTI_DOMAIN
   {
-    const int didx = 0;
+    const int didx = GNI_DEFAULT_DOMAIN;
     gasnetc_init_post_descriptor_pool(didx);
 	  gasnetc_init_bounce_buffer_pool(didx);
   }
@@ -1160,15 +1160,6 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   return GASNET_OK;
 }
 
-#if GNI_MULTI_DOMAIN
-inline unsigned long long rdtsc(void)
-{
-   unsigned hi, lo; 
-	 __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
-	 return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
-}
-#endif
-
 extern int gasnetc_AMPoll(void) {
   GASNETI_CHECKATTACH();
 
@@ -1186,36 +1177,11 @@ extern int gasnetc_AMPoll(void) {
    *  Currently, we use gasnete_mythread(), which cost us at least 180 
 	 *  cycles on hopper. 
 	 */
-/*	  unsigned long long start, end;
-	  static int poll = 0;
-		start = rdtsc(); 	*/
-		int tidx, didx;
-#if 0
-		static int poll = 0;
-		int global_poll = (((poll++) & 0x7f) == 0);
-		if(global_poll)
-			didx = -1;
-		else {
-     gasnete_threaddata_t * threaddata = gasnete_mythread();
-		 if(threaddata != NULL) {
-    	tidx = gasnete_mythread()->threadidx;
-/*		end = rdtsc();*/
-			didx = gasnetc_get_domain_idx(tidx);
-     } 
-		 else didx = -1;
-		 }
-    gasnetc_poll(didx); 
-/*		if((poll++)%1000 == 500)
-		  printf("overhead of mythread data access is %lld cycles\n", end-start);
-			It is about 170-180 cycles 
-			*/
-
-#endif
+	 int didx, tidx;
     gasnete_threaddata_t * threaddata = gasnete_mythread();
     tidx = gasnete_mythread()->threadidx;
 		didx = gasnetc_get_domain_idx(tidx);
-		gasnetc_poll(didx); 
-
+		gasnetc_poll(didx);
 	}
 #else
   gasnetc_poll();
@@ -1234,6 +1200,10 @@ extern int gasnetc_AMPoll(void) {
   #define alloc_am_buffer alloca
 #else
   /* Need a buffer to outlive the caller */
+#if GNI_MULTI_DOMAIN
+  #define alloc_am_buffer gasnetc_alloc_am_buffer
+#else
+
   extern gasneti_lifo_head_t gasnetc_smsg_buffers;
   GASNETI_INLINE(gasnetc_smsg_buffer) GASNETI_MALLOC
   gasnetc_packet_t * gasnetc_smsg_buffer(size_t buffer_len /*ignored*/) {
@@ -1241,6 +1211,8 @@ extern int gasnetc_AMPoll(void) {
     return result ? result : gasneti_malloc(GASNETC_MSG_MAXSIZE); 
   }
   #define alloc_am_buffer gasnetc_smsg_buffer
+#endif
+
 #endif
 
 GASNETI_INLINE(gasnetc_short_common)
@@ -1266,7 +1238,7 @@ int gasnetc_short_common(gasnet_node_t dest, int is_req,
   {
     const size_t head_len = GASNETC_HEADLEN(short, numargs);
 #if GNI_MULTI_DOMAIN
-		const int didx = 0;
+		const int didx = GNI_DEFAULT_DOMAIN;
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
 #else
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
@@ -1319,7 +1291,7 @@ int gasnetc_medium_common(gasnet_node_t dest, int is_req,
     const size_t total_len = head_len + nbytes;
     const uint32_t flags = (total_len > GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) ? GC_POST_SMSG_BUF : 0;
 #if GNI_MULTI_DOMAIN
-		const int didx = 0;
+		const int didx = GNI_DEFAULT_DOMAIN;
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
 #else
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
@@ -1375,7 +1347,7 @@ int gasnetc_long_common(gasnet_node_t dest, int is_req,
     const size_t total_len = head_len + (is_packed ? nbytes : 0);
     const uint32_t flags = (total_len > GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) ? GC_POST_SMSG_BUF : 0;
 #if GNI_MULTI_DOMAIN
-		const int didx = 0;
+		const int didx = GNI_DEFAULT_DOMAIN;
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
 #else
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
@@ -1825,7 +1797,7 @@ typedef int (gasnetc_pthread_create_fn_t)(pthread_t *, const pthread_attr_t *, v
 static int gasnetc_thread_count = 1;
 
 extern int gasnetc_pthread_create(gasnetc_pthread_create_fn_t *create_fn, pthread_t *thread, const pthread_attr_t *attr, void * (*fn)(void *), void * arg) {
-#if GNI_MULTI_DOMAIN
+#if GNI_MULTI_DOMAIN 
      gasnetc_create_parallel_domain(gasnetc_thread_count++);
 #endif
      return (*create_fn)(thread, attr, fn, arg);

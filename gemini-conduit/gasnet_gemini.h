@@ -19,9 +19,24 @@
 #define GASNETC_DEFAULT_MEM_CONSISTENCY 3 /* use neither */
 #define GASNETC_DEFAULT_RDMA_MEM_CONSISTENCY  GASNETC_RELAXED_MEM_CONSISTENCY
 
-#if  defined(GASNET_PAR)
+#if defined(GASNET_PAR)
 /* Multi domain support makes sense only for PAR mode. */
 #define GNI_MULTI_DOMAIN 1
+#define GNI_DYNAMIC_DOMAIN_ALLOC 1
+#define GNI_STATIC_DOMAIN_ALLOC 2
+
+#define GNI_DOMAIN_ALLOC_POLICY GNI_STATIC_DOMAIN_ALLOC
+#define GNI_DOMAIN_THREAD_DISTRIBUTION_BULK 1
+#define GNI_DOMAIN_THREAD_DISTRIBUTION_ROUND_ROBIN 2
+
+#if (GNI_DOMAIN_ALLOC_POLICY == GNI_DYNAMIC_DOMAIN_ALLOC) 
+#define GNI_DOMAIN_THREAD_DISTRIBUTION GNI_DOMAIN_THREAD_DISTRIBUTION_ROUND_ROBIN
+#else
+#define GNI_DOMAIN_THREAD_DISTRIBUTION GNI_DOMAIN_THREAD_DISTRIBUTION_BULK
+#endif
+#define GNI_DEFAULT_DOMAIN 0
+#define GNI_ALL_DOMAINS (-1)
+
 #else
 #undef GNI_MULTI_DOMAIN 
 #endif
@@ -29,6 +44,7 @@
 
 #if GNI_MULTI_DOMAIN
 #define GASNETC_GNI_DOMAIN_COUNT_DEFAULT 1
+#define GASNETC_GNI_PTHREADS_PER_DOMAIN_DEFAULT 1
 #endif
 /* debug support */
 #define gasnetc_GNIT_Abort(msg, args...) do {			  \
@@ -284,6 +300,8 @@ void gasnetc_poll(int didx);
     gasneti_local_rmb();                \
   } while (0)
 #define gasnete_polluntil(cnd, didx) gasnete_pollwhile((!(cnd)), didx) 
+gasnetc_packet_t * gasnetc_alloc_am_buffer(size_t buffer_len);
+
 #else
 void gasnetc_poll_local_queue(void);
 void gasnetc_poll(void);
