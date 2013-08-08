@@ -899,12 +899,12 @@ void gasnetc_shutdown(void)
     peer_struct_t * peer_data = gasnetc_cdom_data[didx].peer_data; 
     if(!gasnetc_cdom_data[didx].initialized)
       continue;
-
+		 gasnetc_cdom_data[didx].initialized = 0;
      left = gasneti_nodes - (GASNET_PSHM ? gasneti_nodemap_local_count : 1);
      for (tries=0; tries<10; ++tries) {
        for (i = 0; i < gasneti_nodes; i += 1) {
-          if (node_is_local(i)) continue; /* no connection to self or PSHM-reachable peers */
-          if (peer_data[i].ep_handle != NULL) {
+          if_pf (node_is_local(i)) continue; /* no connection to self or PSHM-reachable peers */
+          if_pt (peer_data[i].ep_handle != NULL) {
             status = GNI_EpUnbind( gasnetc_cdom_data[didx].peer_data[i].ep_handle);
             status = GNI_EpDestroy( gasnetc_cdom_data[didx].peer_data[i].ep_handle);
             if (status == GNI_RC_SUCCESS) {
@@ -915,10 +915,10 @@ void gasnetc_shutdown(void)
     }
     if (!left) break;
   }
-  if (left > 0) {
+  if_pf (left > 0) {
     gasnetc_GNIT_Log("at shutdown: %d endpoints left after 10 tries", left);
   }
-  if (gasneti_attach_done) {
+  if_pt (gasneti_attach_done) {
     status = GNI_MemDeregister(gasnetc_cdom_data[didx].nic_handle, &gasnetc_cdom_data[didx].my_mem_handle);
     if_pf (status != GNI_RC_SUCCESS) {
       gasnetc_GNIT_Abort("MemDeregister(segment) failed with %s", gni_return_string(status));
@@ -1444,16 +1444,22 @@ void gasnetc_poll_local_queue(void))
   
 void gasnetc_poll(int didx)
 {
-  int poll_idx = gasnetc_cdom_data[didx].poll_idx++;
- /* Every now and then poll the smsg queeue */
-  if((didx <= 0) || (poll_idx & 0x1ff == 7)) 
+	if_pf(didx == GNI_ALL_DOMAINS) {
 	  gasnetc_poll_smsg_queue();
-	if(didx >= 0) {
-	   gasnetc_poll_local_queue(didx);
-		 return;
-	}
-  for(didx = 0; didx<gasnetc_domain_count; didx++) 
-    gasnetc_poll_local_queue(didx);
+	  for(didx = 0; didx<gasnetc_domain_count; didx++) 
+      gasnetc_poll_local_queue(didx);
+	} else {
+	if(didx ==  GNI_DEFAULT_DOMAIN)
+  		gasnetc_poll_smsg_queue();
+	else {
+    int poll_idx;
+		poll_idx = gasnetc_cdom_data[didx].poll_idx++;
+ 		/* Every now and then poll the smsg queeue */
+  	if_pf((poll_idx & 0x1ff) == 7)
+      gasnetc_poll_smsg_queue();
+	 }
+	  gasnetc_poll_local_queue(didx);
+  }
 }
 #else
 
@@ -2122,7 +2128,7 @@ void gasnetc_init_post_descriptor_pool(void)
 #if GNI_MULTI_DOMAIN
   const int count = gasnetc_pd_buffers.size / sizeof(gasnetc_post_descriptor_t) / gasnetc_domain_count;
   /* Only first domain has these temporary descriptors */
-  if(didx == GNI_DEFAULT_DOMAIN)
+  if_pf(didx == GNI_DEFAULT_DOMAIN)
     for (i=0; i < gasnetc_log2_remote; ++i) {
       gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
       gasneti_free(gpd);
@@ -2292,7 +2298,7 @@ extern int gasnetc_sys_exit(int *exitcode_p)
     /* wait for leader to publish final result */
     while (! lead->present) {
 #if GNI_MULTI_DOMAIN
-      gasnetc_poll(GNI_ALL_DOMAINS);
+      gasnetc_poll(GNI_DEFAULT_DOMAIN);
 #else
       gasnetc_poll();
 #endif
@@ -2314,7 +2320,7 @@ extern int gasnetc_sys_exit(int *exitcode_p)
 
       while (! peer->present) {
 #if GNI_MULTI_DOMAIN
-        gasnetc_poll(GNI_ALL_DOMAINS);
+        gasnetc_poll(GNI_DEFAULT_DOMAIN);
 #else
         gasnetc_poll();
 #endif
@@ -2346,7 +2352,7 @@ extern int gasnetc_sys_exit(int *exitcode_p)
     goal |= distance;
     while ((gasneti_weakatomic_read(&sys_exit_rcvd, 0) & goal) != goal) {
 #if GNI_MULTI_DOMAIN
-      gasnetc_poll(GNI_ALL_DOMAINS);
+      gasnetc_poll(GNI_DEFAULT_DOMAIN);
 #else 
       gasnetc_poll();
 #endif

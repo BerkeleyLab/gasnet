@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_extended.c,v $
- *     $Date: 2013/08/03 20:19:17 $
- * $Revision: 1.89.4.2 $
+ *     $Date: 2013/08/08 01:38:36 $
+ * $Revision: 1.89.4.3 $
  * Description: GASNet Extended API over Gemini Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -1150,14 +1150,7 @@ extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t
     gasneti_assert(thread == gasnete_mythread());
     handle->next = thread->valget_free; /* free before the wait to save time after the wait, */
     thread->valget_free = handle;       /*  safe because this thread is under our control */
-#if GNI_MULTI_DOMAIN
-    {
-		  int didx = gasnetc_get_domain_idx(handle->threadidx);
-      gasnete_polluntil(handle->done, didx);
-		}
-#else
     gasneti_polluntil(handle->done);
-#endif
     val = handle->val;
     return val;
   }

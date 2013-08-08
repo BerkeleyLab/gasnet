@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/08/03 20:19:17 $
- * $Revision: 1.81.4.2 $
+ *     $Date: 2013/08/08 01:38:36 $
+ * $Revision: 1.81.4.3 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1073,6 +1073,7 @@ extern void gasnetc_exit(int exitcode) {
     gasnetc_shutdown_seconds *= 2; /* allow twice as long as for the collective case */
 
     alarm(2 + gasnetc_shutdown_seconds);
+
     /* "best-effort" to induce a SIGQUIT on any nodes that aren't yet exiting.
        We send to log(N) peers and expect everyone will "eventually" hear.
        Those who are already exiting will ignore us, but will also be sending.
@@ -1084,6 +1085,7 @@ extern void gasnetc_exit(int exitcode) {
                                 : gasneti_mynode + distance;
       gasnetc_AMRequestShortM(peer, gasneti_handleridx(gasnetc_exit_reqh), 1, exitcode);
     }
+
     if (pre_attach) gasneti_attach_done = 0;
 
     /* Now we try again, noting that any partial results from 1st attempt are harmless */
@@ -1101,12 +1103,10 @@ extern void gasnetc_exit(int exitcode) {
     }
   }
   alarm(0);
-
   gasneti_flush_streams();
   gasneti_trace_finish();
   gasneti_sched_yield();
   gasnetc_shutdown();
-
   gasnetc_bootstrapFini();  /* normal exit via PMI */
   gasneti_killmyprocess(exitcode); /* last chance */
   gasnetc_GNIT_Abort("gasnetc_exit failed!");
@@ -1177,7 +1177,7 @@ extern int gasnetc_AMPoll(void) {
    *  Currently, we use gasnete_mythread(), which cost us at least 180 
 	 *  cycles on hopper. 
 	 */
-	 int didx, tidx;
+	  int didx, tidx;
     gasnete_threaddata_t * threaddata = gasnete_mythread();
     tidx = gasnete_mythread()->threadidx;
 		didx = gasnetc_get_domain_idx(tidx);

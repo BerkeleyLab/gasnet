@@ -300,6 +300,7 @@ void gasnetc_poll(int didx);
     gasneti_local_rmb();                \
   } while (0)
 #define gasnete_polluntil(cnd, didx) gasnete_pollwhile((!(cnd)), didx) 
+
 gasnetc_packet_t * gasnetc_alloc_am_buffer(size_t buffer_len);
 
 #else
