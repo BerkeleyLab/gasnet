@@ -82,9 +82,45 @@ static unsigned int am_maxcredit;
 // xxx - eah -fix
 #define slot_empty (0xfffful)
 
-void gasnetc_link_reply_buffer(gasnetc_mailbox_t *m, peer_struct_t * peer);
-void gasnetc_unlink_reply_buffer(gasnetc_mailbox_t *m, peer_struct_t * peer);
-                                 
+GASNETI_INLINE(gasnetc_unlink_reply_buffer)
+void gasnetc_unlink_reply_buffer(gasnetc_am_slot_t s,
+                                 peer_struct_t * peer)
+{
+  gasnetc_am_linkage_t *a = local_next_from_slot(s);  
+ 
+  GASNETC_LOCK_GNI();
+  if (a->last == slot_empty) {
+    peer->am_head = a->next;
+  } else {
+    local_next_from_slot(a->last)->next = a->next;
+  }
+  
+  if (a->next == slot_empty)  {
+    peer->am_tail = a->last;
+  } else {
+    local_next_from_slot(a->next)->last = a->last;
+  }
+  GASNETC_UNLOCK_GNI();
+}
+
+
+GASNETI_INLINE(gasnetc_link_reply_buffer)
+void gasnetc_link_reply_buffer(gasnetc_am_slot_t s,
+                               peer_struct_t * peer)
+{
+  gasnetc_am_linkage_t *a = local_next_from_slot(s);  
+
+  a->last = a->next = slot_empty;
+  if (peer->am_head == slot_empty) {
+    peer->am_head  = s;
+  } else { 
+    gasnetc_am_linkage_t *last = local_next_from_slot(peer->am_tail);
+    last->next = s;
+    a->last = peer->am_tail;
+  }
+  peer->am_tail = s;
+}
+
 
 /*------ Group the most commonly accessed variables together ------*/
 /* TODO: could move gasneti_{mynode,nodes} here, but it is non-trivial */
@@ -843,8 +879,7 @@ void gasnetc_poll_smsg_queue(void)
             gasnetc_am_slot_t slot = arg >> 2;
             if (credit)
                 recv_credits(&peer_data[source], credit);
-            gasnetc_unlink_reply_buffer(mailbox_from_slot(my_registered_AM_base, slot),
-                                        &peer_data[source]);
+            gasnetc_unlink_reply_buffer(slot, &peer_data[source]);
 
             gasnetc_free_registered_AM_header(&peer_data[source],
                                               mailbox_from_slot(my_registered_AM_base, slot));
@@ -887,7 +922,7 @@ void gasnetc_poll_smsg_queue(void)
       if ((peer->am_head != slot_empty) &&
           (m = mailbox_from_slot(my_registered_AM_base, peer->am_head)) &&
           ((*(uint32_t *)m) != 0) &&
-          (gasnetc_unlink_reply_buffer(m, peer), 1) && 
+          (gasnetc_unlink_reply_buffer(peer->am_head, peer), 1) && 
           check_buffer(source, m, &lock)) {
           gasnetc_free_registered_AM_header(peer, m);
           free_space++; 
@@ -913,6 +948,7 @@ gasnetc_send_smsg(gasnet_node_t dest, gasnetc_post_descriptor_t *gpd,
   const int max_trials = 4;
   gni_return_t status;
   uint64_t *buffer= (uint64_t *)msg;
+  gasnetc_am_slot_t my_slot = msg->header.reply_slot;
 
   gasneti_assert(length >= 8);
   gasneti_assert(length <= GASNETC_MSG_MAXSIZE);
@@ -955,7 +991,7 @@ gasnetc_send_smsg(gasnet_node_t dest, gasnetc_post_descriptor_t *gpd,
 
     if_pt (status == GNI_RC_SUCCESS) {
       if (slot == AM_SLOT_REQUEST) 
-        gasnetc_link_reply_buffer((gasnetc_mailbox_t *)msg, peer);
+        gasnetc_link_reply_buffer(my_slot, peer);
 
       GASNETC_UNLOCK_GNI();
       if_pf (trial) GASNETC_STAT_EVENT_VAL(SMSG_SEND_RETRY, trial);
@@ -1867,47 +1903,6 @@ gasnetc_packet_t *gasnetc_allocate_registered_AM_header(gasnet_node_t dest)
   m->header.reply_slot = s;
   return(m);
 }
-
-GASNETI_INLINE(gasnetc_link_reply_buffer)
-void gasnetc_link_reply_buffer(gasnetc_mailbox_t *m, 
-                               peer_struct_t * peer)
-{
-  gasnetc_am_slot_t s = local_slot_from_mailbox(m);
-  gasnetc_am_linkage_t *a = local_next_from_slot(s);  
-
-  a->last = a->next = slot_empty;
-  if (peer->am_head == slot_empty) {
-    peer->am_head  = s;
-  } else { 
-    gasnetc_am_linkage_t *last = local_next_from_slot(peer->am_tail);
-    last->next = s;
-    a->last = peer->am_tail;
-  }
-  peer->am_tail = s;
-}
-
-GASNETI_INLINE(gasnetc_unlink_reply_buffer)
-void gasnetc_unlink_reply_buffer(gasnetc_mailbox_t *m, 
-                                 peer_struct_t * peer)
-{
-  gasnetc_am_slot_t s = local_slot_from_mailbox(m);
-  gasnetc_am_linkage_t *a = local_next_from_slot(s);  
- 
-  GASNETC_LOCK_GNI();
-  if (a->last == slot_empty) {
-    peer->am_head = a->next;
-  } else {
-    local_next_from_slot(a->last)->next = a->next;
-  }
-  
-  if (a->next == slot_empty)  {
-    peer->am_tail = a->last;
-  } else {
-    local_next_from_slot(a->next)->last = a->last;
-  }
-  GASNETC_UNLOCK_GNI();
-}
-
 
 void gasnetc_init_registered_AM_headers()
 {
