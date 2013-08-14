@@ -27,6 +27,10 @@ typedef union {
   volatile uint32_t full; /* is zero until filled */
   gasnetc_packet_t packet;
   uint8_t raw[GASNETC_MSG_MAXSIZE];
+  struct {
+    void *linkage;
+    gasnetc_am_slot_t reply_slot;
+  } freelist;
 } gasnetc_mailbox_t;
 
 typedef struct peer_struct {
@@ -34,7 +38,7 @@ typedef struct peer_struct {
   gni_mem_handle_t mem_handle;
   gni_mem_handle_t am_prereg_handle; 
 
-  uint64_t am_prereg_base;
+  gasnetc_mailbox_t *am_prereg_base;
   volatile gasnetc_am_slot_t am_head;
   volatile gasnetc_am_slot_t am_tail;
 
@@ -60,7 +64,7 @@ static gni_cdm_handle_t cdm_handle;
 static gni_cq_handle_t destination_cq_handle;
 
 static gasnetc_mailbox_t *my_registered_AM_base;
-static gasnetc_am_linkage_t *recv_mailbox_next;
+static gasnetc_am_linkage_t *recv_mailbox_base;
 static void *smsg_mmap_ptr;
 static size_t smsg_mmap_bytes;
 
@@ -71,11 +75,8 @@ unsigned int gasnetc_log2_remote;
 static unsigned int mb_slots;
 static unsigned int am_maxcredit;
 
-
-#define local_slot_from_mailbox(__x) (((uint64_t)__x - (uint64_t)my_registered_AM_base)/GASNETC_MSG_MAXSIZE)
-
-#define mailbox_from_slot(__base, __x) (((gasnetc_mailbox_t *)__base) + (__x))
-#define local_next_from_slot(__x) (recv_mailbox_next + (__x))
+#define mailbox_from_slot(__base, __x) ((__base) + (__x))
+#define local_next_from_slot(__x) (recv_mailbox_base + (__x))
 // xxx - eah -fix
 #define slot_empty (0xfffful)
 
@@ -153,8 +154,10 @@ static gasneti_lifo_head_t gasnetc_bounce_buffer_pool = GASNETI_LIFO_INITIALIZER
 static gasneti_lifo_head_t gasnetc_registered_AM_header_pool = GASNETI_LIFO_INITIALIZER;
 
 GASNETI_INLINE(gasnetc_free_registered_AM_header)
-void gasnetc_free_registered_AM_header(peer_struct_t *peer, gasnetc_mailbox_t *m)
+void gasnetc_free_registered_AM_header(gasnetc_mailbox_t *m, gasnetc_am_slot_t slot)
 {
+    gasneti_assert(m == mailbox_from_slot(my_registered_AM_base, slot));
+    m->freelist.reply_slot = slot;
     gasneti_lifo_push(&gasnetc_registered_AM_header_pool, m);
 }
 
@@ -590,9 +593,9 @@ uintptr_t gasnetc_init_messaging(void)
 
   /* exchange peer data and initialize smsg */
   { struct smsg_exchange { uint8_t *addr; gni_mem_handle_t handle;
-                           uint8_t *am_addr; gni_mem_handle_t am_handle;};
+                           gasnetc_mailbox_t *am_addr; gni_mem_handle_t am_handle;};
     struct smsg_exchange my_smsg_exchg = { smsg_mmap_ptr, my_smsg_handle,
-                                           (uint8_t *)my_registered_AM_base, my_registered_AM_handle};
+                                           my_registered_AM_base, my_registered_AM_handle};
     struct smsg_exchange *all_smsg_exchg = gasneti_malloc(gasneti_nodes * sizeof(struct smsg_exchange));
     uint8_t *local_buffer = smsg_mmap_ptr;
 
@@ -603,7 +606,7 @@ uintptr_t gasnetc_init_messaging(void)
       if (node_is_local(i)) continue; /* no connection to self or PSHM-reachable peers */
 
       peer_data[i].am_prereg_handle = all_smsg_exchg[i].am_handle;
-      peer_data[i].am_prereg_base = (uint64_t)all_smsg_exchg[i].am_addr;
+      peer_data[i].am_prereg_base = all_smsg_exchg[i].am_addr;
 
       peer_data[i].mb.loc_addr = (gasnetc_mailbox_t*) local_buffer;
       peer_data[i].mb.rem_addr = (gasnetc_mailbox_t*) all_smsg_exchg[i].addr + (mb_slots * my_smsg_index(i));
@@ -871,12 +874,11 @@ void gasnetc_poll_smsg_queue(void)
         switch (op) {
         case GC_CTRL_CREDIT:
           {
-            gasnetc_am_slot_t slot = arg;
-            recv_credit(&peer_data[source]);
-            gasnetc_unlink_reply_buffer(slot, &peer_data[source]);
-
-            gasnetc_free_registered_AM_header(&peer_data[source],
-                                              mailbox_from_slot(my_registered_AM_base, slot));
+            peer_struct_t * const peer = &peer_data[source];
+            const gasnetc_am_slot_t slot = arg;
+            recv_credit(peer);
+            gasnetc_unlink_reply_buffer(slot, peer);
+            gasnetc_free_registered_AM_header(mailbox_from_slot(my_registered_AM_base, slot), slot);
             break;
           }
           
@@ -912,13 +914,14 @@ void gasnetc_poll_smsg_queue(void)
       free_space++; 
     } else {
       gasnetc_mailbox_t *m;
+      const gasnetc_am_slot_t am_head = peer->am_head;
       
-      if ((peer->am_head != slot_empty) &&
-          (m = mailbox_from_slot(my_registered_AM_base, peer->am_head)) &&
+      if ((am_head != slot_empty) &&
+          (m = mailbox_from_slot(my_registered_AM_base, am_head)) &&
           ((*(uint32_t *)m) != 0) &&
-          (gasnetc_unlink_reply_buffer(peer->am_head, peer), 1) && 
+          (gasnetc_unlink_reply_buffer(am_head, peer), 1) && 
           check_buffer(source, m, &lock)) {
-          gasnetc_free_registered_AM_header(peer, m);
+          gasnetc_free_registered_AM_header(m, am_head);
           free_space++; 
       } else {
         queue[tail] = source;
@@ -1546,9 +1549,13 @@ int gasnetc_rdma_get_buff(gasnet_node_t node,
 }
 
 
-void gasnetc_get_am_credit(uint32_t pe)
+gasnetc_packet_t *gasnetc_get_am_request_buffer(uint32_t pe)
 {
-  gasneti_weakatomic_t *p = &peer_data[pe].am_credit;
+  gasneti_weakatomic_t *p;
+  gasnetc_mailbox_t *retval;
+
+  /* First: acquire a credit (per peer) */
+  p = &peer_data[pe].am_credit;
   if_pf (!gasnetc_weakatomic_dec_if_positive(p)) {
     GASNETC_TRACE_WAIT_BEGIN();
     do {
@@ -1557,6 +1564,20 @@ void gasnetc_get_am_credit(uint32_t pe)
     } while (!gasnetc_weakatomic_dec_if_positive(p));
     GASNETC_TRACE_WAIT_END(GET_AM_CREDIT_STALL);
   }
+
+  /* Second: obtain the buffer (global pool) */
+  retval = gasneti_lifo_pop(&gasnetc_registered_AM_header_pool);
+  if_pf (NULL == retval) {
+    GASNETC_TRACE_WAIT_BEGIN();
+    do {
+      GASNETI_WAITHOOK();
+      gasneti_AMPoll();
+    } while (NULL == (retval = gasneti_lifo_pop(&gasnetc_registered_AM_header_pool)));
+    GASNETC_TRACE_WAIT_END(GET_AM_BUFFER_STALL);
+  }
+
+  retval->packet.header.reply_slot = retval->freelist.reply_slot;
+  return &(retval->packet);
 }
 
 /* Needs no lock because it is called only from the init code */
@@ -1863,22 +1884,6 @@ void gasnetc_free_bounce_buffer(void *gcb)
 
 /***** AM Send Buffers *****/
 
-// could combine with get_credit
-gasnetc_packet_t *gasnetc_allocate_registered_AM_header(gasnet_node_t dest) 
-
-{
-  gasnetc_packet_t *m;
-  peer_struct_t *peer = &peer_data[dest];
-  gasnetc_am_slot_t s;
-
-  while ((m  = gasneti_lifo_pop(&gasnetc_registered_AM_header_pool)) == NULL)
-    gasnetc_poll();
-
-  s = local_slot_from_mailbox(m);
-  m->header.reply_slot = s;
-  return(m);
-}
-
 void gasnetc_init_registered_AM_headers()
 {
   int count = gasneti_getenv_int_withdefault("GASNETC_GNI_REGISTERED_AM_HEADER_COUNT",
@@ -1886,8 +1891,7 @@ void gasnetc_init_registered_AM_headers()
   int size = count *  GASNETC_MSG_MAXSIZE;
 
 
-  recv_mailbox_next = (gasnetc_am_linkage_t *)gasneti_malloc(sizeof(struct gasnetc_am_linkage_t) *  count);
-  memset(recv_mailbox_next, 0, sizeof(sizeof(gasnetc_am_linkage_t) * count));
+  recv_mailbox_base = (gasnetc_am_linkage_t *)gasneti_calloc(count, sizeof(struct gasnetc_am_linkage_t));
 
   my_registered_AM_base = gasneti_huge_mmap(NULL, size);
 
@@ -1900,13 +1904,15 @@ void gasnetc_init_registered_AM_headers()
                         &my_registered_AM_handle) == GNI_RC_SUCCESS) {
       int i;
       
-      for(i = 0; i < count; i++)
-        gasneti_lifo_push(&gasnetc_registered_AM_header_pool, my_registered_AM_base + i);
+      for(i = 0; i < count; i++) {
+        gasnetc_mailbox_t *m = my_registered_AM_base + i;
+        m->freelist.reply_slot = i;
+        gasneti_lifo_push(&gasnetc_registered_AM_header_pool, m);
+      }
       
       return;
     } 
   }
-  // xxx - eah - warning style - in the current mode this is an error
 
-  printf ("WARNING: unable to allocate active message prepost region\n");
+  gasneti_fatalerror("unable to allocate registered AM buffers\n");
 }

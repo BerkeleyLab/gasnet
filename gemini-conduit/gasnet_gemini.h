@@ -153,7 +153,7 @@ typedef union gasnetc_eq_packet {
         (GASNETC_MSG_MAXSIZE - GASNETC_HEADLEN(long, (nargs)))
 #endif
 
-void gasnetc_get_am_credit(uint32_t pe);
+gasnetc_packet_t *gasnetc_get_am_request_buffer(uint32_t pe);
 
 void gasnetc_init_post_descriptor_pool(void);
 
@@ -290,8 +290,7 @@ int gasnetc_weakatomic_dec_if_positive(gasneti_weakatomic_t *p)
 #endif
 }
 
-gasnetc_packet_t *gasnetc_allocate_registered_AM_header(gasnet_node_t dest);
-void gasnetc_init_registered_AM_headers();
+void gasnetc_init_registered_AM_headers(void);
 #define AM_SLOT_REQUEST 0xfffe
 
 #define GASNETC_GNI_REGISTERED_AM_HEADER_COUNT_DEFAULT 200

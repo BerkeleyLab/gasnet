@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/08/14 01:21:07 $
- * $Revision: 1.84.2.1 $
+ *     $Date: 2013/08/14 23:10:01 $
+ * $Revision: 1.84.2.2 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1145,14 +1145,13 @@ int gasnetc_short_common(gasnet_node_t dest, int is_req, gasnetc_am_slot_t slot,
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
     gasnetc_packet_t *m;
 
-    if (is_req) gasnetc_get_am_credit(dest);
-    gpd->flags = 0;
-
     if (is_req) {
-        m = gasnetc_allocate_registered_AM_header(dest);
+        m = gasnetc_get_am_request_buffer(dest);
     } else {
         m = &gpd->u.packet;
     }
+    gpd->flags = 0;
+
     m->header.command = GC_CMD_AM_SHORT;
     m->header.is_req  = is_req;
   /*m->header.misc    = 0;  -- field is unused by shorts */
@@ -1201,16 +1200,12 @@ int gasnetc_medium_common(gasnet_node_t dest, int is_req, gasnetc_am_slot_t slot
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
     gasnetc_packet_t *m;
 
-    if (is_req) gasnetc_get_am_credit(dest);
-
-
     if (is_req) {
-        m = gasnetc_allocate_registered_AM_header(dest);
+        m = gasnetc_get_am_request_buffer(dest);
     } else {
         flags = (total_len > GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) ? GC_POST_SMSG_BUF : 0;
         m = flags ? alloc_am_buffer(total_len) : &gpd->u.packet;
     }
-
     gpd->flags = flags;
 
     m->header.command = GC_CMD_AM_MEDIUM;
@@ -1276,10 +1271,9 @@ int gasnetc_long_common(gasnet_node_t dest, int is_req, gasnetc_am_slot_t slot,
     }
 
     /* Overlap header setup and credit stall w/ the RDMA */
-    if (is_req) gasnetc_get_am_credit(dest);
 
     if (is_req) {
-        m = gasnetc_allocate_registered_AM_header(dest);
+        m = gasnetc_get_am_request_buffer(dest);
     } else {
         flags = (total_len > GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) ? GC_POST_SMSG_BUF : 0;
         m = flags ? alloc_am_buffer(total_len) : &gpd->u.packet;
@@ -1424,9 +1418,9 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
     gasnetc_packet_t *m;
 
-    gasnetc_get_am_credit(dest);
+    m = gasnetc_get_am_request_buffer(dest);
+
     gpd->flags = 0;
-    m = gasnetc_allocate_registered_AM_header(dest);
     m->header.command = GC_CMD_AM_LONG;
     m->header.is_req  = 1;
     m->header.misc    = is_packed;
