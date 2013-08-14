@@ -23,8 +23,6 @@ uint8_t  gasnetc_ptag;
 static uint32_t gasnetc_memreg_flags;
 static int gasnetc_mem_consistency;
 
-static int bank_credits;
-
 typedef union {
   volatile uint32_t full; /* is zero until filled */
   gasnetc_packet_t packet;
@@ -41,7 +39,6 @@ typedef struct peer_struct {
   volatile gasnetc_am_slot_t am_tail;
 
   gasneti_weakatomic_t am_credit;
-  gasneti_weakatomic_t am_credit_bank; /* single bit of credit accumulator for return to peer */
   struct {
     gasnetc_mailbox_t *loc_addr;
     gasnetc_mailbox_t *rem_addr;
@@ -504,7 +501,6 @@ uintptr_t gasnetc_init_messaging(void)
                                                GASNETC_NETWORKDEPTH_DEFAULT, 0);
     am_maxcredit = MAX(1,depth); /* Min is 1 */
     mb_slots = 2 * am_maxcredit; /* (req + reply) = 2 */
-    bank_credits = (depth > 1) ? 1 : 0;
   }
 
   { /* Determine Cq size: GASNET_GNI_NUM_PD */
@@ -615,7 +611,6 @@ uintptr_t gasnetc_init_messaging(void)
       peer_data[i].mb.recv_pos = mb_slots;
       peer_data[i].mb.send_pos = mb_slots;
       gasneti_weakatomic_set(&peer_data[i].am_credit, am_maxcredit, 0);
-      gasneti_weakatomic_set(&peer_data[i].am_credit_bank, 0, 0);
       local_buffer += bytes_per_mbox;
     }
 
@@ -709,15 +704,19 @@ void gasnetc_shutdown(void)
 }
 
 
-GASNETI_INLINE(recv_credits)
-void recv_credits(peer_struct_t *peer, int n) {
+GASNETI_INLINE(recv_credit)
+void recv_credit(peer_struct_t *peer) {
+#if GASNET_DEBUG
   GASNETI_UNUSED_UNLESS_DEBUG int newval = 
-    gasneti_weakatomic_add(&peer->am_credit, n, GASNETI_ATOMIC_NONE);
+    gasneti_weakatomic_add(&peer->am_credit, 1, GASNETI_ATOMIC_NONE);
   gasneti_assert(newval <= am_maxcredit);
+#else
+  gasneti_weakatomic_increment(&peer->am_credit, GASNETI_ATOMIC_NONE);
+#endif
 }
 
 static void gasnetc_handle_sys_shutdown_packet(uint32_t source, uint16_t arg);
-static void gasnetc_send_credit(uint32_t pe, gasnetc_am_slot_t s);
+static void gasnetc_send_control(uint32_t dest, uint8_t op, uint16_t arg);
 
 GASNETI_INLINE(gasnetc_recv_am)
 void gasnetc_recv_am(gasnet_node_t pe, gasnetc_mailbox_t * const mb, const GC_Header_t header)
@@ -744,10 +743,9 @@ void gasnetc_recv_am(gasnet_node_t pe, gasnetc_mailbox_t * const mb, const GC_He
        */
 
       gasneti_assert(numargs <= gasnet_AMMaxArgs());
-      GASNETI_TRACE_PRINTF(D, ("smsg r from %d type %s_%s%s\n", pe,
+      GASNETI_TRACE_PRINTF(D, ("smsg r from %d type %s_%s\n", pe,
                                gasnetc_type_string(header.command),
-                               is_req ? "REQUEST" : "REPLY",
-                               header.credit ? " (+credit)" : ""));
+                               is_req ? "REQUEST" : "REPLY"));
 
       switch (header.command) {
       case GC_CMD_AM_SHORT:
@@ -789,11 +787,9 @@ void gasnetc_recv_am(gasnet_node_t pe, gasnetc_mailbox_t * const mb, const GC_He
       }
 
       if (the_token.need_reply) 
-        gasnetc_send_credit(pe, header.reply_slot);
+        gasnetc_send_control(pe, GC_CTRL_CREDIT, header.reply_slot);
 
-      { const int credits = header.credit + !is_req;
-        if (credits) recv_credits(peer, credits);
-      }
+      if (!is_req) recv_credit(peer);
   }
 }
 
@@ -875,10 +871,8 @@ void gasnetc_poll_smsg_queue(void)
         switch (op) {
         case GC_CTRL_CREDIT:
           {
-            uint16_t credit = arg & 3;
-            gasnetc_am_slot_t slot = arg >> 2;
-            if (credit)
-                recv_credits(&peer_data[source], credit);
+            gasnetc_am_slot_t slot = arg;
+            recv_credit(&peer_data[source]);
             gasnetc_unlink_reply_buffer(slot, &peer_data[source]);
 
             gasnetc_free_registered_AM_header(&peer_data[source],
@@ -955,8 +949,6 @@ gasnetc_send_smsg(gasnet_node_t dest, gasnetc_post_descriptor_t *gpd,
 
   gasneti_assert(!node_is_local(dest));
 
-  msg->header.credit = gasnetc_weakatomic_swap(&peer->am_credit_bank, 0);
-
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT | GNI_CQMODE_REMOTE_EVENT;
   pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
   pd->type = GNI_POST_FMA_PUT_W_SYNCFLAG;
@@ -980,7 +972,7 @@ gasnetc_send_smsg(gasnet_node_t dest, gasnetc_post_descriptor_t *gpd,
 
   GASNETI_TRACE_PRINTF(D, ("smsg to %d type %s_%s\n", dest,
                            gasnetc_type_string(msg->header.command),
-                           msg->header.credit ? " (+credit)" : ""));
+                           msg->header.is_req ? "REQUEST" : "REPLY"));
 
 
   pd->sync_flag_addr =target_address;
@@ -1109,6 +1101,7 @@ void gasnetc_poll(void)
 
 /* Send a 3-byte control message */
 /* Current ARBITRARILY managed as 8-bit op and 16-bit arg */
+static
 void gasnetc_send_control(uint32_t dest, uint8_t op, uint16_t arg)
 {
   peer_struct_t * const peer = &peer_data[dest];
@@ -1140,24 +1133,6 @@ void gasnetc_send_control(uint32_t dest, uint8_t op, uint16_t arg)
   if (status == GNI_RC_ERROR_RESOURCE) {
     gasnetc_GNIT_Abort("PostCqWrite retry failed");
   }
-}
-
-GASNETI_INLINE(gasnetc_send_credit)
-void gasnetc_send_credit(uint32_t pe, gasnetc_am_slot_t s)
-{
-  uint32_t credits_to_send = 1;
-
-  /* bank_credits = 0: all calls result in a single credit sent
-   * bank_credits = 1:
-   *    bank = 0: deposit one and send none
-   *    bank = 1: withdraw one and send two
-   */
-  if (bank_credits) {
-    gasneti_weakatomic_val_t oldval = (1 ^ gasneti_weakatomic_add(&peer_data[pe].am_credit_bank, 1, 0));
-    credits_to_send = (oldval & 1) << 1;
-  }
-
-  gasnetc_send_control(pe, GC_CTRL_CREDIT, credits_to_send | (s << 2));
 }
 
 GASNETI_NEVER_INLINE(print_post_desc,

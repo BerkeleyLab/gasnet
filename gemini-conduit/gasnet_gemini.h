@@ -86,8 +86,7 @@ enum {
 typedef struct GC_Header {
   uint32_t command : 2;        /* GC_CMD_AM_* */
   uint32_t is_req  : 1;        /* 1=request, 0=reply */
-  uint32_t credit  : 1;        /* piggybacked credit in addition to one implied by a Reply */
-  uint32_t misc    : 15;       /* msg-dependent field (e.g. nbytes in a Medium) */
+  uint32_t misc    : 16;       /* msg-dependent field (e.g. nbytes in a Medium) */
   uint32_t numargs : 5;        /* number of GASNet arguments */
   uint32_t handler : 8;        /* index of GASNet handler */
   uint32_t reply_slot : 16;    /* location for the AM reply */
@@ -288,27 +287,6 @@ int gasnetc_weakatomic_dec_if_positive(gasneti_weakatomic_t *p)
   if_pf (old == 0) return 0;
   gasneti_weakatomic_set(p, old-1, GASNETI_ATOMIC_NONE);
   return 1;
-#endif
-}
-
-GASNETI_INLINE(gasnetc_weakatomic_swap)
-gasneti_weakatomic_val_t gasnetc_weakatomic_swap(gasneti_weakatomic_t *p, gasneti_weakatomic_val_t newval)
-{
-#if GASNETI_THREADS || defined(GASNETI_FORCE_TRUE_WEAKATOMICS)
-  #if GASNETI_HAVE_ATOMIC_SWAP
-    return gasneti_atomic_swap(p, newval, GASNETI_ATOMIC_NONE);
-  #else
-    gasneti_atomic_val_t oldval;
-    do {
-      oldval = gasneti_atomic_read(p, GASNETI_ATOMIC_NONE);
-    } while ((oldval != newval) &&
-               !gasneti_atomic_compare_and_swap(p, oldval, newval, GASNETI_ATOMIC_NONE));
-    return oldval;
-  #endif
-#else
-  const gasneti_weakatomic_val_t oldval = gasneti_weakatomic_read(p, GASNETI_ATOMIC_NONE);
-  gasneti_weakatomic_set(p, newval, GASNETI_ATOMIC_NONE);
-  return oldval;
 #endif
 }
 
