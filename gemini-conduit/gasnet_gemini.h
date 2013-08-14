@@ -61,9 +61,12 @@ typedef gasneti_mutex_t gasnetc_gni_lock_t;
 #endif
 extern gasnetc_gni_lock_t gasnetc_gni_lock;
 
+typedef uint32_t gasnetc_am_slot_t;
+
 typedef struct {
   gasnet_node_t source;
   int need_reply;
+  gasnetc_am_slot_t response_slot;
 } gasnetc_token_t;
 
 /* Control messages */
@@ -87,6 +90,8 @@ typedef struct GC_Header {
   uint32_t misc    : 15;       /* msg-dependent field (e.g. nbytes in a Medium) */
   uint32_t numargs : 5;        /* number of GASNet arguments */
   uint32_t handler : 8;        /* index of GASNet handler */
+  uint32_t reply_slot : 16;    /* location for the AM reply */
+  uint32_t unused     : 16;    /* unused */
 } GC_Header_t;
 
 
@@ -205,6 +210,7 @@ typedef struct gasnetc_post_descriptor {
     uint8_t immediate[GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE];
     gasnetc_packet_t packet;
   } u;
+  gasnetc_packet_t *deferred;
   uint32_t flags;
   gasnet_node_t dest;
 } gasnetc_post_descriptor_t;
@@ -235,7 +241,8 @@ void gasnetc_poll(void);
 
 int gasnetc_send_smsg(gasnet_node_t dest, 
             gasnetc_post_descriptor_t *gpd,
-            gasnetc_packet_t *msg, size_t length);
+            gasnetc_packet_t *msg, size_t length,
+            gasnetc_am_slot_t slot);
 
 void gasnetc_rdma_put_bulk(gasnet_node_t node,
 		 void *dest_addr, void *source_addr,
@@ -304,6 +311,12 @@ gasneti_weakatomic_val_t gasnetc_weakatomic_swap(gasneti_weakatomic_t *p, gasnet
   return oldval;
 #endif
 }
+
+gasnetc_packet_t *gasnetc_allocate_registered_AM_header(gasnet_node_t dest);
+void gasnetc_init_registered_AM_headers();
+#define AM_SLOT_REQUEST 0xfffe
+
+#define GASNETC_GNI_REGISTERED_AM_HEADER_COUNT_DEFAULT 200
 
 #endif /* GASNET_GEMINI_H */
 

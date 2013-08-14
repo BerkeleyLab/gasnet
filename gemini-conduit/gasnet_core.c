@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/07/31 03:47:09 $
- * $Revision: 1.84 $
+ *     $Date: 2013/08/14 01:21:07 $
+ * $Revision: 1.84.2.1 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1121,7 +1121,7 @@ extern int gasnetc_AMPoll(void) {
 #endif
 
 GASNETI_INLINE(gasnetc_short_common)
-int gasnetc_short_common(gasnet_node_t dest, int is_req,
+int gasnetc_short_common(gasnet_node_t dest, int is_req, gasnetc_am_slot_t slot,
                          gasnet_handler_t handler,
                          int numargs, va_list argptr)
 {
@@ -1147,7 +1147,12 @@ int gasnetc_short_common(gasnet_node_t dest, int is_req,
 
     if (is_req) gasnetc_get_am_credit(dest);
     gpd->flags = 0;
-    m = &gpd->u.packet;
+
+    if (is_req) {
+        m = gasnetc_allocate_registered_AM_header(dest);
+    } else {
+        m = &gpd->u.packet;
+    }
     m->header.command = GC_CMD_AM_SHORT;
     m->header.is_req  = is_req;
   /*m->header.misc    = 0;  -- field is unused by shorts */
@@ -1160,14 +1165,14 @@ int gasnetc_short_common(gasnet_node_t dest, int is_req,
     gasneti_assert(head_len <= GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE);
 
     gasneti_suspend_spinpollers();
-    retval = gasnetc_send_smsg(dest, gpd, m, head_len);
+    retval = gasnetc_send_smsg(dest, gpd, m, head_len, slot);
     gasneti_resume_spinpollers();
   }
   return retval;
 }
 
 GASNETI_INLINE(gasnetc_medium_common)
-int gasnetc_medium_common(gasnet_node_t dest, int is_req,
+int gasnetc_medium_common(gasnet_node_t dest, int is_req, gasnetc_am_slot_t slot,
                           gasnet_handler_t handler,
                           void *source_addr, size_t nbytes,
                           int numargs, va_list argptr)
@@ -1192,13 +1197,22 @@ int gasnetc_medium_common(gasnet_node_t dest, int is_req,
   {
     const size_t head_len = GASNETC_HEADLEN(medium, numargs);
     const size_t total_len = head_len + nbytes;
-    const uint32_t flags = (total_len > GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) ? GC_POST_SMSG_BUF : 0;
+    uint32_t flags = 0;
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
     gasnetc_packet_t *m;
 
     if (is_req) gasnetc_get_am_credit(dest);
+
+
+    if (is_req) {
+        m = gasnetc_allocate_registered_AM_header(dest);
+    } else {
+        flags = (total_len > GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) ? GC_POST_SMSG_BUF : 0;
+        m = flags ? alloc_am_buffer(total_len) : &gpd->u.packet;
+    }
+
     gpd->flags = flags;
-    m = flags ? alloc_am_buffer(total_len) : &gpd->u.packet;
+
     m->header.command = GC_CMD_AM_MEDIUM;
     m->header.is_req  = is_req;
     m->header.misc    = nbytes;
@@ -1211,14 +1225,14 @@ int gasnetc_medium_common(gasnet_node_t dest, int is_req,
     memcpy((void*)((uintptr_t)m + head_len), source_addr, nbytes);
 
     gasneti_suspend_spinpollers();
-    retval = gasnetc_send_smsg(dest, gpd, m, total_len);
+    retval = gasnetc_send_smsg(dest, gpd, m, total_len, slot);
     gasneti_resume_spinpollers();
   }
   return retval;
 }
 
 GASNETI_INLINE(gasnetc_long_common)
-int gasnetc_long_common(gasnet_node_t dest, int is_req,
+int gasnetc_long_common(gasnet_node_t dest, int is_req, gasnetc_am_slot_t slot,
                         gasnet_handler_t handler,
                         void *source_addr, size_t nbytes,
                         void *dest_addr,
@@ -1246,7 +1260,7 @@ int gasnetc_long_common(gasnet_node_t dest, int is_req,
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
     const size_t head_len = GASNETC_HEADLEN(long, numargs);
     const size_t total_len = head_len + (is_packed ? nbytes : 0);
-    const uint32_t flags = (total_len > GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) ? GC_POST_SMSG_BUF : 0;
+    uint32_t flags = 0;
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
     gasnetc_packet_t *m;
 
@@ -1263,8 +1277,15 @@ int gasnetc_long_common(gasnet_node_t dest, int is_req,
 
     /* Overlap header setup and credit stall w/ the RDMA */
     if (is_req) gasnetc_get_am_credit(dest);
+
+    if (is_req) {
+        m = gasnetc_allocate_registered_AM_header(dest);
+    } else {
+        flags = (total_len > GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) ? GC_POST_SMSG_BUF : 0;
+        m = flags ? alloc_am_buffer(total_len) : &gpd->u.packet;
+    }
     gpd->flags = flags;
-    m = flags ? alloc_am_buffer(total_len) : &gpd->u.packet;
+
     m->header.command = GC_CMD_AM_LONG;
     m->header.is_req  = is_req;
     m->header.misc    = is_packed;
@@ -1288,7 +1309,7 @@ int gasnetc_long_common(gasnet_node_t dest, int is_req,
     }
 
     gasneti_suspend_spinpollers();
-    retval = gasnetc_send_smsg(dest, gpd, m, total_len);
+    retval = gasnetc_send_smsg(dest, gpd, m, total_len, slot);
     gasneti_resume_spinpollers();
   }
   return retval;
@@ -1311,7 +1332,7 @@ extern int gasnetc_AMRequestShortM(
                                            numargs, argptr);
   } else
 #endif
-  retval = gasnetc_short_common(dest,1,handler,numargs,argptr);
+  retval = gasnetc_short_common(dest,1, AM_SLOT_REQUEST, handler,numargs,argptr);
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -1334,7 +1355,7 @@ extern int gasnetc_AMRequestMediumM(
                                            numargs, argptr);
   } else
 #endif
-  retval = gasnetc_medium_common(dest,1,handler,source_addr,nbytes,numargs,argptr);
+  retval = gasnetc_medium_common(dest,1, AM_SLOT_REQUEST, handler,source_addr,nbytes,numargs,argptr);
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -1357,7 +1378,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
                                            numargs, argptr);
   } else
 #endif
-  retval = gasnetc_long_common(dest,1,handler,source_addr,nbytes,dest_addr,numargs,argptr);
+  retval = gasnetc_long_common(dest,1, AM_SLOT_REQUEST, handler,source_addr,nbytes,dest_addr,numargs,argptr);
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -1400,13 +1421,12 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
     const size_t head_len = GASNETC_HEADLEN(long, numargs);
     const size_t total_len = head_len + (is_packed ? nbytes : 0);
-    const uint32_t flags = (total_len > GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) ? GC_POST_SMSG_BUF : 0;
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
     gasnetc_packet_t *m;
 
     gasnetc_get_am_credit(dest);
-    gpd->flags = flags;
-    m = flags ? alloc_am_buffer(total_len) : &gpd->u.packet;
+    gpd->flags = 0;
+    m = gasnetc_allocate_registered_AM_header(dest);
     m->header.command = GC_CMD_AM_LONG;
     m->header.is_req  = 1;
     m->header.misc    = is_packed;
@@ -1422,11 +1442,11 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     if (is_packed) {
       /* send data in smsg payload */
       memcpy((void*)((uintptr_t)m + head_len), source_addr, nbytes);
-      retval = gasnetc_send_smsg(dest, gpd, m, total_len);
+      retval = gasnetc_send_smsg(dest, gpd, m, total_len, AM_SLOT_REQUEST);
     } else {
       /* Rdma data, then send header as part of completion*/
-      gasneti_assert(!flags); /* otherwise the msg isn't in the gpd where it needs to be */
       gpd->flags = GC_POST_SEND;
+      gpd->deferred = m;
       gpd->dest = dest;
       gasnetc_rdma_put_bulk(dest, dest_addr, source_addr, nbytes, gpd);
       retval = GASNET_OK;
@@ -1460,8 +1480,7 @@ extern int gasnetc_AMReplyShortM(
   GASNETI_SAFE(gasnetc_AMGetMsgSource(token, &dest));
   gasneti_assert(((gasnetc_token_t *)token)->need_reply);
   ((gasnetc_token_t *)token)->need_reply = 0;
-
-  retval = gasnetc_short_common(dest,0,handler,numargs,argptr);
+  retval = gasnetc_short_common(dest,0, ((gasnetc_token_t *)token)->response_slot, handler,numargs,argptr);
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -1491,7 +1510,8 @@ extern int gasnetc_AMReplyMediumM(
   gasneti_assert(((gasnetc_token_t *)token)->need_reply);
   ((gasnetc_token_t *)token)->need_reply = 0;
 
-  retval = gasnetc_medium_common(dest,0,handler,source_addr,nbytes,numargs,argptr);
+  retval = gasnetc_medium_common(dest,0, ((gasnetc_token_t *)token)->response_slot,
+                                 handler,source_addr,nbytes,numargs,argptr);
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -1522,7 +1542,8 @@ extern int gasnetc_AMReplyLongM(
   gasneti_assert(((gasnetc_token_t *)token)->need_reply);
   ((gasnetc_token_t *)token)->need_reply = 0;
 
-  retval = gasnetc_long_common(dest,0,handler,source_addr,nbytes,dest_addr,numargs,argptr);
+  retval = gasnetc_long_common(dest,0, ((gasnetc_token_t *)token)->response_slot,
+                               handler,source_addr,nbytes,dest_addr,numargs,argptr);
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
