@@ -37,8 +37,8 @@ typedef struct peer_struct {
   gni_mem_handle_t am_prereg_handle; 
 
   uint64_t am_prereg_base;
-  gasnetc_am_slot_t am_head;
-  gasnetc_am_slot_t am_tail;
+  volatile gasnetc_am_slot_t am_head;
+  volatile gasnetc_am_slot_t am_tail;
 
   gasneti_weakatomic_t am_credit;
   gasneti_weakatomic_t am_credit_bank; /* single bit of credit accumulator for return to peer */
@@ -82,7 +82,6 @@ static unsigned int am_maxcredit;
 // xxx - eah -fix
 #define slot_empty (0xfffful)
 
-void gasnetc_free_registered_AM_header(peer_struct_t *dest, gasnetc_mailbox_t *m);
 void gasnetc_link_reply_buffer(gasnetc_mailbox_t *m, peer_struct_t * peer);
 void gasnetc_unlink_reply_buffer(gasnetc_mailbox_t *m, peer_struct_t * peer);
                                  
@@ -119,6 +118,13 @@ static gasneti_weakatomic_t gasnetc_reg_credit;
 static gasneti_lifo_head_t post_descriptor_pool = GASNETI_LIFO_INITIALIZER;
 static gasneti_lifo_head_t gasnetc_bounce_buffer_pool = GASNETI_LIFO_INITIALIZER;
 static gasneti_lifo_head_t gasnetc_registered_AM_header_pool = GASNETI_LIFO_INITIALIZER;
+
+GASNETI_INLINE(gasnetc_free_registered_AM_header)
+void gasnetc_free_registered_AM_header(peer_struct_t *peer, gasnetc_mailbox_t *m)
+{
+    gasneti_lifo_push(&gasnetc_registered_AM_header_pool, m);
+}
+
 #if !GASNET_CONDUIT_GEMINI
 gasneti_lifo_head_t gasnetc_smsg_buffers = GASNETI_LIFO_INITIALIZER;
 #endif
@@ -551,7 +557,6 @@ uintptr_t gasnetc_init_messaging(void)
   gasnetc_init_registered_AM_headers();    
 
   /* exchange peer data and initialize smsg */
-  // eah - shouldn't these be 64 bit integers here
   { struct smsg_exchange { uint8_t *addr; gni_mem_handle_t handle;
                            uint8_t *am_addr; gni_mem_handle_t am_handle;};
     struct smsg_exchange my_smsg_exchg = { smsg_mmap_ptr, my_smsg_handle,
@@ -678,7 +683,7 @@ void recv_credits(peer_struct_t *peer, int n) {
 static void gasnetc_handle_sys_shutdown_packet(uint32_t source, uint16_t arg);
 static void gasnetc_send_credit(uint32_t pe, gasnetc_am_slot_t s);
 
-static
+GASNETI_INLINE(gasnetc_recv_am)
 void gasnetc_recv_am(gasnet_node_t pe, gasnetc_mailbox_t * const mb, const GC_Header_t header)
 {
   peer_struct_t * const peer = &peer_data[pe];
@@ -757,9 +762,10 @@ void gasnetc_recv_am(gasnet_node_t pe, gasnetc_mailbox_t * const mb, const GC_He
 }
 
 
-static inline int check_buffer(gasnet_node_t source, 
-                               gasnetc_mailbox_t *mb,
-                               gasneti_mutex_t *lock)
+GASNETI_INLINE(check_buffer)
+int check_buffer(gasnet_node_t source, 
+                 gasnetc_mailbox_t *mb,
+                 gasneti_mutex_t *lock)
 {
   if (mb->full) { /* First word is zero until mailbox is filled */
     peer_struct_t * const peer = &peer_data[source];
@@ -880,7 +886,7 @@ void gasnetc_poll_smsg_queue(void)
       
       if ((peer->am_head != slot_empty) &&
           (m = mailbox_from_slot(my_registered_AM_base, peer->am_head)) &&
-          ((*(uint64_t *)m) != 0) &&
+          ((*(uint32_t *)m) != 0) &&
           (gasnetc_unlink_reply_buffer(m, peer), 1) && 
           check_buffer(source, m, &lock)) {
           gasnetc_free_registered_AM_header(peer, m);
@@ -915,9 +921,6 @@ gasnetc_send_smsg(gasnet_node_t dest, gasnetc_post_descriptor_t *gpd,
 
   msg->header.credit = gasnetc_weakatomic_swap(&peer->am_credit_bank, 0);
 
-
-  GASNETC_LOCK_GNI();
-
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT | GNI_CQMODE_REMOTE_EVENT;
   pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
   pd->type = GNI_POST_FMA_PUT_W_SYNCFLAG;
@@ -926,6 +929,8 @@ gasnetc_send_smsg(gasnet_node_t dest, gasnetc_post_descriptor_t *gpd,
   buffer[0] = 0;
   pd->length = length - 8;
   pd->local_addr = (uint64_t) &buffer[1];
+
+  GASNETC_LOCK_GNI();
 
   if (slot == AM_SLOT_REQUEST) {
     unsigned int slot = peer->mb.send_pos - 1;
@@ -1869,7 +1874,8 @@ void gasnetc_link_reply_buffer(gasnetc_mailbox_t *m,
 {
   gasnetc_am_slot_t s = local_slot_from_mailbox(m);
   gasnetc_am_linkage_t *a = local_next_from_slot(s);  
-  
+
+  a->last = a->next = slot_empty;
   if (peer->am_head == slot_empty) {
     peer->am_head  = s;
   } else { 
@@ -1877,7 +1883,6 @@ void gasnetc_link_reply_buffer(gasnetc_mailbox_t *m,
     last->next = s;
     a->last = peer->am_tail;
   }
-  
   peer->am_tail = s;
 }
 
@@ -1887,7 +1892,8 @@ void gasnetc_unlink_reply_buffer(gasnetc_mailbox_t *m,
 {
   gasnetc_am_slot_t s = local_slot_from_mailbox(m);
   gasnetc_am_linkage_t *a = local_next_from_slot(s);  
-  
+ 
+  GASNETC_LOCK_GNI();
   if (a->last == slot_empty) {
     peer->am_head = a->next;
   } else {
@@ -1899,13 +1905,8 @@ void gasnetc_unlink_reply_buffer(gasnetc_mailbox_t *m,
   } else {
     local_next_from_slot(a->next)->last = a->last;
   }
+  GASNETC_UNLOCK_GNI();
 }
-
-void gasnetc_free_registered_AM_header(peer_struct_t *peer, gasnetc_mailbox_t *m)
-{
-  gasneti_lifo_push(&gasnetc_registered_AM_header_pool, m);
-}
-
 
 
 void gasnetc_init_registered_AM_headers()
