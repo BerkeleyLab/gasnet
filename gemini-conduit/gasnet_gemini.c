@@ -742,7 +742,7 @@ void gasnetc_recv_am(gasnet_node_t pe, gasnetc_mailbox_t * const mb, const GC_He
 
       /* NOTE: Mailbox is already marked free.
        * Peer cannot possibly consume it until we send back a credit (Request case)
-       * or we send a Request using a newly acquired credit (Reply case).
+       * We'll not reuse it until our caller returns it to the free pool (Reply case)
        * We've copied out mb->packet.header already and args are read before calling
        * the handler.  So, if the handler does Reply (and thus return a credit) to a
        * peer, these fields are safe to over-write.  Only the payload of a Medium
