@@ -725,15 +725,22 @@ void recv_credit(peer_struct_t *peer) {
 static void gasnetc_handle_sys_shutdown_packet(uint32_t source, uint16_t arg);
 static void gasnetc_send_control(uint32_t dest, uint8_t op, uint16_t arg);
 
-GASNETI_INLINE(gasnetc_recv_am)
-void gasnetc_recv_am(gasnet_node_t pe, gasnetc_mailbox_t * const mb, const GC_Header_t header)
+static gasneti_mutex_t ampoll_lock = GASNETI_MUTEX_INITIALIZER;
+
+/* Choice to inline or not is left to the compiler */
+void gasnetc_recv_am(gasnet_node_t pe, gasnetc_mailbox_t * const mb, const int is_req)
 {
   peer_struct_t * const peer = &peer_data[pe];
+  GC_Header_t header;
 
+  gasneti_local_rmb(); /* Acquire */
+  header = mb->packet.header; /* before over-written via 'full' */
+  mb->full = 0;
+
+  gasneti_mutex_unlock(&ampoll_lock);
   {
       const int numargs = header.numargs;
       const int misc = header.misc;
-      const int is_req = header.is_req;
       const int handlerindex = header.handler;
       gasneti_handler_fn_t handler = gasnetc_handler[handlerindex];
 
@@ -749,6 +756,7 @@ void gasnetc_recv_am(gasnet_node_t pe, gasnetc_mailbox_t * const mb, const GC_He
        * Request needs to be copied out of the mailbox before its handler can run.
        */
 
+      gasneti_assert(is_req == header.is_req);
       gasneti_assert(numargs <= gasnet_AMMaxArgs());
       GASNETI_TRACE_PRINTF(D, ("smsg r from %d type %s_%s\n", pe,
                                gasnetc_type_string(header.command),
@@ -796,22 +804,7 @@ void gasnetc_recv_am(gasnet_node_t pe, gasnetc_mailbox_t * const mb, const GC_He
       if (the_token.need_reply) 
         gasnetc_send_control(pe, GC_CTRL_CREDIT, header.reply_slot);
   }
-}
-
-static gasneti_mutex_t ampoll_lock = GASNETI_MUTEX_INITIALIZER;
-
-GASNETI_INLINE(poll_common)
-void poll_common(gasnet_node_t source, 
-                 gasnetc_mailbox_t *mb)
-{
-    GC_Header_t header;
-
-    gasneti_local_rmb(); /* Acquire */
-    header = mb->packet.header; /* before over-written via 'full' */
-    mb->full = 0;
-    gasneti_mutex_unlock(&ampoll_lock);
-    gasnetc_recv_am(source, mb, header);
-    gasneti_mutex_lock(&ampoll_lock);
+  gasneti_mutex_lock(&ampoll_lock);
 }
 
 GASNETI_INLINE(poll_for_request)
@@ -822,7 +815,7 @@ int poll_for_request(gasnet_node_t source)
   gasnetc_mailbox_t * const mb = &peer->mb.loc_addr[slot];
   if (mb->full) { /* First word is zero until mailbox is filled */
     peer->mb.recv_pos = slot ? slot : am_maxcredit; /* before we release the lock */
-    poll_common(source, mb);
+    gasnetc_recv_am(source, mb, 1);
     return 1;
   }
   return 0;
@@ -839,7 +832,7 @@ int poll_for_reply(gasnet_node_t source)
     if (mb->full) { /* First word is zero until mailbox is filled */
       recv_credit(peer); /* do this first, it might unblock another thread */
       gasnetc_unlink_reply_buffer(am_head, peer);
-      poll_common(source, mb);
+      gasnetc_recv_am(source, mb, 0);
       gasnetc_free_registered_AM_header(mb, am_head);
       return 1;
     }
