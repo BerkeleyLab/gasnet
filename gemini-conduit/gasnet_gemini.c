@@ -36,8 +36,8 @@ typedef union {
 typedef struct peer_struct {
   gni_ep_handle_t ep_handle;
   gni_mem_handle_t mem_handle;
-  gni_mem_handle_t am_prereg_handle; 
 
+  gni_mem_handle_t am_prereg_handle; 
   gasnetc_mailbox_t *am_prereg_base;
   volatile gasnetc_am_slot_t am_head;
   volatile gasnetc_am_slot_t am_tail;
@@ -63,8 +63,6 @@ static gni_mem_handle_t my_registered_AM_handle;
 static gni_cdm_handle_t cdm_handle;
 static gni_cq_handle_t destination_cq_handle;
 
-static gasnetc_mailbox_t *my_registered_AM_base;
-static gasnetc_am_linkage_t *recv_mailbox_base;
 static void *smsg_mmap_ptr;
 static size_t smsg_mmap_bytes;
 
@@ -75,9 +73,60 @@ unsigned int gasnetc_log2_remote;
 static unsigned int mb_slots;
 static unsigned int am_maxcredit;
 
+
+/*------ Group the most commonly accessed variables together ------*/
+/* TODO: could move gasneti_{mynode,nodes} here, but it is non-trivial */
+
+/* read-only: */
+static gni_nic_handle_t nic_handle;
+static gni_mem_handle_t my_mem_handle;
+static gni_cq_handle_t bound_cq_handle;
+static gni_cq_handle_t smsg_cq_handle;
+static int gasnetc_poll_burst = 10;
+static peer_struct_t *peer_data;
+#if FIX_HT_ORDERING
+static uint16_t gasnetc_fma_put_cq_mode = GNI_CQMODE_GLOBAL_EVENT;
+#endif
+static size_t gasnetc_get_fma_rdma_cutover;
+static size_t gasnetc_put_fma_rdma_cutover;
+static size_t gasnetc_get_bounce_register_cutover;
+static size_t gasnetc_put_bounce_register_cutover;
+size_t gasnetc_max_get_unaligned;
+size_t gasnetc_max_put_lc;
+
+/* lock: */
+static int8_t pad0[GASNETC_CACHELINE_SIZE];
+gasnetc_gni_lock_t gasnetc_gni_lock;
+
+/* read-write: */
+static int8_t pad1[GASNETC_CACHELINE_SIZE];
+static gasneti_weakatomic_t gasnetc_reg_credit;
+
+/* lifo_head_t contains cache-line padding */
+static gasneti_lifo_head_t post_descriptor_pool = GASNETI_LIFO_INITIALIZER;
+static gasneti_lifo_head_t gasnetc_bounce_buffer_pool = GASNETI_LIFO_INITIALIZER;
+static gasneti_lifo_head_t gasnetc_registered_AM_header_pool = GASNETI_LIFO_INITIALIZER;
+
+#if !GASNET_CONDUIT_GEMINI
+gasneti_lifo_head_t gasnetc_smsg_buffers = GASNETI_LIFO_INITIALIZER;
+#endif
+
+/*------ Declarations and functions for managing the AM buffer pool ------*/
+
+static gasnetc_mailbox_t *my_registered_AM_base;
+static gasnetc_am_linkage_t *recv_mailbox_base;
+
 #define mailbox_from_slot(__base, __x) ((__base) + (__x))
 #define local_next_from_slot(__x) (recv_mailbox_base + (__x))
 #define slot_empty ((gasnetc_am_slot_t)0xffffu)
+
+GASNETI_INLINE(gasnetc_free_registered_AM_header)
+void gasnetc_free_registered_AM_header(gasnetc_mailbox_t *m, gasnetc_am_slot_t slot)
+{
+    gasneti_assert(m == mailbox_from_slot(my_registered_AM_base, slot));
+    m->freelist.reply_slot = slot;
+    gasneti_lifo_push(&gasnetc_registered_AM_header_pool, m);
+}
 
 GASNETI_INLINE(gasnetc_unlink_reply_buffer)
 void gasnetc_unlink_reply_buffer(gasnetc_am_slot_t s,
@@ -117,52 +166,6 @@ void gasnetc_link_reply_buffer(gasnetc_am_slot_t s,
   }
   peer->am_tail = s;
 }
-
-
-/*------ Group the most commonly accessed variables together ------*/
-/* TODO: could move gasneti_{mynode,nodes} here, but it is non-trivial */
-
-/* read-only: */
-static gni_nic_handle_t nic_handle;
-static gni_mem_handle_t my_mem_handle;
-static gni_cq_handle_t bound_cq_handle;
-static gni_cq_handle_t smsg_cq_handle;
-static int gasnetc_poll_burst = 10;
-static peer_struct_t *peer_data;
-#if FIX_HT_ORDERING
-static uint16_t gasnetc_fma_put_cq_mode = GNI_CQMODE_GLOBAL_EVENT;
-#endif
-static size_t gasnetc_get_fma_rdma_cutover;
-static size_t gasnetc_put_fma_rdma_cutover;
-static size_t gasnetc_get_bounce_register_cutover;
-static size_t gasnetc_put_bounce_register_cutover;
-size_t gasnetc_max_get_unaligned;
-size_t gasnetc_max_put_lc;
-
-/* lock: */
-static int8_t pad0[GASNETC_CACHELINE_SIZE];
-gasnetc_gni_lock_t gasnetc_gni_lock;
-
-/* read-write: */
-static int8_t pad1[GASNETC_CACHELINE_SIZE];
-static gasneti_weakatomic_t gasnetc_reg_credit;
-
-/* lifo_head_t contains cache-line padding */
-static gasneti_lifo_head_t post_descriptor_pool = GASNETI_LIFO_INITIALIZER;
-static gasneti_lifo_head_t gasnetc_bounce_buffer_pool = GASNETI_LIFO_INITIALIZER;
-static gasneti_lifo_head_t gasnetc_registered_AM_header_pool = GASNETI_LIFO_INITIALIZER;
-
-GASNETI_INLINE(gasnetc_free_registered_AM_header)
-void gasnetc_free_registered_AM_header(gasnetc_mailbox_t *m, gasnetc_am_slot_t slot)
-{
-    gasneti_assert(m == mailbox_from_slot(my_registered_AM_base, slot));
-    m->freelist.reply_slot = slot;
-    gasneti_lifo_push(&gasnetc_registered_AM_header_pool, m);
-}
-
-#if !GASNET_CONDUIT_GEMINI
-gasneti_lifo_head_t gasnetc_smsg_buffers = GASNETI_LIFO_INITIALIZER;
-#endif
 
 /*------ Convience functions for printing error messages ------*/
 
