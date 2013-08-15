@@ -796,27 +796,53 @@ void gasnetc_recv_am(gasnet_node_t pe, gasnetc_mailbox_t * const mb, const GC_He
   }
 }
 
+static gasneti_mutex_t ampoll_lock = GASNETI_MUTEX_INITIALIZER;
 
-GASNETI_INLINE(check_buffer)
-int check_buffer(gasnet_node_t source, 
-                 gasnetc_mailbox_t *mb,
-                 gasneti_mutex_t *lock)
+GASNETI_INLINE(poll_common)
+void poll_common(gasnet_node_t source, 
+                 gasnetc_mailbox_t *mb)
 {
-  if (mb->full) { /* First word is zero until mailbox is filled */
-    peer_struct_t * const peer = &peer_data[source];
     GC_Header_t header;
 
     gasneti_local_rmb(); /* Acquire */
     header = mb->packet.header; /* before over-written via 'full' */
     mb->full = 0;
-    gasneti_mutex_unlock(lock);
+    gasneti_mutex_unlock(&ampoll_lock);
     gasnetc_recv_am(source, mb, header);
-    gasneti_mutex_lock(lock);
-    return(1);
-  }
-  return(0);
+    gasneti_mutex_lock(&ampoll_lock);
 }
 
+GASNETI_INLINE(poll_for_request)
+int poll_for_request(gasnet_node_t source)
+{
+  peer_struct_t * const peer = &peer_data[source];
+  const unsigned int slot = peer->mb.recv_pos - 1;
+  gasnetc_mailbox_t * const mb = &peer->mb.loc_addr[slot];
+  if (mb->full) { /* First word is zero until mailbox is filled */
+    poll_common(source, mb);
+    peer->mb.recv_pos = slot ? slot : mb_slots;
+    return 1;
+  }
+  return 0;
+}
+
+/* TODO: look-head instead of polling only am_head */
+GASNETI_INLINE(poll_for_reply)
+int poll_for_reply(gasnet_node_t source)
+{ 
+  peer_struct_t * const peer = &peer_data[source];
+  const gasnetc_am_slot_t am_head = peer->am_head;
+  if (am_head != slot_empty) {
+    gasnetc_mailbox_t * const mb = mailbox_from_slot(my_registered_AM_base, am_head);
+    if (mb->full) { /* First word is zero until mailbox is filled */
+      gasnetc_unlink_reply_buffer(am_head, peer);
+      poll_common(source, mb);
+      gasnetc_free_registered_AM_header(mb, am_head);
+      return 1;
+    }
+  }
+  return 0;
+}
 
 /* Max number of times to poll the AM mailboxes per entry */
 /* TODO: control via env var (requires dynamic allocation of queue) */
@@ -830,7 +856,6 @@ void gasnetc_poll_smsg_queue(void)
    * A source may potentially appear multiple time.
    * The +1 in sizing prevents head==tail and its full/empty ambiguity
    */
-  static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
   static gasnet_node_t queue[SMSG_BURST+1];
   static int head = SMSG_BURST; /* Runs backward over range [0:SMSG_BURST] */
   static int tail = SMSG_BURST; /* Runs backward over range [0:SMSG_BURST] */
@@ -838,7 +863,7 @@ void gasnetc_poll_smsg_queue(void)
 
   int i;
 
-  gasneti_mutex_lock(&lock);
+  gasneti_mutex_lock(&ampoll_lock);
 
   /* Reap Cq entries until our queue is full, or Cq is empty */
   while (free_space) {
@@ -903,33 +928,18 @@ void gasnetc_poll_smsg_queue(void)
   /* Poll all "live" sources, starting with any that were not ready last time */
   for (i = 0; (i < SMSG_BURST) && (head != tail); ++i) {
     /* dequeue one source and poll it, then we either run the
-       handler (w/o lock held) or requeue the source for later service */
+       handler (w/o ampoll_lock held) or requeue the source for later service */
     const gasnet_node_t source = queue[head];
-    peer_struct_t * const peer = &peer_data[source];
-    unsigned int slot = peer->mb.recv_pos - 1;
-
     head = head ? (head-1) : SMSG_BURST;
-    if (check_buffer(source, &peer->mb.loc_addr[slot], &lock)) { 
-      peer->mb.recv_pos = slot ? slot : mb_slots;
+
+    if (poll_for_reply(source) || poll_for_request(source)) {
       free_space++; 
     } else {
-      gasnetc_mailbox_t *m;
-      const gasnetc_am_slot_t am_head = peer->am_head;
-      
-      if ((am_head != slot_empty) &&
-          (m = mailbox_from_slot(my_registered_AM_base, am_head)) &&
-          ((*(uint32_t *)m) != 0) &&
-          (gasnetc_unlink_reply_buffer(am_head, peer), 1) && 
-          check_buffer(source, m, &lock)) {
-          gasnetc_free_registered_AM_header(m, am_head);
-          free_space++; 
-      } else {
-        queue[tail] = source;
-        tail = tail ? (tail-1) : SMSG_BURST;
-      }
+      queue[tail] = source;
+      tail = tail ? (tail-1) : SMSG_BURST;
     }
   }    
-  gasneti_mutex_unlock(&lock);
+  gasneti_mutex_unlock(&ampoll_lock);
 }
 
 extern int
