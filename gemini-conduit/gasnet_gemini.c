@@ -643,7 +643,6 @@ void gasnetc_shutdown(void)
      release resources in the reverse order of acquisition
    */
 
-  /* xxx - eah - cleanup AM prereg state */
   /* for each connected rank */
   left = gasneti_nodes - (GASNET_PSHM ? gasneti_nodemap_local_count : 1);
   for (tries=0; tries<10; ++tries) {
@@ -784,7 +783,7 @@ void gasnetc_recv_am(gasnet_node_t pe, gasnetc_mailbox_t * const mb, const GC_He
 
 #if GASNET_DEBUG
       default:
-        gasnetc_GNIT_Abort("unknown packet type");
+    gasnetc_GNIT_Abort("unknown packet type");
 #endif
       }
 
@@ -947,12 +946,12 @@ gasnetc_send_smsg(gasnet_node_t dest, gasnetc_post_descriptor_t *gpd,
                   gasnetc_am_slot_t reply_slot)
 {
   peer_struct_t * const peer = &peer_data[dest];
+  gni_return_t status;
+  const int max_trials = 4;
+  int trial = 0;
+
   uint64_t target_address;
   gni_post_descriptor_t *pd = &gpd->pd;
-  int rc;
-  int trial = 0;
-  const int max_trials = 4;
-  gni_return_t status;
   uint64_t *buffer= (uint64_t *)msg;
   gasnetc_am_slot_t my_slot = msg->header.reply_slot;
 
@@ -1008,15 +1007,16 @@ gasnetc_send_smsg(gasnet_node_t dest, gasnetc_post_descriptor_t *gpd,
       gasnetc_GNIT_Abort("PostFma for AM returned error %s", gni_return_string(status));
     }
 
-    if_pf (++trial == max_trials) 
+    if_pf (++trial == max_trials) {
       return GASNET_ERR_RESOURCE;
-    
+    }
+
     GASNETI_WAITHOOK();
     gasnetc_poll_local_queue();
     GASNETC_LOCK_GNI();
   }
 
-  return(GASNET_OK); 
+  return GASNET_OK; 
 }
 
 
@@ -1083,7 +1083,6 @@ void gasnetc_poll_local_queue(void))
       } else if (flags & GC_POST_UNBOUNCE) {
 	gasnetc_free_bounce_buffer((void *) gpd->pd.local_addr);
       }
-
     #if !GASNET_CONDUIT_GEMINI
       else if (flags & GC_POST_SMSG_BUF) {
         gasneti_lifo_push(&gasnetc_smsg_buffers, (void *) (gpd->pd.local_addr - 8));
