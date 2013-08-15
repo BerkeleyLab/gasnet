@@ -756,7 +756,6 @@ void gasnetc_recv_am(gasnet_node_t pe, gasnetc_mailbox_t * const mb, const int i
        * Request needs to be copied out of the mailbox before its handler can run.
        */
 
-      gasneti_assert(is_req == header.is_req);
       gasneti_assert(numargs <= gasnet_AMMaxArgs());
       GASNETI_TRACE_PRINTF(D, ("smsg r from %d type %s_%s\n", pe,
                                gasnetc_type_string(header.command),
@@ -981,7 +980,7 @@ gasnetc_send_smsg(gasnet_node_t dest, gasnetc_post_descriptor_t *gpd,
 
   GASNETI_TRACE_PRINTF(D, ("smsg to %d type %s_%s\n", dest,
                            gasnetc_type_string(msg->header.command),
-                           msg->header.is_req ? "REQUEST" : "REPLY"));
+                           (reply_slot == AM_SLOT_REQUEST) ? "REQUEST" : "REPLY"));
 
 
   pd->sync_flag_addr =target_address;

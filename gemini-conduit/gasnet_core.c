@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/08/14 23:10:01 $
- * $Revision: 1.84.2.2 $
+ *     $Date: 2013/08/15 09:49:22 $
+ * $Revision: 1.84.2.3 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1153,10 +1153,9 @@ int gasnetc_short_common(gasnet_node_t dest, int is_req, gasnetc_am_slot_t slot,
     gpd->flags = 0;
 
     m->header.command = GC_CMD_AM_SHORT;
-    m->header.is_req  = is_req;
-  /*m->header.misc    = 0;  -- field is unused by shorts */
     m->header.numargs = numargs;
     m->header.handler = handler;
+  /*m->header.misc    = 0;  -- field is unused by shorts */
     for (i = 0; i < numargs; i++) {
       m->gasp.args[i] = va_arg(argptr, gasnet_handlerarg_t);
     }
@@ -1209,10 +1208,9 @@ int gasnetc_medium_common(gasnet_node_t dest, int is_req, gasnetc_am_slot_t slot
     gpd->flags = flags;
 
     m->header.command = GC_CMD_AM_MEDIUM;
-    m->header.is_req  = is_req;
-    m->header.misc    = nbytes;
     m->header.numargs = numargs;
     m->header.handler = handler;
+    m->header.misc    = nbytes;
     for (i = 0; i < numargs; i++) {
       m->gamp.args[i] = va_arg(argptr, gasnet_handlerarg_t);
     }
@@ -1281,10 +1279,9 @@ int gasnetc_long_common(gasnet_node_t dest, int is_req, gasnetc_am_slot_t slot,
     gpd->flags = flags;
 
     m->header.command = GC_CMD_AM_LONG;
-    m->header.is_req  = is_req;
-    m->header.misc    = is_packed;
     m->header.numargs = numargs;
     m->header.handler = handler;
+    m->header.misc    = is_packed;
     m->galp.data_length = nbytes;
     m->galp.data = dest_addr;
     for (i = 0; i < numargs; i++) {
@@ -1422,10 +1419,9 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 
     gpd->flags = 0;
     m->header.command = GC_CMD_AM_LONG;
-    m->header.is_req  = 1;
-    m->header.misc    = is_packed;
     m->header.numargs = numargs;
     m->header.handler = handler;
+    m->header.misc    = is_packed;
     m->galp.data_length = nbytes;
     m->galp.data = dest_addr;
     for (i = 0; i < numargs; i++) {
