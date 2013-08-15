@@ -77,8 +77,7 @@ static unsigned int am_maxcredit;
 
 #define mailbox_from_slot(__base, __x) ((__base) + (__x))
 #define local_next_from_slot(__x) (recv_mailbox_base + (__x))
-// xxx - eah -fix
-#define slot_empty (0xfffful)
+#define slot_empty ((gasnetc_am_slot_t)0xffffu)
 
 GASNETI_INLINE(gasnetc_unlink_reply_buffer)
 void gasnetc_unlink_reply_buffer(gasnetc_am_slot_t s,
@@ -1899,14 +1898,18 @@ void gasnetc_init_registered_AM_headers()
 {
   int count = gasneti_getenv_int_withdefault("GASNETC_GNI_REGISTERED_AM_HEADER_COUNT",
                                              GASNETC_GNI_REGISTERED_AM_HEADER_COUNT_DEFAULT, 0);
-  int size = count *  GASNETC_MSG_MAXSIZE;
+  size_t size;
 
+  /* leave two codepoints for slot_empty and AM_SLOT_REQUEST */
+  count = MIN(count, ((1<<(8*sizeof(gasnetc_am_slot_t))) -2));
 
   recv_mailbox_base = (gasnetc_am_linkage_t *)gasneti_calloc(count, sizeof(struct gasnetc_am_linkage_t));
+  gasneti_leak(recv_mailbox_base);
 
+  size = count * GASNETC_MSG_MAXSIZE;
   my_registered_AM_base = gasneti_huge_mmap(NULL, size);
 
-  if (my_registered_AM_base != NULL) {
+  if (my_registered_AM_base != (gasnetc_mailbox_t *)MAP_FAILED) {
     if (GNI_MemRegister(nic_handle, 
                         (uint64_t)my_registered_AM_base, size, 
                         smsg_cq_handle, 
@@ -1925,5 +1928,5 @@ void gasnetc_init_registered_AM_headers()
     } 
   }
 
-  gasneti_fatalerror("unable to allocate registered AM buffers\n");
+  gasneti_fatalerror("unable to allocate registered AM buffers");
 }

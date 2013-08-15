@@ -61,7 +61,7 @@ typedef gasneti_mutex_t gasnetc_gni_lock_t;
 #endif
 extern gasnetc_gni_lock_t gasnetc_gni_lock;
 
-typedef uint32_t gasnetc_am_slot_t;
+typedef uint16_t gasnetc_am_slot_t;
 
 typedef struct {
   gasnet_node_t source;
@@ -291,7 +291,7 @@ int gasnetc_weakatomic_dec_if_positive(gasneti_weakatomic_t *p)
 }
 
 void gasnetc_init_registered_AM_headers(void);
-#define AM_SLOT_REQUEST 0xfffe
+#define AM_SLOT_REQUEST ((gasnetc_am_slot_t)0xfffeu)
 
 #define GASNETC_GNI_REGISTERED_AM_HEADER_COUNT_DEFAULT 200
 
