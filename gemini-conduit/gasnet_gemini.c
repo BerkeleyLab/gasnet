@@ -945,7 +945,7 @@ void gasnetc_poll_smsg_queue(void)
 extern int
 gasnetc_send_smsg(gasnet_node_t dest, gasnetc_post_descriptor_t *gpd,
                   gasnetc_packet_t *msg, size_t length,
-                  gasnetc_am_slot_t slot)
+                  gasnetc_am_slot_t reply_slot)
 {
   peer_struct_t * const peer = &peer_data[dest];
   uint64_t target_address;
@@ -973,14 +973,14 @@ gasnetc_send_smsg(gasnet_node_t dest, gasnetc_post_descriptor_t *gpd,
 
   GASNETC_LOCK_GNI();
 
-  if (slot == AM_SLOT_REQUEST) {
-    unsigned int slot = peer->mb.send_pos - 1;
-    target_address = (uint64_t) &peer->mb.rem_addr[slot];
-    peer->mb.send_pos = slot ? slot : mb_slots;
+  if (reply_slot == AM_SLOT_REQUEST) {
+    unsigned int send_pos = peer->mb.send_pos - 1;
+    target_address = (uint64_t) &peer->mb.rem_addr[send_pos];
+    peer->mb.send_pos = send_pos ? send_pos : mb_slots;
     pd->remote_mem_hndl = peer->mb.rem_hndl; 
   } else {
     pd->remote_mem_hndl = peer->am_prereg_handle;
-    target_address = (uint64_t)mailbox_from_slot(peer->am_prereg_base, slot);
+    target_address = (uint64_t)mailbox_from_slot(peer->am_prereg_base, reply_slot);
   }
 
   GASNETI_TRACE_PRINTF(D, ("smsg to %d type %s_%s\n", dest,
@@ -995,8 +995,9 @@ gasnetc_send_smsg(gasnet_node_t dest, gasnetc_post_descriptor_t *gpd,
     status = GNI_PostFma(peer->ep_handle, pd);
 
     if_pt (status == GNI_RC_SUCCESS) {
-      if (slot == AM_SLOT_REQUEST) 
+      if (reply_slot == AM_SLOT_REQUEST) {
         gasnetc_link_reply_buffer(my_slot, peer);
+      }
 
       GASNETC_UNLOCK_GNI();
       if_pf (trial) GASNETC_STAT_EVENT_VAL(SMSG_SEND_RETRY, trial);
