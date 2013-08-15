@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/08/08 01:38:36 $
- * $Revision: 1.81.4.3 $
+ *     $Date: 2013/08/15 17:19:50 $
+ * $Revision: 1.81.4.4 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -241,7 +241,8 @@ void gasnetc_bootstrapBarrier(void))
       /* wait for completion of the proper receive, which might arrive out of order */
       while (!(gasnetc_sys_barrier_rcvd[phase] & mask)) {
 #if GNI_MULTI_DOMAIN
-         gasnetc_poll(GNI_DEFAULT_DOMAIN); 
+         const int didx = GNI_DEFAULT_DOMAIN;
+         gasnetc_poll(didx);
 #else
          gasnetc_poll(); /* No PSHM progress required here */
 #endif
@@ -956,7 +957,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   {
     const int didx = GNI_DEFAULT_DOMAIN;
     gasnetc_init_post_descriptor_pool(didx);
-	  gasnetc_init_bounce_buffer_pool(didx);
+    gasnetc_init_bounce_buffer_pool(didx);
   }
 #else
   gasnetc_init_bounce_buffer_pool();
@@ -1172,17 +1173,17 @@ extern int gasnetc_AMPoll(void) {
   /* LCS */
 #if GNI_MULTI_DOMAIN
   {
-	/* 
-	 *  FIXME: Can AMPoll requester tell which thread is calling 
+  /* 
+   *  TODO: Can AMPoll requester tell which thread is calling 
    *  Currently, we use gasnete_mythread(), which cost us at least 180 
-	 *  cycles on hopper. 
-	 */
-	  int didx, tidx;
+  *  cycles on hopper. 
+  */
+    int didx, tidx;
     gasnete_threaddata_t * threaddata = gasnete_mythread();
     tidx = gasnete_mythread()->threadidx;
-		didx = gasnetc_get_domain_idx(tidx);
-		gasnetc_poll(didx);
-	}
+    didx = gasnetc_get_domain_idx(tidx);
+    gasnetc_poll(didx);
+  }
 #else
   gasnetc_poll();
 #endif
@@ -1238,7 +1239,7 @@ int gasnetc_short_common(gasnet_node_t dest, int is_req,
   {
     const size_t head_len = GASNETC_HEADLEN(short, numargs);
 #if GNI_MULTI_DOMAIN
-		const int didx = GNI_DEFAULT_DOMAIN;
+    const int didx = GNI_DEFAULT_DOMAIN;
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
 #else
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
@@ -1291,7 +1292,7 @@ int gasnetc_medium_common(gasnet_node_t dest, int is_req,
     const size_t total_len = head_len + nbytes;
     const uint32_t flags = (total_len > GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) ? GC_POST_SMSG_BUF : 0;
 #if GNI_MULTI_DOMAIN
-		const int didx = GNI_DEFAULT_DOMAIN;
+    const int didx = GNI_DEFAULT_DOMAIN;
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
 #else
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
@@ -1347,7 +1348,7 @@ int gasnetc_long_common(gasnet_node_t dest, int is_req,
     const size_t total_len = head_len + (is_packed ? nbytes : 0);
     const uint32_t flags = (total_len > GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) ? GC_POST_SMSG_BUF : 0;
 #if GNI_MULTI_DOMAIN
-		const int didx = GNI_DEFAULT_DOMAIN;
+    const int didx = GNI_DEFAULT_DOMAIN;
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
 #else
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
@@ -1391,7 +1392,6 @@ int gasnetc_long_common(gasnet_node_t dest, int is_req,
         GASNETI_WAITHOOK();
         gasnetc_poll_local_queue(didx);
       }
-
 #else
       gasnetc_poll_local_queue();
       while(! done) {
@@ -1460,7 +1460,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   va_list argptr;
   GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
-  va_start(argptr, numargs); /*  pass in last argument */
+ va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the dest first. */
   if_pt (gasneti_pshm_in_supernode(dest)) {
@@ -1514,7 +1514,8 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     const size_t total_len = head_len + (is_packed ? nbytes : 0);
     const uint32_t flags = (total_len > GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) ? GC_POST_SMSG_BUF : 0;
 #if GNI_MULTI_DOMAIN
-		gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0);
+    const int didx = GNI_DEFAULT_DOMAIN;
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
 #else
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
 #endif

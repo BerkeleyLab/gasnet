@@ -54,9 +54,6 @@ static size_t gasnetc_get_bounce_register_cutover;
 static size_t gasnetc_put_bounce_register_cutover;
 size_t gasnetc_max_get_unaligned;
 size_t gasnetc_max_put_lc;
-/* read-write: */
-gasneti_weakatomic_t gasnetc_reg_credit;
-
 #if FIX_HT_ORDERING
 static uint16_t gasnetc_fma_put_cq_mode = GNI_CQMODE_GLOBAL_EVENT;
 #endif
@@ -100,13 +97,17 @@ typedef struct {
 
 static communication_domain_struct_t * gasnetc_cdom_data;
 
+int8_t pad1[GASNETC_CACHELINE_SIZE];
+/* read-write: */
+gasneti_weakatomic_t gasnetc_reg_credit;
+
 #if !GASNET_CONDUIT_GEMINI
-gasnetc_packet_t * gasnetc_alloc_am_buffer(size_t buffer_len) {
+inline gasnetc_packet_t * gasnetc_alloc_am_buffer(size_t buffer_len) {
      void *result = gasneti_lifo_pop(&gasnetc_cdom_data[GNI_DEFAULT_DOMAIN].gasnetc_smsg_buffers);
      return result ? result : gasneti_malloc(GASNETC_MSG_MAXSIZE);
 }
 
-void gasnetc_free_am_buffer(gasnetc_packet_t *packet) {
+inline void gasnetc_free_am_buffer(gasnetc_packet_t *packet) {
    gasneti_lifo_push(&gasnetc_cdom_data[GNI_DEFAULT_DOMAIN].gasnetc_smsg_buffers, packet);
 }
 #endif
@@ -632,6 +633,9 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
   /* create and bind endpoints */
   all_addr = gather_nic_addresses();
   gasnetc_cdom_data[didx].peer_data = gasneti_malloc(gasneti_nodes * sizeof(peer_struct_t));
+#if GASNET_DEBUG
+  memset( gasnetc_cdom_data[didx].peer_data,0,gasneti_nodes * sizeof(peer_struct_t)); 
+#endif
   for (i = 0; i < gasneti_nodes; i += 1) {
     if (node_is_local(i)) continue; /* no connection to self or PSHM-reachable peers */
    status = GNI_EpCreate(gasnetc_cdom_data[didx].nic_handle, gasnetc_cdom_data[didx].bound_cq_handle, 
@@ -759,6 +763,10 @@ uintptr_t gasnetc_init_messaging(void)
   /* create and bind endpoints */
   all_addr = gather_nic_addresses();
   peer_data = gasneti_malloc(gasneti_nodes * sizeof(peer_struct_t));
+#if GASNET_DEBUG
+  memset(peer_data,0,gasneti_nodes * sizeof(peer_struct_t)); 
+#endif
+ 
   for (i = 0; i < gasneti_nodes; i += 1) {
     if (node_is_local(i)) continue; /* no connection to self or PSHM-reachable peers */
     status = GNI_EpCreate(nic_handle, bound_cq_handle, &peer_data[i].ep_handle);
@@ -1027,7 +1035,7 @@ GASNETI_INLINE(recv_credits)
 void recv_credits(peer_struct_t *peer, int n) {
   GASNETI_UNUSED_UNLESS_DEBUG int newval = 
     gasneti_weakatomic_add(&peer->am_credit, n, GASNETI_ATOMIC_NONE);
-  gasneti_assert(newval <= am_maxcredit);
+		gasneti_assert(newval <= am_maxcredit);
 }
 
 static void gasnetc_handle_sys_shutdown_packet(uint32_t source, uint16_t arg);
@@ -1180,7 +1188,7 @@ void gasnetc_poll_smsg_queue(void)
           break;
 
         case GC_CTRL_SHUTDOWN:
-	  gasnetc_handle_sys_shutdown_packet(source, arg);
+          gasnetc_handle_sys_shutdown_packet(source, arg);
           break;
 
 #if GASNET_DEBUG
@@ -1217,7 +1225,7 @@ void gasnetc_poll_smsg_queue(void)
         peer->mb.recv_pos = slot ? slot : mb_slots;
         ++free_space;
         gasneti_mutex_unlock(&lock);
-          gasnetc_recv_am(source, mb, header);
+        gasnetc_recv_am(source, mb, header);
         gasneti_mutex_lock(&lock);
       } else {
         queue[tail] = source;
@@ -1429,6 +1437,9 @@ void gasnetc_poll_local_queue(void))
         gasnetc_packet_t * const msg = &gpd->u.packet;
         int rc;
         gpd->flags = 0;
+#if GNI_MULTI_DOMAIN 
+        gasneti_assert(GNI_DEFAULT_DOMAIN == gpd->domain_idx);
+#endif
         rc = gasnetc_send_smsg(gpd->dest, gpd, msg,
                                GASNETC_HEADLEN(long, msg->header.numargs));
         gasneti_assert_always (rc == GASNET_OK);
@@ -1446,17 +1457,19 @@ void gasnetc_poll(int didx)
 {
 	if_pf(didx == GNI_ALL_DOMAINS) {
 	  gasnetc_poll_smsg_queue();
-	  for(didx = 0; didx<gasnetc_domain_count; didx++) 
+    for(didx = 0; didx<gasnetc_domain_count; didx++) 
       gasnetc_poll_local_queue(didx);
 	} else {
-	if(didx ==  GNI_DEFAULT_DOMAIN)
-  		gasnetc_poll_smsg_queue();
+	if(didx == GNI_DEFAULT_DOMAIN)
+     gasnetc_poll_smsg_queue();
 	else {
     int poll_idx;
-		poll_idx = gasnetc_cdom_data[didx].poll_idx++;
+    poll_idx = gasnetc_cdom_data[didx].poll_idx++;
  		/* Every now and then poll the smsg queeue */
-  	if_pf((poll_idx & 0x1ff) == 7)
+    if_pf((poll_idx & 0x1ff) == 7)
       gasnetc_poll_smsg_queue();
+			/*We need that for GC_POST_SEND, which is also used for messaging */
+			gasnetc_poll_local_queue(GNI_DEFAULT_DOMAIN);
 	 }
 	  gasnetc_poll_local_queue(didx);
   }
@@ -2104,10 +2117,15 @@ void gasnetc_get_am_credit(uint32_t pe)
     GASNETC_TRACE_WAIT_BEGIN();
     do {
       GASNETI_WAITHOOK();
+#if GNI_MULTI_DOMAIN
+      gasnetc_poll(didx); /* this should converge faster */
+#else 
       gasneti_AMPoll();
+#endif
     } while (!gasnetc_weakatomic_dec_if_positive(p));
     GASNETC_TRACE_WAIT_END(GET_AM_CREDIT_STALL);
   }
+
 }
 
 
