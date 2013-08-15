@@ -87,12 +87,12 @@ enum {
   + 'misc' is using just 10 out of 16 as long as MaxMedium remains < 1k
  */
 typedef struct GC_Header {
-  uint32_t command : 3;        /* GC_CMD_AM_* */
-  uint32_t numargs : 5;        /* number of GASNet arguments */
-  uint32_t handler : 8;        /* index of GASNet handler */
-  uint32_t misc    : 16;       /* msg-dependent field (e.g. nbytes in a Medium) */
-  uint32_t reply_slot : 16;    /* location for the AM reply */
-  uint32_t unused     : 16;    /* unused */
+  uint8_t  command : 3; /* GC_CMD_AM_* */
+  uint8_t  numargs : 5; /* number of GASNet arguments */
+  uint8_t  handler;     /* index of GASNet handler */
+  uint16_t misc;        /* msg-dependent field (e.g. nbytes in a Medium) */
+  uint16_t reply_slot;  /* location for the AM reply */
+  uint16_t unused;      /* unused */
 } GC_Header_t;
 
 
