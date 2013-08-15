@@ -82,9 +82,12 @@ enum {
     GC_CMD_AM_LONG
 };
 
-
+/* Notes:
+  + 'command' is using just 2 of its 3 bits
+  + 'misc' is using just 10 out of 16 as long as MaxMedium remains < 1k
+ */
 typedef struct GC_Header {
-  uint32_t command : 3;        /* GC_CMD_AM_* - Note: using only 2 of these 3 bits */
+  uint32_t command : 3;        /* GC_CMD_AM_* */
   uint32_t numargs : 5;        /* number of GASNet arguments */
   uint32_t handler : 8;        /* index of GASNet handler */
   uint32_t misc    : 16;       /* msg-dependent field (e.g. nbytes in a Medium) */
