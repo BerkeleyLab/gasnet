@@ -825,8 +825,8 @@ int poll_for_request(gasnet_node_t source)
   const unsigned int slot = peer->mb.recv_pos - 1;
   gasnetc_mailbox_t * const mb = &peer->mb.loc_addr[slot];
   if (mb->full) { /* First word is zero until mailbox is filled */
+    peer->mb.recv_pos = slot ? slot : mb_slots; /* before we release the lock */
     poll_common(source, mb);
-    peer->mb.recv_pos = slot ? slot : mb_slots;
     return 1;
   }
   return 0;
