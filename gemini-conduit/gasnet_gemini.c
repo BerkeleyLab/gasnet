@@ -114,11 +114,13 @@ gasneti_lifo_head_t gasnetc_smsg_buffers = GASNETI_LIFO_INITIALIZER;
 /*------ Declarations and functions for managing the AM buffer pool ------*/
 
 static gasnetc_mailbox_t *my_registered_AM_base;
+static size_t my_registered_AM_bytes;
 static gasnetc_am_linkage_t *recv_mailbox_base;
 
 #define mailbox_from_slot(__base, __x) ((__base) + (__x))
 #define local_next_from_slot(__x) (recv_mailbox_base + (__x))
 #define slot_empty ((gasnetc_am_slot_t)0xffffu)
+static void gasnetc_fini_registered_AM_headers();
 
 GASNETI_INLINE(gasnetc_free_registered_AM_header)
 void gasnetc_free_registered_AM_header(gasnetc_mailbox_t *m, gasnetc_am_slot_t slot)
@@ -683,6 +685,8 @@ void gasnetc_shutdown(void)
   if_pf (status != GNI_RC_SUCCESS) {
     gasnetc_GNIT_Abort("MemDeregister(smsg_mem) failed with %s", gni_return_string(status));
   }
+
+  gasnetc_fini_registered_AM_headers();
 
   if (destination_cq_handle) {
     status = GNI_CqDestroy(destination_cq_handle);
@@ -1900,20 +1904,18 @@ void gasnetc_init_registered_AM_headers()
 {
   int count = gasneti_getenv_int_withdefault("GASNETC_GNI_REGISTERED_AM_HEADER_COUNT",
                                              GASNETC_GNI_REGISTERED_AM_HEADER_COUNT_DEFAULT, 0);
-  size_t size;
 
   /* leave two codepoints for slot_empty and AM_SLOT_REQUEST */
   count = MIN(count, ((1<<(8*sizeof(gasnetc_am_slot_t))) -2));
 
   recv_mailbox_base = (gasnetc_am_linkage_t *)gasneti_calloc(count, sizeof(struct gasnetc_am_linkage_t));
-  gasneti_leak(recv_mailbox_base);
 
-  size = count * GASNETC_MSG_MAXSIZE;
-  my_registered_AM_base = gasneti_huge_mmap(NULL, size);
+  my_registered_AM_bytes = count * GASNETC_MSG_MAXSIZE;
+  my_registered_AM_base = gasneti_huge_mmap(NULL, my_registered_AM_bytes);
 
   if (my_registered_AM_base != (gasnetc_mailbox_t *)MAP_FAILED) {
     if (GNI_MemRegister(nic_handle, 
-                        (uint64_t)my_registered_AM_base, size, 
+                        (uint64_t)my_registered_AM_base, my_registered_AM_bytes, 
                         smsg_cq_handle, 
                         GNI_MEM_STRICT_PI_ORDERING | GNI_MEM_PI_FLUSH | GNI_MEM_READWRITE,
                         -1,
@@ -1925,10 +1927,22 @@ void gasnetc_init_registered_AM_headers()
         m->freelist.reply_slot = i;
         gasneti_lifo_push(&gasnetc_registered_AM_header_pool, m);
       }
-      
+
       return;
     } 
   }
-
   gasneti_fatalerror("unable to allocate registered AM buffers");
 }
+
+static void gasnetc_fini_registered_AM_headers()
+{
+  gni_return_t status;
+
+  status = GNI_MemDeregister(nic_handle, &my_registered_AM_handle);
+  if_pf (status != GNI_RC_SUCCESS) {
+    gasnetc_GNIT_Abort("MemDeregister(segment) failed with %s", gni_return_string(status));
+  }
+  gasneti_free(recv_mailbox_base);
+  gasneti_huge_munmap(my_registered_AM_base, my_registered_AM_bytes);
+}
+
