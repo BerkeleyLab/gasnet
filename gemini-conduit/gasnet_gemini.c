@@ -117,7 +117,8 @@ static gasnetc_mailbox_t *my_registered_AM_base;
 static size_t my_registered_AM_bytes;
 static gasnetc_am_linkage_t *recv_mailbox_base;
 
-#define mailbox_from_slot(__base, __x) ((__base) + (__x))
+#define remote_mailbox_from_slot(__peer, __x) ((__peer)->am_prereg_base + (__x))
+#define local_mailbox_from_slot(__x) (my_registered_AM_base + (__x))
 #define local_next_from_slot(__x) (recv_mailbox_base + (__x))
 #define slot_empty ((gasnetc_am_slot_t)0xffffu)
 static void gasnetc_fini_registered_AM_headers();
@@ -125,7 +126,7 @@ static void gasnetc_fini_registered_AM_headers();
 GASNETI_INLINE(gasnetc_free_registered_AM_header)
 void gasnetc_free_registered_AM_header(gasnetc_mailbox_t *m, gasnetc_am_slot_t slot)
 {
-    gasneti_assert(m == mailbox_from_slot(my_registered_AM_base, slot));
+    gasneti_assert(m == local_mailbox_from_slot(slot));
     m->freelist.reply_slot = slot;
     gasneti_lifo_push(&gasnetc_registered_AM_header_pool, m);
 }
@@ -838,7 +839,7 @@ int poll_for_reply(gasnet_node_t source)
   peer_struct_t * const peer = &peer_data[source];
   const gasnetc_am_slot_t am_head = peer->am_head;
   if (am_head != slot_empty) {
-    gasnetc_mailbox_t * const mb = mailbox_from_slot(my_registered_AM_base, am_head);
+    gasnetc_mailbox_t * const mb = local_mailbox_from_slot(am_head);
     if (mb->full) { /* First word is zero until mailbox is filled */
       gasnetc_unlink_reply_buffer(am_head, peer);
       poll_common(source, mb);
@@ -908,7 +909,7 @@ void gasnetc_poll_smsg_queue(void)
             const gasnetc_am_slot_t slot = arg;
             recv_credit(peer);
             gasnetc_unlink_reply_buffer(slot, peer);
-            gasnetc_free_registered_AM_header(mailbox_from_slot(my_registered_AM_base, slot), slot);
+            gasnetc_free_registered_AM_header(local_mailbox_from_slot(slot), slot);
             break;
           }
           
@@ -985,7 +986,7 @@ gasnetc_send_smsg(gasnet_node_t dest, gasnetc_post_descriptor_t *gpd,
     pd->remote_mem_hndl = peer->mb.rem_hndl; 
   } else {
     pd->remote_mem_hndl = peer->am_prereg_handle;
-    target_address = (uint64_t)mailbox_from_slot(peer->am_prereg_base, reply_slot);
+    target_address = (uint64_t) remote_mailbox_from_slot(peer, reply_slot);
   }
 
   GASNETI_TRACE_PRINTF(D, ("smsg to %d type %s_%s\n", dest,
