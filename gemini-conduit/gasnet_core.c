@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/08/15 09:49:22 $
- * $Revision: 1.84.2.3 $
+ *     $Date: 2013/08/15 17:28:59 $
+ * $Revision: 1.84.2.4 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -54,6 +54,8 @@ static void gasnetc_check_config(void) {
   /* Otherwise space is being wasted: */
   gasneti_assert(GASNETC_MSG_MAXSIZE ==
                  (GASNETC_HEADLEN(medium, gasnet_AMMaxArgs()) + gasnet_AMMaxMedium()));
+  
+  gasneti_assert((int)GC_CMD_AM_LONG_PACKED == ((int)GC_CMD_AM_LONG + 1));
 
   { gni_nic_device_t device_type;
 #ifdef GASNET_CONDUIT_GEMINI
@@ -1155,7 +1157,6 @@ int gasnetc_short_common(gasnet_node_t dest, int is_req, gasnetc_am_slot_t slot,
     m->header.command = GC_CMD_AM_SHORT;
     m->header.numargs = numargs;
     m->header.handler = handler;
-  /*m->header.misc    = 0;  -- field is unused by shorts */
     for (i = 0; i < numargs; i++) {
       m->gasp.args[i] = va_arg(argptr, gasnet_handlerarg_t);
     }
@@ -1210,7 +1211,7 @@ int gasnetc_medium_common(gasnet_node_t dest, int is_req, gasnetc_am_slot_t slot
     m->header.command = GC_CMD_AM_MEDIUM;
     m->header.numargs = numargs;
     m->header.handler = handler;
-    m->header.misc    = nbytes;
+    m->gamp.data_length = nbytes;
     for (i = 0; i < numargs; i++) {
       m->gamp.args[i] = va_arg(argptr, gasnet_handlerarg_t);
     }
@@ -1278,10 +1279,9 @@ int gasnetc_long_common(gasnet_node_t dest, int is_req, gasnetc_am_slot_t slot,
     }
     gpd->flags = flags;
 
-    m->header.command = GC_CMD_AM_LONG;
+    m->header.command = (int)GC_CMD_AM_LONG + is_packed;
     m->header.numargs = numargs;
     m->header.handler = handler;
-    m->header.misc    = is_packed;
     m->galp.data_length = nbytes;
     m->galp.data = dest_addr;
     for (i = 0; i < numargs; i++) {
@@ -1418,10 +1418,9 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     m = gasnetc_get_am_request_buffer(dest);
 
     gpd->flags = 0;
-    m->header.command = GC_CMD_AM_LONG;
+    m->header.command = (int)GC_CMD_AM_LONG + is_packed;
     m->header.numargs = numargs;
     m->header.handler = handler;
-    m->header.misc    = is_packed;
     m->galp.data_length = nbytes;
     m->galp.data = dest_addr;
     for (i = 0; i < numargs; i++) {

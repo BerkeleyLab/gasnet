@@ -79,20 +79,15 @@ enum {
     GC_CMD_NULL = 0, /* zero GC_Header marks free mailboxes */
     GC_CMD_AM_SHORT = 1,
     GC_CMD_AM_MEDIUM,
-    GC_CMD_AM_LONG
+    GC_CMD_AM_LONG,
+    GC_CMD_AM_LONG_PACKED
 };
 
-/* Notes:
-  + 'command' is using just 2 of its 3 bits
-  + 'misc' is using just 10 out of 16 as long as MaxMedium remains < 1k
- */
 typedef struct GC_Header {
-  uint8_t  command : 3; /* GC_CMD_AM_* */
+  uint8_t  command : 3; /* GC_CMD_* */
   uint8_t  numargs : 5; /* number of GASNet arguments */
   uint8_t  handler;     /* index of GASNet handler */
-  uint16_t misc;        /* msg-dependent field (e.g. nbytes in a Medium) */
   uint16_t reply_slot;  /* location for the AM reply */
-  uint16_t unused;      /* unused */
 } GC_Header_t;
 
 
@@ -105,6 +100,7 @@ typedef struct {
 /* This type is used by an AMMedium request or reply */
 typedef struct {
   GC_Header_t header;
+  uint32_t data_length; /* 16-bit is more than enough, but would be padded to 32 anyway */
   gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
 } gasnetc_am_medium_packet_t;
 

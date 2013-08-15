@@ -740,7 +740,6 @@ void gasnetc_recv_am(gasnet_node_t pe, gasnetc_mailbox_t * const mb, const int i
   gasneti_mutex_unlock(&ampoll_lock);
   {
       const int numargs = header.numargs;
-      const int misc = header.misc;
       const int handlerindex = header.handler;
       gasneti_handler_fn_t handler = gasnetc_handler[handlerindex];
 
@@ -773,22 +772,24 @@ void gasnetc_recv_am(gasnet_node_t pe, gasnetc_mailbox_t * const mb, const int i
         uint8_t * data = &mb->raw[head_len];
         if (is_req) { /* Req cannot run with payload in-place */
           /* TODO: special case for non-replying requests (internal only for now) */
-          data = memcpy(&buffer, data, misc);
+          data = memcpy(&buffer, data, mb->packet.gamp.data_length);
         }
         gasneti_assert(0 == (((uintptr_t) data) % GASNETI_MEDBUF_ALIGNMENT));
-        gasneti_assert(misc <= gasnet_AMMaxMedium());
+        gasneti_assert(mb->packet.gamp.data_length <= gasnet_AMMaxMedium());
         GASNETI_RUN_HANDLER_MEDIUM(is_req, handlerindex, handler,
                                    token, mb->packet.gamp.args, numargs,
-                                   data, misc);
+                                   data, mb->packet.gamp.data_length);
 	break;
       }
 
-      case GC_CMD_AM_LONG:
-        if (misc) { /* payload follows header - copy it into place */
+      case GC_CMD_AM_LONG_PACKED:
+        { /* payload follows header - copy it into place */
           const size_t head_len = GASNETC_HEADLEN(long, numargs);
           gasneti_assert(mb->packet.galp.data_length <= GASNETC_MAX_PACKED_LONG(numargs));
           memcpy(mb->packet.galp.data, &mb->raw[head_len], mb->packet.galp.data_length);
         }
+        /* fall through... */
+      case GC_CMD_AM_LONG:
         GASNETI_RUN_HANDLER_LONG(is_req, handlerindex, handler,
         		         token, mb->packet.galp.args, numargs,
         		         mb->packet.galp.data, mb->packet.galp.data_length);
