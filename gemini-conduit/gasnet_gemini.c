@@ -797,12 +797,12 @@ void gasnetc_recv_am(gasnet_node_t pe, gasnetc_mailbox_t * const mb, const int i
 
 #if GASNET_DEBUG
       default:
-    gasnetc_GNIT_Abort("unknown packet type");
+	gasnetc_GNIT_Abort("unknown packet type");
 #endif
       }
-
-      if (the_token.need_reply) 
+      if (the_token.need_reply) {
         gasnetc_send_control(pe, GC_CTRL_CREDIT, header.reply_slot);
+      }
   }
   gasneti_mutex_lock(&ampoll_lock);
 }
@@ -1014,7 +1014,7 @@ gasnetc_send_smsg(gasnet_node_t dest, gasnetc_post_descriptor_t *gpd,
     GASNETC_LOCK_GNI();
   }
 
-  return GASNET_OK; 
+  return GASNET_OK;
 }
 
 
