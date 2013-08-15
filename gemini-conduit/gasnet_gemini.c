@@ -47,7 +47,7 @@ typedef struct peer_struct {
     gasnetc_mailbox_t *loc_addr;
     gasnetc_mailbox_t *rem_addr;
     gni_mem_handle_t rem_hndl;
-    /* "pos" variables are in range [1..mb_slots] and moving backwards */
+    /* "pos" variables are in range [1..am_maxcredit] and moving backwards */
     unsigned int recv_pos;
     unsigned int send_pos;
   } mb;
@@ -70,7 +70,6 @@ static gasnet_seginfo_t gasnetc_bounce_buffers;
 static gasnet_seginfo_t gasnetc_pd_buffers;
 
 unsigned int gasnetc_log2_remote;
-static unsigned int mb_slots;
 static unsigned int am_maxcredit;
 
 
@@ -508,7 +507,6 @@ uintptr_t gasnetc_init_messaging(void)
     int depth = gasneti_getenv_int_withdefault("GASNET_NETWORKDEPTH",
                                                GASNETC_NETWORKDEPTH_DEFAULT, 0);
     am_maxcredit = MAX(1,depth); /* Min is 1 */
-    mb_slots = 2 * am_maxcredit; /* (req + reply) = 2 */
   }
 
   { /* Determine Cq size: GASNET_GNI_NUM_PD */
@@ -548,7 +546,7 @@ uintptr_t gasnetc_init_messaging(void)
    * allocate a CQ in which to receive message notifications
    * include logarithmic space for shutdown messaging
    */
-  i = gasnetc_log2_remote + remote_nodes*mb_slots;
+  i = gasnetc_log2_remote + 2*remote_nodes*am_maxcredit; /* 2 = Request + Reply */
   status = GNI_CqCreate(nic_handle,i,0,GNI_CQ_NOBLOCK,NULL,NULL,&smsg_cq_handle);
   if (status != GNI_RC_SUCCESS) {
     gasnetc_GNIT_Abort("GNI_CqCreate returned error %s", gni_return_string(status));
@@ -558,7 +556,7 @@ uintptr_t gasnetc_init_messaging(void)
    * Set up an mmap region to contain all of my mailboxes.
    */
 
-  bytes_per_mbox = mb_slots * sizeof(gasnetc_mailbox_t);
+  bytes_per_mbox = am_maxcredit * sizeof(gasnetc_mailbox_t);
 
   /* TODO: remove MAX(1,) while still avoiding "issues" on single-(super)node runs */
   bytes_needed = MAX(1,remote_nodes) * bytes_per_mbox;
@@ -614,10 +612,10 @@ uintptr_t gasnetc_init_messaging(void)
       peer_data[i].am_prereg_base = all_smsg_exchg[i].am_addr;
 
       peer_data[i].mb.loc_addr = (gasnetc_mailbox_t*) local_buffer;
-      peer_data[i].mb.rem_addr = (gasnetc_mailbox_t*) all_smsg_exchg[i].addr + (mb_slots * my_smsg_index(i));
+      peer_data[i].mb.rem_addr = (gasnetc_mailbox_t*) all_smsg_exchg[i].addr + (am_maxcredit * my_smsg_index(i));
       peer_data[i].mb.rem_hndl = all_smsg_exchg[i].handle;
-      peer_data[i].mb.recv_pos = mb_slots;
-      peer_data[i].mb.send_pos = mb_slots;
+      peer_data[i].mb.recv_pos = am_maxcredit;
+      peer_data[i].mb.send_pos = am_maxcredit;
       gasneti_weakatomic_set(&peer_data[i].am_credit, am_maxcredit, 0);
       local_buffer += bytes_per_mbox;
     }
@@ -825,7 +823,7 @@ int poll_for_request(gasnet_node_t source)
   const unsigned int slot = peer->mb.recv_pos - 1;
   gasnetc_mailbox_t * const mb = &peer->mb.loc_addr[slot];
   if (mb->full) { /* First word is zero until mailbox is filled */
-    peer->mb.recv_pos = slot ? slot : mb_slots; /* before we release the lock */
+    peer->mb.recv_pos = slot ? slot : am_maxcredit; /* before we release the lock */
     poll_common(source, mb);
     return 1;
   }
@@ -982,7 +980,7 @@ gasnetc_send_smsg(gasnet_node_t dest, gasnetc_post_descriptor_t *gpd,
   if (reply_slot == AM_SLOT_REQUEST) {
     unsigned int send_pos = peer->mb.send_pos - 1;
     target_address = (uint64_t) &peer->mb.rem_addr[send_pos];
-    peer->mb.send_pos = send_pos ? send_pos : mb_slots;
+    peer->mb.send_pos = send_pos ? send_pos : am_maxcredit;
     pd->remote_mem_hndl = peer->mb.rem_hndl; 
   } else {
     pd->remote_mem_hndl = peer->am_prereg_handle;
