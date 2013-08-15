@@ -795,8 +795,6 @@ void gasnetc_recv_am(gasnet_node_t pe, gasnetc_mailbox_t * const mb, const GC_He
 
       if (the_token.need_reply) 
         gasnetc_send_control(pe, GC_CTRL_CREDIT, header.reply_slot);
-
-      if (!is_req) recv_credit(peer);
   }
 }
 
@@ -839,6 +837,7 @@ int poll_for_reply(gasnet_node_t source)
   if (am_head != slot_empty) {
     gasnetc_mailbox_t * const mb = local_mailbox_from_slot(am_head);
     if (mb->full) { /* First word is zero until mailbox is filled */
+      recv_credit(peer); /* do this first, it might unblock another thread */
       gasnetc_unlink_reply_buffer(am_head, peer);
       poll_common(source, mb);
       gasnetc_free_registered_AM_header(mb, am_head);
