@@ -135,20 +135,34 @@ void gasnetc_unlink_reply_buffer(gasnetc_am_slot_t s,
                                  peer_struct_t * peer)
 {
   gasnetc_am_linkage_t *a = local_next_from_slot(s);  
- 
-  GASNETC_LOCK_GNI();
+  /* NOTE: rmb() would be needed prior to deref of 'a' on PPC or Alpha,
+     to ensure 'a->next' is the value written prior to linking in 'a'.
+     Howver, on x86/x86-64 we "know" that reads aren't reordered. */
+  const int might_be_tail = (a->next == slot_empty);
+
+  if (might_be_tail) GASNETC_LOCK_GNI();
+
   if (a->last == slot_empty) {
     peer->am_head = a->next;
   } else {
     local_next_from_slot(a->last)->next = a->next;
   }
-  
-  if (a->next == slot_empty)  {
+
+  if (a->next == slot_empty) { /* may have changed since 'might_be_tail' was set */
     peer->am_tail = a->last;
   } else {
     local_next_from_slot(a->next)->last = a->last;
   }
-  GASNETC_UNLOCK_GNI();
+
+  if (might_be_tail) GASNETC_UNLOCK_GNI();
+
+  /* Note: need wmb() between 'a->next=slot_empty' and the next time that 'a' is
+     linked into any list.  Since a given 'a' can't be reused until the matching
+     mailbox has been pushed on the freelist and and popped again, the wmb() in
+     the push is sufficinet.  So, we write 'last' and 'next' now to save adding
+     a wmb() in the "link" path.
+   */
+  a->last = a->next = slot_empty; 
 }
 
 
@@ -158,7 +172,8 @@ void gasnetc_link_reply_buffer(gasnetc_am_slot_t s,
 {
   gasnetc_am_linkage_t *a = local_next_from_slot(s);  
 
-  a->last = a->next = slot_empty;
+  gasneti_assert(a->last == slot_empty);
+  gasneti_assert(a->next == slot_empty);
   if (peer->am_head == slot_empty) {
     peer->am_head  = s;
   } else { 
@@ -1899,7 +1914,7 @@ void gasnetc_init_registered_AM_headers()
   /* leave two codepoints for slot_empty and AM_SLOT_REQUEST */
   count = MIN(count, ((1<<(8*sizeof(gasnetc_am_slot_t))) -2));
 
-  recv_mailbox_base = (gasnetc_am_linkage_t *)gasneti_calloc(count, sizeof(struct gasnetc_am_linkage_t));
+  recv_mailbox_base = (gasnetc_am_linkage_t *)gasneti_malloc(count * sizeof(struct gasnetc_am_linkage_t));
 
   my_registered_AM_bytes = count * GASNETC_MSG_MAXSIZE;
   my_registered_AM_base = gasneti_huge_mmap(NULL, my_registered_AM_bytes);
@@ -1917,6 +1932,7 @@ void gasnetc_init_registered_AM_headers()
         gasnetc_mailbox_t *m = my_registered_AM_base + i;
         m->freelist.reply_slot = i;
         gasneti_lifo_push(&gasnetc_registered_AM_header_pool, m);
+        recv_mailbox_base[i].last = recv_mailbox_base[i].next = slot_empty;
       }
 
       return;
