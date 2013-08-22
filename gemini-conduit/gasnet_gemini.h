@@ -37,15 +37,17 @@
 #define GNI_DEFAULT_DOMAIN 0
 #define GNI_ALL_DOMAINS (-1)
 
+#define GASNETC_GNI_DOMAIN_COUNT_DEFAULT 1
+#define GASNETC_GNI_PTHREADS_PER_DOMAIN_DEFAULT 1
+
+#define GASNETC_AM_DOMAIN_POLL_MASK_DEFAULT (0x1ff)
+#define GNI_POLL_DEFAULT_SIGNATURE (0x07)
+
 #else
 #undef GNI_MULTI_DOMAIN 
 #endif
 
 
-#if GNI_MULTI_DOMAIN
-#define GASNETC_GNI_DOMAIN_COUNT_DEFAULT 1
-#define GASNETC_GNI_PTHREADS_PER_DOMAIN_DEFAULT 1
-#endif
 /* debug support */
 #define gasnetc_GNIT_Abort(msg, args...) do {			  \
     fprintf(stderr, "node %d error %s: " msg "\n", gasneti_mynode,	  \

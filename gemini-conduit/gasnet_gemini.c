@@ -65,10 +65,15 @@ static unsigned int am_maxcredit;
 static int gasnetc_poll_burst = 10;
 
 static int gasnetc_domain_count;
+static int gasnetc_poll_default_per_thread;
 static void *gasnetc_segment_start;
 static size_t gasnetc_segment_size;
 static int gasnetc_gni_create_modes;
 static int gasnetc_num_pd;
+static int gasnetc_poll_am_domain_mask;
+#if (GNI_DOMAIN_THERAD_DISTRIBUTION == GNI_DOMAIN_THERAD_DISTRIBUTION_BULK)
+static int gasnetc_threads_per_domain;
+#endif
 
 typedef struct {
   gni_cdm_handle_t cdm_handle;
@@ -97,29 +102,29 @@ typedef struct {
 
 static communication_domain_struct_t * gasnetc_cdom_data;
 
-int8_t pad1[GASNETC_CACHELINE_SIZE];
+static int8_t pad_reg_credit[GASNETC_CACHELINE_SIZE];
 /* read-write: */
 gasneti_weakatomic_t gasnetc_reg_credit;
 
 #if !GASNET_CONDUIT_GEMINI
-inline gasnetc_packet_t * gasnetc_alloc_am_buffer(size_t buffer_len) {
+gasnetc_packet_t * gasnetc_alloc_am_buffer(size_t buffer_len) {
      void *result = gasneti_lifo_pop(&gasnetc_cdom_data[GNI_DEFAULT_DOMAIN].gasnetc_smsg_buffers);
      return result ? result : gasneti_malloc(GASNETC_MSG_MAXSIZE);
 }
 
-inline void gasnetc_free_am_buffer(gasnetc_packet_t *packet) {
+void gasnetc_free_am_buffer(gasnetc_packet_t *packet) {
    gasneti_lifo_push(&gasnetc_cdom_data[GNI_DEFAULT_DOMAIN].gasnetc_smsg_buffers, packet);
 }
 #endif
 
 #if (GNI_DOMAIN_THERAD_DISTRIBUTION == GNI_DOMAIN_THERAD_DISTRIBUTION_BULK)
-static int gasnetc_threads_per_domain;
+
 int gasnetc_get_domain_idx(gasnete_threadidx_t tidx)
 {
   int didx = (tidx / gasnetc_threads_per_domain) % gasnetc_domain_count;
   return didx;
 }
-
+GASNETI_INLINE(gasnetc_get_domain_first_thread_idx)
 gasnete_threadidx_t gasnetc_get_domain_first_thread_idx(int didx)
 {
   int tidx = didx * gasnetc_threads_per_domain;
@@ -132,13 +137,15 @@ int gasnetc_get_domain_idx(gasnete_threadidx_t tidx)
   return didx;
 }
 
+GASNETI_INLINE(gasnetc_get_domain_first_thread_idx)
 gasnete_threadidx_t gasnetc_get_domain_first_thread_idx(int didx)
 {
   int tidx = didx;
   return tidx;
 }
 #endif
-static void reset_comm_data(communication_domain_struct_t * ddata)
+GASNETI_INLINE(reset_comm_data)
+void reset_comm_data(communication_domain_struct_t * ddata)
 {
 /* ddata->post_descriptor_pool = GASNETI_LIFO_INITIALIZER; */
   gasneti_lifo_init(&(ddata->post_descriptor_pool));
@@ -717,6 +724,13 @@ uintptr_t gasnetc_init_messaging(void)
   gasneti_lifo_head_t post_descriptor_pool = GASNETI_LIFO_INITIALIZER;
   gasnetc_domain_count = gasneti_getenv_int_withdefault("GASNET_GNI_DOMAIN_COUNT",
                GASNETC_GNI_DOMAIN_COUNT_DEFAULT,1);
+  gasnetc_poll_am_domain_mask = gasneti_getenv_int_withdefault("GASNET_AM_DOMAIN_POLL_MASK",
+               GASNETC_AM_DOMAIN_POLL_MASK_DEFAULT,1);
+	i=1;
+	while(i<gasnetc_domain_count) {
+		 gasnetc_poll_am_domain_mask  = (gasnetc_poll_am_domain_mask <<1) | 1;
+		i<<=1;
+	}
   gasnetc_threads_per_domain =  gasneti_getenv_int_withdefault("GASNET_GNI_PTHREADS_PER_DOMAIN",
                GASNETC_GNI_PTHREADS_PER_DOMAIN_DEFAULT,1);
   gasnetc_cdom_data = gasneti_malloc(gasnetc_domain_count * sizeof(communication_domain_struct_t));
@@ -1466,10 +1480,11 @@ void gasnetc_poll(int didx)
     int poll_idx;
     poll_idx = gasnetc_cdom_data[didx].poll_idx++;
  		/* Every now and then poll the smsg queeue */
-    if_pf((poll_idx & 0x1ff) == 7)
+    if_pf((poll_idx & gasnetc_poll_am_domain_mask) == GNI_POLL_DEFAULT_SIGNATURE) {
       gasnetc_poll_smsg_queue();
 			/*We need that for GC_POST_SEND, which is also used for messaging */
 			gasnetc_poll_local_queue(GNI_DEFAULT_DOMAIN);
+		}
 	 }
 	  gasnetc_poll_local_queue(didx);
   }
