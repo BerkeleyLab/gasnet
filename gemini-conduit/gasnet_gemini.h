@@ -53,20 +53,27 @@ typedef gasneti_atomic_t gasnetc_gni_lock_t;
 #define GASNETC_INITLOCK_GNI() gasneti_spinlock_init(&gasnetc_gni_lock)
 #define GASNETC_LOCK_GNI() gasneti_spinlock_lock(&gasnetc_gni_lock)
 #define GASNETC_UNLOCK_GNI() gasneti_spinlock_unlock(&gasnetc_gni_lock)
+#define GASNETC_INITLOCK_AM_BUFFER() gasneti_spinlock_init(&gasnetc_am_buffer_lock)
+#define GASNETC_LOCK_AM_BUFFER() gasneti_spinlock_lock(&gasnetc_am_buffer_lock)
+#define GASNETC_UNLOCK_AM_BUFFER() gasneti_spinlock_unlock(&gasnetc_am_buffer_lock)
 #else
 typedef gasneti_mutex_t gasnetc_gni_lock_t;
 #define GASNETC_INITLOCK_GNI() gasneti_mutex_init(&gasnetc_gni_lock)
 #define GASNETC_LOCK_GNI() gasneti_mutex_lock(&gasnetc_gni_lock)
 #define GASNETC_UNLOCK_GNI() gasneti_mutex_unlock(&gasnetc_gni_lock)
+#define GASNETC_INITLOCK_AM_BUFFER() gasneti_mutex_init(&gasnetc_am_buffer_lock)
+#define GASNETC_LOCK_AM_BUFFER() gasneti_mutex_lock(&gasnetc_am_buffer_lock)
+#define GASNETC_UNLOCK_AM_BUFFER() gasneti_mutex_unlock(&gasnetc_am_buffer_lock)
 #endif
 extern gasnetc_gni_lock_t gasnetc_gni_lock;
+extern gasnetc_gni_lock_t gasnetc_am_buffer_lock;
 
-typedef uint16_t gasnetc_am_slot_t;
+typedef uint64_t gasnetc_notify_t;
 
 typedef struct {
   gasnet_node_t source;
   int need_reply;
-  gasnetc_am_slot_t response_slot;
+  gasnetc_notify_t notify;  
 } gasnetc_token_t;
 
 /* Control messages */
@@ -207,9 +214,10 @@ typedef struct gasnetc_post_descriptor {
     uint8_t immediate[GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE];
     gasnetc_packet_t packet;
   } u;
-  gasnetc_packet_t *deferred;
+  struct gasnetc_post_descriptor *next;
   uint32_t flags;
-  gasnet_node_t dest;
+  void *peer; //gasnet_gemini.c: 
+  gasnetc_packet_t *body;
 } gasnetc_post_descriptor_t;
 
 gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(void) GASNETI_MALLOC;
@@ -235,11 +243,6 @@ void gasnetc_shutdown(void); /* clean up all gni state */
 
 void gasnetc_poll_local_queue(void);
 void gasnetc_poll(void);
-
-int gasnetc_send_smsg(gasnet_node_t dest, 
-            gasnetc_post_descriptor_t *gpd,
-            gasnetc_packet_t *msg, size_t length,
-            gasnetc_am_slot_t slot);
 
 void gasnetc_rdma_put_bulk(gasnet_node_t node,
 		 void *dest_addr, void *source_addr,
@@ -288,10 +291,13 @@ int gasnetc_weakatomic_dec_if_positive(gasneti_weakatomic_t *p)
 #endif
 }
 
-void gasnetc_init_registered_AM_headers(void);
-#define AM_SLOT_REQUEST ((gasnetc_am_slot_t)0xfffeu)
+#define GASNETC_GNI_REPLY_BUFFER_DEFAULT 200
 
-#define GASNETC_GNI_REGISTERED_AM_HEADER_COUNT_DEFAULT 200
+extern int gasnetc_send_am(gasnetc_post_descriptor_t *gpd);
+gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(void *t,
+                                                               size_t length);
+gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnet_node_t dest, 
+                                                                 size_t length);
 
 #endif /* GASNET_GEMINI_H */
 
