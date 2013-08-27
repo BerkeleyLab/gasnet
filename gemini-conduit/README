@@ -1,6 +1,6 @@
 GASNet gemini-conduit and aries-conduit documentation
 Larry Stewart <stewart@serissa.com> 
-$Revision: 1.26 $
+$Revision: 1.26.12.1 $
 
 User Information:
 -----------------
@@ -22,13 +22,23 @@ GASNET_BARRIER - barrier algorithm selection
                 GNI operations for lower latency.
   Currently GNIDISSEM is the default on both Gemini and Aries.
 
-GASNET_NETWORKDEPTH - depth of per-peer AM queues - default 12, min 1
+GASNET_NETWORKDEPTH - depth of AM Request queue
+  This determines the maximum number of AM Requests that can be
+  oustanding between a given pair of peers before flow-control.
+  Values will be silently adjust to the range [1..64]
+  The default value is 12
 
-GASNET_GNI_NUM_PD  	  - default 512, number of post descriptors
+GASNET_NETWORKDEPTH_TOTAL - depth of AM Reply queue
+  This determines the maximum number of AM Requests that can be
+  oustanding from one peer to all others before flow-control.
+  The default value is 200, and the minimum is 1.
+
+GASNET_GNI_NUM_PD - number of post descriptors
   AM and RDMA operations all requires use of a control block called a
   Post Descriptor. This variable controls how many of these are
   allocated, and therefore limit the total number of operations which
   can be in-flight at any time.
+  The default value is 512, and the minimum is 32.
 
 GASNET_GNI_GET_FMA_RDMA_CUTOVER - default 4096 max 16384
 GASNET_GNI_PUT_FMA_RDMA_CUTOVER - default 4096 max 16384

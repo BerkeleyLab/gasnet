@@ -291,7 +291,21 @@ int gasnetc_weakatomic_dec_if_positive(gasneti_weakatomic_t *p)
 #endif
 }
 
-#define GASNETC_GNI_REPLY_BUFFER_DEFAULT 200
+/* Given a value between 1 and INT_MAX, returns the smallest power of two
+ * that is greater than or equal to the argument.
+ * Specifically power of two arguments return themselves.
+ */
+GASNETI_INLINE(gasnetc_next_power_of_2)
+int gasnetc_next_power_of_2(int x) {
+  x -= 1;
+  x |= (x >> 1);
+  x |= (x >> 2);
+  x |= (x >> 4);
+  x |= (x >> 8);
+  x |= (x >> 16);
+  x += 1;
+  return x;
+}
 
 extern int gasnetc_send_am(gasnetc_post_descriptor_t *gpd);
 gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(void *t,

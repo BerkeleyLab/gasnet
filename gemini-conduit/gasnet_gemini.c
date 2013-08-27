@@ -8,9 +8,7 @@
 #include <string.h>
 
 #define GASNETC_NETWORKDEPTH_DEFAULT 12
-
-// xxx - needs to be next_power_two(am_credits*2)
-#define NOTIFY_BUFFER_SIZE 64
+#define GASNETC_NETWORKDEPTH_TOTAL_DEFAULT 200
 
 #ifdef GASNET_CONDUIT_GEMINI
   /* Use remote event + PI_FLUSH to get "proper" ordering w/ relaxed and default PI ordering */
@@ -49,8 +47,8 @@ typedef struct peer_struct {
   gasnetc_mailbox_t *remote_request_base;
 
   uint64_t remote_request_map;    
-  volatile uint32_t remote_notify_write; //covered by the gni lock
-  volatile uint32_t local_notify_read;   //covered by the ampoll lock
+  uint32_t remote_notify_write; //covered by the gni lock, unbounded
+  uint32_t local_notify_read;   //covered by the ampoll lock, bounded [0..notify_ring_size)
 } peer_struct_t;
 
 static gni_mem_handle_t am_handle;
@@ -67,6 +65,8 @@ static gasnet_seginfo_t gasnetc_pd_buffers;
 
 unsigned int gasnetc_log2_remote;
 static unsigned int am_maxcredit;
+static unsigned int num_pd;
+static uint32_t notify_ring_mask; /* ring size minus 1 */
 
 
 /*------ Group the most commonly accessed variables together ------*/
@@ -437,12 +437,13 @@ uintptr_t gasnetc_init_messaging(void)
   uint32_t *all_addr;
   uint32_t local_address;
   uint32_t i;
-  size_t bytes_per_mbox;
+  uint64_t request_map;
+  size_t request_region_length;
+  size_t reply_region_length;
   size_t peer_stride;
+  int notify_ring_size;
   int modes = 0;
-  int reply_count = gasneti_getenv_int_withdefault("GASNETC_GNI_REPLY_BUFFER_COUNT",
-                                                   GASNETC_GNI_REPLY_BUFFER_DEFAULT, 0);
-  size_t reply_region_length = reply_count * sizeof(gasnetc_mailbox_t);
+  int reply_count;
 
 #if GASNET_DEBUG
   modes |= GNI_CDM_MODE_ERR_NO_KILL;
@@ -463,22 +464,36 @@ uintptr_t gasnetc_init_messaging(void)
 			 &nic_handle);
   gasneti_assert_always (status == GNI_RC_SUCCESS);
 
-  { /* Determine credits for AMs: GASNET_NETWORKDEPTH */
-    int depth = gasneti_getenv_int_withdefault("GASNET_NETWORKDEPTH",
-                                               GASNETC_NETWORKDEPTH_DEFAULT, 0);
-    am_maxcredit = MAX(1,depth); /* Min is 1 */
-  }
+  /* Determine credits for AMs: GASNET_NETWORKDEPTH */
+  am_maxcredit = gasneti_getenv_int_withdefault("GASNET_NETWORKDEPTH",
+                                                GASNETC_NETWORKDEPTH_DEFAULT, 0);
+  am_maxcredit = MAX(1, am_maxcredit); /* Min is 1 */
+  am_maxcredit = MIN(64, am_maxcredit); /* Max is 64 (bits in a long) */
+
+  /* NOTE: 1<<64 is undefined and indeed icc yields 1.  So, we special case 64 credits */
+  request_map = (am_maxcredit == 64) ? ~(uint64_t)0 : (((uint64_t)1 << am_maxcredit) - 1);
+ 
+  /* Determine number of Reply buffers */
+  reply_count = gasneti_getenv_int_withdefault("GASNET_NETWORKDEPTH_TOTAL",
+                                               GASNETC_NETWORKDEPTH_TOTAL_DEFAULT, 0);
+  reply_count = MAX(1, reply_count); /* Min is 1 */
 
   { /* Determine Cq size: GASNET_GNI_NUM_PD */
-    int num_pd, cq_entries;
+    int cq_entries;
     num_pd = gasneti_getenv_int_withdefault("GASNET_GNI_NUM_PD",
                                             GASNETC_GNI_NUM_PD_DEFAULT,1);
+    num_pd = MAX(32, num_pd); /* Min is 32 (XXX: should be cores+1) */
 
     cq_entries = num_pd+2; /* XXX: why +2 ?? */
 
     status = GNI_CqCreate(nic_handle, cq_entries, 0, GNI_CQ_NOBLOCK, NULL, NULL, &bound_cq_handle);
     gasneti_assert_always (status == GNI_RC_SUCCESS);
   }
+
+  /* Determine size of per-peer notify ring */
+  notify_ring_size = GASNETI_ALIGNUP((2 * gasnetc_next_power_of_2(am_maxcredit)),
+                                     (GASNETC_CACHELINE_SIZE / sizeof(gasnetc_notify_t)));
+  notify_ring_mask = notify_ring_size - 1;
 
   /* create and bind endpoints */
   all_addr = gather_nic_addresses();
@@ -494,7 +509,7 @@ uintptr_t gasnetc_init_messaging(void)
   }
   gasneti_free(all_addr);
 
-  /* Initialize the short message system */
+  /* Initialize the active message resources */
 
   /* gasnetc_log2_remote = MAX(1, ceil(log_2(remote_nodes))) */
   gasnetc_log2_remote = 1;
@@ -516,8 +531,9 @@ uintptr_t gasnetc_init_messaging(void)
    * Set up an mmap region to contain all of my mailboxes.
    */
 
-  bytes_per_mbox = am_maxcredit * sizeof(gasnetc_mailbox_t);
-  peer_stride = bytes_per_mbox + 8 * 128; //2^ceil(log2(2* am_maxcredit);
+  reply_region_length = reply_count * sizeof(gasnetc_mailbox_t);
+  request_region_length = am_maxcredit * sizeof(gasnetc_mailbox_t);
+  peer_stride = request_region_length + notify_ring_size * sizeof(gasnetc_notify_t);
 
   /* TODO: remove MAX(1,) while still avoiding "issues" on single-(super)node runs */
   am_mmap_bytes = reply_region_length + MAX(1,remote_nodes) * peer_stride;
@@ -578,13 +594,14 @@ uintptr_t gasnetc_init_messaging(void)
         peer->remote_reply_base = (gasnetc_mailbox_t *)all_smsg_exchg[i].addr;
         peer->local_request_base = (gasnetc_mailbox_t*) local_peer_base;
         peer->remote_request_base = (gasnetc_mailbox_t*) remote_peer_base;
-        peer->remote_notify_base = (uint64_t *)(remote_peer_base + bytes_per_mbox);
-        peer->local_notify_base = (uint64_t *)(local_peer_base + bytes_per_mbox);
+        peer->remote_notify_base = (uint64_t *)(remote_peer_base + request_region_length);
+        peer->local_notify_base = (uint64_t *)(local_peer_base + request_region_length);
 
-        peer->remote_request_map = (1<<am_maxcredit) - 1;
+        peer->remote_request_map = request_map;
         local_peer_base += peer_stride;
       }
     }
+    gasneti_assert(local_peer_base == ((uint8_t*)am_mmap_ptr + am_mmap_bytes));
     gasneti_free(all_smsg_exchg);
   }
 
@@ -678,7 +695,12 @@ static void gasnetc_send_control(uint32_t dest, uint8_t op, uint16_t arg);
 
 static gasneti_mutex_t ampoll_lock = GASNETI_MUTEX_INITIALIZER;
 static gasneti_mutex_t ambuffer_lock = GASNETI_MUTEX_INITIALIZER;
-#define advance_notify_pointer(__x) (__x) = ((__x + 1) & (NOTIFY_BUFFER_SIZE -1))
+
+/* for local_notify_read which is kept in range [0..notify_ring_size) */
+#define advance_notify_pointer(__x) (__x) = ((__x + 1) & notify_ring_mask)
+
+/* for remote_notify_write which is not bounded */
+#define fetch_inc_notify_pointer(__x) ((__x)++ & notify_ring_mask)
 
 GASNETI_INLINE(gasnetc_send_am_common)
 int gasnetc_send_am_common(peer_struct_t *peer, gni_post_descriptor_t *pd)
@@ -728,8 +750,7 @@ gasnetc_send_am(gasnetc_post_descriptor_t *gpd)
 
   GASNETC_LOCK_GNI();
   
-  slot = peer->remote_notify_write;
-  advance_notify_pointer(peer->remote_notify_write);
+  slot = fetch_inc_notify_pointer(peer->remote_notify_write);
   pd->sync_flag_addr = (uint64_t)(peer->remote_notify_base + slot);
   return(gasnetc_send_am_common(peer, pd));
 }
@@ -755,8 +776,7 @@ int gasnetc_send_credit(peer_struct_t * const peer, gasnetc_notify_t notify)
                                notify_get_target_slot(notify));
 
   GASNETC_LOCK_GNI();
-  slot = peer->remote_notify_write;
-  advance_notify_pointer(peer->remote_notify_write);
+  slot = fetch_inc_notify_pointer(peer->remote_notify_write);
   pd->remote_addr = (uint64_t)(peer->remote_notify_base + slot);
   return(gasnetc_send_am_common(peer, pd));
 }
@@ -1836,9 +1856,7 @@ gasneti_auxseg_request_t gasnetc_pd_auxseg_alloc(gasnet_seginfo_t *auxseg_info) 
   gasneti_auxseg_request_t retval;
   
   retval.minsz =
-  retval.optimalsz = gasneti_getenv_int_withdefault("GASNET_GNI_NUM_PD",
-                                                    GASNETC_GNI_NUM_PD_DEFAULT,1) 
-    * sizeof(gasnetc_post_descriptor_t);
+  retval.optimalsz = num_pd * sizeof(gasnetc_post_descriptor_t);
   if (auxseg_info != NULL) { /* auxseg granted */
     /* The only one we care about is our own node */
     gasnetc_pd_buffers = auxseg_info[gasneti_mynode];
