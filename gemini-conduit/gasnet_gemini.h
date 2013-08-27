@@ -212,6 +212,7 @@ typedef struct gasnetc_post_descriptor {
   union {
     uint8_t immediate[GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE];
     gasnetc_packet_t packet;
+    gasnetc_notify_t notify;
   } u;
   struct gasnetc_post_descriptor *next;
   uint32_t flags;

@@ -747,13 +747,13 @@ int gasnetc_send_credit(peer_struct_t * const peer, gasnetc_notify_t notify)
   pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
   pd->type = GNI_POST_FMA_PUT;
   pd->length = sizeof(gasnetc_notify_t);
-  pd->local_addr = (uint64_t)&gpd->u.packet;
+  pd->local_addr = (uint64_t)&gpd->u.notify;
   pd->remote_mem_hndl = peer->am_handle;
 
   // really can just overwrite the notify type
-  *(uint64_t *)&gpd->u.packet = build_notify(notify_credit, 
-                                             notify_get_initiator_slot(notify),
-                                             notify_get_target_slot(notify));
+  gpd->u.notify = build_notify(notify_credit, 
+                               notify_get_initiator_slot(notify),
+                               notify_get_target_slot(notify));
 
   GASNETC_LOCK_GNI();
   slot = peer->remote_notify_write;
