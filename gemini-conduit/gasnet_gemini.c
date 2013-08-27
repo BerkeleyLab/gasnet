@@ -50,7 +50,7 @@ typedef struct peer_struct {
 
   uint64_t remote_request_map;    
   volatile uint32_t remote_notify_write; //covered by the gni lock
-  volatile uint32_t local_notify_read;   //covered by the ambuffer lock
+  volatile uint32_t local_notify_read;   //covered by the ampoll lock
 } peer_struct_t;
 
 static gni_mem_handle_t am_handle;
