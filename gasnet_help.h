@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_help.h,v $
- *     $Date: 2013/08/06 04:14:04 $
- * $Revision: 1.115 $
+ *     $Date: 2013/08/27 01:24:20 $
+ * $Revision: 1.115.2.1 $
  * Description: GASNet Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -634,7 +634,7 @@ typedef void (*gasneti_progressfn_t)(void);
 
     /* and finally, the throttled poll implementation */
     GASNETI_INLINE(gasneti_AMPoll)
-    int gasneti_AMPoll() {
+    int gasneti_AMPoll(void) {
        int retval = GASNET_OK;
        gasneti_AMPoll_spinpollers_check();
        gasneti_memcheck_one();
