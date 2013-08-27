@@ -41,8 +41,8 @@ typedef struct peer_struct {
   gni_mem_handle_t am_handle;
 
   gasnetc_mailbox_t *remote_reply_base;
-  uint64_t *remote_notify_base;
-  uint64_t *local_notify_base;
+  gasnetc_notify_t *remote_notify_base;
+  gasnetc_notify_t *local_notify_base;
   gasnetc_mailbox_t *local_request_base;
   gasnetc_mailbox_t *remote_request_base;
 
@@ -594,8 +594,8 @@ uintptr_t gasnetc_init_messaging(void)
         peer->remote_reply_base = (gasnetc_mailbox_t *)all_smsg_exchg[i].addr;
         peer->local_request_base = (gasnetc_mailbox_t*) local_peer_base;
         peer->remote_request_base = (gasnetc_mailbox_t*) remote_peer_base;
-        peer->remote_notify_base = (uint64_t *)(remote_peer_base + request_region_length);
-        peer->local_notify_base = (uint64_t *)(local_peer_base + request_region_length);
+        peer->remote_notify_base = (gasnetc_notify_t *)(remote_peer_base + request_region_length);
+        peer->local_notify_base = (gasnetc_notify_t *)(local_peer_base + request_region_length);
 
         peer->remote_request_map = request_map;
         local_peer_base += peer_stride;
@@ -948,17 +948,18 @@ GASNETI_INLINE(poll_for_message)
 int poll_for_message(gasnet_node_t source)
 {
   peer_struct_t * const peer = &peer_data[source];
-  gasnetc_notify_t *notify = peer->local_notify_base + peer->local_notify_read;
+  volatile gasnetc_notify_t * const notify = peer->local_notify_base + peer->local_notify_read;
+  const gasnetc_notify_t n = *notify;
 
-  if (*notify) { 
-    gasnetc_notify_t n = *notify;
+  if (n) { 
     uint32_t target_slot = notify_get_target_slot(n);
     uint32_t initiator_slot = notify_get_initiator_slot(n);
     uint32_t type = notify_get_type(n);
 
     *notify = 0;
-    // wmb()?
     advance_notify_pointer(peer->local_notify_read);
+
+    gasneti_compiler_fence(); /* prevent compiler from prefetching over dependency on n!=0 */
     
     if (type == notify_request) {
       gasnetc_recv_am(source, peer->local_request_base + target_slot, n);
