@@ -82,8 +82,7 @@ enum {
 };
 
 enum {
-    GC_CMD_NULL = 0, /* zero GC_Header marks free mailboxes */
-    GC_CMD_AM_SHORT = 1,
+    GC_CMD_AM_SHORT,
     GC_CMD_AM_MEDIUM,
     GC_CMD_AM_LONG,
     GC_CMD_AM_LONG_PACKED

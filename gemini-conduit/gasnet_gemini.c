@@ -36,6 +36,7 @@ typedef union {
 } gasnetc_mailbox_t;
 
 typedef struct peer_struct {
+  unsigned int pe;
   gni_ep_handle_t ep_handle;
   gni_mem_handle_t mem_handle;
   gni_mem_handle_t am_handle;
@@ -49,6 +50,8 @@ typedef struct peer_struct {
   uint64_t remote_request_map;    
   uint32_t remote_notify_write; //covered by the gni lock, unbounded
   uint32_t local_notify_read;   //covered by the ampoll lock, bounded [0..notify_ring_size)
+  struct peer_struct *next; //covered by the ampoll lock
+  unsigned int event_count; //covered by the ampoll lock
 } peer_struct_t;
 
 static gni_mem_handle_t am_handle;
@@ -114,8 +117,6 @@ enum notify_type {
   notify_credit,
 }; 
 
-static const char* notify_names[] = {0, "REQUEST", "REPLY", "CREDIT"};
-
 #define build_notify(_type, _initiator, _target)\
   ((uint64_t)_type |  ((uint64_t)_initiator << 8) |  ((uint64_t)_target << 24))
 
@@ -150,10 +151,10 @@ static const char *gni_return_string(gni_return_t status)
 #if GASNET_TRACE
 const char *gasnetc_type_string(int type)
 {
-  if (type == GC_CMD_NULL) return("GC_CMD_AM_NULL");
-  if (type == GC_CMD_AM_SHORT) return ("GC_CMD_AM_SHORT");
-  if (type == GC_CMD_AM_LONG) return ("GC_CMD_AM_LONG");
-  if (type == GC_CMD_AM_MEDIUM) return ("GC_CMD_AM_MEDIUM");
+  if (type == GC_CMD_AM_SHORT) return ("AM_SHORT");
+  if (type == GC_CMD_AM_MEDIUM) return ("AM_MEDIUM");
+  if (type == GC_CMD_AM_LONG) return ("AM_LONG");
+  if (type == GC_CMD_AM_LONG_PACKED) return ("AM_LONG_PACKED");
   return("unknown");
 }
 #endif
@@ -590,6 +591,10 @@ uintptr_t gasnetc_init_messaging(void)
       if (!node_is_local(i)){ /* no connection to self or PSHM-reachable peers */
         peer_struct_t * const peer = &peer_data[i];
         uint8_t *remote_peer_base = all_smsg_exchg[i].addr + peer_stride * my_smsg_index(i) + reply_region_length;
+
+        peer_data[i].pe = i;
+        peer_data[i].event_count = 0;
+
         peer->am_handle = all_smsg_exchg[i].handle;
         peer->remote_reply_base = (gasnetc_mailbox_t *)all_smsg_exchg[i].addr;
         peer->local_request_base = (gasnetc_mailbox_t*) local_peer_base;
@@ -708,12 +713,6 @@ int gasnetc_send_am_common(peer_struct_t *peer, gni_post_descriptor_t *pd)
   int trial = 0;
   gni_return_t status;
 
-#if 0
-  GASNETI_TRACE_PRINTF(D, ("smsg to %d type %s_%s\n", dest,
-                           gasnetc_type_string(msg->header.command),
-                           (reply_slot == AM_SLOT_REQUEST) ? "REQUEST" : "REPLY"));
-#endif
-
   for (;;) {
     status = GNI_PostFma(peer->ep_handle, pd);
 
@@ -747,6 +746,10 @@ gasnetc_send_am(gasnetc_post_descriptor_t *gpd)
   unsigned int slot;
   gni_post_descriptor_t *pd = &gpd->pd;
 
+  GASNETI_TRACE_PRINTF(D, ("msg to %d type %s/%s\n", peer->pe,
+                           gasnetc_type_string(gpd->body->header.command),
+                           (pd->sync_flag_value == notify_request) ? "REQ" : "REP"));
+
   GASNETC_LOCK_GNI();
   
   slot = fetch_inc_notify_pointer(peer->remote_notify_write);
@@ -761,6 +764,8 @@ int gasnetc_send_credit(peer_struct_t * const peer, gasnetc_notify_t notify)
   gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
   gni_post_descriptor_t *pd = &gpd->pd;
   unsigned int slot;
+
+  GASNETI_TRACE_PRINTF(D, ("msg to %d type AM_CREDIT\n", peer->pe));
 
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT | GNI_CQMODE_REMOTE_EVENT;
   pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
@@ -878,23 +883,22 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnet_node_t d
 }
 
 /* Choice to inline or not is left to the compiler */
-void gasnetc_recv_am(gasnet_node_t pe, gasnetc_mailbox_t * const mb, gasnetc_notify_t notify)
+void gasnetc_recv_am(peer_struct_t * const peer, gasnetc_mailbox_t * const mb, gasnetc_notify_t notify)
 {
-  peer_struct_t * const peer = &peer_data[pe];
   GC_Header_t header = mb->packet.header;
   int is_req = (notify_get_type(notify) == notify_request)?1:0;
   const int numargs = header.numargs;
   const int handlerindex = header.handler;
   gasneti_handler_fn_t handler = gasnetc_handler[handlerindex];
-  gasnetc_token_t the_token = { pe, is_req, notify};
+  gasnetc_token_t the_token = { peer->pe, is_req, notify};
   gasnet_token_t token = (gasnet_token_t)&the_token; /* RUN macros need an lvalue */
 
   gasneti_mutex_unlock(&ampoll_lock);
 
   gasneti_assert(numargs <= gasnet_AMMaxArgs());
-  GASNETI_TRACE_PRINTF(D, ("smsg r from %d type %s_%s\n", pe,
+  GASNETI_TRACE_PRINTF(D, ("msg from %d type %s/%s\n", peer->pe,
                            gasnetc_type_string(header.command),
-                           is_req ? "REQUEST" : "REPLY"));
+                           is_req ? "REQ" : "REP"));
   
   switch (header.command) {
   case GC_CMD_AM_SHORT:
@@ -943,11 +947,48 @@ void gasnetc_recv_am(gasnet_node_t pe, gasnetc_mailbox_t * const mb, gasnetc_not
   gasneti_mutex_lock(&ampoll_lock);
 }
 
+static peer_struct_t *ampoll_head = NULL;
+static peer_struct_t *ampoll_tail = NULL;
+
+/* Move peer (which must be at head now), to be tail */
+GASNETI_INLINE(ampoll_last)
+void ampoll_last(peer_struct_t *peer)
+{
+  gasneti_assert(ampoll_head == peer);
+  gasneti_assert(0 != peer->event_count);
+  ampoll_head = peer->next;
+  ampoll_tail = peer;
+}
+
+/* Remove peer (which must be at head now) from polling set */
+GASNETI_INLINE(ampoll_del)
+void ampoll_del(peer_struct_t *peer)
+{
+  gasneti_assert(ampoll_head == peer);
+  if (0 == --peer->event_count) {
+    ampoll_head = ampoll_tail->next = (peer == ampoll_tail) ? NULL : peer->next;
+    /* NOTE: tail is now undefined if head became NULL */
+  }
+}
+
+/* Add peer to polling set */
+GASNETI_INLINE(ampoll_ins)
+void ampoll_ins(peer_struct_t *peer)
+{
+  if (0 == peer->event_count++) {
+    if (NULL == ampoll_head) {
+      ampoll_head = peer;
+    } else {
+      ampoll_tail->next = peer;
+    }
+    ampoll_tail = peer;
+    peer->next = ampoll_head;
+  }
+}
 
 GASNETI_INLINE(poll_for_message)
-int poll_for_message(gasnet_node_t source)
+int poll_for_message(peer_struct_t * const peer, int is_slow)
 {
-  peer_struct_t * const peer = &peer_data[source];
   volatile gasnetc_notify_t * const notify = peer->local_notify_base + peer->local_notify_read;
   const gasnetc_notify_t n = *notify;
 
@@ -958,16 +999,21 @@ int poll_for_message(gasnet_node_t source)
 
     *notify = 0;
     advance_notify_pointer(peer->local_notify_read);
+    if (is_slow) ampoll_del(peer);
 
     gasneti_compiler_fence(); /* prevent compiler from prefetching over dependency on n!=0 */
     
     if (type == notify_request) {
-      gasnetc_recv_am(source, peer->local_request_base + target_slot, n);
+      gasnetc_recv_am(peer, peer->local_request_base + target_slot, n);
     } else {
       gasnetc_mailbox_t *mb = local_reply_base + initiator_slot;
 
-      if (type == notify_reply) 
-        gasnetc_recv_am(source, mb, n);
+      if (type == notify_reply) {
+        gasnetc_recv_am(peer, mb, n);
+      } else {
+        gasneti_assert(type == notify_credit);
+        GASNETI_TRACE_PRINTF(D, ("msg from %d type AM_CREDIT\n", peer->pe));
+      }
 
       mb->freelist.reply_slot = initiator_slot;
 
@@ -983,40 +1029,29 @@ int poll_for_message(gasnet_node_t source)
 }
 
 /* Max number of times to poll the AM mailboxes per entry */
-/* TODO: control via env var (requires dynamic allocation of queue) */
+/* TODO: control via env var */
+/* TODO: distinct value for CQ events reaped vs service limit on "slow" list? */
 #define SMSG_BURST 20
 
 static
 void gasnetc_poll_smsg_queue(void)
 {
-  /* FIFO queue of sources for which we have reaped a Cq entry,
-   * but have not yet completed the corresponding receive.
-   * A source may potentially appear multiple time.
-   * The +1 in sizing prevents head==tail and its full/empty ambiguity
-   */
-  static gasnet_node_t queue[SMSG_BURST+1];
-  static int head = SMSG_BURST; /* Runs backward over range [0:SMSG_BURST] */
-  static int tail = SMSG_BURST; /* Runs backward over range [0:SMSG_BURST] */
-  static int free_space = SMSG_BURST;
-
+  gni_cq_entry_t event_data[SMSG_BURST];
+  int count;
   int i;
 
-  gasneti_mutex_lock(&ampoll_lock);
-
   /* Reap Cq entries until our queue is full, or Cq is empty */
-  while (free_space) {
-    gni_cq_entry_t event_data[SMSG_BURST];
-    gni_return_t status;
-    int count;
-
-    GASNETC_LOCK_GNI();
-    for (count = 0; count < free_space; ++count) {
-      status = GNI_CqGetEvent(smsg_cq_handle, &event_data[count]);
+  GASNETC_LOCK_GNI();
+    for (count = 0; count < SMSG_BURST; ++count) {
+      gni_return_t status = GNI_CqGetEvent(smsg_cq_handle, &event_data[count]);
       if (status != GNI_RC_SUCCESS) break; /* TODO: check for fatal errors */
       gasneti_assert(!GNI_CQ_OVERRUN(event_data[count]));
     }
-    GASNETC_UNLOCK_GNI();
-    if (!count) break;
+  GASNETC_UNLOCK_GNI();
+
+  if (count) {
+    /* Must take the lock to process new events */
+    gasneti_mutex_lock(&ampoll_lock);
 
     for (i = 0; i < count; ++i) {
     #ifdef GNI_CQ_GET_REM_INST_ID
@@ -1051,28 +1086,26 @@ void gasnetc_poll_smsg_queue(void)
         }
 #endif
       } else {
-        gasneti_assert((source < gasneti_nodes) && !node_is_local(source));
-        queue[tail] = source;
-        tail = tail ? (tail-1) : SMSG_BURST;
-        free_space -= 1;
+        peer_struct_t * const peer = &peer_data[source];
+        if (!poll_for_message(peer, 0)) {
+          ampoll_ins(peer);
+        }
       }
+    }
+  } else if ((NULL == ampoll_head) || (EBUSY == gasneti_mutex_trylock(&ampoll_lock))) {
+    /* Either there is no work to be done, or another thread is already doing it */
+    return;
+  }
+
+  /* Poll "slow" sources, starting with the oldest */
+  for (i = 0; ampoll_head && (i < SMSG_BURST); ++i) {
+    peer_struct_t * const peer = ampoll_head;
+    if (!poll_for_message(peer, 1)) {
+      if (peer == ampoll_tail) break; /* don't spin on singleton peer */
+      ampoll_last(peer);
     }
   }
 
-  /* Poll all "live" sources, starting with any that were not ready last time */
-  for (i = 0; (i < SMSG_BURST) && (head != tail); ++i) {
-    /* dequeue one source and poll it, then we either run the
-       handler (w/o ampoll_lock held) or requeue the source for later service */
-    const gasnet_node_t source = queue[head];
-    head = head ? (head-1) : SMSG_BURST;
-
-    if (poll_for_message(source)){
-      free_space++; 
-    } else {
-      queue[tail] = source;
-      tail = tail ? (tail-1) : SMSG_BURST;
-    }
-  }    
   gasneti_mutex_unlock(&ampoll_lock);
 }
 
