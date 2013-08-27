@@ -78,8 +78,7 @@ typedef struct {
 
 /* Control messages */
 enum {
-    GC_CTRL_CREDIT = 0,
-    GC_CTRL_SHUTDOWN
+    GC_CTRL_SHUTDOWN 
 };
 
 enum {

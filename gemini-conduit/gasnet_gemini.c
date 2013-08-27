@@ -1009,23 +1009,28 @@ void gasnetc_poll_smsg_queue(void)
     #endif
       gasneti_assert(0 == ((GASNET_MAXNODES - 1) & (source ^ GNI_CQ_GET_DATA(event_data[i]))));
 
-      if (source & GASNET_MAXNODES) { /* Control message */
+      if_pf (source & GASNET_MAXNODES) { /* Control message */
         const uint32_t control = GNI_CQ_GET_DATA(event_data[i]) >> 24;
         const uint16_t     arg = control >> 8;
         const uint8_t       op = control;
         source &= (GASNET_MAXNODES - 1);
         gasneti_assert((source < gasneti_nodes) && !node_is_local(source));
 
+#if 1 /* Currently only 1 type of CTRL message */
+        gasneti_assert(op == GC_CTRL_SHUTDOWN);
+        gasnetc_handle_sys_shutdown_packet(source, arg);
+#else
         switch (op) {
         case GC_CTRL_SHUTDOWN:
 	  gasnetc_handle_sys_shutdown_packet(source, arg);
           break;
 
-#if GASNET_DEBUG
+      #if GASNET_DEBUG
         default:
 	  gasnetc_GNIT_Abort("unknown control message %d", (int)op);
-#endif
+      #endif
         }
+#endif
       } else {
         gasneti_assert((source < gasneti_nodes) && !node_is_local(source));
         queue[tail] = source;
