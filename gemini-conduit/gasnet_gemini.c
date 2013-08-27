@@ -601,7 +601,6 @@ uintptr_t gasnetc_init_messaging(void)
         local_peer_base += peer_stride;
       }
     }
-    gasneti_assert(local_peer_base == ((uint8_t*)am_mmap_ptr + am_mmap_bytes));
     gasneti_free(all_smsg_exchg);
   }
 
