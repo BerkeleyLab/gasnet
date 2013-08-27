@@ -835,14 +835,14 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnet_node_t d
 
   BUSYWAIT(((remote_slot = ffsl(peer->remote_request_map)) == 0),
            gasneti_AMPoll,
-           GET_AM_BUFFER_STALL);
+           GET_AM_REM_BUFFER_STALL);
 
   remote_slot -=1;
   peer->remote_request_map ^= (1<<remote_slot);
 
   BUSYWAIT(((m = gasnetc_reply_pool) == NULL), 
            gasneti_AMPoll,
-           GET_AM_BUFFER_STALL);
+           GET_AM_LOC_BUFFER_STALL);
 
   gasnetc_reply_pool = gasnetc_reply_pool->freelist.linkage;
   GASNETC_UNLOCK_AM_BUFFER();
