@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/08/27 03:31:37 $
- * $Revision: 1.84.2.5 $
+ *     $Date: 2013/08/27 21:06:36 $
+ * $Revision: 1.84.2.6 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1230,7 +1230,7 @@ void gasnetc_format_medium(gasnetc_packet_t *m,
   m->header.command = GC_CMD_AM_MEDIUM;
   m->header.numargs = numargs;
   m->header.handler = handler;
-  m->gamp.data_length = nbytes;
+  m->header.nbytes  = nbytes;
   for (i = 0; i < numargs; i++) {
     m->gamp.args[i] = va_arg(argptr, gasnet_handlerarg_t);
   }

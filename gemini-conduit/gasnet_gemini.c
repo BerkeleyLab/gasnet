@@ -909,13 +909,13 @@ void gasnetc_recv_am(gasnet_node_t pe, gasnetc_mailbox_t * const mb, gasnetc_not
       uint8_t * data = &mb->raw[head_len];
       if (is_req) { /* Req cannot run with payload in-place */
           /* TODO: special case for non-replying requests (internal only for now) */
-          data = memcpy(&buffer, data, mb->packet.gamp.data_length);
+          data = memcpy(&buffer, data, header.nbytes);
       }
       gasneti_assert(0 == (((uintptr_t) data) % GASNETI_MEDBUF_ALIGNMENT));
-      gasneti_assert(mb->packet.gamp.data_length <= gasnet_AMMaxMedium());
+      gasneti_assert(header.nbytes <= gasnet_AMMaxMedium());
       GASNETI_RUN_HANDLER_MEDIUM(is_req, handlerindex, handler,
                                  token, mb->packet.gamp.args, numargs,
-                                 data, mb->packet.gamp.data_length);
+                                 data, header.nbytes);
       break;
   }
       
