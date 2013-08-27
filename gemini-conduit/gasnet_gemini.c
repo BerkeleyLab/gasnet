@@ -580,7 +580,6 @@ uintptr_t gasnetc_init_messaging(void)
         peer->remote_request_base = (gasnetc_mailbox_t*) remote_peer_base;
         peer->remote_notify_base = (uint64_t *)(remote_peer_base + bytes_per_mbox);
         peer->local_notify_base = (uint64_t *)(local_peer_base + bytes_per_mbox);
-        memset(peer->local_notify_base, 0, sizeof(gasnetc_notify_t) * NOTIFY_BUFFER_SIZE);
 
         peer->remote_request_map = (1<<am_maxcredit) - 1;
         local_peer_base += peer_stride;
