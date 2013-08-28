@@ -698,7 +698,6 @@ static void gasnetc_handle_sys_shutdown_packet(uint32_t source, uint16_t arg);
 static void gasnetc_send_control(uint32_t dest, uint8_t op, uint16_t arg);
 
 static gasneti_mutex_t ampoll_lock = GASNETI_MUTEX_INITIALIZER;
-static gasneti_mutex_t ambuffer_lock = GASNETI_MUTEX_INITIALIZER;
 
 /* for local_notify_read which is kept in range [0..notify_ring_size) */
 #define advance_notify_pointer(__x) (__x) = ((__x + 1) & notify_ring_mask)
@@ -854,8 +853,6 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnet_node_t d
   unsigned int my_slot;
   unsigned int remote_slot;
   gasnetc_mailbox_t *m;
-  unsigned int v;
-
 
   GASNETC_LOCK_AM_BUFFER();
 
@@ -1510,7 +1507,6 @@ void gasnetc_rdma_get(gasnet_node_t node,
 {
   peer_struct_t * const peer = &peer_data[node];
   gni_post_descriptor_t * const pd = &gpd->pd;
-  gni_return_t status;
 
   gasneti_assert(!node_is_local(node));
 

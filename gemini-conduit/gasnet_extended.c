@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_extended.c,v $
- *     $Date: 2013/08/10 00:35:02 $
- * $Revision: 1.91 $
+ *     $Date: 2013/08/28 02:42:06 $
+ * $Revision: 1.91.2.1 $
  * Description: GASNet Extended API over Gemini Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -759,7 +759,6 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
 extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const tail_op = mythread->current_iop;
-  gasnetc_post_descriptor_t *gpd;
   gasnet_handle_t head_op = GASNET_INVALID_HANDLE;
   const size_t max_tail = gasnetc_max_put_lc;
   GASNETI_UNUSED_UNLESS_DEBUG int lc;

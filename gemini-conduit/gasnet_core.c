@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/08/28 01:18:14 $
- * $Revision: 1.84.2.8 $
+ *     $Date: 2013/08/28 02:42:06 $
+ * $Revision: 1.84.2.9 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1247,7 +1247,7 @@ void gasnetc_format_long(gasnetc_packet_t *m,
                          void *dest_addr,
                          int numargs, va_list argptr)
 {
-  int i, retval;
+  int i;
   
   /* Overlap header setup and credit stall w/ the RDMA */
   m->header.command = (int)GC_CMD_AM_LONG + is_packed;
@@ -1259,7 +1259,6 @@ void gasnetc_format_long(gasnetc_packet_t *m,
   for (i = 0; i < numargs; i++) {
     m->galp.args[i] = va_arg(argptr, gasnet_handlerarg_t);
   }
-  
 }
 
 
@@ -1388,7 +1387,6 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
                                         void *dest_addr,                    /* data destination on destination node */
                                         int numargs, ...) {
   int retval;
-  int i;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
@@ -1444,7 +1442,6 @@ extern int gasnetc_AMReplyShortM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  gasnet_node_t dest;
   GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
