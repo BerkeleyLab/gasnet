@@ -207,8 +207,8 @@ typedef struct gasnetc_post_descriptor {
   #define gpd_completion pd.post_id
   #define gpd_get_src    pd.first_operand
   #define gpd_get_dst    pd.second_operand
-  #define gpd_get_peer   pd.first_operand
-  #define gpd_get_next   pd.second_operand
+  #define gpd_am_peer    pd.first_operand
+  #define gpd_am_next    pd.second_operand
   union {
     uint8_t immediate[GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE];
     gasnetc_packet_t packet;

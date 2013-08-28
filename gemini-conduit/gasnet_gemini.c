@@ -742,7 +742,7 @@ extern int
 gasnetc_send_am(gasnetc_post_descriptor_t *gpd)
 {
   gni_post_descriptor_t *pd = &gpd->pd;
-  peer_struct_t * const peer = (peer_struct_t *)gpd->gpd_get_peer;
+  peer_struct_t * const peer = (peer_struct_t *)gpd->gpd_am_peer;
 #if GASNET_TRACE
   gasnetc_packet_t *p = (gasnetc_packet_t *)pd->local_addr;
 #endif
@@ -796,7 +796,7 @@ void gasnetc_format_am_gpd(gasnetc_post_descriptor_t *gpd,
   gni_post_descriptor_t *pd = &gpd->pd;
   gpd->flags = 0;
 
-  gpd->gpd_get_peer = (uint64_t) peer; 
+  gpd->gpd_am_peer = (uint64_t) peer; 
   pd->length = length;
   pd->local_addr = (uint64_t)p;
   pd->remote_mem_hndl = peer->am_handle;
@@ -1184,7 +1184,7 @@ void gasnetc_poll_local_queue(void))
 
       if (flags & GC_POST_SEND) {
         int rc;
-        rc = gasnetc_send_am((gasnetc_post_descriptor_t *)gpd->gpd_get_next);
+        rc = gasnetc_send_am((gasnetc_post_descriptor_t *)gpd->gpd_am_next);
         gasneti_assert_always (rc == GASNET_OK);
       } 
       if (!(flags & GC_POST_KEEP_GPD)) {
