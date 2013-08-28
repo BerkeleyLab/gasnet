@@ -743,7 +743,9 @@ gasnetc_send_am(gasnetc_post_descriptor_t *gpd)
 {
   gni_post_descriptor_t *pd = &gpd->pd;
   peer_struct_t * const peer = (peer_struct_t *)gpd->gpd_get_peer;
+#if GASNET_TRACE
   gasnetc_packet_t *p = (gasnetc_packet_t *)pd->local_addr;
+#endif
   unsigned int slot;
 
   GASNETI_TRACE_PRINTF(D, ("msg to %d type %s/%s\n", peer->pe,
@@ -1066,7 +1068,9 @@ void gasnetc_poll_smsg_queue(void)
       if_pf (source & GASNET_MAXNODES) { /* Control message */
         const uint32_t control = GNI_CQ_GET_DATA(event_data[i]) >> 24;
         const uint16_t     arg = control >> 8;
+      #if GASNET_DEBUG
         const uint8_t       op = control;
+      #endif
         source &= (GASNET_MAXNODES - 1);
         gasneti_assert((source < gasneti_nodes) && !node_is_local(source));
 
@@ -1714,9 +1718,7 @@ void gasnetc_handle_sys_shutdown_packet(uint32_t source, uint16_t arg)
   uint8_t exitcode = arg & 0xff;
   gasneti_weakatomic_val_t readval;
 
-#if GASNET_DEBUG || GASNETI_STATS_OR_TRACE
   GASNETI_TRACE_PRINTF(C,("Got SHUTDOWN Request from node %d w/ exitcode %d",(int)source,exitcode));
-#endif
 
 #if GASNETI_THREADS || defined(GASNETI_FORCE_TRUE_WEAKATOMICS)
   /* Atomic MAX via C-A-S: */
