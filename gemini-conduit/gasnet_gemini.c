@@ -742,9 +742,10 @@ int gasnetc_send_am_common(peer_struct_t *peer, gni_post_descriptor_t *pd)
 extern int
 gasnetc_send_am(gasnetc_post_descriptor_t *gpd)
 {
-  peer_struct_t * const peer = gpd->peer;
-  unsigned int slot;
   gni_post_descriptor_t *pd = &gpd->pd;
+  peer_struct_t * const peer = (peer_struct_t *)gpd->gpd_get_dst;
+  unsigned int slot;
+
 
   GASNETI_TRACE_PRINTF(D, ("msg to %d type %s/%s\n", peer->pe,
                            gasnetc_type_string(gpd->body->header.command),
@@ -787,15 +788,16 @@ int gasnetc_send_credit(peer_struct_t * const peer, gasnetc_notify_t notify)
 
 GASNETI_INLINE(gasnetc_format_am_gpd) 
 void gasnetc_format_am_gpd(gasnetc_post_descriptor_t *gpd, 
+                           gasnetc_packet_t *p,
                            peer_struct_t *peer,
                            size_t length)
 {
   gni_post_descriptor_t *pd = &gpd->pd;
   gpd->flags = 0;
-  gpd->peer = peer;
 
+  gpd->gpd_get_dst = (uint64_t) peer; 
   pd->length = length;
-  pd->local_addr = (uint64_t)gpd->body;
+  pd->local_addr = (uint64_t)p;
   pd->remote_mem_hndl = peer->am_handle;
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT | GNI_CQMODE_REMOTE_EVENT;
   pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
@@ -803,6 +805,7 @@ void gasnetc_format_am_gpd(gasnetc_post_descriptor_t *gpd,
 }
 
 gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(void *t,
+                                                               gasnetc_packet_t **p, 
                                                                size_t length)
 {
   gasnetc_token_t *token = t;
@@ -815,15 +818,15 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(void *t,
 
   // because gpd may be too small, and am_recv copied the data 
   // out for other reasons, we can use the requet buffer for a reply
-  gpd->body = (gasnetc_packet_t *)(peer->local_request_base + notify_get_target_slot(notify));
-  
+  *p = (gasnetc_packet_t *)(peer->local_request_base + notify_get_target_slot(notify));
+
   // really can just overwrite the notify type
   pd->sync_flag_value = build_notify(notify_reply, 
                                      notify_get_initiator_slot(notify),
                                      notify_get_target_slot(notify));
   
   pd->remote_addr = (uint64_t) (peer->remote_reply_base + notify_get_initiator_slot(notify));
-  gasnetc_format_am_gpd(gpd, peer, length);
+  gasnetc_format_am_gpd(gpd, *p, peer, length);
   token->need_reply = 0;
   return(gpd);
 }
@@ -842,6 +845,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(void *t,
 
 
 gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnet_node_t dest, 
+                                                                 gasnetc_packet_t **p, 
                                                                  size_t length)
 {
   peer_struct_t * const peer = &peer_data[dest];
@@ -849,7 +853,6 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnet_node_t d
   gni_post_descriptor_t *pd = &gpd->pd;
   unsigned int my_slot;
   unsigned int remote_slot;
-  gasneti_weakatomic_t *p;
   gasnetc_mailbox_t *m;
   unsigned int v;
 
@@ -870,14 +873,14 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnet_node_t d
   gasnetc_reply_pool = gasnetc_reply_pool->freelist.linkage;
   GASNETC_UNLOCK_AM_BUFFER();
 
-  gpd->body = (void *)m;
+  *p = (gasnetc_packet_t *)m;
   my_slot = m->freelist.reply_slot;
   pd->remote_addr = (uint64_t) &peer->remote_request_base[remote_slot];
   pd->sync_flag_value = build_notify(notify_request,
                                      my_slot,
                                      remote_slot);
   
-  gasnetc_format_am_gpd(gpd, peer, length);  
+  gasnetc_format_am_gpd(gpd, *p, peer, length);  
   
   return(gpd);
 }
@@ -1180,7 +1183,7 @@ void gasnetc_poll_local_queue(void))
 
       if (flags & GC_POST_SEND) {
         int rc;
-        rc = gasnetc_send_am(gpd->next);
+        rc = gasnetc_send_am((gasnetc_post_descriptor_t *)gpd->gpd_get_dst);
         gasneti_assert_always (rc == GASNET_OK);
       } 
       if (!(flags & GC_POST_KEEP_GPD)) {
