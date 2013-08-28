@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/08/28 00:11:20 $
- * $Revision: 1.84.2.7 $
+ *     $Date: 2013/08/28 01:18:14 $
+ * $Revision: 1.84.2.8 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1418,7 +1418,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
       return(gasnetc_general_am_send(gpd));
     } else {
       gasnetc_post_descriptor_t *gpdl = gasnetc_alloc_post_descriptor();        
-      gpdl->gpd_get_dst = (uint64_t)gpd;
+      gpdl->gpd_get_next = (uint64_t)gpd;
       /* Rdma data, then send header as part of completion*/
       gpdl->flags |= GC_POST_SEND;
       gasnetc_rdma_put_bulk(dest, dest_addr, source_addr, nbytes, gpdl);
