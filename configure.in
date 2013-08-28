@@ -1,15 +1,14 @@
-
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2013/07/20 01:26:25 $
-# $Revision: 1.815 $
+#     $Date: 2013/08/28 19:52:00 $
+# $Revision: 1.815.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.815 $)
+AC_REVISION($Revision: 1.815.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -162,17 +161,15 @@ GASNET_FAMILY_CACHE_CHECK(C, CC, gasnet_cv_cc_family)
 
 case "$gasnet_cv_cc_family" in
   GNU)  GASNET_GCC_VERSION_CHECK(CC)
-        GASNET_TRY_CACHE_EXTRACT_STR([for gcc version string],gcc_version_string,[
-          #ifndef __VERSION__
-            #define __VERSION__ "unknown"
-          #endif
-         ],[__VERSION__],[GASNETI_GCC_VERSION])
-        case "$GASNETI_GCC_VERSION" in
-          *gccfss*) AC_DEFINE(GASNETI_GCC_GCCFSS) ;;
+        gcc_flag_prefix=''
+        gcc_flag_delim=' '
+        case "$CC_SUBFAMILY" in
+          GCCFSS) AC_DEFINE(GASNETI_GCC_GCCFSS) ;;
+          APPLE) AC_DEFINE(GASNETI_GCC_APPLE) ;;
+          NVIDIA) gcc_flag_prefix='-Xcompiler '
+                  gcc_flag_delim=','
+                  ;;
         esac
-        GASNET_IFDEF(__APPLE_CC__,[
-          AC_DEFINE(GASNETI_GCC_APPLE)
-        ])
         ;;
   MTA)  # override target_os for MTA, which may be wrong if cross-compiling
         target_os="mtx"   ;;
@@ -222,26 +219,26 @@ AC_DEFUN([GASNET_TRY_WNO_FLAG],[
 case "$gasnet_cv_cc_family" in
   GNU)  GASNET_PUSHVAR(CFLAGS,"-O3")
 	# prefer the --param inliner option(s), which give us finer control
-        GASNET_TRY_CFLAG([--param max-inline-insns-single=35000],
-			 [CFLAGS="$CFLAGS --param max-inline-insns-single=35000"
-			  GASNET_TRY_CFLAG([--param max-inline-insns=100000],
-					   [CFLAGS="$CFLAGS --param max-inline-insns=100000"])],
-			 GASNET_TRY_CFLAG([-finline-limit=10000],
-					  [CFLAGS="$CFLAGS -finline-limit=10000"])
+        GASNET_TRY_CFLAG([${gcc_flag_prefix}--param${gcc_flag_delim}max-inline-insns-single=35000],
+			 [CFLAGS="$CFLAGS ${gcc_flag_prefix}--param${gcc_flag_delim}max-inline-insns-single=35000"
+			  GASNET_TRY_CFLAG([${gcc_flag_prefix}--param${gcc_flag_delim}max-inline-insns=100000],
+					   [CFLAGS="$CFLAGS ${gcc_flag_prefix}--param${gcc_flag_delim}max-inline-insns=100000"])],
+			 GASNET_TRY_CFLAG([${gcc_flag_prefix}-finline-limit=10000],
+					  [CFLAGS="$CFLAGS ${gcc_flag_prefix}-finline-limit=10000"])
 	)
 	# gcc 3.4+ require new flags to enable full inlining
-        GASNET_TRY_CFLAG([--param inline-unit-growth=10000],
-                         [CFLAGS="$CFLAGS --param inline-unit-growth=10000"])
-        GASNET_TRY_CFLAG([--param large-function-growth=200000],
-                         [CFLAGS="$CFLAGS --param large-function-growth=200000"])
+        GASNET_TRY_CFLAG([${gcc_flag_prefix}--param${gcc_flag_delim}inline-unit-growth=10000],
+                         [CFLAGS="$CFLAGS ${gcc_flag_prefix}--param${gcc_flag_delim}inline-unit-growth=10000"])
+        GASNET_TRY_CFLAG([${gcc_flag_prefix}--param${gcc_flag_delim}large-function-growth=200000],
+                         [CFLAGS="$CFLAGS ${gcc_flag_prefix}--param${gcc_flag_delim}large-function-growth=200000"])
         # We'd like to use -Winline to detect call sites where the optimizer
         # ignores our inline function modifier (usually due to technical limitations)
   	# However, some versions of gcc issue spurious warnings with -Winline
         # for inlining operations which the user did not request.
         # Detect that gcc bug and avoid -Winline for those versions
-        GASNET_TRY_CFLAG([-Winline],[
+        GASNET_TRY_CFLAG([${gcc_flag_prefix}-Winline],[
           noninlineCFLAGS="$CFLAGS"
-          CFLAGS="$CFLAGS -Winline"
+          CFLAGS="$CFLAGS ${gcc_flag_prefix}-Winline"
           AC_MSG_CHECKING(for buggy -Winline)
           GASNET_TRY_CCOMPILE_WITHWARN([
            int foo() { return 0; }
@@ -351,14 +348,22 @@ AC_SUBST(SEPARATE_CC)
 
 dnl GASNET_GET_GNUWARNINGFLAGS(type)  type=C or CXX
 AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
-        ]GASNET_TRY_[$1]FLAG[([-Wall],[[$1]FLAGS="$[$1]FLAGS -Wall"])
-         GASNET_TRY_WNO_FLAG([$1],[-Wno-unused],[[$1]FLAGS="$[$1]FLAGS -Wno-unused"])
-         GASNET_TRY_WNO_FLAG([$1],[-Wno-address],[[$1]FLAGS="$[$1]FLAGS -Wno-address"])
-        ]GASNET_TRY_[$1]FLAG[([-Wpointer-arith],[[$1]FLAGS="$[$1]FLAGS -Wpointer-arith"])
-        ]GASNET_TRY_[$1]FLAG[([-Wnested-externs],[[$1]FLAGS="$[$1]FLAGS -Wnested-externs"])
-        ]GASNET_TRY_[$1]FLAG[([-Wwrite-strings],[[$1]FLAGS="$[$1]FLAGS -Wwrite-strings"])
-        ]GASNET_TRY_[$1]FLAG[([-Wdeclaration-after-statement],[[$1]FLAGS="$[$1]FLAGS -Wdeclaration-after-statement"])
-        ]GASNET_TRY_[$1]FLAG[([-Wmissing-format-attribute],[[$1]FLAGS="$[$1]FLAGS -Wmissing-format-attribute"])
+        ]GASNET_TRY_[$1]FLAG[([${gcc_flag_prefix}-Wall],
+                              [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wall"])
+         GASNET_TRY_WNO_FLAG([$1],[${gcc_flag_prefix}-Wno-unused],
+                             [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wno-unused"])
+         GASNET_TRY_WNO_FLAG([$1],[${gcc_flag_prefix}-Wno-address],
+                             [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wno-address"])
+        ]GASNET_TRY_[$1]FLAG[([${gcc_flag_prefix}-Wpointer-arith],
+                              [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wpointer-arith"])
+        ]GASNET_TRY_[$1]FLAG[([${gcc_flag_prefix}-Wnested-externs],
+                              [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wnested-externs"])
+        ]GASNET_TRY_[$1]FLAG[([${gcc_flag_prefix}-Wwrite-strings],
+                              [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wwrite-strings"])
+        ]GASNET_TRY_[$1]FLAG[([${gcc_flag_prefix}-Wdeclaration-after-statement],
+                              [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wdeclaration-after-statement"])
+        ]GASNET_TRY_[$1]FLAG[([${gcc_flag_prefix}-Wmissing-format-attribute],
+                              [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wmissing-format-attribute"])
 	if test "$use_pthreads" != "no" ; then
         # some crappy pthread mutex implementations generate warnings without -Wno-missing-braces
 	AC_MSG_CHECKING(for buggy pthread.h mutex initializers)
@@ -371,7 +376,8 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
         ]GASNET_TRY_[$1]COMPILE_WITHWARN[([#include <pthread.h>],
           [pthread_mutex_t fastmutex = PTHREAD_MUTEX_INITIALIZER;],
           [AC_MSG_RESULT(ok)], [AC_MSG_RESULT(buggy)
-           GASNET_TRY_WNO_FLAG([$1],[-Wno-missing-braces],[old[$1]FLAGS="$old[$1]FLAGS -Wno-missing-braces"])],
+           GASNET_TRY_WNO_FLAG([$1],[${gcc_flag_prefix}-Wno-missing-braces],
+                               [old[$1]FLAGS="$old[$1]FLAGS ${gcc_flag_prefix}-Wno-missing-braces"])],
           [#bug611: ignore failures here, which may be due to broken/missing pthreads support
            #AC_MSG_ERROR(failure while checking for buggy pthread.h mutexes)
 	   AC_MSG_RESULT(failure - ignored)
@@ -387,10 +393,10 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
 ])
 
 case "$gasnet_cv_cc_family" in
-  GNU)  GASNET_PUSHVAR(CFLAGS,"-g3")
+  GNU)  GASNET_PUSHVAR(CFLAGS,"${gcc_flag_prefix}-g3")
         case "$target_os" in
           darwin*) # Want -gstabs+ instead of -g3, if supported
-            GASNET_TRY_CFLAG([-gstabs+], [CFLAGS='-gstabs+'])
+            GASNET_TRY_CFLAG([${gcc_flag_prefix}-gstabs+], [CFLAGS="${gcc_flag_prefix}-gstabs+"])
             ;;
         esac
         GASNET_GET_GNUWARNINGFLAGS(C)
@@ -591,8 +597,8 @@ case "$gasnet_cv_cc_family" in
     case "$target_os" in
       hpux*) GASNET_GET_HPUX_FLAGS(C,["-D__STDC_EXT__=1"]);;
       darwin*) 
-        GASNET_TRY_WNO_FLAG([C],[-Wno-long-double],
-                            [MISC_CFLAGS="$MISC_CFLAGS -Wno-long-double"])
+        GASNET_TRY_WNO_FLAG([C],[${gcc_flag_prefix}-Wno-long-double],
+                            [MISC_CFLAGS="$MISC_CFLAGS ${gcc_flag_prefix}-Wno-long-double"])
       ;; 
     esac
     ;;
@@ -634,8 +640,8 @@ case "$gasnet_cv_cc_family" in
   GNU)
     case "$target_os" in
       darwin*) # add some options which are specific to the Apple Inc version of gcc
-        GASNET_TRY_CFLAG([-no-cpp-precomp],
-                         [MISC_CPPFLAGS="$MISC_CPPFLAGS -no-cpp-precomp"])
+        GASNET_TRY_CFLAG([${gcc_flag_prefix}-no-cpp-precomp],
+                         [MISC_CPPFLAGS="$MISC_CPPFLAGS ${gcc_flag_prefix}-no-cpp-precomp"])
       ;; 
     esac ;;
   *)  MISC_CPPFLAGS="" ;;
@@ -2173,7 +2179,7 @@ dnl GASNET_TOOLSONLY_TRUE_END
 dnl find proper CFLAGS for compiling firehose library
 AC_DEFUN([GASNET_FH_CFLAGS],[
   case "$gasnet_cv_cc_family" in
-          GNU) fh_cflags_default="-fno-strict-aliasing";;
+          GNU) fh_cflags_default="${gcc_flag_prefix}-fno-strict-aliasing";;
     Pathscale) fh_cflags_default="-fno-strict-aliasing";;
        Open64) fh_cflags_default="-fno-strict-aliasing";;
           XLC) fh_cflags_default="-qnoansialias -qalias=addr";;
@@ -2427,6 +2433,13 @@ if test $enabled_udp = yes; then
   case "$gasnet_cv_cxx_family" in
     GNU) 
        GASNET_GCC_VERSION_CHECK(CXX)
+       gxx_flag_prefix=''
+       gxx_flag_delim=' '
+       case "$CC_SUBFAMILY" in
+          NVIDIA) gxx_flag_prefix='-Xcompiler '
+                  gxx_flag_delim=','
+                  ;;
+       esac
        case "$target_cpu" in
          sparc) GASNET_GET_ULTRASPARC_FLAGS(CXX,["-mcpu=ultrasparc3 -mtune=ultrasparc3" "-mcpu=ultrasparc -mtune=ultrasparc"]);;
          rs6000|powerpc*) GASNET_GET_PPC64_FLAGS(CXX,["-force_cpusubtype_ALL" "-Wa,-mppc64"]);;
@@ -2435,10 +2448,10 @@ if test $enabled_udp = yes; then
        case "$target_os" in
          hpux*) GASNET_GET_HPUX_FLAGS(CXX,["-D__STDC_EXT__=1"]);;
        esac
-       GASNET_PUSHVAR(CXXFLAGS,"-g3")
+       GASNET_PUSHVAR(CXXFLAGS,"${gxx_flag_prefix}-g3")
        case "$target_os" in
          darwin*) # Want -gstabs+ instead of -g3, if supported
-           GASNET_TRY_CXXFLAG([-gstabs+], [CXXFLAGS='-gstabs+'])
+           GASNET_TRY_CXXFLAG([${gxx_flag_prefix}-gstabs+], [CXXFLAGS="${gxx_flag_prefix}-gstabs+"])
            ;;
        esac
        GASNET_GET_GNUWARNINGFLAGS(CXX)
@@ -3775,7 +3788,7 @@ CONDUIT_END([test "$have_ibv" = yes])
 # MXM configuration
 #
 
-CONDUIT_BEGIN(mxm,[Mellanox MXM conduit])
+CONDUIT_BEGIN(mxm,[Mellanox MXM conduit (mxm)])
 have_mxm=no
 if test "$have_fork" = no; then
     GASNET_MSG_WARN([mxm-conduit requires or fork() ($fork_reason) for startup - disabling mxm])
@@ -5396,13 +5409,18 @@ case "$target_os" in
     # Darwin linker complains about symbols defined in multiple dynamic libs.
     # This is a minor annoyance in some cases, however it becomes a fatal error
     # when linking with the mpich libs.
-    LDFLAGS="$LDFLAGS -Wl,-multiply_defined,suppress"
+    if test "$CC_FAMILY$CC_SUBFAMILY" = 'GNUNVIDIA'; then
+      dash_Wl='-Xlinker '
+    else
+      dash_Wl='-Wl,'
+    fi
+    LDFLAGS="$LDFLAGS ${dash_Wl}-multiply_defined,suppress"
 
     # Darwin 11 (MacOSX Lion) and newer use address-space randomization by default
     # TODO: should this be ommitted if aligned segments have been disabled?
-    tmp_ver=`expr "$target_os" : "darwin\([[0-9]]*\)" >/dev/null`
+    tmp_ver=`expr "$target_os" : 'darwin\([[0-9]]*\)' 2>/dev/null`
     if expr $tmp_ver \>= 11 >/dev/null; then
-      LDFLAGS="$LDFLAGS -Wl,-no_pie"
+      LDFLAGS="$LDFLAGS ${dash_Wl}-no_pie"
     fi
   ;;
 

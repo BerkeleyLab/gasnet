@@ -1,6 +1,6 @@
 dnl   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acinclude.m4,v $
-dnl     $Date: 2013/07/19 03:04:56 $
-dnl $Revision: 1.170 $
+dnl     $Date: 2013/08/28 19:52:00 $
+dnl $Revision: 1.170.2.1 $
 dnl Description: m4 macros
 dnl Copyright 2004,  Dan Bonachea <bonachea@cs.berkeley.edu>
 dnl Terms of use are as specified in license.txt
@@ -492,7 +492,14 @@ AC_REQUIRE([AC_PROG_CC])
 AC_CACHE_CHECK(for libgcc link flags, cv_prefix[]lib_gcc,
 [if test "$GCC" = yes; then
   #LIBGCC="`$CC -v 2>&1 | sed -n 's:^Reading specs from \(.*\)/specs$:-L\1 -lgcc:p'`"
-  LIBGCC="-L`$CC -print-libgcc-file-name | xargs dirname` -lgcc"
+  if test "$CC_SUBFAMILY" = 'NVIDIA'; then
+    rm -f "gasnet-conftest.$ac_ext"
+    echo 'int foo;' > "gasnet-conftest.$ac_ext"
+    LIBGCC="-L`$CC -c gasnet-conftest.$ac_ext -Xcompiler -print-libgcc-file-name | xargs dirname` -lgcc"
+    rm -f "gasnet-conftest.*"
+  else
+    LIBGCC="-L`$CC -print-libgcc-file-name | xargs dirname` -lgcc"
+  fi
   if test -z "$LIBGCC"; then
     GASNET_MSG_ERROR(cannot find libgcc)
   fi
@@ -2050,6 +2057,21 @@ if test "$$3" != "GNU" ; then
         GXX=""
     ;;
   esac
+  $2_SUBFAMILY='none'
+else
+  dnl GCC has sub-family too
+  $2_SUBFAMILY='GNU'
+  GASNET_TRY_CACHE_EXTRACT_STR([for gcc version string],gcc_version_string,[
+      #ifndef __VERSION__
+        #define __VERSION__ "unknown"
+      #endif
+    ],[__VERSION__],[_gasnet_gcc_version_string])
+  case "$_gasnet_gcc_version_string" in
+    *gccfss*) $2_SUBFAMILY='GCCFSS';;
+    *) GASNET_IFDEF(__APPLE_CC__, [$2_SUBFAMILY='APPLE'])
+       GASNET_IFDEF(__NVCC__, [$2_SUBFAMILY='NVIDIA'])
+       ;;
+  esac
 fi
 $2_FAMILY=$$3
 $2_UNWRAPPED=$$2
@@ -2058,6 +2080,7 @@ case $$3 in
   *)   $2_WRAPPED="\$(top_builddir)/cc-wrapper \$($2_FAMILY) \$($2_UNWRAPPED)" ;;
 esac
 AC_SUBST($2_FAMILY)
+AC_SUBST($2_SUBFAMILY)
 AC_SUBST($2_UNWRAPPED)
 AC_SUBST($2_WRAPPED)
 GASNET_SUBST_FILE(cc_wrapper_mk, cc-wrapper.mk)
