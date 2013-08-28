@@ -418,7 +418,7 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
     }
   }
 			       
-  assert (status == GNI_RC_SUCCESS);
+  gasneti_assert (status == GNI_RC_SUCCESS);
   
   {
     gni_mem_handle_t *all_mem_handle = gasneti_malloc(gasneti_nodes * sizeof(gni_mem_handle_t));
@@ -815,7 +815,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(void *t,
   gni_post_descriptor_t *pd = &gpd->pd;
   gasnetc_notify_t notify = token->notify;
 
-  assert(notify_get_type(notify) == notify_request);
+  gasneti_assert(notify_get_type(notify) == notify_request);
 
   // because gpd may be too small, and am_recv copied the data 
   // out for other reasons, we can use the requet buffer for a reply
@@ -863,7 +863,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnet_node_t d
            GET_AM_REM_BUFFER_STALL);
 
   remote_slot -=1;
-  peer->remote_request_map ^= (1<<remote_slot);
+  peer->remote_request_map ^= (1UL << remote_slot);
 
   BUSYWAIT(((m = gasnetc_reply_pool) == NULL), 
            gasneti_AMPoll,
@@ -1022,7 +1022,7 @@ int poll_for_message(peer_struct_t * const peer, int is_slow)
       GASNETC_LOCK_AM_BUFFER();
       mb->freelist.linkage = gasnetc_reply_pool;
       gasnetc_reply_pool = mb;
-      peer->remote_request_map |= 1<<target_slot;
+      peer->remote_request_map |= (1UL << target_slot);
       GASNETC_UNLOCK_AM_BUFFER();
     }
     return 1;
