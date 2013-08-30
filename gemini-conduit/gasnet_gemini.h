@@ -155,8 +155,6 @@ typedef union gasnetc_eq_packet {
         (GASNETC_MSG_MAXSIZE - GASNETC_HEADLEN(long, (nargs)))
 #endif
 
-gasnetc_packet_t *gasnetc_get_am_request_buffer(uint32_t pe);
-
 void gasnetc_init_post_descriptor_pool(void);
 
 /* use the auxseg mechanism to allocate registered memory for bounce buffers */
