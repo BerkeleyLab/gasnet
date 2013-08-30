@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/08/30 11:46:43 $
- * $Revision: 1.84.2.17 $
+ *     $Date: 2013/08/30 12:00:32 $
+ * $Revision: 1.84.2.18 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1117,18 +1117,6 @@ int gasnetc_general_am_send(gasnetc_post_descriptor_t *gpd)
   gasneti_resume_spinpollers();
   return(retval);
 }
-
-#define BUSYWAIT(_condition, _poll, _trace)  \
-    if_pf (_condition) {                     \
-      GASNETC_TRACE_WAIT_BEGIN();            \
-      do {                                   \
-        GASNETI_WAITHOOK();                  \
-        _poll();                             \
-      } while (_condition);                  \
-      GASNETC_TRACE_WAIT_END(_trace);        \
-    }                   
-
-
 
 /*------------------- local delivery cases (non-PSHM) ------------------ */
 #if !GASNET_PSHM
