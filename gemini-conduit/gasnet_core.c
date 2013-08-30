@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/08/30 10:41:32 $
- * $Revision: 1.84.2.14 $
+ *     $Date: 2013/08/30 11:10:43 $
+ * $Revision: 1.84.2.15 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1130,12 +1130,12 @@ int gasnetc_general_am_send(gasnetc_post_descriptor_t *gpd)
 
 
 
-/*------------------- local delivery cases------------------ */
+/*------------------- local delivery cases (non-PSHM) ------------------ */
+#if !GASNET_PSHM
+
 GASNETI_INLINE(gasnetc_local_short_common)
-int gasnetc_local_short_common(gasnet_node_t dest, int is_req,
-                                gasnet_handler_t handler,
-                                void *source_addr, size_t nbytes,
-                                int numargs, va_list argptr)
+int gasnetc_local_short_common(int is_req, gasnet_handler_t handler,
+                               int numargs, va_list argptr)
 {
   int i;
   
@@ -1143,19 +1143,16 @@ int gasnetc_local_short_common(gasnet_node_t dest, int is_req,
   gasnetc_token_t the_token = { gasneti_mynode, is_req, 0 };
   gasnet_token_t token = (gasnet_token_t)&the_token; /* RUN macros need an lvalue */
   gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
-  void *payload = alloca(nbytes);
   
   for (i = 0; i < numargs; i++) {
     args[i] = (gasnet_handlerarg_t)va_arg(argptr, gasnet_handlerarg_t);
   }
-  memcpy(payload, source_addr, nbytes);
-  GASNETI_RUN_HANDLER_MEDIUM(is_req,handler,handler_fn,token,args,numargs,payload,nbytes);
+  GASNETI_RUN_HANDLER_SHORT(is_req,handler,handler_fn,token,args,numargs);
   return(GASNET_OK);
 }
 
 GASNETI_INLINE(gasnetc_local_medium_common)
-int gasnetc_local_medium_common(gasnet_node_t dest, int is_req,
-                                gasnet_handler_t handler,
+int gasnetc_local_medium_common(int is_req, gasnet_handler_t handler,
                                 void *source_addr, size_t nbytes,
                                 int numargs, va_list argptr)
 {
@@ -1177,8 +1174,7 @@ int gasnetc_local_medium_common(gasnet_node_t dest, int is_req,
 
 
 GASNETI_INLINE(gasnetc_local_long_common)
-int gasnetc_local_long_common(gasnet_node_t dest, int is_req,
-                               gasnet_handler_t handler,
+int gasnetc_local_long_common(int is_req, gasnet_handler_t handler,
                                void *source_addr, size_t nbytes,
                                void *dest_addr, 
                                int numargs, va_list argptr)
@@ -1198,6 +1194,7 @@ int gasnetc_local_long_common(gasnet_node_t dest, int is_req,
   GASNETI_RUN_HANDLER_LONG(is_req,handler,handler_fn,token,args,numargs,dest_addr,nbytes);
   return(GASNET_OK);
 }
+#endif /* !GASNET_PSHM */
 
 /*------------------- header formatting ------------------ */
 GASNETI_INLINE(gasnetc_format_short)
@@ -1281,7 +1278,7 @@ extern int gasnetc_AMRequestShortM(
   } 
 #else 
   if (dest == gasneti_mynode)
-      return(gasnetc_local_short_common());
+    return(gasnetc_local_short_common(1, handler, numargs, argptr));
 #endif
 
   {
@@ -1312,7 +1309,11 @@ extern int gasnetc_AMRequestMediumM(
                                            numargs, argptr);
     GASNETI_RETURN(retval);
   } 
+#else 
+  if (dest == gasneti_mynode)
+    return(gasnetc_local_medium_common(1, handler, source_addr, nbytes, numargs, argptr));
 #endif
+
   {
     const size_t total_len = GASNETC_HEADLEN(medium, numargs) + nbytes;
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(dest, total_len);
@@ -1341,7 +1342,11 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
                                            numargs, argptr);
     return(retval);
   } 
+#else
+  if (dest == gasneti_mynode) 
+    return(gasnetc_local_long_common(1, handler, source_addr, nbytes, dest_addr, numargs, argptr));
 #endif
+
   {
     volatile int done = 0;
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
@@ -1399,8 +1404,9 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
   } else
 #else
   if (dest == gasneti_mynode) 
-    return(gasnetc_local_long_common(dest, handler, source_addr, nbytes, numargs, argptr));
+    return(gasnetc_local_long_common(1, handler, source_addr, nbytes, dest_addr, numargs, argptr));
 #endif
+
   {
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
     const size_t head_len = GASNETC_HEADLEN(long, numargs);
@@ -1454,8 +1460,9 @@ extern int gasnetc_AMReplyShortM(
   }
 #else
   if (reply_node(token) == gasneti_mynode)
-    return(gasnetc_local_short_common(m, handler, source_addr, nbytes, numargs, argptr));
+    return(gasnetc_local_short_common(0, handler, numargs, argptr));
 #endif
+
   {
     const size_t total_len = GASNETC_HEADLEN(short, numargs);
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_reply_post_descriptor(token, total_len);
@@ -1487,7 +1494,7 @@ extern int gasnetc_AMReplyMediumM(
   }
 #else 
   if (reply_node(token) == gasneti_mynode)
-    return(gasnetc_local_medium_common(m, handler, source_addr, nbytes, numargs, argptr));
+    return(gasnetc_local_medium_common(0, handler, source_addr, nbytes, numargs, argptr));
 #endif
 
   {
@@ -1521,7 +1528,7 @@ extern int gasnetc_AMReplyLongM(
   }
 #else
   if (reply_node(token) == gasneti_mynode)
-    return(gasnetc_local_long_common(dest, handler, source_addr, nbytes, dest_addr, numargs, argptr));
+    return(gasnetc_local_long_common(1, handler, source_addr, nbytes, dest_addr, numargs, argptr));
 #endif
 
   {
