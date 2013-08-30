@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/08/30 10:21:08 $
- * $Revision: 1.84.2.13 $
+ *     $Date: 2013/08/30 10:41:32 $
+ * $Revision: 1.84.2.14 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1347,10 +1347,9 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
     const size_t head_len = GASNETC_HEADLEN(long, numargs);
     const size_t total_len = head_len + (is_packed ? nbytes : 0);
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(dest, total_len);
-    gasnetc_packet_t *p = (gasnetc_packet_t *)gpd->gpd_am_packet;
+    gasnetc_post_descriptor_t *gpd;
+    gasnetc_packet_t *p;
 
-    
     if (!is_packed) {
       gasnetc_post_descriptor_t *gpdl = gasnetc_alloc_post_descriptor();        
       /* Launch RDMA put as early as possible */
@@ -1361,6 +1360,9 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
       gasneti_resume_spinpollers();
     }
     
+    /* Overlap gpd and/or credit stalls, if any, w/ the RDMA */
+    gpd = gasnetc_alloc_request_post_descriptor(dest, total_len);
+    p = (gasnetc_packet_t *)gpd->gpd_am_packet;
     gasnetc_format_long(p, is_packed, handler, nbytes, dest_addr, numargs, argptr);
     va_end(argptr);
 
@@ -1527,8 +1529,8 @@ extern int gasnetc_AMReplyLongM(
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
     const size_t head_len = GASNETC_HEADLEN(long, numargs);
     const size_t total_len = head_len + (is_packed ? nbytes : 0);
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_reply_post_descriptor(token, total_len);
-    gasnetc_packet_t *p = (gasnetc_packet_t *)gpd->gpd_am_packet;
+    gasnetc_post_descriptor_t *gpd;
+    gasnetc_packet_t *p;
 
     if (!is_packed) {
       gasnetc_post_descriptor_t *gpdl = gasnetc_alloc_post_descriptor();        
@@ -1540,6 +1542,9 @@ extern int gasnetc_AMReplyLongM(
       gasneti_resume_spinpollers();
     }
     
+    /* Overlap gpd stall, if any, w/ the RDMA */
+    gpd = gasnetc_alloc_reply_post_descriptor(token, total_len);
+    p = (gasnetc_packet_t *)gpd->gpd_am_packet;
     gasnetc_format_long(p, is_packed, handler, nbytes, dest_addr, numargs, argptr);
     va_end(argptr);
 
