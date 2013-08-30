@@ -814,8 +814,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnet_token_t t,
   gasnetc_notify_t notify = token->notify;
   gasnetc_packet_t *packet;
 
-  // because gpd may be too small, and am_recv copied the data 
-  // out for other reasons, we can use the request buffer for a reply
+  // reuse the request buffer for the reply (any/all data has been copied out)
   packet = &(peer->local_request_base + notify_get_target_slot(notify))->packet;
 
   // just modify the notify type
@@ -907,7 +906,8 @@ void gasnetc_recv_am(peer_struct_t * const peer, gasnetc_mailbox_t * const mb, g
       uint8_t buffer[gasnet_AMMaxMedium()];
       const size_t head_len = GASNETC_HEADLEN(medium, numargs);
       uint8_t * data = &mb->raw[head_len];
-      if (is_req) { /* Req cannot run with payload in-place */
+      if (is_req) {
+          /* Reply reuses the buffer.  So, Request cannot run with payload in-place. */
           /* TODO: special case for non-replying requests (internal only for now) */
           data = memcpy(&buffer, data, header.nbytes);
       }
