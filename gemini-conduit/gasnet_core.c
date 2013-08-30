@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/08/30 09:02:48 $
- * $Revision: 1.84.2.11 $
+ *     $Date: 2013/08/30 10:08:53 $
+ * $Revision: 1.84.2.12 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1200,7 +1200,7 @@ int gasnetc_local_long_common(gasnet_node_t dest, int is_req,
 }
 
 /*------------------- header formatting ------------------ */
-GASNETI_INLINE(gasnetc_short_common)
+GASNETI_INLINE(gasnetc_format_short)
 void gasnetc_format_short(gasnetc_packet_t *m,
                          gasnet_handler_t handler,
                          int numargs, 
@@ -1217,7 +1217,7 @@ void gasnetc_format_short(gasnetc_packet_t *m,
 }
 
 
-GASNETI_INLINE(gasnetc_medium_common)
+GASNETI_INLINE(gasnetc_format_medium)
 void gasnetc_format_medium(gasnetc_packet_t *m,
                            gasnet_handler_t handler,
                            void *source_addr, 
@@ -1249,7 +1249,6 @@ void gasnetc_format_long(gasnetc_packet_t *m,
 {
   int i;
   
-  /* Overlap header setup and credit stall w/ the RDMA */
   m->header.command = (int)GC_CMD_AM_LONG + is_packed;
   m->header.numargs = numargs;
   m->header.handler = handler;
