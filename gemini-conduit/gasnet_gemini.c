@@ -110,21 +110,19 @@ static gasneti_lifo_head_t gasnetc_bounce_buffer_pool = GASNETI_LIFO_INITIALIZER
 gasneti_lifo_head_t gasnetc_smsg_buffers = GASNETI_LIFO_INITIALIZER;
 #endif
 
-
+/* NOTE: notify_type is "pre shifted" by 24 bits */
 enum notify_type {
-  notify_request = 1,
-  notify_reply,
-  notify_credit,
+  notify_request = 0x01000000,
+  notify_reply   = 0x02000000,
+  notify_credit  = 0x03000000
 }; 
 
 #define build_notify(_type, _initiator, _target)\
-  ((uint64_t)_type |  ((uint64_t)_initiator << 8) |  ((uint64_t)_target << 24))
+  ((uint64_t)(_type) |  ((uint64_t)(_initiator) << 8) |  ((uint64_t)(_target)))
 
-#define notify_get_type(n) (n & 255)
-#define notify_get_initiator_slot(n) ((uint16_t)((n>> 8) & 65535))
-#define notify_get_target_slot(n) ((uint16_t)((n>> 24) & 65535))
-
-
+#define notify_get_type(n) ((n) & 0xff000000)
+#define notify_get_target_slot(n) ((uint8_t)((n) & 255)) /* actual range 0..63 */
+#define notify_get_initiator_slot(n) ((uint16_t)(((n) >> 8) & 65535))
 
 /*------ Convience functions for printing error messages ------*/
 
