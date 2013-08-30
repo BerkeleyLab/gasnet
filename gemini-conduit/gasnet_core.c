@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/08/28 03:38:20 $
- * $Revision: 1.84.2.10 $
+ *     $Date: 2013/08/30 09:02:48 $
+ * $Revision: 1.84.2.11 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1131,7 +1131,7 @@ int gasnetc_general_am_send(gasnetc_post_descriptor_t *gpd)
 
 
 /*------------------- local delivery cases------------------ */
-GASNETI_INLINE(gasnetc_local_medium_common)
+GASNETI_INLINE(gasnetc_local_short_common)
 int gasnetc_local_short_common(gasnet_node_t dest, int is_req,
                                 gasnet_handler_t handler,
                                 void *source_addr, size_t nbytes,
@@ -1140,7 +1140,7 @@ int gasnetc_local_short_common(gasnet_node_t dest, int is_req,
   int i;
   
   const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
-  gasnetc_token_t the_token = { gasneti_mynode, is_req};
+  gasnetc_token_t the_token = { gasneti_mynode, is_req, 0 };
   gasnet_token_t token = (gasnet_token_t)&the_token; /* RUN macros need an lvalue */
   gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
   void *payload = alloca(nbytes);
@@ -1162,7 +1162,7 @@ int gasnetc_local_medium_common(gasnet_node_t dest, int is_req,
   int i;
   
   const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
-  gasnetc_token_t the_token = { gasneti_mynode, is_req };
+  gasnetc_token_t the_token = { gasneti_mynode, is_req, 0 };
   gasnet_token_t token = (gasnet_token_t)&the_token; /* RUN macros need an lvalue */
   gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
   void *payload = alloca(nbytes);
@@ -1184,7 +1184,7 @@ int gasnetc_local_long_common(gasnet_node_t dest, int is_req,
                                int numargs, va_list argptr)
 {
   const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
-  gasnetc_token_t the_token = { gasneti_mynode, is_req };
+  gasnetc_token_t the_token = { gasneti_mynode, is_req, 0 };
   gasnet_token_t token = (gasnet_token_t)&the_token; /* RUN macros need an lvalue */
   gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
   int i;
