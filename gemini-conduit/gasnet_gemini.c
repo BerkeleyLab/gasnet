@@ -776,10 +776,9 @@ int gasnetc_send_credit(peer_struct_t * const peer, gasnetc_notify_t notify)
   pd->local_addr = (uint64_t)&gpd->u.notify;
   pd->remote_mem_hndl = peer->am_handle;
 
-  // really can just overwrite the notify type
-  gpd->u.notify = build_notify(notify_credit, 
-                               notify_get_initiator_slot(notify),
-                               notify_get_target_slot(notify));
+  // just modify the notify type
+  gasneti_assert(notify_get_type(notify) == notify_request);
+  gpd->u.notify = notify + build_notify((notify_credit - notify_request),0,0);
 
   GASNETC_LOCK_GNI();
   slot = fetch_inc_notify_pointer(peer->remote_notify_write);
@@ -815,16 +814,13 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnet_token_t t,
   gni_post_descriptor_t *pd = &gpd->pd;
   gasnetc_notify_t notify = token->notify;
 
-  gasneti_assert(notify_get_type(notify) == notify_request);
-
   // because gpd may be too small, and am_recv copied the data 
   // out for other reasons, we can use the request buffer for a reply
   *p = &(peer->local_request_base + notify_get_target_slot(notify))->packet;
 
-  // really can just overwrite the notify type
-  pd->sync_flag_value = build_notify(notify_reply, 
-                                     notify_get_initiator_slot(notify),
-                                     notify_get_target_slot(notify));
+  // just modify the notify type
+  gasneti_assert(notify_get_type(notify) == notify_request);
+  pd->sync_flag_value = notify + build_notify((notify_reply - notify_request),0,0);
   
   pd->remote_addr = (uint64_t) (peer->remote_reply_base + notify_get_initiator_slot(notify));
   gasnetc_format_am_gpd(gpd, *p, peer, length);
