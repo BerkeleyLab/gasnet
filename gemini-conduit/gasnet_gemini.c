@@ -805,11 +805,11 @@ void gasnetc_format_am_gpd(gasnetc_post_descriptor_t *gpd,
   pd->type = GNI_POST_FMA_PUT_W_SYNCFLAG;
 }
 
-gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(void *t,
+gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnet_token_t t,
                                                                gasnetc_packet_t **p, 
                                                                size_t length)
 {
-  gasnetc_token_t *token = t;
+  gasnetc_token_t *token = (gasnetc_token_t *)t;
   peer_struct_t * const peer = &peer_data[token->source];
   gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
   gni_post_descriptor_t *pd = &gpd->pd;
@@ -818,8 +818,8 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(void *t,
   gasneti_assert(notify_get_type(notify) == notify_request);
 
   // because gpd may be too small, and am_recv copied the data 
-  // out for other reasons, we can use the requet buffer for a reply
-  *p = (gasnetc_packet_t *)(peer->local_request_base + notify_get_target_slot(notify));
+  // out for other reasons, we can use the request buffer for a reply
+  *p = &(peer->local_request_base + notify_get_target_slot(notify))->packet;
 
   // really can just overwrite the notify type
   pd->sync_flag_value = build_notify(notify_reply, 
@@ -872,14 +872,14 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnet_node_t d
   gasnetc_reply_pool = gasnetc_reply_pool->freelist.linkage;
   GASNETC_UNLOCK_AM_BUFFER();
 
-  *p = (gasnetc_packet_t *)m;
+  *p = &m->packet;
   my_slot = m->freelist.reply_slot;
   pd->remote_addr = (uint64_t) &peer->remote_request_base[remote_slot];
   pd->sync_flag_value = build_notify(notify_request,
                                      my_slot,
                                      remote_slot);
   
-  gasnetc_format_am_gpd(gpd, *p, peer, length);  
+  gasnetc_format_am_gpd(gpd, &m->packet, peer, length);  
   
   return(gpd);
 }
