@@ -824,6 +824,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnet_token_t t,
   
   pd->remote_addr = (uint64_t) (peer->remote_reply_base + notify_get_initiator_slot(notify));
   gasnetc_format_am_gpd(gpd, packet, peer, length);
+  gasneti_assert(token->need_reply);
   token->need_reply = 0;
   return(gpd);
 }
