@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.h,v $
- *     $Date: 2013/07/30 07:39:09 $
- * $Revision: 1.3 $
+ *     $Date: 2013/08/30 12:33:29 $
+ * $Revision: 1.3.2.1 $
  * Description: GASNet header for gemini conduit core
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -124,7 +124,7 @@ typedef struct _gasnet_hsl_t {
 */
 
 #define gasnet_AMMaxArgs()          ((size_t)16)
-#define GASNETC_MAX_MEDIUM          568
+#define GASNETC_MAX_MEDIUM          952
 #define GASNETC_MAX_LONG          0x100000
 #if GASNET_PSHM
   /* (###) If supporting PSHM a conduit must "negotiate" the maximum size of a
@@ -135,7 +135,6 @@ typedef struct _gasnet_hsl_t {
 #else
 #define gasnet_AMMaxMedium()      ((size_t)GASNETC_MAX_MEDIUM) 
 #endif
-/* LCS value copied from portals-conduit */
 #define gasnet_AMMaxLongRequest()   ((size_t)GASNETC_MAX_LONG)
 #define gasnet_AMMaxLongReply()     ((size_t)GASNETC_MAX_LONG)
 
