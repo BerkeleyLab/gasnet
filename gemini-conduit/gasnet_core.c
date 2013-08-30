@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/08/30 10:08:53 $
- * $Revision: 1.84.2.12 $
+ *     $Date: 2013/08/30 10:21:08 $
+ * $Revision: 1.84.2.13 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1285,10 +1285,9 @@ extern int gasnetc_AMRequestShortM(
 #endif
 
   {
-    gasnetc_packet_t *p;
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(dest, 
-                                                                           &p,
-                                                                           GASNETC_HEADLEN(short, numargs));
+    const size_t total_len = GASNETC_HEADLEN(short, numargs);
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(dest, total_len);
+    gasnetc_packet_t *p = (gasnetc_packet_t *)gpd->gpd_am_packet;
     gasnetc_format_short(p, handler, numargs, argptr);
     va_end(argptr);
     return(gasnetc_general_am_send(gpd));
@@ -1315,10 +1314,9 @@ extern int gasnetc_AMRequestMediumM(
   } 
 #endif
   {
-    gasnetc_packet_t *p;
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(dest, 
-                                                                           &p,
-                                                                           GASNETC_HEADLEN(medium, numargs) + nbytes);
+    const size_t total_len = GASNETC_HEADLEN(medium, numargs) + nbytes;
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(dest, total_len);
+    gasnetc_packet_t *p = (gasnetc_packet_t *)gpd->gpd_am_packet;
     gasnetc_format_medium(p, handler,source_addr,nbytes,numargs,argptr);
     va_end(argptr);
     return(gasnetc_general_am_send(gpd));
@@ -1349,8 +1347,8 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
     const size_t head_len = GASNETC_HEADLEN(long, numargs);
     const size_t total_len = head_len + (is_packed ? nbytes : 0);
-    gasnetc_packet_t *p;
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(dest, &p, total_len);
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(dest, total_len);
+    gasnetc_packet_t *p = (gasnetc_packet_t *)gpd->gpd_am_packet;
 
     
     if (!is_packed) {
@@ -1405,8 +1403,8 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
     const size_t head_len = GASNETC_HEADLEN(long, numargs);
     const size_t total_len = head_len + (is_packed ? nbytes : 0);
-    gasnetc_packet_t *p;
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(dest, &p, total_len);
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(dest, total_len);
+    gasnetc_packet_t *p = (gasnetc_packet_t *)gpd->gpd_am_packet;
 
     gasnetc_format_long(p, is_packed, handler, nbytes, dest_addr, numargs, argptr);
     va_end(argptr);
@@ -1457,10 +1455,9 @@ extern int gasnetc_AMReplyShortM(
     return(gasnetc_local_short_common(m, handler, source_addr, nbytes, numargs, argptr));
 #endif
   {
-    gasnetc_packet_t *p;
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_reply_post_descriptor(token,
-                                                                         &p,
-                                                                         GASNETC_HEADLEN(short, numargs));
+    const size_t total_len = GASNETC_HEADLEN(short, numargs);
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_reply_post_descriptor(token, total_len);
+    gasnetc_packet_t *p = (gasnetc_packet_t *)gpd->gpd_am_packet;
     gasnetc_format_short(p, handler,numargs,argptr);
     va_end(argptr);
     return(gasnetc_general_am_send(gpd));
@@ -1492,10 +1489,9 @@ extern int gasnetc_AMReplyMediumM(
 #endif
 
   {
-    gasnetc_packet_t *p;
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_reply_post_descriptor(token, 
-                                                                         &p, 
-                                                                         GASNETC_HEADLEN(medium, numargs) + nbytes);
+    const size_t total_len = GASNETC_HEADLEN(medium, numargs) + nbytes;
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_reply_post_descriptor(token, total_len);
+    gasnetc_packet_t *p = (gasnetc_packet_t *)gpd->gpd_am_packet;
     gasnetc_format_medium(p, handler,source_addr,nbytes,numargs,argptr);
     va_end(argptr);
     GASNETI_RETURN(gasnetc_general_am_send(gpd));
@@ -1531,8 +1527,8 @@ extern int gasnetc_AMReplyLongM(
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
     const size_t head_len = GASNETC_HEADLEN(long, numargs);
     const size_t total_len = head_len + (is_packed ? nbytes : 0);
-    gasnetc_packet_t *p;
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_reply_post_descriptor(token, &p, total_len);
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_reply_post_descriptor(token, total_len);
+    gasnetc_packet_t *p = (gasnetc_packet_t *)gpd->gpd_am_packet;
 
     if (!is_packed) {
       gasnetc_post_descriptor_t *gpdl = gasnetc_alloc_post_descriptor();        
