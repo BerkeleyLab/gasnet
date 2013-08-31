@@ -109,7 +109,8 @@ static gasneti_lifo_head_t gasnetc_bounce_buffer_pool = GASNETI_LIFO_INITIALIZER
 enum notify_type {
   notify_request = 0x01000000,
   notify_reply   = 0x02000000,
-  notify_credit  = 0x03000000
+  notify_credit  = 0x03000000,
+  notify_ctrl    = 0x04000000
 }; 
 
 #define build_notify(_type, _initiator, _target)\
@@ -118,6 +119,13 @@ enum notify_type {
 #define notify_get_type(n) ((n) & 0xff000000)
 #define notify_get_target_slot(n) ((uint8_t)((n) & 255)) /* actual range 0..63 */
 #define notify_get_initiator_slot(n) ((uint16_t)(((n) >> 8) & 65535))
+
+/* Op and Arg for a control msg are also 8 and 16 bits, respectively.
+   However we could use at total of 56 bits (keeping 8 for type) if ever needed.
+*/
+#define build_ctrl_notify(_op, _arg) build_notify(notify_ctrl, _arg, _op)
+#define notify_ctrl_op(n) notify_get_target_slot(n)
+#define notify_ctrl_arg(n) notify_get_initiator_slot(n)
 
 /*------ Convience functions for printing error messages ------*/
 
@@ -486,8 +494,8 @@ uintptr_t gasnetc_init_messaging(void)
     gasneti_assert_always (status == GNI_RC_SUCCESS);
   }
 
-  /* Determine size of per-peer notify ring */
-  notify_ring_size = GASNETI_ALIGNUP((2 * gasnetc_next_power_of_2(am_maxcredit)),
+  /* Determine size of per-peer notify ring: Req + Rep + shutdown */
+  notify_ring_size = GASNETI_ALIGNUP(gasnetc_next_power_of_2(2*am_maxcredit + 1),
                                      (GASNETC_CACHELINE_SIZE / sizeof(gasnetc_notify_t)));
   notify_ring_mask = notify_ring_size - 1;
 
@@ -689,9 +697,6 @@ void gasnetc_shutdown(void)
   }
 }
 
-static void gasnetc_handle_sys_shutdown_packet(uint32_t source, uint16_t arg);
-static void gasnetc_send_control(uint32_t dest, uint8_t op, uint16_t arg);
-
 static gasneti_mutex_t ampoll_lock = GASNETI_MUTEX_INITIALIZER;
 
 /* for local_notify_read which is kept in range [0..notify_ring_size) */
@@ -753,16 +758,14 @@ gasnetc_send_am(gasnetc_post_descriptor_t *gpd)
   return(gasnetc_send_am_common(peer, pd));
 }
 
-
-GASNETI_INLINE(gasnetc_send_credit)
-int gasnetc_send_credit(peer_struct_t * const peer, gasnetc_notify_t notify)
+GASNETI_INLINE(gasnetc_send_notify)
+int gasnetc_send_notify(peer_struct_t * const peer, gasnetc_notify_t notify)
 {
   gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
   gni_post_descriptor_t *pd = &gpd->pd;
   unsigned int slot;
 
-  GASNETI_TRACE_PRINTF(D, ("msg to %d type AM_CREDIT\n", peer->pe));
-
+  gpd->u.notify = notify;
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT | GNI_CQMODE_REMOTE_EVENT;
   pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
   pd->type = GNI_POST_FMA_PUT;
@@ -770,14 +773,30 @@ int gasnetc_send_credit(peer_struct_t * const peer, gasnetc_notify_t notify)
   pd->local_addr = (uint64_t)&gpd->u.notify;
   pd->remote_mem_hndl = peer->am_handle;
 
-  // just modify the notify type
-  gasneti_assert(notify_get_type(notify) == notify_request);
-  gpd->u.notify = notify + build_notify((notify_credit - notify_request),0,0);
-
   GASNETC_LOCK_GNI();
+
   slot = fetch_inc_notify_pointer(peer->remote_notify_write);
   pd->remote_addr = (uint64_t)(peer->remote_notify_base + slot);
   return(gasnetc_send_am_common(peer, pd));
+}
+
+GASNETI_INLINE(gasnetc_send_credit)
+int gasnetc_send_credit(peer_struct_t * const peer, gasnetc_notify_t notify)
+{
+  GASNETI_TRACE_PRINTF(D, ("msg to %d type AM_CREDIT\n", peer->pe));
+  gasneti_assert(notify_get_type(notify) == notify_request);
+  notify += build_notify((notify_credit - notify_request),0,0); // just modify the notify type
+  return(gasnetc_send_notify(peer, notify));
+}
+
+/* Send a 3-byte control message (could have us much as 7 bytes if ever needed) */
+/* Current ARBITRARILY managed as 8-bit op and 16-bit arg */
+int gasnetc_send_control(gasnet_node_t dest, uint8_t op, uint16_t arg)
+{
+  peer_struct_t * const peer = &peer_data[dest];
+  GASNETI_TRACE_PRINTF(D, ("msg to %d type CONTROL op=%d arg=0x%x\n",
+                           (int)dest, (int)op, (int)arg));
+  return(gasnetc_send_notify(peer, build_ctrl_notify(op, arg)));
 }
 
 GASNETI_INLINE(gasnetc_format_am_gpd) 
@@ -977,6 +996,26 @@ void ampoll_ins(peer_struct_t *peer)
   }
 }
 
+static void gasnetc_handle_sys_shutdown_packet(uint32_t source, uint16_t arg);
+
+GASNETI_NEVER_INLINE(dispatch_ctrl,
+void dispatch_ctrl(peer_struct_t * const peer,gasnetc_notify_t notify))
+{
+  const uint16_t arg = notify_ctrl_arg(notify);
+  const uint8_t op = notify_ctrl_op(notify);
+      
+  switch (op) {
+    case GC_CTRL_SHUTDOWN:
+      gasnetc_handle_sys_shutdown_packet(peer->pe, arg);
+      break;
+
+  #if GASNET_DEBUG
+    default:
+      gasnetc_GNIT_Abort("unknown control message %d", (int)op);
+  #endif
+  }
+}
+
 GASNETI_INLINE(poll_for_message)
 int poll_for_message(peer_struct_t * const peer, int is_slow)
 {
@@ -996,6 +1035,8 @@ int poll_for_message(peer_struct_t * const peer, int is_slow)
     
     if (type == notify_request) {
       gasnetc_recv_am(peer, peer->local_request_base + target_slot, n);
+    } else if_pf (type == notify_ctrl) {
+      dispatch_ctrl(peer, n);
     } else {
       gasnetc_mailbox_t *mb = local_reply_base + initiator_slot;
 
@@ -1052,37 +1093,9 @@ void gasnetc_poll_smsg_queue(void)
       /* ... while prior versions say this is used on both send and recv CQs */
       uint32_t source = GNI_CQ_GET_INST_ID(event_data[i]);
     #endif
-      gasneti_assert(0 == ((GASNET_MAXNODES - 1) & (source ^ GNI_CQ_GET_DATA(event_data[i]))));
-
-      if_pf (source & GASNET_MAXNODES) { /* Control message */
-        const uint32_t control = GNI_CQ_GET_DATA(event_data[i]) >> 24;
-        const uint16_t     arg = control >> 8;
-      #if GASNET_DEBUG
-        const uint8_t       op = control;
-      #endif
-        source &= (GASNET_MAXNODES - 1);
-        gasneti_assert((source < gasneti_nodes) && !node_is_local(source));
-
-#if 1 /* Currently only 1 type of CTRL message */
-        gasneti_assert(op == GC_CTRL_SHUTDOWN);
-        gasnetc_handle_sys_shutdown_packet(source, arg);
-#else
-        switch (op) {
-        case GC_CTRL_SHUTDOWN:
-	  gasnetc_handle_sys_shutdown_packet(source, arg);
-          break;
-
-      #if GASNET_DEBUG
-        default:
-	  gasnetc_GNIT_Abort("unknown control message %d", (int)op);
-      #endif
-        }
-#endif
-      } else {
-        peer_struct_t * const peer = &peer_data[source];
-        if (!poll_for_message(peer, 0)) {
-          ampoll_ins(peer);
-        }
+      peer_struct_t * const peer = &peer_data[source];
+      if (!poll_for_message(peer, 0)) {
+        ampoll_ins(peer);
       }
     }
   } else if ((NULL == ampoll_head) || (EBUSY == gasneti_mutex_trylock(&ampoll_lock))) {
@@ -1182,42 +1195,6 @@ void gasnetc_poll(void)
 {
   gasnetc_poll_smsg_queue();
   gasnetc_poll_local_queue();
-}
-
-/* Send a 3-byte control message */
-/* Current ARBITRARILY managed as 8-bit op and 16-bit arg */
-static
-void gasnetc_send_control(uint32_t dest, uint8_t op, uint16_t arg)
-{
-  peer_struct_t * const peer = &peer_data[dest];
-  gasnetc_post_descriptor_t * const gpd = gasnetc_alloc_post_descriptor();
-  gni_return_t status;
-  const int max_trials = 4;
-  int trial = 0;
-
-  /*  bzero(&gpd->pd, sizeof(gni_post_descriptor_t)); */
-  gpd->flags = 0;
-  gpd->pd.cq_mode = GNI_CQMODE_GLOBAL_EVENT | GNI_CQMODE_REMOTE_EVENT;
-  gpd->pd.dlvr_mode = GNI_DLVMODE_PERFORMANCE;
-  gpd->pd.type = GNI_POST_CQWRITE;
-  gpd->pd.remote_mem_hndl = peer->am_handle;
-
-  gpd->pd.cqwrite_value = ((uint64_t) arg << 32)
-                        | ((uint64_t) op  << 24)
-                        | GASNET_MAXNODES | gasneti_mynode;
-
-  for (;;) {
-    GASNETC_LOCK_GNI();
-    status = GNI_PostCqWrite(peer->ep_handle, &gpd->pd);
-    GASNETC_UNLOCK_GNI();
-    if_pt (status == GNI_RC_SUCCESS) return;
-    if (status != GNI_RC_ERROR_RESOURCE) break; /* Fatal */
-    GASNETI_WAITHOOK();
-    gasnetc_poll_local_queue();
-  } while (++trial < max_trials);
-  if (status == GNI_RC_ERROR_RESOURCE) {
-    gasnetc_GNIT_Abort("PostCqWrite retry failed");
-  }
 }
 
 GASNETI_NEVER_INLINE(print_post_desc,
