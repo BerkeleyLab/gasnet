@@ -26,7 +26,6 @@ static uint32_t gasnetc_memreg_flags;
 static int gasnetc_mem_consistency;
 
 typedef union {
-  volatile uint32_t full; /* is zero until filled */
   gasnetc_packet_t packet;
   uint8_t raw[GASNETC_MSG_MAXSIZE];
   struct {
