@@ -748,8 +748,8 @@ gasnetc_send_am(gasnetc_post_descriptor_t *gpd)
   unsigned int slot;
 
   GASNETI_TRACE_PRINTF(D, ("msg to %d type %s/%s\n", peer->pe,
-                           gasnetc_type_string(p->header.command),
-                           (pd->sync_flag_value == notify_request) ? "REQ" : "REP"));
+                           gasnetc_type_string(gasnetc_am_command(pd->sync_flag_value)),
+                           (notify_get_type(pd->sync_flag_value) == notify_request) ? "REQ" : "REP"));
 
   GASNETC_LOCK_GNI();
   
@@ -830,9 +830,9 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnet_token_t t,
   // reuse the request buffer for the reply (any/all data has been copied out)
   packet = &(peer->local_request_base + notify_get_target_slot(notify))->packet;
 
-  // just modify the notify type
+  // modify the notify type and clear its AM header bits */
   gasneti_assert(notify_get_type(notify) == notify_request);
-  pd->sync_flag_value = notify + build_notify((notify_reply - notify_request),0,0);
+  pd->sync_flag_value = (notify & 0xffffffffUL) + build_notify((notify_reply - notify_request),0,0);
   
   pd->remote_addr = (uint64_t) (peer->remote_reply_base + notify_get_initiator_slot(notify));
   gasnetc_format_am_gpd(gpd, packet, peer, length);
@@ -894,10 +894,9 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnet_node_t d
 /* Choice to inline or not is left to the compiler */
 void gasnetc_recv_am(peer_struct_t * const peer, gasnetc_mailbox_t * const mb, gasnetc_notify_t notify)
 {
-  GC_Header_t header = mb->packet.header;
-  int is_req = (notify_get_type(notify) == notify_request)?1:0;
-  const int numargs = header.numargs;
-  const int handlerindex = header.handler;
+  int is_req = (notify_get_type(notify) == notify_request);
+  const int numargs = gasnetc_am_numargs(notify);
+  const int handlerindex = gasnetc_am_handler(notify);
   gasneti_handler_fn_t handler = gasnetc_handler[handlerindex];
   gasnetc_token_t the_token = { peer->pe, is_req, notify};
   gasnet_token_t token = (gasnet_token_t)&the_token; /* RUN macros need an lvalue */
@@ -906,10 +905,10 @@ void gasnetc_recv_am(peer_struct_t * const peer, gasnetc_mailbox_t * const mb, g
 
   gasneti_assert(numargs <= gasnet_AMMaxArgs());
   GASNETI_TRACE_PRINTF(D, ("msg from %d type %s/%s\n", peer->pe,
-                           gasnetc_type_string(header.command),
+                           gasnetc_type_string(gasnetc_am_command(notify)),
                            is_req ? "REQ" : "REP"));
   
-  switch (header.command) {
+  switch (gasnetc_am_command(notify)) {
   case GC_CMD_AM_SHORT:
       GASNETI_RUN_HANDLER_SHORT(is_req, handlerindex, handler,
                                 token, mb->packet.gasp.args, numargs);
@@ -918,22 +917,23 @@ void gasnetc_recv_am(peer_struct_t * const peer, gasnetc_mailbox_t * const mb, g
   case GC_CMD_AM_MEDIUM: {
       uint8_t buffer[gasnet_AMMaxMedium()];
       const size_t head_len = GASNETC_HEADLEN(medium, numargs);
+      const size_t nbytes = gasnetc_am_nbytes(notify);
       uint8_t * data = &mb->raw[head_len];
       if (is_req) {
           /* Reply reuses the buffer.  So, Request cannot run with payload in-place. */
           /* TODO: special case for non-replying requests (internal only for now) */
-          data = memcpy(&buffer, data, header.nbytes);
+          data = memcpy(&buffer, data, nbytes);
       }
       gasneti_assert(0 == (((uintptr_t) data) % GASNETI_MEDBUF_ALIGNMENT));
-      gasneti_assert(header.nbytes <= gasnet_AMMaxMedium());
+      gasneti_assert(nbytes <= gasnet_AMMaxMedium());
       GASNETI_RUN_HANDLER_MEDIUM(is_req, handlerindex, handler,
                                  token, mb->packet.gamp.args, numargs,
-                                 data, header.nbytes);
+                                 data, nbytes);
       break;
   }
       
   case GC_CMD_AM_LONG_PACKED:
-      { /* payload follows header - copy it into place */
+      { /* payload follows args - copy it into place */
           const size_t head_len = GASNETC_HEADLEN(long, numargs);
           gasneti_assert(mb->packet.galp.data_length <= GASNETC_MAX_PACKED_LONG(numargs));
           memcpy(mb->packet.galp.data, &mb->raw[head_len], mb->packet.galp.data_length);

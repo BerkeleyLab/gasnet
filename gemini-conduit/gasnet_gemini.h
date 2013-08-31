@@ -88,44 +88,44 @@ enum {
     GC_CMD_AM_LONG_PACKED
 };
 
-typedef struct GC_Header {
-  uint8_t  command : 3; /* GC_CMD_* */
-  uint8_t  numargs : 5; /* number of GASNet arguments */
-  uint8_t  handler;     /* index of GASNet handler */
-  uint16_t nbytes;      /* length of payload (Medium only) */
-} GC_Header_t;
+/* Encode AM header bits to fit in upper 32 bits of 64 bit word */
+#define gasnetc_build_am_header(command, numargs, handler, nbytes) \
+ (((uint64_t)(command) << 61) | \
+  ((uint64_t)(numargs) << 56) | \
+  ((uint64_t)(handler) << 48) | \
+  ((uint64_t)(nbytes)  << 32))
 
+#define gasnetc_am_command(n) (((n) >> 61) & 0x7)
+#define gasnetc_am_numargs(n) (((n) >> 56) & 0x1f)
+#define gasnetc_am_handler(n) (((n) >> 48) & 0xff)
+#define gasnetc_am_nbytes(n)  (((n) >> 32) & 0xffff)
 
 /* This type is used by an AMShort request or reply */
 typedef struct {
-  GC_Header_t header;
   gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
 } gasnetc_am_short_packet_t;
 
 /* This type is used by an AMMedium request or reply */
 typedef struct {
-  GC_Header_t header;
   gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
 } gasnetc_am_medium_packet_t;
 
 /* This type is used by an AMLong request or reply */
 typedef struct {
-  GC_Header_t header;
+  void *data;
 #if GASNETC_MAX_LONG <= 0xFFFFFFFFU
   uint32_t data_length;
 #else
   size_t data_length;
 #endif
-  void *data;
   gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
 } gasnetc_am_long_packet_t;
 
 /* The various ways to interpret an arriving message
  * You can tell what it is by looking at the command field
- * in the GC_Header_t
+ * in the header portion of the notify word
  */
-typedef union gasnetc_eq_packet {
-  GC_Header_t header; /* must be first */
+typedef union gasnetc_packet_u {
   gasnetc_am_short_packet_t gasp;
   gasnetc_am_medium_packet_t gamp;
   gasnetc_am_long_packet_t galp;
@@ -204,6 +204,7 @@ typedef struct gasnetc_post_descriptor {
   #define gpd_completion pd.post_id
   #define gpd_get_src    pd.first_operand
   #define gpd_get_dst    pd.second_operand
+  #define gpd_am_header  pd.sync_flag_value
   #define gpd_am_packet  pd.local_addr
   #define gpd_am_peer    pd.first_operand
   #define gpd_am_next    pd.second_operand
