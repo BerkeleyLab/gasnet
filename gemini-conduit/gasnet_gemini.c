@@ -709,15 +709,13 @@ int gasnetc_send_am_common(peer_struct_t *peer, gni_post_descriptor_t *pd)
 
   for (;;) {
     status = GNI_PostFma(peer->ep_handle, pd);
+    GASNETC_UNLOCK_GNI();
 
     if_pt (status == GNI_RC_SUCCESS) {
-      GASNETC_UNLOCK_GNI();
-      if_pf (trial) GASNETC_STAT_EVENT_VAL(SMSG_SEND_RETRY, trial);
-      return GNI_RC_SUCCESS;
+      break;
     }
 
-    GASNETC_UNLOCK_GNI();
-    if (status != GNI_RC_ERROR_RESOURCE) {
+    if_pf (status != GNI_RC_ERROR_RESOURCE) {
       gasnetc_GNIT_Abort("PostFma for AM returned error %s", gni_return_string(status));
     }
 
@@ -730,6 +728,7 @@ int gasnetc_send_am_common(peer_struct_t *peer, gni_post_descriptor_t *pd)
     GASNETC_LOCK_GNI();
   }
 
+  if_pf (trial) GASNETC_STAT_EVENT_VAL(SMSG_SEND_RETRY, trial);
   return GASNET_OK;
 }
 
