@@ -67,7 +67,6 @@ static gasnet_seginfo_t gasnetc_bounce_buffers;
 static gasnet_seginfo_t gasnetc_pd_buffers;
 
 unsigned int gasnetc_log2_remote;
-static unsigned int am_maxcredit;
 static unsigned int num_pd;
 static uint32_t notify_ring_mask; /* ring size minus 1 */
 
@@ -438,6 +437,7 @@ uintptr_t gasnetc_init_messaging(void)
   size_t request_region_length;
   size_t reply_region_length;
   size_t peer_stride;
+  int am_maxcredit;
   int notify_ring_size;
   int modes = 0;
   int reply_count;
