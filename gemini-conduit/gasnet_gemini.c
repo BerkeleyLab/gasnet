@@ -71,6 +71,7 @@ static unsigned int am_maxcredit;
 static unsigned int num_pd;
 static uint32_t notify_ring_mask; /* ring size minus 1 */
 
+static int have_segment = 0;
 
 /*------ Group the most commonly accessed variables together ------*/
 /* TODO: could move gasneti_{mynode,nodes} here, but it is non-trivial */
@@ -415,6 +416,7 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
       }
     }
   }
+  have_segment = 1;
 			       
   gasneti_assert (status == GNI_RC_SUCCESS);
   
@@ -655,10 +657,10 @@ void gasnetc_shutdown(void)
     gasnetc_GNIT_Log("at shutdown: %d endpoints left after 10 tries", left);
   }
 
-  if (gasneti_attach_done) {
+  if (have_segment) {
     status = GNI_MemDeregister(nic_handle, &my_mem_handle);
     if_pf (status != GNI_RC_SUCCESS) {
-      gasnetc_GNIT_Abort("MemDeregister(segment) failed with %s", gni_return_string(status));
+      gasnetc_GNIT_Log("MemDeregister(segment) failed with %s", gni_return_string(status));
     }
   }
 
@@ -666,29 +668,29 @@ void gasnetc_shutdown(void)
 
   status = GNI_MemDeregister(nic_handle, &am_handle);
   if_pf (status != GNI_RC_SUCCESS) {
-    gasnetc_GNIT_Abort("MemDeregister(smsg_mem) failed with %s", gni_return_string(status));
+    gasnetc_GNIT_Log("MemDeregister(smsg_mem) failed with %s", gni_return_string(status));
   }
 
   if (destination_cq_handle) {
     status = GNI_CqDestroy(destination_cq_handle);
     if_pf (status != GNI_RC_SUCCESS) {
-      gasnetc_GNIT_Abort("CqDestroy(dest_cq) failed with %s", gni_return_string(status));
+      gasnetc_GNIT_Log("CqDestroy(dest_cq) failed with %s", gni_return_string(status));
     }
   }
 
   status = GNI_CqDestroy(smsg_cq_handle);
   if_pf (status != GNI_RC_SUCCESS) {
-    gasnetc_GNIT_Abort("CqDestroy(smsg_cq) failed with %s", gni_return_string(status));
+    gasnetc_GNIT_Log("CqDestroy(smsg_cq) failed with %s", gni_return_string(status));
   }
 
   status = GNI_CqDestroy(bound_cq_handle);
   if_pf (status != GNI_RC_SUCCESS) {
-    gasnetc_GNIT_Abort("CqDestroy(bound_cq) failed with %s", gni_return_string(status));
+    gasnetc_GNIT_Log("CqDestroy(bound_cq) failed with %s", gni_return_string(status));
   }
 
   status = GNI_CdmDestroy(cdm_handle);
   if_pf (status != GNI_RC_SUCCESS) {
-    gasnetc_GNIT_Abort("CdmDestroy(bound_cq) failed with %s", gni_return_string(status));
+    gasnetc_GNIT_Log("CdmDestroy(bound_cq) failed with %s", gni_return_string(status));
   }
 }
 
