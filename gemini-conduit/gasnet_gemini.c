@@ -743,13 +743,13 @@ gasnetc_send_am(gasnetc_post_descriptor_t *gpd)
   gni_post_descriptor_t *pd = &gpd->pd;
   peer_struct_t * const peer = (peer_struct_t *)gpd->gpd_am_peer;
 #if GASNET_TRACE
-  gasnetc_packet_t *p = (gasnetc_packet_t *)pd->local_addr;
+  gasnetc_notify_t n = pd->sync_flag_value;
 #endif
   unsigned int slot;
 
   GASNETI_TRACE_PRINTF(D, ("msg to %d type %s/%s\n", peer->pe,
-                           gasnetc_type_string(gasnetc_am_command(pd->sync_flag_value)),
-                           (notify_get_type(pd->sync_flag_value) == notify_request) ? "REQ" : "REP"));
+                           gasnetc_type_string(gasnetc_am_command(n)),
+                           (notify_get_type(n) == notify_request) ? "REQ" : "REP"));
 
   GASNETC_LOCK_GNI();
   
