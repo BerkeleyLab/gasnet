@@ -81,6 +81,7 @@ enum {
     GC_CTRL_SHUTDOWN 
 };
 
+/* AM message "commands" */
 enum {
     GC_CMD_AM_SHORT,
     GC_CMD_AM_MEDIUM,
@@ -95,10 +96,10 @@ enum {
   ((uint64_t)(handler) << 48) | \
   ((uint64_t)(nbytes)  << 32))
 
-#define gasnetc_am_command(n) (((n) >> 61) & 0x7)
+#define gasnetc_am_command(n) (((n) >> 61) & 0x7)     /* using only 2 of 3 bits */
 #define gasnetc_am_numargs(n) (((n) >> 56) & 0x1f)
 #define gasnetc_am_handler(n) (((n) >> 48) & 0xff)
-#define gasnetc_am_nbytes(n)  (((n) >> 32) & 0xffff)
+#define gasnetc_am_nbytes(n)  (((n) >> 32) & 0xffff)  /* using only 10 of 16 bits */
 
 /* This type is used by an AMShort request or reply */
 typedef struct {
