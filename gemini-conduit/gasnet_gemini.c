@@ -107,10 +107,6 @@ static gasneti_weakatomic_t gasnetc_reg_credit;
 static gasneti_lifo_head_t post_descriptor_pool = GASNETI_LIFO_INITIALIZER;
 static gasneti_lifo_head_t gasnetc_bounce_buffer_pool = GASNETI_LIFO_INITIALIZER;
 
-#if !GASNET_CONDUIT_GEMINI
-gasneti_lifo_head_t gasnetc_smsg_buffers = GASNETI_LIFO_INITIALIZER;
-#endif
-
 /* NOTE: notify_type is "pre shifted" by 24 bits */
 enum notify_type {
   notify_request = 0x01000000,
@@ -1171,11 +1167,6 @@ void gasnetc_poll_local_queue(void))
       } else if (flags & GC_POST_UNBOUNCE) {
 	gasnetc_free_bounce_buffer((void *) gpd->pd.local_addr);
       }
-    #if !GASNET_CONDUIT_GEMINI
-      else if (flags & GC_POST_SMSG_BUF) {
-        gasneti_lifo_push(&gasnetc_smsg_buffers, (void *) (gpd->pd.local_addr - 8));
-      }
-    #endif
 
       if (flags & GC_POST_SEND) {
         int rc;

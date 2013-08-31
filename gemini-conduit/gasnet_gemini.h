@@ -196,7 +196,6 @@ extern size_t gasnetc_max_put_lc;
 #define GC_POST_COMPLETION_FLAG 128
 #define GC_POST_COMPLETION_CNTR 256
 #define GC_POST_KEEP_GPD 512
-#define GC_POST_SMSG_BUF 1024
 
 /* WARNING: if sizeof(gasnetc_post_descriptor_t) changes, then
  * you must update the value in gasneti_pd_auxseg_IdentString */
