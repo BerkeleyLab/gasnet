@@ -1,6 +1,6 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.84 $
+$Revision: 1.84.2.1 $
 
 ----------------------------------------------------------------------
 10-??-2013 : Release 1.22.0
@@ -32,7 +32,9 @@ $Revision: 1.84 $
 
 * Platform support/portability
   - Initial support for building GASNet with NVIDIA's nvcc compiler
-
+  - Initial support for running GASNet on Intel MIC (a.k.a. Xeon Phi);
+    This release only supports running GASNet on MIC in native mode.
+	
 * Removal of unmaintained network conduits
   - This release no longer supports the following networks:
     + elan (Quadrics elan3/elan4)
@@ -43,7 +45,7 @@ $Revision: 1.84 $
     + sci (Dolphin SCI)
     If you require GASNet on one these networks, and can provide
     access to resources for maintenance of the code, please contact us.
-
+	
 ----------------------------------------------------------------------
 04-30-2013 : Release 1.20.2
 
