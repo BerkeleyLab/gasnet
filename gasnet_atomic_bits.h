@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_atomic_bits.h,v $
- *     $Date: 2013/04/08 23:17:04 $
- * $Revision: 1.354 $
+ *     $Date: 2013/09/06 04:31:20 $
+ * $Revision: 1.354.16.1 $
  * Description: GASNet header for platform-specific parts of atomic operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -36,7 +36,7 @@
 /* ------------------------------------------------------------------------------------ */
 /* Work-arounds and special cases for various platforms */
 
-#if PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_X86
+#if PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_X86 || PLATFORM_ARCH_MIC
   #ifdef GASNETI_UNI_BUILD
     #define GASNETI_X86_LOCK_PREFIX ""
   #else
@@ -334,7 +334,7 @@
    * Not using GENERIC (mutex) or OS-provided atomics, so provide our own based on the
    * CPU and compiler support for inline assembly code
    * ------------------------------------------------------------------------------------ */
-  #if PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 /* x86 and Athlon64/Opteron */
+  #if PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC /* x86 and Athlon64/Opteron and MIC */
     #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || \
         PLATFORM_COMPILER_PATHSCALE || GASNETI_PGI_ASM_THREADSAFE || \
         PLATFORM_COMPILER_TINY || PLATFORM_COMPILER_OPEN64 || \
@@ -460,7 +460,7 @@
       #define _gasneti_atomic32_fetchadd gasneti_atomic32_fetchadd
 
       /* 64-bit differ between x86 and x86-64: */
-      #if PLATFORM_ARCH_X86_64 /* Athlon64/Opteron */
+      #if PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC /* Athlon64/Opteron */
         #define _gasneti_atomic64_read(p)      ((p)->ctr)
         #define _gasneti_atomic64_set(p,v)     ((p)->ctr = (v))
 
@@ -797,7 +797,7 @@
       #endif /* GASNETI_HAVE_X86_CMPXCHG16B */
     #elif PLATFORM_COMPILER_SUN || PLATFORM_COMPILER_PGI_C
       /* First, some macros to hide the x86 vs. x86-64 ABI differences */
-      #if PLATFORM_ARCH_X86_64
+      #if PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC
         #define _gasneti_atomic_addr		"(%rdi)"
         #define _gasneti_atomic_load_arg0	""	/* arg0 in rdi */
         #define _gasneti_atomic_load_arg1	"movq %rsi, %rax	\n\t"
@@ -897,7 +897,7 @@
       #define _gasneti_atomic64_init(v)      { (v) }
 
       /* 64-bit differ between x86 and x86-64: */
-      #if PLATFORM_ARCH_X86_64 /* Athlon64/Opteron */
+      #if PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC /* Athlon64/Opteron */
         #define _gasneti_atomic64_read(p)      ((p)->ctr)
         #define _gasneti_atomic64_set(p,v)     ((p)->ctr = (v))
 

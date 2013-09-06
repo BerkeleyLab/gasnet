@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/other/portable_platform.h,v $
- *     $Date: 2013/04/26 07:16:03 $
- * $Revision: 1.35 $
+ *     $Date: 2013/09/06 04:31:22 $
+ * $Revision: 1.35.14.1 $
  * Description: Portable platform detection header
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
  */
@@ -632,6 +632,12 @@
   #define PLATFORM_ARCH_POWERPC 1
   #define PLATFORM_ARCH_FAMILYNAME POWERPC
   #define PLATFORM_ARCH_BIG_ENDIAN 1
+
+#elif defined(__KNC__) || defined(__MIC__)
+  #define PLATFORM_ARCH_MIC 1
+  #define PLATFORM_ARCH_FAMILYNAME MIC
+  #define _PLATFORM_ARCH_64 1
+  #define PLATFORM_ARCH_LITTLE_ENDIAN 1
 
 #elif defined(__x86_64) || defined(__x86_64__) || \
     defined(__athlon) || defined(__athlon__) || \

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_membar.h,v $
- *     $Date: 2013/05/31 23:17:57 $
- * $Revision: 1.128 $
+ *     $Date: 2013/09/06 04:31:20 $
+ * $Revision: 1.128.12.1 $
  * Description: GASNet header for portable memory barrier operations
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -162,6 +162,12 @@
    }
    #define gasneti_local_mb() _gasneti_local_mb()
  #endif
+/* ------------------------------------------------------------------------------------ */
+#elif PLATFORM_ARCH_MIC
+   GASNETI_INLINE(gasneti_local_wmb)
+   void gasneti_local_wmb(void) {
+     __asm__ __volatile__("":::"memory");
+   }
 /* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_ARCH_IA64 /* Itanium */
     /* Empirically observed that IA64 requires a full "mf" for both wmb and rmb (see bug 1000).

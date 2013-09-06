@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2013/08/29 21:19:11 $
- * $Revision: 1.128 $
+ *     $Date: 2013/09/06 04:31:20 $
+ * $Revision: 1.128.2.1 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -68,6 +68,8 @@
 #elif PLATFORM_OS_HPUX
   #define GASNETI_MMAP_FLAGS (MAP_ANONYMOUS | MAP_NORESERVE | MAP_PRIVATE)
   #define GASNETI_MMAP_NOTFIXED_FLAG MAP_VARIABLE
+#elif PLATFORM_ARCH_MIC
+  #define GASNETI_MMAP_FLAGS (MAP_ANONYMOUS | MAP_PRIVATE | MAP_POPULATE | MAP_HUGETLB)
 #endif
 
 #ifndef GASNETI_MMAP_FLAGS
