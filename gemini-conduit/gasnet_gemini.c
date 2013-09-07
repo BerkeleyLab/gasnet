@@ -76,6 +76,7 @@ static int gasnetc_threads_per_domain;
 #endif
 
 typedef struct {
+  int8_t pads[GASNETC_CACHELINE_SIZE];
   gni_cdm_handle_t cdm_handle;
   gni_cq_handle_t destination_cq_handle;
   gasnet_seginfo_t gasnetc_pd_buffers;
@@ -95,9 +96,9 @@ typedef struct {
 #if !GASNET_CONDUIT_GEMINI
   gasneti_lifo_head_t gasnetc_smsg_buffers;
 #endif
-  int8_t pad0[GASNETC_CACHELINE_SIZE];
+  int8_t padm[GASNETC_CACHELINE_SIZE];
   gasnetc_gni_lock_t gasnetc_gni_lock;
-  int8_t pad1[GASNETC_CACHELINE_SIZE];
+  int8_t pade[GASNETC_CACHELINE_SIZE];
 } communication_domain_struct_t;
 
 static communication_domain_struct_t * gasnetc_cdom_data;
@@ -2140,10 +2141,7 @@ void gasnetc_get_am_credit(uint32_t pe)
     } while (!gasnetc_weakatomic_dec_if_positive(p));
     GASNETC_TRACE_WAIT_END(GET_AM_CREDIT_STALL);
   }
-
 }
-
-
 
 /* Needs no lock because it is called only from the init code */
 #if GNI_MULTI_DOMAIN
@@ -2171,7 +2169,8 @@ void gasnetc_init_post_descriptor_pool(void)
   gpd += count * didx;
   gasneti_assert_always(gpd);
   memset(gpd, 0, count * sizeof(gasnetc_post_descriptor_t)); /* Just in case */
-  for (i = 0; i < count; i += 1) {
+	/* sacrifice the first one to work as a padding */
+  for (i = 1; i < count; i += 1) {
     gasneti_lifo_push(&(gasnetc_cdom_data[didx].post_descriptor_pool), gpd + i);
   }
 
@@ -2449,10 +2448,18 @@ gasneti_auxseg_request_t gasnetc_bounce_auxseg_alloc(gasnet_seginfo_t *auxseg_in
  *     Gemini = 304 bytes
  *     Aries  = 320 bytes
  */
+#if GNI_MULTI_DOMAIN
+#if GASNET_CONDUIT_GEMINI
+  #define GASNETC_SIZEOF_GDP 312
+#else
+  #define GASNETC_SIZEOF_GDP 328
+#endif
+#else 
 #if GASNET_CONDUIT_GEMINI
   #define GASNETC_SIZEOF_GDP 304
 #else
   #define GASNETC_SIZEOF_GDP 320
+#endif
 #endif
 GASNETI_IDENT(gasneti_pd_auxseg_IdentString, /* XXX: update if gasnetc_post_descriptor_t changes */
               "$GASNetAuxSeg_pd: " _STRINGIFY(GASNETC_SIZEOF_GDP) "*"
@@ -2495,7 +2502,8 @@ void gasnetc_init_bounce_buffer_pool(int didx)
                     gasnetc_put_bounce_register_cutover);
 
   num_bounce = gasnetc_bounce_buffers.size / buffer_size / gasnetc_domain_count;
-  for(i = 0; i < num_bounce; i += 1) {
+	/* sacrifice one bounce buffer to work as a padding */
+  for(i = 1; i < num_bounce; i += 1) {
     gasneti_lifo_push(& (gasnetc_cdom_data[didx].gasnetc_bounce_buffer_pool),
                       (char *) gasnetc_bounce_buffers.addr + (buffer_size * (i+didx*num_bounce)));
   }
