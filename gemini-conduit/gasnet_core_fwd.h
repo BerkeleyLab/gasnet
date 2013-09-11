@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2013/03/13 23:50:00 $
- * $Revision: 1.16 $
+ *     $Date: 2013/09/11 23:11:46 $
+ * $Revision: 1.16.16.1 $
  * Description: GASNet header for <conduitname> conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -75,6 +75,11 @@ typedef ### gasnetc_handler_t;
 #if 0
 #define GASNETC_TOKEN_CREATE 1
 #endif
+
+/*#if GNI_MULTI_DOMAIN*/
+#define GASNETC_PTHREAD_CREATE_OVERRIDE(create_fn, thread, attr, start_routine, arg) \
+   gasnetc_pthread_create(create_fn, thread, attr, start_routine, arg)
+/*#endif*/
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
