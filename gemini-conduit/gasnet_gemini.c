@@ -46,7 +46,6 @@ typedef struct peer_struct {
   } mb;
 } peer_struct_t;
 
-#if GNI_MULTI_DOMAIN
 static size_t smsg_mmap_bytes;
 static size_t gasnetc_get_fma_rdma_cutover;
 static size_t gasnetc_put_fma_rdma_cutover;
@@ -64,6 +63,10 @@ static unsigned int am_maxcredit;
 
 static int gasnetc_poll_burst = 10;
 
+/* read-write: (should cache pad) */
+static gasneti_weakatomic_t gasnetc_reg_credit;
+
+#if GNI_MULTI_DOMAIN
 static int gasnetc_domain_count;
 static int gasnetc_poll_default_per_thread;
 static void *gasnetc_segment_start;
@@ -102,10 +105,6 @@ typedef struct {
 } communication_domain_struct_t;
 
 static communication_domain_struct_t * gasnetc_cdom_data;
-
-static int8_t pad_reg_credit[GASNETC_CACHELINE_SIZE];
-/* read-write: */
-gasneti_weakatomic_t gasnetc_reg_credit;
 
 #if !GASNET_CONDUIT_GEMINI
 gasnetc_packet_t * gasnetc_alloc_am_buffer(size_t buffer_len) {
@@ -171,18 +170,12 @@ gasnetc_gni_lock_t *gasnetc_gni_lock()
 static gni_mem_handle_t my_smsg_handle;
 
 static gni_cdm_handle_t cdm_handle;
-static gni_cq_handle_t destination_cq_handle=NULL;
+static gni_cq_handle_t destination_cq_handle;
 
 static void *smsg_mmap_ptr;
-static size_t smsg_mmap_bytes;
 
 static gasnet_seginfo_t gasnetc_bounce_buffers;
 static gasnet_seginfo_t gasnetc_pd_buffers;
-
-unsigned int gasnetc_log2_remote;
-static unsigned int mb_slots;
-static unsigned int am_maxcredit;
-
 
 /*------ Group the most commonly accessed variables together ------*/
 /* TODO: could move gasneti_{mynode,nodes} here, but it is non-trivial */
@@ -192,25 +185,10 @@ static gni_nic_handle_t nic_handle;
 static gni_mem_handle_t my_mem_handle;
 static gni_cq_handle_t bound_cq_handle;
 static gni_cq_handle_t smsg_cq_handle;
-static int gasnetc_poll_burst = 10;
 static peer_struct_t *peer_data;
-#if FIX_HT_ORDERING
-static uint16_t gasnetc_fma_put_cq_mode = GNI_CQMODE_GLOBAL_EVENT;
-#endif
-static size_t gasnetc_get_fma_rdma_cutover;
-static size_t gasnetc_put_fma_rdma_cutover;
-static size_t gasnetc_get_bounce_register_cutover;
-static size_t gasnetc_put_bounce_register_cutover;
-size_t gasnetc_max_get_unaligned;
-size_t gasnetc_max_put_lc;
 
 /* lock: */
-static int8_t pad0[GASNETC_CACHELINE_SIZE];
 gasnetc_gni_lock_t gasnetc_gni_lock;
-
-/* read-write: */
-static int8_t pad1[GASNETC_CACHELINE_SIZE];
-static gasneti_weakatomic_t gasnetc_reg_credit;
 
 /* lifo_head_t contains cache-line padding */
 static gasneti_lifo_head_t post_descriptor_pool = GASNETI_LIFO_INITIALIZER;
