@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/09/12 01:13:53 $
- * $Revision: 1.84.4.2 $
+ *     $Date: 2013/09/12 01:39:21 $
+ * $Revision: 1.84.4.3 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -387,7 +387,11 @@ done:
   gasnetc_handler[_hidx_gasnetc_sys_exchange_reqh] = (gasneti_handler_fn_t)&gasnetc_sys_exchange_reqh;
 
   gasnetc_bootstrap_am_coll = 1;
+#if GNI_MULTI_DOMAIN
+  /* Need to use PMI exchange at each pthread spawn */
+#else
   gasneti_bootstrapCleanup_pmi(); /* No further use of PMI-based colelctives */
+#endif
 }
 
 static void gasnetc_sys_coll_fini(void)

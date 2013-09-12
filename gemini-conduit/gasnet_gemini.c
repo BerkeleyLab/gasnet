@@ -167,33 +167,6 @@ gasnetc_gni_lock_t *gasnetc_gni_lock()
 {
    return & gasnetc_cdom_data[GNI_DEFAULT_DOMAIN].gasnetc_gni_lock;
 }
-
-static void gasnetc_MDomExchange(void *src, size_t len, void *dest) {
-  uint8_t *unsorted = gasneti_malloc(len * gasneti_nodes);
-  gasnet_node_t *pmi_exchange_order = NULL;
-  int i, status;
-  pmi_exchange_order = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
-  status = PMI_Allgather(&gasneti_mynode, pmi_exchange_order, sizeof(gasnet_node_t));
-  if (status != PMI_SUCCESS) {
-    gasnetc_GNIT_Abort("PMI_Allgather failed rc=%d", status);
-  }
-  /* Allgather the callers data to a temporary array */
-  status = PMI_Allgather(src, unsorted, len);
-  if (status != PMI_SUCCESS) {
-    gasnetc_GNIT_Abort("PMI_Allgather failed rc=%d", status);
-  }
-  /* extract the records from the unsorted array by using the 'order' array */
-  for (i = 0; i < gasneti_nodes; i += 1) { 
-    gasnet_node_t peer = pmi_exchange_order[i];
-    if (peer >= gasneti_nodes) {
-      gasnetc_GNIT_Abort("PMI_Allgather failed, item %d has impossible rank %d", i, peer);
-    }    
-    memcpy((void *) ((uintptr_t) dest + (peer * len)), &unsorted[i * len], len);
-  }
-  gasneti_free(unsorted);
-  gasneti_free(pmi_exchange_order);
-}
-
 #else /* GNI_MULTI_DOMAIN */
 static gni_mem_handle_t my_smsg_handle;
 
@@ -434,11 +407,7 @@ static uint32_t *gather_nic_addresses(void)
     /* use gasnetc_address taken from the environment */
   }
 
-#if GNI_MULTI_DOMAIN
-  gasnetc_MDomExchange(&gasnetc_address, sizeof(uint32_t), result);
-#else
-  gasnetc_bootstrapExchange(&gasnetc_address, sizeof(uint32_t), result);
-#endif
+  gasneti_bootstrapExchange_pmi(&gasnetc_address, sizeof(uint32_t), result);
 
   return result;
 }
@@ -585,6 +554,7 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
     }
     gasneti_free(all_mem_handle);
   }
+
 #if GNI_MULTI_DOMAIN
  #if(GNI_DOMAIN_ALLOC_POLICY == GNI_STATIC_DOMAIN_ALLOC)
   {
@@ -594,7 +564,6 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
   }
  #endif
 #endif
-
 }
 
 
@@ -642,7 +611,6 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
    status = GNI_EpBind(gasnetc_cdom_data[didx].peer_data[i].ep_handle, all_addr[i], i);
    gasneti_assert_always (status == GNI_RC_SUCCESS);
   }
-  gasneti_free(all_addr);
 #if FIX_HT_ORDERING
   if (gasnetc_mem_consistency != GASNETC_STRICT_MEM_CONSISTENCY) {
     /* With 1 completion entry this queue is INTENDED to always overflow */
@@ -675,7 +643,7 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
   {
     gni_mem_handle_t *all_mem_handle = gasneti_malloc(gasneti_nodes * sizeof(gni_mem_handle_t));
     gasnet_node_t i;
-    gasnetc_MDomExchange(&gasnetc_cdom_data[didx].my_mem_handle, sizeof(gni_mem_handle_t), all_mem_handle);
+    gasneti_bootstrapExchange_pmi(&gasnetc_cdom_data[didx].my_mem_handle, sizeof(gni_mem_handle_t), all_mem_handle);
     for (i = 0; i < gasneti_nodes; ++i) {
        gasnetc_cdom_data[didx].peer_data[i].mem_handle = all_mem_handle[i];
      }
@@ -778,7 +746,9 @@ uintptr_t gasnetc_init_messaging(void)
     status = GNI_EpBind(peer_data[i].ep_handle, all_addr[i], i);
     gasneti_assert_always (status == GNI_RC_SUCCESS);
   }
+#if !GNI_MULTI_DOMAIN
   gasneti_free(all_addr);
+#endif
 
   /* Initialize the short message system */
 
