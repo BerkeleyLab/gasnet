@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/09/11 23:11:46 $
- * $Revision: 1.84.4.1 $
+ *     $Date: 2013/09/12 01:13:53 $
+ * $Revision: 1.84.4.2 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -181,12 +181,7 @@ void gasnetc_bootstrapBarrier(void))
 
       /* wait for completion of the proper receive, which might arrive out of order */
       while (!(gasnetc_sys_barrier_rcvd[phase] & mask)) {
-#if GNI_MULTI_DOMAIN
-         const int didx = GNI_DEFAULT_DOMAIN;
-         gasnetc_poll(didx);
-#else
-         gasnetc_poll(); /* No PSHM progress required here */
-#endif
+         gasnetc_poll(GNI_DEFAULT_DOMAIN);  /* No PSHM progress required here */
       }
     }
 
@@ -894,16 +889,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   /* After these, puts, and gets should work */
   gasnetc_init_segment(segbase, segsize);
-#if GNI_MULTI_DOMAIN
-  {
-    const int didx = GNI_DEFAULT_DOMAIN;
-    gasnetc_init_post_descriptor_pool(didx);
-    gasnetc_init_bounce_buffer_pool(didx);
-  }
-#else
-  gasnetc_init_bounce_buffer_pool();
-  gasnetc_init_post_descriptor_pool();
-#endif
+  gasnetc_init_post_descriptor_pool(GNI_DEFAULT_DOMAIN);
+  gasnetc_init_bounce_buffer_pool(GNI_DEFAULT_DOMAIN);
 
   gasnete_init(); /* init the extended API */
 
@@ -996,11 +983,7 @@ extern void gasnetc_exit(int exitcode) {
     /* clobber the lock, even if held by another thread! */
     #define GASNETC_CLOBBER_LOCK _GASNETC_CLOBBER_LOCK
   #endif
-#if GNI_MULTI_DOMAIN
-  GASNETC_CLOBBER_LOCK(gasnetc_gni_lock());
-#else
-  GASNETC_CLOBBER_LOCK(&gasnetc_gni_lock);
-#endif
+  GASNETC_CLOBBER_LOCK(gasnetc_gni_lock_addr);
   /* TODO: AM mailbox locks */
   #undef GASNETC_CLOBBER_LOCK
   #undef _GASNETC_CLOBBER_LOCK
@@ -1112,23 +1095,19 @@ extern int gasnetc_AMPoll(void) {
 #endif
 
   /* (###) add code here to run your AM progress engine */
-  /* LCS */
-#if GNI_MULTI_DOMAIN
   {
+  #if GNI_MULTI_DOMAIN
   /* 
    *  TODO: Can AMPoll requester tell which thread is calling 
    *  Currently, we use gasnete_mythread(), which cost us at least 180 
-  *  cycles on hopper. 
-  */
-    int didx, tidx;
-    gasnete_threaddata_t * threaddata = gasnete_mythread();
-    tidx = gasnete_mythread()->threadidx;
-    didx = gasnetc_get_domain_idx(tidx);
+   *  cycles on hopper. 
+   */
+    const gasnete_threaddata_t * const mythread = gasnete_mythread();
+    const int didx = gasnetc_get_domain_idx(mythread->threadidx);
+  #endif
     gasnetc_poll(didx);
   }
-#else
-  gasnetc_poll();
-#endif
+
   return GASNET_OK;
 }
 
@@ -1176,12 +1155,7 @@ int gasnetc_short_common(gasnet_node_t dest, int is_req,
 #endif
   {
     const size_t head_len = GASNETC_HEADLEN(short, numargs);
-#if GNI_MULTI_DOMAIN
-    const int didx = GNI_DEFAULT_DOMAIN;
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
-#else
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
-#endif
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GNI_DEFAULT_DOMAIN);
     gasnetc_packet_t *m;
 
     if (is_req) gasnetc_get_am_credit(dest);
@@ -1232,12 +1206,7 @@ int gasnetc_medium_common(gasnet_node_t dest, int is_req,
     const size_t head_len = GASNETC_HEADLEN(medium, numargs);
     const size_t total_len = head_len + nbytes;
     const uint32_t flags = (total_len > GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) ? GC_POST_SMSG_BUF : 0;
-#if GNI_MULTI_DOMAIN
-    const int didx = GNI_DEFAULT_DOMAIN;
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
-#else
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
-#endif
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GNI_DEFAULT_DOMAIN);
     gasnetc_packet_t *m;
 
     if (is_req) gasnetc_get_am_credit(dest);
@@ -1291,12 +1260,7 @@ int gasnetc_long_common(gasnet_node_t dest, int is_req,
     const size_t head_len = GASNETC_HEADLEN(long, numargs);
     const size_t total_len = head_len + (is_packed ? nbytes : 0);
     const uint32_t flags = (total_len > GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) ? GC_POST_SMSG_BUF : 0;
-#if GNI_MULTI_DOMAIN
-    const int didx = GNI_DEFAULT_DOMAIN;
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
-#else
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
-#endif
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GNI_DEFAULT_DOMAIN);
     gasnetc_packet_t *m;
 
     if (!is_packed) {
@@ -1307,11 +1271,7 @@ int gasnetc_long_common(gasnet_node_t dest, int is_req,
       gasnetc_rdma_put_bulk(dest, dest_addr, source_addr, nbytes, gpd);
       gasneti_resume_spinpollers();
 
-#if GNI_MULTI_DOMAIN
-      gpd = gasnetc_alloc_post_descriptor(didx);
-#else
-      gpd = gasnetc_alloc_post_descriptor();
-#endif
+      gpd = gasnetc_alloc_post_descriptor(GNI_DEFAULT_DOMAIN);
     }
 
     /* Overlap header setup and credit stall w/ the RDMA */
@@ -1333,19 +1293,11 @@ int gasnetc_long_common(gasnet_node_t dest, int is_req,
       memcpy((void*)((uintptr_t)m + head_len), source_addr, nbytes);
     } else {
       /* Poll for the RDMA completion */
-#if GNI_MULTI_DOMAIN
-      gasnetc_poll_local_queue(didx);
+      gasnetc_poll_local_queue(GNI_DEFAULT_DOMAIN);
       while(! done) {
         GASNETI_WAITHOOK();
-        gasnetc_poll_local_queue(didx);
+        gasnetc_poll_local_queue(GNI_DEFAULT_DOMAIN);
       }
-#else
-      gasnetc_poll_local_queue();
-      while(! done) {
-        GASNETI_WAITHOOK();
-        gasnetc_poll_local_queue();
-      }
-#endif
     }
 
     gasneti_suspend_spinpollers();
@@ -1462,12 +1414,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     const size_t head_len = GASNETC_HEADLEN(long, numargs);
     const size_t total_len = head_len + (is_packed ? nbytes : 0);
     const uint32_t flags = (total_len > GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) ? GC_POST_SMSG_BUF : 0;
-#if GNI_MULTI_DOMAIN
-    const int didx = GNI_DEFAULT_DOMAIN;
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
-#else
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
-#endif
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GNI_DEFAULT_DOMAIN);
     gasnetc_packet_t *m;
 
     gasnetc_get_am_credit(dest);

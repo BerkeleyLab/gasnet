@@ -90,20 +90,21 @@ typedef gasneti_mutex_t gasnetc_gni_lock_t;
 #define GASNETC_UNLOCK_GNI(i) gasneti_mutex_unlock(&(gasnetc_cdom_data[i].gasnetc_gni_lock))
 #endif
 gasnetc_gni_lock_t * gasnetc_gni_lock();
-#else
-
+#define gasnetc_gni_lock_addr gasnetc_gni_lock()
+#else /* !GNI_MULTI_DOMAIN */
 #if GASNETC_USE_SPINLOCK
 typedef gasneti_atomic_t gasnetc_gni_lock_t;
-#define GASNETC_INITLOCK_GNI() gasneti_spinlock_init(&gasnetc_gni_lock)
-#define GASNETC_LOCK_GNI() gasneti_spinlock_lock(&gasnetc_gni_lock)
-#define GASNETC_UNLOCK_GNI() gasneti_spinlock_unlock(&gasnetc_gni_lock)
+#define GASNETC_INITLOCK_GNI(i) gasneti_spinlock_init(&gasnetc_gni_lock)
+#define GASNETC_LOCK_GNI(i) gasneti_spinlock_lock(&gasnetc_gni_lock)
+#define GASNETC_UNLOCK_GNI(i) gasneti_spinlock_unlock(&gasnetc_gni_lock)
 #else
 typedef gasneti_mutex_t gasnetc_gni_lock_t;
-#define GASNETC_INITLOCK_GNI() gasneti_mutex_init(&gasnetc_gni_lock)
-#define GASNETC_LOCK_GNI() gasneti_mutex_lock(&gasnetc_gni_lock)
-#define GASNETC_UNLOCK_GNI() gasneti_mutex_unlock(&gasnetc_gni_lock)
+#define GASNETC_INITLOCK_GNI(i) gasneti_mutex_init(&gasnetc_gni_lock)
+#define GASNETC_LOCK_GNI(i) gasneti_mutex_lock(&gasnetc_gni_lock)
+#define GASNETC_UNLOCK_GNI(i) gasneti_mutex_unlock(&gasnetc_gni_lock)
 #endif
 extern gasnetc_gni_lock_t gasnetc_gni_lock;
+#define gasnetc_gni_lock_addr (&gasnetc_gni_lock)
 #endif
 
 typedef struct {
@@ -195,13 +196,17 @@ typedef union gasnetc_eq_packet {
 #endif
 
 void gasnetc_get_am_credit(uint32_t pe);
+
 #if GNI_MULTI_DOMAIN
 void gasnetc_init_post_descriptor_pool(int didx);
 void gasnetc_init_bounce_buffer_pool(int didx);
 #else
-void gasnetc_init_post_descriptor_pool(void);
-void gasnetc_init_bounce_buffer_pool(void);
+void _gasnetc_init_post_descriptor_pool(void);
+void _gasnetc_init_bounce_buffer_pool(void);
+#define gasnetc_init_post_descriptor_pool(didx) _gasnetc_init_post_descriptor_pool()
+#define gasnetc_init_bounce_buffer_pool(didx) _gasnetc_init_bounce_buffer_pool()
 #endif
+
 /* use the auxseg mechanism to allocate registered memory for bounce buffers */
 /* we want this many post descriptors */
 #define GASNETC_GNI_NUM_PD_DEFAULT (128 * 4)
@@ -261,9 +266,12 @@ gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(int didx) GASNETI_MALLO
 void * gasnetc_alloc_bounce_buffer(int didx) GASNETI_MALLOC;
 void gasnetc_free_bounce_buffer(void *buf, int didx);
 #else
-gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(void) GASNETI_MALLOC;
-void * gasnetc_alloc_bounce_buffer(void) GASNETI_MALLOC;
-void gasnetc_free_bounce_buffer(void *buf);
+gasnetc_post_descriptor_t *_gasnetc_alloc_post_descriptor(void) GASNETI_MALLOC;
+void * _gasnetc_alloc_bounce_buffer(void) GASNETI_MALLOC;
+void _gasnetc_free_bounce_buffer(void *buf);
+#define gasnetc_alloc_post_descriptor(didx) _gasnetc_alloc_post_descriptor()
+#define gasnetc_alloc_bounce_buffer(didx) _gasnetc_alloc_bounce_buffer()
+#define gasnetc_free_bounce_buffer(buf,didx) _gasnetc_free_bounce_buffer(buf)
 #endif
 void gasnetc_free_post_descriptor(gasnetc_post_descriptor_t *pd);
 
@@ -291,6 +299,14 @@ void gasnetc_shutdown(void); /* clean up all gni state */
 #if GNI_MULTI_DOMAIN
 void gasnetc_poll_local_queue(int didx);
 void gasnetc_poll(int didx);
+gasnetc_packet_t * gasnetc_alloc_am_buffer(size_t buffer_len);
+#else
+void _gasnetc_poll_local_queue(void);
+void _gasnetc_poll(void);
+#define gasnetc_poll_local_queue(didx) _gasnetc_poll_local_queue()
+#define gasnetc_poll(didx) _gasnetc_poll()
+#endif
+
 #define gasnete_pollwhile(cnd, didx) do {\
     if (cnd) {                          \
       gasnetc_poll_local_queue(didx);   \
@@ -302,13 +318,6 @@ void gasnetc_poll(int didx);
     gasneti_local_rmb();                \
   } while (0)
 #define gasnete_polluntil(cnd, didx) gasnete_pollwhile((!(cnd)), didx) 
-
-gasnetc_packet_t * gasnetc_alloc_am_buffer(size_t buffer_len);
-
-#else
-void gasnetc_poll_local_queue(void);
-void gasnetc_poll(void);
-#endif
 
 int gasnetc_send_smsg(gasnet_node_t dest, 
             gasnetc_post_descriptor_t *gpd,

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_extended.c,v $
- *     $Date: 2013/09/11 23:11:46 $
- * $Revision: 1.91.4.1 $
+ *     $Date: 2013/09/12 01:13:53 $
+ * $Revision: 1.91.4.2 $
  * Description: GASNet Extended API over Gemini Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -417,41 +417,43 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 
 /* Some common idioms */
 GASNETI_INLINE(gasnete_cntr_gpd)
-gasnetc_post_descriptor_t *
 #if GNI_MULTI_DOMAIN
+gasnetc_post_descriptor_t *
 gasnete_cntr_gpd(int didx, gasneti_weakatomic_val_t *initiated_p,
-                 gasneti_weakatomic_t *completed_p) {
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
+                 gasneti_weakatomic_t *completed_p)
 #else 
-gasnete_cntr_gpd(gasneti_weakatomic_val_t *initiated_p,
-                 gasneti_weakatomic_t *completed_p) {
-  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor();
+gasnetc_post_descriptor_t *
+_gasnete_cntr_gpd(gasneti_weakatomic_val_t *initiated_p,
+                 gasneti_weakatomic_t *completed_p)
+#define gasnete_cntr_gpd(_didx, _init_p, _comp_p) _gasnete_cntr_gpd(_init_p, _comp_p)
 #endif
+{
+  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
   gpd->flags = GC_POST_COMPLETION_CNTR;
   gpd->gpd_completion = (uintptr_t) completed_p;
   (*initiated_p) += 1;
   return gpd;
 }
-#define GASNETE_EOP_CNTRS(_eop) \
-        &(_eop)->initiated_cnt, &(_eop)->completed_cnt
-#define GASNETE_IOP_CNTRS(_iop,_putget) \
-        &(_iop)->initiated_##_putget##_cnt, &(_iop)->completed_##_putget##_cnt
 
-#if GNI_MULTI_DOMAIN
-#define gasnete_cntr_gpd_eop(_eop) gasnete_cntr_gpd(didx, GASNETE_EOP_CNTRS(_eop))
-#define gasnete_cntr_gpd_iop(_iop,_putget) gasnete_cntr_gpd(didx, GASNETE_IOP_CNTRS(_iop,_putget))
-#else
-#define gasnete_cntr_gpd_eop(_eop) gasnete_cntr_gpd(GASNETE_EOP_CNTRS(_eop))
-#define gasnete_cntr_gpd_iop(_iop,_putget) gasnete_cntr_gpd(GASNETE_IOP_CNTRS(_iop,_putget))
-#endif
+#define gasnete_cntr_gpd_eop(_didx, _eop) \
+        gasnete_cntr_gpd(_didx, &(_eop)->initiated_cnt, &(_eop)->completed_cnt)
+#define gasnete_cntr_gpd_iop(_didx, _iop, _putget) \
+        gasnete_cntr_gpd(_didx, &(_iop)->initiated_##_putget##_cnt, &(_iop)->completed_##_putget##_cnt)
 
 static void /* XXX: Inlining left to compiler's discretion */
-gasnete_get_bulk_inner(void *dest, gasnet_node_t node, void *src, size_t nbytes,
 #if GNI_MULTI_DOMAIN
-                       int didx,
-#endif
+gasnete_get_bulk_inner(int didx,
+                       void *dest, gasnet_node_t node, void *src, size_t nbytes,
                        gasneti_weakatomic_val_t * const initiated_p,
                        gasneti_weakatomic_t * const completed_p)
+#else
+_gasnete_get_bulk_inner(
+                       void *dest, gasnet_node_t node, void *src, size_t nbytes,
+                       gasneti_weakatomic_val_t * const initiated_p,
+                       gasneti_weakatomic_t * const completed_p)
+#define gasnete_get_bulk_inner(_didx, _a1, _a2, _a3, _a4, _a5, _a6) \
+        _gasnete_get_bulk_inner(_a1, _a2, _a3, _a4, _a5, _a6)
+#endif
 {
   const size_t chunksz = gasneti_in_segment(gasneti_mynode, dest, nbytes) ? GC_MAXRDMA_IN : GC_MAXRDMA_OUT;
 
@@ -461,11 +463,7 @@ gasnete_get_bulk_inner(void *dest, gasnet_node_t node, void *src, size_t nbytes,
       const size_t align_to = GASNETI_PAGESIZE; /* Any power-of-two <= chunksz */
       size_t chunk_len = chunksz - ((uintptr_t)src & (align_to-1));
       gasneti_assert(chunk_len != 0);
-#if GNI_MULTI_DOMAIN
       gasnetc_rdma_get(node, dest, src, chunk_len, gasnete_cntr_gpd(didx, initiated_p, completed_p));
-#else
-      gasnetc_rdma_get(node, dest, src, chunk_len, gasnete_cntr_gpd(initiated_p, completed_p));
-#endif
       dest = (char *) dest + chunk_len;
       src  = (char *) src  + chunk_len;
       nbytes -= chunk_len;
@@ -474,11 +472,7 @@ gasnete_get_bulk_inner(void *dest, gasnet_node_t node, void *src, size_t nbytes,
     /* 1 or more full chunks */
     gasneti_assert (nbytes > chunksz);
     do {
-#if GNI_MULTI_DOMAIN
       gasnetc_rdma_get(node, dest, src, chunksz, gasnete_cntr_gpd(didx, initiated_p, completed_p));
-#else 
-      gasnetc_rdma_get(node, dest, src, chunksz, gasnete_cntr_gpd(initiated_p, completed_p));
-#endif
       dest = (char *) dest + chunksz;
       src  = (char *) src  + chunksz;
       nbytes -= chunksz;
@@ -487,20 +481,23 @@ gasnete_get_bulk_inner(void *dest, gasnet_node_t node, void *src, size_t nbytes,
 
   /* final/only chunk */
   gasneti_assert(nbytes && (nbytes <= chunksz));
-#if GNI_MULTI_DOMAIN
   gasnetc_rdma_get(node, dest, src, nbytes, gasnete_cntr_gpd(didx, initiated_p, completed_p));
-#else 
-  gasnetc_rdma_get(node, dest, src, nbytes, gasnete_cntr_gpd(initiated_p, completed_p));
-#endif
 }
 
 static void /* XXX: Inlining left to compiler's discretion */
-gasnete_get_bulk_unaligned(void *dest, gasnet_node_t node, void *src, size_t nbytes,
 #if GNI_MULTI_DOMAIN
-                           int didx,
-#endif
+gasnete_get_bulk_unaligned(int didx,
+                           void *dest, gasnet_node_t node, void *src, size_t nbytes,
                            gasneti_weakatomic_val_t * const initiated_p,
                            gasneti_weakatomic_t * const completed_p)
+#else
+_gasnete_get_bulk_unaligned(
+                           void *dest, gasnet_node_t node, void *src, size_t nbytes,
+                           gasneti_weakatomic_val_t * const initiated_p,
+                           gasneti_weakatomic_t * const completed_p)
+#define gasnete_get_bulk_unaligned(_didx, _a1, _a2, _a3, _a4, _a5, _a6) \
+        _gasnete_get_bulk_unaligned(_a1, _a2, _a3, _a4, _a5, _a6)
+#endif
 {
   const size_t max_chunk = gasnetc_max_get_unaligned;
 
@@ -517,11 +514,7 @@ gasnete_get_bulk_unaligned(void *dest, gasnet_node_t node, void *src, size_t nby
   gasneti_assert(src_offset < max_chunk);
   if (src_offset != 0) {
     const size_t chunksz = MIN(nbytes, (max_chunk - src_offset));
-#if GNI_MULTI_DOMAIN
     gasnetc_rdma_get_unaligned(node, dest, src, chunksz, gasnete_cntr_gpd(didx, initiated_p, completed_p));
-#else 
-    gasnetc_rdma_get_unaligned(node, dest, src, chunksz, gasnete_cntr_gpd(initiated_p, completed_p));
-#endif
     dest = (char *) dest + chunksz;
     src  = (char *) src  + chunksz;
     nbytes -= chunksz;
@@ -537,11 +530,7 @@ gasnete_get_bulk_unaligned(void *dest, gasnet_node_t node, void *src, size_t nby
     if (chunksz) {
       gasneti_assert(0 == (3 & chunksz));
       gasneti_assert(! GASNETE_GET_IS_UNALIGNED(chunksz,src,dest));
-#if GNI_MULTI_DOMAIN
-      gasnete_get_bulk_inner(dest, node, src, chunksz, didx, initiated_p, completed_p);
-#else 
-      gasnete_get_bulk_inner(dest, node, src, chunksz, initiated_p, completed_p);
-#endif
+      gasnete_get_bulk_inner(didx, dest, node, src, chunksz, initiated_p, completed_p);
       dest = (char *) dest + chunksz;
       src  = (char *) src  + chunksz;
       nbytes = tailsz;
@@ -551,11 +540,7 @@ gasnete_get_bulk_unaligned(void *dest, gasnet_node_t node, void *src, size_t nby
   /* dest address and/or nbytes is unaligned - must use bounce buffers for remainder */
   while (nbytes) {
     const size_t chunksz = MIN(nbytes, max_chunk);
-#if GNI_MULTI_DOMAIN
     gasnetc_rdma_get_unaligned(node, dest, src, chunksz, gasnete_cntr_gpd(didx, initiated_p, completed_p));
-#else 
-    gasnetc_rdma_get_unaligned(node, dest, src, chunksz, gasnete_cntr_gpd(initiated_p, completed_p));
-#endif
     dest = (char *) dest + chunksz;
     src  = (char *) src  + chunksz;
     nbytes -= chunksz;
@@ -563,12 +548,19 @@ gasnete_get_bulk_unaligned(void *dest, gasnet_node_t node, void *src, size_t nby
 }
 
 static void /* XXX: Inlining left to compiler's discretion */
-gasnete_put_bulk_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes,
 #if GNI_MULTI_DOMAIN
-                       int didx,
-#endif
+gasnete_put_bulk_inner(int didx,
+                       gasnet_node_t node, void *dest, void *src, size_t nbytes,
                        gasneti_weakatomic_val_t * const initiated_p,
                        gasneti_weakatomic_t * const completed_p)
+#else
+_gasnete_put_bulk_inner(
+                       gasnet_node_t node, void *dest, void *src, size_t nbytes,
+                       gasneti_weakatomic_val_t * const initiated_p,
+                       gasneti_weakatomic_t * const completed_p)
+#define gasnete_put_bulk_inner(_didx, _a1, _a2, _a3, _a4, _a5, _a6) \
+        _gasnete_put_bulk_inner(_a1, _a2, _a3, _a4, _a5, _a6)
+#endif
 {
   const size_t chunksz = gasneti_in_segment(gasneti_mynode, src, nbytes) ? GC_MAXRDMA_IN : GC_MAXRDMA_OUT;
 
@@ -578,11 +570,7 @@ gasnete_put_bulk_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes,
       const size_t align_to = GASNETI_PAGESIZE; /* Any power-of-two <= chunksz */
       size_t chunk_len = chunksz - ((uintptr_t)src & (align_to-1));
       gasneti_assert(chunk_len != 0);
-#if GNI_MULTI_DOMAIN
       gasnetc_rdma_put_bulk(node, dest, src, chunk_len, gasnete_cntr_gpd(didx, initiated_p, completed_p));
-#else 
-      gasnetc_rdma_put_bulk(node, dest, src, chunk_len, gasnete_cntr_gpd(initiated_p, completed_p));
-#endif
       dest = (char *) dest + chunk_len;
       src  = (char *) src  + chunk_len;
       nbytes -= chunk_len;
@@ -591,11 +579,7 @@ gasnete_put_bulk_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes,
     /* 1 or more full chunks */
     gasneti_assert (nbytes > chunksz);
     do {
-#if GNI_MULTI_DOMAIN
       gasnetc_rdma_put_bulk(node, dest, src, chunksz, gasnete_cntr_gpd(didx, initiated_p, completed_p));
-#else 
-      gasnetc_rdma_put_bulk(node, dest, src, chunksz, gasnete_cntr_gpd(initiated_p, completed_p));
-#endif
       dest = (char *) dest + chunksz;
       src  = (char *) src  + chunksz;
       nbytes -= chunksz;
@@ -604,11 +588,7 @@ gasnete_put_bulk_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes,
 
   /* final/only chunk */
   gasneti_assert(nbytes && (nbytes <= chunksz));
-#if GNI_MULTI_DOMAIN
   gasnetc_rdma_put_bulk(node, dest, src, nbytes, gasnete_cntr_gpd(didx, initiated_p, completed_p));
-#else 
-  gasnetc_rdma_put_bulk(node, dest, src, nbytes, gasnete_cntr_gpd(initiated_p, completed_p));
-#endif
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -636,17 +616,9 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
 
     gasneti_suspend_spinpollers();
     if_pf (GASNETE_GET_IS_UNALIGNED(nbytes, src, dest)) {
-#if GNI_MULTI_DOMAIN
-      gasnete_get_bulk_unaligned(dest, node, src, nbytes, didx, GASNETE_EOP_CNTRS(eop));
-#else
-      gasnete_get_bulk_unaligned(dest, node, src, nbytes, GASNETE_EOP_CNTRS(eop));
-#endif
+      gasnete_get_bulk_unaligned(didx, dest, node, src, nbytes, &eop->initiated_cnt, &eop->completed_cnt);
     } else {
-#if GNI_MULTI_DOMAIN
-      gasnete_get_bulk_inner(dest, node, src, nbytes, didx, GASNETE_EOP_CNTRS(eop));
-#else
-      gasnete_get_bulk_inner(dest, node, src, nbytes, GASNETE_EOP_CNTRS(eop));
-#endif
+      gasnete_get_bulk_inner(didx, dest, node, src, nbytes, &eop->initiated_cnt, &eop->completed_cnt);
     }
     gasneti_resume_spinpollers();
 
@@ -673,11 +645,7 @@ extern gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src
   if (nbytes > max_tail) {
     const size_t head_len = nbytes - max_tail;
     gasnete_eop_t * const eop = _gasnete_eop_new(mythread);
-#if GNI_MULTI_DOMAIN
-    gasnete_put_bulk_inner(node, dest, src, head_len, didx, GASNETE_EOP_CNTRS(eop));
-#else 
-    gasnete_put_bulk_inner(node, dest, src, head_len, GASNETE_EOP_CNTRS(eop));
-#endif
+    gasnete_put_bulk_inner(didx, node, dest, src, head_len, &eop->initiated_cnt, &eop->completed_cnt);
     head_op = (gasnet_handle_t) eop;
     dest = (char *) dest + head_len;
     src  = (char *) src  + head_len;
@@ -686,7 +654,7 @@ extern gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src
 
   /* Non-blocking non-bulk put of "tail" portion */
   tail_op = _gasnete_eop_new(mythread);
-  lc = gasnetc_rdma_put(node, dest, src, nbytes, gasnete_cntr_gpd_eop(tail_op));
+  lc = gasnetc_rdma_put(node, dest, src, nbytes, gasnete_cntr_gpd_eop(didx, tail_op));
   gasneti_assert(lc);
 
   gasneti_resume_spinpollers();
@@ -708,11 +676,7 @@ extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void
 #endif
 
     gasneti_suspend_spinpollers();
-#if GNI_MULTI_DOMAIN
-    gasnete_put_bulk_inner(node, dest, src, nbytes, didx, GASNETE_EOP_CNTRS(eop));
-#else 
-    gasnete_put_bulk_inner(node, dest, src, nbytes, GASNETE_EOP_CNTRS(eop));
-#endif
+    gasnete_put_bulk_inner(didx, node, dest, src, nbytes, &eop->initiated_cnt, &eop->completed_cnt);
     gasneti_resume_spinpollers();
 
     return (gasnet_handle_t) eop;
@@ -841,17 +805,9 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
 
     gasneti_suspend_spinpollers();
     if_pf (GASNETE_GET_IS_UNALIGNED(nbytes, src, dest)) {
-#if GNI_MULTI_DOMAIN
-      gasnete_get_bulk_unaligned(dest, node, src, nbytes, didx, GASNETE_IOP_CNTRS(iop,get));
-#else 
-      gasnete_get_bulk_unaligned(dest, node, src, nbytes, GASNETE_IOP_CNTRS(iop,get));
-#endif
+      gasnete_get_bulk_unaligned(didx, dest, node, src, nbytes, &iop->initiated_get_cnt, &iop->completed_get_cnt);
     } else {
-#if GNI_MULTI_DOMAIN
-      gasnete_get_bulk_inner(dest, node, src, nbytes, didx, GASNETE_IOP_CNTRS(iop,get));
-#else 
-      gasnete_get_bulk_inner(dest, node, src, nbytes, GASNETE_IOP_CNTRS(iop,get));
-#endif
+      gasnete_get_bulk_inner(didx, dest, node, src, nbytes, &iop->initiated_get_cnt, &iop->completed_get_cnt);
     }
     gasneti_resume_spinpollers();
   }
@@ -876,11 +832,7 @@ extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, siz
   if (nbytes > max_tail) {
     const size_t head_len = nbytes - max_tail;
     gasnete_eop_t * const eop = _gasnete_eop_new(GASNETE_MYTHREAD);
-#if GNI_MULTI_DOMAIN
-    gasnete_put_bulk_inner(node, dest, src, head_len, didx, GASNETE_EOP_CNTRS(eop));
-#else
-    gasnete_put_bulk_inner(node, dest, src, head_len, GASNETE_EOP_CNTRS(eop));
-#endif
+    gasnete_put_bulk_inner(didx, node, dest, src, head_len, &eop->initiated_cnt, &eop->completed_cnt);
     head_op = (gasnet_handle_t) eop;
     dest = (char *) dest + head_len;
     src  = (char *) src  + head_len;
@@ -888,7 +840,7 @@ extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, siz
   }
 
   /* Non-blocking non-bulk put of "tail" portion */
-  lc = gasnetc_rdma_put(node, dest, src, nbytes, gasnete_cntr_gpd_iop(tail_op, put));
+  lc = gasnetc_rdma_put(node, dest, src, nbytes, gasnete_cntr_gpd_iop(didx, tail_op, put));
   gasneti_assert(lc);
 
   gasneti_resume_spinpollers();
@@ -907,11 +859,7 @@ extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, siz
 #endif
 
     gasneti_suspend_spinpollers();
-#if GNI_MULTI_DOMAIN
-    gasnete_put_bulk_inner(node, dest, src, nbytes, didx, GASNETE_IOP_CNTRS(iop,put));
-#else
-    gasnete_put_bulk_inner(node, dest, src, nbytes, GASNETE_IOP_CNTRS(iop,put));
-#endif
+    gasnete_put_bulk_inner(didx, node, dest, src, nbytes, &iop->initiated_put_cnt, &iop->completed_put_cnt);
     gasneti_resume_spinpollers();
   }
 }
@@ -1019,21 +967,13 @@ extern void gasnete_put_val(gasnet_node_t node, void *dest, gasnet_register_valu
     gasnetc_post_descriptor_t *gpd;
     volatile int done = 0;
     gasneti_suspend_spinpollers();
-#if GNI_MULTI_DOMAIN
     gpd = gasnetc_alloc_post_descriptor(didx);
-#else
-    gpd = gasnetc_alloc_post_descriptor();
-#endif
     gpd->gpd_completion = (uintptr_t) &done;
     gpd->flags = GC_POST_COMPLETION_FLAG;
     gasnete_val_assign(gpd->u.immediate, value);
     gasnetc_rdma_put_buff(node, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);
     gasneti_resume_spinpollers();
-#if GNI_MULTI_DOMAIN
     gasnete_polluntil(done, didx);
-#else
-    gasneti_polluntil(done);
-#endif
   }
 }
 
@@ -1047,7 +987,7 @@ extern gasnet_handle_t gasnete_put_nb_val(gasnet_node_t node, void *dest, gasnet
     gasnete_eop_t * const eop = _gasnete_eop_new(mythread);
     gasnetc_post_descriptor_t *gpd;
     gasneti_suspend_spinpollers();
-    gpd = gasnete_cntr_gpd_eop(eop);
+    gpd = gasnete_cntr_gpd_eop(didx, eop);
     gasnete_val_assign(gpd->u.immediate, value);
     gasnetc_rdma_put_buff(node, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);
     gasneti_resume_spinpollers();
@@ -1065,7 +1005,7 @@ extern void gasnete_put_nbi_val(gasnet_node_t node, void *dest, gasnet_register_
     gasnete_iop_t * const iop = mythread->current_iop;
     gasnetc_post_descriptor_t *gpd;
     gasneti_suspend_spinpollers();
-    gpd = gasnete_cntr_gpd_iop(iop, put);
+    gpd = gasnete_cntr_gpd_iop(didx, iop, put);
     gasnete_val_assign(gpd->u.immediate, value);
     gasnetc_rdma_put_buff(node, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);
     gasneti_resume_spinpollers();
@@ -1102,21 +1042,13 @@ extern gasnet_register_value_t gasnete_get_val(gasnet_node_t node, void *src, si
     volatile int done = 0;
     uint8_t *buffer;
     gasneti_suspend_spinpollers();
-#if GNI_MULTI_DOMAIN
     gpd = gasnetc_alloc_post_descriptor(didx);
-#else
-    gpd = gasnetc_alloc_post_descriptor();
-#endif
     gpd->gpd_completion = (uintptr_t) &done;
     gpd->flags = GC_POST_COMPLETION_FLAG | GC_POST_KEEP_GPD;
     buffer = gpd->u.immediate;
     buffer += gasnetc_rdma_get_buff(node, buffer, src, nbytes, gpd);
     gasneti_resume_spinpollers();
-#if GNI_MULTI_DOMAIN
     gasnete_polluntil(done,didx);
-#else
-    gasneti_polluntil(done);
-#endif
     result = gasnete_get_val_help(buffer, nbytes);
     gasnetc_free_post_descriptor(gpd);
     return result;
@@ -1175,11 +1107,7 @@ extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, 
 #endif
     gasnetc_post_descriptor_t *gpd;
     gasneti_suspend_spinpollers();
-#if GNI_MULTI_DOMAIN
     gpd = gasnetc_alloc_post_descriptor(didx);
-#else
-    gpd = gasnetc_alloc_post_descriptor();
-#endif
     gpd->gpd_completion = (uintptr_t) &retval->done;
     retval->done = 0;
     gpd->flags = GC_POST_COMPLETION_FLAG;
@@ -1347,10 +1275,8 @@ void gasnete_gdbarrier_send(gasnete_coll_gdbarrier_t *barrier_data,
     gasnete_threaddata_t * threaddata = gasnete_mythread();
     int tidx = gasnete_mythread()->threadidx;
     const int didx = gasnetc_get_domain_idx(tidx);
-    gasnetc_post_descriptor_t * const gpd = gasnetc_alloc_post_descriptor(didx);
-#else
-    gasnetc_post_descriptor_t * const gpd = gasnetc_alloc_post_descriptor();
 #endif
+    gasnetc_post_descriptor_t * const gpd = gasnetc_alloc_post_descriptor(didx);
     uint64_t * const src = (uint64_t *)GASNETE_STARTOFBITS(gpd->u.immediate, sizeof(uint64_t));
 
     gpd->flags = 0; /* fire and forget */
