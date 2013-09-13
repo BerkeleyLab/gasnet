@@ -21,7 +21,7 @@ all-local: $(target) $(target).pl
 DISTCLEANFILES = $(target) $(target).pl
 
 # Conditionally install the .pl and its wrapper
-if USE_ARIES_CONDUIT
+if USE_GEMINI_CONDUIT
 scripts = $(target)
 data = $(target).pl
 else
