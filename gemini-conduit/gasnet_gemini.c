@@ -1567,9 +1567,9 @@ void gasnetc_poll(int didx)
       unsigned int poll_idx;
       poll_idx = gasnetc_cdom_data[didx].poll_idx++;
       /* Every now and then poll the smsg queeue */
-      if_pf((poll_idx & gasnetc_poll_am_domain_mask) == GASNETC_GNI_POLL_DEFAULT_SIGNATURE) {
+      if_pf((poll_idx & gasnetc_poll_am_domain_mask) == 0) {
          gasnetc_poll_smsg_queue();
-         /*We need that for GC_POST_SEND, which is also used for messaging */
+         /*We need this for GC_POST_SEND, which is also used for messaging: */
          gasnetc_poll_local_queue(GASNETC_DEFAULT_DOMAIN);
       }
     }
