@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_extended_fwd.h,v $
- *     $Date: 2013/06/30 00:52:21 $
- * $Revision: 1.14 $
+ *     $Date: 2013/09/13 22:36:46 $
+ * $Revision: 1.14.12.1 $
  * Description: GASNet Extended API Header for Gemin Conduit (forward decls)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -135,7 +135,16 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
 #define _GASNET_VALGET_HANDLE_T
 struct _gasnete_valget_op_t;
 typedef struct _gasnete_valget_op_t *gasnet_valget_handle_t;
-#define GASNETE_CONDUIT_THREADDATA_FIELDS struct _gasnete_valget_op_t *valget_free;
+
+#if GASNETC_GNI_MULTI_DOMAIN
+#  define GASNETE_TD_DOMAIN_IDX int domain_idx;
+#else
+#  define GASNETE_TD_DOMAIN_IDX /* empty */
+#endif
+
+#define GASNETE_CONDUIT_THREADDATA_FIELDS \
+        struct _gasnete_valget_op_t *valget_free; \
+        GASNETE_TD_DOMAIN_IDX
 
 /* Use counter-based eop: */
 #define GASNETE_EOP_COUNTED 1
