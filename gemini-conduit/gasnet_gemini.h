@@ -21,30 +21,30 @@
 
 #if defined(GASNET_PAR)
 /* Multi domain support makes sense only for PAR mode. */
-#define GNI_MULTI_DOMAIN 1
-#define GNI_DYNAMIC_DOMAIN_ALLOC 1
-#define GNI_STATIC_DOMAIN_ALLOC 2
+#define GASNETC_GNI_MULTI_DOMAIN 1
+#define GASNETC_GNI_DYNAMIC_DOMAIN_ALLOC 1
+#define GASNETC_GNI_STATIC_DOMAIN_ALLOC 2
 
-#define GNI_DOMAIN_ALLOC_POLICY GNI_STATIC_DOMAIN_ALLOC
-#define GNI_DOMAIN_THREAD_DISTRIBUTION_BULK 1
-#define GNI_DOMAIN_THREAD_DISTRIBUTION_ROUND_ROBIN 2
+#define GASNETC_GNI_DOMAIN_ALLOC_POLICY GASNETC_GNI_STATIC_DOMAIN_ALLOC
+#define GASNETC_GNI_DOMAIN_THREAD_DISTRIBUTION_BULK 1
+#define GASNETC_GNI_DOMAIN_THREAD_DISTRIBUTION_ROUND_ROBIN 2
 
-#if (GNI_DOMAIN_ALLOC_POLICY == GNI_DYNAMIC_DOMAIN_ALLOC) 
-#define GNI_DOMAIN_THREAD_DISTRIBUTION GNI_DOMAIN_THREAD_DISTRIBUTION_ROUND_ROBIN
+#if (GASNETC_GNI_DOMAIN_ALLOC_POLICY == GASNETC_GNI_DYNAMIC_DOMAIN_ALLOC) 
+#define GASNETC_GNI_DOMAIN_THREAD_DISTRIBUTION GASNETC_GNI_DOMAIN_THREAD_DISTRIBUTION_ROUND_ROBIN
 #else
-#define GNI_DOMAIN_THREAD_DISTRIBUTION GNI_DOMAIN_THREAD_DISTRIBUTION_BULK
+#define GASNETC_GNI_DOMAIN_THREAD_DISTRIBUTION GASNETC_GNI_DOMAIN_THREAD_DISTRIBUTION_BULK
 #endif
-#define GNI_DEFAULT_DOMAIN 0
-#define GNI_ALL_DOMAINS (-1)
+#define GASNETC_GNI_DEFAULT_DOMAIN 0
+#define GASNETC_GNI_ALL_DOMAINS (-1)
 
 #define GASNETC_GNI_DOMAIN_COUNT_DEFAULT 1
 #define GASNETC_GNI_PTHREADS_PER_DOMAIN_DEFAULT 1
 
 #define GASNETC_AM_DOMAIN_POLL_MASK_DEFAULT (0x1ff)
-#define GNI_POLL_DEFAULT_SIGNATURE (0x07)
+#define GASNETC_GNI_POLL_DEFAULT_SIGNATURE (0x07)
 
 #else
-#undef GNI_MULTI_DOMAIN 
+#undef GASNETC_GNI_MULTI_DOMAIN 
 #endif
 
 
@@ -79,7 +79,7 @@ extern unsigned int gasnetc_log2_remote;
 
 #if GASNETC_USE_SPINLOCK
 typedef gasneti_atomic_t gasnetc_gni_lock_t;
- #if GNI_MULTI_DOMAIN
+ #if GASNETC_GNI_MULTI_DOMAIN
   #define GASNETC_INITLOCK_GNI(i) gasneti_spinlock_init(&(gasnetc_cdom_data[i].gasnetc_gni_lock))
   #define GASNETC_LOCK_GNI(i)  gasneti_spinlock_lock(&(gasnetc_cdom_data[i].gasnetc_gni_lock))
   #define GASNETC_UNLOCK_GNI(i)  gasneti_spinlock_unlock(&(gasnetc_cdom_data[i].gasnetc_gni_lock))
@@ -93,7 +93,7 @@ typedef gasneti_atomic_t gasnetc_gni_lock_t;
 #define GASNETC_UNLOCK_AM_BUFFER() gasneti_spinlock_unlock(&gasnetc_am_buffer_lock)
 #else
 typedef gasneti_mutex_t gasnetc_gni_lock_t;
- #if GNI_MULTI_DOMAIN
+ #if GASNETC_GNI_MULTI_DOMAIN
   #define GASNETC_INITLOCK_GNI(i) gasneti_mutex_init(&(gasnetc_cdom_data[i].gasnetc_gni_lock))
   #define GASNETC_LOCK_GNI(i)  gasneti_mutex_lock(&(gasnetc_cdom_data[i].gasnetc_gni_lock))
   #define GASNETC_UNLOCK_GNI(i) gasneti_mutex_unlock(&(gasnetc_cdom_data[i].gasnetc_gni_lock))
@@ -107,7 +107,7 @@ typedef gasneti_mutex_t gasnetc_gni_lock_t;
 #define GASNETC_UNLOCK_AM_BUFFER() gasneti_mutex_unlock(&gasnetc_am_buffer_lock)
 #endif
 
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
 gasnetc_gni_lock_t * gasnetc_gni_lock();
 #define gasnetc_gni_lock_addr gasnetc_gni_lock()
 #else
@@ -205,7 +205,7 @@ typedef union gasnetc_packet_u {
         (GASNETC_MSG_MAXSIZE - GASNETC_HEADLEN(long, (nargs)))
 #endif
 
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
 void gasnetc_init_post_descriptor_pool(int didx);
 void gasnetc_init_bounce_buffer_pool(int didx);
 #else
@@ -267,12 +267,12 @@ typedef struct gasnetc_post_descriptor {
     gasnetc_notify_t notify;
   } u;
   uint32_t flags;
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
   int domain_idx;
 #endif
 } gasnetc_post_descriptor_t;
 
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
 gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(int didx) GASNETI_MALLOC;
 void * gasnetc_alloc_bounce_buffer(int didx) GASNETI_MALLOC;
 #else
@@ -297,7 +297,7 @@ volatile int gasnetc_shutdownInProgress;
 double gasnetc_shutdown_seconds; /* number of seconds to poll before forceful shutdown */
 int gasnetc_sys_exit(int *exitcode);
 
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
 void gasnetc_create_parallel_domain(gasnete_threadidx_t tidx);
 int gasnetc_get_domain_idx(gasnete_threadidx_t tidx);
 #endif
@@ -306,7 +306,7 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size);
 uintptr_t gasnetc_init_messaging(void);
 void gasnetc_shutdown(void); /* clean up all gni state */
 
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
 void gasnetc_poll_local_queue(int didx);
 void gasnetc_poll(int didx);
 gasnetc_packet_t * gasnetc_alloc_am_buffer(size_t buffer_len);

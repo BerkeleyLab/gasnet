@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_extended.c,v $
- *     $Date: 2013/09/12 10:08:02 $
- * $Revision: 1.92.4.1 $
+ *     $Date: 2013/09/13 19:08:45 $
+ * $Revision: 1.92.4.2 $
  * Description: GASNet Extended API over Gemini Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -417,7 +417,7 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 
 /* Some common idioms */
 GASNETI_INLINE(gasnete_cntr_gpd)
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
 gasnetc_post_descriptor_t *
 gasnete_cntr_gpd(int didx, gasneti_weakatomic_val_t *initiated_p,
                  gasneti_weakatomic_t *completed_p)
@@ -441,7 +441,7 @@ _gasnete_cntr_gpd(gasneti_weakatomic_val_t *initiated_p,
         gasnete_cntr_gpd(_didx, &(_iop)->initiated_##_putget##_cnt, &(_iop)->completed_##_putget##_cnt)
 
 static void /* XXX: Inlining left to compiler's discretion */
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
 gasnete_get_bulk_inner(int didx,
                        void *dest, gasnet_node_t node, void *src, size_t nbytes,
                        gasneti_weakatomic_val_t * const initiated_p,
@@ -485,7 +485,7 @@ _gasnete_get_bulk_inner(
 }
 
 static void /* XXX: Inlining left to compiler's discretion */
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
 gasnete_get_bulk_unaligned(int didx,
                            void *dest, gasnet_node_t node, void *src, size_t nbytes,
                            gasneti_weakatomic_val_t * const initiated_p,
@@ -548,7 +548,7 @@ _gasnete_get_bulk_unaligned(
 }
 
 static void /* XXX: Inlining left to compiler's discretion */
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
 gasnete_put_bulk_inner(int didx,
                        gasnet_node_t node, void *dest, void *src, size_t nbytes,
                        gasneti_weakatomic_val_t * const initiated_p,
@@ -610,7 +610,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_eop_t *eop = _gasnete_eop_new(mythread);
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
     const int didx = gasnetc_get_domain_idx(mythread->threadidx);
 #endif
 
@@ -633,7 +633,7 @@ extern gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src
   const size_t max_tail = gasnetc_max_put_lc;
   GASNETI_UNUSED_UNLESS_DEBUG int lc;
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
   const int didx = gasnetc_get_domain_idx(mythread->threadidx);
 #endif
 
@@ -671,7 +671,7 @@ extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_eop_t *eop = _gasnete_eop_new(mythread);
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
     const int didx = gasnetc_get_domain_idx(mythread->threadidx);
 #endif
 
@@ -799,7 +799,7 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t * const iop = mythread->current_iop;
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
     const int didx = gasnetc_get_domain_idx(mythread->threadidx);
 #endif
 
@@ -819,7 +819,7 @@ extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, siz
   gasnet_handle_t head_op = GASNET_INVALID_HANDLE;
   const size_t max_tail = gasnetc_max_put_lc;
   GASNETI_UNUSED_UNLESS_DEBUG int lc;
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
   const int didx = gasnetc_get_domain_idx(mythread->threadidx);
 #endif
 
@@ -853,7 +853,7 @@ extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, siz
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t * const iop = mythread->current_iop;
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
     const int didx = gasnetc_get_domain_idx(mythread->threadidx);
 #endif
 
@@ -959,7 +959,7 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
 extern void gasnete_put_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG) {
   GASNETI_CHECKPSHM_PUTVAL(V);
   {
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     const int didx = gasnetc_get_domain_idx(mythread->threadidx);
 #endif
@@ -980,7 +980,7 @@ extern gasnet_handle_t gasnete_put_nb_val(gasnet_node_t node, void *dest, gasnet
   GASNETI_CHECKPSHM_PUTVAL(H);
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
     const int didx = gasnetc_get_domain_idx(mythread->threadidx);
 #endif
     gasnete_eop_t * const eop = _gasnete_eop_new(mythread);
@@ -998,7 +998,7 @@ extern void gasnete_put_nbi_val(gasnet_node_t node, void *dest, gasnet_register_
   GASNETI_CHECKPSHM_PUTVAL(V);
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
     const int didx = gasnetc_get_domain_idx(mythread->threadidx);
 #endif
     gasnete_iop_t * const iop = mythread->current_iop;
@@ -1033,7 +1033,7 @@ extern gasnet_register_value_t gasnete_get_val(gasnet_node_t node, void *src, si
   GASNETI_CHECKPSHM_GETVAL();
   {
     gasnet_register_value_t result;
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     const int didx = gasnetc_get_domain_idx(mythread->threadidx);
 #endif
@@ -1098,7 +1098,7 @@ extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, 
   }
 #endif
   else {
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
     const int didx = gasnetc_get_domain_idx(mythread->threadidx);
 #endif
     gasnetc_post_descriptor_t *gpd;
@@ -1267,7 +1267,7 @@ void gasnete_gdbarrier_send(gasnete_coll_gdbarrier_t *barrier_data,
   for (i = 0; i < numsteps; ++i, slot += 2, step += 1) {
     const gasnet_node_t node = barrier_data->barrier_peers[step].node;
     uint64_t * const dst = GASNETE_GDBARRIER_INBOX_REMOTE(barrier_data, step, slot);
-#if GNI_MULTI_DOMAIN
+#if GASNETC_GNI_MULTI_DOMAIN
     gasnete_threaddata_t * const mythread = gasnete_mythread();
     const int didx = gasnetc_get_domain_idx(mythread->threadidx);
 #endif
