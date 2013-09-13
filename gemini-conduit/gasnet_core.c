@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/09/13 19:36:13 $
- * $Revision: 1.89.2.3 $
+ *     $Date: 2013/09/13 21:33:50 $
+ * $Revision: 1.89.2.4 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1699,13 +1699,13 @@ gasnet_handlerentry_t const *gasnetc_get_handlertable(void) {
 }
 
 #if defined(GASNETC_PTHREAD_CREATE_OVERRIDE)
-/* One's already created, count extras.*/
-static int gasnetc_thread_count = 1;
-
-extern int gasnetc_pthread_create(gasnetc_pthread_create_fn_t *create_fn, pthread_t *thread, const pthread_attr_t *attr, void * (*fn)(void *), void * arg) {
-#if GASNETC_GNI_MULTI_DOMAIN 
-     gasnetc_create_parallel_domain(gasnetc_thread_count++);
+#if !GASNETC_GNI_MULTI_DOMAIN 
+  #error Unexpected defn of GASNETC_PTHREAD_CREATE_OVERRIDE
 #endif
+extern int gasnetc_pthread_create(gasnetc_pthread_create_fn_t *create_fn, pthread_t *thread, const pthread_attr_t *attr, void * (*fn)(void *), void * arg) {
+     /* One's already created, count extras.*/
+     static int gasnetc_thread_count = 1;
+     gasnetc_create_parallel_domain(gasnetc_thread_count++);
      return (*create_fn)(thread, attr, fn, arg);
 }
 #endif /* defined(GASNETC_PTHREAD_CREATE_OVERRIDE) */

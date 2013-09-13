@@ -19,9 +19,7 @@
 #define GASNETC_DEFAULT_MEM_CONSISTENCY 3 /* use neither */
 #define GASNETC_DEFAULT_RDMA_MEM_CONSISTENCY  GASNETC_RELAXED_MEM_CONSISTENCY
 
-#if defined(GASNET_PAR)
-/* Multi domain support makes sense only for PAR mode. */
-#define GASNETC_GNI_MULTI_DOMAIN 1
+#if defined(GASNET_PAR) && GASNETC_GNI_MULTI_DOMAIN
 #define GASNETC_DYNAMIC_DOMAIN_ALLOC 1
 #define GASNETC_STATIC_DOMAIN_ALLOC 2
 
@@ -42,6 +40,7 @@
 
 #define GASNETC_AM_DOMAIN_POLL_MASK_DEFAULT (0x7f)
 #else
+/* Multi domain support makes sense only for PAR mode. */
 #undef GASNETC_GNI_MULTI_DOMAIN 
 #endif
 

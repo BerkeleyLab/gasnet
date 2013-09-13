@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2013/09/12 10:05:35 $
-# $Revision: 1.828 $
+#     $Date: 2013/09/13 21:33:48 $
+# $Revision: 1.828.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.828 $)
+AC_REVISION($Revision: 1.828.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -3365,7 +3365,6 @@ CONDUIT_END([test "$have_portals4" = yes])
 #--------------------------------------------------------------------------------------------------------
 # Gemini and Aries Conduits
 
-# set up include path for gni headers and pmi
 AC_DEFUN([GASNET_CHECK_GNI],[
 pushdef([lowername],translit($1,'A-Z','a-z'))
 
@@ -3451,6 +3450,8 @@ if test ${gni_network}:${enabled_[]lowername} = lowername[]:yes; then
       AC_MSG_ERROR([--with-gni-max-medium must be a multiple of 64 and no smaller than 512])],
      [gni_max_medium=960])
   AC_DEFINE_UNQUOTED(GASNETC_GNI_MAX_MEDIUM, [$gni_max_medium])
+
+  GASNET_IF_ENABLED(gni-multi-domain, [Use experimental multi-domain support in PAR builds of Gemini and Aries conduits], [AC_DEFINE(GASNETC_GNI_MULTI_DOMAIN)])
 
   AC_SUBST(GNI_LIBS)
   AC_SUBST(GNI_INCLUDES)

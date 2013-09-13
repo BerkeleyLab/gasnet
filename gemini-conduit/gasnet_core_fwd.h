@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core_fwd.h,v $
- *     $Date: 2013/09/13 19:08:45 $
- * $Revision: 1.17.4.2 $
+ *     $Date: 2013/09/13 21:33:50 $
+ * $Revision: 1.17.4.3 $
  * Description: GASNet header for <conduitname> conduit core (forward definitions)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -76,12 +76,15 @@ typedef ### gasnetc_handler_t;
 #define GASNETC_TOKEN_CREATE 1
 #endif
 
-/*#if GASNETC_GNI_MULTI_DOMAIN*/
+#if defined(GASNET_PAR) && GASNETC_GNI_MULTI_DOMAIN
+/* For now we keep multi-domain support and throttle-pollers orthogonal */
+#undef GASNETI_THROTTLE_FEATURE_ENABLED
+/* Need to hook pthread create to ensure collective creation of domains */
 typedef int (gasnetc_pthread_create_fn_t)(pthread_t *, const pthread_attr_t *, void *(*)(void *), void *);
 extern int gasnetc_pthread_create(gasnetc_pthread_create_fn_t *create_fn, pthread_t *thread, const pthread_attr_t *attr, void * (*fn)(void *), void * arg) ;
 #define GASNETC_PTHREAD_CREATE_OVERRIDE(create_fn, thread, attr, start_routine, arg) \
    gasnetc_pthread_create(create_fn, thread, attr, start_routine, arg)
-/*#endif*/
+#endif
 
   /* this can be used to add conduit-specific 
      statistical collection values (see gasnet_trace.h) */
