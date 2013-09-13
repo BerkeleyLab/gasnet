@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_extended.c,v $
- *     $Date: 2013/09/13 22:36:46 $
- * $Revision: 1.92.4.3 $
+ *     $Date: 2013/09/13 22:56:25 $
+ * $Revision: 1.92.4.4 $
  * Description: GASNet Extended API over Gemini Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -412,9 +412,27 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 
 #if GASNETC_GNI_MULTI_DOMAIN
 # define GASNETE_DECL_DIDX(_var, _td) const int _var = (_td)->domain_idx
+/* Pass didx argument: */
+# define GASNETE_DIDX_ARG const int didx,
+# define gasnete_cntr_gpd            _gasnete_cntr_gpd
+# define gasnete_get_bulk_inner      _gasnete_get_bulk_inner
+# define gasnete_get_bulk_unaligned  _gasnete_get_bulk_unaligned
+# define gasnete_put_bulk_inner      _gasnete_put_bulk_inner
 #else
 # define GASNETE_DECL_DIDX(_var, _td) GASNETI_UNUSED const int _var = 0
+/* Swallow the unused didx argument: */
+# define GASNETE_DIDX_ARG /*empty*/
+# define gasnete_cntr_gpd(_didx, _a1, _a2) \
+               _gasnete_cntr_gpd(_a1, _a2)
+# define gasnete_get_bulk_inner(_didx, _a1, _a2, _a3, _a4, _a5, _a6) \
+               _gasnete_get_bulk_inner(_a1, _a2, _a3, _a4, _a5, _a6)
+# define gasnete_get_bulk_unaligned(_didx, _a1, _a2, _a3, _a4, _a5, _a6) \
+               _gasnete_get_bulk_unaligned(_a1, _a2, _a3, _a4, _a5, _a6)
+# define gasnete_put_bulk_inner(_didx, _a1, _a2, _a3, _a4, _a5, _a6) \
+               _gasnete_put_bulk_inner(_a1, _a2, _a3, _a4, _a5, _a6)
 #endif
+
+/* ------------------------------------------------------------------------------------ */
 
 /* Gemini requires 4-byte alignment of local address, while Aries doesn't.
    However, intial testing shows that Aries performance is poor w/o alignment */
@@ -427,17 +445,11 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 #endif
 
 /* Some common idioms */
-GASNETI_INLINE(gasnete_cntr_gpd)
-#if GASNETC_GNI_MULTI_DOMAIN
+
+GASNETI_INLINE(_gasnete_cntr_gpd)
 gasnetc_post_descriptor_t *
-gasnete_cntr_gpd(int didx, gasneti_weakatomic_val_t *initiated_p,
+_gasnete_cntr_gpd(GASNETE_DIDX_ARG gasneti_weakatomic_val_t *initiated_p,
                  gasneti_weakatomic_t *completed_p)
-#else 
-gasnetc_post_descriptor_t *
-_gasnete_cntr_gpd(gasneti_weakatomic_val_t *initiated_p,
-                 gasneti_weakatomic_t *completed_p)
-#define gasnete_cntr_gpd(_didx, _init_p, _comp_p) _gasnete_cntr_gpd(_init_p, _comp_p)
-#endif
 {
   gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
   gpd->flags = GC_POST_COMPLETION_CNTR;
@@ -452,19 +464,10 @@ _gasnete_cntr_gpd(gasneti_weakatomic_val_t *initiated_p,
         gasnete_cntr_gpd(_didx, &(_iop)->initiated_##_putget##_cnt, &(_iop)->completed_##_putget##_cnt)
 
 static void /* XXX: Inlining left to compiler's discretion */
-#if GASNETC_GNI_MULTI_DOMAIN
-gasnete_get_bulk_inner(int didx,
+_gasnete_get_bulk_inner(GASNETE_DIDX_ARG
                        void *dest, gasnet_node_t node, void *src, size_t nbytes,
                        gasneti_weakatomic_val_t * const initiated_p,
                        gasneti_weakatomic_t * const completed_p)
-#else
-_gasnete_get_bulk_inner(
-                       void *dest, gasnet_node_t node, void *src, size_t nbytes,
-                       gasneti_weakatomic_val_t * const initiated_p,
-                       gasneti_weakatomic_t * const completed_p)
-#define gasnete_get_bulk_inner(_didx, _a1, _a2, _a3, _a4, _a5, _a6) \
-        _gasnete_get_bulk_inner(_a1, _a2, _a3, _a4, _a5, _a6)
-#endif
 {
   const size_t chunksz = gasneti_in_segment(gasneti_mynode, dest, nbytes) ? GC_MAXRDMA_IN : GC_MAXRDMA_OUT;
 
@@ -496,19 +499,10 @@ _gasnete_get_bulk_inner(
 }
 
 static void /* XXX: Inlining left to compiler's discretion */
-#if GASNETC_GNI_MULTI_DOMAIN
-gasnete_get_bulk_unaligned(int didx,
+_gasnete_get_bulk_unaligned(GASNETE_DIDX_ARG
                            void *dest, gasnet_node_t node, void *src, size_t nbytes,
                            gasneti_weakatomic_val_t * const initiated_p,
                            gasneti_weakatomic_t * const completed_p)
-#else
-_gasnete_get_bulk_unaligned(
-                           void *dest, gasnet_node_t node, void *src, size_t nbytes,
-                           gasneti_weakatomic_val_t * const initiated_p,
-                           gasneti_weakatomic_t * const completed_p)
-#define gasnete_get_bulk_unaligned(_didx, _a1, _a2, _a3, _a4, _a5, _a6) \
-        _gasnete_get_bulk_unaligned(_a1, _a2, _a3, _a4, _a5, _a6)
-#endif
 {
   const size_t max_chunk = gasnetc_max_get_unaligned;
 
@@ -559,19 +553,10 @@ _gasnete_get_bulk_unaligned(
 }
 
 static void /* XXX: Inlining left to compiler's discretion */
-#if GASNETC_GNI_MULTI_DOMAIN
-gasnete_put_bulk_inner(int didx,
+_gasnete_put_bulk_inner(GASNETE_DIDX_ARG
                        gasnet_node_t node, void *dest, void *src, size_t nbytes,
                        gasneti_weakatomic_val_t * const initiated_p,
                        gasneti_weakatomic_t * const completed_p)
-#else
-_gasnete_put_bulk_inner(
-                       gasnet_node_t node, void *dest, void *src, size_t nbytes,
-                       gasneti_weakatomic_val_t * const initiated_p,
-                       gasneti_weakatomic_t * const completed_p)
-#define gasnete_put_bulk_inner(_didx, _a1, _a2, _a3, _a4, _a5, _a6) \
-        _gasnete_put_bulk_inner(_a1, _a2, _a3, _a4, _a5, _a6)
-#endif
 {
   const size_t chunksz = gasneti_in_segment(gasneti_mynode, src, nbytes) ? GC_MAXRDMA_IN : GC_MAXRDMA_OUT;
 
