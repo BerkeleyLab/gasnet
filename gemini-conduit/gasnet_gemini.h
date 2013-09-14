@@ -314,18 +314,6 @@ void _gasnetc_poll(void);
 #define gasnetc_poll(didx) _gasnetc_poll()
 #endif
 
-#define gasnete_pollwhile(cnd, didx) do {\
-    if (cnd) {                          \
-      gasnetc_poll_local_queue(didx);   \
-      while (cnd) {                     \
-        GASNETI_WAITHOOK();             \
-        gasnetc_poll_local_queue(didx); \
-      }                                 \
-    }                                   \
-    gasneti_local_rmb();                \
-  } while (0)
-#define gasnete_polluntil(cnd, didx) gasnete_pollwhile((!(cnd)), didx) 
-
 void gasnetc_rdma_put_bulk(gasnet_node_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd);

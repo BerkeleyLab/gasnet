@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_extended.c,v $
- *     $Date: 2013/09/14 00:36:20 $
- * $Revision: 1.92.4.6 $
+ *     $Date: 2013/09/14 08:17:02 $
+ * $Revision: 1.92.4.7 $
  * Description: GASNet Extended API over Gemini Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -418,6 +418,17 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 # define gasnete_get_bulk_inner      _gasnete_get_bulk_inner
 # define gasnete_get_bulk_unaligned  _gasnete_get_bulk_unaligned
 # define gasnete_put_bulk_inner      _gasnete_put_bulk_inner
+/* Poll ONLY the given domain */
+# define gasnete_polluntil(cnd, didx) do {\
+    if (!(cnd)) {                         \
+      gasnetc_poll_local_queue(didx);     \
+      while (!(cnd)) {                    \
+        GASNETI_WAITHOOK();               \
+        gasnetc_poll_local_queue(didx);   \
+      }                                   \
+    }                                     \
+    gasneti_local_rmb();                  \
+  } while (0)
 #else
 # define GASNETE_DECL_DIDX(_var, _td) GASNETI_UNUSED const int _var = 0
 /* Swallow the unused didx argument: */
@@ -430,6 +441,8 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
                _gasnete_get_bulk_unaligned(_a1, _a2, _a3, _a4, _a5, _a6)
 # define gasnete_put_bulk_inner(_didx, _a1, _a2, _a3, _a4, _a5, _a6) \
                _gasnete_put_bulk_inner(_a1, _a2, _a3, _a4, _a5, _a6)
+/* Poll all domains */
+# define gasnete_polluntil(cnd, didx) gasneti_polluntil(cnd)
 #endif
 
 /* ------------------------------------------------------------------------------------ */
