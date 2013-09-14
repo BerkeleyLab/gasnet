@@ -163,6 +163,11 @@ gasnetc_gni_lock_t *gasnetc_gni_lock()
 {
    return & gasnetc_cdom_data[GASNETC_DEFAULT_DOMAIN].gasnetc_gni_lock;
 }
+
+int gasnetc_my_domain_index(void) {
+    const gasnete_threaddata_t * const mythread = gasnete_mythread();
+    return mythread->domain_idx;
+}
 #else /* GASNETC_GNI_MULTI_DOMAIN */
 
 #define gasnetc_domain_count 1
