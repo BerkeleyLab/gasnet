@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/09/13 21:33:50 $
- * $Revision: 1.89.2.4 $
+ *     $Date: 2013/09/14 00:43:48 $
+ * $Revision: 1.89.2.5 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1098,7 +1098,7 @@ extern int gasnetc_AMPoll(void) {
    *  cycles on hopper. 
    */
     const gasnete_threaddata_t * const mythread = gasnete_mythread();
-    const int didx = gasnetc_get_domain_idx(mythread->threadidx);
+    const int didx = mythread->domain_idx;
   #endif
     gasnetc_poll(didx);
   }
