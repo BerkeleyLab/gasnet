@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core_help.h,v $
- *     $Date: 2013/09/14 02:05:37 $
- * $Revision: 1.1.1.2.18.1 $
+ *     $Date: 2013/09/14 07:35:59 $
+ * $Revision: 1.1.1.2.18.2 $
  * Description: GASNet gemini conduit core Header Helpers (Internal code, not for client use)
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -16,39 +16,51 @@
 GASNETI_BEGIN_EXTERNC
 
 #if defined(GASNET_PAR) && GASNETC_GNI_MULTI_DOMAIN
-  /* TODO:
-   * It we ever support multi-domain and throttle-pollers together
-   * then this is in need of some per-domain throttling logic.
-   */
-  #if GASNET_PSHM
-    #define GASNETC_MAYBE_PSHM_POLL() gasneti_AMPSHMPoll(0)
-  #else
-    #define GASNETC_MAYBE_PSHM_POLL() /*empty*/
-  #endif
-  extern void gasnetc_poll(int didx);
-  extern int gasnetc_my_domain_index(void) GASNETI_CONST;
-  GASNETI_CONSTP(gasnetc_my_domain_index)
-  #define gasneti_pollwhile(cnd) do {                \
-    GASNETI_CHECKATTACH();                           \
-    if (cnd) {                                       \
-      const int my_didx = gasnetc_my_domain_index(); \
-      gasneti_memcheck_one();                        \
-      GASNETC_MAYBE_PSHM_POLL();                     \
-      gasnetc_poll(my_didx);                         \
-      GASNETI_PROGRESSFNS_RUN();                     \
-      while (cnd) {                                  \
-        GASNETI_WAITHOOK();                          \
-        gasneti_memcheck_one();                      \
-        GASNETC_MAYBE_PSHM_POLL();                   \
-        gasnetc_poll(my_didx);                       \
-        GASNETI_PROGRESSFNS_RUN();                   \
-      }                                              \
-    }                                                \
-    gasneti_local_rmb();                             \
-  } while (0)
+  /* Poll without progress functions */
+  #define gasnetc_AMPoll() gasnetc_AMPoll_core(GASNETE_THREAD_GET_ALONE)
+
+  /* GASNet internal code calls gasneti_AMPoll(), which does not trace */
+  #define gasneti_AMPoll() gasnetc_AMPoll_internal(GASNETE_THREAD_GET_ALONE)
+  #define GASNETI_GASNETI_AMPOLL
+
+  /* GASNet client calls gasnet_AMPoll(), which traces */
+  #define gasnet_AMPoll() gasnetc_AMPoll_client(GASNETE_THREAD_GET_ALONE)
+  #define _GASNET_AMPOLL
+
+  /* No spin pollers */
+  #define gasneti_suspend_spinpollers() ((void)0)
+  #define gasneti_resume_spinpollers()  ((void)0)
 #endif
 
 #include <gasnet_help.h>
+
+#if defined(GASNET_PAR) && GASNETC_GNI_MULTI_DOMAIN 
+  /* Too early to use GASNETE_THREAD_*, though GASNETI_THREADINFO_OPT is defined when applicable */
+  #ifdef GASNETI_THREADINFO_OPT
+    #define GASNETC_AM_POLL_FARG void *_threadinfo
+    #define GASNETC_AM_POLL_PASS _threadinfo
+  #else
+    #define GASNETC_AM_POLL_FARG void
+    #define GASNETC_AM_POLL_PASS /*empty*/
+  #endif
+
+  extern int gasnetc_AMPoll_core(GASNETC_AM_POLL_FARG);
+
+  GASNETI_INLINE(gasnetc_AMPoll_internal)
+  int gasnetc_AMPoll_internal(GASNETC_AM_POLL_FARG) {
+    int retval;
+    gasneti_memcheck_one();
+    retval = gasnetc_AMPoll_core(GASNETC_AM_POLL_PASS);
+    GASNETI_PROGRESSFNS_RUN();
+    return retval;
+  }
+
+  GASNETI_INLINE(gasnetc_AMPoll_client)
+  int gasnetc_AMPoll_client(GASNETC_AM_POLL_FARG) {
+    GASNETI_TRACE_EVENT(I, AMPOLL);
+    return gasnetc_AMPoll_internal(GASNETC_AM_POLL_PASS);
+  }
+#endif
 
 GASNETI_END_EXTERNC
 

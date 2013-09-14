@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/09/14 00:43:48 $
- * $Revision: 1.89.2.5 $
+ *     $Date: 2013/09/14 07:35:59 $
+ * $Revision: 1.89.2.6 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1081,7 +1081,12 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   return GASNET_OK;
 }
 
-extern int gasnetc_AMPoll(void) {
+#if GASNETC_GNI_MULTI_DOMAIN
+extern int gasnetc_AMPoll_core(GASNETC_AM_POLL_FARG)
+#else
+extern int gasnetc_AMPoll(void)
+#endif
+{
   GASNETI_CHECKATTACH();
 
 #if GASNET_PSHM
@@ -1090,18 +1095,7 @@ extern int gasnetc_AMPoll(void) {
 #endif
 
   /* (###) add code here to run your AM progress engine */
-  {
-  #if GASNETC_GNI_MULTI_DOMAIN
-  /* 
-   *  TODO: Can AMPoll requester tell which thread is calling 
-   *  Currently, we use gasnete_mythread(), which cost us at least 180 
-   *  cycles on hopper. 
-   */
-    const gasnete_threaddata_t * const mythread = gasnete_mythread();
-    const int didx = mythread->domain_idx;
-  #endif
-    gasnetc_poll(didx);
-  }
+  gasnetc_poll(GASNETE_MYTHREAD->domain_idx);
 
   return GASNET_OK;
 }
