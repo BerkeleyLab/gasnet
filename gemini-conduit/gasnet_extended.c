@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_extended.c,v $
- *     $Date: 2013/09/14 08:17:02 $
- * $Revision: 1.92.4.7 $
+ *     $Date: 2013/09/14 08:56:17 $
+ * $Revision: 1.92.4.8 $
  * Description: GASNet Extended API over Gemini Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -418,17 +418,6 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 # define gasnete_get_bulk_inner      _gasnete_get_bulk_inner
 # define gasnete_get_bulk_unaligned  _gasnete_get_bulk_unaligned
 # define gasnete_put_bulk_inner      _gasnete_put_bulk_inner
-/* Poll ONLY the given domain */
-# define gasnete_polluntil(cnd, didx) do {\
-    if (!(cnd)) {                         \
-      gasnetc_poll_local_queue(didx);     \
-      while (!(cnd)) {                    \
-        GASNETI_WAITHOOK();               \
-        gasnetc_poll_local_queue(didx);   \
-      }                                   \
-    }                                     \
-    gasneti_local_rmb();                  \
-  } while (0)
 #else
 # define GASNETE_DECL_DIDX(_var, _td) GASNETI_UNUSED const int _var = 0
 /* Swallow the unused didx argument: */
@@ -441,8 +430,6 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
                _gasnete_get_bulk_unaligned(_a1, _a2, _a3, _a4, _a5, _a6)
 # define gasnete_put_bulk_inner(_didx, _a1, _a2, _a3, _a4, _a5, _a6) \
                _gasnete_put_bulk_inner(_a1, _a2, _a3, _a4, _a5, _a6)
-/* Poll all domains */
-# define gasnete_polluntil(cnd, didx) gasneti_polluntil(cnd)
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -966,7 +953,7 @@ extern void gasnete_put_val(gasnet_node_t node, void *dest, gasnet_register_valu
     gasnete_val_assign(gpd->u.immediate, value);
     gasnetc_rdma_put_buff(node, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);
     gasneti_resume_spinpollers();
-    gasnete_polluntil(done, didx);
+    gasneti_polluntil(done);
   }
 }
 
@@ -1034,7 +1021,7 @@ extern gasnet_register_value_t gasnete_get_val(gasnet_node_t node, void *src, si
     buffer = gpd->u.immediate;
     buffer += gasnetc_rdma_get_buff(node, buffer, src, nbytes, gpd);
     gasneti_resume_spinpollers();
-    gasnete_polluntil(done,didx);
+    gasneti_polluntil(done);
     result = gasnete_get_val_help(buffer, nbytes);
     gasnetc_free_post_descriptor(gpd);
     return result;
@@ -1103,10 +1090,11 @@ extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t
   { gasnete_threaddata_t * const thread = gasnete_threadtable[handle->threadidx];
     gasnet_register_value_t val;
     GASNETE_DECL_DIDX(didx, thread);
+    GASNET_POST_THREADINFO(thread); /* for gasneti_poll() in multi-domain case */
     gasneti_assert(thread == gasnete_mythread());
     handle->next = thread->valget_free; /* free before the wait to save time after the wait, */
     thread->valget_free = handle;       /*  safe because this thread is under our control */
-    gasnete_polluntil(handle->done, didx);
+    gasneti_polluntil(handle->done);
     val = handle->val;
     return val;
   }
