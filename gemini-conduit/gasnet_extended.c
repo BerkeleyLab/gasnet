@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_extended.c,v $
- *     $Date: 2013/09/14 08:56:17 $
- * $Revision: 1.92.4.8 $
+ *     $Date: 2013/09/14 23:01:25 $
+ * $Revision: 1.92.4.9 $
  * Description: GASNet Extended API over Gemini Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -269,7 +269,7 @@ void gasnete_iop_free(gasnete_iop_t *iop) {
   Factored bits of extended API code common to most conduits, overridable when necessary
 */
 
-#if GASNETC_GNI_MULTI_DOMAIN
+#if GASNETC_USE_MULTI_DOMAIN
 #define GASNETD_NEW_THREADDATA_CALLBACK(td) \
     (td)->domain_idx = gasnetc_get_domain_idx((td)->threadidx);
 #endif
@@ -410,7 +410,7 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 
 /* ------------------------------------------------------------------------------------ */
 
-#if GASNETC_GNI_MULTI_DOMAIN
+#if GASNETC_USE_MULTI_DOMAIN
 # define GASNETE_DECL_DIDX(_var, _td) const int _var = (_td)->domain_idx
 /* Pass didx argument: */
 # define GASNETE_DIDX_ARG const int didx,

@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/09/14 07:35:59 $
- * $Revision: 1.89.2.6 $
+ *     $Date: 2013/09/14 23:01:25 $
+ * $Revision: 1.89.2.7 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -389,7 +389,7 @@ done:
   gasnetc_handler[_hidx_gasnetc_sys_exchange_reqh] = (gasneti_handler_fn_t)&gasnetc_sys_exchange_reqh;
 
   gasnetc_bootstrap_am_coll = 1;
-#if GASNETC_GNI_MULTI_DOMAIN
+#if GASNETC_USE_MULTI_DOMAIN
   /* Need to use PMI exchange at each pthread spawn */
 #else
   gasneti_bootstrapCleanup_pmi(); /* No further use of PMI-based colelctives */
@@ -1081,7 +1081,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
   return GASNET_OK;
 }
 
-#if GASNETC_GNI_MULTI_DOMAIN
+#if GASNETC_USE_MULTI_DOMAIN
 extern int gasnetc_AMPoll_core(GASNETC_AM_POLL_FARG)
 #else
 extern int gasnetc_AMPoll(void)
@@ -1693,7 +1693,7 @@ gasnet_handlerentry_t const *gasnetc_get_handlertable(void) {
 }
 
 #if defined(GASNETC_PTHREAD_CREATE_OVERRIDE)
-#if !GASNETC_GNI_MULTI_DOMAIN 
+#if !GASNETC_USE_MULTI_DOMAIN 
   #error Unexpected defn of GASNETC_PTHREAD_CREATE_OVERRIDE
 #endif
 extern int gasnetc_pthread_create(gasnetc_pthread_create_fn_t *create_fn, pthread_t *thread, const pthread_attr_t *attr, void * (*fn)(void *), void * arg) {
