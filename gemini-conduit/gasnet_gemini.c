@@ -304,8 +304,8 @@ static gasneti_weakatomic_val_t gasnetc_reg_credit_max;
 #define gasnetc_init_reg_credit(_val) \
 	gasneti_weakatomic_set(&gasnetc_reg_credit,gasnetc_reg_credit_max=(_val),0)
 
-/* Register local side of a pd, with unbounded retry */
-static void gasnetc_register_gpd(gasnetc_post_descriptor_t *gpd)
+/* Register local side of a pd, with unbounded retry on ERR_RESOURCE */
+static int gasnetc_register_gpd(gasnetc_post_descriptor_t *gpd)
 {
   GASNETC_DIDX_DECL(didx, gpd->domain_idx);
   DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle, didx);
@@ -338,14 +338,21 @@ first:
     GASNETC_UNLOCK_GNI(didx);
     if_pt (status == GNI_RC_SUCCESS) {
       if (trial) GASNETC_STAT_EVENT_VAL(MEM_REG_RETRY, trial);
-      return;
+      return 1;
+    } else if (status == GNI_RC_ERROR_RESOURCE) {
+      GASNETI_WAITHOOK();
+      gasnetc_poll_local_queue(didx);
+      ++trial;
+    } else if (status == GNI_RC_INVALID_PARAM) {
+      /* Registration failed (e.g. memory imported by XPMEM), but not fatal. */
+      return 0;
+    } else {
+      /* Unknown failure is fatal */
+      gasnetc_GNIT_Abort("MemRegister failed with %s", gni_return_string(status));
+      break; /* NOT REACHED */
     }
-    if (status != GNI_RC_ERROR_RESOURCE) break; /* Fatal */
-    GASNETI_WAITHOOK();
-    gasnetc_poll_local_queue(didx);
-    ++trial;
   }
-  gasnetc_GNIT_Abort("MemRegister failed with %s", gni_return_string(status));
+  return 0; /* NOT REACHED */
 }
 
 /* Deregister local side of a pd */
@@ -1670,9 +1677,10 @@ void gasnetc_rdma_put_bulk(gasnet_node_t node,
         void * const buffer = gasnetc_alloc_bounce_buffer(didx);
         pd->local_addr = (uint64_t) memcpy(buffer, source_addr, nbytes);
         gpd->flags |= GC_POST_UNBOUNCE;
-      } else {
+      } else if (gasnetc_register_gpd(gpd)) {
         gpd->flags |= GC_POST_UNREGISTER;
-        gasnetc_register_gpd(gpd);
+      } else {
+        gasneti_fatalerror("Unhandled MemRegister failure for Put");
       }
     }
     pd->type = GNI_POST_RDMA_PUT;
@@ -1863,9 +1871,10 @@ void gasnetc_rdma_get(gasnet_node_t node,
       gpd->flags |= GC_POST_UNBOUNCE | GC_POST_COPY;
       gpd->gpd_get_src = pd->local_addr = (uint64_t) gasnetc_alloc_bounce_buffer(didx);
       gpd->gpd_get_dst = (uint64_t) dest_addr;
-    } else {
+    } else if (gasnetc_register_gpd(gpd)) {
       gpd->flags |= GC_POST_UNREGISTER;
-      gasnetc_register_gpd(gpd);
+    } else {
+      gasneti_fatalerror("Unhandled MemRegister failure for Get");
     }
   }
 
