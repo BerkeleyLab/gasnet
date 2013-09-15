@@ -283,22 +283,14 @@ int gasnetc_try_pin(void *addr, uintptr_t size)
 #endif
 
 /*------ Macros to keep code more readable ------*/
+
 #if GASNETC_USE_MULTI_DOMAIN
-#  define gasnetc_register_pd     _gasnetc_register_pd
 #  define gasnetc_poll_bound_cq   _gasnetc_poll_bound_cq
-#  define myPostRdma              _myPostRdma
-#  define myPostFma               _myPostFma
-#  define gasnetc_post_get        _gasnetc_post_get
 #  define DOMAIN_SPECIFIC_VAL(_var, _didx)         (gasnetc_cdom_data[(_didx)]._var)
 #  define DOMAIN_SPECIFIC_PTR(_var, _didx)         (&gasnetc_cdom_data[(_didx)]._var)
 #  define DOMAIN_SPECIFIC_VAR(_type, _var, _didx)  _type _var = gasnetc_cdom_data[(_didx)]._var
 #else
-#  define gasnetc_register_pd(_pd,_didx)  _gasnetc_register_pd(_pd)
 #  define gasnetc_poll_bound_cq(_didx)    _gasnetc_poll_bound_cq()
-#  define myPostRdma(_ep,_pd,_didx)       _myPostRdma(_ep,_pd)
-#  define myPostFma(_ep,_pd,_didx)        _myPostFma(_ep,_pd)
-#  define gasnetc_post_get(_ep,_pd,_didx) _gasnetc_post_get(_ep,_pd)
-
 #  define DOMAIN_SPECIFIC_VAL(_var, _didx)        (_var)
 #  define DOMAIN_SPECIFIC_PTR(_var, _didx)        (&_var)
 #  define DOMAIN_SPECIFIC_VAR(_type, _var, _didx) GASNETI_UNUSED char _dummy##_var = 0;
@@ -311,13 +303,15 @@ static gasneti_weakatomic_val_t gasnetc_reg_credit_max;
 	gasneti_weakatomic_set(&gasnetc_reg_credit,gasnetc_reg_credit_max=(_val),0)
 
 /* Register local side of a pd, with unbounded retry */
-static void _gasnetc_register_pd(gni_post_descriptor_t *pd GASNETC_DIDX_FARG)
+static void gasnetc_register_gpd(gasnetc_post_descriptor_t *gpd)
 {
+  GASNETC_DIDX_DECL(didx, gpd->domain_idx);
+  DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle, didx);
+  gni_post_descriptor_t * const pd = &gpd->pd;
   const uint64_t addr = pd->local_addr;
   const size_t nbytes = pd->length;
   int trial = 0;
   gni_return_t status;
-  DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle, didx);
 
   if_pf (gasnetc_reg_credit_max &&
          !gasnetc_weakatomic_dec_if_positive(&gasnetc_reg_credit)) {
@@ -1600,8 +1594,10 @@ static void print_post_desc(const char *title, gni_post_descriptor_t *cmd)) {
   printf("r %d cqwrite_value: 0x%lx\n", gasneti_mynode, cmd->cqwrite_value);
 }
 
-static gni_return_t _myPostRdma(gni_ep_handle_t ep, gni_post_descriptor_t *pd GASNETC_DIDX_FARG)
+static gni_return_t myPostRdma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd)
 {
+  GASNETC_DIDX_DECL(didx, gpd->domain_idx);
+  gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
   const int max_trials = 1000;
   int trial = 0;
@@ -1624,8 +1620,10 @@ static gni_return_t _myPostRdma(gni_ep_handle_t ep, gni_post_descriptor_t *pd GA
   return status;
 }
 
-static gni_return_t _myPostFma(gni_ep_handle_t ep, gni_post_descriptor_t *pd GASNETC_DIDX_FARG)
+static gni_return_t myPostFma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd)
 {
+  GASNETC_DIDX_DECL(didx, gpd->domain_idx);
+  gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
   const int max_trials = 1000;
   int trial = 0;
@@ -1682,7 +1680,7 @@ void gasnetc_rdma_put_bulk(gasnet_node_t node,
 #if FIX_HT_ORDERING
     pd->cq_mode = gasnetc_fma_put_cq_mode;
 #endif
-    status = myPostFma(peer->ep_handle, pd, didx);
+    status = myPostFma(peer->ep_handle, gpd);
   } else { /* Using RDMA, which requires local memory registration */
     if_pf (!gasneti_in_segment(gasneti_mynode, source_addr, nbytes)) {
       /* Use a bounce buffer or mem-reg according to size.
@@ -1696,11 +1694,11 @@ void gasnetc_rdma_put_bulk(gasnet_node_t node,
         gpd->flags |= GC_POST_UNBOUNCE;
       } else {
         gpd->flags |= GC_POST_UNREGISTER;
-        gasnetc_register_pd(pd, didx);
+        gasnetc_register_gpd(gpd);
       }
     }
     pd->type = GNI_POST_RDMA_PUT;
-    status = myPostRdma(peer->ep_handle, pd, didx);
+    status = myPostRdma(peer->ep_handle, gpd);
   }
 
   if_pf (status != GNI_RC_SUCCESS) {
@@ -1749,7 +1747,7 @@ int gasnetc_rdma_put(gasnet_node_t node,
   #if FIX_HT_ORDERING
     pd->cq_mode = gasnetc_fma_put_cq_mode;
   #endif
-    status = myPostFma(peer->ep_handle, pd, didx);
+    status = myPostFma(peer->ep_handle, gpd);
   } else
 #endif
   { /* Favor bounce buffers if possible */
@@ -1768,7 +1766,7 @@ int gasnetc_rdma_put(gasnet_node_t node,
       if_pf (!gasneti_in_segment(gasneti_mynode, source_addr, nbytes)) {
         /* source not in segment */
         gpd->flags |= GC_POST_UNREGISTER;
-        gasnetc_register_pd(pd, didx);
+        gasnetc_register_gpd(gpd);
       }
     }
  
@@ -1778,12 +1776,12 @@ int gasnetc_rdma_put(gasnet_node_t node,
     #if FIX_HT_ORDERING
       pd->cq_mode = gasnetc_fma_put_cq_mode;
     #endif
-      status = myPostFma(peer->ep_handle, pd, didx);
+      status = myPostFma(peer->ep_handle, gpd);
     } else
 #endif
     {
       pd->type = GNI_POST_RDMA_PUT;
-      status = myPostRdma(peer->ep_handle, pd, didx);
+      status = myPostRdma(peer->ep_handle, gpd);
     }
   }
 
@@ -1825,7 +1823,7 @@ void gasnetc_rdma_put_buff(gasnet_node_t node,
 #if FIX_HT_ORDERING
   pd->cq_mode = gasnetc_fma_put_cq_mode;
 #endif
-  status = myPostFma(peer->ep_handle, pd, didx);
+  status = myPostFma(peer->ep_handle, gpd);
 
   if_pf (status != GNI_RC_SUCCESS) {
     print_post_desc("Put", pd);
@@ -1834,18 +1832,19 @@ void gasnetc_rdma_put_buff(gasnet_node_t node,
 }
 
 /* initiate a Get according to fma/rdma cutover */
-GASNETI_INLINE(_gasnetc_post_get)
-void _gasnetc_post_get(gni_ep_handle_t ep, gni_post_descriptor_t *pd GASNETC_DIDX_FARG)
+GASNETI_INLINE(gasnetc_post_get)
+void gasnetc_post_get(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd)
 {
+  gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
   const size_t nbytes = pd->length;
 
   if (nbytes <= gasnetc_get_fma_rdma_cutover) {
       pd->type = GNI_POST_FMA_GET;
-      status = myPostFma(ep, pd, didx);
+      status = myPostFma(ep, gpd);
   } else {
       pd->type = GNI_POST_RDMA_GET;
-      status = myPostRdma(ep, pd, didx);
+      status = myPostRdma(ep, gpd);
   }
 
   if_pf (status != GNI_RC_SUCCESS) {
@@ -1897,10 +1896,11 @@ void gasnetc_rdma_get(gasnet_node_t node,
       gpd->gpd_get_dst = (uint64_t) dest_addr;
     } else {
       gpd->flags |= GC_POST_UNREGISTER;
-      gasnetc_register_pd(pd, didx);
+      gasnetc_register_gpd(gpd);
     }
   }
-  gasnetc_post_get(peer->ep_handle, pd, didx);
+
+  gasnetc_post_get(peer->ep_handle, gpd);
 }
 
 /* for get in which one or more of dest_addr, source_addr or nbytes is NOT divisible by 4
@@ -1952,7 +1952,7 @@ void gasnetc_rdma_get_unaligned(gasnet_node_t node,
   gpd->gpd_get_src = (uint64_t) buffer + pre;
   gpd->gpd_get_dst = (uint64_t) dest_addr;
 
-  gasnetc_post_get(peer->ep_handle, pd, didx);
+  gasnetc_post_get(peer->ep_handle, gpd);
 }
 
 /* Get into a specified in-full-segment buffer
@@ -1993,7 +1993,7 @@ int gasnetc_rdma_get_buff(gasnet_node_t node,
 
   /* now initiate - *always* FMA for now */
   pd->type = GNI_POST_FMA_GET;
-  status = myPostFma(peer->ep_handle, pd, didx);
+  status = myPostFma(peer->ep_handle, gpd);
 
   if_pf (status != GNI_RC_SUCCESS) {
     print_post_desc("Get", pd);
