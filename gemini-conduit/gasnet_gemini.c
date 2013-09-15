@@ -285,12 +285,14 @@ int gasnetc_try_pin(void *addr, uintptr_t size)
 /*------ Macros to keep code more readable ------*/
 
 #if GASNETC_USE_MULTI_DOMAIN
-#  define gasnetc_poll_bound_cq   _gasnetc_poll_bound_cq
+#  define gasnetc_poll_bound_cq       _gasnetc_poll_bound_cq
+#  define gasnetc_alloc_bounce_buffer _gasnetc_alloc_bounce_buffer
 #  define DOMAIN_SPECIFIC_VAL(_var, _didx)         (gasnetc_cdom_data[(_didx)]._var)
 #  define DOMAIN_SPECIFIC_PTR(_var, _didx)         (&gasnetc_cdom_data[(_didx)]._var)
 #  define DOMAIN_SPECIFIC_VAR(_type, _var, _didx)  _type _var = gasnetc_cdom_data[(_didx)]._var
 #else
-#  define gasnetc_poll_bound_cq(_didx)    _gasnetc_poll_bound_cq()
+#  define gasnetc_poll_bound_cq(_didx)       _gasnetc_poll_bound_cq()
+#  define gasnetc_alloc_bounce_buffer(_dixd) _gasnetc_alloc_bounce_buffer()
 #  define DOMAIN_SPECIFIC_VAL(_var, _didx)        (_var)
 #  define DOMAIN_SPECIFIC_PTR(_var, _didx)        (&_var)
 #  define DOMAIN_SPECIFIC_VAR(_type, _var, _didx) GASNETI_UNUSED char _dummy##_var = 0;
@@ -536,7 +538,7 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
   }
   have_segment = 1;
 
-  assert (status == GNI_RC_SUCCESS);
+  gasneti_assert(status == GNI_RC_SUCCESS);
 
   {
     gni_mem_handle_t *all_mem_handle = gasneti_malloc(gasneti_nodes * sizeof(gni_mem_handle_t));
@@ -597,9 +599,10 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
   gasneti_assert_always (status == GNI_RC_SUCCESS);
   /* create and bind endpoints */
   all_addr = gather_nic_addresses();
-  gasnetc_cdom_data[didx].peer_data = gasneti_malloc(gasneti_nodes * sizeof(peer_struct_t));
 #if GASNET_DEBUG
-  memset( gasnetc_cdom_data[didx].peer_data,0,gasneti_nodes * sizeof(peer_struct_t)); 
+  gasnetc_cdom_data[didx].peer_data = gasneti_calloc(gasneti_nodes, sizeof(peer_struct_t));
+#else
+  gasnetc_cdom_data[didx].peer_data = gasneti_malloc(gasneti_nodes * sizeof(peer_struct_t));
 #endif
   for (i = 0; i < gasneti_nodes; i += 1) {
     if (node_is_local(i)) continue; /* no connection to self or PSHM-reachable peers */
@@ -639,7 +642,7 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
      }
    }
   }
-  assert (status == GNI_RC_SUCCESS);
+  gasneti_assert(status == GNI_RC_SUCCESS);
   {
     gni_mem_handle_t *all_mem_handle = gasneti_malloc(gasneti_nodes * sizeof(gni_mem_handle_t));
     gasnet_node_t i;
@@ -654,7 +657,7 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
  /* This should remain as the last statement to indicate that the domain is initialized. */
   gasneti_local_wmb();
   gasnetc_cdom_data[didx].initialized = 1;
- }
+}
 #endif
 
 uintptr_t gasnetc_init_messaging(void)
@@ -740,9 +743,10 @@ uintptr_t gasnetc_init_messaging(void)
 
   /* create and bind endpoints */
   all_addr = gather_nic_addresses();
-  peer_data = gasneti_malloc(gasneti_nodes * sizeof(peer_struct_t));
 #if GASNET_DEBUG
-  memset(peer_data,0,gasneti_nodes * sizeof(peer_struct_t)); 
+  peer_data = gasneti_calloc(gasneti_nodes, sizeof(peer_struct_t));
+#else
+  peer_data = gasneti_malloc(gasneti_nodes * sizeof(peer_struct_t));
 #endif
  
   for (i = 0; i < gasneti_nodes; i += 1) {
@@ -828,7 +832,7 @@ uintptr_t gasnetc_init_messaging(void)
 
   /* exchange peer data and initialize smsg */
   { struct smsg_exchange { uint8_t *addr; gni_mem_handle_t handle;};
-    struct smsg_exchange my_smsg_exchg = { am_mmap_ptr, am_handle };
+    struct smsg_exchange my_smsg_exchg = { am_mmap_ptr, am_handle};
     struct smsg_exchange *all_smsg_exchg = gasneti_malloc(gasneti_nodes * sizeof(struct smsg_exchange));
     uint8_t *local_peer_base = (uint8_t *)am_mmap_ptr + reply_region_length;
 
@@ -879,23 +883,35 @@ uintptr_t gasnetc_init_messaging(void)
   return am_mmap_bytes;
 }
 
-#if GASNETC_USE_MULTI_DOMAIN
 void gasnetc_shutdown(void)
 {
   int i;
   int tries;
-  int didx;
   int left;
   gni_return_t status;
+#if GASNETC_USE_MULTI_DOMAIN
+  int didx;
+#endif
+
+  /* Do other threads need to be killed off here?
+     release resources in the reverse order of acquisition
+   */
+
   /* seize gni lock and hold it  */
   GASNETC_LOCK_GNI(GASNETC_DEFAULT_DOMAIN);
 
-  for(didx = 0; didx < gasnetc_domain_count; didx++) {
-    communication_domain_struct_t * cdom = &gasnetc_cdom_data[didx];
-    peer_struct_t * peer_data = cdom->peer_data; 
+#if GASNETC_USE_MULTI_DOMAIN
+  for (didx = 0; didx < gasnetc_domain_count; didx++) {
+    DOMAIN_SPECIFIC_VAR(gni_cdm_handle_t, cdm_handle, didx);
+    DOMAIN_SPECIFIC_VAR(gni_cq_handle_t, destination_cq_handle, didx);
+    DOMAIN_SPECIFIC_VAR(gni_cq_handle_t, bound_cq_handle, didx);
+    DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle, didx);
+    DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data, didx);
 
+    communication_domain_struct_t * cdom = &gasnetc_cdom_data[didx];
     if(!cdom->initialized) continue;
     cdom->initialized = 0;
+#endif
 
     /* for each connected rank */
     left = gasneti_nodes - (GASNET_PSHM ? gasneti_nodemap_local_count : 1);
@@ -922,16 +938,18 @@ void gasnetc_shutdown(void)
     }
 
     if_pt (have_segment) {
-      status = GNI_MemDeregister(cdom->nic_handle, &cdom->my_mem_handle);
+      status = GNI_MemDeregister(nic_handle, DOMAIN_SPECIFIC_PTR(my_mem_handle, didx));
       if_pf (status != GNI_RC_SUCCESS) {
         gasnetc_GNIT_Log("MemDeregister(segment) failed with %s", gni_return_string(status));
       }
     }
 
+#if GASNETC_USE_MULTI_DOMAIN
     if (didx == GASNETC_DEFAULT_DOMAIN) {
+#endif
       gasneti_huge_munmap(am_mmap_ptr, am_mmap_bytes);
 
-      status = GNI_MemDeregister(cdom->nic_handle, &am_handle);
+      status = GNI_MemDeregister(nic_handle, &am_handle);
       if_pf (status != GNI_RC_SUCCESS) {
         gasnetc_GNIT_Log("MemDeregister(smsg_mem) failed with %s", gni_return_string(status));
       }
@@ -940,103 +958,63 @@ void gasnetc_shutdown(void)
       if_pf (status != GNI_RC_SUCCESS) {
         gasnetc_GNIT_Log("CqDestroy(smsg_cq) failed with %s", gni_return_string(status));
       }
+#if GASNETC_USE_MULTI_DOMAIN
     }
+#endif
 
-    if (cdom->destination_cq_handle) {
-      status = GNI_CqDestroy(cdom->destination_cq_handle);
+    if (destination_cq_handle) {
+      status = GNI_CqDestroy(destination_cq_handle);
       if_pf (status != GNI_RC_SUCCESS) {
         gasnetc_GNIT_Log("CqDestroy(dest_cq) failed with %s", gni_return_string(status));
       }
     }
 
-    status = GNI_CqDestroy(cdom->bound_cq_handle);
+    status = GNI_CqDestroy(bound_cq_handle);
     if_pf (status != GNI_RC_SUCCESS) {
       gasnetc_GNIT_Log("CqDestroy(bound_cq) failed with %s", gni_return_string(status));
     }
 
-    status = GNI_CdmDestroy(cdom->cdm_handle);
+    status = GNI_CdmDestroy(cdm_handle);
     if_pf (status != GNI_RC_SUCCESS) {
       gasnetc_GNIT_Log("CdmDestroy(bound_cq) failed with %s", gni_return_string(status));
     }
+#if GASNETC_USE_MULTI_DOMAIN
   }
+#endif
+
   GASNETC_UNLOCK_GNI(GASNETC_DEFAULT_DOMAIN);
 }
 
-#else
-
-void gasnetc_shutdown(void)
+static GASNETI_MALLOC
+void *_gasnetc_alloc_bounce_buffer(GASNETC_DIDX_FARG_ALONE)
 {
-  int i;
-  int tries;
-  int left;
-  gni_return_t status;
-  /* seize gni lock and hold it  */
-  GASNETC_LOCK_GNI(dummy_didx);
-  /* Do other threads need to be killed off here?
-     release resources in the reverse order of acquisition
-   */
-
-  /* for each connected rank */
-  left = gasneti_nodes - (GASNET_PSHM ? gasneti_nodemap_local_count : 1);
-  for (tries=0; tries<10; ++tries) {
-    for (i = 0; i < gasneti_nodes; i += 1) {
-      if (node_is_local(i)) continue; /* no connection to self or PSHM-reachable peers */
-      if (peer_data[i].ep_handle != NULL) {
-	status = GNI_EpUnbind(peer_data[i].ep_handle);
-	status = GNI_EpDestroy(peer_data[i].ep_handle);
-	if (status == GNI_RC_SUCCESS) {
-	  peer_data[i].ep_handle = NULL;
-	  left -= 1;
-	}
-      }
-    }
-    if (!left) break;
-#if 0
-    GASNETI_WAITHOOK();
-    gasnetc_poll_local_queue(dummy_didx);
-#endif
+  gasneti_lifo_head_t * const pool_p = DOMAIN_SPECIFIC_PTR(bounce_buffer_pool, didx);
+  void *buf = gasneti_lifo_pop(pool_p);
+  if_pf (!buf) {
+    /* We may simple not have polled the Cq recently.
+       So, WAITHOOK and STALL tracing only if still nothing after first poll */
+    GASNETC_TRACE_WAIT_BEGIN();
+    int stall = 0;
+    goto first;
+    do {
+      GASNETI_WAITHOOK();
+      stall = 1;
+first:
+      gasnetc_poll_local_queue(didx);
+      buf = gasneti_lifo_pop(pool_p);
+    } while (!buf);
+    if_pf (stall) GASNETC_TRACE_WAIT_END(ALLOC_BB_STALL);
   }
-  if (left > 0) {
-    gasnetc_GNIT_Log("at shutdown: %d endpoints left after 10 tries", left);
-  }
-
-  if (have_segment) {
-    status = GNI_MemDeregister(nic_handle, &my_mem_handle);
-    if_pf (status != GNI_RC_SUCCESS) {
-      gasnetc_GNIT_Log("MemDeregister(segment) failed with %s", gni_return_string(status));
-    }
-  }
-
-  gasneti_huge_munmap(am_mmap_ptr, am_mmap_bytes);
-
-  status = GNI_MemDeregister(nic_handle, &am_handle);
-  if_pf (status != GNI_RC_SUCCESS) {
-    gasnetc_GNIT_Log("MemDeregister(smsg_mem) failed with %s", gni_return_string(status));
-  }
-
-  status = GNI_CqDestroy(smsg_cq_handle);
-  if_pf (status != GNI_RC_SUCCESS) {
-    gasnetc_GNIT_Log("CqDestroy(smsg_cq) failed with %s", gni_return_string(status));
-  }
-
-  if (destination_cq_handle) {
-    status = GNI_CqDestroy(destination_cq_handle);
-    if_pf (status != GNI_RC_SUCCESS) {
-      gasnetc_GNIT_Log("CqDestroy(dest_cq) failed with %s", gni_return_string(status));
-    }
-  }
-
-  status = GNI_CqDestroy(bound_cq_handle);
-  if_pf (status != GNI_RC_SUCCESS) {
-    gasnetc_GNIT_Log("CqDestroy(bound_cq) failed with %s", gni_return_string(status));
-  }
-
-  status = GNI_CdmDestroy(cdm_handle);
-  if_pf (status != GNI_RC_SUCCESS) {
-    gasnetc_GNIT_Log("CdmDestroy(bound_cq) failed with %s", gni_return_string(status));
-  }
+  return(buf);
 }
-#endif
+
+GASNETI_INLINE(gasnetc_free_bounce_buffer)
+void gasnetc_free_bounce_buffer(gasnetc_post_descriptor_t *gpd)
+{
+  void *gcb = (void *) gpd->pd.local_addr;
+  GASNETC_DIDX_DECL(didx, gpd->domain_idx);
+  gasneti_lifo_push(DOMAIN_SPECIFIC_PTR(bounce_buffer_pool, didx), gcb);
+}
 
 static gasneti_mutex_t ampoll_lock = GASNETI_MUTEX_INITIALIZER;
 
@@ -2318,34 +2296,4 @@ void _gasnetc_init_bounce_buffer_pool(GASNETC_DIDX_FARG_ALONE)
                       (char *) gasnetc_bounce_buffers.addr + (buffer_size * i));
   }
 #endif
-}
-
-GASNETI_MALLOC
-void *_gasnetc_alloc_bounce_buffer(GASNETC_DIDX_FARG_ALONE)
-{
-  gasneti_lifo_head_t * const pool_p = DOMAIN_SPECIFIC_PTR(bounce_buffer_pool, didx);
-  void *buf = gasneti_lifo_pop(pool_p);
-  if_pf (!buf) {
-    /* We may simple not have polled the Cq recently.
-       So, WAITHOOK and STALL tracing only if still nothing after first poll */
-    GASNETC_TRACE_WAIT_BEGIN();
-    int stall = 0;
-    goto first;
-    do {
-      GASNETI_WAITHOOK();
-      stall = 1;
-first:
-      gasnetc_poll_local_queue(didx);
-      buf = gasneti_lifo_pop(pool_p);
-    } while (!buf);
-    if_pf (stall) GASNETC_TRACE_WAIT_END(ALLOC_BB_STALL);
-  }
-  return(buf);
-}
-
-void gasnetc_free_bounce_buffer(gasnetc_post_descriptor_t *gpd)
-{
-  void *gcb = (void *) gpd->pd.local_addr;
-  GASNETC_DIDX_DECL(didx, gpd->domain_idx);
-  gasneti_lifo_push(DOMAIN_SPECIFIC_PTR(bounce_buffer_pool, didx), gcb);
 }

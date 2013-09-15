@@ -8,7 +8,6 @@
 #include <strings.h>
 #include <unistd.h>
 #include <pmi_cray.h>
-#include <assert.h>
 #include <gni_pub.h>
 #include "gasnet_internal.h"
 #include "gasnet_core_internal.h"
@@ -50,7 +49,6 @@
 #define gasnetc_init_post_descriptor_pool _gasnetc_init_post_descriptor_pool
 #define gasnetc_init_bounce_buffer_pool   _gasnetc_init_bounce_buffer_pool
 #define gasnetc_alloc_post_descriptor _gasnetc_alloc_post_descriptor
-#define gasnetc_alloc_bounce_buffer _gasnetc_alloc_bounce_buffer
 #define gasnetc_poll_local_queue _gasnetc_poll_local_queue
 #define gasnetc_poll _gasnetc_poll
 #else
@@ -65,7 +63,6 @@
 #define gasnetc_init_post_descriptor_pool(didx) _gasnetc_init_post_descriptor_pool()
 #define gasnetc_init_bounce_buffer_pool(didx) _gasnetc_init_bounce_buffer_pool()
 #define gasnetc_alloc_post_descriptor(didx) _gasnetc_alloc_post_descriptor()
-#define gasnetc_alloc_bounce_buffer(didx) _gasnetc_alloc_bounce_buffer()
 #define gasnetc_poll_local_queue(didx) _gasnetc_poll_local_queue()
 #define gasnetc_poll(didx) _gasnetc_poll()
 #endif
@@ -130,7 +127,7 @@ typedef gasneti_mutex_t gasnetc_gni_lock_t;
 #endif
 
 #if GASNETC_USE_MULTI_DOMAIN
-gasnetc_gni_lock_t * gasnetc_gni_lock();
+extern gasnetc_gni_lock_t * gasnetc_gni_lock(void);
 #define gasnetc_gni_lock_addr gasnetc_gni_lock()
 #else
 extern gasnetc_gni_lock_t gasnetc_gni_lock;
@@ -288,10 +285,8 @@ typedef struct gasnetc_post_descriptor {
 } gasnetc_post_descriptor_t;
 
 gasnetc_post_descriptor_t *_gasnetc_alloc_post_descriptor(GASNETC_DIDX_FARG_ALONE) GASNETI_MALLOC;
-void * _gasnetc_alloc_bounce_buffer(GASNETC_DIDX_FARG_ALONE) GASNETI_MALLOC;
 
-void gasnetc_free_post_descriptor(gasnetc_post_descriptor_t *gpd);
-void gasnetc_free_bounce_buffer(gasnetc_post_descriptor_t *gpd);
+void gasnetc_free_post_descriptor(gasnetc_post_descriptor_t *pd);
 
 int gasnetc_try_pin(void *addr, uintptr_t size);
 
@@ -313,6 +308,7 @@ int gasnetc_get_domain_idx(gasnete_threadidx_t tidx);
 void gasnetc_init_segment(void *segment_start, size_t segment_size);
 uintptr_t gasnetc_init_messaging(void);
 void gasnetc_shutdown(void); /* clean up all gni state */
+
 
 void _gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE);
 void _gasnetc_poll(GASNETC_DIDX_FARG_ALONE);

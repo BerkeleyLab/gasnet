@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_extended.c,v $
- *     $Date: 2013/09/15 05:19:45 $
- * $Revision: 1.92.4.11 $
+ *     $Date: 2013/09/15 07:08:29 $
+ * $Revision: 1.92.4.12 $
  * Description: GASNet Extended API over Gemini Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -446,9 +446,9 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 
 GASNETI_INLINE(_gasnete_cntr_gpd)
 gasnetc_post_descriptor_t *
-_gasnete_cntr_gpd(GASNETE_DIDX_ARG gasneti_weakatomic_val_t *initiated_p,
-                 gasneti_weakatomic_t *completed_p)
-{
+_gasnete_cntr_gpd(GASNETE_DIDX_ARG
+                 gasneti_weakatomic_val_t *initiated_p,
+                 gasneti_weakatomic_t *completed_p) {
   gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
   gpd->flags = GC_POST_COMPLETION_CNTR;
   gpd->gpd_completion = (uintptr_t) completed_p;
@@ -605,7 +605,6 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_eop_t *eop = _gasnete_eop_new(mythread);
     GASNETC_DIDX_DECL(didx, mythread->domain_idx);
-
     gasneti_suspend_spinpollers();
     if_pf (GASNETE_GET_IS_UNALIGNED(nbytes, src, dest)) {
       gasnete_get_bulk_unaligned(didx, dest, node, src, nbytes, &eop->initiated_cnt, &eop->completed_cnt);
@@ -613,7 +612,6 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
       gasnete_get_bulk_inner(didx, dest, node, src, nbytes, &eop->initiated_cnt, &eop->completed_cnt);
     }
     gasneti_resume_spinpollers();
-
     return (gasnet_handle_t) eop;
   }
 }
@@ -662,11 +660,9 @@ extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_eop_t *eop = _gasnete_eop_new(mythread);
     GASNETC_DIDX_DECL(didx, mythread->domain_idx);
-
     gasneti_suspend_spinpollers();
     gasnete_put_bulk_inner(didx, node, dest, src, nbytes, &eop->initiated_cnt, &eop->completed_cnt);
     gasneti_resume_spinpollers();
-
     return (gasnet_handle_t) eop;
   }
 }
@@ -788,7 +784,6 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t * const iop = mythread->current_iop;
     GASNETC_DIDX_DECL(didx, mythread->domain_idx);
-
     gasneti_suspend_spinpollers();
     if_pf (GASNETE_GET_IS_UNALIGNED(nbytes, src, dest)) {
       gasnete_get_bulk_unaligned(didx, dest, node, src, nbytes, &iop->initiated_get_cnt, &iop->completed_get_cnt);
@@ -838,7 +833,6 @@ extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, siz
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t * const iop = mythread->current_iop;
     GASNETC_DIDX_DECL(didx, mythread->domain_idx);
-
     gasneti_suspend_spinpollers();
     gasnete_put_bulk_inner(didx, node, dest, src, nbytes, &iop->initiated_put_cnt, &iop->completed_put_cnt);
     gasneti_resume_spinpollers();
