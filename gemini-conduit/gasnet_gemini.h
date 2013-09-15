@@ -249,7 +249,7 @@ void _gasnetc_init_bounce_buffer_pool(GASNETC_DIDX_FARG_ALONE);
 /* largest get that can be handled by gasnetc_rdma_get_unaligned() */
 extern size_t gasnetc_max_get_unaligned;
 
-/* largest put that gasnetc_rdma_put() will locally complete before return */
+/* largest put that gasnetc_rdma_put_lc() will accept */
 extern size_t gasnetc_max_put_lc;
 
 /* send/copy, unbounce/unregister, flag/eop are each mutually exclusive pairs */
@@ -317,7 +317,7 @@ void gasnetc_rdma_put_bulk(gasnet_node_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd);
 
-int gasnetc_rdma_put(gasnet_node_t node,
+void gasnetc_rdma_put_lc(gasnet_node_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd);
 

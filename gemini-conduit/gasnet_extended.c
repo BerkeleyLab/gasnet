@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_extended.c,v $
- *     $Date: 2013/09/15 20:03:51 $
- * $Revision: 1.93 $
+ *     $Date: 2013/09/15 22:12:53 $
+ * $Revision: 1.93.2.1 $
  * Description: GASNet Extended API over Gemini Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -616,12 +616,10 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
   }
 }
 
-/* TODO: could still be improved if we can separate sub-ops based on the lc status */
 extern gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnet_handle_t head_op = GASNET_INVALID_HANDLE;
   gasnete_eop_t *tail_op;
   const size_t max_tail = gasnetc_max_put_lc;
-  GASNETI_UNUSED_UNLESS_DEBUG int lc;
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   GASNETC_DIDX_DECL(didx, mythread->domain_idx);
 
@@ -642,8 +640,7 @@ extern gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src
 
   /* Non-blocking non-bulk put of "tail" portion */
   tail_op = _gasnete_eop_new(mythread);
-  lc = gasnetc_rdma_put(node, dest, src, nbytes, gasnete_cntr_gpd_eop(didx, tail_op));
-  gasneti_assert(lc);
+  gasnetc_rdma_put_lc(node, dest, src, nbytes, gasnete_cntr_gpd_eop(didx, tail_op));
 
   gasneti_resume_spinpollers();
 
@@ -799,7 +796,6 @@ extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, siz
   gasnete_iop_t * const tail_op = mythread->current_iop;
   gasnet_handle_t head_op = GASNET_INVALID_HANDLE;
   const size_t max_tail = gasnetc_max_put_lc;
-  GASNETI_UNUSED_UNLESS_DEBUG int lc;
   GASNETC_DIDX_DECL(didx, mythread->domain_idx);
 
   GASNETI_CHECKPSHM_PUT(ALIGNED,V);
@@ -818,8 +814,7 @@ extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, siz
   }
 
   /* Non-blocking non-bulk put of "tail" portion */
-  lc = gasnetc_rdma_put(node, dest, src, nbytes, gasnete_cntr_gpd_iop(didx, tail_op, put));
-  gasneti_assert(lc);
+  gasnetc_rdma_put_lc(node, dest, src, nbytes, gasnete_cntr_gpd_iop(didx, tail_op, put));
 
   gasneti_resume_spinpollers();
 

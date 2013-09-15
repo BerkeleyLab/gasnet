@@ -1685,11 +1685,11 @@ void gasnetc_rdma_put_bulk(gasnet_node_t node,
   }
 }
 
-/* Perform an rdma/fma Put which favors rapid local completion
- * The return value is boolean, where 1 means locally complete.
+/* Perform an rdma/fma Put for which the caller requires local completion
  * NOTE: be sure to update gasnetc_max_put_lc if the logic here changes
  */
-int gasnetc_rdma_put(gasnet_node_t node,
+void
+gasnetc_rdma_put_lc(gasnet_node_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
@@ -1699,9 +1699,9 @@ int gasnetc_rdma_put(gasnet_node_t node,
   peer_struct_t * const peer = &peer_data[node];
   gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
-  int result = 1; /* assume local completion */
 
   gasneti_assert(!node_is_local(node));
+  gasneti_assert(nbytes <= gasnetc_max_put_lc);
 
   /*  bzero(&pd, sizeof(gni_post_descriptor_t)); */
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT;
@@ -1728,24 +1728,18 @@ int gasnetc_rdma_put(gasnet_node_t node,
     status = myPostFma(peer->ep_handle, gpd);
   } else
 #endif
-  { /* Favor bounce buffers if possible */
+  { /* Use bounce buffers */
   #if !GASNET_CONDUIT_GEMINI /* On Gemini the FMA path above would be selected instead */
     if (nbytes <= GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) {
       void * const buffer = gpd->u.immediate;
       pd->local_addr = (uint64_t) memcpy(buffer, source_addr, nbytes);
     } else
   #endif
-    if (nbytes <= gasnetc_put_bounce_register_cutover) {
+    {
       void * const buffer = gasnetc_alloc_bounce_buffer(didx);
       pd->local_addr = (uint64_t) memcpy(buffer, source_addr, nbytes);
       gpd->flags |= GC_POST_UNBOUNCE;
-    } else {
-      result = 0;
-      if_pf (!gasneti_in_segment(gasneti_mynode, source_addr, nbytes)) {
-        /* source not in segment */
-        gpd->flags |= GC_POST_UNREGISTER;
-        gasnetc_register_gpd(gpd);
-      }
+      gasneti_assert(nbytes <= gasnetc_put_bounce_register_cutover);
     }
  
 #if !GASNET_CONDUIT_GEMINI
@@ -1767,9 +1761,6 @@ int gasnetc_rdma_put(gasnet_node_t node,
     print_post_desc("Put", pd);
     gasnetc_GNIT_Abort("Put failed with %s", gni_return_string(status));
   }
-
-  gasneti_assert((result == 0) || (result == 1)); /* ensures caller can use "&=" or "+=" */
-  return result;
 }
 
 /* FMA Put from a specified buffer */
