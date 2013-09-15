@@ -532,11 +532,6 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
 
   assert (status == GNI_RC_SUCCESS);
 
-#if GASNETC_USE_MULTI_DOMAIN
-  gasnetc_cdom_data[didx].destination_cq_handle = destination_cq_handle;
-  gasnetc_cdom_data[didx].my_mem_handle = my_mem_handle;
-#endif
-  
   {
     gni_mem_handle_t *all_mem_handle = gasneti_malloc(gasneti_nodes * sizeof(gni_mem_handle_t));
     gasnet_node_t i;
@@ -548,6 +543,9 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
   }
 
 #if GASNETC_USE_MULTI_DOMAIN
+  gasnetc_cdom_data[didx].destination_cq_handle = destination_cq_handle;
+  gasnetc_cdom_data[didx].my_mem_handle = my_mem_handle;
+  
  #if(GASNETC_DOMAIN_ALLOC_POLICY == GASNETC_STATIC_DOMAIN_ALLOC)
   {
     int i;
@@ -861,6 +859,7 @@ uintptr_t gasnetc_init_messaging(void)
     gasnetc_post_descriptor_t *gpd = gasneti_calloc(1, sizeof(gasnetc_post_descriptor_t));
     gasneti_lifo_push(&post_descriptor_pool, gpd);
   }
+
 #if GASNETC_USE_MULTI_DOMAIN 
   gasnetc_cdom_data[didx].cdm_handle = cdm_handle;
   gasnetc_cdom_data[didx].nic_handle = nic_handle;
@@ -2055,11 +2054,12 @@ void _gasnetc_init_post_descriptor_pool(void)
 
 #if GASNETC_USE_MULTI_DOMAIN
   /* must first destroy the temporary pool of post descriptors (only first domain) */
-  if_pf(didx == GASNETC_DEFAULT_DOMAIN)
+  if_pf(didx == GASNETC_DEFAULT_DOMAIN) {
     for (i=0; i < gasnetc_log2_remote; ++i) {
       gpd = gasnetc_alloc_post_descriptor(didx);
       gasneti_free(gpd);
     }
+  }
 
   gpd = gasnetc_pd_buffers.addr;
   gpd += count * didx;
@@ -2069,7 +2069,6 @@ void _gasnetc_init_post_descriptor_pool(void)
   for (i = 1; i < count; i += 1) {
     gasneti_lifo_push(&(gasnetc_cdom_data[didx].post_descriptor_pool), gpd + i);
   }
-
 #else
   /* must first destroy the temporary pool of post descriptors */
   for (i=0; i < gasnetc_log2_remote; ++i) {
