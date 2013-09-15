@@ -42,6 +42,8 @@
 
 #define GASNETC_AM_DOMAIN_POLL_MASK_DEFAULT (0x7f)
 
+#define GASNETC_DIDX_DECL(_var, _val) const int _var = (_val)
+
 #define GASNETC_DIDX_FARG_ALONE const int didx
 #define GASNETC_DIDX_FARG       , GASNETC_DIDX_FARG_ALONE
 
@@ -54,6 +56,9 @@
 #else
 /* Multi domain support makes sense only for PAR mode. */
 #define GASNETC_USE_MULTI_DOMAIN 0
+
+#define GASNETC_DIDX_DECL(_var, _val) GASNETI_UNUSED const int _var = 0
+
 #define GASNETC_DIDX_FARG_ALONE  void
 #define GASNETC_DIDX_FARG        /*empty*/
 
