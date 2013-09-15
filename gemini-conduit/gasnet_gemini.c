@@ -94,7 +94,7 @@ static gasneti_weakatomic_t gasnetc_reg_credit;
 #if GASNETC_USE_MULTI_DOMAIN
 static unsigned int gasnetc_domain_count;
 static unsigned int gasnetc_poll_am_domain_mask;
-#if (GNI_DOMAIN_THERAD_DISTRIBUTION == GNI_DOMAIN_THERAD_DISTRIBUTION_BULK)
+#if (GASNETC_DOMAIN_THREAD_DISTRIBUTION == GASNETC_DOMAIN_THREAD_DISTRIBUTION_BULK)
 static int gasnetc_threads_per_domain;
 #endif
 
@@ -118,7 +118,7 @@ typedef struct {
 
 static communication_domain_struct_t * gasnetc_cdom_data;
 
-#if (GNI_DOMAIN_THERAD_DISTRIBUTION == GNI_DOMAIN_THERAD_DISTRIBUTION_BULK)
+#if (GASNETC_DOMAIN_THREAD_DISTRIBUTION == GASNETC_DOMAIN_THREAD_DISTRIBUTION_BULK)
 int gasnetc_get_domain_idx(gasnete_threadidx_t tidx)
 {
   int didx = (tidx / gasnetc_threads_per_domain) % gasnetc_domain_count;
