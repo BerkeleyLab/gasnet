@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_extended.c,v $
- *     $Date: 2013/09/15 22:12:53 $
- * $Revision: 1.93.2.1 $
+ *     $Date: 2013/09/16 02:39:54 $
+ * $Revision: 1.93.2.2 $
  * Description: GASNet Extended API over Gemini Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -467,33 +467,35 @@ _gasnete_get_bulk_inner(GASNETE_DIDX_ARG
                        gasneti_weakatomic_val_t * const initiated_p,
                        gasneti_weakatomic_t * const completed_p)
 {
-  const size_t chunksz = gasneti_in_segment(gasneti_mynode, dest, nbytes) ? GC_MAXRDMA_IN : GC_MAXRDMA_OUT;
+  size_t chunksz = gasneti_in_segment(gasneti_mynode, dest, nbytes) ? GC_MAXRDMA_IN : GC_MAXRDMA_OUT;
 
-  if_pf (nbytes > chunksz) {
-    /* If need more than 2 chunks, then size first one to achieve alignment of subsequent chunks */
-    if (nbytes > 2*chunksz) {
-      const size_t align_to = GASNETI_PAGESIZE; /* Any power-of-two <= chunksz */
-      size_t chunk_len = chunksz - ((uintptr_t)src & (align_to-1));
-      gasneti_assert(chunk_len != 0);
-      gasnetc_rdma_get(node, dest, src, chunk_len, gasnete_cntr_gpd(didx, initiated_p, completed_p));
-      dest = (char *) dest + chunk_len;
-      src  = (char *) src  + chunk_len;
-      nbytes -= chunk_len;
+  if (nbytes > 2*chunksz) {
+    /* If need more than 2 chunks, then size first one to achieve page alignment of remainder */
+    size_t tmp, xfer_len;
+retry:
+    xfer_len = chunksz - ((uintptr_t)src & (GASNETI_PAGESIZE-1));
+    gasneti_assert(xfer_len != 0);
+    gasneti_assert(xfer_len < nbytes);
+    tmp = gasnetc_rdma_get(node, dest, src, xfer_len, gasnete_cntr_gpd(didx, initiated_p, completed_p));
+    dest = (char *) dest + tmp;
+    src  = (char *) src  + tmp;
+    nbytes -= tmp;
+
+    if_pf (tmp != xfer_len) { /* MemRegister failed */
+      gasneti_assert(chunksz == GC_MAXRDMA_OUT); /* out-of-seg and not looping */
+      chunksz = tmp; /* Will avoid more MemRegister failures */
+      goto retry;
     }
-
-    /* 1 or more full chunks */
-    gasneti_assert (nbytes > chunksz);
-    do {
-      gasnetc_rdma_get(node, dest, src, chunksz, gasnete_cntr_gpd(didx, initiated_p, completed_p));
-      dest = (char *) dest + chunksz;
-      src  = (char *) src  + chunksz;
-      nbytes -= chunksz;
-    } while (nbytes > chunksz);
   }
 
-  /* final/only chunk */
-  gasneti_assert(nbytes && (nbytes <= chunksz));
-  gasnetc_rdma_get(node, dest, src, nbytes, gasnete_cntr_gpd(didx, initiated_p, completed_p));
+  gasneti_assert(nbytes);
+  do {
+    const size_t xfer_len = MIN(nbytes, chunksz);
+    chunksz = gasnetc_rdma_get(node, dest, src, xfer_len, gasnete_cntr_gpd(didx, initiated_p, completed_p));
+    dest = (char *) dest + chunksz;
+    src  = (char *) src  + chunksz;
+    nbytes -= chunksz;
+  } while (nbytes);
 }
 
 static void /* XXX: Inlining left to compiler's discretion */
@@ -556,33 +558,35 @@ _gasnete_put_bulk_inner(GASNETE_DIDX_ARG
                        gasneti_weakatomic_val_t * const initiated_p,
                        gasneti_weakatomic_t * const completed_p)
 {
-  const size_t chunksz = gasneti_in_segment(gasneti_mynode, src, nbytes) ? GC_MAXRDMA_IN : GC_MAXRDMA_OUT;
+  size_t chunksz = gasneti_in_segment(gasneti_mynode, src, nbytes) ? GC_MAXRDMA_IN : GC_MAXRDMA_OUT;
 
-  if_pf (nbytes > chunksz) {
-    /* If need more than 2 chunks, then size first one to achieve alignment of subsequent chunks */
-    if (nbytes > 2*chunksz) {
-      const size_t align_to = GASNETI_PAGESIZE; /* Any power-of-two <= chunksz */
-      size_t chunk_len = chunksz - ((uintptr_t)src & (align_to-1));
-      gasneti_assert(chunk_len != 0);
-      gasnetc_rdma_put_bulk(node, dest, src, chunk_len, gasnete_cntr_gpd(didx, initiated_p, completed_p));
-      dest = (char *) dest + chunk_len;
-      src  = (char *) src  + chunk_len;
-      nbytes -= chunk_len;
+  if (nbytes > 2*chunksz) {
+    /* If need more than 2 chunks, then size first one to achieve page alignment of remainder */
+    size_t tmp, xfer_len;
+retry:
+    xfer_len = chunksz - ((uintptr_t)src & (GASNETI_PAGESIZE-1));
+    gasneti_assert(xfer_len != 0);
+    gasneti_assert(xfer_len < nbytes);
+    tmp = gasnetc_rdma_put_bulk(node, dest, src, xfer_len, gasnete_cntr_gpd(didx, initiated_p, completed_p));
+    dest = (char *) dest + tmp;
+    src  = (char *) src  + tmp;
+    nbytes -= tmp;
+
+    if_pf (tmp != xfer_len) { /* MemRegister failed */
+      gasneti_assert(chunksz == GC_MAXRDMA_OUT); /* out-of-seg and not looping */
+      chunksz = tmp; /* Will avoid more MemRegister failures */
+      goto retry;
     }
-
-    /* 1 or more full chunks */
-    gasneti_assert (nbytes > chunksz);
-    do {
-      gasnetc_rdma_put_bulk(node, dest, src, chunksz, gasnete_cntr_gpd(didx, initiated_p, completed_p));
-      dest = (char *) dest + chunksz;
-      src  = (char *) src  + chunksz;
-      nbytes -= chunksz;
-    } while (nbytes > chunksz);
   }
 
-  /* final/only chunk */
-  gasneti_assert(nbytes && (nbytes <= chunksz));
-  gasnetc_rdma_put_bulk(node, dest, src, nbytes, gasnete_cntr_gpd(didx, initiated_p, completed_p));
+  gasneti_assert(nbytes);
+  do {
+    const size_t xfer_len = MIN(nbytes, chunksz);
+    chunksz = gasnetc_rdma_put_bulk(node, dest, src, xfer_len, gasnete_cntr_gpd(didx, initiated_p, completed_p));
+    dest = (char *) dest + chunksz;
+    src  = (char *) src  + chunksz;
+    nbytes -= chunksz;
+  } while (nbytes);
 }
 
 /* ------------------------------------------------------------------------------------ */
