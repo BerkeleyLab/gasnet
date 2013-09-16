@@ -1534,8 +1534,6 @@ void gasnetc_poll(GASNETC_DIDX_FARG_ALONE)
       /* Every now and then poll the smsg queeue */
       if_pf((poll_idx & gasnetc_poll_am_domain_mask) == 0) {
          gasnetc_poll_smsg_queue();
-         /*We need this for GC_POST_SEND, which is also used for messaging: */
-         gasnetc_poll_local_queue(GASNETC_DEFAULT_DOMAIN);
       }
     }
     gasnetc_poll_local_queue(didx);
