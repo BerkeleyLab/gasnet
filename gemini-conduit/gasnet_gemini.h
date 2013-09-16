@@ -313,9 +313,9 @@ void gasnetc_shutdown(void); /* clean up all gni state */
 void _gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE);
 void _gasnetc_poll(GASNETC_DIDX_FARG_ALONE);
 
-void gasnetc_rdma_put_bulk(gasnet_node_t node,
+size_t gasnetc_rdma_put_bulk(gasnet_node_t node,
 		 void *dest_addr, void *source_addr,
-		 size_t nbytes, gasnetc_post_descriptor_t *gpd);
+		 size_t nbytes, gasnetc_post_descriptor_t *gpd) GASNETI_WARN_UNUSED_RESULT;
 
 void gasnetc_rdma_put_lc(gasnet_node_t node,
 		 void *dest_addr, void *source_addr,
@@ -325,9 +325,9 @@ void gasnetc_rdma_put_buff(gasnet_node_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd);
 
-void gasnetc_rdma_get(gasnet_node_t node,
+size_t gasnetc_rdma_get(gasnet_node_t node,
 		 void *dest_addr, void *source_addr,
-		 size_t nbytes, gasnetc_post_descriptor_t *gpd);
+		 size_t nbytes, gasnetc_post_descriptor_t *gpd) GASNETI_WARN_UNUSED_RESULT;
 
 void gasnetc_rdma_get_unaligned(gasnet_node_t node,
 		 void *dest_addr, void *source_addr,

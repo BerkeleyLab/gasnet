@@ -304,7 +304,8 @@ static gasneti_weakatomic_val_t gasnetc_reg_credit_max;
 #define gasnetc_init_reg_credit(_val) \
 	gasneti_weakatomic_set(&gasnetc_reg_credit,gasnetc_reg_credit_max=(_val),0)
 
-/* Register local side of a pd, with unbounded retry on ERR_RESOURCE */
+/* Register local side of a pd, with unbounded retry on ERR_RESOURCE.
+   Returns 1 on success, or 0 on ERR_INVAL_PARAM */
 static int gasnetc_register_gpd(gasnetc_post_descriptor_t *gpd)
 {
   GASNETC_DIDX_DECL(didx, gpd->domain_idx);
@@ -1641,8 +1642,11 @@ static gni_return_t myPostFma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd
   return status;
 }
 
-/* Perform an rdma/fma Put with no concern for local completion */
-void gasnetc_rdma_put_bulk(gasnet_node_t node,
+/* Perform an rdma/fma Put with no concern for local completion.
+ * Returns length of the request issued to GNI, which may be less
+ * than nbytes (for instance due to a failed call to MemRegister).
+ */
+size_t gasnetc_rdma_put_bulk(gasnet_node_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
@@ -1683,14 +1687,16 @@ void gasnetc_rdma_put_bulk(gasnet_node_t node,
        *     (put_fma_rdma_cutover < IMMEDIATE_BOUNCE_SIZE),
        * which is not the default (nor recommended).
        */
-      if (nbytes <= gasnetc_put_bounce_register_cutover) {
+      if ((nbytes <= gasnetc_put_bounce_register_cutover) ||
+          /* Also use bounce buffer (setting nbytes to max size) if MemRegister fails: */
+          (!gasnetc_register_gpd(gpd) &&
+           ((nbytes = gasnetc_put_bounce_register_cutover),1))) {
         void * const buffer = gasnetc_alloc_bounce_buffer(didx);
         pd->local_addr = (uint64_t) memcpy(buffer, source_addr, nbytes);
         gpd->flags |= GC_POST_UNBOUNCE;
-      } else if (gasnetc_register_gpd(gpd)) {
-        gpd->flags |= GC_POST_UNREGISTER;
+        pd->length = nbytes; /* was reduced if MemReg failed */
       } else {
-        gasneti_fatalerror("Unhandled MemRegister failure for Put");
+        gpd->flags |= GC_POST_UNREGISTER;
       }
     }
     pd->type = GNI_POST_RDMA_PUT;
@@ -1701,6 +1707,8 @@ void gasnetc_rdma_put_bulk(gasnet_node_t node,
     print_post_desc("Put", pd);
     gasnetc_GNIT_Abort("Put failed with %s", gni_return_string(status));
   }
+
+  return nbytes;
 }
 
 /* Perform an rdma/fma Put for which the caller requires local completion
@@ -1840,8 +1848,11 @@ void gasnetc_post_get(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd)
   }
 }
 
-/* for get, source_addr is remote */
-void gasnetc_rdma_get(gasnet_node_t node,
+/* Perform an rdma/fma Get.
+ * Returns length of the request issued to GNI, which may be less
+ * than nbytes (for instance due to a failed call to MemRegister).
+ */
+size_t gasnetc_rdma_get(gasnet_node_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
@@ -1877,18 +1888,22 @@ void gasnetc_rdma_get(gasnet_node_t node,
       gpd->flags |= GC_POST_COPY;
       gpd->gpd_get_src = pd->local_addr = (uint64_t) gpd->u.immediate;
       gpd->gpd_get_dst = (uint64_t) dest_addr;
-    } else if (nbytes <= gasnetc_get_bounce_register_cutover) {
+    } else if ((nbytes <= gasnetc_get_bounce_register_cutover) ||
+               /* Also use bounce buffer (setting nbytes to max size) if MemRegister fails: */
+               (!gasnetc_register_gpd(gpd) &&
+                ((nbytes = gasnetc_get_bounce_register_cutover),1))) {
       gpd->flags |= GC_POST_UNBOUNCE | GC_POST_COPY;
       gpd->gpd_get_src = pd->local_addr = (uint64_t) gasnetc_alloc_bounce_buffer(didx);
       gpd->gpd_get_dst = (uint64_t) dest_addr;
-    } else if (gasnetc_register_gpd(gpd)) {
-      gpd->flags |= GC_POST_UNREGISTER;
+      pd->length = nbytes; /* was reduced if MemReg failed */
     } else {
-      gasneti_fatalerror("Unhandled MemRegister failure for Get");
+      gpd->flags |= GC_POST_UNREGISTER;
     }
   }
 
   gasnetc_post_get(peer->ep_handle, gpd);
+
+  return nbytes;
 }
 
 /* for get in which one or more of dest_addr, source_addr or nbytes is NOT divisible by 4
