@@ -1,6 +1,6 @@
 GASNet gemini-conduit and aries-conduit documentation
 Larry Stewart <stewart@serissa.com> 
-$Revision: 1.30 $
+$Revision: 1.30.2.1 $
 
 User Information:
 -----------------
@@ -57,6 +57,8 @@ GASNET_GNI_PUT_BOUNCE_REGISTER_CUTOVER  - default 8192, max 32768
   either bounce buffers or dynamic registration.  Such transfers up
   to and including these sizes will be conducted using bounce buffers.
   Beyond these sizes, temporary memory registration is used.
+  The minimum allowed is GASNET_PAGESIZE (normally 4K) and lower values
+  will be silently ignored.
   
 GASNET_GNI_BOUNCE_SIZE      - default 256K, space for bounce buffers
   There is a pool of bounce buffers, each of a fixed size determined by the

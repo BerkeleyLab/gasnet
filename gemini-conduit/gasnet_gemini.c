@@ -437,6 +437,10 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
 #endif
   size_t bb_size = gasnetc_bounce_buffers.size / gasnetc_domain_count;
 
+  if (bb_size < GASNET_PAGESIZE) {
+    gasneti_fatalerror("GASNET_GNI_BOUNCE_SIZE must be %d or larger", (int)GASNET_PAGESIZE);
+  }
+
   /* Protocol switch points: FMA vs. RDMA */
   gasnetc_get_fma_rdma_cutover = 
     gasneti_getenv_int_withdefault("GASNET_GNI_GET_FMA_RDMA_CUTOVER",
@@ -454,18 +458,24 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
   gasnetc_get_bounce_register_cutover = 
     gasneti_getenv_int_withdefault("GASNET_GNI_GET_BOUNCE_REGISTER_CUTOVER",
 				   GASNETC_GNI_GET_BOUNCE_REGISTER_CUTOVER_DEFAULT,1);
+  gasnetc_get_bounce_register_cutover = MAX(gasnetc_get_bounce_register_cutover,
+                                            GASNET_PAGESIZE);
   gasnetc_get_bounce_register_cutover = MIN(gasnetc_get_bounce_register_cutover,
                                             GASNETC_GNI_BOUNCE_REGISTER_CUTOVER_MAX);
   gasnetc_get_bounce_register_cutover = MIN(gasnetc_get_bounce_register_cutover,
                                             bb_size);
+  gasneti_assert(gasnetc_get_bounce_register_cutover >= GASNET_PAGESIZE);
 
   gasnetc_put_bounce_register_cutover = 
     gasneti_getenv_int_withdefault("GASNET_GNI_PUT_BOUNCE_REGISTER_CUTOVER",
 				   GASNETC_GNI_PUT_BOUNCE_REGISTER_CUTOVER_DEFAULT,1);
+  gasnetc_put_bounce_register_cutover = MAX(gasnetc_put_bounce_register_cutover,
+                                            GASNET_PAGESIZE);
   gasnetc_put_bounce_register_cutover = MIN(gasnetc_put_bounce_register_cutover,
                                             GASNETC_GNI_BOUNCE_REGISTER_CUTOVER_MAX);
   gasnetc_put_bounce_register_cutover = MIN(gasnetc_put_bounce_register_cutover,
                                             bb_size);
+  gasneti_assert(gasnetc_put_bounce_register_cutover >= GASNET_PAGESIZE);
 
   /* Derived limits used in extended API implementation: */
   gasnetc_max_get_unaligned = MAX(GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE,
