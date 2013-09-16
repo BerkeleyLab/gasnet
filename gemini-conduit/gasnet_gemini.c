@@ -1517,7 +1517,13 @@ void _gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE))
         /* NOTE: if (flags & GC_POST_KEEP_GPD) then caller might free gpd now */
       } else if(flags & GC_POST_COMPLETION_CNTR) {
         gasneti_weakatomic_increment((gasneti_weakatomic_t *) gpd->gpd_completion, 0);
-      }
+      } else if (flags & GC_POST_COMPLETION_SEND) {
+        gasnetc_post_descriptor_t *next = (gasnetc_post_descriptor_t *) gpd->gpd_completion;
+        if (gasneti_weakatomic_decrement_and_test(&next->u.counter, 0)) {
+          int rc = gasnetc_send_am(next);
+          gasneti_assert_always (rc == GASNET_OK);
+        }
+      } 
 
       /* release resources */
       if (flags & GC_POST_UNREGISTER) {
@@ -1526,11 +1532,6 @@ void _gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE))
         gasnetc_free_bounce_buffer(gpd);
       }
 
-      if (flags & GC_POST_SEND) {
-        int rc;
-        rc = gasnetc_send_am((gasnetc_post_descriptor_t *)gpd->gpd_am_next);
-        gasneti_assert_always (rc == GASNET_OK);
-      } 
       if (!(flags & GC_POST_KEEP_GPD)) {
         gasnetc_free_post_descriptor(gpd);
       }
@@ -1556,7 +1557,7 @@ void gasnetc_poll(GASNETC_DIDX_FARG_ALONE)
       /* Every now and then poll the smsg queeue */
       if_pf((poll_idx & gasnetc_poll_am_domain_mask) == 0) {
          gasnetc_poll_smsg_queue();
-         /*We need this for GC_POST_SEND, which is also used for messaging: */
+         /*We need this for GC_POST_COMPLETION_SEND, which is also used for messaging: */
          gasnetc_poll_local_queue(GASNETC_DEFAULT_DOMAIN);
       }
     }

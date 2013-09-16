@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/09/16 06:01:16 $
- * $Revision: 1.90.2.2 $
+ *     $Date: 2013/09/16 06:49:12 $
+ * $Revision: 1.90.2.3 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1280,6 +1280,40 @@ int gasnetc_put_long_payload( gasnet_node_t dest,
   return initiated;
 }
 
+GASNETI_INLINE(gasnetc_put_longasync_payload)
+int gasnetc_put_longasync_payload( gasnet_node_t dest,
+                                   void *dst_addr,
+                                   void *src_addr,
+                                   size_t nbytes,
+                                   gasnetc_post_descriptor_t *header_gpd
+                                   GASNETC_DIDX_FARG)
+{
+  int retval = GASNET_OK;
+  size_t chunk = nbytes;
+  gasneti_weakatomic_t * const counter = &header_gpd->u.counter;
+  
+  gasneti_weakatomic_set(counter, 2, 0);
+
+  gasneti_suspend_spinpollers();
+  for (;;) {
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
+    gpd->gpd_completion = (uintptr_t) header_gpd;
+    gpd->flags = GC_POST_COMPLETION_SEND;
+    chunk = gasnetc_rdma_put_bulk(dest, dst_addr, src_addr, chunk, gpd);
+    if_pt (0 == (nbytes -= chunk)) break; /* expect to finish in one pass */
+
+    dst_addr = (char *)dst_addr + chunk;
+    src_addr = (char *)src_addr + chunk;
+    gasneti_weakatomic_increment(counter, 0);
+  }
+  if (gasneti_weakatomic_decrement_and_test(counter, 0)) {
+    retval = gasnetc_send_am(header_gpd);
+  }
+  gasneti_resume_spinpollers();
+  
+  return retval;
+}
+
 /*------------------- external requests ------------------ */
 extern int gasnetc_AMRequestShortM( 
                             gasnet_node_t dest,       /* destination node */
@@ -1430,14 +1464,9 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
       memcpy((void*)(gpd->gpd_am_packet + head_len), source_addr, nbytes);
       retval = gasnetc_general_am_send(gpd);
     } else {
-      gasnetc_post_descriptor_t *gpdl = gasnetc_alloc_post_descriptor(GASNETC_DEFAULT_DOMAIN);
-      gpdl->gpd_am_next = (uint64_t)gpd;
       /* Rdma data, then send header as part of completion*/
-      gpdl->flags |= GC_POST_SEND;
-      gasneti_suspend_spinpollers();
-      gasnetc_rdma_put_bulk(dest, dest_addr, source_addr, nbytes, gpdl);
-      gasneti_resume_spinpollers();
-      retval = GASNET_OK;
+      GASNETC_DIDX_DECL(didx, GASNETC_DEFAULT_DOMAIN);
+      retval = gasnetc_put_longasync_payload(dest, dest_addr, source_addr, nbytes, gpd GASNETC_DIDX_PASS);
     }
   }
   va_end(argptr);

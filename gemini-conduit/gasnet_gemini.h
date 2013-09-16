@@ -259,7 +259,7 @@ extern size_t gasnetc_max_put_lc;
 /* send/copy, unbounce/unregister, flag/eop are each mutually exclusive pairs */
 #define GC_POST_COPY_TRIM 7 /* up to 6 bytes of overfetch to achive 4-byte aligned Gets */
 #define GC_POST_COPY 8
-#define GC_POST_SEND 16
+#define GC_POST_COMPLETION_SEND 16
 #define GC_POST_UNBOUNCE 32
 #define GC_POST_UNREGISTER 64
 #define GC_POST_COMPLETION_FLAG 128
@@ -276,10 +276,9 @@ typedef struct gasnetc_post_descriptor {
   #define gpd_am_header  pd.sync_flag_value
   #define gpd_am_packet  pd.local_addr
   #define gpd_am_peer    pd.first_operand
-  #define gpd_am_next    pd.second_operand
   union {
     uint8_t immediate[GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE];
-    gasnetc_packet_t packet;
+    gasneti_weakatomic_t counter;
     gasnetc_notify_t notify;
   } u;
   uint32_t flags;
