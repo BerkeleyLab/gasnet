@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_extended.c,v $
- *     $Date: 2013/09/16 02:39:54 $
- * $Revision: 1.93.2.2 $
+ *     $Date: 2013/09/16 21:45:19 $
+ * $Revision: 1.93.2.3 $
  * Description: GASNet Extended API over Gemini Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -449,7 +449,7 @@ gasnetc_post_descriptor_t *
 _gasnete_cntr_gpd(GASNETE_DIDX_ARG
                  gasneti_weakatomic_val_t *initiated_p,
                  gasneti_weakatomic_t *completed_p) {
-  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
+  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
   gpd->flags = GC_POST_COMPLETION_CNTR;
   gpd->gpd_completion = (uintptr_t) completed_p;
   (*initiated_p) += 1;
@@ -938,7 +938,7 @@ extern void gasnete_put_val(gasnet_node_t node, void *dest, gasnet_register_valu
     gasnetc_post_descriptor_t *gpd;
     volatile int done = 0;
     gasneti_suspend_spinpollers();
-    gpd = gasnetc_alloc_post_descriptor(didx);
+    gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
     gpd->gpd_completion = (uintptr_t) &done;
     gpd->flags = GC_POST_COMPLETION_FLAG;
     gasnete_val_assign(gpd->u.immediate, value);
@@ -1006,7 +1006,7 @@ extern gasnet_register_value_t gasnete_get_val(gasnet_node_t node, void *src, si
     volatile int done = 0;
     uint8_t *buffer;
     gasneti_suspend_spinpollers();
-    gpd = gasnetc_alloc_post_descriptor(didx);
+    gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
     gpd->gpd_completion = (uintptr_t) &done;
     gpd->flags = GC_POST_COMPLETION_FLAG | GC_POST_KEEP_GPD;
     buffer = gpd->u.immediate;
@@ -1066,7 +1066,7 @@ extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, 
     GASNETC_DIDX_DECL(didx, mythread->domain_idx);
     gasnetc_post_descriptor_t *gpd;
     gasneti_suspend_spinpollers();
-    gpd = gasnetc_alloc_post_descriptor(didx);
+    gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
     gpd->gpd_completion = (uintptr_t) &retval->done;
     retval->done = 0;
     gpd->flags = GC_POST_COMPLETION_FLAG;
@@ -1233,7 +1233,7 @@ void gasnete_gdbarrier_send(gasnete_coll_gdbarrier_t *barrier_data,
     const gasnet_node_t node = barrier_data->barrier_peers[step].node;
     uint64_t * const dst = GASNETE_GDBARRIER_INBOX_REMOTE(barrier_data, step, slot);
     GASNETC_DIDX_DECL(didx, (gasnete_mythread())->domain_idx);
-    gasnetc_post_descriptor_t * const gpd = gasnetc_alloc_post_descriptor(didx);
+    gasnetc_post_descriptor_t * const gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
     uint64_t * const src = (uint64_t *)GASNETE_STARTOFBITS(gpd->u.immediate, sizeof(uint64_t));
 
     gpd->flags = 0; /* fire and forget */

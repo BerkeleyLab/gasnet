@@ -47,9 +47,6 @@
 #define GASNETC_DIDX_FARG       , GASNETC_DIDX_FARG_ALONE
 #define GASNETC_DIDX_PASS_ALONE didx
 #define GASNETC_DIDX_PASS       , GASNETC_DIDX_PASS_ALONE
-
-#define gasnetc_alloc_post_descriptor _gasnetc_alloc_post_descriptor
-#define gasnetc_poll_local_queue _gasnetc_poll_local_queue
 #else
 /* Multi domain support makes sense only for PAR mode. */
 #define GASNETC_USE_MULTI_DOMAIN 0
@@ -60,9 +57,6 @@
 #define GASNETC_DIDX_FARG        /*empty*/
 #define GASNETC_DIDX_PASS_ALONE  /*empty*/
 #define GASNETC_DIDX_PASS        /*empty*/
-
-#define gasnetc_alloc_post_descriptor(didx) _gasnetc_alloc_post_descriptor()
-#define gasnetc_poll_local_queue(didx) _gasnetc_poll_local_queue()
 #endif
 
 /* debug support */
@@ -281,7 +275,7 @@ typedef struct gasnetc_post_descriptor {
 #endif
 } gasnetc_post_descriptor_t;
 
-gasnetc_post_descriptor_t *_gasnetc_alloc_post_descriptor(GASNETC_DIDX_FARG_ALONE) GASNETI_MALLOC;
+gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(GASNETC_DIDX_FARG_ALONE) GASNETI_MALLOC;
 
 void gasnetc_free_post_descriptor(gasnetc_post_descriptor_t *pd);
 
@@ -307,7 +301,7 @@ uintptr_t gasnetc_init_messaging(void);
 void gasnetc_shutdown(void); /* clean up all gni state */
 
 
-void _gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE);
+void gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE);
 void gasnetc_poll(GASNETC_DIDX_FARG_ALONE);
 
 size_t gasnetc_rdma_put_bulk(gasnet_node_t node,

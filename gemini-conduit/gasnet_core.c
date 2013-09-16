@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/09/16 21:16:58 $
- * $Revision: 1.90.2.5 $
+ *     $Date: 2013/09/16 21:45:19 $
+ * $Revision: 1.90.2.6 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1249,10 +1249,10 @@ void gasnetc_wait_long_payload( const int initiated,
                                 gasneti_weakatomic_t *completed_p
                                 GASNETC_DIDX_FARG)
 {
-  gasnetc_poll_local_queue(didx);
+  gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
   while(initiated != gasneti_weakatomic_read(completed_p, 0)) {
     GASNETI_WAITHOOK();
-    gasnetc_poll_local_queue(didx);
+    gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
   }
 }
 
@@ -1269,7 +1269,7 @@ int gasnetc_put_long_payload( gasnet_node_t dest,
   
   gasneti_suspend_spinpollers();
   for (;;) {
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
     gpd->gpd_completion = (uintptr_t) completed_p;
     gpd->flags = GC_POST_COMPLETION_CNTR;
     chunk = gasnetc_rdma_put_bulk(dest, dst_addr, src_addr, chunk, gpd);
@@ -1299,7 +1299,7 @@ int gasnetc_put_longasync_payload( gasnet_node_t dest,
 
   gasneti_suspend_spinpollers();
   for (;;) {
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
     gpd->gpd_completion = (uintptr_t) header_gpd;
     gpd->flags = GC_POST_COMPLETION_SEND;
     chunk = gasnetc_rdma_put_bulk(dest, dst_addr, src_addr, chunk, gpd);
