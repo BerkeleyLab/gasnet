@@ -45,6 +45,8 @@
 
 #define GASNETC_DIDX_FARG_ALONE const int didx
 #define GASNETC_DIDX_FARG       , GASNETC_DIDX_FARG_ALONE
+#define GASNETC_DIDX_PASS_ALONE didx
+#define GASNETC_DIDX_PASS       , GASNETC_DIDX_PASS_ALONE
 
 #define gasnetc_init_post_descriptor_pool _gasnetc_init_post_descriptor_pool
 #define gasnetc_init_bounce_buffer_pool   _gasnetc_init_bounce_buffer_pool
@@ -59,6 +61,8 @@
 
 #define GASNETC_DIDX_FARG_ALONE  void
 #define GASNETC_DIDX_FARG        /*empty*/
+#define GASNETC_DIDX_PASS_ALONE  /*empty*/
+#define GASNETC_DIDX_PASS        /*empty*/
 
 #define gasnetc_init_post_descriptor_pool(didx) _gasnetc_init_post_descriptor_pool()
 #define gasnetc_init_bounce_buffer_pool(didx) _gasnetc_init_bounce_buffer_pool()
