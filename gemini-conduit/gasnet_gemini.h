@@ -48,11 +48,8 @@
 #define GASNETC_DIDX_PASS_ALONE didx
 #define GASNETC_DIDX_PASS       , GASNETC_DIDX_PASS_ALONE
 
-#define gasnetc_init_post_descriptor_pool _gasnetc_init_post_descriptor_pool
-#define gasnetc_init_bounce_buffer_pool   _gasnetc_init_bounce_buffer_pool
 #define gasnetc_alloc_post_descriptor _gasnetc_alloc_post_descriptor
 #define gasnetc_poll_local_queue _gasnetc_poll_local_queue
-#define gasnetc_poll _gasnetc_poll
 #else
 /* Multi domain support makes sense only for PAR mode. */
 #define GASNETC_USE_MULTI_DOMAIN 0
@@ -64,11 +61,8 @@
 #define GASNETC_DIDX_PASS_ALONE  /*empty*/
 #define GASNETC_DIDX_PASS        /*empty*/
 
-#define gasnetc_init_post_descriptor_pool(didx) _gasnetc_init_post_descriptor_pool()
-#define gasnetc_init_bounce_buffer_pool(didx) _gasnetc_init_bounce_buffer_pool()
 #define gasnetc_alloc_post_descriptor(didx) _gasnetc_alloc_post_descriptor()
 #define gasnetc_poll_local_queue(didx) _gasnetc_poll_local_queue()
-#define gasnetc_poll(didx) _gasnetc_poll()
 #endif
 
 /* debug support */
@@ -228,8 +222,8 @@ typedef union gasnetc_packet_u {
         (GASNETC_MSG_MAXSIZE - GASNETC_HEADLEN(long, (nargs)))
 #endif
 
-void _gasnetc_init_post_descriptor_pool(GASNETC_DIDX_FARG_ALONE);
-void _gasnetc_init_bounce_buffer_pool(GASNETC_DIDX_FARG_ALONE);
+void gasnetc_init_post_descriptor_pool(GASNETC_DIDX_FARG_ALONE);
+void gasnetc_init_bounce_buffer_pool(GASNETC_DIDX_FARG_ALONE);
 
 /* use the auxseg mechanism to allocate registered memory for bounce buffers */
 /* we want this many post descriptors */
@@ -314,7 +308,7 @@ void gasnetc_shutdown(void); /* clean up all gni state */
 
 
 void _gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE);
-void _gasnetc_poll(GASNETC_DIDX_FARG_ALONE);
+void gasnetc_poll(GASNETC_DIDX_FARG_ALONE);
 
 size_t gasnetc_rdma_put_bulk(gasnet_node_t node,
 		 void *dest_addr, void *source_addr,

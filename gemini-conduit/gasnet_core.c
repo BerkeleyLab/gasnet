@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/09/16 06:49:12 $
- * $Revision: 1.90.2.3 $
+ *     $Date: 2013/09/16 21:03:06 $
+ * $Revision: 1.90.2.4 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -183,7 +183,8 @@ void gasnetc_bootstrapBarrier(void))
 
       /* wait for completion of the proper receive, which might arrive out of order */
       while (!(gasnetc_sys_barrier_rcvd[phase] & mask)) {
-         gasnetc_poll(GASNETC_DEFAULT_DOMAIN);  /* No PSHM progress required here */
+         GASNETC_DIDX_DECL(didx, GASNETC_DEFAULT_DOMAIN);
+         gasnetc_poll(GASNETC_DIDX_PASS_ALONE);  /* No PSHM progress required here */
       }
     }
 
@@ -737,6 +738,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
 /* ------------------------------------------------------------------------------------ */
 extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
                           uintptr_t segsize, uintptr_t minheapoffset) {
+  GASNETC_DIDX_DECL(didx, GASNETC_DEFAULT_DOMAIN);
   void *segbase = NULL;
   
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%lu, minheapoffset=%lu)",
@@ -878,8 +880,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   /* After these, puts, and gets should work */
   gasnetc_init_segment(segbase, segsize);
-  gasnetc_init_post_descriptor_pool(GASNETC_DEFAULT_DOMAIN);
-  gasnetc_init_bounce_buffer_pool(GASNETC_DEFAULT_DOMAIN);
+  gasnetc_init_post_descriptor_pool(GASNETC_DIDX_PASS_ALONE);
+  gasnetc_init_bounce_buffer_pool(GASNETC_DIDX_PASS_ALONE);
 
   gasnete_init(); /* init the extended API */
 
@@ -1087,6 +1089,7 @@ extern int gasnetc_AMPoll_core(GASNETC_AM_POLL_FARG)
 extern int gasnetc_AMPoll(void)
 #endif
 {
+  GASNETC_DIDX_DECL(didx, GASNETE_MYTHREAD->domain_idx);
   GASNETI_CHECKATTACH();
 
 #if GASNET_PSHM
@@ -1095,7 +1098,7 @@ extern int gasnetc_AMPoll(void)
 #endif
 
   /* (###) add code here to run your AM progress engine */
-  gasnetc_poll(GASNETE_MYTHREAD->domain_idx);
+  gasnetc_poll(GASNETC_DIDX_PASS_ALONE);
 
   return GASNET_OK;
 }
