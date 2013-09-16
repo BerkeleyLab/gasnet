@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/09/16 21:45:19 $
- * $Revision: 1.90.2.6 $
+ *     $Date: 2013/09/16 23:45:47 $
+ * $Revision: 1.90.2.7 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -183,7 +183,7 @@ void gasnetc_bootstrapBarrier(void))
 
       /* wait for completion of the proper receive, which might arrive out of order */
       while (!(gasnetc_sys_barrier_rcvd[phase] & mask)) {
-         GASNETC_DIDX_DECL(didx, GASNETC_DEFAULT_DOMAIN);
+         GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
          gasnetc_poll(GASNETC_DIDX_PASS_ALONE);  /* No PSHM progress required here */
       }
     }
@@ -738,7 +738,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
 /* ------------------------------------------------------------------------------------ */
 extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
                           uintptr_t segsize, uintptr_t minheapoffset) {
-  GASNETC_DIDX_DECL(didx, GASNETC_DEFAULT_DOMAIN);
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   void *segbase = NULL;
   
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%lu, minheapoffset=%lu)",
@@ -1089,7 +1089,7 @@ extern int gasnetc_AMPoll_core(GASNETC_AM_POLL_FARG)
 extern int gasnetc_AMPoll(void)
 #endif
 {
-  GASNETC_DIDX_DECL(didx, GASNETE_MYTHREAD->domain_idx);
+  GASNETC_DIDX_POST(GASNETE_MYTHREAD->domain_idx);
   GASNETI_CHECKATTACH();
 
 #if GASNET_PSHM
@@ -1404,7 +1404,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   } else
 #endif
   {
-    GASNETC_DIDX_DECL(didx, (gasnete_mythread())->domain_idx);
+    GASNETC_DIDX_POST((gasnete_mythread())->domain_idx);
     int initiated = 0;
     gasneti_weakatomic_t completed = gasneti_weakatomic_init(0);
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
@@ -1468,7 +1468,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
       retval = gasnetc_general_am_send(gpd);
     } else {
       /* Rdma data, then send header as part of completion*/
-      GASNETC_DIDX_DECL(didx, (gasnete_mythread())->domain_idx);
+      GASNETC_DIDX_POST((gasnete_mythread())->domain_idx);
       retval = gasnetc_put_longasync_payload(dest, dest_addr, source_addr, nbytes, gpd GASNETC_DIDX_PASS);
     }
   }
@@ -1571,7 +1571,7 @@ extern int gasnetc_AMReplyLongM(
   } else
 #endif
   {
-    GASNETC_DIDX_DECL(didx, (gasnete_mythread())->domain_idx);
+    GASNETC_DIDX_POST((gasnete_mythread())->domain_idx);
     int initiated = 0;
     gasneti_weakatomic_t completed = gasneti_weakatomic_init(0);
     const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));

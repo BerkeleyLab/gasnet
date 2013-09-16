@@ -282,16 +282,32 @@ int gasnetc_try_pin(void *addr, uintptr_t size)
 }
 #endif
 
-/*------ Macros to keep code more readable ------*/
+/*------ Macros to acheive readable access to domain-specific variables ------*/
 
 #if GASNETC_USE_MULTI_DOMAIN
-#  define DOMAIN_SPECIFIC_VAL(_var, _didx)         (gasnetc_cdom_data[(_didx)]._var)
-#  define DOMAIN_SPECIFIC_PTR(_var, _didx)         (&gasnetc_cdom_data[(_didx)]._var)
-#  define DOMAIN_SPECIFIC_VAR(_type, _var, _didx)  _type _var = gasnetc_cdom_data[(_didx)]._var
+#  define DOMAIN_SPECIFIC_VAL(_var)         (gasnetc_cdom_data[_domain_idx]._var)
+#  define DOMAIN_SPECIFIC_VAR(_type, _var)  _type _var = DOMAIN_SPECIFIC_VAL(_var)
 #else
-#  define DOMAIN_SPECIFIC_VAL(_var, _didx)        (_var)
-#  define DOMAIN_SPECIFIC_PTR(_var, _didx)        (&_var)
-#  define DOMAIN_SPECIFIC_VAR(_type, _var, _didx) GASNETI_UNUSED char _dummy##_var = 0
+#  define DOMAIN_SPECIFIC_VAL(_var)         (_var)
+#  define DOMAIN_SPECIFIC_VAR(_type, _var)  GASNETI_UNUSED char _dummy##_var = 0
+#endif
+
+/*------ Macros for lock operations */
+
+#if GASNETC_USE_SPINLOCK
+  #define GASNETC_INITLOCK_GNI() gasneti_spinlock_init(&DOMAIN_SPECIFIC_VAL(gasnetc_gni_lock))
+  #define GASNETC_LOCK_GNI()     gasneti_spinlock_lock(&DOMAIN_SPECIFIC_VAL(gasnetc_gni_lock))
+  #define GASNETC_UNLOCK_GNI()   gasneti_spinlock_unlock(&DOMAIN_SPECIFIC_VAL(gasnetc_gni_lock))
+  #define GASNETC_INITLOCK_AM_BUFFER() gasneti_spinlock_init(&gasnetc_am_buffer_lock)
+  #define GASNETC_LOCK_AM_BUFFER()     gasneti_spinlock_lock(&gasnetc_am_buffer_lock)
+  #define GASNETC_UNLOCK_AM_BUFFER()   gasneti_spinlock_unlock(&gasnetc_am_buffer_lock)
+#else
+  #define GASNETC_INITLOCK_GNI() gasneti_mutex_init(&DOMAIN_SPECIFIC_VAL(gasnetc_gni_lock))
+  #define GASNETC_LOCK_GNI()     gasneti_mutex_lock(&DOMAIN_SPECIFIC_VAL(gasnetc_gni_lock))
+  #define GASNETC_UNLOCK_GNI()   gasneti_mutex_unlock(&DOMAIN_SPECIFIC_VAL(gasnetc_gni_lock))
+  #define GASNETC_INITLOCK_AM_BUFFER() gasneti_mutex_init(&gasnetc_am_buffer_lock)
+  #define GASNETC_LOCK_AM_BUFFER()     gasneti_mutex_lock(&gasnetc_am_buffer_lock)
+  #define GASNETC_UNLOCK_AM_BUFFER()   gasneti_mutex_unlock(&gasnetc_am_buffer_lock)
 #endif
 
 /*------ Functions for dynamic memory registration ------*/
@@ -304,8 +320,8 @@ static gasneti_weakatomic_val_t gasnetc_reg_credit_max;
    Returns 1 on success, or 0 on ERR_INVAL_PARAM */
 static int gasnetc_register_gpd(gasnetc_post_descriptor_t *gpd)
 {
-  GASNETC_DIDX_DECL(didx, gpd->domain_idx);
-  DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle, didx);
+  GASNETC_DIDX_POST(gpd->domain_idx);
+  DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle);
   gni_post_descriptor_t * const pd = &gpd->pd;
   const uint64_t addr = pd->local_addr;
   const size_t nbytes = pd->length;
@@ -329,10 +345,10 @@ first:
   }
 
   for (;;) {
-    GASNETC_LOCK_GNI(didx);
+    GASNETC_LOCK_GNI();
     status = GNI_MemRegister(nic_handle, addr, nbytes, NULL,
                              gasnetc_memreg_flags, -1, &pd->local_mem_hndl);
-    GASNETC_UNLOCK_GNI(didx);
+    GASNETC_UNLOCK_GNI();
     if_pt (status == GNI_RC_SUCCESS) {
       if (trial) GASNETC_STAT_EVENT_VAL(MEM_REG_RETRY, trial);
       return 1;
@@ -356,7 +372,8 @@ first:
 GASNETI_INLINE(gasnetc_deregister_gpd)
 void gasnetc_deregister_gpd(gasnetc_post_descriptor_t *gpd)
 {
-  DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle, gpd->domain_idx);
+  GASNETC_DIDX_POST(gpd->domain_idx);
+  DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle);
   gni_return_t status = GNI_MemDeregister(nic_handle, &gpd->pd.local_mem_hndl);
   gasneti_assert_always (status == GNI_RC_SUCCESS);
   if (gasnetc_reg_credit_max) gasneti_weakatomic_increment(&gasnetc_reg_credit, 0);
@@ -426,9 +443,9 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
   gni_return_t status;
   /* Map the shared segment */
 #if GASNETC_USE_MULTI_DOMAIN
-  const int didx = GASNETC_DEFAULT_DOMAIN;
-  DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle, didx);
-  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data, didx);
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
+  DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle);
+  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   gni_cq_handle_t  destination_cq_handle = NULL;
   gni_mem_handle_t my_mem_handle;
 #endif
@@ -565,8 +582,8 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
   }
 
 #if GASNETC_USE_MULTI_DOMAIN
-  gasnetc_cdom_data[didx].destination_cq_handle = destination_cq_handle;
-  gasnetc_cdom_data[didx].my_mem_handle = my_mem_handle;
+  DOMAIN_SPECIFIC_VAL(destination_cq_handle) = destination_cq_handle;
+  DOMAIN_SPECIFIC_VAL(my_mem_handle) = my_mem_handle;
   
  #if(GASNETC_DOMAIN_ALLOC_POLICY == GASNETC_STATIC_DOMAIN_ALLOC)
   {
@@ -583,68 +600,70 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
 
 void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
 {
+  GASNETC_DIDX_POST(gasnetc_get_domain_idx(tidx));
   gni_return_t status;
   uint32_t *all_addr;
   uint32_t local_address;
   uint32_t i;
   unsigned int bytes_per_mbox;
   unsigned int bytes_needed;
-  int didx = gasnetc_get_domain_idx(tidx);
   uint32_t inst_id;
-  gasnetc_cdom_data[didx].threads_per_domain++;
-  if(gasnetc_cdom_data[didx].initialized)
+
+  DOMAIN_SPECIFIC_VAL(threads_per_domain)++;
+  if(DOMAIN_SPECIFIC_VAL(initialized))
     return;
-  GASNETC_INITLOCK_GNI(didx);
-  inst_id = gasneti_mynode + didx * gasneti_nodes;
+
+  GASNETC_INITLOCK_GNI();
+  inst_id = gasneti_mynode + GASNETC_DIDX * gasneti_nodes;
   status = GNI_CdmCreate(inst_id,
                         gasnetc_ptag, gasnetc_cookie,
                         GASNETC_CDM_MODE,
-                        &gasnetc_cdom_data[didx].cdm_handle);
+                        &DOMAIN_SPECIFIC_VAL(cdm_handle));
   gasneti_assert_always (status == GNI_RC_SUCCESS);
 
-  status = GNI_CdmAttach(gasnetc_cdom_data[didx].cdm_handle,
+  status = GNI_CdmAttach(DOMAIN_SPECIFIC_VAL(cdm_handle),
                         gasnetc_dev_id,
                         &local_address,
-                        &gasnetc_cdom_data[didx].nic_handle);
+                        &DOMAIN_SPECIFIC_VAL(nic_handle));
   gasneti_assert_always (status == GNI_RC_SUCCESS);
 
-  status = GNI_CqCreate(gasnetc_cdom_data[didx].nic_handle, num_pd + 2, 0, GNI_CQ_NOBLOCK, 
-                        NULL, NULL, &gasnetc_cdom_data[didx].bound_cq_handle);
+  status = GNI_CqCreate(DOMAIN_SPECIFIC_VAL(nic_handle), num_pd + 2, 0, GNI_CQ_NOBLOCK, 
+                        NULL, NULL, &DOMAIN_SPECIFIC_VAL(bound_cq_handle));
   gasneti_assert_always (status == GNI_RC_SUCCESS);
   /* create and bind endpoints */
   all_addr = gather_nic_addresses();
 #if GASNET_DEBUG
-  gasnetc_cdom_data[didx].peer_data = gasneti_calloc(gasneti_nodes, sizeof(peer_struct_t));
+  DOMAIN_SPECIFIC_VAL(peer_data) = gasneti_calloc(gasneti_nodes, sizeof(peer_struct_t));
 #else
-  gasnetc_cdom_data[didx].peer_data = gasneti_malloc(gasneti_nodes * sizeof(peer_struct_t));
+  DOMAIN_SPECIFIC_VAL(peer_data) = gasneti_malloc(gasneti_nodes * sizeof(peer_struct_t));
 #endif
   for (i = 0; i < gasneti_nodes; i += 1) {
     if (node_is_local(i)) continue; /* no connection to self or PSHM-reachable peers */
-   status = GNI_EpCreate(gasnetc_cdom_data[didx].nic_handle, gasnetc_cdom_data[didx].bound_cq_handle, 
-                        &gasnetc_cdom_data[didx].peer_data[i].ep_handle);
+   status = GNI_EpCreate(DOMAIN_SPECIFIC_VAL(nic_handle), DOMAIN_SPECIFIC_VAL(bound_cq_handle), 
+                        &DOMAIN_SPECIFIC_VAL(peer_data[i].ep_handle));
    gasneti_assert_always (status == GNI_RC_SUCCESS);
-   status = GNI_EpBind(gasnetc_cdom_data[didx].peer_data[i].ep_handle, all_addr[i], i);
+   status = GNI_EpBind(DOMAIN_SPECIFIC_VAL(peer_data[i].ep_handle), all_addr[i], i);
    gasneti_assert_always (status == GNI_RC_SUCCESS);
   }
 #if FIX_HT_ORDERING
   if (gasnetc_mem_consistency != GASNETC_STRICT_MEM_CONSISTENCY) {
     /* With 1 completion entry this queue is INTENDED to always overflow */
-    status = GNI_CqCreate(gasnetc_cdom_data[didx].nic_handle, 1, 0, GNI_CQ_NOBLOCK, NULL, NULL, &gasnetc_cdom_data[didx].destination_cq_handle);
+    status = GNI_CqCreate(DOMAIN_SPECIFIC_VAL(nic_handle), 1, 0, GNI_CQ_NOBLOCK, NULL, NULL, &DOMAIN_SPECIFIC_VAL(destination_cq_handle));
     gasneti_assert_always (status == GNI_RC_SUCCESS);
   }
 #else
-  gasnetc_cdom_data[didx].destination_cq_handle = NULL;
+  DOMAIN_SPECIFIC_VAL(destination_cq_handle) = NULL;
 #endif
 
   {
     int count = 0;
     for (;;) {
-      status = GNI_MemRegister(gasnetc_cdom_data[didx].nic_handle,
+      status = GNI_MemRegister(DOMAIN_SPECIFIC_VAL(nic_handle),
                               (uint64_t) gasneti_seginfo[gasneti_mynode].addr,
                               (uint64_t) gasneti_seginfo[gasneti_mynode].size,
-                              gasnetc_cdom_data[didx].destination_cq_handle,
+                              DOMAIN_SPECIFIC_VAL(destination_cq_handle),
                               gasnetc_memreg_flags, -1,
-                              &gasnetc_cdom_data[didx].my_mem_handle);
+                              &DOMAIN_SPECIFIC_VAL(my_mem_handle));
      if (status == GNI_RC_SUCCESS) break;
      if (status == GNI_RC_ERROR_RESOURCE) {
          gasnetc_GNIT_Log("MemRegister segment fault %d at  %p %lx, code %s",
@@ -660,17 +679,17 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
   {
     gni_mem_handle_t *all_mem_handle = gasneti_malloc(gasneti_nodes * sizeof(gni_mem_handle_t));
     gasnet_node_t i;
-    gasneti_bootstrapExchange_pmi(&gasnetc_cdom_data[didx].my_mem_handle, sizeof(gni_mem_handle_t), all_mem_handle);
+    gasneti_bootstrapExchange_pmi(&DOMAIN_SPECIFIC_VAL(my_mem_handle), sizeof(gni_mem_handle_t), all_mem_handle);
     for (i = 0; i < gasneti_nodes; ++i) {
-       gasnetc_cdom_data[didx].peer_data[i].mem_handle = all_mem_handle[i];
+       DOMAIN_SPECIFIC_VAL(peer_data[i]).mem_handle = all_mem_handle[i];
      }
     gasneti_free(all_mem_handle);
   }
-  gasnetc_init_post_descriptor_pool(didx);
-  gasnetc_init_bounce_buffer_pool(didx);
+  gasnetc_init_post_descriptor_pool(GASNETC_DIDX_PASS_ALONE);
+  gasnetc_init_bounce_buffer_pool(GASNETC_DIDX_PASS_ALONE);
  /* This should remain as the last statement to indicate that the domain is initialized. */
   gasneti_local_wmb();
-  gasnetc_cdom_data[didx].initialized = 1;
+  DOMAIN_SPECIFIC_VAL(initialized) = 1;
 }
 #endif
 
@@ -690,7 +709,7 @@ uintptr_t gasnetc_init_messaging(void)
   int reply_count;
 
 #if GASNETC_USE_MULTI_DOMAIN
-  const int didx = GASNETC_DEFAULT_DOMAIN;
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   gni_cdm_handle_t cdm_handle;
   gni_nic_handle_t nic_handle;
   gni_cq_handle_t bound_cq_handle;
@@ -709,7 +728,7 @@ uintptr_t gasnetc_init_messaging(void)
   for(i=0;i<gasnetc_domain_count;i++)
     reset_comm_data(gasnetc_cdom_data+i);
 #endif
-  GASNETC_INITLOCK_GNI(didx);
+  GASNETC_INITLOCK_GNI();
   GASNETC_INITLOCK_AM_BUFFER();
 
   status = GNI_CdmCreate(gasneti_mynode,
@@ -885,13 +904,13 @@ uintptr_t gasnetc_init_messaging(void)
   }
 
 #if GASNETC_USE_MULTI_DOMAIN 
-  gasnetc_cdom_data[didx].cdm_handle = cdm_handle;
-  gasnetc_cdom_data[didx].nic_handle = nic_handle;
-  gasnetc_cdom_data[didx].bound_cq_handle = bound_cq_handle;
-  gasnetc_cdom_data[didx].post_descriptor_pool = post_descriptor_pool;
-  gasnetc_cdom_data[didx].peer_data = peer_data;
-  gasnetc_cdom_data[didx].threads_per_domain = 1;
-  gasnetc_cdom_data[didx].initialized = 1;
+  DOMAIN_SPECIFIC_VAL(cdm_handle) = cdm_handle;
+  DOMAIN_SPECIFIC_VAL(nic_handle) = nic_handle;
+  DOMAIN_SPECIFIC_VAL(bound_cq_handle) = bound_cq_handle;
+  DOMAIN_SPECIFIC_VAL(post_descriptor_pool) = post_descriptor_pool;
+  DOMAIN_SPECIFIC_VAL(peer_data) = peer_data;
+  DOMAIN_SPECIFIC_VAL(threads_per_domain) = 1;
+  DOMAIN_SPECIFIC_VAL(initialized) = 1;
 #endif
 
   return am_mmap_bytes;
@@ -912,19 +931,21 @@ void gasnetc_shutdown(void)
    */
 
   /* seize gni lock and hold it  */
-  GASNETC_LOCK_GNI(GASNETC_DEFAULT_DOMAIN);
+  {  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
+     GASNETC_LOCK_GNI();
+  }
 
 #if GASNETC_USE_MULTI_DOMAIN
   for (didx = 0; didx < gasnetc_domain_count; didx++) {
-    DOMAIN_SPECIFIC_VAR(gni_cdm_handle_t, cdm_handle, didx);
-    DOMAIN_SPECIFIC_VAR(gni_cq_handle_t, destination_cq_handle, didx);
-    DOMAIN_SPECIFIC_VAR(gni_cq_handle_t, bound_cq_handle, didx);
-    DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle, didx);
-    DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data, didx);
+    GASNETC_DIDX_POST(didx);
+    DOMAIN_SPECIFIC_VAR(gni_cdm_handle_t, cdm_handle);
+    DOMAIN_SPECIFIC_VAR(gni_cq_handle_t, destination_cq_handle);
+    DOMAIN_SPECIFIC_VAR(gni_cq_handle_t, bound_cq_handle);
+    DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle);
+    DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
 
-    communication_domain_struct_t * cdom = &gasnetc_cdom_data[didx];
-    if(!cdom->initialized) continue;
-    cdom->initialized = 0;
+    if (!DOMAIN_SPECIFIC_VAL(initialized)) continue;
+    DOMAIN_SPECIFIC_VAL(initialized) = 0;
 #endif
 
     /* for each connected rank */
@@ -952,7 +973,7 @@ void gasnetc_shutdown(void)
     }
 
     if_pt (have_segment) {
-      status = GNI_MemDeregister(nic_handle, DOMAIN_SPECIFIC_PTR(my_mem_handle, didx));
+      status = GNI_MemDeregister(nic_handle, &DOMAIN_SPECIFIC_VAL(my_mem_handle));
       if_pf (status != GNI_RC_SUCCESS) {
         gasnetc_GNIT_Log("MemDeregister(segment) failed with %s", gni_return_string(status));
       }
@@ -996,13 +1017,15 @@ void gasnetc_shutdown(void)
   }
 #endif
 
-  GASNETC_UNLOCK_GNI(GASNETC_DEFAULT_DOMAIN);
+  {  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
+     GASNETC_UNLOCK_GNI();
+  }
 }
 
 static GASNETI_MALLOC
 void *gasnetc_alloc_bounce_buffer(GASNETC_DIDX_FARG_ALONE)
 {
-  gasneti_lifo_head_t * const pool_p = DOMAIN_SPECIFIC_PTR(bounce_buffer_pool, didx);
+  gasneti_lifo_head_t * const pool_p = &DOMAIN_SPECIFIC_VAL(bounce_buffer_pool);
   void *buf = gasneti_lifo_pop(pool_p);
   if_pf (!buf) {
     /* We may simple not have polled the Cq recently.
@@ -1026,8 +1049,8 @@ GASNETI_INLINE(gasnetc_free_bounce_buffer)
 void gasnetc_free_bounce_buffer(gasnetc_post_descriptor_t *gpd)
 {
   void *gcb = (void *) gpd->pd.local_addr;
-  GASNETC_DIDX_DECL(didx, gpd->domain_idx);
-  gasneti_lifo_push(DOMAIN_SPECIFIC_PTR(bounce_buffer_pool, didx), gcb);
+  GASNETC_DIDX_POST(gpd->domain_idx);
+  gasneti_lifo_push(&DOMAIN_SPECIFIC_VAL(bounce_buffer_pool), gcb);
 }
 
 static gasneti_mutex_t ampoll_lock = GASNETI_MUTEX_INITIALIZER;
@@ -1041,14 +1064,14 @@ static gasneti_mutex_t ampoll_lock = GASNETI_MUTEX_INITIALIZER;
 GASNETI_INLINE(gasnetc_send_am_common)
 int gasnetc_send_am_common(peer_struct_t *peer, gni_post_descriptor_t *pd)
 {
-  GASNETC_DIDX_DECL(didx, GASNETC_DEFAULT_DOMAIN);
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   const int max_trials = 4;
   int trial = 0;
   gni_return_t status;
 
   for (;;) {
     status = GNI_PostFma(peer->ep_handle, pd);
-    GASNETC_UNLOCK_GNI(didx);
+    GASNETC_UNLOCK_GNI();
 
     if_pt (status == GNI_RC_SUCCESS) {
       break;
@@ -1064,7 +1087,7 @@ int gasnetc_send_am_common(peer_struct_t *peer, gni_post_descriptor_t *pd)
 
     GASNETI_WAITHOOK();
     gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
-    GASNETC_LOCK_GNI(didx);
+    GASNETC_LOCK_GNI();
   }
 
   if_pf (trial) GASNETC_STAT_EVENT_VAL(SMSG_SEND_RETRY, trial);
@@ -1074,7 +1097,7 @@ int gasnetc_send_am_common(peer_struct_t *peer, gni_post_descriptor_t *pd)
 extern int
 gasnetc_send_am(gasnetc_post_descriptor_t *gpd)
 {
-  GASNETC_DIDX_DECL(didx, GASNETC_DEFAULT_DOMAIN);
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   gni_post_descriptor_t *pd = &gpd->pd;
   peer_struct_t * const peer = (peer_struct_t *)gpd->gpd_am_peer;
 #if GASNET_TRACE
@@ -1086,7 +1109,7 @@ gasnetc_send_am(gasnetc_post_descriptor_t *gpd)
                            gasnetc_type_string(gasnetc_am_command(n)),
                            (notify_get_type(n) == notify_request) ? "REQ" : "REP"));
 
-  GASNETC_LOCK_GNI(didx);
+  GASNETC_LOCK_GNI();
   
   slot = fetch_inc_notify_pointer(peer->remote_notify_write);
   pd->sync_flag_addr = (uint64_t)(peer->remote_notify_base + slot);
@@ -1096,7 +1119,7 @@ gasnetc_send_am(gasnetc_post_descriptor_t *gpd)
 GASNETI_INLINE(gasnetc_send_notify)
 int gasnetc_send_notify(peer_struct_t * const peer, gasnetc_notify_t notify)
 {
-  GASNETC_DIDX_DECL(didx, GASNETC_DEFAULT_DOMAIN);
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
   gni_post_descriptor_t *pd = &gpd->pd;
   unsigned int slot;
@@ -1109,7 +1132,7 @@ int gasnetc_send_notify(peer_struct_t * const peer, gasnetc_notify_t notify)
   pd->local_addr = (uint64_t)&gpd->u.notify;
   pd->remote_mem_hndl = peer->am_handle;
 
-  GASNETC_LOCK_GNI(didx);
+  GASNETC_LOCK_GNI();
 
   slot = fetch_inc_notify_pointer(peer->remote_notify_write);
   pd->remote_addr = (uint64_t)(peer->remote_notify_base + slot);
@@ -1129,8 +1152,8 @@ int gasnetc_send_credit(peer_struct_t * const peer, gasnetc_notify_t notify)
 /* Current ARBITRARILY managed as 8-bit op and 16-bit arg */
 int gasnetc_send_control(gasnet_node_t dest, uint8_t op, uint16_t arg)
 {
-  GASNETC_DIDX_DECL(didx, GASNETC_DEFAULT_DOMAIN);
-  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data, didx);
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
+  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   peer_struct_t * const peer = &peer_data[dest];
   GASNETI_TRACE_PRINTF(D, ("msg to %d type CONTROL op=%d arg=0x%x\n",
                            (int)dest, (int)op, (int)arg));
@@ -1158,8 +1181,8 @@ void gasnetc_format_am_gpd(gasnetc_post_descriptor_t *gpd,
 gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnet_token_t t,
                                                                size_t length)
 {
-  GASNETC_DIDX_DECL(didx, GASNETC_DEFAULT_DOMAIN);
-  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data, didx);
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
+  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   gasnetc_token_t *token = (gasnetc_token_t *)t;
   peer_struct_t * const peer = &peer_data[token->source];
   gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
@@ -1197,8 +1220,8 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnet_token_t t,
 gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnet_node_t dest, 
                                                                  size_t length)
 {
-  GASNETC_DIDX_DECL(didx, GASNETC_DEFAULT_DOMAIN);
-  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data, didx);
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
+  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   peer_struct_t * const peer = &peer_data[dest];
   gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
   gni_post_descriptor_t *pd = &gpd->pd;
@@ -1411,20 +1434,20 @@ int poll_for_message(peer_struct_t * const peer, int is_slow)
 static
 void gasnetc_poll_smsg_queue(void)
 {
-  GASNETC_DIDX_DECL(didx, GASNETC_DEFAULT_DOMAIN);
-  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data, didx);
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
+  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   gni_cq_entry_t event_data[SMSG_BURST];
   int count;
   int i;
 
   /* Reap Cq entries until our queue is full, or Cq is empty */
-  GASNETC_LOCK_GNI(didx);
+  GASNETC_LOCK_GNI();
     for (count = 0; count < SMSG_BURST; ++count) {
       gni_return_t status = GNI_CqGetEvent(smsg_cq_handle, &event_data[count]);
       if (status != GNI_RC_SUCCESS) break; /* TODO: check for fatal errors */
       gasneti_assert(!GNI_CQ_OVERRUN(event_data[count]));
     }
-  GASNETC_UNLOCK_GNI(didx);
+  GASNETC_UNLOCK_GNI();
 
   if (count) {
     /* Must take the lock to process new events */
@@ -1464,16 +1487,16 @@ void gasnetc_poll_smsg_queue(void)
 GASNETI_INLINE(gasnetc_poll_bound_cq)
 gasnetc_post_descriptor_t *gasnetc_poll_bound_cq(GASNETC_DIDX_FARG_ALONE)
 {
-  DOMAIN_SPECIFIC_VAR(gni_cq_handle_t, bound_cq_handle, didx);
+  DOMAIN_SPECIFIC_VAR(gni_cq_handle_t, bound_cq_handle);
   gni_post_descriptor_t * result = NULL;
   gni_cq_entry_t event_data;
   gni_return_t status;
 
 #if GASNETC_USE_MULTI_DOMAIN
-  if_pf (!gasnetc_cdom_data[didx].initialized) return NULL;
+  if_pf (!DOMAIN_SPECIFIC_VAL(initialized)) return NULL;
 #endif
 
-  GASNETC_LOCK_GNI(didx);
+  GASNETC_LOCK_GNI();
   status = GNI_CqGetEvent(bound_cq_handle,&event_data);
   if (status == GNI_RC_NOT_DONE) { /* empty queue is most common case */
     /* nothing */
@@ -1488,7 +1511,7 @@ gasnetc_post_descriptor_t *gasnetc_poll_bound_cq(GASNETC_DIDX_FARG_ALONE)
   } else if (!gasnetc_shutdownInProgress) {
     gasnetc_GNIT_Abort("bound CqGetEvent %s", gni_return_string(status));
   }
-  GASNETC_UNLOCK_GNI(didx);
+  GASNETC_UNLOCK_GNI();
 
   /* NOTE: we rely here on the fact that pd is first member of gpd */
   return (gasnetc_post_descriptor_t *) result;
@@ -1545,18 +1568,18 @@ void gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE))
 void gasnetc_poll(GASNETC_DIDX_FARG_ALONE)
 {
 #if GASNETC_USE_MULTI_DOMAIN
-  if_pf(didx == GASNETC_ALL_DOMAINS) {
+  if_pf (GASNETC_DIDX == GASNETC_ALL_DOMAINS) {
     int d;
     gasnetc_poll_smsg_queue();
     for (d = 0; d < gasnetc_domain_count; d++) {
       gasnetc_poll_local_queue(d);
     }
   } else {
-    if(didx == GASNETC_DEFAULT_DOMAIN)
+    if (GASNETC_DIDX == GASNETC_DEFAULT_DOMAIN)
        gasnetc_poll_smsg_queue();
     else {
       unsigned int poll_idx;
-      poll_idx = gasnetc_cdom_data[didx].poll_idx++;
+      poll_idx = DOMAIN_SPECIFIC_VAL(poll_idx)++;
       /* Every now and then poll the smsg queue */
       if_pf((poll_idx & gasnetc_poll_am_domain_mask) == 0) {
          gasnetc_poll_smsg_queue();
@@ -1594,16 +1617,16 @@ static void print_post_desc(const char *title, gni_post_descriptor_t *cmd)) {
 
 static gni_return_t myPostRdma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd)
 {
-  GASNETC_DIDX_DECL(didx, gpd->domain_idx);
+  GASNETC_DIDX_POST(gpd->domain_idx);
   gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
   const int max_trials = 1000;
   int trial = 0;
 
   do {
-      GASNETC_LOCK_GNI(didx);
+      GASNETC_LOCK_GNI();
       status = GNI_PostRdma(ep, pd);
-      GASNETC_UNLOCK_GNI(didx);
+      GASNETC_UNLOCK_GNI();
       if_pt (status == GNI_RC_SUCCESS) {
         if (trial) GASNETC_STAT_EVENT_VAL(POST_RDMA_RETRY, trial);
         return GNI_RC_SUCCESS;
@@ -1620,16 +1643,16 @@ static gni_return_t myPostRdma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gp
 
 static gni_return_t myPostFma(gni_ep_handle_t ep, gasnetc_post_descriptor_t *gpd)
 {
-  GASNETC_DIDX_DECL(didx, gpd->domain_idx);
+  GASNETC_DIDX_POST(gpd->domain_idx);
   gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
   const int max_trials = 1000;
   int trial = 0;
 
   do {
-      GASNETC_LOCK_GNI(didx);
+      GASNETC_LOCK_GNI();
       status = GNI_PostFma(ep, pd);
-      GASNETC_UNLOCK_GNI(didx);
+      GASNETC_UNLOCK_GNI();
       if_pt (status == GNI_RC_SUCCESS) {
         if (trial) GASNETC_STAT_EVENT_VAL(POST_FMA_RETRY, trial);
         return GNI_RC_SUCCESS;
@@ -1652,9 +1675,9 @@ size_t gasnetc_rdma_put_bulk(gasnet_node_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
-  GASNETC_DIDX_DECL(didx, gpd->domain_idx);
-  DOMAIN_SPECIFIC_VAR(gni_mem_handle_t, my_mem_handle, didx);
-  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data, didx);
+  GASNETC_DIDX_POST(gpd->domain_idx);
+  DOMAIN_SPECIFIC_VAR(gni_mem_handle_t, my_mem_handle);
+  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   peer_struct_t * const peer = &peer_data[node];
   gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
@@ -1721,9 +1744,9 @@ gasnetc_rdma_put_lc(gasnet_node_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
-  GASNETC_DIDX_DECL(didx, gpd->domain_idx);
-  DOMAIN_SPECIFIC_VAR(gni_mem_handle_t, my_mem_handle, didx);
-  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data, didx);
+  GASNETC_DIDX_POST(gpd->domain_idx);
+  DOMAIN_SPECIFIC_VAR(gni_mem_handle_t, my_mem_handle);
+  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   peer_struct_t * const peer = &peer_data[node];
   gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
@@ -1796,8 +1819,8 @@ void gasnetc_rdma_put_buff(gasnet_node_t node,
 		void *dest_addr, void *source_addr,
 		size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
-  GASNETC_DIDX_DECL(didx, gpd->domain_idx);
-  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data, didx);
+  GASNETC_DIDX_POST(gpd->domain_idx);
+  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   peer_struct_t * const peer = &peer_data[node];
   gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
@@ -1858,9 +1881,9 @@ size_t gasnetc_rdma_get(gasnet_node_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
-  GASNETC_DIDX_DECL(didx, gpd->domain_idx);
-  DOMAIN_SPECIFIC_VAR(gni_mem_handle_t, my_mem_handle, didx);
-  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data, didx);
+  GASNETC_DIDX_POST(gpd->domain_idx);
+  DOMAIN_SPECIFIC_VAR(gni_mem_handle_t, my_mem_handle);
+  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   peer_struct_t * const peer = &peer_data[node];
   gni_post_descriptor_t * const pd = &gpd->pd;
 
@@ -1915,9 +1938,9 @@ void gasnetc_rdma_get_unaligned(gasnet_node_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
-  GASNETC_DIDX_DECL(didx, gpd->domain_idx);
-  DOMAIN_SPECIFIC_VAR(gni_mem_handle_t, my_mem_handle, didx);
-  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data, didx);
+  GASNETC_DIDX_POST(gpd->domain_idx);
+  DOMAIN_SPECIFIC_VAR(gni_mem_handle_t, my_mem_handle);
+  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   peer_struct_t * const peer = &peer_data[node];
   gni_post_descriptor_t * const pd = &gpd->pd;
   uint8_t * buffer;
@@ -1970,9 +1993,9 @@ int gasnetc_rdma_get_buff(gasnet_node_t node,
 		void *dest_addr, void *source_addr,
 		size_t nbytes, gasnetc_post_descriptor_t *gpd)
 {
-  GASNETC_DIDX_DECL(didx, gpd->domain_idx);
-  DOMAIN_SPECIFIC_VAR(gni_mem_handle_t, my_mem_handle, didx);
-  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data, didx);
+  GASNETC_DIDX_POST(gpd->domain_idx);
+  DOMAIN_SPECIFIC_VAR(gni_mem_handle_t, my_mem_handle);
+  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   peer_struct_t * const peer = &peer_data[node];
   gni_post_descriptor_t * const pd = &gpd->pd;
   gni_return_t status;
@@ -2017,7 +2040,7 @@ void gasnetc_init_post_descriptor_pool(GASNETC_DIDX_FARG_ALONE)
 
 #if GASNETC_USE_MULTI_DOMAIN
   /* must first destroy the temporary pool of post descriptors (only first domain) */
-  if_pf(didx == GASNETC_DEFAULT_DOMAIN) {
+  if_pf (GASNETC_DIDX == GASNETC_DEFAULT_DOMAIN) {
     for (i=0; i < gasnetc_log2_remote; ++i) {
       gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
       gasneti_free(gpd);
@@ -2025,12 +2048,12 @@ void gasnetc_init_post_descriptor_pool(GASNETC_DIDX_FARG_ALONE)
   }
 
   gpd = gasnetc_pd_buffers.addr;
-  gpd += count * didx;
+  gpd += count * GASNETC_DIDX;
   gasneti_assert_always(gpd);
   memset(gpd, 0, count * sizeof(gasnetc_post_descriptor_t)); /* Just in case */
   /* sacrifice the first one to work as a padding */
   for (i = 1; i < count; i += 1) {
-    gasneti_lifo_push(&(gasnetc_cdom_data[didx].post_descriptor_pool), gpd + i);
+    gasneti_lifo_push(&DOMAIN_SPECIFIC_VAL(post_descriptor_pool), gpd + i);
   }
 #else
   /* must first destroy the temporary pool of post descriptors */
@@ -2053,7 +2076,7 @@ void gasnetc_init_post_descriptor_pool(GASNETC_DIDX_FARG_ALONE)
 GASNETI_MALLOC
 gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(GASNETC_DIDX_FARG_ALONE)
 {
-  gasneti_lifo_head_t * const pool_p = DOMAIN_SPECIFIC_PTR(post_descriptor_pool, didx);
+  gasneti_lifo_head_t * const pool_p = &DOMAIN_SPECIFIC_VAL(post_descriptor_pool);
   gasnetc_post_descriptor_t *gpd = (gasnetc_post_descriptor_t *) gasneti_lifo_pop(pool_p);
   if_pf (!gpd) {
     /* We may simple not have polled the Cq recently.
@@ -2072,7 +2095,7 @@ first:
   }
   gpd->flags = 0;
 #if GASNETC_USE_MULTI_DOMAIN
-  gpd->domain_idx = didx;
+  gpd->domain_idx = GASNETC_DIDX;
 #endif
 
   return(gpd);
@@ -2083,8 +2106,8 @@ first:
 /* LCS inline this */
 void gasnetc_free_post_descriptor(gasnetc_post_descriptor_t *gpd)
 {
-  GASNETC_DIDX_DECL(didx, gpd->domain_idx);
-  gasneti_lifo_push(DOMAIN_SPECIFIC_PTR(post_descriptor_pool, didx), gpd);
+  GASNETC_DIDX_POST(gpd->domain_idx);
+  gasneti_lifo_push(&DOMAIN_SPECIFIC_VAL(post_descriptor_pool), gpd);
 }
 
 /* exit related */
@@ -2133,7 +2156,7 @@ void gasnetc_handle_sys_shutdown_packet(uint32_t source, uint16_t arg)
  */
 extern int gasnetc_sys_exit(int *exitcode_p)
 {
-  GASNETC_DIDX_DECL(didx, GASNETC_DEFAULT_DOMAIN);
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
 #if GASNET_PSHM                  
   const gasnet_node_t size = gasneti_nodemap_global_count;
   const gasnet_node_t rank = gasneti_nodemap_global_rank;
@@ -2315,8 +2338,9 @@ void gasnetc_init_bounce_buffer_pool(GASNETC_DIDX_FARG_ALONE)
 #if GASNETC_USE_MULTI_DOMAIN
   /* sacrifice one bounce buffer to work as a padding */
   for(i = 1; i < num_bounce; i += 1) {
-    gasneti_lifo_push(& (gasnetc_cdom_data[didx].bounce_buffer_pool),
-                      (char *) gasnetc_bounce_buffers.addr + (buffer_size * (i+didx*num_bounce)));
+    gasneti_lifo_push(&DOMAIN_SPECIFIC_VAL(bounce_buffer_pool),
+                      (char *) gasnetc_bounce_buffers.addr + (buffer_size *
+                                                              (i+GASNETC_DIDX*num_bounce)));
   }
 #else
   for(i = 0; i < num_bounce; i += 1) {

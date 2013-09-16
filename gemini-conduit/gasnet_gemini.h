@@ -41,22 +41,24 @@
 
 #define GASNETC_AM_DOMAIN_POLL_MASK_DEFAULT (0x7f)
 
-#define GASNETC_DIDX_DECL(_var, _val) const int _var = (_val)
+#define GASNETC_DIDX_POST(_val) const int _domain_idx = (_val)
 
-#define GASNETC_DIDX_FARG_ALONE const int didx
+#define GASNETC_DIDX_FARG_ALONE const int _domain_idx
 #define GASNETC_DIDX_FARG       , GASNETC_DIDX_FARG_ALONE
-#define GASNETC_DIDX_PASS_ALONE didx
+#define GASNETC_DIDX_PASS_ALONE _domain_idx
 #define GASNETC_DIDX_PASS       , GASNETC_DIDX_PASS_ALONE
+#define GASNETC_DIDX            (_domain_idx)
 #else
 /* Multi domain support makes sense only for PAR mode. */
 #define GASNETC_USE_MULTI_DOMAIN 0
 
-#define GASNETC_DIDX_DECL(_var, _val) GASNETI_UNUSED const int _var = 0
+#define GASNETC_DIDX_POST(_val)  GASNETI_UNUSED const int _domain_idx = 0
 
 #define GASNETC_DIDX_FARG_ALONE  void
 #define GASNETC_DIDX_FARG        /*empty*/
 #define GASNETC_DIDX_PASS_ALONE  /*empty*/
 #define GASNETC_DIDX_PASS        /*empty*/
+#define GASNETC_DIDX             (### invalid use of GASNETC_DIDX ###)
 #endif
 
 /* debug support */
@@ -90,32 +92,8 @@ extern unsigned int gasnetc_log2_remote;
 
 #if GASNETC_USE_SPINLOCK
 typedef gasneti_atomic_t gasnetc_gni_lock_t;
- #if GASNETC_USE_MULTI_DOMAIN
-  #define GASNETC_INITLOCK_GNI(i) gasneti_spinlock_init(&(gasnetc_cdom_data[i].gasnetc_gni_lock))
-  #define GASNETC_LOCK_GNI(i)  gasneti_spinlock_lock(&(gasnetc_cdom_data[i].gasnetc_gni_lock))
-  #define GASNETC_UNLOCK_GNI(i)  gasneti_spinlock_unlock(&(gasnetc_cdom_data[i].gasnetc_gni_lock))
- #else
-  #define GASNETC_INITLOCK_GNI(i) gasneti_spinlock_init(&gasnetc_gni_lock)
-  #define GASNETC_LOCK_GNI(i) gasneti_spinlock_lock(&gasnetc_gni_lock)
-  #define GASNETC_UNLOCK_GNI(i) gasneti_spinlock_unlock(&gasnetc_gni_lock)
- #endif
-#define GASNETC_INITLOCK_AM_BUFFER() gasneti_spinlock_init(&gasnetc_am_buffer_lock)
-#define GASNETC_LOCK_AM_BUFFER() gasneti_spinlock_lock(&gasnetc_am_buffer_lock)
-#define GASNETC_UNLOCK_AM_BUFFER() gasneti_spinlock_unlock(&gasnetc_am_buffer_lock)
 #else
 typedef gasneti_mutex_t gasnetc_gni_lock_t;
- #if GASNETC_USE_MULTI_DOMAIN
-  #define GASNETC_INITLOCK_GNI(i) gasneti_mutex_init(&(gasnetc_cdom_data[i].gasnetc_gni_lock))
-  #define GASNETC_LOCK_GNI(i)  gasneti_mutex_lock(&(gasnetc_cdom_data[i].gasnetc_gni_lock))
-  #define GASNETC_UNLOCK_GNI(i) gasneti_mutex_unlock(&(gasnetc_cdom_data[i].gasnetc_gni_lock))
- #else
-  #define GASNETC_INITLOCK_GNI(i) gasneti_mutex_init(&gasnetc_gni_lock)
-  #define GASNETC_LOCK_GNI(i) gasneti_mutex_lock(&gasnetc_gni_lock)
-  #define GASNETC_UNLOCK_GNI(i) gasneti_mutex_unlock(&gasnetc_gni_lock)
- #endif
-#define GASNETC_INITLOCK_AM_BUFFER() gasneti_mutex_init(&gasnetc_am_buffer_lock)
-#define GASNETC_LOCK_AM_BUFFER() gasneti_mutex_lock(&gasnetc_am_buffer_lock)
-#define GASNETC_UNLOCK_AM_BUFFER() gasneti_mutex_unlock(&gasnetc_am_buffer_lock)
 #endif
 
 #if GASNETC_USE_MULTI_DOMAIN
