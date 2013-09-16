@@ -295,7 +295,7 @@ int gasnetc_try_pin(void *addr, uintptr_t size)
 #  define gasnetc_alloc_bounce_buffer(_dixd) _gasnetc_alloc_bounce_buffer()
 #  define DOMAIN_SPECIFIC_VAL(_var, _didx)        (_var)
 #  define DOMAIN_SPECIFIC_PTR(_var, _didx)        (&_var)
-#  define DOMAIN_SPECIFIC_VAR(_type, _var, _didx) GASNETI_UNUSED char _dummy##_var = 0;
+#  define DOMAIN_SPECIFIC_VAR(_type, _var, _didx) GASNETI_UNUSED char _dummy##_var = 0
 #endif
 
 /*------ Functions for dynamic memory registration ------*/
