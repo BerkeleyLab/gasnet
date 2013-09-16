@@ -1691,11 +1691,11 @@ size_t gasnetc_rdma_put_bulk(gasnet_node_t node,
       if ((nbytes <= gasnetc_put_bounce_register_cutover) ||
           /* Also use bounce buffer (setting nbytes to max size) if MemRegister fails: */
           (!gasnetc_register_gpd(gpd) &&
-           ((nbytes = gasnetc_put_bounce_register_cutover),1))) {
+           ((pd->length = nbytes = gasnetc_put_bounce_register_cutover),
+            (pd->local_mem_hndl = my_mem_handle),1))) {
         void * const buffer = gasnetc_alloc_bounce_buffer(didx);
         pd->local_addr = (uint64_t) memcpy(buffer, source_addr, nbytes);
         gpd->flags |= GC_POST_UNBOUNCE;
-        pd->length = nbytes; /* was reduced if MemReg failed */
       } else {
         gpd->flags |= GC_POST_UNREGISTER;
       }
@@ -1892,11 +1892,11 @@ size_t gasnetc_rdma_get(gasnet_node_t node,
     } else if ((nbytes <= gasnetc_get_bounce_register_cutover) ||
                /* Also use bounce buffer (setting nbytes to max size) if MemRegister fails: */
                (!gasnetc_register_gpd(gpd) &&
-                ((nbytes = gasnetc_get_bounce_register_cutover),1))) {
+                ((pd->length = nbytes = gasnetc_get_bounce_register_cutover),
+                 (pd->local_mem_hndl = my_mem_handle),1))) {
       gpd->flags |= GC_POST_UNBOUNCE | GC_POST_COPY;
       gpd->gpd_get_src = pd->local_addr = (uint64_t) gasnetc_alloc_bounce_buffer(didx);
       gpd->gpd_get_dst = (uint64_t) dest_addr;
-      pd->length = nbytes; /* was reduced if MemReg failed */
     } else {
       gpd->flags |= GC_POST_UNREGISTER;
     }
