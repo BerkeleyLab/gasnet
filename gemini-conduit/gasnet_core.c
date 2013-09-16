@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gemini-conduit/gasnet_core.c,v $
- *     $Date: 2013/09/16 05:16:17 $
- * $Revision: 1.90.2.1 $
+ *     $Date: 2013/09/16 06:01:16 $
+ * $Revision: 1.90.2.2 $
  * Description: GASNet gemini conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Gemini conduit by Larry Stewart <stewart@serissa.com>
@@ -1261,21 +1261,21 @@ int gasnetc_put_long_payload( gasnet_node_t dest,
                               gasneti_weakatomic_t *completed_p
                               GASNETC_DIDX_FARG)
 {
-  int initiated = 0;
+  int initiated = 1;
   size_t chunk = nbytes;
   
-  gasneti_assert(nbytes != 0); /* would have packed */
   gasneti_suspend_spinpollers();
-  do {
+  for (;;) {
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(didx);
     gpd->gpd_completion = (uintptr_t) completed_p;
     gpd->flags = GC_POST_COMPLETION_CNTR;
-    initiated += 1;
     chunk = gasnetc_rdma_put_bulk(dest, dst_addr, src_addr, chunk, gpd);
+    if_pt (0 == (nbytes -= chunk)) break; /* expect to finish in one pass */
+
     dst_addr = (char *)dst_addr + chunk;
     src_addr = (char *)src_addr + chunk;
-    nbytes -= chunk;
-  } while (GASNETT_PREDICT_FALSE(nbytes != 0)); /* expect to finish in one pass */
+    initiated += 1;
+  }
   gasneti_resume_spinpollers();
   return initiated;
 }
