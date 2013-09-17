@@ -58,7 +58,7 @@
 #define GASNETC_DIDX_FARG        /*empty*/
 #define GASNETC_DIDX_PASS_ALONE  /*empty*/
 #define GASNETC_DIDX_PASS        /*empty*/
-#define GASNETC_DIDX             (### invalid use of GASNETC_DIDX ###)
+#define GASNETC_DIDX             (%%% invalid use of GASNETC_DIDX %%%)
 #endif
 
 /* debug support */
