@@ -1568,22 +1568,23 @@ void gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE))
 void gasnetc_poll(GASNETC_DIDX_FARG_ALONE)
 {
 #if GASNETC_USE_MULTI_DOMAIN
+ #if 1
+  /* There is NO use of GASNETC_ALL_DOMAINS in the current code */
+  gasneti_assert(GASNETC_DIDX != GASNETC_ALL_DOMAINS);
+ #else
   if_pf (GASNETC_DIDX == GASNETC_ALL_DOMAINS) {
     int d;
     gasnetc_poll_smsg_queue();
     for (d = 0; d < gasnetc_domain_count; d++) {
       gasnetc_poll_local_queue(d);
     }
-  } else {
-    if (GASNETC_DIDX == GASNETC_DEFAULT_DOMAIN)
+  } else
+ #endif
+  {
+    if ((GASNETC_DIDX == GASNETC_DEFAULT_DOMAIN) ||
+        /* Every now and then poll for AMs even from non-default domains: */
+        GASNETT_PREDICT_FALSE((DOMAIN_SPECIFIC_VAL(poll_idx)++ & gasnetc_poll_am_domain_mask) == 0)) {
        gasnetc_poll_smsg_queue();
-    else {
-      unsigned int poll_idx;
-      poll_idx = DOMAIN_SPECIFIC_VAL(poll_idx)++;
-      /* Every now and then poll the smsg queue */
-      if_pf((poll_idx & gasnetc_poll_am_domain_mask) == 0) {
-         gasnetc_poll_smsg_queue();
-      }
     }
     gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
   }
