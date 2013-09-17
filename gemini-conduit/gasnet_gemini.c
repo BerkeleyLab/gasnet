@@ -1952,6 +1952,7 @@ void gasnetc_rdma_get_unaligned(gasnet_node_t node,
   unsigned int overfetch = length - nbytes;
 
   gasneti_assert(!node_is_local(node));
+  gasneti_assert(length <= gasnetc_max_get_unaligned);
 
   gasneti_assert(0 == (overfetch & ~GC_POST_COPY_TRIM));
   gpd->flags |= GC_POST_COPY | overfetch;
@@ -1970,11 +1971,10 @@ void gasnetc_rdma_get_unaligned(gasnet_node_t node,
   /* must always use immediate or bounce buffer */
   if (length < GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE) {
     buffer = gpd->u.immediate;
-  } else if_pt (length <= gasnetc_get_bounce_register_cutover) {
+  } else {
+    gasneti_assert(length <= gasnetc_get_bounce_register_cutover);
     gpd->flags |= GC_POST_UNBOUNCE;
     buffer = gasnetc_alloc_bounce_buffer(GASNETC_DIDX_PASS_ALONE);
-  } else {
-    gasneti_fatalerror("get_unaligned called with nbytes too large for bounce buffers");
   }
 
   pd->local_addr = (uint64_t) buffer;
