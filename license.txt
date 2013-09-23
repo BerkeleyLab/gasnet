@@ -1,4 +1,4 @@
-/* $Header: /Users/kamil/work/gasnet-cvs2/gasnet/license.txt,v 1.21 2013/04/12 19:36:42 phargrov Exp $
+/* $Header: /Users/kamil/work/gasnet-cvs2/gasnet/license.txt,v 1.21.18.1 2013/09/23 21:18:43 phargrov Exp $
  * All files in this directory and all sub-directories (except where otherwise noted)
  * are subject to the following licensing terms: 
  *
@@ -48,6 +48,7 @@
  *  Yevgeny Kliteynik <kliteyn@mellanox.com>: FCA and mxm-conduit
  *  Valentin Petrov <valentin.petrov@itseez.com>: FCA and mxm-conduit
  *  Brian Barrett <bwbarre@sandia.gov>: portals4-conduit
+ *  Eric Hoffman <eahoffman@lbl.gov>: gemini/aries conduit
  * 
  * For more information about GASNet, visit our home page at:
  *  http://gasnet.cs.berkeley.edu/
