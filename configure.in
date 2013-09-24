@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2013/09/23 00:08:19 $
-# $Revision: 1.829.2.1 $
+#     $Date: 2013/09/24 02:11:04 $
+# $Revision: 1.829.2.2 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.829.2.1 $)
+AC_REVISION($Revision: 1.829.2.2 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -3720,14 +3720,23 @@ if test $enabled_pami = yes; then
 
   if test -n "$GASNETI_ARCH_BGQ"; then
     GASNET_ENV_DEFAULT(PAMI_HOME, [/bgsys/drivers/ppcfloor])
-    if test "$BUILDCONFIG" = "debug" ; then
+    if test -e "$PAMI_HOME/comm/include"; then
+      GASNET_ENV_DEFAULT(PAMI_INCLUDE, [-I$PAMI_HOME/comm/include]) 
+      GASNET_ENV_DEFAULT(PAMI_LIBDIR, [-L$PAMI_HOME/comm/lib])
+      if test "$BUILDCONFIG" = "debug" ; then
+        GASNET_ENV_DEFAULT(PAMI_LIBS, [-lpami-gcc])
+      else
+        GASNET_ENV_DEFAULT(PAMI_LIBS, [-lpami-gcc.ndebug])
+      fi
+    elif test "$BUILDCONFIG" = "debug" ; then
       GASNET_ENV_DEFAULT(PAMI_INCLUDE, [-I$PAMI_HOME/comm/sys/include]) 
       GASNET_ENV_DEFAULT(PAMI_LIBDIR, [-L$PAMI_HOME/comm/sys/lib])
+      GASNET_ENV_DEFAULT(PAMI_LIBS, [-lpami])
     else
       GASNET_ENV_DEFAULT(PAMI_INCLUDE, [-I$PAMI_HOME/comm/sys-fast/include]) 
       GASNET_ENV_DEFAULT(PAMI_LIBDIR, [-L$PAMI_HOME/comm/sys-fast/lib])
+      GASNET_ENV_DEFAULT(PAMI_LIBS, [-lpami])
     fi
-    GASNET_ENV_DEFAULT(PAMI_LIBS, [-lpami])
     GASNET_ENV_DEFAULT(PAMI_SYS_LIBDIR, [-L$PAMI_HOME/spi/lib])
     GASNET_ENV_DEFAULT(PAMI_SYS_LIBS, [-lSPI_cnk -lpthread -lrt -lstdc++])
   elif test -n "$GASNETI_ARCH_IBMPE"; then
