@@ -1,10 +1,10 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.85.2.1 $
+$Revision: 1.85.2.2 $
 
 ----------------------------------------------------------------------
-09-22-2013 : Release 1.22.0-rc0
-    - This is "release candidate ZERO" of GASNet 1.22.0
+09-24-2013 : Release 1.22.0-rc1
+    - This is "release candidate ONE" of GASNet 1.22.0
       We beleive this to be the final CODE.
       However, the documentation updates (including the ChangeLog 
       below) have not yet been completed.
