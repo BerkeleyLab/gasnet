@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/tests/testbarrierconf.c,v $
- *     $Date: 2013/06/09 03:33:55 $
- * $Revision: 1.29 $
+ *     $Date: 2013/09/25 21:24:24 $
+ * $Revision: 1.29.12.1 $
  * Description: GASNet barrier performance test
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -22,7 +22,11 @@ GASNETT_INLINE(my_barrier_wait)
 int my_barrier_wait(int value, int flags) {
   int rc;
   if (do_try) {
-    do { rc = gasnet_barrier_try(value, flags); } while (rc == GASNET_ERR_NOT_READY);
+    rc = gasnet_barrier_try(value, flags);
+    while (rc == GASNET_ERR_NOT_READY) {
+      gasnett_sched_yield();
+      rc = gasnet_barrier_try(value, flags);
+    }
   } else {
     rc = gasnet_barrier_wait(value, flags);
   }
