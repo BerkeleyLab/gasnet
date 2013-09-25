@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2013/09/17 01:45:41 $
- * $Revision: 1.130 $
+ *     $Date: 2013/09/25 02:16:26 $
+ * $Revision: 1.130.2.1 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -481,7 +481,7 @@ static void gasneti_pshm_unlink(int pshm_rank);
 /* create the object/region/segment and return its address */
 static void * gasneti_pshm_mmap(int pshm_rank, void *segbase, size_t segsize) {
 #if defined(PLATFORM_OS_BGP) || defined(PLATFORM_OS_BGQ)
-  /* pshm_unlink() is apparently a no-op on BG/P and /Q */
+  /* shm_unlink() is apparently a no-op on BG/P and earlier driver versions on /Q */
   const int create = ((pshm_rank == gasneti_pshm_nodes) && !gasneti_pshm_mynode);
 #else
   const int create = (pshm_rank == gasneti_pshm_mynode) ||
@@ -525,6 +525,13 @@ static void * gasneti_pshm_mmap(int pshm_rank, void *segbase, size_t segsize) {
           gasneti_sched_yield();
           fd = shm_open(filename, flags, S_IRUSR | S_IWUSR);
         } while ((fd == -1) && (errno == EEXIST) && retries_remain--);
+      }
+    #elif defined(PLATFORM_OS_BGQ)
+      /* XXX: configure or compile time way to know? */
+      if ((fd == -1) && (errno == ENOENT) && (pshm_rank == gasneti_pshm_mynode)) {
+        /* We didn't use O_CREAT+O_EXCL on the first try, because shm_unlink()
+         * does nothing prior to V1R2M1.  So, try again with those flags. */
+        fd = shm_open(filename, flags | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
       }
     #endif
   #else
