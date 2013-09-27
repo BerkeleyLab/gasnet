@@ -1,9 +1,9 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.85.2.4 $
+$Revision: 1.85.2.5 $
 
 ----------------------------------------------------------------------
-09-27-2013 : Release 1.22.0-rc2
+09-27-2013 : Release 1.22.0-rc3
     - This is "release candidate THREE" of GASNet 1.22.0
       We beleive this to be the final CODE.
       However, the documentation updates (including the ChangeLog 
