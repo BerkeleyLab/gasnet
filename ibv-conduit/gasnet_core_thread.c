@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/ibv-conduit/gasnet_core_thread.c,v $
- *     $Date: 2013/08/24 06:45:43 $
- * $Revision: 1.23 $
+ *     $Date: 2013/09/28 00:31:31 $
+ * $Revision: 1.23.4.1 $
  * Description: GASNet ibv conduit implementation, progress thread logic
  * Copyright 2012, LBNL
  * Terms of use are as specified in license.txt
@@ -92,18 +92,24 @@ static void * gasnetc_progress_thread(void *arg)
           while (elapsed < min_us) {
           #if HAVE_NANOSLEEP
             uint64_t ns_delay = 1000 * (min_us - elapsed);
-            struct timespec ts = { ns_delay / 1000000000L, ns_delay % 1000000000L };
+            struct timespec ts;
+            ts.tv_sec = ns_delay / 1000000000L;
+            ts.tv_nsec = ns_delay % 1000000000L;
             nanosleep(&ts, NULL);
           #elif HAVE_NSLEEP
             uint64_t ns_delay = 1000 * (min_us - elapsed);
-            struct timespec ts = { ns_delay / 1000000000L, ns_delay % 1000000000L };
+            struct timespec ts;
+            ts.tv_sec = ns_delay / 1000000000L;
+            ts.tv_nsec = ns_delay % 1000000000L;
             nsleep(&ts, NULL);
           #elif HAVE_USLEEP
             uint64_t us_delay = (min_us - elapsed);
             usleep(us_delay);
           #else
             uint64_t us_delay = (min_us - elapsed);
-            struct timeval tv = { us_delay / 1000000L,  us_delay % 1000000L };
+            struct timeval tv;
+            tv.tv_sec = us_delay / 1000000L;
+            tv.tv_usec = us_delay % 1000000L;
             select(0, NULL, NULL, NULL, &tv);
           #endif
             /* sleeping call could have been interrupted */
