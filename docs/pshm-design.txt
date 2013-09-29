@@ -1,6 +1,6 @@
 GASNet inter-Process SHared Memory (PSHM) design
 ---------------------------------------------
-$Revision: 1.20 $
+$Revision: 1.20.2.1 $
 
 Document by:
     Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -310,13 +310,19 @@ Status:
       UPC_SHARED_HEAP_SIZE=400M
       BG_SHAREDMEMPOOLSIZE=810
 * IBM BG/Q platform-specific notes:
+  _ NOTE: With GASNet 1.22.0 there are known issues with leaking of shared
+    memory using BG/Q driver V1R2M1.  It is unknown at the time of this
+    release if the fault lies in GASNet or the BG/Q driver.
+    The result is that BG_SHAREDMEMSIZE may need to be set much higher
+    than expected unless GASNET_MAX_SEGSIZE has been set to a value very
+    near to the true segment size to be requested by the client.
   - Currently one must manually set up a few things to use PSHM on BG/Q
     + Must set CROSS_HAVE_SHM_OPEN=1 on configure command line
     + Set env var BG_SHAREDMEMSIZE to fit the shared segment plus extra
       space for Active Message buffers.  The value is in units of MB and
       should be prefixed with '+' to ADD the value to the system default.
     + Set BG_MAPCOMMONHEAP=1 or the entire shared heap will be deducted
-      from the heap of the first process.
+      from the heap of the first process on each node.
   - Example environment variable settings for 200MB shared heap in "c4"
     mode when using Berkeley UPC's upcrun command:
       UPC_SHARED_HEAP_SIZE=200M
