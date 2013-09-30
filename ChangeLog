@@ -1,32 +1,40 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.85.2.8 $
+$Revision: 1.85.2.9 $
 
 ----------------------------------------------------------------------
-09-29-2013 : Release 1.22.0-rc6
-    - This is "release candidate SIX" of GASNet 1.22.0
-      We beleive this to be the final CODE.
-      However, the documentation updates (including the ChangeLog 
-      below) have not yet been completed.
+09-30-2013 : Release 1.22.0-rc7
+  - This is "release candidate SEVEN" of GASNet 1.22.0
 
-* Cray XC30 (aries-conduit)
+* Cray XE, XK and XC series (gemini- and aries-conduits)
   - With this release support for the Aries interconnect of the Cray
     XC-30 system has graduated out of BETA status.
-  - See gemini-conduit, below, for additional (common) changes
-
-* Cray XE & XK series (gemini-conduit)
   - This release includes a new implementation of Active Messages
     + Memory use scales better (18% less per peer by default)
-    + Larger MaxMedium yields higher peak AM Medium bandwidth
+    + Larger default MaxMedium yields higher peak AM Medium bandwidth
     + MaxMedium may now be changed at configure time
   - This release features a new default barrier: GNIDISSEM
   - Contention among pthreads in a PAR build has been greatly reduced.
   - Optional (experimental) "multi-domain" support to almost entirely
     eliminate contention among pthreads in PAR builds (see the conduit
     README for details and instructions to enable and use this feature).
+  - Fix bug 3078 in which use of addresses in PSHM-imported GASNet
+    segments as local address in Extended API calls would crash.
 
-* InfiniBand (ibv- and mxm-conduit)
+* InfiniBand (ibv-conduit for OpenFabrics Verbs)
   - Now support direct PMI-based launch (e.g. srun or hydra)
+  - Significantly simpler code in the critical paths for Puts and Gets
+  - This release conduit features a new default barrier: IBDISSEM
+  - Properly support systems with pagesize larger than 4KB.
+
+* Mellanox ConnectX series HCAs (mxm-conduit)
+  - Now support direct PMI-based launch (e.g. srun or hydra)
+
+* Mellanox Fabric Collective Accelerator (FCA)
+  - While FCA acceleration of collectives is still only available in
+    a SEQ (non-pthreaded) build of GASNet, it can now be enabled at
+    configure time without disabling compilation of PAR and PARSYNC
+    libraries.
 
 * IBM BG/Q (pami-conduit)
   - Support for intra-node shared memory communication (PSHM) is now
@@ -34,14 +42,46 @@ $Revision: 1.85.2.8 $
     details of the configuration and environment setup required.
   - Updates to support changes made in the V1R2M1 driver.
 
+* Portals 4.x API (portals4-conduit)
+  - The implementation now includes a native implementation of the
+    Extended API (Put and Get) in terms of the Portals4 API.
+
 * Portable UDP support (udp-conduit)
   - Support MASTERIP and WORKERIP settings to deal with a much wider
-    range of network configurations.
+    range of network configurations.  See the counduit README.
 
 * Platform support/portability
   - Initial support for building GASNet with NVIDIA's nvcc compiler
   - Initial support for running GASNet on Intel MIC (a.k.a. Xeon Phi);
     This release only supports running GASNet on MIC in native mode.
+  - Fix Bug 3167 - incorrect memory fences with Cray C compiler .
+
+* PSHM (intra-node shared memory)
+  - Fix bug 3181 in which unequal segment requests could lead to either
+    failure at attach time, or incomplete sharing of memory.
+
+* General
+  - New GASNET_NO_CATCH_SIGNAL environment variable to suppress the
+    default signal handling behavior when debugging.
+  - Initial prototype implementations of several features slated for
+    standardization in a future GASNet specification:
+    + Variable argument AM Request and Reply functions
+        gasnet_AMRequest{Short,Medium,Long,LongAsync}()
+        gasnet_AMReply{Short,Medium,Long}()
+      Work just like the fixed-argument versions, but take a "numargs"
+      integer argument before the first handler argment (or as the last
+      argument when numargs == 0).
+    + Unnamed split-phase barrier which can leverage hardware support
+      not possible when implementing full (UPC-centric) name matching.
+        GASNET_BARRIERFLAG_UNNAMED as flags argument
+    + Single-phase barrier (both with and w/o name matching) also able
+      to leverage additional hardware support.
+        gasnet_barrier(id, flags)
+    + Barrier matching results query (for building of hierarchical
+      implementation which require UPC-style name matching)
+        int is_anonymous = gasnet_barrier_result(&value_if_not_anon);
+    + The number of implicit-handle (nbi-suffixed) operations outstanding
+      is now unbounded, including when using an nbi access region.
 	
 * Removal of unmaintained network conduits
   - This release no longer supports the following networks:
