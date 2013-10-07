@@ -1,10 +1,10 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.85.2.9 $
+$Revision: 1.85.2.10 $
 
 ----------------------------------------------------------------------
-09-30-2013 : Release 1.22.0-rc7
-  - This is "release candidate SEVEN" of GASNet 1.22.0
+10-07-2013 : Release 1.22.0-rc8
+  - This is "release candidate EIGHT" of GASNet 1.22.0
 
 * Cray XE, XK and XC series (gemini- and aries-conduits)
   - With this release support for the Aries interconnect of the Cray
@@ -29,6 +29,7 @@ $Revision: 1.85.2.9 $
 
 * Mellanox ConnectX series HCAs (mxm-conduit)
   - Now support direct PMI-based launch (e.g. srun or hydra)
+  - This release adds support for v2.x of the MXM API.
 
 * Mellanox Fabric Collective Accelerator (FCA)
   - While FCA acceleration of collectives is still only available in
