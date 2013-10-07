@@ -752,11 +752,6 @@ static int gasnetc_init(int *argc, char ***argv)
 #endif
     mxm_status = mxm_ep_create(gasnet_mxm_module.mxm_context,
                         mxm_ep_opts, &gasnet_mxm_module.mxm_ep);
-#if MXM_API == MXM_VERSION(1,5)
-    mxm_config_free(mxm_ep_opts);
-#else
-    mxm_config_free_ep_opts(mxm_ep_opts);
-#endif
 #endif
 
     if (mxm_status != MXM_OK) {
@@ -766,14 +761,13 @@ static int gasnetc_init(int *argc, char ***argv)
     }
 
 #if MXM_API < MXM_VERSION(1,5)
-    gasnet_mxm_module.rndv_thresh = mxm_ep_opts.rdma.rndv_thresh;
     gasnet_mxm_module.zcopy_thresh = mxm_ep_opts.rdma.zcopy_thresh;
 #elif MXM_API == MXM_VERSION(1,5) 
-    gasnet_mxm_module.rndv_thresh = mxm_ep_opts->rdma.rndv_thresh;
     gasnet_mxm_module.zcopy_thresh = mxm_ep_opts->rdma.zcopy_thresh;
+    mxm_config_free(mxm_ep_opts);
 #else
-    gasnet_mxm_module.rndv_thresh = mxm_ep_opts->rndv_thresh;
     gasnet_mxm_module.zcopy_thresh = mxm_ep_opts->zcopy_thresh;
+    mxm_config_free_ep_opts(mxm_ep_opts);
 #endif
 
     /*

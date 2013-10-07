@@ -18,7 +18,6 @@
 #define GASNET_USE_MXM_SELF_PTL 0
 
 #define GASNET_USE_ZCOPY 1
-#define GASNET_USE_ZCOPY_RCV 0
 
 
 /* -------------------------------------------------------------------------- */
@@ -223,8 +222,8 @@ static gasnetc_memreg_t * gasnetc_find_reg(void *src_addr, int nbytes, int rank)
 #if GASNET_USE_ZCOPY
     int i;
     int rank_reg_offset = gasnetc_max_regs * rank;
-    if ( (nbytes < gasnet_mxm_module.zcopy_thresh) ||
-            (!GASNET_ADDR_IN_RANGE(gasneti_seginfo[rank].addr,
+
+    if ((!GASNET_ADDR_IN_RANGE(gasneti_seginfo[rank].addr,
                                    gasneti_seginfo[rank].size,
                                    src_addr, nbytes)) )
         return NULL;
@@ -256,7 +255,12 @@ static gasnetc_memreg_t * gasnetc_find_reg(void *src_addr, int nbytes, int rank)
 inline uint32_t gasnetc_find_lkey(void *src_addr, int nbytes)
 {
 #if GASNET_SEGMENT_FAST
-    gasnetc_memreg_t * reg = gasnetc_find_reg(src_addr, nbytes, gasnet_mynode());
+    gasnetc_memreg_t * reg;
+
+    if (nbytes < gasnet_mxm_module.zcopy_thresh)
+        return NULL;
+
+    reg = gasnetc_find_reg(src_addr, nbytes, gasnet_mynode());
     return (reg) ? reg->lkey : MXM_MKEY_NONE;
 #else
     return MXM_MKEY_NONE;
@@ -265,16 +269,7 @@ inline uint32_t gasnetc_find_lkey(void *src_addr, int nbytes)
 
 inline uint32_t gasnetc_find_rkey(void *src_addr, int nbytes, int rank)
 {
-#if GASNET_USE_ZCOPY_RCV
-#if GASNET_SEGMENT_FAST
-    gasnetc_memreg_t * reg = gasnetc_find_reg(src_addr, nbytes, rank);
-    return (reg) ? reg->rkey : MXM_MKEY_NONE;
-#else
     return MXM_MKEY_NONE;
-#endif
-#else
-    return MXM_MKEY_NONE;
-#endif
 }
 
 #elif MXM_API < MXM_VERSION(2,0)
@@ -282,7 +277,12 @@ inline uint32_t gasnetc_find_rkey(void *src_addr, int nbytes, int rank)
 inline mxm_mem_h gasnetc_find_memh(void *addr, int nbytes)
 {
 #if GASNET_SEGMENT_FAST
-    gasnetc_memreg_t * reg = gasnetc_find_reg(addr, nbytes, gasnet_mynode());
+    gasnetc_memreg_t * reg;
+
+    if (nbytes < gasnet_mxm_module.zcopy_thresh)
+        return NULL;
+
+    reg = gasnetc_find_reg(addr, nbytes, gasnet_mynode());
     return (reg) ? reg->memh : NULL;
 #else
     return NULL;
@@ -296,19 +296,14 @@ inline mxm_mem_h gasnetc_find_remote_memh(void *addr, int nbytes, int rank)
 
 #else
 
-inline mxm_mem_key_t *gasnetc_find_mkey(void *addr, int nbytes)
-{
-#if GASNET_SEGMENT_FAST
-    gasnetc_memreg_t * reg = gasnetc_find_reg(addr, nbytes, gasnet_mynode());
-    return (reg) ? &reg->m_key : NULL;
-#else
-    return NULL;
-#endif
-}
-
 inline mxm_mem_key_t *gasnetc_find_remote_mkey(void *addr, int nbytes, int rank)
 {
-    return NULL; /* No zcopy on receive side, so don't bother */
+#if (GASNET_SEGMENT_FAST)
+    gasnetc_memreg_t * reg = gasnetc_find_reg(addr, nbytes, rank);
+    return  reg ? &reg->m_key : &mxm_empty_mem_key ;
+#else
+    return  &mxm_empty_mem_key;
+#endif
 }
 
 
@@ -478,8 +473,6 @@ int gasnetc_AM_Generic(gasnetc_category_t category,
             p_sreq->sendiov[sge_idx].mkey = gasnetc_find_lkey(src_addr, nbytes);
 #elif MXM_API == MXM_VERSION(1,5)
             p_sreq->sendiov[sge_idx].memh = gasnetc_find_memh(src_addr, nbytes);
-#else
-            p_sreq->sendiov[sge_idx].memh = gasnetc_find_mkey(src_addr, nbytes);
 #endif
             sge_idx++;
         }
@@ -527,7 +520,6 @@ int gasnetc_AM_Generic(gasnetc_category_t category,
             put_mxm_sreq->base.data.buffer.memh = gasnetc_find_memh(src_addr, nbytes);
             put_mxm_sreq->op.mem.remote_memh = gasnetc_find_remote_memh(dst_addr, nbytes, dest);
 #else
-            put_mxm_sreq->base.data.buffer.memh = gasnetc_find_mkey(src_addr, nbytes);
             put_mxm_sreq->op.mem.remote_mkey = gasnetc_find_remote_mkey(dst_addr, nbytes, dest);
 #endif
 
