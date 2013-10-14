@@ -1,10 +1,9 @@
 GASNet ChangeLog 
 ----------------
-$Revision: 1.85.2.10 $
+$Revision: 1.85.2.11 $
 
 ----------------------------------------------------------------------
-10-07-2013 : Release 1.22.0-rc8
-  - This is "release candidate EIGHT" of GASNet 1.22.0
+10-21-2013 : Release 1.22.0
 
 * Cray XE, XK and XC series (gemini- and aries-conduits)
   - With this release support for the Aries interconnect of the Cray
@@ -21,6 +20,12 @@ $Revision: 1.85.2.10 $
   - Fix bug 3078 in which use of addresses in PSHM-imported GASNet
     segments as local address in Extended API calls would crash.
 
+* IBM BG/Q (pami-conduit)
+  - Support for intra-node shared memory communication (PSHM) is now
+    available on BlueGene/Q.  Please see docs/pshm-design.txt for
+    details of the configuration and environment setup required.
+  - Updates to support changes made in the V1R2M1 driver.
+
 * InfiniBand (ibv-conduit for OpenFabrics Verbs)
   - Now support direct PMI-based launch (e.g. srun or hydra)
   - Significantly simpler code in the critical paths for Puts and Gets
@@ -36,12 +41,6 @@ $Revision: 1.85.2.10 $
     a SEQ (non-pthreaded) build of GASNet, it can now be enabled at
     configure time without disabling compilation of PAR and PARSYNC
     libraries.
-
-* IBM BG/Q (pami-conduit)
-  - Support for intra-node shared memory communication (PSHM) is now
-    available on BlueGene/Q.  Please see docs/pshm-design.txt for
-    details of the configuration and environment setup required.
-  - Updates to support changes made in the V1R2M1 driver.
 
 * Portals 4.x API (portals4-conduit)
   - The implementation now includes a native implementation of the
