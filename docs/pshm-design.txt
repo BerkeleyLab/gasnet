@@ -1,6 +1,6 @@
 GASNet inter-Process SHared Memory (PSHM) design
 ---------------------------------------------
-$Revision: 1.21.2.1 $
+$Revision: 1.21.2.2 $
 
 Document by:
     Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -31,7 +31,7 @@ Linux.  On all other platforms, one must pass --enable-pshm if PSHM support
 is desired.  On Linux PSHM can be disabled by passing --disable-pshm at
 configure time.
 
-The PSHM support in GASNet can operate via three possible mechanisms: POSIX
+The PSHM support in GASNet can operate via three generic mechanisms: POSIX
 shared memory, SystemV shared memory, or mmap()ed disk files.  When PSHM is
 enabled, the default is for the configure step to probe only for support
 via POSIX shared memory (except on MacOS, where it is known to be broken).
@@ -50,12 +50,15 @@ the desired mechanism:
         On Linux "--enable-pshm" is the default.
         On all other platforms "--disable-pshm" is the default.
 
+There are also implementations which are specifc to certain platforms:
+
 For Cray XE, XK and XC systems, PSHM-over-XPMEM is enabled automatically
 by the corresponding cross-configure scripts.  However, one can also
 optionally enable PSHM-over-XPMEM on an SGI Altix as follows:
         XPMEM: --enable-pshm --disable-pshm-posix --enable-pshm-xpmem
 
-For BlueGene/Q:
+For BlueGene/Q, PSHM via the "common heap" is enabled automatically by
+the corresponding cross-configure scripts.  However, one can also use:
         GHEAP: --enable-pshm --disable-pshm-posix --enable-pshm-gheap
 
 PSHM includes an environment variable for controlling use of memory for
@@ -214,11 +217,15 @@ Interface notes:
   OS-appropriate mechanisms. (shm_open()+mmap(), shmget()+shmat(), etc.).
 * Nodes on a supernode typically have different virtual address map of the
   segments on that supernode.  They are typically not contiguous either.
-* Client calls getSegmentInfo to get the location of his segment and those of
-  other nodes (as always)
-* seginfo_t for node X reflects the shared segment belonging to X, but also
-  includes a supernode identifier (node_info) so nodes can see which nodes
-  share their supernode
+* Client calls gasnet_getSegmentInfo() to get the location of his segment and
+  those of other nodes (as always)
+* Client calls gasnet_getNodeInfo() to get the compute node rank, and the
+  supernode rank (which need not be the same when GASNET_SUPERNODE_MAXSIZE
+  is non-zero) for each node.  Only nodes with the same supernode rank as
+  the caller are addressable via PSHM.  When PSHM is enabled the "offset"
+  field givies the difference between X's address for its own segment and the
+  address (if any) at which that segment is mapped in the caller's address
+  space.
 * Client may directly load/store into the segments of any node sharing their
   supernode (currently implemented in Berkeley UPC runtime library)
 * remotely-addressable segment restrictions on gasnet_put/get/AMLong apply to
@@ -272,6 +279,14 @@ A5) We have each node mmap() its own segment before any cross-mapping is done
     We currently have the client doing first-touch to deal with the case that
     the OS does page frame allocation on touch, rather than mmap().
 
+Q6) Do we ever want to allow supernodes to share a physical node?
+    (eg to increase segment size or to leverage NUMA affinity)
+    - if so, need an interface to specify this (probably environment variables)
+A6) The GASNET_SUPERNODE_MAXSIZE env var bounds the number of processes which
+    will be joined into a single supernode (with 0 meaning no bound).  When
+    there are more than this number of processes per node, then multiple
+    supernodes will be constructed.
+
 Open questions:
 --------------
 * How do we handle 8 or 16-way SMPs on 32-bit platforms where VM space is
@@ -283,9 +298,6 @@ Open questions:
     (without pshm segments), although due to attentiveness issues, it may be
     slower than using loopback RDMA
   - Is this mode just the extended-ref using AM-over-PSHM?
-* Do we ever want to allow supernodes to share a physical node?
-  (eg to increase segment size or to leverage NUMA affinity)
-  - if so, need an interface to specify this (probably environment variables)
 * Will there be contention with MPI for resources (and should we care)?
   
 Known Problems / To do:
@@ -318,10 +330,13 @@ Status:
       UPC_SHARED_HEAP_SIZE=400M
       BG_SHAREDMEMPOOLSIZE=810
 * IBM BG/Q platform-specific notes:
+  - The PAMI conduit supports PSHM, and the provided cross-configure script
+    will --enable-pshm-gheap
   - One must set BG_MAPCOMMONHEAP=1 in the compute node environment.
     This is handled automatically by the gasnetrun_mpi and gasnetrun_pami
-    scripts, but must be handled manually when using runjob directly.
-* Cray XE and XC platform-specific notes:
+    scripts, but must be handled manually when using runjob directly (or
+    a wrapper like qsub from ANL's Cobalt suite).
+* Cray XE, XK and XC platform-specific notes:
   - The Gemini and Aries conduits support PSHM, and the provided cross-
     configure scripts --enable-pshm-xpmem
 * MacOS X platform-specific notes:
@@ -341,5 +356,5 @@ Status:
     that doing so would be constructive.
   Keep in mind that if you use one of these conduits on a platform with the
   necessary support for PSHM, you may still configure with --enable-pshm to
-  get PSHM support in other conduits (e.g. SMP and MPI), and these few
+  get PSHM support in other conduits (e.g. SMP and MPI), and non-PSHM
   conduits will still build (they will simply be missing PSHM support).
