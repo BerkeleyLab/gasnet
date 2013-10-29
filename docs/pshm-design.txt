@@ -1,6 +1,6 @@
 GASNet inter-Process SHared Memory (PSHM) design
 ---------------------------------------------
-$Revision: 1.21 $
+$Revision: 1.21.2.1 $
 
 Document by:
     Dan Bonachea <bonachea@cs.berkeley.edu>
@@ -49,6 +49,14 @@ the desired mechanism:
 
         On Linux "--enable-pshm" is the default.
         On all other platforms "--disable-pshm" is the default.
+
+For Cray XE, XK and XC systems, PSHM-over-XPMEM is enabled automatically
+by the corresponding cross-configure scripts.  However, one can also
+optionally enable PSHM-over-XPMEM on an SGI Altix as follows:
+        XPMEM: --enable-pshm --disable-pshm-posix --enable-pshm-xpmem
+
+For BlueGene/Q:
+        GHEAP: --enable-pshm --disable-pshm-posix --enable-pshm-gheap
 
 PSHM includes an environment variable for controlling use of memory for
 intra-memory AM traffic:
@@ -310,29 +318,9 @@ Status:
       UPC_SHARED_HEAP_SIZE=400M
       BG_SHAREDMEMPOOLSIZE=810
 * IBM BG/Q platform-specific notes:
-  _ NOTE: With GASNet 1.22.0 there are known issues with leaking of shared
-    memory using BG/Q driver V1R2M1.  It is unknown at the time of this
-    release if the fault lies in GASNet or the BG/Q driver.
-    The result is that BG_SHAREDMEMSIZE may need to be set much higher
-    than expected unless GASNET_MAX_SEGSIZE has been set to a value very
-    near to the true segment size to be requested by the client.
-  - Currently one must manually set up a few things to use PSHM on BG/Q
-    + Must set CROSS_HAVE_SHM_OPEN=1 on configure command line
-    + Set env var BG_SHAREDMEMSIZE to fit the shared segment plus extra
-      space for Active Message buffers.  The value is in units of MB and
-      should be prefixed with '+' to ADD the value to the system default.
-    + Set BG_MAPCOMMONHEAP=1 or the entire shared heap will be deducted
-      from the heap of the first process on each node.
-  - Example environment variable settings for 200MB shared heap in "c4"
-    mode when using Berkeley UPC's upcrun command:
-      UPC_SHARED_HEAP_SIZE=200M
-      BG_SHAREDMEMSIZE=+820
-      BG_MAPCOMMONHEAP=1
-  - Example environment variable settings for 400MB shared heap in "c2"
-    mode when using Berkeley UPC's upcrun command:
-      UPC_SHARED_HEAP_SIZE=400M
-      BG_SHAREDMEMSIZE=+810
-      BG_MAPCOMMONHEAP=1
+  - One must set BG_MAPCOMMONHEAP=1 in the compute node environment.
+    This is handled automatically by the gasnetrun_mpi and gasnetrun_pami
+    scripts, but must be handled manually when using runjob directly.
 * Cray XE and XC platform-specific notes:
   - The Gemini and Aries conduits support PSHM, and the provided cross-
     configure scripts --enable-pshm-xpmem
