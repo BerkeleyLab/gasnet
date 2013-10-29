@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_internal.h,v $
- *     $Date: 2013/08/28 06:04:22 $
- * $Revision: 1.133 $
+ *     $Date: 2013/10/29 21:15:34 $
+ * $Revision: 1.133.6.1 $
  * Description: GASNet header for internal definitions used in GASNet implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -256,8 +256,8 @@ extern void gasneti_freezeForDebugger(void);
 
 void gasneti_defaultSignalHandler(int sig);
 
-#if defined(HAVE_MMAP) || (GASNET_PSHM && defined(GASNETI_PSHM_SYSV))
-  #define GASNETI_MMAP_OR_SYSV 1
+#if defined(HAVE_MMAP) || GASNET_PSHM
+  #define GASNETI_MMAP_OR_PSHM 1
   extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz);
  #if defined(HAVE_MMAP)
   extern void gasneti_mmap_fixed(void *segbase, uintptr_t segsize);
@@ -299,11 +299,11 @@ typedef void (*gasneti_bootstrapBroadcastfn_t)(void *src, size_t len, void *dest
 typedef void (*gasneti_bootstrapBarrierfn_t)(void);
 
 #if !GASNET_SEGMENT_EVERYTHING
-#ifdef HAVE_MMAP
+#ifdef GASNETI_MMAP_OR_PSHM
 uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasneti_bootstrapExchangefn_t exchangefn,
                             gasneti_bootstrapBarrierfn_t barrierfn);
-#endif /* HAVE_MMAP */
+#endif /* GASNETI_MMAP_OR_PSHM */
 void gasneti_segmentInit(uintptr_t localSegmentLimit,
                          gasneti_bootstrapExchangefn_t exchangefn);
 void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
