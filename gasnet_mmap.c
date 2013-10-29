@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_mmap.c,v $
- *     $Date: 2013/10/29 07:27:27 $
- * $Revision: 1.131.2.1 $
+ *     $Date: 2013/10/29 07:37:51 $
+ * $Revision: 1.131.2.2 $
  * Description: GASNet memory-mapping utilities
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -449,43 +449,12 @@ extern void gasneti_huge_munmap(void *addr, uintptr_t size) {
 
 #if GASNET_PSHM
 
-#if defined(PLATFORM_OS_BGQ) /* must delay close until unmap() */
-  static struct {
-    void *addr;
-    int fd;
-  } *gasneti_addr2fd = NULL;
-  static void gasneti_addr2fd_add(void *addr, int fd) {
-    int i;
-    if (NULL == gasneti_addr2fd) {
-       gasneti_addr2fd = gasneti_calloc(1+gasneti_pshm_nodes, sizeof(*gasneti_addr2fd));
-    }
-    for (i=0; i<=gasneti_pshm_nodes; ++i) {
-      if (gasneti_addr2fd[i].addr == NULL) {
-        gasneti_addr2fd[i].addr = addr;
-        gasneti_addr2fd[i].fd = fd;
-        return;
-      }
-    }
-    gasneti_fatalerror("addr2fd table is full");
-  }
-  static int gasneti_addr2fd_del(void *addr) {
-    int i;
-    for (i=0; i<=gasneti_pshm_nodes; ++i) {
-      if (gasneti_addr2fd[i].addr == addr) {
-        gasneti_addr2fd[i].addr = NULL;
-        return gasneti_addr2fd[i].fd;
-      }
-    }
-    gasneti_fatalerror("address not found in addr2fd table");
-  }
-#endif /* BGQ */
-
 static void gasneti_pshm_unlink(int pshm_rank);
 
 /* create the object/region/segment and return its address */
 static void * gasneti_pshm_mmap(int pshm_rank, void *segbase, size_t segsize) {
-#if defined(GASNETI_PSHM_POSIX) && (defined(PLATFORM_OS_BGP) || defined(PLATFORM_OS_BGQ))
-  /* shm_unlink() is apparently a no-op on BG/P and earlier driver versions on /Q */
+#if defined(GASNETI_PSHM_POSIX) && defined(PLATFORM_OS_BGP)
+  /* shm_unlink() is apparently a no-op on BG/P */
   const int create = ((pshm_rank == gasneti_pshm_nodes) && !gasneti_pshm_mynode);
 #else
   const int create = (pshm_rank == gasneti_pshm_mynode) ||
@@ -530,13 +499,6 @@ static void * gasneti_pshm_mmap(int pshm_rank, void *segbase, size_t segsize) {
           fd = shm_open(filename, flags, S_IRUSR | S_IWUSR);
         } while ((fd == -1) && (errno == EEXIST) && retries_remain--);
       }
-    #elif defined(PLATFORM_OS_BGQ)
-      /* XXX: configure or compile time way to know? */
-      if ((fd == -1) && (errno == ENOENT) && (pshm_rank == gasneti_pshm_mynode)) {
-        /* We didn't use O_CREAT+O_EXCL on the first try, because shm_unlink()
-         * does nothing prior to V1R2M1.  So, try again with those flags. */
-        fd = shm_open(filename, flags | O_CREAT | O_EXCL, S_IRUSR | S_IWUSR);
-      }
     #endif
   #else
     #error
@@ -552,12 +514,6 @@ static void * gasneti_pshm_mmap(int pshm_rank, void *segbase, size_t segsize) {
     ptr = mmap(segbase, segsize, (PROT_READ|PROT_WRITE), mmap_flags, fd, 0);
   }
 
- #if defined(PLATFORM_OS_BGQ)
-  /* must delay close() untile just before munmap() */
-  if (ptr != MAP_FAILED) {
-    gasneti_addr2fd_add(ptr, fd);
-  } else
- #endif
   {
     const int save_errno = errno;
     (void) close(fd);
@@ -724,10 +680,6 @@ static void gasneti_cleanup_shm(void) {
     gasneti_free(gasneti_pshmname);
     gasneti_pshmname = NULL;
   }
-  #if defined(PLATFORM_OS_BGQ)
-    gasneti_free(gasneti_addr2fd);
-    gasneti_addr2fd = NULL;
-  #endif
 #elif defined(GASNETI_PSHM_XPMEM)
   gasneti_free(gasneti_pshm_segids);
   gasneti_pshm_segids = NULL;
@@ -945,10 +897,6 @@ extern void gasneti_munmap(void *segbase, uintptr_t segsize) {
       if (msync(segbase, segsize, MS_INVALIDATE))
         gasneti_fatalerror("msync("GASNETI_LADDRFMT",%lu) failed: %s\n",
 	        GASNETI_LADDRSTR(segbase), (unsigned long)segsize, strerror(errno));
-    #endif
-    #if GASNET_PSHM && defined(PLATFORM_OS_BGQ)
-      /* we delayed the close() until now */
-      close(gasneti_addr2fd_del(segbase));
     #endif
     if (munmap(segbase, segsize) != 0) 
       gasneti_fatalerror("munmap("GASNETI_LADDRFMT",%lu) failed: %s\n",
