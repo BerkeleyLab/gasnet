@@ -1,6 +1,6 @@
 /*    $Source: /Users/kamil/work/gasnet-cvs2/gasnet/acconfig.h,v $ */
-/*      $Date: 2013/09/15 20:03:49 $ */
-/*  $Revision: 1.196 $ */
+/*      $Date: 2013/10/29 07:27:27 $ */
+/*  $Revision: 1.196.4.1 $ */
 /*  Description: GASNet acconfig.h (or config.h)                             */
 /*  Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>                  */
 /* Terms of use are as specified in license.txt */
@@ -177,6 +177,7 @@
 #undef GASNETI_PSHM_SYSV
 #undef GASNETI_PSHM_FILE
 #undef GASNETI_PSHM_XPMEM
+#undef GASNETI_PSHM_GHEAP
 
 /* How many cores/node must we support (255 is default) */
 #undef GASNETI_CONFIG_PSHM_MAX_NODES

@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2013/10/17 04:10:34 $
-# $Revision: 1.831 $
+#     $Date: 2013/10/29 07:27:27 $
+# $Revision: 1.831.2.1 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.831 $)
+AC_REVISION($Revision: 1.831.2.1 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1435,6 +1435,17 @@ if test "$enabled_pshm" != no; then
     ])
   ])
   GASNET_POPVAR(LIBS)
+ fi
+
+ # Fourth check is for gloal heap
+ enabled_pshm_gheap=no
+ GASNET_IF_ENABLED(pshm-gheap,
+   [Enable use of global heap for inter-process shared memory support (default disabled)],
+   [enabled_pshm_gheap=yes])
+ if test "$enabled_pshm_gheap$with_pshm" = yesno; then
+  # TODO: any sanity checks available to use here?
+  AC_DEFINE(GASNETI_PSHM_GHEAP)
+  with_pshm=gheap
  fi
 
  # Final check is for mmap()ed file support

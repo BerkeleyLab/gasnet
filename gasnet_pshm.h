@@ -1,6 +1,6 @@
 /*   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/gasnet_pshm.h,v $
- *     $Date: 2013/08/08 16:52:01 $
- * $Revision: 1.28 $
+ *     $Date: 2013/10/29 07:27:27 $
+ * $Revision: 1.28.8.1 $
  * Description: GASNet infrastructure for shared memory communications
  * Copyright 2009, E. O. Lawrence Berekely National Laboratory
  * Terms of use are as specified in license.txt
@@ -15,20 +15,23 @@
 
 /* Must defined EXACTLY one */
 /* TO DO: add to GASNet's config string */
-#if defined(GASNETI_PSHM_POSIX) && !defined(GASNETI_PSHM_SYSV) && !defined(GASNETI_PSHM_FILE) && !defined(GASNETI_PSHM_XPMEM)
+#if defined(GASNETI_PSHM_POSIX) && !defined(GASNETI_PSHM_SYSV) && !defined(GASNETI_PSHM_FILE) && !defined(GASNETI_PSHM_XPMEM) && !defined(GASNETI_PSHM_GHEAP)
   #undef GASNETI_PSHM_POSIX
   #define GASNETI_PSHM_POSIX 1
-#elif !defined(GASNETI_PSHM_POSIX) && defined(GASNETI_PSHM_SYSV) && !defined(GASNETI_PSHM_FILE) && !defined(GASNETI_PSHM_XPMEM)
+#elif !defined(GASNETI_PSHM_POSIX) && defined(GASNETI_PSHM_SYSV) && !defined(GASNETI_PSHM_FILE) && !defined(GASNETI_PSHM_XPMEM) && !defined(GASNETI_PSHM_GHEAP)
   #undef GASNETI_PSHM_SYSV
   #define GASNETI_PSHM_SYSV 1
-#elif !defined(GASNETI_PSHM_POSIX) && !defined(GASNETI_PSHM_SYSV) && defined(GASNETI_PSHM_FILE) && !defined(GASNETI_PSHM_XPMEM)
+#elif !defined(GASNETI_PSHM_POSIX) && !defined(GASNETI_PSHM_SYSV) && defined(GASNETI_PSHM_FILE) && !defined(GASNETI_PSHM_XPMEM) && !defined(GASNETI_PSHM_GHEAP)
   #undef GASNETI_PSHM_FILE
   #define GASNETI_PSHM_FILE 1
-#elif !defined(GASNETI_PSHM_POSIX) && !defined(GASNETI_PSHM_SYSV) && !defined(GASNETI_PSHM_FILE) && defined(GASNETI_PSHM_XPMEM)
+#elif !defined(GASNETI_PSHM_POSIX) && !defined(GASNETI_PSHM_SYSV) && !defined(GASNETI_PSHM_FILE) && defined(GASNETI_PSHM_XPMEM) && !defined(GASNETI_PSHM_GHEAP)
   #undef GASNETI_PSHM_XPMEM
   #define GASNETI_PSHM_XPMEM 1
+#elif !defined(GASNETI_PSHM_POSIX) && !defined(GASNETI_PSHM_SYSV) && !defined(GASNETI_PSHM_FILE) && !defined(GASNETI_PSHM_XPMEM) && defined(GASNETI_PSHM_GHEAP)
+  #undef GASNETI_PSHM_GHEAP
+  #define GASNETI_PSHM_GHEAP 1
 #else
-  #error PSHM configuration must be exactly one of (GASNETI_PSHM_POSIX, GASNETI_PSHM_SYSV, GASNETI_PSHM_FILE,GASNETI_PSHM_XPMEM)
+  #error PSHM configuration must be exactly one of (GASNETI_PSHM_POSIX, GASNETI_PSHM_SYSV, GASNETI_PSHM_FILE, GASNETI_PSHM_XPMEM, GASNETI_PSHM_GHEAP)
 #endif
 #include <gasnet_handler.h> /* Need gasneti_handler_fn_t */
 
