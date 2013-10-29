@@ -1,14 +1,14 @@
 dnl -*- m4 -*-
 
 #   $Source: /Users/kamil/work/gasnet-cvs2/gasnet/configure.in,v $
-#     $Date: 2013/10/29 21:15:34 $
-# $Revision: 1.831.2.2 $
+#     $Date: 2013/10/29 21:45:46 $
+# $Revision: 1.831.2.3 $
 # Description: GASNet configure script
 # Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
 AC_DEFUN([cv_prefix],[gasnet_cv_])
-AC_REVISION($Revision: 1.831.2.2 $)
+AC_REVISION($Revision: 1.831.2.3 $)
 
 # the "new" way
 # AC_INIT(GASNet, 0.2)
@@ -1342,10 +1342,15 @@ if test "$enabled_pshm" != no; then
  GASNET_IF_ENABLED_WITH_AUTO(pshm-posix,
    [Enable/disable use of POSIX shm_open() for inter-process shared memory support (default is system dependent)],
    [enabled_pshm_posix=yes], [enabled_pshm_posix=no],
-   [ # Default is YES except on Darwin, due to bug 2629
+   [ # Default is YES except:
+     # + on Darwin due to bug 2629
+     # + on BG/Q due to multiple "oddities" in CNK's implementation
+     enabled_pshm_posix=yes
      case "$target_os" in
-     darwin*) enabled_pshm_posix=no ;;
-           *) enabled_pshm_posix=yes ;;
+       darwin*) enabled_pshm_posix=no ;;
+     esac
+     case "$target_vendor" in
+       bgq) enabled_pshm_posix=no ;;
      esac
    ])
  if expr "$enabled_pshm_posix@$target_os" : "yes@darwin" >/dev/null; then
