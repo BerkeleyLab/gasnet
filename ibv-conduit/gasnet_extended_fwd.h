@@ -79,5 +79,11 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
 #define GASNETE_BUILD_AMREF_PUT_BULK 1
 #define GASNETE_BUILD_AMREF_PUT 1
 
+/* Disable use of RDMA-based AMLongs for large AM-based Get and Put.
+ * Not certain yet if we need this or not for the Quesce work.
+ */
+#define GASNETE_USE_LONG_GETS 0
+#define GASNETE_USE_LONG_PUTS 0
+
 #endif
 
