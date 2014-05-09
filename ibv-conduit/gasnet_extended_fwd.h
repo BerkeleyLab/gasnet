@@ -72,5 +72,12 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
 #define gasnete_amref_memset_nb     gasnete_memset_nb
 #define gasnete_amref_memset_nbi    gasnete_memset_nbi
 
+/* We want to build these but are not "USING" them as the defaults: */
+#define GASNETE_BUILD_AMREF_GET_HANDLERS 1
+#define GASNETE_BUILD_AMREF_PUT_HANDLERS 1
+#define GASNETE_BUILD_AMREF_GET_BULK 1
+#define GASNETE_BUILD_AMREF_PUT_BULK 1
+#define GASNETE_BUILD_AMREF_PUT 1
+
 #endif
 
