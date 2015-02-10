@@ -665,12 +665,27 @@ extern void gasneti_defaultAMHandler(gasnet_token_t token);
 /* nodemap data and functions */
 
 extern gasnet_node_t *gasneti_nodemap;
-extern gasnet_node_t *gasneti_nodemap_local;
-extern gasnet_node_t gasneti_nodemap_local_count;
-extern gasnet_node_t gasneti_nodemap_local_rank;
-extern gasnet_node_t gasneti_nodemap_global_count;
-extern gasnet_node_t gasneti_nodemap_global_rank;
 extern gasnet_nodeinfo_t *gasneti_nodeinfo;
+
+typedef struct gasneti_nodegrp_s {
+  /* List of member nodes in ascending order */
+  gasnet_node_t *nodes;
+  /* Number of nodes in group and my rank within them */
+  gasnet_node_t node_count;
+  gasnet_node_t node_rank;
+  /* Number of peers (groups of same class) and this group's rank */
+  gasnet_node_t grp_count;
+  gasnet_node_t grp_rank;
+} gasneti_nodegrp_t;
+
+extern gasneti_nodegrp_t gasneti_myhost;
+
+extern gasneti_nodegrp_t gasneti_mysupernode;
+#define gasneti_nodemap_local         gasneti_mysupernode.nodes
+#define gasneti_nodemap_local_count   gasneti_mysupernode.node_count
+#define gasneti_nodemap_local_rank    gasneti_mysupernode.node_rank
+#define gasneti_nodemap_global_count  gasneti_mysupernode.grp_count
+#define gasneti_nodemap_global_rank   gasneti_mysupernode.grp_rank
 
 extern void gasneti_nodemapInit(gasneti_bootstrapExchangefn_t exchangefn,
                                 const void *ids, size_t sz, size_t stride);

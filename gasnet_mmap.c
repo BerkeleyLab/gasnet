@@ -1128,6 +1128,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasneti_bootstrapBarrierfn_t barrierfn) {
   int i;
   uintptr_t maxsz;
+  const gasnet_node_t local_count = gasneti_myhost.node_count;
 
 #if GASNET_PSHM
   gasneti_pshm_cs_enter();
@@ -1166,25 +1167,25 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
   maxsz = MIN(maxsz, localLimit);
 
   /* Coordinate the search IFF there are any shared nodes. */
-  if (gasneti_nodemap_global_count != gasneti_nodes) {
+  if (gasneti_myhost.grp_count != gasneti_nodes) {
     uintptr_t *sz_exchg = gasneti_malloc(gasneti_nodes * sizeof(uintptr_t));
     gasnet_seginfo_t se = {0,0};
 
     /* Ensure our probe will not collectively exceed the shareLimit, if any. */
-    if ((sharedLimit != (uint64_t)-1) && (gasneti_nodemap_local_count > 1)) {
+    if ((sharedLimit != (uint64_t)-1) && (local_count > 1)) {
 #if SIZEOF_VOID_P != 8
        /* Skip MIN() on overflow */
-       if ((sharedLimit / gasneti_nodemap_local_count) < (uint64_t)(uintptr_t)(-1))
+       if ((sharedLimit / local_count) < (uint64_t)(uintptr_t)(-1))
 #endif
-       { uintptr_t tmp = sharedLimit / gasneti_nodemap_local_count;
+       { uintptr_t tmp = sharedLimit / local_count;
          maxsz = MIN(maxsz, tmp);
        }
     }
 
-    /* Allow each node to probe SEQUENTIALLY, and then collect the results */
+    /* Allow each node in a given host to probe SEQUENTIALLY, and then collect the results */
     maxsz = GASNETI_PAGE_ALIGNDOWN(maxsz);
 #if GASNET_PSHM
-    if (maxsz) {
+    if (maxsz && (gasneti_myhost.grp_count == gasneti_mysupernode.grp_count)) { /* host==supernode */
       for (i = 0; i < gasneti_nodemap_local_count; ++i) {
         if (i == gasneti_nodemap_local_rank) {
           se = _gasneti_mmap_segment_search_inner(maxsz);
@@ -1194,46 +1195,38 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
         gasneti_pshmnet_bootstrapBroadcast(gasneti_request_pshmnet, &maxsz, sizeof(uintptr_t), &maxsz, i);
         sz_exchg[gasneti_nodemap_local[i]] = maxsz;
       }
-    }
-#else
+    } else
+#endif
     if (maxsz) {
-      /* Find widest supernode */
+      /* Find widest host */
       gasnet_node_t rounds = 0;
       {
-        gasnet_node_t *tmp = gasneti_calloc(gasneti_nodemap_global_count, sizeof(gasnet_node_t));
+        const gasnet_node_t num_hosts = gasneti_myhost.grp_count;
+        gasnet_node_t *tmp = gasneti_calloc(num_hosts, sizeof(gasnet_node_t));
         for (i = 0; i < gasneti_nodes; ++i) {
-          const gasnet_node_t supernode = gasneti_nodeinfo[i].supernode;
-          tmp[supernode] += 1;
-          rounds = MAX(rounds, tmp[supernode]);
+          const gasnet_node_t host = gasneti_nodeinfo[i].host;
+          gasneti_assert(host < num_hosts);
+          tmp[host] += 1;
+          rounds = MAX(rounds, tmp[host]);
         }
         gasneti_free(tmp);
       }
 
       for (i = 0; i < rounds; ++i) {
-        if (i == gasneti_nodemap_local_rank) {
+        if (i == gasneti_myhost.node_rank) {
           se = _gasneti_mmap_segment_search_inner(maxsz);
         }
         (*barrierfn)();
       }
     }
     (*exchangefn)(&se.size, sizeof(uintptr_t), sz_exchg);
-#endif
 
-    /* Compute the supernode-local mean */
-    { uint64_t sum;
-      gasnet_node_t first, j;
-
-      first = gasneti_nodemap[gasneti_mynode];
-      sum = sz_exchg[first];
-      j = 1;
-
-      for (i = (first + 1); j < gasneti_nodemap_local_count; ++i) {
-        if (gasneti_nodemap[i] == first) {
-          sum += sz_exchg[i];
-          j += 1;
-        }
+    /* Compute the host-local mean */
+    { uint64_t sum = 0;
+      for (i = 0; i < local_count; ++i) {
+        sum += sz_exchg[gasneti_myhost.nodes[i]];
       }
-      maxsz = sum / gasneti_nodemap_local_count;
+      maxsz = sum / local_count;
       maxsz = GASNETI_PAGE_ALIGNDOWN(maxsz);
 
 #if GASNET_PSHM
