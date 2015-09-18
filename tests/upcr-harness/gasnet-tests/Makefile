@@ -1,6 +1,14 @@
 CONDUIT_DIR=$(TOP_BUILDDIR)/gasnet/$(NETWORK)-conduit
 STRICT_PROTO_FLAGS=`echo $$BUPC_STRICT_PROTO_FLAGS | sed -e 's/-Wc,//'`
 
+testbarrierconf_%-seq: force
+	@$(MAKE) -C $(CONDUIT_DIR) testbarrierconf-seq MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)"
+	cp -f $(CONDUIT_DIR)/testbarrierconf$(EXESUFFIX) $@$(EXESUFFIX)
+
+testbarrierconf_%-par: force
+	@$(MAKE) -C $(CONDUIT_DIR) testbarrierconf-par MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)"
+	cp -f $(CONDUIT_DIR)/testbarrierconf$(EXESUFFIX) $@$(EXESUFFIX)
+
 test%-seq: force
 	@$(MAKE) -C $(CONDUIT_DIR) $@ MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)"
 	cp -f $(CONDUIT_DIR)/`basename $@ -seq`$(EXESUFFIX) $@$(EXESUFFIX)
@@ -12,14 +20,6 @@ test%-par: force
 test%-parsync: force
 	@$(MAKE) -C $(CONDUIT_DIR) $@ MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)"
 	cp -f $(CONDUIT_DIR)/`basename $@ -parsync`$(EXESUFFIX) $@$(EXESUFFIX)
-
-testbarrierconf_t-seq: force
-	@$(MAKE) -C $(CONDUIT_DIR) testbarrierconf-seq MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)"
-	cp -f $(CONDUIT_DIR)/testbarrierconf$(EXESUFFIX) $@$(EXESUFFIX)
-
-testbarrierconf_t-par: force
-	@$(MAKE) -C $(CONDUIT_DIR) testbarrierconf-par MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)"
-	cp -f $(CONDUIT_DIR)/testbarrierconf$(EXESUFFIX) $@$(EXESUFFIX)
 
 testconduitspecific: force
 	@if test "$(NETWORK)" = "mpi" ; then 	\
