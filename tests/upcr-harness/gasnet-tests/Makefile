@@ -45,6 +45,10 @@ check-exports: force
 	@$(MAKE) -C $(CONDUIT_DIR) $@
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
+check-tools-exports: force
+	@$(MAKE) -C $(TOP_BUILDDIR)/gasnet check-exports
+	@echo '#!/bin/sh' > $@ ; chmod +x $@
+
 check-libupcr-exports: force
 	@$(MAKE) -C $(TOP_BUILDDIR) check-exports
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
