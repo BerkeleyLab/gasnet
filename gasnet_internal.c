@@ -291,7 +291,7 @@ extern void gasneti_freezeForDebugger(void) {
   }
 }
 /* ------------------------------------------------------------------------------------ */
-extern void gasneti_defaultAMHandler(gasnet_token_t token) {
+extern void gasneti_defaultAMHandler(gasnetex_token_t token) {
   gasnet_node_t srcnode = (gasnet_node_t)-1;
   gasnet_AMGetMsgSource(token, &srcnode);
   gasneti_fatalerror("GASNet node %i/%i received an AM message from node %i for a handler index "

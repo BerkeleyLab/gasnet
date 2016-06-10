@@ -814,7 +814,7 @@ gasnet_handle_t gasnete_puts_AMPipeline(gasnete_strided_stats_t const *stats, ga
 /* ------------------------------------------------------------------------------------ */
 #if GASNETE_USE_AMPIPELINE
 GASNETI_INLINE(gasnete_puts_AMPipeline_reqh_inner)
-void gasnete_puts_AMPipeline_reqh_inner(gasnet_token_t token, 
+void gasnete_puts_AMPipeline_reqh_inner(gasnetex_token_t token,
   void *addr, size_t nbytes,
   void *iop, void *dstaddr, 
   gasnet_handlerarg_t stridelevels, gasnet_handlerarg_t contiglevel, 
@@ -927,7 +927,7 @@ gasnet_handle_t gasnete_gets_AMPipeline(gasnete_strided_stats_t const *stats, ga
 /* ------------------------------------------------------------------------------------ */
 #if GASNETE_USE_AMPIPELINE
 GASNETI_INLINE(gasnete_gets_AMPipeline_reqh_inner)
-void gasnete_gets_AMPipeline_reqh_inner(gasnet_token_t token, 
+void gasnete_gets_AMPipeline_reqh_inner(gasnetex_token_t token,
   void *addr, size_t nbytes,
   void *_visop, void *srcaddr, 
   gasnet_handlerarg_t stridelevels, gasnet_handlerarg_t contiglevel, 
@@ -970,7 +970,7 @@ MEDIUM_HANDLER(gasnete_gets_AMPipeline_reqh,6,8,
               (token,addr,nbytes, UNPACK2(a0, a1), UNPACK2(a2, a3), a4,a5,a6,a7));
 /* ------------------------------------------------------------------------------------ */
 GASNETI_INLINE(gasnete_gets_AMPipeline_reph_inner)
-void gasnete_gets_AMPipeline_reph_inner(gasnet_token_t token, 
+void gasnete_gets_AMPipeline_reph_inner(gasnetex_token_t token,
   void *addr, size_t nbytes,
   void *_visop, gasnet_handlerarg_t packetidx,
   gasnet_handlerarg_t contiglevel, gasnet_handlerarg_t packetchunks) {

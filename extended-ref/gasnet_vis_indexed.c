@@ -318,7 +318,7 @@ gasnet_handle_t gasnete_puti_AMPipeline(gasnete_synctype_t synctype,
 /* ------------------------------------------------------------------------------------ */
 #if GASNETE_USE_AMPIPELINE
 GASNETI_INLINE(gasnete_puti_AMPipeline_reqh_inner)
-void gasnete_puti_AMPipeline_reqh_inner(gasnet_token_t token, 
+void gasnete_puti_AMPipeline_reqh_inner(gasnetex_token_t token,
   void *addr, size_t nbytes,
   void *iop, gasnet_handlerarg_t rnum, 
   gasnet_handlerarg_t dstlen, gasnet_handlerarg_t firstoffset, gasnet_handlerarg_t lastlen) {
@@ -398,7 +398,7 @@ gasnet_handle_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
 /* ------------------------------------------------------------------------------------ */
 #if GASNETE_USE_AMPIPELINE
 GASNETI_INLINE(gasnete_geti_AMPipeline_reqh_inner)
-void gasnete_geti_AMPipeline_reqh_inner(gasnet_token_t token, 
+void gasnete_geti_AMPipeline_reqh_inner(gasnetex_token_t token,
   void *addr, size_t nbytes,
   void *_visop, gasnet_handlerarg_t packetidx,
   gasnet_handlerarg_t dstlen, gasnet_handlerarg_t firstoffset, gasnet_handlerarg_t lastlen) {
@@ -419,7 +419,7 @@ MEDIUM_HANDLER(gasnete_geti_AMPipeline_reqh,5,6,
               (token,addr,nbytes, UNPACK2(a0, a1), a2,a3,a4,a5));
 /* ------------------------------------------------------------------------------------ */
 GASNETI_INLINE(gasnete_geti_AMPipeline_reph_inner)
-void gasnete_geti_AMPipeline_reph_inner(gasnet_token_t token, 
+void gasnete_geti_AMPipeline_reph_inner(gasnetex_token_t token,
   void *addr, size_t nbytes,
   void *_visop, gasnet_handlerarg_t packetidx) {
   gasneti_vis_op_t * const visop = _visop;

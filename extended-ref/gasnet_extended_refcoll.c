@@ -1562,7 +1562,7 @@ extern uint32_t gasnete_coll_p2p_next_seg_interval(gasnete_coll_p2p_t *p2p) {
    offset: index of first state to update
    state: value to assign to states [offset, offset+count)
 */
-extern void gasnete_coll_p2p_long_reqh(gasnet_token_t token, void *buf, size_t nbytes,
+extern void gasnete_coll_p2p_long_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
                                        gasnet_handlerarg_t team_id,
                                        gasnet_handlerarg_t sequence,
                                        gasnet_handlerarg_t count,
@@ -1586,7 +1586,7 @@ extern void gasnete_coll_p2p_long_reqh(gasnet_token_t token, void *buf, size_t n
    state: value to assign to states [offset, offset+count)
    size: eager element size; payload is copied to (p2p->data + offset*size)
 */
-extern void gasnete_coll_p2p_med_reqh(gasnet_token_t token, void *buf, size_t nbytes,
+extern void gasnete_coll_p2p_med_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
                                       gasnet_handlerarg_t team_id,
                                       gasnet_handlerarg_t sequence,
                                       gasnet_handlerarg_t count,
@@ -1606,7 +1606,7 @@ extern void gasnete_coll_p2p_med_reqh(gasnet_token_t token, void *buf, size_t nb
   }
 }
 
-extern void gasnete_coll_p2p_med_counting_reqh(gasnet_token_t token, void *buf, size_t nbytes,
+extern void gasnete_coll_p2p_med_counting_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
                                                gasnet_handlerarg_t team_id,
                                                gasnet_handlerarg_t sequence,
                                                gasnet_handlerarg_t offset,
@@ -1625,7 +1625,7 @@ extern void gasnete_coll_p2p_med_counting_reqh(gasnet_token_t token, void *buf, 
 /* Delivers a medium payload to the eager buffer space and updates 1 state
    size: eager element size; payload is copied to (p2p->data)
 */
-extern void gasnete_coll_p2p_med_tree_reqh(gasnet_token_t token, void *buf, size_t nbytes,
+extern void gasnete_coll_p2p_med_tree_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
                                            gasnet_handlerarg_t team_id,
                                            gasnet_handlerarg_t sequence) {
   gasnete_coll_p2p_t *p2p = gasnete_coll_p2p_get(team_id, sequence);
@@ -1642,7 +1642,7 @@ extern void gasnete_coll_p2p_med_tree_reqh(gasnet_token_t token, void *buf, size
    offset: index of first state to update
    state: value to assign to states [offset, offset+count)
 */
-extern void gasnete_coll_p2p_short_reqh(gasnet_token_t token,
+extern void gasnete_coll_p2p_short_reqh(gasnetex_token_t token,
                                         gasnet_handlerarg_t team_id,
                                         gasnet_handlerarg_t sequence,
                                         gasnet_handlerarg_t count,
@@ -1657,7 +1657,7 @@ extern void gasnete_coll_p2p_short_reqh(gasnet_token_t token,
 }
 
 /* Increment atomic counter */
-extern void gasnete_coll_p2p_advance_reqh(gasnet_token_t token,
+extern void gasnete_coll_p2p_advance_reqh(gasnetex_token_t token,
                                           gasnet_handlerarg_t team_id,
                                           gasnet_handlerarg_t sequence, 
                                           gasnet_handlerarg_t idx) {
@@ -1667,7 +1667,7 @@ extern void gasnete_coll_p2p_advance_reqh(gasnet_token_t token,
 }
 
 /* Send the data and increment atomic counter */
-extern void gasnete_coll_p2p_put_and_advance_reqh(gasnet_token_t token, void *buf, size_t nbytes,
+extern void gasnete_coll_p2p_put_and_advance_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
                                                   gasnet_handlerarg_t team_id, 
                                                   gasnet_handlerarg_t sequence, 
                                                   gasnet_handlerarg_t idx) {
@@ -1682,7 +1682,7 @@ extern void gasnete_coll_p2p_put_and_advance_reqh(gasnet_token_t token, void *bu
   gasneti_weakatomic_increment(&p2p->counter[idx], 0);
 }
 
-extern void gasnete_coll_p2p_seg_put_reqh(gasnet_token_t token, void *buf, size_t nbytes,
+extern void gasnete_coll_p2p_seg_put_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
                                           gasnet_handlerarg_t team_id, 
                                           gasnet_handlerarg_t sequence, 
                                           gasnet_handlerarg_t seg_id) {
@@ -1706,7 +1706,7 @@ extern void gasnete_coll_p2p_seg_put_reqh(gasnet_token_t token, void *buf, size_
 }
 /* Memcopy payload and then decrement atomic counter if requested */
 GASNETI_INLINE(gasnete_coll_p2p_memcpy_reqh_inner)
-     void gasnete_coll_p2p_memcpy_reqh_inner(gasnet_token_t token, void *buf, size_t nbytes,
+     void gasnete_coll_p2p_memcpy_reqh_inner(gasnetex_token_t token, void *buf, size_t nbytes,
                                              void *dest,
                                              gasnet_handlerarg_t team_id,
                                              gasnet_handlerarg_t sequence,

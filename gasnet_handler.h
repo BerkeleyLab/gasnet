@@ -125,31 +125,31 @@
 
 #if PLATFORM_ARCH_32
   #define SHORT_HANDLER_DECL(name, cnt32, cnt64) \
-    GASNETI_HANDLER_SCOPE void name ## _32(gasnet_token_t token ARGS ## cnt32)
+    GASNETI_HANDLER_SCOPE void name ## _32(gasnetex_token_t token ARGS ## cnt32)
   #define SHORT_HANDLER(name, cnt32, cnt64, innerargs32, innerargs64)            \
-    GASNETI_HANDLER_SCOPE void name ## _32(gasnet_token_t token ARGS ## cnt32) { \
+    GASNETI_HANDLER_SCOPE void name ## _32(gasnetex_token_t token ARGS ## cnt32) { \
       name ## _inner innerargs32 ;                                               \
     } static int _dummy_##name = sizeof(_dummy_##name)
   #define MEDIUM_HANDLER_DECL(name, cnt32, cnt64)                                          \
-    GASNETI_HANDLER_SCOPE void name ## _32(gasnet_token_t token, void *addr, size_t nbytes \
+    GASNETI_HANDLER_SCOPE void name ## _32(gasnetex_token_t token, void *addr, size_t nbytes \
                            ARGS ## cnt32)
   #define MEDIUM_HANDLER(name, cnt32, cnt64, innerargs32, innerargs64)                     \
-    GASNETI_HANDLER_SCOPE void name ## _32(gasnet_token_t token, void *addr, size_t nbytes \
+    GASNETI_HANDLER_SCOPE void name ## _32(gasnetex_token_t token, void *addr, size_t nbytes \
                            ARGS ## cnt32) {                                                \
       name ## _inner innerargs32 ;                                                         \
     } static int _dummy_##name = sizeof(_dummy_##name)
 #elif PLATFORM_ARCH_64
   #define SHORT_HANDLER_DECL(name, cnt32, cnt64) \
-    GASNETI_HANDLER_SCOPE void name ## _64(gasnet_token_t token ARGS ## cnt64)
+    GASNETI_HANDLER_SCOPE void name ## _64(gasnetex_token_t token ARGS ## cnt64)
   #define SHORT_HANDLER(name, cnt32, cnt64, innerargs32, innerargs64)            \
-    GASNETI_HANDLER_SCOPE void name ## _64(gasnet_token_t token ARGS ## cnt64) { \
+    GASNETI_HANDLER_SCOPE void name ## _64(gasnetex_token_t token ARGS ## cnt64) { \
       name ## _inner innerargs64 ;                                               \
     } static int _dummy_##name = sizeof(_dummy_##name)
   #define MEDIUM_HANDLER_DECL(name, cnt32, cnt64)                                          \
-    GASNETI_HANDLER_SCOPE void name ## _64(gasnet_token_t token, void *addr, size_t nbytes \
+    GASNETI_HANDLER_SCOPE void name ## _64(gasnetex_token_t token, void *addr, size_t nbytes \
                            ARGS ## cnt64)
   #define MEDIUM_HANDLER(name, cnt32, cnt64, innerargs32, innerargs64)                     \
-    GASNETI_HANDLER_SCOPE void name ## _64(gasnet_token_t token, void *addr, size_t nbytes \
+    GASNETI_HANDLER_SCOPE void name ## _64(gasnetex_token_t token, void *addr, size_t nbytes \
                            ARGS ## cnt64) {                                                \
       name ## _inner innerargs64 ;                                                         \
     } static int _dummy_##name = sizeof(_dummy_##name)
@@ -157,9 +157,9 @@
 
 /* convenience declarators for bit-width-independent handlers */
 #define SHORT_HANDLER_NOBITS_DECL(name, cnt) \
-  GASNETI_HANDLER_SCOPE void name(gasnet_token_t token ARGS ## cnt)
+  GASNETI_HANDLER_SCOPE void name(gasnetex_token_t token ARGS ## cnt)
 #define MEDIUM_HANDLER_NOBITS_DECL(name, cnt) \
-  GASNETI_HANDLER_SCOPE void name(gasnet_token_t token, void *addr, size_t nbytes ARGS ## cnt)
+  GASNETI_HANDLER_SCOPE void name(gasnetex_token_t token, void *addr, size_t nbytes ARGS ## cnt)
 
 /* long and medium handlers have the same signature */
 #define LONG_HANDLER              MEDIUM_HANDLER

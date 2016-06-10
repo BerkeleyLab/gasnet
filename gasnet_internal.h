@@ -575,12 +575,12 @@ extern int gasneti_VerboseErrors;
 /* ------------------------------------------------------------------------------------ */
 /* utility macros for dispatching AM handlers */
 
-typedef void (*gasneti_HandlerShort) (gasnet_token_t token, ...);
-typedef void (*gasneti_HandlerMedium)(gasnet_token_t token, void *buf, size_t nbytes, ...);
-typedef void (*gasneti_HandlerLong)  (gasnet_token_t token, void *buf, size_t nbytes, ...);
+typedef void (*gasneti_HandlerShort) (gasnetex_token_t token, ...);
+typedef void (*gasneti_HandlerMedium)(gasnetex_token_t token, void *buf, size_t nbytes, ...);
+typedef void (*gasneti_HandlerLong)  (gasnetex_token_t token, void *buf, size_t nbytes, ...);
 
 /* default AM handler for unregistered entries - prints a fatal error */
-extern void gasneti_defaultAMHandler(gasnet_token_t token);
+extern void gasneti_defaultAMHandler(gasnetex_token_t token);
 
 /* ------------------------------------------------------------------------------------ */
 #define GASNETI_RUN_HANDLER_SHORT(isReq, hid, phandlerfn, token, pArgs, numargs) do { \

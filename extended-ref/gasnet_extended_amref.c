@@ -229,7 +229,7 @@
 #if GASNETE_BUILD_AMREF_GET_HANDLERS
 
 GASNETI_INLINE(gasnete_amref_get_reqh_inner)
-void gasnete_amref_get_reqh_inner(gasnet_token_t token, 
+void gasnete_amref_get_reqh_inner(gasnetex_token_t token,
   gasnet_handlerarg_t nbytes, void *dest, void *src, void *done) {
   gasneti_assert(nbytes <= gasnet_AMMaxMedium());
   gasnetex_AMReplyMedium(token, gasneti_handleridx(gasnete_amref_get_reph),
@@ -241,7 +241,7 @@ SHORT_HANDLER(gasnete_amref_get_reqh,4,7,
               (token, a0, UNPACK2(a1, a2), UNPACK2(a3, a4), UNPACK2(a5, a6)));
 
 GASNETI_INLINE(gasnete_amref_get_reph_inner)
-void gasnete_amref_get_reph_inner(gasnet_token_t token, 
+void gasnete_amref_get_reph_inner(gasnetex_token_t token,
   void *addr, size_t nbytes,
   void *dest, void *done) {
   GASNETE_FAST_UNALIGNED_MEMCPY(dest, addr, nbytes);
@@ -252,7 +252,7 @@ MEDIUM_HANDLER(gasnete_amref_get_reph,2,4,
               (token,addr,nbytes, UNPACK2(a0, a1), UNPACK2(a2, a3)));
 
 GASNETI_INLINE(gasnete_amref_getlong_reqh_inner)
-void gasnete_amref_getlong_reqh_inner(gasnet_token_t token, 
+void gasnete_amref_getlong_reqh_inner(gasnetex_token_t token,
   gasnet_handlerarg_t nbytes, void *dest, void *src, void *done) {
 
   gasnetex_AMReplyLong(token, gasneti_handleridx(gasnete_amref_getlong_reph),
@@ -264,7 +264,7 @@ SHORT_HANDLER(gasnete_amref_getlong_reqh,4,7,
               (token, a0, UNPACK2(a1, a2), UNPACK2(a3, a4), UNPACK2(a5, a6)));
 
 GASNETI_INLINE(gasnete_amref_getlong_reph_inner)
-void gasnete_amref_getlong_reph_inner(gasnet_token_t token, 
+void gasnete_amref_getlong_reph_inner(gasnetex_token_t token,
   void *addr, size_t nbytes, 
   void *done) {
   MARK_DONE(done,1);
@@ -278,7 +278,7 @@ LONG_HANDLER(gasnete_amref_getlong_reph,1,2,
 #if GASNETE_BUILD_AMREF_PUT_HANDLERS
 
 GASNETI_INLINE(gasnete_amref_put_reqh_inner)
-void gasnete_amref_put_reqh_inner(gasnet_token_t token, 
+void gasnete_amref_put_reqh_inner(gasnetex_token_t token,
   void *addr, size_t nbytes,
   void *dest, void *done) {
   GASNETE_FAST_UNALIGNED_MEMCPY(dest, addr, nbytes);
@@ -290,7 +290,7 @@ MEDIUM_HANDLER(gasnete_amref_put_reqh,2,4,
               (token,addr,nbytes, UNPACK2(a0, a1), UNPACK2(a2, a3)));
 
 GASNETI_INLINE(gasnete_amref_putlong_reqh_inner)
-void gasnete_amref_putlong_reqh_inner(gasnet_token_t token, 
+void gasnete_amref_putlong_reqh_inner(gasnetex_token_t token,
   void *addr, size_t nbytes,
   void *done) {
   gasneti_sync_writes();
@@ -305,7 +305,7 @@ LONG_HANDLER(gasnete_amref_putlong_reqh,1,2,
 #if GASNETE_BUILD_AMREF_MEMSET_HANDLERS
 
 GASNETI_INLINE(gasnete_amref_memset_reqh_inner)
-void gasnete_amref_memset_reqh_inner(gasnet_token_t token, 
+void gasnete_amref_memset_reqh_inner(gasnetex_token_t token,
   gasnet_handlerarg_t val, void *nbytes_arg, void *dest, void *done) {
   size_t nbytes = (uintptr_t)nbytes_arg;
   memset(dest, (int)(uint32_t)val, nbytes);
@@ -321,7 +321,7 @@ SHORT_HANDLER(gasnete_amref_memset_reqh,4,7,
 #if GASNETE_BUILD_AMREF_PUT_HANDLERS || GASNETE_BUILD_AMREF_MEMSET_HANDLERS
 
 GASNETI_INLINE(gasnete_amref_markdone_reph_inner)
-void gasnete_amref_markdone_reph_inner(gasnet_token_t token, 
+void gasnete_amref_markdone_reph_inner(gasnetex_token_t token,
   void *done) {
   MARK_DONE(done,0);
 }

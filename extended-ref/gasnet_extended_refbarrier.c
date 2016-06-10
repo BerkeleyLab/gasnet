@@ -706,7 +706,7 @@ typedef struct {
   int volatile amdbarrier_recv_flags[2]; /*  consensus ambarrier flags */
 } gasnete_coll_amdbarrier_t;
   
-static void gasnete_amdbarrier_notify_reqh(gasnet_token_t token, 
+static void gasnete_amdbarrier_notify_reqh(gasnetex_token_t token,
                                            gasnet_handlerarg_t teamid, gasnet_handlerarg_t phase, gasnet_handlerarg_t step, gasnet_handlerarg_t value, gasnet_handlerarg_t flags) {
   gasnete_coll_team_t team = gasnete_coll_team_lookup((uint32_t)teamid);
   gasnete_coll_amdbarrier_t *barrier_data = team->barrier_data;
@@ -1744,7 +1744,7 @@ typedef struct {
 } gasnete_coll_amcbarrier_t;
 
 
-static void gasnete_amcbarrier_notify_reqh(gasnet_token_t token, 
+static void gasnete_amcbarrier_notify_reqh(gasnetex_token_t token,
                                            gasnet_handlerarg_t teamid, gasnet_handlerarg_t phase, gasnet_handlerarg_t value, gasnet_handlerarg_t flags) {
   gasnete_coll_team_t team = gasnete_coll_team_lookup((uint32_t)teamid);
   gasnete_coll_amcbarrier_t *barrier_data = team->barrier_data;
@@ -1772,7 +1772,7 @@ static void gasnete_amcbarrier_notify_reqh(gasnet_token_t token,
   gasnet_hsl_unlock(&barrier_data->amcbarrier_lock);
 }
 
-static void gasnete_amcbarrier_done_reqh(gasnet_token_t token, 
+static void gasnete_amcbarrier_done_reqh(gasnetex_token_t token,
   gasnet_handlerarg_t teamid, gasnet_handlerarg_t phase,
   gasnet_handlerarg_t flags, gasnet_handlerarg_t value) {
   gasnete_coll_team_t team = gasnete_coll_team_lookup((uint32_t)teamid);
