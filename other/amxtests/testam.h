@@ -5,6 +5,7 @@
  */
 #ifdef TEST_GASNET
   #include "gasnet_tools.h"
+  #include "gasnet2ex.h" // TODO-EX: eliminate this dependence
   #include "test.h"
   typedef gasnetex_handlerarg_t handlerarg_t;
  #ifdef GASNET_USE_STRICT_PROTOTYPES
