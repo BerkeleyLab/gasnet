@@ -1925,15 +1925,17 @@ void gasneti_auxseg_attach(void) {
     int chunkelems = MIN(gasnet_AMMaxMedium()/sizeof(gasnet_seginfo_t), gasneti_nodes);
     int chunks = (gasneti_nodes / chunkelems) + (gasneti_nodes % chunkelems == 0 ? 0 : 1);
     /* exchange locations into si */
-    GASNETI_SAFE(gasnet_AMRequestMedium2(0, _hidx_gasnetc_auxseg_reqh, 
-                  (void *)(_gasneti_auxseg_everything+gasneti_mynode), sizeof(gasnet_seginfo_t), 0, 0));
+    gasnetex_AMRequestMedium2(NULL, 0, _hidx_gasnetc_auxseg_reqh,
+                  (void *)(_gasneti_auxseg_everything+gasneti_mynode), sizeof(gasnet_seginfo_t),
+                  GASNETEX_LC_INIT, 0, 0, 0);
     if (gasnet_mynode() == 0) {
       GASNET_BLOCKUNTIL((int)gasneti_atomic_read(&_gasneti_auxseg_gatherdone, 0) == (int)gasnet_nodes());
       for (i=0; i < gasneti_nodes; i++) {
         for (j=0; j < chunks; j++) {
-          GASNETI_SAFE(gasnet_AMRequestMedium2(i, _hidx_gasnetc_auxseg_reqh, 
+          gasnetex_AMRequestMedium2(NULL, i, _hidx_gasnetc_auxseg_reqh,
                     (void *)(_gasneti_auxseg_everything+j*chunkelems), 
-                    MIN(chunkelems, gasneti_nodes-j*chunkelems)*sizeof(gasnet_seginfo_t), 1, j*chunkelems));
+                    MIN(chunkelems, gasneti_nodes-j*chunkelems)*sizeof(gasnet_seginfo_t),
+                    GASNETEX_LC_INIT, 0, 1, j*chunkelems);
         }
       }
     }

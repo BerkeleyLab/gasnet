@@ -3708,7 +3708,7 @@ gasnetc_sndrcv_quiesce(void) {
                                                         : gasneti_mynode + (gasneti_nodes - distance);
       if (gasnetc_non_ib(peer)) {
         /* BLCR-TODO: this might be a problem between init and attach? */
-        gasnet_AMRequestShort0(peer, gasneti_handleridx(gasnetc_sys_close_reqh));
+        gasnetex_AMRequestShort0(NULL, peer, gasneti_handleridx(gasnetc_sys_close_reqh), 0);
       } else {
         static gasnetc_atomic_t dummy = gasnetc_atomic_init(0); /* So PFs don't run */
         const int qp_offset = gasnetc_use_srq ? gasnetc_num_qps : 0;
