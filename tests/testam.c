@@ -62,57 +62,57 @@ gasnet_hsl_t inchsl = GASNET_HSL_INITIALIZER;
 
 volatile int flag = 0;
 
-void ping_shorthandler(gasnet_token_t token) {
-  GASNET_Safe(gasnet_AMReplyShort0(token, hidx_pong_shorthandler));
+void ping_shorthandler(gasnetex_token_t token) {
+  gasnetex_AMReplyShort0(token, hidx_pong_shorthandler, 0);
 }
-void pong_shorthandler(gasnet_token_t token) {
+void pong_shorthandler(gasnetex_token_t token) {
   flag++;
 }
 
 
-void ping_medhandler(gasnet_token_t token, void *buf, size_t nbytes) {
-  GASNET_Safe(gasnet_AMReplyMedium0(token, hidx_pong_medhandler, buf, nbytes));
+void ping_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
+  gasnetex_AMReplyMedium0(token, hidx_pong_medhandler, buf, nbytes, GASNETEX_LC_INIT, 0);
 }
-void pong_medhandler(gasnet_token_t token, void *buf, size_t nbytes) {
+void pong_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
   flag++;
 }
 
 
-void ping_longhandler(gasnet_token_t token, void *buf, size_t nbytes) {
-  GASNET_Safe(gasnet_AMReplyLong0(token, hidx_pong_longhandler, buf, nbytes, peerseg));
+void ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
+  gasnetex_AMReplyLong0(token, hidx_pong_longhandler, buf, nbytes, peerseg, GASNETEX_LC_INIT, 0);
 }
 
-void pong_longhandler(gasnet_token_t token, void *buf, size_t nbytes) {
+void pong_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
   flag++;
 }
 /* ------------------------------------------------------------------------------------ */
-void ping_shorthandler_flood(gasnet_token_t token) {
-  GASNET_Safe(gasnet_AMReplyShort0(token, hidx_pong_shorthandler_flood));
+void ping_shorthandler_flood(gasnetex_token_t token) {
+  gasnetex_AMReplyShort0(token, hidx_pong_shorthandler_flood, 0);
 }
-void pong_shorthandler_flood(gasnet_token_t token) {
+void pong_shorthandler_flood(gasnetex_token_t token) {
   INC(flag);
 }
 
 
-void ping_medhandler_flood(gasnet_token_t token, void *buf, size_t nbytes) {
-  GASNET_Safe(gasnet_AMReplyMedium0(token, hidx_pong_medhandler_flood, buf, nbytes));
+void ping_medhandler_flood(gasnetex_token_t token, void *buf, size_t nbytes) {
+  gasnetex_AMReplyMedium0(token, hidx_pong_medhandler_flood, buf, nbytes, GASNETEX_LC_INIT, 0);
 }
-void pong_medhandler_flood(gasnet_token_t token, void *buf, size_t nbytes) {
+void pong_medhandler_flood(gasnetex_token_t token, void *buf, size_t nbytes) {
   INC(flag);
 }
 
 
-void ping_longhandler_flood(gasnet_token_t token, void *buf, size_t nbytes) {
-  GASNET_Safe(gasnet_AMReplyLong0(token, hidx_pong_longhandler_flood, buf, nbytes, peerseg));
+void ping_longhandler_flood(gasnetex_token_t token, void *buf, size_t nbytes) {
+  gasnetex_AMReplyLong0(token, hidx_pong_longhandler_flood, buf, nbytes, peerseg, GASNETEX_LC_INIT, 0);
 }
 
-void pong_longhandler_flood(gasnet_token_t token, void *buf, size_t nbytes) {
+void pong_longhandler_flood(gasnetex_token_t token, void *buf, size_t nbytes) {
   INC(flag);
 }
 
 
 volatile int done = 0;
-void done_shorthandler(gasnet_token_t token) {
+void done_shorthandler(gasnetex_token_t token) {
   done = 1;
 }
 
@@ -277,10 +277,10 @@ void doAMShort(void) {
     if (sender) { /* warm-up */
       flag = 0;                                                                                  
       for (i=0; i < iters; i++) {
-        GASNET_Safe(gasnet_AMRequestShort0(peer, hidx_ping_shorthandler_flood));
+        gasnetex_AMRequestShort0(myteam, peer, hidx_ping_shorthandler_flood, 0);
       }
       GASNET_BLOCKUNTIL(flag == iters);
-      GASNET_Safe(gasnet_AMRequestShort0(peer, hidx_ping_shorthandler));
+      gasnetex_AMRequestShort0(myteam, peer, hidx_ping_shorthandler, 0);
       GASNET_BLOCKUNTIL(flag == iters+1);
     }
     BARRIER();
@@ -289,7 +289,7 @@ void doAMShort(void) {
       int64_t start = TIME();
       flag = -1;
       for (i=0; i < iters; i++) {
-        GASNET_Safe(gasnet_AMRequestShort0(peer, hidx_ping_shorthandler));
+        gasnetex_AMRequestShort0(myteam, peer, hidx_ping_shorthandler, 0);
         GASNET_BLOCKUNTIL(flag == i);
       }
       report("        AMShort     ping-pong roundtrip ReqRep",TIME() - start, iters, 0, 1);
@@ -305,21 +305,21 @@ void doAMShort(void) {
         assert(peer == mynode);
         for (i=0; i < iters; i++) {
           int lim = i << 1;
-          GASNET_Safe(gasnet_AMRequestShort0(peer, hidx_pong_shorthandler));
+          gasnetex_AMRequestShort0(myteam, peer, hidx_pong_shorthandler, 0);
           GASNET_BLOCKUNTIL(flag == lim);
           lim++;
-          GASNET_Safe(gasnet_AMRequestShort0(peer, hidx_pong_shorthandler));
+          gasnetex_AMRequestShort0(myteam, peer, hidx_pong_shorthandler, 0);
           GASNET_BLOCKUNTIL(flag == lim);
         }
       } else if (sender) {
         for (i=0; i < iters; i++) {
-          GASNET_Safe(gasnet_AMRequestShort0(peer, hidx_pong_shorthandler));
+          gasnetex_AMRequestShort0(myteam, peer, hidx_pong_shorthandler, 0);
           GASNET_BLOCKUNTIL(flag == i);
         }
       } else if (recvr) {
         for (i=0; i < iters; i++) {
           GASNET_BLOCKUNTIL(flag == i);
-          GASNET_Safe(gasnet_AMRequestShort0(peer, hidx_pong_shorthandler));
+          gasnetex_AMRequestShort0(myteam, peer, hidx_pong_shorthandler, 0);
         }
       }
       report("        AMShort     ping-pong roundtrip ReqReq",TIME() - start, iters, 0, 1);
@@ -334,7 +334,7 @@ void doAMShort(void) {
       flag = 0;
       BARRIER();
       for (i=0; i < iters; i++) {
-        GASNET_Safe(gasnet_AMRequestShort0(peer, hidx_pong_shorthandler_flood));
+        gasnetex_AMRequestShort0(myteam, peer, hidx_pong_shorthandler_flood, 0);
       }
       if (recvr) GASNET_BLOCKUNTIL(flag == iters);
       BARRIER();
@@ -354,7 +354,7 @@ void doAMShort(void) {
       int64_t start = TIME();
       flag = 0;
       for (i=0; i < iters; i++) {
-        GASNET_Safe(gasnet_AMRequestShort0(peer, hidx_ping_shorthandler_flood));
+        gasnetex_AMRequestShort0(myteam, peer, hidx_ping_shorthandler_flood, 0);
       }
       GASNET_BLOCKUNTIL(flag == iters);
       report("        AMShort     flood     roundtrip ReqRep",TIME() - start, iters, 0, 1);
@@ -375,18 +375,18 @@ void doAMShort(void) {
   } while (0)
 
 #define TESTAM_PERF(DESC_STR, AMREQUEST, PING_HIDX, PONG_HIDX,                   \
-                                               MAXREQ, MAXREP, ASYNC, DEST) do { \
+                                               MAXREQ, MAXREP, DEST) do {        \
     uintptr_t MAXREQREP = MIN(MAXREQ, MAXREP);                                   \
     if (sender) { /* warm-up */                                                  \
       flag = 0;                                                                  \
-      GASNET_Safe(AMREQUEST(peer, PING_HIDX, myseg, MAXREQREP DEST));            \
+      AMREQUEST(myteam, peer, PING_HIDX, myseg,                                  \
+                MAXREQREP DEST, GASNETEX_LC_INIT, 0);                            \
       GASNET_BLOCKUNTIL(flag == 1);                                              \
-      if (!ASYNC) {                                                              \
-        for (i=0; i < iters; i++) {                                              \
-          GASNET_Safe(AMREQUEST(peer, PING_HIDX##_flood, myseg, MAXREQREP DEST));\
-        }                                                                        \
-        GASNET_BLOCKUNTIL(flag == iters+1);                                      \
+      for (i=0; i < iters; i++) {                                                \
+        AMREQUEST(myteam, peer, PING_HIDX##_flood, myseg,                        \
+                  MAXREQREP DEST, GASNETEX_LC_INIT, 0);                          \
       }                                                                          \
+      GASNET_BLOCKUNTIL(flag == iters+1);                                        \
     }                                                                            \
     BARRIER();                                                                   \
     /* ---------------------------------------------------------- */             \
@@ -401,7 +401,8 @@ void doAMShort(void) {
           int64_t start = TIME();                                                \
           flag = -1;                                                             \
           for (i=0; i < iters; i++) {                                            \
-            GASNET_Safe(AMREQUEST(peer, PING_HIDX, myseg, sz DEST));             \
+            AMREQUEST(myteam, peer, PING_HIDX, myseg,                            \
+                      sz DEST, GASNETEX_LC_INIT, 0);                             \
             GASNET_BLOCKUNTIL(flag == i);                                        \
           }                                                                      \
           report(msg,TIME() - start, iters, sz, 1);                              \
@@ -413,7 +414,7 @@ void doAMShort(void) {
     }                                                                            \
     BARRIER();                                                                   \
     /* ---------------------------------------------------------- */             \
-    if (!ASYNC && TEST_SECTION_BEGIN_ENABLED()) {                                \
+    if (TEST_SECTION_BEGIN_ENABLED()) {                                          \
       uintptr_t sz;                                                              \
       char msg[255];                                                             \
       for (sz = 0; sz <= MAXREQ; ) {                                             \
@@ -428,21 +429,21 @@ void doAMShort(void) {
             assert(peer == mynode);                                              \
             for (i=0; i < iters; i++) {                                          \
               int lim = i << 1;                                                  \
-              GASNET_Safe(AMREQUEST(peer, PONG_HIDX, myseg, sz DEST));           \
+              AMREQUEST(myteam, peer, PONG_HIDX, myseg, sz DEST, GASNETEX_LC_INIT, 0); \
               GASNET_BLOCKUNTIL(flag == lim);                                    \
               lim++;                                                             \
-              GASNET_Safe(AMREQUEST(peer, PONG_HIDX, myseg, sz DEST));           \
+              AMREQUEST(myteam, peer, PONG_HIDX, myseg, sz DEST, GASNETEX_LC_INIT, 0); \
               GASNET_BLOCKUNTIL(flag == lim);                                    \
             }                                                                    \
           } else if (sender) {                                                   \
             for (i=0; i < iters; i++) {                                          \
-              GASNET_Safe(AMREQUEST(peer, PONG_HIDX, myseg, sz DEST));           \
+              AMREQUEST(myteam, peer, PONG_HIDX, myseg, sz DEST, GASNETEX_LC_INIT, 0); \
               GASNET_BLOCKUNTIL(flag == i);                                      \
             }                                                                    \
           } else if (recvr) {                                                    \
             for (i=0; i < iters; i++) {                                          \
               GASNET_BLOCKUNTIL(flag == i);                                      \
-              GASNET_Safe(AMREQUEST(peer, PONG_HIDX, myseg, sz DEST));           \
+              AMREQUEST(myteam, peer, PONG_HIDX, myseg, sz DEST, GASNETEX_LC_INIT, 0); \
             }                                                                    \
           }                                                                      \
           report(msg,TIME() - start, iters, sz, 1);                              \
@@ -454,7 +455,7 @@ void doAMShort(void) {
     }                                                                            \
     BARRIER();                                                                   \
     /* ---------------------------------------------------------- */             \
-    if (!ASYNC && TEST_SECTION_BEGIN_ENABLED()) {                                \
+    if (TEST_SECTION_BEGIN_ENABLED()) {                                          \
       uintptr_t sz;                                                              \
       char msg[255];                                                             \
       for (sz = 0; sz <= MAXREQ; ) {                                             \
@@ -465,7 +466,7 @@ void doAMShort(void) {
         if (sender) {                                                            \
           int64_t start = TIME();                                                \
           for (i=0; i < iters; i++) {                                            \
-            GASNET_Safe(AMREQUEST(peer, PONG_HIDX##_flood, myseg, sz DEST));     \
+            AMREQUEST(myteam, peer, PONG_HIDX##_flood, myseg, sz DEST, GASNETEX_LC_INIT, 0); \
           }                                                                      \
           if (recvr) GASNET_BLOCKUNTIL(flag == iters);                           \
           BARRIER();                                                             \
@@ -492,7 +493,7 @@ void doAMShort(void) {
           int64_t start = TIME();                                                \
           flag = 0;                                                              \
           for (i=0; i < iters; i++) {                                            \
-            GASNET_Safe(AMREQUEST(peer, PING_HIDX##_flood, myseg, sz DEST));     \
+            AMREQUEST(myteam, peer, PING_HIDX##_flood, myseg, sz DEST, GASNETEX_LC_INIT, 0); \
           }                                                                      \
           GASNET_BLOCKUNTIL(flag == iters);                                      \
           report(msg,TIME() - start, iters, sz, 1);                              \
@@ -504,7 +505,7 @@ void doAMShort(void) {
     }                                                                            \
     BARRIER();                                                                   \
     /* ---------------------------------------------------------- */             \
-    if (!ASYNC && TEST_SECTION_BEGIN_ENABLED()) {                                \
+    if (TEST_SECTION_BEGIN_ENABLED()) {                                          \
       uintptr_t sz; int64_t start;                                               \
       char msg[255];                                                             \
       for (sz = 0; sz <= MAXREQ; ) {                                             \
@@ -514,7 +515,7 @@ void doAMShort(void) {
         BARRIER();                                                               \
         start = TIME();                                                          \
         for (i=0; i < iters; i++) {                                              \
-          GASNET_Safe(AMREQUEST(peer, PONG_HIDX##_flood, myseg, sz DEST));       \
+          AMREQUEST(myteam, peer, PONG_HIDX##_flood, myseg, sz DEST, GASNETEX_LC_INIT, 0); \
         }                                                                        \
         GASNET_BLOCKUNTIL(flag == iters);                                        \
         report(msg,TIME() - start, iters, sz, 0);                                \
@@ -532,17 +533,12 @@ void doAMShort(void) {
 /* ------------------------------------------------------------------------------------ */
 void doAMMed(void) {
   GASNET_BEGIN_FUNCTION();
-  TESTAM_PERF("AMMedium   ",    gasnet_AMRequestMedium0,    hidx_ping_medhandler,  hidx_pong_medhandler,  maxmed, maxmed, 0, MEDDEST);
+  TESTAM_PERF("AMMedium   ",    gasnetex_AMRequestMedium0,    hidx_ping_medhandler,  hidx_pong_medhandler,  maxmed, maxmed, MEDDEST);
 }
 /* ------------------------------------------------------------------------------------ */
 void doAMLong(void) {
   GASNET_BEGIN_FUNCTION();
-  TESTAM_PERF("AMLong     ",      gasnet_AMRequestLong0,      hidx_ping_longhandler, hidx_pong_longhandler, maxlongreq, maxlongrep, 0, LONGDEST);
-}
-/* ------------------------------------------------------------------------------------ */
-void doAMLongAsync(void) {
-  GASNET_BEGIN_FUNCTION();
-  TESTAM_PERF("AMLongAsync", gasnet_AMRequestLongAsync0, hidx_ping_longhandler, hidx_pong_longhandler, maxlongreq, maxlongrep, 1, LONGDEST);
+  TESTAM_PERF("AMLong     ",      gasnetex_AMRequestLong0,      hidx_ping_longhandler, hidx_pong_longhandler, maxlongreq, maxlongrep, LONGDEST);
 }
 /* ------------------------------------------------------------------------------------ */
 void *doAll(void *ptr) {
@@ -552,8 +548,7 @@ void *doAll(void *ptr) {
     doAMShort();
     doAMMed();
     doAMLong();
-    doAMLongAsync();
-    if (recvr) GASNET_Safe(gasnet_AMRequestShort0(mynode, hidx_done_shorthandler));
+    if (recvr) gasnetex_AMRequestShort0(myteam, mynode, hidx_done_shorthandler, 0);
   }
   return NULL;
 }

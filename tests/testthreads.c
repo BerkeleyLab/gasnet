@@ -109,9 +109,9 @@ void attach_test_mpi(void);
 void mpi_barrier(threaddata_t *tdata);
 void test_mpi(threaddata_t *tdata);
 
-void mpi_handler(gasnet_token_t token, harg_t tid, harg_t sz);
-void mpi_probehandler(gasnet_token_t token, harg_t tid);
-void mpi_replyhandler(gasnet_token_t token, harg_t tid);
+void mpi_handler(gasnetex_token_t token, harg_t tid, harg_t sz);
+void mpi_probehandler(gasnetex_token_t token, harg_t tid);
+void mpi_replyhandler(gasnetex_token_t token, harg_t tid);
 #endif
 
 testfunc_t	test_functions_all[] = {
@@ -127,17 +127,17 @@ testfunc_t	test_functions[NUM_FUNCTIONS] = { 0 };
 static int	functions_num = 0;
 
 /* AM Handlers */
-void	ping_shorthandler(gasnet_token_t token, harg_t tid);
-void 	pong_shorthandler(gasnet_token_t token, harg_t tid);
+void	ping_shorthandler(gasnetex_token_t token, harg_t tid);
+void 	pong_shorthandler(gasnetex_token_t token, harg_t tid);
 
-void	ping_medhandler(gasnet_token_t token, void *buf, size_t nbytes, 
+void	ping_medhandler(gasnetex_token_t token, void *buf, size_t nbytes, 
 		harg_t tid);
-void	pong_medhandler(gasnet_token_t token, void *buf, size_t nbytes, 
+void	pong_medhandler(gasnetex_token_t token, void *buf, size_t nbytes, 
 		harg_t tid);
 
-void	ping_longhandler(gasnet_token_t token, void *buf, size_t nbytes,
+void	ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes,
 		harg_t tid, harg_t target_id);
-void	pong_longhandler(gasnet_token_t token, void *buf, size_t nbytes, 
+void	pong_longhandler(gasnetex_token_t token, void *buf, size_t nbytes, 
 		harg_t tid);
 
 #define hidx_ping_shorthandler   201
@@ -410,7 +410,7 @@ free_thread_data(void)
 #endif
 
 void 
-ping_shorthandler(gasnet_token_t token, harg_t idx) 
+ping_shorthandler(gasnetex_token_t token, harg_t idx) 
 {
 	gasnet_node_t	node;
 	gasnet_AMGetMsgSource(token, &node);
@@ -419,11 +419,11 @@ ping_shorthandler(gasnet_token_t token, harg_t idx)
 			(int)gasnet_mynode(), (int)node, (int)idx));
         assert(idx >= 0 && idx < threads_num);
         assert(node < gasnet_nodes());
-	GASNET_Safe(gasnet_AMReplyShort1(token, hidx_pong_shorthandler, idx));
+	gasnetex_AMReplyShort1(token, hidx_pong_shorthandler, 0, idx);
 }
 
 void 
-pong_shorthandler(gasnet_token_t token, harg_t idx) 
+pong_shorthandler(gasnetex_token_t token, harg_t idx) 
 {
 	int	tid = tt_thread_data[idx].tid;
 	PRINT_AM(("node=%2d> AMShort Reply for tid=%d, (%d,%d)", 
@@ -434,7 +434,7 @@ pong_shorthandler(gasnet_token_t token, harg_t idx)
 }
 
 void 
-ping_medhandler(gasnet_token_t token, void *buf, size_t nbytes, harg_t idx) 
+ping_medhandler(gasnetex_token_t token, void *buf, size_t nbytes, harg_t idx) 
 {
 	gasnet_node_t	node;
 	gasnet_AMGetMsgSource(token, &node);
@@ -446,12 +446,10 @@ ping_medhandler(gasnet_token_t token, void *buf, size_t nbytes, harg_t idx)
         assert(nbytes <= gasnet_AMMaxMedium());
         assert((uintptr_t)buf+nbytes < (uintptr_t)TEST_SEG(gasnet_mynode()) ||
                (uintptr_t)buf >= (uintptr_t)TEST_SEG(gasnet_mynode()) + TEST_SEGSZ);
-	GASNET_Safe(
-		gasnet_AMReplyMedium1(token, hidx_pong_medhandler, 
-			buf, nbytes, idx));
+	gasnetex_AMReplyMedium1(token, hidx_pong_medhandler, buf, nbytes, GASNETEX_LC_INIT, 0, idx);
 }
 void 
-pong_medhandler(gasnet_token_t token, void *buf, size_t nbytes, 
+pong_medhandler(gasnetex_token_t token, void *buf, size_t nbytes, 
 		gasnet_handlerarg_t idx) 
 {
 	int	tid = tt_thread_data[idx].tid;
@@ -467,7 +465,7 @@ pong_medhandler(gasnet_token_t token, void *buf, size_t nbytes,
 }
 
 void 
-ping_longhandler(gasnet_token_t token, void *buf, size_t nbytes, harg_t idx, harg_t target_id) 
+ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes, harg_t idx, harg_t target_id) 
 {
 	int		tid;
 	void		*paddr;
@@ -484,13 +482,11 @@ ping_longhandler(gasnet_token_t token, void *buf, size_t nbytes, harg_t idx, har
         assert(nbytes <= gasnet_AMMaxLongRequest());
         assert(buf == tt_addr_map[target_id]);
         assert((uintptr_t)buf + nbytes <= (uintptr_t)TEST_SEG(gasnet_mynode()) + TEST_SEGSZ);
-	GASNET_Safe(
-		gasnet_AMReplyLong1(token, hidx_pong_longhandler, 
-			buf, nbytes, paddr, idx));
+	gasnetex_AMReplyLong1(token, hidx_pong_longhandler, buf, nbytes, paddr, GASNETEX_LC_INIT, 0, idx);
 }
 
 void 
-pong_longhandler(gasnet_token_t token, void *buf, size_t nbytes, harg_t idx) {
+pong_longhandler(gasnetex_token_t token, void *buf, size_t nbytes, harg_t idx) {
 	int	tid = tt_thread_data[idx].tid;
 
 	PRINT_AM(("node=%2d> AMLong Reply for tid=%d, (%d,%d)", 
@@ -570,8 +566,7 @@ test_amshort(threaddata_t *tdata)
 	ACTION_PRINTF("tid=%3d> AMShortRequest to tid=%3d", tdata->tid, peer);
 	tdata->flag = -1;
         gasnett_local_wmb();
-	GASNET_Safe(gasnet_AMRequestShort1(node, 
-		    hidx_ping_shorthandler, tdata->ltid));
+	gasnetex_AMRequestShort1(myteam, node, hidx_ping_shorthandler, 0, tdata->ltid);
 	GASNET_BLOCKUNTIL(tdata->flag == 0);
 	tdata->flag = -1;
 
@@ -593,9 +588,8 @@ test_ammedium(threaddata_t *tdata)
 	ACTION_PRINTF("tid=%3d> AMMediumRequest (sz=%7d) to tid=%3d", tdata->tid, (int)len, peer);
 	tdata->flag = -1;
         gasnett_local_wmb();
-	GASNET_Safe(gasnet_AMRequestMedium1(node, 
-		    hidx_ping_medhandler, laddr, len, 
-		    tdata->ltid));
+	gasnetex_AMRequestMedium1(myteam, node, hidx_ping_medhandler, laddr, len,
+                                  GASNETEX_LC_INIT, 0, tdata->ltid);
 	GASNET_BLOCKUNTIL(tdata->flag == 0);
 	tdata->flag = -1;
 
@@ -621,9 +615,8 @@ test_amlong(threaddata_t *tdata)
         gasnett_local_wmb();
 	ACTION_PRINTF("tid=%3d> AMLongRequest (sz=%7d) to tid=%3d", tdata->tid, (int)len, peer);
 
-	GASNET_Safe(gasnet_AMRequestLong2(node, 
-		    hidx_ping_longhandler, laddr, len, raddr, 
-		    tdata->ltid, peer));
+	gasnetex_AMRequestLong2(myteam, node, hidx_ping_longhandler, laddr, len, raddr, 
+                                GASNETEX_LC_INIT, 0, tdata->ltid, peer);
 	GASNET_BLOCKUNTIL(tdata->flag == 0);
 	tdata->flag = -1;
 

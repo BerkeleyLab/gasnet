@@ -45,25 +45,25 @@ void doit8(void);
 #define hidx_null_longhandler         205
 #define hidx_justreply_longhandler    206
 
-void null_shorthandler(gasnet_token_t token) {
+void null_shorthandler(gasnetex_token_t token) {
 }
 
-void justreply_shorthandler(gasnet_token_t token) {
-  gasnet_AMReplyShort0(token, hidx_null_shorthandler);
+void justreply_shorthandler(gasnetex_token_t token) {
+  gasnetex_AMReplyShort0(token, hidx_null_shorthandler, 0);
 }
 
-void null_medhandler(gasnet_token_t token, void *buf, size_t nbytes) {
+void null_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
 }
 
-void justreply_medhandler(gasnet_token_t token, void *buf, size_t nbytes) {
-  gasnet_AMReplyMedium0(token, hidx_null_medhandler, buf, nbytes);
+void justreply_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
+  gasnetex_AMReplyMedium0(token, hidx_null_medhandler, buf, nbytes, GASNETEX_LC_INIT, 0);
 }
 
-void null_longhandler(gasnet_token_t token, void *buf, size_t nbytes) {
+void null_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
 }
 
-void justreply_longhandler(gasnet_token_t token, void *buf, size_t nbytes) {
-  gasnet_AMReplyLong0(token, hidx_null_longhandler, buf, nbytes, buf);
+void justreply_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
+  gasnetex_AMReplyLong0(token, hidx_null_longhandler, buf, nbytes, buf, GASNETEX_LC_INIT, 0);
 }
 /* ------------------------------------------------------------------------------------ */
 /* This tester measures the performance of a number of miscellaneous GASNet functions 
@@ -163,23 +163,23 @@ void doit1(void) { GASNET_BEGIN_FUNCTION();
     TIME_OPERATION("Do-nothing gasnet_AMPoll()",
       { gasnet_AMPoll(); });
     
-    TIME_OPERATION("Loopback do-nothing gasnet_AMRequestShort0()",
-      { gasnet_AMRequestShort0(mynode, hidx_null_shorthandler); });
+    TIME_OPERATION("Loopback do-nothing gasnetex_AMRequestShort0()",
+      { gasnetex_AMRequestShort0(myteam, mynode, hidx_null_shorthandler, 0); });
 
     TIME_OPERATION("Loopback do nothing AM short request-reply",
-      { gasnet_AMRequestShort0(mynode, hidx_justreply_shorthandler); });
+      { gasnetex_AMRequestShort0(myteam, mynode, hidx_justreply_shorthandler, 0); });
 
-    TIME_OPERATION("Loopback do-nothing gasnet_AMRequestMedium0()",
-      { gasnet_AMRequestMedium0(mynode, hidx_null_medhandler, p, 0); });
+    TIME_OPERATION("Loopback do-nothing gasnetex_AMRequestMedium0()",
+      { gasnetex_AMRequestMedium0(myteam, mynode, hidx_null_medhandler, p, 0, GASNETEX_LC_INIT, 0); });
 
     TIME_OPERATION("Loopback do nothing AM medium request-reply",
-      { gasnet_AMRequestMedium0(mynode, hidx_justreply_medhandler, p, 0); });
+      { gasnetex_AMRequestMedium0(myteam, mynode, hidx_justreply_medhandler, p, 0, GASNETEX_LC_INIT, 0); });
 
-    TIME_OPERATION("Loopback do-nothing gasnet_AMRequestLong0()",
-      { gasnet_AMRequestLong0(mynode, hidx_null_medhandler, p, 0, myseg); });
+    TIME_OPERATION("Loopback do-nothing gasnetex_AMRequestLong0()",
+      { gasnetex_AMRequestLong0(myteam, mynode, hidx_null_medhandler, p, 0, myseg, GASNETEX_LC_INIT, 0); });
 
     TIME_OPERATION("Loopback do nothing AM long request-reply",
-      { gasnet_AMRequestLong0(mynode, hidx_justreply_medhandler, p, 0, myseg); });
+      { gasnetex_AMRequestLong0(myteam, mynode, hidx_justreply_medhandler, p, 0, myseg, GASNETEX_LC_INIT, 0); });
 
     doit2();
 }

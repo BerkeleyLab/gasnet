@@ -845,10 +845,10 @@ static int pf_cnt_boolean, pf_cnt_counted;
 static gasnet_hsl_t pf_lock = GASNET_HSL_INITIALIZER;
 static gasneti_weakatomic_t progressfn_req_sent = gasneti_weakatomic_init(0);
 static gasneti_weakatomic_t progressfn_rep_rcvd = gasneti_weakatomic_init(0);
-static void progressfn_reqh(gasnet_token_t token, void *buf, size_t nbytes) {
-  GASNET_Safe(gasnet_AMReplyMedium0(token, gasneti_diag_hidx_base + 1, buf, nbytes));
+static void progressfn_reqh(gasnetex_token_t token, void *buf, size_t nbytes) {
+  gasnetex_AMReplyMedium0(token, gasneti_diag_hidx_base + 1, buf, nbytes, GASNETEX_LC_INIT, 0);
 }
-static void progressfn_reph(gasnet_token_t token, void *buf, size_t nbytes) {
+static void progressfn_reph(gasnetex_token_t token, void *buf, size_t nbytes) {
   gasneti_weakatomic_increment(&progressfn_rep_rcvd,0);
 }
 static void progressfn_tester(int *counter) {
@@ -877,9 +877,9 @@ static void progressfn_tester(int *counter) {
     if (gasneti_diag_havehandlers) {
       for (sz = 1; sz <= MIN(gasnet_AMMaxMedium(),MIN(64*1024,TEST_SEGSZ/2)); sz = (sz < 64?sz*2:sz*8)) {
         gasneti_weakatomic_increment(&progressfn_req_sent,0);
-        gasnet_AMRequestMedium0(peer, gasneti_diag_hidx_base + 0, myseg, sz);
+        gasnetex_AMRequestMedium0(myteam, peer, gasneti_diag_hidx_base + 0, myseg, sz, GASNETEX_LC_INIT, 0);
         gasneti_weakatomic_increment(&progressfn_req_sent,0);
-        gasnet_AMRequestLong0(peer, gasneti_diag_hidx_base + 0, myseg, sz, peersegmid);
+        gasnetex_AMRequestLong0(myteam, peer, gasneti_diag_hidx_base + 0, myseg, sz, peersegmid, GASNETEX_LC_INIT, 0);
       }
     }
   }

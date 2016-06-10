@@ -120,9 +120,8 @@ chksum_test(int iters)
 
 	if (iamsender) {
 		for (i = 0; i < iters; i++)
-			GASNET_Safe(
-			    gasnet_AMRequestShort2((gasnet_node_t)peerproc, 
-				201, i, _mseed[i].seed));
+			gasnetex_AMRequestShort2(myteam, (gasnetex_rank_t)peerproc, 
+				201, 0, i, _mseed[i].seed);
 	}
 
 	while ( (received = gasnett_atomic_read(&chksum_received,0)) < iters ) {
@@ -169,7 +168,7 @@ chksum_test(int iters)
  * chksum_reph(i, src, nbytes) compares src[nbytes] to its copy of the
  * checksum at i
  */
-void chksum_reqh(gasnet_token_t token, 
+void chksum_reqh(gasnetex_token_t token, 
 	gasnet_handlerarg_t iter, gasnet_handlerarg_t seed)
 {
         unsigned char   chksum_reqbuf[CHKSUM_TOTAL];
@@ -178,13 +177,13 @@ void chksum_reqh(gasnet_token_t token,
 	chksum_gen(seed, &chksum_reqbuf);
 	monoseed_trace(iter, seed, &chksum_reqbuf, NULL);
 	GASNET_Safe( 
-	    gasnet_AMReplyMedium1(token, 202, &chksum_reqbuf, 
-	        CHKSUM_TOTAL, iter));
+	    gasnetex_AMReplyMedium1(token, 202, &chksum_reqbuf, 
+	        CHKSUM_TOTAL, GASNETEX_LC_INIT, 0, iter));
 	return;
 }
 
 void
-chksum_reph(gasnet_token_t token, 
+chksum_reph(gasnetex_token_t token, 
 	void *buf, size_t nbytes, gasnet_handlerarg_t iter) 
 {
 	gasnett_atomic_increment(&chksum_received, 0);

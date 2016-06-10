@@ -33,7 +33,7 @@ int my_barrier_wait(int value, int flags) {
 
 #define hidx_done_shorthandler   200
 volatile int done = 0;
-void done_shorthandler(gasnet_token_t token) { done = 1; }
+void done_shorthandler(gasnetex_token_t token) { done = 1; }
 gasnet_handlerentry_t htable[] = { { hidx_done_shorthandler,  done_shorthandler  } };
 
 static void * doTest(void *arg);
@@ -461,6 +461,6 @@ static void * doTest(void *arg) {
     BARRIER();
   }
 
-  GASNET_Safe(gasnet_AMRequestShort0(mynode, hidx_done_shorthandler));
+  gasnetex_AMRequestShort0(myteam, mynode, hidx_done_shorthandler, 0);
   return NULL;
 }

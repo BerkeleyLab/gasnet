@@ -39,10 +39,10 @@ void doit5(int partner, int *partnerseg);
   test_everything_seginfo_t myinfo;
   test_everything_seginfo_t partnerinfo;
   int done = 0;
-  void seg_everything_reqh(gasnet_token_t token) {
-    GASNET_Safe(gasnet_AMReplyMedium0(token, 251, &myinfo, sizeof(test_everything_seginfo_t)));
+  void seg_everything_reqh(gasnetex_token_t token) {
+    gasnetex_AMReplyMedium0(token, 251, &myinfo, sizeof(test_everything_seginfo_t), GASNETEX_LC_INIT, 0);
   }
-  void seg_everything_reph(gasnet_token_t token, void *buf, size_t nbytes) {
+  void seg_everything_reph(gasnetex_token_t token, void *buf, size_t nbytes) {
     assert(nbytes == sizeof(test_everything_seginfo_t));
     memcpy(&partnerinfo, buf, nbytes);
     gasnett_local_wmb();
@@ -69,7 +69,7 @@ void doit5(int partner, int *partnerseg);
     myinfo.stack_seg = alignup_ptr(&_stack_seg, PAGESZ);
     BARRIER();
     /* fetch partner's addresses into partnerinfo */
-    GASNET_Safe(gasnet_AMRequestShort0((gasnet_node_t)partner, 250));
+    gasnetex_AMRequestShort0(myteam, (gasnetex_rank_t)partner, 250, 0);
     GASNET_BLOCKUNTIL(done);
     BARRIER();
 

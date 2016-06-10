@@ -20,20 +20,6 @@ void *addr_tbl[] = {
 };
 #define NUM_ADDRS (sizeof(addr_tbl)/sizeof(addr_tbl[0]))
 
-#define GASNET_Safe_SrcAddr(fncall) do {                             \
-    int _retval;                                                     \
-    if ((_retval = fncall) != GASNET_OK) {                           \
-      fprintf(stderr, "ERROR calling: %s\n"                          \
-                   " with source_addr = %p\n"                        \
-                   " at: %s:%i\n"                                    \
-                   " error: %s (%s)\n",                              \
-              #fncall, source_addr, __FILE__, __LINE__,              \
-              gasnet_ErrorName(_retval), gasnet_ErrorDesc(_retval)); \
-      fflush(stderr);                                                \
-      gasnet_exit(_retval);                                          \
-    }                                                                \
-  } while(0)
-
 
 #define hidx_ping_medhandler     201
 #define hidx_pong_medhandler     202
@@ -43,19 +29,19 @@ void *addr_tbl[] = {
 
 volatile int flag = 0;
 
-void ping_medhandler(gasnet_token_t token, void *buf, size_t nbytes, gasnet_handlerarg_t addr_idx) {
+void ping_medhandler(gasnetex_token_t token, void *buf, size_t nbytes, gasnet_handlerarg_t addr_idx) {
   void *source_addr = addr_tbl[(int)addr_idx];
-  GASNET_Safe_SrcAddr(gasnet_AMReplyMedium0(token, hidx_pong_medhandler, source_addr, 0));
+  gasnetex_AMReplyMedium0(token, hidx_pong_medhandler, source_addr, 0, GASNETEX_LC_INIT, 0);
 }
-void pong_medhandler(gasnet_token_t token, void *buf, size_t nbytes) {
+void pong_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
   flag++;
 }
 
-void ping_longhandler(gasnet_token_t token, void *buf, size_t nbytes, gasnet_handlerarg_t addr_idx) {
+void ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes, gasnet_handlerarg_t addr_idx) {
   void *source_addr = addr_tbl[(int)addr_idx];
-  GASNET_Safe_SrcAddr(gasnet_AMReplyLong0(token, hidx_pong_longhandler, source_addr, 0, peerseg));
+  gasnetex_AMReplyLong0(token, hidx_pong_longhandler, source_addr, 0, peerseg, GASNETEX_LC_INIT, 0);
 }
-void pong_longhandler(gasnet_token_t token, void *buf, size_t nbytes) {
+void pong_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
   flag++;
 }
 
@@ -115,11 +101,9 @@ void testAMSrcAddr(void) {
       void *source_addr = addr_tbl[i];
       int goal = flag + 1;
 
-      GASNET_Safe_SrcAddr(gasnet_AMRequestMedium1(peer, hidx_ping_medhandler, source_addr, 0, i));
+      gasnetex_AMRequestMedium1(myteam, peer, hidx_ping_medhandler, source_addr, 0, GASNETEX_LC_INIT, 0, i);
       GASNET_BLOCKUNTIL(flag == goal); ++goal;
-      GASNET_Safe_SrcAddr(gasnet_AMRequestLong1(peer, hidx_ping_longhandler, source_addr, 0, peerseg, i));
-      GASNET_BLOCKUNTIL(flag == goal); ++goal;
-      GASNET_Safe_SrcAddr(gasnet_AMRequestLongAsync1(peer, hidx_ping_longhandler, source_addr, 0, peerseg, i));
+      gasnetex_AMRequestLong1(myteam, peer, hidx_ping_longhandler, source_addr, 0, peerseg, GASNETEX_LC_INIT, 0, i);
       GASNET_BLOCKUNTIL(flag == goal); ++goal;
     }
 

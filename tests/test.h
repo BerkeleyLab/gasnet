@@ -505,6 +505,8 @@ static void test_createandjoin_pthreads(int numthreads, void *(*start_routine)(v
  * ------------------------------------------------------------------------------------ */
 #ifdef TEST_GASNET_H
 
+static gasnetex_team_member_t myteam; // TODO-EX: remove this when new init is added to the tests
+
 /* ------------------------------------------------------------------------------------ */
 /* misc GASNet utilities */
 
@@ -730,7 +732,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
    */
   static int _test_seggather_idx;
   static gasnett_atomic_t _test_seggather_done = gasnett_atomic_init(0);
-  static void _test_seggather(gasnet_token_t token, void *buf, size_t nbytes) {
+  static void _test_seggather(gasnetex_token_t token, void *buf, size_t nbytes) {
     gasnet_node_t srcid;
     assert(nbytes == sizeof(gasnet_seginfo_t));
     assert(_test_seginfo != NULL);
@@ -741,7 +743,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
   }
   static int _test_segbcast_idx;
   static gasnett_atomic_t _test_segbcast_count = gasnett_atomic_init(0);
-  static void _test_segbcast(gasnet_token_t token, void *buf, size_t nbytes, gasnet_handlerarg_t idx) {
+  static void _test_segbcast(gasnetex_token_t token, void *buf, size_t nbytes, gasnet_handlerarg_t idx) {
     void *dst = (void*)((uintptr_t)_test_seginfo + idx * gasnet_AMMaxMedium());
     memcpy(dst, buf, nbytes);
     gasnett_atomic_increment(&_test_segbcast_count, GASNETT_ATOMIC_REL);
@@ -787,7 +789,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
        (PAGESZ-(((uintptr_t)_test_hidden_seg)%PAGESZ)))));
     myseg.size = TEST_SEGSZ;
     BARRIER();
-    GASNET_Safe(gasnet_AMRequestMedium0(0, _test_seggather_idx, &myseg, sizeof(gasnet_seginfo_t)));
+    gasnetex_AMRequestMedium0(myteam, 0, _test_seggather_idx, &myseg, sizeof(gasnet_seginfo_t), GASNETEX_LC_INIT, 0);
     { const size_t total_bytes = gasnet_nodes()*sizeof(gasnet_seginfo_t);
       const size_t msg_bytes = gasnet_AMMaxMedium();
       const int msg_count = (total_bytes + msg_bytes - 1) / msg_bytes;
@@ -799,7 +801,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
         for (idx = 0; idx < msg_count; ++idx) {
           const size_t nbytes = MIN(remain, msg_bytes);
           for (i=0; i < (int)gasnet_nodes(); i++) {
-            GASNET_Safe(gasnet_AMRequestMedium1(i, _test_segbcast_idx, payload, nbytes, idx));
+            gasnetex_AMRequestMedium1(myteam, i, _test_segbcast_idx, payload, nbytes, GASNETEX_LC_INIT, 0, idx);
           }
           remain -= nbytes;
           payload = (void*)((uintptr_t)payload + nbytes);

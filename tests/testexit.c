@@ -67,22 +67,22 @@ void do_crash_test(int crashid);
 #define hidx_noop_handler               202
 #define hidx_ping_handler               203
 
-void test_exit_handler(gasnet_token_t token, gasnet_handlerarg_t exitcode) {
+void test_exit_handler(gasnetex_token_t token, gasnet_handlerarg_t exitcode) {
   gasnet_exit((int)exitcode);
 }
 
-void ping_handler(gasnet_token_t token, void *buf, size_t nbytes) {
+void ping_handler(gasnetex_token_t token, void *buf, size_t nbytes) {
   static int x = 1; 
   gasnet_node_t src;
   gasnet_AMGetMsgSource(token, &src);
   x = !x;/* harmless race */
   if (x) 
-    GASNET_Safe(gasnet_AMReplyMedium0(token, hidx_noop_handler, buf, nbytes));
+    gasnetex_AMReplyMedium0(token, hidx_noop_handler, buf, nbytes, GASNETEX_LC_INIT, 0);
   else
-    GASNET_Safe(gasnet_AMReplyLong0(token, hidx_noop_handler, buf, nbytes, TEST_SEG(src)));
+    gasnetex_AMReplyLong0(token, hidx_noop_handler, buf, nbytes, TEST_SEG(src), GASNETEX_LC_INIT, 0);
 }
 
-void noop_handler(gasnet_token_t token, void *buf, size_t nbytes) {
+void noop_handler(gasnetex_token_t token, void *buf, size_t nbytes) {
 }
 
 #ifdef GASNET_PAR
@@ -129,14 +129,14 @@ void *workerthread(void *args) {
         while (1) {
           switch (rand() % 18) {
             case 0:  GASNET_Safe(gasnet_AMPoll()); break;
-            case 1:  GASNET_Safe(gasnet_AMRequestMedium0(peer, hidx_noop_handler, p, 4)); break;
-            case 2:  GASNET_Safe(gasnet_AMRequestMedium0(peer, hidx_ping_handler, p, 4)); break;
-            case 3:  GASNET_Safe(gasnet_AMRequestMedium0(peer, hidx_noop_handler, p, lim)); break;
-            case 4:  GASNET_Safe(gasnet_AMRequestMedium0(peer, hidx_ping_handler, p, lim)); break;
-            case 5:  GASNET_Safe(gasnet_AMRequestLong0(peer, hidx_noop_handler, p, 4, peerseg)); break;
-            case 6:  GASNET_Safe(gasnet_AMRequestLong0(peer, hidx_ping_handler, p, 4, peerseg)); break;
-            case 7:  GASNET_Safe(gasnet_AMRequestLong0(peer, hidx_noop_handler, p, lim, peerseg)); break;
-            case 8:  GASNET_Safe(gasnet_AMRequestLong0(peer, hidx_ping_handler, p, lim, peerseg)); break;
+            case 1:  gasnetex_AMRequestMedium0(myteam, peer, hidx_noop_handler, p, 4, GASNETEX_LC_INIT, 0); break;
+            case 2:  gasnetex_AMRequestMedium0(myteam, peer, hidx_ping_handler, p, 4, GASNETEX_LC_INIT, 0); break;
+            case 3:  gasnetex_AMRequestMedium0(myteam, peer, hidx_noop_handler, p, lim, GASNETEX_LC_INIT, 0); break;
+            case 4:  gasnetex_AMRequestMedium0(myteam, peer, hidx_ping_handler, p, lim, GASNETEX_LC_INIT, 0); break;
+            case 5:  gasnetex_AMRequestLong0(myteam, peer, hidx_noop_handler, p, 4, peerseg, GASNETEX_LC_INIT, 0); break;
+            case 6:  gasnetex_AMRequestLong0(myteam, peer, hidx_ping_handler, p, 4, peerseg, GASNETEX_LC_INIT, 0); break;
+            case 7:  gasnetex_AMRequestLong0(myteam, peer, hidx_noop_handler, p, lim, peerseg, GASNETEX_LC_INIT, 0); break;
+            case 8:  gasnetex_AMRequestLong0(myteam, peer, hidx_ping_handler, p, lim, peerseg, GASNETEX_LC_INIT, 0); break;
             case 9:  gasnet_put(peer, peerseg, &junk, sizeof(int)); break;
             case 10: gasnet_get(&junk, peer, peerseg, sizeof(int)); break;
             case 11: gasnet_put(peer, peerseg, p, lim); break;
@@ -307,23 +307,23 @@ int main(int argc, char **argv) {
       else while(1);
       break;
     case 10:
-      GASNET_Safe(gasnet_AMRequestShort1(peer, hidx_exit_handler, testid));
+      gasnetex_AMRequestShort1(myteam, peer, hidx_exit_handler, 0, testid);
       while(1) GASNET_Safe(gasnet_AMPoll());
       break;
     case 11:
       if (mynode == 0) { 
-        GASNET_Safe(gasnet_AMRequestShort1(nodes-1, hidx_exit_handler, testid));
+        gasnetex_AMRequestShort1(myteam, nodes-1, hidx_exit_handler, 0, testid);
       }
       while(1) GASNET_Safe(gasnet_AMPoll());
       break;
     case 12:
       if (mynode == nodes-1) { 
-        GASNET_Safe(gasnet_AMRequestShort1(mynode, hidx_exit_handler, testid));
+        gasnetex_AMRequestShort1(myteam, mynode, hidx_exit_handler, 0, testid);
       }
       while(1) GASNET_Safe(gasnet_AMPoll());
       break;
     case 13:
-      GASNET_Safe(gasnet_AMRequestShort1(nodes-1, hidx_exit_handler, testid));
+      gasnetex_AMRequestShort1(myteam, nodes-1, hidx_exit_handler, 0, testid);
       while(1) GASNET_Safe(gasnet_AMPoll());
       break;
   #ifdef GASNET_PAR

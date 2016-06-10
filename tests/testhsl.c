@@ -13,46 +13,46 @@ int flag = 0;
 int iters = 100;
 gasnet_hsl_t globallock = GASNET_HSL_INITIALIZER;
 
-void okhandler1(gasnet_token_t token) {
+void okhandler1(gasnetex_token_t token) {
   gasnet_hold_interrupts();
   flag++;
 }
-void okhandler2(gasnet_token_t token) {
+void okhandler2(gasnetex_token_t token) {
   gasnet_resume_interrupts();
   flag++;
 }
-void okhandler3(gasnet_token_t token) {
+void okhandler3(gasnetex_token_t token) {
   gasnet_hsl_lock(&globallock);
   flag++;
   gasnet_hsl_unlock(&globallock);
 }
 
 
-void badhandler1(gasnet_token_t token) {
+void badhandler1(gasnetex_token_t token) {
   gasnet_hsl_lock(&globallock);
 }
-void badhandler2(gasnet_token_t token) {
+void badhandler2(gasnetex_token_t token) {
   gasnet_hsl_lock(&globallock);
-  gasnet_AMReplyShort0(token, 255);
+  gasnetex_AMReplyShort0(token, 255, 0);
 }
 
 uint64_t counter = 0;
-void increq(gasnet_token_t token) {
+void increq(gasnetex_token_t token) {
   gasnet_hsl_lock(&globallock);
   counter++;
   gasnet_hsl_unlock(&globallock);
-  gasnet_AMReplyShort0(token, 222);
+  gasnetex_AMReplyShort0(token, 222, 0);
 }
 gasnet_hsl_t replock = GASNET_HSL_INITIALIZER;
 uint64_t repcounter = 0;
-void increp(gasnet_token_t token) {
+void increp(gasnetex_token_t token) {
   gasnet_hsl_lock(&replock);
   repcounter++;
   gasnet_hsl_unlock(&replock);
 }
 
 
-void donothing(gasnet_token_t token) {
+void donothing(gasnetex_token_t token) {
 }
 
 #if GASNET_PAR
@@ -127,15 +127,15 @@ int main(int argc, char **argv) {
     BARRIER();
     MSG0("testing legal AM cases...");
 
-    gasnet_AMRequestShort0(peer, 201);
+    gasnetex_AMRequestShort0(myteam, peer, 201, 0);
     GASNET_BLOCKUNTIL(flag == 1);
     BARRIER();
 
-    gasnet_AMRequestShort0(peer, 202);
+    gasnetex_AMRequestShort0(myteam, peer, 202, 0);
     GASNET_BLOCKUNTIL(flag == 2);
     BARRIER();
 
-    gasnet_AMRequestShort0(peer, 203);
+    gasnetex_AMRequestShort0(myteam, peer, 203, 0);
     GASNET_BLOCKUNTIL(flag == 3);
 
     BARRIER();
@@ -183,16 +183,16 @@ int main(int argc, char **argv) {
         gasnet_AMPoll();
       break;
       case 11:
-        gasnet_AMRequestShort0(gasnet_mynode(), 231);
+        gasnetex_AMRequestShort0(myteam, gasnet_mynode(), 231, 0);
         GASNET_BLOCKUNTIL(0);
       break;
       case 12:
-        gasnet_AMRequestShort0(gasnet_mynode(), 232);
+        gasnetex_AMRequestShort0(myteam, gasnet_mynode(), 232, 0);
         GASNET_BLOCKUNTIL(0);
       break;
       case 13:
         gasnet_hsl_lock(&lock1);
-        gasnet_AMRequestShort0(gasnet_mynode(), 255);
+        gasnetex_AMRequestShort0(myteam, gasnet_mynode(), 255, 0);
         gasnet_hsl_unlock(&lock1);
       break;
       case 14:
@@ -278,7 +278,7 @@ void * thread_fn(void *arg) {
 
   MSG0("hsl exclusion test, AM-only...");
     for (i=0;i<iters;i++) {
-      gasnet_AMRequestShort0(peer, 221);
+      gasnetex_AMRequestShort0(myteam, peer, 221, 0);
     }
     GASNET_BLOCKUNTIL(repcounter == NUM_THREADS * iters);
     PTHREAD_BARRIER(NUM_THREADS);
@@ -293,7 +293,7 @@ void * thread_fn(void *arg) {
 
   MSG0("hsl exclusion test, AM & local...");
     for (i=0;i<iters;i++) {
-      gasnet_AMRequestShort0(peer, 221);
+      gasnetex_AMRequestShort0(myteam, peer, 221, 0);
       if (i&1) {
         gasnet_hsl_lock(&globallock);
       } else {

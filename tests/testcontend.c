@@ -39,10 +39,10 @@ int revthreads = 0;
 typedef void * (*threadmain_t)(void *args);
 
 /* AM Handlers */
-void	ping_shorthandler(gasnet_token_t token);
-void 	pong_shorthandler(gasnet_token_t token);
+void	ping_shorthandler(gasnetex_token_t token);
+void 	pong_shorthandler(gasnetex_token_t token);
 
-void	markdone_shorthandler(gasnet_token_t token);
+void	markdone_shorthandler(gasnetex_token_t token);
 
 #define hidx_ping_shorthandler        201
 #define hidx_pong_shorthandler        202
@@ -98,12 +98,12 @@ void report(gasnett_tick_t ticks) {
       gasnett_atomic_set(&pong,0,0);                                                    \
       start = gasnett_ticks_now();                                                      \
       for (i = 0; i < iters; i++) {                                                     \
-        GASNET_Safe(gasnet_AMRequestShort0(peer, hidx_ping_shorthandler));              \
+        gasnetex_AMRequestShort0(myteam, peer, hidx_ping_shorthandler, 0);              \
         POLLUNTIL(gasnett_atomic_read(&pong,0) > i);                                    \
       }                                                                                 \
       end = gasnett_ticks_now();                                                        \
-      GASNET_Safe(gasnet_AMRequestShort0(peer, hidx_markdone_shorthandler));            \
-      GASNET_Safe(gasnet_AMRequestShort0(gasnet_mynode(), hidx_markdone_shorthandler)); \
+      gasnetex_AMRequestShort0(myteam, peer, hidx_markdone_shorthandler, 0);            \
+      gasnetex_AMRequestShort0(myteam, gasnet_mynode(), hidx_markdone_shorthandler, 0); \
       if (!nonzero_present) {                                                           \
         mythread = 1; /* ensure it runs once, impersonating thread1 */                  \
         POLLUNTIL(signal_done);                                                         \
@@ -140,8 +140,8 @@ AMPINGPONG(ampingpong_barrier_active, BARRIER_UNTIL)
         putgetstmt;                                                                     \
       }                                                                                 \
       end = gasnett_ticks_now();                                                        \
-      GASNET_Safe(gasnet_AMRequestShort0(peer, hidx_markdone_shorthandler));            \
-      GASNET_Safe(gasnet_AMRequestShort0(gasnet_mynode(), hidx_markdone_shorthandler)); \
+      gasnetex_AMRequestShort0(myteam, peer, hidx_markdone_shorthandler, 0);            \
+      gasnetex_AMRequestShort0(myteam, gasnet_mynode(), hidx_markdone_shorthandler, 0); \
       if (!nonzero_present) {                                                           \
         mythread = 1; /* ensure it runs once, impersonating thread1 */                  \
         POLLUNTIL(signal_done);                                                         \
@@ -178,8 +178,8 @@ PUTGETPINGPONG(get_barrier_active, BARRIER_UNTIL, gasnet_get(&tmp, peer, peerseg
         putgetstmt_loner;                                                               \
       }                                                                                 \
       end = gasnett_ticks_now();                                                        \
-      GASNET_Safe(gasnet_AMRequestShort0(peer, hidx_markdone_shorthandler));            \
-      GASNET_Safe(gasnet_AMRequestShort0(gasnet_mynode(), hidx_markdone_shorthandler)); \
+      gasnetex_AMRequestShort0(myteam, peer, hidx_markdone_shorthandler, 0);            \
+      gasnetex_AMRequestShort0(myteam, gasnet_mynode(), hidx_markdone_shorthandler, 0); \
     } else {                                                                            \
       while(!signal_done) {                                                             \
         putgetstmt_rest;                                                                \
@@ -360,15 +360,15 @@ int main(int argc, char **argv) {
 
 /****************************************************************/
 /* AM Handlers */
-void ping_shorthandler(gasnet_token_t token) {
-  GASNET_Safe(gasnet_AMReplyShort0(token, hidx_pong_shorthandler));
+void ping_shorthandler(gasnetex_token_t token) {
+  gasnetex_AMReplyShort0(token, hidx_pong_shorthandler, 0);
 }
 
-void pong_shorthandler(gasnet_token_t token) {
+void pong_shorthandler(gasnetex_token_t token) {
   gasnett_atomic_increment(&pong,0);
 }
 
-void markdone_shorthandler(gasnet_token_t token) {
+void markdone_shorthandler(gasnetex_token_t token) {
   signal_done = 1;
 }
 

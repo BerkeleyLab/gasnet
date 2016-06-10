@@ -40,13 +40,13 @@ volatile gasnet_register_value_t regval = 5551212;
 
 gasnett_atomic_t amcount = gasnett_atomic_init(0);
 
-void ping_shorthandler(gasnet_token_t token) {
+void ping_shorthandler(gasnetex_token_t token) {
   gasnett_atomic_increment(&amcount,0);
 }
-void ping_medhandler(gasnet_token_t token, void *buf, size_t nbytes) {
+void ping_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
   gasnett_atomic_increment(&amcount,0);
 }
-void ping_longhandler(gasnet_token_t token, void *buf, size_t nbytes) {
+void ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
   gasnett_atomic_increment(&amcount,0);
 }
 
@@ -480,8 +480,8 @@ void do_blockingputgets(void) {
 void do_amtests(void) {
     if (do_amshort) {
       gasnett_atomic_set(&amcount, 0, 0);
-      QUEUE_TEST("gasnet_AMRequestShort0", 
-                 gasnet_AMRequestShort0(peerproc, hidx_ping_shorthandler), (void)0,
+      QUEUE_TEST("gasnetex_AMRequestShort0", 
+                 gasnetex_AMRequestShort0(myteam, peerproc, hidx_ping_shorthandler, 0), (void)0,
                 { assert(iamrecver);
                   GASNET_BLOCKUNTIL(gasnett_atomic_read(&amcount,0) == depth); 
                   gasnett_atomic_set(&amcount, 0, 0); }, 
@@ -490,8 +490,9 @@ void do_amtests(void) {
 
     if (do_ammedium) {
       gasnett_atomic_set(&amcount, 0, 0);
-      QUEUE_TEST("gasnet_AMRequestMedium0", 
-                 gasnet_AMRequestMedium0(peerproc, hidx_ping_medhandler, msgbuf, payload), (void)0,
+      QUEUE_TEST("gasnetex_AMRequestMedium0", 
+                 gasnetex_AMRequestMedium0(myteam, peerproc, hidx_ping_medhandler,
+                                           msgbuf, payload, GASNETEX_LC_INIT, 0), (void)0,
                 { assert(iamrecver);
                   GASNET_BLOCKUNTIL(gasnett_atomic_read(&amcount,0) == depth); 
                   gasnett_atomic_set(&amcount, 0, 0); }, 
@@ -500,8 +501,9 @@ void do_amtests(void) {
 
     if (do_amlong) {
       gasnett_atomic_set(&amcount, 0, 0);
-      QUEUE_TEST("gasnet_AMRequestLong0", 
-                 gasnet_AMRequestLong0(peerproc, hidx_ping_medhandler, msgbuf, payload, tgtmem), (void)0,
+      QUEUE_TEST("gasnetex_AMRequestLong0", 
+                 gasnetex_AMRequestLong0(myteam, peerproc, hidx_ping_medhandler,
+                                         msgbuf, payload, tgtmem, GASNETEX_LC_INIT, 0), (void)0,
                 { assert(iamrecver);
                   GASNET_BLOCKUNTIL(gasnett_atomic_read(&amcount,0) == depth); 
                   gasnett_atomic_set(&amcount, 0, 0); }, 

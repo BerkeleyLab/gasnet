@@ -171,7 +171,7 @@ void mpi_barrier(threaddata_t *tdata) {
 #endif
 
 
-void mpi_handler(gasnet_token_t token, harg_t tid, harg_t sz) {
+void mpi_handler(gasnetex_token_t token, harg_t tid, harg_t sz) {
   gasnet_node_t   node;
   int mpipeer;
   int tag;
@@ -202,7 +202,7 @@ void mpi_handler(gasnet_token_t token, harg_t tid, harg_t sz) {
 
 }
 
-void mpi_probehandler(gasnet_token_t token, harg_t tid) {
+void mpi_probehandler(gasnetex_token_t token, harg_t tid) {
   gasnet_node_t   node;
   int mpipeer;
   int tag;
@@ -246,11 +246,11 @@ void mpi_probehandler(gasnet_token_t token, harg_t tid) {
     mpi_buf[tid] = NULL;
     PRINT_AM(("node=%2d> Sending AMShort MPI Reply for tid=%i\n",
             (int)gasnet_mynode(), (int)tid));
-    GASNET_Safe(gasnet_AMReplyShort1(token, hidx_mpi_replyhandler, tid));
+    gasnetex_AMReplyShort1(token, hidx_mpi_replyhandler, 0, tid);
   }
 }
 
-void mpi_replyhandler(gasnet_token_t token, harg_t tid) {
+void mpi_replyhandler(gasnetex_token_t token, harg_t tid) {
   int ltid = tid - gasnet_mynode()*threads_num;
   PRINT_AM(("node=%2d> Got AMShort MPI Reply for tid=%d\n",
                         (int)gasnet_mynode(), (int)tid));
@@ -321,11 +321,11 @@ void test_mpi(threaddata_t *tdata) {
     tdata->flag = -1;
     gasnett_local_wmb();
     ACTION_PRINTF("tid=%3d> MPI AMShortRequest to tid=%3d\n", tdata->tid, peer);
-    GASNET_Safe(gasnet_AMRequestShort2(node, hidx_mpi_handler, tdata->tid, sz));
+    gasnetex_AMRequestShort2(myteam, node, hidx_mpi_handler, 0, tdata->tid, sz);
 
     while (tdata->flag != 0) {
       ACTION_PRINTF("tid=%3d> MPI probe AMShortRequest to tid=%3d\n", tdata->tid, peer);
-      GASNET_Safe(gasnet_AMRequestShort1(node, hidx_mpi_probehandler, tdata->tid));
+      gasnetex_AMRequestShort1(myteam, node, hidx_mpi_probehandler, 0, tdata->tid);
 
       gasnett_sched_yield();
       test_sleep(tdata);

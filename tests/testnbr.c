@@ -177,7 +177,7 @@ void pairwise_wait_nbrs  (nbr_t *nb, gasnet_handle_t *h_nbr, int axis_in, int ph
 #define hidx_ghostReqHandler 201
 
 static
-void  ghostReqHandler(gasnet_token_t token, void *buf, size_t nbytes,
+void  ghostReqHandler(gasnetex_token_t token, void *buf, size_t nbytes,
 	              int axis, int destp)
 {
     double *src = (double *)buf;
@@ -1277,7 +1277,9 @@ ge_put(nbr_t *nb, int type, int dir, int axis, int *flag)
 
     if (type == GHOST_TYPE_AMLONG) {
 	/* By now, send an AMLong with data */
-	GASNET_Safe(gasnet_AMRequestLongAsync2(node,hidx_ghostReqHandler,src,len,dest, axis,destp));
+// TODO-EX: Restore "Async" nature of this when lc_opt=handle is supported
+// TODO-EX: was "gasnet_AMRequestLongAsync2(node,hidx_ghostReqHandler,src,len,dest, axis,destp)"
+	gasnetex_AMRequestLong2(myteam,node,hidx_ghostReqHandler,src,len,dest,GASNETEX_LC_INIT,0,axis,destp);
 	return GASNET_INVALID_HANDLE;
     }
     else {
