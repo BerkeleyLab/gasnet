@@ -70,6 +70,58 @@ extern int gasnetc_AMReplyLongM(
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...);
 
+// TODO-EX: shift these to the gasnetc_ namespace after the above are removed
+// Long
+extern int gasnetex_AMRequestLongM(
+                gasnetex_team_member_t team,   // Names a local context ("return address")
+                gasnetex_rank_t rank,          // Together with 'team', names a remote context
+                gasnetex_handler_t handler,    // Index into handler table of remote context
+                const void *source_addr,       // Payload address (or OFFSET)
+                size_t nbytes,                 // Payload length
+                void *dest_addr,               // Payload destination address (or OFFSET)
+                gasnetex_lc_handle_t *lc_opt,  // Local completion control (see above)
+                gasnetex_flags_t flags,        // Flags to control this operation
+                int numargs, ...);             // Argument list (0..AMMaxArgs) as varargs
+extern int gasnetex_AMReplyLongM(
+                gasnetex_token_t token,        // Names local and remote contexts
+                gasnetex_handler_t handler,
+                const void *source_addr,
+                size_t nbytes,
+                void *dest_addr,
+                gasnetex_lc_handle_t *lc_opt,
+                gasnetex_flags_t flags,
+                int numargs, ...);
+// Medium
+extern int gasnetex_AMRequestMediumM(
+                gasnetex_team_member_t team,
+                gasnetex_rank_t rank,
+                gasnetex_handler_t handler,
+                const void *source_addr,
+                size_t nbytes,
+                gasnetex_lc_handle_t *lc_opt,
+                gasnetex_flags_t flags,
+                int numargs, ...);
+extern int gasnetex_AMReplyMediumM(
+                gasnetex_token_t token,
+                gasnetex_handler_t handler,
+                const void *source_addr,
+                size_t nbytes,
+                gasnetex_lc_handle_t *lc_opt,
+                gasnetex_flags_t flags,
+                int numargs, ...);
+// Short
+extern int gasnetex_AMRequestShortM(
+                gasnetex_team_member_t team,
+                gasnetex_rank_t rank,
+                gasnetex_handler_t handler,
+                gasnetex_flags_t flags,
+                int numargs, ...);
+extern int gasnetex_AMReplyShortM(
+                gasnetex_token_t token,
+                gasnetex_handler_t handler,
+                gasnetex_flags_t flags,
+                int numargs, ...);
+
 GASNETI_END_EXTERNC
 
 /* ------------------------------------------------------------------------------------ */
@@ -354,6 +406,234 @@ GASNETI_END_EXTERNC
 #define gasnet_AMReplyLong16(token, handler, source_addr, nbytes, token_addr, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) \
         gasnetc_AMReplyLongM(token, handler, source_addr, nbytes, token_addr, 16, (gasnet_handlerarg_t)(a0), (gasnet_handlerarg_t)(a1), (gasnet_handlerarg_t)(a2), (gasnet_handlerarg_t)(a3), (gasnet_handlerarg_t)(a4), (gasnet_handlerarg_t)(a5), (gasnet_handlerarg_t)(a6), (gasnet_handlerarg_t)(a7), (gasnet_handlerarg_t)(a8), (gasnet_handlerarg_t)(a9), (gasnet_handlerarg_t)(a10), (gasnet_handlerarg_t)(a11), (gasnet_handlerarg_t)(a12), (gasnet_handlerarg_t)(a13), (gasnet_handlerarg_t)(a14), (gasnet_handlerarg_t)(a15))
 
+/* ------------------------------------------------------------------------------------ */
+#define gasnetex_AMRequestShort0(team, rank, handler, flags) \
+       gasnetc_AMRequestShortM(rank, handler, 0)
+#define gasnetex_AMRequestShort1(team, rank, handler, flags, a0) \
+       gasnetc_AMRequestShortM(rank, handler, 1, (gasnet_handlerarg_t)a0)
+#define gasnetex_AMRequestShort2(team, rank, handler, flags, a0, a1) \
+       gasnetc_AMRequestShortM(rank, handler, 2, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1)
+#define gasnetex_AMRequestShort3(team, rank, handler, flags, a0, a1, a2) \
+       gasnetc_AMRequestShortM(rank, handler, 3, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2)
+#define gasnetex_AMRequestShort4(team, rank, handler, flags, a0, a1, a2, a3) \
+       gasnetc_AMRequestShortM(rank, handler, 4, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3)
+
+#define gasnetex_AMRequestShort5(team, rank, handler, flags, a0, a1, a2, a3, a4) \
+       gasnetc_AMRequestShortM(rank, handler, 5, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4)
+#define gasnetex_AMRequestShort6(team, rank, handler, flags, a0, a1, a2, a3, a4, a5) \
+       gasnetc_AMRequestShortM(rank, handler, 6, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5)
+#define gasnetex_AMRequestShort7(team, rank, handler, flags, a0, a1, a2, a3, a4, a5, a6) \
+       gasnetc_AMRequestShortM(rank, handler, 7, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6)
+#define gasnetex_AMRequestShort8(team, rank, handler, flags, a0, a1, a2, a3, a4, a5, a6, a7) \
+       gasnetc_AMRequestShortM(rank, handler, 8, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7)
+
+#define gasnetex_AMRequestShort9(team, rank, handler, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8 ) \
+        gasnetc_AMRequestShortM(rank, handler,  9, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8)
+#define gasnetex_AMRequestShort10(team, rank, handler, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) \
+        gasnetc_AMRequestShortM(rank, handler, 10, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9)
+#define gasnetex_AMRequestShort11(team, rank, handler, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) \
+        gasnetc_AMRequestShortM(rank, handler, 11, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10)
+#define gasnetex_AMRequestShort12(team, rank, handler, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11) \
+        gasnetc_AMRequestShortM(rank, handler, 12, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11)
+
+#define gasnetex_AMRequestShort13(team, rank, handler, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12) \
+        gasnetc_AMRequestShortM(rank, handler, 13, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12)
+#define gasnetex_AMRequestShort14(team, rank, handler, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13) \
+        gasnetc_AMRequestShortM(rank, handler, 14, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13)
+#define gasnetex_AMRequestShort15(team, rank, handler, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14) \
+        gasnetc_AMRequestShortM(rank, handler, 15, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13, (gasnet_handlerarg_t)a14)
+#define gasnetex_AMRequestShort16(team, rank, handler, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) \
+        gasnetc_AMRequestShortM(rank, handler, 16, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13, (gasnet_handlerarg_t)a14, (gasnet_handlerarg_t)a15)
+/* ------------------------------------------------------------------------------------ */
+#define gasnetex_AMRequestMedium0(team, rank, handler, source_addr, nbytes, lc_opt, flags) \
+       gasnetc_AMRequestMediumM(rank, handler, source_addr, nbytes, 0)
+#define gasnetex_AMRequestMedium1(team, rank, handler, source_addr, nbytes, lc_opt, flags, a0) \
+       gasnetc_AMRequestMediumM(rank, handler, source_addr, nbytes, 1, (gasnet_handlerarg_t)a0)
+#define gasnetex_AMRequestMedium2(team, rank, handler, source_addr, nbytes, lc_opt, flags, a0, a1) \
+       gasnetc_AMRequestMediumM(rank, handler, source_addr, nbytes, 2, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1)
+#define gasnetex_AMRequestMedium3(team, rank, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2) \
+       gasnetc_AMRequestMediumM(rank, handler, source_addr, nbytes, 3, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2)
+#define gasnetex_AMRequestMedium4(team, rank, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3) \
+       gasnetc_AMRequestMediumM(rank, handler, source_addr, nbytes, 4, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3)
+
+#define gasnetex_AMRequestMedium5(team, rank, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4) \
+       gasnetc_AMRequestMediumM(rank, handler, source_addr, nbytes, 5, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4)
+#define gasnetex_AMRequestMedium6(team, rank, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5) \
+       gasnetc_AMRequestMediumM(rank, handler, source_addr, nbytes, 6, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5)
+#define gasnetex_AMRequestMedium7(team, rank, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6) \
+       gasnetc_AMRequestMediumM(rank, handler, source_addr, nbytes, 7, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6)
+#define gasnetex_AMRequestMedium8(team, rank, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7) \
+       gasnetc_AMRequestMediumM(rank, handler, source_addr, nbytes, 8, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7)
+
+#define gasnetex_AMRequestMedium9(team, rank, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8 ) \
+        gasnetc_AMRequestMediumM(rank, handler, source_addr, nbytes,  9, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8)
+#define gasnetex_AMRequestMedium10(team, rank, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) \
+        gasnetc_AMRequestMediumM(rank, handler, source_addr, nbytes, 10, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9)
+#define gasnetex_AMRequestMedium11(team, rank, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) \
+        gasnetc_AMRequestMediumM(rank, handler, source_addr, nbytes, 11, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10)
+#define gasnetex_AMRequestMedium12(team, rank, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11) \
+        gasnetc_AMRequestMediumM(rank, handler, source_addr, nbytes, 12, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11)
+
+#define gasnetex_AMRequestMedium13(team, rank, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12) \
+        gasnetc_AMRequestMediumM(rank, handler, source_addr, nbytes, 13, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12)
+#define gasnetex_AMRequestMedium14(team, rank, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13) \
+        gasnetc_AMRequestMediumM(rank, handler, source_addr, nbytes, 14, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13)
+#define gasnetex_AMRequestMedium15(team, rank, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14) \
+        gasnetc_AMRequestMediumM(rank, handler, source_addr, nbytes, 15, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13, (gasnet_handlerarg_t)a14)
+#define gasnetex_AMRequestMedium16(team, rank, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) \
+        gasnetc_AMRequestMediumM(rank, handler, source_addr, nbytes, 16, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13, (gasnet_handlerarg_t)a14, (gasnet_handlerarg_t)a15)
+/* ------------------------------------------------------------------------------------ */
+#define gasnetex_AMRequestLong0(team, rank, handler, source_addr, nbytes, dest_addr, lc_opt, flags) \
+       gasnetc_AMRequestLongM(rank, handler, source_addr, nbytes, dest_addr, 0)
+#define gasnetex_AMRequestLong1(team, rank, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0) \
+       gasnetc_AMRequestLongM(rank, handler, source_addr, nbytes, dest_addr, 1, (gasnet_handlerarg_t)a0)
+#define gasnetex_AMRequestLong2(team, rank, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1) \
+       gasnetc_AMRequestLongM(rank, handler, source_addr, nbytes, dest_addr, 2, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1)
+#define gasnetex_AMRequestLong3(team, rank, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2) \
+       gasnetc_AMRequestLongM(rank, handler, source_addr, nbytes, dest_addr, 3, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2)
+#define gasnetex_AMRequestLong4(team, rank, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3) \
+       gasnetc_AMRequestLongM(rank, handler, source_addr, nbytes, dest_addr, 4, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3)
+
+#define gasnetex_AMRequestLong5(team, rank, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4) \
+       gasnetc_AMRequestLongM(rank, handler, source_addr, nbytes, dest_addr, 5, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4)
+#define gasnetex_AMRequestLong6(team, rank, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5) \
+       gasnetc_AMRequestLongM(rank, handler, source_addr, nbytes, dest_addr, 6, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5)
+#define gasnetex_AMRequestLong7(team, rank, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6) \
+       gasnetc_AMRequestLongM(rank, handler, source_addr, nbytes, dest_addr, 7, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6)
+#define gasnetex_AMRequestLong8(team, rank, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7) \
+       gasnetc_AMRequestLongM(rank, handler, source_addr, nbytes, dest_addr, 8, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7)
+
+#define gasnetex_AMRequestLong9(team, rank, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8 ) \
+        gasnetc_AMRequestLongM(rank, handler, source_addr, nbytes, dest_addr,  9, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8)
+#define gasnetex_AMRequestLong10(team, rank, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) \
+        gasnetc_AMRequestLongM(rank, handler, source_addr, nbytes, dest_addr, 10, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9)
+#define gasnetex_AMRequestLong11(team, rank, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) \
+        gasnetc_AMRequestLongM(rank, handler, source_addr, nbytes, dest_addr, 11, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10)
+#define gasnetex_AMRequestLong12(team, rank, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11) \
+        gasnetc_AMRequestLongM(rank, handler, source_addr, nbytes, dest_addr, 12, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11)
+
+#define gasnetex_AMRequestLong13(team, rank, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12) \
+        gasnetc_AMRequestLongM(rank, handler, source_addr, nbytes, dest_addr, 13, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12)
+#define gasnetex_AMRequestLong14(team, rank, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13) \
+        gasnetc_AMRequestLongM(rank, handler, source_addr, nbytes, dest_addr, 14, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13)
+#define gasnetex_AMRequestLong15(team, rank, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14) \
+        gasnetc_AMRequestLongM(rank, handler, source_addr, nbytes, dest_addr, 15, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13, (gasnet_handlerarg_t)a14)
+#define gasnetex_AMRequestLong16(team, rank, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) \
+        gasnetc_AMRequestLongM(rank, handler, source_addr, nbytes, dest_addr, 16, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13, (gasnet_handlerarg_t)a14, (gasnet_handlerarg_t)a15)
+/* ------------------------------------------------------------------------------------ */
+#define gasnetex_AMReplyShort0(token, handler, flags) \
+       gasnetc_AMReplyShortM(token, handler, 0)
+#define gasnetex_AMReplyShort1(token, handler, flags, a0) \
+       gasnetc_AMReplyShortM(token, handler, 1, (gasnet_handlerarg_t)a0)
+#define gasnetex_AMReplyShort2(token, handler, flags, a0, a1) \
+       gasnetc_AMReplyShortM(token, handler, 2, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1)
+#define gasnetex_AMReplyShort3(token, handler, flags, a0, a1, a2) \
+       gasnetc_AMReplyShortM(token, handler, 3, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2)
+#define gasnetex_AMReplyShort4(token, handler, flags, a0, a1, a2, a3) \
+       gasnetc_AMReplyShortM(token, handler, 4, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3)
+
+#define gasnetex_AMReplyShort5(token, handler, flags, a0, a1, a2, a3, a4) \
+       gasnetc_AMReplyShortM(token, handler, 5, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4)
+#define gasnetex_AMReplyShort6(token, handler, flags, a0, a1, a2, a3, a4, a5) \
+       gasnetc_AMReplyShortM(token, handler, 6, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5)
+#define gasnetex_AMReplyShort7(token, handler, flags, a0, a1, a2, a3, a4, a5, a6) \
+       gasnetc_AMReplyShortM(token, handler, 7, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6)
+#define gasnetex_AMReplyShort8(token, handler, flags, a0, a1, a2, a3, a4, a5, a6, a7) \
+       gasnetc_AMReplyShortM(token, handler, 8, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7)
+
+#define gasnetex_AMReplyShort9(token, handler, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8 ) \
+        gasnetc_AMReplyShortM(token, handler,  9, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8)
+#define gasnetex_AMReplyShort10(token, handler, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) \
+        gasnetc_AMReplyShortM(token, handler, 10, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9)
+#define gasnetex_AMReplyShort11(token, handler, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) \
+        gasnetc_AMReplyShortM(token, handler, 11, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10)
+#define gasnetex_AMReplyShort12(token, handler, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11) \
+        gasnetc_AMReplyShortM(token, handler, 12, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11)
+
+#define gasnetex_AMReplyShort13(token, handler, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12) \
+        gasnetc_AMReplyShortM(token, handler, 13, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12)
+#define gasnetex_AMReplyShort14(token, handler, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13) \
+        gasnetc_AMReplyShortM(token, handler, 14, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13)
+#define gasnetex_AMReplyShort15(token, handler, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14) \
+        gasnetc_AMReplyShortM(token, handler, 15, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13, (gasnet_handlerarg_t)a14)
+#define gasnetex_AMReplyShort16(token, handler, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) \
+        gasnetc_AMReplyShortM(token, handler, 16, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13, (gasnet_handlerarg_t)a14, (gasnet_handlerarg_t)a15)
+/* ------------------------------------------------------------------------------------ */
+#define gasnetex_AMReplyMedium0(token, handler, source_addr, nbytes, lc_opt, flags) \
+       gasnetc_AMReplyMediumM(token, handler, source_addr, nbytes, 0)
+#define gasnetex_AMReplyMedium1(token, handler, source_addr, nbytes, lc_opt, flags, a0) \
+       gasnetc_AMReplyMediumM(token, handler, source_addr, nbytes, 1, (gasnet_handlerarg_t)a0)
+#define gasnetex_AMReplyMedium2(token, handler, source_addr, nbytes, lc_opt, flags, a0, a1) \
+       gasnetc_AMReplyMediumM(token, handler, source_addr, nbytes, 2, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1)
+#define gasnetex_AMReplyMedium3(token, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2) \
+       gasnetc_AMReplyMediumM(token, handler, source_addr, nbytes, 3, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2)
+#define gasnetex_AMReplyMedium4(token, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3) \
+       gasnetc_AMReplyMediumM(token, handler, source_addr, nbytes, 4, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3)
+
+#define gasnetex_AMReplyMedium5(token, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4) \
+       gasnetc_AMReplyMediumM(token, handler, source_addr, nbytes, 5, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4)
+#define gasnetex_AMReplyMedium6(token, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5) \
+       gasnetc_AMReplyMediumM(token, handler, source_addr, nbytes, 6, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5)
+#define gasnetex_AMReplyMedium7(token, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6) \
+       gasnetc_AMReplyMediumM(token, handler, source_addr, nbytes, 7, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6)
+#define gasnetex_AMReplyMedium8(token, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7) \
+       gasnetc_AMReplyMediumM(token, handler, source_addr, nbytes, 8, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7)
+
+#define gasnetex_AMReplyMedium9(token, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8 ) \
+        gasnetc_AMReplyMediumM(token, handler, source_addr, nbytes,  9, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8)
+#define gasnetex_AMReplyMedium10(token, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) \
+        gasnetc_AMReplyMediumM(token, handler, source_addr, nbytes, 10, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9)
+#define gasnetex_AMReplyMedium11(token, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) \
+        gasnetc_AMReplyMediumM(token, handler, source_addr, nbytes, 11, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10)
+#define gasnetex_AMReplyMedium12(token, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11) \
+        gasnetc_AMReplyMediumM(token, handler, source_addr, nbytes, 12, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11)
+
+#define gasnetex_AMReplyMedium13(token, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12) \
+        gasnetc_AMReplyMediumM(token, handler, source_addr, nbytes, 13, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12)
+#define gasnetex_AMReplyMedium14(token, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13) \
+        gasnetc_AMReplyMediumM(token, handler, source_addr, nbytes, 14, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13)
+#define gasnetex_AMReplyMedium15(token, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14) \
+        gasnetc_AMReplyMediumM(token, handler, source_addr, nbytes, 15, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13, (gasnet_handlerarg_t)a14)
+#define gasnetex_AMReplyMedium16(token, handler, source_addr, nbytes, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) \
+        gasnetc_AMReplyMediumM(token, handler, source_addr, nbytes, 16, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13, (gasnet_handlerarg_t)a14, (gasnet_handlerarg_t)a15)
+/* ------------------------------------------------------------------------------------ */
+#define gasnetex_AMReplyLong0(token, handler, source_addr, nbytes, dest_addr, lc_opt, flags) \
+       gasnetc_AMReplyLongM(token, handler, source_addr, nbytes, dest_addr, 0)
+#define gasnetex_AMReplyLong1(token, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0) \
+       gasnetc_AMReplyLongM(token, handler, source_addr, nbytes, dest_addr, 1, (gasnet_handlerarg_t)a0)
+#define gasnetex_AMReplyLong2(token, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1) \
+       gasnetc_AMReplyLongM(token, handler, source_addr, nbytes, dest_addr, 2, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1)
+#define gasnetex_AMReplyLong3(token, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2) \
+       gasnetc_AMReplyLongM(token, handler, source_addr, nbytes, dest_addr, 3, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2)
+#define gasnetex_AMReplyLong4(token, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3) \
+       gasnetc_AMReplyLongM(token, handler, source_addr, nbytes, dest_addr, 4, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3)
+
+#define gasnetex_AMReplyLong5(token, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4) \
+       gasnetc_AMReplyLongM(token, handler, source_addr, nbytes, dest_addr, 5, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4)
+#define gasnetex_AMReplyLong6(token, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5) \
+       gasnetc_AMReplyLongM(token, handler, source_addr, nbytes, dest_addr, 6, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5)
+#define gasnetex_AMReplyLong7(token, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6) \
+       gasnetc_AMReplyLongM(token, handler, source_addr, nbytes, dest_addr, 7, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6)
+#define gasnetex_AMReplyLong8(token, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7) \
+       gasnetc_AMReplyLongM(token, handler, source_addr, nbytes, dest_addr, 8, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7)
+
+#define gasnetex_AMReplyLong9(token, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8 ) \
+        gasnetc_AMReplyLongM(token, handler, source_addr, nbytes, dest_addr,  9, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8)
+#define gasnetex_AMReplyLong10(token, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) \
+        gasnetc_AMReplyLongM(token, handler, source_addr, nbytes, dest_addr, 10, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9)
+#define gasnetex_AMReplyLong11(token, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) \
+        gasnetc_AMReplyLongM(token, handler, source_addr, nbytes, dest_addr, 11, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10)
+#define gasnetex_AMReplyLong12(token, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11) \
+        gasnetc_AMReplyLongM(token, handler, source_addr, nbytes, dest_addr, 12, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11)
+
+#define gasnetex_AMReplyLong13(token, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12) \
+        gasnetc_AMReplyLongM(token, handler, source_addr, nbytes, dest_addr, 13, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12)
+#define gasnetex_AMReplyLong14(token, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13) \
+        gasnetc_AMReplyLongM(token, handler, source_addr, nbytes, dest_addr, 14, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13)
+#define gasnetex_AMReplyLong15(token, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14) \
+        gasnetc_AMReplyLongM(token, handler, source_addr, nbytes, dest_addr, 15, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13, (gasnet_handlerarg_t)a14)
+#define gasnetex_AMReplyLong16(token, handler, source_addr, nbytes, dest_addr, lc_opt, flags, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) \
+        gasnetc_AMReplyLongM(token, handler, source_addr, nbytes, dest_addr, 16, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13, (gasnet_handlerarg_t)a14, (gasnet_handlerarg_t)a15)
 /* ------------------------------------------------------------------------------------ */
 
 #endif
