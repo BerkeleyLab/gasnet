@@ -136,9 +136,9 @@ void gasnete_coll_scratch_send_updates(gasnete_coll_team_t team, int seq) {
   /*for gasnet team all it doesn't matter but in other cases it does
   stat->active_config_and_ops->peers[i] needs to be translated to an absolute rank*/
   for(i=0; i<stat->active_config_and_ops->numpeers; i++) {
-    GASNETI_SAFE(SHORT_REQ(2,2,(GASNETE_COLL_REL2ACT(team, stat->active_config_and_ops->peers[i]),
-                                gasneti_handleridx(gasnete_coll_scratch_update_reqh),
-                                team->team_id, team->myrank)));
+    gasnetex_AMRequestShort(NULL, GASNETE_COLL_REL2ACT(team, stat->active_config_and_ops->peers[i]),
+                                gasneti_handleridx(gasnete_coll_scratch_update_reqh), 0,
+                                team->team_id, team->myrank);
 #if GASNETE_COLL_SCRATCH_DEBUG_PRINTS
     fprintf(stderr, "%d,%d> CLEAR!->%d\n", seq, gasneti_mynode, stat->active_config_and_ops->peers[i]); 
 #endif

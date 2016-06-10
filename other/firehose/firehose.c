@@ -1265,13 +1265,14 @@ fh_am_move_reqh_inner(gasnet_token_t token, void *addr, size_t nbytes,
 	    firehose_remote_callback(node, 
 		(const firehose_region_t *) new_reg, r_new, args);
 
-	    MEDIUM_REP(2,3,
-		(token,
+	    gasnetex_AMReplyMedium(
+		token,
 		fh_handleridx(fh_am_move_reph),
 		new_reg,
 		sizeof(firehose_region_t) * r_new,
+		GASNETEX_LC_INIT, 0,
 		r_new,
-		PACK(context)));
+		PACK(context));
 
 	    return;
 	}
@@ -1316,13 +1317,14 @@ fh_am_move_reqh_inner(gasnet_token_t token, void *addr, size_t nbytes,
 	#endif /* REMOTE_CALLBACK_IN_HANDLER */
 
 	else {
-		MEDIUM_REP(2,3,
-			   (token,
+		gasnetex_AMReplyMedium(
+			    token,
 			    fh_handleridx(fh_am_move_reph),
 			    new_reg,
 			    sizeof(firehose_region_t) * r_new,
+			    GASNETEX_LC_INIT, 0,
 			    r_new,
-			    PACK(context)));
+			    PACK(context));
 	}
 
 	return;
@@ -1403,10 +1405,11 @@ fh_send_firehose_reply(fh_remote_callback_t *rc)
 {
 	FH_TABLE_ASSERT_UNLOCKED;
 	/* Run the "reply" handler as a request */
-	MEDIUM_REQ(2,3,
-	    (rc->node, fh_handleridx(fh_am_move_reph),
-	     rc->pin_list, rc->reply_len, rc->pin_list_num,
-	     PACK(rc->context)));
+	gasnetex_AMRequestMedium(
+	     NULL, rc->node, fh_handleridx(fh_am_move_reph),
+	     rc->pin_list, rc->reply_len,
+	     GASNETEX_LC_INIT, 0,
+	     rc->pin_list_num, PACK(rc->context));
 }
 
 gasnet_handlerentry_t fh_am_handlers[] = {

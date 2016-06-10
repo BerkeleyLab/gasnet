@@ -1101,15 +1101,16 @@ fh_acquire_remote_region(firehose_request_t *req,
 
 	req->flags |= FH_FLAG_INFLIGHT;
 
-	MEDIUM_REQ(4,5,
-		   (node,
+	gasnetex_AMRequestMedium(
+		    NULL, node,
 		    fh_handleridx(fh_am_move_reqh),
 		    payload,
 		    payload_size,
+		    GASNETEX_LC_INIT, 0,
 		    flags,
 		    1,
 		    num_unpin,
-		    PACK(priv)));
+		    PACK(priv));
     }
     else if_pf (!FH_IS_READY(0, priv)) {
 	/* HIT Pending */

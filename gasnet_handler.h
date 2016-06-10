@@ -112,10 +112,10 @@
 
 /* pointer packing/unpacking helper macros */
 #if PLATFORM_ARCH_32
-  #define PACK(ptr) ((gasnet_handlerarg_t)(ptr))
+  #define PACK(ptr) ((gasnetex_handlerarg_t)(ptr))
   #define UNPACK(a0) ((void *)a0)
 #elif PLATFORM_ARCH_64
-  #define PACK(ptr) ((gasnet_handlerarg_t)GASNETI_HIWORD(ptr)), ((gasnet_handlerarg_t)GASNETI_LOWORD(ptr))
+  #define PACK(ptr) ((gasnetex_handlerarg_t)GASNETI_HIWORD(ptr)), ((gasnetex_handlerarg_t)GASNETI_LOWORD(ptr))
   #define UNPACK2(a0,a1) ((void *)GASNETI_MAKEWORD(a0,a1))
 #endif
 

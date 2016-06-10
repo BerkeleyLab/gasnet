@@ -793,10 +793,9 @@ gasnet_handle_t gasnete_puts_AMPipeline(gasnete_strided_stats_t const *stats, ga
         nbytes += packetoverhead;
       }
       /* fill packet with remote metadata */
-      GASNETI_SAFE(
-        MEDIUM_REQ(5,7,(dstnode, gasneti_handleridx(gasnete_puts_AMPipeline_reqh),
-                      packetbase, nbytes,
-                      PACK(iop), PACK(dstaddr), stridelevels, stats->dualcontiguity, packetchunks)));
+      gasnetex_AMRequestMedium(NULL, dstnode, gasneti_handleridx(gasnete_puts_AMPipeline_reqh),
+                               packetbase, nbytes, GASNETEX_LC_INIT, 0,
+                               PACK(iop), PACK(dstaddr), stridelevels, stats->dualcontiguity, packetchunks);
     }
     gasneti_free(init);
     GASNETE_END_NBIREGION_AND_RETURN(synctype, 0);
@@ -831,9 +830,7 @@ void gasnete_puts_AMPipeline_reqh_inner(gasnet_token_t token,
   gasneti_assert(end - (uint8_t *)addr == nbytes);
   gasneti_sync_writes();
   /* TODO: coalesce acknowledgements - need a per-srcnode, per-op seqnum & packetcnt */
-  GASNETI_SAFE(
-    SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_putvis_AMPipeline_reph),
-                  PACK(iop))));
+  gasnetex_AMReplyShort(token, gasneti_handleridx(gasnete_putvis_AMPipeline_reph), 0, PACK(iop));
 }
 MEDIUM_HANDLER(gasnete_puts_AMPipeline_reqh,5,7, 
               (token,addr,nbytes, UNPACK(a0),      UNPACK(a1),      a2,a3,a4),
@@ -902,10 +899,9 @@ gasnet_handle_t gasnete_gets_AMPipeline(gasnete_strided_stats_t const *stats, ga
       size_t const adjnbytes = packetchunks*adjchunksz;
       remaining -= packetchunks;
       memcpy(packetinit, tableinit, stridelevels*sizeof(size_t));
-      GASNETI_SAFE(
-        MEDIUM_REQ(6,8,(srcnode, gasneti_handleridx(gasnete_gets_AMPipeline_reqh),
-                      packetbase, packetnbytes,
-                      PACK(visop), PACK(srcaddr), stridelevels, stats->dualcontiguity, packetchunks, packetidx)));
+      gasnetex_AMRequestMedium(NULL, srcnode, gasneti_handleridx(gasnete_gets_AMPipeline_reqh),
+                      packetbase, packetnbytes, GASNETEX_LC_INIT, 0,
+                      PACK(visop), PACK(srcaddr), stridelevels, stats->dualcontiguity, packetchunks, packetidx);
 
       if (remaining) {
         memcpy(nexttableinit, tableinit, stridelevels*sizeof(size_t));
@@ -963,10 +959,9 @@ void gasnete_gets_AMPipeline_reqh_inner(gasnet_token_t token,
                                0, 0, packedbuf);
     size_t nbytes = end - (uint8_t *)packedbuf;
 
-    GASNETI_SAFE(
-      MEDIUM_REP(4,5,(token, gasneti_handleridx(gasnete_gets_AMPipeline_reph),
-                    packedbuf, nbytes,
-                    PACK(_visop),packetidx,contiglevel,packetchunks)));
+    gasnetex_AMReplyMedium(token, gasneti_handleridx(gasnete_gets_AMPipeline_reph),
+                           packedbuf, nbytes, GASNETEX_LC_INIT, 0,
+                           PACK(_visop),packetidx,contiglevel,packetchunks);
     gasneti_free(packedbuf);
   }
 }

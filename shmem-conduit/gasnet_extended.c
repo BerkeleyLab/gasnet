@@ -95,10 +95,9 @@ gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val,
     int	 isdone = 0;
     void *pdone = (void*)&isdone;
 
-    GASNETI_SAFE(
-	SHORT_REQ(4,7,(node, gasneti_handleridx(gasnete_memset_reqh),
+    gasnetex_AMRequestShort(NULL, node, gasneti_handleridx(gasnete_memset_reqh), 0,
 		      (gasnet_handlerarg_t)val, PACK(nbytes), 
-		      PACK(ptr), PACK(pdone))));
+		      PACK(ptr), PACK(pdone)));
 
     /* Always blocking, even if an AM */
     GASNET_BLOCKUNTIL(isdone != 0);
@@ -125,9 +124,7 @@ gasnete_memset_reqh_inner(gasnet_token_t token, gasnet_handlerarg_t val,
     memset(dest, (int)(uint32_t)val, nbytes);
     gasneti_sync_writes();
 
-    GASNETI_SAFE(
-	SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_markdone_reph),
-                  PACK(op))));
+    gasnetex_AMReplyShort(token, gasneti_handleridx(gasnete_markdone_reph), 0, PACK(op));
 }
 SHORT_HANDLER(gasnete_memset_reqh,4,7,
               (token, a0, UNPACK(a1),      UNPACK(a2),      UNPACK(a3)     ),

@@ -2529,15 +2529,16 @@ send_am:
 
 	req->flags |= FH_FLAG_INFLIGHT;
 
-	MEDIUM_REQ(4,5,
-		    (node,
+	gasnetex_AMRequestMedium(
+		    NULL, node,
 		    fh_handleridx(fh_am_move_reqh),
 		    reg_alloc, 
 		    sizeof(firehose_region_t)*tot_r+args_len,
+		    GASNETEX_LC_INIT, 0,
 		    (uint32_t) flags,
 		    (uint32_t) pin_r,
 		    (uint32_t) unpin_r,
-		    PACK(NULL)));
+		    PACK(NULL));
 
 	goto done_unlocked;
     }
@@ -2883,15 +2884,16 @@ fh_acquire_remote_region(firehose_request_t *req,
 
 		req->flags |= FH_FLAG_INFLIGHT;
 
-                MEDIUM_REQ(4,5,
-			   (node,
+                gasnetex_AMRequestMedium(
+			    NULL, node,
 			    fh_handleridx(fh_am_move_reqh),
 			    reg_alloc, 
 			    sizeof(firehose_region_t)*(new_r+old_r)+args_len, 
+			    GASNETEX_LC_INIT, 0,
 			    flags,
 			    new_r,
 			    old_r,
-			    PACK(NULL)));
+			    PACK(NULL));
 	}
 	else {
 		/* Only set the PINNED flag if the request is not set on any

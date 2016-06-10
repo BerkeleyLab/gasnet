@@ -546,11 +546,10 @@ static void gasnetc_amrdma_grant(gasnetc_hca_t *hca, gasnetc_cep_t *cep) {
     hca->amrdma_rcv.cep[count] = cep;
     gasnetc_atomic_set(&hca->amrdma_rcv.count, count+1, GASNETI_ATOMIC_REL);
 
-    GASNETI_SAFE(
-	SHORT_REQ(3,4,(node, gasneti_handleridx(gasnetc_amrdma_grant_reqh),
-		       (gasnet_handlerarg_t)qpi,
-		       (gasnet_handlerarg_t)hca->amrdma_reg.handle->rkey,
-		       PACK(cep->amrdma_recv->addr))));
+    gasnetex_AMRequestShort(NULL, node, gasneti_handleridx(gasnetc_amrdma_grant_reqh), 0,
+		            (gasnetex_handlerarg_t)qpi,
+		            (gasnetex_handlerarg_t)hca->amrdma_reg.handle->rkey,
+		            PACK(cep->amrdma_recv->addr));
   }
 }
 

@@ -296,10 +296,9 @@ gasnet_handle_t gasnete_puti_AMPipeline(gasnete_synctype_t synctype,
                                   lpacket->firstoffset, lpacket->lastlen);
 
       /* send AM(rnum, iop) from packedbuf */
-      GASNETI_SAFE(
-        MEDIUM_REQ(5,6,(dstnode, gasneti_handleridx(gasnete_puti_AMPipeline_reqh),
-                      packedbuf, end - (uint8_t *)packedbuf,
-                      PACK(iop), rnum, dstlen, rpacket->firstoffset, rpacket->lastlen)));
+      gasnetex_AMRequestMedium(NULL, dstnode, gasneti_handleridx(gasnete_puti_AMPipeline_reqh),
+                               packedbuf, end - (uint8_t *)packedbuf, GASNETEX_LC_INIT, 0,
+                               PACK(iop), rnum, dstlen, rpacket->firstoffset, rpacket->lastlen);
     }
 
     gasneti_free(remotept);
@@ -330,9 +329,7 @@ void gasnete_puti_AMPipeline_reqh_inner(gasnet_token_t token,
   gasneti_assert(end - (uint8_t *)addr <= gasnet_AMMaxMedium());
   gasneti_sync_writes();
   /* TODO: coalesce acknowledgements - need a per-srcnode, per-op seqnum & packetcnt */
-  GASNETI_SAFE(
-    SHORT_REP(1,2,(token, gasneti_handleridx(gasnete_putvis_AMPipeline_reph),
-                  PACK(iop))));
+  gasnetex_AMReplyShort(token, gasneti_handleridx(gasnete_putvis_AMPipeline_reph), 0, PACK(iop));
 }
 MEDIUM_HANDLER(gasnete_puti_AMPipeline_reqh,5,6, 
               (token,addr,nbytes, UNPACK(a0),      a1,a2,a3,a4),
@@ -381,10 +378,9 @@ gasnet_handle_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
       memcpy(packedbuf, &srclist[rpacket->firstidx], rnum*sizeof(void *));
 
       /* send AM(visop) from packedbuf */
-      GASNETI_SAFE(
-        MEDIUM_REQ(5,6,(srcnode, gasneti_handleridx(gasnete_geti_AMPipeline_reqh),
-                      packedbuf, rnum*sizeof(void *),
-                      PACK(visop), packetidx, srclen, rpacket->firstoffset, rpacket->lastlen)));
+      gasnetex_AMRequestMedium(NULL, srcnode, gasneti_handleridx(gasnete_geti_AMPipeline_reqh),
+                               packedbuf, rnum*sizeof(void *), GASNETEX_LC_INIT, 0,
+                               PACK(visop), packetidx, srclen, rpacket->firstoffset, rpacket->lastlen);
     }
 
     gasneti_free(remotept);
@@ -413,10 +409,9 @@ void gasnete_geti_AMPipeline_reqh_inner(gasnet_token_t token,
   uint8_t * const end = gasnete_addrlist_pack(rnum, rlist, dstlen, packedbuf, firstoffset, lastlen);
   size_t const repbytes = end - packedbuf;
   gasneti_assert(repbytes <= gasnet_AMMaxMedium());
-  GASNETI_SAFE(
-    MEDIUM_REP(2,3,(token, gasneti_handleridx(gasnete_geti_AMPipeline_reph),
-                  packedbuf, repbytes,
-                  PACK(_visop),packetidx)));
+  gasnetex_AMReplyMedium(token, gasneti_handleridx(gasnete_geti_AMPipeline_reph),
+                         packedbuf, repbytes, GASNETEX_LC_INIT, 0,
+                         PACK(_visop),packetidx);
   gasneti_free(packedbuf);
 }
 MEDIUM_HANDLER(gasnete_geti_AMPipeline_reqh,5,6, 

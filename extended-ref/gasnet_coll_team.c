@@ -378,9 +378,9 @@ gasnet_team_handle_t gasnete_coll_team_create(uint32_t total_ranks,
     
     /* send out team_id */
     for(i=1; i<total_ranks; i++) {
-      GASNETI_SAFE(SHORT_REQ(1,1,(rel2act_map[i],
-                                  gasneti_handleridx(gasnete_coll_teamid_reqh),
-                                  new_team_id)));
+      gasnetex_AMRequestShort(NULL, rel2act_map[i],
+                                  gasneti_handleridx(gasnete_coll_teamid_reqh), 0,
+                                  new_team_id);
     }
   } else {
     /* wait for team_id from the team leader */
