@@ -484,8 +484,10 @@ extern int gasnetc_AMPoll(void) {
 */
 
 extern int gasnetc_AMRequestShortM( 
-                            gasnet_node_t dest,       /* destination node */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gasnetex_team_member_t team,/* local context */
+                            gasnetex_rank_t dest,       /* with team, defines remote context */
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
+                            gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;
   va_list argptr;
@@ -512,9 +514,12 @@ extern int gasnetc_AMRequestShortM(
 }
 
 extern int gasnetc_AMRequestMediumM( 
-                            gasnet_node_t dest,      /* destination node */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gasnetex_team_member_t team,/* local context */
+                            gasnetex_rank_t dest,       /* with team, defines remote context */
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
+                            gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
+                            gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;
   va_list argptr;
@@ -540,10 +545,14 @@ extern int gasnetc_AMRequestMediumM(
   GASNETI_RETURN(retval);
 }
 
-extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination node */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+extern int gasnetc_AMRequestLongM(
+                            gasnetex_team_member_t team,/* local context */
+                            gasnetex_rank_t dest,       /* with team, defines remote context */
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
+                            gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
+                            gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;
   va_list argptr;
@@ -569,38 +578,10 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   GASNETI_RETURN(retval);
 }
 
-extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destination node */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
-                            void *source_addr, size_t nbytes,   /* data payload */
-                            void *dest_addr,                    /* data destination on destination node */
-                            int numargs, ...) {
-  int retval;
-  va_list argptr;
-  GASNETI_COMMON_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs);
-  gasneti_AMPoll(); /* (###) poll at least once, to assure forward progress */
-  va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_PSHM
-  /* (###) If your conduit will support PSHM, let it check the dest first. */
-  if_pt (gasneti_pshm_in_supernode(dest)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Long, dest, handler,
-                                           source_addr, nbytes, dest_addr,
-                                           numargs, argptr);
-  } else
-#endif
-  {
-    /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t) 
-             and send the active message 
-     */
-
-    retval = ###;
-  }
-  va_end(argptr);
-  GASNETI_RETURN(retval);
-}
-
 extern int gasnetc_AMReplyShortM( 
-                            gasnet_token_t token,       /* token provided on handler entry */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gasnetex_token_t token,     /* token provided on handler entry */
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
+                            gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;
   va_list argptr;
@@ -626,9 +607,11 @@ extern int gasnetc_AMReplyShortM(
 }
 
 extern int gasnetc_AMReplyMediumM( 
-                            gasnet_token_t token,       /* token provided on handler entry */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gasnetex_token_t token,     /* token provided on handler entry */
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
+                            gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
+                            gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;
   va_list argptr;
@@ -654,10 +637,12 @@ extern int gasnetc_AMReplyMediumM(
 }
 
 extern int gasnetc_AMReplyLongM( 
-                            gasnet_token_t token,       /* token provided on handler entry */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gasnetex_token_t token,     /* token provided on handler entry */
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
+                            gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
+                            gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;
   va_list argptr;

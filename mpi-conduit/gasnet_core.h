@@ -194,5 +194,4 @@ GASNETI_END_EXTERNC
 
 #endif
 
-#define GASNETC_NO_AMREQUESTLONGASYNC 1
 #include <gasnet_ammacros.h>
