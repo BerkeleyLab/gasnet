@@ -205,10 +205,9 @@ void gasnetc_bootstrapBarrier_gni(void))
     for (i = 0; i < gasnetc_dissem_peers; ++i) { /* EMPTY for all but first per supernode */
       const uint32_t mask = 2 << i; /* (distance << 1) */
 
-      GASNETI_SAFE(
-          gasnetc_AMRequestShortM(gasnetc_dissem_peer[i],
-                                  gasneti_handleridx(gasnetc_sys_barrier_reqh),
-                                  1, phase | mask));
+      gasnetex_AMRequestShort1(NULL, gasnetc_dissem_peer[i],
+                               gasneti_handleridx(gasnetc_sys_barrier_reqh),
+                               0, phase | mask);
 
       /* wait for completion of the proper receive, which might arrive out of order */
       while (!(gasnetc_sys_barrier_rcvd[phase] & mask)) {
@@ -287,11 +286,10 @@ void gasnetc_bootstrapExchange_gni(void *src, size_t len, void *dest))
       do {
         const size_t to_xfer = MIN(nbytes, GASNETC_SYS_EXCHANGE_MAX);
 
-        GASNETI_SAFE(
-            gasnetc_AMRequestMediumM(gasnetc_dissem_peer[step],
-                                     gasneti_handleridx(gasnetc_sys_exchange_reqh),
-                                     temp + offset, to_xfer,
-                                     2, phase | (step << 1) | (seq << 6), len));
+        gasnetex_AMRequestMedium2(NULL, gasnetc_dissem_peer[step],
+                                  gasneti_handleridx(gasnetc_sys_exchange_reqh),
+                                  temp + offset, to_xfer, GASNETEX_LC_INIT, 0,
+                                  phase | (step << 1) | (seq << 6), len);
 
         ++seq;
         offset += to_xfer;
@@ -1059,7 +1057,7 @@ extern void gasnetc_exit(int exitcode) {
       gasnet_node_t peer = (distance >= gasneti_nodes - gasneti_mynode)
                                 ? gasneti_mynode - (gasneti_nodes - distance)
                                 : gasneti_mynode + distance;
-      gasnetc_AMRequestShortM(peer, gasneti_handleridx(gasnetc_exit_reqh), 1, exitcode);
+      gasnetex_AMRequestShort1(NULL, peer, gasneti_handleridx(gasnetc_exit_reqh), 0, exitcode);
     }
     if (pre_attach) gasneti_attach_done = 0;
 
@@ -1401,12 +1399,15 @@ int gasnetc_put_longasync_payload( gasnet_node_t dest,
 }
 
 /*------------------- external requests ------------------ */
-extern int gasnetc_AMRequestShortM( 
-                            gasnet_node_t dest,       /* destination node */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+extern int gasnetc_AMRequestShortM(
+                            gasnetex_team_member_t team,/* local context */
+                            gasnetex_rank_t dest,       /* with team, defines remote context */
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
+                            gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;  
   va_list argptr;
+  gasneti_assert(!flags);
   GASNETI_COMMON_AMREQUESTSHORT(dest,handler,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1432,13 +1433,17 @@ extern int gasnetc_AMRequestShortM(
   GASNETI_RETURN(retval);
 }
 
-extern int gasnetc_AMRequestMediumM( 
-                            gasnet_node_t dest,      /* destination node */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+extern int gasnetc_AMRequestMediumM(
+                            gasnetex_team_member_t team,/* local context */
+                            gasnetex_rank_t dest,       /* with team, defines remote context */
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
+                            gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
+                            gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;
   va_list argptr;
+  gasneti_assert(!flags);
   GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1464,13 +1469,18 @@ extern int gasnetc_AMRequestMediumM(
   GASNETI_RETURN(retval);
 }
 
-extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination node */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+extern int gasnetc_AMRequestLongM(
+                            gasnetex_team_member_t team,/* local context */
+                            gasnetex_rank_t dest,       /* with team, defines remote context */
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
+                            gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
+                            gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;
   va_list argptr;
+  gasneti_assert(!flags);
   GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1517,49 +1527,6 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   GASNETI_RETURN(retval);
 }
 
-extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destination node */
-                                        gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
-                                        void *source_addr, size_t nbytes,   /* data payload */
-                                        void *dest_addr,                    /* data destination on destination node */
-                                        int numargs, ...) {
-  int retval;
-  va_list argptr;
-  GASNETI_COMMON_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs);
-  gasneti_AMPoll(); /* poll at least once, to assure forward progress */
-  va_start(argptr, numargs); /*  pass in last argument */
-#if GASNET_PSHM
-  /* (###) If your conduit will support PSHM, let it check the dest first. */
-  if_pt (gasneti_pshm_in_supernode(dest)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Long, dest, handler,
-                                           source_addr, nbytes, dest_addr,
-                                           numargs, argptr);
-  } else
-#else
-  if (dest == gasneti_mynode) {
-    retval = gasnetc_local_long_common(1, handler, source_addr, nbytes, dest_addr, numargs, argptr);
-  } else
-#endif
-  {
-    const int is_packed = (nbytes <= GASNETC_MAX_PACKED_LONG(numargs));
-    const size_t head_len = GASNETC_HEADLEN(long, numargs);
-    const size_t total_len = head_len + (is_packed ? nbytes : 0);
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(dest, total_len);
-
-    gasnetc_format_long(gpd, is_packed, handler, nbytes, dest_addr, numargs, argptr);
-    if (is_packed) {
-      memcpy((void*)(gpd->gpd_am_packet + head_len), source_addr, nbytes);
-      retval = gasnetc_general_am_send_request(gpd);
-    } else {
-      /* Rdma data, then send header as part of completion*/
-      GASNETC_DIDX_POST((gasnete_mythread())->domain_idx);
-      retval = gasnetc_put_longasync_payload(dest, dest_addr, source_addr, nbytes, gpd GASNETC_DIDX_PASS);
-    }
-  }
-  va_end(argptr);
-  GASNETI_RETURN(retval);
-}
-
-
 /*------------------- external replies ------------------ */
 
 GASNETI_INLINE(reply_node)
@@ -1569,12 +1536,14 @@ gasnet_node_t reply_node(gasnet_token_t t)
 }
 
 
-extern int gasnetc_AMReplyShortM( 
-                            gasnet_token_t token,       /* token provided on handler entry */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+extern int gasnetc_AMReplyShortM(
+                            gasnetex_token_t token,     /* token provided on handler entry */
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
+                            gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;
   va_list argptr;
+  gasneti_assert(!flags);
   GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
@@ -1599,14 +1568,17 @@ extern int gasnetc_AMReplyShortM(
   GASNETI_RETURN(retval);
 }
 
-extern int gasnetc_AMReplyMediumM( 
-                            gasnet_token_t token,       /* token provided on handler entry */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+extern int gasnetc_AMReplyMediumM(
+                            gasnetex_token_t token,     /* token provided on handler entry */
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
+                            gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
+                            gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;
   va_list argptr;
 
+  gasneti_assert(!flags);
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
@@ -1631,14 +1603,17 @@ extern int gasnetc_AMReplyMediumM(
   GASNETI_RETURN(retval);
 }
 
-extern int gasnetc_AMReplyLongM( 
-                            gasnet_token_t token,       /* token provided on handler entry */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+extern int gasnetc_AMReplyLongM(
+                            gasnetex_token_t token,     /* token provided on handler entry */
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
+                            gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
+                            gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;
   va_list argptr;
+  gasneti_assert(!flags);
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
