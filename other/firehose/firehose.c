@@ -1214,7 +1214,7 @@ fhi_FreeRegionPool(fhi_RegionPool_t *rpool)
  * Firehose AM Request Handler
  */
 void
-fh_am_move_reqh_inner(gasnet_token_t token, void *addr, size_t nbytes,
+fh_am_move_reqh_inner(gasnetex_token_t token, void *addr, size_t nbytes,
 		      gasnet_handlerarg_t flags,
 		      gasnet_handlerarg_t r_new,
 		      gasnet_handlerarg_t r_old,
@@ -1339,7 +1339,7 @@ MEDIUM_HANDLER(fh_am_move_reqh,4,5,
  * by the reply.
  */
 void
-fh_am_move_reph_inner(gasnet_token_t token, void *addr,
+fh_am_move_reph_inner(gasnetex_token_t token, void *addr,
 		      size_t nbytes, gasnet_handlerarg_t r_new,
 		      void *context)
 {

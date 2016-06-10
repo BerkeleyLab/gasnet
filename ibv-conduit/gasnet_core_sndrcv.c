@@ -1156,7 +1156,7 @@ void gasnetc_ack(gasnetc_rbuf_t *rbuf) {
   #if GASNET_DEBUG
     rbuf->rbuf_handlerRunning = 1; /* To satisfy assertion on Reply path */
   #endif
-    GASNETI_SAFE(gasnetc_ReplySysShort((gasnet_token_t)rbuf, NULL,
+    GASNETI_SAFE(gasnetc_ReplySysShort((gasnetex_token_t)rbuf, NULL,
                                        gasneti_handleridx(gasnetc_ack), 0));
 }
 
@@ -3593,7 +3593,7 @@ gasnetc_unpin_unmap(gasnetc_hca_t *hca, gasnetc_memreg_t *reg) {
   }
 }
 
-void gasnetc_sys_flush_reph(gasnet_token_t token, gasnet_handlerarg_t credits) {
+void gasnetc_sys_flush_reph(gasnetex_token_t token, gasnet_handlerarg_t credits) {
   gasnetc_cep_t *cep = ((gasnetc_rbuf_t *)token)->cep;
 
   gasneti_assert(! gasnetc_use_srq); /* SRQ prohibits credit coallescing */
@@ -3610,7 +3610,7 @@ void gasnetc_sys_flush_reph(gasnet_token_t token, gasnet_handlerarg_t credits) {
 
 static int gasnetc_close_recvd[16]; /* Note 16-bit gasnet_node_t */
 
-void gasnetc_sys_close_reqh(gasnet_token_t token) {
+void gasnetc_sys_close_reqh(gasnetex_token_t token) {
   gasnet_node_t peer;
   int distance, shift;
 
@@ -3676,7 +3676,7 @@ gasnetc_sndrcv_quiesce(void) {
         rbuf.rbuf_handlerRunning = 1;
       #endif
         rbuf.rbuf_flags = GASNETC_MSG_GENFLAGS(1, gasnetc_Short, 0, 0, node);
-        gasnetc_ReplySysShort((gasnet_token_t)&rbuf, NULL, gasneti_handleridx(gasnetc_sys_flush_reph), 1, cr);
+        gasnetc_ReplySysShort((gasnetex_token_t)&rbuf, NULL, gasneti_handleridx(gasnetc_sys_flush_reph), 1, cr);
       }
     }
   }
@@ -4117,7 +4117,7 @@ extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 }
 
 extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
-				gasnet_token_t token, gasnet_handler_t handler,
+				gasnetex_token_t token, gasnet_handler_t handler,
 				void *src_addr, int nbytes, void *dst_addr,
 				int numargs, gasnetc_counter_t *mem_oust,
 				gasnetc_atomic_t *completed, va_list argptr) {
@@ -4180,7 +4180,7 @@ extern int gasnetc_RequestSysMedium(gasnetc_epid_t dest,
   GASNETI_RETURN(retval);
 }
 
-extern int gasnetc_ReplySysShort(gasnet_token_t token,
+extern int gasnetc_ReplySysShort(gasnetex_token_t token,
                                gasnetc_atomic_t *completed,
                                gasnet_handler_t handler,
                                int numargs, ...) {
@@ -4197,7 +4197,7 @@ extern int gasnetc_ReplySysShort(gasnet_token_t token,
   return retval;
 }
 
-extern int gasnetc_ReplySysMedium(gasnet_token_t token,
+extern int gasnetc_ReplySysMedium(gasnetex_token_t token,
                                   gasnetc_atomic_t *completed,
                                   gasnet_handler_t handler,
                                   void *source_addr, size_t nbytes,

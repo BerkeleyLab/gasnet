@@ -633,8 +633,8 @@ extern int gasnetc_create_cq(struct ibv_context *, int,
                              gasnetc_progress_thread_t *);
 extern int gasnetc_sndrcv_limits(void);
 extern int gasnetc_sndrcv_init(void);
-extern void gasnetc_sys_flush_reph(gasnet_token_t, gasnet_handlerarg_t);
-extern void gasnetc_sys_close_reqh(gasnet_token_t);
+extern void gasnetc_sys_flush_reph(gasnetex_token_t, gasnet_handlerarg_t);
+extern void gasnetc_sys_close_reqh(gasnetex_token_t);
 extern void gasnetc_sndrcv_quiesce(void);
 extern int gasnetc_sndrcv_shutdown(void);
 extern void gasnetc_sndrcv_init_peer(gasnet_node_t node, gasnetc_cep_t *cep);
@@ -651,7 +651,7 @@ extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  int numargs, gasnetc_counter_t *mem_oust,
 				  gasnetc_atomic_t *completed, va_list argptr);
 extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
-				gasnet_token_t token, gasnet_handler_t handler,
+				gasnetex_token_t token, gasnet_handler_t handler,
 				void *src_addr, int nbytes, void *dst_addr,
 				int numargs, gasnetc_counter_t *mem_oust,
 				gasnetc_atomic_t *completed, va_list argptr);
@@ -793,11 +793,11 @@ extern int gasnetc_RequestSysMedium(gasnetc_epid_t dest,
                                     void *source_addr, size_t nbytes,
                                     int numargs, ...);
 
-extern int gasnetc_ReplySysShort(gasnet_token_t token,
+extern int gasnetc_ReplySysShort(gasnetex_token_t token,
                                  gasnetc_atomic_t *completed, /* counter for local completion */
                                  gasnet_handler_t handler,
                                  int numargs, ...);
-extern int gasnetc_ReplySysMedium(gasnet_token_t token,
+extern int gasnetc_ReplySysMedium(gasnetex_token_t token,
                                   gasnetc_atomic_t *completed, /* counter for local completion */
                                   gasnet_handler_t handler,
                                   void *source_addr, size_t nbytes,

@@ -1019,7 +1019,7 @@ static int gasnetc_RequestGeneric(gasnetc_category_t category,
 }
 /* ------------------------------------------------------------------------------------ */
 static int gasnetc_ReplyGeneric(gasnetc_category_t category, 
-                         gasnet_token_t token, gasnet_handler_t handler, 
+                         gasnetex_token_t token, gasnet_handler_t handler,
                          void *source_addr, int nbytes, void *dest_ptr, 
                          int numargs, va_list argptr) {
 #if GASNET_PSHM

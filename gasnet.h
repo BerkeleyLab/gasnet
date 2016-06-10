@@ -267,6 +267,7 @@ typedef uint8_t gasnetex_handler_t;
 typedef int32_t gasnetex_handlerarg_t;
 typedef uint32_t gasnetex_flags_t;
 
+/*  an opaque type passed to core API handlers which may be used to query message information  */
 struct gasneti_token_s;
 typedef struct gasneti_token_s *gasnetex_token_t;
 
