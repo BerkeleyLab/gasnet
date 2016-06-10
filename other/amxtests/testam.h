@@ -6,13 +6,13 @@
 #ifdef TEST_GASNET
   #include "gasnet_tools.h"
   #include "test.h"
-  typedef gasnet_handlerarg_t handlerarg_t;
+  typedef gasnetex_handlerarg_t handlerarg_t;
  #ifdef GASNET_USE_STRICT_PROTOTYPES
   typedef void *handler_fn_t;
  #else
   typedef void (*handler_fn_t)();
  #endif
-  typedef gasnet_token_t token_t;
+  typedef gasnetex_token_t token_t;
   typedef size_t bufsize_t;
   gasnett_atomic_t numreq = gasnett_atomic_init(0);
   gasnett_atomic_t numrep = gasnett_atomic_init(0);
