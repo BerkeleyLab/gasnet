@@ -1099,7 +1099,7 @@ extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
 #endif
 
 #if GASNETC_HSL_ERRCHECK && !GASNETC_NULL_HSL
-  extern void gasnetc_enteringHandler_hook_hsl(int cat, int isReq, int handlerId, gasnet_token_t token, 
+  extern void gasnetc_enteringHandler_hook_hsl(int cat, int isReq, int handlerId, gasnetex_token_t token,
                                                void *buf, size_t nbytes, int numargs,
                                                gasnet_handlerarg_t *args) {
     gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();

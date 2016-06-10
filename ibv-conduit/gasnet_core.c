@@ -361,7 +361,7 @@ static void gasnetc_sys_coll_fini(void)
     ((void)(gasnetc_sys_barrier_rcvd[_phase] = 0))
 #endif
 
-static void gasnetc_sys_barrier_reqh(gasnet_token_t token, uint32_t arg)
+static void gasnetc_sys_barrier_reqh(gasnetex_token_t token, uint32_t arg)
 {
     const int phase = arg & 1;
 #if GASNETC_USE_RCV_THREAD
@@ -488,7 +488,7 @@ static uint8_t *gasnetc_sys_exchange_addr(int phase, size_t elemsz)
 
 #define GASNETC_SYS_EXCHANGE_MAX GASNETC_MAX_MEDIUM
 
-static void gasnetc_sys_exchange_reqh(gasnet_token_t token, void *buf,
+static void gasnetc_sys_exchange_reqh(gasnetex_token_t token, void *buf,
                                  size_t nbytes, uint32_t arg0,
                                  uint32_t elemsz)
 {
@@ -2720,7 +2720,7 @@ static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
 }
 
 /* gasnetc_exit_reduce_reqh: reduction on exitcode */
-static void gasnetc_exit_reduce_reqh(gasnet_token_t token,
+static void gasnetc_exit_reduce_reqh(gasnetex_token_t token,
                                      gasnet_handlerarg_t arg0,
                                      gasnet_handlerarg_t arg1) {
   gasneti_atomic_val_t exitcode = arg0;
@@ -2757,7 +2757,7 @@ static void gasnetc_exit_reduce_reqh(gasnet_token_t token,
  * This request handler (invoked only on the "root" node) handles the election
  * of a single exit "master", who will coordinate an orderly shutdown.
  */
-static void gasnetc_exit_role_reqh(gasnet_token_t token) {
+static void gasnetc_exit_role_reqh(gasnetex_token_t token) {
   gasnet_node_t src;
   int local_role, result;
 
@@ -2783,7 +2783,7 @@ static void gasnetc_exit_role_reqh(gasnet_token_t token) {
  * This reply handler receives the result of the election of an exit "master".
  * The reply contains the exit "role" this node should assume.
  */
-static void gasnetc_exit_role_reph(gasnet_token_t token, gasnet_handlerarg_t arg0) {
+static void gasnetc_exit_role_reph(gasnetex_token_t token, gasnet_handlerarg_t arg0) {
   int role;
 
   #if GASNET_DEBUG
@@ -3251,7 +3251,7 @@ static void gasnetc_exit_body(void) {
  * exit procedure, via gasnetc_exit_{body,tail}().  Additionally, we are responsible for
  * firing off a SIGQUIT to let the user's handler, if any, run before we begin to exit.
  */
-static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t arg0) {
+static void gasnetc_exit_reqh(gasnetex_token_t token, gasnet_handlerarg_t arg0) {
   /* The master will send this AM, but should _never_ receive it */
   gasneti_assert(gasneti_atomic_read(&gasnetc_exit_role, 0) != GASNETC_EXIT_ROLE_MASTER);
 
@@ -3323,7 +3323,7 @@ static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t arg0) {
  *
  * Simply count replies
  */
-static void gasnetc_exit_reph(gasnet_token_t token) {
+static void gasnetc_exit_reph(gasnetex_token_t token) {
   gasneti_atomic_increment(&gasnetc_exit_reps, 0);
 }
   
@@ -3404,7 +3404,7 @@ extern void gasnetc_exit(int exitcode) {
 /* ------------------------------------------------------------------------------------ */
 
 GASNETI_INLINE(gasnetc_amrdma_grant_reqh_inner)
-void gasnetc_amrdma_grant_reqh_inner(gasnet_token_t token, int qpi, uint32_t rkey, void *addr) {
+void gasnetc_amrdma_grant_reqh_inner(gasnetex_token_t token, int qpi, uint32_t rkey, void *addr) {
   gasnetc_cep_t *cep;
   gasnet_node_t node;
 
