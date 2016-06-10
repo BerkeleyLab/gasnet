@@ -261,6 +261,19 @@ GASNETI_END_EXTERNC
 /* ------------------------------------------------------------------------------------ */
 /* core types */
 
+// TODO-EX: need comments here?
+typedef uint32_t gasnetex_rank_t;
+typedef uint8_t gasnetex_handler_t;
+typedef int32_t gasnetex_handlerarg_t;
+typedef uint32_t gasnetex_flags_t;
+
+struct gasneti_token_s;
+typedef struct gasneti_token_s *gasnetex_token_t;
+
+struct gasneti_team_member_s; // TODO-EX: better name!
+typedef struct gasneti_team_s *gasnetex_team_member_t;
+
+
 #ifndef _GASNET_NODE_T
 #define _GASNET_NODE_T
   /*  unsigned integer type representing a unique 0-based node index */
@@ -325,6 +338,26 @@ GASNETI_END_EXTERNC
 
 /* ------------------------------------------------------------------------------------ */
 /* extended types */
+
+#ifndef _GASNETEX_HANDLE_T
+  struct gasneti_handle_s;
+  typedef struct gasneti_handle_s *gasnetex_handle_t;
+#endif
+
+#define GASNETEX_INVALID_HANDLE ((gasnetex_handle_t)(uintptr_t)0)
+#define GASNETEX_NO_OP_HANDLE ((gasnetex_handle_t)(uintptr_t)1)
+
+#ifndef _GASNETEX_LC_HANDLE_T
+  struct gasneti_lc_handle_s;
+  typedef struct gasneti_lc_handle_s *gasnetex_lc_handle_t;
+#endif
+
+#define GASNETEX_INVALID_LC_HANDLE ((gasnetex_lc_handle_t)0)
+
+#define GASNETEX_LC_INIT  ((gasnetex_lc_handle_t*)(uintptr_t)1)
+#define GASNETEX_LC_SYNC  ((gasnetex_lc_handle_t*)(uintptr_t)2)
+#define GASNETEX_LC_GROUP ((gasnetex_lc_handle_t*)(uintptr_t)3)
+
 
 #ifndef _GASNET_HANDLE_T
 #define _GASNET_HANDLE_T
