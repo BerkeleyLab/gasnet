@@ -216,6 +216,20 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+/* tools for dealing with gasnetex_lc_handle_t */
+GASNETI_INLINE(gasneti_lc_is_pointer) GASNETI_PURE
+int gasneti_lc_is_pointer(const gasnetex_lc_handle_t *lc_ptr) {
+  gasneti_assert(lc_ptr != NULL);
+  return ((uintptr_t)(lc_ptr) >= (uintptr_t)4);
+}
+GASNETI_PUREP(gasneti_lc_is_pointer)
+
+GASNETI_INLINE(gasneti_lc_at_init)
+void gasneti_lc_at_init(gasnetex_lc_handle_t *lc_ptr) {
+  if (gasneti_lc_is_pointer(lc_ptr)) *lc_ptr = GASNETEX_INVALID_LC_HANDLE;
+}
+
+/* ------------------------------------------------------------------------------------ */
 /* semi-portable spinlocks using gasneti_atomic_t
    This useful primitive is not available on all platforms and it therefore reserved 
    for internal use only.

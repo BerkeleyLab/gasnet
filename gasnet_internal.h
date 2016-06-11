@@ -514,20 +514,24 @@ extern int gasneti_VerboseErrors;
 /* ------------------------------------------------------------------------------------ */
 /* common error-checking code for AM request/reply entry points */
 
-#define GASNETI_COMMON_AMREQUESTSHORT(dest,handler,numargs) do {               \
+// TODO-EX: GASNETI_CHECK_ERRR should *not* be returning the error code - need error handling callback instead
+
+#define GASNETI_COMMON_AMREQUESTSHORT(dest,handler,flags,numargs) do {               \
     GASNETI_CHECKATTACH();                                                     \
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());             \
     GASNETI_TRACE_AMREQUESTSHORT(dest,handler,numargs);                        \
     GASNETI_CHECK_ERRR((dest >= gasneti_nodes),BAD_ARG,"node index too high"); \
   } while (0)
-#define GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs) do { \
+#define GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,lc_opt,flags,numargs) do { \
     GASNETI_CHECKATTACH();                                                           \
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());                   \
     GASNETI_TRACE_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);          \
     GASNETI_CHECK_ERRR((dest >= gasneti_nodes),BAD_ARG,"node index too high");       \
     GASNETI_CHECK_ERRR((nbytes > gasnet_AMMaxMedium()),BAD_ARG,"nbytes too large");  \
+    GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");           \
+    GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_SYNC),BAD_ARG,"LC_SYNC is invalid for Requests"); \
   } while (0)
-#define GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs) do { \
+#define GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) do { \
     GASNETI_CHECKATTACH();                                                                   \
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());                           \
     GASNETI_TRACE_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);          \
@@ -535,41 +539,40 @@ extern int gasneti_VerboseErrors;
     GASNETI_CHECK_ERRR((nbytes > gasnet_AMMaxLongRequest()),BAD_ARG,"nbytes too large");     \
     GASNETI_CHECK_ERRR((!gasneti_in_segment_allowoutseg(dest, dest_addr, nbytes)),           \
             BAD_ARG,"destination address out of segment range");                             \
+    GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");                   \
+    GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_SYNC),BAD_ARG,"LC_SYNC is invalid for Requests"); \
   } while (0)
-#define GASNETI_COMMON_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs) do { \
-    GASNETI_CHECKATTACH();                                                                        \
-    gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());                                \
-    GASNETI_TRACE_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs);          \
-    GASNETI_CHECK_ERRR((dest >= gasneti_nodes),BAD_ARG,"node index too high");                    \
-    GASNETI_CHECK_ERRR((nbytes > gasnet_AMMaxLongRequest()),BAD_ARG,"nbytes too large");          \
-    GASNETI_CHECK_ERRR((!gasneti_in_segment_allowoutseg(dest, dest_addr, nbytes)),                \
-            BAD_ARG,"destination address out of segment range");                                  \
-  } while (0)
-#define GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs) do {    \
+#define GASNETI_COMMON_AMREPLYSHORT(token,handler,flags,numargs) do {    \
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs()); \
     GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs);             \
   } while (0)
-#define GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs) do { \
+#define GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs) do { \
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());                  \
     GASNETI_CHECK_ERRR((nbytes > gasnet_AMMaxMedium()),BAD_ARG,"nbytes too large"); \
+    GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");          \
+    GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_SYNC),BAD_ARG,"LC_SYNC is invalid for Replies"); \
+    GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_GROUP),BAD_ARG,"LC_GROUP is invalid for Replies"); \
     GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);          \
   } while (0)
 #if GASNET_DEBUG || GASNETI_ENABLE_ERRCHECKS
-  #define _GASNETI_COMMON_AMREPLYLONG_CHECKS(token,handler,source_addr,nbytes,dest_addr,numargs) do { \
+  #define _GASNETI_COMMON_AMREPLYLONG_CHECKS(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) do { \
       gasnet_node_t dest;                                                                             \
       GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));                                    \
       GASNETI_CHECK_ERRR((dest >= gasneti_nodes),BAD_ARG,"node index too high");                      \
       GASNETI_CHECK_ERRR((nbytes > gasnet_AMMaxLongReply()),BAD_ARG,"nbytes too large");              \
       GASNETI_CHECK_ERRR((!gasneti_in_segment_allowoutseg(dest, dest_addr, nbytes)),                  \
               BAD_ARG,"destination address out of segment range");                                    \
+      GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");                          \
+      GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_SYNC),BAD_ARG,"LC_SYNC is invalid for Replies");      \
+      GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_GROUP),BAD_ARG,"LC_GROUP is invalid for Replies");    \
     } while (0)
 #else
-  #define _GASNETI_COMMON_AMREPLYLONG_CHECKS(token,handler,source_addr,nbytes,dest_addr,numargs) ((void)0)
+  #define _GASNETI_COMMON_AMREPLYLONG_CHECKS(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) ((void)0)
 #endif
-#define GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs) do { \
+#define GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) do { \
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());                          \
     GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs);          \
-    _GASNETI_COMMON_AMREPLYLONG_CHECKS(token,handler,source_addr,nbytes,dest_addr,numargs); \
+    _GASNETI_COMMON_AMREPLYLONG_CHECKS(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs); \
   } while (0)
 
 /* ------------------------------------------------------------------------------------ */
