@@ -530,7 +530,7 @@ test_put(threaddata_t *tdata)
 	ACTION_PRINTF("tid=%3d> put (%p,%8d) -> tid=%3d,node=%d,addr=%p",
 			tdata->tid, laddr, len, peer, node, raddr);
 
-	gasnet_put(node, raddr, laddr, len);
+	gasnetex_Put(myteam, node, raddr, laddr, len, 0);
 }
 
 void
@@ -548,7 +548,7 @@ test_get(threaddata_t *tdata)
 	ACTION_PRINTF("tid=%3d> get (%p,%8d) <- tid=%3d,node=%d,addr=%p",
 			tdata->tid, laddr, len, peer, node, raddr);
 
-	gasnet_get(laddr, node, raddr, len);
+	gasnetex_Get(myteam, laddr, node, raddr, len, 0);
 }
 
 #define RANDOM_PEER(tdata)					\

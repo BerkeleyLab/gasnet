@@ -558,73 +558,48 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) G
     gasnete_wait_syncnb(gasnete_memset_nb(node, dest, val, nbytesTI))
 #endif
 
-GASNETI_INLINE(_gasnet_get)
-void _gasnet_get (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_GET_NAMED(GET_LOCAL,LOCAL,dest,node,src,nbytes),V);
-  gasneti_boundscheck(node, src, nbytes);
+GASNETI_INLINE(_gasnetex_Get)
+void _gasnetex_Get (gasnetex_team_member_t team, void *dest,
+                    gasnetex_rank_t rank, void *src,
+                    size_t nbytes, gasnetex_flags_t flags
+                    GASNETE_THREAD_FARG) {
+  GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_GET_NAMED(GET_LOCAL,LOCAL,dest,rank,src,nbytes),V);
+  gasneti_boundscheck(rank, src, nbytes);
   gasnete_aligncheck(src, nbytes);
   gasnete_aligncheck(dest, nbytes);
-  if (gasnete_islocal(node)) {
-    GASNETI_TRACE_GET_NAMED(GET_LOCAL,LOCAL,dest,node,src,nbytes);
+  if (gasnete_islocal(rank)) {
+    GASNETI_TRACE_GET_NAMED(GET_LOCAL,LOCAL,dest,rank,src,nbytes);
     GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
     gasnete_loopbackget_memsync();
   } else {
-    GASNETI_TRACE_GET_NAMED(GET,NONLOCAL,dest,node,src,nbytes);
-    gasnete_get(dest, node, src, nbytes GASNETE_THREAD_PASS);
+    GASNETI_TRACE_GET_NAMED(GET,NONLOCAL,dest,rank,src,nbytes);
+    gasnete_get(dest, rank, src, nbytes GASNETE_THREAD_PASS);
   }
 }
-#define gasnet_get(dest,node,src,nbytes) \
-       _gasnet_get(dest,node,src,nbytes GASNETE_THREAD_GET)
+#define gasnetex_Get(team,dest,rank,src,nbytes,flags) \
+       _gasnetex_Get(team,dest,rank,src,nbytes,flags GASNETE_THREAD_GET)
 
-GASNETI_INLINE(_gasnet_get_bulk)
-void _gasnet_get_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_GET(BULK,V);
-  gasneti_boundscheck(node, src, nbytes);
-  if (gasnete_islocal(node)) {
-    GASNETI_TRACE_GET_LOCAL(BULK,dest,node,src,nbytes);
-    GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
-    gasnete_loopbackget_memsync();
-  } else {
-    GASNETI_TRACE_GET(BULK,dest,node,src,nbytes);
-    gasnete_get_bulk(dest, node, src, nbytes GASNETE_THREAD_PASS);
-  }
-}
-#define gasnet_get_bulk(dest,node,src,nbytes) \
-       _gasnet_get_bulk(dest,node,src,nbytes GASNETE_THREAD_GET)
-
-GASNETI_INLINE(_gasnet_put)
-void _gasnet_put (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,node,dest,src,nbytes),V);
-  gasneti_boundscheck(node, dest, nbytes);
+GASNETI_INLINE(_gasnetex_Put)
+void _gasnetex_Put (gasnetex_team_member_t team,
+                    gasnetex_rank_t rank, void *dest,
+                    /*const*/ void *src,  // TODO-EX: un-comment const
+                    size_t nbytes, gasnetex_flags_t
+                    flags GASNETE_THREAD_FARG) {
+  GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,rank,dest,src,nbytes),V);
+  gasneti_boundscheck(rank, dest, nbytes);
   gasnete_aligncheck(src, nbytes);
   gasnete_aligncheck(dest, nbytes);
-  if (gasnete_islocal(node)) {
-    GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,node,dest,src,nbytes);
-    GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
+  if (gasnete_islocal(rank)) {
+    GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,rank,dest,src,nbytes);
+    GASNETE_FAST_MEMCPY(dest, src, nbytes);
     gasnete_loopbackput_memsync();
   } else {
-    GASNETI_TRACE_PUT_NAMED(PUT,NONLOCAL,node,dest,src,nbytes);
-    gasnete_put(node, dest, src, nbytes GASNETE_THREAD_PASS);
+    GASNETI_TRACE_PUT_NAMED(PUT,NONLOCAL,rank,dest,src,nbytes);
+    gasnete_put(rank, dest, src, nbytes GASNETE_THREAD_PASS);
   }
 }
-#define gasnet_put(node,dest,src,nbytes) \
-       _gasnet_put(node,dest,src,nbytes GASNETE_THREAD_GET)
-
-GASNETI_INLINE(_gasnet_put_bulk)
-void _gasnet_put_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_PUT(BULK,V);
-  gasneti_boundscheck(node, dest, nbytes);
-  if (gasnete_islocal(node)) {
-    GASNETI_TRACE_PUT_LOCAL(BULK,node,dest,src,nbytes);
-    GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
-    gasnete_loopbackput_memsync();
-  } else {
-    GASNETI_TRACE_PUT(BULK,node,dest,src,nbytes);
-    gasnete_put_bulk(node, dest, src, nbytes GASNETE_THREAD_PASS);
-  }
-}
-#define gasnet_put_bulk(node,dest,src,nbytes) \
-       _gasnet_put_bulk(node,dest,src,nbytes GASNETE_THREAD_GET)
+#define gasnetex_Put(team,rank,dest,src,nbytes,flags) \
+       _gasnetex_Put(team,rank,dest,src,nbytes,flags GASNETE_THREAD_GET)
 
 GASNETI_INLINE(_gasnet_memset)
 void  _gasnet_memset (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {

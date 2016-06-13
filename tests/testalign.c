@@ -105,7 +105,7 @@ void oneway_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of bulk put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnet_put_bulk(peerproc, rembuf, locbuf+pad, nbytes);
+			gasnetex_Put(myteam, peerproc, rembuf, locbuf+pad, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -126,7 +126,7 @@ void oneway_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of bulk get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gasnet_get_bulk(locbuf, peerproc, rembuf+pad, nbytes);
+			gasnetex_Get(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);

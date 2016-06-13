@@ -106,7 +106,7 @@ void roundtrip_test(int iters, int nbytes)
 		/* measure the round-trip time of put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnet_put(peerproc, tgtmem, msgbuf, nbytes);
+			gasnetex_Put(myteam, peerproc, tgtmem, msgbuf, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -125,7 +125,7 @@ void roundtrip_test(int iters, int nbytes)
 		/* measure the round-trip time of get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gasnet_get(ackbuf, peerproc, tgtmem, nbytes);
+			gasnetex_Get(myteam, ackbuf, peerproc, tgtmem, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -156,7 +156,7 @@ void oneway_test(int iters, int nbytes)
 		/* measure the throughput of put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnet_put(peerproc, tgtmem, msgbuf, nbytes);
+			gasnetex_Put(myteam, peerproc, tgtmem, msgbuf, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -175,7 +175,7 @@ void oneway_test(int iters, int nbytes)
 		/* measure the throughput of get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gasnet_get(ackbuf, peerproc, tgtmem, nbytes);
+			gasnetex_Get(myteam, ackbuf, peerproc, tgtmem, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -558,15 +558,15 @@ int main(int argc, char **argv)
            int warm_iters = MIN(iters, 32767);  /* avoid hitting 65535-handle limit */
            gasnet_handle_t *h = test_malloc(2*sizeof(gasnet_handle_t)*warm_iters);
            for (i = 0; i < warm_iters; i++) {
-              gasnet_put(peerproc, tgtmem, msgbuf, 8);
-              gasnet_get(msgbuf, peerproc, tgtmem, 8);
+              gasnetex_Put(myteam, peerproc, tgtmem, msgbuf, 8, 0);
+              gasnetex_Get(myteam, msgbuf, peerproc, tgtmem, 8, 0);
               gasnet_put_nbi(peerproc, tgtmem, msgbuf, 8);
               gasnet_get_nbi(msgbuf, peerproc, tgtmem, 8);
               h[i] = gasnet_put_nb(peerproc, tgtmem, msgbuf, 8);
               h[i+warm_iters] = gasnet_get_nb(msgbuf, peerproc, tgtmem, 8);
            }
-           gasnet_put(peerproc, tgtmem, msgbuf, max_payload);
-           gasnet_get(msgbuf, peerproc, tgtmem, max_payload);
+           gasnetex_Put(myteam, peerproc, tgtmem, msgbuf, max_payload, 0);
+           gasnetex_Get(myteam, msgbuf, peerproc, tgtmem, max_payload, 0);
            gasnet_wait_syncnb_all(h, 2*warm_iters);
            gasnet_wait_syncnbi_all();
            test_free(h);

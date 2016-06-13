@@ -288,6 +288,14 @@ typedef union {
         GASNETE_FAST_UNALIGNED_MEMCPY(_dest, _src, (nbytes));       \
   } while (0)
 
+/* TODO-EX: these should replace the alignment-aware versions */
+#define GASNETE_FAST_MEMCPY(dest, src, nbytes) memcpy(dest, src, nbytes)
+#define GASNETE_FAST_MEMCPY_CHECK(dest, src, nbytes) do {             \
+    void *_dest = (dest);                                             \
+    const void *_src = (src);                                         \
+    if_pt (_dest != _src) GASNETE_FAST_MEMCPY(_dest, _src, (nbytes)); \
+  } while (0)
+
 /* given the address of a gasnet_register_value_t object and the number of
    significant bytes, return the byte address where significant bytes begin */
 #ifdef WORDS_BIGENDIAN

@@ -441,27 +441,15 @@ void do_valueputgets(void) {
 
 }
 void do_blockingputgets(void) {
-    if (do_puts && do_nonbulk && do_blocking) {
-      QUEUE_TEST("gasnet_put (BLOCKING - represents round-trip latency)", 
-                 gasnet_put(peerproc, tgtmem, msgbuf, payload), 
+    if (do_puts && do_blocking) {
+      QUEUE_TEST("gasnetex_Put (BLOCKING - represents round-trip latency)", 
+                 gasnetex_Put(myteam, peerproc, tgtmem, msgbuf, payload, 0),
                  (void)0, (void)0, 0);
     }
 
-    if (do_gets && do_nonbulk && do_blocking) {
-      QUEUE_TEST("gasnet_get (BLOCKING - represents round-trip latency)", 
-                 gasnet_get(msgbuf, peerproc, tgtmem, payload), 
-                 (void)0, (void)0, 0);
-    }
-
-    if (do_puts && do_bulk && do_blocking) {
-      QUEUE_TEST("gasnet_put_bulk (BLOCKING - represents round-trip latency)", 
-                 gasnet_put_bulk(peerproc, tgtmem, msgbuf, payload), 
-                 (void)0, (void)0, 0);
-    }
-
-    if (do_gets && do_bulk && do_blocking) {
-      QUEUE_TEST("gasnet_get_bulk (BLOCKING - represents round-trip latency)", 
-                 gasnet_get_bulk(msgbuf, peerproc, tgtmem, payload), 
+    if (do_gets && do_blocking) {
+      QUEUE_TEST("gasnetex_Get (BLOCKING - represents round-trip latency)",
+                 gasnetex_Get(myteam, msgbuf, peerproc, tgtmem, payload, 0),
                  (void)0, (void)0, 0);
     }
 

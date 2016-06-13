@@ -276,8 +276,8 @@ void doit(int partner, int *partnerseg) {
   { int val1=0, val2=0;
     val1 = mynode + 100;
 
-    gasnet_put(partner, partnerseg, &val1, sizeof(int));
-    gasnet_get(&val2, partner, partnerseg, sizeof(int));
+    gasnetex_Put(myteam, partner, partnerseg, &val1, sizeof(int), 0);
+    gasnetex_Get(myteam, &val2, partner, partnerseg, sizeof(int), 0);
 
     if (val2 == (mynode + 100)) MSG("*** passed blocking test!!");
     else MSG("*** ERROR - FAILED BLOCKING TEST!!!!!");
@@ -454,7 +454,7 @@ void doit4(int partner, int *partnerseg) {
     gasnet_memset_nbi(partner, partnerseg+200, 0x77, 100*sizeof(int));
     gasnet_wait_syncnbi_puts();
 
-    gasnet_get(&vals, partner, partnerseg, 300*sizeof(int));
+    gasnetex_Get(myteam, &vals, partner, partnerseg, 300*sizeof(int), 0);
 
     for (i=0; i < 100; i++) {
       unsigned long long five  = 0x5555555555555555ull;

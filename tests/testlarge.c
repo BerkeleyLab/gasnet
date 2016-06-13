@@ -1,7 +1,7 @@
 /*   $Source: bitbucket.org:berkeleylab/gasnet.git/tests/testlarge.c $
- * Description: GASNet bulk get/put performance test
+ * Description: GASNet bulk (LC_SYNC) get/put performance test
  *   measures the ping-pong average round-trip time and
- *   average flood throughput of GASNet bulk gets and puts
+ *   average flood throughput of GASNet gets and puts
  *   over varying payload size and synchronization mechanisms
  * Copyright 2002, Jaein Jeong and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
@@ -118,7 +118,7 @@ void bulk_test(int iters) {GASNET_BEGIN_FUNCTION();
 			/* measure the throughput of sending a message */
 			begin = TIME();
 			for (i = 0; i < iters; i++) {
-				gasnet_put_bulk(peerproc, tgtmem, msgbuf, payload);
+				gasnetex_Put(myteam, peerproc, tgtmem, msgbuf, payload, 0);
 			}
 			end = TIME();
 		 	update_stat(&stput, (end - begin), iters);
@@ -136,7 +136,7 @@ void bulk_test(int iters) {GASNET_BEGIN_FUNCTION();
 			/* measure the throughput of receiving a message */
 			begin = TIME();
 			for (i = 0; i < iters; i++) {
-			    gasnet_get_bulk(msgbuf, peerproc, tgtmem, payload);
+			    gasnetex_Get(myteam, msgbuf, peerproc, tgtmem, payload, 0);
 			}
 			end = TIME();
 		 	update_stat(&stget, (end - begin), iters);
@@ -398,15 +398,15 @@ int main(int argc, char **argv)
            int warm_iters = MIN(iters, 32767);	/* avoid hitting 65535-handle limit */
            gasnet_handle_t *h = test_malloc(2*sizeof(gasnet_handle_t)*warm_iters);
            for (i = 0; i < warm_iters; i++) {
-              gasnet_put_bulk(peerproc, tgtmem, msgbuf, 8);
-              gasnet_get_bulk(msgbuf, peerproc, tgtmem, 8);
+              gasnetex_Put(myteam, peerproc, tgtmem, msgbuf, 8, 0);
+              gasnetex_Get(myteam, msgbuf, peerproc, tgtmem, 8, 0);
               gasnet_put_nbi_bulk(peerproc, tgtmem, msgbuf, 8);
               gasnet_get_nbi_bulk(msgbuf, peerproc, tgtmem, 8);
               h[i] = gasnet_put_nb_bulk(peerproc, tgtmem, msgbuf, 8);
               h[i+warm_iters] = gasnet_get_nb_bulk(msgbuf, peerproc, tgtmem, 8);
            }
-           gasnet_put_bulk(peerproc, tgtmem, msgbuf, max_payload);
-           gasnet_get_bulk(msgbuf, peerproc, tgtmem, max_payload);
+           gasnetex_Put(myteam, peerproc, tgtmem, msgbuf, max_payload, 0);
+           gasnetex_Get(myteam, msgbuf, peerproc, tgtmem, max_payload, 0);
            gasnet_wait_syncnb_all(h, warm_iters*2);
            gasnet_wait_syncnbi_all();
            test_free(h);

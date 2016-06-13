@@ -137,10 +137,10 @@ void *workerthread(void *args) {
             case 6:  gasnetex_AMRequestLong0(myteam, peer, hidx_ping_handler, p, 4, peerseg, GASNETEX_LC_INIT, 0); break;
             case 7:  gasnetex_AMRequestLong0(myteam, peer, hidx_noop_handler, p, lim, peerseg, GASNETEX_LC_INIT, 0); break;
             case 8:  gasnetex_AMRequestLong0(myteam, peer, hidx_ping_handler, p, lim, peerseg, GASNETEX_LC_INIT, 0); break;
-            case 9:  gasnet_put(peer, peerseg, &junk, sizeof(int)); break;
-            case 10: gasnet_get(&junk, peer, peerseg, sizeof(int)); break;
-            case 11: gasnet_put(peer, peerseg, p, lim); break;
-            case 12: gasnet_get(p, peer, peerseg, lim); break;
+            case 9:  gasnetex_Put(myteam, peer, peerseg, &junk, sizeof(int), 0); break;
+            case 10: gasnetex_Get(myteam, &junk, peer, peerseg, sizeof(int), 0); break;
+            case 11: gasnetex_Put(myteam, peer, peerseg, p, lim, 0); break;
+            case 12: gasnetex_Get(myteam, p, peer, peerseg, lim, 0); break;
             case 13: gasnet_put_nbi(peer, peerseg, &junk, sizeof(int)); break;
             case 14: gasnet_get_nbi(&junk, peer, peerseg, sizeof(int)); break;
             case 15: gasnet_put_nbi(peer, peerseg, p, lim); break;

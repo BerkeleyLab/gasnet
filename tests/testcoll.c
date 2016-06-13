@@ -206,20 +206,20 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 	gasnet_node_t i;                                                     \
                                                                              \
 	tmp = (peerthread == root) ? R[j] : -1;                              \
-	gasnet_put(peerproc, REMOTE(A,peerthread), &tmp, sizeof(int));       \
+	gasnetex_Put(myteam, peerproc, REMOTE(A,peerthread), &tmp, sizeof(int), 0);\
                                                                              \
 	CALL(broadcast##SUFFIX, ALL(A), ROOT(A),                             \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
-	gasnet_get(&tmp, peerproc, REMOTE(A,peerthread), sizeof(int));       \
+	gasnetex_Get(myteam, &tmp, peerproc, REMOTE(A,peerthread), sizeof(int), 0);\
 	if (tmp != R[j]) {                                                   \
 	    MSG("ERROR: %s broadcast validation failed", name);              \
 	    gasnet_exit(1);                                                  \
 	}                                                                    \
 	tmp = peerthread;                                                    \
-	gasnet_put(peerproc, REMOTE(B,peerthread), &tmp, sizeof(int));       \
+	gasnetex_Put(myteam, peerproc, REMOTE(B,peerthread), &tmp, sizeof(int), 0);\
 	CALL(gather##SUFFIX, ROOT(C), ALL(B),                                \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
-	gasnet_get_bulk(LOCAL(D), rootproc, REMOTE(C,root), images*sizeof(int)); \
+	gasnetex_Get(myteam, LOCAL(D), rootproc, REMOTE(C,root), images*sizeof(int), 0); \
 	for (i = 0; i < images; ++i) {                                       \
 	    if (LOCAL(D)[i] != i) {                                          \
 		MSG("ERROR: %s gather validation failed", name);             \
@@ -228,20 +228,20 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 	}                                                                    \
 	global_barrier(); /* to avoid conflict on D */                       \
 	tmp = mythread * R[j];                                               \
-	gasnet_put(rootproc, REMOTE(D,root)+mythread, &tmp, sizeof(int));    \
+	gasnetex_Put(myteam, rootproc, REMOTE(D,root)+mythread, &tmp, sizeof(int), 0);\
 	CALL(scatter##SUFFIX, ALL(B), ROOT(D),                               \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
-	gasnet_get(&tmp, peerproc, REMOTE(B,peerthread), sizeof(int));       \
+	gasnetex_Get(myteam, &tmp, peerproc, REMOTE(B,peerthread), sizeof(int), 0);\
 	if (tmp != peerthread*R[j]) {                                        \
 	    MSG("ERROR: %s scatter validation failed expected: %d got %d", name, peerthread*R[j], tmp);                \
 	    gasnet_exit(1);                                                  \
 	}                                                                    \
 	global_barrier(); /* to avoid conflict on B */                       \
 	tmp = peerthread*R[j] - 1;                                           \
-	gasnet_put(peerproc, REMOTE(B,peerthread), &tmp, sizeof(int));       \
+	gasnetex_Put(myteam, peerproc, REMOTE(B,peerthread), &tmp, sizeof(int), 0);\
 	CALL(gather_all##SUFFIX, ALL(C), ALL(B),                             \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
-	gasnet_get_bulk(LOCAL(D), peerproc, REMOTE(C,peerthread), images*sizeof(int));\
+	gasnetex_Get(myteam, LOCAL(D), peerproc, REMOTE(C,peerthread), images*sizeof(int), 0);\
 	for (i = 0; i < images; ++i) {                                       \
 	    if (LOCAL(D)[i] != i*R[j] - 1) {                                 \
 		MSG("ERROR: %s gather_all validation failed", name);         \
@@ -252,10 +252,10 @@ void PREFIX##_ALLALL(int root, thread_data_t *td) {                          \
 	for (i = 0; i < images; ++i) {                                       \
 	    LOCAL(C)[i] += peerthread;                                       \
 	}                                                                    \
-	gasnet_put_bulk(peerproc, REMOTE(D,peerthread), LOCAL(C), images*sizeof(int));\
+	gasnetex_Put(myteam, peerproc, REMOTE(D,peerthread), LOCAL(C), images*sizeof(int), 0);\
 	CALL(exchange##SUFFIX, ALL(C), ALL(D),                               \
 	     FLAGS | GASNET_COLL_IN_ALLSYNC | GASNET_COLL_OUT_ALLSYNC);      \
-	gasnet_get_bulk(LOCAL(D), peerproc, REMOTE(C,peerthread), images*sizeof(int));\
+	gasnetex_Get(myteam, LOCAL(D), peerproc, REMOTE(C,peerthread), images*sizeof(int), 0);\
 	for (i = 0; i < images; ++i) {                                       \
 	    if (LOCAL(D)[i] != i + peerthread*R[j] - 1) {                    \
 		MSG("ERROR: %s exchange validation failed", name);           \

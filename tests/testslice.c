@@ -119,16 +119,16 @@ int main(int argc, char **argv)
 
           /* Perform operations */
           /* Out of segment put from shadow_region 1 to remote */
-          gasnet_put(peerproc,target_base+remote_starting_point,shadow_region_1 + starting_point,len); 
+          gasnetex_Put(myteam, peerproc,target_base+remote_starting_point,shadow_region_1 + starting_point,len, 0); 
   
           /* In segment get from remote to local segment */
-          gasnet_get(local_base+local_starting_point_1,peerproc,target_base+remote_starting_point,len); 
+          gasnetex_Get(myteam, local_base+local_starting_point_1,peerproc,target_base+remote_starting_point,len, 0); 
   
           /* Verify */
           assert_eq(shadow_region_1 + starting_point, local_base + local_starting_point_1, len,starting_point,i,j,"Out of segment put + in segment get");
   
           /* Out of segment get from remote to shadow_region_2 (starting from 0) */
-          gasnet_get(shadow_region_2+local_starting_point_2,peerproc,target_base+remote_starting_point,len); 
+          gasnetex_Get(myteam, shadow_region_2+local_starting_point_2,peerproc,target_base+remote_starting_point,len, 0); 
   
           /* Verify */
           assert_eq(shadow_region_2+local_starting_point_2, shadow_region_1 + starting_point, len,starting_point,i,j,"Out of segment get");

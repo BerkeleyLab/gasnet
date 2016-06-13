@@ -916,10 +916,10 @@ static void progressfns_test(int id) {
     /* do some work that should cause progress fns to run */
     for (i=0; i < 2; i++) {
       int tmp;
-      gasnet_put(peer, peerseg, &tmp, sizeof(tmp));
-      gasnet_get(&tmp, peer, peerseg, sizeof(tmp));
-      gasnet_put_bulk(peer, peersegmid, myseg, 1024);
-      gasnet_get_bulk(myseg, peer, peersegmid, 1024);
+      gasnetex_Put(myteam, peer, peerseg, &tmp, sizeof(tmp), 0);
+      gasnetex_Get(myteam, &tmp, peer, peerseg, sizeof(tmp), 0);
+      gasnetex_Put(myteam, peer, peersegmid, myseg, 1024, 0);
+      gasnetex_Get(myteam, myseg, peer, peersegmid, 1024, 0);
       gasnet_AMPoll();
     }
 
@@ -941,10 +941,10 @@ static void progressfns_test(int id) {
     /* do some work that might cause progress fns to run */
     for (i=0; i < 2; i++) {
       int tmp;
-      gasnet_put(peer, peerseg, &tmp, sizeof(tmp));
-      gasnet_get(&tmp, peer, peerseg, sizeof(tmp));
-      gasnet_put_bulk(peer, peersegmid, myseg, 1024);
-      gasnet_get_bulk(myseg, peer, peersegmid, 1024);
+      gasnetex_Put(myteam, peer, peerseg, &tmp, sizeof(tmp), 0);
+      gasnetex_Get(myteam, &tmp, peer, peerseg, sizeof(tmp), 0);
+      gasnetex_Put(myteam, peer, peersegmid, myseg, 1024, 0);
+      gasnetex_Get(myteam, myseg, peer, peersegmid, 1024, 0);
       gasnet_AMPoll();
     }
 

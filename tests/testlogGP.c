@@ -113,7 +113,7 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnet_put(peerproc, peermem, mymem, nbytes);
+			gasnetex_Put(myteam, peerproc, peermem, mymem, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -236,7 +236,7 @@ void get_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gasnet_get(mymem, peerproc, peermem, nbytes);
+			gasnetex_Get(myteam, mymem, peerproc, peermem, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);

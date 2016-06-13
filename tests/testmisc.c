@@ -334,8 +334,8 @@ void doit3(void) {
 void doit4(void) { GASNET_BEGIN_FUNCTION();
 
     TEST_SECTION_BEGIN();
-    TIME_OPERATION("local 4-byte gasnet_put",
-      { gasnet_put(mynode, myseg, &temp, 4); });
+    TIME_OPERATION("local 4-byte gasnetex_Put",
+      { gasnetex_Put(myteam, mynode, myseg, &temp, 4, 0); });
 
     TIME_OPERATION("local 4-byte gasnet_put_nb",
       { gasnet_wait_syncnb(gasnet_put_nb(mynode, myseg, &temp, 4)); });
@@ -343,9 +343,6 @@ void doit4(void) { GASNET_BEGIN_FUNCTION();
     TIME_OPERATION_FULL("local 4-byte gasnet_put_nbi", {},
       { gasnet_put_nbi(mynode, myseg, &temp, 4); },
       { gasnet_wait_syncnbi_puts(); });
-
-    TIME_OPERATION("local 4-byte gasnet_put_bulk",
-      { gasnet_put_bulk(mynode, myseg, &temp, 4); });
 
     TIME_OPERATION("local 4-byte gasnet_put_nb_bulk",
       { gasnet_wait_syncnb(gasnet_put_nb_bulk(mynode, myseg, &temp, 4)); });
@@ -364,16 +361,16 @@ void doit4(void) { GASNET_BEGIN_FUNCTION();
       { gasnet_put_nbi_val(mynode, myseg, temp, 4); },
       { gasnet_wait_syncnbi_puts(); });
 
-    TIME_OPERATION("local 1024-byte gasnet_put_bulk",
-      { gasnet_put_bulk(mynode, myseg, &bigtemp, 1024); });
+    TIME_OPERATION("local 1024-byte gasnetex_Put",
+      { gasnetex_Put(myteam, mynode, myseg, &bigtemp, 1024, 0); });
 
     doit5();
 }
 /* ------------------------------------------------------------------------------------ */
 void doit5(void) { GASNET_BEGIN_FUNCTION();
 
-    TIME_OPERATION("local 4-byte gasnet_get",
-      { gasnet_get(&temp, mynode, myseg, 4); });
+    TIME_OPERATION("local 4-byte gasnetex_Get",
+      { gasnetex_Get(myteam, &temp, mynode, myseg, 4, 0); });
 
     TIME_OPERATION("local 4-byte gasnet_get_nb",
       { gasnet_wait_syncnb(gasnet_get_nb(&temp, mynode, myseg, 4)); });
@@ -381,9 +378,6 @@ void doit5(void) { GASNET_BEGIN_FUNCTION();
     TIME_OPERATION_FULL("local 4-byte gasnet_get_nbi", {},
       { gasnet_get_nbi(&temp, mynode, myseg, 4); },
       { gasnet_wait_syncnbi_gets(); });
-
-    TIME_OPERATION("local 4-byte gasnet_get_bulk",
-      { gasnet_get_bulk(&temp, mynode, myseg, 4); });
 
     TIME_OPERATION("local 4-byte gasnet_get_nb_bulk",
       { gasnet_wait_syncnb(gasnet_get_nb_bulk(&temp, mynode, myseg, 4)); });
@@ -400,8 +394,8 @@ void doit5(void) { GASNET_BEGIN_FUNCTION();
         temp = (int32_t)gasnet_wait_syncnb_valget(handle);
       });
 
-    TIME_OPERATION("local 1024-byte gasnet_get_bulk",
-      { gasnet_get_bulk(&bigtemp, mynode, myseg, 1024); });
+    TIME_OPERATION("local 1024-byte gasnetex_Get",
+      { gasnetex_Get(myteam, &bigtemp, mynode, myseg, 1024, 0); });
 
     doit6();
 }
