@@ -13,6 +13,7 @@
 
 #define TEST_GASNET 1
 #define SHORT_REQ_BASE 128
+#define the_team myteam
 #include <other/amxtests/testam.h>
 
 /* Define to get one big function that pushes the gcc inliner heursitics */
