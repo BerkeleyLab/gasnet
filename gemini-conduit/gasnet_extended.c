@@ -771,13 +771,18 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 /* ------------------------------------------------------------------------------------ */
 
 /* Conduits not using the gasnete_amref_ versions should implement at least the following:
-     gasnete_get_nbi_bulk
-     gasnete_put_nbi
-     gasnete_put_nbi_bulk
+     gasnete_Get_nbi
+     gasnete_Put_nbi
      gasnete_memset_nbi
 */
 
-extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+extern
+void gasnete_Get_nbi(gasnetex_team_member_t team,
+                     void *dest,
+                     gasnetex_rank_t node, void *src, // TODO-EX: node -> rank when CHECKPSHM updated
+                     size_t nbytes,
+                     gasnetex_flags_t flags GASNETE_THREAD_FARG)
+{
   GASNETI_CHECKPSHM_GET(UNALIGNED,V);
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
@@ -793,14 +798,13 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
   }
 }
 
-extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+GASNETI_INLINE(gasnete_put_nbi)
+void gasnete_put_nbi (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const tail_op = mythread->current_iop;
   gasnet_handle_t head_op = GASNET_INVALID_HANDLE;
   const size_t max_tail = gasnetc_max_put_lc;
   GASNETC_DIDX_POST(mythread->domain_idx);
-
-  GASNETI_CHECKPSHM_PUT(ALIGNED,V);
 
   gasneti_suspend_spinpollers();
 
@@ -825,15 +829,32 @@ extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, siz
   gasnete_wait_syncnb(head_op);
 }
 
-extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
-  {
+GASNETI_INLINE(gasnete_put_nbi_bulk)
+void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t * const iop = mythread->current_iop;
     GASNETC_DIDX_POST(mythread->domain_idx);
     gasneti_suspend_spinpollers();
     gasnete_put_bulk_inner(node, dest, src, nbytes, GASNETE_IOP_CNTRS(iop, put) GASNETC_DIDX_PASS);
     gasneti_resume_spinpollers();
+}
+
+void gasnete_Put_nbi(gasnetex_team_member_t team,
+                     gasnetex_rank_t node, void *dest, // TODO-EX: node -> rank when CHECKPSHM updated
+                     void *src,
+                     size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                     gasnetex_flags_t flags GASNETE_THREAD_FARG)
+{
+  GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
+
+  if (lc_opt == GASNETEX_LC_GROUP) {
+    gasneti_fatalerror("Put_nbi(LC_GROUP) unimplemented"); // TODO-EX: fix this
+  } else if (lc_opt == GASNETEX_LC_INIT) {
+    gasnete_put_nbi(node, dest, src, nbytes GASNETE_THREAD_PASS);
+  } else if (lc_opt == GASNETEX_LC_SYNC) {
+    gasnete_put_nbi_bulk(node, dest, src, nbytes GASNETE_THREAD_PASS);
+  } else {
+    gasneti_fatalerror("Invalid lc_opt argument to Put_nbi");
   }
 }
 

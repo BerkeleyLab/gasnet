@@ -53,10 +53,6 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
  *   unset: gasnete_get_nb() maps to gasnete_get_nb_bulk()
  *   set: conduit provides it own gasnete_get_nb()
  *
- * GASNETI_DIRECT_GET_NBI
- *   unset: gasnete_get_nbi() maps to gasnete_get_nbi_bulk()
- *   set: conduit provides it own gasnete_get_nbi()
- *
  * GASNETI_DIRECT_WAIT_SYNCNB 
  *   unset: gasnete_wait_syncnb(h) via gasneti_pollwhile(gasnete_try_syncnb(h))
  *   set: conduit provides it own gasnete_wait_syncnb()
@@ -116,8 +112,7 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
 
 /* Configure use of AM-based implementation of get/put/memset */
 /* NOTE: Barriers, Collectives, VIS may use GASNETE_USING_REF_* in algorithm selection */
-#define GASNETE_USING_REF_EXTENDED_GET_BULK 1
-#define GASNETE_USING_REF_EXTENDED_PUT_BULK 1
+#define GASNETE_USING_REF_EXTENDED_GET      1
 #define GASNETE_USING_REF_EXTENDED_PUT      1
 #define GASNETE_USING_REF_EXTENDED_MEMSET   1
 
@@ -128,13 +123,12 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
 #define GASNETE_USE_LONG_GETS 1
 #endif
 
-/* Implement all eight "base" operations directly via amref: */
+/* Implement all "base" operations directly via amref: */
 #define gasnete_amref_get_nb_bulk   gasnete_get_nb_bulk
-#define gasnete_amref_get_nbi_bulk  gasnete_get_nbi_bulk
 #define gasnete_amref_put_nb_bulk   gasnete_put_nb_bulk
-#define gasnete_amref_put_nbi_bulk  gasnete_put_nbi_bulk
 #define gasnete_amref_put_nb        gasnete_put_nb
-#define gasnete_amref_put_nbi       gasnete_put_nbi
+#define gasnete_amref_Get_nbi       gasnete_Get_nbi
+#define gasnete_amref_Put_nbi       gasnete_Put_nbi
 #define gasnete_amref_memset_nb     gasnete_memset_nb
 #define gasnete_amref_memset_nbi    gasnete_memset_nbi
 

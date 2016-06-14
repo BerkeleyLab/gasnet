@@ -282,30 +282,24 @@ void gasnet_wait_syncnb_all(gasnet_handle_t *phandle, size_t numhandles) {
   Non-blocking memory-to-memory transfers (implicit handle)
   ==========================================================
 */
-/* put_nbi       source memory is safe to modify on return
-   put_nbi_bulk  source memory is NOT safe to modify on return
- */
 
-#ifndef gasnete_put_nbi
-extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG);
+#ifndef gasnete_Get_nbi
+extern void gasnete_Get_nbi (gasnetex_team_member_t team, void *dest,
+                             gasnetex_rank_t rank, void *src,
+                             size_t nbytes, gasnetex_flags_t flags
+                             GASNETE_THREAD_FARG);
 #endif
 
-#ifndef gasnete_put_nbi_bulk
-extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG);
-#endif
-
-#ifndef gasnete_get_nbi_bulk
-extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG);
+#ifndef gasnete_Put_nbi
+extern void gasnete_Put_nbi (gasnetex_team_member_t team,
+                             gasnetex_rank_t rank, void *dest,
+                             /*const*/ void *src,  // TODO-EX: un-comment const
+                             size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                             gasnetex_flags_t flags GASNETE_THREAD_FARG);
 #endif
 
 #ifndef gasnete_memset_nbi
 extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val,   size_t nbytes GASNETE_THREAD_FARG);
-#endif
-
-#if GASNETI_DIRECT_GET_NBI // TODO-EX: sort this out
-  extern void gasnete_get_nbi (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG);
-#elif !defined(gasnete_get_nbi)
-  #define gasnete_get_nbi gasnete_get_nbi_bulk
 #endif
 
 GASNETI_INLINE(_gasnetex_Get_nbi)
@@ -323,7 +317,7 @@ void _gasnetex_Get_nbi (gasnetex_team_member_t team, void *dest,
     gasnete_loopbackget_memsync();
   } else {
     GASNETI_TRACE_GET(NBI,dest,node,src,nbytes);
-    gasnete_get_nbi(dest, node, src, nbytes GASNETE_THREAD_PASS);
+    gasnete_Get_nbi(team, dest, node, src, nbytes, flags GASNETE_THREAD_PASS);
   }
 }
 #define gasnetex_Get_nbi(team,dest,rank,src,nbytes,flags) \
@@ -345,7 +339,7 @@ void _gasnetex_Put_nbi (gasnetex_team_member_t team,
     gasnete_loopbackput_memsync();
   } else {
     GASNETI_TRACE_PUT(NBI,node,dest,src,nbytes);
-    gasnete_put_nbi(node, dest, src, nbytes GASNETE_THREAD_PASS);
+    gasnete_Put_nbi(team, node, dest, src, nbytes, lc_opt, flags GASNETE_THREAD_PASS);
   }
 }
 #define gasnetex_Put_nbi(team,rank,dest,src,nbytes,lc_opt,flags) \
@@ -487,24 +481,6 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) G
   Blocking memory-to-memory transfers
   ===================================
 */
-
-// TODO-EX: remove these checks for conduits using legacy internal APIs
-#if GASNETI_DIRECT_GET // TODO-EX: sort this out
-  #error "out-of-date #define of GASNETI_DIRECT_GET"
-#endif
-#if GASNETI_DIRECT_GET_BULK
-  #error "out-of-date #define of GASNETI_DIRECT_GET_BULK"
-#elif defined(gasnete_get_bulk)
-  #error "out-of-date #define of gasnete_get_bulk"
-#endif
-#if GASNETI_DIRECT_PUT // TODO-EX: sort this out
-  #error "out-of-date #define of GASNETI_DIRECT_PUT"
-#endif
-#if GASNETI_DIRECT_PUT_BULK // TODO-EX: remove this
-  #error "out-of-date #define of GASNETI_DIRECT_PUT_BULK"
-#elif defined(gasnete_put_bulk)
-  #error "out-of-date #define of gasnete_put_bulk"
-#endif
 
 
 #if GASNETI_DIRECT_BLOCKING_GET
@@ -686,10 +662,11 @@ gasnet_handle_t _gasnet_put_nb_val (gasnet_node_t node, void *dest, gasnet_regis
 #if GASNETI_DIRECT_PUT_NBI_VAL
   extern void gasnete_put_nbi_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG);
 #elif !defined(gasnete_put_nbi_val)
-  #define gasnete_put_nbi_val(node, dest, value, nbytesTI) do {                  \
+  GASNETI_INLINE(gasnete_put_nbi_val)
+  void gasnete_put_nbi_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG) {
     gasnet_register_value_t src = value;                                         \
-    gasnete_put_nbi(node, dest, GASNETE_TISTARTOFBITS(&src,nbytesTI), nbytesTI); \
-  } while (0)
+    gasnete_Put_nbi(NULL, node, dest, GASNETE_STARTOFBITS(&src,nbytes), nbytes, GASNETEX_LC_INIT, 0 GASNETE_THREAD_PASS);
+  }
 #endif
 
 GASNETI_INLINE(_gasnet_put_nbi_val)
@@ -814,5 +791,28 @@ extern int gasnet_barrier_result(int *id);
 /* ------------------------------------------------------------------------------------ */
 
 GASNETI_END_EXTERNC
+//
+// TODO-EX: remove these checks for conduits using legacy internal APIs
+#if GASNETI_DIRECT_GET
+  #error "out-of-date #define of GASNETI_DIRECT_GET"
+#endif
+#if GASNETI_DIRECT_GET_BULK
+  #error "out-of-date #define of GASNETI_DIRECT_GET_BULK"
+#elif defined(gasnete_get_bulk)
+  #error "out-of-date #define of gasnete_get_bulk"
+#endif
+#if GASNETI_DIRECT_PUT
+  #error "out-of-date #define of GASNETI_DIRECT_PUT"
+#endif
+#if GASNETI_DIRECT_PUT_BULK
+  #error "out-of-date #define of GASNETI_DIRECT_PUT_BULK"
+#elif defined(gasnete_put_bulk)
+  #error "out-of-date #define of gasnete_put_bulk"
+#endif
+#if GASNETI_DIRECT_GET_NBI
+  #error "out-of-date #define of GASNETI_DIRECT_GET_NBI"
+#endif
+
+
 
 #endif

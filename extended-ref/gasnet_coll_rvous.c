@@ -1157,11 +1157,11 @@ static int gasnete_coll_pf_exchg_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG
     gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
     /*put to the left of me*/
     for(i=op->team->myrank+1; i<op->team->total_ranks; i++) {
-      gasnete_put_nbi_bulk(GASNETE_COLL_REL2ACT(op->team,i), (int8_t*) ((void**)data->p2p->data)[i] + op->team->myrank*args->nbytes, (int8_t*) args->src+i*args->nbytes, args->nbytes GASNETE_THREAD_PASS);
+      gasnete_Put_nbi(NULL, GASNETE_COLL_REL2ACT(op->team,i), (int8_t*) ((void**)data->p2p->data)[i] + op->team->myrank*args->nbytes, (int8_t*) args->src+i*args->nbytes, args->nbytes, GASNETEX_LC_SYNC, 0 GASNETE_THREAD_PASS);
     } 
     /*put to the right of me*/
     for(i=0; i<op->team->myrank; i++) {
-      gasnete_put_nbi_bulk(GASNETE_COLL_REL2ACT(op->team,i), (int8_t*) ((void**)data->p2p->data)[i] + op->team->myrank*args->nbytes, (int8_t*) args->src+i*args->nbytes, args->nbytes GASNETE_THREAD_PASS);
+      gasnete_Put_nbi(NULL, GASNETE_COLL_REL2ACT(op->team,i), (int8_t*) ((void**)data->p2p->data)[i] + op->team->myrank*args->nbytes, (int8_t*) args->src+i*args->nbytes, args->nbytes, GASNETEX_LC_SYNC, 0 GASNETE_THREAD_PASS);
     }
     data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
     gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);

@@ -63,10 +63,6 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
  *   unset: gasnete_get_nb() maps to gasnete_get_nb_bulk()
  *   set: conduit provides it own gasnete_get_nb()
  *
- * GASNETI_DIRECT_GET_NBI
- *   unset: gasnete_get_nbi() maps to gasnete_get_nbi_bulk()
- *   set: conduit provides it own gasnete_get_nbi()
- *
  * GASNETI_DIRECT_WAIT_SYNCNB 
  *   unset: gasnete_wait_syncnb(h) via gasneti_pollwhile(gasnete_try_syncnb(h))
  *   set: conduit provides it own gasnete_wait_syncnb()

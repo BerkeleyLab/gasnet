@@ -1253,7 +1253,8 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
   for (i = 0; i < numsteps; ++i, state += 2, step += 1) {
     const gasnet_node_t node = barrier_data->barrier_peers[step].node;
     void * const addr = GASNETE_RDMABARRIER_INBOX_REMOTE(barrier_data, step, state);
-    gasnete_put_nbi_bulk(node, addr, payload, sizeof(*payload) GASNETE_THREAD_PASS);
+    gasnete_Put_nbi(NULL, node, addr, payload, sizeof(*payload),
+                    GASNETEX_LC_SYNC, 0 GASNETE_THREAD_PASS);
   }
   handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
 

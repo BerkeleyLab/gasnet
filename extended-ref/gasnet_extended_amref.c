@@ -17,15 +17,10 @@
  *
  * The coarse-grained controls just define the fine-grained ones:
  *
- *    #define GASNETE_USING_REF_EXTENDED_GET_BULK 1
+ *    #define GASNETE_USING_REF_EXTENDED_GET 1
  *      Is equivalent to
  *         #define GASNETE_BUILD_AMREF_GET_HANDLERS 1
- *         #define GASNETE_BUILD_AMREF_GET_BULK 1
- *
- *    #define GASNETE_USING_REF_EXTENDED_PUT_BULK 1
- *      Is equivalent to
- *         #define GASNETE_BUILD_AMREF_PUT_HANDLERS 1
- *         #define GASNETE_BUILD_AMREF_PUT_BULK 1
+ *         #define GASNETE_BUILD_AMREF_GET 1
  *
  *    #define GASNETE_USING_REF_EXTENDED_PUT 1
  *      Is equivalent to
@@ -39,20 +34,17 @@
  *
  * The fine-grained controls:
  *
- *    #define GASNETE_BUILD_AMREF_GET_BULK 1
+ *    #define GASNETE_BUILD_AMREF_GET 1
  *      To build
- *         gasnete_amref_get_nb_bulk
- *         gasnete_amref_get_nbi_bulk
- *
- *    #define GASNETE_BUILD_AMREF_PUT_BULK 1
- *      To build
- *         gasnete_amref_put_nb_bulk
- *         gasnete_amref_put_nbi_bulk
+ *         gasnete_amref_get_nb_bulk    TODO-EX: to be removed
+ *         gasnete_amref_get_nb
+ *         gasnete_amref_Get_nbi
  *
  *    #define GASNETE_BUILD_AMREF_PUT 1
  *      To build
+ *         gasnete_amref_put_nb_bulk    TODO-EX: to be removed
  *         gasnete_amref_put_nb
- *         gasnete_amref_put_nbi
+ *         gasnete_amref_Put_nbi
  *
  *    #define GASNETE_BUILD_AMREF_MEMSET 1
  *      To build
@@ -63,7 +55,7 @@
  *      To build the corresponding supporting AM handlers
  *
  *    #define GASNETE_BUILD_AMREF_PUT_HANDLERS 1
- *      To build the corresponding supporting AM handlers (bulk and non-bulk)
+ *      To build the corresponding supporting AM handlers
  *
  *    #define GASNETE_BUILD_AMREF_MEMSET_HANDLERS 1
  *      To build the corresponding supporting AM handlers
@@ -72,12 +64,10 @@
  *
  * A conduit can use these directly by using one or more of the following
  * in its gasnet_extended_fwd.h name-shift the functions listed above:
- *    #define gasnete_amref_get_nb_bulk   gasnete_get_nb_bulk
- *    #define gasnete_amref_get_nbi_bulk  gasnete_get_nbi_bulk
- *    #define gasnete_amref_put_nb_bulk   gasnete_put_nb_bulk
- *    #define gasnete_amref_put_nbi_bulk  gasnete_put_nbi_bulk
- *    #define gasnete_amref_put_nb        gasnete_put_nb
- *    #define gasnete_amref_put_nbi       gasnete_put_nbi
+ *    #define gasnete_amref_Get_nb        gasnete_Get_nb
+ *    #define gasnete_amref_Get_nbi       gasnete_Get_nbi
+ *    #define gasnete_amref_Put_nb        gasnete_Put_nb
+ *    #define gasnete_amref_Put_nbi       gasnete_Put_nbi
  *    #define gasnete_amref_memset_nb     gasnete_memset_nb
  *    #define gasnete_amref_memset_nbi    gasnete_memset_nbi
  *
@@ -100,13 +90,9 @@
 /* ------------------------------------------------------------------------------------ */
 /* Implement the coarse-grained build controls: */
 
-#if GASNETE_USING_REF_EXTENDED_GET_BULK
+#if GASNETE_USING_REF_EXTENDED_GET
 #define GASNETE_BUILD_AMREF_GET_HANDLERS 1
-#define GASNETE_BUILD_AMREF_GET_BULK 1
-#endif
-#if GASNETE_USING_REF_EXTENDED_PUT_BULK
-#define GASNETE_BUILD_AMREF_PUT_HANDLERS 1
-#define GASNETE_BUILD_AMREF_PUT_BULK 1
+#define GASNETE_BUILD_AMREF_GET 1
 #endif
 #if GASNETE_USING_REF_EXTENDED_PUT
 #define GASNETE_BUILD_AMREF_PUT_HANDLERS 1
@@ -115,6 +101,20 @@
 #if GASNETE_USING_REF_EXTENDED_MEMSET
 #define GASNETE_BUILD_AMREF_MEMSET_HANDLERS 1
 #define GASNETE_BUILD_AMREF_MEMSET 1
+#endif
+
+// TODO-EX: remove these legacy checks
+#ifdef GASNETE_USING_REF_EXTENDED_GET_BULK
+#error "out-of-date #define of GASNETE_USING_REF_EXTENDED_GET_BULK"
+#endif
+#ifdef GASNETE_BUILD_AMREF_GET_BULK
+#error "out-of-date #define of GASNETE_BUILD_AMREF_GET_BULK"
+#endif
+#ifdef GASNETE_USING_REF_EXTENDED_PUT_BULK
+#error "out-of-date #define of GASNETE_USING_REF_EXTENDED_PUT_BULK"
+#endif
+#ifdef GASNETE_BUILD_AMREF_PUT_BULK
+#error "out-of-date #define of GASNETE_BUILD_AMREF_PUT_BULK"
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -131,6 +131,7 @@
  * may optimize AMLongRequest/AMLongRequestAsync/AMLongReply with DMA
  * operations.
  *
+ * TODO-EX: update w.r.t. loss of _bulk
  * gasnet_put(_bulk) is translated to a gasnete_put_nb(_bulk) + sync
  * gasnet_get(_bulk) is translated to a gasnete_get_nb(_bulk) + sync
  *
@@ -338,19 +339,26 @@ SHORT_HANDLER(gasnete_amref_markdone_reph,1,2,
 */
 
 /* Forward declarations of _nbi for (potential) use by _nb */
-#if GASNETE_BUILD_AMREF_GET_BULK
-extern void gasnete_amref_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG);
-#endif
-#if GASNETE_BUILD_AMREF_PUT_BULK
-extern void gasnete_amref_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG);
+#if GASNETE_BUILD_AMREF_GET
+extern
+void gasnete_amref_Get_nbi(gasnetex_team_member_t team,
+                           void *dest,
+                           gasnetex_rank_t rank, void *src,
+                           size_t nbytes,
+                           gasnetex_flags_t flags GASNETE_THREAD_FARG);
 #endif
 #if GASNETE_BUILD_AMREF_PUT
-extern void gasnete_amref_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG);
+extern
+void gasnete_amref_Put_nbi(gasnetex_team_member_t team,
+                           gasnetex_rank_t rank, void *dest,
+                           void *src,
+                           size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                           gasnetex_flags_t flags GASNETE_THREAD_FARG);
 #endif
 
 /* ------------------------------------------------------------------------------------ */
 
-#if GASNETE_BUILD_AMREF_GET_BULK
+#if GASNETE_BUILD_AMREF_GET
 extern gasnet_handle_t gasnete_amref_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   GASNETI_CHECKPSHM_GET(UNALIGNED,H);
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
@@ -364,16 +372,18 @@ extern gasnet_handle_t gasnete_amref_get_nb_bulk (void *dest, gasnet_node_t node
     /* TODO: don't need the iop for large xfers in the GASNETE_EOP_COUNTED case */
     /*  need many messages - use an access region to coalesce them into a single handle */
     /*  (note this relies on the fact that our implementation of access regions allows recursion) */
+    gasnetex_team_member_t team = NULL;
+    gasnetex_flags_t flags = 0;
     gasnete_begin_nbi_accessregion(1 /* enable recursion */ GASNETE_THREAD_PASS);
-    gasnete_amref_get_nbi_bulk(dest, node, src, nbytes GASNETE_THREAD_PASS);
+    gasnete_amref_Get_nbi(team, dest, node, src, nbytes, flags GASNETE_THREAD_PASS);
     return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
   }
 }
-#endif /* GASNETE_BUILD_AMREF_GET_BULK */
+#endif /* GASNETE_BUILD_AMREF_GET */
 
 /* ------------------------------------------------------------------------------------ */
 
-#if GASNETE_BUILD_AMREF_PUT_BULK || GASNETE_BUILD_AMREF_PUT
+#if GASNETE_BUILD_AMREF_PUT
 GASNETI_INLINE(gasnete_amref_put_nb_inner)
 gasnet_handle_t gasnete_amref_put_nb_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes, int isbulk GASNETE_THREAD_FARG) {
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
@@ -404,33 +414,26 @@ gasnet_handle_t gasnete_amref_put_nb_inner(gasnet_node_t node, void *dest, void 
     /* TODO: don't need the iop for large xfers in the GASNETE_EOP_COUNTED case */
     /*  need many messages - use an access region to coalesce them into a single handle */
     /*  (note this relies on the fact that our implementation of access regions allows recursion) */
+    gasnetex_team_member_t team = NULL;
+    gasnetex_lc_handle_t *lc_opt = isbulk ? GASNETEX_LC_SYNC : GASNETEX_LC_INIT;
+    gasnetex_flags_t flags = 0;
     gasnete_begin_nbi_accessregion(1 /* enable recursion */ GASNETE_THREAD_PASS);
-    #if GASNETE_BUILD_AMREF_PUT_BULK && GASNETE_BUILD_AMREF_PUT
-      if (isbulk) gasnete_amref_put_nbi_bulk(node, dest, src, nbytes GASNETE_THREAD_PASS);
-      else        gasnete_amref_put_nbi    (node, dest, src, nbytes GASNETE_THREAD_PASS);
-    #elif GASNETE_BUILD_AMREF_PUT_BULK
-                  gasnete_amref_put_nbi_bulk(node, dest, src, nbytes GASNETE_THREAD_PASS);
-    #else
-                  gasnete_amref_put_nbi    (node, dest, src, nbytes GASNETE_THREAD_PASS);
-    #endif
+    gasnete_amref_Put_nbi(team, node, dest, src, nbytes, lc_opt, flags GASNETE_THREAD_PASS); // TODO-EX: use "inner"?
     return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
   }
 }
-#endif /* GASNETE_BUILD_AMREF_PUT_BULK || GASNETE_BUILD_AMREF_PUT */
+#endif /* GASNETE_BUILD_AMREF_PUT */
 
 #if GASNETE_BUILD_AMREF_PUT
 extern gasnet_handle_t gasnete_amref_put_nb      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   GASNETI_CHECKPSHM_PUT(ALIGNED,H);
   return gasnete_amref_put_nb_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS);
 }
-#endif /* GASNETE_BUILD_AMREF_PUT */
-
-#if GASNETE_BUILD_AMREF_PUT_BULK
 extern gasnet_handle_t gasnete_amref_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
   return gasnete_amref_put_nb_inner(node, dest, src, nbytes, 1 GASNETE_THREAD_PASS);
 }
-#endif /* GASNETE_BUILD_AMREF_PUT_BULK */
+#endif /* GASNETE_BUILD_AMREF_PUT */
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -462,8 +465,14 @@ extern gasnet_handle_t gasnete_amref_memset_nb   (gasnet_node_t node, void *dest
 
 /* ------------------------------------------------------------------------------------ */
 
-#if GASNETE_BUILD_AMREF_GET_BULK
-extern void gasnete_amref_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+#if GASNETE_BUILD_AMREF_GET
+extern
+void gasnete_amref_Get_nbi(gasnetex_team_member_t team,
+                           void *dest,
+                           gasnetex_rank_t node, void *src, // TODO-EX: node -> rank when CHECKPSHM updated
+                           size_t nbytes,
+                           gasnetex_flags_t flags GASNETE_THREAD_FARG)
+{
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const op = mythread->current_iop;
   GASNETI_CHECKPSHM_GET(UNALIGNED,V);
@@ -506,21 +515,39 @@ extern void gasnete_amref_get_nbi_bulk (void *dest, gasnet_node_t node, void *sr
     return;
   }
 }
-#endif /* GASNETE_BUILD_AMREF_GET_BULK */
+#endif /* GASNETE_BUILD_AMREF_GET */
 
 /* ------------------------------------------------------------------------------------ */
 
-#if GASNETE_BUILD_AMREF_PUT_BULK || GASNETE_BUILD_AMREF_PUT
+#if GASNETE_BUILD_AMREF_PUT
 GASNETI_INLINE(gasnete_amref_put_nbi_inner)
-void gasnete_amref_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes, int isbulk GASNETE_THREAD_FARG) {
+void gasnete_amref_put_nbi_inner(gasnetex_team_member_t team,
+                                 gasnetex_rank_t rank, void *dest,
+                                 void *src,
+                                 size_t nbytes,
+                                 gasnetex_lc_handle_t *lc_opt,
+                                 gasnetex_flags_t flags
+                                 GASNETE_THREAD_FARG)
+{
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const op = mythread->current_iop;
+
+  int isbulk; // TODO-EX: ???
+  if (lc_opt == GASNETEX_LC_GROUP) {
+    gasneti_fatalerror("Put_nbi(LC_GROUP) unimplemented"); // TODO-EX: fix this
+  } else if (lc_opt == GASNETEX_LC_INIT) {
+    isbulk = 0;
+  } else if (lc_opt == GASNETEX_LC_SYNC) {
+    isbulk = 1;
+  } else {
+    gasneti_fatalerror("Invalid lc_opt argument to Put_nbi");
+  }
 
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
     op->initiated_put_cnt++;
 
-    gasnetex_AMRequestMedium(NULL, node, gasneti_handleridx(gasnete_amref_put_reqh),
-                             src, nbytes, GASNETEX_LC_INIT, 0,
+    gasnetex_AMRequestMedium(team, rank, gasneti_handleridx(gasnete_amref_put_reqh),
+                             src, nbytes, GASNETEX_LC_INIT, 0, // TODO-EX: flags?
                              PACK(dest), PACK_IOP_DONE(op,put));
     return;
   } else
@@ -529,12 +556,12 @@ void gasnete_amref_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size
     op->initiated_put_cnt++;
 
     if (isbulk) { // TODO-EX: restore some degree of Async on bulk path
-      gasnetex_AMRequestLong(NULL, node, gasneti_handleridx(gasnete_amref_putlong_reqh),
-                      src, nbytes, dest, GASNETEX_LC_INIT, 0,
+      gasnetex_AMRequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
+                      src, nbytes, dest, GASNETEX_LC_INIT, 0, // TODO-EX: flags?
                       PACK_IOP_DONE(op,put));
     } else {
-      gasnetex_AMRequestLong(NULL, node, gasneti_handleridx(gasnete_amref_putlong_reqh),
-                      src, nbytes, dest, GASNETEX_LC_INIT, 0,
+      gasnetex_AMRequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
+                      src, nbytes, dest, GASNETEX_LC_INIT, 0, // TODO-EX: flags?
                       PACK_IOP_DONE(op,put));
     }
 
@@ -547,11 +574,11 @@ void gasnete_amref_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size
       op->initiated_put_cnt++;
       if (nbytes > chunksz) {
         if (isbulk) { // TODO-EX: restore some degree of Async on bulk path
-          gasnetex_AMRequestLong(NULL, node, gasneti_handleridx(gasnete_amref_putlong_reqh),
+          gasnetex_AMRequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
                           psrc, chunksz, pdest, GASNETEX_LC_INIT, 0,
                           PACK_IOP_DONE(op,put));
         } else {
-          gasnetex_AMRequestLong(NULL, node, gasneti_handleridx(gasnete_amref_putlong_reqh),
+          gasnetex_AMRequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
                           psrc, chunksz, pdest, GASNETEX_LC_INIT, 0,
                           PACK_IOP_DONE(op,put));
         }
@@ -560,11 +587,11 @@ void gasnete_amref_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size
         pdest += chunksz;
       } else {
         if (isbulk) { // TODO-EX: restore some degree of Async on bulk path
-          gasnetex_AMRequestLong(NULL, node, gasneti_handleridx(gasnete_amref_putlong_reqh),
+          gasnetex_AMRequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
                           psrc, nbytes, pdest, GASNETEX_LC_INIT, 0,
                           PACK_IOP_DONE(op,put));
         } else {
-          gasnetex_AMRequestLong(NULL, node, gasneti_handleridx(gasnete_amref_putlong_reqh),
+          gasnetex_AMRequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
                           psrc, nbytes, pdest, GASNETEX_LC_INIT, 0,
                           PACK_IOP_DONE(op,put));
         }
@@ -581,14 +608,14 @@ void gasnete_amref_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size
     for (;;) {
       op->initiated_put_cnt++;
       if (nbytes > chunksz) {
-        gasnetex_AMRequestMedium(NULL, node, gasneti_handleridx(gasnete_amref_put_reqh),
+        gasnetex_AMRequestMedium(team, rank, gasneti_handleridx(gasnete_amref_put_reqh),
                                  psrc, chunksz, GASNETEX_LC_INIT, 0,
                                  PACK(pdest), PACK_IOP_DONE(op,put));
         nbytes -= chunksz;
         psrc += chunksz;
         pdest += chunksz;
       } else {
-        gasnetex_AMRequestMedium(NULL, node, gasneti_handleridx(gasnete_amref_put_reqh),
+        gasnetex_AMRequestMedium(team, rank, gasneti_handleridx(gasnete_amref_put_reqh),
                                  psrc, nbytes, GASNETEX_LC_INIT, 0,
                                  PACK(pdest), PACK_IOP_DONE(op,put));
         break;
@@ -597,21 +624,20 @@ void gasnete_amref_put_nbi_inner(gasnet_node_t node, void *dest, void *src, size
   }
 #endif /* GASNETE_USE_LONG_PUTS */
 }
-#endif /* GASNETE_BUILD_AMREF_PUT_BULK || GASNETE_BUILD_AMREF_PUT */
-
-#if GASNETE_BUILD_AMREF_PUT
-extern void gasnete_amref_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_PUT(ALIGNED,V);
-  gasnete_amref_put_nbi_inner(node, dest, src, nbytes, 0 GASNETE_THREAD_PASS);
-}
 #endif /* GASNETE_BUILD_AMREF_PUT */
 
-#if GASNETE_BUILD_AMREF_PUT_BULK
-extern void gasnete_amref_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+#if GASNETE_BUILD_AMREF_PUT
+extern
+void gasnete_amref_Put_nbi(gasnetex_team_member_t team,
+                           gasnetex_rank_t node, void *dest, // TODO-EX: node -> rank when CHECKPSHM updated
+                           void *src,
+                           size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                           gasnetex_flags_t flags GASNETE_THREAD_FARG)
+{
   GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
-  gasnete_amref_put_nbi_inner(node, dest, src, nbytes, 1 GASNETE_THREAD_PASS);
+  gasnete_amref_put_nbi_inner(team, node, dest, src, nbytes, lc_opt, flags GASNETE_THREAD_PASS);
 }
-#endif /* GASNETE_BUILD_AMREF_PUT_BULK */
+#endif /* GASNETE_BUILD_AMREF_PUT */
 
 /* ------------------------------------------------------------------------------------ */
 
@@ -632,12 +658,12 @@ extern void gasnete_amref_memset_nbi   (gasnet_node_t node, void *dest, int val,
 /* ------------------------------------------------------------------------------------ */
 
 void gasnete_check_config_amref(void) {
-#if GASNETE_BUILD_AMREF_GET_BULK || GASNETE_BUILD_AMREF_PUT_BULK || GASNETE_BUILD_AMREF_PUT
+#if GASNETE_BUILD_AMREF_GET || GASNETE_BUILD_AMREF_PUT
   /* This ensures chunks sent as Medium payloads don't exceed the maximum */
   gasneti_assert_always(GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD <= gasnet_AMMaxMedium());
 #endif
 
-#if GASNETE_BUILD_AMREF_GET_BULK
+#if GASNETE_BUILD_AMREF_GET
   /* These ensure nbytes in AM-based Gets will fit in handler_arg_t (bug 2770) */
   gasneti_assert_always(gasnet_AMMaxMedium() <= (size_t)0xffffffff);
  #if GASNETE_USE_LONG_GETS
