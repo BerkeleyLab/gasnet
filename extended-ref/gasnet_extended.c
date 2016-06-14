@@ -347,9 +347,8 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 /* ------------------------------------------------------------------------------------ */
 
 /* Conduits not using the gasnete_amref_ versions should implement at least the following:
-     gasnete_get_nb_bulk
-     gasnete_put_nb
-     gasnete_put_nb_bulk
+     gasnete_Get_nb
+     gasnete_Put_nb
      gasnete_memset_nb
 */
 
@@ -464,9 +463,8 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 /* ------------------------------------------------------------------------------------ */
 
 /* Conduits not using the gasnete_amref_ versions should implement at least the following:
-     gasnete_get_nbi_bulk
-     gasnete_put_nbi
-     gasnete_put_nbi_bulk
+     gasnete_Get_nbi
+     gasnete_Put_nbi
      gasnete_memset_nbi
 */
 

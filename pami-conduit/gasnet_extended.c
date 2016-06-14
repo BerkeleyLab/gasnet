@@ -612,9 +612,8 @@ void gasnete_get_common(void *dest, gasnet_node_t node, void *src, size_t nbytes
 */
 
 /* Conduits not using the gasnete_amref_ versions should implement at least the following:
-     gasnete_get_nb_bulk
-     gasnete_put_nb
-     gasnete_put_nb_bulk
+     gasnete_Get_nb
+     gasnete_Put_nb
      gasnete_memset_nb
 */
 
@@ -752,9 +751,8 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 */
 
 /* Conduits not using the gasnete_amref_ versions should implement at least the following:
-     gasnete_get_nb_bulk
-     gasnete_put_nb
-     gasnete_put_nb_bulk
+     gasnete_Get_nb
+     gasnete_Put_nb
      gasnete_memset_nb
 */
 
