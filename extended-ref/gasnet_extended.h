@@ -45,23 +45,25 @@ extern void gasnete_init(void);
   ==========================================================
 */
 
-#ifndef gasnete_put_nb_bulk
-  extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
+#ifndef gasnete_Put_nb
+  extern gasnet_handle_t gasnete_Put_nb( // TODO-EX: return type!!
+                        gasnetex_team_member_t team,
+                        gasnetex_rank_t node, void *dest, // TODO-EX: node -> rank when CHECKZERO updated
+                        /*const*/ void *src,  // TODO-EX: un-comment const
+                        size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                        gasnetex_flags_t flags GASNETE_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
-#ifndef gasnete_get_nb_bulk
-  extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
+#ifndef gasnete_Get_nb
+  extern gasnet_handle_t gasnete_Get_nb( // TODO-EX: return type!!
+                        gasnetex_team_member_t team, void *dest,
+                        gasnetex_rank_t node, void *src, // TODO-EX: node -> rank when CHECKZERO updated
+                        size_t nbytes, gasnetex_flags_t flags
+                        GASNETE_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
 #ifndef gasnete_memset_nb
   extern gasnet_handle_t gasnete_memset_nb   (gasnet_node_t node, void *dest, int val, size_t nbytes   GASNETE_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
-#endif
-
-#if GASNETI_DIRECT_GET_NB
-  extern gasnet_handle_t gasnete_get_nb (void *dest, gasnet_node_t node, void *src,
-                                         size_t nbytes GASNETE_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
-#elif !defined(gasnete_get_nb)
-  #define gasnete_get_nb gasnete_get_nb_bulk
 #endif
 
 GASNETI_INLINE(_gasnetex_Get_nb) GASNETI_WARN_UNUSED_RESULT
@@ -81,17 +83,11 @@ gasnet_handle_t _gasnetex_Get_nb( // TODO-EX: return type!
     return GASNET_INVALID_HANDLE;
   } else {
     GASNETI_TRACE_GET(NB,dest,node,src,nbytes);
-    return gasnete_get_nb(dest, node, src, nbytes GASNETE_THREAD_PASS);
+    return gasnete_Get_nb(team, dest, node, src, nbytes, flags GASNETE_THREAD_PASS);
   }
 }
 #define gasnetex_Get_nb(team,dest,node,src,nbytes,flags) \
        _gasnetex_Get_nb(team,dest,node,src,nbytes,flags GASNETE_THREAD_GET)
-
-#if !defined(gasnete_put_nb)
-  extern gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, 
-					 void *src, size_t nbytes 
-					 GASNETE_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
-#endif
 
 GASNETI_INLINE(_gasnetex_Put_nb) GASNETI_WARN_UNUSED_RESULT
 gasnet_handle_t _gasnetex_Put_nb( // TODO-EX: return type!
@@ -111,7 +107,7 @@ gasnet_handle_t _gasnetex_Put_nb( // TODO-EX: return type!
     return GASNET_INVALID_HANDLE;
   } else {
     GASNETI_TRACE_PUT(NB,node,dest,src,nbytes);
-    return gasnete_put_nb(node, dest, src, nbytes GASNETE_THREAD_PASS);
+    return gasnete_Put_nb(team, node, dest, src, nbytes, lc_opt, flags GASNETE_THREAD_PASS);
   }
 }
 #define gasnetex_Put_nb(team,node,dest,src,nbytes,lc_opt,flags) \
@@ -464,18 +460,13 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) G
                            size_t nbytes, gasnetex_flags_t flags
                            GASNETE_THREAD_FARG);
 #elif !defined(gasnete_Get)
- #if 0 // TODO-EX: activate the following defn when _nb interface is updated:
-  #define gasnete_Get(team, dest, rank, src, nbytes, flagsTI) \
-    gasnete_wait_syncnb(gasnete_Get_nb(team, dest, rank, src, nbytes, flagsTI))
- #else
   GASNETI_INLINE(gasnete_Get)
-  void gasnete_Get(gasnetex_team_member_t team,
-                   void *dest,
-                   gasnetex_rank_t rank, void *src,
-                   size_t nbytes, gasnetex_flags_t flags
-                   GASNETE_THREAD_FARG)
-  { gasnete_wait_syncnb(gasnete_get_nb(dest, rank, src, nbytes GASNETE_THREAD_PASS)); }
- #endif
+  void gasnete_Get (gasnetex_team_member_t team,
+                    void *dest,
+                    gasnetex_rank_t rank, void *src,
+                    size_t nbytes, gasnetex_flags_t flags
+                    GASNETE_THREAD_FARG)
+  { gasnete_wait_syncnb(gasnete_Get_nb(team, dest, rank, src, nbytes, flags GASNETE_THREAD_PASS)); }
 #endif
 
 #if GASNETI_DIRECT_BLOCKING_PUT
@@ -485,18 +476,13 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) G
                            size_t nbytes, gasnetex_flags_t flags
                            GASNETE_THREAD_FARG);
 #elif !defined(gasnete_Put)
- #if 0 // TODO-EX: activate the following defn when _nb interface is updated:
-  #define gasnete_Put(team, rank, dest, src, nbytes, flagsTI) \
-    gasnete_wait_syncnb(gasnete_Put_nb(team, rank, dest, src, nbytes, flagsTI))
- #else
   GASNETI_INLINE(gasnete_Put)
   void gasnete_Put (gasnetex_team_member_t team,
                     gasnetex_rank_t rank, void* dest,
                     /*const*/ void *src, // TODO-EX: uncomment const
                     size_t nbytes, gasnetex_flags_t flags
                     GASNETE_THREAD_FARG)
-  { gasnete_wait_syncnb(gasnete_put_nb(rank, dest, src, nbytes GASNETE_THREAD_PASS)); }
- #endif
+  { gasnete_wait_syncnb(gasnete_Put_nb(team, rank, dest, src, nbytes, GASNETEX_LC_SYNC, flags GASNETE_THREAD_PASS)); }
 #endif
 
 #if GASNETI_DIRECT_MEMSET
@@ -618,7 +604,7 @@ gasnet_handle_t _gasnet_put_nb_val (gasnet_node_t node, void *dest, gasnet_regis
       return gasnete_put_nb_val(node, dest, value, nbytes GASNETE_THREAD_PASS);
     #else
       { gasnet_register_value_t src = value;
-        return gasnete_put_nb(node, dest, GASNETE_STARTOFBITS(&src,nbytes), nbytes GASNETE_THREAD_PASS);
+        return gasnete_Put_nb(NULL, node, dest, GASNETE_STARTOFBITS(&src,nbytes), nbytes, GASNETEX_LC_INIT, 0 GASNETE_THREAD_PASS);
       }
     #endif
   }
@@ -778,6 +764,9 @@ GASNETI_END_EXTERNC
 #endif
 #if GASNETI_DIRECT_GET_NBI
   #error "out-of-date #define of GASNETI_DIRECT_GET_NBI"
+#endif
+#if GASNETI_DIRECT_GET_NB
+  #error "out-of-date #define of GASNETI_DIRECT_GET_NB"
 #endif
 
 

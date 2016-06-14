@@ -16,32 +16,33 @@
   =========================================================
  */
 
-GASNETI_INLINE(gasnete_get_nb_bulk) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t gasnete_get_nb_bulk(void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG)
+GASNETI_INLINE(gasnete_Get_nb) GASNETI_WARN_UNUSED_RESULT
+gasnet_handle_t gasnete_Get_nb( // TODO-EX: return type!
+                     gasnetex_team_member_t team,
+                     void *dest,
+                     gasnetex_rank_t node, void *src, // TODO-EX: node -> rank when CHECKPSHM updated
+                     size_t nbytes,
+                     gasnetex_flags_t flags GASNETE_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GET(UNALIGNED,H);
   gasneti_assert(0 && "Unreachable");
   return GASNET_INVALID_HANDLE;
 }
-#define gasnete_get_nb_bulk gasnete_get_nb_bulk
+#define gasnete_Get_nb gasnete_Get_nb
 
-GASNETI_INLINE(gasnete_put_nb) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t gasnete_put_nb(gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG)
-{
-  GASNETI_CHECKPSHM_PUT(ALIGNED,H);
-  gasneti_assert(0 && "Unreachable");
-  return GASNET_INVALID_HANDLE;
-}
-#define gasnete_put_nb gasnete_put_nb
-
-GASNETI_INLINE(gasnete_put_nb_bulk) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t gasnete_put_nb_bulk(gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG)
+GASNETI_INLINE(gasnete_Put_nb) GASNETI_WARN_UNUSED_RESULT
+gasnet_handle_t gasnete_Put_nb( // TODO-EX: return type!
+                     gasnetex_team_member_t team,
+                     gasnetex_rank_t node, void *dest, // TODO-EX: node -> rank when CHECKPSHM updated
+                     void *src,
+                     size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                     gasnetex_flags_t flags GASNETE_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
   gasneti_assert(0 && "Unreachable");
   return GASNET_INVALID_HANDLE;
 }
-#define gasnete_put_nb_bulk gasnete_put_nb_bulk
+#define gasnete_Put_nb gasnete_Put_nb
 
 GASNETI_INLINE(gasnete_memset_nb) GASNETI_WARN_UNUSED_RESULT
 gasnet_handle_t gasnete_memset_nb(gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG)

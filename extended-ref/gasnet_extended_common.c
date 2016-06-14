@@ -383,9 +383,9 @@ extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, 
 #endif
   else {
     #ifndef GASNETE_VALGET_GETOP
-    #define GASNETE_VALGET_GETOP gasnete_get_nb
+    #define GASNETE_VALGET_GETOP gasnete_Get_nb
     #endif
-    retval->handle = GASNETE_VALGET_GETOP(GASNETE_STARTOFBITS(&(retval->val),nbytes), node, src, nbytes GASNETE_THREAD_PASS);
+    retval->handle = GASNETE_VALGET_GETOP(NULL, GASNETE_STARTOFBITS(&(retval->val),nbytes), node, src, nbytes, 0 GASNETE_THREAD_PASS);
   }
   return retval;
 }

@@ -114,10 +114,6 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
  * Alternatively, one can #define GASNETE_HAVE_EXTENDED_HELP_EXTRA_H and defined
  * these in a conduit-specific gasnet_extended_help_extra.h.
  *
- * GASNETI_DIRECT_GET_NB
- *   unset: gasnete_get_nb() maps to gasnete_get_nb_bulk()
- *   set: conduit provides it own gasnete_get_nb()
- *
  * GASNETI_DIRECT_WAIT_SYNCNB 
  *   unset: gasnete_wait_syncnb(h) via gasneti_pollwhile(gasnete_try_syncnb(h))
  *   set: conduit provides it own gasnete_wait_syncnb()

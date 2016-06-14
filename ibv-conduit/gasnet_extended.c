@@ -346,16 +346,22 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 /* ------------------------------------------------------------------------------------ */
 
 /* Conduits not using the gasnete_amref_ versions should implement at least the following:
-     gasnete_get_nb_bulk
-     gasnete_put_nb
-     gasnete_put_nb_bulk
+     gasnete_Get_nb
+     gasnete_Put_nb
      gasnete_memset_nb
 */
 
 #define GASNETE_EOP_CNTRS(_eop) \
         &(_eop)->initiated_cnt, &(_eop)->completed_cnt
 
-extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+extern
+gasnet_handle_t gasnete_Get_nb( // TODO-EX: return type!
+                     gasnetex_team_member_t team,
+                     void *dest,
+                     gasnetex_rank_t node, void *src, // TODO-EX: node -> rank when CHECKPSHM updated
+                     size_t nbytes,
+                     gasnetex_flags_t flags GASNETE_THREAD_FARG)
+{
   GASNETI_CHECKPSHM_GET(UNALIGNED,H);
  {
   gasnete_eop_t *op = _gasnete_eop_new(GASNETE_MYTHREAD);
@@ -367,27 +373,34 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
  }
 }
 
-extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+extern
+gasnet_handle_t gasnete_Put_nb( // TODO-EX: return type!
+                     gasnetex_team_member_t team,
+                     gasnetex_rank_t node, void *dest, // TODO-EX: node -> rank when CHECKPSHM updated
+                     void *src,
+                     size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                     gasnetex_flags_t flags GASNETE_THREAD_FARG)
+{
   GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
  {
   gasnete_eop_t *op = _gasnete_eop_new(GASNETE_MYTHREAD);
-  gasnetc_counter_t mem_oust = GASNETC_COUNTER_INITIALIZER;
+  gasnetc_counter_t mem_counter = GASNETC_COUNTER_INITIALIZER;
+  gasnetc_counter_t *mem_oust = NULL;
 
   /* XXX check error returns */
-  gasnetc_rdma_put(node, src, dest, nbytes, &mem_oust, GASNETE_EOP_CNTRS(op) GASNETE_THREAD_PASS);
-  gasnetc_counter_wait(&mem_oust, 0);
 
-  return (gasnet_handle_t)op;
- }
-}
+  if (gasneti_lc_is_pointer(lc_opt)) {
+    gasneti_fatalerror("Put_nbi(lc_opt pointer) unimplemented"); // TODO-EX: fix this
+  } else if (lc_opt == GASNETEX_LC_INIT) {
+    mem_oust = &mem_counter;
+  } else if (lc_opt == GASNETEX_LC_SYNC) {
+    mem_oust = NULL;
+  } else {
+    gasneti_fatalerror("Invalid lc_opt argument to Put_nbi");
+  }
 
-extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
- {
-  gasnete_eop_t *op = _gasnete_eop_new(GASNETE_MYTHREAD);
-
-  /* XXX check error returns */
-  gasnetc_rdma_put(node, src, dest, nbytes, NULL, GASNETE_EOP_CNTRS(op) GASNETE_THREAD_PASS);
+  gasnetc_rdma_put(node, src, dest, nbytes, mem_oust, GASNETE_EOP_CNTRS(op) GASNETE_THREAD_PASS);
+  if (lc_opt == GASNETEX_LC_INIT) gasnetc_counter_wait(mem_oust, 0);
 
   return (gasnet_handle_t)op;
  }
