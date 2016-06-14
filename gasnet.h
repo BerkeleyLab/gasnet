@@ -341,6 +341,7 @@ typedef struct gasneti_team_s *gasnetex_team_member_t;
 /* extended types */
 
 #ifndef _GASNETEX_HANDLE_T
+  /*  an opaque type representing a non-blocking operation in-progress initiated using the extended API */
   struct gasneti_handle_s;
   typedef struct gasneti_handle_s *gasnetex_handle_t;
 #endif

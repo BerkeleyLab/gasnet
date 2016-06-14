@@ -16,12 +16,6 @@
 #define GASNET_EXTENDED_NAME         REFERENCE
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
 
-
-#define _GASNET_HANDLE_T
-/*  an opaque type representing a non-blocking operation in-progress initiated using the extended API */
-struct _gasnete_op_t;
-typedef struct _gasnete_op_t *gasnet_handle_t;
-#define GASNET_INVALID_HANDLE ((gasnet_handle_t)0)
 #define GASNETI_EOP_IS_HANDLE 1
 
   /* if conduit-internal threads may call the Extended API and/or they may run
