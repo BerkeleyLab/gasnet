@@ -440,7 +440,6 @@ typedef union {
   #define GASNETE_THREAD_PASS         , GASNETE_THREAD_PASS_ALONE
   #define GASNETE_THREAD_LOOKUP       GASNETE_THREAD_FARG_ALONE = GASNETE_THREAD_GET_ALONE;
   #define GASNETE_THREAD_SWALLOW(x)
-  #define GASNETE_TISTARTOFBITS(ptr,nbytes,ti) GASNETE_STARTOFBITS(ptr,nbytes)
   #define GASNETE_MYTHREAD            ((struct _gasnete_threaddata_t *)_threadinfo)
 #else
   #define GASNETE_THREAD_FARG_ALONE   void
@@ -451,7 +450,6 @@ typedef union {
   #define GASNETE_THREAD_PASS         
   #define GASNETE_THREAD_LOOKUP
   #define GASNETE_THREAD_SWALLOW(x)
-  #define GASNETE_TISTARTOFBITS       GASNETE_STARTOFBITS
   #define GASNETE_MYTHREAD            (gasnete_mythread())
 #endif
 /* ------------------------------------------------------------------------------------ */

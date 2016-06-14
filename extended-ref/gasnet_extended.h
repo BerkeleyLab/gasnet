@@ -504,14 +504,6 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) G
  #endif
 #endif
 
-#if 1 // TODO-EX: remove gasnete_putTI when put_val is removed
-  #if GASNETI_THREADINFO_OPT
-    #define gasnete_putTI(node,dest,src,nbytes,ti) gasnete_Put(NULL,node,dest,src,nbytes,0 GASNETE_THREAD_PASS)
-  #else
-    #define gasnete_putTI(node,dest,src,nbytes) gasnete_Put(NULL,node,dest,src,nbytes,0)
-  #endif
-#endif
-
 #if GASNETI_DIRECT_BLOCKING_PUT
   extern void gasnete_Put (gasnetex_team_member_t team,
                            gasnetex_rank_t rank, void* dest,
@@ -608,10 +600,11 @@ void  _gasnet_memset (gasnet_node_t node, void *dest, int val, size_t nbytes GAS
 #if GASNETI_DIRECT_PUT_VAL
   extern void gasnete_put_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG);
 #elif !defined(gasnete_put_val)
-  #define gasnete_put_val(node, dest, value, nbytesTI) do {                    \
-    gasnet_register_value_t src = value;                                       \
-    gasnete_putTI(node, dest, GASNETE_TISTARTOFBITS(&src,nbytesTI), nbytesTI); \
-  } while (0)
+  GASNETI_INLINE(gasnete_put_val)
+  void gasnete_put_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG) {
+    gasnet_register_value_t src = value;
+    gasnete_Put(NULL, node, dest, GASNETE_STARTOFBITS(&src,nbytes), nbytes, 0 GASNETE_THREAD_PASS);
+  }
 #endif
 
 GASNETI_INLINE(_gasnet_put_val)
