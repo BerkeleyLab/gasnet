@@ -17,7 +17,7 @@
  */
 
 GASNETI_INLINE(gasnete_Get_nb) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t gasnete_Get_nb( // TODO-EX: return type!
+gasnetex_handle_t gasnete_Get_nb(
                      gasnetex_team_member_t team,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
@@ -26,12 +26,12 @@ gasnet_handle_t gasnete_Get_nb( // TODO-EX: return type!
 {
   GASNETI_CHECKPSHM_GET(H);
   gasneti_assert(0 && "Unreachable");
-  return GASNET_INVALID_HANDLE;
+  return GASNETEX_INVALID_HANDLE;
 }
 #define gasnete_Get_nb gasnete_Get_nb
 
 GASNETI_INLINE(gasnete_Put_nb) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t gasnete_Put_nb( // TODO-EX: return type!
+gasnetex_handle_t gasnete_Put_nb(
                      gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
@@ -40,7 +40,7 @@ gasnet_handle_t gasnete_Put_nb( // TODO-EX: return type!
 {
   GASNETI_CHECKPSHM_PUT(H);
   gasneti_assert(0 && "Unreachable");
-  return GASNET_INVALID_HANDLE;
+  return GASNETEX_INVALID_HANDLE;
 }
 #define gasnete_Put_nb gasnete_Put_nb
 

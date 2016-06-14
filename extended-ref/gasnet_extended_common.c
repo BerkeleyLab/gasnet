@@ -345,7 +345,7 @@ static gasnete_threaddata_t * gasnete_new_threaddata(void)) {
 */
 #ifndef GASNETE_VALGET_CUSTOM
 typedef struct _gasnete_valget_op_t {
-  gasnet_handle_t handle;
+  gasnetex_handle_t handle;
   gasnet_register_value_t val;
 
   struct _gasnete_valget_op_t* next; /* for free-list only */
@@ -373,12 +373,12 @@ extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, 
     /* Assume that addr2local on local node is cheaper than an extra branch */
     GASNETE_FAST_ALIGNED_MEMCPY(GASNETE_STARTOFBITS(&(retval->val),nbytes),
                                 gasneti_pshm_addr2local(node, src), nbytes);
-    retval->handle = GASNET_INVALID_HANDLE;
+    retval->handle = GASNETEX_INVALID_HANDLE;
   }
 #else
   if (gasnete_islocal(node)) {
     GASNETE_FAST_ALIGNED_MEMCPY(GASNETE_STARTOFBITS(&(retval->val),nbytes), src, nbytes);
-    retval->handle = GASNET_INVALID_HANDLE;
+    retval->handle = GASNETEX_INVALID_HANDLE;
   }
 #endif
   else {

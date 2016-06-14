@@ -355,7 +355,7 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
         &(_eop)->initiated_cnt, &(_eop)->completed_cnt
 
 extern
-gasnet_handle_t gasnete_Get_nb( // TODO-EX: return type!
+gasnetex_handle_t gasnete_Get_nb(
                      gasnetex_team_member_t team,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
@@ -369,12 +369,12 @@ gasnet_handle_t gasnete_Get_nb( // TODO-EX: return type!
   /* XXX check error returns */
   gasnetc_rdma_get(rank, src, dest, nbytes, GASNETE_EOP_CNTRS(op) GASNETE_THREAD_PASS);
 
-  return (gasnet_handle_t)op;
+  return (gasnetex_handle_t)op;
  }
 }
 
 extern
-gasnet_handle_t gasnete_Put_nb( // TODO-EX: return type!
+gasnetex_handle_t gasnete_Put_nb(
                      gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
@@ -402,7 +402,7 @@ gasnet_handle_t gasnete_Put_nb( // TODO-EX: return type!
   gasnetc_rdma_put(rank, src, dest, nbytes, mem_oust, GASNETE_EOP_CNTRS(op) GASNETE_THREAD_PASS);
   if (lc_opt == GASNETEX_LC_INIT) gasnetc_counter_wait(mem_oust, 0);
 
-  return (gasnet_handle_t)op;
+  return (gasnetex_handle_t)op;
  }
 }
 

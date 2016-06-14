@@ -498,7 +498,7 @@ void gasnete_amref_put_nbi_inner(gasnetex_team_member_t team,
 
 #if GASNETE_BUILD_AMREF_GET
 extern
-gasnet_handle_t gasnete_Get_nb( // TODO-EX: return type!
+gasnetex_handle_t gasnete_Get_nb(
                      gasnetex_team_member_t team,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
@@ -512,7 +512,7 @@ gasnet_handle_t gasnete_Get_nb( // TODO-EX: return type!
     gasnetex_AMRequestShort(team, rank, gasneti_handleridx(gasnete_amref_get_reqh), 0,
                    (gasnet_handlerarg_t)nbytes, PACK(dest), PACK(src), PACK_EOP_DONE(op));
 
-    return (gasnet_handle_t)op;
+    return (gasnetex_handle_t)op;
   } else {
     /* TODO: don't need the iop for large xfers in the GASNETE_EOP_COUNTED case */
     /*  need many messages - use an access region to coalesce them into a single handle */
@@ -528,7 +528,7 @@ gasnet_handle_t gasnete_Get_nb( // TODO-EX: return type!
 
 #if GASNETE_BUILD_AMREF_PUT
 extern
-gasnet_handle_t gasnete_Put_nb( // TODO-EX: return type!
+gasnetex_handle_t gasnete_Put_nb(
                      gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
@@ -555,7 +555,7 @@ gasnet_handle_t gasnete_Put_nb( // TODO-EX: return type!
                              src, nbytes, GASNETEX_LC_INIT, 0,
                              PACK(dest), PACK_EOP_DONE(op));
 
-    return (gasnet_handle_t)op;
+    return (gasnetex_handle_t)op;
 #if GASNETE_USE_LONG_PUTS
   } else if (nbytes <= gasnet_AMMaxLongRequest()) {
     gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
@@ -570,7 +570,7 @@ gasnet_handle_t gasnete_Put_nb( // TODO-EX: return type!
                     PACK_EOP_DONE(op));
     }
 
-    return (gasnet_handle_t)op;
+    return (gasnetex_handle_t)op;
 #endif
   } else { 
     /* TODO: don't need the iop for large xfers in the GASNETE_EOP_COUNTED case */

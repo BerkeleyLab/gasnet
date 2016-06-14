@@ -46,7 +46,7 @@ extern void gasnete_init(void);
 */
 
 #ifndef gasnete_Put_nb
-  extern gasnet_handle_t gasnete_Put_nb( // TODO-EX: return type!!
+  extern gasnetex_handle_t gasnete_Put_nb(
                         gasnetex_team_member_t team,
                         gasnetex_rank_t rank, void *dest,
                         /*const*/ void *src,  // TODO-EX: un-comment const
@@ -55,7 +55,7 @@ extern void gasnete_init(void);
 #endif
 
 #ifndef gasnete_Get_nb
-  extern gasnet_handle_t gasnete_Get_nb( // TODO-EX: return type!!
+  extern gasnetex_handle_t gasnete_Get_nb(
                         gasnetex_team_member_t team, void *dest,
                         gasnetex_rank_t rank, void *src,
                         size_t nbytes, gasnetex_flags_t flags
@@ -67,7 +67,7 @@ extern void gasnete_init(void);
 #endif
 
 GASNETI_INLINE(_gasnetex_Get_nb) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t _gasnetex_Get_nb( // TODO-EX: return type!
+gasnetex_handle_t _gasnetex_Get_nb(
                         gasnetex_team_member_t team, void *dest,
                         gasnetex_rank_t rank, void *src,
                         size_t nbytes, gasnetex_flags_t flags
@@ -80,7 +80,7 @@ gasnet_handle_t _gasnetex_Get_nb( // TODO-EX: return type!
     GASNETI_TRACE_GET_LOCAL(NB,dest,rank,src,nbytes);
     GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
     gasnete_loopbackget_memsync();
-    return GASNET_INVALID_HANDLE;
+    return GASNETEX_INVALID_HANDLE;
   } else {
     GASNETI_TRACE_GET(NB,dest,rank,src,nbytes);
     return gasnete_Get_nb(team, dest, rank, src, nbytes, flags GASNETE_THREAD_PASS);
@@ -90,7 +90,7 @@ gasnet_handle_t _gasnetex_Get_nb( // TODO-EX: return type!
        _gasnetex_Get_nb(team,dest,rank,src,nbytes,flags GASNETE_THREAD_GET)
 
 GASNETI_INLINE(_gasnetex_Put_nb) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t _gasnetex_Put_nb( // TODO-EX: return type!
+gasnetex_handle_t _gasnetex_Put_nb(
                         gasnetex_team_member_t team,
                         gasnetex_rank_t rank, void *dest,
                         /*const*/ void *src,  // TODO-EX: un-comment const
@@ -104,7 +104,7 @@ gasnet_handle_t _gasnetex_Put_nb( // TODO-EX: return type!
     GASNETI_TRACE_PUT_LOCAL(NB,rank,dest,src,nbytes);
     GASNETE_FAST_ALIGNED_MEMCPY(dest, src, nbytes);
     gasnete_loopbackput_memsync();
-    return GASNET_INVALID_HANDLE;
+    return GASNETEX_INVALID_HANDLE;
   } else {
     GASNETI_TRACE_PUT(NB,rank,dest,src,nbytes);
     return gasnete_Put_nb(team, rank, dest, src, nbytes, lc_opt, flags GASNETE_THREAD_PASS);

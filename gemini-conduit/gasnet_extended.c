@@ -600,7 +600,7 @@ retry:
 */
 
 extern
-gasnet_handle_t gasnete_Get_nb( // TODO-EX: return type!
+gasnetex_handle_t gasnete_Get_nb(
                      gasnetex_team_member_t team,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
@@ -619,13 +619,13 @@ gasnet_handle_t gasnete_Get_nb( // TODO-EX: return type!
       gasnete_get_bulk_inner(dest, rank, src, nbytes, GASNETE_EOP_CNTRS(eop) GASNETC_DIDX_PASS);
     }
     gasneti_resume_spinpollers();
-    return (gasnet_handle_t) eop;
+    return (gasnetex_handle_t) eop;
   }
 }
 
 GASNETI_INLINE(gasnete_put_nb) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  gasnet_handle_t head_op = GASNET_INVALID_HANDLE;
+gasnetex_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+  gasnetex_handle_t head_op = GASNETEX_INVALID_HANDLE;
   gasnete_eop_t *tail_op;
   const size_t max_tail = gasnetc_max_put_lc;
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
@@ -638,7 +638,7 @@ gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src, size_
     const size_t head_len = nbytes - max_tail;
     gasnete_eop_t * const eop = _gasnete_eop_new(mythread);
     gasnete_put_bulk_inner(node, dest, src, head_len, GASNETE_EOP_CNTRS(eop) GASNETC_DIDX_PASS);
-    head_op = (gasnet_handle_t) eop;
+    head_op = (gasnetex_handle_t) eop;
     dest = (char *) dest + head_len;
     src  = (char *) src  + head_len;
     nbytes = max_tail;
@@ -655,22 +655,22 @@ gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src, size_
   gasnete_wait_syncnb(head_op);
 
   /* return the tail_op */
-  return (gasnet_handle_t)tail_op;
+  return (gasnetex_handle_t)tail_op;
 }
 
 GASNETI_INLINE(gasnete_put_nb_bulk) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+gasnetex_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_eop_t *eop = _gasnete_eop_new(mythread);
     GASNETC_DIDX_POST(mythread->domain_idx);
     gasneti_suspend_spinpollers();
     gasnete_put_bulk_inner(node, dest, src, nbytes, GASNETE_EOP_CNTRS(eop) GASNETC_DIDX_PASS);
     gasneti_resume_spinpollers();
-    return (gasnet_handle_t) eop;
+    return (gasnetex_handle_t) eop;
 }
 
 extern
-gasnet_handle_t gasnete_Put_nb( // TODO-EX: result type!
+gasnetex_handle_t gasnete_Put_nb(
                      gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
