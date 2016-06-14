@@ -513,41 +513,73 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) G
   ===================================
 */
 
-#if GASNETI_DIRECT_GET
-  extern void gasnete_get (void *dest, gasnet_node_t node, void *src,
-                           size_t nbytes GASNETE_THREAD_FARG);
-#elif !defined(gasnete_get)
-  #define gasnete_get gasnete_get_bulk
+// TODO-EX: remove these checks for conduits using legacy internal APIs
+#if GASNETI_DIRECT_GET // TODO-EX: sort this out
+  #error "out-of-date #define of GASNETI_DIRECT_GET"
 #endif
-
 #if GASNETI_DIRECT_GET_BULK
-  extern void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
-                                size_t nbytes GASNETE_THREAD_FARG);
-#elif !defined(gasnete_get_bulk)
-  #define gasnete_get_bulk(dest, node, src, nbytesTI) \
-    gasnete_wait_syncnb(gasnete_get_nb_bulk(dest, node, src, nbytesTI))
+  #error "out-of-date #define of GASNETI_DIRECT_GET_BULK"
+#elif defined(gasnete_get_bulk)
+  #error "out-of-date #define of gasnete_get_bulk"
+#endif
+#if GASNETI_DIRECT_PUT // TODO-EX: sort this out
+  #error "out-of-date #define of GASNETI_DIRECT_PUT"
+#endif
+#if GASNETI_DIRECT_PUT_BULK // TODO-EX: remove this
+  #error "out-of-date #define of GASNETI_DIRECT_PUT_BULK"
+#elif defined(gasnete_put_bulk)
+  #error "out-of-date #define of gasnete_put_bulk"
 #endif
 
-#if GASNETI_DIRECT_PUT
-  extern void gasnete_put (gasnet_node_t node, void* dest, void *src,
-                           size_t nbytes GASNETE_THREAD_FARG);
-  #define gasnete_putTI gasnete_put
-#elif !defined(gasnete_put)
-  /* only valid because this is blocking put */
-  #define gasnete_put   gasnete_put_bulk
+
+#if GASNETI_DIRECT_BLOCKING_GET
+  extern void gasnete_Get (gasnetex_team_member_t team,
+                           void *dest,
+                           gasnetex_rank_t rank, void *src,
+                           size_t nbytes, gasnetex_flags_t flags
+                           GASNETE_THREAD_FARG);
+#elif !defined(gasnete_Get)
+ #if 0 // TODO-EX: activate the following defn when _nb interface is updated:
+  #define gasnete_Get(team, dest, rank, src, nbytes, flagsTI) \
+    gasnete_wait_syncnb(gasnete_Get_nb(team, dest, rank, src, nbytes, flagsTI))
+ #else
+  GASNETI_INLINE(gasnete_Get)
+  void gasnete_Get(gasnetex_team_member_t team,
+                   void *dest,
+                   gasnetex_rank_t rank, void *src,
+                   size_t nbytes, gasnetex_flags_t flags
+                   GASNETE_THREAD_FARG)
+  { gasnete_wait_syncnb(gasnete_get_nb(dest, rank, src, nbytes GASNETE_THREAD_PASS)); }
+ #endif
+#endif
+
+#if 1 // TODO-EX: remove gasnete_putTI when put_val is removed
   #if GASNETI_THREADINFO_OPT
-    #define gasnete_putTI(node,dest,src,nbytes,ti) gasnete_put_bulk(node,dest,src,nbytes GASNETE_THREAD_PASS)
+    #define gasnete_putTI(node,dest,src,nbytes,ti) gasnete_Put(NULL,node,dest,src,nbytes,0 GASNETE_THREAD_PASS)
   #else
-    #define gasnete_putTI gasnete_put_bulk
+    #define gasnete_putTI(node,dest,src,nbytes) gasnete_Put(NULL,node,dest,src,nbytes,0)
   #endif
 #endif
 
-#if GASNETI_DIRECT_PUT_BULK
-  extern void gasnete_put_bulk (gasnet_node_t node, void* dest, void *src,
-                                size_t nbytes GASNETE_THREAD_FARG);
-#elif !defined(gasnete_put_bulk)
-  #define gasnete_put_bulk(node, dest, src, nbytesTI) \
-    gasnete_wait_syncnb(gasnete_put_nb_bulk(node, dest, src, nbytesTI))
+#if GASNETI_DIRECT_BLOCKING_PUT
+  extern void gasnete_Put (gasnetex_team_member_t team,
+                           gasnetex_rank_t rank, void* dest,
+                           /*const*/ void *src, // TODO-EX: uncomment const
+                           size_t nbytes, gasnetex_flags_t flags
+                           GASNETE_THREAD_FARG);
+#elif !defined(gasnete_Put)
+ #if 0 // TODO-EX: activate the following defn when _nb interface is updated:
+  #define gasnete_Put(team, rank, dest, src, nbytes, flagsTI) \
+    gasnete_wait_syncnb(gasnete_Put_nb(team, rank, dest, src, nbytes, flagsTI))
+ #else
+  GASNETI_INLINE(gasnete_Put)
+  void gasnete_Put (gasnetex_team_member_t team,
+                    gasnetex_rank_t rank, void* dest,
+                    /*const*/ void *src, // TODO-EX: uncomment const
+                    size_t nbytes, gasnetex_flags_t flags
+                    GASNETE_THREAD_FARG)
+  { gasnete_wait_syncnb(gasnete_put_nb(rank, dest, src, nbytes GASNETE_THREAD_PASS)); }
+ #endif
 #endif
 
 #if GASNETI_DIRECT_MEMSET
@@ -573,7 +605,7 @@ void _gasnetex_Get (gasnetex_team_member_t team, void *dest,
     gasnete_loopbackget_memsync();
   } else {
     GASNETI_TRACE_GET_NAMED(GET,NONLOCAL,dest,rank,src,nbytes);
-    gasnete_get(dest, rank, src, nbytes GASNETE_THREAD_PASS);
+    gasnete_Get(team, dest, rank, src, nbytes, flags GASNETE_THREAD_PASS);
   }
 }
 #define gasnetex_Get(team,dest,rank,src,nbytes,flags) \
@@ -583,8 +615,8 @@ GASNETI_INLINE(_gasnetex_Put)
 void _gasnetex_Put (gasnetex_team_member_t team,
                     gasnetex_rank_t rank, void *dest,
                     /*const*/ void *src,  // TODO-EX: un-comment const
-                    size_t nbytes, gasnetex_flags_t
-                    flags GASNETE_THREAD_FARG) {
+                    size_t nbytes, gasnetex_flags_t flags
+                    GASNETE_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_PUT_NAMED(PUT_LOCAL,LOCAL,rank,dest,src,nbytes),V);
   gasneti_boundscheck(rank, dest, nbytes);
   gasnete_aligncheck(src, nbytes);
@@ -595,7 +627,7 @@ void _gasnetex_Put (gasnetex_team_member_t team,
     gasnete_loopbackput_memsync();
   } else {
     GASNETI_TRACE_PUT_NAMED(PUT,NONLOCAL,rank,dest,src,nbytes);
-    gasnete_put(rank, dest, src, nbytes GASNETE_THREAD_PASS);
+    gasnete_Put(team, rank, dest, src, nbytes, flags GASNETE_THREAD_PASS);
   }
 }
 #define gasnetex_Put(team,rank,dest,src,nbytes,flags) \
@@ -763,7 +795,7 @@ gasnet_register_value_t _gasnet_get_val (gasnet_node_t node, void *src, size_t n
       return gasnete_get_val(node, src, nbytes GASNETE_THREAD_PASS);
     #else
       { gasnet_register_value_t val = 0;
-        gasnete_get(GASNETE_STARTOFBITS(&val,nbytes), node, src, nbytes GASNETE_THREAD_PASS);
+        gasnete_Get(NULL, GASNETE_STARTOFBITS(&val,nbytes), node, src, nbytes, 0 GASNETE_THREAD_PASS);
         return val;
       }
     #endif

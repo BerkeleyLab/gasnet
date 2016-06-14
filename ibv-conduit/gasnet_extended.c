@@ -636,8 +636,12 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
 #define GASNETE_REQ_CNTRS(_req) \
         &(_req).initiated, &(_req).completed
 
-extern void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
-			      size_t nbytes GASNETE_THREAD_FARG) {
+// TODO-EX: node -> rank once CHECKPSHM is updated
+extern void gasnete_Get (gasnetex_team_member_t team,
+                         void* dest,
+                         gasnetex_rank_t node, void *src,
+                         size_t nbytes, gasnetex_flags_t flags
+                         GASNETE_THREAD_FARG) {
   GASNETI_CHECKPSHM_GET(UNALIGNED,V);
  {
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
@@ -646,8 +650,12 @@ extern void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
  }
 }
 
-extern void gasnete_put_bulk (gasnet_node_t node, void* dest, void *src,
-			      size_t nbytes GASNETE_THREAD_FARG) {
+// TODO-EX: node -> rank once CHECKPSHM is updated
+extern void gasnete_Put (gasnetex_team_member_t team,
+                         gasnetex_rank_t node, void* dest,
+                         /*const*/ void *src,
+                         size_t nbytes, gasnetex_flags_t flags
+                         GASNETE_THREAD_FARG) {
   GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
  {
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;

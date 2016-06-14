@@ -95,17 +95,13 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
  *   unset: gasnete_wait_syncnbi_all() via gasneti_pollwhile(gasnete_try_syncnbi_{gets,puts}())
  *   set: conduit provides it own gasneti_wait_syncnbi_all()
  *
- * GASNETI_DIRECT_GET
- *   unset: gasnete_get() maps to gasnete_get_bulk()
- *   set: conduit provides it own gasnete_get()
+ * GASNETI_DIRECT_BLOCKING_GET
+ *   unset: gasnete_Get() via gasnete_wait_syncnb(gasnete_Get_nb())
+ *   set: conduit provides it own gasnete_Get()
  *
- * GASNETI_DIRECT_PUT
- *   unset: gasnete_put() maps to gasnete_put_bulk()
- *   set: conduit provides it own gasnete_put()
- *
- * GASNETI_DIRECT_PUT_BULK
- *   unset: gasnete_put_bulk() via gasnete_wait_syncnb(gasnete_put_nb_bulk())
- *   set: conduit provides it own gasnete_put_bulk()
+ * GASNETI_DIRECT_BLOCKING_PUT
+ *   unset: gasnete_Put() via gasnete_wait_syncnb(gasnete_Put_nb())
+ *   set: conduit provides it own gasnete_Put()
  *
  * GASNETI_DIRECT_MEMSET
  *   unset: gasnete_memset() via gasnete_wait_syncnb(gasnete_memset_nb())

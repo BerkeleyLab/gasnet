@@ -55,8 +55,8 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
 #define GASNETE_AUXSEG_FNS() gasnete_barr_auxseg_alloc, 
 
 /* We perform these blocking ops w/o the overhead of eop alloc/free: */
-#define GASNETI_DIRECT_GET_BULK 1
-#define GASNETI_DIRECT_PUT_BULK 1
+#define GASNETI_DIRECT_BLOCKING_GET 1
+#define GASNETI_DIRECT_BLOCKING_PUT 1
 
 #define GASNETE_EOP_COUNTED 1
 #define GASNETE_EXTENDED_NEEDS_CORE 1
