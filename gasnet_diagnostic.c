@@ -867,11 +867,10 @@ static void progressfn_tester(int *counter) {
 #endif
   { static int tmp = 47;
     int sz;
-    gasnet_put_nbi(peer, peersegmid, &tmp, sizeof(tmp));
-    gasnet_get_nbi(&tmp, peer, peersegmid, sizeof(tmp));
+    gasnetex_Put_nbi(myteam, peer, peersegmid, &tmp, sizeof(tmp), GASNETEX_LC_INIT, 0);
     for (sz = 1; sz <= MIN(128*1024,TEST_SEGSZ/2); sz = (sz < 64?sz*2:sz*8)) {
-      gasnet_put_nbi_bulk(peer, peersegmid, myseg, sz);
-      gasnet_get_nbi_bulk(myseg, peer, peersegmid, sz);
+      gasnetex_Put_nbi(myteam, peer, peersegmid, myseg, sz, GASNETEX_LC_SYNC, 0);
+      gasnetex_Get_nbi(myteam, myseg, peer, peersegmid, sz, 0);
     }
     sz = gasnet_try_syncnbi_all();
     if (gasneti_diag_havehandlers) {

@@ -141,10 +141,10 @@ void *workerthread(void *args) {
             case 10: gasnetex_Get(myteam, &junk, peer, peerseg, sizeof(int), 0); break;
             case 11: gasnetex_Put(myteam, peer, peerseg, p, lim, 0); break;
             case 12: gasnetex_Get(myteam, p, peer, peerseg, lim, 0); break;
-            case 13: gasnet_put_nbi(peer, peerseg, &junk, sizeof(int)); break;
-            case 14: gasnet_get_nbi(&junk, peer, peerseg, sizeof(int)); break;
-            case 15: gasnet_put_nbi(peer, peerseg, p, lim); break;
-            case 16: gasnet_get_nbi(p, peer, peerseg, lim); break;
+            case 13: gasnetex_Put_nbi(myteam, peer, peerseg, &junk, sizeof(int), GASNETEX_LC_INIT, 0); break;
+            case 14: gasnetex_Get_nbi(myteam, &junk, peer, peerseg, sizeof(int), 0); break;
+            case 15: gasnetex_Put_nbi(myteam, peer, peerseg, p, lim, GASNETEX_LC_INIT, 0); break;
+            case 16: gasnetex_Get_nbi(myteam, p, peer, peerseg, lim, 0); break;
             case 17: gasnet_wait_syncnbi_all(); break;
           }
         }

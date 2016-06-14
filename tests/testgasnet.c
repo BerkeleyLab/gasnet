@@ -325,11 +325,11 @@ void doit2(int partner, int *partnerseg) {
     int i, success=1;
     for (i=0; i < 100; i++) {
       int tmp = mynode + i;
-      gasnet_put_nbi(partner, partnerseg+i, &tmp, sizeof(int));
+      gasnetex_Put_nbi(myteam, partner, partnerseg+i, &tmp, sizeof(int), GASNETEX_LC_INIT, 0);
     }
     gasnet_wait_syncnbi_puts();
     for (i=0; i < 100; i++) {
-      gasnet_get_nbi(&vals[i], partner, partnerseg+i, sizeof(int));
+      gasnetex_Get_nbi(myteam, &vals[i], partner, partnerseg+i, sizeof(int), 0);
     }
     gasnet_wait_syncnbi_gets();
     for (i=0; i < 100; i++) {
@@ -580,27 +580,27 @@ void doit5(int partner, int *partnerseg) {
             segpos[j] = val;
           }
         }
-        gasnet_put_nbi_bulk(partner, rsegpos, localpos, sz);
+        gasnetex_Put_nbi(myteam, partner, rsegpos, localpos, sz, GASNETEX_LC_SYNC, 0);
         gasnet_wait_syncnbi_puts();
 
-        gasnet_put_nbi(partner, rsegpos+elems, localpos, sz);
+        gasnetex_Put_nbi(myteam, partner, rsegpos+elems, localpos, sz, GASNETEX_LC_INIT, 0);
         memset(localpos, 0xCC, sz); /* clear */
         gasnet_wait_syncnbi_puts();
 
-        gasnet_put_nbi_bulk(partner, rsegpos+2*elems, segpos, sz);
+        gasnetex_Put_nbi(myteam, partner, rsegpos+2*elems, segpos, sz, GASNETEX_LC_SYNC, 0);
         gasnet_wait_syncnbi_puts();
 
-        gasnet_put_nbi(partner, rsegpos+3*elems, segpos, sz);
+        gasnetex_Put_nbi(myteam, partner, rsegpos+3*elems, segpos, sz, GASNETEX_LC_INIT, 0);
         memset(segpos, 0xCC, sz); /* clear */
         gasnet_wait_syncnbi_puts();
 
-        gasnet_get_nbi(localpos, partner, rsegpos, sz);
+        gasnetex_Get_nbi(myteam, localpos, partner, rsegpos, sz, 0);
         gasnet_wait_syncnbi_gets();
-        gasnet_get_nbi_bulk(localpos+elems, partner, rsegpos+elems, sz);
+        gasnetex_Get_nbi(myteam, localpos+elems, partner, rsegpos+elems, sz, 0);
         gasnet_wait_syncnbi_gets();
-        gasnet_get_nbi(segpos, partner, rsegpos+2*elems, sz);
+        gasnetex_Get_nbi(myteam, segpos, partner, rsegpos+2*elems, sz, 0);
         gasnet_wait_syncnbi_gets();
-        gasnet_get_nbi_bulk(segpos+elems, partner, rsegpos+3*elems, sz);
+        gasnetex_Get_nbi(myteam, segpos+elems, partner, rsegpos+3*elems, sz, 0);
         gasnet_wait_syncnbi_gets();
 
         for (j=0; j < elems*2; j++) {

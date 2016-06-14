@@ -277,6 +277,18 @@ extern gasnetex_team_member_t the_team;
 #define gasnet_get_bulk(dest,node,src,nbytes) \
                 gasnetex_Get(the_team,dest,node,src,nbytes,0)
 
+/* ------------------------------------------------------------------------------------ */
+/* Implicit-handle non-blocking Put and Get */
+#define gasnet_put_nbi(node,dest,src,nbytes) \
+                gasnetex_Put_nbi(the_team,node,dest,src,nbytes,GASNETEX_LC_INIT,0)
+#define gasnet_put_nbi_bulk(node,dest,src,nbytes) \
+                gasnetex_Put_nbi(the_team,node,dest,src,nbytes,GASNETEX_LC_SYNC,0)
+#define gasnet_get_nbi(dest,node,src,nbytes) \
+                gasnetex_Get_nbi(the_team,dest,node,src,nbytes,0)
+#define gasnet_get_nbi_bulk(dest,node,src,nbytes) \
+                gasnetex_Get_nbi(the_team,dest,node,src,nbytes,0)
+
+
 GASNETI_END_EXTERNC
 
 #endif

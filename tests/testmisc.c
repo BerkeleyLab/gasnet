@@ -340,15 +340,15 @@ void doit4(void) { GASNET_BEGIN_FUNCTION();
     TIME_OPERATION("local 4-byte gasnet_put_nb",
       { gasnet_wait_syncnb(gasnet_put_nb(mynode, myseg, &temp, 4)); });
 
-    TIME_OPERATION_FULL("local 4-byte gasnet_put_nbi", {},
-      { gasnet_put_nbi(mynode, myseg, &temp, 4); },
+    TIME_OPERATION_FULL("local 4-byte gasnetex_Put_nbi", {},
+      { gasnetex_Put_nbi(myteam, mynode, myseg, &temp, 4, GASNETEX_LC_INIT, 0); },
       { gasnet_wait_syncnbi_puts(); });
 
     TIME_OPERATION("local 4-byte gasnet_put_nb_bulk",
       { gasnet_wait_syncnb(gasnet_put_nb_bulk(mynode, myseg, &temp, 4)); });
 
-    TIME_OPERATION_FULL("local 4-byte gasnet_put_nbi_bulk", {},
-      { gasnet_put_nbi(mynode, myseg, &temp, 4); },
+    TIME_OPERATION_FULL("local 4-byte gasnetex_Put_nbi/bulk", {},
+      { gasnetex_Put_nbi(myteam, mynode, myseg, &temp, 4, GASNETEX_LC_SYNC, 0); },
       { gasnet_wait_syncnbi_puts(); });
 
     TIME_OPERATION("local 4-byte gasnet_put_val",
@@ -375,16 +375,12 @@ void doit5(void) { GASNET_BEGIN_FUNCTION();
     TIME_OPERATION("local 4-byte gasnet_get_nb",
       { gasnet_wait_syncnb(gasnet_get_nb(&temp, mynode, myseg, 4)); });
 
-    TIME_OPERATION_FULL("local 4-byte gasnet_get_nbi", {},
-      { gasnet_get_nbi(&temp, mynode, myseg, 4); },
+    TIME_OPERATION_FULL("local 4-byte gasnetex_Get_nbi", {},
+      { gasnetex_Get_nbi(myteam, &temp, mynode, myseg, 4, 0); },
       { gasnet_wait_syncnbi_gets(); });
 
     TIME_OPERATION("local 4-byte gasnet_get_nb_bulk",
       { gasnet_wait_syncnb(gasnet_get_nb_bulk(&temp, mynode, myseg, 4)); });
-
-    TIME_OPERATION_FULL("local 4-byte gasnet_get_nbi_bulk", {},
-      { gasnet_get_nbi_bulk(&temp, mynode, myseg, 4); },
-      { gasnet_wait_syncnbi_gets(); });
 
     TIME_OPERATION("local 4-byte gasnet_get_val",
       { temp = (int32_t)gasnet_get_val(mynode, myseg, 4); });

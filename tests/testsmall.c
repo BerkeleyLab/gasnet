@@ -207,7 +207,7 @@ void roundtrip_nbi_test(int iters, int nbytes)
 		/* measure the round-trip time of nonblocking implicit put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnet_put_nbi(peerproc, tgtmem, msgbuf, nbytes);
+			gasnetex_Put_nbi(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_LC_INIT, 0);
 			gasnet_wait_syncnbi_puts();
 		}
 		end = TIME();
@@ -217,7 +217,7 @@ void roundtrip_nbi_test(int iters, int nbytes)
 	BARRIER();
 	
 	if (iamsender && doputs) {
-		print_stat(myproc, &st, "put_nbi latency", PRINT_LATENCY);
+		print_stat(myproc, &st, "Put_nbi latency", PRINT_LATENCY);
 	}	
 
 
@@ -228,7 +228,7 @@ void roundtrip_nbi_test(int iters, int nbytes)
 		/* measure the round-trip time of nonblocking implicit get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gasnet_get_nbi(ackbuf, peerproc, tgtmem, nbytes);
+	 		gasnetex_Get_nbi(myteam, ackbuf, peerproc, tgtmem, nbytes, 0);
 			gasnet_wait_syncnbi_gets();
 		}
 		end = TIME();
@@ -238,7 +238,7 @@ void roundtrip_nbi_test(int iters, int nbytes)
 	BARRIER();
 	
 	if (iamsender && dogets) {
-		print_stat(myproc, &st, "get_nbi latency", PRINT_LATENCY);
+		print_stat(myproc, &st, "Get_nbi latency", PRINT_LATENCY);
 	}	
 
 }
@@ -261,7 +261,7 @@ void oneway_nbi_test(int iters, int nbytes)
 		/* measure the throughput of nonblocking implicit put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnet_put_nbi(peerproc, tgtmem, msgbuf, nbytes);
+			gasnetex_Put_nbi(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_LC_INIT, 0);
 		}
 		gasnet_wait_syncnbi_puts();
 		end = TIME();
@@ -271,7 +271,7 @@ void oneway_nbi_test(int iters, int nbytes)
 	BARRIER();
 	
 	if (iamsender && doputs) {
-		print_stat(myproc, &st, "put_nbi throughput", PRINT_THROUGHPUT);
+		print_stat(myproc, &st, "Put_nbi throughput", PRINT_THROUGHPUT);
 	}	
 
 	/* initialize statistics */
@@ -281,7 +281,7 @@ void oneway_nbi_test(int iters, int nbytes)
 		/* measure the throughput of nonblocking implicit get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gasnet_get_nbi(ackbuf, peerproc, tgtmem, nbytes);
+	 		gasnetex_Get_nbi(myteam, ackbuf, peerproc, tgtmem, nbytes, 0);
 		}
 		gasnet_wait_syncnbi_gets();
 		end = TIME();
@@ -291,7 +291,7 @@ void oneway_nbi_test(int iters, int nbytes)
 	BARRIER();
 	
 	if (iamsender && dogets) {
-		print_stat(myproc, &st, "get_nbi throughput", PRINT_THROUGHPUT);
+		print_stat(myproc, &st, "Get_nbi throughput", PRINT_THROUGHPUT);
 	}	
 }
 
@@ -560,8 +560,8 @@ int main(int argc, char **argv)
            for (i = 0; i < warm_iters; i++) {
               gasnetex_Put(myteam, peerproc, tgtmem, msgbuf, 8, 0);
               gasnetex_Get(myteam, msgbuf, peerproc, tgtmem, 8, 0);
-              gasnet_put_nbi(peerproc, tgtmem, msgbuf, 8);
-              gasnet_get_nbi(msgbuf, peerproc, tgtmem, 8);
+              gasnetex_Put_nbi(myteam, peerproc, tgtmem, msgbuf, 8, GASNETEX_LC_INIT, 0);
+              gasnetex_Get_nbi(myteam, msgbuf, peerproc, tgtmem, 8, 0);
               h[i] = gasnet_put_nb(peerproc, tgtmem, msgbuf, 8);
               h[i+warm_iters] = gasnet_get_nb(msgbuf, peerproc, tgtmem, 8);
            }

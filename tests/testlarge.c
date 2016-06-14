@@ -167,7 +167,7 @@ void bulk_test_nbi(int iters) {GASNET_BEGIN_FUNCTION();
 			/* measure the throughput of sending a message */
 			begin = TIME();
 			for (i = 0; i < iters; i++) {
-				gasnet_put_nbi_bulk(peerproc, tgtmem, msgbuf, payload);
+				gasnetex_Put_nbi(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_LC_SYNC, 0);
 			}
 			gasnet_wait_syncnbi_puts();
 			end = TIME();
@@ -177,7 +177,7 @@ void bulk_test_nbi(int iters) {GASNET_BEGIN_FUNCTION();
 		BARRIER();
 
 		if (iamsender && doputs) {
-			print_stat(myproc, &stput, "put_nbi_bulk throughput", PRINT_THROUGHPUT);
+			print_stat(myproc, &stput, "Put_nbi throughput", PRINT_THROUGHPUT);
 		}	
 	
 		init_stat(&stget, payload);
@@ -186,7 +186,7 @@ void bulk_test_nbi(int iters) {GASNET_BEGIN_FUNCTION();
 			/* measure the throughput of receiving a message */
 			begin = TIME();
 			for (i = 0; i < iters; i++) {
-			    gasnet_get_nbi_bulk(msgbuf, peerproc, tgtmem, payload);
+			    gasnetex_Get_nbi(myteam, msgbuf, peerproc, tgtmem, payload, 0);
 			}
 			gasnet_wait_syncnbi_gets();
 			end = TIME();
@@ -196,7 +196,7 @@ void bulk_test_nbi(int iters) {GASNET_BEGIN_FUNCTION();
 		BARRIER();
 
 		if (iamsender && dogets) {
-			print_stat(myproc, &stget, "get_nbi_bulk throughput", PRINT_THROUGHPUT);
+			print_stat(myproc, &stget, "Get_nbi throughput", PRINT_THROUGHPUT);
 		}	
 
 	}
@@ -400,8 +400,8 @@ int main(int argc, char **argv)
            for (i = 0; i < warm_iters; i++) {
               gasnetex_Put(myteam, peerproc, tgtmem, msgbuf, 8, 0);
               gasnetex_Get(myteam, msgbuf, peerproc, tgtmem, 8, 0);
-              gasnet_put_nbi_bulk(peerproc, tgtmem, msgbuf, 8);
-              gasnet_get_nbi_bulk(msgbuf, peerproc, tgtmem, 8);
+              gasnetex_Put_nbi(myteam, peerproc, tgtmem, msgbuf, 8, GASNETEX_LC_SYNC, 0);
+              gasnetex_Get_nbi(myteam, msgbuf, peerproc, tgtmem, 8, 0);
               h[i] = gasnet_put_nb_bulk(peerproc, tgtmem, msgbuf, 8);
               h[i+warm_iters] = gasnet_get_nb_bulk(msgbuf, peerproc, tgtmem, 8);
            }

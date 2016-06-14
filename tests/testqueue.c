@@ -381,14 +381,8 @@ void do_bulkputgets(void) {
     }
 
     if (do_puts && do_bulk && do_implicit) {
-      QUEUE_TEST("gasnet_put_nbi_bulk", 
-                 gasnet_put_nbi_bulk(peerproc, tgtmem, msgbuf, payload), 
-                 gasnet_wait_syncnbi_all(), (void)0, 0);
-    }
-
-    if (do_gets && do_bulk && do_implicit) {
-      QUEUE_TEST("gasnet_get_nbi_bulk", 
-                 gasnet_get_nbi_bulk(msgbuf, peerproc, tgtmem, payload), 
+      QUEUE_TEST("gasnetex_Put_nbi/bulk", 
+                 gasnetex_Put_nbi(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_LC_SYNC, 0), 
                  gasnet_wait_syncnbi_all(), (void)0, 0);
     }
 }
@@ -406,14 +400,14 @@ void do_nonbulkputgets(void) {
     }
 
     if (do_puts && do_nonbulk && do_implicit) {
-      QUEUE_TEST("gasnet_put_nbi", 
-                 gasnet_put_nbi(peerproc, tgtmem, msgbuf, payload), 
+      QUEUE_TEST("gasnetex_Put_nbi", 
+                 gasnetex_Put_nbi(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_LC_INIT, 0), 
                  gasnet_wait_syncnbi_all(), (void)0, 0);
     }
 
-    if (do_gets && do_nonbulk && do_implicit) {
-      QUEUE_TEST("gasnet_get_nbi", 
-                 gasnet_get_nbi(msgbuf, peerproc, tgtmem, payload), 
+    if (do_gets && do_implicit) {
+      QUEUE_TEST("gasnetex_Get_nbi", 
+                 gasnetex_Get_nbi(myteam, msgbuf, peerproc, tgtmem, payload, 0), 
                  gasnet_wait_syncnbi_all(), (void)0, 0);
     }
 }

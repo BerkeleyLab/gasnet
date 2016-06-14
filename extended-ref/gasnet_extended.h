@@ -302,14 +302,17 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
 extern void gasnete_memset_nbi   (gasnet_node_t node, void *dest, int val,   size_t nbytes GASNETE_THREAD_FARG);
 #endif
 
-#if GASNETI_DIRECT_GET_NBI
+#if GASNETI_DIRECT_GET_NBI // TODO-EX: sort this out
   extern void gasnete_get_nbi (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG);
 #elif !defined(gasnete_get_nbi)
   #define gasnete_get_nbi gasnete_get_nbi_bulk
 #endif
 
-GASNETI_INLINE(_gasnet_get_nbi)
-void _gasnet_get_nbi      (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+GASNETI_INLINE(_gasnetex_Get_nbi)
+void _gasnetex_Get_nbi (gasnetex_team_member_t team, void *dest,
+                        gasnetex_rank_t node, void *src, // TODO-EX: node -> rank when CHECKZERO updated
+                        size_t nbytes, gasnetex_flags_t flags
+                        GASNETE_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_GET(NBI,V);
   gasneti_boundscheck(node, src, nbytes);
   gasnete_aligncheck(src, nbytes);
@@ -323,11 +326,15 @@ void _gasnet_get_nbi      (void *dest, gasnet_node_t node, void *src, size_t nby
     gasnete_get_nbi(dest, node, src, nbytes GASNETE_THREAD_PASS);
   }
 }
-#define gasnet_get_nbi(dest,node,src,nbytes) \
-       _gasnet_get_nbi(dest,node,src,nbytes GASNETE_THREAD_GET)
+#define gasnetex_Get_nbi(team,dest,rank,src,nbytes,flags) \
+       _gasnetex_Get_nbi(team,dest,rank,src,nbytes,flags GASNETE_THREAD_GET)
 
-GASNETI_INLINE(_gasnet_put_nbi)
-void _gasnet_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+GASNETI_INLINE(_gasnetex_Put_nbi)
+void _gasnetex_Put_nbi (gasnetex_team_member_t team,
+                        gasnetex_rank_t node, void *dest, // TODO-EX: node -> rank when CHECKZERO updated
+                        /*const*/ void *src,  // TODO-EX: un-comment const
+                        size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                        gasnetex_flags_t flags GASNETE_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_PUT(NBI,V);
   gasneti_boundscheck(node, dest, nbytes);
   gasnete_aligncheck(src, nbytes);
@@ -341,40 +348,8 @@ void _gasnet_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nby
     gasnete_put_nbi(node, dest, src, nbytes GASNETE_THREAD_PASS);
   }
 }
-#define gasnet_put_nbi(node,dest,src,nbytes) \
-       _gasnet_put_nbi(node,dest,src,nbytes GASNETE_THREAD_GET)
-
-GASNETI_INLINE(_gasnet_get_nbi_bulk)
-void _gasnet_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_GET(NBI_BULK,V);
-  gasneti_boundscheck(node, src, nbytes);
-  if (gasnete_islocal(node)) {
-    GASNETI_TRACE_GET_LOCAL(NBI_BULK,dest,node,src,nbytes);
-    GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
-    gasnete_loopbackget_memsync();
-  } else {
-    GASNETI_TRACE_GET(NBI_BULK,dest,node,src,nbytes);
-    gasnete_get_nbi_bulk(dest, node, src, nbytes GASNETE_THREAD_PASS);
-  }
-}
-#define gasnet_get_nbi_bulk(dest,node,src,nbytes) \
-       _gasnet_get_nbi_bulk(dest,node,src,nbytes GASNETE_THREAD_GET)
-
-GASNETI_INLINE(_gasnet_put_nbi_bulk)
-void _gasnet_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_PUT(NBI_BULK,V);
-  gasneti_boundscheck(node, dest, nbytes);
-  if (gasnete_islocal(node)) {
-    GASNETI_TRACE_PUT_LOCAL(NBI_BULK,node,dest,src,nbytes);
-    GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
-    gasnete_loopbackput_memsync();
-  } else {
-    GASNETI_TRACE_PUT(NBI_BULK,node,dest,src,nbytes);
-    gasnete_put_nbi_bulk(node, dest, src, nbytes GASNETE_THREAD_PASS);
-  }
-}
-#define gasnet_put_nbi_bulk(node,dest,src,nbytes) \
-       _gasnet_put_nbi_bulk(node,dest,src,nbytes GASNETE_THREAD_GET)
+#define gasnetex_Put_nbi(team,rank,dest,src,nbytes,lc_opt,flags) \
+       _gasnetex_Put_nbi(team,rank,dest,src,nbytes,lc_opt,flags GASNETE_THREAD_GET)
 
 GASNETI_INLINE(_gasnet_memset_nbi)
 void   _gasnet_memset_nbi   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {

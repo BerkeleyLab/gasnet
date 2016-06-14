@@ -196,12 +196,12 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnet_put_nbi(peerproc, peermem, mymem, nbytes);
+			gasnetex_Put_nbi(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_LC_INIT, 0);
 		}
 		gasnet_wait_syncnbi_puts();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
-		print_stat(myproc, &st, "put: gap - put_nbi", PRINT_GAP);
+		print_stat(myproc, &st, "put: gap - Put_nbi", PRINT_GAP);
 	}
 	
 	BARRIER();
@@ -211,12 +211,12 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnet_put_nbi_bulk(peerproc, peermem, mymem, nbytes);
+			gasnetex_Put_nbi(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_LC_SYNC, 0);
 		}
 		gasnet_wait_syncnbi_puts();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
-		print_stat(myproc, &st, "put: G   - put_nbi_bulk", PRINT_BIG_G);
+		print_stat(myproc, &st, "put: G   - Put_nbi", PRINT_BIG_G);
 	}
 }	
 
@@ -319,27 +319,27 @@ void get_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gasnet_get_nbi(mymem, peerproc, peermem, nbytes);
+	 		gasnetex_Get_nbi(myteam, mymem, peerproc, peermem, nbytes, 0);
 		}
 		gasnet_wait_syncnbi_gets();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
-		print_stat(myproc, &st, "get: gap - get_nbi", PRINT_GAP);
+		print_stat(myproc, &st, "get: gap - Get_nbi", PRINT_GAP);
 	}
 	
 	BARRIER();
 	
 	if (iamsender) {
-		/* measure the throughput of nonblocking implicit bulk put */
+		/* measure the throughput of nonblocking implicit put */
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gasnet_get_nbi_bulk(mymem, peerproc, peermem, nbytes);
+	 		gasnetex_Get_nbi(myteam, mymem, peerproc, peermem, nbytes, 0);
 		}
 		gasnet_wait_syncnbi_gets();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
-    		print_stat(myproc, &st, "get: G   - get_nbi_bulk", PRINT_BIG_G);
+    		print_stat(myproc, &st, "get: G   - Get_nbi", PRINT_BIG_G);
 	}
 }
 
