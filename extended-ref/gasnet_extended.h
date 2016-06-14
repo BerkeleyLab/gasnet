@@ -44,9 +44,7 @@ extern void gasnete_init(void);
   Non-blocking memory-to-memory transfers (explicit handle)
   ==========================================================
 */
-/* put_nb       source memory is safe to modify on return
-   put_nb_bulk  source memory is NOT safe to modify on return
- */
+
 #ifndef gasnete_put_nb_bulk
   extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
@@ -66,8 +64,12 @@ extern void gasnete_init(void);
   #define gasnete_get_nb gasnete_get_nb_bulk
 #endif
 
-GASNETI_INLINE(_gasnet_get_nb) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t _gasnet_get_nb      (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+GASNETI_INLINE(_gasnetex_Get_nb) GASNETI_WARN_UNUSED_RESULT
+gasnet_handle_t _gasnetex_Get_nb( // TODO-EX: return type!
+                        gasnetex_team_member_t team, void *dest,
+                        gasnetex_rank_t node, void *src, // TODO-EX: node -> rank when CHECKZERO updated
+                        size_t nbytes, gasnetex_flags_t flags
+                        GASNETE_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_GET(NB,H);
   gasneti_boundscheck(node, src, nbytes);
   gasnete_aligncheck(src, nbytes);
@@ -82,16 +84,22 @@ gasnet_handle_t _gasnet_get_nb      (void *dest, gasnet_node_t node, void *src, 
     return gasnete_get_nb(dest, node, src, nbytes GASNETE_THREAD_PASS);
   }
 }
-#define gasnet_get_nb(dest,node,src,nbytes) \
-       _gasnet_get_nb(dest,node,src,nbytes GASNETE_THREAD_GET)
+#define gasnetex_Get_nb(team,dest,node,src,nbytes,flags) \
+       _gasnetex_Get_nb(team,dest,node,src,nbytes,flags GASNETE_THREAD_GET)
 
 #if !defined(gasnete_put_nb)
   extern gasnet_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, 
 					 void *src, size_t nbytes 
 					 GASNETE_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
-GASNETI_INLINE(_gasnet_put_nb) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t _gasnet_put_nb      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+
+GASNETI_INLINE(_gasnetex_Put_nb) GASNETI_WARN_UNUSED_RESULT
+gasnet_handle_t _gasnetex_Put_nb( // TODO-EX: return type!
+                        gasnetex_team_member_t team,
+                        gasnetex_rank_t node, void *dest, // TODO-EX: node -> rank when CHECKZERO updated
+                        /*const*/ void *src,  // TODO-EX: un-comment const
+                        size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                        gasnetex_flags_t flags GASNETE_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_PUT(NB,H);
   gasneti_boundscheck(node, dest, nbytes);
   gasnete_aligncheck(src, nbytes);
@@ -106,42 +114,8 @@ gasnet_handle_t _gasnet_put_nb      (gasnet_node_t node, void *dest, void *src, 
     return gasnete_put_nb(node, dest, src, nbytes GASNETE_THREAD_PASS);
   }
 }
-#define gasnet_put_nb(node,dest,src,nbytes) \
-       _gasnet_put_nb(node,dest,src,nbytes GASNETE_THREAD_GET)
-
-GASNETI_INLINE(_gasnet_get_nb_bulk) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t _gasnet_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_GET(NB_BULK,H);
-  gasneti_boundscheck(node, src, nbytes);
-  if (gasnete_islocal(node)) {
-    GASNETI_TRACE_GET_LOCAL(NB_BULK,dest,node,src,nbytes);
-    GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
-    gasnete_loopbackget_memsync();
-    return GASNET_INVALID_HANDLE;
-  } else {
-    GASNETI_TRACE_GET(NB_BULK,dest,node,src,nbytes);
-    return gasnete_get_nb_bulk(dest, node, src, nbytes GASNETE_THREAD_PASS);
-  }
-}
-#define gasnet_get_nb_bulk(dest,node,src,nbytes) \
-       _gasnet_get_nb_bulk(dest,node,src,nbytes GASNETE_THREAD_GET)
-
-GASNETI_INLINE(_gasnet_put_nb_bulk) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t _gasnet_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_PUT(NB_BULK,H);
-  gasneti_boundscheck(node, dest, nbytes);
-  if (gasnete_islocal(node)) {
-    GASNETI_TRACE_PUT_LOCAL(NB_BULK,node,dest,src,nbytes);
-    GASNETE_FAST_UNALIGNED_MEMCPY(dest, src, nbytes);
-    gasnete_loopbackput_memsync();
-    return GASNET_INVALID_HANDLE;
-  } else {
-    GASNETI_TRACE_PUT(NB_BULK,node,dest,src,nbytes);
-    return gasnete_put_nb_bulk(node, dest, src, nbytes GASNETE_THREAD_PASS);
-  }
-}
-#define gasnet_put_nb_bulk(node,dest,src,nbytes) \
-       _gasnet_put_nb_bulk(node,dest,src,nbytes GASNETE_THREAD_GET)
+#define gasnetex_Put_nb(team,node,dest,src,nbytes,lc_opt,flags) \
+       _gasnetex_Put_nb(team,node,dest,src,nbytes,lc_opt,flags GASNETE_THREAD_GET)
 
 GASNETI_INLINE(_gasnet_memset_nb) GASNETI_WARN_UNUSED_RESULT
 gasnet_handle_t   _gasnet_memset_nb   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {

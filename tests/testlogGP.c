@@ -127,7 +127,7 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnet_handle_t h = gasnet_put_nb_bulk(peerproc, peermem, mymem, nbytes);
+			gasnet_handle_t h = gasnetex_Put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_LC_SYNC, 0);
 			gasnet_wait_syncnb(h);
 		}
 		end = TIME();
@@ -141,7 +141,7 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnet_handle_t h = gasnet_put_nb_bulk(peerproc, peermem, mymem, nbytes);
+			gasnet_handle_t h = gasnetex_Put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_LC_SYNC, 0);
 			test_delay(loops, pollcnt);
 			gasnet_wait_syncnb(h);
 		}
@@ -155,7 +155,7 @@ void put_tests(int iters, int nbytes)
 	/* target-side overhead takes more work: */
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
-			gasnet_handle_t h = gasnet_put_nb_bulk(peerproc, peermem, mymem, nbytes);
+			gasnet_handle_t h = gasnetex_Put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_LC_SYNC, 0);
 			gasnet_wait_syncnb(h);
 		}
 	} else {
@@ -175,7 +175,7 @@ void put_tests(int iters, int nbytes)
 	BARRIER();
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
-			gasnet_handle_t h = gasnet_put_nb_bulk(peerproc, peermem, mymem, nbytes);
+			gasnet_handle_t h = gasnetex_Put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_LC_SYNC, 0);
 			gasnet_wait_syncnb(h);
 		}
 	} else {
@@ -250,7 +250,7 @@ void get_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnet_handle_t h = gasnet_get_nb_bulk(mymem, peerproc, peermem, nbytes);
+			gasnet_handle_t h = gasnetex_Get_nb(myteam, mymem, peerproc, peermem, nbytes, 0);
 			gasnet_wait_syncnb(h);
 		}
 		end = TIME();
@@ -264,13 +264,13 @@ void get_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnet_handle_t h = gasnet_get_nb_bulk(mymem, peerproc, peermem, nbytes);
+			gasnet_handle_t h = gasnetex_Get_nb(myteam, mymem, peerproc, peermem, nbytes, 0);
 			test_delay(loops, pollcnt);
 			gasnet_wait_syncnb(h);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin) - delay_time, iters);
-		print_stat(myproc, &st, "get: o_i - get_nb_bulk", PRINT_OVERHEAD);
+		print_stat(myproc, &st, "get: o_i - get_nb", PRINT_OVERHEAD);
 	}
 
 	BARRIER();
@@ -278,7 +278,7 @@ void get_tests(int iters, int nbytes)
 	/* target-side overhead takes more work: */
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
-			gasnet_handle_t h = gasnet_get_nb_bulk(mymem, peerproc, peermem, nbytes);
+			gasnet_handle_t h = gasnetex_Get_nb(myteam, mymem, peerproc, peermem, nbytes, 0);
 			gasnet_wait_syncnb(h);
 		}
 	} else {
@@ -298,7 +298,7 @@ void get_tests(int iters, int nbytes)
 	BARRIER();
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
-			gasnet_handle_t h = gasnet_get_nb_bulk(mymem, peerproc, peermem, nbytes);
+			gasnet_handle_t h = gasnetex_Get_nb(myteam, mymem, peerproc, peermem, nbytes, 0);
 			gasnet_wait_syncnb(h);
 		}
 	} else {
@@ -309,7 +309,7 @@ void get_tests(int iters, int nbytes)
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin) - delay_time, iters);
-		print_stat(myproc, &st, "get: o_t - get_nb_bulk", PRINT_OVERHEAD);
+		print_stat(myproc, &st, "get: o_t - get_nb", PRINT_OVERHEAD);
 	}
 
 	BARRIER();

@@ -1283,7 +1283,7 @@ ge_put(nbr_t *nb, int type, int dir, int axis, int *flag)
 	return GASNET_INVALID_HANDLE;
     }
     else {
-	return gasnet_put_nb_bulk(node, dest, src, len);
+	return gasnetex_Put_nb(myteam, node, dest, src, len, GASNETEX_LC_SYNC, 0);
     }
 
 local_copy:

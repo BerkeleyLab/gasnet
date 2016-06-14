@@ -294,11 +294,11 @@ void doit(int partner, int *partnerseg) {
     int i;
     for (i = 0; i < iters; i++) {
       val1 = 100 + i + mynode;
-      handles[i] = gasnet_put_nb(partner, partnerseg+i, &val1, sizeof(int));
+      handles[i] = gasnetex_Put_nb(myteam, partner, partnerseg+i, &val1, sizeof(int), GASNETEX_LC_INIT, 0);
     }
     gasnet_wait_syncnb_all(handles, iters); 
     for (i = 0; i < iters; i++) {
-      handles[i] = gasnet_get_nb(&vals[i], partner, partnerseg+i, sizeof(int));
+      handles[i] = gasnetex_Get_nb(myteam, &vals[i], partner, partnerseg+i, sizeof(int), 0);
     }
     gasnet_wait_syncnb_all(handles, iters); 
     for (i=0; i < iters; i++) {
@@ -516,24 +516,24 @@ void doit5(int partner, int *partnerseg) {
             segpos[j] = val;
           }
         }
-        handle = gasnet_put_nb_bulk(partner, rsegpos, localpos, sz);
+        handle = gasnetex_Put_nb(myteam, partner, rsegpos, localpos, sz, GASNETEX_LC_SYNC, 0);
         gasnet_wait_syncnb(handle);
 
-        handle = gasnet_put_nb(partner, rsegpos+elems, localpos, sz);
+        handle = gasnetex_Put_nb(myteam, partner, rsegpos+elems, localpos, sz, GASNETEX_LC_INIT, 0);
         memset(localpos, 0xCC, sz); /* clear */
         gasnet_wait_syncnb(handle);
 
-        handle = gasnet_put_nb_bulk(partner, rsegpos+2*elems, segpos, sz);
+        handle = gasnetex_Put_nb(myteam, partner, rsegpos+2*elems, segpos, sz, GASNETEX_LC_SYNC, 0);
         gasnet_wait_syncnb(handle);
 
-        handle = gasnet_put_nb(partner, rsegpos+3*elems, segpos, sz);
+        handle = gasnetex_Put_nb(myteam, partner, rsegpos+3*elems, segpos, sz, GASNETEX_LC_INIT, 0);
         memset(segpos, 0xCC, sz); /* clear */
         gasnet_wait_syncnb(handle);
 
-        gasnet_wait_syncnb(gasnet_get_nb(localpos, partner, rsegpos, sz));
-        gasnet_wait_syncnb(gasnet_get_nb_bulk(localpos+elems, partner, rsegpos+elems, sz));
-        gasnet_wait_syncnb(gasnet_get_nb(segpos, partner, rsegpos+2*elems, sz));
-        gasnet_wait_syncnb(gasnet_get_nb_bulk(segpos+elems, partner, rsegpos+3*elems, sz));
+        gasnet_wait_syncnb(gasnetex_Get_nb(myteam, localpos, partner, rsegpos, sz, 0));
+        gasnet_wait_syncnb(gasnetex_Get_nb(myteam, localpos+elems, partner, rsegpos+elems, sz, 0));
+        gasnet_wait_syncnb(gasnetex_Get_nb(myteam, segpos, partner, rsegpos+2*elems, sz, 0));
+        gasnet_wait_syncnb(gasnetex_Get_nb(myteam, segpos+elems, partner, rsegpos+3*elems, sz, 0));
 
         for (j=0; j < elems*2; j++) {
           int ok;

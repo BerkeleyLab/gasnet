@@ -69,7 +69,7 @@ int numsync = 0;
 int do_bulk = 0, do_nonbulk = 0, do_value = 0;
 int do_implicit = 0, do_explicit = 0, do_blocking = 0;
 
-void do_bulkputgets(void);
+void do_bulkputs(void);
 void do_nonbulkputgets(void);
 void do_valueputgets(void);
 void do_blockingputgets(void);
@@ -254,7 +254,7 @@ int main(int argc, char **argv) {
     handles = (gasnet_handle_t *) test_malloc(sizeof(gasnet_handle_t) * maxdepth);
     vghandles = (gasnet_valget_handle_t *) test_malloc(sizeof(gasnet_valget_handle_t) * maxdepth);
 
-    do_bulkputgets();
+    do_bulkputs();
     do_nonbulkputgets();
     do_valueputgets();
     do_blockingputgets();
@@ -367,16 +367,10 @@ int main(int argc, char **argv) {
       }                                                                     \
     } while (0)
 
-void do_bulkputgets(void) {
+void do_bulkputs(void) {
     if (do_puts && do_bulk && do_explicit) {
-      QUEUE_TEST("gasnet_put_nb_bulk", 
-                 handles[i] = gasnet_put_nb_bulk(peerproc, tgtmem, msgbuf, payload), 
-                 gasnet_wait_syncnb_all(handles, depth), (void)0, 0);
-    }
-
-    if (do_gets && do_bulk && do_explicit) {
-      QUEUE_TEST("gasnet_get_nb_bulk", 
-                 handles[i] = gasnet_get_nb_bulk(msgbuf, peerproc, tgtmem, payload), 
+      QUEUE_TEST("gasnetex_Put_nb/bulk", 
+                 handles[i] = gasnetex_Put_nb(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_LC_SYNC, 0), 
                  gasnet_wait_syncnb_all(handles, depth), (void)0, 0);
     }
 
@@ -388,14 +382,14 @@ void do_bulkputgets(void) {
 }
 void do_nonbulkputgets(void) {
     if (do_puts && do_nonbulk && do_explicit) {
-      QUEUE_TEST("gasnet_put_nb", 
-                 handles[i] = gasnet_put_nb(peerproc, tgtmem, msgbuf, payload), 
+      QUEUE_TEST("gasnetex_Put_nb", 
+                 handles[i] = gasnetex_Put_nb(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_LC_INIT, 0), 
                  gasnet_wait_syncnb_all(handles, depth), (void)0, 0);
     }
 
-    if (do_gets && do_nonbulk && do_explicit) {
-      QUEUE_TEST("gasnet_get_nb", 
-                 handles[i] = gasnet_get_nb(msgbuf, peerproc, tgtmem, payload), 
+    if (do_gets && do_explicit) {
+      QUEUE_TEST("gasnetex_Get_nb", 
+                 handles[i] = gasnetex_Get_nb(myteam, msgbuf, peerproc, tgtmem, payload, 0), 
                  gasnet_wait_syncnb_all(handles, depth), (void)0, 0);
     }
 

@@ -228,7 +228,7 @@ void roundtrip_nbi_test(int iters, int nbytes)
 		/* measure the round-trip time of nonblocking implicit get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gasnetex_Get_nbi(myteam, ackbuf, peerproc, tgtmem, nbytes, 0);
+			gasnetex_Get_nbi(myteam, ackbuf, peerproc, tgtmem, nbytes, 0);
 			gasnet_wait_syncnbi_gets();
 		}
 		end = TIME();
@@ -315,7 +315,7 @@ void roundtrip_nb_test(int iters, int nbytes)
 		/* measure the round-trip time of nonblocking put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			hdlput = gasnet_put_nb(peerproc, tgtmem, msgbuf, nbytes);
+			hdlput = gasnetex_Put_nb(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_LC_INIT, 0);
 			gasnet_wait_syncnb(hdlput);
 		}
 		end = TIME();
@@ -335,7 +335,7 @@ void roundtrip_nb_test(int iters, int nbytes)
 		/* measure the round-trip time of nonblocking get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		hdlget = gasnet_get_nb(ackbuf, peerproc, tgtmem, nbytes);
+			hdlget = gasnetex_Get_nb(myteam, ackbuf, peerproc, tgtmem, nbytes, 0);
 			gasnet_wait_syncnb(hdlget);
 		}
 		end = TIME();
@@ -372,11 +372,11 @@ void oneway_nb_test(int iters, int nbytes)
 		/* measure the throughput of sending a message */
 		begin = TIME();
 		/*for (i = 0; i < iters; i++) {
-			hdlput = gasnet_put_nb(peerproc, tgtmem, msgbuf, nbytes);
+			hdlput = gasnetex_Put_nb(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_LC_INIT, 0);
 		        gasnet_wait_syncnb(hdlput);
 		}*/
                 for (i = 0; i < iters; i++) {
-                        handles[i] = gasnet_put_nb(peerproc, tgtmem, msgbuf, nbytes);
+                        handles[i] = gasnetex_Put_nb(myteam, peerproc, tgtmem, msgbuf, nbytes, GASNETEX_LC_INIT, 0);
                 }
 		gasnet_wait_syncnb_all(handles, iters); 
 		end = TIME();
@@ -396,11 +396,11 @@ void oneway_nb_test(int iters, int nbytes)
 		/* measure the throughput of receiving a message */
 		begin = TIME();
 		/*for (i = 0; i < iters; i++) {
-		    hdlget = gasnet_get_nb(msgbuf, peerproc, tgtmem, nbytes);
+		    hdlget = gasnetex_Get_nb(myteam, msgbuf, peerproc, tgtmem, nbytes, 0);
 		    gasnet_wait_syncnb(hdlget);
 		}*/
                 for (i = 0; i < iters; i++) {
-                    handles[i] = gasnet_get_nb(msgbuf, peerproc, tgtmem, nbytes);
+                    handles[i] = gasnetex_Get_nb(myteam, msgbuf, peerproc, tgtmem, nbytes, 0);
                 } 
 		gasnet_wait_syncnb_all(handles, iters); 
 		end = TIME();
@@ -562,8 +562,8 @@ int main(int argc, char **argv)
               gasnetex_Get(myteam, msgbuf, peerproc, tgtmem, 8, 0);
               gasnetex_Put_nbi(myteam, peerproc, tgtmem, msgbuf, 8, GASNETEX_LC_INIT, 0);
               gasnetex_Get_nbi(myteam, msgbuf, peerproc, tgtmem, 8, 0);
-              h[i] = gasnet_put_nb(peerproc, tgtmem, msgbuf, 8);
-              h[i+warm_iters] = gasnet_get_nb(msgbuf, peerproc, tgtmem, 8);
+              h[i] = gasnetex_Put_nb(myteam, peerproc, tgtmem, msgbuf, 8, GASNETEX_LC_INIT, 0);
+              h[i+warm_iters] = gasnetex_Get_nb(myteam, msgbuf, peerproc, tgtmem, 8, 0);
            }
            gasnetex_Put(myteam, peerproc, tgtmem, msgbuf, max_payload, 0);
            gasnetex_Get(myteam, msgbuf, peerproc, tgtmem, max_payload, 0);

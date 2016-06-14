@@ -217,7 +217,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of sending a message */
 		begin = TIME();
                 for (i = 0; i < iters; i++) {
-                        handles[i] = gasnet_put_nb_bulk(peerproc, rembuf, locbuf+pad, nbytes);
+                        handles[i] = gasnetex_Put_nb(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_LC_SYNC, 0);
                 }
 		gasnet_wait_syncnb_all(handles, iters); 
 		end = TIME();
@@ -239,7 +239,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of receiving a message */
 		begin = TIME();
                 for (i = 0; i < iters; i++) {
-                    handles[i] = gasnet_get_nb_bulk(locbuf, peerproc, rembuf+pad, nbytes);
+                    handles[i] = gasnetex_Get_nb(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
                 } 
 		gasnet_wait_syncnb_all(handles, iters); 
 		end = TIME();
@@ -249,7 +249,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
 	BARRIER();
 	
 	if (iamsender) {
-		print_stat(myproc, &st, "get_nb_bulk throughput", PRINT_THROUGHPUT);
+		print_stat(myproc, &st, "get_nb throughput", PRINT_THROUGHPUT);
 	}	
     }
 	

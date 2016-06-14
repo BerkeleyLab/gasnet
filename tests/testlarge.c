@@ -221,7 +221,7 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
 			/* measure the throughput of sending a message */
 			begin = TIME();
 			for (i = 0; i < iters; i++) {
-				handles[i] = gasnet_put_nb_bulk(peerproc, tgtmem, msgbuf, payload);
+				handles[i] = gasnetex_Put_nb(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_LC_SYNC, 0);
 			}
 			gasnet_wait_syncnb_all(handles, iters);
 			end = TIME();
@@ -240,7 +240,7 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
 			/* measure the throughput of receiving a message */
 			begin = TIME();
 			for (i = 0; i < iters; i++) {
-			    handles[i] = gasnet_get_nb_bulk(msgbuf, peerproc, tgtmem, payload);
+			    handles[i] = gasnetex_Get_nb(myteam, msgbuf, peerproc, tgtmem, payload, 0);
 			}
 			gasnet_wait_syncnb_all(handles, iters);
 			end = TIME();
@@ -250,7 +250,7 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
 		BARRIER();
 
 		if (iamsender && dogets) {
-			print_stat(myproc, &stget, "get_nb_bulk throughput", PRINT_THROUGHPUT);
+			print_stat(myproc, &stget, "get_nb throughput", PRINT_THROUGHPUT);
 		}	
 
 	}
@@ -402,8 +402,8 @@ int main(int argc, char **argv)
               gasnetex_Get(myteam, msgbuf, peerproc, tgtmem, 8, 0);
               gasnetex_Put_nbi(myteam, peerproc, tgtmem, msgbuf, 8, GASNETEX_LC_SYNC, 0);
               gasnetex_Get_nbi(myteam, msgbuf, peerproc, tgtmem, 8, 0);
-              h[i] = gasnet_put_nb_bulk(peerproc, tgtmem, msgbuf, 8);
-              h[i+warm_iters] = gasnet_get_nb_bulk(msgbuf, peerproc, tgtmem, 8);
+              h[i] = gasnetex_Put_nb(myteam, peerproc, tgtmem, msgbuf, 8, GASNETEX_LC_SYNC, 0);
+              h[i+warm_iters] = gasnetex_Get_nb(myteam, msgbuf, peerproc, tgtmem, 8, 0);
            }
            gasnetex_Put(myteam, peerproc, tgtmem, msgbuf, max_payload, 0);
            gasnetex_Get(myteam, msgbuf, peerproc, tgtmem, max_payload, 0);
