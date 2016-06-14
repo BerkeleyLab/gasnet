@@ -9,9 +9,6 @@
 
 GASNETI_BEGIN_EXTERNC
 
-/* Client-provided: */
-extern gasnetex_team_member_t the_team;
-
 /* ------------------------------------------------------------------------------------ */
 /*
   Active Message Request/Reply Functions
