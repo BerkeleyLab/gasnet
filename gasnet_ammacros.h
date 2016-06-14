@@ -316,35 +316,4 @@ GASNETI_END_EXTERNC
         gasnetc_AMReplyLongM(token, handler, source_addr, nbytes, dest_addr, lc_opt, flags, 16, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13, (gasnet_handlerarg_t)a14, (gasnet_handlerarg_t)a15)
 /* ------------------------------------------------------------------------------------ */
 
-/* Variable-argument AM calls using C99 variable-argument macros to count args
- *
- * Note that there is no portable way to omit a comma appearing before the
- * expansion of an empty __VA_ARGS__.  For this reason, we are including the
- * 'flags' argument within the "...".
- */
-
-#define GASNETEX_AMNUMARGS(...) GASNETEX_AMNUMARGS_(__VA_ARGS__,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0)
-#define GASNETEX_AMNUMARGS_(_0,_1,_2,_3,_4,_5,_6,_7,_8,_9,_10,_11,_12,_13,_14,_15,_16,N,...) N
-#define GASNETEX_AMVA(_stem,...) _CONCAT(gasnetex_AM##_stem,GASNETEX_AMNUMARGS(__VA_ARGS__))
-
-#define                 gasnetex_AMRequestShort(team,rank,hidx,...) \
-        GASNETEX_AMVA(RequestShort,__VA_ARGS__)(team,rank,hidx,__VA_ARGS__)
-
-#define                 gasnetex_AMRequestMedium(team,rank,hidx,src_addr,nbytes,lc_opt,...) \
-        GASNETEX_AMVA(RequestMedium,__VA_ARGS__)(team,rank,hidx,src_addr,nbytes,lc_opt,__VA_ARGS__)
-
-#define                 gasnetex_AMRequestLong(team,rank,hidx,src_addr,nbytes,dst_addr,lc_opt,...) \
-        GASNETEX_AMVA(RequestLong,__VA_ARGS__)(team,rank,hidx,src_addr,nbytes,dst_addr,lc_opt,__VA_ARGS__)
-
-#define                 gasnetex_AMReplyShort(token,hidx,...) \
-        GASNETEX_AMVA(ReplyShort,__VA_ARGS__)(token,hidx,__VA_ARGS__)
-
-#define                 gasnetex_AMReplyMedium(token,hidx,src_addr,nbytes,lc_opt,...) \
-        GASNETEX_AMVA(ReplyMedium,__VA_ARGS__)(token,hidx,src_addr,nbytes,lc_opt,__VA_ARGS__)
-
-#define                 gasnetex_AMReplyLong(token,hidx,src_addr,nbytes,dst_addr,lc_opt,...) \
-        GASNETEX_AMVA(ReplyLong,__VA_ARGS__)(token,hidx,src_addr,nbytes,dst_addr,lc_opt,__VA_ARGS__)
-
-/* ------------------------------------------------------------------------------------ */
-
 #endif
