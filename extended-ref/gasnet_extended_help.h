@@ -459,12 +459,12 @@ typedef union {
 #define _GASNETI_RETURN_H  return GASNET_INVALID_HANDLE
 #define GASNETI_CHECKZEROSZ_GET(variety, rt) do {            \
     if_pf (nbytes == 0) {                                    \
-      GASNETI_TRACE_GET_LOCAL(variety,dest,node,src,nbytes); \
+      GASNETI_TRACE_GET_LOCAL(variety,dest,rank,src,nbytes); \
       _GASNETI_RETURN_##rt;                                  \
     } } while(0)
 #define GASNETI_CHECKZEROSZ_PUT(variety, rt) do {            \
     if_pf (nbytes == 0) {                                    \
-      GASNETI_TRACE_PUT_LOCAL(variety,node,dest,src,nbytes); \
+      GASNETI_TRACE_PUT_LOCAL(variety,rank,dest,src,nbytes); \
       _GASNETI_RETURN_##rt;                                  \
     } } while(0)
 #define GASNETI_CHECKZEROSZ_MEMSET(variety, rt) do {            \
@@ -478,15 +478,15 @@ typedef union {
       _GASNETI_RETURN_##rt;                           \
     } } while(0)
 #if GASNET_PSHM
-  #define GASNETI_CHECKPSHM_GET(align, rt) do { \
-    if (gasneti_pshm_in_supernode(node)) {      \
-      GASNETE_FAST_##align##_MEMCPY(dest, gasneti_pshm_addr2local(node, src), nbytes); \
+  #define GASNETI_CHECKPSHM_GET(rt) do { \
+    if (gasneti_pshm_in_supernode(rank)) {      \
+      GASNETE_FAST_MEMCPY(dest, gasneti_pshm_addr2local(rank, src), nbytes); \
       gasnete_loopbackget_memsync();            \
       _GASNETI_RETURN_##rt;                     \
     }} while(0)
-  #define GASNETI_CHECKPSHM_PUT(align, rt) do { \
-    if (gasneti_pshm_in_supernode(node)) {      \
-      GASNETE_FAST_##align##_MEMCPY(gasneti_pshm_addr2local(node, dest), src, nbytes); \
+  #define GASNETI_CHECKPSHM_PUT(rt) do { \
+    if (gasneti_pshm_in_supernode(rank)) {      \
+      GASNETE_FAST_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
       gasnete_loopbackput_memsync();            \
       _GASNETI_RETURN_##rt;                     \
     }} while(0)

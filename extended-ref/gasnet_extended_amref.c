@@ -501,15 +501,15 @@ extern
 gasnet_handle_t gasnete_Get_nb( // TODO-EX: return type!
                      gasnetex_team_member_t team,
                      void *dest,
-                     gasnetex_rank_t node, void *src, // TODO-EX: node -> rank when CHECKPSHM updated
+                     gasnetex_rank_t rank, void *src,
                      size_t nbytes,
                      gasnetex_flags_t flags GASNETE_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(UNALIGNED,H);
+  GASNETI_CHECKPSHM_GET(H);
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
     gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
 
-    gasnetex_AMRequestShort(team, node, gasneti_handleridx(gasnete_amref_get_reqh), 0,
+    gasnetex_AMRequestShort(team, rank, gasneti_handleridx(gasnete_amref_get_reqh), 0,
                    (gasnet_handlerarg_t)nbytes, PACK(dest), PACK(src), PACK_EOP_DONE(op));
 
     return (gasnet_handle_t)op;
@@ -518,7 +518,7 @@ gasnet_handle_t gasnete_Get_nb( // TODO-EX: return type!
     /*  need many messages - use an access region to coalesce them into a single handle */
     /*  (note this relies on the fact that our implementation of access regions allows recursion) */
     gasnete_begin_nbi_accessregion(1 /* enable recursion */ GASNETE_THREAD_PASS);
-    gasnete_amref_Get_nbi(team, dest, node, src, nbytes, flags GASNETE_THREAD_PASS);
+    gasnete_amref_Get_nbi(team, dest, rank, src, nbytes, flags GASNETE_THREAD_PASS);
     return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
   }
 }
@@ -530,12 +530,12 @@ gasnet_handle_t gasnete_Get_nb( // TODO-EX: return type!
 extern
 gasnet_handle_t gasnete_Put_nb( // TODO-EX: return type!
                      gasnetex_team_member_t team,
-                     gasnetex_rank_t node, void *dest, // TODO-EX: node -> rank when CHECKPSHM updated
+                     gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_lc_handle_t *lc_opt,
                      gasnetex_flags_t flags GASNETE_THREAD_FARG)
 {
- GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
+ GASNETI_CHECKPSHM_PUT(H);
  {
   int isbulk; // TODO-EX: ???
   if (gasneti_lc_is_pointer(lc_opt)) {
@@ -551,7 +551,7 @@ gasnet_handle_t gasnete_Put_nb( // TODO-EX: return type!
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
     gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
 
-    gasnetex_AMRequestMedium(team, node, gasneti_handleridx(gasnete_amref_put_reqh),
+    gasnetex_AMRequestMedium(team, rank, gasneti_handleridx(gasnete_amref_put_reqh),
                              src, nbytes, GASNETEX_LC_INIT, 0,
                              PACK(dest), PACK_EOP_DONE(op));
 
@@ -561,11 +561,11 @@ gasnet_handle_t gasnete_Put_nb( // TODO-EX: return type!
     gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
 
     if (isbulk) { // TODO-EX: restore some degree of Async on bulk path
-      gasnetex_AMRequestLong(team, node, gasneti_handleridx(gasnete_amref_putlong_reqh),
+      gasnetex_AMRequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
                     src, nbytes, dest, GASNETEX_LC_INIT, 0,
                     PACK_EOP_DONE(op));
     } else {
-      gasnetex_AMRequestLong(team, node, gasneti_handleridx(gasnete_amref_putlong_reqh),
+      gasnetex_AMRequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
                     src, nbytes, dest, GASNETEX_LC_INIT, 0,
                     PACK_EOP_DONE(op));
     }
@@ -577,7 +577,7 @@ gasnet_handle_t gasnete_Put_nb( // TODO-EX: return type!
     /*  need many messages - use an access region to coalesce them into a single handle */
     /*  (note this relies on the fact that our implementation of access regions allows recursion) */
     gasnete_begin_nbi_accessregion(1 /* enable recursion */ GASNETE_THREAD_PASS);
-    gasnete_amref_put_nbi_inner(team, node, dest, src, nbytes, lc_opt, flags GASNETE_THREAD_PASS);
+    gasnete_amref_put_nbi_inner(team, rank, dest, src, nbytes, lc_opt, flags GASNETE_THREAD_PASS);
     return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
   }
  }
@@ -618,12 +618,12 @@ extern gasnet_handle_t gasnete_amref_memset_nb   (gasnet_node_t node, void *dest
 extern
 void gasnete_amref_Get_nbi(gasnetex_team_member_t team,
                            void *dest,
-                           gasnetex_rank_t node, void *src, // TODO-EX: node -> rank when CHECKPSHM updated
+                           gasnetex_rank_t rank, void *src,
                            size_t nbytes,
                            gasnetex_flags_t flags GASNETE_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(UNALIGNED,V);
-  gasnete_amref_get_nbi_inner(team, dest, node, src, nbytes, flags GASNETE_THREAD_PASS);
+  GASNETI_CHECKPSHM_GET(V);
+  gasnete_amref_get_nbi_inner(team, dest, rank, src, nbytes, flags GASNETE_THREAD_PASS);
 }
 #endif /* GASNETE_BUILD_AMREF_GET */
 
@@ -632,13 +632,13 @@ void gasnete_amref_Get_nbi(gasnetex_team_member_t team,
 #if GASNETE_BUILD_AMREF_PUT
 extern
 void gasnete_amref_Put_nbi(gasnetex_team_member_t team,
-                           gasnetex_rank_t node, void *dest, // TODO-EX: node -> rank when CHECKPSHM updated
+                           gasnetex_rank_t rank, void *dest,
                            void *src,
                            size_t nbytes, gasnetex_lc_handle_t *lc_opt,
                            gasnetex_flags_t flags GASNETE_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
-  gasnete_amref_put_nbi_inner(team, node, dest, src, nbytes, lc_opt, flags GASNETE_THREAD_PASS);
+  GASNETI_CHECKPSHM_PUT(V);
+  gasnete_amref_put_nbi_inner(team, rank, dest, src, nbytes, lc_opt, flags GASNETE_THREAD_PASS);
 }
 #endif /* GASNETE_BUILD_AMREF_PUT */
 
