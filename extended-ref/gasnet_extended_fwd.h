@@ -43,34 +43,6 @@
  * Alternatively, one can #define GASNETE_HAVE_EXTENDED_HELP_EXTRA_H and defined
  * these in a conduit-specific gasnet_extended_help_extra.h.
  *
- * GASNETI_DIRECT_WAIT_SYNCNB 
- *   unset: gasnete_wait_syncnb(h) via gasneti_pollwhile(gasnete_try_syncnb(h))
- *   set: conduit provides it own gasnete_wait_syncnb()
- *
- * GASNETI_DIRECT_WAIT_SYNCNB_SOME
- *   unset: gasnete_wait_syncnb_some(...) via gasneti_pollwhile(gasnete_try_syncnb_some(...))
- *   set: conduit provides it own gasnete_wait_syncnb_some()
- *
- * GASNETI_DIRECT_WAIT_SYNCNB_ALL
- *   unset: gasnete_wait_syncnb_all(...) via gasneti_pollwhile(gasnete_try_syncnb_all(...))
- *   set: conduit provides it own gasnete_wait_syncnb_all()
- *
- * GASNETI_DIRECT_TRY_SYNCNBI_ALL
- *   unset: gasnete_try_syncnbi_all() via calls to gasnete_try_syncnbi_{gets,puts}()
- *   set: conduit provides it own gasnete_try_syncnbi_all()
- *
- * GASNETI_DIRECT_WAIT_SYNCNBI_GETS
- *   unset: gasneti_wait_syncnbi_gets() via gasneti_pollwhile(gasnete_try_syncnbi_gets())
- *   set: conduit provides it own gasneti_wait_syncnbi_gets()
- *
- * GASNETI_DIRECT_WAIT_SYNCNBI_PUTS
- *   unset: gasneti_wait_syncnbi_puts() via gasneti_pollwhile(gasnete_try_syncnbi_puts())
- *   set: conduit provides it own gasneti_wait_syncnbi_puts()
- *
- * GASNETI_DIRECT_WAIT_SYNCNBI_ALL
- *   unset: gasnete_wait_syncnbi_all() via gasneti_pollwhile(gasnete_try_syncnbi_{gets,puts}())
- *   set: conduit provides it own gasneti_wait_syncnbi_all()
- *
  * GASNETI_DIRECT_BLOCKING_GET
  *   unset: gasnete_Get() via gasnete_wait_syncnb(gasnete_Get_nb())
  *   set: conduit provides it own gasnete_Get()

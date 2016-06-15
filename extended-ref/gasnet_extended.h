@@ -192,9 +192,7 @@ int gasnet_try_syncnb_all(gasnet_handle_t *phandle, size_t numhandles) {
   return result;
 }
 
-#if GASNETI_DIRECT_WAIT_SYNCNB 
-  extern void gasnete_wait_syncnb(gasnet_handle_t handle);
-#elif !defined(gasnete_wait_syncnb)
+#ifndef gasnete_wait_syncnb
   #define gasnete_wait_syncnb(handle) do {                                      \
       gasnet_handle_t _handle = (handle);                                       \
       if_pt (_handle != GASNET_INVALID_HANDLE) {                                \
@@ -211,9 +209,7 @@ void gasnet_wait_syncnb(gasnet_handle_t handle) {
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNB);
 }
 
-#if GASNETI_DIRECT_WAIT_SYNCNB_SOME
-  extern void gasnete_wait_syncnb_some(gasnet_handle_t *phandle, size_t numhandles);
-#elif !defined(gasnete_wait_syncnb_some)
+#ifndef gasnete_wait_syncnb_some
   #define gasnete_wait_syncnb_some(phandle, numhandles) do {                                   \
       gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */                         \
       gasneti_pollwhile(gasnete_try_syncnb_some(phandle, numhandles) == GASNET_ERR_NOT_READY); \
@@ -227,9 +223,7 @@ void gasnet_wait_syncnb_some(gasnet_handle_t *phandle, size_t numhandles) {
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNB_SOME);
 }
 
-#if GASNETI_DIRECT_WAIT_SYNCNB_ALL
-  extern void gasnete_wait_syncnb_all(gasnet_handle_t *phandle, size_t numhandles);
-#elif !defined(gasnete_wait_syncnb_all)
+#ifndef gasnete_wait_syncnb_all
   #define gasnete_wait_syncnb_all(phandle, numhandles) do {                                   \
       gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */                        \
       gasneti_pollwhile(gasnete_try_syncnb_all(phandle, numhandles) == GASNET_ERR_NOT_READY); \
@@ -357,9 +351,7 @@ int _gasnet_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
 #define gasnet_try_syncnbi_puts()   \
        _gasnet_try_syncnbi_puts(GASNETE_THREAD_GET_ALONE)
 
-#if GASNETI_DIRECT_TRY_SYNCNBI_ALL
-  extern int gasnete_try_syncnbi_all(GASNETE_THREAD_FARG_ALONE);
-#elif !defined(gasnete_try_syncnbi_all)
+#ifndef gasnete_try_syncnbi_all
   #define gasnete_try_syncnbi_all                                               \
    (gasnete_try_syncnbi_gets(GASNETE_THREAD_PASS_ALONE) == GASNET_OK ?          \
     gasnete_try_syncnbi_puts(GASNETE_THREAD_PASS_ALONE) : GASNET_ERR_NOT_READY) \
@@ -377,9 +369,7 @@ int _gasnet_try_syncnbi_all(GASNETE_THREAD_FARG_ALONE) {
 #define gasnet_try_syncnbi_all()   \
        _gasnet_try_syncnbi_all(GASNETE_THREAD_GET_ALONE)
 
-#if GASNETI_DIRECT_WAIT_SYNCNBI_GETS
-  extern void gasnete_wait_syncnbi_gets(GASNETE_THREAD_FARG_ALONE);
-#elif !defined(gasnete_wait_syncnbi_gets)
+#ifndef gasnete_wait_syncnbi_gets
   #define gasnete_wait_syncnbi_gets \
     gasneti_pollwhile(gasnete_try_syncnbi_gets(GASNETE_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY) \
     GASNETE_THREAD_SWALLOW
@@ -392,9 +382,7 @@ int _gasnet_try_syncnbi_all(GASNETE_THREAD_FARG_ALONE) {
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNBI_GETS);                                                 \
   } while (0)
 
-#if GASNETI_DIRECT_WAIT_SYNCNBI_PUTS
-  extern void gasnete_wait_syncnbi_puts(GASNETE_THREAD_FARG_ALONE);
-#elif !defined(gasnete_wait_syncnbi_puts)
+#ifndef gasnete_wait_syncnbi_puts
   #define gasnete_wait_syncnbi_puts \
     gasneti_pollwhile(gasnete_try_syncnbi_puts(GASNETE_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY) \
     GASNETE_THREAD_SWALLOW
@@ -407,9 +395,7 @@ int _gasnet_try_syncnbi_all(GASNETE_THREAD_FARG_ALONE) {
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNBI_PUTS);                                                 \
   } while (0)
 
-#if GASNETI_DIRECT_WAIT_SYNCNBI_ALL
-  extern void gasnete_wait_syncnbi_all(GASNETE_THREAD_FARG_ALONE);
-#elif !defined(gasnete_wait_syncnbi_all)
+#ifndef gasnete_wait_syncnbi_all
   #define gasnete_wait_syncnbi_all do {                                                     \
     gasneti_pollwhile(gasnete_try_syncnbi_gets(GASNETE_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY); \
     gasneti_pollwhile(gasnete_try_syncnbi_puts(GASNETE_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY); \
