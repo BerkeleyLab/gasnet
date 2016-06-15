@@ -84,7 +84,7 @@
  *   set: conduit provides it own gasnete_memset()
  *
  * GASNETI_DIRECT_PUT_VAL
- *   unset: gasnete_put_val() via gasnete_putTI()
+ *   unset: gasnete_put_val() via gasnete_put()
  *   set: conduit provides it own gasnete_put_val()
  *
  * GASNETI_DIRECT_PUT_NB_VAL
