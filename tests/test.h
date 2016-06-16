@@ -238,19 +238,9 @@ static char test_sections[255];
 /* ------------------------------------------------------------------------------------ */
 /* memory management */
 
-#ifdef TEST_GASNET_H
-  #define test_hold_interrupts()    gasnet_hold_interrupts()
-  #define test_resume_interrupts()  gasnet_resume_interrupts()
-#else
-  #define test_hold_interrupts()    ((void)0)
-  #define test_resume_interrupts()  ((void)0)
-#endif
-
 static void *_test_malloc(size_t sz, const char *curloc) {
   void *ptr;
-  test_hold_interrupts();
   ptr = malloc(sz);
-  test_resume_interrupts();
   if (ptr == NULL) FATALERR("Failed to malloc(%lu) bytes at %s\n",(unsigned long)sz,curloc);
   return ptr;
 }
@@ -262,11 +252,7 @@ static void *_test_calloc(size_t sz, const char *curloc) {
 #define test_malloc(sz) _test_malloc((sz), __FILE__ ":" _STRINGIFY(__LINE__))
 #define test_calloc(N,S) _test_calloc((N*S), __FILE__ ":" _STRINGIFY(__LINE__))
 
-static void test_free(void *ptr) {
-  test_hold_interrupts();
-  free(ptr);
-  test_resume_interrupts();
-}
+#define test_free(p) free(p)
 
 /* ------------------------------------------------------------------------------------ */
 /* progress bar */

@@ -78,54 +78,44 @@ extern double gasneti_get_exittimeout(double dflt_max, double dflt_min, double d
   void *_gasneti_malloc(size_t nbytes) {
     void *ret = NULL;
     GASNETI_STAT_EVENT_VAL(I, GASNET_MALLOC, nbytes);
-    if_pt (gasneti_attach_done) { gasnet_hold_interrupts(); }
     ret = malloc(nbytes);
     if_pf (ret == NULL && nbytes > 0) 
       gasneti_fatalerror("gasneti_malloc(%d) failed", (int)nbytes);
-    if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
     return ret;
   }
   GASNETI_INLINE(_gasneti_malloc_allowfail) GASNETI_MALLOC
   void *_gasneti_malloc_allowfail(size_t nbytes) {
     void *ret = NULL;
     GASNETI_STAT_EVENT_VAL(I, GASNET_MALLOC, nbytes);
-    if_pt (gasneti_attach_done) { gasnet_hold_interrupts(); }
     ret = malloc(nbytes);
     if_pf (ret == NULL && nbytes > 0) { /* allow a NULL return for out-of-memory */
       GASNETI_TRACE_PRINTF(I,("Warning: returning NULL for a failed gasneti_malloc(%i)",(int)nbytes));
     }
-    if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
     return ret;
   }
   GASNETI_INLINE(_gasneti_calloc) GASNETI_MALLOC
   void *_gasneti_calloc(size_t N, size_t S) {
     void *ret = NULL;
     GASNETI_STAT_EVENT_VAL(I, GASNET_MALLOC, (N*S));
-    if_pt (gasneti_attach_done) { gasnet_hold_interrupts(); }
     ret = calloc(N,S);
     if_pf (ret == NULL && N*S > 0) 
       gasneti_fatalerror("gasneti_calloc(%d,%d) failed", (int)N, (int)S);
-    if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
     return ret;
   }
   GASNETI_INLINE(_gasneti_realloc)
   void *_gasneti_realloc(void *ptr, size_t nbytes) {
     void *ret = NULL;
     GASNETI_STAT_EVENT_VAL(I, GASNET_MALLOC, nbytes);
-    if_pt (gasneti_attach_done) { gasnet_hold_interrupts(); }
     ret = realloc(ptr, nbytes);
     if_pf (ret == NULL && nbytes > 0) 
       gasneti_fatalerror("gasneti_realloc(%d) failed", (int)nbytes);
-    if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
     return ret;
   }
   GASNETI_INLINE(_gasneti_free)
   void _gasneti_free(void *ptr) {
     GASNETI_STAT_EVENT_VAL(I, GASNET_FREE, 0); /* don't track free size in ndebug mode */
     if_pf (ptr == NULL) return;
-    if_pt (gasneti_attach_done) { gasnet_hold_interrupts(); }
     free(ptr);
-    if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
   }
   /* the following allows "gasneti_leak(p = gasneti_malloc(sz));" */
   #define _gasneti_leak(_expr) ((void)(_expr))

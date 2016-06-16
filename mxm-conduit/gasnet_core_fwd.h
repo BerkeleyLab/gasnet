@@ -48,16 +48,6 @@
 #define GASNETI_CONDUIT_THREADS 1
 #endif
 
-/* define to 1 if your conduit may interrupt an application thread
-   (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
- */
-#if (0)
-/* (###)
- * MXM conduit doesn't use interrupt-based dispatching.
- */
-#define GASNETC_USE_INTERRUPTS 1
-#endif
-
 /* define these to 1 if your conduit supports PSHM, but cannot use the
    default interfaces. (see template-conduit/gasnet_core.c and gasnet_pshm.h)
  */

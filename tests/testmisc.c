@@ -190,8 +190,6 @@ int val_junk = 0;
 void doit2(void) { GASNET_BEGIN_FUNCTION();
 
     TEST_SECTION_BEGIN();
-    TIME_OPERATION("hold/resume interrupts",
-      { gasnet_hold_interrupts(); gasnet_resume_interrupts(); });
 
     #if defined(GASNET_PAR) || defined (GASNET_PARSYNC)
       { static gasnett_mutex_t mutex = GASNETT_MUTEX_INITIALIZER;

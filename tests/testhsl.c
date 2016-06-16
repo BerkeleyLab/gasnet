@@ -13,14 +13,6 @@ int flag = 0;
 int iters = 100;
 gasnet_hsl_t globallock = GASNET_HSL_INITIALIZER;
 
-void okhandler1(gasnetex_token_t token) {
-  gasnet_hold_interrupts();
-  flag++;
-}
-void okhandler2(gasnetex_token_t token) {
-  gasnet_resume_interrupts();
-  flag++;
-}
 void okhandler3(gasnetex_token_t token) {
   gasnet_hsl_lock(&globallock);
   flag++;
@@ -63,8 +55,6 @@ void donothing(gasnetex_token_t token) {
 int main(int argc, char **argv) {
   int mynode, nodes;
   gasnet_handlerentry_t htable[] = { 
-    { 201, okhandler1 },
-    { 202, okhandler2 },
     { 203, okhandler3 },
 
     { 221, increq },
@@ -97,29 +87,11 @@ int main(int argc, char **argv) {
 
     MSG0("testing legal local cases...");
     gasnet_hsl_lock(&lock1);
-    gasnet_resume_interrupts(); /* ignored */
-    gasnet_hsl_unlock(&lock1);
-
-    gasnet_hsl_lock(&lock1);
-    gasnet_hold_interrupts(); /* ignored */
-    gasnet_hsl_unlock(&lock1);
-
-    gasnet_hsl_lock(&lock1);
-    gasnet_hold_interrupts(); /* ignored */
-    gasnet_resume_interrupts(); 
-    gasnet_hsl_unlock(&lock1);
-
-    gasnet_hsl_lock(&lock1);
     gasnet_hsl_lock(&lock2);
     assert(mynode == gasnet_mynode()); 
     assert(nodes == gasnet_nodes());
     gasnet_hsl_unlock(&lock2);
     gasnet_hsl_unlock(&lock1);
-
-    gasnet_hold_interrupts();
-    assert(mynode == gasnet_mynode()); 
-    assert(nodes == gasnet_nodes());
-    gasnet_resume_interrupts(); 
 
     assert_always(gasnet_hsl_trylock(&lock1) == GASNET_OK);
     gasnet_hsl_unlock(&lock1);
@@ -127,16 +99,8 @@ int main(int argc, char **argv) {
     BARRIER();
     MSG0("testing legal AM cases...");
 
-    gasnetex_AMRequestShort0(myteam, peer, 201, 0);
-    GASNET_BLOCKUNTIL(flag == 1);
-    BARRIER();
-
-    gasnetex_AMRequestShort0(myteam, peer, 202, 0);
-    GASNET_BLOCKUNTIL(flag == 2);
-    BARRIER();
-
     gasnetex_AMRequestShort0(myteam, peer, 203, 0);
-    GASNET_BLOCKUNTIL(flag == 3);
+    GASNET_BLOCKUNTIL(flag == 1);
 
     BARRIER();
 
@@ -145,72 +109,55 @@ int main(int argc, char **argv) {
     MSG0("testing illegal case %i...", errtest);
     switch(errtest) {
       case 1:
-        gasnet_hold_interrupts();
-        gasnet_hold_interrupts();
-      break;
-      case 2:
-        gasnet_resume_interrupts();
-      break;
-      case 3:
         gasnet_hsl_init(&lock1);
       break;
-      case 4:
+      case 2:
         gasnet_hsl_destroy(&lock1);
         gasnet_hsl_destroy(&lock1);
       break;
-      case 5:
+      case 3:
         gasnet_hsl_unlock(&lock1);
       break;
-      case 6:
+      case 4:
         gasnet_hsl_lock(&lock1);
         gasnet_hsl_lock(&lock2);
         gasnet_hsl_unlock(&lock1);
       break;
+      case 5:
+        gasnet_hsl_lock(&lock1);
+        gasnet_hsl_lock(&lock1);
+      break;
+      case 6:
+        dummy += gasnet_hsl_trylock(&lock1);
+        dummy += gasnet_hsl_trylock(&lock1);
+      break;
       case 7:
         gasnet_hsl_lock(&lock1);
-        gasnet_hsl_lock(&lock1);
+        gasnet_AMPoll();
       break;
       case 8:
-        dummy += gasnet_hsl_trylock(&lock1);
-        dummy += gasnet_hsl_trylock(&lock1);
-      break;
-      case 9:
-        gasnet_hsl_lock(&lock1);
-        gasnet_AMPoll();
-      break;
-      case 10:
-        gasnet_hold_interrupts();
-        gasnet_AMPoll();
-      break;
-      case 11:
         gasnetex_AMRequestShort0(myteam, gasnet_mynode(), 231, 0);
         GASNET_BLOCKUNTIL(0);
       break;
-      case 12:
+      case 9:
         gasnetex_AMRequestShort0(myteam, gasnet_mynode(), 232, 0);
         GASNET_BLOCKUNTIL(0);
       break;
-      case 13:
+      case 10:
         gasnet_hsl_lock(&lock1);
         gasnetex_AMRequestShort0(myteam, gasnet_mynode(), 255, 0);
         gasnet_hsl_unlock(&lock1);
       break;
-      case 14:
+      case 11:
         gasnet_hsl_lock(&lock1);
         sleep(2);
         gasnet_hsl_unlock(&lock1);
         goto done;
       break;
-      case 15:
+      case 12:
         dummy += gasnet_hsl_trylock(&lock1);
         sleep(2);
         gasnet_hsl_unlock(&lock1);
-        goto done;
-      break;
-      case 16:
-        gasnet_hold_interrupts();
-        sleep(2);
-        gasnet_resume_interrupts();
         goto done;
       break;
       default:

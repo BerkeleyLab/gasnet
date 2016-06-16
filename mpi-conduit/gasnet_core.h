@@ -46,23 +46,6 @@ GASNETI_NORETURNP(gasnetc_exit)
 #endif
 /* ------------------------------------------------------------------------------------ */
 /*
-  No-interrupt sections
-  =====================
-*/
-/* conduit may or may not need this based on whether interrupts are used for running handlers */
-#if GASNETC_USE_INTERRUPTS || GASNETC_HSL_ERRCHECK
-  extern void gasnetc_hold_interrupts(void);
-  extern void gasnetc_resume_interrupts(void);
-
-  #define gasnet_hold_interrupts    gasnetc_hold_interrupts
-  #define gasnet_resume_interrupts  gasnetc_resume_interrupts
-#else
-  #define gasnet_hold_interrupts()
-  #define gasnet_resume_interrupts()
-#endif
-
-/* ------------------------------------------------------------------------------------ */
-/*
   Handler-safe locks
   ==================
 */
@@ -87,11 +70,6 @@ typedef struct _gasnet_hsl_t {
     gasneti_tick_t timestamp;
     struct _gasnet_hsl_t *next;
   #endif
-
-  #if GASNETC_USE_INTERRUPTS
-    /* more state may be required for conduits using interrupts */
-    #error interrupts not implemented
-  #endif
 } gasnet_hsl_t GASNETI_THREAD_TYPEDEF;
 
 #if GASNETI_STATS_OR_TRACE
@@ -106,22 +84,14 @@ typedef struct _gasnet_hsl_t {
   #define GASNETC_LOCK_ERRCHECK_INIT 
 #endif
 
-#if GASNETC_USE_INTERRUPTS
-  #error interrupts not implemented
-  #define GASNETC_LOCK_INTERRUPT_INIT 
-#else
-  #define GASNETC_LOCK_INTERRUPT_INIT  
-#endif
-
 #define GASNET_HSL_INITIALIZER { \
   GASNETI_MUTEX_INITIALIZER      \
   GASNETC_LOCK_STAT_INIT         \
   GASNETC_LOCK_ERRCHECK_INIT     \
-  GASNETC_LOCK_INTERRUPT_INIT    \
   }
 
 /* decide whether we have "real" HSL's */
-#if GASNETI_THREADS || GASNETC_USE_INTERRUPTS || /* need for safety */ \
+#if GASNETI_THREADS ||                           /* need for safety */ \
     GASNET_DEBUG || GASNETI_STATS_OR_TRACE       /* or debug/tracing */
   #ifdef GASNETC_NULL_HSL 
     #error bad defn of GASNETC_NULL_HSL

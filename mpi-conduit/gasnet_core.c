@@ -42,14 +42,14 @@ gasneti_mutex_t gasnetc_AMlock = GASNETI_MUTEX_INITIALIZER; /*  protect access t
 #endif
 
 #if GASNETC_HSL_ERRCHECK
-  /* check a call is legally outside an NIS or HSL */
-  void gasnetc_checkcallNIS(void);
+  /* check a call is legally outside Handler Context or HSL */
+  void gasnetc_checkcallHC(void);
   void gasnetc_checkcallHSL(void);
   void gasnetc_hsl_attach(void);
-  #define CHECKCALLNIS() gasnetc_checkcallNIS()
+  #define CHECKCALLHC()  gasnetc_checkcallHC()
   #define CHECKCALLHSL() gasnetc_checkcallHSL()
 #else
-  #define CHECKCALLNIS()
+  #define CHECKCALLHC()
   #define CHECKCALLHSL()
 #endif
 
@@ -429,6 +429,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
     #if GASNETC_HSL_ERRCHECK
       gasnetc_hsl_attach(); /* must precede attach_done to avoid inf recursion on malloc/hold_interrupts */
+      // TODO-EX: Is this recursion still an issue w/ removal of NIS?
     #endif
 
     /* ------------------------------------------------------------------------------------ */
@@ -538,7 +539,7 @@ extern void gasnetc_exit(int exitcode) {
 extern int gasneti_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries);
 
 extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentries) {
-  CHECKCALLNIS();
+  CHECKCALLHC();
   return gasneti_getSegmentInfo(seginfo_table, numentries);
 }
 
@@ -573,7 +574,7 @@ extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex)
 extern int gasnetc_AMPoll(void) {
   int retval;
   GASNETI_CHECKATTACH();
-  CHECKCALLNIS();
+  CHECKCALLHC();
 #if GASNET_PSHM
   gasneti_AMPSHMPoll(0);
 #endif
@@ -598,7 +599,7 @@ extern int gasnetc_AMRequestShortM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  CHECKCALLNIS();
+  CHECKCALLHC();
   GASNETI_COMMON_AMREQUESTSHORT(dest,handler,flags,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
@@ -630,7 +631,7 @@ extern int gasnetc_AMRequestMediumM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  CHECKCALLNIS();
+  CHECKCALLHC();
   GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,lc_opt,flags,numargs);
   gasneti_lc_at_init(lc_opt); // always locally completed
   va_start(argptr, numargs); /*  pass in last argument */
@@ -667,7 +668,7 @@ extern int gasnetc_AMRequestLongM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  CHECKCALLNIS();
+  CHECKCALLHC();
   GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   gasneti_lc_at_init(lc_opt); // always locally completed
   va_start(argptr, numargs); /*  pass in last argument */
@@ -796,27 +797,18 @@ extern int gasnetc_AMReplyLongM(
 }
 
 /* ------------------------------------------------------------------------------------ */
-/*
-  No-interrupt sections
-  =====================
-*/
-/* AMMPI does not use interrupts, but we provide an optional error-checking implementation of 
+/* AMMPI provides an optional error-checking implementation of 
    handler-safe locks to assist in debugging client code
  */
 
-#if GASNETC_USE_INTERRUPTS 
-  #error Interrupts not implemented
-#endif
 #if GASNETC_HSL_ERRCHECK
   typedef struct { /* per-thread HSL err-checking info */
     gasnet_hsl_t *locksheld;
-    int inExplicitNIS;
     unsigned int inhandler;
     int inuse;
-    gasneti_tick_t NIStimestamp;
   } gasnetc_hsl_errcheckinfo_t;
-  static gasnetc_hsl_errcheckinfo_t _info_init = { NULL, 0, 0, 0 };
-  static gasnetc_hsl_errcheckinfo_t _info_free = { NULL, 0, 0, 0 };
+  static gasnetc_hsl_errcheckinfo_t _info_init = { NULL, 0, 0 };
+  static gasnetc_hsl_errcheckinfo_t _info_free = { NULL, 0, 0 };
 
   #if GASNETI_CLIENT_THREADS
     /*  pthread thread-specific ptr to our info (or NULL for a thread never-seen before) */
@@ -839,7 +831,7 @@ extern int gasnetc_AMReplyLongM(
       /*  first time we've seen this thread - need to set it up */
       { /* it's unsafe to call malloc or gasneti_malloc here after attach,
            because we may be within a hold_interrupts call, so table is single-level
-           and initialized during gasnet_attach */
+           and initialized during gasnet_attach */ // TODO-EX: Still true w/ removal of NIS?
         static gasnetc_hsl_errcheckinfo_t *hsl_errcheck_table = NULL;
         static gasneti_mutex_t hsl_errcheck_tablelock = GASNETI_MUTEX_INITIALIZER;
         int maxthreads = gasneti_max_threads();
@@ -873,55 +865,10 @@ extern int gasnetc_AMReplyLongM(
     gasnetc_get_errcheckinfo();
   }
 
-
-  extern void gasnetc_hold_interrupts(void) {
-    GASNETI_CHECKATTACH();
-    { gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
-      if_pf (info == &_info_free) return; /* TODO: assert that we are in the thread destruction path */
-      if (info->inhandler) { /* NIS calls ignored within a handler */
-        GASNETI_TRACE_PRINTF(I,("Warning: Called gasnet_hold_interrupts within a handler context -- call ignored"));
-        return;
-      }
-      if (info->locksheld) { /* NIS calls ignored while holding an HSL */
-        GASNETI_TRACE_PRINTF(I,("Warning: Called gasnet_hold_interrupts while holding an HSL -- call ignored"));
-        return;
-      }
-      if (info->inExplicitNIS)
-        gasneti_fatalerror("HSL USAGE VIOLATION: tried to disable interrupts when they were already disabled");
-      info->inExplicitNIS = 1;
-      info->NIStimestamp = gasneti_ticks_now();
-    }
-  }
-  extern void gasnetc_resume_interrupts(void) {
-    GASNETI_CHECKATTACH();
-    { gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
-      if_pf (info == &_info_free) return; /* TODO: assert that we are in the thread destruction path */
-      if (info->inhandler) { /* NIS calls ignored within a handler */
-        GASNETI_TRACE_PRINTF(I,("Warning: Called gasnet_resume_interrupts within a handler context -- call ignored"));
-        return;
-      }
-      if (info->locksheld) { /* NIS calls ignored while holding an HSL */
-        GASNETI_TRACE_PRINTF(I,("Warning: Called gasnet_resume_interrupts while holding an HSL -- call ignored"));
-        return;
-      }
-      if (!info->inExplicitNIS)
-        gasneti_fatalerror("HSL USAGE VIOLATION: tried to resume interrupts when they were not disabled");
-      { float NIStime = gasneti_ticks_to_ns(gasneti_ticks_now() - info->NIStimestamp)/1000.0;
-        if (NIStime > GASNETC_NISTIMEOUT_WARNING_THRESHOLD) {
-          fprintf(stderr,"HSL USAGE WARNING: held a no-interrupt section for a long interval (%8.3f sec)\n", NIStime/1000000.0);
-          fflush(stderr);
-        }
-      }
-      info->inExplicitNIS = 0;
-    }
-  }
-
-  void gasnetc_checkcallNIS(void) {
+  void gasnetc_checkcallHC(void) {
     gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
-    if (info->inExplicitNIS)
-      gasneti_fatalerror("Illegal call to GASNet within a No-Interrupt Section");
     if (info->inhandler)
-      gasneti_fatalerror("Illegal call to GASNet within a No-Interrupt Section (imposed by handler context)");
+      gasneti_fatalerror("Illegal call to GASNet within by handler context");
     gasnetc_checkcallHSL();
   }
   void gasnetc_checkcallHSL(void) {
@@ -1100,14 +1047,11 @@ extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
     gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
     if (info->locksheld)
         gasneti_fatalerror("HSL USAGE VIOLATION: tried to make a GASNet network call while holding an HSL");
-    if (info->inExplicitNIS)
-        gasneti_fatalerror("HSL USAGE VIOLATION: tried to make a GASNet network call with interrupts disabled");
     info->inhandler++;
   }
   extern void gasnetc_leavingHandler_hook_hsl(int cat, int isReq) {
     gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
     gasneti_assert(info->inhandler > 0);
-    gasneti_assert(!info->inExplicitNIS);
     if (info->locksheld)
         gasneti_fatalerror("HSL USAGE VIOLATION: tried to exit a handler while holding an HSL");
     info->inhandler--;

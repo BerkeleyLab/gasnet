@@ -25,8 +25,6 @@
   }
 
 #define GASNET_BLOCKUNTIL(cond)		gasneti_polluntil(cond)
-#define gasnet_hold_interrupts()	do {} while (0)
-#define gasnet_resume_interrupts()	do {} while (0)
 #define gasnet_AMMaxArgs()		16
 #define gasnet_AMMaxMedium()		512
 #define gasnet_AMMaxLongRequest()	512

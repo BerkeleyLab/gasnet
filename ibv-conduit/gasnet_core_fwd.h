@@ -63,11 +63,6 @@ typedef uint8_t gasnet_handler_t;
   #define GASNETI_CONDUIT_THREADS 1
 #endif
 
-  /* define to 1 if your conduit may interrupt an application thread 
-     (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
-   */
-/* #define GASNETC_USE_INTERRUPTS 1 */
-  
   /* define these to 1 if your conduit supports PSHM, but cannot use the
      default interfaces. (see template-conduit/gasnet_core.c and gasnet_pshm.h)
    */

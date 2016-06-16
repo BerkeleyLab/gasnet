@@ -53,11 +53,6 @@ typedef uint16_t gasnet_node_t;
    */
 /* #define GASNETI_CONDUIT_THREADS 1 */
 
-  /* define to 1 if your conduit may interrupt an application thread 
-     (e.g. with a signal) to run AM handlers (interrupt-based handler dispatch)
-   */
-/* #define GASNETC_USE_INTERRUPTS 1 */
-
 /*  override default error values to use those defined by AMUDP */
 #define _GASNET_ERRORS
 #define _GASNET_ERR_BASE 10000
