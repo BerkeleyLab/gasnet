@@ -9,6 +9,8 @@
 
 GASNETI_BEGIN_EXTERNC
 
+// TODO-EX: need better namespace than "the_"
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Active Message Request/Reply Functions
@@ -262,8 +264,10 @@ GASNETI_BEGIN_EXTERNC
         gasnetex_AMReplyLong15(token, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13, (gasnet_handlerarg_t)a14)
 #define gasnet_AMReplyLong16(token, handler, source_addr, nbytes, dest_addr, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) \
         gasnetex_AMReplyLong16(token, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnet_handlerarg_t)a0, (gasnet_handlerarg_t)a1, (gasnet_handlerarg_t)a2, (gasnet_handlerarg_t)a3, (gasnet_handlerarg_t)a4, (gasnet_handlerarg_t)a5, (gasnet_handlerarg_t)a6, (gasnet_handlerarg_t)a7, (gasnet_handlerarg_t)a8, (gasnet_handlerarg_t)a9, (gasnet_handlerarg_t)a10, (gasnet_handlerarg_t)a11, (gasnet_handlerarg_t)a12, (gasnet_handlerarg_t)a13, (gasnet_handlerarg_t)a14, (gasnet_handlerarg_t)a15)
+
 /* ------------------------------------------------------------------------------------ */
 /* Blocking Put and Get */
+// TODO-EX: pass GASNETEX_FLAG_DST_IN_SEGMENT and possibly other flags
 
 #define gasnet_put(node,dest,src,nbytes) \
                 gasnetex_Put(the_team,node,dest,src,nbytes,0)
@@ -276,6 +280,8 @@ GASNETI_BEGIN_EXTERNC
 
 /* ------------------------------------------------------------------------------------ */
 /* Implicit-handle non-blocking Put and Get */
+// TODO-EX: pass GASNETEX_FLAG_DST_IN_SEGMENT and possibly other flags
+
 #define gasnet_put_nbi(node,dest,src,nbytes) \
                 gasnetex_Put_nbi(the_team,node,dest,src,nbytes,GASNETEX_LC_INIT,0)
 #define gasnet_put_nbi_bulk(node,dest,src,nbytes) \
@@ -287,6 +293,8 @@ GASNETI_BEGIN_EXTERNC
 
 /* ------------------------------------------------------------------------------------ */
 /* Explicit-handle non-blocking Put and Get */
+// TODO-EX: pass GASNETEX_FLAG_DST_IN_SEGMENT and possibly other flags
+
 #define gasnet_put_nb(node,dest,src,nbytes) \
                 gasnetex_Put_nb(the_team,node,dest,src,nbytes,GASNETEX_LC_INIT,0)
 #define gasnet_put_nb_bulk(node,dest,src,nbytes) \
