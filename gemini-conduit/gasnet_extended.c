@@ -1098,7 +1098,6 @@ extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, 
   gasnet_valget_handle_t retval = gasnete_new_valget_handle(mythread);
 
   gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
-  gasneti_boundscheck(node, src, nbytes);
 
 #if GASNET_PSHM
   if (gasneti_pshm_in_supernode(node)) {

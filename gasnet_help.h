@@ -147,51 +147,6 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
   #define gasneti_in_segment_allowoutseg  gasneti_in_segment
 #endif
 
-#define _gasneti_boundscheck(node,ptr,nbytes,nodetest,segtest) do {            \
-    gasnet_node_t _node = (node);                                              \
-    const void *_ptr = (const void *)(ptr);                                    \
-    size_t _nbytes = (size_t)(nbytes);                                         \
-    if_pf (!nodetest(_node))                                                   \
-      gasneti_fatalerror("Node index out of range (%lu >= %lu) at %s",         \
-                         (unsigned long)_node, (unsigned long)gasneti_nodes,   \
-                         gasneti_current_loc);                                 \
-    if_pf (_ptr == NULL || !segtest(_node,_ptr,_nbytes))                       \
-      gasneti_fatalerror("Remote address out of range "                        \
-         "(node=%lu ptr=" GASNETI_LADDRFMT" nbytes=%lu) at %s"                 \
-         "\n  clientsegment=(" GASNETI_LADDRFMT"..." GASNETI_LADDRFMT")"       \
-         "\n    fullsegment=(" GASNETI_LADDRFMT"..." GASNETI_LADDRFMT")",      \
-         (unsigned long)_node, GASNETI_LADDRSTR(_ptr), (unsigned long)_nbytes, \
-         gasneti_current_loc,                                                  \
-         GASNETI_LADDRSTR(gasneti_seginfo_client[_node].addr),                 \
-         GASNETI_LADDRSTR(gasneti_seginfo_client_ub[_node]),                   \
-         GASNETI_LADDRSTR(gasneti_seginfo[_node].addr),                        \
-         GASNETI_LADDRSTR(gasneti_seginfo_ub[_node])                           \
-         );                                                                    \
-  } while(0)
-
-/* in-segment queries for the sole purpose of generating bounds checking errors 
-   allow overrides for clients that allow bending the rules (shmem)
- */
-#ifndef gasneti_in_segment_bc
-#define gasneti_in_segment_bc gasneti_in_segment
-#endif
-#ifndef gasneti_in_segment_allowoutofseg_bc
-#define gasneti_in_segment_allowoutofseg_bc gasneti_in_segment_allowoutseg
-#endif
-#ifndef gasneti_in_nodes_bc
-#define gasneti_in_nodes_bc(node) (node < gasneti_nodes)
-#endif
-
-#if GASNET_NDEBUG
-  #define gasneti_boundscheck(node,ptr,nbytes) 
-  #define gasneti_boundscheck_allowoutseg(node,ptr,nbytes)
-#else
-  #define gasneti_boundscheck(node,ptr,nbytes) \
-         _gasneti_boundscheck(node,ptr,nbytes,gasneti_in_nodes_bc,gasneti_in_segment_bc)
-  #define gasneti_boundscheck_allowoutseg(node,ptr,nbytes) \
-         _gasneti_boundscheck(node,ptr,nbytes,gasneti_in_nodes_bc,gasneti_in_segment_allowoutofseg_bc)
-#endif
-
 /* make a GASNet core API call - if it fails, print error message and abort */
 #ifndef GASNETI_SAFE
 #define GASNETI_SAFE(fncall) do {                                            \

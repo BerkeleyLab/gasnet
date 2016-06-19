@@ -164,7 +164,6 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 
 #define GASNETE_PUT_INDIV(islocal, dstnode, dstaddr, srcaddr, nbytes) do {      \
     gasneti_assert(nbytes > 0);                                                 \
-    gasneti_boundscheck_allowoutseg(dstnode, dstaddr, nbytes);                  \
     gasneti_assert(islocal == (dstnode == gasneti_mynode));                     \
     if (islocal) GASNETE_FAST_UNALIGNED_MEMCPY((dstaddr), (srcaddr), (nbytes)); \
     else gasnete_Put_nbi(NULL, (dstnode), (dstaddr), (srcaddr), (nbytes),       \
@@ -173,7 +172,6 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 
 #define GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, nbytes) do {      \
     gasneti_assert(nbytes > 0);                                                 \
-    gasneti_boundscheck_allowoutseg(srcnode, srcaddr, nbytes);                  \
     gasneti_assert(islocal == (srcnode == gasneti_mynode));                     \
     if (islocal) GASNETE_FAST_UNALIGNED_MEMCPY((dstaddr), (srcaddr), (nbytes)); \
     else gasnete_Get_nbi(NULL, (dstaddr), (srcnode), (srcaddr), (nbytes),       \
