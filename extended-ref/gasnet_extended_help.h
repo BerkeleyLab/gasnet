@@ -365,40 +365,6 @@ typedef union {
 #endif /* GASNETI_BUG1389_WORKAROUND */
 
 
-#if GASNET_NDEBUG
-  #define gasnete_aligncheck(ptr,nbytes)
-#else
-  #if 0
-    #define gasnete_aligncheck(ptr,nbytes) do {               \
-        if ((nbytes) <= 8 && (nbytes) % 2 == 0)               \
-          gasneti_assert(((uintptr_t)(ptr)) % (nbytes) == 0); \
-      } while (0)
-  #else
-    static uint8_t _gasnete_aligncheck[600];
-    #define gasnete_aligncheck(ptr,nbytes) do {                                         \
-        uint8_t *_gasnete_alignbuf =                                                    \
-          (uint8_t *)(((uintptr_t)&(_gasnete_aligncheck[0x100])) & ~((uintptr_t)0xFF)); \
-        uintptr_t offset = ((uintptr_t)(ptr)) & 0xFF;                                   \
-        uint8_t *p = _gasnete_alignbuf + offset;                                        \
-        gasneti_assert(p >= _gasnete_aligncheck &&                                      \
-              (p + 8) < (_gasnete_aligncheck+sizeof(_gasnete_aligncheck)));             \
-        /* NOTE: a runtime bus error in this code indicates the relevant pointer        \
-            was not "properly aligned for accessing objects of size nbytes", as         \
-            required by the GASNet spec for src/dest addresses in non-bulk puts/gets    \
-         */                                                                             \
-        switch (nbytes) {                                                               \
-          case 1: *(uint8_t *)p = 0; break;                                             \
-        GASNETE_OMIT_WHEN_MISSING_16BIT(                                                \
-          case 2: *(uint16_t *)p = 0; break;                                            \
-        )                                                                               \
-          case 4: *(uint32_t *)p = 0; break;                                            \
-          case 8: *(uint64_t *)p = 0; break;                                            \
-        }                                                                               \
-      } while (0)
-  #endif
-#endif
-
-
 /* gasnete_loopback{get,put}_memsync() go after a get or put is done with both source
  * and destination on the local node.  This is only done if GASNet was configured
  * for the stricter memory consistency model.
