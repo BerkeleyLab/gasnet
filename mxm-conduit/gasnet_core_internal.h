@@ -158,18 +158,18 @@ extern int gasnetc_connect_fini(void);
  * Routines in gasnet_core_sndrcv.c
  */
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
-                                  int dest, gasnet_handler_t handler,
+                                  int dest, gasnetex_handler_t handler,
                                   void *src_addr, int nbytes, void *dst_addr,
                                   uint8_t is_sync,
                                   int numargs, va_list argptr);
 extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
-                                gasnetex_token_t token, gasnet_handler_t handler,
+                                gasnetex_token_t token, gasnetex_handler_t handler,
                                 void *src_addr, int nbytes, void *dst_addr,
                                 int numargs, va_list argptr);
 
 #define gasnetc_unmap(reg)      gasneti_munmap((void *)((reg)->addr), (reg)->len)
 
-#define GASNETC_MSG_HANDLERID(num)   ( (gasnet_handler_t)( (((uint32_t)(num)) >>  8) & ((uint32_t)0xFF)) )
+#define GASNETC_MSG_HANDLERID(num)   ( (gasnetex_handler_t)( (((uint32_t)(num)) >>  8) & ((uint32_t)0xFF)) )
 #define GASNETC_MSG_NUMARGS(num)     ( (uint8_t)( (((uint32_t)(num)) >> 16) & ((uint32_t)0xFF)) )
 #define GASNETC_MSG_NUMBER(num)      ( (uint8_t)( (((uint32_t)(num)) >> 24) & ((uint32_t)0xFF)) )
 #define GASNETC_MSG_CATEGORY(num)    ( (gasnetc_category_t)((uint32_t)(num) & 3) )

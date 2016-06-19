@@ -629,7 +629,7 @@ void gasnetc_ofi_poll(int blocking_poll)
  * OFI conduit am send functions
  * ----------------------------------------------*/
 
-int gasnetc_ofi_am_send_short(gasnet_node_t dest, gasnet_handler_t handler,
+int gasnetc_ofi_am_send_short(gasnet_node_t dest, gasnetex_handler_t handler,
                      int numargs, va_list argptr, int isreq)
 {
 	int ret = FI_SUCCESS;
@@ -688,7 +688,7 @@ int gasnetc_ofi_am_send_short(gasnet_node_t dest, gasnet_handler_t handler,
 	return ret;
 }
 
-int gasnetc_ofi_am_send_medium(gasnet_node_t dest, gasnet_handler_t handler, 
+int gasnetc_ofi_am_send_medium(gasnet_node_t dest, gasnetex_handler_t handler, 
                      void *source_addr, size_t nbytes,   /* data payload */
                      int numargs, va_list argptr, int isreq)
 {
@@ -754,7 +754,7 @@ int gasnetc_ofi_am_send_medium(gasnet_node_t dest, gasnet_handler_t handler,
 	return ret;
 }
 
-int gasnetc_ofi_am_send_long(gasnet_node_t dest, gasnet_handler_t handler,
+int gasnetc_ofi_am_send_long(gasnet_node_t dest, gasnetex_handler_t handler,
 		               void *source_addr, size_t nbytes,   /* data payload */
 		               void *dest_addr,
 		               int numargs, va_list argptr, int isreq, int isasync)

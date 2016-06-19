@@ -127,12 +127,12 @@ void gasnetc_ofi_attach(void *segbase, uintptr_t segsize);
 void gasnetc_ofi_exit();
 
 /* Active Messages Send Functions */
-int gasnetc_ofi_am_send_short(gasnet_node_t dest, gasnet_handler_t handler, 
+int gasnetc_ofi_am_send_short(gasnet_node_t dest, gasnetex_handler_t handler, 
 		int numargs, va_list argptr, int isreq);
-int gasnetc_ofi_am_send_medium(gasnet_node_t dest, gasnet_handler_t handler, 
+int gasnetc_ofi_am_send_medium(gasnet_node_t dest, gasnetex_handler_t handler, 
 		void *source_addr, size_t nbytes,
 		int numargs, va_list argptr, int isreq);
-int gasnetc_ofi_am_send_long(gasnet_node_t dest, gasnet_handler_t handler,
+int gasnetc_ofi_am_send_long(gasnet_node_t dest, gasnetex_handler_t handler,
 		void *source_addr, size_t nbytes,
 		void *dest_addr, int numargs, va_list argptr, int isReq, int isAsync);
 

@@ -281,17 +281,11 @@ typedef struct gasneti_team_s *gasnetex_team_member_t;
   typedef uint32_t gasnet_node_t;
 #endif
 
-#ifndef _GASNET_HANDLER_T
-#define _GASNET_HANDLER_T
-  /*  an unsigned integer type representing an index into the core API AM handler table */
-  typedef uint8_t gasnet_handler_t;
-#endif
-
 #ifndef _GASNET_HANDLERENTRY_T
 #define _GASNET_HANDLERENTRY_T
   /*  struct type used to negotiate handler registration in gasnet_init() */
   typedef struct gasneti_handlerentry_s {
-    gasnet_handler_t index; /*  == 0 for don't care  */
+    gasnetex_handler_t index; /*  == 0 for don't care  */
    #ifdef GASNET_USE_STRICT_PROTOTYPES
     void *fnptr;    
    #else

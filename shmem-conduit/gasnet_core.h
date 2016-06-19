@@ -134,17 +134,17 @@ extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnet_node_t *srcinde
 
 extern int gasnetc_AMRequestShortM( 
                             gasnet_node_t dest,       /* destination node */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */ 
                             int numargs, ...);
 
 extern int gasnetc_AMRequestMediumM( 
                             gasnet_node_t dest,      /* destination node */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             int numargs, ...);
 
 extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination node */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...);
@@ -154,18 +154,18 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 
 extern int gasnetc_AMReplyShortM( 
                             gasnetex_token_t token,       /* token provided on handler entry */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */ 
                             int numargs, ...);
 
 extern int gasnetc_AMReplyMediumM( 
                             gasnetex_token_t token,       /* token provided on handler entry */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             int numargs, ...);
 
 extern int gasnetc_AMReplyLongM( 
                             gasnetex_token_t token,       /* token provided on handler entry */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...);

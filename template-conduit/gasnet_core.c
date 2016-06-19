@@ -219,7 +219,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     checkuniqhandler[newindex] = 1;
 
     /* register the handler */
-    gasnetc_handler[(gasnet_handler_t)newindex] = (gasneti_handler_fn_t)table[i].fnptr;
+    gasnetc_handler[(gasnetex_handler_t)newindex] = (gasneti_handler_fn_t)table[i].fnptr;
 
     /* The check below for !table[i].index is redundant and present
      * only to defeat the over-aggressive optimizer in pathcc 2.1

@@ -1192,7 +1192,7 @@ gasnetc_p4_poll(void)
  * --------------------------------------------------------------------------------- */
 int
 gasnetc_p4_TransferGeneric(int category, ptl_match_bits_t req_type, gasnet_node_t dest, 
-                          gasnet_handler_t handler, void *source_addr, size_t nbytes,
+                          gasnetex_handler_t handler, void *source_addr, size_t nbytes,
                           void *dest_addr, int numargs, va_list argptr)
 {
     int ret, i;

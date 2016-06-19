@@ -350,7 +350,7 @@ void gasnete_amref_get_nbi_inner(gasnetex_team_member_t team,
     return;
   } else {
     size_t chunksz;
-    gasnet_handler_t reqhandler;
+    gasnetex_handler_t reqhandler;
     uint8_t *psrc = src;
     uint8_t *pdest = dest;
     #if GASNETE_USE_LONG_GETS

@@ -729,7 +729,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     checkuniqhandler[newindex] = 1;
 
     /* register the handler */
-    gasnetc_handler[(gasnet_handler_t)newindex] = (gasneti_handler_fn_t)table[i].fnptr;
+    gasnetc_handler[(gasnetex_handler_t)newindex] = (gasneti_handler_fn_t)table[i].fnptr;
 
     /* The check below for !table[i].index is redundant and present
      * only to defeat the over-aggressive optimizer in pathcc 2.1
@@ -1194,7 +1194,7 @@ int gasnetc_general_am_send_reply(gasnetc_post_descriptor_t *gpd, gasnetex_token
 #if !GASNET_PSHM
 
 GASNETI_INLINE(gasnetc_local_short_common)
-int gasnetc_local_short_common(int is_req, gasnet_handler_t handler,
+int gasnetc_local_short_common(int is_req, gasnetex_handler_t handler,
                                int numargs, va_list argptr)
 {
   int i;
@@ -1212,7 +1212,7 @@ int gasnetc_local_short_common(int is_req, gasnet_handler_t handler,
 }
 
 GASNETI_INLINE(gasnetc_local_medium_common)
-int gasnetc_local_medium_common(int is_req, gasnet_handler_t handler,
+int gasnetc_local_medium_common(int is_req, gasnetex_handler_t handler,
                                 void *source_addr, size_t nbytes,
                                 int numargs, va_list argptr)
 {
@@ -1234,7 +1234,7 @@ int gasnetc_local_medium_common(int is_req, gasnet_handler_t handler,
 
 
 GASNETI_INLINE(gasnetc_local_long_common)
-int gasnetc_local_long_common(int is_req, gasnet_handler_t handler,
+int gasnetc_local_long_common(int is_req, gasnetex_handler_t handler,
                                void *source_addr, size_t nbytes,
                                void *dest_addr, 
                                int numargs, va_list argptr)
@@ -1259,7 +1259,7 @@ int gasnetc_local_long_common(int is_req, gasnet_handler_t handler,
 /*------------------- header formatting ------------------ */
 GASNETI_INLINE(gasnetc_format_short)
 void gasnetc_format_short(gasnetc_post_descriptor_t *gpd,
-                         gasnet_handler_t handler,
+                         gasnetex_handler_t handler,
                          int numargs, 
                          va_list argptr)
 {
@@ -1275,7 +1275,7 @@ void gasnetc_format_short(gasnetc_post_descriptor_t *gpd,
 
 GASNETI_INLINE(gasnetc_format_medium)
 void gasnetc_format_medium(gasnetc_post_descriptor_t *gpd,
-                           gasnet_handler_t handler,
+                           gasnetex_handler_t handler,
                            void *source_addr, 
                            size_t nbytes,
                            int numargs, 
@@ -1296,7 +1296,7 @@ void gasnetc_format_medium(gasnetc_post_descriptor_t *gpd,
 GASNETI_INLINE(gasnetc_format_long)
 void gasnetc_format_long(gasnetc_post_descriptor_t *gpd,
                          int is_packed,
-                         gasnet_handler_t handler,
+                         gasnetex_handler_t handler,
                          size_t nbytes,
                          void *dest_addr,
                          int numargs, va_list argptr)

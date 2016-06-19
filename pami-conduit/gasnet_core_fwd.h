@@ -66,7 +66,4 @@ typedef ### gasnetc_handler_t;
      statistical collection values (see gasnet_trace.h) */
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
 
-#define _GASNET_HANDLER_T
-typedef uint8_t gasnet_handler_t;
-
 #endif

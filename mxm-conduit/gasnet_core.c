@@ -1101,7 +1101,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
         checkuniqhandler[newindex] = 1;
 
         /* register the handler */
-        gasnetc_handler[(gasnet_handler_t)newindex] = (gasneti_handler_fn_t)table[i].fnptr;
+        gasnetc_handler[(gasnetex_handler_t)newindex] = (gasneti_handler_fn_t)table[i].fnptr;
 
         /* The check below for !table[i].index is redundant and present
          * only to defeat the over-aggressive optimizer in pathcc 2.1
@@ -2423,7 +2423,7 @@ extern int gasnetc_AMPoll(void) {
 
 extern int gasnetc_AMRequestShortM(
     gasnet_node_t dest,       /* destination node */
-    gasnet_handler_t handler, /* index into destination endpoint's handler table */
+    gasnetex_handler_t handler, /* index into destination endpoint's handler table */
     int numargs, ...) {
     int retval;
     va_list argptr;
@@ -2456,7 +2456,7 @@ extern int gasnetc_AMRequestShortM(
 
 extern int gasnetc_AMRequestMediumM(
     gasnet_node_t dest,      /* destination node */
-    gasnet_handler_t handler, /* index into destination endpoint's handler table */
+    gasnetex_handler_t handler, /* index into destination endpoint's handler table */
     void *source_addr, size_t nbytes,   /* data payload */
     int numargs, ...) {
     int retval;
@@ -2488,7 +2488,7 @@ extern int gasnetc_AMRequestMediumM(
 }
 
 extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination node */
-                                   gasnet_handler_t handler, /* index into destination endpoint's handler table */
+                                   gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                                    void *source_addr, size_t nbytes,   /* data payload */
                                    void *dest_addr,                    /* data destination on destination node */
                                    int numargs, ...) {
@@ -2522,7 +2522,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 }
 
 extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destination node */
-                                        gasnet_handler_t handler, /* index into destination endpoint's handler table */
+                                        gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                                         void *source_addr, size_t nbytes,   /* data payload */
                                         void *dest_addr,                    /* data destination on destination node */
                                         int numargs, ...) {
@@ -2557,7 +2557,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 
 extern int gasnetc_AMReplyShortM(
     gasnetex_token_t token,       /* token provided on handler entry */
-    gasnet_handler_t handler, /* index into destination endpoint's handler table */
+    gasnetex_handler_t handler, /* index into destination endpoint's handler table */
     int numargs, ...) {
     int retval;
     va_list argptr;
@@ -2579,7 +2579,7 @@ extern int gasnetc_AMReplyShortM(
 
         retval = gasnetc_ReplyGeneric(gasnetc_Short, /* gasnetc_category_t category*/
                                       token,         /* gasnetex_token_t token*/
-                                      handler,       /* gasnet_handler_t handler*/
+                                      handler,       /* gasnetex_handler_t handler*/
                                       NULL, 0,       /* void *src_addr, int nbytes*/
                                       NULL,          /* void *dst_addr*/
                                       numargs, argptr);
@@ -2590,7 +2590,7 @@ extern int gasnetc_AMReplyShortM(
 
 extern int gasnetc_AMReplyMediumM(
     gasnetex_token_t token,       /* token provided on handler entry */
-    gasnet_handler_t handler, /* index into destination endpoint's handler table */
+    gasnetex_handler_t handler, /* index into destination endpoint's handler table */
     void *source_addr, size_t nbytes,   /* data payload */
     int numargs, ...) {
     int retval;
@@ -2613,7 +2613,7 @@ extern int gasnetc_AMReplyMediumM(
 
         retval = gasnetc_ReplyGeneric(gasnetc_Medium,/* gasnetc_category_t category*/
                                       token,         /* gasnetex_token_t token*/
-                                      handler,       /* gasnet_handler_t handler*/
+                                      handler,       /* gasnetex_handler_t handler*/
                                       source_addr,   /* void *src_addr*/
                                       nbytes,        /* int nbytes*/
                                       NULL,          /* void *dst_addr*/
@@ -2625,7 +2625,7 @@ extern int gasnetc_AMReplyMediumM(
 
 extern int gasnetc_AMReplyLongM(
     gasnetex_token_t token,       /* token provided on handler entry */
-    gasnet_handler_t handler, /* index into destination endpoint's handler table */
+    gasnetex_handler_t handler, /* index into destination endpoint's handler table */
     void *source_addr, size_t nbytes,   /* data payload */
     void *dest_addr,                    /* data destination on destination node */
     int numargs, ...) {
@@ -2649,7 +2649,7 @@ extern int gasnetc_AMReplyLongM(
 
         retval = gasnetc_ReplyGeneric(gasnetc_Long,  /* gasnetc_category_t category*/
                                       token,         /* gasnetex_token_t token*/
-                                      handler,       /* gasnet_handler_t handler*/
+                                      handler,       /* gasnetex_handler_t handler*/
                                       source_addr,   /* void *src_addr*/
                                       nbytes,        /* int nbytes*/
                                       dest_addr,     /* void *dst_addr*/
@@ -2669,7 +2669,7 @@ static int gasnetc_SystemRequest(gasnet_node_t dest,
     va_start(argptr, numargs);
     retval = gasnetc_RequestGeneric(gasnetc_System,/* gasnetc_category_t category*/
                                     dest,          /* destination*/
-                                    0,             /* gasnet_handler_t handler*/
+                                    0,             /* gasnetex_handler_t handler*/
                                     NULL,          /* void *src_addr*/
                                     0,             /* int nbytes*/
                                     NULL,          /* void *dst_addr*/
@@ -2689,7 +2689,7 @@ int gasnetc_SystemReply(gasnetex_token_t token,
     va_start(argptr, numargs);
     retval = gasnetc_ReplyGeneric(gasnetc_System, /* gasnetc_category_t category*/
                                   token,          /* gasnetex_token_t token*/
-                                  0,              /* gasnet_handler_t handler*/
+                                  0,              /* gasnetex_handler_t handler*/
                                   NULL, 0,        /* void *src_addr, int nbytes*/
                                   NULL,           /* void *dst_addr*/
                                   numargs, argptr);

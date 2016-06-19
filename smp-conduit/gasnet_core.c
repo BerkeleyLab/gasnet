@@ -661,8 +661,8 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
 
     /* register the handler */
     /*  add code here to register table[i].fnptr 
-             on index (gasnet_handler_t)newindex */
-    gasnetc_handler[(gasnet_handler_t)newindex] = (gasneti_handler_fn_t)table[i].fnptr;
+             on index (gasnetex_handler_t)newindex */
+    gasnetc_handler[(gasnetex_handler_t)newindex] = (gasneti_handler_fn_t)table[i].fnptr;
 
     /* The check below for !table[i].index is redundant and present
      * only to defeat the over-aggressive optimizer in pathcc 2.1
@@ -941,7 +941,7 @@ static void gasnetc_cleanup_threaddata(void *_td) {
 
 GASNETI_INLINE(gasnetc_ReqRepGeneric)
 int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
-                         int dest, gasnet_handler_t handler, 
+                         int dest, gasnetex_handler_t handler, 
                          void *source_addr, int nbytes, void *dest_ptr, 
                          int numargs, va_list argptr) {
   gasnetex_handlerarg_t pargs[GASNETC_MAX_ARGS];
@@ -1004,7 +1004,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
 }
 /* ------------------------------------------------------------------------------------ */
 static int gasnetc_RequestGeneric(gasnetc_category_t category, 
-                         int dest, gasnet_handler_t handler, 
+                         int dest, gasnetex_handler_t handler, 
                          void *source_addr, int nbytes, void *dest_ptr, 
                          int numargs, va_list argptr) {
   gasneti_AMPoll(); /* ensure progress */
@@ -1020,7 +1020,7 @@ static int gasnetc_RequestGeneric(gasnetc_category_t category,
 }
 /* ------------------------------------------------------------------------------------ */
 static int gasnetc_ReplyGeneric(gasnetc_category_t category, 
-                         gasnetex_token_t token, gasnet_handler_t handler,
+                         gasnetex_token_t token, gasnetex_handler_t handler,
                          void *source_addr, int nbytes, void *dest_ptr, 
                          int numargs, va_list argptr) {
 #if GASNET_PSHM

@@ -420,7 +420,7 @@ void *gasnetc_sr_desc_init(struct ibv_send_wr *result, struct ibv_sge *sg_lst_p)
  * 16-31: source node
  */
 
-#define GASNETC_MSG_HANDLERID(flags)    ((gasnet_handler_t)(flags))
+#define GASNETC_MSG_HANDLERID(flags)    ((gasnetex_handler_t)(flags))
 #define GASNETC_MSG_CATEGORY(flags)     ((gasnetc_category_t)(((flags) >> 8) & 0x3))
 #define GASNETC_MSG_NUMARGS(flags)      (((flags) >> 10) & 0x1f)
 #define GASNETC_MSG_ISREPLY(flags)      ((flags) & (1<<15))
@@ -662,7 +662,7 @@ void gasnetc_amrdma_eligable(gasnetc_cep_t *cep) {
 /* GASNETI_INLINE(gasnetc_processPacket) */
 void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t flags) {
   gasnetc_buffer_t * const buf = (gasnetc_buffer_t *)(uintptr_t)(rbuf->rr_sg.addr);
-  const gasnet_handler_t handler_id = GASNETC_MSG_HANDLERID(flags);
+  const gasnetex_handler_t handler_id = GASNETC_MSG_HANDLERID(flags);
   const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id];
   const gasnetc_category_t category = GASNETC_MSG_CATEGORY(flags);
   const int isreq = GASNETC_MSG_ISREQUEST(flags);
@@ -1901,7 +1901,7 @@ size_t gasnetc_encode_amrdma(gasnetc_cep_t *cep, struct ibv_send_wr *sr_desc, in
 
 GASNETI_INLINE(gasnetc_ReqRepGeneric)
 int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
-			  gasnetc_epid_t dest, gasnet_handler_t handler,
+			  gasnetc_epid_t dest, gasnetex_handler_t handler,
 			  void *src_addr, int nbytes, void *dst_addr,
 			  int numargs, gasnetc_counter_t *mem_oust,
 			  gasnetc_atomic_t *completed, va_list argptr) {
@@ -4093,7 +4093,7 @@ extern int gasnetc_rdma_getv(gasnetc_epid_t epid, void *src_ptr, size_t dstcount
 #endif
 
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
-				  int dest, gasnet_handler_t handler,
+				  int dest, gasnetex_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
 				  int numargs, gasnetc_counter_t *mem_oust,
 				  gasnetc_atomic_t *completed, va_list argptr) {
@@ -4118,7 +4118,7 @@ extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 }
 
 extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
-				gasnetex_token_t token, gasnet_handler_t handler,
+				gasnetex_token_t token, gasnetex_handler_t handler,
 				void *src_addr, int nbytes, void *dst_addr,
 				int numargs, gasnetc_counter_t *mem_oust,
 				gasnetc_atomic_t *completed, va_list argptr) {
@@ -4148,7 +4148,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 
 extern int gasnetc_RequestSysShort(gasnetc_epid_t dest,
                                  gasnetc_atomic_t *completed,
-                                 gasnet_handler_t handler,
+                                 gasnetex_handler_t handler,
                                  int numargs, ...) {
   int retval;
   va_list argptr;
@@ -4165,7 +4165,7 @@ extern int gasnetc_RequestSysShort(gasnetc_epid_t dest,
 
 extern int gasnetc_RequestSysMedium(gasnetc_epid_t dest,
                                     gasnetc_atomic_t *completed,
-                                    gasnet_handler_t handler,
+                                    gasnetex_handler_t handler,
                                     void *source_addr, size_t nbytes,
                                     int numargs, ...) {
   int retval;
@@ -4183,7 +4183,7 @@ extern int gasnetc_RequestSysMedium(gasnetc_epid_t dest,
 
 extern int gasnetc_ReplySysShort(gasnetex_token_t token,
                                gasnetc_atomic_t *completed,
-                               gasnet_handler_t handler,
+                               gasnetex_handler_t handler,
                                int numargs, ...) {
   int retval;
   va_list argptr;
@@ -4200,7 +4200,7 @@ extern int gasnetc_ReplySysShort(gasnetex_token_t token,
 
 extern int gasnetc_ReplySysMedium(gasnetex_token_t token,
                                   gasnetc_atomic_t *completed,
-                                  gasnet_handler_t handler,
+                                  gasnetex_handler_t handler,
                                   void *source_addr, size_t nbytes,
                                   int numargs, ...) {
   int retval;

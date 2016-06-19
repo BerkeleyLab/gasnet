@@ -341,7 +341,7 @@ inline mxm_mem_key_t *gasnetc_find_remote_mkey(void *addr, int nbytes, int rank)
 
 int gasnetc_AM_Generic(gasnetc_category_t category,
                        int dest,
-                       gasnet_handler_t handler_id,
+                       gasnetex_handler_t handler_id,
                        void *src_addr,
                        int nbytes,
                        void *dst_addr,
@@ -648,7 +648,7 @@ int gasnetc_AM_Generic(gasnetc_category_t category,
 
 #if !GASNET_USE_MXM_SELF_PTL
 void gasnetc_ProcessRecvSelf(gasnetc_category_t category,
-                             gasnet_handler_t handler_id,
+                             gasnetex_handler_t handler_id,
                              void *src_addr,
                              int nbytes,
                              void *dst_addr,
@@ -729,7 +729,7 @@ void gasnetc_ProcessRecvSelf(gasnetc_category_t category,
 
 #if !GASNET_USE_MXM_SELF_PTL
 int gasnetc_AM_Generic_Self(gasnetc_category_t category,
-                            gasnet_handler_t handler_id,
+                            gasnetex_handler_t handler_id,
                             void *src_addr,
                             int nbytes,
                             void *dst_addr,
@@ -780,7 +780,7 @@ int gasnetc_AM_Generic_Self(gasnetc_category_t category,
 
 int gasnetc_RequestGeneric(gasnetc_category_t category,
                            int dest,
-                           gasnet_handler_t handler,
+                           gasnetex_handler_t handler,
                            void *src_addr,
                            int nbytes,
                            void *dst_addr,
@@ -830,7 +830,7 @@ int gasnetc_RequestGeneric(gasnetc_category_t category,
 
 int gasnetc_ReplyGeneric(gasnetc_category_t category,
                          gasnetex_token_t gasnet_token,
-                         gasnet_handler_t handler,
+                         gasnetex_handler_t handler,
                          void *src_addr,
                          int nbytes,
                          void *dst_addr,
@@ -891,7 +891,7 @@ void gasnetc_ProcessRecv(gasnet_mxm_recv_req_t *r)
     gasnetc_category_t category;
     uint8_t sys_msg_type;
 
-    gasnet_handler_t handler_id = 0;
+    gasnetex_handler_t handler_id = 0;
     gasneti_handler_fn_t handler_fn = NULL;
 
     uint8_t  numargs = 0;

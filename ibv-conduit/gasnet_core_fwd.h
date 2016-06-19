@@ -30,8 +30,6 @@
 /* Explicitly set some types because we depend on their sizes when encoding them */
 #define _GASNET_NODE_T
 typedef uint16_t gasnet_node_t;
-#define _GASNET_HANDLER_T
-typedef uint8_t gasnet_handler_t;
 
   /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
 #if GASNETI_PSHM_ENABLED

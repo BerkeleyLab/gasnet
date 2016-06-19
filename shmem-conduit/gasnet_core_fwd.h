@@ -53,8 +53,6 @@
 
 #define _GASNET_NODE_T
 typedef uint32_t        gasnet_node_t;
-#define _GASNET_HANDLER_T
-typedef uint32_t        gasnet_handler_t;
 
 #define _GASNET_TOKEN_T
 typedef uintptr_t    gasnetex_token_t;

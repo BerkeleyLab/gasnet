@@ -139,7 +139,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
     checkuniqhandler[newindex] = 1;
 
     /* register the handler */
-    gasnetc_handler[(gasnet_handler_t)newindex] = (gasneti_handler_fn_t)table[i].fnptr;
+    gasnetc_handler[(gasnetex_handler_t)newindex] = (gasneti_handler_fn_t)table[i].fnptr;
 
     /* The check below for !table[i].index is redundant and present
      * only to defeat the over-aggressive optimizer in pathcc 2.1
@@ -379,7 +379,7 @@ extern int gasnetc_AMPoll(void) {
 
 extern int gasnetc_AMRequestShortM( 
                             gasnet_node_t dest,       /* destination node */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */ 
                             int numargs, ...) {
   int retval;
   va_list argptr;
@@ -405,7 +405,7 @@ extern int gasnetc_AMRequestShortM(
 
 extern int gasnetc_AMRequestMediumM( 
                             gasnet_node_t dest,      /* destination node */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             int numargs, ...) {
   int retval;
@@ -431,7 +431,7 @@ extern int gasnetc_AMRequestMediumM(
 }
 
 extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination node */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
@@ -458,7 +458,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 }
 
 extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destination node */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {
@@ -486,7 +486,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 
 extern int gasnetc_AMReplyShortM( 
                             gasnetex_token_t token,       /* token provided on handler entry */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */ 
                             int numargs, ...) {
   int retval;
   va_list argptr;
@@ -514,7 +514,7 @@ extern int gasnetc_AMReplyShortM(
 
 extern int gasnetc_AMReplyMediumM( 
                             gasnetex_token_t token,       /* token provided on handler entry */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             int numargs, ...) {
   int retval;
@@ -543,7 +543,7 @@ extern int gasnetc_AMReplyMediumM(
 
 extern int gasnetc_AMReplyLongM( 
                             gasnetex_token_t token,       /* token provided on handler entry */
-                            gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
+                            gasnetex_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             int numargs, ...) {

@@ -345,7 +345,7 @@ static int gasnetc_reghandlers(gasnet_handlerentry_t *table, int numentries,
       GASNETI_RETURN_ERRR(RESOURCE, "AM_SetHandler() failed while registering handlers");
 #ifdef GASNETC_MAX_NUMHANDLERS
     /* Maintain a shadow handler table */
-    gasnetc_handler[(gasnet_handler_t)newindex] = (gasneti_handler_fn_t)table[i].fnptr;
+    gasnetc_handler[(gasnetex_handler_t)newindex] = (gasneti_handler_fn_t)table[i].fnptr;
 #endif
 
     /* The check below for !table[i].index is redundant and present
