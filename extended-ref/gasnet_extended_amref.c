@@ -229,7 +229,7 @@
 
 GASNETI_INLINE(gasnete_amref_get_reqh_inner)
 void gasnete_amref_get_reqh_inner(gasnetex_token_t token,
-  gasnet_handlerarg_t nbytes, void *dest, void *src, void *done) {
+  gasnetex_handlerarg_t nbytes, void *dest, void *src, void *done) {
   gasneti_assert(nbytes <= gasnet_AMMaxMedium());
   gasnetex_AMReplyMedium(token, gasneti_handleridx(gasnete_amref_get_reph),
                          src, nbytes, GASNETEX_LC_INIT, 0,
@@ -252,7 +252,7 @@ MEDIUM_HANDLER(gasnete_amref_get_reph,2,4,
 
 GASNETI_INLINE(gasnete_amref_getlong_reqh_inner)
 void gasnete_amref_getlong_reqh_inner(gasnetex_token_t token,
-  gasnet_handlerarg_t nbytes, void *dest, void *src, void *done) {
+  gasnetex_handlerarg_t nbytes, void *dest, void *src, void *done) {
 
   gasnetex_AMReplyLong(token, gasneti_handleridx(gasnete_amref_getlong_reph),
                        src, nbytes, dest, GASNETEX_LC_INIT, 0, PACK(done));
@@ -305,7 +305,7 @@ LONG_HANDLER(gasnete_amref_putlong_reqh,1,2,
 
 GASNETI_INLINE(gasnete_amref_memset_reqh_inner)
 void gasnete_amref_memset_reqh_inner(gasnetex_token_t token,
-  gasnet_handlerarg_t val, void *nbytes_arg, void *dest, void *done) {
+  gasnetex_handlerarg_t val, void *nbytes_arg, void *dest, void *done) {
   size_t nbytes = (uintptr_t)nbytes_arg;
   memset(dest, (int)(uint32_t)val, nbytes);
   gasneti_sync_writes();
@@ -346,7 +346,7 @@ void gasnete_amref_get_nbi_inner(gasnetex_team_member_t team,
     op->initiated_get_cnt++;
   
     gasnetex_AMRequestShort(team, rank, gasneti_handleridx(gasnete_amref_get_reqh), 0,
-                   (gasnet_handlerarg_t)nbytes, PACK(dest), PACK(src), PACK_IOP_DONE(op,get));
+                   (gasnetex_handlerarg_t)nbytes, PACK(dest), PACK(src), PACK_IOP_DONE(op,get));
     return;
   } else {
     size_t chunksz;
@@ -368,13 +368,13 @@ void gasnete_amref_get_nbi_inner(gasnetex_team_member_t team,
       op->initiated_get_cnt++;
       if (nbytes > chunksz) {
         gasnetex_AMRequestShort(team, rank, reqhandler, 0,
-                       (gasnet_handlerarg_t)chunksz, PACK(pdest), PACK(psrc), PACK_IOP_DONE(op,get));
+                       (gasnetex_handlerarg_t)chunksz, PACK(pdest), PACK(psrc), PACK_IOP_DONE(op,get));
         nbytes -= chunksz;
         psrc += chunksz;
         pdest += chunksz;
       } else {
         gasnetex_AMRequestShort(team, rank, reqhandler, 0,
-                       (gasnet_handlerarg_t)nbytes, PACK(pdest), PACK(psrc), PACK_IOP_DONE(op,get));
+                       (gasnetex_handlerarg_t)nbytes, PACK(pdest), PACK(psrc), PACK_IOP_DONE(op,get));
         break;
       }
     }
@@ -510,7 +510,7 @@ gasnetex_handle_t gasnete_Get_nb(
     gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
 
     gasnetex_AMRequestShort(team, rank, gasneti_handleridx(gasnete_amref_get_reqh), 0,
-                   (gasnet_handlerarg_t)nbytes, PACK(dest), PACK(src), PACK_EOP_DONE(op));
+                   (gasnetex_handlerarg_t)nbytes, PACK(dest), PACK(src), PACK_EOP_DONE(op));
 
     return (gasnetex_handle_t)op;
   } else {
@@ -593,7 +593,7 @@ extern gasnet_handle_t gasnete_amref_memset_nb   (gasnet_node_t node, void *dest
   gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
 
   gasnetex_AMRequestShort(NULL, node, gasneti_handleridx(gasnete_amref_memset_reqh), 0,
-                 (gasnet_handlerarg_t)val, PACK(nbytes),
+                 (gasnetex_handlerarg_t)val, PACK(nbytes),
                  PACK(dest), PACK_EOP_DONE(op));
 
   return (gasnet_handle_t)op;
@@ -653,7 +653,7 @@ extern void gasnete_amref_memset_nbi   (gasnet_node_t node, void *dest, int val,
   op->initiated_put_cnt++;
 
   gasnetex_AMRequestShort(NULL, node, gasneti_handleridx(gasnete_amref_memset_reqh), 0,
-                 (gasnet_handlerarg_t)val, PACK(nbytes),
+                 (gasnetex_handlerarg_t)val, PACK(nbytes),
                  PACK(dest), PACK_IOP_DONE(op,put));
 }
 #endif /* GASNETE_BUILD_AMREF_MEMSET */

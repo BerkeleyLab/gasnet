@@ -171,13 +171,13 @@ typedef enum {
 /* ------------------------------------------------------------------------------------ */
 
 #define GASNETC_ARGSEND_AUX(s,nargs) \
-	(offsetof(s,args)+((nargs)*sizeof(gasnet_handlerarg_t)))
+	(offsetof(s,args)+((nargs)*sizeof(gasnetex_handlerarg_t)))
 
 typedef struct {
 #if GASNETI_STATS_OR_TRACE
   gasneti_tick_t	stamp;
 #endif
-  gasnet_handlerarg_t	args[GASNETC_MAX_ARGS];	
+  gasnetex_handlerarg_t	args[GASNETC_MAX_ARGS];
 } gasnetc_shortmsg_t;
 #define GASNETC_MSG_SHORT_ARGSEND(nargs) GASNETC_ARGSEND_AUX(gasnetc_shortmsg_t,nargs)
 
@@ -186,7 +186,7 @@ typedef struct {
   gasneti_tick_t	stamp;
 #endif
   uint32_t		nBytes;	/* 16 bits would be sufficient if we ever need the space */
-  gasnet_handlerarg_t	args[GASNETC_MAX_ARGS];	
+  gasnetex_handlerarg_t	args[GASNETC_MAX_ARGS];
 } gasnetc_medmsg_t;
 #define GASNETC_MSG_MED_ARGSEND(nargs) /* Note 8-byte alignment for payload */ \
 		GASNETI_ALIGNUP(GASNETC_ARGSEND_AUX(gasnetc_medmsg_t,nargs), 8)
@@ -199,7 +199,7 @@ typedef struct {
 #endif
   uintptr_t		destLoc;
   int32_t		nBytes;
-  gasnet_handlerarg_t	args[GASNETC_MAX_ARGS];	
+  gasnetex_handlerarg_t	args[GASNETC_MAX_ARGS];
 } gasnetc_longmsg_t;
 #define GASNETC_MSG_LONG_ARGSEND(nargs)  GASNETC_ARGSEND_AUX(gasnetc_longmsg_t,nargs)
 #define GASNETC_MSG_LONG_DATA(msg,nargs) (void *)(&msg->longmsg.args[(unsigned int)nargs])
@@ -633,7 +633,7 @@ extern int gasnetc_create_cq(struct ibv_context *, int,
                              gasnetc_progress_thread_t *);
 extern int gasnetc_sndrcv_limits(void);
 extern int gasnetc_sndrcv_init(void);
-extern void gasnetc_sys_flush_reph(gasnetex_token_t, gasnet_handlerarg_t);
+extern void gasnetc_sys_flush_reph(gasnetex_token_t, gasnetex_handlerarg_t);
 extern void gasnetc_sys_close_reqh(gasnetex_token_t);
 extern void gasnetc_sndrcv_quiesce(void);
 extern int gasnetc_sndrcv_shutdown(void);

@@ -668,15 +668,15 @@ gasnetc_AMProcess(gasnetc_am_header_t *hdr, uint32_t *args /* header */)
 
 	switch (hdr->type) {
 	    case GASNETC_AMSHORT_T:
-		{   gasnet_handlerarg_t *pargs =
-			(gasnet_handlerarg_t *) &args[1];
+		{   gasnetex_handlerarg_t *pargs =
+			(gasnetex_handlerarg_t *) &args[1];
 		    GASNETI_RUN_HANDLER_SHORT(GASNETC_AMHEADER_ISREQUEST(hdr->reqrep),hdr->handler,
                                               handler,token,pargs,numargs);
 		}
 		break;
 	    case GASNETC_AMMED_T:
-		{   gasnet_handlerarg_t *pargs =
-			(gasnet_handlerarg_t *) &args[2];
+		{   gasnetex_handlerarg_t *pargs =
+			(gasnetex_handlerarg_t *) &args[2];
 		    int nbytes = args[1];
 		    void *pdata = (pargs + numargs + 
 				    GASNETC_MEDHEADER_PADARG(numargs));
@@ -688,12 +688,12 @@ gasnetc_AMProcess(gasnetc_am_header_t *hdr, uint32_t *args /* header */)
 	    case GASNETC_AMLONG_T:
 		{   int nbytes = args[1];
 #if PLATFORM_ARCH_64
-		    gasnet_handlerarg_t *pargs =
-			(gasnet_handlerarg_t *) &args[4];
+		    gasnetex_handlerarg_t *pargs =
+			(gasnetex_handlerarg_t *) &args[4];
 		    void *pdata = (void *) GASNETI_MAKEWORD(args[2],args[3]);
 #else
-		    gasnet_handlerarg_t *pargs =
-			(gasnet_handlerarg_t *) &args[3];
+		    gasnetex_handlerarg_t *pargs =
+			(gasnetex_handlerarg_t *) &args[3];
 		    void *pdata = (void *) args[2];
 #endif
 		    GASNETI_RUN_HANDLER_LONG(GASNETC_AMHEADER_ISREQUEST(hdr->reqrep),hdr->handler,
@@ -884,7 +884,7 @@ extern int gasnetc_AMRequestShortM(
 
   GASNETC_VECTORIZE
   for (i = 1; i <= numargs; i++)
-	  args[i] = (gasnet_handlerarg_t)va_arg(argptr, uint32_t);
+	  args[i] = (gasnetex_handlerarg_t)va_arg(argptr, uint32_t);
 #else
 
   /* Write header and pack args */
@@ -894,7 +894,7 @@ extern int gasnetc_AMRequestShortM(
 
   GASNETC_VECTORIZE
   for (i = 1; i <= numargs; i++)
-	  _amstub.args[i] = (gasnet_handlerarg_t)va_arg(argptr, uint32_t);
+	  _amstub.args[i] = (gasnetex_handlerarg_t)va_arg(argptr, uint32_t);
 
   if (dest == gasneti_mynode) { /* loopback */
     static gasnetc_am_header_t amhdr = { GASNETC_REQUEST_T, GASNETC_AMSHORT_T };
@@ -933,7 +933,7 @@ extern int gasnetc_AMRequestMediumM(
   GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
-    /* add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t) 
+    /* add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
              and send the active message 
      */
   gasneti_AMPoll();
@@ -945,7 +945,7 @@ extern int gasnetc_AMRequestMediumM(
   _amstub.args[1] = (uint32_t) nbytes;
   args = (uint32_t *) &_amstub.args[2];
   for (i = 0; i < numargs; i++)
-	  args[i] = (gasnet_handlerarg_t)va_arg(argptr, uint32_t);
+	  args[i] = (gasnetex_handlerarg_t)va_arg(argptr, uint32_t);
   len = GASNETC_MED_HEADERSZ + 4 * numargs;
 
   if (dest == gasneti_mynode) { /* loopback */
@@ -994,7 +994,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
   GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
-    /* add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t) 
+    /* add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
              and send the active message 
      */
 
@@ -1006,16 +1006,16 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 			handler, gasneti_mynode);
   _amstub.args[1] = nbytes;
 #if PLATFORM_ARCH_64
-  _amstub.args[2] = (gasnet_handlerarg_t) GASNETI_HIWORD(dest_addr);
-  _amstub.args[3] = (gasnet_handlerarg_t) GASNETI_LOWORD(dest_addr);
+  _amstub.args[2] = (gasnetex_handlerarg_t) GASNETI_HIWORD(dest_addr);
+  _amstub.args[3] = (gasnetex_handlerarg_t) GASNETI_LOWORD(dest_addr);
   args = &_amstub.args[4];
 #else
-  _amstub.args[2] = (gasnet_handlerarg_t) dest_addr;
+  _amstub.args[2] = (gasnetex_handlerarg_t) dest_addr;
   args = &_amstub.args[3];
 #endif
 
   for (i = 0; i < numargs; i++)
-	  args[i] = (gasnet_handlerarg_t)va_arg(argptr, uint32_t);
+	  args[i] = (gasnetex_handlerarg_t)va_arg(argptr, uint32_t);
 
   if (dest == gasneti_mynode) { /* loopback */
     static gasnetc_am_header_t amhdr = { GASNETC_REQUEST_T, GASNETC_AMLONG_T };
@@ -1057,7 +1057,7 @@ extern int gasnetc_AMReplyShortM(
   GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
-    /* add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t) 
+    /* add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
              and send the active message 
      */
 
@@ -1067,7 +1067,7 @@ extern int gasnetc_AMReplyShortM(
 			GASNETC_REPLY_T, GASNETC_AMSHORT_T, 
 			numargs, handler, gasneti_mynode);
   for (i = 1; i <= numargs; i++)
-	  _amstub.args[i] = (gasnet_handlerarg_t)va_arg(argptr, uint32_t);
+	  _amstub.args[i] = (gasnetex_handlerarg_t)va_arg(argptr, uint32_t);
   if (dest == gasneti_mynode) { /* loopback */
     static gasnetc_am_header_t amhdr = { GASNETC_REPLY_T, GASNETC_AMSHORT_T };
     amhdr.numargs = numargs; amhdr.handler = handler; amhdr.pe = gasneti_mynode;
@@ -1104,7 +1104,7 @@ extern int gasnetc_AMReplyMediumM(
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
-    /* add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t) 
+    /* add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
              and send the active message 
      */
 
@@ -1116,7 +1116,7 @@ extern int gasnetc_AMReplyMediumM(
   _amstub.args[1] = nbytes;
   args = (uint32_t *) &_amstub.args[2];
   for (i = 0; i < numargs; i++)
-	  args[i] = (uint32_t) (gasnet_handlerarg_t)va_arg(argptr, int);
+	  args[i] = (uint32_t) (gasnetex_handlerarg_t)va_arg(argptr, int);
   len = GASNETC_MED_HEADERSZ + 4 * numargs;
 
   if (dest == gasneti_mynode) { /* loopback */
@@ -1167,7 +1167,7 @@ extern int gasnetc_AMReplyLongM(
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs); 
   va_start(argptr, numargs); /*  pass in last argument */
 
-    /* add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t) 
+    /* add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
              and send the active message 
      */
 
@@ -1178,16 +1178,16 @@ extern int gasnetc_AMReplyLongM(
 			handler, gasneti_mynode);
   _amstub.args[1] = nbytes;
 #if PLATFORM_ARCH_64
-  _amstub.args[2] = (gasnet_handlerarg_t) GASNETI_HIWORD(dest_addr);
-  _amstub.args[3] = (gasnet_handlerarg_t) GASNETI_LOWORD(dest_addr);
+  _amstub.args[2] = (gasnetex_handlerarg_t) GASNETI_HIWORD(dest_addr);
+  _amstub.args[3] = (gasnetex_handlerarg_t) GASNETI_LOWORD(dest_addr);
   args = &_amstub.args[4];
 #else
-  _amstub.args[2] = (gasnet_handlerarg_t) dest_addr;
+  _amstub.args[2] = (gasnetex_handlerarg_t) dest_addr;
   args = &_amstub.args[3];
 #endif
 
   for (i = 0; i < numargs; i++)
-	  args[i] = (gasnet_handlerarg_t)va_arg(argptr, uint32_t);
+	  args[i] = (gasnetex_handlerarg_t)va_arg(argptr, uint32_t);
 
   if (dest == gasneti_mynode) { /* loopback */
     static gasnetc_am_header_t amhdr = { GASNETC_REPLY_T, GASNETC_AMLONG_T };

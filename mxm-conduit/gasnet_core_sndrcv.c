@@ -449,7 +449,7 @@ int gasnetc_AM_Generic(gasnetc_category_t category,
     if (numargs) {
         for (i = 0; i < numargs; i++) {
             p_sreq->args_buf[i] =
-                (gasnet_handlerarg_t) va_arg(argptr, gasnet_handlerarg_t);
+                (gasnetex_handlerarg_t) va_arg(argptr, gasnetex_handlerarg_t);
         }
     }
 
@@ -460,7 +460,7 @@ int gasnetc_AM_Generic(gasnetc_category_t category,
 
         if_pt (numargs) {
             mxm_sreq->base.data.buffer.ptr = p_sreq->args_buf;
-            mxm_sreq->base.data.buffer.length = numargs * sizeof(gasnet_handlerarg_t);
+            mxm_sreq->base.data.buffer.length = numargs * sizeof(gasnetex_handlerarg_t);
         }
         else {
             mxm_sreq->base.data.buffer.ptr = NULL;
@@ -484,7 +484,7 @@ int gasnetc_AM_Generic(gasnetc_category_t category,
         if_pt (numargs) {
             p_sreq->sendiov[sge_idx].ptr = p_sreq->args_buf;
             p_sreq->sendiov[sge_idx].length = GASNETI_ALIGNUP(
-                                                  numargs * sizeof(gasnet_handlerarg_t),
+                                                  numargs * sizeof(gasnetex_handlerarg_t),
                                                   GASNETI_MEDBUF_ALIGNMENT);
 #if MXM_API < MXM_VERSION(1,5)
             p_sreq->sendiov[sge_idx].mkey = MXM_MKEY_NONE;
@@ -581,7 +581,7 @@ int gasnetc_AM_Generic(gasnetc_category_t category,
          */
         if_pt (numargs) {
             p_sreq->sendiov[sge_idx].ptr = p_sreq->args_buf;
-            p_sreq->sendiov[sge_idx].length = numargs * sizeof(gasnet_handlerarg_t);
+            p_sreq->sendiov[sge_idx].length = numargs * sizeof(gasnetex_handlerarg_t);
 #if MXM_API < MXM_VERSION(1,5)
             p_sreq->sendiov[sge_idx].mkey = MXM_MKEY_NONE;
 #else
@@ -655,7 +655,7 @@ void gasnetc_ProcessRecvSelf(gasnetc_category_t category,
                              uint8_t is_request,
                              uint8_t is_sync_request,
                              uint8_t msg_num,
-                             int numargs, gasnet_handlerarg_t *args)
+                             int numargs, gasnetex_handlerarg_t *args)
 {
     gasnetc_am_token_t token;
     gasnetc_am_token_t * p_token = &token;
@@ -738,7 +738,7 @@ int gasnetc_AM_Generic_Self(gasnetc_category_t category,
                             uint8_t msg_num,
                             int numargs, va_list argptr)
 {
-    gasnet_handlerarg_t args_buf[GASNETC_MAX_ARGS];
+    gasnetex_handlerarg_t args_buf[GASNETC_MAX_ARGS];
 
 #if GASNET_DEBUG_AM
     MXM_LOG("[msg 0x%02x%02x] [pid %d] %s %s%s%s%s, %d --> %d, nbytes = %d, numargs = %d\n",
@@ -761,7 +761,7 @@ int gasnetc_AM_Generic_Self(gasnetc_category_t category,
         int i;
         for (i = 0; i < numargs; i++) {
             args_buf[i] =
-                (gasnet_handlerarg_t) va_arg(argptr, gasnet_handlerarg_t);
+                (gasnetex_handlerarg_t) va_arg(argptr, gasnetex_handlerarg_t);
         }
     }
 
@@ -870,10 +870,10 @@ int gasnetc_ReplyGeneric(gasnetc_category_t category,
 /* -------------------------------------------------------------------------- */
 
 extern void gasnetc_HandleSystemExitMessage(gasnetc_am_token_t * token,
-        gasnet_handlerarg_t * args, uint8_t numargs);
+        gasnetex_handlerarg_t * args, uint8_t numargs);
 
 static void gasnetc_HandleSystemMessage(gasnetc_am_token_t * token,
-                                        gasnet_handlerarg_t * args, uint8_t numargs)
+                                        gasnetex_handlerarg_t * args, uint8_t numargs)
 {
     /*
      * The only system messages we have are exit sequence coordination.
@@ -896,7 +896,7 @@ void gasnetc_ProcessRecv(gasnet_mxm_recv_req_t *r)
 
     uint8_t  numargs = 0;
     size_t   args_len = 0;
-    gasnet_handlerarg_t *args = NULL;
+    gasnetex_handlerarg_t *args = NULL;
 
     gasneti_assert(r->mxm_rreq.base.state == MXM_REQ_COMPLETED);
 
@@ -942,7 +942,7 @@ void gasnetc_ProcessRecv(gasnet_mxm_recv_req_t *r)
     handler_fn = gasnetc_handler[handler_id];
 
     if (numargs)
-        args = (gasnet_handlerarg_t *)r->mxm_rreq.base.data.buffer.ptr;
+        args = (gasnetex_handlerarg_t *)r->mxm_rreq.base.data.buffer.ptr;
 
     switch (category) {
     case gasnetc_Short: {
@@ -962,7 +962,7 @@ void gasnetc_ProcessRecv(gasnet_mxm_recv_req_t *r)
          * GASNet requires medium data to be aligned to 8 bytes.
          */
         args_len = GASNETI_ALIGNUP(
-                       numargs * sizeof(gasnet_handlerarg_t), GASNETI_MEDBUF_ALIGNMENT);
+                       numargs * sizeof(gasnetex_handlerarg_t), GASNETI_MEDBUF_ALIGNMENT);
         med_data_len =
             r->mxm_rreq.completion.actual_len - args_len;
         med_data = med_data_len ? (void *)(
@@ -982,7 +982,7 @@ void gasnetc_ProcessRecv(gasnet_mxm_recv_req_t *r)
         void * addr;
         size_t len;
 
-        args_len = numargs * sizeof(gasnet_handlerarg_t);
+        args_len = numargs * sizeof(gasnetex_handlerarg_t);
 
         long_data = (void *)(
                         (uintptr_t)r->mxm_rreq.base.data.buffer.ptr +

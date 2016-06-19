@@ -25,7 +25,7 @@ typedef struct gasnet_mxm_send_req {
     gasnete_threadidx_t threadidx;   /*  thread that owns me */
     mxm_send_req_t       mxm_sreq;
     mxm_req_buffer_t     sendiov[2];
-    gasnet_handlerarg_t  args_buf[GASNETC_MAX_ARGS];
+    gasnetex_handlerarg_t  args_buf[GASNETC_MAX_ARGS];
     uint64_t             long_info[2];
     gasneti_atomic_t     ref_count;    
 } gasnet_mxm_send_req_t;

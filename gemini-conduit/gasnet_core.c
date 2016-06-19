@@ -959,7 +959,7 @@ static void gasnetc_atexit(void) {
 }
 #endif
 
-static void gasnetc_exit_reqh(gasnetex_token_t token, gasnet_handlerarg_t exitcode) {
+static void gasnetc_exit_reqh(gasnetex_token_t token, gasnetex_handlerarg_t exitcode) {
   if (!gasnetc_shutdownInProgress) {
     gasneti_sighandlerfn_t handler = gasneti_reghandler(SIGQUIT, SIG_IGN);
     gasnetc_remoteShutdown = 1;
@@ -1202,10 +1202,10 @@ int gasnetc_local_short_common(int is_req, gasnet_handler_t handler,
   const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
   gasnetc_token_t the_token = { gasneti_mynode, is_req, 0, NULL };
   gasnetex_token_t token = (gasnetex_token_t)&the_token; /* RUN macros need an lvalue */
-  gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
+  gasnetex_handlerarg_t args[gasnet_AMMaxArgs()];
   
   for (i = 0; i < numargs; i++) {
-    args[i] = (gasnet_handlerarg_t)va_arg(argptr, gasnet_handlerarg_t);
+    args[i] = (gasnetex_handlerarg_t)va_arg(argptr, gasnetex_handlerarg_t);
   }
   GASNETI_RUN_HANDLER_SHORT(is_req,handler,handler_fn,token,args,numargs);
   return(GASNET_OK);
@@ -1221,11 +1221,11 @@ int gasnetc_local_medium_common(int is_req, gasnet_handler_t handler,
   const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
   gasnetc_token_t the_token = { gasneti_mynode, is_req, 0, NULL };
   gasnetex_token_t token = (gasnetex_token_t)&the_token; /* RUN macros need an lvalue */
-  gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
+  gasnetex_handlerarg_t args[gasnet_AMMaxArgs()];
   void *payload = alloca(nbytes);
   
   for (i = 0; i < numargs; i++) {
-    args[i] = (gasnet_handlerarg_t)va_arg(argptr, gasnet_handlerarg_t);
+    args[i] = (gasnetex_handlerarg_t)va_arg(argptr, gasnetex_handlerarg_t);
   }
   memcpy(payload, source_addr, nbytes);
   GASNETI_RUN_HANDLER_MEDIUM(is_req,handler,handler_fn,token,args,numargs,payload,nbytes);
@@ -1242,11 +1242,11 @@ int gasnetc_local_long_common(int is_req, gasnet_handler_t handler,
   const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
   gasnetc_token_t the_token = { gasneti_mynode, is_req, 0, NULL };
   gasnetex_token_t token = (gasnetex_token_t)&the_token; /* RUN macros need an lvalue */
-  gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
+  gasnetex_handlerarg_t args[gasnet_AMMaxArgs()];
   int i;
   
   for (i = 0; i < numargs; i++) {
-    args[i] = (gasnet_handlerarg_t)va_arg(argptr, gasnet_handlerarg_t);
+    args[i] = (gasnetex_handlerarg_t)va_arg(argptr, gasnetex_handlerarg_t);
   }
 
   memcpy(dest_addr, source_addr, nbytes);
@@ -1268,7 +1268,7 @@ void gasnetc_format_short(gasnetc_post_descriptor_t *gpd,
 
   gpd->gpd_am_header |= gasnetc_build_am_header(GC_CMD_AM_SHORT, numargs, handler, 0);
   for (i = 0; i < numargs; i++) {
-    m->gasp.args[i] = va_arg(argptr, gasnet_handlerarg_t);
+    m->gasp.args[i] = va_arg(argptr, gasnetex_handlerarg_t);
   }
 }
 
@@ -1286,7 +1286,7 @@ void gasnetc_format_medium(gasnetc_post_descriptor_t *gpd,
 
   gpd->gpd_am_header |= gasnetc_build_am_header(GC_CMD_AM_MEDIUM, numargs, handler, nbytes);
   for (i = 0; i < numargs; i++) {
-    m->gamp.args[i] = va_arg(argptr, gasnet_handlerarg_t);
+    m->gamp.args[i] = va_arg(argptr, gasnetex_handlerarg_t);
   }
   
   memcpy((void*)((uintptr_t)m + GASNETC_HEADLEN(medium, numargs)), source_addr, nbytes);
@@ -1309,7 +1309,7 @@ void gasnetc_format_long(gasnetc_post_descriptor_t *gpd,
   m->galp.data_length = nbytes;
   m->galp.data = dest_addr;
   for (i = 0; i < numargs; i++) {
-    m->galp.args[i] = va_arg(argptr, gasnet_handlerarg_t);
+    m->galp.args[i] = va_arg(argptr, gasnetex_handlerarg_t);
   }
 }
 

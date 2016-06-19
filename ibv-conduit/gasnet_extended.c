@@ -813,7 +813,7 @@ typedef struct {
 GASNETI_INLINE(gasnete_ibdbarrier_send)
 void gasnete_ibdbarrier_send(gasnete_coll_ibdbarrier_t *barrier_data,
                              int numsteps, unsigned int state,
-                             gasnet_handlerarg_t value, gasnet_handlerarg_t flags) {
+                             gasnetex_handlerarg_t value, gasnetex_handlerarg_t flags) {
   GASNETE_THREAD_LOOKUP
   unsigned int step = state >> 1;
   int i;
@@ -1085,7 +1085,7 @@ static int gasnete_ibdbarrier_wait(gasnete_coll_team_t team, int id, int flags) 
   } else
   if_pf(/* try/wait value must match consensus value, if both are present */
         !((flags|barrier_data->barrier_flags) & GASNET_BARRIERFLAG_ANONYMOUS) &&
-	 ((gasnet_handlerarg_t)id != barrier_data->barrier_value)) {
+	 ((gasnetex_handlerarg_t)id != barrier_data->barrier_value)) {
     retval = GASNET_ERR_BARRIER_MISMATCH;
   }
 

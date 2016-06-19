@@ -944,7 +944,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
                          int dest, gasnet_handler_t handler, 
                          void *source_addr, int nbytes, void *dest_ptr, 
                          int numargs, va_list argptr) {
-  gasnet_handlerarg_t pargs[GASNETC_MAX_ARGS];
+  gasnetex_handlerarg_t pargs[GASNETC_MAX_ARGS];
   #if GASNET_DEBUG  
     gasnetc_bufdesc_t _descbuf; 
     gasnetc_bufdesc_t *desc = &_descbuf;
@@ -961,7 +961,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
 
   { int i;
     for(i=0; i < numargs; i++) {
-      pargs[i] = (gasnet_handlerarg_t)va_arg(argptr, int);
+      pargs[i] = (gasnetex_handlerarg_t)va_arg(argptr, int);
     }
   }
 

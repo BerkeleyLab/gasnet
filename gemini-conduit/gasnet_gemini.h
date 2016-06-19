@@ -157,12 +157,12 @@ enum {
 
 /* This type is used by an AMShort request or reply */
 typedef struct {
-  gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
+  gasnetex_handlerarg_t args[gasnet_AMMaxArgs()];
 } gasnetc_am_short_packet_t;
 
 /* This type is used by an AMMedium request or reply */
 typedef struct {
-  gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
+  gasnetex_handlerarg_t args[gasnet_AMMaxArgs()];
 } gasnetc_am_medium_packet_t;
 
 /* This type is used by an AMLong request or reply */
@@ -173,7 +173,7 @@ typedef struct {
 #else
   size_t data_length;
 #endif
-  gasnet_handlerarg_t args[gasnet_AMMaxArgs()];
+  gasnetex_handlerarg_t args[gasnet_AMMaxArgs()];
 } gasnetc_am_long_packet_t;
 
 /* The various ways to interpret an arriving message

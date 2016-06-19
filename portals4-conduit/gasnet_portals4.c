@@ -64,7 +64,7 @@ struct p4_long_match_t {
   size_t nbytes;
   int handler;
   int numargs;
-  gasnet_handlerarg_t pargs[gasnet_AMMaxArgs()];
+  gasnetex_handlerarg_t pargs[gasnet_AMMaxArgs()];
 };
 typedef struct p4_long_match_t p4_long_match_t;
 
@@ -76,7 +76,7 @@ static gasneti_semaphore_t p4_rdma_credits;
 static gasneti_weakatomic_t p4_op_count = gasneti_weakatomic_init(0);
 
 #define P4_AM_MAX_DATA_LENGTH                                        \
-  GASNETI_ALIGNUP(sizeof(gasnet_handlerarg_t) * gasnet_AMMaxArgs() + \
+  GASNETI_ALIGNUP(sizeof(gasnetex_handlerarg_t) * gasnet_AMMaxArgs() + \
                   gasnet_AMMaxMedium(), GASNETI_MEDBUF_ALIGNMENT)
 #define IS_MED_ALIGNED(x) \
   (0 == ((uintptr_t)(x) & (GASNETI_MEDBUF_ALIGNMENT-1)))
@@ -767,7 +767,7 @@ p4_poll(const ptl_handle_eq_t *eq_handles, unsigned int size, unsigned int limit
 
                     if (IS_AM_SHORT(ev.match_bits)) {
                         gasnetc_p4_token_t token;
-                        gasnet_handlerarg_t *pargs = (gasnet_handlerarg_t*) ev.start;
+                        gasnetex_handlerarg_t *pargs = (gasnetex_handlerarg_t*) ev.start;
                         gasnetc_p4_token_t *tokenp = &token;
                         
                         token.reply_sent = 0;
@@ -775,7 +775,7 @@ p4_poll(const ptl_handle_eq_t *eq_handles, unsigned int size, unsigned int limit
 
                         gasneti_assert(0 == nbytes);
                         gasneti_assert(ev.mlength ==
-                                       GASNETI_ALIGNUP(numargs * sizeof(gasnet_handlerarg_t),
+                                       GASNETI_ALIGNUP(numargs * sizeof(gasnetex_handlerarg_t),
                                                        GASNETI_MEDBUF_ALIGNMENT));
 
 #ifdef P4_DEBUG
@@ -786,7 +786,7 @@ p4_poll(const ptl_handle_eq_t *eq_handles, unsigned int size, unsigned int limit
                                                   tokenp, pargs, numargs);
                     } else if (IS_AM_MEDIUM(ev.match_bits)) {
                         gasnetc_p4_token_t token;
-                        gasnet_handlerarg_t *pargs = (gasnet_handlerarg_t*) ev.start;
+                        gasnetex_handlerarg_t *pargs = (gasnetex_handlerarg_t*) ev.start;
                         gasnetc_p4_token_t *tokenp = &token;
 #if !GASNETI_USE_ALLOCA
                         void *free_buf = NULL;
@@ -796,7 +796,7 @@ p4_poll(const ptl_handle_eq_t *eq_handles, unsigned int size, unsigned int limit
                         void *buf = (void *)(pargs +
                                              GASNETI_ALIGNUP(numargs,
                                                              (GASNETI_MEDBUF_ALIGNMENT /
-                                                                sizeof(gasnet_handlerarg_t))));
+                                                                sizeof(gasnetex_handlerarg_t))));
 
                         token.reply_sent = 0;
                         token.sourceid = ev.initiator.rank;
@@ -828,7 +828,7 @@ p4_poll(const ptl_handle_eq_t *eq_handles, unsigned int size, unsigned int limit
 #endif
                     } else if (IS_AM_LONG_PACKED(ev.match_bits)) {
                         gasnetc_p4_token_t token;
-                        gasnet_handlerarg_t *pargs = (gasnet_handlerarg_t*) ev.start;
+                        gasnetex_handlerarg_t *pargs = (gasnetex_handlerarg_t*) ev.start;
                         gasnetc_p4_token_t *tokenp = &token;
 			char *buf = (void*) (pargs + numargs);
 			void *dest_ptr;
@@ -838,7 +838,7 @@ p4_poll(const ptl_handle_eq_t *eq_handles, unsigned int size, unsigned int limit
                         token.sourceid = ev.initiator.rank;
 
                         gasneti_assert(ev.mlength ==
-                                       GASNETI_ALIGNUP(numargs * sizeof(gasnet_handlerarg_t)
+                                       GASNETI_ALIGNUP(numargs * sizeof(gasnetex_handlerarg_t)
                                                          + sizeof(uint64_t) + nbytes,
                                                        GASNETI_MEDBUF_ALIGNMENT));
 
@@ -860,11 +860,11 @@ p4_poll(const ptl_handle_eq_t *eq_handles, unsigned int size, unsigned int limit
 		      p4_long_match_t *match = p4_find_long_match(key);
 
                       gasneti_assert(ev.mlength ==
-                                     GASNETI_ALIGNUP(numargs * sizeof(gasnet_handlerarg_t),
+                                     GASNETI_ALIGNUP(numargs * sizeof(gasnetex_handlerarg_t),
                                                      GASNETI_MEDBUF_ALIGNMENT));
 
 		      match->handler = handler;
-		      memcpy(match->pargs, ev.start, sizeof(gasnet_handlerarg_t) * numargs);
+		      memcpy(match->pargs, ev.start, sizeof(gasnetex_handlerarg_t) * numargs);
 		      match->numargs = numargs;
 
 		      if (2 == gasneti_weakatomic_add(&match->op_count, 1, 0)) {
@@ -1200,7 +1200,7 @@ gasnetc_p4_TransferGeneric(int category, ptl_match_bits_t req_type, gasnet_node_
     ptl_process_t proc;
     ptl_handle_md_t md_h;
     void *base;
-    gasnet_handlerarg_t *arglist;
+    gasnetex_handlerarg_t *arglist;
     uint64_t protocol = 0;
     size_t payload_length = 0;
     int num_credits = (gasnetc_Long == category || gasnetc_LongAsync == category) ? 2 : 1;
@@ -1226,10 +1226,10 @@ gasnetc_p4_TransferGeneric(int category, ptl_match_bits_t req_type, gasnet_node_
     frag = p4_alloc_am_frag();
 
     /* copy the arguments */
-    arglist = (gasnet_handlerarg_t*) frag->data;
+    arglist = (gasnetex_handlerarg_t*) frag->data;
     for (i = 0 ; i < numargs ; ++i) {
-        arglist[i] = va_arg(argptr, gasnet_handlerarg_t);
-        frag->data_length += sizeof(gasnet_handlerarg_t);
+        arglist[i] = va_arg(argptr, gasnetex_handlerarg_t);
+        frag->data_length += sizeof(gasnetex_handlerarg_t);
     }
 
     frag->hdr_data = gasneti_weakatomic_add(&p4_op_count, 1, 0);

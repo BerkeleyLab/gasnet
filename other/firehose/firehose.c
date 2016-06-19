@@ -1215,9 +1215,9 @@ fhi_FreeRegionPool(fhi_RegionPool_t *rpool)
  */
 void
 fh_am_move_reqh_inner(gasnetex_token_t token, void *addr, size_t nbytes,
-		      gasnet_handlerarg_t flags,
-		      gasnet_handlerarg_t r_new,
-		      gasnet_handlerarg_t r_old,
+		      gasnetex_handlerarg_t flags,
+		      gasnetex_handlerarg_t r_new,
+		      gasnetex_handlerarg_t r_old,
 		      void *context)
 {
 	firehose_region_t	*new_reg, *old_reg;
@@ -1340,7 +1340,7 @@ MEDIUM_HANDLER(fh_am_move_reqh,4,5,
  */
 void
 fh_am_move_reph_inner(gasnetex_token_t token, void *addr,
-		      size_t nbytes, gasnet_handlerarg_t r_new,
+		      size_t nbytes, gasnetex_handlerarg_t r_new,
 		      void *context)
 {
 	firehose_region_t	*regions = (firehose_region_t *) addr;

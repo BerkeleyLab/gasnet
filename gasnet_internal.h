@@ -338,7 +338,7 @@ void gasneti_auxseg_attach(void);
 
 #if GASNET_SEGMENT_EVERYTHING
   extern void gasnetc_auxseg_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
-                                  gasnet_handlerarg_t msg, gasnet_handlerarg_t offset);
+                                  gasnetex_handlerarg_t msg, gasnetex_handlerarg_t offset);
   #define GASNETC_AUXSEG_HANDLERS() \
     gasneti_handler_tableentry_no_bits(gasnetc_auxseg_reqh)
 #endif
@@ -582,7 +582,7 @@ extern void gasneti_defaultAMHandler(gasnetex_token_t token);
   else       GASNETI_TRACE_AMSHORT_REPHANDLER(hid, token, numargs, pArgs);            \
   if (numargs == 0) (*(gasneti_HandlerShort)phandlerfn)((gasnetex_token_t)token);       \
   else {                                                                              \
-    gasnet_handlerarg_t *_args = (gasnet_handlerarg_t *)(pArgs); /* eval only once */ \
+    gasnetex_handlerarg_t *_args = (gasnetex_handlerarg_t *)(pArgs); /* eval only once */ \
     switch (numargs) {                                                                \
       case 1:  (*(gasneti_HandlerShort)phandlerfn)((gasnetex_token_t)token, _args[0]); break; \
       case 2:  (*(gasneti_HandlerShort)phandlerfn)((gasnetex_token_t)token, _args[0], _args[1]); break;\
@@ -610,7 +610,7 @@ extern void gasneti_defaultAMHandler(gasnetex_token_t token);
   gasneti_assert(phandlerfn);                                                                \
   if (numargs == 0) (*phandlerfn)(token, pData, datalen);                                    \
   else {                                                                                     \
-    gasnet_handlerarg_t *_args = (gasnet_handlerarg_t *)(pArgs); /* eval only once */        \
+    gasnetex_handlerarg_t *_args = (gasnetex_handlerarg_t *)(pArgs); /* eval only once */        \
     switch (numargs) {                                                                       \
       case 1:  (*phandlerfn)(token, pData, datalen, _args[0]); break;                        \
       case 2:  (*phandlerfn)(token, pData, datalen, _args[0], _args[1]); break;              \

@@ -20,7 +20,7 @@ typedef struct {
   int passivecnt;
 } threadcnt_t;
 
-typedef gasnet_handlerarg_t harg_t;
+typedef gasnetex_handlerarg_t harg_t;
 
 /* configurable parameters */
 #define DEFAULT_ITERS 50

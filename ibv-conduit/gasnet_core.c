@@ -2721,8 +2721,8 @@ static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
 
 /* gasnetc_exit_reduce_reqh: reduction on exitcode */
 static void gasnetc_exit_reduce_reqh(gasnetex_token_t token,
-                                     gasnet_handlerarg_t arg0,
-                                     gasnet_handlerarg_t arg1) {
+                                     gasnetex_handlerarg_t arg0,
+                                     gasnetex_handlerarg_t arg1) {
   gasneti_atomic_val_t exitcode = arg0;
   gasneti_atomic_val_t distance = arg1;
   gasneti_atomic_val_t prevcode;
@@ -2774,7 +2774,7 @@ static void gasnetc_exit_role_reqh(gasnetex_token_t token) {
 
   /* Inform the requester of the outcome. */
   GASNETI_SAFE(gasnetc_ReplySysShort(token, NULL, gasneti_handleridx(gasnetc_exit_role_reph),
-				   1, (gasnet_handlerarg_t)result));
+				   1, (gasnetex_handlerarg_t)result));
 }
 
 /*
@@ -2783,7 +2783,7 @@ static void gasnetc_exit_role_reqh(gasnetex_token_t token) {
  * This reply handler receives the result of the election of an exit "master".
  * The reply contains the exit "role" this node should assume.
  */
-static void gasnetc_exit_role_reph(gasnetex_token_t token, gasnet_handlerarg_t arg0) {
+static void gasnetc_exit_role_reph(gasnetex_token_t token, gasnetex_handlerarg_t arg0) {
   int role;
 
   #if GASNET_DEBUG
@@ -2994,7 +2994,7 @@ static int gasnetc_exit_master(int exitcode, int64_t timeout_us) {
 
     rc = gasnetc_RequestSysShort(i, NULL,
 		    	       gasneti_handleridx(gasnetc_exit_reqh),
-			       1, (gasnet_handlerarg_t)exitcode);
+			       1, (gasnetex_handlerarg_t)exitcode);
     if (rc != GASNET_OK) return -1;
   }
 
@@ -3251,7 +3251,7 @@ static void gasnetc_exit_body(void) {
  * exit procedure, via gasnetc_exit_{body,tail}().  Additionally, we are responsible for
  * firing off a SIGQUIT to let the user's handler, if any, run before we begin to exit.
  */
-static void gasnetc_exit_reqh(gasnetex_token_t token, gasnet_handlerarg_t arg0) {
+static void gasnetc_exit_reqh(gasnetex_token_t token, gasnetex_handlerarg_t arg0) {
   /* The master will send this AM, but should _never_ receive it */
   gasneti_assert(gasneti_atomic_read(&gasnetc_exit_role, 0) != GASNETC_EXIT_ROLE_MASTER);
 

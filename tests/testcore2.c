@@ -96,21 +96,21 @@ gasnett_atomic_t pong_recvd;
 
 
 void ping_medhandler(gasnetex_token_t token, void *buf, size_t nbytes, 
-                     gasnet_handlerarg_t iter, gasnet_handlerarg_t chunkidx) {
+                     gasnetex_handlerarg_t iter, gasnetex_handlerarg_t chunkidx) {
   INIT_CHECKS();
   validate_chunk("Medium Request (pre-reply)", buf, nbytes, iter, chunkidx);
   gasnetex_AMReplyMedium2(token, hidx_pong_medhandler, buf, nbytes, GASNETEX_LC_INIT, 0, iter, chunkidx);
   validate_chunk("Medium Request (post-reply)", buf, nbytes, iter, chunkidx);
 }
 void pong_medhandler(gasnetex_token_t token, void *buf, size_t nbytes,
-                     gasnet_handlerarg_t iter, gasnet_handlerarg_t chunkidx) {
+                     gasnetex_handlerarg_t iter, gasnetex_handlerarg_t chunkidx) {
   INIT_CHECKS();
   validate_chunk("Medium Reply", buf, nbytes, iter, chunkidx);
   gasnett_atomic_increment(&pong_recvd,0);
 }
 
 void ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes,
-                     gasnet_handlerarg_t iter, gasnet_handlerarg_t chunkidx) {
+                     gasnetex_handlerarg_t iter, gasnetex_handlerarg_t chunkidx) {
   uint8_t *srcbuf;
   INIT_CHECKS();
   validate_chunk("Long Request", buf, nbytes, iter, chunkidx);
@@ -123,7 +123,7 @@ void ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes,
 }
 
 void pong_longhandler(gasnetex_token_t token, void *buf, size_t nbytes,
-                     gasnet_handlerarg_t iter, gasnet_handlerarg_t chunkidx) {
+                     gasnetex_handlerarg_t iter, gasnetex_handlerarg_t chunkidx) {
   INIT_CHECKS();
   validate_chunk("Long Reply", buf, nbytes, iter, chunkidx);
   gasnett_atomic_increment(&pong_recvd,0);

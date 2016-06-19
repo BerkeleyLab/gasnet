@@ -17,7 +17,7 @@
 
 #define OFI_AM_MAX_DATA_LENGTH \
   GASNETI_ALIGNUP_NOASSERT(gasnet_AMMaxMedium() + \
-                           GASNETI_ALIGNUP_NOASSERT(sizeof(gasnet_handlerarg_t) * gasnet_AMMaxArgs(), \
+                           GASNETI_ALIGNUP_NOASSERT(sizeof(gasnetex_handlerarg_t) * gasnet_AMMaxArgs(), \
                                                     GASNETI_MEDBUF_ALIGNMENT), \
                            GASNETI_MEDBUF_ALIGNMENT)
 

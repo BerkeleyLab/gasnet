@@ -356,7 +356,7 @@ void gasnetc_ofi_handle_am_common(ofi_am_send_buf_t *header)
 	gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
 	gasnetc_ofi_token_t token; 
 	gasnetc_ofi_token_t *token_p = &token; 
-	gasnet_handlerarg_t *args = (gasnet_handlerarg_t *)header->data;
+	gasnetex_handlerarg_t *args = (gasnetex_handlerarg_t *)header->data;
 	int numargs = header->argnum;
 	token.sourceid = header->sourceid;
 
@@ -633,7 +633,7 @@ int gasnetc_ofi_am_send_short(gasnet_node_t dest, gasnet_handler_t handler,
                      int numargs, va_list argptr, int isreq)
 {
 	int ret = FI_SUCCESS;
-	gasnet_handlerarg_t *arglist;
+	gasnetex_handlerarg_t *arglist;
 	int i, len;
 	ofi_am_buf_t *header;
 	ofi_am_send_buf_t *sendbuf;
@@ -644,10 +644,10 @@ int gasnetc_ofi_am_send_short(gasnet_node_t dest, gasnet_handler_t handler,
 	/* Fill in the arguments */
 	sendbuf = &header->sendbuf;
 	sendbuf->len = 0;
-	arglist = (gasnet_handlerarg_t*) sendbuf->data;
+	arglist = (gasnetex_handlerarg_t*) sendbuf->data;
 	for (i = 0 ; i < numargs ; ++i) {
-		arglist[i] = va_arg(argptr, gasnet_handlerarg_t);
-		sendbuf->len += sizeof(gasnet_handlerarg_t);
+		arglist[i] = va_arg(argptr, gasnetex_handlerarg_t);
+		sendbuf->len += sizeof(gasnetex_handlerarg_t);
 	}
 
 	/* Copy arg and handle into the buffer */
@@ -693,7 +693,7 @@ int gasnetc_ofi_am_send_medium(gasnet_node_t dest, gasnet_handler_t handler,
                      int numargs, va_list argptr, int isreq)
 {
 	int ret = FI_SUCCESS;
-	gasnet_handlerarg_t *arglist;
+	gasnetex_handlerarg_t *arglist;
 	int i, len;
 	ofi_am_buf_t *header;
 	ofi_am_send_buf_t *sendbuf;
@@ -706,10 +706,10 @@ int gasnetc_ofi_am_send_medium(gasnet_node_t dest, gasnet_handler_t handler,
 	/* Fill in the arguments */
 	sendbuf = &header->sendbuf;
 	sendbuf->len = 0;
-	arglist = (gasnet_handlerarg_t*) sendbuf->data;
+	arglist = (gasnetex_handlerarg_t*) sendbuf->data;
 	for (i = 0 ; i < numargs ; ++i) {
-		arglist[i] = va_arg(argptr, gasnet_handlerarg_t);
-		sendbuf->len += sizeof(gasnet_handlerarg_t);
+		arglist[i] = va_arg(argptr, gasnetex_handlerarg_t);
+		sendbuf->len += sizeof(gasnetex_handlerarg_t);
 	}
 	sendbuf->len = GASNETI_ALIGNUP(sendbuf->len, GASNETI_MEDBUF_ALIGNMENT);
 
@@ -760,7 +760,7 @@ int gasnetc_ofi_am_send_long(gasnet_node_t dest, gasnet_handler_t handler,
 		               int numargs, va_list argptr, int isreq, int isasync)
 {
 	int ret = FI_SUCCESS;
-	gasnet_handlerarg_t *arglist;
+	gasnetex_handlerarg_t *arglist;
 	int i, len;
 	ofi_am_buf_t *header;
 	ofi_am_send_buf_t *sendbuf;
@@ -776,10 +776,10 @@ int gasnetc_ofi_am_send_long(gasnet_node_t dest, gasnet_handler_t handler,
 	/* Fill in the arguments */
 	sendbuf = &header->sendbuf;
 	sendbuf->len = 0;
-	arglist = (gasnet_handlerarg_t*) sendbuf->data;
+	arglist = (gasnetex_handlerarg_t*) sendbuf->data;
 	for (i = 0 ; i < numargs ; ++i) {
-		arglist[i] = va_arg(argptr, gasnet_handlerarg_t);
-		sendbuf->len += sizeof(gasnet_handlerarg_t);
+		arglist[i] = va_arg(argptr, gasnetex_handlerarg_t);
+		sendbuf->len += sizeof(gasnetex_handlerarg_t);
 	}
 	sendbuf->len = GASNETI_ALIGNUP(sendbuf->len, GASNETI_MEDBUF_ALIGNMENT);
 

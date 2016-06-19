@@ -169,7 +169,7 @@ chksum_test(int iters)
  * checksum at i
  */
 void chksum_reqh(gasnetex_token_t token, 
-	gasnet_handlerarg_t iter, gasnet_handlerarg_t seed)
+	gasnetex_handlerarg_t iter, gasnetex_handlerarg_t seed)
 {
         unsigned char   chksum_reqbuf[CHKSUM_TOTAL];
 
@@ -184,7 +184,7 @@ void chksum_reqh(gasnetex_token_t token,
 
 void
 chksum_reph(gasnetex_token_t token, 
-	void *buf, size_t nbytes, gasnet_handlerarg_t iter) 
+	void *buf, size_t nbytes, gasnetex_handlerarg_t iter)
 {
 	gasnett_atomic_increment(&chksum_received, 0);
 	assert_always(iter < chksum_iters && iter >= 0);

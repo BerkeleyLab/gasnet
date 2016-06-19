@@ -287,12 +287,6 @@ typedef struct gasneti_team_s *gasnetex_team_member_t;
   typedef uint8_t gasnet_handler_t;
 #endif
 
-#ifndef _GASNET_HANDLERARG_T
-#define _GASNET_HANDLERARG_T
-  /*  a 32-bit signed integer type which is used to express the user-provided arguments to all AM handlers. Platforms lacking a native 32-bit type may define this to a 64-bit type, but only the lower 32-bits are transmitted during an AM message send (and sign-extended on the receiver). */
-  typedef int32_t gasnet_handlerarg_t;
-#endif
-
 #ifndef _GASNET_HANDLERENTRY_T
 #define _GASNET_HANDLERENTRY_T
   /*  struct type used to negotiate handler registration in gasnet_init() */

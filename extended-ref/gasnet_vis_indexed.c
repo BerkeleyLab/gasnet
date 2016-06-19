@@ -320,8 +320,8 @@ gasnet_handle_t gasnete_puti_AMPipeline(gasnete_synctype_t synctype,
 GASNETI_INLINE(gasnete_puti_AMPipeline_reqh_inner)
 void gasnete_puti_AMPipeline_reqh_inner(gasnetex_token_t token,
   void *addr, size_t nbytes,
-  void *iop, gasnet_handlerarg_t rnum, 
-  gasnet_handlerarg_t dstlen, gasnet_handlerarg_t firstoffset, gasnet_handlerarg_t lastlen) {
+  void *iop, gasnetex_handlerarg_t rnum,
+  gasnetex_handlerarg_t dstlen, gasnetex_handlerarg_t firstoffset, gasnetex_handlerarg_t lastlen) {
   void * const * const rlist = addr;
   uint8_t * const data = (uint8_t *)(&rlist[rnum]);
   GASNETI_UNUSED_UNLESS_DEBUG /* but still need side-effects */
@@ -364,7 +364,7 @@ gasnet_handle_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
       visop->count = dstcount;
     #endif
     gasneti_assert(packetcnt <= GASNETI_ATOMIC_MAX);
-    gasneti_assert(packetcnt == (gasnet_handlerarg_t)packetcnt);
+    gasneti_assert(packetcnt == (gasnetex_handlerarg_t)packetcnt);
     visop->len = dstlen;
     visop->addr = localpt;
     memcpy(savedlst, dstlist, dstcount*sizeof(void *));
@@ -400,8 +400,8 @@ gasnet_handle_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
 GASNETI_INLINE(gasnete_geti_AMPipeline_reqh_inner)
 void gasnete_geti_AMPipeline_reqh_inner(gasnetex_token_t token,
   void *addr, size_t nbytes,
-  void *_visop, gasnet_handlerarg_t packetidx,
-  gasnet_handlerarg_t dstlen, gasnet_handlerarg_t firstoffset, gasnet_handlerarg_t lastlen) {
+  void *_visop, gasnetex_handlerarg_t packetidx,
+  gasnetex_handlerarg_t dstlen, gasnetex_handlerarg_t firstoffset, gasnetex_handlerarg_t lastlen) {
   void * const * const rlist = addr;
   size_t const rnum = nbytes / sizeof(void *);
   uint8_t * const packedbuf = gasneti_malloc(gasnet_AMMaxMedium());
@@ -421,7 +421,7 @@ MEDIUM_HANDLER(gasnete_geti_AMPipeline_reqh,5,6,
 GASNETI_INLINE(gasnete_geti_AMPipeline_reph_inner)
 void gasnete_geti_AMPipeline_reph_inner(gasnetex_token_t token,
   void *addr, size_t nbytes,
-  void *_visop, gasnet_handlerarg_t packetidx) {
+  void *_visop, gasnetex_handlerarg_t packetidx) {
   gasneti_vis_op_t * const visop = _visop;
   void * const * const savedlst = (void * *)(visop + 1);
   gasnete_packetdesc_t * const lpacket = ((gasnete_packetdesc_t *)visop->addr) + packetidx;

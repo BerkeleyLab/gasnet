@@ -124,7 +124,7 @@ typedef struct _gasnet_hsl_t {
 #if GASNET_PSHM && GASNETC_HSL_ERRCHECK && !GASNETC_NULL_HSL
   extern void gasnetc_enteringHandler_hook_hsl(int cat, int isReq, int handlerId, gasnetex_token_t token,
                                                void *buf, size_t nbytes, int numargs,
-                                               gasnet_handlerarg_t *args);
+                                               gasnetex_handlerarg_t *args);
   extern void gasnetc_leavingHandler_hook_hsl(int cat, int isReq);
 
   #define GASNETC_ENTERING_HANDLER_HOOK gasnetc_enteringHandler_hook_hsl

@@ -557,7 +557,7 @@ int gasnetc_handler_long(psm2_am_token_t token,
 
 
 static void gasnetc_handler_exit2(gasnetex_token_t token,
-        gasnet_handlerarg_t arg0)
+        gasnetex_handlerarg_t arg0)
 {
     /* Store the provided exit code and indicate this process should exit.
        psm2 can't be finalized in an AM handler, so the actual exit must
@@ -570,7 +570,7 @@ static void gasnetc_handler_exit2(gasnetex_token_t token,
 static volatile int32_t gasnetc_psm_counter = 0;
 
 static void gasnetc_handler_barrier2(gasnetex_token_t token,
-        gasnet_handlerarg_t arg0)
+        gasnetex_handlerarg_t arg0)
 {
     /* Counter is incremented during initialization to form a simple
        AM-based barrier.  Counter is decremented during shutdown for the
@@ -1040,14 +1040,14 @@ extern int gasnetc_AMRequestShortM(
         psm2_error_t ret;
 
         /* Pack args into an array. */
-        gasnet_handlerarg_t* int_args = (gasnet_handlerarg_t*)&psm2_args[1];
+        gasnetex_handlerarg_t* int_args = (gasnetex_handlerarg_t*)&psm2_args[1];
 
         /* This is a request, so set the request bit */
         psm2_args[0].u32w0 = handler | REQUEST_BIT;
         psm2_args[0].u32w1 = numargs;
 
         for(i = 0; i < numargs; i++) {
-            int_args[i] = va_arg(argptr, gasnet_handlerarg_t);
+            int_args[i] = va_arg(argptr, gasnetex_handlerarg_t);
         }
 
 
@@ -1102,14 +1102,14 @@ extern int gasnetc_AMRequestMediumM(
         int i;
 
         /* Pack args into an array. */
-        gasnet_handlerarg_t* int_args = (gasnet_handlerarg_t*)&psm2_args[1];
+        gasnetex_handlerarg_t* int_args = (gasnetex_handlerarg_t*)&psm2_args[1];
 
         /* This is a request, so set the request bit */
         psm2_args[0].u32w0 = handler | REQUEST_BIT;
         psm2_args[0].u32w1 = numargs;
 
         for(i = 0; i < numargs; i++) {
-            int_args[i] = va_arg(argptr, gasnet_handlerarg_t);
+            int_args[i] = va_arg(argptr, gasnetex_handlerarg_t);
         }
 
         /* numargs + 3 because two are used above, and 1 to round up for an
@@ -1164,7 +1164,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
         int i;
 
         /* Pack args into an array. */
-        gasnet_handlerarg_t* int_args = (gasnet_handlerarg_t*)&psm2_args[2];
+        gasnetex_handlerarg_t* int_args = (gasnetex_handlerarg_t*)&psm2_args[2];
 
         /* This is a request, so set the request bit */
         psm2_args[0].u32w0 = handler | REQUEST_BIT;
@@ -1172,7 +1172,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
         psm2_args[1].u64w0 = (uintptr_t)dest_addr;
 
         for(i = 0; i < numargs; i++) {
-            int_args[i] = va_arg(argptr, gasnet_handlerarg_t);
+            int_args[i] = va_arg(argptr, gasnetex_handlerarg_t);
         }
 
         GASNETC_PSM_LOCK();
@@ -1224,7 +1224,7 @@ extern int gasnetc_AMRequestLongAsyncM(gasnet_node_t dest, /* dest node */
         int i;
 
         /* Pack args into an array. */
-        gasnet_handlerarg_t* int_args = (gasnet_handlerarg_t*)&psm2_args[2];
+        gasnetex_handlerarg_t* int_args = (gasnetex_handlerarg_t*)&psm2_args[2];
 
         /* This is a request, so set the request bit */
         psm2_args[0].u32w0 = handler | REQUEST_BIT;
@@ -1232,7 +1232,7 @@ extern int gasnetc_AMRequestLongAsyncM(gasnet_node_t dest, /* dest node */
         psm2_args[1].u64w0 = (uintptr_t)dest_addr;
 
         for(i = 0; i < numargs; i++) {
-            int_args[i] = va_arg(argptr, gasnet_handlerarg_t);
+            int_args[i] = va_arg(argptr, gasnetex_handlerarg_t);
         }
 
         GASNETC_PSM_LOCK();
@@ -1278,13 +1278,13 @@ extern int gasnetc_AMReplyShortM(
         int i;
 
         /* Pack args into an array. */
-        gasnet_handlerarg_t* int_args = (gasnet_handlerarg_t*)&psm2_args[1];
+        gasnetex_handlerarg_t* int_args = (gasnetex_handlerarg_t*)&psm2_args[1];
 
         psm2_args[0].u32w0 = handler;
         psm2_args[0].u32w1 = numargs;
 
         for(i = 0; i < numargs; i++) {
-            int_args[i] = va_arg(argptr, gasnet_handlerarg_t);
+            int_args[i] = va_arg(argptr, gasnetex_handlerarg_t);
         }
 
         /* numargs + 3 because two are used above, and 1 to round up for an
@@ -1330,13 +1330,13 @@ extern int gasnetc_AMReplyMediumM(
         int i;
 
         /* Pack args into an array. */
-        gasnet_handlerarg_t* int_args = (gasnet_handlerarg_t*)&psm2_args[1];
+        gasnetex_handlerarg_t* int_args = (gasnetex_handlerarg_t*)&psm2_args[1];
 
         psm2_args[0].u32w0 = handler;
         psm2_args[0].u32w1 = numargs;
 
         for(i = 0; i < numargs; i++) {
-            int_args[i] = va_arg(argptr, gasnet_handlerarg_t);
+            int_args[i] = va_arg(argptr, gasnetex_handlerarg_t);
         }
 
         /* numargs + 3 because two are used above, and 1 to round up for an
@@ -1381,14 +1381,14 @@ extern int gasnetc_AMReplyLongM(
         int i;
 
         /* Pack args into an array. */
-        gasnet_handlerarg_t* int_args = (gasnet_handlerarg_t*)&psm2_args[2];
+        gasnetex_handlerarg_t* int_args = (gasnetex_handlerarg_t*)&psm2_args[2];
 
         psm2_args[0].u32w0 = handler;
         psm2_args[0].u32w1 = numargs;
         psm2_args[1].u64w0 = (uintptr_t)dest_addr;
 
         for(i = 0; i < numargs; i++) {
-            int_args[i] = va_arg(argptr, gasnet_handlerarg_t);
+            int_args[i] = va_arg(argptr, gasnetex_handlerarg_t);
         }
 
         /* numargs + 3 because two are used above, and 1 to round up for an

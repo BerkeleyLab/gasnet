@@ -80,7 +80,7 @@ GASNETI_BEGIN_EXTERNC
 /* Functions, types, etc for computational collectives */
 
 #ifndef GASNET_COLL_FN_HANDLE_T
-  typedef gasnet_handlerarg_t gasnet_coll_fn_handle_t;
+  typedef gasnetex_handlerarg_t gasnet_coll_fn_handle_t;
 #endif
 
 typedef void (*gasnet_coll_reduce_fn_t)(

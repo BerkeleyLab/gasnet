@@ -127,7 +127,7 @@ extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) GASNETI_WARN_UNUSED_RESULT;
 #define GASNETC_AM_MAX_MED_PACKETS 64
 #define GASNETC_DEFAULT_AM_MAX_MED (size_t)                                          \
             (GASNETC_AM_MAX_MED_PACKETS * (2048 - 22) - \
-             (GASNETC_MAX_ARGS * sizeof(gasnet_handlerarg_t)))
+             (GASNETC_MAX_ARGS * sizeof(gasnetex_handlerarg_t)))
 
 
 #if GASNET_PSHM

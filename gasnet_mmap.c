@@ -1852,7 +1852,7 @@ void gasneti_auxseg_init(void) {
   static gasneti_atomic_t _gasneti_auxseg_bcastdone = gasneti_atomic_init(0);
 
   extern void gasnetc_auxseg_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
-                                  gasnet_handlerarg_t msg, gasnet_handlerarg_t offset) {
+                                  gasnetex_handlerarg_t msg, gasnetex_handlerarg_t offset) {
     gasnet_node_t srcid;
     gasnet_AMGetMsgSource(token, &srcid);
     gasneti_assert(srcid < gasneti_nodes);

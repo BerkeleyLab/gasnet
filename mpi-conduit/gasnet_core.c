@@ -1043,7 +1043,7 @@ extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
 #if GASNETC_HSL_ERRCHECK && !GASNETC_NULL_HSL
   extern void gasnetc_enteringHandler_hook_hsl(int cat, int isReq, int handlerId, gasnetex_token_t token,
                                                void *buf, size_t nbytes, int numargs,
-                                               gasnet_handlerarg_t *args) {
+                                               gasnetex_handlerarg_t *args) {
     gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
     if (info->locksheld)
         gasneti_fatalerror("HSL USAGE VIOLATION: tried to make a GASNet network call while holding an HSL");
@@ -1079,7 +1079,7 @@ extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
     }
     #if (!GASNETC_NULL_HSL && GASNETC_HSL_ERRCHECK)
       gasnetc_enteringHandler_hook_hsl(cat, isReq, handlerId, token, buf, nbytes,
-                                       numargs, (gasnet_handlerarg_t *)args);
+                                       numargs, (gasnetex_handlerarg_t *)args);
     #endif
   }
   extern void gasnetc_leavingHandler_hook(ammpi_category_t cat, int isReq) {

@@ -96,7 +96,7 @@ gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val,
     void *pdone = (void*)&isdone;
 
     gasnetex_AMRequestShort(NULL, node, gasneti_handleridx(gasnete_memset_reqh), 0,
-		      (gasnet_handlerarg_t)val, PACK(nbytes), 
+		      (gasnetex_handlerarg_t)val, PACK(nbytes),
 		      PACK(ptr), PACK(pdone)));
 
     /* Always blocking, even if an AM */
@@ -117,7 +117,7 @@ gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val,
 
 GASNETI_INLINE(gasnete_memset_reqh_inner)
 void 
-gasnete_memset_reqh_inner(gasnetex_token_t token, gasnet_handlerarg_t val, 
+gasnete_memset_reqh_inner(gasnetex_token_t token, gasnetex_handlerarg_t val,
 			  void *nbytes_arg, void *dest, void *op) 
 {
     size_t nbytes = (uintptr_t)nbytes_arg;

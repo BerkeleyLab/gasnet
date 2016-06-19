@@ -669,7 +669,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
   int full_numargs = GASNETC_MSG_NUMARGS(flags);
   int user_numargs = full_numargs;
   const gasnetex_token_t token = (gasnetex_token_t)rbuf;
-  gasnet_handlerarg_t *args;
+  gasnetex_handlerarg_t *args;
 
   #if GASNET_PSHM
     gasneti_assert(!gasneti_pshm_in_supernode(GASNETC_MSG_SRCIDX(flags)));
@@ -1918,7 +1918,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
 #else
   if_pt (node == gasneti_mynode) {
     /* Local Case */
-    gasnet_handlerarg_t *args;
+    gasnetex_handlerarg_t *args;
     int i;
     #if GASNETC_LOOPBACK_AMS_ON_STACK
       char tmp_buf[GASNETC_BUFSZ+8];
@@ -1956,7 +1956,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
 
     /* copy args */
     for (i=0; i < numargs; ++i) {
-      args[i] = va_arg(argptr, gasnet_handlerarg_t);
+      args[i] = va_arg(argptr, gasnetex_handlerarg_t);
     }
   
     /* process the loopback AM */
@@ -1984,7 +1984,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
     /* Remote Case */
     GASNETE_THREAD_LOOKUP /* TODO: Reply might get this via the token? */
     gasnetc_buffer_t *buf, *buf_alloc = NULL;
-    gasnet_handlerarg_t *args;
+    gasnetex_handlerarg_t *args;
     size_t msg_len;
     int i;
     int have_flow;
@@ -2226,7 +2226,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       GASNETI_TRACE_PRINTF(C,("SND_AM_CREDITS credits=%d acks=%d\n", credits, acks));
     }
     for (/*EMPTY*/; i < numargs; ++i) {
-      args[i] = va_arg(argptr, gasnet_handlerarg_t);
+      args[i] = va_arg(argptr, gasnetex_handlerarg_t);
     }
   
     /* Add/forward optional timestamp */
@@ -3594,7 +3594,7 @@ gasnetc_unpin_unmap(gasnetc_hca_t *hca, gasnetc_memreg_t *reg) {
   }
 }
 
-void gasnetc_sys_flush_reph(gasnetex_token_t token, gasnet_handlerarg_t credits) {
+void gasnetc_sys_flush_reph(gasnetex_token_t token, gasnetex_handlerarg_t credits) {
   gasnetc_cep_t *cep = ((gasnetc_rbuf_t *)token)->cep;
 
   gasneti_assert(! gasnetc_use_srq); /* SRQ prohibits credit coallescing */

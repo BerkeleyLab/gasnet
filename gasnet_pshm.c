@@ -304,7 +304,7 @@ typedef struct {
   uint8_t numargs;
   gasnetc_handler_t handler_id;
   gasnet_node_t source;
-  gasnet_handlerarg_t args[GASNETC_MAX_ARGS_PSHM];
+  gasnetex_handlerarg_t args[GASNETC_MAX_ARGS_PSHM];
 } gasneti_AMPSHM_msg_t;
 typedef gasneti_AMPSHM_msg_t gasneti_AMPSHM_shortmsg_t;
 
@@ -1062,7 +1062,7 @@ static void gasneti_pshmnet_free(gasneti_pshmnet_payload_t *p)
 
 #ifndef GASNETC_ENTERING_HANDLER_HOOK
   /* extern void enterHook(int cat, int isReq, int handlerId, gasnetex_token_t *token,
-   *                       void *buf, size_t nbytes, int numargs, gasnet_handlerarg_t *args);
+   *                       void *buf, size_t nbytes, int numargs, gasnetex_handlerarg_t *args);
    */
   #define GASNETC_ENTERING_HANDLER_HOOK(cat,isReq,handlerId,token,buf,nbytes,numargs,args) ((void)0)
 #endif
@@ -1083,7 +1083,7 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
   gasnetc_handler_t handler_id;
   gasneti_handler_fn_t handler_fn;
   int numargs;
-  gasnet_handlerarg_t *args;
+  gasnetex_handlerarg_t *args;
   gasnetex_token_t token;
 
   gasneti_assert(vnet != NULL);
@@ -1232,7 +1232,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnet_node_t dest,
   GASNETI_AMPSHM_MSG_NUMARGS(msg) = numargs;
   GASNETI_AMPSHM_MSG_SOURCE(msg) = gasneti_mynode;
   for(i = 0; i < numargs; i++) 
-    GASNETI_AMPSHM_MSG_ARGS(msg)[i] = (gasnet_handlerarg_t)va_arg(argptr, int);
+    GASNETI_AMPSHM_MSG_ARGS(msg)[i] = (gasnetex_handlerarg_t)va_arg(argptr, int);
 
   /* Detect truncation if our field widths were too small */
   gasneti_assert( GASNETI_AMPSHM_MSG_CATEGORY(msg) == category );
@@ -1262,7 +1262,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnet_node_t dest,
   if (loopback) {
     gasneti_handler_fn_t handler_fn = gasnetc_get_handler(handler); 
     gasnetex_token_t token = gasnetc_token_create(gasneti_mynode, isReq);
-    gasnet_handlerarg_t *args = GASNETI_AMPSHM_MSG_ARGS(msg);
+    gasnetex_handlerarg_t *args = GASNETI_AMPSHM_MSG_ARGS(msg);
     switch (category) {
       case gasnetc_Short:
         GASNETC_ENTERING_HANDLER_HOOK(category,isReq,handler,token,NULL,0,numargs,args);

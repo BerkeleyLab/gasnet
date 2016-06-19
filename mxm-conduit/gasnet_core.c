@@ -184,7 +184,7 @@ static void gasnetc_bootstrapBarrier(void) {
 size_t gasneti_AMMaxMedium(void)
 {
     /*return gasnet_mxm_module.max_am_med -*/
-    /*          (sizeof(gasnet_handlerarg_t) * GASNETC_MAX_ARGS));*/
+    /*          (sizeof(gasnetex_handlerarg_t) * GASNETC_MAX_ARGS));*/
     return gasnet_mxm_module.max_am_med;
 }
 
@@ -1627,7 +1627,7 @@ static void gasnetc_exit_now(int exitcode)
  * user's handler, if any, run before we begin to exit.
  */
 void
-gasnetc_HandleSystemExitReq(gasnetex_token_t token, gasnet_handlerarg_t exitcode)
+gasnetc_HandleSystemExitReq(gasnetex_token_t token, gasnetex_handlerarg_t exitcode)
 {
     int rc;
 
@@ -1648,7 +1648,7 @@ gasnetc_HandleSystemExitReq(gasnetex_token_t token, gasnet_handlerarg_t exitcode
     MXM_DEBUG_EXIT_FLOW("Handling exit request - sending response to master\n");
     /* Send a reply so the master knows we are reachable */
     rc = gasnetc_SystemReply(token, 1,
-                             (gasnet_handlerarg_t) SYSTEM_EXIT_REP);
+                             (gasnetex_handlerarg_t) SYSTEM_EXIT_REP);
     gasneti_assert(rc == GASNET_OK);
 
     /*
@@ -1773,8 +1773,8 @@ gasnetc_HandleSystemExitRoleReq(gasnetex_token_t token)
 
     /* Inform the requester of the outcome. */
     rc = gasnetc_SystemReply(token, 2,
-                             (gasnet_handlerarg_t)SYSTEM_EXIT_ROLE_REP,
-                             (gasnet_handlerarg_t)result);
+                             (gasnetex_handlerarg_t)SYSTEM_EXIT_ROLE_REP,
+                             (gasnetex_handlerarg_t)result);
     gasneti_assert(rc == GASNET_OK);
 }
 
@@ -1786,7 +1786,7 @@ gasnetc_HandleSystemExitRoleReq(gasnetex_token_t token)
  */
 static void
 gasnetc_HandleSystemExitRoleRep(gasnetex_token_t token,
-                                gasnet_handlerarg_t role)
+                                gasnetex_handlerarg_t role)
 {
     gasnet_node_t src;
     int rc = gasnet_AMGetMsgSource(token, &src);
@@ -1812,7 +1812,7 @@ gasnetc_HandleSystemExitRoleRep(gasnetex_token_t token,
 /* -------------------------------------------------------------------------- */
 
 void gasnetc_HandleSystemExitMessage(gasnetc_am_token_t * token,
-                                     gasnet_handlerarg_t * args, uint8_t numargs)
+                                     gasnetex_handlerarg_t * args, uint8_t numargs)
 {
 
     /*
@@ -1890,7 +1890,7 @@ static int gasnetc_get_exit_role(void)
          */
         rc = gasnetc_SystemRequest(GASNETC_EXIT_FLOW_ROOT_NODE, /* destination*/
                                    1,                           /* nargs*/
-                                   (gasnet_handlerarg_t)SYSTEM_EXIT_ROLE_REQ);
+                                   (gasnetex_handlerarg_t)SYSTEM_EXIT_ROLE_REQ);
 
         gasneti_assert(rc == GASNET_OK);
 
@@ -2012,8 +2012,8 @@ static int gasnetc_exit_master(int exitcode, int64_t timeout_us)
         MXM_DEBUG_EXIT_FLOW("Master sending exit request to slave node %d\n", i);
         rc = gasnetc_SystemRequest(i, /* destination*/
                                    2, /* nargs*/
-                                   (gasnet_handlerarg_t) SYSTEM_EXIT_REQ,
-                                   (gasnet_handlerarg_t) exitcode);
+                                   (gasnetex_handlerarg_t) SYSTEM_EXIT_REQ,
+                                   (gasnetex_handlerarg_t) exitcode);
         if (rc != GASNET_OK)
             return -1;
     }
@@ -2439,7 +2439,7 @@ extern int gasnetc_AMRequestShortM(
     else
 #endif
     {
-        /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t)
+        /* (###) add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
                  and send the active message
          */
 
@@ -2473,7 +2473,7 @@ extern int gasnetc_AMRequestMediumM(
     else
 #endif
     {
-        /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t)
+        /* (###) add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
                  and send the active message
          */
         retval = gasnetc_RequestGeneric(gasnetc_Medium, dest, handler,
@@ -2506,7 +2506,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
     else
 #endif
     {
-        /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t)
+        /* (###) add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
                  and send the active message
          */
 
@@ -2540,7 +2540,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
     else
 #endif
     {
-        /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t)
+        /* (###) add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
                  and send the active message
          */
 
@@ -2573,7 +2573,7 @@ extern int gasnetc_AMReplyShortM(
     else
 #endif
     {
-        /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t)
+        /* (###) add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
                  and send the active message
          */
 
@@ -2607,7 +2607,7 @@ extern int gasnetc_AMReplyMediumM(
     else
 #endif
     {
-        /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t)
+        /* (###) add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
                  and send the active message
          */
 
@@ -2643,7 +2643,7 @@ extern int gasnetc_AMReplyLongM(
     else
 #endif
     {
-        /* (###) add code here to read the arguments using va_arg(argptr, gasnet_handlerarg_t)
+        /* (###) add code here to read the arguments using va_arg(argptr, gasnetex_handlerarg_t)
                  and send the active message
          */
 
