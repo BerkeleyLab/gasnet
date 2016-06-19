@@ -442,7 +442,7 @@ extern void gasnetc_exit(int exitcode) {
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
+extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnet_node_t *srcindex) {
   gasnet_node_t sourceid;
   GASNETI_CHECKATTACH();
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");

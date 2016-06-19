@@ -117,7 +117,7 @@ gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val,
 
 GASNETI_INLINE(gasnete_memset_reqh_inner)
 void 
-gasnete_memset_reqh_inner(gasnet_token_t token, gasnet_handlerarg_t val, 
+gasnete_memset_reqh_inner(gasnetex_token_t token, gasnet_handlerarg_t val, 
 			  void *nbytes_arg, void *dest, void *op) 
 {
     size_t nbytes = (uintptr_t)nbytes_arg;
@@ -132,7 +132,7 @@ SHORT_HANDLER(gasnete_memset_reqh,4,7,
 
 GASNETI_INLINE(gasnete_markdone_reph_inner)
 void 
-gasnete_markdone_reph_inner(gasnet_token_t token, void *h) 
+gasnete_markdone_reph_inner(gasnetex_token_t token, void *h) 
 {
     int	*handle  = (int *) h;
     *handle = 1; /* Marks as done, requester spinning on handle != 0 */

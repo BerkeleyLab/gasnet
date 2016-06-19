@@ -617,7 +617,7 @@ extern void gasnetc_exit(int exitcode) {
   Misc. Active Message Functions
   ==============================
 */
-extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
+extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnet_node_t *srcindex) {
   int retval;
   gasnet_node_t sourceid;
   GASNETI_CHECKATTACH();

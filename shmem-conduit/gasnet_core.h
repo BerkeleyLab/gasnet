@@ -114,7 +114,7 @@ typedef struct _gasnet_hsl_t {
   Misc. Active Message Functions
   ==============================
 */
-extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex);
+extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnet_node_t *srcindex);
 
 #define gasnet_AMGetMsgSource  gasnetc_AMGetMsgSource
 
@@ -153,18 +153,18 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 #define gasnetc_AMRequestLongAsyncM gasnetc_AMRequestLongM
 
 extern int gasnetc_AMReplyShortM( 
-                            gasnet_token_t token,       /* token provided on handler entry */
+                            gasnetex_token_t token,       /* token provided on handler entry */
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             int numargs, ...);
 
 extern int gasnetc_AMReplyMediumM( 
-                            gasnet_token_t token,       /* token provided on handler entry */
+                            gasnetex_token_t token,       /* token provided on handler entry */
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             int numargs, ...);
 
 extern int gasnetc_AMReplyLongM( 
-                            gasnet_token_t token,       /* token provided on handler entry */
+                            gasnetex_token_t token,       /* token provided on handler entry */
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */

@@ -668,6 +668,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
   const int isreq = GASNETC_MSG_ISREQUEST(flags);
   int full_numargs = GASNETC_MSG_NUMARGS(flags);
   int user_numargs = full_numargs;
+  const gasnetex_token_t token = (gasnetex_token_t)rbuf;
   gasnet_handlerarg_t *args;
 
   #if GASNET_PSHM
@@ -740,7 +741,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
   switch (category) {
     case gasnetc_Short:
       { 
-        GASNETI_RUN_HANDLER_SHORT(isreq,handler_id,handler_fn,rbuf,args,user_numargs);
+        GASNETI_RUN_HANDLER_SHORT(isreq,handler_id,handler_fn,token,args,user_numargs);
       }
       break;
 
@@ -748,7 +749,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
       {
         void * data = GASNETC_MSG_MED_DATA(buf, full_numargs);
         size_t nbytes = buf->medmsg.nBytes;
-        GASNETI_RUN_HANDLER_MEDIUM(isreq,handler_id,handler_fn,rbuf,args,user_numargs,data,nbytes);
+        GASNETI_RUN_HANDLER_MEDIUM(isreq,handler_id,handler_fn,token,args,user_numargs,data,nbytes);
       }
       break;
 
@@ -763,7 +764,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
 			 (!GASNETC_PIN_SEGMENT && !isreq));
 	  memcpy(data, GASNETC_MSG_LONG_DATA(buf, full_numargs), (size_t)nbytes);
 	}
-        GASNETI_RUN_HANDLER_LONG(isreq,handler_id,handler_fn,rbuf,args,user_numargs,data,(size_t)nbytes);
+        GASNETI_RUN_HANDLER_LONG(isreq,handler_id,handler_fn,token,args,user_numargs,data,(size_t)nbytes);
       }
       break;
   }
@@ -4220,7 +4221,7 @@ extern int gasnetc_ReplySysMedium(gasnetex_token_t token,
   Misc. Active Message Functions
   ==============================
 */
-extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
+extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnet_node_t *srcindex) {
   gasnet_node_t sourceid;
 
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");

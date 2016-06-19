@@ -1045,7 +1045,7 @@ static int gasnetc_am_init(void) {
   return GASNET_OK;
 }
 
-extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
+extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnet_node_t *srcindex) {
   gasnet_node_t sourceid;
   GASNETI_CHECKATTACH();
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
@@ -1375,7 +1375,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 }
 
 extern int gasnetc_AMReplyShortM( 
-                            gasnet_token_t token,       /* token provided on handler entry */
+                            gasnetex_token_t token,       /* token provided on handler entry */
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             int numargs, ...) {
   int retval = GASNET_OK;
@@ -1428,7 +1428,7 @@ extern int gasnetc_AMReplyShortM(
 }
 
 extern int gasnetc_AMReplyMediumM( 
-                            gasnet_token_t token,       /* token provided on handler entry */
+                            gasnetex_token_t token,       /* token provided on handler entry */
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             int numargs, ...) {
@@ -1494,7 +1494,7 @@ extern int gasnetc_AMReplyMediumM(
 }
 
 extern int gasnetc_AMReplyLongM( 
-                            gasnet_token_t token,       /* token provided on handler entry */
+                            gasnetex_token_t token,       /* token provided on handler entry */
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */

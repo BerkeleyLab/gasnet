@@ -261,7 +261,7 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
       my_token->replySent = 1;
     }
 
-    extern int gasneti_AMPSHMGetMsgSource(gasnet_token_t token, gasnet_node_t *src_ptr) {
+    extern int gasneti_AMPSHMGetMsgSource(gasnetex_token_t token, gasnet_node_t *src_ptr) {
       int retval = GASNET_ERR_BAD_ARG;
       if (gasnetc_token_is_pshm(token)) {
         gasneti_ampshm_token_t *my_token = (gasneti_ampshm_token_t *)(1^(uintptr_t)token);

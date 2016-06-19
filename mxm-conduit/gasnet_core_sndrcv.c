@@ -829,7 +829,7 @@ int gasnetc_RequestGeneric(gasnetc_category_t category,
 /* -------------------------------------------------------------------------- */
 
 int gasnetc_ReplyGeneric(gasnetc_category_t category,
-                         gasnet_token_t gasnet_token,
+                         gasnetex_token_t gasnet_token,
                          gasnet_handler_t handler,
                          void *src_addr,
                          int nbytes,

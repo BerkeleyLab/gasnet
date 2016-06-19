@@ -460,7 +460,7 @@ int gasnetc_handler_short(psm2_am_token_t token,
     int is_request;
     int handler_idx;
     int gasnet_nargs;
-    gasnet_token_t user_token = (gasnet_token_t)token;
+    gasnetex_token_t user_token = (gasnetex_token_t)token;
 
     gasneti_assert(nargs >= 1);
 
@@ -489,7 +489,7 @@ int gasnetc_handler_med(psm2_am_token_t token,
     int handler_idx;
     int gasnet_nargs;
     void* userload;
-    gasnet_token_t user_token = (gasnet_token_t)token;
+    gasnetex_token_t user_token = (gasnetex_token_t)token;
 
     gasneti_assert(nargs >= 1);
 
@@ -527,7 +527,7 @@ int gasnetc_handler_long(psm2_am_token_t token,
     int handler_idx;
     int gasnet_nargs;
     void* dest_addr;
-    gasnet_token_t user_token = (gasnet_token_t)token;
+    gasnetex_token_t user_token = (gasnetex_token_t)token;
 
     gasneti_assert(nargs >= 2);
 
@@ -556,7 +556,7 @@ int gasnetc_handler_long(psm2_am_token_t token,
 }
 
 
-static void gasnetc_handler_exit2(gasnet_token_t token,
+static void gasnetc_handler_exit2(gasnetex_token_t token,
         gasnet_handlerarg_t arg0)
 {
     /* Store the provided exit code and indicate this process should exit.
@@ -569,7 +569,7 @@ static void gasnetc_handler_exit2(gasnet_token_t token,
 
 static volatile int32_t gasnetc_psm_counter = 0;
 
-static void gasnetc_handler_barrier2(gasnet_token_t token,
+static void gasnetc_handler_barrier2(gasnetex_token_t token,
         gasnet_handlerarg_t arg0)
 {
     /* Counter is incremented during initialization to form a simple
@@ -981,7 +981,7 @@ extern void gasnetc_exit(int exitcode) {
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
+extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnet_node_t *srcindex) {
     gasnet_node_t sourceid;
     GASNETI_CHECKATTACH();
     GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
@@ -1255,7 +1255,7 @@ extern int gasnetc_AMRequestLongAsyncM(gasnet_node_t dest, /* dest node */
 
 
 extern int gasnetc_AMReplyShortM(
-        gasnet_token_t token,     /* token provided on handler entry */
+        gasnetex_token_t token,     /* token provided on handler entry */
         gasnet_handler_t handler, /* index into dest endpoint's handler table */
         int numargs, ...) {
     va_list argptr;
@@ -1307,7 +1307,7 @@ extern int gasnetc_AMReplyShortM(
 
 
 extern int gasnetc_AMReplyMediumM(
-        gasnet_token_t token,       /* token provided on handler entry */
+        gasnetex_token_t token,       /* token provided on handler entry */
         gasnet_handler_t handler, /* index into dest endpoint's handler table */
         void *source_addr, size_t nbytes,   /* data payload */
         int numargs, ...) {
@@ -1357,7 +1357,7 @@ extern int gasnetc_AMReplyMediumM(
 }
 
 extern int gasnetc_AMReplyLongM(
-        gasnet_token_t token,       /* token provided on handler entry */
+        gasnetex_token_t token,       /* token provided on handler entry */
         gasnet_handler_t handler, /* index into destination endpoint's handler table */
         void *source_addr, size_t nbytes,   /* data payload */
         void *dest_addr,                    /* data destination on destination node */

@@ -896,7 +896,7 @@ extern void gasnetc_exit(int exitcode) {
   Misc. Active Message Functions
   ==============================
 */
-extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
+extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnet_node_t *srcindex) {
   gasnet_node_t sourceid;
   GASNETI_CHECKATTACH();
   #if GASNET_DEBUG || GASNET_PSHM
@@ -948,11 +948,12 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
   #if GASNET_DEBUG  
     gasnetc_bufdesc_t _descbuf; 
     gasnetc_bufdesc_t *desc = &_descbuf;
+    const gasnetex_token_t token = (gasnetex_token_t)desc;
     desc->isReq = isReq;
     desc->handlerRunning = 1;
     desc->replyIssued = 0;
   #else
-    void * const desc = NULL;
+    const gasnetex_token_t token = NULL;
   #endif
 
   gasneti_assert(dest == gasneti_mynode);
@@ -967,7 +968,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
   switch (category) {
     case gasnetc_Short:
       { 
-        GASNETI_RUN_HANDLER_SHORT(isReq,handler,gasnetc_handler[handler],desc,pargs,numargs);
+        GASNETI_RUN_HANDLER_SHORT(isReq,handler,gasnetc_handler[handler],token,pargs,numargs);
       }
     break;
     case gasnetc_Medium:
@@ -984,14 +985,14 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
 
         memcpy(buf, source_addr, nbytes);
 
-        GASNETI_RUN_HANDLER_MEDIUM(isReq,handler,gasnetc_handler[handler],desc,pargs,numargs,buf,nbytes);
+        GASNETI_RUN_HANDLER_MEDIUM(isReq,handler,gasnetc_handler[handler],token,pargs,numargs,buf,nbytes);
       }
     break;
     case gasnetc_Long:
       { 
         if_pt(dest_ptr != source_addr) memcpy(dest_ptr, source_addr, nbytes);
 
-        GASNETI_RUN_HANDLER_LONG(isReq,handler,gasnetc_handler[handler],desc,pargs,numargs,dest_ptr,nbytes);
+        GASNETI_RUN_HANDLER_LONG(isReq,handler,gasnetc_handler[handler],token,pargs,numargs,dest_ptr,nbytes);
       }
     break;
     default: gasneti_fatalerror("bad AM category");

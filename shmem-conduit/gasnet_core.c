@@ -640,7 +640,7 @@ extern void gasnetc_exit(int exitcode) {
   Misc. Active Message Functions
   ==============================
 */
-extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
+extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnet_node_t *srcindex) {
   gasnet_node_t sourceid;
   GASNETI_CHECKATTACH();
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
@@ -659,7 +659,7 @@ void
 gasnetc_AMProcess(gasnetc_am_header_t *hdr, uint32_t *args /* header */)
 {
 	gasneti_handler_fn_t	handler;
-	gasnet_token_t		token;
+	gasnetex_token_t		token;
 	size_t			numargs = (size_t) hdr->numargs;
 
 
@@ -1047,7 +1047,7 @@ extern int gasnetc_AMRequestLongM( gasnet_node_t dest,        /* destination nod
 }
 
 extern int gasnetc_AMReplyShortM( 
-                            gasnet_token_t token,       /* token provided on handler entry */
+                            gasnetex_token_t token,       /* token provided on handler entry */
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             int numargs, ...) {
   int retval, i;
@@ -1091,7 +1091,7 @@ extern int gasnetc_AMReplyShortM(
 }
 
 extern int gasnetc_AMReplyMediumM( 
-                            gasnet_token_t token,       /* token provided on handler entry */
+                            gasnetex_token_t token,       /* token provided on handler entry */
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             int numargs, ...) {
@@ -1153,7 +1153,7 @@ extern int gasnetc_AMReplyMediumM(
 }
 
 extern int gasnetc_AMReplyLongM( 
-                            gasnet_token_t token,       /* token provided on handler entry */
+                            gasnetex_token_t token,       /* token provided on handler entry */
                             gasnet_handler_t handler, /* index into destination endpoint's handler table */ 
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */

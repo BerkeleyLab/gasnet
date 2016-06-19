@@ -548,7 +548,7 @@ extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
   Misc. Active Message Functions
   ==============================
 */
-extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
+extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnet_node_t *srcindex) {
   int retval;
   gasnet_node_t sourceid;
   GASNETI_CHECKATTACH();

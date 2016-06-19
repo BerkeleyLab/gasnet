@@ -57,7 +57,7 @@ typedef uint32_t        gasnet_node_t;
 typedef uint32_t        gasnet_handler_t;
 
 #define _GASNET_TOKEN_T
-typedef uintptr_t    gasnet_token_t;
+typedef uintptr_t    gasnetex_token_t;
 
 /*#if !defined(GASNET_SEGMENT_EVERYTHING) && (defined(SGI_SHMEM) || PLATFORM_ARCH_CRAYX1)*/
 #if (defined(SGI_SHMEM) || PLATFORM_ARCH_CRAYX1)

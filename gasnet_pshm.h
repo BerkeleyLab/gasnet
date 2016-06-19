@@ -123,10 +123,10 @@ extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
    * Returns GASNET_OK if token was recognized, GASNET_ERR_BAD_ARG otherwise.
    */
   #if GASNET_DEBUG
-    extern int gasneti_AMPSHMGetMsgSource(gasnet_token_t token, gasnet_node_t *src_ptr);
+    extern int gasneti_AMPSHMGetMsgSource(gasnetex_token_t token, gasnet_node_t *src_ptr);
   #else
     GASNETI_INLINE(gasneti_AMPSHMGetMsgSource)
-    int gasneti_AMPSHMGetMsgSource(gasnet_token_t token, gasnet_node_t *src_ptr) {
+    int gasneti_AMPSHMGetMsgSource(gasnetex_token_t token, gasnet_node_t *src_ptr) {
       if (gasnetc_token_is_pshm(token)) {
         *src_ptr = (gasnet_node_t)((uintptr_t)token >> 1);
         return GASNET_OK;

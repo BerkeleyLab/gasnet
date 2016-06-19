@@ -118,7 +118,7 @@ typedef struct _gasnet_hsl_t {
   Misc. Active Message Functions
   ==============================
 */
-extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex);
+extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnet_node_t *srcindex);
 
 #define gasnet_AMGetMsgSource  gasnetc_AMGetMsgSource
 

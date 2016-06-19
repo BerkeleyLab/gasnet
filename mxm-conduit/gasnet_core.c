@@ -103,7 +103,7 @@ static void gasnetc_exit_body(void);
 static void gasnetc_exit_tail(void) GASNETI_NORETURN;
 static void gasnetc_exit_now(int) GASNETI_NORETURN;
 static int gasnetc_SystemRequest(gasnet_node_t dest, int numargs, ...);
-static int gasnetc_SystemReply(gasnet_token_t token, int numargs, ...);
+static int gasnetc_SystemReply(gasnetex_token_t token, int numargs, ...);
 
 /* Exit coordination timeouts */
 #define GASNETC_DEFAULT_EXITTIMEOUT_MAX		360.0  /* 6 minutes! */
@@ -1558,7 +1558,7 @@ static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
 
 /* Handle reduction on exitcode */
 static void
-gasnetc_HandleSystemExitReduceReq(gasnet_token_t token, gasneti_atomic_val_t exitcode, gasneti_atomic_val_t distance)
+gasnetc_HandleSystemExitReduceReq(gasnetex_token_t token, gasneti_atomic_val_t exitcode, gasneti_atomic_val_t distance)
 {
     gasneti_atomic_val_t prevcode;
     do {
@@ -1627,7 +1627,7 @@ static void gasnetc_exit_now(int exitcode)
  * user's handler, if any, run before we begin to exit.
  */
 void
-gasnetc_HandleSystemExitReq(gasnet_token_t token, gasnet_handlerarg_t exitcode)
+gasnetc_HandleSystemExitReq(gasnetex_token_t token, gasnet_handlerarg_t exitcode)
 {
     int rc;
 
@@ -1716,7 +1716,7 @@ gasnetc_HandleSystemExitReq(gasnet_token_t token, gasnet_handlerarg_t exitcode)
  * of a single exit "master", who will coordinate an orderly shutdown.
  */
 static void
-gasnetc_HandleSystemExitRoleReq(gasnet_token_t token)
+gasnetc_HandleSystemExitRoleReq(gasnetex_token_t token)
 {
     int result, rc;
     int local_role;
@@ -1785,7 +1785,7 @@ gasnetc_HandleSystemExitRoleReq(gasnet_token_t token)
  * The reply contains the exit "role" this node should assume.
  */
 static void
-gasnetc_HandleSystemExitRoleRep(gasnet_token_t token,
+gasnetc_HandleSystemExitRoleRep(gasnetex_token_t token,
                                 gasnet_handlerarg_t role)
 {
     gasnet_node_t src;
@@ -2338,7 +2338,7 @@ void gasnetc_exit(int exitcode)
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gasnet_token_t token, gasnet_node_t *srcindex) {
+extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnet_node_t *srcindex) {
     gasnet_node_t sourceid;
 /*  GASNETI_CHECKATTACH();*/
     GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
@@ -2556,7 +2556,7 @@ extern int gasnetc_AMRequestLongAsyncM( gasnet_node_t dest,        /* destinatio
 }
 
 extern int gasnetc_AMReplyShortM(
-    gasnet_token_t token,       /* token provided on handler entry */
+    gasnetex_token_t token,       /* token provided on handler entry */
     gasnet_handler_t handler, /* index into destination endpoint's handler table */
     int numargs, ...) {
     int retval;
@@ -2578,7 +2578,7 @@ extern int gasnetc_AMReplyShortM(
          */
 
         retval = gasnetc_ReplyGeneric(gasnetc_Short, /* gasnetc_category_t category*/
-                                      token,         /* gasnet_token_t token*/
+                                      token,         /* gasnetex_token_t token*/
                                       handler,       /* gasnet_handler_t handler*/
                                       NULL, 0,       /* void *src_addr, int nbytes*/
                                       NULL,          /* void *dst_addr*/
@@ -2589,7 +2589,7 @@ extern int gasnetc_AMReplyShortM(
 }
 
 extern int gasnetc_AMReplyMediumM(
-    gasnet_token_t token,       /* token provided on handler entry */
+    gasnetex_token_t token,       /* token provided on handler entry */
     gasnet_handler_t handler, /* index into destination endpoint's handler table */
     void *source_addr, size_t nbytes,   /* data payload */
     int numargs, ...) {
@@ -2612,7 +2612,7 @@ extern int gasnetc_AMReplyMediumM(
          */
 
         retval = gasnetc_ReplyGeneric(gasnetc_Medium,/* gasnetc_category_t category*/
-                                      token,         /* gasnet_token_t token*/
+                                      token,         /* gasnetex_token_t token*/
                                       handler,       /* gasnet_handler_t handler*/
                                       source_addr,   /* void *src_addr*/
                                       nbytes,        /* int nbytes*/
@@ -2624,7 +2624,7 @@ extern int gasnetc_AMReplyMediumM(
 }
 
 extern int gasnetc_AMReplyLongM(
-    gasnet_token_t token,       /* token provided on handler entry */
+    gasnetex_token_t token,       /* token provided on handler entry */
     gasnet_handler_t handler, /* index into destination endpoint's handler table */
     void *source_addr, size_t nbytes,   /* data payload */
     void *dest_addr,                    /* data destination on destination node */
@@ -2648,7 +2648,7 @@ extern int gasnetc_AMReplyLongM(
          */
 
         retval = gasnetc_ReplyGeneric(gasnetc_Long,  /* gasnetc_category_t category*/
-                                      token,         /* gasnet_token_t token*/
+                                      token,         /* gasnetex_token_t token*/
                                       handler,       /* gasnet_handler_t handler*/
                                       source_addr,   /* void *src_addr*/
                                       nbytes,        /* int nbytes*/
@@ -2681,14 +2681,14 @@ static int gasnetc_SystemRequest(gasnet_node_t dest,
 
 /* -------------------------------------------------------------------------- */
 
-int gasnetc_SystemReply(gasnet_token_t token,
+int gasnetc_SystemReply(gasnetex_token_t token,
                         int numargs, ...)
 {
     int retval;
     va_list argptr;
     va_start(argptr, numargs);
     retval = gasnetc_ReplyGeneric(gasnetc_System, /* gasnetc_category_t category*/
-                                  token,          /* gasnet_token_t token*/
+                                  token,          /* gasnetex_token_t token*/
                                   0,              /* gasnet_handler_t handler*/
                                   NULL, 0,        /* void *src_addr, int nbytes*/
                                   NULL,           /* void *dst_addr*/
