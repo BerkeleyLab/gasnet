@@ -547,7 +547,7 @@ static void gasneti_pshm_munmap(void *segbase, uintptr_t segsize) {
   gasneti_pshm_unlink(gasneti_pshm_mynode);
 }
 
-static void gasneti_munmap_remote(gasnet_node_t pshm_rank, void *segbase, uintptr_t segsize) {
+static void gasneti_munmap_remote(gasnetex_rank_t pshm_rank, void *segbase, uintptr_t segsize) {
   gasneti_assert(segsize > 0);
 
 #if defined(GASNETI_PSHM_SYSV)
@@ -735,7 +735,7 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
   return ptr;
 }
 
-static void *gasneti_mmap_remote_shared(void *segbase, uintptr_t segsize, gasnet_node_t pshmnode) {
+static void *gasneti_mmap_remote_shared(void *segbase, uintptr_t segsize, gasnetex_rank_t pshmnode) {
   gasneti_assert(pshmnode < gasneti_pshm_nodes);
   return gasneti_mmap_shared_internal(pshmnode, segbase, segsize, 0);
 }
@@ -1109,7 +1109,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasneti_bootstrapBarrierfn_t barrierfn) {
   int i;
   uintptr_t maxsz;
-  const gasnet_node_t local_count = gasneti_myhost.node_count;
+  const gasnetex_rank_t local_count = gasneti_myhost.node_count;
 
 #if GASNET_PSHM
   gasneti_pshm_cs_enter();
@@ -1180,12 +1180,12 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
 #endif
     if (maxsz) {
       /* Find widest host */
-      gasnet_node_t rounds = 0;
+      gasnetex_rank_t rounds = 0;
       {
-        const gasnet_node_t num_hosts = gasneti_myhost.grp_count;
-        gasnet_node_t *tmp = gasneti_calloc(num_hosts, sizeof(gasnet_node_t));
+        const gasnetex_rank_t num_hosts = gasneti_myhost.grp_count;
+        gasnetex_rank_t *tmp = gasneti_calloc(num_hosts, sizeof(gasnetex_rank_t));
         for (i = 0; i < gasneti_nodes; ++i) {
-          const gasnet_node_t host = gasneti_nodeinfo[i].host;
+          const gasnetex_rank_t host = gasneti_nodeinfo[i].host;
           gasneti_assert(host < num_hosts);
           tmp[host] += 1;
           rounds = MAX(rounds, tmp[host]);
@@ -1583,7 +1583,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
     gasneti_export_segment(gasneti_segment.addr, gasneti_segment.size);
     for (i = 0; i < gasneti_pshm_nodes; i++){
         if (i != gasneti_pshm_mynode) {
-            const gasnet_node_t node = gasneti_nodemap_local[i];
+            const gasnetex_rank_t node = gasneti_nodemap_local[i];
             const uintptr_t size = seginfo[node].size;
             void *segbase = gasneti_mmap_remote_shared(NULL, size, i);
 
@@ -1625,7 +1625,7 @@ extern int gasneti_getNodeInfo(gasnet_nodeinfo_t *nodeinfo_table, int numentries
   if (gasneti_nodeinfo) {
     memcpy(nodeinfo_table, gasneti_nodeinfo, numentries*sizeof(gasnet_nodeinfo_t));
   } else {
-    gasnet_node_t i;
+    gasnetex_rank_t i;
 
     for (i=0; i < numentries; i++) {
       nodeinfo_table[i].host = i;
@@ -1853,7 +1853,7 @@ void gasneti_auxseg_init(void) {
 
   extern void gasnetc_auxseg_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
                                   gasnetex_handlerarg_t msg, gasnetex_handlerarg_t offset) {
-    gasnet_node_t srcid;
+    gasnetex_rank_t srcid;
     gasnet_AMGetMsgSource(token, &srcid);
     gasneti_assert(srcid < gasneti_nodes);
     switch (msg) {

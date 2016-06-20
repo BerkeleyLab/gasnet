@@ -222,7 +222,7 @@ void trim_memvec_list(test_memvec_list *one, test_memvec_list *two) {
 }
 
 void _verify_memvec_data_both(test_memvec_list *src, void *result, 
-                              gasnet_node_t nodeid, VEC_T *areaptr,
+                              gasnetex_rank_t nodeid, VEC_T *areaptr,
                               const char *context, const char *file, int line) {
   VEC_T *p = result;
   size_t i,j;
@@ -386,7 +386,7 @@ void trim_addr_list(test_addr_list *one, test_addr_list *two) {
 }
 
 void _verify_addr_list_data_both(test_addr_list *src, void *result, 
-                                gasnet_node_t nodeid, VEC_T *areaptr,
+                                gasnetex_rank_t nodeid, VEC_T *areaptr,
                             const char *context, const char *file, int line) {
   VEC_T *p = result;
   size_t chunkelem = src->chunklen / VEC_SZ;
@@ -578,7 +578,7 @@ test_strided_desc *rand_strided_desc(void *srcaddr, void *dstaddr, void *contiga
 }
 
 void _verify_strided_desc_data_both(test_strided_desc *desc, void *result, 
-                            gasnet_node_t nodeid, VEC_T *areaptr,
+                            gasnetex_rank_t nodeid, VEC_T *areaptr,
                             const char *context, const char *file, int line) {
   size_t dim = (desc->stridelevels+1);
   size_t * idx;

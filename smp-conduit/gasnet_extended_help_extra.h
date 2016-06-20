@@ -45,7 +45,7 @@ gasnetex_handle_t gasnete_Put_nb(
 #define gasnete_Put_nb gasnete_Put_nb
 
 GASNETI_INLINE(gasnete_memset_nb) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t gasnete_memset_nb(gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG)
+gasnet_handle_t gasnete_memset_nb(gasnetex_rank_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_MEMSET(H);
   gasneti_assert(0 && "Unreachable");
@@ -116,7 +116,7 @@ void gasnete_Put_nbi(gasnetex_team_member_t team,
 #define gasnete_Put_nbi gasnete_Put_nbi
 
 GASNETI_INLINE(gasnete_memset_nbi)
-void gasnete_memset_nbi(gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG)
+void gasnete_memset_nbi(gasnetex_rank_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_MEMSET(V);
   gasneti_assert(0 && "Unreachable");
@@ -158,7 +158,7 @@ gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
 */
 
 GASNETI_INLINE(gasnete_put_val)
-void gasnete_put_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG)
+void gasnete_put_val(gasnetex_rank_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUTVAL(V);
   gasneti_assert(0 && "Unreachable");
@@ -166,7 +166,7 @@ void gasnete_put_val(gasnet_node_t node, void *dest, gasnet_register_value_t val
 #define gasnete_put_val gasnete_put_val
 
 GASNETI_INLINE(gasnete_put_nb_val) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t gasnete_put_nb_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG)
+gasnet_handle_t gasnete_put_nb_val(gasnetex_rank_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUTVAL(H);
   gasneti_assert(0 && "Unreachable");
@@ -184,7 +184,7 @@ gasnet_handle_t gasnete_put_nb_val(gasnet_node_t node, void *dest, gasnet_regist
 */
 
 GASNETI_INLINE(gasnete_get_val)
-gasnet_register_value_t gasnete_get_val(gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG)
+gasnet_register_value_t gasnete_get_val(gasnetex_rank_t node, void *src, size_t nbytes GASNETE_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GETVAL();
   gasneti_assert(0 && "Unreachable");

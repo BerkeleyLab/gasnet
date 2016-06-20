@@ -22,20 +22,20 @@
 
 #define GASNETX_FETCHOP_DECLS(_name,_type)                        \
     extern void _gasnetX_fetch##_name(                            \
-                _type *dest, gasnet_node_t node, _type *src,      \
+                _type *dest, gasnetex_rank_t node, _type *src,      \
                 _type operand GASNETE_THREAD_FARG);               \
     extern gasnet_handle_t _gasnetX_fetch##_name##_nb(            \
-                _type *dest, gasnet_node_t node, _type *src,      \
+                _type *dest, gasnetex_rank_t node, _type *src,      \
                 _type operand GASNETE_THREAD_FARG)                \
                 GASNETI_WARN_UNUSED_RESULT;                       \
     extern void _gasnetX_fetch##_name##_nbi(                      \
-                _type *dest, gasnet_node_t node, _type *src,      \
+                _type *dest, gasnetex_rank_t node, _type *src,      \
                 _type operand GASNETE_THREAD_FARG);               \
     extern _type _gasnetX_fetch##_name##_val(                     \
-                gasnet_node_t node, _type *src,                   \
+                gasnetex_rank_t node, _type *src,                   \
                 _type operand GASNETE_THREAD_FARG);               \
     extern gasnet_valget_handle_t _gasnetX_fetch##_name##_nb_val( \
-                gasnet_node_t node, _type *src,                   \
+                gasnetex_rank_t node, _type *src,                   \
                 _type operand GASNETE_THREAD_FARG)                \
                 GASNETI_WARN_UNUSED_RESULT;
 

@@ -57,9 +57,9 @@ static struct gasneti_pshm_info {
 void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_sz) {
   size_t vnetsz, mmapsz;
   int discontig = 0;
-  gasnet_node_t i;
+  gasnetex_rank_t i;
 #if !GASNET_CONDUIT_SMP
-  gasnet_node_t j;
+  gasnetex_rank_t j;
 #endif
 
   gasneti_assert(snodebcastfn != NULL);  /* NULL snodebcastfn no longer supported */
@@ -92,7 +92,7 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
   { /* gasneti_pshm_info contains multiple variable-length arrays in the same space */
     size_t info_sz;
     /* space for gasneti_pshm_firsts: */
-    info_sz = gasneti_nodemap_global_count * sizeof(gasnet_node_t);
+    info_sz = gasneti_nodemap_global_count * sizeof(gasnetex_rank_t);
     /* optional space for gasneti_pshm_rankmap: */
     if (discontig) {
       info_sz = GASNETI_ALIGNUP(info_sz, sizeof(gasneti_pshm_rank_t));
@@ -150,9 +150,9 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
   gasneti_pshmnet_bootstrapBarrier();
   {
     uintptr_t addr = (uintptr_t)&gasneti_pshm_info->early_barrier;
-    /* gasneti_pshm_firsts, an array of gasneti_nodemap_global_count*sizeof(gasnet_node_t): */
-    gasneti_pshm_firsts = (gasnet_node_t *)addr;
-    addr += gasneti_nodemap_global_count * sizeof(gasnet_node_t);
+    /* gasneti_pshm_firsts, an array of gasneti_nodemap_global_count*sizeof(gasnetex_rank_t): */
+    gasneti_pshm_firsts = (gasnetex_rank_t *)addr;
+    addr += gasneti_nodemap_global_count * sizeof(gasnetex_rank_t);
     /* optional rankmap: */
     if (discontig) {
       addr = GASNETI_ALIGNUP(addr, sizeof(gasneti_pshm_rank_t));
@@ -235,12 +235,12 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
    */
   #if GASNET_DEBUG
     typedef struct {
-      gasnet_node_t srcNode;
+      gasnetex_rank_t srcNode;
       int isReq;
       int replySent;
     } gasneti_ampshm_token_t;
 
-    static gasnetex_token_t gasnetc_token_create(gasnet_node_t src, int isReq) {
+    static gasnetex_token_t gasnetc_token_create(gasnetex_rank_t src, int isReq) {
       gasneti_ampshm_token_t *my_token = gasneti_malloc(sizeof(gasneti_ampshm_token_t));
       gasneti_assert(!((uintptr_t)my_token & 1));
       gasneti_assert(gasneti_pshm_in_supernode(src));
@@ -261,11 +261,11 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
       my_token->replySent = 1;
     }
 
-    extern int gasneti_AMPSHMGetMsgSource(gasnetex_token_t token, gasnet_node_t *src_ptr) {
+    extern int gasneti_AMPSHMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *src_ptr) {
       int retval = GASNET_ERR_BAD_ARG;
       if (gasnetc_token_is_pshm(token)) {
         gasneti_ampshm_token_t *my_token = (gasneti_ampshm_token_t *)(1^(uintptr_t)token);
-        gasnet_node_t tmp = my_token->srcNode;
+        gasnetex_rank_t tmp = my_token->srcNode;
         gasneti_assert(gasneti_pshm_in_supernode(tmp));
         *src_ptr = tmp;
         retval = GASNET_OK;
@@ -285,11 +285,11 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
  * PSHM global variables:
  ******************************************************************************/
 gasneti_pshm_rank_t gasneti_pshm_nodes = 0;
-gasnet_node_t gasneti_pshm_firstnode = (gasnet_node_t)(-1);
+gasnetex_rank_t gasneti_pshm_firstnode = (gasnetex_rank_t)(-1);
 gasneti_pshm_rank_t gasneti_pshm_mynode = (gasneti_pshm_rank_t)(-1);
 /* vectors constructed in shared space: */
 gasneti_pshm_rank_t *gasneti_pshm_rankmap = NULL;
-gasnet_node_t *gasneti_pshm_firsts = NULL;
+gasnetex_rank_t *gasneti_pshm_firsts = NULL;
 
 /*******************************************************************************
  * "PSHM Net":  message header formats
@@ -303,7 +303,7 @@ typedef struct {
   uint8_t category;      /* AM msg type: short, med, long */
   uint8_t numargs;
   gasnetc_handler_t handler_id;
-  gasnet_node_t source;
+  gasnetex_rank_t source;
   gasnetex_handlerarg_t args[GASNETC_MAX_ARGS_PSHM];
 } gasneti_AMPSHM_msg_t;
 typedef gasneti_AMPSHM_msg_t gasneti_AMPSHM_shortmsg_t;
@@ -1169,7 +1169,7 @@ int gasneti_AMPSHMPoll(int repliesOnly)
  */
 static gasneti_lifo_head_t loopback_freepool = GASNETI_LIFO_INITIALIZER;
 
-int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnet_node_t dest,
+int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnetex_rank_t dest,
                                  gasnetc_handler_t handler, void *source_addr, size_t nbytes, 
                                  void *dest_addr, int numargs, va_list argptr) 
 {

@@ -101,8 +101,8 @@ struct _nbr_t {
     int  idGridLower[3];
 
     /* Upper and Lower nbrs in each dimension (GASNet node ids) */
-    gasnet_node_t  nodeidUpper[3];
-    gasnet_node_t  nodeidLower[3];
+    gasnetex_rank_t  nodeidUpper[3];
+    gasnetex_rank_t  nodeidLower[3];
 
     /* Cache dims in all Lower nbrs */
     int  dimsLower[3];
@@ -1213,7 +1213,7 @@ ge_put(nbr_t *nb, int type, int dir, int axis, int *flag)
     int	    srcp, destp;
     size_t  len;
 
-    gasnet_node_t   node;
+    gasnetex_rank_t   node;
     
     if (dir == GHOST_DIR_UPPER) {
 	node = nb->nodeidUpper[axis];

@@ -35,7 +35,7 @@ struct gasnete_coll_op_info_t_ {
   gasnete_coll_scratch_req_t *req; /* the associated request with this op*/
   
   gasnete_coll_tree_type_t tree_type;
-  gasnet_node_t root;
+  gasnetex_rank_t root;
   
   int tree_op;
   gasnete_coll_tree_dir_t tree_dir;
@@ -58,7 +58,7 @@ struct gasnete_coll_op_info_t_ {
 struct gasnete_coll_scratch_config_t_ {
   gasnete_coll_op_type_t op_type;
   gasnete_coll_tree_type_t tree_type;
-  gasnet_node_t root;
+  gasnetex_rank_t root;
   gasnete_coll_tree_dir_t tree_dir;
   int dissem_radix;
   
@@ -73,7 +73,7 @@ struct gasnete_coll_scratch_config_t_ {
   /* this should be ignored when the config is waiting*/
   /*nodes that will send to me*/
   int numpeers;
-  gasnet_node_t *peers;
+  gasnetex_rank_t *peers;
   
 };
 
@@ -319,8 +319,8 @@ void gasnete_coll_scratch_reconfigure(gasnete_coll_scratch_status_t *stat,
   
     /* set the new config and the information about who weill send to me*/
     config->numpeers = req->num_in_peers;
-    config->peers = gasneti_malloc(sizeof(gasnet_node_t)*config->numpeers);
-    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(config->peers, req->in_peers, sizeof(gasnet_node_t)*config->numpeers);
+    config->peers = gasneti_malloc(sizeof(gasnetex_rank_t)*config->numpeers);
+    GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(config->peers, req->in_peers, sizeof(gasnetex_rank_t)*config->numpeers);
   }
 }
 
@@ -343,7 +343,7 @@ uint64_t gasnete_coll_scratch_make_local_alloc(gasnete_coll_scratch_req_t *req,
 GASNETI_INLINE(gasnete_coll_scratch_check_remote_clear)
 uint8_t gasnete_coll_scratch_check_remote_clear(gasnete_coll_scratch_req_t *req,
                                                 gasnete_coll_scratch_status_t *stat) {
-  gasnet_node_t i;
+  gasnetex_rank_t i;
   
   for(i=0; i<req->num_out_peers; i++) {
     /*fprintf(stderr, "%d> waiting for clear from %d\n", gasneti_mynode, req->out_peers[i]);*/
@@ -365,7 +365,7 @@ uint8_t gasnete_coll_scratch_check_remote_clear(gasnete_coll_scratch_req_t *req,
 GASNETI_INLINE(gasnete_coll_scratch_check_remote_alloc)
 uint8_t gasnete_coll_scratch_check_remote_alloc(gasnete_coll_scratch_req_t *req,
                                                 gasnete_coll_scratch_status_t *stat) {
-  gasnet_node_t i;
+  gasnetex_rank_t i;
   
   for(i=0; i<req->num_out_peers; i++) {
     if(stat->node_status[req->out_peers[i]].head + req->out_sizes[(req->op_type == GASNETE_COLL_DISSEM_OP ? 0 : i)] >  
@@ -390,7 +390,7 @@ GASNETI_INLINE(gasnete_coll_scratch_make_remote_alloc)
 void gasnete_coll_scratch_make_remote_alloc(gasnete_coll_scratch_req_t *req,
                                             gasnete_coll_scratch_status_t *stat,
                                             uint64_t *rem_pos) {
-  gasnet_node_t i;
+  gasnetex_rank_t i;
   for(i=0; i<req->num_out_peers; i++) {
     rem_pos[i] = stat->node_status[req->out_peers[i]].head;
     stat->node_status[req->out_peers[i]].head += req->out_sizes[(req->op_type == GASNETE_COLL_DISSEM_OP ? 0 : i)]; 

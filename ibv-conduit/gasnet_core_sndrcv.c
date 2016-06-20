@@ -72,7 +72,7 @@ int					gasnetc_amrdma_depth;
 int					gasnetc_amrdma_slot_mask;
 gasnetc_atomic_val_t			gasnetc_amrdma_cycle;
 gasnetc_cep_t				**gasnetc_node2cep = NULL;
-gasnet_node_t                           gasnetc_remote_nodes = 0;
+gasnetex_rank_t                           gasnetc_remote_nodes = 0;
 
 /* ------------------------------------------------------------------------------------ *
  *  File-scoped types                                                                   *
@@ -417,7 +417,7 @@ void *gasnetc_sr_desc_init(struct ibv_send_wr *result, struct ibv_sge *sg_lst_p)
  *   8-9: category
  * 10-14: numargs (5 bits, but only 0-GASNETC_MAX_ARGS are legal values)
  *    15: request (0) or reply (1)
- * 16-31: source node
+ * 16-31: source node // TODO-EX: how to scale out past this limit?
  */
 
 #define GASNETC_MSG_HANDLERID(flags)    ((gasnetex_handler_t)(flags))
@@ -425,7 +425,7 @@ void *gasnetc_sr_desc_init(struct ibv_send_wr *result, struct ibv_sge *sg_lst_p)
 #define GASNETC_MSG_NUMARGS(flags)      (((flags) >> 10) & 0x1f)
 #define GASNETC_MSG_ISREPLY(flags)      ((flags) & (1<<15))
 #define GASNETC_MSG_ISREQUEST(flags)    (!GASNETC_MSG_ISREPLY(flags))
-#define GASNETC_MSG_SRCIDX(flags)       ((gasnet_node_t)((flags) >> 16) & 0xffff)
+#define GASNETC_MSG_SRCIDX(flags)       ((gasnetex_rank_t)((flags) >> 16) & 0xffff)
 
 #define GASNETC_MSG_GENFLAGS(isreq, cat, nargs, hand, srcidx)   \
  (gasneti_assert(0 == ((srcidx) & ~0xffff)),    \
@@ -524,7 +524,7 @@ static void gasnetc_do_select(gasnetc_hca_t *hca, int size) {
 }
 
 static void gasnetc_amrdma_grant(gasnetc_hca_t *hca, gasnetc_cep_t *cep) {
-  gasnet_node_t node = gasnetc_epid2node(cep->epid);
+  gasnetex_rank_t node = gasnetc_epid2node(cep->epid);
   int qpi = gasnetc_epid2qpi(cep->epid);
 
   if (gasnetc_use_srq) { /* Cross-over keeping in mind that qpi is 1-based */
@@ -1054,7 +1054,7 @@ static int gasnetc_snd_reap(int limit) {
 }
 
 GASNETI_INLINE(gasnetc_get_cep)
-gasnetc_cep_t *gasnetc_get_cep(gasnet_node_t node) {
+gasnetc_cep_t *gasnetc_get_cep(gasnetex_rank_t node) {
   gasnetc_cep_t *result = GASNETC_NODE2CEP(node);
 #if GASNETC_DYNAMIC_CONNECT
   if_pf (!result) {
@@ -1907,10 +1907,10 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
 			  gasnetc_atomic_t *completed, va_list argptr) {
 #if GASNETC_IBV_SHUTDOWN
   /* Currently only the shutdown code uses dest to specify a "bound" value */
-  const gasnet_node_t node = gasnetc_epid2node(dest);
+  const gasnetex_rank_t node = gasnetc_epid2node(dest);
   const gasnetc_epid_t dest_qpi = gasnetc_epid2qpi(dest);
 #else
-  const gasnet_node_t node = dest;
+  const gasnetex_rank_t node = dest;
   gasneti_assert(gasnetc_epid2qpi(dest) == 0);
 #endif
 #if GASNET_PSHM /* PSHM code handles all "local" AMs including the loopback case */
@@ -2827,8 +2827,9 @@ static size_t gasnetc_fh_put_args_fn(void * context, firehose_remotecallback_arg
 }
 
 GASNETI_INLINE(gasnetc_fh_put_helper)
-size_t gasnetc_fh_put_helper(gasnet_node_t node, gasnetc_sreq_t *sreq, gasnetc_atomic_val_t *initiated,
+size_t gasnetc_fh_put_helper(gasnetc_epid_t epid, gasnetc_sreq_t *sreq, gasnetc_atomic_val_t *initiated,
 		          uintptr_t loc_addr, uintptr_t rem_addr, size_t len GASNETE_THREAD_FARG) {
+  const gasnetex_rank_t node = gasnetc_epid2node(epid);
   const firehose_request_t *fh_rem;
   size_t putinmove = sreq->fh_putinmove = 0;
 
@@ -2953,8 +2954,9 @@ size_t gasnetc_fh_put_helper(gasnet_node_t node, gasnetc_sreq_t *sreq, gasnetc_a
 }
 
 GASNETI_INLINE(gasnetc_fh_get_helper)
-size_t gasnetc_fh_get_helper(gasnet_node_t node, gasnetc_sreq_t *sreq,
+size_t gasnetc_fh_get_helper(gasnetc_epid_t epid, gasnetc_sreq_t *sreq,
 		          uintptr_t loc_addr, uintptr_t rem_addr, size_t len) {
+  const gasnetex_rank_t node = gasnetc_epid2node(epid);
   const firehose_request_t *fh_rem;
 
   sreq->fh_rem_addr = rem_addr;
@@ -3488,7 +3490,7 @@ extern int gasnetc_sndrcv_init(void) {
   return GASNET_OK;
 }
 
-extern void gasnetc_sndrcv_init_peer(gasnet_node_t node, gasnetc_cep_t *cep) {
+extern void gasnetc_sndrcv_init_peer(gasnetex_rank_t node, gasnetc_cep_t *cep) {
   int i, j;
 
   if (!gasnetc_non_ib(node)) {
@@ -3569,7 +3571,7 @@ extern void gasnetc_sndrcv_init_inline(void) {
 #endif
 }
 
-extern void gasnetc_sndrcv_attach_peer(gasnet_node_t node, gasnetc_cep_t *cep) {
+extern void gasnetc_sndrcv_attach_peer(gasnetex_rank_t node, gasnetc_cep_t *cep) {
 #if GASNETC_PIN_SEGMENT
   int i;
 
@@ -3609,10 +3611,10 @@ void gasnetc_sys_flush_reph(gasnetex_token_t token, gasnetex_handlerarg_t credit
   }
 }
 
-static int gasnetc_close_recvd[16]; /* Note 16-bit gasnet_node_t */
+static int gasnetc_close_recvd[16]; /* Note 16-bit GASNET_MAXNODES */
 
 void gasnetc_sys_close_reqh(gasnetex_token_t token) {
-  gasnet_node_t peer;
+  gasnetex_rank_t peer;
   int distance, shift;
 
   gasnetc_AMGetMsgSource(token, &peer);
@@ -3649,7 +3651,7 @@ gasnetc_sndrcv_quiesce(void) {
 
   /* suspend credit coallescing (if any) and return any banked credits */
   if (! gasnetc_use_srq) {
-    gasnet_node_t i;
+    gasnetex_rank_t i;
 
     gasnetc_rbuf_t rbuf;
   #if GASNETI_STATS_OR_TRACE
@@ -3659,7 +3661,7 @@ gasnetc_sndrcv_quiesce(void) {
 
     gasnetc_am_credits_slack = 0;
     for (i = 0; i < gasneti_nodes; ++i) { /* Stagger to avoid hot-spotting */
-      gasnet_node_t node = (i < gasneti_nodes - gasneti_mynode)
+      gasnetex_rank_t node = (i < gasneti_nodes - gasneti_mynode)
                                ? (gasneti_mynode + i)
                                : (gasneti_mynode - (gasneti_nodes - i));
       gasnetc_cep_t *cep = GASNETC_NODE2CEP(node);
@@ -3684,7 +3686,7 @@ gasnetc_sndrcv_quiesce(void) {
 
   /* drain in-flight AMs by allocating all of the AM credits */
   {
-    gasnet_node_t node;
+    gasnetex_rank_t node;
     for (node = 0; node < gasneti_nodes; ++node) {
       gasnetc_cep_t *cep = GASNETC_NODE2CEP(node);
       int qpi_offset = gasnetc_use_srq ? gasnetc_num_qps : 0;
@@ -3704,7 +3706,7 @@ gasnetc_sndrcv_quiesce(void) {
   { /* Dissemination barrier via special AM Request hander which does NOT return credits */
     unsigned int shift, distance;
     for (shift = 0, distance = 1; distance < gasneti_nodes; ++shift, distance *= 2) {
-      gasnet_node_t peer = (distance <= gasneti_mynode) ? gasneti_mynode - distance
+      gasnetex_rank_t peer = (distance <= gasneti_mynode) ? gasneti_mynode - distance
                                                         : gasneti_mynode + (gasneti_nodes - distance);
       if (gasnetc_non_ib(peer)) {
         /* BLCR-TODO: this might be a problem between init and attach? */
@@ -4221,8 +4223,8 @@ extern int gasnetc_ReplySysMedium(gasnetex_token_t token,
   Misc. Active Message Functions
   ==============================
 */
-extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnet_node_t *srcindex) {
-  gasnet_node_t sourceid;
+extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *srcindex) {
+  gasnetex_rank_t sourceid;
 
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");

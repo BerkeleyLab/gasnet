@@ -415,7 +415,7 @@ gasnete_cntr_gpd(gasneti_weakatomic_val_t *initiated_p,
 /* Main xfer functions */
 
 static void /* XXX: Inlining left to compiler's discretion */
-gasnete_get_bulk_inner(void *dest, gasnet_node_t node, void *src, size_t nbytes,
+gasnete_get_bulk_inner(void *dest, gasnetex_rank_t node, void *src, size_t nbytes,
                        gasneti_weakatomic_val_t * const initiated_p,
                        gasneti_weakatomic_t * const completed_p
                        GASNETC_DIDX_FARG)
@@ -473,7 +473,7 @@ retry:
 }
 
 static void /* XXX: Inlining left to compiler's discretion */
-gasnete_get_bulk_unaligned(void *dest, gasnet_node_t node, void *src, size_t nbytes,
+gasnete_get_bulk_unaligned(void *dest, gasnetex_rank_t node, void *src, size_t nbytes,
                            gasneti_weakatomic_val_t * const initiated_p,
                            gasneti_weakatomic_t * const completed_p
                            GASNETC_DIDX_FARG)
@@ -529,7 +529,7 @@ gasnete_get_bulk_unaligned(void *dest, gasnet_node_t node, void *src, size_t nby
 }
 
 static void /* XXX: Inlining left to compiler's discretion */
-gasnete_put_bulk_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes,
+gasnete_put_bulk_inner(gasnetex_rank_t node, void *dest, void *src, size_t nbytes,
                        gasneti_weakatomic_val_t * const initiated_p,
                        gasneti_weakatomic_t * const completed_p
                        GASNETC_DIDX_FARG)
@@ -624,7 +624,7 @@ gasnetex_handle_t gasnete_Get_nb(
 }
 
 GASNETI_INLINE(gasnete_put_nb) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+gasnetex_handle_t gasnete_put_nb (gasnetex_rank_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnetex_handle_t head_op = GASNETEX_INVALID_HANDLE;
   gasnete_eop_t *tail_op;
   const size_t max_tail = gasnetc_max_put_lc;
@@ -659,7 +659,7 @@ gasnetex_handle_t gasnete_put_nb (gasnet_node_t node, void *dest, void *src, siz
 }
 
 GASNETI_INLINE(gasnete_put_nb_bulk) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+gasnetex_handle_t gasnete_put_nb_bulk (gasnetex_rank_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_eop_t *eop = _gasnete_eop_new(mythread);
     GASNETC_DIDX_POST(mythread->domain_idx);
@@ -823,7 +823,7 @@ void gasnete_Get_nbi(gasnetex_team_member_t team,
 }
 
 GASNETI_INLINE(gasnete_put_nbi)
-void gasnete_put_nbi (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+void gasnete_put_nbi (gasnetex_rank_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const tail_op = mythread->current_iop;
   gasnet_handle_t head_op = GASNET_INVALID_HANDLE;
@@ -854,7 +854,7 @@ void gasnete_put_nbi (gasnet_node_t node, void *dest, void *src, size_t nbytes G
 }
 
 GASNETI_INLINE(gasnete_put_nbi_bulk)
-void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+void gasnete_put_nbi_bulk (gasnetex_rank_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t * const iop = mythread->current_iop;
     GASNETC_DIDX_POST(mythread->domain_idx);
@@ -975,7 +975,7 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
 #define gasnete_val_assign(_dst, _val) \
     (*(gasnet_register_value_t *)(_dst) = (gasnet_register_value_t)(_val))
 
-extern void gasnete_put_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG) {
+extern void gasnete_put_val(gasnetex_rank_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG) {
   GASNETI_CHECKPSHM_PUTVAL(V);
   {
     GASNETC_DIDX_POST(GASNETE_MYTHREAD->domain_idx);
@@ -992,7 +992,7 @@ extern void gasnete_put_val(gasnet_node_t node, void *dest, gasnet_register_valu
   }
 }
 
-extern gasnet_handle_t gasnete_put_nb_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG) {
+extern gasnet_handle_t gasnete_put_nb_val(gasnetex_rank_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG) {
   GASNETI_CHECKPSHM_PUTVAL(H);
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
@@ -1008,7 +1008,7 @@ extern gasnet_handle_t gasnete_put_nb_val(gasnet_node_t node, void *dest, gasnet
   }
 }
 
-extern void gasnete_put_nbi_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG) {
+extern void gasnete_put_nbi_val(gasnetex_rank_t node, void *dest, gasnet_register_value_t value, size_t nbytes GASNETE_THREAD_FARG) {
   GASNETI_CHECKPSHM_PUTVAL(V);
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
@@ -1041,7 +1041,7 @@ gasnet_register_value_t gasnete_get_val_help(void *src, size_t nbytes) {
 #endif
 }
  
-extern gasnet_register_value_t gasnete_get_val(gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+extern gasnet_register_value_t gasnete_get_val(gasnetex_rank_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   GASNETI_CHECKPSHM_GETVAL();
   {
     gasnet_register_value_t result;
@@ -1093,7 +1093,7 @@ gasnet_valget_handle_t gasnete_new_valget_handle(gasnete_threaddata_t * const my
   return retval;
 }
 
-extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+extern gasnet_valget_handle_t gasnete_get_nb_val(gasnetex_rank_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnet_valget_handle_t retval = gasnete_new_valget_handle(mythread);
 
@@ -1160,7 +1160,7 @@ static void gasnete_valget_freeall(gasnete_threaddata_t *thread) {
 */
 
 static gasnet_handle_t gasnete_fetchop_u64_nb(
-        uint64_t *dest, gasnet_node_t node, uint64_t *src,
+        uint64_t *dest, gasnetex_rank_t node, uint64_t *src,
         gni_fma_cmd_type_t cmd, uint64_t operand GASNETE_THREAD_FARG)
 {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
@@ -1179,7 +1179,7 @@ static gasnet_handle_t gasnete_fetchop_u64_nb(
 }
 
 static void gasnete_fetchop_u64_nbi(
-        uint64_t *dest, gasnet_node_t node, uint64_t *src,
+        uint64_t *dest, gasnetex_rank_t node, uint64_t *src,
         gni_fma_cmd_type_t cmd, uint64_t operand GASNETE_THREAD_FARG)
 {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
@@ -1196,7 +1196,7 @@ static void gasnete_fetchop_u64_nbi(
 }
 
 static uint64_t gasnete_fetchop_u64_val(
-        gasnet_node_t node, void *src, gni_fma_cmd_type_t cmd,
+        gasnetex_rank_t node, void *src, gni_fma_cmd_type_t cmd,
         uint64_t operand GASNETE_THREAD_FARG)
 {
   uint64_t result;
@@ -1218,7 +1218,7 @@ static uint64_t gasnete_fetchop_u64_val(
 }
 
 static gasnet_valget_handle_t gasnete_fetchop_u64_nb_val(
-        gasnet_node_t node, void *src, gni_fma_cmd_type_t cmd,
+        gasnetex_rank_t node, void *src, gni_fma_cmd_type_t cmd,
         uint64_t operand GASNETE_THREAD_FARG)
 {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
@@ -1243,7 +1243,7 @@ static gasnet_valget_handle_t gasnete_fetchop_u64_nb_val(
 #define GASNETX_FETCHOP_DEFNS(_op,_suff,_type,_cmd)                       \
     extern void                                                           \
     _gasnetX_fetch##_op##_##_suff(                                        \
-                _type *dest, gasnet_node_t node, _type *src,              \
+                _type *dest, gasnetex_rank_t node, _type *src,              \
                 _type operand GASNETE_THREAD_FARG)                        \
     {                                                                     \
         *dest = gasnete_fetchop_##_suff##_val(node, src, _cmd, operand GASNETE_THREAD_PASS); \
@@ -1251,28 +1251,28 @@ static gasnet_valget_handle_t gasnete_fetchop_u64_nb_val(
     }                                                                     \
     extern gasnet_handle_t                                                \
     _gasnetX_fetch##_op##_##_suff##_nb(                                   \
-                _type *dest, gasnet_node_t node, _type *src,              \
+                _type *dest, gasnetex_rank_t node, _type *src,              \
                 _type operand GASNETE_THREAD_FARG)                        \
     {                                                                     \
         return gasnete_fetchop_##_suff##_nb(dest, node, src, _cmd, operand GASNETE_THREAD_PASS); \
     }                                                                     \
     extern void                                                           \
     _gasnetX_fetch##_op##_##_suff##_nbi(                                  \
-                _type *dest, gasnet_node_t node, _type *src,              \
+                _type *dest, gasnetex_rank_t node, _type *src,              \
                 _type operand GASNETE_THREAD_FARG)                        \
     {                                                                     \
         gasnete_fetchop_##_suff##_nbi(dest, node, src, _cmd, operand GASNETE_THREAD_PASS); \
     }                                                                     \
     extern _type                                                          \
     _gasnetX_fetch##_op##_##_suff##_val(                                  \
-                gasnet_node_t node, _type *src,                           \
+                gasnetex_rank_t node, _type *src,                           \
                 _type operand GASNETE_THREAD_FARG)                        \
     {                                                                     \
         return gasnete_fetchop_##_suff##_val(node, src, _cmd, operand GASNETE_THREAD_PASS); \
     }                                                                     \
     extern gasnet_valget_handle_t                                         \
     _gasnetX_fetch##_op##_##_suff##_nb_val(                               \
-                gasnet_node_t node, _type *src,                           \
+                gasnetex_rank_t node, _type *src,                           \
                 _type operand GASNETE_THREAD_FARG)                        \
     {                                                                     \
         return gasnete_fetchop_##_suff##_nb_val(node, src, _cmd, operand GASNETE_THREAD_PASS); \
@@ -1381,7 +1381,7 @@ static int gasnete_conduit_rdmabarrier(const char *barrier, gasneti_auxseg_reque
 typedef struct {
   GASNETE_GDBARRIER_LOCK(barrier_lock) /* no semicolon */
   struct {
-    gasnet_node_t node;
+    gasnetex_rank_t node;
     uint64_t      *addr;
   } *barrier_peers;           /*  precomputed list of peers to communicate with */
 #if GASNETI_PSHM_BARRIER_HIER
@@ -1426,7 +1426,7 @@ void gasnete_gdbarrier_send(gasnete_coll_gdbarrier_t *barrier_data,
   gasneti_assert(sizeof(payload) <= sizeof(gasnet_register_value_t));
 
   for (i = 0; i < numsteps; ++i, state += 2, step += 1) {
-    const gasnet_node_t node = barrier_data->barrier_peers[step].node;
+    const gasnetex_rank_t node = barrier_data->barrier_peers[step].node;
     uint64_t * const dst = GASNETE_GDBARRIER_INBOX_REMOTE(barrier_data, step, state);
 #if GASNET_PSHM
     if (gasneti_pshm_in_supernode(node)) {
@@ -1795,7 +1795,7 @@ static void gasnete_gdbarrier_init(gasnete_coll_team_t team) {
     gasneti_leak(barrier_data->barrier_peers);
   
     for (step = 0; step < steps; ++step) {
-      gasnet_node_t node = peers->fwd[step];
+      gasnetex_rank_t node = peers->fwd[step];
       barrier_data->barrier_peers[1+step].node = node;
       barrier_data->barrier_peers[1+step].addr = gasnete_rdmabarrier_auxseg[node].addr;
     }

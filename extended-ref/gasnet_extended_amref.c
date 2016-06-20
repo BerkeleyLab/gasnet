@@ -587,7 +587,7 @@ gasnetex_handle_t gasnete_Put_nb(
 /* ------------------------------------------------------------------------------------ */
 
 #ifdef GASNETE_BUILD_AMREF_MEMSET
-extern gasnet_handle_t gasnete_amref_memset_nb   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
+extern gasnet_handle_t gasnete_amref_memset_nb   (gasnetex_rank_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
  GASNETI_CHECKPSHM_MEMSET(H);
  {
   gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
@@ -645,7 +645,7 @@ void gasnete_amref_Put_nbi(gasnetex_team_member_t team,
 /* ------------------------------------------------------------------------------------ */
 
 #if GASNETE_BUILD_AMREF_MEMSET
-extern void gasnete_amref_memset_nbi   (gasnet_node_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
+extern void gasnete_amref_memset_nbi   (gasnetex_rank_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *op = mythread->current_iop;
   GASNETI_CHECKPSHM_MEMSET(V);

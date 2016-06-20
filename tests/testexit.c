@@ -73,7 +73,7 @@ void test_exit_handler(gasnetex_token_t token, gasnetex_handlerarg_t exitcode) {
 
 void ping_handler(gasnetex_token_t token, void *buf, size_t nbytes) {
   static int x = 1; 
-  gasnet_node_t src;
+  gasnetex_rank_t src;
   gasnet_AMGetMsgSource(token, &src);
   x = !x;/* harmless race */
   if (x) 

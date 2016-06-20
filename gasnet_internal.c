@@ -126,10 +126,10 @@ extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentr
    if conduits override one of these, they must
    still provide variable or macro definitions for these tokens */
 #ifdef _GASNET_MYNODE_DEFAULT
-  gasnet_node_t gasneti_mynode = (gasnet_node_t)-1;
+  gasnetex_rank_t gasneti_mynode = (gasnetex_rank_t)-1;
 #endif
 #ifdef _GASNET_NODES_DEFAULT
-  gasnet_node_t gasneti_nodes = 0;
+  gasnetex_rank_t gasneti_nodes = 0;
 #endif
 
 #if defined(_GASNET_GETMAXSEGMENTSIZE_DEFAULT) && !GASNET_SEGMENT_EVERYTHING
@@ -292,7 +292,7 @@ extern void gasneti_freezeForDebugger(void) {
 }
 /* ------------------------------------------------------------------------------------ */
 extern void gasneti_defaultAMHandler(gasnetex_token_t token) {
-  gasnet_node_t srcnode = (gasnet_node_t)-1;
+  gasnetex_rank_t srcnode = (gasnetex_rank_t)-1;
   gasnet_AMGetMsgSource(token, &srcnode);
   gasneti_fatalerror("GASNet node %i/%i received an AM message from node %i for a handler index "
                      "with no associated AM handler function registered", 
@@ -440,7 +440,7 @@ typedef struct {
    exchangefn is required function for exchanging data 
    broadcastfn is optional (can be NULL) but highly recommended for scalability
  */
-extern void gasneti_setupGlobalEnvironment(gasnet_node_t numnodes, gasnet_node_t mynode,
+extern void gasneti_setupGlobalEnvironment(gasnetex_rank_t numnodes, gasnetex_rank_t mynode,
                                            gasneti_bootstrapExchangefn_t exchangefn,
                                            gasneti_bootstrapBroadcastfn_t broadcastfn) {
   uint8_t *myenv; 
@@ -536,7 +536,7 @@ static const char *gasneti_decode_envval(const char *val) {
   static int decodeenv = 1;
   if (firsttime) {
     decodeenv = !gasneti_getenv("GASNET_DISABLE_ENVDECODE");
-    if (gasneti_init_done && gasneti_mynode != (gasnet_node_t)-1) {
+    if (gasneti_init_done && gasneti_mynode != (gasnetex_rank_t)-1) {
       gasneti_envstr_display("GASNET_DISABLE_ENVDECODE",(decodeenv?"NO":"YES"),decodeenv);
       gasneti_sync_writes();
       firsttime = 0;
@@ -582,7 +582,7 @@ const char * (*gasnett_decode_envval_fn)(const char *) = &gasneti_decode_envval;
 extern int _gasneti_verboseenv_fn(void) {
   static int verboseenv = -1;
   if (verboseenv == -1) {
-    if (gasneti_init_done && gasneti_mynode != (gasnet_node_t)-1) {
+    if (gasneti_init_done && gasneti_mynode != (gasnetex_rank_t)-1) {
       #if GASNET_DEBUG_VERBOSE
         verboseenv = GASNETI_ENV_OUTPUT_NODE();
       #else
@@ -786,9 +786,9 @@ static void gasneti_check_portable_conduit(void) { /* check for portable conduit
 /* Nodemap handling
  */
 
-gasnet_node_t *gasneti_nodemap = NULL;
-gasneti_nodegrp_t gasneti_myhost = {NULL,0,(gasnet_node_t)(-1),0,(gasnet_node_t)(-1)};
-gasneti_nodegrp_t gasneti_mysupernode = {NULL,0,(gasnet_node_t)(-1),0,(gasnet_node_t)(-1)};
+gasnetex_rank_t *gasneti_nodemap = NULL;
+gasneti_nodegrp_t gasneti_myhost = {NULL,0,(gasnetex_rank_t)(-1),0,(gasnetex_rank_t)(-1)};
+gasneti_nodegrp_t gasneti_mysupernode = {NULL,0,(gasnetex_rank_t)(-1),0,(gasnetex_rank_t)(-1)};
 gasnet_nodeinfo_t *gasneti_nodeinfo = NULL;
 
 /* This code is "good" for all "sensible" process layouts, where "good"
@@ -804,7 +804,7 @@ gasnet_nodeinfo_t *gasneti_nodeinfo = NULL;
  * identify some or all of the potential sharing in such a case.
  */
 static void gasneti_nodemap_helper_linear(const char *ids, size_t sz, size_t stride) {
-  gasnet_node_t i, prev, base;
+  gasnetex_rank_t i, prev, base;
   const char *p, *base_p, *prev_p;
 
   prev   = base   = gasneti_nodemap[0] = 0;
@@ -841,8 +841,8 @@ static struct {
   size_t stride;
 } _gasneti_nodemap_sort_aux;
 static int _gasneti_nodemap_sort_fn(const void *a, const void *b) {
-  gasnet_node_t key1 = *(const gasnet_node_t *)a;
-  gasnet_node_t key2 = *(const gasnet_node_t *)b;
+  gasnetex_rank_t key1 = *(const gasnetex_rank_t *)a;
+  gasnetex_rank_t key2 = *(const gasnetex_rank_t *)b;
   const char *val1 = _gasneti_nodemap_sort_aux.ids + key1 * _gasneti_nodemap_sort_aux.stride;
   const char *val2 = _gasneti_nodemap_sort_aux.ids + key2 * _gasneti_nodemap_sort_aux.stride;
   int retval = memcmp(val1, val2, _gasneti_nodemap_sort_aux.sz);
@@ -853,15 +853,15 @@ static int _gasneti_nodemap_sort_fn(const void *a, const void *b) {
   return retval;
 }
 static void gasneti_nodemap_helper_qsort(const char *ids, size_t sz, size_t stride) {
-  gasnet_node_t *work    = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+  gasnetex_rank_t *work    = gasneti_malloc(gasneti_nodes * sizeof(gasnetex_rank_t));
   const char *prev_id;
-  int i, prev; /* If these are gasnet_node_t then bug 2634 can crash XLC */
+  int i, prev; /* If these are gasnetex_rank_t then bug 2634 can crash XLC */
 
   _gasneti_nodemap_sort_aux.ids    = ids;
   _gasneti_nodemap_sort_aux.sz     = sz;
   _gasneti_nodemap_sort_aux.stride = stride;
   for (i = 0; i < gasneti_nodes; ++i) work[i] = i;
-  qsort(work, gasneti_nodes, sizeof(gasnet_node_t), &_gasneti_nodemap_sort_fn);
+  qsort(work, gasneti_nodes, sizeof(gasnetex_rank_t), &_gasneti_nodemap_sort_fn);
 
   prev = work[0];
   gasneti_nodemap[prev] = prev;
@@ -901,7 +901,7 @@ static void gasneti_nodemap_helper(const void *ids, size_t sz, size_t stride)) {
  * or when no exchangefn is available to disseminate them.
  */
 void gasneti_nodemap_trivial(void) {
-  gasnet_node_t i;
+  gasnetex_rank_t i;
   for (i = 0; i < gasneti_nodes; ++i) gasneti_nodemap[i] = i;
 }
 
@@ -1043,15 +1043,15 @@ static void gasneti_nodemap_dflt(gasneti_bootstrapExchangefn_t exchangefn) {
  * TODO: keep widths around for conduits to use? (ibv and gemini both use)
  */
 extern void gasneti_nodemapParse(void) {
-  gasnet_node_t i,j,limit;
-  gasnet_node_t initial,final;
+  gasnetex_rank_t i,j,limit;
+  gasnetex_rank_t initial,final;
 
   struct { /* TODO: alloca? */
-    gasnet_node_t width;
-    gasnet_node_t h_lead;
-    gasnet_node_t sn_lead;
-    gasnet_node_t host;
-    gasnet_node_t supernode;
+    gasnetex_rank_t width;
+    gasnetex_rank_t h_lead;
+    gasnetex_rank_t sn_lead;
+    gasnetex_rank_t host;
+    gasnetex_rank_t supernode;
   } *s = gasneti_calloc(gasneti_nodes, sizeof(*s));
 
   gasneti_assert(gasneti_nodemap);
@@ -1101,9 +1101,9 @@ extern void gasneti_nodemapParse(void) {
    */
   initial = gasneti_nodemap[gasneti_mynode];
   for (i = 0; i < gasneti_nodes; ++i) {
-    const gasnet_node_t n = gasneti_nodemap[i];
-    const gasnet_node_t width = s[n].width++;
-    const gasnet_node_t lrank = width % limit;
+    const gasnetex_rank_t n = gasneti_nodemap[i];
+    const gasnetex_rank_t width = s[n].width++;
+    const gasnetex_rank_t lrank = width % limit;
     if (!width) { /* First node on host */
       s[n].host = gasneti_myhost.grp_count++;
     }
@@ -1128,7 +1128,7 @@ extern void gasneti_nodemapParse(void) {
 
   /* Second pass: Construct arrays of local nodes */
   gasneti_assert(gasneti_myhost.node_count >= gasneti_mysupernode.node_count);
-  gasneti_myhost.nodes = gasneti_malloc(gasneti_myhost.node_count*sizeof(gasnet_node_t));
+  gasneti_myhost.nodes = gasneti_malloc(gasneti_myhost.node_count*sizeof(gasnetex_rank_t));
   for (i = initial, j = 0; j < gasneti_myhost.node_count; ++i) {
     gasneti_assert(i < gasneti_nodes);
     if (s[i].h_lead == initial) {
@@ -1183,7 +1183,7 @@ extern void gasneti_nodemapParse(void) {
  */
 extern void gasneti_nodemapInit(gasneti_bootstrapExchangefn_t exchangefn,
                                 const void *ids, size_t sz, size_t stride) {
-  gasneti_nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+  gasneti_nodemap = gasneti_malloc(gasneti_nodes * sizeof(gasnetex_rank_t));
 
   if (ids) {
     /* Case 1: conduit-provided vector of IDs */

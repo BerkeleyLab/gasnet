@@ -335,7 +335,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     }
   #else
   { /* GASNET_SEGMENT_EVERYTHING */
-    gasnet_node_t i;
+    gasnetex_rank_t i;
     for (i=0; i<gasneti_nodes; i++) {
       gasneti_seginfo[i].addr = (void *)0;
       gasneti_seginfo[i].size = (uintptr_t)-1;
@@ -442,8 +442,8 @@ extern void gasnetc_exit(int exitcode) {
  */
 #endif
 
-extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnet_node_t *srcindex) {
-  gasnet_node_t sourceid;
+extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *srcindex) {
+  gasnetex_rank_t sourceid;
   GASNETI_CHECKATTACH();
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");

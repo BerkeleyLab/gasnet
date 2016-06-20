@@ -155,7 +155,7 @@ static int gasnetc_exit_barrier_timed_wait(void) {
   if (gasnetc_exit_data) {
     int64_t timeout = 1e9 * gasnetc_exittimeout;
     gasneti_tick_t start_time = gasneti_ticks_now();
-    gasnet_node_t i;
+    gasnetex_rank_t i;
 
     gasneti_assert(timeout > 0);
 
@@ -177,7 +177,7 @@ static int gasnetc_exit_barrier_timed_wait(void) {
 /* TODO: use a process group (would require SIGT{STP,TIN,TOU} handling) */
 static void gasnetc_signal_job(int sig) {
   if (gasnetc_exit_data) {
-    gasnet_node_t i;
+    gasnetex_rank_t i;
     for (i = 0; i < gasneti_nodes; i++) {
       pid_t pid = gasnetc_exit_data->pid_tbl[i];
       if (!pid || (i == gasneti_mynode)) continue;
@@ -287,7 +287,7 @@ static void gasnetc_disarm_sigio(int fd) {
 
 
 static void gasnetc_fork_children(void) {
-  gasnet_node_t i;
+  gasnetex_rank_t i;
 
   /* An initial pid table is kept in private memory */
   gasnetc_exit_data = gasneti_calloc(1, GASNETC_EXIT_DATA_SZ);
@@ -443,7 +443,7 @@ static void gasnetc_bootstrapSNodeBroadcast(void *src, size_t len, void *dest, i
 
 static int gasnetc_get_pshm_nodecount(void)
 {
-  gasnet_node_t nodes = gasneti_getenv_int_withdefault("GASNET_PSHM_NODES", 0, 0);
+  gasnetex_rank_t nodes = gasneti_getenv_int_withdefault("GASNET_PSHM_NODES", 0, 0);
   int politedefault;
 
   if (nodes > GASNETI_PSHM_MAX_NODES) { 
@@ -518,7 +518,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasneti_trace_init(argc, argv);
 
   /* Trivial all-zero nodemap */
-  gasneti_nodemap = gasneti_calloc(gasneti_nodes, sizeof(gasnet_node_t));
+  gasneti_nodemap = gasneti_calloc(gasneti_nodes, sizeof(gasnetex_rank_t));
   gasneti_nodemapParse();
 
   #if GASNET_DEBUG_VERBOSE
@@ -896,8 +896,8 @@ extern void gasnetc_exit(int exitcode) {
   Misc. Active Message Functions
   ==============================
 */
-extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnet_node_t *srcindex) {
-  gasnet_node_t sourceid;
+extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *srcindex) {
+  gasnetex_rank_t sourceid;
   GASNETI_CHECKATTACH();
   #if GASNET_DEBUG || GASNET_PSHM
     GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
@@ -1028,7 +1028,7 @@ static int gasnetc_ReplyGeneric(gasnetc_category_t category,
                                      dest_ptr, numargs, argptr); 
 #else
   int retval;
-  gasnet_node_t sourceid = 0;
+  gasnetex_rank_t sourceid = 0;
   #if GASNET_DEBUG  
     gasnetc_bufdesc_t *reqdesc = (gasnetc_bufdesc_t *)token;
 

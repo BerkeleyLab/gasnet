@@ -7,8 +7,8 @@
 #include <gasnet.h>
 #include <test.h>
 
-gasnet_node_t mynode = 0;
-gasnet_node_t peer = 0;
+gasnetex_rank_t mynode = 0;
+gasnetex_rank_t peer = 0;
 void *myseg = NULL;
 void *peerseg = NULL;
 

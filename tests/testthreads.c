@@ -82,7 +82,7 @@ int		threads_num = 4;
 #else
 int		threads_num = 1;
 #endif
-gasnet_node_t	*tt_thread_map;
+gasnetex_rank_t	*tt_thread_map;
 void		**tt_addr_map;
 threaddata_t	*tt_thread_data;
 
@@ -352,7 +352,7 @@ alloc_thread_data(int threads)
 	nodes = gasnet_nodes();
 	tot_threads = nodes * threads;
 
-	tt_thread_map = (gasnet_node_t *) test_malloc(sizeof(gasnet_node_t) * tot_threads);
+	tt_thread_map = (gasnetex_rank_t *) test_malloc(sizeof(gasnetex_rank_t) * tot_threads);
 	tt_thread_data = (threaddata_t *) test_malloc(sizeof(threaddata_t) * threads);
 	tt_addr_map = (void **) test_malloc(sizeof(void *) * tot_threads);
 
@@ -412,7 +412,7 @@ free_thread_data(void)
 void 
 ping_shorthandler(gasnetex_token_t token, harg_t idx) 
 {
-	gasnet_node_t	node;
+	gasnetex_rank_t	node;
 	gasnet_AMGetMsgSource(token, &node);
 
 	PRINT_AM(("node=%2d> AMShort Request for (%d,%d)", 
@@ -436,7 +436,7 @@ pong_shorthandler(gasnetex_token_t token, harg_t idx)
 void 
 ping_medhandler(gasnetex_token_t token, void *buf, size_t nbytes, harg_t idx) 
 {
-	gasnet_node_t	node;
+	gasnetex_rank_t	node;
 	gasnet_AMGetMsgSource(token, &node);
 
 	PRINT_AM(("node=%2d> AMMedium Request for (%d,%d)", 
@@ -469,7 +469,7 @@ ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes, harg_t idx, h
 {
 	int		tid;
 	void		*paddr;
-	gasnet_node_t	node;
+	gasnetex_rank_t	node;
 
 	gasnet_AMGetMsgSource(token, &node);
 	tid = node * threads_num + idx;

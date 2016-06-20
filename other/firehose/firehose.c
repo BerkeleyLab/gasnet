@@ -383,7 +383,7 @@ firehose_partial_local_pin(uintptr_t addr, size_t len,
 }
 
 extern const firehose_request_t *
-firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
+firehose_remote_pin(gasnetex_rank_t node, uintptr_t addr, size_t len,
 		    uint32_t flags, firehose_request_t *ureq,
 		    firehose_remotecallback_args_fn_t remote_args_callback,
 		    firehose_completed_fn_t callback, void *context)
@@ -438,7 +438,7 @@ firehose_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 }
 
 extern const firehose_request_t *
-firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
+firehose_try_remote_pin(gasnetex_rank_t node, uintptr_t addr, size_t len,
 			uint32_t flags, firehose_request_t *ureq)
 {
 	firehose_request_t	*req = NULL;
@@ -480,7 +480,7 @@ firehose_try_remote_pin(gasnet_node_t node, uintptr_t addr, size_t len,
 }
 
 extern const firehose_request_t *
-firehose_partial_remote_pin(gasnet_node_t node, uintptr_t addr,
+firehose_partial_remote_pin(gasnetex_rank_t node, uintptr_t addr,
                             size_t len, uint32_t flags,
                             firehose_request_t *ureq)
 {
@@ -852,7 +852,7 @@ fh_priv_acquire_local(int local_ref, firehose_private_t *entry)
 }
 
 fh_refc_t *
-fh_priv_acquire_remote(gasnet_node_t node, firehose_private_t *entry)
+fh_priv_acquire_remote(gasnetex_rank_t node, firehose_private_t *entry)
 {
 	fh_refc_t	*rp = FH_BUCKET_REFC(entry);
 
@@ -944,7 +944,7 @@ fh_priv_release_local(int local_ref, firehose_private_t *entry)
 }
 
 fh_refc_t *
-fh_priv_release_remote(gasnet_node_t node, firehose_private_t *entry)
+fh_priv_release_remote(gasnetex_rank_t node, firehose_private_t *entry)
 {
 	fh_refc_t	*rp = FH_BUCKET_REFC(entry);
 
@@ -1056,7 +1056,7 @@ fh_WaitLocalFirehoses(int count, firehose_region_t *region)
 }
 
 int
-fh_WaitRemoteFirehoses(gasnet_node_t node, int count, 
+fh_WaitRemoteFirehoses(gasnetex_rank_t node, int count,
 			firehose_region_t *region)
 {
 	int			b_remain, b_avail, r_freed;
@@ -1099,7 +1099,7 @@ fh_WaitRemoteFirehoses(gasnet_node_t node, int count,
  *	* called from the move AM handler
  */
 void
-fh_AdjustLocalFifoAndPin(gasnet_node_t node, firehose_region_t *reg_pin,
+fh_AdjustLocalFifoAndPin(gasnetex_rank_t node, firehose_region_t *reg_pin,
 			size_t pin_num)
 {
 	int			b_unpin;
@@ -1221,7 +1221,7 @@ fh_am_move_reqh_inner(gasnetex_token_t token, void *addr, size_t nbytes,
 		      void *context)
 {
 	firehose_region_t	*new_reg, *old_reg;
-	gasnet_node_t		node;
+	gasnetex_rank_t		node;
 	int			ret = 1;
 	int			hit_pending = 0;
 	int			remote_callback = 0;
@@ -1346,7 +1346,7 @@ fh_am_move_reph_inner(gasnetex_token_t token, void *addr,
 	firehose_region_t	*regions = (firehose_region_t *) addr;
 	fh_pollq_t		pendCallbacks;
 	int			numpend;
-	gasnet_node_t		node;
+	gasnetex_rank_t		node;
 
 	gasnet_AMGetMsgSource(token, &node);
 

@@ -189,12 +189,12 @@ static int (*gasneti_bootstrapRollback_p)(const char *dir) = NULL;
 static int gasneti_bootstrap_native_coll = 0;
 static int gasnetc_bootstrapBarrier_phase = 0;
 static int gasnetc_bootstrapExchange_phase = 0;
-static gasnet_node_t gasnetc_dissem_peers = 0;
-static gasnet_node_t *gasnetc_dissem_peer = NULL;
-static gasnet_node_t *gasnetc_exchange_rcvd = NULL;
-static gasnet_node_t *gasnetc_exchange_send = NULL;
+static gasnetex_rank_t gasnetc_dissem_peers = 0;
+static gasnetex_rank_t *gasnetc_dissem_peer = NULL;
+static gasnetex_rank_t *gasnetc_exchange_rcvd = NULL;
+static gasnetex_rank_t *gasnetc_exchange_send = NULL;
 #if GASNET_PSHM
-static gasnet_node_t *gasnetc_exchange_permute = NULL;
+static gasnetex_rank_t *gasnetc_exchange_permute = NULL;
 #endif
 
 static void gasnetc_sys_coll_init(void)
@@ -202,16 +202,16 @@ static void gasnetc_sys_coll_init(void)
   int i;
 
 #if GASNET_PSHM
-  const gasnet_node_t size = gasneti_nodemap_global_count;
-  const gasnet_node_t rank = gasneti_nodemap_global_rank;
+  const gasnetex_rank_t size = gasneti_nodemap_global_count;
+  const gasnetex_rank_t rank = gasneti_nodemap_global_rank;
 
   if (gasneti_nodemap_local_rank) {
     /* No network comms */
     goto done;
   }
 #else
-  const gasnet_node_t size = gasneti_nodes;
-  const gasnet_node_t rank = gasneti_mynode;
+  const gasnetex_rank_t size = gasneti_nodes;
+  const gasnetex_rank_t rank = gasneti_mynode;
 #endif
 
   if (size == 1) {
@@ -227,12 +227,12 @@ static void gasnetc_sys_coll_init(void)
     ++gasnetc_dissem_peers;
   }
   if (NULL == gasnetc_dissem_peer) {
-    gasnetc_dissem_peer = gasneti_malloc(gasnetc_dissem_peers * sizeof(gasnet_node_t));
+    gasnetc_dissem_peer = gasneti_malloc(gasnetc_dissem_peers * sizeof(gasnetex_rank_t));
     gasneti_leak(gasnetc_dissem_peer);
   }
   for (i = 0; i < gasnetc_dissem_peers; ++i) {
-    const gasnet_node_t distance = 1 << i;
-    const gasnet_node_t peer = (distance <= rank) ? (rank - distance) : (rank + (size - distance));
+    const gasnetex_rank_t distance = 1 << i;
+    const gasnetex_rank_t peer = (distance <= rank) ? (rank - distance) : (rank + (size - distance));
   #if GASNET_PSHM
     /* Convert supernode numbers to node numbers */
     gasnetc_dissem_peer[i] = gasneti_pshm_firsts[peer];
@@ -242,20 +242,20 @@ static void gasnetc_sys_coll_init(void)
   }
 
   /* Compute the recv offset and send count for each step of exchange */
-  gasnetc_exchange_rcvd = gasneti_malloc((gasnetc_dissem_peers+1) * sizeof(gasnet_node_t));
-  gasnetc_exchange_send = gasneti_malloc(gasnetc_dissem_peers * sizeof(gasnet_node_t));
+  gasnetc_exchange_rcvd = gasneti_malloc((gasnetc_dissem_peers+1) * sizeof(gasnetex_rank_t));
+  gasnetc_exchange_send = gasneti_malloc(gasnetc_dissem_peers * sizeof(gasnetex_rank_t));
   { int step;
   #if GASNET_PSHM
-    gasnet_node_t *width;
-    gasnet_node_t sum1 = 0;
-    gasnet_node_t sum2 = 0;
-    gasnet_node_t distance, last;
+    gasnetex_rank_t *width;
+    gasnetex_rank_t sum1 = 0;
+    gasnetex_rank_t sum2 = 0;
+    gasnetex_rank_t distance, last;
 
     distance = 1 << (gasnetc_dissem_peers-1);
     last = (distance <= rank) ? (rank - distance) : (rank + (size - distance));
 
     /* Step 1: determine the "width" of each supernode */
-    width = gasneti_calloc(size, sizeof(gasnet_node_t));
+    width = gasneti_calloc(size, sizeof(gasnetex_rank_t));
     for (i = 0; i < gasneti_nodes; ++i) {
       width[gasneti_nodeinfo[i].supernode] += 1;
     }
@@ -272,7 +272,7 @@ static void gasnetc_sys_coll_init(void)
     gasnetc_exchange_rcvd[step] = gasneti_nodes;
     /* Step 3: construct the permutation vector, if necessary */
     {
-      gasnet_node_t n;
+      gasnetex_rank_t n;
     
       /* Step 3a. determine if we even need a permutation vector */
       int sorted = 1;
@@ -288,7 +288,7 @@ static void gasnetc_sys_coll_init(void)
 
       /* Step 3b. contstruct the vector if needed */
       if (!sorted) {
-        gasnet_node_t *offset = gasneti_malloc(size * sizeof(gasnet_node_t));
+        gasnetex_rank_t *offset = gasneti_malloc(size * sizeof(gasnetex_rank_t));
         
         /* Form a sort of shifted prefix-reduction on width */
         sum1 = 0;
@@ -301,7 +301,7 @@ static void gasnetc_sys_coll_init(void)
         gasneti_assert(sum1 == gasneti_nodes);
 
         /* Scan nodeinfo to collect all the nodes in each supernode (in their order) */
-        gasnetc_exchange_permute = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
+        gasnetc_exchange_permute = gasneti_malloc(gasneti_nodes * sizeof(gasnetex_rank_t));
         for (i = 0; i < gasneti_nodes; ++i) {
           int index = offset[ gasneti_nodeinfo[i].supernode ]++;
           gasnetc_exchange_permute[index] = i;
@@ -554,9 +554,9 @@ extern void gasnetc_bootstrapExchange_ib(void *src, size_t len, void *dest)
     /* Copy to destination while performing the rotation or permutation */
 #if GASNET_PSHM
     if (gasnetc_exchange_permute) {
-      gasnet_node_t n;
+      gasnetex_rank_t n;
       for (n = 0; n < gasneti_nodes; ++n) {
-        const gasnet_node_t peer = gasnetc_exchange_permute[n];
+        const gasnetex_rank_t peer = gasnetc_exchange_permute[n];
         memcpy((uint8_t*) dest + len * peer, temp + len * n, len);
       }
     } else
@@ -1082,7 +1082,7 @@ static int gasnetc_load_settings(void) {
 }
 
 static int  gasneti_bootstrapInit(int *argc_p, char ***argv_p,
-				  gasnet_node_t *nodes_p, gasnet_node_t *mynode_p) {
+				  gasnetex_rank_t *nodes_p, gasnetex_rank_t *mynode_p) {
   const char *not_set = "(not set)";
   char *spawner = gasneti_getenv_withdefault("GASNET_SPAWNER", not_set);
   int res = GASNET_ERR_NOT_INIT;
@@ -1514,7 +1514,7 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasnetc_hca_t		*hca;
   uint16_t		*local_lid;
   uint16_t		*remote_lid;
-  gasnet_node_t		node;
+  gasnetex_rank_t	node;
   int 			i;
 
   /*  check system sanity */
@@ -1541,8 +1541,8 @@ static int gasnetc_init(int *argc, char ***argv) {
   /* Now enable tracing of all the following steps */
   gasneti_trace_init(argc, argv);
 
-  /* bootstrapInit may set gasneti_nodes==0 if would overflow gasnet_node_t */
-  if (!gasneti_nodes /* || (gasneti_nodes > GASNET_MAXNODES) */) {
+  /* bootstrapInit may set gasneti_nodes==0 if would overflow 16-bit field */
+  if (!gasneti_nodes || (gasneti_nodes > GASNET_MAXNODES)) {
     GASNETI_RETURN_ERRR(RESOURCE, "gasnet_nodes exceeds ibv-conduit capabilities");
   }
 
@@ -1923,7 +1923,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   void *segbase = NULL;
   size_t maxsize = 0;
   int numreg = 0;
-  gasnet_node_t i;
+  gasnetex_rank_t i;
   
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%lu, minheapoffset=%lu)",
                           numentries, (unsigned long)segsize, (unsigned long)minheapoffset));
@@ -2371,7 +2371,7 @@ void gasnetc_post_checkpoint(int is_restart) {
     #error NOT implemented
   #else
     for (i = 0; i < gasnetc_num_ports; ++i) {
-      gasnet_node_t node;
+      gasnetex_rank_t node;
       for (node = 0; node < gasneti_nodes; ++node) {
         gasnetc_port_tbl[i].remote_lids[node] = remote_lid[node * gasnetc_num_ports + i];
       }
@@ -2470,7 +2470,7 @@ void gasnetc_post_checkpoint(int is_restart) {
     void *loc_addr, *rem_addr;
     #undef THE_TEST_LEN
 
-    gasnet_node_t peer = gasneti_mynode ^ 1;
+    gasnetex_rank_t peer = gasneti_mynode ^ 1;
     if (peer == gasneti_nodes) peer = gasneti_mynode;
 
   #if GASNET_SEGMENT_EVERYTHING
@@ -2644,9 +2644,9 @@ static void gasnetc_disable_AMs(void) {
 }
 
 #if GASNET_PSHM
-static gasnet_node_t *gasnetc_exit_child = NULL;
-static gasnet_node_t gasnetc_exit_children = 0;
-static gasnet_node_t gasnetc_exit_parent = 0;
+static gasnetex_rank_t *gasnetc_exit_child = NULL;
+static gasnetex_rank_t gasnetc_exit_children = 0;
+static gasnetex_rank_t gasnetc_exit_parent = 0;
 #endif
 
 static int gasnetc_exit_reduce(int exitcode, int64_t timeout_us)
@@ -2758,7 +2758,7 @@ static void gasnetc_exit_reduce_reqh(gasnetex_token_t token,
  * of a single exit "master", who will coordinate an orderly shutdown.
  */
 static void gasnetc_exit_role_reqh(gasnetex_token_t token) {
-  gasnet_node_t src;
+  gasnetex_rank_t src;
   int local_role, result;
 
   gasneti_assert(gasneti_mynode == GASNETC_ROOT_NODE);	/* May only send this request to the root node */
@@ -2788,7 +2788,7 @@ static void gasnetc_exit_role_reph(gasnetex_token_t token, gasnetex_handlerarg_t
 
   #if GASNET_DEBUG
   {
-    gasnet_node_t src;
+    gasnetex_rank_t src;
     GASNETI_SAFE(gasnet_AMGetMsgSource(token, &src));
     gasneti_assert(src == GASNETC_ROOT_NODE);	/* May only receive this reply from the root node */
   }
@@ -3375,10 +3375,10 @@ static void gasnetc_exit_init(void) {
     gasnetc_exit_parent = gasneti_nodemap[gasneti_mynode];
     gasnetc_exit_children = gasneti_nodes;
   } else {
-    const gasnet_node_t children = gasneti_nodemap_local_count - 1;
+    const gasnetex_rank_t children = gasneti_nodemap_local_count - 1;
 
     if (children) {
-      const size_t len = children * sizeof(gasnet_node_t);
+      const size_t len = children * sizeof(gasnetex_rank_t);
       gasnetc_exit_children = children;
       gasnetc_exit_child = gasneti_malloc(len);
       gasneti_leak(gasnetc_exit_child);
@@ -3406,7 +3406,7 @@ extern void gasnetc_exit(int exitcode) {
 GASNETI_INLINE(gasnetc_amrdma_grant_reqh_inner)
 void gasnetc_amrdma_grant_reqh_inner(gasnetex_token_t token, int qpi, uint32_t rkey, void *addr) {
   gasnetc_cep_t *cep;
-  gasnet_node_t node;
+  gasnetex_rank_t node;
 
   GASNETI_SAFE(gasnet_AMGetMsgSource(token, &node));
 

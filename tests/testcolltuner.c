@@ -39,8 +39,8 @@ typedef struct {
 #define ERROR_EXIT() do {} while(0)
 #endif
 
-gasnet_node_t mynode;
-gasnet_node_t nodes;
+gasnetex_rank_t mynode;
+gasnetex_rank_t nodes;
 gasnet_image_t threads_per_node;
 gasnet_image_t THREADS;
 

@@ -352,7 +352,7 @@ typedef struct _gasnete_valget_op_t {
   gasnete_threadidx_t threadidx;  /*  thread that owns me */
 } gasnete_valget_op_t;
 
-extern gasnet_valget_handle_t gasnete_get_nb_val(gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+extern gasnet_valget_handle_t gasnete_get_nb_val(gasnetex_rank_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnet_valget_handle_t retval;
   gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));

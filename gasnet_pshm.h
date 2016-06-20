@@ -104,7 +104,7 @@ extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
 #endif
 #ifdef GASNETC_TOKEN_CREATE
   #ifndef gasnetc_token_create
-    extern gasnetex_token_t gasnetc_token_create(gasnet_node_t src, int isRequest);
+    extern gasnetex_token_t gasnetc_token_create(gasnetex_rank_t src, int isRequest);
   #endif
   #ifndef gasnetc_token_destroy
     extern void gasnetc_token_destroy(gasnetex_token_t token);
@@ -123,12 +123,12 @@ extern gasneti_pshmnet_t *gasneti_reply_pshmnet;
    * Returns GASNET_OK if token was recognized, GASNET_ERR_BAD_ARG otherwise.
    */
   #if GASNET_DEBUG
-    extern int gasneti_AMPSHMGetMsgSource(gasnetex_token_t token, gasnet_node_t *src_ptr);
+    extern int gasneti_AMPSHMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *src_ptr);
   #else
     GASNETI_INLINE(gasneti_AMPSHMGetMsgSource)
-    int gasneti_AMPSHMGetMsgSource(gasnetex_token_t token, gasnet_node_t *src_ptr) {
+    int gasneti_AMPSHMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *src_ptr) {
       if (gasnetc_token_is_pshm(token)) {
-        *src_ptr = (gasnet_node_t)((uintptr_t)token >> 1);
+        *src_ptr = (gasnetex_rank_t)((uintptr_t)token >> 1);
         return GASNET_OK;
       } else {
         return GASNET_ERR_BAD_ARG;
@@ -268,7 +268,7 @@ extern int gasneti_AMPSHMPoll(int repliesOnly);
 
 /* Don't call this function directly: internal pshm function */
 extern
-int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnet_node_t dest,
+int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnetex_rank_t dest,
                                  gasnetc_handler_t handler, void *source_addr, size_t nbytes, 
                                  void *dest_addr, int numargs, va_list argptr);
 
@@ -276,7 +276,7 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnet_node_t dest,
  * Divert your conduit's regular AM requests to this function if a call to
  * gasneti_pshm_in_supernode(dest) is nonzero */ 
 GASNETI_INLINE(gasneti_AMPSHM_RequestGeneric)
-int gasneti_AMPSHM_RequestGeneric(int category, gasnet_node_t dest, 
+int gasneti_AMPSHM_RequestGeneric(int category, gasnetex_rank_t dest,
                                   gasnetc_handler_t handler, void *source_addr, size_t nbytes,
                                   void *dest_addr, int numargs, va_list argptr) 
 {
@@ -295,7 +295,7 @@ int gasneti_AMPSHM_ReplyGeneric(int category, gasnetex_token_t token,
                                 va_list argptr) 
 {
   int retval;
-  gasnet_node_t sourceid;
+  gasnetex_rank_t sourceid;
   gasneti_assert(gasnetc_token_is_pshm(token));
   gasnetc_AMGetMsgSource(token, &sourceid);
   gasneti_assert(gasneti_pshm_in_supernode(sourceid));

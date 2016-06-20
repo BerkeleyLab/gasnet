@@ -298,7 +298,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
                            gasnet_seginfo_t *seginfo,
                            gasneti_bootstrapExchangefn_t exchangefn);
 #endif /* !GASNET_SEGMENT_EVERYTHING */
-void gasneti_setupGlobalEnvironment(gasnet_node_t numnodes, gasnet_node_t mynode,
+void gasneti_setupGlobalEnvironment(gasnetex_rank_t numnodes, gasnetex_rank_t mynode,
                                      gasneti_bootstrapExchangefn_t exchangefn,
                                      gasneti_bootstrapBroadcastfn_t broadcastfn);
 
@@ -546,7 +546,7 @@ extern int gasneti_VerboseErrors;
   } while (0)
 #if GASNET_DEBUG || GASNETI_ENABLE_ERRCHECKS
   #define _GASNETI_COMMON_AMREPLYLONG_CHECKS(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) do { \
-      gasnet_node_t dest;                                                                             \
+      gasnetex_rank_t dest;                                                                             \
       GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));                                    \
       GASNETI_CHECK_ERRR((dest >= gasneti_nodes),BAD_ARG,"node index too high");                      \
       GASNETI_CHECK_ERRR((nbytes > gasnet_AMMaxLongReply()),BAD_ARG,"nbytes too large");              \
@@ -659,17 +659,17 @@ extern void gasneti_defaultAMHandler(gasnetex_token_t token);
 
 extern uint32_t gasneti_gethostid(void);
 
-extern gasnet_node_t *gasneti_nodemap;
+extern gasnetex_rank_t *gasneti_nodemap;
 
 typedef struct gasneti_nodegrp_s {
   /* List of member nodes in ascending order */
-  gasnet_node_t *nodes;
+  gasnetex_rank_t *nodes;
   /* Number of nodes in group and my rank within them */
-  gasnet_node_t node_count;
-  gasnet_node_t node_rank;
+  gasnetex_rank_t node_count;
+  gasnetex_rank_t node_rank;
   /* Number of peers (groups of same class) and this group's rank */
-  gasnet_node_t grp_count;
-  gasnet_node_t grp_rank;
+  gasnetex_rank_t grp_count;
+  gasnetex_rank_t grp_rank;
 } gasneti_nodegrp_t;
 
 extern gasneti_nodegrp_t gasneti_myhost;

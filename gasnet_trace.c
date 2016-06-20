@@ -126,7 +126,7 @@ extern gasneti_memveclist_stats_t gasneti_format_memveclist(char *buf, size_t co
 extern size_t gasneti_format_putvgetv_bufsz(size_t dstcount, size_t srccount) {
   return 200+dstcount*50+srccount*50;
 }
-extern size_t gasneti_format_putvgetv(char *buf, gasnet_node_t node, 
+extern size_t gasneti_format_putvgetv(char *buf, gasnetex_rank_t node,
                                     size_t dstcount, gasnet_memvec_t const dstlist[], 
                                     size_t srccount, gasnet_memvec_t const srclist[]) {
   GASNETI_UNUSED_UNLESS_DEBUG
@@ -177,7 +177,7 @@ extern gasneti_addrlist_stats_t gasneti_format_addrlist(char *buf, size_t count,
 extern size_t gasneti_format_putigeti_bufsz(size_t dstcount, size_t srccount) {
   return 500+dstcount*25+srccount*25;
 }
-extern size_t gasneti_format_putigeti(char *buf, gasnet_node_t node, 
+extern size_t gasneti_format_putigeti(char *buf, gasnetex_rank_t node,
                                     size_t dstcount, void * const dstlist[], size_t dstlen,
                                     size_t srccount, void * const srclist[], size_t srclen) {
   GASNETI_UNUSED_UNLESS_DEBUG
@@ -220,7 +220,7 @@ extern size_t gasneti_format_putsgets_bufsz(size_t stridelevels) {
   return 500+3*stridelevels*50;
 }
 extern size_t gasneti_format_putsgets(char *buf, void *_pstats, 
-                                    gasnet_node_t node, 
+                                    gasnetex_rank_t node,
                                     void *dstaddr, const size_t dststrides[],
                                     void *srcaddr, const size_t srcstrides[],
                                     const size_t count[], size_t stridelevels) {

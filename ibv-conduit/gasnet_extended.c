@@ -776,7 +776,7 @@ static int gasnete_conduit_rdmabarrier(const char *barrier, gasneti_auxseg_reque
 typedef struct {
   GASNETE_IBDBARRIER_LOCK(barrier_lock) /* no semicolon */
   struct {
-    gasnet_node_t node;
+    gasnetex_rank_t node;
     uint64_t      *addr;
   } *barrier_peers;           /*  precomputed list of peers to communicate with */
 #if GASNETI_PSHM_BARRIER_HIER
@@ -834,7 +834,7 @@ void gasnete_ibdbarrier_send(gasnete_coll_ibdbarrier_t *barrier_data,
   gasneti_assert(state < barrier_data->barrier_goal);
 
   for (i = 0; i < numsteps; ++i, state += 2, step += 1) {
-    const gasnet_node_t node = barrier_data->barrier_peers[step].node;
+    const gasnetex_rank_t node = barrier_data->barrier_peers[step].node;
     uint64_t * const dst = GASNETE_IBDBARRIER_INBOX_REMOTE(barrier_data, step, state);
 #if GASNET_PSHM
     if (gasneti_pshm_in_supernode(node)) {
@@ -1205,7 +1205,7 @@ static void gasnete_ibdbarrier_init(gasnete_coll_team_t team) {
     gasneti_leak(barrier_data->barrier_peers);
   
     for (step = 0; step < steps; ++step) {
-      gasnet_node_t node = peers->fwd[step];
+      gasnetex_rank_t node = peers->fwd[step];
       barrier_data->barrier_peers[1+step].node = node;
       barrier_data->barrier_peers[1+step].addr = gasnete_rdmabarrier_auxseg[node].addr;
     } 

@@ -27,7 +27,7 @@ static int gasnetc_mpi_preinitialized = 0;
 static int gasnetc_mpi_size = -1;
 static int gasnetc_mpi_rank = -1;
 
-int gasneti_bootstrapInit_mpi(int *argc, char ***argv, gasnet_node_t *nodes, gasnet_node_t *mynode) {
+int gasneti_bootstrapInit_mpi(int *argc, char ***argv, gasnetex_rank_t *nodes, gasnetex_rank_t *mynode) {
   MPI_Group world;
   int err;
 

@@ -16,9 +16,6 @@
 #define GASNET_CORE_NAME         TESTSPAWN
 #define GASNET_CORE_NAME_STR     _STRINGIFY(GASNET_CORE_NAME)
 
-#define _GASNET_NODE_T
-typedef uint16_t gasnet_node_t;
-
 #define GASNET_ALIGNED_SEGMENTS	1
 
 #endif

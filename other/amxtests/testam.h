@@ -33,7 +33,7 @@
   #define NUMPROCS                 (gasnet_nodes())
   #define MYSEG                    (TEST_MYSEG())
   #define ENDPOINT
-  #define GETPARTNER(token)  gasnet_node_t partner; GASNET_Safe(gasnet_AMGetMsgSource(token, &partner))
+  #define GETPARTNER(token)  gasnetex_rank_t partner; GASNET_Safe(gasnet_AMGetMsgSource(token, &partner))
 #else
   #include "apputils.h"
   typedef int handlerarg_t;

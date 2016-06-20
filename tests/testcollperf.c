@@ -62,8 +62,8 @@ options that is covered testcoll
 #define ERROR_EXIT() do {} while(0)
 #endif
 
-gasnet_node_t mynode;
-gasnet_node_t nodes;
+gasnetex_rank_t mynode;
+gasnetex_rank_t nodes;
 gasnet_image_t threads_per_node;
 gasnet_image_t THREADS;
 int inner_verification_iters;
@@ -958,7 +958,7 @@ void *thread_main(void *arg) {
   thread_data_t *td = (thread_data_t*) arg;
   size_t size;
   int i,flag_iter;
-  gasnet_node_t root_thread = ROOT_THREAD;
+  gasnetex_rank_t root_thread = ROOT_THREAD;
   int skip_msg_printed = 0;
   gasnet_coll_fn_entry_t fntable[1];
 #if GASNET_PAR

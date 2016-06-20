@@ -24,12 +24,8 @@
 #define GASNET_CONDUIT_IBV       1
 
 /* 16K is the limit on the LID space, but we must allow more than 1 proc per node */
-/* 64K corresponds to 16 bits used in the AM Header and 16-bit gasnet_node_t */
+/* 64K corresponds to 16 bits used in the AM Header and 16-bit gasnetex_rank_t */
 #define GASNET_MAXNODES	65535
-
-/* Explicitly set some types because we depend on their sizes when encoding them */
-#define _GASNET_NODE_T
-typedef uint16_t gasnet_node_t;
 
   /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
 #if GASNETI_PSHM_ENABLED

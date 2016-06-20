@@ -119,7 +119,7 @@ extern size_t gasnete_coll_p2p_eager_scale;
 #if GASNET_SEQ
 #define gasnete_coll_image_node(TEAM, I)	I
 #else
-extern gasnet_node_t *gasnete_coll_image_to_node;
+extern gasnetex_rank_t *gasnete_coll_image_to_node;
 #define gasnete_coll_image_node(TEAM, I)                               \
   (gasneti_assert((TEAM)->image_to_node != NULL), (TEAM)->image_to_node[I])
 #endif
@@ -236,9 +236,9 @@ typedef enum {
 /* "peers" are sets of nodes at distances +/- powers of two, taken from some parent set */
 typedef struct {
   unsigned int   num; /* ceil(log_2(ranks)) */
-  gasnet_node_t *fwd; /* fwd[i] is global rank of member (myrank + 2^i) */
+  gasnetex_rank_t *fwd; /* fwd[i] is global rank of member (myrank + 2^i) */
 #if 0 /* Not used yet */
-  gasnet_node_t *bwd; /* bwd[i] is global rank of member (myrank - 2^i) */
+  gasnetex_rank_t *bwd; /* bwd[i] is global rank of member (myrank - 2^i) */
 #endif
 } gasnete_coll_peer_list_t;
 
@@ -262,14 +262,14 @@ struct gasnete_coll_team_t_ {
   gasneti_mutex_t dissem_cache_lock;
   
   /*my relative node id in this team*/
-  gasnet_node_t myrank;
+  gasnetex_rank_t myrank;
   
   /*total number of members in this team*/
-  gasnet_node_t total_ranks;
+  gasnetex_rank_t total_ranks;
   
 
   /* ranks of the processes in the team */
-  gasnet_node_t *rel2act_map; /* need to be initialized */
+  gasnetex_rank_t *rel2act_map; /* need to be initialized */
 
   /* nodes in the team at distances +/- powers of two */
   gasnete_coll_peer_list_t peers;
@@ -277,10 +277,10 @@ struct gasnete_coll_team_t_ {
 #if GASNET_PSHM
   /* Info about the supernode(s) */
   struct {
-    gasnet_node_t node_count;
-    gasnet_node_t node_rank;
-    gasnet_node_t grp_count;
-    gasnet_node_t grp_rank;
+    gasnetex_rank_t node_count;
+    gasnetex_rank_t node_rank;
+    gasnetex_rank_t grp_count;
+    gasnetex_rank_t grp_rank;
   } supernode;
   /* supernode-reps in the team at distances +/- powers of two in supernode space */
   gasnete_coll_peer_list_t supernode_peers;
@@ -299,7 +299,7 @@ struct gasnete_coll_team_t_ {
   /*map of relative nodes in this team to actual nodes*/
   /*for TEAM_ALL this will just be a one-to-one mapping */
   /*not worrying about this yet*/
-  /*gasnet_node_t *node_map; */
+  /*gasnetex_rank_t *node_map; */
   /* XXX: Design not complete yet */
   
   uint32_t sequence;	/* arbitrary non-zero starting value */
@@ -311,7 +311,7 @@ struct gasnete_coll_team_t_ {
   gasnet_image_t my_images;	/* count of local images */
   gasnet_image_t my_offset;	/* count of images before my first image */
 #if !GASNET_SEQ
-  gasnet_node_t *image_to_node;
+  gasnetex_rank_t *image_to_node;
 #endif
 #if GASNET_PAR
   int multi_images;	/* count of local images > 1 */
@@ -355,15 +355,15 @@ struct gasnete_coll_team_t_ {
 };
 
 #if 0
-extern gasnet_node_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank);
-extern int gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnet_node_t node);
+extern gasnetex_rank_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank);
+extern int gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnetex_rank_t node);
 #endif
 
-extern gasnet_node_t gasnete_coll_team_size(gasnete_coll_team_t team);
+extern gasnetex_rank_t gasnete_coll_team_size(gasnete_coll_team_t team);
 
 #if 0
 gasnete_coll_team_t gasnete_coll_make_team(int allocating_team_all, 
-                                           const gasnet_image_t images[], gasnet_node_t myrank, gasnet_node_t num_members, 
+                                           const gasnet_image_t images[], gasnetex_rank_t myrank, gasnetex_rank_t num_members,
                                            gasnet_seginfo_t * scratch_segments GASNETE_THREAD_FARG);
 #endif
 #define GASNETE_COLL_REL2ACT(TEAM, IDX) ((TEAM) == GASNET_TEAM_ALL ? IDX : (TEAM)->rel2act_map[IDX])
@@ -484,37 +484,37 @@ struct gasnete_coll_p2p_t_ {
 
 extern gasnete_coll_p2p_t *gasnete_coll_p2p_get(uint32_t team_id, uint32_t sequence);
 extern void gasnete_coll_p2p_destroy(gasnete_coll_p2p_t *p2p);
-extern void gasnete_coll_p2p_signalling_put(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
+extern void gasnete_coll_p2p_signalling_put(gasnete_coll_op_t *op, gasnetex_rank_t dstnode, void *dst,
                                             void *src, size_t nbytes, uint32_t pos, uint32_t state);
-extern void gasnete_coll_p2p_signalling_putAsync(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
+extern void gasnete_coll_p2p_signalling_putAsync(gasnete_coll_op_t *op, gasnetex_rank_t dstnode, void *dst,
 						 void *src, size_t nbytes, uint32_t pos, uint32_t state);
-extern void gasnete_coll_p2p_change_states(gasnete_coll_op_t *op, gasnet_node_t dstnode,
+extern void gasnete_coll_p2p_change_states(gasnete_coll_op_t *op, gasnetex_rank_t dstnode,
                                            uint32_t count, uint32_t offset, uint32_t state);
-extern void gasnete_coll_p2p_advance(gasnete_coll_op_t *op, gasnet_node_t dstnode, uint32_t idx);
-extern void gasnete_coll_p2p_counting_put(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
+extern void gasnete_coll_p2p_advance(gasnete_coll_op_t *op, gasnetex_rank_t dstnode, uint32_t idx);
+extern void gasnete_coll_p2p_counting_put(gasnete_coll_op_t *op, gasnetex_rank_t dstnode, void *dst,
                                           void *src, size_t nbytes, uint32_t idx);
-extern void gasnete_coll_p2p_counting_eager_put(gasnete_coll_op_t *op, gasnet_node_t dstnode, 
+extern void gasnete_coll_p2p_counting_eager_put(gasnete_coll_op_t *op, gasnetex_rank_t dstnode,
                                                 void *src, size_t nbytes, size_t offset_size, uint32_t offset, uint32_t idx);
-extern void gasnete_coll_p2p_counting_putAsync(gasnete_coll_op_t *op, gasnet_node_t dstnode, void *dst,
+extern void gasnete_coll_p2p_counting_putAsync(gasnete_coll_op_t *op, gasnetex_rank_t dstnode, void *dst,
                                                void *src, size_t nbytes, uint32_t idx);
-extern void gasnete_coll_p2p_eager_put_tree(gasnete_coll_op_t *op, gasnet_node_t dstnode, 
+extern void gasnete_coll_p2p_eager_put_tree(gasnete_coll_op_t *op, gasnetex_rank_t dstnode,
                                             void *src, size_t size);
 extern void gasnete_coll_p2p_send_rtrM(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
                                        uint32_t offset, void * const *dstlist,
-                                       gasnet_node_t node, size_t nbytes, uint32_t count);
+                                       gasnetex_rank_t node, size_t nbytes, uint32_t count);
 extern void gasnete_coll_p2p_send_rtr(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
                                       uint32_t offset, void *dst,
-                                      gasnet_node_t node, size_t nbytes);
+                                      gasnetex_rank_t node, size_t nbytes);
 extern int gasnete_coll_p2p_send_done(gasnete_coll_p2p_t *p2p);
 extern  int gasnete_coll_p2p_send_data(gasnete_coll_op_t *op, gasnete_coll_p2p_t *p2p,
-                                       gasnet_node_t node, uint32_t offset,
+                                       gasnetex_rank_t node, uint32_t offset,
                                        const void *src, size_t nbytes);
 struct gasnete_coll_p2p_send_struct { void *addr; size_t sent; };
 /* Treat the eager buffer space at dstnode as an array of elements of length 'size'.
 * Copy 'count' elements to that buffer, starting at element 'offset' at the destination.
 * Set the corresponding entries of the state array to 'state'.
 */
-extern void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gasnet_node_t dstnode,
+extern void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gasnetex_rank_t dstnode,
                                         void *src, uint32_t count, size_t size,
                                         uint32_t offset, uint32_t state);
 
@@ -523,7 +523,7 @@ extern void gasnete_coll_p2p_eager_putM(gasnete_coll_op_t *op, gasnet_node_t dst
 /* Shorthand for gasnete_coll_p2p_eager_putM with count == 1 */
 #ifndef gasnete_coll_p2p_eager_put
 GASNETI_INLINE(gasnete_coll_p2p_eager_put)
-void gasnete_coll_p2p_eager_put(gasnete_coll_op_t *op, gasnet_node_t dstnode,
+void gasnete_coll_p2p_eager_put(gasnete_coll_op_t *op, gasnetex_rank_t dstnode,
                                 void *src, size_t size, uint32_t offset, uint32_t state) {
   gasnete_coll_p2p_eager_putM(op, dstnode, src, 1, size, offset, state);
 }
@@ -535,7 +535,7 @@ void gasnete_coll_p2p_eager_put(gasnete_coll_op_t *op, gasnet_node_t dstnode,
 */
 #ifndef gasnete_coll_p2p_eager_addrM
 GASNETI_INLINE(gasnete_coll_p2p_eager_addrM)
-void gasnete_coll_p2p_eager_addrM(gasnete_coll_op_t *op, gasnet_node_t dstnode,
+void gasnete_coll_p2p_eager_addrM(gasnete_coll_op_t *op, gasnetex_rank_t dstnode,
                                   void * addrlist[], uint32_t count,
                                   uint32_t offset, uint32_t state) {
   gasnete_coll_p2p_eager_putM(op, dstnode, addrlist, count, sizeof(void *), offset, state);
@@ -547,7 +547,7 @@ void gasnete_coll_p2p_eager_addrM(gasnete_coll_op_t *op, gasnet_node_t dstnode,
 */
 #ifndef gasnete_coll_p2p_eager_addr
 GASNETI_INLINE(gasnete_coll_p2p_eager_addr)
-void gasnete_coll_p2p_eager_addr(gasnete_coll_op_t *op, gasnet_node_t dstnode,
+void gasnete_coll_p2p_eager_addr(gasnete_coll_op_t *op, gasnetex_rank_t dstnode,
                                  void *addr, uint32_t offset, uint32_t state) {
   gasnete_coll_p2p_eager_addrM(op, dstnode, &addr, 1, offset, state);
 }
@@ -564,7 +564,7 @@ void gasnete_coll_p2p_eager_addr(gasnete_coll_op_t *op, gasnet_node_t dstnode,
 GASNETI_INLINE(gasnete_coll_p2p_eager_put_all)
 void gasnete_coll_p2p_eager_put_all(gasnete_coll_op_t *op, void *src, size_t size,
                                     int scatter, uint32_t offset, uint32_t state) {
-  gasnet_node_t i;
+  gasnetex_rank_t i;
   
   if (scatter) {
     uintptr_t src_addr;
@@ -599,7 +599,7 @@ void gasnete_coll_p2p_eager_put_all(gasnete_coll_op_t *op, void *src, size_t siz
 GASNETI_INLINE(gasnete_coll_p2p_eager_addr_all)
 void gasnete_coll_p2p_eager_addr_all(gasnete_coll_op_t *op, void *addr,
                                      uint32_t offset, uint32_t state, gasnet_team_handle_t team) {
-  gasnet_node_t i;
+  gasnetex_rank_t i;
   
   /* Send to nodes to the "right" of ourself */
   for (i = team->myrank + 1; i < team->total_ranks; ++i) {
@@ -965,7 +965,7 @@ int _gasnete_coll_segment_check_aux(gasnete_coll_team_t team, int rooted, gasnet
     return gasnete_coll_in_segment(gasnete_coll_image_node(team, root), addr, len);
   } else {
     /* Check the given address against ALL nodes */
-    gasnet_node_t i;
+    gasnetex_rank_t i;
     for (i = 0; i < gasneti_nodes; ++i) {
       if (!gasnete_coll_in_segment(i, addr, len)) {
         return 0;
@@ -1023,7 +1023,7 @@ int _gasnete_coll_segment_checkM_aux(gasnete_coll_team_t team, int rooted, gasne
   } else {
     /* Check the given addresses against ALL nodes */
     void * const *addrlist = (void * const *)addr;
-    gasnet_node_t i;
+    gasnetex_rank_t i;
     for (i = 0; i < team->total_ranks; ++i) {
 #if GASNET_ALIGNED_SEGMENTS /* always use node 0 for cache reuse */
       if (!gasnete_coll_in_segment(0, addrlist[i], len)) {
@@ -1094,7 +1094,7 @@ typedef struct {
 #if !GASNET_SEQ
   gasnet_image_t srcimage;
 #endif
-  gasnet_node_t srcnode;
+  gasnetex_rank_t srcnode;
   void *src;
   size_t nbytes;
 } gasnete_coll_broadcast_args_t;
@@ -1104,7 +1104,7 @@ typedef struct {
 #if !GASNET_SEQ
   gasnet_image_t srcimage;
 #endif
-  gasnet_node_t srcnode;
+  gasnetex_rank_t srcnode;
   void *src;
   size_t nbytes;
 } gasnete_coll_broadcastM_args_t;
@@ -1114,7 +1114,7 @@ typedef struct {
 #if !GASNET_SEQ
   gasnet_image_t srcimage;
 #endif
-  gasnet_node_t srcnode;
+  gasnetex_rank_t srcnode;
   void *src;
   size_t nbytes;
   size_t dist;
@@ -1125,7 +1125,7 @@ typedef struct {
 #if !GASNET_SEQ
   gasnet_image_t srcimage;
 #endif
-  gasnet_node_t srcnode;
+  gasnetex_rank_t srcnode;
   void *src;
   size_t nbytes;
   size_t dist;
@@ -1135,7 +1135,7 @@ typedef struct {
 #if !GASNET_SEQ
   gasnet_image_t dstimage;
 #endif
-  gasnet_node_t dstnode;
+  gasnetex_rank_t dstnode;
   void *dst;
   void *src;
   size_t nbytes;
@@ -1146,7 +1146,7 @@ typedef struct {
 #if !GASNET_SEQ
   gasnet_image_t dstimage;
 #endif
-  gasnet_node_t dstnode;
+  gasnetex_rank_t dstnode;
   void *dst;
   void * *srclist;
   size_t nbytes;
@@ -1181,7 +1181,7 @@ typedef struct {
 #if !GASNET_SEQ
   gasnet_image_t dstimage;
 #endif
-  gasnet_node_t dstnode;
+  gasnetex_rank_t dstnode;
   void *dst;
   void *src;
   size_t src_blksz; 
@@ -1196,7 +1196,7 @@ typedef struct {
 #if !GASNET_SEQ
   gasnet_image_t dstimage;
 #endif
-  gasnet_node_t dstnode;
+  gasnetex_rank_t dstnode;
   void *dst;
   void ** srclist;
   size_t src_blksz; 
@@ -1394,7 +1394,7 @@ int gasnete_coll_generic_outsync(gasnete_coll_team_t team, gasnete_coll_generic_
 /* Optional UP half-barrier over the collective tree.
  * No memory fences. */
 GASNETI_INLINE(gasnete_coll_generic_upsync)
-int gasnete_coll_generic_upsync(gasnete_coll_op_t *op, gasnet_node_t rootnode,
+int gasnete_coll_generic_upsync(gasnete_coll_op_t *op, gasnetex_rank_t rootnode,
                                     const int counter, const int count) {
   gasnete_coll_generic_data_t * const data = op->data;
   if (gasneti_weakatomic_read(&data->p2p->counter[counter], 0) == count) {
@@ -1412,7 +1412,7 @@ int gasnete_coll_generic_upsync(gasnete_coll_op_t *op, gasnet_node_t rootnode,
  * to root's memory will be read by root.  This is appropriate to the
  * needs of a "push" based broadcast or scatter. */
 GASNETI_INLINE(gasnete_coll_generic_upsync_acq)
-int gasnete_coll_generic_upsync_acq(gasnete_coll_op_t *op, gasnet_node_t rootnode,
+int gasnete_coll_generic_upsync_acq(gasnete_coll_op_t *op, gasnetex_rank_t rootnode,
                                     const int counter, const int count) {
   gasnete_coll_generic_data_t * const data = op->data;
   if (gasneti_weakatomic_read(&data->p2p->counter[counter], 0) == count) {
@@ -1611,7 +1611,7 @@ gasnete_coll_exchangeM_nb_default(gasnet_team_handle_t team,
                                   GASNETE_THREAD_FARG);
 
 
-extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_type_t tree_type, gasnet_node_t rootnode, gasnete_coll_team_t team GASNETE_THREAD_FARG);
+extern gasnete_coll_tree_data_t *gasnete_coll_tree_init(gasnete_coll_tree_type_t tree_type, gasnetex_rank_t rootnode, gasnete_coll_team_t team GASNETE_THREAD_FARG);
 extern void gasnete_coll_tree_free(gasnete_coll_tree_data_t *tree GASNETE_THREAD_FARG);
 
 /*---------------------------------------------------------------------------------*

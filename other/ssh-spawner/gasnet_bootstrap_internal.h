@@ -8,7 +8,7 @@
 #define _GASNET_BOOTSTRAP_INTERNAL_SSH_H
 
 extern int  gasneti_bootstrapInit_ssh(int *argc_p, char ***argv_p,
-                                      gasnet_node_t *nodes_p, gasnet_node_t *mynode_p);
+                                      gasnetex_rank_t *nodes_p, gasnetex_rank_t *mynode_p);
 extern void gasneti_bootstrapFini_ssh(void);
 extern void gasneti_bootstrapAbort_ssh(int exitcode) GASNETI_NORETURN;
 extern void gasneti_bootstrapBarrier_ssh(void);

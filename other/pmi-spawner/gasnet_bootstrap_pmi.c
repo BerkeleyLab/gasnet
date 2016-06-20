@@ -194,7 +194,7 @@ PMI_BOOL  gasneti_pmi_initialized = PMI_FALSE;
  */
 int gasneti_bootstrapInit_pmi(
         int *argc_p, char ***argv_p,
-        gasnet_node_t *nodes_p, gasnet_node_t *mynode_p) {
+        gasnetex_rank_t *nodes_p, gasnetex_rank_t *mynode_p) {
     int size, rank;
 
 #if USE_PMI2_API
@@ -315,14 +315,14 @@ void gasneti_bootstrapBarrier_pmi(void) {
 }
 
 #if HAVE_PMI_ALLGATHER
-static gasnet_node_t *gasnetc_pmi_allgather_order = NULL;
+static gasnetex_rank_t *gasnetc_pmi_allgather_order = NULL;
 GASNETI_INLINE(gasnetc_pmi_allgather_init)
 void gasnetc_pmi_allgather_init(void) {
     /* perform (just once) an Allgather of node number to establish the order */
     if_pf (!gasnetc_pmi_allgather_order) {
         int rc;
-        gasnetc_pmi_allgather_order = gasneti_malloc(gasneti_nodes * sizeof(gasnet_node_t));
-        rc = PMI_Allgather(&gasneti_mynode, gasnetc_pmi_allgather_order, sizeof(gasnet_node_t));
+        gasnetc_pmi_allgather_order = gasneti_malloc(gasneti_nodes * sizeof(gasnetex_rank_t));
+        rc = PMI_Allgather(&gasneti_mynode, gasnetc_pmi_allgather_order, sizeof(gasnetex_rank_t));
         gasneti_assert(PMI_SUCCESS == rc);
     }
 }
@@ -333,7 +333,7 @@ void gasnetc_pmi_allgather_init(void) {
 void gasneti_bootstrapExchange_pmi(void *src, size_t len, void *dest) {
 #if HAVE_PMI_ALLGATHER
     uint8_t *unsorted = gasneti_malloc(len * gasneti_nodes); /* TODO: use alloca()? */
-    gasnet_node_t i;
+    gasnetex_rank_t i;
     int rc;
 
     /* Allgather the callers data to a temporary array */
@@ -343,7 +343,7 @@ void gasneti_bootstrapExchange_pmi(void *src, size_t len, void *dest) {
 
     /* extract the records from the unsorted array by using the 'order' array */
     for (i = 0; i < gasneti_nodes; i += 1) {
-      gasnet_node_t peer = gasnetc_pmi_allgather_order[i];
+      gasnetex_rank_t peer = gasnetc_pmi_allgather_order[i];
       gasneti_assert(peer < gasneti_nodes);
       memcpy((void *) ((uintptr_t) dest + (peer * len)), &unsorted[i * len], len);
     }
@@ -358,7 +358,7 @@ void gasneti_bootstrapExchange_pmi(void *src, size_t len, void *dest) {
     while (remain) {
         size_t chunk = MIN(remain, max_val_bytes);
         uint8_t *p;
-        gasnet_node_t i;
+        gasnetex_rank_t i;
 
         snprintf(kvs_key, max_key_len, "GNE%x-%x", counter, (unsigned int)gasneti_mynode);
         do_kvs_put(s, chunk);
@@ -392,7 +392,7 @@ void gasneti_bootstrapAlltoall_pmi(void *src, size_t len, void *dest) {
     while (remain) {
         size_t chunk = MIN(remain, max_val_bytes);
         uint8_t *p;
-        gasnet_node_t i;
+        gasnetex_rank_t i;
 
         for (i = 0, p = s; i < gasneti_nodes; ++i, p += len) {
             snprintf(kvs_key, max_key_len, "GNA%x-%x.%x", counter, (unsigned int)gasneti_mynode, (unsigned int)i);
@@ -465,7 +465,7 @@ void gasneti_bootstrapSNodeBroadcast_pmi(void *src, size_t len, void *dest, int 
 
     /* Find the right piece */
     for (i = 0; i < gasneti_nodes; i += 1) {
-        gasnet_node_t peer = gasnetc_pmi_allgather_order[i];
+        gasnetex_rank_t peer = gasnetc_pmi_allgather_order[i];
         if (peer == rootnode) {
             memcpy(dest, &tmp[i * len], len);
             break;

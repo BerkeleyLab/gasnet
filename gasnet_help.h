@@ -720,15 +720,15 @@ extern int gasneti_wait_mode; /* current waitmode hint */
 #ifndef _GASNET_MYNODE
 #define _GASNET_MYNODE
 #define _GASNET_MYNODE_DEFAULT
-  extern gasnet_node_t gasneti_mynode;
-  #define gasnet_mynode() (GASNETI_CHECKINIT(), (gasnet_node_t)gasneti_mynode)
+  extern gasnetex_rank_t gasneti_mynode;
+  #define gasnet_mynode() (GASNETI_CHECKINIT(), (gasnetex_rank_t)gasneti_mynode)
 #endif
 
 #ifndef _GASNET_NODES
 #define _GASNET_NODES
 #define _GASNET_NODES_DEFAULT
-  extern gasnet_node_t gasneti_nodes;
-  #define gasnet_nodes() (GASNETI_CHECKINIT(), (gasnet_node_t)gasneti_nodes)
+  extern gasnetex_rank_t gasneti_nodes;
+  #define gasnet_nodes() (GASNETI_CHECKINIT(), (gasnetex_rank_t)gasneti_nodes)
 #endif
 
 #ifndef _GASNET_GETMAXSEGMENTSIZE
@@ -813,10 +813,10 @@ extern gasnet_nodeinfo_t *gasneti_nodeinfo;
 
 extern gasneti_pshm_rank_t gasneti_pshm_nodes;  /* # nodes in my supernode */
 extern gasneti_pshm_rank_t gasneti_pshm_mynode; /* my 0-based rank in supernode */
-extern gasnet_node_t gasneti_pshm_firstnode;    /* lowest node # in supernode */
+extern gasnetex_rank_t gasneti_pshm_firstnode;    /* lowest node # in supernode */
 
 /* vector of first node within each supernode */
-extern gasnet_node_t *gasneti_pshm_firsts;
+extern gasnetex_rank_t *gasneti_pshm_firsts;
 
 /* Non-NULL only when supernode members are non-contiguous */
 extern gasneti_pshm_rank_t *gasneti_pshm_rankmap;
@@ -825,12 +825,12 @@ extern gasneti_pshm_rank_t *gasneti_pshm_rankmap;
  * Otherwise returns an "impossible" value >= gasneti_pshm_nodes.
  */
 GASNETI_INLINE(gasneti_pshm_local_rank) GASNETI_PURE
-unsigned int gasneti_pshm_local_rank(gasnet_node_t node) {
+unsigned int gasneti_pshm_local_rank(gasnetex_rank_t node) {
 #if GASNET_CONDUIT_SMP
   return node;
 #else
   if_pt (gasneti_pshm_rankmap == NULL) {
-    /* NOTE: gasnet_node_t is an unsigned type, so in the case of
+    /* NOTE: gasnetex_rank_t is an unsigned type, so in the case of
      * (node < gasneti_pshm_firstnode), the subtraction will wrap to
      * a "large" value.
      */
@@ -846,7 +846,7 @@ GASNETI_PUREP(gasneti_pshm_local_rank)
  * NOTE: result is false before vnet initialization.
  */
 GASNETI_INLINE(gasneti_pshm_in_supernode) GASNETI_PURE
-int gasneti_pshm_in_supernode(gasnet_node_t node) {
+int gasneti_pshm_in_supernode(gasnetex_rank_t node) {
 #if GASNET_CONDUIT_SMP
   return 1;
 #else
@@ -858,7 +858,7 @@ GASNETI_PUREP(gasneti_pshm_in_supernode)
 /* Returns local version of remote in-supernode address.
  */
 GASNETI_INLINE(gasneti_pshm_addr2local) GASNETI_PURE
-void *gasneti_pshm_addr2local(gasnet_node_t node, void *addr) {
+void *gasneti_pshm_addr2local(gasnetex_rank_t node, void *addr) {
   return  (void*)((uintptr_t)addr
                    + (uintptr_t)gasneti_nodeinfo[node].offset);
 } 

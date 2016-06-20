@@ -172,7 +172,7 @@ void mpi_barrier(threaddata_t *tdata) {
 
 
 void mpi_handler(gasnetex_token_t token, harg_t tid, harg_t sz) {
-  gasnet_node_t   node;
+  gasnetex_rank_t   node;
   int mpipeer;
   int tag;
   char *buf;
@@ -203,7 +203,7 @@ void mpi_handler(gasnetex_token_t token, harg_t tid, harg_t sz) {
 }
 
 void mpi_probehandler(gasnetex_token_t token, harg_t tid) {
-  gasnet_node_t   node;
+  gasnetex_rank_t   node;
   int mpipeer;
   int tag;
   int reply = 0;

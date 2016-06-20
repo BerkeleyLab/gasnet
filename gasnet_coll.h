@@ -185,20 +185,20 @@ extern gasnet_team_handle_t gasnete_coll_team_all;
 
 
 
-extern gasnet_node_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank);
-extern gasnet_node_t gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnet_node_t node);
-extern gasnet_node_t gasnete_coll_team_size(gasnete_coll_team_t team);
+extern gasnetex_rank_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank);
+extern gasnetex_rank_t gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnetex_rank_t node);
+extern gasnetex_rank_t gasnete_coll_team_size(gasnete_coll_team_t team);
 
 
 #define gasnet_coll_team_rank2node(TEAM, RANK) gasnete_coll_team_rank2node(TEAM, RANK)
 #define gasnet_coll_team_node2rank(TEAM, NODE) gasnete_coll_team_node2rank(TEAM, NODE)
 #define gasnet_coll_team_size(TEAM) gasnete_coll_team_size(TEAM)
 
-extern gasnet_team_handle_t gasnete_coll_team_split(gasnete_coll_team_t parent_team, gasnet_node_t color,
-						    gasnet_node_t relrank, void *clientdata GASNETE_THREAD_FARG);
+extern gasnet_team_handle_t gasnete_coll_team_split(gasnete_coll_team_t parent_team, gasnetex_rank_t color,
+						    gasnetex_rank_t relrank, void *clientdata GASNETE_THREAD_FARG);
 
 GASNETI_INLINE(_gasnet_coll_team_split)
-     gasnet_team_handle_t _gasnet_coll_team_split(gasnet_team_handle_t parent_team, gasnet_node_t color, gasnet_node_t relrank, 
+     gasnet_team_handle_t _gasnet_coll_team_split(gasnet_team_handle_t parent_team, gasnetex_rank_t color, gasnetex_rank_t relrank,
 						  void *clientdata GASNETE_THREAD_FARG) {
   return gasnete_coll_team_split(parent_team, color, relrank, clientdata GASNETE_THREAD_PASS);
   

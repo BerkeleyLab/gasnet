@@ -275,12 +275,6 @@ struct gasneti_team_member_s; // TODO-EX: better name!
 typedef struct gasneti_team_s *gasnetex_team_member_t;
 
 
-#ifndef _GASNET_NODE_T
-#define _GASNET_NODE_T
-  /*  unsigned integer type representing a unique 0-based node index */
-  typedef uint32_t gasnet_node_t;
-#endif
-
 #ifndef _GASNET_HANDLERENTRY_T
 #define _GASNET_HANDLERENTRY_T
   /*  struct type used to negotiate handler registration in gasnet_init() */
@@ -305,8 +299,8 @@ typedef struct gasneti_team_s *gasnetex_team_member_t;
 #ifndef _GASNET_NODEINFO_T
 #define _GASNET_NODEINFO_T
   typedef struct gasneti_nodeinfo_s {
-    gasnet_node_t host; /* 0-based identifier for procs on same compute node */
-    gasnet_node_t supernode; /* 0-based identifier for procs which comprise a shared-memory supernode */
+    gasnetex_rank_t host; /* 0-based identifier for procs on same compute node */
+    gasnetex_rank_t supernode; /* 0-based identifier for procs which comprise a shared-memory supernode */
   #if GASNET_PSHM
     /* Value one must add to find locally mapped address, if any. */
     uintptr_t offset;

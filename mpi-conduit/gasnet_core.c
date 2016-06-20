@@ -548,9 +548,9 @@ extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
   Misc. Active Message Functions
   ==============================
 */
-extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnet_node_t *srcindex) {
+extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *srcindex) {
   int retval;
-  gasnet_node_t sourceid;
+  gasnetex_rank_t sourceid;
   GASNETI_CHECKATTACH();
   GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
   GASNETI_CHECK_ERRR((!srcindex),BAD_ARG,"bad src ptr");
@@ -559,7 +559,7 @@ extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnet_node_t *srcinde
   if (gasneti_AMPSHMGetMsgSource(token, &sourceid) != GASNET_OK)
 #endif
   {
-    int tmp; /* AMMPI wants an int, but gasnet_node_t is uint32_t */
+    int tmp; /* AMMPI wants an int, but gasnetex_rank_t is uint32_t */
     GASNETI_AM_SAFE_NORETURN(retval, AMMPI_GetSourceId(token, &tmp));
     if_pf (retval) GASNETI_RETURN_ERR(RESOURCE);
     gasneti_assert(tmp >= 0);
@@ -779,7 +779,7 @@ extern int gasnetc_AMReplyLongM(
   } else
 #endif
   {
-    gasnet_node_t dest;
+    gasnetex_rank_t dest;
     uintptr_t dest_offset;
 
     GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));

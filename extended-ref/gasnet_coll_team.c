@@ -35,7 +35,7 @@ volatile uint32_t new_team_id = 0; /* new_team_id is for communication
 
 /*called by only one thread*/
 static void initialize_team_fields(gasnete_coll_team_t team,  
-                                   const gasnet_image_t images[], gasnet_node_t myrank, gasnet_node_t num_members, 
+                                   const gasnet_image_t images[], gasnetex_rank_t myrank, gasnetex_rank_t num_members,
                                    gasnet_seginfo_t * scratch_segments GASNETE_THREAD_FARG) {
 
   size_t image_size = num_members*sizeof(gasnet_image_t);
@@ -112,7 +112,7 @@ static void initialize_team_fields(gasnete_coll_team_t team,
 #if !GASNET_SEQ
   {
     gasnet_image_t j;
-    team->image_to_node = gasneti_malloc(team->total_images * sizeof(gasnet_node_t));
+    team->image_to_node = gasneti_malloc(team->total_images * sizeof(gasnetex_rank_t));
     for (j = 0, i = 0; j < team->total_images; ++j) {
       if (j >= (team->all_offset[i] + team->all_images[i])) {
         i += 1;
@@ -156,13 +156,13 @@ static void initialize_team_fields(gasnete_coll_team_t team,
 
 /* Helper for gasnete_coll_team_init() */
 static int gasnete_node_pair_sort_fn(const void *a_p, const void *b_p) {
-  const int a0 = ((const gasnet_node_t *)a_p)[0];
-  const int b0 = ((const gasnet_node_t *)b_p)[0];
+  const int a0 = ((const gasnetex_rank_t *)a_p)[0];
+  const int b0 = ((const gasnetex_rank_t *)b_p)[0];
   const int d0 = (a0 - b0); /* sort first by supernode */
   if (d0) return d0;
   else {
-    const int a1 = ((const gasnet_node_t *)a_p)[1];
-    const int b1 = ((const gasnet_node_t *)b_p)[1];
+    const int a1 = ((const gasnetex_rank_t *)a_p)[1];
+    const int b1 = ((const gasnetex_rank_t *)b_p)[1];
     /* break ties by node - must be increasing order because
      * we use local rank to determine the active node
      */
@@ -173,8 +173,8 @@ static int gasnete_node_pair_sort_fn(const void *a_p, const void *b_p) {
 void gasnete_coll_team_init(gasnet_team_handle_t team, 
                             uint32_t team_id, 
                             uint32_t total_ranks,
-                            gasnet_node_t myrank,
-                            gasnet_node_t *rel2act_map,
+                            gasnetex_rank_t myrank,
+                            gasnetex_rank_t *rel2act_map,
                             gasnet_seginfo_t *scratch_segs,
                             const gasnet_image_t images[] GASNETE_THREAD_FARG)
 {
@@ -188,7 +188,7 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
   }
 #endif
   
-  gasnet_node_t *supernodes = NULL;
+  gasnetex_rank_t *supernodes = NULL;
   uint32_t i;
   initialize_team_fields(team, images, myrank, total_ranks, scratch_segs GASNETE_THREAD_PASS); 
   team->team_id = team_id;
@@ -200,8 +200,8 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
 
   /* Build rel2act map (unless already constructed) */
   if (team->rel2act_map == NULL) {
-    size_t alloc_size = total_ranks * sizeof(gasnet_node_t);
-    team->rel2act_map = (gasnet_node_t *)gasneti_malloc(alloc_size);
+    size_t alloc_size = total_ranks * sizeof(gasnetex_rank_t);
+    team->rel2act_map = (gasnetex_rank_t *)gasneti_malloc(alloc_size);
     memcpy(team->rel2act_map, rel2act_map, alloc_size);
   }
 
@@ -210,7 +210,7 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
     unsigned int count = 0;
     for (i=1; i<total_ranks; i*=2) ++count;
     team->peers.num = count;
-    team->peers.fwd = gasneti_malloc(sizeof(gasnet_node_t) * count);
+    team->peers.fwd = gasneti_malloc(sizeof(gasnetex_rank_t) * count);
     for (i=0; i<count; i++) {
       unsigned int dist = 1 << i;
       team->peers.fwd[i] = rel2act_map[(myrank + dist) % total_ranks];
@@ -220,19 +220,19 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
 #if GASNET_PSHM
   /* Build supernode stats (unless already constructed) */
   if (!team->supernode.node_count) {
-    gasnet_node_t *node_vector;
+    gasnetex_rank_t *node_vector;
     int count, rank;
 
     /* A list with a representative for each supernode (needed by some barriers) */
-    supernodes = gasneti_malloc(gasneti_nodemap_global_count * sizeof(gasnet_node_t));
+    supernodes = gasneti_malloc(gasneti_nodemap_global_count * sizeof(gasnetex_rank_t));
 
     /* Created a sorted vector of (supernode,node) for members of this team
      * while finding size of and rank in local supernode in the same pass
      */
     count = 0; rank = -1;
-    node_vector = gasneti_malloc(2 * total_ranks * sizeof(gasnet_node_t));
+    node_vector = gasneti_malloc(2 * total_ranks * sizeof(gasnetex_rank_t));
     for (i = 0; i < total_ranks; ++i) {
-      gasnet_node_t n = rel2act_map[i];
+      gasnetex_rank_t n = rel2act_map[i];
       if (gasneti_pshm_in_supernode(n)) {
         if (n == gasneti_mynode) rank = count;
         ++count;
@@ -240,7 +240,7 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
       node_vector[2*i+0] = gasneti_node2supernode(n);
       node_vector[2*i+1] = n;
     }
-    qsort(node_vector, total_ranks, 2*sizeof(gasnet_node_t), &gasnete_node_pair_sort_fn);
+    qsort(node_vector, total_ranks, 2*sizeof(gasnetex_rank_t), &gasnete_node_pair_sort_fn);
 
     gasneti_assert((count >  0) && (count <= gasneti_nodemap_local_count));
     gasneti_assert((rank  >= 0) && (rank  <  gasneti_nodemap_local_count));
@@ -270,7 +270,7 @@ void gasnete_coll_team_init(gasnet_team_handle_t team,
       unsigned int len = 0;
       for (i=1; i<count; i*=2) ++len;
       team->supernode_peers.num = len;
-      team->supernode_peers.fwd = gasneti_malloc(sizeof(gasnet_node_t) * len);
+      team->supernode_peers.fwd = gasneti_malloc(sizeof(gasnetex_rank_t) * len);
       for (i=0; i<len; i++) {
         unsigned int dist = 1 << i;
         team->supernode_peers.fwd[i] = supernodes[(rank + dist) % count];
@@ -350,11 +350,11 @@ void gasnete_coll_teamid_reqh(gasnetex_token_t token,
 
 /* collective function that should be called by all participating nodes */
 gasnet_team_handle_t gasnete_coll_team_create(uint32_t total_ranks,
-                                              gasnet_node_t myrank,
-                                              gasnet_node_t *rel2act_map, gasnet_seginfo_t* scratch_segs GASNETE_THREAD_FARG)
+                                              gasnetex_rank_t myrank,
+                                              gasnetex_rank_t *rel2act_map, gasnet_seginfo_t* scratch_segs GASNETE_THREAD_FARG)
 {
   gasnet_team_handle_t team;
-  gasnet_node_t team_lead = rel2act_map[0];
+  gasnetex_rank_t team_lead = rel2act_map[0];
   uint32_t i;
 #ifdef DEBUG_TEAM
   fprintf(stderr, "gasnete_coll_team_create: team_lead %u, total_ranks %u, myrank %u\n", team_lead, total_ranks, myrank);
@@ -417,16 +417,16 @@ void gasnete_coll_team_free(gasnet_team_handle_t team)
 }
 
 gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
-                                             gasnet_node_t mycolor,
-                                             gasnet_node_t myrelrank,
+                                             gasnetex_rank_t mycolor,
+                                             gasnetex_rank_t myrelrank,
                                              void *clientdata
                                              GASNETE_THREAD_FARG)
 {
   gasnet_team_handle_t newteam;
   uint32_t new_total_ranks;
-  gasnet_node_t *colors; /* gasnet_image_t for PAR mode*/
-  gasnet_node_t *relranks; /* gasnet_image_t for PAR mode */
-  gasnet_node_t *rel2act_map;
+  gasnetex_rank_t *colors; /* gasnet_image_t for PAR mode*/
+  gasnetex_rank_t *relranks; /* gasnet_image_t for PAR mode */
+  gasnetex_rank_t *rel2act_map;
   gasnet_seginfo_t *allsegs, *segments;
   uint32_t i;
 #ifdef DEBUG_TEAM
@@ -435,19 +435,19 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
   fflush(stderr);
 #endif
 
-  colors = (gasnet_node_t *)gasneti_malloc(sizeof(mycolor)*team->total_ranks);
-  relranks = (gasnet_node_t *)gasneti_malloc(sizeof(myrelrank)*team->total_ranks);
+  colors = (gasnetex_rank_t *)gasneti_malloc(sizeof(mycolor)*team->total_ranks);
+  relranks = (gasnetex_rank_t *)gasneti_malloc(sizeof(myrelrank)*team->total_ranks);
   allsegs = (gasnet_seginfo_t*) gasneti_malloc(sizeof(gasnet_seginfo_t)*team->total_ranks);
  
   
   gasnet_coll_gather_all(team, allsegs, (gasnet_seginfo_t*) clientdata, 
                          sizeof(gasnet_seginfo_t), GASNET_COLL_LOCAL|GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);
   /* collect the color information */
-  gasnet_coll_gather_all(team, colors, &mycolor, sizeof(gasnet_node_t), GASNET_COLL_LOCAL|GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);
+  gasnet_coll_gather_all(team, colors, &mycolor, sizeof(gasnetex_rank_t), GASNET_COLL_LOCAL|GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);
 
   
   /* collect the relrank information */
-  gasnet_coll_gather_all(team, relranks, &myrelrank, sizeof(gasnet_node_t), GASNET_COLL_LOCAL|GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);
+  gasnet_coll_gather_all(team, relranks, &myrelrank, sizeof(gasnetex_rank_t), GASNET_COLL_LOCAL|GASNET_COLL_IN_MYSYNC | GASNET_COLL_OUT_MYSYNC);
 
 
   /* pass 1: just count */
@@ -457,7 +457,7 @@ gasnet_team_handle_t gasnete_coll_team_split(gasnet_team_handle_t team,
   }
 
   /* pass 2: collect members */
-  rel2act_map = (gasnet_node_t *)gasneti_malloc(new_total_ranks*sizeof(gasnet_node_t));
+  rel2act_map = (gasnetex_rank_t *)gasneti_malloc(new_total_ranks*sizeof(gasnetex_rank_t));
   segments = (gasnet_seginfo_t *)gasneti_malloc(new_total_ranks*sizeof(gasnet_seginfo_t));
   for (i=0; i<team->total_ranks; i++) {
     if (mycolor == colors[i]) {
@@ -510,14 +510,14 @@ gasnet_team_handle_t gasnete_coll_team_lookup(uint32_t team_id)
   return team;
 }
 
-gasnet_node_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank) 
+gasnetex_rank_t gasnete_coll_team_rank2node(gasnete_coll_team_t team, int rank)
 {
   gasneti_assert(team != NULL);
   gasneti_assert(rank < team->total_ranks);
   return team->rel2act_map[rank];
 }
 
-gasnet_node_t gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnet_node_t node) 
+gasnetex_rank_t gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnetex_rank_t node)
 {
   uint32_t i;
   gasneti_assert(team != NULL);
@@ -527,7 +527,7 @@ gasnet_node_t gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnet_node_
    
   gasneti_fatalerror("Cannot find node %u in team %p with id %x!\n", 
                      (unsigned int)node, team, (unsigned int)team->team_id);
-  return (gasnet_node_t)(-1); /* NOT REACHED */
+  return (gasnetex_rank_t)(-1); /* NOT REACHED */
 }
 
 uint32_t gasnete_coll_team_id(gasnete_coll_team_t team) 

@@ -8,7 +8,7 @@
 #define _GASNET_BOOTSTRAP_INTERNAL_MPI_H
 
 extern int  gasneti_bootstrapInit_mpi(int *argc_p, char ***argv_p,
-                                      gasnet_node_t *nodes_p, gasnet_node_t *mynode_p);
+                                      gasnetex_rank_t *nodes_p, gasnetex_rank_t *mynode_p);
 extern void gasneti_bootstrapFini_mpi(void);
 extern void gasneti_bootstrapAbort_mpi(int exitcode) GASNETI_NORETURN;
 extern void gasneti_bootstrapBarrier_mpi(void);

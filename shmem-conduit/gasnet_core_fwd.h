@@ -51,9 +51,6 @@
      statistical collection values (see gasnet_trace.h) */
 #define GASNETC_CONDUIT_STATS(CNT,VAL,TIME) 
 
-#define _GASNET_NODE_T
-typedef uint32_t        gasnet_node_t;
-
 #define _GASNET_TOKEN_T
 typedef uintptr_t    gasnetex_token_t;
 

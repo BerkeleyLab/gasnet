@@ -324,7 +324,7 @@ int main(int argc, char **argv)
 
     /* Setting peer thread rank */
     if (crossmachinemode) {
-      gasnet_node_t half =  numprocs / 2;
+      gasnetex_rank_t half =  numprocs / 2;
       iamsender = (myproc < half);
       peerproc = myproc + (iamsender ? half : -half);
     } else {

@@ -719,7 +719,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
   static int _test_seggather_idx;
   static gasnett_atomic_t _test_seggather_done = gasnett_atomic_init(0);
   static void _test_seggather(gasnetex_token_t token, void *buf, size_t nbytes) {
-    gasnet_node_t srcid;
+    gasnetex_rank_t srcid;
     assert(nbytes == sizeof(gasnet_seginfo_t));
     assert(_test_seginfo != NULL);
     gasnet_AMGetMsgSource(token, &srcid);
@@ -806,9 +806,9 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
   #define gasnet_attach _test_attach
 #else
   static gasnet_seginfo_t *_test_seginfo;
-  static void *_test_getseg(gasnet_node_t node) {
+  static void *_test_getseg(gasnetex_rank_t node) {
     if (_test_seginfo == NULL) {
-      gasnet_node_t i;
+      gasnetex_rank_t i;
       gasnet_seginfo_t *s = (gasnet_seginfo_t *)test_malloc(gasnet_nodes()*sizeof(gasnet_seginfo_t));
       GASNET_Safe(gasnet_getSegmentInfo(s, gasnet_nodes()));
       for (i=0; i < gasnet_nodes(); i++) {
@@ -836,7 +836,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
     if_pf (is_aligned < 0) {
       int result = 1; /* Assume aligned until we find otherwise */
       void *addr0 = _test_seginfo[0].addr;
-      gasnet_node_t i;
+      gasnetex_rank_t i;
       for (i = 1; i < gasnet_nodes(); i++) {
         if (_test_seginfo[i].addr != addr0) {
           result = 0;
@@ -854,12 +854,12 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
 /* ------------------------------------------------------------------------------------ */
 /* local process and thread count management */
 static gasnet_nodeinfo_t *_test_nodeinfo = NULL;
-static gasnet_node_t _test_firstnode;
+static gasnetex_rank_t _test_firstnode;
 static int _test_localprocs(void) { /* First call is not thread safe */
   static int count = 0;
   if (!count) {
-    gasnet_node_t my_supernode;
-    gasnet_node_t i;
+    gasnetex_rank_t my_supernode;
+    gasnetex_rank_t i;
 
     assert(_test_nodeinfo);
     my_supernode = _test_nodeinfo[gasnet_mynode()].supernode;

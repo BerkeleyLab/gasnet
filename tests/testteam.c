@@ -21,7 +21,7 @@ int main(int argc, char **argv)
   int mynode, nodes, iters=0;
   int64_t start,total;
   int i = 0;
-  gasnet_node_t nrows, ncols, my_row, my_col;
+  gasnetex_rank_t nrows, ncols, my_row, my_col;
   void *clientdata = NULL;
   gasnet_team_handle_t my_row_team, my_col_team;
   static uint8_t *A, *B;

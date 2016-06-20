@@ -116,7 +116,7 @@ typedef uint64_t gasnetc_notify_t;
 typedef struct gasnetc_post_descriptor gasnetc_post_descriptor_t;
 
 typedef struct {
-  gasnet_node_t source;
+  gasnetex_rank_t source;
   int need_reply;
   gasnetc_notify_t notify;  
   gasnetc_post_descriptor_t *deferred_reply;
@@ -332,43 +332,43 @@ void gasnetc_shutdown(void); /* clean up all gni state */
 void gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE);
 void gasnetc_poll(GASNETC_DIDX_FARG_ALONE);
 
-size_t gasnetc_rdma_put_bulk(gasnet_node_t node,
+size_t gasnetc_rdma_put_bulk(gasnetex_rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd) GASNETI_WARN_UNUSED_RESULT;
 
-void gasnetc_rdma_put_lc(gasnet_node_t node,
+void gasnetc_rdma_put_lc(gasnetex_rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd);
 
-void gasnetc_rdma_put_buff(gasnet_node_t node,
+void gasnetc_rdma_put_buff(gasnetex_rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd);
 
-size_t gasnetc_rdma_get(gasnet_node_t node,
+size_t gasnetc_rdma_get(gasnetex_rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd) GASNETI_WARN_UNUSED_RESULT;
 
-void gasnetc_rdma_get_unaligned(gasnet_node_t node,
+void gasnetc_rdma_get_unaligned(gasnetex_rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd);
 
-int gasnetc_rdma_get_buff(gasnet_node_t node,
+int gasnetc_rdma_get_buff(gasnetex_rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd);
 
 #if GASNETC_GNI_FIREHOSE
-size_t gasnetc_rdma_put_fh(gasnet_node_t node,
+size_t gasnetc_rdma_put_fh(gasnetex_rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd) GASNETI_WARN_UNUSED_RESULT;
 
-size_t gasnetc_rdma_get_fh(gasnet_node_t node,
+size_t gasnetc_rdma_get_fh(gasnetex_rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
 /* Extensions: */
 #if GASNETC_GNI_FETCHOP
-void gasnetc_fetchop_u64(gasnet_node_t node,
+void gasnetc_fetchop_u64(gasnetex_rank_t node,
                  void *source_addr, gni_fma_cmd_type_t cmd, uint64_t operand,
                  gasnetc_post_descriptor_t *gpd);
 #endif
@@ -413,12 +413,12 @@ int gasnetc_next_power_of_2(int x) {
   return x;
 }
 
-extern int gasnetc_send_control(gasnet_node_t dest, uint8_t op, uint16_t arg);
+extern int gasnetc_send_control(gasnetex_rank_t dest, uint8_t op, uint16_t arg);
 
 extern int gasnetc_send_am(gasnetc_post_descriptor_t *gpd);
 gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnetex_token_t t,
                                                                size_t length);
-gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnet_node_t dest, 
+gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnetex_rank_t dest,
                                                                  size_t length);
 
 #endif /* GASNET_GEMINI_H */
