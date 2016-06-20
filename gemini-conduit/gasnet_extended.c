@@ -1126,29 +1126,6 @@ static uint64_t gasnete_fetchop_u64_val(
   return result;
 }
 
-static gasnet_valget_handle_t gasnete_fetchop_u64_nb_val(
-        gasnetex_rank_t node, void *src, gni_fma_cmd_type_t cmd,
-        uint64_t operand GASNETE_THREAD_FARG)
-{
-  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-  GASNETC_DIDX_POST(mythread->domain_idx);
-  gasnetc_post_descriptor_t *gpd;
-
-  gasnet_valget_handle_t retval = gasnete_new_valget_handle(mythread);
-  retval->done = 0;
-
-  gasneti_suspend_spinpollers();
-  gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
-  gpd->gpd_completion = (uintptr_t) &retval->done;
-  gpd->gpd_get_dst = (uintptr_t) &retval->val;
-  gpd->flags = GC_POST_COMPLETION_FLAG | GC_POST_COPY_IMM;
-  gasnetc_fetchop_u64(node, src, cmd, operand, gpd);
-  gasneti_resume_spinpollers();
-
-  return retval;
-}
-
-
 #define GASNETX_FETCHOP_DEFNS(_op,_suff,_type,_cmd)                       \
     extern void                                                           \
     _gasnetX_fetch##_op##_##_suff(                                        \
@@ -1178,13 +1155,6 @@ static gasnet_valget_handle_t gasnete_fetchop_u64_nb_val(
                 _type operand GASNETE_THREAD_FARG)                        \
     {                                                                     \
         return gasnete_fetchop_##_suff##_val(node, src, _cmd, operand GASNETE_THREAD_PASS); \
-    }                                                                     \
-    extern gasnet_valget_handle_t                                         \
-    _gasnetX_fetch##_op##_##_suff##_nb_val(                               \
-                gasnetex_rank_t node, _type *src,                           \
-                _type operand GASNETE_THREAD_FARG)                        \
-    {                                                                     \
-        return gasnete_fetchop_##_suff##_nb_val(node, src, _cmd, operand GASNETE_THREAD_PASS); \
     }                                                                     \
 
 /* protect against iso646.h */
