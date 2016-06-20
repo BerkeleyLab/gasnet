@@ -797,13 +797,13 @@ extern int  gasnete_try_syncnb_all (gasnetex_handle_t *phandle, size_t numhandle
 */
 
 extern
-void gasnete_get_nbi(gasnetex_team_member_t team,
+int gasnete_get_nbi( gasnetex_team_member_t team,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
                      gasnetex_flags_t flags GASNETE_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(V);
+  GASNETI_CHECKPSHM_GET(I);
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t * const iop = mythread->current_iop;
@@ -815,6 +815,7 @@ void gasnete_get_nbi(gasnetex_team_member_t team,
       gasnete_get_bulk_inner(dest, rank, src, nbytes, GASNETE_IOP_CNTRS(iop, get) GASNETC_DIDX_PASS);
     }
     gasneti_resume_spinpollers();
+    return 0;
   }
 }
 
@@ -859,13 +860,13 @@ void _gasnete_put_nbi_bulk (gasnetex_rank_t node, void *dest, void *src, size_t 
     gasneti_resume_spinpollers();
 }
 
-void gasnete_put_nbi(gasnetex_team_member_t team,
+int gasnete_put_nbi( gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_lc_handle_t *lc_opt,
                      gasnetex_flags_t flags GASNETE_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT(V);
+  GASNETI_CHECKPSHM_PUT(I);
 
   if (lc_opt == GASNETEX_LC_GROUP) {
     gasneti_fatalerror("Put_nbi(LC_GROUP) unimplemented"); // TODO-EX: fix this
@@ -876,6 +877,8 @@ void gasnete_put_nbi(gasnetex_team_member_t team,
   } else {
     gasneti_fatalerror("Invalid lc_opt argument to Put_nbi");
   }
+
+  return 0;
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -971,14 +974,14 @@ extern gasnetex_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
 #define gasnete_val_assign(_dst, _val) \
     (*(gasnetex_register_value_t *)(_dst) = (gasnetex_register_value_t)(_val))
 
-extern void gasnete_put_val(
+extern int gasnete_put_val(
                 gasnetex_team_member_t team,
                 gasnetex_rank_t rank, void *dest,
                 gasnetex_register_value_t value,
                 size_t nbytes, gasnetex_flags_t flags
                 GASNETE_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUTVAL(V);
+  GASNETI_CHECKPSHM_PUTVAL(I);
   {
     GASNETC_DIDX_POST(GASNETE_MYTHREAD->domain_idx);
     gasnetc_post_descriptor_t *gpd;
@@ -991,6 +994,7 @@ extern void gasnete_put_val(
     gasnetc_rdma_put_buff(rank, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);
     gasneti_resume_spinpollers();
     gasneti_polluntil(done);
+    return 0;
   }
 }
 
@@ -1016,14 +1020,14 @@ extern gasnetex_handle_t gasnete_put_nb_val(
   }
 }
 
-extern void gasnete_put_nbi_val(
+extern int gasnete_put_nbi_val(
                 gasnetex_team_member_t team,
                 gasnetex_rank_t rank, void *dest,
                 gasnetex_register_value_t value,
                 size_t nbytes, gasnetex_flags_t flags
                 GASNETE_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUTVAL(V);
+  GASNETI_CHECKPSHM_PUTVAL(I);
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     GASNETC_DIDX_POST(mythread->domain_idx);
@@ -1034,6 +1038,7 @@ extern void gasnete_put_nbi_val(
     gasnete_val_assign(gpd->u.immediate, value);
     gasnetc_rdma_put_buff(rank, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);
     gasneti_resume_spinpollers();
+    return 0;
   }
 }
 
