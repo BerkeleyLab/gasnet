@@ -477,23 +477,23 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 
 /* TODO: use Rput w/ firehose or bounce buffers when only dest is in-segment */
 GASNETI_INLINE(gasnete_put_common)
-void gasnete_put_common(gasnet_node_t node, void *dest, void *src, size_t nbytes,
+void gasnete_put_common(gasnetex_rank_t rank, void *dest, void *src, size_t nbytes,
                         gasnete_op_t *op, int need_lc, int is_eop) {
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
   uintptr_t loc_offset = (uintptr_t)src - gasnete_mysegbase;
-  uintptr_t rem_offset = (uintptr_t)dest - (uintptr_t)gasneti_seginfo[node].addr;
+  uintptr_t rem_offset = (uintptr_t)dest - (uintptr_t)gasneti_seginfo[rank].addr;
 
-  if ((loc_offset < gasnete_mysegsize) && GASNETT_PREDICT_TRUE(rem_offset < gasneti_seginfo[node].size)) {
+  if ((loc_offset < gasnete_mysegsize) && GASNETT_PREDICT_TRUE(rem_offset < gasneti_seginfo[rank].size)) {
     pami_rput_simple_t cmd;
 
-    cmd.rma.dest = gasnetc_endpoint(node);
+    cmd.rma.dest = gasnetc_endpoint(rank);
     cmd.rma.hints = gasnete_rdma_send_hint;
     cmd.rma.bytes = nbytes;
     cmd.rma.cookie = op;
     cmd.rma.done_fn = need_lc ? gasnete_cb_op_lc : NULL;
     cmd.rdma.local.mr = &gasnetc_mymemreg;
     cmd.rdma.local.offset = loc_offset;
-    cmd.rdma.remote.mr = &gasnetc_memreg[node];
+    cmd.rdma.remote.mr = &gasnetc_memreg[rank];
     cmd.rdma.remote.offset = rem_offset;
     cmd.put.rdone_fn = is_eop ? gasnete_cb_eop_done : gasnete_cb_iput_done;
 
@@ -518,7 +518,7 @@ void gasnete_put_common(gasnet_node_t node, void *dest, void *src, size_t nbytes
   {
     pami_put_simple_t cmd;
 
-    cmd.rma.dest = gasnetc_endpoint(node);
+    cmd.rma.dest = gasnetc_endpoint(rank);
     cmd.rma.hints = gasnete_null_send_hint;
     cmd.rma.bytes = nbytes;
     cmd.rma.cookie = op;
@@ -548,23 +548,23 @@ void gasnete_put_common(gasnet_node_t node, void *dest, void *src, size_t nbytes
 
 /* TODO: use Rget w/ firehose or bounce buffers when only src is in-segment */
 GASNETI_INLINE(gasnete_get_common)
-void gasnete_get_common(void *dest, gasnet_node_t node, void *src, size_t nbytes,
+void gasnete_get_common(void *dest, gasnetex_rank_t rank, void *src, size_t nbytes,
                         gasnete_op_t *op, int is_eop) {
 #if (GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE) && !GASNETI_ARCH_BGQ /* work-around a BG/Q bug */
   uintptr_t loc_offset = (uintptr_t)dest - gasnete_mysegbase;
-  uintptr_t rem_offset = (uintptr_t)src - (uintptr_t)gasneti_seginfo[node].addr;
+  uintptr_t rem_offset = (uintptr_t)src - (uintptr_t)gasneti_seginfo[rank].addr;
 
-  if ((loc_offset < gasnete_mysegsize) && GASNETT_PREDICT_TRUE(rem_offset < gasneti_seginfo[node].size)) {
+  if ((loc_offset < gasnete_mysegsize) && GASNETT_PREDICT_TRUE(rem_offset < gasneti_seginfo[rank].size)) {
     pami_rget_simple_t cmd;
 
-    cmd.rma.dest = gasnetc_endpoint(node);
+    cmd.rma.dest = gasnetc_endpoint(rank);
     cmd.rma.hints = gasnete_rdma_send_hint;
     cmd.rma.bytes = nbytes;
     cmd.rma.cookie = op;
     cmd.rma.done_fn = is_eop ? gasnete_cb_eop_done : gasnete_cb_iget_done;
     cmd.rdma.local.mr = &gasnetc_mymemreg;
     cmd.rdma.local.offset = loc_offset;
-    cmd.rdma.remote.mr = &gasnetc_memreg[node];
+    cmd.rdma.remote.mr = &gasnetc_memreg[rank];
     cmd.rdma.remote.offset = rem_offset;
 
     GASNETC_PAMI_LOCK(gasnetc_context);
@@ -583,7 +583,7 @@ void gasnete_get_common(void *dest, gasnet_node_t node, void *src, size_t nbytes
   {
     pami_get_simple_t cmd;
 
-    cmd.rma.dest = gasnetc_endpoint(node);
+    cmd.rma.dest = gasnetc_endpoint(rank);
     cmd.rma.hints = gasnete_null_send_hint;
     cmd.rma.bytes = nbytes;
     cmd.rma.cookie = op;
@@ -617,31 +617,48 @@ void gasnete_get_common(void *dest, gasnet_node_t node, void *src, size_t nbytes
      gasnete_memset_nb
 */
 
-extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_GET(UNALIGNED,H);
+extern
+gasnetex_handle_t gasnete_get_nb(
+                     gasnetex_team_member_t team,
+                     void *dest,
+                     gasnetex_rank_t rank, void *src,
+                     size_t nbytes,
+                     gasnetex_flags_t flags GASNETE_THREAD_FARG)
+{
+  GASNETI_CHECKPSHM_GET(H);
   {
     gasnete_eop_t * op = gasnete_eop_new(GASNETE_MYTHREAD);
-    gasnete_get_common(dest, node, src, nbytes, (gasnete_op_t *)op, 1);
-    return (gasnet_handle_t)op;
+    gasnete_get_common(dest, rank, src, nbytes, (gasnete_op_t *)op, 1);
+    return (gasnetex_handle_t)op;
   }
 }
 
-extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_PUT(ALIGNED,H);
+extern
+gasnetex_handle_t gasnete_put_nb(
+                     gasnetex_team_member_t team,
+                     gasnetex_rank_t rank, void *dest,
+                     void *src,
+                     size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                     gasnetex_flags_t flags GASNETE_THREAD_FARG)
+{
+  GASNETI_CHECKPSHM_PUT(H);
   {
     gasnete_eop_t * op = gasnete_eop_new(GASNETE_MYTHREAD);
-    gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)op, 1, 1);
-    gasneti_assert(gasnete_op_read_lc((gasnete_op_t *)op));
-    return (gasnet_handle_t)op;
-  }
-}
+    int need_lc;
 
-extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
-  {
-    gasnete_eop_t * op = gasnete_eop_new(GASNETE_MYTHREAD);
-    gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)op, 0, 1);
-    return (gasnet_handle_t)op;
+    if (gasneti_lc_is_pointer(lc_opt)) {
+      gasneti_fatalerror("Put_nb(lc_opt pointer) unimplemented"); // TODO-EX: fix this
+    } else if (lc_opt == GASNETEX_LC_INIT) {
+      need_lc = 1;
+    } else if (lc_opt == GASNETEX_LC_SYNC) {
+      need_lc = 0;
+    } else {
+      gasneti_fatalerror("Invalid lc_opt argument to Put_nb");
+    }
+
+    gasnete_put_common(rank, dest, src, nbytes, (gasnete_op_t *)op, need_lc, 1);
+    gasneti_assert(!need_lc || gasnete_op_read_lc((gasnete_op_t *)op));
+    return (gasnetex_handle_t)op;
   }
 }
 
@@ -655,7 +672,7 @@ extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void
  *  free it if complete
  *  returns 0 or 1 */
 GASNETI_INLINE(gasnete_op_try_free)
-int gasnete_op_try_free(gasnet_handle_t handle) {
+int gasnete_op_try_free(gasnetex_handle_t handle) {
   gasnete_op_t *op = (gasnete_op_t *)handle;
 
   gasneti_assert(op->threadidx == gasnete_mythread()->threadidx);
@@ -756,40 +773,56 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
      gasnete_memset_nb
 */
 
-extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_GET(UNALIGNED,V);
+extern
+void gasnete_get_nbi(gasnetex_team_member_t team,
+                     void *dest,
+                     gasnetex_rank_t rank, void *src,
+                     size_t nbytes,
+                     gasnetex_flags_t flags GASNETE_THREAD_FARG)
+{
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t * const op = mythread->current_iop;
     op->initiated_get_cnt++;
-    gasnete_get_common(dest, node, src, nbytes, (gasnete_op_t *)op, 0);
+    gasnete_get_common(dest, rank, src, nbytes, (gasnete_op_t *)op, 0);
   }
 }
 
-extern void gasnete_put_nbi      (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_PUT(ALIGNED,V);
+extern
+void gasnete_put_nbi(gasnetex_team_member_t team,
+                     gasnetex_rank_t rank, void *dest,
+                     void *src,
+                     size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                     gasnetex_flags_t flags GASNETE_THREAD_FARG)
+{
+  GASNETI_CHECKPSHM_PUT(V);
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t * const op = mythread->current_iop;
-    op->initiated_put_cnt++;
-    gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)op, 1, 0);
-    /* reset LC flag for next time: */
-    gasneti_assert(gasnete_op_read_lc((gasnete_op_t *)op));
-  #if 0
-    gasnete_op_clr_lc((gasnete_op_t *)op));
-  #else
-    op->flags = OPTYPE_IMPLICIT; /* Should be cheaper than r-m-w */
-  #endif
-  }
-}
+    int need_lc;
 
-extern void gasnete_put_nbi_bulk (gasnet_node_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
-  {
-    gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-    gasnete_iop_t * const op = mythread->current_iop;
     op->initiated_put_cnt++;
-    gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)op, 0, 0);
+
+    if (gasneti_lc_is_pointer(lc_opt)) {
+      gasneti_fatalerror("Put_nb(lc_opt pointer) unimplemented"); // TODO-EX: fix this
+    } else if (lc_opt == GASNETEX_LC_INIT) {
+      need_lc = 1;
+    } else if (lc_opt == GASNETEX_LC_SYNC) {
+      need_lc = 0;
+    } else {
+      gasneti_fatalerror("Invalid lc_opt argument to Put_nb");
+    }
+
+    gasnete_put_common(rank, dest, src, nbytes, (gasnete_op_t *)op, need_lc, 0);
+    if (need_lc) {
+      gasneti_assert(gasnete_op_read_lc((gasnete_op_t *)op));
+      /* reset LC flag for next time: */
+      #if 0
+        gasnete_op_clr_lc((gasnete_op_t *)op));
+      #else
+        op->flags = OPTYPE_IMPLICIT; /* Should be cheaper than r-m-w */
+      #endif
+    }
   }
 }
 
@@ -885,25 +918,35 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   ===================================
 */
 
-#if GASNETI_DIRECT_GET_BULK
-extern void gasnete_get_bulk (void *dest, gasnet_node_t node, void *src,
-			      size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_GET(UNALIGNED,V);
+#if GASNETI_DIRECT_BLOCKING_GET
+extern
+void gasnete_get(    gasnetex_team_member_t team,
+                     void *dest,
+                     gasnetex_rank_t rank, void *src,
+                     size_t nbytes,
+                     gasnetex_flags_t flags GASNETE_THREAD_FARG)
+{
+  GASNETI_CHECKPSHM_GET(V);
   {
     volatile gasnete_eop_t op = { OPSTATE_INFLIGHT, };
-    gasnete_get_common(dest, node, src, nbytes, (gasnete_op_t *)&op, 1);
+    gasnete_get_common(dest, rank, src, nbytes, (gasnete_op_t *)&op, 1);
     gasneti_polluntil(op.flags == OPSTATE_COMPLETE);
   }
 }
 #endif
 
-#if GASNETI_DIRECT_PUT_BULK
-extern void gasnete_put_bulk (gasnet_node_t node, void* dest, void *src,
-			      size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_PUT(UNALIGNED,V);
+#if GASNETI_DIRECT_BLOCKING_PUT
+extern
+void gasnete_put(    gasnetex_team_member_t team,
+                     gasnetex_rank_t rank, void *dest,
+                     void *src,
+                     size_t nbytes,
+                     gasnetex_flags_t flags GASNETE_THREAD_FARG)
+{
+  GASNETI_CHECKPSHM_PUT(V);
   {
     volatile gasnete_eop_t op = { OPSTATE_INFLIGHT, };
-    gasnete_put_common(node, dest, src, nbytes, (gasnete_op_t *)&op, 0, 1);
+    gasnete_put_common(rank, dest, src, nbytes, (gasnete_op_t *)&op, 0, 1);
     gasneti_polluntil(op.flags == OPSTATE_COMPLETE);
   }
 }   
@@ -1127,8 +1170,8 @@ static void gasnete_parbarrier_init(gasnete_coll_team_t team) {
  */
 
 typedef struct {
-  gasnet_node_t *peer_list;
-  gasnet_node_t peer_count;
+  gasnetex_rank_t *peer_list;
+  gasnetex_rank_t peer_count;
   volatile int phase;
 #if GASNETI_PSHM_BARRIER_HIER
   gasnete_pshmbarrier_data_t *pshm_data; /* non-NULL if using hierarchical code */
@@ -1178,7 +1221,7 @@ static void gasnete_cb_pdbarr_done(pami_context_t context, void *cookie, pami_re
 /* Called only w/ context lock held */
 GASNETI_ALWAYS_INLINE(gasnete_pdbarr_send)
 void gasnete_pdbarr_send(
-        gasnet_node_t peer,
+        gasnetex_rank_t peer,
         uint32_t teamid,
         int value, int flags,
         int phase, int index)
@@ -1260,7 +1303,7 @@ again:
         index = -1; /* DONE! */
         break;
       } else {
-        const gasnet_node_t peer = barr->peer_list[index];
+        const gasnetex_rank_t peer = barr->peer_list[index];
         gasnete_pdbarr_send(peer, teamid, state->value, state->flags, msg_phase, ++index);
         distance <<= 1;
       }

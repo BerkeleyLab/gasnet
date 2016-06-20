@@ -82,11 +82,6 @@
   #endif
 #endif
 
-#define _GASNET_HANDLE_T
-/*  an opaque type representing a non-blocking operation in-progress initiated using the extended API */
-struct _gasnete_op_t;
-typedef struct _gasnete_op_t *gasnet_handle_t;
-#define GASNET_INVALID_HANDLE ((gasnet_handle_t)0)
 #define GASNETI_EOP_IS_HANDLE 1
 
   /* if conduit-internal threads may call the Extended API and/or they may run
@@ -144,8 +139,8 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
  */
 
 /* The following using an ON-STACK eop to avoid alloc/free overheads: */
-#define GASNETI_DIRECT_GET_BULK 1
-#define GASNETI_DIRECT_PUT_BULK 1
+#define GASNETI_DIRECT_BLOCKING_GET 1
+#define GASNETI_DIRECT_BLOCKING_PUT 1
 
 /* Configure use of AM-based implementation of get/put/memset */
 /* NOTE: Barriers, Collectives, VIS may use GASNETE_USING_REF_* in algorithm selection */

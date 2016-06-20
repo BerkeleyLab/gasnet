@@ -68,8 +68,8 @@ enum {
 #endif
 
 #define GASNETC_MSG_COMMON_HDR                        \
-  gasnet_node_t         srcnode; /* must be first */  \
-  gasnetex_handler_t      handler;                      \
+  gasnetex_rank_t       srcnode; /* must be first */  \
+  gasnetex_handler_t    handler;                      \
   uint8_t               numargs : 5;                  \
   uint8_t               is_req  : 1;                  \
   GASNETC_MSG_DEBUG_HDR
@@ -80,20 +80,20 @@ typedef struct {
 
 typedef struct {
   GASNETC_MSG_COMMON_HDR
-  gasnetex_handlerarg_t   args[GASNETC_MAX_ARGS];
+  gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
 } gasnetc_shortmsg_t;
 
 typedef struct {
   GASNETC_MSG_COMMON_HDR
   uint16_t              nbytes;
-  gasnetex_handlerarg_t   args[GASNETC_MAX_ARGS];
+  gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
 } gasnetc_medmsg_t;
 
 typedef struct {
   GASNETC_MSG_COMMON_HDR
   uintptr_t             addr;
   uint32_t              nbytes; /* type limits our MaxLong */
-  gasnetex_handlerarg_t   args[GASNETC_MAX_ARGS];
+  gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
 } gasnetc_longmsg_t;
 
 #define GASNETC_ARGSEND_AUX(s,nargs) \
@@ -133,13 +133,13 @@ extern size_t             gasnetc_recv_imm_max;
 
 /* TODO: how must this change for multiple contexts? */
 GASNETI_INLINE(gasnetc_endpoint)
-pami_endpoint_t gasnetc_endpoint(gasnet_node_t node) {
-  pami_endpoint_t result = gasnetc_endpoint_tbl[node];
-  gasneti_assert(node < gasneti_nodes);
+pami_endpoint_t gasnetc_endpoint(gasnetex_rank_t rank) {
+  pami_endpoint_t result = gasnetc_endpoint_tbl[rank];
+  gasneti_assert(rank < gasneti_nodes);
   if_pf (result == PAMI_ENDPOINT_NULL) {
     /* NOTE: thread-safety based on fact that type is single word */
-    PAMI_Endpoint_create(gasnetc_pami_client, node, 0, &result);
-    gasnetc_endpoint_tbl[node] = result;
+    PAMI_Endpoint_create(gasnetc_pami_client, rank, 0, &result);
+    gasnetc_endpoint_tbl[rank] = result;
   }
   return result;
 }

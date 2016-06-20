@@ -34,9 +34,6 @@
   #define GASNET_ALIGNED_SEGMENTS   1
 #endif
 
-#define _GASNET_NODE_T
-typedef pami_task_t gasnet_node_t;
-
   /* define to 1 if conduit allows internal GASNet fns to issue put/get for remote
      addrs out of segment - not true when PSHM is used */
 #if !GASNET_PSHM
