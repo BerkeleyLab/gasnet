@@ -216,7 +216,7 @@ void roundtrip_nb_test(int nbytes)
 			unsigned int offset = i * nbytes;
 			hdlput = gasnetex_put_nb_val(myteam, peerproc, tgtmem+offset,
 						     (gasnetex_register_value_t)i, nbytes, 0);
-			gasnet_wait_syncnb(hdlput);
+			gasnetex_wait_syncnb(hdlput);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -252,7 +252,7 @@ void oneway_nb_test(int nbytes)
                         phandles[i] = gasnetex_put_nb_val(myteam, peerproc, tgtmem+offset,
 							  (gasnetex_register_value_t)i, nbytes, 0);
                 }
-		gasnet_wait_syncnb_all(phandles, iters); 
+		gasnetex_wait_syncnb_all(phandles, iters);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -286,7 +286,7 @@ void roundtrip_nbi_test(int nbytes)
 			gasnetex_put_nbi_val(myteam, peerproc, tgtmem+offset,
 					     (gasnetex_register_value_t)i, nbytes, 0);
 
-			gasnet_wait_syncnbi_puts();
+			gasnetex_wait_syncnbi_puts();
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -318,7 +318,7 @@ void oneway_nbi_test(int nbytes)
 			gasnetex_put_nbi_val(myteam, peerproc, tgtmem+offset,
 					     (gasnetex_register_value_t)i, nbytes, 0);
 		}
-		gasnet_wait_syncnbi_puts();
+		gasnetex_wait_syncnbi_puts();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -450,8 +450,8 @@ int main(int argc, char **argv)
               ph[i] = gasnetex_put_nb_val(myteam, peerproc, tgtmem, reg, max_payload, 0);
               gasnetex_put_nbi_val(myteam, peerproc, tgtmem, reg, max_payload, 0);
            }
-           gasnet_wait_syncnbi_puts();
-           gasnet_wait_syncnb_all(ph, warm_iters);
+           gasnetex_wait_syncnbi_puts();
+           gasnetex_wait_syncnb_all(ph, warm_iters);
            test_free(ph);
         }
 

@@ -161,7 +161,7 @@ void oneway_nbi_test(int iters, int nbytes, int alignment)
 		for (i = 0; i < iters; i++) {
 			gasnetex_put_nbi(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_LC_SYNC, 0);
 		}
-		gasnet_wait_syncnbi_puts();
+		gasnetex_wait_syncnbi_puts();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -183,7 +183,7 @@ void oneway_nbi_test(int iters, int nbytes, int alignment)
 		for (i = 0; i < iters; i++) {
 	 		gasnetex_get_nbi(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
 		}
-		gasnet_wait_syncnbi_gets();
+		gasnetex_wait_syncnbi_gets();
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -219,7 +219,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
                 for (i = 0; i < iters; i++) {
                         handles[i] = gasnetex_put_nb(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_LC_SYNC, 0);
                 }
-		gasnet_wait_syncnb_all(handles, iters); 
+		gasnetex_wait_syncnb_all(handles, iters);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -241,7 +241,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
                 for (i = 0; i < iters; i++) {
                     handles[i] = gasnetex_get_nb(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
                 } 
-		gasnet_wait_syncnb_all(handles, iters); 
+		gasnetex_wait_syncnb_all(handles, iters);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}

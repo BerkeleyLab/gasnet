@@ -66,6 +66,7 @@ int gasnete_syncnb_one(gasnetex_handle_t handle)
   gasneti_sync_reads();
   return GASNET_OK;
 }
+#define gasnete_test_syncnb gasnete_syncnb_one
 #define gasnete_try_syncnb  gasnete_syncnb_one
 #define gasnete_wait_syncnb gasnete_syncnb_one
 
@@ -80,6 +81,8 @@ int gasnete_syncnb_array(gasnetex_handle_t *phandle, size_t numhandles)
   gasneti_sync_reads();
   return GASNET_OK;
 }
+#define gasnete_test_syncnb_some gasnete_syncnb_array
+#define gasnete_test_syncnb_all  gasnete_syncnb_array
 #define gasnete_try_syncnb_some  gasnete_syncnb_array
 #define gasnete_try_syncnb_all   gasnete_syncnb_array
 #define gasnete_wait_syncnb_some gasnete_syncnb_array
@@ -136,6 +139,9 @@ int gasnete_syncnbi(GASNETE_THREAD_FARG_ALONE)
   gasneti_sync_reads();
   return GASNET_OK;
 }
+#define gasnete_test_syncnbi_all  gasnete_syncnbi
+#define gasnete_test_syncnbi_gets gasnete_syncnbi
+#define gasnete_test_syncnbi_puts gasnete_syncnbi
 #define gasnete_try_syncnbi_all   gasnete_syncnbi
 #define gasnete_try_syncnbi_gets  gasnete_syncnbi
 #define gasnete_try_syncnbi_puts  gasnete_syncnbi

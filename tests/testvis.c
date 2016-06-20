@@ -1022,8 +1022,8 @@ void doit(int iters, int runtests) {
       }
 
       /* sync */
-      gasnet_wait_syncnb_all(handles, numops);
-      gasnet_wait_syncnbi_all();
+      gasnetex_wait_syncnb_all(handles, numops);
+      gasnetex_wait_syncnbi_all();
 
       /* gets */
       for(i=0; i < numops; i++) {
@@ -1057,8 +1057,8 @@ void doit(int iters, int runtests) {
       }
 
       /* sync */
-      gasnet_wait_syncnb_all(handles, numops);
-      gasnet_wait_syncnbi_all();
+      gasnetex_wait_syncnb_all(handles, numops);
+      gasnetex_wait_syncnbi_all();
 
       for(i=0; i < numops; i++) {
         if (ops[i].vsrc != NULL) {

@@ -139,7 +139,7 @@ void bulk_test_nbi(int iters) {GASNET_BEGIN_FUNCTION();
 			for (i = 0; i < iters; i++) {
 				gasnet_memset_nbi(peerproc, tgtmem, 0x55, payload);
 			}
-			gasnet_wait_syncnbi_puts();
+			gasnetex_wait_syncnbi_puts();
 			end = TIME();
 		 	update_stat(&stput, (end - begin), iters);
 		}
@@ -174,7 +174,7 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
 			for (i = 0; i < iters; i++) {
 				handles[i] = gasnet_memset_nb(peerproc, tgtmem, 0x5a, payload);
 			}
-			gasnet_wait_syncnb_all(handles, iters);
+			gasnetex_wait_syncnb_all(handles, iters);
 			end = TIME();
 		 	update_stat(&stput, (end - begin), iters);
 		}
@@ -310,8 +310,8 @@ int main(int argc, char **argv)
               h[i] = gasnet_memset_nb(peerproc, tgtmem, 0xff, 8);
            }
            gasnet_memset(peerproc, tgtmem, 0xff, max_payload);
-           gasnet_wait_syncnb_all(h, warm_iters);
-           gasnet_wait_syncnbi_puts();
+           gasnetex_wait_syncnb_all(h, warm_iters);
+           gasnetex_wait_syncnbi_puts();
            test_free(h);
         }
 

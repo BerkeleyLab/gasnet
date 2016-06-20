@@ -375,6 +375,32 @@ gasnetex_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handl
 #define gasnet_put_nbi_val(node,dest,value,nbytes) \
                 gasnetex_put_nbi_val(g2ex_team,node,dest,value,nbytes,0)
 
+/* ------------------------------------------------------------------------------------ */
+/* Explicit-handle sync operations */
+
+#define gasnet_try_syncnb_nopoll(h)          gasnetex_test_syncnb(h)
+#define gasnet_try_syncnb_some_nopoll(ph,sz) gasnetex_test_syncnb_some(ph,sz)
+#define gasnet_try_syncnb_all_nopoll(ph,sz)  gasnetex_test_syncnb_all(ph,sz)
+
+#define gasnet_try_syncnb(h)          (gasnet_AMPoll(),gasnetex_test_syncnb(h))
+#define gasnet_try_syncnb_some(ph,sz) (gasnet_AMPoll(),gasnetex_test_syncnb_some(ph,sz))
+#define gasnet_try_syncnb_all(ph,sz)  (gasnet_AMPoll(),gasnetex_test_syncnb_all(ph,sz))
+
+#define gasnet_wait_syncnb(h)          gasnetex_wait_syncnb(h)
+#define gasnet_wait_syncnb_some(ph,sz) gasnetex_wait_syncnb_some(ph,sz)
+#define gasnet_wait_syncnb_all(ph,sz)  gasnetex_wait_syncnb_all(ph,sz)
+
+/* ------------------------------------------------------------------------------------ */
+/* Implicit-handle sync operations */
+
+#define gasnet_try_syncnbi_gets() (gasnet_AMPoll(),gasnetex_test_syncnbi_gets())
+#define gasnet_try_syncnbi_puts() (gasnet_AMPoll(),gasnetex_test_syncnbi_puts())
+#define gasnet_try_syncnbi_all()  (gasnet_AMPoll(),gasnetex_test_syncnbi_all ())
+
+#define gasnet_wait_syncnbi_gets() gasnetex_wait_syncnbi_gets()
+#define gasnet_wait_syncnbi_puts() gasnetex_wait_syncnbi_puts()
+#define gasnet_wait_syncnbi_all()  gasnetex_wait_syncnbi_all ()
+
 GASNETI_END_EXTERNC
 
 #endif

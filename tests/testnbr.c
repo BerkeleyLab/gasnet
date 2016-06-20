@@ -58,7 +58,7 @@ int nprocs;
 #define GHOST_DIR_LOWER 1
 
 #define GP_BLOCK(x) do { gasnetex_handle_t h = (x);			    \
-	    if ((h) != GASNETEX_INVALID_HANDLE) gasnet_wait_syncnb(h); } while (0)
+	    if ((h) != GASNETEX_INVALID_HANDLE) gasnetex_wait_syncnb(h); } while (0)
 
 /*
  * Memory requirements for this test differ according to the type of ghost
@@ -831,15 +831,15 @@ ghostExchUPCMGOrig(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
 	    /* Send data to upper and lower nbr, in turn */
 	    hput = ge_put(nb, GHOST_TYPE_PUT, GHOST_DIR_UPPER, axis, NULL);
 	    if (hput != GASNETEX_INVALID_HANDLE) {
-		gasnet_wait_syncnb(hput);
-		gasnet_wait_syncnb( ge_notify(nb, GHOST_DIR_UPPER, axis) );
+		gasnetex_wait_syncnb(hput);
+		gasnetex_wait_syncnb( ge_notify(nb, GHOST_DIR_UPPER, axis) );
 		ge_wait(nb, GHOST_DIR_UPPER, axis);
 	    }
 
 	    hput = ge_put(nb, GHOST_TYPE_PUT, GHOST_DIR_LOWER, axis, NULL);
 	    if (hput != GASNETEX_INVALID_HANDLE) {
-		gasnet_wait_syncnb(hput);
-		gasnet_wait_syncnb( ge_notify(nb, GHOST_DIR_LOWER, axis) );
+		gasnetex_wait_syncnb(hput);
+		gasnetex_wait_syncnb( ge_notify(nb, GHOST_DIR_LOWER, axis) );
 		ge_wait(nb, GHOST_DIR_LOWER, axis);
 	    }
 	}
@@ -894,13 +894,13 @@ ghostExchUPCMG(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
 	    hput2 = ge_put(nb, GHOST_TYPE_PUT, GHOST_DIR_LOWER, axis, NULL);
 
 	    if (hput1 != GASNETEX_INVALID_HANDLE) {
-		gasnet_wait_syncnb(hput1);
-		gasnet_wait_syncnb( ge_notify(nb, GHOST_DIR_UPPER, axis) );
+		gasnetex_wait_syncnb(hput1);
+		gasnetex_wait_syncnb( ge_notify(nb, GHOST_DIR_UPPER, axis) );
 	    }
 
 	    if (hput2 != GASNETEX_INVALID_HANDLE) {
-		gasnet_wait_syncnb(hput2);
-		gasnet_wait_syncnb( ge_notify(nb, GHOST_DIR_LOWER, axis) );
+		gasnetex_wait_syncnb(hput2);
+		gasnetex_wait_syncnb( ge_notify(nb, GHOST_DIR_LOWER, axis) );
 	    }
 
 	    if (hput1 != GASNETEX_INVALID_HANDLE) 
@@ -1004,7 +1004,8 @@ ghostExchGASNetNonBlock(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
 		}
 
 		/* Any of *our* ghost exchanges complete ? */
-		if (gasnet_try_syncnb_some(hput, 2) == GASNET_ERR_NOT_READY)
+                gasnet_AMPoll();
+		if (gasnetex_test_syncnb_some(hput, 2) == GASNET_ERR_NOT_READY)
 		    continue;
 
 		/* Which face has completed */
@@ -1020,7 +1021,8 @@ ghostExchGASNetNonBlock(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
 		}
 
 		/* Try to progress handles in sput[] */
-	        gasnet_try_syncnb_all(sput, sent);
+                gasnet_AMPoll();
+	        gasnetex_test_syncnb_all(sput, sent);
 	    }
 	    /* When the loop ends, we've received face updates from both
 	     * nbrs */
@@ -1032,7 +1034,7 @@ ghostExchGASNetNonBlock(nbr_t *nb, int iters, int axis_in, int pairwise_sync)
 	 * is simply a non-blocking signal, we don't care when it completes
 	 * locally.
 	 */
-	gasnet_wait_syncnb_all(sput, sent);
+	gasnetex_wait_syncnb_all(sput, sent);
 	BARRIER();
     }
 
@@ -1103,7 +1105,7 @@ pairwise_wait_nbrs(nbr_t *nb, gasnetex_handle_t *h_nbr, int axis_in, int phase)
     }
 
     /* Reap our previous phase handles and poll on local signals */
-    gasnet_wait_syncnb_all(h_nbr, nfaces);
+    gasnetex_wait_syncnb_all(h_nbr, nfaces);
 
     do {
 	faces = 0;

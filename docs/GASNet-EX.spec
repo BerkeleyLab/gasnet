@@ -325,6 +325,33 @@ extern gasnetex_handle_t gasnetex_put_nb_val(
            size_t nbytes,
            gasnetex_flags_t flags);
 
+// Sync operations
+// The operation is indicated by the suffix
+//  + _test: no Poll call is made, returns zero on success, and non-zero otherwise.
+//  + _wait: Polls until success, no return`
+
+// Sync of a single NB handle
+// Success is defined as when the passed handle is complete.
+int  gasnetex_test_syncnb (gasnetex_handle_t handle);
+void gasnetex_wait_syncnb (gasnetex_handle_t handle);
+
+// Sync of an NB handle array - "some"
+// Success is defined as one or more handles have been completed, OR
+// the input array contains only GASNETEX_INVALID_HANDLE.
+// Completed handles, if any, are overwritten with GASNETEX_INVALID_HANDLE.
+int  gasnetex_test_syncnb_some (gasnetex_handle_t *phandle, size_t numhandles);
+void gasnetex_wait_syncnb_some (gasnetex_handle_t *phandle, size_t numhandles);
+
+// Sync of an NB handle array - "all"
+// Success is defined as all passed handles have been completed, OR
+// the input array contains only GASNETEX_INVALID_HANDLE.
+// Completed handles, if any, are overwritten with GASNETEX_INVALID_HANDLE.
+int  gasnetex_test_syncnb_all (gasnetex_handle_t *phandle, size_t numhandles);
+void gasnetex_wait_syncnb_all (gasnetex_handle_t *phandle, size_t numhandles);
+
+
+
+
 
 // NOTE: these Max payload queries have not yet been "vetted".
 // Cost of changing these (if implemented too soon) is relatively small.

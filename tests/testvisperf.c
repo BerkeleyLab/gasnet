@@ -343,7 +343,7 @@ int main(int argc, char **argv) {
                     }                                                                            \
                     break;                                                                       \
                 }                                                                                \
-                gasnet_wait_syncnbi_all();                                                       \
+                gasnetex_wait_syncnbi_all();                                                       \
               } while (0)
               if (iamsender) DOIT(1); /* pay some warm-up costs */
               BARRIER();

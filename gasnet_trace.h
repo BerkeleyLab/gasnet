@@ -749,15 +749,19 @@ extern void gasneti_trace_finish(void);
         VAL(P, PUTS_NB_BULK, sz)                          \
         VAL(P, PUTS_NBI_BULK, sz)                         \
                                                           \
+        VAL(S, TEST_SYNCNB, success)                      \
+        VAL(S, TEST_SYNCNB_ALL, success)                  \
+        VAL(S, TEST_SYNCNB_SOME, success)                 \
         VAL(S, TRY_SYNCNB, success)                       \
         VAL(S, TRY_SYNCNB_ALL, success)                   \
         VAL(S, TRY_SYNCNB_SOME, success)                  \
-        VAL(S, TRY_SYNCNB_NP, success)                    \
-        VAL(S, TRY_SYNCNB_ALL_NP, success)                \
-        VAL(S, TRY_SYNCNB_SOME_NP, success)               \
         TIME(S, WAIT_SYNCNB, waittime)                    \
         TIME(S, WAIT_SYNCNB_ALL, waittime)                \
         TIME(S, WAIT_SYNCNB_SOME, waittime)               \
+                                                          \
+        VAL(S, TEST_SYNCNBI_ALL, success)                 \
+        VAL(S, TEST_SYNCNBI_GETS, success)                \
+        VAL(S, TEST_SYNCNBI_PUTS, success)                \
         VAL(S, TRY_SYNCNBI_ALL, success)                  \
         VAL(S, TRY_SYNCNBI_GETS, success)                 \
         VAL(S, TRY_SYNCNBI_PUTS, success)                 \

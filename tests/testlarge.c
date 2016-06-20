@@ -169,7 +169,7 @@ void bulk_test_nbi(int iters) {GASNET_BEGIN_FUNCTION();
 			for (i = 0; i < iters; i++) {
 				gasnetex_put_nbi(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_LC_SYNC, 0);
 			}
-			gasnet_wait_syncnbi_puts();
+			gasnetex_wait_syncnbi_puts();
 			end = TIME();
 		 	update_stat(&stput, (end - begin), iters);
 		}
@@ -188,7 +188,7 @@ void bulk_test_nbi(int iters) {GASNET_BEGIN_FUNCTION();
 			for (i = 0; i < iters; i++) {
 			    gasnetex_get_nbi(myteam, msgbuf, peerproc, tgtmem, payload, 0);
 			}
-			gasnet_wait_syncnbi_gets();
+			gasnetex_wait_syncnbi_gets();
 			end = TIME();
 		 	update_stat(&stget, (end - begin), iters);
 		}
@@ -223,7 +223,7 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
 			for (i = 0; i < iters; i++) {
 				handles[i] = gasnetex_put_nb(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_LC_SYNC, 0);
 			}
-			gasnet_wait_syncnb_all(handles, iters);
+			gasnetex_wait_syncnb_all(handles, iters);
 			end = TIME();
 		 	update_stat(&stput, (end - begin), iters);
 		}
@@ -242,7 +242,7 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
 			for (i = 0; i < iters; i++) {
 			    handles[i] = gasnetex_get_nb(myteam, msgbuf, peerproc, tgtmem, payload, 0);
 			}
-			gasnet_wait_syncnb_all(handles, iters);
+			gasnetex_wait_syncnb_all(handles, iters);
 			end = TIME();
 		 	update_stat(&stget, (end - begin), iters);
 		}
@@ -407,8 +407,8 @@ int main(int argc, char **argv)
            }
            gasnetex_put(myteam, peerproc, tgtmem, msgbuf, max_payload, 0);
            gasnetex_get(myteam, msgbuf, peerproc, tgtmem, max_payload, 0);
-           gasnet_wait_syncnb_all(h, warm_iters*2);
-           gasnet_wait_syncnbi_all();
+           gasnetex_wait_syncnb_all(h, warm_iters*2);
+           gasnetex_wait_syncnbi_all();
            test_free(h);
         }
 
