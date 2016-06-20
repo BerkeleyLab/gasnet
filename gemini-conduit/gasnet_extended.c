@@ -619,8 +619,8 @@ gasnetex_handle_t gasnete_get_nb(
   }
 }
 
-GASNETI_INLINE(gasnete_put_nb) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t gasnete_put_nb (gasnetex_rank_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+GASNETI_INLINE(_gasnete_put_nb) GASNETI_WARN_UNUSED_RESULT
+gasnetex_handle_t _gasnete_put_nb (gasnetex_rank_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnetex_handle_t head_op = GASNETEX_INVALID_HANDLE;
   gasnete_eop_t *tail_op;
   const size_t max_tail = gasnetc_max_put_lc;
@@ -654,8 +654,8 @@ gasnetex_handle_t gasnete_put_nb (gasnetex_rank_t node, void *dest, void *src, s
   return (gasnetex_handle_t)tail_op;
 }
 
-GASNETI_INLINE(gasnete_put_nb_bulk) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t gasnete_put_nb_bulk (gasnetex_rank_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+GASNETI_INLINE(_gasnete_put_nb_bulk) GASNETI_WARN_UNUSED_RESULT
+gasnetex_handle_t _gasnete_put_nb_bulk (gasnetex_rank_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_eop_t *eop = _gasnete_eop_new(mythread);
     GASNETC_DIDX_POST(mythread->domain_idx);
@@ -678,9 +678,9 @@ gasnetex_handle_t gasnete_put_nb(
   if (lc_opt == GASNETEX_LC_GROUP) {
     gasneti_fatalerror("Put_nb(LC_GROUP) unimplemented"); // TODO-EX: fix this
   } else if (lc_opt == GASNETEX_LC_INIT) {
-    return gasnete_put_nb(rank, dest, src, nbytes GASNETE_THREAD_PASS);
+    return _gasnete_put_nb(rank, dest, src, nbytes GASNETE_THREAD_PASS);
   } else if (lc_opt == GASNETEX_LC_SYNC) {
-    return gasnete_put_nb_bulk(rank, dest, src, nbytes GASNETE_THREAD_PASS);
+    return _gasnete_put_nb_bulk(rank, dest, src, nbytes GASNETE_THREAD_PASS);
   } else {
     gasneti_fatalerror("Invalid lc_opt argument to Put_nb");
   }
@@ -818,8 +818,8 @@ void gasnete_get_nbi(gasnetex_team_member_t team,
   }
 }
 
-GASNETI_INLINE(gasnete_put_nbi)
-void gasnete_put_nbi (gasnetex_rank_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+GASNETI_INLINE(_gasnete_put_nbi)
+void _gasnete_put_nbi (gasnetex_rank_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const tail_op = mythread->current_iop;
   gasnet_handle_t head_op = GASNET_INVALID_HANDLE;
@@ -849,8 +849,8 @@ void gasnete_put_nbi (gasnetex_rank_t node, void *dest, void *src, size_t nbytes
   gasnete_wait_syncnb(head_op);
 }
 
-GASNETI_INLINE(gasnete_put_nbi_bulk)
-void gasnete_put_nbi_bulk (gasnetex_rank_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+GASNETI_INLINE(_gasnete_put_nbi_bulk)
+void _gasnete_put_nbi_bulk (gasnetex_rank_t node, void *dest, void *src, size_t nbytes GASNETE_THREAD_FARG) {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t * const iop = mythread->current_iop;
     GASNETC_DIDX_POST(mythread->domain_idx);
@@ -870,9 +870,9 @@ void gasnete_put_nbi(gasnetex_team_member_t team,
   if (lc_opt == GASNETEX_LC_GROUP) {
     gasneti_fatalerror("Put_nbi(LC_GROUP) unimplemented"); // TODO-EX: fix this
   } else if (lc_opt == GASNETEX_LC_INIT) {
-    gasnete_put_nbi(rank, dest, src, nbytes GASNETE_THREAD_PASS);
+    _gasnete_put_nbi(rank, dest, src, nbytes GASNETE_THREAD_PASS);
   } else if (lc_opt == GASNETEX_LC_SYNC) {
-    gasnete_put_nbi_bulk(rank, dest, src, nbytes GASNETE_THREAD_PASS);
+    _gasnete_put_nbi_bulk(rank, dest, src, nbytes GASNETE_THREAD_PASS);
   } else {
     gasneti_fatalerror("Invalid lc_opt argument to Put_nbi");
   }
