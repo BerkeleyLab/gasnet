@@ -334,7 +334,7 @@ typedef struct g2ex_valget_handle_s {
 GASNETI_INLINE(gasnet_get_nb_val)
 gasnet_valget_handle_t gasnet_get_nb_val(gasnet_node_t node, void *src, size_t nbytes)
 {
-  gasnet_valget_handle_t result = malloc(sizeof(struct g2ex_valget_handle_s));
+  gasnet_valget_handle_t result = (gasnet_valget_handle_t)malloc(sizeof(struct g2ex_valget_handle_s));
 #ifdef PLATFORM_ARCH_BIG_ENDIAN
   void *dest = (void*)((uinptr_t)&(result->v) + sizeof(gasnet_register_value_t) - nbytes);
 #else /* little-endian */
