@@ -367,8 +367,8 @@ void doit3(int partner, int *partnerseg) {
     gasnet_wait_syncnbi_puts();
 
     for (i=0; i < 100; i++) {
-      int tmp1 = gasnet_get_val(partner, partnerseg+i, sizeof(int));
-      int tmp2 = gasnet_get_val(partner, partnerseg+i+200, sizeof(int));
+      int tmp1 = gasnetex_get_val(myteam, partner, partnerseg+i, sizeof(int), 0);
+      int tmp2 = gasnetex_get_val(myteam, partner, partnerseg+i+200, sizeof(int), 0);
       if (tmp1 != 1000 + mynode + i || tmp2 != 1000 + mynode + i) {
         MSG("*** ERROR - FAILED INT VALUE TEST 1!!!");
         printf("node %i/%i  i=%i tmp1=%i tmp2=%i (1000 + mynode + i)=%i\n", 
@@ -390,8 +390,8 @@ void doit3(int partner, int *partnerseg) {
     gasnet_wait_syncnbi_puts();
 
     for (i=0; i < 100; i++) {
-      unsigned int tmp1 = (unsigned int)gasnet_get_val(partner, partnerbase2+i, sizeof(unsigned char));
-      unsigned int tmp2 = (unsigned int)gasnet_get_val(partner, partnerbase2+i+200, sizeof(unsigned char));
+      unsigned int tmp1 = (unsigned int)gasnetex_get_val(myteam, partner, partnerbase2+i, sizeof(unsigned char), 0);
+      unsigned int tmp2 = (unsigned int)gasnetex_get_val(myteam, partner, partnerbase2+i+200, sizeof(unsigned char), 0);
       if (tmp1 != (unsigned char)(100 + mynode + i) || 
           tmp2 != (unsigned char)(100 + mynode + i)) {
         MSG("*** ERROR - FAILED CHAR VALUE TEST 1!!!");

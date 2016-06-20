@@ -184,7 +184,11 @@ gasnet_handle_t gasnete_put_nb_val(gasnetex_rank_t node, void *dest, gasnetex_re
 */
 
 GASNETI_INLINE(gasnete_get_val)
-gasnetex_register_value_t gasnete_get_val(gasnetex_rank_t node, void *src, size_t nbytes GASNETE_THREAD_FARG)
+gasnetex_register_value_t gasnete_get_val(
+                gasnetex_team_member_t team,
+                gasnetex_rank_t rank, void *src,
+                size_t nbytes, gasnetex_flags_t flags
+                GASNETE_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GETVAL();
   gasneti_assert(0 && "Unreachable");

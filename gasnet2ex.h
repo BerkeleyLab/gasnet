@@ -324,7 +324,11 @@ typedef gasnetex_register_value_t gasnet_register_value_t;
                 gasnetex_get_nb(g2ex_team,dest,node,src,nbytes,0)
 
 /* ------------------------------------------------------------------------------------ */
-/* Non-Blocking Value Get (explicit-handle) */
+/* Value Gets - blocking and explicit-handle non-locking */
+// TODO-EX: pass GASNETEX_FLAG_SRC_IN_SEGMENT and possibly other flags
+
+#define gasnet_get_val(node,src,nbytes) \
+                gasnetex_get_val(g2ex_team,node,src,nbytes,0)
 
 typedef struct g2ex_valget_handle_s {
   gasnet_register_value_t v;

@@ -612,28 +612,37 @@ void _gasnet_put_nbi_val(gasnetex_rank_t node, void *dest, gasnetex_register_val
 #endif
 
 #if !defined(gasnete_get_val) && GASNETI_DIRECT_GET_VAL
-  extern gasnetex_register_value_t gasnete_get_val (gasnetex_rank_t node, void *src, size_t nbytes GASNETE_THREAD_FARG);
+  extern gasnetex_register_value_t gasnete_get_val (
+                  gasnetex_team_member_t team,
+                  gasnetex_rank_t rank, void *src,
+                  size_t nbytes, gasnetex_flags_t flags
+                  GASNETE_THREAD_FARG);
 #endif
 
-GASNETI_INLINE(_gasnet_get_val) GASNETI_WARN_UNUSED_RESULT
-gasnetex_register_value_t _gasnet_get_val (gasnetex_rank_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  if (gasnete_islocal(node)) {
-    GASNETI_TRACE_GET_LOCAL(VAL,NULL,node,src,nbytes);
+GASNETI_INLINE(_gasnetex_get_val) GASNETI_WARN_UNUSED_RESULT
+gasnetex_register_value_t _gasnetex_get_val (
+                gasnetex_team_member_t team,
+                gasnetex_rank_t rank, void *src,
+                size_t nbytes, gasnetex_flags_t flags
+                GASNETE_THREAD_FARG)
+{
+  if (gasnete_islocal(rank)) {
+    GASNETI_TRACE_GET_LOCAL(VAL,NULL,rank,src,nbytes);
     GASNETE_VALUE_RETURN(src, nbytes);
   } else {
-    GASNETI_TRACE_GET(VAL,NULL,node,src,nbytes);
+    GASNETI_TRACE_GET(VAL,NULL,rank,src,nbytes);
     #if GASNETI_DIRECT_GET_VAL || defined(gasnete_get_val)
-      return gasnete_get_val(node, src, nbytes GASNETE_THREAD_PASS);
+      return gasnete_get_val(team, rank, src, nbytes, flags GASNETE_THREAD_PASS);
     #else
       { gasnetex_register_value_t val = 0;
-        gasnete_get(NULL, GASNETE_STARTOFBITS(&val,nbytes), node, src, nbytes, 0 GASNETE_THREAD_PASS);
+        gasnete_get(team, GASNETE_STARTOFBITS(&val,nbytes), rank, src, nbytes, flags GASNETE_THREAD_PASS);
         return val;
       }
     #endif
   }
 }
-#define gasnet_get_val(node,src,nbytes) \
-       _gasnet_get_val(node,src,nbytes GASNETE_THREAD_GET)
+#define gasnetex_get_val(team,rank,src,nbytes,flags) \
+       _gasnetex_get_val(team,rank,src,nbytes,flags GASNETE_THREAD_GET)
 
 #if PLATFORM_COMPILER_SUN_C
   #pragma error_messages(default, E_END_OF_LOOP_CODE_NOT_REACHED)

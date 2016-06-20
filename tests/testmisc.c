@@ -377,8 +377,8 @@ void doit5(void) { GASNET_BEGIN_FUNCTION();
       { gasnetex_get_nbi(myteam, &temp, mynode, myseg, 4, 0); },
       { gasnet_wait_syncnbi_gets(); });
 
-    TIME_OPERATION("local 4-byte gasnet_get_val",
-      { temp = (int32_t)gasnet_get_val(mynode, myseg, 4); });
+    TIME_OPERATION("local 4-byte gasnetex_get_val",
+      { temp = (int32_t)gasnetex_get_val(myteam, mynode, myseg, 4, 0); });
 
     TIME_OPERATION("local 1024-byte gasnetex_get",
       { gasnetex_get(myteam, &bigtemp, mynode, myseg, 1024, 0); });

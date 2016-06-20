@@ -1037,7 +1037,12 @@ gasnetex_register_value_t gasnete_get_val_help(void *src, size_t nbytes) {
 #endif
 }
  
-extern gasnetex_register_value_t gasnete_get_val(gasnetex_rank_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
+extern gasnetex_register_value_t gasnete_get_val(
+                gasnetex_team_member_t team,
+                gasnetex_rank_t rank, void *src,
+                size_t nbytes, gasnetex_flags_t flags
+                GASNETE_THREAD_FARG)
+{
   GASNETI_CHECKPSHM_GETVAL();
   {
     gasnetex_register_value_t result;
@@ -1050,7 +1055,7 @@ extern gasnetex_register_value_t gasnete_get_val(gasnetex_rank_t node, void *src
     gpd->gpd_completion = (uintptr_t) &done;
     gpd->flags = GC_POST_COMPLETION_FLAG | GC_POST_KEEP_GPD;
     buffer = gpd->u.immediate;
-    buffer += gasnetc_rdma_get_buff(node, buffer, src, nbytes, gpd);
+    buffer += gasnetc_rdma_get_buff(rank, buffer, src, nbytes, gpd);
     gasneti_resume_spinpollers();
     gasneti_polluntil(done);
     result = gasnete_get_val_help(buffer, nbytes);

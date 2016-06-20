@@ -131,7 +131,7 @@ void roundtrip_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-	 		reg ^= gasnet_get_val(peerproc, tgtmem+offset, nbytes);
+	 		reg ^= gasnetex_get_val(myteam, peerproc, tgtmem+offset, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -181,7 +181,7 @@ void oneway_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-	 		reg ^= gasnet_get_val(peerproc, tgtmem+offset, nbytes);
+	 		reg ^= gasnetex_get_val(myteam, peerproc, tgtmem+offset, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -440,7 +440,7 @@ int main(int argc, char **argv)
            gasnetex_register_value_t reg = 1;
            for (i = 0; i < warm_iters; i++) {
               gasnet_put_val(peerproc, tgtmem, reg, max_payload);
-              reg ^= gasnet_get_val(peerproc, tgtmem, max_payload);
+              reg ^= gasnetex_get_val(myteam, peerproc, tgtmem, max_payload, 0);
               ph[i] = gasnet_put_nb_val(peerproc, tgtmem, reg, max_payload);
               gasnet_put_nbi_val(peerproc, tgtmem, reg, max_payload);
            }

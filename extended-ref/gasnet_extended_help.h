@@ -451,8 +451,8 @@ typedef union {
       _GASNETI_RETURNEX_##rt;                   \
     }} while(0)
   #define GASNETI_CHECKPSHM_GETVAL() do {     \
-    if (gasneti_pshm_in_supernode(node)) {      \
-      GASNETE_VALUE_RETURN(gasneti_pshm_addr2local(node, src), nbytes); \
+    if (gasneti_pshm_in_supernode(rank)) {      \
+      GASNETE_VALUE_RETURN(gasneti_pshm_addr2local(rank, src), nbytes); \
     }} while(0)
   #define GASNETI_CHECKPSHM_PUTVAL(rt) do {     \
     if (gasneti_pshm_in_supernode(node)) {      \

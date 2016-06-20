@@ -439,8 +439,8 @@ void do_blockingputgets(void) {
     }
 
     if (do_gets && do_value && do_blocking) {
-      QUEUE_TEST("gasnet_get_val (BLOCKING - represents round-trip latency)", 
-                 regval ^= gasnet_get_val(peerproc, tgtmem, payload), 
+      QUEUE_TEST("gasnetex_get_val (BLOCKING - represents round-trip latency)", 
+                 regval ^= gasnetex_get_val(myteam, peerproc, tgtmem, payload, 0), 
                  (void)0, (void)0, SIZEOF_GASNETEX_REGISTER_VALUE_T);
     }
 }
