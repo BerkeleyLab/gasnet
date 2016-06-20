@@ -37,118 +37,118 @@ typedef gasnetex_register_value_t gasnet_register_value_t;
 */
 
 #define gasnet_AMRequestShort0(dest, handler) \
-       gasnetex_AMRequestShort0(the_team, dest, handler, 0)
+       gasnetex_AMRequestShort0(g2ex_team, dest, handler, 0)
 #define gasnet_AMRequestShort1(dest, handler, a0) \
-       gasnetex_AMRequestShort1(the_team, dest, handler, 0, (gasnetex_handlerarg_t)a0)
+       gasnetex_AMRequestShort1(g2ex_team, dest, handler, 0, (gasnetex_handlerarg_t)a0)
 #define gasnet_AMRequestShort2(dest, handler, a0, a1) \
-       gasnetex_AMRequestShort2(the_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1)
+       gasnetex_AMRequestShort2(g2ex_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1)
 #define gasnet_AMRequestShort3(dest, handler, a0, a1, a2) \
-       gasnetex_AMRequestShort3(the_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2)
+       gasnetex_AMRequestShort3(g2ex_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2)
 #define gasnet_AMRequestShort4(dest, handler, a0, a1, a2, a3) \
-       gasnetex_AMRequestShort4(the_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3)
+       gasnetex_AMRequestShort4(g2ex_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3)
 
 #define gasnet_AMRequestShort5(dest, handler, a0, a1, a2, a3, a4) \
-       gasnetex_AMRequestShort5(the_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4)
+       gasnetex_AMRequestShort5(g2ex_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4)
 #define gasnet_AMRequestShort6(dest, handler, a0, a1, a2, a3, a4, a5) \
-       gasnetex_AMRequestShort6(the_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5)
+       gasnetex_AMRequestShort6(g2ex_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5)
 #define gasnet_AMRequestShort7(dest, handler, a0, a1, a2, a3, a4, a5, a6) \
-       gasnetex_AMRequestShort7(the_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6)
+       gasnetex_AMRequestShort7(g2ex_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6)
 #define gasnet_AMRequestShort8(dest, handler, a0, a1, a2, a3, a4, a5, a6, a7) \
-       gasnetex_AMRequestShort8(the_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7)
+       gasnetex_AMRequestShort8(g2ex_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7)
 
 #define gasnet_AMRequestShort9( dest, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8 ) \
-        gasnetex_AMRequestShort9(the_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8)
+        gasnetex_AMRequestShort9(g2ex_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8)
 #define gasnet_AMRequestShort10(dest, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) \
-        gasnetex_AMRequestShort10(the_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9)
+        gasnetex_AMRequestShort10(g2ex_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9)
 #define gasnet_AMRequestShort11(dest, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) \
-        gasnetex_AMRequestShort11(the_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10)
+        gasnetex_AMRequestShort11(g2ex_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10)
 #define gasnet_AMRequestShort12(dest, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11) \
-        gasnetex_AMRequestShort12(the_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11)
+        gasnetex_AMRequestShort12(g2ex_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11)
 
 #define gasnet_AMRequestShort13(dest, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12) \
-        gasnetex_AMRequestShort13(the_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12)
+        gasnetex_AMRequestShort13(g2ex_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12)
 #define gasnet_AMRequestShort14(dest, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13) \
-        gasnetex_AMRequestShort14(the_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12, (gasnetex_handlerarg_t)a13)
+        gasnetex_AMRequestShort14(g2ex_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12, (gasnetex_handlerarg_t)a13)
 #define gasnet_AMRequestShort15(dest, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14) \
-        gasnetex_AMRequestShort15(the_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12, (gasnetex_handlerarg_t)a13, (gasnetex_handlerarg_t)a14)
+        gasnetex_AMRequestShort15(g2ex_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12, (gasnetex_handlerarg_t)a13, (gasnetex_handlerarg_t)a14)
 #define gasnet_AMRequestShort16(dest, handler, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) \
-        gasnetex_AMRequestShort16(the_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12, (gasnetex_handlerarg_t)a13, (gasnetex_handlerarg_t)a14, (gasnetex_handlerarg_t)a15)
+        gasnetex_AMRequestShort16(g2ex_team, dest, handler, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12, (gasnetex_handlerarg_t)a13, (gasnetex_handlerarg_t)a14, (gasnetex_handlerarg_t)a15)
 /* ------------------------------------------------------------------------------------ */
 #define gasnet_AMRequestMedium0(dest, handler, source_addr, nbytes) \
-       gasnetex_AMRequestMedium0(the_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0)
+       gasnetex_AMRequestMedium0(g2ex_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0)
 #define gasnet_AMRequestMedium1(dest, handler, source_addr, nbytes, a0) \
-       gasnetex_AMRequestMedium1(the_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0)
+       gasnetex_AMRequestMedium1(g2ex_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0)
 #define gasnet_AMRequestMedium2(dest, handler, source_addr, nbytes, a0, a1) \
-       gasnetex_AMRequestMedium2(the_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1)
+       gasnetex_AMRequestMedium2(g2ex_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1)
 #define gasnet_AMRequestMedium3(dest, handler, source_addr, nbytes, a0, a1, a2) \
-       gasnetex_AMRequestMedium3(the_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2)
+       gasnetex_AMRequestMedium3(g2ex_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2)
 #define gasnet_AMRequestMedium4(dest, handler, source_addr, nbytes, a0, a1, a2, a3) \
-       gasnetex_AMRequestMedium4(the_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3)
+       gasnetex_AMRequestMedium4(g2ex_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3)
 
 #define gasnet_AMRequestMedium5(dest, handler, source_addr, nbytes, a0, a1, a2, a3, a4) \
-       gasnetex_AMRequestMedium5(the_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4)
+       gasnetex_AMRequestMedium5(g2ex_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4)
 #define gasnet_AMRequestMedium6(dest, handler, source_addr, nbytes, a0, a1, a2, a3, a4, a5) \
-       gasnetex_AMRequestMedium6(the_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5)
+       gasnetex_AMRequestMedium6(g2ex_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5)
 #define gasnet_AMRequestMedium7(dest, handler, source_addr, nbytes, a0, a1, a2, a3, a4, a5, a6) \
-       gasnetex_AMRequestMedium7(the_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6)
+       gasnetex_AMRequestMedium7(g2ex_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6)
 #define gasnet_AMRequestMedium8(dest, handler, source_addr, nbytes, a0, a1, a2, a3, a4, a5, a6, a7) \
-       gasnetex_AMRequestMedium8(the_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7)
+       gasnetex_AMRequestMedium8(g2ex_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7)
 
 #define gasnet_AMRequestMedium9( dest, handler, source_addr, nbytes, a0, a1, a2, a3, a4, a5, a6, a7, a8 ) \
-        gasnetex_AMRequestMedium9(the_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8)
+        gasnetex_AMRequestMedium9(g2ex_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8)
 #define gasnet_AMRequestMedium10(dest, handler, source_addr, nbytes, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) \
-        gasnetex_AMRequestMedium10(the_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9)
+        gasnetex_AMRequestMedium10(g2ex_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9)
 #define gasnet_AMRequestMedium11(dest, handler, source_addr, nbytes, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) \
-        gasnetex_AMRequestMedium11(the_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10)
+        gasnetex_AMRequestMedium11(g2ex_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10)
 #define gasnet_AMRequestMedium12(dest, handler, source_addr, nbytes, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11) \
-        gasnetex_AMRequestMedium12(the_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11)
+        gasnetex_AMRequestMedium12(g2ex_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11)
 
 #define gasnet_AMRequestMedium13(dest, handler, source_addr, nbytes, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12) \
-        gasnetex_AMRequestMedium13(the_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12)
+        gasnetex_AMRequestMedium13(g2ex_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12)
 #define gasnet_AMRequestMedium14(dest, handler, source_addr, nbytes, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13) \
-        gasnetex_AMRequestMedium14(the_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12, (gasnetex_handlerarg_t)a13)
+        gasnetex_AMRequestMedium14(g2ex_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12, (gasnetex_handlerarg_t)a13)
 #define gasnet_AMRequestMedium15(dest, handler, source_addr, nbytes, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14) \
-        gasnetex_AMRequestMedium15(the_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12, (gasnetex_handlerarg_t)a13, (gasnetex_handlerarg_t)a14)
+        gasnetex_AMRequestMedium15(g2ex_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12, (gasnetex_handlerarg_t)a13, (gasnetex_handlerarg_t)a14)
 #define gasnet_AMRequestMedium16(dest, handler, source_addr, nbytes, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) \
-        gasnetex_AMRequestMedium16(the_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12, (gasnetex_handlerarg_t)a13, (gasnetex_handlerarg_t)a14, (gasnetex_handlerarg_t)a15)
+        gasnetex_AMRequestMedium16(g2ex_team, dest, handler, source_addr, nbytes, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12, (gasnetex_handlerarg_t)a13, (gasnetex_handlerarg_t)a14, (gasnetex_handlerarg_t)a15)
 /* ------------------------------------------------------------------------------------ */
 #define gasnet_AMRequestLong0(dest, handler, source_addr, nbytes, dest_addr) \
-       gasnetex_AMRequestLong0(the_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0)
+       gasnetex_AMRequestLong0(g2ex_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0)
 #define gasnet_AMRequestLong1(dest, handler, source_addr, nbytes, dest_addr, a0) \
-       gasnetex_AMRequestLong1(the_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0)
+       gasnetex_AMRequestLong1(g2ex_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0)
 #define gasnet_AMRequestLong2(dest, handler, source_addr, nbytes, dest_addr, a0, a1) \
-       gasnetex_AMRequestLong2(the_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1)
+       gasnetex_AMRequestLong2(g2ex_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1)
 #define gasnet_AMRequestLong3(dest, handler, source_addr, nbytes, dest_addr, a0, a1, a2) \
-       gasnetex_AMRequestLong3(the_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2)
+       gasnetex_AMRequestLong3(g2ex_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2)
 #define gasnet_AMRequestLong4(dest, handler, source_addr, nbytes, dest_addr, a0, a1, a2, a3) \
-       gasnetex_AMRequestLong4(the_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3)
+       gasnetex_AMRequestLong4(g2ex_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3)
 
 #define gasnet_AMRequestLong5(dest, handler, source_addr, nbytes, dest_addr, a0, a1, a2, a3, a4) \
-       gasnetex_AMRequestLong5(the_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4)
+       gasnetex_AMRequestLong5(g2ex_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4)
 #define gasnet_AMRequestLong6(dest, handler, source_addr, nbytes, dest_addr, a0, a1, a2, a3, a4, a5) \
-       gasnetex_AMRequestLong6(the_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5)
+       gasnetex_AMRequestLong6(g2ex_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5)
 #define gasnet_AMRequestLong7(dest, handler, source_addr, nbytes, dest_addr, a0, a1, a2, a3, a4, a5, a6) \
-       gasnetex_AMRequestLong7(the_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6)
+       gasnetex_AMRequestLong7(g2ex_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6)
 #define gasnet_AMRequestLong8(dest, handler, source_addr, nbytes, dest_addr, a0, a1, a2, a3, a4, a5, a6, a7) \
-       gasnetex_AMRequestLong8(the_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7)
+       gasnetex_AMRequestLong8(g2ex_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7)
 
 #define gasnet_AMRequestLong9( dest, handler, source_addr, nbytes, dest_addr, a0, a1, a2, a3, a4, a5, a6, a7, a8 ) \
-        gasnetex_AMRequestLong9(the_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8)
+        gasnetex_AMRequestLong9(g2ex_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8)
 #define gasnet_AMRequestLong10(dest, handler, source_addr, nbytes, dest_addr, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9) \
-        gasnetex_AMRequestLong10(the_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9)
+        gasnetex_AMRequestLong10(g2ex_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9)
 #define gasnet_AMRequestLong11(dest, handler, source_addr, nbytes, dest_addr, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10) \
-        gasnetex_AMRequestLong11(the_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10)
+        gasnetex_AMRequestLong11(g2ex_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10)
 #define gasnet_AMRequestLong12(dest, handler, source_addr, nbytes, dest_addr, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11) \
-        gasnetex_AMRequestLong12(the_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11)
+        gasnetex_AMRequestLong12(g2ex_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11)
 
 #define gasnet_AMRequestLong13(dest, handler, source_addr, nbytes, dest_addr, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12) \
-        gasnetex_AMRequestLong13(the_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12)
+        gasnetex_AMRequestLong13(g2ex_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12)
 #define gasnet_AMRequestLong14(dest, handler, source_addr, nbytes, dest_addr, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13) \
-        gasnetex_AMRequestLong14(the_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12, (gasnetex_handlerarg_t)a13)
+        gasnetex_AMRequestLong14(g2ex_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12, (gasnetex_handlerarg_t)a13)
 #define gasnet_AMRequestLong15(dest, handler, source_addr, nbytes, dest_addr, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14) \
-        gasnetex_AMRequestLong15(the_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12, (gasnetex_handlerarg_t)a13, (gasnetex_handlerarg_t)a14)
+        gasnetex_AMRequestLong15(g2ex_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12, (gasnetex_handlerarg_t)a13, (gasnetex_handlerarg_t)a14)
 #define gasnet_AMRequestLong16(dest, handler, source_addr, nbytes, dest_addr, a0, a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11, a12, a13, a14, a15) \
-        gasnetex_AMRequestLong16(the_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12, (gasnetex_handlerarg_t)a13, (gasnetex_handlerarg_t)a14, (gasnetex_handlerarg_t)a15)
+        gasnetex_AMRequestLong16(g2ex_team, dest, handler, source_addr, nbytes, dest_addr, GASNETEX_LC_INIT, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12, (gasnetex_handlerarg_t)a13, (gasnetex_handlerarg_t)a14, (gasnetex_handlerarg_t)a15)
 /* ------------------------------------------------------------------------------------ */
 #define gasnet_AMRequestLongAsync0 gasnet_AMRequestLong0
 #define gasnet_AMRequestLongAsync1 gasnet_AMRequestLong1
@@ -289,39 +289,39 @@ typedef gasnetex_register_value_t gasnet_register_value_t;
 // TODO-EX: pass GASNETEX_FLAG_DST_IN_SEGMENT and possibly other flags
 
 #define gasnet_put(node,dest,src,nbytes) \
-                gasnetex_Put(the_team,node,dest,src,nbytes,0)
+                gasnetex_Put(g2ex_team,node,dest,src,nbytes,0)
 #define gasnet_put_bulk(node,dest,src,nbytes) \
-                gasnetex_Put(the_team,node,dest,src,nbytes,0)
+                gasnetex_Put(g2ex_team,node,dest,src,nbytes,0)
 #define gasnet_get(dest,node,src,nbytes) \
-                gasnetex_Get(the_team,dest,node,src,nbytes,0)
+                gasnetex_Get(g2ex_team,dest,node,src,nbytes,0)
 #define gasnet_get_bulk(dest,node,src,nbytes) \
-                gasnetex_Get(the_team,dest,node,src,nbytes,0)
+                gasnetex_Get(g2ex_team,dest,node,src,nbytes,0)
 
 /* ------------------------------------------------------------------------------------ */
 /* Implicit-handle non-blocking Put and Get */
 // TODO-EX: pass GASNETEX_FLAG_DST_IN_SEGMENT and possibly other flags
 
 #define gasnet_put_nbi(node,dest,src,nbytes) \
-                gasnetex_Put_nbi(the_team,node,dest,src,nbytes,GASNETEX_LC_INIT,0)
+                gasnetex_Put_nbi(g2ex_team,node,dest,src,nbytes,GASNETEX_LC_INIT,0)
 #define gasnet_put_nbi_bulk(node,dest,src,nbytes) \
-                gasnetex_Put_nbi(the_team,node,dest,src,nbytes,GASNETEX_LC_SYNC,0)
+                gasnetex_Put_nbi(g2ex_team,node,dest,src,nbytes,GASNETEX_LC_SYNC,0)
 #define gasnet_get_nbi(dest,node,src,nbytes) \
-                gasnetex_Get_nbi(the_team,dest,node,src,nbytes,0)
+                gasnetex_Get_nbi(g2ex_team,dest,node,src,nbytes,0)
 #define gasnet_get_nbi_bulk(dest,node,src,nbytes) \
-                gasnetex_Get_nbi(the_team,dest,node,src,nbytes,0)
+                gasnetex_Get_nbi(g2ex_team,dest,node,src,nbytes,0)
 
 /* ------------------------------------------------------------------------------------ */
 /* Explicit-handle non-blocking Put and Get */
 // TODO-EX: pass GASNETEX_FLAG_DST_IN_SEGMENT and possibly other flags
 
 #define gasnet_put_nb(node,dest,src,nbytes) \
-                gasnetex_Put_nb(the_team,node,dest,src,nbytes,GASNETEX_LC_INIT,0)
+                gasnetex_Put_nb(g2ex_team,node,dest,src,nbytes,GASNETEX_LC_INIT,0)
 #define gasnet_put_nb_bulk(node,dest,src,nbytes) \
-                gasnetex_Put_nb(the_team,node,dest,src,nbytes,GASNETEX_LC_SYNC,0)
+                gasnetex_Put_nb(g2ex_team,node,dest,src,nbytes,GASNETEX_LC_SYNC,0)
 #define gasnet_get_nb(dest,node,src,nbytes) \
-                gasnetex_Get_nb(the_team,dest,node,src,nbytes,0)
+                gasnetex_Get_nb(g2ex_team,dest,node,src,nbytes,0)
 #define gasnet_get_nb_bulk(dest,node,src,nbytes) \
-                gasnetex_Get_nb(the_team,dest,node,src,nbytes,0)
+                gasnetex_Get_nb(g2ex_team,dest,node,src,nbytes,0)
 
 /* ------------------------------------------------------------------------------------ */
 /* Non-Blocking Value Get (explicit-handle) */
