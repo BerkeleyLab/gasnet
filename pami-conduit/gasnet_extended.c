@@ -774,28 +774,30 @@ extern int  gasnete_try_syncnb_all (gasnetex_handle_t *phandle, size_t numhandle
 */
 
 extern
-void gasnete_get_nbi(gasnetex_team_member_t team,
+int gasnete_get_nbi( gasnetex_team_member_t team,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
                      gasnetex_flags_t flags GASNETE_THREAD_FARG)
 {
+  GASNETI_CHECKPSHM_GET(I);
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t * const op = mythread->current_iop;
     op->initiated_get_cnt++;
     gasnete_get_common(dest, rank, src, nbytes, (gasnete_op_t *)op, 0);
+    return 0;
   }
 }
 
 extern
-void gasnete_put_nbi(gasnetex_team_member_t team,
+int gasnete_put_nbi( gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_lc_handle_t *lc_opt,
                      gasnetex_flags_t flags GASNETE_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT(V);
+  GASNETI_CHECKPSHM_PUT(I);
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t * const op = mythread->current_iop;
@@ -823,6 +825,8 @@ void gasnete_put_nbi(gasnetex_team_member_t team,
         op->flags = OPTYPE_IMPLICIT; /* Should be cheaper than r-m-w */
       #endif
     }
+
+    return 0;
   }
 }
 
@@ -920,34 +924,36 @@ extern gasnetex_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
 
 #if GASNETI_DIRECT_BLOCKING_GET
 extern
-void gasnete_get(    gasnetex_team_member_t team,
+int gasnete_get(     gasnetex_team_member_t team,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
                      gasnetex_flags_t flags GASNETE_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(V);
+  GASNETI_CHECKPSHM_GET(I);
   {
     volatile gasnete_eop_t op = { OPSTATE_INFLIGHT, };
     gasnete_get_common(dest, rank, src, nbytes, (gasnete_op_t *)&op, 1);
     gasneti_polluntil(op.flags == OPSTATE_COMPLETE);
+    return 0;
   }
 }
 #endif
 
 #if GASNETI_DIRECT_BLOCKING_PUT
 extern
-void gasnete_put(    gasnetex_team_member_t team,
+int gasnete_put(     gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes,
                      gasnetex_flags_t flags GASNETE_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT(V);
+  GASNETI_CHECKPSHM_PUT(I);
   {
     volatile gasnete_eop_t op = { OPSTATE_INFLIGHT, };
     gasnete_put_common(rank, dest, src, nbytes, (gasnete_op_t *)&op, 0, 1);
     gasneti_polluntil(op.flags == OPSTATE_COMPLETE);
+    return 0;
   }
 }   
 #endif
