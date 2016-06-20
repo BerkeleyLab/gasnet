@@ -316,26 +316,37 @@ typedef gasnetex_handlerarg_t gasnet_handlerarg_t;
                 gasnetex_Get_nb(the_team,dest,node,src,nbytes,0)
 
 /* ------------------------------------------------------------------------------------ */
-/* Non-Blocking Value Get (explicit-handle) -- fully blocking implementation */
-// TODO-EX: pass GASNETEX_FLAG_SRC_IN_SEGMENT and possibly other flags
+/* Non-Blocking Value Get (explicit-handle) */
 
-typedef gasnet_register_value_t gasnet_valget_handle_t;
+typedef struct g2ex_valget_handle_s {
+  gasnet_register_value_t v;
+  gasnet_handle_t         h;
+} *gasnet_valget_handle_t;
 
 GASNETI_INLINE(gasnet_get_nb_val)
 gasnet_valget_handle_t gasnet_get_nb_val(gasnet_node_t node, void *src, size_t nbytes)
 {
-  gasnet_register_value_t result = 0;
+  gasnet_valget_handle_t result = malloc(sizeof(struct g2ex_valget_handle_s));
 #ifdef PLATFORM_ARCH_BIG_ENDIAN
-  void *dest = (void*)((uinptr_t)&result + sizeof(result) - nbytes);
+  void *dest = (void*)((uinptr_t)&(result->v) + sizeof(gasnet_register_value_t) - nbytes);
 #else /* little-endian */
-  void *dest = &result;
+  void *dest = &result->v;
 #endif
-  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
-  gasnet_get(dest, node, src, nbytes);
+  result->v = 0;
+  //assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
+  result->h = gasnet_get_nb(dest, node, src, nbytes);
   return result;
 }
 
-#define gasnet_wait_syncnb_valget(handle) (handle)
+GASNETI_INLINE(gasnet_wait_syncnb_valget)
+gasnet_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handle)
+{
+  gasnet_register_value_t result;
+  gasnet_wait_syncnb(handle->h);
+  result = handle->v;
+  free(handle);
+  return result;
+}
 
 
 GASNETI_END_EXTERNC
