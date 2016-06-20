@@ -111,7 +111,8 @@ void roundtrip_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-			gasnet_put_val(peerproc, tgtmem+offset, (gasnetex_register_value_t)i, nbytes);
+			gasnetex_put_val(myteam, peerproc, tgtmem+offset,
+					 (gasnetex_register_value_t)i, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -161,7 +162,8 @@ void oneway_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-			gasnet_put_val(peerproc, tgtmem+offset, (gasnetex_register_value_t)i, nbytes);
+			gasnetex_put_val(myteam, peerproc, tgtmem+offset,
+					 (gasnetex_register_value_t)i, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -212,7 +214,8 @@ void roundtrip_nb_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-			hdlput = gasnet_put_nb_val(peerproc, tgtmem+offset, (gasnetex_register_value_t)i, nbytes);
+			hdlput = gasnetex_put_nb_val(myteam, peerproc, tgtmem+offset,
+						     (gasnetex_register_value_t)i, nbytes, 0);
 			gasnet_wait_syncnb(hdlput);
 		}
 		end = TIME();
@@ -246,7 +249,8 @@ void oneway_nb_test(int nbytes)
 		begin = TIME();
                 for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-                        phandles[i] = gasnet_put_nb_val(peerproc, tgtmem+offset, (gasnetex_register_value_t)i, nbytes);
+                        phandles[i] = gasnetex_put_nb_val(myteam, peerproc, tgtmem+offset,
+							  (gasnetex_register_value_t)i, nbytes, 0);
                 }
 		gasnet_wait_syncnb_all(phandles, iters); 
 		end = TIME();
@@ -279,7 +283,8 @@ void roundtrip_nbi_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-			gasnet_put_nbi_val(peerproc, tgtmem+offset, (gasnetex_register_value_t)i, nbytes);
+			gasnetex_put_nbi_val(myteam, peerproc, tgtmem+offset,
+					     (gasnetex_register_value_t)i, nbytes, 0);
 
 			gasnet_wait_syncnbi_puts();
 		}
@@ -310,7 +315,8 @@ void oneway_nbi_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-			gasnet_put_nbi_val(peerproc, tgtmem+offset, (gasnetex_register_value_t)i, nbytes);
+			gasnetex_put_nbi_val(myteam, peerproc, tgtmem+offset,
+					     (gasnetex_register_value_t)i, nbytes, 0);
 		}
 		gasnet_wait_syncnbi_puts();
 		end = TIME();
@@ -439,10 +445,10 @@ int main(int argc, char **argv)
            gasnet_handle_t *ph = test_malloc(sizeof(gasnet_handle_t)*warm_iters);
            gasnetex_register_value_t reg = 1;
            for (i = 0; i < warm_iters; i++) {
-              gasnet_put_val(peerproc, tgtmem, reg, max_payload);
+              gasnetex_put_val(myteam, peerproc, tgtmem, reg, max_payload, 0);
               reg ^= gasnetex_get_val(myteam, peerproc, tgtmem, max_payload, 0);
-              ph[i] = gasnet_put_nb_val(peerproc, tgtmem, reg, max_payload);
-              gasnet_put_nbi_val(peerproc, tgtmem, reg, max_payload);
+              ph[i] = gasnetex_put_nb_val(myteam, peerproc, tgtmem, reg, max_payload, 0);
+              gasnetex_put_nbi_val(myteam, peerproc, tgtmem, reg, max_payload, 0);
            }
            gasnet_wait_syncnbi_puts();
            gasnet_wait_syncnb_all(ph, warm_iters);

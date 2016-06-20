@@ -324,7 +324,7 @@ typedef gasnetex_register_value_t gasnet_register_value_t;
                 gasnetex_get_nb(g2ex_team,dest,node,src,nbytes,0)
 
 /* ------------------------------------------------------------------------------------ */
-/* Value Gets - blocking and explicit-handle non-locking */
+/* Value Gets - blocking and explicit-handle non-blocking */
 // TODO-EX: pass GASNETEX_FLAG_SRC_IN_SEGMENT and possibly other flags
 
 #define gasnet_get_val(node,src,nbytes) \
@@ -360,6 +360,17 @@ gasnet_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handle)
   return result;
 }
 
+
+/* ------------------------------------------------------------------------------------ */
+/* Value Puts - blocking, and explicit- and implicit-handle non-blocking */
+// TODO-EX: pass GASNETEX_FLAG_DST_IN_SEGMENT and possibly other flags
+
+#define gasnet_put_val(node,dest,value,nbytes) \
+                gasnetex_put_val(g2ex_team,node,dest,value,nbytes,0)
+#define gasnet_put_nb_val(node,dest,value,nbytes) \
+                gasnetex_put_nb_val(g2ex_team,node,dest,value,nbytes,0)
+#define gasnet_put_nbi_val(node,dest,value,nbytes) \
+                gasnetex_put_nbi_val(g2ex_team,node,dest,value,nbytes,0)
 
 GASNETI_END_EXTERNC
 

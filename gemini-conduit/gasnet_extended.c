@@ -971,7 +971,13 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
 #define gasnete_val_assign(_dst, _val) \
     (*(gasnetex_register_value_t *)(_dst) = (gasnetex_register_value_t)(_val))
 
-extern void gasnete_put_val(gasnetex_rank_t node, void *dest, gasnetex_register_value_t value, size_t nbytes GASNETE_THREAD_FARG) {
+extern void gasnete_put_val(
+                gasnetex_team_member_t team,
+                gasnetex_rank_t rank, void *dest,
+                gasnetex_register_value_t value,
+                size_t nbytes, gasnetex_flags_t flags
+                GASNETE_THREAD_FARG)
+{
   GASNETI_CHECKPSHM_PUTVAL(V);
   {
     GASNETC_DIDX_POST(GASNETE_MYTHREAD->domain_idx);
@@ -982,13 +988,19 @@ extern void gasnete_put_val(gasnetex_rank_t node, void *dest, gasnetex_register_
     gpd->gpd_completion = (uintptr_t) &done;
     gpd->flags = GC_POST_COMPLETION_FLAG;
     gasnete_val_assign(gpd->u.immediate, value);
-    gasnetc_rdma_put_buff(node, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);
+    gasnetc_rdma_put_buff(rank, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);
     gasneti_resume_spinpollers();
     gasneti_polluntil(done);
   }
 }
 
-extern gasnet_handle_t gasnete_put_nb_val(gasnetex_rank_t node, void *dest, gasnetex_register_value_t value, size_t nbytes GASNETE_THREAD_FARG) {
+extern gasnetex_handle_t gasnete_put_nb_val(
+                gasnetex_team_member_t team,
+                gasnetex_rank_t rank, void *dest,
+                gasnetex_register_value_t value,
+                size_t nbytes, gasnetex_flags_t flags
+                GASNETE_THREAD_FARG)
+{
   GASNETI_CHECKPSHM_PUTVAL(H);
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
@@ -998,13 +1010,19 @@ extern gasnet_handle_t gasnete_put_nb_val(gasnetex_rank_t node, void *dest, gasn
     gasneti_suspend_spinpollers();
     gpd = gasnete_cntr_gpd(GASNETE_EOP_CNTRS(eop) GASNETC_DIDX_PASS);
     gasnete_val_assign(gpd->u.immediate, value);
-    gasnetc_rdma_put_buff(node, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);
+    gasnetc_rdma_put_buff(rank, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);
     gasneti_resume_spinpollers();
-    return((gasnet_handle_t) eop);
+    return((gasnetex_handle_t) eop);
   }
 }
 
-extern void gasnete_put_nbi_val(gasnetex_rank_t node, void *dest, gasnetex_register_value_t value, size_t nbytes GASNETE_THREAD_FARG) {
+extern void gasnete_put_nbi_val(
+                gasnetex_team_member_t team,
+                gasnetex_rank_t rank, void *dest,
+                gasnetex_register_value_t value,
+                size_t nbytes, gasnetex_flags_t flags
+                GASNETE_THREAD_FARG)
+{
   GASNETI_CHECKPSHM_PUTVAL(V);
   {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
@@ -1014,7 +1032,7 @@ extern void gasnete_put_nbi_val(gasnetex_rank_t node, void *dest, gasnetex_regis
     gasneti_suspend_spinpollers();
     gpd = gasnete_cntr_gpd(GASNETE_IOP_CNTRS(iop, put) GASNETC_DIDX_PASS);
     gasnete_val_assign(gpd->u.immediate, value);
-    gasnetc_rdma_put_buff(node, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);
+    gasnetc_rdma_put_buff(rank, dest, GASNETE_STARTOFBITS(gpd->u.immediate, nbytes), nbytes, gpd);
     gasneti_resume_spinpollers();
   }
 }

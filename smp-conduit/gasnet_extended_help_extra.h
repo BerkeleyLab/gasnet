@@ -158,7 +158,12 @@ gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
 */
 
 GASNETI_INLINE(gasnete_put_val)
-void gasnete_put_val(gasnetex_rank_t node, void *dest, gasnetex_register_value_t value, size_t nbytes GASNETE_THREAD_FARG)
+void gasnete_put_val(
+                gasnetex_team_member_t team,
+                gasnetex_rank_t rank, void *dest,
+                gasnetex_register_value_t value,
+                size_t nbytes, gasnetex_flags_t flags
+                GASNETE_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUTVAL(V);
   gasneti_assert(0 && "Unreachable");
@@ -166,7 +171,12 @@ void gasnete_put_val(gasnetex_rank_t node, void *dest, gasnetex_register_value_t
 #define gasnete_put_val gasnete_put_val
 
 GASNETI_INLINE(gasnete_put_nb_val) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t gasnete_put_nb_val(gasnetex_rank_t node, void *dest, gasnetex_register_value_t value, size_t nbytes GASNETE_THREAD_FARG)
+gasnetex_handle_t gasnete_put_nb_val(
+                gasnetex_team_member_t team,
+                gasnetex_rank_t rank, void *dest,
+                gasnetex_register_value_t value,
+                size_t nbytes, gasnetex_flags_t flags
+                GASNETE_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUTVAL(H);
   gasneti_assert(0 && "Unreachable");

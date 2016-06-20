@@ -1072,13 +1072,13 @@ pairwise_signal_nbrs(nbr_t *nb, gasnet_handle_t *h_nbr, int axis_in, int phase)
 	destup   = nb->nodeidUpper[axis];
 	destdown = nb->nodeidLower[axis];
 
-	h_nbr[i*2+0] = gasnet_put_nb_val(destup, 
+	h_nbr[i*2+0] = gasnetex_put_nb_val(myteam, destup,
 	    (void *) NBR_SYNCADDR(nb->DirSyncComm3[destup], axis, 1, phase), 
-	    1, sizeof(int));
+	    1, sizeof(int), 0);
 
-	h_nbr[i*2+1] = gasnet_put_nb_val(destdown, 
+	h_nbr[i*2+1] = gasnetex_put_nb_val(myteam, destdown,
 	    (void *) NBR_SYNCADDR(nb->DirSyncComm3[destdown], axis, 0, phase), 
-	    1, sizeof(int));
+	    1, sizeof(int), 0);
     }
 }
 
@@ -1304,7 +1304,7 @@ ge_notify(nbr_t *nb, int dir, int axis)
 	return GASNET_INVALID_HANDLE;
     }
     else
-	return gasnet_put_nb_val(node, (void *)syncflag, 1, sizeof(int));
+	return gasnetex_put_nb_val(myteam, node, (void *)syncflag, 1, sizeof(int), 0);
 }
 
 

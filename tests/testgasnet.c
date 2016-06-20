@@ -356,13 +356,13 @@ void doit3(int partner, int *partnerseg) {
     int i, success=1;
     unsigned char *partnerbase2 = (unsigned char *)(partnerseg+300);
     for (i=0; i < 100; i++) {
-      gasnet_put_val(partner, partnerseg+i, 1000 + mynode + i, sizeof(int));
+      gasnetex_put_val(myteam, partner, partnerseg+i, 1000 + mynode + i, sizeof(int), 0);
     }
     for (i=0; i < 100; i++) {
-      gasnet_wait_syncnb(gasnet_put_nb_val(partner, partnerseg+i+100, 1000 + mynode + i, sizeof(int)));
+      gasnet_wait_syncnb(gasnetex_put_nb_val(myteam, partner, partnerseg+i+100, 1000 + mynode + i, sizeof(int), 0));
     }
     for (i=0; i < 100; i++) {
-      gasnet_put_nbi_val(partner, partnerseg+i+200, 1000 + mynode + i, sizeof(int));
+      gasnetex_put_nbi_val(myteam, partner, partnerseg+i+200, 1000 + mynode + i, sizeof(int), 0);
     }
     gasnet_wait_syncnbi_puts();
 
@@ -379,13 +379,13 @@ void doit3(int partner, int *partnerseg) {
     }
 
     for (i=0; i < 100; i++) {
-      gasnet_put_val(partner, partnerbase2+i, 100 + mynode + i, sizeof(unsigned char));
+      gasnetex_put_val(myteam, partner, partnerbase2+i, 100 + mynode + i, sizeof(unsigned char), 0);
     }
     for (i=0; i < 100; i++) {
-      gasnet_wait_syncnb(gasnet_put_nb_val(partner, partnerbase2+i+100, 100 + mynode + i, sizeof(unsigned char)));
+      gasnet_wait_syncnb(gasnetex_put_nb_val(myteam, partner, partnerbase2+i+100, 100 + mynode + i, sizeof(unsigned char), 0));
     }
     for (i=0; i < 100; i++) {
-      gasnet_put_nbi_val(partner, partnerbase2+i+200, 100 + mynode + i, sizeof(unsigned char));
+      gasnetex_put_nbi_val(myteam, partner, partnerbase2+i+200, 100 + mynode + i, sizeof(unsigned char), 0);
     }
     gasnet_wait_syncnbi_puts();
 

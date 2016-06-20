@@ -349,14 +349,14 @@ void doit4(void) { GASNET_BEGIN_FUNCTION();
       { gasnetex_put_nbi(myteam, mynode, myseg, &temp, 4, GASNETEX_LC_SYNC, 0); },
       { gasnet_wait_syncnbi_puts(); });
 
-    TIME_OPERATION("local 4-byte gasnet_put_val",
-      { gasnet_put_val(mynode, myseg, temp, 4); });
+    TIME_OPERATION("local 4-byte gasnetex_put_val",
+      { gasnetex_put_val(myteam, mynode, myseg, temp, 4, 0); });
 
-    TIME_OPERATION("local 4-byte gasnet_put_nb_val",
-      { gasnet_wait_syncnb(gasnet_put_nb_val(mynode, myseg, temp, 4)); });
+    TIME_OPERATION("local 4-byte gasnetex_put_nb_val",
+      { gasnet_wait_syncnb(gasnetex_put_nb_val(myteam, mynode, myseg, temp, 4, 0)); });
 
-    TIME_OPERATION_FULL("local 4-byte gasnet_put_nbi_val", {},
-      { gasnet_put_nbi_val(mynode, myseg, temp, 4); },
+    TIME_OPERATION_FULL("local 4-byte gasnetex_put_nbi_val", {},
+      { gasnetex_put_nbi_val(myteam, mynode, myseg, temp, 4, 0); },
       { gasnet_wait_syncnbi_puts(); });
 
     TIME_OPERATION("local 1024-byte gasnetex_put",
