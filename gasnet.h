@@ -274,6 +274,20 @@ typedef struct gasneti_token_s *gasnetex_token_t;
 struct gasneti_team_member_s; // TODO-EX: better name!
 typedef struct gasneti_team_s *gasnetex_team_member_t;
 
+// TODO-EX: remove these legacy checks
+#ifdef _GASNET_NODE_T
+#error "out-of-date #define of _GASNET_NODE_T"
+#endif
+#ifdef _GASNET_HANDLER_T
+#error "out-of-date #define of _GASNET_HANDLER_T"
+#endif
+#ifdef _GASNET_TOKEN_T
+#error "out-of-date #define of _GASNET_TOKEN_T"
+#endif
+#ifdef _GASNET_HANDLERARG_T
+#error "out-of-date #define of _GASNET_HANDLERARG_T"
+#endif
+
 
 #ifndef _GASNET_HANDLERENTRY_T
 #define _GASNET_HANDLERENTRY_T
