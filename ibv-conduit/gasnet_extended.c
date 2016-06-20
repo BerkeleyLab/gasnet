@@ -390,13 +390,13 @@ gasnetex_handle_t gasnete_Put_nb(
   /* XXX check error returns */
 
   if (gasneti_lc_is_pointer(lc_opt)) {
-    gasneti_fatalerror("Put_nbi(lc_opt pointer) unimplemented"); // TODO-EX: fix this
+    gasneti_fatalerror("Put_nb(lc_opt pointer) unimplemented"); // TODO-EX: fix this
   } else if (lc_opt == GASNETEX_LC_INIT) {
     mem_oust = &mem_counter;
   } else if (lc_opt == GASNETEX_LC_SYNC) {
     mem_oust = NULL;
   } else {
-    gasneti_fatalerror("Invalid lc_opt argument to Put_nbi");
+    gasneti_fatalerror("Invalid lc_opt argument to Put_nb");
   }
 
   gasnetc_rdma_put(rank, src, dest, nbytes, mem_oust, GASNETE_EOP_CNTRS(op) GASNETE_THREAD_PASS);

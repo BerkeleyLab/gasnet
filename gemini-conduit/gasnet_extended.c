@@ -680,13 +680,13 @@ gasnetex_handle_t gasnete_Put_nb(
   GASNETI_CHECKPSHM_PUT(H);
 
   if (lc_opt == GASNETEX_LC_GROUP) {
-    gasneti_fatalerror("Put_nbi(LC_GROUP) unimplemented"); // TODO-EX: fix this
+    gasneti_fatalerror("Put_nb(LC_GROUP) unimplemented"); // TODO-EX: fix this
   } else if (lc_opt == GASNETEX_LC_INIT) {
     return gasnete_put_nb(rank, dest, src, nbytes GASNETE_THREAD_PASS);
   } else if (lc_opt == GASNETEX_LC_SYNC) {
     return gasnete_put_nb_bulk(rank, dest, src, nbytes GASNETE_THREAD_PASS);
   } else {
-    gasneti_fatalerror("Invalid lc_opt argument to Put_nbi");
+    gasneti_fatalerror("Invalid lc_opt argument to Put_nb");
   }
 }
 
