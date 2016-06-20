@@ -413,7 +413,8 @@ typedef union {
 /* ------------------------------------------------------------------------------------ */
 
 /* helper macros */
-#define _GASNETI_RETURN_V  return
+#define _GASNETI_RETURN_V  return // TODO-EX: to be removed
+#define _GASNETI_RETURN_I  return 0
 #define _GASNETI_RETURN_H  return GASNETEX_INVALID_HANDLE
 #define GASNETI_CHECKZEROSZ_GET(variety, rt) do {            \
     if_pf (nbytes == 0) {                                    \

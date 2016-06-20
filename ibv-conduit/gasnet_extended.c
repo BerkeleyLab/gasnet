@@ -520,30 +520,31 @@ extern int  gasnete_try_syncnb_all (gasnetex_handle_t *phandle, size_t numhandle
         &(_iop)->initiated_##_putget##_cnt, &(_iop)->completed_##_putget##_cnt
 
 extern
-void gasnete_get_nbi(gasnetex_team_member_t team,
+int gasnete_get_nbi (gasnetex_team_member_t team,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
                      gasnetex_flags_t flags GASNETE_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(V);
+  GASNETI_CHECKPSHM_GET(I);
  {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *op = mythread->current_iop;
 
   /* XXX check error returns */ 
   gasnetc_rdma_get(rank, src, dest, nbytes, GASNETE_IOP_CNTRS(op,get) GASNETE_THREAD_PASS);
+  return 0;
  }
 }
 
 extern
-void gasnete_put_nbi(gasnetex_team_member_t team,
+int gasnete_put_nbi (gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_lc_handle_t *lc_opt,
                      gasnetex_flags_t flags GASNETE_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT(V);
+  GASNETI_CHECKPSHM_PUT(I);
  {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *op = mythread->current_iop;
@@ -564,6 +565,7 @@ void gasnete_put_nbi(gasnetex_team_member_t team,
 
   gasnetc_rdma_put(rank, src, dest, nbytes, mem_oust, GASNETE_IOP_CNTRS(op,put) GASNETE_THREAD_PASS);
   if (lc_opt == GASNETEX_LC_INIT) gasnetc_counter_wait(mem_oust, 0);
+  return 0;
  }
 }
 
@@ -660,29 +662,33 @@ extern gasnetex_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
 #define GASNETE_REQ_CNTRS(_req) \
         &(_req).initiated, &(_req).completed
 
-extern void gasnete_get (gasnetex_team_member_t team,
+extern int gasnete_get  (gasnetex_team_member_t team,
                          void* dest,
                          gasnetex_rank_t rank, void *src,
                          size_t nbytes, gasnetex_flags_t flags
-                         GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_GET(V);
+                         GASNETE_THREAD_FARG)
+{
+  GASNETI_CHECKPSHM_GET(I);
  {
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
   gasnetc_rdma_get(rank, src, dest, nbytes, GASNETE_REQ_CNTRS(req_oust) GASNETE_THREAD_PASS);
   gasnetc_counter_wait(&req_oust, 0);
+  return 0;
  }
 }
 
-extern void gasnete_put (gasnetex_team_member_t team,
+extern int gasnete_put  (gasnetex_team_member_t team,
                          gasnetex_rank_t rank, void* dest,
                          /*const*/ void *src,
                          size_t nbytes, gasnetex_flags_t flags
-                         GASNETE_THREAD_FARG) {
-  GASNETI_CHECKPSHM_PUT(V);
+                         GASNETE_THREAD_FARG)
+{
+  GASNETI_CHECKPSHM_PUT(I);
  {
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
   gasnetc_rdma_put(rank, src, dest, nbytes, NULL, GASNETE_REQ_CNTRS(req_oust) GASNETE_THREAD_PASS);
   gasnetc_counter_wait(&req_oust, 0);
+  return 0;
  }
 }   
 

@@ -616,14 +616,15 @@ extern gasnetex_handle_t gasnete_amref_memset_nb   (gasnetex_rank_t node, void *
 
 #if GASNETE_BUILD_AMREF_GET
 extern
-void gasnete_amref_get_nbi(gasnetex_team_member_t team,
+int gasnete_amref_get_nbi( gasnetex_team_member_t team,
                            void *dest,
                            gasnetex_rank_t rank, void *src,
                            size_t nbytes,
                            gasnetex_flags_t flags GASNETE_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(V);
+  GASNETI_CHECKPSHM_GET(I);
   gasnete_amref_get_nbi_inner(team, dest, rank, src, nbytes, flags GASNETE_THREAD_PASS);
+  return 0;
 }
 #endif /* GASNETE_BUILD_AMREF_GET */
 
@@ -631,14 +632,15 @@ void gasnete_amref_get_nbi(gasnetex_team_member_t team,
 
 #if GASNETE_BUILD_AMREF_PUT
 extern
-void gasnete_amref_put_nbi(gasnetex_team_member_t team,
+int gasnete_amref_put_nbi( gasnetex_team_member_t team,
                            gasnetex_rank_t rank, void *dest,
                            void *src,
                            size_t nbytes, gasnetex_lc_handle_t *lc_opt,
                            gasnetex_flags_t flags GASNETE_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT(V);
+  GASNETI_CHECKPSHM_PUT(I);
   gasnete_amref_put_nbi_inner(team, rank, dest, src, nbytes, lc_opt, flags GASNETE_THREAD_PASS);
+  return 0;
 }
 #endif /* GASNETE_BUILD_AMREF_PUT */
 

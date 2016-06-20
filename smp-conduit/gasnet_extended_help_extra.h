@@ -92,26 +92,28 @@ int gasnete_syncnb_array(gasnetex_handle_t *phandle, size_t numhandles)
  */
    
 GASNETI_INLINE(gasnete_get_nbi)
-void gasnete_get_nbi(gasnetex_team_member_t team,
+int gasnete_get_nbi (gasnetex_team_member_t team,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
                      gasnetex_flags_t flags GASNETE_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_GET(V);
+  GASNETI_CHECKPSHM_GET(I);
   gasneti_assert(0 && "Unreachable");
+  return 0;
 }
 #define gasnete_get_nbi gasnete_get_nbi
 
 GASNETI_INLINE(gasnete_put_nbi)
-void gasnete_put_nbi(gasnetex_team_member_t team,
+int gasnete_put_nbi (gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_lc_handle_t *lc_opt,
                      gasnetex_flags_t flags GASNETE_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT(V);
+  GASNETI_CHECKPSHM_PUT(I);
   gasneti_assert(0 && "Unreachable");
+  return 0;
 }
 #define gasnete_put_nbi gasnete_put_nbi
 
@@ -158,14 +160,14 @@ gasnetex_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
 */
 
 GASNETI_INLINE(gasnete_put_val)
-void gasnete_put_val(
+int gasnete_put_val(
                 gasnetex_team_member_t team,
                 gasnetex_rank_t rank, void *dest,
                 gasnetex_register_value_t value,
                 size_t nbytes, gasnetex_flags_t flags
                 GASNETE_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUTVAL(V);
+  GASNETI_CHECKPSHM_PUTVAL(I);
   gasneti_assert(0 && "Unreachable");
 }
 #define gasnete_put_val gasnete_put_val
