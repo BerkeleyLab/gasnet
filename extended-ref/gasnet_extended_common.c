@@ -101,11 +101,6 @@ static void gasnete_init_threaddata(gasnete_threaddata_t *threaddata) {
 #ifndef GASNETE_FREE_THREADDATA
 #define GASNETE_FREE_THREADDATA(thread) gasnete_free_threaddata(thread)
 
-#ifndef GASNETE_VALGET_CUSTOM
-#define GASNETE_VALGET_FREEALL(thread) gasnete_valget_freeall(thread)
-static void gasnete_valget_freeall(gasnete_threaddata_t *thread);
-#endif
-
 static void gasnete_free_threaddata(gasnete_threaddata_t *thread) {
 
   #ifndef GASNETE_IOP_ISDONE
@@ -142,11 +137,6 @@ static void gasnete_free_threaddata(gasnete_threaddata_t *thread) {
   }
   #endif
   GASNETE_FREE_EOPS(thread);
-
-  #ifdef GASNETE_VALGET_FREEALL
-  /* valgets */
-  GASNETE_VALGET_FREEALL(thread);
-  #endif
 
   /* conduits needing additional cleanups should use gasnete_register_threadcleanup */
 
@@ -338,78 +328,4 @@ static gasnete_threaddata_t * gasnete_new_threaddata(void)) {
 
 #endif /* GASNETE_THREADING_CUSTOM  */
 
-/* ------------------------------------------------------------------------------------ */
-/*
-  Non-Blocking Value Get (explicit-handle)
-  ========================================
-*/
-#ifndef GASNETE_VALGET_CUSTOM
-typedef struct _gasnete_valget_op_t {
-  gasnetex_handle_t handle;
-  gasnet_register_value_t val;
-
-  struct _gasnete_valget_op_t* next; /* for free-list only */
-  gasnete_threadidx_t threadidx;  /*  thread that owns me */
-} gasnete_valget_op_t;
-
-extern gasnet_valget_handle_t gasnete_get_nb_val(gasnetex_rank_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-  gasnet_valget_handle_t retval;
-  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
-  if (mythread->valget_free) {
-    retval = mythread->valget_free;
-    mythread->valget_free = retval->next;
-    gasneti_memcheck(retval);
-  } else {
-    retval = (gasnete_valget_op_t*)gasneti_malloc(sizeof(gasnete_valget_op_t));
-    gasneti_leak(retval);
-    retval->threadidx = mythread->threadidx;
-  }
-
-  retval->val = 0;
-#if GASNET_PSHM
-  if (gasneti_pshm_in_supernode(node)) {
-    /* Assume that addr2local on local node is cheaper than an extra branch */
-    GASNETE_FAST_ALIGNED_MEMCPY(GASNETE_STARTOFBITS(&(retval->val),nbytes),
-                                gasneti_pshm_addr2local(node, src), nbytes);
-    retval->handle = GASNETEX_INVALID_HANDLE;
-  }
-#else
-  if (gasnete_islocal(node)) {
-    GASNETE_FAST_ALIGNED_MEMCPY(GASNETE_STARTOFBITS(&(retval->val),nbytes), src, nbytes);
-    retval->handle = GASNETEX_INVALID_HANDLE;
-  }
-#endif
-  else {
-    #ifndef GASNETE_VALGET_GETOP
-    #define GASNETE_VALGET_GETOP gasnete_Get_nb
-    #endif
-    retval->handle = GASNETE_VALGET_GETOP(NULL, GASNETE_STARTOFBITS(&(retval->val),nbytes), node, src, nbytes, 0 GASNETE_THREAD_PASS);
-  }
-  return retval;
-}
-
-extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t handle) {
-  gasnete_assert_valid_threadid(handle->threadidx);
-  { gasnete_threaddata_t * const thread = gasnete_threadtable[handle->threadidx];
-    gasnet_register_value_t val;
-    gasneti_assert(thread == gasnete_mythread());
-    handle->next = thread->valget_free; /* free before the wait to save time after the wait, */
-    thread->valget_free = handle;       /*  safe because this thread is under our control */
-
-    gasnete_wait_syncnb(handle->handle);
-    val = handle->val;
-    return val;
-  }
-}
-
-static void gasnete_valget_freeall(gasnete_threaddata_t *thread) {
-  gasnete_valget_op_t *vg = thread->valget_free;
-  while (vg) {
-    gasnete_valget_op_t *next = vg->next;
-    gasneti_free(vg);  
-    vg = next;
-  }
-}
-#endif
 /* ------------------------------------------------------------------------------------ */

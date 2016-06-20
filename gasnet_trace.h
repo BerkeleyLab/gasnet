@@ -758,7 +758,6 @@ extern void gasneti_trace_finish(void);
         TIME(S, WAIT_SYNCNB, waittime)                    \
         TIME(S, WAIT_SYNCNB_ALL, waittime)                \
         TIME(S, WAIT_SYNCNB_SOME, waittime)               \
-        TIME(S, WAIT_SYNCNB_VALGET, waittime)             \
         VAL(S, TRY_SYNCNBI_ALL, success)                  \
         VAL(S, TRY_SYNCNBI_GETS, success)                 \
         VAL(S, TRY_SYNCNBI_PUTS, success)                 \

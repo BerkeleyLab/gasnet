@@ -21,10 +21,6 @@ typedef int * gasnet_handle_t;
 #define GASNET_INVALID_HANDLE ((gasnet_handle_t)0)
 #define GASNETI_DISABLE_EOP_INTERFACE
 
-/* shmem-conduit has a custom valget implementation */
-#define _GASNET_VALGET_HANDLE_T
-typedef uintptr_t gasnet_valget_handle_t;
-
 #define _GASNET_REGISTER_VALUE_T
 #define SIZEOF_GASNET_REGISTER_VALUE_T SIZEOF_VOID_P
 typedef uintptr_t gasnet_register_value_t;

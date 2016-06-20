@@ -603,40 +603,6 @@ void _gasnet_put_nbi_val(gasnetex_rank_t node, void *dest, gasnet_register_value
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Non-Blocking Value Get (explicit-handle)
-  ========================================
-*/
-
-#ifndef _GASNET_VALGET_HANDLE_T
-struct _gasnete_valget_op_t;
-typedef struct _gasnete_valget_op_t *gasnet_valget_handle_t;
-#endif
-
-extern gasnet_valget_handle_t gasnete_get_nb_val(gasnetex_rank_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
-#ifndef gasnete_wait_syncnb_valget
-extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t handle);
-#endif
-
-GASNETI_INLINE(_gasnet_get_nb_val) GASNETI_WARN_UNUSED_RESULT
-gasnet_valget_handle_t _gasnet_get_nb_val (gasnetex_rank_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  if (gasnete_islocal(node)) GASNETI_TRACE_GET_LOCAL(NB_VAL,NULL,node,src,nbytes);
-  else GASNETI_TRACE_GET(NB_VAL,NULL,node,src,nbytes);     
-  return gasnete_get_nb_val(node,src,nbytes GASNETE_THREAD_PASS); 
-}
-#define gasnet_get_nb_val(node,src,nbytes) \
-       _gasnet_get_nb_val(node,src,nbytes GASNETE_THREAD_GET)
-
-GASNETI_INLINE(gasnet_wait_syncnb_valget) GASNETI_WARN_UNUSED_RESULT
-gasnet_register_value_t gasnet_wait_syncnb_valget (gasnet_valget_handle_t handle) {
-  gasnet_register_value_t val;
-  GASNETI_TRACE_WAITSYNC_BEGIN();
-  val = gasnete_wait_syncnb_valget(handle); 
-  GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNB_VALGET);   
-  return val;
-}
-
-/* ------------------------------------------------------------------------------------ */
-/*
   Blocking Value Get
   ==================
 */

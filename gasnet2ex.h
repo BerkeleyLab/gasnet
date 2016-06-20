@@ -315,6 +315,28 @@ typedef gasnetex_handlerarg_t gasnet_handlerarg_t;
 #define gasnet_get_nb_bulk(dest,node,src,nbytes) \
                 gasnetex_Get_nb(the_team,dest,node,src,nbytes,0)
 
+/* ------------------------------------------------------------------------------------ */
+/* Non-Blocking Value Get (explicit-handle) -- fully blocking implementation */
+// TODO-EX: pass GASNETEX_FLAG_SRC_IN_SEGMENT and possibly other flags
+
+typedef gasnet_register_value_t gasnet_valget_handle_t;
+
+GASNETI_INLINE(gasnet_get_nb_val)
+gasnet_valget_handle_t gasnet_get_nb_val(gasnet_node_t node, void *src, size_t nbytes)
+{
+  gasnet_register_value_t result = 0;
+#ifdef PLATFORM_ARCH_BIG_ENDIAN
+  void *dest = (void*)((uinptr_t)&result + sizeof(result) - nbytes);
+#else /* little-endian */
+  void *dest = &result;
+#endif
+  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
+  gasnet_get(dest, node, src, nbytes);
+  return result;
+}
+
+#define gasnet_wait_syncnb_valget(handle) (handle)
+
 
 GASNETI_END_EXTERNC
 

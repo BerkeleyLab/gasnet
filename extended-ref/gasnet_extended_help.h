@@ -81,13 +81,6 @@ extern void gasneti_fatal_threadoverflow(const char *subsystem);
  */
 extern void gasnete_register_threadcleanup(void (*cleanupfn)(void *), void *context);
 
-/* free list of valget cells */
-#ifdef GASNETE_VALGET_CUSTOM
-#define GASNETE_VALGET_FIELDS
-#else 
-#define GASNETE_VALGET_FIELDS struct _gasnete_valget_op_t *valget_free;
-#endif
-
 typedef struct _gasnete_thread_cleanup {
     struct _gasnete_thread_cleanup *next;
     void (*cleanupfn)(void *);
@@ -104,9 +97,7 @@ typedef struct _gasnete_thread_cleanup {
   gasnete_threadidx_t threadidx;                                              \
                                                                               \
   gasnete_thread_cleanup_t *thread_cleanup; /* thread cleanup function LIFO */\
-  int thread_cleanup_delay;                                                   \
-                                                                              \
-  GASNETE_VALGET_FIELDS
+  int thread_cleanup_delay;
 
 /* high-water mark on highest thread index allocated thus far */
 extern int gasnete_maxthreadidx;

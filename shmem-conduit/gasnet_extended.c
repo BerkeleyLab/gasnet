@@ -35,7 +35,6 @@ gasnete_threaddata_t  * const gasnete_threaddata_ptr = &gasnete_threaddata;
 */
 
 #define GASNETE_THREADING_CUSTOM 1
-#define GASNETE_VALGET_CUSTOM 1
 
 #include "gasnet_extended_common.c"
 

@@ -380,11 +380,6 @@ void doit5(void) { GASNET_BEGIN_FUNCTION();
     TIME_OPERATION("local 4-byte gasnet_get_val",
       { temp = (int32_t)gasnet_get_val(mynode, myseg, 4); });
 
-    TIME_OPERATION("local 4-byte gasnet_get_nb_val",
-      { gasnet_valget_handle_t handle = gasnet_get_nb_val(mynode, myseg, 4);
-        temp = (int32_t)gasnet_wait_syncnb_valget(handle);
-      });
-
     TIME_OPERATION("local 1024-byte gasnetex_Get",
       { gasnetex_Get(myteam, &bigtemp, mynode, myseg, 1024, 0); });
 

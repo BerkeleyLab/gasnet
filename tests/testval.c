@@ -201,8 +201,6 @@ void roundtrip_nb_test(int nbytes)
     int64_t begin, end;
     stat_struct_t st;
     gasnet_handle_t hdlput;
-    gasnet_valget_handle_t hdlget;
-    gasnet_register_value_t reg = 1;
 
 	/* initialize statistics */
 	init_stat(&st, nbytes);
@@ -226,28 +224,6 @@ void roundtrip_nb_test(int nbytes)
 	if (iamsender && doputs) {
 		print_stat(myproc, &st, "put_nb_val latency", PRINT_LATENCY);
 	}	
-
-	/* initialize statistics */
-	init_stat(&st, nbytes);
-
-	if (iamsender && dogets) {
-		/* measure the round-trip time of nonblocking get */
-		begin = TIME();
-		for (i = 0; i < iters; i++) {
-			unsigned int offset = i * nbytes;
-	 		hdlget = gasnet_get_nb_val(peerproc, tgtmem+offset, nbytes);
-			reg ^= gasnet_wait_syncnb_valget(hdlget);
-		}
-		end = TIME();
-	 	update_stat(&st, (end - begin), iters);
-	}
-	
-	BARRIER();
-	
-	if (iamsender && dogets) {
-		print_stat(myproc, &st, "get_nb_val latency", PRINT_LATENCY);
-	}	
-
 }
 
 void oneway_nb_test(int nbytes)
@@ -256,14 +232,12 @@ void oneway_nb_test(int nbytes)
     int64_t begin, end;
     stat_struct_t st;
     gasnet_handle_t *phandles;
-    gasnet_valget_handle_t *ghandles;
     gasnet_register_value_t reg = 1;
 
 	/* initialize statistics */
 	init_stat(&st, nbytes);
 	
 	phandles = (gasnet_handle_t*) test_malloc(sizeof(gasnet_handle_t) * iters);
-	ghandles = (gasnet_valget_handle_t*) test_malloc(sizeof(gasnet_valget_handle_t) * iters);
 	
 	BARRIER();
 	
@@ -285,31 +259,7 @@ void oneway_nb_test(int nbytes)
 		print_stat(myproc, &st, "put_nb_val throughput", PRINT_THROUGHPUT);
 	}	
 	
-	/* initialize statistics */
-	init_stat(&st, nbytes);
-
-	if (iamsender && dogets) {
-		/* measure the throughput of receiving a message */
-		begin = TIME();
-                for (i = 0; i < iters; i++) {
-			unsigned int offset = i * nbytes;
-                    ghandles[i] = gasnet_get_nb_val(peerproc, tgtmem+offset, nbytes);
-                } 
-                for (i = 0; i < iters; i++) {
-		    reg ^= gasnet_wait_syncnb_valget(ghandles[i]);
-                }
-		end = TIME();
-	 	update_stat(&st, (end - begin), iters);
-	}
-	
-	BARRIER();
-	
-	if (iamsender && dogets) {
-		print_stat(myproc, &st, "get_nb_val throughput", PRINT_THROUGHPUT);
-	}	
-	
 	test_free(phandles);
-	test_free(ghandles);
 }
 
 
@@ -487,22 +437,16 @@ int main(int argc, char **argv)
            int i;
            int warm_iters = MIN(iters, 32767);  /* avoid hitting 65535-handle limit */
            gasnet_handle_t *ph = test_malloc(sizeof(gasnet_handle_t)*warm_iters);
-           gasnet_valget_handle_t *gh = test_malloc(sizeof(gasnet_valget_handle_t)*warm_iters);
            gasnet_register_value_t reg = 1;
            for (i = 0; i < warm_iters; i++) {
               gasnet_put_val(peerproc, tgtmem, reg, max_payload);
               reg ^= gasnet_get_val(peerproc, tgtmem, max_payload);
               ph[i] = gasnet_put_nb_val(peerproc, tgtmem, reg, max_payload);
-              gh[i] = gasnet_get_nb_val(peerproc, tgtmem, max_payload);
               gasnet_put_nbi_val(peerproc, tgtmem, reg, max_payload);
            }
            gasnet_wait_syncnbi_puts();
            gasnet_wait_syncnb_all(ph, warm_iters);
            test_free(ph);
-           for (i = 0; i < warm_iters; i++) {
-              reg ^= gasnet_wait_syncnb_valget(gh[i]);
-           }
-           test_free(gh);
         }
 
         BARRIER();

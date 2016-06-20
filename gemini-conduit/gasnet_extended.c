@@ -277,10 +277,6 @@ void gasnete_iop_free(gasnete_iop_t *iop) {
     (td)->domain_idx = gasnetc_get_domain_idx((td)->threadidx);
 #endif
 
-/* ensure thread cleanup uses our custom for valget handles */
-#define GASNETE_VALGET_FREEALL(thread) gasnete_valget_freeall(thread)
-static void gasnete_valget_freeall(gasnete_threaddata_t *thread);
-
 #include "gasnet_extended_common.c"
 
 /* ------------------------------------------------------------------------------------ */
@@ -1060,93 +1056,6 @@ extern gasnet_register_value_t gasnete_get_val(gasnetex_rank_t node, void *src, 
     result = gasnete_get_val_help(buffer, nbytes);
     gasnetc_free_post_descriptor(gpd);
     return result;
-  }
-}
-
-/* Following implementation of valget_handle_t and associated operations
-   is cloned from gasnet_extended_common.c, and then:
-   The 'op' field has been flattened to a 'done' flag.
-   The order fileds had been reordered to minimize padding.
-   The underlying get has also been customized.
-*/
-
-typedef struct _gasnete_valget_op_t {
-  struct _gasnete_valget_op_t* next; /* for free-list only */
-  gasnet_register_value_t val;
-  volatile int done;
-  gasnete_threadidx_t threadidx;  /*  thread that owns me */
-} gasnete_valget_op_t;
-
-GASNETI_INLINE(gasnete_new_valget_handle)
-gasnet_valget_handle_t gasnete_new_valget_handle(gasnete_threaddata_t * const mythread) {
-  gasnet_valget_handle_t retval;
-  if (mythread->valget_free) {
-    retval = mythread->valget_free;
-    mythread->valget_free = retval->next;
-    gasneti_memcheck(retval);
-  } else {
-    retval = (gasnete_valget_op_t*)gasneti_malloc(sizeof(gasnete_valget_op_t));
-    gasneti_leak(retval);
-    retval->threadidx = mythread->threadidx;
-  }
-  retval->val = 0;
-  return retval;
-}
-
-extern gasnet_valget_handle_t gasnete_get_nb_val(gasnetex_rank_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) {
-  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-  gasnet_valget_handle_t retval = gasnete_new_valget_handle(mythread);
-
-  gasneti_assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
-
-#if GASNET_PSHM
-  if (gasneti_pshm_in_supernode(node)) {
-    /* Assume that addr2local on local node is cheaper than an extra branch */
-    GASNETE_FAST_ALIGNED_MEMCPY(GASNETE_STARTOFBITS(&(retval->val),nbytes),
-                                gasneti_pshm_addr2local(node, src), nbytes);
-    retval->done = 1;
-  }
-#else
-  if (gasnete_islocal(node)) {
-    GASNETE_FAST_ALIGNED_MEMCPY(GASNETE_STARTOFBITS(&(retval->val),nbytes), src, nbytes);
-    retval->done = 1;
-  }
-#endif
-  else {
-    GASNETC_DIDX_POST(mythread->domain_idx);
-    gasnetc_post_descriptor_t *gpd;
-    gasneti_suspend_spinpollers();
-    gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
-    gpd->gpd_completion = (uintptr_t) &retval->done;
-    retval->done = 0;
-    gpd->flags = GC_POST_COMPLETION_FLAG;
-    gasnetc_rdma_get_unaligned(node, GASNETE_STARTOFBITS(&(retval->val),nbytes), src, nbytes, gpd);
-    gasneti_resume_spinpollers();
-  }
-  return retval;
-}
-
-extern gasnet_register_value_t gasnete_wait_syncnb_valget(gasnet_valget_handle_t handle) {
-  gasnete_assert_valid_threadid(handle->threadidx);
-  { gasnete_threaddata_t * const thread = gasnete_threadtable[handle->threadidx];
-    gasnet_register_value_t val;
-    GASNETC_DIDX_POST(thread->domain_idx);
-    GASNET_POST_THREADINFO(thread); /* for gasneti_poll() in multi-domain case */
-    gasneti_assert(thread == gasnete_mythread());
-    handle->next = thread->valget_free; /* free before the wait to save time after the wait, */
-    thread->valget_free = handle;       /*  safe because this thread is under our control */
-    gasneti_polluntil(handle->done);
-    val = handle->val;
-    return val;
-  }
-}
-
-static void gasnete_valget_freeall(gasnete_threaddata_t *thread) {
-  gasnete_valget_op_t *vg = thread->valget_free;
-  while (vg) {
-    gasnete_valget_op_t *next = vg->next;
-    gasneti_free(vg);  
-    vg = next;
   }
 }
 /* ------------------------------------------------------------------------------------ */

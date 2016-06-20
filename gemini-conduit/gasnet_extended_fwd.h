@@ -91,12 +91,6 @@
 #define gasnete_amref_memset_nb     gasnete_memset_nb
 #define gasnete_amref_memset_nbi    gasnete_memset_nbi
 
-/* Not using default gasnet_valget_handle_t or associated operations */
-#define GASNETE_VALGET_CUSTOM
-#define _GASNET_VALGET_HANDLE_T
-struct _gasnete_valget_op_t;
-typedef struct _gasnete_valget_op_t *gasnet_valget_handle_t;
-
 #if defined(GASNET_PAR) && GASNETC_GNI_MULTI_DOMAIN
 #  define GASNETE_TD_DOMAIN_IDX int domain_idx;
 #else
@@ -104,7 +98,6 @@ typedef struct _gasnete_valget_op_t *gasnet_valget_handle_t;
 #endif
 
 #define GASNETE_CONDUIT_THREADDATA_FIELDS \
-        struct _gasnete_valget_op_t *valget_free; \
         GASNETE_TD_DOMAIN_IDX
 
 /* Use counter-based eop: */

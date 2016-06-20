@@ -989,8 +989,6 @@ Notes for myself for extended API:
 	get_nbi		X     S
 	get_nb_bulk	X     S
 	get_nbi_bulk	X     S
-	get_nb_val	X     S
-	get_nbi_val (DOES NOT EXIST)
 	get		X     I
 	get_bulk	X     I
 	get_val		X     I

@@ -33,11 +33,7 @@
                 _type operand GASNETE_THREAD_FARG);               \
     extern _type _gasnetX_fetch##_name##_val(                     \
                 gasnetex_rank_t node, _type *src,                   \
-                _type operand GASNETE_THREAD_FARG);               \
-    extern gasnet_valget_handle_t _gasnetX_fetch##_name##_nb_val( \
-                gasnetex_rank_t node, _type *src,                   \
-                _type operand GASNETE_THREAD_FARG)                \
-                GASNETI_WARN_UNUSED_RESULT;
+                _type operand GASNETE_THREAD_FARG);
 
 GASNETX_FETCHOP_DECLS(add_u64, uint64_t)
 #define gasnetX_fetchadd_u64(dest,node,src,operand) \

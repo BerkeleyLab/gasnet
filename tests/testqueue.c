@@ -31,7 +31,6 @@ int maxdepth = 0;
 char *tgtmem;
 void *msgbuf;
 gasnet_handle_t *handles;
-gasnet_valget_handle_t *vghandles;
 volatile gasnet_register_value_t regval = 5551212;
 
 #define hidx_ping_shorthandler   201
@@ -252,7 +251,6 @@ int main(int argc, char **argv) {
     BARRIER();
 
     handles = (gasnet_handle_t *) test_malloc(sizeof(gasnet_handle_t) * maxdepth);
-    vghandles = (gasnet_valget_handle_t *) test_malloc(sizeof(gasnet_valget_handle_t) * maxdepth);
 
     do_bulkputs();
     do_nonbulkputgets();
@@ -410,13 +408,6 @@ void do_valueputgets(void) {
       QUEUE_TEST("gasnet_put_nb_val",
                  handles[i] = gasnet_put_nb_val(peerproc, tgtmem, regval, payload), 
                  gasnet_wait_syncnb_all(handles, depth),
-                 (void)0, SIZEOF_GASNET_REGISTER_VALUE_T);
-    }
-
-    if (do_gets && do_value && do_explicit) {
-      QUEUE_TEST("gasnet_get_nb_val",
-                 vghandles[i] = gasnet_get_nb_val(peerproc, tgtmem, payload), 
-                 { for (i=0;i<depth;++i) regval ^= gasnet_wait_syncnb_valget(vghandles[i]); },
                  (void)0, SIZEOF_GASNET_REGISTER_VALUE_T);
     }
 
