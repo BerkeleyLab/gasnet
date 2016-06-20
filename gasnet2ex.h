@@ -289,39 +289,39 @@ typedef gasnetex_register_value_t gasnet_register_value_t;
 // TODO-EX: pass GASNETEX_FLAG_DST_IN_SEGMENT and possibly other flags
 
 #define gasnet_put(node,dest,src,nbytes) \
-                gasnetex_Put(g2ex_team,node,dest,src,nbytes,0)
+                gasnetex_put(g2ex_team,node,dest,src,nbytes,0)
 #define gasnet_put_bulk(node,dest,src,nbytes) \
-                gasnetex_Put(g2ex_team,node,dest,src,nbytes,0)
+                gasnetex_put(g2ex_team,node,dest,src,nbytes,0)
 #define gasnet_get(dest,node,src,nbytes) \
-                gasnetex_Get(g2ex_team,dest,node,src,nbytes,0)
+                gasnetex_get(g2ex_team,dest,node,src,nbytes,0)
 #define gasnet_get_bulk(dest,node,src,nbytes) \
-                gasnetex_Get(g2ex_team,dest,node,src,nbytes,0)
+                gasnetex_get(g2ex_team,dest,node,src,nbytes,0)
 
 /* ------------------------------------------------------------------------------------ */
 /* Implicit-handle non-blocking Put and Get */
 // TODO-EX: pass GASNETEX_FLAG_DST_IN_SEGMENT and possibly other flags
 
 #define gasnet_put_nbi(node,dest,src,nbytes) \
-                gasnetex_Put_nbi(g2ex_team,node,dest,src,nbytes,GASNETEX_LC_INIT,0)
+                gasnetex_put_nbi(g2ex_team,node,dest,src,nbytes,GASNETEX_LC_INIT,0)
 #define gasnet_put_nbi_bulk(node,dest,src,nbytes) \
-                gasnetex_Put_nbi(g2ex_team,node,dest,src,nbytes,GASNETEX_LC_SYNC,0)
+                gasnetex_put_nbi(g2ex_team,node,dest,src,nbytes,GASNETEX_LC_SYNC,0)
 #define gasnet_get_nbi(dest,node,src,nbytes) \
-                gasnetex_Get_nbi(g2ex_team,dest,node,src,nbytes,0)
+                gasnetex_get_nbi(g2ex_team,dest,node,src,nbytes,0)
 #define gasnet_get_nbi_bulk(dest,node,src,nbytes) \
-                gasnetex_Get_nbi(g2ex_team,dest,node,src,nbytes,0)
+                gasnetex_get_nbi(g2ex_team,dest,node,src,nbytes,0)
 
 /* ------------------------------------------------------------------------------------ */
 /* Explicit-handle non-blocking Put and Get */
 // TODO-EX: pass GASNETEX_FLAG_DST_IN_SEGMENT and possibly other flags
 
 #define gasnet_put_nb(node,dest,src,nbytes) \
-                gasnetex_Put_nb(g2ex_team,node,dest,src,nbytes,GASNETEX_LC_INIT,0)
+                gasnetex_put_nb(g2ex_team,node,dest,src,nbytes,GASNETEX_LC_INIT,0)
 #define gasnet_put_nb_bulk(node,dest,src,nbytes) \
-                gasnetex_Put_nb(g2ex_team,node,dest,src,nbytes,GASNETEX_LC_SYNC,0)
+                gasnetex_put_nb(g2ex_team,node,dest,src,nbytes,GASNETEX_LC_SYNC,0)
 #define gasnet_get_nb(dest,node,src,nbytes) \
-                gasnetex_Get_nb(g2ex_team,dest,node,src,nbytes,0)
+                gasnetex_get_nb(g2ex_team,dest,node,src,nbytes,0)
 #define gasnet_get_nb_bulk(dest,node,src,nbytes) \
-                gasnetex_Get_nb(g2ex_team,dest,node,src,nbytes,0)
+                gasnetex_get_nb(g2ex_team,dest,node,src,nbytes,0)
 
 /* ------------------------------------------------------------------------------------ */
 /* Non-Blocking Value Get (explicit-handle) */

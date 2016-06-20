@@ -590,13 +590,13 @@ retry:
 /* ------------------------------------------------------------------------------------ */
 
 /* Conduits not using the gasnete_amref_ versions should implement at least the following:
-     gasnete_Get_nb
-     gasnete_Put_nb
+     gasnete_get_nb
+     gasnete_put_nb
      gasnete_memset_nb
 */
 
 extern
-gasnetex_handle_t gasnete_Get_nb(
+gasnetex_handle_t gasnete_get_nb(
                      gasnetex_team_member_t team,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
@@ -666,7 +666,7 @@ gasnetex_handle_t gasnete_put_nb_bulk (gasnetex_rank_t node, void *dest, void *s
 }
 
 extern
-gasnetex_handle_t gasnete_Put_nb(
+gasnetex_handle_t gasnete_put_nb(
                      gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
@@ -791,13 +791,13 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 /* ------------------------------------------------------------------------------------ */
 
 /* Conduits not using the gasnete_amref_ versions should implement at least the following:
-     gasnete_Get_nbi
-     gasnete_Put_nbi
+     gasnete_get_nbi
+     gasnete_put_nbi
      gasnete_memset_nbi
 */
 
 extern
-void gasnete_Get_nbi(gasnetex_team_member_t team,
+void gasnete_get_nbi(gasnetex_team_member_t team,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
@@ -859,7 +859,7 @@ void gasnete_put_nbi_bulk (gasnetex_rank_t node, void *dest, void *src, size_t n
     gasneti_resume_spinpollers();
 }
 
-void gasnete_Put_nbi(gasnetex_team_member_t team,
+void gasnete_put_nbi(gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_lc_handle_t *lc_opt,

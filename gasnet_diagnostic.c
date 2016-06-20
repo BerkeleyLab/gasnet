@@ -867,10 +867,10 @@ static void progressfn_tester(int *counter) {
 #endif
   { static int tmp = 47;
     int sz;
-    gasnetex_Put_nbi(myteam, peer, peersegmid, &tmp, sizeof(tmp), GASNETEX_LC_INIT, 0);
+    gasnetex_put_nbi(myteam, peer, peersegmid, &tmp, sizeof(tmp), GASNETEX_LC_INIT, 0);
     for (sz = 1; sz <= MIN(128*1024,TEST_SEGSZ/2); sz = (sz < 64?sz*2:sz*8)) {
-      gasnetex_Put_nbi(myteam, peer, peersegmid, myseg, sz, GASNETEX_LC_SYNC, 0);
-      gasnetex_Get_nbi(myteam, myseg, peer, peersegmid, sz, 0);
+      gasnetex_put_nbi(myteam, peer, peersegmid, myseg, sz, GASNETEX_LC_SYNC, 0);
+      gasnetex_get_nbi(myteam, myseg, peer, peersegmid, sz, 0);
     }
     sz = gasnet_try_syncnbi_all();
     if (gasneti_diag_havehandlers) {
@@ -915,10 +915,10 @@ static void progressfns_test(int id) {
     /* do some work that should cause progress fns to run */
     for (i=0; i < 2; i++) {
       int tmp;
-      gasnetex_Put(myteam, peer, peerseg, &tmp, sizeof(tmp), 0);
-      gasnetex_Get(myteam, &tmp, peer, peerseg, sizeof(tmp), 0);
-      gasnetex_Put(myteam, peer, peersegmid, myseg, 1024, 0);
-      gasnetex_Get(myteam, myseg, peer, peersegmid, 1024, 0);
+      gasnetex_put(myteam, peer, peerseg, &tmp, sizeof(tmp), 0);
+      gasnetex_get(myteam, &tmp, peer, peerseg, sizeof(tmp), 0);
+      gasnetex_put(myteam, peer, peersegmid, myseg, 1024, 0);
+      gasnetex_get(myteam, myseg, peer, peersegmid, 1024, 0);
       gasnet_AMPoll();
     }
 
@@ -940,10 +940,10 @@ static void progressfns_test(int id) {
     /* do some work that might cause progress fns to run */
     for (i=0; i < 2; i++) {
       int tmp;
-      gasnetex_Put(myteam, peer, peerseg, &tmp, sizeof(tmp), 0);
-      gasnetex_Get(myteam, &tmp, peer, peerseg, sizeof(tmp), 0);
-      gasnetex_Put(myteam, peer, peersegmid, myseg, 1024, 0);
-      gasnetex_Get(myteam, myseg, peer, peersegmid, 1024, 0);
+      gasnetex_put(myteam, peer, peerseg, &tmp, sizeof(tmp), 0);
+      gasnetex_get(myteam, &tmp, peer, peerseg, sizeof(tmp), 0);
+      gasnetex_put(myteam, peer, peersegmid, myseg, 1024, 0);
+      gasnetex_get(myteam, myseg, peer, peersegmid, 1024, 0);
       gasnet_AMPoll();
     }
 

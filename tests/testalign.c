@@ -105,7 +105,7 @@ void oneway_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of bulk put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_Put(myteam, peerproc, rembuf, locbuf+pad, nbytes, 0);
+			gasnetex_put(myteam, peerproc, rembuf, locbuf+pad, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -126,7 +126,7 @@ void oneway_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of bulk get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_Get(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
+			gasnetex_get(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -159,7 +159,7 @@ void oneway_nbi_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of nonblocking implicit bulk put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_Put_nbi(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_LC_SYNC, 0);
+			gasnetex_put_nbi(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_LC_SYNC, 0);
 		}
 		gasnet_wait_syncnbi_puts();
 		end = TIME();
@@ -169,7 +169,7 @@ void oneway_nbi_test(int iters, int nbytes, int alignment)
 	BARRIER();
 	
 	if (iamsender) {
-		print_stat(myproc, &st, "Put_nbi throughput", PRINT_THROUGHPUT);
+		print_stat(myproc, &st, "put_nbi throughput", PRINT_THROUGHPUT);
 	}	
     }
 
@@ -181,7 +181,7 @@ void oneway_nbi_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of nonblocking implicit get */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-	 		gasnetex_Get_nbi(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
+	 		gasnetex_get_nbi(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
 		}
 		gasnet_wait_syncnbi_gets();
 		end = TIME();
@@ -191,7 +191,7 @@ void oneway_nbi_test(int iters, int nbytes, int alignment)
 	BARRIER();
 	
 	if (iamsender) {
-		print_stat(myproc, &st, "Get_nbi throughput", PRINT_THROUGHPUT);
+		print_stat(myproc, &st, "get_nbi throughput", PRINT_THROUGHPUT);
 	}	
     }
 }
@@ -217,7 +217,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of sending a message */
 		begin = TIME();
                 for (i = 0; i < iters; i++) {
-                        handles[i] = gasnetex_Put_nb(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_LC_SYNC, 0);
+                        handles[i] = gasnetex_put_nb(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_LC_SYNC, 0);
                 }
 		gasnet_wait_syncnb_all(handles, iters); 
 		end = TIME();
@@ -239,7 +239,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of receiving a message */
 		begin = TIME();
                 for (i = 0; i < iters; i++) {
-                    handles[i] = gasnetex_Get_nb(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
+                    handles[i] = gasnetex_get_nb(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
                 } 
 		gasnet_wait_syncnb_all(handles, iters); 
 		end = TIME();

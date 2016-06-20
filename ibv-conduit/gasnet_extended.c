@@ -346,8 +346,8 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 /* ------------------------------------------------------------------------------------ */
 
 /* Conduits not using the gasnete_amref_ versions should implement at least the following:
-     gasnete_Get_nb
-     gasnete_Put_nb
+     gasnete_get_nb
+     gasnete_put_nb
      gasnete_memset_nb
 */
 
@@ -355,7 +355,7 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
         &(_eop)->initiated_cnt, &(_eop)->completed_cnt
 
 extern
-gasnetex_handle_t gasnete_Get_nb(
+gasnetex_handle_t gasnete_get_nb(
                      gasnetex_team_member_t team,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
@@ -374,7 +374,7 @@ gasnetex_handle_t gasnete_Get_nb(
 }
 
 extern
-gasnetex_handle_t gasnete_Put_nb(
+gasnetex_handle_t gasnete_put_nb(
                      gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
@@ -511,8 +511,8 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 /* ------------------------------------------------------------------------------------ */
 
 /* Conduits not using the gasnete_amref_ versions should implement at least the following:
-     gasnete_Get_nbi
-     gasnete_Put_nbi
+     gasnete_get_nbi
+     gasnete_put_nbi
      gasnete_memset_nbi
 */
 
@@ -520,7 +520,7 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
         &(_iop)->initiated_##_putget##_cnt, &(_iop)->completed_##_putget##_cnt
 
 extern
-void gasnete_Get_nbi(gasnetex_team_member_t team,
+void gasnete_get_nbi(gasnetex_team_member_t team,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
@@ -537,7 +537,7 @@ void gasnete_Get_nbi(gasnetex_team_member_t team,
 }
 
 extern
-void gasnete_Put_nbi(gasnetex_team_member_t team,
+void gasnete_put_nbi(gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_lc_handle_t *lc_opt,
@@ -660,7 +660,7 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
 #define GASNETE_REQ_CNTRS(_req) \
         &(_req).initiated, &(_req).completed
 
-extern void gasnete_Get (gasnetex_team_member_t team,
+extern void gasnete_get (gasnetex_team_member_t team,
                          void* dest,
                          gasnetex_rank_t rank, void *src,
                          size_t nbytes, gasnetex_flags_t flags
@@ -673,7 +673,7 @@ extern void gasnete_Get (gasnetex_team_member_t team,
  }
 }
 
-extern void gasnete_Put (gasnetex_team_member_t team,
+extern void gasnete_put (gasnetex_team_member_t team,
                          gasnetex_rank_t rank, void* dest,
                          /*const*/ void *src,
                          size_t nbytes, gasnetex_flags_t flags

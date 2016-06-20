@@ -242,7 +242,7 @@ void _print_stat(nbr_t *nb, int myproc, stat_struct_t *st, const char *name)
 	 *  3. Local/Local (no updates required communication)
 	 *  4. Don't care (either local/global)
 	 */
-	gasnetex_Put(myteam, 0, nb->stats0 + myproc, st, sizeof(stat_struct_t), 0);
+	gasnetex_put(myteam, 0, nb->stats0 + myproc, st, sizeof(stat_struct_t), 0);
 
 	BARRIER();
 
@@ -1283,7 +1283,7 @@ ge_put(nbr_t *nb, int type, int dir, int axis, int *flag)
 	return GASNET_INVALID_HANDLE;
     }
     else {
-	return gasnetex_Put_nb(myteam, node, dest, src, len, GASNETEX_LC_SYNC, 0);
+	return gasnetex_put_nb(myteam, node, dest, src, len, GASNETEX_LC_SYNC, 0);
     }
 
 local_copy:

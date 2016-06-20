@@ -16,8 +16,8 @@
   =========================================================
  */
 
-GASNETI_INLINE(gasnete_Get_nb) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t gasnete_Get_nb(
+GASNETI_INLINE(gasnete_get_nb) GASNETI_WARN_UNUSED_RESULT
+gasnetex_handle_t gasnete_get_nb(
                      gasnetex_team_member_t team,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
@@ -28,10 +28,10 @@ gasnetex_handle_t gasnete_Get_nb(
   gasneti_assert(0 && "Unreachable");
   return GASNETEX_INVALID_HANDLE;
 }
-#define gasnete_Get_nb gasnete_Get_nb
+#define gasnete_get_nb gasnete_get_nb
 
-GASNETI_INLINE(gasnete_Put_nb) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t gasnete_Put_nb(
+GASNETI_INLINE(gasnete_put_nb) GASNETI_WARN_UNUSED_RESULT
+gasnetex_handle_t gasnete_put_nb(
                      gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
@@ -42,7 +42,7 @@ gasnetex_handle_t gasnete_Put_nb(
   gasneti_assert(0 && "Unreachable");
   return GASNETEX_INVALID_HANDLE;
 }
-#define gasnete_Put_nb gasnete_Put_nb
+#define gasnete_put_nb gasnete_put_nb
 
 GASNETI_INLINE(gasnete_memset_nb) GASNETI_WARN_UNUSED_RESULT
 gasnet_handle_t gasnete_memset_nb(gasnetex_rank_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG)
@@ -91,8 +91,8 @@ int gasnete_syncnb_array(gasnet_handle_t *phandle, size_t numhandles)
   ==========================================================
  */
    
-GASNETI_INLINE(gasnete_Get_nbi)
-void gasnete_Get_nbi(gasnetex_team_member_t team,
+GASNETI_INLINE(gasnete_get_nbi)
+void gasnete_get_nbi(gasnetex_team_member_t team,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
@@ -101,10 +101,10 @@ void gasnete_Get_nbi(gasnetex_team_member_t team,
   GASNETI_CHECKPSHM_GET(V);
   gasneti_assert(0 && "Unreachable");
 }
-#define gasnete_Get_nbi gasnete_Get_nbi
+#define gasnete_get_nbi gasnete_get_nbi
 
-GASNETI_INLINE(gasnete_Put_nbi)
-void gasnete_Put_nbi(gasnetex_team_member_t team,
+GASNETI_INLINE(gasnete_put_nbi)
+void gasnete_put_nbi(gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_lc_handle_t *lc_opt,
@@ -113,7 +113,7 @@ void gasnete_Put_nbi(gasnetex_team_member_t team,
   GASNETI_CHECKPSHM_PUT(V);
   gasneti_assert(0 && "Unreachable");
 }
-#define gasnete_Put_nbi gasnete_Put_nbi
+#define gasnete_put_nbi gasnete_put_nbi
 
 GASNETI_INLINE(gasnete_memset_nbi)
 void gasnete_memset_nbi(gasnetex_rank_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG)

@@ -245,14 +245,14 @@ extern int gasnetex_AMReplyShortM(
 // [Some text for lc-must-precede-sync is still needed]
 
 // Put
-extern int gasnetex_Put(
+extern int gasnetex_put(
            gasnetex_team_member_t team,   // Names a local context ("return address")
            gasnetex_rank_t rank,          // Together with 'team', names a remote context
            void *dest,                    // Remote (destination) address (or OFFSET)
            const void *src,               // Local (source) address (or OFFSET)
            size_t nbytes,                 // Length of xfer
            gasnetex_flags_t flags);       // Flags to control this operation
-extern int gasnetex_Put_nbi(
+extern int gasnetex_put_nbi(
            gasnetex_team_member_t team,
            gasnetex_rank_t rank,
            void *dest,
@@ -260,7 +260,7 @@ extern int gasnetex_Put_nbi(
            size_t nbytes,
            gasnetex_lc_handle_t *lc_opt,  // Local completion control (see above)
            gasnetex_flags_t flags);
-extern gasnetex_handle_t gasnetex_Put_nb(
+extern gasnetex_handle_t gasnetex_put_nb(
            gasnetex_team_member_t team,
            gasnetex_rank_t rank,
            void *dest,
@@ -270,21 +270,21 @@ extern gasnetex_handle_t gasnetex_Put_nb(
            gasnetex_flags_t flags);
 
 // Get
-extern int gasnetex_Get( // Returns non-zero *only* in "no op" case (IMMEDIATE flag)
+extern int gasnetex_get( // Returns non-zero *only* in "no op" case (IMMEDIATE flag)
            gasnetex_team_member_t team,   // Names a local context ("return address")
            void *dest,                    // Local (destination) address (or OFFSET)
            gasnetex_rank_t rank,          // Together with 'team', names a remote context
            void *src,                     // Remote (source) address (or OFFSET)
            size_t nbytes,                 // Length of xfer
            gasnetex_flags_t flags);       // Flags to control this operation
-extern int gasnetex_Get_nbi( // Returns non-zero *only* in "no op" case (IMMEDIATE flag)
+extern int gasnetex_get_nbi( // Returns non-zero *only* in "no op" case (IMMEDIATE flag)
            gasnetex_team_member_t team,
            void *dest,
            gasnetex_rank_t rank,
            void *src,
            size_t nbytes,
            gasnetex_flags_t flags);
-extern gasnetex_handle_t gasnetex_Get_nb(
+extern gasnetex_handle_t gasnetex_get_nb(
            gasnetex_team_member_t team,
            void *dest,
            gasnetex_rank_t rank,

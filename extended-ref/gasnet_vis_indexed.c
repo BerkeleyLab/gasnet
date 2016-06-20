@@ -218,7 +218,7 @@ gasnet_handle_t gasnete_puti_gather(gasnete_synctype_t synctype,
     void * const packedbuf = visop + 1;
     gasnete_addrlist_pack(srccount, srclist, srclen, packedbuf, 0, (size_t)-1);
     visop->type = GASNETI_VIS_CAT_PUTI_GATHER;
-    visop->handle = gasnete_Put_nb(NULL, dstnode, dstlist[0], packedbuf, nbytes, GASNETEX_LC_SYNC, 0 GASNETE_THREAD_PASS);
+    visop->handle = gasnete_put_nb(NULL, dstnode, dstlist[0], packedbuf, nbytes, GASNETEX_LC_SYNC, 0 GASNETE_THREAD_PASS);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
   }
 }
@@ -251,7 +251,7 @@ gasnet_handle_t gasnete_geti_scatter(gasnete_synctype_t synctype,
     visop->type = GASNETI_VIS_CAT_GETI_SCATTER;
     visop->count = dstcount;
     visop->len = dstlen;
-    visop->handle = gasnete_Get_nb(NULL, packedbuf, srcnode, srclist[0], nbytes, 0 GASNETE_THREAD_PASS);
+    visop->handle = gasnete_get_nb(NULL, packedbuf, srcnode, srclist[0], nbytes, 0 GASNETE_THREAD_PASS);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 1);
   }
 }

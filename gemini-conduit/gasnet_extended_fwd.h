@@ -55,12 +55,12 @@
  * these in a conduit-specific gasnet_extended_help_extra.h.
  *
  * GASNETI_DIRECT_BLOCKING_GET
- *   unset: gasnete_Get() via gasnete_wait_syncnb(gasnete_Get_nb())
- *   set: conduit provides it own gasnete_Get()
+ *   unset: gasnete_get() via gasnete_wait_syncnb(gasnete_get_nb())
+ *   set: conduit provides it own gasnete_get()
  *
  * GASNETI_DIRECT_BLOCKING_PUT
- *   unset: gasnete_Put() via gasnete_wait_syncnb(gasnete_Put_nb())
- *   set: conduit provides it own gasnete_Put()
+ *   unset: gasnete_put() via gasnete_wait_syncnb(gasnete_put_nb())
+ *   set: conduit provides it own gasnete_put()
  *
  * GASNETI_DIRECT_MEMSET
  *   unset: gasnete_memset() via gasnete_wait_syncnb(gasnete_memset_nb())

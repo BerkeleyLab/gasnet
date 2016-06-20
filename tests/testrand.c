@@ -73,7 +73,7 @@ void do_test(void) {GASNET_BEGIN_FUNCTION();
 		GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__);
 		begin = TIME();
 		for (i = 0; i < pages; ++i) {
-		    gasnetex_Put(myteam, peerproc, rem_addr[i], loc_addr[i], nbytes, 0);
+		    gasnetex_put(myteam, peerproc, rem_addr[i], loc_addr[i], nbytes, 0);
 		}
 		end = TIME();
 		printf("Proc %3i - %5i bytes, seed %10u, %7i pages: %12i us total, %9.3f us ave. per page\n",

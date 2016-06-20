@@ -44,12 +44,12 @@
  * these in a conduit-specific gasnet_extended_help_extra.h.
  *
  * GASNETI_DIRECT_BLOCKING_GET
- *   unset: gasnete_Get() via gasnete_wait_syncnb(gasnete_Get_nb())
- *   set: conduit provides it own gasnete_Get()
+ *   unset: gasnete_get() via gasnete_wait_syncnb(gasnete_get_nb())
+ *   set: conduit provides it own gasnete_get()
  *
  * GASNETI_DIRECT_BLOCKING_PUT
- *   unset: gasnete_Put() via gasnete_wait_syncnb(gasnete_Put_nb())
- *   set: conduit provides it own gasnete_Put()
+ *   unset: gasnete_put() via gasnete_wait_syncnb(gasnete_put_nb())
+ *   set: conduit provides it own gasnete_put()
  *
  * GASNETI_DIRECT_MEMSET
  *   unset: gasnete_memset() via gasnete_wait_syncnb(gasnete_memset_nb())
@@ -86,10 +86,10 @@
 #endif
 
 /* Implement all "base" operations directly via amref: */
-#define gasnete_amref_Get_nb        gasnete_Get_nb
-#define gasnete_amref_Put_nb        gasnete_Put_nb
-#define gasnete_amref_Get_nbi       gasnete_Get_nbi
-#define gasnete_amref_Put_nbi       gasnete_Put_nbi
+#define gasnete_amref_get_nb        gasnete_get_nb
+#define gasnete_amref_put_nb        gasnete_put_nb
+#define gasnete_amref_get_nbi       gasnete_get_nbi
+#define gasnete_amref_put_nbi       gasnete_put_nbi
 #define gasnete_amref_memset_nb     gasnete_memset_nb
 #define gasnete_amref_memset_nbi    gasnete_memset_nbi
 

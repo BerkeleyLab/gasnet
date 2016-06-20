@@ -367,39 +367,39 @@ int main(int argc, char **argv) {
 
 void do_bulkputs(void) {
     if (do_puts && do_bulk && do_explicit) {
-      QUEUE_TEST("gasnetex_Put_nb/bulk", 
-                 handles[i] = gasnetex_Put_nb(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_LC_SYNC, 0), 
+      QUEUE_TEST("gasnetex_put_nb/bulk", 
+                 handles[i] = gasnetex_put_nb(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_LC_SYNC, 0), 
                  gasnet_wait_syncnb_all(handles, depth), (void)0, 0);
     }
 
     if (do_puts && do_bulk && do_implicit) {
-      QUEUE_TEST("gasnetex_Put_nbi/bulk", 
-                 gasnetex_Put_nbi(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_LC_SYNC, 0), 
+      QUEUE_TEST("gasnetex_put_nbi/bulk", 
+                 gasnetex_put_nbi(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_LC_SYNC, 0), 
                  gasnet_wait_syncnbi_all(), (void)0, 0);
     }
 }
 void do_nonbulkputgets(void) {
     if (do_puts && do_nonbulk && do_explicit) {
-      QUEUE_TEST("gasnetex_Put_nb", 
-                 handles[i] = gasnetex_Put_nb(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_LC_INIT, 0), 
+      QUEUE_TEST("gasnetex_put_nb", 
+                 handles[i] = gasnetex_put_nb(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_LC_INIT, 0), 
                  gasnet_wait_syncnb_all(handles, depth), (void)0, 0);
     }
 
     if (do_gets && do_explicit) {
-      QUEUE_TEST("gasnetex_Get_nb", 
-                 handles[i] = gasnetex_Get_nb(myteam, msgbuf, peerproc, tgtmem, payload, 0), 
+      QUEUE_TEST("gasnetex_get_nb", 
+                 handles[i] = gasnetex_get_nb(myteam, msgbuf, peerproc, tgtmem, payload, 0), 
                  gasnet_wait_syncnb_all(handles, depth), (void)0, 0);
     }
 
     if (do_puts && do_nonbulk && do_implicit) {
-      QUEUE_TEST("gasnetex_Put_nbi", 
-                 gasnetex_Put_nbi(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_LC_INIT, 0), 
+      QUEUE_TEST("gasnetex_put_nbi", 
+                 gasnetex_put_nbi(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_LC_INIT, 0), 
                  gasnet_wait_syncnbi_all(), (void)0, 0);
     }
 
     if (do_gets && do_implicit) {
-      QUEUE_TEST("gasnetex_Get_nbi", 
-                 gasnetex_Get_nbi(myteam, msgbuf, peerproc, tgtmem, payload, 0), 
+      QUEUE_TEST("gasnetex_get_nbi", 
+                 gasnetex_get_nbi(myteam, msgbuf, peerproc, tgtmem, payload, 0), 
                  gasnet_wait_syncnbi_all(), (void)0, 0);
     }
 }
@@ -421,14 +421,14 @@ void do_valueputgets(void) {
 }
 void do_blockingputgets(void) {
     if (do_puts && do_blocking) {
-      QUEUE_TEST("gasnetex_Put (BLOCKING - represents round-trip latency)", 
-                 gasnetex_Put(myteam, peerproc, tgtmem, msgbuf, payload, 0),
+      QUEUE_TEST("gasnetex_put (BLOCKING - represents round-trip latency)", 
+                 gasnetex_put(myteam, peerproc, tgtmem, msgbuf, payload, 0),
                  (void)0, (void)0, 0);
     }
 
     if (do_gets && do_blocking) {
-      QUEUE_TEST("gasnetex_Get (BLOCKING - represents round-trip latency)",
-                 gasnetex_Get(myteam, msgbuf, peerproc, tgtmem, payload, 0),
+      QUEUE_TEST("gasnetex_get (BLOCKING - represents round-trip latency)",
+                 gasnetex_get(myteam, msgbuf, peerproc, tgtmem, payload, 0),
                  (void)0, (void)0, 0);
     }
 

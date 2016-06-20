@@ -156,13 +156,13 @@ AMPINGPONG(ampingpong_barrier_active, BARRIER_UNTIL)
     return NULL;                                                                        \
   }
 
-PUTGETPINGPONG(put_poll_active, SPINPOLL_UNTIL, gasnetex_Put(myteam, peer, peerseg, &tmp, 8, 0))
-PUTGETPINGPONG(get_poll_active, SPINPOLL_UNTIL, gasnetex_Get(myteam, &tmp, peer, peerseg, 8, 0))
-PUTGETPINGPONG(put_block_active, GASNET_BLOCKUNTIL, gasnetex_Put(myteam, peer, peerseg, &tmp, 8, 0))
-PUTGETPINGPONG(get_block_active, GASNET_BLOCKUNTIL, gasnetex_Get(myteam, &tmp, peer, peerseg, 8, 0))
+PUTGETPINGPONG(put_poll_active, SPINPOLL_UNTIL, gasnetex_put(myteam, peer, peerseg, &tmp, 8, 0))
+PUTGETPINGPONG(get_poll_active, SPINPOLL_UNTIL, gasnetex_get(myteam, &tmp, peer, peerseg, 8, 0))
+PUTGETPINGPONG(put_block_active, GASNET_BLOCKUNTIL, gasnetex_put(myteam, peer, peerseg, &tmp, 8, 0))
+PUTGETPINGPONG(get_block_active, GASNET_BLOCKUNTIL, gasnetex_get(myteam, &tmp, peer, peerseg, 8, 0))
 
-PUTGETPINGPONG(put_barrier_active, BARRIER_UNTIL, gasnetex_Put(myteam, peer, peerseg, &tmp, 8, 0))
-PUTGETPINGPONG(get_barrier_active, BARRIER_UNTIL, gasnetex_Get(myteam, &tmp, peer, peerseg, 8, 0))
+PUTGETPINGPONG(put_barrier_active, BARRIER_UNTIL, gasnetex_put(myteam, peer, peerseg, &tmp, 8, 0))
+PUTGETPINGPONG(get_barrier_active, BARRIER_UNTIL, gasnetex_get(myteam, &tmp, peer, peerseg, 8, 0))
 
 #define PGFIGHT(fnname, putgetstmt_loner, putgetstmt_rest)                              \
   void * fnname(void *args) {                                                           \
@@ -190,10 +190,10 @@ PUTGETPINGPONG(get_barrier_active, BARRIER_UNTIL, gasnetex_Get(myteam, &tmp, pee
     return NULL;                                                                        \
   }                                                                                     \
 
-PGFIGHT(put_put_active, gasnetex_Put(myteam, peer, peerseg, &tmp, 8, 0), gasnetex_Put(myteam, peer, peerseg, &tmp, 8, 0))
-PGFIGHT(put_get_active, gasnetex_Put(myteam, peer, peerseg, &tmp, 8, 0), gasnetex_Get(myteam, &tmp, peer, peerseg, 8, 0))
-PGFIGHT(get_put_active, gasnetex_Get(myteam, &tmp, peer, peerseg, 8, 0), gasnetex_Put(myteam, peer, peerseg, &tmp, 8, 0))
-PGFIGHT(get_get_active, gasnetex_Get(myteam, &tmp, peer, peerseg, 8, 0), gasnetex_Get(myteam, &tmp, peer, peerseg, 8, 0))
+PGFIGHT(put_put_active, gasnetex_put(myteam, peer, peerseg, &tmp, 8, 0), gasnetex_put(myteam, peer, peerseg, &tmp, 8, 0))
+PGFIGHT(put_get_active, gasnetex_put(myteam, peer, peerseg, &tmp, 8, 0), gasnetex_get(myteam, &tmp, peer, peerseg, 8, 0))
+PGFIGHT(get_put_active, gasnetex_get(myteam, &tmp, peer, peerseg, 8, 0), gasnetex_put(myteam, peer, peerseg, &tmp, 8, 0))
+PGFIGHT(get_get_active, gasnetex_get(myteam, &tmp, peer, peerseg, 8, 0), gasnetex_get(myteam, &tmp, peer, peerseg, 8, 0))
 
 void * poll_passive(void *args) {
   GASNETI_UNUSED
@@ -237,15 +237,15 @@ fntable_t fntable[] = {
   { "AM Ping-pong vs. BLOCKUNTIL",    ampingpong_block_active, block_passive },
   { "gasnetex_Pput vs. spin-AMPoll()", put_poll_active, poll_passive },
   { "gasnetex_Pput vs. BLOCKUNTIL",    put_block_active, block_passive },
-  { "gasnetex_Get vs. spin-AMPoll()", get_poll_active, poll_passive },
-  { "gasnetex_Get vs. BLOCKUNTIL",    get_block_active, block_passive },
+  { "gasnetex_get vs. spin-AMPoll()", get_poll_active, poll_passive },
+  { "gasnetex_get vs. BLOCKUNTIL",    get_block_active, block_passive },
   { "gasnetex_Pput vs. gasnetex_Pput",    put_put_active, poll_passive },
-  { "gasnetex_Pput vs. gasnetex_Get",    put_get_active, poll_passive },
-  { "gasnetex_Get vs. gasnetex_Put",    get_put_active, poll_passive },
-  { "gasnetex_Get vs. gasnetex_Get",    get_get_active, poll_passive },
+  { "gasnetex_Pput vs. gasnetex_get",    put_get_active, poll_passive },
+  { "gasnetex_get vs. gasnetex_put",    get_put_active, poll_passive },
+  { "gasnetex_get vs. gasnetex_get",    get_get_active, poll_passive },
   { "AM Ping-pong vs. local barrier", ampingpong_barrier_active, barrier_passive },
-  { "gasnetex_Put vs. local barrier",   put_barrier_active, barrier_passive },
-  { "gasnetex_Get vs. local barrier",   get_barrier_active, barrier_passive },
+  { "gasnetex_put vs. local barrier",   put_barrier_active, barrier_passive },
+  { "gasnetex_get vs. local barrier",   get_barrier_active, barrier_passive },
 };
 #define NUM_FUNC (sizeof(fntable)/sizeof(fntable_t))
 int tcountentries;

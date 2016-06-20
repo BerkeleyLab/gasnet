@@ -36,13 +36,13 @@
  *
  *    #define GASNETE_BUILD_AMREF_GET 1
  *      To build
- *         gasnete_amref_Get_nb
- *         gasnete_amref_Get_nbi
+ *         gasnete_amref_get_nb
+ *         gasnete_amref_get_nbi
  *
  *    #define GASNETE_BUILD_AMREF_PUT 1
  *      To build
- *         gasnete_amref_Put_nb
- *         gasnete_amref_Put_nbi
+ *         gasnete_amref_put_nb
+ *         gasnete_amref_put_nbi
  *
  *    #define GASNETE_BUILD_AMREF_MEMSET 1
  *      To build
@@ -62,10 +62,10 @@
  *
  * A conduit can use these directly by using one or more of the following
  * in its gasnet_extended_fwd.h name-shift the functions listed above:
- *    #define gasnete_amref_Get_nb        gasnete_Get_nb
- *    #define gasnete_amref_Get_nbi       gasnete_Get_nbi
- *    #define gasnete_amref_Put_nb        gasnete_Put_nb
- *    #define gasnete_amref_Put_nbi       gasnete_Put_nbi
+ *    #define gasnete_amref_get_nb        gasnete_get_nb
+ *    #define gasnete_amref_get_nbi       gasnete_get_nbi
+ *    #define gasnete_amref_put_nb        gasnete_put_nb
+ *    #define gasnete_amref_put_nbi       gasnete_put_nbi
  *    #define gasnete_amref_memset_nb     gasnete_memset_nb
  *    #define gasnete_amref_memset_nbi    gasnete_memset_nbi
  *
@@ -498,7 +498,7 @@ void gasnete_amref_put_nbi_inner(gasnetex_team_member_t team,
 
 #if GASNETE_BUILD_AMREF_GET
 extern
-gasnetex_handle_t gasnete_Get_nb(
+gasnetex_handle_t gasnete_get_nb(
                      gasnetex_team_member_t team,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
@@ -518,7 +518,7 @@ gasnetex_handle_t gasnete_Get_nb(
     /*  need many messages - use an access region to coalesce them into a single handle */
     /*  (note this relies on the fact that our implementation of access regions allows recursion) */
     gasnete_begin_nbi_accessregion(1 /* enable recursion */ GASNETE_THREAD_PASS);
-    gasnete_amref_Get_nbi(team, dest, rank, src, nbytes, flags GASNETE_THREAD_PASS);
+    gasnete_amref_get_nbi(team, dest, rank, src, nbytes, flags GASNETE_THREAD_PASS);
     return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
   }
 }
@@ -528,7 +528,7 @@ gasnetex_handle_t gasnete_Get_nb(
 
 #if GASNETE_BUILD_AMREF_PUT
 extern
-gasnetex_handle_t gasnete_Put_nb(
+gasnetex_handle_t gasnete_put_nb(
                      gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
@@ -616,7 +616,7 @@ extern gasnet_handle_t gasnete_amref_memset_nb   (gasnetex_rank_t node, void *de
 
 #if GASNETE_BUILD_AMREF_GET
 extern
-void gasnete_amref_Get_nbi(gasnetex_team_member_t team,
+void gasnete_amref_get_nbi(gasnetex_team_member_t team,
                            void *dest,
                            gasnetex_rank_t rank, void *src,
                            size_t nbytes,
@@ -631,7 +631,7 @@ void gasnete_amref_Get_nbi(gasnetex_team_member_t team,
 
 #if GASNETE_BUILD_AMREF_PUT
 extern
-void gasnete_amref_Put_nbi(gasnetex_team_member_t team,
+void gasnete_amref_put_nbi(gasnetex_team_member_t team,
                            gasnetex_rank_t rank, void *dest,
                            void *src,
                            size_t nbytes, gasnetex_lc_handle_t *lc_opt,
