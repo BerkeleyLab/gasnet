@@ -334,30 +334,30 @@ typedef gasnetex_handle_t gasnet_handle_t;
                 gasnetex_get_val(g2ex_team,node,src,nbytes,0)
 
 typedef struct g2ex_valget_handle_s {
-  gasnet_register_value_t v;
+  gasnetex_register_value_t v;
   gasnetex_handle_t         h;
 } *gasnet_valget_handle_t;
 
 GASNETI_INLINE(gasnet_get_nb_val)
-gasnet_valget_handle_t gasnet_get_nb_val(gasnet_node_t node, void *src, size_t nbytes)
+gasnet_valget_handle_t gasnet_get_nb_val(gasnetex_rank_t node, void *src, size_t nbytes)
 {
   gasnet_valget_handle_t result = (gasnet_valget_handle_t)malloc(sizeof(struct g2ex_valget_handle_s));
 #ifdef PLATFORM_ARCH_BIG_ENDIAN
-  void *dest = (void*)((uintptr_t)&(result->v) + sizeof(gasnet_register_value_t) - nbytes);
+  void *dest = (void*)((uintptr_t)&(result->v) + sizeof(gasnetex_register_value_t) - nbytes);
 #else /* little-endian */
   void *dest = &result->v;
 #endif
   result->v = 0;
-  //assert(nbytes > 0 && nbytes <= sizeof(gasnet_register_value_t));
-  result->h = gasnet_get_nb(dest, node, src, nbytes);
+  //assert(nbytes > 0 && nbytes <= sizeof(gasnetex_register_value_t));
+  result->h = gasnetex_get_nb(g2ex_team, dest, node, src, nbytes, 0);
   return result;
 }
 
 GASNETI_INLINE(gasnet_wait_syncnb_valget)
-gasnet_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handle)
+gasnetex_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handle)
 {
-  gasnet_register_value_t result;
-  gasnet_wait_syncnb(handle->h);
+  gasnetex_register_value_t result;
+  gasnetex_wait_syncnb(handle->h);
   result = handle->v;
   free(handle);
   return result;
