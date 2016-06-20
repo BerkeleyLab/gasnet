@@ -362,7 +362,7 @@ typedef struct gasneti_team_s *gasnetex_team_member_t;
 #define _GASNET_REGISTER_VALUE_T
   /*  the largest unsigned integer type that can fit entirely in a single CPU register for the current architecture and ABI.  */
   /*  SIZEOF_GASNET_REGISTER_VALUE_T is a preprocess-time literal integer constant (i.e. not "sizeof()")indicating the size of this type in bytes */
-  typedef uintptr_t gasnet_register_value_t;
+  typedef uintptr_t gasnetex_register_value_t;
   #define SIZEOF_GASNET_REGISTER_VALUE_T  SIZEOF_VOID_P
 #endif
 

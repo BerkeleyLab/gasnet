@@ -21,6 +21,7 @@ typedef gasnetex_rank_t gasnet_node_t;
 typedef gasnetex_token_t gasnet_token_t;
 typedef gasnetex_handler_t gasnet_handler_t;
 typedef gasnetex_handlerarg_t gasnet_handlerarg_t;
+typedef gasnetex_register_value_t gasnet_register_value_t;
 
 /* ------------------------------------------------------------------------------------ */
 /*

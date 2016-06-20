@@ -99,7 +99,7 @@ void roundtrip_test(int nbytes)
     int i;
     int64_t begin, end;
     stat_struct_t st;
-    gasnet_register_value_t reg = 1;
+    gasnetex_register_value_t reg = 1;
 
 	/* initialize statistics */
 	init_stat(&st, nbytes);
@@ -111,7 +111,7 @@ void roundtrip_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-			gasnet_put_val(peerproc, tgtmem+offset, (gasnet_register_value_t)i, nbytes);
+			gasnet_put_val(peerproc, tgtmem+offset, (gasnetex_register_value_t)i, nbytes);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -149,7 +149,7 @@ void oneway_test(int nbytes)
     int i;
     int64_t begin, end;
     stat_struct_t st;
-    gasnet_register_value_t reg = 1;
+    gasnetex_register_value_t reg = 1;
 
 	/* initialize statistics */
 	init_stat(&st, nbytes);
@@ -161,7 +161,7 @@ void oneway_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-			gasnet_put_val(peerproc, tgtmem+offset, (gasnet_register_value_t)i, nbytes);
+			gasnet_put_val(peerproc, tgtmem+offset, (gasnetex_register_value_t)i, nbytes);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -212,7 +212,7 @@ void roundtrip_nb_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-			hdlput = gasnet_put_nb_val(peerproc, tgtmem+offset, (gasnet_register_value_t)i, nbytes);
+			hdlput = gasnet_put_nb_val(peerproc, tgtmem+offset, (gasnetex_register_value_t)i, nbytes);
 			gasnet_wait_syncnb(hdlput);
 		}
 		end = TIME();
@@ -232,7 +232,7 @@ void oneway_nb_test(int nbytes)
     int64_t begin, end;
     stat_struct_t st;
     gasnet_handle_t *phandles;
-    gasnet_register_value_t reg = 1;
+    gasnetex_register_value_t reg = 1;
 
 	/* initialize statistics */
 	init_stat(&st, nbytes);
@@ -246,7 +246,7 @@ void oneway_nb_test(int nbytes)
 		begin = TIME();
                 for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-                        phandles[i] = gasnet_put_nb_val(peerproc, tgtmem+offset, (gasnet_register_value_t)i, nbytes);
+                        phandles[i] = gasnet_put_nb_val(peerproc, tgtmem+offset, (gasnetex_register_value_t)i, nbytes);
                 }
 		gasnet_wait_syncnb_all(phandles, iters); 
 		end = TIME();
@@ -279,7 +279,7 @@ void roundtrip_nbi_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-			gasnet_put_nbi_val(peerproc, tgtmem+offset, (gasnet_register_value_t)i, nbytes);
+			gasnet_put_nbi_val(peerproc, tgtmem+offset, (gasnetex_register_value_t)i, nbytes);
 
 			gasnet_wait_syncnbi_puts();
 		}
@@ -310,7 +310,7 @@ void oneway_nbi_test(int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			unsigned int offset = i * nbytes;
-			gasnet_put_nbi_val(peerproc, tgtmem+offset, (gasnet_register_value_t)i, nbytes);
+			gasnet_put_nbi_val(peerproc, tgtmem+offset, (gasnetex_register_value_t)i, nbytes);
 		}
 		gasnet_wait_syncnbi_puts();
 		end = TIME();
@@ -372,7 +372,7 @@ int main(int argc, char **argv)
     if (argc > arg) { iters = atoi(argv[arg]); arg++; }
     if (!iters) iters = 10000;
     if (argc > arg) { maxsz = atoi(argv[arg]); arg++; }
-    if (!maxsz || maxsz > sizeof(gasnet_register_value_t)) maxsz = sizeof(gasnet_register_value_t);
+    if (!maxsz || maxsz > sizeof(gasnetex_register_value_t)) maxsz = sizeof(gasnetex_register_value_t);
     if (argc > arg) { TEST_SECTION_PARSE(argv[arg]); arg++; }
 
     GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
@@ -437,7 +437,7 @@ int main(int argc, char **argv)
            int i;
            int warm_iters = MIN(iters, 32767);  /* avoid hitting 65535-handle limit */
            gasnet_handle_t *ph = test_malloc(sizeof(gasnet_handle_t)*warm_iters);
-           gasnet_register_value_t reg = 1;
+           gasnetex_register_value_t reg = 1;
            for (i = 0; i < warm_iters; i++) {
               gasnet_put_val(peerproc, tgtmem, reg, max_payload);
               reg ^= gasnet_get_val(peerproc, tgtmem, max_payload);

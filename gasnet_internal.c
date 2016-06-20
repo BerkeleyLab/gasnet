@@ -192,7 +192,7 @@ extern void gasneti_check_config_preinit(void) {
   gasneti_assert_always(GASNET_PAGESIZE > 0);
   gasneti_assert_always(GASNETI_POWEROFTWO(GASNET_PAGESIZE));
 
-  gasneti_assert_always(SIZEOF_GASNET_REGISTER_VALUE_T == sizeof(gasnet_register_value_t));
+  gasneti_assert_always(SIZEOF_GASNET_REGISTER_VALUE_T == sizeof(gasnetex_register_value_t));
   gasneti_assert_always(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(int));
   gasneti_assert_always(SIZEOF_GASNET_REGISTER_VALUE_T >= sizeof(void *));
 

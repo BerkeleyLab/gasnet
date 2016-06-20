@@ -23,7 +23,7 @@ typedef int * gasnet_handle_t;
 
 #define _GASNET_REGISTER_VALUE_T
 #define SIZEOF_GASNET_REGISTER_VALUE_T SIZEOF_VOID_P
-typedef uintptr_t gasnet_register_value_t;
+typedef uintptr_t gasnetex_register_value_t;
 
   /* this can be used to add statistical collection values 
      specific to the extended API implementation (see gasnet_help.h) */

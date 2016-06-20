@@ -518,22 +518,22 @@ int _gasnete_try_syncnb_some(gasnet_handle_t *phandle, size_t numhandles) {
 #endif
 
 GASNETI_INLINE(gasnete_get_val)
-gasnet_register_value_t
+gasnetex_register_value_t
 gasnete_get_val(gasnet_node_t node, void *src, size_t nbytes)
 {
 #ifdef GASNETE_GLOBAL_ADDRESS
     switch (nbytes) {
 	case 8:
-	    return (gasnet_register_value_t)
+	    return (gasnetex_register_value_t)
 		    *((uint64_t *) GASNETE_SHMPTR(src,node));
 	case 4:
-	    return (gasnet_register_value_t)
+	    return (gasnetex_register_value_t)
 		    *((uint32_t *) GASNETE_SHMPTR(src,node));
 	case 2:
-	    return (gasnet_register_value_t)
+	    return (gasnetex_register_value_t)
 		    *((uint16_t *) GASNETE_SHMPTR(src,node));
 	case 1:
-	    return (gasnet_register_value_t)
+	    return (gasnetex_register_value_t)
 		    *((uint8_t *) GASNETE_SHMPTR(src,node));
 	default:
 	    /* This kills the vectorizer on X1 */
@@ -542,42 +542,42 @@ gasnete_get_val(gasnet_node_t node, void *src, size_t nbytes)
 		"VIOLATION: Unsupported size %d in valget", 
 		(int)nbytes);
 	    #endif
-	    return (gasnet_register_value_t) 0;
+	    return (gasnetex_register_value_t) 0;
 	    break;
     }
-    return (gasnet_register_value_t) 0;
+    return (gasnetex_register_value_t) 0;
 #else /* !GASNETE_GLOBAL_ADDRESS */
     switch (nbytes) {
 	case 8:	
 	    #ifdef GASNET_SHMEM_GET_8
-		return (gasnet_register_value_t) GASNET_SHMEM_GET_8(src, node);
+		return (gasnetex_register_value_t) GASNET_SHMEM_GET_8(src, node);
 	    #else
 	    {
 		static uint64_t	temp64;
 		shmem_getmem((void *) &temp64,src,8,node);
-		return (gasnet_register_value_t) temp64;
+		return (gasnetex_register_value_t) temp64;
 	    }
 	    #endif
 
 	case 4: 
 	    #ifdef GASNET_SHMEM_GET_4
-		return (gasnet_register_value_t) GASNET_SHMEM_GET_4(src, node);
+		return (gasnetex_register_value_t) GASNET_SHMEM_GET_4(src, node);
 	    #else
 	    {
 		static uint32_t	temp32;
 		shmem_getmem((void *) &temp32,src,4,node);
-		return (gasnet_register_value_t) temp32;
+		return (gasnetex_register_value_t) temp32;
 	    }
 	    #endif
 
 	case 2: 
 	    #ifdef GASNET_SHMEM_GET_2
-		return (gasnet_register_value_t) GASNET_SHMEM_GET_2(src, node);
+		return (gasnetex_register_value_t) GASNET_SHMEM_GET_2(src, node);
 	    #else
 	    {
 		static uint16_t temp16;
 		shmem_getmem((void *) &temp16,src,2,node);
-		return (gasnet_register_value_t) temp16;
+		return (gasnetex_register_value_t) temp16;
 	    }
 	    #endif
 	case 1:
@@ -585,11 +585,11 @@ gasnete_get_val(gasnet_node_t node, void *src, size_t nbytes)
 #ifdef GASNETE_GLOBAL_ADDRESS
 		uint8_t	val;
 		val = *((uint8_t *) shmem_ptr(src,node));
-		return (gasnet_register_value_t) val;
+		return (gasnetex_register_value_t) val;
 #else
 		static uint8_t temp8;
 		shmem_getmem((void *) &temp8,src,1,node);
-		return (gasnet_register_value_t) temp8;
+		return (gasnetex_register_value_t) temp8;
 #endif
 	    }
 
@@ -598,12 +598,12 @@ gasnete_get_val(gasnet_node_t node, void *src, size_t nbytes)
 	    {
 		static uint64_t	tempA;
 		#if 0 && defined(GASNET_DEBUG)
-		if (nbytes > sizeof(gasnet_register_value_t))
+		if (nbytes > sizeof(gasnetex_register_value_t))
 		      gasneti_fatalerror(
 			"VIOLATION: Unsupported size %d in valget", nbytes);
 		#endif
 		shmem_getmem((void *) &tempA, src, nbytes, node);
-		return (gasnet_register_value_t) tempA;
+		return (gasnetex_register_value_t) tempA;
 	    }
     }
 #endif
@@ -619,7 +619,7 @@ gasnete_get_val(gasnet_node_t node, void *src, size_t nbytes)
 GASNETI_INLINE(gasnete_put_val_inner)
 void 
 gasnete_put_val_inner(gasnet_node_t node, void *dest, 
-		      gasnet_register_value_t value, 
+		      gasnetex_register_value_t value, 
 		      size_t nbytes)
 {
     switch (nbytes) {
@@ -649,7 +649,7 @@ gasnete_put_val_inner(gasnet_node_t node, void *dest,
 GASNETI_INLINE(gasnete_put_val_inner)
 void 
 gasnete_put_val_inner(gasnet_node_t node, void *dest, 
-		      gasnet_register_value_t value, 
+		      gasnetex_register_value_t value, 
 		      size_t nbytes)
 {
     static char	val_put[8];
@@ -667,7 +667,7 @@ gasnete_put_val_inner(gasnet_node_t node, void *dest,
 	case 0: return;
 	default:
 	    #if 0 && defined(GASNET_DEBUG)
-	      if (nbytes > sizeof(gasnet_register_value_t))
+	      if (nbytes > sizeof(gasnetex_register_value_t))
 		      gasneti_fatalerror(
 			"VIOLATION: Unsupported size %d in valput", nbytes);
 	    #endif
@@ -680,7 +680,7 @@ gasnete_put_val_inner(gasnet_node_t node, void *dest,
 
 GASNETI_INLINE(_gasnete_put_val)
 void 
-_gasnete_put_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, 
+_gasnete_put_val(gasnet_node_t node, void *dest, gasnetex_register_value_t value, 
 		size_t nbytes)
 {
     gasnete_put_val_inner(node, dest, value, nbytes);
@@ -691,7 +691,7 @@ _gasnete_put_val(gasnet_node_t node, void *dest, gasnet_register_value_t value,
 
 GASNETI_INLINE(_gasnete_put_nb_val)
 gasnet_handle_t 
-_gasnete_put_nb_val(gasnet_node_t node, void *dest, gasnet_register_value_t value, 
+_gasnete_put_nb_val(gasnet_node_t node, void *dest, gasnetex_register_value_t value, 
 		    size_t nbytes)
 {
     gasnete_put_val_inner(node, dest, value, nbytes);
@@ -702,7 +702,7 @@ _gasnete_put_nb_val(gasnet_node_t node, void *dest, gasnet_register_value_t valu
 GASNETI_INLINE(_gasnete_put_nbi_val)
 void 
 _gasnete_put_nbi_val(gasnet_node_t node, void *dest, 
-		    gasnet_register_value_t value, 
+		    gasnetex_register_value_t value, 
 		    size_t nbytes)
 {
     gasnete_put_val_inner(node, dest, value, nbytes);
