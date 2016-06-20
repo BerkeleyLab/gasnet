@@ -708,22 +708,13 @@ int gasnete_op_try_free_clear(gasnetex_handle_t *handle_p) {
   return 0;
 }
 
-extern int  gasnete_try_syncnb(gasnetex_handle_t handle) {
-#if 0
-  /* polling now takes place in callers which needed and NOT in those which don't */
-  GASNETI_SAFE(gasneti_AMPoll());
-#endif
-
+extern int  gasnete_test_syncnb(gasnetex_handle_t handle) {
   return gasnete_op_try_free(handle) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
 
-extern int  gasnete_try_syncnb_some (gasnetex_handle_t *phandle, size_t numhandles) {
+extern int  gasnete_test_syncnb_some (gasnetex_handle_t *phandle, size_t numhandles) {
   int success = 0;
   int empty = 1;
-#if 0
-  /* polling for syncnb now happens in header file to avoid duplication */
-  GASNETI_SAFE(gasneti_AMPoll());
-#endif
 
   gasneti_assert(phandle);
 
@@ -739,12 +730,8 @@ extern int  gasnete_try_syncnb_some (gasnetex_handle_t *phandle, size_t numhandl
   return (success || empty) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
 
-extern int  gasnete_try_syncnb_all (gasnetex_handle_t *phandle, size_t numhandles) {
+extern int  gasnete_test_syncnb_all (gasnetex_handle_t *phandle, size_t numhandles) {
   int success = 1;
-#if 0
-  /* polling for syncnb now happens in header file to avoid duplication */
-  GASNETI_SAFE(gasneti_AMPoll());
-#endif
 
   gasneti_assert(phandle);
 
@@ -836,12 +823,8 @@ int gasnete_put_nbi( gasnetex_team_member_t team,
   ===========================================================
 */
 
-extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
-  #if 0
-    /* polling for syncnbi now happens in header file to avoid duplication */
-    GASNETI_SAFE(gasneti_AMPoll());
-  #endif
-  {
+extern int  gasnete_test_syncnbi_gets(GASNETE_THREAD_FARG_ALONE)
+{
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t *iop = mythread->current_iop;
     gasneti_assert(iop->threadidx == mythread->threadidx);
@@ -849,22 +832,17 @@ extern int  gasnete_try_syncnbi_gets(GASNETE_THREAD_FARG_ALONE) {
     gasneti_assert(! gasnete_op_read_lc((gasnete_op_t *)iop));
     #if GASNET_DEBUG
       if (iop->next != NULL)
-        gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_gets() inside an NBI access region");
+        gasneti_fatalerror("VIOLATION: attempted to call gasnete_test_syncnbi_gets() inside an NBI access region");
     #endif
 
     if (GASNETE_IOP_CNTDONE(iop,get)) {
       gasneti_sync_reads();
       return GASNET_OK;
     } else return GASNET_ERR_NOT_READY;
-  }
 }
 
-extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
-  #if 0
-    /* polling for syncnbi now happens in header file to avoid duplication */
-    GASNETI_SAFE(gasneti_AMPoll());
-  #endif
-  {
+extern int  gasnete_test_syncnbi_puts(GASNETE_THREAD_FARG_ALONE)
+{
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
     gasnete_iop_t *iop = mythread->current_iop;
     gasneti_assert(iop->threadidx == mythread->threadidx);
@@ -873,15 +851,13 @@ extern int  gasnete_try_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
     gasneti_assert(! gasnete_op_read_lc((gasnete_op_t *)iop));
     #if GASNET_DEBUG
       if (iop->next != NULL)
-        gasneti_fatalerror("VIOLATION: attempted to call gasnete_try_syncnbi_puts() inside an NBI access region");
+        gasneti_fatalerror("VIOLATION: attempted to call gasnete_test_syncnbi_puts() inside an NBI access region");
     #endif
-
 
     if (GASNETE_IOP_CNTDONE(iop,put)) {
       gasneti_sync_reads();
       return GASNET_OK;
     } else return GASNET_ERR_NOT_READY;
-  }
 }
 
 /* ------------------------------------------------------------------------------------ */
