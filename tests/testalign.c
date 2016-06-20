@@ -201,7 +201,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
     int i;
     int64_t begin, end;
     stat_struct_t st;
-    gasnet_handle_t *handles = (gasnet_handle_t*) test_malloc(sizeof(gasnet_handle_t) * iters);
+    gasnetex_handle_t *handles = (gasnetex_handle_t*) test_malloc(sizeof(gasnetex_handle_t) * iters);
 	
     int pad = (alignment % PAGESZ);
 

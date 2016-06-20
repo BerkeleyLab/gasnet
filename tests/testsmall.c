@@ -301,7 +301,7 @@ void roundtrip_nb_test(int iters, int nbytes)
     int i;
     int64_t begin, end;
     stat_struct_t st;
-    gasnet_handle_t hdlget, hdlput;
+    gasnetex_handle_t hdlget, hdlput;
 
 	/* initialize statistics */
 	init_stat(&st, nbytes);
@@ -355,13 +355,13 @@ void oneway_nb_test(int iters, int nbytes)
     int i;
     int64_t begin, end;
     stat_struct_t st;
-    /*gasnet_handle_t hdlget, hdlput;*/
-    gasnet_handle_t *handles;
+    /*gasnetex_handle_t hdlget, hdlput;*/
+    gasnetex_handle_t *handles;
 
 	/* initialize statistics */
 	init_stat(&st, nbytes);
 	
-	handles = (gasnet_handle_t*) test_malloc(sizeof(gasnet_handle_t) * iters);
+	handles = (gasnetex_handle_t*) test_malloc(sizeof(gasnetex_handle_t) * iters);
 	
 	memset(msgbuf, 1, nbytes);
 	memset(ackbuf, 0, nbytes);
@@ -556,7 +556,7 @@ int main(int argc, char **argv)
         if (iamsender && !skipwarmup) { /* pay some warm-up costs */
            int i;
            int warm_iters = MIN(iters, 32767);  /* avoid hitting 65535-handle limit */
-           gasnet_handle_t *h = test_malloc(2*sizeof(gasnet_handle_t)*warm_iters);
+           gasnetex_handle_t *h = test_malloc(2*sizeof(gasnetex_handle_t)*warm_iters);
            for (i = 0; i < warm_iters; i++) {
               gasnetex_put(myteam, peerproc, tgtmem, msgbuf, 8, 0);
               gasnetex_get(myteam, msgbuf, peerproc, tgtmem, 8, 0);

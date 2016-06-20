@@ -1069,7 +1069,7 @@ int gasnete_coll_segment_checkM(gasnete_coll_team_t team, int flags,
 /*---------------------------------------------------------------------------------*/
 /* Handles */
 
-extern void gasnete_coll_save_handle(gasnet_handle_t *handle_p GASNETE_THREAD_FARG);
+extern void gasnete_coll_save_handle(gasnetex_handle_t *handle_p GASNETE_THREAD_FARG);
 extern void gasnete_coll_save_coll_handle(gasnet_coll_handle_t *handle_p GASNETE_THREAD_FARG);
 /*make whatever progress you can on puts, gets, and collectives initiated by any image on this node*/
 extern void gasnete_coll_sync_saved_handles(GASNETE_THREAD_FARG_ALONE);
@@ -1266,8 +1266,8 @@ struct gasnete_coll_generic_data_t_ {
   gasnete_coll_p2p_t			*p2p;
   gasnete_coll_tree_data_t *tree_info;
   gasnete_coll_dissem_info_t *dissem_info;
-  gasnet_handle_t			handle;
-  gasnet_handle_t			handle2;
+  gasnetex_handle_t			handle;
+  gasnetex_handle_t			handle2;
   gasnet_coll_handle_t		coll_handle;
   void				*private_data;
   

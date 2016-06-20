@@ -973,7 +973,7 @@ static void op_test(int id) {
     PTHREAD_BARRIER(num_threads);
 
     { gasneti_eop_t *eop;
-      gasnet_handle_t h;
+      gasnetex_handle_t h;
       eop = gasneti_eop_create(GASNETE_THREAD_GET_ALONE);
       assert_always(eop);
       h = gasneti_eop_to_handle(eop);
@@ -1041,9 +1041,9 @@ static void op_test(int id) {
         ASSERT_NBI_NOTSYNCED();
 
         { /* implicit access region */
-          gasnet_handle_t h;
+          gasnetex_handle_t h;
           gasneti_eop_t *eop;
-          gasnet_handle_t h2;
+          gasnetex_handle_t h2;
 
           gasnet_begin_nbi_accessregion();
           iop2 = gasneti_iop_register(1, isget GASNETE_THREAD_GET); /* iop2 = 1 */

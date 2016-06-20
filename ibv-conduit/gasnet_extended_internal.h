@@ -29,7 +29,7 @@
 
 /* ------------------------------------------------------------------------------------ */
 
-/* gasnet_handle_t is a void* pointer to a gasnete_op_t, 
+/* gasnetex_handle_t is a void* pointer to a gasnete_op_t, 
    which is either a gasnete_eop_t or an gasnete_iop_t
    */
 typedef struct _gasnete_op_t {

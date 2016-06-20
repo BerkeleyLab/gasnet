@@ -49,7 +49,7 @@ static int gasnete_coll_pf_bcast_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
       data->state = 2;
       
   case 2:	/* Sync data movement */
-    if (data->handle != GASNET_INVALID_HANDLE) {
+    if (data->handle != GASNETEX_INVALID_HANDLE) {
       break;
     }
     data->state = 3;
@@ -145,7 +145,7 @@ static int gasnete_coll_pf_bcast_TreeRVGet(gasnete_coll_op_t *op GASNETE_THREAD_
     data->state = 3;
     
   case 3:	/* Sync data movement */
-    if (data->handle != GASNET_INVALID_HANDLE) {
+    if (data->handle != GASNETEX_INVALID_HANDLE) {
       break;
     }
     /*the get has finished now send a signal down the tree signalling the ok to get*/
@@ -321,7 +321,7 @@ static int gasnete_coll_pf_bcastM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FAR
       data->state = 2;
 
     case 2:	/* Complete data movement */
-      if (data->handle != GASNET_INVALID_HANDLE) {
+      if (data->handle != GASNETEX_INVALID_HANDLE) {
 	  break;
       } else if (op->team->myrank != args->srcnode) {
 	void * const *p = &GASNETE_COLL_MY_1ST_IMAGE(op->team, args->dstlist, op->flags);
@@ -404,7 +404,7 @@ static int gasnete_coll_pf_bcastM_TreeRVGet(gasnete_coll_op_t *op GASNETE_THREAD
     data->state = 3;
     
   case 3:	/* Sync data movement */
-    if (data->handle != GASNET_INVALID_HANDLE) {
+    if (data->handle != GASNETEX_INVALID_HANDLE) {
       break;
     }
     /*the get has finished now send a signal down the tree signalling the ok to get*/
@@ -584,7 +584,7 @@ static int gasnete_coll_pf_scat_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
       data->state = 2;
 
     case 2:	/* Sync data movement */
-      if (data->handle != GASNET_INVALID_HANDLE) {
+      if (data->handle != GASNETEX_INVALID_HANDLE) {
 	break;
       }
       data->state = 3;
@@ -734,7 +734,7 @@ static int gasnete_coll_pf_scatM_RVGet(gasnete_coll_op_t *op GASNETE_THREAD_FARG
       data->state = 2;
 
     case 2:
-      if (data->handle != GASNET_INVALID_HANDLE) {
+      if (data->handle != GASNETEX_INVALID_HANDLE) {
 	break;
       }
       data->state = 3;
@@ -888,7 +888,7 @@ static int gasnete_coll_pf_gath_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
       data->state = 2;
 
     case 2:	/* Sync data movement */
-      if (data->handle != GASNET_INVALID_HANDLE) {
+      if (data->handle != GASNETEX_INVALID_HANDLE) {
 	break;
       }
       data->state = 3;
@@ -1018,7 +1018,7 @@ static int gasnete_coll_pf_gathM_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG
       data->state = 2;
 
     case 2:
-      if (data->handle != GASNET_INVALID_HANDLE) {
+      if (data->handle != GASNETEX_INVALID_HANDLE) {
 	break;
       }
       data->state = 3;
@@ -1170,7 +1170,7 @@ static int gasnete_coll_pf_exchg_RVPut(gasnete_coll_op_t *op GASNETE_THREAD_FARG
                                         (int8_t*) args->src+op->team->myrank*args->nbytes, args->nbytes);
     data->state = 4;
   case 4: /* sync all the handles for the puts*/
-    if (op->team->total_ranks > 1 && data->handle != GASNET_INVALID_HANDLE) {
+    if (op->team->total_ranks > 1 && data->handle != GASNETEX_INVALID_HANDLE) {
       return 0;
     }
     data->state=5;

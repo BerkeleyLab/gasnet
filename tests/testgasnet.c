@@ -287,7 +287,7 @@ void doit(int partner, int *partnerseg) {
   /*  blocking list test */
   #define iters 100
   { GASNET_BEGIN_FUNCTION();
-    gasnet_handle_t handles[iters];
+    gasnetex_handle_t handles[iters];
     int val1;
     int vals[iters];
     int success = 1;
@@ -471,7 +471,7 @@ void doit5(int partner, int *partnerseg) {
       uint64_t *segpos=(uint64_t *)TEST_MYSEG();
       uint64_t *rsegpos=(uint64_t *)((char*)partnerseg+SEGSZ);
       for (sz = 1; sz <= MAXSZ; sz*=2) {
-        gasnet_handle_t handle;
+        gasnetex_handle_t handle;
         int elems = sz/8;
         int j;
         uint64_t val = VAL(sz, i); /* setup known src value */

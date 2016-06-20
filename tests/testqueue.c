@@ -30,7 +30,7 @@ int maxdepth = 0;
 
 char *tgtmem;
 void *msgbuf;
-gasnet_handle_t *handles;
+gasnetex_handle_t *handles;
 volatile gasnetex_register_value_t regval = 5551212;
 
 #define hidx_ping_shorthandler   201
@@ -250,7 +250,7 @@ int main(int argc, char **argv) {
     MSG0("x-axis: queue depth, y-axis: message size, injection time in microseconds\n");
     BARRIER();
 
-    handles = (gasnet_handle_t *) test_malloc(sizeof(gasnet_handle_t) * maxdepth);
+    handles = (gasnetex_handle_t *) test_malloc(sizeof(gasnetex_handle_t) * maxdepth);
 
     do_bulkputs();
     do_nonbulkputgets();

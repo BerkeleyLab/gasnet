@@ -958,7 +958,7 @@ void doit(int iters, int runtests) {
     MSG("Non-blocking tests...");
     for (iter = 0; iter < iters; iter++) {
       size_t numops = TEST_RAND(1, MAX_INFLIGHT_OPS);
-      gasnet_handle_t *handles = test_calloc(sizeof(gasnet_handle_t), numops);
+      gasnetex_handle_t *handles = test_calloc(sizeof(gasnetex_handle_t), numops);
       test_op *ops = test_calloc(sizeof(test_op), numops);
       size_t opareasz = areasz / numops;
       size_t i;

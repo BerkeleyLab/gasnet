@@ -371,12 +371,12 @@ typedef const struct _gasneti_iop_S gasneti_iop_t;
 gasneti_eop_t *gasneti_eop_create(GASNETE_THREAD_FARG_ALONE);
 
 /* convert an gasneti_eop_t* created by an earlier call from this
-   thread to gasneti_new_eop(), into a gasnet_handle_t suitable
+   thread to gasneti_new_eop(), into a gasnetex_handle_t suitable
    for this thread to later pass to gasnet_wait_syncnb & friends */
 #if GASNETI_EOP_IS_HANDLE
-  #define gasneti_eop_to_handle(eop) ((gasnet_handle_t)(eop))
+  #define gasneti_eop_to_handle(eop) ((gasnetex_handle_t)(eop))
 #else
-  gasnet_handle_t gasneti_eop_to_handle(gasneti_eop_t *eop);
+  gasnetex_handle_t gasneti_eop_to_handle(gasneti_eop_t *eop);
 #endif
 
 /* register noperations in-flight operations on the currently selected 

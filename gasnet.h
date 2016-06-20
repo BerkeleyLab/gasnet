@@ -290,6 +290,9 @@ typedef struct gasneti_team_s *gasnetex_team_member_t;
 #ifdef _GASNET_REGISTER_VALUE_T
 #error "out-of-date #define of _GASNET_REGISTER_VALUE_T"
 #endif
+#ifdef _GASNET_HANDLE_T
+#error "out-of-date #define of _GASNET_HANDLE_T"
+#endif
 
 
 #ifndef _GASNET_HANDLERENTRY_T
@@ -353,13 +356,6 @@ typedef struct gasneti_team_s *gasnetex_team_member_t;
 #define GASNETEX_LC_SYNC  ((gasnetex_lc_handle_t*)(uintptr_t)2)
 #define GASNETEX_LC_GROUP ((gasnetex_lc_handle_t*)(uintptr_t)3)
 
-
-#ifndef _GASNET_HANDLE_T
-#define _GASNET_HANDLE_T
-  /*  an opaque type representing a non-blocking operation in-progress initiated using the extended API */
-  typedef void *gasnet_handle_t;
-  #define GASNET_INVALID_HANDLE ((gasnet_handle_t)0)
-#endif
 
   /*  the largest unsigned integer type that can fit entirely in a single CPU register for the current architecture and ABI.  */
   /*  SIZEOF_GASNETEX_REGISTER_VALUE_T is a preprocess-time literal integer constant (i.e. not "sizeof()")indicating the size of this type in bytes */

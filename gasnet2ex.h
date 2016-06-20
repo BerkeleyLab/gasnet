@@ -30,6 +30,9 @@ typedef gasnetex_handler_t gasnet_handler_t;
 typedef gasnetex_handlerarg_t gasnet_handlerarg_t;
 typedef gasnetex_register_value_t gasnet_register_value_t;
 
+typedef gasnetex_handle_t gasnet_handle_t;
+#define GASNET_INVALID_HANDLE GASNETEX_INVALID_HANDLE
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Active Message Request/Reply Functions
@@ -332,7 +335,7 @@ typedef gasnetex_register_value_t gasnet_register_value_t;
 
 typedef struct g2ex_valget_handle_s {
   gasnet_register_value_t v;
-  gasnet_handle_t         h;
+  gasnetex_handle_t         h;
 } *gasnet_valget_handle_t;
 
 GASNETI_INLINE(gasnet_get_nb_val)

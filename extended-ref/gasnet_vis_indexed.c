@@ -203,7 +203,7 @@ size_t gasnete_packetize_addrlist(size_t remotecount, size_t remotelen,
 /* simple gather put, remotely contiguous */
 #ifndef GASNETE_PUTI_GATHER_SELECTOR
 #if GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
-gasnet_handle_t gasnete_puti_gather(gasnete_synctype_t synctype,
+gasnetex_handle_t gasnete_puti_gather(gasnete_synctype_t synctype,
                                    gasnetex_rank_t dstnode,
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
@@ -233,7 +233,7 @@ gasnet_handle_t gasnete_puti_gather(gasnete_synctype_t synctype,
 /* simple scatter get, remotely contiguous */
 #ifndef GASNETE_GETI_SCATTER_SELECTOR
 #if GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
-gasnet_handle_t gasnete_geti_scatter(gasnete_synctype_t synctype,
+gasnetex_handle_t gasnete_geti_scatter(gasnete_synctype_t synctype,
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    gasnetex_rank_t srcnode,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
@@ -266,7 +266,7 @@ gasnet_handle_t gasnete_geti_scatter(gasnete_synctype_t synctype,
 /* Pipelined AM gather-scatter put */
 #ifndef GASNETE_PUTI_AMPIPELINE_SELECTOR
 #if GASNETE_USE_AMPIPELINE
-gasnet_handle_t gasnete_puti_AMPipeline(gasnete_synctype_t synctype,
+gasnetex_handle_t gasnete_puti_AMPipeline(gasnete_synctype_t synctype,
                                    gasnetex_rank_t dstnode,
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
@@ -339,7 +339,7 @@ MEDIUM_HANDLER(gasnete_puti_AMPipeline_reqh,5,6,
 /* Pipelined AM gather-scatter get */
 #ifndef GASNETE_GETI_AMPIPELINE_SELECTOR
 #if GASNETE_USE_AMPIPELINE
-gasnet_handle_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
+gasnetex_handle_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    gasnetex_rank_t srcnode,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
@@ -446,7 +446,7 @@ MEDIUM_HANDLER(gasnete_geti_AMPipeline_reph,2,3,
 #endif
 /*---------------------------------------------------------------------------------*/
 /* reference version that uses individual puts */
-gasnet_handle_t gasnete_puti_ref_indiv(gasnete_synctype_t synctype,
+gasnetex_handle_t gasnete_puti_ref_indiv(gasnete_synctype_t synctype,
                                    gasnetex_rank_t dstnode,
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
@@ -516,7 +516,7 @@ gasnet_handle_t gasnete_puti_ref_indiv(gasnete_synctype_t synctype,
 }
 
 /* reference version that uses individual gets */
-gasnet_handle_t gasnete_geti_ref_indiv(gasnete_synctype_t synctype,
+gasnetex_handle_t gasnete_geti_ref_indiv(gasnete_synctype_t synctype,
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    gasnetex_rank_t srcnode,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
@@ -589,13 +589,13 @@ gasnet_handle_t gasnete_geti_ref_indiv(gasnete_synctype_t synctype,
 
 /*---------------------------------------------------------------------------------*/
 /* reference version that uses vector interface */
-gasnet_handle_t gasnete_puti_ref_vector(gasnete_synctype_t synctype,
+gasnetex_handle_t gasnete_puti_ref_vector(gasnete_synctype_t synctype,
                                    gasnetex_rank_t dstnode,
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
   gasnet_memvec_t *newdstlist = gasneti_malloc(sizeof(gasnet_memvec_t)*dstcount);
   gasnet_memvec_t *newsrclist = gasneti_malloc(sizeof(gasnet_memvec_t)*srccount);
-  gasnet_handle_t retval;
+  gasnetex_handle_t retval;
   size_t i;
   GASNETI_TRACE_EVENT(C, PUTI_REF_VECTOR);
   gasneti_assert(GASNETE_PUTV_ALLOWS_VOLATILE_METADATA);
@@ -613,13 +613,13 @@ gasnet_handle_t gasnete_puti_ref_vector(gasnete_synctype_t synctype,
   return retval;
 }
 /* reference version that uses vector interface */
-gasnet_handle_t gasnete_geti_ref_vector(gasnete_synctype_t synctype,
+gasnetex_handle_t gasnete_geti_ref_vector(gasnete_synctype_t synctype,
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    gasnetex_rank_t srcnode,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
   gasnet_memvec_t *newdstlist = gasneti_malloc(sizeof(gasnet_memvec_t)*dstcount);
   gasnet_memvec_t *newsrclist = gasneti_malloc(sizeof(gasnet_memvec_t)*srccount);
-  gasnet_handle_t retval;
+  gasnetex_handle_t retval;
   size_t i;
   GASNETI_TRACE_EVENT(C, GETI_REF_VECTOR);
   gasneti_assert(GASNETE_GETV_ALLOWS_VOLATILE_METADATA);
@@ -640,7 +640,7 @@ gasnet_handle_t gasnete_geti_ref_vector(gasnete_synctype_t synctype,
 /*---------------------------------------------------------------------------------*/
 /* top-level gasnet_puti_* entry point */
 #ifndef GASNETE_PUTI_OVERRIDE
-extern gasnet_handle_t gasnete_puti(gasnete_synctype_t synctype,
+extern gasnetex_handle_t gasnete_puti(gasnete_synctype_t synctype,
                                    gasnetex_rank_t dstnode,
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
@@ -648,7 +648,7 @@ extern gasnet_handle_t gasnete_puti(gasnete_synctype_t synctype,
   /* catch silly degenerate cases */
   if_pf (dstcount + srccount <= 2 ||  /* empty or fully contiguous */
          dstnode == gasneti_mynode) { /* purely local */ 
-    if (dstcount == 0) return GASNET_INVALID_HANDLE;
+    if (dstcount == 0) return GASNETEX_INVALID_HANDLE;
     else return gasnete_puti_ref_indiv(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS);
   }
 
@@ -675,12 +675,12 @@ extern gasnet_handle_t gasnete_puti(gasnete_synctype_t synctype,
   #endif
   GASNETE_PUTI_SELECTOR(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen);
   gasneti_fatalerror("failure in GASNETE_PUTI_SELECTOR - should never reach here");
-  return GASNET_INVALID_HANDLE; /* avoid warning on MIPSPro */
+  return GASNETEX_INVALID_HANDLE; /* avoid warning on MIPSPro */
 }
 #endif
 /* top-level gasnet_geti_* entry point */
 #ifndef GASNETE_GETI_OVERRIDE
-extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
+extern gasnetex_handle_t gasnete_geti(gasnete_synctype_t synctype,
                                    size_t dstcount, void * const dstlist[], size_t dstlen,
                                    gasnetex_rank_t srcnode,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
@@ -688,7 +688,7 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
   /* catch silly degenerate cases */
   if_pf (dstcount + srccount <= 2 ||  /* empty or fully contiguous */
          srcnode == gasneti_mynode) { /* purely local */ 
-    if (dstcount == 0) return GASNET_INVALID_HANDLE;
+    if (dstcount == 0) return GASNETEX_INVALID_HANDLE;
     else return gasnete_geti_ref_indiv(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS);
   }
 
@@ -715,6 +715,6 @@ extern gasnet_handle_t gasnete_geti(gasnete_synctype_t synctype,
   #endif
   GASNETE_GETI_SELECTOR(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen);
   gasneti_fatalerror("failure in GASNETE_GETI_SELECTOR - should never reach here");
-  return GASNET_INVALID_HANDLE; /* avoid warning on MIPSPro */
+  return GASNETEX_INVALID_HANDLE; /* avoid warning on MIPSPro */
 }
 #endif

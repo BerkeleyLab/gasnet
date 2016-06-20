@@ -45,11 +45,11 @@ gasnetex_handle_t gasnete_put_nb(
 #define gasnete_put_nb gasnete_put_nb
 
 GASNETI_INLINE(gasnete_memset_nb) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t gasnete_memset_nb(gasnetex_rank_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG)
+gasnetex_handle_t gasnete_memset_nb(gasnetex_rank_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_MEMSET(H);
   gasneti_assert(0 && "Unreachable");
-  return GASNET_INVALID_HANDLE;
+  return GASNETEX_INVALID_HANDLE;
 }
 #define gasnete_memset_nb gasnete_memset_nb
 
@@ -60,9 +60,9 @@ gasnet_handle_t gasnete_memset_nb(gasnetex_rank_t node, void *dest, int val, siz
 */
 
 GASNETI_INLINE(gasnete_syncnb_one)
-int gasnete_syncnb_one(gasnet_handle_t handle)
+int gasnete_syncnb_one(gasnetex_handle_t handle)
 {
-  gasneti_assert(handle == GASNET_INVALID_HANDLE);
+  gasneti_assert(handle == GASNETEX_INVALID_HANDLE);
   gasneti_sync_reads();
   return GASNET_OK;
 }
@@ -70,12 +70,12 @@ int gasnete_syncnb_one(gasnet_handle_t handle)
 #define gasnete_wait_syncnb gasnete_syncnb_one
 
 GASNETI_INLINE(gasnete_syncnb_array)
-int gasnete_syncnb_array(gasnet_handle_t *phandle, size_t numhandles)
+int gasnete_syncnb_array(gasnetex_handle_t *phandle, size_t numhandles)
 {
 #if GASNET_DEBUG
   int i;
   for (i=0; i<numhandles; ++i)
-    gasneti_assert(phandle[i] == GASNET_INVALID_HANDLE);
+    gasneti_assert(phandle[i] == GASNETEX_INVALID_HANDLE);
 #endif
   gasneti_sync_reads();
   return GASNET_OK;
@@ -147,8 +147,8 @@ void gasnete_begin_nbi_accessregion(int allowrecursion GASNETE_THREAD_FARG)
 #define gasnete_begin_nbi_accessregion gasnete_begin_nbi_accessregion
 
 GASNETI_INLINE(gasnete_end_nbi_accessregion) GASNETI_WARN_UNUSED_RESULT
-gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
-{ return GASNET_INVALID_HANDLE; }
+gasnetex_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
+{ return GASNETEX_INVALID_HANDLE; }
 #define gasnete_end_nbi_accessregion gasnete_end_nbi_accessregion
 
 /* ------------------------------------------------------------------------------------ */
@@ -180,7 +180,7 @@ gasnetex_handle_t gasnete_put_nb_val(
 {
   GASNETI_CHECKPSHM_PUTVAL(H);
   gasneti_assert(0 && "Unreachable");
-  return GASNET_INVALID_HANDLE;
+  return GASNETEX_INVALID_HANDLE;
 }
 #define gasnete_put_nb_val gasnete_put_nb_val
 

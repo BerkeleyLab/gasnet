@@ -25,7 +25,7 @@ typedef struct gasneti_vis_op_S {
   gasneti_weakatomic_t packetcnt;
   size_t count;
   size_t len;
-  gasnet_handle_t handle;
+  gasnetex_handle_t handle;
 } gasneti_vis_op_t;
 
 /* per-thread state for VIS */
@@ -98,16 +98,16 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 #define GASNETE_VISOP_RETURN_VOLATILE(eop, synctype) do {            \
     switch (synctype) {                                              \
       case gasnete_synctype_b: {                                     \
-        gasnet_handle_t h = gasneti_eop_to_handle(eop);              \
+        gasnetex_handle_t h = gasneti_eop_to_handle(eop);              \
         gasnete_wait_syncnb(h);                                      \
-        return GASNET_INVALID_HANDLE;                                \
+        return GASNETEX_INVALID_HANDLE;                                \
       }                                                              \
       case gasnete_synctype_nb:                                      \
         return gasneti_eop_to_handle(eop);                           \
       case gasnete_synctype_nbi:                                     \
-        return GASNET_INVALID_HANDLE;                                \
+        return GASNETEX_INVALID_HANDLE;                                \
       default: gasneti_fatalerror("bad synctype");                   \
-        return GASNET_INVALID_HANDLE; /* avoid warning on MIPSPro */ \
+        return GASNETEX_INVALID_HANDLE; /* avoid warning on MIPSPro */ \
     }                                                                \
 } while (0)
 
@@ -148,17 +148,17 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
 /* finish a region started with GASNETE_START_NBIREGION,
    block if required, and return the appropriate handle */
 #define GASNETE_END_NBIREGION_AND_RETURN(synctype, islocal) do {                      \
-    if (islocal) return GASNET_INVALID_HANDLE;                                        \
+    if (islocal) return GASNETEX_INVALID_HANDLE;                                        \
     switch (synctype) {                                                               \
       case gasnete_synctype_nb:                                                       \
         return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);               \
       case gasnete_synctype_b:                                                        \
         gasnete_wait_syncnb(gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE)); \
-        return GASNET_INVALID_HANDLE;                                                 \
+        return GASNETEX_INVALID_HANDLE;                                                 \
       case gasnete_synctype_nbi:                                                      \
-        return GASNET_INVALID_HANDLE;                                                 \
+        return GASNETEX_INVALID_HANDLE;                                                 \
       default: gasneti_fatalerror("bad synctype");                                    \
-        return GASNET_INVALID_HANDLE; /* avoid warning on MIPSPro */                  \
+        return GASNETEX_INVALID_HANDLE; /* avoid warning on MIPSPro */                  \
     }                                                                                 \
   } while(0)
 

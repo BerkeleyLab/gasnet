@@ -216,7 +216,7 @@ size_t gasnete_packetize_memvec(size_t remotecount, gasnet_memvec_t const remote
 /* simple gather put, remotely contiguous */
 #ifndef GASNETE_PUTV_GATHER_SELECTOR
 #if GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
-gasnet_handle_t gasnete_putv_gather(gasnete_synctype_t synctype,
+gasnetex_handle_t gasnete_putv_gather(gasnete_synctype_t synctype,
                                    gasnetex_rank_t dstnode,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
                                    size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
@@ -224,7 +224,7 @@ gasnet_handle_t gasnete_putv_gather(gasnete_synctype_t synctype,
   size_t const nbytes = dstlist[0].len;
   gasneti_assert(dstcount == 1 && srccount > 1); /* only supports gather put */
   gasneti_assert(dstnode != gasneti_mynode); /* silly to use for local cases */
-  if_pf (nbytes == 0) return GASNET_INVALID_HANDLE; /* handle empty */
+  if_pf (nbytes == 0) return GASNETEX_INVALID_HANDLE; /* handle empty */
   GASNETI_TRACE_EVENT(C, PUTV_GATHER);
 
   { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t)+nbytes);
@@ -246,7 +246,7 @@ gasnet_handle_t gasnete_putv_gather(gasnete_synctype_t synctype,
 /* simple scatter get, remotely contiguous */
 #ifndef GASNETE_GETV_SCATTER_SELECTOR
 #if GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
-gasnet_handle_t gasnete_getv_scatter(gasnete_synctype_t synctype,
+gasnetex_handle_t gasnete_getv_scatter(gasnete_synctype_t synctype,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
                                    gasnetex_rank_t srcnode,
                                    size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
@@ -254,7 +254,7 @@ gasnet_handle_t gasnete_getv_scatter(gasnete_synctype_t synctype,
   size_t const nbytes = srclist[0].len;
   gasneti_assert(srccount == 1 && dstcount > 1); /* only supports scatter get */
   gasneti_assert(srcnode != gasneti_mynode); /* silly to use for local cases */
-  if_pf (nbytes == 0) return GASNET_INVALID_HANDLE; /* handle empty */
+  if_pf (nbytes == 0) return GASNETEX_INVALID_HANDLE; /* handle empty */
   GASNETI_TRACE_EVENT(C, GETV_SCATTER);
 
   { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t)+dstcount*sizeof(gasnet_memvec_t)+nbytes);
@@ -278,7 +278,7 @@ gasnet_handle_t gasnete_getv_scatter(gasnete_synctype_t synctype,
 /* Pipelined AM gather-scatter put */
 #ifndef GASNETE_PUTV_AMPIPELINE_SELECTOR
 #if GASNETE_USE_AMPIPELINE
-gasnet_handle_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
+gasnetex_handle_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
                                    gasnetex_rank_t dstnode,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
                                    size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
@@ -289,7 +289,7 @@ gasnet_handle_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
     for (i = 0; i < srccount; i++) { 
       if (srclist[i].len > 0) break;
     }
-    if_pf (i == srccount) return GASNET_INVALID_HANDLE;
+    if_pf (i == srccount) return GASNETEX_INVALID_HANDLE;
   }
   GASNETE_START_NBIREGION(synctype, 0);
 
@@ -369,7 +369,7 @@ SHORT_HANDLER(gasnete_putvis_AMPipeline_reph,1,2,
 /* Pipelined AM gather-scatter get */
 #ifndef GASNETE_GETV_AMPIPELINE_SELECTOR
 #if GASNETE_USE_AMPIPELINE
-gasnet_handle_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
+gasnetex_handle_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
                                    gasnetex_rank_t srcnode,
                                    size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
@@ -380,7 +380,7 @@ gasnet_handle_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
     for (i = 0; i < dstcount; i++) { 
       if (dstlist[i].len > 0) break;
     }
-    if_pf (i == dstcount) return GASNET_INVALID_HANDLE;
+    if_pf (i == dstcount) return GASNETEX_INVALID_HANDLE;
   }
 
   { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t) +
@@ -485,7 +485,7 @@ MEDIUM_HANDLER(gasnete_getv_AMPipeline_reph,2,3,
 #endif
 /*---------------------------------------------------------------------------------*/
 /* reference version that uses individual puts */
-gasnet_handle_t gasnete_putv_ref_indiv(gasnete_synctype_t synctype,
+gasnetex_handle_t gasnete_putv_ref_indiv(gasnete_synctype_t synctype,
                                    gasnetex_rank_t dstnode,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
                                    size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
@@ -557,7 +557,7 @@ gasnet_handle_t gasnete_putv_ref_indiv(gasnete_synctype_t synctype,
 }
 
 /* reference version that uses individual gets */
-gasnet_handle_t gasnete_getv_ref_indiv(gasnete_synctype_t synctype,
+gasnetex_handle_t gasnete_getv_ref_indiv(gasnete_synctype_t synctype,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
                                    gasnetex_rank_t srcnode,
                                    size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
@@ -633,14 +633,14 @@ gasnet_handle_t gasnete_getv_ref_indiv(gasnete_synctype_t synctype,
 /*---------------------------------------------------------------------------------*/
 /* top-level gasnet_putv_* entry point */
 #ifndef GASNETE_PUTV_OVERRIDE
-extern gasnet_handle_t gasnete_putv(gasnete_synctype_t synctype,
+extern gasnetex_handle_t gasnete_putv(gasnete_synctype_t synctype,
                                    gasnetex_rank_t dstnode,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
                                    size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
   gasneti_assert(gasnete_vis_isinit);
   /* catch silly degenerate cases */
   if_pf (dstcount == 0 || srccount == 0) /* empty (may miss some cases) */
-    return GASNET_INVALID_HANDLE; 
+    return GASNETEX_INVALID_HANDLE; 
   if_pf (dstcount + srccount <= 2 ||  /* fully contiguous */
          dstnode == gasneti_mynode) { /* purely local */ 
     return gasnete_putv_ref_indiv(synctype,dstnode,dstcount,dstlist,srccount,srclist GASNETE_THREAD_PASS);
@@ -659,14 +659,14 @@ extern gasnet_handle_t gasnete_putv(gasnete_synctype_t synctype,
 #endif
 /* top-level gasnet_getv_* entry point */
 #ifndef GASNETE_GETV_OVERRIDE
-extern gasnet_handle_t gasnete_getv(gasnete_synctype_t synctype,
+extern gasnetex_handle_t gasnete_getv(gasnete_synctype_t synctype,
                                    size_t dstcount, gasnet_memvec_t const dstlist[], 
                                    gasnetex_rank_t srcnode,
                                    size_t srccount, gasnet_memvec_t const srclist[] GASNETE_THREAD_FARG) {
   gasneti_assert(gasnete_vis_isinit);
   /* catch silly degenerate cases */
   if_pf (dstcount == 0 || srccount == 0) /* empty (may miss some cases) */
-    return GASNET_INVALID_HANDLE; 
+    return GASNETEX_INVALID_HANDLE; 
   if_pf (dstcount + srccount <= 2 ||  /* fully contiguous */
          srcnode == gasneti_mynode) { /* purely local */ 
     return gasnete_getv_ref_indiv(synctype,dstcount,dstlist,srcnode,srccount,srclist GASNETE_THREAD_PASS);

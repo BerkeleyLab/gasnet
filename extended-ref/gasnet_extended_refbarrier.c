@@ -1188,7 +1188,7 @@ typedef struct {
   int volatile barrier_flags; /*  barrier flags (evolves from local value) */
   void *barrier_inbox;        /*  in-segment memory to recv notifications */
 #if !GASNETI_THREADS
-  gasnet_handle_t *barrier_handles; /* array of handles for non-blocking puts */
+  gasnetex_handle_t *barrier_handles; /* array of handles for non-blocking puts */
 #endif
 } gasnete_coll_rmdbarrier_t;
 
@@ -1230,7 +1230,7 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
                              gasnetex_handlerarg_t value, gasnetex_handlerarg_t flags) {
   GASNETE_THREAD_LOOKUP /* XXX: can we remove/avoid this lookup? */
   unsigned int step = state >> 1;
-  gasnet_handle_t handle;
+  gasnetex_handle_t handle;
   gasnete_coll_rmdbarrier_inbox_t *payload;
   int i;
 
@@ -1264,7 +1264,7 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
 #else
   /* save the new ops to sync after the barrier is complete */
   step -= (numsteps + 1);
-  gasneti_assert(barrier_data->barrier_handles[step] == GASNET_INVALID_HANDLE);
+  gasneti_assert(barrier_data->barrier_handles[step] == GASNETEX_INVALID_HANDLE);
   barrier_data->barrier_handles[step] = handle;
 #endif
 }
@@ -1660,7 +1660,7 @@ static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
     int step;
 
 #if !GASNETI_THREADS
-    barrier_data->barrier_handles = gasneti_calloc(steps, sizeof(gasnet_handle_t));
+    barrier_data->barrier_handles = gasneti_calloc(steps, sizeof(gasnetex_handle_t));
 #endif
 
     gasneti_assert(gasnete_rdmabarrier_auxseg);
@@ -1679,7 +1679,7 @@ static void gasnete_rmdbarrier_init(gasnete_coll_team_t team) {
     barrier_data->barrier_state = barrier_data->barrier_goal;
 #if !GASNETI_THREADS
     /* simplifies the sync path(s) */
-    barrier_data->barrier_handles = gasneti_calloc(1, sizeof(gasnet_handle_t));
+    barrier_data->barrier_handles = gasneti_calloc(1, sizeof(gasnetex_handle_t));
 #endif
   }
 

@@ -141,11 +141,11 @@ gasnett_atomic64_t a64 = gasnett_atomic64_init(0);
 int32_t temp = 0;
 gasnett_tick_t timertemp = 0;
 int8_t bigtemp[1024];
-gasnet_handle_t handles[8];
+gasnetex_handle_t handles[8];
 /* ------------------------------------------------------------------------------------ */
 void doit1(void) { GASNET_BEGIN_FUNCTION();
 
-    { int i; for (i=0;i<8;i++) handles[i] = GASNET_INVALID_HANDLE; }
+    { int i; for (i=0;i<8;i++) handles[i] = GASNETEX_INVALID_HANDLE; }
 
     TEST_SECTION_BEGIN();
     TIME_OPERATION("Tester overhead", {});
@@ -409,10 +409,10 @@ void doit7(void) { GASNET_BEGIN_FUNCTION();
 
     TEST_SECTION_BEGIN();
     TIME_OPERATION("do-nothing gasnet_wait_syncnb()",
-      { gasnet_wait_syncnb(GASNET_INVALID_HANDLE);  });
+      { gasnet_wait_syncnb(GASNETEX_INVALID_HANDLE);  });
 
     TIME_OPERATION("do-nothing gasnet_try_syncnb()",
-      { GASNETI_UNUSED int junk = gasnet_try_syncnb(GASNET_INVALID_HANDLE); });
+      { GASNETI_UNUSED int junk = gasnet_try_syncnb(GASNETEX_INVALID_HANDLE); });
 
     TIME_OPERATION("do-nothing gasnet_wait_syncnb_all() (8 handles)",
       { gasnet_wait_syncnb_all(handles, 8); });

@@ -207,10 +207,10 @@ void bulk_test_nb(int iters) {GASNET_BEGIN_FUNCTION();
     int i;
     int64_t begin, end;
     stat_struct_t stget, stput;
-    gasnet_handle_t *handles;
+    gasnetex_handle_t *handles;
     size_t payload;
     
-	handles = (gasnet_handle_t *) test_malloc(sizeof(gasnet_handle_t) * iters);
+	handles = (gasnetex_handle_t *) test_malloc(sizeof(gasnetex_handle_t) * iters);
 
 	for (payload = min_payload; payload <= max_payload && payload > 0; payload = NEXT_SZ(payload)) {
 		init_stat(&stput, payload);
@@ -396,7 +396,7 @@ int main(int argc, char **argv)
         if (iamsender && !skipwarmup) { /* pay some warm-up costs */
            int i;
            int warm_iters = MIN(iters, 32767);	/* avoid hitting 65535-handle limit */
-           gasnet_handle_t *h = test_malloc(2*sizeof(gasnet_handle_t)*warm_iters);
+           gasnetex_handle_t *h = test_malloc(2*sizeof(gasnetex_handle_t)*warm_iters);
            for (i = 0; i < warm_iters; i++) {
               gasnetex_put(myteam, peerproc, tgtmem, msgbuf, 8, 0);
               gasnetex_get(myteam, msgbuf, peerproc, tgtmem, 8, 0);
