@@ -587,7 +587,7 @@ gasnetex_handle_t _gasnetex_put_nb_val (
     GASNETI_TRACE_PUT_LOCAL(NB_VAL,rank,dest,&value,nbytes);
     GASNETE_VALUE_ASSIGN(dest, value, nbytes);
     gasnete_loopbackput_memsync();
-    return GASNET_INVALID_HANDLE;
+    return GASNETEX_INVALID_HANDLE;
   } else {
     GASNETI_TRACE_PUT(NB_VAL,rank,dest,GASNETE_STARTOFBITS(&value,nbytes),nbytes);
     #if GASNETI_DIRECT_PUT_NB_VAL || defined(gasnete_put_nb_val)
