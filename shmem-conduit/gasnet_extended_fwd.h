@@ -21,10 +21,6 @@ typedef int * gasnet_handle_t;
 #define GASNET_INVALID_HANDLE ((gasnet_handle_t)0)
 #define GASNETI_DISABLE_EOP_INTERFACE
 
-#define _GASNET_REGISTER_VALUE_T
-#define SIZEOF_GASNET_REGISTER_VALUE_T SIZEOF_VOID_P
-typedef uintptr_t gasnetex_register_value_t;
-
   /* this can be used to add statistical collection values 
      specific to the extended API implementation (see gasnet_help.h) */
 #define GASNETE_CONDUIT_STATS(CNT,VAL,TIME)  \

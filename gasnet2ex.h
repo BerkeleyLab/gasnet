@@ -13,6 +13,13 @@ GASNETI_BEGIN_EXTERNC
 
 /* ------------------------------------------------------------------------------------ */
 /*
+  Compile-time constants
+  =====================
+*/
+#define SIZEOF_GASNET_REGISTER_VALUE_T SIZEOF_GASNETEX_REGISTER_VALUE_T
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Base types
   ==========
 */

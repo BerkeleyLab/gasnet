@@ -408,14 +408,14 @@ void do_valueputgets(void) {
       QUEUE_TEST("gasnet_put_nb_val",
                  handles[i] = gasnet_put_nb_val(peerproc, tgtmem, regval, payload), 
                  gasnet_wait_syncnb_all(handles, depth),
-                 (void)0, SIZEOF_GASNET_REGISTER_VALUE_T);
+                 (void)0, SIZEOF_GASNETEX_REGISTER_VALUE_T);
     }
 
     if (do_puts && do_value && do_implicit) {
       QUEUE_TEST("gasnet_put_nbi_val",
                  gasnet_put_nbi_val(peerproc, tgtmem, regval, payload),
                  gasnet_wait_syncnbi_all(),
-                 (void)0, SIZEOF_GASNET_REGISTER_VALUE_T);
+                 (void)0, SIZEOF_GASNETEX_REGISTER_VALUE_T);
     }
 
 }
@@ -435,13 +435,13 @@ void do_blockingputgets(void) {
     if (do_puts && do_value && do_blocking) {
       QUEUE_TEST("gasnet_put_val (BLOCKING - represents round-trip latency)", 
                  gasnet_put_val(peerproc, tgtmem, regval, payload), 
-                 (void)0, (void)0, SIZEOF_GASNET_REGISTER_VALUE_T);
+                 (void)0, (void)0, SIZEOF_GASNETEX_REGISTER_VALUE_T);
     }
 
     if (do_gets && do_value && do_blocking) {
       QUEUE_TEST("gasnet_get_val (BLOCKING - represents round-trip latency)", 
                  regval ^= gasnet_get_val(peerproc, tgtmem, payload), 
-                 (void)0, (void)0, SIZEOF_GASNET_REGISTER_VALUE_T);
+                 (void)0, (void)0, SIZEOF_GASNETEX_REGISTER_VALUE_T);
     }
 }
 void do_amtests(void) {

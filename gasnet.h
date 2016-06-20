@@ -287,6 +287,9 @@ typedef struct gasneti_team_s *gasnetex_team_member_t;
 #ifdef _GASNET_HANDLERARG_T
 #error "out-of-date #define of _GASNET_HANDLERARG_T"
 #endif
+#ifdef _GASNET_REGISTER_VALUE_T
+#error "out-of-date #define of _GASNET_REGISTER_VALUE_T"
+#endif
 
 
 #ifndef _GASNET_HANDLERENTRY_T
@@ -358,13 +361,10 @@ typedef struct gasneti_team_s *gasnetex_team_member_t;
   #define GASNET_INVALID_HANDLE ((gasnet_handle_t)0)
 #endif
 
-#ifndef _GASNET_REGISTER_VALUE_T
-#define _GASNET_REGISTER_VALUE_T
   /*  the largest unsigned integer type that can fit entirely in a single CPU register for the current architecture and ABI.  */
-  /*  SIZEOF_GASNET_REGISTER_VALUE_T is a preprocess-time literal integer constant (i.e. not "sizeof()")indicating the size of this type in bytes */
-  typedef uintptr_t gasnetex_register_value_t;
-  #define SIZEOF_GASNET_REGISTER_VALUE_T  SIZEOF_VOID_P
-#endif
+  /*  SIZEOF_GASNETEX_REGISTER_VALUE_T is a preprocess-time literal integer constant (i.e. not "sizeof()")indicating the size of this type in bytes */
+typedef uintptr_t gasnetex_register_value_t;
+#define SIZEOF_GASNETEX_REGISTER_VALUE_T  SIZEOF_VOID_P
 
 #ifndef _GASNET_MEMVEC_T
 #define _GASNET_MEMVEC_T
@@ -412,8 +412,8 @@ extern void (*gasnet_client_attach_hook)(void *, uintptr_t);
   #error GASNet core failed to define GASNET_BLOCKUNTIL
 #endif
 
-#ifndef SIZEOF_GASNET_REGISTER_VALUE_T
-  #error GASNet failed to define SIZEOF_GASNET_REGISTER_VALUE_T
+#ifndef SIZEOF_GASNETEX_REGISTER_VALUE_T
+  #error GASNet failed to define SIZEOF_GASNETEX_REGISTER_VALUE_T
 #endif
 
 /* GASNET_CONFIG_STRING
