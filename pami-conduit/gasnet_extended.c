@@ -700,15 +700,15 @@ int gasnete_op_try_free(gasnetex_handle_t handle) {
  *  free it and clear the handle if complete
  *  returns 0 or 1 */
 GASNETI_INLINE(gasnete_op_try_free_clear)
-int gasnete_op_try_free_clear(gasnet_handle_t *handle_p) {
+int gasnete_op_try_free_clear(gasnetex_handle_t *handle_p) {
   if (gasnete_op_try_free(*handle_p)) {
-    *handle_p = GASNET_INVALID_HANDLE;
+    *handle_p = GASNETEX_INVALID_HANDLE;
     return 1;
   }
   return 0;
 }
 
-extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
+extern int  gasnete_try_syncnb(gasnetex_handle_t handle) {
 #if 0
   /* polling now takes place in callers which needed and NOT in those which don't */
   GASNETI_SAFE(gasneti_AMPoll());
@@ -717,7 +717,7 @@ extern int  gasnete_try_syncnb(gasnet_handle_t handle) {
   return gasnete_op_try_free(handle) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
 
-extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles) {
+extern int  gasnete_try_syncnb_some (gasnetex_handle_t *phandle, size_t numhandles) {
   int success = 0;
   int empty = 1;
 #if 0
@@ -729,7 +729,7 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
 
   { int i;
     for (i = 0; i < numhandles; i++) {
-      if (phandle[i] != GASNET_INVALID_HANDLE) {
+      if (phandle[i] != GASNETEX_INVALID_HANDLE) {
         empty = 0;
         success |= gasnete_op_try_free_clear(&phandle[i]);
       }
@@ -739,7 +739,7 @@ extern int  gasnete_try_syncnb_some (gasnet_handle_t *phandle, size_t numhandles
   return (success || empty) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
 
-extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles) {
+extern int  gasnete_try_syncnb_all (gasnetex_handle_t *phandle, size_t numhandles) {
   int success = 1;
 #if 0
   /* polling for syncnb now happens in header file to avoid duplication */
@@ -750,7 +750,7 @@ extern int  gasnete_try_syncnb_all (gasnet_handle_t *phandle, size_t numhandles)
 
   { int i;
       for (i = 0; i < numhandles; i++) {
-      if (phandle[i] != GASNET_INVALID_HANDLE) {
+      if (phandle[i] != GASNETEX_INVALID_HANDLE) {
         success &= gasnete_op_try_free_clear(&phandle[i]);
       }
     }
@@ -899,7 +899,7 @@ extern void            gasnete_begin_nbi_accessregion(int allowrecursion GASNETE
   mythread->current_iop = iop;
 }
 
-extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
+extern gasnetex_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop; /*  pop an iop */
   GASNETI_TRACE_EVENT_VAL(S,END_NBI_ACCESSREGION,iop->initiated_get_cnt + iop->initiated_put_cnt);
@@ -909,7 +909,7 @@ extern gasnet_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
   #endif
   mythread->current_iop = iop->next;
   iop->next = NULL;
-  return (gasnet_handle_t)iop;
+  return (gasnetex_handle_t)iop;
 }
 
 /* ------------------------------------------------------------------------------------ */
