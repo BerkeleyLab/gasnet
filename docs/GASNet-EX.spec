@@ -106,6 +106,10 @@ typedef struct gasneti_token_s *gasnetex_token_t;
 typedef uint8_t gasnetex_handler_t;
 typedef int32_t gasnetex_handlerarg_t;
 
+// Widest scalar and width
+typedef uintptr_t gasnetex_register_value_t;
+#define GASNETEX_REGISTER_VALUE_T SIZEOF_VOID_P
+
 // The following are the *internal* prototypes for AM Request and Reply
 // The public API "instantiates" the "M" and the argument list.
 // 
@@ -289,6 +293,35 @@ extern gasnetex_handle_t gasnetex_get_nb(
            void *dest,
            gasnetex_rank_t rank,
            void *src,
+           size_t nbytes,
+           gasnetex_flags_t flags);
+
+// Value-based
+extern gasnetex_register_value_t gasnetex_get_val(
+           gasnetex_team_member_t team,
+           gasnetex_rank_t rank,
+           void *src,
+           size_t nbytes,
+           gasnetex_flags_t flags);
+extern int gasnetex_put_val(
+           gasnetex_team_member_t team,
+           gasnetex_rank_t rank,
+           void *dest,
+           gasnetex_register_value_t value,
+           size_t nbytes,
+           gasnetex_flags_t flags);
+extern int gasnetex_put_nbi_val(
+           gasnetex_team_member_t team,
+           gasnetex_rank_t rank,
+           void *dest,
+           gasnetex_register_value_t value,
+           size_t nbytes,
+           gasnetex_flags_t flags);
+extern gasnetex_handle_t gasnetex_put_nb_val(
+           gasnetex_team_member_t team,
+           gasnetex_rank_t rank,
+           void *dest,
+           gasnetex_register_value_t value,
            size_t nbytes,
            gasnetex_flags_t flags);
 
