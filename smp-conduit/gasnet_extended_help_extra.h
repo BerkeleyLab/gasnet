@@ -44,15 +44,6 @@ gasnetex_handle_t gasnete_put_nb(
 }
 #define gasnete_put_nb gasnete_put_nb
 
-GASNETI_INLINE(gasnete_memset_nb) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t gasnete_memset_nb(gasnetex_rank_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG)
-{
-  GASNETI_CHECKPSHM_MEMSET(H);
-  gasneti_assert(0 && "Unreachable");
-  return GASNETEX_INVALID_HANDLE;
-}
-#define gasnete_memset_nb gasnete_memset_nb
-
 /* ------------------------------------------------------------------------------------ */
 /*
   Synchronization for explicit-handle non-blocking operations:
@@ -119,14 +110,6 @@ int gasnete_put_nbi (gasnetex_team_member_t team,
   return 0;
 }
 #define gasnete_put_nbi gasnete_put_nbi
-
-GASNETI_INLINE(gasnete_memset_nbi)
-void gasnete_memset_nbi(gasnetex_rank_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG)
-{
-  GASNETI_CHECKPSHM_MEMSET(V);
-  gasneti_assert(0 && "Unreachable");
-}
-#define gasnete_memset_nbi gasnete_memset_nbi
 
 /* ------------------------------------------------------------------------------------ */
 /*

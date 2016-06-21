@@ -62,10 +62,6 @@ extern void gasnete_init(void);
                         GASNETE_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
-#ifndef gasnete_memset_nb
-  extern gasnetex_handle_t gasnete_memset_nb   (gasnetex_rank_t node, void *dest, int val, size_t nbytes   GASNETE_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
-#endif
-
 GASNETI_INLINE(_gasnetex_get_nb) GASNETI_WARN_UNUSED_RESULT
 gasnetex_handle_t _gasnetex_get_nb(
                         gasnetex_team_member_t team, void *dest,
@@ -106,22 +102,6 @@ gasnetex_handle_t _gasnetex_put_nb(
 }
 #define gasnetex_put_nb(team,rank,dest,src,nbytes,lc_opt,flags) \
        _gasnetex_put_nb(team,rank,dest,src,nbytes,lc_opt,flags GASNETE_THREAD_GET)
-
-GASNETI_INLINE(_gasnet_memset_nb) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t   _gasnet_memset_nb   (gasnetex_rank_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_MEMSET(NB,H);
-  if (gasnete_islocal(node)) {
-    GASNETI_TRACE_MEMSET_LOCAL(NB,node,dest,val,nbytes);
-    memset(dest, val, nbytes);
-    gasnete_loopbackput_memsync();
-    return GASNETEX_INVALID_HANDLE;
-  } else {
-    GASNETI_TRACE_MEMSET(NB,node,dest,val,nbytes);
-    return gasnete_memset_nb(node, dest, val, nbytes GASNETE_THREAD_PASS);
-  }
-}
-#define gasnet_memset_nb(node,dest,val,nbytes) \
-       _gasnet_memset_nb(node,dest,val,nbytes GASNETE_THREAD_GET)
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -230,10 +210,6 @@ extern int gasnete_put_nbi  (gasnetex_team_member_t team,
                              gasnetex_flags_t flags GASNETE_THREAD_FARG);
 #endif
 
-#ifndef gasnete_memset_nbi
-extern void gasnete_memset_nbi   (gasnetex_rank_t node, void *dest, int val,   size_t nbytes GASNETE_THREAD_FARG);
-#endif
-
 GASNETI_INLINE(_gasnetex_get_nbi)
 int _gasnetex_get_nbi  (gasnetex_team_member_t team, void *dest,
                         gasnetex_rank_t rank, void *src,
@@ -272,21 +248,6 @@ int _gasnetex_put_nbi  (gasnetex_team_member_t team,
 }
 #define gasnetex_put_nbi(team,rank,dest,src,nbytes,lc_opt,flags) \
        _gasnetex_put_nbi(team,rank,dest,src,nbytes,lc_opt,flags GASNETE_THREAD_GET)
-
-GASNETI_INLINE(_gasnet_memset_nbi)
-void   _gasnet_memset_nbi   (gasnetex_rank_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_MEMSET(NBI,V);
-  if (gasnete_islocal(node)) {
-    GASNETI_TRACE_MEMSET_LOCAL(NBI,node,dest,val,nbytes);
-    memset(dest, val, nbytes);
-    gasnete_loopbackput_memsync();
-  } else {
-    GASNETI_TRACE_MEMSET(NBI,node,dest,val,nbytes);
-    gasnete_memset_nbi(node, dest, val, nbytes GASNETE_THREAD_PASS);
-  }
-}
-#define gasnet_memset_nbi(node,dest,val,nbytes) \
-       _gasnet_memset_nbi(node,dest,val,nbytes GASNETE_THREAD_GET)
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -441,14 +402,6 @@ extern gasnetex_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
   }
 #endif
 
-#if GASNETI_DIRECT_MEMSET
-  extern void gasnete_memset(gasnetex_rank_t node, void *dest, int val,
-			     size_t nbytes GASNETE_THREAD_FARG);
-#else
-  #define gasnete_memset(node, dest, val, nbytesTI) \
-    gasnete_wait_syncnb(gasnete_memset_nb(node, dest, val, nbytesTI))
-#endif
-
 GASNETI_INLINE(_gasnetex_get)
 int _gasnetex_get  (gasnetex_team_member_t team, void *dest,
                     gasnetex_rank_t rank, void *src,
@@ -487,21 +440,6 @@ int _gasnetex_put  (gasnetex_team_member_t team,
 }
 #define gasnetex_put(team,rank,dest,src,nbytes,flags) \
        _gasnetex_put(team,rank,dest,src,nbytes,flags GASNETE_THREAD_GET)
-
-GASNETI_INLINE(_gasnet_memset)
-void  _gasnet_memset (gasnetex_rank_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
-  GASNETI_CHECKZEROSZ_NAMED(GASNETI_TRACE_MEMSET_NAMED(MEMSET_LOCAL,LOCAL,node,dest,val,nbytes),V);
-  if (gasnete_islocal(node)) {
-    GASNETI_TRACE_MEMSET_NAMED(MEMSET_LOCAL,LOCAL,node,dest,val,nbytes);
-    memset(dest, val, nbytes);
-    gasnete_loopbackput_memsync();
-  } else {
-    GASNETI_TRACE_MEMSET_NAMED(MEMSET,NONLOCAL,node,dest,val,nbytes);
-    gasnete_memset(node, dest, val, nbytes GASNETE_THREAD_PASS);
-  }
-}
-#define gasnet_memset(node,dest,val,nbytes) \
-       _gasnet_memset(node,dest,val,nbytes GASNETE_THREAD_GET)
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -734,6 +672,9 @@ GASNETI_END_EXTERNC
 #endif
 #if GASNETI_DIRECT_GET_NB
   #error "out-of-date #define of GASNETI_DIRECT_GET_NB"
+#endif
+#if GASNETI_DIRECT_MEMSET
+  #error "out-of-date #define of GASNETI_DIRECT_MEMSET"
 #endif
 
 

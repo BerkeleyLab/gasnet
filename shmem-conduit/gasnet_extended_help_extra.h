@@ -359,45 +359,6 @@ _gasnete_get_nb_bulk(void *dest, gasnet_node_t node, void *src, size_t nbytes)
 }
 #define gasnete_get_nb_bulk(dest,pe,src,nbytes) _gasnete_get_nb_bulk(dest,pe,src,nbytes)
 
-/*
- * Memsets on global addresses.
- *
- * Non-blocking memsets are overkill on shmem-conduit.  In their AM form they
- * would require synchronization and 'nb' synchronization to AMPoll.  Since
- * GASNet requires syncnb_puts to also cover handles for memsets, this
- * would invariably complicate the put-nb type operations.  Therefore, the
- * decision here is to implement non-blocking memsets as blocking operations.
- *
- * AM-based non-blocking memset
- *    * Spin until the reply for the memset is received
- *
- * Global Address non-blocking memset
- *    * Run blocking memset
- *
- * All memset_nb return GASNET_SYNC_NONE (no sync required).
- */
-#ifdef GASNETE_GLOBAL_ADDRESS
-  GASNETI_INLINE(_gasnete_memset_nb)
-  gasnet_handle_t 
-  _gasnete_memset_nb(gasnet_node_t node, void *dest, int val, size_t nbytes)
-  {
-    memset(GASNETE_SHMPTR(dest,node), val, nbytes);
-    return GASNETE_SYNC_NONE;
-  }
-  #define gasnete_memset_nb _gasnete_memset_nb
-  #define gasnete_memset_nbi(node,dest,val,nbytes)	\
-			    (void)_gasnete_memset_nb(node,dest,val,nbytes)
-
-#else
-  #error Shmem no global address support not implemented
-  extern gasnet_handle_t
-         gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val, size_t nbytes);
-
-  #define gasnete_memset_nb gasnete_am_memset_nb
-  #define gasnete_memset_nbi(node,dest,val,nbytes)	\
-			    (void)gasnete_am_memset_nb(node,dest,val,nbytes)
-#endif
-
 
 /*
  * Non-bulk are the same as bulk, except on X1

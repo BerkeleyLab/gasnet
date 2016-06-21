@@ -51,10 +51,6 @@
  *   unset: gasnete_put() via gasnete_wait_syncnb(gasnete_put_nb())
  *   set: conduit provides it own gasnete_put()
  *
- * GASNETI_DIRECT_MEMSET
- *   unset: gasnete_memset() via gasnete_wait_syncnb(gasnete_memset_nb())
- *   set: conduit provides it own gasnete_memset()
- *
  * GASNETI_DIRECT_PUT_VAL
  *   unset: gasnete_put_val() via gasnete_put()
  *   set: conduit provides it own gasnete_put_val()
@@ -76,7 +72,6 @@
 /* NOTE: Barriers, Collectives, VIS may use GASNETE_USING_REF_* in algorithm selection */
 #define GASNETE_USING_REF_EXTENDED_GET      1
 #define GASNETE_USING_REF_EXTENDED_PUT      1
-#define GASNETE_USING_REF_EXTENDED_MEMSET   1
 
 /* These are the default tuning parameters for the AM-based get/put.
  * Conduits cloning this file may want to override these: */
@@ -90,8 +85,6 @@
 #define gasnete_amref_put_nb        gasnete_put_nb
 #define gasnete_amref_get_nbi       gasnete_get_nbi
 #define gasnete_amref_put_nbi       gasnete_put_nbi
-#define gasnete_amref_memset_nb     gasnete_memset_nb
-#define gasnete_amref_memset_nbi    gasnete_memset_nbi
 
 #endif
 

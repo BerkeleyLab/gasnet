@@ -358,16 +358,15 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Get/Put/Memset:
-  ===============
+  Get/Put:
+  ========
 */
 
-/* Use reference implementation of get/put/memset in terms of AMs */
+/* Use reference implementation of get/put in terms of AMs */
 /* NOTE: Barriers, Collectives, VIS may use GASNETE_USING_REF_* in algorithm selection */
 #define GASNETE_USING_REF_EXTENDED_GET_BULK 0
 #define GASNETE_USING_REF_EXTENDED_PUT_BULK 0
 #define GASNETE_USING_REF_EXTENDED_PUT      0
-#define GASNETE_USING_REF_EXTENDED_MEMSET   1
 
 #if GASNETE_USING_REF_EXTENDED_GET_BULK
 #define GASNETE_BUILD_AMREF_GET_HANDLERS 1
@@ -390,13 +389,6 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 #define gasnete_amref_put_nbi       gasnete_put_nbi
 #endif
 
-#if GASNETE_USING_REF_EXTENDED_MEMSET
-#define GASNETE_BUILD_AMREF_MEMSET_HANDLERS 1
-#define GASNETE_BUILD_AMREF_MEMSET  1
-#define gasnete_amref_memset_nb     gasnete_memset_nb
-#define gasnete_amref_memset_nbi    gasnete_memset_nbi
-#endif
-
 #include "gasnet_extended_amref.c"
 
 /* ------------------------------------------------------------------------------------ */
@@ -409,7 +401,6 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 /* Conduits not using the gasnete_amref_ versions should implement at least the following:
      gasnete_get_nb
      gasnete_put_nb
-     gasnete_memset_nb
 */
 
 extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void *src, size_t nbytes GASNETE_THREAD_FARG) 
@@ -760,11 +751,6 @@ static gasnet_handlerentry_t const gasnete_handlers[] = {
 #if GASNETE_BUILD_AMREF_PUT_HANDLERS
   gasneti_handler_tableentry_with_bits(gasnete_amref_put_reqh),
   gasneti_handler_tableentry_with_bits(gasnete_amref_putlong_reqh),
-#endif
-#if GASNETE_BUILD_AMREF_MEMSET_HANDLERS
-  gasneti_handler_tableentry_with_bits(gasnete_amref_memset_reqh),
-#endif
-#if GASNETE_BUILD_AMREF_PUT_HANDLERS || GASNETE_BUILD_AMREF_MEMSET_HANDLERS
   gasneti_handler_tableentry_with_bits(gasnete_amref_markdone_reph),
 #endif
 

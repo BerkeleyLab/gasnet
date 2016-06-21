@@ -52,11 +52,10 @@
     extern gasneti_auxseg_request_t gasnete_barr_auxseg_alloc(gasnet_seginfo_t *auxseg_info);
 #define GASNETE_AUXSEG_FNS() gasnete_barr_auxseg_alloc, 
 
-/* NOT using the AM-based implementation of get/put/memset */
+/* NOT using the AM-based implementation of get/put */
 #define GASNETE_USING_REF_EXTENDED_GET_BULK 0
 #define GASNETE_USING_REF_EXTENDED_PUT_BULK 0
 #define GASNETE_USING_REF_EXTENDED_PUT      0
-#define GASNETE_USING_REF_EXTENDED_MEMSET   0
 
 /* All the "real work" is in gasnet_extended_help_extra.h */
 #define GASNETE_HAVE_EXTENDED_HELP_EXTRA_H 1

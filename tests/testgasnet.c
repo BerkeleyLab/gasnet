@@ -24,7 +24,7 @@ TEST_BACKTRACE_DECLS();
 void doit(int partner, int *partnerseg);
 void doit2(int partner, int *partnerseg);
 void doit3(int partner, int *partnerseg);
-void doit4(int partner, int *partnerseg);
+/*void doit4(int partner, int *partnerseg); -- removed along with the memset*() calls */
 void doit5(int partner, int *partnerseg);
 
 /* ------------------------------------------------------------------------------------ */
@@ -403,47 +403,6 @@ void doit3(int partner, int *partnerseg) {
     }
 
     if (success) MSG("*** passed value test!!");
-  }
-
-#ifndef TESTGASNET_NO_SPLIT
-  doit4(partner, partnerseg);
-}
-void doit4(int partner, int *partnerseg) {
-  /* int mynode = gasnet_mynode(); UNUSED */
-#endif
-
-  BARRIER();
-
-  { /*  memset test */
-    GASNET_BEGIN_FUNCTION();
-    int i, success=1;
-    int vals[300];
-
-    gasnet_memset(partner, partnerseg, 0x55, 100*sizeof(int));
-    gasnetex_wait_syncnb(gasnet_memset_nb(partner, partnerseg+100, 0x66, 100*sizeof(int)));
-    gasnet_memset_nbi(partner, partnerseg+200, 0x77, 100*sizeof(int));
-    gasnetex_wait_syncnbi_puts();
-
-    gasnetex_get(myteam, &vals, partner, partnerseg, 300*sizeof(int), 0);
-
-    for (i=0; i < 100; i++) {
-      unsigned long long five  = 0x5555555555555555ull;
-      unsigned long long six   = 0x6666666666666666ull;
-      unsigned long long seven = 0x7777777777777777ull;
-      if (vals[i] != ((int)five)) {
-        MSG("*** ERROR - FAILED MEMSET TEST!!!");
-        success = 0;
-      }
-      if (vals[i+100] != ((int)six)) {
-        MSG("*** ERROR - FAILED MEMSET TEST!!!");
-        success = 0;
-      }
-      if (vals[i+200] != ((int)seven)) {
-        MSG("*** ERROR - FAILED MEMSET TEST!!!");
-        success = 0;
-      }
-    }
-    if (success) MSG("*** passed memset test!!");
   }
 
 #ifndef TESTGASNET_NO_SPLIT

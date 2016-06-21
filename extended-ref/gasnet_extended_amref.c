@@ -1,5 +1,5 @@
 /*   $Source: bitbucket.org:berkeleylab/gasnet.git/extended-ref/gasnet_extended_amref.c $
- * Description: GASNet Extended API Reference Implementation: AM-base Get/Put/Memset
+ * Description: GASNet Extended API Reference Implementation: AM-based Get/Put
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
@@ -27,11 +27,6 @@
  *         #define GASNETE_BUILD_AMREF_PUT_HANDLERS 1
  *         #define GASNETE_BUILD_AMREF_PUT 1
  *
- *    #define GASNETE_USING_REF_EXTENDED_MEMSET 1
- *      Is equivalent to
- *         #define GASNETE_BUILD_AMREF_MEMSET_HANDLERS 1
- *         #define GASNETE_BUILD_AMREF_MEMSET 1
- *
  * The fine-grained controls:
  *
  *    #define GASNETE_BUILD_AMREF_GET 1
@@ -44,18 +39,10 @@
  *         gasnete_amref_put_nb
  *         gasnete_amref_put_nbi
  *
- *    #define GASNETE_BUILD_AMREF_MEMSET 1
- *      To build
- *         gasnete_amref_memset_nb
- *         gasnete_amref_memset_nbi
- *
  *    #define GASNETE_BUILD_AMREF_GET_HANDLERS 1
  *      To build the corresponding supporting AM handlers
  *
  *    #define GASNETE_BUILD_AMREF_PUT_HANDLERS 1
- *      To build the corresponding supporting AM handlers
- *
- *    #define GASNETE_BUILD_AMREF_MEMSET_HANDLERS 1
  *      To build the corresponding supporting AM handlers
  *
  * If one does not define ANY of those, then this file contains no code.
@@ -66,11 +53,9 @@
  *    #define gasnete_amref_get_nbi       gasnete_get_nbi
  *    #define gasnete_amref_put_nb        gasnete_put_nb
  *    #define gasnete_amref_put_nbi       gasnete_put_nbi
- *    #define gasnete_amref_memset_nb     gasnete_memset_nb
- *    #define gasnete_amref_memset_nbi    gasnete_memset_nbi
  *
  * When not using those defines a conduit can call the functions in this
- * file from its own gasnete_{get,put,memset}*() as needed (for instance
+ * file from its own gasnete_{get,put}_{nb,nbi}() as needed (for instance
  * for dealing with out-of-segment arguments which cannot be dealt with
  * using native RDMA mechanisms).
  *
@@ -96,10 +81,6 @@
 #define GASNETE_BUILD_AMREF_PUT_HANDLERS 1
 #define GASNETE_BUILD_AMREF_PUT 1
 #endif
-#if GASNETE_USING_REF_EXTENDED_MEMSET
-#define GASNETE_BUILD_AMREF_MEMSET_HANDLERS 1
-#define GASNETE_BUILD_AMREF_MEMSET 1
-#endif
 
 // TODO-EX: remove these legacy checks
 #ifdef GASNETE_USING_REF_EXTENDED_GET_BULK
@@ -113,6 +94,15 @@
 #endif
 #ifdef GASNETE_BUILD_AMREF_PUT_BULK
 #error "out-of-date #define of GASNETE_BUILD_AMREF_PUT_BULK"
+#endif
+#ifdef GASNETE_USING_REF_EXTENDED_MEMSET
+#error "out-of-date #define of GASNETE_USING_REF_EXTENDED_MEMSET"
+#endif
+#ifdef GASNETE_BUILD_AMREF_MEMSET_HANDLERS
+#error "out-of-date #define of GASNETE_BUILD_AMREF_MEMSET_HANDLERS"
+#endif
+#ifdef GASNETE_BUILD_AMREF_MEMSET
+#error "out-of-date #define of GASNETE_BUILD_AMREF_MEMSET"
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -299,26 +289,6 @@ LONG_HANDLER(gasnete_amref_putlong_reqh,1,2,
               (token,addr,nbytes, UNPACK(a0)     ),
               (token,addr,nbytes, UNPACK2(a0, a1)));
 
-#endif /* GASNETE_BUILD_AMREF_PUT_HANDLERS */
-/* ------------------------------------------------------------------------------------ */
-#if GASNETE_BUILD_AMREF_MEMSET_HANDLERS
-
-GASNETI_INLINE(gasnete_amref_memset_reqh_inner)
-void gasnete_amref_memset_reqh_inner(gasnetex_token_t token,
-  gasnetex_handlerarg_t val, void *nbytes_arg, void *dest, void *done) {
-  size_t nbytes = (uintptr_t)nbytes_arg;
-  memset(dest, (int)(uint32_t)val, nbytes);
-  gasneti_sync_writes();
-  gasnetex_AMReplyShort(token, gasneti_handleridx(gasnete_amref_markdone_reph), 0, PACK(done));
-}
-SHORT_HANDLER(gasnete_amref_memset_reqh,4,7,
-              (token, a0, UNPACK(a1),      UNPACK(a2),      UNPACK(a3)     ),
-              (token, a0, UNPACK2(a1, a2), UNPACK2(a3, a4), UNPACK2(a5, a6)));
-
-#endif /* GASNETE_BUILD_AMREF_MEMSET_HANDLERS */
-/* ------------------------------------------------------------------------------------ */
-#if GASNETE_BUILD_AMREF_PUT_HANDLERS || GASNETE_BUILD_AMREF_MEMSET_HANDLERS
-
 GASNETI_INLINE(gasnete_amref_markdone_reph_inner)
 void gasnete_amref_markdone_reph_inner(gasnetex_token_t token,
   void *done) {
@@ -328,7 +298,7 @@ SHORT_HANDLER(gasnete_amref_markdone_reph,1,2,
               (token, UNPACK(a0)    ),
               (token, UNPACK2(a0, a1)));
 
-#endif /* GASNETE_BUILD_AMREF_PUT_HANDLERS || GASNETE_BUILD_AMREF_MEMSET_HANDLERS */
+#endif /* GASNETE_BUILD_AMREF_PUT_HANDLERS */
 
 /* ------------------------------------------------------------------------------------ */
 /* Common logic for _nbi, also for use by _nb */
@@ -585,23 +555,6 @@ gasnetex_handle_t gasnete_put_nb(
 #endif /* GASNETE_BUILD_AMREF_PUT */
 
 /* ------------------------------------------------------------------------------------ */
-
-#ifdef GASNETE_BUILD_AMREF_MEMSET
-extern gasnetex_handle_t gasnete_amref_memset_nb   (gasnetex_rank_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
- GASNETI_CHECKPSHM_MEMSET(H);
- {
-  gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
-
-  gasnetex_AMRequestShort(NULL, node, gasneti_handleridx(gasnete_amref_memset_reqh), 0,
-                 (gasnetex_handlerarg_t)val, PACK(nbytes),
-                 PACK(dest), PACK_EOP_DONE(op));
-
-  return (gasnetex_handle_t)op;
- }
-}
-#endif /* GASNETE_BUILD_AMREF_MEMSET */
-
-/* ------------------------------------------------------------------------------------ */
 /*
   Non-blocking memory-to-memory transfers (implicit handle)
   ==========================================================
@@ -643,22 +596,6 @@ int gasnete_amref_put_nbi( gasnetex_team_member_t team,
   return 0;
 }
 #endif /* GASNETE_BUILD_AMREF_PUT */
-
-/* ------------------------------------------------------------------------------------ */
-
-#if GASNETE_BUILD_AMREF_MEMSET
-extern void gasnete_amref_memset_nbi   (gasnetex_rank_t node, void *dest, int val, size_t nbytes GASNETE_THREAD_FARG) {
-  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-  gasnete_iop_t *op = mythread->current_iop;
-  GASNETI_CHECKPSHM_MEMSET(V);
-
-  op->initiated_put_cnt++;
-
-  gasnetex_AMRequestShort(NULL, node, gasneti_handleridx(gasnete_amref_memset_reqh), 0,
-                 (gasnetex_handlerarg_t)val, PACK(nbytes),
-                 PACK(dest), PACK_IOP_DONE(op,put));
-}
-#endif /* GASNETE_BUILD_AMREF_MEMSET */
 
 /* ------------------------------------------------------------------------------------ */
 

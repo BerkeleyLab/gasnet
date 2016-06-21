@@ -36,13 +36,8 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
 #define GASNETI_DIRECT_GET_NBI  1
 #define GASNETI_DIRECT_PUT_NBI  1
 
-/* Configure use of AM-based implementation of get/put/memset */
+/* Configure use of AM-based implementation of get/put */
 /* NOTE: Barriers, Collectives, VIS may use GASNETE_USING_REF_* in algorithm selection */
-#define GASNETE_USING_REF_EXTENDED_MEMSET   1
-
-/* Conduit implements memset directly via amref: */
-#define gasnete_amref_memset_nb     gasnete_memset_nb
-#define gasnete_amref_memset_nbi    gasnete_memset_nbi
 
 /* XXX: RDMADISSEM leads to error which need to be investigated! */
 #define GASNETE_BARRIER_DEFAULT "AMDISSEM"

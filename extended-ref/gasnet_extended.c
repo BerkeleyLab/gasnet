@@ -332,11 +332,11 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Get/Put/Memset:
-  ===============
+  Get/Put:
+  ========
 */
 
-/* Use reference implementation of get/put/memset in terms of AMs */
+/* Use reference implementation of get/put in terms of AMs */
 #include "gasnet_extended_amref.c"
 
 /* ------------------------------------------------------------------------------------ */
@@ -349,7 +349,6 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 /* Conduits not using the gasnete_amref_ versions should implement at least the following:
      gasnete_get_nb
      gasnete_put_nb
-     gasnete_memset_nb
 */
 
 /* ------------------------------------------------------------------------------------ */
@@ -452,7 +451,6 @@ extern int  gasnete_test_syncnb_all (gasnetex_handle_t *phandle, size_t numhandl
 /* Conduits not using the gasnete_amref_ versions should implement at least the following:
      gasnete_get_nbi
      gasnete_put_nbi
-     gasnete_memset_nbi
 */
 
 /* ------------------------------------------------------------------------------------ */
@@ -593,11 +591,6 @@ static gasnet_handlerentry_t const gasnete_handlers[] = {
 #if GASNETE_BUILD_AMREF_PUT_HANDLERS
   gasneti_handler_tableentry_with_bits(gasnete_amref_put_reqh),
   gasneti_handler_tableentry_with_bits(gasnete_amref_putlong_reqh),
-#endif
-#if GASNETE_BUILD_AMREF_MEMSET_HANDLERS
-  gasneti_handler_tableentry_with_bits(gasnete_amref_memset_reqh),
-#endif
-#if GASNETE_BUILD_AMREF_PUT_HANDLERS || GASNETE_BUILD_AMREF_MEMSET_HANDLERS
   gasneti_handler_tableentry_with_bits(gasnete_amref_markdone_reph),
 #endif
 

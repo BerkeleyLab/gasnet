@@ -80,67 +80,6 @@ extern void gasnete_init(void) {
   ==========================================================
 */
 
-/*
- * Non-blocking memsets are always completed as blocking operations, for
- * simplifying the code path in synchronizing messages
- * See comments in gasnet_extended_fwd.h
- */
-extern gasnet_handle_t
-gasnete_am_memset_nb(gasnet_node_t node, void *dest, int val, 
-		     size_t nbytes GASNETE_THREAD_FARG) 
-{
-#ifdef GASNETE_GLOBAL_ADDRESS
-    int	 *ptr = GASNETE_SHMPTR_AM(dest,node);
-    int	 isdone = 0;
-    void *pdone = (void*)&isdone;
-
-    gasnetex_AMRequestShort(NULL, node, gasneti_handleridx(gasnete_memset_reqh), 0,
-		      (gasnetex_handlerarg_t)val, PACK(nbytes),
-		      PACK(ptr), PACK(pdone)));
-
-    /* Always blocking, even if an AM */
-    GASNET_BLOCKUNTIL(isdone != 0);
-#else
-    /* TODO: keep this dynamic array */
-
-    char *tmp = gasneti_malloc(nbytes);
-    memset(tmp, val, nbytes);
-
-    shmem_putmem(dest, tmp, nbytes, node);
-
-    gasneti_free(tmp);
-#endif
-
-    return GASNETE_SYNC_NONE;
-}
-
-GASNETI_INLINE(gasnete_memset_reqh_inner)
-void 
-gasnete_memset_reqh_inner(gasnetex_token_t token, gasnetex_handlerarg_t val,
-			  void *nbytes_arg, void *dest, void *op) 
-{
-    size_t nbytes = (uintptr_t)nbytes_arg;
-    memset(dest, (int)(uint32_t)val, nbytes);
-    gasneti_sync_writes();
-
-    gasnetex_AMReplyShort(token, gasneti_handleridx(gasnete_markdone_reph), 0, PACK(op));
-}
-SHORT_HANDLER(gasnete_memset_reqh,4,7,
-              (token, a0, UNPACK(a1),      UNPACK(a2),      UNPACK(a3)     ),
-              (token, a0, UNPACK2(a1, a2), UNPACK2(a3, a4), UNPACK2(a5, a6)));
-
-GASNETI_INLINE(gasnete_markdone_reph_inner)
-void 
-gasnete_markdone_reph_inner(gasnetex_token_t token, void *h) 
-{
-    int	*handle  = (int *) h;
-    *handle = 1; /* Marks as done, requester spinning on handle != 0 */
-    return;
-}
-SHORT_HANDLER(gasnete_markdone_reph,1,2,
-              (token, UNPACK(a0)    ),
-              (token, UNPACK2(a0, a1)));
-
 /* ------------------------------------------------------------------------------------ */
 /*
   Synchronization for implicit-handle non-blocking operations:
@@ -499,8 +438,7 @@ gasnete_handlers[] = {
     /* ptr-width independent handlers */
 
     /* ptr-width dependent handlers */
-    gasneti_handler_tableentry_with_bits(gasnete_memset_reqh),
-    gasneti_handler_tableentry_with_bits(gasnete_markdone_reph),
+
   { 0, NULL }
 };
 

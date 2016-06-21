@@ -220,14 +220,6 @@ GASNETI_BEGIN_EXTERNC
 #define GASNETI_TRACE_PUT_NAMED(name,locality,node,dest,src,nbytes) ((void)0)
 #endif
 
-#define GASNETI_TRACE_MEMSET_NAMED(name,locality,node,dest,val,nbytes) do { \
-  _GASNETI_STAT_EVENT_VAL (P, name, (nbytes));                              \
-  GASNETI_TRACE_GETPUT_##locality(P, name, (nbytes), node);                 \
-  GASNETI_TRACE_PRINTF(D,(#name": " GASNETI_RADDRFMT" val=%02x nbytes=%llu",\
-                          GASNETI_RADDRSTR((node),(dest)), (val),           \
-                          (unsigned long long)(nbytes)));                   \
-} while (0)
-
 
 /* tracing for remote gets/puts */
 #define GASNETI_TRACE_GET(variety,dest,node,src,nbytes) \
@@ -236,18 +228,12 @@ GASNETI_BEGIN_EXTERNC
 #define GASNETI_TRACE_PUT(variety,node,dest,src,nbytes) \
   GASNETI_TRACE_PUT_NAMED(PUT_##variety,NONLOCAL,node,dest,src,nbytes)   
 
-#define GASNETI_TRACE_MEMSET(variety,node,dest,val,nbytes) \
-  GASNETI_TRACE_MEMSET_NAMED(MEMSET_##variety,NONLOCAL,node,dest,val,nbytes)
-
 /* tracing for local gets/puts (separation allows suppression of trace output) */
 #define GASNETI_TRACE_GET_LOCAL(variety,dest,node,src,nbytes) \
   GASNETI_TRACE_GET_NAMED(GET_##variety##_LOCAL,LOCAL,dest,node,src,nbytes)
 
 #define GASNETI_TRACE_PUT_LOCAL(variety,node,dest,src,nbytes) \
   GASNETI_TRACE_PUT_NAMED(PUT_##variety##_LOCAL,LOCAL,node,dest,src,nbytes)   
-
-#define GASNETI_TRACE_MEMSET_LOCAL(variety,node,dest,val,nbytes) \
-  GASNETI_TRACE_MEMSET_NAMED(MEMSET_##variety##_LOCAL,LOCAL,node,dest,val,nbytes)
 
 /*------------------------------------------------------------------------------------*/
 #define GASNETI_TRACE_TRYSYNC(name,success) \
@@ -712,9 +698,6 @@ extern void gasneti_trace_finish(void);
         VAL(P, PUT_NBI_BULK, sz)                          \
         VAL(P, PUT_NBI_VAL, sz)                           \
         VAL(P, PUT_VAL, sz)                               \
-        VAL(P, MEMSET, sz)                                \
-        VAL(P, MEMSET_NB, sz)                             \
-        VAL(P, MEMSET_NBI, sz)                            \
                                                           \
         VAL(P, PUT_LOCAL, sz)                             \
         VAL(P, PUT_BULK_LOCAL, sz)                        \
@@ -725,9 +708,6 @@ extern void gasneti_trace_finish(void);
         VAL(P, PUT_NBI_BULK_LOCAL, sz)                    \
         VAL(P, PUT_NBI_VAL_LOCAL, sz)                     \
         VAL(P, PUT_VAL_LOCAL, sz)                         \
-        VAL(P, MEMSET_LOCAL, sz)                          \
-        VAL(P, MEMSET_NB_LOCAL, sz)                       \
-        VAL(P, MEMSET_NBI_LOCAL, sz)                      \
                                                           \
         VAL(G, GETV_BULK, sz)                             \
         VAL(G, GETV_NB_BULK, sz)                          \

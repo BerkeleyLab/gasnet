@@ -50,8 +50,4 @@ extern struct _gasnete_threaddata_t * const gasnete_threaddata_ptr;
 
 #define GASNETE_COLL_CONDUIT_BARRIERS GASNETE_COLL_BARRIER_SHMEM
 
-/* Using these unused slots: */
-#define _hidx_gasnete_memset_reqh    _hidx_gasnete_amref_memset_reqh
-#define _hidx_gasnete_markdone_reph  _hidx_gasnete_amref_markdone_reph
-
 #endif

@@ -61,10 +61,6 @@
  * GASNETI_DIRECT_BLOCKING_PUT
  *   unset: gasnete_put() via gasnete_wait_syncnb(gasnete_put_nb())
  *   set: conduit provides it own gasnete_put()
- *
- * GASNETI_DIRECT_MEMSET
- *   unset: gasnete_memset() via gasnete_wait_syncnb(gasnete_memset_nb())
- *   set: conduit provides it own gasnete_memset()
  */
 #define GASNETI_DIRECT_PUT_VAL 1
 /*   unset: gasnete_put_val() via gasnete_put()
@@ -83,13 +79,9 @@
  *   set: conduit provides own gasnete_get_val() as an inline
  */
 
-/* Configure use of AM-based implementation of get/put/memset */
-/* NOTE: Barriers, Collectives, VIS may use GASNETE_USING_REF_* in algorithm selection */
-#define GASNETE_USING_REF_EXTENDED_MEMSET   1
 
-/* Conduit implements memset directly via amref: */
-#define gasnete_amref_memset_nb     gasnete_memset_nb
-#define gasnete_amref_memset_nbi    gasnete_memset_nbi
+/* Configure use of AM-based implementation of get/put */
+/* NOTE: Barriers, Collectives, VIS may use GASNETE_USING_REF_* in algorithm selection */
 
 #if defined(GASNET_PAR) && GASNETC_GNI_MULTI_DOMAIN
 #  define GASNETE_TD_DOMAIN_IDX int domain_idx;

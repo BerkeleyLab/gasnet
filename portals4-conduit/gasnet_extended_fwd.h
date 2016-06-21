@@ -57,10 +57,6 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
  *   unset: gasnete_put() via gasnete_wait_syncnb(gasnete_put_nb())
  *   set: conduit provides it own gasnete_put()
  *
- * GASNETI_DIRECT_MEMSET
- *   unset: gasnete_memset() via gasnete_wait_syncnb(gasnete_memset_nb())
- *   set: conduit provides it own gasnete_memset()
- *
  * GASNETI_DIRECT_PUT_VAL
  *   unset: gasnete_put_val() via gasnete_put()
  *   set: conduit provides it own gasnete_put_val()
@@ -78,13 +74,8 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
  *   set: conduit provides own gasnete_get_val() as an inline
  */
 
-/* Configure use of AM-based implementation of get/put/memset */
+/* Configure use of AM-based implementation of get/put */
 /* NOTE: Barriers, Collectives, VIS may use GASNETE_USING_REF_* in algorithm selection */
-#define GASNETE_USING_REF_EXTENDED_MEMSET   1
-
-/* Conduit implements memset directly via amref: */
-#define gasnete_amref_memset_nb     gasnete_memset_nb
-#define gasnete_amref_memset_nbi    gasnete_memset_nbi
 
 #endif
 

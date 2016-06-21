@@ -57,10 +57,6 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
  *   unset: gasnete_put() via gasnete_wait_syncnb(gasnete_put_nb())
  *   set: conduit provides it own gasnete_put()
  *
- * GASNETI_DIRECT_MEMSET
- *   unset: gasnete_memset() via gasnete_wait_syncnb(gasnete_memset_nb())
- *   set: conduit provides it own gasnete_memset()
- *
  * GASNETI_DIRECT_PUT_VAL
  *   unset: gasnete_put_val() via gasnete_put()
  *   set: conduit provides it own gasnete_put_val()

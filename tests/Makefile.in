@@ -81,7 +81,6 @@ testprograms_seq =      \
         testbarrier     \
         testbarrierconf \
         testbarrierlate \
-        testmemset      \
         testlogGP       \
         testalign       \
         testrand        \
