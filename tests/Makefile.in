@@ -63,6 +63,7 @@ MPI_TESTS = $(MPI1_TESTS) $(MPI2_TESTS)
 #   please also add it to upcr/upc-tests/gasnet-tests/harness.conf
 testprograms_seq =      \
         testgasnet      \
+        testlegacy      \
         testtools       \
         testinternal    \
         testenv         \
