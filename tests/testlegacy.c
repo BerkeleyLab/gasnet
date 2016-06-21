@@ -14,9 +14,6 @@
 #define g2ex_team myteam
 #include <gasnet2ex.h>
 
-// TODO-EX: amxtests/testam.h currently *also* include gasnet2ex.h, because
-// its using the legacy APIs.  So, need to think about what to do what that
-// changes.  Do we want to add distinct AM tests here?  Clone testam.h?
 #define TEST_GASNET 1
 #define SHORT_REQ_BASE 128
 #include <other/amxtests/testam.h>

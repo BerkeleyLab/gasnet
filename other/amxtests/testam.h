@@ -5,15 +5,14 @@
  */
 #ifdef TEST_GASNET
   #include "gasnet_tools.h"
-  #include "gasnet2ex.h" // TODO-EX: eliminate this dependence
   #include "test.h"
-  typedef gasnetex_handlerarg_t handlerarg_t;
+  typedef gasnet_handlerarg_t handlerarg_t;
  #ifdef GASNET_USE_STRICT_PROTOTYPES
   typedef void *handler_fn_t;
  #else
   typedef void (*handler_fn_t)();
  #endif
-  typedef gasnetex_token_t token_t;
+  typedef gasnet_token_t token_t;
   typedef size_t bufsize_t;
   gasnett_atomic_t numreq = gasnett_atomic_init(0);
   gasnett_atomic_t numrep = gasnett_atomic_init(0);
@@ -33,7 +32,41 @@
   #define NUMPROCS                 (gasnet_nodes())
   #define MYSEG                    (TEST_MYSEG())
   #define ENDPOINT
+  #define GETPARTNER(token)  gasnet_node_t partner; GASNET_Safe(gasnet_AMGetMsgSource(token, &partner))
+  #define EXTRA_S
+  #define EXTRA_ML
+#elif defined(TEST_GASNETEX)
+  #include "gasnet_tools.h"
+  #include "test.h"
+  typedef gasnetex_handlerarg_t handlerarg_t;
+ #ifdef GASNET_USE_STRICT_PROTOTYPES
+  typedef void *handler_fn_t;
+ #else
+  typedef void (*handler_fn_t)();
+ #endif
+  typedef gasnetex_token_t token_t;
+  typedef size_t bufsize_t;
+  gasnett_atomic_t numreq = gasnett_atomic_init(0);
+  gasnett_atomic_t numrep = gasnett_atomic_init(0);
+  #define INCREQ() gasnett_atomic_increment(&numreq,0)
+  #define INCREP() gasnett_atomic_increment(&numrep,0)
+  #define NUMREQ() gasnett_atomic_read(&numreq,0)
+  #define NUMREP() gasnett_atomic_read(&numrep,0)
+  #define RequestShort(num,args)                gasnetex_AMRequestShort##num args
+  #define RequestMedium(num,args)               gasnetex_AMRequestMedium##num args
+  #define RequestLong(num,AMargs,GASNETargs)    gasnetex_AMRequestLong##num GASNETargs
+  #define RequestLongAsync                      RequestLong
+  #define ReplyShort(num,args)                  gasnetex_AMReplyShort##num args
+  #define ReplyMedium(num,args)                 gasnetex_AMReplyMedium##num args
+  #define ReplyLong(num,AMargs,GASNETargs)      gasnetex_AMReplyLong##num GASNETargs
+  #define NUMHANDLERS_PER_TYPE     (gasnet_AMMaxArgs()+1)
+  #define MYPROC                   (gasnet_mynode())
+  #define NUMPROCS                 (gasnet_nodes())
+  #define MYSEG                    (TEST_MYSEG())
   #define GETPARTNER(token)  gasnetex_rank_t partner; GASNET_Safe(gasnet_AMGetMsgSource(token, &partner))
+  #define ENDPOINT                 myteam,
+  #define EXTRA_S                  ,0
+  #define EXTRA_ML                 ,GASNETEX_LC_INIT,0
 #else
   #include "apputils.h"
   typedef int handlerarg_t;
@@ -63,6 +96,8 @@
   #define ENDPOINT  ep,
   #define GETPARTNER(token)
   #define FATALERR                  AMX_FatalErr
+  #define EXTRA_S
+  #define EXTRA_ML
 #endif
 #define ALLAM_DONE(iters) ((int)NUMREP() == (int)(NUMHANDLERS_PER_TYPE*4*(iters)))
 
@@ -288,7 +323,7 @@ typedef struct {
     if (CA##num)                                                                   \
       FATALERR("Arg mismatch in short_%sreq_handler on P%i\n", #num, (int)MYPROC); \
     INCREQ();                                                                      \
-    ReplyShort(num,(token, SHORT_##num##REP_HANDLER aa##num));                     \
+    ReplyShort(num,(token, SHORT_##num##REP_HANDLER EXTRA_S aa##num));             \
   }                                                                                \
   void short_##num##rep_handler(token_t token FA##num) {                           \
     if (CA##num)                                                                   \
@@ -308,7 +343,7 @@ typedef struct {
                        #num, (int)MYPROC, (int)nbytes, payload->idx);                  \
     INCREQ();                                                                          \
     payload->idx = -payload->idx;                                                      \
-    ReplyMedium(num,(token, MEDIUM_##num##REP_HANDLER, buf, nbytes aa##num));          \
+    ReplyMedium(num,(token, MEDIUM_##num##REP_HANDLER, buf, nbytes EXTRA_ML aa##num)); \
     memset(buf, 0xBB, sizeof(testam_payload_t));                                       \
   }                                                                                    \
   void medium_##num##rep_handler(token_t token, void *buf, bufsize_t nbytes FA##num) { \
@@ -343,7 +378,8 @@ typedef struct {
     ReplyLong(num,(token, (NUMHANDLERS_PER_TYPE+num)*sizeof(testam_payload_t),                \
                    LONG_##num##REP_HANDLER, &mybuf, nbytes aa##num),                          \
                   (token, LONG_##num##REP_HANDLER, &mybuf, nbytes,                            \
-                   ((testam_payload_t*)TEST_SEG(partner))+NUMHANDLERS_PER_TYPE+num aa##num)); \
+                   ((testam_payload_t*)TEST_SEG(partner))+NUMHANDLERS_PER_TYPE+num            \
+                   EXTRA_ML aa##num));                                                        \
     memset(&mybuf, 0xBB, sizeof(testam_payload_t));                                           \
   }                                                                                           \
   void long_##num##rep_handler(token_t token, void *buf, bufsize_t nbytes FA##num) {          \
@@ -444,21 +480,21 @@ HANDLERS(16)
   asyncbuf.doublevar = TESTAM_DOUBLEVAR_VAL;                                                       \
   asyncbuf.int64var = TESTAM_INT64VAR_VAL;                                                         \
   asyncbuf.idx = num;                                                                              \
-  RequestShort(num,(ENDPOINT partner,  SHORT_##num##REQ_HANDLER AA##num));                         \
+  RequestShort(num,(ENDPOINT partner,  SHORT_##num##REQ_HANDLER EXTRA_S AA##num));                 \
   memcpy(&medbuf, &asyncbuf, sizeof(testam_payload_t));                                            \
   RequestMedium(num,(ENDPOINT partner, MEDIUM_##num##REQ_HANDLER,                                  \
-                     &medbuf, sizeof(testam_payload_t) AA##num));                                  \
+                     &medbuf, sizeof(testam_payload_t) EXTRA_ML AA##num));                         \
   memset(&medbuf, 0xBB, sizeof(testam_payload_t)); /* ensure we can overwrite srcmem */            \
   memcpy(&longbuf, &asyncbuf, sizeof(testam_payload_t));                                           \
   RequestLong(num,(ENDPOINT partner, sizeof(testam_payload_t)*num,                                 \
                    LONG_##num##REQ_HANDLER, &longbuf, sizeof(testam_payload_t) AA##num),           \
                   (ENDPOINT partner, LONG_##num##REQ_HANDLER, &longbuf, sizeof(testam_payload_t),  \
-                   ((testam_payload_t*)TEST_SEG(partner))+num AA##num));                           \
+                   ((testam_payload_t*)TEST_SEG(partner))+num EXTRA_ML AA##num));                  \
   memset(&longbuf, 0xBB, sizeof(testam_payload_t)); /* ensure we can overwrite srcmem */           \
   RequestLongAsync(num,(ENDPOINT partner, sizeof(testam_payload_t)*num,                            \
                    LONG_##num##REQ_HANDLER, &asyncbuf, sizeof(testam_payload_t) AA##num),          \
                   (ENDPOINT partner, LONG_##num##REQ_HANDLER, &asyncbuf, sizeof(testam_payload_t), \
-                   ((testam_payload_t*)TEST_SEG(partner))+num AA##num));                           \
+                   ((testam_payload_t*)TEST_SEG(partner))+num EXTRA_ML AA##num));                  \
 } while (0)                                                                                        \
 
 #define ALLAM_REQ(partner)  do { \

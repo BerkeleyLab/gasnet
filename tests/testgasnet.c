@@ -11,9 +11,8 @@
 #define TEST_MAXTHREADS 1
 #include <test.h>
 
-#define TEST_GASNET 1
+#define TEST_GASNETEX 1
 #define SHORT_REQ_BASE 128
-#define g2ex_team myteam
 #include <other/amxtests/testam.h>
 
 /* Define to get one big function that pushes the gcc inliner heursitics */
