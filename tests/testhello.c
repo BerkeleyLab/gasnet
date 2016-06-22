@@ -4,7 +4,7 @@
  * Terms of use are as specified in license.txt
  */
 
-#include <gasnet.h>
+#include <gasnetex.h>
 #include <stdio.h>
 
 /* Macro to check return codes and terminate with useful message. */

@@ -7,7 +7,7 @@
 #ifndef _GASNET2EX_H
 #define _GASNET2EX_H
 
-#include <gasnet.h>
+#include <gasnetex.h>
 #include <gasnet_tools.h>
 
 GASNETI_BEGIN_EXTERNC

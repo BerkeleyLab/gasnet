@@ -12,7 +12,7 @@
  *
 *************************************************************/
 
-#include "gasnet.h"
+#include <gasnetex.h>
 #include <math.h>
 uintptr_t maxsegmentsz;
 #ifndef TEST_SEGSZ

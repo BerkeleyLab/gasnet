@@ -3,7 +3,7 @@
  * Copyright 2007, Parry Husbands and Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
-#include <gasnet.h>
+#include <gasnetex.h>
 #include <gasnet_coll.h>
 #include <stdio.h>
 #include <stdlib.h>

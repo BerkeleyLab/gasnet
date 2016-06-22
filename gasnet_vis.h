@@ -7,7 +7,7 @@
 #ifndef _GASNET_VIS_H
 #define _GASNET_VIS_H
 
-#include <gasnet.h>
+#include <gasnetex.h>
 
 GASNETI_BEGIN_EXTERNC
 

@@ -11,7 +11,7 @@
 at larger message sizes. It is NOT intended as a tester to measure correctness of synchronization 
 options that is covered testcoll
 */
-#include "gasnet.h"
+#include <gasnetex.h>
 #include "gasnet_coll.h"
 
 #define DEFAULT_OUTER_VERIFICATION_ITERS 2

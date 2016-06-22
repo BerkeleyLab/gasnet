@@ -9,12 +9,12 @@
 #define _TEST_H
 
 #ifdef TEST_GASNET_TOOLS_ONLY
-  /* do not use gasnet.h */
+  /* do not use gasnetex.h */
   #include <gasnet_tools.h>
 #else
-  #include <gasnet.h>
+  #include <gasnetex.h>
   #include <gasnet_tools.h>
-  #define TEST_GASNET_H
+  #define TEST_GASNETEX_H
 #endif
 
 #include <stdio.h>
@@ -88,7 +88,7 @@ GASNETT_BEGIN_EXTERNC
 
 /* define several useful messaging macros */
 static int test_errs = 0;
-#ifdef TEST_GASNET_H
+#ifdef TEST_GASNETEX_H
   #define MSG   test_makeMsg(("node %i/%i %s\n", (int)gasnet_mynode(), (int)gasnet_nodes(), "%s"), 1, 0, \
                              GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__))
   #define MSG0  test_makeMsg(("%s\n","%s"), (gasnet_mynode() == 0), 0, \
@@ -346,7 +346,7 @@ static int64_t test_calibrate_delay(int iters, int pollcnt, int64_t *time_p)
 /* config strings */
 
 #ifndef TEST_OMIT_CONFIGSTRINGS
-#ifdef TEST_GASNET_H
+#ifdef TEST_GASNETEX_H
   #define TEST_CONFIG_STRING GASNET_CONFIG_STRING
   #define TEST_TITANIUM_BACKEND "gasnet-" GASNET_CONDUIT_NAME_STR "-uni"
 #else
@@ -486,10 +486,10 @@ static void test_createandjoin_pthreads(int numthreads, void *(*start_routine)(v
 
 /* ------------------------------------------------------------------------------------ *
  * ------------------------------------------------------------------------------------ *
- *                        begin gasnet.h specific stuff                                 *
+ *                        begin gasnetex.h specific stuff                                 *
  * ------------------------------------------------------------------------------------ *
  * ------------------------------------------------------------------------------------ */
-#ifdef TEST_GASNET_H
+#ifdef TEST_GASNETEX_H
 
 gasnetex_team_member_t myteam; // TODO-EX: remove this when new init is added to the tests
 
@@ -912,7 +912,7 @@ static void _test_set_waitmode(int threads) {
 }
 #define TEST_SET_WAITMODE _test_set_waitmode
 
-#endif /* TEST_GASNET_H */
+#endif /* TEST_GASNETEX_H */
 /* ------------------------------------------------------------------------------------ */
 /* test initialization boilerplate */
 #if PLATFORM_ARCH_ALPHA || PLATFORM_ARCH_CRAYT3E
@@ -922,7 +922,7 @@ static void _test_set_waitmode(int threads) {
 #endif
 
 static void TEST_GENERICS_WARNING(void) {
-  #ifdef TEST_GASNET_H
+  #ifdef TEST_GASNETEX_H
     if (gasnet_mynode() == 0)
   #endif
   {
@@ -947,7 +947,7 @@ static const char *_test_usagestr = NULL;
 static const char *_test_testname = NULL;
 static const char *_test_argvzero = NULL;
 static void _test_usage(int early) {
-  #ifdef TEST_GASNET_H
+  #ifdef TEST_GASNETEX_H
     if (gasnet_mynode() == 0) {
       fprintf(stderr, "%s %s\n", _test_testname, GASNET_CONFIG_STRING);
       fprintf(stderr, "Usage: %s %s%s", _test_argvzero, _test_usagestr,
@@ -988,7 +988,7 @@ static void _test_init(const char *testname, int reports_performance, int early,
   }
 
   TEST_SIG_INIT();
-  #ifdef TEST_GASNET_H
+  #ifdef TEST_GASNETEX_H
     if (!early) BARRIER();
     if (reports_performance) {
       TEST_DEBUGPERFORMANCE_WARNING();

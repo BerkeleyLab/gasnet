@@ -15,7 +15,7 @@
 		
 *************************************************************/
 
-#include "gasnet.h"
+#include <gasnetex.h>
 
 uintptr_t maxsz = 0;
 #ifndef TEST_SEGSZ

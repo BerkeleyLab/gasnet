@@ -7,7 +7,7 @@
 #ifndef _GASNET_COLL_H
 #define _GASNET_COLL_H
 
-#include <gasnet.h>
+#include <gasnetex.h>
 
 GASNETI_BEGIN_EXTERNC
 #define GASNETI_COLL_FN_HEADER(FNNAME) extern

@@ -8,11 +8,11 @@
 #define _GASNET_INTERNAL_H
 #define _IN_GASNET_INTERNAL_H
 #define _INCLUDED_GASNET_INTERNAL_H
-#ifdef _INCLUDED_GASNET_H
-  #error Internal GASNet code should not directly include gasnet.h, just gasnet_internal.h
+#ifdef _INCLUDED_GASNETEX_H
+  #error Internal GASNet code should not directly include gasnetex.h, just gasnet_internal.h
 #endif
 
-#include <gasnet.h> /* MUST come first to ensure correct inttypes behavior */
+#include <gasnetex.h> /* MUST come first to ensure correct inttypes behavior */
 #include <gasnet_tools.h>
 #include <gasnet_syncops.h>
 

@@ -34,7 +34,7 @@ CONDUITMODE_DIST_SUBDIRS =    	\
 	pami-conduit			\
 	ofi-conduit
 CONDUITMODE_headers = 		\
-	gasnet.h           	\
+	gasnetex.h           	\
 	gasnet_ammacros.h  	\
 	gasnet_coll.h      	\
 	gasnet_handler.h   	\

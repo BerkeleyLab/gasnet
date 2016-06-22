@@ -5,7 +5,7 @@
  */
 #include <firehose.h>
 #include <firehose_internal.h>
-#include <gasnet.h>
+#include <gasnetex.h>
 #include <gasnet_handler.h>
 
 #ifdef FIREHOSE_REGION

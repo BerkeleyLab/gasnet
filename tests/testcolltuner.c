@@ -8,7 +8,7 @@
 #include <stdlib.h>
 
 
-#include <gasnet.h>
+#include <gasnetex.h>
 #include <gasnet_tools.h>
 #include <gasnet_coll.h>
 

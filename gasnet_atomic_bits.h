@@ -4,8 +4,8 @@
  * Terms of use are as specified in license.txt
  */
 
-#if !defined(_IN_GASNET_TOOLS_H) && !defined(_IN_GASNET_H) && !defined(_IN_CONFIGURE)
-  #error This file is not meant to be included directly- clients should include gasnet.h or gasnet_tools.h
+#if !defined(_IN_GASNET_TOOLS_H) && !defined(_IN_GASNETEX_H) && !defined(_IN_CONFIGURE)
+  #error This file is not meant to be included directly- clients should include gasnetex.h or gasnet_tools.h
 #endif
 
 #ifndef _GASNET_ATOMIC_BITS_H
@@ -2745,14 +2745,14 @@
 /* Define configuration-dependent choice of locks for generic atomics (if any) */
 
 #if defined(GASNETI_BUILD_GENERIC_ATOMIC32) || defined(GASNETI_BUILD_GENERIC_ATOMIC64)
-  #if defined(_INCLUDED_GASNET_H) && GASNETI_USE_TRUE_MUTEXES
+  #if defined(_INCLUDED_GASNETEX_H) && GASNETI_USE_TRUE_MUTEXES
     /* Case I: Real HSLs in a gasnet client */
     #define GASNETI_GENATOMIC_LOCK_PREP(ptr) \
 		gasnet_hsl_t * const lock = gasneti_hsl_atomic_hash_lookup((uintptr_t)ptr)
     #define GASNETI_GENATOMIC_LOCK()   gasnet_hsl_lock(lock)
     #define GASNETI_GENATOMIC_UNLOCK() gasnet_hsl_unlock(lock)
     #define _gasneti_genatomic_cons(_id) gasneti_hsl_atomic##_id
-  #elif defined(_INCLUDED_GASNET_H)
+  #elif defined(_INCLUDED_GASNETEX_H)
     /* Case II: Empty HSLs in a GASNET_SEQ or GASNET_PARSYNC client w/o conduit-internal threads */
   #elif GASNETI_USE_TRUE_MUTEXES /* thread-safe tools-only client OR forced true mutexes */
     /* Case III: a version for pthreads which is independent of GASNet HSL's */

@@ -4,7 +4,7 @@
  * Terms of use are as specified in license.txt
  */
 #include <float.h>
-#include <gasnet.h>
+#include <gasnetex.h>
 #include <gasnet_tools.h>
 
 static volatile float x, y;

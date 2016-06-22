@@ -5,7 +5,7 @@
  */
 #include <firehose.h>
 #include <firehose_internal.h>
-#include <gasnet.h>
+#include <gasnetex.h>
 
 #ifdef FIREHOSE_PAGE
 

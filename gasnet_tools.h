@@ -7,10 +7,10 @@
 #define _GASNET_TOOLS_H
 #define _IN_GASNET_TOOLS_H
 #define _INCLUDED_GASNET_TOOLS_H
-#if !defined(_INCLUDED_GASNET_H) && \
+#if !defined(_INCLUDED_GASNETEX_H) && \
     (defined(GASNET_SEQ) || defined(GASNET_PARSYNC) || defined(GASNET_PAR))
   #error Objects that use both GASNet and GASNet tools must   \
-         include gasnet.h before gasnet_tools.h 
+         include gasnetex.h before gasnet_tools.h 
 #endif
 
 /* Recognized definitions:
@@ -24,7 +24,7 @@
   #define GASNETT_LITE_MODE 1
   #undef GASNETT_THREAD_SAFE
   #define GASNETT_THREAD_MODEL LITE
-  #ifdef _INCLUDED_GASNET_H
+  #ifdef _INCLUDED_GASNETEX_H
     #error GASNETT_LITE_MODE not supported for libgasnet clients
   #endif
 #elif defined(GASNETT_THREAD_SAFE) ||                             \
@@ -426,7 +426,7 @@ extern gasnett_backtrace_type_t gasnett_backtrace_user;
 /* ------------------------------------------------------------------------------------ */
 /* GASNet tracing/stats support (automatically stubbed out when libgasnet absent) */
 
-#if defined(_INCLUDED_GASNET_H) && defined(GASNET_SRCLINES)
+#if defined(_INCLUDED_GASNETEX_H) && defined(GASNET_SRCLINES)
   #define GASNETT_TRACE_SETSOURCELINE      GASNETI_TRACE_SETSOURCELINE
   #define GASNETT_TRACE_GETSOURCELINE      GASNETI_TRACE_GETSOURCELINE
   #define GASNETT_TRACE_FREEZESOURCELINE   GASNETI_TRACE_FREEZESOURCELINE
@@ -465,7 +465,7 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
             (*(_gasnett_trace_printf_force?_gasnett_trace_printf_force:&_gasnett_trace_printf_noop))
   #endif
 
-  #ifdef _INCLUDED_GASNET_H
+  #ifdef _INCLUDED_GASNETEX_H
     #define GASNETT_TRACE_ENABLED       GASNETI_TRACE_ENABLED(H)
     #define GASNETT_TRACE_GETMASK()     GASNETI_TRACE_GETMASK()
     #define GASNETT_TRACE_SETMASK(mask) GASNETI_TRACE_SETMASK(mask)
@@ -489,7 +489,7 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
   #define GASNETT_TRACE_SET_TRACELOCAL(newval)  ((void)0)
 #endif
 
-#if defined(_INCLUDED_GASNET_H) && defined(GASNET_STATS)
+#if defined(_INCLUDED_GASNETEX_H) && defined(GASNET_STATS)
   /* GASNETT_STATS_INIT can be called at any time to register a callback function, which 
      will be invoked at stats dumping time (provided H stats are enabled)
      and passed a printf-like function that can be used to write output into the stats
@@ -506,7 +506,7 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
 
 /* ------------------------------------------------------------------------------------ */
 /* misc internal libgasnet-specific features we wish to expose when available */
-#if defined(_INCLUDED_GASNET_H) 
+#if defined(_INCLUDED_GASNETEX_H) 
   /* these tools ONLY available when linking a libgasnet.a */
   #ifdef HAVE_MMAP
     extern void *gasneti_mmap(uintptr_t segsize);

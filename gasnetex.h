@@ -1,19 +1,19 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnet.h $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnetex.h $
  * Description: GASNet Header
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
  * Terms of use are as specified in license.txt
  */
 
-#ifndef _GASNET_H
-#define _GASNET_H
-#define _IN_GASNET_H
-#define _INCLUDED_GASNET_H
+#ifndef _GASNETEX_H
+#define _GASNETEX_H
+#define _IN_GASNETEX_H
+#define _INCLUDED_GASNETEX_H
 #ifdef _INCLUDED_GASNET_TOOLS_H
-  #error Objects that use both GASNet and GASNet tools must   \
-         include gasnet.h before gasnet_tools.h 
+  #error Objects that use both GASNet-EX and GASNet tools must   \
+         include gasnetex.h before gasnet_tools.h 
 #endif
 #if defined(_INCLUDED_GASNET_INTERNAL_H) && !defined(_IN_GASNET_INTERNAL_H)
-  #error Internal GASNet code should not directly include gasnet.h, just gasnet_internal.h
+  #error Internal GASNet code should not directly include gasnetex.h, just gasnet_internal.h
 #endif
 
 /* Usage:
@@ -46,7 +46,7 @@
   #define GASNET_PAR 1
   #define GASNETI_THREAD_MODEL PAR
 #else
-  #error Client code must #define exactly one of (GASNET_PAR, GASNET_PARSYNC, GASNET_SEQ) before #including gasnet.h
+  #error Client code must #define exactly one of (GASNET_PAR, GASNET_PARSYNC, GASNET_SEQ) before #including gasnetex.h
 #endif
 
 /* GASNETI_CLIENT_THREADS = GASNet client has multiple application threads */
@@ -525,7 +525,7 @@ extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentr
 
 /* ------------------------------------------------------------------------------------ */
 
-#undef _IN_GASNET_H
+#undef _IN_GASNETEX_H
 #endif
 
 /* intentionally expanded on every include */

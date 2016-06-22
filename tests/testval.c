@@ -7,7 +7,7 @@
  * Terms of use are as specified in license.txt
  */
 
-#include "gasnet.h"
+#include <gasnetex.h>
 
 #if PLATFORM_ARCH_64
 int maxsz = 8;

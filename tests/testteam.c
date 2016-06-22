@@ -6,7 +6,7 @@
    test.  Column teams and row teams of a process grid are created and
    team barriers are performed on these teams. */
 
-#include <gasnet.h>
+#include <gasnetex.h>
 #include <gasnet_coll.h>
 #include <gasnet_coll_team.h>
 

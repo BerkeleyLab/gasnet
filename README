@@ -168,7 +168,7 @@ supporting libraries.
 Basic Usage Information
 =================
 See the README for each GASNet core implementations for specific usage
-information, but generally client programs should #include <gasnet.h>
+information, but generally client programs should #include <gasnetex.h>
 (and nothing else), and use the conduit-provided compilation settings.
 
 The best way to get the correct compiler flags for your GASNet client is to 
@@ -861,10 +861,10 @@ the configuration scripts, header files, etc. should not rely on anything from
 outside directories not included in this distribution (other than basic system
 headers and lower-level networking libraries).
 
-* Header files: The GASNet master header file (gasnet.h) #includes
+* Header files: The GASNet master header file (gasnetex.h) #includes
 several files which should be provided by each conduit:
 
-<gasnet.h> includes the following files:
+<gasnetex.h> includes the following files:
    <gasnet_config.h> Created by the configure script, this header helps in
 		     customizing gasnet for site-specific and platform-specific
 		     information.
@@ -872,12 +872,12 @@ several files which should be provided by each conduit:
                      platform-independent integer types and c++ binding macros.
    <gasnet_help.h> Extended and core API platform independent helpers
                     (providing services which aren't part of GASNet API, but are
-		     required by code in gasnet.h)
+		     required by code in gasnetex.h)
    <gasnet_trace.h> Implements GASNet's sophisticated
                     internal tracing and statistical collection system
    <gasnet_core_fwd.h> definitions of basic constants and types used by the
-		       core API and included early in the gasnet.h file
-		       (gasnet.h provides some default values for various
+		       core API and included early in the gasnetex.h file
+		       (gasnetex.h provides some default values for various
 		       constants and types that can be overridden here)
    <gasnet_extended_fwd.h>  Allows a specific extended implementation to
 			    override the default gasnet types such as handles
@@ -897,10 +897,10 @@ several files which should be provided by each conduit:
 			          visible to client code (i.e. not part of GASNet API)
 
 Many conduits also have <gasnet_core_internal.h> and <gasnet_extended_internal.h> files
-which are _not_ included by gasnet.h (and therefore not visible to client code) and
+which are _not_ included by gasnetex.h (and therefore not visible to client code) and
 are exclusively for use in building the conduit libraries. 
 <gasnet_internal.h> is the conduit-independent version of these files at the top level.
-Internal GASNet implementation should include <gasnet_internal.h> instead of <gasnet.h>.
+Internal GASNet implementation should include <gasnet_internal.h> instead of <gasnetex.h>.
 
 <gasnet_coll.h> and <gasnet_vis.h> are headers providing a set of proposed additions
 to the GASNet spec (for collective operations and non-contiguous put/get,
@@ -1027,7 +1027,7 @@ All GASNet conduit code is required to meet the following coding standards:
 
 * Conduit code may use any of the GASNet tools documented in README-tools, but should
   use the gasneti_ version when referring to these tools in public headers, because
-  gasnet_tools.h is not included by gasnet.h.
+  gasnet_tools.h is not included by gasnetex.h.
 
 * Learn how to use the tracing macros and use them to trace interesting
   events in your conduit. They're invaluable for debugging mysterious behavior.
