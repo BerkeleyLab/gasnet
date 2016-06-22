@@ -349,7 +349,17 @@ void gasnetex_wait_syncnb_some (gasnetex_handle_t *phandle, size_t numhandles);
 int  gasnetex_test_syncnb_all (gasnetex_handle_t *phandle, size_t numhandles);
 void gasnetex_wait_syncnb_all (gasnetex_handle_t *phandle, size_t numhandles);
 
+// Sync of NBI gets
+int  gasnetex_test_syncnbi_gets(void);
+void gasnetex_wait_syncnbi_gets(void);
 
+// Sync of NBI puts
+int  gasnetex_test_syncnbi_puts(void);
+void gasnetex_wait_syncnbi_puts(void);
+
+// Sync of all NBI operations
+int  gasnetex_test_syncnbi_all (void);
+void gasnetex_wait_syncnbi_all (void);
 
 
 
