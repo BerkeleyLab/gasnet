@@ -363,31 +363,34 @@ void gasnetex_wait_syncnbi_all (void);
 
 
 
-// NOTE: these Max payload queries have not yet been "vetted".
-// Cost of changing these (if implemented too soon) is relatively small.
-// Expressing LC_* requires some NEW 'flags' bits (since lc_opt replaced the old ones).
-// rank == GASNETEX_ALL_RANKS yields min-of-maxes
-extern size_t gasnetex_AMMaxLongRequest(
-           gasnetex_team_member_t team,
-           gasnetex_rank_t rank,
-           int numargs,
-           gasnetex_flags_t flags);
-extern size_t gasnetex_AMMaxLongReply(
-           gasnetex_team_member_t team,
-           gasnetex_rank_t rank,
-           int numargs,
-           gasnetex_flags_t flags);
-extern size_t gasnetex_AMMaxMediumRequest(
-           gasnetex_team_member_t team,
-           gasnetex_rank_t rank,
-           int numargs,
-           gasnetex_flags_t flags);
-extern size_t gasnetex_AMMaxMediumReply(
-           gasnetex_team_member_t team,
-           gasnetex_rank_t rank,
-           int numargs,
-           gasnetex_flags_t flags);
-
 // Pre-defined constant used to apply a query to all ranks in the team
 #define GASNETEX_ALL_RANKS (~(gasnetex_rank_t)0)
 
+// Max payload queries for specific peer, nargs and flags
+// rank == GASNETEX_ALL_RANKS yields min-of-maxes
+size_t gasnetex_max_AMRequestLong(
+           gasnetex_team_member_t team,
+           gasnetex_rank_t rank,
+           int numargs,
+           gasnetex_flags_t flags);
+size_t gasnetex_max_AMReplyLong(
+           gasnetex_team_member_t team,
+           gasnetex_rank_t rank,
+           int numargs,
+           gasnetex_flags_t flags);
+size_t gasnetex_max_AMRequestMedium(
+           gasnetex_team_member_t team,
+           gasnetex_rank_t rank,
+           int numargs,
+           gasnetex_flags_t flags);
+size_t gasnetex_max_AMReplyMedium(
+           gasnetex_team_member_t team,
+           gasnetex_rank_t rank,
+           int numargs,
+           gasnetex_flags_t flags);
+
+// Max payload queries for unknown peer, nargs and flags
+size_t gasnetex_lub_AMRequestLong(void);
+size_t gasnetex_lub_AMReplyLong(void);
+size_t gasnetex_lub_AMRequestMedium(void);
+size_t gasnetex_lub_AMReplyMedium(void);
