@@ -1,11 +1,11 @@
-/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnet2ex.h $
+/*   $Source: bitbucket.org:berkeleylab/gasnet.git/gasnet.h $
  * Description: GASNet -> GASNet-EX transitional header
  * Copyright 2016, The Regents of the University of California
  * Terms of use are as specified in license.txt
  */
 
-#ifndef _GASNET2EX_H
-#define _GASNET2EX_H
+#ifndef _GASNET_H
+#define _GASNET_H
 
 #include <gasnetex.h>
 #include <gasnet_tools.h>

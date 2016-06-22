@@ -4,7 +4,7 @@
  * Terms of use are as specified in license.txt
  */
 
-#include <gasnet2ex.h>
+#include <gasnet.h>
 #include <gasnet_tools.h>
 
 /* limit segsz to prevent stack overflows for seg_everything tests */

@@ -44,7 +44,7 @@ CONDUITMODE_EXTRA_DIST =    	\
 	docs              	\
 	extended-ref      	\
 	template-conduit  	\
-	gasnet2ex.h             \
+	gasnet.h                \
 	gasnet_internal.h 	\
 	gasnet_internal.c 	\
 	gasnet_mmap.c  	  	\
