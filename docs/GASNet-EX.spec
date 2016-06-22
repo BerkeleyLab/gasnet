@@ -152,7 +152,7 @@ typedef uintptr_t gasnetex_register_value_t;
 //   does not Poll, if we wanted to.]
 
 // Long
-extern int gasnetex_AMRequestLongM(
+int gasnetex_AMRequestLongM(
            gasnetex_team_member_t team,   // Names a local context ("return address")
            gasnetex_rank_t rank,          // Together with 'team', names a remote context
            gasnetex_handler_t handler,    // Index into handler table of remote context
@@ -162,7 +162,7 @@ extern int gasnetex_AMRequestLongM(
            gasnetex_lc_handle_t *lc_opt,  // Local completion control (see above)
            gasnetex_flags_t flags,        // Flags to control this operation
            int numargs, ...);             // Argument list (0..AMMaxArgs) as varargs
-extern int gasnetex_AMReplyLongM(
+int gasnetex_AMReplyLongM(
            gasnetex_token_t token,        // Names local and remote contexts
            gasnetex_handler_t handler,
            const void *source_addr,
@@ -172,7 +172,7 @@ extern int gasnetex_AMReplyLongM(
            gasnetex_flags_t flags,
            int numargs, ...);
 // Medium
-extern int gasnetex_AMRequestMediumM(
+int gasnetex_AMRequestMediumM(
            gasnetex_team_member_t team,
            gasnetex_rank_t rank,
            gasnetex_handler_t handler,
@@ -181,7 +181,7 @@ extern int gasnetex_AMRequestMediumM(
            gasnetex_lc_handle_t *lc_opt,
            gasnetex_flags_t flags,
            int numargs, ...);
-extern int gasnetex_AMReplyMediumM(
+int gasnetex_AMReplyMediumM(
            gasnetex_token_t token,
            gasnetex_handler_t handler,
            const void *source_addr,
@@ -190,13 +190,13 @@ extern int gasnetex_AMReplyMediumM(
            gasnetex_flags_t flags,
            int numargs, ...);
 // Short
-extern int gasnetex_AMRequestShortM(
+int gasnetex_AMRequestShortM(
            gasnetex_team_member_t team,
            gasnetex_rank_t rank,
            gasnetex_handler_t handler, 
            gasnetex_flags_t flags,
            int numargs, ...);
-extern int gasnetex_AMReplyShortM(
+int gasnetex_AMReplyShortM(
            gasnetex_token_t token,
            gasnetex_handler_t handler,
            gasnetex_flags_t flags,
@@ -249,14 +249,14 @@ extern int gasnetex_AMReplyShortM(
 // [Some text for lc-must-precede-sync is still needed]
 
 // Put
-extern int gasnetex_put(
+int gasnetex_put(
            gasnetex_team_member_t team,   // Names a local context ("return address")
            gasnetex_rank_t rank,          // Together with 'team', names a remote context
            void *dest,                    // Remote (destination) address (or OFFSET)
            const void *src,               // Local (source) address (or OFFSET)
            size_t nbytes,                 // Length of xfer
            gasnetex_flags_t flags);       // Flags to control this operation
-extern int gasnetex_put_nbi(
+int gasnetex_put_nbi(
            gasnetex_team_member_t team,
            gasnetex_rank_t rank,
            void *dest,
@@ -264,7 +264,7 @@ extern int gasnetex_put_nbi(
            size_t nbytes,
            gasnetex_lc_handle_t *lc_opt,  // Local completion control (see above)
            gasnetex_flags_t flags);
-extern gasnetex_handle_t gasnetex_put_nb(
+gasnetex_handle_t gasnetex_put_nb(
            gasnetex_team_member_t team,
            gasnetex_rank_t rank,
            void *dest,
@@ -274,21 +274,21 @@ extern gasnetex_handle_t gasnetex_put_nb(
            gasnetex_flags_t flags);
 
 // Get
-extern int gasnetex_get( // Returns non-zero *only* in "no op" case (IMMEDIATE flag)
+int gasnetex_get( // Returns non-zero *only* in "no op" case (IMMEDIATE flag)
            gasnetex_team_member_t team,   // Names a local context ("return address")
            void *dest,                    // Local (destination) address (or OFFSET)
            gasnetex_rank_t rank,          // Together with 'team', names a remote context
            void *src,                     // Remote (source) address (or OFFSET)
            size_t nbytes,                 // Length of xfer
            gasnetex_flags_t flags);       // Flags to control this operation
-extern int gasnetex_get_nbi( // Returns non-zero *only* in "no op" case (IMMEDIATE flag)
+int gasnetex_get_nbi( // Returns non-zero *only* in "no op" case (IMMEDIATE flag)
            gasnetex_team_member_t team,
            void *dest,
            gasnetex_rank_t rank,
            void *src,
            size_t nbytes,
            gasnetex_flags_t flags);
-extern gasnetex_handle_t gasnetex_get_nb(
+gasnetex_handle_t gasnetex_get_nb(
            gasnetex_team_member_t team,
            void *dest,
            gasnetex_rank_t rank,
@@ -297,27 +297,27 @@ extern gasnetex_handle_t gasnetex_get_nb(
            gasnetex_flags_t flags);
 
 // Value-based
-extern gasnetex_register_value_t gasnetex_get_val(
+gasnetex_register_value_t gasnetex_get_val(
            gasnetex_team_member_t team,
            gasnetex_rank_t rank,
            void *src,
            size_t nbytes,
            gasnetex_flags_t flags);
-extern int gasnetex_put_val(
+int gasnetex_put_val(
            gasnetex_team_member_t team,
            gasnetex_rank_t rank,
            void *dest,
            gasnetex_register_value_t value,
            size_t nbytes,
            gasnetex_flags_t flags);
-extern int gasnetex_put_nbi_val(
+int gasnetex_put_nbi_val(
            gasnetex_team_member_t team,
            gasnetex_rank_t rank,
            void *dest,
            gasnetex_register_value_t value,
            size_t nbytes,
            gasnetex_flags_t flags);
-extern gasnetex_handle_t gasnetex_put_nb_val(
+gasnetex_handle_t gasnetex_put_nb_val(
            gasnetex_team_member_t team,
            gasnetex_rank_t rank,
            void *dest,
