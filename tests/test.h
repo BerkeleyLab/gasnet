@@ -491,7 +491,7 @@ static void test_createandjoin_pthreads(int numthreads, void *(*start_routine)(v
  * ------------------------------------------------------------------------------------ */
 #ifdef TEST_GASNET_H
 
-static gasnetex_team_member_t myteam; // TODO-EX: remove this when new init is added to the tests
+gasnetex_team_member_t myteam; // TODO-EX: remove this when new init is added to the tests
 
 /* ------------------------------------------------------------------------------------ */
 /* misc GASNet utilities */

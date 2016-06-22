@@ -4,15 +4,13 @@
  * Terms of use are as specified in license.txt
  */
 
-#include <gasnet.h>
+#include <gasnet2ex.h>
 #include <gasnet_tools.h>
 
 /* limit segsz to prevent stack overflows for seg_everything tests */
 #define TEST_MAXTHREADS 1
+#define myteam g2ex_team
 #include <test.h>
-
-#define g2ex_team myteam
-#include <gasnet2ex.h>
 
 #define TEST_GASNET 1
 #define SHORT_REQ_BASE 128

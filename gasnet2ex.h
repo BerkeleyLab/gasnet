@@ -7,9 +7,21 @@
 #ifndef _GASNET2EX_H
 #define _GASNET2EX_H
 
+#include <gasnet.h>
+#include <gasnet_tools.h>
+
 GASNETI_BEGIN_EXTERNC
 
-// TODO-EX: need better namespace than "the_"
+
+/* ------------------------------------------------------------------------------------ */
+/*
+  Globals
+  =====================
+*/
+#ifndef g2ex_team
+GASNETT_TENTATIVE_EXTERN gasnetex_team_member_t g2ex_team;
+#endif
+
 
 /* ------------------------------------------------------------------------------------ */
 /*
