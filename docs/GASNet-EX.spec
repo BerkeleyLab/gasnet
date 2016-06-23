@@ -1,4 +1,6 @@
-// TODO-EX: much work is needed to make this suitable for an external audience
+// This is *not* a normative document.
+// It is a place for collection of agreed-upon APIs and for initial
+// drafting of what may become the normative text.
 
 // A "handle" is an opaque scalar type
 // - Sync operation: test/try/wait w/ one/all/some flavors
@@ -394,3 +396,5 @@ size_t gasnetex_lub_AMRequestLong(void);
 size_t gasnetex_lub_AMReplyLong(void);
 size_t gasnetex_lub_AMRequestMedium(void);
 size_t gasnetex_lub_AMReplyMedium(void);
+
+// vim: syntax=c
