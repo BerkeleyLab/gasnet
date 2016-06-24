@@ -1009,7 +1009,7 @@ static int gasnetc_am_init(void) {
   hints.long_header = (gasnetc_recv_imm_max >= sizeof(gasnetc_medmsg_t))
                       ? PAMI_HINT_DISABLE : PAMI_HINT_ENABLE;
   hints.recv_immediate = (gasnetc_recv_imm_max >= 
-                             (sizeof(gasnetc_medmsg_t) + gasnet_AMMaxMedium()))
+                             (sizeof(gasnetc_medmsg_t) + GASNETC_MAX_MEDIUM))
                          ? PAMI_HINT_ENABLE : PAMI_HINT_DEFAULT;
   fn.p2p = &am_Med_dispatch;
   rc = PAMI_Dispatch_set(gasnetc_context, GASNETC_DISP_MED, fn, NULL, hints);
@@ -1131,7 +1131,7 @@ extern int gasnetc_AMRequestShortM(
 {
   int retval = GASNET_OK;
   va_list argptr;
-  GASNETI_COMMON_AMREQUESTSHORT(rank,handler,numargs,flags);
+  GASNETI_COMMON_AMREQUESTSHORT(team,rank,handler,numargs,flags);
   gasneti_AMPoll();
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
@@ -1194,7 +1194,7 @@ extern int gasnetc_AMRequestMediumM(
 {
   int retval = GASNET_OK;
   va_list argptr;
-  GASNETI_COMMON_AMREQUESTMEDIUM(rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
+  GASNETI_COMMON_AMREQUESTMEDIUM(team,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
   gasneti_AMPoll();
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
@@ -1268,7 +1268,7 @@ extern int gasnetc_AMRequestLongM(
 {
   int retval = GASNET_OK;
   va_list argptr;
-  GASNETI_COMMON_AMREQUESTLONG(rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
+  GASNETI_COMMON_AMREQUESTLONG(team,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   gasneti_AMPoll();
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
