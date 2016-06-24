@@ -517,7 +517,8 @@ extern int gasneti_VerboseErrors;
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());                   \
     GASNETI_TRACE_AMREQUESTMEDIUM(team,rank,handler,source_addr,nbytes,numargs);     \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high");       \
-    GASNETI_CHECK_ERRR((nbytes > gasnet_AMMaxMedium()),BAD_ARG,"nbytes too large");  \
+    GASNETI_CHECK_ERRR((nbytes > gasnetex_max_AMRequestMedium(team,rank,lc_opt,flags,numargs)),\
+                       BAD_ARG,"nbytes too large");                                  \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");           \
     GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_SYNC),BAD_ARG,"LC_SYNC is invalid for Requests"); \
   } while (0)
@@ -526,7 +527,8 @@ extern int gasneti_VerboseErrors;
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());                           \
     GASNETI_TRACE_AMREQUESTLONG(team,rank,handler,source_addr,nbytes,dest_addr,numargs);     \
     GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high");               \
-    GASNETI_CHECK_ERRR((nbytes > gasnet_AMMaxLongRequest()),BAD_ARG,"nbytes too large");     \
+    GASNETI_CHECK_ERRR((nbytes > gasnetex_max_AMRequestLong(team,rank,lc_opt,flags,numargs)),  \
+                       BAD_ARG,"nbytes too large");                                  \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");                   \
     GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_SYNC),BAD_ARG,"LC_SYNC is invalid for Requests"); \
   } while (0)
@@ -534,17 +536,17 @@ extern int gasneti_VerboseErrors;
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs()); \
     GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs);             \
   } while (0)
+// TODO-EX: need to restore bounds-check on nbytes in GASNETI_COMMON_AMREPLYMEDIUM
 #define GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs) do { \
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());                  \
-    GASNETI_CHECK_ERRR((nbytes > gasnet_AMMaxMedium()),BAD_ARG,"nbytes too large"); \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");          \
     GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_SYNC),BAD_ARG,"LC_SYNC is invalid for Replies"); \
     GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_GROUP),BAD_ARG,"LC_GROUP is invalid for Replies"); \
     GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);          \
   } while (0)
 #if GASNET_DEBUG || GASNETI_ENABLE_ERRCHECKS
+  // TODO-EX: need to restore bounds-check on nbytes _GASNETI_COMMON_AMREPLYLONG_CHECKS
   #define _GASNETI_COMMON_AMREPLYLONG_CHECKS(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) do { \
-      GASNETI_CHECK_ERRR((nbytes > gasnet_AMMaxLongReply()),BAD_ARG,"nbytes too large");              \
       GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");                          \
       GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_SYNC),BAD_ARG,"LC_SYNC is invalid for Replies");      \
       GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_GROUP),BAD_ARG,"LC_GROUP is invalid for Replies");    \

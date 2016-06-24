@@ -123,7 +123,12 @@ void *workerthread(void *args) {
           gasnet_exit(18); 
       } else {
         int junk;
-        int lim = MIN(MIN(MIN(gasnet_AMMaxMedium(), gasnet_AMMaxLongRequest()), gasnet_AMMaxLongReply()), TEST_SEGSZ);
+        int lim = MIN(MIN(MIN(MIN(
+                        gasnetex_max_AMRequestMedium(myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,0),
+                        gasnetex_max_AMReplyMedium  (myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,0)),
+                        gasnetex_max_AMRequestLong  (myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,0)),
+                        gasnetex_max_AMReplyLong    (myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,0)),
+                        TEST_SEGSZ);
         char *p = malloc(lim);
         char *peerseg = TEST_SEG(peer);
         while (1) {

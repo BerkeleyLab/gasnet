@@ -293,12 +293,12 @@ gasnetex_handle_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
   }
   GASNETE_START_NBIREGION(synctype, 0);
 
-  { gasnet_memvec_t * const packedbuf = gasneti_malloc(gasnet_AMMaxMedium());
+  { gasnet_memvec_t * const packedbuf = gasneti_malloc(gasnetex_lub_AMRequestMedium());
     gasnete_packetdesc_t *remotept;
     gasnete_packetdesc_t *localpt;
     size_t packetidx;
     size_t const packetcnt = gasnete_packetize_memvec(dstcount, dstlist, srccount, srclist, 
-                                                &remotept, &localpt, gasnet_AMMaxMedium(), 1);
+                                                &remotept, &localpt, gasnetex_lub_AMRequestMedium(), 1);
     gasneti_iop_t *iop = gasneti_iop_register(packetcnt,0 GASNETE_THREAD_PASS);
 
     for (packetidx = 0; packetidx < packetcnt; packetidx++) {
@@ -347,7 +347,7 @@ void gasnete_putv_AMPipeline_reqh_inner(gasnetex_token_t token,
   uint8_t * const data = (uint8_t *)(&rlist[rnum]);
   GASNETI_UNUSED_UNLESS_DEBUG /* but still need side-effects */
   uint8_t * const end = gasnete_memvec_unpack(rnum, rlist, data, 0, (size_t)-1);
-  gasneti_assert(end - (uint8_t *)addr <= gasnet_AMMaxMedium());
+  gasneti_assert(end - (uint8_t *)addr <= gasnetex_lub_AMRequestMedium());
   gasneti_sync_writes();
   /* TODO: coalesce acknowledgements - need a per-srcnode, per-op seqnum & packetcnt */
   gasnetex_AMReplyShort(token, gasneti_handleridx(gasnete_putvis_AMPipeline_reph), 0, PACK(iop));
@@ -385,7 +385,7 @@ gasnetex_handle_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
 
   { gasneti_vis_op_t * const visop = gasneti_malloc(sizeof(gasneti_vis_op_t) +
                                                     dstcount*sizeof(gasnet_memvec_t) + 
-                                                    gasnet_AMMaxMedium());
+                                                    gasnetex_lub_AMRequestMedium());
     gasnet_memvec_t * const savedlst = (gasnet_memvec_t *)(visop + 1);
     gasnet_memvec_t * const packedbuf = savedlst + dstcount;
     gasnete_packetdesc_t *remotept;
@@ -393,7 +393,7 @@ gasnetex_handle_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
     gasneti_eop_t *eop;
     size_t packetidx;
     size_t const packetcnt = gasnete_packetize_memvec(srccount, srclist, dstcount, dstlist,  
-                                                &remotept, &localpt, gasnet_AMMaxMedium(), 0);
+                                                &remotept, &localpt, gasnetex_lub_AMReplyMedium(), 0);
     GASNETE_VISOP_SETUP(visop, synctype, 1);
     #if GASNET_DEBUG
       visop->type = GASNETI_VIS_CAT_GETV_AMPIPELINE;
@@ -443,11 +443,11 @@ void gasnete_getv_AMPipeline_reqh_inner(gasnetex_token_t token,
   gasnet_memvec_t * const rlist = addr;
   size_t const rnum = nbytes / sizeof(gasnet_memvec_t);
   gasneti_vis_op_t * const visop = _visop;
-  uint8_t * const packedbuf = gasneti_malloc(gasnet_AMMaxMedium());
+  uint8_t * const packedbuf = gasneti_malloc(gasnetex_lub_AMReplyMedium());
   /* gather data payload from sourcelist into packet */
   uint8_t * const end = gasnete_memvec_pack(rnum, rlist, packedbuf, 0, (size_t)-1);
   size_t const repbytes = end - packedbuf;
-  gasneti_assert(repbytes <= gasnet_AMMaxMedium());
+  gasneti_assert(repbytes <= gasnetex_lub_AMReplyMedium());
   gasnetex_AMReplyMedium(token, gasneti_handleridx(gasnete_getv_AMPipeline_reph),
                          packedbuf, repbytes, GASNETEX_LC_INIT, 0,
                          PACK(visop),packetidx);

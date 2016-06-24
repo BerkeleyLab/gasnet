@@ -218,7 +218,7 @@ main(int argc, char **argv)
         GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t), TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
 	test_init("testcore1",0,"(iters)");
 
-        assert(CHKSUM_TOTAL <= gasnet_AMMaxMedium());
+        assert(CHKSUM_TOTAL <= gasnetex_lub_AMReplyMedium());
 
 	if (argc > 1) iters = atoi(argv[1]);
 	if (!iters) iters = 1000;

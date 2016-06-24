@@ -91,8 +91,8 @@ firehose_region_t;
  *    2. Maximum amount of regions that may be created
  *    3. Environment variables to control firehose (see
  *       GASNET_FIREHOSE_ environment variables below).
- *    4. gasnet_AMMaxMedium() as implemented by the underlying gasnet
- *       core API.
+ *    4. gasnetex_lub_AMR{Request,Reply}Medium() as
+ *       provided by the underlying gasnet core API.
  *    5. The size of firehose_remotecallback_args_t.
  *
  * The values returned by firehose_info_t are established at

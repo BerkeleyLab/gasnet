@@ -96,17 +96,43 @@ typedef struct _gasnet_hsl_t {
 */
 
 #define gasnet_AMMaxArgs()          ((size_t)###)
+
+  /* Define least-upper-bound (worst case) limits on payload sizes */
 #if GASNET_PSHM
   /* (###) If supporting PSHM a conduit must "negotiate" the maximum size of a
    * Medium message.  This can either be done by lowering the conduit's value to
    * the default PSHM value (as shown here), or GASNETI_MAX_MEDIUM_PSHM can be
    * defined in gasnet_core_fwd.h to give the conduit complete control. */
-  #define gasnet_AMMaxMedium()      ((size_t)MIN(###, GASNETI_MAX_MEDIUM_PSHM))
+  #define gasnetex_lub_AMRequestMedium() ((size_t)MIN(###, GASNETI_MAX_MEDIUM_PSHM))
+  #define gasnetex_lub_AMReplyMedium()   ((size_t)MIN(###, GASNETI_MAX_MEDIUM_PSHM))
 #else
-  #define gasnet_AMMaxMedium()      ((size_t)###) 
+  #define gasnetex_lub_AMRequestMedium() ((size_t)###)
+  #define gasnetex_lub_AMReplyMedium()   ((size_t)###)
 #endif
-#define gasnet_AMMaxLongRequest()   ((size_t)###)
-#define gasnet_AMMaxLongReply()     ((size_t)###)
+#define gasnetex_lub_AMRequestLong()   ((size_t)###)
+#define gasnetex_lub_AMReplyLong()     ((size_t)###)
+
+  /* Provide tigher bounds based on parameters (*/
+/* Example for closed-form macros:
+#define gasnetex_max_AMRequestMedium(team,rank,lc_opt,flags,nargs) ((size_t)###)
+#define gasnetex_max_AMReplyMedium(team,rank,lc_opt,flags,nargs)   ((size_t)###)
+#define gasnetex_max_AMRequestLong(team,rank,lc_opt,flags,nargs)   ((size_t)###)
+#define gasnetex_max_AMReplyLong(team,rank,lc_opt,flags,nargs)     ((size_t)###)
+ */
+/* Example for true functions:
+extern size_t gasnetex_max_AMRequestMedium(
+           gasnetex_team_member_t team, gasnetex_rank_t rank,
+           gasnetex_lc_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
+extern size_t gasnetex_max_AMReplyMedium(
+           gasnetex_team_member_t team, gasnetex_rank_t rank,
+           gasnetex_lc_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
+extern size_t gasnetex_max_AMRequestLong(
+           gasnetex_team_member_t team, gasnetex_rank_t rank,
+           gasnetex_lc_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
+extern size_t gasnetex_max_AMReplyLong(
+           gasnetex_team_member_t team, gasnetex_rank_t rank,
+           gasnetex_lc_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
+ */
 
 /* ------------------------------------------------------------------------------------ */
 /*

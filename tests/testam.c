@@ -122,7 +122,7 @@ int insegment = 1;
 int iters=0;
 int pollers=0;
 int i = 0;
-uintptr_t maxmed, maxlongreq, maxlongrep;
+uintptr_t maxmedreq, maxmedrep, maxlongreq, maxlongrep;
 void *doAll(void*);
 
 int main(int argc, char **argv) {
@@ -214,9 +214,10 @@ int main(int argc, char **argv) {
     myseg = alignup_ptr(space, PAGESZ);
   }
 
-  maxmed = MIN(maxsz, gasnet_AMMaxMedium());
-  maxlongreq = MIN(maxsz, gasnet_AMMaxLongRequest());
-  maxlongrep = MIN(maxsz, gasnet_AMMaxLongReply());
+  maxmedreq  = MIN(maxsz, gasnetex_max_AMRequestMedium(myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,0));
+  maxmedrep  = MIN(maxsz, gasnetex_max_AMReplyMedium  (myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,0));
+  maxlongreq = MIN(maxsz, gasnetex_max_AMRequestLong  (myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,0));
+  maxlongrep = MIN(maxsz, gasnetex_max_AMReplyLong    (myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,0));
 
   if (crossmachinemode) {
     if ((numnode%2) && (mynode == numnode-1)) {
@@ -533,7 +534,7 @@ void doAMShort(void) {
 /* ------------------------------------------------------------------------------------ */
 void doAMMed(void) {
   GASNET_BEGIN_FUNCTION();
-  TESTAM_PERF("AMMedium   ",    gasnetex_AMRequestMedium0,    hidx_ping_medhandler,  hidx_pong_medhandler,  maxmed, maxmed, MEDDEST);
+  TESTAM_PERF("AMMedium   ",    gasnetex_AMRequestMedium0,    hidx_ping_medhandler,  hidx_pong_medhandler,  maxmedreq, maxmedrep, MEDDEST);
 }
 /* ------------------------------------------------------------------------------------ */
 void doAMLong(void) {

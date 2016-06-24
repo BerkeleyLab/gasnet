@@ -227,9 +227,10 @@ extern void gasneti_check_config_postattach(void) {
 
   /*  verify sanity of the core interface */
   gasneti_assert_always(gasnet_AMMaxArgs() >= 2*MAX(sizeof(int),sizeof(void*)));      
-  gasneti_assert_always(gasnet_AMMaxMedium() >= 512);
-  gasneti_assert_always(gasnet_AMMaxLongRequest() >= 512);
-  gasneti_assert_always(gasnet_AMMaxLongReply() >= 512);  
+  gasneti_assert_always(gasnetex_lub_AMRequestMedium() >= 512);
+  gasneti_assert_always(gasnetex_lub_AMReplyMedium() >= 512);
+  gasneti_assert_always(gasnetex_lub_AMRequestLong() >= 512);
+  gasneti_assert_always(gasnetex_lub_AMReplyLong() >= 512);
 
   gasneti_assert_always(gasnet_nodes() >= 1);
   gasneti_assert_always(gasnet_mynode() < gasnet_nodes());

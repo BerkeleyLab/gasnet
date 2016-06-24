@@ -181,7 +181,7 @@
 
 /* the size threshold where gets/puts stop using medium messages and start using longs */
 #ifndef GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD
-#define GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD   gasnet_AMMaxMedium()
+#define GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD   gasnetex_lub_AMRequestMedium()
 #endif
 
 /* true if we should try to use Long replies in gets (only possible if dest falls in segment) */
@@ -220,7 +220,7 @@
 GASNETI_INLINE(gasnete_amref_get_reqh_inner)
 void gasnete_amref_get_reqh_inner(gasnetex_token_t token,
   gasnetex_handlerarg_t nbytes, void *dest, void *src, void *done) {
-  gasneti_assert(nbytes <= gasnet_AMMaxMedium());
+  gasneti_assert(nbytes <= gasnetex_lub_AMReplyMedium());
   gasnetex_AMReplyMedium(token, gasneti_handleridx(gasnete_amref_get_reph),
                          src, nbytes, GASNETEX_LC_INIT, 0,
                          PACK(dest), PACK(done));
@@ -326,13 +326,13 @@ void gasnete_amref_get_nbi_inner(gasnetex_team_member_t team,
     #if GASNETE_USE_LONG_GETS
       gasneti_memcheck(gasneti_seginfo);
       if (gasneti_in_segment(gasneti_mynode, dest, nbytes)) {
-        chunksz = gasnet_AMMaxLongReply();
+        chunksz = gasnetex_lub_AMReplyLong();
         reqhandler = gasneti_handleridx(gasnete_amref_getlong_reqh);
       }
       else 
     #endif
       { reqhandler = gasneti_handleridx(gasnete_amref_get_reqh);
-        chunksz = gasnet_AMMaxMedium();
+        chunksz = gasnetex_lub_AMReplyMedium(); // TODO-EX: _lub_ -> _max_
       }
     for (;;) {
       op->initiated_get_cnt++;
@@ -385,7 +385,7 @@ void gasnete_amref_put_nbi_inner(gasnetex_team_member_t team,
     return;
   } else
 #if GASNETE_USE_LONG_PUTS
-  if (nbytes <= gasnet_AMMaxLongRequest()) {
+  if (nbytes <= gasnetex_lub_AMRequestLong()) { // TODO-EX: _lub_ -> _max_
     op->initiated_put_cnt++;
 
     if (isbulk) { // TODO-EX: restore some degree of Async on bulk path
@@ -400,7 +400,7 @@ void gasnete_amref_put_nbi_inner(gasnetex_team_member_t team,
 
     return;
   } else {
-    const size_t chunksz = gasnet_AMMaxLongRequest();
+    const size_t chunksz = gasnetex_lub_AMRequestLong(); // TODO-EX: _lub_ -> _max_
     uint8_t *psrc = src;
     uint8_t *pdest = dest;
     for (;;) {
@@ -435,7 +435,7 @@ void gasnete_amref_put_nbi_inner(gasnetex_team_member_t team,
   }
 #else /* ! GASNETE_USE_LONG_PUTS */
   {
-    const size_t chunksz = gasnet_AMMaxMedium();
+    const size_t chunksz = gasnetex_lub_AMRequestMedium(); // TODO-EX: _lub_ -> _max_
     uint8_t *psrc = src;
     uint8_t *pdest = dest;
     for (;;) {
@@ -527,7 +527,7 @@ gasnetex_handle_t gasnete_put_nb(
 
     return (gasnetex_handle_t)op;
 #if GASNETE_USE_LONG_PUTS
-  } else if (nbytes <= gasnet_AMMaxLongRequest()) {
+  } else if (nbytes <= gasnetex_lub_AMRequestLong()) { // TODO-EX: _lub_ -> _max_
     gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
 
     if (isbulk) { // TODO-EX: restore some degree of Async on bulk path
@@ -602,14 +602,15 @@ int gasnete_amref_put_nbi( gasnetex_team_member_t team,
 void gasnete_check_config_amref(void) {
 #if GASNETE_BUILD_AMREF_GET || GASNETE_BUILD_AMREF_PUT
   /* This ensures chunks sent as Medium payloads don't exceed the maximum */
-  gasneti_assert_always(GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD <= gasnet_AMMaxMedium());
+  gasneti_assert_always(GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD <= gasnetex_lub_AMRequestMedium());
 #endif
 
 #if GASNETE_BUILD_AMREF_GET
+  // TODO-EX: these checks won't actually ensure what they should if/when we mve from _lub_ to _max_
   /* These ensure nbytes in AM-based Gets will fit in handler_arg_t (bug 2770) */
-  gasneti_assert_always(gasnet_AMMaxMedium() <= (size_t)0xffffffff);
+  gasneti_assert_always(gasnetex_lub_AMReplyMedium() <= (size_t)0xffffffff);
  #if GASNETE_USE_LONG_GETS
-  gasneti_assert_always(gasnet_AMMaxLongReply() <= (size_t)0xffffffff);
+  gasneti_assert_always(gasnetex_lub_AMReplyLong() <= (size_t)0xffffffff);
  #endif
 #endif
 }

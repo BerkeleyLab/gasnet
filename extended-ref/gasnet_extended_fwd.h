@@ -76,7 +76,7 @@
 /* These are the default tuning parameters for the AM-based get/put.
  * Conduits cloning this file may want to override these: */
 #if 0
-#define GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD   gasnet_AMMaxMedium()
+#define GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD   gasnetex_lub_AMRequestMedium()
 #define GASNETE_USE_LONG_GETS 1
 #endif
 

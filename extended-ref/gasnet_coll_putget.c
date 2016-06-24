@@ -282,7 +282,7 @@ gasnete_coll_bcast_TreePut(gasnet_team_handle_t team,
   GASNETE_COLL_GENERIC_OPT_P2P;
   
   
-  gasneti_assert(nbytes <= gasnet_AMMaxLongRequest());
+  gasneti_assert(nbytes <= gasnetex_lub_AMRequestLong());
 
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
                                            &gasnete_coll_pf_bcast_TreePut, options,
@@ -386,7 +386,7 @@ gasnete_coll_bcast_TreePutScratch(gasnet_team_handle_t team,
   GASNETE_COLL_GENERIC_OPT_OUTSYNC_IF (flags & GASNET_COLL_OUT_ALLSYNC) |
   GASNETE_COLL_GENERIC_OPT_P2P | GASNETE_COLL_USE_SCRATCH;
   
-  gasneti_assert(nbytes <= gasnet_AMMaxLongRequest());
+  gasneti_assert(nbytes <= gasnetex_lub_AMRequestLong());
 
   return gasnete_coll_generic_broadcast_nb(team, dst, srcimage, src, nbytes, flags,
                                            &gasnete_coll_pf_bcast_TreePutScratch, options,

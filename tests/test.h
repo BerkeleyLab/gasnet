@@ -639,17 +639,19 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
 
 #define TEST_PRINT_CONDUITINFO() do {                              \
   MSG0("%s conduit: v%s GASNET_ALIGNED_SEGMENTS=%i\n"              \
-       " gasnet_AMMaxArgs():        %i\n"                          \
-       " gasnet_AMMaxMedium():      %i\n"                          \
-       " gasnet_AMMaxLongRequest(): %i\n"                          \
-       " gasnet_AMMaxLongReply():   %i"                            \
+       " gasnet_AMMaxArgs():             %i\n"                     \
+       " gasnetex_lub_AMRequestMedium(): %i\n"                     \
+       " gasnetex_lub_AMReplyMedium():   %i\n"                     \
+       " gasnetex_lub_AMRequestLong():   %i\n"                     \
+       " gasnetex_lub_AMReplyLong():     %i"                       \
     ,                                                              \
     _STRINGIFY(GASNET_CORE_NAME), _STRINGIFY(GASNET_CORE_VERSION), \
     GASNET_ALIGNED_SEGMENTS,                                       \
     (int)gasnet_AMMaxArgs(),                                       \
-    (int)gasnet_AMMaxMedium(),                                     \
-    (int)gasnet_AMMaxLongRequest(),                                \
-    (int)gasnet_AMMaxLongReply());                                 \
+    (int)gasnetex_lub_AMRequestMedium(),                           \
+    (int)gasnetex_lub_AMReplyMedium(),                             \
+    (int)gasnetex_lub_AMRequestLong(),                             \
+    (int)gasnetex_lub_AMReplyLong());                              \
   } while (0)
 
 #if defined(GASNET_SEQ)
@@ -730,7 +732,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
   static int _test_segbcast_idx;
   static gasnett_atomic_t _test_segbcast_count = gasnett_atomic_init(0);
   static void _test_segbcast(gasnetex_token_t token, void *buf, size_t nbytes, gasnetex_handlerarg_t idx) {
-    void *dst = (void*)((uintptr_t)_test_seginfo + idx * gasnet_AMMaxMedium());
+    void *dst = (void*)((uintptr_t)_test_seginfo + idx * gasnetex_lub_AMRequestMedium());
     memcpy(dst, buf, nbytes);
     gasnett_atomic_increment(&_test_segbcast_count, GASNETT_ATOMIC_REL);
   }
@@ -777,7 +779,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
     BARRIER();
     gasnetex_AMRequestMedium0(myteam, 0, _test_seggather_idx, &myseg, sizeof(gasnet_seginfo_t), GASNETEX_LC_INIT, 0);
     { const size_t total_bytes = gasnet_nodes()*sizeof(gasnet_seginfo_t);
-      const size_t msg_bytes = gasnet_AMMaxMedium();
+      const size_t msg_bytes = gasnetex_lub_AMRequestMedium();
       const int msg_count = (total_bytes + msg_bytes - 1) / msg_bytes;
       if (gasnet_mynode() == 0) {
         size_t remain = total_bytes;

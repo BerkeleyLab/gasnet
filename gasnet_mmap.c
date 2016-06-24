@@ -1922,7 +1922,7 @@ void gasneti_auxseg_attach(void) {
   /* point si at the auxseg */
   #if GASNET_SEGMENT_EVERYTHING
   { /* need to packetize this broadcast to avoid overflowing max medium with high node count */
-    int chunkelems = MIN(gasnet_AMMaxMedium()/sizeof(gasnet_seginfo_t), gasneti_nodes);
+    int chunkelems = MIN(gasnetex_lub_AMRequestMedium()/sizeof(gasnet_seginfo_t), gasneti_nodes);
     int chunks = (gasneti_nodes / chunkelems) + (gasneti_nodes % chunkelems == 0 ? 0 : 1);
     /* exchange locations into si */
     gasnetex_AMRequestMedium2(NULL, 0, _hidx_gasnetc_auxseg_reqh,

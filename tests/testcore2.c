@@ -23,6 +23,7 @@ int numproc;
 int peerproc;
 int numprocs;
 int iters = 0;
+int maxmed;
 int maxlong;
 volatile int done = 0;
 int allowretry = 1;
@@ -192,9 +193,12 @@ int main(int argc, char **argv) {
   if (argc > arg) { depth = atoi(argv[arg]); arg++; }
   if (!depth) depth = 16;
 
-  /* round down to largest payload AM allows */
-  maxlong = MIN(gasnet_AMMaxLongRequest(),gasnet_AMMaxLongReply());
-  max_payload = MIN(max_payload,MAX(gasnet_AMMaxMedium(),maxlong));
+  /* round down to largest payload AM allows with 2 arguments */
+  maxmed  = MIN(gasnetex_max_AMRequestMedium(myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,2),
+                gasnetex_max_AMReplyMedium  (myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,2));
+  maxlong = MIN(gasnetex_max_AMRequestLong  (myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,2),
+                gasnetex_max_AMReplyLong    (myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,2));
+  max_payload = MIN(max_payload,MAX(maxmed,maxlong));
 
   GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t), TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
   test_init("testcore2",0,"[options] (iters) (max_payload) (depth)\n"
@@ -277,8 +281,8 @@ void *doit(void *id) {
   }
 
   { int sz,iter,savesz = 1;
-    int max1 = gasnet_AMMaxMedium(), max2 = maxlong;
-    if (maxlong < gasnet_AMMaxMedium()) { max1 = maxlong; max2 = gasnet_AMMaxMedium(); }
+    int max1 = maxmed, max2 = maxlong;
+    if (maxlong < maxmed) { max1 = maxlong; max2 = maxmed; }
     assert_always(max1 <= max2);
 
     for (sz = 1; sz <= max_payload; ) {
@@ -294,7 +298,7 @@ void *doit(void *id) {
         for (chunkidx = 0; chunkidx < depth; chunkidx++) {
           init_chunk(srcseg,sz,iter,chunkidx);
         }
-        if (domed && sz <= gasnet_AMMaxMedium()) { /* test Medium AMs */
+        if (domed && sz <= maxmed) { /* test Medium AMs */
           gasnett_atomic_set(&pong_recvd,0,0);
           for (chunkidx = 0; chunkidx < depth; chunkidx++) {
             gasnetex_AMRequestMedium2(myteam, peerproc, hidx_ping_medhandler, srcseg+chunkidx*sz, sz,

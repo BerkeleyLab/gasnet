@@ -36,7 +36,8 @@ extern void gasnete_vis_init(void) {
   } while (0)
   #if GASNETE_USE_AMPIPELINE
   GASNETE_VIS_ENV_YN(gasnete_vis_use_ampipe,GASNET_VIS_AMPIPE, GASNETE_USE_AMPIPELINE);
-  gasnete_vis_maxchunk = gasneti_getenv_int_withdefault("GASNET_VIS_MAXCHUNK", gasnet_AMMaxMedium()-2*sizeof(void*),1);
+  gasnete_vis_maxchunk = MIN(gasnetex_lub_AMRequestMedium(),gasnetex_lub_AMReplyMedium())-2*sizeof(void*);
+  gasnete_vis_maxchunk = gasneti_getenv_int_withdefault("GASNET_VIS_MAXCHUNK", gasnete_vis_maxchunk, 1);
   #endif
   #if GASNETE_USE_REMOTECONTIG_GATHER_SCATTER
   GASNETE_VIS_ENV_YN(gasnete_vis_use_remotecontig,GASNET_VIS_REMOTECONTIG, GASNETE_USE_REMOTECONTIG_GATHER_SCATTER);

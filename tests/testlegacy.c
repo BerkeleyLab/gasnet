@@ -222,7 +222,19 @@ int main(int argc, char **argv) {
   test_init("testgasnet",0,"");
   assert(TEST_SEGSZ >= 2*sizeof(int)*NUMHANDLERS_PER_TYPE);
 
-  TEST_PRINT_CONDUITINFO();
+  /* Legacy expansion of TEST_PRINT_CONDUITINFO(): */
+  MSG0("%s conduit: v%s GASNET_ALIGNED_SEGMENTS=%i\n"
+       " gasnet_AMMaxArgs():        %i\n"
+       " gasnet_AMMaxMedium():      %i\n"
+       " gasnet_AMMaxLongRequest(): %i\n"
+       " gasnet_AMMaxLongReply():   %i" ,
+       _STRINGIFY(GASNET_CORE_NAME), _STRINGIFY(GASNET_CORE_VERSION),
+       GASNET_ALIGNED_SEGMENTS,
+       (int)gasnet_AMMaxArgs(),
+       (int)gasnet_AMMaxMedium(),
+       (int)gasnet_AMMaxLongRequest(),
+       (int)gasnet_AMMaxLongReply());
+
   { char lstr[50], gstr[50];
     gasnett_format_number(local_segsz, lstr, sizeof(lstr), 1);
     gasnett_format_number(global_segsz, gstr, sizeof(gstr), 1);

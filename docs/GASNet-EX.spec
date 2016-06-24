@@ -368,30 +368,34 @@ void gasnetex_wait_syncnbi_all (void);
 // Pre-defined constant used to apply a query to all ranks in the team
 #define GASNETEX_ALL_RANKS (~(gasnetex_rank_t)0)
 
-// Max payload queries for specific peer, nargs and flags
+// Max payload queries for specific peer, nargs, lc_opt and flags
 // rank == GASNETEX_ALL_RANKS yields min-of-maxes
 size_t gasnetex_max_AMRequestLong(
            gasnetex_team_member_t team,
            gasnetex_rank_t rank,
-           int numargs,
-           gasnetex_flags_t flags);
+           gasnetex_lc_handle_t *lc_opt,
+           gasnetex_flags_t flags,
+           int numargs);
 size_t gasnetex_max_AMReplyLong(
            gasnetex_team_member_t team,
            gasnetex_rank_t rank,
-           int numargs,
-           gasnetex_flags_t flags);
+           gasnetex_lc_handle_t *lc_opt,
+           gasnetex_flags_t flags,
+           int numargs);
 size_t gasnetex_max_AMRequestMedium(
            gasnetex_team_member_t team,
            gasnetex_rank_t rank,
-           int numargs,
-           gasnetex_flags_t flags);
+           gasnetex_lc_handle_t *lc_opt,
+           gasnetex_flags_t flags,
+           int numargs);
 size_t gasnetex_max_AMReplyMedium(
            gasnetex_team_member_t team,
            gasnetex_rank_t rank,
-           int numargs,
-           gasnetex_flags_t flags);
+           gasnetex_lc_handle_t *lc_opt,
+           gasnetex_flags_t flags,
+           int numargs);
 
-// Max payload queries for unknown peer, nargs and flags
+// Least-upper-bound payload queries (unknown peer, nargs, lc_opt and flags)
 size_t gasnetex_lub_AMRequestLong(void);
 size_t gasnetex_lub_AMReplyLong(void);
 size_t gasnetex_lub_AMRequestMedium(void);

@@ -47,6 +47,17 @@ typedef gasnetex_handle_t gasnet_handle_t;
 
 /* ------------------------------------------------------------------------------------ */
 /*
+  Active Message Query Functions
+  ==============================
+*/
+
+#define gasnet_AMMaxMedium()       MIN(gasnetex_lub_AMRequestMedium(),\
+                                       gasnetex_lub_AMReplyMedium())
+#define gasnet_AMMaxLongRequest()  gasnetex_lub_AMRequestLong()
+#define gasnet_AMMaxLongReply()    gasnetex_lub_AMReplyLong()
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Active Message Request/Reply Functions
   ======================================
 */

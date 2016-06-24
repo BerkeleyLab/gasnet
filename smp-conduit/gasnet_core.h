@@ -96,9 +96,16 @@ typedef struct _gasnet_hsl_t {
 */
 
 #define gasnet_AMMaxArgs()          ((size_t)16)
-#define gasnet_AMMaxMedium()        ((size_t)GASNETC_MAX_MEDIUM)
-#define gasnet_AMMaxLongRequest()   ((size_t)GASNETC_MAX_LONG)
-#define gasnet_AMMaxLongReply()     ((size_t)GASNETC_MAX_LONG)
+#define gasnetex_lub_AMRequestMedium() ((size_t)GASNETC_MAX_MEDIUM)
+#define gasnetex_lub_AMReplyMedium()   ((size_t)GASNETC_MAX_MEDIUM)
+#define gasnetex_lub_AMRequestLong()   ((size_t)GASNETC_MAX_LONG)
+#define gasnetex_lub_AMReplyLong()     ((size_t)GASNETC_MAX_LONG)
+
+  // TODO-EX: can these be improved upon?
+#define gasnetex_max_AMRequestMedium(team,rank,lc_opt,flags,nargs) gasnetex_lub_AMRequestMedium()
+#define gasnetex_max_AMReplyMedium(team,rank,lc_opt,flags,nargs)   gasnetex_lub_AMReplyMedium()
+#define gasnetex_max_AMRequestLong(team,rank,lc_opt,flags,nargs)   gasnetex_lub_AMRequestLong()
+#define gasnetex_max_AMReplyLong(team,rank,lc_opt,flags,nargs)     gasnetex_lub_AMReplyLong()
 
 /* ------------------------------------------------------------------------------------ */
 /*

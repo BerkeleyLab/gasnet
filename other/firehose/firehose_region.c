@@ -1089,7 +1089,7 @@ fh_acquire_remote_region(firehose_request_t *req,
 	if (flags & FIREHOSE_FLAG_ENABLE_REMOTE_CALLBACK) {
 	    payload_size += args_fn(context,
 			            (firehose_remotecallback_args_t *)(payload + payload_size));
-	    gasneti_assert(payload_size <= gasnet_AMMaxMedium());
+	    gasneti_assert(payload_size <= gasnetex_lub_AMRequestMedium());
 	}
 
 	FH_TABLE_UNLOCK;
@@ -1283,7 +1283,8 @@ fh_init_plugin(uintptr_t max_pinnable_memory,
 
 #if 0  /* UNUSED - see param_RS computation for explanation */
 	/* Count how many regions fit into an AM Medium payload */
-	med_regions = (gasnet_AMMaxMedium() 
+        med_regions = (MIN(gasnetex_lub_AMReqestMedium(),
+                           gasnetex_lub AMReplyMedium())
 				- sizeof(firehose_remotecallback_args_t))
 				/ sizeof(firehose_region_t);
 	gasneti_assert(med_regions > FH_MAX_UNPIN_REM); /* firehose_remotecallback_args_t too big? */

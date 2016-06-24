@@ -730,7 +730,7 @@ gasnetex_handle_t gasnete_gets_scatter(gasnete_strided_stats_t const *stats, gas
 /* Pipelined AM gather-scatter put */
 #ifndef GASNETE_PUTS_AMPIPELINE_SELECTOR
 #if GASNETE_USE_AMPIPELINE
-#define GASNETE_PUTS_AMPIPELINE_MAXPAYLOAD(stridelevels) (gasnet_AMMaxMedium() - (3*(stridelevels) + 1)*sizeof(size_t))
+#define GASNETE_PUTS_AMPIPELINE_MAXPAYLOAD(stridelevels) (gasnetex_lub_AMRequestMedium() - (3*(stridelevels) + 1)*sizeof(size_t))
 gasnetex_handle_t gasnete_puts_AMPipeline(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
                                   gasnetex_rank_t dstnode,
                                    void *dstaddr, const size_t dststrides[],
@@ -741,14 +741,14 @@ gasnetex_handle_t gasnete_puts_AMPipeline(gasnete_strided_stats_t const *stats, 
   GASNETI_TRACE_EVENT(C, PUTS_AMPIPELINE);
   GASNETE_START_NBIREGION(synctype, 0);
 
-  { size_t * const init = gasneti_malloc(stridelevels*sizeof(size_t) + gasnet_AMMaxMedium());
+  { size_t * const init = gasneti_malloc(stridelevels*sizeof(size_t) + gasnetex_lub_AMRequestMedium());
     size_t * const packetbase = init + stridelevels;
     size_t * const packetinit = packetbase;
     size_t * const packetcount = packetinit + stridelevels;
     size_t * const packetstrides = packetcount + stridelevels + 1;
     size_t * const packedbuf = packetstrides + stridelevels;
     size_t const maxpayload = GASNETE_PUTS_AMPIPELINE_MAXPAYLOAD(stridelevels);
-    size_t const packetoverhead = gasnet_AMMaxMedium() - maxpayload;
+    size_t const packetoverhead = gasnetex_lub_AMRequestMedium() - maxpayload;
     size_t const chunksz = stats->dualcontigsz;
     size_t const totalchunks = MAX(stats->srcsegments,stats->dstsegments);
     size_t const chunksperpacket = maxpayload / chunksz;
@@ -840,7 +840,6 @@ MEDIUM_HANDLER(gasnete_puts_AMPipeline_reqh,5,7,
 /* Pipelined AM gather-scatter get */
 #ifndef GASNETE_GETS_AMPIPELINE_SELECTOR
 #if GASNETE_USE_AMPIPELINE
-#define GASNETE_GETS_AMPIPELINE_MAXPAYLOAD(stridelevels) (gasnet_AMMaxMedium())
 gasnetex_handle_t gasnete_gets_AMPipeline(gasnete_strided_stats_t const *stats, gasnete_synctype_t synctype,
                                    void *dstaddr, const size_t dststrides[],
                                    gasnetex_rank_t srcnode,
@@ -853,7 +852,7 @@ gasnetex_handle_t gasnete_gets_AMPipeline(gasnete_strided_stats_t const *stats, 
   { size_t const chunksz = stats->dualcontigsz;
     size_t const adjchunksz = stats->dualcontigsz/count[0];
     size_t const totalchunks = MAX(stats->srcsegments,stats->dstsegments);
-    size_t const chunksperpacket = gasnet_AMMaxMedium() / chunksz;
+    size_t const chunksperpacket = gasnetex_lub_AMReplyMedium() / chunksz;
     size_t const packetcnt = (totalchunks + chunksperpacket - 1)/chunksperpacket;
     size_t const packetnbytes = (3*stridelevels+1)*sizeof(size_t);
     size_t packetidx;
@@ -918,7 +917,7 @@ gasnetex_handle_t gasnete_gets_AMPipeline(gasnete_strided_stats_t const *stats, 
     if (gasnete_vis_use_ampipe &&                                                                                           \
         (stats)->srcsegments > 1 &&                                                                                         \
         (stats)->dualcontigsz <= gasnete_vis_maxchunk &&                                                                    \
-        (stats)->dualcontigsz <= gasnet_AMMaxMedium())                                                                      \
+        (stats)->dualcontigsz <= gasnetex_lub_AMReplyMedium())                                                              \
       return gasnete_gets_AMPipeline(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS)
 #else
   #define GASNETE_GETS_AMPIPELINE_SELECTOR(stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels) ((void)0)
@@ -948,11 +947,11 @@ void gasnete_gets_AMPipeline_reqh_inner(gasnetex_token_t token,
       gasneti_assert(packetinit[i] < packetcount[i+1]);
       if (i < contiglevel) chunksz *= packetcount[i+1];
     }
-    gasneti_assert(packetchunks * chunksz <= gasnet_AMMaxMedium());
+    gasneti_assert(packetchunks * chunksz <= gasnetex_lub_AMReplyMedium());
   }
   #endif
   { /* gather data payload from source into packet */
-    uint8_t * const packedbuf = gasneti_malloc(gasnet_AMMaxMedium());
+    uint8_t * const packedbuf = gasneti_malloc(gasnetex_lub_AMReplyMedium());
     uint8_t * const end = gasnete_strided_pack_partial(&srcaddr, packetstrides, packetcount, 
                                contiglevel, limit, 
                                packetchunks, packetinit+contiglevel, 

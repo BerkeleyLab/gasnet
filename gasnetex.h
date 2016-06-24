@@ -262,10 +262,12 @@ GASNETI_END_EXTERNC
 /* core types */
 
 // TODO-EX: need comments here?
-typedef uint32_t gasnetex_rank_t;
 typedef uint8_t gasnetex_handler_t;
 typedef int32_t gasnetex_handlerarg_t;
 typedef uint32_t gasnetex_flags_t;
+
+typedef uint32_t gasnetex_rank_t;
+#define GASNETEX_ALL_RANKS (~(gasnetex_rank_t)0)
 
 /*  an opaque type passed to core API handlers which may be used to query message information  */
 struct gasneti_token_s;

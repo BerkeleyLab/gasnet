@@ -1156,9 +1156,9 @@ ghostExchAMLong(nbr_t *nb, int iters, int axis_in)
     for (i = 0; i < axis_tot; i++) 
 	maxmsg = MAX(maxmsg, nb->facesz[i]*sizeof(double));
 
-    if (maxmsg > gasnet_AMMaxLongRequest()) {
+    if (maxmsg > gasnetex_max_AMRequestLong(myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,2)) {
 	if (!myproc) {
-	    printf("Skipping AMLong with dim=%d (%ld > AMMaxLongRequest())\n",
+	    printf("Skipping AMLong with dim=%d (%ld > max_AMRequestLong())\n",
 			nb->dimsz, maxmsg);
 	    fflush(stdout);
 	}

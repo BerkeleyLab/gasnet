@@ -22,7 +22,6 @@ gasnetex_handlerarg_t rand_args[MAX_ARGS];
 #define RAND_ARG(idx) (rand_args[(idx)-1])
 
 uint8_t *rand_payload;
-size_t medsz, longsz;
 int iters = 10;
 
 gasnetex_rank_t mynode = 0;
@@ -83,12 +82,19 @@ uint8_t *peerseg = NULL;
     macro(13) macro(14) macro(15) macro(16)
 #endif
 
+#define MSZ(args) \
+        MIN(maxsz,MIN(gasnetex_max_AMRequestMedium(myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,args), \
+                      gasnetex_max_AMReplyMedium  (myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,args)))
+#define LSZ(args) \
+        MIN(maxsz,MIN(gasnetex_max_AMRequestLong(myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,args), \
+                      gasnetex_max_AMReplyLong  (myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,args)))
+
 #define DEST(n) myteam, (n)
 #define SARGS(dest,args) (dest, hidx_Shandler(args), 0, HARGS(args))
-#define MARGS(dest,args) (dest, hidx_Mhandler(args), rand_payload, medsz, \
+#define MARGS(dest,args) (dest, hidx_Mhandler(args), rand_payload, MSZ(args), \
                           GASNETEX_LC_INIT, 0, HARGS(args))
 #define LARGS(dest,args,isRep) (dest, hidx_Lhandler(args), rand_payload, \
-                                longsz, peerseg + isRep*longsz, \
+                                LSZ(args), peerseg + isRep*LSZ(args), \
                                 GASNETEX_LC_INIT, 0, HARGS(args))
 
 /* NOTE: This extra step appears needed for pgcc (bug 2796) */
@@ -130,9 +136,9 @@ enum {
     void Shandler##args(gasnetex_token_t token, HARGPROTO(args)) \
         { HBODY(args); } \
     void Mhandler##args(gasnetex_token_t token, void *buf, size_t nbytes, HARGPROTO(args))\
-        { MSGCHECK(medsz); HBODY(args); } \
+        { MSGCHECK(MSZ(args)); HBODY(args); } \
     void Lhandler##args(gasnetex_token_t token, void *buf, size_t nbytes, HARGPROTO(args))\
-        { MSGCHECK(longsz); memset(buf, 0xa5, nbytes); HBODY(args); }
+        { MSGCHECK(LSZ(args)); memset(buf, 0xa5, nbytes); HBODY(args); }
 
 #define HTABLE(args)                          \
   { hidx_Shandler(args), Shandler##args },    \
@@ -173,19 +179,19 @@ void pong_shorthandler(gasnetex_token_t token) {
 	  flag++;
 }
 void ping_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
-    MSGCHECK(medsz);
+    MSGCHECK(MSZ(0));
     gasnetex_AMReplyMedium(token, hidx_pong_medhandler, rand_payload, nbytes, GASNETEX_LC_INIT, 0);
 }
 void pong_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
-    MSGCHECK(medsz);
+    MSGCHECK(MSZ(0));
     flag++;
 }
 void ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
-    MSGCHECK(longsz); memset(buf, 0xa5, nbytes);
-    gasnetex_AMReplyLong(token, hidx_pong_longhandler, rand_payload, nbytes, peerseg + longsz, GASNETEX_LC_INIT, 0);
+    MSGCHECK(LSZ(0)); memset(buf, 0xa5, nbytes);
+    gasnetex_AMReplyLong(token, hidx_pong_longhandler, rand_payload, nbytes, peerseg + LSZ(0), GASNETEX_LC_INIT, 0);
 }
 void pong_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
-    MSGCHECK(longsz); memset(buf, 0xa5, nbytes);
+    MSGCHECK(LSZ(0)); memset(buf, 0xa5, nbytes);
     flag++;
 }
 
@@ -202,6 +208,7 @@ static void randomize(void) {
 }
 
 int main(int argc, char **argv) {
+  size_t medsz, longsz;
   unsigned int seed = 0;
   int i;
   gasnet_handlerentry_t htable[] = { 
@@ -221,9 +228,11 @@ int main(int argc, char **argv) {
 
   if (argc > 2) maxsz = atoi(argv[2]);
   if (maxsz <= 0) maxsz = 2*1024*1024;
-  medsz = gasnet_AMMaxMedium();
+  medsz = MAX(gasnetex_max_AMRequestMedium(myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,0),
+              gasnetex_max_AMReplyMedium  (myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,0));
   medsz = MIN(maxsz, medsz);
-  longsz = MIN(gasnet_AMMaxLongRequest(), gasnet_AMMaxLongReply());
+  longsz = MAX(gasnetex_max_AMRequestLong  (myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,0),
+               gasnetex_max_AMReplyLong    (myteam,GASNETEX_ALL_RANKS,GASNETEX_LC_INIT,0,0));
   longsz = MIN(maxsz, longsz);
   maxsz = MAX(medsz,longsz);
 
@@ -264,10 +273,10 @@ int main(int argc, char **argv) {
     gasnetex_AMRequestShort(myteam, peer, hidx_ping_shorthandler, 0);
     GASNET_BLOCKUNTIL(flag == goal); ++goal;
 
-    gasnetex_AMRequestMedium(myteam, peer, hidx_ping_medhandler, rand_payload, medsz, GASNETEX_LC_INIT, 0);
+    gasnetex_AMRequestMedium(myteam, peer, hidx_ping_medhandler, rand_payload, MSZ(0), GASNETEX_LC_INIT, 0);
     GASNET_BLOCKUNTIL(flag == goal); ++goal;
 
-    gasnetex_AMRequestLong(myteam, peer, hidx_ping_longhandler, rand_payload, longsz, peerseg, GASNETEX_LC_INIT, 0);
+    gasnetex_AMRequestLong(myteam, peer, hidx_ping_longhandler, rand_payload, LSZ(0), peerseg, GASNETEX_LC_INIT, 0);
     GASNET_BLOCKUNTIL(flag == goal); ++goal;
   }
 
