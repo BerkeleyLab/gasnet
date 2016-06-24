@@ -23,6 +23,13 @@
 #define GASNET_CONDUIT_NAME_STR  _STRINGIFY(GASNET_CONDUIT_NAME)
 #define GASNET_CONDUIT_IBV       1
 
+/* If you change GASNETC_BUFSZ then you probably want to also
+ * adjust GASNETC_PUTINMOVE_LIMIT_MAX in firehose_fwd.h
+ */
+#ifndef GASNETC_BUFSZ
+  #define GASNETC_BUFSZ 4096
+#endif
+
 /* 16K is the limit on the LID space, but we must allow more than 1 proc per node */
 /* 64K corresponds to 16 bits used in the AM Header and 16-bit gasnetex_rank_t */
 #define GASNET_MAXNODES	65535
@@ -30,6 +37,7 @@
   /* GASNET_PSHM defined 1 if this conduit supports PSHM. leave undefined otherwise. */
 #if GASNETI_PSHM_ENABLED
   #define GASNET_PSHM 1
+  #define GASNETC_MAX_MEDIUM_PSHM GASNETC_BUFSZ
 #endif
 
   /*  defined to be 1 if gasnet_init guarantees that the remote-access memory segment will be aligned  */

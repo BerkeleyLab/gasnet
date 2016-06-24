@@ -48,7 +48,7 @@ size_t					gasnetc_fh_align;
 size_t					gasnetc_fh_align_mask;
 size_t                                  gasnetc_inline_limit;
 size_t                   		gasnetc_bounce_limit;
-size_t					gasnetc_packedlong_limit;
+size_t					gasnetc_packedlong_limit; // TODO-EX: adjust w/ nargs?
 #if !GASNETC_PIN_SEGMENT
   size_t				gasnetc_putinmove_limit;
 #endif

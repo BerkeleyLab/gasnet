@@ -100,13 +100,6 @@ typedef struct _gasnet_hsl_t {
   ==========================
 */
 
-/* If you change GASNETC_BUFSZ then you probably want to also
- * adjust GASNETC_PUTINMOVE_LIMIT_MAX in firehose_fwd.h
- */
-#ifndef GASNETC_BUFSZ
-  #define GASNETC_BUFSZ         4096
-#endif
-
 #if GASNETI_STATS_OR_TRACE
   #define GASNETC_HDR_TIMESTAMP	8
 #else
@@ -119,13 +112,11 @@ typedef struct _gasnet_hsl_t {
 #define GASNETC_MAX_ARGS_EXTRA	1	/* For flow-control info */
 #define GASNETC_MAX_ARGS	(GASNETC_MAX_ARGS_USER + GASNETC_MAX_ARGS_EXTRA)
 
-#define GASNETC_MAX_MEDIUM_	\
-               (GASNETC_BUFSZ - GASNETI_ALIGNUP_NOASSERT(GASNETC_MEDIUM_HDRSZ + 4*GASNETC_MAX_ARGS, 8))
-#if GASNET_PSHM
-  #define GASNETC_MAX_MEDIUM	MIN(GASNETC_MAX_MEDIUM_, GASNETI_MAX_MEDIUM_PSHM)
-#else
-  #define GASNETC_MAX_MEDIUM	GASNETC_MAX_MEDIUM_
-#endif
+#define GASNETC_MAX_MEDIUM_(nargs) \
+               (GASNETC_BUFSZ - \
+                GASNETI_ALIGNUP_NOASSERT(GASNETC_MEDIUM_HDRSZ + 4*(GASNETC_MAX_ARGS_EXTRA+nargs), \
+                                         8))
+#define GASNETC_MAX_MEDIUM	GASNETC_MAX_MEDIUM_(GASNETC_MAX_ARGS_USER)
 #define GASNETC_MAX_LONG_REQ	(0x7fffffff)
 #define GASNETC_MAX_PACKEDLONG	(GASNETC_BUFSZ - GASNETC_LONG_HDRSZ - 4*GASNETC_MAX_ARGS)
 #if GASNETC_PIN_SEGMENT
@@ -140,11 +131,11 @@ typedef struct _gasnet_hsl_t {
 #define gasnetex_lub_AMRequestLong()   ((size_t)GASNETC_MAX_LONG_REQ)
 #define gasnetex_lub_AMReplyLong()     ((size_t)GASNETC_MAX_LONG_REP)
 
-  // TODO-EX: These can be improved upon for PSHM case and (nargs < max)
-#define gasnetex_max_AMRequestMedium(team,rank,lc_opt,flags,nargs) gasnetex_lub_AMRequestMedium()
-#define gasnetex_max_AMReplyMedium(team,rank,lc_opt,flags,nargs)   gasnetex_lub_AMReplyMedium()
-#define gasnetex_max_AMRequestLong(team,rank,lc_opt,flags,nargs)   gasnetex_lub_AMRequestLong()
-#define gasnetex_max_AMReplyLong(team,rank,lc_opt,flags,nargs)     gasnetex_lub_AMReplyLong()
+  // TODO-EX: Medium sizes can be further improved upon for PSHM case
+#define gasnetex_max_AMRequestMedium(team,rank,lc_opt,flags,nargs) ((size_t)GASNETC_MAX_MEDIUM_(nargs))
+#define gasnetex_max_AMReplyMedium(team,rank,lc_opt,flags,nargs)   ((size_t)GASNETC_MAX_MEDIUM_(nargs))
+#define gasnetex_max_AMRequestLong(team,rank,lc_opt,flags,nargs) ((size_t)GASNETC_MAX_LONG_REQ)
+#define gasnetex_max_AMReplyLong(team,rank,lc_opt,flags,nargs)   ((size_t)GASNETC_MAX_LONG_REP)
 
 /* ------------------------------------------------------------------------------------ */
 /*
