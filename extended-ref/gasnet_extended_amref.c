@@ -487,9 +487,9 @@ gasnetex_handle_t gasnete_get_nb(
     /* TODO: don't need the iop for large xfers in the GASNETE_EOP_COUNTED case */
     /*  need many messages - use an access region to coalesce them into a single handle */
     /*  (note this relies on the fact that our implementation of access regions allows recursion) */
-    gasnete_begin_nbi_accessregion(1 /* enable recursion */ GASNETE_THREAD_PASS);
+    gasnete_begin_nbi_accessregion(0,1 /* enable recursion */ GASNETE_THREAD_PASS);
     gasnete_amref_get_nbi(team, dest, rank, src, nbytes, flags GASNETE_THREAD_PASS);
-    return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+    return gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
   }
 }
 #endif /* GASNETE_BUILD_AMREF_GET */
@@ -546,9 +546,9 @@ gasnetex_handle_t gasnete_put_nb(
     /* TODO: don't need the iop for large xfers in the GASNETE_EOP_COUNTED case */
     /*  need many messages - use an access region to coalesce them into a single handle */
     /*  (note this relies on the fact that our implementation of access regions allows recursion) */
-    gasnete_begin_nbi_accessregion(1 /* enable recursion */ GASNETE_THREAD_PASS);
+    gasnete_begin_nbi_accessregion(0,1 /* enable recursion */ GASNETE_THREAD_PASS);
     gasnete_amref_put_nbi_inner(team, rank, dest, src, nbytes, lc_opt, flags GASNETE_THREAD_PASS);
-    return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+    return gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
   }
  }
 }

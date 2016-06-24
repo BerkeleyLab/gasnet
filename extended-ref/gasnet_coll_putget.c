@@ -110,7 +110,7 @@ static int gasnete_coll_pf_bcast_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
         
         /* Queue PUTS in an NBI access region */
-        gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+        gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
         {
           int i;
           
@@ -123,7 +123,7 @@ static int gasnete_coll_pf_bcast_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
             gasnete_put_nbi(NULL, GASNETE_COLL_REL2ACT(op->team, i), dst, src, nbytes, GASNETEX_LC_SYNC, 0 GASNETE_THREAD_PASS);
           }
         }
-        data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+        data->handle = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         
         /* Do local copy LAST, perhaps overlapping with communication */
@@ -200,7 +200,7 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
       case 2:
       if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
       if (op->team->myrank == args->srcnode) {
-        gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+        gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
         for (child = 0; child < child_count; child++) {
           if(tree->geom->subtree_sizes[child] == 1) {
             /* Destination is a Leaf */ 
@@ -214,14 +214,14 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
             
           }
         }
-        data->handle  = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+        data->handle  = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, args->src, args->nbytes);
       } else if (child_count == 0) {
         /* leaves fall right through*/
       } else if (data->p2p->state[0]) {
         gasneti_sync_reads();
-        gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);	
+        gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
         for (child = 0; child < child_count; child++) {
           if(tree->geom->subtree_sizes[child] == 1) {
             /* Destination is a Leaf */ 
@@ -235,7 +235,7 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
             
           }
         }
-        data->handle  = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+        data->handle  = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);        
       } else {
         break;	/* Internal node waiting for parent to push data and signal */
@@ -750,7 +750,7 @@ static int gasnete_coll_pf_bcastM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
         
         /* Queue PUTS in an NBI access region */
         /* We don't use VIS here, since that would send the same data multiple times */
-        gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+        gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
         {
           /* Put to nodes to the "right" of ourself */
           if (op->team->myrank < op->team->total_ranks - 1) {
@@ -775,7 +775,7 @@ static int gasnete_coll_pf_bcastM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
             }
           }
         }
-        data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+        data->handle = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         
         /* Do local copy LAST, perhaps overlapping with communication */
@@ -846,7 +846,7 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
         if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
       if (op->team->myrank == args->srcnode) {
         gasneti_sync_reads();
-        gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+        gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
         for (child = 0; child < child_count; child++) {
           if(tree->geom->subtree_sizes[child] == 1 && op->team->all_images[children[child]] == 1) {
             /* Destination is a Leaf */ 
@@ -860,7 +860,7 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
             
           }
         }
-        data->handle  = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+        data->handle  = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         gasnete_coll_local_broadcast(op->team->my_images,
                                      &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->dstlist, 0),
@@ -869,7 +869,7 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
         /* leaves fall right through*/
       } else if (data->p2p->state[0]) {
         gasneti_sync_reads();
-        gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);	
+        gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
         for (child = 0; child < child_count; child++) {
           if(tree->geom->subtree_sizes[child] == 1 && op->team->all_images[children[child]] == 1) {
             /* Destination is a Leaf */ 
@@ -885,7 +885,7 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
             
           }
         }
-        data->handle  = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+        data->handle  = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);  
         /** XXX: Here we might do extra work by copying from teh same source and dest **/
         gasnete_coll_local_broadcast(op->team->my_images,
@@ -1482,7 +1482,7 @@ static int gasnete_coll_pf_scat_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
         if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
         
         /* Queue PUTS in an NBI access region */
-        gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+        gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
         {
           int i;
           
@@ -1497,7 +1497,7 @@ static int gasnete_coll_pf_scat_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
             gasnete_put_nbi(NULL, GASNETE_COLL_REL2ACT(op->team, i), dst, (void *)p, nbytes, GASNETEX_LC_SYNC, 0 GASNETE_THREAD_PASS);
           }
         }
-        data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+        data->handle = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         
         /* Do local copy LAST, perhaps overlapping with communication */
@@ -1585,7 +1585,7 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
         if(args->dist!=args->nbytes) {
           int8_t *myscratchpos = (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos;
           int8_t *send_arr;
-          gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+          gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
           /*compress the data and send it*/
           for(i=0,p=0; i<child_count; i++) {
              gasnetex_rank_t child = children[i];
@@ -1621,12 +1621,12 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
           }
               
           GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, gasnete_coll_scale_ptr(args->src,args->dist,(op->team->myrank)), args->nbytes);
-          data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+          data->handle = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
           gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         } else {
           int8_t* src_arr;
           int8_t* scratch_space= (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos;
-          gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+          gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
           
           sent_bytes+=args->nbytes;
           if(args->srcnode == 0) {
@@ -1668,7 +1668,7 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
             }
           }
           GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, src_arr, args->nbytes);
-          data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+          data->handle = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
           gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         }
       } else if(child_count == 0  && direct_put_ok) {
@@ -1678,7 +1678,7 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
         int8_t *scratchspace = (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos;
         /*read memory barrier to ensure that the reading of the data doesn't preceed the flag*/
         gasneti_sync_reads();
-        gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+        gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
         /*skip the first slot of the input array since it is destined for me*/
         for(i=0; i<child_count; i++) {
           gasnetex_rank_t child = children[i];
@@ -1696,7 +1696,7 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
           }
           sent_bytes+=tree->geom->subtree_sizes[i]*args->nbytes;
         }
-        data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+        data->handle = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         
         
@@ -1797,7 +1797,7 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
         } else {
           gasneti_assert(tree->geom->num_rotations == 1);
 
-          gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+          gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
           for(i=0; i<child_count; i++) {
             gasnetex_rank_t child = children[i];
 
@@ -1833,7 +1833,7 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
               
             }
           }
-          data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+          data->handle = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
           gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         }
         GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, gasnete_coll_scale_ptr(args->src,args->dist,(op->team->myrank)), args->nbytes);
@@ -1847,7 +1847,7 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
         int8_t *scratchspace = (int8_t*)op->team->scratch_segs[op->team->myrank].addr+op->myscratchpos;
         /*read memory barrier to ensure that the reading of the data doesn't preceed the flag*/
         gasneti_sync_reads();
-        gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+        gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
         /*skip the first slot of the input array since it is destined for me*/
         for(i=0; i<child_count; i++) {
           gasnetex_rank_t child = children[i];
@@ -1865,7 +1865,7 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
           sent_bytes+=tree->geom->subtree_sizes[i]*args->nbytes;
         }
         
-        data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+        data->handle = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         
         /* In the case of Mysync or being an intermediate node  the data is always sent to the scratch space so copy it out*/
@@ -2141,7 +2141,7 @@ static int gasnete_coll_pf_scatM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         
         /* Queue PUTIs in an NBI access region */
         /* XXX: is gasnete_puti(gasnete_synctype_nbi,...) correct non-tracing variant of puti ? */
-        gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+        gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
         {
           void **q;
           
@@ -2174,7 +2174,7 @@ static int gasnete_coll_pf_scatM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
             ++q;
           }
         }
-        data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+        data->handle = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         
         /* Do local copy LAST, perhaps overlapping with communication */
@@ -2723,7 +2723,7 @@ static int gasnete_coll_pf_gath_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
       } else {
         if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
         /* Queue GETs in an NBI access region */
-        gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+        gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
         {
           int i;
           uintptr_t p;
@@ -2739,7 +2739,7 @@ static int gasnete_coll_pf_gath_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
             gasnete_get_nbi(NULL, (void *)p, GASNETE_COLL_REL2ACT(op->team,i), args->src, args->nbytes, 0 GASNETE_THREAD_PASS);
           }
         }
-        data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+        data->handle = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         
         /* Do local copy LAST, perhaps overlapping with communication */
@@ -3394,7 +3394,7 @@ static int gasnete_coll_pf_gathM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
         if (!GASNETE_COLL_MAY_INIT_FOR(op)) break;
         
         /* Queue GETIs in an NBI access region */
-        gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+        gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
         {
           void **q;
           uintptr_t dst_addr;
@@ -3433,7 +3433,7 @@ static int gasnete_coll_pf_gathM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
             ++q;
           }
         }
-        data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+        data->handle = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         
         /* Do local copy LAST, perhaps overlapping with communication */
@@ -4016,7 +4016,7 @@ static int gasnete_coll_pf_gall_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
     if (!GASNETE_COLL_MAY_INIT_FOR(op)) return result;
     
     if_pt(op->team->total_ranks > 1) {
-      gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+      gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
       {
         for(dst=op->team->myrank+1; dst<op->team->total_ranks; dst++) {
           /* send to threads above me*/
@@ -4027,7 +4027,7 @@ static int gasnete_coll_pf_gall_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
           gasnete_put_nbi(NULL, GASNETE_COLL_REL2ACT(op->team,dst), (int8_t*) args->dst + op->team->myrank*args->nbytes, args->src, args->nbytes, GASNETEX_LC_SYNC, 0 GASNETE_THREAD_PASS);
         }
       }
-      data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+      data->handle = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
       gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
     }
     GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*) args->dst + op->team->myrank*args->nbytes, 
@@ -4100,7 +4100,7 @@ static int gasnete_coll_pf_gall_FlatGet(gasnete_coll_op_t *op GASNETE_THREAD_FAR
     if (!GASNETE_COLL_MAY_INIT_FOR(op)) return result;
     
     if_pt(op->team->total_ranks > 1) {
-      gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+      gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
       {
         for(srcnode=op->team->myrank+1; srcnode<op->team->total_ranks; srcnode++) {
           /* get from threads above me*/
@@ -4115,7 +4115,7 @@ static int gasnete_coll_pf_gall_FlatGet(gasnete_coll_op_t *op GASNETE_THREAD_FAR
                            args->nbytes, 0 GASNETE_THREAD_PASS);
         }
       }
-      data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+      data->handle = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
       gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
     }
     GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*) args->dst + op->team->myrank*args->nbytes, 
@@ -5190,7 +5190,7 @@ static int gasnete_coll_pf_exchg_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
     data->state = 1;
     
   case 1: /* fire off all the nonblocking puts*/
-    gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+    gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
     /*put to the left of me*/
     for(i=op->team->myrank+1; i<op->team->total_ranks; i++) {
       gasnete_put_nbi(NULL, GASNETE_COLL_REL2ACT(op->team,i), ((int8_t*) args->dst) + op->team->myrank*args->nbytes, ((int8_t*) args->src)+i*args->nbytes, args->nbytes, GASNETEX_LC_SYNC, 0 GASNETE_THREAD_PASS);
@@ -5199,7 +5199,7 @@ static int gasnete_coll_pf_exchg_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
     for(i=0; i<op->team->myrank; i++) {
       gasnete_put_nbi(NULL, GASNETE_COLL_REL2ACT(op->team,i), ((int8_t*) args->dst) + op->team->myrank*args->nbytes, ((int8_t*) args->src)+i*args->nbytes, args->nbytes, GASNETEX_LC_SYNC, 0 GASNETE_THREAD_PASS);
     }
-    data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+    data->handle = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
     gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
     GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*) args->dst + op->team->myrank*args->nbytes, 
                                         (int8_t*) args->src+op->team->myrank*args->nbytes, args->nbytes);
@@ -5564,7 +5564,7 @@ static int gasnete_coll_pf_exchgM_Dissem_Segmented(gasnete_coll_op_t *op GASNETE
       if_pf(gasneti_weakatomic_read(&(data->p2p->counter[phase*2]),0)!=h) return 0;
       /*if(data->p2p->state[phase*2] != h) return 0;*/
       
-      gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+      gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
       for(j=0; j<h; j++) {
         destnode = out_nodes[j];
         nblocks = 
@@ -5581,7 +5581,7 @@ static int gasnete_coll_pf_exchgM_Dissem_Segmented(gasnete_coll_op_t *op GASNETE
       }
       /*once all the change the state and return 0*/
       /*let the poll function bring us back here*/
-      data->handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+      data->handle = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
       gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
       data->state++;
     }

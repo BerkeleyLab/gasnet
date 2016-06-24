@@ -445,8 +445,8 @@ void doit7(void) { GASNET_BEGIN_FUNCTION();
       { GASNETI_UNUSED int junk = gasnetex_test_syncnbi_gets(); });
 
     TIME_OPERATION("do-nothing begin/end nbi accessregion",
-      { gasnet_begin_nbi_accessregion();
-        gasnetex_wait_syncnb(gasnet_end_nbi_accessregion());
+      { gasnetex_begin_nbi_accessregion(0);
+        gasnetex_wait_syncnb(gasnetex_end_nbi_accessregion(GASNETEX_LC_SYNC,0));
       });
 
     TEST_SECTION_BEGIN();

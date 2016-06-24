@@ -143,7 +143,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
    start a recursive NBI access region, if appropriate */
 #define GASNETE_START_NBIREGION(synctype, islocal) do {    \
   if (synctype != gasnete_synctype_nbi && !islocal)        \
-    gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS); \
+    gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS); \
   } while(0)
 /* finish a region started with GASNETE_START_NBIREGION,
    block if required, and return the appropriate handle */
@@ -151,9 +151,9 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     if (islocal) return GASNETEX_INVALID_HANDLE;                                        \
     switch (synctype) {                                                               \
       case gasnete_synctype_nb:                                                       \
-        return gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);               \
+        return gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);               \
       case gasnete_synctype_b:                                                        \
-        gasnete_wait_syncnb(gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE)); \
+        gasnete_wait_syncnb(gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS)); \
         return GASNETEX_INVALID_HANDLE;                                                 \
       case gasnete_synctype_nbi:                                                      \
         return GASNETEX_INVALID_HANDLE;                                                 \

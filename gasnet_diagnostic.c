@@ -1049,7 +1049,7 @@ static void op_test(int id) {
           gasneti_eop_t *eop;
           gasnetex_handle_t h2;
 
-          gasnet_begin_nbi_accessregion();
+          gasnetex_begin_nbi_accessregion(0);
           iop2 = gasneti_iop_register(1, isget GASNETE_THREAD_GET); /* iop2 = 1 */
           assert_always(iop2);
           assert_always(iop2 != iop1);
@@ -1067,7 +1067,7 @@ static void op_test(int id) {
           assert_always(gasnetex_test_syncnb(h2) == GASNET_ERR_NOT_READY);
 
 
-          h = gasnet_end_nbi_accessregion();
+          h = gasnetex_end_nbi_accessregion(GASNETEX_LC_SYNC,0);
           assert_always(gasnetex_test_syncnb(h) == GASNET_ERR_NOT_READY);
           assert_always(gasnetex_test_syncnb(h2) == GASNET_ERR_NOT_READY);
 

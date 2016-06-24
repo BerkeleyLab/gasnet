@@ -133,13 +133,17 @@ int gasnete_syncnbi(GASNETE_THREAD_FARG_ALONE)
 #define gasnete_wait_syncnbi_puts gasnete_syncnbi
 
 GASNETI_INLINE(gasnete_begin_nbi_accessregion)
-void gasnete_begin_nbi_accessregion(int allowrecursion GASNETE_THREAD_FARG)
+void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecursion GASNETE_THREAD_FARG)
 { /* empty */ }
 #define gasnete_begin_nbi_accessregion gasnete_begin_nbi_accessregion
 
 GASNETI_INLINE(gasnete_end_nbi_accessregion) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE)
-{ return GASNETEX_INVALID_HANDLE; }
+gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_lc_handle_t *lc_opt, gasnetex_flags_t flags GASNETE_THREAD_FARG)
+{
+  gasneti_assert(lc_opt != GASNETEX_LC_GROUP); // TODO-EX: allow this if we nest access region?
+  if (lc_opt != NULL) gasneti_lc_opt_finish(lc_opt);
+  return GASNETEX_INVALID_HANDLE;
+}
 #define gasnete_end_nbi_accessregion gasnete_end_nbi_accessregion
 
 /* ------------------------------------------------------------------------------------ */

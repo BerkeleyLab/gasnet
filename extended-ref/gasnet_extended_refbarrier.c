@@ -1249,14 +1249,14 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
    * consuming any of the 65535 explicit handles promised to the client.
    */
 
-  gasnete_begin_nbi_accessregion(1 GASNETE_THREAD_PASS);
+  gasnete_begin_nbi_accessregion(0,1 GASNETE_THREAD_PASS);
   for (i = 0; i < numsteps; ++i, state += 2, step += 1) {
     const gasnetex_rank_t node = barrier_data->barrier_peers[step].node;
     void * const addr = GASNETE_RDMABARRIER_INBOX_REMOTE(barrier_data, step, state);
     gasnete_put_nbi(NULL, node, addr, payload, sizeof(*payload),
                     GASNETEX_LC_SYNC, 0 GASNETE_THREAD_PASS);
   }
-  handle = gasnete_end_nbi_accessregion(GASNETE_THREAD_PASS_ALONE);
+  handle = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
 
 #if GASNETI_THREADS
   /* sync the new ops, since we can't know this thread will re-enter the barrier code */
