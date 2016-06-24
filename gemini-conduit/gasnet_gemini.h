@@ -195,8 +195,8 @@ typedef union gasnetc_packet_u {
 /* maximum message size: */
 #define GASNETC_CACHELINE_SIZE 64
 #define GASNETC_MSG_MAXSIZE \
-        GASNETI_ALIGNUP_NOASSERT((GASNETC_HEADLEN(medium, gasnet_AMMaxArgs()) \
-                          + gasnet_AMMaxMedium()), GASNETC_CACHELINE_SIZE)
+        GASNETI_ALIGNUP_NOASSERT((GASNETC_HEADLEN(medium, GASNETC_MAX_ARGS) \
+                                 + GASNETC_MAX_MEDIUM), GASNETC_CACHELINE_SIZE)
 
 /* max data one can pack into a message with a long header: */
 /* TODO: runtime control of cut-off via an env var */

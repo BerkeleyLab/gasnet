@@ -95,7 +95,9 @@ typedef struct _gasnet_hsl_t {
   ==========================
 */
 
-#define gasnet_AMMaxArgs()          ((size_t)16)
+#define GASNETC_MAX_ARGS   16
+#define gasnet_AMMaxArgs() ((size_t)GASNETC_MAX_ARGS)
+
 #ifdef GASNET_CONDUIT_ARIES
   #define GASNETC_MAX_LONG 0x800000
 #else
@@ -106,12 +108,21 @@ typedef struct _gasnet_hsl_t {
    * Medium message.  This can either be done by lowering the conduit's value to
    * the default PSHM value (as shown here), or GASNETI_MAX_MEDIUM_PSHM can be
    * defined in gasnet_core_fwd.h to give the conduit complete control. */
-  #define gasnet_AMMaxMedium()      ((size_t)MIN(GASNETC_GNI_MAX_MEDIUM, GASNETI_MAX_MEDIUM_PSHM))
+  #define GASNETC_MAX_MEDIUM        ((size_t)MIN(GASNETC_GNI_MAX_MEDIUM, GASNETI_MAX_MEDIUM_PSHM))
 #else
-#define gasnet_AMMaxMedium()        ((size_t)GASNETC_GNI_MAX_MEDIUM) 
+  #define GASNETC_MAX_MEDIUM        ((size_t)GASNETC_GNI_MAX_MEDIUM) 
 #endif
-#define gasnet_AMMaxLongRequest()   ((size_t)GASNETC_MAX_LONG)
-#define gasnet_AMMaxLongReply()     ((size_t)GASNETC_MAX_LONG)
+
+#define gasnetex_lub_AMRequestMedium() ((size_t)GASNETC_MAX_MEDIUM)
+#define gasnetex_lub_AMReplyMedium()   ((size_t)GASNETC_MAX_MEDIUM)
+#define gasnetex_lub_AMRequestLong()   ((size_t)GASNETC_MAX_LONG)
+#define gasnetex_lub_AMReplyLong()     ((size_t)GASNETC_MAX_LONG)
+
+  // TODO-EX: Medium sizes can be improved upon for PSHM case and (nargs<max)
+#define gasnetex_max_AMRequestMedium(team,rank,lc_opt,flags,nargs) ((size_t)GASNETC_MAX_MEDIUM)
+#define gasnetex_max_AMReplyMedium(team,rank,lc_opt,flags,nargs)   ((size_t)GASNETC_MAX_MEDIUM)
+#define gasnetex_max_AMRequestLong(team,rank,lc_opt,flags,nargs)   ((size_t)GASNETC_MAX_LONG)
+#define gasnetex_max_AMReplyLong(team,rank,lc_opt,flags,nargs)     ((size_t)GASNETC_MAX_LONG)
 
 /* ------------------------------------------------------------------------------------ */
 /*

@@ -59,7 +59,7 @@ static void gasnetc_check_config(void) {
 
   /* Otherwise space is being wasted: */
   gasneti_assert(GASNETC_MSG_MAXSIZE ==
-                 (GASNETC_HEADLEN(medium, gasnet_AMMaxArgs()) + gasnet_AMMaxMedium()));
+                 (GASNETC_HEADLEN(medium, GASNETC_MAX_ARGS) + GASNETC_MAX_MEDIUM));
   
   gasneti_assert((int)GC_CMD_AM_LONG_PACKED == ((int)GC_CMD_AM_LONG + 1));
 
@@ -1202,7 +1202,7 @@ int gasnetc_local_short_common(int is_req, gasnetex_handler_t handler,
   const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
   gasnetc_token_t the_token = { gasneti_mynode, is_req, 0, NULL };
   gasnetex_token_t token = (gasnetex_token_t)&the_token; /* RUN macros need an lvalue */
-  gasnetex_handlerarg_t args[gasnet_AMMaxArgs()];
+  gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
   
   for (i = 0; i < numargs; i++) {
     args[i] = (gasnetex_handlerarg_t)va_arg(argptr, gasnetex_handlerarg_t);
@@ -1221,7 +1221,7 @@ int gasnetc_local_medium_common(int is_req, gasnetex_handler_t handler,
   const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
   gasnetc_token_t the_token = { gasneti_mynode, is_req, 0, NULL };
   gasnetex_token_t token = (gasnetex_token_t)&the_token; /* RUN macros need an lvalue */
-  gasnetex_handlerarg_t args[gasnet_AMMaxArgs()];
+  gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
   void *payload = alloca(nbytes);
   
   for (i = 0; i < numargs; i++) {
@@ -1242,7 +1242,7 @@ int gasnetc_local_long_common(int is_req, gasnetex_handler_t handler,
   const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
   gasnetc_token_t the_token = { gasneti_mynode, is_req, 0, NULL };
   gasnetex_token_t token = (gasnetex_token_t)&the_token; /* RUN macros need an lvalue */
-  gasnetex_handlerarg_t args[gasnet_AMMaxArgs()];
+  gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
   int i;
   
   for (i = 0; i < numargs; i++) {
@@ -1407,7 +1407,7 @@ extern int gasnetc_AMRequestShortM(
                             int numargs, ...) {
   int retval;  
   va_list argptr;
-  GASNETI_COMMON_AMREQUESTSHORT(dest,handler,flags,numargs);
+  GASNETI_COMMON_AMREQUESTSHORT(team,dest,handler,flags,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
@@ -1442,7 +1442,7 @@ extern int gasnetc_AMRequestMediumM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,lc_opt,flags,numargs);
+  GASNETI_COMMON_AMREQUESTMEDIUM(team,dest,handler,source_addr,nbytes,lc_opt,flags,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
   gasneti_lc_at_init(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
@@ -1479,7 +1479,7 @@ extern int gasnetc_AMRequestLongM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
+  GASNETI_COMMON_AMREQUESTLONG(team,dest,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
   gasneti_lc_at_init(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
