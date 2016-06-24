@@ -506,29 +506,27 @@ extern int gasneti_VerboseErrors;
 
 // TODO-EX: GASNETI_CHECK_ERRR should *not* be returning the error code - need error handling callback instead
 
-#define GASNETI_COMMON_AMREQUESTSHORT(dest,handler,flags,numargs) do {               \
+#define GASNETI_COMMON_AMREQUESTSHORT(team,rank,handler,flags,numargs) do {    \
     GASNETI_CHECKATTACH();                                                     \
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());             \
-    GASNETI_TRACE_AMREQUESTSHORT(dest,handler,numargs);                        \
-    GASNETI_CHECK_ERRR((dest >= gasneti_nodes),BAD_ARG,"node index too high"); \
+    GASNETI_TRACE_AMREQUESTSHORT(team,rank,handler,numargs);                   \
+    GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high"); \
   } while (0)
-#define GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,lc_opt,flags,numargs) do { \
+#define GASNETI_COMMON_AMREQUESTMEDIUM(team,rank,handler,source_addr,nbytes,lc_opt,flags,numargs) do { \
     GASNETI_CHECKATTACH();                                                           \
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());                   \
-    GASNETI_TRACE_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);          \
-    GASNETI_CHECK_ERRR((dest >= gasneti_nodes),BAD_ARG,"node index too high");       \
+    GASNETI_TRACE_AMREQUESTMEDIUM(team,rank,handler,source_addr,nbytes,numargs);     \
+    GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high");       \
     GASNETI_CHECK_ERRR((nbytes > gasnet_AMMaxMedium()),BAD_ARG,"nbytes too large");  \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");           \
     GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_SYNC),BAD_ARG,"LC_SYNC is invalid for Requests"); \
   } while (0)
-#define GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) do { \
+#define GASNETI_COMMON_AMREQUESTLONG(team,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) do { \
     GASNETI_CHECKATTACH();                                                                   \
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());                           \
-    GASNETI_TRACE_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs);          \
-    GASNETI_CHECK_ERRR((dest >= gasneti_nodes),BAD_ARG,"node index too high");               \
+    GASNETI_TRACE_AMREQUESTLONG(team,rank,handler,source_addr,nbytes,dest_addr,numargs);     \
+    GASNETI_CHECK_ERRR((rank >= gasneti_nodes),BAD_ARG,"node index too high");               \
     GASNETI_CHECK_ERRR((nbytes > gasnet_AMMaxLongRequest()),BAD_ARG,"nbytes too large");     \
-    GASNETI_CHECK_ERRR((!gasneti_in_segment_allowoutseg(dest, dest_addr, nbytes)),           \
-            BAD_ARG,"destination address out of segment range");                             \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");                   \
     GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_SYNC),BAD_ARG,"LC_SYNC is invalid for Requests"); \
   } while (0)
@@ -546,12 +544,7 @@ extern int gasneti_VerboseErrors;
   } while (0)
 #if GASNET_DEBUG || GASNETI_ENABLE_ERRCHECKS
   #define _GASNETI_COMMON_AMREPLYLONG_CHECKS(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) do { \
-      gasnetex_rank_t dest;                                                                             \
-      GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));                                    \
-      GASNETI_CHECK_ERRR((dest >= gasneti_nodes),BAD_ARG,"node index too high");                      \
       GASNETI_CHECK_ERRR((nbytes > gasnet_AMMaxLongReply()),BAD_ARG,"nbytes too large");              \
-      GASNETI_CHECK_ERRR((!gasneti_in_segment_allowoutseg(dest, dest_addr, nbytes)),                  \
-              BAD_ARG,"destination address out of segment range");                                    \
       GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");                          \
       GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_SYNC),BAD_ARG,"LC_SYNC is invalid for Replies");      \
       GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_GROUP),BAD_ARG,"LC_GROUP is invalid for Replies");    \

@@ -299,7 +299,7 @@ GASNETI_BEGIN_EXTERNC
 } while(0)
 
 #if GASNET_TRACE
-  #define GASNETI_TRACE_AMREQUESTSHORT(dest,handler,numargs) \
+  #define GASNETI_TRACE_AMREQUESTSHORT(team,dest,handler,numargs) \
           GASNETI_TRACE_AMSHORT(AMREQUEST_SHORT,dest,handler,numargs)
   #define GASNETI_TRACE_AMREPLYSHORT(token,handler,numargs) do {         \
           gasnetex_rank_t temp;                                            \
@@ -310,7 +310,7 @@ GASNETI_BEGIN_EXTERNC
                             gasneti_formatdata(&token, sizeof(token)))); \
   } while(0)
 
-  #define GASNETI_TRACE_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs) \
+  #define GASNETI_TRACE_AMREQUESTMEDIUM(team,dest,handler,source_addr,nbytes,numargs) \
           GASNETI_TRACE_AMMEDIUM(AMREQUEST_MEDIUM,dest,handler,source_addr,nbytes,numargs)
   #define GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs) do {      \
           gasnetex_rank_t temp;                                                             \
@@ -321,7 +321,7 @@ GASNETI_BEGIN_EXTERNC
                             gasneti_formatdata(&token, sizeof(token))));                  \
   } while(0)
 
-  #define GASNETI_TRACE_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,numargs) \
+  #define GASNETI_TRACE_AMREQUESTLONG(team,dest,handler,source_addr,nbytes,dest_addr,numargs) \
           GASNETI_TRACE_AMLONG(AMREQUEST_LONG,dest,handler,source_addr,nbytes,dest_addr,numargs)
   #define GASNETI_TRACE_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,numargs) do {    \
           gasnetex_rank_t temp;                                                                   \
@@ -331,9 +331,6 @@ GASNETI_BEGIN_EXTERNC
           GASNETI_TRACE_PRINTF(C,("AMREPLY_LONG: Reply token: %s",                              \
                             gasneti_formatdata(&token, sizeof(token))));                        \
   } while(0)
-
-  #define GASNETI_TRACE_AMREQUESTLONGASYNC(dest,handler,source_addr,nbytes,dest_addr,numargs) \
-          GASNETI_TRACE_AMLONG(AMREQUEST_LONGASYNC,dest,handler,source_addr,nbytes,dest_addr,numargs)
 
 #elif GASNET_STATS
   #define GASNETI_TRACE_AMREQUESTSHORT(dest,handler,numargs) \

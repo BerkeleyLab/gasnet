@@ -4155,7 +4155,7 @@ extern int gasnetc_RequestSysShort(gasnetc_epid_t dest,
   int retval;
   va_list argptr;
 
-  GASNETI_TRACE_AMREQUESTSHORT(dest,handler,numargs);
+  GASNETI_TRACE_AMREQUESTSHORT(NULL,dest,handler,numargs);
 
   va_start(argptr, numargs);
   retval = gasnetc_RequestGeneric(gasnetc_Short, dest, handler,
@@ -4173,7 +4173,7 @@ extern int gasnetc_RequestSysMedium(gasnetc_epid_t dest,
   int retval;
   va_list argptr;
 
-  GASNETI_TRACE_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,numargs);
+  GASNETI_TRACE_AMREQUESTMEDIUM(NULL,dest,handler,source_addr,nbytes,numargs);
 
   va_start(argptr, numargs);
   retval = gasnetc_RequestGeneric(gasnetc_Medium, dest, handler,

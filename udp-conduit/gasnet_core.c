@@ -661,17 +661,17 @@ extern int gasnetc_AMPoll(void) {
 
 extern int gasnetc_AMRequestShortM( 
                             gasnetex_team_member_t team,/* local context */
-                            gasnetex_rank_t dest,       /* with team, defines remote context */
+                            gasnetex_rank_t rank,       /* with team, defines remote context */
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  GASNETI_COMMON_AMREQUESTSHORT(dest,handler,flags,numargs);
+  GASNETI_COMMON_AMREQUESTSHORT(team,rank,handler,flags,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
-  if_pt (gasneti_pshm_in_supernode(dest)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Short, dest, handler,
+  if_pt (gasneti_pshm_in_supernode(rank)) {
+    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Short, rank, handler,
                                            0, 0, 0,
                                            numargs, argptr);
   } else
@@ -679,7 +679,7 @@ extern int gasnetc_AMRequestShortM(
   {
     AMLOCK_TOSEND();
       GASNETI_AM_SAFE_NORETURN(retval,
-               AMUDP_RequestVA(gasnetc_endpoint, dest, handler, 
+               AMUDP_RequestVA(gasnetc_endpoint, rank, handler, 
                                numargs, argptr));
     AMUNLOCK();
   }
@@ -690,7 +690,7 @@ extern int gasnetc_AMRequestShortM(
 
 extern int gasnetc_AMRequestMediumM( 
                             gasnetex_team_member_t team,/* local context */
-                            gasnetex_rank_t dest,       /* with team, defines remote context */
+                            gasnetex_rank_t rank,       /* with team, defines remote context */
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
@@ -698,12 +698,12 @@ extern int gasnetc_AMRequestMediumM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,lc_opt,flags,numargs);
+  GASNETI_COMMON_AMREQUESTMEDIUM(team,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
   gasneti_lc_at_init(lc_opt); // always locally completed
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
-  if_pt (gasneti_pshm_in_supernode(dest)) {
-    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Medium, dest, handler,
+  if_pt (gasneti_pshm_in_supernode(rank)) {
+    retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Medium, rank, handler,
                                            source_addr, nbytes, 0,
                                            numargs, argptr);
   } else
@@ -713,7 +713,7 @@ extern int gasnetc_AMRequestMediumM(
 
     AMLOCK_TOSEND();
       GASNETI_AM_SAFE_NORETURN(retval,
-               AMUDP_RequestIVA(gasnetc_endpoint, dest, handler, 
+               AMUDP_RequestIVA(gasnetc_endpoint, rank, handler, 
                                 source_addr, nbytes, 
                                 numargs, argptr));
     AMUNLOCK();
@@ -725,7 +725,7 @@ extern int gasnetc_AMRequestMediumM(
 
 extern int gasnetc_AMRequestLongM(
                             gasnetex_team_member_t team,/* local context */
-                            gasnetex_rank_t dest,       /* with team, defines remote context */
+                            gasnetex_rank_t rank,       /* with team, defines remote context */
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
@@ -734,25 +734,25 @@ extern int gasnetc_AMRequestLongM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
+  GASNETI_COMMON_AMREQUESTLONG(team,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   gasneti_lc_at_init(lc_opt); // always locally completed
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
-  if_pt (gasneti_pshm_in_supernode(dest)) {
-      retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Long, dest, handler,
+  if_pt (gasneti_pshm_in_supernode(rank)) {
+      retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Long, rank, handler,
                                              source_addr, nbytes, dest_addr,
                                              numargs, argptr);
   } else
 #endif
   {
     uintptr_t dest_offset;
-    dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
+    dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[rank].addr);
 
     if_pf (!nbytes) source_addr = (void*)(uintptr_t)1; /* Bug 2774 - anything but NULL */
 
     AMLOCK_TOSEND();
       GASNETI_AM_SAFE_NORETURN(retval,
-               AMUDP_RequestXferVA(gasnetc_endpoint, dest, handler, 
+               AMUDP_RequestXferVA(gasnetc_endpoint, rank, handler, 
                                    source_addr, nbytes, 
                                    dest_offset, 0,
                                    numargs, argptr));

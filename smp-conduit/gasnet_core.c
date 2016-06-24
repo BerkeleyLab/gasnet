@@ -1048,19 +1048,19 @@ static int gasnetc_ReplyGeneric(gasnetc_category_t category,
 
 extern int gasnetc_AMRequestShortM( 
                             gasnetex_team_member_t team,/* local context */
-                            gasnetex_rank_t dest,       /* with team, defines remote context */
+                            gasnetex_rank_t rank,       /* with team, defines remote context */
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;
   va_list argptr;
   gasneti_assert(!flags); // TODO-EX: no flags implemented yet
-  GASNETI_COMMON_AMREQUESTSHORT(dest,handler,flags,numargs);
+  GASNETI_COMMON_AMREQUESTSHORT(team,rank,handler,flags,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 
     /*  call the generic requestor */
     retval = gasnetc_RequestGeneric(gasnetc_Short, 
-                                  dest, handler, 
+                                  rank, handler, 
                                   0, 0, 0,
                                   numargs, argptr);
   va_end(argptr);
@@ -1069,7 +1069,7 @@ extern int gasnetc_AMRequestShortM(
 
 extern int gasnetc_AMRequestMediumM( 
                             gasnetex_team_member_t team,/* local context */
-                            gasnetex_rank_t dest,       /* with team, defines remote context */
+                            gasnetex_rank_t rank,       /* with team, defines remote context */
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
@@ -1078,13 +1078,13 @@ extern int gasnetc_AMRequestMediumM(
   int retval;
   va_list argptr;
   gasneti_assert(!flags); // TODO-EX: no flags implemented yet
-  GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,lc_opt,flags,numargs);
+  GASNETI_COMMON_AMREQUESTMEDIUM(team,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
   gasneti_lc_at_init(lc_opt); // smp-conduit delivers payloads synchronously
   va_start(argptr, numargs); /*  pass in last argument */
 
     /*  call the generic requestor */
     retval = gasnetc_RequestGeneric(gasnetc_Medium, 
-                                  dest, handler, 
+                                  rank, handler, 
                                   source_addr, nbytes, 0,
                                   numargs, argptr);
   va_end(argptr);
@@ -1093,7 +1093,7 @@ extern int gasnetc_AMRequestMediumM(
 
 extern int gasnetc_AMRequestLongM(
                             gasnetex_team_member_t team,/* local context */
-                            gasnetex_rank_t dest,       /* with team, defines remote context */
+                            gasnetex_rank_t rank,       /* with team, defines remote context */
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
@@ -1103,13 +1103,13 @@ extern int gasnetc_AMRequestLongM(
   int retval;
   va_list argptr;
   gasneti_assert(!flags); // TODO-EX: no flags implemented yet
-  GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
+  GASNETI_COMMON_AMREQUESTLONG(team,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   gasneti_lc_at_init(lc_opt); // smp-conduit delivers payloads synchronously
   va_start(argptr, numargs); /*  pass in last argument */
 
     /*  call the generic requestor */
     retval = gasnetc_RequestGeneric(gasnetc_Long, 
-                                  dest, handler, 
+                                  rank, handler, 
                                   source_addr, nbytes, dest_addr,
                                   numargs, argptr);
   va_end(argptr);

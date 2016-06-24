@@ -3428,15 +3428,15 @@ SHORT_HANDLER(gasnetc_amrdma_grant_reqh,3,4,
 
 extern int gasnetc_AMRequestShortM( 
                             gasnetex_team_member_t team,/* local context */
-                            gasnetex_rank_t dest,       /* with team, defines remote context */
+                            gasnetex_rank_t rank,       /* with team, defines remote context */
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  GASNETI_COMMON_AMREQUESTSHORT(dest,handler,flags,numargs);
+  GASNETI_COMMON_AMREQUESTSHORT(team,rank,handler,flags,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
-  retval = gasnetc_RequestGeneric(gasnetc_Short, dest, handler,
+  retval = gasnetc_RequestGeneric(gasnetc_Short, rank, handler,
 		  		  NULL, 0, NULL,
 				  numargs, NULL, NULL, argptr);
   va_end(argptr);
@@ -3445,7 +3445,7 @@ extern int gasnetc_AMRequestShortM(
 
 extern int gasnetc_AMRequestMediumM( 
                             gasnetex_team_member_t team,/* local context */
-                            gasnetex_rank_t dest,       /* with team, defines remote context */
+                            gasnetex_rank_t rank,       /* with team, defines remote context */
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
@@ -3453,10 +3453,10 @@ extern int gasnetc_AMRequestMediumM(
                             int numargs, ...) {
   int retval;
   va_list argptr;
-  GASNETI_COMMON_AMREQUESTMEDIUM(dest,handler,source_addr,nbytes,lc_opt,flags,numargs);
+  GASNETI_COMMON_AMREQUESTMEDIUM(team,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
   gasneti_lc_at_init(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
-  retval = gasnetc_RequestGeneric(gasnetc_Medium, dest, handler,
+  retval = gasnetc_RequestGeneric(gasnetc_Medium, rank, handler,
 		  		  source_addr, nbytes, NULL,
 				  numargs, NULL, NULL, argptr);
   va_end(argptr);
@@ -3465,7 +3465,7 @@ extern int gasnetc_AMRequestMediumM(
 
 extern int gasnetc_AMRequestLongM(
                             gasnetex_team_member_t team,/* local context */
-                            gasnetex_rank_t dest,       /* with team, defines remote context */
+                            gasnetex_rank_t rank,       /* with team, defines remote context */
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
@@ -3475,10 +3475,10 @@ extern int gasnetc_AMRequestLongM(
   gasnetc_counter_t mem_oust = GASNETC_COUNTER_INITIALIZER;
   int retval;
   va_list argptr;
-  GASNETI_COMMON_AMREQUESTLONG(dest,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
+  GASNETI_COMMON_AMREQUESTLONG(team,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   gasneti_lc_at_init(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
-    retval = gasnetc_RequestGeneric(gasnetc_Long, dest, handler,
+    retval = gasnetc_RequestGeneric(gasnetc_Long, rank, handler,
 		  		  source_addr, nbytes, dest_addr,
 				  numargs, &mem_oust, NULL, argptr);
 
