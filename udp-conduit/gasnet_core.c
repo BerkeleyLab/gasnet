@@ -699,7 +699,7 @@ extern int gasnetc_AMRequestMediumM(
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTMEDIUM(team,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  gasneti_lc_at_init(lc_opt); // always locally completed
+  gasneti_lc_opt_finish(lc_opt); // always locally completed
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(rank)) {
@@ -735,7 +735,7 @@ extern int gasnetc_AMRequestLongM(
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTLONG(team,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
-  gasneti_lc_at_init(lc_opt); // always locally completed
+  gasneti_lc_opt_finish(lc_opt); // always locally completed
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(rank)) {
@@ -799,7 +799,7 @@ extern int gasnetc_AMReplyMediumM(
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  gasneti_lc_at_init(lc_opt); // always locally completed
+  gasneti_lc_opt_finish(lc_opt); // always locally completed
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasnetc_token_is_pshm(token)) {
@@ -831,7 +831,7 @@ extern int gasnetc_AMReplyLongM(
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
-  gasneti_lc_at_init(lc_opt); // always locally completed
+  gasneti_lc_opt_finish(lc_opt); // always locally completed
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasnetc_token_is_pshm(token)) {

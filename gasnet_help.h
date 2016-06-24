@@ -179,8 +179,8 @@ int gasneti_lc_is_pointer(const gasnetex_lc_handle_t *lc_ptr) {
 }
 GASNETI_PUREP(gasneti_lc_is_pointer)
 
-GASNETI_INLINE(gasneti_lc_at_init)
-void gasneti_lc_at_init(gasnetex_lc_handle_t *lc_ptr) {
+GASNETI_INLINE(gasneti_lc_opt_finish)
+void gasneti_lc_opt_finish(gasnetex_lc_handle_t *lc_ptr) {
   if (gasneti_lc_is_pointer(lc_ptr)) *lc_ptr = GASNETEX_INVALID_LC_HANDLE;
 }
 

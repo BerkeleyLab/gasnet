@@ -1444,7 +1444,7 @@ extern int gasnetc_AMRequestMediumM(
   va_list argptr;
   GASNETI_COMMON_AMREQUESTMEDIUM(team,dest,handler,source_addr,nbytes,lc_opt,flags,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
-  gasneti_lc_at_init(lc_opt); // TODO-EX: should support async local completion
+  gasneti_lc_opt_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the dest first. */
@@ -1481,7 +1481,7 @@ extern int gasnetc_AMRequestLongM(
   va_list argptr;
   GASNETI_COMMON_AMREQUESTLONG(team,dest,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
-  gasneti_lc_at_init(lc_opt); // TODO-EX: should support async local completion
+  gasneti_lc_opt_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the dest first. */
@@ -1577,7 +1577,7 @@ extern int gasnetc_AMReplyMediumM(
   va_list argptr;
 
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  gasneti_lc_at_init(lc_opt); // TODO-EX: should support async local completion
+  gasneti_lc_opt_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the token first. */
@@ -1612,7 +1612,7 @@ extern int gasnetc_AMReplyLongM(
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
-  gasneti_lc_at_init(lc_opt); // TODO-EX: should support async local completion
+  gasneti_lc_opt_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the token first. */
