@@ -67,15 +67,17 @@ typedef struct _gasnete_eop_t {
 typedef struct _gasnete_iop_t {
   uint8_t flags;                  /*  state flags */
   gasnete_threadidx_t threadidx;  /*  thread that owns me */
-  uint16_t _unused;
+  uint16_t _unused; /* TODO: this assumes the default 8-bit threadidx_t */
+  gasnetc_atomic_val_t initiated_alc_cnt;     /*  count of ops initiated with async local completion */
   gasnetc_atomic_val_t initiated_get_cnt;     /*  count of get ops initiated */
   gasnetc_atomic_val_t initiated_put_cnt;     /*  count of put ops initiated */
 
   struct _gasnete_iop_t *next;    /*  next cell while in free list, deferred iop while being filled */
 
   /*  make sure the initiated/completed counters live on different cache lines for SMP's */
-  uint8_t pad[GASNETI_CACHE_PAD(sizeof(void*) + sizeof(gasnetc_atomic_val_t))];
+  uint8_t pad[GASNETI_CACHE_PAD(sizeof(void*) + 3*sizeof(gasnetc_atomic_val_t))];
 
+  gasnetc_atomic_t completed_alc_cnt;     /*  count of async-lc ops completed */
   gasnetc_atomic_t completed_get_cnt;     /*  count of get ops completed */
   gasnetc_atomic_t completed_put_cnt;     /*  count of put ops completed */
   uint8_t _pad2[MAX(8,(ssize_t)(GASNETI_CACHE_LINE_BYTES - 2*sizeof(gasnetc_atomic_t)))];
@@ -135,6 +137,22 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
 #define OPFLAG_CONDUIT1 0x08
 #define OPFLAG_CONDUIT2 0x10
 
+/*  IOP state - only valid for implicit ops */
+#define IOPSTATE_LC_NONE   0 /*  iop has NO local completion state */
+#define IOPSTATE_LC_GROUP  1 /*  iop has local competion state - merged with NONE in NDEBUG builds */
+#define IOPSTATE_LC_SYNC   2 /*  iop was returned from end_nbi_accessregion(LC_SYNC) w/ LC outstanding */
+#define IOPSTATE(iop) (gasneti_assert(OPTYPE(iop)==OPTYPE_IMPLICIT), ((iop)->flags & 0x03))
+GASNETI_INLINE(SET_IOPSTATE)
+void SET_IOPSTATE(gasnete_iop_t *op, uint8_t state) {
+  gasneti_assert((state & 0x03) == state);
+#if 0 // Fully general
+  op->flags = (op->flags & 0xFC) | state;
+#else // Correct only because nothing else is using 'flags' in the iop
+  gasneti_assert((op->flags & 0xFC) == OPTYPE_IMPLICIT);
+  op->flags = OPTYPE_IMPLICIT | state;
+#endif
+}
+
 #define GASNETE_EOPADDR_TO_PTR(threaddata, eopaddr)                      \
       (gasneti_memcheck(threaddata),                                     \
        gasneti_assert(!gasnete_eopaddr_isnil(eopaddr)),                  \
@@ -172,9 +190,9 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
   #define gasnete_iop_check(iop)   ((void)0)
 #endif
 
-#define GASNETE_IOP_CNTDONE(_iop, _putget) \
-  (gasnetc_atomic_read(&(_iop)->completed_##_putget##_cnt, 0) \
-          == ((_iop)->initiated_##_putget##_cnt & GASNETI_ATOMIC_MAX))
+#define GASNETE_IOP_CNTDONE(_iop, _name) \
+  (gasnetc_atomic_read(&(_iop)->completed_##_name##_cnt, 0) \
+          == ((_iop)->initiated_##_name##_cnt & GASNETI_ATOMIC_MAX))
 
 #if GASNETE_EOP_COUNTED
   #define GASNETE_EOP_DONE(_eop) \
