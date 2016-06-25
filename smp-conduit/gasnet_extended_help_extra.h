@@ -78,6 +78,45 @@ int gasnete_syncnb_array(gasnetex_handle_t *phandle, size_t numhandles)
 
 /* ------------------------------------------------------------------------------------ */
 /*
+  Operations on local-completion handles
+  ======================================
+*/
+
+GASNETI_INLINE(gasnete_lc_one)
+int gasnete_lc_one(gasnetex_lc_handle_t lchandle)
+{
+  gasneti_assert(lchandle == GASNETEX_INVALID_LC_HANDLE);
+  gasneti_compiler_fence(); // TODO-EX: is this necessary?
+  return GASNET_OK;
+}
+#define gasnete_test_lc gasnete_lc_one
+#define gasnete_wait_lc gasnete_lc_one
+
+GASNETI_INLINE(gasnete_lc_array)
+int gasnete_lc_array(gasnetex_lc_handle_t *plchandle, size_t numlchandles)
+{
+#if GASNET_DEBUG
+  int i;
+  for (i=0; i<numlchandles; ++i)
+    gasneti_assert(plchandle[i] == GASNETEX_INVALID_LC_HANDLE);
+#endif
+  gasneti_compiler_fence(); // TODO-EX: is this necessary?
+  return GASNET_OK;
+}
+#define gasnete_test_lc_some gasnete_lc_array
+#define gasnete_test_lc_all  gasnete_lc_array
+#define gasnete_wait_lc_some gasnete_lc_array
+#define gasnete_wait_lc_all  gasnete_lc_array
+
+
+GASNETI_INLINE(gasnete_test_lc_group)
+int gasnete_test_lc_group (GASNETE_THREAD_FARG_ALONE) {
+  return GASNET_OK;
+}
+#define gasnete_test_lc_group gasnete_test_lc_group
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Non-blocking memory-to-memory transfers (implicit handle)
   ==========================================================
  */

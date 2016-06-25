@@ -142,10 +142,14 @@ int32_t temp = 0;
 gasnett_tick_t timertemp = 0;
 int8_t bigtemp[1024];
 gasnetex_handle_t handles[8];
+gasnetex_lc_handle_t lchandles[8];
 /* ------------------------------------------------------------------------------------ */
 void doit1(void) { GASNET_BEGIN_FUNCTION();
 
-    { int i; for (i=0;i<8;i++) handles[i] = GASNETEX_INVALID_HANDLE; }
+    { int i; for (i=0;i<8;i++) {
+        handles[i] = GASNETEX_INVALID_HANDLE;
+        lchandles[i] = GASNETEX_INVALID_LC_HANDLE;
+    } }
 
     TEST_SECTION_BEGIN();
     TIME_OPERATION("Tester overhead", {});
@@ -425,6 +429,33 @@ void doit7(void) { GASNET_BEGIN_FUNCTION();
 
     TIME_OPERATION("do-nothing gasnetex_test_syncnb_some() (8 handles)",
       { gasnetex_test_syncnb_some(handles, 8); });
+
+
+    TIME_OPERATION("do-nothing gasnetex_wait_lc()",
+      { gasnetex_wait_lc(GASNETEX_INVALID_LC_HANDLE);  });
+
+    TIME_OPERATION("do-nothing gasnetex_test_lc()",
+      { GASNETI_UNUSED int junk = gasnetex_test_lc(GASNETEX_INVALID_LC_HANDLE); });
+
+    TIME_OPERATION("do-nothing gasnetex_wait_lc_all() (8 handles)",
+      { gasnetex_wait_lc_all(lchandles, 8); });
+
+    TIME_OPERATION("do-nothing gasnetex_wait_lc_some() (8 handles)",
+      { gasnetex_wait_lc_some(lchandles, 8); });
+
+    TIME_OPERATION("do-nothing gasnetex_test_lc_all() (8 handles)",
+      { gasnetex_test_lc_all(lchandles, 8);  });
+
+    TIME_OPERATION("do-nothing gasnetex_test_lc_some() (8 handles)",
+      { gasnetex_test_lc_some(lchandles, 8); });
+
+
+    TIME_OPERATION("do-nothing gasnetex_wait_lc_group()",
+      { gasnetex_wait_lc_group(); });
+
+    TIME_OPERATION("do-nothing gasnetex_test_lc_group()",
+      { GASNETI_UNUSED int junk = gasnetex_test_lc_group(); });
+
 
     TIME_OPERATION("do-nothing gasnetex_wait_syncnbi_all()",
       { gasnetex_wait_syncnbi_all(); });

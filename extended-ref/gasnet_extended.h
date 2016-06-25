@@ -191,6 +191,120 @@ void gasnetex_wait_syncnb_all(gasnetex_handle_t *phandle, size_t numhandles) {
 
 /* ------------------------------------------------------------------------------------ */
 /*
+  Operations on local-completion handles
+  ======================================
+*/
+
+#ifndef gasnete_test_lc
+extern int gasnete_test_lc(gasnetex_lc_handle_t lchandle);
+#endif
+#ifndef gasnete_test_lc_some
+extern int gasnete_test_lc_some(gasnetex_lc_handle_t *plchandle, size_t numlchandles);
+#endif
+#ifndef gasnete_test_lc_all
+extern int gasnete_test_lc_all (gasnetex_lc_handle_t *plchandle, size_t numlchandles);
+#endif
+
+
+GASNETI_INLINE(gasnetex_test_lc) GASNETI_WARN_UNUSED_RESULT
+int gasnetex_test_lc(gasnetex_lc_handle_t lchandle) {
+  int result = GASNET_OK;
+  if_pt (lchandle != GASNETEX_INVALID_LC_HANDLE)
+    result = gasnete_test_lc(lchandle);
+  GASNETI_TRACE_TRYSYNC(TEST_LC,result);
+  return result;
+}
+
+GASNETI_INLINE(gasnetex_test_lc_some)
+int gasnetex_test_lc_some(gasnetex_lc_handle_t *plchandle, size_t numlchandles) {
+  int result = gasnete_test_lc_some(plchandle,numlchandles);
+  GASNETI_TRACE_TRYSYNC(TEST_LC_SOME,result);
+  return result;
+}
+
+GASNETI_INLINE(gasnetex_test_lc_all)
+int gasnetex_test_lc_all(gasnetex_lc_handle_t *plchandle, size_t numlchandles) {
+  int result = gasnete_test_lc_all(plchandle,numlchandles);
+  GASNETI_TRACE_TRYSYNC(TEST_LC_ALL,result);
+  return result;
+}
+
+
+#ifndef gasnete_wait_lc
+  #define gasnete_wait_lc(lchandle) do {                                      \
+      gasnetex_lc_handle_t _lchandle = (lchandle);                            \
+      if_pt (_lchandle != GASNETEX_INVALID_LC_HANDLE) {                       \
+        gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */      \
+        gasneti_pollwhile(gasnete_test_lc(_lchandle) == GASNET_ERR_NOT_READY);\
+      }                                                                       \
+    } while(0)
+#endif
+
+GASNETI_INLINE(gasnetex_wait_lc)
+void gasnetex_wait_lc(gasnetex_lc_handle_t lchandle) {
+  GASNETI_TRACE_WAITSYNC_BEGIN();
+  gasnete_wait_lc(lchandle);
+  GASNETI_TRACE_WAITSYNC_END(WAIT_LC);
+}
+
+#ifndef gasnete_wait_lc_some
+  #define gasnete_wait_lc_some(plchandle, numlchandles) do {                                   \
+      gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */                         \
+      gasneti_pollwhile(gasnete_test_lc_some(plchandle, numlchandles) == GASNET_ERR_NOT_READY);\
+    } while(0)
+#endif
+
+GASNETI_INLINE(gasnetex_wait_lc_some)
+void gasnetex_wait_lc_some(gasnetex_lc_handle_t *plchandle, size_t numlchandles) {
+  GASNETI_TRACE_WAITSYNC_BEGIN();
+  gasnete_wait_lc_some(plchandle, numlchandles);
+  GASNETI_TRACE_WAITSYNC_END(WAIT_LC_SOME);
+}
+
+#ifndef gasnete_wait_lc_all
+  #define gasnete_wait_lc_all(plchandle, numlchandles) do {                                   \
+      gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */                        \
+      gasneti_pollwhile(gasnete_test_lc_all(plchandle, numlchandles) == GASNET_ERR_NOT_READY);\
+    } while(0)
+#endif
+
+GASNETI_INLINE(gasnetex_wait_lc_all)
+void gasnetex_wait_lc_all(gasnetex_lc_handle_t *plchandle, size_t numlchandles) {
+  GASNETI_TRACE_WAITSYNC_BEGIN();
+  gasnete_wait_lc_all(plchandle, numlchandles);
+  GASNETI_TRACE_WAITSYNC_END(WAIT_LC_ALL);
+}
+
+
+#ifndef gasnete_test_lc_group
+extern int gasnete_test_lc_group (GASNETE_THREAD_FARG_ALONE);
+#endif
+
+GASNETI_INLINE(_gasnetex_test_lc_group) GASNETI_WARN_UNUSED_RESULT
+int _gasnetex_test_lc_group(GASNETE_THREAD_FARG_ALONE) {
+  int retval = gasnete_test_lc_group(GASNETE_THREAD_PASS_ALONE);
+  GASNETI_TRACE_TRYSYNC(TEST_LC_GROUP,retval);
+  return retval;
+}
+#define gasnetex_test_lc_group()   \
+       _gasnetex_test_lc_group(GASNETE_THREAD_GET_ALONE)
+
+#ifndef gasnete_wait_lc_group
+  #define gasnete_wait_lc_group \
+    gasneti_pollwhile(gasnete_test_lc_group(GASNETE_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY) \
+    GASNETE_THREAD_SWALLOW
+#endif
+
+#define gasnetex_wait_lc_group() do {                                                        \
+  GASNETI_TRACE_WAITSYNC_BEGIN();                                                            \
+  gasneti_AMPoll(); /* ensure at least one poll */                                           \
+  gasnete_wait_lc_group(GASNETE_THREAD_GET_ALONE);                                           \
+  GASNETI_TRACE_WAITSYNC_END(WAIT_LC_GROUP);                                                 \
+  } while (0)
+
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Non-blocking memory-to-memory transfers (implicit handle)
   ==========================================================
 */
@@ -282,9 +396,15 @@ int _gasnetex_test_syncnbi_puts(GASNETE_THREAD_FARG_ALONE) {
        _gasnetex_test_syncnbi_puts(GASNETE_THREAD_GET_ALONE)
 
 #ifndef gasnete_test_syncnbi_all
+  // NOTE: This implementation assumes that syncnbi_puts() includes lc_group().
+  // Conduits with true LC that don't have that property should define a
+  // replacement gasnete_test_syncnbi_all() macro which also includes
+  //   "gasnete_test_lc_group(GASNETE_THREAD_PASS_ALONE)"
+  // TODO-EX: should we provide a knob "GASNETE_SYNCNBI_PUTS_INCLUDES_LC" ?
   #define gasnete_test_syncnbi_all                                               \
-   (gasnete_test_syncnbi_gets(GASNETE_THREAD_PASS_ALONE) == GASNET_OK ?          \
-    gasnete_test_syncnbi_puts(GASNETE_THREAD_PASS_ALONE) : GASNET_ERR_NOT_READY) \
+   ((gasnete_test_syncnbi_gets(GASNETE_THREAD_PASS_ALONE) == GASNET_OK &&        \
+     gasnete_test_syncnbi_puts(GASNETE_THREAD_PASS_ALONE) == GASNET_OK)          \
+                                       ? GASNET_OK : GASNET_ERR_NOT_READY)       \
     GASNETE_THREAD_SWALLOW
 #endif
 
@@ -325,6 +445,8 @@ int _gasnetex_test_syncnbi_all(GASNETE_THREAD_FARG_ALONE) {
   } while (0)
 
 #ifndef gasnete_wait_syncnbi_all
+  // NOTE: This implementation assumes that syncnbi_puts() includes lc_group().
+  // See the note with gasnete_test_syncnbi_all() for more info.
   #define gasnete_wait_syncnbi_all do {                                                     \
     gasneti_pollwhile(gasnete_test_syncnbi_gets(GASNETE_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY); \
     gasneti_pollwhile(gasnete_test_syncnbi_puts(GASNETE_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY); \

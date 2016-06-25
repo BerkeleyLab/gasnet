@@ -491,6 +491,77 @@ extern int  gasnete_test_syncnb_all (gasnetex_handle_t *phandle, size_t numhandl
 
 /* ------------------------------------------------------------------------------------ */
 /*
+  Operations on local-completion handles
+  ======================================
+*/
+
+/*  query an op for local-completeness
+ *  free it if complete
+ *  returns 0 or 1 */
+GASNETI_INLINE(gasnete_lc_try_free)
+int gasnete_lc_try_free(gasnetex_lc_handle_t lchandle) {
+  // TODO-EX: this is only a STUB
+  gasneti_assert(lchandle == GASNETEX_INVALID_LC_HANDLE);
+  return 1;
+}
+
+/*  query an op for local-completeness
+ *  free it and clear the handle if complete
+ *  returns 0 or 1 */
+GASNETI_INLINE(gasnete_lc_try_free_clear)
+int gasnete_lc_try_free_clear(gasnetex_lc_handle_t *lchandle_p) {
+  if (gasnete_lc_try_free(*lchandle_p)) {
+    *lchandle_p = GASNETEX_INVALID_LC_HANDLE;
+    return 1;
+  }
+  return 0;
+}
+
+extern int  gasnete_test_lc(gasnetex_lc_handle_t lchandle) {
+  return gasnete_lc_try_free(lchandle) ? GASNET_OK : GASNET_ERR_NOT_READY;
+}
+
+extern int  gasnete_test_lc_some (gasnetex_lc_handle_t *plchandle, size_t numlchandles) {
+  int success = 0;
+  int empty = 1;
+
+  gasneti_assert(plchandle);
+
+  { int i;
+    for (i = 0; i < numlchandles; i++) {
+      if (plchandle[i] != GASNETEX_INVALID_LC_HANDLE) {
+        empty = 0;
+        success |= gasnete_lc_try_free_clear(&plchandle[i]);
+      }
+    }
+  }
+
+  return (success || empty) ? GASNET_OK : GASNET_ERR_NOT_READY;
+}
+
+extern int  gasnete_test_lc_all (gasnetex_lc_handle_t *plchandle, size_t numlchandles) {
+  int success = 1;
+
+  gasneti_assert(plchandle);
+
+  { int i;
+    for (i = 0; i < numlchandles; i++) {
+      if (plchandle[i] != GASNETEX_INVALID_LC_HANDLE) {
+        success &= gasnete_lc_try_free_clear(&plchandle[i]);
+      }
+    }
+  }
+
+  return success ? GASNET_OK : GASNET_ERR_NOT_READY;
+}
+
+
+extern int gasnete_test_lc_group (GASNETE_THREAD_FARG_ALONE) {
+  return GASNET_OK; // TODO-EX: this is only a STUB
+}
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Non-blocking memory-to-memory transfers (implicit handle)
   ==========================================================
 */
