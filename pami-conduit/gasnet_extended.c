@@ -69,7 +69,7 @@ static void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
       buf[i].threadidx = threadidx;
       buf[i].addr = addr;
       #if 0 /* these can safely be skipped when the values are zero */
-        SET_OPSTATE(&(buf[i]),OPSTATE_FREE); 
+        SET_EOPSTATE(&(buf[i]),EOPSTATE_FREE);
         SET_OPTYPE(&(buf[i]),OPTYPE_EXPLICIT); 
        #if GASNETE_EOP_COUNTED
         buff[i].initiated_cnt = 0;
@@ -115,7 +115,7 @@ static void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
         gasneti_assert(!gasnete_eopaddr_isnil(addr));                 
         eop = GASNETE_EOPADDR_TO_PTR(thread,addr);            
         gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);               
-        gasneti_assert(OPSTATE(eop) == OPSTATE_FREE);                 
+        gasneti_assert(EOPSTATE(eop) == EOPSTATE_FREE);
         gasneti_assert(eop->threadidx == threadidx);                  
         gasneti_assert(addr.bufferidx == bufidx);
         gasneti_assert(!seen[addr.eopidx]);/* see if we hit a cycle */
@@ -164,12 +164,12 @@ gasnete_eop_t *_gasnete_eop_new(gasnete_threaddata_t * const thread) {
     gasneti_assert(!gasnete_eopaddr_equal(thread->eop_free,head));
     gasneti_assert(eop->threadidx == thread->threadidx);
     gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);
-    gasneti_assert(OPSTATE(eop) == OPSTATE_FREE);
+    gasneti_assert(EOPSTATE(eop) == EOPSTATE_FREE);
 #if 0
     gasnete_op_clr_lc((gasnete_op_t *)eop));
-    SET_OPSTATE(eop, OPSTATE_INFLIGHT);
+    SET_EOPSTATE(eop, EOPSTATE_INFLIGHT);
 #else
-    eop->flags = OPSTATE_INFLIGHT;
+    eop->flags = EOPSTATE_INFLIGHT;
 #endif
     return eop;
   }
@@ -244,9 +244,9 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
 /* callbacks implementing subsets of gasnete_op_markdone */
 static void gasnete_cb_eop_done(pami_context_t context, void *cookie, pami_result_t status) {
   gasnete_eop_t *eop = (gasnete_eop_t *)cookie;
-  gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT);
+  gasneti_assert(EOPSTATE(eop) == EOPSTATE_INFLIGHT);
   /* gasnete_eop_check(eop);  XXX: conflicts w/ on-stack EOP used for blocking ops */
-  SET_OPSTATE(eop, OPSTATE_COMPLETE);
+  SET_EOPSTATE(eop, EOPSTATE_COMPLETE);
   gasneti_assert(status == PAMI_SUCCESS);
 }
 static void gasnete_cb_iput_done(pami_context_t context, void *cookie, pami_result_t status) {
@@ -268,9 +268,9 @@ static void gasnete_cb_op_lc(pami_context_t context, void *cookie, pami_result_t
   if (OPTYPE(op) == OPTYPE_EXPLICIT) {
     gasnete_eop_t *eop = (gasnete_eop_t *)op;
     /* While rare, the REMOTE completion event might be processed before the LOCAL one.
-     * So, OPSTATE_COMPLETE is a valid state here. */
-    gasneti_assert((OPSTATE(eop) == OPSTATE_INFLIGHT) ||
-                   (OPSTATE(eop) == OPSTATE_COMPLETE));
+     * So, EOPSTATE_COMPLETE is a valid state here. */
+    gasneti_assert((EOPSTATE(eop) == EOPSTATE_INFLIGHT) ||
+                   (EOPSTATE(eop) == EOPSTATE_COMPLETE));
     gasnete_eop_check(eop);
   } else {
     gasnete_iop_t *iop = (gasnete_iop_t *)op;
@@ -290,7 +290,7 @@ void gasnete_eop_free(gasnete_eop_t *eop) {
   gasnete_eop_check(eop);
   gasneti_assert(GASNETE_EOP_DONE(eop));
 #if GASNET_DEBUG
-  SET_OPSTATE(eop, OPSTATE_FREE);
+  SET_EOPSTATE(eop, EOPSTATE_FREE);
 #endif
   eop->addr = thread->eop_free;
   thread->eop_free = addr;
@@ -906,9 +906,9 @@ int gasnete_get(     gasnetex_team_member_t team,
 {
   GASNETI_CHECKPSHM_GET(I);
   {
-    volatile gasnete_eop_t op = { OPSTATE_INFLIGHT, };
+    volatile gasnete_eop_t op = { EOPSTATE_INFLIGHT, };
     gasnete_get_common(dest, rank, src, nbytes, (gasnete_op_t *)&op, 1);
-    gasneti_polluntil(op.flags == OPSTATE_COMPLETE);
+    gasneti_polluntil(op.flags == EOPSTATE_COMPLETE);
     return 0;
   }
 }
@@ -924,9 +924,9 @@ int gasnete_put(     gasnetex_team_member_t team,
 {
   GASNETI_CHECKPSHM_PUT(I);
   {
-    volatile gasnete_eop_t op = { OPSTATE_INFLIGHT, };
+    volatile gasnete_eop_t op = { EOPSTATE_INFLIGHT, };
     gasnete_put_common(rank, dest, src, nbytes, (gasnete_op_t *)&op, 0, 1);
-    gasneti_polluntil(op.flags == OPSTATE_COMPLETE);
+    gasneti_polluntil(op.flags == EOPSTATE_COMPLETE);
     return 0;
   }
 }   

@@ -44,7 +44,7 @@ static void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
       buf[i].threadidx = threadidx;
       buf[i].addr = addr;
       #if 0 /* these can safely be skipped when the values are zero */
-        SET_OPSTATE(&(buf[i]),OPSTATE_FREE); 
+        SET_EOPSTATE(&(buf[i]),EOPSTATE_FREE);
         SET_OPTYPE(&(buf[i]),OPTYPE_EXPLICIT); 
        #if GASNETE_EOP_COUNTED
         buff[i].initiated_cnt = 0;
@@ -90,7 +90,7 @@ static void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
         gasneti_assert(!gasnete_eopaddr_isnil(addr));                 
         eop = GASNETE_EOPADDR_TO_PTR(thread,addr);            
         gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);               
-        gasneti_assert(OPSTATE(eop) == OPSTATE_FREE);                 
+        gasneti_assert(EOPSTATE(eop) == EOPSTATE_FREE);
         gasneti_assert(eop->threadidx == threadidx);                  
         gasneti_assert(addr.bufferidx == bufidx);
         gasneti_assert(!seen[addr.eopidx]);/* see if we hit a cycle */
@@ -134,9 +134,9 @@ gasnete_eop_t *_gasnete_eop_new(gasnete_threaddata_t * const thread) {
     gasneti_assert(!gasnete_eopaddr_equal(thread->eop_free,head));
     gasneti_assert(eop->threadidx == thread->threadidx);
     gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);
-    gasneti_assert(OPSTATE(eop) == OPSTATE_FREE);
+    gasneti_assert(EOPSTATE(eop) == EOPSTATE_FREE);
   #if GASNET_DEBUG || !GASNETE_EOP_COUNTED
-    SET_OPSTATE(eop, OPSTATE_INFLIGHT);
+    SET_EOPSTATE(eop, EOPSTATE_INFLIGHT);
   #endif
     return eop;
   }
@@ -216,7 +216,7 @@ void gasnete_eop_free(gasnete_eop_t *eop) {
   gasnete_eop_check(eop);
   gasneti_assert(GASNETE_EOP_DONE(eop));
 #if GASNET_DEBUG
-  SET_OPSTATE(eop, OPSTATE_FREE);
+  SET_EOPSTATE(eop, EOPSTATE_FREE);
 #endif
   eop->addr = thread->eop_free;
   thread->eop_free = addr;

@@ -115,17 +115,17 @@ void SET_OPTYPE(gasnete_op_t *op, uint8_t type) {
 }
 
 /*  state - only valid for explicit ops */
-#define OPSTATE_FREE      0   /*  gasnete_eop_new() relies on this value */
-#define OPSTATE_INFLIGHT  1
-#define OPSTATE_COMPLETE  2
-#define OPSTATE(op) ((op)->flags & 0x03)
-GASNETI_INLINE(SET_OPSTATE)
-void SET_OPSTATE(gasnete_eop_t *op, uint8_t state) {
+#define EOPSTATE_FREE      0   /*  gasnete_eop_new() relies on this value */
+#define EOPSTATE_INFLIGHT  1
+#define EOPSTATE_COMPLETE  2
+#define EOPSTATE(op) ((op)->flags & 0x03)
+GASNETI_INLINE(SET_EOPSTATE)
+void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
   op->flags = (op->flags & 0xFC) | (state & 0x03);
   /* RACE: If we are marking the op COMPLETE, don't assert for completion
    * state as another thread spinning on the op may already have changed
    * the state. */
-  gasneti_assert(state == OPSTATE_COMPLETE ? 1 : OPSTATE(op) == state);
+  gasneti_assert(state == EOPSTATE_COMPLETE ? 1 : EOPSTATE(op) == state);
 }
 
 /* gasnete_op_t flag bits reserved for conduit-specific uses.
@@ -147,8 +147,8 @@ void SET_OPSTATE(gasnete_eop_t *op, uint8_t state) {
   #define gasnete_eop_check(eop) do {                                \
     gasnete_threaddata_t * _th;                                      \
     gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);                  \
-    gasneti_assert(OPSTATE(eop) == OPSTATE_INFLIGHT ||               \
-                   OPSTATE(eop) == OPSTATE_COMPLETE);                \
+    gasneti_assert(EOPSTATE(eop) == EOPSTATE_INFLIGHT ||               \
+                   EOPSTATE(eop) == EOPSTATE_COMPLETE);                \
     gasnete_assert_valid_threadid((eop)->threadidx);                 \
     _th = gasnete_threadtable[(eop)->threadidx];                     \
     gasneti_assert(GASNETE_EOPADDR_TO_PTR(_th, (eop)->addr) == eop); \
@@ -187,10 +187,10 @@ void SET_OPSTATE(gasnete_eop_t *op, uint8_t state) {
       gasneti_weakatomic_increment(&((_eop)->completed_cnt), 0); \
     } while (0)
 #else
-  #define GASNETE_EOP_DONE(_eop) (OPSTATE(_eop) == OPSTATE_COMPLETE)
+  #define GASNETE_EOP_DONE(_eop) (EOPSTATE(_eop) == EOPSTATE_COMPLETE)
   #define GASNETE_EOP_MARKDONE(_eop) do {      \
       gasneti_assert(!GASNETE_EOP_DONE(_eop)); \
-      SET_OPSTATE((_eop), OPSTATE_COMPLETE);   \
+      SET_EOPSTATE((_eop), EOPSTATE_COMPLETE);   \
     } while (0)
 #endif
 
