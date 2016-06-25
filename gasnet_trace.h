@@ -726,9 +726,6 @@ extern void gasneti_trace_finish(void);
         VAL(S, TEST_SYNCNB, success)                      \
         VAL(S, TEST_SYNCNB_ALL, success)                  \
         VAL(S, TEST_SYNCNB_SOME, success)                 \
-        VAL(S, TRY_SYNCNB, success)                       \
-        VAL(S, TRY_SYNCNB_ALL, success)                   \
-        VAL(S, TRY_SYNCNB_SOME, success)                  \
         TIME(S, WAIT_SYNCNB, waittime)                    \
         TIME(S, WAIT_SYNCNB_ALL, waittime)                \
         TIME(S, WAIT_SYNCNB_SOME, waittime)               \
@@ -736,9 +733,6 @@ extern void gasneti_trace_finish(void);
         VAL(S, TEST_SYNCNBI_ALL, success)                 \
         VAL(S, TEST_SYNCNBI_GETS, success)                \
         VAL(S, TEST_SYNCNBI_PUTS, success)                \
-        VAL(S, TRY_SYNCNBI_ALL, success)                  \
-        VAL(S, TRY_SYNCNBI_GETS, success)                 \
-        VAL(S, TRY_SYNCNBI_PUTS, success)                 \
         TIME(S, WAIT_SYNCNBI_ALL, waittime)               \
         TIME(S, WAIT_SYNCNBI_GETS, waittime)              \
         TIME(S, WAIT_SYNCNBI_PUTS, waittime)              \
