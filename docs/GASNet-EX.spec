@@ -368,7 +368,7 @@ gasnetex_handle_t gasnetex_end_nbi_accessregion(
 // Sync operations
 // The operation is indicated by the suffix
 //  + _test: no Poll call is made, returns zero on success, and non-zero otherwise.
-//  + _wait: Polls until success, no return`
+//  + _wait: Polls until success, no return
 
 // Sync of a single NB handle
 // Success is defined as when the passed handle is complete.
@@ -397,10 +397,38 @@ void gasnetex_wait_syncnbi_gets(void);
 int  gasnetex_test_syncnbi_puts(void);
 void gasnetex_wait_syncnbi_puts(void);
 
-// Sync of all NBI operations
+// Sync of all NBI operations (*and* gasnetex_{test,wait}_lc_group)
 int  gasnetex_test_syncnbi_all (void);
 void gasnetex_wait_syncnbi_all (void);
 
+
+// LC operations
+// The operation is indicated by the suffix
+//  + _test: no Poll call is made, returns zero on success, and non-zero otherwise.
+//  + _wait: Polls until success, no return
+
+// Operate on a single lc_handle
+// Success is defined as when the passed lchandle is locally complete.
+int  gasnetex_test_lc (gasnetex_lc_handle_t lchandle);
+void gasnetex_wait_lc (gasnetex_lc_handle_t lchandle);
+
+// Operate on an lc_handle array - "some"
+// Success is defined as one or more lc_handles have been locally completed, OR
+// the input array contains only GASNETEX_INVALID_LC_HANDLE.
+// Completed lc_handles, if any, are overwritten with GASNETEX_INVALID_LC_HANDLE.
+int  gasnetex_test_lc_some (gasnetex_lc_handle_t *plchandle, size_t numlchandles);
+void gasnetex_wait_lc_some (gasnetex_lc_handle_t *plchandle, size_t numlchandles);
+
+// Operate on an lc_handle array - "all"
+// Success is defined as all passed lc_handles have been locally completed, OR
+// the input array contains only GASNETEX_INVALID_LC_HANDLE.
+// Completed lc_handles, if any, are overwritten with GASNETEX_INVALID_LC_HANDLE.
+int  gasnetex_test_lc_all (gasnetex_lc_handle_t *plchandle, size_t numlchandles);
+void gasnetex_wait_lc_all (gasnetex_lc_handle_t *plchandle, size_t numlchandles);
+
+// Operate on local completion via LC_GROUP
+int  gasnetex_test_lc_group (void);
+void gasnetex_wait_lc_group (void);
 
 
 // Pre-defined constant used to apply a query to all ranks in the team
