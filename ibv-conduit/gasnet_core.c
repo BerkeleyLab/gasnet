@@ -6,6 +6,7 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
+#include <gasnet_extended_internal.h> /* LC_GROUP needs access to iop, sigh. */
 #if GASNET_BLCR
 #include <gasnet_blcr.h>
 #endif
@@ -3476,15 +3477,39 @@ extern int gasnetc_AMRequestLongM(
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTLONG(team,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
-  gasneti_lc_opt_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
+  {
+    gasnetc_counter_t    mem_oust = GASNETC_COUNTER_INITIALIZER;
+    gasnetc_atomic_val_t *mem_initiated_p;
+    gasnetc_atomic_t     *mem_completed_p;
+
+    if (gasneti_lc_is_pointer(lc_opt)) {
+      gasneti_fatalerror("RequestLong(lc_opt pointer) unimplemented"); // TODO-EX: fix this
+    } else if (lc_opt == GASNETEX_LC_INIT) {
+      mem_initiated_p = &mem_oust.initiated;
+      mem_completed_p = &mem_oust.completed;
+    } else if (lc_opt == GASNETEX_LC_GROUP) {
+      gasnete_threaddata_t * const mythread = gasnete_mythread(); // TODO-EX: THREADINFO_OPT?
+      gasnete_iop_t *op = mythread->current_iop;
+      mem_initiated_p = &op->initiated_alc_cnt;
+      mem_completed_p = &op->completed_alc_cnt;
+    #if GASNET_DEBUG
+      SET_IOPSTATE(op, IOPSTATE_LC_GROUP);
+    #endif
+    } else {
+      gasneti_fatalerror("Invalid lc_opt argument to RequestLong");
+    }
+
     retval = gasnetc_RequestGeneric(gasnetc_Long, rank, handler,
 		  		  source_addr, nbytes, dest_addr,
-				  numargs, &mem_oust.initiated, &mem_oust.completed,
+				  numargs, mem_initiated_p, mem_completed_p,
 				  NULL, argptr);
 
-    /* block for completion of RDMA transfer */
-    gasnetc_counter_wait(&mem_oust, 0);
+    if (lc_opt == GASNETEX_LC_INIT) {
+      /* block for completion of RDMA transfer */
+      gasnetc_counter_wait(&mem_oust, 0);
+    }
+  }
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -3535,21 +3560,42 @@ extern int gasnetc_AMReplyLongM(
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
-  gasneti_lc_opt_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
   #if GASNETC_PIN_SEGMENT
   {
-    gasnetc_counter_t mem_oust = GASNETC_COUNTER_INITIALIZER;
+    gasnetc_counter_t    mem_oust = GASNETC_COUNTER_INITIALIZER;
+    gasnetc_atomic_val_t *mem_initiated_p;
+    gasnetc_atomic_t     *mem_completed_p;
+
+    if (gasneti_lc_is_pointer(lc_opt)) {
+      gasneti_fatalerror("ReplyLong(lc_opt pointer) unimplemented"); // TODO-EX: fix this
+    } else if (lc_opt == GASNETEX_LC_INIT) {
+      mem_initiated_p = &mem_oust.initiated;
+      mem_completed_p = &mem_oust.completed;
+    } else if (lc_opt == GASNETEX_LC_GROUP) {
+      gasnete_threaddata_t * const mythread = gasnete_mythread(); // TODO-EX: THREADINFO_OPT?
+      gasnete_iop_t *op = mythread->current_iop;
+      mem_initiated_p = &op->initiated_alc_cnt;
+      mem_completed_p = &op->completed_alc_cnt;
+    #if GASNET_DEBUG
+      SET_IOPSTATE(op, IOPSTATE_LC_GROUP);
+    #endif
+    } else {
+      gasneti_fatalerror("Invalid lc_opt argument to ReplyLong");
+    }
 
     retval = gasnetc_ReplyGeneric(gasnetc_Long, token, handler,
 		  		  source_addr, nbytes, dest_addr,
-				  numargs, &mem_oust.initiated, &mem_oust.completed,
+				  numargs, mem_initiated_p, mem_completed_p,
 				  NULL, argptr);
 
-    /* block for completion of RDMA transfer */
-    gasnetc_counter_wait(&mem_oust, 1 /* calling from a request handler */);
+    if (lc_opt == GASNETEX_LC_INIT) {
+      /* block for completion of RDMA transfer */
+      gasnetc_counter_wait(&mem_oust, 1 /* calling from a request handler */);
+    }
   }
   #else
+  gasneti_lc_opt_finish(lc_opt); // Always "packed long", and thus locally-complete
   retval = gasnetc_ReplyGeneric(gasnetc_Long, token, handler,
 		  		source_addr, nbytes, dest_addr,
 				numargs, NULL, NULL, NULL, argptr);
