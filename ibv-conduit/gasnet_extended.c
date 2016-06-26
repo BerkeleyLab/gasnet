@@ -401,23 +401,29 @@ gasnetex_handle_t gasnete_put_nb(
   GASNETI_CHECKPSHM_PUT(H);
  {
   gasnete_eop_t *op = _gasnete_eop_new(GASNETE_MYTHREAD);
-  gasnetc_counter_t mem_counter = GASNETC_COUNTER_INITIALIZER;
-  gasnetc_counter_t *mem_oust = NULL;
+  gasnetc_counter_t    mem_oust = GASNETC_COUNTER_INITIALIZER;
+  gasnetc_atomic_val_t *mem_initiated_p;
+  gasnetc_atomic_t     *mem_completed_p;
 
   /* XXX check error returns */
 
   if (gasneti_lc_is_pointer(lc_opt)) {
     gasneti_fatalerror("Put_nb(lc_opt pointer) unimplemented"); // TODO-EX: fix this
   } else if (lc_opt == GASNETEX_LC_INIT) {
-    mem_oust = &mem_counter;
+    mem_initiated_p = &mem_oust.initiated;
+    mem_completed_p = &mem_oust.completed;
   } else if (lc_opt == GASNETEX_LC_SYNC) {
-    mem_oust = NULL;
+    mem_initiated_p = NULL;
+    mem_completed_p = NULL;
   } else {
     gasneti_fatalerror("Invalid lc_opt argument to Put_nb");
   }
 
-  gasnetc_rdma_put(rank, src, dest, nbytes, mem_oust, GASNETE_EOP_CNTRS(op) GASNETE_THREAD_PASS);
-  if (lc_opt == GASNETEX_LC_INIT) gasnetc_counter_wait(mem_oust, 0);
+  gasnetc_rdma_put(rank, src, dest, nbytes,
+                   mem_initiated_p, mem_completed_p,
+                   GASNETE_EOP_CNTRS(op)
+                   GASNETE_THREAD_PASS);
+  if (lc_opt == GASNETEX_LC_INIT) gasnetc_counter_wait(&mem_oust, 0);
 
   return (gasnetex_handle_t)op;
  }
@@ -643,8 +649,8 @@ extern int gasnete_test_lc_group (GASNETE_THREAD_FARG_ALONE) {
      gasnete_put_nbi
 */
 
-#define GASNETE_IOP_CNTRS(_iop,_putget) \
-        &(_iop)->initiated_##_putget##_cnt, &(_iop)->completed_##_putget##_cnt
+#define GASNETE_IOP_CNTRS(_iop,_name) \
+        &(_iop)->initiated_##_name##_cnt, &(_iop)->completed_##_name##_cnt
 
 extern
 int gasnete_get_nbi (gasnetex_team_member_t team,
@@ -675,23 +681,29 @@ int gasnete_put_nbi (gasnetex_team_member_t team,
  {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *op = mythread->current_iop;
-  gasnetc_counter_t mem_counter = GASNETC_COUNTER_INITIALIZER;
-  gasnetc_counter_t *mem_oust = NULL;
+  gasnetc_counter_t    mem_oust = GASNETC_COUNTER_INITIALIZER;
+  gasnetc_atomic_val_t *mem_initiated_p;
+  gasnetc_atomic_t     *mem_completed_p;
 
   /* XXX check error returns */ 
 
   if (lc_opt == GASNETEX_LC_GROUP) {
     gasneti_fatalerror("Put_nbi(LC_GROUP) unimplemented"); // TODO-EX: fix this
   } else if (lc_opt == GASNETEX_LC_INIT) {
-    mem_oust = &mem_counter;
+    mem_initiated_p = &mem_oust.initiated;
+    mem_completed_p = &mem_oust.completed;
   } else if (lc_opt == GASNETEX_LC_SYNC) {
-    mem_oust = NULL;
+    mem_initiated_p = NULL;
+    mem_completed_p = NULL;
   } else {
     gasneti_fatalerror("Invalid lc_opt argument to Put_nbi");
   }
 
-  gasnetc_rdma_put(rank, src, dest, nbytes, mem_oust, GASNETE_IOP_CNTRS(op,put) GASNETE_THREAD_PASS);
-  if (lc_opt == GASNETEX_LC_INIT) gasnetc_counter_wait(mem_oust, 0);
+  gasnetc_rdma_put(rank, src, dest, nbytes,
+                   mem_initiated_p, mem_completed_p,
+                   GASNETE_IOP_CNTRS(op,put)
+                   GASNETE_THREAD_PASS);
+  if (lc_opt == GASNETEX_LC_INIT) gasnetc_counter_wait(&mem_oust, 0);
   return 0;
  }
 }
@@ -829,7 +841,10 @@ extern int gasnete_put  (gasnetex_team_member_t team,
   GASNETI_CHECKPSHM_PUT(I);
  {
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
-  gasnetc_rdma_put(rank, src, dest, nbytes, NULL, GASNETE_REQ_CNTRS(req_oust) GASNETE_THREAD_PASS);
+  gasnetc_rdma_put(rank, src, dest, nbytes,
+                   NULL, NULL,
+                   GASNETE_REQ_CNTRS(req_oust)
+                   GASNETE_THREAD_PASS);
   gasnetc_counter_wait(&req_oust, 0);
   return 0;
  }
@@ -990,7 +1005,8 @@ void gasnete_ibdbarrier_send(gasnete_coll_ibdbarrier_t *barrier_data,
       *(uint64_t*)gasneti_pshm_addr2local(node, dst) = msg;
     } else
 #endif
-    (void) gasnetc_rdma_put(node, (void*)payload, dst, sizeof(*payload), NULL, NULL, NULL GASNETE_THREAD_PASS);
+    (void) gasnetc_rdma_put(node, (void*)payload, dst, sizeof(*payload),
+                            NULL, NULL, NULL, NULL GASNETE_THREAD_PASS);
   }
 }
 
