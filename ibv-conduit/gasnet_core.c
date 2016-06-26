@@ -3438,7 +3438,7 @@ extern int gasnetc_AMRequestShortM(
   va_start(argptr, numargs); /*  pass in last argument */
   retval = gasnetc_RequestGeneric(gasnetc_Short, rank, handler,
 		  		  NULL, 0, NULL,
-				  numargs, NULL, NULL, argptr);
+				  numargs, NULL, NULL, NULL, argptr);
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -3458,7 +3458,7 @@ extern int gasnetc_AMRequestMediumM(
   va_start(argptr, numargs); /*  pass in last argument */
   retval = gasnetc_RequestGeneric(gasnetc_Medium, rank, handler,
 		  		  source_addr, nbytes, NULL,
-				  numargs, NULL, NULL, argptr);
+				  numargs, NULL, NULL, NULL, argptr);
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -3480,7 +3480,8 @@ extern int gasnetc_AMRequestLongM(
   va_start(argptr, numargs); /*  pass in last argument */
     retval = gasnetc_RequestGeneric(gasnetc_Long, rank, handler,
 		  		  source_addr, nbytes, dest_addr,
-				  numargs, &mem_oust, NULL, argptr);
+				  numargs, &mem_oust.initiated, &mem_oust.completed,
+				  NULL, argptr);
 
     /* block for completion of RDMA transfer */
     gasnetc_counter_wait(&mem_oust, 0);
@@ -3499,7 +3500,7 @@ extern int gasnetc_AMReplyShortM(
   va_start(argptr, numargs); /*  pass in last argument */
   retval = gasnetc_ReplyGeneric(gasnetc_Short, token, handler,
 		  		NULL, 0, NULL,
-				numargs, NULL, NULL, argptr);
+				numargs, NULL, NULL, NULL, argptr);
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -3518,7 +3519,7 @@ extern int gasnetc_AMReplyMediumM(
   va_start(argptr, numargs); /*  pass in last argument */
   retval = gasnetc_ReplyGeneric(gasnetc_Medium, token, handler,
 		  		source_addr, nbytes, NULL,
-				numargs, NULL, NULL, argptr);
+				numargs, NULL, NULL, NULL, argptr);
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -3542,7 +3543,8 @@ extern int gasnetc_AMReplyLongM(
 
     retval = gasnetc_ReplyGeneric(gasnetc_Long, token, handler,
 		  		  source_addr, nbytes, dest_addr,
-				  numargs, &mem_oust, NULL, argptr);
+				  numargs, &mem_oust.initiated, &mem_oust.completed,
+				  NULL, argptr);
 
     /* block for completion of RDMA transfer */
     gasnetc_counter_wait(&mem_oust, 1 /* calling from a request handler */);
@@ -3550,7 +3552,7 @@ extern int gasnetc_AMReplyLongM(
   #else
   retval = gasnetc_ReplyGeneric(gasnetc_Long, token, handler,
 		  		source_addr, nbytes, dest_addr,
-				numargs, NULL, NULL, argptr);
+				numargs, NULL, NULL, NULL, argptr);
 
   #endif
   va_end(argptr);

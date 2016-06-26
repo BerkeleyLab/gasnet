@@ -648,12 +648,16 @@ extern void gasnetc_sndrcv_poll(int handler_context);
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  gasnetc_epid_t dest, gasnetex_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
-				  int numargs, gasnetc_counter_t *mem_oust,
+				  int numargs,
+				  gasnetc_atomic_val_t *mem_initiated,
+				  gasnetc_atomic_t *mem_completed,
 				  gasnetc_atomic_t *completed, va_list argptr);
 extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 				gasnetex_token_t token, gasnetex_handler_t handler,
 				void *src_addr, int nbytes, void *dst_addr,
-				int numargs, gasnetc_counter_t *mem_oust,
+				int numargs,
+				gasnetc_atomic_val_t *mem_initiated,
+				gasnetc_atomic_t *mem_completed,
 				gasnetc_atomic_t *completed, va_list argptr);
 #if GASNETC_PIN_SEGMENT
   extern int gasnetc_rdma_put(

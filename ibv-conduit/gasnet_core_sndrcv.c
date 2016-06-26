@@ -1903,7 +1903,9 @@ GASNETI_INLINE(gasnetc_ReqRepGeneric)
 int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
 			  gasnetc_epid_t dest, gasnetex_handler_t handler,
 			  void *src_addr, int nbytes, void *dst_addr,
-			  int numargs, gasnetc_counter_t *mem_oust,
+			  int numargs,
+			  gasnetc_atomic_val_t *mem_initiated,
+			  gasnetc_atomic_t *mem_completed,
 			  gasnetc_atomic_t *completed, va_list argptr) {
 #if GASNETC_IBV_SHUTDOWN
   /* Currently only the shutdown code uses dest to specify a "bound" value */
@@ -2075,8 +2077,6 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
 	  packedlong = 1;
         } else {
           /* XXX check for error returns */
-          gasnetc_atomic_val_t *mem_initiated = mem_oust ? &mem_oust->initiated : NULL;
-          gasnetc_atomic_t *mem_completed     = mem_oust ? &mem_oust->completed : NULL;
           #if GASNETC_PIN_SEGMENT
 	    /* Queue the RDMA.  We can count on point-to-point ordering to deliver payload before header */
             (void)gasnetc_rdma_put(epid, src_addr, dst_addr, nbytes, mem_initiated, mem_completed, NULL, NULL GASNETE_THREAD_PASS);
@@ -4094,7 +4094,9 @@ extern int gasnetc_rdma_get(gasnetc_epid_t epid, void *src_ptr, void *dst_ptr, s
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  gasnetc_epid_t dest, gasnetex_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
-				  int numargs, gasnetc_counter_t *mem_oust,
+				  int numargs,
+				  gasnetc_atomic_val_t *mem_initiated,
+				  gasnetc_atomic_t *mem_completed,
 				  gasnetc_atomic_t *completed, va_list argptr) {
 #if GASNET_PSHM
   const gasnetex_rank_t node = gasnetc_epid2node(dest);
@@ -4117,13 +4119,15 @@ extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 
   return gasnetc_ReqRepGeneric(category, NULL, dest, handler,
                                src_addr, nbytes, dst_addr,
-                               numargs, mem_oust, completed, argptr);
+                               numargs, mem_initiated, mem_completed, completed, argptr);
 }
 
 extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 				gasnetex_token_t token, gasnetex_handler_t handler,
 				void *src_addr, int nbytes, void *dst_addr,
-				int numargs, gasnetc_counter_t *mem_oust,
+				int numargs,
+				gasnetc_atomic_val_t *mem_initiated,
+				gasnetc_atomic_t *mem_completed,
 				gasnetc_atomic_t *completed, va_list argptr) {
   gasnetc_rbuf_t *rbuf = (gasnetc_rbuf_t *)token;
   int retval;
@@ -4143,7 +4147,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 
   retval = gasnetc_ReqRepGeneric(category, rbuf, GASNETC_MSG_SRCIDX(rbuf->rbuf_flags), handler,
 				 src_addr, nbytes, dst_addr,
-				 numargs, mem_oust, completed, argptr);
+				 numargs, mem_initiated, mem_completed, completed, argptr);
 
   rbuf->rbuf_needReply = 0;
   return retval;
@@ -4161,7 +4165,7 @@ extern int gasnetc_RequestSysShort(gasnetc_epid_t dest,
   va_start(argptr, numargs);
   retval = gasnetc_RequestGeneric(gasnetc_Short, dest, handler,
                                   NULL, 0, NULL,
-                                  numargs, NULL, completed, argptr);
+                                  numargs, NULL, NULL, completed, argptr);
   va_end(argptr);
   return retval;
 }
@@ -4179,7 +4183,7 @@ extern int gasnetc_RequestSysMedium(gasnetc_epid_t dest,
   va_start(argptr, numargs);
   retval = gasnetc_RequestGeneric(gasnetc_Medium, dest, handler,
                                   source_addr, nbytes, NULL,
-                                  numargs, NULL, completed, argptr);
+                                  numargs, NULL, NULL, completed, argptr);
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -4196,7 +4200,7 @@ extern int gasnetc_ReplySysShort(gasnetex_token_t token,
   va_start(argptr, numargs);
   retval = gasnetc_ReplyGeneric(gasnetc_Short, token, handler,
                                 NULL, 0, NULL,
-                                numargs, NULL, completed, argptr);
+                                numargs, NULL, NULL, completed, argptr);
   va_end(argptr);
   return retval;
 }
@@ -4214,7 +4218,7 @@ extern int gasnetc_ReplySysMedium(gasnetex_token_t token,
   va_start(argptr, numargs);
   retval = gasnetc_ReplyGeneric(gasnetc_Medium, token, handler,
                                 source_addr, nbytes, NULL,
-                                numargs, NULL, completed, argptr);
+                                numargs, NULL, NULL, completed, argptr);
   va_end(argptr);
   return retval;
 }
