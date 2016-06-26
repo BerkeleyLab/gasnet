@@ -4063,10 +4063,14 @@ extern int gasnetc_rdma_get(gasnetc_epid_t epid, void *src_ptr, void *dst_ptr, s
 #endif
 
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
-				  int dest, gasnetex_handler_t handler,
+				  gasnetc_epid_t dest, gasnetex_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
 				  int numargs, gasnetc_counter_t *mem_oust,
 				  gasnetc_atomic_t *completed, va_list argptr) {
+#if GASNET_PSHM
+  const gasnetex_rank_t node = gasnetc_epid2node(dest);
+#endif
+
   /* ensure progress */
   gasnetc_poll_rcv();
   if (! completed) {
@@ -4075,8 +4079,8 @@ extern int gasnetc_RequestGeneric(gasnetc_category_t category,
   }
 
 #if GASNET_PSHM
-  if_pt (gasneti_pshm_in_supernode(dest)) {
-    return gasneti_AMPSHM_RequestGeneric(category, dest, handler,
+  if_pt (gasneti_pshm_in_supernode(node)) {
+    return gasneti_AMPSHM_RequestGeneric(category, node, handler,
                                          src_addr, nbytes, dst_addr,
                                          numargs, argptr);
   }

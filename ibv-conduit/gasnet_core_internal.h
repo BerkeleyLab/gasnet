@@ -646,7 +646,7 @@ extern gasnetc_amrdma_send_t *gasnetc_amrdma_send_alloc(uint32_t rkey, void *add
 extern gasnetc_amrdma_recv_t *gasnetc_amrdma_recv_alloc(gasnetc_hca_t *hca);
 extern void gasnetc_sndrcv_poll(int handler_context);
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
-				  int dest, gasnetex_handler_t handler,
+				  gasnetc_epid_t dest, gasnetex_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
 				  int numargs, gasnetc_counter_t *mem_oust,
 				  gasnetc_atomic_t *completed, va_list argptr);
