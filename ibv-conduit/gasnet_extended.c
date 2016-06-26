@@ -688,7 +688,11 @@ int gasnete_put_nbi (gasnetex_team_member_t team,
   /* XXX check error returns */ 
 
   if (lc_opt == GASNETEX_LC_GROUP) {
-    gasneti_fatalerror("Put_nbi(LC_GROUP) unimplemented"); // TODO-EX: fix this
+  #if GASNET_DEBUG
+    SET_IOPSTATE(op, IOPSTATE_LC_GROUP);
+  #endif
+    mem_initiated_p = &op->initiated_alc_cnt;
+    mem_completed_p = &op->completed_alc_cnt;
   } else if (lc_opt == GASNETEX_LC_INIT) {
     mem_initiated_p = &mem_oust.initiated;
     mem_completed_p = &mem_oust.completed;
