@@ -4062,38 +4062,6 @@ extern int gasnetc_rdma_get(gasnetc_epid_t epid, void *src_ptr, void *dst_ptr, s
 }
 #endif
 
-#if 0 /* Putv and Getv UNUSED */
-/* Putv - contiguous remote dst, vector local src
- *
- * Initial naive implementation
- */
-extern int gasnetc_rdma_putv(gasnetc_epid_t epid, size_t srccount, gasnet_memvec_t const srclist[], void *dst_ptr, gasnetc_counter_t *mem_oust, gasnetc_atomic_val_t *initiated, gasnetc_atomic_t *completed GASNETE_THREAD_FARG) {
-  while (srccount) {
-    /* XXX: check return value for errors */
-    (void)gasnetc_rdma_put(epid, srclist->addr, dst_ptr, srclist->len, mem_oust, initiated, completed GASNETE_THREAD_PASS);
-    --srccount;
-    ++srclist;
-  }
-
-  return 0;
-}
-
-/* Getv - contiguous remote src, vector local dst
- *
- * Initial naive implementation
- */
-extern int gasnetc_rdma_getv(gasnetc_epid_t epid, void *src_ptr, size_t dstcount, gasnet_memvec_t const dstlist[], gasnetc_atomic_val_t *initiated, gasnetc_atomic_t *completed GASNETE_THREAD_FARG) {
-  while (dstcount) {
-    /* XXX: check return value for errors */
-    (void)gasnetc_rdma_get(epid, src_ptr, dstlist->addr, dstlist->len, initiated, completed GASNETE_THREAD_PASS);
-    --dstcount;
-    ++dstlist;
-  }
-
-  return 0;
-}
-#endif
-
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  int dest, gasnetex_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,

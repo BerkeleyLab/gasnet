@@ -665,11 +665,6 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 #endif
 extern int gasnetc_rdma_get(gasnetc_epid_t epid, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_atomic_val_t *initiated, gasnetc_atomic_t *completed GASNETE_THREAD_FARG);
 
-#if 0 /* Putv and Getv are unused */
-extern int gasnetc_rdma_putv(gasnetc_epid_t epid, size_t srccount, gasnet_memvec_t const srclist[], void *dst_ptr, gasnetc_counter_t *mem_oust, gasnetc_atomic_val_t *initiated, gasnetc_atomic_t *completed GASNETE_THREAD_FARG);
-extern int gasnetc_rdma_getv(gasnetc_epid_t epid, void *src_ptr, size_t dstcount, gasnet_memvec_t const dstlist[], gasnetc_atomic_val_t *initiated, gasnetc_atomic_t *completed GASNETE_THREAD_FARG);
-#endif
-
 /* Routines in gasnet_core_thread.c */
 #if GASNETI_CONDUIT_THREADS
 extern void gasnetc_spawn_progress_thread(gasnetc_progress_thread_t *pthr);
