@@ -142,8 +142,10 @@ static gasnete_iop_t *gasnete_iop_alloc(gasnete_threaddata_t * const thread)) {
     iop->flags = OPTYPE_IMPLICIT;
 #endif
     iop->threadidx = thread->threadidx;
+    iop->initiated_alc_cnt = 0;
     iop->initiated_get_cnt = 0;
     iop->initiated_put_cnt = 0;
+    gasneti_weakatomic_set(&(iop->completed_alc_cnt), 0, 0);
     gasneti_weakatomic_set(&(iop->completed_get_cnt), 0, 0);
     gasneti_weakatomic_set(&(iop->completed_put_cnt), 0, 0);
     return iop;
@@ -197,11 +199,14 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
     gasneti_assert(iop->threadidx == thread->threadidx);
     /* If using trace or stats, want meaningful counts when tracing NBI access regions */
     #if GASNETI_STATS_OR_TRACE
+      iop->initiated_alc_cnt = 0;
       iop->initiated_get_cnt = 0;
       iop->initiated_put_cnt = 0;
+      gasneti_weakatomic_set(&(iop->completed_alc_cnt), 0, 0);
       gasneti_weakatomic_set(&(iop->completed_get_cnt), 0, 0);
       gasneti_weakatomic_set(&(iop->completed_put_cnt), 0, 0);
     #endif
+    SET_IOPSTATE(iop, IOPSTATE_LC_NONE);
   } else {
     iop = gasnete_iop_alloc(thread);
   }
@@ -218,12 +223,23 @@ int gasnete_eop_isdone(gasnete_eop_t *eop) {
   return GASNETE_EOP_DONE(eop);
 }
 
-/*  query an iop for completeness - this means both puts and gets */
+/*  query an iop (returned from end_nbi_accessregion) for completeness -
+ *  this always means both puts and gets, and may mean LC too */
 static
 int gasnete_iop_isdone(gasnete_iop_t *iop) {
+  int result;
   gasneti_assert(iop->threadidx == gasnete_mythread()->threadidx);
   gasnete_iop_check(iop);
-  return (GASNETE_IOP_CNTDONE(iop,get) && GASNETE_IOP_CNTDONE(iop,put));
+  #if GASNET_DEBUG
+    if (IOPSTATE(iop) == IOPSTATE_LC_GROUP) // TODO-EX: better wording?
+      gasneti_fatalerror("VIOLATION: attempted to call syncnb on an NBI access region handle before locally-complete");
+  #endif
+  result = (GASNETE_IOP_CNTDONE(iop,get) && GASNETE_IOP_CNTDONE(iop,put) &&
+          ((IOPSTATE(iop) == IOPSTATE_LC_NONE) || GASNETE_IOP_CNTDONE(iop,alc)));
+  #if GASNET_DEBUG
+    if (result) SET_IOPSTATE(iop, IOPSTATE_LC_NONE);
+  #endif
+  return result;
 }
 
 /*  mark an op done - isget ignored for explicit ops */
@@ -302,8 +318,10 @@ void gasnete_iop_free(gasnete_iop_t *iop) {
   gasnete_threaddata_t * const thread = gasnete_threadtable[iop->threadidx];
   gasneti_assert(thread == gasnete_mythread());
   gasnete_iop_check(iop);
+  gasneti_assert(GASNETE_IOP_CNTDONE(iop,alc));
   gasneti_assert(GASNETE_IOP_CNTDONE(iop,get));
   gasneti_assert(GASNETE_IOP_CNTDONE(iop,put));
+  gasneti_assert(IOPSTATE(iop) == IOPSTATE_LC_NONE);
   gasneti_assert(iop->next == NULL);
   iop->next = thread->iop_free;
   thread->iop_free = iop;
@@ -747,6 +765,130 @@ extern int  gasnete_test_syncnb_all (gasnetex_handle_t *phandle, size_t numhandl
 
 /* ------------------------------------------------------------------------------------ */
 /*
+  Operations on local-completion handles
+  ======================================
+*/
+
+/* This implementation assumes that ganetex_lc_handle_t is a pointer to
+   either an eop or an iop, exactly as with gasnetex_handle_t.
+
+   In the eop case, one may choose a design in which the eop will be the
+   same eop as was returned to the client as the gasnetex_handle_t, or it
+   could be a distinct one used just for local completion tracking.  There
+   is exactly one place where this design choice matters (the optional
+   call to gasnete_eop_free() in gasnete_lc_try_free()).
+*/
+
+/*  query an op for local-completeness
+ *  free it if complete (and appropriate)
+ *  returns 0 or 1 */
+GASNETI_INLINE(gasnete_lc_try_free)
+int gasnete_lc_try_free(gasnetex_lc_handle_t lchandle) {
+  gasnete_op_t *op = (gasnete_op_t *)lchandle;
+
+  gasneti_assert(op->threadidx == gasnete_mythread()->threadidx);
+  if_pt (OPTYPE(op) == OPTYPE_EXPLICIT) {
+    gasnete_eop_t *eop = (gasnete_eop_t*)op;
+#if 0 // TODO-EX: define LC on eop
+    gasneti_assert(this-eop-is-a-vaild-lc-handle)
+
+    if (this-eop-is-locally-complete) {
+    #if 0 // Call gasnete_eop_free() ONLY if using distinct eops for NB and LC handles
+      gasneti_sync_reads(); // Only as needed to ensure eop_free observes correct metadata
+      gasnete_eop_free(eop); // Can the sync_reads (if any) move inside?
+    #else
+      gasneti_compiler_fence(); // TODO-EX: revisit this
+    #endif
+      return 1;
+    }
+#else
+    gasneti_fatalerror("Unimplemented: test_lc on eop");
+#endif
+  } else {
+    gasnete_iop_t *iop = (gasnete_iop_t*)op;
+    gasneti_assert(IOPSTATE(iop) == IOPSTATE_LC_GROUP);
+
+    if (GASNETE_IOP_CNTDONE(iop,alc)) {
+      #if GASNET_DEBUG
+        SET_IOPSTATE(iop, IOPSTATE_LC_NONE);
+      #endif
+      gasneti_compiler_fence(); // TODO-EX: revisit this
+      return 1;
+    }
+  }
+  return 0;
+}
+
+/*  query an op for local-completeness
+ *  free it and clear the handle if complete
+ *  returns 0 or 1 */
+GASNETI_INLINE(gasnete_lc_try_free_clear)
+int gasnete_lc_try_free_clear(gasnetex_lc_handle_t *lchandle_p) {
+  if (gasnete_lc_try_free(*lchandle_p)) {
+    *lchandle_p = GASNETEX_INVALID_LC_HANDLE;
+    return 1;
+  }
+  return 0;
+}
+
+extern int  gasnete_test_lc(gasnetex_lc_handle_t lchandle) {
+  return gasnete_lc_try_free(lchandle) ? GASNET_OK : GASNET_ERR_NOT_READY;
+}
+
+extern int  gasnete_test_lc_some (gasnetex_lc_handle_t *plchandle, size_t numlchandles) {
+  int success = 0;
+  int empty = 1;
+
+  gasneti_assert(plchandle);
+
+  { int i;
+    for (i = 0; i < numlchandles; i++) {
+      if (plchandle[i] != GASNETEX_INVALID_LC_HANDLE) {
+        empty = 0;
+        success |= gasnete_lc_try_free_clear(&plchandle[i]);
+      }
+    }
+  }
+
+  return (success || empty) ? GASNET_OK : GASNET_ERR_NOT_READY;
+}
+
+extern int  gasnete_test_lc_all (gasnetex_lc_handle_t *plchandle, size_t numlchandles) {
+  int success = 1;
+
+  gasneti_assert(plchandle);
+
+  { int i;
+    for (i = 0; i < numlchandles; i++) {
+      if (plchandle[i] != GASNETEX_INVALID_LC_HANDLE) {
+        success &= gasnete_lc_try_free_clear(&plchandle[i]);
+      }
+    }
+  }
+
+  return success ? GASNET_OK : GASNET_ERR_NOT_READY;
+}
+
+
+extern int gasnete_test_lc_group (GASNETE_THREAD_FARG_ALONE) {
+  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+  gasnete_iop_t *iop = mythread->current_iop;
+  gasneti_assert(iop->threadidx == mythread->threadidx);
+  gasneti_assert(iop->next == NULL);
+  gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
+  #if GASNET_DEBUG
+    if (iop->next != NULL)
+      gasneti_fatalerror("VIOLATION: attempted to call gasnete_test_lc_group() inside an NBI access region");
+  #endif
+
+    if (GASNETE_IOP_CNTDONE(iop,alc)) {
+      gasneti_compiler_fence(); // TODO-EX: revisit this
+      return GASNET_OK;
+    } else return GASNET_ERR_NOT_READY;
+}
+
+/* ------------------------------------------------------------------------------------ */
+/*
   Non-blocking memory-to-memory transfers (implicit handle)
   ==========================================================
   each completion increments a counter - we compare this to the  number of implicit ops launched
@@ -852,7 +994,10 @@ extern int  gasnete_test_syncnbi_puts(GASNETE_THREAD_FARG_ALONE)
         gasneti_fatalerror("VIOLATION: attempted to call gasnete_test_syncnbi_puts() inside an NBI access region");
     #endif
 
-    if (GASNETE_IOP_CNTDONE(iop,put)) {
+    // If any put_nbi calls passed LC_SYNC then we need to complete their LC too.
+    // Since we don't track LC_SYNC calls separately, and since one expects LC before
+    // RC to be the common case, it is simple/cheap to sync LC here unconditionally.
+    if (GASNETE_IOP_CNTDONE(iop,put) && GASNETE_IOP_CNTDONE(iop,alc)) {
       gasneti_sync_reads();
       return GASNET_OK;
     } else return GASNET_ERR_NOT_READY;
@@ -865,7 +1010,7 @@ extern int  gasnete_test_syncnbi_puts(GASNETE_THREAD_FARG_ALONE)
 */
 /*  This implementation allows recursive access regions, although the spec does not require that */
 /*  operations are associated with the most immediately enclosing access region */
-extern void            gasnete_begin_nbi_accessregion(int allowrecursion GASNETE_THREAD_FARG) {
+extern void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecursion GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *iop = gasnete_iop_new(mythread); /*  push an iop  */
   GASNETI_TRACE_PRINTF(S,("BEGIN_NBI_ACCESSREGION"));
@@ -877,10 +1022,36 @@ extern void            gasnete_begin_nbi_accessregion(int allowrecursion GASNETE
   mythread->current_iop = iop;
 }
 
-extern gasnetex_handle_t gasnete_end_nbi_accessregion(GASNETE_THREAD_FARG_ALONE) {
+extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_lc_handle_t *lc_opt, gasnetex_flags_t flags GASNETE_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop; /*  pop an iop */
   GASNETI_TRACE_EVENT_VAL(S,END_NBI_ACCESSREGION,iop->initiated_get_cnt + iop->initiated_put_cnt);
+
+  gasneti_assert(lc_opt != GASNETEX_LC_GROUP); // TODO-EX: allow this if we nest access region?
+  if (GASNETE_IOP_CNTDONE(iop,alc)) {
+    if (lc_opt) gasneti_lc_opt_finish(lc_opt);
+    #if GASNET_DEBUG
+      SET_IOPSTATE(iop, IOPSTATE_LC_NONE);
+    #endif
+  } else {
+    gasneti_assert(IOPSTATE(iop) == IOPSTATE_LC_GROUP);
+    #if GASNET_DEBUG
+      if (lc_opt == NULL) // TODO-EX: better wording?
+        gasneti_fatalerror("VIOLATION: call to gasnete_end_nbi_accessregion(lc_opt==NULL,...) with local completion outstanding");
+    #endif
+    if (lc_opt == GASNETEX_LC_INIT) {
+      gasneti_polluntil(GASNETE_IOP_CNTDONE(iop,alc));
+      #if GASNET_DEBUG
+        SET_IOPSTATE(iop, IOPSTATE_LC_NONE);
+      #endif
+    } else if (lc_opt == GASNETEX_LC_SYNC) {
+      SET_IOPSTATE(iop, IOPSTATE_LC_SYNC);
+    } else {
+      gasneti_assert(gasneti_lc_is_pointer(lc_opt));
+      *lc_opt = (gasnetex_lc_handle_t)iop;
+    }
+  }
+
   #if GASNET_DEBUG
     if (iop->next == NULL)
       gasneti_fatalerror("VIOLATION: call to gasnete_end_nbi_accessregion() outside access region");
