@@ -3494,7 +3494,7 @@ extern int gasnetc_AMRequestLongM(
       mem_initiated_p = &op->initiated_alc_cnt;
       mem_completed_p = &op->completed_alc_cnt;
     #if GASNET_DEBUG
-      SET_IOPSTATE(op, IOPSTATE_LC_GROUP);
+      SET_LCSTATE(op, LCSTATE_LIVE);
     #endif
     } else {
       gasneti_fatalerror("Invalid lc_opt argument to RequestLong");
@@ -3578,7 +3578,7 @@ extern int gasnetc_AMReplyLongM(
       mem_initiated_p = &op->initiated_alc_cnt;
       mem_completed_p = &op->completed_alc_cnt;
     #if GASNET_DEBUG
-      SET_IOPSTATE(op, IOPSTATE_LC_GROUP);
+      SET_LCSTATE(op, LCSTATE_LIVE);
     #endif
     } else {
       gasneti_fatalerror("Invalid lc_opt argument to ReplyLong");

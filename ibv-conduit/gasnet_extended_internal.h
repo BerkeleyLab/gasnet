@@ -136,21 +136,26 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
 #define OPFLAG_CONDUIT1 0x08
 #define OPFLAG_CONDUIT2 0x10
 
-/*  IOP state - only valid for implicit ops */
-#define IOPSTATE_LC_NONE   0 /*  iop has NO local completion state */
-#define IOPSTATE_LC_GROUP  1 /*  iop has local competion state - merged with NONE in NDEBUG builds */
-#define IOPSTATE_LC_SYNC   2 /*  iop was returned from end_nbi_accessregion(LC_SYNC) w/ LC outstanding */
-#define IOPSTATE(iop) (gasneti_assert(OPTYPE(iop)==OPTYPE_IMPLICIT), ((iop)->flags & 0x03))
-GASNETI_INLINE(SET_IOPSTATE)
-void SET_IOPSTATE(gasnete_iop_t *op, uint8_t state) {
-  gasneti_assert((state & 0x03) == state);
-#if 0 // Fully general
-  op->flags = (op->flags & 0xFC) | state;
-#else // Correct only because nothing else is using 'flags' in the iop
-  gasneti_assert((op->flags & 0xFC) == OPTYPE_IMPLICIT);
-  op->flags = OPTYPE_IMPLICIT | state;
+/*  Local Completion (LC) state */
+#define LCSTATE_NONE   0 /*  op has NO local completion state */
+#define LCSTATE_LIVE   1 /*  op has competion state - only used in DEBUG builds */
+#define LCSTATE_SYNC   2 /*  op is an iop returned from end_nbi_accessregion(LC_SYNC) w/ LC outstanding */
+#if 0 // Fully general implementation
+  #define LCSTATE(op) ((op)->flags2 & 0x03))
+  GASNETI_INLINE(SET_LCSTATE_)
+  void SET_LCSTATE_(gasnete_op_t *op, uint8_t state) {
+    gasneti_assert((state & 0x03) == state);
+    op->flags2 = (op->flags2 & 0xFC) | state;
+  }
+#else // Cheaper, but correct only because nothing else is using 'flags2'
+  #define LCSTATE(op) ((op)->flags2)
+  GASNETI_INLINE(SET_LCSTATE_)
+  void SET_LCSTATE_(gasnete_op_t *op, uint8_t state) {
+    gasneti_assert((state & 0x03) == state);
+    op->flags2 = state;
+  }
 #endif
-}
+#define SET_LCSTATE(op,flags) SET_LCSTATE_((gasnete_op_t*)(op),flags)
 
 #if GASNET_DEBUG
   /* check an in-flight/complete eop */

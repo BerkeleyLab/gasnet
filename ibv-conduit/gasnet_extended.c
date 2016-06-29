@@ -145,7 +145,7 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
       gasnetc_atomic_set(&(iop->completed_get_cnt), 0, 0);
       gasnetc_atomic_set(&(iop->completed_put_cnt), 0, 0);
     #endif
-    SET_IOPSTATE(iop, IOPSTATE_LC_NONE);
+    SET_LCSTATE(iop, LCSTATE_NONE);
   } else {
     iop = gasnete_iop_alloc(thread);
   }
@@ -170,13 +170,13 @@ int gasnete_iop_isdone(gasnete_iop_t *iop) {
   gasneti_assert(iop->threadidx == gasnete_mythread()->threadidx);
   gasnete_iop_check(iop);
   #if GASNET_DEBUG
-    if (IOPSTATE(iop) == IOPSTATE_LC_GROUP) // TODO-EX: better wording?
+    if (LCSTATE(iop) == LCSTATE_LIVE) // TODO-EX: better wording?
       gasneti_fatalerror("VIOLATION: attempted to call syncnb on an NBI access region handle before locally-complete");
   #endif
   result = (GASNETE_IOP_CNTDONE(iop,get) && GASNETE_IOP_CNTDONE(iop,put) &&
-          ((IOPSTATE(iop) == IOPSTATE_LC_NONE) || GASNETE_IOP_CNTDONE(iop,alc)));
+          ((LCSTATE(iop) == LCSTATE_NONE) || GASNETE_IOP_CNTDONE(iop,alc)));
   #if GASNET_DEBUG
-    if (result) SET_IOPSTATE(iop, IOPSTATE_LC_NONE);
+    if (result) SET_LCSTATE(iop, LCSTATE_NONE);
   #endif
   return result;
 }
@@ -219,7 +219,7 @@ void gasnete_iop_free(gasnete_iop_t *iop) {
   gasneti_assert(GASNETE_IOP_CNTDONE(iop,alc));
   gasneti_assert(GASNETE_IOP_CNTDONE(iop,get));
   gasneti_assert(GASNETE_IOP_CNTDONE(iop,put));
-  gasneti_assert(IOPSTATE(iop) == IOPSTATE_LC_NONE);
+  gasneti_assert(LCSTATE(iop) == LCSTATE_NONE);
   gasneti_assert(iop->next == NULL);
   iop->next = thread->iop_free;
   thread->iop_free = iop;
@@ -523,11 +523,11 @@ int gasnete_lc_try_free(gasnetex_lc_handle_t lchandle) {
 #endif
   } else {
     gasnete_iop_t *iop = (gasnete_iop_t*)op;
-    gasneti_assert(IOPSTATE(iop) == IOPSTATE_LC_GROUP);
+    gasneti_assert(LCSTATE(iop) == LCSTATE_LIVE);
 
     if (GASNETE_IOP_CNTDONE(iop,alc)) {
       #if GASNET_DEBUG
-        SET_IOPSTATE(iop, IOPSTATE_LC_NONE);
+        SET_LCSTATE(iop, LCSTATE_NONE);
       #endif
       gasneti_compiler_fence(); // TODO-EX: revisit this
       return 1;
@@ -656,7 +656,7 @@ int gasnete_put_nbi (gasnetex_team_member_t team,
 
   if (lc_opt == GASNETEX_LC_GROUP) {
   #if GASNET_DEBUG
-    SET_IOPSTATE(op, IOPSTATE_LC_GROUP);
+    SET_LCSTATE(op, LCSTATE_LIVE);
   #endif
     mem_initiated_p = &op->initiated_alc_cnt;
     mem_completed_p = &op->completed_alc_cnt;
@@ -749,10 +749,10 @@ extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_lc_handle_t *lc_o
   if (GASNETE_IOP_CNTDONE(iop,alc)) {
     if (lc_opt) gasneti_lc_opt_finish(lc_opt);
     #if GASNET_DEBUG
-      SET_IOPSTATE(iop, IOPSTATE_LC_NONE);
+      SET_LCSTATE(iop, LCSTATE_NONE);
     #endif
   } else {
-    gasneti_assert(IOPSTATE(iop) == IOPSTATE_LC_GROUP);
+    gasneti_assert(LCSTATE(iop) == LCSTATE_LIVE);
     #if GASNET_DEBUG
       if (lc_opt == NULL) // TODO-EX: better wording?
         gasneti_fatalerror("VIOLATION: call to gasnete_end_nbi_accessregion(lc_opt==NULL,...) with local completion outstanding");
@@ -760,10 +760,10 @@ extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_lc_handle_t *lc_o
     if (lc_opt == GASNETEX_LC_INIT) {
       gasneti_polluntil(GASNETE_IOP_CNTDONE(iop,alc));
       #if GASNET_DEBUG
-        SET_IOPSTATE(iop, IOPSTATE_LC_NONE);
+        SET_LCSTATE(iop, LCSTATE_NONE);
       #endif
     } else if (lc_opt == GASNETEX_LC_SYNC) {
-      SET_IOPSTATE(iop, IOPSTATE_LC_SYNC);
+      SET_LCSTATE(iop, LCSTATE_SYNC);
     } else {
       gasneti_assert(gasneti_lc_is_pointer(lc_opt));
       *lc_opt = (gasnetex_lc_handle_t)iop;
