@@ -73,7 +73,7 @@ static void gasnete_init_threaddata(gasnete_threaddata_t *threaddata) {
 
   #ifndef GASNETE_NEW_THREADDATA_EOP_INIT
   #define GASNETE_NEW_THREADDATA_EOP_INIT(threaddata) \
-          (threaddata)->eop_free = EOPADDR_NIL
+          (threaddata)->eop_free = NULL
   #endif
   GASNETE_NEW_THREADDATA_EOP_INIT(threaddata);
 

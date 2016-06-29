@@ -46,14 +46,18 @@ GASNETI_BEGIN_EXTERNC
 
 #ifdef _GASNETE_THREADIDX_T
    /* conduit override */
-#elif GASNETI_MAX_THREADS <= 256
-  typedef uint8_t gasnete_threadidx_t;
+  #ifndef SIZEOF_GASNETE_THREADIDX_T
+    #error "Must define both _GASNETE_THREADIDX_T and SIZEOF_GASNETE_THREADIDX_T, or neither"
+  #endif
 #elif GASNETI_MAX_THREADS <= 65536
   typedef uint16_t gasnete_threadidx_t;
+  #define SIZEOF_GASNETE_THREADIDX_T 2
 #elif GASNETI_MAX_THREADS <= 4294967296
   typedef uint32_t gasnete_threadidx_t;
+  #define SIZEOF_GASNETE_THREADIDX_T 4
 #else
   typedef uint64_t gasnete_threadidx_t;
+  #define SIZEOF_GASNETE_THREADIDX_T 8
 #endif
 /* returns the runtime size of the thread table (always <= GASNETI_MAX_THREADS) */
 extern uint64_t gasneti_max_threads(void);

@@ -8,7 +8,6 @@
 #include <gasnet_extended_internal.h>
 #include <gasnet_handler.h>
 
-static const gasnete_eopaddr_t EOPADDR_NIL = { { 0xFF, 0xFF } };
 extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 
 #if !GASNETE_EOP_COUNTED
@@ -24,7 +23,6 @@ extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 /*  allocate more eops */
 GASNETI_NEVER_INLINE(gasnete_eop_alloc,
 static void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
-    gasnete_eopaddr_t addr;
     int bufidx = thread->eop_num_bufs;
     gasnete_eop_t *buf;
     int i;
@@ -34,23 +32,15 @@ static void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
     buf = (gasnete_eop_t *)gasneti_calloc(256,sizeof(gasnete_eop_t));
     gasneti_leak(buf);
     for (i=0; i < 256; i++) {
-      addr.bufferidx = bufidx;
+      uint8_t eopidx;
       #if GASNETE_SCATTER_EOPS_ACROSS_CACHELINES
-        #ifdef GASNETE_EOP_MOD
-          addr.eopidx = (i+32) % 255;
-        #else
-          { int k = i+32;
-            addr.eopidx = k > 255 ? k - 255 : k;
-          }
-        #endif
+        int k = i+32; // TODO-EX: revisit the value '32' or remove this if eop fills cache line
+        eopidx = k > 255 ? k - 255 : k;
       #else
-        addr.eopidx = i+1;
+        eopidx = i+1;
       #endif
-      buf[i].threadidx = threadidx;
-      buf[i].addr = addr;
+      EOP_NEXT(buf + i) = buf + eopidx;
       #if 0 /* these can safely be skipped when the values are zero */
-	SET_EOPSTATE(&(buf[i]),EOPSTATE_FREE);
-	SET_OPTYPE(&(buf[i]),OPTYPE_EXPLICIT);
        #if GASNETE_EOP_COUNTED
         buff[i].initiated_cnt = 0;
        #endif
@@ -60,49 +50,24 @@ static void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
       #endif
     }
      /*  add a list terminator */
-    #if GASNETE_SCATTER_EOPS_ACROSS_CACHELINES
-      #ifdef GASNETE_EOP_MOD
-        buf[223].addr.eopidx = 255; /* modular arithmetic messes up this one */
-      #endif
-      buf[255].addr = EOPADDR_NIL;
-    #else
-      buf[255].addr = EOPADDR_NIL;
-    #endif
+    EOP_NEXT(buf + 255) = NULL;
     thread->eop_bufs[bufidx] = buf;
-    addr.bufferidx = bufidx;
-    addr.eopidx = 0;
-    thread->eop_free = addr;
+    thread->eop_free = buf;
 
     #if GASNET_DEBUG
     { /* verify new free list got built correctly */
       int i;
       int seen[256];
-      gasnete_eopaddr_t addr = thread->eop_free;
-
-      #if 0
-      if (gasneti_mynode == 0)
-        for (i=0;i<256;i++) {                                   
-          fprintf(stderr,"%i:  %i: next=%i\n",gasneti_mynode,i,buf[i].addr.eopidx);
-          fflush(stderr);
-        }
-        sleep(5);
-      #endif
+      gasnete_eop_t *eop;
 
       gasneti_memcheck(thread->eop_bufs[bufidx]);
       memset(seen, 0, 256*sizeof(int));
-      for (i=0;i<(bufidx==255?255:256);i++) {                                   
-        gasnete_eop_t *eop;                                   
-        gasneti_assert(!gasnete_eopaddr_isnil(addr));                 
-        eop = GASNETE_EOPADDR_TO_PTR(thread,addr);            
-        gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);               
-        gasneti_assert(EOPSTATE(eop) == EOPSTATE_FREE);
-        gasneti_assert(eop->threadidx == threadidx);                  
-        gasneti_assert(addr.bufferidx == bufidx);
-        gasneti_assert(!seen[addr.eopidx]);/* see if we hit a cycle */
-        seen[addr.eopidx] = 1;
-        addr = eop->addr;                                     
+      for (i=0, eop = buf; i<(bufidx==255?255:256); i++) {
+        gasneti_assert(!seen[eop-buf]);/* see if we hit a cycle */
+        seen[eop-buf] = 1;
+        eop = EOP_NEXT(eop);
       }                                                       
-      gasneti_assert(gasnete_eopaddr_isnil(addr)); 
+      gasneti_assert(eop == NULL);
     }
     #endif
 }
@@ -129,21 +94,24 @@ static gasnete_iop_t *gasnete_iop_alloc(gasnete_threaddata_t * const thread)) {
 /*  get a new op */
 static
 gasnete_eop_t *_gasnete_eop_new(gasnete_threaddata_t * const thread) {
-  gasnete_eopaddr_t head = thread->eop_free;
-  if_pf (gasnete_eopaddr_isnil(head)) {
+  gasnete_eop_t *eop = thread->eop_free;
+  if_pf (!eop) {
     gasnete_eop_alloc(thread);
-    head = thread->eop_free;
+    eop = thread->eop_free;
   }
   {
-    gasnete_eop_t *eop = GASNETE_EOPADDR_TO_PTR(thread, head);
-    thread->eop_free = eop->addr;
-    eop->addr = head;
-    gasneti_assert(!gasnete_eopaddr_equal(thread->eop_free,head));
-    gasneti_assert(eop->threadidx == thread->threadidx);
+    thread->eop_free = EOP_NEXT(eop);
+    eop->flags = (OPTYPE_EXPLICIT | EOPSTATE_FREE);
+    eop->flags2 = 0;
+    if (offsetof(gasnete_eop_t, threadidx) <= sizeof(void*))
+      eop->threadidx = thread->threadidx;
     gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);
     gasneti_assert(EOPSTATE(eop) == EOPSTATE_FREE);
   #if GASNET_DEBUG || !GASNETE_EOP_COUNTED
     SET_EOPSTATE(eop, EOPSTATE_INFLIGHT);
+  #endif
+  #if GASNETE_EOP_COUNTED
+    gasneti_assert(GASNETE_EOP_DONE(eop));
   #endif
     return eop;
   }
@@ -232,15 +200,14 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
 static
 void gasnete_eop_free(gasnete_eop_t *eop) {
   gasnete_threaddata_t * const thread = gasnete_threadtable[eop->threadidx];
-  gasnete_eopaddr_t addr = eop->addr;
   gasneti_assert(thread == gasnete_mythread());
   gasnete_eop_check(eop);
   gasneti_assert(GASNETE_EOP_DONE(eop));
 #if GASNET_DEBUG
   SET_EOPSTATE(eop, EOPSTATE_FREE);
 #endif
-  eop->addr = thread->eop_free;
-  thread->eop_free = addr;
+  EOP_NEXT(eop) = thread->eop_free;
+  thread->eop_free = eop;
 }
 
 /*  free an iop */
@@ -280,7 +247,7 @@ static void gasnete_check_config(void) {
   gasneti_check_config_postattach();
   gasnete_check_config_amref();
 
-  gasneti_assert_always(gasnete_eopaddr_isnil(EOPADDR_NIL));
+  gasneti_assert(sizeof(gasnete_eop_t) >= sizeof(void*));
 }
 
 extern void gasnete_init(void) {

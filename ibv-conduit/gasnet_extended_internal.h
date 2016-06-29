@@ -31,30 +31,29 @@
 
 /* gasnetex_handle_t is a void* pointer to a gasnete_op_t, 
    which is either a gasnete_eop_t or an gasnete_iop_t
+   For "normal" ABIs we layout the op as follows:
+     1-byte threadidx: FFT.                  KEY:
+     2-byte threadidx: FFTT                  F = flags bytes
+     4-byte threadidx: FF..TTTT              T = threadidx bytes
+     8-byte threadidx: FF......TTTTTTTT      . = implicit (ABI) padding
    */
 typedef struct _gasnete_op_t {
   uint8_t flags;                  /*  flags - type tag */
-  gasnete_threadidx_t threadidx;  /*  thread that owns me */
+  uint8_t flags2;                 /*  flags2 - LC info */
+  gasnete_threadidx_t threadidx;  /*  thread that owns me (16-bit by default) */
 } gasnete_op_t;
 
-/* for compactness, eops address each other in the free list using a gasnete_eopaddr_t */ 
-typedef union _gasnete_eopaddr_t {
-  struct {
-    uint8_t _bufferidx;
-    uint8_t _eopidx;
-  } compaddr;
-  uint16_t fulladdr;
-} gasnete_eopaddr_t;
-#define bufferidx compaddr._bufferidx
-#define eopidx compaddr._eopidx
-
-#define gasnete_eopaddr_equal(addr1,addr2) ((addr1).fulladdr == (addr2).fulladdr)
-#define gasnete_eopaddr_isnil(addr) ((addr).fulladdr == EOPADDR_NIL.fulladdr)
+#define EOP_NEXT(eop) (*(void**)(eop))
 
 typedef struct _gasnete_eop_t {
   uint8_t flags;                  /*  state flags */
+  uint8_t flags2;                 /*  LC state flags */
   gasnete_threadidx_t threadidx;  /*  thread that owns me */
-  gasnete_eopaddr_t addr;         /*  next cell while in free list, my own eopaddr_t while in use */
+  // Padding to ensure sizeof(eop) >= sizeof(void*), and avoid any later fields
+  // having offset < sizeof(void) and thus conflict with the freelist linkage.
+  #if PLATFORM_ARCH_64 && (SIZEOF_GASNETE_THREADIDX_T < 4)
+    uint32_t pad;
+  #endif
   #if GASNETE_EOP_COUNTED
   gasnetc_atomic_val_t initiated_cnt;
   gasnetc_atomic_t     completed_cnt;
@@ -66,8 +65,8 @@ typedef struct _gasnete_eop_t {
 
 typedef struct _gasnete_iop_t {
   uint8_t flags;                  /*  state flags */
+  uint8_t flags2;                 /*  currently unused */
   gasnete_threadidx_t threadidx;  /*  thread that owns me */
-  uint16_t _unused; /* TODO: this assumes the default 8-bit threadidx_t */
   gasnetc_atomic_val_t initiated_alc_cnt;     /*  count of ops initiated with async local completion */
   gasnetc_atomic_val_t initiated_get_cnt;     /*  count of get ops initiated */
   gasnetc_atomic_val_t initiated_put_cnt;     /*  count of put ops initiated */
@@ -93,7 +92,7 @@ typedef struct _gasnete_threaddata_t {
 
   gasnete_eop_t *eop_bufs[256]; /*  buffers of eops for memory management */
   int eop_num_bufs;             /*  number of valid buffer entries */
-  gasnete_eopaddr_t eop_free;   /*  free list of eops */
+  gasnete_eop_t *eop_free;      /*  free list of eops */
 
   /*  stack of iops - head is active iop servicing new implicit ops */
   gasnete_iop_t *current_iop;  
@@ -153,13 +152,6 @@ void SET_IOPSTATE(gasnete_iop_t *op, uint8_t state) {
 #endif
 }
 
-#define GASNETE_EOPADDR_TO_PTR(threaddata, eopaddr)                      \
-      (gasneti_memcheck(threaddata),                                     \
-       gasneti_assert(!gasnete_eopaddr_isnil(eopaddr)),                  \
-       gasneti_assert((eopaddr).bufferidx < (threaddata)->eop_num_bufs), \
-       gasneti_memcheck((threaddata)->eop_bufs[(eopaddr).bufferidx]),    \
-       (threaddata)->eop_bufs[(eopaddr).bufferidx] + (eopaddr).eopidx)
-
 #if GASNET_DEBUG
   /* check an in-flight/complete eop */
   #define gasnete_eop_check(eop) do {                                \
@@ -169,7 +161,6 @@ void SET_IOPSTATE(gasnete_iop_t *op, uint8_t state) {
                    EOPSTATE(eop) == EOPSTATE_COMPLETE);                \
     gasnete_assert_valid_threadid((eop)->threadidx);                 \
     _th = gasnete_threadtable[(eop)->threadidx];                     \
-    gasneti_assert(GASNETE_EOPADDR_TO_PTR(_th, (eop)->addr) == eop); \
   } while (0)
   #define gasnete_iop_check(iop) do {                         \
     gasnete_iop_t *_tmp_next;                                 \

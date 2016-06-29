@@ -7,7 +7,6 @@
 #include <gasnet_internal.h>
 #include <gasnet_extended_internal.h>
 
-static const gasnete_eopaddr_t EOPADDR_NIL = { { 0xFF, 0xFF } };
 extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 
 /* ------------------------------------------------------------------------------------ */
@@ -32,7 +31,7 @@ extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 static void gasnete_check_config(void) {
   gasneti_check_config_postattach();
 
-  gasneti_assert_always(gasnete_eopaddr_isnil(EOPADDR_NIL));
+  gasneti_assert(sizeof(gasnete_eop_t) >= sizeof(void*));
 }
 
 extern void gasnete_init(void) {
