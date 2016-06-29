@@ -57,6 +57,8 @@ typedef struct _gasnete_eop_t {
   #if GASNETE_EOP_COUNTED
   gasneti_weakatomic_val_t initiated_cnt;
   gasneti_weakatomic_t     completed_cnt;
+  gasneti_weakatomic_val_t initiated_alc;
+  gasneti_weakatomic_t     completed_alc;
   #endif
   #ifdef GASNETE_CONDUIT_EOP_FIELDS
   GASNETE_CONDUIT_EOP_FIELDS
@@ -127,6 +129,9 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
    * the state. */
   gasneti_assert(state == EOPSTATE_COMPLETE ? 1 : EOPSTATE(op) == state);
 }
+
+/* eop is LC only (e.g. from an AM initiation w/ lc_opt=ptr) */
+#define EOPFLAG_LC_ONLY 0x40
 
 /* gasnete_op_t flag bits reserved for conduit-specific uses.
  * guaranteed not to conflict with use in extendef-ref and
@@ -199,11 +204,23 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
       gasneti_assert(!GASNETE_EOP_DONE(_eop));                   \
       gasneti_weakatomic_increment(&((_eop)->completed_cnt), 0); \
     } while (0)
+  #define GASNETE_EOP_LC(_eop) \
+    (gasneti_weakatomic_read(&(_eop)->completed_alc, 0) \
+          == ((_eop)->initiated_alc & GASNETI_ATOMIC_MAX))
+  #define GASNETE_EOP_MARKLC(_eop) do {                        \
+      gasneti_assert(!GASNETE_EOP_LC(_eop));                   \
+      gasneti_weakatomic_increment(&((_eop)->completed_alc), 0); \
+    } while (0)
 #else
   #define GASNETE_EOP_DONE(_eop) (EOPSTATE(_eop) == EOPSTATE_COMPLETE)
   #define GASNETE_EOP_MARKDONE(_eop) do {      \
       gasneti_assert(!GASNETE_EOP_DONE(_eop)); \
       SET_EOPSTATE((_eop), EOPSTATE_COMPLETE); \
+    } while (0)
+  #define GASNETE_EOP_LC(_eop) (LCSTATE(_eop) == LCSTATE_NONE)
+  #define GASNETE_EOP_MARKLC(_eop) do {      \
+      gasneti_assert(!GASNETE_EOP_LC(_eop)); \
+      SET_LCSTATE((_eop), LCSTATE_NONE); \
     } while (0)
 #endif
 

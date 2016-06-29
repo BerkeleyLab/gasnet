@@ -43,10 +43,12 @@ static void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
       #if 0 /* these can safely be skipped when the values are zero */
        #if GASNETE_EOP_COUNTED
         buff[i].initiated_cnt = 0;
+        buff[i].initiated_alc = 0;
        #endif
       #endif
       #if GASNETE_EOP_COUNTED
         gasnetc_atomic_set(&(buf[i].completed_cnt), 0, 0);
+        gasnetc_atomic_set(&(buf[i].completed_alc), 0, 0);
       #endif
     }
      /*  add a list terminator */
@@ -107,11 +109,13 @@ gasnete_eop_t *_gasnete_eop_new(gasnete_threaddata_t * const thread) {
       eop->threadidx = thread->threadidx;
     gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);
     gasneti_assert(EOPSTATE(eop) == EOPSTATE_FREE);
+    gasneti_assert(LCSTATE(eop) ==  LCSTATE_NONE);
   #if GASNET_DEBUG || !GASNETE_EOP_COUNTED
     SET_EOPSTATE(eop, EOPSTATE_INFLIGHT);
   #endif
   #if GASNETE_EOP_COUNTED
     gasneti_assert(GASNETE_EOP_DONE(eop));
+    gasneti_assert(GASNETE_EOP_LC(eop));
   #endif
     return eop;
   }
@@ -203,6 +207,7 @@ void gasnete_eop_free(gasnete_eop_t *eop) {
   gasneti_assert(thread == gasnete_mythread());
   gasnete_eop_check(eop);
   gasneti_assert(GASNETE_EOP_DONE(eop));
+  gasneti_assert(GASNETE_EOP_LC(eop));
 #if GASNET_DEBUG
   SET_EOPSTATE(eop, EOPSTATE_FREE);
 #endif
@@ -488,12 +493,6 @@ extern int  gasnete_test_syncnb_all (gasnetex_handle_t *phandle, size_t numhandl
 
 /* This implementation assumes that ganetex_lc_handle_t is a pointer to
    either an eop or an iop, exactly as with gasnetex_handle_t.
-
-   In the eop case, one may choose a design in which the eop will be the
-   same eop as was returned to the client as the gasnetex_handle_t, or it
-   could be a distinct one used just for local completion tracking.  There
-   is exactly one place where this design choice matters (the optional
-   call to gasnete_eop_free() in gasnete_lc_try_free()).
 */
 
 /*  query an op for local-completeness
@@ -506,21 +505,16 @@ int gasnete_lc_try_free(gasnetex_lc_handle_t lchandle) {
   gasneti_assert(op->threadidx == gasnete_mythread()->threadidx);
   if_pt (OPTYPE(op) == OPTYPE_EXPLICIT) {
     gasnete_eop_t *eop = (gasnete_eop_t*)op;
-#if 0 // TODO-EX: define LC on eop
-    gasneti_assert(this-eop-is-a-vaild-lc-handle)
 
-    if (this-eop-is-locally-complete) {
-    #if 0 // Call gasnete_eop_free() ONLY if using distinct eops for NB and LC handles
-      gasneti_sync_reads(); // Only as needed to ensure eop_free observes correct metadata
-      gasnete_eop_free(eop); // Can the sync_reads (if any) move inside?
-    #else
-      gasneti_compiler_fence(); // TODO-EX: revisit this
-    #endif
+    if (GASNETE_EOP_LC(eop)) {
+      if (eop->flags & EOPFLAG_LC_ONLY) {
+        gasneti_sync_reads();
+        gasnete_eop_free(eop);
+      } else {
+        gasneti_compiler_fence(); // TODO-EX: revisit this
+      }
       return 1;
     }
-#else
-    gasneti_fatalerror("Unimplemented: test_lc on eop");
-#endif
   } else {
     gasnete_iop_t *iop = (gasnete_iop_t*)op;
     gasneti_assert(LCSTATE(iop) == LCSTATE_LIVE);
