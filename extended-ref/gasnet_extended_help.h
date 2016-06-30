@@ -445,6 +445,13 @@ typedef union {
     if (gasneti_pshm_in_supernode(rank)) {      \
       GASNETE_FAST_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
       gasnete_loopbackput_memsync();            \
+      gasneti_lc_opt_finish(lc_opt);            \
+      _GASNETI_RETURN_##rt;                     \
+    }} while(0)
+  #define GASNETI_CHECKPSHM_PUT_NOLC(rt) do { \
+    if (gasneti_pshm_in_supernode(rank)) {      \
+      GASNETE_FAST_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
+      gasnete_loopbackput_memsync();            \
       _GASNETI_RETURN_##rt;                     \
     }} while(0)
   #define GASNETI_CHECKPSHM_GETVAL() do {     \
@@ -460,6 +467,7 @@ typedef union {
 #else
   #define GASNETI_CHECKPSHM_GET(rt)        ((void)0)
   #define GASNETI_CHECKPSHM_PUT(rt)        ((void)0)
+  #define GASNETI_CHECKPSHM_PUT_NOLC(rt)   ((void)0)
   #define GASNETI_CHECKPSHM_GETVAL()       ((void)0)
   #define GASNETI_CHECKPSHM_PUTVAL(rt)     ((void)0)
 #endif

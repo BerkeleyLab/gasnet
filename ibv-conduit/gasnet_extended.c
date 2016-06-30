@@ -803,7 +803,7 @@ extern int gasnete_put  (gasnetex_team_member_t team,
                          size_t nbytes, gasnetex_flags_t flags
                          GASNETE_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT(I);
+  GASNETI_CHECKPSHM_PUT_NOLC(I);
  {
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
   gasnetc_rdma_put(rank, src, dest, nbytes,

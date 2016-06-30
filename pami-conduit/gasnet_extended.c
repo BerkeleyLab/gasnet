@@ -1053,7 +1053,7 @@ int gasnete_put(     gasnetex_team_member_t team,
                      size_t nbytes,
                      gasnetex_flags_t flags GASNETE_THREAD_FARG)
 {
-  GASNETI_CHECKPSHM_PUT(I);
+  GASNETI_CHECKPSHM_PUT_NOLC(I);
   {
     volatile gasnete_eop_t op = { EOPSTATE_INFLIGHT, };
     gasnete_put_common(rank, dest, src, nbytes, (gasnete_op_t *)&op, 0, 1);
