@@ -380,7 +380,9 @@ gasnetex_handle_t gasnete_put_nb(
   /* XXX check error returns */
 
   if (gasneti_lc_is_pointer(lc_opt)) {
-    gasneti_fatalerror("Put_nb(lc_opt pointer) unimplemented"); // TODO-EX: fix this
+    mem_initiated_p = &op->initiated_alc;
+    mem_completed_p = &op->completed_alc;
+    *lc_opt = (gasnetex_lc_handle_t)op;
   } else if (lc_opt == GASNETEX_LC_INIT) {
     mem_initiated_p = &mem_oust.initiated;
     mem_completed_p = &mem_oust.completed;
