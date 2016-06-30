@@ -354,7 +354,7 @@ void gasnete_amref_get_nbi_inner(gasnetex_team_member_t team,
 #endif
 #if GASNETE_BUILD_AMREF_PUT
 GASNETI_INLINE(gasnete_amref_put_nbi_inner)
-void gasnete_amref_put_nbi_inner(gasnetex_team_member_t team,
+int gasnete_amref_put_nbi_inner (gasnetex_team_member_t team,
                                  gasnetex_rank_t rank, void *dest,
                                  void *src,
                                  size_t nbytes,
@@ -365,40 +365,34 @@ void gasnete_amref_put_nbi_inner(gasnetex_team_member_t team,
   gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
   gasnete_iop_t * const op = mythread->current_iop;
 
-  int isbulk; // TODO-EX: ???
-  if (lc_opt == GASNETEX_LC_GROUP) {
-    gasneti_fatalerror("Put_nbi(LC_GROUP) unimplemented"); // TODO-EX: fix this
-  } else if (lc_opt == GASNETEX_LC_INIT) {
-    isbulk = 0;
-  } else if (lc_opt == GASNETEX_LC_SYNC) {
-    isbulk = 1;
-  } else {
-    gasneti_fatalerror("Invalid lc_opt argument to Put_nbi");
-  }
+  // TODO-EX: flags?
+  // Some may pass through to the AMReques call(s).
+  // Others need some special treatment.
+  // The case of IMMEDIATE, in particular, requires attention to avoid
+  // returning from a partially-initiated xfer in the case that we loop.
+  // Currently we are passing flags==0 to all AMRequest calls.
+
+  // There is no LC_SYNC for an AMRequest, but LC_GROUP is permitted.
+  // Since (at least in the reference iop) syncnbi_{puts,all}() will
+  // test/wait the LC counters, we convert LC_SYNC to LC_GROUP here.
+  if (lc_opt == GASNETEX_LC_SYNC) lc_opt = GASNETEX_LC_GROUP;
 
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
     op->initiated_put_cnt++;
 
+    return
     gasnetex_AMRequestMedium(team, rank, gasneti_handleridx(gasnete_amref_put_reqh),
-                             src, nbytes, GASNETEX_LC_INIT, 0, // TODO-EX: flags?
+                             src, nbytes, lc_opt, 0,
                              PACK(dest), PACK_IOP_DONE(op,put));
-    return;
   } else
 #if GASNETE_USE_LONG_PUTS
   if (nbytes <= gasnetex_lub_AMRequestLong()) { // TODO-EX: _lub_ -> _max_
     op->initiated_put_cnt++;
 
-    if (isbulk) { // TODO-EX: restore some degree of Async on bulk path
-      gasnetex_AMRequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
-                      src, nbytes, dest, GASNETEX_LC_INIT, 0, // TODO-EX: flags?
-                      PACK_IOP_DONE(op,put));
-    } else {
-      gasnetex_AMRequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
-                      src, nbytes, dest, GASNETEX_LC_INIT, 0, // TODO-EX: flags?
-                      PACK_IOP_DONE(op,put));
-    }
-
-    return;
+    return
+    gasnetex_AMRequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
+                           src, nbytes, dest, lc_opt, 0,
+                           PACK_IOP_DONE(op,put));
   } else {
     const size_t chunksz = gasnetex_lub_AMRequestLong(); // TODO-EX: _lub_ -> _max_
     uint8_t *psrc = src;
@@ -406,32 +400,19 @@ void gasnete_amref_put_nbi_inner(gasnetex_team_member_t team,
     for (;;) {
       op->initiated_put_cnt++;
       if (nbytes > chunksz) {
-        if (isbulk) { // TODO-EX: restore some degree of Async on bulk path
-          gasnetex_AMRequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
-                          psrc, chunksz, pdest, GASNETEX_LC_INIT, 0,
-                          PACK_IOP_DONE(op,put));
-        } else {
-          gasnetex_AMRequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
-                          psrc, chunksz, pdest, GASNETEX_LC_INIT, 0,
-                          PACK_IOP_DONE(op,put));
-        }
+        gasnetex_AMRequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
+                               psrc, chunksz, pdest, lc_opt, 0,
+                               PACK_IOP_DONE(op,put));
         nbytes -= chunksz;
         psrc += chunksz;
         pdest += chunksz;
       } else {
-        if (isbulk) { // TODO-EX: restore some degree of Async on bulk path
-          gasnetex_AMRequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
-                          psrc, nbytes, pdest, GASNETEX_LC_INIT, 0,
-                          PACK_IOP_DONE(op,put));
-        } else {
-          gasnetex_AMRequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
-                          psrc, nbytes, pdest, GASNETEX_LC_INIT, 0,
-                          PACK_IOP_DONE(op,put));
-        }
+        gasnetex_AMRequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
+                               psrc, nbytes, pdest, lc_opt, 0,
+                               PACK_IOP_DONE(op,put));
         break;
       }
     }
-    return;
   }
 #else /* ! GASNETE_USE_LONG_PUTS */
   {
@@ -442,20 +423,21 @@ void gasnete_amref_put_nbi_inner(gasnetex_team_member_t team,
       op->initiated_put_cnt++;
       if (nbytes > chunksz) {
         gasnetex_AMRequestMedium(team, rank, gasneti_handleridx(gasnete_amref_put_reqh),
-                                 psrc, chunksz, GASNETEX_LC_INIT, 0,
+                                 psrc, chunksz, lc_opt, 0,
                                  PACK(pdest), PACK_IOP_DONE(op,put));
         nbytes -= chunksz;
         psrc += chunksz;
         pdest += chunksz;
       } else {
         gasnetex_AMRequestMedium(team, rank, gasneti_handleridx(gasnete_amref_put_reqh),
-                                 psrc, nbytes, GASNETEX_LC_INIT, 0,
+                                 psrc, nbytes, lc_opt, 0,
                                  PACK(pdest), PACK_IOP_DONE(op,put));
         break;
       }
     }
   }
 #endif /* GASNETE_USE_LONG_PUTS */
+  return 0;
 }
 #endif /* GASNETE_BUILD_AMREF_PUT */
 
@@ -507,48 +489,47 @@ gasnetex_handle_t gasnete_put_nb(
 {
  GASNETI_CHECKPSHM_PUT(H);
  {
-  int isbulk; // TODO-EX: ???
-  if (gasneti_lc_is_pointer(lc_opt)) {
-    gasneti_fatalerror("Put_nbi(lc_opt pointer) unimplemented"); // TODO-EX: fix this
-  } else if (lc_opt == GASNETEX_LC_INIT) {
-    isbulk = 0;
-  } else if (lc_opt == GASNETEX_LC_SYNC) {
-    isbulk = 1;
-  } else {
-    gasneti_fatalerror("Invalid lc_opt argument to Put_nbi");
+  // LC_SYNC is accomplished using an nbi access region, ended with LC_SYNC.
+  // Otherwise this reference implementation has no way to portably link the
+  // LC of an AM Request to a gasnetex_handle_t.
+  if (lc_opt != GASNETEX_LC_SYNC) {
+    if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
+      gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
+
+      gasnetex_AMRequestMedium(team, rank, gasneti_handleridx(gasnete_amref_put_reqh),
+                               src, nbytes, lc_opt, 0,
+                               PACK(dest), PACK_EOP_DONE(op));
+
+      return (gasnetex_handle_t)op;
+#if GASNETE_USE_LONG_PUTS
+    } else if (nbytes <= gasnetex_lub_AMRequestLong()) { // TODO-EX: _lub_ -> _max_
+      gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
+
+      gasnetex_AMRequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
+                             src, nbytes, dest, lc_opt, 0,
+                             PACK_EOP_DONE(op));
+
+      return (gasnetex_handle_t)op;
+    }
+#endif
+    // Fall through if too large for a single AM
+    // TODO: the GASNETE_EOP_COUNTED case could work w/o the access region (except LC_SYNC)
   }
 
-  if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
-    gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
-
-    gasnetex_AMRequestMedium(team, rank, gasneti_handleridx(gasnete_amref_put_reqh),
-                             src, nbytes, GASNETEX_LC_INIT, 0,
-                             PACK(dest), PACK_EOP_DONE(op));
-
-    return (gasnetex_handle_t)op;
-#if GASNETE_USE_LONG_PUTS
-  } else if (nbytes <= gasnetex_lub_AMRequestLong()) { // TODO-EX: _lub_ -> _max_
-    gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
-
-    if (isbulk) { // TODO-EX: restore some degree of Async on bulk path
-      gasnetex_AMRequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
-                    src, nbytes, dest, GASNETEX_LC_INIT, 0,
-                    PACK_EOP_DONE(op));
-    } else {
-      gasnetex_AMRequestLong(team, rank, gasneti_handleridx(gasnete_amref_putlong_reqh),
-                    src, nbytes, dest, GASNETEX_LC_INIT, 0,
-                    PACK_EOP_DONE(op));
-    }
-
-    return (gasnetex_handle_t)op;
-#endif
-  } else { 
-    /* TODO: don't need the iop for large xfers in the GASNETE_EOP_COUNTED case */
-    /*  need many messages - use an access region to coalesce them into a single handle */
+  {
+    /*  need many messages or LC_SYNC - use an access region to coalesce into a single handle */
     /*  (note this relies on the fact that our implementation of access regions allows recursion) */
+    int nbi_result;
+    gasnetex_handle_t handle;
     gasnete_begin_nbi_accessregion(0,1 /* enable recursion */ GASNETE_THREAD_PASS);
-    gasnete_amref_put_nbi_inner(team, rank, dest, src, nbytes, lc_opt, flags GASNETE_THREAD_PASS);
-    return gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
+    nbi_result = gasnete_amref_put_nbi_inner(team, rank, dest, src, nbytes,
+                                             GASNETEX_LC_GROUP, flags GASNETE_THREAD_PASS);
+    handle = gasnete_end_nbi_accessregion(lc_opt,0 GASNETE_THREAD_PASS);
+    if (nbi_result) { // "IMMEDIATE" failure
+      gasnete_wait_syncnb(handle);
+      handle = GASNETEX_NO_OP_HANDLE;
+    }
+    return handle;
   }
  }
 }
