@@ -242,8 +242,7 @@ extern void gasnete_check_config_amref(void);
 #define _hidx_gasnete_amref_getlong_reph     (GASNETE_HANDLER_BASE+6)
 #define _hidx_gasnete_amref_put_reqh         (GASNETE_HANDLER_BASE+7)
 #define _hidx_gasnete_amref_putlong_reqh     (GASNETE_HANDLER_BASE+8)
-#define _hidx_gasnete_amref_memset_reqh      (GASNETE_HANDLER_BASE+9)
-#define _hidx_gasnete_amref_markdone_reph    (GASNETE_HANDLER_BASE+10)
+#define _hidx_gasnete_amref_markdone_reph    (GASNETE_HANDLER_BASE+9)
 /* add new extended API handlers here and to the bottom of gasnet_extended.c */
 
 #endif
