@@ -3431,7 +3431,8 @@ extern int gasnetc_AMRequestShortM(
                             gasnetex_team_member_t team,/* local context */
                             gasnetex_rank_t rank,       /* with team, defines remote context */
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
-                            gasnetex_flags_t flags,
+                            gasnetex_flags_t flags
+                            GASNETE_THREAD_FARG,
                             int numargs, ...) {
   int retval;
   va_list argptr;
@@ -3450,7 +3451,8 @@ extern int gasnetc_AMRequestMediumM(
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
-                            gasnetex_flags_t flags,
+                            gasnetex_flags_t flags
+                            GASNETE_THREAD_FARG,
                             int numargs, ...) {
   int retval;
   va_list argptr;
@@ -3471,7 +3473,8 @@ extern int gasnetc_AMRequestLongM(
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
                             gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
-                            gasnetex_flags_t flags,
+                            gasnetex_flags_t flags
+                            GASNETE_THREAD_FARG,
                             int numargs, ...) {
   gasnetc_counter_t mem_oust = GASNETC_COUNTER_INITIALIZER;
   int retval;
@@ -3489,7 +3492,7 @@ extern int gasnetc_AMRequestLongM(
       mem_initiated_p = &mem_oust.initiated;
       mem_completed_p = &mem_oust.completed;
     } else if (lc_opt == GASNETEX_LC_GROUP) {
-      gasnete_threaddata_t * const mythread = gasnete_mythread(); // TODO-EX: THREADINFO_OPT?
+      gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
       gasnete_iop_t *op = mythread->current_iop;
       mem_initiated_p = &op->initiated_alc_cnt;
       mem_completed_p = &op->completed_alc_cnt;
