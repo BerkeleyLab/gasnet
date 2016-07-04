@@ -25,7 +25,7 @@
 /*returns the implementation of the collectives including all the parameters to the algorithm*/
 struct gasnete_coll_implementation_t_{
   struct gasnete_coll_implementation_t_ *next;
-  void* fn_ptr;
+  gasnet_coll_handle_t (*fn_ptr)();
   int fn_idx;
   gasnet_team_handle_t team;
   gasnet_coll_optype_t optype;
@@ -413,7 +413,7 @@ typedef struct gasnete_coll_allgorithm_t_ {
   struct gasnet_coll_tuning_parameter_t *parameter_list;
   
   union {
-    void *generic_coll_fn_ptr;
+    gasnet_coll_handle_t (*generic_coll_fn_ptr)();
     gasnete_coll_bcast_fn_ptr_t bcast_fn;
     gasnete_coll_bcastM_fn_ptr_t bcastM_fn;
     gasnete_coll_scatter_fn_ptr_t scatter_fn;
@@ -504,7 +504,7 @@ gasnete_coll_algorithm_t gasnete_coll_autotune_register_algorithm(gasnet_team_ha
                                                                   uint32_t tree_alg,
                                                                   uint32_t num_params,
                                                                   struct gasnet_coll_tuning_parameter_t *param_list,
-                                                                  void *coll_fnptr,
+                                                                  gasnet_coll_handle_t (*coll_fnptr)(),
                                                                   const char *name_str);
 
 size_t gasnete_coll_get_dissem_limit(gasnete_coll_autotune_info_t* autotune_info, gasnet_coll_optype_t op_type, int flags);

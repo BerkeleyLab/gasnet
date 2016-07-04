@@ -64,8 +64,7 @@ GASNETI_INLINE(gasnete_syncnb_array)
 int gasnete_syncnb_array(gasnetex_handle_t *phandle, size_t numhandles)
 {
 #if GASNET_DEBUG
-  int i;
-  for (i=0; i<numhandles; ++i)
+  for (size_t i=0; i<numhandles; ++i)
     gasneti_assert(phandle[i] == GASNETEX_INVALID_HANDLE);
 #endif
   gasneti_sync_reads();
@@ -96,8 +95,7 @@ GASNETI_INLINE(gasnete_lc_array)
 int gasnete_lc_array(gasnetex_lc_handle_t *plchandle, size_t numlchandles)
 {
 #if GASNET_DEBUG
-  int i;
-  for (i=0; i<numlchandles; ++i)
+  for (size_t i=0; i<numlchandles; ++i)
     gasneti_assert(plchandle[i] == GASNETEX_INVALID_LC_HANDLE);
 #endif
   gasneti_compiler_fence(); // TODO-EX: is this necessary?

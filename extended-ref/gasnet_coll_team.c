@@ -526,7 +526,7 @@ gasnetex_rank_t gasnete_coll_team_node2rank(gasnete_coll_team_t team, gasnetex_r
       return i;
    
   gasneti_fatalerror("Cannot find node %u in team %p with id %x!\n", 
-                     (unsigned int)node, team, (unsigned int)team->team_id);
+                     (unsigned int)node, (void *)team, (unsigned int)team->team_id);
   return (gasnetex_rank_t)(-1); /* NOT REACHED */
 }
 

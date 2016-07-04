@@ -676,7 +676,11 @@ extern double gasneti_get_exittimeout(double dflt_max, double dflt_min, double d
   #endif
 
   int gasneti_pthread_create(gasneti_pthread_create_fn_t *create_fn, pthread_t *thread, const pthread_attr_t *attr, void *(*start_routine)(void *), void *arg) {
-    GASNETI_TRACE_PRINTF(I, ("gasneti_pthread_create(%p, %p, %p, %p, %p)", create_fn, thread, attr, start_routine, arg));
+    // There is no portable way to printf a pointer-to-function. This way avoids warnings with -pedantic
+    union { void *vp; gasneti_pthread_create_fn_t *cfp; void *(*sfp)(void *); } ucreate, ustart; 
+    ucreate.cfp = create_fn;
+    ustart.sfp = start_routine;
+    GASNETI_TRACE_PRINTF(I, ("gasneti_pthread_create(%p, %p, %p, %p, %p)", ucreate.vp, (void *)thread, (void *)attr, ustart.vp, arg));
     return GASNETC_PTHREAD_CREATE_OVERRIDE(create_fn, thread, attr, start_routine, arg);
   }
 #endif

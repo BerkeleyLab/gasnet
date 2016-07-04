@@ -54,11 +54,11 @@ extern void gasneti_filesystem_sync(void);
 
 #if PLATFORM_COMPILER_GNU_CXX /* bug 1681 */
   #define GASNETI_CURRENT_FUNCTION __PRETTY_FUNCTION__
-#elif defined(__GNUC__) || defined(__FUNCTION__)
-  #define GASNETI_CURRENT_FUNCTION __FUNCTION__
-#elif defined(HAVE_FUNC) && !defined(__cplusplus)
+#elif defined(HAVE_FUNC) && !GASNETI_CONFIGURE_MISMATCH && !defined(__cplusplus)
   /* __func__ should also work for ISO C99 compilers */
   #define GASNETI_CURRENT_FUNCTION __func__
+#elif defined(__GNUC__) /* fallback on gcc, last resort because it generates warnings w/-pedantic */
+  #define GASNETI_CURRENT_FUNCTION __FUNCTION__
 #else
   #define GASNETI_CURRENT_FUNCTION ""
 #endif

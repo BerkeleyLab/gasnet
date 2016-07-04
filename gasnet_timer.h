@@ -435,7 +435,7 @@ GASNETI_BEGIN_EXTERNC
   */
   typedef uint64_t gasneti_tick_t;
   GASNETI_INLINE(gasneti_ticks_now)
-  gasneti_tick_t gasneti_ticks_now() {
+  gasneti_tick_t gasneti_ticks_now(void) {
     LARGE_INTEGER val;
     gasneti_assert_nzeroret(QueryPerformanceCounter(&val));
     gasneti_assert(val.QuadPart > 0);
@@ -478,7 +478,7 @@ GASNETI_BEGIN_EXTERNC
 #elif PLATFORM_ARCH_MICROBLAZE && (defined(MB_CC) || defined(MB_FSL_CC))
   typedef uint64_t gasneti_tick_t;
   GASNETI_INLINE(gasneti_ticks_now)
-  gasneti_tick_t gasneti_ticks_now() {
+  gasneti_tick_t gasneti_ticks_now(void) {
     unsigned int msr, tmp;
     gasneti_tick_t retval;
 
@@ -556,7 +556,7 @@ extern uint64_t gasneti_gettimeofday_us(void);
   #undef gasneti_tick_t
   #define gasneti_tick_t _gasneti_tick_t
   GASNETI_INLINE(gasneti_ticks_now_posixrt)
-  gasneti_tick_t gasneti_ticks_now_posixrt() {
+  gasneti_tick_t gasneti_ticks_now_posixrt(void) {
     struct timespec tm;
     #if defined(_POSIX_MONOTONIC_CLOCK) && 0 
       /* this is probably the better timer to use, but 

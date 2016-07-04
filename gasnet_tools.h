@@ -610,7 +610,10 @@ extern int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_ATOMIC32_CONFIG);
 extern int GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_ATOMIC64_CONFIG);
 #endif
 static int *gasnett_linkconfig_idiotcheck(void);
-static void *_gasnett_linkconfig_idiotcheck = (void *)&gasnett_linkconfig_idiotcheck;
+#if !PLATFORM_COMPILER_TINY /* avoid a tinyc bug */
+  #define GASNETI_IDIOTCHECK_RECURSIVE_REFERENCE 1
+  static int *(*_gasnett_linkconfig_idiotcheck)(void) = &gasnett_linkconfig_idiotcheck;
+#endif
 GASNETT_USED
 static int *gasnett_linkconfig_idiotcheck(void) 
 {
@@ -626,8 +629,10 @@ static int *gasnett_linkconfig_idiotcheck(void)
         + GASNETT_LINKCONFIG_IDIOTCHECK(GASNETT_ATOMIC64_CONFIG)
       #endif
         ;
-  if (_gasnett_linkconfig_idiotcheck != (void *)&gasnett_linkconfig_idiotcheck)
-    val += ((int(*)(void))_gasnett_linkconfig_idiotcheck)();
+  #if GASNETI_IDIOTCHECK_RECURSIVE_REFERENCE
+  if (_gasnett_linkconfig_idiotcheck == &gasnett_linkconfig_idiotcheck)
+    val += *(*_gasnett_linkconfig_idiotcheck)();
+  #endif
   return &val;
 }
 

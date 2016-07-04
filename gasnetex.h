@@ -488,8 +488,10 @@ extern int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CORE_,GASNET_CORE_NAME));
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME));
 
 static int *gasneti_linkconfig_idiotcheck(void);
-/* use of void* here avoids a tinyc bug */
-static void *_gasneti_linkconfig_idiotcheck = (void *)&gasneti_linkconfig_idiotcheck;
+#if !PLATFORM_COMPILER_TINY /* avoid a tinyc bug */
+  #define GASNETI_IDIOTCHECK_RECURSIVE_REFERENCE 1
+  static int *(*_gasneti_linkconfig_idiotcheck)(void) = &gasneti_linkconfig_idiotcheck;
+#endif
 GASNETI_USED
 static int *gasneti_linkconfig_idiotcheck(void) {
   static int val;
@@ -512,8 +514,10 @@ static int *gasneti_linkconfig_idiotcheck(void) {
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(CORE_,GASNET_CORE_NAME))
         + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(EXTENDED_,GASNET_EXTENDED_NAME))
         ;
-  if (_gasneti_linkconfig_idiotcheck != (void*)&gasneti_linkconfig_idiotcheck)
-    val += ((int(*)(void))_gasneti_linkconfig_idiotcheck)();
+  #if GASNETI_IDIOTCHECK_RECURSIVE_REFERENCE
+  if (_gasneti_linkconfig_idiotcheck == &gasneti_linkconfig_idiotcheck)
+    val += *(*_gasneti_linkconfig_idiotcheck)();
+  #endif
   return &val;
 }
 extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentries,
