@@ -870,6 +870,21 @@ GASNETI_PUREP(gasneti_pshm_addr2local)
   ========================================================
 */
 
+/* The following relies on __VA_ARGS__ support that was introduced in C99 and C++11.
+ * We do not require client code to use either for compiling GASNet headers,
+ * and this convenience interface is disabled when the necessary support is
+ * lacking. Auto-detection can be overridden via -DGASNETI_FORCE_VA_ARG=0/1
+ * Consequently, GASNet public headers should NOT assume this API exists.
+ */
+#ifdef GASNETI_FORCE_VA_ARG /* manual override */
+  #define GASNETI_USING_VA_ARG GASNETI_FORCE_VA_ARG
+#else
+  #define GASNETI_USING_VA_ARG GASNETI_COMPILER_IS_CC || \
+          ( GASNETI_COMPILER_IS_CXX && GASNETI_CXX_HAS_VA_ARGS ) || \
+          __STDC_VERSION__ >= 199901L || \
+          __cplusplus >= 201103L
+#endif
+#if GASNETI_USING_VA_ARG
 /*
    These macros implement six AM Request/Reply without any explicit
    argument count.  It uses C99 variable argument pre-processor macros to
@@ -906,6 +921,7 @@ GASNETI_PUREP(gasneti_pshm_addr2local)
 #define                gasnetex_AMReplyLong(token,hidx,src_addr,nbytes,dst_addr,lc_opt,...) \
         GASNETI_AMVA(ReplyLong,__VA_ARGS__)(token,hidx,src_addr,nbytes,dst_addr,lc_opt,__VA_ARGS__)
 
+#endif
 /* ------------------------------------------------------------------------------------ */
 
 GASNETI_END_EXTERNC

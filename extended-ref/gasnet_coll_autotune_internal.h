@@ -366,21 +366,14 @@ struct gasnet_coll_tuning_parameter_t {
 };
 
 /* Macro to initialize a 1-element array of gasnet_coll_tuning_parameter_t.
-   Must deal w/ the fact that pre-C99 compilers don't allow initializers for
-   auto aggregates to contain non-constant expressions (which we may want for
-   start and end members).
+ * GASNet coding standards prohibit the use of non-const struct initializers
+   (which we may need for start and end members).
 */
-#if HAVE_NONCONST_STRUCT_INIT
-  #define GASNETE_COLL_TUNING_PARAMETER(_name,_param,_start,_end,_stride,_flags) \
-    struct gasnet_coll_tuning_parameter_t _name[1] = \
-       { { _param,_start,_end,_stride,_flags } } /* no semicolon */
-#else
-  #define GASNETE_COLL_TUNING_PARAMETER(_name,_param,_start,_end,_stride,_flags) \
+#define GASNETE_COLL_TUNING_PARAMETER(_name,_param,_start,_end,_stride,_flags) \
     struct gasnet_coll_tuning_parameter_t _name[1] = \
        { { _param,0,0,_stride,_flags } };\
     _name[0].start = _start; \
     _name[0].end   = _end /* no semicolon */
-#endif
 
 /*contains an entry in the function table*/
 typedef struct gasnete_coll_allgorithm_t_ {

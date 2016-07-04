@@ -386,8 +386,6 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
                               [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wnested-externs"])
         ]GASNET_TRY_[$1]FLAG[([${gcc_flag_prefix}-Wwrite-strings],
                               [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wwrite-strings"])
-        ]GASNET_TRY_[$1]FLAG[([${gcc_flag_prefix}-Wdeclaration-after-statement],
-                              [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wdeclaration-after-statement"])
         ]GASNET_TRY_[$1]FLAG[([${gcc_flag_prefix}-Wmissing-format-attribute],
                               [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wmissing-format-attribute"])
 	if test "$use_pthreads" != "no" ; then
@@ -893,25 +891,24 @@ GASNET_GET_GNU_ATTRIBUTES([GASNETI_HAVE_CC])
 GASNET_GET_PLATFORM_ID([COMPILER])
 GASNET_POPVAR(CFLAGS)
 
-# Check for a usefull C99 features common in many pre-C99 compilers
-GASNET_TRY_CACHE_CHECK(for non-constant struct initializers, nonconst_struct_init,
-  [
-    #include <stdio.h>
-    struct S { int a; const int b; }; /* 'const' is here to trigger suncc bug 6913992 */
-    struct S foo(int a, int b) {
-      struct S tmp = {a, b};
-      return tmp;
-    }
-  ], [
-    /* printf() call ensures an int not known at compile/link time */
-    struct S s = foo(1, printf("boo\n"));
-  ], [ AC_DEFINE(HAVE_NONCONST_STRUCT_INIT) ])
-GASNET_TRY_CACHE_CHECK(for constructor expressions, constructor_expr,
-  [
-    struct S { int a; int b; };
-  ], [
-    struct S s = ((struct S){(1,2)});
-  ], [ AC_DEFINE(HAVE_CONSTRUCTOR_EXPR) ])
+# Check for required C compliance features
+# The following should ONLY include C99 features we odficially adopt in the GASNet/README coding standards
+# IF THIS TEST FAILS DUE TO A MISSING NON-DEFAULT FLAG FOR C99 SUPPORT, 
+# IT SHOULD BE TESTED/ADDED ABOVE WHERE WE SET FAMILY-SPECIFIC CFLAGS
+AC_DEFUN([GASNET_VA_ARGS_TEST],[
+    #define GASNETI_AMNUMARGS(...) GASNETI_AMNUMARGS_(__VA_ARGS__,16,15,14,13,12,11,10,9,8,7,6,5,4,3,2,1,0,0)
+    #define GASNETI_AMNUMARGS_(_0,_1,_2,_3,_4,_5,_6,_7,_8,_9,_10,_11,_12,_13,_14,_15,_16,N,...) N
+    int b[[GASNETI_AMNUMARGS(1)+1]];
+    int c[[GASNETI_AMNUMARGS(1,2)+1]];
+    int d[[GASNETI_AMNUMARGS(1,2,3)+1]];
+])
+GASNET_TRY_CACHE_CHECK(for working GASNet-required ISO C99 subset, gasnet_c99_subset,
+ [ GASNET_VA_ARGS_TEST ],
+ [ int a = 1; // C99 comment
+   for (int i=0; i < 100; i++) a += i; // Conditional expression declaration
+   int b = a; // mid-block decl
+ ], [], 
+ [ AC_MSG_ERROR(Unable to find sufficient C99 support features in $CC to build GASNet. You may need to append flags in \$CC to enable C99 support) ])
 
 GASNET_IFDEF([__PIC__],[AC_DEFINE(GASNETI_CONFIGURED_PIC)])
 
@@ -2390,6 +2387,8 @@ fi
   GASNET_CHECK_RESTRICT([GASNETI_CXX],[C++ compiler])
   GASNET_CHECK_ASM_SUPPORT([C++ compiler],[CXX])
   GASNET_GET_GNU_ATTRIBUTES([GASNETI_HAVE_CXX],[C++ compiler])
+
+  GASNET_TRY_CACHE_CHECK(for __VA_ARGS__ support in C++, cxx_va_args, [ GASNET_VA_ARGS_TEST ], [ ], [ AC_DEFINE(GASNETI_CXX_HAS_VA_ARGS) ])
 
   # we link in an object compiled with CC that uses libc, to ensure that's working
   # [at least initially this is almost a clone of the MPI helper test]

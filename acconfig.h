@@ -136,10 +136,8 @@
 #undef GASNETI_HAVE_CXX_SYNC_ATOMICS_64
 #undef GASNETI_HAVE_MPI_CC_SYNC_ATOMICS_64
 
-/* Does CC support C99-type non-constant initializers for structs? */
-#undef HAVE_NONCONST_STRUCT_INIT
-/* Does CC support C99-type constructor expressions? */
-#undef HAVE_CONSTRUCTOR_EXPR
+/* Does CXX support C99 __VA_ARGS__ */
+#undef GASNETI_CXX_HAS_VA_ARGS
 
 /* Defined if __PIC__ defined at configure time */
 #undef GASNETI_CONFIGURED_PIC
