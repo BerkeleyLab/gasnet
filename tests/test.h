@@ -451,7 +451,7 @@ static void test_createandjoin_pthreads(int numthreads, void *(*start_routine)(v
     int jointhreads = 0;
     uint8_t *threadarg_pos = (uint8_t *)threadarg_arr;
     pthread_t *threadid = (pthread_t *)test_malloc(sizeof(pthread_t)*numthreads);
-    #ifdef HAVE_PTHREAD_SETCONCURRENCY
+    #if HAVE_PTHREAD_SETCONCURRENCY && !GASNETT_CONFIGURE_MISMATCH
       pthread_setconcurrency(numthreads);
     #endif
 
