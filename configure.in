@@ -429,16 +429,10 @@ case "$CC_FAMILY" in
   MTA)  CCDEBUGFLAGS="-g2" ;; # need +ESdbgasm to use -g with _asm()
   Pathscale) GASNET_PUSHVAR(CFLAGS,"-g3 -O0") # need to explicitly disable optimization
         GASNET_GET_GNUWARNINGFLAGS(C)
-        # Sigh.  Option -Wdeclaration-after-statement lacks a corresponding -Wno-.
-        # That is a problem for any client that wants to compile C99 code, because
-        # it leaves them with no option to turn it off.
-        CCDEBUGFLAGS=`echo "$CFLAGS" | sed -e 's/-Wdeclaration-after-statement//'`
         GASNET_POPVAR(CFLAGS)
   ;;
   Open64) GASNET_PUSHVAR(CFLAGS,"-g3")
           GASNET_GET_GNUWARNINGFLAGS(C)
-          # As with Pathscale, above, lack a -Wno-declaration-after-statement
-          CCDEBUGFLAGS=`echo "$CFLAGS" | sed -e 's/-Wdeclaration-after-statement//'`
           GASNET_POPVAR(CFLAGS)
   ;;
   Clang)  GASNET_PUSHVAR(CFLAGS,"-g -O0")
@@ -2345,8 +2339,6 @@ fi
        fi
        GASNET_PUSHVAR(CXXFLAGS,"-g3")
        GASNET_GET_GNUWARNINGFLAGS(CXX)
-       # As with CCDEBUGFLAGS lack a -Wno-declaration-after-statement
-       CXXDEBUGFLAGS=`echo "$CXXFLAGS" | sed -e 's/-Wdeclaration-after-statement//'`
        GASNET_POPVAR(CXXFLAGS)
     ;;
     Clang)
