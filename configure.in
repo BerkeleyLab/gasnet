@@ -912,7 +912,7 @@ GASNET_TRY_CACHE_CHECK(for working GASNet-required ISO C99 subset, gasnet_c99_su
  [ GASNET_VA_ARGS_TEST ],
  [ int a = 1; // C99 comment
    for (int i=0; i < 100; i++) a += i; // Conditional expression declaration
-   int b = a; // mid-block decl
+   int i = a; // mid-block decl
  ], [], 
  [ AC_MSG_ERROR(Unable to find sufficient C99 support features in $CC to build GASNet. You may need to append flags in \$CC to enable C99 support) ])
 
