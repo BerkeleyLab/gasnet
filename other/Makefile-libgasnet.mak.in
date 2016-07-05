@@ -42,6 +42,7 @@ TOOLLIBCFLAGS =                   \
         -DGASNETT_BUILDING_TOOLS  \
         @CFLAGS@                  \
         @MISC_CFLAGS@             \
+        @MISC_CPPFLAGS@           \
         $(TOOLLIBDEFINES)         \
 	$(TOOLLIB_DEBUGFLAGS)     \
 	$(TOOLLIBINCLUDES)	  \
@@ -51,6 +52,7 @@ TOOLLIBCFLAGS =                   \
 LIBCFLAGS =                       \
         @CFLAGS@                  \
         @MISC_CFLAGS@             \
+        @MISC_CPPFLAGS@           \
         $(LIBDEFINES)             \
         $(CONDUIT_EXTRALIBCFLAGS) \
 	$(LIBINCLUDES)		  \

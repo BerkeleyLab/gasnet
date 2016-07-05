@@ -423,7 +423,7 @@ firehose_remote_pin(gasnetex_rank_t node, uintptr_t addr, size_t len,
 		}
 		else {
 			GASNETI_TRACE_PRINTF(C, 
-			    ("Firehose callback req=%p", req));
+			    ("Firehose callback req=%p", (void *)req));
 			callback(context, req, 1);
 		}
 	}

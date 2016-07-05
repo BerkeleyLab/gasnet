@@ -576,6 +576,8 @@ AC_DEFUN([GASNET_GET_PPC64_FLAGS],[
 ])
 
 
+# Set MISC_CFLAGS: flags to be used by all C compilations, regardless of optimization/debugging level
+# This should include achitectural/CPU flags and anything required for C99 conformance
 case "$CC_FAMILY" in
   GNU)
     case "$target_cpu" in
@@ -589,13 +591,14 @@ case "$CC_FAMILY" in
                             [MISC_CFLAGS="$MISC_CFLAGS ${gcc_flag_prefix}-Wno-long-double"])
       ;; 
     esac
+    MISC_CFLAGS="$MISC_CFLAGS ${gcc_flag_prefix}-std=c99"
     ;;
   Cray) 
     case "$target_cpu" in
       x86_64)   MISC_CFLAGS="-hnomessage=236" ;; # XT, XE, XK, XC, etc.
       *)        AC_MSG_ERROR(Cray C compiler for unknown target CPU) ;;
     esac ;;
-  Intel) MISC_CFLAGS="-wd177 -wd279" 
+  Intel) MISC_CFLAGS="-std=c99 -wd177 -wd279" 
          GASNET_TRY_CFLAG([-wd1572],
                           [MISC_CFLAGS="$MISC_CFLAGS -wd1572"])
          ;;
@@ -616,6 +619,8 @@ case "$CC_FAMILY" in
   *)   MISC_CFLAGS="" ;;
 esac
 
+# Set MISC_CPPFLAGS: flags to be used by all C preprocesses and compilations
+# This should include anything required for C99 and POSIX conformance
 case "$CC_FAMILY" in
   XLC) # tell preprocessor to allow C++-style comments
        GASNET_TRY_CFLAG([-qcpluscmt], [MISC_CPPFLAGS="$MISC_CPPFLAGS -qcpluscmt"]);;
@@ -630,6 +635,14 @@ case "$CC_FAMILY" in
     esac ;;
   *)  MISC_CPPFLAGS="" ;;
 esac
+# Some C compilers disable OS POSIX entry points when strict c99 conformance is selected
+case "$target_os" in
+  # _GNU_SOURCE implies _XOPEN_SOURCE and enables other useful things like "adaptive" mutex_t and pthread_rwlock_t
+  linux*)  MISC_CPPFLAGS="$MISC_CPPFLAGS -D_GNU_SOURCE=1" ;;
+  cygwin*) MISC_CPPFLAGS="$MISC_CPPFLAGS -D_GNU_SOURCE=1" ;;
+  *)  ;;
+esac
+
 
 # Locate system directories for BG/Q
 if expr "$target" : powerpc64-bgq-linux >/dev/null; then
@@ -889,7 +902,6 @@ GASNET_CHECK_ASM_SUPPORT([C compiler],[CC])
 GASNET_INLINE_MODIFIER([C compiler],[CC])
 GASNET_GET_GNU_ATTRIBUTES([GASNETI_HAVE_CC])
 GASNET_GET_PLATFORM_ID([COMPILER])
-GASNET_POPVAR(CFLAGS)
 
 # Check for required C compliance features
 # The following should ONLY include C99 features we odficially adopt in the GASNet/README coding standards
@@ -909,6 +921,8 @@ GASNET_TRY_CACHE_CHECK(for working GASNet-required ISO C99 subset, gasnet_c99_su
    int b = a; // mid-block decl
  ], [], 
  [ AC_MSG_ERROR(Unable to find sufficient C99 support features in $CC to build GASNet. You may need to append flags in \$CC to enable C99 support) ])
+
+GASNET_POPVAR(CFLAGS)
 
 GASNET_IFDEF([__PIC__],[AC_DEFINE(GASNETI_CONFIGURED_PIC)])
 
@@ -1046,11 +1060,7 @@ case "$target_os" in
 	    GASNET_PLATFORM=bgq
 	    ;;
         esac
-        # Defining _GNU_SOURCE gives us accesss to the "adaptive"
-        # implementation of pthread_mutex_t, which is faster then
-        # the default implementation for our purposes.
-	# Also enables pthread_rwlock_t support.
-	GASNET_THREAD_DEFINES="-D_REENTRANT -D_GNU_SOURCE"
+	GASNET_THREAD_DEFINES="-D_REENTRANT"
         GASNET_THREAD_LIBS="-lpthread"
 	;;
   freebsd*)
@@ -1081,7 +1091,7 @@ case "$target_os" in
                           GASNET_THREAD_LIBS="-lpthread"])
 	;;
   cygwin*) 
-	GASNET_THREAD_DEFINES="-D_REENTRANT -D_XOPEN_SOURCE=500 -D_DEFAULT_SOURCE"
+	GASNET_THREAD_DEFINES="-D_REENTRANT"
         GASNET_THREAD_LIBS=""
 	;;
   darwin*) 
@@ -2516,7 +2526,7 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
         # I don't have access to a Solaris cluster with MPI (other than NOW) 
         # but these seem like sane defaults
     	GASNET_ENV_DEFAULT(MPI_CC, mpicc)
-        GASNET_CHECK_MPI_CC($MISC_CFLAGS $CFLAGS)
+        GASNET_CHECK_MPI_CC($MISC_CFLAGS $MISC_CPPFLAGS $CFLAGS)
     	GASNET_ENV_DEFAULT(MPI_LIBS, )
 	GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
         ;;
@@ -2542,12 +2552,12 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
     	  GASNET_ENV_DEFAULT(MPI_LIBS, )
 	  GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
         fi
-        GASNET_CHECK_MPI_CC($MISC_CFLAGS $CFLAGS)
+        GASNET_CHECK_MPI_CC($MISC_CFLAGS $MISC_CPPFLAGS $CFLAGS)
         GASNET_ENV_DEFAULT(MPIRUN_CMD_BATCH, "")
         ;;
     darwin*) # Need to probe -Wno-long-double independently
         GASNET_ENV_DEFAULT(MPI_CC, mpicc)
-        BASIC_MPI_CFLAGS=`echo "$MISC_CFLAGS $CFLAGS" | sed -e 's/-Wno-long-double//'`
+        BASIC_MPI_CFLAGS=`echo "$MISC_CFLAGS $MISC_CPPFLAGS $CFLAGS" | sed -e 's/-Wno-long-double//'`
         GASNET_CHECK_MPI_CC($BASIC_MPI_CFLAGS)
         GASNET_PUSHVAR(CC,"$MPI_CC")
         GASNET_PUSHVAR(CFLAGS,"$MPI_CFLAGS")
@@ -2562,14 +2572,14 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
         ;;
     mtx*)
     	GASNET_ENV_DEFAULT(MPI_CC, cc)
-        GASNET_CHECK_MPI_CC($MISC_CFLAGS $CFLAGS)
+        GASNET_CHECK_MPI_CC($MISC_CFLAGS $MISC_CPPFLAGS $CFLAGS)
     	GASNET_ENV_DEFAULT(MPI_LIBS, -lmpi)
 	GASNET_ENV_DEFAULT(MPIRUN_CMD, mtarun -t %N -m %N /usr/bin/env _MPI_MT=%N %C)
         ;;
     *) 
       # unknown OS - if user doesn't provide info, nothing we can do
       GASNET_ENV_DEFAULT(MPI_CC, mpicc)
-      GASNET_CHECK_MPI_CC($MISC_CFLAGS $CFLAGS)
+      GASNET_CHECK_MPI_CC($MISC_CFLAGS $MISC_CPPFLAGS $CFLAGS)
       GASNET_ENV_DEFAULT(MPI_LIBS, )
       GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
       if test "$MPI_CC" = ""; then
