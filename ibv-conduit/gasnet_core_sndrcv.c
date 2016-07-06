@@ -439,9 +439,9 @@ void *gasnetc_sr_desc_init(struct ibv_send_wr *result, struct ibv_sge *sg_lst_p)
              | ((cat)     << 8         )        \
              | ((hand)                 )))
 
-#define gasnetc_poll_rcv()		gasnetc_do_poll(1,0)
-#define gasnetc_poll_snd()		gasnetc_do_poll(0,1)
-#define gasnetc_poll_both()		gasnetc_do_poll(1,1)
+#define gasnetc_poll_rcv()		gasnetc_do_poll(1,0 GASNETI_THREAD_PASS)
+#define gasnetc_poll_snd()		gasnetc_do_poll(0,1 GASNETI_THREAD_PASS)
+#define gasnetc_poll_both()		gasnetc_do_poll(1,1 GASNETI_THREAD_PASS)
 
 /* Post a work request to the receive queue of the given endpoint */
 GASNETI_INLINE(gasnetc_rcv_post)
@@ -1537,7 +1537,7 @@ void gasnetc_poll_rcv_hca(gasnetc_hca_t *hca, int limit) {
 }
 
 GASNETI_INLINE(gasnetc_do_poll)
-void gasnetc_do_poll(int poll_rcv, int poll_snd) {
+void gasnetc_do_poll(int poll_rcv, int poll_snd GASNETI_THREAD_FARG) {
   if (poll_rcv) {
   #if GASNETC_IB_MAX_HCAS > 1
     /* Simple round-robin (w/ a harmless multi-thread race) */
@@ -1551,7 +1551,7 @@ void gasnetc_do_poll(int poll_rcv, int poll_snd) {
   #endif
     gasnetc_poll_rcv_hca(hca, GASNETC_RCV_REAP_LIMIT);
   #if GASNET_PSHM
-    gasneti_AMPSHMPoll(0);
+    gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS);
   #endif
   }
 
@@ -1640,6 +1640,7 @@ gasnetc_buffer_t *gasnetc_get_bbuf(int block) {
 
   bbuf = gasnetc_lifo_pop(&gasnetc_bbuf_freelist);
   if_pf (!bbuf) {
+    GASNETI_THREAD_LOOKUP; // TODO-EX: eliminate this!!
     gasnetc_poll_snd();
     bbuf = gasnetc_lifo_pop(&gasnetc_bbuf_freelist);
     if (block) {
@@ -1763,6 +1764,7 @@ void gasnetc_snd_post_common(gasnetc_sreq_t *sreq, struct ibv_send_wr *sr_desc, 
   /* Loop until space is available for 1 new entry on the CQ.
    * If we hold the last one then threads sending to ANY node will stall. */
   if_pf (!gasnetc_sema_trydown(cep->snd_cq_sema_p)) {
+    GASNETI_THREAD_LOOKUP; // TODO-EX: eliminate this!!
     GASNETC_TRACE_WAIT_BEGIN();
     do {
       GASNETI_WAITHOOK();
@@ -3647,6 +3649,7 @@ void gasnetc_sys_close_reqh(gasnetex_token_t token) {
 
 extern void
 gasnetc_sndrcv_quiesce(void) {
+  GASNETI_THREAD_LOOKUP; // TODO-EX: eliminate this!!
   gasnetc_hca_t *hca;
 
 #if GASNET_DEBUG
@@ -3864,13 +3867,15 @@ extern gasnetc_amrdma_recv_t *gasnetc_amrdma_recv_alloc(gasnetc_hca_t *hca) {
 
 /* Just gasnetc_AMPoll w/o CHECKATTACH when !handler_context */
 extern void gasnetc_sndrcv_poll(int handler_context) {
-  gasnetc_do_poll(!handler_context, 1);
+  GASNETI_THREAD_LOOKUP; // OK - this is used only in init/exit paths
+  gasnetc_do_poll(!handler_context, 1 GASNETI_THREAD_PASS);
 }
 
 extern void gasnetc_counter_wait_aux(gasnetc_counter_t *counter, int handler_context)
 {
   const gasnetc_atomic_val_t initiated = (counter->initiated & GASNETI_ATOMIC_MAX);
   gasnetc_atomic_t * const completed = &counter->completed;
+  GASNETI_THREAD_LOOKUP; // TODO-EX: eliminate this!!
 
   if (handler_context) {
     do {
@@ -4098,6 +4103,7 @@ extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  gasnetc_atomic_val_t *mem_initiated,
 				  gasnetc_atomic_t *mem_completed,
 				  gasnetc_atomic_t *completed, va_list argptr) {
+  GASNETI_THREAD_LOOKUP; // TODO-EX: pass in from gasnetex_AMRequest...
 #if GASNET_PSHM
   const gasnetex_rank_t node = gasnetc_epid2node(dest);
 #endif
@@ -4252,7 +4258,7 @@ extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *srcin
   return GASNET_OK;
 }
 
-extern int gasnetc_AMPoll(void) {
+extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
   GASNETI_CHECKATTACH();
   gasnetc_poll_both();
 

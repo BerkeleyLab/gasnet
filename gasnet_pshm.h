@@ -264,7 +264,7 @@ void gasneti_pshmnet_recv_release(gasneti_pshmnet_t *vnet, void *buf);
 
 /* Processes pending messages:  if 'repliesOnly', only checks the 'reply'
  * PSHM network (i.e. gasneti_reply_pshmnet).  */
-extern int gasneti_AMPSHMPoll(int repliesOnly);
+extern int gasneti_AMPSHMPoll(int repliesOnly GASNETI_THREAD_FARG);
 
 /* Don't call this function directly: internal pshm function */
 extern

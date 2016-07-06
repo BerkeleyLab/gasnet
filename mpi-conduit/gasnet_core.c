@@ -571,12 +571,12 @@ extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *srcin
     return GASNET_OK;
 }
 
-extern int gasnetc_AMPoll(void) {
+extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
   int retval;
   GASNETI_CHECKATTACH();
   CHECKCALLHC();
 #if GASNET_PSHM
-  gasneti_AMPSHMPoll(0);
+  gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS);
 #endif
   AMLOCK();
     GASNETI_AM_SAFE_NORETURN(retval, AM_Poll(gasnetc_bundle));

@@ -1138,7 +1138,7 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
 }
 
 /* ------------------------------------------------------------------------------------ */
-int gasneti_AMPSHMPoll(int repliesOnly)
+int gasneti_AMPSHMPoll(int repliesOnly GASNETI_THREAD_FARG)
 {
   int i = 0;
 
@@ -1173,6 +1173,7 @@ int gasneti_AMPSHMPoll(int repliesOnly)
  */
 static gasneti_lifo_head_t loopback_freepool = GASNETI_LIFO_INITIALIZER;
 
+// TODO-EX: GASNETI_THREAD_FARG
 int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnetex_rank_t dest,
                                  gasnetc_handler_t handler, void *source_addr, size_t nbytes, 
                                  void *dest_addr, int numargs, va_list argptr) 
@@ -1219,12 +1220,13 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnetex_rank_t dest,
 
     /* Get buffer, poll if busy.
        Lock serializes allocation so small messages can't starve large ones */
+    GASNETI_THREAD_LOOKUP;
     lock = isReq ? &req_lock : &rep_lock;
     gasneti_mutex_lock(lock);
     while (!(msg = gasneti_pshmnet_get_send_buffer(vnet, msgsz, target))) {
       /* If reply, only poll reply network: avoids deadlock  */
-      if (isReq) gasnetc_AMPoll(); /* No progress functions */
-      else gasneti_AMPSHMPoll(1);
+      if (isReq) gasnetc_AMPoll(GASNETI_THREAD_GET_ALONE); /* No progress functions */
+      else gasneti_AMPSHMPoll(1 GASNETI_THREAD_GET);
       GASNETI_WAITHOOK();
     }
     gasneti_mutex_unlock(lock);

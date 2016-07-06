@@ -47,11 +47,9 @@
 #undef GASNETI_THROTTLE_FEATURE_ENABLED
 #endif
 
-#define GASNETI_GASNETC_AMPOLL
-#if GASNET_PSHM
-  GASNETI_EXTERNC int gasnetc_AMPoll(void);
-#else
-  #define gasnetc_AMPoll()        GASNET_OK  /* nothing to do */
+#if !GASNET_PSHM
+  #define GASNETI_GASNETC_AMPOLL /* empty */
+  #define gasnetc_AMPoll GASNET_OK GASNETI_THREAD_SWALLOW
 #endif
 
   /* define to 1 if conduit allows internal GASNet fns to issue put/get for remote

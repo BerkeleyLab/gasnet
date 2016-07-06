@@ -919,9 +919,9 @@ extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *srcin
 }
 
 #if GASNET_PSHM 
-extern int gasnetc_AMPoll(void) {
+extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
   GASNETI_CHECKATTACH();
-  return gasneti_AMPSHMPoll(0);
+  return gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS);
 }
 #else
 /* no polling required for smp-conduit */

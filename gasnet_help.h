@@ -559,15 +559,19 @@ typedef void (*gasneti_progressfn_t)(void);
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-#ifndef GASNETI_GASNETI_AMPOLL
+#ifdef GASNETI_GASNETI_AMPOLL
+  GASNETI_GASNETI_AMPOLL
+#else
   /*
    gasnet_AMPoll() - public poll function called by the client, throttled and traced 
                      should not be called from within GASNet (so we only trace directly user-initiated calls)
    gasneti_AMPoll() - called internally by GASNet, provides throttling (if enabled), progress functions, but no tracing
    gasnetc_AMPoll() - conduit AM dispatcher, should only be called from gasneti_AMPoll()
    */
-  #ifndef GASNETI_GASNETC_AMPOLL
-    extern int gasnetc_AMPoll(void);
+  #ifdef GASNETI_GASNETC_AMPOLL
+    GASNETI_GASNETC_AMPOLL
+  #else
+    extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE);
   #endif
 
   #if GASNETI_THROTTLE_FEATURE_ENABLED && (GASNET_PAR || GASNETI_CONDUIT_THREADS)
@@ -606,12 +610,12 @@ typedef void (*gasneti_progressfn_t)(void);
   #endif
 
   #if !GASNETI_THROTTLE_POLLERS 
-    GASNETI_INLINE(gasneti_AMPoll)
-    int gasneti_AMPoll(void) {
+    GASNETI_INLINE(_gasneti_AMPoll)
+    int _gasneti_AMPoll(GASNETI_THREAD_FARG_ALONE) {
        int retval;
        gasneti_AMPoll_spinpollers_check();
        gasneti_memcheck_one();
-       retval = gasnetc_AMPoll();
+       retval = gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE);
        GASNETI_PROGRESSFNS_RUN();
        return retval;
     }
@@ -648,8 +652,8 @@ typedef void (*gasneti_progressfn_t)(void);
     } while (0)
 
     /* and finally, the throttled poll implementation */
-    GASNETI_INLINE(gasneti_AMPoll)
-    int gasneti_AMPoll(void) {
+    GASNETI_INLINE(_gasneti_AMPoll)
+    int _gasneti_AMPoll(GASNETI_THREAD_FARG_ALONE) {
        int retval = GASNET_OK;
        gasneti_AMPoll_spinpollers_check();
        gasneti_memcheck_one();
@@ -657,13 +661,14 @@ typedef void (*gasneti_progressfn_t)(void);
        if_pt (!gasneti_mutex_trylock(&gasneti_throttle_spinpoller)) {
           /* if another thread is sending then skip the poll: */
           if_pt (!gasneti_atomic_read(&gasneti_throttle_haveusefulwork,0))
-             retval = gasnetc_AMPoll();
+             retval = gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE);
           gasneti_mutex_unlock(&gasneti_throttle_spinpoller);
           GASNETI_PROGRESSFNS_RUN();
        }
        return retval;
     }
   #endif
+  #define gasneti_AMPoll() _gasneti_AMPoll(GASNETI_THREAD_GET_ALONE)
 #endif
   
 /* Blocking functions
@@ -723,11 +728,12 @@ extern int gasneti_wait_mode; /* current waitmode hint */
 #ifndef _GASNET_AMPOLL
 #define _GASNET_AMPOLL
   /* GASNet client calls gasnet_AMPoll(), which throttles and traces */
-  GASNETI_INLINE(gasnet_AMPoll)
-  int gasnet_AMPoll(void) {
+  GASNETI_INLINE(_gasnet_AMPoll)
+  int _gasnet_AMPoll(GASNETI_THREAD_FARG_ALONE) {
     GASNETI_TRACE_EVENT(I, AMPOLL);
-    return gasneti_AMPoll();
+    return _gasneti_AMPoll(GASNETI_THREAD_PASS_ALONE);
   }
+  #define gasnet_AMPoll() _gasnet_AMPoll(GASNETI_THREAD_GET_ALONE)
 #endif
 
 #ifndef _GASNET_GETENV
