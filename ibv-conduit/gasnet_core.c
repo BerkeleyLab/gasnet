@@ -3432,7 +3432,7 @@ extern int gasnetc_AMRequestShortM(
                             gasnetex_rank_t rank,       /* with team, defines remote context */
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             gasnetex_flags_t flags
-                            GASNETE_THREAD_FARG,
+                            GASNETI_THREAD_FARG,
                             int numargs, ...) {
   int retval;
   va_list argptr;
@@ -3452,7 +3452,7 @@ extern int gasnetc_AMRequestMediumM(
                             void *source_addr, size_t nbytes,   /* data payload */
                             gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags
-                            GASNETE_THREAD_FARG,
+                            GASNETI_THREAD_FARG,
                             int numargs, ...) {
   int retval;
   va_list argptr;
@@ -3474,7 +3474,7 @@ extern int gasnetc_AMRequestLongM(
                             void *dest_addr,                    /* data destination on destination node */
                             gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags
-                            GASNETE_THREAD_FARG,
+                            GASNETI_THREAD_FARG,
                             int numargs, ...) {
   gasnetc_counter_t mem_oust = GASNETC_COUNTER_INITIALIZER;
   int retval;

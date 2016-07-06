@@ -411,6 +411,35 @@ void gasneti_lc_opt_finish(gasnetex_lc_handle_t *lc_ptr) {
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+/* thread-id optimization support */
+
+#if GASNETI_THREADINFO_OPT
+  #if GASNETI_RESTRICT_MAY_QUALIFY_TYPEDEFS
+    #define GASNETI_THREAD_FARG_ALONE   gasnet_threadinfo_t const GASNETI_RESTRICT _threadinfo
+  #else
+    #define GASNETI_THREAD_FARG_ALONE   void * const GASNETI_RESTRICT _threadinfo
+  #endif
+  #define GASNETI_THREAD_FARG         , GASNETI_THREAD_FARG_ALONE
+  #define GASNETI_THREAD_GET_ALONE    GASNET_GET_THREADINFO()
+  #define GASNETI_THREAD_GET          , GASNETI_THREAD_GET_ALONE
+  #define GASNETI_THREAD_PASS_ALONE   (_threadinfo)
+  #define GASNETI_THREAD_PASS         , GASNETI_THREAD_PASS_ALONE
+  #define GASNETI_THREAD_LOOKUP       GASNETI_THREAD_FARG_ALONE = GASNETI_THREAD_GET_ALONE;
+  #define GASNETI_THREAD_SWALLOW(x)
+  #define GASNETI_MYTHREAD            ((struct _gasnete_threaddata_t *)_threadinfo)
+#else
+  #define GASNETI_THREAD_FARG_ALONE   void
+  #define GASNETI_THREAD_FARG         
+  #define GASNETI_THREAD_GET_ALONE   
+  #define GASNETI_THREAD_GET         
+  #define GASNETI_THREAD_PASS_ALONE   
+  #define GASNETI_THREAD_PASS         
+  #define GASNETI_THREAD_LOOKUP
+  #define GASNETI_THREAD_SWALLOW(x)
+  #define GASNETI_MYTHREAD            (gasnete_mythread())
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 /* GASNet progressfn support
  * progressfns are internal functions that are called "periodically" by a conduit to 
  *  allow internal GASNet modules to make progress. 

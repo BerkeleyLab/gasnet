@@ -1127,7 +1127,7 @@ extern int gasnetc_AMRequestShortM(
                 gasnetex_rank_t rank,
                 gasnetex_handler_t handler,
                 gasnetex_flags_t flags
-                GASNETE_THREAD_FARG,
+                GASNETI_THREAD_FARG,
                 int numargs, ...)
 {
   int retval = GASNET_OK;
@@ -1191,7 +1191,7 @@ extern int gasnetc_AMRequestMediumM(
                 size_t nbytes,
                 gasnetex_lc_handle_t *lc_opt,
                 gasnetex_flags_t flags
-                GASNETE_THREAD_FARG,
+                GASNETI_THREAD_FARG,
                 int numargs, ...)
 {
   int retval = GASNET_OK;
@@ -1266,7 +1266,7 @@ extern int gasnetc_AMRequestLongM(
                 void *dest_addr,               // Payload destination address (or OFFSET)
                 gasnetex_lc_handle_t *lc_opt,  // Local completion control (see above)
                 gasnetex_flags_t flags         // Flags to control this operation
-                GASNETE_THREAD_FARG,
+                GASNETI_THREAD_FARG,
                 int numargs, ...)
 {
   int retval = GASNET_OK;

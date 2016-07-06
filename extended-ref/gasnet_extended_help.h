@@ -388,33 +388,16 @@ typedef union {
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-/* thread-id optimization support */
-#if GASNETI_THREADINFO_OPT
-  #if GASNETI_RESTRICT_MAY_QUALIFY_TYPEDEFS
-    #define GASNETE_THREAD_FARG_ALONE   gasnet_threadinfo_t const GASNETI_RESTRICT _threadinfo
-  #else
-    #define GASNETE_THREAD_FARG_ALONE   void * const GASNETI_RESTRICT _threadinfo
-  #endif
-  #define GASNETE_THREAD_FARG         , GASNETE_THREAD_FARG_ALONE
-  #define GASNETE_THREAD_GET_ALONE    GASNET_GET_THREADINFO()
-  #define GASNETE_THREAD_GET          , GASNETE_THREAD_GET_ALONE
-  #define GASNETE_THREAD_PASS_ALONE   (_threadinfo)
-  #define GASNETE_THREAD_PASS         , GASNETE_THREAD_PASS_ALONE
-  #define GASNETE_THREAD_LOOKUP       GASNETE_THREAD_FARG_ALONE = GASNETE_THREAD_GET_ALONE;
-  #define GASNETE_THREAD_SWALLOW(x)
-  #define GASNETE_MYTHREAD            ((struct _gasnete_threaddata_t *)_threadinfo)
-#else
-  #define GASNETE_THREAD_FARG_ALONE   void
-  #define GASNETE_THREAD_FARG         
-  #define GASNETE_THREAD_GET_ALONE   
-  #define GASNETE_THREAD_GET         
-  #define GASNETE_THREAD_PASS_ALONE   
-  #define GASNETE_THREAD_PASS         
-  #define GASNETE_THREAD_LOOKUP
-  #define GASNETE_THREAD_SWALLOW(x)
-  #define GASNETE_MYTHREAD            (gasnete_mythread())
-#endif
-/* ------------------------------------------------------------------------------------ */
+// TODO-EX: remove this name shift and just use GASNETI_ globally
+#define GASNETE_THREAD_FARG_ALONE GASNETI_THREAD_FARG_ALONE 
+#define GASNETE_THREAD_FARG       GASNETI_THREAD_FARG       
+#define GASNETE_THREAD_GET_ALONE  GASNETI_THREAD_GET_ALONE  
+#define GASNETE_THREAD_GET        GASNETI_THREAD_GET        
+#define GASNETE_THREAD_PASS_ALONE GASNETI_THREAD_PASS_ALONE 
+#define GASNETE_THREAD_PASS       GASNETI_THREAD_PASS       
+#define GASNETE_THREAD_LOOKUP     GASNETI_THREAD_LOOKUP
+#define GASNETE_THREAD_SWALLOW(x) GASNETI_THREAD_SWALLOW(x)
+#define GASNETE_MYTHREAD          GASNETI_MYTHREAD 
 
 /* helper macros */
 #define _GASNETI_RETURN_I  return 0
