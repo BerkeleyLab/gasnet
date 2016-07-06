@@ -2358,7 +2358,7 @@ extern void gasnete_coll_barrier_init(gasnete_coll_team_t team, int barrier_type
     gasnete_rmdbarrier_init(team);
   } else if (barrier_type == GASNETE_COLL_BARRIER_DISSEM) {
     /*we specify that we want to auto-select either AMDISSEM or RDMADISSEM Barrier*/
-  #if !GASNETE_USING_REF_EXTENDED_PUT_BULK
+  #if !GASNETE_USING_REF_EXTENDED_PUT
     if (team == GASNET_TEAM_ALL) {
       gasnete_rmdbarrier_init(team);
     } else
@@ -2450,7 +2450,7 @@ gasneti_auxseg_request_t gasnete_barr_auxseg_alloc(gasnet_seginfo_t *auxseg_info
   if (!strcmp(barrier, "RDMADISSEM")) {
     /* Nothing else to do */
   } else
-#if !GASNETE_USING_REF_EXTENDED_PUT_BULK
+#if !GASNETE_USING_REF_EXTENDED_PUT
   if (!strcmp(barrier, "DISSEM")) {
     /* Nothing else to do */
   } else
