@@ -3489,7 +3489,11 @@ extern int gasnetc_AMRequestLongM(
     gasnetc_atomic_t     *mem_completed_p;
 
     if (gasneti_lc_is_pointer(lc_opt)) {
-      gasneti_fatalerror("RequestLong(lc_opt pointer) unimplemented"); // TODO-EX: fix this
+      gasnete_eop_t *op = (gasnete_eop_t *)gasneti_eop_create(GASNETE_THREAD_PASS_ALONE);
+      op->flags |= EOPFLAG_LC_ONLY; op->initiated_cnt -= 1; // TODO-EX: better way?
+      mem_initiated_p = &op->initiated_alc;
+      mem_completed_p = &op->completed_alc;
+      *lc_opt = (gasnetex_lc_handle_t)op;
     } else if (lc_opt == GASNETEX_LC_INIT) {
       mem_initiated_p = &mem_oust.initiated;
       mem_completed_p = &mem_oust.completed;
@@ -3578,7 +3582,11 @@ extern int gasnetc_AMReplyLongM(
     gasnetc_atomic_t     *mem_completed_p;
 
     if (gasneti_lc_is_pointer(lc_opt)) {
-      gasneti_fatalerror("ReplyLong(lc_opt pointer) unimplemented"); // TODO-EX: fix this
+      gasnete_eop_t *op = (gasnete_eop_t *)gasneti_eop_create(GASNETE_THREAD_PASS_ALONE);
+      op->flags |= EOPFLAG_LC_ONLY; op->initiated_cnt -= 1; // TODO-EX: better way?
+      mem_initiated_p = &op->initiated_alc;
+      mem_completed_p = &op->completed_alc;
+      *lc_opt = (gasnetex_lc_handle_t)op;
     } else if (lc_opt == GASNETEX_LC_INIT) {
       mem_initiated_p = &mem_oust.initiated;
       mem_completed_p = &mem_oust.completed;
