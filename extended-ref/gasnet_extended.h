@@ -649,7 +649,7 @@ void  _gasnet_memset (gasnet_node_t _node, void *_dest, int _val, size_t _nbytes
 #elif !defined(gasnete_put_val)
   #define gasnete_put_val(node, dest, value, nbytesTI) do {                    \
     gasnet_register_value_t _src = value;                                       \
-    gasnete_putTI(node, dest, GASNETE_TISTARTOFBITS(&_src,nbytesTI), nbytesTI); \
+    gasnete_putTI(node, dest, GASNETI_TISTARTOFBITS(&_src,nbytesTI), nbytesTI); \
   } while (0)
 #endif
 
@@ -703,7 +703,7 @@ gasnet_handle_t _gasnet_put_nb_val (gasnet_node_t _node, void *_dest, gasnet_reg
 #elif !defined(gasnete_put_nbi_val)
   #define gasnete_put_nbi_val(node, dest, value, nbytesTI) do {                  \
     gasnet_register_value_t _src = value;                                         \
-    gasnete_put_nbi(node, dest, GASNETE_TISTARTOFBITS(&_src,nbytesTI), nbytesTI); \
+    gasnete_put_nbi(node, dest, GASNETI_TISTARTOFBITS(&_src,nbytesTI), nbytesTI); \
   } while (0)
 #endif
 
