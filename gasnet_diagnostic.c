@@ -978,7 +978,7 @@ static void op_test(int id) {
 
     { gasneti_eop_t *eop;
       gasnetex_handle_t h;
-      eop = gasneti_eop_create(GASNETE_THREAD_GET_ALONE);
+      eop = gasneti_eop_create(GASNETI_THREAD_GET_ALONE);
       assert_always(eop);
       h = gasneti_eop_to_handle(eop);
       assert_always(gasnetex_test_syncnb(h) == GASNET_ERR_NOT_READY);
@@ -990,12 +990,12 @@ static void op_test(int id) {
     }
     PTHREAD_BARRIER(num_threads);
     { /* inc the get and put counts on my iop */
-      gasneti_iop_t *iop = gasneti_iop_register(1, 0 GASNETE_THREAD_GET);
+      gasneti_iop_t *iop = gasneti_iop_register(1, 0 GASNETI_THREAD_GET);
         assert_always(iop);
         assert_always(gasnetex_test_syncnbi_puts() == GASNET_ERR_NOT_READY);
         assert_always(gasnetex_test_syncnbi_gets() == GASNET_OK);
         assert_always(gasnetex_test_syncnbi_all() == GASNET_ERR_NOT_READY);
-      assert_always(iop == gasneti_iop_register(2, 1 GASNETE_THREAD_GET));
+      assert_always(iop == gasneti_iop_register(2, 1 GASNETI_THREAD_GET));
         assert_always(gasnetex_test_syncnbi_puts() == GASNET_ERR_NOT_READY);
         assert_always(gasnetex_test_syncnbi_gets() == GASNET_ERR_NOT_READY);
         assert_always(gasnetex_test_syncnbi_all() == GASNET_ERR_NOT_READY);
@@ -1033,7 +1033,7 @@ static void op_test(int id) {
         gasneti_iop_t *iop1, *iop2;
         gasneti_iop_t *peer_iop1, *peer_iop2;
         ASSERT_NBI_SYNCED();
-        iop1 = gasneti_iop_register(5, isget GASNETE_THREAD_GET); /* iop1 = 5 */
+        iop1 = gasneti_iop_register(5, isget GASNETI_THREAD_GET); /* iop1 = 5 */
         assert_always(iop1);
         ASSERT_NBI_NOTSYNCED();
         PTHREAD_BARRIER(num_threads);
@@ -1050,7 +1050,7 @@ static void op_test(int id) {
           gasnetex_handle_t h2;
 
           gasnetex_begin_nbi_accessregion(0);
-          iop2 = gasneti_iop_register(1, isget GASNETE_THREAD_GET); /* iop2 = 1 */
+          iop2 = gasneti_iop_register(1, isget GASNETI_THREAD_GET); /* iop2 = 1 */
           assert_always(iop2);
           assert_always(iop2 != iop1);
           PTHREAD_BARRIER(num_threads);
@@ -1059,9 +1059,9 @@ static void op_test(int id) {
           peer_iop2 = share[peerid];
           gasneti_iop_markdone(peer_iop2, 1, isget);  /* iop2 -= 1 */
           PTHREAD_BARRIER(num_threads);
-          assert_always(iop2 == gasneti_iop_register(2, isget GASNETE_THREAD_GET)); /* iop2 += 2 */
+          assert_always(iop2 == gasneti_iop_register(2, isget GASNETI_THREAD_GET)); /* iop2 += 2 */
 
-          eop = gasneti_eop_create(GASNETE_THREAD_GET_ALONE);
+          eop = gasneti_eop_create(GASNETI_THREAD_GET_ALONE);
           assert_always(eop);
           h2 = gasneti_eop_to_handle(eop);
           assert_always(gasnetex_test_syncnb(h2) == GASNET_ERR_NOT_READY);
@@ -1093,7 +1093,7 @@ static void op_test(int id) {
           assert_always(gasnetex_test_syncnb(h2) == GASNET_ERR_NOT_READY);
 
           PTHREAD_BARRIER(num_threads);
-          assert_always(iop1 == gasneti_iop_register(2, isget GASNETE_THREAD_GET)); /* iop1 += 2 */
+          assert_always(iop1 == gasneti_iop_register(2, isget GASNETI_THREAD_GET)); /* iop1 += 2 */
           ASSERT_NBI_NOTSYNCED();
           assert_always(gasnetex_test_syncnb(h) == GASNET_ERR_NOT_READY);
           assert_always(gasnetex_test_syncnb(h2) == GASNET_ERR_NOT_READY);

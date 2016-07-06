@@ -1150,7 +1150,7 @@ extern int gasnetc_AMPoll_core(GASNETC_AM_POLL_FARG)
 extern int gasnetc_AMPoll(void)
 #endif
 {
-  GASNETC_DIDX_POST(GASNETE_MYTHREAD->domain_idx);
+  GASNETC_DIDX_POST(GASNETI_MYTHREAD->domain_idx);
   GASNETI_CHECKATTACH();
 
 #if GASNET_PSHM

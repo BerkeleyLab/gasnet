@@ -21,7 +21,7 @@ gasnet_coll_handle_t gasnete_coll_smp_bcast_flat_get(gasnet_team_handle_t team,
                                                  size_t nbytes, int flags, 
                                                  gasnete_coll_implementation_t coll_params, 
                                                  uint32_t sequence
-                                                 GASNETE_THREAD_FARG) {
+                                                 GASNETI_THREAD_FARG) {
   
   
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
@@ -40,7 +40,7 @@ gasnet_coll_handle_t gasnete_coll_smp_bcast_flat_put(gasnet_team_handle_t team,
                                             size_t nbytes, int flags, 
                                             gasnete_coll_implementation_t coll_params, 
                                             uint32_t sequence
-                                            GASNETE_THREAD_FARG) {
+                                            GASNETI_THREAD_FARG) {
   
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 #if GASNET_PAR
@@ -61,7 +61,7 @@ gasnet_coll_handle_t gasnete_coll_smp_bcast_tree_intflags(gasnet_team_handle_t t
                                             size_t nbytes, int flags, 
                                             gasnete_coll_implementation_t coll_params, 
                                             uint32_t sequence
-                                            GASNETE_THREAD_FARG) {
+                                            GASNETI_THREAD_FARG) {
   
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   gasneti_assert(coll_params->num_params >= 1);
@@ -85,7 +85,7 @@ gasnete_coll_smp_reduceM_flat(gasnet_team_handle_t team,
                                 int flags, 
                                 gasnete_coll_implementation_t coll_params,
                                 uint32_t sequence
-                              GASNETE_THREAD_FARG) {
+                              GASNETI_THREAD_FARG) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 #if GASNET_PAR
   gasneti_assert(!(flags & GASNETE_COLL_THREAD_LOCAL));
@@ -106,7 +106,7 @@ gasnete_coll_smp_scatM_flat_put(gasnet_team_handle_t team,
                             size_t nbytes, size_t dist, int flags,
                             gasnete_coll_implementation_t coll_params,
                             uint32_t sequence
-                            GASNETE_THREAD_FARG) {
+                            GASNETI_THREAD_FARG) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 #if GASNET_PAR
   gasneti_assert(!(flags & GASNETE_COLL_THREAD_LOCAL));
@@ -129,7 +129,7 @@ gasnet_coll_handle_t gasnete_coll_smp_scatM_flat_get(gasnet_team_handle_t team,
                                                      size_t nbytes, size_t dist, int flags,
                                                      gasnete_coll_implementation_t coll_params,
                                                      uint32_t sequence
-                                                     GASNETE_THREAD_FARG) {
+                                                     GASNETI_THREAD_FARG) {
   
   
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
@@ -148,7 +148,7 @@ gasnete_coll_smp_gathM_flat_put(gasnet_team_handle_t team,
                                 size_t nbytes, size_t dist, int flags,
                                 gasnete_coll_implementation_t coll_params,
                                 uint32_t sequence
-                                GASNETE_THREAD_FARG) {
+                                GASNETI_THREAD_FARG) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 #if GASNET_PAR
   gasneti_assert(!(flags & GASNETE_COLL_THREAD_LOCAL));
@@ -166,7 +166,7 @@ gasnete_coll_smp_gathM_flat_get(gasnet_team_handle_t team,
                                 size_t nbytes, size_t dist, int flags,
                                 gasnete_coll_implementation_t coll_params,
                                 uint32_t sequence
-                                GASNETE_THREAD_FARG) {
+                                GASNETI_THREAD_FARG) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
 #if GASNET_PAR
   gasneti_assert(!(flags & GASNETE_COLL_THREAD_LOCAL));
@@ -190,7 +190,7 @@ gasnete_coll_smp_gath_allM_flat_put(gasnet_team_handle_t team,
                                     size_t nbytes, int flags,
                                     gasnete_coll_implementation_t coll_params,
                                     uint32_t sequence
-                                    GASNETE_THREAD_FARG) {
+                                    GASNETI_THREAD_FARG) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   int dst;
 #if GASNET_PAR
@@ -216,7 +216,7 @@ gasnete_coll_smp_gath_allM_flat_get(gasnet_team_handle_t team,
                                     size_t nbytes, int flags,
                                     gasnete_coll_implementation_t coll_params,
                                     uint32_t sequence
-                                    GASNETE_THREAD_FARG) {
+                                    GASNETI_THREAD_FARG) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   int src;
 #if GASNET_PAR
@@ -242,7 +242,7 @@ gasnete_coll_smp_exchgM_flat_put(gasnet_team_handle_t team,
                                     size_t nbytes, int flags,
                                     gasnete_coll_implementation_t coll_params,
                                     uint32_t sequence
-                                    GASNETE_THREAD_FARG) {
+                                    GASNETI_THREAD_FARG) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   int dst;
 #if GASNET_PAR
@@ -268,7 +268,7 @@ gasnete_coll_smp_exchgM_flat_get(gasnet_team_handle_t team,
                                     size_t nbytes, int flags,
                                     gasnete_coll_implementation_t coll_params,
                                     uint32_t sequence
-                                    GASNETE_THREAD_FARG) {
+                                    GASNETI_THREAD_FARG) {
   gasnete_coll_threaddata_t *td = GASNETE_COLL_MYTHREAD;
   int src;
 #if GASNET_PAR

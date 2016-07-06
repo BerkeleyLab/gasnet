@@ -368,7 +368,7 @@ typedef const struct _gasneti_iop_S gasneti_iop_t;
 /* create a new explicit-handle NB operation
    represented with abstract type gasneti_eop_t
    and mark it in-flight */
-gasneti_eop_t *gasneti_eop_create(GASNETE_THREAD_FARG_ALONE);
+gasneti_eop_t *gasneti_eop_create(GASNETI_THREAD_FARG_ALONE);
 
 /* convert an gasneti_eop_t* created by an earlier call from this
    thread to gasneti_new_eop(), into a gasnetex_handle_t suitable
@@ -383,7 +383,7 @@ gasneti_eop_t *gasneti_eop_create(GASNETE_THREAD_FARG_ALONE);
    implicit-handle NB context represented with abstract type gasneti_iop_t, 
    and return a pointer to that context
    if isput is non-zero, the registered operations are puts, otherwise they are gets */
-gasneti_iop_t *gasneti_iop_register(unsigned int noperations, int isget GASNETE_THREAD_FARG);
+gasneti_iop_t *gasneti_iop_register(unsigned int noperations, int isget GASNETI_THREAD_FARG);
 
 /* given an gasneti_eop_t* returned by an earlier call from any thread
    to gasneti_new_eop(), mark that explicit-handle NB operation complete

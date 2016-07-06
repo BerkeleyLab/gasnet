@@ -3492,7 +3492,7 @@ extern int gasnetc_AMRequestLongM(
       mem_initiated_p = &mem_oust.initiated;
       mem_completed_p = &mem_oust.completed;
     } else if (lc_opt == GASNETEX_LC_GROUP) {
-      gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+      gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
       gasnete_iop_t *op = mythread->current_iop;
       mem_initiated_p = &op->initiated_alc_cnt;
       mem_completed_p = &op->completed_alc_cnt;

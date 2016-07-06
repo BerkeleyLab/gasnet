@@ -22,7 +22,7 @@ gasnetex_handle_t gasnete_get_nb(
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
-                     gasnetex_flags_t flags GASNETE_THREAD_FARG)
+                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GET(H);
   gasneti_assert(0 && "Unreachable");
@@ -36,7 +36,7 @@ gasnetex_handle_t gasnete_put_nb(
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_lc_handle_t *lc_opt,
-                     gasnetex_flags_t flags GASNETE_THREAD_FARG)
+                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(H);
   gasneti_assert(0 && "Unreachable");
@@ -108,7 +108,7 @@ int gasnete_lc_array(gasnetex_lc_handle_t *plchandle, size_t numlchandles)
 
 
 GASNETI_INLINE(gasnete_test_lc_group)
-int gasnete_test_lc_group (GASNETE_THREAD_FARG_ALONE) {
+int gasnete_test_lc_group (GASNETI_THREAD_FARG_ALONE) {
   return GASNET_OK;
 }
 #define gasnete_test_lc_group gasnete_test_lc_group
@@ -124,7 +124,7 @@ int gasnete_get_nbi (gasnetex_team_member_t team,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
                      size_t nbytes,
-                     gasnetex_flags_t flags GASNETE_THREAD_FARG)
+                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GET(I);
   gasneti_assert(0 && "Unreachable");
@@ -137,7 +137,7 @@ int gasnete_put_nbi (gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
                      size_t nbytes, gasnetex_lc_handle_t *lc_opt,
-                     gasnetex_flags_t flags GASNETE_THREAD_FARG)
+                     gasnetex_flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(I);
   gasneti_assert(0 && "Unreachable");
@@ -151,7 +151,7 @@ int gasnete_put_nbi (gasnetex_team_member_t team,
   ===========================================================
 */
 GASNETI_INLINE(gasnete_syncnbi)
-int gasnete_syncnbi(GASNETE_THREAD_FARG_ALONE)
+int gasnete_syncnbi(GASNETI_THREAD_FARG_ALONE)
 {
   gasneti_sync_reads();
   return GASNET_OK;
@@ -164,12 +164,12 @@ int gasnete_syncnbi(GASNETE_THREAD_FARG_ALONE)
 #define gasnete_wait_syncnbi_puts gasnete_syncnbi
 
 GASNETI_INLINE(gasnete_begin_nbi_accessregion)
-void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecursion GASNETE_THREAD_FARG)
+void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecursion GASNETI_THREAD_FARG)
 { /* empty */ }
 #define gasnete_begin_nbi_accessregion gasnete_begin_nbi_accessregion
 
 GASNETI_INLINE(gasnete_end_nbi_accessregion) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_lc_handle_t *lc_opt, gasnetex_flags_t flags GASNETE_THREAD_FARG)
+gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_lc_handle_t *lc_opt, gasnetex_flags_t flags GASNETI_THREAD_FARG)
 {
   gasneti_assert(lc_opt != GASNETEX_LC_GROUP); // TODO-EX: allow this if we nest access region?
   if (lc_opt != NULL) gasneti_lc_opt_finish(lc_opt);
@@ -189,7 +189,7 @@ int gasnete_put_val(
                 gasnetex_rank_t rank, void *dest,
                 gasnetex_register_value_t value,
                 size_t nbytes, gasnetex_flags_t flags
-                GASNETE_THREAD_FARG)
+                GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUTVAL(I);
   gasneti_assert(0 && "Unreachable");
@@ -202,7 +202,7 @@ gasnetex_handle_t gasnete_put_nb_val(
                 gasnetex_rank_t rank, void *dest,
                 gasnetex_register_value_t value,
                 size_t nbytes, gasnetex_flags_t flags
-                GASNETE_THREAD_FARG)
+                GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUTVAL(H);
   gasneti_assert(0 && "Unreachable");
@@ -224,7 +224,7 @@ gasnetex_register_value_t gasnete_get_val(
                 gasnetex_team_member_t team,
                 gasnetex_rank_t rank, void *src,
                 size_t nbytes, gasnetex_flags_t flags
-                GASNETE_THREAD_FARG)
+                GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_GETVAL();
   gasneti_assert(0 && "Unreachable");

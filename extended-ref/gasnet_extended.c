@@ -283,12 +283,12 @@ extern void gasnete_init(void) {
 
 /* ------------------------------------------------------------------------------------ */
 /* GASNET-Internal OP Interface */
-gasneti_eop_t *gasneti_eop_create(GASNETE_THREAD_FARG_ALONE) {
-  gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
+gasneti_eop_t *gasneti_eop_create(GASNETI_THREAD_FARG_ALONE) {
+  gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
   return (gasneti_eop_t *)op;
 }
-gasneti_iop_t *gasneti_iop_register(unsigned int noperations, int isget GASNETE_THREAD_FARG) {
-  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+gasneti_iop_t *gasneti_iop_register(unsigned int noperations, int isget GASNETI_THREAD_FARG) {
+  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t * const op = mythread->current_iop;
   gasnete_iop_check(op);
   if (isget) op->initiated_get_cnt += noperations;
@@ -533,8 +533,8 @@ extern int  gasnete_test_lc_all (gasnetex_lc_handle_t *plchandle, size_t numlcha
 #endif
 
 #ifndef gasnete_test_lc_group
-extern int gasnete_test_lc_group (GASNETE_THREAD_FARG_ALONE) {
-    gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+extern int gasnete_test_lc_group (GASNETI_THREAD_FARG_ALONE) {
+    gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_iop_t *iop = mythread->current_iop;
     gasneti_assert(iop->threadidx == mythread->threadidx);
     gasneti_assert(iop->next == NULL);
@@ -570,9 +570,9 @@ extern int gasnete_test_lc_group (GASNETE_THREAD_FARG_ALONE) {
 */
 
 #ifndef gasnete_test_syncnbi_gets
-extern int  gasnete_test_syncnbi_gets(GASNETE_THREAD_FARG_ALONE)
+extern int  gasnete_test_syncnbi_gets(GASNETI_THREAD_FARG_ALONE)
 {
-    gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+    gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_iop_t *iop = mythread->current_iop;
     gasneti_assert(iop->threadidx == mythread->threadidx);
     gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
@@ -589,9 +589,9 @@ extern int  gasnete_test_syncnbi_gets(GASNETE_THREAD_FARG_ALONE)
 #endif
 
 #ifndef gasnete_test_syncnbi_puts
-extern int  gasnete_test_syncnbi_puts(GASNETE_THREAD_FARG_ALONE)
+extern int  gasnete_test_syncnbi_puts(GASNETI_THREAD_FARG_ALONE)
 {
-    gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+    gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_iop_t *iop = mythread->current_iop;
     gasneti_assert(iop->threadidx == mythread->threadidx);
     gasneti_assert(iop->next == NULL);
@@ -619,8 +619,8 @@ extern int  gasnete_test_syncnbi_puts(GASNETE_THREAD_FARG_ALONE)
 /*  This implementation allows recursive access regions, although the spec does not require that */
 /*  operations are associated with the most immediately enclosing access region */
 #ifndef gasnete_begin_nbi_accessregion
-extern void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecursion GASNETE_THREAD_FARG) {
-  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+extern void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecursion GASNETI_THREAD_FARG) {
+  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *iop = gasnete_iop_new(mythread); /*  push an iop  */
   GASNETI_TRACE_PRINTF(S,("BEGIN_NBI_ACCESSREGION"));
   #if GASNET_DEBUG
@@ -633,8 +633,8 @@ extern void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecu
 #endif
 
 #ifndef gasnete_end_nbi_accessregion
-extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_lc_handle_t *lc_opt, gasnetex_flags_t flags GASNETE_THREAD_FARG) {
-  gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
+extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_lc_handle_t *lc_opt, gasnetex_flags_t flags GASNETI_THREAD_FARG) {
+  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop; /*  pop an iop */
   GASNETI_TRACE_EVENT_VAL(S,END_NBI_ACCESSREGION,iop->initiated_get_cnt + iop->initiated_put_cnt);
 

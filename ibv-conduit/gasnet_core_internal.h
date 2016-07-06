@@ -667,7 +667,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
                   gasnetc_atomic_t *mem_completed,
                   gasnetc_atomic_val_t *initiated,
                   gasnetc_atomic_t *completed
-                  GASNETE_THREAD_FARG);
+                  GASNETI_THREAD_FARG);
 #else
   extern int gasnetc_rdma_put_fh(
                   gasnetc_epid_t epid,
@@ -677,7 +677,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
                   gasnetc_atomic_val_t *initiated,
                   gasnetc_atomic_t *completed,
                   gasnetc_counter_t *am_oust
-                  GASNETE_THREAD_FARG);
+                  GASNETI_THREAD_FARG);
   GASNETI_INLINE(gasnetc_rdma_put)
   int gasnetc_rdma_put(
                   gasnetc_epid_t epid,
@@ -686,10 +686,10 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
                   gasnetc_atomic_t *mem_completed,
                   gasnetc_atomic_val_t *initiated,
                   gasnetc_atomic_t *completed
-                  GASNETE_THREAD_FARG)
-  { return gasnetc_rdma_put_fh(epid,src_ptr,dst_ptr,nbytes,mem_initiated,mem_completed,initiated,completed,NULL GASNETE_THREAD_PASS); }
+                  GASNETI_THREAD_FARG)
+  { return gasnetc_rdma_put_fh(epid,src_ptr,dst_ptr,nbytes,mem_initiated,mem_completed,initiated,completed,NULL GASNETI_THREAD_PASS); }
 #endif
-extern int gasnetc_rdma_get(gasnetc_epid_t epid, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_atomic_val_t *initiated, gasnetc_atomic_t *completed GASNETE_THREAD_FARG);
+extern int gasnetc_rdma_get(gasnetc_epid_t epid, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_atomic_val_t *initiated, gasnetc_atomic_t *completed GASNETI_THREAD_FARG);
 
 /* Routines in gasnet_core_thread.c */
 #if GASNETI_CONDUIT_THREADS
