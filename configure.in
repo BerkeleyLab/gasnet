@@ -2101,12 +2101,29 @@ AC_DEFUN([CONDUIT_DISALLOW_SEGMENT],[
   fi
   popdef([upperseg])
 ])
+dnl flags this conduit as not yet working in EX
+AC_DEFUN([CONDUIT_EX_UNIMPLEMENTED],[
+  ex_unimplemented_[]CONDUIT_NAME=yes
+])
 dnl CONDUIT_END(test_conduit_enabled)
 AC_DEFUN([CONDUIT_END],[
   if test "$gasnet_toolsonly_mode" = "no" ; then
     if $1; then
       _conduit_enabled_flagstr=ON
       CONDUITS="$CONDUITS CONDUIT_NAME"
+      if test "$ex_unimplemented_[]CONDUIT_NAME" = "yes"; then
+        pushdef([EX_UNIMPL_MESSAGE],[It appears your system has the required support for CONDUIT_NAME[]-conduit, 
+	  however CONDUIT_NAME[]-conduit is not yet fully implemented in this GASNet-EX distribution, 
+	  If you want to use this conduit, please download the GASNet v1.x distribution from http://gasnet.lbl.gov.
+	  Otherwise, you should run configure with --disable-[]CONDUIT_NAME to disable this conduit.
+	])
+        if test "$force_[]CONDUIT_NAME" = yes ; then # allow --enable-conduit to override for developers
+	  GASNET_MSG_WARN([EX_UNIMPL_MESSAGE])
+	else # but defaults to fatal when probed
+	  AC_MSG_ERROR([EX_UNIMPL_MESSAGE])
+	fi
+        popdef([EX_UNIMPL_MESSAGE])
+      fi
     else
       if test "$force_[]CONDUIT_NAME" = yes ; then
        GASNET_MSG_ERROR([User requested --enable-CONDUIT_NAME but I don't know how to build CONDUIT_NAME programs for your system])
@@ -2941,6 +2958,7 @@ AC_SUBST(MXM_LIBS)
 AM_CONDITIONAL(USE_MXM_CONDUIT, test "$have_mxm" = yes)
 AM_CONDITIONAL(MXM_BOOTSTRAP_SSH, test "$have_fork" = yes)
 AM_CONDITIONAL(MXM_BOOTSTRAP_MPI, test "$have_mpi_compat" = yes)	# Option to omit MPI support?
+CONDUIT_EX_UNIMPLEMENTED
 CONDUIT_END([test "$have_mxm" = yes])
 
 #--------------------------------------------------------------------------------------------------------
@@ -3070,6 +3088,7 @@ AC_SUBST(PSM_LIBS)
 AM_CONDITIONAL(USE_PSM_CONDUIT, test "$have_psm" = yes)
 AM_CONDITIONAL(PSM_BOOTSTRAP_SSH, test "$have_fork" = yes)
 AM_CONDITIONAL(PSM_BOOTSTRAP_MPI, test "$have_mpi_compat" = yes)	# Option to omit MPI support?
+CONDUIT_EX_UNIMPLEMENTED
 CONDUIT_END([test "$have_psm" = yes])
 
 #--------------------------------------------------------------------------------------------------------
@@ -3179,6 +3198,7 @@ AC_SUBST(PORTALS4_LIBDIR)
 AC_SUBST(PORTALS4_LIBS)
 AC_SUBST(PORTALS4_LIBCFLAGS)
 AM_CONDITIONAL(USE_PORTALS4_CONDUIT, test "$have_portals4" = yes)
+CONDUIT_EX_UNIMPLEMENTED
 CONDUIT_END([test "$have_portals4" = yes])
 
 #--------------------------------------------------------------------------------------------------------
@@ -3627,6 +3647,7 @@ AC_SUBST(SHMEM_LIBDIR)
 AC_SUBST(SHMEM_LIBS)
 AC_SUBST(SHMEM_FLAGS)
 AM_CONDITIONAL(USE_SHMEM_CONDUIT, test "$enabled_shmem$have_shmem" = yesyes)
+CONDUIT_EX_UNIMPLEMENTED
 CONDUIT_END([test "$enabled_shmem$have_shmem" = yesyes])
 
 #--------------------------------------------------------------------------------------------------------
@@ -3805,6 +3826,7 @@ AC_SUBST(OFI_LIBCFLAGS)
 AM_CONDITIONAL(USE_OFI_CONDUIT, test "$have_ofi" = yes)
 AM_CONDITIONAL(OFI_BOOTSTRAP_SSH, test "$have_fork" = yes)
 AM_CONDITIONAL(OFI_BOOTSTRAP_MPI, test "$have_mpi_compat" = yes)
+CONDUIT_EX_UNIMPLEMENTED
 CONDUIT_END([test "$have_ofi" = yes])
 #---------------------------------------------------------------------------------------------------------------
 # CONDUIT CONFIGURATIONS FINISH
