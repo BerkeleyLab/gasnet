@@ -570,6 +570,7 @@ AC_DEFUN([GASNET_GET_PPC64_FLAGS],[
 ])
 
 
+AC_DEFUN([GASNET_SET_MISCFLAGS],[
 # Set MISC_CFLAGS: flags to be used by all C compilations, regardless of optimization/debugging level
 # This should include achitectural/CPU flags and anything required for C99 conformance
 case "$CC_FAMILY" in
@@ -636,7 +637,8 @@ case "$target_os" in
   cygwin*) MISC_CPPFLAGS="$MISC_CPPFLAGS -D_GNU_SOURCE=1" ;;
   *)  ;;
 esac
-
+]) dnl GASNET_SET_MISCFLAGS
+GASNET_SET_MISCFLAGS
 
 # Locate system directories for BG/Q
 if expr "$target" : powerpc64-bgq-linux >/dev/null; then
@@ -908,12 +910,14 @@ AC_DEFUN([GASNET_VA_ARGS_TEST],[
     int c[[GASNETI_AMNUMARGS(1,2)+1]];
     int d[[GASNETI_AMNUMARGS(1,2,3)+1]];
 ])
-GASNET_TRY_CACHE_CHECK(for working GASNet-required ISO C99 subset, gasnet_c99_subset,
- [ GASNET_VA_ARGS_TEST ],
+AC_DEFUN([GASNET_C99_TEST],
  [ int a = 1; // C99 comment
    for (int i=0; i < 100; i++) a += i; // Conditional expression declaration
    int i = a; // mid-block decl
- ], [], 
+])
+GASNET_TRY_CACHE_CHECK(for working GASNet-required ISO C99 subset, gasnet_c99_subset,
+ [ GASNET_VA_ARGS_TEST ],
+ [ GASNET_C99_TEST ], [], 
  [ AC_MSG_ERROR(Unable to find sufficient C99 support features in $CC to build GASNet. You may need to append flags in \$CC to enable C99 support) ])
 
 GASNET_POPVAR(CFLAGS)
@@ -2484,44 +2488,15 @@ GASNET_IF_ENABLED_WITH_AUTO(mpi-compat, Enable/disable MPI compatibility (auto-d
 dnl GASNET_TOOLSONLY_FALSE_END
 
 # --enable-mpi controls mpi-conduit
-CONDUIT_BEGIN(mpi,[portable MPI-1.1/2.x network conduit (mpi)])
+CONDUIT_BEGIN(mpi,[portable MPI network conduit (mpi)])
 
-AC_DEFUN([GASNET_CHECK_MPI_CC],[
-  if test "x$MPI_CC" = 'xno' >/dev/null; then
-    # Avoid unecessary and potentially confusing probes and their errors/warnings
-    have_mpi=no
-    mpi_reason="was disabled"
-  else
-    GASNET_GETFULLPATH(MPI_CC)
-    if expr "x$MPI_CC" : 'x/' >/dev/null; then
-      if test "$BUILDCONFIG" = "debug" ; then
-        SAFE_MPI_CFLAGS="-g"
-      else
-        SAFE_MPI_CFLAGS="-O"
-      fi
-      GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $1, $SAFE_MPI_CFLAGS)
-    else
-      GASNET_MSG_WARN([MPI compiler "$MPI_CC" was not found.  Consider passing --with-mpi-cc if you want mpi-conduit or require MPI compatibility])
-      # Avoid unecessary and potentially confusing probes and their errors/warnings
-      MPI_CC=no
-      have_mpi=no
-      mpi_reason="was not found"
-    fi
-  fi
-])
 
 if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
   # user can explicitly configure MPI by setting MPI_CC, MPI_CFLAGS and MPI_LIBS
+  # First step is to provide sane defaults when the user gave us nothing
   have_mpi=yes # start by assuming they have it
+  DEFAULT_MPI_CFLAGS="$MISC_CFLAGS $MISC_CPPFLAGS $CFLAGS" # default flags, assuming they are the same compiler
   case "$target_os" in
-    solaris*)  
-        # I don't have access to a Solaris cluster with MPI (other than NOW) 
-        # but these seem like sane defaults
-    	GASNET_ENV_DEFAULT(MPI_CC, mpicc)
-        GASNET_CHECK_MPI_CC($MISC_CFLAGS $MISC_CPPFLAGS $CFLAGS)
-    	GASNET_ENV_DEFAULT(MPI_LIBS, )
-	GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
-        ;;
     linux*) 
         if test -n "$GASNETI_ARCH_ALTIX"; then
           GASNET_ENV_DEFAULT(MPI_CC, "$CC")
@@ -2544,18 +2519,16 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
     	  GASNET_ENV_DEFAULT(MPI_LIBS, )
 	  GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
         fi
-        GASNET_CHECK_MPI_CC($MISC_CFLAGS $MISC_CPPFLAGS $CFLAGS)
         GASNET_ENV_DEFAULT(MPIRUN_CMD_BATCH, "")
         ;;
     darwin*) # Need to probe -Wno-long-double independently
         GASNET_ENV_DEFAULT(MPI_CC, mpicc)
-        BASIC_MPI_CFLAGS=`echo "$MISC_CFLAGS $MISC_CPPFLAGS $CFLAGS" | sed -e 's/-Wno-long-double//'`
-        GASNET_CHECK_MPI_CC($BASIC_MPI_CFLAGS)
+        DEFAULT_MPI_CFLAGS=`echo "$DEFAULT_MPI_CFLAGS" | sed -e 's/-Wno-long-double//'`
         GASNET_PUSHVAR(CC,"$MPI_CC")
-        GASNET_PUSHVAR(CFLAGS,"$MPI_CFLAGS")
+        GASNET_PUSHVAR(CFLAGS,"")
         if test x"$MPI_CC" != xno; then
           GASNET_TRY_WNO_FLAG([C],[-Wno-long-double],
-	                      [MPI_CFLAGS="$MPI_CFLAGS -Wno-long-double"])
+	                      [DEFAULT_MPI_CFLAGS="$DEFAULT_MPI_CFLAGS -Wno-long-double"])
         fi
         GASNET_POPVAR(CC)
         GASNET_POPVAR(CFLAGS)
@@ -2564,23 +2537,55 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
         ;;
     mtx*)
     	GASNET_ENV_DEFAULT(MPI_CC, cc)
-        GASNET_CHECK_MPI_CC($MISC_CFLAGS $MISC_CPPFLAGS $CFLAGS)
     	GASNET_ENV_DEFAULT(MPI_LIBS, -lmpi)
 	GASNET_ENV_DEFAULT(MPIRUN_CMD, mtarun -t %N -m %N /usr/bin/env _MPI_MT=%N %C)
         ;;
     *) 
-      # unknown OS - if user doesn't provide info, nothing we can do
+      # unknown OS - if user doesn't provide info, assume generic settings that often work
       GASNET_ENV_DEFAULT(MPI_CC, mpicc)
-      GASNET_CHECK_MPI_CC($MISC_CFLAGS $MISC_CPPFLAGS $CFLAGS)
       GASNET_ENV_DEFAULT(MPI_LIBS, )
       GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
-      if test "$MPI_CC" = ""; then
-        GASNET_MSG_WARN([I don't know how to build MPI programs on your system: consider passing --with-mpi-cc and/or setting \$MPI_CFLAGS and \$MPI_LIBS to configure MPI support for your site if you want mpi-conduit or require MPI compatibility])
-	MPI_CC=$CC
-        have_mpi=no
-      fi 
       ;;
   esac
+
+  if test "x$MPI_CC" = 'xno' >/dev/null; then
+    # Avoid unecessary and potentially confusing probes and their errors/warnings
+    have_mpi=no
+    mpi_reason="was disabled"
+  else
+    GASNET_GETFULLPATH(MPI_CC)
+    if expr "x$MPI_CC" : 'x/' >/dev/null; then
+      # figure out a reasonable fallback MPI_CFLAGS for this arch/OS and C99 support
+      # this is complicated by the fact that $MPI_CC may be a different compiler than $CC
+      GASNET_PUSHVAR(CC,"$MPI_CC")
+      GASNET_PUSHVAR(CFLAGS,"")
+      GASNET_PUSHVAR(CPPFLAGS,"")
+      GASNET_PUSHVAR(MISC_CFLAGS,"")
+      GASNET_PUSHVAR(MISC_CPPFLAGS,"")
+      GASNET_ID_OTHER_COMPILER([MPI_CC], [MPI])
+      GASNET_PUSHVAR(CC_FAMILY,"$MPI_CC_FAMILY")
+        GASNET_SET_MISCFLAGS
+        if test "$BUILDCONFIG" = "debug" ; then
+          SAFE_MPI_CFLAGS="-g $MISC_CFLAGS $MISC_CPPFLAGS"
+        else
+          SAFE_MPI_CFLAGS="-O $MISC_CFLAGS $MISC_CPPFLAGS"
+        fi
+      GASNET_POPVAR(CC)
+      GASNET_POPVAR(CC_FAMILY)
+      GASNET_POPVAR(CFLAGS)
+      GASNET_POPVAR(CPPFLAGS)
+      GASNET_POPVAR(MISC_CFLAGS)
+      GASNET_POPVAR(MISC_CPPFLAGS)
+      GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $DEFAULT_MPI_CFLAGS, $SAFE_MPI_CFLAGS)
+    else
+      GASNET_MSG_WARN([MPI compiler "$MPI_CC" was not found.  Consider passing --with-mpi-cc if you want mpi-conduit or require MPI compatibility])
+      # Avoid unecessary and potentially confusing probes and their errors/warnings
+      MPI_CC=no
+      have_mpi=no
+      mpi_reason="was not found"
+    fi
+  fi
+
   if test x"$MPI_CC" != xno; then
   GASNET_GETFULLPATH(MPIRUN_CMD)
   fi
@@ -2597,6 +2602,13 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
     GASNET_PUSHVAR(CPPFLAGS,"")
     GASNET_PUSHVAR(LDFLAGS,"")
     GASNET_PUSHVAR(LIBS,"$MPI_LIBS")
+
+    # first check for a working C99 environment (enough to parse gasnet.h)
+    GASNET_TRY_CACHE_CHECK(for working GASNet-required ISO C99 subset in MPI_CC, mpi_gasnet_c99_subset,
+     [ ],
+     [ GASNET_C99_TEST ], [], 
+     [ AC_MSG_ERROR(Unable to find sufficient C99 support features in $MPI_CC to build GASNet. You may need to append flags in \$MPI_CC to enable C99 support) ])
+
     # we just try to link an MPI app - running MPI apps is a whole new can of worms
     GASNET_LINKHELPER_TRY_LINK(for working MPI configuration, mpi_works, [
       #include <mpi.h>
@@ -2621,7 +2633,6 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
     GASNET_LINKHELPER_CLEANUP()
 
     if test "$mpi_test_worked" = yes ; then
-      GASNET_ID_OTHER_COMPILER([MPI_CC], [MPI])
       GASNET_CHECK_RESTRICT([GASNETI_MPI_CC],[MPI_CC])
       GASNET_CHECK_ASM_SUPPORT([MPI_CC],[MPI_CC])
       GASNET_INLINE_MODIFIER([MPI_CC],[MPI_CC])
