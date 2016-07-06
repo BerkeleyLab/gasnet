@@ -425,6 +425,7 @@ void gasneti_lc_opt_finish(gasnetex_lc_handle_t *lc_ptr) {
   #define GASNETI_THREAD_PASS_ALONE   (_threadinfo)
   #define GASNETI_THREAD_PASS         , GASNETI_THREAD_PASS_ALONE
   #define GASNETI_THREAD_LOOKUP       GASNETI_THREAD_FARG_ALONE = GASNETI_THREAD_GET_ALONE;
+  #define GASNETI_THREAD_POST(x)      GASNETI_THREAD_FARG_ALONE = (x);
   #define GASNETI_THREAD_SWALLOW(x)
   #define GASNETI_MYTHREAD            ((struct _gasnete_threaddata_t *)_threadinfo)
 #else
@@ -435,6 +436,7 @@ void gasneti_lc_opt_finish(gasnetex_lc_handle_t *lc_ptr) {
   #define GASNETI_THREAD_PASS_ALONE   
   #define GASNETI_THREAD_PASS         
   #define GASNETI_THREAD_LOOKUP
+  #define GASNETI_THREAD_POST(x)
   #define GASNETI_THREAD_SWALLOW(x)
   #define GASNETI_MYTHREAD            (gasnete_mythread())
 #endif
