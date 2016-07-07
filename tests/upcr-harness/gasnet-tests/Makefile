@@ -1,6 +1,14 @@
 CONDUIT_DIR=$(TOP_BUILDDIR)/gasnet/$(NETWORK)-conduit
 STRICT_PROTO_FLAGS=`echo $$BUPC_STRICT_PROTO_FLAGS | sed -e 's/-Wc,//'`
 
+testcxx-%: force
+	@if test -n "`$(UPCC) --network=udp --echo-var UPCR_LD 2>/dev/null`"; then \
+	   $(MAKE) -C $(CONDUIT_DIR) $@;                                         \
+	   cp -f $(CONDUIT_DIR)/testcxx$(EXESUFFIX) $@$(EXESUFFIX);              \
+	 else                                                                    \
+	   echo '#!/bin/sh' > $@ ; chmod +x $@;                                  \
+	 fi
+
 testbarrierconf_%-seq: force
 	@$(MAKE) -C $(CONDUIT_DIR) testbarrierconf-seq MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)"
 	cp -f $(CONDUIT_DIR)/testbarrierconf$(EXESUFFIX) $@$(EXESUFFIX)
