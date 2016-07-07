@@ -369,11 +369,11 @@ typedef struct {
 /* Wait until given counter is marked as done.
  * Note that no AMPoll is done in the best case.
  */
-extern void gasnetc_counter_wait_aux(gasnetc_counter_t *counter, int handler_context);
+extern void gasnetc_counter_wait_aux(gasnetc_counter_t *counter, int handler_context GASNETI_THREAD_FARG);
 GASNETI_INLINE(gasnetc_counter_wait)
-void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context) { 
+void gasnetc_counter_wait(gasnetc_counter_t *counter, int handler_context GASNETI_THREAD_FARG) {
   if_pf (!gasnetc_counter_done(counter)) {
-    gasnetc_counter_wait_aux(counter, handler_context);
+    gasnetc_counter_wait_aux(counter, handler_context GASNETI_THREAD_PASS);
   }
   gasneti_sync_reads();
 } 
@@ -507,6 +507,9 @@ typedef struct {
   /* Rcv thread */
   gasnetc_progress_thread_t rcv_thread;
   void                      *rcv_thread_priv;
+ #if GASNETI_THREADINFO_OPT
+  gasnet_threadinfo_t       rcv_threadinfo;
+ #endif
 #endif
 
   /* AM-over-RMDA */
@@ -651,14 +654,16 @@ extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  int numargs,
 				  gasnetc_atomic_val_t *mem_initiated,
 				  gasnetc_atomic_t *mem_completed,
-				  gasnetc_atomic_t *completed, va_list argptr);
+				  gasnetc_atomic_t *completed, va_list argptr
+                                  GASNETI_THREAD_FARG);
 extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 				gasnetex_token_t token, gasnetex_handler_t handler,
 				void *src_addr, int nbytes, void *dst_addr,
 				int numargs,
 				gasnetc_atomic_val_t *mem_initiated,
 				gasnetc_atomic_t *mem_completed,
-				gasnetc_atomic_t *completed, va_list argptr);
+				gasnetc_atomic_t *completed, va_list argptr
+                                GASNETI_THREAD_FARG);
 #if GASNETC_PIN_SEGMENT
   extern int gasnetc_rdma_put(
                   gasnetc_epid_t epid,

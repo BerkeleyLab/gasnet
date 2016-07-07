@@ -397,7 +397,7 @@ gasnetex_handle_t gasnete_put_nb(
                    mem_initiated_p, mem_completed_p,
                    GASNETE_EOP_CNTRS(op)
                    GASNETI_THREAD_PASS);
-  if (lc_opt == GASNETEX_LC_INIT) gasnetc_counter_wait(&mem_oust, 0);
+  if (lc_opt == GASNETEX_LC_INIT) gasnetc_counter_wait(&mem_oust, 0 GASNETI_THREAD_PASS);
 
   return (gasnetex_handle_t)op;
  }
@@ -670,7 +670,7 @@ int gasnete_put_nbi (gasnetex_team_member_t team,
                    mem_initiated_p, mem_completed_p,
                    GASNETE_IOP_CNTRS(op,put)
                    GASNETI_THREAD_PASS);
-  if (lc_opt == GASNETEX_LC_INIT) gasnetc_counter_wait(&mem_oust, 0);
+  if (lc_opt == GASNETEX_LC_INIT) gasnetc_counter_wait(&mem_oust, 0 GASNETI_THREAD_PASS);
   return 0;
  }
 }
@@ -794,7 +794,7 @@ extern int gasnete_get  (gasnetex_team_member_t team,
  {
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
   gasnetc_rdma_get(rank, src, dest, nbytes, GASNETE_REQ_CNTRS(req_oust) GASNETI_THREAD_PASS);
-  gasnetc_counter_wait(&req_oust, 0);
+  gasnetc_counter_wait(&req_oust, 0 GASNETI_THREAD_PASS);
   return 0;
  }
 }
@@ -812,7 +812,7 @@ extern int gasnete_put  (gasnetex_team_member_t team,
                    NULL, NULL,
                    GASNETE_REQ_CNTRS(req_oust)
                    GASNETI_THREAD_PASS);
-  gasnetc_counter_wait(&req_oust, 0);
+  gasnetc_counter_wait(&req_oust, 0 GASNETI_THREAD_PASS);
   return 0;
  }
 }   
@@ -945,7 +945,7 @@ GASNETI_INLINE(gasnete_ibdbarrier_send)
 void gasnete_ibdbarrier_send(gasnete_coll_ibdbarrier_t *barrier_data,
                              int numsteps, unsigned int state,
                              gasnetex_handlerarg_t value, gasnetex_handlerarg_t flags) {
-  GASNETI_THREAD_LOOKUP
+  GASNETI_THREAD_LOOKUP // TODO-EX: eliminate this?
   unsigned int step = state >> 1;
   int i;
 

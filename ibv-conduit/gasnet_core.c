@@ -3033,7 +3033,7 @@ static int gasnetc_exit_slave(int64_t timeout_us) {
 
   /* wait until our reply has been placed on the wire */
   gasneti_sync_reads(); /* For non-atomic portion of gasnetc_exit_repl_oust */
-  gasnetc_counter_wait(&gasnetc_exit_repl_oust, 1);
+  gasnetc_counter_wait(&gasnetc_exit_repl_oust, 1 GASNETI_THREAD_GET);
 
   return 0;
 }
@@ -3440,7 +3440,8 @@ extern int gasnetc_AMRequestShortM(
   va_start(argptr, numargs); /*  pass in last argument */
   retval = gasnetc_RequestGeneric(gasnetc_Short, rank, handler,
 		  		  NULL, 0, NULL,
-				  numargs, NULL, NULL, NULL, argptr);
+				  numargs, NULL, NULL, NULL,
+                                  argptr GASNETI_THREAD_PASS);
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -3461,7 +3462,8 @@ extern int gasnetc_AMRequestMediumM(
   va_start(argptr, numargs); /*  pass in last argument */
   retval = gasnetc_RequestGeneric(gasnetc_Medium, rank, handler,
 		  		  source_addr, nbytes, NULL,
-				  numargs, NULL, NULL, NULL, argptr);
+				  numargs, NULL, NULL, NULL,
+                                  argptr GASNETI_THREAD_PASS);
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -3506,11 +3508,11 @@ extern int gasnetc_AMRequestLongM(
     retval = gasnetc_RequestGeneric(gasnetc_Long, rank, handler,
 		  		  source_addr, nbytes, dest_addr,
 				  numargs, mem_initiated_p, mem_completed_p,
-				  NULL, argptr);
+				  NULL, argptr GASNETI_THREAD_PASS);
 
     if (lc_opt == GASNETEX_LC_INIT) {
       /* block for completion of RDMA transfer */
-      gasnetc_counter_wait(&mem_oust, 0);
+      gasnetc_counter_wait(&mem_oust, 0 GASNETI_THREAD_PASS);
     }
   }
   va_end(argptr);
@@ -3522,13 +3524,15 @@ extern int gasnetc_AMReplyShortM(
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             gasnetex_flags_t flags,
                             int numargs, ...) {
+  GASNETI_THREAD_LOOKUP // TODO-EX: extract threadinfo from token
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREPLYSHORT(token,handler,flags,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
   retval = gasnetc_ReplyGeneric(gasnetc_Short, token, handler,
 		  		NULL, 0, NULL,
-				numargs, NULL, NULL, NULL, argptr);
+				numargs, NULL, NULL, NULL,
+                                argptr GASNETI_THREAD_PASS);
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -3540,6 +3544,7 @@ extern int gasnetc_AMReplyMediumM(
                             gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags,
                             int numargs, ...) {
+  GASNETI_THREAD_LOOKUP // TODO-EX: extract threadinfo from token
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs);
@@ -3547,7 +3552,8 @@ extern int gasnetc_AMReplyMediumM(
   va_start(argptr, numargs); /*  pass in last argument */
   retval = gasnetc_ReplyGeneric(gasnetc_Medium, token, handler,
 		  		source_addr, nbytes, NULL,
-				numargs, NULL, NULL, NULL, argptr);
+				numargs, NULL, NULL, NULL,
+                                argptr GASNETI_THREAD_PASS);
   va_end(argptr);
   GASNETI_RETURN(retval);
 }
@@ -3560,6 +3566,7 @@ extern int gasnetc_AMReplyLongM(
                             gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags,
                             int numargs, ...) {
+  GASNETI_THREAD_LOOKUP // TODO-EX: extract threadinfo from token
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
@@ -3576,7 +3583,7 @@ extern int gasnetc_AMReplyLongM(
       mem_initiated_p = &mem_oust.initiated;
       mem_completed_p = &mem_oust.completed;
     } else if (lc_opt == GASNETEX_LC_GROUP) {
-      gasnete_threaddata_t * const mythread = gasnete_mythread(); // TODO-EX: THREADINFO_OPT?
+      gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
       gasnete_iop_t *op = mythread->current_iop;
       mem_initiated_p = &op->initiated_alc_cnt;
       mem_completed_p = &op->completed_alc_cnt;
@@ -3590,18 +3597,19 @@ extern int gasnetc_AMReplyLongM(
     retval = gasnetc_ReplyGeneric(gasnetc_Long, token, handler,
 		  		  source_addr, nbytes, dest_addr,
 				  numargs, mem_initiated_p, mem_completed_p,
-				  NULL, argptr);
+				  NULL, argptr GASNETI_THREAD_PASS);
 
     if (lc_opt == GASNETEX_LC_INIT) {
       /* block for completion of RDMA transfer */
-      gasnetc_counter_wait(&mem_oust, 1 /* calling from a request handler */);
+      gasnetc_counter_wait(&mem_oust, 1 /* calling from a request handler */ GASNETI_THREAD_PASS);
     }
   }
   #else
   gasneti_lc_opt_finish(lc_opt); // Always "packed long", and thus locally-complete
   retval = gasnetc_ReplyGeneric(gasnetc_Long, token, handler,
 		  		source_addr, nbytes, dest_addr,
-				numargs, NULL, NULL, NULL, argptr);
+				numargs, NULL, NULL, NULL,
+                                argptr GASNETI_THREAD_PASS);
 
   #endif
   va_end(argptr);
