@@ -545,7 +545,7 @@ typedef int32_t gasneti_atomic32_sval_t;	/* For consistency in fencing macros */
   #define gasneti_atomic32_t                   gasneti_genatomic32_t
   #define gasneti_atomic32_init                gasneti_genatomic32_init
   #define gasneti_genatomic32_add(p,op,f)      ((uint32_t)gasneti_genatomic32_addfetch((p),(op),(f)))
-  #define gasneti_genatomic32_subtract(p,op,f) ((uint32_t)gasneti_genatomic32_addfetch((p),-(op),(f)))
+  #define gasneti_genatomic32_subtract(p,op,f) ((uint32_t)gasneti_genatomic32_addfetch((p),(uint32_t)-(op),(f)))
   #define _gasneti_atomic32_cons(_id)          gasneti_genatomic32_##_id
 #elif defined(GASNETI_USING_SLOW_ATOMICS)
   /* Since this is an indirection, rather than a full implementation, the
@@ -594,11 +594,11 @@ typedef int32_t gasneti_atomic32_sval_t;	/* For consistency in fencing macros */
   #ifdef _gasneti_atomic32_decrement
     #define gasneti_atomic32_decrement(p,f) GASNETI_ATOMIC_FENCED_INCDEC(atomic32,_gasneti_atomic32_decrement,gasneti_atomic32_,p,f)
   #elif !defined(gasneti_atomic32_decrement)
-    #define gasneti_atomic32_decrement(p,f) ((void)gasneti_atomic32_addfetch((p),-1,(f)))
+    #define gasneti_atomic32_decrement(p,f) ((void)gasneti_atomic32_addfetch((p),(uint32_t)-1,(f)))
   #endif
   #ifndef gasneti_atomic32_decrement_and_test
     #ifndef _gasneti_atomic32_decrement_and_test
-      #define _gasneti_atomic32_decrement_and_test(p) (0==_gasneti_atomic32_addfetch((p),-1))
+      #define _gasneti_atomic32_decrement_and_test(p) (0==_gasneti_atomic32_addfetch((p),(uint32_t)-1))
     #endif
     GASNETI_ATOMIC_FENCED_DECTEST_DEFN(atomic32,gasneti_atomic32_decrement_and_test,_gasneti_atomic32_decrement_and_test,gasneti_atomic32_)
   #endif
@@ -616,7 +616,7 @@ typedef int32_t gasneti_atomic32_sval_t;	/* For consistency in fencing macros */
   #ifdef _gasneti_atomic32_subtract
     GASNETI_ATOMIC_FENCED_ADDSUB_DEFN(atomic32,gasneti_atomic32_subtract,_gasneti_atomic32_subtract,gasneti_atomic32_)
   #elif !defined(gasneti_atomic32_subtract)
-    #define gasneti_atomic32_subtract(p,op,f) ((uint32_t)gasneti_atomic32_addfetch((p),-(op),(f)))
+    #define gasneti_atomic32_subtract(p,op,f) ((uint32_t)gasneti_atomic32_addfetch((p),(uint32_t)-(op),(f)))
   #endif
 #endif
 #ifdef _gasneti_atomic32_cons
@@ -638,7 +638,7 @@ typedef int64_t gasneti_atomic64_sval_t;	/* For consistency in fencing macros */
   #define gasneti_atomic64_t                   gasneti_genatomic64_t
   #define gasneti_atomic64_init                gasneti_genatomic64_init
   #define gasneti_genatomic64_add(p,op,f)      ((uint64_t)gasneti_genatomic64_addfetch((p),(op),(f)))
-  #define gasneti_genatomic64_subtract(p,op,f) ((uint64_t)gasneti_genatomic64_addfetch((p),-(op),(f)))
+  #define gasneti_genatomic64_subtract(p,op,f) ((uint64_t)gasneti_genatomic64_addfetch((p),(uint64_t)-(op),(f)))
   #define _gasneti_atomic64_cons(_id)          gasneti_genatomic64_##_id
 #elif defined(GASNETI_USING_SLOW_ATOMICS)
   /* Since this is an indirection, rather than a full implementation, the
@@ -716,19 +716,19 @@ typedef int64_t gasneti_atomic64_sval_t;	/* For consistency in fencing macros */
   int gasneti_atomic64_decrement_and_test(gasneti_atomic64_t *p, const int flags) {
     const int mask = (GASNETI_ATOMIC_RMB_POST_IF_TRUE|GASNETI_ATOMIC_RMB_POST_IF_FALSE);
     if_pt (!((uintptr_t)p & 0x7)) {
-      const int result = (1 == __gasneti_atomic64_fetchadd(p,-1,flags));
+      const int result = (1 == __gasneti_atomic64_fetchadd(p,(uint64_t)-1,flags));
       _gasneti_atomic64_fence_after_bool(p,(flags&mask),result);
       return result;
     } else {
-      const int result = (0 == gasneti_genatomic64_addfetch((gasneti_genatomic64_t *)p,-1,flags));
+      const int result = (0 == gasneti_genatomic64_addfetch((gasneti_genatomic64_t *)p,(uint64_t)-1,flags));
       _gasneti_atomic_fence_after_bool(p,(flags&mask),result);
       return result;
     }
   }
   #define gasneti_atomic64_increment(p,f) ((void)gasneti_atomic64_addfetch((p),1,(f)))
-  #define gasneti_atomic64_decrement(p,f) ((void)gasneti_atomic64_addfetch((p),-1,(f)))
+  #define gasneti_atomic64_decrement(p,f) ((void)gasneti_atomic64_addfetch((p),(uint64_t)-1,(f)))
   #define gasneti_atomic64_add(p,op,f) ((uint64_t)gasneti_atomic64_addfetch((p),(op),(f)))
-  #define gasneti_atomic64_subtract(p,op,f) ((uint64_t)gasneti_atomic64_addfetch((p),-(op),(f)))
+  #define gasneti_atomic64_subtract(p,op,f) ((uint64_t)gasneti_atomic64_addfetch((p),(uint64_t)-(op),(f)))
 #else
   /* Define 64-bit fixed-width atomics in terms of un-fenced native atomics */
 
@@ -762,11 +762,11 @@ typedef int64_t gasneti_atomic64_sval_t;	/* For consistency in fencing macros */
   #ifdef _gasneti_atomic64_decrement
     #define gasneti_atomic64_decrement(p,f) GASNETI_ATOMIC_FENCED_INCDEC(atomic64,_gasneti_atomic64_decrement,gasneti_atomic64_,p,f)
   #elif !defined(gasneti_atomic64_decrement)
-    #define gasneti_atomic64_decrement(p,f) ((void)gasneti_atomic64_addfetch((p),-1,(f)))
+    #define gasneti_atomic64_decrement(p,f) ((void)gasneti_atomic64_addfetch((p),(uint64_t)-1,(f)))
   #endif
   #ifndef gasneti_atomic64_decrement_and_test
     #ifndef _gasneti_atomic64_decrement_and_test
-      #define _gasneti_atomic64_decrement_and_test(p) (0==_gasneti_atomic64_addfetch((p),-1))
+      #define _gasneti_atomic64_decrement_and_test(p) (0==_gasneti_atomic64_addfetch((p),(uint64_t)-1))
     #endif
     GASNETI_ATOMIC_FENCED_DECTEST_DEFN(atomic64,gasneti_atomic64_decrement_and_test,_gasneti_atomic64_decrement_and_test,gasneti_atomic64_)
   #endif
@@ -784,7 +784,7 @@ typedef int64_t gasneti_atomic64_sval_t;	/* For consistency in fencing macros */
   #ifdef _gasneti_atomic64_subtract
     GASNETI_ATOMIC_FENCED_ADDSUB_DEFN(atomic64,gasneti_atomic64_subtract,_gasneti_atomic64_subtract,gasneti_atomic64_)
   #elif !defined(gasneti_atomic64_subtract)
-    #define gasneti_atomic64_subtract(p,op,f) ((uint64_t)gasneti_atomic64_addfetch((p),-(op),(f)))
+    #define gasneti_atomic64_subtract(p,op,f) ((uint64_t)gasneti_atomic64_addfetch((p),(uint64_t)-(op),(f)))
   #endif
 #endif
 #ifdef _gasneti_atomic64_cons
