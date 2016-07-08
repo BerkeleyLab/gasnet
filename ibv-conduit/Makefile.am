@@ -82,7 +82,6 @@ CONDUIT_FILELIST =               \
       gasnet_core_internal.h     \
       gasnet_extended.c          \
       gasnet_extended_fwd.h      \
-      gasnet_extended_internal.h \
       gasnet_firehose.c          \
       firehose_fwd.h             \
       license.txt                

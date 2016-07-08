@@ -42,8 +42,8 @@ static void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
        #endif
       #endif
       #if GASNETE_EOP_COUNTED
-        gasneti_weakatomic_set(&buf[i].completed_cnt, 0 , 0);
-        gasneti_weakatomic_set(&buf[i].completed_alc, 0 , 0);
+        gasnete_op_atomic_set(&buf[i].completed_cnt, 0 , 0);
+        gasnete_op_atomic_set(&buf[i].completed_alc, 0 , 0);
       #endif
     }
      /*  add a list terminator */
@@ -82,9 +82,9 @@ static gasnete_iop_t *gasnete_iop_alloc(gasnete_threaddata_t * const thread)) {
     iop->initiated_alc_cnt = 0;
     iop->initiated_get_cnt = 0;
     iop->initiated_put_cnt = 0;
-    gasneti_weakatomic_set(&(iop->completed_alc_cnt), 0, 0);
-    gasneti_weakatomic_set(&(iop->completed_get_cnt), 0, 0);
-    gasneti_weakatomic_set(&(iop->completed_put_cnt), 0, 0);
+    gasnete_op_atomic_set(&(iop->completed_alc_cnt), 0, 0);
+    gasnete_op_atomic_set(&(iop->completed_get_cnt), 0, 0);
+    gasnete_op_atomic_set(&(iop->completed_put_cnt), 0, 0);
     return iop;
 }
 
@@ -140,9 +140,9 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
       iop->initiated_alc_cnt = 0;
       iop->initiated_get_cnt = 0;
       iop->initiated_put_cnt = 0;
-      gasneti_weakatomic_set(&(iop->completed_alc_cnt), 0, 0);
-      gasneti_weakatomic_set(&(iop->completed_get_cnt), 0, 0);
-      gasneti_weakatomic_set(&(iop->completed_put_cnt), 0, 0);
+      gasnete_op_atomic_set(&(iop->completed_alc_cnt), 0, 0);
+      gasnete_op_atomic_set(&(iop->completed_get_cnt), 0, 0);
+      gasnete_op_atomic_set(&(iop->completed_put_cnt), 0, 0);
     #endif
     SET_LCSTATE(iop, LCSTATE_NONE);
   } else {
@@ -190,8 +190,8 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
   } else {
     gasnete_iop_t *iop = (gasnete_iop_t *)op;
     gasnete_iop_check(iop);
-    if (isget) gasneti_weakatomic_increment(&(iop->completed_get_cnt), 0);
-    else gasneti_weakatomic_increment(&(iop->completed_put_cnt), 0);
+    if (isget) gasnete_op_atomic_increment(&(iop->completed_get_cnt), 0);
+    else gasnete_op_atomic_increment(&(iop->completed_put_cnt), 0);
   }
 }
 
@@ -303,16 +303,16 @@ void gasneti_eop_markdone(gasneti_eop_t *eop) {
 }
 void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isget) {
   gasnete_iop_t *op = (gasnete_iop_t *)iop;
-  gasneti_weakatomic_t * const pctr = (isget ? &(op->completed_get_cnt) : &(op->completed_put_cnt));
+  gasnete_op_atomic_t * const pctr = (isget ? &(op->completed_get_cnt) : &(op->completed_put_cnt));
   gasnete_iop_check(op);
   if (gasneti_constant_p(noperations) && (noperations == 1))
-      gasneti_weakatomic_increment(pctr, 0);
+      gasnete_op_atomic_increment(pctr, 0);
   else {
     #if defined(GASNETI_HAVE_WEAKATOMIC_ADD_SUB)
-      gasneti_weakatomic_add(pctr, noperations, 0);
+      gasnete_op_atomic_add(pctr, noperations, 0);
     #else /* yuk */
       while (noperations) {
-        gasneti_weakatomic_increment(pctr, 0);
+        gasnete_op_atomic_increment(pctr, 0);
         noperations--;
       }
     #endif

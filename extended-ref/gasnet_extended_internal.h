@@ -29,6 +29,19 @@
 
 /* ------------------------------------------------------------------------------------ */
 
+/* Conduit may optionally choose the atomic type for counters */
+#ifndef gasnete_op_atomic_
+  #define gasnete_op_atomic_(_id)       gasneti_weakatomic_##_id
+#endif
+#define gasnete_op_atomic_t             gasnete_op_atomic_(t)
+#define gasnete_op_atomic_val_t         gasnete_op_atomic_(val_t)
+#define gasnete_op_atomic_read          gasnete_op_atomic_(read)
+#define gasnete_op_atomic_set           gasnete_op_atomic_(set)
+#define gasnete_op_atomic_increment     gasnete_op_atomic_(increment)
+#define gasnete_op_atomic_add           gasnete_op_atomic_(add)
+
+/* ------------------------------------------------------------------------------------ */
+
 /* gasnetex_handle_t is a void* pointer to a gasnete_op_t, 
    which is either a gasnete_eop_t or an gasnete_iop_t
    For "normal" ABIs we layout the op as follows:
@@ -55,10 +68,10 @@ typedef struct _gasnete_eop_t {
     uint32_t pad;
   #endif
   #if GASNETE_EOP_COUNTED
-  gasneti_weakatomic_val_t initiated_cnt;
-  gasneti_weakatomic_t     completed_cnt;
-  gasneti_weakatomic_val_t initiated_alc;
-  gasneti_weakatomic_t     completed_alc;
+  gasnete_op_atomic_val_t initiated_cnt;
+  gasnete_op_atomic_t     completed_cnt;
+  gasnete_op_atomic_val_t initiated_alc;
+  gasnete_op_atomic_t     completed_alc;
   #endif
   #ifdef GASNETE_CONDUIT_EOP_FIELDS
   GASNETE_CONDUIT_EOP_FIELDS
@@ -69,18 +82,18 @@ typedef struct _gasnete_iop_t {
   uint8_t flags;                  /*  state flags */
   uint8_t flags2;                 /*  currently unused */
   gasnete_threadidx_t threadidx;  /*  thread that owns me */
-  gasneti_weakatomic_val_t initiated_alc_cnt;     /*  count of ops initiated with async local completion */
-  gasneti_weakatomic_val_t initiated_get_cnt;     /*  count of get ops initiated */
-  gasneti_weakatomic_val_t initiated_put_cnt;     /*  count of put ops initiated */
+  gasnete_op_atomic_val_t initiated_alc_cnt;     /*  count of ops initiated with async local completion */
+  gasnete_op_atomic_val_t initiated_get_cnt;     /*  count of get ops initiated */
+  gasnete_op_atomic_val_t initiated_put_cnt;     /*  count of put ops initiated */
 
   struct _gasnete_iop_t *next;    /*  next cell while in free list, deferred iop while being filled */
 
   /*  make sure the corresponding initiated/completed counters live on different cache lines for SMP's */
-  uint8_t pad[GASNETI_CACHE_PAD(sizeof(void*) + 3*sizeof(gasneti_weakatomic_val_t))];
+  uint8_t pad[GASNETI_CACHE_PAD(sizeof(void*) + 3*sizeof(gasnete_op_atomic_val_t))];
 
-  gasneti_weakatomic_t completed_alc_cnt;     /*  count of async-lc ops completed */
-  gasneti_weakatomic_t completed_get_cnt;     /*  count of get ops completed */
-  gasneti_weakatomic_t completed_put_cnt;     /*  count of put ops completed */
+  gasnete_op_atomic_t completed_alc_cnt;     /*  count of async-lc ops completed */
+  gasnete_op_atomic_t completed_get_cnt;     /*  count of get ops completed */
+  gasnete_op_atomic_t completed_put_cnt;     /*  count of put ops completed */
 
   #ifdef GASNETE_CONDUIT_IOP_FIELDS
   GASNETE_CONDUIT_IOP_FIELDS
@@ -173,15 +186,15 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
   } while (0)
   #define gasnete_iop_check(iop) do {                         \
     gasnete_iop_t *_tmp_next;                                 \
-    gasneti_weakatomic_val_t _temp;                           \
+    gasnete_op_atomic_val_t _temp;                            \
     gasneti_memcheck(iop);                                    \
     _tmp_next = (iop)->next;                                  \
     if (_tmp_next != NULL) _gasnete_iop_check(_tmp_next);     \
     gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);           \
     gasnete_assert_valid_threadid((iop)->threadidx);          \
-    _temp = gasneti_weakatomic_read(&((iop)->completed_put_cnt), GASNETI_ATOMIC_RMB_POST); \
+    _temp = gasnete_op_atomic_read(&((iop)->completed_put_cnt), GASNETI_ATOMIC_RMB_POST); \
     gasneti_assert((((iop)->initiated_put_cnt - _temp) & GASNETI_ATOMIC_MAX) < (GASNETI_ATOMIC_MAX/2)); \
-    _temp = gasneti_weakatomic_read(&((iop)->completed_get_cnt), GASNETI_ATOMIC_RMB_POST); \
+    _temp = gasnete_op_atomic_read(&((iop)->completed_get_cnt), GASNETI_ATOMIC_RMB_POST); \
     gasneti_assert((((iop)->initiated_get_cnt - _temp) & GASNETI_ATOMIC_MAX) < (GASNETI_ATOMIC_MAX/2)); \
   } while (0)
   extern void _gasnete_iop_check(gasnete_iop_t *iop);
@@ -192,24 +205,24 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
 
 #ifndef GASNETE_IOP_CNTDONE
 #define GASNETE_IOP_CNTDONE(_iop, _name) \
-  (gasneti_weakatomic_read(&(_iop)->completed_##_name##_cnt, 0) \
+  (gasnete_op_atomic_read(&(_iop)->completed_##_name##_cnt, 0) \
           == ((_iop)->initiated_##_name##_cnt & GASNETI_ATOMIC_MAX))
 #endif
 
 #if GASNETE_EOP_COUNTED
   #define GASNETE_EOP_DONE(_eop) \
-    (gasneti_weakatomic_read(&(_eop)->completed_cnt, 0) \
+    (gasnete_op_atomic_read(&(_eop)->completed_cnt, 0) \
           == ((_eop)->initiated_cnt & GASNETI_ATOMIC_MAX))
   #define GASNETE_EOP_MARKDONE(_eop) do {                        \
       gasneti_assert(!GASNETE_EOP_DONE(_eop));                   \
-      gasneti_weakatomic_increment(&((_eop)->completed_cnt), 0); \
+      gasnete_op_atomic_increment(&((_eop)->completed_cnt), 0);  \
     } while (0)
   #define GASNETE_EOP_LC(_eop) \
-    (gasneti_weakatomic_read(&(_eop)->completed_alc, 0) \
+    (gasnete_op_atomic_read(&(_eop)->completed_alc, 0) \
           == ((_eop)->initiated_alc & GASNETI_ATOMIC_MAX))
   #define GASNETE_EOP_MARKLC(_eop) do {                        \
       gasneti_assert(!GASNETE_EOP_LC(_eop));                   \
-      gasneti_weakatomic_increment(&((_eop)->completed_alc), 0); \
+      gasnete_op_atomic_increment(&((_eop)->completed_alc), 0);\
     } while (0)
 #else
   #define GASNETE_EOP_DONE(_eop) (EOPSTATE(_eop) == EOPSTATE_COMPLETE)
