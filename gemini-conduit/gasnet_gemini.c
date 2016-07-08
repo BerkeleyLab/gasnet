@@ -1538,7 +1538,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnetex_token_t 
       do {                                   \
         GASNETC_UNLOCK_AM_BUFFER();          \
         GASNETI_WAITHOOK();                  \
-        _poll();                             \
+        _poll;                               \
         GASNETC_LOCK_AM_BUFFER();            \
       } while (_condition);                  \
       GASNETC_TRACE_WAIT_END(_trace);        \
@@ -1557,7 +1557,8 @@ gasnetc_remote_slot(peer_struct_t * const peer, const uint64_t mask)
 }
 
 gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnetex_rank_t dest,
-                                                                 size_t length)
+                                                                 size_t length
+                                                                 GASNETI_THREAD_FARG)
 {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
@@ -1583,7 +1584,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnetex_rank_t
 #endif
 
   BUSYWAIT(((remote_slot = gasnetc_remote_slot(peer, mask)) == 64),
-           gasnetc_AMPoll,
+           gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE),
            GET_AM_REM_BUFFER_STALL);
   mask <<= remote_slot;
   peer->remote_request_map ^= mask;
@@ -1592,7 +1593,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnetex_rank_t
 #endif
 
   BUSYWAIT(((r = reply_freelist) == NULL), 
-           gasnetc_AMPoll,
+           gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE),
            GET_AM_LOC_BUFFER_STALL);
   reply_freelist = r->u.next;
 

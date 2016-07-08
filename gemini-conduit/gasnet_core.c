@@ -1144,18 +1144,14 @@ extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *srcin
   return GASNET_OK;
 }
 
-#if GASNETC_USE_MULTI_DOMAIN
-extern int gasnetc_AMPoll_core(GASNETC_AM_POLL_FARG)
-#else
-extern int gasnetc_AMPoll(void)
-#endif
+extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE)
 {
   GASNETC_DIDX_POST(GASNETI_MYTHREAD->domain_idx);
   GASNETI_CHECKATTACH();
 
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it make progress here. */
-  gasneti_AMPSHMPoll(0);
+  gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS);
 #endif
 
   /* (###) add code here to run your AM progress engine */
@@ -1425,7 +1421,7 @@ extern int gasnetc_AMRequestShortM(
 #endif
   {
     const size_t total_len = GASNETC_HEADLEN(short, numargs);
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(dest, total_len);
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(dest, total_len GASNETI_THREAD_PASS);
     gasnetc_format_short(gpd, handler, numargs, argptr);
     retval = gasnetc_general_am_send_request(gpd);
   }
@@ -1462,7 +1458,7 @@ extern int gasnetc_AMRequestMediumM(
 #endif
   {
     const size_t total_len = GASNETC_HEADLEN(medium, numargs) + nbytes;
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(dest, total_len);
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_request_post_descriptor(dest, total_len GASNETI_THREAD_PASS);
     gasnetc_format_medium(gpd, handler,source_addr,nbytes,numargs,argptr);
     retval = gasnetc_general_am_send_request(gpd);
   }
@@ -1514,7 +1510,7 @@ extern int gasnetc_AMRequestLongM(
     }
     
     /* Overlap gpd and/or credit stalls, if any, w/ the RDMA */
-    gpd = gasnetc_alloc_request_post_descriptor(dest, total_len);
+    gpd = gasnetc_alloc_request_post_descriptor(dest, total_len GASNETI_THREAD_PASS);
     gasnetc_format_long(gpd, is_packed, handler, nbytes, dest_addr, numargs, argptr);
 
     if (is_packed) {

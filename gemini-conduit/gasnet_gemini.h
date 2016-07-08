@@ -419,7 +419,8 @@ extern int gasnetc_send_am(gasnetc_post_descriptor_t *gpd);
 gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnetex_token_t t,
                                                                size_t length);
 gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnetex_rank_t dest,
-                                                                 size_t length);
+                                                                 size_t length
+                                                                 GASNETI_THREAD_FARG);
 
 #endif /* GASNET_GEMINI_H */
 
