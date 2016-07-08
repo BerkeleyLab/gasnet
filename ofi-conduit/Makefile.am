@@ -60,8 +60,7 @@ CONDUIT_FILELIST =           \
       gasnet_core_help.h     \
       gasnet_core_internal.h \
       gasnet_extended.c      \
-      gasnet_extended_fwd.h  \
-      gasnet_extended_internal.h
+      gasnet_extended_fwd.h
 
 # list of conduit core and extended .c source files 
 # to be compiled into libgasnet on the compiler command line

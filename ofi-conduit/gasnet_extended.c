@@ -6,8 +6,8 @@
  */
 
 #include <gasnet_internal.h>
-#include <gasnet_extended_internal.h>
 #include <gasnet_ofi.h>
+#include <gasnet_extended_internal.h>
 
 static const gasnete_eopaddr_t EOPADDR_NIL = { { 0xFF, 0xFF } };
 extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }

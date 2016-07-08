@@ -5,10 +5,10 @@
  * Terms of use are as specified in license.txt
  */
 #include <gasnet_internal.h>
+#include <gasnet_ofi.h>
 #include <gasnet_extended_internal.h>
 #include <gasnet_handler.h>
 #include <gasnet_core_internal.h>
-#include <gasnet_ofi.h>
 
 #include <pmi-spawner/gasnet_bootstrap_internal.h>
 #include <ssh-spawner/gasnet_bootstrap_internal.h>
