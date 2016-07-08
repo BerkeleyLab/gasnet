@@ -1069,13 +1069,13 @@ extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *srcin
   return GASNET_OK;
 }
 
-extern int gasnetc_AMPoll(void) {
+extern int gasnetc_AMPoll(GASNETI_THREAD_FARG_ALONE) {
   int retval;
   GASNETI_CHECKATTACH();
 
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it make progress here. */
-  gasneti_AMPSHMPoll(0);
+  gasneti_AMPSHMPoll(0 GASNETI_THREAD_PASS);
 #endif
 
   /* (###) add code here to run your AM progress engine */
