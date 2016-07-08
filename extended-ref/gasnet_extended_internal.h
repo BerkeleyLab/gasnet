@@ -245,6 +245,10 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
 extern void gasnete_check_config_amref(void);
 
 /* ------------------------------------------------------------------------------------ */
+/* called to mark an operation (eop or iop) done */
+extern void gasnete_op_markdone(gasnete_op_t *op, int isget);
+
+/* ------------------------------------------------------------------------------------ */
 
 #define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
 #define _hidx_gasnete_amdbarrier_notify_reqh (GASNETE_HANDLER_BASE+0) 

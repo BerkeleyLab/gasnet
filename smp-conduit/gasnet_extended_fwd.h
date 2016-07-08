@@ -17,6 +17,7 @@
 #define GASNET_EXTENDED_NAME_STR     _STRINGIFY(GASNET_EXTENDED_NAME)
 
 #define GASNETI_EOP_IS_HANDLE 1
+#define GASNETI_DISABLE_REFERENCE_EOP 1
 #define GASNETI_DISABLE_EOP_INTERFACE 1
 
   /* if conduit-internal threads may call the Extended API and/or they may run
