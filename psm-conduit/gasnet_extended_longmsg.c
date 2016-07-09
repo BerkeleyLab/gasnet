@@ -8,7 +8,6 @@
 #include <gasnet_core_internal.h>
 #include <gasnet_core_list.h>
 #include <gasnet_extended_internal.h>
-#include <gasnet_extended_internal_extra.h>
 
 
 typedef enum _gasnete_psm_mq_op {
