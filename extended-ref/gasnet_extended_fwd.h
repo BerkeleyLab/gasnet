@@ -68,7 +68,7 @@
  *   set: conduit provides own gasnete_get_val() as an inline
  */
 
-/* Configure use of AM-based implementation of get/put/memset */
+/* Configure use of AM-based implementation of get/put */
 /* NOTE: Barriers, Collectives, VIS may use GASNETE_USING_REF_* in algorithm selection */
 #define GASNETE_USING_REF_EXTENDED_GET      1
 #define GASNETE_USING_REF_EXTENDED_PUT      1
