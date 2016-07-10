@@ -1198,7 +1198,7 @@ void * thread_fn(void *arg) {
   }
 
   TEST_HEADER("parallel swap test...") {
-    #if GASNETI_HAVE_ATOMIC_CAS
+    #if GASNETT_HAVE_STRONGATOMIC_CAS
       const gasnett_atomic_val_t limit = MIN(GASNETT_ATOMIC_MAX, 8192);
       static gasnett_atomic_t var;
       static char *array;
@@ -1217,7 +1217,7 @@ void * thread_fn(void *arg) {
            The 'array' tracks which values have been seen and ensures no duplicates. */
         for (j = id; j < limit; j += NUM_THREADS) {
           gasnett_atomic_val_t idx = gasnett_atomic_swap(&var, j, 0);
-          if_pt (idx != GASNETI_ATOMIC_MAX) {
+          if_pt (idx != GASNETT_ATOMIC_MAX) {
             if (array[idx] != 0)
               ERR("gasnett_atomic_swap produced a duplicate value %d", idx);
             array[idx] = 1;
@@ -1228,7 +1228,7 @@ void * thread_fn(void *arg) {
 
         if (0 == id) {
           /* One final swap to simplify the validation */
-          gasnett_atomic_val_t idx = gasnett_atomic_swap(&var, GASNETI_ATOMIC_MAX, 0);
+          gasnett_atomic_val_t idx = gasnett_atomic_swap(&var, GASNETT_ATOMIC_MAX, 0);
           if (array[idx] != 0)
             ERR("gasnett_atomic_swap produced a duplicate value %d", i);
           array[idx] = 1;

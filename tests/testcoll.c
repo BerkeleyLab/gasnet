@@ -43,10 +43,10 @@ typedef struct {
 #define PROLOGUE(NAME) \
   GASNET_BEGIN_FUNCTION(); \
   const char name[] = NAME; \
-  GASNETI_UNUSED int myproc = (randomize(td), td->myproc); \
+  GASNETT_UNUSED int myproc = (randomize(td), td->myproc); \
   int mythread = td->mythread; \
-  GASNETI_UNUSED int peerthread = td->peerthread; \
-  GASNETI_UNUSED gasnet_coll_handle_t *hndl = td->hndl
+  GASNETT_UNUSED int peerthread = td->peerthread; \
+  GASNETT_UNUSED gasnet_coll_handle_t *hndl = td->hndl
 
 static int *R;
 static int **Aw, **Bw, **Cw, **Dw, **Ew, **Fw, **Gw;

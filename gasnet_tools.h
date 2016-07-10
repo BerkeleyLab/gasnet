@@ -110,6 +110,7 @@
 #define GASNETT_NEVER_INLINE            GASNETI_NEVER_INLINE
 #define GASNETT_RESTRICT                GASNETI_RESTRICT
 #define GASNETT_USED                    GASNETI_USED
+#define GASNETT_UNUSED                  GASNETI_UNUSED
 #define GASNETT_NORETURN                GASNETI_NORETURN
 #define GASNETT_NORETURNP               GASNETI_NORETURNP
 #define GASNETT_MALLOC                  GASNETI_MALLOC
@@ -443,6 +444,7 @@ extern gasnett_backtrace_type_t gasnett_backtrace_user;
   #include <stdarg.h>
 #endif
 GASNETI_FORMAT_PRINTF(_gasnett_trace_printf_noop,1,2,
+GASNETI_UNUSED
 static void _gasnett_trace_printf_noop(const char *_format, ...)) {
   #if PLATFORM_COMPILER_PGI
     va_list _ap; va_start(_ap,_format); va_end(_ap); /* avoid a silly warning */

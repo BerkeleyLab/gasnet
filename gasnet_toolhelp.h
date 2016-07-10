@@ -668,6 +668,7 @@ typedef enum {
 
 #if GASNETI_THREADS
   GASNETI_NEVER_INLINE(_gasneti_threadkey_init, /* avoid inserting overhead for an uncommon path */
+  GASNETI_UNUSED
   static void _gasneti_threadkey_init(pthread_key_t *_value, gasneti_mutex_t *_initmutex, volatile int *_isinit)) {
     gasneti_mutex_lock(_initmutex);
       if (*_isinit == 0) {

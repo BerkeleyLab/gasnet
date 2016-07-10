@@ -416,7 +416,7 @@ void doit7(void) { GASNET_BEGIN_FUNCTION();
       { gasnetex_wait_syncnb(GASNETEX_INVALID_HANDLE);  });
 
     TIME_OPERATION("do-nothing gasnetex_test_syncnb()",
-      { GASNETI_UNUSED int junk = gasnetex_test_syncnb(GASNETEX_INVALID_HANDLE); });
+      { GASNETT_UNUSED int junk = gasnetex_test_syncnb(GASNETEX_INVALID_HANDLE); });
 
     TIME_OPERATION("do-nothing gasnetex_wait_syncnb_all() (8 handles)",
       { gasnetex_wait_syncnb_all(handles, 8); });
@@ -435,7 +435,7 @@ void doit7(void) { GASNET_BEGIN_FUNCTION();
       { gasnetex_wait_lc(GASNETEX_INVALID_LC_HANDLE);  });
 
     TIME_OPERATION("do-nothing gasnetex_test_lc()",
-      { GASNETI_UNUSED int junk = gasnetex_test_lc(GASNETEX_INVALID_LC_HANDLE); });
+      { GASNETT_UNUSED int junk = gasnetex_test_lc(GASNETEX_INVALID_LC_HANDLE); });
 
     TIME_OPERATION("do-nothing gasnetex_wait_lc_all() (8 handles)",
       { gasnetex_wait_lc_all(lchandles, 8); });
@@ -454,7 +454,7 @@ void doit7(void) { GASNET_BEGIN_FUNCTION();
       { gasnetex_wait_lc_group(); });
 
     TIME_OPERATION("do-nothing gasnetex_test_lc_group()",
-      { GASNETI_UNUSED int junk = gasnetex_test_lc_group(); });
+      { GASNETT_UNUSED int junk = gasnetex_test_lc_group(); });
 
 
     TIME_OPERATION("do-nothing gasnetex_wait_syncnbi_all()",
@@ -467,13 +467,13 @@ void doit7(void) { GASNET_BEGIN_FUNCTION();
       { gasnetex_wait_syncnbi_gets(); });
 
     TIME_OPERATION("do-nothing gasnetex_test_syncnbi_all()",
-      { GASNETI_UNUSED int junk = gasnetex_test_syncnbi_all(); });
+      { GASNETT_UNUSED int junk = gasnetex_test_syncnbi_all(); });
 
     TIME_OPERATION("do-nothing gasnetex_test_syncnbi_puts()",
-      { GASNETI_UNUSED int junk = gasnetex_test_syncnbi_puts(); });
+      { GASNETT_UNUSED int junk = gasnetex_test_syncnbi_puts(); });
 
     TIME_OPERATION("do-nothing gasnetex_test_syncnbi_gets()",
-      { GASNETI_UNUSED int junk = gasnetex_test_syncnbi_gets(); });
+      { GASNETT_UNUSED int junk = gasnetex_test_syncnbi_gets(); });
 
     TIME_OPERATION("do-nothing begin/end nbi accessregion",
       { gasnetex_begin_nbi_accessregion(0);
@@ -508,31 +508,31 @@ void doit8(void) { GASNET_BEGIN_FUNCTION();
     }
 
     TIME_OPERATION("1024-byte gasnett_count0s()",
-      { GASNETI_UNUSED int junk = gasnett_count0s(s, 1024); });
+      { GASNETT_UNUSED int junk = gasnett_count0s(s, 1024); });
     TIME_OPERATION("1024-byte gasnett_count0s_copy()",
-      { GASNETI_UNUSED int junk = gasnett_count0s_copy(d, s, 1024); });
+      { GASNETT_UNUSED int junk = gasnett_count0s_copy(d, s, 1024); });
     TIME_OPERATION("1024-byte gasnett_count0s() + memcpy()",
-      { GASNETI_UNUSED int junk = gasnett_count0s(s, 1024);
+      { GASNETT_UNUSED int junk = gasnett_count0s(s, 1024);
         (void)memcpy(d,s,1024);
       });
 
     s += sizeof(void*) / 2;
     d += sizeof(void*) / 2;
     TIME_OPERATION("unaligned 1024-byte gasnett_count0s()",
-      { GASNETI_UNUSED int junk = gasnett_count0s(s, 1024); });
+      { GASNETT_UNUSED int junk = gasnett_count0s(s, 1024); });
     TIME_OPERATION("unaligned 1024-byte gasnett_count0s_copy()",
-      { GASNETI_UNUSED int junk = gasnett_count0s_copy(d, s, 1024); });
+      { GASNETT_UNUSED int junk = gasnett_count0s_copy(d, s, 1024); });
     TIME_OPERATION("unaligned 1024-byte gasnett_count0s() + memcpy()",
-      { GASNETI_UNUSED int junk = gasnett_count0s(s, 1024);
+      { GASNETT_UNUSED int junk = gasnett_count0s(s, 1024);
         (void)memcpy(d,s,1024);
       });
 
     s -= 1;
     d += 1;
     TIME_OPERATION("misaligned 1024-byte gasnett_count0s_copy()",
-      { GASNETI_UNUSED int junk = gasnett_count0s_copy(d, s, 1024); });
+      { GASNETT_UNUSED int junk = gasnett_count0s_copy(d, s, 1024); });
     TIME_OPERATION("misaligned 1024-byte gasnett_count0s() + memcpy()",
-      { GASNETI_UNUSED int junk = gasnett_count0s(s, 1024);
+      { GASNETT_UNUSED int junk = gasnett_count0s(s, 1024);
         (void)memcpy(d,s,1024);
       });
 

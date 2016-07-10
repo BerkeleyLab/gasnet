@@ -606,6 +606,7 @@ void doit5(int partner, int *partnerseg) {
   } while(0)
   {
     gasnett_atomic_sval_t stmp = gasnett_atomic_signed((gasnett_atomic_val_t)0);
+    gasnett_atomic_increment((gasnett_atomic_t*)&stmp,0);
     TEST_ATOMICS(gasnett_atomic_val_t, atomic);
     TEST_ATOMICS(gasnett_atomic_val_t, strongatomic);
     TEST_ATOMICS(uint32_t, atomic32);
