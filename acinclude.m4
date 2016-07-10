@@ -484,6 +484,17 @@ GASNET_FUN_BEGIN([$0($1)])
 GASNET_FUN_END([$0($1)])
 ]])
 
+dnl allow a true #undef in config.h
+AC_DEFUN([GASNET_TRUE_UNDEF],[[
+GASNET_FUN_BEGIN([$0($1)])
+  if test -f '$1' -a -n "`grep '#trueundef' '$1'`" ; then
+    mv '$1' '$1.dirty'
+    cat '$1.dirty' | sed -e 's/^\s*#\s*trueundef\s/#undef /' > '$1'
+    rm -f '$1.dirty'
+  fi
+GASNET_FUN_END([$0($1)])
+]])
+
 AC_DEFUN([GASNET_LIBGCC],[
 GASNET_FUN_BEGIN([$0])
 AC_REQUIRE([AC_PROG_CC])

@@ -5015,6 +5015,7 @@ config-aux/Makefile
 , 
 GASNET_FIX_EXEC_OUTPUT()
 GASNET_SANITIZE_PACKAGE(gasnet_config.h)
+GASNET_TRUE_UNDEF(gasnet_config.h)
 [ 
 GASNET_MSG_WARN_FINISH()
 CONDUIT_LIST=.gasnet-conduit-list.tmp

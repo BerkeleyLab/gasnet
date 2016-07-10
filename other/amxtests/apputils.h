@@ -6,6 +6,10 @@
 #ifndef _APPUTILS_H
 #define _APPUTILS_H
 
+#if _FORTIFY_SOURCE > 0 && __OPTIMIZE__ <= 0 /* silence an annoying MPICH/Linux warning */
+#undef _FORTIFY_SOURCE
+#endif
+
 #include <errno.h>
 #ifdef WIN32
   #include <windows.h>  

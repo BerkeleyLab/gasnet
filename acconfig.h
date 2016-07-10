@@ -421,6 +421,9 @@
 #define _LARGEFILE64_SOURCE 1
 #define _LARGEFILE_SOURCE 1
 #ifdef HAVE_FEATURES_H
+ #if _FORTIFY_SOURCE > 0 && __OPTIMIZE__ <= 0 /* silence an annoying MPICH/Linux warning */
+ #trueundef _FORTIFY_SOURCE
+ #endif
 # include <features.h>
 #endif
 
