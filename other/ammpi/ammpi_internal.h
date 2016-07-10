@@ -169,10 +169,12 @@ AMMPI_BEGIN_EXTERNC
 #ifndef MAX
 #define MAX(x,y)  ((x)>(y)?(x):(y))
 #endif
-#if defined(__GNUC__) || defined(__FUNCTION__) /* try to get the function name from GCC */
-  #define __CURR_FUNCTION __FUNCTION__
+#if __STDC_VERSION__ >= 199901
+  #define AMMPI_CURR_FUNCTION __func__
+#elif defined(__GNUC__) /* try to get the function name from GCC */
+  #define AMMPI_CURR_FUNCTION __FUNCTION__
 #else
-  #define __CURR_FUNCTION ((const char *) 0) /* could use __func__ for C99 compilers.. */
+  #define AMMPI_CURR_FUNCTION ""
 #endif
 
 /* alignment macros */
@@ -581,7 +583,7 @@ static const char *MPI_ErrorName(int errval) {
     if (AMMPI_VerboseErrors) {                                             \
       fprintf(stderr, "AMMPI %s returning an error code: AM_ERR_%s (%s)\n" \
         "  at %s:%i\n"                                                     \
-        ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")                          \
+        , AMMPI_CURR_FUNCTION                                              \
         , #type, AMMPI_ErrorDesc(AM_ERR_##type), __FILE__, __LINE__);      \
       fflush(stderr);                                                      \
     }                                                                      \
@@ -592,7 +594,7 @@ static const char *MPI_ErrorName(int errval) {
       fprintf(stderr, "AMMPI %s returning an error code: AM_ERR_%s (%s)\n"     \
         "  from function %s\n"                                                 \
         "  at %s:%i\n"                                                         \
-        ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")                              \
+        , AMMPI_CURR_FUNCTION                                                  \
         , #fromfn, #type, AMMPI_ErrorDesc(AM_ERR_##type), __FILE__, __LINE__); \
       fflush(stderr);                                                          \
     }                                                                          \
@@ -604,7 +606,7 @@ static const char *MPI_ErrorName(int errval) {
         "  from function %s\n"                                                         \
         "  at %s:%i\n"                                                                 \
         "  reason: %s\n"                                                               \
-        ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")                                      \
+        , AMMPI_CURR_FUNCTION                                                          \
         , #type, AMMPI_ErrorDesc(AM_ERR_##type), #fromfn, __FILE__, __LINE__, reason); \
       fflush(stderr);                                                                  \
     }                                                                                  \
@@ -650,8 +652,7 @@ static const char *MPI_ErrorName(int errval) {
  * otherwise, the value of this expression will be TRUE 
  */
 #define MPI_SAFE_NORETURN(fncall) (AMMPI_VerboseErrors ?                                 \
-      AMMPI_checkMPIreturn(fncall, #fncall,                                              \
-                          (__CURR_FUNCTION ? __CURR_FUNCTION : ""), __FILE__, __LINE__): \
+      AMMPI_checkMPIreturn(fncall, #fncall, AMMPI_CURR_FUNCTION, __FILE__, __LINE__):    \
       (fncall) == MPI_SUCCESS)
 static int AMMPI_checkMPIreturn(int retcode, const char *fncallstr, 
                                 const char *context, const char *file, int line) {
@@ -670,7 +671,7 @@ static int AMMPI_checkMPIreturn(int retcode, const char *fncallstr,
     if_pf (AMMPI_VerboseErrors && val != AM_OK) {                          \
       fprintf(stderr, "AMMPI %s returning an error code: %s (%s)\n"        \
         "  at %s:%i\n"                                                     \
-        ,(__CURR_FUNCTION ? __CURR_FUNCTION : "")                          \
+        , AMMPI_CURR_FUNCTION                                              \
         , AMMPI_ErrorName(val), AMMPI_ErrorDesc(val), __FILE__, __LINE__); \
       fflush(stderr);                                                      \
     }                                                                      \
@@ -686,7 +687,7 @@ static int AMMPI_checkMPIreturn(int retcode, const char *fncallstr,
   #define AMMPI_assert(expr)                                \
     (PREDICT_TRUE(expr) ? (void)0 :                         \
       AMMPI_FatalErr("Assertion failure at %s %s:%i: %s\n", \
-        (__CURR_FUNCTION ? __CURR_FUNCTION : ""), __FILE__, __LINE__, #expr))
+        AMMPI_CURR_FUNCTION, __FILE__, __LINE__, #expr))
 #endif
 
 #ifdef AMMPI_HERE

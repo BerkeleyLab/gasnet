@@ -30,14 +30,6 @@ static int AMMPI_ReplyGeneric(ammpi_category_t category,
 /*------------------------------------------------------------------------------------
  * Private helpers
  *------------------------------------------------------------------------------------ */
-static int intpow(int val, int exp) {
-  int retval = 1;
-  int i;
-  AMMPI_assert(exp >= 0);
-  for (i = 0; i < exp; i++) retval *= val;
-  return retval;
-}
-/* ------------------------------------------------------------------------------------ */
 extern int64_t AMMPI_getMicrosecondTimeStamp(void) {
     int64_t retval;
     struct timeval tv;
@@ -445,7 +437,7 @@ void AMMPI_processPacket(ammpi_buf_t *buf, int isloopback) {
   #if AMMPI_FLOW_CONTROL || AMMPI_COLLECT_LATENCY_STATS
     if (isrequest && !status->replyIssued &&
         ep->perProcInfo[sourceId].tokens_in > ep->tokens_slack) { 
-      va_list va_dummy; va_list *p_dummy = &va_dummy; /* dummy value */
+      va_list va_dummy; va_list *p_dummy = &va_dummy; p_dummy++; /* dummy value */
       /*  user didn't reply, so issue an auto-reply */
       if_pf (AMMPI_ReplyGeneric(ammpi_Short, buf, 0, 0, 0, 0, 0, va_dummy, 
                                 ammpi_system_autoreply, 0) != AM_OK) /*  should never happen */

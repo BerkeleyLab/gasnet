@@ -134,10 +134,12 @@ extern void AMUDP_InitRetryCache();
 #ifndef MAX
 #define MAX(x,y)  ((x)>(y)?(x):(y))
 #endif
-#if defined(__GNUC__) || defined(__FUNCTION__) /* try to get the function name from GCC */
-  #define __CURR_FUNCTION __FUNCTION__
+#if defined(__GNUC__) /* try to get the function name from GCC */
+  #define AMUDP_CURR_FUNCTION __PRETTY_FUNCTION__
+#elif __cplusplus >= 201103L || __STDC_VERSION__ >= 199901
+  #define AMUDP_CURR_FUNCTION __func__
 #else
-  #define __CURR_FUNCTION ((const char *) 0) /* could use __func__ for C99 compilers.. */
+  #define AMUDP_CURR_FUNCTION ""
 #endif
 
 /* alignment macros */
@@ -540,15 +542,11 @@ static const char *AMUDP_ErrorDesc(int errval) {
 }
 //------------------------------------------------------------------------------------
 /* macros for returning errors that allow verbose error tracking */
-static const char *AMUDP_curr_function(const char *arg) {
-  /* hides a constant expression from compilers that whine about them */
-  return arg ? arg : "";
-}
 #define AMUDP_RETURN_ERR(type) do {                                        \
     if (AMUDP_VerboseErrors) {                                             \
       fprintf(stderr, "AMUDP %s returning an error code: AM_ERR_%s (%s)\n" \
         "  at %s:%i\n"                                                     \
-        , AMUDP_curr_function(__CURR_FUNCTION)                             \
+        , AMUDP_CURR_FUNCTION                                              \
         , #type, AMUDP_ErrorDesc(AM_ERR_##type), __FILE__, __LINE__);      \
       fflush(stderr);                                                      \
     }                                                                      \
@@ -559,7 +557,7 @@ static const char *AMUDP_curr_function(const char *arg) {
       fprintf(stderr, "AMUDP %s returning an error code: AM_ERR_%s (%s)\n"     \
         "  from function %s\n"                                                 \
         "  at %s:%i\n"                                                         \
-        , AMUDP_curr_function(__CURR_FUNCTION)                                 \
+        , AMUDP_CURR_FUNCTION                                                  \
         , #fromfn, #type, AMUDP_ErrorDesc(AM_ERR_##type), __FILE__, __LINE__); \
       fflush(stderr);                                                          \
     }                                                                          \
@@ -571,7 +569,7 @@ static const char *AMUDP_curr_function(const char *arg) {
         "  from function %s\n"                                                         \
         "  at %s:%i\n"                                                                 \
         "  reason: %s\n"                                                               \
-        , AMUDP_curr_function(__CURR_FUNCTION)                                         \
+        , AMUDP_CURR_FUNCTION                                                          \
         , #type, AMUDP_ErrorDesc(AM_ERR_##type), #fromfn, __FILE__, __LINE__, reason); \
       fflush(stderr);                                                                  \
     }                                                                                  \
@@ -582,7 +580,7 @@ static const char *AMUDP_curr_function(const char *arg) {
   if_pf (AMUDP_VerboseErrors && val != AM_OK) {                          \
     fprintf(stderr, "AMUDP %s returning an error code: %s (%s)\n"        \
       "  at %s:%i\n"                                                     \
-      , AMUDP_curr_function(__CURR_FUNCTION)                             \
+      , AMUDP_CURR_FUNCTION                                              \
       , AMUDP_ErrorName(val), AMUDP_ErrorDesc(val), __FILE__, __LINE__); \
     fflush(stderr);                                                      \
   }                                                                      \
@@ -631,7 +629,7 @@ static const char *AMUDP_curr_function(const char *arg) {
   #define AMUDP_assert(expr)                                \
     (PREDICT_TRUE(expr) ? (void)0 :                         \
       AMUDP_FatalErr("Assertion failure at %s %s:%i: %s\n", \
-        AMUDP_curr_function(__CURR_FUNCTION), __FILE__, __LINE__, #expr))
+        AMUDP_CURR_FUNCTION, __FILE__, __LINE__, #expr))
 #endif
 
 #define enEqual(en1,en2)                    \
