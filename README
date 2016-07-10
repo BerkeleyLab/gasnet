@@ -998,11 +998,12 @@ All GASNet conduit code is required to meet the following coding standards:
   PathScale compilers will give you warnings for violations of this rule.
 
 * All code in public header files should be C++98-compliant to support C++
-  GASNet clients. Most notably this means using GASNETI_{BEGIN,END}_EXTERNC
-  around all extern function prototypes, and ensuring any inline function code
-  or macro code passes the C++ type checker.  It is especially important for
-  code in public headers to avoid the few dozen C constructs which are not
-  present in the C subset of the C++98 standard. Most notably: (incomplete list)
+  GASNet clients.  This means ensuring any macros or inline function code 
+  passes the C++ type checker. Note the top-level public headers already
+  enforce extern "C" scope around the entire GASNet public headers.
+  It is especially important for code in public headers to avoid the few dozen
+  C constructs which are not present in the C subset of the C++98 standard.
+  Most notably: (incomplete list)
    - Do not use C++ keywords in identifiers
    - Do not use long long types or printf specifiers
    - Do not use tentative definitions

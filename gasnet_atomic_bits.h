@@ -206,7 +206,7 @@
 /* Helpers for "special" call-based atomics on platforms w/ crippled inline asm support. */
 
 #define GASNETI_SPECIAL_ASM_DECL(name) \
-	GASNETI_EXTERNC void name(void)
+	extern void name(void)
 #define GASNETI_SPECIAL_ASM_DEFN(name, body) \
 	GASNETI_NEVER_INLINE(name, extern void name(void)) { body; }
 

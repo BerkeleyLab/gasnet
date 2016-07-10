@@ -26,7 +26,7 @@
 #else
   #define AMUDP_BEGIN_EXTERNC 
   #define AMUDP_END_EXTERNC 
-  #define AMUDP_EXTERNC
+  #define AMUDP_EXTERNC extern
 #endif
 
 AMUDP_BEGIN_EXTERNC

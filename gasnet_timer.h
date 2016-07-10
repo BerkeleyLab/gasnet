@@ -17,8 +17,6 @@
 #include <string.h>
 #include <errno.h>
 
-GASNETI_BEGIN_EXTERNC
-
 /* ------------------------------------------------------------------------------------ */
 /* High-performance system timer library 
    see README-tools for usage information
@@ -99,10 +97,9 @@ GASNETI_BEGIN_EXTERNC
   #define MMTIMER_FULLNAME "/dev/mmtimer"
   #endif
   typedef uint64_t gasneti_tick_t;
-  /* EXTERNC here fixes a mysterious C++ linkage error on davinci */
-  GASNETI_EXTERNC double gasneti_timer_tick; /* tick conversion factor */
-  GASNETI_EXTERNC int gasneti_timer_fd; /* HPET device file descriptor */
-  GASNETI_EXTERNC volatile uint64_t *gasneti_tick_p; /* pointer to mapped counter, and init flag */
+  GASNETI_TENTATIVE_EXTERN double gasneti_timer_tick; /* tick conversion factor */
+  GASNETI_TENTATIVE_EXTERN int gasneti_timer_fd; /* HPET device file descriptor */
+  GASNETI_TENTATIVE_EXTERN volatile uint64_t *gasneti_tick_p; /* pointer to mapped counter, and init flag */
   GASNETI_NEVER_INLINE(gasneti_timer_init,
   static volatile uint64_t *gasneti_timer_init(void)) {
     if_pf (!gasneti_tick_p) {
@@ -577,7 +574,7 @@ extern uint64_t gasneti_gettimeofday_us(void);
 #endif
 
 #if defined(GASNETI_USING_SLOW_TIMERS) || defined(GASNETI_TICKS_NOW_BODY)
-  GASNETI_EXTERNC void gasneti_slow_ticks_now(void);
+  extern void gasneti_slow_ticks_now(void);
   #define gasneti_ticks_now()    ((*(gasneti_tick_t (*)(void))(&gasneti_slow_ticks_now))())
 #endif
 
@@ -622,7 +619,5 @@ extern double gasneti_tick_metric(int idx);
 #define gasneti_tick_granularity() gasneti_tick_metric(0)
 #define gasneti_tick_overhead()    gasneti_tick_metric(1)
 /* ------------------------------------------------------------------------------------ */
-
-GASNETI_END_EXTERNC
 
 #endif

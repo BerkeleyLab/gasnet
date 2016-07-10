@@ -37,8 +37,6 @@
   #define STDERR_FILENO 2
 #endif
 
-GASNETI_BEGIN_EXTERNC
-
 #if PLATFORM_OS_MTA
    #include <machine/runtime.h>
    #define _gasneti_sched_yield() mta_yield()
@@ -992,7 +990,5 @@ int gasnett_maximize_rlimit(int res, const char *lim_desc);
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-
-GASNETI_END_EXTERNC
 
 #endif

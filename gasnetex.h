@@ -16,6 +16,10 @@
   #error Internal GASNet code should not directly include gasnetex.h, just gasnet_internal.h
 #endif
 
+#ifdef __cplusplus
+  extern "C" { // cannot use GASNETI_BEGIN_EXTERNC here due to a header dependency cycle
+#endif
+
 /* Usage:
    see the GASNet specification and top-level README for details on how to use the GASNet interface
    clients should use the automatically-generated Makefile *.mak fragments to get the correct compile settings
@@ -253,10 +257,8 @@
   #define GASNETI_MAX_MEDIUM_PSHM 65000
 #endif
 
-GASNETI_BEGIN_EXTERNC
 extern const char *gasnet_ErrorName(int);
 extern const char *gasnet_ErrorDesc(int);
-GASNETI_END_EXTERNC
 
 /* ------------------------------------------------------------------------------------ */
 /* core types */
@@ -530,6 +532,8 @@ extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentr
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+
+GASNETI_END_EXTERNC
 
 #undef _IN_GASNETEX_H
 #endif

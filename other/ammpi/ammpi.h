@@ -11,6 +11,16 @@
 #include <stdarg.h>
 #include <stddef.h>
 
+#ifdef __cplusplus
+  #define AMMPI_BEGIN_EXTERNC extern "C" {
+  #define AMMPI_END_EXTERNC }
+#else
+  #define AMMPI_BEGIN_EXTERNC 
+  #define AMMPI_END_EXTERNC 
+#endif
+
+AMMPI_BEGIN_EXTERNC
+
 /* miscellaneous macro helpers */
 #define _STRINGIFY_HELPER(x) #x
 #define _STRINGIFY(x) _STRINGIFY_HELPER(x)
@@ -155,15 +165,6 @@ typedef int op_t;
 #define AM_REPLY_XFER_M   6
 
 /* ------------------------------------------------------------------------------------ */
-#ifdef __cplusplus
-  #define AMMPI_BEGIN_EXTERNC extern "C" {
-  #define AMMPI_END_EXTERNC }
-#else
-  #define AMMPI_BEGIN_EXTERNC 
-  #define AMMPI_END_EXTERNC 
-#endif
-
-AMMPI_BEGIN_EXTERNC
 
 /* AMMPI-specific user entry points */
 extern int AMMPI_VerboseErrors; /* set to non-zero for verbose error reporting */

@@ -11,8 +11,6 @@
 #ifndef _GASNET_AMMACROS_H
 #define _GASNET_AMMACROS_H
 
-GASNETI_BEGIN_EXTERNC
-
 /* ------------------------------------------------------------------------------------ */
 /*
   Active Message Request/Reply Functions
@@ -80,8 +78,6 @@ extern int gasnetc_AMReplyShortM(
                 gasnetex_handler_t handler,
                 gasnetex_flags_t flags,
                 int numargs, ...);
-
-GASNETI_END_EXTERNC
 
 /* ------------------------------------------------------------------------------------ */
 /*

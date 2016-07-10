@@ -11,8 +11,6 @@
 #ifndef _GASNET_SYNCOPS_H
 #define _GASNET_SYNCOPS_H
 
-GASNETI_BEGIN_EXTERNC
-
 /* ------------------------------------------------------------------------------------ */
 
 /* 
@@ -1196,6 +1194,5 @@ void *gasneti_lifo_next(void *elem) {
 #define gasneti_lifo_push_many       gasneti_cons_lifo(_GASNETI_PARSEQ,push_many)
 
 /* ------------------------------------------------------------------------------------ */
-GASNETI_END_EXTERNC
 
 #endif

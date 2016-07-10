@@ -15,8 +15,6 @@
 
 #include <gasnet_core_help.h>
 
-GASNETI_BEGIN_EXTERNC
-
 /*  TODO enhance AMUDP to support thread-safety */
 /*  TODO add UDP bypass to loopback messages */
 
@@ -136,8 +134,6 @@ extern int gasnet_checkpoint(const char *dir);
 #define GASNET_BLCR 1
 #endif
 /* ------------------------------------------------------------------------------------ */
-
-GASNETI_END_EXTERNC
 
 #endif
 

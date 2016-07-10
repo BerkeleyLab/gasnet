@@ -13,6 +13,10 @@
          include gasnetex.h before gasnet_tools.h 
 #endif
 
+#ifdef __cplusplus
+  extern "C" { // cannot use GASNETI_BEGIN_EXTERNC here due to a header dependency cycle
+#endif
+
 /* Recognized definitions:
    GASNETT_THREAD_SAFE - may be defined by client to enable thread-safety. Thread-safety is also
       auto-enabled by _REENTRANT, _THREAD_SAFE and pthread.h
@@ -71,8 +75,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-GASNETI_BEGIN_EXTERNC
-
 /* ------------------------------------------------------------------------------------ */
 /* basic purely syntactic features */
 #define GASNETT_IDENT(identName, identText) GASNETI_IDENT(identName, identText)
@@ -128,7 +130,6 @@ GASNETI_BEGIN_EXTERNC
 #define GASNETT_BEGIN_EXTERNC           GASNETI_BEGIN_EXTERNC
 #define GASNETT_END_EXTERNC             GASNETI_END_EXTERNC
 #define GASNETT_EXTERNC                 GASNETI_EXTERNC
-#define GASNETT_COMMON_EXTERN           GASNETI_COMMON_EXTERN
 #define GASNETT_TENTATIVE_EXTERN        GASNETI_TENTATIVE_EXTERN
 
 #define gasnett_constant_p              gasneti_constant_p

@@ -14,8 +14,6 @@
 
 #include <gasnet_core_help.h>
 
-GASNETI_BEGIN_EXTERNC
-
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization
@@ -174,8 +172,6 @@ extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnet_node_t *srcinde
 extern void gasnetc_barrier_fence(void);
 
 /* ------------------------------------------------------------------------------------ */
-
-GASNETI_END_EXTERNC
 
 #endif
 

@@ -48,16 +48,17 @@ void test_dummy2(void) GASNETT_NORETURN;
 GASNETT_NORETURNP(test_dummy2)
 void test_dummy2(void) { gasnett_fatalerror("test_dummy2"); }
 
+GASNETT_EXTERNC void test_dummy5(void);
+
 GASNETT_BEGIN_EXTERNC
 void *test_dummy3(void) GASNETT_MALLOC;
 void *test_dummy3(void) { return malloc(1); }
 GASNETT_INLINE(test_dummy4) GASNETT_MALLOC
 void *test_dummy4(void) { return malloc(1); }
+void test_dummy5(void) { }
 GASNETT_END_EXTERNC
 double volatile d_junk = 0;
 
-GASNETT_EXTERNC
-void test_dummy5(void) { }
 
 GASNETT_THREADKEY_DECLARE(sertest_key1);
 GASNETT_THREADKEY_DEFINE(sertest_key1);

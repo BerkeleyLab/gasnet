@@ -139,6 +139,7 @@
 
 #include <ammpi.h>
 
+AMMPI_BEGIN_EXTERNC
 
 #if PLATFORM_OS_BLRTS
   /* lack working select */
@@ -432,8 +433,6 @@ struct ammpi_ep {
   #define if_pf(cond) if (PREDICT_FALSE(cond))
   #define if_pt(cond) if (PREDICT_TRUE(cond))
 #endif
-
-AMMPI_BEGIN_EXTERNC
 
 /* memory allocation */
 static void *_AMMPI_malloc(size_t sz, const char *curloc) {

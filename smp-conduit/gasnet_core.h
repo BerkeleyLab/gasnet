@@ -13,8 +13,6 @@
 
 #include <gasnet_core_help.h>
 
-GASNETI_BEGIN_EXTERNC
-
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization
@@ -127,8 +125,6 @@ extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *srcin
     } while (0)
 #endif
 /* ------------------------------------------------------------------------------------ */
-
-GASNETI_END_EXTERNC
 
 #endif
 

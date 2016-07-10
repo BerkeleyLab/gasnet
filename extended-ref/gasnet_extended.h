@@ -16,8 +16,6 @@
 #include <gasnet_extended_help.h>
 #include <gasnet_coll.h>
 
-GASNETI_BEGIN_EXTERNC
-
 /*  TODO: add debug code to enforce restrictions on SEQ and PARSYNC config */
 /*        (only one thread calls, HSL's only locked by that thread - how to check without pthread_getspecific()?) */
 /* ------------------------------------------------------------------------------------ */
@@ -770,8 +768,6 @@ extern int gasnet_barrier(int id, int flags);
 extern int gasnet_barrier_result(int *id);
 /* ------------------------------------------------------------------------------------ */
 
-GASNETI_END_EXTERNC
-//
 // TODO-EX: remove these checks for conduits using legacy internal APIs
 #if GASNETI_DIRECT_GET
   #error "out-of-date #define of GASNETI_DIRECT_GET"
@@ -798,7 +794,5 @@ GASNETI_END_EXTERNC
 #if GASNETI_DIRECT_MEMSET
   #error "out-of-date #define of GASNETI_DIRECT_MEMSET"
 #endif
-
-
 
 #endif

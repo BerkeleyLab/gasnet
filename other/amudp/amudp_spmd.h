@@ -49,15 +49,9 @@ extern int AMUDP_SPMDStartup(int *argc, char ***argv,
 extern int AMUDP_SPMDExit(int exitcode); 
   /* terminate the parallel job with given exit code (also handles AM_Terminate)
    */
-#if defined(__GNUC__) && (__GNUC__ < 3 || (__GNUC__ == 3 && __GNUC_MINOR__ == 0))
-  /* adding extern C for these versions fails with "multiple storage classes in 
-     declaration of `amudp_exitcallback_t'" */
-#else
-  AMUDP_EXTERNC 
-#endif
-typedef void (*amudp_exitcallback_t)(int);
 
-AMUDP_EXTERNC int AMUDP_SPMDSetExitCallback(amudp_exitcallback_t);
+typedef void (*amudp_exitcallback_t)(int);
+extern int AMUDP_SPMDSetExitCallback(amudp_exitcallback_t);
   /* register a function to be called when AMUDP_SPMDExit is called by any node
    * exit code is passed
    */
