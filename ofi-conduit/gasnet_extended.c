@@ -104,7 +104,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
 {
 	GASNETI_CHECKPSHM_GET(UNALIGNED,H);
 	{
-		gasnete_eop_t *op = _gasnete_eop_new(GASNETE_MYTHREAD);
+		gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
 		op->ofi.type = OFI_TYPE_EGET;
 		gasnetc_rdma_get(dest, node, src, nbytes, (void *) &op->ofi);
 		return (gasnet_handle_t)op;
@@ -115,7 +115,7 @@ extern gasnet_handle_t gasnete_put_nb      (gasnet_node_t node, void *dest, void
 {
 	GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
 	{
-		gasnete_eop_t *op = _gasnete_eop_new(GASNETE_MYTHREAD);
+		gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
 		op->ofi.type = OFI_TYPE_EPUT;
 		gasnetc_rdma_put(node, dest, src, nbytes, (void *) &op->ofi);
 		gasnetc_rdma_put_wait((gasnet_handle_t) op);
@@ -127,7 +127,7 @@ extern gasnet_handle_t gasnete_put_nb_bulk (gasnet_node_t node, void *dest, void
 {
 	GASNETI_CHECKPSHM_PUT(UNALIGNED,H);
 	{
-		gasnete_eop_t *op = _gasnete_eop_new(GASNETE_MYTHREAD);
+		gasnete_eop_t *op = gasnete_eop_new(GASNETE_MYTHREAD);
 		op->ofi.type = OFI_TYPE_EPUT;
 		gasnetc_rdma_put(node, dest, src, nbytes, (void *) &op->ofi);
 		return (gasnet_handle_t)op;

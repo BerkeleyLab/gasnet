@@ -86,7 +86,7 @@ static void gasnete_cb_op_lc(pami_context_t context, void *cookie, pami_result_t
   Factored bits of handle-management code common to most conduits, overridable when necessary
 */
 
-#define GASNETE_EOP_NEW_EXTRA(eop)  gasneti_assert(! gasnete_op_read_lc((gasnete_op_t *)(eop)))
+#define _GASNETE_EOP_NEW_EXTRA(eop) gasneti_assert(! gasnete_op_read_lc((gasnete_op_t *)(eop)))
 #define GASNETE_IOP_NEW_EXTRA(iop)  gasneti_assert(! gasnete_op_read_lc((gasnete_op_t *)(iop)))
 
 #include "gasnet_handle.c"

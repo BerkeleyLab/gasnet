@@ -117,16 +117,17 @@ gasnete_eop_t *_gasnete_eop_new(gasnete_threaddata_t * const thread) {
     gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);
     gasneti_assert(EOPSTATE(eop) == EOPSTATE_FREE);
     gasneti_assert(LCSTATE(eop) ==  LCSTATE_NONE);
-  #if GASNET_DEBUG || !GASNETE_EOP_COUNTED
+  #if GASNET_DEBUG
+    // TODO-EX: this is used to assert "not-on-freelist" and should be encode differently
     SET_EOPSTATE(eop, EOPSTATE_INFLIGHT);
   #endif
   #if GASNETE_EOP_COUNTED
     gasneti_assert(GASNETE_EOP_DONE(eop));
     gasneti_assert(GASNETE_EOP_LC(eop));
   #endif
-  #ifdef GASNETE_EOP_NEW_EXTRA
+  #ifdef _GASNETE_EOP_NEW_EXTRA
     // Hook for conduit-specific initializations and assertions
-    GASNETE_EOP_NEW_EXTRA(eop);
+    _GASNETE_EOP_NEW_EXTRA(eop);
   #endif
     return eop;
   }
@@ -136,8 +137,15 @@ gasnete_eop_t *_gasnete_eop_new(gasnete_threaddata_t * const thread) {
 GASNETI_INLINE(gasnete_eop_new)
 gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
   gasnete_eop_t *eop = _gasnete_eop_new(thread);
+#if GASNETE_EOP_BOOLEAN
+  SET_EOPSTATE(eop, EOPSTATE_INFLIGHT);
+#endif
 #if GASNETE_EOP_COUNTED
   eop->initiated_cnt++;
+#endif
+#ifdef GASNETE_EOP_NEW_EXTRA
+  // Hook for conduit-specific initializations and assertions
+  GASNETE_EOP_NEW_EXTRA(eop);
 #endif
   return eop;
 }
