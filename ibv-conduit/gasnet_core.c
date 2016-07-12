@@ -3451,14 +3451,14 @@ extern int gasnetc_AMRequestMediumM(
                             gasnetex_rank_t rank,       /* with team, defines remote context */
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
-                            gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
+                            gasnetex_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTMEDIUM(team,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  gasneti_lc_opt_finish(lc_opt); // TODO-EX: should support async local completion
+  gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
   retval = gasnetc_RequestGeneric(gasnetc_Medium, rank, handler,
 		  		  source_addr, nbytes, NULL,
@@ -3474,7 +3474,7 @@ extern int gasnetc_AMRequestLongM(
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
-                            gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
+                            gasnetex_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
@@ -3488,16 +3488,16 @@ extern int gasnetc_AMRequestLongM(
     gasnetc_atomic_val_t *mem_initiated_p;
     gasnetc_atomic_t     *mem_completed_p;
 
-    if (gasneti_lc_is_pointer(lc_opt)) {
+    if (gasneti_leaf_is_pointer(lc_opt)) {
       gasnete_eop_t *op = _gasnete_eop_new(GASNETI_MYTHREAD);
       op->event[0] |= EOPFLAG_LC_ONLY;
       mem_initiated_p = &op->initiated_alc;
       mem_completed_p = &op->completed_alc;
-      *lc_opt = (gasnetex_lc_handle_t)op;
-    } else if (lc_opt == GASNETEX_LC_INIT) {
+      *lc_opt = (gasnetex_handle_t)op;
+    } else if (lc_opt == GASNETEX_EVENT_NOW) {
       mem_initiated_p = &mem_oust.initiated;
       mem_completed_p = &mem_oust.completed;
-    } else if (lc_opt == GASNETEX_LC_GROUP) {
+    } else if (lc_opt == GASNETEX_EVENT_GROUP) {
       gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
       gasnete_iop_t *op = mythread->current_iop;
       mem_initiated_p = &op->initiated_alc_cnt;
@@ -3514,7 +3514,7 @@ extern int gasnetc_AMRequestLongM(
 				  numargs, mem_initiated_p, mem_completed_p,
 				  NULL, argptr GASNETI_THREAD_PASS);
 
-    if (lc_opt == GASNETEX_LC_INIT) {
+    if (lc_opt == GASNETEX_EVENT_NOW) {
       /* block for completion of RDMA transfer */
       gasnetc_counter_wait(&mem_oust, 0 GASNETI_THREAD_PASS);
     }
@@ -3545,14 +3545,14 @@ extern int gasnetc_AMReplyMediumM(
                             gasnetex_token_t token,     /* token provided on handler entry */
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
-                            gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
+                            gasnetex_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags,
                             int numargs, ...) {
   GASNETI_THREAD_LOOKUP // TODO-EX: extract threadinfo from token
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  gasneti_lc_opt_finish(lc_opt); // TODO-EX: should support async local completion
+  gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
   retval = gasnetc_ReplyGeneric(gasnetc_Medium, token, handler,
 		  		source_addr, nbytes, NULL,
@@ -3567,7 +3567,7 @@ extern int gasnetc_AMReplyLongM(
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
-                            gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
+                            gasnetex_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags,
                             int numargs, ...) {
   GASNETI_THREAD_LOOKUP // TODO-EX: extract threadinfo from token
@@ -3581,16 +3581,16 @@ extern int gasnetc_AMReplyLongM(
     gasnetc_atomic_val_t *mem_initiated_p;
     gasnetc_atomic_t     *mem_completed_p;
 
-    if (gasneti_lc_is_pointer(lc_opt)) {
+    if (gasneti_leaf_is_pointer(lc_opt)) {
       gasnete_eop_t *op = _gasnete_eop_new(GASNETI_MYTHREAD);
       op->event[0] |= EOPFLAG_LC_ONLY;
       mem_initiated_p = &op->initiated_alc;
       mem_completed_p = &op->completed_alc;
-      *lc_opt = (gasnetex_lc_handle_t)op;
-    } else if (lc_opt == GASNETEX_LC_INIT) {
+      *lc_opt = (gasnetex_handle_t)op;
+    } else if (lc_opt == GASNETEX_EVENT_NOW) {
       mem_initiated_p = &mem_oust.initiated;
       mem_completed_p = &mem_oust.completed;
-    } else if (lc_opt == GASNETEX_LC_GROUP) {
+    } else if (lc_opt == GASNETEX_EVENT_GROUP) {
       gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
       gasnete_iop_t *op = mythread->current_iop;
       mem_initiated_p = &op->initiated_alc_cnt;
@@ -3607,13 +3607,13 @@ extern int gasnetc_AMReplyLongM(
 				  numargs, mem_initiated_p, mem_completed_p,
 				  NULL, argptr GASNETI_THREAD_PASS);
 
-    if (lc_opt == GASNETEX_LC_INIT) {
+    if (lc_opt == GASNETEX_EVENT_NOW) {
       /* block for completion of RDMA transfer */
       gasnetc_counter_wait(&mem_oust, 1 /* calling from a request handler */ GASNETI_THREAD_PASS);
     }
   }
   #else
-  gasneti_lc_opt_finish(lc_opt); // Always "packed long", and thus locally-complete
+  gasneti_leaf_finish(lc_opt); // Always "packed long", and thus locally-complete
   retval = gasnetc_ReplyGeneric(gasnetc_Long, token, handler,
 		  		source_addr, nbytes, dest_addr,
 				numargs, NULL, NULL, NULL,

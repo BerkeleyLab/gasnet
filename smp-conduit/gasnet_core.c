@@ -1073,7 +1073,7 @@ extern int gasnetc_AMRequestMediumM(
                             gasnetex_rank_t rank,       /* with team, defines remote context */
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
-                            gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
+                            gasnetex_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
@@ -1081,7 +1081,7 @@ extern int gasnetc_AMRequestMediumM(
   va_list argptr;
   gasneti_assert(!flags); // TODO-EX: no flags implemented yet
   GASNETI_COMMON_AMREQUESTMEDIUM(team,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  gasneti_lc_opt_finish(lc_opt); // smp-conduit delivers payloads synchronously
+  gasneti_leaf_finish(lc_opt); // smp-conduit delivers payloads synchronously
   va_start(argptr, numargs); /*  pass in last argument */
 
     /*  call the generic requestor */
@@ -1099,7 +1099,7 @@ extern int gasnetc_AMRequestLongM(
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
-                            gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
+                            gasnetex_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
@@ -1107,7 +1107,7 @@ extern int gasnetc_AMRequestLongM(
   va_list argptr;
   gasneti_assert(!flags); // TODO-EX: no flags implemented yet
   GASNETI_COMMON_AMREQUESTLONG(team,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
-  gasneti_lc_opt_finish(lc_opt); // smp-conduit delivers payloads synchronously
+  gasneti_leaf_finish(lc_opt); // smp-conduit delivers payloads synchronously
   va_start(argptr, numargs); /*  pass in last argument */
 
     /*  call the generic requestor */
@@ -1143,14 +1143,14 @@ extern int gasnetc_AMReplyMediumM(
                             gasnetex_token_t token,     /* token provided on handler entry */
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
-                            gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
+                            gasnetex_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;
   va_list argptr;
   gasneti_assert(!flags); // TODO-EX: no flags implemented yet
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  gasneti_lc_opt_finish(lc_opt); // smp-conduit delivers payloads synchronously
+  gasneti_leaf_finish(lc_opt); // smp-conduit delivers payloads synchronously
   va_start(argptr, numargs); /*  pass in last argument */
 
     /*  call the generic requestor */
@@ -1167,14 +1167,14 @@ extern int gasnetc_AMReplyLongM(
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
-                            gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
+                            gasnetex_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;
   va_list argptr;
   gasneti_assert(!flags); // TODO-EX: no flags implemented yet
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
-  gasneti_lc_opt_finish(lc_opt); // smp-conduit delivers payloads synchronously
+  gasneti_leaf_finish(lc_opt); // smp-conduit delivers payloads synchronously
   va_start(argptr, numargs); /*  pass in last argument */
 
     /*  call the generic requestor */

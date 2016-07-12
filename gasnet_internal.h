@@ -521,7 +521,7 @@ extern int gasneti_VerboseErrors;
     GASNETI_CHECK_ERRR((nbytes > gasnetex_max_AMRequestMedium(team,rank,lc_opt,flags,numargs)),\
                        BAD_ARG,"nbytes too large");                                  \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");           \
-    GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_SYNC),BAD_ARG,"LC_SYNC is invalid for Requests"); \
+    GASNETI_CHECK_ERRR((lc_opt == GASNETEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Requests"); \
   } while (0)
 #define GASNETI_COMMON_AMREQUESTLONG(team,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) do { \
     GASNETI_CHECKATTACH();                                                                   \
@@ -531,7 +531,7 @@ extern int gasneti_VerboseErrors;
     GASNETI_CHECK_ERRR((nbytes > gasnetex_max_AMRequestLong(team,rank,lc_opt,flags,numargs)),  \
                        BAD_ARG,"nbytes too large");                                  \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");                   \
-    GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_SYNC),BAD_ARG,"LC_SYNC is invalid for Requests"); \
+    GASNETI_CHECK_ERRR((lc_opt == GASNETEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Requests"); \
   } while (0)
 #define GASNETI_COMMON_AMREPLYSHORT(token,handler,flags,numargs) do {    \
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs()); \
@@ -541,16 +541,16 @@ extern int gasneti_VerboseErrors;
 #define GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs) do { \
     gasneti_assert(numargs >= 0 && numargs <= gasnet_AMMaxArgs());                  \
     GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");          \
-    GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_SYNC),BAD_ARG,"LC_SYNC is invalid for Replies"); \
-    GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_GROUP),BAD_ARG,"LC_GROUP is invalid for Replies"); \
+    GASNETI_CHECK_ERRR((lc_opt == GASNETEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Replies"); \
+    GASNETI_CHECK_ERRR((lc_opt == GASNETEX_EVENT_GROUP),BAD_ARG,"EVENT_GROUP is invalid for Replies"); \
     GASNETI_TRACE_AMREPLYMEDIUM(token,handler,source_addr,nbytes,numargs);          \
   } while (0)
 #if GASNET_DEBUG || GASNETI_ENABLE_ERRCHECKS
   // TODO-EX: need to restore bounds-check on nbytes _GASNETI_COMMON_AMREPLYLONG_CHECKS
   #define _GASNETI_COMMON_AMREPLYLONG_CHECKS(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) do { \
       GASNETI_CHECK_ERRR((lc_opt == NULL),BAD_ARG,"lc_opt=NULL is invalid");                          \
-      GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_SYNC),BAD_ARG,"LC_SYNC is invalid for Replies");      \
-      GASNETI_CHECK_ERRR((lc_opt == GASNETEX_LC_GROUP),BAD_ARG,"LC_GROUP is invalid for Replies");    \
+      GASNETI_CHECK_ERRR((lc_opt == GASNETEX_EVENT_DEFER),BAD_ARG,"EVENT_DEFER is invalid for Replies");      \
+      GASNETI_CHECK_ERRR((lc_opt == GASNETEX_EVENT_GROUP),BAD_ARG,"EVENT_GROUP is invalid for Replies");    \
     } while (0)
 #else
   #define _GASNETI_COMMON_AMREPLYLONG_CHECKS(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs) ((void)0)

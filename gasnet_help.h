@@ -169,18 +169,21 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 #endif
 
 /* ------------------------------------------------------------------------------------ */
-/* tools for dealing with gasnetex_lc_handle_t */
-GASNETI_INLINE(gasneti_lc_is_pointer) GASNETI_PURE
-int gasneti_lc_is_pointer(const gasnetex_lc_handle_t *lc_ptr) {
-  gasneti_assert(lc_ptr != NULL);
-  return ((uintptr_t)(lc_ptr) >= (uintptr_t)4);
+/* tools for dealing with gasnetex_handle_t* pre-defined values */
+// TODO-EX: move to gasnet_handle_internal.h
+#ifndef _GASNETEX_HANDLE_T
+GASNETI_INLINE(gasneti_leaf_is_pointer) GASNETI_PURE
+int gasneti_leaf_is_pointer(const gasnetex_handle_t *opt_val) {
+  gasneti_assert(opt_val != NULL);
+  return ((uintptr_t)(opt_val) >= (uintptr_t)4);
 }
-GASNETI_PUREP(gasneti_lc_is_pointer)
+GASNETI_PUREP(gasneti_leaf_is_pointer)
 
-GASNETI_INLINE(gasneti_lc_opt_finish)
-void gasneti_lc_opt_finish(gasnetex_lc_handle_t *lc_ptr) {
-  if (gasneti_lc_is_pointer(lc_ptr)) *lc_ptr = GASNETEX_INVALID_LC_HANDLE;
+GASNETI_INLINE(gasneti_leaf_finish)
+void gasneti_leaf_finish(gasnetex_handle_t *opt_val) {
+  if (gasneti_leaf_is_pointer(opt_val)) *opt_val = GASNETEX_INVALID_HANDLE;
 }
+#endif
 
 /* ------------------------------------------------------------------------------------ */
 /* semi-portable spinlocks using gasneti_atomic_t

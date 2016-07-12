@@ -35,7 +35,7 @@ gasnetex_handle_t gasnete_put_nb(
                      gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                     size_t nbytes, gasnetex_handle_t *lc_opt,
                      gasnetex_flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(H);
@@ -77,44 +77,6 @@ int gasnete_syncnb_array(gasnetex_handle_t *phandle, size_t numhandles)
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Operations on local-completion handles
-  ======================================
-*/
-
-GASNETI_INLINE(gasnete_lc_one)
-int gasnete_lc_one(gasnetex_lc_handle_t lchandle)
-{
-  gasneti_assert(lchandle == GASNETEX_INVALID_LC_HANDLE);
-  gasneti_compiler_fence(); // TODO-EX: is this necessary?
-  return GASNET_OK;
-}
-#define gasnete_test_lc gasnete_lc_one
-#define gasnete_wait_lc gasnete_lc_one
-
-GASNETI_INLINE(gasnete_lc_array)
-int gasnete_lc_array(gasnetex_lc_handle_t *plchandle, size_t numlchandles)
-{
-#if GASNET_DEBUG
-  for (size_t i=0; i<numlchandles; ++i)
-    gasneti_assert(plchandle[i] == GASNETEX_INVALID_LC_HANDLE);
-#endif
-  gasneti_compiler_fence(); // TODO-EX: is this necessary?
-  return GASNET_OK;
-}
-#define gasnete_test_lc_some gasnete_lc_array
-#define gasnete_test_lc_all  gasnete_lc_array
-#define gasnete_wait_lc_some gasnete_lc_array
-#define gasnete_wait_lc_all  gasnete_lc_array
-
-
-GASNETI_INLINE(gasnete_test_lc_group)
-int gasnete_test_lc_group (GASNETI_THREAD_FARG_ALONE) {
-  return GASNET_OK;
-}
-#define gasnete_test_lc_group gasnete_test_lc_group
-
-/* ------------------------------------------------------------------------------------ */
-/*
   Non-blocking memory-to-memory transfers (implicit handle)
   ==========================================================
  */
@@ -136,7 +98,7 @@ GASNETI_INLINE(gasnete_put_nbi)
 int gasnete_put_nbi (gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                     size_t nbytes, gasnetex_handle_t *lc_opt,
                      gasnetex_flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(I);
@@ -169,10 +131,10 @@ void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecursion G
 #define gasnete_begin_nbi_accessregion gasnete_begin_nbi_accessregion
 
 GASNETI_INLINE(gasnete_end_nbi_accessregion) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_lc_handle_t *lc_opt, gasnetex_flags_t flags GASNETI_THREAD_FARG)
+gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_handle_t *lc_opt, gasnetex_flags_t flags GASNETI_THREAD_FARG)
 {
-  gasneti_assert(lc_opt != GASNETEX_LC_GROUP); // TODO-EX: allow this if we nest access region?
-  if (lc_opt != NULL) gasneti_lc_opt_finish(lc_opt);
+  gasneti_assert(lc_opt != GASNETEX_EVENT_GROUP); // TODO-EX: allow this if we nest access region?
+  if (lc_opt != NULL) gasneti_leaf_finish(lc_opt);
   return GASNETEX_INVALID_HANDLE;
 }
 #define gasnete_end_nbi_accessregion gasnete_end_nbi_accessregion

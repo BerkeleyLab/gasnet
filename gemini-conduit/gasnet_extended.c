@@ -402,16 +402,16 @@ gasnetex_handle_t gasnete_put_nb(
                      gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                     size_t nbytes, gasnetex_handle_t *lc_opt,
                      gasnetex_flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(H);
 
-  if (lc_opt == GASNETEX_LC_GROUP) {
-    gasneti_fatalerror("Put_nb(LC_GROUP) unimplemented"); // TODO-EX: fix this
-  } else if (lc_opt == GASNETEX_LC_INIT) {
+  if (lc_opt == GASNETEX_EVENT_GROUP) {
+    gasneti_fatalerror("Put_nb(EVENT_GROUP) unimplemented"); // TODO-EX: fix this
+  } else if (lc_opt == GASNETEX_EVENT_NOW) {
     return _gasnete_put_nb(rank, dest, src, nbytes GASNETI_THREAD_PASS);
-  } else if (lc_opt == GASNETEX_LC_SYNC) {
+  } else if (lc_opt == GASNETEX_EVENT_DEFER) {
     return _gasnete_put_nb_bulk(rank, dest, src, nbytes GASNETI_THREAD_PASS);
   } else {
     gasneti_fatalerror("Invalid lc_opt argument to Put_nb");
@@ -497,16 +497,16 @@ void _gasnete_put_nbi_bulk (gasnetex_rank_t node, void *dest, void *src, size_t 
 int gasnete_put_nbi( gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                     size_t nbytes, gasnetex_handle_t *lc_opt,
                      gasnetex_flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(I);
 
-  if (lc_opt == GASNETEX_LC_GROUP) {
-    gasneti_fatalerror("Put_nbi(LC_GROUP) unimplemented"); // TODO-EX: fix this
-  } else if (lc_opt == GASNETEX_LC_INIT) {
+  if (lc_opt == GASNETEX_EVENT_GROUP) {
+    gasneti_fatalerror("Put_nbi(EVENT_GROUP) unimplemented"); // TODO-EX: fix this
+  } else if (lc_opt == GASNETEX_EVENT_NOW) {
     _gasnete_put_nbi(rank, dest, src, nbytes GASNETI_THREAD_PASS);
-  } else if (lc_opt == GASNETEX_LC_SYNC) {
+  } else if (lc_opt == GASNETEX_EVENT_DEFER) {
     _gasnete_put_nbi_bulk(rank, dest, src, nbytes GASNETI_THREAD_PASS);
   } else {
     gasneti_fatalerror("Invalid lc_opt argument to Put_nbi");

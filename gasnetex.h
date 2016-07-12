@@ -344,22 +344,16 @@ typedef struct gasneti_team_s *gasnetex_team_member_t;
   /*  an opaque type representing a non-blocking operation in-progress initiated using the extended API */
   struct gasneti_handle_s;
   typedef struct gasneti_handle_s *gasnetex_handle_t;
+
+  // Pre-defined values: output handles
+  #define GASNETEX_INVALID_HANDLE      ((gasnetex_handle_t)(uintptr_t)0)
+  #define GASNETEX_NO_OP_HANDLE        ((gasnetex_handle_t)(uintptr_t)1)
+
+  // Pre-defined values: input pointers-to-handle
+  #define GASNETEX_EVENT_NOW    ((gasnetex_handle_t*)(uintptr_t)1)
+  #define GASNETEX_EVENT_DEFER  ((gasnetex_handle_t*)(uintptr_t)2)
+  #define GASNETEX_EVENT_GROUP  ((gasnetex_handle_t*)(uintptr_t)3)
 #endif
-
-#define GASNETEX_INVALID_HANDLE ((gasnetex_handle_t)(uintptr_t)0)
-#define GASNETEX_NO_OP_HANDLE ((gasnetex_handle_t)(uintptr_t)1)
-
-#ifndef _GASNETEX_LC_HANDLE_T
-  struct gasneti_lc_handle_s;
-  typedef struct gasneti_lc_handle_s *gasnetex_lc_handle_t;
-#endif
-
-#define GASNETEX_INVALID_LC_HANDLE ((gasnetex_lc_handle_t)0)
-
-#define GASNETEX_LC_INIT  ((gasnetex_lc_handle_t*)(uintptr_t)1)
-#define GASNETEX_LC_SYNC  ((gasnetex_lc_handle_t*)(uintptr_t)2)
-#define GASNETEX_LC_GROUP ((gasnetex_lc_handle_t*)(uintptr_t)3)
-
 
   /*  the largest unsigned integer type that can fit entirely in a single CPU register for the current architecture and ABI.  */
   /*  SIZEOF_GASNETEX_REGISTER_VALUE_T is a preprocess-time literal integer constant (i.e. not "sizeof()")indicating the size of this type in bytes */

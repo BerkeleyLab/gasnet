@@ -120,16 +120,16 @@ typedef struct _gasnet_hsl_t {
 /* Example for true functions:
 extern size_t gasnetex_max_AMRequestMedium(
            gasnetex_team_member_t team, gasnetex_rank_t rank,
-           gasnetex_lc_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
+           gasnetex_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
 extern size_t gasnetex_max_AMReplyMedium(
            gasnetex_team_member_t team, gasnetex_rank_t rank,
-           gasnetex_lc_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
+           gasnetex_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
 extern size_t gasnetex_max_AMRequestLong(
            gasnetex_team_member_t team, gasnetex_rank_t rank,
-           gasnetex_lc_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
+           gasnetex_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
 extern size_t gasnetex_max_AMReplyLong(
            gasnetex_team_member_t team, gasnetex_rank_t rank,
-           gasnetex_lc_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
+           gasnetex_handle_t *lc_opt, gasnetex_flags_t flags, int nargs);
  */
 
 /* ------------------------------------------------------------------------------------ */

@@ -125,7 +125,7 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
 /*  Local Completion (LC) state */
 #define LCSTATE_NONE   0 /*  op has NO local completion state */
 #define LCSTATE_LIVE   1 /*  op has competion state - only used in DEBUG builds */
-#define LCSTATE_SYNC   2 /*  op is an iop returned from end_nbi_accessregion(LC_SYNC) w/ LC outstanding */
+#define LCSTATE_DEFER  2 /*  op is an iop returned from end_nbi_accessregion(EVENT_DEFER) w/ LC outstanding */
 #if 0 // Fully general implementation
   #define LCSTATE(op) ((op)->event[1] & 0x03))
   GASNETI_INLINE(SET_LCSTATE_)
@@ -179,32 +179,52 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
           == ((_iop)->initiated_##_name##_cnt & GASNETI_ATOMIC_MAX))
 #endif
 
-#if GASNETE_EOP_COUNTED
+#ifndef GASNETE_EOP_DONE
+ #if GASNETE_EOP_COUNTED
   #define GASNETE_EOP_DONE(_eop) \
     (gasnete_op_atomic_read(&(_eop)->completed_cnt, 0) \
           == ((_eop)->initiated_cnt & GASNETI_ATOMIC_MAX))
+ #else // GASNETE_EOP_BOOLEAN
+  #define GASNETE_EOP_DONE(_eop) (EOPSTATE(_eop) == EOPSTATE_COMPLETE)
+ #endif
+#endif
+
+#ifndef GASNETE_EOP_MARKDONE
+ #if GASNETE_EOP_COUNTED
   #define GASNETE_EOP_MARKDONE(_eop) do {                        \
       gasneti_assert(!GASNETE_EOP_DONE(_eop));                   \
       gasnete_op_atomic_increment(&((_eop)->completed_cnt), 0);  \
     } while (0)
-  #define GASNETE_EOP_LC(_eop) \
-    (gasnete_op_atomic_read(&(_eop)->completed_alc, 0) \
-          == ((_eop)->initiated_alc & GASNETI_ATOMIC_MAX))
-  #define GASNETE_EOP_MARKLC(_eop) do {                        \
-      gasneti_assert(!GASNETE_EOP_LC(_eop));                   \
-      gasnete_op_atomic_increment(&((_eop)->completed_alc), 0);\
-    } while (0)
-#else
-  #define GASNETE_EOP_DONE(_eop) (EOPSTATE(_eop) == EOPSTATE_COMPLETE)
+ #else // GASNETE_EOP_BOOLEAN
   #define GASNETE_EOP_MARKDONE(_eop) do {      \
       gasneti_assert(!GASNETE_EOP_DONE(_eop)); \
       SET_EOPSTATE((_eop), EOPSTATE_COMPLETE); \
     } while (0)
+ #endif
+#endif
+
+#ifndef GASNETE_EOP_LC
+ #if GASNETE_EOP_COUNTED
+  #define GASNETE_EOP_LC(_eop) \
+    (gasnete_op_atomic_read(&(_eop)->completed_alc, 0) \
+          == ((_eop)->initiated_alc & GASNETI_ATOMIC_MAX))
+ #else // GASNETE_EOP_BOOLEAN
   #define GASNETE_EOP_LC(_eop) (LCSTATE(_eop) == LCSTATE_NONE)
+ #endif
+#endif
+
+#ifndef GASNETE_EOP_MARKLC
+ #if GASNETE_EOP_COUNTED
+  #define GASNETE_EOP_MARKLC(_eop) do {                        \
+      gasneti_assert(!GASNETE_EOP_LC(_eop));                   \
+      gasnete_op_atomic_increment(&((_eop)->completed_alc), 0);\
+    } while (0)
+ #else // GASNETE_EOP_BOOLEAN
   #define GASNETE_EOP_MARKLC(_eop) do {      \
       gasneti_assert(!GASNETE_EOP_LC(_eop)); \
       SET_LCSTATE((_eop), LCSTATE_NONE); \
     } while (0)
+ #endif
 #endif
 
 /* ------------------------------------------------------------------------------------ */

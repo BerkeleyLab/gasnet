@@ -151,9 +151,9 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     if (islocal) return GASNETEX_INVALID_HANDLE;                                        \
     switch (synctype) {                                                               \
       case gasnete_synctype_nb:                                                       \
-        return gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);               \
+        return gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);               \
       case gasnete_synctype_b:                                                        \
-        gasnete_wait_syncnb(gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS)); \
+        gasnete_wait_syncnb(gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS)); \
         return GASNETEX_INVALID_HANDLE;                                                 \
       case gasnete_synctype_nbi:                                                      \
         return GASNETEX_INVALID_HANDLE;                                                 \
@@ -167,7 +167,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     gasneti_assert(islocal == (dstnode == gasneti_mynode));                     \
     if (islocal) GASNETE_FAST_UNALIGNED_MEMCPY((dstaddr), (srcaddr), (nbytes)); \
     else gasnete_put_nbi(NULL, (dstnode), (dstaddr), (srcaddr), (nbytes),       \
-                         GASNETEX_LC_SYNC, 0 GASNETE_THREAD_PASS);              \
+                         GASNETEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);              \
   } while (0)
 
 #define GASNETE_GET_INDIV(islocal, dstaddr, srcnode, srcaddr, nbytes) do {      \

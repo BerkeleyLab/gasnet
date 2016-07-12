@@ -426,7 +426,7 @@ typedef union {
     if (gasneti_pshm_in_supernode(rank)) {      \
       GASNETE_FAST_MEMCPY(gasneti_pshm_addr2local(rank, dest), src, nbytes); \
       gasnete_loopbackput_memsync();            \
-      gasneti_lc_opt_finish(lc_opt);            \
+      gasneti_leaf_finish(lc_opt);            \
       _GASNETI_RETURN_##rt;                     \
     }} while(0)
   #define GASNETI_CHECKPSHM_PUT_NOLC(rt) do { \

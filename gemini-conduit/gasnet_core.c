@@ -288,7 +288,7 @@ void gasnetc_bootstrapExchange_gni(void *src, size_t len, void *dest))
 
         gasnetex_AMRequestMedium2(NULL, gasnetc_dissem_peer[step],
                                   gasneti_handleridx(gasnetc_sys_exchange_reqh),
-                                  temp + offset, to_xfer, GASNETEX_LC_INIT, 0,
+                                  temp + offset, to_xfer, GASNETEX_EVENT_NOW, 0,
                                   phase | (step << 1) | (seq << 6), len);
 
         ++seq;
@@ -1434,7 +1434,7 @@ extern int gasnetc_AMRequestMediumM(
                             gasnetex_rank_t dest,       /* with team, defines remote context */
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
-                            gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
+                            gasnetex_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
@@ -1442,7 +1442,7 @@ extern int gasnetc_AMRequestMediumM(
   va_list argptr;
   GASNETI_COMMON_AMREQUESTMEDIUM(team,dest,handler,source_addr,nbytes,lc_opt,flags,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
-  gasneti_lc_opt_finish(lc_opt); // TODO-EX: should support async local completion
+  gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the dest first. */
@@ -1472,7 +1472,7 @@ extern int gasnetc_AMRequestLongM(
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
-                            gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
+                            gasnetex_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
@@ -1480,7 +1480,7 @@ extern int gasnetc_AMRequestLongM(
   va_list argptr;
   GASNETI_COMMON_AMREQUESTLONG(team,dest,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   gasneti_AMPoll(); /* poll at least once, to assure forward progress */
-  gasneti_lc_opt_finish(lc_opt); // TODO-EX: should support async local completion
+  gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the dest first. */
@@ -1569,14 +1569,14 @@ extern int gasnetc_AMReplyMediumM(
                             gasnetex_token_t token,     /* token provided on handler entry */
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
-                            gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
+                            gasnetex_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;
   va_list argptr;
 
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  gasneti_lc_opt_finish(lc_opt); // TODO-EX: should support async local completion
+  gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the token first. */
@@ -1605,13 +1605,13 @@ extern int gasnetc_AMReplyLongM(
                             gasnetex_handler_t handler, /* index into destination endpoint's handler table */
                             void *source_addr, size_t nbytes,   /* data payload */
                             void *dest_addr,                    /* data destination on destination node */
-                            gasnetex_lc_handle_t *lc_opt,       /* local completion of payload */
+                            gasnetex_handle_t *lc_opt,       /* local completion of payload */
                             gasnetex_flags_t flags,
                             int numargs, ...) {
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
-  gasneti_lc_opt_finish(lc_opt); // TODO-EX: should support async local completion
+  gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the token first. */

@@ -846,9 +846,9 @@ static gasnet_hsl_t pf_lock = GASNET_HSL_INITIALIZER;
 static gasneti_weakatomic_t progressfn_req_sent = gasneti_weakatomic_init(0);
 static gasneti_weakatomic_t progressfn_rep_rcvd = gasneti_weakatomic_init(0);
 static void progressfn_reqh(gasnetex_token_t token, void *buf, size_t nbytes) {
-  // TODO-EX: nbytes = MIN(nbytes, gasnetex_max_AMReplyMedium(..., GASNETEX_LC_INIT, 0, 0));
+  // TODO-EX: nbytes = MIN(nbytes, gasnetex_max_AMReplyMedium(..., GASNETEX_EVENT_NOW, 0, 0));
   nbytes = MIN(nbytes, gasnetex_lub_AMReplyMedium()); /* In case Reply size smaller than Request */
-  gasnetex_AMReplyMedium0(token, gasneti_diag_hidx_base + 1, buf, nbytes, GASNETEX_LC_INIT, 0);
+  gasnetex_AMReplyMedium0(token, gasneti_diag_hidx_base + 1, buf, nbytes, GASNETEX_EVENT_NOW, 0);
 }
 static void progressfn_reph(gasnetex_token_t token, void *buf, size_t nbytes) {
   gasneti_weakatomic_increment(&progressfn_rep_rcvd,0);
@@ -869,20 +869,20 @@ static void progressfn_tester(int *counter) {
 #endif
   { static int tmp = 47;
     int sz;
-    gasnetex_put_nbi(myteam, peer, peersegmid, &tmp, sizeof(tmp), GASNETEX_LC_INIT, 0);
+    gasnetex_put_nbi(myteam, peer, peersegmid, &tmp, sizeof(tmp), GASNETEX_EVENT_NOW, 0);
     for (sz = 1; sz <= MIN(128*1024,TEST_SEGSZ/2); sz = (sz < 64?sz*2:sz*8)) {
-      gasnetex_put_nbi(myteam, peer, peersegmid, myseg, sz, GASNETEX_LC_SYNC, 0);
+      gasnetex_put_nbi(myteam, peer, peersegmid, myseg, sz, GASNETEX_EVENT_DEFER, 0);
       gasnetex_get_nbi(myteam, myseg, peer, peersegmid, sz, 0);
     }
     sz = (gasnet_AMPoll(),gasnetex_test_syncnbi_all());
     if (gasneti_diag_havehandlers) {
-      const size_t max_sz = MIN(gasnetex_max_AMRequestMedium(myteam, peer, GASNETEX_LC_INIT, 0, 0),
+      const size_t max_sz = MIN(gasnetex_max_AMRequestMedium(myteam, peer, GASNETEX_EVENT_NOW, 0, 0),
                                 MIN(64*1024,TEST_SEGSZ/2));
       for (sz = 1; sz <= max_sz; sz = (sz < 64?sz*2:sz*8)) {
         gasneti_weakatomic_increment(&progressfn_req_sent,0);
-        gasnetex_AMRequestMedium0(myteam, peer, gasneti_diag_hidx_base + 0, myseg, sz, GASNETEX_LC_INIT, 0);
+        gasnetex_AMRequestMedium0(myteam, peer, gasneti_diag_hidx_base + 0, myseg, sz, GASNETEX_EVENT_NOW, 0);
         gasneti_weakatomic_increment(&progressfn_req_sent,0);
-        gasnetex_AMRequestLong0(myteam, peer, gasneti_diag_hidx_base + 0, myseg, sz, peersegmid, GASNETEX_LC_INIT, 0);
+        gasnetex_AMRequestLong0(myteam, peer, gasneti_diag_hidx_base + 0, myseg, sz, peersegmid, GASNETEX_EVENT_NOW, 0);
       }
     }
   }
@@ -1067,7 +1067,7 @@ static void op_test(int id) {
           assert_always(gasnetex_test_syncnb(h2) == GASNET_ERR_NOT_READY);
 
 
-          h = gasnetex_end_nbi_accessregion(GASNETEX_LC_SYNC,0);
+          h = gasnetex_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0);
           assert_always(gasnetex_test_syncnb(h) == GASNET_ERR_NOT_READY);
           assert_always(gasnetex_test_syncnb(h2) == GASNET_ERR_NOT_READY);
 

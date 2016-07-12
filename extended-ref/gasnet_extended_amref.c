@@ -222,7 +222,7 @@ void gasnete_amref_get_reqh_inner(gasnetex_token_t token,
   gasnetex_handlerarg_t nbytes, void *dest, void *src, void *done) {
   gasneti_assert(nbytes <= gasnetex_lub_AMReplyMedium());
   gasnetex_AMReplyMedium(token, gasneti_handleridx(gasnete_amref_get_reph),
-                         src, nbytes, GASNETEX_LC_INIT, 0,
+                         src, nbytes, GASNETEX_EVENT_NOW, 0,
                          PACK(dest), PACK(done));
 }
 SHORT_HANDLER(gasnete_amref_get_reqh,4,7, 
@@ -245,7 +245,7 @@ void gasnete_amref_getlong_reqh_inner(gasnetex_token_t token,
   gasnetex_handlerarg_t nbytes, void *dest, void *src, void *done) {
 
   gasnetex_AMReplyLong(token, gasneti_handleridx(gasnete_amref_getlong_reph),
-                       src, nbytes, dest, GASNETEX_LC_INIT, 0, PACK(done));
+                       src, nbytes, dest, GASNETEX_EVENT_NOW, 0, PACK(done));
 }
 
 SHORT_HANDLER(gasnete_amref_getlong_reqh,4,7, 
@@ -358,7 +358,7 @@ int gasnete_amref_put_nbi_inner (gasnetex_team_member_t team,
                                  gasnetex_rank_t rank, void *dest,
                                  void *src,
                                  size_t nbytes,
-                                 gasnetex_lc_handle_t *lc_opt,
+                                 gasnetex_handle_t *lc_opt,
                                  gasnetex_flags_t flags
                                  GASNETI_THREAD_FARG)
 {
@@ -372,10 +372,10 @@ int gasnete_amref_put_nbi_inner (gasnetex_team_member_t team,
   // returning from a partially-initiated xfer in the case that we loop.
   // Currently we are passing flags==0 to all AMRequest calls.
 
-  // There is no LC_SYNC for an AMRequest, but LC_GROUP is permitted.
+  // There is no EVENT_DEFER for an AMRequest, but EVENT_GROUP is permitted.
   // Since (at least in the reference iop) syncnbi_{puts,all}() will
-  // test/wait the LC counters, we convert LC_SYNC to LC_GROUP here.
-  if (lc_opt == GASNETEX_LC_SYNC) lc_opt = GASNETEX_LC_GROUP;
+  // test/wait the LC counters, we convert EVENT_DEFER to EVENT_GROUP here.
+  if (lc_opt == GASNETEX_EVENT_DEFER) lc_opt = GASNETEX_EVENT_GROUP;
 
   if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
     op->initiated_put_cnt++;
@@ -471,7 +471,7 @@ gasnetex_handle_t gasnete_get_nb(
     /*  (note this relies on the fact that our implementation of access regions allows recursion) */
     gasnete_begin_nbi_accessregion(0,1 /* enable recursion */ GASNETI_THREAD_PASS);
     gasnete_amref_get_nbi(team, dest, rank, src, nbytes, flags GASNETI_THREAD_PASS);
-    return gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETI_THREAD_PASS);
+    return gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETI_THREAD_PASS);
   }
 }
 #endif /* GASNETE_BUILD_AMREF_GET */
@@ -484,15 +484,15 @@ gasnetex_handle_t gasnete_put_nb(
                      gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                     size_t nbytes, gasnetex_handle_t *lc_opt,
                      gasnetex_flags_t flags GASNETI_THREAD_FARG)
 {
  GASNETI_CHECKPSHM_PUT(H);
  {
-  // LC_SYNC is accomplished using an nbi access region, ended with LC_SYNC.
+  // EVENT_DEFER is accomplished using an nbi access region, ended with EVENT_DEFER.
   // Otherwise this reference implementation has no way to portably link the
   // LC of an AM Request to a gasnetex_handle_t.
-  if (lc_opt != GASNETEX_LC_SYNC) {
+  if (lc_opt != GASNETEX_EVENT_DEFER) {
     if (nbytes <= GASNETE_GETPUT_MEDIUM_LONG_THRESHOLD) {
       gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
 
@@ -513,17 +513,17 @@ gasnetex_handle_t gasnete_put_nb(
     }
 #endif
     // Fall through if too large for a single AM
-    // TODO: the GASNETE_EOP_COUNTED case could work w/o the access region (except LC_SYNC)
+    // TODO: the GASNETE_EOP_COUNTED case could work w/o the access region (except EVENT_DEFER)
   }
 
   {
-    /*  need many messages or LC_SYNC - use an access region to coalesce into a single handle */
+    /*  need many messages or EVENT_DEFER - use an access region to coalesce into a single handle */
     /*  (note this relies on the fact that our implementation of access regions allows recursion) */
     int nbi_result;
     gasnetex_handle_t handle;
     gasnete_begin_nbi_accessregion(0,1 /* enable recursion */ GASNETI_THREAD_PASS);
     nbi_result = gasnete_amref_put_nbi_inner(team, rank, dest, src, nbytes,
-                                             GASNETEX_LC_GROUP, flags GASNETI_THREAD_PASS);
+                                             GASNETEX_EVENT_GROUP, flags GASNETI_THREAD_PASS);
     handle = gasnete_end_nbi_accessregion(lc_opt,0 GASNETI_THREAD_PASS);
     if (nbi_result) { // "IMMEDIATE" failure
       gasnete_wait_syncnb(handle);
@@ -569,7 +569,7 @@ extern
 int gasnete_amref_put_nbi( gasnetex_team_member_t team,
                            gasnetex_rank_t rank, void *dest,
                            void *src,
-                           size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                           size_t nbytes, gasnetex_handle_t *lc_opt,
                            gasnetex_flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(I);

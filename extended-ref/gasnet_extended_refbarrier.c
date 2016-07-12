@@ -1254,9 +1254,9 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
     const gasnetex_rank_t node = barrier_data->barrier_peers[step].node;
     void * const addr = GASNETE_RDMABARRIER_INBOX_REMOTE(barrier_data, step, state);
     gasnete_put_nbi(NULL, node, addr, payload, sizeof(*payload),
-                    GASNETEX_LC_SYNC, 0 GASNETE_THREAD_PASS);
+                    GASNETEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
   }
-  handle = gasnete_end_nbi_accessregion(GASNETEX_LC_SYNC,0 GASNETE_THREAD_PASS);
+  handle = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
 
 #if GASNETI_THREADS
   /* sync the new ops, since we can't know this thread will re-enter the barrier code */

@@ -676,7 +676,7 @@ gasnetex_handle_t gasnete_puts_gather(gasnete_strided_stats_t const *stats, gasn
     void * const packedbuf = visop + 1;
     gasnete_strided_pack_all(srcaddr, srcstrides, count, stridelevels, packedbuf);
     visop->type = GASNETI_VIS_CAT_PUTS_GATHER;
-    visop->handle = gasnete_put_nb(NULL, dstnode, dstaddr, packedbuf, nbytes, GASNETEX_LC_SYNC, 0 GASNETE_THREAD_PASS);
+    visop->handle = gasnete_put_nb(NULL, dstnode, dstaddr, packedbuf, nbytes, GASNETEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
   }
 }
@@ -794,7 +794,7 @@ gasnetex_handle_t gasnete_puts_AMPipeline(gasnete_strided_stats_t const *stats, 
       }
       /* fill packet with remote metadata */
       gasnetex_AMRequestMedium(NULL, dstnode, gasneti_handleridx(gasnete_puts_AMPipeline_reqh),
-                               packetbase, nbytes, GASNETEX_LC_INIT, 0,
+                               packetbase, nbytes, GASNETEX_EVENT_NOW, 0,
                                PACK(iop), PACK(dstaddr), stridelevels, stats->dualcontiguity, packetchunks);
     }
     gasneti_free(init);
@@ -899,7 +899,7 @@ gasnetex_handle_t gasnete_gets_AMPipeline(gasnete_strided_stats_t const *stats, 
       remaining -= packetchunks;
       memcpy(packetinit, tableinit, stridelevels*sizeof(size_t));
       gasnetex_AMRequestMedium(NULL, srcnode, gasneti_handleridx(gasnete_gets_AMPipeline_reqh),
-                      packetbase, packetnbytes, GASNETEX_LC_INIT, 0,
+                      packetbase, packetnbytes, GASNETEX_EVENT_NOW, 0,
                       PACK(visop), PACK(srcaddr), stridelevels, stats->dualcontiguity, packetchunks, packetidx);
 
       if (remaining) {
@@ -959,7 +959,7 @@ void gasnete_gets_AMPipeline_reqh_inner(gasnetex_token_t token,
     size_t nbytes = end - (uint8_t *)packedbuf;
 
     gasnetex_AMReplyMedium(token, gasneti_handleridx(gasnete_gets_AMPipeline_reph),
-                           packedbuf, nbytes, GASNETEX_LC_INIT, 0,
+                           packedbuf, nbytes, GASNETEX_EVENT_NOW, 0,
                            PACK(_visop),packetidx,contiglevel,packetchunks);
     gasneti_free(packedbuf);
   }

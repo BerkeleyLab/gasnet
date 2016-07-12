@@ -367,7 +367,7 @@ gasnetex_handle_t gasnete_put_nb(
                      gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                     size_t nbytes, gasnetex_handle_t *lc_opt,
                      gasnetex_flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(H);
@@ -375,11 +375,11 @@ gasnetex_handle_t gasnete_put_nb(
     gasnete_eop_t * op = gasnete_eop_new(GASNETI_MYTHREAD);
     int need_lc;
 
-    if (gasneti_lc_is_pointer(lc_opt)) {
+    if (gasneti_leaf_is_pointer(lc_opt)) {
       gasneti_fatalerror("Put_nb(lc_opt pointer) unimplemented"); // TODO-EX: fix this
-    } else if (lc_opt == GASNETEX_LC_INIT) {
+    } else if (lc_opt == GASNETEX_EVENT_NOW) {
       need_lc = 1;
-    } else if (lc_opt == GASNETEX_LC_SYNC) {
+    } else if (lc_opt == GASNETEX_EVENT_DEFER) {
       need_lc = 0;
     } else {
       gasneti_fatalerror("Invalid lc_opt argument to Put_nb");
@@ -425,7 +425,7 @@ extern
 int gasnete_put_nbi( gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                     size_t nbytes, gasnetex_handle_t *lc_opt,
                      gasnetex_flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(I);
@@ -436,11 +436,11 @@ int gasnete_put_nbi( gasnetex_team_member_t team,
 
     op->initiated_put_cnt++;
 
-    if (gasneti_lc_is_pointer(lc_opt)) {
+    if (gasneti_leaf_is_pointer(lc_opt)) {
       gasneti_fatalerror("Put_nb(lc_opt pointer) unimplemented"); // TODO-EX: fix this
-    } else if (lc_opt == GASNETEX_LC_INIT) {
+    } else if (lc_opt == GASNETEX_EVENT_NOW) {
       need_lc = 1;
-    } else if (lc_opt == GASNETEX_LC_SYNC) {
+    } else if (lc_opt == GASNETEX_EVENT_DEFER) {
       need_lc = 0;
     } else {
       gasneti_fatalerror("Invalid lc_opt argument to Put_nb");

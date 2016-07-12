@@ -159,7 +159,7 @@ void oneway_nbi_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of nonblocking implicit bulk put */
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_put_nbi(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_LC_SYNC, 0);
+			gasnetex_put_nbi(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_EVENT_DEFER, 0);
 		}
 		gasnetex_wait_syncnbi_puts();
 		end = TIME();
@@ -217,7 +217,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
 		/* measure the throughput of sending a message */
 		begin = TIME();
                 for (i = 0; i < iters; i++) {
-                        handles[i] = gasnetex_put_nb(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_LC_SYNC, 0);
+                        handles[i] = gasnetex_put_nb(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_EVENT_DEFER, 0);
                 }
 		gasnetex_wait_syncnb_all(handles, iters);
 		end = TIME();

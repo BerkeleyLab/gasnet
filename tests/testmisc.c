@@ -56,14 +56,14 @@ void null_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
 }
 
 void justreply_medhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
-  gasnetex_AMReplyMedium0(token, hidx_null_medhandler, buf, nbytes, GASNETEX_LC_INIT, 0);
+  gasnetex_AMReplyMedium0(token, hidx_null_medhandler, buf, nbytes, GASNETEX_EVENT_NOW, 0);
 }
 
 void null_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
 }
 
 void justreply_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
-  gasnetex_AMReplyLong0(token, hidx_null_longhandler, buf, nbytes, buf, GASNETEX_LC_INIT, 0);
+  gasnetex_AMReplyLong0(token, hidx_null_longhandler, buf, nbytes, buf, GASNETEX_EVENT_NOW, 0);
 }
 /* ------------------------------------------------------------------------------------ */
 /* This tester measures the performance of a number of miscellaneous GASNet functions 
@@ -142,13 +142,11 @@ int32_t temp = 0;
 gasnett_tick_t timertemp = 0;
 int8_t bigtemp[1024];
 gasnetex_handle_t handles[8];
-gasnetex_lc_handle_t lchandles[8];
 /* ------------------------------------------------------------------------------------ */
 void doit1(void) { GASNET_BEGIN_FUNCTION();
 
     { int i; for (i=0;i<8;i++) {
         handles[i] = GASNETEX_INVALID_HANDLE;
-        lchandles[i] = GASNETEX_INVALID_LC_HANDLE;
     } }
 
     TEST_SECTION_BEGIN();
@@ -174,16 +172,16 @@ void doit1(void) { GASNET_BEGIN_FUNCTION();
       { gasnetex_AMRequestShort0(myteam, mynode, hidx_justreply_shorthandler, 0); });
 
     TIME_OPERATION("Loopback do-nothing gasnetex_AMRequestMedium0()",
-      { gasnetex_AMRequestMedium0(myteam, mynode, hidx_null_medhandler, p, 0, GASNETEX_LC_INIT, 0); });
+      { gasnetex_AMRequestMedium0(myteam, mynode, hidx_null_medhandler, p, 0, GASNETEX_EVENT_NOW, 0); });
 
     TIME_OPERATION("Loopback do nothing AM medium request-reply",
-      { gasnetex_AMRequestMedium0(myteam, mynode, hidx_justreply_medhandler, p, 0, GASNETEX_LC_INIT, 0); });
+      { gasnetex_AMRequestMedium0(myteam, mynode, hidx_justreply_medhandler, p, 0, GASNETEX_EVENT_NOW, 0); });
 
     TIME_OPERATION("Loopback do-nothing gasnetex_AMRequestLong0()",
-      { gasnetex_AMRequestLong0(myteam, mynode, hidx_null_medhandler, p, 0, myseg, GASNETEX_LC_INIT, 0); });
+      { gasnetex_AMRequestLong0(myteam, mynode, hidx_null_medhandler, p, 0, myseg, GASNETEX_EVENT_NOW, 0); });
 
     TIME_OPERATION("Loopback do nothing AM long request-reply",
-      { gasnetex_AMRequestLong0(myteam, mynode, hidx_justreply_medhandler, p, 0, myseg, GASNETEX_LC_INIT, 0); });
+      { gasnetex_AMRequestLong0(myteam, mynode, hidx_justreply_medhandler, p, 0, myseg, GASNETEX_EVENT_NOW, 0); });
 
     doit2();
 }
@@ -340,17 +338,17 @@ void doit4(void) { GASNET_BEGIN_FUNCTION();
       { gasnetex_put(myteam, mynode, myseg, &temp, 4, 0); });
 
     TIME_OPERATION("local 4-byte gasnetex_put_nb",
-      { gasnetex_wait_syncnb(gasnetex_put_nb(myteam, mynode, myseg, &temp, 4, GASNETEX_LC_INIT, 0)); });
+      { gasnetex_wait_syncnb(gasnetex_put_nb(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_NOW, 0)); });
 
     TIME_OPERATION_FULL("local 4-byte gasnetex_put_nbi", {},
-      { gasnetex_put_nbi(myteam, mynode, myseg, &temp, 4, GASNETEX_LC_INIT, 0); },
+      { gasnetex_put_nbi(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_NOW, 0); },
       { gasnetex_wait_syncnbi_puts(); });
 
     TIME_OPERATION("local 4-byte gasnetex_put_nb/bulk",
-      { gasnetex_wait_syncnb(gasnetex_put_nb(myteam, mynode, myseg, &temp, 4, GASNETEX_LC_SYNC, 0)); });
+      { gasnetex_wait_syncnb(gasnetex_put_nb(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_DEFER, 0)); });
 
     TIME_OPERATION_FULL("local 4-byte gasnetex_put_nbi/bulk", {},
-      { gasnetex_put_nbi(myteam, mynode, myseg, &temp, 4, GASNETEX_LC_SYNC, 0); },
+      { gasnetex_put_nbi(myteam, mynode, myseg, &temp, 4, GASNETEX_EVENT_DEFER, 0); },
       { gasnetex_wait_syncnbi_puts(); });
 
     TIME_OPERATION("local 4-byte gasnetex_put_val",
@@ -431,32 +429,6 @@ void doit7(void) { GASNET_BEGIN_FUNCTION();
       { gasnetex_test_syncnb_some(handles, 8); });
 
 
-    TIME_OPERATION("do-nothing gasnetex_wait_lc()",
-      { gasnetex_wait_lc(GASNETEX_INVALID_LC_HANDLE);  });
-
-    TIME_OPERATION("do-nothing gasnetex_test_lc()",
-      { GASNETT_UNUSED int junk = gasnetex_test_lc(GASNETEX_INVALID_LC_HANDLE); });
-
-    TIME_OPERATION("do-nothing gasnetex_wait_lc_all() (8 handles)",
-      { gasnetex_wait_lc_all(lchandles, 8); });
-
-    TIME_OPERATION("do-nothing gasnetex_wait_lc_some() (8 handles)",
-      { gasnetex_wait_lc_some(lchandles, 8); });
-
-    TIME_OPERATION("do-nothing gasnetex_test_lc_all() (8 handles)",
-      { gasnetex_test_lc_all(lchandles, 8);  });
-
-    TIME_OPERATION("do-nothing gasnetex_test_lc_some() (8 handles)",
-      { gasnetex_test_lc_some(lchandles, 8); });
-
-
-    TIME_OPERATION("do-nothing gasnetex_wait_lc_group()",
-      { gasnetex_wait_lc_group(); });
-
-    TIME_OPERATION("do-nothing gasnetex_test_lc_group()",
-      { GASNETT_UNUSED int junk = gasnetex_test_lc_group(); });
-
-
     TIME_OPERATION("do-nothing gasnetex_wait_syncnbi_all()",
       { gasnetex_wait_syncnbi_all(); });
 
@@ -477,7 +449,7 @@ void doit7(void) { GASNET_BEGIN_FUNCTION();
 
     TIME_OPERATION("do-nothing begin/end nbi accessregion",
       { gasnetex_begin_nbi_accessregion(0);
-        gasnetex_wait_syncnb(gasnetex_end_nbi_accessregion(GASNETEX_LC_SYNC,0));
+        gasnetex_wait_syncnb(gasnetex_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0));
       });
 
     TEST_SECTION_BEGIN();

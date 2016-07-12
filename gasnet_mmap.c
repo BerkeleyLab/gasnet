@@ -1927,7 +1927,7 @@ void gasneti_auxseg_attach(void) {
     /* exchange locations into si */
     gasnetex_AMRequestMedium2(NULL, 0, _hidx_gasnetc_auxseg_reqh,
                   (void *)(_gasneti_auxseg_everything+gasneti_mynode), sizeof(gasnet_seginfo_t),
-                  GASNETEX_LC_INIT, 0, 0, 0);
+                  GASNETEX_EVENT_NOW, 0, 0, 0);
     if (gasnet_mynode() == 0) {
       GASNET_BLOCKUNTIL((int)gasneti_atomic_read(&_gasneti_auxseg_gatherdone, 0) == (int)gasnet_nodes());
       for (i=0; i < gasneti_nodes; i++) {
@@ -1935,7 +1935,7 @@ void gasneti_auxseg_attach(void) {
           gasnetex_AMRequestMedium2(NULL, i, _hidx_gasnetc_auxseg_reqh,
                     (void *)(_gasneti_auxseg_everything+j*chunkelems), 
                     MIN(chunkelems, gasneti_nodes-j*chunkelems)*sizeof(gasnet_seginfo_t),
-                    GASNETEX_LC_INIT, 0, 1, j*chunkelems);
+                    GASNETEX_EVENT_NOW, 0, 1, j*chunkelems);
         }
       }
     }

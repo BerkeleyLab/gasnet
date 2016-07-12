@@ -721,6 +721,7 @@ extern void gasneti_trace_finish(void);
         VAL(P, PUTS_NB_BULK, sz)                          \
         VAL(P, PUTS_NBI_BULK, sz)                         \
                                                           \
+        /* TODO-EX: "SYNCNB" name is out-of-date */       \
         VAL(S, TEST_SYNCNB, success)                      \
         VAL(S, TEST_SYNCNB_ALL, success)                  \
         VAL(S, TEST_SYNCNB_SOME, success)                 \
@@ -728,22 +729,14 @@ extern void gasneti_trace_finish(void);
         TIME(S, WAIT_SYNCNB_ALL, waittime)                \
         TIME(S, WAIT_SYNCNB_SOME, waittime)               \
                                                           \
-        VAL(S, TEST_LC, success)                          \
-        VAL(S, TEST_LC_ALL, success)                      \
-        VAL(S, TEST_LC_SOME, success)                     \
-        TIME(S, WAIT_LC, waittime)                        \
-        TIME(S, WAIT_LC_ALL, waittime)                    \
-        TIME(S, WAIT_LC_SOME, waittime)                   \
-                                                          \
-        VAL(S, TEST_LC_GROUP, success)                    \
-        TIME(S, WAIT_LC_GROUP, waittime)                  \
-                                                          \
         VAL(S, TEST_SYNCNBI_ALL, success)                 \
         VAL(S, TEST_SYNCNBI_GETS, success)                \
         VAL(S, TEST_SYNCNBI_PUTS, success)                \
+        VAL(S, TEST_SYNCNBI_LC, success)                  \
         TIME(S, WAIT_SYNCNBI_ALL, waittime)               \
         TIME(S, WAIT_SYNCNBI_GETS, waittime)              \
         TIME(S, WAIT_SYNCNBI_PUTS, waittime)              \
+        TIME(S, WAIT_SYNCNBI_LC, waittime)                \
                                                           \
         VAL(I, END_NBI_ACCESSREGION, numops)              \
                                                           \

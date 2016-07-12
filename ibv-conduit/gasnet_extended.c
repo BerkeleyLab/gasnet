@@ -121,7 +121,7 @@ gasnetex_handle_t gasnete_put_nb(
                      gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                     size_t nbytes, gasnetex_handle_t *lc_opt,
                      gasnetex_flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(H);
@@ -133,14 +133,14 @@ gasnetex_handle_t gasnete_put_nb(
 
   /* XXX check error returns */
 
-  if (gasneti_lc_is_pointer(lc_opt)) {
+  if (gasneti_leaf_is_pointer(lc_opt)) {
     mem_initiated_p = &op->initiated_alc;
     mem_completed_p = &op->completed_alc;
-    *lc_opt = (gasnetex_lc_handle_t)op;
-  } else if (lc_opt == GASNETEX_LC_INIT) {
+    *lc_opt = (gasnetex_handle_t)op;
+  } else if (lc_opt == GASNETEX_EVENT_NOW) {
     mem_initiated_p = &mem_oust.initiated;
     mem_completed_p = &mem_oust.completed;
-  } else if (lc_opt == GASNETEX_LC_SYNC) {
+  } else if (lc_opt == GASNETEX_EVENT_DEFER) {
     mem_initiated_p = NULL;
     mem_completed_p = NULL;
   } else {
@@ -151,7 +151,7 @@ gasnetex_handle_t gasnete_put_nb(
                    mem_initiated_p, mem_completed_p,
                    GASNETE_EOP_CNTRS(op)
                    GASNETI_THREAD_PASS);
-  if (lc_opt == GASNETEX_LC_INIT) gasnetc_counter_wait(&mem_oust, 0 GASNETI_THREAD_PASS);
+  if (lc_opt == GASNETEX_EVENT_NOW) gasnetc_counter_wait(&mem_oust, 0 GASNETI_THREAD_PASS);
 
   return (gasnetex_handle_t)op;
  }
@@ -194,7 +194,7 @@ extern
 int gasnete_put_nbi (gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
-                     size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                     size_t nbytes, gasnetex_handle_t *lc_opt,
                      gasnetex_flags_t flags GASNETI_THREAD_FARG)
 {
   GASNETI_CHECKPSHM_PUT(I);
@@ -207,16 +207,16 @@ int gasnete_put_nbi (gasnetex_team_member_t team,
 
   /* XXX check error returns */ 
 
-  if (lc_opt == GASNETEX_LC_GROUP) {
+  if (lc_opt == GASNETEX_EVENT_GROUP) {
   #if GASNET_DEBUG
     SET_LCSTATE(op, LCSTATE_LIVE);
   #endif
     mem_initiated_p = &op->initiated_alc_cnt;
     mem_completed_p = &op->completed_alc_cnt;
-  } else if (lc_opt == GASNETEX_LC_INIT) {
+  } else if (lc_opt == GASNETEX_EVENT_NOW) {
     mem_initiated_p = &mem_oust.initiated;
     mem_completed_p = &mem_oust.completed;
-  } else if (lc_opt == GASNETEX_LC_SYNC) {
+  } else if (lc_opt == GASNETEX_EVENT_DEFER) {
     mem_initiated_p = NULL;
     mem_completed_p = NULL;
   } else {
@@ -227,7 +227,7 @@ int gasnete_put_nbi (gasnetex_team_member_t team,
                    mem_initiated_p, mem_completed_p,
                    GASNETE_IOP_CNTRS(op,put)
                    GASNETI_THREAD_PASS);
-  if (lc_opt == GASNETEX_LC_INIT) gasnetc_counter_wait(&mem_oust, 0 GASNETI_THREAD_PASS);
+  if (lc_opt == GASNETEX_EVENT_NOW) gasnetc_counter_wait(&mem_oust, 0 GASNETI_THREAD_PASS);
   return 0;
  }
 }

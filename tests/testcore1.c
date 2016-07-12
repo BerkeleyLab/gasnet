@@ -178,7 +178,7 @@ void chksum_reqh(gasnetex_token_t token,
 	monoseed_trace(iter, seed, &chksum_reqbuf, NULL);
 	GASNET_Safe( 
 	    gasnetex_AMReplyMedium1(token, 202, &chksum_reqbuf, 
-	        CHKSUM_TOTAL, GASNETEX_LC_INIT, 0, iter));
+	        CHKSUM_TOTAL, GASNETEX_EVENT_NOW, 0, iter));
 	return;
 }
 

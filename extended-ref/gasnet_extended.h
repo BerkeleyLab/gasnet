@@ -48,7 +48,7 @@ extern void gasnete_init(void);
                         gasnetex_team_member_t team,
                         gasnetex_rank_t rank, void *dest,
                         /*const*/ void *src,  // TODO-EX: un-comment const
-                        size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                        size_t nbytes, gasnetex_handle_t *lc_opt,
                         gasnetex_flags_t flags GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
@@ -85,7 +85,7 @@ gasnetex_handle_t _gasnetex_put_nb(
                         gasnetex_team_member_t team,
                         gasnetex_rank_t rank, void *dest,
                         /*const*/ void *src,  // TODO-EX: un-comment const
-                        size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                        size_t nbytes, gasnetex_handle_t *lc_opt,
                         gasnetex_flags_t flags GASNETI_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_PUT(NB,H);
   if (gasnete_islocal(rank)) {
@@ -189,120 +189,6 @@ void gasnetex_wait_syncnb_all(gasnetex_handle_t *phandle, size_t numhandles) {
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Operations on local-completion handles
-  ======================================
-*/
-
-#ifndef gasnete_test_lc
-extern int gasnete_test_lc(gasnetex_lc_handle_t lchandle);
-#endif
-#ifndef gasnete_test_lc_some
-extern int gasnete_test_lc_some(gasnetex_lc_handle_t *plchandle, size_t numlchandles);
-#endif
-#ifndef gasnete_test_lc_all
-extern int gasnete_test_lc_all (gasnetex_lc_handle_t *plchandle, size_t numlchandles);
-#endif
-
-
-GASNETI_INLINE(gasnetex_test_lc) GASNETI_WARN_UNUSED_RESULT
-int gasnetex_test_lc(gasnetex_lc_handle_t lchandle) {
-  int result = GASNET_OK;
-  if_pt (lchandle != GASNETEX_INVALID_LC_HANDLE)
-    result = gasnete_test_lc(lchandle);
-  GASNETI_TRACE_TRYSYNC(TEST_LC,result);
-  return result;
-}
-
-GASNETI_INLINE(gasnetex_test_lc_some)
-int gasnetex_test_lc_some(gasnetex_lc_handle_t *plchandle, size_t numlchandles) {
-  int result = gasnete_test_lc_some(plchandle,numlchandles);
-  GASNETI_TRACE_TRYSYNC(TEST_LC_SOME,result);
-  return result;
-}
-
-GASNETI_INLINE(gasnetex_test_lc_all)
-int gasnetex_test_lc_all(gasnetex_lc_handle_t *plchandle, size_t numlchandles) {
-  int result = gasnete_test_lc_all(plchandle,numlchandles);
-  GASNETI_TRACE_TRYSYNC(TEST_LC_ALL,result);
-  return result;
-}
-
-
-#ifndef gasnete_wait_lc
-  #define gasnete_wait_lc(lchandle) do {                                      \
-      gasnetex_lc_handle_t _lchandle = (lchandle);                            \
-      if_pt (_lchandle != GASNETEX_INVALID_LC_HANDLE) {                       \
-        gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */      \
-        gasneti_pollwhile(gasnete_test_lc(_lchandle) == GASNET_ERR_NOT_READY);\
-      }                                                                       \
-    } while(0)
-#endif
-
-GASNETI_INLINE(gasnetex_wait_lc)
-void gasnetex_wait_lc(gasnetex_lc_handle_t lchandle) {
-  GASNETI_TRACE_WAITSYNC_BEGIN();
-  gasnete_wait_lc(lchandle);
-  GASNETI_TRACE_WAITSYNC_END(WAIT_LC);
-}
-
-#ifndef gasnete_wait_lc_some
-  #define gasnete_wait_lc_some(plchandle, numlchandles) do {                                   \
-      gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */                         \
-      gasneti_pollwhile(gasnete_test_lc_some(plchandle, numlchandles) == GASNET_ERR_NOT_READY);\
-    } while(0)
-#endif
-
-GASNETI_INLINE(gasnetex_wait_lc_some)
-void gasnetex_wait_lc_some(gasnetex_lc_handle_t *plchandle, size_t numlchandles) {
-  GASNETI_TRACE_WAITSYNC_BEGIN();
-  gasnete_wait_lc_some(plchandle, numlchandles);
-  GASNETI_TRACE_WAITSYNC_END(WAIT_LC_SOME);
-}
-
-#ifndef gasnete_wait_lc_all
-  #define gasnete_wait_lc_all(plchandle, numlchandles) do {                                   \
-      gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */                        \
-      gasneti_pollwhile(gasnete_test_lc_all(plchandle, numlchandles) == GASNET_ERR_NOT_READY);\
-    } while(0)
-#endif
-
-GASNETI_INLINE(gasnetex_wait_lc_all)
-void gasnetex_wait_lc_all(gasnetex_lc_handle_t *plchandle, size_t numlchandles) {
-  GASNETI_TRACE_WAITSYNC_BEGIN();
-  gasnete_wait_lc_all(plchandle, numlchandles);
-  GASNETI_TRACE_WAITSYNC_END(WAIT_LC_ALL);
-}
-
-
-#ifndef gasnete_test_lc_group
-extern int gasnete_test_lc_group (GASNETI_THREAD_FARG_ALONE);
-#endif
-
-GASNETI_INLINE(_gasnetex_test_lc_group) GASNETI_WARN_UNUSED_RESULT
-int _gasnetex_test_lc_group(GASNETI_THREAD_FARG_ALONE) {
-  int retval = gasnete_test_lc_group(GASNETI_THREAD_PASS_ALONE);
-  GASNETI_TRACE_TRYSYNC(TEST_LC_GROUP,retval);
-  return retval;
-}
-#define gasnetex_test_lc_group()   \
-       _gasnetex_test_lc_group(GASNETI_THREAD_GET_ALONE)
-
-#ifndef gasnete_wait_lc_group
-  #define gasnete_wait_lc_group \
-    gasneti_pollwhile(gasnete_test_lc_group(GASNETI_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY) \
-    GASNETI_THREAD_SWALLOW
-#endif
-
-#define gasnetex_wait_lc_group() do {                                                        \
-  GASNETI_TRACE_WAITSYNC_BEGIN();                                                            \
-  gasneti_AMPoll(); /* ensure at least one poll */                                           \
-  gasnete_wait_lc_group(GASNETI_THREAD_GET_ALONE);                                           \
-  GASNETI_TRACE_WAITSYNC_END(WAIT_LC_GROUP);                                                 \
-  } while (0)
-
-
-/* ------------------------------------------------------------------------------------ */
-/*
   Non-blocking memory-to-memory transfers (implicit handle)
   ==========================================================
 */
@@ -318,7 +204,7 @@ extern int gasnete_get_nbi  (gasnetex_team_member_t team, void *dest,
 extern int gasnete_put_nbi  (gasnetex_team_member_t team,
                              gasnetex_rank_t rank, void *dest,
                              /*const*/ void *src,  // TODO-EX: un-comment const
-                             size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                             size_t nbytes, gasnetex_handle_t *lc_opt,
                              gasnetex_flags_t flags GASNETI_THREAD_FARG);
 #endif
 
@@ -345,7 +231,7 @@ GASNETI_INLINE(_gasnetex_put_nbi)
 int _gasnetex_put_nbi  (gasnetex_team_member_t team,
                         gasnetex_rank_t rank, void *dest,
                         /*const*/ void *src,  // TODO-EX: un-comment const
-                        size_t nbytes, gasnetex_lc_handle_t *lc_opt,
+                        size_t nbytes, gasnetex_handle_t *lc_opt,
                         gasnetex_flags_t flags GASNETI_THREAD_FARG) {
   GASNETI_CHECKZEROSZ_PUT(NBI,I);
   if (gasnete_islocal(rank)) {
@@ -373,6 +259,9 @@ int _gasnetex_put_nbi  (gasnetex_team_member_t team,
 #ifndef gasnete_test_syncnbi_puts
   extern int  gasnete_test_syncnbi_puts(GASNETI_THREAD_FARG_ALONE);
 #endif
+#ifndef gasnete_test_syncnbi_lc
+  extern int  gasnete_test_syncnbi_lc(GASNETI_THREAD_FARG_ALONE);
+#endif
 
 
 GASNETI_INLINE(_gasnetex_test_syncnbi_gets) GASNETI_WARN_UNUSED_RESULT
@@ -393,12 +282,17 @@ int _gasnetex_test_syncnbi_puts(GASNETI_THREAD_FARG_ALONE) {
 #define gasnetex_test_syncnbi_puts()   \
        _gasnetex_test_syncnbi_puts(GASNETI_THREAD_GET_ALONE)
 
+GASNETI_INLINE(_gasnetex_test_syncnbi_lc) GASNETI_WARN_UNUSED_RESULT
+int _gasnetex_test_syncnbi_lc(GASNETI_THREAD_FARG_ALONE) {
+  int retval = gasnete_test_syncnbi_lc(GASNETI_THREAD_PASS_ALONE);
+  GASNETI_TRACE_TRYSYNC(TEST_SYNCNBI_LC,retval);
+  return retval;
+}
+#define gasnetex_test_syncnbi_lc()   \
+       _gasnetex_test_syncnbi_lc(GASNETI_THREAD_GET_ALONE)
+
 #ifndef gasnete_test_syncnbi_all
-  // NOTE: This implementation assumes that syncnbi_puts() includes lc_group().
-  // Conduits with true LC that don't have that property should define a
-  // replacement gasnete_test_syncnbi_all() macro which also includes
-  //   "gasnete_test_lc_group(GASNETI_THREAD_PASS_ALONE)"
-  // TODO-EX: should we provide a knob "GASNETE_SYNCNBI_PUTS_INCLUDES_LC" ?
+  // NOTE: This implementation assumes that syncnbi_puts() includes lc_opt
   #define gasnete_test_syncnbi_all                                               \
    ((gasnete_test_syncnbi_gets(GASNETI_THREAD_PASS_ALONE) == GASNET_OK &&        \
      gasnete_test_syncnbi_puts(GASNETI_THREAD_PASS_ALONE) == GASNET_OK)          \
@@ -442,9 +336,21 @@ int _gasnetex_test_syncnbi_all(GASNETI_THREAD_FARG_ALONE) {
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNBI_PUTS);                                                 \
   } while (0)
 
+#ifndef gasnete_wait_syncnbi_lc
+  #define gasnete_wait_syncnbi_lc \
+    gasneti_pollwhile(gasnete_test_syncnbi_lc(GASNETI_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY) \
+    GASNETI_THREAD_SWALLOW
+#endif
+
+#define gasnetex_wait_syncnbi_lc() do {                                                          \
+  GASNETI_TRACE_WAITSYNC_BEGIN();                                                                \
+  gasneti_AMPoll(); /* ensure at least one poll */                                               \
+  gasnete_wait_syncnbi_lc(GASNETI_THREAD_GET_ALONE);                                             \
+  GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNBI_LC);                                                   \
+  } while (0)
+
 #ifndef gasnete_wait_syncnbi_all
-  // NOTE: This implementation assumes that syncnbi_puts() includes lc_group().
-  // See the note with gasnete_test_syncnbi_all() for more info.
+  // NOTE: This implementation assumes that syncnbi_puts() includes LC
   #define gasnete_wait_syncnbi_all do {                                                     \
     gasneti_pollwhile(gasnete_test_syncnbi_gets(GASNETI_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY); \
     gasneti_pollwhile(gasnete_test_syncnbi_puts(GASNETI_THREAD_GET_ALONE) == GASNET_ERR_NOT_READY); \
@@ -467,7 +373,7 @@ int _gasnetex_test_syncnbi_all(GASNETI_THREAD_FARG_ALONE) {
 extern void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecursion GASNETI_THREAD_FARG);
 #endif
 #ifndef gasnete_end_nbi_accessregion
-extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_lc_handle_t *lc_opt, gasnetex_flags_t flags GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
+extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_handle_t *lc_opt, gasnetex_flags_t flags GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
 #define gasnetex_begin_nbi_accessregion(flags) gasnete_begin_nbi_accessregion(flags,0 GASNETI_THREAD_GET)
@@ -515,7 +421,7 @@ extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_lc_handle_t *lc_o
                     size_t nbytes, gasnetex_flags_t flags
                     GASNETI_THREAD_FARG)
   {
-    gasnetex_handle_t h = gasnete_put_nb(team, rank, dest, src, nbytes, GASNETEX_LC_SYNC, flags GASNETI_THREAD_PASS);
+    gasnetex_handle_t h = gasnete_put_nb(team, rank, dest, src, nbytes, GASNETEX_EVENT_DEFER, flags GASNETI_THREAD_PASS);
     if (h == GASNETEX_NO_OP_HANDLE) return 1;
     else gasnete_wait_syncnb(h);
     return 0;
@@ -639,7 +545,7 @@ gasnetex_handle_t _gasnetex_put_nb_val (
     #else
       { gasnetex_register_value_t src = value;
         return gasnete_put_nb(team, rank, dest, GASNETE_STARTOFBITS(&src,nbytes),
-                              nbytes, GASNETEX_LC_INIT, flags GASNETI_THREAD_PASS);
+                              nbytes, GASNETEX_EVENT_NOW, flags GASNETI_THREAD_PASS);
       }
     #endif
   }
@@ -665,7 +571,7 @@ gasnetex_handle_t _gasnetex_put_nb_val (
   {
     gasnetex_register_value_t src = value;
     return gasnete_put_nbi(team, rank, dest, GASNETE_STARTOFBITS(&src,nbytes),
-                           nbytes, GASNETEX_LC_INIT, flags GASNETI_THREAD_PASS);
+                           nbytes, GASNETEX_EVENT_NOW, flags GASNETI_THREAD_PASS);
   }
 #endif
 

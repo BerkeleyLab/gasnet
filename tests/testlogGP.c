@@ -127,7 +127,7 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gasnetex_put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_LC_SYNC, 0);
+			gasnetex_handle_t h = gasnetex_put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
 			gasnetex_wait_syncnb(h);
 		}
 		end = TIME();
@@ -141,7 +141,7 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gasnetex_put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_LC_SYNC, 0);
+			gasnetex_handle_t h = gasnetex_put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
 			test_delay(loops, pollcnt);
 			gasnetex_wait_syncnb(h);
 		}
@@ -155,7 +155,7 @@ void put_tests(int iters, int nbytes)
 	/* target-side overhead takes more work: */
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gasnetex_put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_LC_SYNC, 0);
+			gasnetex_handle_t h = gasnetex_put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
 			gasnetex_wait_syncnb(h);
 		}
 	} else {
@@ -175,7 +175,7 @@ void put_tests(int iters, int nbytes)
 	BARRIER();
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
-			gasnetex_handle_t h = gasnetex_put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_LC_SYNC, 0);
+			gasnetex_handle_t h = gasnetex_put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
 			gasnetex_wait_syncnb(h);
 		}
 	} else {
@@ -196,7 +196,7 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_put_nbi(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_LC_INIT, 0);
+			gasnetex_put_nbi(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_NOW, 0);
 		}
 		gasnetex_wait_syncnbi_puts();
 		end = TIME();
@@ -211,7 +211,7 @@ void put_tests(int iters, int nbytes)
 		init_stat(&st, nbytes);
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
-			gasnetex_put_nbi(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_LC_SYNC, 0);
+			gasnetex_put_nbi(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
 		}
 		gasnetex_wait_syncnbi_puts();
 		end = TIME();
