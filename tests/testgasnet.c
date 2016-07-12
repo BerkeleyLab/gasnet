@@ -39,10 +39,10 @@ void doit5(int partner, int *partnerseg);
   test_everything_seginfo_t myinfo;
   test_everything_seginfo_t partnerinfo;
   int done = 0;
-  GASNETI_EXTERNC void seg_everything_reqh(gasnetex_token_t token) {
+  GASNETT_EXTERNC void seg_everything_reqh(gasnetex_token_t token) {
     gasnetex_AMReplyMedium0(token, 251, &myinfo, sizeof(test_everything_seginfo_t), GASNETEX_LC_INIT, 0);
   }
-  GASNETI_EXTERNC void seg_everything_reph(gasnetex_token_t token, void *buf, size_t nbytes) {
+  GASNETT_EXTERNC void seg_everything_reph(gasnetex_token_t token, void *buf, size_t nbytes) {
     assert(nbytes == sizeof(test_everything_seginfo_t));
     memcpy(&partnerinfo, buf, nbytes);
     gasnett_local_wmb();
