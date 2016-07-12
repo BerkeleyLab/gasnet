@@ -24,9 +24,6 @@ Optional compile-time settings:
  
 * GASNETI_LAZY_BEGINFUNCTION - postpone thread discovery to first use
 
-* GASNETE_SCATTER_EOPS_ACROSS_CACHELINES(1/0) - scatter newly allocated eops
- across cache lines to reduce false sharing 
-
 Known problems:
 ---------------
 

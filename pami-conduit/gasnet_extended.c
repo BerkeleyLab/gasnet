@@ -27,15 +27,15 @@ static uintptr_t gasnete_mysegsize;
 /*  local completion flag - valid only for ops which block for local-completion */
 GASNETI_INLINE(gasnete_op_read_lc)
 int gasnete_op_read_lc(gasnete_op_t *op) {
-  return (op->flags & OPFLAG_LC);
+  return (op->event[0] & OPFLAG_LC);
 }
 GASNETI_INLINE(gasnete_op_set_lc)
 void gasnete_op_set_lc(gasnete_op_t *op) {
-  op->flags |= OPFLAG_LC;
+  op->event[0] |= OPFLAG_LC;
 }
 GASNETI_INLINE(gasnete_op_clr_lc)
 void gasnete_op_clr_lc(gasnete_op_t *op) {
-  op->flags &= ~OPFLAG_LC;
+  op->event[0] &= ~OPFLAG_LC;
 }
 
 /* callbacks implementing subsets of gasnete_op_markdone */
@@ -453,7 +453,7 @@ int gasnete_put_nbi( gasnetex_team_member_t team,
       #if 0
         gasnete_op_clr_lc((gasnete_op_t *)op));
       #else
-        op->flags = OPTYPE_IMPLICIT; /* Should be cheaper than r-m-w */
+        op->event[0] = OPTYPE_IMPLICIT; /* Should be cheaper than r-m-w */
       #endif
     }
 

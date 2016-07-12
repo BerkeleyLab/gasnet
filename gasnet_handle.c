@@ -19,40 +19,36 @@ extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 /*  allocate more eops */
 GASNETI_NEVER_INLINE(gasnete_eop_alloc,
 extern void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
+    const size_t allocsz = GASNETI_ALIGNUP(sizeof(gasnete_eop_t),GASNETI_CACHE_LINE_BYTES);
     int bufidx = thread->eop_num_bufs;
     gasnete_eop_t *buf;
     int i;
-    gasnete_threadidx_t threadidx = thread->threadidx;
+    const gasnete_threadidx_t threadidx = thread->threadidx;
     if (bufidx == 256) gasneti_fatalerror("GASNet Extended API: Ran out of explicit handles (limit=65535)");
     thread->eop_num_bufs++;
-    buf = (gasnete_eop_t *)gasneti_calloc(256,sizeof(gasnete_eop_t));
+    buf = (gasnete_eop_t *)gasneti_calloc(256,allocsz);
     gasneti_leak(buf);
     for (i=0; i < 256; i++) {
-      uint8_t eopidx;
-      #if GASNETE_SCATTER_EOPS_ACROSS_CACHELINES
-        int k = i+32; // TODO-EX: revisit the value '32' or remove this if eop fills cache line
-        eopidx = k > 255 ? k - 255 : k;
-      #else
-        eopidx = i+1;
-      #endif
-      EOP_NEXT(buf + i) = buf + eopidx;
+      gasnete_eop_t *eop = (gasnete_eop_t *)((uintptr_t)buf + i*allocsz);
+      eop->threadidx = threadidx;
+      eop->next = (i==255) ? NULL: (gasnete_eop_t *)((uintptr_t)eop + allocsz);
       #if 0 /* this can safely be skipped when the values are zero */
+       eop->event[0] = (OPTYPE_EXPLICIT | EOPSTATE_FREE);
+       eop->event[1] = 0;
        #if GASNETE_EOP_COUNTED
-        buf[i].initiated_cnt = 0;
-        buf[i].initiated_alc = 0;
+        eop->initiated_cnt = 0;
+        eop->initiated_alc = 0;
        #endif
       #endif
       #if GASNETE_EOP_COUNTED
-        gasnete_op_atomic_set(&buf[i].completed_cnt, 0 , 0);
-        gasnete_op_atomic_set(&buf[i].completed_alc, 0 , 0);
+        gasnete_op_atomic_set(&eop->completed_cnt, 0 , 0);
+        gasnete_op_atomic_set(&eop->completed_alc, 0 , 0);
       #endif
       #ifdef GASNETE_EOP_ALLOC_EXTRA
         // Hook for conduit-specific initializations and assertions
-        GASNETE_EOP_ALLOC_EXTRA(&buf[i]);
+        GASNETE_EOP_ALLOC_EXTRA(eop);
       #endif
     }
-     /*  add a list terminator */
-    EOP_NEXT(buf + 255) = NULL;
     thread->eop_bufs[bufidx] = buf;
     thread->eop_free = buf;
 
@@ -65,9 +61,11 @@ extern void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
       gasneti_memcheck(thread->eop_bufs[bufidx]);
       memset(seen, 0, 256*sizeof(int));
       for (i=0, eop = buf; i<(bufidx==255?255:256); i++) {
-        gasneti_assert(!seen[eop-buf]);/* see if we hit a cycle */
-        seen[eop-buf] = 1;
-        eop = EOP_NEXT(eop);
+        size_t eopidx = (((uintptr_t)eop) - ((uintptr_t)buf)) / allocsz;
+        gasneti_assert(eopidx < 256);
+        gasneti_assert(!seen[eopidx]);/* see if we hit a cycle */
+        seen[eopidx] = 1;
+        eop = eop->next;
       }                                                       
       gasneti_assert(eop == NULL);
     }
@@ -82,7 +80,7 @@ static gasnete_iop_t *gasnete_iop_alloc(gasnete_threaddata_t * const thread)) {
     #if GASNET_DEBUG
       memset(iop, 0, sizeof(gasnete_iop_t)); /* set pad to known value */
     #endif
-    iop->flags = OPTYPE_IMPLICIT;
+    iop->event[0] = OPTYPE_IMPLICIT;
     iop->threadidx = thread->threadidx;
     iop->initiated_alc_cnt = 0;
     iop->initiated_get_cnt = 0;
@@ -321,7 +319,7 @@ int gasnete_lc_try_free(gasnetex_lc_handle_t lchandle) {
     gasnete_eop_t *eop = (gasnete_eop_t*)op;
 
     if (GASNETE_EOP_LC(eop)) {
-      if (eop->flags & EOPFLAG_LC_ONLY) {
+      if (eop->event[0] & EOPFLAG_LC_ONLY) {
         gasneti_sync_reads();
         gasnete_eop_free(eop);
       } else {

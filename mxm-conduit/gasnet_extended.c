@@ -98,7 +98,7 @@ extern void gasnete_init(void) {
 GASNETI_INLINE(gasnete_sreq_to_handle) /* two call sites */
 gasnet_handle_t gasnete_sreq_to_handle(gasnet_mxm_send_req_t *mop GASNETE_THREAD_FARG) {
     gasnete_threaddata_t * const mythread = GASNETE_MYTHREAD;
-    mop->flags = OPFLAG_MXM;
+    mop->event[0] = OPFLAG_MXM;
     mop->threadidx = mythread->threadidx;
     return (gasnet_handle_t)mop;
 }

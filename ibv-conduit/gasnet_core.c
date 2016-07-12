@@ -3490,7 +3490,7 @@ extern int gasnetc_AMRequestLongM(
 
     if (gasneti_lc_is_pointer(lc_opt)) {
       gasnete_eop_t *op = _gasnete_eop_new(GASNETI_MYTHREAD);
-      op->flags |= EOPFLAG_LC_ONLY;
+      op->event[0] |= EOPFLAG_LC_ONLY;
       mem_initiated_p = &op->initiated_alc;
       mem_completed_p = &op->completed_alc;
       *lc_opt = (gasnetex_lc_handle_t)op;
@@ -3583,7 +3583,7 @@ extern int gasnetc_AMReplyLongM(
 
     if (gasneti_lc_is_pointer(lc_opt)) {
       gasnete_eop_t *op = _gasnete_eop_new(GASNETI_MYTHREAD);
-      op->flags |= EOPFLAG_LC_ONLY;
+      op->event[0] |= EOPFLAG_LC_ONLY;
       mem_initiated_p = &op->initiated_alc;
       mem_completed_p = &op->completed_alc;
       *lc_opt = (gasnetex_lc_handle_t)op;

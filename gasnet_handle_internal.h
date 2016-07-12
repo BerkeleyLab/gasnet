@@ -42,29 +42,18 @@
 
 /* gasnetex_handle_t is a void* pointer to a gasnete_op_t, 
    which is either a gasnete_eop_t or an gasnete_iop_t
-   For "normal" ABIs we layout the op as follows:
-     1-byte threadidx: FFT.                  KEY:
-     2-byte threadidx: FFTT                  F = flags bytes
-     4-byte threadidx: FF..TTTT              T = threadidx bytes
-     8-byte threadidx: FF......TTTTTTTT      . = implicit (ABI) padding
-   */
+ */
+#define GASNETE_OP_EVENTS 6
 typedef struct _gasnete_op_t {
-  uint8_t flags;                  /*  flags - type tag */
-  uint8_t flags2;                 /*  flags2 - LC info */
+  uint8_t event[GASNETE_OP_EVENTS];
   gasnete_threadidx_t threadidx;  /*  thread that owns me (16-bit by default) */
 } gasnete_op_t;
 
-#define EOP_NEXT(eop) (*(void**)(eop))
-
 typedef struct _gasnete_eop_t {
-  uint8_t flags;                  /*  state flags */
-  uint8_t flags2;                 /*  LC state flags */
+  uint8_t event[GASNETE_OP_EVENTS];
   gasnete_threadidx_t threadidx;  /*  thread that owns me */
-  // Padding to ensure sizeof(eop) >= sizeof(void*), and avoid any later fields
-  // having offset < sizeof(void) and thus conflict with the freelist linkage.
-  #if PLATFORM_ARCH_64 && (SIZEOF_GASNETE_THREADIDX_T < 4)
-    uint32_t pad;
-  #endif
+  //----------------------------------
+  struct _gasnete_eop_t *next;
   #if GASNETE_EOP_COUNTED
   gasnete_op_atomic_val_t initiated_cnt;
   gasnete_op_atomic_t     completed_cnt;
@@ -77,9 +66,9 @@ typedef struct _gasnete_eop_t {
 } gasnete_eop_t;
 
 typedef struct _gasnete_iop_t {
-  uint8_t flags;                  /*  state flags */
-  uint8_t flags2;                 /*  currently unused */
+  uint8_t event[GASNETE_OP_EVENTS];
   gasnete_threadidx_t threadidx;  /*  thread that owns me */
+  //----------------------------------
   gasnete_op_atomic_val_t initiated_alc_cnt;     /*  count of ops initiated with async local completion */
   gasnete_op_atomic_val_t initiated_get_cnt;     /*  count of get ops initiated */
   gasnete_op_atomic_val_t initiated_put_cnt;     /*  count of put ops initiated */
@@ -100,23 +89,23 @@ typedef struct _gasnete_iop_t {
 
 /* ------------------------------------------------------------------------------------ */
 
-/* gasnete_op_t flags field */
+/* gasnete_op_t event[0] field */
 #define OPTYPE_EXPLICIT               0x00  /*  gasnete_eop_new() relies on this value */
 #define OPTYPE_IMPLICIT               0x80
-#define OPTYPE(op) ((op)->flags & 0x80)
+#define OPTYPE(op) ((op)->event[0] & 0x80)
 GASNETI_INLINE(SET_OPTYPE)
 void SET_OPTYPE(gasnete_op_t *op, uint8_t type) {
-  op->flags = (op->flags & 0x7F) | (type & 0x80);
+  op->event[0] = (op->event[0] & 0x7F) | (type & 0x80);
 }
 
 /*  EOP state - only valid for explicit ops */
 #define EOPSTATE_FREE      0   /*  gasnete_eop_new() relies on this value */
 #define EOPSTATE_INFLIGHT  1
 #define EOPSTATE_COMPLETE  2
-#define EOPSTATE(eop) (gasneti_assert(OPTYPE(eop)==OPTYPE_EXPLICIT), ((eop)->flags & 0x03))
+#define EOPSTATE(eop) (gasneti_assert(OPTYPE(eop)==OPTYPE_EXPLICIT), ((eop)->event[0] & 0x03))
 GASNETI_INLINE(SET_EOPSTATE)
 void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
-  op->flags = (op->flags & 0xFC) | (state & 0x03);
+  op->event[0] = (op->event[0] & 0xFC) | (state & 0x03);
   /* RACE: If we are marking the op COMPLETE, don't assert for completion
    * state as another thread spinning on the op may already have changed
    * the state. */
@@ -138,18 +127,18 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
 #define LCSTATE_LIVE   1 /*  op has competion state - only used in DEBUG builds */
 #define LCSTATE_SYNC   2 /*  op is an iop returned from end_nbi_accessregion(LC_SYNC) w/ LC outstanding */
 #if 0 // Fully general implementation
-  #define LCSTATE(op) ((op)->flags2 & 0x03))
+  #define LCSTATE(op) ((op)->event[1] & 0x03))
   GASNETI_INLINE(SET_LCSTATE_)
   void SET_LCSTATE_(gasnete_op_t *op, uint8_t state) {
     gasneti_assert((state & 0x03) == state);
-    op->flags2 = (op->flags2 & 0xFC) | state;
+    op->event[1] = (op->event[1] & 0xFC) | state;
   }
-#else // Cheaper, but correct only because nothing else is using 'flags2'
-  #define LCSTATE(op) ((op)->flags2)
+#else // Cheaper, but correct only because nothing else is using 'event[1]'
+  #define LCSTATE(op) ((op)->event[1])
   GASNETI_INLINE(SET_LCSTATE_)
   void SET_LCSTATE_(gasnete_op_t *op, uint8_t state) {
     gasneti_assert((state & 0x03) == state);
-    op->flags2 = state;
+    op->event[1] = state;
   }
 #endif
 #define SET_LCSTATE(op,flags) SET_LCSTATE_((gasnete_op_t*)(op),flags)
@@ -218,9 +207,6 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
     } while (0)
 #endif
 
-/*  1 = scatter newly allocated eops across cache lines to reduce false sharing */
-#define GASNETE_SCATTER_EOPS_ACROSS_CACHELINES    1 
-
 /* ------------------------------------------------------------------------------------ */
 // TODO-EX: This really should move.
 // However, relocating to any existing header creates a circular dependency
@@ -258,14 +244,11 @@ gasnete_eop_t *_gasnete_eop_new(gasnete_threaddata_t * const thread) {
     eop = thread->eop_free;
   }
   {
-    thread->eop_free = EOP_NEXT(eop);
-    eop->flags = (OPTYPE_EXPLICIT | EOPSTATE_FREE);
-    eop->flags2 = 0;
-    if (offsetof(gasnete_eop_t, threadidx) <= sizeof(void*))
-      eop->threadidx = thread->threadidx;
+    thread->eop_free = eop->next;
     gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);
     gasneti_assert(EOPSTATE(eop) == EOPSTATE_FREE);
     gasneti_assert(LCSTATE(eop) ==  LCSTATE_NONE);
+    gasneti_assert(eop->threadidx == thread->threadidx);
   #if GASNET_DEBUG
     // TODO-EX: this is used to assert "not-on-freelist" and should be encode differently
     SET_EOPSTATE(eop, EOPSTATE_INFLIGHT);
@@ -356,7 +339,7 @@ void gasnete_eop_free(gasnete_eop_t *eop) {
 #if GASNET_DEBUG
   SET_EOPSTATE(eop, EOPSTATE_FREE);
 #endif
-  EOP_NEXT(eop) = thread->eop_free;
+  eop->next = thread->eop_free;
   thread->eop_free = eop;
 }
 
