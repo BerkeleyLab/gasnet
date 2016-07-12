@@ -92,9 +92,6 @@
 #define GASNETE_CONDUIT_THREADDATA_FIELDS \
         GASNETE_TD_DOMAIN_IDX
 
-/* Use counter-based eop: */
-#define GASNETE_EOP_COUNTED 1
-
 /* ------------------------------------------------------------------------------------ */
 /* Extensions: */
 

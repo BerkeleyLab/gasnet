@@ -53,10 +53,6 @@
 #define GASNETI_DIRECT_BLOCKING_GET 1
 #define GASNETI_DIRECT_BLOCKING_PUT 1
 
-#define GASNETE_EOP_COUNTED 1
-#define GASNETE_EXTENDED_NEEDS_CORE 1
-#define gasnete_op_atomic_(_id) gasnetc_atomic_##_id
-
 /* Configure use of AM-based implementation of get/put */
 /* NOTE: Barriers, Collectives, VIS may use GASNETE_USING_REF_* in algorithm selection */
 

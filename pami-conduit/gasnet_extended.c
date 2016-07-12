@@ -25,7 +25,6 @@ static uintptr_t gasnete_mysegsize;
 */
 
 /*  local completion flag - valid only for ops which block for local-completion */
-#define OPFLAG_LC  OPFLAG_CONDUIT0
 GASNETI_INLINE(gasnete_op_read_lc)
 int gasnete_op_read_lc(gasnete_op_t *op) {
   return (op->flags & OPFLAG_LC);
@@ -78,18 +77,6 @@ static void gasnete_cb_op_lc(pami_context_t context, void *cookie, pami_result_t
   gasnete_op_set_lc(op);
   gasneti_assert(status == PAMI_SUCCESS);
 }
-
-/* ------------------------------------------------------------------------------------ */
-/*
-  Common Code for gasnetex_handle_t
-  =================================
-  Factored bits of handle-management code common to most conduits, overridable when necessary
-*/
-
-#define _GASNETE_EOP_NEW_EXTRA(eop) gasneti_assert(! gasnete_op_read_lc((gasnete_op_t *)(eop)))
-#define GASNETE_IOP_NEW_EXTRA(iop)  gasneti_assert(! gasnete_op_read_lc((gasnete_op_t *)(iop)))
-
-#include "gasnet_handle.c"
 
 /* ------------------------------------------------------------------------------------ */
 /*

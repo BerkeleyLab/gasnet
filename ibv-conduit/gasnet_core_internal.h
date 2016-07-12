@@ -133,6 +133,12 @@ typedef enum {
 } gasnetc_category_t;
 
 /* ------------------------------------------------------------------------------------ */
+/* Configure gasnet_handle.[ch] */
+// TODO-EX: prefix needs to move from "extended" to "core"
+#define GASNETE_EOP_COUNTED 1
+#define gasnete_op_atomic_(_id) gasnetc_atomic_##_id
+
+/* ------------------------------------------------------------------------------------ */
 /* Internal threads */
 
 /* GASNETC_USE_CONN_THREAD enables a progress thread for establishing dynamic connections. */

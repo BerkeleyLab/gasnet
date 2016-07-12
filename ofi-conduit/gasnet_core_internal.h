@@ -32,4 +32,17 @@ typedef enum {
   gasnetc_Long=2
 } gasnetc_category_t;
 
+/* ------------------------------------------------------------------------------------ */
+/* Configure gasnet_handle.[ch] */
+// TODO-EX: prefix needs to move from "extended" to "core"
+#define GASNETE_CONDUIT_EOP_FIELDS \
+                ofi_op_ctxt_t ofi;
+#define GASNETE_CONDUIT_IOP_FIELDS      \
+                ofi_op_ctxt_t get_ofi;  \
+                ofi_op_ctxt_t put_ofi;
+#define GASNETI_IOP_ALLOC_EXTRA(iop) do { \
+    (iop)->get_ofi.type = OFI_TYPE_IGET;  \
+    (iop)->put_ofi.type = OFI_TYPE_IPUT;  \
+  } while (0)
+
 #endif

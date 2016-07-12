@@ -4,10 +4,7 @@
  * Terms of use are as specified in license.txt
  */
 
-
-#include <gasnet_internal.h>
-#include <gasnet_extended_internal.h>
-// TODO-EX: should *not* require extended_internal (should be handle_internal.h?)
+#include <gasnet_handle_internal.h>
 
 extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 
@@ -21,7 +18,7 @@ extern void _gasnete_iop_check(gasnete_iop_t *iop) { gasnete_iop_check(iop); }
 
 /*  allocate more eops */
 GASNETI_NEVER_INLINE(gasnete_eop_alloc,
-static void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
+extern void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
     int bufidx = thread->eop_num_bufs;
     gasnete_eop_t *buf;
     int i;
@@ -100,58 +97,8 @@ static gasnete_iop_t *gasnete_iop_alloc(gasnete_threaddata_t * const thread)) {
     return iop;
 }
 
-/*  get a new op */
-static
-gasnete_eop_t *_gasnete_eop_new(gasnete_threaddata_t * const thread) {
-  gasnete_eop_t *eop = thread->eop_free;
-  if_pf (!eop) {
-    gasnete_eop_alloc(thread);
-    eop = thread->eop_free;
-  }
-  {
-    thread->eop_free = EOP_NEXT(eop);
-    eop->flags = (OPTYPE_EXPLICIT | EOPSTATE_FREE);
-    eop->flags2 = 0;
-    if (offsetof(gasnete_eop_t, threadidx) <= sizeof(void*))
-      eop->threadidx = thread->threadidx;
-    gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);
-    gasneti_assert(EOPSTATE(eop) == EOPSTATE_FREE);
-    gasneti_assert(LCSTATE(eop) ==  LCSTATE_NONE);
-  #if GASNET_DEBUG
-    // TODO-EX: this is used to assert "not-on-freelist" and should be encode differently
-    SET_EOPSTATE(eop, EOPSTATE_INFLIGHT);
-  #endif
-  #if GASNETE_EOP_COUNTED
-    gasneti_assert(GASNETE_EOP_DONE(eop));
-    gasneti_assert(GASNETE_EOP_LC(eop));
-  #endif
-  #ifdef _GASNETE_EOP_NEW_EXTRA
-    // Hook for conduit-specific initializations and assertions
-    _GASNETE_EOP_NEW_EXTRA(eop);
-  #endif
-    return eop;
-  }
-}
-
-/*  get a new op AND mark it in flight */
-GASNETI_INLINE(gasnete_eop_new)
-gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
-  gasnete_eop_t *eop = _gasnete_eop_new(thread);
-#if GASNETE_EOP_BOOLEAN
-  SET_EOPSTATE(eop, EOPSTATE_INFLIGHT);
-#endif
-#if GASNETE_EOP_COUNTED
-  eop->initiated_cnt++;
-#endif
-#ifdef GASNETE_EOP_NEW_EXTRA
-  // Hook for conduit-specific initializations and assertions
-  GASNETE_EOP_NEW_EXTRA(eop);
-#endif
-  return eop;
-}
-
 /*  get a new iop */
-static
+extern
 gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
   gasnete_iop_t *iop = thread->iop_free;
   if_pt (iop) {
@@ -179,67 +126,6 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
 #endif
   gasnete_iop_check(iop);
   return iop;
-}
-
-/*  query an eop for completeness */
-static
-int gasnete_eop_isdone(gasnete_eop_t *eop) {
-  gasneti_assert(eop->threadidx == gasnete_mythread()->threadidx);
-  gasnete_eop_check(eop);
-  return GASNETE_EOP_DONE(eop);
-}
-
-/*  query an iop (returned from end_nbi_accessregion) for completeness -
- *  this always means both puts and gets, and may mean LC too */
-static
-int gasnete_iop_isdone(gasnete_iop_t *iop) {
-  int result;
-  gasneti_assert(iop->threadidx == gasnete_mythread()->threadidx);
-  gasnete_iop_check(iop);
-  #if GASNET_DEBUG
-    if (LCSTATE(iop) == LCSTATE_LIVE) // TODO-EX: better wording?
-      gasneti_fatalerror("VIOLATION: attempted to call syncnb on an NBI access region handle before locally-complete");
-  #endif
-  result = (GASNETE_IOP_CNTDONE(iop,get) && GASNETE_IOP_CNTDONE(iop,put) &&
-          ((LCSTATE(iop) == LCSTATE_NONE) || GASNETE_IOP_CNTDONE(iop,alc)));
-  #if GASNET_DEBUG
-    if (result) SET_LCSTATE(iop, LCSTATE_NONE);
-  #endif
-  return result;
-}
-
-/*  mark an op done - isget ignored for explicit ops */
-extern
-void gasnete_op_markdone(gasnete_op_t *op, int isget) {
-  if (OPTYPE(op) == OPTYPE_EXPLICIT) {
-    gasnete_eop_t *eop = (gasnete_eop_t *)op;
-    gasnete_eop_check(eop);
-    GASNETE_EOP_MARKDONE(eop);
-  } else {
-    gasnete_iop_t *iop = (gasnete_iop_t *)op;
-    gasnete_iop_check(iop);
-    if (isget) gasnete_op_atomic_increment(&(iop->completed_get_cnt), 0);
-    else gasnete_op_atomic_increment(&(iop->completed_put_cnt), 0);
-  }
-}
-
-/*  free an eop */
-static
-void gasnete_eop_free(gasnete_eop_t *eop) {
-  gasnete_threaddata_t * const thread = gasnete_threadtable[eop->threadidx];
-  gasneti_assert(thread == gasnete_mythread());
-  gasnete_eop_check(eop);
-  gasneti_assert(GASNETE_EOP_DONE(eop));
-  gasneti_assert(GASNETE_EOP_LC(eop));
-#ifdef GASNETE_EOP_FREE_EXTRA
-  // Hook for conduit-specific cleanups and assertions
-  GASNETE_EOP_FREE_EXTRA(eop);
-#endif
-#if GASNET_DEBUG
-  SET_EOPSTATE(eop, EOPSTATE_FREE);
-#endif
-  EOP_NEXT(eop) = thread->eop_free;
-  thread->eop_free = eop;
 }
 
 /*  free an iop */

@@ -45,6 +45,13 @@ typedef enum {
 } gasnetc_category_t;
 
 /* ------------------------------------------------------------------------------------ */
+/* Configure gasnet_handle.[ch] */
+// TODO-EX: prefix needs to move from "extended" to "core"
+#define OPFLAG_LC  OPFLAG_CONDUIT0
+#define _GASNETE_EOP_NEW_EXTRA(eop) gasneti_assert(! (((gasnete_op_t *)(eop))->flags & OPFLAG_LC))
+#define GASNETE_IOP_NEW_EXTRA(iop)  gasneti_assert(! (((gasnete_op_t *)(iop))->flags & OPFLAG_LC))
+
+/* ------------------------------------------------------------------------------------ */
 
 enum {
   GASNETC_DISP_NOOP = 0, /* dispatch id 0 may be reserved? */

@@ -14,15 +14,6 @@
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Common Code for gasnetex_handle_t
-  =================================
-  Factored bits of handle-management code common to most conduits, overridable when necessary
-*/
-
-#include "gasnet_handle.c"
-
-/* ------------------------------------------------------------------------------------ */
-/*
   Tuning Parameters
   =================
 */

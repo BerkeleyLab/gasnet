@@ -11,20 +11,6 @@
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Common Code for gasnetex_handle_t
-  =================================
-  Factored bits of handle-management code common to most conduits, overridable when necessary
-*/
-
-#define GASNETI_IOP_ALLOC_EXTRA(iop) do { \
-    (iop)->get_ofi.type = OFI_TYPE_IGET;  \
-    (iop)->put_ofi.type = OFI_TYPE_IPUT;  \
-  } while (0)
-
-#include "gasnet_handle.c"
-
-/* ------------------------------------------------------------------------------------ */
-/*
   Extended API Common Code
   ========================
   Factored bits of extended API code common to most conduits, overridable when necessary

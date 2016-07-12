@@ -31,15 +31,6 @@ void gasnete_get_long (void *dest, gasnet_node_t node, void *src,
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Common Code for gasnetex_handle_t
-  =================================
-  Factored bits of handle-management code common to most conduits, overridable when necessary
-*/
-
-#include "gasnet_handle.c"
-
-/* ------------------------------------------------------------------------------------ */
-/*
   Extended API Common Code
   ========================
   Factored bits of extended API code common to most conduits, overridable when necessary

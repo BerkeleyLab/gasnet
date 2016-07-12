@@ -37,26 +37,6 @@ static int gasnete_mxm_max_outstanding_msgs;
 
 /* ------------------------------------------------------------------------------------ */
 /*
-  Common Code for gasnetex_handle_t
-  =================================
-  Factored bits of handle-management code common to most conduits, overridable when necessary
-*/
-
-#define GASNETE_OP_TRY_FREE_EXTRA(handle) do {                                       \
-    if_pt (handle->flags == OPFLAG_MXM) {                                            \
-            gasnet_mxm_send_req_t *send_req = (gasnet_mxm_send_req_t *)handle;       \
-            if (mxm_req_test(&send_req->mxm_sreq.base)) {                            \
-                gasneti_sync_reads();                                                \
-                gasnetc_free_send_req(send_req);                                     \
-                return 1;                                                            \
-            }                                                                        \
-    }                                                                                \
-  } while (0)
-
-#include "gasnet_handle.c"
-
-/* ------------------------------------------------------------------------------------ */
-/*
   Extended API Common Code
   ========================
   Factored bits of extended API code common to most conduits, overridable when necessary

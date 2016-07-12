@@ -48,6 +48,20 @@ enum {
     SYSTEM_MSG_REG_REP   = 3
 };
 
+/* ------------------------------------------------------------------------------------ */
+/* Configure gasnet_handle.[ch] */
+// TODO-EX: prefix needs to move from "extended" to "core"
+#define GASNETE_OP_TRY_FREE_EXTRA(handle) do {                                       \
+    if_pt (handle->flags == OPFLAG_MXM) {                                            \
+            gasnet_mxm_send_req_t *send_req = (gasnet_mxm_send_req_t *)handle;       \
+            if (mxm_req_test(&send_req->mxm_sreq.base)) {                            \
+                gasneti_sync_reads();                                                \
+                gasnetc_free_send_req(send_req);                                     \
+                return 1;                                                            \
+            }                                                                        \
+    }                                                                                \
+  } while (0)
+
 /* -------------------------------------------------------------------------- */
 
 /* check (even in optimized build) for MXM errors */
