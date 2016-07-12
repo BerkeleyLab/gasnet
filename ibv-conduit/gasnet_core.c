@@ -6,7 +6,7 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
-#include <gasnet_extended_internal.h> /* LC_GROUP needs access to iop, sigh. */
+#include <gasnet_handle_internal.h> // access to eop and iop
 #if GASNET_BLCR
 #include <gasnet_blcr.h>
 #endif
@@ -3489,8 +3489,8 @@ extern int gasnetc_AMRequestLongM(
     gasnetc_atomic_t     *mem_completed_p;
 
     if (gasneti_lc_is_pointer(lc_opt)) {
-      gasnete_eop_t *op = (gasnete_eop_t *)gasneti_eop_create(GASNETE_THREAD_PASS_ALONE);
-      op->flags |= EOPFLAG_LC_ONLY; op->initiated_cnt -= 1; // TODO-EX: better way?
+      gasnete_eop_t *op = _gasnete_eop_new(GASNETI_MYTHREAD);
+      op->flags |= EOPFLAG_LC_ONLY;
       mem_initiated_p = &op->initiated_alc;
       mem_completed_p = &op->completed_alc;
       *lc_opt = (gasnetex_lc_handle_t)op;
@@ -3582,8 +3582,8 @@ extern int gasnetc_AMReplyLongM(
     gasnetc_atomic_t     *mem_completed_p;
 
     if (gasneti_lc_is_pointer(lc_opt)) {
-      gasnete_eop_t *op = (gasnete_eop_t *)gasneti_eop_create(GASNETE_THREAD_PASS_ALONE);
-      op->flags |= EOPFLAG_LC_ONLY; op->initiated_cnt -= 1; // TODO-EX: better way?
+      gasnete_eop_t *op = _gasnete_eop_new(GASNETI_MYTHREAD);
+      op->flags |= EOPFLAG_LC_ONLY;
       mem_initiated_p = &op->initiated_alc;
       mem_completed_p = &op->completed_alc;
       *lc_opt = (gasnetex_lc_handle_t)op;
