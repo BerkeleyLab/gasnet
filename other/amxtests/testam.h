@@ -43,13 +43,13 @@
   #include "test.h"
   typedef gasnetex_handlerarg_t handlerarg_t;
  #define EXTERNC GASNETT_EXTERNC
+ GASNETT_BEGIN_EXTERNC
  #ifdef GASNET_USE_STRICT_PROTOTYPES
-  EXTERNC
   typedef void *handler_fn_t;
  #else
-  EXTERNC
   typedef void (*handler_fn_t)();
  #endif
+ GASNETT_END_EXTERNC
   typedef gasnetex_token_t token_t;
   typedef size_t bufsize_t;
   gasnett_atomic_t numreq = gasnett_atomic_init(0);
