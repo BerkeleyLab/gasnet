@@ -59,6 +59,12 @@
 #endif
 
 #ifdef __cplusplus
+#define EXTERNC extern "C"
+#else
+#define EXTERNC extern
+#endif
+
+#ifdef __cplusplus
   extern "C" {
 #endif
 

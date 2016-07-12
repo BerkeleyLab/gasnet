@@ -1047,7 +1047,7 @@ static void _test_init(const char *testname, int reports_performance, int early,
 #define TEST_BACKTRACE_DECLS()                              \
   static int test_my_backtrace = 0;                         \
   static volatile int test_my_backtrace_ran = 0;            \
-  static int test_my_backtrace_fn(int fd) {                 \
+  GASNETT_EXTERNC int test_my_backtrace_fn(int fd) {        \
     if (test_my_backtrace_ran != -1) {                      \
       /* Indicate FAILURE if we were not testing */         \
       /* So the next available mechanism will run. */       \
