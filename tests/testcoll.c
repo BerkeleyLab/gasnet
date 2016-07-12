@@ -489,7 +489,8 @@ int main(int argc, char **argv)
     if (argc > 2) {
       threads = atoi(argv[2]);
     }
-    if (threads > TEST_MAXTHREADS || threads < 1) {
+    threads = test_thread_limit(threads);
+    if (threads < 1) {
       printf("ERROR: Threads must be between 1 and %d\n", TEST_MAXTHREADS);
       exit(EXIT_FAILURE);
     }

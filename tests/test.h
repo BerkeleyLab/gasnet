@@ -427,9 +427,7 @@ GASNETT_IDENT(GASNetT_TiCompiler_IdentString,
 #endif
 #ifndef TEST_MAXTHREADS
   /* TEST_MAXTHREADS is a compile-time constant */
-  #if defined(GASNETI_MAX_THREADS_CONFIGURE)
-    #define TEST_MAXTHREADS_SYSTEM GASNETI_MAX_THREADS_CONFIGURE
-  #elif defined(GASNETT_MAX_THREADS)
+  #if GASNETT_MAX_THREADS > 1  /* may be missing for tools-only */
     #define TEST_MAXTHREADS_SYSTEM GASNETT_MAX_THREADS
   #else
     #define TEST_MAXTHREADS_SYSTEM 256

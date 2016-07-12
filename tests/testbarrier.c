@@ -79,7 +79,7 @@ int main(int argc, char **argv) {
   while (argc-arg >= 2) {
    if (!strcmp(argv[arg], "-p")) {
 #if GASNET_PAR
-    pollers = atoi(argv[arg+1]);
+    pollers = test_thread_limit(atoi(argv[arg+1])+1)-1;
     arg += 2;
 #else
     if (gasnet_mynode() == 0) {
