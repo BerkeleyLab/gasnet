@@ -380,7 +380,7 @@ GASNETI_INLINE(gasnet_wait_syncnb_valget)
 gasnetex_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handle)
 {
   gasnetex_register_value_t result;
-  gasnetex_wait_syncnb(handle->h);
+  gasnetex_wait(handle->h);
   result = handle->v;
   free(handle);
   return result;
@@ -401,17 +401,17 @@ gasnetex_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handl
 /* ------------------------------------------------------------------------------------ */
 /* Explicit-handle sync operations */
 
-#define gasnet_try_syncnb_nopoll(h)          gasnetex_test_syncnb(h)
-#define gasnet_try_syncnb_some_nopoll(ph,sz) gasnetex_test_syncnb_some(ph,sz)
-#define gasnet_try_syncnb_all_nopoll(ph,sz)  gasnetex_test_syncnb_all(ph,sz)
+#define gasnet_try_syncnb_nopoll(h)          gasnetex_test(h)
+#define gasnet_try_syncnb_some_nopoll(ph,sz) gasnetex_test_some(ph,sz)
+#define gasnet_try_syncnb_all_nopoll(ph,sz)  gasnetex_test_all(ph,sz)
 
-#define gasnet_try_syncnb(h)          (gasnet_AMPoll(),gasnetex_test_syncnb(h))
-#define gasnet_try_syncnb_some(ph,sz) (gasnet_AMPoll(),gasnetex_test_syncnb_some(ph,sz))
-#define gasnet_try_syncnb_all(ph,sz)  (gasnet_AMPoll(),gasnetex_test_syncnb_all(ph,sz))
+#define gasnet_try_syncnb(h)          (gasnet_AMPoll(),gasnetex_test(h))
+#define gasnet_try_syncnb_some(ph,sz) (gasnet_AMPoll(),gasnetex_test_some(ph,sz))
+#define gasnet_try_syncnb_all(ph,sz)  (gasnet_AMPoll(),gasnetex_test_all(ph,sz))
 
-#define gasnet_wait_syncnb(h)          gasnetex_wait_syncnb(h)
-#define gasnet_wait_syncnb_some(ph,sz) gasnetex_wait_syncnb_some(ph,sz)
-#define gasnet_wait_syncnb_all(ph,sz)  gasnetex_wait_syncnb_all(ph,sz)
+#define gasnet_wait_syncnb(h)          gasnetex_wait(h)
+#define gasnet_wait_syncnb_some(ph,sz) gasnetex_wait_some(ph,sz)
+#define gasnet_wait_syncnb_all(ph,sz)  gasnetex_wait_all(ph,sz)
 
 /* ------------------------------------------------------------------------------------ */
 /* Implicit-handle sync operations */

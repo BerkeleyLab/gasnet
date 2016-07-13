@@ -200,9 +200,9 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 /*  query an op for completeness 
  *  free it if complete
  *  returns 0 or 1 */
-#if !defined(gasnete_test_syncnb) || \
-    !defined(gasnete_test_syncnb_all) || \
-    !defined(gasnete_test_syncnb_some)
+#if !defined(gasnete_test) || \
+    !defined(gasnete_test_all) || \
+    !defined(gasnete_test_some)
 GASNETI_INLINE(gasnete_op_try_free)
 int gasnete_op_try_free(gasnetex_handle_t handle) {
 #ifdef GASNETE_OP_TRY_FREE_EXTRA
@@ -256,8 +256,8 @@ int gasnete_op_try_free(gasnetex_handle_t handle) {
 /*  query an op for completeness 
  *  free it and clear the handle if complete
  *  returns 0 or 1 */
-#if !defined(gasnete_test_syncnb_all) || \
-    !defined(gasnete_test_syncnb_some)
+#if !defined(gasnete_test_all) || \
+    !defined(gasnete_test_some)
 GASNETI_INLINE(gasnete_op_try_free_clear)
 int gasnete_op_try_free_clear(gasnetex_handle_t *handle_p) {
   if (gasnete_op_try_free(*handle_p)) {
@@ -268,14 +268,14 @@ int gasnete_op_try_free_clear(gasnetex_handle_t *handle_p) {
 }
 #endif
 
-#ifndef gasnete_test_syncnb
-extern int  gasnete_test_syncnb(gasnetex_handle_t handle) {
+#ifndef gasnete_test
+extern int  gasnete_test(gasnetex_handle_t handle) {
   return gasnete_op_try_free(handle) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
 #endif
 
-#ifndef gasnete_test_syncnb_some
-extern int  gasnete_test_syncnb_some (gasnetex_handle_t *phandle, size_t numhandles) {
+#ifndef gasnete_test_some
+extern int  gasnete_test_some (gasnetex_handle_t *phandle, size_t numhandles) {
   int success = 0;
   int empty = 1;
 
@@ -294,8 +294,8 @@ extern int  gasnete_test_syncnb_some (gasnetex_handle_t *phandle, size_t numhand
 }
 #endif
 
-#ifndef gasnete_test_syncnb_all
-extern int  gasnete_test_syncnb_all (gasnetex_handle_t *phandle, size_t numhandles) {
+#ifndef gasnete_test_all
+extern int  gasnete_test_all (gasnetex_handle_t *phandle, size_t numhandles) {
   int success = 1;
 
   gasneti_assert(phandle);

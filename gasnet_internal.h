@@ -373,7 +373,7 @@ gasneti_eop_t *gasneti_eop_create(GASNETI_THREAD_FARG_ALONE);
 
 /* convert an gasneti_eop_t* created by an earlier call from this
    thread to gasneti_new_eop(), into a gasnetex_handle_t suitable
-   for this thread to later pass to gasnetex_wait_syncnb & friends */
+   for this thread to later pass to gasnetex_wait & friends */
 #if GASNETI_EOP_IS_HANDLE
   #define gasneti_eop_to_handle(eop) ((gasnetex_handle_t)(eop))
 #else

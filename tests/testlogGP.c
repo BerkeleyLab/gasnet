@@ -128,7 +128,7 @@ void put_tests(int iters, int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			gasnetex_handle_t h = gasnetex_put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
-			gasnetex_wait_syncnb(h);
+			gasnetex_wait(h);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -143,7 +143,7 @@ void put_tests(int iters, int nbytes)
 		for (i = 0; i < iters; i++) {
 			gasnetex_handle_t h = gasnetex_put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
 			test_delay(loops, pollcnt);
-			gasnetex_wait_syncnb(h);
+			gasnetex_wait(h);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin) - delay_time, iters);
@@ -156,7 +156,7 @@ void put_tests(int iters, int nbytes)
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
 			gasnetex_handle_t h = gasnetex_put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
-			gasnetex_wait_syncnb(h);
+			gasnetex_wait(h);
 		}
 	} else {
 		init_stat(&st, nbytes);
@@ -176,7 +176,7 @@ void put_tests(int iters, int nbytes)
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
 			gasnetex_handle_t h = gasnetex_put_nb(myteam, peerproc, peermem, mymem, nbytes, GASNETEX_EVENT_DEFER, 0);
-			gasnetex_wait_syncnb(h);
+			gasnetex_wait(h);
 		}
 	} else {
 		init_stat(&st, nbytes);
@@ -251,7 +251,7 @@ void get_tests(int iters, int nbytes)
 		begin = TIME();
 		for (i = 0; i < iters; i++) {
 			gasnetex_handle_t h = gasnetex_get_nb(myteam, mymem, peerproc, peermem, nbytes, 0);
-			gasnetex_wait_syncnb(h);
+			gasnetex_wait(h);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
@@ -266,7 +266,7 @@ void get_tests(int iters, int nbytes)
 		for (i = 0; i < iters; i++) {
 			gasnetex_handle_t h = gasnetex_get_nb(myteam, mymem, peerproc, peermem, nbytes, 0);
 			test_delay(loops, pollcnt);
-			gasnetex_wait_syncnb(h);
+			gasnetex_wait(h);
 		}
 		end = TIME();
 	 	update_stat(&st, (end - begin) - delay_time, iters);
@@ -279,7 +279,7 @@ void get_tests(int iters, int nbytes)
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
 			gasnetex_handle_t h = gasnetex_get_nb(myteam, mymem, peerproc, peermem, nbytes, 0);
-			gasnetex_wait_syncnb(h);
+			gasnetex_wait(h);
 		}
 	} else {
 		init_stat(&st, nbytes);
@@ -299,7 +299,7 @@ void get_tests(int iters, int nbytes)
 	if (iamsender) {
 		for (i = 0; i < iters; i++) {
 			gasnetex_handle_t h = gasnetex_get_nb(myteam, mymem, peerproc, peermem, nbytes, 0);
-			gasnetex_wait_syncnb(h);
+			gasnetex_wait(h);
 		}
 	} else {
 		init_stat(&st, nbytes);

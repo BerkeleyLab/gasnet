@@ -369,7 +369,7 @@ void do_bulkputs(void) {
     if (do_puts && do_bulk && do_explicit) {
       QUEUE_TEST("gasnetex_put_nb/bulk", 
                  handles[i] = gasnetex_put_nb(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_EVENT_DEFER, 0), 
-                 gasnetex_wait_syncnb_all(handles, depth), (void)0, 0);
+                 gasnetex_wait_all(handles, depth), (void)0, 0);
     }
 
     if (do_puts && do_bulk && do_implicit) {
@@ -382,13 +382,13 @@ void do_nonbulkputgets(void) {
     if (do_puts && do_nonbulk && do_explicit) {
       QUEUE_TEST("gasnetex_put_nb", 
                  handles[i] = gasnetex_put_nb(myteam, peerproc, tgtmem, msgbuf, payload, GASNETEX_EVENT_NOW, 0), 
-                 gasnetex_wait_syncnb_all(handles, depth), (void)0, 0);
+                 gasnetex_wait_all(handles, depth), (void)0, 0);
     }
 
     if (do_gets && do_explicit) {
       QUEUE_TEST("gasnetex_get_nb", 
                  handles[i] = gasnetex_get_nb(myteam, msgbuf, peerproc, tgtmem, payload, 0), 
-                 gasnetex_wait_syncnb_all(handles, depth), (void)0, 0);
+                 gasnetex_wait_all(handles, depth), (void)0, 0);
     }
 
     if (do_puts && do_nonbulk && do_implicit) {
@@ -407,7 +407,7 @@ void do_valueputgets(void) {
     if (do_puts && do_value && do_explicit) {
       QUEUE_TEST("gasnetex_put_nb_val",
                  handles[i] = gasnetex_put_nb_val(myteam, peerproc, tgtmem, regval, payload, 0),
-                 gasnetex_wait_syncnb_all(handles, depth),
+                 gasnetex_wait_all(handles, depth),
                  (void)0, SIZEOF_GASNETEX_REGISTER_VALUE_T);
     }
 

@@ -219,7 +219,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
                 for (i = 0; i < iters; i++) {
                         handles[i] = gasnetex_put_nb(myteam, peerproc, rembuf, locbuf+pad, nbytes, GASNETEX_EVENT_DEFER, 0);
                 }
-		gasnetex_wait_syncnb_all(handles, iters);
+		gasnetex_wait_all(handles, iters);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}
@@ -241,7 +241,7 @@ void oneway_nb_test(int iters, int nbytes, int alignment)
                 for (i = 0; i < iters; i++) {
                     handles[i] = gasnetex_get_nb(myteam, locbuf, peerproc, rembuf+pad, nbytes, 0);
                 } 
-		gasnetex_wait_syncnb_all(handles, iters);
+		gasnetex_wait_all(handles, iters);
 		end = TIME();
 	 	update_stat(&st, (end - begin), iters);
 	}

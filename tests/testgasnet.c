@@ -293,11 +293,11 @@ void doit(int partner, int *partnerseg) {
       val1 = 100 + i + mynode;
       handles[i] = gasnetex_put_nb(myteam, partner, partnerseg+i, &val1, sizeof(int), GASNETEX_EVENT_NOW, 0);
     }
-    gasnetex_wait_syncnb_all(handles, iters);
+    gasnetex_wait_all(handles, iters);
     for (i = 0; i < iters; i++) {
       handles[i] = gasnetex_get_nb(myteam, &vals[i], partner, partnerseg+i, sizeof(int), 0);
     }
-    gasnetex_wait_syncnb_all(handles, iters);
+    gasnetex_wait_all(handles, iters);
     for (i=0; i < iters; i++) {
       if (vals[i] != 100 + mynode + i) {
         MSG("*** ERROR - FAILED NB LIST TEST!!! vals[%i] = %i, expected %i",
@@ -356,7 +356,7 @@ void doit3(int partner, int *partnerseg) {
       gasnetex_put_val(myteam, partner, partnerseg+i, 1000 + mynode + i, sizeof(int), 0);
     }
     for (i=0; i < 100; i++) {
-      gasnetex_wait_syncnb(gasnetex_put_nb_val(myteam, partner, partnerseg+i+100, 1000 + mynode + i, sizeof(int), 0));
+      gasnetex_wait(gasnetex_put_nb_val(myteam, partner, partnerseg+i+100, 1000 + mynode + i, sizeof(int), 0));
     }
     for (i=0; i < 100; i++) {
       gasnetex_put_nbi_val(myteam, partner, partnerseg+i+200, 1000 + mynode + i, sizeof(int), 0);
@@ -379,7 +379,7 @@ void doit3(int partner, int *partnerseg) {
       gasnetex_put_val(myteam, partner, partnerbase2+i, 100 + mynode + i, sizeof(unsigned char), 0);
     }
     for (i=0; i < 100; i++) {
-      gasnetex_wait_syncnb(gasnetex_put_nb_val(myteam, partner, partnerbase2+i+100, 100 + mynode + i, sizeof(unsigned char), 0));
+      gasnetex_wait(gasnetex_put_nb_val(myteam, partner, partnerbase2+i+100, 100 + mynode + i, sizeof(unsigned char), 0));
     }
     for (i=0; i < 100; i++) {
       gasnetex_put_nbi_val(myteam, partner, partnerbase2+i+200, 100 + mynode + i, sizeof(unsigned char), 0);
@@ -443,23 +443,23 @@ void doit5(int partner, int *partnerseg) {
           }
         }
         handle = gasnetex_put_nb(myteam, partner, rsegpos, localpos, sz, GASNETEX_EVENT_DEFER, 0);
-        gasnetex_wait_syncnb(handle);
+        gasnetex_wait(handle);
 
         handle = gasnetex_put_nb(myteam, partner, rsegpos+elems, localpos, sz, GASNETEX_EVENT_NOW, 0);
         memset(localpos, 0xCC, sz); /* clear */
-        gasnetex_wait_syncnb(handle);
+        gasnetex_wait(handle);
 
         handle = gasnetex_put_nb(myteam, partner, rsegpos+2*elems, segpos, sz, GASNETEX_EVENT_DEFER, 0);
-        gasnetex_wait_syncnb(handle);
+        gasnetex_wait(handle);
 
         handle = gasnetex_put_nb(myteam, partner, rsegpos+3*elems, segpos, sz, GASNETEX_EVENT_NOW, 0);
         memset(segpos, 0xCC, sz); /* clear */
-        gasnetex_wait_syncnb(handle);
+        gasnetex_wait(handle);
 
-        gasnetex_wait_syncnb(gasnetex_get_nb(myteam, localpos, partner, rsegpos, sz, 0));
-        gasnetex_wait_syncnb(gasnetex_get_nb(myteam, localpos+elems, partner, rsegpos+elems, sz, 0));
-        gasnetex_wait_syncnb(gasnetex_get_nb(myteam, segpos, partner, rsegpos+2*elems, sz, 0));
-        gasnetex_wait_syncnb(gasnetex_get_nb(myteam, segpos+elems, partner, rsegpos+3*elems, sz, 0));
+        gasnetex_wait(gasnetex_get_nb(myteam, localpos, partner, rsegpos, sz, 0));
+        gasnetex_wait(gasnetex_get_nb(myteam, localpos+elems, partner, rsegpos+elems, sz, 0));
+        gasnetex_wait(gasnetex_get_nb(myteam, segpos, partner, rsegpos+2*elems, sz, 0));
+        gasnetex_wait(gasnetex_get_nb(myteam, segpos+elems, partner, rsegpos+3*elems, sz, 0));
 
         for (j=0; j < elems*2; j++) {
           int ok;

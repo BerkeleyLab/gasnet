@@ -57,8 +57,8 @@ int gasnete_syncnb_one(gasnetex_handle_t handle)
   gasneti_sync_reads();
   return GASNET_OK;
 }
-#define gasnete_test_syncnb gasnete_syncnb_one
-#define gasnete_wait_syncnb gasnete_syncnb_one
+#define gasnete_test gasnete_syncnb_one
+#define gasnete_wait gasnete_syncnb_one
 
 GASNETI_INLINE(gasnete_syncnb_array)
 int gasnete_syncnb_array(gasnetex_handle_t *phandle, size_t numhandles)
@@ -70,10 +70,10 @@ int gasnete_syncnb_array(gasnetex_handle_t *phandle, size_t numhandles)
   gasneti_sync_reads();
   return GASNET_OK;
 }
-#define gasnete_test_syncnb_some gasnete_syncnb_array
-#define gasnete_test_syncnb_all  gasnete_syncnb_array
-#define gasnete_wait_syncnb_some gasnete_syncnb_array
-#define gasnete_wait_syncnb_all  gasnete_syncnb_array
+#define gasnete_test_some gasnete_syncnb_array
+#define gasnete_test_all  gasnete_syncnb_array
+#define gasnete_wait_some gasnete_syncnb_array
+#define gasnete_wait_all  gasnete_syncnb_array
 
 /* ------------------------------------------------------------------------------------ */
 /*
