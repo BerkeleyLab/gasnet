@@ -112,9 +112,6 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
   gasneti_assert(state == EOPSTATE_COMPLETE ? 1 : EOPSTATE(op) == state);
 }
 
-/* eop is LC only (e.g. from an AM initiation w/ lc_opt=ptr) */
-#define EOPFLAG_LC_ONLY 0x40
-
 /* gasnete_op_t flag bits reserved for conduit-specific uses.
  * guaranteed not to conflict with use in extendef-ref and
  * are preserved by SET_OP{STATE,TYPE}() */
@@ -173,13 +170,14 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
   #define gasnete_iop_check(iop)   ((void)0)
 #endif
 
+
 #ifndef GASNETE_IOP_CNTDONE
 #define GASNETE_IOP_CNTDONE(_iop, _name) \
   (gasnete_op_atomic_read(&(_iop)->completed_##_name##_cnt, 0) \
           == ((_iop)->initiated_##_name##_cnt & GASNETI_ATOMIC_MAX))
 #endif
 
-#ifndef GASNETE_EOP_DONE
+#ifndef GASNETE_EOP_DONE // Root event only
  #if GASNETE_EOP_COUNTED
   #define GASNETE_EOP_DONE(_eop) \
     (gasnete_op_atomic_read(&(_eop)->completed_cnt, 0) \
@@ -201,6 +199,16 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
       SET_EOPSTATE((_eop), EOPSTATE_COMPLETE); \
     } while (0)
  #endif
+#endif
+
+
+#if 0 // TODO-EX: example for conduits w/o LC to "opt-out" (place in gasnet_internal_fwd.h)
+#define GASNETE_IOP_LC(_iop) 1
+#define GASNETE_EOP_LC(_iop) 1
+#endif
+
+#ifndef GASNETE_IOP_LC
+#define GASNETE_IOP_LC(_iop) GASNETE_IOP_CNTDONE(_iop,alc)
 #endif
 
 #ifndef GASNETE_EOP_LC
@@ -226,6 +234,14 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
     } while (0)
  #endif
 #endif
+
+
+// Extract root (op) and index from any handle
+#define gasneti_handle_op(_h)  ((gasnete_op_t*)((uintptr_t)(_h) & ~7))
+#define gasneti_handle_idx(_h) ((uintptr_t)(_h) & 7)
+
+// Convert root (op) to any leaf (handle)
+#define gasneti_op_handle(_op,_idx) ((gasnetex_handle_t)&((_op)->event[_idx]))
 
 /* ------------------------------------------------------------------------------------ */
 // TODO-EX: This really should move.
@@ -322,7 +338,7 @@ int gasnete_iop_isdone(gasnete_iop_t *iop) {
       gasneti_fatalerror("VIOLATION: attempted to call syncnb on an NBI access region handle before locally-complete");
   #endif
   result = (GASNETE_IOP_CNTDONE(iop,get) && GASNETE_IOP_CNTDONE(iop,put) &&
-          ((LCSTATE(iop) == LCSTATE_NONE) || GASNETE_IOP_CNTDONE(iop,alc)));
+            ((LCSTATE(iop) == LCSTATE_NONE) || GASNETE_IOP_LC(iop)));
   #if GASNET_DEBUG
     if (result) SET_LCSTATE(iop, LCSTATE_NONE);
   #endif

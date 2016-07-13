@@ -136,7 +136,7 @@ gasnetex_handle_t gasnete_put_nb(
   if (gasneti_leaf_is_pointer(lc_opt)) {
     mem_initiated_p = &op->initiated_alc;
     mem_completed_p = &op->completed_alc;
-    *lc_opt = (gasnetex_handle_t)op;
+    *lc_opt = gasneti_op_handle(op, 1);
   } else if (lc_opt == GASNETEX_EVENT_NOW) {
     mem_initiated_p = &mem_oust.initiated;
     mem_completed_p = &mem_oust.completed;

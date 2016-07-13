@@ -3490,9 +3490,8 @@ extern int gasnetc_AMRequestLongM(
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
       gasnete_eop_t *op = _gasnete_eop_new(GASNETI_MYTHREAD);
-      op->event[0] |= EOPFLAG_LC_ONLY;
-      mem_initiated_p = &op->initiated_alc;
-      mem_completed_p = &op->completed_alc;
+      mem_initiated_p = &op->initiated_cnt;
+      mem_completed_p = &op->completed_cnt;
       *lc_opt = (gasnetex_handle_t)op;
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
       mem_initiated_p = &mem_oust.initiated;
@@ -3583,9 +3582,8 @@ extern int gasnetc_AMReplyLongM(
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
       gasnete_eop_t *op = _gasnete_eop_new(GASNETI_MYTHREAD);
-      op->event[0] |= EOPFLAG_LC_ONLY;
-      mem_initiated_p = &op->initiated_alc;
-      mem_completed_p = &op->completed_alc;
+      mem_initiated_p = &op->initiated_cnt;
+      mem_completed_p = &op->completed_cnt;
       *lc_opt = (gasnetex_handle_t)op;
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
       mem_initiated_p = &mem_oust.initiated;
