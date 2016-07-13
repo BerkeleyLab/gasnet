@@ -304,7 +304,7 @@
     }                                                               \
   }
 #define GASNETI_ATOMIC_FENCED_ADDFETCH_DEFN_NOT_INLINE(group,func,_func,stem) \
-  stem##val_t func(stem##t *p, stem##sval_t op, const int flags) {  \
+  stem##val_t func(stem##t *p, stem##val_t op, const int flags) {   \
     _gasneti_##group##_prologue_rmw(p,flags)                        \
     GASNETI_ATOMIC_CHECKALIGN(stem,p);                              \
     _gasneti_##group##_fence_before_rmw(p,flags)                    \
@@ -446,7 +446,7 @@
                                                          uint##_sz##_t val,                  \
                                                          const int flags);                   \
       extern uint##_sz##_t gasneti_genatomic##_sz##_addfetch(gasneti_genatomic##_sz##_t *p,  \
-                                                             int##_sz##_t op,                \
+                                                             uint##_sz##_t op,               \
                                                              const int flags);               
     #define _GASNETI_GENATOMIC_DEFN(_sz)                                                         \
       GASNETI_ATOMIC_FENCED_SET_DEFN_NOT_INLINE(genatomic,                                       \
@@ -573,7 +573,7 @@ typedef int32_t gasneti_atomic32_sval_t;	/* For consistency in fencing macros */
                                         gasneti_atomic32_)
   #elif defined(gasneti_atomic32_fetchadd)
     GASNETI_INLINE(gasneti_atomic32_addfetch)
-    uint32_t gasneti_atomic32_addfetch(gasneti_atomic32_t *p, int32_t op, int f) {
+    uint32_t gasneti_atomic32_addfetch(gasneti_atomic32_t *p, uint32_t op, int f) {
       return (uint32_t)(gasneti_atomic32_fetchadd(p,op,f) + op);
     }
   #endif
@@ -609,7 +609,7 @@ typedef int32_t gasneti_atomic32_sval_t;	/* For consistency in fencing macros */
   #ifdef _gasneti_atomic32_add
     GASNETI_ATOMIC_FENCED_ADDSUB_DEFN(atomic32,gasneti_atomic32_add,_gasneti_atomic32_add,gasneti_atomic32_)
   #elif !defined(gasneti_atomic32_add)
-    #define gasneti_atomic32_add(p,op,f) ((uint32_t)gasneti_atomic32_addfetch((p),(op),(f)))
+    #define gasneti_atomic32_add(p,op,f) ((uint32_t)gasneti_atomic32_addfetch((p),(uint32_t)(op),(f)))
   #endif
   #ifdef _gasneti_atomic32_subtract
     GASNETI_ATOMIC_FENCED_ADDSUB_DEFN(atomic32,gasneti_atomic32_subtract,_gasneti_atomic32_subtract,gasneti_atomic32_)
@@ -635,7 +635,7 @@ typedef int64_t gasneti_atomic64_sval_t;	/* For consistency in fencing macros */
   /* Define 64-bit fixed-width atomics in terms of full-fenced generics */
   #define gasneti_atomic64_t                   gasneti_genatomic64_t
   #define gasneti_atomic64_init                gasneti_genatomic64_init
-  #define gasneti_genatomic64_add(p,op,f)      ((uint64_t)gasneti_genatomic64_addfetch((p),(op),(f)))
+  #define gasneti_genatomic64_add(p,op,f)      ((uint64_t)gasneti_genatomic64_addfetch((p),(uint64_t)(op),(f)))
   #define gasneti_genatomic64_subtract(p,op,f) ((uint64_t)gasneti_genatomic64_addfetch((p),(uint64_t)-(op),(f)))
   #define _gasneti_atomic64_cons(_id)          gasneti_genatomic64_##_id
 #elif defined(GASNETI_USING_SLOW_ATOMICS)
@@ -725,7 +725,7 @@ typedef int64_t gasneti_atomic64_sval_t;	/* For consistency in fencing macros */
   }
   #define gasneti_atomic64_increment(p,f) ((void)gasneti_atomic64_addfetch((p),1,(f)))
   #define gasneti_atomic64_decrement(p,f) ((void)gasneti_atomic64_addfetch((p),(uint64_t)-1,(f)))
-  #define gasneti_atomic64_add(p,op,f) ((uint64_t)gasneti_atomic64_addfetch((p),(op),(f)))
+  #define gasneti_atomic64_add(p,op,f) ((uint64_t)gasneti_atomic64_addfetch((p),(uint64_t)(op),(f)))
   #define gasneti_atomic64_subtract(p,op,f) ((uint64_t)gasneti_atomic64_addfetch((p),(uint64_t)-(op),(f)))
 #else
   /* Define 64-bit fixed-width atomics in terms of un-fenced native atomics */
@@ -741,7 +741,7 @@ typedef int64_t gasneti_atomic64_sval_t;	/* For consistency in fencing macros */
                                         gasneti_atomic64_)
   #elif defined(gasneti_atomic64_fetchadd)
     GASNETI_INLINE(gasneti_atomic64_addfetch)
-    uint64_t gasneti_atomic64_addfetch(gasneti_atomic64_t *p, int64_t op, int f) {
+    uint64_t gasneti_atomic64_addfetch(gasneti_atomic64_t *p, uint64_t op, int f) {
       return (uint64_t)(gasneti_atomic64_fetchadd(p,op,f) + op);
     }
   #endif
@@ -777,7 +777,7 @@ typedef int64_t gasneti_atomic64_sval_t;	/* For consistency in fencing macros */
   #ifdef _gasneti_atomic64_add
     GASNETI_ATOMIC_FENCED_ADDSUB_DEFN(atomic64,gasneti_atomic64_add,_gasneti_atomic64_add,gasneti_atomic64_)
   #elif !defined(gasneti_atomic64_add)
-    #define gasneti_atomic64_add(p,op,f) ((uint64_t)gasneti_atomic64_addfetch((p),(op),(f)))
+    #define gasneti_atomic64_add(p,op,f) ((uint64_t)gasneti_atomic64_addfetch((p),(uint64_t)(op),(f)))
   #endif
   #ifdef _gasneti_atomic64_subtract
     GASNETI_ATOMIC_FENCED_ADDSUB_DEFN(atomic64,gasneti_atomic64_subtract,_gasneti_atomic64_subtract,gasneti_atomic64_)
