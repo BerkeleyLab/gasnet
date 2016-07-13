@@ -208,9 +208,6 @@ int gasnete_put_nbi (gasnetex_team_member_t team,
   /* XXX check error returns */ 
 
   if (lc_opt == GASNETEX_EVENT_GROUP) {
-  #if GASNET_DEBUG
-    SET_LCSTATE(op, LCSTATE_LIVE);
-  #endif
     mem_initiated_p = &op->initiated_alc_cnt;
     mem_completed_p = &op->completed_alc_cnt;
   } else if (lc_opt == GASNETEX_EVENT_NOW) {

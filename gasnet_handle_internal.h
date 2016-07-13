@@ -89,67 +89,65 @@ typedef struct _gasnete_iop_t {
 
 /* ------------------------------------------------------------------------------------ */
 
-/* gasnete_op_t event[0] field */
-#define OPTYPE_EXPLICIT               0x00  /*  gasnete_eop_new() relies on this value */
-#define OPTYPE_IMPLICIT               0x80
-#define OPTYPE(op) ((op)->event[0] & 0x80)
-GASNETI_INLINE(SET_OPTYPE)
-void SET_OPTYPE(gasnete_op_t *op, uint8_t type) {
-  op->event[0] = (op->event[0] & 0x7F) | (type & 0x80);
-}
+// Each 1-byte event field in an OP has 4 bits for "type"
+// The most-significant bit is used to indicate liveness
+#define EVENT_TYPE_MASK    0x0F
+#define EVENT_LIVE_MASK    0x80
 
-/*  EOP state - only valid for explicit ops */
-#define EOPSTATE_FREE      0   /*  gasnete_eop_new() relies on this value */
-#define EOPSTATE_INFLIGHT  1
-#define EOPSTATE_COMPLETE  2
-#define EOPSTATE(eop) (gasneti_assert(OPTYPE(eop)==OPTYPE_EXPLICIT), ((eop)->event[0] & 0x03))
-GASNETI_INLINE(SET_EOPSTATE)
-void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
-  op->event[0] = (op->event[0] & 0xFC) | (state & 0x03);
-  /* RACE: If we are marking the op COMPLETE, don't assert for completion
-   * state as another thread spinning on the op may already have changed
-   * the state. */
-  gasneti_assert(state == EOPSTATE_COMPLETE ? 1 : EOPSTATE(op) == state);
-}
-
-/* gasnete_op_t flag bits reserved for conduit-specific uses.
- * guaranteed not to conflict with use in extendef-ref and
- * are preserved by SET_OP{STATE,TYPE}() */
-#define OPFLAG_CONDUIT0 0x04
-#define OPFLAG_CONDUIT1 0x08
-#define OPFLAG_CONDUIT2 0x10
-
-/*  Local Completion (LC) state */
-#define LCSTATE_NONE   0 /*  op has NO local completion state */
-#define LCSTATE_LIVE   1 /*  op has competion state - only used in DEBUG builds */
-#define LCSTATE_DEFER  2 /*  op is an iop returned from end_nbi_accessregion(EVENT_DEFER) w/ LC outstanding */
-#if 0 // Fully general implementation
-  #define LCSTATE(op) ((op)->event[1] & 0x03))
-  GASNETI_INLINE(SET_LCSTATE_)
-  void SET_LCSTATE_(gasnete_op_t *op, uint8_t state) {
-    gasneti_assert((state & 0x03) == state);
-    op->event[1] = (op->event[1] & 0xFC) | state;
-  }
-#else // Cheaper, but correct only because nothing else is using 'event[1]'
-  #define LCSTATE(op) ((op)->event[1])
-  GASNETI_INLINE(SET_LCSTATE_)
-  void SET_LCSTATE_(gasnete_op_t *op, uint8_t state) {
-    gasneti_assert((state & 0x03) == state);
-    op->event[1] = state;
-  }
+// SUBJECT TO CHANGE:
+// The 'eop' and 'iop' types are only permitted as values the root event (event[0]).
+// The 'lc' type is intended for local completion and is expected to occupy (event[1]).
+// A conduit may add additional types as needed to distinguish its unique cases
+enum {
+  gasnete_event_type_free = 0,
+  gasnete_event_type_eop,
+  gasnete_event_type_lc,
+#ifdef GASNETE_CONDUIT_EVENT_TYPES
+  GASNETE_CONDUIT_EVENT_TYPES
 #endif
-#define SET_LCSTATE(op,flags) SET_LCSTATE_((gasnete_op_t*)(op),flags)
+  gasnete_event_type_iop = EVENT_TYPE_MASK
+};
+
+/* ------------------------------------------------------------------------------------ */
+
+// Legacy:
+#define OPTYPE_EXPLICIT               gasnete_event_type_eop
+#define OPTYPE_IMPLICIT               gasnete_event_type_iop
+#define OPTYPE(op)                    EVENT_TYPE(op,0)
+
+#define EVENT_TYPE(op,idx) ((op)->event[idx] & EVENT_TYPE_MASK)
+#define SET_EVENT_TYPE(op,idx,type) _SET_EVENT_TYPE((gasnete_op_t*)(op),idx,type)
+GASNETI_INLINE(_SET_EVENT_TYPE)
+void _SET_EVENT_TYPE(gasnete_op_t *op, unsigned int idx, uint8_t type) {
+  gasneti_assert(idx < GASNETE_OP_EVENTS);
+  gasneti_assert((EVENT_TYPE(op, idx) == 0) || (EVENT_TYPE(op, idx) == type));
+  gasneti_assert(type == (type & EVENT_TYPE_MASK));
+  op->event[idx] = EVENT_LIVE_MASK | type;
+}
+
+#define EVENT_DONE(op,idx) (!((op)->event[idx] & EVENT_LIVE_MASK))
+#define SET_EVENT_DONE(op,idx) _SET_EVENT_DONE((gasnete_op_t*)(op),idx)
+GASNETI_INLINE(_SET_EVENT_DONE)
+void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
+  gasneti_assert(idx < GASNETE_OP_EVENTS);
+  gasneti_assert(! EVENT_DONE(op, idx));
+  // TODO-EX: OPT build could potentially replace "&= ..." with just "= 0".
+  // This would be only for idx!=0, and may not work if there is a need
+  // to preserve any other bits in the event bytes (still TBD).
+  op->event[idx] &= ~EVENT_LIVE_MASK;
+}
+
+
+/*  Local Completion (LC) state (fixed to event[1]) */
+// Note: that an OPT build may not need this for COUNTED case
+#define LCSTATE_LIVE(op)   SET_EVENT_TYPE(op, 1, gasnete_event_type_lc)
+
 
 #if GASNET_DEBUG
   /* check an in-flight/complete eop */
   #define gasnete_eop_check(eop) do {                                \
-    gasnete_threaddata_t * _th;                                      \
     gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);                  \
-    gasneti_assert(EOPSTATE(eop) == EOPSTATE_INFLIGHT ||             \
-                   EOPSTATE(eop) == EOPSTATE_COMPLETE ||             \
-                   GASNETE_EOP_COUNTED);                             \
     gasnete_assert_valid_threadid((eop)->threadidx);                 \
-    _th = gasnete_threadtable[(eop)->threadidx];                     \
   } while (0)
   #define gasnete_iop_check(iop) do {                         \
     gasnete_iop_t *_tmp_next;                                 \
@@ -183,7 +181,7 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
     (gasnete_op_atomic_read(&(_eop)->completed_cnt, 0) \
           == ((_eop)->initiated_cnt & GASNETI_ATOMIC_MAX))
  #else // GASNETE_EOP_BOOLEAN
-  #define GASNETE_EOP_DONE(_eop) (EOPSTATE(_eop) == EOPSTATE_COMPLETE)
+  #define GASNETE_EOP_DONE(_eop) EVENT_DONE(_eop,0)
  #endif
 #endif
 
@@ -194,10 +192,7 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
       gasnete_op_atomic_increment(&((_eop)->completed_cnt), 0);  \
     } while (0)
  #else // GASNETE_EOP_BOOLEAN
-  #define GASNETE_EOP_MARKDONE(_eop) do {      \
-      gasneti_assert(!GASNETE_EOP_DONE(_eop)); \
-      SET_EOPSTATE((_eop), EOPSTATE_COMPLETE); \
-    } while (0)
+  #define GASNETE_EOP_MARKDONE(_eop) SET_EVENT_DONE(_eop,0)
  #endif
 #endif
 
@@ -218,7 +213,7 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
     (gasnete_op_atomic_read(&(_eop)->completed_alc, 0) \
           == ((_eop)->initiated_alc & GASNETI_ATOMIC_MAX))
  #else // GASNETE_EOP_BOOLEAN
-  #define GASNETE_EOP_LC(_eop) (LCSTATE(_eop) == LCSTATE_NONE)
+  #define GASNETE_EOP_LC(_eop) EVENT_DONE(_eop,1)
  #endif
 #endif
 
@@ -231,7 +226,7 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
  #else // GASNETE_EOP_BOOLEAN
   #define GASNETE_EOP_MARKLC(_eop) do {      \
       gasneti_assert(!GASNETE_EOP_LC(_eop)); \
-      SET_LCSTATE((_eop), LCSTATE_NONE); \
+      SET_EVENT_DONE((_eop),1);              \
     } while (0)
  #endif
 #endif
@@ -282,22 +277,17 @@ gasnete_eop_t *_gasnete_eop_new(gasnete_threaddata_t * const thread) {
   }
   {
     thread->eop_free = eop->next;
-    gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);
-    gasneti_assert(EOPSTATE(eop) == EOPSTATE_FREE);
-    gasneti_assert(LCSTATE(eop) ==  LCSTATE_NONE);
-    gasneti_assert(eop->threadidx == thread->threadidx);
   #if GASNET_DEBUG
-    // TODO-EX: this is used to assert "not-on-freelist" and should be encode differently
-    SET_EOPSTATE(eop, EOPSTATE_INFLIGHT);
-  #endif
-  #if GASNETE_EOP_COUNTED
-    gasneti_assert(GASNETE_EOP_DONE(eop));
-    gasneti_assert(GASNETE_EOP_LC(eop));
+    gasneti_assert(eop->threadidx == thread->threadidx); // TODO-EX: to be removed
+    gasneti_assert(eop->event[0] == gasnete_event_type_free);
+    eop->event[0] = gasnete_event_type_eop;
   #endif
   #ifdef _GASNETE_EOP_NEW_EXTRA
     // Hook for conduit-specific initializations and assertions
     _GASNETE_EOP_NEW_EXTRA(eop);
   #endif
+    gasneti_assert(GASNETE_EOP_DONE(eop));
+    gasneti_assert(GASNETE_EOP_LC(eop));
     return eop;
   }
 }
@@ -306,9 +296,7 @@ gasnete_eop_t *_gasnete_eop_new(gasnete_threaddata_t * const thread) {
 GASNETI_INLINE(gasnete_eop_new)
 gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
   gasnete_eop_t *eop = _gasnete_eop_new(thread);
-#if GASNETE_EOP_BOOLEAN
-  SET_EOPSTATE(eop, EOPSTATE_INFLIGHT);
-#endif
+  SET_EVENT_TYPE(eop, 0, gasnete_event_type_eop);
 #if GASNETE_EOP_COUNTED
   eop->initiated_cnt++;
 #endif
@@ -316,6 +304,7 @@ gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
   // Hook for conduit-specific initializations and assertions
   GASNETE_EOP_NEW_EXTRA(eop);
 #endif
+  gasneti_assert(! GASNETE_EOP_DONE(eop));
   return eop;
 }
 
@@ -328,21 +317,13 @@ int gasnete_eop_isdone(gasnete_eop_t *eop) {
 }
 
 /*  query an iop (returned from end_nbi_accessregion) for completeness -
- *  this always means both puts and gets, and may mean LC too */
+ *  this always means puts, gets and LC too */
 static
 int gasnete_iop_isdone(gasnete_iop_t *iop) {
   int result;
   gasneti_assert(iop->threadidx == gasnete_mythread()->threadidx);
   gasnete_iop_check(iop);
-  #if GASNET_DEBUG
-    if (LCSTATE(iop) == LCSTATE_LIVE) // TODO-EX: better wording?
-      gasneti_fatalerror("VIOLATION: attempted to call syncnb on an NBI access region handle before locally-complete");
-  #endif
-  result = (GASNETE_IOP_CNTDONE(iop,get) && GASNETE_IOP_CNTDONE(iop,put) &&
-            ((LCSTATE(iop) == LCSTATE_NONE) || GASNETE_IOP_LC(iop)));
-  #if GASNET_DEBUG
-    if (result) SET_LCSTATE(iop, LCSTATE_NONE);
-  #endif
+  result = (GASNETE_IOP_CNTDONE(iop,get) && GASNETE_IOP_CNTDONE(iop,put) && GASNETE_IOP_LC(iop));
   return result;
 }
 
@@ -374,7 +355,7 @@ void gasnete_eop_free(gasnete_eop_t *eop) {
   GASNETE_EOP_FREE_EXTRA(eop);
 #endif
 #if GASNET_DEBUG
-  SET_EOPSTATE(eop, EOPSTATE_FREE);
+  eop->event[0] = gasnete_event_type_free;
 #endif
   eop->next = thread->eop_free;
   thread->eop_free = eop;

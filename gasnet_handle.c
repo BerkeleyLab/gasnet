@@ -32,13 +32,18 @@ extern void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
       gasnete_eop_t *eop = (gasnete_eop_t *)((uintptr_t)buf + i*allocsz);
       eop->threadidx = threadidx;
       eop->next = (i==255) ? NULL: (gasnete_eop_t *)((uintptr_t)eop + allocsz);
-      #if 0 /* this can safely be skipped when the values are zero */
-       eop->event[0] = (OPTYPE_EXPLICIT | EOPSTATE_FREE);
-       eop->event[1] = 0;
-       #if GASNETE_EOP_COUNTED
+      #if GASNET_DEBUG
+        // Returns to type==free when on free list
+        eop->event[0] = gasnete_event_type_free;
+        eop->event[1] = gasnete_event_type_free;
+      #else
+        // Type==eop at all times
+        eop->event[0] = gasnete_event_type_eop;
+        eop->event[1] = gasnete_event_type_eop;
+      #endif
+      #if 0 && GASNETE_EOP_COUNTED /* safely skipped since the values are zero */
         eop->initiated_cnt = 0;
         eop->initiated_alc = 0;
-       #endif
       #endif
       #if GASNETE_EOP_COUNTED
         gasnete_op_atomic_set(&eop->completed_cnt, 0 , 0);
@@ -113,7 +118,6 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
       gasnete_op_atomic_set(&(iop->completed_get_cnt), 0, 0);
       gasnete_op_atomic_set(&(iop->completed_put_cnt), 0, 0);
     #endif
-    SET_LCSTATE(iop, LCSTATE_NONE);
   } else {
     iop = gasnete_iop_alloc(thread);
   }
@@ -135,7 +139,6 @@ void gasnete_iop_free(gasnete_iop_t *iop) {
   gasneti_assert(GASNETE_IOP_LC(iop));
   gasneti_assert(GASNETE_IOP_CNTDONE(iop,get));
   gasneti_assert(GASNETE_IOP_CNTDONE(iop,put));
-  gasneti_assert(LCSTATE(iop) == LCSTATE_NONE);
   gasneti_assert(iop->next == NULL);
 #ifdef GASNETE_IOP_FREE_EXTRA
   // Hook for conduit-specific cleanups and assertions
@@ -406,26 +409,13 @@ extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_handle_t *lc_opt,
   gasneti_assert(lc_opt != GASNETEX_EVENT_GROUP); // TODO-EX: allow this if we nest access region?
   if (GASNETE_IOP_LC(iop)) {
     if (lc_opt) gasneti_leaf_finish(lc_opt);
-    #if GASNET_DEBUG
-      SET_LCSTATE(iop, LCSTATE_NONE);
-    #endif
+  } else if (lc_opt == GASNETEX_EVENT_NOW) {
+    gasneti_polluntil(GASNETE_IOP_LC(iop));
+  } else if (lc_opt == GASNETEX_EVENT_DEFER) {
+    // Nothing to do - test/wait on the root event includes all leaves
   } else {
-    gasneti_assert(LCSTATE(iop) == LCSTATE_LIVE);
-    #if GASNET_DEBUG
-      if (lc_opt == NULL) // TODO-EX: better wording?
-        gasneti_fatalerror("VIOLATION: call to gasnete_end_nbi_accessregion(lc_opt==NULL,...) with local completion outstanding");
-    #endif
-    if (lc_opt == GASNETEX_EVENT_NOW) {
-      gasneti_polluntil(GASNETE_IOP_LC(iop));
-      #if GASNET_DEBUG
-        SET_LCSTATE(iop, LCSTATE_NONE);
-      #endif
-    } else if (lc_opt == GASNETEX_EVENT_DEFER) {
-      SET_LCSTATE(iop, LCSTATE_DEFER);
-    } else {
-      gasneti_assert(gasneti_leaf_is_pointer(lc_opt));
-      *lc_opt = (gasnetex_handle_t)iop;
-    }
+    gasneti_assert(gasneti_leaf_is_pointer(lc_opt));
+    *lc_opt = (gasnetex_handle_t)iop;
   }
 
   #if GASNET_DEBUG

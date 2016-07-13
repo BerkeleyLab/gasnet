@@ -25,25 +25,17 @@ static uintptr_t gasnete_mysegsize;
 */
 
 /*  local completion flag - valid only for ops which block for local-completion */
-GASNETI_INLINE(gasnete_op_read_lc)
-int gasnete_op_read_lc(gasnete_op_t *op) {
-  return (op->event[0] & OPFLAG_LC);
-}
-GASNETI_INLINE(gasnete_op_set_lc)
-void gasnete_op_set_lc(gasnete_op_t *op) {
-  op->event[0] |= OPFLAG_LC;
-}
-GASNETI_INLINE(gasnete_op_clr_lc)
-void gasnete_op_clr_lc(gasnete_op_t *op) {
-  op->event[0] &= ~OPFLAG_LC;
-}
+#define gasnete_op_read_lc(op) ((op)->event[1])
+#define gasnete_op_set_lc(op)  ((op)->event[1] = 1)
+#define gasnete_op_clr_lc(op)  ((op)->event[1] = 0)
 
 /* callbacks implementing subsets of gasnete_op_markdone */
 static void gasnete_cb_eop_done(pami_context_t context, void *cookie, pami_result_t status) {
   gasnete_eop_t *eop = (gasnete_eop_t *)cookie;
-  gasneti_assert(EOPSTATE(eop) == EOPSTATE_INFLIGHT);
+  gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);
+  gasneti_assert(! EVENT_DONE(eop, 0));
   /* gasnete_eop_check(eop);  XXX: conflicts w/ on-stack EOP used for blocking ops */
-  SET_EOPSTATE(eop, EOPSTATE_COMPLETE);
+  SET_EVENT_DONE(eop, 0);
   gasneti_assert(status == PAMI_SUCCESS);
 }
 static void gasnete_cb_iput_done(pami_context_t context, void *cookie, pami_result_t status) {
@@ -62,16 +54,11 @@ static void gasnete_cb_iget_done(pami_context_t context, void *cookie, pami_resu
 /* callback for local completion of a non-bulk put */
 static void gasnete_cb_op_lc(pami_context_t context, void *cookie, pami_result_t status) {
   gasnete_op_t *op = (gasnete_op_t *)cookie;
+  gasneti_assert(OPTYPE(op) != gasnete_event_type_free);
   if (OPTYPE(op) == OPTYPE_EXPLICIT) {
-    gasnete_eop_t *eop = (gasnete_eop_t *)op;
-    /* While rare, the REMOTE completion event might be processed before the LOCAL one.
-     * So, EOPSTATE_COMPLETE is a valid state here. */
-    gasneti_assert((EOPSTATE(eop) == EOPSTATE_INFLIGHT) ||
-                   (EOPSTATE(eop) == EOPSTATE_COMPLETE));
-    gasnete_eop_check(eop);
+    gasnete_eop_check((gasnete_eop_t *)op);
   } else {
-    gasnete_iop_t *iop = (gasnete_iop_t *)op;
-    gasnete_iop_check(iop);
+    gasnete_iop_check((gasnete_iop_t *)op);
   }
   gasneti_assert(! gasnete_op_read_lc(op));
   gasnete_op_set_lc(op);
@@ -241,7 +228,7 @@ void gasnete_put_common(gasnetex_rank_t rank, void *dest, void *src, size_t nbyt
     GASNETC_PAMI_UNLOCK(gasnetc_context);
 
     if (need_lc) {
-      gasneti_polluntil(GASNETT_PREDICT_TRUE(gasnete_op_read_lc((gasnete_op_t *)op)));
+      gasneti_polluntil(GASNETT_PREDICT_TRUE(gasnete_op_read_lc(op)));
     }
   } else
 #endif
@@ -271,7 +258,7 @@ void gasnete_put_common(gasnetex_rank_t rank, void *dest, void *src, size_t nbyt
     GASNETC_PAMI_UNLOCK(gasnetc_context);
 
     if (need_lc) {
-      gasneti_polluntil(GASNETT_PREDICT_TRUE(gasnete_op_read_lc((gasnete_op_t *)op)));
+      gasneti_polluntil(GASNETT_PREDICT_TRUE(gasnete_op_read_lc(op)));
     }
   }
 }
@@ -386,7 +373,10 @@ gasnetex_handle_t gasnete_put_nb(
     }
 
     gasnete_put_common(rank, dest, src, nbytes, (gasnete_op_t *)op, need_lc, 1);
-    gasneti_assert(!need_lc || gasnete_op_read_lc((gasnete_op_t *)op));
+    if (need_lc) {
+      gasneti_assert(gasnete_op_read_lc(op));
+      gasnete_op_clr_lc(op); /* reset LC flag for next time */
+    }
     return (gasnetex_handle_t)op;
   }
 }
@@ -448,13 +438,8 @@ int gasnete_put_nbi( gasnetex_team_member_t team,
 
     gasnete_put_common(rank, dest, src, nbytes, (gasnete_op_t *)op, need_lc, 0);
     if (need_lc) {
-      gasneti_assert(gasnete_op_read_lc((gasnete_op_t *)op));
-      /* reset LC flag for next time: */
-      #if 0
-        gasnete_op_clr_lc((gasnete_op_t *)op));
-      #else
-        op->event[0] = OPTYPE_IMPLICIT; /* Should be cheaper than r-m-w */
-      #endif
+      gasneti_assert(gasnete_op_read_lc(op));
+      gasnete_op_clr_lc(op); /* reset LC flag for next time */
     }
 
     return 0;
@@ -477,9 +462,9 @@ int gasnete_get(     gasnetex_team_member_t team,
 {
   GASNETI_CHECKPSHM_GET(I);
   {
-    volatile gasnete_eop_t op = { EOPSTATE_INFLIGHT, };
+    volatile gasnete_eop_t op = { 0x80|gasnete_event_type_eop, };
     gasnete_get_common(dest, rank, src, nbytes, (gasnete_op_t *)&op, 1);
-    gasneti_polluntil(op.flags == EOPSTATE_COMPLETE);
+    gasneti_polluntil( EVENT_DONE(&op, 0) );
     return 0;
   }
 }
@@ -495,9 +480,9 @@ int gasnete_put(     gasnetex_team_member_t team,
 {
   GASNETI_CHECKPSHM_PUT_NOLC(I);
   {
-    volatile gasnete_eop_t op = { EOPSTATE_INFLIGHT, };
+    volatile gasnete_eop_t op = { 0x80|gasnete_event_type_eop, };
     gasnete_put_common(rank, dest, src, nbytes, (gasnete_op_t *)&op, 0, 1);
-    gasneti_polluntil(op.flags == EOPSTATE_COMPLETE);
+    gasneti_polluntil( EVENT_DONE(&op, 0) );
     return 0;
   }
 }   
