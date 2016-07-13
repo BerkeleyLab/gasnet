@@ -25,6 +25,26 @@
 #  define GASNETE_EOP_COUNTED 0
 #endif
 
+#if defined(GASNETE_LC_COUNTED)
+#  ifdef GASNETE_LC_BOOLEAN
+#    error "Only one of GASNETE_LC_COUNTED or GASNETE_LC_BOOLEAN may be defined"
+#  endif
+#  undef GASNETE_LC_COUNTED
+#  define GASNETE_LC_COUNTED 1
+#  define GASNETE_LC_BOOLEAN 0
+#  define GASNETE_HAVE_LC 1
+#elif defined(GASNETE_LC_BOOLEAN)
+#  undef GASNETE_LC_BOOLEAN
+#  define GASNETE_LC_BOOLEAN 1
+#  define GASNETE_LC_COUNTED 0
+#  define GASNETE_HAVE_LC 1
+#else // Default is NO local completion
+#  define GASNETE_IOP_LC(iop) 1
+#  define GASNETE_EOP_LC(eop) 1
+#  define GASNETE_EOP_MARKLC(op)  ERROR
+#  define GASNETE_HAVE_LC 0
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 
 /* Conduit may optionally choose the atomic type for counters */
@@ -57,6 +77,8 @@ typedef struct _gasnete_eop_t {
   #if GASNETE_EOP_COUNTED
   gasnete_op_atomic_val_t initiated_cnt;
   gasnete_op_atomic_t     completed_cnt;
+  #endif
+  #if GASNETE_LC_COUNTED
   gasnete_op_atomic_val_t initiated_alc;
   gasnete_op_atomic_t     completed_alc;
   #endif
@@ -69,16 +91,24 @@ typedef struct _gasnete_iop_t {
   uint8_t event[GASNETE_OP_EVENTS];
   gasnete_threadidx_t threadidx;  /*  thread that owns me */
   //----------------------------------
+#if GASNETE_HAVE_LC
   gasnete_op_atomic_val_t initiated_alc_cnt;     /*  count of ops initiated with async local completion */
+#endif
   gasnete_op_atomic_val_t initiated_get_cnt;     /*  count of get ops initiated */
   gasnete_op_atomic_val_t initiated_put_cnt;     /*  count of put ops initiated */
 
   struct _gasnete_iop_t *next;    /*  next cell while in free list, deferred iop while being filled */
 
   /*  make sure the corresponding initiated/completed counters live on different cache lines for SMP's */
+#if GASNETE_HAVE_LC
   uint8_t pad[GASNETI_CACHE_PAD(sizeof(void*) + 3*sizeof(gasnete_op_atomic_val_t))];
+#else
+  uint8_t pad[GASNETI_CACHE_PAD(sizeof(void*) + 2*sizeof(gasnete_op_atomic_val_t))];
+#endif
 
+#if GASNETE_HAVE_LC
   gasnete_op_atomic_t completed_alc_cnt;     /*  count of async-lc ops completed */
+#endif
   gasnete_op_atomic_t completed_get_cnt;     /*  count of get ops completed */
   gasnete_op_atomic_t completed_put_cnt;     /*  count of put ops completed */
 
@@ -197,18 +227,12 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
 #endif
 
 
-#if 0 // TODO-EX: example for conduits w/o LC to "opt-out" (place in gasnet_internal_fwd.h)
-#define GASNETE_IOP_LC(iop) 1
-#define GASNETE_EOP_LC(eop) 1
-#define GASNETE_EOP_MARKLC(eop)  ERROR
-#endif
-
 #ifndef GASNETE_IOP_LC
 #define GASNETE_IOP_LC(_iop) GASNETE_IOP_CNTDONE(_iop,alc)
 #endif
 
 #ifndef GASNETE_EOP_LC
- #if GASNETE_EOP_COUNTED
+ #if GASNETE_LC_COUNTED
   #define GASNETE_EOP_LC(_eop) \
     (gasnete_op_atomic_read(&(_eop)->completed_alc, 0) \
           == ((_eop)->initiated_alc & GASNETI_ATOMIC_MAX))
@@ -218,7 +242,7 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
 #endif
 
 #ifndef GASNETE_EOP_MARKLC
- #if GASNETE_EOP_COUNTED
+ #if GASNETE_LC_COUNTED
   #define GASNETE_EOP_MARKLC(_eop) do {                        \
       gasneti_assert(!GASNETE_EOP_LC(_eop));                   \
       gasnete_op_atomic_increment(&((_eop)->completed_alc), 0);\

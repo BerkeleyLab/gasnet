@@ -41,12 +41,12 @@ extern void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
         eop->event[0] = gasnete_event_type_eop;
         eop->event[1] = gasnete_event_type_eop;
       #endif
-      #if 0 && GASNETE_EOP_COUNTED /* safely skipped since the values are zero */
-        eop->initiated_cnt = 0;
-        eop->initiated_alc = 0;
-      #endif
       #if GASNETE_EOP_COUNTED
+        // eop->initiated_cnt = 0;  redundant due to calloc()
         gasnete_op_atomic_set(&eop->completed_cnt, 0 , 0);
+      #endif
+      #if GASNETE_LC_COUNTED
+        // eop->initiated_alc = 0;  redundant due to calloc()
         gasnete_op_atomic_set(&eop->completed_alc, 0 , 0);
       #endif
       #ifdef GASNETE_EOP_ALLOC_EXTRA
@@ -87,12 +87,14 @@ static gasnete_iop_t *gasnete_iop_alloc(gasnete_threaddata_t * const thread)) {
     #endif
     iop->event[0] = OPTYPE_IMPLICIT;
     iop->threadidx = thread->threadidx;
-    iop->initiated_alc_cnt = 0;
     iop->initiated_get_cnt = 0;
     iop->initiated_put_cnt = 0;
-    gasnete_op_atomic_set(&(iop->completed_alc_cnt), 0, 0);
     gasnete_op_atomic_set(&(iop->completed_get_cnt), 0, 0);
     gasnete_op_atomic_set(&(iop->completed_put_cnt), 0, 0);
+  #if GASNETE_HAVE_LC
+    iop->initiated_alc_cnt = 0;
+    gasnete_op_atomic_set(&(iop->completed_alc_cnt), 0, 0);
+  #endif
   #ifdef GASNETE_IOP_ALLOC_EXTRA
     // Hook for conduit-specific initializations and assertions
     GASNETE_IOP_ALLOC_EXTRA(iop);
@@ -111,10 +113,8 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
     gasneti_assert(iop->threadidx == thread->threadidx);
     /* If using trace or stats, want meaningful counts when tracing NBI access regions */
     #if GASNETI_STATS_OR_TRACE
-      iop->initiated_alc_cnt = 0;
       iop->initiated_get_cnt = 0;
       iop->initiated_put_cnt = 0;
-      gasnete_op_atomic_set(&(iop->completed_alc_cnt), 0, 0);
       gasnete_op_atomic_set(&(iop->completed_get_cnt), 0, 0);
       gasnete_op_atomic_set(&(iop->completed_put_cnt), 0, 0);
     #endif
@@ -230,12 +230,14 @@ int gasnete_op_try_free(gasnetex_handle_t handle) {
       }
       break;
 
+#if GASNETE_HAVE_LC
     case 1: // LC only
       if (GASNETE_EOP_LC(eop)) {
         gasneti_compiler_fence(); // TODO-EX: revisit this
         return 1;
       }
       break;
+#endif
 
     #if 0
     default:

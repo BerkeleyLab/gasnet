@@ -83,4 +83,8 @@ extern void _gasnetc_set_waitmode(int wait_mode);
    could in theory leave at 0 when SPAWNFN='L' */
 #define GASNETC_DEFAULT_NODEMAP_EXACT 1
 
+/* Configure gasnet_handle.[ch] */
+// TODO-EX: prefix needs to move from "extended" to "core"
+#define GASNETE_EOP_BOOLEAN 1
+
 #endif

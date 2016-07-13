@@ -136,6 +136,7 @@ typedef enum {
 /* Configure gasnet_handle.[ch] */
 // TODO-EX: prefix needs to move from "extended" to "core"
 #define GASNETE_EOP_COUNTED 1
+#define GASNETE_LC_COUNTED 1
 #define gasnete_op_atomic_(_id) gasnetc_atomic_##_id
 
 /* ------------------------------------------------------------------------------------ */

@@ -47,16 +47,12 @@ typedef enum {
 /* ------------------------------------------------------------------------------------ */
 /* Configure gasnet_handle.[ch] */
 // TODO-EX: prefix needs to move from "extended" to "core"
+#define GASNETE_EOP_BOOLEAN
 
 // Using event[1] as a raw boolen w/o the type information, but
 // this is just for EVENT_NOW behavior - NOT lc_opt=ptr.
 #define _GASNETE_EOP_NEW_EXTRA(eop) gasneti_assert(! (eop)->event[1])
 #define GASNETE_IOP_NEW_EXTRA(iop)  gasneti_assert(! (iop)->event[1])
-
-// TODO-EX: no LC implementation yet:
-#define GASNETE_IOP_LC(iop) 1
-#define GASNETE_EOP_LC(eop) 1
-#define GASNETE_EOP_MARKLC(op)  ERROR
 
 /* ------------------------------------------------------------------------------------ */
 
