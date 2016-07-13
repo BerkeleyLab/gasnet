@@ -4,6 +4,10 @@
  * Terms of use are as specified in license.txt
  */
 
+#if _FORTIFY_SOURCE > 0 && __OPTIMIZE__ <= 0 /* silence an annoying MPICH/Linux warning */
+#undef _FORTIFY_SOURCE
+#endif
+
 #include <mpi.h>
 
 #define TEST_MPI 1
