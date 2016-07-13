@@ -128,7 +128,7 @@ typedef uintptr_t gasnetex_register_value_t;
 //
 //   The Medium and Long Requests accept the pre-defined constant values
 //   GASNETEX_EVENT_NOW and GASNETEX_EVENT_GROUP, and pointers to variables of
-//   type 'gasnetex_handle_t'.  The INIT constant requires that the
+//   type 'gasnetex_handle_t'.  The NOW constant requires that the
 //   Request call not return until after local completion.  The GROUP
 //   constant allows the Request call to return without delaying for local
 //   completion and adds the AM operation to the set of operations for
@@ -215,8 +215,8 @@ int gasnetex_AMReplyShortM(
 //   Implicit-handle non-blocking Puts have an 'lc_opt' argument which
 //   controls the behavior with respect to local completion.  The value can
 //   be the pre-defined constants GASNETEX_EVENT_NOW, GASNETEX_EVENT_DEFER, or
-//   GASNETEX_EVENT_GROUP.  The INIT constant requires that the call not
-//   return until the operation is locally complete.  The SYNC constant
+//   GASNETEX_EVENT_GROUP.  The NOW constant requires that the call not
+//   return until the operation is locally complete.  The DEFER constant
 //   permits the call to return without delaying for local completion,
 //   which may occur as late as in the call which syncs (retires) the
 //   operation (which might be an syncnb call if this call is within an nbi
@@ -230,9 +230,9 @@ int gasnetex_AMReplyShortM(
 //   Explicit-handle non-blocking Puts have an 'lc_opt' argument which
 //   controls the behavior with respect to local completion.  The value can
 //   be the pre-defined constants GASNETEX_EVENT_NOW or GASNETEX_EVENT_DEFER, or
-//   a pointer to a variable of type 'gasnetex_handle_t'.  The INIT
+//   a pointer to a variable of type 'gasnetex_handle_t'.  The NOW
 //   constant requires that the call not return until the operation is
-//   locally complete.  The SYNC constant permits the call to return
+//   locally complete.  The DEFER constant permits the call to return
 //   without delaying for local completion, which may occur as late as in
 //   the call which syncs (retires) the returned handle.  Use of a pointer
 //   to a variable of type 'gasnetex_handle_t' allows the call to return
