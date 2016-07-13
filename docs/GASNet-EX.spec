@@ -3,7 +3,7 @@
 // drafting of what may become the normative text.
 
 // A "handle" is an opaque scalar type
-// - Sync operation: test/try/wait w/ one/all/some flavors
+// - Sync operation: test/wait w/ one/all/some flavors
 //   + Success consumes the handle
 struct gasneti_handle_t;
 typedef struct gasneti_handle_t *gasnetex_handle_t;
@@ -12,7 +12,7 @@ typedef struct gasneti_handle_t *gasnetex_handle_t;
 // - GASNETEX_INVALID_HANDLE
 //   + result for already-completed operation
 // - GASNETEX_NO_OP_HANDLE
-//   + Erroneous to pass this value to syncnb operations
+//   + Erroneous to pass this value to test/wait operations
 #define GASNETEX_INVALID_HANDLE      ((gasnetex_handle_t)(uintptr_t)0)
 #define GASNETEX_NO_OP_HANDLE        ((gasnetex_handle_t)(uintptr_t)1)
 
@@ -139,7 +139,7 @@ typedef uintptr_t gasnetex_register_value_t;
 //
 //   The 'lc_opt' argument to Medium and Long Reply calls behave as for the
 //   Requests with the exception that GASNETEX_EVENT_GROUP is *not* permitted.
-//   It is also important to note that it is not legal to "test", "try" or
+//   It is also important to note that it is not legal to "test", or
 //   "wait" on a 'gasnetex_handle_t' in AM handler context.
 //   [TBD: we *could* allow handlers to make bounded calls to "test", which
 //   does not Poll, if we wanted to.]
@@ -219,7 +219,7 @@ int gasnetex_AMReplyShortM(
 //   return until the operation is locally complete.  The DEFER constant
 //   permits the call to return without delaying for local completion,
 //   which may occur as late as in the call which syncs (retires) the
-//   operation (which might be an syncnb call if this call is within an nbi
+//   operation (could be an explicit-handle call if using an nbi
 //   access region).  The GROUP constant allows the Request call to return
 //   without delaying for local completion and adds the Put operation to
 //   the set of operations for which the "LCnbi" calls [NAMES TBD] will
@@ -333,7 +333,7 @@ gasnetex_handle_t gasnetex_put_nb_val(
 //     Before returning, block for local completion of ops in the
 //     region wich passed GASNETEX_EVENT_GROUP.
 //   + GASNETEX_EVENT_DEFER
-//     Will "fold" the local completion test into the syncnb on the
+//     Will "fold" the local completion test into the test/wait on the
 //     returned handle, as if EVENT_DEFER had been provided in place of
 //     EVENT_GROUP for all calls within the access region.
 //   + A valid pointer to a gasentex_handle_t
