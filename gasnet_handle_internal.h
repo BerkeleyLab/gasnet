@@ -203,8 +203,9 @@ void SET_EOPSTATE(gasnete_eop_t *op, uint8_t state) {
 
 
 #if 0 // TODO-EX: example for conduits w/o LC to "opt-out" (place in gasnet_internal_fwd.h)
-#define GASNETE_IOP_LC(_iop) 1
-#define GASNETE_EOP_LC(_iop) 1
+#define GASNETE_IOP_LC(iop) 1
+#define GASNETE_EOP_LC(eop) 1
+#define GASNETE_EOP_MARKLC(eop)  ERROR
 #endif
 
 #ifndef GASNETE_IOP_LC
