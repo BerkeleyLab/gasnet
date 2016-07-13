@@ -22,6 +22,10 @@
 #include <rdma/fi_cm.h>
 #include <rdma/fi_errno.h>
 
+#if HAVE_SYS_UIO_H
+#include <sys/uio.h> /* For struct iovec */
+#endif
+
 #define USE_AV_MAP 0
 static addr_table_t  *addr_table;
 #if USE_AV_MAP
