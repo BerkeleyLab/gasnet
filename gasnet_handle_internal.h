@@ -40,9 +40,10 @@
 #  define GASNETE_LC_COUNTED 0
 #  define GASNETE_HAVE_LC 1
 #else // Default is NO local completion
-#  define GASNETE_IOP_LC(iop) 1
-#  define GASNETE_EOP_LC(eop) 1
-#  define GASNETE_EOP_MARKLC(op)  ERROR
+#  define GASNETE_IOP_LC_DONE(op) 1
+#  define GASNETE_EOP_LC_DONE(op) 1
+#  define GASNETE_IOP_LC_FINISH(op)  ERROR
+#  define GASNETE_EOP_LC_FINISH(op)  ERROR
 #  define GASNETE_HAVE_LC 0
 #endif
 
@@ -133,6 +134,7 @@ enum {
   gasnete_event_type_free = 0,
   gasnete_event_type_eop,
   gasnete_event_type_lc,
+  gasnete_event_type_lc_now,
 #ifdef GASNETE_CONDUIT_EVENT_TYPES
   GASNETE_CONDUIT_EVENT_TYPES
 #endif
@@ -167,11 +169,6 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
   // to preserve any other bits in the event bytes (still TBD).
   op->event[idx] &= ~EVENT_LIVE_MASK;
 }
-
-
-/*  Local Completion (LC) state (fixed to event[1]) */
-// Note: that an OPT build may not need this for COUNTED case
-#define LCSTATE_LIVE(op)   SET_EVENT_TYPE(op, 1, gasnete_event_type_lc)
 
 
 #if GASNET_DEBUG
@@ -228,33 +225,52 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
 #endif
 
 
-#ifndef GASNETE_IOP_LC
-#define GASNETE_IOP_LC(_iop) GASNETE_IOP_CNTDONE(_iop,alc)
-#endif
+// event:lc - for local-completion of Put/Med/Long with lc_opt = pointer
+// Note: that an OPT build may not need "START" for COUNTED case
+#define GASNETE_LC_START(op)   SET_EVENT_TYPE(op, 1, gasnete_event_type_lc)
 
-#ifndef GASNETE_EOP_LC
- #if GASNETE_LC_COUNTED
-  #define GASNETE_EOP_LC(_eop) \
-    (gasnete_op_atomic_read(&(_eop)->completed_alc, 0) \
-          == ((_eop)->initiated_alc & GASNETI_ATOMIC_MAX))
- #else // GASNETE_EOP_BOOLEAN
-  #define GASNETE_EOP_LC(_eop) EVENT_DONE(_eop,1)
- #endif
+// event:lc - FINISH operations on IOP and EOP
+#ifndef GASNETE_IOP_LC_FINISH
+  #define GASNETE_IOP_LC_FINISH(_eop) do {                         \
+      gasneti_assert(!GASNETE_IOP_LC_DONE(_eop));                       \
+      gasnete_op_atomic_increment(&((_eop)->completed_alc_cnt), 0);\
+    } while (0)
 #endif
-
-#ifndef GASNETE_EOP_MARKLC
+#ifndef GASNETE_EOP_LC_FINISH
  #if GASNETE_LC_COUNTED
-  #define GASNETE_EOP_MARKLC(_eop) do {                        \
-      gasneti_assert(!GASNETE_EOP_LC(_eop));                   \
+  #define GASNETE_EOP_LC_FINISH(_eop) do {                     \
+      gasneti_assert(!GASNETE_EOP_LC_DONE(_eop));                   \
       gasnete_op_atomic_increment(&((_eop)->completed_alc), 0);\
     } while (0)
  #else // GASNETE_EOP_BOOLEAN
-  #define GASNETE_EOP_MARKLC(_eop) do {      \
-      gasneti_assert(!GASNETE_EOP_LC(_eop)); \
-      SET_EVENT_DONE((_eop),1);              \
-    } while (0)
+  #define GASNETE_EOP_LC_FINISH(_eop) SET_EVENT_DONE((_eop),1)
  #endif
 #endif
+
+// event:lc - DONE queries on IOP and EOP
+#ifndef GASNETE_IOP_LC_DONE
+  #define GASNETE_IOP_LC_DONE(_iop) GASNETE_IOP_CNTDONE(_iop,alc)
+#endif
+#ifndef GASNETE_EOP_LC_DONE
+ #if GASNETE_LC_COUNTED
+  #define GASNETE_EOP_LC_DONE(_eop) \
+    (gasnete_op_atomic_read(&(_eop)->completed_alc, 0) \
+          == ((_eop)->initiated_alc & GASNETI_ATOMIC_MAX))
+ #else // GASNETE_EOP_BOOLEAN
+  #define GASNETE_EOP_LC_DONE(_eop) EVENT_DONE(_eop,1)
+ #endif
+#endif
+
+
+// event:lc_now - for local-completion of Put/Med/Long with lc_opt = EVENT_NOW.
+// This can be applied to *either* EOP or IOP, since the call with EVENT_NOW
+// must block until the event has been signaled.  Additionally, this can co-exist
+// with event:lc (both using event[1]) since they are per-operation mutually
+// exclusive.
+// This pre-defined event has no counted variant.
+#define GASNETE_LC_NOW_START(op)   SET_EVENT_TYPE(op, 1, gasnete_event_type_lc_now)
+#define GASNETE_LC_NOW_FINISH(op)  SET_EVENT_DONE(op, 1)
+#define GASNETE_LC_NOW_DONE(op)    EVENT_DONE(op, 1)
 
 
 // Extract root (op) and index from any handle
@@ -312,7 +328,7 @@ gasnete_eop_t *_gasnete_eop_new(gasnete_threaddata_t * const thread) {
     _GASNETE_EOP_NEW_EXTRA(eop);
   #endif
     gasneti_assert(GASNETE_EOP_DONE(eop));
-    gasneti_assert(GASNETE_EOP_LC(eop));
+    gasneti_assert(GASNETE_EOP_LC_DONE(eop));
     return eop;
   }
 }
@@ -348,7 +364,7 @@ int gasnete_iop_isdone(gasnete_iop_t *iop) {
   int result;
   gasneti_assert(iop->threadidx == gasnete_mythread()->threadidx);
   gasnete_iop_check(iop);
-  result = (GASNETE_IOP_CNTDONE(iop,get) && GASNETE_IOP_CNTDONE(iop,put) && GASNETE_IOP_LC(iop));
+  result = (GASNETE_IOP_CNTDONE(iop,get) && GASNETE_IOP_CNTDONE(iop,put) && GASNETE_IOP_LC_DONE(iop));
   return result;
 }
 
@@ -374,7 +390,7 @@ void gasnete_eop_free(gasnete_eop_t *eop) {
   gasneti_assert(thread == gasnete_mythread());
   gasnete_eop_check(eop);
   gasneti_assert(GASNETE_EOP_DONE(eop));
-  gasneti_assert(GASNETE_EOP_LC(eop));
+  gasneti_assert(GASNETE_EOP_LC_DONE(eop));
 #ifdef GASNETE_EOP_FREE_EXTRA
   // Hook for conduit-specific cleanups and assertions
   GASNETE_EOP_FREE_EXTRA(eop);

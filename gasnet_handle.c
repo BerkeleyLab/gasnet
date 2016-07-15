@@ -136,7 +136,7 @@ void gasnete_iop_free(gasnete_iop_t *iop) {
   gasnete_threaddata_t * const thread = gasnete_threadtable[iop->threadidx];
   gasneti_assert(thread == gasnete_mythread());
   gasnete_iop_check(iop);
-  gasneti_assert(GASNETE_IOP_LC(iop));
+  gasneti_assert(GASNETE_IOP_LC_DONE(iop));
   gasneti_assert(GASNETE_IOP_CNTDONE(iop,get));
   gasneti_assert(GASNETE_IOP_CNTDONE(iop,put));
   gasneti_assert(iop->next == NULL);
@@ -222,7 +222,7 @@ int gasnete_op_try_free(gasnetex_handle_t handle) {
 
     switch (gasneti_handle_idx(handle)) {
     case 0: // Root
-      if (GASNETE_EOP_DONE(eop) && GASNETE_EOP_LC(eop)) {
+      if (GASNETE_EOP_DONE(eop) && GASNETE_EOP_LC_DONE(eop)) {
         // TODO-EX: more work to be done for the generalized events 2 through 5
         gasneti_sync_reads();
         gasnete_eop_free(eop);
@@ -232,7 +232,7 @@ int gasnete_op_try_free(gasnetex_handle_t handle) {
 
 #if GASNETE_HAVE_LC
     case 1: // LC only
-      if (GASNETE_EOP_LC(eop)) {
+      if (GASNETE_EOP_LC_DONE(eop)) {
         gasneti_compiler_fence(); // TODO-EX: revisit this
         return 1;
       }
@@ -354,7 +354,7 @@ extern int  gasnete_test_syncnbi_puts(GASNETI_THREAD_FARG_ALONE) {
   #endif
 
     // If any put_nbi calls passed EVENT_DEFER then we need to complete their LC too.
-    if (GASNETE_IOP_CNTDONE(iop,put) && GASNETE_IOP_LC(iop)) {
+    if (GASNETE_IOP_CNTDONE(iop,put) && GASNETE_IOP_LC_DONE(iop)) {
       gasneti_sync_reads(); // TODO-EX: revisit this
       return GASNET_OK;
     } else return GASNET_ERR_NOT_READY;
@@ -373,7 +373,7 @@ extern int gasnete_test_syncnbi_lc (GASNETI_THREAD_FARG_ALONE) {
       gasneti_fatalerror("VIOLATION: attempted to call gasnete_test_lc_group() inside an NBI access region");
   #endif
 
-    if (GASNETE_IOP_LC(iop)) {
+    if (GASNETE_IOP_LC_DONE(iop)) {
       gasneti_compiler_fence(); // TODO-EX: revisit this
       return GASNET_OK;
     } else return GASNET_ERR_NOT_READY;
@@ -409,10 +409,10 @@ extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_handle_t *lc_opt,
   GASNETI_TRACE_EVENT_VAL(S,END_NBI_ACCESSREGION,iop->initiated_get_cnt + iop->initiated_put_cnt);
 
   gasneti_assert(lc_opt != GASNETEX_EVENT_GROUP); // TODO-EX: allow this if we nest access region?
-  if (GASNETE_IOP_LC(iop)) {
+  if (GASNETE_IOP_LC_DONE(iop)) {
     if (lc_opt) gasneti_leaf_finish(lc_opt);
   } else if (lc_opt == GASNETEX_EVENT_NOW) {
-    gasneti_polluntil(GASNETE_IOP_LC(iop));
+    gasneti_polluntil(GASNETE_IOP_LC_DONE(iop));
   } else if (lc_opt == GASNETEX_EVENT_DEFER) {
     // Nothing to do - test/wait on the root event includes all leaves
   } else {

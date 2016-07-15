@@ -24,11 +24,6 @@ static uintptr_t gasnete_mysegsize;
   ==============================
 */
 
-/*  local completion flag - valid only for ops which block for local-completion */
-#define gasnete_op_read_lc(op) ((op)->event[1])
-#define gasnete_op_set_lc(op)  ((op)->event[1] = 1)
-#define gasnete_op_clr_lc(op)  ((op)->event[1] = 0)
-
 /* callbacks implementing subsets of gasnete_op_markdone */
 static void gasnete_cb_eop_done(pami_context_t context, void *cookie, pami_result_t status) {
   gasnete_eop_t *eop = (gasnete_eop_t *)cookie;
@@ -51,17 +46,16 @@ static void gasnete_cb_iget_done(pami_context_t context, void *cookie, pami_resu
   gasneti_assert(status == PAMI_SUCCESS);
 }
 
-/* callback for local completion of a non-bulk put */
+/* callback for syncronous local completion of a non-bulk put */
 static void gasnete_cb_op_lc(pami_context_t context, void *cookie, pami_result_t status) {
   gasnete_op_t *op = (gasnete_op_t *)cookie;
-  gasneti_assert(OPTYPE(op) != gasnete_event_type_free);
   if (OPTYPE(op) == OPTYPE_EXPLICIT) {
     gasnete_eop_check((gasnete_eop_t *)op);
   } else {
+    gasneti_assert(OPTYPE(op) == OPTYPE_IMPLICIT);
     gasnete_iop_check((gasnete_iop_t *)op);
   }
-  gasneti_assert(! gasnete_op_read_lc(op));
-  gasnete_op_set_lc(op);
+  GASNETE_LC_NOW_FINISH(op);
   gasneti_assert(status == PAMI_SUCCESS);
 }
 
@@ -226,10 +220,6 @@ void gasnete_put_common(gasnetex_rank_t rank, void *dest, void *src, size_t nbyt
       GASNETC_PAMI_CHECK_ADVANCE(rc, "advancing PAMI_Rput");
     }
     GASNETC_PAMI_UNLOCK(gasnetc_context);
-
-    if (need_lc) {
-      gasneti_polluntil(GASNETT_PREDICT_TRUE(gasnete_op_read_lc(op)));
-    }
   } else
 #endif
   {
@@ -256,10 +246,6 @@ void gasnete_put_common(gasnetex_rank_t rank, void *dest, void *src, size_t nbyt
       GASNETC_PAMI_CHECK_ADVANCE(rc, "advancing PAMI_Put");
     }
     GASNETC_PAMI_UNLOCK(gasnetc_context);
-
-    if (need_lc) {
-      gasneti_polluntil(GASNETT_PREDICT_TRUE(gasnete_op_read_lc(op)));
-    }
   }
 }
 
@@ -366,6 +352,7 @@ gasnetex_handle_t gasnete_put_nb(
       gasneti_fatalerror("Put_nb(lc_opt pointer) unimplemented"); // TODO-EX: fix this
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
       need_lc = 1;
+      GASNETE_LC_NOW_START(op);
     } else if (lc_opt == GASNETEX_EVENT_DEFER) {
       need_lc = 0;
     } else {
@@ -374,9 +361,9 @@ gasnetex_handle_t gasnete_put_nb(
 
     gasnete_put_common(rank, dest, src, nbytes, (gasnete_op_t *)op, need_lc, 1);
     if (need_lc) {
-      gasneti_assert(gasnete_op_read_lc(op));
-      gasnete_op_clr_lc(op); /* reset LC flag for next time */
+      gasneti_polluntil(GASNETT_PREDICT_TRUE(GASNETE_LC_NOW_DONE(op)));
     }
+
     return (gasnetex_handle_t)op;
   }
 }
@@ -427,9 +414,10 @@ int gasnete_put_nbi( gasnetex_team_member_t team,
     op->initiated_put_cnt++;
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
-      gasneti_fatalerror("Put_nb(lc_opt pointer) unimplemented"); // TODO-EX: fix this
+      gasneti_fatalerror("Put_nbi(lc_opt pointer) unimplemented"); // TODO-EX: fix this
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
       need_lc = 1;
+      GASNETE_LC_NOW_START(op);
     } else if (lc_opt == GASNETEX_EVENT_DEFER) {
       need_lc = 0;
     } else {
@@ -438,8 +426,7 @@ int gasnete_put_nbi( gasnetex_team_member_t team,
 
     gasnete_put_common(rank, dest, src, nbytes, (gasnete_op_t *)op, need_lc, 0);
     if (need_lc) {
-      gasneti_assert(gasnete_op_read_lc(op));
-      gasnete_op_clr_lc(op); /* reset LC flag for next time */
+      gasneti_polluntil(GASNETT_PREDICT_TRUE(GASNETE_LC_NOW_DONE(op)));
     }
 
     return 0;
