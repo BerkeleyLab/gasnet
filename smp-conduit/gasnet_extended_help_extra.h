@@ -125,6 +125,10 @@ int gasnete_syncnbi(GASNETI_THREAD_FARG_ALONE)
 #define gasnete_wait_syncnbi_gets gasnete_syncnbi
 #define gasnete_wait_syncnbi_puts gasnete_syncnbi
 
+// TODO-EX: remove these and replace with ..._syncnbi(type)
+#define gasnete_test_syncnbi_lc   gasnete_syncnbi
+#define gasnete_wait_syncnbi_lc   gasnete_syncnbi
+
 GASNETI_INLINE(gasnete_begin_nbi_accessregion)
 void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecursion GASNETI_THREAD_FARG)
 { /* empty */ }
