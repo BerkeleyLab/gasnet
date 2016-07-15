@@ -1,5 +1,11 @@
 GASNet ChangeLog 
 ----------------
+----------------------------------------------------------------------
+xx-xx-2016 : Release 1.2x.x
+
+  - GASNet now requires that the backend C compilers provided to configure ($CC
+    and $MPI_CC, if provided) must support a few widely-implemented C99 features.
+    See bug 3307 for details.
 
 ----------------------------------------------------------------------
 05-23-2016 :  Release 1.26.3
