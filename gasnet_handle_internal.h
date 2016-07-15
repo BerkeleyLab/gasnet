@@ -11,7 +11,6 @@
 
 /* ------------------------------------------------------------------------------------ */
 
-// TODO-EX: remove default?
 #if defined(GASNETE_EOP_COUNTED)
 #  ifdef GASNETE_EOP_BOOLEAN
 #    error "Only one of GASNETE_EOP_COUNTED or GASNETE_EOP_BOOLEAN may be defined"
@@ -19,10 +18,12 @@
 #  undef GASNETE_EOP_COUNTED
 #  define GASNETE_EOP_COUNTED 1
 #  define GASNETE_EOP_BOOLEAN 0
-#else
+#elif defined(GASNETE_EOP_BOOLEAN)
 #  undef GASNETE_EOP_BOOLEAN
 #  define GASNETE_EOP_BOOLEAN 1
 #  define GASNETE_EOP_COUNTED 0
+#elif !GASNETI_DISABLE_REFERENCE_EOP
+#  error "Conduit must define either GASNETE_EOP_COUNTED or GASNETE_EOP_BOOLEAN"
 #endif
 
 #if defined(GASNETE_LC_COUNTED)
