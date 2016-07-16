@@ -35,11 +35,9 @@ extern void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
       #if GASNET_DEBUG
         // Returns to type==free when on free list
         eop->event[0] = gasnete_event_type_free;
-        eop->event[1] = gasnete_event_type_free;
       #else
         // Type==eop at all times
         eop->event[0] = gasnete_event_type_eop;
-        eop->event[1] = gasnete_event_type_eop;
       #endif
       #if GASNETE_EOP_COUNTED
         // eop->initiated_cnt = 0;  redundant due to calloc()
