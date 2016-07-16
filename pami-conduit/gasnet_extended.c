@@ -46,7 +46,7 @@ static void gasnete_cb_iget_done(pami_context_t context, void *cookie, pami_resu
   gasneti_assert(status == PAMI_SUCCESS);
 }
 
-/* callback for syncronous local completion of a non-bulk put */
+/* callback for synchronous local completion of a non-bulk put */
 static void gasnete_cb_op_lc(pami_context_t context, void *cookie, pami_result_t status) {
   gasnete_op_t *op = (gasnete_op_t *)cookie;
   if (OPTYPE(op) == OPTYPE_EXPLICIT) {
@@ -56,6 +56,14 @@ static void gasnete_cb_op_lc(pami_context_t context, void *cookie, pami_result_t
     gasnete_iop_check((gasnete_iop_t *)op);
   }
   GASNETE_LC_NOW_FINISH(op);
+  gasneti_assert(status == PAMI_SUCCESS);
+}
+
+/* callback for synchronous remote completion */
+static void gasnete_cb_int_done(pami_context_t context, void *cookie, pami_result_t status) {
+  int *p = (int *)cookie;
+  gasneti_assert(0 == *p);
+  *p = 1;
   gasneti_assert(status == PAMI_SUCCESS);
 }
 
@@ -189,7 +197,8 @@ extern void gasnete_init(void) {
 /* TODO: use Rput w/ firehose or bounce buffers when only dest is in-segment */
 GASNETI_INLINE(gasnete_put_common)
 void gasnete_put_common(gasnetex_rank_t rank, void *dest, void *src, size_t nbytes,
-                        gasnete_op_t *op, int need_lc, int is_eop) {
+                        pami_event_function ldone_fn, pami_event_function rdone_fn,
+                        void *cookie) {
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
   uintptr_t loc_offset = (uintptr_t)src - gasnete_mysegbase;
   uintptr_t rem_offset = (uintptr_t)dest - (uintptr_t)gasneti_seginfo[rank].addr;
@@ -200,13 +209,13 @@ void gasnete_put_common(gasnetex_rank_t rank, void *dest, void *src, size_t nbyt
     cmd.rma.dest = gasnetc_endpoint(rank);
     cmd.rma.hints = gasnete_rdma_send_hint;
     cmd.rma.bytes = nbytes;
-    cmd.rma.cookie = op;
-    cmd.rma.done_fn = need_lc ? gasnete_cb_op_lc : NULL;
+    cmd.rma.cookie = cookie;
+    cmd.rma.done_fn = ldone_fn;
     cmd.rdma.local.mr = &gasnetc_mymemreg;
     cmd.rdma.local.offset = loc_offset;
     cmd.rdma.remote.mr = &gasnetc_memreg[rank];
     cmd.rdma.remote.offset = rem_offset;
-    cmd.put.rdone_fn = is_eop ? gasnete_cb_eop_done : gasnete_cb_iput_done;
+    cmd.put.rdone_fn = rdone_fn;
 
     GASNETC_PAMI_LOCK(gasnetc_context);
     {
@@ -228,11 +237,11 @@ void gasnete_put_common(gasnetex_rank_t rank, void *dest, void *src, size_t nbyt
     cmd.rma.dest = gasnetc_endpoint(rank);
     cmd.rma.hints = gasnete_null_send_hint;
     cmd.rma.bytes = nbytes;
-    cmd.rma.cookie = op;
-    cmd.rma.done_fn = need_lc ? gasnete_cb_op_lc : NULL;
+    cmd.rma.cookie = cookie;
+    cmd.rma.done_fn = ldone_fn;
     cmd.addr.local = src;
     cmd.addr.remote = dest;
-    cmd.put.rdone_fn = is_eop ? gasnete_cb_eop_done : gasnete_cb_iput_done;
+    cmd.put.rdone_fn = rdone_fn;
 
     GASNETC_PAMI_LOCK(gasnetc_context);
     {
@@ -252,7 +261,7 @@ void gasnete_put_common(gasnetex_rank_t rank, void *dest, void *src, size_t nbyt
 /* TODO: use Rget w/ firehose or bounce buffers when only src is in-segment */
 GASNETI_INLINE(gasnete_get_common)
 void gasnete_get_common(void *dest, gasnetex_rank_t rank, void *src, size_t nbytes,
-                        gasnete_op_t *op, int is_eop) {
+                        pami_event_function done_fn, void *cookie) {
 #if (GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE) && !GASNETI_ARCH_BGQ /* work-around a BG/Q bug */
   uintptr_t loc_offset = (uintptr_t)dest - gasnete_mysegbase;
   uintptr_t rem_offset = (uintptr_t)src - (uintptr_t)gasneti_seginfo[rank].addr;
@@ -263,8 +272,8 @@ void gasnete_get_common(void *dest, gasnetex_rank_t rank, void *src, size_t nbyt
     cmd.rma.dest = gasnetc_endpoint(rank);
     cmd.rma.hints = gasnete_rdma_send_hint;
     cmd.rma.bytes = nbytes;
-    cmd.rma.cookie = op;
-    cmd.rma.done_fn = is_eop ? gasnete_cb_eop_done : gasnete_cb_iget_done;
+    cmd.rma.cookie = cookie;
+    cmd.rma.done_fn = done_fn;
     cmd.rdma.local.mr = &gasnetc_mymemreg;
     cmd.rdma.local.offset = loc_offset;
     cmd.rdma.remote.mr = &gasnetc_memreg[rank];
@@ -289,8 +298,8 @@ void gasnete_get_common(void *dest, gasnetex_rank_t rank, void *src, size_t nbyt
     cmd.rma.dest = gasnetc_endpoint(rank);
     cmd.rma.hints = gasnete_null_send_hint;
     cmd.rma.bytes = nbytes;
-    cmd.rma.cookie = op;
-    cmd.rma.done_fn = is_eop ? gasnete_cb_eop_done : gasnete_cb_iget_done;
+    cmd.rma.cookie = cookie;
+    cmd.rma.done_fn = done_fn;
     cmd.addr.local = dest;
     cmd.addr.remote = src;
 
@@ -330,7 +339,7 @@ gasnetex_handle_t gasnete_get_nb(
   GASNETI_CHECKPSHM_GET(H);
   {
     gasnete_eop_t * op = gasnete_eop_new(GASNETI_MYTHREAD);
-    gasnete_get_common(dest, rank, src, nbytes, (gasnete_op_t *)op, 1);
+    gasnete_get_common(dest, rank, src, nbytes, gasnete_cb_eop_done, op);
     return (gasnetex_handle_t)op;
   }
 }
@@ -346,21 +355,21 @@ gasnetex_handle_t gasnete_put_nb(
   GASNETI_CHECKPSHM_PUT(H);
   {
     gasnete_eop_t * op = gasnete_eop_new(GASNETI_MYTHREAD);
-    int need_lc;
+    pami_event_function ldone_fn = NULL;
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
       gasneti_fatalerror("Put_nb(lc_opt pointer) unimplemented"); // TODO-EX: fix this
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
-      need_lc = 1;
+      ldone_fn = gasnete_cb_op_lc;
       GASNETE_LC_NOW_START(op);
     } else if (lc_opt == GASNETEX_EVENT_DEFER) {
-      need_lc = 0;
+      // Nothing to do
     } else {
       gasneti_fatalerror("Invalid lc_opt argument to Put_nb");
     }
 
-    gasnete_put_common(rank, dest, src, nbytes, (gasnete_op_t *)op, need_lc, 1);
-    if (need_lc) {
+    gasnete_put_common(rank, dest, src, nbytes, ldone_fn, gasnete_cb_eop_done, op);
+    if (ldone_fn) {
       gasneti_polluntil(GASNETT_PREDICT_TRUE(GASNETE_LC_NOW_DONE(op)));
     }
 
@@ -393,7 +402,7 @@ int gasnete_get_nbi( gasnetex_team_member_t team,
     gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_iop_t * const op = mythread->current_iop;
     op->initiated_get_cnt++;
-    gasnete_get_common(dest, rank, src, nbytes, (gasnete_op_t *)op, 0);
+    gasnete_get_common(dest, rank, src, nbytes, gasnete_cb_iget_done, op);
     return 0;
   }
 }
@@ -409,23 +418,23 @@ int gasnete_put_nbi( gasnetex_team_member_t team,
   {
     gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_iop_t * const op = mythread->current_iop;
-    int need_lc;
+    pami_event_function ldone_fn = NULL;
 
     op->initiated_put_cnt++;
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
       gasneti_fatalerror("Put_nbi(lc_opt pointer) unimplemented"); // TODO-EX: fix this
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
-      need_lc = 1;
+      ldone_fn = gasnete_cb_op_lc;
       GASNETE_LC_NOW_START(op);
     } else if (lc_opt == GASNETEX_EVENT_DEFER) {
-      need_lc = 0;
+      // Nothing to do
     } else {
       gasneti_fatalerror("Invalid lc_opt argument to Put_nb");
     }
 
-    gasnete_put_common(rank, dest, src, nbytes, (gasnete_op_t *)op, need_lc, 0);
-    if (need_lc) {
+    gasnete_put_common(rank, dest, src, nbytes, ldone_fn, gasnete_cb_iput_done, op);
+    if (ldone_fn) {
       gasneti_polluntil(GASNETT_PREDICT_TRUE(GASNETE_LC_NOW_DONE(op)));
     }
 
@@ -449,9 +458,9 @@ int gasnete_get(     gasnetex_team_member_t team,
 {
   GASNETI_CHECKPSHM_GET(I);
   {
-    volatile gasnete_eop_t op = { 0x80|gasnete_event_type_eop, };
-    gasnete_get_common(dest, rank, src, nbytes, (gasnete_op_t *)&op, 1);
-    gasneti_polluntil( EVENT_DONE(&op, 0) );
+    volatile int done = 0;
+    gasnete_get_common(dest, rank, src, nbytes, gasnete_cb_int_done, (void*)&done);
+    gasneti_polluntil( done );
     return 0;
   }
 }
@@ -467,9 +476,9 @@ int gasnete_put(     gasnetex_team_member_t team,
 {
   GASNETI_CHECKPSHM_PUT_NOLC(I);
   {
-    volatile gasnete_eop_t op = { 0x80|gasnete_event_type_eop, };
-    gasnete_put_common(rank, dest, src, nbytes, (gasnete_op_t *)&op, 0, 1);
-    gasneti_polluntil( EVENT_DONE(&op, 0) );
+    volatile int done = 0;
+    gasnete_put_common(rank, dest, src, nbytes, NULL, gasnete_cb_int_done, (void*)&done);
+    gasneti_polluntil( done );
     return 0;
   }
 }   
