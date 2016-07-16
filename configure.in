@@ -2611,12 +2611,6 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
     GASNET_PUSHVAR(LDFLAGS,"")
     GASNET_PUSHVAR(LIBS,"$MPI_LIBS")
 
-    # first check for a working C99 environment (enough to parse gasnet.h)
-    GASNET_TRY_CACHE_CHECK(for working GASNet-required ISO C99 subset in MPI_CC, mpi_gasnet_c99_subset,
-     [ ],
-     [ GASNET_C99_TEST ], [], 
-     [ AC_MSG_ERROR(Unable to find sufficient C99 support features in $MPI_CC to build GASNet. You may need to append flags in \$MPI_CC to enable C99 support) ])
-
     # we just try to link an MPI app - running MPI apps is a whole new can of worms
     GASNET_LINKHELPER_TRY_LINK(for working MPI configuration, mpi_works, [
       #include <mpi.h>
@@ -2654,6 +2648,13 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
         GASNET_TRY_CACHE_RUN_EXPR([MPI_CC for value of MPI_VERSION], MPI_VERSION, [#include <mpi.h>], [val = MPI_VERSION;], GASNETI_MPI_VERSION)
       fi
       AC_DEFINE(GASNETI_MPI_VERSION)
+
+      # check MPI_CC for a working C99 environment (enough to parse gasnet.h)
+      GASNET_TRY_CACHE_CHECK(for working GASNet-required ISO C99 subset in MPI_CC, mpi_gasnet_c99_subset,
+       [ ],
+       [ GASNET_C99_TEST ], [], 
+       [ mpi_test_worked=no 
+         GASNET_MSG_WARN(Unable to find sufficient C99 support features in $MPI_CC to build GASNet. You may need to append flags in \$MPI_CC to enable C99 support) ])
     fi
 
     GASNET_POPVAR(CC)
