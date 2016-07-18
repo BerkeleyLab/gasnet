@@ -429,10 +429,12 @@ case "$CC_FAMILY" in
   MTA)  CCDEBUGFLAGS="-g2" ;; # need +ESdbgasm to use -g with _asm()
   Pathscale) GASNET_PUSHVAR(CFLAGS,"-g3 -O0") # need to explicitly disable optimization
         GASNET_GET_GNUWARNINGFLAGS(C)
+        CCDEBUGFLAGS="$CFLAGS"
         GASNET_POPVAR(CFLAGS)
   ;;
   Open64) GASNET_PUSHVAR(CFLAGS,"-g3")
           GASNET_GET_GNUWARNINGFLAGS(C)
+          CCDEBUGFLAGS="$CFLAGS"
           GASNET_POPVAR(CFLAGS)
   ;;
   Clang)  GASNET_PUSHVAR(CFLAGS,"-g -O0")
@@ -2363,6 +2365,7 @@ fi
        fi
        GASNET_PUSHVAR(CXXFLAGS,"-g3")
        GASNET_GET_GNUWARNINGFLAGS(CXX)
+       CXXDEBUGFLAGS="$CXXFLAGS" 
        GASNET_POPVAR(CXXFLAGS)
     ;;
     Clang)
