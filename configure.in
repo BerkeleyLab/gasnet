@@ -612,6 +612,7 @@ case "$CC_FAMILY" in
        GASNET_TRY_CFLAG([-qsuppress=1500-010:1500-029:1506-229],
                         [MISC_CFLAGS="$MISC_CFLAGS -qsuppress=1500-010:1500-029:1506-229"])
        ;;
+  Open64) MISC_CFLAGS="-std=c99" ;;
   *)   MISC_CFLAGS="" ;;
 esac
 
