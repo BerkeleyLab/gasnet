@@ -1578,10 +1578,10 @@ if expr "$target_cpu" : "arm" >/dev/null; then
     GASNET_TRY_CACHE_RUN([for ARM cmpxchg kernel support], have_arm_cmpxchg, [
       #include "gasnet_asm.h" /* For GASNETI_ARM_ASMCALL() */
       int cmp_swap(volatile unsigned int *v, int oldval, int newval) {
-	register unsigned int result asm("r0");
-	register unsigned int _newval asm("r1") = newval;
-	register unsigned int _v asm("r2") = (unsigned long)v;
-	register unsigned int _oldval asm("r4") = oldval;
+	register unsigned int result __asm("r0");
+	register unsigned int _newval __asm("r1") = newval;
+	register unsigned int _v __asm("r2") = (unsigned long)v;
+	register unsigned int _oldval __asm("r4") = oldval;
 
 	/* Transient failure is possible if interrupted.
 	 * Since we can't distinguish the cause of the failure,
