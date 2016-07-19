@@ -4,6 +4,24 @@ Dan Bonachea <bonachea@cs.berkeley.edu>
 User Information:
 -----------------
 
+mpi-conduit is a portable implementation of GASNet over MPI, the Message
+Passing Interface (http://mpi-forum.org/), which is implemented on most
+HPC systems.
+
+Where this conduit runs:
+-----------------------
+
+mpi-conduit is fully portable and should work correctly on any POSIX-like
+system with a working MPI implementation (compliant with specification MPI 1.1
+or later) and a functional C99 compiler.  mpi-conduit does not exploit the MPI
+RMA interfaces introduced in MPI 2.0/3.0.
+
+mpi-conduit is primarily intended as a migration tool for systems where a native GASNet
+implementation is not yet available.  It is not intended for production use on
+networks that expose a high-performance network API, where an appropriate
+GASNet native conduit implementation should be preferred. It is not intended
+for use on Ethernet harware, where udp-conduit should usually be preferred.
+
 Recognized environment variables:
 ---------------------------------
 

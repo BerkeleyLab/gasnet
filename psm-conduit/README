@@ -4,6 +4,16 @@ Copyright (c) 2014-2015 Intel Corporation. All rights reserved.
 User Information:
 -----------------
 
+### Provide a high-level overview of your conduit
+
+Where this conduit runs:
+-----------------------
+
+### Explain the hardware/systems where your conduit runs. Be sure to use
+### high-level marketing names that should be understandable to any end-user. 
+### Include any software/driver/firmware/hw requirements or limitations.
+### Mention any situation where a different GASNet conduit should be preferred.
+
 PSM has a restriction in which only one endpoint may be opened per process.
 For users of this conduit, this means that if an MPI is used for process
 spawning, that MPI must NOT also attempt to use PSM for communication.

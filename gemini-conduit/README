@@ -9,6 +9,14 @@ series) and aries-conduit (for the Cray XC).  The terms "Gemini" and
 "gemini-conduit" are used throughout this document when both gemini
 and aries are meant.
 
+Where this conduit runs:
+-----------------------
+
+### Explain the hardware/systems where your conduit runs. Be sure to use
+### high-level marketing names that should be understandable to any end-user.
+### Include any software/driver/firmware/hw requirements or limitations.
+### Mention any situation where a different GASNet conduit should be preferred.
+
 Recognized environment variables:
 ---------------------------------
 
