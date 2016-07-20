@@ -94,9 +94,6 @@ extern void gasnete_init(void) {
      gasnete_put_nb
 */
 
-#define GASNETE_EOP_CNTRS(_eop) \
-        &(_eop)->initiated_cnt, &(_eop)->completed_cnt
-
 extern
 gasnetex_handle_t gasnete_get_nb(
                      gasnetex_team_member_t team,
@@ -110,7 +107,9 @@ gasnetex_handle_t gasnete_get_nb(
   gasnete_eop_t *op = _gasnete_eop_new(GASNETI_MYTHREAD);
 
   /* XXX check error returns */
-  gasnetc_rdma_get(rank, src, dest, nbytes, GASNETE_EOP_CNTRS(op) GASNETI_THREAD_PASS);
+  gasnetc_rdma_get(rank, src, dest, nbytes,
+                   &op->initiated_cnt, gasnetc_cb_eop_get
+                   GASNETI_THREAD_PASS);
 
   return (gasnetex_handle_t)op;
  }
@@ -127,31 +126,31 @@ gasnetex_handle_t gasnete_put_nb(
   GASNETI_CHECKPSHM_PUT(H);
  {
   gasnete_eop_t *op = _gasnete_eop_new(GASNETI_MYTHREAD);
-  gasnetc_counter_t    mem_oust = GASNETC_COUNTER_INITIALIZER;
-  gasnetc_atomic_val_t *mem_initiated_p;
-  gasnetc_atomic_t     *mem_completed_p;
+  gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
+  gasnetc_atomic_val_t *local_cnt;
+  gasnetc_cb_t         local_cb;
 
   /* XXX check error returns */
 
   if (gasneti_leaf_is_pointer(lc_opt)) {
-    mem_initiated_p = &op->initiated_alc;
-    mem_completed_p = &op->completed_alc;
+    local_cnt = &op->initiated_alc;
+    local_cb = gasnetc_cb_eop_alc;
     *lc_opt = gasneti_op_handle(op, 1);
   } else if (lc_opt == GASNETEX_EVENT_NOW) {
-    mem_initiated_p = &mem_oust.initiated;
-    mem_completed_p = &mem_oust.completed;
+    local_cnt = &counter.initiated;
+    local_cb = gasnetc_cb_counter;
   } else if (lc_opt == GASNETEX_EVENT_DEFER) {
-    mem_initiated_p = NULL;
-    mem_completed_p = NULL;
+    local_cnt = NULL;
+    local_cb = NULL;
   } else {
     gasneti_fatalerror("Invalid lc_opt argument to Put_nb");
   }
 
   gasnetc_rdma_put(rank, src, dest, nbytes,
-                   mem_initiated_p, mem_completed_p,
-                   GASNETE_EOP_CNTRS(op)
+                   local_cnt, local_cb,
+                   &op->initiated_cnt, gasnetc_cb_eop_put
                    GASNETI_THREAD_PASS);
-  if (lc_opt == GASNETEX_EVENT_NOW) gasnetc_counter_wait(&mem_oust, 0 GASNETI_THREAD_PASS);
+  if (lc_opt == GASNETEX_EVENT_NOW) gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
 
   return (gasnetex_handle_t)op;
  }
@@ -169,9 +168,6 @@ gasnetex_handle_t gasnete_put_nb(
      gasnete_put_nbi
 */
 
-#define GASNETE_IOP_CNTRS(_iop,_name) \
-        &(_iop)->initiated_##_name##_cnt, &(_iop)->completed_##_name##_cnt
-
 extern
 int gasnete_get_nbi (gasnetex_team_member_t team,
                      void *dest,
@@ -185,7 +181,10 @@ int gasnete_get_nbi (gasnetex_team_member_t team,
   gasnete_iop_t *op = mythread->current_iop;
 
   /* XXX check error returns */ 
-  gasnetc_rdma_get(rank, src, dest, nbytes, GASNETE_IOP_CNTRS(op,get) GASNETI_THREAD_PASS);
+  gasnetc_rdma_get(rank, src, dest, nbytes,
+                   &op->initiated_get_cnt,
+                   op->next ? gasnetc_cb_nar_get : gasnetc_cb_iop_get
+                   GASNETI_THREAD_PASS);
   return 0;
  }
 }
@@ -201,30 +200,31 @@ int gasnete_put_nbi (gasnetex_team_member_t team,
  {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *op = mythread->current_iop;
-  gasnetc_counter_t    mem_oust = GASNETC_COUNTER_INITIALIZER;
-  gasnetc_atomic_val_t *mem_initiated_p;
-  gasnetc_atomic_t     *mem_completed_p;
+  gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
+  gasnetc_atomic_val_t *local_cnt;
+  gasnetc_cb_t         local_cb;
 
   /* XXX check error returns */ 
 
   if (lc_opt == GASNETEX_EVENT_GROUP) {
-    mem_initiated_p = &op->initiated_alc_cnt;
-    mem_completed_p = &op->completed_alc_cnt;
+    local_cnt = &op->initiated_alc_cnt;
+    local_cb = op->next ? gasnetc_cb_nar_alc : gasnetc_cb_iop_alc;
   } else if (lc_opt == GASNETEX_EVENT_NOW) {
-    mem_initiated_p = &mem_oust.initiated;
-    mem_completed_p = &mem_oust.completed;
+    local_cnt = &counter.initiated;
+    local_cb = gasnetc_cb_counter;
   } else if (lc_opt == GASNETEX_EVENT_DEFER) {
-    mem_initiated_p = NULL;
-    mem_completed_p = NULL;
+    local_cnt = NULL;
+    local_cb = NULL;
   } else {
     gasneti_fatalerror("Invalid lc_opt argument to Put_nbi");
   }
 
   gasnetc_rdma_put(rank, src, dest, nbytes,
-                   mem_initiated_p, mem_completed_p,
-                   GASNETE_IOP_CNTRS(op,put)
+                   local_cnt, local_cb,
+                   &op->initiated_put_cnt,
+                   op->next ? gasnetc_cb_nar_put : gasnetc_cb_iop_put
                    GASNETI_THREAD_PASS);
-  if (lc_opt == GASNETEX_EVENT_NOW) gasnetc_counter_wait(&mem_oust, 0 GASNETI_THREAD_PASS);
+  if (lc_opt == GASNETEX_EVENT_NOW) gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
   return 0;
  }
 }
@@ -235,9 +235,6 @@ int gasnete_put_nbi (gasnetex_team_member_t team,
   ===================================
 */
 
-#define GASNETE_REQ_CNTRS(_req) \
-        &(_req).initiated, &(_req).completed
-
 extern int gasnete_get  (gasnetex_team_member_t team,
                          void* dest,
                          gasnetex_rank_t rank, void *src,
@@ -247,7 +244,9 @@ extern int gasnete_get  (gasnetex_team_member_t team,
   GASNETI_CHECKPSHM_GET(I);
  {
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
-  gasnetc_rdma_get(rank, src, dest, nbytes, GASNETE_REQ_CNTRS(req_oust) GASNETI_THREAD_PASS);
+  gasnetc_rdma_get(rank, src, dest, nbytes,
+                   &req_oust.initiated, gasnetc_cb_counter_rel
+                   GASNETI_THREAD_PASS);
   gasnetc_counter_wait(&req_oust, 0 GASNETI_THREAD_PASS);
   return 0;
  }
@@ -264,7 +263,7 @@ extern int gasnete_put  (gasnetex_team_member_t team,
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
   gasnetc_rdma_put(rank, src, dest, nbytes,
                    NULL, NULL,
-                   GASNETE_REQ_CNTRS(req_oust)
+                   &req_oust.initiated, gasnetc_cb_counter
                    GASNETI_THREAD_PASS);
   gasnetc_counter_wait(&req_oust, 0 GASNETI_THREAD_PASS);
   return 0;

@@ -637,6 +637,24 @@ extern void gasnetc_conn_rcv_wc(struct ibv_wc *comp);
 extern void gasnetc_conn_snd_wc(struct ibv_wc *comp);
 #endif
 
+/* Callback functions in gasnet_core_sndrcv.c */
+typedef void (*gasnetc_cb_t)(gasnetc_atomic_val_t *);
+ /* eop: */
+extern void gasnetc_cb_eop_alc(gasnetc_atomic_val_t *);
+extern void gasnetc_cb_eop_put(gasnetc_atomic_val_t *);
+extern void gasnetc_cb_eop_get(gasnetc_atomic_val_t *);
+ /* iop within nbi-accessregion: */
+extern void gasnetc_cb_nar_alc(gasnetc_atomic_val_t *);
+extern void gasnetc_cb_nar_put(gasnetc_atomic_val_t *);
+extern void gasnetc_cb_nar_get(gasnetc_atomic_val_t *);
+ /* iop not in nbi-accessregion: */
+extern void gasnetc_cb_iop_alc(gasnetc_atomic_val_t *);
+extern void gasnetc_cb_iop_put(gasnetc_atomic_val_t *);
+extern void gasnetc_cb_iop_get(gasnetc_atomic_val_t *);
+ /* gasnetc_counter_t: */
+extern void gasnetc_cb_counter(gasnetc_atomic_val_t *);
+extern void gasnetc_cb_counter_rel(gasnetc_atomic_val_t *);
+
 /* Routines in gasnet_core_sndrcv.c */
 extern int gasnetc_create_cq(struct ibv_context *, int,
                              struct ibv_cq * *, int *,
@@ -659,49 +677,41 @@ extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  gasnetc_epid_t dest, gasnetex_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
 				  int numargs,
-				  gasnetc_atomic_val_t *mem_initiated,
-				  gasnetc_atomic_t *mem_completed,
-				  gasnetc_atomic_t *completed, va_list argptr
+				  gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
+				  gasnetc_counter_t *counter, va_list argptr
                                   GASNETI_THREAD_FARG);
 extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 				gasnetex_token_t token, gasnetex_handler_t handler,
 				void *src_addr, int nbytes, void *dst_addr,
 				int numargs,
-				gasnetc_atomic_val_t *mem_initiated,
-				gasnetc_atomic_t *mem_completed,
-				gasnetc_atomic_t *completed, va_list argptr
+				gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
+				gasnetc_counter_t *counter, va_list argptr
                                 GASNETI_THREAD_FARG);
 #if GASNETC_PIN_SEGMENT
   extern int gasnetc_rdma_put(
                   gasnetc_epid_t epid,
                   void *src_ptr, void *dst_ptr, size_t nbytes,
-                  gasnetc_atomic_val_t *mem_initiated,
-                  gasnetc_atomic_t *mem_completed,
-                  gasnetc_atomic_val_t *initiated,
-                  gasnetc_atomic_t *completed
+                  gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
+                  gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb
                   GASNETI_THREAD_FARG);
 #else
   extern int gasnetc_rdma_put_fh(
                   gasnetc_epid_t epid,
                   void *src_ptr, void *dst_ptr, size_t nbytes,
-                  gasnetc_atomic_val_t *mem_initiated,
-                  gasnetc_atomic_t *mem_completed,
-                  gasnetc_atomic_val_t *initiated,
-                  gasnetc_atomic_t *completed,
+                  gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
+                  gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb,
                   gasnetc_counter_t *am_oust
                   GASNETI_THREAD_FARG);
   GASNETI_INLINE(gasnetc_rdma_put)
   int gasnetc_rdma_put(
                   gasnetc_epid_t epid,
                   void *src_ptr, void *dst_ptr, size_t nbytes,
-                  gasnetc_atomic_val_t *mem_initiated,
-                  gasnetc_atomic_t *mem_completed,
-                  gasnetc_atomic_val_t *initiated,
-                  gasnetc_atomic_t *completed
+                  gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
+                  gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb
                   GASNETI_THREAD_FARG)
-  { return gasnetc_rdma_put_fh(epid,src_ptr,dst_ptr,nbytes,mem_initiated,mem_completed,initiated,completed,NULL GASNETI_THREAD_PASS); }
+  { return gasnetc_rdma_put_fh(epid,src_ptr,dst_ptr,nbytes,local_cnt,local_cb,remote_cnt,remote_cb,NULL GASNETI_THREAD_PASS); }
 #endif
-extern int gasnetc_rdma_get(gasnetc_epid_t epid, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_atomic_val_t *initiated, gasnetc_atomic_t *completed GASNETI_THREAD_FARG);
+extern int gasnetc_rdma_get(gasnetc_epid_t epid, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb GASNETI_THREAD_FARG);
 
 /* Routines in gasnet_core_thread.c */
 #if GASNETI_CONDUIT_THREADS
@@ -817,21 +827,21 @@ extern gasnetex_rank_t            gasnetc_remote_nodes;
  */
 
 extern int gasnetc_RequestSysShort(gasnetc_epid_t dest,
-                                   gasnetc_atomic_t *completed, /* counter for local completion */
+                                   gasnetc_counter_t *counter, /* counter for local completion */
                                    gasnetex_handler_t handler,
                                    int numargs, ...);
 extern int gasnetc_RequestSysMedium(gasnetc_epid_t dest,
-                                    gasnetc_atomic_t *completed, /* counter for local completion */
+                                    gasnetc_counter_t *counter, /* counter for local completion */
                                     gasnetex_handler_t handler,
                                     void *source_addr, size_t nbytes,
                                     int numargs, ...);
 
 extern int gasnetc_ReplySysShort(gasnetex_token_t token,
-                                 gasnetc_atomic_t *completed, /* counter for local completion */
+                                 gasnetc_counter_t *counter, /* counter for local completion */
                                  gasnetex_handler_t handler,
                                  int numargs, ...);
 extern int gasnetc_ReplySysMedium(gasnetex_token_t token,
-                                  gasnetc_atomic_t *completed, /* counter for local completion */
+                                  gasnetc_counter_t *counter, /* counter for local completion */
                                   gasnetex_handler_t handler,
                                   void *source_addr, size_t nbytes,
                                   int numargs, ...);

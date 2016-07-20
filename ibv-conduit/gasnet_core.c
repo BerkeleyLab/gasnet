@@ -3264,7 +3264,7 @@ static void gasnetc_exit_reqh(gasnetex_token_t token, gasnetex_handlerarg_t arg0
 
   /* Send a reply so the master knows we are reachable */
   gasnetc_counter_inc(&gasnetc_exit_repl_oust);
-  GASNETI_SAFE(gasnetc_ReplySysShort(token, &gasnetc_exit_repl_oust.completed,
+  GASNETI_SAFE(gasnetc_ReplySysShort(token, &gasnetc_exit_repl_oust,
 				   gasneti_handleridx(gasnetc_exit_reph), /* no args */ 0));
   gasneti_sync_writes(); /* For non-atomic portion of gasnetc_exit_repl_oust */
 
@@ -3478,41 +3478,41 @@ extern int gasnetc_AMRequestLongM(
                             gasnetex_flags_t flags
                             GASNETI_THREAD_FARG,
                             int numargs, ...) {
-  gasnetc_counter_t mem_oust = GASNETC_COUNTER_INITIALIZER;
+  gasnetc_counter_t counter = GASNETC_COUNTER_INITIALIZER;
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTLONG(team,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
   {
-    gasnetc_counter_t    mem_oust = GASNETC_COUNTER_INITIALIZER;
-    gasnetc_atomic_val_t *mem_initiated_p;
-    gasnetc_atomic_t     *mem_completed_p;
+    gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
+    gasnetc_atomic_val_t *local_cnt;
+    gasnetc_cb_t         local_cb;
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
       gasnete_eop_t *op = _gasnete_eop_new(GASNETI_MYTHREAD);
-      mem_initiated_p = &op->initiated_cnt;
-      mem_completed_p = &op->completed_cnt;
+      local_cnt = &op->initiated_cnt;
+      local_cb = gasnetc_cb_eop_put;
       *lc_opt = (gasnetex_handle_t)op;
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
-      mem_initiated_p = &mem_oust.initiated;
-      mem_completed_p = &mem_oust.completed;
+      local_cnt = &counter.initiated;
+      local_cb = gasnetc_cb_counter;
     } else if (lc_opt == GASNETEX_EVENT_GROUP) {
       gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
       gasnete_iop_t *op = mythread->current_iop;
-      mem_initiated_p = &op->initiated_alc_cnt;
-      mem_completed_p = &op->completed_alc_cnt;
+      local_cnt = &op->initiated_alc_cnt;
+      local_cb = op->next ? gasnetc_cb_nar_alc : gasnetc_cb_iop_alc;
     } else {
       gasneti_fatalerror("Invalid lc_opt argument to RequestLong");
     }
 
     retval = gasnetc_RequestGeneric(gasnetc_Long, rank, handler,
 		  		  source_addr, nbytes, dest_addr,
-				  numargs, mem_initiated_p, mem_completed_p,
+				  numargs, local_cnt, local_cb,
 				  NULL, argptr GASNETI_THREAD_PASS);
 
     if (lc_opt == GASNETEX_EVENT_NOW) {
       /* block for completion of RDMA transfer */
-      gasnetc_counter_wait(&mem_oust, 0 GASNETI_THREAD_PASS);
+      gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
     }
   }
   va_end(argptr);
@@ -3573,35 +3573,35 @@ extern int gasnetc_AMReplyLongM(
   va_start(argptr, numargs); /*  pass in last argument */
   #if GASNETC_PIN_SEGMENT
   {
-    gasnetc_counter_t    mem_oust = GASNETC_COUNTER_INITIALIZER;
-    gasnetc_atomic_val_t *mem_initiated_p;
-    gasnetc_atomic_t     *mem_completed_p;
+    gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
+    gasnetc_atomic_val_t *local_cnt;
+    gasnetc_cb_t         local_cb;
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
       gasnete_eop_t *op = _gasnete_eop_new(GASNETI_MYTHREAD);
-      mem_initiated_p = &op->initiated_cnt;
-      mem_completed_p = &op->completed_cnt;
+      local_cnt = &op->initiated_cnt;
+      local_cb = gasnetc_cb_eop_put;
       *lc_opt = (gasnetex_handle_t)op;
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
-      mem_initiated_p = &mem_oust.initiated;
-      mem_completed_p = &mem_oust.completed;
+      local_cnt = &counter.initiated;
+      local_cb = gasnetc_cb_counter;
     } else if (lc_opt == GASNETEX_EVENT_GROUP) {
       gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
       gasnete_iop_t *op = mythread->current_iop;
-      mem_initiated_p = &op->initiated_alc_cnt;
-      mem_completed_p = &op->completed_alc_cnt;
+      local_cnt = &op->initiated_alc_cnt;
+      local_cb = op->next ? gasnetc_cb_nar_alc : gasnetc_cb_iop_alc;
     } else {
       gasneti_fatalerror("Invalid lc_opt argument to ReplyLong");
     }
 
     retval = gasnetc_ReplyGeneric(gasnetc_Long, token, handler,
 		  		  source_addr, nbytes, dest_addr,
-				  numargs, mem_initiated_p, mem_completed_p,
+				  numargs, local_cnt, local_cb,
 				  NULL, argptr GASNETI_THREAD_PASS);
 
     if (lc_opt == GASNETEX_EVENT_NOW) {
       /* block for completion of RDMA transfer */
-      gasnetc_counter_wait(&mem_oust, 1 /* calling from a request handler */ GASNETI_THREAD_PASS);
+      gasnetc_counter_wait(&counter, 1 /* calling from a request handler */ GASNETI_THREAD_PASS);
     }
   }
   #else
