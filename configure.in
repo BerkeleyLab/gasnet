@@ -2456,7 +2456,7 @@ if test "$have_cxx" = no; then
 fi
 
 # UDP/AMUDP Configuration
-CONDUIT_BEGIN(udp,[portable UDP network conduit (udp)])
+CONDUIT_BEGIN(udp,[Portable UDP/IP conduit (udp)])
 if test $enabled_udp = yes; then
  if test "$have_cxx" = yes; then
   # detect libraries necessary for udp-* backends
@@ -2511,7 +2511,7 @@ GASNET_IF_ENABLED_WITH_AUTO(mpi-compat, Enable/disable MPI compatibility (auto-d
 dnl GASNET_TOOLSONLY_FALSE_END
 
 # --enable-mpi controls mpi-conduit
-CONDUIT_BEGIN(mpi,[portable MPI network conduit (mpi)])
+CONDUIT_BEGIN(mpi,[Portable MPI conduit (mpi)])
 
 
 if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
@@ -2725,7 +2725,7 @@ AM_CONDITIONAL(USE_MPI, test "$have_mpi" = yes)
 #-----------------------------------------------------------------------------------------------
 # SMP configuration
 
-CONDUIT_BEGIN(smp,[portable SMP-loopback network conduit (smp)])
+CONDUIT_BEGIN(smp,[Portable SMP-loopback conduit (smp)])
 if test $enabled_smp = yes; then
   if test x"$with_pshm" != xno; then
     dnl TODO: factor socket related probes
@@ -2829,7 +2829,7 @@ dnl Please order network probes from LOW to HIGH precedence for selection
 # MXM configuration
 #
 
-CONDUIT_BEGIN(mxm,[Mellanox MXM conduit (mxm)])
+CONDUIT_BEGIN(mxm,[Mellanox InfiniBand MXM conduit (mxm)])
 have_mxm=no
 if test "$have_fork" = no; then
     GASNET_MSG_WARN([mxm-conduit requires or fork() ($fork_reason) for startup - disabling mxm])
@@ -2961,7 +2961,7 @@ CONDUIT_END([test "$have_mxm" = yes])
 # PSM conduit
 #
 
-CONDUIT_BEGIN(psm,[Intel PSM conduit (psm)])
+CONDUIT_BEGIN(psm,[Intel OmniPath PSM2 conduit (psm)])
 have_psm=no
     #
     # Either PSM was required explicitly, or we just need to probe for its existence
@@ -3090,7 +3090,7 @@ CONDUIT_END([test "$have_psm" = yes])
 #--------------------------------------------------------------------------------------------------------
 # Portals4 Conduit
 
-CONDUIT_BEGIN(portals4,[Portals4 network conduit (portals4)])
+CONDUIT_BEGIN(portals4,[Portable Portals4 conduit (portals4)])
 if test "$enabled_portals4" = yes; then
   # Start by assuming we do have Portals4
   have_portals4=yes
@@ -3200,7 +3200,7 @@ CONDUIT_END([test "$have_portals4" = yes])
 #--------------------------------------------------------------------------------------------------------
 # IBV configuration
 
-CONDUIT_BEGIN(ibv,[OpenIB/OpenFabrics IB Verbs network conduit (ibv)])
+CONDUIT_BEGIN(ibv,[InfiniBand IB Verbs conduit (ibv)])
 if test "$enabled_ibv$have_mpi_compat$have_fork" = yesnono; then
   enabled_ibv=no
   GASNET_MSG_WARN([ibv-conduit requires either MPI compatibility ($mpi_compat_reason) or fork() ($fork_reason) for startup - disabling ibv])
@@ -3547,7 +3547,7 @@ else
 fi
 AC_MSG_RESULT($gni_network)
 
-CONDUIT_BEGIN(gemini,[Gemini network conduit (gemini)])
+CONDUIT_BEGIN(gemini,[Cray XE/XK Gemini conduit (gemini)])
 CONDUIT_DISALLOW_SEGMENT(everything)
 if test "$enabled_gemini" = yes; then
   GASNET_CHECK_GNI(Gemini)
@@ -3555,7 +3555,7 @@ fi
 AM_CONDITIONAL(USE_GEMINI_CONDUIT, test "$have_gemini" = yes)
 CONDUIT_END([test "$have_gemini" = yes])
 
-CONDUIT_BEGIN(aries,[Aries network conduit (aries)])
+CONDUIT_BEGIN(aries,[Cray XC Aries conduit (aries)])
 CONDUIT_DISALLOW_SEGMENT(everything)
 if test "$enabled_aries" = yes; then
   GASNET_CHECK_GNI(Aries)
@@ -3568,7 +3568,7 @@ CONDUIT_END([test "$have_aries" = yes])
 #--------------------------------------------------------------------------------------------------------
 # SHMEM configuration
 
-CONDUIT_BEGIN(shmem,[Shmem network conduit (shmem)])
+CONDUIT_BEGIN(shmem,[SGI Altix / Cray X1 Shmem conduit (shmem)])
 
 if test $enabled_shmem = yes; then
   SHMEM_FLAVOUR="unknown"
@@ -3648,7 +3648,7 @@ CONDUIT_END([test "$enabled_shmem$have_shmem" = yesyes])
 
 #--------------------------------------------------------------------------------------------------------
 # PAMI configuration
-CONDUIT_BEGIN(pami,[IBM PAMI network conduit (pami)])
+CONDUIT_BEGIN(pami,[IBM BlueGene/Q / Power775 PAMI conduit (pami)])
 if test $enabled_pami = yes; then
   have_pami=yes
 
@@ -3733,7 +3733,7 @@ AM_CONDITIONAL(USE_AMMPI, test "$have_ammpi" = yes)
 #--------------------------------------------------------------------------------------------------------
 # Libfabric Conduit
 
-CONDUIT_BEGIN(ofi,[Libfabric network conduit (ofi)])
+CONDUIT_BEGIN(ofi,[Portable OpenFabrics Interfaces conduit (ofi)])
 if test "$enabled_ofi" = yes; then
   have_ofi=yes
 
