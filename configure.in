@@ -3388,6 +3388,7 @@ CONDUIT_END([test "$have_ibv" = yes])
 #--------------------------------------------------------------------------------------------------------
 # Gemini and Aries Conduits
 
+gni_network=""
 AC_DEFUN([GASNET_CHECK_GNI],[
 pushdef([lowername],translit($1,'A-Z','a-z'))
 
@@ -3859,13 +3860,13 @@ EOF
 
 dnl Order native conduits from LOW to HIGH precedence, clients use order to select defaults
 
+CONDUIT_OUTPUT(pami)    dnl Ensure pami-over-ib is lower than ibv
 CONDUIT_OUTPUT(ibv)
 CONDUIT_OUTPUT(mxm)     dnl Mellanox Infiniband takes precedence over vanilla ibv
 CONDUIT_OUTPUT(psm)
 CONDUIT_OUTPUT(gemini)
 CONDUIT_OUTPUT(aries)
 CONDUIT_OUTPUT(shmem)
-CONDUIT_OUTPUT(pami)
 
 #--------------------------------------------------------------------------------------------------------
 
