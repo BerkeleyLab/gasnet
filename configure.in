@@ -2948,6 +2948,7 @@ CONDUIT_END([test "$have_mxm" = yes])
 
 CONDUIT_BEGIN(psm,[Intel OmniPath PSM2 conduit (psm)])
 have_psm=no
+if test "$enabled_psm" = yes; then
     #
     # Either PSM was required explicitly, or we just need to probe for its existence
     #
@@ -3062,7 +3063,7 @@ have_psm=no
   fi
   GASNET_PSM_SPAWNER_CONF=$gasnet_psm_spawner_conf
   AC_SUBST(GASNET_PSM_SPAWNER_CONF)
-
+fi
 AC_SUBST(PSM_INCLUDE)
 AC_SUBST(PSM_LIBDIR)
 AC_SUBST(PSM_LIBS)
@@ -3398,6 +3399,19 @@ case "$target" in
      fi
   ;;
 esac
+
+if test "$gni_network$enabled_[]lowername" = "yes" ; then
+  AC_MSG_CHECKING(for GNI network type)
+  if test "${CRAYPE_NETWORK_TARGET+set}" = set ; then
+    gni_network=${CRAYPE_NETWORK_TARGET}
+  elif test "${XTPE_NETWORK_TARGET+set}" = set ; then
+    gni_network=${XTPE_NETWORK_TARGET}
+  else
+    gni_network="unknown"
+  fi
+  AC_MSG_RESULT($gni_network)
+fi
+
 if test ${gni_network}:${enabled_[]lowername} = lowername[]:yes; then
   have_[]lowername=yes # start by assuming we have it
 
@@ -3521,16 +3535,6 @@ if test ${gni_network}:${enabled_[]lowername} = lowername[]:yes; then
 fi
 popdef([lowername])
 ])
-
-AC_MSG_CHECKING(for GNI network type)
-if test "${CRAYPE_NETWORK_TARGET+set}" = set ; then
-  gni_network=${CRAYPE_NETWORK_TARGET}
-elif test "${XTPE_NETWORK_TARGET+set}" = set ; then
-  gni_network=${XTPE_NETWORK_TARGET}
-else
-  gni_network="unknown"
-fi
-AC_MSG_RESULT($gni_network)
 
 CONDUIT_BEGIN(gemini,[Cray XE/XK Gemini conduit (gemini)])
 CONDUIT_DISALLOW_SEGMENT(everything)
