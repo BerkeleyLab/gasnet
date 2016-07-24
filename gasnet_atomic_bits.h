@@ -2588,8 +2588,8 @@
       #define _gasneti_atomic32_set(p,v)     ((p)->ctr = (v))
 
       #define gasneti_atomic32_addfetch_const(p, op) ({                         \
-	register unsigned long __sum asm("r1");                                 \
-	register unsigned long __ptr asm("r2") = (unsigned long)(p);            \
+	register unsigned long __sum __asm("r1");                               \
+	register unsigned long __ptr __asm("r2") = (unsigned long)(p);          \
 	__asm__ __volatile__ (                                                  \
 		"0:	ldr	r0, [r2]	@ r0 = *p		\n"     \
 		"	add	r1, r0, %2	@ r1 = r0 + op		\n"     \
@@ -2625,9 +2625,9 @@
        */
       GASNETI_INLINE(gasneti_atomic32_addfetch)
       uint32_t gasneti_atomic32_addfetch(gasneti_atomic32_t *p, uint32_t op, const int flags) {
-	register unsigned long __sum asm("r1");
-	register unsigned long __ptr asm("r2") = (unsigned long)(p);
-	register unsigned long __op asm("r4") = op;
+	register unsigned long __sum __asm("r1");
+	register unsigned long __ptr __asm("r2") = (unsigned long)(p);
+	register unsigned long __op __asm("r4") = op;
 
 	__asm__ __volatile__ (
 		"0:	ldr	r0, [r2]	@ r0 = *p		\n"
@@ -2646,10 +2646,10 @@
 
       GASNETI_INLINE(gasneti_atomic32_compare_and_swap)
       int gasneti_atomic32_compare_and_swap(gasneti_atomic32_t *v, int oldval, int newval, const int flags) {
-	register unsigned int result asm("r0");
-	register unsigned int _newval asm("r1") = newval;
-	register unsigned int _v asm("r2") = (unsigned long)v;
-	register unsigned int _oldval asm("r4") = oldval;
+	register unsigned int result __asm("r0");
+	register unsigned int _newval __asm("r1") = newval;
+	register unsigned int _v __asm("r2") = (unsigned long)v;
+	register unsigned int _oldval __asm("r4") = oldval;
 
 	/* Transient failure is possible if interrupted.
 	 * Since we can't distinguish the cause of the failure,
@@ -2676,9 +2676,9 @@
 
       GASNETI_INLINE(gasneti_atomic32_swap)
       uint32_t gasneti_atomic32_swap(gasneti_atomic32_t *p, int32_t op, const int flags) {
-        register unsigned long newval asm("r1") = op;
-        register unsigned long _p asm("r2") = (unsigned long)(p);
-        register unsigned long oldval asm("r4");
+        register unsigned long newval __asm("r1") = op;
+        register unsigned long _p __asm("r2") = (unsigned long)(p);
+        register unsigned long oldval __asm("r4");
         __asm__ __volatile__ (
                 "0:     ldr     r0, [r2]        @ r0 = *p       \n"
                 "       mov     r4, r0          @ oldval = r0   \n"
