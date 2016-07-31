@@ -40,7 +40,7 @@ testspawn_includes = -I$(srcdir) \
 	   	     -I$(top_srcdir)/extended-ref \
 		     -I$(spawner_dir)
 
-ssh_cflags = @CFLAGS@
+ssh_cflags = @CFLAGS@ @CPPFLAGS@
 ssh_cc = @CC@
 ssh_ldflags =
 
@@ -49,7 +49,6 @@ mpi_cc = @MPI_CC@
 mpi_ldflags = @MPI_LIBS@
 
 testspawn_cflags =                \
-        @MISC_CFLAGS@             \
         -DGASNET_SEQ              \
         @GASNET_MACHINE_DEFINES@  \
         $(testspawn_includes)     \

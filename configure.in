@@ -576,6 +576,7 @@ AC_DEFUN([GASNET_SET_MISCFLAGS],[
 # Set MISC_CFLAGS: flags to be used by all C compilations, regardless of optimization/debugging level
 # This should include achitectural/CPU flags and anything required for C99 conformance
 # We do not currently allow a user override of MISC_C(PP)FLAGS
+MISC_CFLAGS=""
 case "$CC_FAMILY" in
   GNU)
     case "$target_cpu" in
@@ -615,12 +616,13 @@ case "$CC_FAMILY" in
                         [MISC_CFLAGS="$MISC_CFLAGS -qsuppress=1500-010:1500-029:1506-229"])
        ;;
   Open64) MISC_CFLAGS="-std=c99" ;;
-  *)   MISC_CFLAGS="" ;;
+  *)  ;;
 esac
 
 # Set MISC_CPPFLAGS: flags to be used by all C preprocesses and compilations
 # This should include anything required for C99 and POSIX conformance
 # We do not currently allow a user override of MISC_C(PP)FLAGS
+MISC_CPPFLAGS=""
 case "$CC_FAMILY" in
   XLC) # tell preprocessor to allow C++-style comments
        GASNET_TRY_CFLAG([-qcpluscmt], [MISC_CPPFLAGS="$MISC_CPPFLAGS -qcpluscmt"]);;
@@ -633,7 +635,7 @@ case "$CC_FAMILY" in
                          [MISC_CPPFLAGS="$MISC_CPPFLAGS ${gcc_flag_prefix}-no-cpp-precomp"])
       ;; 
     esac ;;
-  *)  MISC_CPPFLAGS="" ;;
+  *)  ;;
 esac
 # Some C compilers disable OS POSIX entry points when strict c99 conformance is selected
 case "$target_os" in
@@ -677,15 +679,23 @@ GASNET_MSG_WARN([
  WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING
 -----------------------------------------------------------------------])
     fi
-    CFLAGS="$CCDEBUGFLAGS"
+    GASNET_OPT_CFLAGS="$CCDEBUGFLAGS"
     AC_DEFINE(GASNET_DEBUG)
     BUILDCONFIG="debug"
     enabled_debug=yes],
-  [ CFLAGS="$CCOPTFLAGS"
+  [ GASNET_OPT_CFLAGS="$CCOPTFLAGS"
     AC_DEFINE(GASNET_NDEBUG)
     BUILDCONFIG="optimize"
     enabled_debug=no])
 AM_CONDITIONAL(BUILDCONFIG_DEBUG, test "$enabled_debug" = yes)
+
+# MISC_C(PP)FLAGS are added to C(PP)FLAGS here to ensure they are used for the remaining configure tests,
+# but they retain a separate identity post-configure
+CFLAGS="$GASNET_OPT_CFLAGS $MISC_CFLAGS"
+CPPFLAGS="$MISC_CPPFLAGS"
+AC_SUBST(MISC_CFLAGS)	      # warning suppression and other misc C flags
+AC_SUBST(MISC_CPPFLAGS)	      # misc preprocessor flags
+AC_SUBST(GASNET_OPT_CFLAGS)
 
 GASNET_IF_ENABLED(gasnet-verbose, Build GASNet lib with debugging status messages, 
   [ enabled_debug_verbose=yes ], [ enabled_debug_verbose=no ])
@@ -726,13 +736,9 @@ case "$target" in
   *-uclinux-*) # uclinux requires -Os
     MISC_CFLAGS="$MISC_CFLAGS -DGASNET_ALLOW_OPTIMIZED_DEBUG=1" ;;
   *)
-    GASNET_CHECK_OPTIMIZEDDEBUG(CC,CFLAGS,[$CPPFLAGS $MISC_CFLAGS $MISC_CPPFLAGS],[])
+    GASNET_CHECK_OPTIMIZEDDEBUG(CC,CFLAGS,[$CPPFLAGS],[])
   ;;
 esac
-
-#AC_SUBST(CFLAGS)	      # opt/debug flags
-AC_SUBST(MISC_CFLAGS)	      # warning suppression and other misc C flags
-AC_SUBST(MISC_CPPFLAGS)	      # misc preprocessor flags
 
 case "$CC_FAMILY" in
   GNU) KEEPTMP_CFLAGS="-save-temps" ;;
@@ -897,7 +903,6 @@ GASNET_FUN_END([$0])
 ])
 
 GASNET_LIBGCC
-GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CPPFLAGS $MISC_CFLAGS")
 GASNET_CHECK_RESTRICT([GASNETI_CC])
 GASNET_CHECK_ASM_SUPPORT([C compiler],[CC])
 GASNET_INLINE_MODIFIER([C compiler],[CC])
@@ -924,8 +929,6 @@ GASNET_TRY_CACHE_CHECK(for working GASNet-required ISO C99 subset, gasnet_c99_su
  [ GASNET_VA_ARGS_TEST ],
  [ GASNET_C99_TEST ], [], 
  [ AC_MSG_ERROR(Unable to find sufficient C99 support features in $CC to build GASNet. You may need to append flags in \$CC to enable C99 support) ])
-
-GASNET_POPVAR(CFLAGS)
 
 GASNET_IFDEF([__PIC__],[AC_DEFINE(GASNETI_CONFIGURED_PIC)])
 
@@ -1539,6 +1542,9 @@ AM_CONDITIONAL(USE_PSHM, test "$with_pshm" != no)
 ########################################################################
 ## CPU feature checks
 
+# the flags needed to compile gasnet_asm.h
+GASNET_ASM_CFLAGS="-I$TOP_SRCDIR -I$TOP_SRCDIR/other -D_IN_CONFIGURE"
+
 ## Look for potentially buggy MIPS R10k systems
 # There is a processor erratum to work-around in our atomics :-(
 # The only SGI products w/ the bad cpus are the "IP27" platforms (Origin 200, Origin 2000, and Onyx 2)
@@ -1552,7 +1558,7 @@ fi
 # Check how to reference MIPS assembler temporary register ("$1" or "$at")
 if expr "$target_cpu" : "mips" >/dev/null; then
   AC_CHECK_HEADERS(sgidefs.h)
-  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CPPFLAGS $MISC_CFLAGS -I$TOP_SRCDIR -I$TOP_SRCDIR/other -D_IN_CONFIGURE")
+  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
   GASNET_TRY_CACHE_CHECK(for MIPS register '\$[]1', mips_reg_1, [
     #include "gasnet_asm.h"
   ], [
@@ -1572,7 +1578,7 @@ fi
 
 ## ARM-specific checks for "kernel helpers"
 if expr "$target_cpu" : "arm" >/dev/null; then
-  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CPPFLAGS $MISC_CFLAGS -I$TOP_SRCDIR -I$TOP_SRCDIR/other -D_IN_CONFIGURE")
+  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
 
   ## Does ARM kernel have cmpxchg support?
   if test "$cross_compiling" = "yes" ; then
@@ -1663,7 +1669,7 @@ if expr "$target_cpu" : "arm" >/dev/null; then
 fi
 
 ## Do toolchain and CPU support ia64 "cmp8xchg16"?
-GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CPPFLAGS $MISC_CFLAGS -I$TOP_SRCDIR -I$TOP_SRCDIR/other -D_IN_CONFIGURE")
+GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
 AC_MSG_CHECKING(for ia64 cmp8xchg16 support)
 AC_TRY_RUN([
   #include "gasnet_asm.h" /* For PLATFORM_COMPILER_* and GASNETI_*_ASM_* */
@@ -1710,7 +1716,7 @@ AC_TRY_RUN([
 GASNET_POPVAR(CFLAGS)
 
 ## Do CC/gas and CPU support "cmpxchg16b"?
-GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CPPFLAGS $MISC_CFLAGS -I$TOP_SRCDIR -I$TOP_SRCDIR/other -D_IN_CONFIGURE")
+GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
 if test "$cross_compiling" = "yes" ; then
   GASNET_CROSS_VAR(GASNETI_HAVE_X86_CMPXCHG16B,HAVE_X86_CMPXCHG16B,[probe])
   if test "$GASNETI_HAVE_X86_CMPXCHG16B" = 'yes'; then
@@ -1765,7 +1771,7 @@ GASNET_POPVAR(CFLAGS)
 ## compiler which accepts GNU-style asm - but that is the only
 ## case where we *currently* care.  Test may need some additional
 ## cases for other compilers in the future.
-GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CPPFLAGS $MISC_CFLAGS -I$TOP_SRCDIR -I$TOP_SRCDIR/other -D_IN_CONFIGURE")
+GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
 GASNET_TRY_CACHE_CHECK(for x86 EBX register, x86_ebx, [
   #include "gasnet_asm.h" /* For PLATFORM_COMPILER_* and GASNETI_PGI_ASM_GNU */
 ], [
@@ -1786,7 +1792,6 @@ GASNET_POPVAR(CFLAGS)
 
 ## Does 32-bit SPARC compiler understand "U" and "h" register classes?
 if expr "$GASNETI_PTR_BITS$target_cpu" : "32sparc" >/dev/null; then
-  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CPPFLAGS $MISC_CFLAGS")
   GASNET_TRY_CACHE_CHECK([for 64-bit SPARC asm support], have_sparc32_64bit_asm, [] ,[
       unsigned long long u, v;
       volatile unsigned long long *p = &u;
@@ -1795,11 +1800,10 @@ if expr "$GASNETI_PTR_BITS$target_cpu" : "32sparc" >/dev/null; then
       __asm__ __volatile__ ( "std %1, %0" : "=m"(*p) : "U"(v) );
       __asm__ __volatile__ ( "clr %0 \n\tmovrz %1,1,%0" : "=&h"(retval), "+h"(tmp) );
   ], [AC_DEFINE(GASNETI_HAVE_SPARC32_64BIT_ASM)])
-  GASNET_POPVAR(CFLAGS)
 fi
 
 ## Spinloop hints
-GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CPPFLAGS $MISC_CFLAGS -I$TOP_SRCDIR -I$TOP_SRCDIR/other -D_IN_CONFIGURE")
+GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
 # need to run here because some OS's (Solaris/x86) forbid the pause instruction
 GASNET_TRY_CACHE_RUN_WITHCC(for x86 pause instruction,x86_pause_instruction, [
   #include "gasnet_asm.h" /* Includes portable_platform.h */
@@ -2033,7 +2037,7 @@ if test "$with_pshm" != no; then
     dnl So, if gasnet_atomic_bits.h has any unsatisfied dependencies on a given platform
     dnl then we could miss detecting the problem here, but will still catch at compile time.
     dnl Note that native atomics w/o signal safety are okay.
-    GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MISC_CPPFLAGS $MISC_CFLAGS -I$TOP_SRCDIR -I$TOP_SRCDIR/other -D_IN_CONFIGURE")
+    GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
     GASNET_TRY_CACHE_CHECK(for non-native atomics, non_native_atomics, [
       #include "portable_inttypes.h"
       #include "gasnet_asm.h" /* Includes portable_platform.h */
@@ -2223,7 +2227,7 @@ AC_DEFUN([GASNET_LINKHELPER_SETUP],[
       $LINKHELPER_TLS_CODE
     }
 _GASNET_EOF
-  compile="$CC $CFLAGS $MISC_CFLAGS $CPPFLAGS -c $LINKHELPER_SRC -o $LINKHELPER_OBJ"
+  compile="$CC $CFLAGS $CPPFLAGS -c $LINKHELPER_SRC -o $LINKHELPER_OBJ"
   eval echo "$compile" >&5
   if eval $compile 2>&5 && test -s $LINKHELPER_OBJ ; then
     AC_MSG_RESULT(ok)
@@ -2262,9 +2266,11 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
     GASNET_ENV_DEFAULT(TARGET_CXXFLAGS, "")
     unset ac_cv_prog_CXX
     unset ac_cv_prog_CXXCPP
-    CXX="$TARGET_CXX"
-    CXXFLAGS="$TARGET_CXXFLAGS"
+    CXX="$TARGET_CXX $TARGET_CXXFLAGS"
   fi
+  CXXFLAGS=""       # start with a clean slate
+  MISC_CXXFLAGS=""
+  # Note: autoconf uses CPPFLAGS for both C and C++, so there is NO CXXCPPFLAGS
 
   if test "$with_cxx" = no; then
     have_cxx=no
@@ -2370,15 +2376,19 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
     ;;
   esac  
   if test "$BUILDCONFIG" = "optimize" ; then
-    CXXFLAGS="$CXXOPTFLAGS"
+    GASNET_OPT_CXXFLAGS="$CXXOPTFLAGS"
   else
-    CXXFLAGS="$CXXDEBUGFLAGS"
+    GASNET_OPT_CXXFLAGS="$CXXDEBUGFLAGS"
   fi
+  AC_SUBST(GASNET_OPT_CXXFLAGS)
+  # MISC_CXXFLAGS are added to CXXFLAGS here to ensure they are used for the remaining configure tests,
+  # but they retain a separate identity post-configure
+  CXXFLAGS="$GASNET_OPT_CXXFLAGS $MISC_CXXFLAGS"
   case "$target" in
     *-uclinux-*) # uclinux requires -Os
       MISC_CXXFLAGS="$MISC_CXXFLAGS -DGASNET_ALLOW_OPTIMIZED_DEBUG=1" ;;
     *)
-      GASNET_CHECK_OPTIMIZEDDEBUG(CXX,CXXFLAGS,[$CXXCPPFLAGS $MISC_CXXFLAGS],[])
+      GASNET_CHECK_OPTIMIZEDDEBUG(CXX,CXXFLAGS,[$CPPFLAGS],[])
     ;;
   esac
 
@@ -2388,7 +2398,6 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
   AC_SUBST(cxxLIBS)
   AC_SUBST(cxxLDFLAGS)
 
-  GASNET_PUSHVAR(CXXFLAGS,"$CXXFLAGS $CXXCPPFLAGS $MISC_CXXFLAGS")
   GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $cxxLDFLAGS")
   GASNET_PUSHVAR(LIBS,"$LIBS $cxxLIBS")
   GASNET_TRY_CACHE_VERIFY_RUN( [for working C++ exceptions], cxx_exceptions, [ ], [
@@ -2432,7 +2441,6 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
   fi
   GASNET_LINKHELPER_CLEANUP()
 
-  GASNET_POPVAR(CXXFLAGS)
   GASNET_POPVAR(LDFLAGS)
   GASNET_POPVAR(LIBS)
   AC_SUBST(MISC_CXXFLAGS)
@@ -2512,7 +2520,7 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
   # user can explicitly configure MPI by setting MPI_CC, MPI_CFLAGS and MPI_LIBS
   # First step is to provide sane defaults when the user gave us nothing
   have_mpi=yes # start by assuming they have it
-  DEFAULT_MPI_CFLAGS="$CFLAGS" # default flags, assuming they are the same compiler
+  DEFAULT_MPI_CFLAGS="$GASNET_OPT_CFLAGS" # default flags, assuming they are the same compiler
   case "$target_os" in
     linux*) 
         if test -n "$GASNETI_ARCH_ALTIX"; then
@@ -4716,7 +4724,7 @@ GASNET_IF_ENABLED(strict-prototypes, [Use strict prototypes in GASNet headers (a
         dnl    MISC_CXXFLAGS gets the flag for any build
         if test "$enabled_debug" = yes; then
           GASNET_TRY_CFLAG([-Wstrict-prototypes],
-                           [CFLAGS="$CFLAGS -Wstrict-prototypes"])
+                           [MISC_CFLAGS="$MISC_CFLAGS -Wstrict-prototypes"])
         fi
         if test "$enabled_debug$have_mpi" = yesyes; then
           dnl Ick: will show "checking for C compiler flag -Wstrict-prototypes" twice in a row
@@ -4964,6 +4972,14 @@ cat >>$CONDUIT_LIST <<EOF
 EOF
 fi
 echo "----------------------------------------------------------------------" >> $CONDUIT_LIST
+
+# The following intentionally mirror the definitions in conduit fragments
+# These are intentionally non-additive, to help ensure configure checks add things to the 
+# appropriate sub-variable and NOT add things directly to CFLAGS which gets overwritten
+# Do NOT change the following lines!!!
+CFLAGS="$GASNET_OPT_CFLAGS $MISC_CFLAGS"
+CPPFLAGS="$MISC_CPPFLAGS"
+CXXFLAGS="$GASNET_OPT_CXXFLAGS $MISC_CXXFLAGS"
 
 # Files added here should also be added to ./unBootstrap
 GASNET_END_CONFIGURE()

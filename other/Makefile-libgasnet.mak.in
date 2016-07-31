@@ -40,7 +40,7 @@ LIBDEFINES =                        \
 @BUILDCONFIG_DEBUG_FALSE@ TOOLLIB_DEBUGFLAGS = -DNDEBUG
 TOOLLIBCFLAGS =                   \
         -DGASNETT_BUILDING_TOOLS  \
-        @CFLAGS@                  \
+        @GASNET_OPT_CFLAGS@       \
         @MISC_CFLAGS@             \
         @MISC_CPPFLAGS@           \
         $(TOOLLIBDEFINES)         \
@@ -50,7 +50,7 @@ TOOLLIBCFLAGS =                   \
 	$(MANUAL_LIBCFLAGS)
 
 LIBCFLAGS =                       \
-        @CFLAGS@                  \
+        @GASNET_OPT_CFLAGS@       \
         @MISC_CFLAGS@             \
         @MISC_CPPFLAGS@           \
         $(LIBDEFINES)             \

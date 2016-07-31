@@ -1194,6 +1194,7 @@ GASNET_FUN_BEGIN([$0(...)])
   AC_LANG_C
   GASNET_PUSHVAR(CC,"$[$1]")
   GASNET_PUSHVAR(CFLAGS,"$[$2] $3")
+  GASNET_PUSHVAR(CPPFLAGS,"")
   AC_TRY_COMPILE( [
     $4
     #if defined(__OPTIMIZE__) || defined(NDEBUG)
@@ -1203,6 +1204,7 @@ GASNET_FUN_BEGIN([$0(...)])
   AC_MSG_RESULT([$gasnet_result])
   GASNET_POPVAR(CC)
   GASNET_POPVAR(CFLAGS)
+  GASNET_POPVAR(CPPFLAGS)
   AC_LANG_RESTORE
   if test "$gasnet_result" = yes; then
     ifelse([$5],[],[ dnl m4_ifval not present in older autotools
@@ -1671,7 +1673,6 @@ AC_DEFUN([GASNET_PROG_CXXCPP], [
   AC_PROG_CXXCPP
   GASNET_GETFULLPATH(CXXCPP)
   AC_SUBST(CXXCPP)
-  AC_SUBST(CXXCPPFLAGS)
   AC_MSG_CHECKING(for working C++ preprocessor)
   AC_LANG_SAVE
   AC_LANG_CPLUSPLUS
@@ -1682,7 +1683,6 @@ AC_DEFUN([GASNET_PROG_CXXCPP], [
     dnl Using this flag is preferable to ensure that #errors encountered during compilation are fatal
     gasnet_progcxxcpp_extrainfo=" (added -diag_error 1035 to deal with broken MIPSPro preprocessor)"
     CXXFLAGS="$CXXFLAGS -diag_error 1035"
-    CXXCPPFLAGS="$CXXCPPFLAGS -diag_error 1035"    
   fi
   dnl final check
   AC_TRY_CPP([
