@@ -113,7 +113,7 @@ int gasnete_put_nbi (gasnetex_team_member_t team,
   ===========================================================
 */
 GASNETI_INLINE(gasnete_syncnbi)
-int gasnete_syncnbi(GASNETI_THREAD_FARG_ALONE)
+int gasnete_syncnbi(GASNETE_THREAD_FARG_ALONE)
 {
   gasneti_sync_reads();
   return GASNET_OK;

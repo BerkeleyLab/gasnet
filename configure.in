@@ -3844,7 +3844,7 @@ cat >>$CONDUIT_LIST <<EOF
  -----------------
 EOF
 
-dnl Order portable conduits from LOW to HIGH precedence, clients use order to select defaults
+# Order portable conduits from LOW to HIGH precedence, clients use order to select defaults
 
 CONDUIT_OUTPUT(smp)
 CONDUIT_OUTPUT(ofi)      dnl Not currently the best choice for any hardware
@@ -3858,7 +3858,7 @@ cat >>$CONDUIT_LIST <<EOF
  ---------------------------------
 EOF
 
-dnl Order native conduits from LOW to HIGH precedence, clients use order to select defaults
+# Order native conduits from LOW to HIGH precedence, clients use order to select defaults
 
 CONDUIT_OUTPUT(pami)    dnl Ensure pami-over-ib is lower than ibv
 CONDUIT_OUTPUT(ibv)

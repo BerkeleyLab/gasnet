@@ -10,10 +10,18 @@ API using the IBM PAMI communication protocol.
 Where this conduit runs:
 -----------------------
 
-### Explain the hardware/systems where your conduit runs. Be sure to use
-### high-level marketing names that should be understandable to any end-user. 
-### Include any software/driver/firmware/hw requirements or limitations.
-### Mention any situation where a different GASNet conduit should be preferred.
+pami-conduit implements GASNet over IBM's Parallel Active Messaging Interface
+(PAMI) which is available on the IBM Blue Gene/Q, IBM PERCS/POWER 775 systems,
+and InfiniBand-connected clusters running IBM's Parallel Environment (PE)
+software.  There is a good collection of PAMI-related links available from
+https://github.com/jeffhammond/pami-examples/blob/master/README
+
+PAMI is the recommended GASNet conduit on the Blue Gene/Q, and POWER 775
+(a.k.a. PERCS) systems, and has been developed and tested on both.  On
+InfiniBand-connected clusters, ibv-conduit is likely to provide superior
+performance.
+
+There are no known minimum required versions of PAMI or related software
 
 Recognized environment variables:
 ---------------------------------
