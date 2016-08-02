@@ -618,14 +618,10 @@ case "$CC_FAMILY" in
 esac
 
 # Set MISC_CPPFLAGS: flags to be used by all C preprocesses and compilations
-# This should include anything required for C99 and POSIX conformance
+# Note this is ALSO used for C++ compilation, so only generic language-independent options should go in here
 # We do not currently allow a user override of MISC_C(PP)FLAGS
 MISC_CPPFLAGS=""
 case "$CC_FAMILY" in
-  XLC) # tell preprocessor to allow C++-style comments
-       GASNET_TRY_CFLAG([-qcpluscmt], [MISC_CPPFLAGS="$MISC_CPPFLAGS -qcpluscmt"]);;
-  PGI) MISC_CPPFLAGS="-B" ;; # C++ comments
-  Sun) MISC_CPPFLAGS="-xCC" ;; # C++ comments
   GNU)
     case "$target_os" in
       darwin*) # add some options which are specific to the Apple Inc version of gcc
