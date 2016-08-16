@@ -56,8 +56,5 @@
 /* Configure use of AM-based implementation of get/put */
 /* NOTE: Barriers, Collectives, VIS may use GASNETE_USING_REF_* in algorithm selection */
 
-/* in order to use reference memset with our conduit-specific eop */
-#define GASNETE_AMREF_USE_MARKDONE          1
-
 #endif
 

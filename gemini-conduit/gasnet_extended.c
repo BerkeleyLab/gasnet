@@ -104,6 +104,11 @@ extern void gasnete_init(void) {
   ========
 */
 
+#define PACK_EOP_DONE(_eop)         PACK(&(_eop)->completed_cnt)
+#define PACK_IOP_DONE(_iop,_getput) PACK(&(_iop)->completed_##_getput##_cnt)
+#define MARK_DONE(_ptr,_isget)      gasneti_weakatomic_increment((gasneti_weakatomic_t *)(_ptr), \
+                                                                 (_isget) ? GASNETI_ATOMIC_REL : 0)
+
 /* Use some or all of the reference implementation of get/put in terms of AMs
  * Configuration appears in gasnet_extended_fwd.h
  */
