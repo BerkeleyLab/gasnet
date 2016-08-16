@@ -49,8 +49,9 @@ enum {
 };
 
 /* ------------------------------------------------------------------------------------ */
-/* Configure gasnet_handle.[ch] */
+/* Configure gasnet_handle_internal.h and gasnet_handle.c */
 // TODO-EX: prefix needs to move from "extended" to "core"
+
 #define GASNETE_OP_TRY_FREE_EXTRA(handle) do {                                       \
     if_pt (handle->flags == OPFLAG_MXM) {                                            \
             gasnet_mxm_send_req_t *send_req = (gasnet_mxm_send_req_t *)handle;       \

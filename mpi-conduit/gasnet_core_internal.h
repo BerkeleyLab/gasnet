@@ -95,4 +95,14 @@ typedef enum {
   gasnetc_Long=2
 } gasnetc_category_t;
 
+/* ------------------------------------------------------------------------------------ */
+/* Configure gasnet_handle_internal.h and gasnet_handle.c */
+// TODO-EX: prefix needs to move from "extended" to "core"
+
+// (###) Define as needed if iop counters should use something other than weakatomics:
+/* #define gasnete_op_atomic_(_id) gasnetc_atomic_##_id */
+
+// (###) Define if conduit performs local-completion detection:
+/* #define GASNETE_HAVE_LC */
+
 #endif

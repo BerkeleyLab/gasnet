@@ -50,8 +50,9 @@ typedef struct _gasnetc_ofi_state {
 extern gasnetc_ofi_state_t gasnetc_ofi_state;
 
 /* ------------------------------------------------------------------------------------ */
-/* Configure gasnet_handle.[ch] */
+/* Configure gasnet_handle_internal.h and gasnet_handle.c */
 // TODO-EX: prefix needs to move from "extended" to "core"
+
 #define GASNETE_CONDUIT_EOP_FIELDS \
                 ofi_op_ctxt_t ofi;
 #define GASNETE_CONDUIT_IOP_FIELDS      \
