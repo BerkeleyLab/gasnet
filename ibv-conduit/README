@@ -311,9 +311,10 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
   + GASNET_MAX_MTU
     This sets the maximum MTU to be used, and has the following valid
-    values:  0, 256, 512, 1024, 2048 or 4096.
+    values:  -1, 0, 256, 512, 1024, 2048 or 4096.
     If the value is 0 GASNet will automatically select the MTU size.
-    Otherwise the lesser of this setting or the port's configured value
+    If the value is -1 GASNet will use the HCA port's active value.
+    Otherwise the lesser of this setting or the port's active value
     will be used.
     The default is 0: automatic MTU selection.
 
