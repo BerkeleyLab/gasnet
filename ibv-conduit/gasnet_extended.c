@@ -7,9 +7,10 @@
 #include <gasnet_internal.h>
 #include <gasnet_extended_internal.h>
 #include <gasnet_handler.h>
+#include <gasnet_ibv.h>
 
-#if !GASNETE_EOP_COUNTED
-#error "Build config error: ibv requires GASNETE_EOP_COUNTED"
+#if !GASNETE_EOP_BOOLEAN
+#error "Build config error: ibv requires GASNETE_EOP_BOOLEAN"
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -104,12 +105,16 @@ gasnetex_handle_t gasnete_get_nb(
 {
   GASNETI_CHECKPSHM_GET(H);
  {
-  gasnete_eop_t *op = _gasnete_eop_new(GASNETI_MYTHREAD);
+  gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
 
   /* XXX check error returns */
+  op->initiated_cnt++;
   gasnetc_rdma_get(rank, src, dest, nbytes,
                    &op->initiated_cnt, gasnetc_cb_eop_get
                    GASNETI_THREAD_PASS);
+
+  // TODO-EX: optimize away (to avoid atomic add) in certain cases:
+  gasnetc_complete_eop(op, gasnetc_comptype_eop_get);
 
   return (gasnetex_handle_t)op;
  }
@@ -125,14 +130,14 @@ gasnetex_handle_t gasnete_put_nb(
 {
   GASNETI_CHECKPSHM_PUT(H);
  {
-  gasnete_eop_t *op = _gasnete_eop_new(GASNETI_MYTHREAD);
+  gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
   gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
   gasnetc_atomic_val_t *local_cnt;
   gasnetc_cb_t         local_cb;
 
-  /* XXX check error returns */
-
   if (gasneti_leaf_is_pointer(lc_opt)) {
+    GASNETE_LC_START(op);
+    op->initiated_alc += 1;
     local_cnt = &op->initiated_alc;
     local_cb = gasnetc_cb_eop_alc;
     *lc_opt = gasneti_op_handle(op, 1);
@@ -146,11 +151,22 @@ gasnetex_handle_t gasnete_put_nb(
     gasneti_fatalerror("Invalid lc_opt argument to Put_nb");
   }
 
+  /* XXX check error returns */
+  op->initiated_cnt++;
   gasnetc_rdma_put(rank, src, dest, nbytes,
                    local_cnt, local_cb,
                    &op->initiated_cnt, gasnetc_cb_eop_put
                    GASNETI_THREAD_PASS);
-  if (lc_opt == GASNETEX_EVENT_NOW) gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
+
+  if (lc_opt == GASNETEX_EVENT_NOW) {
+    gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
+  } else if (gasneti_leaf_is_pointer(lc_opt)) {
+    // TODO-EX: optimize away (to avoid atomic add) in certain cases:
+    gasnetc_complete_eop(op, gasnetc_comptype_eop_alc);
+  }
+
+  // TODO-EX: optimize away (to avoid atomic add) in certain cases:
+  gasnetc_complete_eop(op, gasnetc_comptype_eop_put);
 
   return (gasnetex_handle_t)op;
  }

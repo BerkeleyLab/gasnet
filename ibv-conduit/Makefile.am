@@ -83,6 +83,7 @@ CONDUIT_FILELIST =               \
       gasnet_extended.c          \
       gasnet_extended_fwd.h      \
       gasnet_firehose.c          \
+      gasnet_ibv.h               \
       firehose_fwd.h             \
       license.txt                
 
@@ -108,7 +109,7 @@ CONDUIT_EXTRAHEADERS = $(fh_extraheaders) $(fca_extraheaders) $(blcr_extraheader
 
 
 # headers selected by default rules that should NOT be installed
-CONDUIT_PRIVATEHEADERS = $(fh_privheaders) $(fca_privheaders) $(blcr_privheaders)
+CONDUIT_PRIVATEHEADERS = $(fh_privheaders) $(fca_privheaders) $(blcr_privheaders) gasnet_ibv.h
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update

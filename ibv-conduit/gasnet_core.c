@@ -3487,13 +3487,16 @@ extern int gasnetc_AMRequestLongM(
   va_start(argptr, numargs); /*  pass in last argument */
   {
     gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
-    gasnetc_atomic_val_t *local_cnt;
+    gasnetc_atomic_val_t *local_cnt, start_cnt;
     gasnetc_cb_t         local_cb;
+    gasnete_eop_t        *op;
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
-      gasnete_eop_t *op = _gasnete_eop_new(GASNETI_MYTHREAD);
-      local_cnt = &op->initiated_cnt;
-      local_cb = gasnetc_cb_eop_put;
+      op = _gasnete_eop_new(GASNETI_MYTHREAD);
+      GASNETE_LC_START(op);
+      start_cnt = op->initiated_alc;
+      local_cnt = &op->initiated_alc;
+      local_cb = gasnetc_cb_eop_alc;
       *lc_opt = (gasnetex_handle_t)op;
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
       local_cnt = &counter.initiated;
@@ -3515,6 +3518,8 @@ extern int gasnetc_AMRequestLongM(
     if (lc_opt == GASNETEX_EVENT_NOW) {
       /* block for completion of RDMA transfer */
       gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
+    } else if (gasneti_leaf_is_pointer(lc_opt)) {
+      if (start_cnt == op->initiated_alc) GASNETE_EOP_LC_FINISH(op); // Synchronous LC
     }
   }
   va_end(argptr);
@@ -3576,13 +3581,16 @@ extern int gasnetc_AMReplyLongM(
   #if GASNETC_PIN_SEGMENT
   {
     gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
-    gasnetc_atomic_val_t *local_cnt;
+    gasnetc_atomic_val_t *local_cnt, start_cnt;
     gasnetc_cb_t         local_cb;
+    gasnete_eop_t        *op;
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
-      gasnete_eop_t *op = _gasnete_eop_new(GASNETI_MYTHREAD);
-      local_cnt = &op->initiated_cnt;
-      local_cb = gasnetc_cb_eop_put;
+      op = _gasnete_eop_new(GASNETI_MYTHREAD);
+      GASNETE_LC_START(op);
+      start_cnt = op->initiated_alc;
+      local_cnt = &op->initiated_alc;
+      local_cb = gasnetc_cb_eop_alc;
       *lc_opt = (gasnetex_handle_t)op;
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
       local_cnt = &counter.initiated;
@@ -3604,6 +3612,8 @@ extern int gasnetc_AMReplyLongM(
     if (lc_opt == GASNETEX_EVENT_NOW) {
       /* block for completion of RDMA transfer */
       gasnetc_counter_wait(&counter, 1 /* calling from a request handler */ GASNETI_THREAD_PASS);
+    } else if (gasneti_leaf_is_pointer(lc_opt)) {
+      if (start_cnt == op->initiated_alc) GASNETE_EOP_LC_FINISH(op); // Synchronous LC
     }
   }
   #else

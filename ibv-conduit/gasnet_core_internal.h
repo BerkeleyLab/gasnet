@@ -135,9 +135,31 @@ typedef enum {
 /* ------------------------------------------------------------------------------------ */
 /* Configure gasnet_handle.[ch] */
 // TODO-EX: prefix needs to move from "extended" to "core"
-#define GASNETE_EOP_COUNTED 1
-#define GASNETE_LC_COUNTED 1
+
 #define gasnete_op_atomic_(_id) gasnetc_atomic_##_id
+
+#define GASNETE_EOP_BOOLEAN 1
+#define GASNETE_LC_BOOLEAN 1
+
+#define GASNETE_CONDUIT_EOP_FIELDS \
+  gasnetc_atomic_val_t initiated_cnt; \
+  gasnetc_atomic_t     completed_cnt; \
+  gasnetc_atomic_val_t initiated_alc; \
+  gasnetc_atomic_t     completed_alc;
+
+#define GASNETE_EOP_ALLOC_EXTRA(_eop) do { \
+    gasnetc_atomic_set(&(_eop)->completed_cnt, 0 , 0); \
+    gasnetc_atomic_set(&(_eop)->completed_alc, 0 , 0); \
+  } while (0)
+
+#define GASNETE_EOP_FREE_EXTRA(_eop) do { \
+    gasneti_assert(gasnetc_atomic_read(&(_eop)->completed_cnt, 0) \
+                   == ((_eop)->initiated_cnt & GASNETI_ATOMIC_MAX)); \
+    gasneti_assert(gasnetc_atomic_read(&(_eop)->completed_alc, 0) \
+                   == ((_eop)->initiated_alc & GASNETI_ATOMIC_MAX)); \
+  } while (0)
+
+#define _GASNETE_EOP_NEW_EXTRA GASNETE_EOP_FREE_EXTRA
 
 /* ------------------------------------------------------------------------------------ */
 /* Internal threads */
