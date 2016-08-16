@@ -821,13 +821,12 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
 #if GASNET_TRACE
 static const char *mtu_to_str(enum ibv_mtu mtu) {
   switch (mtu) {
-  default          : return "unknown";
-  case 0           : return "active_mtu";
   case IBV_MTU_256 : return "256";
   case IBV_MTU_512 : return "512";
   case IBV_MTU_1024: return "1024";
   case IBV_MTU_2048: return "2048";
   case IBV_MTU_4096: return "4096";
+  default: return (int)mtu ? "unknown" : "active_mtu";
   }
 }
 #endif
