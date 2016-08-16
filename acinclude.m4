@@ -973,6 +973,7 @@ AC_DEFUN([GASNET_TRY_CCOMPILE_WITHWARN],[
     ],[ dnl still got a warning - is the same?
       if test "$gasnet_cmd_stdout$gasnet_cmd_stderr" = "$_GASNET_TRY_COMPILE_WITHWARN_OUTTMP$_GASNET_TRY_COMPILE_WITHWARN_ERRTMP" ; then
         dnl identical warnings => no new warnings caused by program
+	:
 	$3
       else
         dnl different warnings => program is likely causal factor
