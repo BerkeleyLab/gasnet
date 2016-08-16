@@ -109,8 +109,4 @@ extern void gasnetc_fatalsignal_callback(int sig);
 extern void gasnetc_trace_finish(void);
 #define GASNETC_TRACE_FINISH() gasnetc_trace_finish()
 
-/* Configure gasnet_handle.[ch] */
-// TODO-EX: prefix needs to move from "extended" to "core"
-#define GASNETE_EOP_COUNTED 1
-
 #endif

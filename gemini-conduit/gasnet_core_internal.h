@@ -38,6 +38,38 @@ typedef enum {
 /* Assert that a value is aligned to at least the given size */
 #define gasnetc_assert_aligned(_val,_align)	gasneti_assert(!((uintptr_t)(_val) % (_align)))
 
+/* ------------------------------------------------------------------------------------ */
+/* Configure gasnet_handle.[ch] */
+// TODO-EX: prefix needs to move from "extended" to "core"
+
+#define GASNETE_EOP_BOOLEAN
+
+#define GASNETE_CONDUIT_EOP_FIELDS \
+  gasneti_weakatomic_val_t initiated_cnt; \
+  gasneti_weakatomic_t     completed_cnt;
+
+#define GASNETE_EOP_ALLOC_EXTRA(_eop) do { \
+    gasneti_weakatomic_set(&(_eop)->completed_cnt, 0 , 0); \
+  } while (0)
+
+#define GASNETE_EOP_NEW_EXTRA(_eop) do { \
+    (_eop)->initiated_cnt++; \
+  } while (0)
+
+#define GASNETE_EOP_DONE(_eop) \
+    (gasneti_weakatomic_read(&(_eop)->completed_cnt, 0) \
+        == ((_eop)->initiated_cnt & GASNETI_ATOMIC_MAX))
+
+#define GASNETE_EOP_MARKDONE(_eop) do { \
+    gasneti_assert(!GASNETE_EOP_DONE(_eop));                   \
+    gasneti_weakatomic_increment(&((_eop)->completed_cnt), 0); \
+  } while (0)
+
+#define GASNETE_EOP_FREE_EXTRA(_eop) do { \
+    gasneti_assert(GASNETE_EOP_DONE(_eop)); \
+  } while (0)
+
+#define _GASNETE_EOP_NEW_EXTRA GASNETE_EOP_FREE_EXTRA
 
 /* ------------------------------------------------------------------------------------ */
 
