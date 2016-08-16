@@ -521,7 +521,7 @@ int _gasnetex_put_val(  gasnetex_team_member_t team,
                         gasnetex_rank_t rank, void *dest,
                         gasnetex_register_value_t value,
                         size_t nbytes, gasnetex_flags_t flags
-                        GASNETI_THREAD_FARG); GASNETI_WARN_UNUSED_RESULT;
+                        GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
 GASNETI_INLINE(_gasnetex_put_nb_val) GASNETI_WARN_UNUSED_RESULT
