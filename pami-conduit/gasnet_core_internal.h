@@ -48,7 +48,7 @@ typedef enum {
 /* Configure gasnet_handle.[ch] */
 // TODO-EX: prefix needs to move from "extended" to "core"
 #define GASNETE_EOP_BOOLEAN
-#define GASNETE_LC_BOOLEAN
+#define GASNETE_HAVE_LC
 
 /* ------------------------------------------------------------------------------------ */
 

@@ -26,18 +26,8 @@
 #  error "Conduit must define either GASNETE_EOP_COUNTED or GASNETE_EOP_BOOLEAN"
 #endif
 
-#if defined(GASNETE_LC_COUNTED)
-#  ifdef GASNETE_LC_BOOLEAN
-#    error "Only one of GASNETE_LC_COUNTED or GASNETE_LC_BOOLEAN may be defined"
-#  endif
-#  undef GASNETE_LC_COUNTED
-#  define GASNETE_LC_COUNTED 1
-#  define GASNETE_LC_BOOLEAN 0
-#  define GASNETE_HAVE_LC 1
-#elif defined(GASNETE_LC_BOOLEAN)
-#  undef GASNETE_LC_BOOLEAN
-#  define GASNETE_LC_BOOLEAN 1
-#  define GASNETE_LC_COUNTED 0
+#ifdef GASNETE_HAVE_LC
+#  undef GASNETE_HAVE_LC
 #  define GASNETE_HAVE_LC 1
 #else // Default is NO local completion
 #  define GASNETE_IOP_LC_DONE(op) 1
@@ -79,10 +69,6 @@ typedef struct _gasnete_eop_t {
   #if GASNETE_EOP_COUNTED
   gasnete_op_atomic_val_t initiated_cnt;
   gasnete_op_atomic_t     completed_cnt;
-  #endif
-  #if GASNETE_LC_COUNTED
-  gasnete_op_atomic_val_t initiated_alc;
-  gasnete_op_atomic_t     completed_alc;
   #endif
   #ifdef GASNETE_CONDUIT_EOP_FIELDS
   GASNETE_CONDUIT_EOP_FIELDS
@@ -240,14 +226,7 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
     } while (0)
 #endif
 #ifndef GASNETE_EOP_LC_FINISH
- #if GASNETE_LC_COUNTED
-  #define GASNETE_EOP_LC_FINISH(_eop) do {                     \
-      gasneti_assert(!GASNETE_EOP_LC_DONE(_eop));                   \
-      gasnete_op_atomic_increment(&((_eop)->completed_alc), 0);\
-    } while (0)
- #else // GASNETE_EOP_BOOLEAN
   #define GASNETE_EOP_LC_FINISH(_eop) SET_EVENT_DONE((_eop),1)
- #endif
 #endif
 
 // event:lc - DONE queries on IOP and EOP
@@ -255,13 +234,7 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
   #define GASNETE_IOP_LC_DONE(_iop) GASNETE_IOP_CNTDONE(_iop,alc)
 #endif
 #ifndef GASNETE_EOP_LC_DONE
- #if GASNETE_LC_COUNTED
-  #define GASNETE_EOP_LC_DONE(_eop) \
-    (gasnete_op_atomic_read(&(_eop)->completed_alc, 0) \
-          == ((_eop)->initiated_alc & GASNETI_ATOMIC_MAX))
- #else // GASNETE_EOP_BOOLEAN
   #define GASNETE_EOP_LC_DONE(_eop) EVENT_DONE(_eop,1)
- #endif
 #endif
 
 
