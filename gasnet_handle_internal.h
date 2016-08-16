@@ -11,21 +11,6 @@
 
 /* ------------------------------------------------------------------------------------ */
 
-#if defined(GASNETE_EOP_COUNTED)
-#  ifdef GASNETE_EOP_BOOLEAN
-#    error "Only one of GASNETE_EOP_COUNTED or GASNETE_EOP_BOOLEAN may be defined"
-#  endif
-#  undef GASNETE_EOP_COUNTED
-#  define GASNETE_EOP_COUNTED 1
-#  define GASNETE_EOP_BOOLEAN 0
-#elif defined(GASNETE_EOP_BOOLEAN)
-#  undef GASNETE_EOP_BOOLEAN
-#  define GASNETE_EOP_BOOLEAN 1
-#  define GASNETE_EOP_COUNTED 0
-#elif !GASNETI_DISABLE_REFERENCE_EOP
-#  error "Conduit must define either GASNETE_EOP_COUNTED or GASNETE_EOP_BOOLEAN"
-#endif
-
 #ifdef GASNETE_HAVE_LC
 #  undef GASNETE_HAVE_LC
 #  define GASNETE_HAVE_LC 1
@@ -66,10 +51,6 @@ typedef struct _gasnete_eop_t {
   gasnete_threadidx_t threadidx;  /*  thread that owns me */
   //----------------------------------
   struct _gasnete_eop_t *next;
-  #if GASNETE_EOP_COUNTED
-  gasnete_op_atomic_val_t initiated_cnt;
-  gasnete_op_atomic_t     completed_cnt;
-  #endif
   #ifdef GASNETE_CONDUIT_EOP_FIELDS
   GASNETE_CONDUIT_EOP_FIELDS
   #endif
@@ -193,29 +174,15 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
 #endif
 
 #ifndef GASNETE_EOP_DONE // Root event only
- #if GASNETE_EOP_COUNTED
-  #define GASNETE_EOP_DONE(_eop) \
-    (gasnete_op_atomic_read(&(_eop)->completed_cnt, 0) \
-          == ((_eop)->initiated_cnt & GASNETI_ATOMIC_MAX))
- #else // GASNETE_EOP_BOOLEAN
   #define GASNETE_EOP_DONE(_eop) EVENT_DONE(_eop,0)
- #endif
 #endif
 
 #ifndef GASNETE_EOP_MARKDONE
- #if GASNETE_EOP_COUNTED
-  #define GASNETE_EOP_MARKDONE(_eop) do {                        \
-      gasneti_assert(!GASNETE_EOP_DONE(_eop));                   \
-      gasnete_op_atomic_increment(&((_eop)->completed_cnt), 0);  \
-    } while (0)
- #else // GASNETE_EOP_BOOLEAN
   #define GASNETE_EOP_MARKDONE(_eop) SET_EVENT_DONE(_eop,0)
- #endif
 #endif
 
 
 // event:lc - for local-completion of Put/Med/Long with lc_opt = pointer
-// Note: that an OPT build may not need "START" for COUNTED case
 #define GASNETE_LC_START(op)   SET_EVENT_TYPE(op, 1, gasnete_event_type_lc)
 
 // event:lc - FINISH operations on IOP and EOP
@@ -314,9 +281,6 @@ GASNETI_INLINE(gasnete_eop_new)
 gasnete_eop_t *gasnete_eop_new(gasnete_threaddata_t * const thread) {
   gasnete_eop_t *eop = _gasnete_eop_new(thread);
   SET_EVENT_TYPE(eop, 0, gasnete_event_type_eop);
-#if GASNETE_EOP_COUNTED
-  eop->initiated_cnt++;
-#endif
 #ifdef GASNETE_EOP_NEW_EXTRA
   // Hook for conduit-specific initializations and assertions
   GASNETE_EOP_NEW_EXTRA(eop);

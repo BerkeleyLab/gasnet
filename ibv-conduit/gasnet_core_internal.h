@@ -138,7 +138,6 @@ typedef enum {
 
 #define gasnete_op_atomic_(_id) gasnetc_atomic_##_id
 
-#define GASNETE_EOP_BOOLEAN 1
 #define GASNETE_HAVE_LC
 
 #define GASNETE_CONDUIT_EOP_FIELDS \

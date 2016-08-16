@@ -42,8 +42,6 @@ typedef enum {
 /* Configure gasnet_handle.[ch] */
 // TODO-EX: prefix needs to move from "extended" to "core"
 
-#define GASNETE_EOP_BOOLEAN
-
 #define GASNETE_CONDUIT_EOP_FIELDS \
   gasneti_weakatomic_val_t initiated_cnt; \
   gasneti_weakatomic_t     completed_cnt;

@@ -8,10 +8,6 @@
 #include <gasnet_extended_internal.h>
 #include <gasnet_gemini.h>
 
-#if !GASNETE_EOP_BOOLEAN
-#error "Build config error: gemini/aries requires GASNETE_EOP_BOOLEAN"
-#endif
-
 /* ------------------------------------------------------------------------------------ */
 /*
   Tuning Parameters

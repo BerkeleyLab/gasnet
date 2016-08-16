@@ -9,10 +9,6 @@
 #include <gasnet_handler.h>
 #include <gasnet_ibv.h>
 
-#if !GASNETE_EOP_BOOLEAN
-#error "Build config error: ibv requires GASNETE_EOP_BOOLEAN"
-#endif
-
 /* ------------------------------------------------------------------------------------ */
 /*
   Extended API Common Code

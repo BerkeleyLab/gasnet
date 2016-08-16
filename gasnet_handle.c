@@ -39,10 +39,6 @@ extern void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
         // Type==eop at all times
         eop->event[0] = gasnete_event_type_eop;
       #endif
-      #if GASNETE_EOP_COUNTED
-        // eop->initiated_cnt = 0;  redundant due to calloc()
-        gasnete_op_atomic_set(&eop->completed_cnt, 0 , 0);
-      #endif
       #ifdef GASNETE_EOP_ALLOC_EXTRA
         // Hook for conduit-specific initializations and assertions
         GASNETE_EOP_ALLOC_EXTRA(eop);

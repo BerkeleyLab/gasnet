@@ -459,7 +459,6 @@ gasnetex_handle_t gasnete_get_nb(
 
     return (gasnetex_handle_t)op;
   } else {
-    /* TODO: don't need the iop for large xfers in the GASNETE_EOP_COUNTED case */
     /*  need many messages - use an access region to coalesce them into a single handle */
     /*  (note this relies on the fact that our implementation of access regions allows recursion) */
     gasnete_begin_nbi_accessregion(0,1 /* enable recursion */ GASNETI_THREAD_PASS);
@@ -506,7 +505,6 @@ gasnetex_handle_t gasnete_put_nb(
     }
 #endif
     // Fall through if too large for a single AM
-    // TODO: the GASNETE_EOP_COUNTED case could work w/o the access region (except EVENT_DEFER)
   }
 
   {
