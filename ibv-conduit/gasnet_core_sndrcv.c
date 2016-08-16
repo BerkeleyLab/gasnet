@@ -307,37 +307,55 @@ void gasnetc_complete(volatile gasnetc_atomic_val_t *initiated,
 }
 
 // EOP completion callbacks
-#define GASNETC_CB_EOP(field,type) \
-  extern void gasnetc_cb_eop_##type(gasnetc_atomic_val_t *p) {                                     \
-    gasnete_eop_t *eop = container_of(p, gasnete_eop_t, initiated_##field);                        \
-    gasnete_eop_check(eop);                                                                        \
-    gasnetc_complete(p, &eop->completed_##field, (gasnete_op_t*)eop, gasnetc_comptype_eop_##type); \
-  }
-GASNETC_CB_EOP(alc,alc)
-GASNETC_CB_EOP(cnt,put)
-GASNETC_CB_EOP(cnt,get)
+extern void gasnetc_cb_eop_alc(gasnetc_atomic_val_t *p) {
+  gasnete_eop_t *eop = container_of(p, gasnete_eop_t, initiated_alc);
+  gasnete_eop_check(eop);
+  gasnetc_complete(p, &eop->completed_alc, (gasnete_op_t*)eop, gasnetc_comptype_eop_alc);
+}
+extern void gasnetc_cb_eop_put(gasnetc_atomic_val_t *p) {
+  gasnete_eop_t *eop = container_of(p, gasnete_eop_t, initiated_cnt);
+  gasnete_eop_check(eop);
+  gasnetc_complete(p, &eop->completed_cnt, (gasnete_op_t*)eop, gasnetc_comptype_eop_put);
+}
+extern void gasnetc_cb_eop_get(gasnetc_atomic_val_t *p) {
+  gasnete_eop_t *eop = container_of(p, gasnete_eop_t, initiated_cnt);
+  gasnete_eop_check(eop);
+  gasnetc_complete(p, &eop->completed_cnt, (gasnete_op_t*)eop, gasnetc_comptype_eop_get);
+}
 
 // NAR (nbi-accessregion) completion callbacks
-#define GASNETC_CB_NAR(type) \
-  extern void gasnetc_cb_nar_##type(gasnetc_atomic_val_t *p) {                                          \
-    gasnete_iop_t *iop = container_of(p, gasnete_iop_t, initiated_##type##_cnt);                        \
-    gasnete_iop_check(iop);                                                                             \
-    gasnetc_complete(p, &iop->completed_##type##_cnt, (gasnete_op_t*)iop, gasnetc_comptype_iop_##type); \
-  }
-GASNETC_CB_NAR(alc)
-GASNETC_CB_NAR(put)
-GASNETC_CB_NAR(get)
+extern void gasnetc_cb_nar_alc(gasnetc_atomic_val_t *p) {
+  gasnete_iop_t *iop = container_of(p, gasnete_iop_t, initiated_alc_cnt);
+  gasnete_iop_check(iop);
+  gasnetc_complete(p, &iop->completed_alc_cnt, (gasnete_op_t*)iop, gasnetc_comptype_iop_alc);
+}
+extern void gasnetc_cb_nar_put(gasnetc_atomic_val_t *p) {
+  gasnete_iop_t *iop = container_of(p, gasnete_iop_t, initiated_put_cnt);
+  gasnete_iop_check(iop);
+  gasnetc_complete(p, &iop->completed_put_cnt, (gasnete_op_t*)iop, gasnetc_comptype_iop_put);
+}
+extern void gasnetc_cb_nar_get(gasnetc_atomic_val_t *p) {
+  gasnete_iop_t *iop = container_of(p, gasnete_iop_t, initiated_get_cnt);
+  gasnete_iop_check(iop);
+  gasnetc_complete(p, &iop->completed_get_cnt, (gasnete_op_t*)iop, gasnetc_comptype_iop_get);
+}
 
 // IOP (non accessregion) completion callbacks
-#define GASNETC_CB_IOP(type,fence) \
-  extern void gasnetc_cb_iop_##type(gasnetc_atomic_val_t *p) {                      \
-    gasnete_iop_t *iop = container_of(p, gasnete_iop_t, initiated_##type##_cnt);    \
-    gasnete_iop_check(iop);                                                         \
-    gasnetc_atomic_increment(&iop->completed_##type##_cnt, GASNETI_ATOMIC_##fence); \
-  }
-GASNETC_CB_IOP(alc,NONE)
-GASNETC_CB_IOP(put,NONE)
-GASNETC_CB_IOP(get,REL)
+extern void gasnetc_cb_iop_alc(gasnetc_atomic_val_t *p) {
+  gasnete_iop_t *iop = container_of(p, gasnete_iop_t, initiated_alc_cnt);
+  gasnete_iop_check(iop);
+  gasnetc_atomic_increment(&iop->completed_alc_cnt, GASNETI_ATOMIC_NONE);
+}
+extern void gasnetc_cb_iop_put(gasnetc_atomic_val_t *p) {
+  gasnete_iop_t *iop = container_of(p, gasnete_iop_t, initiated_put_cnt);
+  gasnete_iop_check(iop);
+  gasnetc_atomic_increment(&iop->completed_put_cnt, GASNETI_ATOMIC_NONE);
+}
+extern void gasnetc_cb_iop_get(gasnetc_atomic_val_t *p) {
+  gasnete_iop_t *iop = container_of(p, gasnete_iop_t, initiated_get_cnt);
+  gasnete_iop_check(iop);
+  gasnetc_atomic_increment(&iop->completed_get_cnt, GASNETI_ATOMIC_REL);
+}
 
 // gasnetc_counter_t completion callbacks
 extern void gasnetc_cb_counter(gasnetc_atomic_val_t *cnt) {
