@@ -131,14 +131,17 @@ typedef struct _gasnete_iop_t {
 // The 'lc' type is intended for local completion and is expected to occupy (event[1]).
 // A conduit may add additional types as needed to distinguish its unique cases
 enum {
-  gasnete_event_type_free = 0,
+#if GASNET_DEBUG
+  gasnete_event_type_free_eop = 0,
+  gasnete_event_type_free_iop,
+#endif
   gasnete_event_type_eop,
+  gasnete_event_type_iop,
   gasnete_event_type_lc,
   gasnete_event_type_lc_now,
 #ifdef GASNETE_CONDUIT_EVENT_TYPES
   GASNETE_CONDUIT_EVENT_TYPES
 #endif
-  gasnete_event_type_iop = EVENT_TYPE_MASK
 };
 
 /* ------------------------------------------------------------------------------------ */
@@ -320,7 +323,7 @@ gasnete_eop_t *_gasnete_eop_new(gasnete_threaddata_t * const thread) {
     thread->eop_free = eop->next;
   #if GASNET_DEBUG
     gasneti_assert(eop->threadidx == thread->threadidx); // TODO-EX: to be removed
-    gasneti_assert(eop->event[0] == gasnete_event_type_free);
+    gasneti_assert(eop->event[0] == gasnete_event_type_free_eop);
     eop->event[0] = gasnete_event_type_eop;
   #endif
   #ifdef _GASNETE_EOP_NEW_EXTRA
@@ -396,7 +399,7 @@ void gasnete_eop_free(gasnete_eop_t *eop) {
   GASNETE_EOP_FREE_EXTRA(eop);
 #endif
 #if GASNET_DEBUG
-  eop->event[0] = gasnete_event_type_free;
+  eop->event[0] = gasnete_event_type_free_eop;
 #endif
   eop->next = thread->eop_free;
   thread->eop_free = eop;

@@ -33,8 +33,8 @@ extern void gasnete_eop_alloc(gasnete_threaddata_t * const thread)) {
       eop->threadidx = threadidx;
       eop->next = (i==255) ? NULL: (gasnete_eop_t *)((uintptr_t)eop + allocsz);
       #if GASNET_DEBUG
-        // Returns to type==free when on free list
-        eop->event[0] = gasnete_event_type_free;
+        // Returns to type==free_eop when on free list
+        eop->event[0] = gasnete_event_type_free_eop;
       #else
         // Type==eop at all times
         eop->event[0] = gasnete_event_type_eop;
@@ -107,8 +107,11 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
   if_pt (iop) {
     thread->iop_free = iop->next;
     gasneti_memcheck(iop);
-    gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
     gasneti_assert(iop->threadidx == thread->threadidx);
+    #if GASNET_DEBUG
+      gasneti_assert(OPTYPE(iop) == gasnete_event_type_free_iop);
+      iop->event[0] = gasnete_event_type_iop;
+    #endif
     /* If using trace or stats, want meaningful counts when tracing NBI access regions */
     #if GASNETI_STATS_OR_TRACE
       iop->initiated_get_cnt = 0;
@@ -138,6 +141,9 @@ void gasnete_iop_free(gasnete_iop_t *iop) {
   gasneti_assert(GASNETE_IOP_CNTDONE(iop,get));
   gasneti_assert(GASNETE_IOP_CNTDONE(iop,put));
   gasneti_assert(iop->next == NULL);
+  #if GASNET_DEBUG
+    iop->event[0] = gasnete_event_type_free_iop;
+  #endif
 #ifdef GASNETE_IOP_FREE_EXTRA
   // Hook for conduit-specific cleanups and assertions
   GASNETE_IOP_FREE_EXTRA(iop);
