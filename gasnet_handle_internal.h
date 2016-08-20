@@ -147,13 +147,15 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
     gasneti_assert(OPTYPE(eop) == OPTYPE_EXPLICIT);                  \
     gasnete_assert_valid_threadid((eop)->threadidx);                 \
   } while (0)
+  // TODO-EX: type_free_iop occurs only when called via gasnete_free_threaddata()
   #define gasnete_iop_check(iop) do {                         \
     gasnete_iop_t *_tmp_next;                                 \
     gasnete_op_atomic_val_t _temp;                            \
     gasneti_memcheck(iop);                                    \
     _tmp_next = (iop)->next;                                  \
     if (_tmp_next != NULL) _gasnete_iop_check(_tmp_next);     \
-    gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);           \
+    gasneti_assert(OPTYPE(iop) == gasnete_event_type_iop ||   \
+                   OPTYPE(iop) == gasnete_event_type_free_iop);\
     gasnete_assert_valid_threadid((iop)->threadidx);          \
     _temp = gasnete_op_atomic_read(&((iop)->completed_put_cnt), GASNETI_ATOMIC_RMB_POST); \
     gasneti_assert((((iop)->initiated_put_cnt - _temp) & GASNETI_ATOMIC_MAX) < (GASNETI_ATOMIC_MAX/2)); \
