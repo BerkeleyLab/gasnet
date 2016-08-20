@@ -73,7 +73,9 @@ static gasnete_iop_t *gasnete_iop_alloc(gasnete_threaddata_t * const thread)) {
     gasnete_iop_t *iop = (gasnete_iop_t *)gasneti_malloc(sizeof(gasnete_iop_t));
     gasneti_leak(iop);
     #if GASNET_DEBUG
-      memset(iop, 0, sizeof(gasnete_iop_t)); /* set pad to known value */
+      memset(iop, 0, sizeof(gasnete_iop_t)); /* set event[] and pad to known value */
+    #else
+      memset(&iop->event, 0, sizeof(iop->event)); /* set event[] to known value */
     #endif
     iop->event[0] = OPTYPE_IMPLICIT;
     iop->threadidx = thread->threadidx;
@@ -129,11 +131,10 @@ void gasnete_iop_free(gasnete_iop_t *iop) {
   gasnete_threaddata_t * const thread = gasnete_threadtable[iop->threadidx];
   gasneti_assert(thread == gasnete_mythread());
   gasnete_iop_check(iop);
-  gasneti_assert(GASNETE_IOP_CNTDONE(iop,get) && EVENT_DONE(iop,gasnete_iop_event_get));
-  gasneti_assert(GASNETE_IOP_CNTDONE(iop,put) && EVENT_DONE(iop,gasnete_iop_event_put));
- #if GASNETE_HAVE_LC
-  gasneti_assert(GASNETE_IOP_CNTDONE(iop,alc) && EVENT_DONE(iop,gasnete_iop_event_alc));
-#endif
+  gasneti_assert(EVENT_ALL_DONE(iop));
+  gasneti_assert(GASNETE_IOP_CNTDONE(iop,get));
+  gasneti_assert(GASNETE_IOP_CNTDONE(iop,put));
+  gasneti_assert(GASNETE_IOP_LC_CNTDONE(iop));
   gasneti_assert(iop->next == iop);
   #if GASNET_DEBUG
     iop->event[0] = gasnete_event_type_free_iop;
@@ -192,6 +193,28 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 #if !defined(gasnete_test) || \
     !defined(gasnete_test_all) || \
     !defined(gasnete_test_some)
+GASNETI_INLINE(gasnete_root_try_free)
+int gasnete_root_try_free(gasnetex_handle_t handle) {
+  gasneti_assert(! gasneti_handle_idx(handle));
+  gasnete_op_t *op = (gasnete_op_t*)handle;
+  if (EVENT_ALL_DONE(op)) {
+    // TODO-EX:
+    // Could potentially weaken "sync_reads" for some cases?
+    // However, that might not be worth the branching it would require.
+    gasneti_sync_reads();
+
+    // TODO-EX: the mask operation in OPTYPE() unnecessary?
+    if_pt (OPTYPE(op) == OPTYPE_EXPLICIT) {
+      gasnete_eop_free((gasnete_eop_t*)op);
+    } else {
+      gasnete_iop_free((gasnete_iop_t*)op);
+    }
+
+    return 1;
+  }
+  return 0;
+}
+
 GASNETI_INLINE(gasnete_op_try_free)
 int gasnete_op_try_free(gasnetex_handle_t handle) {
 #ifdef GASNETE_OP_TRY_FREE_EXTRA
@@ -199,48 +222,38 @@ int gasnete_op_try_free(gasnetex_handle_t handle) {
   GASNETE_OP_TRY_FREE_EXTRA(handle);
 #endif
 
-  gasnete_op_t *op = gasneti_handle_op(handle);
-  gasneti_assert(op->threadidx == gasnete_mythread()->threadidx);
+#if GASNET_DEBUG
+  { gasnete_op_t *op = gasneti_handle_op(handle);
+    unsigned int idx = gasneti_handle_idx(handle);
 
-  if_pt (OPTYPE(op) == OPTYPE_EXPLICIT) {
-    gasnete_eop_t *eop = (gasnete_eop_t*)op;
-    gasnete_eop_check(eop);
+    gasneti_assert(op->threadidx == gasnete_mythread()->threadidx);
+    gasneti_assert(idx < GASNETE_OP_EVENTS);
 
-    switch (gasneti_handle_idx(handle)) {
-    case 0: // Root
-      if (GASNETE_EOP_DONE(eop) && GASNETE_EOP_LC_DONE(eop)) {
-        // TODO-EX: more work to be done for the generalized events 2 through 5
-        gasneti_sync_reads();
-        gasnete_eop_free(eop);
-        return 1;
-      }
-      break;
-
-#if GASNETE_HAVE_LC
-    case 1: // LC only
-      if (GASNETE_EOP_LC_DONE(eop)) {
-        gasneti_compiler_fence(); // TODO-EX: revisit this
-        return 1;
-      }
-      break;
-#endif
-
-    #if 0
-    default:
-        // TODO-EX: more work to be done for the generalized events 2 through 5
-    #endif
-    }
-  } else {
-    gasnete_iop_t *iop = (gasnete_iop_t*)op;
-    gasneti_assert(! gasneti_handle_idx(handle));
-
-    if (gasnete_iop_isdone(iop)) {
-      gasneti_sync_reads();
-      gasnete_iop_free(iop);
-      return 1;
+    if (OPTYPE(op) == OPTYPE_EXPLICIT) {
+      gasnete_eop_check((gasnete_eop_t*)op);
+    } else {
+      gasnete_iop_check((gasnete_iop_t*)op);
     }
   }
-  return 0;
+#endif
+
+  // "Fast-path" detects outstanding event w/o any branches
+  if (EVENT_LIVE_MASK & *(volatile uint8_t *)handle) {
+    return 0;
+  }
+
+  // "Slow-path" must distinguish root from leaf
+  if_pt (! gasneti_handle_idx(handle)) {
+    return gasnete_root_try_free(handle);
+  } else {
+  #if GASNET_DEBUG
+    gasnete_op_t *op = gasneti_handle_op(handle);
+    const unsigned int idx = gasneti_handle_idx(handle);
+    gasneti_assert(EVENT_DONE(op, idx)); // confirm the fast-path result
+  #endif
+    gasneti_compiler_fence(); // TODO-EX: revisit this
+    return 1;
+  }
 }
 #endif
 
@@ -340,7 +353,7 @@ extern int  gasnete_test_syncnbi_puts(GASNETI_THREAD_FARG_ALONE) {
   #endif
 
     // If any put_nbi calls passed EVENT_DEFER then we need to complete their LC too.
-    if (GASNETE_IOP_CNTDONE(iop,put) && GASNETE_IOP_LC_DONE(iop)) {
+    if (GASNETE_IOP_CNTDONE(iop,put) && GASNETE_IOP_LC_CNTDONE(iop)) {
       gasneti_sync_reads(); // TODO-EX: revisit this
       return GASNET_OK;
     } else return GASNET_ERR_NOT_READY;
@@ -359,10 +372,14 @@ extern int gasnete_test_syncnbi_lc (GASNETI_THREAD_FARG_ALONE) {
       gasneti_fatalerror("VIOLATION: attempted to call gasnete_test_lc_group() inside an NBI access region");
   #endif
 
-    if (GASNETE_IOP_LC_DONE(iop)) {
+  #if GASNETE_HAVE_LC
+    if (GASNETE_IOP_CNTDONE(iop,alc)) {
       gasneti_compiler_fence(); // TODO-EX: revisit this
       return GASNET_OK;
     } else return GASNET_ERR_NOT_READY;
+  #else
+    return GASNET_OK;
+  #endif
 }
 #endif
 

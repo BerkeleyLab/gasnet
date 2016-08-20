@@ -16,8 +16,8 @@
 #  define GASNETE_HAVE_LC 1
 #else // Default is NO local completion
 #  define GASNETE_IOP_LC_DONE(op) 1
+#  define GASNETE_IOP_LC_CNTDONE(op) 1
 #  define GASNETE_EOP_LC_DONE(op) 1
-#  define GASNETE_IOP_LC_FINISH(op)  ERROR
 #  define GASNETE_EOP_LC_FINISH(op)  ERROR
 #  define GASNETE_HAVE_LC 0
 #endif
@@ -93,6 +93,12 @@ typedef struct _gasnete_iop_t {
 #define EVENT_TYPE_MASK    0x0F
 #define EVENT_LIVE_MASK    0x80
 
+#if PLATFORM_ARCH_BIG_ENDIAN
+  #define EVENT_ANY_LIVE_MASK (0x8080808080808080ULL << (8*(8-GASNETE_OP_EVENTS)))
+#else
+  #define EVENT_ANY_LIVE_MASK (0x8080808080808080ULL >> (8*(8-GASNETE_OP_EVENTS)))
+#endif
+
 // SUBJECT TO CHANGE:
 // The 'eop' and 'iop' types are only permitted as values the root event (event[0]).
 // The 'lc' type is intended for local completion and is expected to occupy (event[1]).
@@ -139,6 +145,12 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
   // to preserve any other bits in the event bytes (still TBD).
   op->event[idx] &= ~EVENT_LIVE_MASK;
 }
+
+// Test all events in an eop or iop
+#define EVENT_ANY_LIVE(op) \
+  (gasneti_assert(!gasneti_handle_idx(op)),\
+   (*(volatile uint64_t *)(op) & EVENT_ANY_LIVE_MASK))
+#define EVENT_ALL_DONE(op) (!EVENT_ANY_LIVE(op))
 
 
 #if GASNET_DEBUG
@@ -228,6 +240,10 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
           == ((_iop)->initiated_##_name##_cnt & GASNETI_ATOMIC_MAX))
 #endif
 
+#ifndef GASNETE_IOP_DONE // Root event from nbi accessregion only
+  #define GASNETE_IOP_DONE(_iop, _name) \
+    (gasneti_assert((_iop)->next), EVENT_DONE((_iop),gasnete_iop_event_##_name))
+#endif
 
 #ifndef GASNETE_EOP_DONE // Root event only
   #define GASNETE_EOP_DONE(_eop) EVENT_DONE(_eop,0)
@@ -248,10 +264,13 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
 
 // event:lc - DONE queries on IOP and EOP
 #ifndef GASNETE_IOP_LC_DONE
-  #define GASNETE_IOP_LC_DONE(_iop) GASNETE_IOP_CNTDONE(_iop,alc)
+  #define GASNETE_IOP_LC_DONE(_iop) GASNETE_IOP_DONE((_iop),alc)
+#endif
+#ifndef GASNETE_IOP_LC_CNTDONE
+  #define GASNETE_IOP_LC_CNTDONE(_iop) GASNETE_IOP_CNTDONE((_iop),alc)
 #endif
 #ifndef GASNETE_EOP_LC_DONE
-  #define GASNETE_EOP_LC_DONE(_eop) EVENT_DONE(_eop,1)
+  #define GASNETE_EOP_LC_DONE(_eop) EVENT_DONE((_eop),1)
 #endif
 
 
@@ -344,17 +363,21 @@ static
 int gasnete_eop_isdone(gasnete_eop_t *eop) {
   gasneti_assert(eop->threadidx == gasnete_mythread()->threadidx);
   gasnete_eop_check(eop);
-  return GASNETE_EOP_DONE(eop);
+  return EVENT_ALL_DONE(eop);
 }
 
-/*  query an iop (returned from end_nbi_accessregion) for completeness -
+/*  query an iop for completeness -
  *  this always means puts, gets and LC too */
 static
 int gasnete_iop_isdone(gasnete_iop_t *iop) {
   int result;
   gasneti_assert(iop->threadidx == gasnete_mythread()->threadidx);
   gasnete_iop_check(iop);
-  result = (GASNETE_IOP_CNTDONE(iop,get) && GASNETE_IOP_CNTDONE(iop,put) && GASNETE_IOP_LC_DONE(iop));
+  if (iop->next) {
+    result = EVENT_ALL_DONE(iop);
+  } else {
+    result = (GASNETE_IOP_CNTDONE(iop,get) && GASNETE_IOP_CNTDONE(iop,put) && GASNETE_IOP_LC_CNTDONE(iop));
+  }
   return result;
 }
 
@@ -379,6 +402,7 @@ void gasnete_eop_free(gasnete_eop_t *eop) {
   gasnete_threaddata_t * const thread = gasnete_threadtable[eop->threadidx];
   gasneti_assert(thread == gasnete_mythread());
   gasnete_eop_check(eop);
+  gasneti_assert(EVENT_ALL_DONE(eop));
   gasneti_assert(GASNETE_EOP_DONE(eop));
   gasneti_assert(GASNETE_EOP_LC_DONE(eop));
 #ifdef GASNETE_EOP_FREE_EXTRA
