@@ -54,17 +54,23 @@ typedef enum {
     (_eop)->initiated_cnt++; \
   } while (0)
 
-#define GASNETE_EOP_DONE(_eop) \
+#if GASNET_DEBUG
+#define GASNETC_EOP_CNTDONE(_eop) \
     (gasneti_weakatomic_read(&(_eop)->completed_cnt, 0) \
         == ((_eop)->initiated_cnt & GASNETI_ATOMIC_MAX))
+#endif
 
 #define GASNETE_EOP_MARKDONE(_eop) do { \
-    gasneti_assert(!GASNETE_EOP_DONE(_eop));                   \
-    gasneti_weakatomic_increment(&((_eop)->completed_cnt), 0); \
+    gasneti_assert(!GASNETC_EOP_CNTDONE(_eop));                                 \
+    gasneti_weakatomic_val_t _completed =                                       \
+        gasneti_weakatomic_add(&(_eop)->completed_cnt, 1, GASNETI_ATOMIC_ACQ);  \
+    if (_completed == ((_eop)->initiated_cnt & GASNETI_ATOMIC_MAX)) {           \
+      SET_EVENT_DONE((_eop),0);                                                 \
+    }                                                                           \
   } while (0)
 
 #define GASNETE_EOP_FREE_EXTRA(_eop) do { \
-    gasneti_assert(GASNETE_EOP_DONE(_eop)); \
+    gasneti_assert(GASNETC_EOP_CNTDONE(_eop)); \
   } while (0)
 
 #define _GASNETE_EOP_NEW_EXTRA GASNETE_EOP_FREE_EXTRA

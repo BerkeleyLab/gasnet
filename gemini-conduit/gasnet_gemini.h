@@ -259,6 +259,9 @@ enum {
   /* mutually-exclusive signaling actions */
   _gc_post_completion_flag,
   _gc_post_completion_cntr,
+  _gc_post_completion_eop,
+  _gc_post_completion_iput,
+  _gc_post_completion_iget,
   _gc_post_completion_send,
   /* optionally suppress free of the gpd */
   _gc_post_keep_gpd,
@@ -273,8 +276,18 @@ enum {
 #define GC_POST_FIREHOSE        GC_POST(firehose)
 #define GC_POST_COMPLETION_FLAG GC_POST(completion_flag)
 #define GC_POST_COMPLETION_CNTR GC_POST(completion_cntr)
+#define GC_POST_COMPLETION_EOP  GC_POST(completion_eop)
+#define GC_POST_COMPLETION_IPUT GC_POST(completion_iput)
+#define GC_POST_COMPLETION_IGET GC_POST(completion_iget)
 #define GC_POST_COMPLETION_SEND GC_POST(completion_send)
 #define GC_POST_KEEP_GPD        GC_POST(keep_gpd)
+
+#define GC_POST_COMPLETION_MASK (GC_POST_COMPLETION_FLAG | \
+                                 GC_POST_COMPLETION_CNTR | \
+                                 GC_POST_COMPLETION_EOP  | \
+                                 GC_POST_COMPLETION_IPUT | \
+                                 GC_POST_COMPLETION_IGET | \
+                                 GC_POST_COMPLETION_SEND)
 
 /* WARNING: if sizeof(gasnetc_post_descriptor_t) changes, then
  * you must update the value in gasneti_pd_auxseg_IdentString */

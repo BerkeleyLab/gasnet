@@ -1898,16 +1898,34 @@ void gasnetc_poll_local_queue(GASNETC_DIDX_FARG_ALONE))
       }
 
       /* indicate completion */
-      if (flags & GC_POST_COMPLETION_FLAG) {
-        *(volatile int *) gpd->gpd_completion = 1;
-        /* NOTE: if (flags & GC_POST_KEEP_GPD) then caller might free gpd now */
-      } else if(flags & GC_POST_COMPLETION_CNTR) {
-        gasneti_weakatomic_increment((gasneti_weakatomic_t *) gpd->gpd_completion, 0);
-      } else if (flags & GC_POST_COMPLETION_SEND) {
-        gasnetc_post_descriptor_t *next = (gasnetc_post_descriptor_t *) gpd->gpd_completion;
-        if (gasneti_weakatomic_decrement_and_test(&next->u.counter, 0)) {
-          int rc = gasnetc_send_am(next);
-          gasneti_assert_always (rc == GASNET_OK);
+      // TODO-EX: separate iop inside and outside accesregion?
+      const uint32_t comp = (flags & GC_POST_COMPLETION_MASK);
+      gasneti_assert(GASNETI_POWEROFTWO(comp)); // Zero or one bit is set
+
+      switch (comp) {
+        case GC_POST_COMPLETION_FLAG:
+          *(volatile int *) gpd->gpd_completion = 1;
+          /* NOTE: if (flags & GC_POST_KEEP_GPD) then caller might free gpd now */
+          break;
+        case GC_POST_COMPLETION_CNTR:
+          gasneti_weakatomic_increment((gasneti_weakatomic_t *) gpd->gpd_completion, 0);
+          break;
+        case GC_POST_COMPLETION_EOP:
+          GASNETE_EOP_MARKDONE((gasnete_eop_t *) gpd->gpd_completion);
+          break;
+        case GC_POST_COMPLETION_IPUT:
+          GASNETE_IOP_CNT_FINISH((gasnete_iop_t *) gpd->gpd_completion, put, 1, 0);
+          break;
+        case GC_POST_COMPLETION_IGET:
+          GASNETE_IOP_CNT_FINISH((gasnete_iop_t *) gpd->gpd_completion, get, 1, 0);
+          break;
+        case GC_POST_COMPLETION_SEND: {
+          gasnetc_post_descriptor_t *next = (gasnetc_post_descriptor_t *) gpd->gpd_completion;
+          if (gasneti_weakatomic_decrement_and_test(&next->u.counter, 0)) {
+            int rc = gasnetc_send_am(next);
+            gasneti_assert_always (rc == GASNET_OK);
+          }
+          break;
         }
       } 
 
