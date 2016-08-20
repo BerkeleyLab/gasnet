@@ -129,10 +129,12 @@ void gasnete_iop_free(gasnete_iop_t *iop) {
   gasnete_threaddata_t * const thread = gasnete_threadtable[iop->threadidx];
   gasneti_assert(thread == gasnete_mythread());
   gasnete_iop_check(iop);
-  gasneti_assert(GASNETE_IOP_LC_DONE(iop));
-  gasneti_assert(GASNETE_IOP_CNTDONE(iop,get));
-  gasneti_assert(GASNETE_IOP_CNTDONE(iop,put));
-  gasneti_assert(iop->next == NULL);
+  gasneti_assert(GASNETE_IOP_CNTDONE(iop,get) && EVENT_DONE(iop,gasnete_iop_event_get));
+  gasneti_assert(GASNETE_IOP_CNTDONE(iop,put) && EVENT_DONE(iop,gasnete_iop_event_put));
+ #if GASNETE_HAVE_LC
+  gasneti_assert(GASNETE_IOP_CNTDONE(iop,alc) && EVENT_DONE(iop,gasnete_iop_event_alc));
+#endif
+  gasneti_assert(iop->next == iop);
   #if GASNET_DEBUG
     iop->event[0] = gasnete_event_type_free_iop;
   #endif
@@ -171,20 +173,8 @@ void gasneti_eop_markdone(gasneti_eop_t *eop) {
 }
 void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isget) {
   gasnete_iop_t *op = (gasnete_iop_t *)iop;
-  gasnete_op_atomic_t * const pctr = (isget ? &(op->completed_get_cnt) : &(op->completed_put_cnt));
-  gasnete_iop_check(op);
-  if (gasneti_constant_p(noperations) && (noperations == 1))
-      gasnete_op_atomic_increment(pctr, 0);
-  else {
-    #if defined(GASNETI_HAVE_WEAKATOMIC_ADD_SUB)
-      gasnete_op_atomic_add(pctr, noperations, 0);
-    #else /* yuk */
-      while (noperations) {
-        gasnete_op_atomic_increment(pctr, 0);
-        noperations--;
-      }
-    #endif
-  }
+  if (isget) GASNETE_IOP_CNT_FINISH(op, get, noperations, 0);
+  else       GASNETE_IOP_CNT_FINISH(op, put, noperations, 0);
   gasnete_iop_check(op);
 }
 
@@ -393,6 +383,16 @@ extern void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecu
     if (!allowrecursion && mythread->current_iop->next != NULL)
       gasneti_fatalerror("VIOLATION: tried to initiate a recursive NBI access region");
   #endif
+
+  iop->initiated_put_cnt++;
+  iop->initiated_get_cnt++;
+  SET_EVENT_TYPE(iop, gasnete_iop_event_put, gasnete_event_type_iop);
+  SET_EVENT_TYPE(iop, gasnete_iop_event_get, gasnete_event_type_iop);
+#if GASNETE_HAVE_LC
+  iop->initiated_alc_cnt++;
+  SET_EVENT_TYPE(iop, gasnete_iop_event_alc, gasnete_event_type_lc);
+#endif
+
   iop->next = mythread->current_iop;
   mythread->current_iop = iop;
 }
@@ -403,6 +403,12 @@ extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_handle_t *lc_opt,
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop; /*  pop an iop */
   GASNETI_TRACE_EVENT_VAL(S,END_NBI_ACCESSREGION,iop->initiated_get_cnt + iop->initiated_put_cnt);
+
+  GASNETE_IOP_CNT_FINISH_REG(iop, put, 1, 0);
+  GASNETE_IOP_CNT_FINISH_REG(iop, get, 1, 0);
+#if GASNETE_HAVE_LC
+  GASNETE_IOP_CNT_FINISH_REG(iop, alc, 1, 0);
+#endif
 
   gasneti_assert(lc_opt != GASNETEX_EVENT_GROUP); // TODO-EX: allow this if we nest access region?
   if (GASNETE_IOP_LC_DONE(iop)) {
@@ -421,7 +427,7 @@ extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_handle_t *lc_opt,
       gasneti_fatalerror("VIOLATION: call to gasnete_end_nbi_accessregion() outside access region");
   #endif
   mythread->current_iop = iop->next;
-  iop->next = NULL;
+  iop->next = iop; /* Identifies an iop returned from access region */
   return (gasnetex_handle_t)iop;
 }
 #endif

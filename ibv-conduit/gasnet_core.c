@@ -3493,7 +3493,7 @@ extern int gasnetc_AMRequestLongM(
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
       op = _gasnete_eop_new(GASNETI_MYTHREAD);
-      GASNETE_LC_START(op);
+      GASNETE_EOP_LC_START(op);
       start_cnt = op->initiated_alc;
       local_cnt = &op->initiated_alc;
       local_cb = gasnetc_cb_eop_alc;
@@ -3587,7 +3587,7 @@ extern int gasnetc_AMReplyLongM(
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
       op = _gasnete_eop_new(GASNETI_MYTHREAD);
-      GASNETE_LC_START(op);
+      GASNETE_EOP_LC_START(op);
       start_cnt = op->initiated_alc;
       local_cnt = &op->initiated_alc;
       local_cb = gasnetc_cb_eop_alc;

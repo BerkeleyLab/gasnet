@@ -132,7 +132,7 @@ gasnetex_handle_t gasnete_put_nb(
   gasnetc_cb_t         local_cb;
 
   if (gasneti_leaf_is_pointer(lc_opt)) {
-    GASNETE_LC_START(op);
+    GASNETE_EOP_LC_START(op);
     op->initiated_alc += 1;
     local_cnt = &op->initiated_alc;
     local_cb = gasnetc_cb_eop_alc;

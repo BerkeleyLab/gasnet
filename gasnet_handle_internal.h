@@ -153,7 +153,8 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
     gasnete_op_atomic_val_t _temp;                            \
     gasneti_memcheck(iop);                                    \
     _tmp_next = (iop)->next;                                  \
-    if (_tmp_next != NULL) _gasnete_iop_check(_tmp_next);     \
+    if (_tmp_next != NULL && _tmp_next != (iop))              \
+       _gasnete_iop_check(_tmp_next);                         \
     gasneti_assert(OPTYPE(iop) == gasnete_event_type_iop ||   \
                    OPTYPE(iop) == gasnete_event_type_free_iop);\
     gasnete_assert_valid_threadid((iop)->threadidx);          \
@@ -168,12 +169,65 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
   #define gasnete_iop_check(iop)   ((void)0)
 #endif
 
+#if 1 // TODO-EX: mechanism for overriding these assignments
+  enum {
+    gasnete_iop_event_put = 0,
+    gasnete_iop_event_get = 1,
+    gasnete_iop_event_alc = 2
+  };
+#endif
 
+//
+// "Finish" an iop in an nbi access region
+// NOTE: caller must pass REL flag when required for Gets
+//
+// TODO-EX: this or the callers will probably need to call a
+// non-inline function in case of dependent ops.
+//
+#ifndef GASNETE_IOP_CNT_FINISH_REG
+  #define GASNETE_IOP_CNT_FINISH_REG(_iop, _name, _nop, _flags) do {      \
+    gasneti_assert((_iop)->next);                                         \
+    gasnete_op_atomic_val_t _completed =                                  \
+            gasnete_op_atomic_add(&(_iop)->completed_##_name##_cnt,       \
+                                  (_nop), (_flags)|GASNETI_ATOMIC_ACQ);   \
+    gasnete_op_atomic_val_t _initiated = (_iop)->initiated_##_name##_cnt; \
+    if (_completed == (_initiated & GASNETI_ATOMIC_MAX)) {                \
+      SET_EVENT_DONE((_iop),gasnete_iop_event_##_name);                   \
+    }                                                                     \
+  } while (0)
+#endif
+
+//
+// "Finish" the internal iop, NOT in an nbi access region
+// NOTE: caller must pass REL flag when required for Gets
+//
+#ifndef GASNETE_IOP_CNT_FINISH_INT
+  #define GASNETE_IOP_CNT_FINISH_INT(_iop, _name, _nop, _flags) do {         \
+    gasneti_assert(! (_iop)->next);                                          \
+    if (gasneti_constant_p(_nop) && ((_nop) == 1))                           \
+      gasnete_op_atomic_increment(&(_iop)->completed_##_name##_cnt, _flags); \
+    else                                                                     \
+      gasnete_op_atomic_add(&(_iop)->completed_##_name##_cnt, _nop, _flags); \
+  } while (0)
+#endif
+
+// Finish == advance a completed counter in an iop (general case)
+#ifndef GASNETE_IOP_CNT_FINISH
+  #define GASNETE_IOP_CNT_FINISH(_iop, _name, _nop, _flags) do {    \
+    if ((_iop)->next)                                               \
+      GASNETE_IOP_CNT_FINISH_REG((_iop), _name, (_nop), (_flags));  \
+    else                                                            \
+      GASNETE_IOP_CNT_FINISH_INT((_iop), _name, (_nop), (_flags));  \
+  } while (0)
+#endif
+
+// Test iop counter balance
 #ifndef GASNETE_IOP_CNTDONE
-#define GASNETE_IOP_CNTDONE(_iop, _name) \
-  (gasnete_op_atomic_read(&(_iop)->completed_##_name##_cnt, 0) \
+  #define GASNETE_IOP_CNTDONE(_iop, _name) \
+    (gasnete_op_atomic_read(&(_iop)->completed_##_name##_cnt, 0) \
           == ((_iop)->initiated_##_name##_cnt & GASNETI_ATOMIC_MAX))
 #endif
+
 
 #ifndef GASNETE_EOP_DONE // Root event only
   #define GASNETE_EOP_DONE(_eop) EVENT_DONE(_eop,0)
@@ -185,14 +239,8 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
 
 
 // event:lc - for local-completion of Put/Med/Long with lc_opt = pointer
-#define GASNETE_LC_START(op)   SET_EVENT_TYPE(op, 1, gasnete_event_type_lc)
-
-// event:lc - FINISH operations on IOP and EOP
-#ifndef GASNETE_IOP_LC_FINISH
-  #define GASNETE_IOP_LC_FINISH(_eop) do {                         \
-      gasneti_assert(!GASNETE_IOP_LC_DONE(_eop));                       \
-      gasnete_op_atomic_increment(&((_eop)->completed_alc_cnt), 0);\
-    } while (0)
+#ifndef GASNETE_EOP_LC_START
+  #define GASNETE_EOP_LC_START(op)   SET_EVENT_TYPE(op, 1, gasnete_event_type_lc)
 #endif
 #ifndef GASNETE_EOP_LC_FINISH
   #define GASNETE_EOP_LC_FINISH(_eop) SET_EVENT_DONE((_eop),1)
@@ -320,8 +368,8 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
   } else {
     gasnete_iop_t *iop = (gasnete_iop_t *)op;
     gasnete_iop_check(iop);
-    if (isget) gasnete_op_atomic_increment(&(iop->completed_get_cnt), 0);
-    else gasnete_op_atomic_increment(&(iop->completed_put_cnt), 0);
+    if (isget) GASNETE_IOP_CNT_FINISH(iop, get, 1, 0);
+    else       GASNETE_IOP_CNT_FINISH(iop, put, 1, 0);
   }
 }
 
