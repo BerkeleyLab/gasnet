@@ -732,11 +732,11 @@ extern void gasneti_trace_finish(void);
         VAL(S, TEST_SYNCNBI_ALL, success)                 \
         VAL(S, TEST_SYNCNBI_GETS, success)                \
         VAL(S, TEST_SYNCNBI_PUTS, success)                \
-        VAL(S, TEST_SYNCNBI_LC, success)                  \
+        VAL(S, TEST_SYNCNBI, success)                     \
         TIME(S, WAIT_SYNCNBI_ALL, waittime)               \
         TIME(S, WAIT_SYNCNBI_GETS, waittime)              \
         TIME(S, WAIT_SYNCNBI_PUTS, waittime)              \
-        TIME(S, WAIT_SYNCNBI_LC, waittime)                \
+        TIME(S, WAIT_SYNCNBI, waittime)                   \
                                                           \
         VAL(I, END_NBI_ACCESSREGION, numops)              \
                                                           \

@@ -323,7 +323,7 @@ gasnetex_handle_t gasnetex_put_nb_val(
 //     A legal value if and only if no local completions are currently
 //     outstanding for ops in the region wich passed GASNETEX_EVENT_GROUP.
 //     Note: this means NULL should be legal after a call to
-//     gasnetex_wait_lcnbi() (or whatever we call it) *IFF* we decide
+//     gasnetex_wait_syncnbi(..._LC) *IFF* we decide
 //     that is even legal inside an access region (wait_syncnbi_puts
 //     is *not* legal inside an access region).
 //   + GASNETEX_EVENT_GROUP
@@ -386,14 +386,19 @@ void gasnetex_wait_syncnbi_gets(void);
 int  gasnetex_test_syncnbi_puts(void);
 void gasnetex_wait_syncnbi_puts(void);
 
-// Sync of local completion (lc_opt) from NBI Puts 
-int  gasnetex_test_syncnbi_lc(void);
-void gasnetex_wait_syncnbi_lc(void);
-
 // Sync of all NBI operations
 int  gasnetex_test_syncnbi_all (void);
 void gasnetex_wait_syncnbi_all (void);
 
+// Sync of other events (such as local completion from NBI Puts)
+enum gasnete_event {
+  GASNETEX_EVENT_ALL,
+  GASNETEX_EVENT_GETS,
+  GASNETEX_EVENT_PUTS,
+  GASNETEX_EVENT_LC,
+};
+int  gasnetex_test_syncnbi(enum gasnete_event);
+void gasnetex_wait_syncnbi(enum gasnete_event);
 
 
 // Pre-defined constant used to apply a query to all ranks in the team

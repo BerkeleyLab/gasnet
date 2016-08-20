@@ -125,9 +125,15 @@ int gasnete_syncnbi(GASNETE_THREAD_FARG_ALONE)
 #define gasnete_wait_syncnbi_gets gasnete_syncnbi
 #define gasnete_wait_syncnbi_puts gasnete_syncnbi
 
-// TODO-EX: remove these and replace with ..._syncnbi(type)
-#define gasnete_test_syncnbi_lc   gasnete_syncnbi
-#define gasnete_wait_syncnbi_lc   gasnete_syncnbi
+// Note we must allow for the possibility that the arg has side-effects
+GASNETI_INLINE(gasnete_syncnbi_mask)
+int gasnete_syncnbi_mask(unsigned int event_mask GASNETE_THREAD_FARG)
+{
+  gasneti_sync_reads();
+  return GASNET_OK;
+}
+#define gasnete_test_syncnbi_mask gasnete_syncnbi_mask
+#define gasnete_wait_syncnbi_mask gasnete_syncnbi_mask
 
 GASNETI_INLINE(gasnete_begin_nbi_accessregion)
 void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecursion GASNETI_THREAD_FARG)

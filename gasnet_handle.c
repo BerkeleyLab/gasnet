@@ -360,8 +360,8 @@ extern int  gasnete_test_syncnbi_puts(GASNETI_THREAD_FARG_ALONE) {
 }
 #endif
 
-#ifndef gasnete_test_syncnbi_lc
-extern int gasnete_test_syncnbi_lc (GASNETI_THREAD_FARG_ALONE) {
+#ifndef gasnete_test_syncnbi_mask
+extern int gasnete_test_syncnbi_mask(unsigned int mask GASNETI_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop;
   gasneti_assert(iop->threadidx == mythread->threadidx);
@@ -369,17 +369,23 @@ extern int gasnete_test_syncnbi_lc (GASNETI_THREAD_FARG_ALONE) {
   gasneti_assert(OPTYPE(iop) == OPTYPE_IMPLICIT);
   #if GASNET_DEBUG
     if (iop->next != NULL)
-      gasneti_fatalerror("VIOLATION: attempted to call gasnete_test_lc_group() inside an NBI access region");
+      gasneti_fatalerror("VIOLATION: attempted to call gasnete_test_syncnbi_mask() inside an NBI access region");
   #endif
 
-  #if GASNETE_HAVE_LC
-    if (GASNETE_IOP_CNTDONE(iop,alc)) {
-      gasneti_compiler_fence(); // TODO-EX: revisit this
-      return GASNET_OK;
-    } else return GASNET_ERR_NOT_READY;
-  #else
-    return GASNET_OK;
-  #endif
+  if (mask & GASNETEX_EVENT_LC) {
+    if (! GASNETE_IOP_LC_CNTDONE(iop)) return GASNET_ERR_NOT_READY;
+  }
+  if (mask & GASNETEX_EVENT_PUTS) {
+    if (! GASNETE_IOP_CNTDONE(iop,put)) return GASNET_ERR_NOT_READY;
+  }
+  if (mask & GASNETEX_EVENT_GETS) {
+    if (! GASNETE_IOP_CNTDONE(iop,get)) return GASNET_ERR_NOT_READY;
+    gasneti_sync_reads(); // TODO-EX: revisit this
+  } else {
+    gasneti_compiler_fence(); // TODO-EX: revisit this
+  }
+
+  return GASNET_OK;
 }
 #endif
 
