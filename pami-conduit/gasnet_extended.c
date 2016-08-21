@@ -33,16 +33,28 @@ static void gasnete_cb_eop_done(pami_context_t context, void *cookie, pami_resul
   SET_EVENT_DONE(eop, 0);
   gasneti_assert(status == PAMI_SUCCESS);
 }
+static void gasnete_cb_rput_done(pami_context_t context, void *cookie, pami_result_t status) {
+  gasnete_iop_t *iop = (gasnete_iop_t *)cookie;
+  gasnete_iop_check(iop);
+  GASNETE_IOP_CNT_FINISH_REG(iop, put, 1, 0);
+  gasneti_assert(status == PAMI_SUCCESS);
+}
+static void gasnete_cb_rget_done(pami_context_t context, void *cookie, pami_result_t status) {
+  gasnete_iop_t *iop = (gasnete_iop_t *)cookie;
+  gasnete_iop_check(iop);
+  GASNETE_IOP_CNT_FINISH_REG(iop, get, 1, 0);
+  gasneti_assert(status == PAMI_SUCCESS);
+}
 static void gasnete_cb_iput_done(pami_context_t context, void *cookie, pami_result_t status) {
   gasnete_iop_t *iop = (gasnete_iop_t *)cookie;
   gasnete_iop_check(iop);
-  gasnete_op_atomic_increment(&(iop->completed_put_cnt), 0);
+  GASNETE_IOP_CNT_FINISH_INT(iop, put, 1, 0);
   gasneti_assert(status == PAMI_SUCCESS);
 }
 static void gasnete_cb_iget_done(pami_context_t context, void *cookie, pami_result_t status) {
   gasnete_iop_t *iop = (gasnete_iop_t *)cookie;
   gasnete_iop_check(iop);
-  gasnete_op_atomic_increment(&(iop->completed_get_cnt), 0);
+  GASNETE_IOP_CNT_FINISH_INT(iop, get, 1, 0);
   gasneti_assert(status == PAMI_SUCCESS);
 }
 
@@ -402,7 +414,8 @@ int gasnete_get_nbi( gasnetex_team_member_t team,
     gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
     gasnete_iop_t * const op = mythread->current_iop;
     op->initiated_get_cnt++;
-    gasnete_get_common(dest, rank, src, nbytes, gasnete_cb_iget_done, op);
+    pami_event_function rdone_fn = op->next ? gasnete_cb_rget_done : gasnete_cb_iget_done;
+    gasnete_get_common(dest, rank, src, nbytes, rdone_fn, op);
     return 0;
   }
 }
@@ -433,7 +446,8 @@ int gasnete_put_nbi( gasnetex_team_member_t team,
       gasneti_fatalerror("Invalid lc_opt argument to Put_nb");
     }
 
-    gasnete_put_common(rank, dest, src, nbytes, ldone_fn, gasnete_cb_iput_done, op);
+    pami_event_function rdone_fn = op->next ? gasnete_cb_rput_done : gasnete_cb_iput_done;
+    gasnete_put_common(rank, dest, src, nbytes, ldone_fn, rdone_fn, op);
     if (ldone_fn) {
       gasneti_polluntil(GASNETT_PREDICT_TRUE(GASNETE_LC_NOW_DONE(op)));
     }
