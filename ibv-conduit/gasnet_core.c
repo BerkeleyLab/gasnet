@@ -3494,10 +3494,10 @@ extern int gasnetc_AMRequestLongM(
     if (gasneti_leaf_is_pointer(lc_opt)) {
       op = _gasnete_eop_new(GASNETI_MYTHREAD);
       GASNETE_EOP_LC_START(op);
+      // NOTE: no increment required to avoid "early equality" since at most 1 operation will be issued
       start_cnt = op->initiated_alc;
       local_cnt = &op->initiated_alc;
       local_cb = gasnetc_cb_eop_alc;
-      *lc_opt = (gasnetex_handle_t)op;
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
       local_cnt = &counter.initiated;
       local_cb = gasnetc_cb_counter;
@@ -3516,10 +3516,16 @@ extern int gasnetc_AMRequestLongM(
 				  NULL, argptr GASNETI_THREAD_PASS);
 
     if (lc_opt == GASNETEX_EVENT_NOW) {
-      /* block for completion of RDMA transfer */
+      /* block for local completion of RDMA transfer */
       gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
     } else if (gasneti_leaf_is_pointer(lc_opt)) {
-      if (start_cnt == op->initiated_alc) GASNETE_EOP_LC_FINISH(op); // Synchronous LC
+      if (start_cnt == op->initiated_alc) {
+        // Synchronous LC - recycle the eop now
+        GASNETE_EOP_LC_FINISH(op);
+        gasnete_eop_free(op);
+        op = (gasnete_eop_t*)GASNETEX_INVALID_HANDLE;
+      }
+      *lc_opt = (gasnetex_handle_t)op;
     }
   }
   va_end(argptr);
@@ -3588,10 +3594,10 @@ extern int gasnetc_AMReplyLongM(
     if (gasneti_leaf_is_pointer(lc_opt)) {
       op = _gasnete_eop_new(GASNETI_MYTHREAD);
       GASNETE_EOP_LC_START(op);
+      // NOTE: no increment required to avoid "early equality" since at most 1 operation will be issued
       start_cnt = op->initiated_alc;
       local_cnt = &op->initiated_alc;
       local_cb = gasnetc_cb_eop_alc;
-      *lc_opt = (gasnetex_handle_t)op;
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
       local_cnt = &counter.initiated;
       local_cb = gasnetc_cb_counter;
@@ -3610,10 +3616,16 @@ extern int gasnetc_AMReplyLongM(
 				  NULL, argptr GASNETI_THREAD_PASS);
 
     if (lc_opt == GASNETEX_EVENT_NOW) {
-      /* block for completion of RDMA transfer */
-      gasnetc_counter_wait(&counter, 1 /* calling from a request handler */ GASNETI_THREAD_PASS);
+      /* block for local completion of RDMA transfer */
+      gasnetc_counter_wait(&counter, 1 /* handler context */ GASNETI_THREAD_PASS);
     } else if (gasneti_leaf_is_pointer(lc_opt)) {
-      if (start_cnt == op->initiated_alc) GASNETE_EOP_LC_FINISH(op); // Synchronous LC
+      if (start_cnt == op->initiated_alc) {
+        // Synchronous LC - recycle the eop now
+        GASNETE_EOP_LC_FINISH(op);
+        gasnete_eop_free(op);
+        op = (gasnete_eop_t*)GASNETEX_INVALID_HANDLE;
+      }
+      *lc_opt = (gasnetex_handle_t)op;
     }
   }
   #else
