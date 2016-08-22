@@ -2157,7 +2157,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
           /* XXX check for error returns */
           #if GASNETC_PIN_SEGMENT
 	    /* Queue the RDMA.  We can count on point-to-point ordering to deliver payload before header */
-            (void)gasnetc_rdma_put(epid, src_addr, dst_addr, nbytes, local_cnt, local_cb, NULL, NULL GASNETI_THREAD_PASS);
+            (void)gasnetc_rdma_put(epid, src_addr, dst_addr, nbytes, 0, local_cnt, local_cb, NULL, NULL GASNETI_THREAD_PASS);
           #else
 	    /* Point-to-point ordering still holds, but only once the RDMA is actually queued.
 	     * In the case of a firehose hit, the RDMA is already queued before return from
@@ -2168,7 +2168,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
 	     */
 	    gasnetc_counter_t am_oust = GASNETC_COUNTER_INITIALIZER;
 	    gasneti_assert(!token);	/* Replies MUST have been caught above */
-	    (void)gasnetc_rdma_put_fh(epid, src_addr, dst_addr, nbytes, local_cnt, local_cb, NULL, NULL, &am_oust GASNETI_THREAD_PASS);
+	    (void)gasnetc_rdma_put_fh(epid, src_addr, dst_addr, nbytes, 0, local_cnt, local_cb, NULL, NULL, &am_oust GASNETI_THREAD_PASS);
 	    gasnetc_counter_wait(&am_oust, 0 GASNETI_THREAD_PASS);
           #endif
         }
@@ -3980,6 +3980,7 @@ extern int gasnetc_rdma_put(
                 gasnetc_epid_t epid,
                 void *src_ptr, void *dst_ptr,
                 size_t nbytes,
+                gasnetex_flags_t flags,
                 gasnetc_atomic_val_t *local_cnt,
                 gasnetc_cb_t local_cb,
                 gasnetc_atomic_val_t *remote_cnt,
@@ -4061,7 +4062,14 @@ extern int gasnetc_rdma_put(
  * Uses zero-copy (with firehose if the destination is not pre-pinned).
  * If firehose is disabled, then bounce buffers are used for unpinned destinations.
  */
-extern int gasnetc_rdma_get(gasnetc_epid_t epid, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb GASNETI_THREAD_FARG) {
+extern int gasnetc_rdma_get(
+                gasnetc_epid_t epid,
+                void *src_ptr, void *dst_ptr,
+                size_t nbytes,
+                gasnetex_flags_t flags,
+                gasnetc_atomic_val_t *remote_cnt,
+                gasnetc_cb_t remote_cb
+                GASNETI_THREAD_FARG) {
   GASNETC_DECL_SR_DESC(sr_desc, GASNETC_SND_SG);
   uintptr_t dst = (uintptr_t)dst_ptr;
   uintptr_t src = (uintptr_t)src_ptr;
@@ -4114,6 +4122,7 @@ extern int gasnetc_rdma_put_fh(
                 gasnetc_epid_t epid,
                 void *src_ptr, void *dst_ptr,
                 size_t nbytes,
+                gasnetex_flags_t flags,
                 gasnetc_atomic_val_t *local_cnt,
                 gasnetc_cb_t local_cb,
                 gasnetc_atomic_val_t *remote_cnt,
@@ -4149,7 +4158,14 @@ extern int gasnetc_rdma_put_fh(
 }
 
 /* Perform an RDMA get */
-extern int gasnetc_rdma_get(gasnetc_epid_t epid, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb GASNETI_THREAD_FARG) {
+extern int gasnetc_rdma_get(
+                gasnetc_epid_t epid,
+                void *src_ptr, void *dst_ptr,
+                size_t nbytes,
+                gasnetex_flags_t flags,
+                gasnetc_atomic_val_t *remote_cnt,
+                gasnetc_cb_t remote_cb
+                GASNETI_THREAD_FARG) {
   uintptr_t src = (uintptr_t)src_ptr;
   uintptr_t dst = (uintptr_t)dst_ptr;
 

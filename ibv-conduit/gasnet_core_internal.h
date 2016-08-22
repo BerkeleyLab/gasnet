@@ -711,14 +711,14 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 #if GASNETC_PIN_SEGMENT
   extern int gasnetc_rdma_put(
                   gasnetc_epid_t epid,
-                  void *src_ptr, void *dst_ptr, size_t nbytes,
+                  void *src_ptr, void *dst_ptr, size_t nbytes, gasnetex_flags_t flags,
                   gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
                   gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb
                   GASNETI_THREAD_FARG);
 #else
   extern int gasnetc_rdma_put_fh(
                   gasnetc_epid_t epid,
-                  void *src_ptr, void *dst_ptr, size_t nbytes,
+                  void *src_ptr, void *dst_ptr, size_t nbytes, gasnetex_flags_t flags,
                   gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
                   gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb,
                   gasnetc_counter_t *am_oust
@@ -726,13 +726,21 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
   GASNETI_INLINE(gasnetc_rdma_put)
   int gasnetc_rdma_put(
                   gasnetc_epid_t epid,
-                  void *src_ptr, void *dst_ptr, size_t nbytes,
+                  void *src_ptr, void *dst_ptr, size_t nbytes, gasnetex_flags_t flags,
                   gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
                   gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb
                   GASNETI_THREAD_FARG)
-  { return gasnetc_rdma_put_fh(epid,src_ptr,dst_ptr,nbytes,local_cnt,local_cb,remote_cnt,remote_cb,NULL GASNETI_THREAD_PASS); }
+  {
+    return gasnetc_rdma_put_fh(epid,src_ptr,dst_ptr,nbytes,flags,
+                               local_cnt,local_cb,remote_cnt,remote_cb,
+                               NULL GASNETI_THREAD_PASS);
+  }
 #endif
-extern int gasnetc_rdma_get(gasnetc_epid_t epid, void *src_ptr, void *dst_ptr, size_t nbytes, gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb GASNETI_THREAD_FARG);
+extern int gasnetc_rdma_get(
+                  gasnetc_epid_t epid,
+                  void *src_ptr, void *dst_ptr, size_t nbytes, gasnetex_flags_t flags,
+                  gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb
+                  GASNETI_THREAD_FARG);
 
 /* Routines in gasnet_core_thread.c */
 #if GASNETI_CONDUIT_THREADS

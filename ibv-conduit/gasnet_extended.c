@@ -105,7 +105,7 @@ gasnetex_handle_t gasnete_get_nb(
 
   /* XXX check error returns */
   op->initiated_cnt++;
-  gasnetc_rdma_get(rank, src, dest, nbytes,
+  gasnetc_rdma_get(rank, src, dest, nbytes, flags,
                    &op->initiated_cnt, gasnetc_cb_eop_get
                    GASNETI_THREAD_PASS);
 
@@ -149,7 +149,7 @@ gasnetex_handle_t gasnete_put_nb(
 
   /* XXX check error returns */
   op->initiated_cnt++;
-  gasnetc_rdma_put(rank, src, dest, nbytes,
+  gasnetc_rdma_put(rank, src, dest, nbytes, flags,
                    local_cnt, local_cb,
                    &op->initiated_cnt, gasnetc_cb_eop_put
                    GASNETI_THREAD_PASS);
@@ -193,7 +193,7 @@ int gasnete_get_nbi (gasnetex_team_member_t team,
   gasnete_iop_t *op = mythread->current_iop;
 
   /* XXX check error returns */ 
-  gasnetc_rdma_get(rank, src, dest, nbytes,
+  gasnetc_rdma_get(rank, src, dest, nbytes, flags,
                    &op->initiated_get_cnt,
                    op->next ? gasnetc_cb_nar_get : gasnetc_cb_iop_get
                    GASNETI_THREAD_PASS);
@@ -231,7 +231,7 @@ int gasnete_put_nbi (gasnetex_team_member_t team,
     gasneti_fatalerror("Invalid lc_opt argument to Put_nbi");
   }
 
-  gasnetc_rdma_put(rank, src, dest, nbytes,
+  gasnetc_rdma_put(rank, src, dest, nbytes, flags,
                    local_cnt, local_cb,
                    &op->initiated_put_cnt,
                    op->next ? gasnetc_cb_nar_put : gasnetc_cb_iop_put
@@ -256,7 +256,7 @@ extern int gasnete_get  (gasnetex_team_member_t team,
   GASNETI_CHECKPSHM_GET(I);
  {
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
-  gasnetc_rdma_get(rank, src, dest, nbytes,
+  gasnetc_rdma_get(rank, src, dest, nbytes, flags,
                    &req_oust.initiated, gasnetc_cb_counter_rel
                    GASNETI_THREAD_PASS);
   gasnetc_counter_wait(&req_oust, 0 GASNETI_THREAD_PASS);
@@ -273,7 +273,7 @@ extern int gasnete_put  (gasnetex_team_member_t team,
   GASNETI_CHECKPSHM_PUT_NOLC(I);
  {
   gasnetc_counter_t req_oust = GASNETC_COUNTER_INITIALIZER;
-  gasnetc_rdma_put(rank, src, dest, nbytes,
+  gasnetc_rdma_put(rank, src, dest, nbytes, flags,
                    NULL, NULL,
                    &req_oust.initiated, gasnetc_cb_counter
                    GASNETI_THREAD_PASS);
@@ -437,7 +437,7 @@ void gasnete_ibdbarrier_send(gasnete_coll_ibdbarrier_t *barrier_data,
       *(uint64_t*)gasneti_pshm_addr2local(node, dst) = msg;
     } else
 #endif
-    (void) gasnetc_rdma_put(node, (void*)payload, dst, sizeof(*payload),
+    (void) gasnetc_rdma_put(node, (void*)payload, dst, sizeof(*payload), 0,
                             NULL, NULL, NULL, NULL GASNETI_THREAD_PASS);
   }
 }
