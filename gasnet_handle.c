@@ -443,5 +443,34 @@ extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_flags_t flags GAS
 }
 #endif
 
+#ifndef gasnete_get_leaf
+extern gasnetex_handle_t gasnete_get_leaf(gasnetex_handle_t root, unsigned int event_id) {
+  switch (OPTYPE((gasnete_op_t*)root)) {
+    case OPTYPE_IMPLICIT: {
+      gasnete_iop_t *iop = (gasnete_iop_t*)root;
+      gasnete_iop_check(iop);
+      gasneti_assert(iop->next); // was returned from access region
+      switch (event_id) {
+        case GASNETEX_EVENTID_PUTS: return gasneti_op_handle(iop, gasnete_iop_event_put);
+        case GASNETEX_EVENTID_GETS: return gasneti_op_handle(iop, gasnete_iop_event_get);
+        case GASNETEX_EVENTID_LC:   return gasneti_op_handle(iop, gasnete_iop_event_alc);
+      }
+      break;
+    }
+
+    case OPTYPE_EXPLICIT: {
+      gasnete_eop_t *eop = (gasnete_eop_t*)root;
+      gasnete_eop_check(eop);
+      switch (event_id) {
+        case GASNETEX_EVENTID_LC: return gasneti_op_handle(eop, 1);
+      }
+      break;
+    }
+  }
+  gasneti_fatalerror("Invalid arguments to gasnetex_get_leaf()");
+  return GASNETEX_INVALID_HANDLE; // NOT REACHED
+}
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 

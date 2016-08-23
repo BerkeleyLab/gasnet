@@ -370,6 +370,32 @@ void gasnetex_wait_syncnbi_all (void);
 int  gasnetex_test_syncnbi(unsigned int event_mask);
 void gasnetex_wait_syncnbi(unsigned int event_mask);
 
+// Extract a leaf event handle from the root event handle
+// NOTE: name is subject to change
+//
+// The 'root' argument must be a valid root event handle
+// The 'event_id' argument is GASNETEX_EVENTID_<x> for <x> one of the values
+// Extract a leaf event handle from the root event
+// GETS, PUTS, LC, etc.  It cannot be a bitwise-OR of multiple such values, nor
+// can it be GASNETEX_EVEENTID_ALL.
+//
+// There are additional validity constraints to be documented, such as one
+// cannot ask for an event that was "suppressed" by passing EVENT_DEFER.
+// Violating those constraints give undefined results (though we want a debug
+// build to report the violation).
+//
+// For an event that has "already happened" the implementation may return
+// either GASNETEX_INVALID_HANDLE or a valid handle that tests as done.  The
+// implementation is not constrained to pick consistent between these two
+// options (and in the extreme could choose between them at random).
+//
+// This is a *query* and does not instantiate a new object, and so multiple
+// calls with the same argument (that don't return INVALID_HANDLE) must return
+// the *same* handle.
+gasnetex_handle_t gasnetex_get_leaf(
+        gasnetex_handle_t handle,
+        unsigned int event_id);
+
 
 // Pre-defined constant used to apply a query to all ranks in the team
 #define GASNETEX_ALL_RANKS (~(gasnetex_rank_t)0)
