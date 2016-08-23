@@ -463,7 +463,7 @@ gasnetex_handle_t gasnete_get_nb(
     /*  (note this relies on the fact that our implementation of access regions allows recursion) */
     gasnete_begin_nbi_accessregion(0,1 /* enable recursion */ GASNETI_THREAD_PASS);
     gasnete_amref_get_nbi(team, dest, rank, src, nbytes, flags GASNETI_THREAD_PASS);
-    return gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETI_THREAD_PASS);
+    return gasnete_end_nbi_accessregion(0 GASNETI_THREAD_PASS);
   }
 }
 #endif /* GASNETE_BUILD_AMREF_GET */

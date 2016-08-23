@@ -151,9 +151,9 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     if (islocal) return GASNETEX_INVALID_HANDLE;                                        \
     switch (synctype) {                                                               \
       case gasnete_synctype_nb:                                                       \
-        return gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);               \
+        return gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);               \
       case gasnete_synctype_b:                                                        \
-        gasnete_wait(gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS)); \
+        gasnete_wait(gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS)); \
         return GASNETEX_INVALID_HANDLE;                                                 \
       case gasnete_synctype_nbi:                                                      \
         return GASNETEX_INVALID_HANDLE;                                                 \

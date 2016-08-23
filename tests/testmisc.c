@@ -449,7 +449,7 @@ void doit7(void) { GASNET_BEGIN_FUNCTION();
 
     TIME_OPERATION("do-nothing begin/end nbi accessregion",
       { gasnetex_begin_nbi_accessregion(0);
-        gasnetex_wait(gasnetex_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0));
+        gasnetex_wait(gasnetex_end_nbi_accessregion(0));
       });
 
     TEST_SECTION_BEGIN();

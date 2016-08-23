@@ -317,41 +317,10 @@ gasnetex_handle_t gasnetex_put_nb_val(
            gasnetex_flags_t flags);
 
 // NBI Access regions:
-//
-// Semantics for 'lc_opt" at end_nbi_accessregion():
-//   + NULL
-//     A legal value if and only if no local completions are currently
-//     outstanding for ops in the region wich passed GASNETEX_EVENT_GROUP.
-//     Note: this means NULL should be legal after a call to
-//     gasnetex_wait_syncnbi(..._LC) *IFF* we decide
-//     that is even legal inside an access region (wait_syncnbi_puts
-//     is *not* legal inside an access region).
-//   + GASNETEX_EVENT_GROUP
-//     Illegal until/unless we add nested access regions (and even
-//     then we may not want to support this).
-//   + GASNETEX_EVENT_NOW
-//     Before returning, block for local completion of ops in the
-//     region wich passed GASNETEX_EVENT_GROUP.
-//   + GASNETEX_EVENT_DEFER
-//     Will "fold" the local completion test into the test/wait on the
-//     returned handle, as if EVENT_DEFER had been provided in place of
-//     EVENT_GROUP for all calls within the access region.
-//   + A valid pointer to a gasentex_handle_t
-//     Provide a handle for the client to test/wait.  The client must
-//     wait (or succesfully test) the gasnetex_handle prior to any
-//     test/wait on the gasnetex_handle_t (same rule as for an _nb).
-//
-// Note: For the cases EVENT_DEFER and pointer-to-handle, a conduit may
-// legally block for LC (and provide INVALID_HANDLE in the case in
-// which 'lc_opt' is a pointer).
-//
 // Note: no defined values for 'flags' for either call yet.
 
-void gasnetex_begin_nbi_accessregion(
-           gasnetex_flags_t flags);
-gasnetex_handle_t gasnetex_end_nbi_accessregion(
-           gasnetex_handle_t *lc_opt,
-           gasnetex_flags_t flags);
+void gasnetex_begin_nbi_accessregion(gasnetex_flags_t flags);
+gasnetex_handle_t gasnetex_end_nbi_accessregion(gasnetex_flags_t flags);
 
 
 // Handle test/wait operations

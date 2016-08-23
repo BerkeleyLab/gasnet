@@ -1256,7 +1256,7 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
     gasnete_put_nbi(NULL, node, addr, payload, sizeof(*payload),
                     GASNETEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
   }
-  handle = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
+  handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
 
 #if GASNETI_THREADS
   /* sync the new ops, since we can't know this thread will re-enter the barrier code */

@@ -1067,7 +1067,7 @@ static void op_test(int id) {
           assert_always(gasnetex_test(h2) == GASNET_ERR_NOT_READY);
 
 
-          h = gasnetex_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0);
+          h = gasnetex_end_nbi_accessregion(0);
           assert_always(gasnetex_test(h) == GASNET_ERR_NOT_READY);
           assert_always(gasnetex_test(h2) == GASNET_ERR_NOT_READY);
 

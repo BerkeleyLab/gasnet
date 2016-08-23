@@ -367,11 +367,11 @@ int _gasnetex_test_syncnbi_all(GASNETI_THREAD_FARG_ALONE) {
 extern void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecursion GASNETI_THREAD_FARG);
 #endif
 #ifndef gasnete_end_nbi_accessregion
-extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_handle_t *lc_opt, gasnetex_flags_t flags GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
+extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_flags_t flags GASNETI_THREAD_FARG) GASNETI_WARN_UNUSED_RESULT;
 #endif
 
 #define gasnetex_begin_nbi_accessregion(flags) gasnete_begin_nbi_accessregion(flags,0 GASNETI_THREAD_GET)
-#define gasnetex_end_nbi_accessregion(lc_opt,flags)   gasnete_end_nbi_accessregion(lc_opt,flags GASNETI_THREAD_GET)
+#define gasnetex_end_nbi_accessregion(flags)   gasnete_end_nbi_accessregion(flags GASNETI_THREAD_GET)
 
 /* ------------------------------------------------------------------------------------ */
 /*

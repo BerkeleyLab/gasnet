@@ -422,7 +422,7 @@ extern void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecu
 #endif
 
 #ifndef gasnete_end_nbi_accessregion
-extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_handle_t *lc_opt, gasnetex_flags_t flags GASNETI_THREAD_FARG) {
+extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_flags_t flags GASNETI_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop; /*  pop an iop */
   GASNETI_TRACE_EVENT_VAL(S,END_NBI_ACCESSREGION,iop->initiated_get_cnt + iop->initiated_put_cnt);
@@ -432,18 +432,6 @@ extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_handle_t *lc_opt,
 #if GASNETE_HAVE_LC
   GASNETE_IOP_CNT_FINISH_REG(iop, alc, 1, 0);
 #endif
-
-  gasneti_assert(lc_opt != GASNETEX_EVENT_GROUP); // TODO-EX: allow this if we nest access region?
-  if (GASNETE_IOP_LC_DONE(iop)) {
-    if (lc_opt) gasneti_leaf_finish(lc_opt);
-  } else if (lc_opt == GASNETEX_EVENT_NOW) {
-    gasneti_polluntil(GASNETE_IOP_LC_DONE(iop));
-  } else if (lc_opt == GASNETEX_EVENT_DEFER) {
-    // Nothing to do - test/wait on the root event includes all leaves
-  } else {
-    gasneti_assert(gasneti_leaf_is_pointer(lc_opt));
-    *lc_opt = (gasnetex_handle_t)iop;
-  }
 
   #if GASNET_DEBUG
     if (iop->next == NULL)

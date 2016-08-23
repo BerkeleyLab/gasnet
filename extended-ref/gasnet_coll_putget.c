@@ -123,7 +123,7 @@ static int gasnete_coll_pf_bcast_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
             gasnete_put_nbi(NULL, GASNETE_COLL_REL2ACT(op->team, i), dst, src, nbytes, GASNETEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
           }
         }
-        data->handle = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
+        data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         
         /* Do local copy LAST, perhaps overlapping with communication */
@@ -214,7 +214,7 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
             
           }
         }
-        data->handle  = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
+        data->handle  = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         GASNETE_FAST_UNALIGNED_MEMCPY_CHECK(args->dst, args->src, args->nbytes);
       } else if (child_count == 0) {
@@ -235,7 +235,7 @@ static int gasnete_coll_pf_bcast_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FA
             
           }
         }
-        data->handle  = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
+        data->handle  = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);        
       } else {
         break;	/* Internal node waiting for parent to push data and signal */
@@ -775,7 +775,7 @@ static int gasnete_coll_pf_bcastM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG)
             }
           }
         }
-        data->handle = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
+        data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         
         /* Do local copy LAST, perhaps overlapping with communication */
@@ -860,7 +860,7 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
             
           }
         }
-        data->handle  = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
+        data->handle  = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         gasnete_coll_local_broadcast(op->team->my_images,
                                      &GASNETE_COLL_MY_1ST_IMAGE(op->team,args->dstlist, 0),
@@ -885,7 +885,7 @@ static int gasnete_coll_pf_bcastM_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_F
             
           }
         }
-        data->handle  = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
+        data->handle  = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);  
         /** XXX: Here we might do extra work by copying from teh same source and dest **/
         gasnete_coll_local_broadcast(op->team->my_images,
@@ -1497,7 +1497,7 @@ static int gasnete_coll_pf_scat_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
             gasnete_put_nbi(NULL, GASNETE_COLL_REL2ACT(op->team, i), dst, (void *)p, nbytes, GASNETEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
           }
         }
-        data->handle = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
+        data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         
         /* Do local copy LAST, perhaps overlapping with communication */
@@ -1621,7 +1621,7 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
           }
               
           GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, gasnete_coll_scale_ptr(args->src,args->dist,(op->team->myrank)), args->nbytes);
-          data->handle = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
+          data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
           gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         } else {
           int8_t* src_arr;
@@ -1668,7 +1668,7 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
             }
           }
           GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, src_arr, args->nbytes);
-          data->handle = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
+          data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
           gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         }
       } else if(child_count == 0  && direct_put_ok) {
@@ -1696,7 +1696,7 @@ static int gasnete_coll_pf_scat_TreePut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
           }
           sent_bytes+=tree->geom->subtree_sizes[i]*args->nbytes;
         }
-        data->handle = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
+        data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         
         
@@ -1833,7 +1833,7 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
               
             }
           }
-          data->handle = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
+          data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
           gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         }
         GASNETE_FAST_UNALIGNED_MEMCPY(args->dst, gasnete_coll_scale_ptr(args->src,args->dist,(op->team->myrank)), args->nbytes);
@@ -1865,7 +1865,7 @@ static int gasnete_coll_pf_scat_TreePutNoCopy(gasnete_coll_op_t *op GASNETE_THRE
           sent_bytes+=tree->geom->subtree_sizes[i]*args->nbytes;
         }
         
-        data->handle = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
+        data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         
         /* In the case of Mysync or being an intermediate node  the data is always sent to the scratch space so copy it out*/
@@ -2174,7 +2174,7 @@ static int gasnete_coll_pf_scatM_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
             ++q;
           }
         }
-        data->handle = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
+        data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         
         /* Do local copy LAST, perhaps overlapping with communication */
@@ -2739,7 +2739,7 @@ static int gasnete_coll_pf_gath_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) {
             gasnete_get_nbi(NULL, (void *)p, GASNETE_COLL_REL2ACT(op->team,i), args->src, args->nbytes, 0 GASNETE_THREAD_PASS);
           }
         }
-        data->handle = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
+        data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         
         /* Do local copy LAST, perhaps overlapping with communication */
@@ -3433,7 +3433,7 @@ static int gasnete_coll_pf_gathM_Get(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
             ++q;
           }
         }
-        data->handle = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
+        data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
         gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
         
         /* Do local copy LAST, perhaps overlapping with communication */
@@ -4027,7 +4027,7 @@ static int gasnete_coll_pf_gall_FlatPut(gasnete_coll_op_t *op GASNETE_THREAD_FAR
           gasnete_put_nbi(NULL, GASNETE_COLL_REL2ACT(op->team,dst), (int8_t*) args->dst + op->team->myrank*args->nbytes, args->src, args->nbytes, GASNETEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
         }
       }
-      data->handle = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
+      data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
       gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
     }
     GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*) args->dst + op->team->myrank*args->nbytes, 
@@ -4115,7 +4115,7 @@ static int gasnete_coll_pf_gall_FlatGet(gasnete_coll_op_t *op GASNETE_THREAD_FAR
                            args->nbytes, 0 GASNETE_THREAD_PASS);
         }
       }
-      data->handle = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
+      data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
       gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
     }
     GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*) args->dst + op->team->myrank*args->nbytes, 
@@ -5199,7 +5199,7 @@ static int gasnete_coll_pf_exchg_Put(gasnete_coll_op_t *op GASNETE_THREAD_FARG) 
     for(i=0; i<op->team->myrank; i++) {
       gasnete_put_nbi(NULL, GASNETE_COLL_REL2ACT(op->team,i), ((int8_t*) args->dst) + op->team->myrank*args->nbytes, ((int8_t*) args->src)+i*args->nbytes, args->nbytes, GASNETEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
     }
-    data->handle = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
+    data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
     gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
     GASNETE_FAST_UNALIGNED_MEMCPY_CHECK((int8_t*) args->dst + op->team->myrank*args->nbytes, 
                                         (int8_t*) args->src+op->team->myrank*args->nbytes, args->nbytes);
@@ -5581,7 +5581,7 @@ static int gasnete_coll_pf_exchgM_Dissem_Segmented(gasnete_coll_op_t *op GASNETE
       }
       /*once all the change the state and return 0*/
       /*let the poll function bring us back here*/
-      data->handle = gasnete_end_nbi_accessregion(GASNETEX_EVENT_DEFER,0 GASNETE_THREAD_PASS);
+      data->handle = gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);
       gasnete_coll_save_handle(&data->handle GASNETE_THREAD_PASS);
       data->state++;
     }
