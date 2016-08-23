@@ -176,9 +176,19 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
     gasneti_assert((((iop)->initiated_get_cnt - _temp) & GASNETI_ATOMIC_MAX) < (GASNETI_ATOMIC_MAX/2)); \
   } while (0)
   extern void _gasnete_iop_check(gasnete_iop_t *iop);
+  #define gasnete_handle_check(_h) do { \
+    gasneti_assert(gasneti_handle_idx(_h) < GASNETE_OP_EVENTS); \
+    gasnete_op_t *_op = gasneti_handle_op(_h);                  \
+    if (OPTYPE(_op) == OPTYPE_EXPLICIT) {                       \
+      gasnete_eop_check((gasnete_eop_t*)_op);                   \
+    } else {                                                    \
+      gasnete_iop_check((gasnete_iop_t*)_op);                   \
+    }                                                           \
+  } while (0)
 #else
   #define gasnete_eop_check(eop)   ((void)0)
   #define gasnete_iop_check(iop)   ((void)0)
+  #define gasnete_handle_check(h)  ((void)0)
 #endif
 
 #if 1 // TODO-EX: mechanism for overriding these assignments

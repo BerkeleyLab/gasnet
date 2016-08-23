@@ -193,28 +193,6 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
 #if !defined(gasnete_test) || \
     !defined(gasnete_test_all) || \
     !defined(gasnete_test_some)
-GASNETI_INLINE(gasnete_root_try_free)
-int gasnete_root_try_free(gasnetex_handle_t handle) {
-  gasneti_assert(! gasneti_handle_idx(handle));
-  gasnete_op_t *op = (gasnete_op_t*)handle;
-  if (EVENT_ALL_DONE(op)) {
-    // TODO-EX:
-    // Could potentially weaken "sync_reads" for some cases?
-    // However, that might not be worth the branching it would require.
-    gasneti_sync_reads();
-
-    // TODO-EX: the mask operation in OPTYPE() unnecessary?
-    if_pt (OPTYPE(op) == OPTYPE_EXPLICIT) {
-      gasnete_eop_free((gasnete_eop_t*)op);
-    } else {
-      gasnete_iop_free((gasnete_iop_t*)op);
-    }
-
-    return 1;
-  }
-  return 0;
-}
-
 GASNETI_INLINE(gasnete_op_try_free)
 int gasnete_op_try_free(gasnetex_handle_t handle) {
 #ifdef GASNETE_OP_TRY_FREE_EXTRA
@@ -222,38 +200,33 @@ int gasnete_op_try_free(gasnetex_handle_t handle) {
   GASNETE_OP_TRY_FREE_EXTRA(handle);
 #endif
 
-#if GASNET_DEBUG
-  { gasnete_op_t *op = gasneti_handle_op(handle);
-    unsigned int idx = gasneti_handle_idx(handle);
-
-    gasneti_assert(op->threadidx == gasnete_mythread()->threadidx);
-    gasneti_assert(idx < GASNETE_OP_EVENTS);
-
-    if (OPTYPE(op) == OPTYPE_EXPLICIT) {
-      gasnete_eop_check((gasnete_eop_t*)op);
-    } else {
-      gasnete_iop_check((gasnete_iop_t*)op);
-    }
-  }
-#endif
+  gasnete_handle_check(handle);
 
   // "Fast-path" detects outstanding event w/o any branches
-  if (EVENT_LIVE_MASK & *(volatile uint8_t *)handle) {
-    return 0;
-  }
+  if (EVENT_LIVE_MASK & *(volatile uint8_t *)handle) return 0;
 
   // "Slow-path" must distinguish root from leaf
-  if_pt (! gasneti_handle_idx(handle)) {
-    return gasnete_root_try_free(handle);
-  } else {
-  #if GASNET_DEBUG
-    gasnete_op_t *op = gasneti_handle_op(handle);
-    const unsigned int idx = gasneti_handle_idx(handle);
-    gasneti_assert(EVENT_DONE(op, idx)); // confirm the fast-path result
-  #endif
+  const unsigned int idx = gasneti_handle_idx(handle);
+  if_pt (! idx) { // It's a root event handle
+    if (EVENT_ANY_LIVE(handle)) return 0;
+
+    // TODO-EX:
+    // Could potentially weaken "sync_reads" for some cases?
+    // However, that might not be worth the branching it would require.
+    gasneti_sync_reads();
+
+    // TODO-EX: the mask operation in OPTYPE() unnecessary?
+    if_pt (OPTYPE((gasnete_op_t*)handle) == OPTYPE_EXPLICIT) {
+      gasnete_eop_free((gasnete_eop_t*)handle);
+    } else {
+      gasnete_iop_free((gasnete_iop_t*)handle);
+    }
+  } else { // It's a leaf event handle
+    gasneti_assert(EVENT_DONE(gasneti_handle_op(handle), idx)); // confirm the EVENT_LIVE_MASK result
     gasneti_compiler_fence(); // TODO-EX: revisit this
-    return 1;
   }
+
+  return 1;
 }
 #endif
 
