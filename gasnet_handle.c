@@ -372,13 +372,13 @@ extern int gasnete_test_syncnbi_mask(unsigned int mask GASNETI_THREAD_FARG) {
       gasneti_fatalerror("VIOLATION: attempted to call gasnete_test_syncnbi_mask() inside an NBI access region");
   #endif
 
-  if (mask & GASNETEX_EVENT_LC) {
+  if (mask & GASNETEX_EVENTID_LC) {
     if (! GASNETE_IOP_LC_CNTDONE(iop)) return GASNET_ERR_NOT_READY;
   }
-  if (mask & GASNETEX_EVENT_PUTS) {
+  if (mask & GASNETEX_EVENTID_PUTS) {
     if (! GASNETE_IOP_CNTDONE(iop,put)) return GASNET_ERR_NOT_READY;
   }
-  if (mask & GASNETEX_EVENT_GETS) {
+  if (mask & GASNETEX_EVENTID_GETS) {
     if (! GASNETE_IOP_CNTDONE(iop,get)) return GASNET_ERR_NOT_READY;
     gasneti_sync_reads(); // TODO-EX: revisit this
   } else {

@@ -359,15 +359,16 @@ void gasnetex_wait_syncnbi_puts(void);
 int  gasnetex_test_syncnbi_all (void);
 void gasnetex_wait_syncnbi_all (void);
 
-// Sync of other events (such as local completion from NBI Puts)
-enum gasnete_event {
-  GASNETEX_EVENT_ALL,
-  GASNETEX_EVENT_GETS,
-  GASNETEX_EVENT_PUTS,
-  GASNETEX_EVENT_LC,
-};
-int  gasnetex_test_syncnbi(enum gasnete_event);
-void gasnetex_wait_syncnbi(enum gasnete_event);
+// Identifiers to name events (such as local completion from NBI Puts)
+#define GASNETEX_EVENTID_ALL   ...
+#define GASNETEX_EVENTID_GETS  ...
+#define GASNETEX_EVENTID_PUTS  ...
+#define GASNETEX_EVENTID_LC    ...  // TODO: name that conveys "lc of put and AM payloads"
+
+// Sync of specified subset of NBI operations
+// Argument is bitwise-OR of GASNETEX_EVENTID_{GETS,PUTS,...}
+int  gasnetex_test_syncnbi(unsigned int event_mask);
+void gasnetex_wait_syncnbi(unsigned int event_mask);
 
 
 // Pre-defined constant used to apply a query to all ranks in the team
