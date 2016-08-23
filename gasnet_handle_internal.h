@@ -435,6 +435,9 @@ void gasnete_eop_free(gasnete_eop_t *eop) {
   gasnete_eop_prep_free(eop);
 #ifdef GASNETE_EOP_FREE_EXTRA
   // Hook for conduit-specific cleanups
+  // NOTE: Defining this adds an extra pass in {test,wait}_{some,all} and
+  // therefore should only be used if there are steps that cannot safely be
+  // performed in GASNETE_EOP_PREP_FREE_EXTRA.
   GASNETE_EOP_FREE_EXTRA(eop);
 #endif
 #if GASNET_DEBUG

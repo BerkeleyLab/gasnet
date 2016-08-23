@@ -155,6 +155,9 @@ void gasnete_iop_free(gasnete_iop_t *iop) {
   gasnete_iop_prep_free(iop);
 #ifdef GASNETE_IOP_FREE_EXTRA
   // Hook for conduit-specific cleanups
+  // NOTE: Defining this adds an extra pass in {test,wait}_{some,all} and
+  // therefore should only be used if there are steps that cannot safely be
+  // performed in GASNETE_IOP_PREP_FREE_EXTRA.
   GASNETE_IOP_FREE_EXTRA(iop);
 #endif
 #if GASNET_DEBUG
@@ -205,17 +208,16 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
   ===========================================================
 */
 
+#ifndef gasnete_test
 /*  query an op for completeness 
  *  free it if complete
  *  returns 0 or 1 */
-#if !defined(gasnete_test) || \
-    !defined(gasnete_test_all) || \
-    !defined(gasnete_test_some)
 GASNETI_INLINE(gasnete_op_try_free)
 int gasnete_op_try_free(gasnetex_handle_t handle) {
 #ifdef GASNETE_OP_TRY_FREE_EXTRA
   // Hook to operate on conduit-specific handles
   GASNETE_OP_TRY_FREE_EXTRA(handle);
+  #error "GASNETE_OP_TRY_FREE_EXTRA not implemented in array test/wait ops"
 #endif
 
   gasnete_handle_check(handle);
@@ -246,64 +248,155 @@ int gasnete_op_try_free(gasnetex_handle_t handle) {
 
   return 1;
 }
-#endif
 
-/*  query an op for completeness 
- *  free it and clear the handle if complete
- *  returns 0 or 1 */
-#if !defined(gasnete_test_all) || \
-    !defined(gasnete_test_some)
-GASNETI_INLINE(gasnete_op_try_free_clear)
-int gasnete_op_try_free_clear(gasnetex_handle_t *handle_p) {
-  if (gasnete_op_try_free(*handle_p)) {
-    *handle_p = GASNETEX_INVALID_HANDLE;
-    return 1;
-  }
-  return 0;
-}
-#endif
-
-#ifndef gasnete_test
 extern int  gasnete_test(gasnetex_handle_t handle) {
   return gasnete_op_try_free(handle) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
 #endif
 
-#ifndef gasnete_test_some
-extern int  gasnete_test_some (gasnetex_handle_t *phandle, size_t numhandles) {
-  int success = 0;
+#if !defined(gasnete_test_all) || \
+    !defined(gasnete_test_some)
+GASNETI_INLINE(gasnete_test_array)
+int gasnete_test_array(const int is_all, gasnetex_handle_t *phandle, size_t numhandles) {
+  gasnete_eop_t *eop_head = NULL, **eop_tail_p = &eop_head;
+  gasnete_iop_t *iop_head = NULL, **iop_tail_p = &iop_head;
+  int all_synced = 1;
+  int some_synced = 0;
   int empty = 1;
+  size_t to_retest = 0;
 
   gasneti_assert(phandle);
 
-  { int i;
-    for (i = 0; i < numhandles; i++) {
-      if (phandle[i] != GASNETEX_INVALID_HANDLE) {
-        empty = 0;
-	success |= gasnete_op_try_free_clear(&phandle[i]);
+  // NOTE: We must allow leaves and their corresponding roots to appear in the
+  // array in any order while ensuring that we don't sync a root but not some
+  // corresponding leaf.  The current approach is to make two passes, the first
+  // testing all handles.  If and only if the first pass synced at least one
+  // root and failed to sync at least one leaf, a second pass is made to retest
+  // all of the remaining leaves.
+  //
+  // Between the two passes, the roots synced in the first pass are kept on a
+  // temporary linked-list to avoid them being recycled from the free list
+  // while their leaves are still being tested.  Even in the absence of a
+  // second pass, this will yield an efficient "bulk free".
+
+  // Pass 1: test all handles, evaluate 'empty', and count 'to_retest'
+  for (size_t i = 0; i < numhandles; i++) {
+    const gasnetex_handle_t handle = phandle[i];
+    if (GASNETEX_INVALID_HANDLE != handle) {
+      gasnete_handle_check(handle);
+      empty = 0;
+      if (gasneti_handle_idx(handle)) { // It's a leaf
+        if (EVENT_LIVE_MASK & *(volatile uint8_t *)phandle[i]) {
+          // Do NOT "all_synced = 0" since we'll retry this leaf in second pass
+          to_retest += 1;
+          continue;
+        }
+      } else { // It's a root
+        if (EVENT_ANY_LIVE(handle)) {
+          all_synced = 0;
+          continue;
+        }
+
+        // TODO-EX:
+        // Could potentially weaken "sync_reads" for some cases?
+        // However, that might not be worth the branching it would require.
+        gasneti_sync_reads();
+
+        // TODO-EX: track if all are from same thread so bulk free can act accordingly
+        gasnete_op_t *op = (gasnete_op_t*)handle;
+        if (OPTYPE(op) == OPTYPE_EXPLICIT) { // TODO-EX: the mask operation in OPTYPE() unnecessary?
+          gasnete_eop_t *eop = (gasnete_eop_t*)op;
+          gasnete_eop_prep_free(eop);
+          *eop_tail_p = eop;
+          eop_tail_p = &eop->next;
+          eop->next = NULL;
+        } else {
+          gasnete_iop_t *iop = (gasnete_iop_t*)op;
+          gasnete_iop_prep_free(iop);
+          *iop_tail_p = iop;
+          iop_tail_p = &iop->next;
+          iop->next = NULL;
+        }
       }
+
+      phandle[i] = GASNETEX_INVALID_HANDLE;
+      some_synced = 1;
     }
   }
 
-  return (success || empty) ? GASNET_OK : GASNET_ERR_NOT_READY;
+  // Pass 2: retest all still-live leaf handles (if any)
+  gasneti_assert(! gasneti_handle_idx(GASNETEX_INVALID_HANDLE));
+  if (to_retest) {
+    if (eop_head || iop_head) {
+      size_t to_test = to_retest;
+      for (size_t i = 0; to_test; i++) {
+        gasneti_assert(i < numhandles);
+        const gasnetex_handle_t handle = phandle[i];
+        if (gasneti_handle_idx(handle)) {
+          to_test -= 1;
+          if (EVENT_LIVE_MASK & *(volatile uint8_t *)handle) {
+            all_synced = 0;
+          } else {
+            phandle[i] = GASNETEX_INVALID_HANDLE;
+	    some_synced = 1;
+          }
+        }
+      }
+    } else {
+      all_synced = 0;
+    }
+  }
+
+  // Bulk free
+  // TODO-EX: deal with foreign (other theads) ops
+  if (eop_head) {
+  #if defined(GASNET_DEBUG) || defined(GASNETE_EOP_FREE_EXTRA)
+    gasnete_eop_t *eop = eop_head;
+    do {
+    #ifdef GASNETE_EOP_FREE_EXTRA
+      GASNETE_EOP_FREE_EXTRA(eop);
+    #endif
+    #if GASNET_DEBUG
+      eop->event[0] = gasnete_event_type_free_eop;
+    #endif
+      eop = eop->next;
+    } while(eop);
+  #endif
+    gasnete_threaddata_t * const thread = gasnete_threadtable[eop_head->threadidx];
+    *eop_tail_p = thread->eop_free;
+    thread->eop_free = eop_head;
+  }
+  if (iop_head) {
+  #if defined(GASNET_DEBUG) || defined(GASNETE_IOP_FREE_EXTRA)
+    gasnete_iop_t *iop = iop_head;
+    do {
+    #ifdef GASNETE_IOP_FREE_EXTRA
+      GASNETE_EOP_FREE_EXTRA(iop);
+    #endif
+    #if GASNET_DEBUG
+      iop->event[0] = gasnete_event_type_free_iop;
+    #endif
+      iop = iop->next;
+    } while(iop);
+  #endif
+    gasnete_threaddata_t * const thread = gasnete_threadtable[iop_head->threadidx];
+    *iop_tail_p = thread->iop_free;
+    thread->iop_free = iop_head;
+  }
+
+  return is_all ? all_synced : (some_synced || empty);
+}
+#endif
+
+#ifndef gasnete_test_some
+extern int  gasnete_test_some (gasnetex_handle_t *phandle, size_t numhandles) {
+  return gasnete_test_array(0, phandle, numhandles) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
 #endif
 
 #ifndef gasnete_test_all
 extern int  gasnete_test_all (gasnetex_handle_t *phandle, size_t numhandles) {
-  int success = 1;
-
-  gasneti_assert(phandle);
-
-  { int i;
-    for (i = 0; i < numhandles; i++) {
-      if (phandle[i] != GASNETEX_INVALID_HANDLE) {
-        success &= gasnete_op_try_free_clear(&phandle[i]);
-      }
-    }
-  }
-
-  return success ? GASNET_OK : GASNET_ERR_NOT_READY;
+  return gasnete_test_array(1, phandle, numhandles) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
 #endif
 
