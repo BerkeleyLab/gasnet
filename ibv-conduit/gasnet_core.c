@@ -3601,11 +3601,6 @@ extern int gasnetc_AMReplyLongM(
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
       local_cnt = &counter.initiated;
       local_cb = gasnetc_cb_counter;
-    } else if (lc_opt == GASNETEX_EVENT_GROUP) {
-      gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
-      gasnete_iop_t *op = mythread->current_iop;
-      local_cnt = &op->initiated_alc_cnt;
-      local_cb = op->next ? gasnetc_cb_nar_alc : gasnetc_cb_iop_alc;
     } else {
       gasneti_fatalerror("Invalid lc_opt argument to ReplyLong");
     }
