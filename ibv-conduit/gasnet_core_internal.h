@@ -151,14 +151,14 @@ typedef enum {
     gasnetc_atomic_set(&(_eop)->completed_alc, 0 , 0); \
   } while (0)
 
-#define GASNETE_EOP_FREE_EXTRA(_eop) do { \
+#define GASNETE_EOP_PREP_FREE_EXTRA(_eop) do { \
     gasneti_assert(gasnetc_atomic_read(&(_eop)->completed_cnt, 0) \
                    == ((_eop)->initiated_cnt & GASNETI_ATOMIC_MAX)); \
     gasneti_assert(gasnetc_atomic_read(&(_eop)->completed_alc, 0) \
                    == ((_eop)->initiated_alc & GASNETI_ATOMIC_MAX)); \
   } while (0)
 
-#define _GASNETE_EOP_NEW_EXTRA GASNETE_EOP_FREE_EXTRA
+#define _GASNETE_EOP_NEW_EXTRA GASNETE_EOP_PREP_FREE_EXTRA
 
 /* ------------------------------------------------------------------------------------ */
 /* Internal threads */

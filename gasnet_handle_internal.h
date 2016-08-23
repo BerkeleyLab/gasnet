@@ -107,6 +107,8 @@ enum {
 #if GASNET_DEBUG
   gasnete_event_type_free_eop = 0,
   gasnete_event_type_free_iop,
+  gasnete_event_type_pending_eop,
+  gasnete_event_type_pending_iop,
 #endif
   gasnete_event_type_eop,
   gasnete_event_type_iop,
@@ -406,17 +408,32 @@ void gasnete_op_markdone(gasnete_op_t *op, int isget) {
   }
 }
 
-/*  free an eop */
-static
-void gasnete_eop_free(gasnete_eop_t *eop) {
-  gasnete_threaddata_t * const thread = gasnete_threadtable[eop->threadidx];
-  gasneti_assert(thread == gasnete_mythread());
+/*  prepare to free an eop, but do not destroy anything that would
+ *  be necessary to test/wait on the eop.
+ */
+GASNETI_INLINE(gasnete_eop_prep_free)
+void gasnete_eop_prep_free(gasnete_eop_t *eop) {
   gasnete_eop_check(eop);
   gasneti_assert(EVENT_ALL_DONE(eop));
   gasneti_assert(GASNETE_EOP_DONE(eop));
   gasneti_assert(GASNETE_EOP_LC_DONE(eop));
-#ifdef GASNETE_EOP_FREE_EXTRA
+#ifdef GASNETE_EOP_PREP_FREE_EXTRA
   // Hook for conduit-specific cleanups and assertions
+  GASNETE_EOP_PREP_FREE_EXTRA(eop);
+#endif
+#if GASNET_DEBUG
+  eop->event[0] = gasnete_event_type_pending_eop;
+#endif
+}
+
+/*  free an eop */
+static
+void gasnete_eop_free(gasnete_eop_t *eop) {
+  gasnete_threaddata_t * const thread = gasnete_threadtable[eop->threadidx];
+  gasneti_assert(thread == gasnete_mythread()); // TODO-EX: to be removed
+  gasnete_eop_prep_free(eop);
+#ifdef GASNETE_EOP_FREE_EXTRA
+  // Hook for conduit-specific cleanups
   GASNETE_EOP_FREE_EXTRA(eop);
 #endif
 #if GASNET_DEBUG

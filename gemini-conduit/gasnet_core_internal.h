@@ -69,11 +69,11 @@ typedef enum {
     }                                                                           \
   } while (0)
 
-#define GASNETE_EOP_FREE_EXTRA(_eop) do { \
+#define GASNETE_EOP_PREP_FREE_EXTRA(_eop) do { \
     gasneti_assert(GASNETC_EOP_CNTDONE(_eop)); \
   } while (0)
 
-#define _GASNETE_EOP_NEW_EXTRA GASNETE_EOP_FREE_EXTRA
+#define _GASNETE_EOP_NEW_EXTRA GASNETE_EOP_PREP_FREE_EXTRA
 
 /* ------------------------------------------------------------------------------------ */
 

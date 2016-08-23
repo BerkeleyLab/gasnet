@@ -125,23 +125,39 @@ gasnete_iop_t *gasnete_iop_new(gasnete_threaddata_t * const thread) {
   return iop;
 }
 
-/*  free an iop */
-static
-void gasnete_iop_free(gasnete_iop_t *iop) {
-  gasnete_threaddata_t * const thread = gasnete_threadtable[iop->threadidx];
-  gasneti_assert(thread == gasnete_mythread());
+
+/* prepare to free an iop, but do not destroy anything that would
+ * be necessary to test/wait on the iop.
+ */
+GASNETI_INLINE(gasnete_iop_prep_free)
+void gasnete_iop_prep_free(gasnete_iop_t *iop) {
   gasnete_iop_check(iop);
   gasneti_assert(EVENT_ALL_DONE(iop));
   gasneti_assert(GASNETE_IOP_CNTDONE(iop,get));
   gasneti_assert(GASNETE_IOP_CNTDONE(iop,put));
   gasneti_assert(GASNETE_IOP_LC_CNTDONE(iop));
   gasneti_assert(iop->next == iop);
-  #if GASNET_DEBUG
-    iop->event[0] = gasnete_event_type_free_iop;
-  #endif
-#ifdef GASNETE_IOP_FREE_EXTRA
+#ifdef GASNETE_IOP_PREP_FREE_EXTRA
   // Hook for conduit-specific cleanups and assertions
+  GASNETE_IOP_PREP_FREE_EXTRA(iop);
+#endif
+#if GASNET_DEBUG
+  iop->event[0] = gasnete_event_type_pending_iop;
+#endif
+}
+
+/*  free an iop */
+static
+void gasnete_iop_free(gasnete_iop_t *iop) {
+  gasnete_threaddata_t * const thread = gasnete_threadtable[iop->threadidx];
+  gasneti_assert(thread == gasnete_mythread()); // TODO-EX: to be removed
+  gasnete_iop_prep_free(iop);
+#ifdef GASNETE_IOP_FREE_EXTRA
+  // Hook for conduit-specific cleanups
   GASNETE_IOP_FREE_EXTRA(iop);
+#endif
+#if GASNET_DEBUG
+  iop->event[0] = gasnete_event_type_free_iop;
 #endif
   iop->next = thread->iop_free;
   thread->iop_free = iop;
