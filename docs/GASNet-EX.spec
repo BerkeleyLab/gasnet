@@ -367,8 +367,8 @@ void gasnetex_wait_syncnbi_all (void);
 
 // Sync of specified subset of NBI operations
 // Argument is bitwise-OR of GASNETEX_EVENTID_{GETS,PUTS,...}
-int  gasnetex_test_syncnbi(unsigned int event_mask);
-void gasnetex_wait_syncnbi(unsigned int event_mask);
+int  gasnetex_test_syncnbi(unsigned int event_mask, gasnetex_flags_t flags);
+void gasnetex_wait_syncnbi(unsigned int event_mask, gasnetex_flags_t flags);
 
 // Extract a leaf event handle from the root event handle
 // NOTE: name is subject to change

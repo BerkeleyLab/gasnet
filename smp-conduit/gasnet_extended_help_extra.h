@@ -127,7 +127,7 @@ int gasnete_syncnbi(GASNETE_THREAD_FARG_ALONE)
 
 // Note we must allow for the possibility that the arg has side-effects
 GASNETI_INLINE(gasnete_syncnbi_mask)
-int gasnete_syncnbi_mask(unsigned int event_mask GASNETE_THREAD_FARG)
+int gasnete_syncnbi_mask(unsigned int event_mask, gasnetex_flags_t flags GASNETE_THREAD_FARG)
 {
   gasneti_sync_reads();
   return GASNET_OK;

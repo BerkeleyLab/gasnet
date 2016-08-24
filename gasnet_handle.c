@@ -352,7 +352,7 @@ extern int  gasnete_test_syncnbi_puts(GASNETI_THREAD_FARG_ALONE) {
 #endif
 
 #ifndef gasnete_test_syncnbi_mask
-extern int gasnete_test_syncnbi_mask(unsigned int mask GASNETI_THREAD_FARG) {
+extern int gasnete_test_syncnbi_mask(unsigned int mask, gasnetex_flags_t flags GASNETI_THREAD_FARG) {
   gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_iop_t *iop = mythread->current_iop;
   gasneti_assert(iop->threadidx == mythread->threadidx);
