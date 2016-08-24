@@ -422,6 +422,7 @@ void gasnete_eop_prep_free(gasnete_eop_t *eop) {
   GASNETE_EOP_PREP_FREE_EXTRA(eop);
 #endif
 #if GASNET_DEBUG
+  gasneti_assert(eop->event[0] == gasnete_event_type_eop);
   eop->event[0] = gasnete_event_type_pending_eop;
 #endif
 }
@@ -437,6 +438,7 @@ void gasnete_eop_free(gasnete_eop_t *eop) {
   GASNETE_EOP_FREE_EXTRA(eop);
 #endif
 #if GASNET_DEBUG
+  gasneti_assert(eop->event[0] == gasnete_event_type_pending_eop);
   eop->event[0] = gasnete_event_type_free_eop;
 #endif
   eop->next = thread->eop_free;

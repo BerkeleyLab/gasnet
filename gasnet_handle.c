@@ -142,6 +142,7 @@ void gasnete_iop_prep_free(gasnete_iop_t *iop) {
   GASNETE_IOP_PREP_FREE_EXTRA(iop);
 #endif
 #if GASNET_DEBUG
+  gasneti_assert(iop->event[0] == gasnete_event_type_iop);
   iop->event[0] = gasnete_event_type_pending_iop;
 #endif
 }
@@ -157,6 +158,7 @@ void gasnete_iop_free(gasnete_iop_t *iop) {
   GASNETE_IOP_FREE_EXTRA(iop);
 #endif
 #if GASNET_DEBUG
+  gasneti_assert(iop->event[0] == gasnete_event_type_pending_iop);
   iop->event[0] = gasnete_event_type_free_iop;
 #endif
   iop->next = thread->iop_free;
