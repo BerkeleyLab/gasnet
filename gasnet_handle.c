@@ -436,6 +436,7 @@ extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_flags_t flags GAS
 
 #ifndef gasnete_get_leaf
 extern gasnetex_handle_t gasnete_get_leaf(gasnetex_handle_t root, unsigned int event_id) {
+  // TODO-EX: for GASNET_NDEBUG no need to branch on OPTYPE since 1==gasnete_iop_event_alc
   switch (OPTYPE((gasnete_op_t*)root)) {
     case OPTYPE_IMPLICIT: {
       gasnete_iop_t *iop = (gasnete_iop_t*)root;

@@ -364,6 +364,7 @@ void gasnetex_wait_syncnbi_all (void);
 #define GASNETEX_EVENTID_GETS  ...
 #define GASNETEX_EVENTID_PUTS  ...
 #define GASNETEX_EVENTID_LC    ...  // TODO: name that conveys "lc of put and AM payloads"
+// TODO: will eventually need COLL, VISMETA, etc.
 
 // Sync of specified subset of NBI operations
 // Argument is bitwise-OR of GASNETEX_EVENTID_{GETS,PUTS,...}
