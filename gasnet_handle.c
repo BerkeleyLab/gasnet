@@ -435,30 +435,49 @@ extern gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_flags_t flags GAS
 #endif
 
 #ifndef gasnete_get_leaf
-extern gasnetex_handle_t gasnete_get_leaf(gasnetex_handle_t root, unsigned int event_id) {
-  // TODO-EX: for GASNET_NDEBUG no need to branch on OPTYPE since 1==gasnete_iop_event_alc
-  switch (OPTYPE((gasnete_op_t*)root)) {
+#if GASNET_DEBUG
+static void _gasnete_get_leaf_check(gasnete_op_t *op, unsigned int event_id) {
+  gasneti_assert(! gasneti_handle_idx(op));
+  switch (OPTYPE(op)) {
     case OPTYPE_IMPLICIT: {
-      gasnete_iop_t *iop = (gasnete_iop_t*)root;
+      gasnete_iop_t *iop = (gasnete_iop_t*)op;
       gasnete_iop_check(iop);
       gasneti_assert(iop->next); // was returned from access region
       switch (event_id) {
-        case GASNETEX_EVENTID_PUTS: return gasneti_op_handle(iop, gasnete_iop_event_put);
-        case GASNETEX_EVENTID_GETS: return gasneti_op_handle(iop, gasnete_iop_event_get);
-        case GASNETEX_EVENTID_LC:   return gasneti_op_handle(iop, gasnete_iop_event_alc);
+        case GASNETEX_EVENTID_PUTS:  // fall-through...
+        case GASNETEX_EVENTID_GETS:  // fall-through...
+        case GASNETEX_EVENTID_LC:    return;
       }
       break;
     }
-
     case OPTYPE_EXPLICIT: {
-      gasnete_eop_t *eop = (gasnete_eop_t*)root;
+      gasnete_eop_t *eop = (gasnete_eop_t*)op;
       gasnete_eop_check(eop);
       switch (event_id) {
-        case GASNETEX_EVENTID_LC: return gasneti_op_handle(eop, 1);
+        case GASNETEX_EVENTID_LC: return;
       }
       break;
     }
   }
+  gasneti_fatalerror("Invalid arguments to gasnetex_get_leaf()");
+}
+#else
+  #define _gasnete_get_leaf_check(op, event_id) ((void)0)
+#endif
+
+extern gasnetex_handle_t gasnete_get_leaf(gasnetex_handle_t root, unsigned int event_id) {
+  gasnete_op_t *op = (gasnete_op_t*)root;
+  _gasnete_get_leaf_check(op, event_id);
+
+  // TODO-EX: should replace '1' with a preprocessor macro that also ensures this is true
+  gasneti_assert(1 == gasnete_iop_event_alc); // TODO-EX: move elsewhere
+
+  switch (event_id) {
+    case GASNETEX_EVENTID_PUTS: return gasneti_op_handle(op, gasnete_iop_event_put);
+    case GASNETEX_EVENTID_GETS: return gasneti_op_handle(op, gasnete_iop_event_get);
+    case GASNETEX_EVENTID_LC:   return gasneti_op_handle(op, 1);
+  }
+
   gasneti_fatalerror("Invalid arguments to gasnetex_get_leaf()");
   return GASNETEX_INVALID_HANDLE; // NOT REACHED
 }
