@@ -515,7 +515,7 @@ gasnetex_handle_t gasnete_put_nb(
     gasnete_begin_nbi_accessregion(0,1 /* enable recursion */ GASNETI_THREAD_PASS);
     nbi_result = gasnete_amref_put_nbi_inner(team, rank, dest, src, nbytes,
                                              GASNETEX_EVENT_GROUP, flags GASNETI_THREAD_PASS);
-    handle = gasnete_end_nbi_accessregion(lc_opt,0 GASNETI_THREAD_PASS);
+    handle = gasnete_end_nbi_accessregion(0 GASNETI_THREAD_PASS);
     if (nbi_result) { // "IMMEDIATE" failure
       gasnete_wait(handle);
       handle = GASNETEX_NO_OP_HANDLE;

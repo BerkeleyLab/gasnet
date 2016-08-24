@@ -141,12 +141,8 @@ void gasnete_begin_nbi_accessregion(gasnetex_flags_t flags, int allowrecursion G
 #define gasnete_begin_nbi_accessregion gasnete_begin_nbi_accessregion
 
 GASNETI_INLINE(gasnete_end_nbi_accessregion) GASNETI_WARN_UNUSED_RESULT
-gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_handle_t *lc_opt, gasnetex_flags_t flags GASNETI_THREAD_FARG)
-{
-  gasneti_assert(lc_opt != GASNETEX_EVENT_GROUP); // TODO-EX: allow this if we nest access region?
-  if (lc_opt != NULL) gasneti_leaf_finish(lc_opt);
-  return GASNETEX_INVALID_HANDLE;
-}
+gasnetex_handle_t gasnete_end_nbi_accessregion(gasnetex_flags_t flags GASNETI_THREAD_FARG)
+{ return GASNETEX_INVALID_HANDLE; }
 #define gasnete_end_nbi_accessregion gasnete_end_nbi_accessregion
 
 /* ------------------------------------------------------------------------------------ */
