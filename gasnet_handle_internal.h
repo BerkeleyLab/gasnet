@@ -107,8 +107,8 @@ enum {
 #if GASNET_DEBUG
   gasnete_event_type_free_eop = 0,
   gasnete_event_type_free_iop,
-  gasnete_event_type_pending_eop,
-  gasnete_event_type_pending_iop,
+  gasnete_event_type_pendingfree_eop,
+  gasnete_event_type_pendingfree_iop,
 #endif
   gasnete_event_type_eop,
   gasnete_event_type_iop,
@@ -423,7 +423,7 @@ void gasnete_eop_prep_free(gasnete_eop_t *eop) {
 #endif
 #if GASNET_DEBUG
   gasneti_assert(eop->event[0] == gasnete_event_type_eop);
-  eop->event[0] = gasnete_event_type_pending_eop;
+  eop->event[0] = gasnete_event_type_pendingfree_eop;
 #endif
 }
 
@@ -438,7 +438,7 @@ void gasnete_eop_free(gasnete_eop_t *eop) {
   GASNETE_EOP_FREE_EXTRA(eop);
 #endif
 #if GASNET_DEBUG
-  gasneti_assert(eop->event[0] == gasnete_event_type_pending_eop);
+  gasneti_assert(eop->event[0] == gasnete_event_type_pendingfree_eop);
   eop->event[0] = gasnete_event_type_free_eop;
 #endif
   eop->next = thread->eop_free;
