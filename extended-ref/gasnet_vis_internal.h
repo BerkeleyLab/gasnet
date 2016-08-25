@@ -99,7 +99,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
     switch (synctype) {                                              \
       case gasnete_synctype_b: {                                     \
         gasnetex_handle_t h = gasneti_eop_to_handle(eop);              \
-        gasnete_wait(h);                                      \
+        gasnete_wait(h GASNETI_THREAD_PASS);                         \
         return GASNETEX_INVALID_HANDLE;                                \
       }                                                              \
       case gasnete_synctype_nb:                                      \
@@ -153,7 +153,7 @@ gasnete_vis_threaddata_t *gasnete_vis_new_threaddata(void) {
       case gasnete_synctype_nb:                                                       \
         return gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS);               \
       case gasnete_synctype_b:                                                        \
-        gasnete_wait(gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS)); \
+        gasnete_wait(gasnete_end_nbi_accessregion(0 GASNETE_THREAD_PASS) GASNETE_THREAD_PASS); \
         return GASNETEX_INVALID_HANDLE;                                                 \
       case gasnete_synctype_nbi:                                                      \
         return GASNETEX_INVALID_HANDLE;                                                 \

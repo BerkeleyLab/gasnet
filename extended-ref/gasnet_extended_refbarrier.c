@@ -1260,7 +1260,7 @@ void gasnete_rmdbarrier_send(gasnete_coll_rmdbarrier_t *barrier_data,
 
 #if GASNETI_THREADS
   /* sync the new ops, since we can't know this thread will re-enter the barrier code */
-  gasnete_wait(handle);
+  gasnete_wait(handle GASNETE_THREAD_PASS);
 #else
   /* save the new ops to sync after the barrier is complete */
   step -= (numsteps + 1);
@@ -1543,7 +1543,7 @@ static int gasnete_rmdbarrier_wait(gasnete_coll_team_t team, int id, int flags) 
  #if GASNETI_PSHM_BARRIER_HIER
   if (!barrier_data->barrier_passive)
  #endif
-  gasnete_wait_all(barrier_data->barrier_handles, barrier_data->barrier_size);
+  gasnete_wait_all(barrier_data->barrier_handles, barrier_data->barrier_size GASNETE_THREAD_PASS);
 #endif
 
   /*  update state */

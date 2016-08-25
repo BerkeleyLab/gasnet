@@ -213,7 +213,7 @@ void gasneti_iop_markdone(gasneti_iop_t *iop, unsigned int noperations, int isge
  *  free it if complete
  *  returns 0 or 1 */
 GASNETI_INLINE(gasnete_op_try_free)
-int gasnete_op_try_free(gasnetex_handle_t handle) {
+int gasnete_op_try_free(gasnetex_handle_t handle GASNETI_THREAD_FARG) {
 #ifdef GASNETE_OP_TRY_FREE_EXTRA
   // Hook to operate on conduit-specific handles
   GASNETE_OP_TRY_FREE_EXTRA(handle);
@@ -249,15 +249,15 @@ int gasnete_op_try_free(gasnetex_handle_t handle) {
   return 1;
 }
 
-extern int  gasnete_test(gasnetex_handle_t handle) {
-  return gasnete_op_try_free(handle) ? GASNET_OK : GASNET_ERR_NOT_READY;
+extern int  gasnete_test(gasnetex_handle_t handle GASNETI_THREAD_FARG) {
+  return gasnete_op_try_free(handle GASNETI_THREAD_PASS) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
 #endif
 
 #if !defined(gasnete_test_all) || \
     !defined(gasnete_test_some)
 GASNETI_INLINE(gasnete_test_array)
-int gasnete_test_array(const int is_all, gasnetex_handle_t *phandle, size_t numhandles) {
+int gasnete_test_array(const int is_all, gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG) {
   gasnete_eop_t *eop_head = NULL, **eop_tail_p = &eop_head;
   gasnete_iop_t *iop_head = NULL, **iop_tail_p = &iop_head;
   int all_synced = 1;
@@ -389,14 +389,14 @@ int gasnete_test_array(const int is_all, gasnetex_handle_t *phandle, size_t numh
 #endif
 
 #ifndef gasnete_test_some
-extern int  gasnete_test_some (gasnetex_handle_t *phandle, size_t numhandles) {
-  return gasnete_test_array(0, phandle, numhandles) ? GASNET_OK : GASNET_ERR_NOT_READY;
+extern int  gasnete_test_some (gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG) {
+  return gasnete_test_array(0, phandle, numhandles GASNETI_THREAD_PASS) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
 #endif
 
 #ifndef gasnete_test_all
-extern int  gasnete_test_all (gasnetex_handle_t *phandle, size_t numhandles) {
-  return gasnete_test_array(1, phandle, numhandles) ? GASNET_OK : GASNET_ERR_NOT_READY;
+extern int  gasnete_test_all (gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG) {
+  return gasnete_test_array(1, phandle, numhandles GASNETI_THREAD_PASS) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
 #endif
 

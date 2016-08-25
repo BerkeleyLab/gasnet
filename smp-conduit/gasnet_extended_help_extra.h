@@ -51,7 +51,7 @@ gasnetex_handle_t gasnete_put_nb(
 */
 
 GASNETI_INLINE(gasnete_syncnb_one)
-int gasnete_syncnb_one(gasnetex_handle_t handle)
+int gasnete_syncnb_one(gasnetex_handle_t handle GASNETI_THREAD_FARG)
 {
   gasneti_assert(handle == GASNETEX_INVALID_HANDLE);
   gasneti_sync_reads();
@@ -61,7 +61,7 @@ int gasnete_syncnb_one(gasnetex_handle_t handle)
 #define gasnete_wait gasnete_syncnb_one
 
 GASNETI_INLINE(gasnete_syncnb_array)
-int gasnete_syncnb_array(gasnetex_handle_t *phandle, size_t numhandles)
+int gasnete_syncnb_array(gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG)
 {
 #if GASNET_DEBUG
   for (size_t i=0; i<numhandles; ++i)

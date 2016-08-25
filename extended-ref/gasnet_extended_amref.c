@@ -517,7 +517,7 @@ gasnetex_handle_t gasnete_put_nb(
                                              GASNETEX_EVENT_GROUP, flags GASNETI_THREAD_PASS);
     handle = gasnete_end_nbi_accessregion(0 GASNETI_THREAD_PASS);
     if (nbi_result) { // "IMMEDIATE" failure
-      gasnete_wait(handle);
+      gasnete_wait(handle GASNETI_THREAD_PASS);
       handle = GASNETEX_NO_OP_HANDLE;
     }
     return handle;

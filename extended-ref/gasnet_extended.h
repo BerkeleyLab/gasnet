@@ -108,84 +108,98 @@ gasnetex_handle_t _gasnetex_put_nb(
 */
 
 #ifndef gasnete_test
-extern int gasnete_test(gasnetex_handle_t handle);
+extern int gasnete_test(gasnetex_handle_t handle GASNETI_THREAD_FARG);
 #endif
 #ifndef gasnete_test_some
-extern int gasnete_test_some(gasnetex_handle_t *phandle, size_t numhandles);
+extern int gasnete_test_some(gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG);
 #endif
 #ifndef gasnete_test_all
-extern int gasnete_test_all (gasnetex_handle_t *phandle, size_t numhandles);
+extern int gasnete_test_all (gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG);
 #endif
 
 
-GASNETI_INLINE(gasnetex_test) GASNETI_WARN_UNUSED_RESULT
-int  gasnetex_test(gasnetex_handle_t handle) {
+GASNETI_INLINE(_gasnetex_test) GASNETI_WARN_UNUSED_RESULT
+int  _gasnetex_test(gasnetex_handle_t handle GASNETI_THREAD_FARG) {
   int result = GASNET_OK;
   if_pt (handle != GASNETEX_INVALID_HANDLE)
-    result = gasnete_test(handle);
+    result = gasnete_test(handle GASNETI_THREAD_PASS);
   GASNETI_TRACE_TRYSYNC(TEST_SYNCNB,result);
   return result;
 }
+#define gasnetex_test(phandle) \
+       _gasnetex_test(phandle GASNETI_THREAD_GET)
 
-GASNETI_INLINE(gasnetex_test_some)
-int gasnetex_test_some(gasnetex_handle_t *phandle, size_t numhandles) {
-  int result = gasnete_test_some(phandle,numhandles);
+GASNETI_INLINE(_gasnetex_test_some)
+int _gasnetex_test_some(gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG) {
+  int result = gasnete_test_some(phandle,numhandles GASNETI_THREAD_PASS);
   GASNETI_TRACE_TRYSYNC(TEST_SYNCNB_SOME,result);
   return result;
 }
+#define gasnetex_test_some(phandle, numhandles) \
+       _gasnetex_test_some(phandle, numhandles GASNETI_THREAD_GET)
 
-GASNETI_INLINE(gasnetex_test_all)
-int gasnetex_test_all(gasnetex_handle_t *phandle, size_t numhandles) {
-  int result = gasnete_test_all(phandle,numhandles);
+GASNETI_INLINE(_gasnetex_test_all)
+int _gasnetex_test_all(gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG) {
+  int result = gasnete_test_all(phandle,numhandles GASNETI_THREAD_PASS);
   GASNETI_TRACE_TRYSYNC(TEST_SYNCNB_ALL,result);
   return result;
 }
+#define gasnetex_test_all(phandle, numhandles) \
+       _gasnetex_test_all(phandle, numhandles GASNETI_THREAD_GET)
 
 
 #ifndef gasnete_wait
-  #define gasnete_wait(handle) do {                                      \
-      gasnetex_handle_t _handle = (handle);                                     \
-      if_pt (_handle != GASNETEX_INVALID_HANDLE) {                              \
-        gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */        \
-        gasneti_pollwhile(gasnete_test(_handle) == GASNET_ERR_NOT_READY);\
-      }                                                                         \
-    } while(0)
+  GASNETI_INLINE(gasnete_wait)
+  void gasnete_wait(gasnetex_handle_t handle GASNETI_THREAD_FARG) {
+    if_pt (handle != GASNETEX_INVALID_HANDLE) {
+      gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */
+      gasneti_pollwhile(gasnete_test(handle GASNETI_THREAD_PASS) == GASNET_ERR_NOT_READY);
+    }
+  }
 #endif
 
-GASNETI_INLINE(gasnetex_wait)
-void gasnetex_wait(gasnetex_handle_t handle) {
+GASNETI_INLINE(_gasnetex_wait)
+void _gasnetex_wait(gasnetex_handle_t handle GASNETI_THREAD_FARG) {
   GASNETI_TRACE_WAITSYNC_BEGIN();
-  gasnete_wait(handle);
+  gasnete_wait(handle GASNETI_THREAD_PASS);
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNB);
 }
+#define gasnetex_wait(handle) \
+       _gasnetex_wait(handle GASNETI_THREAD_GET)
 
-#ifndef gasnete_wait_some
-  #define gasnete_wait_some(phandle, numhandles) do {                                   \
-      gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */                         \
-      gasneti_pollwhile(gasnete_test_some(phandle, numhandles) == GASNET_ERR_NOT_READY);\
-    } while(0)
+#ifndef gasnete_wait_some // TODO-EX: a non-inline function could allow some optimizations
+  GASNETI_INLINE(gasnete_wait_some)
+  void gasnete_wait_some(gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG) {
+    gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */
+    gasneti_pollwhile(gasnete_test_some(phandle, numhandles GASNETI_THREAD_PASS) == GASNET_ERR_NOT_READY);
+  }
 #endif
 
-GASNETI_INLINE(gasnetex_wait_some)
-void gasnetex_wait_some(gasnetex_handle_t *phandle, size_t numhandles) {
+GASNETI_INLINE(_gasnetex_wait_some)
+void _gasnetex_wait_some(gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG) {
   GASNETI_TRACE_WAITSYNC_BEGIN();
-  gasnete_wait_some(phandle, numhandles);
+  gasnete_wait_some(phandle, numhandles GASNETI_THREAD_PASS);
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNB_SOME);
 }
+#define gasnetex_wait_some(phandle, numhandles) \
+       _gasnetex_wait_some(phandle, numhandles GASNETI_THREAD_GET)
 
-#ifndef gasnete_wait_all
-  #define gasnete_wait_all(phandle, numhandles) do {                                   \
-      gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */                        \
-      gasneti_pollwhile(gasnete_test_all(phandle, numhandles) == GASNET_ERR_NOT_READY);\
-    } while(0)
+#ifndef gasnete_wait_all // TODO-EX: a non-inline function could allow some optimizations
+  GASNETI_INLINE(gasnete_wait_all)
+  void gasnete_wait_all(gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG) {
+    gasneti_AMPoll(); /* Ensure at least one poll - TODO: remove? */
+    gasneti_pollwhile(gasnete_test_all(phandle, numhandles GASNETI_THREAD_PASS) == GASNET_ERR_NOT_READY);
+  }
 #endif
 
-GASNETI_INLINE(gasnetex_wait_all)
-void gasnetex_wait_all(gasnetex_handle_t *phandle, size_t numhandles) {
+GASNETI_INLINE(_gasnetex_wait_all)
+void _gasnetex_wait_all(gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG) {
   GASNETI_TRACE_WAITSYNC_BEGIN();
-  gasnete_wait_all(phandle, numhandles);
+  gasnete_wait_all(phandle, numhandles GASNETI_THREAD_PASS);
   GASNETI_TRACE_WAITSYNC_END(WAIT_SYNCNB_ALL);
 }
+#define gasnetex_wait_all(phandle, numhandles) \
+       _gasnetex_wait_all(phandle, numhandles GASNETI_THREAD_GET)
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -407,7 +421,7 @@ extern gasnetex_handle_t gasnete_get_leaf(gasnetex_handle_t root, unsigned int e
   {
     gasnetex_handle_t h = gasnete_get_nb(team, dest, rank, src, nbytes, flags GASNETI_THREAD_PASS);
     if (h == GASNETEX_NO_OP_HANDLE) return 1;
-    else gasnete_wait(h);
+    else gasnete_wait(h GASNETI_THREAD_PASS);
     return 0;
   }
 #endif
@@ -428,7 +442,7 @@ extern gasnetex_handle_t gasnete_get_leaf(gasnetex_handle_t root, unsigned int e
   {
     gasnetex_handle_t h = gasnete_put_nb(team, rank, dest, src, nbytes, GASNETEX_EVENT_DEFER, flags GASNETI_THREAD_PASS);
     if (h == GASNETEX_NO_OP_HANDLE) return 1;
-    else gasnete_wait(h);
+    else gasnete_wait(h GASNETI_THREAD_PASS);
     return 0;
   }
 #endif

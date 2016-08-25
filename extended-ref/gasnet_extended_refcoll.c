@@ -342,7 +342,7 @@ void gasnete_coll_sync_saved_handles(GASNETE_THREAD_FARG_ALONE) {
           *((gasnet_coll_handle_t *)addr) = GASNET_COLL_INVALID_HANDLE;
         }
       } else {
-        synced = (gasnete_test(curr->u.handle) == GASNET_OK);
+        synced = (gasnete_test(curr->u.handle GASNETE_THREAD_PASS) == GASNET_OK);
         if (synced) {
           gasneti_sync_writes();
           *((gasnetex_handle_t *)addr) = GASNETEX_INVALID_HANDLE;
