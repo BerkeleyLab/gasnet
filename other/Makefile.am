@@ -17,8 +17,8 @@ CONDUITMODE_SUBDIRS = \
 	blcr       \
 	contrib    \
 	firehose   \
-	fca	   \
-	testspawn
+	fca	   
+
 CONDUITMODE_EXTRADIST = \
 	amxtests    \
 	ssh-spawner \

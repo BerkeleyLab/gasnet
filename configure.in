@@ -5099,7 +5099,6 @@ other/ammpi/Makefile
 other/amudp/Makefile
 other/contrib/Makefile
 other/contrib/gasnet_trace
-other/testspawn/Makefile
 other/firehose/Makefile
 other/firehose/firehose.mak
 other/fca/Makefile
