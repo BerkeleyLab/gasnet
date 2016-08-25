@@ -258,6 +258,7 @@ extern int  gasnete_test(gasnetex_handle_t handle GASNETI_THREAD_FARG) {
     !defined(gasnete_test_some)
 GASNETI_INLINE(gasnete_test_array)
 int gasnete_test_array(const int is_all, gasnetex_handle_t *phandle, size_t numhandles GASNETI_THREAD_FARG) {
+  gasnete_threaddata_t * const mythread = GASNETI_MYTHREAD;
   gasnete_eop_t *eop_head = NULL, **eop_tail_p = &eop_head;
   gasnete_iop_t *iop_head = NULL, **iop_tail_p = &iop_head;
   int all_synced = 1;
@@ -297,13 +298,16 @@ int gasnete_test_array(const int is_all, gasnetex_handle_t *phandle, size_t numh
           continue;
         }
 
-        // TODO-EX:
-        // Could potentially weaken "sync_reads" for some cases?
-        // However, that might not be worth the branching it would require.
+        // TODO-EX: we need to revist this sync_reads() calll.
+        // Can we weaken it for some cases (if the branches don't eliminate the benfits)?
+        // Can we ever safely move it out of this loop?
+        // Should it move inside the ..._prep_free() calls and become DEBUG only?
+        // Of course, if any Gets were syned we still need at least one RMB before return.
         gasneti_sync_reads();
 
         // TODO-EX: track if all are from same thread so bulk free can act accordingly
         gasnete_op_t *op = (gasnete_op_t*)handle;
+        gasneti_assert(op->threadidx == mythread->threadidx); // TODO-EX: until we handle "foreign" ops
         if (OPTYPE(op) == OPTYPE_EXPLICIT) { // TODO-EX: the mask operation in OPTYPE() unnecessary?
           gasnete_eop_t *eop = (gasnete_eop_t*)op;
           gasnete_eop_prep_free(eop);
