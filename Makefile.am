@@ -8,7 +8,7 @@ AUTOMAKE_OPTIONS = foreign 1.4
 ACLOCAL_AMFLAGS = -I other/plpa/config
 
 # Directories for automake to recurse into:
-SUBDIRS = .          \
+SUBDIRS =            \
 	config-aux   \
         other
 
@@ -57,7 +57,8 @@ CONDUITMODE_EXTRA_DIST =    	\
 	gasnet_trace.c
 # GASNET_TOOLSONLY_FALSE_END
 
-DIST_SUBDIRS = $(SUBDIRS) $(CONDUITMODE_DIST_SUBDIRS)
+# bug3285: Order matters here: other should follow conduits to maintain dependencies for distclean
+DIST_SUBDIRS = $(CONDUITMODE_DIST_SUBDIRS) $(SUBDIRS)
 
 configdir = $(includedir)
 config_DATA = $(CONFIG_HEADER)
@@ -251,7 +252,9 @@ clean-local:
 	@if test -f Makefile -a -f smp-conduit/Makefile; then \
 	  $(MAKE) $(recurse_local) DO_WHAT=clean || exit $$? ; \
 	 fi
-	@$(MAKE) recurse_special DO_WHAT=clean
+	@if test -f Makefile; then                   \
+	  $(MAKE) recurse_special DO_WHAT=clean ;    \
+	 fi
 check-local: check-exports $(TOOLSONLY_CHECK)
 seq par parsync:
 	@$(MAKE) $(recurse_local) DO_WHAT=$@
@@ -326,8 +329,9 @@ uninstall-local:
 # So, we run it here if it doesn't appear to have already been run.
 # We also take care of tests, which contains a generated Makefile
 # that older autotools fail to automatically remove as well.
-distclean-local:
-	@for dir in $(CONDUIT_DIRS) tests; do               \
+# Cannot use distclean-local here because it runs too late on older versions
+distclean-hdr:
+	@for dir in $(CONDUITMODE_DIST_SUBDIRS); do         \
 	   if test -f "$$dir/Makefile"; then                \
 	     ( cd "$$dir" && $(MAKE) distclean ) || exit 1; \
 	   fi;                                              \
@@ -335,6 +339,8 @@ distclean-local:
 	@if test -f Makefile; then                   \
 	  $(MAKE) recurse_special DO_WHAT=distclean; \
 	 fi
+	rm -f tests/Makefile
+	rm -f gasnet_config.h stamp-h1
 
 .PHONY: force tests test do-begin-tests do-end-tests                  \
         other-tests other-run-tests tests-seq tests-par tests-parsync \
