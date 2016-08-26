@@ -55,7 +55,7 @@ GASNETI_NORETURNP(gasnetc_exit)
   #define GASNETC_HSL_ERRCHECK_TAGDYN  ((uint64_t)0xB82F6C0DE19C8F3DULL)
 #endif
 
-typedef struct _gasnet_hsl_t {
+typedef struct _gasnetex_hsl_t {
   gasneti_mutex_t lock;
 
   #if GASNETI_STATS_OR_TRACE
@@ -66,9 +66,9 @@ typedef struct _gasnet_hsl_t {
     uint64_t tag;
     int islocked;
     gasneti_tick_t timestamp;
-    struct _gasnet_hsl_t *next;
+    struct _gasnetex_hsl_t *next;
   #endif
-} gasnet_hsl_t GASNETI_THREAD_TYPEDEF;
+} gasnetex_hsl_t GASNETI_THREAD_TYPEDEF;
 
 #if GASNETI_STATS_OR_TRACE
   #define GASNETC_LOCK_STAT_INIT ,0 
@@ -82,7 +82,7 @@ typedef struct _gasnet_hsl_t {
   #define GASNETC_LOCK_ERRCHECK_INIT 
 #endif
 
-#define GASNET_HSL_INITIALIZER { \
+#define GASNETEX_HSL_INITIALIZER { \
   GASNETI_MUTEX_INITIALIZER      \
   GASNETC_LOCK_STAT_INIT         \
   GASNETC_LOCK_ERRCHECK_INIT     \
@@ -100,23 +100,23 @@ typedef struct _gasnet_hsl_t {
 
 #if GASNETC_NULL_HSL
   /* HSL's unnecessary - compile away to nothing */
-  #define gasnet_hsl_init(hsl)
-  #define gasnet_hsl_destroy(hsl)
-  #define gasnet_hsl_lock(hsl)
-  #define gasnet_hsl_unlock(hsl)
-  #define gasnet_hsl_trylock(hsl)	GASNET_OK
+  #define gasnetex_hsl_init(hsl)
+  #define gasnetex_hsl_destroy(hsl)
+  #define gasnetex_hsl_lock(hsl)
+  #define gasnetex_hsl_unlock(hsl)
+  #define gasnetex_hsl_trylock(hsl)	GASNET_OK
 #else
-  extern void gasnetc_hsl_init   (gasnet_hsl_t *hsl);
-  extern void gasnetc_hsl_destroy(gasnet_hsl_t *hsl);
-  extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl);
-  extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl);
-  extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) GASNETI_WARN_UNUSED_RESULT;
+  extern void gasnetc_hsl_init   (gasnetex_hsl_t *hsl);
+  extern void gasnetc_hsl_destroy(gasnetex_hsl_t *hsl);
+  extern void gasnetc_hsl_lock   (gasnetex_hsl_t *hsl);
+  extern void gasnetc_hsl_unlock (gasnetex_hsl_t *hsl);
+  extern int  gasnetc_hsl_trylock(gasnetex_hsl_t *hsl) GASNETI_WARN_UNUSED_RESULT;
 
-  #define gasnet_hsl_init    gasnetc_hsl_init
-  #define gasnet_hsl_destroy gasnetc_hsl_destroy
-  #define gasnet_hsl_lock    gasnetc_hsl_lock
-  #define gasnet_hsl_unlock  gasnetc_hsl_unlock
-  #define gasnet_hsl_trylock gasnetc_hsl_trylock
+  #define gasnetex_hsl_init    gasnetc_hsl_init
+  #define gasnetex_hsl_destroy gasnetc_hsl_destroy
+  #define gasnetex_hsl_lock    gasnetc_hsl_lock
+  #define gasnetex_hsl_unlock  gasnetc_hsl_unlock
+  #define gasnetex_hsl_trylock gasnetc_hsl_trylock
 #endif
 
 #if GASNET_PSHM && GASNETC_HSL_ERRCHECK && !GASNETC_NULL_HSL

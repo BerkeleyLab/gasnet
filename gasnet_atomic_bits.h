@@ -2748,9 +2748,9 @@
   #if defined(_INCLUDED_GASNETEX_H) && GASNETI_USE_TRUE_MUTEXES
     /* Case I: Real HSLs in a gasnet client */
     #define GASNETI_GENATOMIC_LOCK_PREP(ptr) \
-		gasnet_hsl_t * const lock = gasneti_hsl_atomic_hash_lookup((uintptr_t)ptr)
-    #define GASNETI_GENATOMIC_LOCK()   gasnet_hsl_lock(lock)
-    #define GASNETI_GENATOMIC_UNLOCK() gasnet_hsl_unlock(lock)
+		gasnetex_hsl_t * const lock = gasneti_hsl_atomic_hash_lookup((uintptr_t)ptr)
+    #define GASNETI_GENATOMIC_LOCK()   gasnetex_hsl_lock(lock)
+    #define GASNETI_GENATOMIC_UNLOCK() gasnetex_hsl_unlock(lock)
     #define _gasneti_genatomic_cons(_id) gasneti_hsl_atomic##_id
   #elif defined(_INCLUDED_GASNETEX_H)
     /* Case II: Empty HSLs in a GASNET_SEQ or GASNET_PARSYNC client w/o conduit-internal threads */

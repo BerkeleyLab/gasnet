@@ -146,7 +146,7 @@ static void initialize_team_fields(gasnete_coll_team_t team,
   }
   
 #ifndef GASNETE_COLL_P2P_OVERRIDE
-  gasnet_hsl_init(&team->p2p_lock);
+  gasnetex_hsl_init(&team->p2p_lock);
   team->p2p_freelist = NULL;
   for (i = 0; i < GASNETE_COLL_P2P_TABLE_SIZE; ++i) {
     team->p2p_table[i] = NULL;

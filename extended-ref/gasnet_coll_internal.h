@@ -338,7 +338,7 @@ struct gasnete_coll_team_t_ {
     #define GASNETE_COLL_P2P_TABLE_SIZE 16
   #endif
 
-  gasnet_hsl_t p2p_lock; /* Protects freelist and table */
+  gasnetex_hsl_t p2p_lock; /* Protects freelist and table */
   gasnete_coll_p2p_t *p2p_freelist;
   gasnete_coll_p2p_t *p2p_table[GASNETE_COLL_P2P_TABLE_SIZE];
 #endif
@@ -468,7 +468,7 @@ struct gasnete_coll_p2p_t_ {
   gasneti_weakatomic_t	*counter;
     
   /* Handler-safe lock (if needed) */
-  gasnet_hsl_t		lock;
+  gasnetex_hsl_t		lock;
   
   /* manage intervals for segmented algorithms*/
   size_t seg_size;

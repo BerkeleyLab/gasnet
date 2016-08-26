@@ -1532,17 +1532,17 @@ extern int gasnetc_AMReplyLongM(
   ==================
 */
 #if !GASNETC_NULL_HSL
-extern void gasnetc_hsl_init   (gasnet_hsl_t *hsl) {
+extern void gasnetc_hsl_init   (gasnetex_hsl_t *hsl) {
   GASNETI_CHECKATTACH();
   gasneti_mutex_init(&(hsl->lock));
 }
 
-extern void gasnetc_hsl_destroy(gasnet_hsl_t *hsl) {
+extern void gasnetc_hsl_destroy(gasnetex_hsl_t *hsl) {
   GASNETI_CHECKATTACH();
   gasneti_mutex_destroy(&(hsl->lock));
 }
 
-extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
+extern void gasnetc_hsl_lock   (gasnetex_hsl_t *hsl) {
   GASNETI_CHECKATTACH();
 
   {
@@ -1570,7 +1570,7 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
   }
 }
 
-extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
+extern void gasnetc_hsl_unlock (gasnetex_hsl_t *hsl) {
   GASNETI_CHECKATTACH();
 
   GASNETI_TRACE_EVENT_TIME(L, HSL_UNLOCK, GASNETI_TICKS_NOW_IFENABLED(L)-hsl->acquiretime);
@@ -1578,7 +1578,7 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
   gasneti_mutex_unlock(&(hsl->lock));
 }
 
-extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
+extern int  gasnetc_hsl_trylock(gasnetex_hsl_t *hsl) {
   GASNETI_CHECKATTACH();
 
   {

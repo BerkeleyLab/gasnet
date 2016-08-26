@@ -806,7 +806,7 @@ extern int gasnetc_AMReplyLongM(
 
 #if GASNETC_HSL_ERRCHECK
   typedef struct { /* per-thread HSL err-checking info */
-    gasnet_hsl_t *locksheld;
+    gasnetex_hsl_t *locksheld;
     unsigned int inhandler;
     int inuse;
   } gasnetc_hsl_errcheckinfo_t;
@@ -888,16 +888,16 @@ extern int gasnetc_AMReplyLongM(
 */
 
 #if !GASNETC_NULL_HSL
-extern void gasnetc_hsl_init   (gasnet_hsl_t *hsl) {
+extern void gasnetc_hsl_init   (gasnetex_hsl_t *hsl) {
   GASNETI_CHECKATTACH();
   #if GASNETC_HSL_ERRCHECK
   {
     if (hsl->tag == GASNETC_HSL_ERRCHECK_TAGINIT)
-        gasneti_fatalerror("HSL USAGE VIOLATION: tried to gasnet_hsl_init() a statically-initialized HSL");
+        gasneti_fatalerror("HSL USAGE VIOLATION: tried to gasnetex_hsl_init() a statically-initialized HSL");
   #if 0
     /* this causes false errors in Titanium, because object destructors aren't implemented */
     if (hsl->tag == GASNETC_HSL_ERRCHECK_TAGDYN)
-        gasneti_fatalerror("HSL USAGE VIOLATION: tried to gasnet_hsl_init() a previously-initialized HSL (or one you forgot to destroy)");
+        gasneti_fatalerror("HSL USAGE VIOLATION: tried to gasnetex_hsl_init() a previously-initialized HSL (or one you forgot to destroy)");
   #endif
     hsl->tag = GASNETC_HSL_ERRCHECK_TAGDYN;
     hsl->next = NULL;
@@ -908,14 +908,14 @@ extern void gasnetc_hsl_init   (gasnet_hsl_t *hsl) {
   gasneti_mutex_init(&(hsl->lock));
 }
 
-extern void gasnetc_hsl_destroy(gasnet_hsl_t *hsl) {
+extern void gasnetc_hsl_destroy(gasnetex_hsl_t *hsl) {
   GASNETI_CHECKATTACH();
   #if GASNETC_HSL_ERRCHECK
   {
     if (hsl->tag != GASNETC_HSL_ERRCHECK_TAGINIT && hsl->tag != GASNETC_HSL_ERRCHECK_TAGDYN)
-        gasneti_fatalerror("HSL USAGE VIOLATION: tried to gasnet_hsl_destroy() an uninitialized HSL");
+        gasneti_fatalerror("HSL USAGE VIOLATION: tried to gasnetex_hsl_destroy() an uninitialized HSL");
     if (hsl->islocked)
-        gasneti_fatalerror("HSL USAGE VIOLATION: tried to gasnet_hsl_destroy() a locked HSL");
+        gasneti_fatalerror("HSL USAGE VIOLATION: tried to gasnetex_hsl_destroy() a locked HSL");
     hsl->tag = 0;
     gasneti_assert(!hsl->next);
   }
@@ -924,16 +924,16 @@ extern void gasnetc_hsl_destroy(gasnet_hsl_t *hsl) {
   gasneti_mutex_destroy(&(hsl->lock));
 }
 
-extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
+extern void gasnetc_hsl_lock   (gasnetex_hsl_t *hsl) {
   GASNETI_CHECKATTACH();
   #if GASNETC_HSL_ERRCHECK
   { gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
-    gasnet_hsl_t *heldhsl = info->locksheld;
+    gasnetex_hsl_t *heldhsl = info->locksheld;
     if (hsl->tag != GASNETC_HSL_ERRCHECK_TAGINIT && hsl->tag != GASNETC_HSL_ERRCHECK_TAGDYN)
-        gasneti_fatalerror("HSL USAGE VIOLATION: tried to gasnet_hsl_lock() an uninitialized HSL");
+        gasneti_fatalerror("HSL USAGE VIOLATION: tried to gasnetex_hsl_lock() an uninitialized HSL");
     while (heldhsl) {
       if (heldhsl == hsl)
-        gasneti_fatalerror("HSL USAGE VIOLATION: tried to recursively gasnet_hsl_lock() an HSL");
+        gasneti_fatalerror("HSL USAGE VIOLATION: tried to recursively gasnetex_hsl_lock() an HSL");
       heldhsl = heldhsl->next;
     }
   }
@@ -973,21 +973,21 @@ extern void gasnetc_hsl_lock   (gasnet_hsl_t *hsl) {
   #endif
 }
 
-extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
+extern void gasnetc_hsl_unlock (gasnetex_hsl_t *hsl) {
   GASNETI_CHECKATTACH();
   #if GASNETC_HSL_ERRCHECK
   { gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
-    gasnet_hsl_t *heldhsl = info->locksheld;
+    gasnetex_hsl_t *heldhsl = info->locksheld;
     if (hsl->tag != GASNETC_HSL_ERRCHECK_TAGINIT && hsl->tag != GASNETC_HSL_ERRCHECK_TAGDYN)
-        gasneti_fatalerror("HSL USAGE VIOLATION: tried to gasnet_hsl_unlock() an uninitialized HSL");
+        gasneti_fatalerror("HSL USAGE VIOLATION: tried to gasnetex_hsl_unlock() an uninitialized HSL");
     while (heldhsl) {
       if (heldhsl == hsl) break;
       heldhsl = heldhsl->next;
     }
     if (!heldhsl)
-        gasneti_fatalerror("HSL USAGE VIOLATION: tried to gasnet_hsl_unlock() an HSL I didn't own");
+        gasneti_fatalerror("HSL USAGE VIOLATION: tried to gasnetex_hsl_unlock() an HSL I didn't own");
     if (info->locksheld != hsl)
-        gasneti_fatalerror("HSL USAGE VIOLATION: tried to gasnet_hsl_unlock() an HSL out of order");
+        gasneti_fatalerror("HSL USAGE VIOLATION: tried to gasnetex_hsl_unlock() an HSL out of order");
     { float NIStime = gasneti_ticks_to_ns(gasneti_ticks_now() - hsl->timestamp)/1000.0;
       if (NIStime > GASNETC_NISTIMEOUT_WARNING_THRESHOLD) {
         fprintf(stderr,"HSL USAGE WARNING: held an HSL for a long interval (%8.3f sec)\n", NIStime/1000000.0);
@@ -1004,17 +1004,17 @@ extern void gasnetc_hsl_unlock (gasnet_hsl_t *hsl) {
   gasneti_mutex_unlock(&(hsl->lock));
 }
 
-extern int  gasnetc_hsl_trylock(gasnet_hsl_t *hsl) {
+extern int  gasnetc_hsl_trylock(gasnetex_hsl_t *hsl) {
   GASNETI_CHECKATTACH();
 
   #if GASNETC_HSL_ERRCHECK
   { gasnetc_hsl_errcheckinfo_t *info = gasnetc_get_errcheckinfo();
-    gasnet_hsl_t *heldhsl = info->locksheld;
+    gasnetex_hsl_t *heldhsl = info->locksheld;
     if (hsl->tag != GASNETC_HSL_ERRCHECK_TAGINIT && hsl->tag != GASNETC_HSL_ERRCHECK_TAGDYN)
-        gasneti_fatalerror("HSL USAGE VIOLATION: tried to gasnet_hsl_trylock() an uninitialized HSL");
+        gasneti_fatalerror("HSL USAGE VIOLATION: tried to gasnetex_hsl_trylock() an uninitialized HSL");
     while (heldhsl) {
       if (heldhsl == hsl)
-        gasneti_fatalerror("HSL USAGE VIOLATION: tried to recursively gasnet_hsl_trylock() an HSL");
+        gasneti_fatalerror("HSL USAGE VIOLATION: tried to recursively gasnetex_hsl_trylock() an HSL");
       heldhsl = heldhsl->next;
     }
   }

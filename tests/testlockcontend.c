@@ -111,7 +111,7 @@ int main(int argc, char **argv) {
 
 pthread_mutex_t mutex = PTHREAD_MUTEX_INITIALIZER;
 char _pad[GASNETT_CACHE_LINE_BYTES] = { 0 }; /* bug 2231 workaround */
-gasnet_hsl_t hsl = GASNET_HSL_INITIALIZER;
+gasnetex_hsl_t hsl = GASNETEX_HSL_INITIALIZER;
 
 /* ------------------------------------------------------------------------------------ */
 #define TIME_OPERATION_SOME(id, op)                             \
@@ -140,7 +140,7 @@ void * thread_fn1(void *arg) { GASNET_BEGIN_FUNCTION();
 
 void * thread_fn2(void *arg) { GASNET_BEGIN_FUNCTION();
   int id = (int)(uintptr_t)arg;
-  TIME_OPERATION_SOME(id, { gasnet_hsl_lock(&hsl); gasnet_hsl_unlock(&hsl); });
+  TIME_OPERATION_SOME(id, { gasnetex_hsl_lock(&hsl); gasnetex_hsl_unlock(&hsl); });
   return NULL;
 }
 
@@ -169,7 +169,7 @@ void * thread_fn3(void *arg) { GASNET_BEGIN_FUNCTION();
 
 void * thread_fn4(void *arg) { GASNET_BEGIN_FUNCTION();
   int id = (int)(uintptr_t)arg;
-  TIME_OPERATION_ALL(id, { gasnet_hsl_lock(&hsl); gasnet_hsl_unlock(&hsl); });
+  TIME_OPERATION_ALL(id, { gasnetex_hsl_lock(&hsl); gasnetex_hsl_unlock(&hsl); });
   return NULL;
 }
 /* ------------------------------------------------------------------------------------ */

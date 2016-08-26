@@ -134,7 +134,7 @@ int main(int argc, char **argv) {
 #define TIME_OPERATION(desc, op) TIME_OPERATION_FULL(desc, {}, op, {})
 
 char p[1];
-gasnet_hsl_t hsl = GASNET_HSL_INITIALIZER;
+gasnetex_hsl_t hsl = GASNETEX_HSL_INITIALIZER;
 gasnett_atomic_t a = gasnett_atomic_init(0);
 gasnett_atomic32_t a32 = gasnett_atomic32_init(0);
 gasnett_atomic64_t a64 = gasnett_atomic64_init(0);
@@ -207,7 +207,7 @@ void doit2(void) { GASNET_BEGIN_FUNCTION();
     #endif
 
     TIME_OPERATION("lock/unlock uncontended HSL (" _STRINGIFY(TEST_PARSEQ) " mode)",
-      { gasnet_hsl_lock(&hsl); gasnet_hsl_unlock(&hsl); });
+      { gasnetex_hsl_lock(&hsl); gasnetex_hsl_unlock(&hsl); });
 
     TEST_SECTION_BEGIN();
     #define MESSY(i) ((((i+14)*i)+(i+23)*i)&4)

@@ -311,6 +311,17 @@ typedef gasnetex_handle_t gasnet_handle_t;
         gasnetex_AMReplyLong16(token, handler, source_addr, nbytes, dest_addr, GASNETEX_EVENT_NOW, 0, (gasnetex_handlerarg_t)a0, (gasnetex_handlerarg_t)a1, (gasnetex_handlerarg_t)a2, (gasnetex_handlerarg_t)a3, (gasnetex_handlerarg_t)a4, (gasnetex_handlerarg_t)a5, (gasnetex_handlerarg_t)a6, (gasnetex_handlerarg_t)a7, (gasnetex_handlerarg_t)a8, (gasnetex_handlerarg_t)a9, (gasnetex_handlerarg_t)a10, (gasnetex_handlerarg_t)a11, (gasnetex_handlerarg_t)a12, (gasnetex_handlerarg_t)a13, (gasnetex_handlerarg_t)a14, (gasnetex_handlerarg_t)a15)
 
 /* ------------------------------------------------------------------------------------ */
+/* Handler-safe locks */
+
+#define gasnet_hsl_t    	gasnetex_hsl_t
+#define gasnet_hsl_init	        gasnetex_hsl_init
+#define gasnet_hsl_destroy	gasnetex_hsl_destroy
+#define gasnet_hsl_lock         gasnetex_hsl_lock
+#define gasnet_hsl_unlock	gasnetex_hsl_unlock
+#define gasnet_hsl_trylock	gasnetex_hsl_trylock
+#define GASNET_HSL_INITIALIZER	GASNETEX_HSL_INITIALIZER
+
+/* ------------------------------------------------------------------------------------ */
 /* Blocking Put and Get */
 // TODO-EX: pass GASNETEX_FLAG_DST_IN_SEGMENT and possibly other flags
 
