@@ -226,8 +226,7 @@ endif
 # Build, clean, install, uninstall, etc. the conduits - in parallel if possible.
 # Instead of automake's loop over subdir, we expand to one target per subdir.
 # Care is taken w/ the 'clean-local' rule in case distclean has wiped the 
-# local or conduit Makefiles (order depends on the version of automake).
-# The same goes for 'distclean-local' rule.
+# local or conduit Makefiles
 # Note that if ($VAR:%=%FOO) doesn't work for a given make, then we are
 # reduced to using actual conduit names as PHONY targets, but the rule for
 # $(recurse_local) is tailored to work correctly regardless.
@@ -325,22 +324,26 @@ uninstall-local:
 	  rm -f $(DESTDIR)$(includedir)/patched-headers/$$file ; \
 	done
 
-# automake 1.4 doesn't automatically make distclean in DIST_SUBDIRS
-# So, we run it here if it doesn't appear to have already been run.
-# We also take care of tests, which contains a generated Makefile
-# that older autotools fail to automatically remove as well.
-# Cannot use distclean-local here because it runs too late on older versions
-distclean-hdr:
-	@for dir in $(CONDUITMODE_DIST_SUBDIRS); do         \
+# Bug3285: the behavior of distclean-recursive varies in incompatible ways
+# across automake versions, such that no matter what variables we specify
+# some versions will break the dependencies between subdirectories.
+# Very early automakes ignore DIST_SUBDIRS entirely.
+# We override it with our own top-level rule to ensure consistent ordering.
+distclean: force
+	@for dir in $(DIST_SUBDIRS); do                     \
 	   if test -f "$$dir/Makefile"; then                \
 	     ( cd "$$dir" && $(MAKE) distclean ) || exit 1; \
 	   fi;                                              \
 	 done
-	@if test -f Makefile; then                   \
-	  $(MAKE) recurse_special DO_WHAT=distclean; \
-	 fi
+	$(MAKE) recurse_special DO_WHAT=distclean
+	$(MAKE) $(AM_MAKEFLAGS) distclean-am
 	rm -f tests/Makefile
-	rm -f gasnet_config.h stamp-h1
+	rm -f $(am__CONFIG_DISTCLEAN_FILES)
+	rm -f config.status gasnet_config.h stamp-h1
+	rm -f Makefile
+# this rule needed on automake 1.4 where we override the distclean rules but not dependencies
+distclean-recursive:
+	@echo Disabling distclean-recursive for old automake
 
 .PHONY: force tests test do-begin-tests do-end-tests                  \
         other-tests other-run-tests tests-seq tests-par tests-parsync \
