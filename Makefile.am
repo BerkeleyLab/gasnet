@@ -341,9 +341,6 @@ distclean: force
 	rm -f $(am__CONFIG_DISTCLEAN_FILES)
 	rm -f config.status gasnet_config.h stamp-h1
 	rm -f Makefile
-# this rule needed on automake 1.4 where we override the distclean rules but not dependencies
-distclean-recursive:
-	@echo Disabling distclean-recursive for old automake
 
 .PHONY: force tests test do-begin-tests do-end-tests                  \
         other-tests other-run-tests tests-seq tests-par tests-parsync \
