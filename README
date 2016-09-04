@@ -148,9 +148,11 @@ normal distribution.  If you think you need it, contact us at upc@lbl.gov]
       build a script to run the testexit tester and run it
   Compilation and linker flags for the GASNet libraries and tests can be
   augmented from the command-line by setting the following variables in the make
-  command:
-    make MANUAL_LIBCFLAGS=... Flags to add on the C compile for the GASNet libs
-    make MANUAL_CFLAGS=...    Flags to add on the C compile for GASNet clients & tests 
+  command, as described in more detail in the next section:
+    make MANUAL_CFLAGS=...    Flags to add on the C compile for GASNet libs, clients & tests
+    make MANUAL_CXXFLAGS=...  Flags to add on the C++ compile for GASNet libs, clients & tests
+    make MANUAL_MPICFLAGS=... Flags to add on the mpicc compile for GASNet libs, clients & tests
+    make MANUAL_DEFINES=...   Flags to add on all compiles for GASNet libs, clients & tests
     make MANUAL_LDFLAGS=...   Linker flags to add for GASNet clients & tests
     make MANUAL_LIBS=...      Linker library flags to add for GASNet clients & tests
   The following misc make variables can also be set to affect GASNet compilation:
@@ -164,6 +166,42 @@ normal distribution.  If you think you need it, contact us at upc@lbl.gov]
 include directory with a sub-directory for each supported conduit, and a lib
 directory containing a library file for each supported conduit, as well as any
 supporting libraries.
+
+Manual control over compile and link flags
+===================
+
+As described in the previous section, the recommended mechanism for passing
+flags to the compilers used by GASNet is to include them in the definition of
+the compiler variable itself (e.g. CC='gcc -m64').  These will be followed on
+the command line by flags chosen by GASNet's configure script instead of using
+the standard CFLAGS and CXXFLAGS make variables.  If there is a need to pass
+flags that override ones chosen by configure, then one may set MANUAL_CFLAGS,
+MANUAL_CXXFLAGS and MANUAL_MPICFLAGS on the 'make' command line, and these are
+guaranteed to appear on the compilation command line after the ones chosen by
+configure.  Additionally, MANUAL_DEFINES is provided to pass flags to all
+three compilers, but its order on the command line is not guaranteed (since it
+is intended for position-independent command line options such as '-Dfoo=10').
+
+Note that GASNet does not assume that MPI_CC is the same compiler as CC
+(though that is recommended), and therefore invokes it using a distinct
+MANUAL_MPICFLAGS, instead of MANUAL_CFLAGS.  The MPI C compiler is used to
+compile a portion of mpi-conduit (AMMPI) and the MPI-based spawner code used
+by several conduits; and to link executables for mpi-conduit and any conduit
+in which the MPI-based spawner is enabled.  Similarly, the C++ compiler is
+used to compile a portion of udp-conduit (AMUDP) and to link udp-conduit
+executables.
+
+Finally, the make variables MANUAL_LDFLAGS and MANUAL_LIBS are provided to add
+to the link command lines, after the respective configure-detected settings.
+They are intended for flags such as '-Ldir' and '-lfoo', respectively.  Since
+they do not have compiler-specific variants, their use is limited to
+compiler-independent flags unless special care is taken with the selection of
+the make target to ensure that make only invokes one compiler as a linker.
+
+All of the MANUAL_* make variables described above are honored by the Makefile
+infrastructure used to build GASNet's libraries and tests.  Additionally, the
+makefile fragments (next section) use these variables when compiling client
+code.
 
 Basic Usage Information
 =================

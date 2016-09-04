@@ -31,7 +31,8 @@ LIBINCLUDES = $(TOOLLIBINCLUDES) \
 
 TOOLLIBDEFINES =                    \
         $(LIBGASNET_THREAD_DEFINES) \
-        @GASNET_MACHINE_DEFINES@ 
+        @GASNET_MACHINE_DEFINES@    \
+        $(MANUAL_DEFINES)
 
 LIBDEFINES =                        \
 	$(TOOLLIBDEFINES)	    \
@@ -47,7 +48,7 @@ TOOLLIBCFLAGS =                   \
 	$(TOOLLIB_DEBUGFLAGS)     \
 	$(TOOLLIBINCLUDES)	  \
 	$${keeptmps:+@KEEPTMP_CFLAGS@} \
-	$(MANUAL_LIBCFLAGS)
+	$(MANUAL_CFLAGS)
 
 LIBCFLAGS =                       \
         @GASNET_OPT_CFLAGS@       \
@@ -57,7 +58,7 @@ LIBCFLAGS =                       \
         $(CONDUIT_EXTRALIBCFLAGS) \
 	$(LIBINCLUDES)		  \
 	$${keeptmps:+@KEEPTMP_CFLAGS@} \
-	$(MANUAL_LIBCFLAGS)
+	$(MANUAL_CFLAGS)
 
 libgasnet_tools_sources =            \
 	$(top_srcdir)/gasnet_tools.c \
