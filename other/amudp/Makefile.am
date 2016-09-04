@@ -80,7 +80,7 @@ libamudp_a_SOURCES = \
 	socklist.cpp		\
 	sockutil.cpp		
 
-libamudp_a_DEPENDENCIES = $(libamudp_a_SOURCES:%.cpp=%.o)
+libamudp_a_DEPENDENCIES = $(libamudp_a_SOURCES:%.cpp=%.o) $(libamudp_a_SOURCES:%.c=%.o)
 
 EXTRA_DIST = \
 	Makefile.common 	\
