@@ -265,13 +265,12 @@ CSPAWN_ROUTE_OUTPUT  0       set this variable to request built-in stdout/stderr
 
 (these variables may also optionally be prefixed with "AMUDP_" or "GASNET_")
 
-So for example, one could use the custom spawner in conjunction with the Ganglia
-gexec command (http://www.theether.org/gexec/) to start a job for an a.out
-executable linked against libgasnet-udp-*.a as follows (assuming a csh-like
-shell):
+So for example, one could use the custom spawner in conjunction with an mpirun
+command in a mixed MPI+GASNet/udp-conduit executable to start a job for an a.out
+executable as follows (assuming a csh-like shell):
 
 $ setenv GASNET_SPAWNFN 'C'
-$ setenv GASNET_CSPAWN_CMD 'gexec -n %N %C'  
+$ setenv GASNET_CSPAWN_CMD 'mpirun -np %N %C'  
 $ ./a.out 3 arg1 arg2 arg3
 Hello from node0
 Hello from node1
