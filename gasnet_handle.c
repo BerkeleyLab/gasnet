@@ -566,13 +566,12 @@ extern gasnetex_handle_t gasnete_get_leaf(gasnetex_handle_t root, unsigned int e
   gasnete_op_t *op = (gasnete_op_t*)root;
   _gasnete_get_leaf_check(op, event_id);
 
-  // TODO-EX: should replace '1' with a preprocessor macro that also ensures this is true
-  gasneti_assert(1 == gasnete_iop_event_alc); // TODO-EX: move elsewhere
+  gasneti_assert(gasnete_eop_event_alc == gasnete_iop_event_alc); // TODO-EX: move elsewhere
 
   switch (event_id) {
     case GASNETEX_EVENTID_PUTS: return gasneti_op_handle(op, gasnete_iop_event_put);
     case GASNETEX_EVENTID_GETS: return gasneti_op_handle(op, gasnete_iop_event_get);
-    case GASNETEX_EVENTID_LC:   return gasneti_op_handle(op, 1);
+    case GASNETEX_EVENTID_LC:   return gasneti_op_handle(op, gasnete_iop_event_alc);
   }
 
   gasneti_fatalerror("Invalid arguments to gasnetex_get_leaf()");

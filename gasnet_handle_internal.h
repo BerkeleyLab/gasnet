@@ -101,7 +101,7 @@ typedef struct _gasnete_iop_t {
 
 // SUBJECT TO CHANGE:
 // The 'eop' and 'iop' types are only permitted as values the root event (event[0]).
-// The 'lc' type is intended for local completion and is expected to occupy (event[1]).
+// The 'lc' type is intended for local completion
 // A conduit may add additional types as needed to distinguish its unique cases
 enum {
 #if GASNET_DEBUG
@@ -193,13 +193,14 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
   #define gasnete_handle_check(h)  ((void)0)
 #endif
 
-#if 1 // TODO-EX: mechanism for overriding these assignments
+#if 1 // TODO-EX: do we want/need a mechanism for overriding these assignments?
   enum {
     gasnete_iop_event_put = 0,
-    gasnete_iop_event_get = 1,
-    gasnete_iop_event_alc = 2
+    gasnete_iop_event_alc = 1,
+    gasnete_iop_event_get = 2,
   };
 #endif
+#define gasnete_eop_event_alc gasnete_iop_event_alc
 
 //
 // "Finish" an iop in an nbi access region
@@ -268,10 +269,10 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
 
 // event:lc - for local-completion of Put/Med/Long with lc_opt = pointer
 #ifndef GASNETE_EOP_LC_START
-  #define GASNETE_EOP_LC_START(op)   SET_EVENT_TYPE(op, 1, gasnete_event_type_lc)
+  #define GASNETE_EOP_LC_START(op)   SET_EVENT_TYPE(op, gasnete_eop_event_alc, gasnete_event_type_lc)
 #endif
 #ifndef GASNETE_EOP_LC_FINISH
-  #define GASNETE_EOP_LC_FINISH(_eop) SET_EVENT_DONE((_eop),1)
+  #define GASNETE_EOP_LC_FINISH(_eop) SET_EVENT_DONE((_eop),gasnete_eop_event_alc)
 #endif
 
 // event:lc - DONE queries on IOP and EOP
@@ -282,19 +283,18 @@ void _SET_EVENT_DONE(gasnete_op_t *op, unsigned int idx) {
   #define GASNETE_IOP_LC_CNTDONE(_iop) GASNETE_IOP_CNTDONE((_iop),alc)
 #endif
 #ifndef GASNETE_EOP_LC_DONE
-  #define GASNETE_EOP_LC_DONE(_eop) EVENT_DONE((_eop),1)
+  #define GASNETE_EOP_LC_DONE(_eop) EVENT_DONE((_eop),gasnete_eop_event_alc)
 #endif
 
 
 // event:lc_now - for local-completion of Put/Med/Long with lc_opt = EVENT_NOW.
 // This can be applied to *either* EOP or IOP, since the call with EVENT_NOW
 // must block until the event has been signaled.  Additionally, this can co-exist
-// with event:lc (both using event[1]) since they are per-operation mutually
+// with event:lc (both using same event[]) since they are per-operation mutually
 // exclusive.
-// This pre-defined event has no counted variant.
-#define GASNETE_LC_NOW_START(op)   SET_EVENT_TYPE(op, 1, gasnete_event_type_lc_now)
-#define GASNETE_LC_NOW_FINISH(op)  SET_EVENT_DONE(op, 1)
-#define GASNETE_LC_NOW_DONE(op)    EVENT_DONE(op, 1)
+#define GASNETE_LC_NOW_START(op)   SET_EVENT_TYPE(op, gasnete_eop_event_alc, gasnete_event_type_lc_now)
+#define GASNETE_LC_NOW_FINISH(op)  SET_EVENT_DONE(op, gasnete_eop_event_alc)
+#define GASNETE_LC_NOW_DONE(op)    EVENT_DONE(op, gasnete_eop_event_alc)
 
 
 // Extract root (op) and index from any handle

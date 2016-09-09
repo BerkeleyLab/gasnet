@@ -156,7 +156,7 @@ gasnetex_handle_t gasnete_put_nb(
       GASNETE_EOP_LC_FINISH(op);
       *lc_opt = GASNETEX_INVALID_HANDLE;
     } else {
-      *lc_opt = gasneti_op_handle(op, 1);
+      *lc_opt = gasneti_op_handle(op, gasnete_eop_event_alc);
     }
   }
 
