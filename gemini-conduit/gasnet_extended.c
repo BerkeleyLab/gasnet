@@ -128,7 +128,7 @@ gasnetc_post_descriptor_t *
 gasnete_cntr_gpd(gasneti_weakatomic_val_t *initiated_p, gasnete_op_t *op,
                  uint32_t flags GASNETC_DIDX_FARG)
 {
-  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
+  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
   gpd->flags = flags;
   gpd->gpd_completion = (uintptr_t) op;
   (*initiated_p) += 1;
@@ -509,7 +509,7 @@ extern int gasnete_put_val(
     gasnetc_post_descriptor_t *gpd;
     volatile int done = 0;
     gasneti_suspend_spinpollers();
-    gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
+    gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
     gpd->gpd_completion = (uintptr_t) &done;
     gpd->flags = GC_POST_COMPLETION_FLAG;
     gasnete_val_assign(gpd->u.immediate, value);
@@ -597,7 +597,7 @@ extern gasnetex_register_value_t gasnete_get_val(
     volatile int done = 0;
     uint8_t *buffer;
     gasneti_suspend_spinpollers();
-    gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
+    gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
     gpd->gpd_completion = (uintptr_t) &done;
     gpd->flags = GC_POST_COMPLETION_FLAG | GC_POST_KEEP_GPD;
     buffer = gpd->u.immediate;
@@ -666,7 +666,7 @@ static uint64_t gasnete_fetchop_u64_val(
   volatile int done = 0;
 
   gasneti_suspend_spinpollers();
-  gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
+  gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
   gpd->gpd_completion = (uintptr_t) &done;
   gpd->flags = GC_POST_COMPLETION_FLAG | GC_POST_KEEP_GPD;
   gasnetc_fetchop_u64(node, src, cmd, operand, gpd);
@@ -866,7 +866,7 @@ void gasnete_gdbarrier_send(gasnete_coll_gdbarrier_t *barrier_data,
 #endif
     {
       GASNETC_DIDX_POST((gasnete_mythread())->domain_idx);
-      gasnetc_post_descriptor_t * const gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
+      gasnetc_post_descriptor_t * const gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
       uint64_t * const src = (uint64_t *)GASNETE_STARTOFBITS(gpd->u.immediate, sizeof(uint64_t));
 
       gpd->flags = 0; /* fire and forget */

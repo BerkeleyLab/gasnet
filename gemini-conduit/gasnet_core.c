@@ -1331,7 +1331,7 @@ int gasnetc_put_long_payload( gasnetex_rank_t dest,
   
   gasneti_suspend_spinpollers();
   for (;;) {
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
     gpd->gpd_completion = (uintptr_t) completed_p;
     gpd->flags = GC_POST_COMPLETION_CNTR;
     chunk = gasnetc_rdma_put_bulk(dest, dst_addr, src_addr, chunk, gpd);
@@ -1361,7 +1361,7 @@ int gasnetc_put_longasync_payload( gasnetex_rank_t dest,
 
   gasneti_suspend_spinpollers();
   for (;;) {
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
     gpd->gpd_completion = (uintptr_t) header_gpd;
     gpd->flags = GC_POST_COMPLETION_SEND;
     chunk = gasnetc_rdma_put_bulk(dest, dst_addr, src_addr, chunk, gpd);

@@ -1507,7 +1507,7 @@ GASNETI_INLINE(gasnetc_send_notify)
 int gasnetc_send_notify(peer_struct_t * const peer, gasnetc_notify_t notify, gasneti_weakatomic_t *cntr)
 {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
-  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
+  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
   gni_post_descriptor_t *pd = &gpd->pd;
   unsigned int slot;
 
@@ -1577,7 +1577,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnetex_token_t 
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   gasnetc_token_t *token = (gasnetc_token_t *)t;
   peer_struct_t * const peer = &peer_data[token->source];
-  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
+  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
   gni_post_descriptor_t *pd = &gpd->pd;
   gasnetc_notify_t notify = token->notify;
   gasnetc_packet_t *packet;
@@ -1711,7 +1711,7 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnetex_rank_t
 
   r->u.request_bits = mask;
 
-  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
+  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
   gni_post_descriptor_t *pd = &gpd->pd;
   pd->remote_addr = (uint64_t) peer->remote_request_base + (remote_slot << am_slot_bits);
   pd->sync_flag_value = build_notify(notify_request, r - reply_pool, remote_slot);
@@ -2583,7 +2583,7 @@ void gasnetc_init_post_descriptor_pool(GASNETC_DIDX_FARG_ALONE)
   /* must first destroy the temporary pool of post descriptors (only first domain) */
   if_pf (GASNETC_DIDX == GASNETC_DEFAULT_DOMAIN) {
     for (i=0; i < gasnetc_log2_remote; ++i) {
-      gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
+      gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
       gasneti_free(gpd);
     }
   }
@@ -2599,7 +2599,7 @@ void gasnetc_init_post_descriptor_pool(GASNETC_DIDX_FARG_ALONE)
 #else
   /* must first destroy the temporary pool of post descriptors */
   for (i=0; i < gasnetc_log2_remote; ++i) {
-    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
     gasneti_free(gpd);
   }
 
@@ -2615,7 +2615,7 @@ void gasnetc_init_post_descriptor_pool(GASNETC_DIDX_FARG_ALONE)
 
 /* This needs no lock because there is an internal lock in the queue */
 GASNETI_MALLOC
-gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(GASNETC_DIDX_FARG_ALONE)
+gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(gasnetex_flags_t flags GASNETC_DIDX_FARG)
 {
   gasneti_lifo_head_t * const pool_p = &DOMAIN_SPECIFIC_VAL(post_descriptor_pool);
   gasnetc_post_descriptor_t *gpd = (gasnetc_post_descriptor_t *) gasneti_lifo_pop(pool_p);
@@ -2623,16 +2623,20 @@ gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(GASNETC_DIDX_FARG_ALONE
     /* We may simple not have polled the Cq recently.
        So, WAITHOOK and STALL tracing only if still nothing after first poll */
     GASNETC_TRACE_WAIT_BEGIN();
-    int stall = 0;
-    goto first;
-    do {
-      GASNETI_WAITHOOK();
-      stall = 1;
-first:
-      gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
-      gpd = (gasnetc_post_descriptor_t *) gasneti_lifo_pop(pool_p);
-    } while (!gpd);
-    if_pf (stall) GASNETC_TRACE_WAIT_END(ALLOC_PD_STALL);
+    gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
+    gpd = (gasnetc_post_descriptor_t *) gasneti_lifo_pop(pool_p);
+    if (gpd) {
+      /* nothing to do */
+    } else if (flags & GASNETEX_FLAG_IMMEDIATE) {
+      return NULL;
+    } else {
+      do {
+        GASNETI_WAITHOOK();
+        gasnetc_poll_local_queue(GASNETC_DIDX_PASS_ALONE);
+        gpd = (gasnetc_post_descriptor_t *) gasneti_lifo_pop(pool_p);
+      } while (!gpd);
+      GASNETC_TRACE_WAIT_END(ALLOC_PD_STALL);
+    }
   }
   gpd->flags = 0;
 #if GASNETC_USE_MULTI_DOMAIN

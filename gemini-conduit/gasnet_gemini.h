@@ -300,7 +300,8 @@ struct gasnetc_post_descriptor {
 /* This should be ALIGNUP(sizeof(gasnetc_post_descriptor_t), 64) */
 #define GASNETC_SIZEOF_GDP 320
 
-gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(GASNETC_DIDX_FARG_ALONE) GASNETI_MALLOC;
+gasnetc_post_descriptor_t *
+gasnetc_alloc_post_descriptor(gasnetex_flags_t flags GASNETC_DIDX_FARG) GASNETI_MALLOC;
 
 void gasnetc_free_post_descriptor(gasnetc_post_descriptor_t *pd);
 
