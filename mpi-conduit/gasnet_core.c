@@ -635,7 +635,9 @@ extern int gasnetc_AMRequestMediumM(
   va_list argptr;
   CHECKCALLHC();
   GASNETI_COMMON_AMREQUESTMEDIUM(team,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  gasneti_leaf_finish(lc_opt); // always locally completed
+  if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
+    gasneti_leaf_finish(lc_opt); // always locally completed
+  }
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(rank)) {
@@ -673,7 +675,9 @@ extern int gasnetc_AMRequestLongM(
   va_list argptr;
   CHECKCALLHC();
   GASNETI_COMMON_AMREQUESTLONG(team,rank,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
-  gasneti_leaf_finish(lc_opt); // always locally completed
+  if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
+    gasneti_leaf_finish(lc_opt); // always locally completed
+  }
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(rank)) {
@@ -739,7 +743,9 @@ extern int gasnetc_AMReplyMediumM(
   va_list argptr;
   CHECKCALLHSL();
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  gasneti_leaf_finish(lc_opt); // always locally completed
+  if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
+    gasneti_leaf_finish(lc_opt); // always locally completed
+  }
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasnetc_token_is_pshm(token)) {
@@ -772,7 +778,9 @@ extern int gasnetc_AMReplyLongM(
   va_list argptr;
   CHECKCALLHSL();
   GASNETI_COMMON_AMREPLYLONG(token,handler,source_addr,nbytes,dest_addr,lc_opt,flags,numargs);
-  gasneti_leaf_finish(lc_opt); // always locally completed
+  if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
+    gasneti_leaf_finish(lc_opt); // always locally completed
+  }
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   if_pt (gasnetc_token_is_pshm(token)) {

@@ -3460,7 +3460,9 @@ extern int gasnetc_AMRequestMediumM(
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTMEDIUM(team,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
+  if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
+    gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
+  }
   va_start(argptr, numargs); /*  pass in last argument */
   retval = gasnetc_RequestGeneric(gasnetc_Medium, rank, handler,
 		  		  source_addr, nbytes, NULL,
@@ -3489,14 +3491,33 @@ extern int gasnetc_AMRequestLongM(
     gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
     gasnetc_atomic_val_t *local_cnt, start_cnt;
     gasnetc_cb_t         local_cb;
-    gasnete_eop_t        *op;
+    gasnete_eop_t        *eop = NULL;
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
-      op = _gasnete_eop_new(GASNETI_MYTHREAD);
-      GASNETE_EOP_LC_START(op);
-      start_cnt = op->initiated_alc;
-      local_cnt = &op->initiated_alc;
-      local_cb = gasnetc_cb_eop_alc;
+      if (flags & GASNETI_FLAG_LC_OPT_IN) {
+        gasnete_op_t *op = gasneti_handle_op(*lc_opt);
+        if (OPTYPE(op) == OPTYPE_IMPLICIT) {
+          gasnete_iop_t *iop = (gasnete_iop_t*)op;
+          gasneti_assert(gasneti_handle_idx(*lc_opt) == gasnete_iop_event_alc);
+          gasneti_assert(iop->next); // Within an NBI access region
+          local_cnt = &iop->initiated_alc_cnt;
+          local_cb = gasnetc_cb_nar_alc;
+        } else {
+          eop = (gasnete_eop_t*)op;
+          gasneti_assert(gasneti_handle_idx(*lc_opt) == gasnete_eop_event_alc);
+          GASNETE_EOP_LC_START(eop);
+          start_cnt = eop->initiated_alc;
+          local_cnt = &eop->initiated_alc;
+          local_cb = gasnetc_cb_eop_alc;
+        }
+      } else {
+        eop = _gasnete_eop_new(GASNETI_MYTHREAD);
+        *lc_opt = (gasnetex_handle_t)eop;
+        GASNETE_EOP_LC_START(eop);
+        start_cnt = eop->initiated_alc;
+        local_cnt = &eop->initiated_alc;
+        local_cb = gasnetc_cb_eop_alc;
+      }
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
       local_cnt = &counter.initiated;
       local_cb = gasnetc_cb_counter;
@@ -3517,14 +3538,13 @@ extern int gasnetc_AMRequestLongM(
     if (lc_opt == GASNETEX_EVENT_NOW) {
       /* block for local completion of RDMA transfer */
       gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
-    } else if (gasneti_leaf_is_pointer(lc_opt)) {
-      if (start_cnt == op->initiated_alc) {
-        // Synchronous LC - recycle the eop now
-        GASNETE_EOP_LC_FINISH(op);
-        gasnete_eop_free(op);
-        op = (gasnete_eop_t*)GASNETEX_INVALID_HANDLE;
+    } else if (eop && (start_cnt == eop->initiated_alc)) {
+      // Synchronous LC - reset LC state
+      GASNETE_EOP_LC_FINISH(eop);
+      if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
+        gasnete_eop_free(eop);
+        *lc_opt = GASNETEX_INVALID_HANDLE;
       }
-      *lc_opt = (gasnetex_handle_t)op;
     }
   }
   va_end(argptr);
@@ -3560,7 +3580,9 @@ extern int gasnetc_AMReplyMediumM(
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
+  if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
+    gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
+  }
   va_start(argptr, numargs); /*  pass in last argument */
   retval = gasnetc_ReplyGeneric(gasnetc_Medium, token, handler,
 		  		source_addr, nbytes, NULL,
@@ -3588,14 +3610,33 @@ extern int gasnetc_AMReplyLongM(
     gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
     gasnetc_atomic_val_t *local_cnt, start_cnt;
     gasnetc_cb_t         local_cb;
-    gasnete_eop_t        *op;
+    gasnete_eop_t        *eop = NULL;
 
     if (gasneti_leaf_is_pointer(lc_opt)) {
-      op = _gasnete_eop_new(GASNETI_MYTHREAD);
-      GASNETE_EOP_LC_START(op);
-      start_cnt = op->initiated_alc;
-      local_cnt = &op->initiated_alc;
-      local_cb = gasnetc_cb_eop_alc;
+      if (flags & GASNETI_FLAG_LC_OPT_IN) {
+        gasnete_op_t *op = gasneti_handle_op(*lc_opt);
+        if (OPTYPE(op) == OPTYPE_IMPLICIT) {
+          gasnete_iop_t *iop = (gasnete_iop_t*)op;
+          gasneti_assert(gasneti_handle_idx(*lc_opt) == gasnete_iop_event_alc);
+          gasneti_assert(iop->next); // Within an NBI access region
+          local_cnt = &iop->initiated_alc_cnt;
+          local_cb = gasnetc_cb_nar_alc;
+        } else {
+          eop = (gasnete_eop_t*)op;
+          gasneti_assert(gasneti_handle_idx(*lc_opt) == gasnete_eop_event_alc);
+          GASNETE_EOP_LC_START(eop);
+          start_cnt = eop->initiated_alc;
+          local_cnt = &eop->initiated_alc;
+          local_cb = gasnetc_cb_eop_alc;
+        }
+      } else {
+        eop = _gasnete_eop_new(GASNETI_MYTHREAD);
+        *lc_opt = (gasnetex_handle_t)eop;
+        GASNETE_EOP_LC_START(eop);
+        start_cnt = eop->initiated_alc;
+        local_cnt = &eop->initiated_alc;
+        local_cb = gasnetc_cb_eop_alc;
+      }
     } else if (lc_opt == GASNETEX_EVENT_NOW) {
       local_cnt = &counter.initiated;
       local_cb = gasnetc_cb_counter;
@@ -3611,18 +3652,19 @@ extern int gasnetc_AMReplyLongM(
     if (lc_opt == GASNETEX_EVENT_NOW) {
       /* block for local completion of RDMA transfer */
       gasnetc_counter_wait(&counter, 1 /* handler context */ GASNETI_THREAD_PASS);
-    } else if (gasneti_leaf_is_pointer(lc_opt)) {
-      if (start_cnt == op->initiated_alc) {
-        // Synchronous LC - recycle the eop now
-        GASNETE_EOP_LC_FINISH(op);
-        gasnete_eop_free(op);
-        op = (gasnete_eop_t*)GASNETEX_INVALID_HANDLE;
+    } else if (eop && (start_cnt == eop->initiated_alc)) {
+      // Synchronous LC - reset LC state
+      GASNETE_EOP_LC_FINISH(eop);
+      if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
+        gasnete_eop_free(eop);
+        *lc_opt = GASNETEX_INVALID_HANDLE;
       }
-      *lc_opt = (gasnetex_handle_t)op;
     }
   }
   #else
-  gasneti_leaf_finish(lc_opt); // Always "packed long", and thus locally-complete
+  if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
+    gasneti_leaf_finish(lc_opt); // Always "packed long", and thus locally-complete
+  }
   retval = gasnetc_ReplyGeneric(gasnetc_Long, token, handler,
 		  		source_addr, nbytes, dest_addr,
 				numargs, NULL, NULL, NULL,
