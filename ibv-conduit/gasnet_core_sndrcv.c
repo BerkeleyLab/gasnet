@@ -2407,7 +2407,7 @@ void gasnetc_bounce_common(gasnetc_epid_t epid, int rkey_index, struct ibv_send_
   sr_desc->wr.rdma.remote_addr += len;
 }
 
-/* Assemble and post a zero-copy PUT or GET using either the seg_lkeys table or
+/* Assemble and all-but-post a zero-copy PUT or GET using either the seg_lkeys table or
  * firehose to obtain the lkeys.  Both cases delay the bind to a qp until the
  * total xfer len is known.
  */
@@ -2477,10 +2477,6 @@ size_t gasnetc_zerocp_common(gasnetc_epid_t epid, int rkey_index, struct ibv_sen
   }
 
   sr_desc->wr.rdma.rkey = GASNETC_SEG_RKEY(cep, rkey_index);
-
-  gasnetc_snd_post(sreq, sr_desc);
-  sr_desc->wr.rdma.remote_addr += len;
-  sr_desc->sg_list[0].addr = loc_addr;
 
   gasneti_assert(len > 0);
   return len;
@@ -2558,7 +2554,7 @@ GASNETI_INLINE(gasnetc_do_put_zerocp)
 void gasnetc_do_put_zerocp(const gasnetc_epid_t epid, int rkey_index,
                                   struct ibv_send_wr *sr_desc,
                                   size_t nbytes,
-                                  gasnetc_atomic_val_t *remote_cnt, gasnetc_cb_t remote_cb
+                                  gasnetc_atomic_val_t *cnt, gasnetc_cb_t cb
 				  GASNETI_THREAD_FARG) {
   GASNETI_TRACE_EVENT_VAL(C, RDMA_PUT_ZEROCP, nbytes);
 
@@ -2567,18 +2563,20 @@ void gasnetc_do_put_zerocp(const gasnetc_epid_t epid, int rkey_index,
   /* loop over local pinned regions */
   do {
     gasnetc_sreq_t * const sreq = gasnetc_get_sreq(GASNETC_OP_PUT_ZEROCP GASNETI_THREAD_PASS);
-    size_t count;
+    size_t count = gasnetc_zerocp_common(epid, rkey_index, sr_desc, nbytes, sreq,
+                                         IBV_WR_RDMA_WRITE GASNETI_THREAD_PASS);
+    gasneti_assert(count <= nbytes);
+    nbytes -= count;
 
-    if (remote_cnt) {
-      ++(*remote_cnt);
-      sreq->comp.data = remote_cnt;
-      sreq->comp.cb = remote_cb;
+    if (cnt) {
+      ++(*cnt);
+      sreq->comp.data = cnt;
+      sreq->comp.cb = cb;
     }
 
-    count = gasnetc_zerocp_common(epid, rkey_index, sr_desc, nbytes, sreq, IBV_WR_RDMA_WRITE GASNETI_THREAD_PASS);
-    gasneti_assert(count <= nbytes);
-
-    nbytes -= count;
+    gasnetc_snd_post(sreq, sr_desc);
+    sr_desc->wr.rdma.remote_addr += count;
+    sr_desc->sg_list[0].addr += count;
   } while (nbytes);
 }
 
@@ -2600,17 +2598,18 @@ void gasnetc_do_get_bounce(const gasnetc_epid_t epid, int rkey_index,
     gasnetc_sreq_t * const sreq = gasnetc_get_sreq(GASNETC_OP_GET_BOUNCE GASNETI_THREAD_PASS);
     const size_t count = MIN(GASNETC_BUFSZ, nbytes);
 
+    nbytes -= count;
+    if (nbytes) ++(*remote_cnt); // Do NOT advance prior to the last injection
+
     sreq->bb_addr  = (void *)dst;
     sreq->bb_len   = count;
     sreq->bb_buff  = gasnetc_get_bbuf(1 GASNETI_THREAD_PASS);
     sreq->comp.cb = remote_cb;
     sreq->comp.data = remote_cnt;
-    ++(*remote_cnt);
 
     gasnetc_bounce_common(epid, rkey_index, sr_desc, count, sreq, IBV_WR_RDMA_READ GASNETI_THREAD_PASS);
 
     dst += count;
-    nbytes -= count;
   } while (nbytes);
   sr_desc->sg_list[0].addr = dst;
 #else
@@ -2633,16 +2632,19 @@ void gasnetc_do_get_zerocp(const gasnetc_epid_t epid, int rkey_index,
   /* loop over local pinned regions */
   do {
     gasnetc_sreq_t * const sreq = gasnetc_get_sreq(GASNETC_OP_GET_ZEROCP GASNETI_THREAD_PASS);
-    size_t count;
-
-    sreq->comp.cb = remote_cb;
-    sreq->comp.data = remote_cnt;
-    ++(*remote_cnt);
-
-    count = gasnetc_zerocp_common(epid, rkey_index, sr_desc, nbytes, sreq, IBV_WR_RDMA_READ GASNETI_THREAD_PASS);
+    size_t count = gasnetc_zerocp_common(epid, rkey_index, sr_desc, nbytes, sreq,
+                                         IBV_WR_RDMA_READ GASNETI_THREAD_PASS);
     gasneti_assert(count <= nbytes);
 
     nbytes -= count;
+    if (nbytes) ++(*remote_cnt); // Do NOT advance prior to the last injection
+
+    sreq->comp.cb = remote_cb;
+    sreq->comp.data = remote_cnt;
+
+    gasnetc_snd_post(sreq, sr_desc);
+    sr_desc->wr.rdma.remote_addr += count;
+    sr_desc->sg_list[0].addr += count;
   } while (nbytes);
 }
 
@@ -3035,7 +3037,10 @@ size_t gasnetc_fh_put_helper(
 
 GASNETI_INLINE(gasnetc_fh_get_helper)
 size_t gasnetc_fh_get_helper(gasnetc_epid_t epid, gasnetc_sreq_t *sreq,
-		          uintptr_t loc_addr, uintptr_t rem_addr, size_t len GASNETI_THREAD_FARG) {
+                             uintptr_t loc_addr, uintptr_t rem_addr,
+                             size_t len, gasnetc_atomic_val_t *remote_cnt
+                             GASNETI_THREAD_FARG) {
+  const size_t orig_len = len;
   const gasnetex_rank_t node = gasnetc_epid2node(epid);
   const firehose_request_t *fh_rem;
 
@@ -3065,6 +3070,8 @@ size_t gasnetc_fh_get_helper(gasnetc_epid_t epid, gasnetc_sreq_t *sreq,
   }
 
   len = sreq->fh_len = gasnetc_get_local_fh(sreq, loc_addr, len);
+
+  if (len != orig_len) ++(*remote_cnt); // Do NOT advance prior to the last injection
 
   if ((fh_rem != NULL) || gasnetc_sreq_is_ready(sreq)) {
     gasnetc_fh_do_get(sreq GASNETI_THREAD_PASS);
@@ -3976,6 +3983,23 @@ extern void gasnetc_counter_wait_aux(gasnetc_counter_t *counter, int handler_con
  * for local completion.  Otherwise zero-copy is used (with firehose if the source is not pre-pinned).
  * If firehose is disabled, then bounce buffers are used for unpinned sources.
  */
+// TODO-EX:
+//   Curently we may need to pre-increment (*local_cnt) and (*remote_cnt) in
+//   order to prevent the counters from becoming balanced (as observed in the
+//   corresponding callback) before the final ibv-level operation has been
+//   injected.  That requires a coresponding atomic-add (via the completion
+//   callback) of the completed counter at the end.  Ideally we would be able
+//   to manage all the increments of the initiated counters (as done in
+//   gasnetc_rdma_get()) such that premature counter balance would be
+//   impossible.  HOWEVER, attempts to do so w/o significant rewrites have
+//   failed so far.  The main issues are:
+//     + One or both of the counters might not advance at all
+//     + Identifying the *last* increment of local_cnt or remote_cnt
+//   For certain cases we may be able to resolve both of those issues, notably
+//   the cases in which only one of local_cnt or remote_cnt is non-NULL.
+//
+//   Currently we entirely avoid the "bias" of the counter(s) only for the
+//   case of the inline put.
 extern int gasnetc_rdma_put(
                 gasnetc_epid_t epid,
                 void *src_ptr, void *dst_ptr,
@@ -4012,47 +4036,74 @@ extern int gasnetc_rdma_put(
     return 0;
   }
 
-  do {
-    /* Loop over contiguous pinned regions on remote end */
-    const int rkey_index = gasnetc_seg_index(offset);
-    const size_t rem = gasnetc_seg_remain(offset);
-    const size_t count = MIN(nbytes, rem);
+  // May need to do a bit of extra work to prevent premature counter balance
+  const int bias_remote_cnt = (remote_cb == gasnetc_cb_eop_put);
+  if (bias_remote_cnt) ++(*remote_cnt);
 
-    if (((count <= gasnetc_bounce_limit) && (local_cb != NULL)) ||
-        (!GASNETC_USE_FIREHOSE && gasnetc_unpinned(sr_desc_sg_lst[0].addr))) {
-      /* Because IB lacks any indication of "local" completion, the only ways to
-       * implement non-bulk puts (mem_* != NULL) are as fully blocking puts, or
-       * with bounce buffers.  So, if a non-bulk put is "not too large" use bounce
-       * buffers.
-       *   OR
-       * Firehose disabled.  Must use bounce buffers when src is out-of-segment.
-       */
-      gasnetc_do_put_bounce(epid, rkey_index, sr_desc, count, remote_cnt, remote_cb GASNETI_THREAD_PASS);
-    } else {
-      /* Here is the general case */
-      /* The init or the sync (or neither) might wait on completion, but never both */
-      gasnetc_atomic_val_t *cnt;
-      gasnetc_cb_t cb;
-      if (local_cnt) {
-        cnt = local_cnt;
-        cb = local_cb;
+  // Distinct cases depending on whether LC matters or not
+  // TODO-EX: this may suggest 2 distinct functions are in order?
+  if (local_cb) {
+    const int bias_local_cnt  = (local_cb  == gasnetc_cb_eop_alc);
+    if (bias_local_cnt) ++(*local_cnt);
+    do {
+      /* Loop over contiguous pinned regions on remote end */
+      const int rkey_index = gasnetc_seg_index(offset);
+      const size_t rem = gasnetc_seg_remain(offset);
+      const size_t count = MIN(nbytes, rem);
+
+      if ((count <= gasnetc_bounce_limit) ||
+          (!GASNETC_USE_FIREHOSE && gasnetc_unpinned(sr_desc_sg_lst[0].addr))) {
+        /* Because IB lacks any indication of "local" completion, the only ways to
+         * implement non-bulk puts are as fully blocking puts, or with bounce buffers.
+         * So, if a non-bulk put is "not too large" use bounce buffers.
+         *   OR
+         * Firehose disabled.  Must use bounce buffers when src is out-of-segment.
+         */
+        gasnetc_do_put_bounce(epid, rkey_index, sr_desc, count,
+                              remote_cnt, remote_cb GASNETI_THREAD_PASS);
       } else {
-        cnt = remote_cnt;
-        cb = remote_cb;
+        gasnetc_do_put_zerocp(epid, rkey_index, sr_desc, count,
+                              local_cnt, local_cb GASNETI_THREAD_PASS);
       }
-      gasnetc_do_put_zerocp(epid, rkey_index, sr_desc, count,
-                            cnt, cb GASNETI_THREAD_PASS);
-    }
 
-    offset += count;
-    nbytes -= count;
-  #if GASNET_DEBUG
-    dst += count;
-    gasneti_assert(sr_desc->wr.rdma.remote_addr == dst);
-    src += count;
-    gasneti_assert(sr_desc_sg_lst[0].addr == src);
-  #endif
-  } while (nbytes);
+      offset += count;
+      nbytes -= count;
+    #if GASNET_DEBUG
+      dst += count;
+      gasneti_assert(sr_desc->wr.rdma.remote_addr == dst);
+      src += count;
+      gasneti_assert(sr_desc_sg_lst[0].addr == src);
+    #endif
+    } while (nbytes);
+    if (bias_local_cnt) local_cb(local_cnt);
+  } else {
+    do {
+      /* Loop over contiguous pinned regions on remote end */
+      const int rkey_index = gasnetc_seg_index(offset);
+      const size_t rem = gasnetc_seg_remain(offset);
+      const size_t count = MIN(nbytes, rem);
+
+      if (!GASNETC_USE_FIREHOSE && gasnetc_unpinned(sr_desc_sg_lst[0].addr)) {
+         // Firehose disabled.  Must use bounce buffers when src is out-of-segment.
+        gasnetc_do_put_bounce(epid, rkey_index, sr_desc, count,
+                              remote_cnt, remote_cb GASNETI_THREAD_PASS);
+      } else {
+        gasnetc_do_put_zerocp(epid, rkey_index, sr_desc, count,
+                              remote_cnt, remote_cb GASNETI_THREAD_PASS);
+      }
+
+      offset += count;
+      nbytes -= count;
+    #if GASNET_DEBUG
+      dst += count;
+      gasneti_assert(sr_desc->wr.rdma.remote_addr == dst);
+      src += count;
+      gasneti_assert(sr_desc_sg_lst[0].addr == src);
+    #endif
+    } while (nbytes);
+  }
+
+  if (bias_remote_cnt) remote_cb(remote_cnt);
 
   return 0;
 }
@@ -4061,6 +4112,10 @@ extern int gasnetc_rdma_put(
  *
  * Uses zero-copy (with firehose if the destination is not pre-pinned).
  * If firehose is disabled, then bounce buffers are used for unpinned destinations.
+ *
+ * This function takes care to keep its increments of (*remote_cnt) an *extra*
+ * step ahead of the ibv-level injections.  This means it is not possible for
+ * the initiated and completed counters to balance before to the last injection.
  */
 extern int gasnetc_rdma_get(
                 gasnetc_epid_t epid,
@@ -4083,6 +4138,8 @@ extern int gasnetc_rdma_get(
   gasneti_assert(nbytes != 0);
   gasneti_assert(remote_cnt != NULL);
 
+  ++(*remote_cnt);
+
   sr_desc->wr.rdma.remote_addr = src;
   sr_desc_sg_lst[0].addr = dst;
   do {
@@ -4090,6 +4147,9 @@ extern int gasnetc_rdma_get(
     const int rkey_index = gasnetc_seg_index(offset);
     const size_t rem = gasnetc_seg_remain(offset);
     const size_t count = MIN(nbytes, rem);
+    nbytes -= count;
+
+    if (nbytes) ++(*remote_cnt); // Do NOT advance prior to the last injection
 
     if (!GASNETC_USE_FIREHOSE && gasnetc_unpinned(sr_desc_sg_lst[0].addr)) {
       /* Firehose disabled.  Use bounce buffers since dst is out-of-segment */
@@ -4100,7 +4160,6 @@ extern int gasnetc_rdma_get(
     }
 
     offset += count;
-    nbytes -= count;
   #if GASNET_DEBUG
     src += count;
     gasneti_assert(sr_desc->wr.rdma.remote_addr == src);
@@ -4118,6 +4177,7 @@ extern int gasnetc_rdma_get(
  * ###########################################
  */
 /* RDMA put */
+// TODO-EX: see comment prior to gasnetc_rdma_put() regarding counters
 extern int gasnetc_rdma_put_fh(
                 gasnetc_epid_t epid,
                 void *src_ptr, void *dst_ptr,
@@ -4133,6 +4193,12 @@ extern int gasnetc_rdma_put_fh(
   uintptr_t dst = (uintptr_t)dst_ptr;
 
   gasneti_assert(nbytes != 0);
+
+  // May need to do a bit of extra work to prevent premature counter balance
+  const int bias_local_cnt  = (local_cb  == gasnetc_cb_eop_alc);
+  if (bias_local_cnt) ++(*local_cnt);
+  const int bias_remote_cnt = (remote_cb == gasnetc_cb_eop_put);
+  if (bias_remote_cnt) ++(*remote_cnt);
 
   do {
     gasnetc_sreq_t * const sreq = gasnetc_get_sreq(GASNETC_OP_INVALID GASNETI_THREAD_PASS);
@@ -4153,11 +4219,21 @@ extern int gasnetc_rdma_put_fh(
     nbytes -= count;
   } while (nbytes);
 
+  // Fix the bias, if any, we introduced above
+  if (bias_local_cnt)  local_cb(local_cnt);
+  if (bias_remote_cnt) remote_cb(remote_cnt);
+
   gasnetc_poll_rcv(); /* Progress may depend on firehose AM Reply */
   return 0;
 }
 
-/* Perform an RDMA get */
+/* Perform an RDMA get
+ *
+ * This function takes care to keep its increments of (*remote_cnt) an *extra*
+ * step ahead of the ibv-level injections.  This means it is not possible for
+ * the initiated and completed counters to balance before to the last injection.
+ * So, a caller does not need to take any additional "insurance".
+ */
 extern int gasnetc_rdma_get(
                 gasnetc_epid_t epid,
                 void *src_ptr, void *dst_ptr,
@@ -4172,6 +4248,8 @@ extern int gasnetc_rdma_get(
   gasneti_assert(nbytes != 0);
   gasneti_assert(remote_cnt != NULL);
 
+  ++(*remote_cnt);
+
   do {
     gasnetc_sreq_t * const sreq = gasnetc_get_sreq(GASNETC_OP_GET_ZEROCP GASNETI_THREAD_PASS);
     size_t count;
@@ -4180,9 +4258,8 @@ extern int gasnetc_rdma_get(
  
     sreq->comp.cb = remote_cb;
     sreq->comp.data = remote_cnt;
-    ++(*remote_cnt);
 
-    count = gasnetc_fh_get_helper(epid, sreq, dst, src, nbytes GASNETI_THREAD_PASS);
+    count = gasnetc_fh_get_helper(epid, sreq, dst, src, nbytes, remote_cnt GASNETI_THREAD_PASS);
 
     src += count;
     dst += count;

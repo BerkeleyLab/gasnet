@@ -104,14 +104,9 @@ gasnetex_handle_t gasnete_get_nb(
   gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
 
   /* XXX check error returns */
-  op->initiated_cnt++;
   gasnetc_rdma_get(rank, src, dest, nbytes, flags,
                    &op->initiated_cnt, gasnetc_cb_eop_get
                    GASNETI_THREAD_PASS);
-
-  // TODO-EX: optimize away (to avoid atomic add) in certain cases:
-  gasnetc_complete_eop(op, gasnetc_comptype_eop_get);
-
   return (gasnetex_handle_t)op;
  }
 }
@@ -128,15 +123,15 @@ gasnetex_handle_t gasnete_put_nb(
  {
   gasnete_eop_t *op = gasnete_eop_new(GASNETI_MYTHREAD);
   gasnetc_counter_t    counter = GASNETC_COUNTER_INITIALIZER;
-  gasnetc_atomic_val_t *local_cnt;
+  gasnetc_atomic_val_t *local_cnt, start_cnt;
   gasnetc_cb_t         local_cb;
+  gasnetc_atomic_val_t lc_start;
 
   if (gasneti_leaf_is_pointer(lc_opt)) {
     GASNETE_EOP_LC_START(op);
-    op->initiated_alc += 1;
+    start_cnt = op->initiated_alc;
     local_cnt = &op->initiated_alc;
     local_cb = gasnetc_cb_eop_alc;
-    *lc_opt = gasneti_op_handle(op, 1);
   } else if (lc_opt == GASNETEX_EVENT_NOW) {
     local_cnt = &counter.initiated;
     local_cb = gasnetc_cb_counter;
@@ -148,7 +143,6 @@ gasnetex_handle_t gasnete_put_nb(
   }
 
   /* XXX check error returns */
-  op->initiated_cnt++;
   gasnetc_rdma_put(rank, src, dest, nbytes, flags,
                    local_cnt, local_cb,
                    &op->initiated_cnt, gasnetc_cb_eop_put
@@ -157,12 +151,14 @@ gasnetex_handle_t gasnete_put_nb(
   if (lc_opt == GASNETEX_EVENT_NOW) {
     gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
   } else if (gasneti_leaf_is_pointer(lc_opt)) {
-    // TODO-EX: optimize away (to avoid atomic add) in certain cases:
-    gasnetc_complete_eop(op, gasnetc_comptype_eop_alc);
+    if (start_cnt == op->initiated_alc) {
+      // Synchronous LC - reset the eop's LC state
+      GASNETE_EOP_LC_FINISH(op);
+      *lc_opt = GASNETEX_INVALID_HANDLE;
+    } else {
+      *lc_opt = gasneti_op_handle(op, 1);
+    }
   }
-
-  // TODO-EX: optimize away (to avoid atomic add) in certain cases:
-  gasnetc_complete_eop(op, gasnetc_comptype_eop_put);
 
   return (gasnetex_handle_t)op;
  }
