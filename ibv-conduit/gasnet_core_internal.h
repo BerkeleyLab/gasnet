@@ -697,14 +697,14 @@ extern void gasnetc_sndrcv_poll(int handler_context);
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  gasnetc_epid_t dest, gasnetex_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
-				  int numargs,
+				  gasnetex_flags_t flags, int numargs,
 				  gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
 				  gasnetc_counter_t *counter, va_list argptr
                                   GASNETI_THREAD_FARG);
 extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 				gasnetex_token_t token, gasnetex_handler_t handler,
 				void *src_addr, int nbytes, void *dst_addr,
-				int numargs,
+				gasnetex_flags_t flags, int numargs,
 				gasnetc_atomic_val_t *local_cnt, gasnetc_cb_t local_cb,
 				gasnetc_counter_t *counter, va_list argptr
                                 GASNETI_THREAD_FARG);

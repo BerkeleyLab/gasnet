@@ -1176,7 +1176,7 @@ static gasneti_lifo_head_t loopback_freepool = GASNETI_LIFO_INITIALIZER;
 // TODO-EX: GASNETI_THREAD_FARG
 int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnetex_rank_t dest,
                                  gasnetc_handler_t handler, void *source_addr, size_t nbytes, 
-                                 void *dest_addr, int numargs, va_list argptr) 
+                                 void *dest_addr, gasnetex_flags_t flags, int numargs, va_list argptr)
 {
   gasneti_pshmnet_t *vnet = (isReq ? gasneti_request_pshmnet : gasneti_reply_pshmnet);
   gasneti_pshm_rank_t target = gasneti_pshm_local_rank(dest);

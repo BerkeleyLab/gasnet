@@ -499,7 +499,7 @@ extern int gasnetc_AMRequestShortM(
   if_pt (gasneti_pshm_in_supernode(rank)) {
     retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Short, rank, handler,
                                            0, 0, 0,
-                                           numargs, argptr);
+                                           flags, numargs, argptr);
   } else
 #endif
   {
@@ -531,7 +531,7 @@ extern int gasnetc_AMRequestMediumM(
   if_pt (gasneti_pshm_in_supernode(rank)) {
     retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Medium, rank, handler,
                                            source_addr, nbytes, 0,
-                                           numargs, argptr);
+                                           flags, numargs, argptr);
   } else
 #endif
   {
@@ -564,7 +564,7 @@ extern int gasnetc_AMRequestLongM(
   if_pt (gasneti_pshm_in_supernode(rank)) {
     retval = gasneti_AMPSHM_RequestGeneric(gasnetc_Long, rank, handler,
                                            source_addr, nbytes, dest_addr,
-                                           numargs, argptr);
+                                           flags, numargs, argptr);
   } else
 #endif
   {
@@ -592,7 +592,7 @@ extern int gasnetc_AMReplyShortM(
   if_pt (gasnetc_token_is_pshm(token)) {
     retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Short, token, handler,
                                          0, 0, 0,
-                                         numargs, argptr);
+                                         flags, numargs, argptr);
   } else
 #endif
   { 
@@ -622,7 +622,7 @@ extern int gasnetc_AMReplyMediumM(
   if_pt (gasnetc_token_is_pshm(token)) {
     retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Medium, token, handler,
                                          source_addr, nbytes, 0,
-                                         numargs, argptr);
+                                         flags, numargs, argptr);
   } else
 #endif
   {
@@ -653,7 +653,7 @@ extern int gasnetc_AMReplyLongM(
   if_pt (gasnetc_token_is_pshm(token)) {
     retval = gasneti_AMPSHM_ReplyGeneric(gasnetc_Long, token, handler,
                                          source_addr, nbytes, dest_addr,
-                                         numargs, argptr);
+                                         flags, numargs, argptr);
   } else
 #endif
   {

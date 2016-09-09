@@ -1983,7 +1983,7 @@ GASNETI_INLINE(gasnetc_ReqRepGeneric)
 int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
 			  gasnetc_epid_t dest, gasnetex_handler_t handler,
 			  void *src_addr, int nbytes, void *dst_addr,
-			  int numargs,
+			  gasnetex_flags_t flags, int numargs,
 			  gasnetc_atomic_val_t *local_cnt,
                           gasnetc_cb_t local_cb,
 			  gasnetc_counter_t *counter, va_list argptr
@@ -4274,7 +4274,7 @@ extern int gasnetc_rdma_get(
 extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 				  gasnetc_epid_t dest, gasnetex_handler_t handler,
 				  void *src_addr, int nbytes, void *dst_addr,
-				  int numargs,
+				  gasnetex_flags_t flags, int numargs,
 				  gasnetc_atomic_val_t *local_cnt,
 				  gasnetc_cb_t local_cb,
 				  gasnetc_counter_t *counter, va_list argptr
@@ -4294,20 +4294,20 @@ extern int gasnetc_RequestGeneric(gasnetc_category_t category,
   if_pt (gasneti_pshm_in_supernode(node)) {
     return gasneti_AMPSHM_RequestGeneric(category, node, handler,
                                          src_addr, nbytes, dst_addr,
-                                         numargs, argptr);
+                                         flags, numargs, argptr);
   }
 #endif
 
   return gasnetc_ReqRepGeneric(category, NULL, dest, handler,
                                src_addr, nbytes, dst_addr,
-                               numargs, local_cnt, local_cb, counter,
+                               flags, numargs, local_cnt, local_cb, counter,
                                argptr GASNETI_THREAD_PASS);
 }
 
 extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 				gasnetex_token_t token, gasnetex_handler_t handler,
 				void *src_addr, int nbytes, void *dst_addr,
-				int numargs,
+				gasnetex_flags_t flags, int numargs,
 				gasnetc_atomic_val_t *local_cnt,
 				gasnetc_cb_t local_cb,
 				gasnetc_counter_t *counter, va_list argptr
@@ -4319,7 +4319,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
   if_pt (gasnetc_token_is_pshm(token)) {
       return gasneti_AMPSHM_ReplyGeneric(category, token, handler,
                                          src_addr, nbytes, dst_addr,
-                                         numargs, argptr);
+                                         flags, numargs, argptr);
   }
 #endif
 
@@ -4330,7 +4330,7 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 
   retval = gasnetc_ReqRepGeneric(category, rbuf, GASNETC_MSG_SRCIDX(rbuf->rbuf_flags), handler,
 				 src_addr, nbytes, dst_addr,
-				 numargs, local_cnt, local_cb, counter,
+				 flags, numargs, local_cnt, local_cb, counter,
                                  argptr GASNETI_THREAD_PASS);
 
   rbuf->rbuf_needReply = 0;
@@ -4349,7 +4349,7 @@ extern int gasnetc_RequestSysShort(gasnetc_epid_t dest,
   va_start(argptr, numargs);
   retval = gasnetc_RequestGeneric(gasnetc_Short, dest, handler,
                                   NULL, 0, NULL,
-                                  numargs, NULL, NULL, counter,
+                                  0, numargs, NULL, NULL, counter,
                                   argptr GASNETI_THREAD_GET);
   va_end(argptr);
   return retval;
@@ -4368,7 +4368,7 @@ extern int gasnetc_RequestSysMedium(gasnetc_epid_t dest,
   va_start(argptr, numargs);
   retval = gasnetc_RequestGeneric(gasnetc_Medium, dest, handler,
                                   source_addr, nbytes, NULL,
-                                  numargs, NULL, NULL, counter,
+                                  0, numargs, NULL, NULL, counter,
                                   argptr GASNETI_THREAD_GET);
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -4387,7 +4387,7 @@ extern int gasnetc_ReplySysShort(gasnetex_token_t token,
   va_start(argptr, numargs);
   retval = gasnetc_ReplyGeneric(gasnetc_Short, token, handler,
                                 NULL, 0, NULL,
-                                numargs, NULL, NULL, counter,
+                                0, numargs, NULL, NULL, counter,
                                 argptr GASNETI_THREAD_PASS);
   va_end(argptr);
   return retval;
@@ -4407,7 +4407,7 @@ extern int gasnetc_ReplySysMedium(gasnetex_token_t token,
   va_start(argptr, numargs);
   retval = gasnetc_ReplyGeneric(gasnetc_Medium, token, handler,
                                 source_addr, nbytes, NULL,
-                                numargs, NULL, NULL, counter,
+                                0, numargs, NULL, NULL, counter,
                                 argptr GASNETI_THREAD_PASS);
   va_end(argptr);
   return retval;

@@ -3442,7 +3442,7 @@ extern int gasnetc_AMRequestShortM(
   va_start(argptr, numargs); /*  pass in last argument */
   retval = gasnetc_RequestGeneric(gasnetc_Short, rank, handler,
 		  		  NULL, 0, NULL,
-				  numargs, NULL, NULL, NULL,
+				  flags, numargs, NULL, NULL, NULL,
                                   argptr GASNETI_THREAD_PASS);
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -3466,7 +3466,7 @@ extern int gasnetc_AMRequestMediumM(
   va_start(argptr, numargs); /*  pass in last argument */
   retval = gasnetc_RequestGeneric(gasnetc_Medium, rank, handler,
 		  		  source_addr, nbytes, NULL,
-				  numargs, NULL, NULL, NULL,
+				  flags, numargs, NULL, NULL, NULL,
                                   argptr GASNETI_THREAD_PASS);
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -3532,7 +3532,7 @@ extern int gasnetc_AMRequestLongM(
 
     retval = gasnetc_RequestGeneric(gasnetc_Long, rank, handler,
 		  		  source_addr, nbytes, dest_addr,
-				  numargs, local_cnt, local_cb,
+				  flags, numargs, local_cnt, local_cb,
 				  NULL, argptr GASNETI_THREAD_PASS);
 
     if (lc_opt == GASNETEX_EVENT_NOW) {
@@ -3563,7 +3563,7 @@ extern int gasnetc_AMReplyShortM(
   va_start(argptr, numargs); /*  pass in last argument */
   retval = gasnetc_ReplyGeneric(gasnetc_Short, token, handler,
 		  		NULL, 0, NULL,
-				numargs, NULL, NULL, NULL,
+				flags, numargs, NULL, NULL, NULL,
                                 argptr GASNETI_THREAD_PASS);
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -3586,7 +3586,7 @@ extern int gasnetc_AMReplyMediumM(
   va_start(argptr, numargs); /*  pass in last argument */
   retval = gasnetc_ReplyGeneric(gasnetc_Medium, token, handler,
 		  		source_addr, nbytes, NULL,
-				numargs, NULL, NULL, NULL,
+				flags, numargs, NULL, NULL, NULL,
                                 argptr GASNETI_THREAD_PASS);
   va_end(argptr);
   GASNETI_RETURN(retval);
@@ -3646,7 +3646,7 @@ extern int gasnetc_AMReplyLongM(
 
     retval = gasnetc_ReplyGeneric(gasnetc_Long, token, handler,
 		  		  source_addr, nbytes, dest_addr,
-				  numargs, local_cnt, local_cb,
+				  flags, numargs, local_cnt, local_cb,
 				  NULL, argptr GASNETI_THREAD_PASS);
 
     if (lc_opt == GASNETEX_EVENT_NOW) {
@@ -3667,7 +3667,7 @@ extern int gasnetc_AMReplyLongM(
   }
   retval = gasnetc_ReplyGeneric(gasnetc_Long, token, handler,
 		  		source_addr, nbytes, dest_addr,
-				numargs, NULL, NULL, NULL,
+				flags, numargs, NULL, NULL, NULL,
                                 argptr GASNETI_THREAD_PASS);
 
   #endif
