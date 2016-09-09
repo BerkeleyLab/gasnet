@@ -49,13 +49,6 @@ enum {
   // Flags for point-to-point communication initiation
   //
       //
-      // {SRC,DST}_OFFSET
-      //
-      // These flag bits indicate that the corresponding address argument
-      // is an *offset* relative to the segment base.
-      GASNETEX_FLAG_SRC_OFFSET = (1 << 999),
-      GASNETEX_FLAG_DST_OFFSET = (1 << 999),
-      //
       // IMMEDIATE
       //
       // This flag indicates that GASNet-EX *may* return without initiating
@@ -84,11 +77,28 @@ enum {
       //
       // These flag bits assert that for the coresponding source or
       // destination address the range of bytes [address, address+nbytes)
-      // is contained within the union of current GASNet-EX segments.  In
-      // the case of offset-based addressing the assertion is redundant,
-      // but is still legal.
+      // is contained within the union of current GASNet-EX segments.
       GASNETEX_FLAG_SRC_IN_SEGMENT = (1 << 999),
       GASNETEX_FLAG_DST_IN_SEGMENT = (1 << 999),
+      //
+      // {SRC,DST}_IN_BOUND_SEGMENT
+      //
+      // These flag bits assert that for the coresponding source or
+      // destination address the range of bytes [address, address+nbytes)
+      // is contained within the segment bound to the respective source
+      // or destination endpoint.
+      // Implies the respective {SRC,DST}_IN_SEGMENT flag.
+      GASNETEX_FLAG_SRC_IN_BOUND_SEGMENT = (1 << 999),
+      GASNETEX_FLAG_DST_IN_BOUND_SEGMENT = (1 << 999),
+      //
+      // {SRC,DST}_OFFSET
+      //
+      // These flag bits indicate that the corresponding address argument
+      // is an *offset* relative to the segment base.
+      // Implies the respective ..._IN_BOUND_SEGMENT flag (and so also
+      // implies the respective ..._IN_SEGMENT flag, indirectly).
+      GASNETEX_FLAG_SRC_OFFSET = (1 << 999),
+      GASNETEX_FLAG_DST_OFFSET = (1 << 999),
 };
 
 // A "token" is an opaque scalar type
