@@ -3445,7 +3445,7 @@ extern int gasnetc_AMRequestShortM(
 				  flags, numargs, NULL, NULL, NULL,
                                   argptr GASNETI_THREAD_PASS);
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return (retval == GASNETC_FAIL_IMM);
 }
 
 extern int gasnetc_AMRequestMediumM( 
@@ -3469,7 +3469,7 @@ extern int gasnetc_AMRequestMediumM(
 				  flags, numargs, NULL, NULL, NULL,
                                   argptr GASNETI_THREAD_PASS);
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return (retval == GASNETC_FAIL_IMM);
 }
 
 extern int gasnetc_AMRequestLongM(
@@ -3548,7 +3548,7 @@ extern int gasnetc_AMRequestLongM(
     }
   }
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return (retval == GASNETC_FAIL_IMM);
 }
 
 extern int gasnetc_AMReplyShortM( 
@@ -3566,7 +3566,7 @@ extern int gasnetc_AMReplyShortM(
 				flags, numargs, NULL, NULL, NULL,
                                 argptr GASNETI_THREAD_PASS);
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return (retval == GASNETC_FAIL_IMM);
 }
 
 extern int gasnetc_AMReplyMediumM( 
@@ -3589,7 +3589,7 @@ extern int gasnetc_AMReplyMediumM(
 				flags, numargs, NULL, NULL, NULL,
                                 argptr GASNETI_THREAD_PASS);
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return (retval == GASNETC_FAIL_IMM);
 }
 
 extern int gasnetc_AMReplyLongM( 
@@ -3672,7 +3672,7 @@ extern int gasnetc_AMReplyLongM(
 
   #endif
   va_end(argptr);
-  GASNETI_RETURN(retval);
+  return (retval == GASNETC_FAIL_IMM);
 }
 
 /* ------------------------------------------------------------------------------------ */

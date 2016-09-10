@@ -848,6 +848,12 @@ extern gasnetex_rank_t            gasnetc_remote_nodes;
   extern gasnetc_sema_t         gasnetc_zero_sema;
 #endif
 
+enum {
+   GASNETC_OK = GASNET_OK,
+   GASNETC_FAIL_IMM,
+   GASNETC_FAIL_ERR,
+};
+
 /* ------------------------------------------------------------------------------------ */
 /* System AM Request/Reply Functions
  * These can be called between init and attach.

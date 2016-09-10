@@ -1720,8 +1720,8 @@ gasnetc_buffer_t *gasnetc_get_bbuf(int block GASNETI_THREAD_FARG) {
         gasnetc_poll_snd();
         bbuf = gasnetc_lifo_pop(&gasnetc_bbuf_freelist);
       }
+      GASNETC_TRACE_WAIT_END(GET_BBUF_STALL);
     }
-    GASNETC_TRACE_WAIT_END(GET_BBUF_STALL);
   }
   gasneti_assert((bbuf != NULL) || !block);
 
@@ -2067,6 +2067,8 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
     gasnetex_handlerarg_t *args;
     size_t msg_len;
     int i;
+    int immediate = flags & GASNETEX_FLAG_IMMEDIATE;
+    int fail_type = GASNETC_FAIL_IMM;
     int have_flow;
     int packedlong = 0;
     int rdma_slot;
@@ -2154,10 +2156,17 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
 	  msg_len += nbytes;
 	  packedlong = 1;
         } else {
-          /* XXX check for error returns */
+          // TODO-EX: should we pass anything more than 'immediate' to the payload Put
           #if GASNETC_PIN_SEGMENT
 	    /* Queue the RDMA.  We can count on point-to-point ordering to deliver payload before header */
-            (void)gasnetc_rdma_put(epid, src_addr, dst_addr, nbytes, 0, local_cnt, local_cb, NULL, NULL GASNETI_THREAD_PASS);
+            int rc = gasnetc_rdma_put(epid, src_addr, dst_addr, nbytes, immediate,
+                                      local_cnt, local_cb, NULL, NULL
+                                      GASNETI_THREAD_PASS);
+            if (rc) {
+              // TODO-EX: stats/trace for FAIL_IMM case
+              fail_type = rc;
+              goto out_no_put;
+            }
           #else
 	    /* Point-to-point ordering still holds, but only once the RDMA is actually queued.
 	     * In the case of a firehose hit, the RDMA is already queued before return from
@@ -2168,9 +2177,18 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
 	     */
 	    gasnetc_counter_t am_oust = GASNETC_COUNTER_INITIALIZER;
 	    gasneti_assert(!token);	/* Replies MUST have been caught above */
-	    (void)gasnetc_rdma_put_fh(epid, src_addr, dst_addr, nbytes, 0, local_cnt, local_cb, NULL, NULL, &am_oust GASNETI_THREAD_PASS);
+	    int rc = gasnetc_rdma_put_fh(epid, src_addr, dst_addr, nbytes, immediate,
+                                         local_cnt, local_cb, NULL, NULL, &am_oust
+                                         GASNETI_THREAD_PASS);
+            if (rc) {
+              // TODO-EX: stats/trace for FAIL_IMM case
+              fail_type = rc;
+              goto out_no_put;
+            }
 	    gasnetc_counter_wait(&am_oust, 0 GASNETI_THREAD_PASS);
           #endif
+            immediate = 0; // No turing back now!
+            // TODO-EX: can we delay the Put to avoid disabling 'immediate'?
         }
       }
       break;
@@ -2192,11 +2210,20 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
         GASNETC_STAT_EVENT(GET_AMREQ_CREDIT);
         if_pf (!gasnetc_sema_trydown(sema)) {
           GASNETC_TRACE_WAIT_BEGIN();
-          do {
-	    GASNETI_WAITHOOK();
-            gasnetc_poll_rcv_hca(cep->hca, 1 GASNETI_THREAD_PASS);
-          } while (!gasnetc_sema_trydown(sema));
-          GASNETC_TRACE_WAIT_END(GET_AMREQ_CREDIT_STALL);
+          if (immediate) {
+            // A *full* Poll, but only once
+            gasnetc_poll_rcv_hca(cep->hca, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
+            if (!gasnetc_sema_trydown(sema)) {
+              // TODO-EX: stats/trace for this as distinct from ..._STALL
+              goto out_no_credit;
+            }
+          } else {
+            do {
+	      GASNETI_WAITHOOK();
+              gasnetc_poll_rcv_hca(cep->hca, 1 GASNETI_THREAD_PASS);
+            } while (!gasnetc_sema_trydown(sema));
+            GASNETC_TRACE_WAIT_END(GET_AMREQ_CREDIT_STALL);
+          }
         }
       }
   
@@ -2206,10 +2233,19 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
         gasnetc_sema_t * const sema = &(cep->hca->am_sema);
         if_pf (!gasnetc_sema_trydown(sema)) {
           GASNETC_TRACE_WAIT_BEGIN();
-          do {
-	    GASNETI_WAITHOOK();
-            gasnetc_poll_rcv_hca(cep->hca, 1 GASNETI_THREAD_PASS);
-          } while (!gasnetc_sema_trydown(sema));
+          if (immediate) {
+            // A *full* Poll, but only once
+            gasnetc_poll_rcv_hca(cep->hca, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
+            if (!gasnetc_sema_trydown(sema)) {
+              // TODO-EX: stats/trace for this as distinct from ..._STALL
+              goto out_no_rbuf;
+            }
+          } else {
+            do {
+	      GASNETI_WAITHOOK();
+              gasnetc_poll_rcv_hca(cep->hca, 1 GASNETI_THREAD_PASS);
+            } while (!gasnetc_sema_trydown(sema));
+          }
           GASNETC_TRACE_WAIT_END(GET_AMREQ_BUFFER_STALL);
         }
         gasneti_assert(NULL == gasnetc_lifo_pop(cep->rbuf_freelist));
@@ -2221,15 +2257,25 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
         gasnetc_rbuf_t *rbuf = gasnetc_lifo_pop(cep->rbuf_freelist);
         if_pf (rbuf == NULL) {
           GASNETC_TRACE_WAIT_BEGIN();
-          do {
-	    GASNETI_WAITHOOK();
-            gasnetc_poll_rcv_hca(cep->hca, 1 GASNETI_THREAD_PASS);
-	    if (gasnetc_sema_trydown(&cep->am_loc)) {
-	      break;
-	    }
-	    rbuf = gasnetc_lifo_pop(cep->rbuf_freelist);
-          } while (rbuf == NULL);
-          GASNETC_TRACE_WAIT_END(GET_AMREQ_BUFFER_STALL);
+          if (immediate) {
+            // A *full* Poll, but only once
+            gasnetc_poll_rcv_hca(cep->hca, GASNETC_RCV_REAP_LIMIT GASNETI_THREAD_PASS);
+	    if (!gasnetc_sema_trydown(&cep->am_loc) &&
+	        !(rbuf = gasnetc_lifo_pop(cep->rbuf_freelist))) {
+              // TODO-EX: stats/trace for this as distinct from ..._STALL
+              goto out_no_rbuf;
+            }
+          } else {
+            do {
+	      GASNETI_WAITHOOK();
+              gasnetc_poll_rcv_hca(cep->hca, 1 GASNETI_THREAD_PASS);
+	      if (gasnetc_sema_trydown(&cep->am_loc)) {
+	        break;
+	      }
+	      rbuf = gasnetc_lifo_pop(cep->rbuf_freelist);
+            } while (rbuf == NULL);
+            GASNETC_TRACE_WAIT_END(GET_AMREQ_BUFFER_STALL);
+          }
         }
         if (rbuf) {
 	  gasnetc_rcv_post(cep, rbuf);
@@ -2237,8 +2283,9 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
       }
     }
   
-    /* Try to obtain a slot for AM-over-RDMA */
-    rdma_slot = gasnetc_get_amrdma_slot(cep, msg_len);
+    // Try to obtain a slot for AM-over-RDM *unless* IMMEDIATE
+    // In the IMMEDIATE case we cannot (in general) deallocate the slot
+    rdma_slot = immediate ? -1 : gasnetc_get_amrdma_slot(cep, msg_len);
     if (rdma_slot < 0) {
       GASNETC_STAT_EVENT(SND_AM_SNDRCV);
     } else {
@@ -2250,20 +2297,22 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
      * then we'll use a buffer on the stack (saving us from accessing the shared pool of
      * bounce buffers, which might block).
      */
-    if (rdma_slot >= 0) {
-      if (msg_len <= gasnetc_am_inline_limit_rdma) {
-        buf = (gasnetc_buffer_t *)GASNETI_ALIGNUP(tmp_buf, 8);
-      } else {
-	buf = (buf_alloc = gasnetc_get_bbuf(1 GASNETI_THREAD_PASS));
+    const size_t max_inline = (rdma_slot >= 0) ? gasnetc_am_inline_limit_rdma
+                                               : gasnetc_am_inline_limit_sndrcv;
+    const size_t buf_offset = (rdma_slot >= 0) ? sizeof(gasnetc_amrdma_hdr_t) : 0;
+    if (msg_len <= max_inline) {
+      buf = (gasnetc_buffer_t *)GASNETI_ALIGNUP(tmp_buf, 8);
+    } else if (immediate) {
+      buf = (buf_alloc = gasnetc_get_bbuf(0 GASNETI_THREAD_PASS));
+      if (!buf) {
+        // TODO-EX: stats/trace for this as distinct from ..._STALL
+        goto out_no_buffer;
       }
-      buf = (gasnetc_buffer_t *)((uintptr_t)buf + sizeof(gasnetc_amrdma_hdr_t));
     } else {
-      if (msg_len <= gasnetc_am_inline_limit_sndrcv) { /* sndrcv has higher limit */
-        buf = (gasnetc_buffer_t *)GASNETI_ALIGNUP(tmp_buf, 8);
-      } else {
-	buf = (buf_alloc = gasnetc_get_bbuf(1 GASNETI_THREAD_PASS));
-      }
+      buf = (buf_alloc = gasnetc_get_bbuf(1 GASNETI_THREAD_PASS));
     }
+    buf = (gasnetc_buffer_t *)((uintptr_t)buf + buf_offset);
+
     switch (category) {
     case gasnetc_Short:
       args = buf->shortmsg.args;
@@ -2346,6 +2395,33 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, gasnetc_rbuf_t *token,
 
       gasnetc_snd_post_common(sreq, sr_desc, (msg_len <= gasnetc_inline_limit) GASNETI_THREAD_PASS);
     }
+
+    GASNETI_RETURN(GASNET_OK); // Normal return
+
+    // ---- Begin exception paths for remote case ---
+
+  out_no_buffer:
+
+    if (!token) { // Account for the posted-but-not-consumed reply buffer
+    #if GASNETC_IBV_SRQ
+      if (gasnetc_use_srq) {
+        gasnetc_sema_up(&cep->hca->am_sema);
+      } else
+    #endif
+      gasnetc_sema_up(&cep->am_loc);
+    }
+
+  out_no_rbuf:
+
+    if (!token) { // Restore the allocated credit, if any
+      gasnetc_sema_up(&cep->am_rem);
+    }
+
+  out_no_credit:
+
+  out_no_put:
+
+    return fail_type; // TODO-EX: the will distinguish IMMEDIATE vs (resilient) failure
   } 
 
   GASNETI_RETURN(GASNET_OK);
@@ -4333,7 +4409,9 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 				 flags, numargs, local_cnt, local_cb, counter,
                                  argptr GASNETI_THREAD_PASS);
 
-  rbuf->rbuf_needReply = 0;
+  rbuf->rbuf_needReply = (retval != GASNET_OK);
+  gasneti_assert(!rbuf->rbuf_needReply || (flags & GASNETEX_FLAG_IMMEDIATE));
+
   return retval;
 }
 
