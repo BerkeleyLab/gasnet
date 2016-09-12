@@ -1484,10 +1484,11 @@ if test "$enabled_pshm" != no; then
   GASNET_PUSHVAR(CPPFLAGS,"")
   GASNET_CHECK_CRAY_HEADER([xpmem.h], [CRAY_XPMEM_INCLUDE_OPTS], [
       found_xpmem_h=yes
+      LDFLAGS="$CRAY_XPMEM_POST_LINK_OPTS -lxpmem " dnl The trailing space is required
     ],[
       found_xpmem_h=yes
       CPPFLAGS="$CRAY_XPMEM_INCLUDE_OPTS "  dnl The trailing space is required
-      LDFLAGS="$CRAY_XPMEM_POST_LINK_OPTS " dnl The trailing space is required
+      LDFLAGS="$CRAY_XPMEM_POST_LINK_OPTS -lxpmem " dnl The trailing space is required
     ],[
       AC_CHECK_HEADERS([sn/xpmem.h], [found_xpmem_h=yes], [found_xpmem_h=no])
     ])
@@ -3487,14 +3488,14 @@ if test ${gni_network}:${enabled_[]lowername} = lowername[]:yes; then
     ],[
       have_pmi_cray_h=yes
       GNI_INCLUDES="$GNI_INCLUDES $CRAY_PMI_INCLUDE_OPTS"
-      GNI_LIBS="$GNI_LIBS $CRAY_PMI_POST_LINK_OPTS -lpmi"
     ])
+  GNI_LIBS="$GNI_LIBS $CRAY_PMI_POST_LINK_OPTS -lpmi"
 
   # Look for gni_pub.h, allowing for the possibility we are not using the wrapper compiler
   GASNET_CHECK_CRAY_HEADER([gni_pub.h],[CRAY_GNI_HEADERS_INCLUDE_OPTS],[:],[
       GNI_INCLUDES="$GNI_INCLUDES $CRAY_GNI_HEADERS_INCLUDE_OPTS"
-      GNI_LIBS="$GNI_LIBS $CRAY_UGNI_POST_LINK_OPTS -lugni"
     ])
+  GNI_LIBS="$GNI_LIBS $CRAY_UGNI_POST_LINK_OPTS -lugni"
 
   if test $have_[]lowername = yes; then
     # PSHM must be XPMEM, HUGETLBFS or none.
@@ -3551,13 +3552,13 @@ if test ${gni_network}:${enabled_[]lowername} = lowername[]:yes; then
       ],[
         AC_DEFINE(GASNETC_GNI_UDREG)
         GNI_INCLUDES="$GNI_INCLUDES $CRAY_UDREG_INCLUDE_OPTS"
-        GNI_LIBS="$GNI_LIBS $CRAY_UDREG_POST_LINK_OPTS -ludreg"
       ],[
         if test "$gni_udreg" = yes; then
           GASNET_ERR_SAVE()
           AC_MSG_ERROR([--enable-gni-udreg was passed but udreg_pub.h header was not found])
         fi
       ])
+    GNI_LIBS="$GNI_LIBS $CRAY_UDREG_POST_LINK_OPTS -ludreg"
   fi
 
   GASNET_WITH(gni-max-medium,
