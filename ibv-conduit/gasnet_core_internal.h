@@ -848,11 +848,19 @@ extern gasnetex_rank_t            gasnetc_remote_nodes;
   extern gasnetc_sema_t         gasnetc_zero_sema;
 #endif
 
-enum {
-   GASNETC_OK = GASNET_OK,
-   GASNETC_FAIL_IMM,
-   GASNETC_FAIL_ERR,
-};
+
+/* ------------------------------------------------------------------------------------ */
+/* To return failures internally - suited for both integer and pointer returns
+ * We distinguish only 2 cases - temporary lack of resources or permanent failure
+ */
+
+#define GASNETC_OK       0
+#define GASNETC_FAIL_IMM 1
+#define GASNETC_FAIL_ERR 2
+
+// To test a pointer value that could be valid, NULL or one of these two "FAIL" codes
+#define GASNETC_FAILED_PTR(p) ((uintptr_t)(p)&0x3)
+
 
 /* ------------------------------------------------------------------------------------ */
 /* System AM Request/Reply Functions
