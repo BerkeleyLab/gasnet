@@ -144,8 +144,11 @@
 #endif
 
 /* additional safety check, in case a very smart linker removes all of the checks at the end of this file */
-#define gasnet_init _CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT( \
+#define gasnet_init _CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT( \
                     gasnet_init_GASNET_,                             \
+                    GASNET_RELEASE_VERSION_MAJOR),                   \
+                    GASNET_RELEASE_VERSION_MINOR),                   \
+                    GASNET_RELEASE_VERSION_PATCH),                   \
                     GASNETI_THREAD_MODEL),                           \
                     GASNETI_PSHM_CONFIG_ENABLED),                    \
                     GASNETI_SEGMENT_CONFIG),                         \
@@ -479,8 +482,12 @@ extern void (*gasnet_client_attach_hook)(void *, uintptr_t);
  * all objects in a given executable (client and library) must agree on all
  * of the following configuration settings, otherwise MANY things break,
  * often in very subtle and confusing ways (eg GASNet mutexes, threadinfo, etc.)
+ * DO NOT REMOVE ANYTHING FROM THIS LIST!!!!
  */
 #define GASNETI_LINKCONFIG_IDIOTCHECK(name) _CONCAT(gasneti_linkconfig_idiotcheck_,name)
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_MAJOR_,GASNET_RELEASE_VERSION_MAJOR));
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_MINOR_,GASNET_RELEASE_VERSION_MINOR));
+extern int GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_PATCH_,GASNET_RELEASE_VERSION_PATCH));
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_THREAD_MODEL);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_SEGMENT_CONFIG);
 extern int GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_DEBUG_CONFIG);
@@ -508,7 +515,11 @@ static int *gasneti_linkconfig_idiotcheck(void);
 GASNETI_USED
 static int *gasneti_linkconfig_idiotcheck(void) {
   static int val;
-  val +=  GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_THREAD_MODEL)
+  val +=
+        + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_MAJOR_,GASNET_RELEASE_VERSION_MAJOR))
+        + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_MINOR_,GASNET_RELEASE_VERSION_MINOR))
+        + GASNETI_LINKCONFIG_IDIOTCHECK(_CONCAT(RELEASE_PATCH_,GASNET_RELEASE_VERSION_PATCH))
+        + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_THREAD_MODEL)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_SEGMENT_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_DEBUG_CONFIG)
         + GASNETI_LINKCONFIG_IDIOTCHECK(GASNETI_TRACE_CONFIG)
