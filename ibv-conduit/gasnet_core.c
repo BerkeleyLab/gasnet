@@ -3460,9 +3460,7 @@ extern int gasnetc_AMRequestMediumM(
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREQUESTMEDIUM(team,rank,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
-    gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
-  }
+  gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
   retval = gasnetc_RequestGeneric(gasnetc_Medium, rank, handler,
 		  		  source_addr, nbytes, NULL,
@@ -3539,11 +3537,11 @@ extern int gasnetc_AMRequestLongM(
       /* block for local completion of RDMA transfer */
       gasnetc_counter_wait(&counter, 0 GASNETI_THREAD_PASS);
     } else if (eop && (start_cnt == eop->initiated_alc)) {
-      // Synchronous LC - reset LC state
+      // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
       GASNETE_EOP_LC_FINISH(eop);
+      *lc_opt = GASNETEX_INVALID_HANDLE;
       if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
         gasnete_eop_free(eop);
-        *lc_opt = GASNETEX_INVALID_HANDLE;
       }
     }
   }
@@ -3580,9 +3578,7 @@ extern int gasnetc_AMReplyMediumM(
   int retval;
   va_list argptr;
   GASNETI_COMMON_AMREPLYMEDIUM(token,handler,source_addr,nbytes,lc_opt,flags,numargs);
-  if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
-    gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
-  }
+  gasneti_leaf_finish(lc_opt); // TODO-EX: should support async local completion
   va_start(argptr, numargs); /*  pass in last argument */
   retval = gasnetc_ReplyGeneric(gasnetc_Medium, token, handler,
 		  		source_addr, nbytes, NULL,
@@ -3653,18 +3649,16 @@ extern int gasnetc_AMReplyLongM(
       /* block for local completion of RDMA transfer */
       gasnetc_counter_wait(&counter, 1 /* handler context */ GASNETI_THREAD_PASS);
     } else if (eop && (start_cnt == eop->initiated_alc)) {
-      // Synchronous LC - reset LC state
+      // Synchronous LC - reset LC state and pass-back INVALID_HANDLE as result
       GASNETE_EOP_LC_FINISH(eop);
+      *lc_opt = GASNETEX_INVALID_HANDLE;
       if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
         gasnete_eop_free(eop);
-        *lc_opt = GASNETEX_INVALID_HANDLE;
       }
     }
   }
   #else
-  if (!(flags & GASNETI_FLAG_LC_OPT_IN)) {
-    gasneti_leaf_finish(lc_opt); // Always "packed long", and thus locally-complete
-  }
+  gasneti_leaf_finish(lc_opt); // Always "packed long", and thus locally-complete
   retval = gasnetc_ReplyGeneric(gasnetc_Long, token, handler,
 		  		source_addr, nbytes, dest_addr,
 				flags, numargs, NULL, NULL, NULL,
