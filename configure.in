@@ -3774,9 +3774,9 @@ CONDUIT_BEGIN(ofi,[Portable OpenFabrics Interfaces conduit (ofi)])
 if test "$enabled_ofi" = yes; then
   have_ofi=yes
 
-  GASNET_ENV_DEFAULT(OFIHOME, /usr/local)
+  GASNET_ENV_DEFAULT(OFIHOME, /usr)
   AC_MSG_CHECKING(for --with-ofihome)
-  GASNET_WITH(ofihome, [Specify Libfabric install directory, default is /usr/local],
+  GASNET_WITH(ofihome, [Specify Libfabric install directory, default is /usr],
               [if test "$withval" = 'yes'; then
                  GASNET_MSG_ERROR(["--with-ofihome requires an argument (libfabric install directory)"])
                fi
