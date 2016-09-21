@@ -258,6 +258,9 @@ int gasnetc_ofi_init(int *argc, char ***argv,
 		  sizeof(optlen));
   if (FI_SUCCESS != ret) gasneti_fatalerror("fi_setopt for am_epfd failed: %d\n", ret);
 
+  /* Cutoff to use fi_inject */
+  max_buffered_send = info->tx_attr->inject_size;
+
   /* Open Address Vector and bind the AV to the domain */
 #if USE_AV_MAP
   av_attr.type        = FI_AV_MAP;
