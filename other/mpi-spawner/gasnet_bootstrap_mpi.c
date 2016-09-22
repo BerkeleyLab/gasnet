@@ -70,6 +70,14 @@ int gasneti_bootstrapInit_mpi(int *argc, char ***argv, gasnetex_rank_t *nodes, g
 void gasneti_bootstrapFini_mpi(void) {
   int err;
 
+#if (MPI_VERSION > 1)
+  /* Check to see if MPI is already finalized, for instance on an error path. */
+  int isfini = 0;
+  err = MPI_Finalized(&isfini);
+  gasneti_assert_always(err == MPI_SUCCESS);
+  if (isfini) return;
+#endif
+
   err = MPI_Comm_free(&gasnetc_mpi_comm);
   gasneti_assert_always(err == MPI_SUCCESS);
 
