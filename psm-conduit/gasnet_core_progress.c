@@ -53,7 +53,7 @@ extern int gasnetc_AMPoll(void)
         GASNETC_PSM_UNLOCK();
     }
 
-    if_pf (gasnetc_psm_state.should_exit) {
+    if_pf (gasnetc_psm_state.should_exit && !gasnetc_psm_state.exit_in_progress) {
         gasnetc_do_exit();
     }
 
