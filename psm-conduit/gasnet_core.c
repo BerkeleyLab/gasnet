@@ -904,7 +904,9 @@ extern void gasnetc_exit(int exitcode) {
      * reentrancy */
     gasneti_reghandler(SIGQUIT, SIG_IGN);
 
+#if GASNET_SEQ
     gasneti_assert(gasnetc_exit_in_progress == 0);
+#endif
     gasnetc_exit_in_progress = 1;
 
     {  /* ensure only one thread ever continues past this point */
