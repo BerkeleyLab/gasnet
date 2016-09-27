@@ -44,6 +44,12 @@ static void gasnetc_on_exit(int, void*);
 static void gasnetc_atexit(void);
 #endif
 
+/* Exit coordination timeouts */
+#define GASNETC_DEFAULT_EXITTIMEOUT_MAX         360.0   /* 6 minutes! */
+#define GASNETC_DEFAULT_EXITTIMEOUT_MIN         10      /* 10 seconds */
+#define GASNETC_DEFAULT_EXITTIMEOUT_FACTOR      0.25    /* 1/4 second */
+static double gasnetc_exittimeout = GASNETC_DEFAULT_EXITTIMEOUT_MAX;
+
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
 
 /* ------------------------------------------------------------------------------------ */
@@ -239,6 +245,13 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /* catch fatal signals and convert to SIGQUIT */
   gasneti_registerSignalHandlers(gasneti_defaultSignalHandler);
 
+  /* ------------------------------------------------------------------------------------ */
+  /*  setup fo rexit coordination */
+
+  gasnetc_exittimeout = gasneti_get_exittimeout(GASNETC_DEFAULT_EXITTIMEOUT_MAX,
+                                                GASNETC_DEFAULT_EXITTIMEOUT_MIN,
+                                                GASNETC_DEFAULT_EXITTIMEOUT_FACTOR,
+                                                GASNETC_DEFAULT_EXITTIMEOUT_MIN);
   #if HAVE_ON_EXIT
     on_exit(gasnetc_on_exit, NULL);
   #else
@@ -310,6 +323,54 @@ static void gasnetc_atexit(void) {
 }
 #endif
 
+/* This signal handler is for a last-ditch exit when a signal arrives while
+ * attempting the graceful exit.  That includes SIGALRM if we get wedged.
+ * DOES NOT RETURN
+ */
+static void gasnetc_exit_sighandler(int sig) {
+  static int once = 1;
+
+  if (once) {
+    /* We ask the bootstrap support to kill us, but only once */
+    once = 0;
+    gasneti_reghandler(SIGALRM, gasnetc_exit_sighandler);
+    alarm(5);
+    (*gasneti_bootstrapAbort_p)(127);
+  } else {
+    gasneti_killmyprocess(127);
+    gasneti_reghandler(SIGABRT, SIG_DFL);
+    gasneti_fatalerror("gasnetc_exit aborting...");
+  }
+
+  /* NOT REACHED */
+}
+
+/* AM Handlers for exit handling */
+static void gasnetc_noop(void) { return; }
+static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t arg0) {
+  if (!gasnetc_exit_in_progress)
+    gasnetc_exit((int)arg0);
+}
+
+/* Coordinate a global exit */
+static void gasnetc_exit_coordinate(int exitcode) {
+  int i;
+
+  /* Disable processing of user's AMs, to avoid reentrance if user's handler exits */
+  for (i = GASNETE_HANDLER_BASE; i < GASNETC_MAX_NUMHANDLERS; ++i) {
+    gasnetc_handler[i] = (gasneti_handler_fn_t)&gasnetc_noop;
+  }
+
+  /* TODO: in the common (collective exit) case this is N^2 communication! */
+  for(i = 1; i < gasneti_nodes; i++) {
+    int j = (gasneti_mynode + i) % gasneti_nodes;
+    int ret = gasnetc_AMRequestShortM(j, gasneti_handleridx(gasnetc_exit_reqh), 1, exitcode);
+    if (ret != GASNET_OK) {
+      gasneti_fatalerror("AMRequestShortM from gasnetc_exit() failed");
+    }
+  }
+}
+
 extern void gasnetc_exit(int exitcode) {
   gasnetc_exit_in_progress = 1;
   gasneti_sync_writes();
@@ -324,7 +385,30 @@ extern void gasnetc_exit(int exitcode) {
 
   GASNETI_TRACE_PRINTF(C,("gasnet_exit(%i)\n", exitcode));
 
+  /* Establish a last-ditch signal handler in case of failure. */
+  gasneti_reghandler(SIGALRM, gasnetc_exit_sighandler);
+  #if GASNET_DEBUG
+    gasneti_reghandler(SIGABRT, SIG_DFL);
+  #else
+    gasneti_reghandler(SIGABRT, gasnetc_exit_sighandler);
+  #endif
+  gasneti_reghandler(SIGILL,  gasnetc_exit_sighandler);
+  gasneti_reghandler(SIGSEGV, gasnetc_exit_sighandler);
+  gasneti_reghandler(SIGFPE,  gasnetc_exit_sighandler);
+  gasneti_reghandler(SIGBUS,  gasnetc_exit_sighandler);
+
+  /* Prior to attach we cannot send AMs to coordinate the exit */
+  if (! gasneti_attach_done) {
+    fprintf(stderr, "WARNING: GASNet ofi-conduit may not shutdown cleanly when gasnet_exit() is called before gasnet_attach()\n");
+    (*gasneti_bootstrapAbort_p)(exitcode);
+    gasneti_killmyprocess(exitcode);
+  }
+
+  gasnetc_exit_coordinate(exitcode);
+
+  alarm((unsigned int)gasnetc_exittimeout);
   gasnetc_ofi_exit();
+  alarm(0);
 
   gasneti_flush_streams();
   gasneti_trace_finish();
@@ -652,6 +736,7 @@ static gasnet_handlerentry_t const gasnetc_handlers[] = {
     GASNETC_AUXSEG_HANDLERS(),
   #endif
   /* ptr-width independent handlers */
+  gasneti_handler_tableentry_no_bits(gasnetc_exit_reqh),
 
   /* ptr-width dependent handlers */
 
