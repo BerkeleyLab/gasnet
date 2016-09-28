@@ -10,7 +10,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#ifdef AMUDP_BLCR_ENABLED /* bug 3328: avoid broken clang/Cygwin header */
 #include <dirent.h>
+#endif
 
 #ifdef HAVE_GASNET_TOOLS
 #define GASNETT_LITE_MODE /* preserves AMUDP's threading neutrality */
