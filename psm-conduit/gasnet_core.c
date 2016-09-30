@@ -230,7 +230,7 @@ static int gasnetc_init(int *argc, char ***argv) {
         int ver_minor = PSM2_VERNO_MINOR;
         psm2_uuid_t uuid;
 
-#if GASNET_PSHM
+#if GASNET_PSHM && 0 /* DISABLED: see bug 3334 */
         /* Save memory (and maybe performance?) by disabling psm2's self and
            shared-memory communication models.  PSHM will be used instead. */
         setenv("PSM2_DEVICES", "hfi", 1);
