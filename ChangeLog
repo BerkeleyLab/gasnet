@@ -29,6 +29,8 @@ GASNet ChangeLog
     + Fix for compilation issues with Clang
   - Cray Compilers
     + Suppress benign (or incorrect) warnings from recent CCE compilers
+  - PGI Compilers
+    + Fix bug 3324 by working around a bug in pgcc-16.4 and newer.
   - GNU Autotools
     + Fix bug 3285 - issues with recent automake versions
   - Intel Second Generation Xeon Phi (aka Knights Landing)
