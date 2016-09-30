@@ -3,12 +3,44 @@ GASNet ChangeLog
 ----------------------------------------------------------------------
 10-xx-2016 : Release 1.28.0-RC5
 
-PLACEHOLDER - this section will be completed prior to the final release
+* Cray uGNI (gemini- and aries-conduits)
+  - Updated instructions for configuring with SLURM's srun
+  - Modified linker flags for compatibility with dynamic libraries
+
+* Intel OmniPath PSM2 (psm-conduit)
+  - Improved handling of multi-threaded and abnormal exits
+  - Support for PSHM supernode size less than procs/node
+
+* Mellanox ConnectX series HCAs (mxm-conduit)
+  - Enable zero copy in bulk put operations
+
+* Libfabric (ofi-conduit)
+  - Improved handling of abnormal exits
+  - Corrected default libfabric installation location to be /usr
+
+* Portable UDP (udp-conduit)
+  - Numerous improvements to increase performance and reduce memory usage
+  - Fix a use-after-free bug in argument processing
+
+* Platform support/portability
+  - Cygwin-2.x
+    + Improved performance of mutexes
+    + Improved backtrace support
+    + Fix for compilation issues with Clang
+  - Cray Compilers
+    + Suppress benign (or incorrect) warnings from recent CCE compilers
+  - GNU Autotools
+    + Fix bug 3285 - issues with recent automake versions
+  - Intel Second Generation Xeon Phi (aka Knights Landing)
+    + Now provide an initial cross-configure-intel-knl script
+  - Configure script
+    + Options --disable-psm, --disable-gemini and --disable-aries now FULLY
+      disable the corresponding configure probes
 
 * General and Misc.
-  - GASNet now requires that the backend C compilers provided to configure ($CC
-    and $MPI_CC, if provided) must support a few widely-implemented C99 features.
-    See bug 3307 for details.
+  - GASNet now requires that the backend C compilers provided to configure
+    ($CC and $MPI_CC, if provided) must support a few widely-implemented C99
+    features.  See bug 3307 for details.
 
 ----------------------------------------------------------------------
 08-01-2016 :  Release 1.26.4
