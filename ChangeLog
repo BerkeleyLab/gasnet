@@ -19,7 +19,15 @@ GASNet ChangeLog
   - Corrected default libfabric installation location to be /usr
 
 * Portable UDP (udp-conduit)
-  - Numerous improvements to increase performance and reduce memory usage
+  - Restructure network buffer management to provide scalable
+    buffer memory utilization to thousands of nodes and beyond.
+  - Adjust the set of available environment tuning knobs for better control of
+    transfer performance at scale. See udp-conduit/README
+  - Adjust default transfer parameters for better performance on 1GbE
+  - Numerous misc changes to improve performance
+  - Improve stdout/stderr routing to be more robust and use fewer descriptors
+  - Restructure AMUDP headers to reduce namespace clutter
+  - Fix a compatibility issue with Cray CNL
   - Fix a use-after-free bug in argument processing
 
 * Platform support/portability
@@ -39,10 +47,18 @@ GASNet ChangeLog
     + Options --disable-psm, --disable-gemini and --disable-aries now FULLY
       disable the corresponding configure probes
 
+* GASNet tools
+  - Add a tools wrapper for POSIX reader-writer locks (gasnett_rwlock_t)
+
 * General and Misc.
   - GASNet now requires that the backend C compilers provided to configure
     ($CC and $MPI_CC, if provided) must support a few widely-implemented C99
     features.  See bug 3307 for details.
+  - GASNet release version compatibility between client objects and library
+    is now enforced at link time, to ensure correct operation.
+  - Apply optional MANUAL_* make flags more consistently (see README)
+  - Cleanup extern "C" in public headers for more robust C++ client support
+  - Numerous minor fixes to silence harmless warnings on various systems
 
 ----------------------------------------------------------------------
 08-01-2016 :  Release 1.26.4
