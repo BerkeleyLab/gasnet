@@ -3,7 +3,7 @@ README file for GASNet tools
 ============================
 Originally by: Dan Bonachea <bonachea@cs.berkeley.edu>
 Currently maintained by: Paul H. Hargrove <PHHargrove@lbl.gov>
-GASNet tools specification version: 1.8
+GASNet tools specification version: 1.9
 
 The GASNet tools are a set of communication-independent utilities that are used
 to implement GASNet, and constitute a useful portability tool for GASNet

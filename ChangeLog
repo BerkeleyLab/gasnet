@@ -47,7 +47,7 @@ GASNet ChangeLog
     + Options --disable-psm, --disable-gemini and --disable-aries now FULLY
       disable the corresponding configure probes
 
-* GASNet tools
+* GASNet tools (spec v1.9)
   - Add a tools wrapper for POSIX reader-writer locks (gasnett_rwlock_t)
 
 * General and Misc.
