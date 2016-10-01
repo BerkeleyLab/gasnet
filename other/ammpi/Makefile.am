@@ -102,6 +102,10 @@ if GNU_NM
 check-exports: libammpi.a
 	@echo Checking libammpi exports...
 	@lib=libammpi.a ; \
+	    if test x$(CHECK_EXPORTS) = x0; then                                    \
+	      echo Skipped by user request ;                                        \
+	      exit 0 ;                                                              \
+	    fi ;                                                                    \
             @NM@ --defined-only $$lib |                                             \
 	    @PERL@ -pe 's/ \.refptr\.//' |                                          \
             grep -v -e ' [\._]*ammpi_' -e ' [\._]*AMMPI_' -e ' [\._]*AM_'           \
