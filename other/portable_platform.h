@@ -1,13 +1,169 @@
 /*   $Source: bitbucket.org:berkeleylab/gasnet.git/other/portable_platform.h $
  * Description: Portable platform detection header
  * Copyright 2006, Dan Bonachea <bonachea@cs.berkeley.edu>
+ * Terms of Use: In ADDITION to the license information in license.txt, 
+ *  anyone redistributing this header agrees not to change any part of this notice, or
+ *  the version handshake in the header versioning section below. 
+ *  Furthermore, redistributed copies of any portion of this header must
+ *  not appear within files named "portable_platform.h" or "gasnet_portable_platform.h",
+ *  unless it is embedded within a complete copy of the GASNet distribution.
+ *  These restrictions are designed to prevent conflicts for end users 
+ *  who compose multiple projects using the PLATFORM_ namespace.
+ *
+ * The canonical version of this header is hosted in the GASNet project at:
+ *   https://bitbucket.org/berkeleylab/gasnet   
+ *
+ * Developers who clone this header into their own project are HIGHLY encouraged to  
+ * contribute any improvements (especially addition of new platforms) back to the 
+ * canonical version, for the benefit of the community.
  */
-#ifndef _PORTABLE_PLATFORM_H
-#define _PORTABLE_PLATFORM_H 1
+/* ------------------------------------------------------------------------------------ */
+/* Header versioning: DO NOT CHANGE ANYTHING IN THIS SECTION 
+ * The license terms for this header prohibit modifying this section in ANY way.
+   Clones should continue to advertise a PLATFORM_HEADER_VERSION equal to the canonical version they cloned,
+   and should not modify the handshake logic which ensures the highest canonical header version is used.
+ */
+/* Publish and enforce version number for the public interface to this header */
+/* YOU ARE NOT PERMITTED TO CHANGE THIS SECTION WITHOUT DIRECT APPROVAL FROM DAN BONACHEA */
+#if _PORTABLE_PLATFORM_H != PLATFORM_HEADER_VERSION \
+     || PLATFORM_HEADER_VERSION < 2
+#undef  PLATFORM_HEADER_VERSION 
+#define PLATFORM_HEADER_VERSION 2
+#undef  _PORTABLE_PLATFORM_H
+#define _PORTABLE_PLATFORM_H PLATFORM_HEADER_VERSION
+/* End Header versioning handshake */
+/* ------------------------------------------------------------------------------------ */
 
-/* the version number for the public interface to this header */
-#define PLATFORM_HEADER_VERSION 1
+/* make sure that previously-included older/broken clones of this header do not pollute our namespace */
+#undef PLATFORM_COMPILER_FAMILYNAME
+#undef PLATFORM_COMPILER_FAMILYID
+#undef PLATFORM_COMPILER_ID
+#undef PLATFORM_COMPILER_VERSION
+#undef PLATFORM_COMPILER_VERSION_STR
+#undef PLATFORM_COMPILER_VERSION_INT
+#undef PLATFORM_COMPILER_IDSTR
+#undef PLATFORM_COMPILER_VERSION_GT
+#undef PLATFORM_COMPILER_VERSION_GE
+#undef PLATFORM_COMPILER_VERSION_EQ
+#undef PLATFORM_COMPILER_VERSION_LE
+#undef PLATFORM_COMPILER_VERSION_LT
+#undef PLATFORM_COMPILER_INTEL
+#undef PLATFORM_COMPILER_INTEL_C
+#undef PLATFORM_COMPILER_INTEL_CXX
+#undef PLATFORM_COMPILER_PATHSCALE
+#undef PLATFORM_COMPILER_PATHSCALE_C
+#undef PLATFORM_COMPILER_PATHSCALE_CXX
+#undef PLATFORM_COMPILER_PGI
+#undef PLATFORM_COMPILER_PGI_C
+#undef PLATFORM_COMPILER_PGI_CXX
+#undef PLATFORM_COMPILER_XLC
+#undef PLATFORM_COMPILER_XLC_C
+#undef PLATFORM_COMPILER_XLC_CXX
+#undef PLATFORM_COMPILER_COMPAQ
+#undef PLATFORM_COMPILER_COMPAQ_C
+#undef PLATFORM_COMPILER_COMPAQ_CXX
+#undef PLATFORM_COMPILER_SUN
+#undef PLATFORM_COMPILER_SUN_C
+#undef PLATFORM_COMPILER_SUN_CXX
+#undef PLATFORM_COMPILER_HP
+#undef PLATFORM_COMPILER_HP_C
+#undef PLATFORM_COMPILER_HP_CXX
+#undef PLATFORM_COMPILER_SGI
+#undef PLATFORM_COMPILER_SGI_C
+#undef PLATFORM_COMPILER_SGI_CXX
+#undef PLATFORM_COMPILER_CRAY
+#undef PLATFORM_COMPILER_CRAY_C
+#undef PLATFORM_COMPILER_CRAY_CXX
+#undef PLATFORM_COMPILER_KAI
+#undef PLATFORM_COMPILER_KAI_C
+#undef PLATFORM_COMPILER_KAI_CXX
+#undef PLATFORM_COMPILER_MTA
+#undef PLATFORM_COMPILER_MTA_C
+#undef PLATFORM_COMPILER_MTA_CXX
+#undef PLATFORM_COMPILER_NECSX
+#undef PLATFORM_COMPILER_NECSX_C
+#undef PLATFORM_COMPILER_NECSX_CXX
+#undef PLATFORM_COMPILER_MICROSOFT
+#undef PLATFORM_COMPILER_MICROSOFT_C
+#undef PLATFORM_COMPILER_MICROSOFT_CXX
+#undef PLATFORM_COMPILER_TINY
+#undef PLATFORM_COMPILER_TINY_C
+#undef PLATFORM_COMPILER_TINY_CXX
+#undef PLATFORM_COMPILER_LCC
+#undef PLATFORM_COMPILER_LCC_C
+#undef PLATFORM_COMPILER_LCC_CXX
+#undef PLATFORM_COMPILER_OPEN64
+#undef PLATFORM_COMPILER_OPEN64_C
+#undef PLATFORM_COMPILER_OPEN64_CXX
+#undef PLATFORM_COMPILER_PCC
+#undef PLATFORM_COMPILER_PCC_C
+#undef PLATFORM_COMPILER_PCC_CXX
+#undef PLATFORM_COMPILER_CLANG
+#undef PLATFORM_COMPILER_CLANG_C
+#undef PLATFORM_COMPILER_CLANG_CXX
+#undef PLATFORM_COMPILER_GNU
+#undef PLATFORM_COMPILER_GNU_C
+#undef PLATFORM_COMPILER_GNU_CXX
+#undef PLATFORM_COMPILER_UNKNOWN
 
+#undef PLATFORM_OS_FAMILYNAME
+#undef PLATFORM_OS_CATAMOUNT
+#undef PLATFORM_OS_CNL
+#undef PLATFORM_OS_BGP
+#undef PLATFORM_OS_BGQ
+#undef PLATFORM_OS_K42
+#undef PLATFORM_OS_UCLINUX
+#undef PLATFORM_OS_LINUX
+#undef PLATFORM_OS_BLRTS
+#undef PLATFORM_OS_CYGWIN
+#undef PLATFORM_OS_MSWINDOWS
+#undef PLATFORM_OS_AIX
+#undef PLATFORM_OS_TRU64
+#undef PLATFORM_OS_FREEBSD
+#undef PLATFORM_OS_NETBSD
+#undef PLATFORM_OS_OPENBSD
+#undef PLATFORM_OS_SOLARIS
+#undef PLATFORM_OS_DARWIN
+#undef PLATFORM_OS_IRIX
+#undef PLATFORM_OS_HPUX
+#undef PLATFORM_OS_UNICOS
+#undef PLATFORM_OS_MTA
+#undef PLATFORM_OS_SUPERUX
+#undef PLATFORM_OS_UNKNOWN
+
+#undef PLATFORM_ARCH_FAMILYNAME
+#undef PLATFORM_ARCH_32
+#undef _PLATFORM_ARCH_32
+#undef PLATFORM_ARCH_64
+#undef _PLATFORM_ARCH_64
+#undef PLATFORM_ARCH_BIG_ENDIAN
+#undef _PLATFORM_ARCH_BIG_ENDIAN
+#undef PLATFORM_ARCH_LITTLE_ENDIAN
+#undef _PLATFORM_ARCH_LITTLE_ENDIAN
+#undef PLATFORM_ARCH_POWERPC
+#undef PLATFORM_ARCH_MIC
+#undef PLATFORM_ARCH_X86_64
+#undef PLATFORM_ARCH_IA64
+#undef PLATFORM_ARCH_X86
+#undef PLATFORM_ARCH_ALPHA
+#undef PLATFORM_ARCH_MIPS
+#undef PLATFORM_ARCH_SPARC
+#undef PLATFORM_ARCH_PARISC
+#undef PLATFORM_ARCH_CRAYX1
+#undef PLATFORM_ARCH_CRAYT3E
+#undef PLATFORM_ARCH_MTA
+#undef PLATFORM_ARCH_NECSX
+#undef PLATFORM_ARCH_MICROBLAZE
+#undef PLATFORM_ARCH_ARM
+#undef PLATFORM_ARCH_AARCH64
+#undef PLATFORM_ARCH_TILE
+#undef PLATFORM_ARCH_UNKNOWN
+
+/* prevent known old/broken versions of this header from loading */
+#define OMPI_PORTABLE_PLATFORM_H
+#define OPAL_PORTABLE_PLATFORM_H
+
+/* ------------------------------------------------------------------------------------ */
 /* most of this file was written based on information in vendor documents, system headers,
    and inspecting verbose compiler output. 
    Another useful source of information: http://predef.sourceforge.net/
@@ -16,15 +172,15 @@
 /* ------------------------------------------------------------------------------------ */
 /* helpers */
 
-#ifndef _STRINGIFY
+#undef  _STRINGIFY_HELPER
 #define _STRINGIFY_HELPER(x) #x
+#undef  _STRINGIFY
 #define _STRINGIFY(x) _STRINGIFY_HELPER(x)
-#endif
 
-#ifndef _CONCAT
+#undef  _CONCAT_HELPER
 #define _CONCAT_HELPER(a,b) a ## b
+#undef  _CONCAT
 #define _CONCAT(a,b) _CONCAT_HELPER(a,b)
-#endif
 
 /* ------------------------------------------------------------------------------------ */
 /* Compiler detection */
@@ -63,6 +219,8 @@
   #else
     #define PLATFORM_COMPILER_INTEL_C  1
   #endif
+  #undef  _PLATFORM_INTEL_COMPILER_BUILD_DATE
+  #undef  _PLATFORM_COMPILER_INTEL_MIN_BUILDDATE
   #define _PLATFORM_COMPILER_INTEL_MIN_BUILDDATE 19700000 /* year 1970: predates most intel products :) */
   #ifdef __INTEL_COMPILER_BUILD_DATE
     #define _PLATFORM_INTEL_COMPILER_BUILD_DATE __INTEL_COMPILER_BUILD_DATE
@@ -74,6 +232,7 @@
         (((((maj) * 100) + (min)) << 20) |                    \
            ((pat) < _PLATFORM_COMPILER_INTEL_MIN_BUILDDATE ? \
             _PLATFORM_COMPILER_INTEL_MIN_BUILDDATE : ((pat)-_PLATFORM_COMPILER_INTEL_MIN_BUILDDATE)))
+  #undef _PLATFORM__INTEL_COMPILER
   #if __INTEL_COMPILER == 9999  /* Seen in 20110811 release of 12.1.0 - overflows VERSION_INT() */
     #define _PLATFORM__INTEL_COMPILER 1210
   #else
@@ -363,6 +522,8 @@
 
 /* this stanza comes last, because many vendor compilers lie and claim 
    to be GNU C for compatibility reasons and/or because they share a frontend */ 
+#undef _PLATFORM_COMPILER_GNU_VERSION_STR
+#undef __PLATFORM_COMPILER_GNU_VERSION_STR
 #if defined(__GNUC__)
   #undef PLATFORM_COMPILER_UNKNOWN
   #ifndef PLATFORM_COMPILER_FAMILYID
@@ -440,27 +601,32 @@
   #define PLATFORM_COMPILER_ID PLATFORM_COMPILER_FAMILYID
 #endif
 
+#undef _PLATFORM_COMPILER_STD_STDC
 #ifdef __STDC__
   #define _PLATFORM_COMPILER_STD_STDC "__STDC__"
 #else
   #define _PLATFORM_COMPILER_STD_STDC "-"
 #endif
+#undef _PLATFORM_COMPILER_STD_STDC_VERSION
 #ifdef __STDC_VERSION__
   #define _PLATFORM_COMPILER_STD_STDC_VERSION ",__STDC_VERSION__=" _STRINGIFY(__STDC_VERSION__)
 #else
   #define _PLATFORM_COMPILER_STD_STDC_VERSION
 #endif
+#undef _PLATFORM_COMPILER_STD_STDC_EXT
 #ifdef __STDC_EXT__
   #define _PLATFORM_COMPILER_STD_STDC_EXT ",__STDC_EXT__=" _STRINGIFY(__STDC_EXT__)
 #else
   #define _PLATFORM_COMPILER_STD_STDC_EXT 
 #endif
+#undef _PLATFORM_COMPILER_STD_CPLUSPLUS
 #ifdef __cplusplus
   #define _PLATFORM_COMPILER_STD_CPLUSPLUS ",__cplusplus=" _STRINGIFY(__cplusplus)
 #else
   #define _PLATFORM_COMPILER_STD_CPLUSPLUS 
 #endif
 
+#undef _PLATFORM_COMPILER_MISC_VERSION_STR
 #ifndef _PLATFORM_COMPILER_MISC_VERSION_STR
   #ifdef __VERSION__
     #define _PLATFORM_COMPILER_MISC_VERSION_STR "|misc:" __VERSION__
@@ -468,6 +634,7 @@
     #define _PLATFORM_COMPILER_MISC_VERSION_STR
   #endif
 #endif
+#undef _PLATFORM_COMPILER_GNU_VERSION_STR_HELP
 #ifdef _PLATFORM_COMPILER_GNU_VERSION_STR
     #define _PLATFORM_COMPILER_GNU_VERSION_STR_HELP "|GNU:" _PLATFORM_COMPILER_GNU_VERSION_STR
 #else
