@@ -992,6 +992,7 @@
 /* handy test code that can be parsed after preprocess or executed to show platform results */
 #ifdef PLATFORM_SHOW
 #include <stdio.h>
+#include <assert.h>
 const char *
 COMPILER_FAMILYNAME = PLATFORM_STRINGIFY(PLATFORM_COMPILER_FAMILYNAME)
 , *
@@ -1017,6 +1018,23 @@ int main(void) {
   PLATFORM_DISP(COMPILER_IDSTR);
   PLATFORM_DISP(OS_FAMILYNAME);
   PLATFORM_DISP(ARCH_FAMILYNAME);
+  #if PLATFORM_ARCH_32
+    PLATFORM_DISPI(ARCH_32);
+    assert(sizeof(void *) == 4);
+  #else
+    PLATFORM_DISPI(ARCH_64);
+    assert(sizeof(void *) == 8);
+  #endif
+  { int x = 0x00FF;
+    unsigned char *p = (unsigned char *)&x;
+  #if PLATFORM_ARCH_BIG_ENDIAN
+    PLATFORM_DISPI(ARCH_BIG_ENDIAN);
+    assert(*p == 0);
+  #else
+    PLATFORM_DISPI(ARCH_LITTLE_ENDIAN);
+    assert(*p == 0xFF);
+  #endif
+  }
   return 0;
 }
 #endif
