@@ -58,9 +58,10 @@ amxdist:
          rm -Rf $$distdir.tar.gz $$distdir && \
          mkdir $$distdir && \
          cp $(srcdir)/Makefile.* $(srcdir)/README* $(srcdir)/*.txt $(srcdir)/*.[ch]* $(testdir)/*.[ch]* \
-	    $(altincdir)/portable_inttypes.h $(altincdir)/portable_platform.h \
+	    $(altincdir)/portable_inttypes.h $(altincdir)/gasnet_portable_platform.h \
 	    $$distdir && \
 	 cd $$distdir && \
+	 mv gasnet_portable_platform.h ammpi_portable_platform.h && \
          rm -f Makefile.in Makefile.am Makefile.titanium* && \
          mv Makefile.standalone Makefile && \
 	 cd .. && \

@@ -11,7 +11,8 @@
 #ifndef _GASNET_ASM_H
 #define _GASNET_ASM_H
 
-#include "portable_platform.h"
+#undef _PORTABLE_PLATFORM_H
+#include "gasnet_portable_platform.h"
 
 /* Sort out the per-compiler support for asm and atomics */
 #if (GASNETI_COMPILER_IS_CC     && GASNETI_HAVE_CC_GCC_ASM)     || \

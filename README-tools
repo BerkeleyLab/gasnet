@@ -509,7 +509,7 @@ platform features, so that #if tests can be written concisely with expressions l
 
 #if PLATFORM_COMPILER_GNU && PLATFORM_OS_SOLARIS && PLATFORM_ARCH_X86
 
-See the comments in portable_platform.h for the details of the provided defines.
+See the comments in gasnet_portable_platform.h for the details of the provided defines.
 
 ----------------------------------
 Portable fixed-width integer types

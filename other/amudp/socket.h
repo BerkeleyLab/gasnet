@@ -7,7 +7,8 @@
 #define SOCKET_H
 
 #include <portable_inttypes.h>
-#include <portable_platform.h>
+#undef _PORTABLE_PLATFORM_H
+#include <amudp_portable_platform.h>
 
 #include <sys/types.h>     /*  Solaris 2.5.1 fix: u_short, required by sys/socket.h */
 #include <sys/socket.h>    /*  sockets */

@@ -41,7 +41,7 @@ See also:
     big bugfix), and/or whenever we put out a new 'stable' release (or hand
     out a snapshot to a user). The patch-level should be even for beta versions
     marked as "stable" for users, or odd for general development.
-  other/portable_platform.h - increment EVERY release (even without changes)
+  other/gasnet_portable_platform.h - increment EVERY release (even without changes)
   GASNet spec version numbers, in configure.in:
     GASNET_SPEC_VERSION_MAJOR - increment on backwards compatibility break
     GASNET_SPEC_VERSION_MINOR - increment for new features that don't break

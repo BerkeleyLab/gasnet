@@ -1151,8 +1151,8 @@ All GASNet conduit code is required to meet the following coding standards:
   and gasneti_fatalerror() with a useful message is always preferable to abort().
 
 * Conditional compilation for platform-specific features should be done using
-  the standardized platform macros provided by other/portable_platform.h, not ad-hoc
-  vendor or compiler-provided preprocessor macros.
+  the standardized platform macros provided by other/gasnet_portable_platform.h, 
+  not ad-hoc vendor or compiler-provided preprocessor macros.
 
 * Code should never make assumptions about integer data type sizes. In cases that
   call for a specific size integral type, the (u)int(sz)_t types provided by
@@ -1237,9 +1237,10 @@ Required porting steps:
   acinclude.m4:GASNET_FAMILY_CACHE_CHECK. Add configure.in settings for 
   MISC_CFLAGS and MISC_CXXFLAGS if appropriate. 
 
-* For a new CPU, OS or C/C++ compiler, update portable_platform.h to create
+* For a new CPU, OS or C/C++ compiler, update gasnet_portable_platform.h to create
   an appropriate canonical platform identifier for that component. You will
   need the canonical identifier(s) for most of the steps that follow.
+  Make sure to also increment the version number at the top of that header.
 
 * For a new C/C++ compiler, implement GASNETI_ASM for inline assembly 
   in gasnet_asm.h, if supported by the compiler. Ensure configure

@@ -35,12 +35,14 @@ platform_libraries = @LIBS@ @MPI_LIBS@
 VPATH = $(srcdir)
 testdir = $(srcdir)/../amxtests
 altincdir = $(srcdir)/..
-INCLUDES = -I$(srcdir) -I$(altincdir) $(platform_defines)
+INCLUDES = -I$(srcdir) -I$(builddir) -I$(altincdir) $(platform_defines)
 compile = $(CC) $(CFLAGS) $(INCLUDES)
 link = $(CC) $(CFLAGS) $(LDFLAGS) $(platform_defines) $(INCLUDES) 
 linkend = $(platform_libraries) $(MANUAL_LIBS)
 
 if USE_AMMPI
+BUILT_SOURCES = ammpi_portable_platform.h
+
 lib_LIBRARIES = libammpi.a
 endif
 headers = 	     \
@@ -48,13 +50,19 @@ headers = 	     \
     ammpi_internal.h \
     ammpi_spmd.h
 
+allheaders = $(BUILT_SOURCES) $(headers)
+
 libammpi_a_SOURCES = \
-    $(headers)       \
     ammpi_ep.c       \
     ammpi_reqrep.c   \
     ammpi_spmd.c     
 
-libammpi_a_DEPENDENCIES = $(libammpi_a_SOURCES:%.c=%.o)
+ammpi_portable_platform.h: $(altincdir)/gasnet_portable_platform.h
+	cp -f $< $@
+
+libammpi_a_DEPENDENCIES = $(libammpi_a_SOURCES:%.c=%.o)  
+
+$(libammpi_a_DEPENDENCIES): $(allheaders)
 
 EXTRA_DIST = \
 	Makefile.tests  	\
@@ -76,10 +84,10 @@ testprograms =    		\
 
 tests: apputils.o $(testprograms)
 
-test%.o : $(testdir)/test%.c $(testdir)/*.h $(headers)
+test%.o : $(testdir)/test%.c $(testdir)/*.h $(allheaders)
 	$(compile) -DAMMPI -I$(testdir) -c $< -o $@
 
-apputils.o : $(testdir)/apputils.c $(testdir)/apputils.h $(headers)
+apputils.o : $(testdir)/apputils.c $(testdir)/apputils.h $(allheaders)
 	$(compile) -DAMMPI -I$(testdir) -c $(testdir)/apputils.c -o apputils.o
 
 test%: test%.o apputils.o libammpi.a 
@@ -126,7 +134,7 @@ endif
 
 check: check-exports tests
 
-clean_local_files = libammpi.a *.o core .test-results
+clean_local_files = libammpi.a *.o core .test-results $(BUILT_SOURCES)
 clean-local:
 	@for f in $(testprograms); do                                \
 	  cmd="rm -f '$$f$(EXESUFFIX)'"; echo "$$cmd"; eval "$$cmd" || exit $$? ; \

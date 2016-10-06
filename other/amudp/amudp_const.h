@@ -6,7 +6,8 @@
 #ifndef __AMUDP_CONST_H
 #define __AMUDP_CONST_H
 
-#include <portable_platform.h>
+#undef _PORTABLE_PLATFORM_H
+#include <amudp_portable_platform.h>
 
 /* naming policy:
   AM-defined things start with AM_

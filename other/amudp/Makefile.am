@@ -46,13 +46,14 @@ VPATH = $(srcdir)
 testdir = $(srcdir)/../amxtests
 altincdir = $(srcdir)/..
 gasnet_tools = -I$(srcdir)/../.. -I../.. -DHAVE_GASNET_TOOLS
-INCLUDES = -I$(srcdir) -I$(altincdir) $(platform_defines) $(gasnet_tools)
+INCLUDES = -I$(srcdir) -I$(builddir) -I$(altincdir) $(platform_defines) $(gasnet_tools)
 compile = $(CC) $(CFLAGS) $(INCLUDES)
 cxxcompile = $(CXX) $(CXXFLAGS) $(INCLUDES)
 link = $(CXX) $(CXXFLAGS) $(LDFLAGS) $(INCLUDES) 
 linkend = $(platform_libraries) $(MANUAL_LIBS)
 
 if USE_UDP_CONDUIT
+BUILT_SOURCES = amudp_portable_platform.h
 lib_LIBRARIES = libamudp.a
 bin_PROGRAMS = amudprun
 endif
@@ -68,8 +69,9 @@ headers = \
 	socklist.h		\
 	sockutil.h		
 
+allheaders = $(BUILT_SOURCES) $(headers)
+
 libamudp_a_SOURCES = \
-	$(headers)		\
 	amudp_cdefs.c		\
 	amudp_ep.cpp		\
 	amudp_reqrep.cpp	\
@@ -80,7 +82,12 @@ libamudp_a_SOURCES = \
 	socklist.cpp		\
 	sockutil.cpp		
 
+amudp_portable_platform.h: $(altincdir)/gasnet_portable_platform.h
+	cp -f $< $@
+
 libamudp_a_DEPENDENCIES = $(libamudp_a_SOURCES:%.cpp=%.o) $(libamudp_a_SOURCES:%.c=%.o)
+
+$(libamudp_a_DEPENDENCIES): $(allheaders)
 
 EXTRA_DIST = \
 	Makefile.tests  	\
@@ -113,20 +120,20 @@ tests-clean:
 
 include Makefile.tests
 
-test%.o : $(testdir)/test%.c $(testdir)/*.h $(headers)
+test%.o : $(testdir)/test%.c $(testdir)/*.h $(allheaders)
 	$(compile) -DAMUDP -I$(testdir) -c $< -o $@
 
-apputils.o : $(testdir)/apputils.c $(testdir)/apputils.h $(headers)
+apputils.o : $(testdir)/apputils.c $(testdir)/apputils.h $(allheaders)
 	$(compile) -DAMUDP -I$(testdir) -c $(testdir)/apputils.c -o apputils.o
 
 amudprun$(EXEEXT): amudprun.o $(headers) libamudp.a
 	$(link) -o $@ $< -L. -lamudp $(linkend)
 
-%.o: %.c $(headers)
-	$(compile) -o $@ -c $<
+%.o: %.c $(allheaders)
+	$(compile) -o $@ -c `test -e $(srcdir)/$< && echo "$(srcdir)/"`$<
 
-%.o: %.cpp $(headers) $(top_builddir)/libgasnet_tools-seq.a
-	$(cxxcompile) -o $@ -c $<
+%.o: %.cpp $(allheaders) $(top_builddir)/libgasnet_tools-seq.a
+	$(cxxcompile) -o $@ -c `test -e $(srcdir)/$< && echo "$(srcdir)/"`$<
 
 $(top_builddir)/libgasnet_tools-seq.a: force
 	@cd $(top_builddir) && $(MAKE) libgasnet_tools-seq.a
@@ -160,7 +167,7 @@ endif
 # No check-exports by default due to name mangling
 check: tests
 
-clean_local_files = libamudp.a *.o core .test-results
+clean_local_files = libamudp.a *.o core .test-results $(BUILT_SOURCES)
 clean-local:
 	@for f in $(testprograms); do                                \
 	  cmd="rm -f '$$f$(EXESUFFIX)'"; echo "$$cmd"; eval "$$cmd" || exit $$? ; \

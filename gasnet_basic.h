@@ -14,7 +14,8 @@
 /* ------------------------------------------------------------------------------------ */
 /* must precede everything else to ensure correct operation */
 #include "portable_inttypes.h"
-#include "portable_platform.h"
+#undef _PORTABLE_PLATFORM_H
+#include "gasnet_portable_platform.h"
 
 /* try to recognize the compiler in use as one present at configure time.
    note this can set both GASNETI_COMPILER_IS_CC and

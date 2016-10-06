@@ -342,7 +342,7 @@ case "$CC_FAMILY" in
     # XXX: Need an ending version here when known
     GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS -I$TOP_SRCDIR/other")
     GASNET_TRY_CACHE_CHECK([if PGI compiler misoptimizes assignment to (const char *)], bug2842, [
-      #include "portable_platform.h"
+      #include "gasnet_portable_platform.h"
       #if PLATFORM_COMPILER_VERSION_LT(10,5,0) || PLATFORM_COMPILER_VERSION_GT(10,7,0)
       #error "GOOD pgcc version should FAIL this test"
       #endif
@@ -850,7 +850,7 @@ dnl GASNET_GET_PLATFORM_ID(CCVAR, opt compiler-desc)
 dnl probe a compiler for version information
 AC_DEFUN([GASNET_GET_PLATFORM_COMPILER], [
   GASNET_TRY_CACHE_EXTRACT_$4($2 for PLATFORM_COMPILER_$3, PLATFORM_$1_$3,
-    [ #include "portable_platform.h" ], [ PLATFORM_COMPILER_$3 ], GASNETI_PLATFORM_$1_$3)
+    [ #include "gasnet_portable_platform.h" ], [ PLATFORM_COMPILER_$3 ], GASNETI_PLATFORM_$1_$3)
   AC_DEFINE_UNQUOTED(GASNETI_PLATFORM_$1_$3,
                      ifelse([$4],[STR],["$GASNETI_PLATFORM_$1_$3"],[$GASNETI_PLATFORM_$1_$3]))
 ])

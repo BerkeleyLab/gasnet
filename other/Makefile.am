@@ -39,7 +39,8 @@ EXTRA_DIST =        			\
 
 include_HEADERS = \
 	portable_inttypes.h \
-	portable_platform.h
+	portable_platform.h \
+	gasnet_portable_platform.h
 
 if CONDUIT_MODE
 if USE_UDP_CONDUIT                           
