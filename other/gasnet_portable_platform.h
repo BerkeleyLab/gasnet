@@ -939,9 +939,11 @@
     then default to any arch-specific value provided
  */
 
-#if defined(_BIG_ENDIAN) || defined(__BIG_ENDIAN__) || defined(WORDS_BIGENDIAN)
+#if defined(__BIG_ENDIAN__) || defined(WORDS_BIGENDIAN) || \
+    ( __BYTE_ORDER__ > 0 && __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__ )
   #define PLATFORM_ARCH_BIG_ENDIAN 1
-#elif defined(_LITTLE_ENDIAN) || defined(__LITTLE_ENDIAN__) || defined(WORDS_LITTLEENDIAN)
+#elif defined(__LITTLE_ENDIAN__) || defined(WORDS_LITTLEENDIAN) || \
+    ( __BYTE_ORDER__ > 0 && __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__ )
   #define PLATFORM_ARCH_LITTLE_ENDIAN 1
 #elif _PLATFORM_ARCH_BIG_ENDIAN
   #define PLATFORM_ARCH_BIG_ENDIAN 1
