@@ -548,9 +548,7 @@ extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentr
                                        uintptr_t segsize, uintptr_t minheapoffset);
 
 #if defined(GASNET_DEBUG) && (defined(__OPTIMIZE__) || defined(NDEBUG))
-  #ifndef GASNET_ALLOW_OPTIMIZED_DEBUG
     #error Tried to compile GASNet client code with optimization enabled but also GASNET_DEBUG (which seriously hurts performance). Reconfigure/rebuild GASNet without --enable-debug
-  #endif
 #endif
 
 /* ------------------------------------------------------------------------------------ */

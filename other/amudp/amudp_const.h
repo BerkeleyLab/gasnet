@@ -57,9 +57,7 @@
 
 /* idiot proofing */
 #if defined(AMUDP_DEBUG) && (defined(__OPTIMIZE__) || defined(NDEBUG))
-  #if !defined(AMUDP_ALLOW_OPTIMIZED_DEBUG) && !defined(GASNET_ALLOW_OPTIMIZED_DEBUG)
     #error Tried to compile AMUDP client code with optimization enabled but also AMUDP_DEBUG (which seriously hurts performance). Disable C and C++ compiler optimization or reconfigure/rebuild without --enable-debug
-  #endif
 #endif
 
 

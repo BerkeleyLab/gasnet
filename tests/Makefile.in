@@ -367,7 +367,7 @@ testbarrierlate_extraobjs = delay.o
 # need to deliberately exclude optimization for this object file to prevent breaking delay
 # some compilers implicitly enable optimization, so don't complain about that
 delay.o: force
-	$(GASNET_CC) $(GASNET_CPPFLAGS) $(GASNET_MISC_CFLAGS) $(KEEPTMP_CFLAGS) $(MANUAL_CFLAGS) -DGASNET_ALLOW_OPTIMIZED_DEBUG -c -o $@ $(srcdir)/$*.c
+	$(GASNET_CC) $(GASNET_CPPFLAGS) $(GASNET_MISC_CFLAGS) $(KEEPTMP_CFLAGS) $(MANUAL_CFLAGS) -c -o $@ $(srcdir)/$*.c
 
 mpi-check: force
 	@if test -z "$(GASNET_MPI_CC)" ; then \
