@@ -23,6 +23,7 @@ Other documentation:
 Contents of this file:
  * Building and Installing GASNet
  * Basic Usage Information
+ * Conduit Status
  * Supported Platforms
  * Recognized Environment Variables
  * GASNet tracing & statistical collection
@@ -240,6 +241,78 @@ For more fine-grained control, the flags variables break-down as follows:
   GASNET_CXXCPPFLAGS is an alias for:
      $(GASNET_MISC_CXXCPPFLAGS) $(GASNET_DEFINES) $(GASNET_INCLUDES)
 
+Conduit Status
+==============
+
+The GASNet distribution includes multiple complete implementations of the GASNet API
+targeting particular lower-level networking layers. Each of these implementations 
+is called a 'conduit'. In some cases the lower-level layer is a proprietary or 
+hardware-specific network API, whereas in other cases the target API is a
+portable standard (although in some cases this distinction is blurred). The corresponding 
+GASNet conduits can be loosely categorized as either 'native' or 'portable' conduits.
+
+Below is the list of conduits in the current distribution, and their high-level status.
+Many conduits are supported on multiple platforms (CPU architectures, operating systems 
+and compilers) - see the 'Supported Platforms' section for more details on platforms.
+For more detailed info about each conduit, please consult the corresponding conduit README.
+
+Portable conduits:
+-----------------
+
+smp-conduit: SMP loopback (shared memory)
+ The conduit of choice for GASNet operation within a single shared-memory node.
+ Rigorously tested and supported on all current platforms. 
+  
+udp-conduit: UDP/IP (part of the TCP/IP protocol suite)
+ The conduit of choice for GASNet over Ethernet, supported on any TCP/IP-compliant network.
+ Rigorously tested over Ethernet and supported on most current platforms (see below).
+ 
+mpi-conduit: MPI (Message Passing Interface)
+ A portable implementation of GASNet over MPI-1.1 or later.
+ Intended as a reference implementation for systems lacking native conduit support.
+ Rigorously tested and supported on most current platforms (see below).
+
+ofi-conduit: Open Fabrics Interfaces
+ GASNet over the Open Fabrics Interface framework (libfabric).
+ Rigorously tested and supported over the portable/reference OFI sockets Provider.
+ Believed to also work over the Intel Truescale and Omni-Path Providers.
+
+portals4-conduit: Portals4   *BETA*
+ GASNet over the Portals4 network API developed at Sandia National Lab.
+ The core GASNet developers have been unable to test this conduit recently.
+  
+Native, high-performance conduits:
+---------------------------------
+
+pami-conduit: IBM Parallel Active Messaging Interface (PAMI)
+ The conduit of choice for GASNet on the IBM BlueGene/Q.
+ Rigorously tested on BlueGene/Q, also supported on other select IBM systems.
+
+gemini-conduit: Cray XE/XK Gemini
+aries-conduit:  Cray XC Aries
+ The conduit of choice for GASNet on the Gemini and Aries networks in recent Cray X* systems.
+ Rigorously tested and supported.
+
+ibv-conduit: InfiniBand Verbs
+ GASNet over the OpenFabrics Verbs API.
+ Rigorously tested and supported over InfiniBand hardware on all supported systems (see below).
+ Believed to also work on other hardware offering a standard-compliant Verbs layer.
+
+mxm-conduit: Mellanox InfiniBand Messaging Accelerator (MXM)
+ GASNet over the MXM API for recent Mellanox InfiniBand adapters.
+ The core GASNet developers have limited access to this hardware, but have completed 
+ minimal validation on x86_64/Linux.
+
+psm-conduit: Intel Omni-Path PSM2
+ GASNet over the PSM2 API for Intel Omni-Path adapters.
+ The core GASNet developers have limited access to this hardware, but have completed 
+ minimal validation on x86_64/Linux. 
+ 
+shmem-conduit: SGI Altix / Cray X1 Shmem   *DEPRECATED*
+ GASNet over proprietary (hardware-supported) SHMEM. Does not function over OpenSHMEM.
+ The core GASNet developers have been unable to test this conduit recently,
+ and it is officially deprecated. 
+ If you have interest in this conduit please contact us!
 
 Supported Platforms
 ===================
