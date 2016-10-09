@@ -103,6 +103,7 @@ check-exports: libammpi.a
 	@echo Checking libammpi exports...
 	@lib=libammpi.a ; \
             @NM@ --defined-only $$lib |                                             \
+	    @PERL@ -pe 's/ \.refptr\.//' |                                          \
             grep -v -e ' [\._]*ammpi_' -e ' [\._]*AMMPI_' -e ' [\._]*AM_'           \
                     -e ' [\._]*gasnett_' -e ' [\._]*gasneti_'                       \
                     -e 'get_pc_thunk'                                               \

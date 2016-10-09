@@ -140,6 +140,7 @@ check-exports: libamudp.a
 	@echo Checking libamudp exports...
 	@lib=libamudp.a ; \
             @NM@ --defined-only $$lib |                                             \
+	    @PERL@ -pe 's/ \.refptr\.//' |                                          \
             grep -v -e ' [\._]*amudp_' -e ' [\._]*AMUDP_' -e ' [\._]*AM_'           \
                     -e ' [\._]*gasnett_' -e ' [\._]*gasneti_'                       \
                     -e 'get_pc_thunk'                                               \

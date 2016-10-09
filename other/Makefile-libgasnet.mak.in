@@ -205,6 +205,7 @@ $(top_builddir)/other/Makefile-libgasnet.mak: $(top_srcdir)/other/Makefile-libga
 @GNU_NM_TRUE@	  echo ;                                                                    \
 @GNU_NM_TRUE@	  echo $$lib: ;                                                             \
 @GNU_NM_TRUE@	  @NM@ --defined-only $$lib |                                               \
+@GNU_NM_TRUE@	    @PERL@ -pe 's/ \.refptr\.//' |                                          \
 @GNU_NM_TRUE@	    grep -v -e ' [\._]*gasnet_' -e ' [\._]*gasnet[tiecX]_'                  \
 @GNU_NM_TRUE@		    -e ' [\._]*fh_' -e ' [\._]*firehose_'                           \
 @GNU_NM_TRUE@		    -e ' [\._]*fh[ic]_' -e ' [\._]*fhsmp_' -e ' [\._]*fhuni_'       \
