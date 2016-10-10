@@ -365,7 +365,6 @@ testbarrierlate_extraobjs = delay.o
 
 # delay function, used by multiple tests
 # need to deliberately exclude optimization for this object file to prevent breaking delay
-# some compilers implicitly enable optimization, so don't complain about that
 delay.o: force
 	$(GASNET_CC) $(GASNET_CPPFLAGS) $(GASNET_MISC_CFLAGS) $(KEEPTMP_CFLAGS) $(MANUAL_CFLAGS) -c -o $@ $(srcdir)/$*.c
 
