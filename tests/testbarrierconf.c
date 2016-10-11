@@ -94,7 +94,7 @@ int main(int argc, char **argv) {
   if (mynode == 0) {
       const char * mode = do_try ? "try" : "wait";
 #ifdef GASNET_PAR
-      printf("Running barrier_%s conformance test with %d iterations and %i extra polling theads...\n", mode, iters,pollers);
+      printf("Running barrier_%s conformance test with %d iterations and %i extra polling threads...\n", mode, iters,pollers);
 #else
       printf("Running barrier_%s conformance test with %d iterations...\n", mode, iters);
 #endif
