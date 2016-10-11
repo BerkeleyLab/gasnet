@@ -347,28 +347,53 @@ static void gasnetc_exit_sighandler(int sig) {
 
 /* AM Handlers for exit handling */
 static void gasnetc_noop(void) { return; }
-static void gasnetc_exit_reqh(gasnet_token_t token, gasnet_handlerarg_t arg0) {
+static gasneti_atomic_t gasnetc_exit_dist = gasneti_atomic_init(0);     /* OR of reduce distances */
+static void gasnetc_exit_reqh(gasnet_token_t token,
+                              gasnet_handlerarg_t arg0,
+                              gasnet_handlerarg_t arg1) {
+  gasneti_atomic_val_t distance = arg1;
+#if defined(GASNETI_HAVE_ATOMIC_ADD_SUB)
+  /* atomic OR via ADD since no bit will be set more than once */
+  gasneti_assert(GASNETI_POWEROFTWO(distance));
+  gasneti_atomic_add(&gasnetc_exit_dist, distance, GASNETI_ATOMIC_REL);
+#elif defined(GASNETI_HAVE_ATOMIC_CAS)
+  /* atomic OR via C-A-S */
+  uint32_t old_val;
+  do {
+    old_val = gasneti_atomic_read(&gasnetc_exit_dist, 0);
+  } while (!gasneti_atomic_compare_and_swap(&gasnetc_exit_dist,
+                                            old_val, old_val|distance,
+                                            GASNETI_ATOMIC_REL));
+#else
+  #error "required atomic compare-and-swap is not yet implemented for your CPU/OS/compiler"
+#endif
+
   if (!gasnetc_exit_in_progress)
     gasnetc_exit((int)arg0);
 }
 
-/* Coordinate a global exit */
-static void gasnetc_exit_coordinate(int exitcode) {
-  int i;
-
+/* Coordinate a global exit, returning non-zero on success */
+static int gasnetc_exit_coordinate(int exitcode) {
   /* Disable processing of user's AMs, to avoid reentrance if user's handler exits */
-  for (i = GASNETE_HANDLER_BASE; i < GASNETC_MAX_NUMHANDLERS; ++i) {
+  for (int i = GASNETE_HANDLER_BASE; i < GASNETC_MAX_NUMHANDLERS; ++i) {
     gasnetc_handler[i] = (gasneti_handler_fn_t)&gasnetc_noop;
   }
 
-  /* TODO: in the common (collective exit) case this is N^2 communication! */
-  for(i = 1; i < gasneti_nodes; i++) {
-    int j = (gasneti_mynode + i) % gasneti_nodes;
-    int ret = gasnetc_AMRequestShortM(j, gasneti_handleridx(gasnetc_exit_reqh), 1, exitcode);
-    if (ret != GASNET_OK) {
-      gasneti_fatalerror("AMRequestShortM from gasnetc_exit() failed");
-    }
+  /* Coordinate using dissemination-pattern, with timeout.
+   * lg(N) rounds each of which sends and recvs 1 AM
+   */
+  const time_t deadline = time(NULL) + gasnetc_exittimeout;
+  for (int distance = 1; distance < gasneti_nodes; distance *= 2) {
+    int peer = (gasneti_mynode + distance) % gasneti_nodes;
+    int ret = gasnetc_AMRequestShortM(peer, gasneti_handleridx(gasnetc_exit_reqh),
+                                      2, exitcode, distance);
+    if (ret != GASNET_OK) return 0;
+    do { /* wait for completion of the proper receive, which might arrive out of order */
+      if (deadline < time(NULL)) return 0;
+      gasnetc_AMPoll();
+    } while (!(distance & gasneti_atomic_read(&gasnetc_exit_dist, 0)));
   }
+  return 1;
 }
 
 extern void gasnetc_exit(int exitcode) {
@@ -404,17 +429,21 @@ extern void gasnetc_exit(int exitcode) {
     gasneti_killmyprocess(exitcode);
   }
 
-  gasnetc_exit_coordinate(exitcode);
-
-  alarm((unsigned int)gasnetc_exittimeout);
-  gasnetc_ofi_exit();
+  const int timeout = (unsigned int)gasnetc_exittimeout;
+  alarm(2 + timeout);
+  if (gasnetc_exit_coordinate(exitcode)) {
+    alarm(timeout);
+    gasnetc_ofi_exit();
+  }
   alarm(0);
 
   gasneti_flush_streams();
   gasneti_trace_finish();
   gasneti_sched_yield();
 
+  alarm(timeout);
   (*gasneti_bootstrapFini_p)();
+  alarm(0);
   gasneti_killmyprocess(exitcode);
   gasneti_fatalerror("gasnetc_exit failed!");
 }
