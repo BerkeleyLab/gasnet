@@ -1,7 +1,7 @@
 GASNet ChangeLog 
 ----------------
 ----------------------------------------------------------------------
-10-xx-2016 : Release 1.28.0-RC9
+10-xx-2016 : Release 1.28.0-RC10
 
 * Cray uGNI (gemini- and aries-conduits)
   - Updated instructions for configuring with SLURM's srun
@@ -13,6 +13,9 @@ GASNet ChangeLog
 
 * Mellanox ConnectX series HCAs (mxm-conduit)
   - Enable zero copy in bulk put operations
+
+* InfiniBand Verbs (ibv-conduit)
+  - Fixed error in default barrier exposed by libverbs on Omni-Path HCAs
 
 * Libfabric (ofi-conduit)
   - Improved handling of abnormal exits
