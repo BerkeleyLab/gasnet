@@ -310,6 +310,7 @@ static void gasnete_put_nbi_inner (gasnet_node_t node, void *dest, void *src,
         bytes_remaining -= mtu_size;
     }
 
+    op->initiated_put_cnt++;
     ret = psm2_am_request_short(epaddr, handler,
             (psm2_amarg_t*)&dest_addr, 1, (void*)src_addr, bytes_remaining,
             PSM2_AM_FLAG_NOREPLY,
@@ -320,7 +321,6 @@ static void gasnete_put_nbi_inner (gasnet_node_t node, void *dest, void *src,
                 psm2_error_get_string(ret));
     }
 
-    op->initiated_put_cnt++;
     gasnetc_psm_poll_periodic();
 }
 
@@ -403,7 +403,6 @@ extern void gasnete_get_nbi_bulk (void *dest, gasnet_node_t node, void *src, siz
                 psm2_error_get_string(ret));
     }
 
-    op->initiated_get_cnt++;
     gasnetc_psm_poll_periodic();
 }
 
@@ -538,6 +537,7 @@ extern gasnet_handle_t gasnete_get_nb_bulk (void *dest, gasnet_node_t node, void
     args[1].u32w0 = gasnete_getreq_to_offset(req);
     args[1].u32w1 = bytes_remaining;
 
+    op->initiated_get_cnt++;
     ret = psm2_am_request_short(gasnetc_psm_state.peer_epaddrs[node],
             gasnetc_psm_state.am_handlers[AM_HANDLER_GET_REQUEST],
             args, 2, NULL, 0, PSM2_AM_FLAG_NONE, NULL, NULL);
