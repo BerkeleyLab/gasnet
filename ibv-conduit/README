@@ -46,8 +46,9 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   and some have GASNet conduits:
    + mxm-conduit for the MXM API from Mellanox
    + ofi-conduit for the PSM (version 1) API on Intel TrueScale HCAs
+   + ofi- or psm-conduit for the PSM2 API on Intel Omni-Path HCAs
 
-  The performance of ibv-conduit relative to others on InfiniBand hardware
+  The performance of ibv-conduit relative to others on the same hardware
   will depend on your applications' communications patterns, the number of
   nodes you run on, and other parameters.  Therefore, we do not make any
   specific recommendation as to which to use.  We recommend that you
