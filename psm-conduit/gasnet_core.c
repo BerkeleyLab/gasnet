@@ -159,6 +159,66 @@ static int gasneti_bootstrapInit(
     return res;
 }
 
+GASNETI_COLD
+static void gasneti_check_bug3333(int ver_major, int ver_minor) {
+    gasnet_node_t pshm_width;
+    gasnet_node_t node_width;
+
+    /* Step 0. Return early if no detailed check is required.
+     * TODO: check ver_major.ver_minor against fixed release when available.
+     */
+    if (gasneti_getenv_yesno_withdefault("GASNET_PSM_ENABLE_SHM", 0)) {
+        return;
+    }
+
+    /* Step 1. Maximum width of any compute node in this job (the "ppn").
+     * Replicates a portion of gasneti_nodemapInit w/o imposing the upper
+     * bounds of GASNETI_PSHM_MAX_NODES or GASNET_SUPERNODE_MAXSIZE.
+     */
+    {
+        uint32_t *allids = gasneti_malloc(gasneti_nodes * sizeof(uint32_t));
+        uint32_t myid = gasneti_gethostid();
+        int i, j;
+
+        gasneti_bootstrapExchange(&myid, sizeof(uint32_t), allids);
+
+        node_width = 0;
+        for (i = 0; i < gasneti_nodes; ++i) {
+            gasnet_node_t tmp = 1;
+            for (j = i+1; j < gasneti_nodes; ++j) {
+                tmp += (allids[j] == allids[i]);
+            }
+            node_width = MAX(node_width, tmp);
+        }
+
+        gasneti_free(allids);
+    }
+
+    /* Step 2. Maximum width of a pshm-domain (a "supernode"): */
+#if GASNET_PSHM
+    pshm_width = gasneti_getenv_int_withdefault("GASNET_SUPERNODE_MAXSIZE", 0, 0);
+    pshm_width = pshm_width ? pshm_width : gasneti_nodes; /* default value of 0 means unlimited */
+#else
+    pshm_width = 1;
+#endif
+
+    /* Step 3. All or none exit */
+    if (pshm_width < node_width) {
+        if (!gasneti_mynode) {
+            fprintf(stderr,
+"****************************************************************************\n"
+"* ERROR: This run would use PSM2's shared-memory device which is disabled  *\n"
+"* by default in this release.  Please see \"Bug 3333\" in psm-conduit/README *\n"
+"* (source) or README-psm (installed) for instructions to enable this run.  *\n"
+"****************************************************************************\n"
+);
+            fflush(stderr);
+        }
+        gasnetc_bootstrapBarrier();
+        gasneti_bootstrapFini();
+        _exit(1);
+    }
+}
 
 GASNETI_COLD
 static int gasnetc_init(int *argc, char ***argv) {
@@ -229,6 +289,8 @@ static int gasnetc_init(int *argc, char ***argv) {
         int ver_major = PSM2_VERNO_MAJOR;
         int ver_minor = PSM2_VERNO_MINOR;
         psm2_uuid_t uuid;
+
+        gasneti_check_bug3333(ver_major, ver_minor);
 
 #if GASNET_PSHM && 0 /* DISABLED: see bug 3334 */
         /* Save memory (and maybe performance?) by disabling psm2's self and
