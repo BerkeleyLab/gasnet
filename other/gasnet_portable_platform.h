@@ -160,7 +160,9 @@
 #undef PLATFORM_ARCH_UNKNOWN
 
 /* prevent known old/broken versions of this header from loading */
+#undef  OMPI_PORTABLE_PLATFORM_H
 #define OMPI_PORTABLE_PLATFORM_H
+#undef  OPAL_PORTABLE_PLATFORM_H
 #define OPAL_PORTABLE_PLATFORM_H
 
 /* ------------------------------------------------------------------------------------ */
