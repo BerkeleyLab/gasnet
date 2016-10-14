@@ -33,7 +33,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   While Open Fabrics Verbs also covers iWARP, ibv-conduit does not
   currently support it.
 
-  While ibv-conduit is known to work on Intel Omni-Path (OPA) HCAs, we
+  While ibv-conduit may work on Intel Omni-Path (OPA) HCAs, we instead
   recommend use of psm-conduit on such systems.
 
   Nearly all InfiniBand cards (known as Host Channel Adapters, or HCAs)
