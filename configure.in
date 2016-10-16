@@ -231,19 +231,62 @@ AC_DEFUN([GASNET_CHECK_CRAY_HEADER],[
   popdef([cvname])
 ])
 
-### 
-#
-# choose the default CC flags
-# NOTE: we intentionally *overwrite* CFLAGS with reasonable, well-tested values, 
-# to avoid picking up bad default flags from AC_PROG_CC or the default user environment
-# Users who want to insert a specific compiler flag for all builds should append it to $CC
-
 dnl GASNET_TRY_WNO_FLAG(type,flag,action-on-success)  type=C or CXX
 dnl As per bug 2718 gcc might silently ignore -Wno-such-flag, but not -Wsuch-flag
 dnl XXX: Probably sufficient to just probe for -Wsuch-flag (but lie in AC_MSG_CHECKING)
 AC_DEFUN([GASNET_TRY_WNO_FLAG],[
         ]GASNET_TRY_[$1]FLAG[([$2],
             ]GASNET_TRY_[$1]FLAG[(patsubst([$2],[Wno-],[W]),[$3]))])
+
+dnl GASNET_GET_GNUWARNINGFLAGS(type)  type=C or CXX
+AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
+        ]GASNET_TRY_[$1]FLAG[([${gcc_flag_prefix}-Wall],
+                              [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wall"])
+         GASNET_TRY_WNO_FLAG([$1],[${gcc_flag_prefix}-Wno-unused],
+                             [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wno-unused"])
+         GASNET_TRY_WNO_FLAG([$1],[${gcc_flag_prefix}-Wno-address],
+                             [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wno-address"])
+        ]GASNET_TRY_[$1]FLAG[([${gcc_flag_prefix}-Wpointer-arith],
+                              [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wpointer-arith"])
+        ]GASNET_TRY_[$1]FLAG[([${gcc_flag_prefix}-Wnested-externs],
+                              [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wnested-externs"])
+        ]GASNET_TRY_[$1]FLAG[([${gcc_flag_prefix}-Wwrite-strings],
+                              [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wwrite-strings"])
+        ]GASNET_TRY_[$1]FLAG[([${gcc_flag_prefix}-Wmissing-format-attribute],
+                              [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wmissing-format-attribute"])
+	if test "$use_pthreads" != "no" ; then
+        # some crappy pthread mutex implementations generate warnings without -Wno-missing-braces
+	AC_MSG_CHECKING(for buggy pthread.h mutex initializers)
+        old[$1]FLAGS="$[$1]FLAGS"
+        # FREEBSD requires the -pthread compiler flag when including pthread.h
+        case "$target_os" in 
+          freebsd*) [$1]FLAGS="-pthread $[$1]FLAGS" ;;
+        esac 
+        ]GASNET_TRY_[$1]COMPILE_WITHWARN[([#include <pthread.h>],
+          [pthread_mutex_t fastmutex = PTHREAD_MUTEX_INITIALIZER;],
+          [AC_MSG_RESULT(ok)], [AC_MSG_RESULT(buggy)
+           GASNET_TRY_WNO_FLAG([$1],[${gcc_flag_prefix}-Wno-missing-braces],
+                               [old[$1]FLAGS="$old[$1]FLAGS ${gcc_flag_prefix}-Wno-missing-braces"])],
+          [#bug611: ignore failures here, which may be due to broken/missing pthreads support
+           #AC_MSG_ERROR(failure while checking for buggy pthread.h mutexes)
+	   AC_MSG_RESULT(failure - ignored)
+          ]
+        )
+        [$1]FLAGS="$old[$1]FLAGS"
+	fi
+        case "$target_os" in 
+          solaris*) # hide pragma warnings in system header files included by absolute path
+            GASNET_TRY_WNO_FLAG([$1],[-Wno-unknown-pragmas],[[$1]FLAGS="$[$1]FLAGS -Wno-unknown-pragmas"])
+        esac
+        #]GASNET_TRY_[$1]FLAG[([-ansi -U__STRICT_ANSI__],[[$1]FLAGS="$[$1]FLAGS -ansi -U__STRICT_ANSI__"])
+])
+
+### 
+#
+# choose the default CC flags
+# NOTE: we intentionally *overwrite* CFLAGS with reasonable, well-tested values, 
+# to avoid picking up bad default flags from AC_PROG_CC or the default user environment
+# Users who want to insert a specific compiler flag for all builds should append it to $CC
 
 case "$CC_FAMILY" in
   GNU)  GASNET_PUSHVAR(CFLAGS,"-O3")
@@ -371,49 +414,6 @@ case "$CC_FAMILY" in
   *)    CCOPTFLAGS="-O" ;;
 esac
 AC_SUBST(SEPARATE_CC)
-
-dnl GASNET_GET_GNUWARNINGFLAGS(type)  type=C or CXX
-AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
-        ]GASNET_TRY_[$1]FLAG[([${gcc_flag_prefix}-Wall],
-                              [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wall"])
-         GASNET_TRY_WNO_FLAG([$1],[${gcc_flag_prefix}-Wno-unused],
-                             [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wno-unused"])
-         GASNET_TRY_WNO_FLAG([$1],[${gcc_flag_prefix}-Wno-address],
-                             [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wno-address"])
-        ]GASNET_TRY_[$1]FLAG[([${gcc_flag_prefix}-Wpointer-arith],
-                              [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wpointer-arith"])
-        ]GASNET_TRY_[$1]FLAG[([${gcc_flag_prefix}-Wnested-externs],
-                              [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wnested-externs"])
-        ]GASNET_TRY_[$1]FLAG[([${gcc_flag_prefix}-Wwrite-strings],
-                              [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wwrite-strings"])
-        ]GASNET_TRY_[$1]FLAG[([${gcc_flag_prefix}-Wmissing-format-attribute],
-                              [[$1]FLAGS="$[$1]FLAGS ${gcc_flag_prefix}-Wmissing-format-attribute"])
-	if test "$use_pthreads" != "no" ; then
-        # some crappy pthread mutex implementations generate warnings without -Wno-missing-braces
-	AC_MSG_CHECKING(for buggy pthread.h mutex initializers)
-        old[$1]FLAGS="$[$1]FLAGS"
-        # FREEBSD requires the -pthread compiler flag when including pthread.h
-        case "$target_os" in 
-          freebsd*) [$1]FLAGS="-pthread $[$1]FLAGS" ;;
-        esac 
-        ]GASNET_TRY_[$1]COMPILE_WITHWARN[([#include <pthread.h>],
-          [pthread_mutex_t fastmutex = PTHREAD_MUTEX_INITIALIZER;],
-          [AC_MSG_RESULT(ok)], [AC_MSG_RESULT(buggy)
-           GASNET_TRY_WNO_FLAG([$1],[${gcc_flag_prefix}-Wno-missing-braces],
-                               [old[$1]FLAGS="$old[$1]FLAGS ${gcc_flag_prefix}-Wno-missing-braces"])],
-          [#bug611: ignore failures here, which may be due to broken/missing pthreads support
-           #AC_MSG_ERROR(failure while checking for buggy pthread.h mutexes)
-	   AC_MSG_RESULT(failure - ignored)
-          ]
-        )
-        [$1]FLAGS="$old[$1]FLAGS"
-	fi
-        case "$target_os" in 
-          solaris*) # hide pragma warnings in system header files included by absolute path
-            GASNET_TRY_WNO_FLAG([$1],[-Wno-unknown-pragmas],[[$1]FLAGS="$[$1]FLAGS -Wno-unknown-pragmas"])
-        esac
-        #]GASNET_TRY_[$1]FLAG[([-ansi -U__STRICT_ANSI__],[[$1]FLAGS="$[$1]FLAGS -ansi -U__STRICT_ANSI__"])
-])
 
 case "$CC_FAMILY" in
   GNU)  GASNET_PUSHVAR(CFLAGS,"${gcc_flag_prefix}-g3")
