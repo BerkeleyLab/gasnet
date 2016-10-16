@@ -1,5 +1,6 @@
+PERL ?= perl
 CONDUIT_DIR=$(TOP_BUILDDIR)/gasnet/$(NETWORK)-conduit
-STRICT_PROTO_FLAGS=`echo $$BUPC_STRICT_PROTO_FLAGS | sed -e 's/-Wc,//'`
+STRICT_PROTO_FLAGS=`echo $$BUPC_STRICT_PROTO_FLAGS | $(PERL) -pe 's/-Wc,//'`
 
 testcxx-%: force
 	@if test -n "`$(UPCC) --network=udp --echo-var UPCR_LD 2>/dev/null`"; then \
@@ -12,8 +13,8 @@ testcxx-%: force
 # One rule to rule them all
 # test(.*)(_.*)?-(seq|par|parsync) gets made as test$1-$3 into executable test$1 and copied to $0
 test%: force
-	@makename=`echo $@ | perl -pe 's/_.*-(seq|par|parsync)$$/-$$1/'`; \
-	 cmdname=`echo $@ | perl -pe 's/(_.*)?-(seq|par|parsync)$$//'`; \
+	@makename=`echo $@ | $(PERL) -pe 's/_.*-(seq|par|parsync)$$/-$$1/'`; \
+	 cmdname=`echo $@ | $(PERL) -pe 's/(_.*)?-(seq|par|parsync)$$//'`; \
 	 echo "$$makename => $$cmdname => $@" ; set -x ; \
          $(MAKE) -C $(CONDUIT_DIR) $$makename MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)" && \
          cp -f $(CONDUIT_DIR)/$$cmdname$(EXESUFFIX) $@$(EXESUFFIX)
