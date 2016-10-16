@@ -9,25 +9,14 @@ testcxx-%: force
 	   echo '#!/bin/sh' > $@ ; chmod +x $@;                                  \
 	 fi
 
-testbarrierconf_%-seq: force
-	@$(MAKE) -C $(CONDUIT_DIR) testbarrierconf-seq MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)"
-	cp -f $(CONDUIT_DIR)/testbarrierconf$(EXESUFFIX) $@$(EXESUFFIX)
-
-testbarrierconf_%-par: force
-	@$(MAKE) -C $(CONDUIT_DIR) testbarrierconf-par MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)"
-	cp -f $(CONDUIT_DIR)/testbarrierconf$(EXESUFFIX) $@$(EXESUFFIX)
-
-test%-seq: force
-	@$(MAKE) -C $(CONDUIT_DIR) $@ MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)"
-	cp -f $(CONDUIT_DIR)/`basename $@ -seq`$(EXESUFFIX) $@$(EXESUFFIX)
-
-test%-par: force
-	@$(MAKE) -C $(CONDUIT_DIR) $@ MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)"
-	cp -f $(CONDUIT_DIR)/`basename $@ -par`$(EXESUFFIX) $@$(EXESUFFIX)
-
-test%-parsync: force
-	@$(MAKE) -C $(CONDUIT_DIR) $@ MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)"
-	cp -f $(CONDUIT_DIR)/`basename $@ -parsync`$(EXESUFFIX) $@$(EXESUFFIX)
+# One rule to rule them all
+# test(.*)(_.*)?-(seq|par|parsync) gets made as test$1-$3 into executable test$1 and copied to $0
+test%: force
+	@makename=`echo $@ | perl -pe 's/_.*-(seq|par|parsync)$$/-$$1/'`; \
+	 cmdname=`echo $@ | perl -pe 's/(_.*)?-(seq|par|parsync)$$//'`; \
+	 echo "$$makename => $$cmdname => $@" ; set -x ; \
+         $(MAKE) -C $(CONDUIT_DIR) $$makename MANUAL_CFLAGS="$(STRICT_PROTO_FLAGS)" && \
+         cp -f $(CONDUIT_DIR)/$$cmdname$(EXESUFFIX) $@$(EXESUFFIX)
 
 testconduitspecific: force
 	@if test "$(NETWORK)" = "mpi" ; then 	\
