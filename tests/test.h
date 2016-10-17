@@ -80,11 +80,18 @@ GASNETT_BEGIN_EXTERNC
      msgeval - expression which is evaluated in a critical section, 
                immediately before each message output (or 0 for none)
  */
+#if PLATFORM_COMPILER_PATHSCALE
+  typedef void (*_testformatter_fn_t)(const char *format, ...);
+  #define BUG3343_WORKAROUND(expr) ((_testformatter_fn_t)(expr))
+#else
+  #define BUG3343_WORKAROUND(expr) expr
+#endif
 #define test_makeMsg(baseformatargs, msgpred, isfatal, msgeval)     \
+  BUG3343_WORKAROUND(                                               \
   ( _test_makeErrMsg baseformatargs ,                               \
     ( (msgpred) ? (void)(msgeval) : (void)(_test_squashmsg = 1) ) , \
     (void)(_test_fatalmsg = (isfatal)),                             \
-    _test_doErrMsg )
+    _test_doErrMsg ) )
 
 /* define several useful messaging macros */
 static int test_errs = 0;
