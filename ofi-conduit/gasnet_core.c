@@ -12,6 +12,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <signal.h>
+#include <time.h>
 
 #include <gasnet_ofi.h>
 
