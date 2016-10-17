@@ -87,7 +87,7 @@ static int id = 0;
     }
   }
 #else
-  #define auxseg_test()   TEST_HEADER("auxseg test - SKIPPED")
+  #define auxseg_test()   TEST_HEADER("auxseg test - SKIPPED") do { } while(0)
 #endif
 
 static void mutex_test(int id);
