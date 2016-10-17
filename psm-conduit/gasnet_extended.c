@@ -288,12 +288,14 @@ static void gasnete_put_nbi_inner (gasnet_node_t node, void *dest, void *src,
 
     gasneti_assert(node < gasneti_nodes);
 
+#if 0 // Disabled due to bug 3342
     if(nbytes >= gasnetc_psm_state.long_msg_threshold) {
             op->initiated_put_cnt++;
         gasnete_put_long(node, dest, src, nbytes,
                 (gasnet_handle_t)op GASNETE_THREAD_PASS);
         return;
     }
+#endif
 
     GASNETC_PSM_LOCK();
     while(bytes_remaining > mtu_size) {
@@ -430,11 +432,13 @@ extern gasnet_handle_t gasnete_put_nb_inner(gasnet_node_t node, void *dest,
 
     gasneti_assert(node < gasneti_nodes);
 
+#if 0 // Disabled due to bug 3342
     if(nbytes >= gasnetc_psm_state.long_msg_threshold) {
         gasnete_put_long(node, dest, src, nbytes,
                 (gasnet_handle_t)op GASNETE_THREAD_PASS);
         return (gasnet_handle_t)op;
     }
+#endif
 
     GASNETC_PSM_LOCK();
     while(bytes_remaining > mtu_size) {
