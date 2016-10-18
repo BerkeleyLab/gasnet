@@ -10,7 +10,8 @@ GASNet ChangeLog
 * Intel OmniPath PSM2 (psm-conduit)
   - Improved handling of multi-threaded and abnormal exits
   - Support for PSHM supernode size less than procs/node
-  - Work-around bugs 3333 and 3340
+  - Fix bug 3340 - Assertion failure at gasnete_op_markdone()
+  - Work-around bugs 3333 and 3342
 
 * Mellanox ConnectX series HCAs (mxm-conduit)
   - Enable zero copy in bulk put operations
