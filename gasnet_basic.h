@@ -210,6 +210,23 @@
   #define GASNETI_PRAGMA(x) _Pragma ( #x )
 #endif
 
+#if (GASNETI_COMPILER_IS_CC && GASNETI_HAVE_CC_PRAGMA_GCC_DIAGNOSTIC) || \
+    (GASNETI_COMPILER_IS_MPI_CC && GASNETI_HAVE_MPI_CC_PRAGMA_GCC_DIAGNOSTIC) || \
+    (GASNETI_COMPILER_IS_CXX && GASNETI_HAVE_CXX_PRAGMA_GCC_DIAGNOSTIC)
+  #define GASNETI_USE_PRAGMA_GCC_DIAGNOSTIC 1
+  #define GASNETI_BEGIN_NOWARN                                          \
+          GASNETI_PRAGMA(GCC diagnostic push)                           \
+          GASNETI_PRAGMA(GCC diagnostic ignored "-Wunused-function")    \
+          GASNETI_PRAGMA(GCC diagnostic ignored "-Wunused-variable")    \
+          GASNETI_PRAGMA(GCC diagnostic ignored "-Wunused-value")       \
+          GASNETI_PRAGMA(GCC diagnostic ignored "-Wunused") 
+  #define GASNETI_END_NOWARN  \
+          GASNETI_PRAGMA(GCC diagnostic pop)
+#else
+  #define GASNETI_BEGIN_NOWARN
+  #define GASNETI_END_NOWARN 
+#endif
+
 /* If we have recognized the compiler, pick up its attribute support */
 #if GASNETI_COMPILER_IS_CC && GASNETI_HAVE_CC_ATTRIBUTE
   #define GASNETI_HAVE_GCC_ATTRIBUTE 1

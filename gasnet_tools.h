@@ -58,6 +58,9 @@
 #define GASNETT_RELEASE_VERSION_PATCH GASNET_RELEASE_VERSION_PATCH
 
 #include <gasnet_basic.h>
+
+GASNETI_BEGIN_NOWARN
+
 #include <gasnet_toolhelp.h>
 
 /* allow conduit-specific tool helpers (eg elan timers) */
@@ -648,6 +651,7 @@ static int *gasnett_linkconfig_idiotcheck(void)
 
 /* ------------------------------------------------------------------------------------ */
 
+GASNETI_END_NOWARN
 GASNETI_END_EXTERNC
 
 #undef _IN_GASNET_TOOLS_H

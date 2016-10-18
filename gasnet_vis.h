@@ -10,6 +10,7 @@
 #include <gasnetex.h>
 
 GASNETI_BEGIN_EXTERNC
+GASNETI_BEGIN_NOWARN
 
 /*---------------------------------------------------------------------------------*/
 GASNETI_INLINE(gasnete_memveclist_totalsz)
@@ -724,6 +725,7 @@ void _gasnet_gets_nbi_bulk(void *dstaddr, const size_t dststrides[],
 
 /*---------------------------------------------------------------------------------*/
 
+GASNETI_END_NOWARN
 GASNETI_END_EXTERNC
 
 #endif

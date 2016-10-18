@@ -1380,6 +1380,26 @@ AC_DEFUN([GASNET_GET_GNU_ATTRIBUTES],[
       AC_DEFINE([$1]_ATTRIBUTE_UNUSED_TYPEDEF, 0)
   fi
   popdef([cachevar])
+
+  pushdef([cachevar],cv_prefix[]translit([$1],'A-Z','a-z')[]_pragma_gcc_diagnostic)
+  AC_CACHE_CHECK($2 for pragma GCC diagnostic push/pop/ignored, cachevar,
+    # Note we're not checking whether the pragma actually *does* anything,
+    # we only care that it doesn't generate new warnings, ie silently ignored is fine for our purposes
+    GASNET_TRY_COMPILE_WITHWARN(GASNETI_C_OR_CXX([$1]), [
+          _Pragma("GCC diagnostic push")
+	  _Pragma("GCC diagnostic ignored \"-Wunused\"")
+	  static int foo = 5;
+	  static void bar(void) { }
+          _Pragma("GCC diagnostic pop")
+      ], [
+      ], [ cachevar='yes' ],[ cachevar='no/warning' ],[ cachevar='no/error' ])
+  )
+  if test "$cachevar" = yes; then
+      AC_DEFINE([$1]_PRAGMA_GCC_DIAGNOSTIC)
+  else
+      AC_DEFINE([$1]_PRAGMA_GCC_DIAGNOSTIC, 0)
+  fi
+  popdef([cachevar])
 ])
 
 dnl  Check to see if __thread attribute exists and works

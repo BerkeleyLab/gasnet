@@ -16,6 +16,7 @@
 #include <gasnet_tools.h>
 
 GASNETI_BEGIN_EXTERNC
+GASNETI_BEGIN_NOWARN
 
 #include <gasnet_syncops.h>
 
@@ -696,6 +697,7 @@ extern void gasneti_nodemapFini(void);
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+GASNETI_END_NOWARN
 GASNETI_END_EXTERNC
 
 #undef _IN_GASNET_INTERNAL_H

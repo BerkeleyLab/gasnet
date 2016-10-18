@@ -11,7 +11,7 @@
 #include <gasnet_tools.h>
 
 GASNETI_BEGIN_EXTERNC
-
+GASNETI_BEGIN_NOWARN
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -435,6 +435,8 @@ gasnetex_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handl
 #define gasnet_wait_syncnbi_puts() gasnetex_wait_syncnbi_puts()
 #define gasnet_wait_syncnbi_all()  gasnetex_wait_syncnbi_all ()
 
+/* ------------------------------------------------------------------------------------ */
+GASNETI_END_NOWARN
 GASNETI_END_EXTERNC
 
 #endif
