@@ -1,7 +1,7 @@
 GASNet ChangeLog 
 ----------------
 ----------------------------------------------------------------------
-10-xx-2016 : Release 1.28.0-RC13
+10-21-2016 : Release 1.28.0-RC14
 
 * Cray uGNI (gemini- and aries-conduits)
   - Updated instructions for configuring with SLURM's srun
@@ -10,9 +10,11 @@ GASNet ChangeLog
 * Intel OmniPath PSM2 (psm-conduit)
   - Improved handling of multi-threaded and abnormal exits
   - Support for PSHM supernode size less than procs/node
+  - Work-around bugs 3333 and 3340
 
 * Mellanox ConnectX series HCAs (mxm-conduit)
   - Enable zero copy in bulk put operations
+  - Fix bug 3344 - mxm-seq link failures
 
 * InfiniBand Verbs (ibv-conduit)
   - Fixed error in default barrier exposed by libverbs on Omni-Path HCAs
@@ -42,6 +44,8 @@ GASNet ChangeLog
     + Suppress benign (or incorrect) warnings from recent CCE compilers
   - PGI Compilers
     + Fix bug 3324 by working around a bug in pgcc-16.4 and newer.
+  - Pathscale/Ekopath Compilers
+    + Fix bug 3343 by working around a bug in version 5.x compilers
   - GNU Autotools
     + Fix bug 3285 - issues with recent automake versions
   - Intel Second Generation Xeon Phi (aka Knights Landing)
