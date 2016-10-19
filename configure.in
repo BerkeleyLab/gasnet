@@ -1401,7 +1401,7 @@ if test "$enabled_pshm" != no; then
      esac
    ])
  if expr "$enabled_pshm_posix@$target_os" : "yes@darwin" >/dev/null; then
-   GASNET_MSG_ERROR([User requested --enable-pshm-posix but POSIX shared memory support is not permitted on Mac OS X.])
+   GASNET_MSG_WARN([User requested --enable-pshm-posix but POSIX shared memory support is not stable on Mac OS X.])
    dnl We can crash Macs!  See bug 2629.
  fi
  if test "$enabled_pshm_posix$with_pshm" = yesno; then
