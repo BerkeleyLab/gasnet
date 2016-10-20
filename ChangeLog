@@ -1,7 +1,7 @@
 GASNet ChangeLog 
 ----------------
 ----------------------------------------------------------------------
-10-21-2016 : Release 1.28.0-RC14
+10-21-2016 : Release 1.28.0-RC15
 
 * Cray uGNI (gemini- and aries-conduits)
   - Updated instructions for configuring with SLURM's srun
