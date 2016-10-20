@@ -97,6 +97,19 @@ Known problems:
   PSM2, or if you apply a patch (in the bug report) that works-around the
   problem (at the cost of reduced performance).
 
+* Bug 3342
+  This release disables the "put_long" protocol previously used for Puts
+  over some threshold, which defaults to 16KB.  This results in a significant
+  reduction in performance, but is preferred to the alternative of sometimes
+  producing incorrect results.  Intel is actively working on correcting the
+  "put_long" protocol for a future patch release to restore the previous
+  level of performance without sacrificing correctness.
+  The most up-to-date information on this bug is maintained at:
+    http://upc-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3342
+  Until this issue can be resolved, users of Omni-Path networks may wish to
+  consider use of ofi-conduit (with libfabric's psm2 provider) as an
+  alternative to psm-conduit if performance of Puts over 16KB is critical
+  to your application.
 
 Future work:
 ------------

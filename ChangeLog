@@ -12,6 +12,11 @@ GASNet ChangeLog
   - Support for PSHM supernode size less than procs/node
   - Fix bug 3340 - Assertion failure at gasnete_op_markdone()
   - Work-around bugs 3333 and 3342
+    Note that the work-around for bug 3342 has resulted in a loss
+    of performance for Puts larger than 16KB, relative to previous
+    releases.  We are actively working to restore the prior level
+    of performance in a future patch release.  Please see
+    psm-conduit/README for more detailed information.
 
 * Mellanox ConnectX series HCAs (mxm-conduit)
   - Enable zero copy in bulk put operations
