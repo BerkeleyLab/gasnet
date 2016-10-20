@@ -100,6 +100,7 @@ See also:
    Linux-Altix: smp, shmem
    Windows/Cygwin: smp+pthreads
    Mac OS X: smp+pthreads
+  SEGMENT_EVERYTHING shoul dbe tested on all condiut supporting it.
   In most cases these test will be conducted as part of Berkeley UPC's
   release testing (the "gasnet-tests" suite of the BUPC test harness).
 
@@ -123,8 +124,6 @@ See also:
   The use of the URL for anonymous access to BitBucket is INTENTIONAL,
   so that you cannot accidentally commit the re-writes done by the
   "-o" option to ./Bootstrap.
-
-* Merge with Titanium and test SEGMENT_EVERYTHING functionality 
 
 * Iterate the appropriate steps above until you have final release
   tarballs for both GASNet and GASNet_Tools
