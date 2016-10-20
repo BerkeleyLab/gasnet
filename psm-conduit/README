@@ -87,7 +87,7 @@ Known problems:
   process-shared memory (PSHM) support is not in use, as can happen if PSHM
   was disabled at configure time or has been limited to subsets of processes
   by setting GASNET_SUPERNODE_MAXSIZE.  Under those conditions, you will
-  receive an error mesage which directs you here.
+  receive an error message which directs you here.
   The most up-to-date information on this bug is maintained at:
     http://upc-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3333
   If, after reviewing that bug report, you wish to run psm-conduit over the
