@@ -12,7 +12,6 @@
 #include <errno.h>
 #include <unistd.h>
 #include <signal.h>
-#include <time.h>
 
 #include <gasnet_ofi.h>
 
@@ -383,14 +382,15 @@ static int gasnetc_exit_coordinate(int exitcode) {
   /* Coordinate using dissemination-pattern, with timeout.
    * lg(N) rounds each of which sends and recvs 1 AM
    */
-  const time_t deadline = time(NULL) + gasnetc_exittimeout;
+  const uint64_t timeout_ns = gasnetc_exittimeout * 1000000000L;
+  const gasneti_tick_t t_start = gasneti_ticks_now();
   for (int distance = 1; distance < gasneti_nodes; distance *= 2) {
     int peer = (gasneti_mynode + distance) % gasneti_nodes;
     int ret = gasnetc_AMRequestShortM(peer, gasneti_handleridx(gasnetc_exit_reqh),
                                       2, exitcode, distance);
     if (ret != GASNET_OK) return 0;
     do { /* wait for completion of the proper receive, which might arrive out of order */
-      if (deadline < time(NULL)) return 0;
+      if (timeout_ns < gasneti_ticks_to_ns(gasneti_ticks_now() - t_start)) return 0;
       gasnetc_AMPoll();
     } while (!(distance & gasneti_atomic_read(&gasnetc_exit_dist, 0)));
   }
