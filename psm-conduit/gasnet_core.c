@@ -971,8 +971,6 @@ GASNETI_COLD
 extern void gasnetc_exit(int exitcode) {
     int i;
     psm2_error_t ret;
-    time_t t_start;
-    time_t t_cur;
 
     /* once we start a shutdown, ignore all future SIGQUIT signals or we risk
      * reentrancy */
@@ -1024,8 +1022,9 @@ extern void gasnetc_exit(int exitcode) {
     }
 
     /* Poll for 60 seconds for at least one exit2 msg, then give up and exit. */
-    for(t_cur = t_start = time(NULL);
-            t_cur - t_start < 60; t_cur = time(NULL)) {
+    const uint64_t timeout_ns = 60 * 1000000000L;
+    const gasneti_tick_t t_start = gasneti_ticks_now();
+    while (gasneti_ticks_to_ns(gasneti_ticks_now() - t_start) < timeout_ns) {
         if (gasnetc_psm_state.exit_in_progress) break;
         gasneti_sched_yield();
         gasnetc_AMPoll();
