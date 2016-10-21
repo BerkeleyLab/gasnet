@@ -207,9 +207,9 @@ Published by LBNL FTG and U.C. Berkeley
 @subtitle Released @value{RELEASEDATE}
 @subtitle $Date: 2008/10/11 04:34:38 $
 @subtitle Printed @today{}
-@subtitle $Revision: 1.44 $ 
+@subtitle $Revision: 1.45 $ 
 @author Editor: Dan Bonachea @email{bonachea@@cs.berkeley.edu}
-@uref{http://gasnet.cs.berkeley.edu/}
+@uref{http://gasnet.lbl.gov}
 
 @c  The following two commands
 @c  start the copyright page.
@@ -253,7 +253,7 @@ window.location.assign(result);
 <br>Editor: <a href="javascript:emailto('bonachea','cs.berkeley.edu')">Dan Bonachea</a>
 @end html
 @end ifhtml
-@*@uref{http://www.cs.berkeley.edu/~bonachea/gasnet}
+@*@uref{http://gasnet.lbl.gov}
 @*@uref{http://upc.lbl.gov/}
 @HR
 @COPYRIGHTTEXT
