@@ -55,15 +55,18 @@ amxdist:
 	@bash -x -c ' \
          VERSION=`grep "#define AMUDP_LIBRARY_VERSION" $(srcdir)/amudp_const.h | head -1 | awk '"'"'{ print $$3 }'"'"'` \
          export VERSION ; \
+	 distdir=amudp$${VERSION} ; \
          echo "+++ Building distribution for AMUDP version $${VERSION} +++" && \
-	 rm -Rf amudp$${VERSION}.tar.gz amudp$${VERSION} && \
-         mkdir amudp$${VERSION} && \
-         cp $(srcdir)/Makefile* $(srcdir)/README* $(srcdir)/*.txt $(srcdir)/*.cpp $(srcdir)/*.c $(srcdir)/*.h $(testdir)/*.[ch]* \
+	 rm -Rf $$distdir.tar.gz $$distdir && \
+         mkdir $$distdir && \
+         cp $(srcdir)/Makefile.* $(srcdir)/README* $(srcdir)/*.txt $(srcdir)/*.cpp $(srcdir)/*.c $(srcdir)/*.h $(testdir)/*.[ch]* \
 	    $(altincdir)/portable_inttypes.h $(altincdir)/portable_platform.h \
-	    amudp$${VERSION} && \
-         rm -f amudp$${VERSION}/Makefile.in amudp$${VERSION}/Makefile.titanium && \
-         mv amudp$${VERSION}/Makefile.standalone amudp$${VERSION}/Makefile && \
-         tar -cvhf amudp$${VERSION}.tar amudp$${VERSION} && gzip -9 amudp$${VERSION}.tar && \
-         rm -Rf amudp$${VERSION} && \
-         echo "+++ amudp$${VERSION}.tar.gz is ready for distribution +++" \
+	    $$distdir && \
+	 cd $$distdir && \
+	 rm -f Makefile.in Makefile.am Makefile.titanium* && \
+         mv Makefile.standalone Makefile && \
+	 cd .. && \
+         tar -cvhf $$distdir.tar $$distdir && gzip -9 $$distdir.tar && \
+         rm -Rf $$distdir && \
+         echo "+++ $$distdir.tar.gz is ready for distribution +++" \
         '

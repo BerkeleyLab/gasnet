@@ -83,9 +83,6 @@ libamudp_a_SOURCES = \
 libamudp_a_DEPENDENCIES = $(libamudp_a_SOURCES:%.cpp=%.o) $(libamudp_a_SOURCES:%.c=%.o)
 
 EXTRA_DIST = \
-	Makefile.common 	\
-	Makefile.generic 	\
-	Makefile.standalone 	\
 	Makefile.tests  	\
 	Makefile.titanium.in 	\
 	amudprun.c              \
