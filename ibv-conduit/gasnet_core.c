@@ -2742,7 +2742,7 @@ static void gasnetc_exit_reduce_reqh(gasnetex_token_t token,
     /* atomic OR via C-A-S */
     uint32_t old_val;
     do {
-      old_val = gasneti_atomic32_read(&gasnetc_exit_dist, 0);
+      old_val = gasneti_atomic_read(&gasnetc_exit_dist, 0);
     } while (!gasneti_atomic_compare_and_swap(&gasnetc_exit_dist,
                                                old_val, old_val|distance,
                                                GASNETI_ATOMIC_REL));
