@@ -34,6 +34,9 @@ int main(int argc, char **argv) {
     printf("Running %i iterations of read/write test...\n", iters);
     fflush(stdout);
   }
+  printf("%i: WARNING: The correctness of this test relies upon uniform loading for the static data segment. "
+         "It may not run correctly on platforms with address space randomization. %p\n",myproc,&vals[0]); fflush(stdout);
+
 
   for (k=0;k < iters; k++) {
     /* set left neighbor's array */

@@ -1,0 +1,13 @@
+#   $Source: bitbucket.org:berkeleylab/gasnet.git/other/ammpi/Makefile.darwin $
+# Description: Darwin Makefile fragment
+# Copyright 2000, Dan Bonachea <bonachea@cs.berkeley.edu>
+
+# additional defines required to build on this platform
+platform_defines = 
+
+# additional linker flags required to build on this platform
+# Bug 3353: test{getput,readwrite} assume a uniform address space, disable darwin randomization
+platform_ldflags = -Wl,-no_pie
+
+# additional libraries and/or library directories
+platform_libraries =
