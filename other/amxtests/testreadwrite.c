@@ -7,6 +7,9 @@
 
 #define MAX_PROCS 255
 static uint32_t vals[MAX_PROCS];
+uint32_t *myvals = vals;
+uint32_t *pvals[MAX_PROCS];
+
 static uint32_t readarray[MAX_PROCS];
 
 int main(int argc, char **argv) {
@@ -34,16 +37,16 @@ int main(int argc, char **argv) {
     printf("Running %i iterations of read/write test...\n", iters);
     fflush(stdout);
   }
-  printf("%i: WARNING: The correctness of this test relies upon uniform loading for the static data segment. "
-         "It may not run correctly on platforms with address space randomization. %p\n",myproc,&vals[0]); fflush(stdout);
 
+  /* gather pointers to static data, to handle non-uniform address spaces */
+  AM_Safe(AMX_SPMDAllGather(&myvals, pvals, sizeof(myvals))); 
 
   for (k=0;k < iters; k++) {
     /* set left neighbor's array */
     int i;
     int leftP = myproc-1;
     if (leftP == -1) leftP = numprocs-1;
-    for (i=0;i<MAX_PROCS;i++) writeWord(leftP, &vals[i], k);
+    for (i=0;i<MAX_PROCS;i++) writeWord(leftP, pvals[leftP]+i, k);
     writeSync();
 
     AM_Safe(AMX_SPMDBarrier()); /* barrier */
@@ -53,7 +56,7 @@ int main(int argc, char **argv) {
       int rightP = myproc+1;
       if (rightP == numprocs) rightP = 0;
 
-      for (i=0;i<MAX_PROCS;i++) readWord(&readarray[i], rightP, &vals[i]);
+      for (i=0;i<MAX_PROCS;i++) readWord(&readarray[i], rightP, pvals[rightP]+i);
       readSync();
 
       /* verify */

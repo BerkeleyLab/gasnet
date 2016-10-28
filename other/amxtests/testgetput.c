@@ -7,6 +7,8 @@
 
 #define MAX_PROCS 255
 static uint32_t vals[MAX_PROCS];
+uint32_t *myvals = vals;
+uint32_t *pvals[MAX_PROCS];
 
 int main(int argc, char **argv) {
   eb_t eb;
@@ -32,8 +34,9 @@ int main(int argc, char **argv) {
     printf("Running %i iterations of get/put test...\n", iters);
     fflush(stdout);
   }
-  printf("%i: WARNING: The correctness of this test relies upon uniform loading for the static data segment. "
-         "It may not run correctly on platforms with address space randomization. %p\n",myproc,&vals[0]); fflush(stdout);
+
+  /* gather pointers to static data, to handle non-uniform address spaces */
+  AM_Safe(AMX_SPMDAllGather(&myvals, pvals, sizeof(myvals))); 
 
   for (k=0;k < iters; k++) {
     /* set just my val */
@@ -48,7 +51,7 @@ int main(int argc, char **argv) {
       int sum = 0;
       int verify = 0;
       for (i = 0; i < numprocs; i++) {
-        sum += getWord(i, &vals[i]); /*  get each peer's value and add them up */
+        sum += getWord(i, pvals[i]+i); /*  get each peer's value and add them up */
         verify += i;
       }
       if (verify != sum) {
@@ -68,7 +71,7 @@ int main(int argc, char **argv) {
     { /* try some puts */
       int i;
       for (i = 0; i < numprocs; i++) {
-        putWord(i, &vals[myproc], myproc); /*  push our value to correct position on each peer */
+        putWord(i, pvals[i]+myproc, myproc); /*  push our value to correct position on each peer */
       }
       AM_Safe(AMX_SPMDBarrier()); /* barrier */
       for (i = 0; i < numprocs; i++) {
