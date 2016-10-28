@@ -973,10 +973,12 @@
 #elif SIZEOF_VOID_P == 4
   #define PLATFORM_ARCH_32 1
 #elif defined(_LP64) || defined(__LP64__) || \
-      defined(__arch64__) || defined(__64BIT__)
+      defined(__arch64__) || defined(__64BIT__) || \
+      __INTPTR_MAX__ > 2147483647
   #define PLATFORM_ARCH_64 1
 #elif defined(_ILP32) || defined(__ILP32__) || \
-      defined(__arch32__) || defined(__32BIT__)
+      defined(__arch32__) || defined(__32BIT__) || \
+      __INTPTR_MAX__ == 2147483647
   #define PLATFORM_ARCH_32 1
 #elif _PLATFORM_ARCH_64
   #define PLATFORM_ARCH_64 1
