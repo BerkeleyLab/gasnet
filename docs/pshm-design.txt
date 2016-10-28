@@ -26,9 +26,9 @@ negative) and would be happy to work with you to improve PSHM.
 To use:
 ------
 In the current release, GASNet's PSHM support is enabled by default only on
-Linux.  On all other platforms, one must pass --enable-pshm if PSHM support
-is desired.  On Linux PSHM can be disabled by passing --disable-pshm at
-configure time.
+Linux and Cygwin, where it can be disabled by passing --disable-pshm at
+configure time.  On all other platforms, one must pass --enable-pshm if
+PSHM support is desired.
 
 The PSHM support in GASNet can operate via three generic mechanisms: POSIX
 shared memory, SystemV shared memory, or mmap()ed disk files.  When PSHM is
@@ -196,10 +196,14 @@ case except that the directory will be the hugetlbfs mount point.  This is
 typically something like /dev/hugepages.  If uncertain of the mount point,
 the command "mount|grep hugetlbfs" should locate it for you.
 
-In the case of POSIX shared memory, the implementation is system-specific.
-In the case of Linux and Solaris, POSIX shared memory objects are visible
-in the file system.  For Linux the default location is /dev/shm and on
-Solaris the default is /tmp.
+The case of POSIX shared memory is OS-specific, but in most cases the
+shared memory objects are visible in the file system.  On systems we use
+for development, we have observed the following defaults:
+* Linux:   located in /dev/shm with a filename prefix of "GASNT"
+* Cygwin:  located in /dev/shm with a filename prefix of "GASNT"
+* Solaris: located in /tmp with a filename prefix of ".SHMDGASNT"
+* OpenBSD: located in /tmp with long random names suffixed by ".shm"
+* NetBSD:  located in /var/shm with a filename prefix of ".shmobj_GASNT"
 
 Scope:
 -----
