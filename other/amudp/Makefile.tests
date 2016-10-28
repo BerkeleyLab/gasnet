@@ -2,8 +2,8 @@
 TESTLOG=`pwd`/.test-results
 TEST_LINE=++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 AMUDP_RUNCMD_EXP=\
-      TEST_RUN_P=`echo "$$TEST_RUN" | sed 's/ .*$$//'`  \
-      TEST_RUN_A=`echo "$$TEST_RUN" | sed 's/^[^ ]* //'` \
+      TEST_RUN_P=`echo "$$TEST_RUN" | sed 's/ .*$$//'`  ; \
+      TEST_RUN_A=`echo "$$TEST_RUN" | sed 's/^[^ ]* //'` ; \
       TEST_DOIT="$$TEST_RUN"
 TEST_RUNCMD= ; $(AMUDP_RUNCMD_EXP) ; 				\
 	 testname=`basename $$TEST_RUN_P` ;                     \
@@ -33,7 +33,7 @@ TEST_DUPLEX=H
 AMUDP_NETWORKDEPTH=$(TEST_DEPTH)
 
 run-tests: tests
-	@rm -f .test-results ; touch $(TESTLOG)
+	@rm -f $(TESTLOG) ; touch $(TESTLOG)
 	@echo $(TEST_LINE)
 	@echo  Running AMUDP tests...
 	@echo  If this fails to spawn a job, you may need to re-run with a
@@ -49,6 +49,7 @@ run-tests: tests
 	@TEST_RUN="./testgetput $(TEST_NODES) $(TEST_SPAWNFN)  $(TEST_ITERS)" $(TEST_RUNCMD)
 	@TEST_RUN="./testreadwrite $(TEST_NODES) $(TEST_SPAWNFN)  $(TEST_ITERS)" $(TEST_RUNCMD)
 	@echo TESTS COMPLETE
+	@cat $(TESTLOG) ; rm -f $(TESTLOG)
 
 # make a distribution
 amxdist:
