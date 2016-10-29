@@ -132,7 +132,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     propagated to the application processes.
   + A list of hosts is specified using one of the GASNET_SSH_NODEFILE,
     GASNET_SSH_SERVERS, or GASNET_NODEFILE environment variables (in
-    order from higest precedence to lowest).
+    order from highest precedence to lowest).
     If set, the *_NODEFILE variables specify a file with one hostname
     per line.  Blank lines and comment lines (using '#') are ignored.
     If set, the variable GASNET_SSH_SERVERS itself contains a list of
@@ -942,7 +942,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   a handler.
 
   To avoid using up 1/2 our bandwidth in the event of a REQUEST-REQUEST
-  pong-pong, we perform some coalescing to avoid sending too many
+  ping-pong, we perform some coalescing to avoid sending too many
   SYS_ack REPLIES.  We keep up to GASNET_AM_CREDITS_SLACK "banked" on
   the responding node, sending the SYS_ack REPLY only if the number
   banked exceeds this limit.  Credits which are banked get piggybacked
@@ -976,7 +976,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   do even better, never touching the unposted pool at all, by always
   keeping a single thread-local "spare", initially acquired at startup.
 
-  Note that with SRQ is used, no fow control is used.
+  Note that when SRQ is used, no flow control is used.
 
 @ Section: Extended API @
 
@@ -1121,7 +1121,7 @@ tracing and stats gathering and flushes stdout and stderr.  Then _body
 calls gasnetc_exit_reduce() to try to perform a collective reduce-to-all
 over the exit codes.  If this completes within a given timeout then we
 know the exit is collective and skip over the master/slave logic
-decribed in the next 2 paragraphs.
+described in the next 2 paragraphs.
 
 If the reduction does not complete within the timeout, then _body next
 calls gasnetc_get_exit_role() to "elect" a master node for the exit.
