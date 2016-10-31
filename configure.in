@@ -1385,6 +1385,7 @@ GASNET_IF_ENABLED_WITH_AUTO(pshm,
       enabled_pshm=no
       case "$target_os" in
        linux*) enabled_pshm=probe ;;
+       darwin*) enabled_pshm=probe ;;
        cygwin*) if test "$have_cygwin2" = 'yes'; then enabled_pshm=probe; fi ;;
       esac
     fi
@@ -1398,20 +1399,12 @@ if test "$enabled_pshm" != no; then
    [Enable/disable use of POSIX shm_open() for inter-process shared memory support (default is system dependent)],
    [enabled_pshm_posix=yes], [enabled_pshm_posix=no],
    [ # Default is YES except:
-     # + on Darwin due to bug 2629
      # + on BG/Q due to multiple "oddities" in CNK's implementation
      enabled_pshm_posix=yes
-     case "$target_os" in
-       darwin*) enabled_pshm_posix=no ;;
-     esac
      case "$target_vendor" in
        bgq) enabled_pshm_posix=no ;;
      esac
    ])
- if expr "$enabled_pshm_posix@$target_os" : "yes@darwin" >/dev/null; then
-   GASNET_MSG_WARN([User requested --enable-pshm-posix but POSIX shared memory support is not stable on Mac OS X.])
-   dnl We can crash Macs!  See bug 2629.
- fi
  if test "$enabled_pshm_posix$with_pshm" = yesno; then
   # shm_open() might be in libc (e.g. AIX, Darwin) or librt (e.g. Linux, Solaris)
   GASNET_PUSHVAR(LIBS,"$LIBS")

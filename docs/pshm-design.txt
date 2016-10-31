@@ -25,10 +25,10 @@ negative) and would be happy to work with you to improve PSHM.
 
 To use:
 ------
-In the current release, GASNet's PSHM support is enabled by default only on
-Linux and Cygwin, where it can be disabled by passing --disable-pshm at
-configure time.  On all other platforms, one must pass --enable-pshm if
-PSHM support is desired.
+In the current release, GASNet's PSHM support is enabled by default on Linux,
+Mac OS X, and Cygwin; where it can be disabled by passing --disable-pshm at
+configure time.  On all other platforms, one must pass --enable-pshm if PSHM
+support is desired.
 
 The PSHM support in GASNet can operate via three generic mechanisms: POSIX
 shared memory, SystemV shared memory, or mmap()ed disk files.  When PSHM is
@@ -46,7 +46,7 @@ the desired mechanism:
          SYSV: --enable-pshm --disable-pshm-posix --enable-pshm-sysv
          FILE: --enable-pshm --disable-pshm-posix --enable-pshm-file
 
-        On Linux and Cygwin "--enable-pshm" is the default.
+        On Linux, Mac OS X and Cygwin "--enable-pshm" is the default.
         On all other platforms "--disable-pshm" is the default.
 
 There are also implementations which are specific to certain platforms:
@@ -172,6 +172,17 @@ kern.shminfo.shmall=268435456
         Under Cygwin-1.5 you may also need to add "server" to the value
         of the CYGWIN environment variable.  Again, you should see the
         Cygwin documentation for more information on this subject.
+
+Warning to users of Mac OS X:
+-----------------------------
+We have evidence which suggests that there is a kernel bug in all releases of
+Mac OS X though at least 10.12 (Sierra) which leads to a small leak of kernel
+memory (perhaps a few 10s of bytes) each time POSIX or SystemV shared memory
+is used.  This may, after tens of thousands of runs of GASNet applications
+using PSHM, lead to a low memory condition contributing to slow performance
+and eventually to total memory exhaustion.  In normal usage, it is reasonable
+to expect that a Mac laptop or desktop system will be rebooted for software
+updates frequently enough that this leak will not impact normal users.
 
 IMPORTANT, SYSTEM CLEANING:
 --------------------------
@@ -342,11 +353,9 @@ Status:
 * Cray XE, XK and XC platform-specific notes:
   - The Gemini and Aries conduits support PSHM, and the provided cross-
     configure scripts --enable-pshm-xpmem.
-* MacOS X platform-specific notes:
-  - MacOS X with POSIX shared memory is NOT supported because we appear to 
-    trigger a kernel memory leak.
-  - SystemV shared memory is a valid choice:
-       --enable-pshm --enable-pshm-sysv
+* Mac OS X platform-specific notes:
+  - Mac OS X with POSIX and SystemV shared memory appear to trigger a small
+    kernel memory leak (more detail above).
   - Use of mmap()ed files has been seen to cause VERY slow start-up.
 * {Free,Open,Net}BSD platform-specific notes:
   - The current releases of FreeBSD, OpenBSD and NetBSD all support both POSIX
