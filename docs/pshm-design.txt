@@ -341,7 +341,7 @@ Status:
     a wrapper like qsub from ANL's Cobalt suite).
 * Cray XE, XK and XC platform-specific notes:
   - The Gemini and Aries conduits support PSHM, and the provided cross-
-    configure scripts --enable-pshm-hugetlbfs.
+    configure scripts --enable-pshm-xpmem.
 * MacOS X platform-specific notes:
   - MacOS X with POSIX shared memory is NOT supported because we appear to 
     trigger a kernel memory leak.
@@ -349,10 +349,9 @@ Status:
        --enable-pshm --enable-pshm-sysv
   - Use of mmap()ed files has been seen to cause VERY slow start-up.
 * {Free,Open,Net}BSD platform-specific notes:
-  - FreeBSD supports POSIX shared memory and has been well tested
-  - OpenBSD and NetBSD do not support POSIX shared memory, but do
-    support SystemV:
-       --enable-pshm --enable-pshm-sysv
+  - The current releases of FreeBSD, OpenBSD and NetBSD all support both POSIX
+    and SystemV shared memory.  However, older releases of OpenBSD and NetBSD
+    lacked support for POSIX shared memory.
 
 * GASNet conduits known NOT to work:
   - SHMEM conduit does not support PSHM, but there is no reason to think
