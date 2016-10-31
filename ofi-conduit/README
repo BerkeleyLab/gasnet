@@ -25,7 +25,7 @@ in the process of tuning its performance on Intel Omni-Path fabric. If you are l
 obtain the best performance on Intel Omni-Path fabric, please continue to use the PSM
 conduit until we complete our performance optimizations. 
 
-Users with InfiniBand harware should use the GASNet ibv-conduit, as the verbs OFI provider 
+Users with InfiniBand hardware should use the GASNet ibv-conduit, as the verbs OFI provider
 does not yet implement all the capabilities needed by ofi-conduit.
 
 Users with Ethernet hardware are encouraged to consider the GASNet udp-conduit as an alternative
