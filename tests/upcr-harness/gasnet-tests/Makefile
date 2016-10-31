@@ -51,6 +51,10 @@ check-libupcr-exports: force
 	@$(MAKE) -C $(TOP_BUILDDIR) check-exports
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
+check-other: force
+	@$(MAKE) -C $(TOP_BUILDDIR)/gasnet/other check-local
+	@echo '#!/bin/sh' > $@ ; chmod +x $@
+
 force:
 
 .PHONY: force
