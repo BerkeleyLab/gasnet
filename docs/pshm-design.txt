@@ -46,7 +46,7 @@ the desired mechanism:
          SYSV: --enable-pshm --disable-pshm-posix --enable-pshm-sysv
          FILE: --enable-pshm --disable-pshm-posix --enable-pshm-file
 
-        On Linux "--enable-pshm" is the default.
+        On Linux and Cygwin "--enable-pshm" is the default.
         On all other platforms "--disable-pshm" is the default.
 
 There are also implementations which are specific to certain platforms:
