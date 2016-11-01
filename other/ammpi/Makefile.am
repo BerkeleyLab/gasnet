@@ -65,6 +65,7 @@ libammpi_a_DEPENDENCIES = $(libammpi_a_SOURCES:%.c=%.o)
 $(libammpi_a_DEPENDENCIES): $(allheaders)
 
 EXTRA_DIST = \
+        $(headers)              \
 	Makefile.tests  	\
 	Makefile.titanium.in	\
 	license.txt

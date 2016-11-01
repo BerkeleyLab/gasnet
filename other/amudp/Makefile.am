@@ -90,6 +90,7 @@ libamudp_a_DEPENDENCIES = $(libamudp_a_SOURCES:%.cpp=%.o) $(libamudp_a_SOURCES:%
 $(libamudp_a_DEPENDENCIES): $(allheaders)
 
 EXTRA_DIST = \
+        $(headers)              \
 	Makefile.tests  	\
 	Makefile.titanium.in 	\
 	amudprun.c              \
