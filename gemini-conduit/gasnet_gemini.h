@@ -290,16 +290,9 @@ enum {
                                  GC_POST_COMPLETION_SEND)
 
 /* WARNING: if sizeof(gasnetc_post_descriptor_t) changes, then
- * you must update the value in gasneti_pd_auxseg_IdentString */
+ * you must update the value of GASNETC_SIZEOF_GDP below */
 struct gasnetc_post_descriptor {
-  gni_post_descriptor_t pd; /* must be first */
-  #define gpd_completion pd.post_id
-  #define gpd_get_src    pd.first_operand
-  #define gpd_get_dst    pd.second_operand
-  #define gpd_am_header  pd.sync_flag_value
-  #define gpd_am_packet  pd.local_addr
-  #define gpd_am_peer    pd.first_operand
-  union {
+  union { /* must be first for alignment */
     uint8_t immediate[GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE];
     gasneti_weakatomic_t counter;
     gasnetc_notify_t notify;
@@ -310,11 +303,21 @@ struct gasnetc_post_descriptor {
     udreg_entry_t *udreg_entry;
   #endif
   } u;
+  gni_post_descriptor_t pd;
+  #define gpd_completion pd.post_id
+  #define gpd_get_src    pd.first_operand
+  #define gpd_get_dst    pd.second_operand
+  #define gpd_am_header  pd.sync_flag_value
+  #define gpd_am_packet  pd.local_addr
+  #define gpd_am_peer    pd.first_operand
   uint32_t flags;
 #if GASNETC_USE_MULTI_DOMAIN
   int domain_idx;
 #endif
 };
+
+/* This should be ALIGNUP(sizeof(gasnetc_post_descriptor_t), 64) */
+#define GASNETC_SIZEOF_GDP 320
 
 gasnetc_post_descriptor_t *gasnetc_alloc_post_descriptor(GASNETC_DIDX_FARG_ALONE) GASNETI_MALLOC;
 

@@ -8,6 +8,15 @@
 #include <signal.h>
 #include <string.h>
 
+#ifndef container_of
+/* Convert from address of a member to address of the containing structure
+ * ptr = member pointer
+ * type = container's type
+ * field = member's field name
+ */
+  #define container_of(ptr,type,field) ((type*) ((uintptr_t)(ptr) - offsetof(type,field)))
+#endif
+
 #define GASNETC_NETWORKDEPTH_SPACE_DEFAULT (12*1024)
 #define GASNETC_NETWORKDEPTH_TOTAL_DEFAULT 64
 
@@ -1869,8 +1878,7 @@ gasnetc_post_descriptor_t *gasnetc_poll_bound_cq(GASNETC_DIDX_FARG_ALONE)
   }
   GASNETC_UNLOCK_GNI();
 
-  /* NOTE: we rely here on the fact that pd is first member of gpd */
-  return (gasnetc_post_descriptor_t *) result;
+  return result ? container_of(result, gasnetc_post_descriptor_t, pd) : NULL;
 }
 
 GASNETI_NEVER_INLINE(gasnetc_poll_local_queue,
@@ -2555,38 +2563,41 @@ void gasnetc_fetchop_u64(
 void gasnetc_init_post_descriptor_pool(GASNETC_DIDX_FARG_ALONE) 
 {
   int i;
-  const int count = gasnetc_pd_buffers.size / sizeof(gasnetc_post_descriptor_t) / gasnetc_domain_count;
-  gasnetc_post_descriptor_t *gpd;
+  const int count = gasnetc_pd_buffers.size / GASNETC_SIZEOF_GDP /  gasnetc_domain_count;
+  uintptr_t addr;
+
   gasneti_assert_always(gasnetc_pd_buffers.addr != NULL);
 
 #if GASNETC_USE_MULTI_DOMAIN
   /* must first destroy the temporary pool of post descriptors (only first domain) */
   if_pf (GASNETC_DIDX == GASNETC_DEFAULT_DOMAIN) {
     for (i=0; i < gasnetc_log2_remote; ++i) {
-      gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
+      gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
       gasneti_free(gpd);
     }
   }
 
-  gpd = gasnetc_pd_buffers.addr;
-  gpd += count * GASNETC_DIDX;
-  memset(gpd, 0, count * sizeof(gasnetc_post_descriptor_t)); /* Just in case */
+  addr = (uintptr_t) gasnetc_pd_buffers.addr;
+  addr += count * GASNETC_DIDX * GASNETC_SIZEOF_GDP;
+  memset((void*)addr, 0, count * GASNETC_SIZEOF_GDP); /* Just in case */
   /* sacrifice the first one to work as a padding */
   for (i = 1; i < count; i += 1) {
-    gasneti_lifo_push(&DOMAIN_SPECIFIC_VAL(post_descriptor_pool), gpd + i);
+    addr += GASNETC_SIZEOF_GDP;
+    gasneti_lifo_push(&DOMAIN_SPECIFIC_VAL(post_descriptor_pool), (void*)addr);
   }
 #else
   /* must first destroy the temporary pool of post descriptors */
   for (i=0; i < gasnetc_log2_remote; ++i) {
-    gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
+    gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
     gasneti_free(gpd);
   }
 
   /* now create the new pool */
-  gpd = gasnetc_pd_buffers.addr;
-  memset(gpd, 0, gasnetc_pd_buffers.size); /* Just in case */
+  addr = (uintptr_t) gasnetc_pd_buffers.addr;
+  memset((void*)addr, 0, count * GASNETC_SIZEOF_GDP); /* Just in case */
   for (i = 0; i < count; i += 1) {
-    gasneti_lifo_push(&post_descriptor_pool, gpd + i);
+    gasneti_lifo_push(&post_descriptor_pool, (void*)addr);
+    addr += GASNETC_SIZEOF_GDP;
   }
 #endif
 }
@@ -2808,16 +2819,7 @@ gasneti_auxseg_request_t gasnetc_bounce_auxseg_alloc(gasnet_seginfo_t *auxseg_in
 /* AuxSeg setup for registered post descriptors*/
 /* This ident string is used by upcrun (and potentially by other tools) to estimate
  * the auxseg requirements, and gets rounded up.
- * So, this doesn't need to be an exact value.
- * As of 2013.03.06 I have systems with
- *     Gemini = 304 bytes
- *     Aries  = 320 bytes
  */
-#if GASNET_CONDUIT_GEMINI
-  #define GASNETC_SIZEOF_GDP 304
-#else
-  #define GASNETC_SIZEOF_GDP 320
-#endif
 #if GASNETC_USE_MULTI_DOMAIN
   GASNETI_IDENT(gasneti_pd_auxseg_IdentString,
               "$GASNetAuxSeg_pd: " _STRINGIFY(GASNETC_SIZEOF_GDP) "*"
@@ -2832,7 +2834,8 @@ gasneti_auxseg_request_t gasnetc_pd_auxseg_alloc(gasnet_seginfo_t *auxseg_info) 
   gasneti_auxseg_request_t retval;
   
   retval.minsz =
-  retval.optimalsz = gasnetc_domain_count * num_pd * sizeof(gasnetc_post_descriptor_t);
+  retval.optimalsz = gasnetc_domain_count * num_pd * GASNETC_SIZEOF_GDP;
+  gasneti_assert_always(GASNETC_SIZEOF_GDP >= sizeof(gasnetc_post_descriptor_t));
 
   if (auxseg_info != NULL) { /* auxseg granted */
     /* The only one we care about is our own node */
