@@ -219,6 +219,7 @@
           GASNETI_PRAGMA(GCC diagnostic ignored "-Wunused-function")    \
           GASNETI_PRAGMA(GCC diagnostic ignored "-Wunused-variable")    \
           GASNETI_PRAGMA(GCC diagnostic ignored "-Wunused-value")       \
+          GASNETI_PRAGMA(GCC diagnostic ignored "-Wunused-parameter")   \
           GASNETI_PRAGMA(GCC diagnostic ignored "-Wunused") 
   #define GASNETI_END_NOWARN  \
           GASNETI_PRAGMA(GCC diagnostic pop)

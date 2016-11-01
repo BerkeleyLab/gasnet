@@ -265,6 +265,9 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
            GASNET_TRY_WNO_FLAG([$1],[$3-Wno-unused-variable],
                                [[$1]FLAGS="$[$1]FLAGS $3-Wno-unused-variable"])
 	 ])
+	 # -Wno-unused is not enough to ignore unused params on clang -Wall -Wextra (clang 3.8.1)
+         GASNET_TRY_WNO_FLAG([$1],[$3-Wno-unused-parameter],
+                             [[$1]FLAGS="$[$1]FLAGS $3-Wno-unused-parameter"])
          GASNET_TRY_WNO_FLAG([$1],[$3-Wno-address],
                              [[$1]FLAGS="$[$1]FLAGS $3-Wno-address"])
 	if test "$use_pthreads" != "no" ; then
