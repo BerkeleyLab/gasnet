@@ -340,7 +340,7 @@ Known Problems / To do:
 Status:
 ------
 * The entire GASNet and Berkeley UPC test suites are run on the platforms
-  which support PSHM, and it is considered stable on Linux, AIX, Solaris,
+  which support PSHM, and it is considered stable on Linux, Solaris,
   {Free,Net,Open}BSD and BG/Q.
 * IBM BG/Q platform-specific notes:
   - The PAMI conduit supports PSHM, and the provided cross-configure script
