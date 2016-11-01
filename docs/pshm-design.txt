@@ -32,12 +32,11 @@ support is desired.
 
 The PSHM support in GASNet can operate via three generic mechanisms: POSIX
 shared memory, SystemV shared memory, or mmap()ed disk files.  When PSHM is
-enabled, the default is for the configure step to probe only for support
-via POSIX shared memory (except on MacOS, where it is known to be broken).
-If no POSIX shared memory support if found, there is no automatic fallback
-to any other mechanism.  So, if one wishes to use SystemV shared memory or
-mmap()ed files, one should explicitly disable the POSIX support and enable
-the desired mechanism:
+enabled, the default is for the configure step to probe only for support via
+POSIX shared memory.  If no POSIX shared memory support if found, there is no
+automatic fallback to any other mechanism.  So, if one wishes to use SystemV
+shared memory or mmap()ed files, one should explicitly disable the POSIX
+support and enable the desired mechanism:
 
         Usage Summary (flags to be passed to the configure script):
         ----------------------------------------------------------
