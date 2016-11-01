@@ -1381,12 +1381,10 @@ GASNET_IF_ENABLED_WITH_AUTO(pshm,
     elif test "$cross_compiling" = yes; then
       enabled_pshm=no
     else
-      # Current default is NO unless overridden in case statment below
-      enabled_pshm=no
+      # Current default is 'probe' unless overridden in case statment below
+      enabled_pshm=probe
       case "$target_os" in
-       linux*) enabled_pshm=probe ;;
-       darwin*) enabled_pshm=probe ;;
-       cygwin*) if test "$have_cygwin2" = 'yes'; then enabled_pshm=probe; fi ;;
+       cygwin*) test "$have_cygwin2" = 'no'; then enabled_pshm=no; fi ;;
       esac
     fi
   ])
