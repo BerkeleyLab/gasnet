@@ -1384,7 +1384,7 @@ GASNET_IF_ENABLED_WITH_AUTO(pshm,
       # Current default is 'probe' unless overridden in case statment below
       enabled_pshm=probe
       case "$target_os" in
-       cygwin*) test "$have_cygwin2" = 'no'; then enabled_pshm=no; fi ;;
+       cygwin*) if test "$have_cygwin2" = 'no'; then enabled_pshm=no; fi ;;
       esac
     fi
   ])
