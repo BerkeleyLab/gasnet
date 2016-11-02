@@ -1,6 +1,20 @@
 GASNet ChangeLog 
 ----------------
 ----------------------------------------------------------------------
+PENDING:
+
+* Intra-node Shared Memory (PSHM)
+  - PSHM is now enabled by default on nearly all platforms.
+    The only exceptions are old Cygwin (1.x) and cross-compiled platforms,
+    although most cross-compile scripts enable PSHM explicitly as appropriate.
+  - Improved PSHM support on Mac OS X:
+    + Now support (and use by default) PSHM-over-POSIX which works well
+      without requiring any system configuration changes.
+  - Improved PSHM support on Cygwin 2.0+:
+    + Now support (and use by default) PSHM-over-POSIX which works without
+      requiring the CYGSERVER (and is more reliable than the alternatives).
+
+----------------------------------------------------------------------
 10-21-2016 : Release 1.28.0
 
 * Cray uGNI (gemini- and aries-conduits)
