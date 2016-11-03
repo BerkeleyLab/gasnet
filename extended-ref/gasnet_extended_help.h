@@ -445,12 +445,18 @@ typedef union {
       gasnete_loopbackput_memsync();            \
       _GASNETI_RETURN_##rt;                     \
     }} while(0)
+  #define GASNETI_SUPERNODE_LOCAL(node) gasneti_pshm_in_supernode(node) 
 #else
   #define GASNETI_CHECKPSHM_GET(rt)        ((void)0)
   #define GASNETI_CHECKPSHM_PUT(rt)        ((void)0)
   #define GASNETI_CHECKPSHM_PUT_NOLC(rt)   ((void)0)
   #define GASNETI_CHECKPSHM_GETVAL()       ((void)0)
   #define GASNETI_CHECKPSHM_PUTVAL(rt)     ((void)0)
+  #if GASNET_CONDUIT_SMP
+    #define GASNETI_SUPERNODE_LOCAL(node)    (1)
+  #else 
+    #define GASNETI_SUPERNODE_LOCAL(node)    ((node) == gasnet_mynode()) 
+  #endif
 #endif
 
 /* ------------------------------------------------------------------------------------ */

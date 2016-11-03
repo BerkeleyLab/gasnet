@@ -232,6 +232,7 @@ gasnetex_handle_t gasnete_putv_gather(gasnete_synctype_t synctype,
     gasnete_memvec_pack(srccount, srclist, packedbuf, 0, (size_t)-1);
     visop->type = GASNETI_VIS_CAT_PUTV_GATHER;
     visop->handle = gasnete_put_nb(NULL, dstnode, dstlist[0].addr, packedbuf, nbytes, GASNETEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
+    gasneti_assert(visop->handle != GASNETEX_INVALID_HANDLE);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
   }
 }
@@ -264,6 +265,7 @@ gasnetex_handle_t gasnete_getv_scatter(gasnete_synctype_t synctype,
     visop->type = GASNETI_VIS_CAT_GETV_SCATTER;
     visop->count = dstcount;
     visop->handle = gasnete_get_nb(NULL, packedbuf, srcnode, srclist[0].addr, nbytes, 0 GASNETE_THREAD_PASS);
+    gasneti_assert(visop->handle != GASNETEX_INVALID_HANDLE);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 1);
   }
 }
@@ -641,8 +643,8 @@ extern gasnetex_handle_t gasnete_putv(gasnete_synctype_t synctype,
   /* catch silly degenerate cases */
   if_pf (dstcount == 0 || srccount == 0) /* empty (may miss some cases) */
     return GASNETEX_INVALID_HANDLE; 
-  if_pf (dstcount + srccount <= 2 ||  /* fully contiguous */
-         dstnode == gasneti_mynode) { /* purely local */ 
+  if (dstcount + srccount <= 2 ||  /* fully contiguous */
+      GASNETI_SUPERNODE_LOCAL(dstnode)) { /* purely local */ 
     return gasnete_putv_ref_indiv(synctype,dstnode,dstcount,dstlist,srccount,srclist GASNETE_THREAD_PASS);
   }
 
@@ -667,8 +669,8 @@ extern gasnetex_handle_t gasnete_getv(gasnete_synctype_t synctype,
   /* catch silly degenerate cases */
   if_pf (dstcount == 0 || srccount == 0) /* empty (may miss some cases) */
     return GASNETEX_INVALID_HANDLE; 
-  if_pf (dstcount + srccount <= 2 ||  /* fully contiguous */
-         srcnode == gasneti_mynode) { /* purely local */ 
+  if (dstcount + srccount <= 2 ||  /* fully contiguous */
+      GASNETI_SUPERNODE_LOCAL(srcnode)) { /* purely local */ 
     return gasnete_getv_ref_indiv(synctype,dstcount,dstlist,srcnode,srccount,srclist GASNETE_THREAD_PASS);
   }
 

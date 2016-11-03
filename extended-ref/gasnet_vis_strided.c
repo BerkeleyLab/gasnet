@@ -677,6 +677,7 @@ gasnetex_handle_t gasnete_puts_gather(gasnete_strided_stats_t const *stats, gasn
     gasnete_strided_pack_all(srcaddr, srcstrides, count, stridelevels, packedbuf);
     visop->type = GASNETI_VIS_CAT_PUTS_GATHER;
     visop->handle = gasnete_put_nb(NULL, dstnode, dstaddr, packedbuf, nbytes, GASNETEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
+    gasneti_assert(visop->handle != GASNETEX_INVALID_HANDLE);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
   }
 }
@@ -715,6 +716,7 @@ gasnetex_handle_t gasnete_gets_scatter(gasnete_strided_stats_t const *stats, gas
     visop->addr = dstaddr;
     visop->len = stridelevels;
     visop->handle = gasnete_get_nb(NULL, packedbuf, srcnode, srcaddr, nbytes, 0 GASNETE_THREAD_PASS);
+    gasneti_assert(visop->handle != GASNETEX_INVALID_HANDLE);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 1);
   }
 }
@@ -1148,8 +1150,8 @@ extern gasnetex_handle_t gasnete_puts(gasnete_synctype_t synctype,
   /* catch silly degenerate cases */
   if_pf (stats.totalsz == 0) /* empty */
     return GASNETEX_INVALID_HANDLE;
-  if_pf (dstnode == gasneti_mynode || /* purely local */ 
-         stats.dualcontiguity == stridelevels) {/* fully contiguous */
+  if (GASNETI_SUPERNODE_LOCAL(dstnode) || /* purely local */ 
+      stats.dualcontiguity == stridelevels) {/* fully contiguous */
     return gasnete_puts_ref_indiv(&stats,synctype,dstnode,dstaddr,dststrides,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);
   }
 
@@ -1194,8 +1196,8 @@ extern gasnetex_handle_t gasnete_gets(gasnete_synctype_t synctype,
   /* catch silly degenerate cases */
   if_pf (stats.totalsz == 0) /* empty */
     return GASNETEX_INVALID_HANDLE;
-  if_pf (srcnode == gasneti_mynode || /* purely local */ 
-         stats.dualcontiguity == stridelevels) {/* fully contiguous */
+  if (GASNETI_SUPERNODE_LOCAL(srcnode) || /* purely local */ 
+      stats.dualcontiguity == stridelevels) {/* fully contiguous */
     return gasnete_gets_ref_indiv(&stats,synctype,dstaddr,dststrides,srcnode,srcaddr,srcstrides,count,stridelevels GASNETE_THREAD_PASS);
   }
 

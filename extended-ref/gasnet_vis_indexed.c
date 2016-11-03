@@ -219,6 +219,7 @@ gasnetex_handle_t gasnete_puti_gather(gasnete_synctype_t synctype,
     gasnete_addrlist_pack(srccount, srclist, srclen, packedbuf, 0, (size_t)-1);
     visop->type = GASNETI_VIS_CAT_PUTI_GATHER;
     visop->handle = gasnete_put_nb(NULL, dstnode, dstlist[0], packedbuf, nbytes, GASNETEX_EVENT_DEFER, 0 GASNETE_THREAD_PASS);
+    gasneti_assert(visop->handle != GASNETEX_INVALID_HANDLE);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 0);
   }
 }
@@ -252,6 +253,7 @@ gasnetex_handle_t gasnete_geti_scatter(gasnete_synctype_t synctype,
     visop->count = dstcount;
     visop->len = dstlen;
     visop->handle = gasnete_get_nb(NULL, packedbuf, srcnode, srclist[0], nbytes, 0 GASNETE_THREAD_PASS);
+    gasneti_assert(visop->handle != GASNETEX_INVALID_HANDLE);
     GASNETE_PUSH_VISOP_RETURN(td, visop, synctype, 1);
   }
 }
@@ -646,9 +648,9 @@ extern gasnetex_handle_t gasnete_puti(gasnete_synctype_t synctype,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
   gasneti_assert(gasnete_vis_isinit);
   /* catch silly degenerate cases */
-  if_pf (dstcount + srccount <= 2 ||  /* empty or fully contiguous */
-         dstnode == gasneti_mynode) { /* purely local */ 
-    if (dstcount == 0) return GASNETEX_INVALID_HANDLE;
+  if (dstcount + srccount <= 2 ||  /* empty or fully contiguous */
+      GASNETI_SUPERNODE_LOCAL(dstnode)) { /* purely local */ 
+    if_pf (dstcount == 0) return GASNETEX_INVALID_HANDLE;
     else return gasnete_puti_ref_indiv(synctype,dstnode,dstcount,dstlist,dstlen,srccount,srclist,srclen GASNETE_THREAD_PASS);
   }
 
@@ -686,9 +688,9 @@ extern gasnetex_handle_t gasnete_geti(gasnete_synctype_t synctype,
                                    size_t srccount, void * const srclist[], size_t srclen GASNETE_THREAD_FARG) {
   gasneti_assert(gasnete_vis_isinit);
   /* catch silly degenerate cases */
-  if_pf (dstcount + srccount <= 2 ||  /* empty or fully contiguous */
-         srcnode == gasneti_mynode) { /* purely local */ 
-    if (dstcount == 0) return GASNETEX_INVALID_HANDLE;
+  if (dstcount + srccount <= 2 ||  /* empty or fully contiguous */
+      GASNETI_SUPERNODE_LOCAL(srcnode)) { /* purely local */ 
+    if_pf (dstcount == 0) return GASNETEX_INVALID_HANDLE;
     else return gasnete_geti_ref_indiv(synctype,dstcount,dstlist,dstlen,srcnode,srccount,srclist,srclen GASNETE_THREAD_PASS);
   }
 

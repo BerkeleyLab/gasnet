@@ -250,6 +250,7 @@ int gasnete_op_try_free(gasnetex_handle_t handle GASNETI_THREAD_FARG) {
 }
 
 extern int  gasnete_test(gasnetex_handle_t handle GASNETI_THREAD_FARG) {
+  gasneti_assert(handle != GASNETEX_INVALID_HANDLE); // invalid handled inline in header
   return gasnete_op_try_free(handle GASNETI_THREAD_PASS) ? GASNET_OK : GASNET_ERR_NOT_READY;
 }
 #endif
