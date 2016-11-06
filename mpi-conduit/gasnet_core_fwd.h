@@ -30,7 +30,7 @@
   #define GASNET_ALIGNED_SEGMENTS   0 /* user or PSHM disabled segment alignment */
 #else
   /* mpi-conduit supports both aligned and un-aligned */
-  #if defined(HAVE_MMAP) && !PLATFORM_ARCH_CRAYX1
+  #if defined(HAVE_MMAP) && !(PLATFORM_ARCH_CRAYX1 || PLATFORM_OS_CYGWIN)
     #define GASNET_ALIGNED_SEGMENTS   1
   #else
     #define GASNET_ALIGNED_SEGMENTS   0
