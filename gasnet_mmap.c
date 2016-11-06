@@ -76,6 +76,8 @@
 
 #if !HAVE_MMAP
   /* Skip the following platform checks */
+#elif PLATFORM_OS_CYGWIN && !GASNET_PSHM
+  #error mmap without PSHM not supported on Cygwin - it doesnt work properly
 #elif PLATFORM_ARCH_MIC
   #define GASNETI_MMAP_FLAGS (MAP_ANONYMOUS | MAP_PRIVATE | MAP_POPULATE)
 #endif
