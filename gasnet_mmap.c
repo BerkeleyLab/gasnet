@@ -13,9 +13,18 @@
 #include <fcntl.h>
 
 #if defined(GASNETI_MMAP_OR_PSHM) && !defined(HAVE_MMAP)
+ #if PLATFORM_OS_CYGWIN && (GASNETI_PSHM_POSIX || GASNETI_PSHM_FILE)
+  /* Use of mmap() for PSHM over POSIX or FILE is a less-than-general case.
+   * So on Cygwin define HAVE_MMAP for those cases only. */
+  #define HAVE_MMAP 1
+  /* And we need these, which would otherwise appear in gasnet_internal.h */
+  extern void *gasneti_mmap(uintptr_t segsize);
+  extern void gasneti_munmap(void *segbase, uintptr_t segsize);
+ #else
   /* Ensure PSHM over SYSV or GHEAP never actually call mmap() */
   #define mmap %%%ERROR__GASNet_does_not_support_mmap_in_this_configuration%%%
   #define munmap %%%ERROR__GASNet_does_not_support_munmap_in_this_configuration%%%
+ #endif
 #endif
 
 #ifdef GASNETI_MMAP_OR_PSHM
