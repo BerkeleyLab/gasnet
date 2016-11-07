@@ -4463,7 +4463,12 @@ else
  case "$target_os" in
   cygwin*)
     if test "$have_cygwin2" = 'yes'; then
-      HAVE_MMAP=1
+      if test x"$with_pshm" != xno; then
+        HAVE_MMAP=1
+      else
+        HAVE_MMAP=0
+        mmap_reason="is supported on Cygwin only with PSHM"
+      fi
     else
       HAVE_MMAP=0
       mmap_reason="is not supported on Cygwin older than 2.0"

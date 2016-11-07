@@ -245,13 +245,6 @@ extern void gasneti_freezeForDebugger(void);
 
 void gasneti_defaultSignalHandler(int sig);
 
-#if PLATFORM_OS_CYGWIN && !GASNET_PSHM
-  /* On Cygwin the MAP_FIXED support is not sufficient for our non-PSHM usage.
-   * See https://cygwin.com/ml/cygwin/2003-07/msg00966.html
-   */
-  #undef HAVE_MMAP
-#endif
-
 #if defined(HAVE_MMAP) || GASNET_PSHM
   #define GASNETI_MMAP_OR_PSHM 1
   extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz);
