@@ -70,13 +70,15 @@ size_t gasnete_packetize_addrlist(size_t remotecount, size_t remotelen,
   gasnete_packetdesc_t *remotept = gasneti_malloc(ptsz*sizeof(gasnete_packetdesc_t));
   gasnete_packetdesc_t *localpt = gasneti_malloc(ptsz*sizeof(gasnete_packetdesc_t));
   gasneti_assert(premotept && plocalpt && remotecount && remotelen && localcount && locallen);
+  gasneti_assert(maxpayload > metadatasz);
   gasneti_assert(remotecount*remotelen == localcount*locallen);
   gasneti_assert(remotecount*remotelen > 0);
 
   for (ptidx = 0; ; ptidx++) {
     ssize_t packetremain = maxpayload;
     ssize_t packetdata = 0;
-    size_t rdatasz, ldatasz; 
+    size_t ldatasz; 
+    size_t rdatasz = 0; // init to avoid a warning on gcc -O3 -Wall
 
     gasneti_assert(ptidx < ptsz);
 

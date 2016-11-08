@@ -1000,9 +1000,7 @@ static int AMUDP_RequestGeneric(amudp_category_t category,
   amudp_buf_t * const outgoingbuf = AMUDP_AcquireBuffer(ep, buffersz);
 
   if (isloopback) {
-    #if AMUDP_DEBUG
-      instance = 0; /* not used */
-    #endif
+    instance = 0; /* not used */
   } else { /*  acquire a free request buffer */
     int const depth = ep->depth;
     amudp_bufdesc_t * const descs = GET_REQ_DESC_ALLOC(ep, destP, 0);

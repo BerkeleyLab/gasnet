@@ -295,7 +295,7 @@ int gasneti_AMPSHM_ReplyGeneric(int category, gasnetex_token_t token,
                                 va_list argptr) 
 {
   int retval;
-  gasnetex_rank_t sourceid;
+  gasnetex_rank_t sourceid = 0; // init to avoid a maybe-uninit warning on gcc -O3 -Wall
   gasneti_assert(gasnetc_token_is_pshm(token));
   gasnetc_AMGetMsgSource(token, &sourceid);
   gasneti_assert(gasneti_pshm_in_supernode(sourceid));

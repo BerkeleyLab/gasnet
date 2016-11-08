@@ -897,7 +897,7 @@ extern void gasnetc_exit(int exitcode) {
   ==============================
 */
 extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *srcindex) {
-  gasnetex_rank_t sourceid;
+  gasnetex_rank_t sourceid = 0;
   GASNETI_CHECKATTACH();
   #if GASNET_DEBUG || GASNET_PSHM
     GASNETI_CHECK_ERRR((!token),BAD_ARG,"bad token");
@@ -909,8 +909,6 @@ extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *srcin
   /* add code here to write the source index into sourceid */
 #if GASNET_PSHM
   GASNETI_SAFE_PROPAGATE(gasneti_AMPSHMGetMsgSource(token, &sourceid));
-#else
-  sourceid = 0;
 #endif
 
   gasneti_assert(sourceid < gasneti_nodes);

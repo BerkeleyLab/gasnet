@@ -122,7 +122,7 @@ void *workerthread(void *args) {
           sleep(1); 
           gasnet_exit(18); 
       } else {
-        int junk;
+        int junk = 42;
         int lim = MIN(MIN(MIN(MIN(
                         gasnetex_max_AMRequestMedium(myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,0),
                         gasnetex_max_AMReplyMedium  (myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,0)),

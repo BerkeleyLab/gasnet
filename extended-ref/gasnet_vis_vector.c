@@ -102,6 +102,7 @@ size_t gasnete_packetize_memvec(size_t remotecount, gasnet_memvec_t const remote
   size_t ridx = 0, roffset = 0, lidx = 0, loffset = 0;
   size_t const metadatasz = sizeof(gasnet_memvec_t);
   size_t ptsz = 4; /* initial size guess - no fast way to know for sure */
+  gasneti_assert(maxpayload > metadatasz);
   gasnete_packetdesc_t *remotept = gasneti_malloc(ptsz*sizeof(gasnete_packetdesc_t));
   gasnete_packetdesc_t *localpt = gasneti_malloc(ptsz*sizeof(gasnete_packetdesc_t));
   gasneti_assert(premotept && plocalpt && remotecount && localcount);
@@ -111,7 +112,8 @@ size_t gasnete_packetize_memvec(size_t remotecount, gasnet_memvec_t const remote
   for (ptidx = 0; ; ptidx++) {
     ssize_t packetremain = maxpayload;
     ssize_t packetdata = 0;
-    size_t rdatasz, ldatasz; 
+    size_t ldatasz; 
+    size_t rdatasz = 0; // init to avoid a warning on gcc -O3 -Wall
 
     if (ptidx == ptsz) { /* grow the packet tables */
       ptsz *= 2;
