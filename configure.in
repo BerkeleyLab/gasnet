@@ -238,10 +238,10 @@ AC_DEFUN([GASNET_TRY_WNO_FLAG],[
         ]GASNET_TRY_[$1]FLAG[([$2],
             ]GASNET_TRY_[$1]FLAG[(patsubst([$2],[Wno-],[W]),[$3],[$4]),[$4])])
 
-dnl GASNET_GET_GNUWARNINGFLAGS(type, addwarnings, flagprefix)  type=C or CXX  addwarnings=yes|no
+dnl GASNET_GET_GNUWARNINGFLAGS(type, flagprefix)  type=C or CXX 
 AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
-  case "$2" in 
-    '' | y | yes | 1) # enable additional supported warnings
+  if test "$enabled_dev_warnings" = "yes" ; then
+    # enable additional supported warnings
         ]GASNET_TRY_[$1]FLAG[([$3-Wall],
                               [[$1]FLAGS="$[$1]FLAGS $3-Wall"])
         ]GASNET_TRY_[$1]FLAG[([$3-Wpointer-arith],
@@ -252,8 +252,7 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
                               [[$1]FLAGS="$[$1]FLAGS $3-Wwrite-strings"])
         ]GASNET_TRY_[$1]FLAG[([$3-Wmissing-format-attribute],
                               [[$1]FLAGS="$[$1]FLAGS $3-Wmissing-format-attribute"])
-    ;;
-  esac
+  fi
          # disable warnings that should always be off (not supported by our headers)
          GASNET_TRY_WNO_FLAG([$1],[$3-Wno-unused],
                              [[$1]FLAGS="$[$1]FLAGS $3-Wno-unused"],
@@ -639,11 +638,7 @@ esac
 case "$CC_FAMILY" in
   GNU | Pathscale | Open64 | Clang)
     GASNET_PUSHVAR(CFLAGS,"$MISC_CFLAGS")
-    case "$BUILDCONFIG" in
-      debug)    GASNET_GET_GNUWARNINGFLAGS(C,yes,[${misc_flag_prefix}]) ;;
-      optimize) GASNET_GET_GNUWARNINGFLAGS(C,no,[${misc_flag_prefix}]) ;;
-      *) AC_MSG_ERROR([Internal error - bad BUILDCONFIG]) ;;
-    esac
+    GASNET_GET_GNUWARNINGFLAGS(C,[${misc_flag_prefix}])
     MISC_CFLAGS="$CFLAGS"
     GASNET_POPVAR(CFLAGS)
   ;;
@@ -758,6 +753,9 @@ GASNET_MSG_WARN([
     BUILDCONFIG="optimize"
     enabled_debug=no])
 AM_CONDITIONAL(BUILDCONFIG_DEBUG, test "$enabled_debug" = yes)
+
+GASNET_IF_ENABLED_WITH_AUTO(dev-warnings, Build GASNet with developer compiler warnings (enabled by default with --enable-debug), 
+  enabled_dev_warnings=yes, enabled_dev_warnings=no, enabled_dev_warnings=$enabled_debug)
 
 GASNET_SET_MISCFLAGS(CC,[ GASNET_VA_ARGS_TEST GASNET_C99_TEST ])
 
@@ -2441,11 +2439,7 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
   case "$CXX_FAMILY" in
     GNU | Pathscale | Open64 | Clang)
       GASNET_PUSHVAR(CXXFLAGS,"$MISC_CXXFLAGS")
-      if test "$BUILDCONFIG" = "debug" ; then
-        GASNET_GET_GNUWARNINGFLAGS(CXX,yes,[${gxx_flag_prefix}])
-      else
-        GASNET_GET_GNUWARNINGFLAGS(CXX,no,[${gxx_flag_prefix}])
-      fi
+      GASNET_GET_GNUWARNINGFLAGS(CXX,[${gxx_flag_prefix}])
       MISC_CXXFLAGS="$CXXFLAGS"
       GASNET_POPVAR(CXXFLAGS)
     ;;
