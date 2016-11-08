@@ -490,7 +490,6 @@ void *gasnetc_sr_desc_init(struct ibv_send_wr *result, struct ibv_sge *sg_lst_p)
 #define GASNETC_DECL_SR_DESC(_name, _sg_lst_len)                        \
 	struct ibv_send_wr _name[1];                                      \
 	struct ibv_sge _CONCAT(_name,_sg_lst)[_sg_lst_len];              \
-	GASNETI_UNUSED                                                  \
 	void *_CONCAT(_name,_dummy) = gasnetc_sr_desc_init(_name, _CONCAT(_name,_sg_lst)) /* note intentional lack of final semicolon */
 
 /* Use of IB's 32-bit immediate data:

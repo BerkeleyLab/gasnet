@@ -220,7 +220,6 @@ void smp_coll_barrier_cond_var(smp_coll_t handle, int flags){
 #else
 void smp_coll_barrier_cond_var(smp_coll_t handle, int flags){
   /* cond variables must be phased on some OS's (HPUX) */
-  GASNETI_UNUSED_UNLESS_THREADS
   static struct {
     gasnett_cond_t cond;
     gasnett_mutex_t mutex;

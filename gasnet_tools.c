@@ -114,7 +114,7 @@ extern void gasneti_mutex_cautious_init(/*gasneti_mutex_t*/void *_pl) {
      gasneti_rwlock_t const *l;
      struct _S_gasnet_rwlocklist *next;
      _gasneti_rwlock_state state;
-  } _gasneti_rwlocklist_t GASNETI_THREAD_TYPEDEF;
+  } _gasneti_rwlocklist_t;
 
   extern _gasneti_rwlock_state _gasneti_rwlock_query(gasneti_rwlock_t const *l) {
     _gasneti_rwlocklist_t const *list = gasneti_threadkey_get(_gasneti_rwlock_list);
@@ -1223,7 +1223,7 @@ extern void gasneti_backtrace_init(const char *exename) {
   }
 
   { static char btlist_def[255];
-    GASNETI_UNUSED_UNLESS_THREADS int th;
+    int th;
     int i;
     btlist_def[0] = '\0';
     #if GASNETI_THREADS
@@ -1666,7 +1666,6 @@ extern void gasneti_envstr_display(const char *key, const char *val, int is_dflt
   else if (strlen(val) == 0) displayval = "*empty*";
   GASNETT_TRACE_PRINTF("ENV parameter: %s = %s%s", key, displayval, dflt);
   if (verbose) {
-    GASNETI_UNUSED_UNLESS_THREADS
     static gasneti_mutex_t envmutex = GASNETI_MUTEX_INITIALIZER;
     static gasneti_verboseenv_t *displaylist = NULL;
     static gasneti_verboseenv_t *displaylist_tail = NULL;
@@ -2179,7 +2178,6 @@ void gasneti_set_affinity(int rank) {
   #endif
 #endif
 const char *gasneti_gethostname(void) {
-  GASNETI_UNUSED_UNLESS_THREADS
   static gasneti_mutex_t hnmutex = GASNETI_MUTEX_INITIALIZER;
   static int firsttime = 1;
   static char hostname[MAXHOSTNAMELEN];

@@ -184,7 +184,6 @@ static void _test_makeErrMsg(const char *format, ...)) {
 #define alignup_ptr(a,b) ((void *)(((((uintptr_t)(a))+(b)-1)/(b))*(b)))
 #define aligndown(a,b) (((a)/(b))*(b))
 
-GASNETT_UNUSED /* not used by every test */
 static int _test_rand(int low, int high) {
   int result;
   assert(low <= high);
@@ -219,9 +218,7 @@ static int _test_rand(int low, int high) {
   if_pf(!_retval) FATALERR(#op": %s(%i)",strerror(_retval), _retval); \
 } while (0)
 
-GASNETT_UNUSED /* not used by every test */
 static char test_section;
-GASNETT_UNUSED /* not used by every test */
 static char test_sections[255];
 
 #define TEST_SECTION_BEGIN()        ((void)(!test_section ? test_section = 'A' : test_section++))
@@ -246,14 +243,12 @@ static char test_sections[255];
 /* ------------------------------------------------------------------------------------ */
 /* memory management */
 
-GASNETT_UNUSED /* not used by every test */
 static void *_test_malloc(size_t sz, const char *curloc) {
   void *ptr;
   ptr = malloc(sz);
   if (ptr == NULL) FATALERR("Failed to malloc(%lu) bytes at %s\n",(unsigned long)sz,curloc);
   return ptr;
 }
-GASNETT_UNUSED /* not used by every test */
 static void *_test_calloc(size_t sz, const char *curloc) {
   void *retval = _test_malloc(sz, curloc);
   if (retval) memset(retval, 0, sz);
@@ -442,7 +437,6 @@ GASNETT_IDENT(GASNetT_TiCompiler_IdentString,
   #define TEST_MAXTHREADS (TEST_MAXTHREADS_SYSTEM + TEST_USE_PRIMORDIAL_THREAD - 1)
 #endif
 /* Runtime enforcement of TEST_MAXTHREADS, GASNET_TEST_THREAD_LIMIT, or platform-specific limits */
-GASNETT_UNUSED /* not used by every test */
 static int test_thread_limit(int numthreads) {
     int limit = gasnett_getenv_int_withdefault("GASNET_TEST_THREAD_LIMIT", TEST_MAXTHREADS, 0);
     limit = MIN(limit, TEST_MAXTHREADS); /* Ignore attempt to raise above TEST_MAXTHREADS */
@@ -605,7 +599,6 @@ gasnetex_team_member_t myteam; // TODO-EX: remove this when new init is added to
   } while (0)
 #endif
 
-GASNETT_UNUSED /* test_collinit not used in all tests */
 static int test_collinit = 0;
 #define TEST_COLL_INIT() do {          \
     if (!test_collinit) {              \
@@ -842,7 +835,6 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
 /* ------------------------------------------------------------------------------------ */
 /* segment alignment */
 #if defined(GASNET_SEGMENT_EVERYTHING) || !GASNET_ALIGNED_SEGMENTS
-  GASNETT_UNUSED /* not used by every test */
   static int TEST_ALIGNED_SEGMENTS(void) {
     static volatile int is_aligned = -1;
     if_pf (is_aligned < 0) {
@@ -887,7 +879,6 @@ static int _test_localprocs(void) { /* First call is not thread safe */
 }
 #define TEST_LOCALPROCS() (_test_localprocs())
 
-GASNETT_UNUSED /* not used by every test */
 static void _test_set_waitmode(int threads) {
   const int local_procs = TEST_LOCALPROCS();
   if (gasnett_getenv_yesno_withdefault("GASNET_TEST_POLITE_SYNC",0)) return;
@@ -1083,9 +1074,8 @@ static void _test_init(const char *testname, int reports_performance, int early,
   
 
 #define TEST_TRACING_MACROS() do {                                                 \
-  /* 'file' and 'line' unused in tools-only or when srclines disabled */           \
-  GASNETT_UNUSED const char *file;                                                 \
-  GASNETT_UNUSED unsigned int line;                                                \
+  const char *file;                                                                \
+  unsigned int line;                                                               \
   GASNETT_TRACE_GETSOURCELINE(&file, &line);                                       \
   GASNETT_TRACE_SETSOURCELINE(file, line);                                         \
   GASNETT_TRACE_FREEZESOURCELINE();                                                \

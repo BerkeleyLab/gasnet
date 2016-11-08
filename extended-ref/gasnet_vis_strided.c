@@ -826,7 +826,6 @@ void gasnete_puts_AMPipeline_reqh_inner(gasnetex_token_t token,
   size_t * const packetstrides = packetcount + stridelevels + 1;
   size_t * const packedbuf = packetstrides + stridelevels;
   size_t const limit = stridelevels - gasnete_strided_nulldims(packetcount, stridelevels);
-  GASNETI_UNUSED_UNLESS_DEBUG /* but still need side-effects */
   uint8_t * const end = gasnete_strided_unpack_partial(&dstaddr, packetstrides, packetcount, contiglevel, limit,
                                                        packetchunks, packetinit+contiglevel, 0, 0, packedbuf);
   gasneti_assert(end - (uint8_t *)addr == nbytes);
@@ -986,8 +985,7 @@ void gasnete_gets_AMPipeline_reph_inner(gasnetex_token_t token,
 
   gasneti_assert(visop->type == GASNETI_VIS_CAT_GETS_AMPIPELINE);
 
-  { GASNETI_UNUSED_UNLESS_DEBUG /* but still need side-effects */
-    uint8_t * const end = gasnete_strided_unpack_partial(&dstaddr, tablestrides, tablecount, contiglevel, limit,
+  { uint8_t * const end = gasnete_strided_unpack_partial(&dstaddr, tablestrides, tablecount, contiglevel, limit,
                                                        packetchunks, tableinit+contiglevel, 0, 0, addr);
     gasneti_assert(end - (uint8_t *)addr == nbytes);
   }

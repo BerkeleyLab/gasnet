@@ -304,7 +304,7 @@ int gasnetc_try_pin(void *addr, uintptr_t size)
 #  define DOMAIN_SPECIFIC_VAR(_type, _var)  _type _var = DOMAIN_SPECIFIC_VAL(_var)
 #else
 #  define DOMAIN_SPECIFIC_VAL(_var)         (_var)
-#  define DOMAIN_SPECIFIC_VAR(_type, _var)  GASNETI_UNUSED char _dummy##_var = 0
+#  define DOMAIN_SPECIFIC_VAR(_type, _var)  char _dummy##_var = 0
 #endif
 
 /*------ Macros for lock operations */

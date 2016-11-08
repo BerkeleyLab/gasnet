@@ -58,7 +58,7 @@
 /* Multi domain support makes sense only for PAR mode. */
 #define GASNETC_USE_MULTI_DOMAIN 0
 
-#define GASNETC_DIDX_POST(_val)  GASNETI_UNUSED const int _domain_idx = 0
+#define GASNETC_DIDX_POST(_val)  const int _domain_idx = 0
 
 #define GASNETC_DIDX_FARG_ALONE  void
 #define GASNETC_DIDX_FARG        /*empty*/

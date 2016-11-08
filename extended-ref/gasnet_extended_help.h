@@ -104,7 +104,6 @@ typedef struct _gasnete_thread_cleanup {
 /* high-water mark on highest thread index allocated thus far */
 extern int gasnete_maxthreadidx;
 #define gasnete_assert_valid_threadid(threadidx) do {   \
-    GASNETI_UNUSED_UNLESS_DEBUG                         \
     int _thid = (threadidx);                            \
     gasneti_assert(_thid <= gasnete_maxthreadidx);      \
     gasneti_assert(gasnete_threadtable[_thid] != NULL); \

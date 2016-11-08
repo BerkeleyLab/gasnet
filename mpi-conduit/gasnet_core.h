@@ -68,7 +68,7 @@ typedef struct _gasnetex_hsl_t {
     gasneti_tick_t timestamp;
     struct _gasnetex_hsl_t *next;
   #endif
-} gasnetex_hsl_t GASNETI_THREAD_TYPEDEF;
+} gasnetex_hsl_t;
 
 #if GASNETI_STATS_OR_TRACE
   #define GASNETC_LOCK_STAT_INIT ,0 

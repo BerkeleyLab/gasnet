@@ -114,22 +114,6 @@ extern char *gasneti_build_loc_str(const char *funcname, const char *filename, i
   #define gasneti_assert_nzeroret(op) op
 #endif
 
-#if GASNET_DEBUG
-  #define GASNETI_UNUSED_UNLESS_DEBUG
-#else
-  #define GASNETI_UNUSED_UNLESS_DEBUG GASNETI_UNUSED
-#endif
-#if GASNETI_THREADS
-  #define GASNETI_UNUSED_UNLESS_THREADS
-#else
-  #define GASNETI_UNUSED_UNLESS_THREADS GASNETI_UNUSED
-#endif
-#if !GASNETI_HAVE_ATTRIBUTE_UNUSED_TYPEDEF || GASNETI_THREADS
-  #define GASNETI_THREAD_TYPEDEF
-#else
-  #define GASNETI_THREAD_TYPEDEF GASNETI_UNUSED
-#endif
-
 /* return physical memory of machine
    on failure, failureIsFatal nonzero => fatal error, failureIsFatal zero => return 0 */
 extern uint64_t gasneti_getPhysMemSz(int failureIsFatal); 
@@ -326,7 +310,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
       pthread_mutex_t lock;
       _GASNETI_MUTEX_CAUTIOUS_INIT_FIELD
       GASNETI_BUG2231_WORKAROUND_PAD
-    } gasneti_mutex_t GASNETI_THREAD_TYPEDEF;
+    } gasneti_mutex_t;
     #if defined(PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP)
       /* These are faster, though less "featureful" than the default
        * mutexes on linuxthreads implementations which offer them.
@@ -399,7 +383,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
   #else /* GASNET_DEBUG non-pthread (error-check-only) mutexes */
     typedef struct {
       volatile GASNETI_THREADID_T owner;
-    } gasneti_mutex_t GASNETI_THREAD_TYPEDEF;
+    } gasneti_mutex_t;
     #define GASNETI_MUTEX_INITIALIZER   { GASNETI_MUTEX_NOOWNER }
     #define gasneti_mutex_lock(pl) do {                             \
               gasneti_assert((pl)->owner == GASNETI_MUTEX_NOOWNER); \
@@ -426,7 +410,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
 #else /* non-debug mutexes */
   #if GASNETI_USE_TRUE_MUTEXES
     #include <pthread.h>
-    typedef pthread_mutex_t           gasneti_mutex_t GASNETI_THREAD_TYPEDEF;
+    typedef pthread_mutex_t           gasneti_mutex_t;
     #if defined(PTHREAD_ADAPTIVE_MUTEX_INITIALIZER_NP)
       /* These are faster, though less "featureful" than the default
        * mutexes on linuxthreads implementations which offer them.
@@ -464,7 +448,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
     #endif
     #define gasneti_mutex_destroy(pl)   gasneti_mutex_destroy_ignoreerr(pl)
   #else
-    typedef char           gasneti_mutex_t GASNETI_THREAD_TYPEDEF;
+    typedef char           gasneti_mutex_t;
     #define GASNETI_MUTEX_INITIALIZER '\0'
     #define gasneti_mutex_lock(pl)    ((void)0)
     #define gasneti_mutex_trylock(pl) 0
@@ -487,7 +471,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
   typedef struct {
     pthread_cond_t cond;
     GASNETI_BUG2231_WORKAROUND_PAD
-  } gasneti_cond_t GASNETI_THREAD_TYPEDEF;
+  } gasneti_cond_t;
 
   #define GASNETI_COND_INITIALIZER    { PTHREAD_COND_INITIALIZER }
   #define gasneti_cond_init(pc) do {                       \
@@ -518,7 +502,7 @@ int gasneti_count0s_uint32_t(uint32_t x) {
     } while (0)
   #endif
 #else
-  typedef char           gasneti_cond_t GASNETI_THREAD_TYPEDEF;
+  typedef char           gasneti_cond_t;
   #define GASNETI_COND_INITIALIZER  '\0'
   #define gasneti_cond_init(pc)       ((void)0)
   #define gasneti_cond_destroy(pc)    ((void)0)
@@ -657,19 +641,18 @@ typedef enum {
       gasneti_mutex_t initmutex;
       volatile int isinit;
       pthread_key_t value;
-  } _gasneti_threadkey_t GASNETI_THREAD_TYPEDEF;
+  } _gasneti_threadkey_t;
   #define _GASNETI_THREADKEY_INITIALIZER \
     { _GASNETI_THREADKEY_MAGIC_INIT      \
       GASNETI_MUTEX_INITIALIZER,         \
       0 /* value field left NULL */ }
 #else
-  typedef void *_gasneti_threadkey_t GASNETI_THREAD_TYPEDEF;
+  typedef void *_gasneti_threadkey_t;
   #define _GASNETI_THREADKEY_INITIALIZER NULL
 #endif
 
 #if GASNETI_THREADS
   GASNETI_NEVER_INLINE(_gasneti_threadkey_init, /* avoid inserting overhead for an uncommon path */
-  GASNETI_UNUSED
   static void _gasneti_threadkey_init(pthread_key_t *_value, gasneti_mutex_t *_initmutex, volatile int *_isinit)) {
     gasneti_mutex_lock(_initmutex);
       if (*_isinit == 0) {
