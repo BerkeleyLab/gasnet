@@ -544,13 +544,18 @@ static void reap_one(pid_t pid, int status)
       if (pid == child[j].pid) {
         const char *kind = (j < ctrl_children) ? "Ctrl" : "Rank";
         const char *fini = finalized ? "" : " before finalize";
-        (void)close(child[j].sock);
+        const int sock = child[j].sock;
+        if (sock) (void)close(sock);
         child[j].pid = 0;
 	if (WIFEXITED(status)) {
           int tmp = WEXITSTATUS(status);
 	  if (exit_status == 0) exit_status = tmp;
 	  BOOTSTRAP_VERBOSE(("[%d] %s proc %d exited with status %d%s\n",
 				  myname, kind, child[j].rank, tmp, fini));
+          if (!sock && (j < ctrl_children)) { // Ctrl proc which did not yet connect
+            const char *host = child[j].nodelist ? child[j].nodelist[0] : nodelist[0];
+            fprintf(stderr, "*** Failed to start processes on %s\n", host);
+          }
 	} else if (WIFSIGNALED(status)) {
           int tmp = WTERMSIG(status);
 	  if (exit_status == 0) exit_status = tmp;
