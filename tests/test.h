@@ -76,7 +76,7 @@ GASNETT_BEGIN_EXTERNC
    test_makeMsg(baseformatargs, msgpred, isfatal, msgeval): 
      baseformatargs - parenthesized printf-style argument defining the generic stem
      msgpred - predicate which must evaluate to true to perform message output (eg 1 for always)
-     isfatal - non-zero to request an abort after the message output
+     isfatal - literal 1 to request an abort after the message output, literal 0 otherwise
      msgeval - expression which is evaluated in a critical section, 
                immediately before each message output (or 0 for none)
  */
@@ -90,8 +90,7 @@ GASNETT_BEGIN_EXTERNC
   BUG3343_WORKAROUND(                                               \
   ( _test_makeErrMsg baseformatargs ,                               \
     ( (msgpred) ? (void)(msgeval) : (void)(_test_squashmsg = 1) ) , \
-    (void)(_test_fatalmsg = (isfatal)),                             \
-    _test_doErrMsg ) )
+    _test_doErrMsg##isfatal ) )
 
 /* define several useful messaging macros */
 static int test_errs = 0;
@@ -100,7 +99,7 @@ static int test_errs = 0;
                              GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__))
   #define MSG0  test_makeMsg(("%s\n","%s"), (gasnet_mynode() == 0), 0, \
                              GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__))
-  #define TERR(isfatal)                                                                                        \
+  #define _TERR(isfatal)                                                                                        \
                 test_makeMsg(("ERROR: node %i/%i %s (at %s:%i)\n",                                             \
                               (int)gasnet_mynode(), (int)gasnet_nodes(), "%s",__FILE__, __LINE__), 1, isfatal, \
                              (test_errs++, GASNETT_TRACE_SETSOURCELINE(__FILE__,__LINE__)))
@@ -110,13 +109,13 @@ static int test_errs = 0;
 #else
   #define MSG   test_makeMsg(("%s\n","%s"), 1, 0, 0)
   #define MSG0  MSG
-  #define TERR(isfatal) test_makeMsg(("ERROR: %s (at %s:%i)\n","%s",__FILE__, __LINE__), 1, isfatal, test_errs++)
+  #define _TERR(isfatal) test_makeMsg(("ERROR: %s (at %s:%i)\n","%s",__FILE__, __LINE__), 1, isfatal, test_errs++)
   #define THREAD_MSG0(id)  test_makeMsg(("%s\n","%s"), (id == 0), 0, 0)
   #define THREAD_ERR(id)   test_makeMsg(("ERROR: thread %i: %s (at %s:%i)\n", \
                               id, "%s", __FILE__, __LINE__), 1, 0, test_errs++)
 #endif
-#define ERR      TERR(0)
-#define FATALERR TERR(1)
+#define ERR      _TERR(0)
+#define FATALERR _TERR(1)
 /* The following two help us avoid warnings from a gcc that doesn't like
    seeing a lone non-literal argument to printf() and family. */
 #define PUTS(_s)  MSG("%s",(_s))
@@ -125,7 +124,6 @@ static int test_errs = 0;
 #define _TEST_MSG_BUFSZ 1024
 static char _test_baseformat[_TEST_MSG_BUFSZ];
 static volatile int _test_squashmsg = 0;
-static volatile int _test_fatalmsg = 0;
 #if defined(HAVE_PTHREAD_H) && !defined(GASNET_SEQ)
   static gasnett_mutex_t _test_msg_lock = GASNETT_MUTEX_INITIALIZER;
   #define _test_LOCKMSG()   gasnett_mutex_lock(&_test_msg_lock)
@@ -134,28 +132,37 @@ static volatile int _test_fatalmsg = 0;
   #define _test_LOCKMSG()   ((void)0)
   #define _test_UNLOCKMSG() ((void)0)
 #endif
-GASNETT_FORMAT_PRINTF(_test_doErrMsg,1,2,
-static void _test_doErrMsg(const char *format, ...)) {
-  if (_test_squashmsg) _test_squashmsg = 0; 
-  else {
-    char output[_TEST_MSG_BUFSZ];
-    va_list argptr;
-    va_start(argptr, format); /*  pass in last argument */
-      { int sz = vsnprintf(output, _TEST_MSG_BUFSZ, format, argptr);
-        if (sz >= (_TEST_MSG_BUFSZ-5) || sz < 0) strcpy(output+(_TEST_MSG_BUFSZ-5),"...");
-      }
-    va_end(argptr);
-    printf(_test_baseformat, output); 
-    GASNETT_TRACE_PRINTF(_test_baseformat, output);
-    fflush(stdout);
-  }
-  if (_test_fatalmsg) {
-    fflush(NULL);
-    sleep(1);
-    abort();
-  }
-  _test_UNLOCKMSG();
+
+/* define two versions of _test_doErrMsg, 
+ * so the fatal one can have a GASNETT_NORETURN attribute */
+#define _test_doErrMsg_functor(suff, code)                             \
+GASNETT_FORMAT_PRINTF(_test_doErrMsg##suff,1,2,                        \
+static void _test_doErrMsg##suff(const char *format, ...)) {           \
+  if (_test_squashmsg) _test_squashmsg = 0;                            \
+  else {                                                               \
+    char output[_TEST_MSG_BUFSZ];                                      \
+    va_list argptr;                                                    \
+    va_start(argptr, format); /*  pass in last argument */             \
+      { int sz = vsnprintf(output, _TEST_MSG_BUFSZ, format, argptr);   \
+        if (sz >= (_TEST_MSG_BUFSZ-5) || sz < 0)                       \
+           strcpy(output+(_TEST_MSG_BUFSZ-5),"...");                   \
+      }                                                                \
+    va_end(argptr);                                                    \
+    printf(_test_baseformat, output);                                  \
+    GASNETT_TRACE_PRINTF(_test_baseformat, output);                    \
+    fflush(stdout);                                                    \
+  }                                                                    \
+  code /* conditionally fatal */                                       \
+  _test_UNLOCKMSG();                                                   \
 }
+
+_test_doErrMsg_functor(0, {})
+
+GASNETT_NORETURNP(_test_doErrMsg1)
+GASNETT_NORETURN
+_test_doErrMsg_functor(1, { fflush(NULL); sleep(1); abort(); })
+#undef _test_doErrMsg_functor
+
 GASNETT_FORMAT_PRINTF(_test_makeErrMsg,1,2,
 static void _test_makeErrMsg(const char *format, ...)) {
   va_list argptr;
