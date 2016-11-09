@@ -1612,6 +1612,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
 
     gasneti_pshmnet_bootstrapBarrier();
     gasneti_cleanup_shm();
+    gasneti_pshmnet_bootstrapBarrier();
     gasneti_pshm_cs_leave();
   }
   #endif /* GASNET_PSHM */
