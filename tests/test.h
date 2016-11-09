@@ -158,9 +158,9 @@ static void _test_doErrMsg##suff(const char *format, ...)) {           \
 
 _test_doErrMsg_functor(0, {})
 
-GASNETT_NORETURNP(_test_doErrMsg1)
 GASNETT_NORETURN
 _test_doErrMsg_functor(1, { fflush(NULL); sleep(1); abort(); })
+GASNETT_NORETURNP(_test_doErrMsg1)
 #undef _test_doErrMsg_functor
 
 GASNETT_FORMAT_PRINTF(_test_makeErrMsg,1,2,
