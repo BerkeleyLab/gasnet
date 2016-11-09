@@ -572,7 +572,7 @@ static void reap_one(pid_t pid, int status)
       }
     }
     if (j == children) {
-      BOOTSTRAP_VERBOSE(("[%d] Reaped unknown pid %d\n", myname, pid));
+      BOOTSTRAP_VERBOSE(("[%d] Reaped unknown pid %d\n", myname, (int)pid));
     }
   }
 
