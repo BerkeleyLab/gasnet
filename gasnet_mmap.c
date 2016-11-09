@@ -1610,8 +1610,10 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
         }
     }
 
+    /* Barrier #1 ensures all attaches complete before unlinking */
     gasneti_pshmnet_bootstrapBarrier();
     gasneti_cleanup_shm();
+    /* Barrier #2 ensures unlinking completes before return, so crashes cannot leak segments */
     gasneti_pshmnet_bootstrapBarrier();
     gasneti_pshm_cs_leave();
   }
