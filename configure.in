@@ -659,12 +659,6 @@ case "$CC_FAMILY" in
     esac ;;
   *)  ;;
 esac
-# Some C compilers disable OS POSIX entry points when strict c99 conformance is selected
-case "$target_os" in
- # _GNU_SOURCE implies _XOPEN_SOURCE and enables other features we probe for, like "adaptive" mutex_t and pthread_rwlock_t
- # Known to work on Linux, cygwin, and expected to be safe or at worst ignored on other OS's
- *)  MISC_CPPFLAGS="$MISC_CPPFLAGS -D_GNU_SOURCE=1" ;;
-esac
 
 # Determine the minimal CFLAGS we need to add for C99 compliance
 # This is done incrementally to avoid passing options on newer compiler versions where the 
@@ -759,10 +753,16 @@ GASNET_IF_ENABLED_WITH_AUTO(dev-warnings, Build GASNet with developer compiler w
 
 GASNET_SET_MISCFLAGS(CC,[ GASNET_VA_ARGS_TEST GASNET_C99_TEST ])
 
+# Some C compilers disable OS POSIX entry points when strict c99 conformance is selected
+# _GNU_SOURCE implies _XOPEN_SOURCE and enables other features we probe for, like "adaptive" mutex_t and pthread_rwlock_t
+# Known to work on Linux, cygwin, and expected to be safe or at worst ignored on other OS's
+GASNET_EXTRA_DEFINES="-D_GNU_SOURCE=1"
+AC_SUBST(GASNET_EXTRA_DEFINES)
+
 # MISC_C(PP)FLAGS are added to C(PP)FLAGS here to ensure they are used for the remaining configure tests,
 # but they retain a separate identity post-configure
 CFLAGS="$GASNET_OPT_CFLAGS $MISC_CFLAGS"
-CPPFLAGS="$MISC_CPPFLAGS"
+CPPFLAGS="$GASNET_EXTRA_DEFINES $MISC_CPPFLAGS"
 AC_SUBST(MISC_CFLAGS)	      # warning suppression and other misc C flags
 AC_SUBST(MISC_CPPFLAGS)	      # misc preprocessor flags
 AC_SUBST(GASNET_OPT_CFLAGS)
@@ -2649,7 +2649,7 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
       GASNET_POPVAR(MISC_CFLAGS)
       GASNET_POPVAR(MISC_CPPFLAGS)
       GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $DEFAULT_MPI_CFLAGS, $SAFE_MPI_CFLAGS)
-      MPI_CFLAGS="$MPI_CFLAGS $MPI_MISCFLAGS"
+      MPI_CFLAGS="$GASNET_EXTRA_DEFINES $MPI_CFLAGS $MPI_MISCFLAGS"
     else
       GASNET_MSG_WARN([MPI compiler "$MPI_CC" was not found.  Consider passing --with-mpi-cc if you want mpi-conduit or require MPI compatibility])
       # Avoid unecessary and potentially confusing probes and their errors/warnings
@@ -2728,10 +2728,6 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
     GASNET_POPVAR(LIBS)
   fi
   if test "$mpi_test_worked" = yes ; then
-      if echo "$MPI_CFLAGS" | grep -- "-DAMMPI_COEXIST_WITH_AM" > /dev/null ; then
-        # -DAMMPI_COEXIST_WITH_AM must be included whenever ammpi.h is compiled, or not at all
-        MPI_DEFINES="$MPI_DEFINES -DAMMPI_COEXIST_WITH_AM"
-      fi
       GASNET_CHECK_OPTIMIZEDDEBUG(MPI_CC,MPI_CFLAGS,[], [ 
         #include <mpi.h>
       ],[ # Try again with the suggested flags
@@ -2757,7 +2753,6 @@ fi
 AC_SUBST(MPI_CC) # compiler to be used to build AMMPI, and linker for AMMPI-based backends
 AC_SUBST(MPI_CFLAGS) # compiler flags (optimization, includes, etc) to be used with above compiler when building AMMPI
 AC_SUBST(MPI_LIBS) # libs and ldflags that must be used when linking AMMPI-based backend
-AC_SUBST(MPI_DEFINES) # preprocessor defs to be used for all client code that includes ammpi.h (not including AMMPI library itself)
 AC_SUBST(MPIRUN_CMD) # prototype command used by tcrun to run MPI programs
 AC_SUBST(MPIRUN_CMD_BATCH) # prototype command used by tcrun to run MPI programs
 AM_CONDITIONAL(USE_MPI_CONDUIT, test "$enabled_mpi$have_mpi" = yesyes)
@@ -5042,7 +5037,7 @@ echo "----------------------------------------------------------------------" >>
 # appropriate sub-variable and NOT add things directly to CFLAGS which gets overwritten
 # Do NOT change the following lines!!!
 CFLAGS="$GASNET_OPT_CFLAGS $MISC_CFLAGS"
-CPPFLAGS="$MISC_CPPFLAGS"
+CPPFLAGS="$GASNET_EXTRA_DEFINES $MISC_CPPFLAGS"
 CXXFLAGS="$GASNET_OPT_CXXFLAGS $MISC_CXXFLAGS"
 
 # Files added here should also be added to ./unBootstrap
