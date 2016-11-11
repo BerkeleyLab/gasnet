@@ -153,10 +153,9 @@ static void _test_doErrMsg##suff(const char *format, ...)) {           \
     fflush(stdout);                                                    \
   }                                                                    \
   code /* conditionally fatal */                                       \
-  _test_UNLOCKMSG();                                                   \
 }
 
-_test_doErrMsg_functor(0, {})
+_test_doErrMsg_functor(0, { _test_UNLOCKMSG(); })
 
 GASNETT_NORETURN
 _test_doErrMsg_functor(1, { fflush(NULL); sleep(1); abort(); })
