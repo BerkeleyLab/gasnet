@@ -30,6 +30,7 @@ gasnet_handlerentry_t handler_table[2];
 int myproc;
 int numprocs;
 int peerproc = -1;
+int iamsender = 0;
 int pollcnt = 0;
 
 void *mymem;
@@ -97,10 +98,10 @@ void _print_stat(int myproc, stat_struct_t *st, const char *name, int operation)
 }
 
 
-void put_tests(int iters, int nbytes, int iamsender)
+void put_tests(int iters, int nbytes)
 {GASNET_BEGIN_FUNCTION();
     int i;
-    int64_t begin, end, delay_time, loops;
+    int64_t begin=0, end, delay_time, loops=0;
     stat_struct_t st;
 
 	memset(mymem, 0, nbytes);
@@ -220,10 +221,10 @@ void put_tests(int iters, int nbytes, int iamsender)
 }	
 
 
-void get_tests(int iters, int nbytes, int iamsender)
+void get_tests(int iters, int nbytes)
 {GASNET_BEGIN_FUNCTION();
     int i;
-    int64_t begin, end, delay_time, loops;
+    int64_t begin=0, end, delay_time, loops=0;
     stat_struct_t st;
 
 	memset(mymem, 0, nbytes);
@@ -347,7 +348,6 @@ int main(int argc, char **argv)
 {
     int iters = 0;
     int i;
-    int iamsender = 0;
     char usagestr[255];
    
     /* call startup */
@@ -393,8 +393,8 @@ int main(int argc, char **argv)
             continue;
         }
 
-	put_tests(iters, size, iamsender); 
-	get_tests(iters, size, iamsender); 
+	put_tests(iters, size); 
+	get_tests(iters, size); 
     }
 
     BARRIER();
