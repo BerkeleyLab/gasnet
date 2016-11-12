@@ -569,9 +569,6 @@ typedef void (*gasneti_HandlerShort) (gasnetex_token_t token, ...);
 typedef void (*gasneti_HandlerMedium)(gasnetex_token_t token, void *buf, size_t nbytes, ...);
 typedef void (*gasneti_HandlerLong)  (gasnetex_token_t token, void *buf, size_t nbytes, ...);
 
-/* default AM handler for unregistered entries - prints a fatal error */
-extern void gasneti_defaultAMHandler(gasnetex_token_t token);
-
 /* ------------------------------------------------------------------------------------ */
 #define GASNETI_RUN_HANDLER_SHORT(isReq, hid, phandlerfn, token, pArgs, numargs) do { \
   gasneti_assert(phandlerfn);                                                         \
@@ -651,6 +648,16 @@ extern void gasneti_defaultAMHandler(gasnetex_token_t token);
                                  pArgs, numargs, (void *)pData, (int)datalen);                            \
     GASNETI_TRACE_PRINTF(A,("AM%s_LONG_HANDLER: handler execution complete", (isReq?"REQUEST":"REPLY"))); \
   } while (0)
+/* ------------------------------------------------------------------------------------ */
+/* AM handler registration and management */
+
+/* default AM handler for unregistered entries - prints a fatal error */
+extern void gasneti_defaultAMHandler(gasnetex_token_t token);
+
+extern int gasneti_reghandlers(gasnet_handlerentry_t *table, int numentries,
+                               int lowlimit, int highlimit,
+                               int dontcare, int *numregistered);
+
 /* ------------------------------------------------------------------------------------ */
 /* nodemap data and functions */
 
