@@ -177,7 +177,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
     /*  second pass - fill in dontcare-index handlers */
     if (gasneti_reghandlers(table, numentries, 128, 255, 1, &numreg2) != GASNET_OK)
-      GASNETI_RETURN_ERRR(RESOURCE,"Error registering fixed-index client handlers");
+      GASNETI_RETURN_ERRR(RESOURCE,"Error registering variable-index client handlers");
 
     gasneti_assert(numreg1 + numreg2 == numentries);
   }
