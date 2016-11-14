@@ -248,6 +248,7 @@ extern int gasnetc_reghandler(gasnetex_handler_t index, gasneti_handler_fn_t fnp
     GASNETI_RETURN_ERRR(RESOURCE, "AM_SetHandler() failed while registering handlers");
 #if GASNET_PSHM
   /* Maintain a shadown handler table for AMPSHM */
+  gasneti_assert(gasnetc_handler[index] == gasneti_defaultAMHandler);
   gasnetc_handler[index] = fnptr;
 #endif
   return GASNET_OK;
