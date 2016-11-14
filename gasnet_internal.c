@@ -305,11 +305,11 @@ extern void gasneti_defaultAMHandler(gasnetex_token_t token) {
 /* ------------------------------------------------------------------------------------ */
 #if GASNETC_REGHANDLER
   /* Use conduit-specific impl */
-  extern int gasnetc_reghandler(gasnet_handler_t, gasneti_handler_fn_t);
+  extern int gasnetc_reghandler(gasnetex_handler_t, gasneti_handler_fn_t);
 #else
   /* Use default/recommended impl */
   extern gasneti_handler_fn_t *gasnetc_handler;
-  static int gasnetc_reghandler(gasnet_handler_t index, gasneti_handler_fn_t fnptr) {
+  static int gasnetc_reghandler(gasnetex_handler_t index, gasneti_handler_fn_t fnptr) {
     /* register a single handler */
     gasnetc_handler[index] = fnptr;
     return GASNET_OK;
