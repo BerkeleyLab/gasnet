@@ -232,12 +232,6 @@ extern int gasnet_init(int *argc, char ***argv) {
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
-extern int gasnetc_reghandler(gasnetex_handler_t index, gasneti_handler_fn_t fnptr) {
-  /* register a single handler */
-  gasnetc_handler[index] = fnptr;
-  return GASNET_OK;
-}
-/* ------------------------------------------------------------------------------------ */
 extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
                           uintptr_t segsize, uintptr_t minheapoffset) {
   void *segbase = NULL;

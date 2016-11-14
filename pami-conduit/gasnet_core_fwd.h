@@ -48,6 +48,13 @@
 #define GASNETI_CONDUIT_THREADS 1
 #endif
 
+  /* define these to 1 if your conduit cannot use the default implementation
+     of gasnetc_reghandler() (in gasnet_internal.c)
+   */
+#if 0
+#define GASNETC_REGHANDLER 1
+#endif
+
   /* define these to 1 if your conduit supports PSHM, but cannot use the
      default interfaces. (see template-conduit/gasnet_core.c and gasnet_pshm.h)
    */

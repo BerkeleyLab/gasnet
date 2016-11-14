@@ -463,15 +463,6 @@ extern int gasnet_init(int *argc, char ***argv) {
 }
 
 
-/* ------------------------------------------------------------------------------------ */
-GASNETI_COLD
-extern int gasnetc_reghandler(gasnetex_handler_t index, gasneti_handler_fn_t fnptr) {
-    /* register a single handler */
-    gasnetc_handler[index] = fnptr;
-    return GASNET_OK;
-}
-
-
 /* -------------------------------------------------------------------------- */
 #if GASNETI_CLIENT_THREADS
   /* The first field of threadinfo is a void* reserved for use by the "core".
