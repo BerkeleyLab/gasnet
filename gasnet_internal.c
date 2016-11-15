@@ -308,7 +308,7 @@ extern void gasneti_defaultAMHandler(gasnetex_token_t token) {
   extern int gasnetc_reghandler(gasnetex_handler_t, gasneti_handler_fn_t);
 #else
   /* Use default/recommended impl */
-  extern gasneti_handler_fn_t *gasnetc_handler;
+  extern gasneti_handler_fn_t gasnetc_handler[];
   static int gasnetc_reghandler(gasnetex_handler_t index, gasneti_handler_fn_t fnptr) {
     /* register a single handler */
     gasneti_assert(gasnetc_handler[index] == gasneti_defaultAMHandler);
