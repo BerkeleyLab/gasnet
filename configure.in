@@ -2414,7 +2414,9 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
       x86_64)   MISC_CXXFLAGS="-hnomessage=236:3185 -hexceptions -hnew_for_init" ;; # XT, XE, XK, XC, etc.
       *)        AC_MSG_ERROR(Cray C++ compiler for unknown target CPU) ;;
      esac ;;
-    Pathscale)  CXXDEBUGFLAGS="-g3 -O0" ;; # consistent with CCDEBUGFLAGS
+    Pathscale)  CXXDEBUGFLAGS="-g3 -O0"  # consistent with CCDEBUGFLAGS
+                CXXOPTFLAGS="-O3"        # consistent with CCOPTFLAGS
+    ;;
     Open64)
        if test "$GASNETI_PTR_BITS" = 32; then # consistent with CCOPTFLAGS
          CXXOPTFLAGS="-O1"
