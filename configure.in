@@ -1736,6 +1736,23 @@ if expr "$target_cpu" : "arm" >/dev/null; then
   GASNET_POPVAR(CFLAGS)
 fi
 
+## Check support for AARCH64 real time counter
+if test "$target_cpu" = "aarch64" ; then
+  GASNET_TRY_CACHE_CHECK(for aarch64 virtual timer count register, aarch64_cntvct_el0, [
+    #include <stdint.h>
+    #include <sys/times.h>
+  ], [
+    uint64_t tick, freq;
+    __asm__ __volatile__ ("isb\n\t"
+                          "mrs %0,CNTVCT_EL0" :
+                          "=r" (tick) :
+                          /* no inputs */ :
+                          "memory");
+    __asm__ __volatile__ ("mrs %0,CNTFRQ_EL0" : "=r" (freq));
+    return !tick || !freq; /* Fail if either register is zero */
+  ], [AC_DEFINE(GASNETI_HAVE_AARCH64_CNTVCT_EL0)])
+fi
+
 ## Do toolchain and CPU support ia64 "cmp8xchg16"?
 GASNET_PUSHVAR(CFLAGS,"$CFLAGS $GASNET_ASM_CFLAGS")
 AC_MSG_CHECKING(for ia64 cmp8xchg16 support)

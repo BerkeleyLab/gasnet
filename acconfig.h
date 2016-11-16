@@ -270,6 +270,9 @@
 /* has ARM kernel-level support for membar */
 #undef GASNETI_HAVE_ARM_MEMBAR
 
+/* has usable AARCH64 (ARMV8) system counter support */
+#undef GASNETI_HAVE_AARCH64_CNTVCT_EL0
+
 /* has x86 EBX register (not reserved for GOT) */
 #undef GASNETI_HAVE_X86_EBX
 

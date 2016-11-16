@@ -472,6 +472,35 @@
     return (uint64_t)(st * freq);
   }
 /* ------------------------------------------------------------------------------------ */
+#elif GASNETI_HAVE_AARCH64_CNTVCT_EL0 /* AARCH64/ARMv8 Virtual Timer Count register */
+  #include <sys/times.h>
+  typedef uint64_t gasneti_tick_t;
+  GASNETI_INLINE(gasneti_ticks_now)
+  gasneti_tick_t gasneti_ticks_now(void) {
+    gasneti_tick_t ret;
+
+    __asm__ __volatile__ ("isb\n\t"
+                          "mrs %0,CNTVCT_EL0" :
+                          "=r" (ret) :
+                          /* no inputs */ :
+                          "memory");
+    return ret;
+  }
+
+  GASNETI_INLINE(gasneti_ticks_to_ns)
+  uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
+    static int firsttime = 1;
+    static double adjust = 0;
+    if_pf (firsttime) {
+      uint64_t freq;
+      __asm__ __volatile__ ("mrs %0,CNTFRQ_EL0" : "=r" (freq));
+      adjust = 1.0E9/freq;
+      gasneti_sync_writes();
+      firsttime = 0;
+    } else gasneti_sync_reads();
+    return (uint64_t)(st * adjust);
+  }
+/* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_ARCH_MICROBLAZE && (defined(MB_CC) || defined(MB_FSL_CC))
   typedef uint64_t gasneti_tick_t;
   GASNETI_INLINE(gasneti_ticks_now)
