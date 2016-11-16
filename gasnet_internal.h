@@ -699,6 +699,8 @@ extern void gasneti_nodemapFini(void);
 
 /* ------------------------------------------------------------------------------------ */
 
+#include <gasnet_handler.h>
+
 #if GASNET_PSHM
 #include <gasnet_pshm.h>
 #endif
