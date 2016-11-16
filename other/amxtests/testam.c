@@ -88,6 +88,9 @@ int main(int argc, char **argv) {
     FATALERR("Environment value mismatch on P%i\n", MYPROC);
 #endif
 
+  printf("Slave %i done.\n", MYPROC);
+  fflush(stdout);
+
   /* barrier */
   AM_Safe(AMX_SPMDBarrier());
 
