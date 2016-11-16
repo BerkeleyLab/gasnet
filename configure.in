@@ -238,7 +238,7 @@ AC_DEFUN([GASNET_TRY_WNO_FLAG],[
         ]GASNET_TRY_[$1]FLAG[([$2],
             ]GASNET_TRY_[$1]FLAG[(patsubst([$2],[Wno-],[W]),[$3],[$4]),[$4])])
 
-dnl GASNET_GET_GNUWARNINGFLAGS(type, flagprefix)  type=C or CXX 
+dnl GASNET_GET_GNUWARNINGFLAGS(type, family, flagprefix)  type=C or CXX 
 AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
   if test "$enabled_dev_warnings" = "yes" ; then
     # enable additional supported warnings
@@ -252,6 +252,11 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
                               [[$1]FLAGS="$[$1]FLAGS $3-Wwrite-strings"])
         ]GASNET_TRY_[$1]FLAG[([$3-Wmissing-format-attribute],
                               [[$1]FLAGS="$[$1]FLAGS $3-Wmissing-format-attribute"])
+    if test "$2" = "Pathscale" ; then
+        # pathcc -Wall enables -Wformat-security which we don't want
+        GASNET_TRY_WNO_FLAG([$1],[$3-Wno-format-security],
+                              [[$1]FLAGS="$[$1]FLAGS $3-Wno-format-security"])
+    fi
   fi
          # disable warnings that should always be off (not supported by our headers)
          GASNET_TRY_WNO_FLAG([$1],[$3-Wno-unused],
@@ -638,7 +643,7 @@ esac
 case "$CC_FAMILY" in
   GNU | Pathscale | Open64 | Clang)
     GASNET_PUSHVAR(CFLAGS,"$MISC_CFLAGS")
-    GASNET_GET_GNUWARNINGFLAGS(C,[${misc_flag_prefix}])
+    GASNET_GET_GNUWARNINGFLAGS(C,$CC_FAMILY,[${misc_flag_prefix}])
     MISC_CFLAGS="$CFLAGS"
     GASNET_POPVAR(CFLAGS)
   ;;
@@ -2441,7 +2446,7 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
   case "$CXX_FAMILY" in
     GNU | Pathscale | Open64 | Clang)
       GASNET_PUSHVAR(CXXFLAGS,"$MISC_CXXFLAGS")
-      GASNET_GET_GNUWARNINGFLAGS(CXX,[${gxx_flag_prefix}])
+      GASNET_GET_GNUWARNINGFLAGS(CXX,$CXX_FAMILY,[${gxx_flag_prefix}])
       MISC_CXXFLAGS="$CXXFLAGS"
       GASNET_POPVAR(CXXFLAGS)
     ;;
