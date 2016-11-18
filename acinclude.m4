@@ -485,11 +485,12 @@ GASNET_FUN_END([$0($1)])
 ]])
 
 dnl allow a true #undef in config.h
+dnl Note this requires GASNET_PROG_PERL, although AC_REQUIRE cannot be used in this context
 AC_DEFUN([GASNET_TRUE_UNDEF],[[
 GASNET_FUN_BEGIN([$0($1)])
   if test -f '$1' -a -n "`grep '#trueundef' '$1'`" ; then
-    mv '$1' '$1.dirty'
-    cat '$1.dirty' | sed -e 's/^\s*#\s*trueundef\s/#undef /' > '$1'
+    PERL=${PERL:-perl}
+    $PERL -pi.dirty -e 's/^\s*#\s*trueundef\s/#undef /' '$1'
     rm -f '$1.dirty'
   fi
 GASNET_FUN_END([$0($1)])

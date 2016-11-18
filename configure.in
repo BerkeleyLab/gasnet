@@ -5161,6 +5161,8 @@ if test -f "$CONDUIT_LIST" ; then
     rm -f $CONDUIT_LIST
   fi
 fi
-] , GASNET_FIX_EXEC_SETUP()
+] ,
+PERL="$PERL" # for GASNET_TRUE_UNDEF
+GASNET_FIX_EXEC_SETUP()
 )
 
