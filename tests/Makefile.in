@@ -60,7 +60,7 @@ MPI_TESTS = $(MPI1_TESTS) $(MPI2_TESTS)
 # tests that can be built in any mode
 # in order of most useful execution
 # NOTE: if you add a test here that is expected to pass on all conduits,
-#   please also add it to upcr/upc-tests/gasnet-tests/harness.conf
+#   please also add it to upcr-harness/gasnet-tests/harness.conf
 testprograms_seq =      \
         testgasnet      \
         testlegacy      \

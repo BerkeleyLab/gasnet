@@ -93,11 +93,9 @@ tests-mpi2: force
 	@$(MAKE) -f $(top_builddir)/tests/Makefile tests-mpi2 \
 	  CONDUIT_TESTS="$(CONDUIT_TESTS)" $(CONDUIT_TEST_MAKEARGS)
 
-testtools: force 
-	@$(MAKE) $(CONDUIT_NAME)-$(THREAD_MODEL_LC).mak
+testtools testtoolscxx: force 
 	@echo "*** Building $@ ***"
 	@$(MAKE) -f $(top_builddir)/tests/Makefile $@   \
-	  configfile="$(CONDUIT_NAME)-$(THREAD_MODEL_LC).mak" \
 	  CONDUIT_TESTS="$(CONDUIT_TESTS)" $(CONDUIT_TEST_MAKEARGS)
 
 test%: $(top_srcdir)/tests/test%.c force 
