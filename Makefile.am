@@ -214,10 +214,11 @@ else
 TOOLSONLY_CHECK = run-tests
 TOOLSONLY_TESTS = testtools
 test: tests
-tests: force
+tests: $(TOOLSONLY_TESTS)
+$(TOOLSONLY_TESTS): force
 	@$(MAKE) -f $(top_builddir)/tests/Makefile \
 	        GASNET_INCLUDES="-I@TOP_BUILDDIR@ -I@TOP_SRCDIR@ -I@TOP_SRCDIR@/other" \
-		$(TOOLSONLY_TESTS)
+		$@
 run-tests: tests
 	./testtools
 CLEANFILES = $(TOOLSONLY_TESTS)
