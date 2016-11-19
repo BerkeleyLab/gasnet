@@ -49,6 +49,22 @@
   #define FD_ZERO(pfd_set) (memset(pfd_set, 0, sizeof(*(pfd_set))))
 #endif
 
+#if PLATFORM_COMPILER_PGI && PLATFORM_OS_DARWIN
+  /* bug 3379: workaround PGI optimizer bug */
+  extern uint16_t ntoh16(uint16_t v);
+  extern uint32_t ntoh32(uint32_t v);
+  extern uint16_t hton16(uint16_t v);
+  extern uint32_t hton32(uint32_t v);
+  #undef  htons
+  #define htons hton16
+  #undef  ntohs
+  #define ntohs ntoh16
+  #undef  htonl
+  #define htonl hton32
+  #undef  ntohl
+  #define ntohl ntoh32
+#endif
+
 /*  these constants are useful, but appear to be specific to */
 /*  winsock; so, I define them here and use them as if they */
 /*  were standard */
