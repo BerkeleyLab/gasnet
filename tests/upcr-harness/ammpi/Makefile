@@ -2,7 +2,8 @@ PERL ?= perl
 AMX_FLAVOR=mpi
 CONDUIT_DIR=$(TOP_BUILDDIR)/gasnet/$(AMX_FLAVOR)-conduit
 AMX_DIR=$(TOP_BUILDDIR)/gasnet/other/am$(AMX_FLAVOR)
-MANUAL_CFLAGS=
+SPAWNER_DIR=$(CONDUIT_DIR)/contrib
+SPAWNER=gasnetrun_mpi gasnetrun_mpi.pl
 
 -include $(CONDUIT_DIR)/$(AMX_FLAVOR)-seq.mak
 
@@ -13,7 +14,7 @@ $(PASSTHRU_PHONY): force
 	$(MAKE) -C $(AMX_DIR) $@
 	@echo '#!/bin/sh' > $@ ; chmod +x $@
 
-distcheck: force
+distcheck: $(SPAWNER) force
 	rm -Rf am$(AMX_FLAVOR)[0-9].[0-9]*
 	$(MAKE) -C $(AMX_DIR) amxdist
 	@set -x ; \
@@ -26,9 +27,13 @@ distcheck: force
 	 $(MAKE) all tests CC="$(GASNET_LD)" && \
 	 cp ./testam$(EXESUFFIX) $$TESTDIR/$@$(EXESUFFIX)
 
-test%: force
+test%: $(SPAWNER) force
 	$(MAKE) -C $(AMX_DIR) $@
 	@cp $(AMX_DIR)/$@$(EXESUFFIX) $@$(EXESUFFIX)
+
+$(SPAWNER):
+	$(MAKE) -C $(SPAWNER_DIR) $@
+	cp $(SPAWNER_DIR)/$@ $@
 
 force:
 

@@ -2,7 +2,6 @@ PERL ?= perl
 AMX_FLAVOR=udp
 CONDUIT_DIR=$(TOP_BUILDDIR)/gasnet/$(AMX_FLAVOR)-conduit
 AMX_DIR=$(TOP_BUILDDIR)/gasnet/other/am$(AMX_FLAVOR)
-MANUAL_CFLAGS=
 
 -include $(CONDUIT_DIR)/$(AMX_FLAVOR)-seq.mak
 
