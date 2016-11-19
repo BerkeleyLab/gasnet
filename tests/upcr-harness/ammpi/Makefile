@@ -1,10 +1,14 @@
 PERL ?= perl
 AMX_FLAVOR=mpi
 CONDUIT_DIR=$(TOP_BUILDDIR)/gasnet/$(AMX_FLAVOR)-conduit
+CONDUIT_FRAG=$(CONDUIT_DIR)/$(AMX_FLAVOR)-seq.mak
 AMX_DIR=$(TOP_BUILDDIR)/gasnet/other/am$(AMX_FLAVOR)
 SPAWNER_DIR=$(CONDUIT_DIR)/contrib
 SPAWNER=gasnetrun_mpi gasnetrun_mpi.pl
 
+Makefile: $(CONDUIT_FRAG)
+$(CONDUIT_FRAG):
+	@$(MAKE) -C $(CONDUIT_DIR) $(@F)
 -include $(CONDUIT_DIR)/$(AMX_FLAVOR)-seq.mak
 
 amxdist: force
