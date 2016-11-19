@@ -657,7 +657,6 @@ void AMUDP_processPacket(amudp_buf_t * const buf, int isloopback) {
       if (sourceID == INVALID_NODE) return; /*  unknown source, ignore message */
       if (isrequest && !isloopback) { /*  the returned message is a request, so free that request buffer */
         amudp_bufdesc_t * const desc = GET_REQ_DESC(ep, sourceID, instance);
-        amudp_buf_t *reqbuf = desc->buffer;
         if (desc->buffer && desc->seqNum == seqnum) {
           AMUDP_DequeueTxBuffer(ep, desc->buffer);
           AMUDP_ReleaseBuffer(ep, desc->buffer);
@@ -1193,7 +1192,6 @@ static int AMUDP_ReplyGeneric(amudp_category_t category,
 
   en_t const destaddress = perProcInfo->remoteName;
   if (isloopback) { /* run handler synchronously */
-    amudp_bufstatus_t* const status = &(outgoingbuf->status); /* the status block for this buffer */
     if (nbytes > 0) { /* setup data */
       if (category == amudp_Long) { /* one-copy */
         AMUDP_CHECK_ERRFRC(dest_offset + nbytes > ep->segLength, BAD_ARG, 

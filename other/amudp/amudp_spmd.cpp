@@ -1560,6 +1560,7 @@ extern char *AMUDP_getenv_prefixed_withdefault(const char *basekey, const char *
   if (retval == NULL) {
     retval = (char *)defaultval;
     dflt = "   (default)";
+    usingdefault = 1;
   }
 #ifdef gasnett_envstr_display
   { char displaykey[255];
