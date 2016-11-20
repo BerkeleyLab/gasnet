@@ -17,6 +17,7 @@ int main(int argc, char **argv) {
   int myproc;
   int numprocs;
   int k;
+  int errs = 0;
   int iters = 0;
 
   TEST_STARTUP(argc, argv, networkpid, eb, ep, 1, 1, "iters");
@@ -55,15 +56,9 @@ int main(int argc, char **argv) {
         verify += i;
       }
       if (verify != sum) {
-        printf("Proc %i GET TEST FAILED : sum = %i   verify = %i\n", myproc, sum, verify);
+        printf("ERROR: Proc %i GET TEST FAILED : sum = %i   verify = %i\n", myproc, sum, verify);
         fflush(stdout);
       }
-      #if VERBOSE
-        else {
-          printf("Proc %i verified.\n", myproc);
-          fflush(stdout);
-        }
-      #endif
     }
 
     AM_Safe(AMX_SPMDBarrier()); /* barrier */
@@ -76,17 +71,16 @@ int main(int argc, char **argv) {
       AM_Safe(AMX_SPMDBarrier()); /* barrier */
       for (i = 0; i < numprocs; i++) {
         if (((int)vals[i]) != i) {
-          printf("Proc %i PUT TEST FAILED : i = %i   vals[i] = %i\n", myproc, i, (int)vals[i]);
+          printf("ERROR: Proc %i PUT TEST FAILED : i = %i   vals[i] = %i\n", myproc, i, (int)vals[i]);
           break;
         }
       }
-      #if VERBOSE
-        if (i == numprocs) {
-          printf("Proc %i verified.\n", myproc);
-          fflush(stdout);
-        }
-      #endif
     }
+  }
+  
+  if (!errs) {
+    printf("Proc %i verified.\n", myproc);
+    fflush(stdout);
   }
 
   /* dump stats */

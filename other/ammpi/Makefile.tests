@@ -57,7 +57,7 @@ amxdist:
          echo "+++ Building distribution for AMMPI version $${VERSION} +++" && \
          rm -Rf $$distdir.tar.gz $$distdir && \
          mkdir $$distdir && \
-         cp $(srcdir)/Makefile.* $(srcdir)/README* $(srcdir)/*.txt $(srcdir)/*.[ch]* $(testdir)/*.[ch]* \
+         cp $(srcdir)/Makefile.* $(srcdir)/README* $(srcdir)/*.txt $(srcdir)/*.[ch] $(testdir)/*.[ch] \
 	    $(altincdir)/portable_inttypes.h $(altincdir)/gasnet_portable_platform.h \
 	    $$distdir && \
 	 cd $$distdir && \
