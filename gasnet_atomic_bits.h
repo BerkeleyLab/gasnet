@@ -2115,22 +2115,22 @@
 
       /* Using default fences as we have none in our asms */
     #elif GASNETI_HAVE_GCC_ASM
+      #if GASNETI_PGI_ASM_TPR23291
+        #define GASNETI_ASM_CR0 /*empty*/
+      #else
+        #define GASNETI_ASM_CR0 "cr0"
+      #endif
+
       #define GASNETI_HAVE_ATOMIC32_T 1
       typedef struct { volatile uint32_t ctr; } gasneti_atomic32_t;
       #define gasneti_atomic32_init(v)       { (v) }
       #define _gasneti_atomic32_read(p)      ((p)->ctr)
       #define _gasneti_atomic32_set(p,v)     ((p)->ctr = (v))
 
-      #if PLATFORM_COMPILER_PGI_CXX // Does not grok "cr0"
-        #define GASNETI_ASM_CR0 /*empty*/
-      #else
-        #define GASNETI_ASM_CR0 "cr0"
-      #endif
-
       GASNETI_INLINE(_gasneti_atomic32_addfetch)
       uint32_t _gasneti_atomic32_addfetch(gasneti_atomic32_t *v, uint32_t op) {
         register uint32_t result;
-      #if PLATFORM_COMPILER_PGI /* Doesn't accept %I */
+      #if GASNETI_PGI_ASM_TPR23290
         __asm__ __volatile__ (
           "0:\t"
           "lwarx    %0,0,%2 \n\t"
@@ -2231,7 +2231,7 @@
         GASNETI_INLINE(_gasneti_atomic64_addfetch)
         uint64_t _gasneti_atomic64_addfetch(gasneti_atomic64_t *p, uint64_t op) {
           register uint64_t result;
-        #if PLATFORM_COMPILER_PGI /* Doesn't accept %I */
+        #if GASNETI_PGI_ASM_TPR23290
           __asm__ __volatile__ (
                 "0:\t"
                 "ldarx    %0,0,%2 \n\t"

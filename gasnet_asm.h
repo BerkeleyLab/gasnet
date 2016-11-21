@@ -42,7 +42,23 @@
 #elif PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || PLATFORM_COMPILER_PATHSCALE || \
       PLATFORM_COMPILER_TINY || PLATFORM_COMPILER_OPEN64 || PLATFORM_COMPILER_CLANG
   #define GASNETI_HAVE_GCC_ASM 1
-#elif PLATFORM_COMPILER_PGI 
+#elif PLATFORM_COMPILER_PGI && PLATFORM_ARCH_POWERPC
+  #define GASNETI_HAVE_GCC_ASM 1
+  #if PLATFORM_COMPILER_VERSION_GE(16,0,0) // All known versions through at least 16.10
+    // PGI "tpr 23290"
+    // Does not grok the immediate modifier "%I" in an asm template
+    #define GASNETI_PGI_ASM_TPR23290 1
+  #endif
+  #if PLATFORM_COMPILER_PGI_CXX && \
+      PLATFORM_COMPILER_VERSION_GE(16,0,0) // All known versions through at least 16.10
+    // PGI "tpr 23291"
+    // C++ compiler does not grok "cr0", though C compiler does
+    #define GASNETI_PGI_ASM_TPR23291 1
+  #endif
+  /* For consistency w/ the x86 and x86-64: */
+  #define GASNETI_PGI_ASM_GNU 1
+  #define GASNETI_PGI_ASM_THREADSAFE 1
+#elif PLATFORM_COMPILER_PGI /* x86 and x86-64 */
   /* Some definitions:
    *
    * GASNETI_PGI_ASM_GNU 
