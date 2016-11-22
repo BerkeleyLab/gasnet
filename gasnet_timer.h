@@ -387,7 +387,7 @@
 	}
       } while (de);
       if (!de) gasneti_fatalerror("*** ERROR: Failure to find a PowerPC CPU in /proc/device-tree/cpus");
-      snprintf(fname, sizeof(fname), "/proc/device-tree/cpus/%s/timebase-frequency", de->d_name);
+      snprintf(fname, sizeof(fname), "/proc/device-tree/cpus/%.*s/timebase-frequency", 24, de->d_name);
       closedir(dp);
       fp = fopen(fname, "r");
       if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('%s','r'): %s\n",fname,strerror(errno));
