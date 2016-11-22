@@ -32,7 +32,6 @@ LIBINCLUDES = $(TOOLLIBINCLUDES) \
 TOOLLIBDEFINES =                    \
         @GASNET_EXTRA_DEFINES@      \
         $(LIBGASNET_THREAD_DEFINES) \
-        @GASNET_MACHINE_DEFINES@    \
         $(MANUAL_DEFINES)
 
 LIBDEFINES =                        \

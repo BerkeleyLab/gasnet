@@ -1229,8 +1229,8 @@ exploited.
 Required porting steps:
 
 * For a new OS, add OS detection to configure.in and acconfig.h, with 
-  appropriate settings for GASNET_MACHINE_DEFINES, GASNET_THREAD_DEFINES,
-  GASNET_THREAD_LIBS.  If the system supports MPI, add appropriate configure.in
+  appropriate settings for GASNET_THREAD_DEFINES and GASNET_THREAD_LIBS.  
+  If the system supports MPI, add appropriate configure.in
   defaults for MPI_CC, MPI_CFLAGS, MPI_LIBS and MPIRUN_CMD. 
 
 * For a new C/C++ compiler, add a detection check for the new compiler to 
