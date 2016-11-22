@@ -11,6 +11,7 @@
   #include <sys/time.h>
 #endif
 #include <unistd.h>
+#include <sys/select.h>
 #include <signal.h>
 #include <stdlib.h>
 
