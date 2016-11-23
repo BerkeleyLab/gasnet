@@ -39,8 +39,8 @@ use of shared-memory for communication.
 The PSHM support in GASNet can operate via three generic mechanisms: POSIX
 shared memory, SystemV shared memory, or mmap()ed disk files.
 
-POSIX shared memory is recommended as the best option, but is not always
-available (many kernels can be configured not to support it).
+POSIX shared memory is recommended as the best option in most cases, but is
+not always available (many kernels can be configured not to support it).
 
 In the absence of the POSIX shared memory, users are advised to use the
 SystemV shared memory as the next-best option.  However, see the next section
@@ -51,18 +51,27 @@ using mmap()ed disk files.  However, on some systems we see significant
 performance degradation when using files (apparently due to committing the
 changes from memory to disk).
 
-When PSHM is enabled, the default is for the configure step to probe only for
-support via POSIX shared memory.  If no POSIX shared memory support if found,
-there is no automatic fallback to any other mechanism.  So, if one wishes to
-use SystemV shared memory or mmap()ed files, one should explicitly disable the
-POSIX support and enable the desired mechanism:
+Unless PSHM is disabled, the default behavior of the configure step is to probe
+for support via exactly one prefered mechanism.  For Solaris the prefered
+mechanism is SystemV, while for all other platforms it is POSIX.  If the
+prefered mechanism is not supported (or is explicitly disabled) the then there
+is no automatic fallback to any other mechanism.  So, if one wishes to use
+another mechanism, one should explicitly disable the default (POSIX or SysV)
+support and enable the desired mechanism:
 
-        Usage Summary (flags to be passed to the configure script):
+        Common Usage Summary (flags to pass to the configure script):
         ----------------------------------------------------------
           OFF: --disable-pshm
         POSIX: no flags required (default unless cross-compiling)
          SYSV: --disable-pshm-posix --enable-pshm-sysv
          FILE: --disable-pshm-posix --enable-pshm-file
+
+        Solaris Usage Summary (as above except that SysV is default)
+        ----------------------------------------------------------
+          OFF: --disable-pshm
+        POSIX: --disable-pshm-sysv --enable-pshm-posix
+         SYSV: no flags required (default)
+         FILE: --disable-pshm-sysv --enable-pshm-file
 
 There are also implementations which are specific to certain platforms:
 
@@ -161,6 +170,7 @@ kern.shminfo.shmall=268435456
 
    - Solaris:
         Depends on version.  Please see the Sun/Oracle documentation.
+        However, on recent releases the defaults are sufficient.
 
    - Cygwin:
         If you have not done so yet, please Read the Cygwin documentation

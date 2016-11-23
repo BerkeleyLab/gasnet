@@ -7,6 +7,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 @ Section: Where this conduit runs @
 @ Section: Job Spawning @
 @ Section: Multi-rail Support @
+@ Section: Build-time Configuration @
 @ Section: Runtime Configuration @
 @ Section: HCA Configuration @
 @ Section: Platform-specific Notes @
@@ -54,6 +55,14 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   specific recommendation as to which to use.  We recommend that you
   benchmark your own workload if you are concerned with the very best
   possible performance.
+
+  While ibv-conduit runs on Solaris, the libibverbs on Solaris is not
+  compatible with GASNet's implementaion of PSHM over POSIX shared memory.
+  This is not normally of concern, because on Solaris GASNet defaults to
+  an implementation of PSHM over SystemV shared memory.  However, if one
+  configures GASNet to use PSHM-over-POSIX on Solaris, then be advised
+  that ibv-conduit will lack PSHM support and thus perform all communication
+  within a compute node via the InfiniBand HCA instead of shared memory.
 
 @ Section: Job Spawning @
   

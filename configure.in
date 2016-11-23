@@ -1420,9 +1420,13 @@ if test "$enabled_pshm" != no; then
    [enabled_pshm_posix=yes], [enabled_pshm_posix=no],
    [ # Default is YES except:
      # + on BG/Q due to multiple "oddities" in CNK's implementation
+     # + on Solaris due to incompatibility w/ ibv and the "robustness" of SysV
      enabled_pshm_posix=yes
      case "$target_vendor" in
        bgq) enabled_pshm_posix=no ;;
+     esac
+     case "$target_os" in
+       solaris*) enabled_pshm_posix=no ;;
      esac
    ])
  if test "$enabled_pshm_posix$with_pshm" = yesno; then
@@ -1477,9 +1481,16 @@ if test "$enabled_pshm" != no; then
 
  # Second check is for SysV (shmget) support
  enabled_pshm_sysv=no
- GASNET_IF_ENABLED(pshm-sysv,
-   [Enable use of SysV shmat() for inter-process shared memory support (default disabled)],
-   [enabled_pshm_sysv=yes])
+ GASNET_IF_ENABLED_WITH_AUTO(pshm-sysv,
+   [Enable use of SysV shmat() for inter-process shared memory support (default is system dependent)],
+   [enabled_pshm_sysv=yes], [enabled_pshm_sysv=no],
+   [ # Default is NO except:
+     # + on Solaris due to "robust" defaults and compatibility with ibv-conduit
+     enabled_pshm_sysv=no
+     case "$target_os" in
+       solaris*) enabled_pshm_sysv=yes ;;
+     esac
+   ])
  if test "$enabled_pshm_sysv$with_pshm" = yesno; then
   dnl XXX Stronger probe?
   AC_CHECK_FUNC(shmget, [
