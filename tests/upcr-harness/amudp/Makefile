@@ -31,7 +31,7 @@ distcheck: force
 	 cp ./testam$(EXESUFFIX) $$TESTDIR/$@$(EXESUFFIX)
 
 amudprun:
-	$(MAKE) -C $(AMX_DIR) $@
+	$(MAKE) -C $(AMX_DIR) $@$(EXESUFFIX)
 	@cp $(AMX_DIR)/$@$(EXESUFFIX) .
 
 test%: amudprun force
