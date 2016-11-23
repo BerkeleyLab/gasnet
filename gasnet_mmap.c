@@ -1281,7 +1281,6 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
       gasneti_pshmnet_bootstrapBroadcast(gasneti_request_pshmnet, &maxsz, sizeof(uintptr_t), &maxsz, 0);
 
       /* Unlink the shared segments to prevent leaks (they are recreated in segmentInit) */
-      /* XXX: redundant? */
       gasneti_unlink_segments();
     #endif
 #endif
@@ -1463,6 +1462,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
   gasneti_assert(gasneti_MaxLocalSegmentSize <= localSegmentLimit);
 
 #if GASNET_PSHM
+  gasneti_unlink_segments();
   gasneti_pshm_cs_leave();
 #endif
 }
@@ -1552,8 +1552,13 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
         }
       }
 
+    #if GASNET_PSHM
+      /* Must always recreate the segment*/
+    #else
       /* trim final segment if required */
-      if (gasneti_segment.addr != segbase || gasneti_segment.size != segsize) {
+      if (gasneti_segment.addr != segbase || gasneti_segment.size != segsize)
+    #endif
+      {
         gasneti_assert(segbase >= gasneti_segment.addr &&
                (uintptr_t)segbase + segsize <= (uintptr_t)gasneti_segment.addr + gasneti_segment.size);
         gasneti_do_munmap(gasneti_segment.addr, gasneti_segment.size);
