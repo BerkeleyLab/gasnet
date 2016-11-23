@@ -443,6 +443,16 @@ static void * gasneti_pshm_mmap(int pshm_rank, void *segbase, size_t segsize) {
       gasneti_fatalerror("Cygwin's SystemV shared memory support is not enabled.");
     }
     #endif
+    if (errno == EINVAL) {
+      // shmget() returns EINVAL for (size > SHMMAX), among other causes
+      // TODO: can we confirm that is the actual cause?
+      errno = ENOMEM;
+    }
+    if (errno == ENOSPC) {
+      // shmget() returns ENOSPC for (total_size > SHMALL), among other causes
+      // TODO: can we confirm that is the actual cause?
+      errno = ENOMEM;
+    }
     return MAP_FAILED;
   }
 
