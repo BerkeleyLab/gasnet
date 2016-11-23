@@ -1331,6 +1331,9 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
   { gasneti_segexch_t se;
     int i;
 
+    // NOTE: If the conduit did not derive localSegmentLimit from a call to
+    // gasneti_mmapLimit(), then this call might lead to unexpected failures
+    // (such as bug 651) due to it's lack of coordination among processes.
     gasneti_segment = gasneti_mmap_segment_search(localSegmentLimit == (uintptr_t)-1 ?
                                                   GASNETI_MMAP_LIMIT : 
                                                   MIN(localSegmentLimit,GASNETI_MMAP_LIMIT));

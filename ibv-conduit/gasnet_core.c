@@ -1806,7 +1806,12 @@ static int gasnetc_init(int *argc, char ***argv) {
     if_pf (gasnetc_pin_info.memory < reserved_mem) {
       gasneti_fatalerror("Pinnable memory (%lu) is less than reserved minimum %lu\n", (unsigned long)gasnetc_pin_info.memory, (unsigned long)reserved_mem);
     }
-    gasneti_segmentInit((gasnetc_pin_info.memory - reserved_mem), &gasnetc_bootstrapExchange_ib);
+    uintptr_t limit = gasneti_mmapLimit(
+                                  (gasnetc_pin_info.memory - reserved_mem),
+                                  (uint64_t)-1,
+                                  &gasnetc_bootstrapExchange_ib,
+                                  &gasnetc_bootstrapBarrier_ib);
+    gasneti_segmentInit(limit, &gasnetc_bootstrapExchange_ib);
   }
   #elif GASNET_SEGMENT_LARGE
   {
