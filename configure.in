@@ -252,12 +252,13 @@ AC_DEFUN([GASNET_GET_GNUWARNINGFLAGS],[
                               [[$1]FLAGS="$[$1]FLAGS $3-Wwrite-strings"])
         ]GASNET_TRY_[$1]FLAG[([$3-Wmissing-format-attribute],
                               [[$1]FLAGS="$[$1]FLAGS $3-Wmissing-format-attribute"])
+  fi
+
     if test "$2" = "Pathscale" ; then
-        # pathcc -Wall enables -Wformat-security which we don't want
+        # pathcc default enables -Wformat-security which we don't want
         GASNET_TRY_WNO_FLAG([$1],[$3-Wno-format-security],
                               [[$1]FLAGS="$[$1]FLAGS $3-Wno-format-security"])
     fi
-  fi
          # disable warnings that should always be off (not supported by our headers)
          GASNET_TRY_WNO_FLAG([$1],[$3-Wno-unused],
                              [[$1]FLAGS="$[$1]FLAGS $3-Wno-unused"],
