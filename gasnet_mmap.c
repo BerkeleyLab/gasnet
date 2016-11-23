@@ -1131,7 +1131,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
   const gasnetex_rank_t local_count = gasneti_myhost.node_count;
 
 #if GASNET_PSHM
-  gasneti_pshm_cs_enter();
+  gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
 #endif
 
   gasneti_assert(exchangefn);
@@ -1312,7 +1312,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
 void gasneti_segmentInit(uintptr_t localSegmentLimit,
                          gasneti_bootstrapExchangefn_t exchangefn) {
 #if GASNET_PSHM
-  gasneti_pshm_cs_enter();
+  gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
 #endif
 
   gasneti_assert(gasneti_MaxLocalSegmentSize == 0);
@@ -1480,7 +1480,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
 
   #if GASNET_PSHM
     /* Avoid leaking shared memory files in case of non-collective exit between init/attach */
-    gasneti_pshm_cs_enter();
+    gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
     gasneti_pshmnet_bootstrapBarrier();
   #endif
 
