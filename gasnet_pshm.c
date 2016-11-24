@@ -800,8 +800,14 @@ static void gasneti_pshm_abort_handler(int sig) {
 
   // Best-effort message if this is not due to gasneti_fatalerror()
   if (sig != SIGABRT) {
-    const char msg[] = "*** FATAL ERROR: fatal signal while mapping shared memory\n";
-    write(STDERR_FILENO, msg, sizeof(msg) - 1);
+    const char msg1[] = "*** FATAL ERROR: fatal ";
+    const char msg2[] = " while mapping shared memory\n";
+    const char *signame = gasnett_signame_fromval(sig);
+    if (!signame) signame = "signal";
+    char msg[128] = { '\0', };
+    gasneti_assert(strlen(msg1) + strlen(signame) + strlen(msg2) + 1 <= sizeof(msg));
+    strcat(strcat(strcat(msg, msg1), signame), msg2);
+    write(STDERR_FILENO, msg, strlen(msg));
   }
 
   // Reraise the signal
