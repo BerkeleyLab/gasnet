@@ -280,13 +280,17 @@
   }
 /* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_ARCH_POWERPC && \
-      ( PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_XLC || PLATFORM_COMPILER_CLANG ) && \
+      ( PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_XLC || \
+        PLATFORM_COMPILER_CLANG || PLATFORM_COMPILER_PGI ) && \
       ( PLATFORM_OS_LINUX || PLATFORM_OS_BGQ)
   /* Use the 64-bit "timebase" register on both 32- and 64-bit PowerPC CPUs */
   #include <sys/types.h>
   #include <dirent.h>
+ #ifndef __GNUC__
+  #include <byteswap.h>
+ #endif
   typedef uint64_t gasneti_tick_t;
- #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_CLANG || \
+ #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_CLANG || PLATFORM_COMPILER_PGI || \
      (PLATFORM_COMPILER_XLC && GASNETI_HAVE_GCC_ASM && !GASNETI_HAVE_XLC_ASM)
   #if PLATFORM_COMPILER_CLANG /* or something to force? */
     /* Clang's integrated assembler (correctly) warns that mftb* are deprecated */
@@ -393,9 +397,13 @@
       if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('%s','r'): %s\n",fname,strerror(errno));
       if (fread((void *)(&freq), sizeof(uint32_t), 1, fp) != 1) 
         gasneti_fatalerror("*** ERROR: Failure to read timebase frequency from '%s': %s", fname, strerror(errno));
-     #if PLATFORM_ARCH_LITTLE_ENDIAN
-      freq = __builtin_bswap32(freq); /* value is always big-endian */
+    #if PLATFORM_ARCH_LITTLE_ENDIAN /* value is always big-endian */
+     #ifdef __GNUC__
+      freq = __builtin_bswap32(freq);
+     #else
+      freq = bswap_32(freq);
      #endif
+    #endif
       fclose(fp);
       if (freq == 0) { /* Playstation3 */
         char input[255];
