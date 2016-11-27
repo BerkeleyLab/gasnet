@@ -286,9 +286,6 @@
   /* Use the 64-bit "timebase" register on both 32- and 64-bit PowerPC CPUs */
   #include <sys/types.h>
   #include <dirent.h>
- #ifndef __GNUC__
-  #include <byteswap.h>
- #endif
   typedef uint64_t gasneti_tick_t;
  #if PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_CLANG || PLATFORM_COMPILER_PGI || \
      (PLATFORM_COMPILER_XLC && GASNETI_HAVE_GCC_ASM && !GASNETI_HAVE_XLC_ASM)
@@ -398,11 +395,10 @@
       if (fread((void *)(&freq), sizeof(uint32_t), 1, fp) != 1) 
         gasneti_fatalerror("*** ERROR: Failure to read timebase frequency from '%s': %s", fname, strerror(errno));
     #if PLATFORM_ARCH_LITTLE_ENDIAN /* value is always big-endian */
-     #ifdef __GNUC__
-      freq = __builtin_bswap32(freq);
-     #else
-      freq = bswap_32(freq);
-     #endif
+      freq = ((freq & 0x000000ff) << 24) |
+             ((freq & 0x0000ff00) <<  8) |
+             ((freq & 0x00ff0000) >>  8) |
+             ((freq & 0xff000000) >> 24);
     #endif
       fclose(fp);
       if (freq == 0) { /* Playstation3 */
