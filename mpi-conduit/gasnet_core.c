@@ -31,9 +31,7 @@ ep_t gasnetc_endpoint;
 
 gasneti_mutex_t gasnetc_AMlock = GASNETI_MUTEX_INITIALIZER; /*  protect access to AMMPI */
 
-#if GASNET_PSHM
-  gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* shadow handler table */
-#endif /* GASNET_PSHM */
+gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 #if GASNETC_HSL_ERRCHECK || GASNET_TRACE
   extern void gasnetc_enteringHandler_hook(ammpi_category_t cat, int isReq, int handlerId, void *token, 
@@ -246,11 +244,6 @@ extern int gasnet_init(int *argc, char ***argv) {
 extern int gasnetc_reghandler(gasnetex_handler_t index, gasneti_handler_fn_t fnptr) {
   if (AM_SetHandler(gasnetc_endpoint, (handler_t)index, fnptr) != AM_OK)
     GASNETI_RETURN_ERRR(RESOURCE, "AM_SetHandler() failed while registering handlers");
-#if GASNET_PSHM
-  /* Maintain a shadown handler table for AMPSHM */
-  gasneti_assert(gasnetc_handler[index] == gasneti_defaultAMHandler);
-  gasnetc_handler[index] = fnptr;
-#endif
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
@@ -290,13 +283,11 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
     /* ------------------------------------------------------------------------------------ */
     /*  register handlers */
-#if GASNET_PSHM
-    /* Initialize AMPSHM's shadow handler table */
+    /* Initialize handler table */
     { int i;
       for (i=0; i<GASNETC_MAX_NUMHANDLERS; i++)
           gasnetc_handler[i]=(gasneti_handler_fn_t)&gasneti_defaultAMHandler;
     }
-#endif
     { /*  core API handlers */
       gasnet_handlerentry_t *ctable = (gasnet_handlerentry_t *)gasnetc_get_handlertable();
       int len = 0;

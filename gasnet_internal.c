@@ -304,22 +304,17 @@ extern void gasneti_defaultAMHandler(gasnetex_token_t token) {
 }
 /* ------------------------------------------------------------------------------------ */
 #if GASNETC_REGHANDLER
-  /* Use conduit-specific impl */
+  /* Use a conduit-specific hook at registration */
   extern int gasnetc_reghandler(gasnetex_handler_t, gasneti_handler_fn_t);
-#else
-  /* Use default/recommended impl */
-  extern gasneti_handler_fn_t gasnetc_handler[];
-  static int gasnetc_reghandler(gasnetex_handler_t index, gasneti_handler_fn_t fnptr) {
-    /* register a single handler */
-    gasneti_assert(gasnetc_handler[index] == gasneti_defaultAMHandler);
-    gasnetc_handler[index] = fnptr;
-    return GASNET_OK;
-  }
 #endif
+
+// TODO-EX: to be replaced by per-EP arrays
+extern gasneti_handler_fn_t gasnetc_handler[];
+
 extern int gasneti_reghandlers(gasnet_handlerentry_t *table, int numentries,
                                int lowlimit, int highlimit,
                                int dontcare, int *numregistered) {
-  static char checkuniqhandler[256] = { 0 };
+  #define AM_TBL_ENTRY_FREE(tbl, index) (gasneti_defaultAMHandler == tbl[index])
   int i;
   *numregistered = 0;
   for (i = 0; i < numentries; i++) {
@@ -330,7 +325,7 @@ extern int gasneti_reghandlers(gasnet_handlerentry_t *table, int numentries,
     else if (table[i].index) newindex = table[i].index;
     else { /* deterministic assignment of dontcare indexes */
       for (newindex = lowlimit; newindex <= highlimit; newindex++) {
-        if (!checkuniqhandler[newindex]) break;
+        if (AM_TBL_ENTRY_FREE(gasnetc_handler, newindex)) break;
       }
       if (newindex > highlimit) {
         char s[255];
@@ -347,13 +342,17 @@ extern int gasneti_reghandlers(gasnet_handlerentry_t *table, int numentries,
     }
 
     /* discover duplicates */
-    if (checkuniqhandler[newindex] != 0)
+    if (! AM_TBL_ENTRY_FREE(gasnetc_handler, newindex))
       GASNETI_RETURN_ERRR(BAD_ARG, "handler index not unique");
-    checkuniqhandler[newindex] = 1;
 
-    /* register the handler */
-    int rc = gasnetc_reghandler((gasnetex_handler_t)newindex, (gasneti_handler_fn_t)table[i].fnptr);
+    /* register a single handler */
+    gasneti_handler_fn_t fnptr = (gasneti_handler_fn_t)table[i].fnptr;
+  #if GASNETC_REGHANDLER /* have a conduit-specific hook */
+    int rc = gasnetc_reghandler((gasnetex_handler_t)newindex, fnptr);
     if (GASNET_OK != rc) return rc;
+  #endif
+    gasneti_assert(AM_TBL_ENTRY_FREE(gasnetc_handler, newindex));
+    gasnetc_handler[newindex] = fnptr;
 
     /* The check below for !table[i].index is redundant and present
      * only to defeat the over-aggressive optimizer in pathcc 2.1
@@ -363,6 +362,8 @@ extern int gasneti_reghandlers(gasnet_handlerentry_t *table, int numentries,
     (*numregistered)++;
   }
   return GASNET_OK;
+
+  #undef AM_TBL_ENTRY_FREE
 }
 /* ------------------------------------------------------------------------------------ */
 

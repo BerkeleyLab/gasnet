@@ -50,8 +50,8 @@
 #define GASNETI_CONDUIT_THREADS 1
 #endif
 
-/* define these to 1 if your conduit cannot use the default implementation
-   of gasnetc_reghandler() (in gasnet_internal.c)
+/* define these to 1 if your conduit needs to augment the implementation
+   of gasneti_reghandler() (in gasnet_internal.c)
    */
 #if 0
 #define GASNETC_REGHANDLER 1

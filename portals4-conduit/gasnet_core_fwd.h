@@ -38,8 +38,8 @@
    */
 #undef GASNETI_CONDUIT_THREADS
 
-  /* define these to 1 if your conduit cannot use the default implementation
-     of gasnetc_reghandler() (in gasnet_internal.c)
+  /* define these to 1 if your conduit needs to augment the implementation
+     of gasneti_reghandler() (in gasnet_internal.c)
    */
 #undef GASNETC_REGHANDLER
 

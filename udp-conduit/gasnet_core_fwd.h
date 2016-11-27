@@ -60,8 +60,8 @@
 #define GASNET_ERR_NOT_READY            (_GASNET_ERR_BASE+4)
 #define GASNET_ERR_BARRIER_MISMATCH     (_GASNET_ERR_BASE+5)
 
-  /* define these to 1 if your conduit cannot use the default implementation
-     of gasnetc_reghandler() (in gasnet_internal.c)
+  /* define these to 1 if your conduit needs to augment the implementation
+     of gasneti_reghandler() (in gasnet_internal.c)
    */
 #define GASNETC_REGHANDLER 1
 
