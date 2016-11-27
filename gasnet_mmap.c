@@ -217,6 +217,7 @@ extern void *gasneti_mmap(uintptr_t segsize) {
   static void **gasneti_pshm_segaddrs = NULL;
 #endif
 
+static char *gasneti_pshm_tmpfile_ = NULL;
 static char *gasneti_pshm_tmpfile = NULL;
 #define GASNETI_PSHM_PREFIX_LEN1  6  /* "/GASNT" */
 #define GASNETI_PSHM_PREFIX_LEN   (GASNETI_PSHM_PREFIX_LEN1 + GASNETI_PSHM_UNIQUE_LEN)
@@ -228,13 +229,15 @@ static int gasneti_pshm_mkstemp(const char *prefix, const char *tmpdir) {
     errno = ENOTDIR;
     return -1;
   }
-  gasneti_pshm_tmpfile = gasneti_realloc(gasneti_pshm_tmpfile, strlen(tmpdir) + GASNETI_PSHM_PREFIX_LEN + 1);
-  strcpy(gasneti_pshm_tmpfile, tmpdir);
-  strcat(gasneti_pshm_tmpfile, prefix);
+  gasneti_pshm_tmpfile_ = gasneti_realloc(gasneti_pshm_tmpfile_, strlen(tmpdir) + GASNETI_PSHM_PREFIX_LEN + 1);
+  strcpy(gasneti_pshm_tmpfile_, tmpdir);
+  strcat(gasneti_pshm_tmpfile_, prefix);
 
   /* Now try to create a unique file in the given directory */
-  tmpfd = mkstemp(gasneti_pshm_tmpfile);
+  tmpfd = mkstemp(gasneti_pshm_tmpfile_);
   if (tmpfd >= 0) {
+    gasneti_local_wmb();
+    gasneti_pshm_tmpfile = gasneti_pshm_tmpfile_;
     close(tmpfd);
     return 0;
   } else {
@@ -253,17 +256,19 @@ static int gasneti_pshm_settemp(const char *unique, const char *prefix, const ch
     errno = ENOTDIR;
     return -1;
   }
-  gasneti_pshm_tmpfile = gasneti_realloc(gasneti_pshm_tmpfile, strlen(tmpdir) + GASNETI_PSHM_PREFIX_LEN + 1);
-  strcpy(gasneti_pshm_tmpfile, tmpdir);
-  strcat(gasneti_pshm_tmpfile, prefix);
+  gasneti_pshm_tmpfile_ = gasneti_realloc(gasneti_pshm_tmpfile_, strlen(tmpdir) + GASNETI_PSHM_PREFIX_LEN + 1);
+  strcpy(gasneti_pshm_tmpfile_, tmpdir);
+  strcat(gasneti_pshm_tmpfile_, prefix);
 
   /* Note: 'unique' might not be NUL terminated */
-  len = strlen(gasneti_pshm_tmpfile);
-  memcpy(gasneti_pshm_tmpfile + len - GASNETI_PSHM_UNIQUE_LEN, unique, GASNETI_PSHM_UNIQUE_LEN);
+  len = strlen(gasneti_pshm_tmpfile_);
+  memcpy(gasneti_pshm_tmpfile_ + len - GASNETI_PSHM_UNIQUE_LEN, unique, GASNETI_PSHM_UNIQUE_LEN);
 
   /* Now try to verify the file exists */
-  tmpfd = open(gasneti_pshm_tmpfile, O_RDWR);
+  tmpfd = open(gasneti_pshm_tmpfile_, O_RDWR);
   if (tmpfd >= 0) {
+    gasneti_local_wmb();
+    gasneti_pshm_tmpfile = gasneti_pshm_tmpfile_;
     close(tmpfd);
     return 0;
   } else {
@@ -330,7 +335,7 @@ static const char *gasneti_pshm_makeunique(const char *unique) {
 
 #if defined(GASNETI_PSHM_SYSV)
   gasneti_pshm_settemp(unique, prefix, tmpdir);
-  gasneti_pshm_sysvkeys = (key_t *)gasneti_malloc((gasneti_pshm_nodes+1)*sizeof(key_t));
+  key_t *keys = (key_t *)gasneti_malloc((gasneti_pshm_nodes+1)*sizeof(key_t));;
   for (i = 0; i <= gasneti_pshm_nodes; ++i) {
     key_t key = ftok(gasneti_pshm_tmpfile, i + 1);
     if (key == (key_t)-1){
@@ -341,7 +346,7 @@ static const char *gasneti_pshm_makeunique(const char *unique) {
     else { /* ftok() is documented (on many systems) as using only low 8 bits - so verify */
       int j;
       for (j = 0; j < i; ++j) {
-        if_pf (key == gasneti_pshm_sysvkeys[j]) {
+        if_pf (key == keys[j]) {
           key = (key_t)-1;
           gasneti_fatalerror("failed to produce a unique SYSV key value for %s and rank %d, dup of %d",
                              gasneti_pshm_tmpfile, i, j);
@@ -349,8 +354,10 @@ static const char *gasneti_pshm_makeunique(const char *unique) {
       }
     }
   #endif
-    gasneti_pshm_sysvkeys[i] = key;
+    keys[i] = key;
   }
+  gasneti_local_wmb();
+  gasneti_pshm_sysvkeys = keys;
 #else
   /* Three base-36 "digits" provide 46,656 unique names, even if case-insensitive. */
  #if GASNETI_PSHM_MAX_NODES > 255
@@ -360,7 +367,7 @@ static const char *gasneti_pshm_makeunique(const char *unique) {
   /* Note: 'unique' might not be NUL terminated */
   memcpy(prefix + GASNETI_PSHM_PREFIX_LEN1, unique, GASNETI_PSHM_UNIQUE_LEN);
 
-  gasneti_pshmname = (char **)gasneti_malloc((gasneti_pshm_nodes+1)*sizeof(char*));
+  char **names = (char **)gasneti_malloc((gasneti_pshm_nodes+1)*sizeof(char*));
   base_len = tmpdir_len + GASNETI_PSHM_PREFIX_LEN;
   allnames = (char *)gasneti_malloc((gasneti_pshm_nodes+1)*(base_len + 4));
 
@@ -381,8 +388,10 @@ static const char *gasneti_pshm_makeunique(const char *unique) {
     filename[base_len + 0] = tbl[digit];
     filename[base_len + 3] = '\0';
 
-    gasneti_pshmname[i] = filename;
+    names[i] = filename;
   }
+  gasneti_local_wmb();
+  gasneti_pshmname = names;
 #endif
 
   return unique;
@@ -443,6 +452,16 @@ static void * gasneti_pshm_mmap(int pshm_rank, void *segbase, size_t segsize) {
       gasneti_fatalerror("Cygwin's SystemV shared memory support is not enabled.");
     }
     #endif
+    if (errno == EINVAL) {
+      // shmget() returns EINVAL for (size > SHMMAX), among other causes
+      // TODO: can we confirm that is the actual cause?
+      errno = ENOMEM;
+    }
+    if (errno == ENOSPC) {
+      // shmget() returns ENOSPC for (total_size > SHMALL), among other causes
+      // TODO: can we confirm that is the actual cause?
+      errno = ENOMEM;
+    }
     return MAP_FAILED;
   }
 
@@ -639,15 +658,17 @@ static void gasneti_unlink_segments(void) {
 static void gasneti_cleanup_shm(void) {
 #ifdef GASNETI_PSHM_SYSV
   /* Unlink the segments and vnet */
-  int i;
-  for (i=0; i<gasneti_pshm_nodes+1; ++i) {
-    gasneti_pshm_unlink(i);
+  if (gasneti_pshm_sysvkeys) {
+    gasneti_local_rmb();
+    for (int i=0; i<gasneti_pshm_nodes+1; ++i) {
+      gasneti_pshm_unlink(i);
+    }
+    gasneti_free(gasneti_pshm_sysvkeys);
+    gasneti_pshm_sysvkeys = NULL;
   }
-    
-  gasneti_free(gasneti_pshm_sysvkeys);
-  gasneti_pshm_sysvkeys = NULL;
 #elif defined(GASNETI_PSHM_FILE) || defined(GASNETI_PSHM_POSIX)
   if (gasneti_pshmname) {
+    gasneti_local_rmb();
     /* Unlink the segments and vnet, and free the filenames */
     int i;
     for (i=0; i<gasneti_pshm_nodes+1; ++i) {
@@ -671,6 +692,7 @@ static void gasneti_cleanup_shm(void) {
 
   /* Remove the tmpfile that ensures uniqueness of our filenames */
   if (gasneti_pshm_tmpfile) {
+    gasneti_local_rmb();
     (void)unlink(gasneti_pshm_tmpfile);
     gasneti_free(gasneti_pshm_tmpfile);
     gasneti_pshm_tmpfile = NULL;
@@ -1121,7 +1143,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
   const gasnetex_rank_t local_count = gasneti_myhost.node_count;
 
 #if GASNET_PSHM
-  gasneti_pshm_cs_enter();
+  gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
 #endif
 
   gasneti_assert(exchangefn);
@@ -1271,7 +1293,6 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
       gasneti_pshmnet_bootstrapBroadcast(gasneti_request_pshmnet, &maxsz, sizeof(uintptr_t), &maxsz, 0);
 
       /* Unlink the shared segments to prevent leaks (they are recreated in segmentInit) */
-      /* XXX: redundant? */
       gasneti_unlink_segments();
     #endif
 #endif
@@ -1303,7 +1324,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
 void gasneti_segmentInit(uintptr_t localSegmentLimit,
                          gasneti_bootstrapExchangefn_t exchangefn) {
 #if GASNET_PSHM
-  gasneti_pshm_cs_enter();
+  gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
 #endif
 
   gasneti_assert(gasneti_MaxLocalSegmentSize == 0);
@@ -1321,6 +1342,9 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
   { gasneti_segexch_t se;
     int i;
 
+    // NOTE: If the conduit did not derive localSegmentLimit from a call to
+    // gasneti_mmapLimit(), then this call might lead to unexpected failures
+    // (such as bug 651) due to it's lack of coordination among processes.
     gasneti_segment = gasneti_mmap_segment_search(localSegmentLimit == (uintptr_t)-1 ?
                                                   GASNETI_MMAP_LIMIT : 
                                                   MIN(localSegmentLimit,GASNETI_MMAP_LIMIT));
@@ -1450,6 +1474,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
   gasneti_assert(gasneti_MaxLocalSegmentSize <= localSegmentLimit);
 
 #if GASNET_PSHM
+  gasneti_unlink_segments();
   gasneti_pshm_cs_leave();
 #endif
 }
@@ -1467,7 +1492,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
 
   #if GASNET_PSHM
     /* Avoid leaking shared memory files in case of non-collective exit between init/attach */
-    gasneti_pshm_cs_enter();
+    gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
     gasneti_pshmnet_bootstrapBarrier();
   #endif
 
@@ -1539,8 +1564,13 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
         }
       }
 
+    #if GASNET_PSHM
+      /* Must always recreate the segment*/
+    #else
       /* trim final segment if required */
-      if (gasneti_segment.addr != segbase || gasneti_segment.size != segsize) {
+      if (gasneti_segment.addr != segbase || gasneti_segment.size != segsize)
+    #endif
+      {
         gasneti_assert(segbase >= gasneti_segment.addr &&
                (uintptr_t)segbase + segsize <= (uintptr_t)gasneti_segment.addr + gasneti_segment.size);
         gasneti_do_munmap(gasneti_segment.addr, gasneti_segment.size);

@@ -208,7 +208,7 @@ void gasneti_pshmnet_bootstrapGather(gasneti_pshmnet_t *vnet, void *src,
 /* "critical sections" in which we notify peers if we abort() while
  * they are potentially blocked in gasneti_pshmnet_bootstrapBarrier().
   */
-extern void gasneti_pshm_cs_enter(void);
+extern void gasneti_pshm_cs_enter(void (*callback)(void));
 extern void gasneti_pshm_cs_leave(void);
 
 /* returns the maximum size payload that pshmnet can offer.  This is the
