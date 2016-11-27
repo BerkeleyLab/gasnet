@@ -54,6 +54,8 @@ static struct gasneti_pshm_info {
 #define pshmnet_get_struct_addr_from_field_addr(structname, fieldname, fieldaddr) \
         ((structname*)(((uintptr_t)fieldaddr) - offsetof(structname,fieldname)))
 
+static void (*gasnetc_pshm_abort_callback)(void);
+
 void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_sz) {
   size_t vnetsz, mmapsz;
   int discontig = 0;
@@ -743,7 +745,10 @@ void gasneti_pshmnet_bootstrapBarrier(void)
   gasneti_assert_always(target < GASNETI_PSHM_BSB_LIMIT); /* Die if we were ever to reach the limit */
 
   gasneti_waitwhile((curr = gasneti_atomic_read(&gasneti_pshm_info->bootstrap_barrier_gen, 0)) < target);
-  if_pf (curr >= GASNETI_PSHM_BSB_LIMIT) gasnet_exit(1);
+  if_pf (curr >= GASNETI_PSHM_BSB_LIMIT) {
+    if (gasnetc_pshm_abort_callback) gasnetc_pshm_abort_callback();
+    gasnet_exit(1);
+  }
 
   generation = target;
 }
@@ -753,7 +758,6 @@ void gasneti_pshmnet_bootstrapBarrier(void)
  * they are potentially blocked in gasneti_pshmnet_bootstrapBarrier().
  * These DO NOT nest (but there is no checking to ensure that).
  ******************************************************************************/
-static void (*gasnetc_pshm_abort_callback)(void);
 static struct {
   int sig;
   gasneti_sighandlerfn_t old_hand;
