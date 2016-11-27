@@ -303,15 +303,15 @@ extern void gasneti_defaultAMHandler(gasnetex_token_t token) {
                      (int)gasnet_mynode(), (int)gasnet_nodes(), (int)srcnode);
 }
 /* ------------------------------------------------------------------------------------ */
-#if GASNETC_REGHANDLER
+#if GASNETC_AMREGISTER
   /* Use a conduit-specific hook at registration */
-  extern int gasnetc_reghandler(gasnetex_handler_t, gasneti_handler_fn_t);
+  extern int gasnetc_amregister(gasnetex_handler_t, gasneti_handler_fn_t);
 #endif
 
 // TODO-EX: to be replaced by per-EP arrays
 extern gasneti_handler_fn_t gasnetc_handler[];
 
-extern int gasneti_reghandlers(gasnet_handlerentry_t *table, int numentries,
+extern int gasneti_amregister(gasnet_handlerentry_t *table, int numentries,
                                int lowlimit, int highlimit,
                                int dontcare, int *numregistered) {
   #define AM_TBL_ENTRY_FREE(tbl, index) (gasneti_defaultAMHandler == tbl[index])
@@ -347,8 +347,8 @@ extern int gasneti_reghandlers(gasnet_handlerentry_t *table, int numentries,
 
     /* register a single handler */
     gasneti_handler_fn_t fnptr = (gasneti_handler_fn_t)table[i].fnptr;
-  #if GASNETC_REGHANDLER /* have a conduit-specific hook */
-    int rc = gasnetc_reghandler((gasnetex_handler_t)newindex, fnptr);
+  #if GASNETC_AMREGISTER /* have a conduit-specific hook */
+    int rc = gasnetc_amregister((gasnetex_handler_t)newindex, fnptr);
     if (GASNET_OK != rc) return rc;
   #endif
     gasneti_assert(AM_TBL_ENTRY_FREE(gasnetc_handler, newindex));

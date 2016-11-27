@@ -654,7 +654,7 @@ typedef void (*gasneti_HandlerLong)  (gasnetex_token_t token, void *buf, size_t 
 /* default AM handler for unregistered entries - prints a fatal error */
 extern void gasneti_defaultAMHandler(gasnetex_token_t token);
 
-extern int gasneti_reghandlers(gasnet_handlerentry_t *table, int numentries,
+extern int gasneti_amregister(gasnet_handlerentry_t *table, int numentries,
                                int lowlimit, int highlimit,
                                int dontcare, int *numregistered);
 

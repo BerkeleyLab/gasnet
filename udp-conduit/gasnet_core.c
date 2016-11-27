@@ -303,7 +303,7 @@ extern void _gasnetc_set_waitmode(int wait_mode) {
   }
 }
 /* ------------------------------------------------------------------------------------ */
-extern int gasnetc_reghandler(gasnetex_handler_t index, gasneti_handler_fn_t fnptr) {
+extern int gasnetc_amregister(gasnetex_handler_t index, gasneti_handler_fn_t fnptr) {
   if (AM_SetHandler(gasnetc_endpoint, (handler_t)index, fnptr) != AM_OK)
     GASNETI_RETURN_ERRR(RESOURCE, "AM_SetHandler() failed while registering handlers");
   return GASNET_OK;
@@ -356,7 +356,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       int numreg = 0;
       gasneti_assert(ctable);
       while (ctable[len].fnptr) len++; /* calc len */
-      if (gasneti_reghandlers(ctable, len, 1, 63, 0, &numreg) != GASNET_OK)
+      if (gasneti_amregister(ctable, len, 1, 63, 0, &numreg) != GASNET_OK)
         INITERR(RESOURCE,"Error registering core API handlers");
       gasneti_assert(numreg == len);
     }
@@ -367,7 +367,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       int numreg = 0;
       gasneti_assert(etable);
       while (etable[len].fnptr) len++; /* calc len */
-      if (gasneti_reghandlers(etable, len, 64, 127, 0, &numreg) != GASNET_OK)
+      if (gasneti_amregister(etable, len, 64, 127, 0, &numreg) != GASNET_OK)
         INITERR(RESOURCE,"Error registering extended API handlers");
       gasneti_assert(numreg == len);
     }
@@ -377,11 +377,11 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       int numreg2 = 0;
 
       /*  first pass - assign all fixed-index handlers */
-      if (gasneti_reghandlers(table, numentries, 128, 255, 0, &numreg1) != GASNET_OK)
+      if (gasneti_amregister(table, numentries, 128, 255, 0, &numreg1) != GASNET_OK)
         INITERR(RESOURCE,"Error registering fixed-index client handlers");
 
       /*  second pass - fill in dontcare-index handlers */
-      if (gasneti_reghandlers(table, numentries, 128, 255, 1, &numreg2) != GASNET_OK)
+      if (gasneti_amregister(table, numentries, 128, 255, 1, &numreg2) != GASNET_OK)
         INITERR(RESOURCE,"Error registering variable-index client handlers");
 
       gasneti_assert(numreg1 + numreg2 == numentries);
