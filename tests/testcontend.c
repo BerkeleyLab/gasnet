@@ -68,7 +68,7 @@ gasnet_handlerentry_t htable[] = {
 
     
 int _havereport = 0;
-char _reportstr[255];
+char _reportstr[644];
 const char *getreport(void) {
   if (_havereport) {
     _havereport = 0;
