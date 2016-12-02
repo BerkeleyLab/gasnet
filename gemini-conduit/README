@@ -138,6 +138,34 @@ GASNET_GNI_MEMREG
   parameter, or in the extreme you may wish to set GASNET_USE_UDREG=0 to
   disable use of UDREG by GASNet.
 
+GASNET_GNI_FMA_SHARING
+  This controls the use of shared versus dedicated FMA resources, used for
+  the initiation of AMs and of Puts and Gets of size below the respective
+  GASNET_GNI_{PUT,GET}_FMA_RDMA_CUTOVER value.
+  The value is a boolean: "0" to disable or "1" to enable the use of shared
+  FMA resources.
+  The default is to use dedicated FMA resources (which are expected to give
+  better performance) unless it can be determined that the required resources
+  would exceed the available resources in dedicated mode.
+
+GASNET_GNI_MDD_SHARING
+  This controls the use of shared versus dedicated MDD resources, used for
+  the registration of memory with the NIC for Puts and Gets of size over
+  the respective GASNET_GNI_{PUT,GET}_FMA_RDMA_CUTOVER value.
+  Use of dedicated MDD resources may reduce latency of some operations at
+  the expense of being able to register less memory simultaneously.
+  The value is a boolean: "0" to disable or "1" to enable the use of shared
+  MDD resources.
+  The default is use of shared MDD resources.
+
+GASNET_GNI_BTE_MULTI_CHANNEL
+  The value is a boolean: "0" to disable or "1" to enable the use of all
+  available Block Transfer Engine (BTE) channels.  Rarely, an application
+  may benefit from use of a single channel (a setting of "0").  However,
+  for most applications the use of all channels gives higher sustained
+  bandwidth for large transfers.
+  The default is "1" (enabled).
+
 GASNET_PHYSMEM_PINNABLE_RATIO - default 0.80
 GASNET_PHYSMEM_MAX - default <size of physmem> * <pinnable ratio>
 GASNET_PHYSMEM_NOPROBE - default 0

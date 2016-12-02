@@ -32,6 +32,7 @@
 #else
   #define GASNETC_CDM_MODE GNI_CDM_MODE_FORK_FULLCOPY
 #endif
+static uint32_t gasnetc_cdm_mode = GASNETC_CDM_MODE;
 
 int      gasnetc_dev_id;
 uint32_t gasnetc_cookie;
@@ -848,7 +849,7 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
   inst_id = gasneti_mynode + GASNETC_DIDX * gasneti_nodes;
   status = GNI_CdmCreate(inst_id,
                         gasnetc_ptag, gasnetc_cookie,
-                        GASNETC_CDM_MODE,
+                        gasnetc_cdm_mode,
                         &DOMAIN_SPECIFIC_VAL(cdm_handle));
   gasneti_assert_always (status == GNI_RC_SUCCESS);
 
@@ -856,6 +857,13 @@ void  gasnetc_create_parallel_domain(gasnete_threadidx_t tidx)
                         gasnetc_dev_id,
                         &local_address,
                         &DOMAIN_SPECIFIC_VAL(nic_handle));
+#if defined(GNI_CDM_MODE_FMA_DEDICATED)
+  if_pf ((GNI_RC_ERROR_RESOURCE == status) &&
+         (gasnetc_cdm_mode & GNI_CDM_MODE_FMA_DEDICATED)) {
+    // TODO: supernode-scoped reduction followed by *automatic* enable of FMA sharing if needed
+    gasneti_fatalerror("GNI_CdmAttach failed: please try setting environment variable GASNET_GNI_FMA_SHARING=1");
+  }
+#endif
   gasneti_assert_always (status == GNI_RC_SUCCESS);
 
   status = GNI_CqCreate(DOMAIN_SPECIFIC_VAL(nic_handle), num_pd + 2, 0, GNI_CQ_NOBLOCK, 
@@ -946,12 +954,46 @@ uintptr_t gasnetc_init_messaging(void)
   for(i=0;i<gasnetc_domain_count;i++)
     reset_comm_data(gasnetc_cdom_data+i);
 #endif
+
+  // Process GASNET_GNI_FMA_SHARING, if supported
+  // Default is NO, unless we project resource exhaustion otherwise
+  #if defined(GNI_CDM_MODE_FMA_SHARED) && defined(GNI_CDM_MODE_FMA_DEDICATED)
+  {
+    int my_cdm_count = gasneti_myhost.node_count;
+    #if GASNETC_USE_MULTI_DOMAIN
+      cdm_count *= gasnetc_domain_count;
+    #endif
+    int avail_cmd_count = 123; // TODO: reduce by any used by MPI?
+    int fma_sharing = gasneti_getenv_yesno_withdefault("GASNET_GNI_FMA_SHARING",
+                                                       my_cdm_count > avail_cmd_count);
+    gasnetc_cdm_mode |= fma_sharing ? GNI_CDM_MODE_FMA_SHARED: GNI_CDM_MODE_FMA_DEDICATED;
+  }
+  #endif
+
+  // Process GASNET_GNI_MDD_SHARING, if supported
+  // Default is YES: use shared MDD to avoid likely resource exhaustion
+  #if defined(GNI_CDM_MODE_MDD_SHARED) && defined(GNI_CDM_MODE_MDD_DEDICATED)
+  {
+    int mdd_sharing = gasneti_getenv_yesno_withdefault("GASNET_GNI_MDD_SHARING", 1);
+    gasnetc_cdm_mode |= mdd_sharing ? GNI_CDM_MODE_MDD_SHARED: GNI_CDM_MODE_MDD_DEDICATED;
+  }
+  #endif
+
+  // Process GASNET_GNI_BTE_MULTI_CHANNEL, if supported
+  // Default is NO: use all available BTE channels
+  #if defined(GNI_CDM_MODE_BTE_SINGLE_CHANNEL)
+  {
+    int bte_multi_channel = gasneti_getenv_yesno_withdefault("GASNET_GNI_BTE_MULTI_CHANNEL", 1);
+    gasnetc_cdm_mode |= bte_multi_channel ? 0: GNI_CDM_MODE_BTE_SINGLE_CHANNEL;
+  }
+  #endif
+
   GASNETC_INITLOCK_GNI();
   GASNETC_INITLOCK_AM_BUFFER();
 
   status = GNI_CdmCreate(gasneti_mynode,
 			 gasnetc_ptag, gasnetc_cookie,
-			 GASNETC_CDM_MODE,
+			 gasnetc_cdm_mode,
 			 &cdm_handle);
   gasneti_assert_always (status == GNI_RC_SUCCESS);
 
@@ -959,6 +1001,13 @@ uintptr_t gasnetc_init_messaging(void)
 			 gasnetc_dev_id,
 			 &local_address,
 			 &nic_handle);
+#if defined(GNI_CDM_MODE_FMA_DEDICATED)
+  if_pf ((GNI_RC_ERROR_RESOURCE == status) &&
+         (gasnetc_cdm_mode & GNI_CDM_MODE_FMA_DEDICATED)) {
+    // TODO: supernode-scoped reduction followed by *automatic* enable of FMA sharing if needed
+    gasneti_fatalerror("GNI_CdmAttach failed: please try setting environment variable GASNET_GNI_FMA_SHARING=1");
+  }
+#endif
   gasneti_assert_always (status == GNI_RC_SUCCESS);
 
   /* Determine space for AM Requests: GASNET_NETWORKDEPTH_SPACE */
