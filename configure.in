@@ -5081,13 +5081,41 @@ CPPFLAGS="$GASNET_EXTRA_DEFINES $MISC_CPPFLAGS"
 CXXFLAGS="$GASNET_OPT_CXXFLAGS $MISC_CXXFLAGS"
 
 # Files added here should also be added to ./unBootstrap
+# ORDER MATTERS: The order here determines the order of timestamps post-configure,
+# so ideally Makefile include dependencies should be honored, to prevent redundant
+# rebuilds of Makefiles during the first build
 GASNET_END_CONFIGURE()
 AC_OUTPUT(
-Makefile
-other/perlstart dnl must precede files that use it
+other/perlstart                   dnl must precede Perl scripts that use it
+
+config-aux/Makefile
+other/Makefile
+other/Makefile-libgasnet.mak      dnl should precede conduit Makefiles
+other/gasnet_tools-fragment.mak
+
+tests/Makefile                    dnl should precede conduit Makefiles
+
+Makefile                          dnl should follow Makefile-libgasnet
 
 dnl GASNET_TOOLSONLY_FALSE_BEGIN
-other/mpirun_common dnl must precede files that use it
+other/mpirun_common               dnl must precede gasnetrun scripts that use it
+
+ dnl All of these should precede conduit Makefiles that use them
+other/fragment-head.mak
+other/fragment-body.mak
+other/Makefile-conduit.mak        dnl should follow other/Makefile-libgasnet.mak
+other/ammpi/Makefile
+other/amudp/Makefile
+other/contrib/Makefile
+other/contrib/gasnet_trace
+other/firehose/Makefile
+other/firehose/firehose.mak
+other/fca/Makefile
+other/fca/fca.mak
+other/blcr/Makefile
+other/blcr/blcr.mak
+
+ dnl Conduit Makefiles and scripts
 
 mpi-conduit/Makefile
 mpi-conduit/conduit.mak
@@ -5141,26 +5169,8 @@ ofi-conduit/conduit.mak
 ofi-conduit/contrib/Makefile
 ofi-conduit/contrib/gasnetrun_ofi
 
-other/Makefile-conduit.mak
-other/fragment-head.mak
-other/fragment-body.mak
-other/ammpi/Makefile
-other/amudp/Makefile
-other/contrib/Makefile
-other/contrib/gasnet_trace
-other/firehose/Makefile
-other/firehose/firehose.mak
-other/fca/Makefile
-other/fca/fca.mak
-other/blcr/Makefile
-other/blcr/blcr.mak
 dnl GASNET_TOOLSONLY_FALSE_END
 
-other/Makefile
-other/Makefile-libgasnet.mak
-other/gasnet_tools-fragment.mak
-tests/Makefile
-config-aux/Makefile
 , 
 GASNET_FIX_EXEC_OUTPUT()
 GASNET_SANITIZE_PACKAGE(gasnet_config.h)

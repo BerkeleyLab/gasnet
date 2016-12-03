@@ -39,7 +39,7 @@ all-local: $(bin_SCRIPTS) $(dotpl_DATA)
 $(top_builddir)/other/perlstart: $(top_srcdir)/other/perlstart.in
 	@cd $(top_builddir)/other && $(MAKE) perlstart
 
-gasnet_trace: $(top_builddir)/other/perlstart gasnet_trace.pl
+gasnet_trace: $(top_builddir)/other/perlstart
 
 # Files to copy from srcdir to builddir if they differ
 if BUILD_IS_SRC
