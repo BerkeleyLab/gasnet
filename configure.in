@@ -384,14 +384,15 @@ case "$CC_FAMILY" in
 	    # enabling ipa (-O4 or higher) breaks linking to MPI (and thus ibv).
 	    case `/usr/sbin/sysctl hw.cpusubtype | cut '-d ' -f2` in
 		# bug926: on G5 (cpusubtype 100) -qarch={ppc970,auto} causes corruption of 64-bit integer arithmetic
-		100)	CCOPTFLAGS="-O3 -qhot -qarch=g5 -qtune=auto -qthreaded -qnosmp -qmaxmem=-1" ;; 
-		*)	CCOPTFLAGS="-O3 -qhot -qarch=auto -qtune=auto -qthreaded -qnosmp -qmaxmem=-1" ;; 
+		100)	CCOPTFLAGS="-O3 -qhot -qarch=g5 -qtune=auto -qthreadedq -qmaxmem=-1" ;; 
+		*)	CCOPTFLAGS="-O3 -qhot -qarch=auto -qtune=auto -qthreaded -qmaxmem=-1" ;; 
 	    esac
 	    ;;
-	linux*) CCOPTFLAGS="-O3 -qarch=auto -qtune=auto -qthreaded -qnosmp -qmaxmem=-1";;
-	*)  #CCOPTFLAGS="-O5 -qthreaded -qnosmp -qmaxmem=-1" ;; # -O5 == -O3 w/ intra-procedural analysis, maxmem=-1 is default for -O3 or higher
-	    CCOPTFLAGS="-O3 -qarch=auto -qtune=auto -qthreaded -qnosmp -qmaxmem=-1" ;; # -O5 causes linker to hang on Titanium 
+	linux*) CCOPTFLAGS="-O3 -qarch=auto -qtune=auto -qthreaded -qmaxmem=-1";;
+	*)  #CCOPTFLAGS="-O5 -qthreaded -qmaxmem=-1" ;; # -O5 == -O3 w/ intra-procedural analysis, maxmem=-1 is default for -O3 or higher
+	    CCOPTFLAGS="-O3 -qarch=auto -qtune=auto -qthreaded -qmaxmem=-1" ;; # -O5 causes linker to hang on Titanium 
     esac
+    GASNET_TRY_CFLAG([-qnosmp], [CCOPTFLAGS="$CCOPTFLAGS -qnosmp"])
     # If $CC sets -q<something>, then remove conflicting options from CCOPTFLAGS
     for flag in arch tune hot threaded smp; do
       if echo "$CC" | grep "q\(no\)\?${flag}" >/dev/null; then
@@ -2252,7 +2253,11 @@ AC_DEFUN([GASNET_FH_CFLAGS],[
     Pathscale) fh_cflags_default="-fno-strict-aliasing";;
        Open64) fh_cflags_default="-fno-strict-aliasing";;
         Clang) fh_cflags_default="-fno-strict-aliasing";;
-          XLC) fh_cflags_default="-qnoansialias -qalias=addr";;
+          XLC) GASNET_TRY_CFLAG([-qnoansialias],
+                                [fh_cflags_default="-qnoansialias -qalias=addr"])
+               GASNET_TRY_CFLAG([-qalias=noansi],
+                                [fh_cflags_default="-qalias=noansi -qalias=addr"])
+               ;;
         Intel) fh_cflags_default="-no-ansi-alias";;
           Sun) fh_cflags_default="-xalias_level=any";;
           PGI) fh_cflags_default="-alias=traditional";;
