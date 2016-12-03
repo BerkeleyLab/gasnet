@@ -384,7 +384,7 @@ case "$CC_FAMILY" in
 	    # enabling ipa (-O4 or higher) breaks linking to MPI (and thus ibv).
 	    case `/usr/sbin/sysctl hw.cpusubtype | cut '-d ' -f2` in
 		# bug926: on G5 (cpusubtype 100) -qarch={ppc970,auto} causes corruption of 64-bit integer arithmetic
-		100)	CCOPTFLAGS="-O3 -qhot -qarch=g5 -qtune=auto -qthreadedq -qmaxmem=-1" ;; 
+		100)	CCOPTFLAGS="-O3 -qhot -qarch=g5 -qtune=auto -qthreaded -qmaxmem=-1" ;; 
 		*)	CCOPTFLAGS="-O3 -qhot -qarch=auto -qtune=auto -qthreaded -qmaxmem=-1" ;; 
 	    esac
 	    ;;
