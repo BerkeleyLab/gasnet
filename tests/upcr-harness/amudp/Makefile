@@ -1,3 +1,9 @@
+all: 
+	@echo This Makefile is not intended to be called directly.
+	@echo It is used for running unit tests within the automated testing harness provided with the Berkeley UPC runtime.
+	@echo For information on downloading and using Berkeley UPC, see: http://upc.lbl.gov
+	@exit 1
+
 PERL ?= perl
 AMX_FLAVOR=udp
 CONDUIT_DIR=$(TOP_BUILDDIR)/gasnet/$(AMX_FLAVOR)-conduit
@@ -6,7 +12,11 @@ AMX_DIR=$(TOP_BUILDDIR)/gasnet/other/am$(AMX_FLAVOR)
 
 Makefile: $(CONDUIT_FRAG)
 $(CONDUIT_FRAG):
-	@$(MAKE) -C $(CONDUIT_DIR) $(@F)
+	@if test -d $(CONDUIT_DIR) ; then                                \
+	   $(MAKE) -C $(CONDUIT_DIR) $(@F) || exit 1                     \
+	 else                                                            \
+	   echo ERROR: $(AMX_FLAVOR)-conduit build directory not found ; \
+	 fi
 -include $(CONDUIT_DIR)/$(AMX_FLAVOR)-seq.mak
 
 amxdist: force

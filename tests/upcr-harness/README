@@ -6,3 +6,6 @@ None of the files in this directory or its children are intended for stand-alone
 
 gasnet-tests: harness driver for the GASNet unit tests, and some misc checking targets
 
+amudp/ammpi: harness drivers for the AMUDP/AMMPI unit tests. These assume the corresponding
+GASNet conduit has been configured in.
+
