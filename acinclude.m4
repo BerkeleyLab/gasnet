@@ -2132,16 +2132,8 @@ else
   esac
 fi
 $2_FAMILY=$$3
-$2_UNWRAPPED=$$2
-case $$3 in
-  GNU) $2_WRAPPED=$$2 ;;
-  *)   $2_WRAPPED="\$(top_builddir)/cc-wrapper \$($2_FAMILY) \$($2_UNWRAPPED)" ;;
-esac
 AC_SUBST($2_FAMILY)
 AC_SUBST($2_SUBFAMILY)
-AC_SUBST($2_UNWRAPPED)
-AC_SUBST($2_WRAPPED)
-GASNET_SUBST_FILE(cc_wrapper_mk, cc-wrapper.mk)
 GASNET_FUN_END([$0($1,$2,$3)])
 ])
 
