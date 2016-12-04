@@ -1183,11 +1183,9 @@ fi
 GASNET_FUN_END([$0(...)])
 ])
 
-dnl GASNET_CHECK_OPTIMIZEDDEBUG CCVAR CFLAGSVAR EXTRAARGS INCLUDES [ACTION]
+dnl GASNET_CHECK_OPTIMIZEDDEBUG CCVAR CFLAGSVAR EXTRAARGS INCLUDES ACTION
 dnl Ensure the compiler CC doesn't create a conflict between
-dnl optimization and debugging.
-dnl If no ACTION is given, the default is an error message suggesting
-dnl changes to the CCVAR and/or CFLAGSVAR.
+dnl optimization and debugging. Run ACTION upon failure
 AC_DEFUN([GASNET_CHECK_OPTIMIZEDDEBUG],[
 GASNET_FUN_BEGIN([$0(...)])
  if test "$enable_debug" = "yes" ; then
@@ -1209,11 +1207,29 @@ GASNET_FUN_BEGIN([$0(...)])
   GASNET_POPVAR(CPPFLAGS)
   AC_LANG_RESTORE
   if test "$gasnet_result" = yes; then
-    ifelse([$5],[],[ dnl m4_ifval not present in older autotools
-    GASNET_MSG_ERROR([User requested --enable-debug but $1 or $2 has enabled optimization (-O) or disabled assertions (-DNDEBUG). Try setting $1='$[$1] -O0 -UNDEBUG' or changing $2])
-    ],[$5])
+    :
+    $5
   fi
  fi
+GASNET_FUN_END([$0(...)])
+])
+
+dnl GASNET_CORRECT_OPTIMIZEDDEBUG CCVAR CFLAGSVAR FIXVAR EXTRAARGS INCLUDES [EXTRAMSG]
+dnl Ensure the compiler doesn't create a conflict between
+dnl optimization and debugging. If it appears to, try appending 
+dnl '-O0 -UNDEBUG' to FIXVAR. If that still fails, run ACTION.
+dnl If no ACTION is given, the default is an error message suggesting
+dnl changes to the CCVAR.
+AC_DEFUN([GASNET_CORRECT_OPTIMIZEDDEBUG],[
+GASNET_FUN_BEGIN([$0(...)])
+GASNET_CHECK_OPTIMIZEDDEBUG([$1],[$2],[$4],[$5],[
+  old_$3="$[$3]"
+  $3="$[$3] -O0 -UNDEBUG"
+  GASNET_CHECK_OPTIMIZEDDEBUG([$1],[$2],[$4],[$5],[
+    GASNET_MSG_ERROR([User requested --enable-debug but \$$1 has enabled optimization (-O) or disabled assertions (-DNDEBUG). Appending '-O0 -UNDEBUG' to \$$3 did not resolve this conflict. Try setting $3='$old_[$3] <flags to disable optimization>' $6])
+  ])
+  GASNET_MSG_WARN([Appending '-O0 -UNDEBUG' to \$$3 to resolve debug vs. optimize compilation conflict])
+])
 GASNET_FUN_END([$0(...)])
 ])
 

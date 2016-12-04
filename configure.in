@@ -814,7 +814,7 @@ GASNET_IF_ENABLED_WITH_AUTO(debug-malloc, Build GASNet with debugging malloc imp
   fi
 AM_CONDITIONAL(BUILDCONFIG_DEBUGMALLOC, test "$enabled_debug_malloc" = yes)
 
-GASNET_CHECK_OPTIMIZEDDEBUG(CC,CFLAGS,[$CPPFLAGS],[])
+GASNET_CORRECT_OPTIMIZEDDEBUG(CC,CFLAGS,CC,[$CPPFLAGS],[])
 
 case "$CC_FAMILY" in
   GNU) KEEPTMP_CFLAGS="-save-temps" ;;
@@ -2489,7 +2489,7 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
   # MISC_CXXFLAGS are added to CXXFLAGS here to ensure they are used for the remaining configure tests,
   # but they retain a separate identity post-configure
   CXXFLAGS="$GASNET_OPT_CXXFLAGS $MISC_CXXFLAGS"
-  GASNET_CHECK_OPTIMIZEDDEBUG(CXX,CXXFLAGS,[$CPPFLAGS],[])
+  GASNET_CORRECT_OPTIMIZEDDEBUG(CXX,CXXFLAGS,CXX,[$CPPFLAGS],[])
 
   GASNET_ENV_DEFAULT(cxxLIBS, )             # C++ LIBS for any C++ link
   GASNET_ENV_DEFAULT(cxxLDFLAGS, )          # C++ LDFLAGS for any C++ link
@@ -2768,17 +2768,9 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
     GASNET_POPVAR(LIBS)
   fi
   if test "$mpi_test_worked" = yes ; then
-      GASNET_CHECK_OPTIMIZEDDEBUG(MPI_CC,MPI_CFLAGS,[], [ 
+      GASNET_CORRECT_OPTIMIZEDDEBUG(MPI_CC,MPI_CFLAGS,MPI_CFLAGS,[], [ 
         #include <mpi.h>
-      ],[ # Try again with the suggested flags
-        GASNET_MSG_WARN([Appending '-O0 -UNDEBUG' to MPI_CFLAGS to resolve debug vs. optimize compilation conflict])
-        MPI_CFLAGS="$MPI_CFLAGS -O0 -UNDEBUG"
-        GASNET_CHECK_OPTIMIZEDDEBUG(MPI_CC,MPI_CFLAGS,[], [ 
-          #include <mpi.h>
-        ],[
-          GASNET_MSG_ERROR([User requested --enable-debug but \$MPI_CC or \$MPI_CFLAGS has enabled optimization (-O) or disabled assertions (-DNDEBUG).  Appending '-O0 -UNDEBUG' to \$MPI_CFLAGS did not resolve this conflict.  Please consider changing \$MPI_CC or \$MPI_CFLAGS, or passing --without-mpi-cc if an MPI compiler is not required.])
-        ])
-      ])
+      ],[, or consider passing --without-mpi-cc if an MPI compiler is not required.])
   elif test "$mpi_reason" = ""; then
       GASNET_MSG_WARN([build test failed: I don't know how to build MPI programs on your system -- see $TOP_BUILDDIR/config.log for details: consider using --with-mpi-cc, \$MPI_CFLAGS and \$MPI_LIBS to configure MPI support for your site if you want mpi-conduit or require MPI compatibility])
       have_mpi=no
