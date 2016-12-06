@@ -58,15 +58,15 @@ GASNET_BARRIER - barrier algorithm selection
 
 GASNET_NETWORKDEPTH_SPACE - volume of AM Request queue
   This determines the maximum volume of AM Requests (in bytes) that can
-  be oustanding between a given pair of peers before flow-control.  This
+  be outstanding between a given pair of peers before flow-control.  This
   differs from most other conduits in which the depth is given by a
   count.  Values smaller than 2 maximum size Medium AMs, or larger than
-  64 maximum sized Medium AMs, will be silenly adjusted to that range.
+  64 maximum sized Medium AMs, will be silently adjusted to that range.
   The default value is 12K.
 
 GASNET_NETWORKDEPTH_TOTAL - depth of AM Reply queue
   This determines the maximum number of AM Requests that can be
-  oustanding from one peer to all others before flow-control.
+  outstanding from one peer to all others before flow-control.
   The default value is 64, and the minimum is 1.
 
 GASNET_GNI_NUM_PD - number of post descriptors
@@ -213,7 +213,7 @@ Optional configure-time settings:
    The default value is 4032.
 
 --enable-gni-multi-domain
-   This configure option enables EXPERMIENTAL support for improved
+   This configure option enables EXPERIMENTAL support for improved
    performance of RDMA operations in a PAR (multi-threaded) build of
    Gemini or Aries conduit by allocating multiple GNI Communication
    Domains and distributing the clients threads over these domains.
@@ -247,14 +247,14 @@ Optional configure-time settings:
    polling by threads in other domains can lead to deadlock in some
    circumstances.
    A value of 0 will result in polling for Active Messages on every
-   call (explicit or implict) to gasnet_AMPoll().
+   call (explicit or implicit) to gasnet_AMPoll().
    Values of 1, 3, 7, 15, etc. will result in progressively lower
    average frequencies (1 in (n+1)).
    The default is 255 (1 in every 256 polls by threads outside the
    first domain will poll for AM arrivals).
 
 --enable-gni-firehose
-   This configure option enables EXPERMIENTAL support for the firehose
+   This configure option enables EXPERIMENTAL support for the firehose
    dynamic memory registration library for caching of dynamic memory
    registration.  This is only caching of local registration, and NOT
    the "full" firehose which provides cached remote registration (as
