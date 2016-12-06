@@ -288,6 +288,9 @@ typedef union {
 #else
   #define GASNETI_USE_ALLOCA 1
 #endif
+#if GASNETI_USE_ALLOCA
+  #include <alloca.h>
+#endif
 
 /* Can one send a 0-byte payload?
  * TODO: autoconf or runtime probe if/when we can determine which systems need this
