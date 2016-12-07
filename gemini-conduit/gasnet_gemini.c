@@ -959,10 +959,7 @@ uintptr_t gasnetc_init_messaging(void)
   // Default is NO, unless we project resource exhaustion otherwise
   #if defined(GNI_CDM_MODE_FMA_SHARED) && defined(GNI_CDM_MODE_FMA_DEDICATED)
   {
-    int my_cdm_count = gasneti_myhost.node_count;
-    #if GASNETC_USE_MULTI_DOMAIN
-      cdm_count *= gasnetc_domain_count;
-    #endif
+    int my_cdm_count = gasneti_myhost.node_count * gasnetc_domain_count;
     int avail_cmd_count = 123; // TODO: reduce by any used by MPI?
     int fma_sharing = gasneti_getenv_yesno_withdefault("GASNET_GNI_FMA_SHARING",
                                                        my_cdm_count > avail_cmd_count);
