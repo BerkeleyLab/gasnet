@@ -3316,7 +3316,12 @@ if test "$enabled_ibv" = yes; then
     AC_MSG_RESULT([probably not])
   fi
 
-  GASNET_ENV_DEFAULT(IBV_INCLUDE, $IBVHOME/include)
+  if test $IBVHOME = '/usr'; then
+    ibv_includes_guess=''
+  else
+    ibv_includes_guess="-I$IBVHOME/include"
+  fi
+  GASNET_ENV_DEFAULT(IBV_INCLUDES, $ibv_includes_guess)
   GASNET_ENV_DEFAULT(IBV_LIBS, -libverbs)
   # Note 'test -d $foo/.' works even if $foo is a symlink
   if test -d $IBVHOME/lib${GASNETI_PTR_BITS}/.; then
@@ -3330,7 +3335,7 @@ if test "$enabled_ibv" = yes; then
   IBV_LIBCFLAGS='' # None yet
 
   # Try to compile and link a basic IB Verbs program
-  GASNET_PUSHVAR(CFLAGS,"$CFLAGS -I$IBV_INCLUDE $GASNET_THREAD_DEFINES $IBV_LIBCFLAGS")
+  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $IBV_INCLUDES $GASNET_THREAD_DEFINES $IBV_LIBCFLAGS")
   GASNET_PUSHVAR(LIBS,"$LIBS -L$IBV_LIBDIR $IBV_LIBS $GASNET_THREAD_LIBS")
 
   GASNET_TRY_CACHE_LINK(for working IB Verbs configuration, ibv_works, [
@@ -3470,7 +3475,7 @@ if test "$enabled_ibv" = yes; then
     fi
   fi
 fi
-AC_SUBST(IBV_INCLUDE)
+AC_SUBST(IBV_INCLUDES)
 AC_SUBST(IBV_LIBDIR)
 AC_SUBST(IBV_LIBS)
 AC_SUBST(IBV_LIBCFLAGS)
@@ -3849,7 +3854,12 @@ if test "$enabled_ofi" = yes; then
   fi
 
   if test "$have_ofi" = yes; then
-    GASNET_ENV_DEFAULT(OFI_INCLUDE, $OFIHOME/include)
+    if test $OFIHOME = '/usr'; then
+      ofi_includes_guess=''
+    else
+      ofi_includes_guess="-I$OFIHOME/include"
+    fi
+    GASNET_ENV_DEFAULT(OFI_INCLUDES, $ofi_includes_guess)
     GASNET_ENV_DEFAULT(OFI_LIBS, -lfabric)
     ofi_lib_guess="$OFIHOME/lib${GASNETI_PTR_BITS}"
     if test -e "$ofi_lib_guess/libfabric.so" -o -e "$ofi_lib_guess/libfabric.a"; then
@@ -3859,7 +3869,7 @@ if test "$enabled_ofi" = yes; then
     fi
     GASNET_ENV_DEFAULT(OFI_LIBDIR, $ofi_lib_guess)
 
-    GASNET_PUSHVAR(CFLAGS,"$CFLAGS -I$OFI_INCLUDE")
+    GASNET_PUSHVAR(CFLAGS,"$CFLAGS $OFI_INCLUDES")
     GASNET_PUSHVAR(LIBS,"$LIBS -L$OFI_LIBDIR $OFI_LIBS")
     GASNET_TRY_CACHE_LINK(for working OFI GASNet bindings, ofi_works, [
             #include <rdma/fabric.h>
@@ -3900,7 +3910,7 @@ if test "$enabled_ofi" = yes; then
     AC_SUBST(GASNET_OFI_SPAWNER_CONF)
   fi
 fi
-AC_SUBST(OFI_INCLUDE)
+AC_SUBST(OFI_INCLUDES)
 AC_SUBST(OFI_LIBDIR)
 AC_SUBST(OFI_LIBS)
 AC_SUBST(OFI_LIBCFLAGS)
