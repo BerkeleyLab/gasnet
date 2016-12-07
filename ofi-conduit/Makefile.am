@@ -72,7 +72,7 @@ CONDUIT_SOURCELIST =          \
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = -I@OFI_INCLUDE@ $(ssh_defines) $(mpi_defines) $(pmi_cppflags) @OFI_LIBCFLAGS@
+CONDUIT_EXTRALIBCFLAGS = @OFI_INCLUDES@ $(ssh_defines) $(mpi_defines) $(pmi_cppflags) @OFI_LIBCFLAGS@
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS =

@@ -3854,7 +3854,12 @@ if test "$enabled_ofi" = yes; then
   fi
 
   if test "$have_ofi" = yes; then
-    GASNET_ENV_DEFAULT(OFI_INCLUDE, $OFIHOME/include)
+    if test $OFIHOME = '/usr'; then
+      ofi_includes_guess=''
+    else
+      ofi_includes_guess="-I$OFIHOME/include"
+    fi
+    GASNET_ENV_DEFAULT(OFI_INCLUDES, $ofi_includes_guess)
     GASNET_ENV_DEFAULT(OFI_LIBS, -lfabric)
     ofi_lib_guess="$OFIHOME/lib${GASNETI_PTR_BITS}"
     if test -e "$ofi_lib_guess/libfabric.so" -o -e "$ofi_lib_guess/libfabric.a"; then
@@ -3864,7 +3869,7 @@ if test "$enabled_ofi" = yes; then
     fi
     GASNET_ENV_DEFAULT(OFI_LIBDIR, $ofi_lib_guess)
 
-    GASNET_PUSHVAR(CFLAGS,"$CFLAGS -I$OFI_INCLUDE")
+    GASNET_PUSHVAR(CFLAGS,"$CFLAGS $OFI_INCLUDES")
     GASNET_PUSHVAR(LIBS,"$LIBS -L$OFI_LIBDIR $OFI_LIBS")
     GASNET_TRY_CACHE_LINK(for working OFI GASNet bindings, ofi_works, [
             #include <rdma/fabric.h>
@@ -3905,7 +3910,7 @@ if test "$enabled_ofi" = yes; then
     AC_SUBST(GASNET_OFI_SPAWNER_CONF)
   fi
 fi
-AC_SUBST(OFI_INCLUDE)
+AC_SUBST(OFI_INCLUDES)
 AC_SUBST(OFI_LIBDIR)
 AC_SUBST(OFI_LIBS)
 AC_SUBST(OFI_LIBCFLAGS)
