@@ -124,7 +124,7 @@ int gasnetc_ofi_init(int *argc, char ***argv,
 		gasnet_node_t *nodes_p, gasnet_node_t *mynode_p);
 void gasnetc_ofi_poll(int blocking_polling);
 void gasnetc_ofi_attach(void *segbase, uintptr_t segsize);
-void gasnetc_ofi_exit();
+void gasnetc_ofi_exit(void);
 
 /* Active Messages Send Functions */
 int gasnetc_ofi_am_send_short(gasnet_node_t dest, gasnetex_handler_t handler, 
