@@ -113,6 +113,48 @@ typedef int32_t gasnetex_handlerarg_t;
 typedef uintptr_t gasnetex_register_value_t;
 #define GASNETEX_REGISTER_VALUE_T SIZEOF_VOID_P
 
+// Opaque type for an endpoint
+struct gasneti_endpoint_s;
+typedef struct gasneti_endpoint_s *gasnetex_endpoint_t;
+
+// Opaque type for a client
+struct gasneti_client_s;
+typedef struct gasneti_client_s *gasnetex_client_t;
+
+// Create an endpoint
+extern int gasnetex_EPCreate(
+                gasnetex_endpoint_t     *ep_p,
+                gasnetex_client_t       client,
+                gasnetex_flags_t        flags);
+
+// Client-facing type for describing one AM handler
+// TBD: need enum for flags values such as REQUEST/REPLY/EITHER
+// TBD: should default/recommended internal struct be the same?
+typedef struct {
+    gasnetex_handler_t      gex_index;     // 0 on input == don't care
+    void                  (*gex_fnptr)();  // Plus existing strict-proto goop
+    uintXX_t                gex_flags;     // width TBD
+    uint8_t                 gex_nargs;     // start requiring this!
+
+    // Optional fields (both are "shallow copy")
+    void                   *gex_cdata;     // Available to handler
+    const char             *gex_name;      // Used in debug messages
+} gasnetex_handlerentry_t;
+
+// gasnetex_EPRegisterHandlers()
+//
+// Registers a client-provided list of AM handlers with the given EP,
+// with semantics like those of current gasnet_attach().   The client
+// is required to provide for any synchronization required to ensure
+// handlers are registered before any process may send a corresponding
+// AM to the Endpoint.
+// REF: 'Conf call 2016.06.28' Google Doc
+int gasnetex_EPRegisterHandlers(
+        gasnetex_endpoint_t     ep,
+        gasnetex_handlerentry_t *table,
+        int                     numentries);
+
+
 // The following are the *internal* prototypes for AM Request and Reply
 // The public API "instantiates" the "M" and the argument list.
 // 
