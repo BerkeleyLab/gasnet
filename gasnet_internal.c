@@ -323,11 +323,11 @@ extern int gasneti_amregister(gasnet_handlerentry_t *table, int numentries,
     if ((table[i].index == 0 && !dontcare) ||
         (table[i].index && dontcare)) continue;
     else if (table[i].index) newindex = table[i].index;
-    else { /* deterministic assignment of dontcare indexes */
-      for (newindex = lowlimit; newindex <= highlimit; newindex++) {
+    else { /* deterministic assignment of dontcare indexes from top down */
+      for (newindex = highlimit; newindex >= lowlimit; newindex--) {
         if (AM_TBL_ENTRY_FREE(gasnetc_handler, newindex)) break;
       }
-      if (newindex > highlimit) {
+      if (newindex < lowlimit) {
         char s[255];
         snprintf(s, sizeof(s), "Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
         GASNETI_RETURN_ERRR(BAD_ARG, s);
