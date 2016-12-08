@@ -40,25 +40,21 @@ gasnetex_hsl_t inchsl = GASNETEX_HSL_INITIALIZER;
   } while (0)
 
 /* ------------------------------------------------------------------------------------ */
-#define hidx_ping_shorthandler   201
-#define hidx_pong_shorthandler   202
+gasnet_handlerentry_t htable[];
+#define hidx_ping_shorthandler   htable[0].index
+#define hidx_pong_shorthandler   htable[1].index
+#define hidx_ping_medhandler     htable[2].index
+#define hidx_pong_medhandler     htable[3].index
+#define hidx_ping_longhandler    htable[4].index
+#define hidx_pong_longhandler    htable[5].index
+#define hidx_ping_shorthandler_flood   htable[6].index
+#define hidx_pong_shorthandler_flood   htable[7].index
+#define hidx_ping_medhandler_flood     htable[8].index
+#define hidx_pong_medhandler_flood     htable[9].index
+#define hidx_ping_longhandler_flood    htable[10].index
+#define hidx_pong_longhandler_flood    htable[11].index
+#define hidx_done_shorthandler   htable[12].index
 
-#define hidx_ping_medhandler     203
-#define hidx_pong_medhandler     204
-
-#define hidx_ping_longhandler    205
-#define hidx_pong_longhandler    206
-
-#define hidx_ping_shorthandler_flood   207
-#define hidx_pong_shorthandler_flood   208
-
-#define hidx_ping_medhandler_flood     209
-#define hidx_pong_medhandler_flood     210
-
-#define hidx_ping_longhandler_flood    211
-#define hidx_pong_longhandler_flood    212
-
-#define hidx_done_shorthandler   213
 
 volatile int flag = 0;
 
@@ -115,6 +111,28 @@ volatile int done = 0;
 void done_shorthandler(gasnetex_token_t token) {
   done = 1;
 }
+/* ------------------------------------------------------------------------------------ */
+gasnet_handlerentry_t htable[] = {
+    { 0,  ping_shorthandler  },
+    { 0,  pong_shorthandler  },
+
+    { 0,  ping_medhandler    },
+    { 0,  pong_medhandler    },
+
+    { 0,  ping_longhandler   },
+    { 0,  pong_longhandler   },
+
+    { 0,  ping_shorthandler_flood  },
+    { 0,  pong_shorthandler_flood  },
+
+    { 0,  ping_medhandler_flood    },
+    { 0,  pong_medhandler_flood    },
+
+    { 0,  ping_longhandler_flood   },
+    { 0,  pong_longhandler_flood   },
+
+    { 0,  done_shorthandler  }
+};
 
 /* ------------------------------------------------------------------------------------ */
 int crossmachinemode = 0;
@@ -128,24 +146,6 @@ void *doAll(void*);
 int main(int argc, char **argv) {
   int help=0;
   int arg=1;
-
-  gasnet_handlerentry_t htable[] = { 
-    { hidx_ping_shorthandler,  ping_shorthandler  },
-    { hidx_pong_shorthandler,  pong_shorthandler  },
-    { hidx_ping_medhandler,    ping_medhandler    },
-    { hidx_pong_medhandler,    pong_medhandler    },
-    { hidx_ping_longhandler,   ping_longhandler   },
-    { hidx_pong_longhandler,   pong_longhandler   },
-
-    { hidx_ping_shorthandler_flood,  ping_shorthandler_flood  },
-    { hidx_pong_shorthandler_flood,  pong_shorthandler_flood  },
-    { hidx_ping_medhandler_flood,    ping_medhandler_flood    },
-    { hidx_pong_medhandler_flood,    pong_medhandler_flood    },
-    { hidx_ping_longhandler_flood,   ping_longhandler_flood   },
-    { hidx_pong_longhandler_flood,   pong_longhandler_flood   },
-
-    { hidx_done_shorthandler,  done_shorthandler  }
-  };
 
   GASNET_Safe(gasnet_init(&argc, &argv));
 
