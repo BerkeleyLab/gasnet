@@ -17,7 +17,8 @@ GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_COR
 
 gasnetex_handlerentry_t const *gasnetc_get_handlertable(void);
 
-gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
+// TODO-EX: will be replaced with per-EP tables
+gasnetex_handlerentry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
 
 /* ------------------------------------------------------------------------------------ */
 /* Defaults for environment variables */
@@ -252,17 +253,14 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   /* ------------------------------------------------------------------------------------ */
   /*  register handlers */
-  { int i;
-    for (i = 0; i < GASNETC_MAX_NUMHANDLERS; i++) 
-      gasnetc_handler[i] = (gasneti_handler_fn_t)&gasneti_defaultAMHandler;
-  }
+  gasneti_amtbl_init(gasnetc_handler);
   { /*  core API handlers */
     gasnetex_handlerentry_t *ctable = (gasnetex_handlerentry_t *)gasnetc_get_handlertable();
     int len = 0;
     int numreg = 0;
     gasneti_assert(ctable);
     while (ctable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(ctable, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 0, &numreg) != GASNET_OK)
+    if (gasneti_amregister(gasnetc_handler, ctable, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering core API handlers");
     gasneti_assert(numreg == len);
   }
@@ -273,13 +271,13 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     int numreg = 0;
     gasneti_assert(etable);
     while (etable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(etable, len, GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE, 0, &numreg) != GASNET_OK)
+    if (gasneti_amregister(gasnetc_handler, etable, len, GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE, 0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering extended API handlers");
     gasneti_assert(numreg == len);
   }
 
   if (table) { /*  client handlers */
-    if (gasneti_amregister_legacy(table, numentries) != GASNET_OK)
+    if (gasneti_amregister_legacy(gasnetc_handler, table, numentries) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering handlers");
   }
 
@@ -728,7 +726,7 @@ void run_short(gasnetc_token_t *token) {
   gasnetc_shortmsg_t            *header = &token->shortmsg;
   const int                      is_req = header->is_req;
   const gasnetex_handler_t   handler_id = header->handler;
-  const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id];
+  const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id].gex_fnptr;
   const gasnetex_handlerarg_t     *args = header->args;
   const int                     numargs = header->numargs;
   gasnetex_token_t         client_token = (gasnetex_token_t)token;
@@ -748,7 +746,7 @@ void run_medium(gasnetc_token_t *token) {
   gasnetc_medmsg_t              *header = &token->medmsg;
   const int                      is_req = header->is_req;
   const gasnetex_handler_t     handler_id = header->handler;
-  const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id];
+  const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id].gex_fnptr;
   const gasnetex_handlerarg_t     *args = header->args;
   const int                     numargs = header->numargs;
   void * const                     data = GASNETC_TOKEN_PAYLOAD(token);
@@ -766,7 +764,7 @@ void run_long(gasnetc_token_t *token) {
   gasnetc_longmsg_t             *header = &token->longmsg;
   const int                      is_req = header->is_req;
   const gasnetex_handler_t     handler_id = header->handler;
-  const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id];
+  const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id].gex_fnptr;
   const gasnetex_handlerarg_t     *args = header->args;
   const int                     numargs = header->numargs;
   void * const                     data = (void*)header->addr;
@@ -1089,7 +1087,7 @@ extern int gasnetc_AMRequestShortM(
   } else
 #else
   if (rank == gasneti_mynode) {
-    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
+    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
     gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
     GASNETI_RUN_HANDLER_SHORT(1,handler,handler_fn,(gasnetex_token_t)gasnetc_loopback_token,args,numargs);
@@ -1153,7 +1151,7 @@ extern int gasnetc_AMRequestMediumM(
   } else
 #else
   if (rank == gasneti_mynode) {
-    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
+    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
     gasnetex_handlerarg_t args[GASNETC_MAX_ARGS]
     void *dest_addr = alloca(nbytes); 
     gasneti_assert(0 == ((uintptr_t)dest_addr % GASNETI_MEDBUF_ALIGNMENT));
@@ -1228,7 +1226,7 @@ extern int gasnetc_AMRequestLongM(
   } else
 #else
   if (rank == gasneti_mynode) {
-    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
+    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
     gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
     memcpy(dest_addr, source_addr, nbytes);
@@ -1295,7 +1293,7 @@ extern int gasnetc_AMReplyShortM(
   } else
 #else
   if (token == (gasnetex_token_t)gasnetc_loopback_token) {
-    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
+    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
     gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
     GASNETI_RUN_HANDLER_SHORT(0,handler,handler_fn,token,args,numargs);
@@ -1353,7 +1351,7 @@ extern int gasnetc_AMReplyMediumM(
   } else
 #else
   if (token == (gasnetex_token_t)gasnetc_loopback_token) {
-    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
+    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
     gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
     void *dest_addr = alloca(nbytes); 
     gasneti_assert(0 == ((uintptr_t)dest_addr % GASNETI_MEDBUF_ALIGNMENT));
@@ -1424,7 +1422,7 @@ extern int gasnetc_AMReplyLongM(
   } else
 #else
   if (token == (gasnetex_token_t)gasnetc_loopback_token) {
-    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
+    const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
     gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
     GASNETC_AM_COPY_ARGS(args, numargs, argptr);
     memcpy(dest_addr, source_addr, nbytes);

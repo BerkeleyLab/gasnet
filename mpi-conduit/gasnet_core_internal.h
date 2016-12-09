@@ -82,7 +82,7 @@ const char *gasneti_AMErrorName(int errval) {
 
 /* ------------------------------------------------------------------------------------ */
 /* handler table (recommended impl) */
-extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
+extern gasnetex_handlerentry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 /* ------------------------------------------------------------------------------------ */
 /* AM category (recommended impl if supporting PSHM) */

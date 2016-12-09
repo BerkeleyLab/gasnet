@@ -231,7 +231,7 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
 #endif
 #ifndef GASNETC_GET_HANDLER
   /* Assumes conduit has gasnetc_handler[] as in template-conduit */
-  #define gasnetc_get_handler(_h) (gasnetc_handler[(_h)])
+  #define gasnetc_get_handler(_h) (gasnetc_handler[(_h)].gex_fnptr)
 #endif
 #ifndef GASNETC_TOKEN_CREATE
   /* Our default implementation is suitable for conduits that use a pointer

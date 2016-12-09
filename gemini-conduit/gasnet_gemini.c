@@ -1674,7 +1674,7 @@ void gasnetc_recv_am(peer_struct_t * const peer, gasnetc_packet_t * const packet
   int is_req = (notify_get_type(notify) == notify_request);
   const int numargs = gasnetc_am_numargs(notify);
   const int handlerindex = gasnetc_am_handler(notify);
-  gasneti_handler_fn_t handler = gasnetc_handler[handlerindex];
+  gasneti_handler_fn_t handler = gasnetc_handler[handlerindex].gex_fnptr;
   gasnetc_token_t the_token = { peer->pe, is_req, notify, NULL };
   gasnetex_token_t token = (gasnetex_token_t)&the_token; /* RUN macros need an lvalue */
 

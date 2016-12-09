@@ -17,6 +17,10 @@ GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
 gasnetex_handlerentry_t const *gasnetc_get_handlertable(void);
+
+// TODO-EX: will be replaced with per-EP tables
+gasnetex_handlerentry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
+
 #if HAVE_ON_EXIT
 static void gasnetc_on_exit(int, void*);
 #else
@@ -26,8 +30,6 @@ static void gasnetc_atexit(void);
 #if !GASNETI_CLIENT_THREADS
   void *_gasnetc_mythread = NULL;
 #endif
-
-gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -657,17 +659,14 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   /* ------------------------------------------------------------------------------------ */
   /*  register handlers */
-  { int i;
-    for (i = 0; i < GASNETC_MAX_NUMHANDLERS; i++) 
-      gasnetc_handler[i] = (gasneti_handler_fn_t)&gasneti_defaultAMHandler;
-  }
+  gasneti_amtbl_init(gasnetc_handler);
   { /*  core API handlers */
     gasnetex_handlerentry_t *ctable = (gasnetex_handlerentry_t *)gasnetc_get_handlertable();
     int len = 0;
     int numreg = 0;
     gasneti_assert(ctable);
     while (ctable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(ctable, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 0, &numreg) != GASNET_OK)
+    if (gasneti_amregister(gasnetc_handler, ctable, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering core API handlers");
     gasneti_assert(numreg == len);
   }
@@ -678,13 +677,13 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     int numreg = 0;
     gasneti_assert(etable);
     while (etable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(etable, len, GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE, 0, &numreg) != GASNET_OK)
+    if (gasneti_amregister(gasnetc_handler, etable, len, GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE, 0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering extended API handlers");
     gasneti_assert(numreg == len);
   }
 
   if (table) { /*  client handlers */
-    if (gasneti_amregister_legacy(table, numentries) != GASNET_OK)
+    if (gasneti_amregister_legacy(gasnetc_handler, table, numentries) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering handlers");
   }
 
@@ -887,6 +886,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
                          void *source_addr, int nbytes, void *dest_ptr, 
                          gasnetex_flags_t flags, int numargs, va_list argptr) {
   gasnetex_handlerarg_t pargs[GASNETC_MAX_ARGS];
+  gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
   #if GASNET_DEBUG  
     gasnetc_bufdesc_t _descbuf; 
     gasnetc_bufdesc_t *desc = &_descbuf;
@@ -910,7 +910,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
   switch (category) {
     case gasnetc_Short:
       { 
-        GASNETI_RUN_HANDLER_SHORT(isReq,handler,gasnetc_handler[handler],token,pargs,numargs);
+        GASNETI_RUN_HANDLER_SHORT(isReq,handler,handler_fn,token,pargs,numargs);
       }
     break;
     case gasnetc_Medium:
@@ -927,14 +927,14 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
 
         memcpy(buf, source_addr, nbytes);
 
-        GASNETI_RUN_HANDLER_MEDIUM(isReq,handler,gasnetc_handler[handler],token,pargs,numargs,buf,nbytes);
+        GASNETI_RUN_HANDLER_MEDIUM(isReq,handler,handler_fn,token,pargs,numargs,buf,nbytes);
       }
     break;
     case gasnetc_Long:
       { 
         if_pt(dest_ptr != source_addr) memcpy(dest_ptr, source_addr, nbytes);
 
-        GASNETI_RUN_HANDLER_LONG(isReq,handler,gasnetc_handler[handler],token,pargs,numargs,dest_ptr,nbytes);
+        GASNETI_RUN_HANDLER_LONG(isReq,handler,handler_fn,token,pargs,numargs,dest_ptr,nbytes);
       }
     break;
     default: gasneti_fatalerror("bad AM category");

@@ -743,7 +743,7 @@ void gasnetc_amrdma_eligable(gasnetc_cep_t *cep) {
 void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t flags GASNETI_THREAD_FARG) {
   gasnetc_buffer_t * const buf = (gasnetc_buffer_t *)(uintptr_t)(rbuf->rr_sg.addr);
   const gasnetex_handler_t handler_id = GASNETC_MSG_HANDLERID(flags);
-  const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id];
+  const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id].gex_fnptr;
   const gasnetc_category_t category = GASNETC_MSG_CATEGORY(flags);
   const int isreq = GASNETC_MSG_ISREQUEST(flags);
   int full_numargs = GASNETC_MSG_NUMARGS(flags);
