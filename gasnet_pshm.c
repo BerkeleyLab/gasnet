@@ -231,7 +231,8 @@ void *gasneti_pshm_init(gasneti_bootstrapBroadcastfn_t snodebcastfn, size_t aux_
 #endif
 #ifndef GASNETC_GET_HANDLER
   /* Assumes conduit has gasnetc_handler[] as in template-conduit */
-  #define gasnetc_get_handler(_h) (gasnetc_handler[(_h)].gex_fnptr)
+  // TODO-EX: gasnetc_handler to be replaced w/ per-endpoint data when defined
+  #define gasnetc_get_handler(_ep,_index,_field) (gasnetc_handler[(_index)].gex_##_field)
 #endif
 #ifndef GASNETC_TOKEN_CREATE
   /* Our default implementation is suitable for conduits that use a pointer
@@ -1147,9 +1148,34 @@ static void gasneti_pshmnet_free(gasneti_pshmnet_payload_t *p)
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+#if GASNET_DEBUG
+static void gasneti_AMPSHM_amtbl_check(
+                gasnetex_endpoint_t ep,
+                gasnetc_handler_t   index,
+                uint8_t             nargs)
+{
+  #ifndef GASNETC_GET_HANDLER
+    // Conduit uses default implementation of handlerentry table
+    gasneti_amtbl_check(&gasnetc_handler[index], nargs); // TODO-EX: EP-specific table
+  #else
+    // Must construct a handlerentry table entry
+    gasnetex_handlerentry_t entry;
+    entry.gex_nargs = gasnetc_get_handler(ep, index, nargs);
+    entry.gex_flags = gasnetc_get_handler(ep, index, flags);
+    entry.gex_fnptr = gasnetc_get_handler(ep, index, fnptr);
+    entry.gex_cdata = gasnetc_get_handler(ep, index, cdata);
+    entry.gex_name  = gasnetc_get_handler(ep, index, name);
+    gasneti_amtbl_check(&entry, nargs);
+  #endif
+}
+#else
+  #define gasneti_AMPSHM_amtbl_check(ep, id, nargs) ((void)0)
+#endif
+/* ------------------------------------------------------------------------------------ */
 GASNETI_INLINE(gasneti_AMPSHM_service_incoming_msg)
 int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
 {
+  gasnetex_endpoint_t ep = NULL; // TODO-EX: get true value
   void *msg;
   size_t msgsz;
   gasneti_pshm_rank_t from;
@@ -1171,9 +1197,11 @@ int gasneti_AMPSHM_service_incoming_msg(gasneti_pshmnet_t *vnet, int isReq)
                  (category == gasnetc_Medium) || 
                  (category == gasnetc_Long));
   handler_id = GASNETI_AMPSHM_MSG_HANDLERID(msg);
-  handler_fn = gasnetc_get_handler(handler_id);
+  handler_fn = gasnetc_get_handler(ep,handler_id,fnptr);
   numargs = GASNETI_AMPSHM_MSG_NUMARGS(msg);
   args = GASNETI_AMPSHM_MSG_ARGS(msg);
+
+  gasneti_AMPSHM_amtbl_check(ep, handler_id, numargs);
 
   switch (category) {
     case gasnetc_Short:
@@ -1336,9 +1364,11 @@ int gasnetc_AMPSHM_ReqRepGeneric(int category, int isReq, gasnetex_rank_t dest,
 
   /* Deliver message */
   if (loopback) {
-    gasneti_handler_fn_t handler_fn = gasnetc_get_handler(handler); 
+    gasnetex_endpoint_t ep = NULL; // TODO-EX: get true value
+    gasneti_handler_fn_t handler_fn = gasnetc_get_handler(ep,handler,fnptr);
     gasnetex_token_t token = gasnetc_token_create(gasneti_mynode, isReq);
     gasnetex_handlerarg_t *args = GASNETI_AMPSHM_MSG_ARGS(msg);
+    gasneti_AMPSHM_amtbl_check(ep, handler, numargs);
     switch (category) {
       case gasnetc_Short:
         GASNETC_ENTERING_HANDLER_HOOK(category,isReq,handler,token,NULL,0,numargs,args);

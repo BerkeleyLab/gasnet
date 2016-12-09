@@ -355,10 +355,10 @@ extern void gasnetc_exit(int exitcode) {
 /* (###) GASNETC_GET_HANDLER
  *   If your conduit will support PSHM, then there needs to be a way
  *   for PSHM to see your handler table.  If you use the recommended
- *   implementation (gasnetc_handler[]) then you don't need to do
- *   anything special.  Othwerwise, #define GASNETC_GET_HANDLER in
- *   gasnet_core_fwd.h and implement gasnetc_get_handler() here, or
- *   as a macro or inline in gasnet_core_internal.h
+ *   implementation then you don't need to do anything special.
+ *   Othwerwise, #define GASNETC_GET_HANDLER in gasnet_core_fwd.h and
+ *   implement gasnetc_get_handler() as a macro in
+ *   gasnet_core_internal.h
  *
  * (###) GASNETC_TOKEN_CREATE
  *   If your conduit will support PSHM, then there needs to be a way

@@ -1043,10 +1043,10 @@ extern void gasnetc_exit(int exitcode) {
 /* (###) GASNETC_GET_HANDLER
  *   If your conduit will support PSHM, then there needs to be a way
  *   for PSHM to see your handler table.  If you use the recommended
- *   implementation (gasnetc_handler[]) then you don't need to do
- *   anything special.  Othwerwise, #define GASNETC_GET_HANDLER in
- *   gasnet_core_fwd.h and implement gasnetc_get_handler() here, or
- *   as a macro or inline in gasnet_core_internal.h
+ *   implementation then you don't need to do anything special.
+ *   Othwerwise, #define GASNETC_GET_HANDLER in gasnet_core_fwd.h and
+ *   implement gasnetc_get_handler() as a macro in
+ *   gasnet_core_internal.h
  *
  * (###) GASNETC_TOKEN_CREATE
  *   If your conduit will support PSHM, then there needs to be a way
@@ -1133,11 +1133,13 @@ int gasnetc_local_short_common(int is_req, gasnetex_handler_t handler,
 {
   int i;
   
-  const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
+  const gasnetex_handlerentry_t * const handler_entry = &gasnetc_handler[handler]; // TODO-EX: per-EP table
+  const gasneti_handler_fn_t handler_fn = handler_entry->gex_fnptr;
   gasnetc_token_t the_token = { gasneti_mynode, is_req, 0, NULL };
   gasnetex_token_t token = (gasnetex_token_t)&the_token; /* RUN macros need an lvalue */
   gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
   
+  gasneti_amtbl_check(handler_entry, numargs);
   for (i = 0; i < numargs; i++) {
     args[i] = (gasnetex_handlerarg_t)va_arg(argptr, gasnetex_handlerarg_t);
   }
@@ -1152,12 +1154,14 @@ int gasnetc_local_medium_common(int is_req, gasnetex_handler_t handler,
 {
   int i;
   
-  const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
+  const gasnetex_handlerentry_t * const handler_entry = &gasnetc_handler[handler]; // TODO-EX: per-EP table
+  const gasneti_handler_fn_t handler_fn = handler_entry->gex_fnptr;
   gasnetc_token_t the_token = { gasneti_mynode, is_req, 0, NULL };
   gasnetex_token_t token = (gasnetex_token_t)&the_token; /* RUN macros need an lvalue */
   gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
   void *payload = alloca(nbytes);
   
+  gasneti_amtbl_check(handler_entry, numargs);
   for (i = 0; i < numargs; i++) {
     args[i] = (gasnetex_handlerarg_t)va_arg(argptr, gasnetex_handlerarg_t);
   }
@@ -1173,12 +1177,14 @@ int gasnetc_local_long_common(int is_req, gasnetex_handler_t handler,
                                void *dest_addr, 
                                int numargs, va_list argptr)
 {
-  const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
+  const gasnetex_handlerentry_t * const handler_entry = &gasnetc_handler[handler]; // TODO-EX: per-EP table
+  const gasneti_handler_fn_t handler_fn = handler_entry->gex_fnptr;
   gasnetc_token_t the_token = { gasneti_mynode, is_req, 0, NULL };
   gasnetex_token_t token = (gasnetex_token_t)&the_token; /* RUN macros need an lvalue */
   gasnetex_handlerarg_t args[GASNETC_MAX_ARGS];
   int i;
   
+  gasneti_amtbl_check(handler_entry, numargs);
   for (i = 0; i < numargs; i++) {
     args[i] = (gasnetex_handlerarg_t)va_arg(argptr, gasnetex_handlerarg_t);
   }

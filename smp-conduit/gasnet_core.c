@@ -845,6 +845,29 @@ extern void gasnetc_exit(int exitcode) {
   Misc. Active Message Functions
   ==============================
 */
+#if GASNET_PSHM
+/* (###) GASNETC_GET_HANDLER
+ *   If your conduit will support PSHM, then there needs to be a way
+ *   for PSHM to see your handler table.  If you use the recommended
+ *   implementation then you don't need to do anything special.
+ *   Othwerwise, #define GASNETC_GET_HANDLER in gasnet_core_fwd.h and
+ *   implement gasnetc_get_handler() as a macro in
+ *   gasnet_core_internal.h
+ *
+ * (###) GASNETC_TOKEN_CREATE
+ *   If your conduit will support PSHM, then there needs to be a way
+ *   for the conduit-specific and PSHM token spaces to co-exist.
+ *   The default PSHM implementation produces tokens with the least-
+ *   significant bit set and assumes the conduit never will.  If that
+ *   is true, you don't need to do anything special here.
+ *   If your conduit cannot use the default PSHM token code, then
+ *   #define GASNETC_TOKEN_CREATE in gasnet_core_fwd.h and implement
+ *   the associated routines described in gasnet_pshm.h.  That code
+ *   could be functions located here, or could be macros or inlines
+ *   in gasnet_core_internal.h.
+ */
+#endif
+
 extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *srcindex) {
   gasnetex_rank_t sourceid = 0;
   GASNETI_CHECKATTACH();
@@ -892,7 +915,8 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
                          void *source_addr, int nbytes, void *dest_ptr, 
                          gasnetex_flags_t flags, int numargs, va_list argptr) {
   gasnetex_handlerarg_t pargs[GASNETC_MAX_ARGS];
-  gasneti_handler_fn_t handler_fn = gasnetc_handler[handler].gex_fnptr;
+  gasnetex_handlerentry_t *handler_entry = &gasnetc_handler[handler]; // TODO-EX: per-EP table
+  gasneti_handler_fn_t handler_fn = handler_entry->gex_fnptr;
   #if GASNET_DEBUG  
     gasnetc_bufdesc_t _descbuf; 
     gasnetc_bufdesc_t *desc = &_descbuf;
@@ -906,6 +930,7 @@ int gasnetc_ReqRepGeneric(gasnetc_category_t category, int isReq,
 
   gasneti_assert(dest == gasneti_mynode);
   gasneti_assert(numargs >= 0 && numargs <= GASNETC_MAX_ARGS);
+  gasneti_amtbl_check(handler_entry, numargs);
 
   { int i;
     for(i=0; i < numargs; i++) {

@@ -35,7 +35,7 @@ ep_t gasnetc_endpoint;
 
 gasneti_mutex_t gasnetc_AMlock = GASNETI_MUTEX_INITIALIZER; /*  protect access to AMMPI */
 
-#if GASNETC_HSL_ERRCHECK || GASNET_TRACE
+#if GASNETC_HSL_ERRCHECK || GASNET_TRACE || GASNET_DEBUG
   extern void gasnetc_enteringHandler_hook(ammpi_category_t cat, int isReq, int handlerId, void *token, 
                                          void *buf, size_t nbytes, int numargs, uint32_t *args);
   extern void gasnetc_leavingHandler_hook(ammpi_category_t cat, int isReq);
@@ -356,8 +356,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       retval = AM_SetSeg(gasnetc_endpoint, segbase, segsize);
       if (retval != AM_OK) INITERR(RESOURCE, "AM_SetSeg() failed");
     }
-    #if GASNETC_HSL_ERRCHECK || GASNET_TRACE
-      #if !GASNETC_HSL_ERRCHECK
+    #if GASNETC_HSL_ERRCHECK || GASNET_TRACE || GASNET_DEBUG
+      #if !(GASNETC_HSL_ERRCHECK || GASNET_DEBUG)
         if (GASNETI_TRACE_ENABLED(A))
       #endif
           GASNETI_AM_SAFE(AMMPI_SetHandlerCallbacks(gasnetc_endpoint,
@@ -491,6 +491,29 @@ extern int gasnetc_getSegmentInfo(gasnet_seginfo_t *seginfo_table, int numentrie
   Misc. Active Message Functions
   ==============================
 */
+#if GASNET_PSHM
+/* (###) GASNETC_GET_HANDLER
+ *   If your conduit will support PSHM, then there needs to be a way
+ *   for PSHM to see your handler table.  If you use the recommended
+ *   implementation then you don't need to do anything special.
+ *   Othwerwise, #define GASNETC_GET_HANDLER in gasnet_core_fwd.h and
+ *   implement gasnetc_get_handler() as a macro in
+ *   gasnet_core_internal.h
+ *
+ * (###) GASNETC_TOKEN_CREATE
+ *   If your conduit will support PSHM, then there needs to be a way
+ *   for the conduit-specific and PSHM token spaces to co-exist.
+ *   The default PSHM implementation produces tokens with the least-
+ *   significant bit set and assumes the conduit never will.  If that
+ *   is true, you don't need to do anything special here.
+ *   If your conduit cannot use the default PSHM token code, then
+ *   #define GASNETC_TOKEN_CREATE in gasnet_core_fwd.h and implement
+ *   the associated routines described in gasnet_pshm.h.  That code
+ *   could be functions located here, or could be macros or inlines
+ *   in gasnet_core_internal.h.
+ */
+#endif
+
 extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *srcindex) {
   int retval;
   gasnetex_rank_t sourceid;
@@ -1004,10 +1027,15 @@ extern int  gasnetc_hsl_trylock(gasnetex_hsl_t *hsl) {
   }
 #endif /* GASNETC_HSL_ERRCHECK && !GASNETC_NULL_HSL */
 
-#if (!GASNETC_NULL_HSL && GASNETC_HSL_ERRCHECK) || GASNET_TRACE
+#if (!GASNETC_NULL_HSL && GASNETC_HSL_ERRCHECK) || GASNET_TRACE || GASNET_DEBUG
   /* called when entering/leaving handler - also called when entering/leaving AM_Reply call */
   extern void gasnetc_enteringHandler_hook(ammpi_category_t cat, int isReq, int handlerId, void *token, 
                                            void *buf, size_t nbytes, int numargs, uint32_t *args) {
+    #if GASNET_DEBUG
+      // TODO-EX: per-EP table
+      const gasnetex_handlerentry_t * const handler_entry = &gasnetc_handler[handlerId];
+      gasneti_amtbl_check(handler_entry, numargs);
+    #endif
     switch (cat) {
       case ammpi_Short:
         if (isReq) GASNETI_TRACE_AMSHORT_REQHANDLER(handlerId, token, numargs, args);

@@ -743,7 +743,8 @@ void gasnetc_amrdma_eligable(gasnetc_cep_t *cep) {
 void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t flags GASNETI_THREAD_FARG) {
   gasnetc_buffer_t * const buf = (gasnetc_buffer_t *)(uintptr_t)(rbuf->rr_sg.addr);
   const gasnetex_handler_t handler_id = GASNETC_MSG_HANDLERID(flags);
-  const gasneti_handler_fn_t handler_fn = gasnetc_handler[handler_id].gex_fnptr;
+  const gasnetex_handlerentry_t * const handler_entry = &gasnetc_handler[handler_id];
+  const gasneti_handler_fn_t handler_fn = handler_entry->gex_fnptr;
   const gasnetc_category_t category = GASNETC_MSG_CATEGORY(flags);
   const int isreq = GASNETC_MSG_ISREQUEST(flags);
   int full_numargs = GASNETC_MSG_NUMARGS(flags);
@@ -813,6 +814,7 @@ void gasnetc_processPacket(gasnetc_cep_t *cep, gasnetc_rbuf_t *rbuf, uint32_t fl
   } else {
     gasneti_assert(full_numargs < GASNETC_MAX_ARGS); /* NOT equal */
   }
+  gasneti_amtbl_check(handler_entry, user_numargs);
   
   /* Ack? */
   if (!handler_id) return;
@@ -4500,6 +4502,29 @@ extern int gasnetc_ReplySysMedium(gasnetex_token_t token,
   Misc. Active Message Functions
   ==============================
 */
+#if GASNET_PSHM
+/* (###) GASNETC_GET_HANDLER
+ *   If your conduit will support PSHM, then there needs to be a way
+ *   for PSHM to see your handler table.  If you use the recommended
+ *   implementation then you don't need to do anything special.
+ *   Othwerwise, #define GASNETC_GET_HANDLER in gasnet_core_fwd.h and
+ *   implement gasnetc_get_handler() as a macro in
+ *   gasnet_core_internal.h
+ *
+ * (###) GASNETC_TOKEN_CREATE
+ *   If your conduit will support PSHM, then there needs to be a way
+ *   for the conduit-specific and PSHM token spaces to co-exist.
+ *   The default PSHM implementation produces tokens with the least-
+ *   significant bit set and assumes the conduit never will.  If that
+ *   is true, you don't need to do anything special here.
+ *   If your conduit cannot use the default PSHM token code, then
+ *   #define GASNETC_TOKEN_CREATE in gasnet_core_fwd.h and implement
+ *   the associated routines described in gasnet_pshm.h.  That code
+ *   could be functions located here, or could be macros or inlines
+ *   in gasnet_core_internal.h.
+ */
+#endif
+
 extern int gasnetc_AMGetMsgSource(gasnetex_token_t token, gasnetex_rank_t *srcindex) {
   gasnetex_rank_t sourceid;
 

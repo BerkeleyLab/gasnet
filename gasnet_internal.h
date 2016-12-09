@@ -696,6 +696,11 @@ extern int gasneti_amregister_client(gasnetex_handlerentry_t *output,
 extern int gasneti_amregister_legacy(gasnetex_handlerentry_t *output,
                                      gasnet_handlerentry_t *input, int numentries);
 
+#if GASNET_DEBUG
+  extern void gasneti_amtbl_check(const gasnetex_handlerentry_t *entry, int nargs);
+#else
+  #define gasneti_amtbl_check(entry, nargs) ((void)0)
+#endif
 /* ------------------------------------------------------------------------------------ */
 /* nodemap data and functions */
 

@@ -188,6 +188,6 @@ typedef void (*gasneti_handler_fn_t)();  /* prototype for generic handler functi
 
 #define GASNETI_HANDLER_EOT {0,0,0,NULL,NULL,NULL}
 
-#define GASNETI_HANDLER_NARGS_UNK -1
+#define GASNETI_HANDLER_NARGS_UNK 255
 
 #endif

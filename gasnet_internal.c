@@ -431,6 +431,23 @@ extern int gasneti_amtbl_init(gasnetex_handlerentry_t *output) {
   }
   return GASNET_OK;
 }
+
+#if GASNET_DEBUG
+// Validate call to a handler
+// TODO-EX: this will also check entry->gex_flags against additional args (such as category and isReq)
+extern void gasneti_amtbl_check(const gasnetex_handlerentry_t *entry, int nargs) {
+  if ((entry->gex_nargs != nargs) && (entry->gex_nargs != GASNETI_HANDLER_NARGS_UNK)) {
+    char fnaddr[32];
+    const char *fnname = entry->gex_name;
+    if (!fnname) {
+      (void) snprintf(fnaddr, sizeof(fnaddr), "%p", (void*) entry->gex_fnptr);
+      fnname = fnaddr;
+    }
+    gasneti_fatalerror("AM handler %d (%s) registered with nargs=%d but called with %d",
+                       entry->gex_index, fnname, entry->gex_nargs, nargs);
+  }
+}
+#endif
 /* ------------------------------------------------------------------------------------ */
 
 #ifndef GASNETC_FATALSIGNAL_CALLBACK
