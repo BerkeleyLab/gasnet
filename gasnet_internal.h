@@ -689,10 +689,7 @@ extern void gasneti_defaultAMHandler(gasnetex_token_t token);
 extern int gasneti_amregister(gasnetex_handlerentry_t *table, int numentries,
                                int lowlimit, int highlimit,
                                int dontcare, int *numregistered);
-extern int gasneti_amregister_legacy(
-                               gasnet_handlerentry_t *table, int numentries,
-                               int lowlimit, int highlimit,
-                               int dontcare, int *numregistered);
+extern int gasneti_amregister_legacy(gasnet_handlerentry_t *table, int numentries);
 
 /* ------------------------------------------------------------------------------------ */
 /* nodemap data and functions */

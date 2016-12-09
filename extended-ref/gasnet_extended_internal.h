@@ -15,7 +15,6 @@ extern void gasnete_check_config_amref(void);
 
 /* ------------------------------------------------------------------------------------ */
 
-#define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
 #define _hidx_gasnete_amdbarrier_notify_reqh (GASNETE_HANDLER_BASE+0) 
 #define _hidx_gasnete_amcbarrier_notify_reqh (GASNETE_HANDLER_BASE+1) 
 #define _hidx_gasnete_amcbarrier_done_reqh   (GASNETE_HANDLER_BASE+2)

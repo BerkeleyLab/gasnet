@@ -14,7 +14,6 @@
 #define GASNETC_HSL_SPINLOCK 1
 
 /* ------------------------------------------------------------------------------------ */
-#define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
 #define _hidx_gasnetc_auxseg_reqh             (GASNETC_HANDLER_BASE+0)
 #define _hidx_gasnetc_exit_reqh               (GASNETC_HANDLER_BASE+1)
 #define _hidx_gasnetc_sys_barrier_reqh        (GASNETC_HANDLER_BASE+2)
@@ -23,7 +22,6 @@
 
 /* ------------------------------------------------------------------------------------ */
 /* handler table (recommended impl) */
-#define GASNETC_MAX_NUMHANDLERS   256
 extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 /* ------------------------------------------------------------------------------------ */

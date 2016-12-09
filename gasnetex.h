@@ -205,6 +205,19 @@ GASNETI_BEGIN_NOWARN
 /* ------------------------------------------------------------------------------------ */
 /* constants */
 
+#ifndef GASNETC_HANDLER_BASE
+  #define GASNETC_HANDLER_BASE 1
+#endif
+#ifndef GASNETE_HANDLER_BASE
+  #define GASNETE_HANDLER_BASE 64
+#endif
+#ifndef GASNETI_CLIENT_HANDLER_BASE
+  #define GASNETI_CLIENT_HANDLER_BASE 128
+#endif
+#ifndef GASNETC_MAX_NUMHANDLERS
+  #define GASNETC_MAX_NUMHANDLERS 256
+#endif
+
 #ifndef GASNET_MAXNODES
   /*  an integer representing the maximum number of nodes supported in a single GASNet job */
   #define GASNET_MAXNODES (0x7FFFFFFFu)

@@ -311,6 +311,7 @@ extern void gasneti_defaultAMHandler(gasnetex_token_t token) {
 // TODO-EX: to be replaced by per-EP arrays
 extern gasneti_handler_fn_t gasnetc_handler[];
 
+// Register handlers in the range [lowlimit,highlimit)
 extern int gasneti_amregister(gasnetex_handlerentry_t *table, int numentries,
                                int lowlimit, int highlimit,
                                int dontcare, int *numregistered) {
@@ -324,20 +325,20 @@ extern int gasneti_amregister(gasnetex_handlerentry_t *table, int numentries,
         (table[i].gex_index && dontcare)) continue;
     else if (table[i].gex_index) newindex = table[i].gex_index;
     else { /* deterministic assignment of dontcare indexes from top down */
-      for (newindex = highlimit; newindex >= lowlimit; newindex--) {
+      for (newindex = highlimit-1; newindex >= lowlimit; newindex--) {
         if (AM_TBL_ENTRY_FREE(gasnetc_handler, newindex)) break;
       }
       if (newindex < lowlimit) {
         char s[255];
-        snprintf(s, sizeof(s), "Too many handlers. (limit=%i)", highlimit - lowlimit + 1);
+        snprintf(s, sizeof(s), "Too many handlers. (limit=%i)", highlimit - lowlimit);
         GASNETI_RETURN_ERRR(BAD_ARG, s);
       }
     }
 
     /*  ensure handlers fall into the proper range of pre-assigned values */
-    if (newindex < lowlimit || newindex > highlimit) {
+    if (newindex < lowlimit || newindex >= highlimit) {
       char s[255];
-      snprintf(s, sizeof(s), "handler index (%i) out of range [%i..%i]", newindex, lowlimit, highlimit);
+      snprintf(s, sizeof(s), "handler index (%i) out of range [%i..%i)", newindex, lowlimit, highlimit);
       GASNETI_RETURN_ERRR(BAD_ARG, s);
     }
 
@@ -367,26 +368,42 @@ extern int gasneti_amregister(gasnetex_handlerentry_t *table, int numentries,
 }
 
 // Wrapper to provide continued support for GASNet-1 legacy handler tables,
-// such as through gasnet_attach().
+// such as through gasnet_attach().  Only supports the clients's index range.
 // TODO-EX: should be absorbed into an eventual conduit-indep gasnet_attach()
-extern int gasneti_amregister_legacy(
-                gasnet_handlerentry_t *table, int numentries,
-                int lowlimit, int highlimit,
-                int dontcare, int *numregistered) {
-  int result = GASNET_OK;
-  if (numentries) {
-    gasnetex_handlerentry_t *extable = gasneti_calloc(numentries, sizeof(gasnetex_handlerentry_t));
-    for (int i = 0; i < numentries; ++i) {
-      extable[i].gex_index = table[i].index;
-      extable[i].gex_fnptr = table[i].fnptr;
-      extable[i].gex_nargs = GASNETI_HANDLER_NARGS_UNK;
-    }
-    int result = gasneti_amregister(extable, numentries, lowlimit, highlimit, dontcare, numregistered);
-    for (int i = 0; i < numentries; ++i) {
-      table[i].index = extable[i].gex_index;
-    }
+extern int gasneti_amregister_legacy(gasnet_handlerentry_t *table, int numentries) {
+  /* create temporary ex-compatible table */
+  gasnetex_handlerentry_t *extable = gasneti_calloc(numentries, sizeof(gasnetex_handlerentry_t));
+  for (int i = 0; i < numentries; ++i) {
+    extable[i].gex_index = table[i].index;
+    extable[i].gex_fnptr = table[i].fnptr;
+    extable[i].gex_nargs = GASNETI_HANDLER_NARGS_UNK;
   }
-  return result;
+
+  /*  first pass - assign all fixed-index handlers */
+  int numreg1 = 0;
+  if (gasneti_amregister(extable, numentries,
+                         GASNETI_CLIENT_HANDLER_BASE, GASNETC_MAX_NUMHANDLERS,
+                         0, &numreg1) != GASNET_OK) {
+      GASNETI_RETURN_ERRR(RESOURCE,"Error registering fixed-index client handlers");
+  }
+
+  /*  second pass - fill in dontcare-index handlers */
+  int numreg2 = 0;
+  if (gasneti_amregister(extable, numentries,
+                         GASNETI_CLIENT_HANDLER_BASE, GASNETC_MAX_NUMHANDLERS,
+                         1, &numreg2) != GASNET_OK) {
+      GASNETI_RETURN_ERRR(RESOURCE,"Error registering variable-index client handlers");
+  }
+
+  gasneti_assert(numreg1 + numreg2 == numentries);
+
+  /* copy back from temporary ex-compatible table */
+  for (int i = 0; i < numentries; ++i) {
+    table[i].index = extable[i].gex_index;
+  }
+  gasneti_free(extable);
+
+  return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
 

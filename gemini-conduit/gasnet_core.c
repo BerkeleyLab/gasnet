@@ -710,7 +710,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     int len = 0;
     gasneti_assert(ctable);
     while (ctable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(ctable, len, 1, GASNETE_HANDLER_BASE-1, 0, &numreg) != GASNET_OK)
+    if (gasneti_amregister(ctable, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering core API handlers");
     gasneti_assert(numreg == len);
   }
@@ -720,38 +720,26 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     int len = 0;
     gasneti_assert(etable);
     while (etable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(etable, len, GASNETE_HANDLER_BASE, 127, 0, &numreg) != GASNET_OK)
+    if (gasneti_amregister(etable, len, GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE, 0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering extended API handlers");
     gasneti_assert(numreg == len);
   }
 
 #if GASNETC_GNI_FIREHOSE
   { /* firehose handlers */
-    gasnetex_handlerentry_t *ftable = (gasnetex_handlerentry_t *)firehose_get_handlertable();
+    gasnetex_handlerentry_t *ftable = firehose_get_handlertable();
     int len = 0;
-    int base = GASNETE_HANDLER_BASE + numreg;   /* start right after etable */
     gasneti_assert(ftable);
     while (ftable[len].gex_fnptr) len++; /* calc len */
-    gasneti_assert(base + len <= 128);  /* enough space remaining after etable? */
-    if (gasneti_amregister(ftable, len, base, 127, 1, &numreg) != GASNET_OK)
+    if (gasneti_amregister(ftable, len, GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE, 1, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE, "Error registering firehose handlers");
     gasneti_assert(numreg == len);
   }
 #endif
 
   if (table) { /*  client handlers */
-    int numreg1 = 0;
-    int numreg2 = 0;
-
-    /*  first pass - assign all fixed-index handlers */
-    if (gasneti_amregister_legacy(table, numentries, 128, 255, 0, &numreg1) != GASNET_OK)
-      GASNETI_RETURN_ERRR(RESOURCE,"Error registering fixed-index client handlers");
-
-    /*  second pass - fill in dontcare-index handlers */
-    if (gasneti_amregister_legacy(table, numentries, 128, 255, 1, &numreg2) != GASNET_OK)
-      GASNETI_RETURN_ERRR(RESOURCE,"Error registering variable-index client handlers");
-
-    gasneti_assert(numreg1 + numreg2 == numentries);
+    if (gasneti_amregister_legacy(table, numentries) != GASNET_OK)
+      GASNETI_RETURN_ERRR(RESOURCE,"Error registering handlers");
   }
 
   /* ------------------------------------------------------------------------------------ */

@@ -87,7 +87,6 @@ extern gasneti_atomic_t gasnetc_exit_running;
 /* Core handlers.
  * These are registered early and are available even before _attach()
  */
-#define GASNETC_HANDLER_BASE  1 /* reserve 1-63 for the core API */
 #define _hidx_gasnetc_ack                     0 /* Special case */
 #define _hidx_gasnetc_auxseg_reqh             (GASNETC_HANDLER_BASE+0)
 #define _hidx_gasnetc_amrdma_grant_reqh       (GASNETC_HANDLER_BASE+1)
@@ -102,15 +101,8 @@ extern gasneti_atomic_t gasnetc_exit_running;
 #define _hidx_gasnetc_sys_close_reqh          (GASNETC_HANDLER_BASE+10)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
-#ifndef GASNETE_HANDLER_BASE
-  #define GASNETE_HANDLER_BASE  64 /* reserve 64-127 for the extended API */
-#elif GASNETE_HANDLER_BASE != 64
-  #error "GASNETE_HANDLER_BASE mismatch between core and extended"
-#endif
-
 /* ------------------------------------------------------------------------------------ */
 /* handler table (recommended impl) */
-#define GASNETC_MAX_NUMHANDLERS   256
 extern gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
 /* ------------------------------------------------------------------------------------ */
