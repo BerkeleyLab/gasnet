@@ -311,7 +311,7 @@ extern void gasneti_defaultAMHandler(gasnetex_token_t token) {
 // TODO-EX: to be replaced by per-EP arrays
 extern gasneti_handler_fn_t gasnetc_handler[];
 
-extern int gasneti_amregister(gasnet_handlerentry_t *table, int numentries,
+extern int gasneti_amregister(gasnetex_handlerentry_t *table, int numentries,
                                int lowlimit, int highlimit,
                                int dontcare, int *numregistered) {
   #define AM_TBL_ENTRY_FREE(tbl, index) (gasneti_defaultAMHandler == tbl[index])
@@ -320,9 +320,9 @@ extern int gasneti_amregister(gasnet_handlerentry_t *table, int numentries,
   for (i = 0; i < numentries; i++) {
     int newindex;
 
-    if ((table[i].index == 0 && !dontcare) ||
-        (table[i].index && dontcare)) continue;
-    else if (table[i].index) newindex = table[i].index;
+    if ((table[i].gex_index == 0 && !dontcare) ||
+        (table[i].gex_index && dontcare)) continue;
+    else if (table[i].gex_index) newindex = table[i].gex_index;
     else { /* deterministic assignment of dontcare indexes from top down */
       for (newindex = highlimit; newindex >= lowlimit; newindex--) {
         if (AM_TBL_ENTRY_FREE(gasnetc_handler, newindex)) break;
@@ -346,7 +346,7 @@ extern int gasneti_amregister(gasnet_handlerentry_t *table, int numentries,
       GASNETI_RETURN_ERRR(BAD_ARG, "handler index not unique");
 
     /* register a single handler */
-    gasneti_handler_fn_t fnptr = (gasneti_handler_fn_t)table[i].fnptr;
+    gasneti_handler_fn_t fnptr = (gasneti_handler_fn_t)table[i].gex_fnptr;
   #if GASNETC_AMREGISTER /* have a conduit-specific hook */
     int rc = gasnetc_amregister((gasnetex_handler_t)newindex, fnptr);
     if (GASNET_OK != rc) return rc;
@@ -354,16 +354,39 @@ extern int gasneti_amregister(gasnet_handlerentry_t *table, int numentries,
     gasneti_assert(AM_TBL_ENTRY_FREE(gasnetc_handler, newindex));
     gasnetc_handler[newindex] = fnptr;
 
-    /* The check below for !table[i].index is redundant and present
+    /* The check below for !table[i].gex_index is redundant and present
      * only to defeat the over-aggressive optimizer in pathcc 2.1
      */
-    if (dontcare && !table[i].index) table[i].index = newindex;
+    if (dontcare && !table[i].gex_index) table[i].gex_index = newindex;
 
     (*numregistered)++;
   }
   return GASNET_OK;
 
   #undef AM_TBL_ENTRY_FREE
+}
+
+// Wrapper to provide continued support for GASNet-1 legacy handler tables,
+// such as through gasnet_attach().
+// TODO-EX: should be absorbed into an eventual conduit-indep gasnet_attach()
+extern int gasneti_amregister_legacy(
+                gasnet_handlerentry_t *table, int numentries,
+                int lowlimit, int highlimit,
+                int dontcare, int *numregistered) {
+  int result = GASNET_OK;
+  if (numentries) {
+    gasnetex_handlerentry_t *extable = gasneti_calloc(numentries, sizeof(gasnetex_handlerentry_t));
+    for (int i = 0; i < numentries; ++i) {
+      extable[i].gex_index = table[i].index;
+      extable[i].gex_fnptr = table[i].fnptr;
+      extable[i].gex_nargs = GASNETI_HANDLER_NARGS_UNK;
+    }
+    int result = gasneti_amregister(extable, numentries, lowlimit, highlimit, dontcare, numregistered);
+    for (int i = 0; i < numentries; ++i) {
+      table[i].index = extable[i].gex_index;
+    }
+  }
+  return result;
 }
 /* ------------------------------------------------------------------------------------ */
 

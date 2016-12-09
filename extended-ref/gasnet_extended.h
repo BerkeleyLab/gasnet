@@ -26,10 +26,10 @@
 /* passes back a pointer to a handler table containing the handlers of
     the extended API, which the core should register on its behalf
     (the table is terminated with an entry where fnptr == NULL)
-   all handlers will have an index in range 100-199 
+   all handlers will have an index in range 100-199 // <== TODO-EX: update range here
    may be called before gasnete_init()
 */
-extern gasnet_handlerentry_t const *gasnete_get_handlertable(void);
+extern gasnetex_handlerentry_t const *gasnete_get_handlertable(void);
 
 /* Initialize the Extended API:
    must be called by the core API at the end of gasnet_attach() before calls to extended API

@@ -267,17 +267,17 @@ firehose_unexport_callback(gasnetex_rank_t node,
  ***********************************
  * This function must be called by the client prior to initializing
  * the firehose interface in order to register firehose AM handlers.
- * The function returns an array of gasnet_handlerentry_t terminated
- * with a gasnet_handlerentry_t entry containing a NULL function
+ * The function returns an array of gasnetex_handlerentry_t terminated
+ * with a gasnetex_handlerentry_t entry containing a NULL function
  * pointer.
  *
  * Upon calling firehose_get_handlertable(), clients should loop over
- * the array of gasnet_handlerentry_t and fill in a valid
- * gasneted_handler_t index for each function pointer.  At firehose
+ * the array of gasnetex_handlerentry_t and fill in a valid
+ * gasnet_handler_t index for each function pointer.  At firehose
  * initialization, a check is made to make sure each function pointer
  * has been assigned a usable index number.
  */
-extern gasnet_handlerentry_t * firehose_get_handlertable(void);
+extern gasnetex_handlerentry_t * firehose_get_handlertable(void);
 
 /**************************
  * Firehose Initialization

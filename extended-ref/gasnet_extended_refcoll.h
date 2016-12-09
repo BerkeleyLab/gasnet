@@ -60,15 +60,15 @@ MEDIUM_HANDLER_NOBITS_DECL(gasnete_coll_p2p_med_counting_reqh,5);
   LONG_HANDLER_NOBITS_DECL(gasnete_coll_p2p_seg_put_reqh,3);
 
   #define GASNETE_COLL_P2P_HANDLERS() \
-      gasneti_handler_tableentry_with_bits(gasnete_coll_p2p_memcpy_reqh), \
-      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_short_reqh),    \
-      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_med_reqh),      \
-      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_long_reqh),     \
-      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_med_tree_reqh), \
-      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_advance_reqh), \
-      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_put_and_advance_reqh), \
-      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_med_counting_reqh), \
-      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_seg_put_reqh), 
+      gasneti_handler_tableentry_with_bits(gasnete_coll_p2p_memcpy_reqh,4,5,0), \
+      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_short_reqh,5,0),    \
+      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_med_reqh,6,0),      \
+      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_long_reqh,5,0),     \
+      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_med_tree_reqh,2,0), \
+      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_advance_reqh,3,0), \
+      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_put_and_advance_reqh,3,0), \
+      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_med_counting_reqh,5,0), \
+      gasneti_handler_tableentry_no_bits(gasnete_coll_p2p_seg_put_reqh,3,0),
 
 #elif !defined(GASNETE_COLL_P2P_HANDLERS)
   #define GASNETE_COLL_P2P_HANDLERS()
@@ -76,21 +76,15 @@ MEDIUM_HANDLER_NOBITS_DECL(gasnete_coll_p2p_med_counting_reqh,5);
 
 #ifndef GASNETE_COLL_SCRATCH_OVERRIDE
 SHORT_HANDLER_NOBITS_DECL(gasnete_coll_scratch_update_reqh, 2);
-#define GASNETE_COLL_SCRATCH_HANDLERS() gasneti_handler_tableentry_no_bits(gasnete_coll_scratch_update_reqh),
+#define GASNETE_COLL_SCRATCH_HANDLERS() gasneti_handler_tableentry_no_bits(gasnete_coll_scratch_update_reqh,2,0),
 #endif
 
 #ifndef GASNETE_COLL_TEAM_OVERRIDE
 SHORT_HANDLER_NOBITS_DECL(gasnete_coll_teamid_reqh, 1);
-#define GASNETE_COLL_TEAM_HANDLERS() gasneti_handler_tableentry_no_bits(gasnete_coll_teamid_reqh),
+#define GASNETE_COLL_TEAM_HANDLERS() gasneti_handler_tableentry_no_bits(gasnete_coll_teamid_reqh,1,0),
 #endif
 
 #define GASNETE_REFCOLL_HANDLERS()                           \
-  /* ptr-width independent handlers */                       \
-  /*  gasneti_handler_tableentry_no_bits(gasnete__reqh) */   \
-                                                             \
-  /* ptr-width dependent handlers */                         \
-  /*  gasneti_handler_tableentry_with_bits(gasnete__reqh) */ \
-                                                             \
   GASNETE_COLL_P2P_HANDLERS() GASNETE_COLL_SCRATCH_HANDLERS() GASNETE_COLL_TEAM_HANDLERS()
 
 extern int gasnete_coll_init_done;

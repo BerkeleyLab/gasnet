@@ -1310,7 +1310,7 @@ static void gasnete_gdbarrier_init(gasnete_coll_team_t team) {
   Handlers:
   =========
 */
-static gasnet_handlerentry_t const gasnete_handlers[] = {
+static gasnetex_handlerentry_t const gasnete_handlers[] = {
   #ifdef GASNETE_REFBARRIER_HANDLERS
     GASNETE_REFBARRIER_HANDLERS(),
   #endif
@@ -1320,26 +1320,18 @@ static gasnet_handlerentry_t const gasnete_handlers[] = {
   #ifdef GASNETE_REFCOLL_HANDLERS
     GASNETE_REFCOLL_HANDLERS()
   #endif
+  #ifdef GASNETE_AMREF_HANDLERS
+    GASNETE_AMREF_HANDLERS()
+  #endif
 
   /* ptr-width independent handlers */
 
   /* ptr-width dependent handlers */
-#if GASNETE_BUILD_AMREF_GET_HANDLERS
-  gasneti_handler_tableentry_with_bits(gasnete_amref_get_reqh),
-  gasneti_handler_tableentry_with_bits(gasnete_amref_get_reph),
-  gasneti_handler_tableentry_with_bits(gasnete_amref_getlong_reqh),
-  gasneti_handler_tableentry_with_bits(gasnete_amref_getlong_reph),
-#endif
-#if GASNETE_BUILD_AMREF_PUT_HANDLERS
-  gasneti_handler_tableentry_with_bits(gasnete_amref_put_reqh),
-  gasneti_handler_tableentry_with_bits(gasnete_amref_putlong_reqh),
-  gasneti_handler_tableentry_with_bits(gasnete_amref_markdone_reph),
-#endif
 
-  { 0, NULL }
+  GASNETI_HANDLER_EOT
 };
 
-extern gasnet_handlerentry_t const *gasnete_get_handlertable(void) {
+extern gasnetex_handlerentry_t const *gasnete_get_handlertable(void) {
   return gasnete_handlers;
 }
 /* ------------------------------------------------------------------------------------ */

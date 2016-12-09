@@ -1412,14 +1412,14 @@ fh_send_firehose_reply(fh_remote_callback_t *rc)
 	     rc->pin_list_num, PACK(rc->context));
 }
 
-gasnet_handlerentry_t fh_am_handlers[] = {
+gasnetex_handlerentry_t fh_am_handlers[] = {
         /* ptr-width dependent handlers */
-        gasneti_handler_tableentry_with_bits(fh_am_move_reqh),
-        gasneti_handler_tableentry_with_bits(fh_am_move_reph),
-        { 0, NULL }
+        gasneti_handler_tableentry_with_bits(fh_am_move_reqh,4,5,0),
+        gasneti_handler_tableentry_with_bits(fh_am_move_reph,2,3,0),
+        GASNETI_HANDLER_EOT
 };
 
-gasnet_handlerentry_t *
+gasnetex_handlerentry_t *
 firehose_get_handlertable(void) {
         return fh_am_handlers;
 }

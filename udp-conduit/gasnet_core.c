@@ -21,7 +21,7 @@
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
-gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
+gasnetex_handlerentry_t const *gasnetc_get_handlertable(void);
 static void gasnetc_traceoutput(int);
 #if HAVE_ON_EXIT
 static void gasnetc_on_exit(int, void*);
@@ -371,22 +371,22 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
           gasnetc_handler[i]=(gasneti_handler_fn_t)&gasneti_defaultAMHandler;
     }
     { /*  core API handlers */
-      gasnet_handlerentry_t *ctable = (gasnet_handlerentry_t *)gasnetc_get_handlertable();
+      gasnetex_handlerentry_t *ctable = (gasnetex_handlerentry_t *)gasnetc_get_handlertable();
       int len = 0;
       int numreg = 0;
       gasneti_assert(ctable);
-      while (ctable[len].fnptr) len++; /* calc len */
+      while (ctable[len].gex_fnptr) len++; /* calc len */
       if (gasneti_amregister(ctable, len, 1, 63, 0, &numreg) != GASNET_OK)
         INITERR(RESOURCE,"Error registering core API handlers");
       gasneti_assert(numreg == len);
     }
 
     { /*  extended API handlers */
-      gasnet_handlerentry_t *etable = (gasnet_handlerentry_t *)gasnete_get_handlertable();
+      gasnetex_handlerentry_t *etable = (gasnetex_handlerentry_t *)gasnete_get_handlertable();
       int len = 0;
       int numreg = 0;
       gasneti_assert(etable);
-      while (etable[len].fnptr) len++; /* calc len */
+      while (etable[len].gex_fnptr) len++; /* calc len */
       if (gasneti_amregister(etable, len, 64, 127, 0, &numreg) != GASNET_OK)
         INITERR(RESOURCE,"Error registering extended API handlers");
       gasneti_assert(numreg == len);
@@ -397,11 +397,11 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       int numreg2 = 0;
 
       /*  first pass - assign all fixed-index handlers */
-      if (gasneti_amregister(table, numentries, 128, 255, 0, &numreg1) != GASNET_OK)
+      if (gasneti_amregister_legacy(table, numentries, 128, 255, 0, &numreg1) != GASNET_OK)
         INITERR(RESOURCE,"Error registering fixed-index client handlers");
 
       /*  second pass - fill in dontcare-index handlers */
-      if (gasneti_amregister(table, numentries, 128, 255, 1, &numreg2) != GASNET_OK)
+      if (gasneti_amregister_legacy(table, numentries, 128, 255, 1, &numreg2) != GASNET_OK)
         INITERR(RESOURCE,"Error registering variable-index client handlers");
 
       gasneti_assert(numreg1 + numreg2 == numentries);
@@ -1004,7 +1004,7 @@ int gasnet_all_checkpoint(const char *dir_arg) {
   see mpi-conduit and extended-ref for examples on how to declare AM handlers here
   (for internal conduit use in bootstrapping, job management, etc.)
 */
-static gasnet_handlerentry_t const gasnetc_handlers[] = {
+static gasnetex_handlerentry_t const gasnetc_handlers[] = {
   #ifdef GASNETC_AUXSEG_HANDLERS
     GASNETC_AUXSEG_HANDLERS(),
   #endif
@@ -1012,10 +1012,10 @@ static gasnet_handlerentry_t const gasnetc_handlers[] = {
 
   /* ptr-width dependent handlers */
 
-  { 0, NULL }
+  GASNETI_HANDLER_EOT
 };
 
-gasnet_handlerentry_t const *gasnetc_get_handlertable(void) {
+gasnetex_handlerentry_t const *gasnetc_get_handlertable(void) {
   return gasnetc_handlers;
 }
 

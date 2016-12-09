@@ -302,11 +302,30 @@ typedef struct gasneti_team_s *gasnetex_team_member_t;
 #ifdef _GASNET_HANDLE_T
 #error "out-of-date #define of _GASNET_HANDLE_T"
 #endif
+#ifdef _GASNET_HANDLERENTRY_T
+#error "out-of-date #define of _GASNET_HANDLERENTRY_T"
+#endif
 
+/*  struct type used to perform handler registration */
+typedef struct {
+    gasnetex_handler_t      gex_index;   // 0 on input == don't care
+    uint8_t                 gex_nargs;   // start requiring this (-1 == not specified)
+    uint32_t                gex_flags;   // final width TBD
 
-#ifndef _GASNET_HANDLERENTRY_T
-#define _GASNET_HANDLERENTRY_T
-  /*  struct type used to negotiate handler registration in gasnet_init() */
+   #ifdef GASNET_USE_STRICT_PROTOTYPES
+    void                   *gex_fnptr;
+   #else
+    void                  (*gex_fnptr)();
+   #endif
+
+    // Optional fields (both are "shallow copy")
+    void                   *gex_cdata;   // Available to handler
+    const char             *gex_name;    // Used in debug messages
+} gasnetex_handlerentry_t;
+
+// GASNet-1 version of gasnetex_handlerentry_t
+// TODO-EX: enable conditional below once gasnet_attach() is replaced in EX
+//#if defined(_GASNET_H) || defined(_IN_GASNET_INTERNAL_H)
   typedef struct gasneti_handlerentry_s {
     gasnetex_handler_t index; /*  == 0 for don't care  */
    #ifdef GASNET_USE_STRICT_PROTOTYPES
@@ -315,7 +334,7 @@ typedef struct gasneti_team_s *gasnetex_team_member_t;
     void (*fnptr)();    
    #endif
   } gasnet_handlerentry_t;
-#endif
+//#endif
 
 #ifndef _GASNET_SEGINFO_T
 #define _GASNET_SEGINFO_T

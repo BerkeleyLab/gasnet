@@ -1139,7 +1139,7 @@ static void gasnete_amdbarrier_init(gasnete_coll_team_t team) {
 }
 
 #define GASNETE_AMDBARRIER_HANDLERS()                                 \
-  gasneti_handler_tableentry_no_bits(gasnete_amdbarrier_notify_reqh)
+  gasneti_handler_tableentry_no_bits(gasnete_amdbarrier_notify_reqh,5,0)
 
 /* ------------------------------------------------------------------------------------ */
 /* the RDMA-based Dissemination implementation of barrier */
@@ -2065,8 +2065,8 @@ static void gasnete_amcbarrier_init(gasnete_coll_team_t team, gasnetex_rank_t *n
 }
 
 #define GASNETE_AMCBARRIER_HANDLERS()                                 \
-  gasneti_handler_tableentry_no_bits(gasnete_amcbarrier_notify_reqh), \
-  gasneti_handler_tableentry_no_bits(gasnete_amcbarrier_done_reqh)  
+  gasneti_handler_tableentry_no_bits(gasnete_amcbarrier_notify_reqh,4,0), \
+  gasneti_handler_tableentry_no_bits(gasnete_amcbarrier_done_reqh,4,0)
 
 /* ------------------------------------------------------------------------------------ */
 /* Generic layer called by both gasnet_coll_ and gasnet_ barrier APIs

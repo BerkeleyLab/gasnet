@@ -374,7 +374,7 @@ void gasneti_auxseg_attach(void);
   extern void gasnetc_auxseg_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
                                   gasnetex_handlerarg_t msg, gasnetex_handlerarg_t offset);
   #define GASNETC_AUXSEG_HANDLERS() \
-    gasneti_handler_tableentry_no_bits(gasnetc_auxseg_reqh)
+    gasneti_handler_tableentry_no_bits(gasnetc_auxseg_reqh,2,0)
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -686,7 +686,11 @@ typedef void (*gasneti_HandlerLong)  (gasnetex_token_t token, void *buf, size_t 
 /* default AM handler for unregistered entries - prints a fatal error */
 extern void gasneti_defaultAMHandler(gasnetex_token_t token);
 
-extern int gasneti_amregister(gasnet_handlerentry_t *table, int numentries,
+extern int gasneti_amregister(gasnetex_handlerentry_t *table, int numentries,
+                               int lowlimit, int highlimit,
+                               int dontcare, int *numregistered);
+extern int gasneti_amregister_legacy(
+                               gasnet_handlerentry_t *table, int numentries,
                                int lowlimit, int highlimit,
                                int dontcare, int *numregistered);
 

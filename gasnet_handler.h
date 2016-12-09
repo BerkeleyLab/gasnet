@@ -172,16 +172,22 @@ typedef void (*gasneti_handler_fn_t)();  /* prototype for generic handler functi
 
 /*  handler table construction */
 #define gasneti_handleridx(fnname) _hidx_ ## fnname
-#define gasneti_handler_tableentry_no_bits(fnname) \
-    { gasneti_handleridx(fnname), (gasneti_handler_fn_t)fnname }
+#define gasneti_handler_tableentry_no_bits(fnname, nargs, flags) \
+  { gasneti_handleridx(fnname), (nargs), (flags), \
+    (gasneti_handler_fn_t)(fnname), NULL, _STRINGIFY(fnname) }
 
 #if PLATFORM_ARCH_32
-  #define gasneti_handler_tableentry_with_bits(fnname) \
-    { gasneti_handleridx(fnname), (gasneti_handler_fn_t)fnname ## _32 }
+  #define gasneti_handler_tableentry_with_bits(fnname, nargs32, nargs64, flags) \
+  { gasneti_handleridx(fnname), (nargs32), (flags), \
+    (gasneti_handler_fn_t)(fnname ## _32), NULL, _STRINGIFY(fnname) }
 #elif PLATFORM_ARCH_64
-  #define gasneti_handler_tableentry_with_bits(fnname) \
-    { gasneti_handleridx(fnname), (gasneti_handler_fn_t)fnname ## _64 }
+  #define gasneti_handler_tableentry_with_bits(fnname, nargs32, nargs64, flags) \
+  { gasneti_handleridx(fnname), (nargs64), (flags), \
+    (gasneti_handler_fn_t)(fnname ## _64), NULL, _STRINGIFY(fnname) }
 #endif
 
+#define GASNETI_HANDLER_EOT {0,0,0,NULL,NULL,NULL}
+
+#define GASNETI_HANDLER_NARGS_UNK -1
 
 #endif

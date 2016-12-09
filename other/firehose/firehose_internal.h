@@ -648,14 +648,14 @@ int	fh_find_pending_callbacks(gasnetex_rank_t node,
 /* Firehose AM-related things (page/region independent)                  */
 /* ##################################################################### */
 void fh_send_firehose_reply(fh_remote_callback_t *);
-extern gasnet_handlerentry_t fh_am_handlers[];
+extern gasnetex_handlerentry_t fh_am_handlers[];
 /* Initial value of index for gasnet registration */
 #define _hidx_fh_am_move_reqh                   0
 #define _hidx_fh_am_move_reph                   0
 /* Index into the fh_am_handlers table to obtain the gasnet registered index */
 #define _fh_hidx_fh_am_move_reqh                0
 #define _fh_hidx_fh_am_move_reph                1
-#define fh_handleridx(reqh)     (fh_am_handlers[ _fh_hidx_ ## reqh ].index)
+#define fh_handleridx(reqh)     (fh_am_handlers[ _fh_hidx_ ## reqh ].gex_index)
 
 /* ##################################################################### */
 /* FIFO (local and remote) management operations (page/region specific)  */

@@ -25,7 +25,7 @@
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
-gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
+gasnetex_handlerentry_t const *gasnetc_get_handlertable(void);
 #if HAVE_ON_EXIT
 static void gasnetc_on_exit(int, void*);
 #else
@@ -706,20 +706,20 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
       gasnetc_handler[i] = (gasneti_handler_fn_t)&gasneti_defaultAMHandler;
   }
   { /*  core API handlers */
-    gasnet_handlerentry_t *ctable = (gasnet_handlerentry_t *)gasnetc_get_handlertable();
+    gasnetex_handlerentry_t *ctable = (gasnetex_handlerentry_t *)gasnetc_get_handlertable();
     int len = 0;
     gasneti_assert(ctable);
-    while (ctable[len].fnptr) len++; /* calc len */
+    while (ctable[len].gex_fnptr) len++; /* calc len */
     if (gasneti_amregister(ctable, len, 1, GASNETE_HANDLER_BASE-1, 0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering core API handlers");
     gasneti_assert(numreg == len);
   }
 
   { /*  extended API handlers */
-    gasnet_handlerentry_t *etable = (gasnet_handlerentry_t *)gasnete_get_handlertable();
+    gasnetex_handlerentry_t *etable = (gasnetex_handlerentry_t *)gasnete_get_handlertable();
     int len = 0;
     gasneti_assert(etable);
-    while (etable[len].fnptr) len++; /* calc len */
+    while (etable[len].gex_fnptr) len++; /* calc len */
     if (gasneti_amregister(etable, len, GASNETE_HANDLER_BASE, 127, 0, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering extended API handlers");
     gasneti_assert(numreg == len);
@@ -727,11 +727,11 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
 #if GASNETC_GNI_FIREHOSE
   { /* firehose handlers */
-    gasnet_handlerentry_t *ftable = (gasnet_handlerentry_t *)firehose_get_handlertable();
+    gasnetex_handlerentry_t *ftable = (gasnetex_handlerentry_t *)firehose_get_handlertable();
     int len = 0;
     int base = GASNETE_HANDLER_BASE + numreg;   /* start right after etable */
     gasneti_assert(ftable);
-    while (ftable[len].fnptr) len++; /* calc len */
+    while (ftable[len].gex_fnptr) len++; /* calc len */
     gasneti_assert(base + len <= 128);  /* enough space remaining after etable? */
     if (gasneti_amregister(ftable, len, base, 127, 1, &numreg) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE, "Error registering firehose handlers");
@@ -744,11 +744,11 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     int numreg2 = 0;
 
     /*  first pass - assign all fixed-index handlers */
-    if (gasneti_amregister(table, numentries, 128, 255, 0, &numreg1) != GASNET_OK)
+    if (gasneti_amregister_legacy(table, numentries, 128, 255, 0, &numreg1) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering fixed-index client handlers");
 
     /*  second pass - fill in dontcare-index handlers */
-    if (gasneti_amregister(table, numentries, 128, 255, 1, &numreg2) != GASNET_OK)
+    if (gasneti_amregister_legacy(table, numentries, 128, 255, 1, &numreg2) != GASNET_OK)
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering variable-index client handlers");
 
     gasneti_assert(numreg1 + numreg2 == numentries);
@@ -1676,21 +1676,21 @@ extern int  gasnetc_hsl_trylock(gasnetex_hsl_t *hsl) {
   see mpi-conduit and extended-ref for examples on how to declare AM handlers here
   (for internal conduit use in bootstrapping, job management, etc.)
 */
-static gasnet_handlerentry_t const gasnetc_handlers[] = {
+static gasnetex_handlerentry_t const gasnetc_handlers[] = {
   #ifdef GASNETC_AUXSEG_HANDLERS
     GASNETC_AUXSEG_HANDLERS(),
   #endif
   /* ptr-width independent handlers */
-    gasneti_handler_tableentry_no_bits(gasnetc_exit_reqh),
-    gasneti_handler_tableentry_no_bits(gasnetc_sys_barrier_reqh),
-    gasneti_handler_tableentry_no_bits(gasnetc_sys_exchange_reqh),
+    gasneti_handler_tableentry_no_bits(gasnetc_exit_reqh,1,0),
+    gasneti_handler_tableentry_no_bits(gasnetc_sys_barrier_reqh,1,0),
+    gasneti_handler_tableentry_no_bits(gasnetc_sys_exchange_reqh,2,0),
 
   /* ptr-width dependent handlers */
 
-    { 0, NULL }
+    GASNETI_HANDLER_EOT
 };
 
-gasnet_handlerentry_t const *gasnetc_get_handlertable(void) {
+gasnetex_handlerentry_t const *gasnetc_get_handlertable(void) {
   return gasnetc_handlers;
 }
 

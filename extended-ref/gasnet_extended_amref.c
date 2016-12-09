@@ -586,3 +586,27 @@ void gasnete_check_config_amref(void) {
  #endif
 #endif
 }
+
+/* ------------------------------------------------------------------------------------ */
+
+#if GASNETE_BUILD_AMREF_GET_HANDLERS
+  #define GASNETE_AMREF_GET_HANDLERS() \
+  gasneti_handler_tableentry_with_bits(gasnete_amref_get_reqh,4,7,0),      \
+  gasneti_handler_tableentry_with_bits(gasnete_amref_get_reph,2,4,0),      \
+  gasneti_handler_tableentry_with_bits(gasnete_amref_getlong_reqh,4,7,0),  \
+  gasneti_handler_tableentry_with_bits(gasnete_amref_getlong_reph,1,2,0),
+#else
+  #define GASNETE_AMREF_GET_HANDLERS() /*empty*/
+#endif
+#if GASNETE_BUILD_AMREF_PUT_HANDLERS
+  #define GASNETE_AMREF_PUT_HANDLERS() \
+  gasneti_handler_tableentry_with_bits(gasnete_amref_put_reqh,2,4,0),      \
+  gasneti_handler_tableentry_with_bits(gasnete_amref_putlong_reqh,1,2,0),  \
+  gasneti_handler_tableentry_with_bits(gasnete_amref_markdone_reph,1,2,0),
+#else
+  #define GASNETE_AMREF_PUT_HANDLERS() /*empty*/
+#endif
+
+#if defined(GASNETE_BUILD_AMREF_GET_HANDLERS) || defined(GASNETE_BUILD_AMREF_PUT_HANDLERS)
+  #define GASNETE_AMREF_HANDLERS() GASNETE_AMREF_GET_HANDLERS() GASNETE_AMREF_PUT_HANDLERS()
+#endif
