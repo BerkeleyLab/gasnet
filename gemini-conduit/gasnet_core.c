@@ -858,6 +858,12 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
+extern int gasnetc_EPRegisterHandlers( gasnetex_endpoint_t     ep,
+                                       gasnetex_handlerentry_t *table,
+                                       int                     numentries) {
+  return gasneti_amregister_client(gasnetc_handler, table, numentries);
+}
+/* ------------------------------------------------------------------------------------ */
 static int gasnetc_exit_in_signal = 0;  /* to avoid certain things in signal context */
 extern void gasnetc_fatalsignal_callback(int sig) {
   gasnetc_exit_in_signal = 1;

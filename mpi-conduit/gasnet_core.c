@@ -396,6 +396,12 @@ done: /*  error return while locked */
   GASNETI_RETURN(retval);
 }
 /* ------------------------------------------------------------------------------------ */
+extern int gasnetc_EPRegisterHandlers( gasnetex_endpoint_t     ep,
+                                       gasnetex_handlerentry_t *table,
+                                       int                     numentries) {
+  return gasneti_amregister_client(gasnetc_handler, table, numentries);
+}
+/* ------------------------------------------------------------------------------------ */
 #if HAVE_ON_EXIT
 static void gasnetc_on_exit(int exitcode, void *arg) {
   gasnetc_exit(exitcode);

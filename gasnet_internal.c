@@ -363,6 +363,33 @@ extern int gasneti_amregister( gasnetex_handlerentry_t *output,
   return GASNET_OK;
 }
 
+// Register client handlers
+extern int gasneti_amregister_client(
+                        gasnetex_handlerentry_t *output,
+                        gasnetex_handlerentry_t *input,
+                        int numentries)
+{
+  /*  first pass - assign all fixed-index handlers */
+  int numreg1 = 0;
+  if (gasneti_amregister(output, input, numentries,
+                         GASNETI_CLIENT_HANDLER_BASE, GASNETC_MAX_NUMHANDLERS,
+                         0, &numreg1) != GASNET_OK) {
+      GASNETI_RETURN_ERRR(RESOURCE,"Error registering fixed-index client handlers");
+  }
+
+  /*  second pass - fill in dontcare-index handlers */
+  int numreg2 = 0;
+  if (gasneti_amregister(output, input, numentries,
+                         GASNETI_CLIENT_HANDLER_BASE, GASNETC_MAX_NUMHANDLERS,
+                         1, &numreg2) != GASNET_OK) {
+      GASNETI_RETURN_ERRR(RESOURCE,"Error registering variable-index client handlers");
+  }
+
+  gasneti_assert(numreg1 + numreg2 == numentries);
+
+  return GASNET_OK;
+}
+
 // Wrapper to provide continued support for GASNet-1 legacy handler tables,
 // such as through gasnet_attach().  Only supports the clients's index range.
 // TODO-EX: should be absorbed into an eventual conduit-indep gasnet_attach()
@@ -376,23 +403,11 @@ extern int gasneti_amregister_legacy( gasnetex_handlerentry_t *output,
     extable[i].gex_nargs = GASNETI_HANDLER_NARGS_UNK;
   }
 
-  /*  first pass - assign all fixed-index handlers */
-  int numreg1 = 0;
-  if (gasneti_amregister(output, extable, numentries,
-                         GASNETI_CLIENT_HANDLER_BASE, GASNETC_MAX_NUMHANDLERS,
-                         0, &numreg1) != GASNET_OK) {
-      GASNETI_RETURN_ERRR(RESOURCE,"Error registering fixed-index client handlers");
+  /* register */
+  if (gasneti_amregister_client(output, extable, numentries) != GASNET_OK) {
+      gasneti_free(extable);
+      GASNETI_RETURN_ERRR(RESOURCE,"Error registering client handlers");
   }
-
-  /*  second pass - fill in dontcare-index handlers */
-  int numreg2 = 0;
-  if (gasneti_amregister(output, extable, numentries,
-                         GASNETI_CLIENT_HANDLER_BASE, GASNETC_MAX_NUMHANDLERS,
-                         1, &numreg2) != GASNET_OK) {
-      GASNETI_RETURN_ERRR(RESOURCE,"Error registering variable-index client handlers");
-  }
-
-  gasneti_assert(numreg1 + numreg2 == numentries);
 
   /* copy back from temporary ex-compatible table */
   for (int i = 0; i < numentries; ++i) {

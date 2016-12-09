@@ -2098,6 +2098,12 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
+extern int gasnetc_EPRegisterHandlers( gasnetex_endpoint_t     ep,
+                                       gasnetex_handlerentry_t *table,
+                                       int                     numentries) {
+  return gasneti_amregister_client(gasnetc_handler, table, numentries);
+}
+/* ------------------------------------------------------------------------------------ */
 /* Shutdown code - not always used */
 
 #if GASNETC_IBV_SHUTDOWN

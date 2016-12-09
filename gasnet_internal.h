@@ -691,6 +691,8 @@ extern int gasneti_amregister( gasnetex_handlerentry_t *output,
                                gasnetex_handlerentry_t *input, int numentries,
                                int lowlimit, int highlimit,
                                int dontcare, int *numregistered);
+extern int gasneti_amregister_client(gasnetex_handlerentry_t *output,
+                                     gasnetex_handlerentry_t *input, int numentries);
 extern int gasneti_amregister_legacy(gasnetex_handlerentry_t *output,
                                      gasnet_handlerentry_t *input, int numentries);
 
