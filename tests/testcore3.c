@@ -50,16 +50,16 @@ void pong_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
 static void testAMSrcAddr(void);
 
 int main(int argc, char **argv) {
-  gasnet_handlerentry_t htable[] = { 
-    { hidx_ping_medhandler,    ping_medhandler    },
-    { hidx_pong_medhandler,    pong_medhandler    },
-    { hidx_ping_longhandler,   ping_longhandler   },
-    { hidx_pong_longhandler,   pong_longhandler   }
+  gasnetex_handlerentry_t htable[] = { 
+    { hidx_ping_medhandler,  1, 0, ping_medhandler    },
+    { hidx_pong_medhandler,  0, 0, pong_medhandler    },
+    { hidx_ping_longhandler, 1, 0, ping_longhandler   },
+    { hidx_pong_longhandler, 0, 0, pong_longhandler   }
   };
 
   GASNET_Safe(gasnet_init(&argc, &argv));
-  GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t),
-                            TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
 
   test_init("testcore3", 0, "[no argument]");
   if (argc > 1) test_usage();

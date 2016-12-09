@@ -49,8 +49,8 @@ void doit5(int partner, int *partnerseg);
     done = 1;
   }
   #define EVERYTHING_SEG_HANDLERS() \
-    { 250, (handler_fn_t)seg_everything_reqh }, \
-    { 251, (handler_fn_t)seg_everything_reph },
+    { 250, 0, 0, (handler_fn_t)seg_everything_reqh, NULL, NULL }, \
+    { 251, 0, 0, (handler_fn_t)seg_everything_reph, NULL, NULL },
 
   char _static_seg[TEST_SEGSZ+PAGESZ] = {1};
   char _common_seg[TEST_SEGSZ+PAGESZ];
@@ -190,7 +190,7 @@ int main(int argc, char **argv) {
   uintptr_t local_segsz, global_segsz;
   int partner;
   
-  gasnet_handlerentry_t handlers[] = { EVERYTHING_SEG_HANDLERS() ALLAM_HANDLERS() };
+  gasnetex_handlerentry_t handlers[] = { EVERYTHING_SEG_HANDLERS() ALLAM_HANDLERS() };
 
   GASNET_Safe(gasnet_init(&argc, &argv));
   local_segsz = gasnet_getMaxLocalSegmentSize();
@@ -208,13 +208,8 @@ int main(int argc, char **argv) {
   assert_always(GASNET_ERR_NOT_INIT == gasnet_init(&argc, &argv)); /* Duplicate init */
 #endif
 
-  GASNET_Safe(gasnet_attach(handlers, sizeof(handlers)/sizeof(gasnet_handlerentry_t), 
-                            TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-#if 0
-  assert_always(GASNET_ERR_NOT_INIT == /* Duplicate attach */
-                gasnet_attach(handlers, sizeof(handlers)/sizeof(gasnet_handlerentry_t), 
-                              TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-#endif
+  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, handlers, sizeof(handlers)/sizeof(gasnetex_handlerentry_t)));
 
   test_init("testgasnet",0,"");
   assert(TEST_SEGSZ >= 2*sizeof(int)*NUMHANDLERS_PER_TYPE);

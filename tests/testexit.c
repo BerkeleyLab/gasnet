@@ -188,10 +188,10 @@ int main(int argc, char **argv) {
   #define MAXLINE 255
   static char usagestr[MAXLINE*(NUMTEST+NUMCRASHTEST_WITH_PAR)];
   char testdescstr[MAXLINE];
-  gasnet_handlerentry_t htable[] = { 
-    { hidx_exit_handler, test_exit_handler },
-    { hidx_ping_handler, ping_handler },
-    { hidx_noop_handler, noop_handler },
+  gasnetex_handlerentry_t htable[] = { 
+    { hidx_exit_handler, 1, 0, test_exit_handler },
+    { hidx_ping_handler, 0, 0, ping_handler },
+    { hidx_noop_handler, 0, 0, noop_handler },
   };
 
   GASNET_Safe(gasnet_init(&argc, &argv));
@@ -269,8 +269,8 @@ int main(int argc, char **argv) {
     }
   }
 
-  GASNET_Safe(gasnet_attach(htable,  sizeof(htable)/sizeof(gasnet_handlerentry_t),
-	                    TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
 
   /* register a SIGQUIT handler, as permitted by GASNet spec */
   gasnett_reghandler(SIGQUIT, testSignalHandler);

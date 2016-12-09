@@ -142,11 +142,11 @@ int amopt = 0;
 
 int main(int argc, char **argv) {
   int arg = 1, help = 0;
-  gasnet_handlerentry_t htable[] = {
-    { hidx_ping_medhandler,    ping_medhandler    },
-    { hidx_pong_medhandler,    pong_medhandler    },
-    { hidx_ping_longhandler,   ping_longhandler   },
-    { hidx_pong_longhandler,   pong_longhandler   },
+  gasnetex_handlerentry_t htable[] = {
+    { hidx_ping_medhandler,  2, 0, ping_medhandler    },
+    { hidx_pong_medhandler,  2, 0, pong_medhandler    },
+    { hidx_ping_longhandler, 2, 0, ping_longhandler   },
+    { hidx_pong_longhandler, 2, 0, pong_longhandler   },
   };
 
   /* call startup */
@@ -200,7 +200,8 @@ int main(int argc, char **argv) {
                 gasnetex_max_AMReplyLong    (myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,2));
   max_payload = MIN(max_payload,MAX(maxmed,maxlong));
 
-  GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t), TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
   test_init("testcore2",0,"[options] (iters) (max_payload) (depth)\n"
                  "  -m   test AMMedium    (defaults to all types)\n"
                  "  -l   test AMLong      (defaults to all types)\n"

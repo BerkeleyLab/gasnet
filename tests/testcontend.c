@@ -48,12 +48,12 @@ void	markdone_shorthandler(gasnetex_token_t token);
 #define hidx_pong_shorthandler        202
 #define hidx_markdone_shorthandler    203
 
-gasnet_handlerentry_t htable[] = { 
-	{ hidx_ping_shorthandler,  ping_shorthandler  },
-	{ hidx_pong_shorthandler,  pong_shorthandler  },
-	{ hidx_markdone_shorthandler,   markdone_shorthandler   },
+gasnetex_handlerentry_t htable[] = { 
+	{ hidx_ping_shorthandler,     0, 0, ping_shorthandler  },
+	{ hidx_pong_shorthandler,     0, 0, pong_shorthandler  },
+	{ hidx_markdone_shorthandler, 0, 0, markdone_shorthandler   },
 };
-#define HANDLER_TABLE_SIZE (sizeof(htable)/sizeof(gasnet_handlerentry_t))
+#define HANDLER_TABLE_SIZE (sizeof(htable)/sizeof(gasnetex_handlerentry_t))
 
 #define SPINPOLL_UNTIL(cond) do { while (!(cond)) gasnet_AMPoll(); } while (0)
 
@@ -301,7 +301,9 @@ int main(int argc, char **argv) {
         threadcnt_t *ptcount;
 
 	GASNET_Safe(gasnet_init(&argc, &argv));
-    	GASNET_Safe(gasnet_attach(htable, HANDLER_TABLE_SIZE, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+        GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+        GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, htable, HANDLER_TABLE_SIZE));
+
 	test_init("testcontend",1,"[options] (maxthreads) (iters) (test_sections)\n"
                   "  The -rev option reverses thread numbering");
 

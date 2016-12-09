@@ -50,7 +50,9 @@ volatile int done = 0;
 void done_shorthandler(gasnetex_token_t token) {
 	  done = 1;
 }
-gasnet_handlerentry_t htable[] = { { hidx_done_shorthandler,  done_shorthandler  } };
+gasnetex_handlerentry_t htable[] = {
+    { hidx_done_shorthandler, 0, 0, done_shorthandler, NULL, NULL }
+};
 
 static void * doTest(void *);
 
@@ -60,7 +62,9 @@ int main(int argc, char **argv) {
   int arg = 1;
 
   GASNET_Safe(gasnet_init(&argc, &argv));
-  GASNET_Safe(gasnet_attach(htable, 1, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, htable, 1));
+
   TEST_COLL_INIT();
 
 #if GASNET_PAR

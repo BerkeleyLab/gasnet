@@ -25,7 +25,7 @@ void badhandler1(gasnetex_token_t token) {
 }
 void badhandler2(gasnetex_token_t token) {
   gasnetex_hsl_lock(&globallock);
-  gasnetex_AMReplyShort0(token, 255, 0);
+  gasnetex_AMReplyShort0(token, 250, 0);
 }
 
 uint64_t counter = 0;
@@ -54,21 +54,21 @@ void donothing(gasnetex_token_t token) {
 
 int main(int argc, char **argv) {
   int mynode, nodes;
-  gasnet_handlerentry_t htable[] = { 
-    { 203, okhandler3 },
+  gasnetex_handlerentry_t htable[] = { 
+    { 203, 0, 0, okhandler3 },
 
-    { 221, increq },
-    { 222, increp },
+    { 221, 0, 0, increq },
+    { 222, 0, 0, increp },
 
-    { 231, badhandler1 },
-    { 232, badhandler2 },
+    { 231, 0, 0, badhandler1 },
+    { 232, 0, 0, badhandler2 },
 
-    { 255, donothing }
+    { 250, 0, 0, donothing }
   };
 
   GASNET_Safe(gasnet_init(&argc, &argv));
-  GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t), 
-                            TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
   test_init("testhsl",0,"(0|errtestnum:1..16)");
 
   mynode = gasnet_mynode();
@@ -143,7 +143,7 @@ int main(int argc, char **argv) {
       break;
       case 10:
         gasnetex_hsl_lock(&lock1);
-        gasnetex_AMRequestShort0(myteam, gasnet_mynode(), 255, 0);
+        gasnetex_AMRequestShort0(myteam, gasnet_mynode(), 250, 0);
         gasnetex_hsl_unlock(&lock1);
       break;
       case 11:

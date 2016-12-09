@@ -755,24 +755,20 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
     int i, result;
     gasnet_seginfo_t myseg;
 
-    /* must use malloc here, pre-attach */
-    gasnet_handlerentry_t *mytab = (gasnet_handlerentry_t *)malloc((numentries+2)*sizeof(gasnet_handlerentry_t));
-    if (numentries) memcpy(mytab, table, numentries*sizeof(gasnet_handlerentry_t));
-    mytab[numentries].index = 0; /* "dont care" index */
-    mytab[numentries+1].index = 0; /* "dont care" index */
-#if GASNET_USE_STRICT_PROTOTYPES
-    mytab[numentries].fnptr = (void *)_test_seggather;
-    mytab[numentries+1].fnptr = (void *)_test_segbcast;
-#else
-    mytab[numentries].fnptr = (void (*)())_test_seggather;
-    mytab[numentries+1].fnptr = (void (*)())_test_segbcast;
-#endif
     /* do regular attach, then setup seg_everything segment */
-    GASNET_Safe(result = gasnet_attach(mytab, numentries+2, segsize, minheapoffset));
-    _test_seggather_idx = mytab[numentries].index;
-    _test_segbcast_idx = mytab[numentries+1].index;
-    if (numentries) memcpy(table, mytab, numentries*sizeof(gasnet_handlerentry_t));
-    free(mytab);
+    GASNET_Safe(result = gasnet_attach(table, numentries, segsize, minheapoffset));
+    gasnetex_handlerentry_t mytab[] = {
+#if GASNET_USE_STRICT_PROTOTYPES
+      { 0, 0, 0, (void *)_test_seggather, NULL, NULL },
+      { 0, 1, 0, (void *)_test_segbcast, NULL, NULL }
+#else
+      { 0, 0, 0, (void (*)())_test_seggather, NULL, NULL },
+      { 0, 1, 0, (void (*)())_test_segbcast, NULL, NULL }
+#endif
+    };
+    GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, mytab, 2));
+    _test_seggather_idx = mytab[0].gex_index;
+    _test_segbcast_idx = mytab[1].gex_index;
 
     _test_seginfo = (gasnet_seginfo_t *)test_malloc(gasnet_nodes()*sizeof(gasnet_seginfo_t));
     #ifdef TEST_SEGSZ_EXPR

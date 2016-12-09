@@ -13,13 +13,13 @@
 int main(int argc, char **argv) {
   int iters = 0, threads=0;
   int arg = 1;
-  gasnet_handlerentry_t *htable; int htable_cnt;
+  gasnetex_handlerentry_t *htable; int htable_cnt;
   char *test_sections = NULL;
   gasnett_diagnostic_gethandlers(&htable, &htable_cnt);
 
   GASNET_Safe(gasnet_init(&argc, &argv));
-  GASNET_Safe(gasnet_attach(htable, htable_cnt, 
-                            TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, htable, htable_cnt));
   #if GASNET_PAR
     test_init("testinternal",0,"(iters) (threadcnt) (test_sections)");
   #else

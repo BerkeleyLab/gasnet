@@ -40,20 +40,20 @@ gasnetex_hsl_t inchsl = GASNETEX_HSL_INITIALIZER;
   } while (0)
 
 /* ------------------------------------------------------------------------------------ */
-gasnet_handlerentry_t htable[];
-#define hidx_ping_shorthandler   htable[0].index
-#define hidx_pong_shorthandler   htable[1].index
-#define hidx_ping_medhandler     htable[2].index
-#define hidx_pong_medhandler     htable[3].index
-#define hidx_ping_longhandler    htable[4].index
-#define hidx_pong_longhandler    htable[5].index
-#define hidx_ping_shorthandler_flood   htable[6].index
-#define hidx_pong_shorthandler_flood   htable[7].index
-#define hidx_ping_medhandler_flood     htable[8].index
-#define hidx_pong_medhandler_flood     htable[9].index
-#define hidx_ping_longhandler_flood    htable[10].index
-#define hidx_pong_longhandler_flood    htable[11].index
-#define hidx_done_shorthandler   htable[12].index
+gasnetex_handlerentry_t htable[];
+#define hidx_ping_shorthandler   htable[0].gex_index
+#define hidx_pong_shorthandler   htable[1].gex_index
+#define hidx_ping_medhandler     htable[2].gex_index
+#define hidx_pong_medhandler     htable[3].gex_index
+#define hidx_ping_longhandler    htable[4].gex_index
+#define hidx_pong_longhandler    htable[5].gex_index
+#define hidx_ping_shorthandler_flood   htable[6].gex_index
+#define hidx_pong_shorthandler_flood   htable[7].gex_index
+#define hidx_ping_medhandler_flood     htable[8].gex_index
+#define hidx_pong_medhandler_flood     htable[9].gex_index
+#define hidx_ping_longhandler_flood    htable[10].gex_index
+#define hidx_pong_longhandler_flood    htable[11].gex_index
+#define hidx_done_shorthandler   htable[12].gex_index
 
 
 volatile int flag = 0;
@@ -112,26 +112,26 @@ void done_shorthandler(gasnetex_token_t token) {
   done = 1;
 }
 /* ------------------------------------------------------------------------------------ */
-gasnet_handlerentry_t htable[] = {
-    { 0,  ping_shorthandler  },
-    { 0,  pong_shorthandler  },
+gasnetex_handlerentry_t htable[] = {
+    { 0, 0, 0, ping_shorthandler, NULL, NULL  },
+    { 0, 0, 0, pong_shorthandler, NULL, NULL  },
 
-    { 0,  ping_medhandler    },
-    { 0,  pong_medhandler    },
+    { 0, 0, 0, ping_medhandler, NULL, NULL    },
+    { 0, 0, 0, pong_medhandler, NULL, NULL    },
 
-    { 0,  ping_longhandler   },
-    { 0,  pong_longhandler   },
+    { 0, 0, 0, ping_longhandler, NULL, NULL   },
+    { 0, 0, 0, pong_longhandler, NULL, NULL   },
 
-    { 0,  ping_shorthandler_flood  },
-    { 0,  pong_shorthandler_flood  },
+    { 0, 0, 0, ping_shorthandler_flood, NULL, NULL  },
+    { 0, 0, 0, pong_shorthandler_flood, NULL, NULL  },
 
-    { 0,  ping_medhandler_flood    },
-    { 0,  pong_medhandler_flood    },
+    { 0, 0, 0, ping_medhandler_flood, NULL, NULL    },
+    { 0, 0, 0, pong_medhandler_flood, NULL, NULL    },
 
-    { 0,  ping_longhandler_flood   },
-    { 0,  pong_longhandler_flood   },
+    { 0, 0, 0, ping_longhandler_flood, NULL, NULL   },
+    { 0, 0, 0, pong_longhandler_flood, NULL, NULL   },
 
-    { 0,  done_shorthandler  }
+    { 0, 0, 0, done_shorthandler, NULL, NULL  }
 };
 
 /* ------------------------------------------------------------------------------------ */
@@ -188,8 +188,9 @@ int main(int argc, char **argv) {
   if (!maxsz) maxsz = 2*1024*1024;
   if (argc > arg) { TEST_SECTION_PARSE(argv[arg]); ++arg; }
 
-  GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t),
-                            TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
+
 #if GASNET_PAR
   test_init("testam", 1, "[options] (iters) (maxsz) (test_sections)\n"
                "  The '-in' or '-out' option selects whether the requestor's\n"

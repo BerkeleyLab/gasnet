@@ -49,10 +49,10 @@ void ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
   gasnett_atomic_increment(&amcount,0);
 }
 
-gasnet_handlerentry_t htable[] = { 
-  { hidx_ping_shorthandler,  ping_shorthandler  },
-  { hidx_ping_medhandler,    ping_medhandler    },
-  { hidx_ping_longhandler,   ping_longhandler   }
+gasnetex_handlerentry_t htable[] = { 
+  { hidx_ping_shorthandler, 0, 0, ping_shorthandler  },
+  { hidx_ping_medhandler,   0, 0, ping_medhandler    },
+  { hidx_ping_longhandler,  0, 0, ping_longhandler   }
 };
 
 int iters = 0;
@@ -144,8 +144,8 @@ int main(int argc, char **argv) {
     #ifdef GASNET_SEGMENT_EVERYTHING
       if (maxsz > TEST_SEGSZ) { MSG("maxsz must be <= %lu on GASNET_SEGMENT_EVERYTHING",(unsigned long)TEST_SEGSZ); gasnet_exit(1); }
     #endif
-    GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t), 
-                              TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+    GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+    GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
     test_init("testqueue",1,"[-in|-out|-a|-f] (iters) (maxdepth) (maxsz)\n"
                "  The 'in' or 'out' option selects whether the initiator-side\n"
                "  memory is in the GASNet segment or not (default is not).\n"

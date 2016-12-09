@@ -71,18 +71,18 @@ void justreply_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
    the GASNet layer itself
  */
 int main(int argc, char **argv) {
-  gasnet_handlerentry_t htable[] = { 
-    { hidx_null_shorthandler,       null_shorthandler },
-    { hidx_justreply_shorthandler,  justreply_shorthandler },
-    { hidx_null_medhandler,         null_medhandler },
-    { hidx_justreply_medhandler,    justreply_medhandler },
-    { hidx_null_longhandler,        null_longhandler },
-    { hidx_justreply_longhandler,   justreply_longhandler }
+  gasnetex_handlerentry_t htable[] = { 
+    { hidx_null_shorthandler,      0, 0, null_shorthandler },
+    { hidx_justreply_shorthandler, 0, 0, justreply_shorthandler },
+    { hidx_null_medhandler,        0, 0, null_medhandler },
+    { hidx_justreply_medhandler,   0, 0, justreply_medhandler },
+    { hidx_null_longhandler,       0, 0, null_longhandler },
+    { hidx_justreply_longhandler,  0, 0, justreply_longhandler }
   };
 
   GASNET_Safe(gasnet_init(&argc, &argv));
-  GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t),
-                            TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
   test_init("testmisc",1,"(iters) (accuracy_digits) (test_sections)");
 
   mynode = gasnet_mynode();

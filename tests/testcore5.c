@@ -29,7 +29,7 @@ gasnetex_rank_t peer = 0;
 uint8_t *myseg = NULL;
 uint8_t *peerseg = NULL;
 
-#define hidx_mybase 200
+#define hidx_mybase 150
 
 #define hidx_ping_shorthandler   (hidx_mybase + 1)
 #define hidx_pong_shorthandler   (hidx_mybase + 2)
@@ -141,9 +141,9 @@ enum {
         { MSGCHECK(LSZ(args)); memset(buf, 0xa5, nbytes); HBODY(args); }
 
 #define HTABLE(args)                          \
-  { hidx_Shandler(args), Shandler##args },    \
-  { hidx_Mhandler(args), Mhandler##args },    \
-  { hidx_Lhandler(args), Lhandler##args },
+  { hidx_Shandler(args), args, 0, Shandler##args },    \
+  { hidx_Mhandler(args), args, 0, Mhandler##args },    \
+  { hidx_Lhandler(args), args, 0, Lhandler##args },
 
 #define HTEST(args) \
   MSG0("testing %d-argument AM calls", args);                        \
@@ -211,14 +211,14 @@ int main(int argc, char **argv) {
   size_t medsz, longsz;
   unsigned int seed = 0;
   int i;
-  gasnet_handlerentry_t htable[] = { 
+  gasnetex_handlerentry_t htable[] = { 
     HFOREACH(HTABLE)
-    { hidx_ping_shorthandler,  ping_shorthandler  },
-    { hidx_pong_shorthandler,  pong_shorthandler  },
-    { hidx_ping_medhandler,    ping_medhandler    },
-    { hidx_pong_medhandler,    pong_medhandler    },
-    { hidx_ping_longhandler,   ping_longhandler   },
-    { hidx_pong_longhandler,   pong_longhandler   }
+    { hidx_ping_shorthandler, 0, 0, ping_shorthandler  },
+    { hidx_pong_shorthandler, 0, 0, pong_shorthandler  },
+    { hidx_ping_medhandler,   0, 0, ping_medhandler    },
+    { hidx_pong_medhandler,   0, 0, pong_medhandler    },
+    { hidx_ping_longhandler,  0, 0, ping_longhandler   },
+    { hidx_pong_longhandler,  0, 0, pong_longhandler   }
   };
 
   GASNET_Safe(gasnet_init(&argc, &argv));
@@ -239,8 +239,8 @@ int main(int argc, char **argv) {
   if (argc > 3) seed = atoi(argv[3]);
   if (!seed) seed = (int)TIME();
 
-  GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t),
-                            TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
 
   test_init("testcore5", 0, "(iters) (maxsz) (seed)");
   if (argc > 4) test_usage();

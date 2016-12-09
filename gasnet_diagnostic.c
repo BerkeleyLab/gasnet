@@ -1180,7 +1180,7 @@ static void * thread_fn(void *arg) {
 }
 #endif
 
-static gasnet_handlerentry_t gasneti_diag_handlers[] = {
+static gasnetex_handlerentry_t gasneti_diag_handlers[] = {
   #ifdef GASNETC_DIAG_HANDLERS
     GASNETC_DIAG_HANDLERS(), /* should start at gasnetc_diag_hidx_base */
   #endif
@@ -1188,15 +1188,15 @@ static gasnet_handlerentry_t gasneti_diag_handlers[] = {
     GASNETE_DIAG_HANDLERS(), /* should start at gasnete_diag_hidx_base */
   #endif
 
-  { gasneti_diag_hidx_base + 0, (gasneti_handler_fn_t)progressfn_reqh },
-  { gasneti_diag_hidx_base + 1, (gasneti_handler_fn_t)progressfn_reph }
+  { gasneti_diag_hidx_base + 0, 0, 0, (gasneti_handler_fn_t)progressfn_reqh },
+  { gasneti_diag_hidx_base + 1, 0, 0, (gasneti_handler_fn_t)progressfn_reph }
 };
 
 
-void gasneti_diagnostic_gethandlers(gasnet_handlerentry_t **htable, int *htable_cnt) {
+void gasneti_diagnostic_gethandlers(gasnetex_handlerentry_t **htable, int *htable_cnt) {
   assert(htable && htable_cnt);
   *htable = gasneti_diag_handlers;
-  *htable_cnt = (int)(sizeof(gasneti_diag_handlers)/sizeof(gasnet_handlerentry_t));
+  *htable_cnt = (int)(sizeof(gasneti_diag_handlers)/sizeof(gasnetex_handlerentry_t));
   gasneti_diag_havehandlers = 1;
 }
 

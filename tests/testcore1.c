@@ -208,14 +208,16 @@ int
 main(int argc, char **argv)
 {
 	int	iters = 0;
-	gasnet_handlerentry_t htable[] = {
-		{ 201, chksum_reqh },
-		{ 202, chksum_reph }
+	gasnetex_handlerentry_t htable[] = {
+		{ 201, 2, 0, chksum_reqh },
+		{ 202, 1, 0, chksum_reph }
 	};
 
 	/* call startup */
         GASNET_Safe(gasnet_init(&argc, &argv));
-        GASNET_Safe(gasnet_attach(htable, sizeof(htable)/sizeof(gasnet_handlerentry_t), TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+        GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+        GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
+
 	test_init("testcore1",0,"(iters)");
 
         assert(CHKSUM_TOTAL <= gasnetex_lub_AMReplyMedium());

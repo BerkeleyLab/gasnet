@@ -34,7 +34,7 @@ typedef struct {
 	double max_throughput;
 } stat_struct_t;
 
-gasnet_handlerentry_t handler_table[2];
+gasnetex_handlerentry_t handler_table[2];
 
 int insegment = 0;
 

@@ -191,8 +191,8 @@ void  ghostReqHandler(gasnetex_token_t token, void *buf, size_t nbytes,
     return;
 }
 
-gasnet_handlerentry_t htable[] = {
-    { hidx_ghostReqHandler, ghostReqHandler }
+gasnetex_handlerentry_t htable[] = {
+    { hidx_ghostReqHandler, 2, 0, ghostReqHandler, NULL, NULL }
 };
 
 #define init_stat \
@@ -378,9 +378,8 @@ main(int argc, char **argv)
       maxsegmentsz = outsegsz + PAGESZ*nprocs;
     }
 
-    GASNET_Safe(gasnet_attach(
-	htable, sizeof(htable)/sizeof(gasnet_handlerentry_t),
-	TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+    GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+    GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
     test_init("testnbr",1, "[-f] [-m] [iters] [level]\n\n"
       "-f      run full nbr exchange (NAS MG) instead of per axis\n"
       "-m      run UPC version of GASNet MG test only\n"
