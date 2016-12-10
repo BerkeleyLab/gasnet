@@ -296,6 +296,9 @@ typedef struct gasneti_token_s *gasnetex_token_t;
 struct gasneti_team_member_s; // TODO-EX: better name!
 typedef struct gasneti_team_s *gasnetex_team_member_t;
 
+struct gasneti_client_s;
+typedef struct gasneti_client_s *gasnetex_client_t;
+
 struct gasneti_endpoint_s;
 typedef struct gasneti_endpoint_s *gasnetex_endpoint_t;
 

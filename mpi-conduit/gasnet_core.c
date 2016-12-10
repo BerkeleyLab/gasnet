@@ -283,35 +283,14 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     segsize = gasneti_auxseg_preattach(segsize); /* adjust segsize for auxseg reqts */
 
     /* ------------------------------------------------------------------------------------ */
-    /*  register handlers */
-    /* Initialize handler table */
-    gasneti_amtbl_init(gasnetc_handler);
-    { /*  core API handlers */
-      gasnetex_handlerentry_t *ctable = (gasnetex_handlerentry_t *)gasnetc_get_handlertable();
-      int len = 0;
-      int numreg = 0;
-      gasneti_assert(ctable);
-      while (ctable[len].gex_fnptr) len++; /* calc len */
-      if (gasneti_amregister(gasnetc_handler, ctable, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 0, &numreg) != GASNET_OK)
-        INITERR(RESOURCE,"Error registering core API handlers");
-      gasneti_assert(numreg == len);
-    }
+    /*  create the initial endpoint with internal handlers */
+    if (gasnetc_EPCreate(NULL, NULL, 0)) // TODO-EX: NULLs are placeholders
+      INITERR(RESOURCE,"Error creating initial endpoint");
 
-    { /*  extended API handlers */
-      gasnetex_handlerentry_t *etable = (gasnetex_handlerentry_t *)gasnete_get_handlertable();
-      int len = 0;
-      int numreg = 0;
-      gasneti_assert(etable);
-      while (etable[len].gex_fnptr) len++; /* calc len */
-      if (gasneti_amregister(gasnetc_handler, etable, len, GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE, 0, &numreg) != GASNET_OK)
-        INITERR(RESOURCE,"Error registering extended API handlers");
-      gasneti_assert(numreg == len);
-    }
-
-    if (table) { /*  client handlers */
-      if (gasneti_amregister_legacy(gasnetc_handler, table, numentries) != GASNET_OK)
-        GASNETI_RETURN_ERRR(RESOURCE,"Error registering handlers");
-    }
+    /* ------------------------------------------------------------------------------------ */
+    /*  register client handlers */
+    if (table && gasneti_amregister_legacy(gasnetc_handler, table, numentries) != GASNET_OK)
+      INITERR(RESOURCE,"Error registering handlers");
 
     /* ------------------------------------------------------------------------------------ */
     /*  register fatal signal handlers */
@@ -396,6 +375,49 @@ done: /*  error return while locked */
   GASNETI_RETURN(retval);
 }
 /* ------------------------------------------------------------------------------------ */
+extern int gasnetc_EPCreate( gasnetex_endpoint_t     *ep_p,
+                             gasnetex_client_t       client,
+                             gasnetex_flags_t        flags) {
+  /* (###) add code here to create an endpoint belonging to the given client */
+#if 1 // TODO-EX: This is a stub, which assumes 1 implicit call from ClientCreate
+  static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
+  gasneti_mutex_lock(&lock);
+    static int once = 0;
+    int prev = once;
+    once = 1;
+  gasneti_mutex_unlock(&lock);
+  if (prev) gasneti_fatalerror("Multiple endpoints are not yet implemented");
+#endif
+
+  // Operate on global data until we have a real implementation of endpoints
+
+  gasneti_amtbl_init(gasnetc_handler);
+
+  { /*  core API handlers */
+    gasnetex_handlerentry_t *ctable = (gasnetex_handlerentry_t *)gasnetc_get_handlertable();
+    int len = 0;
+    int numreg = 0;
+    gasneti_assert(ctable);
+    while (ctable[len].gex_fnptr) len++; /* calc len */
+    if (gasneti_amregister(gasnetc_handler, ctable, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 0, &numreg) != GASNET_OK)
+      GASNETI_RETURN_ERRR(RESOURCE,"Error registering core API handlers");
+    gasneti_assert(numreg == len);
+  }
+
+  { /*  extended API handlers */
+    gasnetex_handlerentry_t *etable = (gasnetex_handlerentry_t *)gasnete_get_handlertable();
+    int len = 0;
+    int numreg = 0;
+    gasneti_assert(etable);
+    while (etable[len].gex_fnptr) len++; /* calc len */
+    if (gasneti_amregister(gasnetc_handler, etable, len, GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE, 0, &numreg) != GASNET_OK)
+      GASNETI_RETURN_ERRR(RESOURCE,"Error registering extended API handlers");
+    gasneti_assert(numreg == len);
+  }
+
+  return GASNET_OK;
+}
+
 extern int gasnetc_EPRegisterHandlers( gasnetex_endpoint_t     ep,
                                        gasnetex_handlerentry_t *table,
                                        int                     numentries) {

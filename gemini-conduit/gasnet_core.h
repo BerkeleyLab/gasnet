@@ -26,12 +26,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
                           uintptr_t segsize, uintptr_t minheapoffset);
 #define gasnet_attach gasnetc_attach
 
-extern int gasnetc_EPRegisterHandlers(
-                gasnetex_endpoint_t     ep,
-                gasnetex_handlerentry_t *table,
-                int                     numentries);
-#define gasnetex_EPRegisterHandlers gasnetc_EPRegisterHandlers
-
 extern void gasnetc_exit(int exitcode) GASNETI_NORETURN;
 GASNETI_NORETURNP(gasnetc_exit)
 #define gasnet_exit gasnetc_exit
@@ -39,6 +33,18 @@ GASNETI_NORETURNP(gasnetc_exit)
 /* Some conduits permit gasnet_init(NULL,NULL).
    Define to 1 if this conduit supports this extension, or to 0 otherwise.  */
 #define GASNET_NULL_ARGV_OK 1
+/* ------------------------------------------------------------------------------------ */
+extern int gasnetc_EPCreate(
+                gasnetex_endpoint_t     *ep_p,
+                gasnetex_client_t       client,
+                gasnetex_flags_t        flags);
+#define gasnetex_EPCreate gasnetc_EPCreate
+
+extern int gasnetc_EPRegisterHandlers(
+                gasnetex_endpoint_t     ep,
+                gasnetex_handlerentry_t *table,
+                int                     numentries);
+#define gasnetex_EPRegisterHandlers gasnetc_EPRegisterHandlers
 /* ------------------------------------------------------------------------------------ */
 /*
   Handler-safe locks
