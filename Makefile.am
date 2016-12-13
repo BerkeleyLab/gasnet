@@ -35,6 +35,7 @@ CONDUITMODE_DIST_SUBDIRS =    	\
 	ofi-conduit
 CONDUITMODE_headers = 		\
 	gasnetex.h           	\
+	gasnet.h           	\
 	gasnet_ammacros.h  	\
 	gasnet_coll.h      	\
 	gasnet_handler.h   	\
@@ -44,7 +45,6 @@ CONDUITMODE_EXTRA_DIST =    	\
 	docs              	\
 	extended-ref      	\
 	template-conduit  	\
-	gasnet.h                \
 	gasnet_handle.c 	\
 	gasnet_handle_internal.h 	\
 	gasnet_internal.h 	\
