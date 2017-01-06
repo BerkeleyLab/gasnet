@@ -241,6 +241,24 @@ For more fine-grained control, the flags variables break-down as follows:
   GASNET_CXXCPPFLAGS is an alias for:
      $(GASNET_MISC_CXXCPPFLAGS) $(GASNET_DEFINES) $(GASNET_INCLUDES)
 
+The content of these variables follow these general guidelines:
+* GASNET_[CC,CXX] contain the configure-detected C and C++ compilers used to build
+  GASNet and guaranteed to work with any compiler-specific flags embedded in the
+  corresponding variables. Clients are strongly advised to compile all modules
+  using these same compilers to ensure object compatibility.
+* GASNET_INCLUDES contains only and all -I preprocessor flags
+* GASNET_DEFINES contains only and all -D or -U preprocessor flags
+* GASNET_OPT_* contain compiler-specific flags controlling the debug/opt level
+* GASNET_MISC_* contain other needed compiler-specific compile-time flags
+* GASNET_LD contains one of the configure-detected compilers (CC, CXX or MPI_CC)
+  which should be used to link the GASNet client executable, in order to guarantee
+  satisfaction of conduit library dependencies (eg on C++ or MPI).
+* GASNET_LIBS contains only and all -L or -l link-time flags
+* GASNET_LDFLAGS contains other needed link-time flags, which may be GASNET_LD-specific
+This summary is provided for informational purposes only - altering or omitting
+any of the flags contained in these variables could result in a non-functional
+build environment.
+
 Conduit Status
 ==============
 
