@@ -121,6 +121,14 @@
   #define GASNETI_MMAP_NOTFIXED_FLAG 0
 #endif
 
+/* Flag, if any, to prevent write-back of file-based mappings */
+#ifdef MAP_NOSYNC
+#define GASNETI_MMAP_NOSYNC_FLAG MAP_NOSYNC
+#endif
+#ifndef GASNETI_MMAP_NOSYNC_FLAG
+  #define GASNETI_MMAP_NOSYNC_FLAG 0
+#endif
+
 #if GASNET_PSHM && (PLATFORM_OS_BGQ || PLATFORM_OS_CYGWIN)
   /* BG/Q: MAP_FIXED is ignored for fd obtained from pshm_open() */
   /* CYGWIN: may not honor the address passed to shmat() */
@@ -502,7 +510,8 @@ static void * gasneti_pshm_mmap(int pshm_rank, void *segbase, size_t segsize) {
     /* resize failed - fall through */
   } else {
     /* map */
-    const int mmap_flags = MAP_SHARED | (segbase ? GASNETI_MMAP_FIXED_FLAG : GASNETI_MMAP_NOTFIXED_FLAG);
+    const int mmap_flags = MAP_SHARED | GASNETI_MMAP_NOSYNC_FLAG |
+                           (segbase ? GASNETI_MMAP_FIXED_FLAG : GASNETI_MMAP_NOTFIXED_FLAG);
     ptr = mmap(segbase, segsize, (PROT_READ|PROT_WRITE), mmap_flags, fd, 0);
   }
 
