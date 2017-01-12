@@ -161,6 +161,7 @@ int gasnete_put_val(
 {
   GASNETI_CHECKPSHM_PUTVAL(I);
   gasneti_assert(0 && "Unreachable");
+  return 0;
 }
 #define gasnete_put_val gasnete_put_val
 
