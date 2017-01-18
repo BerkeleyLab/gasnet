@@ -50,9 +50,9 @@ void ping_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
 }
 
 gasnetex_handlerentry_t htable[] = { 
-  { hidx_ping_shorthandler, 0, 0, ping_shorthandler  },
-  { hidx_ping_medhandler,   0, 0, ping_medhandler    },
-  { hidx_ping_longhandler,  0, 0, ping_longhandler   }
+  { hidx_ping_shorthandler, ping_shorthandler, 0, 0 },
+  { hidx_ping_medhandler,   ping_medhandler,   0, 0 },
+  { hidx_ping_longhandler,  ping_longhandler,  0, 0 }
 };
 
 int iters = 0;

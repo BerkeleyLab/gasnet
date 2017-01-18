@@ -113,25 +113,25 @@ void done_shorthandler(gasnetex_token_t token) {
 }
 /* ------------------------------------------------------------------------------------ */
 gasnetex_handlerentry_t htable[] = {
-    { 0, 0, 0, ping_shorthandler, NULL, NULL  },
-    { 0, 0, 0, pong_shorthandler, NULL, NULL  },
+    { 0, ping_shorthandler, 0, 0, NULL, NULL  },
+    { 0, pong_shorthandler, 0, 0, NULL, NULL  },
 
-    { 0, 0, 0, ping_medhandler, NULL, NULL    },
-    { 0, 0, 0, pong_medhandler, NULL, NULL    },
+    { 0, ping_medhandler, 0, 0, NULL, NULL    },
+    { 0, pong_medhandler, 0, 0, NULL, NULL    },
 
-    { 0, 0, 0, ping_longhandler, NULL, NULL   },
-    { 0, 0, 0, pong_longhandler, NULL, NULL   },
+    { 0, ping_longhandler, 0, 0, NULL, NULL   },
+    { 0, pong_longhandler, 0, 0, NULL, NULL   },
 
-    { 0, 0, 0, ping_shorthandler_flood, NULL, NULL  },
-    { 0, 0, 0, pong_shorthandler_flood, NULL, NULL  },
+    { 0, ping_shorthandler_flood, 0, 0, NULL, NULL  },
+    { 0, pong_shorthandler_flood, 0, 0, NULL, NULL  },
 
-    { 0, 0, 0, ping_medhandler_flood, NULL, NULL    },
-    { 0, 0, 0, pong_medhandler_flood, NULL, NULL    },
+    { 0, ping_medhandler_flood, 0, 0, NULL, NULL    },
+    { 0, pong_medhandler_flood, 0, 0, NULL, NULL    },
 
-    { 0, 0, 0, ping_longhandler_flood, NULL, NULL   },
-    { 0, 0, 0, pong_longhandler_flood, NULL, NULL   },
+    { 0, ping_longhandler_flood, 0, 0, NULL, NULL   },
+    { 0, pong_longhandler_flood, 0, 0, NULL, NULL   },
 
-    { 0, 0, 0, done_shorthandler, NULL, NULL  }
+    { 0, done_shorthandler, 0, 0, NULL, NULL  }
 };
 
 /* ------------------------------------------------------------------------------------ */

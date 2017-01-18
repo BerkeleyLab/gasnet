@@ -759,11 +759,11 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
     GASNET_Safe(result = gasnet_attach(table, numentries, segsize, minheapoffset));
     gasnetex_handlerentry_t mytab[] = {
 #if GASNET_USE_STRICT_PROTOTYPES
-      { 0, 0, 0, (void *)_test_seggather, NULL, NULL },
-      { 0, 1, 0, (void *)_test_segbcast, NULL, NULL }
+      { 0, (void *)_test_seggather, 0, 0, NULL, NULL },
+      { 0, (void *)_test_segbcast,  0, 1, NULL, NULL }
 #else
-      { 0, 0, 0, (void (*)())_test_seggather, NULL, NULL },
-      { 0, 1, 0, (void (*)())_test_segbcast, NULL, NULL }
+      { 0, (void (*)())_test_seggather, 0, 0, NULL, NULL },
+      { 0, (void (*)())_test_segbcast,  0, 1, NULL, NULL }
 #endif
     };
     GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, mytab, 2));

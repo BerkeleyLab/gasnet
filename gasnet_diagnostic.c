@@ -1188,8 +1188,8 @@ static gasnetex_handlerentry_t gasneti_diag_handlers[] = {
     GASNETE_DIAG_HANDLERS(), /* should start at gasnete_diag_hidx_base */
   #endif
 
-  { gasneti_diag_hidx_base + 0, 0, 0, (gasneti_handler_fn_t)progressfn_reqh },
-  { gasneti_diag_hidx_base + 1, 0, 0, (gasneti_handler_fn_t)progressfn_reph }
+  { gasneti_diag_hidx_base + 0, (gasneti_handler_fn_t)progressfn_reqh, 0, 0 },
+  { gasneti_diag_hidx_base + 1, (gasneti_handler_fn_t)progressfn_reph, 0, 0 }
 };
 
 

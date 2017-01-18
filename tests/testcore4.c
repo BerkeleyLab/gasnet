@@ -141,9 +141,9 @@ enum {
         { MSGCHECK(LSZ(args)); memset(buf, 0xa5, nbytes); HBODY(args); }
 
 #define HTABLE(args)                          \
-  { hidx_Shandler(args), args, 0, Shandler##args },    \
-  { hidx_Mhandler(args), args, 0, Mhandler##args },    \
-  { hidx_Lhandler(args), args, 0, Lhandler##args },
+  { hidx_Shandler(args), Shandler##args, 0, args },    \
+  { hidx_Mhandler(args), Mhandler##args, 0, args },    \
+  { hidx_Lhandler(args), Lhandler##args, 0, args },
 
 #define HTEST(args) \
   MSG0("testing %d-argument AM calls", args);                        \
@@ -213,12 +213,12 @@ int main(int argc, char **argv) {
   int i;
   gasnetex_handlerentry_t htable[] = { 
     HFOREACH(HTABLE)
-    { hidx_ping_shorthandler, 0, 0, ping_shorthandler  },
-    { hidx_pong_shorthandler, 0, 0, pong_shorthandler  },
-    { hidx_ping_medhandler,   0, 0, ping_medhandler    },
-    { hidx_pong_medhandler,   0, 0, pong_medhandler    },
-    { hidx_ping_longhandler,  0, 0, ping_longhandler   },
-    { hidx_pong_longhandler,  0, 0, pong_longhandler   }
+    { hidx_ping_shorthandler, ping_shorthandler, 0, 0 },
+    { hidx_pong_shorthandler, pong_shorthandler, 0, 0 },
+    { hidx_ping_medhandler,   ping_medhandler,   0, 0 },
+    { hidx_pong_medhandler,   pong_medhandler,   0, 0 },
+    { hidx_ping_longhandler,  ping_longhandler,  0, 0 },
+    { hidx_pong_longhandler,  pong_longhandler,  0, 0 }
   };
 
   GASNET_Safe(gasnet_init(&argc, &argv));

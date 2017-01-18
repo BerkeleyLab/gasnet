@@ -51,7 +51,7 @@ void done_shorthandler(gasnetex_token_t token) {
 	  done = 1;
 }
 gasnetex_handlerentry_t htable[] = {
-    { hidx_done_shorthandler, 0, 0, done_shorthandler, NULL, NULL }
+    { hidx_done_shorthandler, done_shorthandler, 0, 0, NULL, NULL }
 };
 
 static void * doTest(void *);

@@ -72,12 +72,12 @@ void justreply_longhandler(gasnetex_token_t token, void *buf, size_t nbytes) {
  */
 int main(int argc, char **argv) {
   gasnetex_handlerentry_t htable[] = { 
-    { hidx_null_shorthandler,      0, 0, null_shorthandler },
-    { hidx_justreply_shorthandler, 0, 0, justreply_shorthandler },
-    { hidx_null_medhandler,        0, 0, null_medhandler },
-    { hidx_justreply_medhandler,   0, 0, justreply_medhandler },
-    { hidx_null_longhandler,       0, 0, null_longhandler },
-    { hidx_justreply_longhandler,  0, 0, justreply_longhandler }
+    { hidx_null_shorthandler,      null_shorthandler,      0, 0 },
+    { hidx_justreply_shorthandler, justreply_shorthandler, 0, 0 },
+    { hidx_null_medhandler,        null_medhandler,        0, 0 },
+    { hidx_justreply_medhandler,   justreply_medhandler,   0, 0 },
+    { hidx_null_longhandler,       null_longhandler,       0, 0 },
+    { hidx_justreply_longhandler,  justreply_longhandler,  0, 0 }
   };
 
   GASNET_Safe(gasnet_init(&argc, &argv));

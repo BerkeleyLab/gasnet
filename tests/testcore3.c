@@ -51,10 +51,10 @@ static void testAMSrcAddr(void);
 
 int main(int argc, char **argv) {
   gasnetex_handlerentry_t htable[] = { 
-    { hidx_ping_medhandler,  1, 0, ping_medhandler    },
-    { hidx_pong_medhandler,  0, 0, pong_medhandler    },
-    { hidx_ping_longhandler, 1, 0, ping_longhandler   },
-    { hidx_pong_longhandler, 0, 0, pong_longhandler   }
+    { hidx_ping_medhandler,  ping_medhandler,  0, 1 },
+    { hidx_pong_medhandler,  pong_medhandler,  0, 0 },
+    { hidx_ping_longhandler, ping_longhandler, 0, 1 },
+    { hidx_pong_longhandler, pong_longhandler, 0, 0 }
   };
 
   GASNET_Safe(gasnet_init(&argc, &argv));

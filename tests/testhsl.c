@@ -55,15 +55,15 @@ void donothing(gasnetex_token_t token) {
 int main(int argc, char **argv) {
   int mynode, nodes;
   gasnetex_handlerentry_t htable[] = { 
-    { 203, 0, 0, okhandler3 },
+    { 203, okhandler3,  0, 0 },
 
-    { 221, 0, 0, increq },
-    { 222, 0, 0, increp },
+    { 221, increq,      0, 0 },
+    { 222, increp,      0, 0 },
 
-    { 231, 0, 0, badhandler1 },
-    { 232, 0, 0, badhandler2 },
+    { 231, badhandler1, 0, 0 },
+    { 232, badhandler2, 0, 0 },
 
-    { 250, 0, 0, donothing }
+    { 250, donothing,   0, 0 }
   };
 
   GASNET_Safe(gasnet_init(&argc, &argv));

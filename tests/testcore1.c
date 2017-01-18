@@ -209,8 +209,8 @@ main(int argc, char **argv)
 {
 	int	iters = 0;
 	gasnetex_handlerentry_t htable[] = {
-		{ 201, 2, 0, chksum_reqh },
-		{ 202, 1, 0, chksum_reph }
+		{ 201, chksum_reqh, 0, 2 },
+		{ 202, chksum_reph, 0, 1 }
 	};
 
 	/* call startup */

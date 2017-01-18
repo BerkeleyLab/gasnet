@@ -192,7 +192,7 @@ void  ghostReqHandler(gasnetex_token_t token, void *buf, size_t nbytes,
 }
 
 gasnetex_handlerentry_t htable[] = {
-    { hidx_ghostReqHandler, 2, 0, ghostReqHandler, NULL, NULL }
+    { hidx_ghostReqHandler, ghostReqHandler, 0, 2, NULL, NULL }
 };
 
 #define init_stat \

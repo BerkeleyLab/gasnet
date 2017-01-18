@@ -328,14 +328,13 @@ typedef struct gasneti_endpoint_s *gasnetex_endpoint_t;
 /*  struct type used to perform handler registration */
 typedef struct {
     gasnetex_handler_t      gex_index;   // 0 on input == don't care
-    uint8_t                 gex_nargs;   // start requiring this (255 == not specified)
-    uint32_t                gex_flags;   // final width TBD
-
    #ifdef GASNET_USE_STRICT_PROTOTYPES
     void                   *gex_fnptr;
    #else
     void                  (*gex_fnptr)();
    #endif
+    uint32_t                gex_flags;   // final width TBD
+    uint8_t                 gex_nargs;   // start requiring this (255 == not specified)
 
     // Optional fields (both are "shallow copy")
     void                   *gex_cdata;   // Available to handler

@@ -49,8 +49,8 @@ void doit5(int partner, int *partnerseg);
     done = 1;
   }
   #define EVERYTHING_SEG_HANDLERS() \
-    { 250, 0, 0, (handler_fn_t)seg_everything_reqh, NULL, NULL }, \
-    { 251, 0, 0, (handler_fn_t)seg_everything_reph, NULL, NULL },
+    { 250, (handler_fn_t)seg_everything_reqh, 0, 0, NULL, NULL }, \
+    { 251, (handler_fn_t)seg_everything_reph, 0, 0, NULL, NULL },
 
   char _static_seg[TEST_SEGSZ+PAGESZ] = {1};
   char _common_seg[TEST_SEGSZ+PAGESZ];

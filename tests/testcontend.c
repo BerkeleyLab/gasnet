@@ -49,9 +49,9 @@ void	markdone_shorthandler(gasnetex_token_t token);
 #define hidx_markdone_shorthandler    203
 
 gasnetex_handlerentry_t htable[] = { 
-	{ hidx_ping_shorthandler,     0, 0, ping_shorthandler  },
-	{ hidx_pong_shorthandler,     0, 0, pong_shorthandler  },
-	{ hidx_markdone_shorthandler, 0, 0, markdone_shorthandler   },
+	{ hidx_ping_shorthandler,     ping_shorthandler,     0, 0 },
+	{ hidx_pong_shorthandler,     pong_shorthandler,     0, 0 },
+	{ hidx_markdone_shorthandler, markdone_shorthandler, 0, 0 },
 };
 #define HANDLER_TABLE_SIZE (sizeof(htable)/sizeof(gasnetex_handlerentry_t))
 

@@ -143,10 +143,10 @@ int amopt = 0;
 int main(int argc, char **argv) {
   int arg = 1, help = 0;
   gasnetex_handlerentry_t htable[] = {
-    { hidx_ping_medhandler,  2, 0, ping_medhandler    },
-    { hidx_pong_medhandler,  2, 0, pong_medhandler    },
-    { hidx_ping_longhandler, 2, 0, ping_longhandler   },
-    { hidx_pong_longhandler, 2, 0, pong_longhandler   },
+    { hidx_ping_medhandler,  ping_medhandler,  0, 2 },
+    { hidx_pong_medhandler,  pong_medhandler,  0, 2 },
+    { hidx_ping_longhandler, ping_longhandler, 0, 2 },
+    { hidx_pong_longhandler, pong_longhandler, 0, 2 },
   };
 
   /* call startup */
