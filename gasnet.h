@@ -10,7 +10,7 @@
 #include <gasnetex.h>
 #include <gasnet_tools.h>
 
-GASNETI_BEGIN_EXTERNC
+GASNETT_BEGIN_EXTERNC
 GASNETI_BEGIN_NOWARN
 
 /* ------------------------------------------------------------------------------------ */
@@ -372,7 +372,7 @@ typedef struct g2ex_valget_handle_s {
   gasnetex_handle_t         h;
 } *gasnet_valget_handle_t;
 
-GASNETI_INLINE(gasnet_get_nb_val)
+GASNETT_INLINE(gasnet_get_nb_val)
 gasnet_valget_handle_t gasnet_get_nb_val(gasnetex_rank_t node, void *src, size_t nbytes)
 {
   gasnet_valget_handle_t result = (gasnet_valget_handle_t)malloc(sizeof(struct g2ex_valget_handle_s));
@@ -387,7 +387,7 @@ gasnet_valget_handle_t gasnet_get_nb_val(gasnetex_rank_t node, void *src, size_t
   return result;
 }
 
-GASNETI_INLINE(gasnet_wait_syncnb_valget)
+GASNETT_INLINE(gasnet_wait_syncnb_valget)
 gasnetex_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handle)
 {
   gasnetex_register_value_t result;
@@ -437,6 +437,6 @@ gasnetex_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handl
 
 /* ------------------------------------------------------------------------------------ */
 GASNETI_END_NOWARN
-GASNETI_END_EXTERNC
+GASNETT_END_EXTERNC
 
 #endif
