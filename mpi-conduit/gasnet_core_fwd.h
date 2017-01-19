@@ -60,6 +60,9 @@
 /* #define GASNETC_GET_HANDLER 1 */
 /* #define GASNETC_TOKEN_CREATE 1 */
 
+/* mpi-conduit supports top-level poll throttling */
+#define GASNETC_USING_SUSPEND_RESUME 1
+
   /* enable usage correctness checking on HSL's and no-interrupt sections */
 #ifndef GASNETC_HSL_ERRCHECK
   #if GASNET_DEBUG

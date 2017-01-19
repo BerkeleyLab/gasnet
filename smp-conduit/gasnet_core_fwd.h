@@ -42,11 +42,6 @@
  #endif
 #endif
 
-#if GASNETI_THROTTLE_FEATURE_ENABLED
-/* polling is a no-op on smp-conduit, so never throttle it */ 
-#undef GASNETI_THROTTLE_FEATURE_ENABLED
-#endif
-
 #if !GASNET_PSHM
   #define GASNETI_GASNETC_AMPOLL /* empty */
   #define gasnetc_AMPoll GASNET_OK GASNETI_THREAD_SWALLOW

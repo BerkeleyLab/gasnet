@@ -2033,7 +2033,7 @@ fi
 
 GASNET_IF_ENABLED(loopback-memsync, Force memory barriers for GASNet local (loopback) puts and gets,
   [AC_DEFINE(GASNETI_MEMSYNC_ON_LOOPBACK)])
-GASNET_IF_ENABLED(throttle-poll, throttle polling threads in multi-threaded configurations to reduce contention,
+GASNET_IF_ENABLED(throttle-poll, throttle polling threads in multi-threaded configurations to reduce contention (experimental, only implemented in some conduits),
   [AC_DEFINE(GASNETI_THROTTLE_FEATURE_ENABLED)])
 
 # FORCED non-default implementations - used mainly for debugging

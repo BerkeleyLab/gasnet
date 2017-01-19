@@ -75,13 +75,16 @@ typedef ### gasnetc_handler_t;
 #endif
 
 #if defined(GASNET_PAR) && GASNETC_GNI_MULTI_DOMAIN
-/* For now we keep multi-domain support and throttle-pollers orthogonal */
-#undef GASNETI_THROTTLE_FEATURE_ENABLED
 /* Need to hook pthread create to ensure collective creation of domains */
 typedef int (gasnetc_pthread_create_fn_t)(pthread_t *, const pthread_attr_t *, void *(*)(void *), void *);
 extern int gasnetc_pthread_create(gasnetc_pthread_create_fn_t *create_fn, pthread_t *thread, const pthread_attr_t *attr, void * (*fn)(void *), void * arg) ;
 #define GASNETC_PTHREAD_CREATE_OVERRIDE(create_fn, thread, attr, start_routine, arg) \
    gasnetc_pthread_create(create_fn, thread, attr, start_routine, arg)
+#endif
+
+#if !GASNETC_GNI_MULTI_DOMAIN
+/* support top-level poll throttling when not using multi-domain */
+#define GASNETC_USING_SUSPEND_RESUME 1
 #endif
 
 #if GASNETC_GNI_FIREHOSE
