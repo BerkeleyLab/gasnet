@@ -2298,7 +2298,7 @@ void gasnetc_post_checkpoint(int is_restart) {
   }
 
 #if GASNET_PSHM
-#error Not YET supporting PSHM
+#error BLCR integration does not YET support PSHM - configure with --disable-blcr or --disable-pshm
   /* Need to pointer to conduit-specific shared mem for lid table and xrc */
 #endif
 
@@ -2325,7 +2325,7 @@ void gasnetc_post_checkpoint(int is_restart) {
     /* transpose remote lids into port_tbl */
     /* BLCR-TODO: factor this step once PSHM support ready */
   #if GASNET_PSHM
-    #error NOT implemented
+    // BLCR-TODO: NOT implemented
   #else
     for (i = 0; i < gasnetc_num_ports; ++i) {
       gasnetex_rank_t node;
@@ -2337,9 +2337,8 @@ void gasnetc_post_checkpoint(int is_restart) {
     gasneti_free(remote_lid);
   }
 
-#if GASNETC_IBV_XRC
-#error Not YET supporting PSHM (and thus XRC)
-  /* Skip for now as we are initially not supporting PSHM */
+#if GASNETC_IBV_XRC && 0 // BLCR integration does not YET include PSHM (and thus XRC)
+  // BLCR-TODO: Skipped for now as we are initially not supporting PSHM */
   if (gasnetc_use_xrc) {
     rc = gasnetc_xrc_init(&shared_mem);
     if (i != GASNET_OK) {
