@@ -21,3 +21,18 @@ When using the mpi-spawner, the following apply:
 + Since that MPI is only used in gasnet_init(), gasnet_attach() and
   gasnet_exit() and not for any GASNet communications.  Therefore
   it is acceptable to use a TCP/IP based MPI such as MPICH or LAM/MPI.
+
+Recognized Environment Variables:
+
+* GASNET_MPI_THREAD - can be set to one of the values:
+    "SINGLE", "FUNNELED", "SERIALIZED" or "MULTIPLE" 
+  to request the MPI library be initialized with a specific threading support
+  level. The default value depends on the GASNET_{SEQ,PAR} mode and the conduit.
+  + SINGLE - sufficient for mpi-spawner itself. This MPI thread mode is 
+    only guaranteed to work correctly in a strictly single-threaded process 
+    (ie no threads anywhere in the system). 
+  + FUNNELED - Other threads exist in the process, but never call MPI or GASNet.
+  + SERIALIZED - GASNET_PAR or GASNET_PARSYNC mode, where multiple client threads may
+    call GASNet. Also required if the conduit spawns internal AM progress threads.
+  + MULTIPLE - Multi-threaded GASNet+MPI process that makes direct calls to MPI.
+  See MPI documentation for detailed explanation of the threading levels.

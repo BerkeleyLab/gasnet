@@ -27,6 +27,40 @@ static int gasnetc_mpi_preinitialized = 0;
 static int gasnetc_mpi_size = -1;
 static int gasnetc_mpi_rank = -1;
 
+#ifndef HAVE_MPI_INIT_THREAD
+#define HAVE_MPI_INIT_THREAD (MPI_VERSION >= 2 || (defined(MPI_THREAD_SINGLE) && defined(MPI_THREAD_SERIALIZED)))
+#endif
+#ifndef GASNET_MPI_THREAD_STRICT
+#define GASNET_MPI_THREAD_STRICT 0  // strictly adhere to the MPI threading specification
+#endif
+
+static int threadstr2int(const char *str) {
+  char tmp[80];
+  char *p;
+  strncpy(tmp, str, sizeof(tmp));
+  for (p = tmp; *p; p++) if (*p >= 'a' && *p <= 'z') *p -= 'a'-'A'; /* upper-case */
+  int ret = -1;
+  #if HAVE_MPI_INIT_THREAD
+    if (strstr(tmp,"SINGLE"))     return MPI_THREAD_SINGLE;
+    if (strstr(tmp,"FUNNELED"))   return MPI_THREAD_FUNNELED;
+    if (strstr(tmp,"SERIALIZED")) return MPI_THREAD_SERIALIZED;
+    if (strstr(tmp,"MULTIPLE"))   return MPI_THREAD_MULTIPLE;
+    ret = MPI_THREAD_SINGLE-1;
+  #endif
+  return ret;
+}
+static const char *threadint2str(int id) {
+  switch (id) {
+    #if HAVE_MPI_INIT_THREAD
+      case MPI_THREAD_SINGLE:     return "MPI_THREAD_SINGLE";
+      case MPI_THREAD_FUNNELED:   return "MPI_THREAD_FUNNELED";
+      case MPI_THREAD_SERIALIZED: return "MPI_THREAD_SERIALIZED";
+      case MPI_THREAD_MULTIPLE:   return "MPI_THREAD_MULTIPLE";
+    #endif
+      default: return "UNKNOWN VALUE";
+  }
+}
+
 int gasneti_bootstrapInit_mpi(int *argc, char ***argv, gasnetex_rank_t *nodes, gasnetex_rank_t *mynode) {
   MPI_Group world;
   int err;
@@ -34,13 +68,65 @@ int gasneti_bootstrapInit_mpi(int *argc, char ***argv, gasnetex_rank_t *nodes, g
   /* Call MPI_Init exactly once */
   err = MPI_Initialized(&gasnetc_mpi_preinitialized);
   if (MPI_SUCCESS != err) return GASNET_ERR_NOT_INIT;
+#if !HAVE_MPI_INIT_THREAD
   if (!gasnetc_mpi_preinitialized) {
-#if MPI_VERSION < 2
+  #if MPI_VERSION < 2
     if (!argc || !argv) return GASNET_ERR_BAD_ARG;
-#endif
+  #endif
     err = MPI_Init(argc, argv);
     if (MPI_SUCCESS != err) return GASNET_ERR_NOT_INIT;
   }
+#else /* HAVE_MPI_INIT_THREAD */
+  // Setup/verify the threading mode
+  // By default we assume mpi-spawner is the only conduit-level client of MPI
+  // If the process is fully single-threaded, we should be using THREAD_SINGLE
+  // If other threads exist that don't call mpi-spawner/MPI then THREAD_FUNNELED
+  // If other threads might call mpi-spawner (eg fini/exit) then THREAD_SERIALIZED
+  // Clients who want to make asynchronous calls to MPI directly should override our thread mode to THREAD_MULTIPLE
+  #if GASNET_MPI_THREAD_STRICT
+    #if GASNETI_THREADS
+      int required = MPI_THREAD_SERIALIZED;
+    #elif _REENTRANT
+      int required = MPI_THREAD_FUNNELED;
+    #else
+      int required = MPI_THREAD_SINGLE;
+    #endif
+  #else
+    int required = MPI_THREAD_SINGLE; // temporarily loosened for backwards compatibility
+  #endif
+    int provided = -1;
+    const char *override = gasneti_getenv_withdefault("GASNET_MPI_THREAD",threadint2str(required));
+    if (override) {
+      int overreq = threadstr2int(override);
+      if (overreq >= MPI_THREAD_SINGLE) required = overreq;
+      else { fprintf(stderr,"WARNING: Ignoring unrecognized GASNET_MPI_THREAD value."); fflush(stderr); }
+    }
+    if (gasnetc_mpi_preinitialized) {  // MPI already init, query current thread support level
+      MPI_Query_thread(&provided);
+      // deliberately ignore errors on query
+    } else { // init MPI and request our needed level of thread safety
+      #if GASNET_DEBUG_VERBOSE
+        fprintf(stderr,"mpi-spawner: MPI_Init_thread(%s)\n",threadint2str(required));
+        fflush(stderr);
+      #endif
+      err = MPI_Init_thread(argc, argv, required, &provided);
+      if (err != MPI_SUCCESS) return GASNET_ERR_NOT_INIT;
+    }
+    #if GASNET_DEBUG_VERBOSE
+      fprintf(stderr,"mpi-spawner: MPI threading mode: %s required, %s provided.\n",
+                     threadint2str(required), threadint2str(provided));
+      fflush(stderr);
+    #endif
+    if (provided < required) {
+      fprintf(stderr,"WARNING: GASNet requested MPI threading support model: %s\n"
+                     "WARNING: but the MPI library only provided: %s\n"
+                     "WARNING: You may need to link a more thread-safe MPI library to ensure correct operation.\n"
+                     "WARNING: You can override the required level by setting GASNET_MPI_THREAD.\n",
+                     threadint2str(required), threadint2str(provided)
+             );
+      fflush(stderr);
+    } 
+#endif
 
   /* Create private communicator */
   err = MPI_Comm_group(MPI_COMM_WORLD, &world);
