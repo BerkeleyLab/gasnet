@@ -142,33 +142,27 @@ static int gasnetc_init(int *argc, char ***argv) {
 
     AMMPI_VerboseErrors = gasneti_VerboseErrors;
     AMMPI_SPMDkillmyprocess = gasneti_killmyprocess;
-    #if !defined(GASNETI_DISABLE_MPI_INIT_THREAD) 
-      { int res; 
+    #if !GASNETI_DISABLE_MPI_INIT_THREAD
       #if GASNETI_THREADS
-        /* tell MPI to be thread-safe */
-        res = AMMPI_SPMDSetThreadMode(1, &pstr, argc, argv);
+        int usingthreads = 1;
       #else
-        res = AMMPI_SPMDSetThreadMode(0, &pstr, argc, argv);
+        int usingthreads = 0;
       #endif
-        if (!res) { 
-          #if GASNETI_THREADS
-          { static char tmsg[255];
-            snprintf(tmsg, sizeof(tmsg),
-                          "*** WARNING: The pthreaded version of mpi-conduit requires an MPI implementation "
-                          "which supports threading mode MPI_THREAD_SERIALIZED, "
-                          "but this implementation reports it can only support %s\n", pstr);
-            #if GASNET_DEBUG_VERBOSE
-              /* only show this in verbose mode, because some versions of MPICH (eg Quadrics version)
-                 lie and report THREAD_SINGLE, when in actuality MPI_THREAD_SERIALIZED works just fine */
-              if (!gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) fprintf(stderr, "%s", tmsg);
-            #else
-              tmsgstr = tmsg;
-            #endif
-          }
-          #else
-            fprintf(stderr,"unknown failure in AMMPI_SPMDSetThreadMode() => %s\n",pstr);
-          #endif
-        }
+      // for verbose documentation only:
+      gasnett_getenv_withdefault("GASNET_MPI_THREAD", (usingthreads?"MPI_THREAD_SERIALIZED":"MPI_THREAD_SINGLE"));
+      if (!AMMPI_SPMDSetThreadMode(usingthreads, &pstr, argc, argv)) { 
+        // Some versions of MPI lie and report THREAD_SINGLE, when in actuality MPI_THREAD_SERIALIZED seems to work just fine.
+        // User can ignore this warning or hide it by setting GASNET_MPI_THREAD or GASNET_QUIET if they want to "live dangerously".
+        static char tmsg[1024];
+        snprintf(tmsg, sizeof(tmsg),
+                      "*** WARNING: This MPI implementation reports it can only support %s.\n"
+                    #if GASNETI_THREADS
+                      "*** WARNING: The thread-safe version of mpi-conduit recommends an MPI implementation\n"
+                      "*** WARNING: which supports at least MPI_THREAD_SERIALIZED to ensure correct operation.\n"
+                    #endif
+                      "*** WARNING: You can override the requested thread mode by setting GASNET_MPI_THREAD.\n"
+                      , pstr);
+        tmsgstr = tmsg;
       }
     #endif
 
@@ -189,6 +183,8 @@ static int gasnetc_init(int *argc, char ***argv) {
     GASNETI_AM_SAFE(AMMPI_SPMDSetExitCallback(gasnetc_traceoutput));
     if (pstr)    GASNETI_TRACE_PRINTF(C,("AMMPI_SPMDSetThreadMode/MPI_Init_thread()=>%s",pstr));
     if (tmsgstr) GASNETI_TRACE_PRINTF(I,("%s",tmsgstr));
+    if (tmsgstr && !gasneti_mynode &&
+        !gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) { fprintf(stderr, "%s", tmsgstr); fflush(stderr); }
 
     #if GASNET_DEBUG_VERBOSE
       fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
