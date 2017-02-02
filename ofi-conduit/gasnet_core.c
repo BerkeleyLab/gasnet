@@ -15,27 +15,8 @@
 
 #include <gasnet_ofi.h>
 
-void (*gasneti_bootstrapBarrier_p)(void) = NULL;
-void (*gasneti_bootstrapExchange_p)(void *src, size_t len, void *dest) = NULL;
-void (*gasneti_bootstrapFini_p)(void) = NULL;
-void (*gasneti_bootstrapAbort_p)(int exitcode) = NULL;
-void (*gasneti_bootstrapAlltoall_p)(void *src, size_t len, void *dest) = NULL;
-void (*gasneti_bootstrapBroadcast_p)(void *src, size_t len, void *dest, int rootnode) = NULL;
-void (*gasneti_bootstrapSNodeCast_p)(void *src, size_t len, void *dest, int rootnode) = NULL;
-void (*gasneti_bootstrapCleanup_p)(void) = NULL;
-
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
-
-#if HAVE_SSH_SPAWNER
-  GASNETI_IDENT(gasnetc_IdentString_HaveSSHSpawner, "$GASNetSSHSpawner: 1 $");
-#endif
-#if HAVE_MPI_SPAWNER
-  GASNETI_IDENT(gasnetc_IdentString_HaveMPISpawner, "$GASNetMPISpawner: 1 $");
-#endif
-#if HAVE_PMI_SPAWNER
-  GASNETI_IDENT(gasnetc_IdentString_HavePMISpawner, "$GASNetPMISpawner: 1 $");
-#endif
 
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 #if HAVE_ON_EXIT
@@ -89,15 +70,15 @@ static int gasnetc_init(int *argc, char ***argv)
   #endif
 
   #if GASNET_PSHM
-  gasneti_pshm_init(gasneti_bootstrapSNodeCast_p, 0);
+  gasneti_pshm_init(gasneti_bootstrapSNodeBroadcast, 0);
   #endif
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
   { uintptr_t limit;
     limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
-                              gasneti_bootstrapExchange_p,
-                              gasneti_bootstrapBarrier_p);
-    gasneti_segmentInit(limit, gasneti_bootstrapExchange_p);
+                              gasneti_bootstrapExchange,
+                              gasneti_bootstrapBarrier);
+    gasneti_segmentInit(limit, gasneti_bootstrapExchange);
   }
   #elif GASNET_SEGMENT_EVERYTHING
     /* segment is everything - nothing to do */
@@ -219,7 +200,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     if (segsize == 0) segbase = NULL; /* no segment */
     else {
-      gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, gasneti_bootstrapExchange_p);
+      gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, gasneti_bootstrapExchange);
       segbase = gasneti_seginfo[gasneti_mynode].addr;
       segsize = gasneti_seginfo[gasneti_mynode].size;
       gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
@@ -242,7 +223,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
   gasneti_attach_done = 1;
-  (*gasneti_bootstrapBarrier_p)();
+  gasneti_bootstrapBarrier();
 
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach(): primary attach complete"));
 
@@ -256,7 +237,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
-  (*gasneti_bootstrapBarrier_p)();
+  gasneti_bootstrapBarrier();
 
   return GASNET_OK;
 }
@@ -287,7 +268,7 @@ static void gasnetc_exit_sighandler(int sig) {
     once = 0;
     gasneti_reghandler(SIGALRM, gasnetc_exit_sighandler);
     alarm(5);
-    (*gasneti_bootstrapAbort_p)(127);
+    gasneti_bootstrapAbort(127);
   } else {
     gasneti_killmyprocess(127);
     gasneti_reghandler(SIGABRT, SIG_DFL);
@@ -378,7 +359,7 @@ extern void gasnetc_exit(int exitcode) {
   /* Prior to attach we cannot send AMs to coordinate the exit */
   if (! gasneti_attach_done) {
     fprintf(stderr, "WARNING: GASNet ofi-conduit may not shutdown cleanly when gasnet_exit() is called before gasnet_attach()\n");
-    (*gasneti_bootstrapAbort_p)(exitcode);
+    gasneti_bootstrapAbort(exitcode);
     gasneti_killmyprocess(exitcode);
   }
 
@@ -395,7 +376,7 @@ extern void gasnetc_exit(int exitcode) {
   gasneti_sched_yield();
 
   alarm(timeout);
-  (*gasneti_bootstrapFini_p)();
+  gasneti_bootstrapFini();
   alarm(0);
   gasneti_killmyprocess(exitcode);
   gasneti_fatalerror("gasnetc_exit failed!");

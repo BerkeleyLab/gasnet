@@ -70,4 +70,18 @@ extern gasnetc_ofi_state_t gasnetc_ofi_state;
     (iop)->put_ofi.type = OFI_TYPE_IPUT;  \
   } while (0)
 
+/* ------------------------------------------------------------------------------------ */
+/* Job Spawn / Bootstrap */
+
+extern gasneti_spawnerfn_t const *gasneti_spawner;
+
+#define gasneti_bootstrapBarrier        (*(gasneti_spawner->Barrier))
+#define gasneti_bootstrapExchange       (*(gasneti_spawner->Exchange))
+#define gasneti_bootstrapBroadcast      (*(gasneti_spawner->Broadcast))
+#define gasneti_bootstrapSNodeBroadcast (*(gasneti_spawner->SNodeBroadcast))
+#define gasneti_bootstrapAlltoall       (*(gasneti_spawner->Alltoall))
+#define gasneti_bootstrapAbort          (*(gasneti_spawner->Abort))
+#define gasneti_bootstrapCleanup        (*(gasneti_spawner->Cleanup))
+#define gasneti_bootstrapFini           (*(gasneti_spawner->Fini))
+
 #endif

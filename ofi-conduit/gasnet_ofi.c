@@ -10,10 +10,6 @@
 #include <gasnet_handler.h>
 #include <gasnet_core_internal.h>
 
-#include <pmi-spawner/gasnet_bootstrap_internal.h>
-#include <ssh-spawner/gasnet_bootstrap_internal.h>
-#include <mpi-spawner/gasnet_bootstrap_internal.h>
-
 #include <rdma/fabric.h>
 #include <rdma/fi_endpoint.h>
 #include <rdma/fi_domain.h>
@@ -52,14 +48,7 @@ static gasneti_lifo_head_t ofi_am_pool = GASNETI_LIFO_INITIALIZER;
 static uint64_t             	max_buffered_send;
 static uint64_t             	min_multi_recv;
 
-extern void (*gasneti_bootstrapBarrier_p)(void);
-extern void (*gasneti_bootstrapExchange_p)(void *src, size_t len, void *dest);
-extern void (*gasneti_bootstrapFini_p)(void);
-extern void (*gasneti_bootstrapAbort_p)(int exitcode);
-extern void (*gasneti_bootstrapAlltoall_p)(void *src, size_t len, void *dest);
-extern void (*gasneti_bootstrapBroadcast_p)(void *src, size_t len, void *dest, int rootnode);
-extern void (*gasneti_bootstrapSNodeCast_p)(void *src, size_t len, void *dest, int rootnode);
-extern void (*gasneti_bootstrapCleanup_p)(void);
+gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
 static struct iovec *am_iov;
 static struct fi_msg *am_buff_msg;
@@ -104,54 +93,8 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   conn_entry_t *mapped_table;
   int high_perf_prov = 0;
 
-  const char *not_set = "(not set)";
-  char *spawner = gasneti_getenv_withdefault("GASNET_SPAWNER", not_set);
-
-  /* Bootstrapinit */
-#if HAVE_SSH_SPAWNER
-  if ((!strcmp(spawner, "ssh") || (spawner == not_set)) &&
-      GASNET_OK == (result = gasneti_bootstrapInit_ssh(argc, argv, nodes_p, mynode_p))) {
-    gasneti_bootstrapFini_p     = &gasneti_bootstrapFini_ssh;
-    gasneti_bootstrapAbort_p    = &gasneti_bootstrapAbort_ssh;
-    gasneti_bootstrapBarrier_p  = &gasneti_bootstrapBarrier_ssh;
-    gasneti_bootstrapExchange_p = &gasneti_bootstrapExchange_ssh;
-    gasneti_bootstrapAlltoall_p = &gasneti_bootstrapAlltoall_ssh;
-    gasneti_bootstrapBroadcast_p= &gasneti_bootstrapBroadcast_ssh;
-    gasneti_bootstrapSNodeCast_p= &gasneti_bootstrapSNodeBroadcast_ssh;
-    gasneti_bootstrapCleanup_p  = &gasneti_bootstrapCleanup_ssh;
-  } else
-#endif
-#if HAVE_MPI_SPAWNER
-  if (!strcmp(spawner, "mpi")) {
-    result = gasneti_bootstrapInit_mpi(argc, argv, nodes_p, mynode_p);
-    gasneti_bootstrapFini_p     = &gasneti_bootstrapFini_mpi;
-    gasneti_bootstrapAbort_p    = &gasneti_bootstrapAbort_mpi;
-    gasneti_bootstrapBarrier_p  = &gasneti_bootstrapBarrier_mpi;
-    gasneti_bootstrapExchange_p = &gasneti_bootstrapExchange_mpi;
-    gasneti_bootstrapAlltoall_p = &gasneti_bootstrapAlltoall_mpi;
-    gasneti_bootstrapBroadcast_p= &gasneti_bootstrapBroadcast_mpi;
-    gasneti_bootstrapSNodeCast_p= &gasneti_bootstrapSNodeBroadcast_mpi;
-    gasneti_bootstrapCleanup_p  = &gasneti_bootstrapCleanup_mpi;
-  } else
-#endif
-#if HAVE_PMI_SPAWNER
-  if ((!strcmp(spawner, "pmi") || (spawner == not_set)) &&
-      GASNET_OK == (result = gasneti_bootstrapInit_pmi(argc, argv, nodes_p, mynode_p))) {
-    gasneti_bootstrapFini_p     = &gasneti_bootstrapFini_pmi;
-    gasneti_bootstrapAbort_p    = &gasneti_bootstrapAbort_pmi;
-    gasneti_bootstrapBarrier_p  = &gasneti_bootstrapBarrier_pmi;
-    gasneti_bootstrapExchange_p = &gasneti_bootstrapExchange_pmi;
-    gasneti_bootstrapAlltoall_p = &gasneti_bootstrapAlltoall_pmi;
-    gasneti_bootstrapBroadcast_p= &gasneti_bootstrapBroadcast_pmi;
-    gasneti_bootstrapSNodeCast_p= &gasneti_bootstrapSNodeBroadcast_pmi;
-    gasneti_bootstrapCleanup_p  = &gasneti_bootstrapCleanup_pmi;
-  } else
-#endif
-  {
-    gasneti_fatalerror("Requested spawner \"%s\" is unknown or not supported in this build", spawner);
-  }
-
-  memset(&gasnetc_ofi_state, 0, sizeof(gasnetc_ofi_state_t));
+  gasneti_spawner = gasneti_spawnerInit(argc, argv, NULL, &gasneti_nodes, &gasneti_mynode);
+  if (!gasneti_spawner) GASNETI_RETURN_ERRR(NOT_INIT, "GASNet job spawn failed");
 
   gasneti_spinlock_init(&gasnetc_ofi_state.lock);
 
@@ -287,7 +230,7 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   ret = fi_enable(gasnetc_ofi_am_epfd);
   if (FI_SUCCESS != ret) gasneti_fatalerror("fi_enable for am failed: %d\n", ret);
 
-  gasneti_nodemapInit(gasneti_bootstrapExchange_p, NULL, 0, 0);
+  gasneti_nodemapInit(gasneti_bootstrapExchange, NULL, 0, 0);
 
   /* Get the address of AM endpoint and publish to other nodes through bootstrap
    * exchange function */
@@ -295,11 +238,13 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   ret = fi_getname(&gasnetc_ofi_rdma_epfd->fid, sockname+socknamelen, &socknamelen);
   if (FI_SUCCESS != ret) gasneti_fatalerror("fi_getepname failed: %d\n", ret);
   alladdrs = gasneti_malloc(gasneti_nodes*socknamelen*2);
-  (*gasneti_bootstrapExchange_p)(&sockname, socknamelen*2, alladdrs);
-  if (gasneti_nodes*2 != fi_av_insert(gasnetc_ofi_avfd, alladdrs, gasneti_nodes*2,
-			  (fi_addr_t*)mapped_table, 0ULL, NULL)) {
-  	gasneti_fatalerror("fi_av_insert failed: %d\n", ret);
-  }
+  gasneti_bootstrapExchange(&sockname, socknamelen*2, alladdrs);
+
+  ret = fi_av_insert(gasnetc_ofi_avfd, alladdrs, gasneti_nodes*2, (fi_addr_t*)mapped_table,
+          0ULL, NULL);
+  if (gasneti_nodes*2 != ret) 
+      gasneti_fatalerror("fi_av_insert failed. Expected: %d Actual: %d\n", gasneti_nodes*2, ret);
+  
   gasneti_free(alladdrs);
 
   fi_freeinfo(hints);

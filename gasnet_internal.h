@@ -242,6 +242,33 @@ extern void gasneti_freezeForDebugger(void);
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+// Internal conduit interface to spawner
+
+typedef void (*gasneti_bootstrapExchangefn_t)(void *src, size_t len, void *dest);
+typedef void (*gasneti_bootstrapBroadcastfn_t)(void *src, size_t len, void *dest, int rootnode);
+typedef void (*gasneti_bootstrapBarrierfn_t)(void);
+
+typedef struct {
+  gasneti_bootstrapBarrierfn_t Barrier;
+  gasneti_bootstrapExchangefn_t Exchange;
+  gasneti_bootstrapBroadcastfn_t Broadcast;
+  void (*SNodeBroadcast)(void *src, size_t len, void *dest, int rootnode);
+  void (*Alltoall)(void *src, size_t len, void *dest);
+  void (*Abort)(int exitcode);
+  void (*Cleanup)(void);
+  void (*Fini)(void);
+#if GASNET_BLCR
+  int (*PreCheckpoint)(int fd);
+  int (*PostCheckpoint)(int fd, int is_restart);
+  int (*Rollback)(const char *dir);
+#endif
+} gasneti_spawnerfn_t;
+
+extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_p,
+                                  const char *force_spawner,
+                                  gasnetex_rank_t *nodes_p, gasnetex_rank_t *mynode_p);
+
+/* ------------------------------------------------------------------------------------ */
 /* memory segment registration and management */
 
 void gasneti_defaultSignalHandler(int sig);
@@ -283,10 +310,6 @@ void gasneti_defaultSignalHandler(int sig);
 #ifndef GASNETI_USE_HIGHSEGMENT
 #define GASNETI_USE_HIGHSEGMENT 1  /* use the high end of mmap segments */
 #endif
-
-typedef void (*gasneti_bootstrapExchangefn_t)(void *src, size_t len, void *dest);
-typedef void (*gasneti_bootstrapBroadcastfn_t)(void *src, size_t len, void *dest, int rootnode);
-typedef void (*gasneti_bootstrapBarrierfn_t)(void);
 
 #if !GASNET_SEGMENT_EVERYTHING
 #ifdef GASNETI_MMAP_OR_PSHM

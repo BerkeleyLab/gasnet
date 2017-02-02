@@ -3004,8 +3004,6 @@ AC_SUBST(MXM_INCLUDE)
 AC_SUBST(MXM_LIBDIR)
 AC_SUBST(MXM_LIBS)
 AM_CONDITIONAL(USE_MXM_CONDUIT, test "$have_mxm" = yes)
-AM_CONDITIONAL(MXM_BOOTSTRAP_SSH, test "$have_fork" = yes)
-AM_CONDITIONAL(MXM_BOOTSTRAP_MPI, test "$have_mpi_compat" = yes)	# Option to omit MPI support?
 CONDUIT_EX_UNIMPLEMENTED
 CONDUIT_END([test "$have_mxm" = yes])
 
@@ -3088,8 +3086,6 @@ AC_SUBST(PSM_INCLUDE)
 AC_SUBST(PSM_LIBDIR)
 AC_SUBST(PSM_LIBS)
 AM_CONDITIONAL(USE_PSM_CONDUIT, test "$have_psm" = yes)
-AM_CONDITIONAL(PSM_BOOTSTRAP_SSH, test "$have_fork" = yes)
-AM_CONDITIONAL(PSM_BOOTSTRAP_MPI, test "$have_mpi_compat" = yes)	# Option to omit MPI support?
 CONDUIT_EX_UNIMPLEMENTED
 CONDUIT_END([test "$have_psm" = yes])
 
@@ -3405,8 +3401,6 @@ AC_SUBST(IBV_LIBDIR)
 AC_SUBST(IBV_LIBS)
 AC_SUBST(IBV_LIBCFLAGS)
 AM_CONDITIONAL(USE_IBV_CONDUIT, test "$have_ibv" = yes)
-AM_CONDITIONAL(IBV_BOOTSTRAP_SSH, test "$have_fork" = yes)
-AM_CONDITIONAL(IBV_BOOTSTRAP_MPI, test "$have_mpi_compat" = yes)	# Option to omit MPI support?
 AM_CONDITIONAL(IBV_SEQ_THREADS, test "$enabled_ibv_rcv_thread$enabled_ibv_conn_thread" != nono)
 CONDUIT_END([test "$have_ibv" = yes])
 
@@ -3837,8 +3831,6 @@ AC_SUBST(OFI_LIBDIR)
 AC_SUBST(OFI_LIBS)
 AC_SUBST(OFI_LIBCFLAGS)
 AM_CONDITIONAL(USE_OFI_CONDUIT, test "$have_ofi" = yes)
-AM_CONDITIONAL(OFI_BOOTSTRAP_SSH, test "$have_fork" = yes)
-AM_CONDITIONAL(OFI_BOOTSTRAP_MPI, test "$have_mpi_compat" = yes)
 CONDUIT_EX_UNIMPLEMENTED
 CONDUIT_END([test "$have_ofi" = yes])
 #---------------------------------------------------------------------------------------------------------------
@@ -3931,6 +3923,8 @@ dnl GASNET_TOOLSONLY_FALSE_BEGIN
 # resolve to invoking gasnetrun_mpi.pl.
 MPIRUN_COMMON=$TOP_BUILDDIR/other/mpirun_common
 AC_SUBST_FILE(MPIRUN_COMMON)
+
+AM_CONDITIONAL(HAVE_BOOTSTRAP_MPI, test "$have_mpi_compat" = yes)	# Option to omit MPI support?
 
 # Things needed by ssh spawner
 SSH_SPAWNER_LIBS=""
@@ -4030,6 +4024,7 @@ GASNET_WITH(ssh-out-degree,
    [gasnet_ssh_out_degree=32])
 AC_DEFINE_UNQUOTED(GASNETI_DEFAULT_SSH_OUT_DEGREE, $gasnet_ssh_out_degree)
 
+AM_CONDITIONAL(HAVE_BOOTSTRAP_SSH, test "$have_fork" = yes)
 
 # Things for pmi-spawner
 

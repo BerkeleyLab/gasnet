@@ -5,7 +5,6 @@
  */
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
-#include <ssh-spawner/gasnet_bootstrap_internal.h>
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -101,28 +100,28 @@
    The tree structure is used to provide scalable implementations of
    the following "service" routines for use during the bootstrap, as
    required in the template-conduit:
-      extern void gasneti_bootstrapBarrier_ssh(void);
-      extern void gasneti_bootstrapExchange_ssh(void *src, size_t len, void *dest);
-      extern void gasneti_bootstrapBroadcast_ssh(void *src, size_t len, void *dest, int rootnode);
-      extern void gasneti_bootstrapSNodeBroadcast_ssh(void *src, size_t len, void *dest, int rootnode);
+      void Barrier(void);
+      void Exchange(void *src, size_t len, void *dest);
+      void Broadcast(void *src, size_t len, void *dest, int rootnode);
+      void SNodeBroadcast(void *src, size_t len, void *dest, int rootnode);
    
    Additionally, the following is useful (at least in ibv-conduit)
    for exchanging endpoint identifiers in a scalable manner:
-      extern void gasneti_bootstrapAlltoall_ssh(void *src, size_t len, void *dest);
+      void Alltoall(void *src, size_t len, void *dest);
 
    If demand exists, scalable Scatter and Gather are possible.
 
    The following are needed to handle startup and termination:
-      extern int  gasneti_bootstrapInit_ssh(int *argc_p, char ***argv_p,
+      extern gasneti_spawnerfn_t const * gasneti_bootstrapInit_ssh(int *argc_p, char ***argv_p,
                                             gasnetex_rank_t *nodes_p,
                                             gasnetex_rank_t *mynode_p);
-      extern void gasneti_bootstrapFini_ssh(void);
-      extern void gasneti_bootstrapAbort_ssh(int exitcode);
+      void Fini(void);
+      void Abort(int exitcode);
 
    In the case of normal termination, all nodes should call
-   gasneti_bootstrapFini_ssh() before they call exit().  In the event
+   Fini() before they call exit().  In the event
    that gasnet is unable to arrange for an orderly shutdown, a call to
-   gasneti_bootstrapAbort_ssh() will try to force all processes to exit
+   Abort() will try to force all processes to exit
    with the given exit code.
 
    To control the spawner, there are a few environment variables, all of
@@ -132,9 +131,9 @@
 
    The following are (conditional on GASNET_BLCR) provided for support
    of BLCR-based checkpoint, restart and rollback:
-      extern int gasneti_bootstrapPreCheckpoint_ssh(int fd);
-      extern int gasneti_bootstrapPostCheckpoint_ssh(int fd, int is_restart);
-      extern int gasneti_bootstrapRollback_ssh(const char *dir);
+      int PreCheckpoint(int fd);
+      int PostCheckpoint(int fd, int is_restart);
+      int Rollback(const char *dir);
 
    XXX: still to do
    + Group same-node when appears multiple times in list
@@ -145,6 +144,10 @@
      socket w/o blocking?
 
  */
+
+GASNETI_IDENT(gasnetc_IdentString_HaveSSHSpawner, "$GASNetSSHSpawner: 1 $");
+
+static gasneti_spawnerfn_t const spawnerfn;
 
 #ifndef GASNETI_BOOTSTRAP_LOCAL_SPAWN
   #define GASNETI_BOOTSTRAP_LOCAL_SPAWN 1
@@ -2665,7 +2668,7 @@ static void do_control(const char *spawn_args, int *argc_p, char ***argv_p)
  * Not waiting here allows any subsequent that first collective to overlap
  * with the spawning.
  */
-int gasneti_bootstrapInit_ssh(int *argc_p, char ***argv_p, gasnetex_rank_t *nodes_p, gasnetex_rank_t *mynode_p) {
+extern gasneti_spawnerfn_t const * gasneti_bootstrapInit_ssh(int *argc_p, char ***argv_p, gasnetex_rank_t *nodes_p, gasnetex_rank_t *mynode_p) {
   const char *spawner, *spawn_args;                                                                             int explicit_master = 0;
 
   null_init = !(argc_p && argv_p);
@@ -2677,7 +2680,7 @@ int gasneti_bootstrapInit_ssh(int *argc_p, char ***argv_p, gasnetex_rank_t *node
     spawner    = my_getenv(ENV_PREFIX "SPAWNER");
     spawn_args = my_getenv(ENV_PREFIX "SPAWN_ARGS");
     if (!spawner || !spawn_args || strcmp(spawner, "ssh") || (strlen(spawn_args) < 2)) {
-      return GASNET_ERR_NOT_INIT;
+      return NULL;
     }
     gasnett_unsetenv(ENV_PREFIX "SPAWN_ARGS");
   }
@@ -2744,7 +2747,7 @@ int gasneti_bootstrapInit_ssh(int *argc_p, char ***argv_p, gasnetex_rank_t *node
         break;
 
       default:
-        return GASNET_ERR_NOT_INIT;
+        return NULL;
     }
   }
 
@@ -2754,12 +2757,14 @@ int gasneti_bootstrapInit_ssh(int *argc_p, char ***argv_p, gasnetex_rank_t *node
   gasneti_conduit_getenv = &do_getenv;
   *nodes_p  = nranks;
   *mynode_p = myrank;
-  return do_worker();
+
+  if (do_worker() == GASNET_OK) return &spawnerfn;
+  else return NULL;
 }
 
-/* gasneti_bootstrapFini
+/* bootstrapFini
  */
-void gasneti_bootstrapFini_ssh(void) {
+static void bootstrapFini(void) {
   char cmd0 = BOOTSTRAP_CMD_FINI0;
   char cmd1 = BOOTSTRAP_CMD_FINI1;
 
@@ -2768,18 +2773,18 @@ void gasneti_bootstrapFini_ssh(void) {
   wait_cmd(cmd1);
 }
 
-/* gasneti_bootstrapAbort
+/* bootstrapAbort
  *
  * Force immediate (abnormal) termination.
  */
-void gasneti_bootstrapAbort_ssh(int exitcode) {
+static void bootstrapAbort(int exitcode) {
   BOOTSTRAP_VERBOSE(("[r%d] Abort(%d)\n", myrank, exitcode));
   do_abort((unsigned char)exitcode);
   gasneti_fatalerror("do_abort failed.");
   /* NOT REACHED */
 }
 
-void gasneti_bootstrapBarrier_ssh(void) {
+static void bootstrapBarrier(void) {
   const char cmd0 = BOOTSTRAP_CMD_BARR0;
   const char cmd1 = BOOTSTRAP_CMD_BARR1;
 
@@ -2788,7 +2793,7 @@ void gasneti_bootstrapBarrier_ssh(void) {
   wait_cmd(cmd1);
 }
 
-void gasneti_bootstrapExchange_ssh(void *src, size_t len, void *dest) {
+static void bootstrapExchange(void *src, size_t len, void *dest) {
   char cmd0 = BOOTSTRAP_CMD_EXCHG0;
   char cmd1 = BOOTSTRAP_CMD_EXCHG1;
   const gasnetex_rank_t next = myrank + 1;
@@ -2813,7 +2818,7 @@ void gasneti_bootstrapExchange_ssh(void *src, size_t len, void *dest) {
   do_readv(parent, iov, 2);
 }
 
-void gasneti_bootstrapAlltoall_ssh(void *src, size_t len, void *dest) {
+static void bootstrapAlltoall(void *src, size_t len, void *dest) {
   char cmd0 = BOOTSTRAP_CMD_TRANS0;
   char cmd1 = BOOTSTRAP_CMD_TRANS1;
   struct iovec iov[4];
@@ -2833,7 +2838,7 @@ void gasneti_bootstrapAlltoall_ssh(void *src, size_t len, void *dest) {
   do_readv(parent, iov, 2);
 }
 
-void gasneti_bootstrapBroadcast_ssh(void *src, size_t len, void *dest, int rootnode) {
+static void bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) {
   const char cmd0 = BOOTSTRAP_CMD_BCAST0;
   const char cmd1 = BOOTSTRAP_CMD_BCAST1;
   struct iovec iov[3];
@@ -2857,7 +2862,7 @@ void gasneti_bootstrapBroadcast_ssh(void *src, size_t len, void *dest, int rootn
   }
 }
 
-void gasneti_bootstrapSNodeBroadcast_ssh(void *src, size_t len, void *dest, int rootnode_arg) {
+static void bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootnode_arg) {
   char cmd0 = BOOTSTRAP_CMD_SNBCAST0;
   char cmd1 = BOOTSTRAP_CMD_SNBCAST1;
   const gasnetex_rank_t rootnode = rootnode_arg;
@@ -2877,7 +2882,7 @@ void gasneti_bootstrapSNodeBroadcast_ssh(void *src, size_t len, void *dest, int 
   do_read(parent, dest, len);
 }
 
-void gasneti_bootstrapCleanup_ssh(void) {
+static void bootstrapCleanup(void) {
   /* TODO: anything we can free at end of bootstrap collectives? */
 }
 
@@ -3005,7 +3010,7 @@ static int blcr_rollback(gasnetex_rank_t rank, const char *dir) {
     return blcr_rstart_request(rank, dir, RSTRT_CMD_ROLLBACK | (is_verbose?RSTRT_VERBOSE:0));
 }
 
-int gasneti_bootstrapRollback_ssh(const char *dir) {
+static int bootstrapRollback(const char *dir) {
   if (dir) {
     (void)fcntl_clrfd(parent, FD_CLOEXEC);
     cmd_rollback(-1, dir);
@@ -3014,11 +3019,11 @@ int gasneti_bootstrapRollback_ssh(const char *dir) {
   return GASNET_OK;
 }
 
-int gasneti_bootstrapPreCheckpoint_ssh(int fd) {
+static int bootstrapPreCheckpoint(int fd) {
   return GASNET_OK;
 }
 
-int gasneti_bootstrapPostCheckpoint_ssh(int fd, int restart) {
+static int bootstrapPostCheckpoint(int fd, int restart) {
   if (restart) {
     char restart_args;
     cmd_rstrt_args(-1, &restart_args);
@@ -3049,3 +3054,22 @@ int gasneti_bootstrapPostCheckpoint_ssh(int fd, int restart) {
 }
 
 #endif /* GASNET_BLCR */
+
+/*----------------------------------------------------------------------------------------------*/
+
+static gasneti_spawnerfn_t const spawnerfn = {
+  bootstrapBarrier,
+  bootstrapExchange,
+  bootstrapBroadcast,
+  bootstrapSNodeBroadcast,
+  bootstrapAlltoall,
+  bootstrapAbort,
+  bootstrapCleanup,
+  bootstrapFini,
+#if GASNET_BLCR
+  bootstrapPreCheckpoint,
+  bootstrapPostCheckpoint,
+  bootstrapRollback,
+#endif
+};
+

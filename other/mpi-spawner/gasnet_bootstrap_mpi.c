@@ -7,7 +7,6 @@
 
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
-#include <mpi-spawner/gasnet_bootstrap_internal.h>
 #include <signal.h>
 #include <mpi.h>
 
@@ -26,6 +25,10 @@ static MPI_Comm gasnetc_mpi_comm;
 static int gasnetc_mpi_preinitialized = 0;
 static int gasnetc_mpi_size = -1;
 static int gasnetc_mpi_rank = -1;
+
+GASNETI_IDENT(gasnetc_IdentString_HaveMPISpawner, "$GASNetMPISpawner: 1 $");
+
+static gasneti_spawnerfn_t const spawnerfn;
 
 #ifndef HAVE_MPI_INIT_THREAD
 #define HAVE_MPI_INIT_THREAD (MPI_VERSION >= 2 || (defined(MPI_THREAD_SINGLE) && defined(MPI_THREAD_SERIALIZED)))
@@ -61,20 +64,20 @@ static const char *threadint2str(int id) {
   }
 }
 
-int gasneti_bootstrapInit_mpi(int *argc, char ***argv, gasnetex_rank_t *nodes, gasnetex_rank_t *mynode) {
+extern gasneti_spawnerfn_t const *gasneti_bootstrapInit_mpi(int *argc, char ***argv, gasnetex_rank_t *nodes, gasnetex_rank_t *mynode) {
   MPI_Group world;
   int err;
 
   /* Call MPI_Init exactly once */
   err = MPI_Initialized(&gasnetc_mpi_preinitialized);
-  if (MPI_SUCCESS != err) return GASNET_ERR_NOT_INIT;
+  if (MPI_SUCCESS != err) return NULL;
 #if !HAVE_MPI_INIT_THREAD
   if (!gasnetc_mpi_preinitialized) {
   #if MPI_VERSION < 2
-    if (!argc || !argv) return GASNET_ERR_BAD_ARG;
+    if (!argc || !argv) return NULL;
   #endif
     err = MPI_Init(argc, argv);
-    if (MPI_SUCCESS != err) return GASNET_ERR_NOT_INIT;
+    if (MPI_SUCCESS != err) return NULL;
   }
 #else /* HAVE_MPI_INIT_THREAD */
   // Setup/verify the threading mode
@@ -110,7 +113,7 @@ int gasneti_bootstrapInit_mpi(int *argc, char ***argv, gasnetex_rank_t *nodes, g
         fflush(stderr);
       #endif
       err = MPI_Init_thread(argc, argv, required, &provided);
-      if (err != MPI_SUCCESS) return GASNET_ERR_NOT_INIT;
+      if (err != MPI_SUCCESS) return NULL;
     }
     #if GASNET_DEBUG_VERBOSE
       fprintf(stderr,"mpi-spawner: MPI threading mode: %s required, %s provided.\n",
@@ -147,13 +150,13 @@ int gasneti_bootstrapInit_mpi(int *argc, char ***argv, gasnetex_rank_t *nodes, g
   *mynode = gasnetc_mpi_rank;
 
   gasneti_setupGlobalEnvironment(*nodes, *mynode,
-				 &gasneti_bootstrapExchange_mpi,
-				 &gasneti_bootstrapBroadcast_mpi);
+				 spawnerfn.Exchange,
+				 spawnerfn.Broadcast);
 
-  return GASNET_OK;
+  return &spawnerfn;
 }
 
-void gasneti_bootstrapFini_mpi(void) {
+static void bootstrapFini(void) {
   int err;
 
 #if (MPI_VERSION > 1)
@@ -177,7 +180,7 @@ void gasneti_bootstrapFini_mpi(void) {
   }
 }
 
-void gasneti_bootstrapAbort_mpi(int exitcode) {
+static void bootstrapAbort(int exitcode) {
   (void) MPI_Abort(gasnetc_mpi_comm, exitcode);
 
   gasneti_reghandler(SIGABRT, SIG_DFL);
@@ -185,14 +188,14 @@ void gasneti_bootstrapAbort_mpi(int exitcode) {
   /* NOT REACHED */
 }
 
-void gasneti_bootstrapBarrier_mpi(void) {
+static void bootstrapBarrier(void) {
   int err;
 
   err = MPI_Barrier(gasnetc_mpi_comm);
   gasneti_assert_always(err == MPI_SUCCESS);
 }
 
-void gasneti_bootstrapExchange_mpi(void *src, size_t len, void *dest) {
+static void bootstrapExchange(void *src, size_t len, void *dest) {
   const int inplace = ((uint8_t *)src == (uint8_t *)dest + len * gasnetc_mpi_rank);
   int err;
 
@@ -212,7 +215,7 @@ void gasneti_bootstrapExchange_mpi(void *src, size_t len, void *dest) {
 #endif
 }
 
-void gasneti_bootstrapAlltoall_mpi(void *src, size_t len, void *dest) {
+static void bootstrapAlltoall(void *src, size_t len, void *dest) {
   const int inplace = (src == dest);
   int err;
 
@@ -233,7 +236,7 @@ void gasneti_bootstrapAlltoall_mpi(void *src, size_t len, void *dest) {
 #endif
 }
 
-void gasneti_bootstrapBroadcast_mpi(void *src, size_t len, void *dest, int rootnode) {
+static void bootstrapBroadcast(void *src, size_t len, void *dest, int rootnode) {
   int err;
   
   if (gasnetc_mpi_rank == rootnode) {
@@ -243,7 +246,7 @@ void gasneti_bootstrapBroadcast_mpi(void *src, size_t len, void *dest, int rootn
   gasneti_assert_always(err == MPI_SUCCESS);
 }
 
-void gasneti_bootstrapSNodeBroadcast_mpi(void *src, size_t len, void *dest, int rootnode) {
+static void bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootnode) {
   int err;
 
   if (gasnetc_mpi_rank == rootnode) {
@@ -267,6 +270,23 @@ void gasneti_bootstrapSNodeBroadcast_mpi(void *src, size_t len, void *dest, int 
   }
 }
 
-void gasneti_bootstrapCleanup_mpi(void) {
+static void bootstrapCleanup(void) {
   /* Nothing to do here */
 }
+
+static gasneti_spawnerfn_t const spawnerfn = {
+  bootstrapBarrier,
+  bootstrapExchange,
+  bootstrapBroadcast,
+  bootstrapSNodeBroadcast,
+  bootstrapAlltoall,
+  bootstrapAbort,
+  bootstrapCleanup,
+  bootstrapFini,
+#if GASNET_BLCR && 0 // BLCR-TODO
+  bootstrapPreCheckpoint,
+  bootstrapPostCheckpoint,
+  bootstrapRollback,
+#endif
+};
+

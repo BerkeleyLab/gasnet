@@ -21,16 +21,6 @@
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
-#if HAVE_SSH_SPAWNER
-  GASNETI_IDENT(gasnetc_IdentString_HaveSSHSpawner, "$GASNetSSHSpawner: 1 $");
-#endif
-#if HAVE_MPI_SPAWNER
-  GASNETI_IDENT(gasnetc_IdentString_HaveMPISpawner, "$GASNetMPISpawner: 1 $");
-#endif
-#if HAVE_PMI_SPAWNER
-  GASNETI_IDENT(gasnetc_IdentString_HavePMISpawner, "$GASNetPMISpawner: 1 $");
-#endif
-
 /* ------------------------------------------------------------------------------------ */
 /*
   Configuration
@@ -170,19 +160,7 @@ static int gasnetc_did_firehose_init = 0;
   Bootstrap collectives
 */
 
-static void (*gasneti_bootstrapBarrier_p)(void) = NULL;
-static void (*gasneti_bootstrapExchange_p)(void *src, size_t len, void *dest) = NULL;
-void (*gasneti_bootstrapFini_p)(void) = NULL;
-void (*gasneti_bootstrapAbort_p)(int exitcode) = NULL;
-void (*gasneti_bootstrapAlltoall_p)(void *src, size_t len, void *dest) = NULL;
-void (*gasneti_bootstrapBroadcast_p)(void *src, size_t len, void *dest, int rootnode) = NULL;
-void (*gasneti_bootstrapSNodeCast_p)(void *src, size_t len, void *dest, int rootnode) = NULL;
-void (*gasneti_bootstrapCleanup_p)(void) = NULL;
-#if GASNET_BLCR
-static int (*gasneti_bootstrapPreCheckpoint_p)(int fd) = NULL;
-static int (*gasneti_bootstrapPostCheckpoint_p)(int fd, int is_restart) = NULL;
-static int (*gasneti_bootstrapRollback_p)(const char *dir) = NULL;
-#endif
+gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
 static int gasneti_bootstrap_native_coll = 0;
 static int gasnetc_bootstrapBarrier_phase = 0;
@@ -320,7 +298,7 @@ done:
   gasneti_assert(! gasneti_bootstrap_native_coll);
   gasneti_bootstrap_native_coll = 1;
 #if !GASNETC_IBV_SHUTDOWN
-  gasneti_bootstrapCleanup(); /* No futher use of ssh/mpi/pmi collectives */
+  gasneti_spawner->Cleanup(); /* No futher use of ssh/mpi/pmi collectives */
 #endif
 }
 
@@ -383,7 +361,7 @@ static void gasnetc_sys_barrier_reqh(gasnetex_token_t token, uint32_t arg)
 #endif
 }
 
-extern void gasnetc_bootstrapBarrier_ib(void)
+static void gasnetc_bootstrapBarrier_ib(void)
 {
     int phase = gasnetc_bootstrapBarrier_phase;
     int i;
@@ -423,7 +401,7 @@ extern void gasneti_bootstrapBarrier(void)
   #endif
     gasnetc_bootstrapBarrier_ib();
   } else {
-    (*gasneti_bootstrapBarrier_p)();
+    gasneti_spawner->Barrier();
   }
 }
 
@@ -501,7 +479,7 @@ static void gasnetc_sys_exchange_reqh(gasnetex_token_t token, void *buf,
   gasnetc_sys_exchange_inc(phase, step);
 }
 
-extern void gasnetc_bootstrapExchange_ib(void *src, size_t len, void *dest)
+static void gasnetc_bootstrapExchange_ib(void *src, size_t len, void *dest)
 {
     int phase = gasnetc_bootstrapExchange_phase;
 
@@ -594,7 +572,7 @@ extern void gasneti_bootstrapExchange(void *src, size_t len, void *dest)
   #endif
     gasnetc_bootstrapExchange_ib(src, len, dest);
   } else {
-    (*gasneti_bootstrapExchange_p)(src, len, dest);
+    gasneti_spawner->Exchange(src, len, dest);
   }
 }
 
@@ -1081,98 +1059,6 @@ static int gasnetc_load_settings(void) {
   return GASNET_OK;
 }
 
-static int  gasneti_bootstrapInit(int *argc_p, char ***argv_p,
-				  gasnetex_rank_t *nodes_p, gasnetex_rank_t *mynode_p) {
-  const char *not_set = "(not set)";
-  char *spawner = gasneti_getenv_withdefault("GASNET_SPAWNER", not_set);
-  int res = GASNET_ERR_NOT_INIT;
-
-#if HAVE_SSH_SPAWNER
-  /* Sigh.  We can't assume GASNET_SPAWNER has been set except in the master.
-   * However, gasneti_bootstrapInit_ssh() verifies the command line args and
-   * returns GASNET_ERR_NOT_INIT on failure witout any noise on stderr.
-   * So, when the env var is not set, we try ssh-based spawn first.
-   */
-  if (GASNET_OK != res && (!strcmp(spawner, "ssh") || (spawner == not_set)) &&
-      GASNET_OK == (res = gasneti_bootstrapInit_ssh(argc_p, argv_p, nodes_p, mynode_p))) {
-    gasneti_bootstrapFini_p	= &gasneti_bootstrapFini_ssh;
-    gasneti_bootstrapAbort_p	= &gasneti_bootstrapAbort_ssh;
-    gasneti_bootstrapBarrier_p	= &gasneti_bootstrapBarrier_ssh;
-    gasneti_bootstrapExchange_p	= &gasneti_bootstrapExchange_ssh;
-    gasneti_bootstrapAlltoall_p	= &gasneti_bootstrapAlltoall_ssh;
-    gasneti_bootstrapBroadcast_p= &gasneti_bootstrapBroadcast_ssh;
-    gasneti_bootstrapSNodeCast_p= &gasneti_bootstrapSNodeBroadcast_ssh;
-    gasneti_bootstrapCleanup_p  = &gasneti_bootstrapCleanup_ssh;
-  #if GASNET_BLCR
-    gasneti_bootstrapPreCheckpoint_p   = &gasneti_bootstrapPreCheckpoint_ssh;
-    gasneti_bootstrapPostCheckpoint_p  = &gasneti_bootstrapPostCheckpoint_ssh;
-    gasneti_bootstrapRollback_p        = &gasneti_bootstrapRollback_ssh;
-  #endif
-  }
-#endif
-
-#if HAVE_MPI_SPAWNER
-  /* Only try MPI-based spawn when spawner == "mpi".
-   * Otherwise things could hang or fail in "messy" ways here.
-   */
-  if (GASNET_OK != res && !strcmp(spawner, "mpi") && 
-      GASNET_OK == (res = gasneti_bootstrapInit_mpi(argc_p, argv_p, nodes_p, mynode_p))) {
-    gasneti_bootstrapFini_p	= &gasneti_bootstrapFini_mpi;
-    gasneti_bootstrapAbort_p	= &gasneti_bootstrapAbort_mpi;
-    gasneti_bootstrapBarrier_p	= &gasneti_bootstrapBarrier_mpi;
-    gasneti_bootstrapExchange_p	= &gasneti_bootstrapExchange_mpi;
-    gasneti_bootstrapAlltoall_p	= &gasneti_bootstrapAlltoall_mpi;
-    gasneti_bootstrapBroadcast_p= &gasneti_bootstrapBroadcast_mpi;
-    gasneti_bootstrapSNodeCast_p= &gasneti_bootstrapSNodeBroadcast_mpi;
-    gasneti_bootstrapCleanup_p  = &gasneti_bootstrapCleanup_mpi;
-  #if GASNET_BLCR && 0 /* BLCR-TODO: support mpi spawner */
-    gasneti_bootstrapPreCheckpoint_p   = &gasneti_bootstrapPreCheckpoint_mpi;
-    gasneti_bootstrapPostCheckpoint_p  = &gasneti_bootstrapPostCheckpoint_mpi;
-    gasneti_bootstrapRollback_p        = &gasneti_bootstrapRollback_mpi;
-  #endif
-  }
-#endif
-
-#if HAVE_PMI_SPAWNER
-  /* Don't really expect GASNET_SPAWNER set if launched directly by srun, mpirun, yod, etc.
-   * So, when the env var is not set, we try pmi-based spawn last.
-   */
-  if (GASNET_OK != res && (!strcmp(spawner, "pmi") || (spawner == not_set)) &&
-      GASNET_OK == (res = gasneti_bootstrapInit_pmi(argc_p, argv_p, nodes_p, mynode_p))) {
-    gasneti_bootstrapFini_p	= &gasneti_bootstrapFini_pmi;
-    gasneti_bootstrapAbort_p	= &gasneti_bootstrapAbort_pmi;
-    gasneti_bootstrapBarrier_p	= &gasneti_bootstrapBarrier_pmi;
-    gasneti_bootstrapExchange_p	= &gasneti_bootstrapExchange_pmi;
-    gasneti_bootstrapAlltoall_p	= &gasneti_bootstrapAlltoall_pmi;
-    gasneti_bootstrapBroadcast_p= &gasneti_bootstrapBroadcast_pmi;
-    gasneti_bootstrapSNodeCast_p= &gasneti_bootstrapSNodeBroadcast_pmi;
-    gasneti_bootstrapCleanup_p  = &gasneti_bootstrapCleanup_pmi;
-  #if GASNET_BLCR && 0 /* BLCR-TODO: support pmi spawner */
-    gasneti_bootstrapPreCheckpoint_p   = &gasneti_bootstrapPreCheckpoint_pmi;
-    gasneti_bootstrapPostCheckpoint_p  = &gasneti_bootstrapPostCheckpoint_pmi;
-    gasneti_bootstrapRollback_p        = &gasneti_bootstrapRollback_pmi;
-  #endif
-  }
-#endif
-
-  if (GASNET_OK != res
-#if HAVE_SSH_SPAWNER
-      && strcmp(spawner, "ssh")
-#endif
-#if HAVE_MPI_SPAWNER
-      && strcmp(spawner, "mpi")
-#endif
-#if HAVE_PMI_SPAWNER
-      && strcmp(spawner, "pmi")
-#endif
-      )
-  {
-    gasneti_fatalerror("Requested spawner \"%s\" is unknown or not supported in this build", spawner);
-  }
-
-  return res;
-}
-
 /* Info used while probing for HCAs/ports */
 typedef struct gasnetc_port_list_ {
   struct gasnetc_port_list_	*next;
@@ -1529,10 +1415,8 @@ static int gasnetc_init(int *argc, char ***argv) {
     /* note - can't call trace macros during gasnet_init because trace system not yet initialized */
     fprintf(stderr,"gasnetc_init(): about to spawn...\n"); fflush(stderr);
   #endif
-  i = gasneti_bootstrapInit(argc, argv, &gasneti_nodes, &gasneti_mynode);
-  if (i != GASNET_OK) {
-    return i;
-  }
+  gasneti_spawner = gasneti_spawnerInit(argc, argv, NULL, &gasneti_nodes, &gasneti_mynode);
+  if (!gasneti_spawner) GASNETI_RETURN_ERRR(NOT_INIT, "GASNet job spawn failed");
 
   gasneti_init_done = 1; /* enable early to allow tracing */
 
@@ -2478,8 +2362,8 @@ int gasnet_all_rollback(const char *dir) {
     gasnetc_pre_checkpoint();
 
     /* BLCR-TODO: error reporting/recovery */
-    if (NULL != gasneti_bootstrapRollback_p) {
-      (void) (*gasneti_bootstrapRollback_p)(dir);
+    if (gasneti_spawner->Rollback) {
+      (void) gasneti_spawner->Rollback(dir);
       /* BLCR-TODO: error checking */
     }
 
@@ -2505,8 +2389,8 @@ int gasnet_all_checkpoint(const char *dir_arg) {
       int fd = fd = gasneti_checkpoint_create(dir);
       /* BLCR-TODO: error handling (curently _create() dies on error) */
 
-      if (NULL != gasneti_bootstrapPreCheckpoint_p) {
-        (void) (*gasneti_bootstrapPreCheckpoint_p)(fd);
+      if (gasneti_spawner->PreCheckpoint) {
+        (void) gasneti_spawner->PreCheckpoint(fd);
         /* BLCR-TODO: error checking */
       }
 
@@ -2516,8 +2400,8 @@ int gasnet_all_checkpoint(const char *dir_arg) {
       }
       /* BLCR-TODO: better error handling/recovery */
 
-      if (NULL != gasneti_bootstrapPostCheckpoint_p) {
-        (void) (*gasneti_bootstrapPostCheckpoint_p)(fd, rc);
+      if (gasneti_spawner->PostCheckpoint) {
+        (void) gasneti_spawner->PostCheckpoint(fd, rc);
         /* BLCR-TODO: error checking */
       }
 

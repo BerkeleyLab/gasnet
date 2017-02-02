@@ -6,7 +6,7 @@
 AUTOMAKE_OPTIONS = foreign 1.4
 
 # Use of the MPI spawning support is optional
-if IBV_BOOTSTRAP_MPI
+if HAVE_BOOTSTRAP_MPI
 mpi_target_pl = gasnetrun_ibv-mpi.pl
 $(mpi_target_pl): $(top_srcdir)/mpi-conduit/contrib/gasnetrun_mpi.pl
 	cp -f "$?" $@

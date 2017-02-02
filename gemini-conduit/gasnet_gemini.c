@@ -1,7 +1,6 @@
 #include <gasnet_internal.h>
 #include <gasnet_core_internal.h>
 #include <gasnet_handler.h>
-#include <pmi-spawner/gasnet_bootstrap_internal.h>
 #include <gasnet_gemini.h>
 #include <fcntl.h>
 #include <sys/mman.h>
@@ -1144,7 +1143,7 @@ uintptr_t gasnetc_init_messaging(void)
     struct am_exchange *all_am_exchg = gasneti_malloc(gasneti_nodes * sizeof(struct am_exchange));
     uint8_t *local_peer_base = (uint8_t *)am_mmap_ptr + reply_region_length;
 
-    gasneti_bootstrapExchange_pmi(&my_am_exchg, sizeof(struct am_exchange), all_am_exchg);
+    gasneti_spawner->Exchange(&my_am_exchg, sizeof(struct am_exchange), all_am_exchg);
   
     /* At this point all_am_exchg has the required information for everyone */
     for (i = 0; i < gasneti_nodes; i += 1) {

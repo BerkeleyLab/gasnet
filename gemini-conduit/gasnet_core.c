@@ -8,7 +8,6 @@
 #include <gasnet_internal.h>
 #include <gasnet_handler.h>
 #include <gasnet_core_internal.h>
-#include <pmi-spawner/gasnet_bootstrap_internal.h>
 #include <gasnet_gemini.h>
 /* #include <alps/libalpslli.h> */
 
@@ -34,6 +33,8 @@ static void gasnetc_atexit(void);
 #endif
 
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
+
+gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
 #if GASNETC_GNI_FIREHOSE
 static int gasnetc_did_firehose_init = 0;
@@ -81,9 +82,8 @@ static void gasnetc_check_config(void) {
 static int gasnetc_bootstrapInit(int *argc, char ***argv) {
   const char *envval;
 
-  { int retval = gasneti_bootstrapInit_pmi(argc, argv, &gasneti_nodes, &gasneti_mynode);
-    if (retval != GASNET_OK) GASNETI_RETURN(retval);
-  }
+  gasneti_spawner = gasneti_spawnerInit(argc, argv, "PMI", &gasneti_nodes, &gasneti_mynode);
+  if (!gasneti_spawner) GASNETI_RETURN_ERRR(NOT_INIT, "GASNet job spawn failed");
 
   /* Check for device and address (both or neither) in environment  */
   envval = getenv("PMI_GNI_DEV_ID");
@@ -409,7 +409,7 @@ done:
   gasnetc_handler[_hidx_gasnetc_sys_barrier_reqh]  = (gasneti_handler_fn_t)&gasnetc_sys_barrier_reqh;
   gasnetc_handler[_hidx_gasnetc_sys_exchange_reqh] = (gasneti_handler_fn_t)&gasnetc_sys_exchange_reqh;
 
-  gasneti_bootstrapCleanup_pmi(); /* No further use of PMI-based colelctives */
+  gasneti_spawner->Cleanup(); /* No further use of PMI-based colelctives */
 }
 
 static void gasnetc_sys_coll_fini(void)
@@ -618,7 +618,7 @@ static int gasnetc_init(int *argc, char ***argv) {
      * conduit-specific uses.  The return value is a pointer to the space
      * requested by the 2nd argument.
      */
-    gasnetc_exitcodes = gasneti_pshm_init(&gasneti_bootstrapSNodeBroadcast_pmi,
+    gasnetc_exitcodes = gasneti_pshm_init(gasneti_spawner->SNodeBroadcast,
                                           gasneti_nodemap_local_count * sizeof(gasnetc_exitcode_t));
     gasnetc_exitcodes[gasneti_nodemap_local_rank].present = 0;
   #endif
@@ -1043,7 +1043,7 @@ extern void gasnetc_exit(int exitcode) {
   gasneti_sched_yield();
   gasnetc_shutdown();
 
-  gasneti_bootstrapFini_pmi();  /* normal exit */
+  gasneti_spawner->Fini();  /* normal exit */
   gasneti_killmyprocess(exitcode); /* last chance */
   gasnetc_GNIT_Abort("gasnetc_exit failed!");
 }

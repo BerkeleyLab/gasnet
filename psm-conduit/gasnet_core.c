@@ -16,16 +16,6 @@
 GASNETI_IDENT(gasnetc_IdentString_Version, "$GASNetCoreLibraryVersion: " GASNET_CORE_VERSION_STR " $");
 GASNETI_IDENT(gasnetc_IdentString_Name,    "$GASNetCoreLibraryName: " GASNET_CORE_NAME_STR " $");
 
-#if HAVE_SSH_SPAWNER
-GASNETI_IDENT(gasnetc_IdentString_HaveSSHSpawner, "$GASNetSSHSpawner: 1 $");
-#endif
-#if HAVE_MPI_SPAWNER
-GASNETI_IDENT(gasnetc_IdentString_HaveMPISpawner, "$GASNetMPISpawner: 1 $");
-#endif
-#if HAVE_PMI_SPAWNER
-GASNETI_IDENT(gasnetc_IdentString_HavePMISpawner, "$GASNetPMISpawner: 1 $");
-#endif
-
 gasnet_handlerentry_t const *gasnetc_get_handlertable(void);
 #if HAVE_ON_EXIT
 static void gasnetc_on_exit(int, void*);
@@ -40,16 +30,7 @@ size_t gasnetc_psm_max_reply_len;
 
 gasnetc_psm_state_t gasnetc_psm_state;
 
-
-void (*gasneti_bootstrapFini_p)(void) = NULL;
-void (*gasneti_bootstrapAbort_p)(int exitcode) = NULL;
-void (*gasneti_bootstrapBarrier_p)(void) = NULL;
-void (*gasneti_bootstrapExchange_p)(void *src, size_t len, void *dest) = NULL;
-void (*gasneti_bootstrapAlltoall_p)(void *src, size_t len, void *dest) = NULL;
-void (*gasneti_bootstrapBroadcast_p)(void *src, size_t len, void *dest, int rootnode) = NULL;
-void (*gasneti_bootstrapSNodeCast_p)(void *src, size_t len, void *dest, int rootnode) = NULL;
-void (*gasneti_bootstrapCleanup_p)(void) = NULL;
-
+gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
 /* Core API psm2-level handlers */
 int gasnetc_handler_short(psm2_am_token_t token,
@@ -86,77 +67,6 @@ static void gasnetc_check_config(void) {
 
     /* (###) add code to do some sanity checks on the number of nodes, handlers
      * and/or segment sizes */
-}
-
-GASNETI_COLD
-static void gasnetc_bootstrapBarrier(void) {
-    /* (###) add code here to implement an external barrier
-       this barrier should not rely on AM or the GASNet API because it's used
-       during bootstrapping before such things are fully functional It need not
-       be particularly efficient, because we only call it a few times and only
-       during bootstrapping - it just has to work correctly If your underlying
-       spawning or batch system provides barrier functionality, that would
-       probably be a good choice for this
-       */
-    gasneti_bootstrapBarrier();
-}
-
-
-GASNETI_COLD
-static int gasneti_bootstrapInit(
-    int *argc_p, char ***argv_p,
-    gasnet_node_t *nodes_p,
-    gasnet_node_t *mynode_p)
-{
-    const char *not_set = "(not set)";
-    char *spawner = gasneti_getenv_withdefault("GASNET_SPAWNER", not_set);
-
-    int res = GASNET_ERR_NOT_INIT;
-
-#if HAVE_SSH_SPAWNER
-    if ((!strcmp(spawner, "ssh") || (spawner == not_set)) &&
-            GASNET_OK == (res = gasneti_bootstrapInit_ssh(argc_p, argv_p, nodes_p, mynode_p))) {
-        gasneti_bootstrapFini_p     = &gasneti_bootstrapFini_ssh;
-        gasneti_bootstrapAbort_p    = &gasneti_bootstrapAbort_ssh;
-        gasneti_bootstrapBarrier_p  = &gasneti_bootstrapBarrier_ssh;
-        gasneti_bootstrapExchange_p = &gasneti_bootstrapExchange_ssh;
-        gasneti_bootstrapAlltoall_p = &gasneti_bootstrapAlltoall_ssh;
-        gasneti_bootstrapBroadcast_p= &gasneti_bootstrapBroadcast_ssh;
-        gasneti_bootstrapSNodeCast_p= &gasneti_bootstrapSNodeBroadcast_ssh;
-        gasneti_bootstrapCleanup_p  = &gasneti_bootstrapCleanup_ssh;
-    } else
-#endif
-#if HAVE_MPI_SPAWNER
-    if ((!strcmp(spawner, "mpi") || (spawner == not_set)) &&
-            GASNET_OK == (res = gasneti_bootstrapInit_mpi(argc_p, argv_p, nodes_p, mynode_p))) {
-        gasneti_bootstrapFini_p    = &gasneti_bootstrapFini_mpi;
-        gasneti_bootstrapAbort_p    = &gasneti_bootstrapAbort_mpi;
-        gasneti_bootstrapBarrier_p    = &gasneti_bootstrapBarrier_mpi;
-        gasneti_bootstrapExchange_p    = &gasneti_bootstrapExchange_mpi;
-        gasneti_bootstrapAlltoall_p    = &gasneti_bootstrapAlltoall_mpi;
-        gasneti_bootstrapBroadcast_p= &gasneti_bootstrapBroadcast_mpi;
-        gasneti_bootstrapSNodeCast_p= &gasneti_bootstrapSNodeBroadcast_mpi;
-        gasneti_bootstrapCleanup_p  = &gasneti_bootstrapCleanup_mpi;
-    } else
-#endif
-#if HAVE_PMI_SPAWNER
-    if ((!strcmp(spawner, "pmi") || (spawner == not_set)) &&
-            GASNET_OK == (res = gasneti_bootstrapInit_pmi(argc_p, argv_p, nodes_p, mynode_p))) {
-        gasneti_bootstrapFini_p = &gasneti_bootstrapFini_pmi;
-        gasneti_bootstrapAbort_p    = &gasneti_bootstrapAbort_pmi;
-        gasneti_bootstrapBarrier_p  = &gasneti_bootstrapBarrier_pmi;
-        gasneti_bootstrapExchange_p = &gasneti_bootstrapExchange_pmi;
-        gasneti_bootstrapAlltoall_p = &gasneti_bootstrapAlltoall_pmi;
-        gasneti_bootstrapBroadcast_p= &gasneti_bootstrapBroadcast_pmi;
-        gasneti_bootstrapSNodeCast_p= &gasneti_bootstrapSNodeBroadcast_pmi;
-        gasneti_bootstrapCleanup_p  = &gasneti_bootstrapCleanup_pmi;
-    } else
-#endif
-    {
-        gasneti_fatalerror("Requested spawner \"%s\" is unknown or not supported in this build", spawner);
-    }
-
-    return res;
 }
 
 GASNETI_COLD
@@ -214,7 +124,7 @@ static void gasneti_check_bug3333(int ver_major, int ver_minor) {
 );
             fflush(stderr);
         }
-        gasnetc_bootstrapBarrier();
+        gasneti_bootstrapBarrier();
         gasneti_bootstrapFini();
         _exit(1);
     }
@@ -222,7 +132,6 @@ static void gasneti_check_bug3333(int ver_major, int ver_minor) {
 
 GASNETI_COLD
 static int gasnetc_init(int *argc, char ***argv) {
-    uint32_t res;
     psm2_error_t ret;
 
     /*  check system sanity */
@@ -243,11 +152,8 @@ static int gasnetc_init(int *argc, char ***argv) {
      * Using existing bootstrap init.
      * This also initializes gasneti_nodes and gasneti_mynode globals.
      */
-    res = gasneti_bootstrapInit(argc, argv, &gasneti_nodes, &gasneti_mynode);
-    if (res != GASNET_OK) {
-        return res;
-    }
-
+    gasneti_spawner = gasneti_spawnerInit(argc, argv, NULL, &gasneti_nodes, &gasneti_mynode);
+    if (!gasneti_spawner) GASNETI_RETURN_ERRR(NOT_INIT, "GASNet job spawn failed");
 
     /* (###) Add code here to determine which GASNet nodes may share memory.
        The collection of nodes sharing memory are known as a "supernode".  The
@@ -321,7 +227,7 @@ static int gasnetc_init(int *argc, char ***argv) {
             psm2_uuid_generate(uuid);
         }
 
-        gasneti_bootstrapBroadcast_p(&uuid, sizeof(psm2_uuid_t), &uuid, 0);
+        gasneti_bootstrapBroadcast(&uuid, sizeof(psm2_uuid_t), &uuid, 0);
 
         ret = psm2_ep_open(uuid, NULL,
                 &gasnetc_psm_state.ep, &gasnetc_psm_state.epid);
@@ -401,7 +307,7 @@ static int gasnetc_init(int *argc, char ***argv) {
      * space requested by the 2nd argument.
      */
 
-    gasneti_pshm_init(gasneti_bootstrapSNodeCast_p, 0);
+    gasneti_pshm_init(gasneti_bootstrapSNodeBroadcast, 0);
 #endif
 
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
@@ -880,7 +786,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
     /* ---------------------------------------------------------------------- */
     /*  primary attach complete */
-    gasnetc_bootstrapBarrier();
+    gasneti_bootstrapBarrier();
 
     GASNETI_TRACE_PRINTF(C,("gasnetc_attach(): primary attach complete"));
 
@@ -894,7 +800,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     gasneti_nodemapFini();
 
     /* ensure extended API is initialized across nodes */
-    gasnetc_bootstrapBarrier();
+    gasneti_bootstrapBarrier();
 
     return GASNET_OK;
 }

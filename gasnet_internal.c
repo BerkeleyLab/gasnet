@@ -1334,6 +1334,73 @@ ssize_t gasneti_getline(char **buf_p, size_t *n_p, FILE *fp) {
 #endif /* gasneti_getline */
 
 /* ------------------------------------------------------------------------------------ */
+// Internal conduit interface to spawner
+
+#if HAVE_SSH_SPAWNER
+  extern gasneti_spawnerfn_t const *gasneti_bootstrapInit_ssh(int *argc, char ***argv, gasnetex_rank_t *nodes, gasnetex_rank_t *mynode);
+#endif
+#if HAVE_MPI_SPAWNER
+  extern gasneti_spawnerfn_t const *gasneti_bootstrapInit_mpi(int *argc, char ***argv, gasnetex_rank_t *nodes, gasnetex_rank_t *mynode);
+#endif
+#if HAVE_PMI_SPAWNER
+  extern gasneti_spawnerfn_t const *gasneti_bootstrapInit_pmi(int *argc, char ***argv, gasnetex_rank_t *nodes, gasnetex_rank_t *mynode);
+#endif
+
+extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_p,
+                                  const char *force_spawner,
+                                  gasnetex_rank_t *nodes_p, gasnetex_rank_t *mynode_p) {
+  gasneti_spawnerfn_t const *res = NULL;
+  const char *not_set = "(not set)";
+  const char *spawner;
+  char *tmp = NULL;
+  if (force_spawner) spawner = force_spawner;
+  else spawner = gasneti_getenv_withdefault("GASNET_SPAWNER", not_set);
+
+  if (spawner != not_set) { // upper-case
+    tmp = gasneti_strdup(spawner);
+    for (char *p = tmp; *p; p++) *p = toupper(*p);
+    spawner = tmp;
+  }
+
+#if HAVE_MPI_SPAWNER
+  /* bug 3406: Try MPI-based spawn first, EVEN if the var is not set.
+   * This is a requirement for spawning using bare mpirun
+   */
+  if (!res && (spawner == not_set || !strcmp(spawner, "MPI")) &&
+      (res = gasneti_bootstrapInit_mpi(argc_p, argv_p, nodes_p, mynode_p))) {
+  }
+#endif
+
+#if HAVE_SSH_SPAWNER
+  /* GASNET_SPAWNER=ssh is set by gasnetrun for the ssh spawn master,
+   * and by the ssh command line for other processes (ie all normal uses).
+   * We might still reach here without the variable if MPI is disabled at configure time
+   * and the user is attempting a direct command-line launch (ie -GASNET-SPAWN-master)
+   */
+  if (!res && (spawner == not_set || !strcmp(spawner, "SSH")) &&
+      (res = gasneti_bootstrapInit_ssh(argc_p, argv_p, nodes_p, mynode_p))) {
+  }
+#endif
+
+#if HAVE_PMI_SPAWNER
+  /* Don't really expect GASNET_SPAWNER set if launched directly by srun, mpirun, yod, etc.
+   * So, when the env var is not set, we try pmi-based spawn last.
+   */
+  if (!res && (spawner == not_set || !strcmp(spawner, "PMI")) &&
+      (res = gasneti_bootstrapInit_pmi(argc_p, argv_p, nodes_p, mynode_p))) {
+  }
+#endif
+
+  if (!res) {
+    gasneti_fatalerror("Requested spawner \"%s\" is unknown or not supported in this build", spawner);
+  }
+
+  gasneti_free(tmp);
+
+  return res;
+}
+
+/* ------------------------------------------------------------------------------------ */
 /* Debug memory management
    debug memory format:
   | prev | next | allocdesc (2*sizeof(void*)) | datasz | BEGINPOST | <user data> | ENDPOST |
