@@ -3043,7 +3043,9 @@ CONDUIT_END([test "$have_mxm" = yes])
 
 CONDUIT_BEGIN(psm,[Intel OmniPath PSM2 conduit (psm)])
 have_psm=no
-if test "$enabled_psm" = yes; then
+if test "$have_pthread" = no; then
+    GASNET_MSG_WARN([psm-conduit requires libpthread ($pthread_reason) - disabling psm])
+elif test "$enabled_psm" = yes; then
     #
     # Either PSM was required explicitly, or we just need to probe for its existence
     #
