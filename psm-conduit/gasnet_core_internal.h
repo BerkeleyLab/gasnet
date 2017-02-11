@@ -187,8 +187,9 @@ GASNETI_HOT
 GASNETI_INLINE(gasnetc_psm_poll_periodic)
 void gasnetc_psm_poll_periodic(void)
 {
+    /* Use of ">= 32" below renders any multi-threaded race on "+=" harmless */
     gasnetc_psm_state.periodic_poll += 1;
-    if(gasnetc_psm_state.periodic_poll == 32) {
+    if(gasnetc_psm_state.periodic_poll >= 32) {
         gasnetc_psm_state.periodic_poll = 0;
         gasnetc_AMPoll();
     }
