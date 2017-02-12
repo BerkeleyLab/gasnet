@@ -3022,74 +3022,25 @@ elif test "$enabled_psm" = yes; then
     # Either PSM was required explicitly, or we just need to probe for its existence
     #
 
-    user_psm_home=''
-    AC_MSG_CHECKING(for --with-psmhome)
-    GASNET_WITH(psmhome, [Specify a custom PSM install directory],
-                [if test "$withval" = 'yes'; then
-                   GASNET_MSG_ERROR(["--with-psmhome requires an argument (PSM install directory)"])
-                 fi
-                 user_psm_home="$withval"
-                 psm_user_provided=yes],
-                [psm_user_provided=no])
-    AC_MSG_RESULT($user_psm_home)
-
-    if test "$psm_user_provided" = yes; then
-        psm_home="$user_psm_home"
-    else
-        psm_home=/usr
-    fi
-
     have_psm=yes  # assume success
-    psm_have_header=no
-    psm_have_lib=no
-    psm_in_path=no
-    psm_in_psm_home=no
 
-    if test "$psm_user_provided" != yes; then
-        # looking for PSM in standard locations only if user didn't provide its location
-        AC_CHECK_HEADERS(psm2.h, psm_have_header=yes)
-        if test "$psm_have_header" = yes; then
-            AC_CHECK_HEADERS(psm2_am.h, psm_have_header=yes)
-        fi
+    psm_guess=/usr
+    GASNET_ENV_DEFAULT(PSMHOME, $psm_guess)
 
-        AC_CHECK_LIB(psm2, psm2_init, psm_have_lib=yes)
-        AC_MSG_CHECKING(for PSM in standard locations)
-        if test "$psm_have_header$psm_have_lib" = yesyes; then
-            psm_in_path=yes
-        fi
-        AC_MSG_RESULT([$psm_in_path])
-    fi
-
-    if test "$psm_in_path" = yes; then
-      PSM_INCLUDE=''
-      PSM_LIBDIR=''
+    if test $PSMHOME = '/usr'; then
+      psm_includes_guess=''
     else
-      AC_MSG_CHECKING(for PSM in $psm_home)
-      if test -e "$psm_home/include/psm2_am.h" ; then
-        psm_have_header=yes
-      fi
-      if test -e "$psm_home/lib64/libpsm2.so" ; then
-        psm_have_lib=yes
-        psm_lib_path="$psm_home/lib64"
-      fi
-
-      if test "$psm_have_header$psm_have_lib" = yesyes; then
-        psm_in_psm_home=yes
-      fi
-      AC_MSG_RESULT([$psm_in_psm_home])
-
-      PSM_INCLUDE="-I$psm_home/include"
-      PSM_LIBDIR="-L$psm_lib_path"
+      psm_includes_guess="-I$PSMHOME/include"
     fi
-
-    if test "$psm_user_provided$psm_in_psm_home" = yesno; then
-        GASNET_MSG_WARN(PSM files not found in user-specified $user_psm_home - disabling psm)
-        have_psm=no
-    elif test "$psm_in_path$psm_in_psm_home" = nono; then
-        have_psm=no
+    GASNET_ENV_DEFAULT(PSM_INCLUDE, $psm_includes_guess)
+    GASNET_ENV_DEFAULT(PSM_LIBS, -lpsm2)
+    # Note 'test -d $foo/.' works even if $foo is a symlink
+    if test -f $PSMHOME/lib${GASNETI_PTR_BITS}/libpsm2.so; then
+      psm_libdir_default=-L$PSMHOME/lib${GASNETI_PTR_BITS}
+    else
+      psm_libdir_default=-L$PSMHOME/lib
     fi
-
-    PSM_LIBS='-lpsm2'
+    GASNET_ENV_DEFAULT(PSM_LIBDIR, $psm_libdir_default)
 
 	if test "$have_psm" = yes; then
 	  # Try to compile and link a basic PSM program
