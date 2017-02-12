@@ -2918,75 +2918,48 @@ elif test "$enabled_mxm" != no; then
     # Either MXM was required explicitly, or we just need to probe for its existence
     #
 
-    user_mxm_home=''
-    AC_MSG_CHECKING(for --with-mxmhome)
-    GASNET_WITH(mxmhome, [Specify a custom MXM install directory],
-                [if test "$withval" = 'yes'; then
-                   GASNET_MSG_ERROR(["--with-mxmhome requires an argument (MXM install directory)"])
-                 fi
-                 user_mxm_home="$withval"
-                 mxm_user_provided=yes],
-                [mxm_user_provided=no])
-    AC_MSG_RESULT($user_mxm_home)
-
-    if test "$mxm_user_provided" = yes; then
-        mxm_home="$user_mxm_home"
-    else
-        mxm_home=/opt/mellanox/mxm
-    fi
-
     have_mxm=yes  # assume success
-    mxm_have_header=no
-    mxm_have_lib=no
-    mxm_in_path=no
-    mxm_in_mxm_home=no
 
-    if test "$mxm_user_provided" != yes; then
-        # looking for MXM in standard locations only if user didn't provide its location
-        AC_CHECK_HEADERS(mxm/api/mxm_api.h, mxm_have_header=yes)
-        AC_CHECK_LIB(mxm, mxm_init, mxm_have_lib=yes)
-        AC_MSG_CHECKING(for MXM in standard locations)
-        if test "$mxm_have_header$mxm_have_lib" = yesyes; then
-            mxm_in_path=yes
-        fi
-        AC_MSG_RESULT([$mxm_in_path])
-    fi
-
-    if test "$mxm_in_path" = yes; then
-      MXM_INCLUDE=''
-      MXM_LIBDIR=''
+    # Start by finding a reasonable default
+    AC_PATH_PROGS(mxm_dump_config, mxm_dump_config)
+    if test -n "$mxm_dump_config"; then
+      mxm_guess=`dirname \`dirname $mxm_dump_config\``
+    elif test -r /opt/mellanox/mxm; then
+      mxm_guess=/opt/mellanox/mxm
     else
-      if test -e "$mxm_home/include/mxm/api/mxm_api.h" ; then
-        mxm_have_header=yes
-      fi
-      if test -e "$mxm_home/lib${GASNETI_PTR_BITS}/libmxm.so" ; then
-        mxm_have_lib=yes
-        mxm_lib_path="$mxm_home/lib${GASNETI_PTR_BITS}"
-      elif test -e "$mxm_home/lib/libmxm.so" ; then
-        mxm_have_lib=yes
-        mxm_lib_path="$mxm_home/lib"
-      fi
+      mxm_guess=/usr
+    fi
+    GASNET_ENV_DEFAULT(MXMHOME, $mxm_guess)
 
-      AC_MSG_CHECKING(for MXM in $mxm_home)
-      if test "$mxm_have_header$mxm_have_lib" = yesyes; then
-        mxm_in_mxm_home=yes
-      fi
-      AC_MSG_RESULT([$mxm_in_mxm_home])
-
-      MXM_INCLUDE="-I$mxm_home/include"
-      MXM_LIBDIR="-L$mxm_lib_path"
+    AC_MSG_CHECKING(if $MXMHOME is the MXM install directory)
+    if test -r $MXMHOME/include/mxm/api/mxm_api.h; then
+      # MXMHOME looks OK
+      AC_MSG_RESULT([yes])
+    elif test -r $MXMHOME/bin/mxm_dump_config; then
+      mxm_devinfo=$MXMHOME/bin/mxm_dump_config
+      GASNET_FOLLOWLINKS(mxm_devinfo)
+      MXMHOME=`dirname \`dirname $mxm_devinfo\``
+      AC_MSG_RESULT([no - followed symlink to $MXMHOME])
+    else
+      AC_MSG_RESULT([probably not])
     fi
 
-    if test "$mxm_user_provided$mxm_in_mxm_home" = yesno; then
-        GASNET_MSG_WARN(MXM files not found in user-specified $user_mxm_home - disabling mxm)
-        have_mxm=no
-    elif test "$mxm_in_path$mxm_in_mxm_home" = nono; then
-        have_mxm=no
+    if test $MXMHOME = '/usr'; then
+      mxm_includes_guess=''
+    else
+      mxm_includes_guess="-I$MXMHOME/include"
     fi
+    GASNET_ENV_DEFAULT(MXM_INCLUDE, $mxm_includes_guess)
+    GASNET_ENV_DEFAULT(MXM_LIBS, -lmxm)
 
-    MXM_LIBS='-lmxm'
+    # Note 'test -d $foo/.' works even if $foo is a symlink
+    if test -f $MXMHOME/lib${GASNETI_PTR_BITS}/libmxm.so; then
+      mxm_libdir_default="-L$MXMHOME/lib${GASNETI_PTR_BITS}"
+    else
+      mxm_libdir_default="-L$MXMHOME/lib"
+    fi
+    GASNET_ENV_DEFAULT(MXM_LIBDIR, $mxm_libdir_default)
 
-	if test "$have_mxm" = yes; then
 	  # Try to compile and link a basic MXM program
 	  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MXM_INCLUDE")
 	  GASNET_PUSHVAR(LIBS,"$LIBS $MXM_LIBDIR $MXM_LIBS")
@@ -3001,7 +2974,6 @@ elif test "$enabled_mxm" != no; then
             }], [ : ], [ have_mxm=no; GASNET_ERR_SAVE() ] )
       GASNET_POPVAR(CFLAGS)
 	  GASNET_POPVAR(LIBS)
-	fi
 
   GASNET_WITH(mxm-spawner,
      [mxm job spawner ("ssh" or "mpi", default is mpi when available)],
