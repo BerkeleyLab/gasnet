@@ -3801,29 +3801,26 @@ CONDUIT_BEGIN(ofi,[Portable OpenFabrics Interfaces conduit (ofi)])
 if test "$enabled_ofi" = yes; then
   have_ofi=yes
 
-  GASNET_ENV_DEFAULT(OFIHOME, /usr)
-  AC_MSG_CHECKING(for --with-ofihome)
-  GASNET_WITH(ofihome, [Specify Libfabric install directory, default is /usr],
-              [if test "$withval" = 'yes'; then
-                 GASNET_MSG_ERROR(["--with-ofihome requires an argument (libfabric install directory)"])
-               fi
-               OFIHOME="$withval"
-               ofihome_set=1
-               AC_MSG_RESULT($withval)],
-              [AC_MSG_RESULT(no)
-               have_ofi=no],
-              [AC_MSG_RESULT([$OFIHOME (default)])])
+  # Start by finding a reasonable default
+  AC_PATH_PROGS(fi_info, fi_info)
+  if test -n "$fi_info"; then
+    ofi_guess=`dirname \`dirname $fi_info\``
+  else
+    ofi_guess=/usr
+  fi
+  GASNET_ENV_DEFAULT(OFIHOME, $ofi_guess)
 
   if test "$have_ofi" = yes; then
     AC_MSG_CHECKING(if $OFIHOME is a Libfabric install directory)
     if test -e $OFIHOME/include/rdma/fabric.h; then
       AC_MSG_RESULT(yes)
+    elif test -r $OFIHOME/bin/fi_info; then
+      fi_info=$OFIHOME/bin/fi_info
+      GASNET_FOLLOWLINKS(fi_info)
+      OFIHOME=`dirname \`dirname $fi_info\``
+      AC_MSG_RESULT([no - followed symlink to $OFIHOME])
     else
-      AC_MSG_RESULT(no)
-      if test -n "$ofihome_set" ; then
-        GASNET_MSG_WARN([Libfabric not found in user-specified --with-ofihome='$OFIHOME' - disabling ofi-conduit])
-      fi
-      have_ofi=no
+      AC_MSG_RESULT([probably not])
     fi
   fi
 
