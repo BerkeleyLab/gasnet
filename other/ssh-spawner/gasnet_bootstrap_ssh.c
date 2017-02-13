@@ -1540,7 +1540,7 @@ static void spawn_one_control(gasnetex_rank_t child_id, const char *cmdline, con
     gasneti_fatalerror("fork() failed");
   } else if (pid == 0) {
     char *cmd;
-    cmd = sappendf(NULL, "cd %s; exec %s %s " ENV_PREFIX "SPAWNER=ssh "
+    cmd = sappendf(NULL, "cd %s; exec %s %s " ENV_PREFIX "SPAWN_CONTROL=ssh "
                                               ENV_PREFIX "SPAWN_ARGS='%c%s%c%d%c%d%c%s' "
                                               "%s",
                                       quote_arg(cwd),
@@ -2677,7 +2677,7 @@ extern gasneti_spawnerfn_t const * gasneti_bootstrapInit_ssh(int *argc_p, char *
     /* Force legacy explict-master support: */
     explicit_master = 1;
   } else {
-    spawner    = my_getenv(ENV_PREFIX "SPAWNER");
+    spawner    = my_getenv(ENV_PREFIX "SPAWN_CONTROL");
     spawn_args = my_getenv(ENV_PREFIX "SPAWN_ARGS");
     if (!spawner || !spawn_args || strcmp(spawner, "ssh") || (strlen(spawn_args) < 2)) {
       return NULL;

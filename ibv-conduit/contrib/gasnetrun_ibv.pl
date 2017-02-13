@@ -28,7 +28,7 @@ my $exeindex = undef;
 my $envlist = undef;
 my $nodefile = $ENV{'GASNET_NODEFILE'} || $ENV{'PBS_NODEFILE'};
 my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile") : ();
-my $spawner = $ENV{'GASNET_SPAWNER'};
+my $spawner = $ENV{'GASNET_SPAWN_CONTROL'}; # from the wrapper script
 my $conduit = $ENV{'GASNET_SPAWN_CONDUIT'};
 
 sub usage
@@ -234,7 +234,7 @@ sub fullpath($)
 
 # Run it which ever way makes sense
     $ENV{"GASNET_VERBOSEENV"} = "1" if ($verbose);
-    $ENV{'GASNET_SPAWNER'} = lc($spawner);
+    $ENV{'GASNET_SPAWN_CONTROL'} = lc($spawner);
     if ($spawner eq 'MPI') {
         print("gasnetrun: forwarding to mpi-based spawner\n") if ($verbose);
         @ARGV = (@mpi_args, @ARGV);
