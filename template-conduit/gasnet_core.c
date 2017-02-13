@@ -24,6 +24,8 @@ static void gasnetc_atexit(void);
 
 gasneti_handler_fn_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
 
+gasneti_spawnerfn_t const *gasneti_spawner = NULL;
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization
@@ -36,36 +38,6 @@ static void gasnetc_check_config(void) {
   /* (###) add code to do some sanity checks on the number of nodes, handlers
    * and/or segment sizes */ 
 }
-
-static void gasnetc_bootstrapBarrier(void) {
-  /* (###) add code here to implement an external barrier 
-      this barrier should not rely on AM or the GASNet API because it's used 
-      during bootstrapping before such things are fully functional
-     It need not be particularly efficient, because we only call it a few times
-      and only during bootstrapping - it just has to work correctly
-     If your underlying spawning or batch system provides barrier functionality,
-      that would probably be a good choice for this
-   */
-}
-
-#if GASNET_PSHM /* Used only in call to gasneti_pshm_init() */
-  /* (###) add code here to perform a supernode scoped broadcast.
-     This call performs an independent broadcast within each supernode.
-     The implementation can identify the supernode using the variables
-     initialized by gasneti_nodemapInit(), or by the identical values
-     passed for "rootnode".
-     The implementation cannot use pshmnet.
-     This is called collectively (currently exactly once in gasneti_pshm_init()).
-   */
-/* Naive (poorly scaling) "reference" implementation via gasnetc_bootstrapExchange() */
-static void gasnetc_bootstrapSNodeBroadcast(void *src, size_t len, void *dest, int rootnode) {
-  void *tmp = gasneti_malloc(len * gasneti_nodes);
-  gasneti_assert(NULL != src);
-  gasnetc_bootstrapExchange(src, len, tmp);
-  memcpy(dest, (void*)((uintptr_t)tmp + (len * rootnode)), len);
-  gasneti_free(tmp);
-}
-#endif
 
 static int gasnetc_init(int *argc, char ***argv) {
   /*  check system sanity */
@@ -81,10 +53,11 @@ static int gasnetc_init(int *argc, char ***argv) {
     fprintf(stderr,"gasnetc_init(): about to spawn...\n"); fflush(stderr);
   #endif
 
-  /* (###) add code here to bootstrap the nodes for your conduit */
-
-  gasneti_mynode = ###;
-  gasneti_nodes = ###;
+  /* (###) bootstrap the nodes for your conduit - may need to modify if not using 
+   * the unified spawning infrastructure 
+   */
+  gasneti_spawner = gasneti_spawnerInit(argc, argv, NULL, &gasneti_nodes, &gasneti_mynode);
+  if (!gasneti_spawner) GASNETI_RETURN_ERRR(NOT_INIT, "GASNet job spawn failed");
 
   #if GASNET_DEBUG_VERBOSE
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
@@ -102,7 +75,7 @@ static int gasnetc_init(int *argc, char ***argv) {
      If the conduit has already communicated endpoint address information or
      a similar identifier that is unique per shared-memory compute node, then
      that info can be passed via arguments 2 through 4.
-     Otherwise the conduit should pass a non-null gasnetc_bootstrapExchange
+     Otherwise the conduit should pass a non-null bootstrapExchange function
      as argument 1 to use platform-specific IDs, such as gethostid().
      See gasneti_nodemapInit() in gasnet_internal.c for more usage documentation.
      See below for info on gasnetc_bootstrapExchange()
@@ -110,16 +83,16 @@ static int gasnetc_init(int *argc, char ***argv) {
      If the conduit can build gasneti_nodemap[] w/o assistance, it should
      call gasneti_nodemapParse() after constructing it (instead of nodemapInit()).
   */
-  gasneti_nodemapInit(###);
+  gasneti_nodemapInit(gasneti_spawner->Exchange, ###);
 
   #if GASNET_PSHM
     /* (###) If your conduit will support PSHM, you should initialize it here.
-     * The 1st argument is normally "&gasnetc_bootstrapSNodeBroadcast" or equivalent
+     * The 1st argument is normally gasneti_spawner->SNodeBroadcast or equivalent
      * The 2nd argument is the amount of shared memory space needed for any
      * conduit-specific uses.  The return value is a pointer to the space
      * requested by the 2nd argument.
      */
-    ### = gasneti_pshm_init(###, ###);
+    ### = gasneti_pshm_init(gasneti_spawner->SNodeBroadcast, ###);
   #endif
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
@@ -153,9 +126,9 @@ static int gasnetc_init(int *argc, char ***argv) {
     /* Enable this if you wish to use the default GASNet services for broadcasting 
         the environment from one compute node to all the others (for use in gasnet_getenv(),
         which needs to return environment variable values from the "spawning console").
-        You need to provide two functions (gasnetc_bootstrapExchange and gasnetc_bootstrapBroadcast)
+        You need to provide two functions (bootstrapExchange and bootstrapBroadcast)
         which the system can safely and immediately use to broadcast and exchange information 
-        between nodes (gasnetc_bootstrapBroadcast is optional but highly recommended).
+        between nodes (bootstrapBroadcast is optional but highly recommended).
         See gasnet/other/mpi-spawner/gasnet_bootstrap_mpi.c for definitions of these two
         functions in terms of MPI collective operations.
        This system assumes that at least one of the compute nodes has a copy of the 
@@ -165,7 +138,7 @@ static int gasnetc_init(int *argc, char ***argv) {
         nodes, then you probably don't need this.
      */
     gasneti_setupGlobalEnvironment(gasneti_nodes, gasneti_mynode, 
-                                   gasnetc_bootstrapExchange, gasnetc_bootstrapBroadcast);
+                                   gasneti_spawner->Exchange, gasneti_spawner->Broadcast);
   #endif
 
   gasneti_init_done = 1;  
@@ -315,7 +288,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
   gasneti_attach_done = 1;
-  gasnetc_bootstrapBarrier();
+  gasneti_spawner->Barrier();
 
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach(): primary attach complete"));
 
@@ -329,7 +302,12 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasneti_nodemapFini();
 
   /* ensure extended API is initialized across nodes */
-  gasnetc_bootstrapBarrier();
+  gasneti_spawner->Barrier();
+
+  /* (###) Optionally tear down spawner's bootstrap collectives, 
+   * ONLY if the spawner collectives are not used after attach
+   */
+  // gasneti_spawner->Cleanup();
 
   return GASNET_OK;
 }
@@ -362,7 +340,11 @@ extern void gasnetc_exit(int exitcode) {
   /* (###) add code here to terminate the job across _all_ nodes 
            with gasneti_killmyprocess(exitcode) (not regular exit()), preferably
            after raising a SIGQUIT to inform the client of the exit
+           Should include a call to gasneti_spawner->Fini() on normal exit
+           or gasneti_spawner->Abort() for an abortive exit
   */
+
+  gasneti_killmyprocess(exitcode); /* last chance */
   gasneti_fatalerror("gasnetc_exit failed!");
 }
 
