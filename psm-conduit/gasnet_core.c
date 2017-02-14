@@ -358,6 +358,10 @@ static int gasnetc_init(int *argc, char ***argv) {
 
         gasnetc_psm_max_request_len = params.max_request_short;
         gasnetc_psm_max_reply_len = params.max_reply_short;
+
+        gasneti_assert_always(gasnetc_psm_max_request_len <= GASNETC_MAX_MEDIUM_PSHM);
+        gasneti_assert_always(gasnetc_psm_max_request_len <= gasnetc_psm_max_reply_len);
+        gasneti_assert_always(gasnetc_psm_max_request_len >= 512);
     }
 
     {
