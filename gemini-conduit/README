@@ -11,8 +11,8 @@ and aries are meant.
 
 Because these Cray systems have non-trivial differences between the login
 nodes and the compute nodes, one must use a cross-configure script to build
-either of these conduits.  See other/contrib/cross-configure-crayxe-linux
-for Gemini and other/contrib/cross-configure-crayxc-linux for Aries.
+either of these conduits.  See other/contrib/cross-configure-cray-gemini-*
+for Gemini and other/contrib/cross-configure-cray-aries-* for Aries.
 
 Where this conduit runs:
 -----------------------
@@ -29,7 +29,7 @@ compatibility issues with any release of the XC series system software.
 Configuring job launch:
 ----------------------
 
-Both ALPS (srun) and native SLURM (srun) are supported for job-launch by the
+Both ALPS (aprun) and native SLURM (srun) are supported for job-launch by the
 provided gasnetrun_gemini and gasnetrun_aries scripts.  The value of the
 environment variable MPIRUN_CMD can be used to choose between these two.  The
 value when configure is run establishes a default, which a value set at
@@ -37,8 +37,7 @@ job-launch time can override.  Our recommended settings are
  + For ALPS (default):   MPIRUN_CMD="aprun -n %N %C"
  + For native SLURM:     MPIRUN_CMD="srun -K0 -W60 %V -mblock -n %N %C"
 
-For SLURM-based systems, one can simply set APRUN="srun -K0 -W60 %V -mblock"
-in ones environment when running the appropriate cross-configure script.
+These configure-time defaults are established in the appropriate cross-configure script.
 
 If you desire additional customization, please see mpi-conduit's README for
 documentation regarding the MPIRUN_CMD environment variable.  Note, that it

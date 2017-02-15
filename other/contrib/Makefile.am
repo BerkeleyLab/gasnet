@@ -12,8 +12,10 @@ EXTRA_DIST = $(dotpl_DATA) $(vg_DATA) \
 	gasnetrun_mic \
 	gasnet_ibrun \
  	cross-configure-bgq \
-	cross-configure-crayxe-linux \
-	cross-configure-crayxc-linux \
+	cross-configure-cray-gemini-alps \
+	cross-configure-cray-gemini-slurm \
+	cross-configure-cray-aries-alps \
+	cross-configure-cray-aries-slurm \
 	cross-configure-intel-knc \
 	cross-configure-intel-knl \
 	crayxt-nptl-pthread-patch
