@@ -37,22 +37,21 @@ sub usage
 
     print "usage: gasnetrun -n <n> [options] [--] prog [program args]\n";
     print "    options:\n";
-    print "      -n <n>                number of processes to run\n";
-    print "      -N <N>                number of nodes to run on (not always supported)\n";
-    print "      -E <VAR1[,VAR2...]>   list of environment vars to propagate\n";
-    print "      -v                    be verbose about what is happening\n";
-    print "      -t                    test only, don't execute anything (implies -v)\n";
-    print "      -k                    keep any temporary files created (implies -v)\n";
-    print "      -spawner=(ssh|mpi)    force use of MPI or SSH for spawning\n";
-    print "      --                    ends option parsing\n";
+    print "      -n <n>                 number of processes to run\n";
+    print "      -N <N>                 number of nodes to run on (not always supported)\n";
+    print "      -E <VAR1[,VAR2...]>    list of environment vars to propagate\n";
+    print "      -v                     be verbose about what is happening\n";
+    print "      -t                     test only, don't execute anything (implies -v)\n";
+    print "      -k                     keep any temporary files created (implies -v)\n";
+    print "      -spawner=(ssh|mpi|pmi) force use of a specific spawner\n";
+    print "      --                     ends option parsing\n";
     if ($ENV{'GASNET_BLCR_ENABLED'}) {
         print "\n";
         print "usage: gasnetrun [options] [--] -restart dir\n";
         print "    options:\n";
-        print "      -v                    be verbose about what is happening\n";
-        print "      -t                    test only, don't execute anything (implies -v)\n";
-        print "      -spawner=(ssh|mpi)    force use of MPI or SSH for spawning\n";
-        print "      --                    ends option parsing\n";
+        print "      -v                     be verbose about what is happening\n";
+        print "      -t                     test only, don't execute anything (implies -v)\n";
+        print "      --                     ends option parsing\n";
     }
     exit 1;
 }
@@ -115,11 +114,11 @@ sub fullpath($)
 	    usage ("-E option given without an argument\n") unless @ARGV >= 1;
 	} elsif ($_ =~ /^-spawner=(.+)$/) {
 	    $spawner = $1;
-	    pop @mpi_args;	# not known to mpi spawner
+	    pop @mpi_args;	# not known to mpi/pmi spawner
 	} elsif ($_ eq '-restart') {
 	    shift;
 	    $restart = 1;
-	    pop @mpi_args;	# not known to mpi spawner
+	    pop @mpi_args;	# not known to mpi/pmi spawner
 	    usage "-restart option given without an argument\n" unless @ARGV >= 1;
 	    last;
 	} elsif ($_ eq '-v') {
@@ -143,11 +142,18 @@ sub fullpath($)
     if (!defined($spawner)) {
         usage "Option -spawner was not given and no default is set\n"
     }
+    $ENV{'GASNET_SPAWN_CONTROL'} = lc($spawner);
     $spawner = uc($spawner);
-    die "gasnetrun: $conduit-conduit was configured for PMI-based launch\n"
-        if ($spawner eq 'PMI');
-    if (($spawner eq 'MPI') && !$ENV{GASNET_SPAWN_HAVE_MPI}) {
+    if ($spawner eq 'MPI') {
         usage "Spawner is set to MPI, but MPI support was not compiled in\n"
+            unless $ENV{'GASNET_SPAWN_HAVE_MPI'};
+    }
+    elsif ($spawner eq 'PMI') {
+        usage "Spawner is set to PMI, but PMI support was not compiled in\n"
+            unless $ENV{'GASNET_SPAWN_HAVE_PMI'};
+        # From this point onward, MPI and PMI support converge:
+        $spawner = 'MPI';
+        $ENV{'MPIRUN_CMD'} = $ENV{'PMIRUN_CMD'};
     }
 
 # Restart-specific options processing
@@ -234,7 +240,6 @@ sub fullpath($)
 
 # Run it which ever way makes sense
     $ENV{"GASNET_VERBOSEENV"} = "1" if ($verbose);
-    $ENV{'GASNET_SPAWN_CONTROL'} = lc($spawner);
     if ($spawner eq 'MPI') {
         print("gasnetrun: forwarding to mpi-based spawner\n") if ($verbose);
         @ARGV = (@mpi_args, @ARGV);
