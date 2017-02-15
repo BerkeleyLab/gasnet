@@ -430,11 +430,17 @@ extern double gasneti_tick_metric(int idx) {
 volatile int gasnet_frozen = 0;
 extern void gasneti_fatalerror(const char *msg, ...) {
   va_list argptr;
-  char expandedmsg[255];
+  #ifndef GASNETI_FATALERROR_LEN
+  #define GASNETI_FATALERROR_LEN 1024
+  #endif
+  char expandedmsg[GASNETI_FATALERROR_LEN];
+  const char prefix[] = "*** FATAL ERROR: ";
 
-  strcpy(expandedmsg, "*** FATAL ERROR: ");
-  strcat(expandedmsg, msg);
-  strcat(expandedmsg, "\n");
+  strcpy(expandedmsg, prefix);
+  strncat(expandedmsg, msg, sizeof(expandedmsg)-sizeof(prefix)-4);
+  if (expandedmsg[strlen(expandedmsg)-1] != '\n') {
+    strcat(expandedmsg, "\n");
+  }
   va_start(argptr, msg); /*  pass in last argument */
     vfprintf(stderr, expandedmsg, argptr);
     fflush(stderr);
