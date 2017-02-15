@@ -12,7 +12,6 @@ EXTRA_DIST = $(dotpl_DATA) $(vg_DATA) \
 	gasnetrun_mic \
 	gasnet_ibrun \
  	cross-configure-bgq \
-	cross-configure-crayxt-linux \
 	cross-configure-crayxe-linux \
 	cross-configure-crayxc-linux \
 	cross-configure-intel-knc \
@@ -22,9 +21,10 @@ EXTRA_DIST = $(dotpl_DATA) $(vg_DATA) \
 #	cross-configure-k42ppc64 \
 #	cross-configure-linux-arm \
 #	cross-configure-osxi686 \
+#	cross-configure-osxppc \
 #	cross-configure-osxppc64 \
 #	cross-configure-osxx86_64 \
-#	cross-configure-uclinux-microblaze
+#
 
 dotpldir = $(bindir)
 dotpl_DATA = gasnet_trace.pl
