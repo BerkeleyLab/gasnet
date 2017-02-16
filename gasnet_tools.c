@@ -431,18 +431,24 @@ volatile int gasnet_frozen = 0;
 extern void gasneti_fatalerror(const char *msg, ...) {
   va_list argptr;
   #ifndef GASNETI_FATALERROR_LEN
-  #define GASNETI_FATALERROR_LEN 1024
+  #define GASNETI_FATALERROR_LEN 80
   #endif
   char expandedmsg[GASNETI_FATALERROR_LEN];
   const char prefix[] = "*** FATAL ERROR: ";
+  const size_t maxmsg = sizeof(expandedmsg)-sizeof(prefix)-4;
+  const size_t msglen = strlen(msg);
 
-  strcpy(expandedmsg, prefix);
-  strncat(expandedmsg, msg, sizeof(expandedmsg)-sizeof(prefix)-4);
-  if (expandedmsg[strlen(expandedmsg)-1] != '\n') {
-    strcat(expandedmsg, "\n");
-  }
   va_start(argptr, msg); /*  pass in last argument */
-    vfprintf(stderr, expandedmsg, argptr);
+    if (msglen <= maxmsg) { /* short enough to send to stderr in a single operation */
+      strcpy(expandedmsg, prefix);
+      strncat(expandedmsg, msg, maxmsg);
+      if (expandedmsg[strlen(expandedmsg)-1] != '\n') strcat(expandedmsg, "\n");
+      vfprintf(stderr, expandedmsg, argptr);
+    } else { /* long format msg */
+      fprintf(stderr, prefix);
+      vfprintf(stderr, msg, argptr);
+      if (msg[strlen(msg)-1] != '\n') fprintf(stderr, "\n");
+    }
     fflush(stderr);
   va_end(argptr);
 
