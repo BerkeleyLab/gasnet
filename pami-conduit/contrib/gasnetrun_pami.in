@@ -1,5 +1,6 @@
 #!@BOURNE_SHELL@
-GASNET_SPAWN_CONTROL=pmi
+# PAMI launches via gasnetrun_mpi, but is not using MPI or PMI.
+GASNET_SPAWN_CONTROL=other
 export GASNET_SPAWN_CONTROL
 GASNET_SPAWN_CONDUIT=PAMI
 export GASNET_SPAWN_CONDUIT
