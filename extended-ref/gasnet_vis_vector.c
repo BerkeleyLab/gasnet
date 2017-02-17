@@ -10,7 +10,7 @@
 
 /*---------------------------------------------------------------------------------*/
 /* packing/unpacking helpers */
-#define _GASNETE_MEMVEC_PACK(copy) {                               \
+#define _GASNETE_MEMVEC_PACK(copy,noempty) {                       \
   uint8_t *ploc = (uint8_t *)buf;                                  \
   gasneti_assert(count > 0 && list && buf);                        \
   if (last_len == (size_t)-1) last_len = list[count-1].len;        \
@@ -20,18 +20,21 @@
     ploc += last_len;                                              \
   } else {                                                         \
     size_t const firstlen = list[0].len - first_offset;            \
-    if_pt (firstlen) {                                             \
+    if_pt (noempty || firstlen) {                                  \
+      gasneti_assert(firstlen);                                    \
       copy(ploc, ((uint8_t*)list[0].addr)+first_offset, firstlen); \
       ploc += firstlen;                                            \
     } else gasneti_assert(first_offset == 0 && list[0].len == 0);  \
     for (size_t i = 1; i < count-1; i++) {                         \
       size_t const len = list[i].len;                              \
-      if_pt (len) {                                                \
+      if_pt (noempty || len) {                                     \
+        gasneti_assert(len);                                       \
         copy(ploc, list[i].addr, len);                             \
         ploc += len;                                               \
       }                                                            \
     }                                                              \
-    if_pt (last_len) {                                             \
+    if_pt (noempty || last_len) {                                  \
+      gasneti_assert(last_len > 0);                                \
       copy(ploc, list[count-1].addr, last_len);                    \
       ploc += last_len;                                            \
     }                                                              \
@@ -44,11 +47,18 @@
    otherwise, last_len is used in place of the last memvec length 
      (and is never adjusted based on first_offset, even if count == 1)
    return a pointer into the packed buffer, which points just after the last byte used
+   The aggregate list must specify a non-empty set of data, 
+     but indivdual iovecs are permitted to be empty
  */
 void *gasnete_memvec_pack(size_t count, gasnet_memvec_t const *list, void *buf,
-                           size_t first_offset, size_t last_len) _GASNETE_MEMVEC_PACK(_GASNETE_PACK_HELPER)
+                           size_t first_offset, size_t last_len) _GASNETE_MEMVEC_PACK(_GASNETE_PACK_HELPER,0)
 void *gasnete_memvec_unpack(size_t count, gasnet_memvec_t const *list, void const *buf,
-                             size_t first_offset, size_t last_len) _GASNETE_MEMVEC_PACK(_GASNETE_UNPACK_HELPER)
+                             size_t first_offset, size_t last_len) _GASNETE_MEMVEC_PACK(_GASNETE_UNPACK_HELPER,0)
+// these versions additionally require that all the iovecs be non-empty
+void *gasnete_memvec_pack_noempty(size_t count, gasnet_memvec_t const *list, void *buf,
+                           size_t first_offset, size_t last_len) _GASNETE_MEMVEC_PACK(_GASNETE_PACK_HELPER,1)
+void *gasnete_memvec_unpack_noempty(size_t count, gasnet_memvec_t const *list, void const *buf,
+                             size_t first_offset, size_t last_len) _GASNETE_MEMVEC_PACK(_GASNETE_UNPACK_HELPER,1)
 /*---------------------------------------------------------------------------------*/
 
 extern void gasnete_packetize_verify(gasnete_packetdesc_t *pt, size_t ptidx, int lastpacket,
@@ -388,8 +398,8 @@ void gasnete_putv_AMPipeline_reqh_inner(gasnetex_token_t token,
   gasneti_assert(addr && nbytes > 0 && rnum > 0);
   gasnet_memvec_t * const rlist = addr;
   uint8_t * const data = (uint8_t *)(&rlist[rnum]);
-  uint8_t * const end = gasnete_memvec_unpack(rnum, rlist, data, 0, (size_t)-1);
-  gasneti_assert(end - (uint8_t *)addr <= gasnetex_lub_AMRequestMedium());
+  uint8_t * const end = gasnete_memvec_unpack_noempty(rnum, rlist, data, 0, (size_t)-1);
+  gasneti_assert(end - (uint8_t *)addr <= gasnet_lub_AMMaxMedium());
   gasneti_sync_writes();
   /* TODO: coalesce acknowledgements - need a per-srcnode, per-op seqnum & packetcnt */
   gasnetex_AMReplyShort(token, gasneti_handleridx(gasnete_putvis_AMPipeline_reph), 0, PACK(iop));
@@ -534,7 +544,7 @@ void gasnete_getv_AMPipeline_reqh_inner(gasnetex_token_t token,
   gasneti_vis_op_t * const visop = _visop;
   uint8_t * const packedbuf = gasneti_malloc(gasnetex_lub_AMReplyMedium());
   /* gather data payload from sourcelist into packet */
-  uint8_t * const end = gasnete_memvec_pack(rnum, rlist, packedbuf, 0, (size_t)-1);
+  uint8_t * const end = gasnete_memvec_pack_noempty(rnum, rlist, packedbuf, 0, (size_t)-1);
   size_t const repbytes = end - packedbuf;
   gasneti_assert(repbytes <= gasnetex_lub_AMReplyMedium());
   gasneti_assert(packedbuf);
