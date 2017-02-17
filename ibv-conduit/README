@@ -57,7 +57,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   possible performance.
 
   While ibv-conduit runs on Solaris, the libibverbs on Solaris is not
-  compatible with GASNet's implementaion of PSHM over POSIX shared memory.
+  compatible with GASNet's implementation of PSHM over POSIX shared memory.
   This is not normally of concern, because on Solaris GASNet defaults to
   an implementation of PSHM over SystemV shared memory.  However, if one
   configures GASNet to use PSHM-over-POSIX on Solaris, then be advised
@@ -65,124 +65,42 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   within a compute node via the InfiniBand HCA instead of shared memory.
 
 @ Section: Job Spawning @
-  
-  If MPI support was NOT enabled when GASNet was configured, then
-  only SSH based spawning will be supported and the following paragraph
-  may be ignored.
 
-  If MPI support was enabled when GASNet was configured, then there
-  are two options for spawning a GASNet ibv-conduit application:
-  MPI or SSH.  The default can be set at configure time with
-      --with-ibv-spawner=ssh
-  or  --with-ibv-spawner=mpi
-  or  --with-ibv-spawner=pmi
-  where mpi is the default.
-
-  Additionally
-
-  If using UPC or Titanium, the language-specific commands should be used
+  If using UPC, Titanium, etc. the language-specific commands should be used
   to launch applications.  Otherwise, applications can be launched using
   the gasnetrun_ibv utility:
   + usage summary:
     gasnetrun_ibv -n <n> [options] [--] prog [program args]
     options:
-      -n <n>                number of processes to run (required)
-      -N <N>                number of nodes to run on (not supported by all MPIs)
-      -E <VAR1[,VAR2...]>   list of environment vars to propagate
-      -v                    be verbose about what is happening
-      -t                    test only, don't execute anything (implies -v)
-      -k                    keep any temporary files created (implies -v)
-      -spawner=(ssh|mpi)    force use of MPI or SSH for spawning (if available)
+      -n <n>                 number of processes to run (required)
+      -N <N>                 number of nodes to run on (not supported by all MPIs)
+      -E <VAR1[,VAR2...]>    list of environment vars to propagate
+      -v                     be verbose about what is happening
+      -t                     test only, don't execute anything (implies -v)
+      -k                     keep any temporary files created (implies -v)
+      -spawner=(ssh|mpi|pmi) force use of a specific spawner (if available)
 
-  At runtime the environment variable GASNET_IBV_SPAWNER (set to "mpi" or "ssh")
-  can override the value set at configuration time, but the command line option
-  will override the environment variable.
+  There are as many as three possible methods (ssh, mpi and pmi) by which one
+  can launch an ibv-conduit application.  Ssh-based spawning is always
+  available, and mpi- and pmi-based spawning are available if the respective
+  support was located at configure time.  The default is established at
+  configure time (see section "Build-time Configuration").
 
-  If configured for PMI as the default, then you should use your PMI-based
-  launcher, such as srun or yod, to launch ibv-conduit applications directly.
-
-  If spawning using MPI, then the following apply:
-  + In order to bootstrap ibv-conduit, a working MPI must be installed
-    and configured on your system.  See mpi-conduit/README for
-    information on configuring GASNet for a particular MPI.  Note that
-    you must compile mpi-conduit as well (even if you never plan to use
-    it).
-  + MPI is only used in gasnet_init(), gasnet_attach() and gasnet_exit()
-    and not for any GASNet calls between attach and exit.  Therefore it is
-    acceptable to use a TCP/IP based MPI such as MPICH or LAM/MPI.
-  + The environment variable MPIRUN_CMD can be used to configure how to
-    invoke mpirun.  See mpi-conduit/README (or README-mpi) for more
-    information.
-  + Since an InfiniBand-based MPI typically allocates a non-trivial amount
-    of memory for InfiniBand communication buffers, it may be desirable in
-    memory-constrained situations to use a non-IB MPI, or to disable the
-    use of IB by a multi-transport MPI.  The documentation for your chosen
-    MPI is the authoritative source for information, but here are the
-    settings required to force use of TCP/IP in several widely-used MPIs:
-    - LAM/MPI
-      Pass "-ssi rpi tcp" to mpirun, OR
-      Set environment variable LAM_MPI_SSI_rpi to "tcp".
-    - Open MPI
-      Pass "--mca btl tcp,self" to mpirun, OR
-      Set environment variable OMPI_MCA_BTL to "tcp,self".
-    - Intel MPI
-      Set environment variable I_MPI_DEVICE to "sock".
-    - HP-MPI
-      Set environment variable MPI_IC_ORDER to "tcp".
-    - MPICH or MPICH2
-      These don't use IB, so no special action is required.
-    - MVAPICH or MVAPICH2
-      These don't use TCP/IP unless explicitly configured for IP-over-IB.
-      So, these are not recommended if one is concerned with memory use.
-    In all of the settings above, omit the quotes from the value.
-
-  If spawning using SSH, the following apply:
-  + The -E option is not necessary, as the full environment is always
-    propagated to the application processes.
-  + A list of hosts is specified using one of the GASNET_SSH_NODEFILE,
-    GASNET_SSH_SERVERS, or GASNET_NODEFILE environment variables (in
-    order from highest precedence to lowest).
-    If set, the *_NODEFILE variables specify a file with one hostname
-    per line.  Blank lines and comment lines (using '#') are ignored.
-    If set, the variable GASNET_SSH_SERVERS itself contains a list of
-    hostnames, delimited by commas or whitespace.
-    The following environment variables set by supported batch systems
-    are also recognized if the GASNET_* variables are not set:
-      PBS:    PBS_NODEFILE
-      LSF:    LSB_HOSTS
-      SGE:    PE_HOSTFILE
-      SLURM:  Use `scontrol show hostname` if SLURM_JOB_ID is set
-  + The environment variable GASNET_SSH_CMD can be set to specify a
-    specific remote shell (perhaps rsh).  The default is "ssh", and
-    a search of $PATH resolves the full path.
-  + The environment variable GASNET_SSH_OPTIONS can be set to
-    specify options that will precede the hostname in the commands
-    used to spawn jobs.  One example, for OpenSsh, would be
-      GASNET_SSH_OPTIONS="-o 'StrictHostKeyChecking no'"
-  + For the following, the term "compute node"  means one of the hosts
-    given in GASNET_SSH_NODEFILE (or other environment variable described
-    above) which will run an application process.  The term "master node"
-    means the node from which the job was spawned.  The master node may
-    be one of the compute nodes but is not required to be.
-  + The ssh (or rsh) at your site must be configured to allow logins
-    from the master node to compute nodes, and among the compute nodes.
-    These must be achieved without interaction (such as entering a
-    password or accepting new host keys).
-  + Any firewall or port filtering must allow the ssh/rsh connections
-    described above, plus TCP connections on untrusted port (those
-    with numbers over 1024) from a compute node to the master node
-    and among compute nodes.
-  + Resolution for all given hostnames must be possible from both the
-    master node and the compute nodes.
+  To select a non-default spawner one may either use the "-spawner=" command-
+  line argument or set the environment variable GASNET_IBV_SPAWNER to "ssh",
+  "mpi" or "pmi".  If both are used, then the command line argument takes
+  precedence.
 
   It has been noted that some InfiniBand driver implementations may not
   allow for multiple open()s of the adapter.  In this case, spawning via
   MPI is not possible because the MPI and GASNet implementations cannot
   share the adapter.  If your GASNet jobs fail to spawn via MPI, but
-  spawn correctly with ssh, this may be the reason.
-  Our recommended response to this situation is to completely disable
-  MPI support in GASNet by configuring with --without-mpi-cc.
-  
+  spawn correctly with ssh or pmi, then this may be the reason.  If you
+  need mpi-based spawning, our recommendation is to attempt to set the
+  MPIRUN_CMD such that your MPI will not use InfiniBand (see mpi-spawner's
+  README).  If that is not possible, you may need to select a different
+  MPI implementation.
+
 @ Section: Multi-rail Support @
 
   Multi-rail support is ON in GASNet ibv-conduit by default.
@@ -228,6 +146,28 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   connection requests.  If needed, this can be disabled at configure
   time using '--disable-ibv-conn-thread'.
 
+  The default spawner to be used by the gasnetrun_ibv utility can be
+  selected by specifying '--with-ibv-spawner=VALUE', where VALUE is one
+  of 'mpi', 'pmi' or 'ssh'.  If this option is not used, mpi is the
+  default when available, and ssh otherwise.
+  Here are some things to consider when selecting a default spawner:
+  + mpi-spawner is the default when MPI is available precisely because it
+    is so frequently present on systems where GASNet is to be installed.
+    Additionally, very little (if any) configuration is required and the
+    behavior is highly reliable.
+  + pmi-spawner uses the same "Process Management Interface" which forms
+    the basis for many mpirun implementations.  When support is available,
+    this spawner can be as easy to use and as reliable as mpi-spawner, but
+    without the overheads of initializing an MPI runtime.
+  + ssh-spawner depends only on the availability of a remote shell command
+    such as ssh.  For this reason ssh-spawner support is always compiled.
+    However, it can be difficult (or impossible) to use on a cluster which
+    was not setup to allow ssh to (and among) its compute nodes.
+  For more information on configuration and use of these spawners, see
+     README-{ssh,mpi,pmi}-spawner (installed)
+  or
+     other/{ssh,mpi,pmi}-spawner/README (source).
+
 @ Section: Runtime Configuration @
 
   There are a number of parameters in ibv-conduit which can be tuned
@@ -245,6 +185,15 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     IBDISSEM - like RDMADISSEM, but implemented using lower-level
                operations for lower latency.
     Currently IBDISSEM is the default on IBV.
+
+  Spawner settings:
+  + GASNET_IBV_SPAWNER
+    To override the default spawner for ibv-conduit jobs, one may set this
+    environment variable as described in the section "Job Spawning", above.
+
+  There are additional settings which control behaviors of the various
+  spawners, as described in the respective READMEs (listed in section
+  "Build-time Configuration", above).
 
   Connection settings:
   Under normal conditions, Host Channel Adapters and Ports will be

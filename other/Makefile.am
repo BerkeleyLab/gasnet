@@ -102,6 +102,8 @@ endif
 install-data-local:
 	$(mkinstalldirs) $(DESTDIR)$(docdir)
 	$(INSTALL_DATA) $(srcdir)/ssh-spawner/README $(DESTDIR)$(docdir)/README-ssh-spawner
+	$(INSTALL_DATA) $(srcdir)/mpi-spawner/README $(DESTDIR)$(docdir)/README-mpi-spawner
+	$(INSTALL_DATA) $(srcdir)/pmi-spawner/README $(DESTDIR)$(docdir)/README-pmi-spawner
 uninstall-local:
 	rm -Rf $(DESTDIR)$(docdir)
 # GASNET_TOOLSONLY_FALSE_END
