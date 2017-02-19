@@ -12,7 +12,7 @@ See also:
  + README-release: detailed release procedure
 
 
-* All developers doing commits must be on the upc-devel@lbl.gov email list,
+* All developers doing commits must be on the gasnet-devel@lbl.gov email list,
   which receives GASNet commit messages.
 
 * You should commit only to the 'develop' branch - do NOT commit to 'master'

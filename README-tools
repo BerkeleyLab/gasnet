@@ -106,7 +106,7 @@ General Usage
   GASNet README. They may work on others as well. Please contact us if you have
   a new platform you'd like to see supported.
 
-* For questions on using the GASNet tools, contact upc-devel@lbl.gov. 
+* For questions on using the GASNet tools, contact gasnet-usersl@lbl.gov. 
   It's especially recommended to contact us before bundling the tools in your
   software package.
 

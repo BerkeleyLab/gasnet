@@ -1260,4 +1260,4 @@ The average case for non-collective exits is somewhere between those two.
 [1]	Bell, Bonachea. "A New DMA Registration Strategy for Pinning-Based
 	High Performance Networks", Workshop on Communication Architecture
 	for Clusters (CAC'03), 2003.
-	Also at  http://upc.lbl.gov/publications/
+	Also at  http://gasnet.lbl.gov/

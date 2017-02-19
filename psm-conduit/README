@@ -89,7 +89,7 @@ Known problems:
   by setting GASNET_SUPERNODE_MAXSIZE.  Under those conditions, you will
   receive an error message which directs you here.
   The most up-to-date information on this bug is maintained at:
-    http://upc-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3333
+    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3333
   If, after reviewing that bug report, you wish to run psm-conduit over the
   PSM2 shared-memory device, please set GASNET_PSM_ENABLE_SHM=1 in your
   environment to disable the error message.  We strongly recommend you set
@@ -105,7 +105,7 @@ Known problems:
   "put_long" protocol for a future patch release to restore the previous
   level of performance without sacrificing correctness.
   The most up-to-date information on this bug is maintained at:
-    http://upc-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3342
+    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3342
   Until this issue can be resolved, users of Omni-Path networks may wish to
   consider use of ofi-conduit (with libfabric's psm2 provider) as an
   alternative to psm-conduit if performance of Puts over 16KB is critical

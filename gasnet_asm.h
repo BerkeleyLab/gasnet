@@ -98,7 +98,7 @@
    *   Compiler suffers from "tpr 17075" in which extended asm() may load only 32 bits of
    *   a 64-bit operand at -O1 (but is OK at -O0 and -O2).
    *
-   * See GASNet bug 1621 (http://upc-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1621) for more
+   * See GASNet bug 1621 (http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1621) for more
    * info on the bugs indicated by GASNETI_PGI_ASM_THREADSAFE and GASNETI_PGI_ASM_X86_A.
    *
    * See GASNet bugs 1751 and 1753 for discussion related to the difficulty with versioning

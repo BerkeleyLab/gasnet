@@ -1043,7 +1043,7 @@ PENDING:
 * Misc changes:
   - Improved checking for randomized Linux VM spaces, which inhibit
     the ability to provide GASNET_ALIGNED_SEGMENTS
-  - Numerous bug fixes, see http://upc-bugs.lbl.gov for details
+  - Numerous bug fixes, see http://gasnet-bugs.lbl.gov for details
 
 ----------------------------------------------------------------------
 09-13-2007 : Release 1.9.6 (Cray XT only beta release)
@@ -1081,7 +1081,7 @@ PENDING:
   - Add new features GASNET_FREEZE_SIGNAL and GASNET_BACKTRACE_SIGNAL
     which allow a user to asynchronously freeze a process or print a backtrace
   - Many, many bug fixes, for both specific conduits and general platform
-    portability. See http://upc-bugs.lbl.gov for complete details.    
+    portability. See http://gasnet-bugs.lbl.gov for complete details.    
 
 * InfiniBand/VAPI:
   - New AM-over-RDMA optimization significantly improves performance of small AMs
@@ -1114,7 +1114,7 @@ PENDING:
   - Barrier algorithm can now be selected at runtime using GASNET_BARRIER 
   - Standardize and simplify our preprocessor platform detection logic system-wide
   - Many, many bug fixes, for both specific conduits and general platform
-    portability. See http://upc-bugs.lbl.gov for complete details.    
+    portability. See http://gasnet-bugs.lbl.gov for complete details.    
 
 * GASNet tools support:
   - Add a conduit-independent library implementing the GASNet portability tools - 
@@ -1196,7 +1196,7 @@ PENDING:
       all environment variables in use      
     - Improve the robustness and quality of GASNet's automatic heap corruption detection 
     - Many, many bug fixes, for both specific conduits and general platform
-      portability. See http://upc-bugs.lbl.gov for complete details.    
+      portability. See http://gasnet-bugs.lbl.gov for complete details.    
       
 * Myrinet/GM:
     - gm-conduit now provides interoperability with MPI.

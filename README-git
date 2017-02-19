@@ -34,7 +34,7 @@ instructions, we'll update this document appropriately.
 
 Since GASNet is hosted on BitBucket.org you will require an account there if
 you are going to push (upload) anything to the repository.  Contact us at
-upc-devel@lbl.gov to request Write permission for your BitBucket account.
+gasnet-devel@lbl.gov to request Write permission for your BitBucket account.
 
 Example commands in this document will be written like
     $ git ...
@@ -497,7 +497,7 @@ GASNet developers have access to clone your repository.
 Now it is time for the pull request.  If using BitBucket, then there is a GUI
 for this, and you will find documentation on their site.  If using another
 hosting service, or if you just don't like the GUI, then you just need to
-email the repo URL to us at upc-devel@lbl.gov with an explanation of the work
+email the repo URL to us at gasnet-devel@lbl.gov with an explanation of the work
 you are contributing back.  Ideally you will have communicated and
 collaborated with us prior to the pull request and we'll already be familiar
 with the work.

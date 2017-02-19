@@ -30,6 +30,7 @@ Contents of this file:
  * GASNet Collectives
  * GASNet debug malloc services
  * MPI Interoperability
+ * Contact Info and Support
  * GASNet Design Information
  * System Organization
  * GASNet coding standards
@@ -113,7 +114,7 @@ invoke it in place of configure.  Example for the IBM BlueGene/Q:
   For cross-compilation support on platforms without scripts in other/contrib
 see the instructions in other/cross-configure-help.c.
 [NOTE: We currently don't distribute the cross-configure-help.c in our
-normal distribution.  If you think you need it, contact us at upc@lbl.gov]
+normal distribution.  If you think you need it, contact us at gasnet-devel@lbl.gov]
 
 * make all
   Build the GASNet libraries. A number of other useful makefile targets 
@@ -722,7 +723,7 @@ GASNet Collectives
 GASNet includes interfaces for collective operations, which is still
 evolving.  The design for the interfaces is located under the source directory
 in docs/collective_notes.txt.  Anyone planning to implement a client that
-uses these collective should contact us (upc@lbl.gov) first to determine
+uses these collective should contact us (gasnet-devel@lbl.gov) first to determine
 the completeness and stability of the relevant portions of the implementation.
 
 In GASNet 1.14.0 we introduce a mechanism for auto-tuning of collectives
@@ -935,6 +936,27 @@ There are a few other important caveats to be aware of when mixing GASNet and MP
  and spawning mechanisms. Please see the README file in each conduit directory
  for network-specific discussion of issues with MPI interoperability.
 
+Contact Info and Support
+========================
+
+For the latest GASNet downloads, publications, and specifications, please visit:
+
+  http://gasnet.lbl.gov
+
+For bug reports and feature requests, please submit a ticket in the GASNet Bugzilla:
+
+  http://gasnet-bugs.lbl.gov
+
+You may find an instant solution to your problem by searching the bug database!
+
+GASNet has several mailing lists for support:
+
+  gasnet-users@lbl.gov     General questions or inquiries regarding the installation or 
+                           use of GASNet. Any users can join the list from the web site above.
+
+  gasnet-devel@lbl.gov     GASNet developers list (multi-institution)
+
+  gasnet-announce@lbl.gov  GASNet release announcements. Join on the web site above.
 
 GASNet Design Information
 =========================
@@ -1269,7 +1291,7 @@ Required porting steps:
   not support atomic operations. Implement atomic compare-and-swap, if supported
   by the system.
   For an outline of the yet-to-be-written "Atomic OPS HOWTO" see
-  http://upc-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1607
+  http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1607
 
 * For a new CPU, implement appropriate memory barriers in gasnet_membar.h:
   gasneti_local_wmb and gasneti_local_rmb (one or both may be no-ops, depending

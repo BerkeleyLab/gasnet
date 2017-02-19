@@ -138,7 +138,7 @@
          atomics require specific macro names to trigger the proper
          constructions elsewhere.
 
-   SEE ALSO: https://upc-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1607
+   SEE ALSO: http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=1607
  */
 
 /* ------------------------------------------------------------------------------------ */
