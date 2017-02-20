@@ -14,6 +14,52 @@ PENDING:
     + Now support (and use by default) PSHM-over-POSIX which works without
       requiring the CYGSERVER (and is more reliable than the alternatives).
 
+* Intel OmniPath PSM2 (psm-conduit)
+  - Fix bug 3340 - Performance loss for puts larger than 16KB
+    The PSM2 MQ path is re-enabled for puts and is now semantically correct
+
+* Libfabric (ofi-conduit)
+  - Add experimental support for the GNI provider on Cray hardware
+  - Raise the default MaxMedium from 4k to 8k, and provide a new configure 
+    --with-ofi-max-medium=SZ flag to set the value
+  - Fix non-blocking non-bulk puts to correctly enforce local completion
+  - Improved concurrency of conduit code in threaded configurations
+  - General performance improvements
+
+* Cray uGNI (gemini- and aries-conduits)
+  - Add support for FMA and MDD sharing. See conduit README for details.
+  - Fix bug 3358: Aries performance anomaly for 128-byte Gets
+
+* Platform support/portability
+  - Support for the Cray XT (Seastar) platform has been removed
+  - Fix several compatibility issues with recent PGI compiler versions
+
+* General performance improvements:
+  - Streamline vector put/get handling of empty iovecs with AM pipelining
+  - Fix performance degradation from --enable-throttle-poll on conduits
+    that do not implement that feature (ibv, mxm, ofi, psm, pami, portals4)
+
+* Configure and Build
+  - The cross-configure-cray* scripts have been renamed for clarity
+  - configure works harder to find {ofi,psm,mxm} installations
+  - configure works harder to resolve opt/debug conflicts in CC/CXX
+  - configure --{en,dis}able-dev-warnings now allows toggling the addition
+    of compiler warnings, independent of --enable-debug setting. Default unchanged.
+  - configure works harder to select flags to suppress spurious warnings
+  - GASNet headers now use scoped warning suppression on clang and gcc 6.0+,
+    allowing client code to compile as -Wunused without spurious warnings.
+  - Fix bug 3389: Avoid redundant config.status invocations 
+  - Fix bug 3351: move -D_GNU_SOURCE: MISC_CPPFLAGS to GASNET_DEFINES 
+
+* GASNet tools 
+  - portable_platform.h has been renamed gasnet_portable_platform.h
+  - Fix bug 3322: portable_platform.h more robust to namespace interference
+
+* General and Misc.
+  - MPI-based spawning now supports direct mpirun invocation in all conduits
+  - PMI-based spawning is now supported by gasnetrun_{ibv,ofi,mxm,psm}
+  - New GASNet email lists are now available! See the web page for details
+
 ----------------------------------------------------------------------
 10-21-2016 : Release 1.28.0
 
