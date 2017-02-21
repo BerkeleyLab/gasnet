@@ -56,8 +56,10 @@ PENDING:
   - Fix bug 3322: portable_platform.h more robust to namespace interference
 
 * General and Misc.
-  - MPI-based spawning now supports direct mpirun invocation in all conduits
+  - MPI-based spawning now supports direct mpirun invocation.
+    See other/mpi-spawner/README for details.
   - PMI-based spawning is now supported by gasnetrun_{ibv,ofi,mxm,psm}
+    See other/pmi-spawner/README for details.
   - New GASNet email lists are now available! See the web page for details
 
 ----------------------------------------------------------------------
