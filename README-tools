@@ -74,6 +74,8 @@ tools).
   generated Makefile fragments $prefix/include/gasnet_tools-{seq,par}.mak
   in their Makefile and using the provided make variables they provide.
   See the comments at the top of those files for exact usage documentation.
+  Alternatively, pkg-config files for the gasnet_tools-{seq,par} packages
+  are installed in $prefix/lib/pkgconfig and provide the same build information.
 
 ===============================
 GASNet Tools User Documentation

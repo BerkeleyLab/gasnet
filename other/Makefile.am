@@ -34,6 +34,9 @@ SUBDIRS = $(CONDUITMODE_SUBDIRS)
 
 EXTRA_DIST =        			\
         $(CONDUITMODE_EXTRADIST) 	\
+	Makefile-echovar.mak            \
+	pkgconfig-conduit.pc            \
+	pkgconfig-tools.pc              \
 	detect-cachesz.c 		\
 	check-pp.c                      \
 	check-header-erase.pl           \

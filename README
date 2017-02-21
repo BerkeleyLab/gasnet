@@ -218,12 +218,12 @@ rules for your GASNet client code.
 
 For example:
   ----------------------------
-  include /install/path/include/mpi-conduit/mpi-seq.mak 
+  include $(gasnet_prefix)/include/mpi-conduit/mpi-seq.mak 
 
   .c.o:
 	  $(GASNET_CC) $(GASNET_CPPFLAGS) $(GASNET_CFLAGS) -c -o $@ $<
 
-  .cxx.o:
+  .cc.o:
 	  $(GASNET_CXX) $(GASNET_CXXCPPFLAGS) $(GASNET_CXXFLAGS) -c -o $@ $<
 
   myprog: myprog.o
@@ -259,6 +259,38 @@ The content of these variables follow these general guidelines:
 This summary is provided for informational purposes only - altering or omitting
 any of the flags contained in these variables could result in a non-functional
 build environment.
+
+Using GASNet with pkg-config 
+----------------------------
+
+As a convenience, the same variables described in the previous section are also
+available via the UNIX pkg-config utility.  For example, if pkg-config is installed
+on your system and the GASNet .pc files are in your PKG_CONFIG_PATH, then you
+can retrieve the value for GASNET_CC for udp-conduit in GASNET_SEQ mode with a
+command like:
+
+   pkg-config gasnet-udp-seq --variable=GASNET_CC
+
+Note the pkg-config --cflags and --libs arguments retrieve the appropriate subset of 
+GASNet variables, but pkg-config does not offer aliases corresponding to GASNET_CC,
+GASNET_LD or the GASNET_*CXX* variables. Use the `pkg-config --variable=` syntax 
+to retrieve these.
+
+Here is a complete example of using pkg-config with GASNet in a Makefile:
+
+  PKG_CONFIG_PATH = $(gasnet_prefix)/lib/pkgconfig
+  pkg = gasnet-udp-seq
+
+  .c.o:
+          `pkg-config $(pkg) --variable=GASNET_CC` `pkg-config $(pkg) --cflags` -c -o $@ $<
+
+  .cc.o:
+          `pkg-config $(pkg) --variable=GASNET_CXX` `pkg-config $(pkg) --variable=GASNET_CXXCPPFLAGS` \
+                         `pkg-config $(pkg) --variable=GASNET_CXXFLAGS` -c -o $@ $<
+
+  myprog: myprog.o
+          `pkg-config $(pkg) --variable=GASNET_LD` -o $@ $< `pkg-config $(pkg) --libs`
+
 
 Conduit Status
 ==============
