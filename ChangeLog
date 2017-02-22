@@ -46,6 +46,7 @@ PENDING:
   - configure --{en,dis}able-dev-warnings now allows toggling the addition
     of compiler warnings, independent of --enable-debug setting. Default unchanged.
   - configure works harder to select flags to suppress spurious warnings
+  - Now provide pkg-config .pc files corresponding to each GASNet library
   - GASNet headers now use scoped warning suppression on clang and gcc 6.0+,
     allowing client code to compile as -Wunused without spurious warnings.
   - Fix bug 3389: Avoid redundant config.status invocations 
