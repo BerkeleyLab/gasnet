@@ -259,6 +259,7 @@ clean-local:
 	  $(MAKE) recurse_special DO_WHAT=clean ;    \
 	 fi
 check-local: check-exports $(TOOLSONLY_CHECK)
+	$(MAKE) check-pkgconfig CHECK_FILES="$(pkgconfig)"
 seq par parsync:
 	@$(MAKE) $(recurse_local) DO_WHAT=$@
 check tests-clean:

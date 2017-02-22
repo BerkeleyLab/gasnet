@@ -190,6 +190,7 @@ run-testexit: force
 @BUILD_PAR_LIBS_TRUE@     check_test_target = tests-par
 check: force
 	@CHECK_TEST_TARGET_OVERRIDE=$(CHECK_TEST_TARGET_OVERRIDE) ; \
+	$(MAKE) check-pkgconfig CHECK_FILES="$(pkgconfig_files)" ; \
 	$(MAKE) check-exports $${CHECK_TEST_TARGET_OVERRIDE:-$(check_test_target)} tests-check
 
 force:
@@ -315,16 +316,12 @@ do-pkgconfig-conduit: force
 	@echo '# Copyright 2017, The Regents of the University of California' >> $(pkgconfig_file)
 	@echo '# Terms of use are as specified in license.txt' >> $(pkgconfig_file)
 	@echo '# See the GASNet README for instructions on using these variables' >> $(pkgconfig_file)
-	@for var in GASNET_CC \
-	            GASNET_OPT_CFLAGS GASNET_MISC_CFLAGS \
-		    GASNET_MISC_CPPFLAGS GASNET_DEFINES GASNET_INCLUDES \
-	            GASNET_CXX \
-		    GASNET_OPT_CXXFLAGS GASNET_MISC_CXXFLAGS GASNET_MISC_CXXCPPFLAGS \
-		    GASNET_LD GASNET_LDFLAGS GASNET_LIBS \
-	    ; do \
-           $(MAKE) --no-print-directory -f $(top_srcdir)/other/Makefile-echovar.mak VAR=$$var \
-	           >> $(pkgconfig_file) || exit 1 ; \
-	 done
+	@VARS="GASNET_CC GASNET_OPT_CFLAGS GASNET_MISC_CFLAGS \
+               GASNET_MISC_CPPFLAGS GASNET_DEFINES GASNET_INCLUDES \
+               GASNET_CXX GASNET_OPT_CXXFLAGS GASNET_MISC_CXXFLAGS GASNET_MISC_CXXCPPFLAGS \
+               GASNET_LD GASNET_LDFLAGS GASNET_LIBS" ; \
+         $(MAKE) --no-print-directory -f $(top_srcdir)/other/Makefile-echovar.mak VARS="$$VARS" echovars \
+	           >> $(pkgconfig_file)
 	@cat $(pkgconfig_conduit) | \
 	sed -e 's@#conduit_name#@$(CONDUIT_NAME)@g'  \
 	    -e 's@#thread_model#@$(thread_model)@g'  \

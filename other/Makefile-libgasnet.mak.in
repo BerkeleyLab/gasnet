@@ -199,13 +199,11 @@ do-pkgconfig-tools: force
 	@echo '# Copyright 2017, The Regents of the University of California' >> $(pkgconfig_file)
 	@echo '# Terms of use are as specified in license.txt' >> $(pkgconfig_file)
 	@echo '# See the GASNet README for instructions on using these variables' >> $(pkgconfig_file)
-	@for var in GASNETTOOLS_CC GASNETTOOLS_CPPFLAGS GASNETTOOLS_CFLAGS \
-                    GASNETTOOLS_CXX GASNETTOOLS_CXXFLAGS \
-                    GASNETTOOLS_LD GASNETTOOLS_LDFLAGS GASNETTOOLS_LIBS \
-            ; do \
-           $(MAKE) --no-print-directory -f $(top_srcdir)/other/Makefile-echovar.mak VAR=$$var \
-	           >> $(pkgconfig_file) || exit 1 ; \
-         done
+	@VARS="GASNETTOOLS_CC GASNETTOOLS_CPPFLAGS GASNETTOOLS_CFLAGS \
+               GASNETTOOLS_CXX GASNETTOOLS_CXXFLAGS \
+               GASNETTOOLS_LD GASNETTOOLS_LDFLAGS GASNETTOOLS_LIBS" ; \
+           $(MAKE) --no-print-directory -f $(top_srcdir)/other/Makefile-echovar.mak VARS="$$VARS" echovars \
+	           >> $(pkgconfig_file)
 	@cat $(pkgconfig_tools) | \
         sed -e 's@#thread_model#@$(thread_model)@g'  \
             -e 's@#version#@$(VERSION)@g'            \
@@ -257,3 +255,25 @@ $(top_builddir)/other/Makefile-libgasnet.mak: $(top_srcdir)/other/Makefile-libga
 @GNU_NM_FALSE@check-exports: $(libraries)
 @GNU_NM_FALSE@	@echo check-exports test SKIPPED
 
+check-pkgconfig:
+	@echo Checking pkgconfig...
+	@if test x$(CHECK_PKGCONFIG) = x0; then                            \
+	  echo SKIPPED: by user request ;                                  \
+	  exit 0 ;                                                         \
+	 elif ! pkg-config --atleast-pkgconfig-version=0.16.0 > /dev/null ; then \
+	  echo SKIPPED: No working pkg-config found ;                      \
+	  exit 0 ;                                                         \
+	 fi ;                                                              \
+	 validate=--validate ;                                             \
+	 if test -z "`pkg-config --help 2>&1 | grep -e --validate`" ; then \
+	   validate=--cflags ;                                             \
+	 fi ;                                                              \
+	 for file in $(CHECK_FILES) ; do                                   \
+	   echo ;                                                          \
+	   echo $$file: ;                                                  \
+	   if pkg-config $$validate $$file ; then                          \
+	     echo PASSED ;                                                 \
+	   else                                                            \
+	     echo FAILED ; exit 1 ;                                        \
+	   fi ;                                                            \
+	 done
