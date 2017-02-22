@@ -31,17 +31,27 @@ Configuring job launch:
 
 Both ALPS (aprun) and native SLURM (srun) are supported for job-launch by the
 provided gasnetrun_gemini and gasnetrun_aries scripts.  The value of the
-environment variable MPIRUN_CMD can be used to choose between these two.  The
+environment variable PMIRUN_CMD can be used to choose between these two.  The
 value when configure is run establishes a default, which a value set at
-job-launch time can override.  Our recommended settings are
- + For ALPS (default):   MPIRUN_CMD="aprun -n %N %C"
- + For native SLURM:     MPIRUN_CMD="srun -K0 -W60 %V -mblock -n %N %C"
+job-launch time can override.  The corresponding cross-configure scripts
+establish the following default (recommended) values:
+ + For ALPS:             PMIRUN_CMD="aprun -n %N %C"
+ + For native SLURM:     PMIRUN_CMD="srun -K0 -W60 %V -mblock -n %N %C"
 
-These configure-time defaults are established in the appropriate cross-configure script.
+If set at cross-configure time, the APRUN or SRUN environment variables
+can be used to provide full paths to the respective utilities.  If you
+require additional customization, please cross-configure with the option
+    --with-pmirun-cmd=VALUE
+where VALUE is the desired PMIRUN_CMD value (the format of which is the
+same as for MPIRUN_CMD, documented in mpi-conduit's README).
 
-If you desire additional customization, please see mpi-conduit's README for
-documentation regarding the MPIRUN_CMD environment variable.  Note, that it
-is NOT required that one compile mpi-conduit to use gemini or aries conduits.
+NOTE:
+This release uses two distinct options when configuring Cray systems:
+    --with-mpirun-cmd=VALUE    used to configure gasnetrun_mpi
+    --with-pmirun-cmd=VALUE    used to configure gasnetrun_{gemini,aries}
+However, to support legacy configuration scripts, if one passes only the
+option '--with-mpirun-cmd=...' then it will set a default value for *both*
+the MPIRUN_CMD and PMIRUN_CMD environment variables.
 
 Recognized environment variables:
 ---------------------------------

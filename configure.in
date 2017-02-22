@@ -2197,6 +2197,41 @@ dnl flags this conduit as not yet working in EX
 AC_DEFUN([CONDUIT_EX_UNIMPLEMENTED],[
   ex_unimplemented_[]CONDUIT_NAME=yes
 ])
+dnl CONDUIT_SPAWNER(conduit)
+dnl sets and substitutes GASNET_[CONDUIT]_SPAWNER_CONF
+AC_DEFUN([CONDUIT_SPAWNER],[
+  pushdef([the_option],--with-[$1]-spawner)
+  pushdef([the_variable],[GASNET_]translit($1,'a-z','A-Z')[_SPAWNER_CONF])
+  GASNET_WITH($1[]-spawner,
+     [$1 job spawner ("ssh", "mpi" or "pmi", default is mpi when available)],
+     [case "$withval" in
+        ssh|mpi|pmi)
+             gasnet_spawner_conf=$withval
+             ;;
+        yes) AC_MSG_ERROR([the_option requires an argument ("ssh", "mpi" or "pmi")])
+             ;;
+        *)   AC_MSG_ERROR([the_option argument must be "ssh", "mpi" or "pmi"])
+             ;;
+      esac],
+     [AC_MSG_ERROR([the_option argument must be "ssh", "mpi" or "pmi"])],
+     [if test "$have_mpi_compat" = yes; then
+        gasnet_spawner_conf=mpi
+      else
+        gasnet_spawner_conf=ssh
+      fi])
+  if test "$gasnet_spawner_conf$have_mpi_compat" = mpino; then
+    AC_MSG_ERROR([the_option=mpi requires MPI compatibility support which $mpi_compat_reason])
+  elif test "$gasnet_spawner_conf$have_fork" = sshno; then
+    AC_MSG_ERROR([the_option=ssh requires fork() support which $fork_reason])
+  elif test "$gasnet_spawner_conf" = pmi; then
+    force_pmi=yes
+  fi
+  the_variable=$gasnet_spawner_conf
+  AC_SUBST(the_variable)
+  unset gasnet_spawner_conf
+  popdef([the_variable])
+  popdef([the_option])
+])
 dnl CONDUIT_END(test_conduit_enabled)
 AC_DEFUN([CONDUIT_END],[
   if test "$gasnet_toolsonly_mode" = "no" ; then
@@ -2975,30 +3010,7 @@ elif test "$enabled_mxm" != no; then
       GASNET_POPVAR(CFLAGS)
 	  GASNET_POPVAR(LIBS)
 
-  GASNET_WITH(mxm-spawner,
-     [mxm job spawner ("ssh" or "mpi", default is mpi when available)],
-     [case "$withval" in
-        ssh|mpi) gasnet_mxm_spawner_conf=$withval
-             ;;
-        yes) AC_MSG_ERROR([--with-mxm-spawner requires an argument ("ssh" or "mpi")])
-             ;;
-        *)   AC_MSG_ERROR([--with-mxm-spawner argument must be "ssh" or "mpi"])
-             ;;
-      esac],
-     [AC_MSG_ERROR([--with-mxm-spawner argument must be "ssh" or "mpi"])],
-     [if test "$have_mpi_compat" = yes; then
-        gasnet_mxm_spawner_conf=mpi
-      else
-        gasnet_mxm_spawner_conf=ssh
-      fi])
-  if test "$gasnet_mxm_spawner_conf$have_mpi_compat" = mpino; then
-    AC_MSG_ERROR([--with-mxm-spawner=mpi requires MPI compatibility support which $mpi_compat_reason])
-  fi
-  if test "$gasnet_mxm_spawner_conf$have_fork" = sshno; then
-    AC_MSG_ERROR([--with-mxm-spawner=ssh requires fork() support which $fork_reason])
-  fi
-  GASNET_MXM_SPAWNER_CONF=$gasnet_mxm_spawner_conf
-  AC_SUBST(GASNET_MXM_SPAWNER_CONF)
+  CONDUIT_SPAWNER(mxm)
 fi
 AC_SUBST(MXM_INCLUDE)
 AC_SUBST(MXM_LIBDIR)
@@ -3057,30 +3069,7 @@ elif test "$enabled_psm" = yes; then
 	  GASNET_POPVAR(LIBS)
 	fi
 
-  GASNET_WITH(psm-spawner,
-     [psm job spawner ("ssh" or "mpi", default is mpi when available)],
-     [case "$withval" in
-        ssh|mpi) gasnet_psm_spawner_conf=$withval
-             ;;
-        yes) AC_MSG_ERROR([--with-psm-spawner requires an argument ("ssh" or "mpi")])
-             ;;
-        *)   AC_MSG_ERROR([--with-psm-spawner argument must be "ssh" or "mpi"])
-             ;;
-      esac],
-     [AC_MSG_ERROR([--with-psm-spawner argument must be "ssh" or "mpi"])],
-     [if test "$have_mpi_compat" = yes; then
-        gasnet_psm_spawner_conf=mpi
-      else
-        gasnet_psm_spawner_conf=ssh
-      fi])
-  if test "$gasnet_psm_spawner_conf$have_mpi_compat" = mpino; then
-    AC_MSG_ERROR([--with-psm-spawner=mpi requires MPI compatibility support which $mpi_compat_reason])
-  fi
-  if test "$gasnet_psm_spawner_conf$have_fork" = sshno; then
-    AC_MSG_ERROR([--with-psm-spawner=ssh requires fork() support which $fork_reason])
-  fi
-  GASNET_PSM_SPAWNER_CONF=$gasnet_psm_spawner_conf
-  AC_SUBST(GASNET_PSM_SPAWNER_CONF)
+  CONDUIT_SPAWNER(psm)
 fi
 AC_SUBST(PSM_INCLUDE)
 AC_SUBST(PSM_LIBDIR)
@@ -3329,30 +3318,7 @@ if test "$enabled_ibv" = yes; then
         AC_DEFINE(GASNETC_IBV_CONN_THREAD)
       fi
 
-    GASNET_WITH(ibv-spawner,
-       [IBV job spawner ("ssh", "mpi" or "pmi", default is mpi when available)],
-       [case "$withval" in
-          ssh|mpi|pmi) gasnet_ibv_spawner_conf=$withval
-               ;;
-          yes) AC_MSG_ERROR([--with-ibv-spawner requires an argument ("ssh", "mpi" or "pmi")])
-               ;;
-          *)   AC_MSG_ERROR([--with-ibv-spawner argument must be "ssh", "mpi" or "pmi"])
-               ;;
-        esac],
-       [AC_MSG_ERROR([--with-ibv-spawner argument must be "ssh", "mpi" or "pmi"])],
-       [if test "$have_mpi_compat" = yes; then
-          gasnet_ibv_spawner_conf=mpi
-        else
-          gasnet_ibv_spawner_conf=ssh
-        fi])
-    if test "$gasnet_ibv_spawner_conf$have_mpi_compat" = mpino; then
-      AC_MSG_ERROR([--with-ibv-spawner=mpi requires MPI compatibility support which $mpi_compat_reason])
-    fi
-    if test "$gasnet_ibv_spawner_conf$have_fork" = sshno; then
-      AC_MSG_ERROR([--with-ibv-spawner=ssh requires fork() support which $fork_reason])
-    fi
-    GASNET_IBV_SPAWNER_CONF=$gasnet_ibv_spawner_conf
-    AC_SUBST(GASNET_IBV_SPAWNER_CONF)
+    CONDUIT_SPAWNER(ibv)
 
     gasnetc_ibv_max_hcas=2
     GASNET_IF_DISABLED(ibv-multirail, [Disable IBV over multiple HCAs, see ibv-conduit/README (enabled by default)], enabled_ibv_multirail=no, enabled_ibv_multirail=yes)
@@ -3799,30 +3765,89 @@ if test "$enabled_ofi" = yes; then
   fi
 
   if test "$have_ofi" = yes; then
-    GASNET_WITH(ofi-spawner,
-       [OFI job spawner ("ssh", "mpi" or "pmi", default is mpi when available)],
-       [case "$withval" in
-          ssh|mpi|pmi) gasnet_ofi_spawner_conf=$withval
-               ;;
-          yes) AC_MSG_ERROR([--with-ofi-spawner requires an argument ("ssh", "mpi" or "pmi")])
-               ;;
-          *)   AC_MSG_ERROR([--with-ofi-spawner argument must be "ssh", "mpi" or "pmi"])
-               ;;
-        esac],
-       [AC_MSG_ERROR([--with-ofi-spawner argument must be "ssh", "mpi" or "pmi"])],
-       [if test "$have_mpi_compat" = yes; then
-          gasnet_ofi_spawner_conf=mpi
-        else
-          gasnet_ofi_spawner_conf=ssh
-        fi])
-    if test "$gasnet_ofi_spawner_conf$have_mpi_compat" = mpino; then
-      AC_MSG_ERROR([--with-ofi-spawner=mpi requires MPI compatibility support which $mpi_compat_reason])
+    CONDUIT_SPAWNER(ofi)
+
+    ofi_provider=""
+    ofi_define_mr_scalable="no"
+    detected_ofi_provider=""
+    # List of supported providers in order of preference.
+    supported_providers="psm2 psm gni sockets"
+    
+    GASNET_WITH(ofi-provider, [Statically configure ofi-conduit for the given provider],
+        ofi_provider="$withval", )
+    # Don't autodetect if the user knows which provider they want
+    if test -z "$ofi_provider"; then
+        if command -v fi_info > /dev/null 2>&1; then # Only do this if fi_info is in the $PATH
+            for word in $supported_providers 
+            do
+                if fi_info --provider=$word > /dev/null 2>&1; then
+                    detected_ofi_provider="$word"
+                    break
+                fi
+            done
+            ofi_provider="$detected_ofi_provider"
+        fi
+
     fi
-    if test "$gasnet_ofi_spawner_conf$have_fork" = sshno; then
-      AC_MSG_ERROR([--with-ofi-spawner=ssh requires fork() support which $fork_reason])
+    case "$ofi_provider" in
+        psm|psm2)
+            ofi_define_mr_scalable=1
+        ;;
+        gni)
+            ofi_define_mr_scalable=0
+        ;;
+        sockets)
+            ofi_define_mr_scalable=1
+        ;;
+        default|"")
+        ;;
+        *)
+        GASNET_MSG_WARN([
+WARNING: Invalid or unsupported OFI provider specified via the --with-ofi-provider flag. 
+Defaulting to runtime provider feature detection for ofi-conduit.])
+        ;;
+    esac
+
+    GASNET_IF_ENABLED_WITH_AUTO(ofi-mr-scalable, [Indicates if the conduit should statically compile FI_MR_SCALABLE support into ofi-conduit (advanced users only)],
+                 [ofi_define_mr_scalable="1"], [ofi_define_mr_scalable="0"], [])
+
+    # Inform the user that settings were autodetected
+    if test -n "$detected_ofi_provider" -a "$ofi_define_mr_scalable" != "no"; then
+            GASNET_MSG_WARN([
+The $detected_ofi_provider OFI provider was detected on your system and the ofi-conduit has been
+configured for that provider. If that is not your desired provider, override this by using the
+--with-ofi-provider=<provider name> configure flag. See the ofi-conduit README for details.])
     fi
-    GASNET_OFI_SPAWNER_CONF=$gasnet_ofi_spawner_conf
-    AC_SUBST(GASNET_OFI_SPAWNER_CONF)
+
+    if test "$ofi_define_mr_scalable" != "no"; then
+        AC_DEFINE_UNQUOTED(GASNETC_OFI_HAS_MR_SCALABLE, [$ofi_define_mr_scalable])
+    fi
+
+    GASNET_WITH(ofi-num-completions,
+                [Max number of completions for ofi-conduit to read from a CQ at one time (default 64)],
+                [if expr "$withval" : '[[0-9]]*$' >/dev/null 2>&1 && \
+                    expr "$withval" '>' 0  >/dev/null 2>&1 ; then
+                    ofi_num_completions="$withval"
+                else
+                    AC_MSG_ERROR([--with-ofi-num-completions="$withval" is not legal.  Value must be greater than 0])
+                fi
+                ],
+                [ AC_MSG_ERROR([--with-ofi-num-completions must be greater than 0])],
+                 [ofi_num_completions=64])
+    AC_DEFINE_UNQUOTED(GASNETC_OFI_NUM_COMPLETIONS, [$ofi_num_completions])
+
+    GASNET_WITH(ofi-max-medium,
+                [gasnet_AMMaxMedium() for the ofi-conduit (default 8192)],
+                [if expr "$withval" : '[[0-9]]*$' >/dev/null 2>&1 && \
+                    expr "$withval" '>=' 512  >/dev/null 2>&1 ; then
+                ofi_max_medium="$withval"
+            else
+                AC_MSG_ERROR([--with-ofi-max-medium="$withval" is not legal.  Value must be no smaller than 512.])
+                fi
+                ],
+                [AC_MSG_ERROR([--with-ofi-max-medium must be no smaller than 512])],
+                 [ofi_max_medium=8192])
+    AC_DEFINE_UNQUOTED(GASNETC_OFI_MAX_MEDIUM, [$ofi_max_medium])
   fi
 fi
 AC_SUBST(OFI_INCLUDES)
@@ -4117,6 +4142,15 @@ if test "$have_pmi" = yes; then
   AC_CHECK_FUNCS([PMI_Allgather PMI_Bcast])
   GASNET_POPVAR(LIBS)
   GASNET_POPVAR(LDFLAGS)
+
+  # Get a full path for PMIRUN_CMD, using MPIRUN_CMD as a fallback
+  if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
+    : # Have already probed MIRUN_CMD, possibly system-specific
+  else
+    GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
+  fi
+  GASNET_ENV_DEFAULT(PMIRUN_CMD, $MPIRUN_CMD)
+  GASNET_GETFULLPATH(PMIRUN_CMD)
 elif test -z "$force_pmi"; then
   PMI_SPAWNER_LIBS=""
   PMI_SPAWNER_LIBDIR=""
@@ -4130,6 +4164,7 @@ fi
 AC_SUBST(PMI_SPAWNER_LIBS)
 AC_SUBST(PMI_SPAWNER_LIBDIR)
 AC_SUBST(PMI_SPAWNER_INCLUDES)
+AC_SUBST(PMIRUN_CMD)
 AM_CONDITIONAL(HAVE_BOOTSTRAP_PMI, test "$have_pmi" = yes)
 
 dnl GASNET_TOOLSONLY_FALSE_END

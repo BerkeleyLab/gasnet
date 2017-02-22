@@ -17,7 +17,7 @@ Where this conduit runs:
 
 The GASNet OFI conduit can run on any OFI provider that supports its requirements. At this
 point in time, it is known to work on the Sockets provider, Intel Truescale provider (psm),
-and Intel Omni-Path provider (psm2).  The fi_info command installed with libfabrics can be 
+and Intel Omni-Path provider (psm2).  The fi_info command installed with libfabric can be 
 used to query the available OFI providers.
 
 The OFI conduit can be considered as a tech-preview for next generation fabrics. We are
@@ -31,6 +31,34 @@ does not yet implement all the capabilities needed by ofi-conduit.
 Users with Ethernet hardware are encouraged to consider the GASNet udp-conduit as an alternative
 to ofi-conduit with the sockets provider, as the former may provide more favorable performance.
 
+Job Spawning
+------------
+
+If using UPC, Titanium, etc. the language-specific commands should be used
+to launch applications.  Otherwise, applications can be launched using
+the gasnetrun_ofi utility:
+  + usage summary:
+    gasnetrun_ofi -n <n> [options] [--] prog [program args]
+    options:
+      -n <n>                 number of processes to run (required)
+      -N <N>                 number of nodes to run on (not supported by all MPIs)
+      -E <VAR1[,VAR2...]>    list of environment vars to propagate
+      -v                     be verbose about what is happening
+      -t                     test only, don't execute anything (implies -v)
+      -k                     keep any temporary files created (implies -v)
+      -spawner=(ssh|mpi|pmi) force use of a specific spawner (if available)
+
+There are as many as three possible methods (ssh, mpi and pmi) by which one
+can launch an ofi-conduit application.  Ssh-based spawning is always
+available, and mpi- and pmi-based spawning are available if the respective
+support was located at configure time.  The default is established at
+configure time (see section "Building ofi-conduit", below).
+
+To select a non-default spawner one may either use the "-spawner=" command-
+line argument or set the environment variable GASNET_OFI_SPAWNER to "ssh",
+"mpi" or "pmi".  If both are used, then the command line argument takes
+precedence.
+
 Building ofi-conduit
 --------------------
 
@@ -42,17 +70,43 @@ locate or build an install of libfabric. The source code of libfabric can be fou
 To build GASNet with ofi-conduit enabled:
 ./configure --prefix=[Build Path] --enable-ofi --with-ofihome=[custom libfabric install directory]
 
-To set job launcher, add --with-ofispawner=[ssh or mpi or pmi].
-When using PMI as job launcher, the user can further add
---with-spawnerroot=[custom job launcher directory] 
-to specify which job launcher to use.
+The default spawner to be used by the gasnetrun_ofi utility can be
+selected by specifying '--with-ofi-spawner=VALUE', where VALUE is one
+of 'mpi', 'pmi' or 'ssh'.  If this option is not used, mpi is the
+default when available, and ssh otherwise.
+Here are some things to consider when selecting a default spawner:
+  + mpi-spawner is the default when MPI is available precisely because it
+    is so frequently present on systems where GASNet is to be installed.
+    Additionally, very little (if any) configuration is required and the
+    behavior is highly reliable.
+  + pmi-spawner uses the same "Process Management Interface" which forms
+    the basis for many mpirun implementations.  When support is available,
+    this spawner can be as easy to use and as reliable as mpi-spawner, but
+    without the overheads of initializing an MPI runtime.
+  + ssh-spawner depends only on the availability of a remote shell command
+    such as ssh.  For this reason ssh-spawner support is always compiled.
+    However, it can be difficult (or impossible) to use on a cluster which
+    was not setup to allow ssh to (and among) its compute nodes.
+For more information on configuration and use of these spawners, see
+   README-{ssh,mpi,pmi}-spawner (installed)
+or
+   other/{ssh,mpi,pmi}-spawner/README (source).
+
+Depending on the libfabric provider in use, there may be restrictions on how
+mpi-based spawning is used.  In particluar, PSM and PSM2 providers have the
+property that each process may only open the network adapter once.  If you
+wish to use mpi-spawner, pleae consult it's README for advice on how to set
+your MPIRUN_CMD to use TCP/IP.
 
 Recognized environment variables:
 ---------------------------------
 
-* GASNET_OFI_SPAWNER - set to "mpi", "ssh" or "pmi" to override the value set at
-  configuration time. The gasnetrun_ofi -spawner option overrides the
-  environment variable.
+* GASNET_OFI_SPAWNER
+  To override the default spawner for ofi-conduit jobs, one may set this
+  environment variable as described in the section "Job Spawning", above.
+  There are additional settings which control behaviors of the various
+  spawners, as described in the respective READMEs (listed in section
+  "Building ofi-conduit", above).
 
 * GASNET_QUIET - set to 1 to silence the startup warning indicating
   the provider in use may deliver suboptimal performance.
@@ -61,7 +115,39 @@ Recognized environment variables:
 
 * All the environment variables provided by libfabric (see `fi_info -e`)
 
+* The environment variables described in the "Non-bulk, Non-blocking Put Functions" 
+  section of this file.
+
 * All the standard GASNet environment variables (see top-level README)
+
+
+Non-bulk, Non-blocking Put Functions
+------------------------------------
+GASNet requires the source buffer used in the gasnet_put_{nb,nbi} functions to be able to be reused as
+soon as the function returns. The ofi-conduit implements this by a hybrid approach that uses
+the FI_INJECT flag, bounce buffers, and blocking operations.
+
+* If the nbytes parameter is less than or equal to the chosen provider's inject_size (see the 
+  fi_endpoint(3) man page), the FI_INJECT flag will be used.
+* If the nbytes parameter is greater than the inject size but less than or equal to a user specifiable
+  threshold (default is 4 times the bounce buffer size) then bounce buffers will be used.
+* If the nbytes parameter is greater than the threshold, the operation will be implemented as a 
+  fully-blocking operation.
+
+The following GASNet statistics counters show the number of times each of these code paths are enterred:
+NB_PUT_INJECT, NB_PUT_BOUNCE, NB_PUT_BLOCK.
+
+The following environment variables may be used to tune this behavior:
+* GASNET_OFI_BBUF_SIZE - The size of each bounce buffer. Default is GASNET_PAGESIZE.
+* GASNET_OFI_NUM_BBUFS - The number of bounce buffers to be allocated at initialization. Default: 64
+* GASNET_OFI_BBUF_THRESHOLD - Payload sizes of (GASNET_OFI_BBUF_THRESHOLD + 1) will be transferred
+  as a blocking operation. This is useful for when the overheads of bounce buffering become too great.
+  Default: (4 * GASNET_OFI_BBUF_SIZE).
+* The following condition must hold: GASNET_OFI_NUM_BBUFS >= GASNET_OFI_BBUF_THRESHOLD/GASNET_OFI_BBUF_SIZE
+* These defaults are chosen to optimize for a 256K L2 cache, assuming 4K pages. It is recommended to 
+  modify these variables so that GASNET_PAGESIZE * GASNET_OFI_NUM_BBUFS == L2-cache-size. However,
+  these tuning parameters only apply to gasnet_put_{nb,nbi}(). They do not apply to get functions, blocking
+  functions, or bulk put functions.
 
 Known problems:
 ---------------
