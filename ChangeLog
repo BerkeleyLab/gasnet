@@ -14,7 +14,7 @@ PENDING:
     + Now support (and use by default) PSHM-over-POSIX which works without
       requiring the CYGSERVER (and is more reliable than the alternatives).
 
-* Intel OmniPath PSM2 (psm-conduit)
+* Intel Omni-Path PSM2 (psm-conduit)
   - Fix bug 3340 - Performance loss for puts larger than 16KB
     The PSM2 MQ path is re-enabled for puts and is now semantically correct
 
@@ -31,7 +31,6 @@ PENDING:
   - Fix bug 3358: Aries performance anomaly for 128-byte Gets
 
 * Platform support/portability
-  - Support for the Cray XT (Seastar) platform has been removed
   - Fix several compatibility issues with recent PGI compiler versions
 
 * General performance improvements:
@@ -48,7 +47,7 @@ PENDING:
   - configure works harder to select flags to suppress spurious warnings
   - Now provide pkg-config .pc files corresponding to each GASNet library
   - GASNet headers now use scoped warning suppression on clang and gcc 6.0+,
-    allowing client code to compile as -Wunused without spurious warnings.
+    allowing client code to compile with -Wunused without spurious warnings.
   - Fix bug 3389: Avoid redundant config.status invocations 
   - Fix bug 3351: move -D_GNU_SOURCE: MISC_CPPFLAGS to GASNET_DEFINES 
 
@@ -70,7 +69,7 @@ PENDING:
   - Updated instructions for configuring with SLURM's srun
   - Modified linker flags for compatibility with dynamic libraries
 
-* Intel OmniPath PSM2 (psm-conduit)
+* Intel Omni-Path PSM2 (psm-conduit)
   - Improved handling of multi-threaded and abnormal exits
   - Support for PSHM supernode size less than procs/node
   - Fix bug 3340 - Assertion failure at gasnete_op_markdone()
@@ -159,7 +158,7 @@ PENDING:
 * Mellanox ConnectX series HCAs (mxm-conduit)
   - Fix a compilation error on some platforms
 
-* Intel OmniPath PSM2 (psm-conduit)
+* Intel Omni-Path PSM2 (psm-conduit)
   - Fix a compilation error on some platforms
 
 * Portable UDP (udp-conduit)
