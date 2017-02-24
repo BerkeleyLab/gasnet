@@ -12,8 +12,8 @@ if test -n "$USE_GCC" ; then
     CXX='/bgsys/drivers/ppcfloor/gnu-linux/bin/powerpc64-bgq-linux-g++ -Wno-unused'
 elif test -n "$USE_CLANG" ; then
     # CLANG-based compilers
-    CC='bgclang -fno-integrated-as -Wno-unused -U__GNUC__'
-    CXX='bgclang++ -fno-integrated-as -Wno-unused -U__GNUC__'
+    CC='bgclang -Wno-unused -U__GNUC__'
+    CXX='bgclang++ -Wno-unused -U__GNUC__'
 else
     # XLC-based compilers
     CC='bgxlc_r -qarch=qp -qtune=qp'
