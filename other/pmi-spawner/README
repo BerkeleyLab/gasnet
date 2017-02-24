@@ -91,6 +91,16 @@ purposes:
     This option specifies the directory containing the PMI client library,
     overriding the default search.
 
+  --with-pmi-libs=VALUE
+    This option disables the default search logic for a PMI client library
+    and uses the VALUE of this option as the linker argument to specify the
+    library.  This is useful if one needs to use a PMI implementation not yet
+    recognized by GASNet's configure logic.  Some example values include
+    "-lpmi_runtime" or "/full/path/to/libpmi_static.a".
+    Values such as "-Wl,-rpath=DIR -lpmi" may be used to deal with the case
+    that DIR is not in the default shared library search path at run time
+    (please note that this example is linker-specific).
+
   --with-pmi-version=VALUE (where VALUE must be 1 or 2)
     If present, this option forces configure to only accept a client library
     which implements the given version of the PMI specification.  This is

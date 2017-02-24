@@ -4094,28 +4094,41 @@ if test "$with_pmi" != 'no'; then
 
   # Check for libs unless disqualifed by --with-pmi-version=
   GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $PMI_SPAWNER_LIBDIR")
-  GASNET_PUSHVAR(LIBS,"")
+  GASNET_ENV_DEFAULT(PMI_LIBS, probe)
   if test -z "${use_pmi1+set}"; then
-    AC_SEARCH_LIBS(PMI2_Init, [pmi2 mpich], [
+    GASNET_PUSHVAR(LIBS,"")
+    if test "$PMI_LIBS" = 'probe'; then
+      AC_SEARCH_LIBS(PMI2_Init, [pmi2 mpich], [have_pmi=yes])
+    else
+      LIBS="$PMI_LIBS"
+      AC_CHECK_FUNC(PMI2_Init, [have_pmi=yes])
+    fi
+    if test "$have_pmi" = 'yes'; then
       use_pmi2=yes
-      have_pmi=yes
       pmi_suffix='2'
       AC_DEFINE(HAVE_PMI2_H)
       PMI_SPAWNER_LIBS="$LIBS"
       GASNET_IF_ENABLED(pmi2-fast-barrier, Use PMI2_KVS_fence as barrier. This may not work with all PMI2 implementations,
                          [AC_DEFINE(GASNETI_PMI2_FENCE_IS_BARRIER,[1],[define to 1 if PMI2_KVS_fence() provides barrier functionality])], [] )
-    ])
+    fi
+    GASNET_POPVAR(LIBS)
   fi
   if test -z "${use_pmi2+set}"; then
-    AC_SEARCH_LIBS(PMI_Init, [pmi mpich portals_runtime], [
+    GASNET_PUSHVAR(LIBS,"")
+    if test "$PMI_LIBS" = 'probe'; then
+      AC_SEARCH_LIBS(PMI_Init, [pmi mpich portals_runtime], [have_pmi=yes])
+    else
+      LIBS="$PMI_LIBS"
+      AC_CHECK_FUNC(PMI_Init, [have_pmi=yes])
+    fi
+    if test "$have_pmi" = 'yes'; then
       use_pmi1=yes
-      have_pmi=yes
       pmi_suffix=''
       AC_DEFINE(HAVE_PMI_H)
       PMI_SPAWNER_LIBS="$LIBS"
-    ])
+    fi
+    GASNET_POPVAR(LIBS)
   fi
-  GASNET_POPVAR(LIBS)
   GASNET_POPVAR(LDFLAGS)
 
   # Check for header matching the selected lib
