@@ -1379,8 +1379,8 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
 #if HAVE_SSH_SPAWNER
   /* GASNET_SPAWN_CONTROL=ssh is set by gasnetrun for the ssh spawn master,
    * and by the ssh command line for other processes (ie all normal uses).
-   * We might still reach here without the variable if MPI is disabled at configure time
-   * and the user is attempting a direct command-line launch (ie -GASNET-SPAWN-master)
+   * We no longer claim to support ssh-based launch without gasnetrun.
+   * TODO: should we remove the "spawner == not_set" case?
    */
   if (!res && (spawner == not_set || !strcmp(spawner, "SSH")) &&
       (res = gasneti_bootstrapInit_ssh(argc_p, argv_p, nodes_p, mynode_p))) {
@@ -1388,8 +1388,9 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
 #endif
 
 #if HAVE_PMI_SPAWNER
-  /* Don't really expect GASNET_SPAWN_CONTROL set if launched directly by srun, mpirun, yod, etc.
-   * So, when the env var is not set, we try pmi-based spawn last.
+  /* GASNET_SPAWN_CONTROL=pmi is set by gasnetrun for the pmi spawn case.
+   * We no longer claim to support direct launch with srun, yod, etc.
+   * TODO: should we remove the "spawner == not_set" case?
    */
   if (!res && (spawner == not_set || !strcmp(spawner, "PMI")) &&
       (res = gasneti_bootstrapInit_pmi(argc_p, argv_p, nodes_p, mynode_p))) {
