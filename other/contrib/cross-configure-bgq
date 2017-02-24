@@ -39,7 +39,7 @@ if test -n "$USE_GCC" ; then
     MPI_CC='mpicc'
 elif test -n "$USE_CLANG" ; then
     # CLANG-based compilers
-    MPI_CC='env MPICH_CC=bgclang mpicc'
+    MPI_CC='mpiclang'
 else
     # XLC-based compilers
     MPI_CC='mpixlc -qarch=qp -qtune=qp'
