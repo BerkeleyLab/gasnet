@@ -30,6 +30,7 @@ my $nodefile = $ENV{'GASNET_NODEFILE'} || $ENV{'PBS_NODEFILE'};
 my @tmpfiles = (defined($nodefile) && $ENV{'GASNET_RM_NODEFILE'}) ? ("$nodefile") : ();
 my $spawner = $ENV{'GASNET_SPAWN_CONTROL'}; # from the wrapper script
 my $conduit = $ENV{'GASNET_SPAWN_CONDUIT'};
+my $spawn_control;
 
 sub usage
 {
@@ -143,7 +144,7 @@ sub fullpath($)
         usage "Option -spawner was not given and no default is set\n"
     }
     $ENV{'GASNET_SPAWN_CONTROL'} = lc($spawner);
-    $spawner = uc($spawner);
+    $spawn_control = $spawner = uc($spawner);
     if ($spawner eq 'MPI') {
         usage "Spawner is set to MPI, but MPI support was not compiled in\n"
             unless $ENV{'GASNET_SPAWN_HAVE_MPI'};
@@ -208,7 +209,7 @@ sub fullpath($)
     $ARGV[0] = $exepath;
 
 # Find the GASNet executable and verify its capabilities
-    my $pattern = "^GASNet" . $spawner . "Spawner: 1 \\\$";
+    my $pattern = "^GASNet" . $spawn_control . "Spawner: 1 \\\$";
     my $found = undef;
     $exeindex = 0;
     foreach my $arg (@ARGV) {
@@ -221,7 +222,7 @@ sub fullpath($)
 	{   local $/ = '$'; # use $ as the line break symbol
             while (<FILE>) {
                 next unless(/^GASNet/);
-		if (/GASNetConduitName: $conduit $/) { $is_gasnet = 1; next; }
+		if (/GASNetConduitName: $conduit \$/o) { $is_gasnet = 1; next; }
                 if (/$pattern/o) { $found = 1; last; }
             }
         }
@@ -233,7 +234,7 @@ sub fullpath($)
 	    }
 	    last;
 	} elsif ($is_gasnet) {
-	    die "GASNet executable '$file' does not support spawner '$spawner'\n";
+	    die "GASNet executable '$file' does not support spawner '$spawn_control'\n";
 	}
     }
     warn "gasnetrun: unable to locate a GASNet program in '@ARGV'\n" unless ($found);
