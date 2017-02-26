@@ -781,6 +781,48 @@ typedef enum {
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+#if !defined(GASNETI_BUG3430_WORKAROUND) && PLATFORM_OS_CYGWIN
+  #define GASNETI_BUG3430_WORKAROUND       1
+#endif
+#if GASNETI_THREADS && GASNETI_BUG3430_WORKAROUND
+  // a workaround for the Cygwin pthread_create vs. sched_yield performance bug
+  extern gasneti_mutex_t gasneti_bug3430_lock;
+  extern gasneti_cond_t gasneti_bug3430_cond;
+  extern volatile int gasneti_bug3430_creating;
+
+  static int gasneti_bug3430_sched_yield(void) {
+    if (gasneti_bug3430_creating) { // deliberately unsynchronized "optimistic" read
+      gasneti_mutex_lock(&gasneti_bug3430_lock);
+        while (gasneti_bug3430_creating) { // sleep thru pthread_create
+          gasneti_cond_wait(&gasneti_bug3430_cond, &gasneti_bug3430_lock);
+        }
+      gasneti_mutex_unlock(&gasneti_bug3430_lock);
+    }
+    return _gasneti_sched_yield();
+  }
+
+  static int gasneti_bug3430_pthread_create(pthread_t * GASNETI_RESTRICT _thread,
+           const pthread_attr_t * GASNETI_RESTRICT _attr,
+           void *(*_start_routine)(void*), void * GASNETI_RESTRICT _arg) {
+    gasneti_mutex_lock(&gasneti_bug3430_lock);
+      gasneti_bug3430_creating++;
+      int _ret = pthread_create(_thread, _attr, _start_routine, _arg);
+      gasneti_bug3430_creating--;
+      gasneti_cond_broadcast(&gasneti_bug3430_cond);
+    gasneti_mutex_unlock(&gasneti_bug3430_lock);
+    return _ret;
+  }
+
+  // install hooks via macro
+  #undef  sched_yield
+  #define sched_yield    gasneti_bug3430_sched_yield
+  #undef  _gasneti_sched_yield
+  #define _gasneti_sched_yield() gasneti_bug3430_sched_yield()
+  #undef  pthread_create
+  #define pthread_create gasneti_bug3430_pthread_create
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 /* environment support 
    see README-tools for usage information 
  */

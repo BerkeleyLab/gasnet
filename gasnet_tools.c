@@ -100,6 +100,12 @@ extern void gasneti_mutex_cautious_init(/*gasneti_mutex_t*/void *_pl) {
 }
 #endif
 
+#if GASNETI_THREADS && GASNETI_BUG3430_WORKAROUND
+  gasneti_mutex_t gasneti_bug3430_lock = GASNETI_MUTEX_INITIALIZER;
+  gasneti_cond_t gasneti_bug3430_cond = GASNETI_COND_INITIALIZER;
+  volatile int gasneti_bug3430_creating = 0;
+#endif
+
 /* ------------------------------------------------------------------------------------ */
 /* rwlock support */
 
