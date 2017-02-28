@@ -305,7 +305,7 @@ gasnetex_handle_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
     for (size_t i = 1; i < srccount; i++) { 
       if_pt (srclist[i].len > 0) goto nonempty;
     }
-    return GASNET_INVALID_HANDLE;
+    return GASNETEX_INVALID_HANDLE;
     nonempty: ;
   }
   GASNETE_START_NBIREGION(synctype, 0);
@@ -444,7 +444,7 @@ gasnetex_handle_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
     for (size_t i = 1; i < dstcount; i++) { 
       if_pt (dstlist[i].len > 0) goto nonempty;
     }
-    return GASNET_INVALID_HANDLE;
+    return GASNETEX_INVALID_HANDLE;
     nonempty: ;
   }
 
