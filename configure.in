@@ -2979,11 +2979,10 @@ elif test "$enabled_mxm" != no; then
       AC_MSG_RESULT([probably not])
     fi
 
-    if test $MXMHOME = '/usr'; then
-      mxm_includes_guess=''
-    else
-      mxm_includes_guess="-I$MXMHOME/include"
-    fi
+    case "$MXMHOME" in
+      /usr|/) mxm_includes_guess='' ;;
+           *) mxm_includes_guess="-I$MXMHOME/include" ;;
+    esac
     GASNET_ENV_DEFAULT(MXM_INCLUDE, $mxm_includes_guess)
     GASNET_ENV_DEFAULT(MXM_LIBS, -lmxm)
 
@@ -3037,11 +3036,10 @@ elif test "$enabled_psm" = yes; then
     psm_guess=/usr
     GASNET_ENV_DEFAULT(PSMHOME, $psm_guess)
 
-    if test $PSMHOME = '/usr'; then
-      psm_includes_guess=''
-    else
-      psm_includes_guess="-I$PSMHOME/include"
-    fi
+    case "$PSMHOME" in
+      /usr|/) psm_includes_guess='' ;;
+           *) psm_includes_guess="-I$PSMHOME/include" ;;
+    esac
     GASNET_ENV_DEFAULT(PSM_INCLUDE, $psm_includes_guess)
     GASNET_ENV_DEFAULT(PSM_LIBS, -lpsm2)
     # Note 'test -d $foo/.' works even if $foo is a symlink
@@ -3226,11 +3224,10 @@ if test "$enabled_ibv" = yes; then
     AC_MSG_RESULT([probably not])
   fi
 
-  if test $IBVHOME = '/usr'; then
-    ibv_includes_guess=''
-  else
-    ibv_includes_guess="-I$IBVHOME/include"
-  fi
+  case "$IBVHOME" in
+    /usr|/) ibv_includes_guess='' ;;
+         *) ibv_includes_guess="-I$IBVHOME/include" ;;
+  esac
   GASNET_ENV_DEFAULT(IBV_INCLUDES, $ibv_includes_guess)
   GASNET_ENV_DEFAULT(IBV_LIBS, -libverbs)
   # Note 'test -d $foo/.' works even if $foo is a symlink
@@ -3736,11 +3733,10 @@ if test "$enabled_ofi" = yes; then
   fi
 
   if test "$have_ofi" = yes; then
-    if test $OFIHOME = '/usr'; then
-      ofi_includes_guess=''
-    else
-      ofi_includes_guess="-I$OFIHOME/include"
-    fi
+    case "$OFIHOME" in
+      /usr|/) ofi_includes_guess='' ;;
+           *) ofi_includes_guess="-I$OFIHOME/include" ;;
+    esac
     GASNET_ENV_DEFAULT(OFI_INCLUDES, $ofi_includes_guess)
     GASNET_ENV_DEFAULT(OFI_LIBS, -lfabric)
     ofi_lib_guess="$OFIHOME/lib${GASNETI_PTR_BITS}"
