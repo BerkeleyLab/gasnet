@@ -402,6 +402,7 @@
 #undef GASNETC_OFI_MAX_MEDIUM
 #undef GASNETC_OFI_NUM_COMPLETIONS
 #undef GASNETC_OFI_HAS_MR_SCALABLE
+#undef GASNETC_OFI_USE_THREAD_DOMAIN
 
 /* GASNet ibv-conduit features and bug work-arounds */
 #undef HAVE_IBV_SRQ
