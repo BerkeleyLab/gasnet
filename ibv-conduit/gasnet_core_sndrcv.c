@@ -4367,9 +4367,12 @@ extern int gasnetc_RequestGeneric(gasnetc_category_t category,
 
 #if GASNET_PSHM
   if_pt (gasneti_pshm_in_supernode(node)) {
-    return gasneti_AMPSHM_RequestGeneric(category, node, handler,
+    int retval;
+    retval = gasneti_AMPSHM_RequestGeneric(category, node, handler,
                                          src_addr, nbytes, dst_addr,
                                          flags, numargs, argptr);
+    if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
+    return retval;
   }
 #endif
 
@@ -4392,9 +4395,11 @@ extern int gasnetc_ReplyGeneric(gasnetc_category_t category,
 
 #if GASNET_PSHM
   if_pt (gasnetc_token_is_pshm(token)) {
-      return gasneti_AMPSHM_ReplyGeneric(category, token, handler,
+    retval = gasneti_AMPSHM_ReplyGeneric(category, token, handler,
                                          src_addr, nbytes, dst_addr,
                                          flags, numargs, argptr);
+    if_pf (counter) gasnetc_atomic_increment(&counter->completed, 0);
+    return retval;
   }
 #endif
 

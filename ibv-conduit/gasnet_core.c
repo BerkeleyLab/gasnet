@@ -199,6 +199,7 @@ static void gasnetc_sys_coll_init(void)
   gasnetc_bootstrapExchange_phase = 0;
 
   /* Construct vector of the dissemination peers */
+  gasnetc_dissem_peers = 0;
   for (i = 1; i < size; i *= 2) {
     ++gasnetc_dissem_peers;
   }
@@ -318,7 +319,6 @@ static void gasnetc_sys_coll_fini(void)
  #endif
 #endif
 
-  gasnetc_dissem_peers = 0;
   gasneti_bootstrap_native_coll = 0;
 }
 
@@ -2074,6 +2074,13 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /* ensure extended API is initialized across nodes */
   gasnetc_bootstrapBarrier_ib();
   gasnetc_sys_coll_fini();
+
+#if GASNET_DEBUG
+  /* Ensure fini-init-fini works (required for checkpoint/restart) */
+  gasnetc_sys_coll_init();
+  gasnetc_bootstrapBarrier_ib();
+  gasnetc_sys_coll_fini();
+#endif
 
   return GASNET_OK;
 }
