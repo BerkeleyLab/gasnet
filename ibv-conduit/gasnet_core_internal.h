@@ -274,7 +274,7 @@ typedef union {
 /* Use alloca()?  (e.g. to work-around bug 2079) */
 #ifdef GASNETI_USE_ALLOCA
   /* Keep defn */
-#else
+#elif !PLATFORM_COMPILER_PGI
   #define GASNETI_USE_ALLOCA 1
 #endif
 #if GASNETI_USE_ALLOCA
