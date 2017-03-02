@@ -14,6 +14,9 @@ PENDING:
     + Now support (and use by default) PSHM-over-POSIX which works without
       requiring the CYGSERVER (and is more reliable than the alternatives).
 
+* InfiniBand Verbs (ibv-conduit)
+  - Fix bug 3435: long exit times and exit warnings for certain patterns
+
 * Intel Omni-Path PSM2 (psm-conduit)
   - Fix bug 3340 - Performance loss for puts larger than 16KB
     The PSM2 MQ path is re-enabled for puts and is now semantically correct
