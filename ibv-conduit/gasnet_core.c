@@ -911,6 +911,11 @@ static int gasnetc_load_settings(void) {
     gasnetc_amrdma_cycle = (GASNETI_ATOMIC_MAX >> 2);
   }
 
+  // Bug 3441: zero values of GASNET_AMRDMA_{LIMIT,CYCLE} should prevent allocation of pinned memory
+  if (!gasnetc_amrdma_limit || !gasnetc_amrdma_cycle) {
+    gasnetc_amrdma_max_peers = 0;
+  }
+
   #if GASNETC_PIN_SEGMENT
     GASNETC_ENVINT(gasnetc_pin_maxsz, GASNET_PIN_MAXSZ, 0, 0, 1);
     if (!gasnetc_pin_maxsz) {

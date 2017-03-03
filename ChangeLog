@@ -16,7 +16,7 @@ PENDING:
 
 * InfiniBand Verbs (ibv-conduit)
   - Fix bug 3435: long exit times and exit warnings for certain patterns
-  - XXX Fix bug XXX: AMRDMA disable controls
+  - Fix bug 3441: AMRDMA disable controls
   - XXX Fix bug 3428: AMRDMA malfunctions on Pathscale optimizer
 
 * Intel Omni-Path PSM2 (psm-conduit)
