@@ -15,12 +15,12 @@ PENDING:
       requiring the CYGSERVER (and is more reliable than the alternatives).
 
 * InfiniBand Verbs (ibv-conduit)
+  - Work-around bug 3428: AMRDMA malfunctions on Pathscale optimizer
   - Fix bug 3435: long exit times and exit warnings for certain patterns
   - Fix bug 3441: AMRDMA disable controls
-  - Work-around bug 3428: AMRDMA malfunctions on Pathscale optimizer
 
 * Intel Omni-Path PSM2 (psm-conduit)
-  - Fix bug 3340 - Performance loss for puts larger than 16KB
+  - Fix bug 3340: Performance loss for puts larger than 16KB
     The PSM2 MQ path is re-enabled for puts and is now semantically correct
 
 * Libfabric (ofi-conduit)
@@ -53,8 +53,8 @@ PENDING:
   - Now provide pkg-config .pc files corresponding to each GASNet library
   - GASNet headers now use scoped warning suppression on clang and gcc 6.0+,
     allowing client code to compile with -Wunused without spurious warnings.
-  - Fix bug 3389: Avoid redundant config.status invocations 
   - Fix bug 3351: move -D_GNU_SOURCE: MISC_CPPFLAGS to GASNET_DEFINES 
+  - Fix bug 3389: Avoid redundant config.status invocations
 
 * GASNet tools 
   - portable_platform.h has been renamed gasnet_portable_platform.h
