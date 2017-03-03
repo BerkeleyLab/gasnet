@@ -726,7 +726,7 @@ extern void gasneti_propagate_env_helper(const char *environ, const char * keyna
         val = (char *)((*gasnett_decode_envval_fn)(val));
       }
       gasnett_setenv(var, val);
-      GASNETT_TRACE_PRINTF("gasneti_propagate_env(%s) => '%s'", var, val);
+      GASNETI_TRACE_PRINTF(I,("gasneti_propagate_env(%s) => '%s'", var, val));
       gasneti_free(var);
       if (!is_prefix) break;
     }
