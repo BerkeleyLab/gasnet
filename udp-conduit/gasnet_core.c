@@ -225,7 +225,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     if (retval != AM_OK) INITERR(RESOURCE, "slave AMUDP_SPMDStartup() failed");
     gasneti_init_done = 1; /* enable early to allow tracing */
 
-    gasneti_conduit_getenv = (/* cast drops const */ gasneti_getenv_fn_t*)&AMUDP_SPMDgetenvMaster;
+    gasneti_getenv_hook = (/* cast drops const */ gasneti_getenv_fn_t*)&AMUDP_SPMDgetenvMaster;
     gasneti_mynode = AMUDP_SPMDMyProc();
     gasneti_nodes = AMUDP_SPMDNumProcs();
 
