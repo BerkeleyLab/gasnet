@@ -1620,15 +1620,15 @@ GASNETT_TENTATIVE_EXTERN
 const char * (*gasnett_decode_envval_fn)(const char *);
 GASNETT_TENTATIVE_EXTERN
 int (*gasneti_verboseenv_fn)(void);
-gasneti_getenv_fn_t *gasneti_conduit_getenv = NULL;
+gasneti_getenv_fn_t *gasneti_getenv_hook = NULL;
 char *gasneti_globalEnv = NULL;
 
 extern char *gasneti_getenv(const char *keyname) {
   char *retval = NULL;
 
-  if (keyname && gasneti_conduit_getenv) {
-    /* highest priority given to conduit-specific getenv */
-    retval = (*gasneti_conduit_getenv)(keyname);
+  if (keyname && gasneti_getenv_hook) {
+    /* highest priority given to spawner- or conduit-specific getenv */
+    retval = (*gasneti_getenv_hook)(keyname);
   }
 
   if (keyname && !retval && gasneti_globalEnv) { 

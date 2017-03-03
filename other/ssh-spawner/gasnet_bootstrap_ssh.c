@@ -1517,7 +1517,7 @@ static void do_connect(const char *spawn_args, int *argc_p, char ***argv_p)
     gasneti_leak((/*non-const*/ void *)wrapper);
   }
 
-  gasneti_conduit_getenv = &do_getenv;
+  gasneti_getenv_hook = &do_getenv;
   envcmd = my_getenv_withdefault(ENV_PREFIX "ENVCMD", "env");
 
   myname = myrank;
@@ -2754,7 +2754,7 @@ extern gasneti_spawnerfn_t const * gasneti_bootstrapInit_ssh(int *argc_p, char *
   /* Reach here only in the rank processes */
   gasneti_assert(! is_control);
 
-  gasneti_conduit_getenv = &do_getenv;
+  gasneti_getenv_hook = &do_getenv;
   *nodes_p  = nranks;
   *mynode_p = myrank;
 
