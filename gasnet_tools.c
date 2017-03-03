@@ -2499,6 +2499,8 @@ gasneti_count0s_copy(void * GASNETI_RESTRICT dst, const void * GASNETI_RESTRICT 
   const uint8_t *s = src;
   while (bytes--) zeros += !(*(d++) = *(s++));
   return zeros;
+#elif PLATFORM_COMPILER_PATHSCALE /* avoid bug 3428 using pre-memcpy/post-count0s */
+  size_t zeros = gasneti_count0s(memcpy(dst, src, bytes), bytes);
 #else /* Carefully optimized (but still portable) word-oriented loop */
   size_t tmp, remain, zeros;
   const uint8_t *s;
