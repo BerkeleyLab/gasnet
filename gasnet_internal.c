@@ -713,7 +713,7 @@ extern void gasneti_propagate_env_helper(const char *environ, const char * keyna
   const char *p = environ;
 
   gasneti_assert(environ);
-  gasneti_assert(keyname && !strchr(keyname,'='))
+  gasneti_assert(keyname && !strchr(keyname,'='));
 
   int keylen = strlen(keyname);
   while (*p) {
