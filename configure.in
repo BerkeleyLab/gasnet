@@ -2794,6 +2794,12 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
        [ GASNET_C99_TEST ], [], [],
        [ mpi_test_worked=no 
          GASNET_MSG_WARN(Unable to find sufficient C99 support features in $MPI_CC to build GASNet. You may need to append flags in \$MPI_CC to enable C99 support) ])
+    else # bug 3443: MPI_CC was rejected, so don't cache information about that compiler
+      # there is no way to "AC_UNDEF" so just ensure compiler mismatch
+      AC_DEFINE(GASNETI_PLATFORM_MPI_CC_ID, 999999)
+      AC_DEFINE(GASNETI_PLATFORM_MPI_CC_FAMILYID, 999999)
+      AC_DEFINE(GASNETI_PLATFORM_MPI_CC_VERSION, 999999)
+      AC_DEFINE(GASNETI_PLATFORM_MPI_CC_IDSTR, "MPI_CC-compiler-rejected")
     fi
 
     GASNET_POPVAR(CC)
