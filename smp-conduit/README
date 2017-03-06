@@ -17,6 +17,11 @@ environment and hardware-shared memory.
 smp-conduit jobs can be launched directly in the same manner as normal
 POSIX executables - ie on the command line, no spawner script required.
 
+Optional compile-time settings:
+------------------------------
+
+* All the compile-time settings from extended-ref (see the extended-ref README)
+
 Recognized environment variables:
 ---------------------------------
 
@@ -34,11 +39,6 @@ Recognized environment variables:
   Enables shared-memory implementation of GASNet barriers
 
 * All the standard GASNet environment variables (see top-level README)
-
-Optional compile-time settings:
-------------------------------
-
-* All the compile-time settings from extended-ref (see the extended-ref README)
 
 Known problems:
 ---------------

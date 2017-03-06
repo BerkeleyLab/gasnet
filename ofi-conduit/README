@@ -49,35 +49,6 @@ Threading mode: FI_THREAD_SAFE, FI_THREAD_DOMAIN
     * In GASNET_PAR mode, FI_THREAD_DOMAIN is used only for the psm and psm2 providers which currently
       do not support FI_THREAD_SAFE. All other providers use FI_THREAD_SAFE.
 
-
-Job Spawning
-------------
-
-If using UPC, Titanium, etc. the language-specific commands should be used
-to launch applications.  Otherwise, applications can be launched using
-the gasnetrun_ofi utility:
-  + usage summary:
-    gasnetrun_ofi -n <n> [options] [--] prog [program args]
-    options:
-      -n <n>                 number of processes to run (required)
-      -N <N>                 number of nodes to run on (not supported by all MPIs)
-      -E <VAR1[,VAR2...]>    list of environment vars to propagate
-      -v                     be verbose about what is happening
-      -t                     test only, don't execute anything (implies -v)
-      -k                     keep any temporary files created (implies -v)
-      -spawner=(ssh|mpi|pmi) force use of a specific spawner (if available)
-
-There are as many as three possible methods (ssh, mpi and pmi) by which one
-can launch an ofi-conduit application.  Ssh-based spawning is always
-available, and mpi- and pmi-based spawning are available if the respective
-support was located at configure time.  The default is established at
-configure time (see section "Building ofi-conduit", below).
-
-To select a non-default spawner one may either use the "-spawner=" command-
-line argument or set the environment variable GASNET_OFI_SPAWNER to "ssh",
-"mpi" or "pmi".  If both are used, then the command line argument takes
-precedence.
-
 Building ofi-conduit
 --------------------
 
@@ -103,6 +74,7 @@ ofi-conduit exposes the following configure script flags for GASNet:
     * --with-ofi-max-medium=VALUE: Specify the maximum size of AMMedium messages in
       ofi-conduit. This may be useful for tuning the conduit to different network
       hardware. Default: 8192
+
 The following configure flags override options set by provider selection via
 auto-detection or by the --with-ofi-provider=VALUE flag. These are not recommended to be
 used as tuning options.
@@ -121,7 +93,6 @@ used as tuning options.
     * --disable-ofi-mr-scalable: Indicates that FI_MR_BASIC memory registration support
       will be statically compiled into the conduit. This is the default option for the
       gni provider, which at this time does not support FI_MR_SCALABLE.
-
 
 The default spawner to be used by the gasnetrun_ofi utility can be
 selected by specifying '--with-ofi-spawner=VALUE', where VALUE is one
@@ -150,6 +121,34 @@ mpi-based spawning is used.  In particular, PSM and PSM2 providers have the
 property that each process may only open the network adapter once.  If you
 wish to use mpi-spawner, pleae consult it's README for advice on how to set
 your MPIRUN_CMD to use TCP/IP.
+
+Job Spawning
+------------
+
+If using UPC, Titanium, etc. the language-specific commands should be used
+to launch applications.  Otherwise, applications can be launched using
+the gasnetrun_ofi utility:
+  + usage summary:
+    gasnetrun_ofi -n <n> [options] [--] prog [program args]
+    options:
+      -n <n>                 number of processes to run (required)
+      -N <N>                 number of nodes to run on (not supported by all MPIs)
+      -E <VAR1[,VAR2...]>    list of environment vars to propagate
+      -v                     be verbose about what is happening
+      -t                     test only, don't execute anything (implies -v)
+      -k                     keep any temporary files created (implies -v)
+      -spawner=(ssh|mpi|pmi) force use of a specific spawner (if available)
+
+There are as many as three possible methods (ssh, mpi and pmi) by which one
+can launch an ofi-conduit application.  Ssh-based spawning is always
+available, and mpi- and pmi-based spawning are available if the respective
+support was located at configure time.  The default is established at
+configure time (see section "Building ofi-conduit", above).
+
+To select a non-default spawner one may either use the "-spawner=" command-
+line argument or set the environment variable GASNET_OFI_SPAWNER to "ssh",
+"mpi" or "pmi".  If both are used, then the command line argument takes
+precedence.
 
 Recognized environment variables:
 ---------------------------------

@@ -22,46 +22,6 @@ networks that expose a high-performance network API, where an appropriate
 GASNet native conduit implementation should be preferred. It is not intended
 for use on Ethernet harware, where udp-conduit should usually be preferred.
 
-Recognized environment variables:
----------------------------------
-
-* All the standard GASNet environment variables (see top-level README)
-
-* GASNET_NETWORKDEPTH - depth of network buffers to allocate (defaults to 4)
-  can also be set as AMMPI_NETWORKDEPTH (GASNET_NETWORKDEPTH takes precedence)
-  mpi-conduit's max MPI buffer usage at any time is bounded by:
-   4 * depth * 65 KB preposted non-blocking recvs
-   2 * depth * 65 KB non-blocking sends (AMMedium/AMLong)
-   2 * depth * 78 byte non-blocking sends (AMShort)
-
-* AMMPI_CREDITS_PP - number of send credits each node has for each remote target 
-  node in the token-based flow-control. Setting this value too high can increase
-  the incidence of unexpected messages at the target, reducing effective bandwidth.
-  Setting the value too low can induce premature backpressure at the initiator,
-  reducing communication overlap and effective bandwidth. Defaults to depth*2.
-
-* AMMPI_CREDITS_SLACK - number of send credits that may be coalesced at the target
-  during a purely one-way AM messaging stream before forcing a reply to be
-  generated for refunding credits. Defaults to AMMPI_CREDITS_PP*0.75.
-
-* AMMPI_SYNCSEND_THRESH - size threshhold above which to use synchronous
-  non-blocking MPI sends, a workaround for buggy MPI implementations on a
-  few platforms. 0 means always use synchronous sends, -1 means never use them
-  (the default on most platforms).
-
-* GASNET_MPI_THREAD - can be set to one of the values:
-    "SINGLE", "FUNNELED", "SERIALIZED" or "MULTIPLE" 
-  to request the MPI library be initialized with a specific threading support
-  level. The default value depends on the GASNet threading mode.
-  + SINGLE - sufficient for mpi-conduit in GASNET_SEQ mode. This MPI thread mode is 
-    only guaranteed to work correctly in a strictly single-threaded process 
-    (ie no threads anywhere in the system). 
-  + FUNNELED - Other threads exist in the process, but never call MPI or GASNet.
-  + SERIALIZED - The default in GASNET_PAR or GASNET_PARSYNC mode, where multiple 
-    client threads may call GASNet, resulting in MPI calls serialized by mpi-conduit. 
-  + MULTIPLE - Multi-threaded GASNet+MPI process that makes direct calls to MPI.
-  See MPI documentation for detailed explanation of the threading levels.
-
 Configuration-time variables:
 ---------------------------------
 
@@ -106,6 +66,46 @@ Optional compile-time settings:
 ------------------------------
 
 * All the compile-time settings from extended-ref (see the extended-ref README)
+
+Recognized environment variables:
+---------------------------------
+
+* All the standard GASNet environment variables (see top-level README)
+
+* GASNET_NETWORKDEPTH - depth of network buffers to allocate (defaults to 4)
+  can also be set as AMMPI_NETWORKDEPTH (GASNET_NETWORKDEPTH takes precedence)
+  mpi-conduit's max MPI buffer usage at any time is bounded by:
+   4 * depth * 65 KB preposted non-blocking recvs
+   2 * depth * 65 KB non-blocking sends (AMMedium/AMLong)
+   2 * depth * 78 byte non-blocking sends (AMShort)
+
+* AMMPI_CREDITS_PP - number of send credits each node has for each remote target 
+  node in the token-based flow-control. Setting this value too high can increase
+  the incidence of unexpected messages at the target, reducing effective bandwidth.
+  Setting the value too low can induce premature backpressure at the initiator,
+  reducing communication overlap and effective bandwidth. Defaults to depth*2.
+
+* AMMPI_CREDITS_SLACK - number of send credits that may be coalesced at the target
+  during a purely one-way AM messaging stream before forcing a reply to be
+  generated for refunding credits. Defaults to AMMPI_CREDITS_PP*0.75.
+
+* AMMPI_SYNCSEND_THRESH - size threshhold above which to use synchronous
+  non-blocking MPI sends, a workaround for buggy MPI implementations on a
+  few platforms. 0 means always use synchronous sends, -1 means never use them
+  (the default on most platforms).
+
+* GASNET_MPI_THREAD - can be set to one of the values:
+    "SINGLE", "FUNNELED", "SERIALIZED" or "MULTIPLE" 
+  to request the MPI library be initialized with a specific threading support
+  level. The default value depends on the GASNet threading mode.
+  + SINGLE - sufficient for mpi-conduit in GASNET_SEQ mode. This MPI thread mode is 
+    only guaranteed to work correctly in a strictly single-threaded process 
+    (ie no threads anywhere in the system). 
+  + FUNNELED - Other threads exist in the process, but never call MPI or GASNet.
+  + SERIALIZED - The default in GASNET_PAR or GASNET_PARSYNC mode, where multiple 
+    client threads may call GASNet, resulting in MPI calls serialized by mpi-conduit. 
+  + MULTIPLE - Multi-threaded GASNet+MPI process that makes direct calls to MPI.
+  See MPI documentation for detailed explanation of the threading levels.
 
 Known problems:
 ---------------

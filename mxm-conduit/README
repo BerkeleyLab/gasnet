@@ -25,6 +25,31 @@ For this reason we cannot categorically recommend one over the other.  We
 encourage users concerned with obtaining the best possible performance to
 benchmark your own workload when selecting a conduit.
 
+Optional compile-time settings:
+------------------------------
+
+The default spawner to be used by the gasnetrun_mxm utility can be
+selected by specifying '--with-mxm-spawner=VALUE', where VALUE is one
+of 'mpi', 'pmi' or 'ssh'.  If this option is not used, mpi is the
+default when available, and ssh otherwise.
+Here are some things to consider when selecting a default spawner:
+  + mpi-spawner is the default when MPI is available precisely because it
+    is so frequently present on systems where GASNet is to be installed.
+    Additionally, very little (if any) configuration is required and the
+    behavior is highly reliable.
+  + pmi-spawner uses the same "Process Management Interface" which forms
+    the basis for many mpirun implementations.  When support is available,
+    this spawner can be as easy to use and as reliable as mpi-spawner, but
+    without the overheads of initializing an MPI runtime.
+  + ssh-spawner depends only on the availability of a remote shell command
+    such as ssh.  For this reason ssh-spawner support is always compiled.
+    However, it can be difficult (or impossible) to use on a cluster which
+    was not setup to allow ssh to (and among) its compute nodes.
+For more information on configuration and use of these spawners, see
+   README-{ssh,mpi,pmi}-spawner (installed)
+or
+   other/{ssh,mpi,pmi}-spawner/README (source).
+
 Job Spawning:
 -------------
 
@@ -86,35 +111,10 @@ Recognized environment variables:
   environment variable as described in the section "Job Spawning", above.
   There are additional settings which control behaviors of the various
   spawners, as described in the respective READMEs (listed in section
-  "Optional compile-time settings", below).
+  "Optional compile-time settings", above).
 
 * MXM environment variables documented in the Release Notes which accompany
   your release of MXM.
-
-Optional compile-time settings:
-------------------------------
-
-The default spawner to be used by the gasnetrun_mxm utility can be
-selected by specifying '--with-mxm-spawner=VALUE', where VALUE is one
-of 'mpi', 'pmi' or 'ssh'.  If this option is not used, mpi is the
-default when available, and ssh otherwise.
-Here are some things to consider when selecting a default spawner:
-  + mpi-spawner is the default when MPI is available precisely because it
-    is so frequently present on systems where GASNet is to be installed.
-    Additionally, very little (if any) configuration is required and the
-    behavior is highly reliable.
-  + pmi-spawner uses the same "Process Management Interface" which forms
-    the basis for many mpirun implementations.  When support is available,
-    this spawner can be as easy to use and as reliable as mpi-spawner, but
-    without the overheads of initializing an MPI runtime.
-  + ssh-spawner depends only on the availability of a remote shell command
-    such as ssh.  For this reason ssh-spawner support is always compiled.
-    However, it can be difficult (or impossible) to use on a cluster which
-    was not setup to allow ssh to (and among) its compute nodes.
-For more information on configuration and use of these spawners, see
-   README-{ssh,mpi,pmi}-spawner (installed)
-or
-   other/{ssh,mpi,pmi}-spawner/README (source).
 
 Known problems:
 ---------------

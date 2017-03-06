@@ -14,6 +14,21 @@ on the Cray X1 and SGI Altix systems.  It is not intended for use with
 OpenSHMEM (some implementations of which themselves depend upon GASNet),
 or on any other current systems.
 
+Optional compile-time settings:
+------------------------------
+
+* All the compile-time settings from extended-ref (see the extended-ref README)
+
+* GASNETE_NBISYNC_ALWAYS_QUIET: See description below in 'GASNet implicit
+  memory operations and synchronization (nbi)'
+
+* GASNETE_GLOBAL_ADDRESS_CLIENT: If defined, the conduit makes no effort to
+  translate global addresses and assumes that every address passed to GASNet is
+  a global address that requires no further translation.  In other words,
+  issuing a gasnet_put(0xaaaaa, 5) at node 5 translates into a store exactly at
+  address 0xaaaa.  If undefined, the conduit uses whatever the system offers to
+  translate local into global pointers.
+
 Recognized environment variables:
 ---------------------------------
 
@@ -31,21 +46,6 @@ Recognized environment variables:
 * GASNET_BARRIER=SHMEM
   Enables shmem-native implementation of GASNet barriers based on increments
   of a central counter.
-
-Optional compile-time settings:
-------------------------------
-
-* All the compile-time settings from extended-ref (see the extended-ref README)
-
-* GASNETE_NBISYNC_ALWAYS_QUIET: See description above in 'GASNet implicit
-  memory operations and synchronization (nbi)'
-
-* GASNETE_GLOBAL_ADDRESS_CLIENT: If defined, the conduit makes no effort to
-  translate global addresses and assumes that every address passed to GASNet is
-  a global address that requires no further translation.  In other words,
-  issuing a gasnet_put(0xaaaaa, 5) at node 5 translates into a store exactly at
-  address 0xaaaa.  If undefined, the conduit uses whatever the system offers to
-  translate local into global pointers.
 
 Known problems:
 ---------------

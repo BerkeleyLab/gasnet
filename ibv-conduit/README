@@ -5,10 +5,10 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 @ TOC: @
 @ Section: Overview @
 @ Section: Where this conduit runs @
-@ Section: Job Spawning @
-@ Section: Multi-rail Support @
 @ Section: Build-time Configuration @
+@ Section: Job Spawning @
 @ Section: Runtime Configuration @
+@ Section: Multi-rail Support @
 @ Section: HCA Configuration @
 @ Section: Platform-specific Notes @
 @ Section: Core API @
@@ -64,63 +64,6 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
   that ibv-conduit will lack PSHM support and thus perform all communication
   within a compute node via the InfiniBand HCA instead of shared memory.
 
-@ Section: Job Spawning @
-
-  If using UPC, Titanium, etc. the language-specific commands should be used
-  to launch applications.  Otherwise, applications can be launched using
-  the gasnetrun_ibv utility:
-  + usage summary:
-    gasnetrun_ibv -n <n> [options] [--] prog [program args]
-    options:
-      -n <n>                 number of processes to run (required)
-      -N <N>                 number of nodes to run on (not supported by all MPIs)
-      -E <VAR1[,VAR2...]>    list of environment vars to propagate
-      -v                     be verbose about what is happening
-      -t                     test only, don't execute anything (implies -v)
-      -k                     keep any temporary files created (implies -v)
-      -spawner=(ssh|mpi|pmi) force use of a specific spawner (if available)
-
-  There are as many as three possible methods (ssh, mpi and pmi) by which one
-  can launch an ibv-conduit application.  Ssh-based spawning is always
-  available, and mpi- and pmi-based spawning are available if the respective
-  support was located at configure time.  The default is established at
-  configure time (see section "Build-time Configuration").
-
-  To select a non-default spawner one may either use the "-spawner=" command-
-  line argument or set the environment variable GASNET_IBV_SPAWNER to "ssh",
-  "mpi" or "pmi".  If both are used, then the command line argument takes
-  precedence.
-
-  It has been noted that some InfiniBand driver implementations may not
-  allow for multiple open()s of the adapter.  In this case, spawning via
-  MPI is not possible because the MPI and GASNet implementations cannot
-  share the adapter.  If your GASNet jobs fail to spawn via MPI, but
-  spawn correctly with ssh or pmi, then this may be the reason.  If you
-  need mpi-based spawning, our recommendation is to attempt to set the
-  MPIRUN_CMD such that your MPI will not use InfiniBand (see mpi-spawner's
-  README).  If that is not possible, you may need to select a different
-  MPI implementation.
-
-@ Section: Multi-rail Support @
-
-  Multi-rail support is ON in GASNet ibv-conduit by default.
-
-  By default, GASNet ibv-conduit will open up to two InfiniBand Host
-  Channel Adapters (HCAs) per node, and will stripe communications over
-  one active port on each adapter.  See the sections "Build-time
-  Configuration" and "Runtime Configuration" for information on
-  how to open more or fewer HCAs/ports, or to control which HCAs/ports
-  are used.
-
-  To first order, the use of multiple ports or multiple adapters will
-  yield increases in both bandwidth (good) and software overhead (bad).
-  How the resulting trade off works for a given application may be
-  hard to predict.  If one is concerned with obtaining the maximum
-  possible performance for a given application, then experiment with
-  the GASNET_NUM_QPS and/or GASNET_IBV_PORTS environment variables
-  (documented in "Runtime Configuration") to determine how a given
-  application runs best.
-
 @ Section: Build-time Configuration @
 
   Ibv-conduit can ensures good network attentiveness (timely
@@ -167,6 +110,43 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
      README-{ssh,mpi,pmi}-spawner (installed)
   or
      other/{ssh,mpi,pmi}-spawner/README (source).
+
+@ Section: Job Spawning @
+
+  If using UPC, Titanium, etc. the language-specific commands should be used
+  to launch applications.  Otherwise, applications can be launched using
+  the gasnetrun_ibv utility:
+  + usage summary:
+    gasnetrun_ibv -n <n> [options] [--] prog [program args]
+    options:
+      -n <n>                 number of processes to run (required)
+      -N <N>                 number of nodes to run on (not supported by all MPIs)
+      -E <VAR1[,VAR2...]>    list of environment vars to propagate
+      -v                     be verbose about what is happening
+      -t                     test only, don't execute anything (implies -v)
+      -k                     keep any temporary files created (implies -v)
+      -spawner=(ssh|mpi|pmi) force use of a specific spawner (if available)
+
+  There are as many as three possible methods (ssh, mpi and pmi) by which one
+  can launch an ibv-conduit application.  Ssh-based spawning is always
+  available, and mpi- and pmi-based spawning are available if the respective
+  support was located at configure time.  The default is established at
+  configure time (see section "Build-time Configuration").
+
+  To select a non-default spawner one may either use the "-spawner=" command-
+  line argument or set the environment variable GASNET_IBV_SPAWNER to "ssh",
+  "mpi" or "pmi".  If both are used, then the command line argument takes
+  precedence.
+
+  It has been noted that some InfiniBand driver implementations may not
+  allow for multiple open()s of the adapter.  In this case, spawning via
+  MPI is not possible because the MPI and GASNet implementations cannot
+  share the adapter.  If your GASNet jobs fail to spawn via MPI, but
+  spawn correctly with ssh or pmi, then this may be the reason.  If you
+  need mpi-based spawning, our recommendation is to attempt to set the
+  MPIRUN_CMD such that your MPI will not use InfiniBand (see mpi-spawner's
+  README).  If that is not possible, you may need to select a different
+  MPI implementation.
 
 @ Section: Runtime Configuration @
 
@@ -821,6 +801,26 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     internal information of use to the developers.  You may be asked
     to run with this environment variable set if you report a bug that
     appears related to the firehose algorithm. 
+
+@ Section: Multi-rail Support @
+
+  Multi-rail support is ON in GASNet ibv-conduit by default.
+
+  By default, GASNet ibv-conduit will open up to two InfiniBand Host
+  Channel Adapters (HCAs) per node, and will stripe communications over
+  one active port on each adapter.  See the sections "Build-time
+  Configuration" and "Runtime Configuration" for information on
+  how to open more or fewer HCAs/ports, or to control which HCAs/ports
+  are used.
+
+  To first order, the use of multiple ports or multiple adapters will
+  yield increases in both bandwidth (good) and software overhead (bad).
+  How the resulting trade off works for a given application may be
+  hard to predict.  If one is concerned with obtaining the maximum
+  possible performance for a given application, then experiment with
+  the GASNET_NUM_QPS and/or GASNET_IBV_PORTS environment variables
+  (documented in "Runtime Configuration") to determine how a given
+  application runs best.
 
 @ Section: HCA Configuration @
 

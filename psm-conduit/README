@@ -8,12 +8,37 @@ This conduit is designed to communicate for the Intel(R) Omni-Path Fabric
 through the Intel(r) Performance Scaled Messaging 2 (PSM2) Linux user space
 library Application Programming Interface (API). Mainly intended to use the
 Active Messaging PSM2 API, but will use PSM2 matched queues for long messages
-(review GASNET_LONG_MSG_THRESHOLD below).
+(see section "Tuning use of PSM2 Matched Queues" below).
 
 Where this conduit runs:
 -----------------------
 
 Intel(R) Omni-Path Fabric
+
+Optional compile-time settings:
+------------------------------
+
+The default spawner to be used by the gasnetrun_psm utility can be
+selected by specifying '--with-psm-spawner=VALUE', where VALUE is one
+of 'mpi', 'pmi' or 'ssh'.  If this option is not used, mpi is the
+default when available, and ssh otherwise.
+Here are some things to consider when selecting a default spawner:
+  + mpi-spawner is the default when MPI is available precisely because it
+    is so frequently present on systems where GASNet is to be installed.
+    Additionally, very little (if any) configuration is required and the
+    behavior is highly reliable.
+  + pmi-spawner uses the same "Process Management Interface" which forms
+    the basis for many mpirun implementations.  When support is available,
+    this spawner can be as easy to use and as reliable as mpi-spawner, but
+    without the overheads of initializing an MPI runtime.
+  + ssh-spawner depends only on the availability of a remote shell command
+    such as ssh.  For this reason ssh-spawner support is always compiled.
+    However, it can be difficult (or impossible) to use on a cluster which
+    was not setup to allow ssh to (and among) its compute nodes.
+For more information on configuration and use of these spawners, see
+   README-{ssh,mpi,pmi}-spawner (installed)
+or
+   other/{ssh,mpi,pmi}-spawner/README (source).
 
 Job Spawning:
 -------------
@@ -42,7 +67,6 @@ To select a non-default spawner one may either use the "-spawner=" command-
 line argument or set the environment variable GASNET_PSM_SPAWNER to "ssh",
 "mpi" or "pmi".  If both are used, then the command line argument takes
 precedence.
-
 
 Using psm-conduit with MPI:
 ---------------------------
@@ -98,39 +122,53 @@ Recognized environment variables:
 * GASNET_LONG_MSG_THRESHOLD  Message size in bytes at which a PSM/MQ-based
   long message protocol is used instead of repeated single-MTU active messages.
   Applies to all forms of the Extended Put and GET operations; this option has
-  no effect on Core API active messages.
+  no effect on Core API active messages. 
+  See section "Tuning use of PSM2 Matched Queues" below for more info.
 
 + GASNET_PSM_SPAWNER
   To override the default spawner for psm-conduit jobs, one may set this
   environment variable as described in the section "Job Spawning", above.
   There are additional settings which control behaviors of the various
   spawners, as described in the respective READMEs (listed in section
-  "Optional compile-time settings", below).
+  "Optional compile-time settings", above).
 
-Optional compile-time settings:
-------------------------------
+Tuning use of PSM2 Matched Queues
+---------------------------------
 
-The default spawner to be used by the gasnetrun_psm utility can be
-selected by specifying '--with-psm-spawner=VALUE', where VALUE is one
-of 'mpi', 'pmi' or 'ssh'.  If this option is not used, mpi is the
-default when available, and ssh otherwise.
-Here are some things to consider when selecting a default spawner:
-  + mpi-spawner is the default when MPI is available precisely because it
-    is so frequently present on systems where GASNet is to be installed.
-    Additionally, very little (if any) configuration is required and the
-    behavior is highly reliable.
-  + pmi-spawner uses the same "Process Management Interface" which forms
-    the basis for many mpirun implementations.  When support is available,
-    this spawner can be as easy to use and as reliable as mpi-spawner, but
-    without the overheads of initializing an MPI runtime.
-  + ssh-spawner depends only on the availability of a remote shell command
-    such as ssh.  For this reason ssh-spawner support is always compiled.
-    However, it can be difficult (or impossible) to use on a cluster which
-    was not setup to allow ssh to (and among) its compute nodes.
-For more information on configuration and use of these spawners, see
-   README-{ssh,mpi,pmi}-spawner (installed)
-or
-   other/{ssh,mpi,pmi}-spawner/README (source).
+In PSM2, Matched Queues (MQ) present a queue-based communication model with
+the distinction that queue consumers use a 3-tuple of metadata to match
+incoming messages against a list of preposted receive buffers.  On the other
+hand, the Active Message (AM) component presents a request/reply model where
+the arrival of a message triggers the execution of consumer-provided handler
+code. This can be used to implement many one-sided and two-sided
+communications paradigms. More information regarding AM and different
+protocols employed under MQ can be found in PSM2 documentation.
+
+PSM2 environment variable PSM2_MQ_RNDV_HFI_THRESH provides the switch over
+point from MQ Eager to MQ Rendezvous protocol. This is an internal PSM2
+protocol switch. Currently by the default switch over point is 64000B for
+Intel(R) Xeon(R) processor and 200000B on Intel(R) Xeon Phi(TM) processor.
+GASNet environment variable GASNET_LONG_MSG_THRESHOLD provides the message size
+at which the psm-conduit will switch over from AM to MQ. The default value for
+GASNET_LONG_MSG_THRESHOLD is 16384B. The below table shows the different
+protocols used by the psm-conduit and PSM2 for different message sizes:
+  Intel(R) Xeon(R) processor:
+  Lower limit  <  message size < upper limit    : PSM2 API used by the psm-conduit (PSM2 internal protocol)
+           0B  <  message size <= 16000B        : AM API (Eager PIO protocol)
+       16000B  <  message size <  16384B        : AM API (Eager SDMA protocol)
+       16000B  <= message size <= 64000B        : MQ API (Eager SDMA protocol)
+       64000B  <  message size <= PSM2_MQ_RNDV_HFI_WINDOW : MQ API (RNDV SDMA protocol)
+
+  Intel(R) Xeon Phi(TM) processor:
+  Lower limit  <  message size < upper limit    : PSM2 API used by the psm-conduit (PSM2 internal protocol)
+           0B  <  message size <  16384B        : AM API (Eager PIO protocol)
+       16384B  <= message size <= 65536B        : MQ API (Eager PIO protocol)
+       65536B  <  message size <= 200000B       : MQ API (Eager SDMA protocol)
+      200000B  <  message size <= PSM2_MQ_RNDV_HFI_WINDOW : MQ API (RNDV SDMA protocol)
+
+For optimal performance it is recommended to keep the defaults. However, it is
+possible to force the MQ path to use only RNDV protocol by setting
+PSM2_MQ_RNDV_HFI_THRESH to the same value as GASNET_LONG_MSG_THRESHOLD.
 
 Known problems:
 ---------------
