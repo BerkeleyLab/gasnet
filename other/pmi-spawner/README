@@ -63,8 +63,7 @@ MPI runtime (which GASNet will not even use outside of startup and shutdown).
 
 @ Section: Build-time Configuration @
 
-Conduits other than pmi-conduit which support pmi-spawner each accept a
-configure option of the form
+Conduits which support pmi-spawner each accept a configure option of the form
     --with-[conduit]-spawner=VALUE
 where VALUE is one of "mpi", "ssh", or "pmi".  This sets the default spawner
 used by the corresponding gasnetrun_[conduit] utility, as described in the

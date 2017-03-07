@@ -29,7 +29,7 @@ Optional compile-time settings:
 ------------------------------
 
 The default spawner to be used by the gasnetrun_mxm utility can be
-selected by specifying '--with-mxm-spawner=VALUE', where VALUE is one
+selected by configuring '--with-mxm-spawner=VALUE', where VALUE is one
 of 'mpi', 'pmi' or 'ssh'.  If this option is not used, mpi is the
 default when available, and ssh otherwise.
 Here are some things to consider when selecting a default spawner:

@@ -301,7 +301,12 @@ Future work:
 
  * Caching of memory registrations (Firehose?)
 
-gemini-conduit uses a single fixed memory registration for the GASNet segment. It uses another for the AM receive buffers, and transiently uses additional registrations for large RDMA transfers outside the segment.  There are only a modest number of mapping registers available per rank, so large numbers of registrations are inappropriate, but small numbers could be cached rather than per-rdma transient.
+gemini-conduit uses a single fixed memory registration for the GASNet segment.
+It uses another for the AM receive buffers, and transiently uses additional
+registrations for large RDMA transfers outside the segment.  There are only a
+modest number of mapping registers available per rank, so large numbers of
+registrations are inappropriate, but small numbers could be cached rather than
+per-rdma transient.
 
  * Inline
 
@@ -309,7 +314,9 @@ It should be possible to inline the special cases of short blocking GET and shor
 
  * Alternative designs
 
-The O(N) AM buffers queues could be used only for wakeup, leaving AM transport to RDMA, more along the lines of the shmem-conduit.  This would reduce buffer requirements for large jobs.
+The O(N) AM buffers queues could be used only for wakeup, leaving AM transport
+to RDMA, more along the lines of the shmem-conduit.  This would reduce buffer
+requirements for large jobs.
 
 ==============================================================================
 

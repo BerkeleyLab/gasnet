@@ -132,7 +132,7 @@ $
 
 The custom spawner allows the user and/or site installer to provide a custom
 command to be used for starting the worker processes across the worker nodes.
-This provides spawning extensiblity - the custom command can invoke any
+This provides spawning extensibility - the custom command can invoke any
 arbitrary site-specific spawning command (for example to call to an OS-provided
 spawner, a batch system, or a custom-written wrapper script that performs
 whatever actions are necessary to start the job). The only required environment 

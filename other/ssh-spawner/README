@@ -51,7 +51,7 @@ spawner when MPI support is not present (or is disabled).
 
 @ Section: Build-time Configuration @
 
-The ssh-spawner can be configure using the following options:
+The ssh-spawner offers the following configure-time options:
 
   --with-[conduit]-spawner=ssh
     Conduits which support ssh-spawner each accept a configure option

@@ -60,7 +60,7 @@ GASNET_AM_BUFFER_SIZE=<size>
   increasing GASNET_AM_NUM_ENTRIES will be more fruitful.
 
   Note that, unlike many interfaces, Portals 4 does not require a
-  buffer per active messages.  Instead, active messages are tightly
+  buffer per active message.  Instead, active messages are tightly
   packed into a receive buffer until the buffer fills.  So 16 entries
   of 1MB means that the conduit can receive approximately 256k
   messages of 16 arguments.
