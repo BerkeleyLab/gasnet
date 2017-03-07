@@ -937,6 +937,15 @@ static void gasnetc_disable_AMs(void) {
   }
 }
 
+#if GASNET_DEBUG_VERBOSE
+static void gasnetc_exit_alarm(int sig) {
+  gasneti_reghandler(SIGALRM, SIG_DFL);
+  alarm(5);
+  gasnett_print_backtrace(STDERR_FILENO);
+  gasneti_killmyprocess(SIGALRM);
+}
+#endif
+
 extern void gasnetc_exit(int exitcode) {
   /* once we start a shutdown, ignore all future SIGQUIT signals or we risk reentrancy */
   gasneti_reghandler(SIGQUIT, SIG_IGN);
@@ -989,7 +998,11 @@ extern void gasnetc_exit(int exitcode) {
   #undef GASNETC_CLOBBER_LOCK
   #undef _GASNETC_CLOBBER_LOCK
 
+  #if GASNET_DEBUG_VERBOSE
+    gasneti_reghandler(SIGALRM, &gasnetc_exit_alarm);
+  #else
     gasneti_reghandler(SIGALRM, SIG_DFL);
+  #endif
     alarm(2 + gasnetc_shutdown_seconds);
 
   if (gasnetc_remoteShutdown || gasnetc_sys_exit(&exitcode)) {

@@ -2784,7 +2784,7 @@ extern int gasnetc_sys_exit(int *exitcode_p)
         GASNETI_WAITHOOK();
         gasnetc_poll(GASNETC_DIDX_PASS_ALONE);
         if (gasneti_ticks_to_us(gasneti_ticks_now() - starttime) > timeout_us) {
-          result = 1; /* failure */
+          result = 2; /* failure */
           goto out;
         }
       }
@@ -2813,7 +2813,7 @@ extern int gasnetc_sys_exit(int *exitcode_p)
       GASNETI_WAITHOOK();
       gasnetc_poll(GASNETC_DIDX_PASS_ALONE);
       if (gasneti_ticks_to_us(gasneti_ticks_now() - starttime) > timeout_us) {
-        result = 1; /* failure */
+        result = 3; /* failure */
         goto out;
       }
     }
@@ -2834,6 +2834,7 @@ extern int gasnetc_sys_exit(int *exitcode_p)
 out:
   *exitcode_p = exitcode;
 
+  GASNETI_TRACE_PRINTF(C,("Leaving SYS EXIT with result=%d", result));
   return result;
 }
 
