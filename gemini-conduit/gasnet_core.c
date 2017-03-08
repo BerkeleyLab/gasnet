@@ -1036,11 +1036,14 @@ extern void gasnetc_exit(int exitcode) {
 
       /* Death of any process by a fatal signal will cause launcher to kill entire job.
        * We don't use INT or TERM since one could be blocked if we are in its handler. */
+      gasnetc_sys_fini();
       raise(SIGALRM); /* Consistent */
       gasneti_killmyprocess(exitcode); /* last chance */
     }
   }
-  alarm(0);
+
+  alarm(2 + gasnetc_shutdown_seconds);
+  gasnetc_sys_fini();
 
 #if GASNETC_GNI_FIREHOSE
   if (gasnetc_did_firehose_init && !gasnetc_exit_in_signal) {

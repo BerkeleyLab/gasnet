@@ -334,6 +334,7 @@ int gasnetc_try_pin(void *addr, uintptr_t size);
 volatile int gasnetc_shutdownInProgress;
 double gasnetc_shutdown_seconds; /* number of seconds to poll before forceful shutdown */
 int gasnetc_sys_exit(int *exitcode);
+void gasnetc_sys_fini(void);
 
 #if GASNETC_USE_MULTI_DOMAIN
 void gasnetc_create_parallel_domain(gasnete_threadidx_t tidx);

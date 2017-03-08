@@ -2838,6 +2838,24 @@ out:
   return result;
 }
 
+/* Clean ups prior to "bottom half" of gasnetc_exit() */
+extern void gasnetc_sys_fini(void) {
+#if GASNET_PSHM
+  /* Coordinate release of of PSHM aux segment */
+  if (gasneti_nodemap_local_rank) {
+    gasnetc_exitcodes[gasneti_nodemap_local_rank].present = 0;
+  } else {
+    /* await acknowledgements */
+    for (int i = 1; i < gasneti_nodemap_local_count; ++i) {
+      gasnetc_exitcode_t * const peer = &gasnetc_exitcodes[i];
+      while (peer->present) {
+        GASNETI_WAITHOOK();
+        gasnetc_poll(GASNETC_DIDX_PASS_ALONE);
+      }
+    }
+  }
+#endif
+}
 
 /* AuxSeg setup for registered bounce buffer space*/
 #if GASNETC_USE_MULTI_DOMAIN
