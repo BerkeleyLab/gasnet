@@ -1,9 +1,8 @@
 README file for GASNet
-by: Dan Bonachea <bonachea@cs.berkeley.edu>
+http://gasnet.lbl.gov
 
-This is a combination user manual and design document for GASNet. Anyone
-planning on using, modifying or adding to the GASNet code base should read this
-file.
+This is a user manual for GASNet. Anyone planning on using GASNet (either
+directly or indirectly) should consult this file for usage instructions.
 
 Other documentation:
  * In this README the "docs directory" means either docs/ in the source
@@ -16,9 +15,10 @@ Other documentation:
  * Additional information, including the GASNet specification and our bug
    tracking database, is available from http://gasnet.lbl.gov
  * Anyone planning to modify or add to the GASNet code base should also read
-   + README-devel: rules developers are expected to follow when committing
-   + README-git: overview and examples of GASNet's recommended git workflow
-   README-git has instructions for obtaining the latest GASNet source code.
+   the developer documents, available in the GASNet git repository, which 
+   can be browsed online here: https://bitbucket.org/berkeleylab/gasnet/src
+   + README-devel: GASNet design information and coding standards
+   + README-git: Rules developers are expected to follow when committing
 
 Contents of this file:
  * Building and Installing GASNet
@@ -29,13 +29,9 @@ Contents of this file:
  * GASNet tracing & statistical collection
  * GASNet Collectives
  * GASNet debug malloc services
+ * GASNet inter-Process SHared Memory (PSHM)
  * MPI Interoperability
  * Contact Info and Support
- * GASNet Design Information
- * System Organization
- * GASNet coding standards
- * GASNet porting guide
- * Source Control and GASNet
 
 Building and Installing GASNet
 ==============================
@@ -90,7 +86,8 @@ For example to build 64-bit code when your gcc and g++ default to 32-bit:
       are multi-threading via a PAR or PARSYNC build; or use of the conduit's
       API to perform the communication).
       Note that not all conduits and operating systems support this feature.
-      For more information, see the file pshm-design.txt in the docs directory.
+      For more information, see the section below entitled "GASNet inter-Process
+      SHared Memory (PSHM)".
     --with-segment-mmap-max=<n>GB - configure maximum segment size.
       Many of the GASNet network conduits obtain memory for the shared segment
       (in FAST and LARGE segment configurations) using mmap().  By default
@@ -831,6 +828,14 @@ GASNET_MALLOCNODES: limit which nodes will generate a malloc report.
 GASNet inter-Process SHared Memory (PSHM)
 =========================================
 
+GASNet's PSHM support provides mechanism to communicate through shared memory among
+processes on the same compute node (ie sharing a cache-coherent physical memory).
+Inter-process communication through shared memory is usually the fastest way for
+processes sharing a compute node to communicate. GASNet clients are free to use
+any combination of processes communicating through PSHM and client pthreads within 
+processes (in GASNET_PAR mode) to implement on-node parallelism, and all such 
+execution contexts may perform network communication (with an appropriate conduit).
+
 GASNet's PSHM support is enabled by default unless one is cross-compiling, or
 running Cygwin prior to version 2.0.  However, most cross-compilation scripts
 enable it with any additional settings as required.  If desired, PSHM can be
@@ -858,9 +863,9 @@ performance degradation when using files (apparently due to committing the
 changes from memory to disk).
 
 Unless PSHM is disabled, the default behavior of the configure step is to probe
-for support via exactly one prefered mechanism.  For Solaris the prefered
+for support via exactly one preferred mechanism.  For Solaris the preferred
 mechanism is SystemV, while for all other platforms it is POSIX.  If the
-prefered mechanism is not supported (or is explicitly disabled) the then there
+preferred mechanism is not supported (or is explicitly disabled) the then there
 is no automatic fallback to any other mechanism.  So, if one wishes to use
 another mechanism, one should explicitly disable the default (POSIX or SysV)
 support and enable the desired mechanism:
@@ -889,6 +894,10 @@ optionally enable PSHM-over-XPMEM on an SGI Altix as follows:
 For BlueGene/Q, PSHM via the "common heap" is enabled automatically by
 the corresponding cross-configure scripts.  However, one can also use:
         GHEAP: --enable-pshm --disable-pshm-posix --enable-pshm-gheap
+Note on BG/Q one must set BG_MAPCOMMONHEAP=1 in the compute node environment.
+This is handled automatically by the gasnetrun_mpi and gasnetrun_pami
+scripts, but must be handled manually when using runjob directly (or
+a wrapper like qsub from ANL's Cobalt suite).
 
 For Linux systems with libhugetlbfs and a hugetlbfs mount, there is also
 experimental support for mmap()ed files on hugetlbfs, which can be
@@ -903,8 +912,8 @@ intra-memory AM traffic:
      it may stall (default 32).  The shared memory allocated on a compute
      node with P processes is roughly (2 * P * Depth * MaxMsgSz).
 
-Parameters settings for SystemV:
--------------------------------
+Kernel settings for SystemV:
+---------------------------
 On most operating systems the amount of available SystemV shared memory
 and the number of shared memory segments is controlled by the kernel
 parameters: shmmax, shmall and shmmni.
@@ -1004,9 +1013,11 @@ using PSHM, lead to a low memory condition contributing to slow performance
 and eventually to total memory exhaustion.  In normal usage, it is reasonable
 to expect that a Mac laptop or desktop system will be rebooted for software
 updates frequently enough that this leak will not impact normal users.
+Also note that --enable-pshm-file is NOT recommended for use on OSX, where
+it has been seen to cause VERY slow startup times.
 
-IMPORTANT, SYSTEM CLEANING:
---------------------------
+IMPORTANT: SYSTEM CLEANING OF PSHM OBJECTS:
+------------------------------------------
 If a GASNet application using PSHM is terminated before ending the
 initialization phase, there is a possibility that the shared memory objects
 will remain in the system.  A large amount of memory or disk space can

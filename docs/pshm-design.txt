@@ -10,6 +10,18 @@ Implementation by:
     Filip Blagojevic <FBlagojevic@lbl.gov>
     Paul H. Hargrove <PHHargrove@lbl.gov>
 
+===============================================================
+WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING
+
+The contents of this file are no longer maintained, and user
+documentation has moved into the top-level GASNet README.
+
+For current information on using GASNet's PSHM support, please
+consult the main GASNet README.
+
+WARNING WARNING WARNING WARNING WARNING WARNING WARNING WARNING
+===============================================================
+
 Goal:
 ----
 Provide GASNet with a mechanism to communicate through shared memory among
@@ -143,31 +155,6 @@ Known Problems / To do:
 * The mechanism we are using to probe for maximum segment size works fine on a
   system with plenty of memory, but dies on systems with less.  The work
   around is to set the GASNET_MAX_SEGSIZE small enough for a given system.
-* There are still error cases that will leak shared memory.
-
-Status:
-------
-* The entire GASNet and Berkeley UPC test suites are run on the platforms
-  which support PSHM, and it is considered stable on Linux, Solaris,
-  {Free,Net,Open}BSD and BG/Q.
-* IBM BG/Q platform-specific notes:
-  - The PAMI conduit supports PSHM, and the provided cross-configure script
-    will --enable-pshm-gheap
-  - One must set BG_MAPCOMMONHEAP=1 in the compute node environment.
-    This is handled automatically by the gasnetrun_mpi and gasnetrun_pami
-    scripts, but must be handled manually when using runjob directly (or
-    a wrapper like qsub from ANL's Cobalt suite).
-* Cray XE, XK and XC platform-specific notes:
-  - The Gemini and Aries conduits support PSHM, and the provided cross-
-    configure scripts --enable-pshm-xpmem.
-* Mac OS X platform-specific notes:
-  - Mac OS X with POSIX and SystemV shared memory appear to trigger a small
-    kernel memory leak (more detail above).
-  - Use of mmap()ed files has been seen to cause VERY slow start-up.
-* {Free,Open,Net}BSD platform-specific notes:
-  - The current releases of FreeBSD, OpenBSD and NetBSD all support both POSIX
-    and SystemV shared memory.  However, older releases of OpenBSD and NetBSD
-    lacked support for POSIX shared memory.
 
 * GASNet conduits known NOT to work:
   - SHMEM conduit does not support PSHM, but there is no reason to think

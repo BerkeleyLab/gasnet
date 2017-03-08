@@ -1,16 +1,17 @@
-GASNet Revision Control Practices
----------------------------------
+README-git file for GASNet
+http://gasnet.lbl.gov   
 
 The purpose of this document is to list practices that GASNet developers are
 expected to follow when committing code to the public repository.  It is a
-companion to, but distinct from, the coding standards and the git workflow
-description.
+companion to the coding standards and design documentation.
 
 See also:
- + README: includes GASNet's coding standards
- + README-git: overview and examples of GASNet's recommended git workflow
- + README-release: detailed release procedure
+ + README: GASNet usage documentation
+ + README-devel: GASNet design information and coding standards
+ + README-release: Detailed release procedure
 
+GASNet Revision Control Practices
+=================================
 
 * All developers doing commits must be on the gasnet-devel@lbl.gov email list,
   which receives GASNet commit messages.
@@ -21,8 +22,8 @@ See also:
 
 * Anything that is not a "trivial" change (such as correcting a typo or a small
   1 or 2 line bug fix) should be performed on a "feature branch" and merged back
-  to 'develop' following the git-flow workflow as described in more detail in
-  the file README-git.  This allows the "feature" to be developed over multiple
+  to 'develop' following the git-flow workflow as described in more detail later
+  in this document.  This allows the "feature" to be developed over multiple
   commits while clearly identifying the start and end of the work, preventing
   interleaving of commits with the work of other developers, and provides a
   commit message that can summarize the purpose of the change(s).
@@ -136,22 +137,14 @@ See also:
   back to regular mode (without -o) before committing any changes to the repo.
 
 * All GASNet developers are required to follow the GASNet coding standards
-  outlined in the top-level README.
+  outlined in README-devel.
 
 GASNet's Git Workflow
----------------------
+=====================
 
-The purpose of this document is to describe how git is to be used for GASNet
+The purpose of this section is to describe how git is to be used for GASNet
 development, providing examples of the most common tasks.  This assumes you
-have a basic working knowledge of git and is not a full tutorial.  This is a
-companion to, but distinct from, the coding standards (in README) and
-development rules in README-devel.
-
-See also:
- + README: includes GASNet's coding standards
- + README-devel: rules developers are expected to follow when committing
- + README-release: detailed release procedure
-
+have a basic working knowledge of git and is not a full tutorial.  
 
 A note on proprietary (NDA) information
 ---------------------------------------
@@ -613,8 +606,8 @@ providing a GASNet developer with access to read your fork.  This allow the
 developer to incorporate not only your changes, but also your history (commit
 messages).  Before the pull request, you need to be sure of two things:
    1. That your work meets the GASNet standards.
-      + README for GASNet's coding standards
-      + README-develop for rules concerning git commit messages, etc.
+      + README-devel for GASNet's coding standards
+      + Earlier sections of this doc for rules concerning git commit messages, etc.
    2. That your fork will merge cleanly.
       It needs to be rebased onto the branch it was forked from.
 

@@ -1,3 +1,30 @@
+README-devel file for GASNet
+http://gasnet.lbl.gov
+
+This is a design document for GASNet. Anyone planning on modifying or adding 
+to the GASNet code base should read this file.
+
+Other documentation:
+ * For GASNet user documentation, see README
+ * For GASNet licensing and usage terms, see license.txt.
+ * For documentation on a particular GASNet conduit, see the README file in the
+   conduit directory (also installed as README-<conduit> in the docs directory).
+ * For documentation on the communication-independent GASNet-tools library,
+   see README-tools.
+ * Additional information, including the GASNet specification and our bug
+   tracking database, is available from http://gasnet.lbl.gov
+ * Anyone planning to modify or add to the GASNet code base should also read
+   the following developer documents, available in the GASNet git repository, which
+   can be browsed online here: https://bitbucket.org/berkeleylab/gasnet/src
+   + README-git: Rules developers are expected to follow when committing
+
+Contents of this file:
+ * GASNet Design Information
+ * System Organization
+ * GASNet coding standards
+ * GASNet porting guide
+ * Source Control and GASNet
+
 GASNet Design Information
 =========================
 
