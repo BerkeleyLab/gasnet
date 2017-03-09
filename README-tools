@@ -109,7 +109,7 @@ General Usage
   GASNet README. They may work on others as well. Please contact us if you have
   a new platform you'd like to see supported.
 
-* For questions on using the GASNet tools, contact gasnet-usersl@lbl.gov. 
+* For questions on using the GASNet tools, contact gasnet-users@lbl.gov. 
   It's especially recommended to contact us before bundling the tools in your
   software package.
 
@@ -303,7 +303,7 @@ the section on strong atomics below.
   GASNETT_ATOMIC_SIGNED_MIN     The smallest (most negative) representable signed value.
   GASNETT_ATOMIC_SIGNED_MAX     The largest (most positive) representable signed value.
 
- The atomic type is guaranteed to wrap around at it's minimum and maximum values in
+ The atomic type is guaranteed to wrap around at its minimum and maximum values in
  the normal manner expected of two's-complement integers.  This includes the 'oldval'
  and 'newval' arguments to gasnett_atomic_compare_and_swap(), and the 'v' arguments
  to gasnett_atomic_init() and gasnett_atomic_set() which are wrapped (not clipped)
@@ -655,7 +655,7 @@ if_pt(cond) S;
 gasnett_constant_p(expr)
 
   This expands to use of __builtin_constant_p() on compilers with the necessary
-  suport, or to the constant 0 otherwise.
+  support, or to the constant 0 otherwise.
 
 -----------------------------------------------------
 Error-checking System Mutexes and Condition Variables
