@@ -250,3 +250,11 @@ GASNet Release Procedure
   BUPC's release procedure contains recommended text for the bug closures.
 
 * Revise this document with any additions, corrections or changes
+
+--------------------------------------------------------------------------
+  The canonical version of this document is located here:
+    http://bitbucket.org/berkeleylab/gasnet/src/develop/README-release
+
+  For more information, please email: gasnet-devel@lbl.gov
+  or visit the GASNet home page at:   http://gasnet.lbl.gov
+--------------------------------------------------------------------------

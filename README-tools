@@ -1250,3 +1250,11 @@ COMPILER.
   unconditional use of true locking (even without GASNETT_THREAD_SAFE=1).
   NOTE: For proper operation this must be defined BOTH when the GASNet(-tools) library
   is built, and when compiling client code that includes gasnetex.h or gasnet_tools.h.
+
+--------------------------------------------------------------------------
+  The canonical version of this document is located here:
+    http://bitbucket.org/berkeleylab/gasnet/src/master/README-tools
+
+  For more information, please email: gasnet-users@lbl.gov
+  or visit the GASNet home page at:   http://gasnet.lbl.gov
+--------------------------------------------------------------------------

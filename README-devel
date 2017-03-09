@@ -15,7 +15,7 @@ Other documentation:
    tracking database, is available from http://gasnet.lbl.gov
  * Anyone planning to modify or add to the GASNet code base should also read
    the following developer documents, available in the GASNet git repository, which
-   can be browsed online here: https://bitbucket.org/berkeleylab/gasnet/src
+   can be browsed online: http://bitbucket.org/berkeleylab/gasnet/src/develop
    + README-git: Rules developers are expected to follow when committing
 
 Contents of this file:
@@ -421,3 +421,11 @@ unBootstrap to identify files that Source Control software may be
 configured to ignore.  Note that the set of Bootstrap-generated files
 may change from one release of GASNet to the next, but unBootstrap
 will be kept current in each release.
+
+--------------------------------------------------------------------------
+  The canonical version of this document is located here:
+    http://bitbucket.org/berkeleylab/gasnet/src/develop/README-devel
+
+  For more information, please email: gasnet-devel@lbl.gov
+  or visit the GASNet home page at:   http://gasnet.lbl.gov
+--------------------------------------------------------------------------

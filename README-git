@@ -766,3 +766,11 @@ At a VERY high-level:
   deleted files.
 + Consider using "git archive" to import the final code (but no history or
   deleted files) once it is allowable to do so.
+
+--------------------------------------------------------------------------
+  The canonical version of this document is located here:
+    http://bitbucket.org/berkeleylab/gasnet/src/develop/README-git
+
+  For more information, please email: gasnet-devel@lbl.gov
+  or visit the GASNet home page at:   http://gasnet.lbl.gov
+--------------------------------------------------------------------------
