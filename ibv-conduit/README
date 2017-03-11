@@ -10,7 +10,7 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 @ Section: Runtime Configuration @
 @ Section: Multi-rail Support @
 @ Section: HCA Configuration @
-@ Section: Platform-specific Notes @
+@ Section: Known Problems @
 @ Section: Core API @
 @ Section: Extended API @
 @ Section: Graceful exits @
@@ -855,7 +855,9 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     the value to 16 yielded approximately a 30% bandwidth improvement in an
     RDMA-GET benchmark.
 
-@ Section: Platform-specific Notes @
+@ Section: Known Problems @
+
++ See the Berkeley UPC Bugzilla server for details on known bugs.
 
 + Crashes have been seen using QLogic's InfiniPath HCAs with ibv-conduit
   with default parameters.  If you see crashes with a message containing
@@ -865,6 +867,24 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
      GASNET_QP_RD_ATOM=1
   In our testing this resulted in about a 2% reduction in peak bandwidth,
   but eliminated all instances of "aborting on reap of failed send".
+
++ Bug 3428
+  In this release the code used to checksum AMRDMA traffic is known to be
+  incorrect under agressive compiler optimization.  However, an alternative
+  implementation is currently enabled for the only compiler (PathScale)
+  known to manifest the problem.
+  The most up-to-date information on this bug is maintained at:
+    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3428
+  That bug report describes the problem in more detail, and lists the best
+  known recommended work-around(s).
+
++ Bug 3447
+  In this release the implementation of ibv-conduit on multi-HCA InfiniBand
+  networks may yield incorrect results for certain communication patterns.
+  The most up-to-date information on this bug is maintained at:
+    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3447
+  That bug report describes the conditions under which the problem may
+  manifest, and the recommended work-arounds.
 
 @ Section: Core API @
 
