@@ -1451,13 +1451,17 @@ gasnetc_send_am(gasnetc_post_descriptor_t *gpd)
 }
 
 GASNETI_INLINE(gasnetc_send_notify)
-int gasnetc_send_notify(peer_struct_t * const peer, gasnetc_notify_t notify)
+int gasnetc_send_notify(peer_struct_t * const peer, gasnetc_notify_t notify, gasneti_weakatomic_t *cntr)
 {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
   gni_post_descriptor_t *pd = &gpd->pd;
   unsigned int slot;
 
+  if (cntr) {
+    gpd->gpd_completion = (uintptr_t)cntr;
+    gpd->flags = GC_POST_COMPLETION_CNTR;
+  }
   gpd->u.notify = notify;
   pd->cq_mode = GNI_CQMODE_GLOBAL_EVENT | GNI_CQMODE_REMOTE_EVENT;
   pd->dlvr_mode = GNI_DLVMODE_PERFORMANCE;
@@ -1479,19 +1483,20 @@ int gasnetc_send_credit(peer_struct_t * const peer, gasnetc_notify_t notify)
   GASNETI_TRACE_PRINTF(D, ("msg to %d type AM_CREDIT\n", peer->pe));
   gasneti_assert(notify_get_type(notify) == notify_request);
   notify += build_notify((notify_credit - notify_request),0,0); /* just modify the notify type */
-  return(gasnetc_send_notify(peer, notify));
+  return(gasnetc_send_notify(peer, notify, NULL));
 }
 
 /* Send a 3-byte control message (could have us much as 7 bytes if ever needed) */
 /* Current ARBITRARILY managed as 8-bit op and 16-bit arg */
-int gasnetc_send_control(gasnetex_rank_t dest, uint8_t op, uint16_t arg)
+GASNETI_INLINE(gasnetc_send_control)
+int gasnetc_send_control(gasnetex_rank_t dest, uint8_t op, uint16_t arg, gasneti_weakatomic_t *cntr)
 {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   peer_struct_t * const peer = &peer_data[dest];
   GASNETI_TRACE_PRINTF(D, ("msg to %d type CONTROL op=%d arg=0x%x\n",
                            (int)dest, (int)op, (int)arg));
-  return(gasnetc_send_notify(peer, build_ctrl_notify(op, arg)));
+  return(gasnetc_send_notify(peer, build_ctrl_notify(op, arg), cntr));
 }
 
 GASNETI_INLINE(gasnetc_format_am_gpd) 
@@ -2688,6 +2693,8 @@ void gasnetc_free_post_descriptor(gasnetc_post_descriptor_t *gpd)
 /* exit related */
 volatile int gasnetc_shutdownInProgress = 0;
 double gasnetc_shutdown_seconds = 0.0;
+static                  int sys_exit_sent_init = 0;
+static gasneti_weakatomic_t sys_exit_sent_fini = gasneti_weakatomic_init(0);
 static gasneti_weakatomic_t sys_exit_rcvd = gasneti_weakatomic_init(0);
 static gasneti_weakatomic_t sys_exit_code = gasneti_weakatomic_init(0);
 
@@ -2805,7 +2812,8 @@ extern int gasnetc_sys_exit(int *exitcode_p)
 
     GASNETI_TRACE_PRINTF(C,("Send SHUTDOWN Request to node %d w/ shift %d, exitcode %d",
                             dest,shift,exitcode));
-    gasnetc_send_control(dest, GC_CTRL_SHUTDOWN, (shift << 8) | (exitcode & 0xff));
+    gasnetc_send_control(dest, GC_CTRL_SHUTDOWN, (shift << 8) | (exitcode & 0xff), &sys_exit_sent_fini);
+    sys_exit_sent_init += 1;
 
     /* wait for completion of the proper receive, which might arrive out of order */
     goal |= distance;
@@ -2840,6 +2848,15 @@ out:
 
 /* Clean ups prior to "bottom half" of gasnetc_exit() */
 extern void gasnetc_sys_fini(void) {
+  /* Drain completions for sent exitcode-reduction messages */
+  if (gasneti_weakatomic_read(&sys_exit_sent_fini, 0) != sys_exit_sent_init) {
+    gasnetc_poll(GASNETC_DIDX_PASS_ALONE);
+    while (gasneti_weakatomic_read(&sys_exit_sent_fini, 0) != sys_exit_sent_init) {
+      GASNETI_WAITHOOK();
+      gasnetc_poll(GASNETC_DIDX_PASS_ALONE);
+    }
+  }
+
 #if GASNET_PSHM
   /* Coordinate release of of PSHM aux segment */
   if (gasneti_nodemap_local_rank) {

@@ -430,8 +430,6 @@ int gasnetc_next_power_of_2(int x) {
   return x;
 }
 
-extern int gasnetc_send_control(gasnetex_rank_t dest, uint8_t op, uint16_t arg);
-
 extern int gasnetc_send_am(gasnetc_post_descriptor_t *gpd);
 gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnetex_token_t t,
                                                                size_t length);
