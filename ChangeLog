@@ -61,6 +61,10 @@ GASNet ChangeLog
   - Fix bug 3322: portable_platform.h more robust to namespace interference
 
 * General and Misc.
+  - Top-level documentation has been re-arranged:
+    + PSHM usage information now lives in top-level GASNet README
+    + GASNet developer documentation is no longer distributed/installed,
+      but remains available online in the public git repository
   - MPI-based spawning now supports direct mpirun invocation.
     See other/mpi-spawner/README for details.
   - PMI-based spawning is now supported by gasnetrun_{ibv,ofi,mxm,psm}
@@ -479,7 +483,7 @@ GASNet ChangeLog
 
 * IBM BG/Q (pami-conduit)
   - Support for intra-node shared memory communication (PSHM) is now
-    available on BlueGene/Q.  Please see docs/pshm-design.txt for
+    available on BlueGene/Q.  Please see README for
     details of the configuration and environment setup required.
   - Updates to support changes made in the V1R2M1 driver.
 
@@ -691,7 +695,7 @@ GASNet ChangeLog
     working implementation of mmap() (bug 3066).
     + This is the first PSHM support for Cygwin.
   - Expanded PSHM docs, including notes for configuration on Cygwin.
-    See docs/pshm-design.txt in the GASNet sources.
+    See the top-level GASNet README for details.
 
 * Platform support/portability
   - Ported network-independent code to the IBM BlueGene/Q.
@@ -996,7 +1000,7 @@ GASNet ChangeLog
   - Improved gcc TLS support on IA64
 
 * General:
-  - Experimental shared memory support (see README and pshm-design.txt)
+  - Experimental shared memory support (see README)
   - Experimental collective autotuner (see README and autotune.txt)
   - Additional collective algorithms implemented
   - Fixes to some tests for large message sizes or large iteration counts
