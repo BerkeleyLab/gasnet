@@ -811,7 +811,7 @@ static void gasneti_pshm_abort_handler(int sig) {
     char msg[128] = { '\0', };
     gasneti_assert(strlen(msg1) + strlen(signame) + strlen(msg2) + 1 <= sizeof(msg));
     strcat(strcat(strcat(msg, msg1), signame), msg2);
-    write(STDERR_FILENO, msg, strlen(msg));
+    int ignore = write(STDERR_FILENO, msg, strlen(msg));
   }
 
   // Reraise the signal
