@@ -173,8 +173,6 @@ PSM2_MQ_RNDV_HFI_THRESH to the same value as GASNET_LONG_MSG_THRESHOLD.
 Known problems:
 ---------------
 
-* See the Berkeley UPC Bugzilla server for details on known bugs.
-
 * Bug 3333
   At the time of this release, there is a known bug in the AM interface of
   the shared-memory device in (at least) the 0.7-244 release of the PSM2
@@ -216,6 +214,9 @@ Known problems:
   Example error message:
   `Exhausted 1048576 MQ isend request descriptors, which usually indicates a user
   program error or insufficient request descriptors (PSM2_MQ_SENDREQS_MAX=1048576)`
+
+* See the GASNet Bugzilla server for details on other known bugs:
+  http://gasnet-bugs.lbl.gov/
 
 
 Future work:

@@ -50,13 +50,14 @@ Recognized environment variables:
 Known problems:
 ---------------
 
-* See the Berkeley UPC Bugzilla server for details on known bugs.
-
 * Conduit only works with SGI and Cray X1 'flavors' of shmem.  These two
   implementations have native hardware access to global memory, a feature that
   was considered when designing the conduit.
   The SGI 'flavor' is know to work on an SGI Altix (Linux based), while
   only partial success was observed on an SGI Origin 2000 (IRIX based).
+
+* See the GASNet Bugzilla server for details on other known bugs:
+  http://gasnet-bugs.lbl.gov/
 
 Future work:
 ------------

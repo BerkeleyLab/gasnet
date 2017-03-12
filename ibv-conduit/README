@@ -857,8 +857,6 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
 
 @ Section: Known Problems @
 
-+ See the Berkeley UPC Bugzilla server for details on known bugs.
-
 + Crashes have been seen using QLogic's InfiniPath HCAs with ibv-conduit
   with default parameters.  If you see crashes with a message containing
      FATAL ERROR: aborting on reap of failed send
@@ -885,6 +883,9 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3447
   That bug report describes the conditions under which the problem may
   manifest, and the recommended work-arounds.
+
++ See the GASNet Bugzilla server for details on other known bugs:
+  http://gasnet-bugs.lbl.gov/
 
 @ Section: Core API @
 
