@@ -59,6 +59,8 @@ GASNet ChangeLog
 * GASNet tools 
   - portable_platform.h has been renamed gasnet_portable_platform.h
   - Fix bug 3322: portable_platform.h more robust to namespace interference
+  - Workaround bug 3448: x86*/Linux timers now default to posix-realtime,
+    to avoid a problem with native timers on newer Intel CPUs.
 
 * General and Misc.
   - Top-level documentation has been re-arranged:

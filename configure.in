@@ -2065,20 +2065,59 @@ GASNET_IF_ENABLED(force-compiler-atomicops,
   elif test -n "$enabled_compiler_atomicops"; then
     AC_DEFINE(GASNETI_FORCE_COMPILER_ATOMICOPS)
   fi
+
+# Timer configuration
+use_timers=native
+if expr "$target_os" : "linux" >/dev/null ; then
+  case "$target_cpu" in
+    x86_64|i*86|knc|knl)
+    # Bug 3448: native timer calibration known to be incorrect on Linux for some modern x86* CPUs, default to posix for now
+    use_timers=posixrt
+    ;;
+  esac
+fi
+
+AC_DEFUN([GASNET_CHECK_TIMER_OPTION],[
+  if test -n "$force_timers" ; then
+    AC_MSG_ERROR([You may request at most one of: --enable-force-gettimeofday --enable-force-posix-realtime --enable-force-native-timers])
+  fi
+  force_timers=1
+])
+
+GASNET_IF_ENABLED(force-native-timers,
+		  [Force use of "native" timers (default is platform-specific)],
+		  [if test "$use_timers" != native; then
+		     GASNET_MSG_WARN([--enable-force-native-timers might result in incorrect timer values on this system. You should verify correct operation by running testtools. See http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3448]) 
+		     # don't enabled_force here because the warning makes no sense for this case
+		     use_timers=native
+		   fi
+		   GASNET_CHECK_TIMER_OPTION])
 GASNET_IF_ENABLED(force-gettimeofday,
 		  [Force use of gettimeofday() for timers (default is platform-specific)],
-		  [enabled_force=yes; enabled_gettimeofday=yes])
+		  [if test "$use_timers" != gettimeofday; then
+		     enabled_force=yes; use_timers=gettimeofday
+		   fi
+		   GASNET_CHECK_TIMER_OPTION])
 GASNET_IF_ENABLED(force-posix-realtime,
 		  [Force use of clock_gettime() for timers (default is platform-specific)],
-		  [enabled_force=yes; enabled_posix_realtime=yes])
-  if test "$enabled_gettimeofday$enabled_posix_realtime" = yesyes; then
-    AC_MSG_ERROR([You cannot request both --enable-force-gettimeofday and --enable-force-posix-realtime])
-  elif test -n "$enabled_gettimeofday" ; then
+		  [if test "$use_timers" != posixrt; then
+		     enabled_force=yes; use_timers=posixrt
+		   fi
+		   GASNET_CHECK_TIMER_OPTION])
+case "$use_timers" in 
+  native) :
+    ;;
+  gettimeofday)
     AC_DEFINE(GASNETI_FORCE_GETTIMEOFDAY)
-  elif test -n "$enabled_posix_realtime"; then
-    AC_SEARCH_LIBS(clock_gettime, [rt posix4])
+    ;;
+  posixrt)
+    AC_SEARCH_LIBS(clock_gettime, [rt posix4], [], 
+      AC_MSG_ERROR([No support found for posix-realtime timers. Try --enable-force-gettimeofday or --enable-force-native-timers]))
     AC_DEFINE(GASNETI_FORCE_POSIX_REALTIME)
-  fi
+    ;;
+  *) AC_MSG_ERROR([Internal error in timer configuration]) ;;
+esac
+
 GASNET_IF_ENABLED(force-yield-membars,
 		  [Force a sched_yield() call in memory barriers (disabled by default)],
 		  [enabled_force=yes; enabled_yield_membars=yes])
