@@ -31,7 +31,7 @@ GASNETI_IDENT(gasnetc_IdentString_HaveMPISpawner, "$GASNetMPISpawner: 1 $");
 static gasneti_spawnerfn_t const spawnerfn;
 
 #ifndef HAVE_MPI_INIT_THREAD
-#define HAVE_MPI_INIT_THREAD (MPI_VERSION >= 2 || (defined(MPI_THREAD_SINGLE) && defined(MPI_THREAD_SERIALIZED)))
+#define HAVE_MPI_INIT_THREAD (MPI_VERSION >= 2)
 #endif
 #ifndef GASNET_MPI_THREAD_STRICT
 #define GASNET_MPI_THREAD_STRICT 0  // strictly adhere to the MPI threading specification

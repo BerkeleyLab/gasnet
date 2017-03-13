@@ -126,7 +126,7 @@ extern int AMMPI_SPMDMyProc(void) {
 }
 /* ------------------------------------------------------------------------------------ */
 #ifndef HAVE_MPI_INIT_THREAD
-#define HAVE_MPI_INIT_THREAD (MPI_VERSION >= 2 || (defined(MPI_THREAD_SINGLE) && defined(MPI_THREAD_SERIALIZED)))
+#define HAVE_MPI_INIT_THREAD (MPI_VERSION >= 2)
 #endif
 static int threadstr2int(const char *str) {
   char tmp[80];
