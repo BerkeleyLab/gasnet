@@ -2595,7 +2595,7 @@ gasneti_count0s(const void * src, size_t bytes) {
 /* ------------------------------------------------------------------------------------ */
 /* "out-of-line" helper(s) for calibration of timers */
 
-#if (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64) && \
+#if (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC) && \
     (PLATFORM_OS_LINUX || PLATFORM_OS_CNL)
 extern double gasneti_calibrate_tsc(void) {
   static int firstTime = 1;

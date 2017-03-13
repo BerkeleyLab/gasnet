@@ -170,7 +170,7 @@
      (PLATFORM_COMPILER_GNU || PLATFORM_COMPILER_INTEL || PLATFORM_COMPILER_SUN || \
       PLATFORM_COMPILER_PATHSCALE || PLATFORM_COMPILER_PGI || PLATFORM_COMPILER_TINY || \
       PLATFORM_COMPILER_OPEN64 || PLATFORM_COMPILER_CRAY || PLATFORM_COMPILER_CLANG) && \
-     (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_IA64) && \
+     (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC || PLATFORM_ARCH_IA64) && \
       !(PLATFORM_ARCH_IA64 && GASNETI_ARCH_ALTIX) /* bug 1622 */
   #if PLATFORM_ARCH_IA64 && PLATFORM_COMPILER_INTEL
     #include <ia64intrin.h>
@@ -212,7 +212,7 @@
     uint64_t ret;
     #if PLATFORM_COMPILER_CRAY
       ret = _rtc();
-    #elif PLATFORM_ARCH_X86_64 || \
+    #elif PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC || \
         (PLATFORM_COMPILER_PGI && PLATFORM_ARCH_X86 && !GASNETI_PGI_ASM_X86_A)
       /* This asm() for x86-64 also works for x86 compilers w/o working support
        * for the "A" constraint (currently only pgcc 6.1-x, which crashes).
@@ -279,7 +279,7 @@
         }
       }
       fclose(fp);
-     #else /* (X86 || X86_64) && (Linux || CNL) */
+     #else /* (X86 || X86_64 || MIC) && (Linux || CNL) */
       gasneti_timer_Tick = gasneti_calibrate_tsc(); /* Too much to inline */
      #endif
       gasneti_assert(gasneti_timer_Tick != 0.0);
