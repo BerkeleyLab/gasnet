@@ -380,9 +380,11 @@ extern const char *gasnett_performance_warning_str(void) {
     #elif defined(GASNETI_FORCE_SLOW_MEMBARS)
       "        FORCED non-inlined memory barriers\n"
     #endif
-    #if defined(GASNETI_FORCE_GETTIMEOFDAY)
+    #if defined(GASNETI_FORCE_GETTIMEOFDAY) \
+      && !((PLATFORM_OS_LINUX || PLATFORM_OS_CNL) && (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64)) // Bug 3448
       "        FORCED timers using gettimeofday()\n"
-    #elif defined(GASNETI_FORCE_POSIX_REALTIME)
+    #elif defined(GASNETI_FORCE_POSIX_REALTIME) \
+      && !((PLATFORM_OS_LINUX || PLATFORM_OS_CNL) && (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64)) // Bug 3448
       "        FORCED timers using clock_gettime()\n"
     #endif
     #if defined(GASNETI_BUG1389_WORKAROUND)
