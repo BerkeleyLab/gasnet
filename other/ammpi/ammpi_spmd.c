@@ -126,7 +126,10 @@ extern int AMMPI_SPMDMyProc(void) {
 }
 /* ------------------------------------------------------------------------------------ */
 #ifndef HAVE_MPI_INIT_THREAD
-#define HAVE_MPI_INIT_THREAD (MPI_VERSION >= 2 || (defined(MPI_THREAD_SINGLE) && defined(MPI_THREAD_SERIALIZED)))
+#define HAVE_MPI_INIT_THREAD (MPI_VERSION >= 2)
+#endif
+#ifndef HAVE_MPI_QUERY_THREAD
+#define HAVE_MPI_QUERY_THREAD (MPI_VERSION >= 2)
 #endif
 static int threadstr2int(const char *str) {
   char tmp[80];
@@ -172,7 +175,11 @@ extern int AMMPI_SPMDSetThreadMode(int usingthreads, const char **provided_level
       }
       MPI_SAFE(MPI_Initialized(&initialized));
       if (initialized) {  /* MPI already init, query current thread support level */
-        MPI_SAFE(MPI_Query_thread(&provided));
+        #if HAVE_MPI_QUERY_THREAD
+          MPI_SAFE(MPI_Query_thread(&provided));
+        #else
+          provided = required;
+        #endif
       } else { /* init MPI and request our needed level of thread safety */
         MPI_SAFE(MPI_Init_thread(argc, argv, required, &provided));
       }

@@ -2833,6 +2833,24 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
        [ GASNET_C99_TEST ], [], [],
        [ mpi_test_worked=no 
          GASNET_MSG_WARN(Unable to find sufficient C99 support features in $MPI_CC to build GASNet. You may need to append flags in \$MPI_CC to enable C99 support) ])
+
+      GASNET_TRY_CACHE_LINK(for MPI_Init_thread, have_mpi_init_thread, [
+        #include <mpi.h>
+      ], [{
+        int required1 = MPI_THREAD_SINGLE;
+        int required2 = MPI_THREAD_FUNNELED;
+        int required3 = MPI_THREAD_SERIALIZED;
+        int required4 = MPI_THREAD_MULTIPLE;
+        int provided = -1;
+        int err = MPI_Init_thread((void*)0,(void*)0,required1,&provided);
+      }], [ AC_DEFINE(HAVE_MPI_INIT_THREAD) ])
+
+      GASNET_TRY_CACHE_LINK(for MPI_Query_thread, have_mpi_query_thread, [
+        #include <mpi.h>
+      ], [{
+        int provided = -1;
+        int err = MPI_Query_thread(&provided);
+      }], [ AC_DEFINE(HAVE_MPI_QUERY_THREAD) ])
     else # bug 3443: MPI_CC was rejected, so don't cache information about that compiler
       # there is no way to "AC_UNDEF" so just ensure compiler mismatch
       AC_DEFINE(GASNETI_PLATFORM_MPI_CC_ID, 999999)
