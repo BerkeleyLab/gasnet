@@ -33,6 +33,9 @@ static gasneti_spawnerfn_t const spawnerfn;
 #ifndef HAVE_MPI_INIT_THREAD
 #define HAVE_MPI_INIT_THREAD (MPI_VERSION >= 2)
 #endif
+#ifndef HAVE_MPI_QUERY_THREAD
+#define HAVE_MPI_QUERY_THREAD (MPI_VERSION >= 2)
+#endif
 #ifndef GASNET_MPI_THREAD_STRICT
 #define GASNET_MPI_THREAD_STRICT 0  // strictly adhere to the MPI threading specification
 #endif
@@ -105,8 +108,12 @@ extern gasneti_spawnerfn_t const *gasneti_bootstrapInit_mpi(int *argc, char ***a
       else { fprintf(stderr,"WARNING: Ignoring unrecognized GASNET_MPI_THREAD value."); fflush(stderr); }
     }
     if (gasnetc_mpi_preinitialized) {  // MPI already init, query current thread support level
-      MPI_Query_thread(&provided);
-      // deliberately ignore errors on query
+      #if HAVE_MPI_QUERY_THREAD
+        MPI_Query_thread(&provided);
+        // deliberately ignore errors on query
+      #else
+        provided = required;
+      #endif
     } else { // init MPI and request our needed level of thread safety
       #if GASNET_DEBUG_VERBOSE
         fprintf(stderr,"mpi-spawner: MPI_Init_thread(%s)\n",threadint2str(required));
