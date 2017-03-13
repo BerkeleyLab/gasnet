@@ -244,10 +244,14 @@ GASNet Release Procedure
   + Move the "dist" symbolic link:
     $ ln -sf GASNet-9.8.0 dist
 
-* Email a release notice with the most recent ChangeLog entry
+* Email a release notice with the most recent ChangeLog entry, using
+  the following headers:
+  To: gasnet-announce@lbl.gov, gasnet-users@lbl.gov
+  Reply-To: gasnet-devel@lbl.gov
+  Subject: GASNet Release A.B.C
 
-* In Bugzilla CLOSE the bugs resolved in this release (not time critical).
-  BUPC's release procedure contains recommended text for the bug closures.
+* In Bugzilla CLOSE the bugs resolved in this release, following the 
+  protocol described in the BUPC's release procedure.
 
 * Revise this document with any additions, corrections or changes
 
