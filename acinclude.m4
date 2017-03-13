@@ -60,23 +60,6 @@ GASNET_FUN_BEGIN([$0($1)])
 AC_MSG_CHECKING(for known buggy compilers)
 badgccmsg=""
 AC_TRY_COMPILE([
-#if __GNUC__ == 2 && __GNUC_MINOR__ == 96 && __GNUC_PATCHLEVEL__ == 0
-# error
-#endif
-],[ ], [:], [
-AC_MSG_RESULT([$1] is gcc 2.96)
-badgccmsg="Use of gcc/g++ 2.96 for compiling this software is strongly discouraged. \
-It is not an official GNU release and has many serious known bugs, especially \
-in the optimizer, which may lead to bad code and incorrect runtime behavior. \
-Consider using \$[$1] to select a different compiler."
-GASNET_IF_ENABLED(allow-gcc296, Allow the use of the broken gcc/g++ 2.96 compiler, [
-  GASNET_MSG_WARN([$badgccmsg])
-  ],[
-  AC_MSG_ERROR([$badgccmsg \
-  You may enable use of this broken compiler at your own risk by passing the --enable-allow-gcc296 flag.])
-])
-])
-AC_TRY_COMPILE([
 #if __GNUC__ == 3 && __GNUC_MINOR__ == 2 && __GNUC_PATCHLEVEL__ <= 2
 # error
 #endif
