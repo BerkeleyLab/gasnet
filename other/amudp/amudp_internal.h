@@ -303,7 +303,7 @@ typedef union amudp_bufferheader {
 } amudp_bufferheader_t;
 
 typedef struct amudp_bufferpool {
-  #if AMUDP_DEBUG
+  #if AMUDP_BUFFER_STATS
     uint64_t magic;
     struct {
       uint64_t alloc_curr;
