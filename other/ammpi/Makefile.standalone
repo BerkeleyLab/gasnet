@@ -15,8 +15,8 @@ include Makefile.$(HOSTSYSTEM)
 #-------------------------------------------------------------------------------------
 # You should never need to change things below this line
 
-set_debug_ccflags = -DAMMPI_DEBUG=1  $(ccdebugflags) $(MANUAL_CFLAGS) $(apputils_flags)
-set_opt_ccflags =   -DAMMPI_NDEBUG=1 $(ccoptflags)   $(MANUAL_CFLAGS) $(apputils_flags)
+set_debug_ccflags = -DAMMPI_DEBUG=1  $(ccdebugflags) $(MANUAL_CFLAGS) $(MANUAL_MPICFLAGS) $(apputils_flags)
+set_opt_ccflags =   -DAMMPI_NDEBUG=1 $(ccoptflags)   $(MANUAL_CFLAGS) $(MANUAL_MPICFLAGS) $(apputils_flags)
 
 VPATH = $(srcdir)
 includes = -I$(srcdir) -I$(altincdir)
