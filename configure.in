@@ -774,7 +774,7 @@ AC_SUBST(MISC_CFLAGS)	      # warning suppression and other misc C flags
 AC_SUBST(MISC_CPPFLAGS)	      # misc preprocessor flags
 AC_SUBST(GASNET_OPT_CFLAGS)
 
-# Final check to ensure everything works together -- possibly redundant
+# Final check to ensure everything works together -- in case some combination of flags broke something
 GASNET_TRY_CACHE_CHECK(for working GASNet-required ISO C99 subset, gasnet_c99_subset,
  [ GASNET_VA_ARGS_TEST GASNET_C99_TEST ], [], [],
  [ AC_MSG_ERROR(Unable to find sufficient C99 support features in $CC to build GASNet. You may need to append flags in \$CC to enable C99 support) ])
@@ -2748,7 +2748,7 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
       GASNET_SET_CHECKED_CFLAGS(MPI_CC, MPI_CFLAGS, $DEFAULT_MPI_CFLAGS, $SAFE_MPI_CFLAGS)
       MPI_CFLAGS="$GASNET_EXTRA_DEFINES $MPI_CFLAGS $MPI_MISCFLAGS"
     else
-      GASNET_MSG_WARN([MPI compiler "$MPI_CC" was not found.  Consider passing --with-mpi-cc if you want mpi-conduit or require MPI compatibility])
+      GASNET_MSG_WARN([MPI compiler "$MPI_CC" was not found.  Consider passing --with-mpi-cc=/path/to/mpicc if you want mpi-conduit or require MPI compatibility])
       # Avoid unecessary and potentially confusing probes and their errors/warnings
       MPI_CC=no
       have_mpi=no
@@ -2811,11 +2811,11 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
       fi
       AC_DEFINE(GASNETI_MPI_VERSION)
 
-      # check MPI_CC for a working C99 environment (enough to parse gasnet.h) -- possibly redundant
+      # check MPI_CC for a working C99 environment (enough to parse gasnet.h) -- in case MPI_CFLAGS broke C99 compliance
       GASNET_TRY_CACHE_CHECK(for working GASNet-required ISO C99 subset in MPI_CC, mpi_gasnet_c99_subset,
        [ GASNET_C99_TEST ], [], [],
        [ mpi_test_worked=no 
-         GASNET_MSG_WARN(Unable to find sufficient C99 support features in $MPI_CC to build GASNet. You may need to append flags in \$MPI_CC to enable C99 support) ])
+         GASNET_MSG_WARN(Unable to find sufficient C99 support features in $MPI_CC to build GASNet. You may need to append flags in \$MPI_CC or \$MPI_CFLAGS to enable C99 support) ])
 
       GASNET_TRY_CACHE_LINK(for MPI_Init_thread, have_mpi_init_thread, [
         #include <mpi.h>
@@ -2853,11 +2853,19 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
         #include <mpi.h>
       ],[, or consider passing --without-mpi-cc if an MPI compiler is not required.])
   elif test "$mpi_reason" = ""; then
-      GASNET_MSG_WARN([build test failed: I don't know how to build MPI programs on your system -- see $TOP_BUILDDIR/config.log for details: consider using --with-mpi-cc, \$MPI_CFLAGS and \$MPI_LIBS to configure MPI support for your site if you want mpi-conduit or require MPI compatibility])
+      GASNET_MSG_WARN([build test failed: I don't know how to build MPI programs on your system -- see $TOP_BUILDDIR/config.log for details: consider setting $\MPI_CC \$MPI_CFLAGS and \$MPI_LIBS to configure MPI support for your site if you want mpi-conduit or require MPI compatibility])
       have_mpi=no
   fi
   if test "$have_mpi$mpi_reason" = no ; then
     mpi_reason="was not found"
+  fi
+  if test "$have_mpi" = no ; then 
+      # bug 3443: MPI_CC was rejected, ensure we don't cache (potentially incomplete) info about that compiler
+      # there is no way to "AC_UNDEF" so just ensure compiler mismatch
+      AC_DEFINE(GASNETI_PLATFORM_MPI_CC_ID, 999999)
+      AC_DEFINE(GASNETI_PLATFORM_MPI_CC_FAMILYID, 999999)
+      AC_DEFINE(GASNETI_PLATFORM_MPI_CC_VERSION, 999999)
+      AC_DEFINE(GASNETI_PLATFORM_MPI_CC_IDSTR, "MPI_CC-compiler-rejected")
   fi
 else
   have_mpi=no
