@@ -41,6 +41,15 @@ int main(int argc, char **argv) {
     }
   }
 
+  /* misc tests */
+  {
+    int numhand = AM_MaxNumHandlers(); assert(numhand >= 256);
+    int nh = 0;
+    AM_Safe(AM_SetNumHandlers(ep, numhand));
+    AM_Safe(AM_GetNumHandlers(ep, &nh));
+    assert(nh >= numhand);
+  }
+
   /* setup handlers */
   SETUP_ALLAM();
 

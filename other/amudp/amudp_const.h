@@ -141,9 +141,9 @@ typedef enum {
 
 #define AM_MaxNumHandlers()               AMUDP_MAX_NUMHANDLERS
 #define AM_GetNumHandlers(ep, pnhandlers)  \
-  ((ep) ? ((*(pnhandlers) = AMUDP_MAX_NUMHANDLERS), AM_OK) : AM_ERR_BAD_ARG : AM_ERR_BAD_ARG)
+  ((ep) ? ((*(pnhandlers) = AMUDP_MAX_NUMHANDLERS), AM_OK) : AM_ERR_BAD_ARG)
 #define AM_SetNumHandlers(ep, nhandlers)  \
-  ((ep) ? ((nhandlers) == AMUDP_MAX_NUMHANDLERS ? AM_OK : AM_ERR_RESOURCE)
+  ((ep) ? ((nhandlers) == AMUDP_MAX_NUMHANDLERS ? AM_OK : AM_ERR_RESOURCE) : AM_ERR_BAD_ARG)
 
 #define AM_MaxNumTranslations(trans)      (*(trans) = AMUDP_MAX_NUMTRANSLATIONS,AM_OK)
 
