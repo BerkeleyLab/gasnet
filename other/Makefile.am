@@ -27,6 +27,7 @@ CONDUITMODE_EXTRADIST = \
 	smp-collectives	\
 	myxml	\
 	detect-pshm.c \
+	pkgconfig-conduit.pc \
   # 	exclude these from distribution for now
   # 	cross-configure-help.c
 # GASNET_TOOLSONLY_FALSE_END
@@ -35,7 +36,6 @@ SUBDIRS = $(CONDUITMODE_SUBDIRS)
 EXTRA_DIST =        			\
         $(CONDUITMODE_EXTRADIST) 	\
 	Makefile-echovar.mak            \
-	pkgconfig-conduit.pc            \
 	pkgconfig-tools.pc              \
 	detect-cachesz.c 		\
 	check-pp.c                      \
