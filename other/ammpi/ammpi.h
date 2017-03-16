@@ -353,9 +353,9 @@ extern int _AM_SetHandler(ep_t ea, handler_t handler, ammpi_handler_fn_t functio
 extern int _AM_SetHandlerAny(ep_t ea, handler_t *handler, ammpi_handler_fn_t function);
 #define AM_SetHandlerAny(ea, handler, function) _AM_SetHandlerAny((ea), (handler), (ammpi_handler_fn_t)(function))
 #define AM_GetNumHandlers(ep, pnhandlers)  \
-  ((ep) ? ((*(pnhandlers) = AMMPI_MAX_NUMHANDLERS), AM_OK) : AM_ERR_BAD_ARG : AM_ERR_BAD_ARG)
+  ((ep) ? ((*(pnhandlers) = AMMPI_MAX_NUMHANDLERS), AM_OK) : AM_ERR_BAD_ARG)
 #define AM_SetNumHandlers(ep, nhandlers)  \
-  ((ep) ? ((nhandlers) == AMMPI_MAX_NUMHANDLERS ? AM_OK : AM_ERR_RESOURCE)
+  ((ep) ? ((nhandlers) == AMMPI_MAX_NUMHANDLERS ? AM_OK : AM_ERR_RESOURCE) : AM_ERR_BAD_ARG)
 
 /* Events */
 extern int AM_GetEventMask(eb_t eb, int *mask);
