@@ -136,6 +136,7 @@ static void AMMPI_InsertEndpoint(eb_t eb, ep_t ep) {
   }
   eb->endpoints[eb->n_endpoints] = ep;
   eb->n_endpoints++;
+  ep->eb = eb;
 }
 /* ------------------------------------------------------------------------------------ */
 static void AMMPI_RemoveEndpoint(eb_t eb, ep_t ep) {
@@ -147,6 +148,7 @@ static void AMMPI_RemoveEndpoint(eb_t eb, ep_t ep) {
       if (eb->endpoints[i] == ep) {
         eb->endpoints[i] = eb->endpoints[eb->n_endpoints-1];
         eb->n_endpoints--;
+        ep->eb = NULL;
         return;
       }
     }

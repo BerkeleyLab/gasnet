@@ -105,6 +105,10 @@ static void AMUDP_defaultAMHandler(void *token) {
                      "with no associated AM handler function registered", 
                      srcnode);
 }
+/* ------------------------------------------------------------------------------------ */
+extern int AMUDP_enEqual(en_t en1, en_t en2) {
+  return enEqual(en1, en2);
+}
 /*------------------------------------------------------------------------------------
  * Endpoint list handling for bundles
  *------------------------------------------------------------------------------------ */
@@ -129,6 +133,7 @@ static void AMUDP_InsertEndpoint(eb_t eb, ep_t ep) {
   }
   eb->endpoints[eb->n_endpoints] = ep;
   eb->n_endpoints++;
+  ep->eb = eb;
 }
 /* ------------------------------------------------------------------------------------ */
 static void AMUDP_RemoveEndpoint(eb_t eb, ep_t ep) {
@@ -140,6 +145,7 @@ static void AMUDP_RemoveEndpoint(eb_t eb, ep_t ep) {
       if (eb->endpoints[i] == ep) {
         eb->endpoints[i] = eb->endpoints[eb->n_endpoints-1];
         eb->n_endpoints--;
+        ep->eb = NULL;
         return;
       }
     }

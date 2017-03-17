@@ -262,6 +262,8 @@ extern const ammpi_stats_t AMMPI_initial_stats; /* the "empty" values for counte
 #define amx_stats_t               ammpi_stats_t
 #define amx_handler_fn_t          ammpi_handler_fn_t
 #define AMX_FatalErr              AMMPI_FatalErr
+#define AMX_GetSourceId           AMMPI_GetSourceId
+#define AMX_enEqual               AMMPI_enEqual
 
 #if !defined(AMMPI_DEBUG) && !defined(AMMPI_NDEBUG)
   #if defined(GASNET_DEBUG) || defined(AMX_DEBUG)
@@ -337,7 +339,7 @@ extern int AM_SetTag(ep_t ea, tag_t tag);
 extern int AMMPI_Map(ep_t ea, int index, en_t *name, tag_t tag);
 extern int AMMPI_MapAny(ep_t ea, int *index, en_t *name, tag_t tag);
 #define AM_Map(ea, index, name, tag)    AMMPI_Map((ea), (index), &(name), (tag))
-#define AM_MapAny(ea, index, name, tag) AMMPI_Map((ea), (index), &(name), (tag))
+#define AM_MapAny(ea, index, name, tag) AMMPI_MapAny((ea), (index), &(name), (tag))
 extern int AM_UnMap(ep_t ea, int index);
 extern int AM_GetTranslationInuse(ep_t ea, int i);
 extern int AM_GetTranslationTag(ep_t ea, int i, tag_t *tag);
@@ -368,6 +370,7 @@ extern int AM_GetSourceEndpoint(void *token, en_t *gan);
 extern int AM_GetDestEndpoint(void *token, ep_t *endp);
 extern int AM_GetMsgTag(void *token, tag_t *tagp);
 extern int AMMPI_GetSourceId(void *token, int *srcid);
+extern int AMMPI_enEqual(en_t en1, en_t en2);
 
 /* Poll */
 extern int AM_Poll(eb_t bundle);
