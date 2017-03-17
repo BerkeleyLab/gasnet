@@ -718,7 +718,6 @@ static int AMMPI_checkMPIreturn(int retcode, const char *fncallstr,
   #define AMMPI_BACKPRESSURE_WARNING(msg) ((void)0)
 #endif
 
-extern int AMMPI_enEqual(en_t en1, en_t en2);
 extern int64_t AMMPI_getMicrosecondTimeStamp(void);
 /* ------------------------------------------------------------------------------------ */
 /*  global data */
