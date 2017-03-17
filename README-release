@@ -236,7 +236,8 @@ GASNet Release Procedure
 * In gasnet-web CVS repository:
   + Add both tarballs (GASNet and GASNet_Tools) to CVS
   + Update index.html for the new release
-    Minimum update is new versions and MD5s for the tarballs
+    Minimum update is new versions, sizes and MD5s for the tarballs
+  + Add new version to .cvsignore
 
 * On the gasnet.lbl.gov server:
   + "cvs up" to get the new tarballs and index.html
