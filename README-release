@@ -243,7 +243,7 @@ GASNet Release Procedure
   + "cvs up" to get the new tarballs and index.html
   + "tar xfz ..." to extract the new GASNet release (not Tools)
   + Move the "dist" symbolic link:
-    $ ln -sf GASNet-9.8.0 dist
+    $ ln -sfn GASNet-9.8.0 dist
 
 * Email a release notice with the most recent ChangeLog entry, using
   the following headers:
