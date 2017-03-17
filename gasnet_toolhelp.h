@@ -844,11 +844,11 @@ extern void gasneti_envdbl_display(const char *key, double val, int is_dflt);
 
 extern const char *gasneti_tmpdir(void);
 
-/* Conduit-specific supplement to gasneti_getenv
+/* Custom (spawner- or conduit-specific) supplement to gasneti_getenv
  * If set to non-NULL this has precedence over gasneti_globalEnv.
  */
 typedef char *(gasneti_getenv_fn_t)(const char *keyname);
-extern gasneti_getenv_fn_t *gasneti_conduit_getenv;
+extern gasneti_getenv_fn_t *gasneti_getenv_hook;
 
 
 /* ------------------------------------------------------------------------------------ */

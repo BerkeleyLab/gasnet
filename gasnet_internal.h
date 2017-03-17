@@ -327,6 +327,12 @@ void gasneti_setupGlobalEnvironment(gasnetex_rank_t numnodes, gasnetex_rank_t my
                                      gasneti_bootstrapExchangefn_t exchangefn,
                                      gasneti_bootstrapBroadcastfn_t broadcastfn);
 
+#define GASNETI_PROPAGATE_ENV_NAME   0
+#define GASNETI_PROPAGATE_ENV_PREFIX 1
+extern void (*gasneti_propagate_env_hook)(const char *, int); // spawner- or conduit-specific hook
+extern void gasneti_propagate_env_helper(const char *environ, const char * keyname, int flags);
+extern void gasneti_propagate_env(const char *keyname, int flags);
+
 /* signature for internally-registered functions that need auxseg space -
    space in the gasnet-registered heap which is hidden from the client.
    The callback is registered by adding the function pointer to GASNET*_AUXSEG_FNS()

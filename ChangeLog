@@ -1,7 +1,7 @@
 GASNet ChangeLog 
 ----------------
 ----------------------------------------------------------------------
-PENDING:
+03-17-2017 : Release 1.28.2
 
 * Intra-node Shared Memory (PSHM)
   - PSHM is now enabled by default on nearly all platforms.
@@ -14,8 +14,13 @@ PENDING:
     + Now support (and use by default) PSHM-over-POSIX which works without
       requiring the CYGSERVER (and is more reliable than the alternatives).
 
+* InfiniBand Verbs (ibv-conduit)
+  - Work-around bug 3428: AMRDMA malfunctions on Pathscale optimizer
+  - Fix bug 3435: long exit times and exit warnings for certain patterns
+  - Fix bug 3441: AMRDMA disable controls
+
 * Intel Omni-Path PSM2 (psm-conduit)
-  - Fix bug 3340 - Performance loss for puts larger than 16KB
+  - Fix bug 3340: Performance loss for puts larger than 16KB
     The PSM2 MQ path is re-enabled for puts and is now semantically correct
 
 * Libfabric (ofi-conduit)
@@ -48,14 +53,20 @@ PENDING:
   - Now provide pkg-config .pc files corresponding to each GASNet library
   - GASNet headers now use scoped warning suppression on clang and gcc 6.0+,
     allowing client code to compile with -Wunused without spurious warnings.
-  - Fix bug 3389: Avoid redundant config.status invocations 
   - Fix bug 3351: move -D_GNU_SOURCE: MISC_CPPFLAGS to GASNET_DEFINES 
+  - Fix bug 3389: Avoid redundant config.status invocations
 
 * GASNet tools 
   - portable_platform.h has been renamed gasnet_portable_platform.h
   - Fix bug 3322: portable_platform.h more robust to namespace interference
+  - Workaround bug 3448: x86*/Linux timers now default to posix-realtime,
+    to avoid a problem with native timers on newer Intel CPUs.
 
 * General and Misc.
+  - Top-level documentation has been re-arranged:
+    + PSHM usage information now lives in top-level GASNet README
+    + GASNet developer documentation is no longer distributed/installed,
+      but remains available online in the public git repository
   - MPI-based spawning now supports direct mpirun invocation.
     See other/mpi-spawner/README for details.
   - PMI-based spawning is now supported by gasnetrun_{ibv,ofi,mxm,psm}
@@ -474,7 +485,7 @@ PENDING:
 
 * IBM BG/Q (pami-conduit)
   - Support for intra-node shared memory communication (PSHM) is now
-    available on BlueGene/Q.  Please see docs/pshm-design.txt for
+    available on BlueGene/Q.  Please see README for
     details of the configuration and environment setup required.
   - Updates to support changes made in the V1R2M1 driver.
 
@@ -686,7 +697,7 @@ PENDING:
     working implementation of mmap() (bug 3066).
     + This is the first PSHM support for Cygwin.
   - Expanded PSHM docs, including notes for configuration on Cygwin.
-    See docs/pshm-design.txt in the GASNet sources.
+    See the top-level GASNet README for details.
 
 * Platform support/portability
   - Ported network-independent code to the IBM BlueGene/Q.
@@ -991,7 +1002,7 @@ PENDING:
   - Improved gcc TLS support on IA64
 
 * General:
-  - Experimental shared memory support (see README and pshm-design.txt)
+  - Experimental shared memory support (see README)
   - Experimental collective autotuner (see README and autotune.txt)
   - Additional collective algorithms implemented
   - Fixes to some tests for large message sizes or large iteration counts

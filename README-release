@@ -1,14 +1,16 @@
-GASNet Release Procedure
-------------------------
+README-release file for GASNet
+http://gasnet.lbl.gov
 
 The purpose of this document is to record the steps required for a public
 release of GASNet.  This is NOT required reading for most developers.
 
 See also:
- + README: includes GASNet's coding standards
- + README-devel: rules developers are expected to follow when committing
- + README-git: overview and examples of GASNet's recommended git workflow
+ + README: GASNet usage documentation
+ + README-devel: GASNet design information and coding standards
+ + README-git: Rules developers are expected to follow when committing
 
+GASNet Release Procedure
+========================
 
 * Start from a *clean* clone of the git repo.
   Either start from a NEW clone, or use one of "git clean" or "git stash -o"
@@ -109,6 +111,7 @@ See also:
 * Install the release candidate and ensure that share/docs/gasnet contains
   all the intended documentation, including any files referenced by README.
   Any missing should be added to INSTALL_DOCS in the top-level Makefile.am
+  Do NOT add developer-only documents (eg this file) to the distribution.
 
 * Resolutions for any "issues" (bugs, missing docs, etc.) should be fixed
   on the release branch and re-tested as necessary.  These will be merged
@@ -241,9 +244,21 @@ See also:
   + Move the "dist" symbolic link:
     $ ln -sf GASNet-9.8.0 dist
 
-* Email a release notice with the most recent ChangeLog entry
+* Email a release notice with the most recent ChangeLog entry, using
+  the following headers:
+  To: gasnet-announce@lbl.gov, gasnet-users@lbl.gov
+  Reply-To: gasnet-devel@lbl.gov
+  Subject: GASNet Release A.B.C
 
-* In Bugzilla CLOSE the bugs resolved in this release (not time critical).
-  BUPC's release procedure contains recommended text for the bug closures.
+* In Bugzilla CLOSE the bugs resolved in this release, following the 
+  protocol described in the BUPC's release procedure.
 
 * Revise this document with any additions, corrections or changes
+
+--------------------------------------------------------------------------
+  The canonical version of this document is located here:
+    http://bitbucket.org/berkeleylab/gasnet/src/develop/README-release
+
+  For more information, please email: gasnet-devel@lbl.gov
+  or visit the GASNet home page at:   http://gasnet.lbl.gov
+--------------------------------------------------------------------------

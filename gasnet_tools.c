@@ -380,9 +380,11 @@ extern const char *gasnett_performance_warning_str(void) {
     #elif defined(GASNETI_FORCE_SLOW_MEMBARS)
       "        FORCED non-inlined memory barriers\n"
     #endif
-    #if defined(GASNETI_FORCE_GETTIMEOFDAY)
+    #if defined(GASNETI_FORCE_GETTIMEOFDAY) \
+      && !((PLATFORM_OS_LINUX || PLATFORM_OS_CNL) && (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64)) // Bug 3448
       "        FORCED timers using gettimeofday()\n"
-    #elif defined(GASNETI_FORCE_POSIX_REALTIME)
+    #elif defined(GASNETI_FORCE_POSIX_REALTIME) \
+      && !((PLATFORM_OS_LINUX || PLATFORM_OS_CNL) && (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64)) // Bug 3448
       "        FORCED timers using clock_gettime()\n"
     #endif
     #if defined(GASNETI_BUG1389_WORKAROUND)
@@ -1620,15 +1622,15 @@ GASNETT_TENTATIVE_EXTERN
 const char * (*gasnett_decode_envval_fn)(const char *);
 GASNETT_TENTATIVE_EXTERN
 int (*gasneti_verboseenv_fn)(void);
-gasneti_getenv_fn_t *gasneti_conduit_getenv = NULL;
+gasneti_getenv_fn_t *gasneti_getenv_hook = NULL;
 char *gasneti_globalEnv = NULL;
 
 extern char *gasneti_getenv(const char *keyname) {
   char *retval = NULL;
 
-  if (keyname && gasneti_conduit_getenv) {
-    /* highest priority given to conduit-specific getenv */
-    retval = (*gasneti_conduit_getenv)(keyname);
+  if (keyname && gasneti_getenv_hook) {
+    /* highest priority given to spawner- or conduit-specific getenv */
+    retval = (*gasneti_getenv_hook)(keyname);
   }
 
   if (keyname && !retval && gasneti_globalEnv) { 
@@ -2499,6 +2501,8 @@ gasneti_count0s_copy(void * GASNETI_RESTRICT dst, const void * GASNETI_RESTRICT 
   const uint8_t *s = src;
   while (bytes--) zeros += !(*(d++) = *(s++));
   return zeros;
+#elif PLATFORM_COMPILER_PATHSCALE /* avoid bug 3428 using pre-memcpy/post-count0s */
+  size_t zeros = gasneti_count0s(memcpy(dst, src, bytes), bytes);
 #else /* Carefully optimized (but still portable) word-oriented loop */
   size_t tmp, remain, zeros;
   const uint8_t *s;

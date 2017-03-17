@@ -57,7 +57,7 @@ clean: temp-clean
 	rm -Rf gasnet
 
 dist-hook: all temp-clean
-	rm -f texinfo.tex gasnet.texi Makefile
+	rm -f texinfo.tex gasnet.texi Makefile pshm-design.txt
 	@: # Use "blessed" GASNet docs if specified
 	@if test -n "$(GASNET_DOCS)"; then \
 	   list=`cd $(GASNET_DOCS) && echo gasnet.*`; for f in $$list; do \

@@ -199,6 +199,7 @@ static void gasnetc_sys_coll_init(void)
   gasnetc_bootstrapExchange_phase = 0;
 
   /* Construct vector of the dissemination peers */
+  gasnetc_dissem_peers = 0;
   for (i = 1; i < size; i *= 2) {
     ++gasnetc_dissem_peers;
   }
@@ -318,7 +319,6 @@ static void gasnetc_sys_coll_fini(void)
  #endif
 #endif
 
-  gasnetc_dissem_peers = 0;
   gasneti_bootstrap_native_coll = 0;
 }
 
@@ -909,6 +909,11 @@ static int gasnetc_load_settings(void) {
             "WARNING: GASNET_AMRDMA_CYCLE reduced from the requested value, 0x%lx, to the maximum supported value, 0x%lx.\n",
             (unsigned long)gasnetc_amrdma_cycle, (unsigned long)(GASNETI_ATOMIC_MAX >> 2));
     gasnetc_amrdma_cycle = (GASNETI_ATOMIC_MAX >> 2);
+  }
+
+  // Bug 3441: zero values of GASNET_AMRDMA_{LIMIT,CYCLE} should prevent allocation of pinned memory
+  if (!gasnetc_amrdma_limit || !gasnetc_amrdma_cycle) {
+    gasnetc_amrdma_max_peers = 0;
   }
 
   #if GASNETC_PIN_SEGMENT
@@ -2074,6 +2079,13 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   /* ensure extended API is initialized across nodes */
   gasnetc_bootstrapBarrier_ib();
   gasnetc_sys_coll_fini();
+
+#if GASNET_DEBUG
+  /* Ensure fini-init-fini works (required for checkpoint/restart) */
+  gasnetc_sys_coll_init();
+  gasnetc_bootstrapBarrier_ib();
+  gasnetc_sys_coll_fini();
+#endif
 
   return GASNET_OK;
 }

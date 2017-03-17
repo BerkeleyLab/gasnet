@@ -704,6 +704,52 @@ extern void gasneti_decode_args(int *argc, char ***argv) {
   }
 }
 
+/* Propagate requested env vars from GASNet global env to the local env */
+
+void (*gasneti_propagate_env_hook)(const char *, int) = NULL; // spawner- or conduit-specific hook
+
+extern void gasneti_propagate_env_helper(const char *environ, const char * keyname, int flags) {
+  const int is_prefix = flags & GASNETI_PROPAGATE_ENV_PREFIX;
+  const char *p = environ;
+
+  gasneti_assert(environ);
+  gasneti_assert(keyname && !strchr(keyname,'='));
+
+  int keylen = strlen(keyname);
+  while (*p) {
+    if (!strncmp(keyname, p, keylen) && (is_prefix || p[keylen] == '=')) {
+      gasneti_assert(NULL != strchr(p+keylen, '='));
+      char *var = gasneti_strdup(p);
+      char *val = strchr(var, '=');
+      *(val++) = '\0';
+      if (gasnett_decode_envval_fn) {
+        val = (char *)((*gasnett_decode_envval_fn)(val));
+      }
+      gasnett_setenv(var, val);
+      GASNETI_TRACE_PRINTF(I,("gasneti_propagate_env(%s) => '%s'", var, val));
+      gasneti_free(var);
+      if (!is_prefix) break;
+    }
+    p += strlen(p) + 1;
+  }
+}
+
+extern void gasneti_propagate_env(const char * keyname, int flags) {
+  gasneti_assert(keyname);
+  gasneti_assert(NULL == strchr(keyname, '='));
+
+  // First look for matches in gasneti_globalEnv (if any)
+  if (gasneti_globalEnv) {
+    gasneti_propagate_env_helper(gasneti_globalEnv, keyname, flags);
+  }
+
+  // Next allow conduit-specific getenv (if any) to overwrite
+  if (gasneti_propagate_env_hook) {
+    gasneti_propagate_env_hook(keyname, flags);
+  }
+}
+
+
 /* Process environment for exittimeout.
  * If (GASNET_EXITTIMEOUT is set), it is returned
  * else return = min(GASNET_EXITTIMEOUT_MAX,

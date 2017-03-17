@@ -80,9 +80,6 @@ headers =                  	\
 
 EXTRA_DIST =              		\
 	README				\
-	README-devel			\
-	README-git			\
-	README-release			\
  	README-tools 			\
 	ChangeLog	  		\
 	license.txt       		\
@@ -99,15 +96,12 @@ EXTRA_DIST =              		\
 
 include_HEADERS = $(headers)
 
+# deliberately omitted git-only docs: README-devel README-git README-release
 INSTALL_DOCS =			\
 	README			\
-	README-devel		\
-	README-git		\
-	README-release		\
 	README-tools		\
 	license.txt		\
 	docs/autotuner.txt	\
-	docs/pshm-design.txt	\
 	docs/gasnet.txt		\
 	docs/gasnet.html	\
 	docs/gasnet.pdf		\
@@ -368,7 +362,7 @@ endif
 dist-hook:
 	if test -d $(srcdir)/.git ; then \
 	  GASNET_DESC=`$${GIT=git} --git-dir=$(srcdir)/.git describe` || exit $$? ; \
-	  $(PERL) -pi -e "s/no-version-control-info/$$GASNET_DESC/;" -- $(distdir)/configure || exit $$? ; \
+	  $(PERL) -pi -e "s:no-version-control-info:$$GASNET_DESC:;" -- $(distdir)/configure || exit $$? ; \
 	  echo $$GASNET_DESC > $(distdir)/version.git || exit $$? ; \
 	fi
 	if test -f $(distdir)/docs/Makefile ; then \
