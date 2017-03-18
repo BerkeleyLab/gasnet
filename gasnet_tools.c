@@ -397,6 +397,10 @@ extern const char *gasnett_performance_warning_str(void) {
 /* ------------------------------------------------------------------------------------ */
 /* timer support */
 
+#ifdef GASNETI_TIMER_DEFN
+  GASNETI_TIMER_DEFN
+#endif
+
 extern uint64_t gasneti_gettimeofday_us(void) {
   uint64_t retval;
   struct timeval tv;

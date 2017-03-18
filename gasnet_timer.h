@@ -33,21 +33,24 @@
   #include <machine/mtaops.h>
 
   typedef int64_t gasneti_tick_t;
+  #define GASNETI_TIMER_DEFN \
+         double gasneti_timer_Tick = 0.0; \
+         int    gasneti_timer_firstTime = 1;
+  extern double gasneti_timer_Tick; /* inverse GHz */
+  extern int    gasneti_timer_firstTime;
   GASNETI_INLINE(gasneti_ticks_to_ns)
   uint64_t gasneti_ticks_to_ns(gasneti_tick_t ticks) {
-    static int firsttime = 1;
-    static double adjust;
-    if_pf(firsttime) {
+    if_pf(gasneti_timer_firstTime) {
       double freq = mta_clock_freq();
-      adjust = 1.0E9/freq;
+      gasneti_timer_Tick = 1.0E9/freq;
       gasneti_sync_writes();
-      firsttime = 0;
+      gasneti_timer_firstTime = 0;
       #if 0
         printf("first time: ticks=%llu  freq=%f adjust=%f\n", 
               (unsigned long long) ticks, freq, adjust);
       #endif
     } else gasneti_sync_reads();
-    return (uint64_t)(((double)ticks) * adjust);
+    return (uint64_t)(((double)ticks) * gasneti_timer_Tick);
   }
   #define gasneti_ticks_now()      (MTA_CLOCK(0))
   #define GASNETI_TICK_MAX        ((gasneti_tick_t)(((uint64_t)-1)>>1))
@@ -97,9 +100,13 @@
   #define MMTIMER_FULLNAME "/dev/mmtimer"
   #endif
   typedef uint64_t gasneti_tick_t;
-  GASNETI_TENTATIVE_EXTERN double gasneti_timer_tick; /* tick conversion factor */
-  GASNETI_TENTATIVE_EXTERN int gasneti_timer_fd; /* HPET device file descriptor */
-  GASNETI_TENTATIVE_EXTERN volatile uint64_t *gasneti_tick_p; /* pointer to mapped counter, and init flag */
+  #define GASNETI_TIMER_DEFN \
+         double gasneti_timer_tick = 0.0; \
+         int gasneti_timer_fd = 0; \
+         volatile uint64_t *gasneti_tick_p = NULL;
+  extern double gasneti_timer_tick; /* tick conversion factor */
+  extern int gasneti_timer_fd; /* HPET device file descriptor */
+  extern volatile uint64_t *gasneti_tick_p; /* pointer to mapped counter, and init flag */
   GASNETI_NEVER_INLINE(gasneti_timer_init,
   static volatile uint64_t *gasneti_timer_init(void)) {
     if_pf (!gasneti_tick_p) {
@@ -232,18 +239,21 @@
   } 
  #endif
   extern double gasneti_calibrate_tsc(void); /* safe to prototype even if unused */
+  #define GASNETI_TIMER_DEFN \
+         double gasneti_timer_Tick = 0.0; \
+         int    gasneti_timer_firstTime = 1;
+  extern double gasneti_timer_Tick; /* inverse GHz */
+  extern int    gasneti_timer_firstTime;
   GASNETI_INLINE(gasneti_ticks_to_ns)
   uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
-    static int firstTime = 1;
-    static double Tick = 0.0; /* inverse GHz */
-    if_pf (firstTime) {
+    if_pf (gasneti_timer_firstTime) {
      #if GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ /* FreeBSD and NetBSD */
         int64_t cpuspeed = 0;
         size_t len = sizeof(cpuspeed);
         if (sysctlbyname("machdep.tsc_freq", &cpuspeed, &len, NULL, 0) == -1) 
           gasneti_fatalerror("*** ERROR: Failure in sysctlbyname('machdep.tsc_freq')=%s",strerror(errno));
         gasneti_assert(cpuspeed > 1E6 && cpuspeed < 1E11); /* ensure it looks reasonable */
-        Tick = 1.0E9 / cpuspeed;
+        gasneti_timer_Tick = 1.0E9 / cpuspeed;
      #elif PLATFORM_OS_OPENBSD
         int MHz = 0;
         size_t len = sizeof(MHz);
@@ -253,7 +263,7 @@
         if (sysctl(mib, 2, &MHz, &len, NULL, 0)) 
           gasneti_fatalerror("*** ERROR: Failure in sysctl(CTL_HW.HW_CPUSPEED)=%s",strerror(errno));
         gasneti_assert(MHz > 1 && MHz < 100000); /* ensure it looks reasonable */
-        Tick = 1000. / MHz;
+        gasneti_timer_Tick = 1000. / MHz;
      #elif PLATFORM_ARCH_IA64  /* && ( PLATFORM_OS_LINUX || PLATFORM_OS_CNL ) */
       FILE *fp = fopen("/proc/cpuinfo","r");
       char input[255];
@@ -264,19 +274,19 @@
 	  double MHz = 0.0;
           if (p) MHz = atof(p+1);
           gasneti_assert(MHz > 1 && MHz < 100000); /* ensure it looks reasonable */
-          Tick = 1000. / MHz;
+          gasneti_timer_Tick = 1000. / MHz;
           break;
         }
       }
       fclose(fp);
      #else /* (X86 || X86_64) && (Linux || CNL) */
-      Tick = gasneti_calibrate_tsc(); /* Too much to inline */
+      gasneti_timer_Tick = gasneti_calibrate_tsc(); /* Too much to inline */
      #endif
-      gasneti_assert(Tick != 0.0);
+      gasneti_assert(gasneti_timer_Tick != 0.0);
       gasneti_sync_writes();
-      firstTime = 0;
+      gasneti_timer_firstTime = 0;
     } else gasneti_sync_reads();
-    return (uint64_t)(st * Tick);
+    return (uint64_t)(st * gasneti_timer_Tick);
   }
 /* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_ARCH_POWERPC && \
@@ -362,11 +372,14 @@
       } 
    #endif
  #endif
+  #define GASNETI_TIMER_DEFN \
+         double gasneti_timer_Tick = 0.0; \
+         int    gasneti_timer_firstTime = 1;
+  extern double gasneti_timer_Tick; /* inverse GHz */
+  extern int    gasneti_timer_firstTime;
   GASNETI_INLINE(gasneti_ticks_to_ns)
   uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
-    static int firstTime = 1;
-    static double Tick = 0.0;
-    if_pf (firstTime) {
+    if_pf (gasneti_timer_firstTime) {
       uint32_t freq;
      #if PLATFORM_OS_BGQ
       /* don't know how to query this, so hard-code it for now */
@@ -415,26 +428,31 @@
       }
      #endif
       gasneti_assert(freq > 1000000 && freq < 2000000000); /* ensure it looks reasonable (1MHz to 2Ghz) */
-      Tick = 1.0e9 / freq;
+      gasneti_timer_Tick = 1.0e9 / freq;
       gasneti_sync_writes();
-      firstTime = 0;
+      gasneti_timer_firstTime = 0;
     } else gasneti_sync_reads();
-    return (uint64_t)(st * Tick);
+    return (uint64_t)(st * gasneti_timer_Tick);
   }
 /* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_OS_CYGWIN
   #include <windows.h>
-  /* note: QueryPerformanceCounter is a Win32 system call and thus has ~1us overhead
-     Most systems have a QueryPerformanceFrequency() == 3,579,545, which is the
-     ACPI counter that should be reliable across CPU cycle speedstepping, etc.
-     rdtsc has lower overhead, but only works on Pentium or later,
-     produces wildly incorrect results if the  CPU decides to change clock rate 
+  /* note: QueryPerformanceCounter is a Win32 API call
+     On modern processors with constant-rate TSC this expands to rdtsc.
+     Older systems have a QueryPerformanceFrequency() which use a system call to query the
+     ACPI counter to ensure reliablity across CPU cycle speedstepping, etc.
+     rdtsc has lower overhead, but only works on Pentium or later, and on certain older CPUs
+     produces wildly incorrect results if the CPU decides to change clock rate 
      mid-run (and there's no reliable way to get the correct cycle multiplier 
      short of timing a known-length delay and hoping for the best)
-     See http://www.geisswerks.com/ryan/FAQS/timing.html
-         http://softwareforums.intel.com/ids/board/message?board.id=16&message.id=1509
+     See https://msdn.microsoft.com/en-us/library/windows/desktop/dn553408(v=vs.85).aspx
   */
   typedef uint64_t gasneti_tick_t;
+  #define GASNETI_TIMER_DEFN \
+         double gasneti_timer_Tick = 0.0; \
+         int    gasneti_timer_firstTime = 1;
+  extern double gasneti_timer_Tick; /* inverse GHz */
+  extern int    gasneti_timer_firstTime;
   GASNETI_INLINE(gasneti_ticks_now)
   gasneti_tick_t gasneti_ticks_now(void) {
     LARGE_INTEGER val;
@@ -444,41 +462,46 @@
   }
   GASNETI_INLINE(gasneti_ticks_to_ns)
   uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
-    static int firsttime = 1;
-    static double freq = 0;
-    if_pf (firsttime) {
+    if_pf (gasneti_timer_firstTime) {
       LARGE_INTEGER temp;
       gasneti_assert_nzeroret(QueryPerformanceFrequency(&temp));
-      freq = ((double)temp.QuadPart) / 1.0E9;
-      freq = 1 / freq;
+      gasneti_timer_Tick = 1.0E9 / ((double)temp.QuadPart);
       gasneti_sync_writes();
-      firsttime = 0;
+      gasneti_timer_firstTime = 0;
     } else gasneti_sync_reads();
-    return (uint64_t)(st * freq);
+    return (uint64_t)(st * gasneti_timer_Tick);
   }
 /* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_OS_DARWIN
   /* See http://developer.apple.com/qa/qa2004/qa1398.html */
   #include <mach/mach_time.h>
   typedef uint64_t gasneti_tick_t;
+  #define GASNETI_TIMER_DEFN \
+         double gasneti_timer_Tick = 0.0; \
+         int    gasneti_timer_firstTime = 1;
+  extern double gasneti_timer_Tick; /* inverse GHz */
+  extern int    gasneti_timer_firstTime;
   #define gasneti_ticks_now() mach_absolute_time()
   GASNETI_INLINE(gasneti_ticks_to_ns)
   uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
-    static int firsttime = 1;
-    static double freq = 0;
-    if_pf (firsttime) {
+    if_pf (gasneti_timer_firstTime) {
       mach_timebase_info_data_t tb;
       gasneti_assert_zeroret(mach_timebase_info(&tb));
-      freq = ((double)tb.numer) / ((double)tb.denom);
+      gasneti_timer_Tick = ((double)tb.numer) / ((double)tb.denom);
       gasneti_sync_writes();
-      firsttime = 0;
+      gasneti_timer_firstTime = 0;
     } else gasneti_sync_reads();
-    return (uint64_t)(st * freq);
+    return (uint64_t)(st * gasneti_timer_Tick);
   }
 /* ------------------------------------------------------------------------------------ */
 #elif GASNETI_HAVE_AARCH64_CNTVCT_EL0 /* AARCH64/ARMv8 Virtual Timer Count register */
   #include <sys/times.h>
   typedef uint64_t gasneti_tick_t;
+  #define GASNETI_TIMER_DEFN \
+         double gasneti_timer_Tick = 0.0; \
+         int    gasneti_timer_firstTime = 1;
+  extern double gasneti_timer_Tick; /* inverse GHz */
+  extern int    gasneti_timer_firstTime;
   GASNETI_INLINE(gasneti_ticks_now)
   gasneti_tick_t gasneti_ticks_now(void) {
     gasneti_tick_t ret;
@@ -493,16 +516,14 @@
 
   GASNETI_INLINE(gasneti_ticks_to_ns)
   uint64_t gasneti_ticks_to_ns(gasneti_tick_t st) {
-    static int firsttime = 1;
-    static double adjust = 0;
-    if_pf (firsttime) {
+    if_pf (gasneti_timer_firstTime) {
       uint64_t freq;
       __asm__ __volatile__ ("mrs %0,CNTFRQ_EL0" : "=r" (freq));
-      adjust = 1.0E9/freq;
+      gasneti_timer_Tick = 1.0E9/freq;
       gasneti_sync_writes();
-      firsttime = 0;
+      gasneti_timer_firstTime = 0;
     } else gasneti_sync_reads();
-    return (uint64_t)(st * adjust);
+    return (uint64_t)(st * gasneti_timer_Tick);
   }
 /* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_ARCH_MICROBLAZE && (defined(MB_CC) || defined(MB_FSL_CC))
