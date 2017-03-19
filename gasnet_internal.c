@@ -1415,8 +1415,8 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
   /* bug 3406: Try MPI-based spawn first, EVEN if the var is not set.
    * This is a requirement for spawning using bare mpirun
    */
-  if (!res && (spawner == not_set || !strcmp(spawner, "MPI")) &&
-      (res = gasneti_bootstrapInit_mpi(argc_p, argv_p, nodes_p, mynode_p))) {
+  if (!res && (spawner == not_set || !strcmp(spawner, "MPI"))) {
+    res = gasneti_bootstrapInit_mpi(argc_p, argv_p, nodes_p, mynode_p);
   }
 #endif
 
@@ -1426,8 +1426,8 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
    * We no longer claim to support ssh-based launch without gasnetrun.
    * TODO: should we remove the "spawner == not_set" case?
    */
-  if (!res && (spawner == not_set || !strcmp(spawner, "SSH")) &&
-      (res = gasneti_bootstrapInit_ssh(argc_p, argv_p, nodes_p, mynode_p))) {
+  if (!res && (spawner == not_set || !strcmp(spawner, "SSH"))) {
+    res = gasneti_bootstrapInit_ssh(argc_p, argv_p, nodes_p, mynode_p);
   }
 #endif
 
@@ -1436,8 +1436,8 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
    * We no longer claim to support direct launch with srun, yod, etc.
    * TODO: should we remove the "spawner == not_set" case?
    */
-  if (!res && (spawner == not_set || !strcmp(spawner, "PMI")) &&
-      (res = gasneti_bootstrapInit_pmi(argc_p, argv_p, nodes_p, mynode_p))) {
+  if (!res && (spawner == not_set || !strcmp(spawner, "PMI"))) {
+    res = gasneti_bootstrapInit_pmi(argc_p, argv_p, nodes_p, mynode_p);
   }
 #endif
 
