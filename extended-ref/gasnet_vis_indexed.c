@@ -284,7 +284,9 @@ gasnetex_handle_t gasnete_puti_AMPipeline(gasnete_synctype_t synctype,
     gasnete_packetdesc_t *localpt;
     size_t packetidx;
     size_t const packetcnt = gasnete_packetize_addrlist(dstcount, dstlen, srccount, srclen, 
-                                                &remotept, &localpt, gasnetex_lub_AMRequestMedium(), 1);
+                                                &remotept, &localpt,
+                                                gasnetex_lub_AMRequestMedium(), // TODO-EX: Use _max_ version for target
+                                                1);
     gasneti_iop_t *iop = gasneti_iop_register(packetcnt,0 GASNETE_THREAD_PASS);
 
     for (packetidx = 0; packetidx < packetcnt; packetidx++) {
@@ -360,7 +362,10 @@ gasnetex_handle_t gasnete_geti_AMPipeline(gasnete_synctype_t synctype,
     gasneti_eop_t *eop;
     size_t packetidx;
     size_t const packetcnt = gasnete_packetize_addrlist(srccount, srclen, dstcount, dstlen,  
-                                                &remotept, &localpt, gasnetex_lub_AMReplyMedium(), 0);
+                                                &remotept, &localpt,
+                                                // TODO-EX: Use _max_ version for target and pass both values to packetize
+                                                MIN(gasnetex_lub_AMRequestMedium(),gasnetex_lub_AMReplyMedium()),
+                                                0);
     GASNETE_VISOP_SETUP(visop, synctype, 1);
     #if GASNET_DEBUG
       visop->type = GASNETI_VIS_CAT_GETI_AMPIPELINE;

@@ -314,8 +314,10 @@ gasnetex_handle_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
     gasnete_packetdesc_t *remotept;
     gasnete_packetdesc_t *localpt;
     size_t packetidx;
-    size_t const packetcnt = gasnete_packetize_memvec(dstcount, dstlist, srccount, srclist, 
-                                                &remotept, &localpt, gasnetex_lub_AMRequestMedium(), 1);
+    size_t const packetcnt = gasnete_packetize_memvec(dstcount, dstlist, srccount, srclist,
+                                                &remotept, &localpt,
+                                                gasnetex_lub_AMRequestMedium(), // TODO-EX: Use _max_ version for target
+                                                1);
     gasneti_iop_t *iop = gasneti_iop_register(packetcnt,0 GASNETE_THREAD_PASS);
 
     for (packetidx = 0; packetidx < packetcnt; packetidx++) {
@@ -367,7 +369,7 @@ gasnetex_handle_t gasnete_putv_AMPipeline(gasnete_synctype_t synctype,
         }
         gasneti_assert(datalen > 0); 
         gasneti_assert(packetlen == rnum*sizeof(gasnet_memvec_t)+datalen);
-        gasneti_assert(packetlen <= gasnet_AMMaxMedium());
+        gasneti_assert(packetlen <= gasnetex_lub_AMRequestMedium());
       #endif
 
       /* send AM(rnum, iop) from packedbuf */
@@ -399,7 +401,7 @@ void gasnete_putv_AMPipeline_reqh_inner(gasnetex_token_t token,
   gasnet_memvec_t * const rlist = addr;
   uint8_t * const data = (uint8_t *)(&rlist[rnum]);
   uint8_t * const end = gasnete_memvec_unpack_noempty(rnum, rlist, data, 0, (size_t)-1);
-  gasneti_assert(end - (uint8_t *)addr <= gasnet_lub_AMMaxMedium());
+  gasneti_assert(end - (uint8_t *)addr <= gasnetex_lub_AMRequestMedium());
   gasneti_sync_writes();
   /* TODO: coalesce acknowledgements - need a per-srcnode, per-op seqnum & packetcnt */
   gasnetex_AMReplyShort(token, gasneti_handleridx(gasnete_putvis_AMPipeline_reph), 0, PACK(iop));
@@ -458,7 +460,10 @@ gasnetex_handle_t gasnete_getv_AMPipeline(gasnete_synctype_t synctype,
     gasneti_eop_t *eop;
     size_t packetidx;
     size_t const packetcnt = gasnete_packetize_memvec(srccount, srclist, dstcount, dstlist,  
-                                                &remotept, &localpt, gasnetex_lub_AMReplyMedium(), 0);
+                                                &remotept, &localpt,
+                                                // TODO-EX: Use _max_ version for target and pass both values to packetize
+                                                MIN(gasnetex_lub_AMRequestMedium(),gasnetex_lub_AMReplyMedium()),
+                                                0);
     GASNETE_VISOP_SETUP(visop, synctype, 1);
     #if GASNET_DEBUG
       visop->type = GASNETI_VIS_CAT_GETV_AMPIPELINE;
