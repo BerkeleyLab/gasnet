@@ -2083,6 +2083,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 #if GASNET_DEBUG
   /* Ensure fini-init-fini works (required for checkpoint/restart) */
   gasnetc_sys_coll_init();
+  gasneti_spawner->Barrier();
   gasnetc_bootstrapBarrier_ib();
   gasnetc_sys_coll_fini();
 #endif
