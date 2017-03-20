@@ -129,7 +129,8 @@ int main(int argc, char **argv) {
     AM_Safe(AM_SetExpectedResources(ep1,1,1));
     h = (handler_t)-1;
     AM_Safe(AM_SetHandlerAny(ep1,&h,checkAMshort));
-    verify(h >= 0 && h < AM_MaxNumHandlers());
+    i = (int)h; // bug3459: avoid a warning
+    verify(i >= 0 && i < AM_MaxNumHandlers());
     AM_Safe(AM_Request0(ep1,0,h));
     do {
       AM_Safe(AM_Poll(eb2));
