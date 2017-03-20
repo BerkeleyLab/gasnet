@@ -627,7 +627,11 @@ extern uint64_t gasneti_gettimeofday_us(void);
   #define gasneti_ticks_to_ns(st)  ((gasneti_tick_t)(st))
 #endif
 
-#if defined(GASNETI_USING_SLOW_TIMERS) || defined(GASNETI_TICKS_NOW_BODY)
+#ifdef gasneti_ticks_now
+  // bug 3458: may be using posixrt or gettimeofday
+  #undef GASNETI_TICKS_NOW_BODY
+#elif defined(GASNETI_TICKS_NOW_BODY)
+  #define GASNETI_USING_SLOW_TIMERS 1
   extern void gasneti_slow_ticks_now(void);
   #define gasneti_ticks_now()    ((*(gasneti_tick_t (*)(void))(&gasneti_slow_ticks_now))())
 #endif
