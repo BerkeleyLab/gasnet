@@ -9,9 +9,6 @@
 CC='gcc -arch x86_64' ; export CC  # vanilla target C compiler
 CXX='g++ -arch x86_64' ; export CXX  # vanilla target C++ compiler
 
-# need the SDK to ensure we link when cross compiling from an older chip missing the target from libSystem
-LDFLAGS='-isysroot /Developer/SDKs/MacOSX10.4u.sdk/' ; export LDFLAGS
-
 # Host C compiler
 # NOTE: you may need to set GCC_EXEC_PREFIX=/usr/bin/
 # to get the correct assembler if gcc is your host compiler
@@ -63,11 +60,11 @@ CROSS_CHAR_IS_SIGNED='1' ; export CROSS_CHAR_IS_SIGNED
 CROSS_SIZEOF_CHAR='1' ; export CROSS_SIZEOF_CHAR
 CROSS_SIZEOF_SHORT='2' ; export CROSS_SIZEOF_SHORT
 CROSS_SIZEOF_INT='4' ; export CROSS_SIZEOF_INT
-CROSS_SIZEOF_LONG='4' ; export CROSS_SIZEOF_LONG
+CROSS_SIZEOF_LONG='8' ; export CROSS_SIZEOF_LONG
 CROSS_SIZEOF_LONG_LONG='8' ; export CROSS_SIZEOF_LONG_LONG
-CROSS_SIZEOF_VOID_P='4' ; export CROSS_SIZEOF_VOID_P
-CROSS_SIZEOF_SIZE_T='4' ; export CROSS_SIZEOF_SIZE_T
-CROSS_SIZEOF_PTRDIFF_T='4' ; export CROSS_SIZEOF_PTRDIFF_T
+CROSS_SIZEOF_VOID_P='8' ; export CROSS_SIZEOF_VOID_P
+CROSS_SIZEOF_SIZE_T='8' ; export CROSS_SIZEOF_SIZE_T
+CROSS_SIZEOF_PTRDIFF_T='8' ; export CROSS_SIZEOF_PTRDIFF_T
 
 # System signal values
 

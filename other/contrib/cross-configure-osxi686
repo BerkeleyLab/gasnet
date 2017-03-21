@@ -9,9 +9,6 @@
 CC='gcc -arch i686' ; export CC  # vanilla target C compiler
 CXX='g++ -arch i686' ; export CXX  # vanilla target C++ compiler
 
-# prevent silly warnings on chiptest caused by the way I hacked in x86 support
-LDFLAGS='-lmathCommon.A' ; export LDFLAGS
-
 # Host C compiler
 # NOTE: you may need to set GCC_EXEC_PREFIX=/usr/bin/
 # to get the correct assembler if gcc is your host compiler
