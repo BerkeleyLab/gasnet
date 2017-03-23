@@ -945,6 +945,9 @@ EOF
     ia64:Linux:*:*)
 	echo ${UNAME_MACHINE}-unknown-linux-${LIBC}
 	exit ;;
+    k1om:Linux:*:*)
+       echo ${UNAME_MACHINE}-unknown-linux-${LIBC}
+       exit ;;
     m32r*:Linux:*:*)
 	echo ${UNAME_MACHINE}-unknown-linux-${LIBC}
 	exit ;;
