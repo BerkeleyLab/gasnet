@@ -42,7 +42,7 @@ EXTRA_CONFIGURE_ARGS='--disable-aligned-segments --enable-pshm --enable-large-ps
 
 # 2. Fill in the canonical target machine type. You can usually obtain this
 #   by running config-aux/config.guess on the target machine
-TARGET_ID='knl-unknown-linux-gnu'
+TARGET_ID='x86_64-unknown-linux-gnu'
 
 # 3. Optionally cross-compile and run the detect-cachesz.c utility and
 #    fill in the value below and uncomment.  If not set the default is 128.
