@@ -2070,7 +2070,7 @@ GASNET_IF_ENABLED(force-compiler-atomicops,
 use_timers=native
 if expr "$target_os" : "linux" >/dev/null ; then
   case "$target_cpu" in
-    x86_64|i*86|knc|knl)
+    x86_64|i*86|k1om)
     # Bug 3448: native timer calibration known to be incorrect on Linux for some modern x86* CPUs, default to posix for now
     use_timers=posixrt
     ;;
