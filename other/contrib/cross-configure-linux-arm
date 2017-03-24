@@ -106,4 +106,4 @@ for sys in host build; do
   fi
 done
 # Now that everything is setup, run the actual configure script
-$SRCDIR/configure --enable-cross-compile$HOST_APPEND --target=$TARGET_ID --program-prefix='' $EXTRA_CONFIGURE_ARGS "$@"
+$SRCDIR/configure --enable-cross-compile$HOST_APPEND --target=$TARGET_ID $EXTRA_CONFIGURE_ARGS "$@"
