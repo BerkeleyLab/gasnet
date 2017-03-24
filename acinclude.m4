@@ -29,9 +29,10 @@ GASNET_FUN_END([$0])
 
 AC_DEFUN([GASNET_FORBID_PROGRAM_TRANSFORM],[
 GASNET_FUN_BEGIN([$0])
-  # echo program_prefix=$program_prefix  program_suffix=$program_suffix program_transform_name=$program_transform_name
+  #echo cross_compiling=$cross_compiling target_alias=$target_alias program_prefix=$program_prefix  program_suffix=$program_suffix program_transform_name=$program_transform_name
   # undo prefix autoconf automatically adds during cross-compilation
-  if test "$cross_compiling" = yes && test "$program_prefix" = "${target_alias}-" ; then
+  # don't test for cross_compile here as it might not yet be set correctly
+  if test "$program_prefix" = "${target_alias}-" ; then
     program_prefix=NONE
   fi
   # normalize empty prefix/suffix
@@ -42,7 +43,7 @@ GASNET_FUN_BEGIN([$0])
     program_suffix=NONE
   fi
   # canonicalize transforms caused by empty prefix/suffix
-  program_transform_name=`echo "$program_transform_name" | sed -e 's/; *$//;'`
+  program_transform_name=`echo "$program_transform_name" | sed -e 's/; *$//;' | sed -e "s/${target_alias}-//"`
   if expr "$program_transform_name" : 's.^..$' >/dev/null || \
      expr "$program_transform_name" : 's.$$..$' >/dev/null || \
      expr "$program_transform_name" : 's.$$..;s.^..$' >/dev/null ; then

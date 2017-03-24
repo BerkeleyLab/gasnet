@@ -257,7 +257,7 @@ int main(void) {
 "  fi\n"
 "done\n"
 "# Now that everything is setup, run the actual configure script\n"
-"$SRCDIR/configure --enable-cross-compile$HOST_APPEND --target=$TARGET_ID --program-prefix='' $EXTRA_CONFIGURE_ARGS \"$@\"\n"
+"$SRCDIR/configure --enable-cross-compile$HOST_APPEND --target=$TARGET_ID $EXTRA_CONFIGURE_ARGS \"$@\"\n"
 );
 
   fflush(stdout);
