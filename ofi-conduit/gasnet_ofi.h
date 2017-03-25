@@ -48,8 +48,10 @@ struct fid_cq*        gasnetc_ofi_tx_cqfd; /* CQ for both AM and RDMA tx ops */
 struct fid_ep*        gasnetc_ofi_rdma_epfd;
 struct fid_mr*        gasnetc_ofi_rdma_mrfd;
 
-struct fid_ep*        gasnetc_ofi_am_epfd;
-struct fid_cq*        gasnetc_ofi_am_rcqfd;
+struct fid_ep*        gasnetc_ofi_request_epfd;
+struct fid_ep*        gasnetc_ofi_reply_epfd;
+struct fid_cq*        gasnetc_ofi_request_cqfd;
+struct fid_cq*        gasnetc_ofi_reply_cqfd;
 
 /* The cut off of when to fully block for a non-blocking put*/
 size_t gasnetc_ofi_bbuf_threshold; 
