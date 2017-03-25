@@ -29,9 +29,10 @@ GASNET_FUN_END([$0])
 
 AC_DEFUN([GASNET_FORBID_PROGRAM_TRANSFORM],[
 GASNET_FUN_BEGIN([$0])
-  # echo program_prefix=$program_prefix  program_suffix=$program_suffix program_transform_name=$program_transform_name
+  #echo cross_compiling=$cross_compiling target_alias=$target_alias program_prefix=$program_prefix  program_suffix=$program_suffix program_transform_name=$program_transform_name
   # undo prefix autoconf automatically adds during cross-compilation
-  if test "$cross_compiling" = yes && test "$program_prefix" = "${target_alias}-" ; then
+  # don't test for cross_compile here as it might not yet be set correctly
+  if test "$program_prefix" = "${target_alias}-" ; then
     program_prefix=NONE
   fi
   # normalize empty prefix/suffix
@@ -42,7 +43,7 @@ GASNET_FUN_BEGIN([$0])
     program_suffix=NONE
   fi
   # canonicalize transforms caused by empty prefix/suffix
-  program_transform_name=`echo "$program_transform_name" | sed -e 's/; *$//;'`
+  program_transform_name=`echo "$program_transform_name" | sed -e 's/; *$//;' | sed -e "s/${target_alias}-//"`
   if expr "$program_transform_name" : 's.^..$' >/dev/null || \
      expr "$program_transform_name" : 's.$$..$' >/dev/null || \
      expr "$program_transform_name" : 's.$$..;s.^..$' >/dev/null ; then
@@ -582,6 +583,7 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
 dnl $1 = optional env variables to restore
 AC_DEFUN([GASNET_START_CONFIGURE],[
   GASNET_FUN_BEGIN([$0($1)])
+  AC_REQUIRE([GASNET_SET_CROSS_COMPILE]) dnl run early to handle implicit AC_PROG_CC
   GASNET_PATH_PROGS(PWD_PROG, pwd, pwd)
 
   define([GASNET_CONFIGURE_WARNING_LOCAL],[.[]cv_prefix[]configure_warnings.tmp])
@@ -1724,10 +1726,44 @@ AC_DEFUN([GASNET_PROG_CXXCPP], [
   GASNET_FUN_END([$0])
 ])
 
+AC_DEFUN([GASNET_CHECK_CROSS_COMPILE], [
+  GASNET_FUN_BEGIN([$0])
+  AC_PROVIDE([$0])
+  AC_MSG_CHECKING(if user enabled cross-compile)
+  GASNET_IF_ENABLED(cross-compile, [ Enable cross-compilation ], [
+    AC_MSG_RESULT(yes)
+    CROSS_COMPILING=1
+  ], [
+    AC_MSG_RESULT(no)
+    CROSS_COMPILING=0
+  ])
+  GASNET_FUN_END([$0])
+])
+
+AC_DEFUN([GASNET_SET_CROSS_COMPILE], [
+  GASNET_FUN_BEGIN([$0])
+  AC_PROVIDE([$0])
+  AC_REQUIRE([GASNET_CHECK_CROSS_COMPILE])
+  dnl older versions of autoconf unconditionally test executables during compiler detection and set the cross vars
+  dnl however this auto-detection can generate wrong answers when the compiler is broken or the target is partially compatible
+  dnl This function resets the autoconf cross vars to the correct value, overriding the unreliable auto-detection
+  if test "$CROSS_COMPILING" = 0; then
+    cross_compiling=no
+    ac_cv_prog_cc_cross=no
+    ac_cv_prog_cxx_cross=no
+  else
+    cross_compiling=yes 
+    ac_cv_prog_cc_cross=yes 
+    ac_cv_prog_cxx_cross=yes 
+  fi
+  GASNET_FUN_END([$0])
+])
+
 AC_DEFUN([GASNET_PROG_CC], [
   GASNET_FUN_BEGIN([$0])
+  AC_REQUIRE([GASNET_SET_CROSS_COMPILE])
   GASNET_PROG_CPP
-  GASNET_GETFULLPATH(CC)
+  GASNET_GETFULLPATH(CC) dnl must come after PROG_CPP
   AC_SUBST(CC)
   AC_SUBST(CFLAGS)
   AC_MSG_CHECKING(for working C compiler)
@@ -1757,23 +1793,13 @@ AC_DEFUN([GASNET_PROG_CC], [
               ], [ printf("hi\n"); exit(0); ], 
      [], [GASNET_MSG_ERROR(Your C link is broken - reported failure when it should have succeeded)])
   AC_MSG_RESULT(yes)
-  AC_MSG_CHECKING(if user enabled cross-compile)
-  GASNET_IF_ENABLED(cross-compile, [ Enable cross-compilation (experimental) ], [
-    AC_MSG_RESULT(yes)
-    cross_compiling=yes 
-    CROSS_COMPILING=1
-    ac_cv_prog_cc_cross=yes 
-  ], [
-    dnl reset autoconf cross compilation setting, which is wrong if executables are broken
-    AC_MSG_RESULT(no)
-    cross_compiling=no
-    CROSS_COMPILING=0
-    ac_cv_prog_cc_cross=no
+  GASNET_SET_CROSS_COMPILE
+  if test "$cross_compiling" = no; then
     AC_MSG_CHECKING([working C compiler executables])
     AC_TRY_RUN([int main(void) { return 0; }], [AC_MSG_RESULT(yes)],
   	     [AC_MSG_RESULT(no) GASNET_MSG_ERROR([Cannot run executables created with C compiler. If you're attempting to cross-compile, use --enable-cross-compile])], 
   	     [GASNET_MSG_ERROR(Internal configure error - please report)])
-  ])
+  fi
   AM_CONDITIONAL(CROSS_COMPILING, test "$cross_compiling" = "yes")
   AC_SUBST(CROSS_COMPILING)
   AC_LANG_RESTORE
@@ -1782,8 +1808,9 @@ AC_DEFUN([GASNET_PROG_CC], [
 
 AC_DEFUN([GASNET_PROG_CXX], [
   GASNET_FUN_BEGIN([$0])
+  AC_REQUIRE([GASNET_SET_CROSS_COMPILE])
   GASNET_PROG_CXXCPP
-  GASNET_GETFULLPATH(CXX)
+  GASNET_GETFULLPATH(CXX) dnl must come after PROG_CXXCPP
   AC_SUBST(CXX)
   AC_SUBST(CXXFLAGS)
   AC_MSG_CHECKING(for working C++ compiler)
@@ -1803,22 +1830,13 @@ AC_DEFUN([GASNET_PROG_CXX], [
               ], [ printf("hi\n"); exit(0); ], 
      [], [GASNET_MSG_ERROR(Your C++ link is broken - reported failure when it should have succeeded)])
   AC_MSG_RESULT(yes)
-  dnl reset autoconf cross compilation setting, which is wrong if executables are broken
-  AC_MSG_CHECKING(if user enabled cross-compile)
-  GASNET_IF_ENABLED(cross-compile, [ Enable cross-compilation (experimental) ], [
-    AC_MSG_RESULT(yes)
-    cross_compiling=yes 
-    ac_cv_prog_cxx_cross=yes 
-  ], [
-    dnl reset autoconf cross compilation setting, which is wrong if executables are broken
-    AC_MSG_RESULT(no)
-    cross_compiling=no
-    ac_cv_prog_cxx_cross=no
+  GASNET_SET_CROSS_COMPILE
+  if test "$cross_compiling" = no; then
     AC_MSG_CHECKING([working C++ compiler executables])
     AC_TRY_RUN([int main(void) { return 0; }], [AC_MSG_RESULT(yes)],
   	     [AC_MSG_RESULT(no) GASNET_MSG_ERROR([Cannot run executables created with C++ compiler. If you're attempting to cross-compile, use --enable-cross-compile])], 
   	     [GASNET_MSG_ERROR(Internal configure error - please report)])
-  ])
+  fi
   AC_LANG_RESTORE
   GASNET_FUN_END([$0])
 ])
