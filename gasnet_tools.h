@@ -151,6 +151,11 @@ GASNETI_BEGIN_NOWARN
 #define GASNETT_MEMBAR_CONFIG        GASNETI_MEMBAR_CONFIG
 
 /* ------------------------------------------------------------------------------------ */
+/* microsecond-resolution sleep */
+
+#define gasnett_nsleep(ns_delay)     gasneti_nsleep(ns_delay)
+
+/* ------------------------------------------------------------------------------------ */
 /* portable high-performance, low-overhead timers */
 
 #define gasnett_tick_t               gasneti_tick_t

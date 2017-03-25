@@ -3,7 +3,7 @@ README file for GASNet tools
 ============================
 Originally by: Dan Bonachea <bonachea@cs.berkeley.edu>
 Currently maintained by: Paul H. Hargrove <PHHargrove@lbl.gov>
-GASNet tools specification version: 1.9
+GASNet tools specification version: 1.10
 
 The GASNet tools are a set of communication-independent utilities that are used
 to implement GASNet, and constitute a useful portability tool for GASNet
@@ -136,6 +136,15 @@ system-specific support, where available.
   GASNETT_TICK_MIN - a value representing the minimum value storable in a gasnett_tick_t
 
   GASNETT_TICK_MAX - a value representing the maximum value storable in a gasnett_tick_t
+
+-----
+Sleep
+-----
+
+  int gasnett_nsleep(uint64_t ns_delay) - nanosecond resolution sleep
+    Sleep for at least the indicated number of nanoseconds.  If interrupted by a
+    signal, may terminate the sleep early returnining non-zero with errno = EINTR.
+    If ns_delay is zero, this function returns without sleeping.
 
 ---------------
 Memory barriers
