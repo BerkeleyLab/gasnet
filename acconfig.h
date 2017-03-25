@@ -172,6 +172,9 @@
 /* has nanosleep() */
 #undef HAVE_NANOSLEEP
 
+/* has clock_nanosleep() */
+#undef HAVE_CLOCK_NANOSLEEP
+
 /* has nsleep() */
 #undef HAVE_NSLEEP
 

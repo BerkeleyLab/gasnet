@@ -4485,6 +4485,17 @@ GASNET_TRY_CACHE_CHECK(for nanosleep(), cc_has_nanosleep, [
 ],
   AC_SEARCH_LIBS(nanosleep, posix4, AC_DEFINE(HAVE_NANOSLEEP), AC_MSG_RESULT(entry point not found - disabled)))
 
+# Check for clock_nanosleep
+GASNET_TRY_CACHE_CHECK(for clock_nanosleep(), cc_has_clock_nanosleep, [
+#include <time.h>
+], [
+  struct timespec tm, tmremaining;
+  tm.tv_sec = 1;
+  tm.tv_nsec = 1000000;
+  clock_nanosleep(CLOCK_REALTIME, 0, &tm, &tmremaining);
+],
+  AC_SEARCH_LIBS(clock_nanosleep, [rt posix4], AC_DEFINE(HAVE_CLOCK_NANOSLEEP), AC_MSG_RESULT(entry point not found - disabled)))
+
 # Check for nsleep
 GASNET_TRY_CACHE_CHECK(for nsleep(), cc_has_nsleep, [
 #include <time.h>

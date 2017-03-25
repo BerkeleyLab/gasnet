@@ -25,9 +25,10 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <sys/stat.h> /* gasneti_system_redirected_coprocess */
+#include <sys/select.h>
 #include <fcntl.h>
-#include <time.h> /* gasneti_gettimeofday_us */
-#include <sys/time.h> /* gasneti_gettimeofday_us */
+#include <time.h> /* gasneti_gettimeofday_us, gasneti_nsleep */
+#include <sys/time.h> /* gasneti_gettimeofday_us, gasneti_nsleep */
 #include <signal.h>
 
 #if HAVE_EXECINFO_H
@@ -391,6 +392,43 @@ extern const char *gasnett_performance_warning_str(void) {
     #endif
       ""; 
   return result;
+}
+
+/* ------------------------------------------------------------------------------------ */
+/* sleep/delay support */
+
+/* Sleep for at least ns_delay nanoseconds
+ * If interrupted by signal, may terminate early returning non-zero with errno = EINTR
+ */
+extern int gasneti_nsleep(uint64_t ns_delay) {
+  if_pf (!ns_delay) return 0;
+  #if HAVE_NANOSLEEP
+    struct timespec ts;
+    ts.tv_sec  = ns_delay / (uint64_t)1E9;
+    ts.tv_nsec = ns_delay % (uint64_t)1E9;
+    return nanosleep(&ts, NULL);
+  #elif HAVE_CLOCK_NANOSLEEP
+    struct timespec ts;
+    ts.tv_sec  = ns_delay / (uint64_t)1E9;
+    ts.tv_nsec = ns_delay % (uint64_t)1E9;
+    return clock_nanosleep(CLOCK_REALTIME, 0, &ts, NULL);
+  #elif HAVE_NSLEEP
+    struct timespec ts;
+    ts.tv_sec  = ns_delay / (uint64_t)1E9;
+    ts.tv_nsec = ns_delay % (uint64_t)1E9;
+    return nsleep(&ts, NULL);
+  #elif HAVE_USLEEP && 0
+    // Disabled because:
+    // 1) some systems prohibit us_delay > 1 million
+    // 2) some systems have undesired interactions with alarm()
+    return usleep(ns_delay / 1000);
+  #else
+    struct timeval tv;
+    uint64_t us_delay = ns_delay / 1000;
+    tv.tv_sec  = us_delay / (uint64_t)1E6;
+    tv.tv_usec = us_delay % (uint64_t)1E6;
+    return select(0, NULL, NULL, NULL, &tv);
+  #endif
 }
 
 /* ------------------------------------------------------------------------------------ */
