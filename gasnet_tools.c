@@ -2595,16 +2595,49 @@ gasneti_count0s(const void * src, size_t bytes) {
 /* ------------------------------------------------------------------------------------ */
 /* "out-of-line" helper(s) for calibration of timers */
 
-#if (PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC) && \
-    (PLATFORM_OS_LINUX || PLATFORM_OS_CNL)
+#if GASNETI_CALIBRATE_TSC /* x86, x86-64, MIC and ia64 */
 extern double gasneti_calibrate_tsc(void) {
   static int firstTime = 1;
   static double Tick = 0.0; /* Inverse GHz */
+
+  if_pf (firstTime) {
+  #if GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ /* FreeBSD and NetBSD */
+    int64_t cpuspeed = 0;
+    size_t len = sizeof(cpuspeed);
+    if (sysctlbyname("machdep.tsc_freq", &cpuspeed, &len, NULL, 0) == -1)
+      gasneti_fatalerror("*** ERROR: Failure in sysctlbyname('machdep.tsc_freq')=%s",strerror(errno));
+    gasneti_assert(cpuspeed > 1E6 && cpuspeed < 1E11); /* ensure it looks reasonable */
+    Tick = 1.0E9 / cpuspeed;
+  #elif PLATFORM_OS_OPENBSD
+    int MHz = 0;
+    size_t len = sizeof(MHz);
+    int mib[2];
+    mib[0] = CTL_HW;
+    mib[1] = HW_CPUSPEED;
+    if (sysctl(mib, 2, &MHz, &len, NULL, 0))
+      gasneti_fatalerror("*** ERROR: Failure in sysctl(CTL_HW.HW_CPUSPEED)=%s",strerror(errno));
+    gasneti_assert(MHz > 1 && MHz < 100000); /* ensure it looks reasonable */
+    Tick = 1000. / MHz;
+  #elif PLATFORM_ARCH_IA64  /* && ( PLATFORM_OS_LINUX || PLATFORM_OS_CNL ) */
+    FILE *fp = fopen("/proc/cpuinfo","r");
+    char input[255];
+    if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
+    while (!feof(fp) && fgets(input, sizeof(input), fp)) {
+      if (strstr(input,"itc MHz")) {
+        char *p = strchr(input,':');
+        double MHz = 0.0;
+        if (p) MHz = atof(p+1);
+        gasneti_assert(MHz > 1 && MHz < 100000); /* ensure it looks reasonable */
+        Tick = 1000. / MHz;
+        break;
+      }
+    }
+    fclose(fp);
+  #else /* (X86 || X86_64 || MIC) && (Linux || CNL) */
   FILE *fp = NULL;
   char input[512]; /* 256 is too small for "flags" line in /proc/cpuino */
   double MHz = 0.0;
 
- if_pf (firstTime) {
   fp = fopen("/proc/cpuinfo","r");
   if (!fp) gasneti_fatalerror("*** ERROR: Failure in fopen('/proc/cpuinfo','r')=%s",strerror(errno));
 
@@ -2659,6 +2692,7 @@ extern double gasneti_calibrate_tsc(void) {
   }
 
   fclose(fp);
+  #endif
 
   gasneti_sync_writes();
   firstTime = 0;
