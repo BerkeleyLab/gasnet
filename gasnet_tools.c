@@ -2633,12 +2633,29 @@ gasneti_count0s(const void * src, size_t bytes) {
 /* ------------------------------------------------------------------------------------ */
 /* "out-of-line" helper(s) for calibration of timers */
 
-#if GASNETI_CALIBRATE_TSC /* x86, x86-64, MIC and ia64 */
-extern double gasneti_calibrate_tsc(void) {
-  static int firstTime = 1;
-  static double Tick = 0.0; /* Inverse GHz */
+// Estimate gasneti_ticks_now() rate in GHz by comparision to
+// gasneti_wallclock_ns() over an interval of the specified length.
+static double gasneti_approx_tick_ghz(uint64_t ns_interval) {
+  gasneti_assert(ns_interval > 0);
+  uint64_t ref, ref_base;
+  uint64_t tsc, tsc_base;
+  uint64_t goal;
+  ref_base = gasneti_wallclock_ns();
+  tsc_base = gasneti_ticks_now();
+  ref = ref_base;
+  goal = ref_base + ns_interval;
+  do {
+    gasneti_nsleep(goal - ref);
+    ref = gasneti_wallclock_ns();
+    tsc = gasneti_ticks_now();
+  } while (ref < goal);
+  return (tsc-tsc_base) / (double)(ref-ref_base);
+}
 
-  if_pf (firstTime) {
+#if GASNETI_CALIBRATE_TSC /* x86, x86-64, MIC and ia64 */
+extern double gasneti_calibrate_tsc_from_kernel(void) {
+  double Tick = 0.0; /* Inverse GHz */
+
   #if GASNETI_HAVE_SYSCTL_MACHDEP_TSC_FREQ /* FreeBSD and NetBSD */
     int64_t cpuspeed = 0;
     size_t len = sizeof(cpuspeed);
@@ -2732,9 +2749,214 @@ extern double gasneti_calibrate_tsc(void) {
   fclose(fp);
   #endif
 
-  gasneti_sync_writes();
-  firstTime = 0;
- } else gasneti_sync_reads();
+  return Tick;
+}
+
+extern double gasneti_calibrate_tsc(void) {
+  static int firstTime = 1;
+  static double Tick = 0.0; /* Inverse GHz */
+
+  if_pt (! firstTime) {
+    gasneti_sync_reads();
+    return Tick;
+  }
+
+  // Serialize threads attempting initialization
+  static gasneti_mutex_t tscmutex = GASNETI_MUTEX_INITIALIZER;
+  gasneti_mutex_lock(&tscmutex);
+  if_pf (firstTime) {
+  #if !(PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC) || \
+      !(PLATFORM_OS_LINUX || PLATFORM_OS_CNL)
+    Tick = gasneti_calibrate_tsc_from_kernel();
+  #else /* (X86 || X86_64 || MIC) && (Linux || CNL) */
+    #ifndef GASNETI_DEFAULT_TSC_RATE
+    // TODO: need logic to default to "cpuinfo" when we can determine CPU model is trustworthy
+    #define GASNETI_DEFAULT_TSC_RATE "wallclock"
+    #endif
+    const char *tsc_rate = gasneti_getenv_withdefault("GASNET_TSC_RATE", GASNETI_DEFAULT_TSC_RATE);
+    enum {
+      tsc_source_cpuinfo,    // "cpuinfo"    - parse /proc/cpuinfo for the TSC rate
+      tsc_source_wallclock,  // "wallclock"  - calibrate TSC against OS-provided wallclock
+      tsc_source_user,       // rate in Hz   - user provided rate (subject to verification)
+    } tsc_source;
+    if (0 == strcmp(tsc_rate, "cpuinfo")) {
+      tsc_source = tsc_source_cpuinfo;
+    } else if (0 == strcmp(tsc_rate, "wallclock")) {
+      tsc_source = tsc_source_wallclock;
+    } else {
+      tsc_source = tsc_source_user;
+      int64_t Hz = gasneti_parse_int(tsc_rate, 0);
+      if (Hz < 1E6 || Hz > 1E11) { // 1MHz to 100GHz (same range accepted elsewhere)
+        gasneti_fatalerror("GASNET_TSC_RATE must be a rate in Hz (no M or G suffix) or the name of a known source ('cpuinfo' or 'wallclock'), but was set to '%s'.", tsc_rate);
+      }
+      Tick = 1e9 / Hz;
+    }
+
+    // Allowable relative error for the calibrated TSC rate.
+    // GASNETI_DEFAULT_TSC_RATE_TOLERANCE      - warn if we can't meet this
+    // GASNETI_DEFAULT_TSC_RATE_HARD_TOLERANCE - fatalerror if we can't meet this
+    // Zero values disable the associated checks.
+    // NOTE: "wallclock" calibration applies this slightly differently than others.
+    #ifndef GASNETI_DEFAULT_TSC_RATE_TOLERANCE
+    #define GASNETI_DEFAULT_TSC_RATE_TOLERANCE 0.0005 // 0.05% - matches testtools default
+    #endif
+    const double soft_tolerance = gasneti_getenv_dbl_withdefault("GASNET_TSC_RATE_TOLERANCE",
+                                                                 GASNETI_DEFAULT_TSC_RATE_TOLERANCE);
+    const int check_soft = soft_tolerance > 0.0;
+    if ((soft_tolerance < 0.0) || (soft_tolerance > 1.0)) {
+      gasneti_fatalerror(
+          "GASNET_TSC_RATE_TOLERANCE must be in the range 0.0 - 1.0, inclusive, but '%g' was given",
+          soft_tolerance);
+    }
+    #ifndef GASNETI_DEFAULT_TSC_RATE_HARD_TOLERANCE
+    #define GASNETI_DEFAULT_TSC_RATE_HARD_TOLERANCE 0.02 // 2%
+    #endif
+    const double hard_tolerance = gasneti_getenv_dbl_withdefault("GASNET_TSC_RATE_HARD_TOLERANCE",
+                                                                 GASNETI_DEFAULT_TSC_RATE_HARD_TOLERANCE);
+    const int check_hard = hard_tolerance > 0.0;
+    if ((hard_tolerance < 0.0) || (hard_tolerance > 1.0)) {
+      gasneti_fatalerror(
+          "GASNET_TSC_RATE_HARD_TOLERANCE must be in the range 0.0 - 1.0, inclusive, but '%g' was given",
+          hard_tolerance);
+    }
+
+    // We test using the smaller of the "active" tolerances
+    double tolerance;
+    if (check_hard) {
+      if (check_soft) {
+        tolerance = MIN(hard_tolerance, soft_tolerance);
+      } else {
+        tolerance = hard_tolerance;
+      }
+    } else {
+      tolerance = soft_tolerance; // Even if zero
+    }
+
+    #if GASNET_DEBUG_VERBOSE
+    uint64_t begin_tsc_calibration = gasneti_wallclock_ns();
+    #endif
+
+    // Approximate the resolution of the reference clock in ns (if needed)
+    uint64_t ref_res = (uint64_t)1E9;
+    if ((tsc_source == tsc_source_wallclock) || (tolerance > 0.0)) {
+      const uint64_t max_res = 5000;     // We actually only care that it is below 5us
+      const uint64_t max_sum = 20000000; // And we don't want to spend more than 20ms here
+      uint64_t sum = 0;
+      for (int i=0; (i < 10) && (ref_res > max_res) && (sum < max_sum); i++) {
+        uint64_t start, next;
+        start = gasneti_wallclock_ns();
+        while (start == (next = gasneti_wallclock_ns()));
+        uint64_t delta = (next-start);
+        ref_res = MIN(ref_res, delta);
+        sum += delta;
+      }
+      #if GASNET_DEBUG_VERBOSE
+      fprintf(stderr, "TSC: reference resolution is %d ns or better\n", (int)ref_res);
+      #endif
+      if_pf (ref_res > max_res) {
+        gasneti_fatalerror("Reference timer is not acceptable for calibration of the TSC.\n"
+                           "Please reconfigure with --enable-force-gettimeofday or --enable-force-posix-realtime.\n");
+      }
+    }
+
+    if (tsc_source == tsc_source_cpuinfo) {
+      Tick = gasneti_calibrate_tsc_from_kernel();
+    } else if (tsc_source == tsc_source_wallclock) {
+      // Measure TSC rate against walltime until convergence (or iteration limit)
+      // Worse case: 100 iterations X 1000 ref_res <= 100,000 * 5us = 0.5s
+      // More common is 10 iterations of 1ms each, or 0.01s
+      const uint64_t interval_ns = MAX(1E6, 1000*ref_res); // no less than 1ms or 1000 reference ticks
+      const double dflt_error = 0.0005; // By default we stop when (stdev <= 0.05% of mean) ...
+      const double  max_error = (tolerance > 0.0 ? MIN(dflt_error, tolerance) : dflt_error);
+      const int     max_iters = 100;    //   or we've averaged 100 samples ...
+      const int     min_iters = 10;     //   but we don't trust statistics with too few samples.
+      // Tabulate some initial samples
+      int N; double Sx, Sxx;
+      for (N = Sx = Sxx = 0; N < (min_iters - 1); ++N) {
+        double sample = gasneti_approx_tick_ghz(interval_ns);
+        Sx  += sample;
+        Sxx += sample * sample;
+      }
+      // Collect additional samples until convergance or iteration limit
+      double mean, scv; // SCV = "squared coefficient of variation" = (stdev / mean) ^ 2
+      const double max_scv = max_error * max_error;
+      do {
+        double sample = gasneti_approx_tick_ghz(interval_ns);
+        N   += 1;
+        Sx  += sample;
+        Sxx += sample * sample;
+        mean = Sx / N;
+        double variance = (N * Sxx - Sx * Sx) / (N * (N - 1));
+        scv = variance / (mean * mean);
+      } while ((scv > max_scv) && (N < max_iters));
+      #if GASNET_DEBUG_VERBOSE
+      // SCV is non-negative by defn, but this is not true with IEEE arithmetic.
+      // But since we've avoided sqrt(), use of MAX() here is purely cosmetic.
+      fprintf(stderr, "TSC: calibrated to SCV of %g in %d iters\n", MAX(0.,scv), N);
+      #endif
+      // Check that we converged within given tolerance
+      if (check_hard && (scv > hard_tolerance*hard_tolerance)) {
+        gasneti_fatalerror(
+            "TSC calibration did not converge with reasonable certainty.\n"
+            "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_HARD_TOLERANCE or "
+            "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.");
+      }
+      if (check_soft && (scv > soft_tolerance*soft_tolerance)) {
+        fprintf(stderr, "WARNING: "
+            "TSC calibration did not converge with reasonable certainty.  "
+            "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_TOLERANCE or "
+            "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.\n");
+      }
+      Tick = 1. / mean; // Inverse GHz
+    } else {
+      gasneti_assert(tsc_source == tsc_source_user);
+    }
+
+    // Don't blindly trust either the user or cpuinfo
+    // Validate Tick by comparison to reference wallclock over 10ms interval
+    // Zero or negative GASNET_TSC_RATE_TOLERANCE disables this check
+    if ((tsc_source != tsc_source_wallclock) && (tolerance > 0.0)) {
+      const int max_tries = 3;
+      double best = 1e4;
+      int i;
+      for (i = 0; i < max_tries; ++i) { // Retry in case we get unlucky
+        double ratio = Tick * gasneti_approx_tick_ghz(10000000);
+        if (ratio < best) {
+          best = ratio;
+          if ((best > (1. - tolerance)) && (best < (1. + tolerance))) break; // Pass
+        }
+      }
+      if (i == max_tries) {
+        if (check_hard && ((best < (1. - hard_tolerance)) || (best > (1. + hard_tolerance)))) {
+            gasneti_fatalerror(
+                "Reference timer and calibrated TSC differ too much (ratio %g).\n"
+                "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_HARD_TOLERANCE or "
+                "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.",
+                best);
+        }
+        if (check_soft && ((best < (1. - soft_tolerance)) || (best > (1. + soft_tolerance)))) {
+            fprintf(stderr, "WARNING: "
+                "Reference timer and calibrated TSC differ too much (ratio %g).  "
+                "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_TOLERANCE or "
+                "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.\n",
+                best);
+        }
+      }
+      #if GASNET_DEBUG_VERBOSE
+      fprintf(stderr, "TSC: relative to wallclock = %g\n", best);
+      #endif
+    }
+
+    #if GASNET_DEBUG_VERBOSE
+    fprintf(stderr, "TSC: rate calibrated to %g MHz in %g sec\n",
+            1e3/Tick, 1e-9*(gasneti_wallclock_ns()-begin_tsc_calibration));
+    #endif
+  #endif
+
+    gasneti_sync_writes();
+    firstTime = 0;
+  }
+  gasneti_mutex_unlock(&tscmutex);
 
   return Tick;
 }
