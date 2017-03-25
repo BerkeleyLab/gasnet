@@ -55,6 +55,9 @@
   #define AMX_NDEBUG AMUDP_NDEBUG
   #define AMUDP_DEBUG_CONFIG _NDEBUG
 #endif
+#ifdef AMUDP_DEBUG_VERBOSE
+  #define AMX_DEBUG_VERBOSE AMUDP_DEBUG_VERBOSE
+#endif
 
 /* idiot proofing */
 #if defined(AMUDP_DEBUG) && (defined(__OPTIMIZE__) || defined(NDEBUG))
