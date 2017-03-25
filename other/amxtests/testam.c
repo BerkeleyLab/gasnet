@@ -151,8 +151,9 @@ int main(int argc, char **argv) {
   AM_Safe(AM_SetSeg(ep, VMseg, VMsegsz));
 
   if (false) { /* don't actually call these, just ensure they link properly */
+    static char *ignore;
     AMX_SPMDSetExitCallback(NULL);
-    AMX_SPMDgetenvMaster("PATH");
+    ignore += ignore - AMX_SPMDgetenvMaster("PATH");
     (void) AMX_SPMDIsWorker(argv);
     AMX_SPMDAllGather(NULL, NULL, 0);
     AMX_SPMDkillmyprocess(0);
