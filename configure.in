@@ -2066,6 +2066,18 @@ GASNET_IF_ENABLED(force-compiler-atomicops,
     AC_DEFINE(GASNETI_FORCE_COMPILER_ATOMICOPS)
   fi
 
+# Check for clock_gettime
+GASNET_TRY_CACHE_CHECK(for clock_gettime(), cc_has_clock_gettime, [
+#include <time.h>
+], [
+  struct timespec tm;
+  int rc = clock_gettime(CLOCK_REALTIME,&tm);
+],
+  AC_SEARCH_LIBS(clock_gettime, [rt posix4], [
+                   AC_DEFINE(HAVE_CLOCK_GETTIME)
+                   have_clock_gettime=yes
+                 ], AC_MSG_RESULT(entry point not found - disabled)))
+
 # Timer configuration
 use_timers=native
 if expr "$target_os" : "linux" >/dev/null ; then
@@ -2111,8 +2123,9 @@ case "$use_timers" in
     AC_DEFINE(GASNETI_FORCE_GETTIMEOFDAY)
     ;;
   posixrt)
-    AC_SEARCH_LIBS(clock_gettime, [rt posix4], [], 
-      AC_MSG_ERROR([No support found for posix-realtime timers. Try --enable-force-gettimeofday or --enable-force-native-timers]))
+    if test x$have_clock_gettime != xyes; then
+      AC_MSG_ERROR([No support found for posix-realtime timers. Try --enable-force-gettimeofday or --enable-force-native-timers])
+    fi
     AC_DEFINE(GASNETI_FORCE_POSIX_REALTIME)
     ;;
   *) AC_MSG_ERROR([Internal error in timer configuration]) ;;
