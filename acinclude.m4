@@ -523,17 +523,45 @@ GASNET_POPVAR(LIBS)
 GASNET_FUN_END([$0])
 ])
 
+AC_DEFUN([GASNET_ENV_DEFAULT_HELPER],[
+gasnet_fn_env_helper()
+{
+  gasnet_envh_upper=[$]1
+  shift
+  gasnet_envh_lower=[$]1
+  shift
+  for ac_opt in "[$]@"; do
+      # For command-line args VAR is case-insensitive and dash/underscore insensitive
+      ac_norm=`echo "$ac_opt" | $AWK '{gsub("_","-"); print tolower([$]0)}'`
+      #echo "  '$ac_opt' => '$ac_norm'"
+      case $ac_norm in
+        -with-${gasnet_envh_lower}=* | --with-${gasnet_envh_lower}=* | ${gasnet_envh_lower}=*)
+	    ac_optarg=`expr "$ac_opt" : '[[^=]]*=\(.*\)'`
+            eval cv_prefix[]envvar_${gasnet_envh_upper}=\$ac_optarg
+	    eval envval_src_${gasnet_envh_upper}=given
+	;;
+        -with-${gasnet_envh_lower} | --with-${gasnet_envh_lower})
+            eval cv_prefix[]envvar_${gasnet_envh_upper}=\$envval_default_${gasnet_envh_upper}
+	    eval envval_src_${gasnet_envh_upper}=default
+	;;
+        -without-${gasnet_envh_lower} | --without-${gasnet_envh_lower})
+            eval cv_prefix[]envvar_${gasnet_envh_upper}=""
+	    eval envval_src_${gasnet_envh_upper}=disabled
+	;;
+      esac
+  done
+}
+])
+
 dnl GASNET_ENV_DEFAULT(envvar-name, default-value, optional-help-text)
 dnl  load an environment variable, using default value if it's missing from env.
 dnl  caches the results to guarantee reconfig gets the originally loaded value
 dnl  also adds a --with-foo-bar= option for the env variable FOO_BAR
 AC_DEFUN([GASNET_ENV_DEFAULT],[
   GASNET_FUN_BEGIN([$0($1,$2,$3)])
+  AC_REQUIRE([AC_PROG_AWK])
   pushdef([lowerdashname],patsubst(translit([$1],'A-Z','a-z'), _, -))
-  pushdef([lowerscorename],patsubst(translit([$1],'A-Z','a-z'), -, _))
   
-  AC_MSG_CHECKING(for $1 setting)
-
   dnl create the help prompt just once, and only if not suppressed
   ifdef(with_expanded_[$1], [], [
    ifdef([GASNET_ENV_DEFAULT_SUPPRESSHELP], [], [
@@ -547,36 +575,41 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
   ])
   define(with_expanded_[$1], [set])
 
-  envval_src_[$1]="cached"
+  AC_MSG_CHECKING(for $1 setting)
+
+  envval_src_$1="cached"
   AC_CACHE_VAL(cv_prefix[]envvar_$1, [
-      case "${[$1]-__NOT_SET__}" in
-	__NOT_SET__) 
-            if test "$with_[]lowerscorename" != ""; then
-	      cv_prefix[]envvar_$1="$with_[]lowerscorename"
-	      envval_src_[$1]=given
-	    else
-	      cv_prefix[]envvar_$1="[$2]"
-	      envval_src_[$1]=default
-	    fi 
-	    ;;
-	*)  cv_prefix[]envvar_$1="$[$1]"
-	    envval_src_[$1]=given
-      esac
+    envval_default_$1="[$2]"
+    # first capture the environment setting, which might be the enclosing env if there are no cmdline args
+    case "${[$1]-__NOT_SET__}" in
+      __NOT_SET__) 
+          cv_prefix[]envvar_$1=$envval_default_$1
+          envval_src_$1=default
+          ;;
+      *)  cv_prefix[]envvar_$1="$[$1]"
+          envval_src_$1=given
+    esac
+    # Left-to-right parsing of commandline settings that includes both mechanisms
+    # --with-VAR=val or VAR=val =>  set to val
+    # --with-VAR     =>  set to default 
+    # --without-VAR  =>  set to blank (ie "", not "no")
+    eval gasnet_fn_env_helper $1 lowerdashname $CONFIGURE_ARGS
   ])
 
   [$1]="$cv_prefix[]envvar_$1"
-  case "$envval_src_[$1]" in
+  case "$envval_src_$1" in
       'cached')
 	  AC_MSG_RESULT([using cached value \"$[$1]\"]) ;;
       'default')
-	  AC_MSG_RESULT([no, defaulting to \"$[$1]\"]) ;;
+	  AC_MSG_RESULT([defaulting to \"$[$1]\"]) ;;
+      'disabled')
+	  AC_MSG_RESULT([disabled, using \"$[$1]\"]) ;;
       'given')
 	  AC_MSG_RESULT([yes, using \"$[$1]\"]) ;;
       *) GASNET_MSG_ERROR(_GASNET_ENV_DEFAULT broken)
   esac
 
   popdef([lowerdashname])
-  popdef([lowerscorename])
   GASNET_FUN_END([$0($1,$2,$3)])
 ])
 
@@ -600,6 +633,7 @@ AC_DEFUN([GASNET_START_CONFIGURE],[
   CONFIGURE_ARGS="$ac_configure_args"
   AC_SUBST(CONFIGURE_ARGS)
   AC_MSG_RESULT( configure args: $CONFIGURE_ARGS)
+  GASNET_ENV_DEFAULT_HELPER
   dnl ensure the cache is used in all reconfigures
   if test "$cache_file" = "/dev/null" ; then
     GASNET_MSG_WARN([configure cache_file setting got lost - you may need to run a fresh ./Bootstrap])
