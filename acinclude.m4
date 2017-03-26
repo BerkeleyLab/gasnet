@@ -523,16 +523,16 @@ GASNET_POPVAR(LIBS)
 GASNET_FUN_END([$0])
 ])
 
-dnl GASNET_ENV_DEFAULT(envvar-name, default-value)
+dnl GASNET_ENV_DEFAULT(envvar-name, default-value, optional-help-text)
 dnl  load an environment variable, using default value if it's missing from env.
 dnl  caches the results to guarantee reconfig gets the originally loaded value
 dnl  also adds a --with-foo-bar= option for the env variable FOO_BAR
 AC_DEFUN([GASNET_ENV_DEFAULT],[
-  GASNET_FUN_BEGIN([$0($1,$2)])
+  GASNET_FUN_BEGIN([$0($1,$2,$3)])
   pushdef([lowerdashname],patsubst(translit([$1],'A-Z','a-z'), _, -))
   pushdef([lowerscorename],patsubst(translit([$1],'A-Z','a-z'), -, _))
   
-  AC_MSG_CHECKING(for $1 in environment)
+  AC_MSG_CHECKING(for $1 setting)
 
   dnl create the help prompt just once, and only if not suppressed
   ifdef(with_expanded_[$1], [], [
@@ -540,7 +540,7 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
     dnl don't advertise the autoconf vars, which we might not reliably catch
     ifelse(index([ CC CFLAGS LDFLAGS CPPFLAGS CPP CXX CXXFLAGS CXXCPP ],[ $1 ]),[-1],[
     AC_ARG_WITH(lowerdashname, 
-       GASNET_OPTION_HELP(with-[]lowerdashname[]=, value for [$1]), 
+       GASNET_OPTION_HELP(with-[]lowerdashname[]=, [$1] setting[]ifelse([$3],[],[],[: $3])), 
       [], [])
     ], [])
    ])
@@ -577,7 +577,7 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
 
   popdef([lowerdashname])
   popdef([lowerscorename])
-  GASNET_FUN_END([$0($1,$2)])
+  GASNET_FUN_END([$0($1,$2,$3)])
 ])
 
 dnl $1 = optional env variables to restore
