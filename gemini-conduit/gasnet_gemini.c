@@ -1033,7 +1033,7 @@ uintptr_t gasnetc_init_messaging(void)
   { /* Determine Cq size: GASNET_GNI_NUM_PD */
     int cq_entries;
     num_pd = gasneti_getenv_int_withdefault("GASNET_GNI_NUM_PD",
-                                            GASNETC_GNI_NUM_PD_DEFAULT,1);
+                                            GASNETC_GNI_NUM_PD_DEFAULT,0);
     num_pd = MAX(32, num_pd); /* Min is 32 (XXX: should be cores+1) */
 
     cq_entries = num_pd+2; /* XXX: why +2 ?? */

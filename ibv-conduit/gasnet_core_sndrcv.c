@@ -3943,7 +3943,7 @@ extern int gasnetc_sndrcv_shutdown(void) {
 #if GASNETC_USE_RCV_THREAD
 extern void gasnetc_sndrcv_start_thread(void) {
   if (gasnetc_remote_nodes && gasnetc_use_rcv_thread) {
-    int rcv_max_rate = gasneti_getenv_int_withdefault("GASNET_RCV_THREAD_RATE", 0, 1);
+    int rcv_max_rate = gasneti_getenv_int_withdefault("GASNET_RCV_THREAD_RATE", 0, 0);
     gasnetc_hca_t *hca;
 
     GASNETC_FOR_ALL_HCA(hca) {
