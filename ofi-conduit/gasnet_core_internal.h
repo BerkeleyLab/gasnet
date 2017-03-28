@@ -126,6 +126,11 @@ struct {
 } gasnetc_ofi_locks;
 #endif
 
+/* These definitions are just to make the polling of the two different AM
+ * networks easier to read and understand*/
+#define OFI_POLL_ALL   1
+#define OFI_POLL_REPLY 0
+
 /* ------------------------------------------------------------------------------------ */
 /* Job Spawn / Bootstrap */
 
