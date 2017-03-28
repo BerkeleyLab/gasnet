@@ -776,7 +776,23 @@ dnl  but no substr or format
 dnl This incantation ensures m4_substr works regardless
 ifdef([substr],[define([m4_substr], defn([substr]))])
 
-AC_DEFUN([GASNET_OPTION_HELP],[  --$1 ]m4_substr[([                         ],len([$1]))[$2]])
+dnl similar issue for m4_cleardivert
+ifdef([m4_cleardivert],[],[
+  define([m4_cleardivert],
+        [pushdef([_num], divnum)divert([-1])ifelse([$#], [0],
+           [undivert[]], [undivert($@)])divert(_num)popdef([_num])])
+])
+
+AC_DEFUN([GASNET_OPTION_HELP],[  --$1 ]m4_substr[([                               ],len([$1]))[$2]])
+
+AC_DEFUN([GASNET_SUPPRESS_HELPVAR], [
+  ifdef([_m4_divert(HELP_VAR)],[
+    m4_cleardivert([HELP_VAR])
+  ])
+  ifdef([_m4_divert(HELP_VAR_END)],[
+    m4_cleardivert([HELP_VAR_END])
+  ])
+])
 
 dnl provide a --with-foo=bar configure option
 dnl action-withval runs for a named value in $withval (or withval=yes if named arg missing)
@@ -785,7 +801,7 @@ dnl action-none runs for no foo arg given
 dnl GASNET_WITH(foo, description, action-withval, [action-without], [action-none])
 AC_DEFUN([GASNET_WITH],[
 GASNET_FUN_BEGIN([$0($1,...)])
-AC_ARG_WITH($1,GASNET_OPTION_HELP(with-$1=value,[$2]), [
+AC_ARG_WITH($1,GASNET_OPTION_HELP(with-$1=,[$2]), [
   case "$withval" in
     no) :
         $4 ;;
@@ -826,8 +842,7 @@ GASNET_FUN_END([$0($1,...)])
 
 AC_DEFUN([GASNET_IF_ENABLED_WITH_AUTO],[
 GASNET_FUN_BEGIN([$0($1,...)])
-AC_ARG_ENABLE($1,GASNET_OPTION_HELP(enable-$1,[$2]))
-AC_ARG_ENABLE($1,GASNET_OPTION_HELP(disable-$1,[$2]))
+AC_ARG_ENABLE($1,GASNET_OPTION_HELP((en|dis)able-$1,[$2]))
 case "$enable_[]patsubst([$1], -, _)" in
   no)  $4 ;;
   yes) $3 ;;
