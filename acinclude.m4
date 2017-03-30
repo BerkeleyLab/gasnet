@@ -523,6 +523,40 @@ GASNET_POPVAR(LIBS)
 GASNET_FUN_END([$0])
 ])
 
+AC_DEFUN([_GASNET_CONFIGURE_ARGS],[
+# GASNet configure argument processing
+# start by capturing raw args, hopefully before autoconf clobbers positional parameters
+_gasneti_raw_args= 
+for arg in "[$]@" ; do
+  _gasneti_raw_args="$_gasneti_raw_args '$arg'"
+done
+])
+
+dnl Need to capture the *REAL* user-provided command-line to correctly process variable priorities
+dnl $ac_configure_args is useless because autoconf's arg processing adds fake arguments 
+dnl (eg ac_precious_vars) there which contaminate our GASNET_ENV_DEFAULT priority processing
+dnl Later autoconfs document that "$@" is intact with the real args immediately after AC_INIT,
+dnl but this is NOT true of some versions (eg autoconf 2.61 clobbers it with CONFIG_SITE).
+dnl The only thing that seems to work for all autoconf versions is this nasty hack - 
+dnl we co-opt the AC_REVISION mechanism to run some code very early
+AC_REVISION([
+_GASNET_CONFIGURE_ARGS
+dnl swallow any autoconf-provided revision suffix: 
+echo > /dev/null \
+])
+
+AC_DEFUN([GASNET_CONFIGURE_ARGS],[
+  AC_REQUIRE([_GASNET_CONFIGURE_ARGS])
+  AC_MSG_CHECKING(for configure arguments) 
+  AC_CACHE_VAL(cv_prefix[]configure_args, [
+    cv_prefix[]configure_args="$_gasneti_raw_args"
+  ])
+  CONFIGURE_ARGS="$cv_prefix[]configure_args"
+  AC_SUBST(CONFIGURE_ARGS)
+  AC_MSG_RESULT([
+configure args: $CONFIGURE_ARGS])
+])
+
 AC_DEFUN([GASNET_ENV_DEFAULT_HELPER],[
 gasnet_fn_env_helper()
 {
@@ -555,22 +589,21 @@ gasnet_fn_env_helper()
 
 dnl GASNET_ENV_DEFAULT(envvar-name, default-value, optional-help-text)
 dnl  load an environment variable, using default value if it's missing from env.
+dnl  envvar-name must be a literal post-expansion (ie not a shell variable)
+dnl  if only the first argument is passed, then the variable is left unset by default
 dnl  caches the results to guarantee reconfig gets the originally loaded value
 dnl  also adds a --with-foo-bar= option for the env variable FOO_BAR
 AC_DEFUN([GASNET_ENV_DEFAULT],[
-  GASNET_FUN_BEGIN([$0($1,$2,$3)])
+  GASNET_FUN_BEGIN([$0($@)])
   AC_REQUIRE([AC_PROG_AWK])
   pushdef([lowerdashname],patsubst(translit([$1],'A-Z','a-z'), _, -))
   
   dnl create the help prompt just once, and only if not suppressed
   ifdef(with_expanded_[$1], [], [
    ifdef([GASNET_ENV_DEFAULT_SUPPRESSHELP], [], [
-    dnl don't advertise the autoconf vars, which we might not reliably catch
-    ifelse(index([ CC CFLAGS LDFLAGS CPPFLAGS CPP CXX CXXFLAGS CXXCPP ],[ $1 ]),[-1],[
     AC_ARG_WITH(lowerdashname, 
        GASNET_OPTION_HELP(with-[]lowerdashname[]=, [$1] setting[]ifelse([$3],[],[],[: $3])), 
       [], [])
-    ], [])
    ])
   ])
   define(with_expanded_[$1], [set])
@@ -579,7 +612,11 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
 
   envval_src_$1="cached"
   AC_CACHE_VAL(cv_prefix[]envvar_$1, [
-    envval_default_$1="[$2]"
+    if test "$#" = "1" ; then # no default means unset
+      envval_default_$1="__NOT_SET__"
+    else
+      envval_default_$1="[$2]"
+    fi
     # first capture the environment setting, which might be the enclosing env if there are no cmdline args
     case "${[$1]-__NOT_SET__}" in
       __NOT_SET__) 
@@ -593,30 +630,46 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
     # --with-VAR=val or VAR=val =>  set to val
     # --with-VAR     =>  set to default 
     # --without-VAR  =>  set to blank (ie "", not "no")
-    eval gasnet_fn_env_helper $1 lowerdashname $CONFIGURE_ARGS
+    eval gasnet_fn_env_helper $1 lowerdashname $cv_prefix[]configure_args
   ])
 
   [$1]="$cv_prefix[]envvar_$1"
+  pushdef([alignarg],[m4_substr([                ],len([$1]))])
   case "$envval_src_$1" in
       'cached')
-	  AC_MSG_RESULT([using cached value \"$[$1]\"]) ;;
+	  AC_MSG_RESULT([alignarg   \"$[$1]\"]) ;; dnl (cached) appended by AC_CACHE_VAL
       'default')
-	  AC_MSG_RESULT([defaulting to \"$[$1]\"]) ;;
+        if test "$envval_default_$1" = "__NOT_SET__" ; then
+	  unset  cv_prefix[]envvar_$1
+	  unset  $1
+	  AC_MSG_RESULT([alignarg (not set)])
+	else
+	  AC_MSG_RESULT([alignarg (default)  \"$[$1]\"])
+	fi
+	;;
       'disabled')
-	  AC_MSG_RESULT([disabled, using \"$[$1]\"]) ;;
+	  AC_MSG_RESULT([alignarg (disabled) \"$[$1]\"]) ;;
       'given')
-	  AC_MSG_RESULT([yes, using \"$[$1]\"]) ;;
+	  AC_MSG_RESULT([alignarg (provided) \"$[$1]\"]) ;;
       *) GASNET_MSG_ERROR(_GASNET_ENV_DEFAULT broken)
   esac
+  popdef([alignarg])
 
   popdef([lowerdashname])
-  GASNET_FUN_END([$0($1,$2,$3)])
+  GASNET_FUN_END([$0($@)])
 ])
 
 dnl $1 = optional env variables to restore
+dnl $2 = autoconf env vars to populate (including from command-line)
 AC_DEFUN([GASNET_START_CONFIGURE],[
-  GASNET_FUN_BEGIN([$0($1)])
+  GASNET_FUN_BEGIN([$0($1,$2)])
+  AC_REQUIRE([GASNET_CONFIGURE_ARGS])
   AC_REQUIRE([GASNET_SET_CROSS_COMPILE]) dnl run early to handle implicit AC_PROG_CC
+  AC_REQUIRE([GASNET_ENV_DEFAULT_HELPER])
+  GASNET_RESTORE_AUTOCONF_ENV([CC CXX CFLAGS CXXFLAGS CPPFLAGS LIBS MAKE GMAKE AR AS RANLIB PERL SUM LEX YACC $1])
+  dnl the following cannot be handled here, as they are already detected: AWK, (G)MAKE, MKDIR_P, INSTALL
+  GASNET_POPULATE_AUTOCONF_ENV([CC CFLAGS CPP CPPFLAGS LDFLAGS LIBS PERL $2])
+
   GASNET_PATH_PROGS(PWD_PROG, pwd, pwd)
 
   define([GASNET_CONFIGURE_WARNING_LOCAL],[.[]cv_prefix[]configure_warnings.tmp])
@@ -628,12 +681,6 @@ AC_DEFUN([GASNET_START_CONFIGURE],[
 
   dnl Save and display useful info about the configure environment
   GASNET_GET_AUTOCONF_VERSION()
-  AC_MSG_CHECKING(for configure settings) 
-  AC_MSG_RESULT([])
-  CONFIGURE_ARGS="$ac_configure_args"
-  AC_SUBST(CONFIGURE_ARGS)
-  AC_MSG_RESULT( configure args: $CONFIGURE_ARGS)
-  GASNET_ENV_DEFAULT_HELPER
   dnl ensure the cache is used in all reconfigures
   if test "$cache_file" = "/dev/null" ; then
     GASNET_MSG_WARN([configure cache_file setting got lost - you may need to run a fresh ./Bootstrap])
@@ -709,8 +756,7 @@ AC_DEFUN([GASNET_START_CONFIGURE],[
   # ensure exec_list doesn't grow continuously each time we reconfigure
   unset cv_prefix[]exec_list
 
-  GASNET_RESTORE_AUTOCONF_ENV([CC CXX CFLAGS CXXFLAGS CPPFLAGS LIBS MAKE GMAKE AR AS RANLIB PERL SUM LEX YACC $1])
-  GASNET_FUN_END([$0($1)])
+  GASNET_FUN_END([$0($1,$2)])
 ])
 
 AC_DEFUN([GASNET_END_CONFIGURE],[
@@ -730,6 +776,26 @@ AC_DEFUN([GASNET_DEFINE_CONFIGURE_VARS],[
   GASNET_FUN_END([$0])
 ])
 
+dnl GASNET_POPULATE_AUTOCONF_ENV(env1 env2 env3) 
+dnl  call at top of configure.in to setup environment variables
+dnl  inspected by autoconf macros. Pass in names of variables
+dnl Includes parsing of --with-VAR=VAL args and display of user settings
+dnl Each variable is init with GASNET_ENV_DEFAULT([VAR]) - in particular,
+dnl variables with no existing value or setting remain unset.
+define([_gasnet_populate_env],[
+  dnl m4 recursion incantation
+  ifelse([$#],[0],[],
+         [$#],[1],[GASNET_ENV_DEFAULT([$1])],[
+	           GASNET_ENV_DEFAULT([$1])
+                   _gasnet_populate_env(builtin([shift],$@))
+  ])
+])
+AC_DEFUN([GASNET_POPULATE_AUTOCONF_ENV],[
+  GASNET_FUN_BEGIN([$0($@)])
+  _gasnet_populate_env(patsubst(patsubst([$1],[^ +\| +$],[]),[ +],[,])) dnl convert space to comma-delim
+  GASNET_FUN_END([$0($@)])
+])
+
 dnl GASNET_RESTORE_AUTOCONF_ENV(env1 env2 env3) 
 dnl  call at top of configure.in to restore cached environment variables 
 dnl  inspected by autoconf macros. Pass in names of variables
@@ -742,14 +808,15 @@ AC_DEFUN([GASNET_RESTORE_AUTOCONF_ENV],[
   fi
   nc_prefix[]acenv_list="$1"
   AC_MSG_CHECKING(for cached autoconf environment settings)
-  AC_MSG_RESULT("") 
+  _gasnet_restoreenv_tmp=
   for varname in $1; do
     val=`eval echo '$'"cv_prefix[]acenv_$varname"`
     if test "$val" != ""; then
       eval $varname=\"$val\"
-      AC_MSG_RESULT([$varname=\"$val\"]) 
+      _gasnet_restoreenv_tmp="$_gasnet_restoreenv_tmp $varname=\"$val\"" 
     fi
   done
+  AC_MSG_RESULT([$_gasnet_restoreenv_tmp]) 
   popdef([nc_prefix])
   GASNET_FUN_END([$0($1)])
 ])
