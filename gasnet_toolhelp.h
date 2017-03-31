@@ -831,6 +831,7 @@ typedef enum {
 
 extern char *gasneti_format_number(int64_t val, char *buf, size_t bufsz, int is_mem_size);
 extern int64_t gasneti_parse_int(const char *str, uint64_t mem_size_multiplier);
+extern int gasneti_parse_dbl(const char *str, double *result_ptr);
 extern void gasneti_setenv(const char *key, const char *value);
 extern void gasneti_unsetenv(const char *key);
 

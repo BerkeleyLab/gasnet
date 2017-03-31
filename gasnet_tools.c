@@ -1597,6 +1597,35 @@ extern char *gasneti_format_number(int64_t val, char *buf, size_t bufsz, int is_
   } else gasneti_fatalerror("internal error in gasneti_format_number");
   return buf;
 }
+
+// Parses a floating-point number or fraction, with result by reference.
+// Errors return non-zero (and result possibly modified)
+// NULL is not an error, and yields 0.
+extern int gasneti_parse_dbl(const char *str, double *result_p) {
+  double result = 0.;
+  if (str != NULL) {
+    char *endptr;
+    result = strtod(str, &endptr);
+    if (endptr != str) {
+      while (*endptr && isspace(*endptr)) endptr++; /* Skip whitespace */
+      if (*endptr == '/') {
+        char *endptr2;
+        double denom = strtod(1+endptr, &endptr2);
+        if ((denom != 0) && (endptr2 != (1+endptr))) {
+          for (endptr = endptr2; *endptr && isspace(*endptr); endptr++) {/* Skip whitespace */}
+          result /= denom;
+        } else {
+          /* endptr is left pointing at '/', triggering rejection below */
+        }
+      }
+    }
+    if ((endptr == str) || (*endptr != '\0')) { /* match was empty or has trailing non-whitespace */
+      return 1;
+    }
+  }
+  *result_p = result;
+  return 0;
+}
 /* ------------------------------------------------------------------------------------ */
 /* environment support */
 #if HAVE_SETENV && !HAVE_SETENV_DECL
@@ -1853,23 +1882,8 @@ extern double gasneti_getenv_dbl_withdefault(const char *keyname, double default
   const char * envval = gasneti_getenv(keyname);
 
   if (envval != NULL) {
-    char *endptr;
-    retval = strtod(envval, &endptr);
     is_dflt = 0;
-    if (endptr != envval) {
-      while (*endptr && isspace(*endptr)) endptr++; /* Skip whitespace */
-      if (*endptr == '/') {
-        char *endptr2;
-        double denom = strtod(1+endptr, &endptr2);
-        if ((denom != 0) && (endptr2 != (1+endptr))) {
-          for (endptr = endptr2; *endptr && isspace(*endptr); endptr++) {/* Skip whitespace */}
-          retval /= denom;
-        } else {
-          /* endptr is left pointing at '/', triggering rejection below */
-        }
-      }
-    }
-    if ((endptr == envval) || (*endptr != '\0')) { /* match was empty or has trailing non-whitespace */
+    if (gasneti_parse_dbl(envval, &retval)) {
       gasneti_fatalerror("If used, environment variable '%s' must be a valid floating point value or fraction", keyname);
     }
   }
