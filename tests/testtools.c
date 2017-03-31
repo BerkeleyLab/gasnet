@@ -185,7 +185,7 @@ int main(int argc, char **argv) {
   gasnett_maximize_rlimits();
   TEST_TRACING_MACROS();
 
-  TEST_HEADER("Testing high-performance timers...")
+  TEST_HEADER("Testing high-performance timers and sleep...")
   { /* high performance timers */
     int i;
     gasnett_tick_t begin, start, end;
@@ -276,6 +276,18 @@ int main(int argc, char **argv) {
                      gasnett_ticks_to_us(end - start)) ) > 1)
         ERR("ticks_to_ns(A)/1000 != ticks_to_us(A)");
 
+    }
+
+    // TODO: if/how to allow for granularity here when tools only reports it in us?
+    for (uint64_t ns_delay = 10; ns_delay <= (uint64_t)1e9; ns_delay *= 10) {
+      start = gasnett_ticks_now();
+      int rc = gasnett_nsleep(ns_delay);
+      end = gasnett_ticks_now();
+      if (rc) ERR("gasnett_nsleep returned non-zero");
+      uint64_t elapsed = gasnett_ticks_to_ns(end - start);
+      if (elapsed < ns_delay)
+        ERR("gasnett_nsleep(%llu) returned at least %llu nanoseconds too early",
+            (unsigned long long)ns_delay, (unsigned long long)(ns_delay - elapsed));
     }
   }
 
