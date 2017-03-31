@@ -166,11 +166,17 @@
 /* --with-max-threads value (if given) */
 #undef GASNETI_MAX_THREADS_CONFIGURE
 
+/* has clock_gettime() */
+#undef HAVE_CLOCK_GETTIME
+
 /* has usleep() */
 #undef HAVE_USLEEP
 
 /* has nanosleep() */
 #undef HAVE_NANOSLEEP
+
+/* has clock_nanosleep() */
+#undef HAVE_CLOCK_NANOSLEEP
 
 /* has nsleep() */
 #undef HAVE_NSLEEP

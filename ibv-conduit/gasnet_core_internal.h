@@ -431,7 +431,7 @@ typedef char gasnetc_amrdma_buf_t[GASNETC_AMRDMA_SZ];
     /* Initialized by create_cq or spawn_progress_thread: */
     pthread_t               thread_id;
     uint64_t                prev_time;
-    uint64_t                min_us;
+    uint64_t                min_ns;
     struct ibv_cq *         cq;
     struct ibv_comp_channel *compl;
     volatile int            done;
