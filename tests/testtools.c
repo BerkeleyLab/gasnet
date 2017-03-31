@@ -278,16 +278,16 @@ int main(int argc, char **argv) {
 
     }
 
-    // TODO: if/how to allow for granularity here when tools only reports it in us?
+    double granularity_ns = 1000. * granularity;
     for (uint64_t ns_delay = 10; ns_delay <= (uint64_t)1e9; ns_delay *= 10) {
       start = gasnett_ticks_now();
       int rc = gasnett_nsleep(ns_delay);
       end = gasnett_ticks_now();
       if (rc) ERR("gasnett_nsleep returned non-zero");
-      uint64_t elapsed = gasnett_ticks_to_ns(end - start);
-      if (elapsed < ns_delay)
+      double elapsed_plus = gasnett_ticks_to_ns(end - start) + granularity_ns;
+      if (elapsed_plus < ns_delay)
         ERR("gasnett_nsleep(%llu) returned at least %llu nanoseconds too early",
-            (unsigned long long)ns_delay, (unsigned long long)(ns_delay - elapsed));
+            (unsigned long long)ns_delay, (unsigned long long)(ns_delay - elapsed_plus));
     }
   }
 
