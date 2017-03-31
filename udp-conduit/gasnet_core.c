@@ -229,6 +229,9 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_mynode = AMUDP_SPMDMyProc();
     gasneti_nodes = AMUDP_SPMDNumProcs();
 
+    /* Must init timers after global env, but before tracing */
+    GASNETI_TICKS_INIT();
+
     /* enable tracing */
     gasneti_trace_init(argc, argv);
     GASNETI_AM_SAFE(AMUDP_SPMDSetExitCallback(gasnetc_traceoutput));

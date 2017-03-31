@@ -482,6 +482,10 @@ static int gasnetc_init(int *argc, char ***argv) {
     fprintf(stderr,"gasnetc_init(): about to spawn...\n"); fflush(stderr);
   #endif
 
+  /* Must init timers after global env, but before tracing */
+  /* Note that we are intentionly doing this before we fork() */
+  GASNETI_TICKS_INIT();
+
   /* add code here to bootstrap the nodes for your conduit */
 
   gasneti_mynode = 0;

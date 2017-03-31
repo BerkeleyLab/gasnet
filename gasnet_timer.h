@@ -655,4 +655,16 @@ extern double gasneti_tick_metric(int idx);
 #define gasneti_tick_overhead()    gasneti_tick_metric(1)
 /* ------------------------------------------------------------------------------------ */
 
+/* Initialization of timer subsystem.
+ * Should perform any/all expensive operations.*/
+#ifndef GASNETI_TICKS_INIT
+  #define GASNETI_TICKS_INIT() do {       \
+    (void)gasneti_ticks_now();          \
+    (void)gasneti_ticks_to_ns(1);       \
+    (void)gasneti_tick_granularity();   \
+  } while (0)
+#endif
+
+/* ------------------------------------------------------------------------------------ */
+
 #endif
