@@ -2696,6 +2696,7 @@ void gasnetc_free_post_descriptor(gasnetc_post_descriptor_t *gpd)
 /* exit related */
 volatile int gasnetc_shutdownInProgress = 0;
 double gasnetc_shutdown_seconds = 0.0;
+static             uint32_t sys_exit_sent_mask = 0;
 static                  int sys_exit_sent_init = 0;
 static gasneti_weakatomic_t sys_exit_sent_fini = gasneti_weakatomic_init(0);
 static gasneti_weakatomic_t sys_exit_rcvd = gasneti_weakatomic_init(0);
@@ -2813,10 +2814,13 @@ extern int gasnetc_sys_exit(int *exitcode_p)
     gasnet_node_t dest = peeridx;
   #endif
 
-    GASNETI_TRACE_PRINTF(C,("Send SHUTDOWN Request to node %d w/ shift %d, exitcode %d",
-                            dest,shift,exitcode));
-    gasnetc_send_control(dest, GC_CTRL_SHUTDOWN, (shift << 8) | (exitcode & 0xff), &sys_exit_sent_fini);
-    sys_exit_sent_init += 1;
+   if (0 == (sys_exit_sent_mask & distance)) {
+      GASNETI_TRACE_PRINTF(C,("Send SHUTDOWN Request to node %d w/ shift %d, exitcode %d",
+                              dest,shift,exitcode));
+      gasnetc_send_control(dest, GC_CTRL_SHUTDOWN, (shift << 8) | (exitcode & 0xff), &sys_exit_sent_fini);
+      sys_exit_sent_init += 1;
+      sys_exit_sent_mask |= distance;
+    }
 
     /* wait for completion of the proper receive, which might arrive out of order */
     goal |= distance;
