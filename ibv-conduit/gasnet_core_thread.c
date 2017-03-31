@@ -56,7 +56,7 @@ static void * gasnetc_progress_thread(void *arg)
   struct ibv_comp_channel * const compl_hndl= pthr_p->compl;
   void (* const fn)(struct ibv_wc *, void *)= pthr_p->fn;
   void * const fn_arg                       = pthr_p->fn_arg;
-  const uint64_t min_us                     = pthr_p->min_us;
+  const uint64_t min_ns                     = pthr_p->min_ns;
   int fd = compl_hndl->fd;
   fd_set readfds;
 
@@ -84,36 +84,15 @@ static void * gasnetc_progress_thread(void *arg)
       (fn)(&comp, fn_arg);
 
       /* Throttle thread's rate */
-      if_pf (min_us) {
+      if_pf (min_ns) {
         uint64_t prev = pthr_p->prev_time;
         if_pt (prev) {
-          uint64_t elapsed = gasneti_ticks_to_us(gasneti_ticks_now() - prev);
+          uint64_t elapsed = gasneti_ticks_to_ns(gasneti_ticks_now() - prev);
     
           my_cancel_enable();
-          while (elapsed < min_us) {
-          #if HAVE_NANOSLEEP
-            uint64_t ns_delay = 1000 * (min_us - elapsed);
-            struct timespec ts;
-            ts.tv_sec = ns_delay / 1000000000L;
-            ts.tv_nsec = ns_delay % 1000000000L;
-            nanosleep(&ts, NULL);
-          #elif HAVE_NSLEEP
-            uint64_t ns_delay = 1000 * (min_us - elapsed);
-            struct timespec ts;
-            ts.tv_sec = ns_delay / 1000000000L;
-            ts.tv_nsec = ns_delay % 1000000000L;
-            nsleep(&ts, NULL);
-          #elif HAVE_USLEEP
-            uint64_t us_delay = (min_us - elapsed);
-            usleep(us_delay);
-          #else
-            uint64_t us_delay = (min_us - elapsed);
-            struct timeval tv;
-            tv.tv_sec = us_delay / 1000000L;
-            tv.tv_usec = us_delay % 1000000L;
-            select(0, NULL, NULL, NULL, &tv);
-          #endif
-            elapsed = gasneti_ticks_to_us(gasneti_ticks_now() - prev);
+          while (elapsed < min_ns) {
+            gasneti_nsleep(min_ns - elapsed);
+            elapsed = gasneti_ticks_to_ns(gasneti_ticks_now() - prev);
           }
           pthread_testcancel();
           my_cancel_disable();

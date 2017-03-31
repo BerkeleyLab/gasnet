@@ -3951,7 +3951,7 @@ extern void gasnetc_sndrcv_start_thread(void) {
       hca->rcv_thread.fn = gasnetc_rcv_thread;
       hca->rcv_thread.fn_arg = hca;
       if (rcv_max_rate > 0) {
-        hca->rcv_thread.min_us = ((uint64_t)1000000) / rcv_max_rate;
+        hca->rcv_thread.min_ns = ((uint64_t)1E9) / rcv_max_rate;
       }
     #if GASNETI_THREADINFO_OPT
       hca->rcv_threadinfo = NULL;

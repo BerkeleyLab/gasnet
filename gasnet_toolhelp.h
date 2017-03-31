@@ -155,6 +155,8 @@ const char *gasnett_signame_fromval(int sigval);
 /* return a fast but simple/insecure 64-bit checksum of arbitrary data */
 extern uint64_t gasneti_checksum(const void *p, int numbytes);
 
+extern int gasneti_nsleep(uint64_t ns_delay);
+
 /* ------------------------------------------------------------------------------------ */
 /* Count zero bytes in a region w/ or w/o a memcpy(), or in a "register" */
 

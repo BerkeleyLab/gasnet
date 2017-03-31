@@ -2066,16 +2066,21 @@ GASNET_IF_ENABLED(force-compiler-atomicops,
     AC_DEFINE(GASNETI_FORCE_COMPILER_ATOMICOPS)
   fi
 
+# Check for clock_gettime
+GASNET_TRY_CACHE_CHECK(for clock_gettime(), cc_has_clock_gettime, [
+#include <time.h>
+], [
+  struct timespec tm;
+  int rc = clock_gettime(CLOCK_REALTIME,&tm);
+],
+  AC_SEARCH_LIBS(clock_gettime, [rt posix4], [
+                   AC_DEFINE(HAVE_CLOCK_GETTIME)
+                   have_clock_gettime=yes
+                 ], AC_MSG_RESULT(entry point not found - disabled)))
+
 # Timer configuration
+# No current exceptions
 use_timers=native
-if expr "$target_os" : "linux" >/dev/null ; then
-  case "$target_cpu" in
-    x86_64|i*86|k1om)
-    # Bug 3448: native timer calibration known to be incorrect on Linux for some modern x86* CPUs, default to posix for now
-    use_timers=posixrt
-    ;;
-  esac
-fi
 
 AC_DEFUN([GASNET_CHECK_TIMER_OPTION],[
   if test -n "$force_timers" ; then
@@ -2086,11 +2091,8 @@ AC_DEFUN([GASNET_CHECK_TIMER_OPTION],[
 
 GASNET_IF_ENABLED(force-native-timers,
 		  [Force use of "native" timers (default is platform-specific)],
-		  [if test "$use_timers" != native; then
-		     GASNET_MSG_WARN([--enable-force-native-timers might result in incorrect timer values on this system. You should verify correct operation by running testtools. See http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3448]) 
-		     # don't enabled_force here because the warning makes no sense for this case
-		     use_timers=native
-		   fi
+		  [# don't enabled_force here because the warning makes no sense for this case
+		   use_timers=native
 		   GASNET_CHECK_TIMER_OPTION])
 GASNET_IF_ENABLED(force-gettimeofday,
 		  [Force use of gettimeofday() for timers (default is platform-specific)],
@@ -2111,8 +2113,9 @@ case "$use_timers" in
     AC_DEFINE(GASNETI_FORCE_GETTIMEOFDAY)
     ;;
   posixrt)
-    AC_SEARCH_LIBS(clock_gettime, [rt posix4], [], 
-      AC_MSG_ERROR([No support found for posix-realtime timers. Try --enable-force-gettimeofday or --enable-force-native-timers]))
+    if test x$have_clock_gettime != xyes; then
+      AC_MSG_ERROR([No support found for posix-realtime timers. Try --enable-force-gettimeofday or --enable-force-native-timers])
+    fi
     AC_DEFINE(GASNETI_FORCE_POSIX_REALTIME)
     ;;
   *) AC_MSG_ERROR([Internal error in timer configuration]) ;;
@@ -4484,6 +4487,17 @@ GASNET_TRY_CACHE_CHECK(for nanosleep(), cc_has_nanosleep, [
   nanosleep(&tm, &tmremaining);
 ],
   AC_SEARCH_LIBS(nanosleep, posix4, AC_DEFINE(HAVE_NANOSLEEP), AC_MSG_RESULT(entry point not found - disabled)))
+
+# Check for clock_nanosleep
+GASNET_TRY_CACHE_CHECK(for clock_nanosleep(), cc_has_clock_nanosleep, [
+#include <time.h>
+], [
+  struct timespec tm, tmremaining;
+  tm.tv_sec = 1;
+  tm.tv_nsec = 1000000;
+  clock_nanosleep(CLOCK_REALTIME, 0, &tm, &tmremaining);
+],
+  AC_SEARCH_LIBS(clock_nanosleep, [rt posix4], AC_DEFINE(HAVE_CLOCK_NANOSLEEP), AC_MSG_RESULT(entry point not found - disabled)))
 
 # Check for nsleep
 GASNET_TRY_CACHE_CHECK(for nsleep(), cc_has_nsleep, [

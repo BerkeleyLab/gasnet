@@ -552,6 +552,29 @@
 /* completely portable (low-performance) microsecond granularity wall-clock time */
 extern uint64_t gasneti_gettimeofday_us(void);
 
+/* completely portable (low-performance) potentially-nanosecond granularity wall-clock time */
+#if HAVE_CLOCK_GETTIME
+  #include <time.h>
+#endif
+GASNETI_INLINE(gasneti_wallclock_ns)
+uint64_t gasneti_wallclock_ns(void) {
+  #if HAVE_CLOCK_GETTIME
+    struct timespec tm;
+    #if defined(_POSIX_MONOTONIC_CLOCK) && 0
+      /* this is probably the better timer to use, but
+         some implementations define the symbol and then fail at runtime
+         TODO: sort this out at configure time (unless cross-compiling)?
+       */
+      gasneti_assert_zeroret(clock_gettime(CLOCK_MONOTONIC,&tm));
+    #else
+      gasneti_assert_zeroret(clock_gettime(CLOCK_REALTIME,&tm));
+    #endif
+    return tm.tv_sec*((uint64_t)1E9)+tm.tv_nsec;
+  #else
+    return 1000 * gasneti_gettimeofday_us();
+  #endif
+}
+
 /* portable implementations */
 #if defined(GASNETI_FORCE_GETTIMEOFDAY) || defined(GASNETI_USING_GETTIMEOFDAY)
   #undef GASNETI_USING_GETTIMEOFDAY
@@ -567,26 +590,13 @@ extern uint64_t gasneti_gettimeofday_us(void);
   #undef gasneti_ticks_now
   #define gasneti_ticks_now()      ((gasneti_tick_t)gasneti_gettimeofday_us())
 #elif defined(GASNETI_FORCE_POSIX_REALTIME) || defined(GASNETI_USING_POSIX_REALTIME)
-  #include <time.h>
   #undef GASNETI_USING_POSIX_REALTIME 
   #define GASNETI_USING_POSIX_REALTIME 1
   typedef uint64_t _gasneti_tick_t;
   #undef gasneti_tick_t
   #define gasneti_tick_t _gasneti_tick_t
-  GASNETI_INLINE(gasneti_ticks_now_posixrt)
-  gasneti_tick_t gasneti_ticks_now_posixrt(void) {
-    struct timespec tm;
-    #if defined(_POSIX_MONOTONIC_CLOCK) && 0 
-      /* this is probably the better timer to use, but 
-         some implementations define the symbol and then fail at runtime */
-      gasneti_assert_zeroret(clock_gettime(CLOCK_MONOTONIC,&tm));
-    #else
-      gasneti_assert_zeroret(clock_gettime(CLOCK_REALTIME,&tm));
-    #endif
-    return tm.tv_sec*((uint64_t)1E9)+tm.tv_nsec;
-  }
   #undef gasneti_ticks_now
-  #define gasneti_ticks_now() gasneti_ticks_now_posixrt()
+  #define gasneti_ticks_now() gasneti_wallclock_ns()
 
   #undef gasneti_ticks_to_us
   #define gasneti_ticks_to_us(st)  (((gasneti_tick_t)(st))/1000)
