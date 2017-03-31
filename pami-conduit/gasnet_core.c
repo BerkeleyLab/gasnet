@@ -101,6 +101,9 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasnetc_num_contexts = conf[2].value.intval;
   }
 
+  /* Must init timers after global env, but before tracing */
+  GASNETI_TICKS_INIT();
+
   /* Now enable tracing of all the following steps */
   gasneti_init_done = 1; /* required to allow tracing */
   gasneti_trace_init(argc, argv);
