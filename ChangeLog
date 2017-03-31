@@ -1,6 +1,13 @@
 GASNet ChangeLog 
 ----------------
 ----------------------------------------------------------------------
+PENDING:
+
+* GASNet tools
+  - Fix bug 3448: x86*/Linux timers once again default to use of the TSC due
+    to addition of new logic for correct calibration on newer Intel CPUs.
+
+----------------------------------------------------------------------
 03-17-2017 : Release 1.28.2
 
 * Intra-node Shared Memory (PSHM)
