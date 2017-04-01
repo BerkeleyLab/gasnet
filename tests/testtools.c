@@ -278,13 +278,14 @@ int main(int argc, char **argv) {
 
     }
 
-    double granularity_ns = 1000. * granularity;
     for (uint64_t ns_delay = 10; ns_delay <= (uint64_t)1e9; ns_delay *= 10) {
       start = gasnett_ticks_now();
       int rc = gasnett_nsleep(ns_delay);
       end = gasnett_ticks_now();
       if (rc) ERR("gasnett_nsleep returned non-zero");
-      double elapsed_plus = gasnett_ticks_to_ns(end - start) + granularity_ns;
+      double elapsed_plus = gasnett_ticks_to_ns(end - start)
+                            + 0.0005 * ns_delay
+                            + 1000 * granularity;
       if (elapsed_plus < ns_delay)
         ERR("gasnett_nsleep(%llu) returned at least %llu nanoseconds too early",
             (unsigned long long)ns_delay, (unsigned long long)(ns_delay - elapsed_plus));
