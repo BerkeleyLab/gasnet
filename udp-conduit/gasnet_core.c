@@ -220,6 +220,21 @@ static int gasnetc_init(int *argc, char ***argv) {
     AMUDP_VerboseErrors = gasneti_VerboseErrors;
     AMUDP_SPMDkillmyprocess = gasneti_killmyprocess;
 
+#if GASNETI_CALIBRATE_TSC
+    // Early x86*/Linux timer initialization before AMUDP_SPMDStartup()
+    //
+    // udp-conduit does not support user-provided values for GASNET_TSC_RATE*
+    // (which fine-tune timer calibration on x86/Linux).  This is partially due
+    // to a dependency cycle at startup with envvar propagation, but more
+    // importantly because the retransmission algorithm (and hence all conduit
+    // comms) rely on gasnet timers to be accurate (at least approximately), so
+    // we don't allow the user to weaken or disable their calibration.
+    gasneti_unsetenv("GASNET_TSC_RATE");
+    gasneti_unsetenv("GASNET_TSC_RATE_TOLERANCE");
+    gasneti_unsetenv("GASNET_TSC_RATE_HARD_TOLERANCE");
+    GASNETI_TICKS_INIT();
+#endif
+
     /*  perform job spawn */
     retval = AMUDP_SPMDStartup(argc, argv, 
       0, 0, NULL, /* dummies */
@@ -231,8 +246,10 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_mynode = AMUDP_SPMDMyProc();
     gasneti_nodes = AMUDP_SPMDNumProcs();
 
+#if !GASNETI_CALIBRATE_TSC
     /* Must init timers after global env, but before tracing */
     GASNETI_TICKS_INIT();
+#endif
 
     /* enable tracing */
     gasneti_trace_init(argc, argv);
