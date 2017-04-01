@@ -240,7 +240,7 @@ typedef union {
 /* Define non-zero if we want to allow the mlock rlimit to bound the
  * amount of memory we will pin. */
 #ifndef GASNETC_HONOR_RLIMIT_MEMLOCK
-  #define GASNETC_HONOR_RLIMIT_MEMLOCK 0
+  #define GASNETC_HONOR_RLIMIT_MEMLOCK 1
 #endif
 
 /* Use alloca()?  (e.g. to work-around bug 2079) */
