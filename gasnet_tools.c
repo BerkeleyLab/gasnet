@@ -2801,7 +2801,9 @@ extern double gasneti_calibrate_tsc(void) {
     // TODO: need logic to default to "cpuinfo" when we can determine CPU model is trustworthy
     #define GASNETI_DEFAULT_TSC_RATE "wallclock"
     #endif
-    const char *tsc_rate = gasneti_getenv_withdefault("GASNET_TSC_RATE", GASNETI_DEFAULT_TSC_RATE);
+    const char *tsc_rate = gasneti_getenv_early("GASNET_TSC_RATE");
+    int tsc_rate_dflt = (NULL == tsc_rate);
+    if (tsc_rate_dflt) tsc_rate = GASNETI_DEFAULT_TSC_RATE;
     enum {
       tsc_source_cpuinfo,    // "cpuinfo"    - parse /proc/cpuinfo for the TSC rate
       tsc_source_wallclock,  // "wallclock"  - calibrate TSC against OS-provided wallclock
@@ -2828,8 +2830,12 @@ extern double gasneti_calibrate_tsc(void) {
     #ifndef GASNETI_DEFAULT_TSC_RATE_TOLERANCE
     #define GASNETI_DEFAULT_TSC_RATE_TOLERANCE 0.0005 // 0.05% - matches testtools default
     #endif
-    const double soft_tolerance = gasneti_getenv_dbl_withdefault("GASNET_TSC_RATE_TOLERANCE",
-                                                                 GASNETI_DEFAULT_TSC_RATE_TOLERANCE);
+    double soft_tolerance = GASNETI_DEFAULT_TSC_RATE_TOLERANCE;
+    const char *soft_tol_str = gasneti_getenv_early("GASNET_TSC_RATE_TOLERANCE");
+    int soft_tol_dflt = (NULL == soft_tol_str);
+    if (!soft_tol_dflt && gasneti_parse_dbl(soft_tol_str, &soft_tolerance)) {
+      gasneti_fatalerror("If set, environment variable GASNET_TSC_RATE_TOLERANCE must be a valid floating point value or fraction");
+    }
     const int check_soft = soft_tolerance > 0.0;
     if ((soft_tolerance < 0.0) || (soft_tolerance > 1.0)) {
       gasneti_fatalerror(
@@ -2839,8 +2845,12 @@ extern double gasneti_calibrate_tsc(void) {
     #ifndef GASNETI_DEFAULT_TSC_RATE_HARD_TOLERANCE
     #define GASNETI_DEFAULT_TSC_RATE_HARD_TOLERANCE 0.02 // 2%
     #endif
-    const double hard_tolerance = gasneti_getenv_dbl_withdefault("GASNET_TSC_RATE_HARD_TOLERANCE",
-                                                                 GASNETI_DEFAULT_TSC_RATE_HARD_TOLERANCE);
+    double hard_tolerance = GASNETI_DEFAULT_TSC_RATE_HARD_TOLERANCE;
+    const char *hard_tol_str = gasneti_getenv_early("GASNET_TSC_RATE_HARD_TOLERANCE");
+    int hard_tol_dflt = (NULL == hard_tol_str);
+    if (!hard_tol_dflt && gasneti_parse_dbl(hard_tol_str, &hard_tolerance)) {
+      gasneti_fatalerror("If set, environment variable GASNET_TSC_RATE_HARD_TOLERANCE must be a valid floating point value or fraction");
+    }
     const int check_hard = hard_tolerance > 0.0;
     if ((hard_tolerance < 0.0) || (hard_tolerance > 1.0)) {
       gasneti_fatalerror(
@@ -2859,6 +2869,12 @@ extern double gasneti_calibrate_tsc(void) {
     } else {
       tolerance = soft_tolerance; // Even if zero
     }
+
+    #define GASNETI_TSC_TRACE_OUTPUT()  do { \
+      gasneti_envstr_display("GASNET_TSC_RATE", tsc_rate, tsc_rate_dflt); \
+      gasneti_envdbl_display("GASNET_TSC_RATE_TOLERANCE", soft_tolerance, soft_tol_dflt); \
+      gasneti_envdbl_display("GASNET_TSC_RATE_HARD_TOLERANCE", hard_tolerance, hard_tol_dflt); \
+    } while (0)
 
     #if GASNET_DEBUG_VERBOSE
     uint64_t begin_tsc_calibration = gasneti_wallclock_ns();
@@ -2985,6 +3001,10 @@ extern double gasneti_calibrate_tsc(void) {
 
     gasneti_sync_writes();
     firstTime = 0;
+
+  #ifdef GASNETI_TSC_TRACE_OUTPUT
+    GASNETI_TSC_TRACE_OUTPUT();
+  #endif
   }
   gasneti_mutex_unlock(&tscmutex);
 
