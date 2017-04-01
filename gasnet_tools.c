@@ -1778,6 +1778,7 @@ extern void gasneti_envdbl_display(const char *key, double val, int is_dflt) {
 
   snprintf(valstr, sizeof(valstr), "%g", val);
   rawval = gasneti_getenv(key);
+  gasneti_assert(is_dflt || rawval);
 
   if (is_dflt || !strcmp(rawval,valstr)) { /* Use the numerical value */
     strcpy(displayval, valstr);
@@ -1794,6 +1795,7 @@ extern void gasneti_envint_display(const char *key, int64_t val, int is_dflt, in
 
   gasneti_format_number(val, valstr, 80, is_mem_size);
   rawval = gasneti_getenv(key);
+  gasneti_assert(is_dflt || rawval);
 
   if (is_dflt) { /* Use the numerical value */
     strcpy(displayval, valstr);
