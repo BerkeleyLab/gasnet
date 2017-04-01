@@ -562,6 +562,16 @@ Paul H. Hargrove <PHHargrove@lbl.gov>
     This setting defaults to 1 if SRQ support was enabled at configure
     time.  As a result XRC will be used anytime SRQ is used.
 
+   + GASNET_PIN_MAXSZ
+    This controls the maximum size of a pinned memory region.  The value must
+    be a power-of-two, and no less than the page size.  If the value is larger
+    than the HCA(s) can support, it will be reduced (with a warning).
+    When a GASNet-level transfer spans multiple pinned regions, multiple
+    operations are required at the Verbs layer.  However, some older Mellanox
+    HCAs performed poorly with large pinned regions.  In general there is no
+    need to adjust this parameter.
+    The default is to use largest size supportd by the HCA(s).
+
   Resource usage parameters:
   -------------------------
   The following environment variables control how much memory is
