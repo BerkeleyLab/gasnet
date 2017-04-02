@@ -1693,7 +1693,8 @@ int (*gasneti_verboseenv_fn)(void);
 gasneti_getenv_fn_t *gasneti_getenv_hook = NULL;
 char *gasneti_globalEnv = NULL;
 
-extern char *gasneti_getenv(const char *keyname) {
+// Internal function which will not trace or call envdecode hook (if any)
+static char *gasneti_getenv_early(const char *keyname) {
   char *retval = NULL;
 
   if (keyname && gasneti_getenv_hook) {
@@ -1719,6 +1720,12 @@ extern char *gasneti_getenv(const char *keyname) {
   if (keyname && !retval) /* try local environment */
     retval = getenv(keyname);
   
+  return retval;
+}
+
+extern char *gasneti_getenv(const char *keyname) {
+  char *retval = gasneti_getenv_early(keyname);
+
   if (retval && gasnett_decode_envval_fn && /* check if environment value needs decoding */
       strcmp(keyname, "GASNET_DISABLE_ENVDECODE") &&
       strcmp(keyname, "GASNET_VERBOSEENV")) { /* prevent inf recursion */ 
@@ -2778,6 +2785,13 @@ extern double gasneti_calibrate_tsc(void) {
   // Serialize threads attempting initialization
   static gasneti_mutex_t tscmutex = GASNETI_MUTEX_INITIALIZER;
   gasneti_mutex_lock(&tscmutex);
+  // NOTICE:
+  //   To avoid potential mutual-recursion with the tracing code, one must not
+  //   make any calls that may produce tracing output until 'firstTime' has been
+  //   set to zero.  In particular one must use gasneti_getenv_early() for any
+  //   reads of environment variables.  However, GASNETI_TSC_TRACE_OUTPUT() can
+  //   be defined to perform tracing calls, such as to gasneti_env*_display(),
+  //   and will run when it is safe.
   if_pf (firstTime) {
   #if !(PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC) || \
       !(PLATFORM_OS_LINUX || PLATFORM_OS_CNL)
