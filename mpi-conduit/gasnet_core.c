@@ -180,7 +180,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_setupGlobalEnvironment(gasneti_nodes, gasneti_mynode, 
                                    gasnetc_bootstrapExchange, gasnetc_bootstrapBroadcast);
 
-    /* Must init timers after global env, but before tracing */
+    /* Must init timers after global env, and preferably before tracing */
     GASNETI_TICKS_INIT();
 
     /* enable tracing */

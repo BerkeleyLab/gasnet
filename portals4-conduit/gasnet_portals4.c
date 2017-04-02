@@ -246,7 +246,7 @@ gasnetc_p4_init(gasnet_node_t *rank_p, gasnet_node_t *size_p)
     gasneti_spawner = gasneti_spawnerInit(NULL, NULL, "PMI", size_p, rank_p);
     if (!gasneti_spawner) GASNETI_RETURN_ERRR(NOT_INIT, "GASNet job spawn failed");
 
-    /* Must init timers after global env, but before tracing */
+    /* Must init timers after global env, and preferably before tracing */
     GASNETI_TICKS_INIT();
 
     /* Setup data structures */

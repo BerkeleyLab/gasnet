@@ -157,7 +157,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_spawner = gasneti_spawnerInit(argc, argv, NULL, &gasneti_nodes, &gasneti_mynode);
     if (!gasneti_spawner) GASNETI_RETURN_ERRR(NOT_INIT, "GASNet job spawn failed");
 
-    /* Must init timers after global env, but before tracing */
+    /* Must init timers after global env, and preferably before tracing */
     GASNETI_TICKS_INIT();
 
     /* Ensure uniform PSM2_* env vars */
