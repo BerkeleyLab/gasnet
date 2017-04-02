@@ -1274,10 +1274,9 @@ AC_DEFUN([GASNET_SET_CHECKED_CFLAGS],[
 GASNET_FUN_BEGIN([$0(...)])
 if test "$[$1]" = "no" ; then
   : # Skip
-elif test "$[$2]" != "" ; then
-  GASNET_ENV_DEFAULT([$2], []) # user-provided flags
 else
-  GASNET_ENV_DEFAULT([$2], [$3]) # try DEFAULT_CFLAGS
+ GASNET_ENV_DEFAULT([$2], [$3])
+ if test "$[$2]" == "$3" ; then # validate default
   GASNET_PUSHVAR(CC,"$[$1]")
   GASNET_PUSHVAR(CFLAGS,"")
     GASNET_TRY_CFLAG([$[$2]], [], [
@@ -1286,6 +1285,7 @@ else
     ])
   GASNET_POPVAR(CC)
   GASNET_POPVAR(CFLAGS)
+ fi
 fi
 GASNET_FUN_END([$0(...)])
 ])
