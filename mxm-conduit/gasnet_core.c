@@ -578,7 +578,7 @@ static int gasnetc_init(int *argc, char ***argv)
 
     gasneti_init_done = 1; /* enable early to allow tracing */
 
-    /* Must init timers after global env, but before tracing */
+    /* Must init timers after global env, and preferably before tracing */
     GASNETI_TICKS_INIT();
 
     /* Now enable tracing of all the following steps */
