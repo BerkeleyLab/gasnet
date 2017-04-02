@@ -1597,6 +1597,35 @@ extern char *gasneti_format_number(int64_t val, char *buf, size_t bufsz, int is_
   } else gasneti_fatalerror("internal error in gasneti_format_number");
   return buf;
 }
+
+// Parses a floating-point number or fraction, with result by reference.
+// Errors return non-zero (and result possibly modified)
+// NULL is not an error, and yields 0.
+extern int gasneti_parse_dbl(const char *str, double *result_p) {
+  double result = 0.;
+  if (str != NULL) {
+    char *endptr;
+    result = strtod(str, &endptr);
+    if (endptr != str) {
+      while (*endptr && isspace(*endptr)) endptr++; /* Skip whitespace */
+      if (*endptr == '/') {
+        char *endptr2;
+        double denom = strtod(1+endptr, &endptr2);
+        if ((denom != 0) && (endptr2 != (1+endptr))) {
+          for (endptr = endptr2; *endptr && isspace(*endptr); endptr++) {/* Skip whitespace */}
+          result /= denom;
+        } else {
+          /* endptr is left pointing at '/', triggering rejection below */
+        }
+      }
+    }
+    if ((endptr == str) || (*endptr != '\0')) { /* match was empty or has trailing non-whitespace */
+      return 1;
+    }
+  }
+  *result_p = result;
+  return 0;
+}
 /* ------------------------------------------------------------------------------------ */
 /* environment support */
 #if HAVE_SETENV && !HAVE_SETENV_DECL
@@ -1664,7 +1693,8 @@ int (*gasneti_verboseenv_fn)(void);
 gasneti_getenv_fn_t *gasneti_getenv_hook = NULL;
 char *gasneti_globalEnv = NULL;
 
-extern char *gasneti_getenv(const char *keyname) {
+// Internal function which will not trace or call envdecode hook (if any)
+static char *gasneti_getenv_early(const char *keyname) {
   char *retval = NULL;
 
   if (keyname && gasneti_getenv_hook) {
@@ -1690,6 +1720,12 @@ extern char *gasneti_getenv(const char *keyname) {
   if (keyname && !retval) /* try local environment */
     retval = getenv(keyname);
   
+  return retval;
+}
+
+extern char *gasneti_getenv(const char *keyname) {
+  char *retval = gasneti_getenv_early(keyname);
+
   if (retval && gasnett_decode_envval_fn && /* check if environment value needs decoding */
       strcmp(keyname, "GASNET_DISABLE_ENVDECODE") &&
       strcmp(keyname, "GASNET_VERBOSEENV")) { /* prevent inf recursion */ 
@@ -1853,23 +1889,8 @@ extern double gasneti_getenv_dbl_withdefault(const char *keyname, double default
   const char * envval = gasneti_getenv(keyname);
 
   if (envval != NULL) {
-    char *endptr;
-    retval = strtod(envval, &endptr);
     is_dflt = 0;
-    if (endptr != envval) {
-      while (*endptr && isspace(*endptr)) endptr++; /* Skip whitespace */
-      if (*endptr == '/') {
-        char *endptr2;
-        double denom = strtod(1+endptr, &endptr2);
-        if ((denom != 0) && (endptr2 != (1+endptr))) {
-          for (endptr = endptr2; *endptr && isspace(*endptr); endptr++) {/* Skip whitespace */}
-          retval /= denom;
-        } else {
-          /* endptr is left pointing at '/', triggering rejection below */
-        }
-      }
-    }
-    if ((endptr == envval) || (*endptr != '\0')) { /* match was empty or has trailing non-whitespace */
+    if (gasneti_parse_dbl(envval, &retval)) {
       gasneti_fatalerror("If used, environment variable '%s' must be a valid floating point value or fraction", keyname);
     }
   }
@@ -2764,6 +2785,13 @@ extern double gasneti_calibrate_tsc(void) {
   // Serialize threads attempting initialization
   static gasneti_mutex_t tscmutex = GASNETI_MUTEX_INITIALIZER;
   gasneti_mutex_lock(&tscmutex);
+  // NOTICE:
+  //   To avoid potential mutual-recursion with the tracing code, one must not
+  //   make any calls that may produce tracing output until 'firstTime' has been
+  //   set to zero.  In particular one must use gasneti_getenv_early() for any
+  //   reads of environment variables.  However, GASNETI_TSC_TRACE_OUTPUT() can
+  //   be defined to perform tracing calls, such as to gasneti_env*_display(),
+  //   and will run when it is safe.
   if_pf (firstTime) {
   #if !(PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC) || \
       !(PLATFORM_OS_LINUX || PLATFORM_OS_CNL)
@@ -2773,7 +2801,9 @@ extern double gasneti_calibrate_tsc(void) {
     // TODO: need logic to default to "cpuinfo" when we can determine CPU model is trustworthy
     #define GASNETI_DEFAULT_TSC_RATE "wallclock"
     #endif
-    const char *tsc_rate = gasneti_getenv_withdefault("GASNET_TSC_RATE", GASNETI_DEFAULT_TSC_RATE);
+    const char *tsc_rate = gasneti_getenv_early("GASNET_TSC_RATE");
+    int tsc_rate_dflt = (NULL == tsc_rate);
+    if (tsc_rate_dflt) tsc_rate = GASNETI_DEFAULT_TSC_RATE;
     enum {
       tsc_source_cpuinfo,    // "cpuinfo"    - parse /proc/cpuinfo for the TSC rate
       tsc_source_wallclock,  // "wallclock"  - calibrate TSC against OS-provided wallclock
@@ -2800,8 +2830,12 @@ extern double gasneti_calibrate_tsc(void) {
     #ifndef GASNETI_DEFAULT_TSC_RATE_TOLERANCE
     #define GASNETI_DEFAULT_TSC_RATE_TOLERANCE 0.0005 // 0.05% - matches testtools default
     #endif
-    const double soft_tolerance = gasneti_getenv_dbl_withdefault("GASNET_TSC_RATE_TOLERANCE",
-                                                                 GASNETI_DEFAULT_TSC_RATE_TOLERANCE);
+    double soft_tolerance = GASNETI_DEFAULT_TSC_RATE_TOLERANCE;
+    const char *soft_tol_str = gasneti_getenv_early("GASNET_TSC_RATE_TOLERANCE");
+    int soft_tol_dflt = (NULL == soft_tol_str);
+    if (!soft_tol_dflt && gasneti_parse_dbl(soft_tol_str, &soft_tolerance)) {
+      gasneti_fatalerror("If set, environment variable GASNET_TSC_RATE_TOLERANCE must be a valid floating point value or fraction");
+    }
     const int check_soft = soft_tolerance > 0.0;
     if ((soft_tolerance < 0.0) || (soft_tolerance > 1.0)) {
       gasneti_fatalerror(
@@ -2811,8 +2845,12 @@ extern double gasneti_calibrate_tsc(void) {
     #ifndef GASNETI_DEFAULT_TSC_RATE_HARD_TOLERANCE
     #define GASNETI_DEFAULT_TSC_RATE_HARD_TOLERANCE 0.02 // 2%
     #endif
-    const double hard_tolerance = gasneti_getenv_dbl_withdefault("GASNET_TSC_RATE_HARD_TOLERANCE",
-                                                                 GASNETI_DEFAULT_TSC_RATE_HARD_TOLERANCE);
+    double hard_tolerance = GASNETI_DEFAULT_TSC_RATE_HARD_TOLERANCE;
+    const char *hard_tol_str = gasneti_getenv_early("GASNET_TSC_RATE_HARD_TOLERANCE");
+    int hard_tol_dflt = (NULL == hard_tol_str);
+    if (!hard_tol_dflt && gasneti_parse_dbl(hard_tol_str, &hard_tolerance)) {
+      gasneti_fatalerror("If set, environment variable GASNET_TSC_RATE_HARD_TOLERANCE must be a valid floating point value or fraction");
+    }
     const int check_hard = hard_tolerance > 0.0;
     if ((hard_tolerance < 0.0) || (hard_tolerance > 1.0)) {
       gasneti_fatalerror(
@@ -2831,6 +2869,12 @@ extern double gasneti_calibrate_tsc(void) {
     } else {
       tolerance = soft_tolerance; // Even if zero
     }
+
+    #define GASNETI_TSC_TRACE_OUTPUT()  do { \
+      gasneti_envstr_display("GASNET_TSC_RATE", tsc_rate, tsc_rate_dflt); \
+      gasneti_envdbl_display("GASNET_TSC_RATE_TOLERANCE", soft_tolerance, soft_tol_dflt); \
+      gasneti_envdbl_display("GASNET_TSC_RATE_HARD_TOLERANCE", hard_tolerance, hard_tol_dflt); \
+    } while (0)
 
     #if GASNET_DEBUG_VERBOSE
     uint64_t begin_tsc_calibration = gasneti_wallclock_ns();
@@ -2957,6 +3001,10 @@ extern double gasneti_calibrate_tsc(void) {
 
     gasneti_sync_writes();
     firstTime = 0;
+
+  #ifdef GASNETI_TSC_TRACE_OUTPUT
+    GASNETI_TSC_TRACE_OUTPUT();
+  #endif
   }
   gasneti_mutex_unlock(&tscmutex);
 
