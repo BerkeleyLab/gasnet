@@ -125,6 +125,9 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   gasneti_freezeForDebugger();
 
+  /* Must init timers after global env, but before tracing */
+  GASNETI_TICKS_INIT();
+
   /*
    * Print information about shmalloc segment search when verbose environment
    * or debug mode

@@ -180,6 +180,9 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_setupGlobalEnvironment(gasneti_nodes, gasneti_mynode, 
                                    gasnetc_bootstrapExchange, gasnetc_bootstrapBroadcast);
 
+    /* Must init timers after global env, but before tracing */
+    GASNETI_TICKS_INIT();
+
     /* enable tracing */
     gasneti_trace_init(argc, argv);
     GASNETI_AM_SAFE(AMMPI_SPMDSetExitCallback(gasnetc_traceoutput));
