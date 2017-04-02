@@ -2897,15 +2897,17 @@ extern double gasneti_calibrate_tsc(void) {
       // Check that we converged within given tolerance
       if (check_hard && (scv > hard_tolerance*hard_tolerance)) {
         gasneti_fatalerror(
-            "TSC calibration did not converge with reasonable certainty.\n"
+            "TSC calibration did not converge with reasonable certainty (SCV=%g hard_tol=%g).\n"
             "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_HARD_TOLERANCE or "
-            "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.");
+            "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.",
+            scv, hard_tolerance);
       }
       if (check_soft && (scv > soft_tolerance*soft_tolerance)) {
         fprintf(stderr, "WARNING: "
-            "TSC calibration did not converge with reasonable certainty.  "
+            "TSC calibration did not converge with reasonable certainty (SCV=%g soft_tol=%g).  "
             "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_TOLERANCE or "
-            "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.\n");
+            "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.\n",
+            scv, soft_tolerance);
       }
       Tick = 1. / mean; // Inverse GHz
     } else {
