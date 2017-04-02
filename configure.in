@@ -6,22 +6,42 @@ dnl -*- m4 -*-
 # Copyright (c) 2014-2015 Intel Corporation. All rights reserved.
 # Based in part on the Titanium project configure script
 # Terms of use are as specified in license.txt
-AC_DEFUN([cv_prefix],[gasnet_cv_])
+define([cv_prefix],[gasnet_cv_])
+
+dnl Public release version packaging identifier:
+define([GASNET_RELEASE_VERSION_MAJOR_D],[1])
+define([GASNET_RELEASE_VERSION_MINOR_D],[99])
+define([GASNET_RELEASE_VERSION_PATCH_D],[1])
+dnl GASNet spec version:
+define([GASNET_SPEC_VERSION_MAJOR_D],[1])
+define([GASNET_SPEC_VERSION_MINOR_D],[8])
+dnl GASNet tools spec version:
+define([GASNETT_SPEC_VERSION_MAJOR_D],[1])
+define([GASNETT_SPEC_VERSION_MINOR_D],[9])
+
+define([GASNET_RELEASE_VERSION_D],
+         [GASNET_RELEASE_VERSION_MAJOR_D.GASNET_RELEASE_VERSION_MINOR_D.GASNET_RELEASE_VERSION_PATCH_D])
 
 dnl Note that dist-hook rewrites AC_REVISION in the generated configure
 dnl GASNET_TOOLSONLY_FALSE_BEGIN
 AC_REVISION("no-version-control-info")
+define([AC_PACKAGE_NAME],[GASNet])
 dnl GASNET_TOOLSONLY_FALSE_END
 dnl GASNET_TOOLSONLY_TRUE_BEGIN
 dnl AC_REVISION("no-version-control-info (tools only)")
+dnl define([AC_PACKAGE_NAME],[GASNet_Tools])
 dnl GASNET_TOOLSONLY_TRUE_END
 
-# the "new" way
-# AC_INIT(GASNet, 0.2)
-# AC_CONFIG_SRCDIR(gasnet_tools.h)
-# AM_INIT_AUTOMAKE([no-define])
+define([AC_PACKAGE_BUGREPORT],[http://gasnet-bugs.lbl.gov])
+define([AC_PACKAGE_URL],[http://gasnet.lbl.gov])
+define([AC_PACKAGE_VERSION],[GASNET_RELEASE_VERSION_D])
 
-# the "old" way
+dnl the "new" init incantation
+dnl AC_INIT(AC_PACKAGE_NAME, AC_PACKAGE_VERSION, AC_PACKAGE_BUGREPORT, AC_PACKAGE_NAME, AC_PACKAGE_URL)
+dnl AC_CONFIG_SRCDIR(gasnet_tools.h)
+dnl AM_INIT_AUTOMAKE([no-define])
+
+dnl the "old" init incantation
 AC_INIT(gasnet_tools.h)
 AC_PREREQ(2.13)
 GASNET_FIX_SHELL
@@ -29,20 +49,6 @@ AC_CONFIG_AUX_DIR(config-aux)
  
 AC_CANONICAL_SYSTEM
 AC_VALIDATE_CACHED_SYSTEM_TUPLE
-
-dnl Public release version packaging identifier:
-AC_DEFUN([GASNET_RELEASE_VERSION_MAJOR_D],[1])
-AC_DEFUN([GASNET_RELEASE_VERSION_MINOR_D],[99])
-AC_DEFUN([GASNET_RELEASE_VERSION_PATCH_D],[1])
-dnl GASNet spec version:
-AC_DEFUN([GASNET_SPEC_VERSION_MAJOR_D],[1])
-AC_DEFUN([GASNET_SPEC_VERSION_MINOR_D],[8])
-dnl GASNet tools spec version:
-AC_DEFUN([GASNETT_SPEC_VERSION_MAJOR_D],[1])
-AC_DEFUN([GASNETT_SPEC_VERSION_MINOR_D],[9])
-
-AC_DEFUN([GASNET_RELEASE_VERSION_D],
-         [GASNET_RELEASE_VERSION_MAJOR_D.GASNET_RELEASE_VERSION_MINOR_D.GASNET_RELEASE_VERSION_PATCH_D])
 
 dnl GASNET_TOOLSONLY_FALSE_BEGIN
 AM_INIT_AUTOMAKE(GASNet, GASNET_RELEASE_VERSION_D, no-define)
