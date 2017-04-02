@@ -156,6 +156,12 @@ AC_SUBST_FILE(PERLSTART)
 ##
 
 GASNET_PROG_CC
+
+if test -n "$CFLAGS"; then # embed user-provided CFLAGS into CC for safe-keeping
+  CC="$CC $CFLAGS"
+  CFLAGS=""
+fi
+
 AC_PROG_LN_S
 GASNET_BIGENDIAN
 AC_CHECK_PROG(have_mpcc_r,mpcc_r,yes,no)
@@ -657,7 +663,8 @@ esac
 # Set MISC_CPPFLAGS: flags to be used by all C preprocesses and compilations
 # Note this is ALSO used for C++ compilation, so only generic language-independent options should go in here
 # We do not currently allow a user override of MISC_C(PP)FLAGS
-MISC_CPPFLAGS=""
+# but this is where we embed the user's CPPFLAGS input to configure
+MISC_CPPFLAGS="$CPPFLAGS"
 case "$CC_FAMILY" in
   GNU)
     case "$target_os" in
@@ -2423,11 +2430,10 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
 # C++ configuration
   AC_LANG_SAVE
 
-  CXXFLAGS=""       # start with a clean slate
-  MISC_CXXFLAGS=""
+  MISC_CXXFLAGS="" # start with a clean slate
   # Note: autoconf uses CPPFLAGS for both C and C++, so there is NO CXXCPPFLAGS
 
-  if test "$with_cxx" = no; then
+  if test "${CXX-__NOT_SET__}" = ""; then
     have_cxx=no
     GASNET_MSG_WARN([C++ compiler disabled using --without-cxx])
   else
@@ -2440,6 +2446,10 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
     popdef([AC_MSG_ERROR])
     if test "$have_cxx" = no; then
       GASNET_MSG_WARN([It appears you have no working C++ compiler])
+    fi
+    if test -n "$CXXFLAGS"; then # embed user-provided CXXFLAGS into CXX for safe-keeping
+      CXX="$CXX $CXXFLAGS"
+      CXXFLAGS=""
     fi
   fi
 

@@ -669,6 +669,12 @@ AC_DEFUN([GASNET_START_CONFIGURE],[
   GASNET_RESTORE_AUTOCONF_ENV([CC CXX CFLAGS CXXFLAGS CPPFLAGS LIBS MAKE GMAKE AR AS RANLIB PERL SUM LEX YACC $1])
   dnl the following cannot be handled here, as they are already detected: AWK, (G)MAKE, MKDIR_P, INSTALL
   GASNET_POPULATE_AUTOCONF_ENV([CC CFLAGS CPP CPPFLAGS LDFLAGS LIBS PERL $2])
+  if test "${CFLAGS+set}" != "set" ; then # default CFLAGS to empty, overriding autoconf's default of "-g -O2"
+    CFLAGS=""
+  fi
+  if test "${CXXFLAGS+set}" != "set" ; then # same for CXXFLAGS
+    CXXFLAGS=""
+  fi
 
   GASNET_PATH_PROGS(PWD_PROG, pwd, pwd)
 
