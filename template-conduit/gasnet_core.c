@@ -59,6 +59,9 @@ static int gasnetc_init(int *argc, char ***argv) {
   gasneti_spawner = gasneti_spawnerInit(argc, argv, NULL, &gasneti_nodes, &gasneti_mynode);
   if (!gasneti_spawner) GASNETI_RETURN_ERRR(NOT_INIT, "GASNet job spawn failed");
 
+  /* Must init timers after global env, but before tracing */
+  GASNETI_TICKS_INIT();
+
   #if GASNET_DEBUG_VERBOSE
     fprintf(stderr,"gasnetc_init(): spawn successful - node %i/%i starting...\n", 
       gasneti_mynode, gasneti_nodes); fflush(stderr);
