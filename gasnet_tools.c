@@ -2906,21 +2906,47 @@ extern double gasneti_calibrate_tsc(void) {
     if (tsc_source == tsc_source_cpuinfo) {
       Tick = gasneti_calibrate_tsc_from_kernel();
     } else if (tsc_source == tsc_source_wallclock) {
+      #ifndef GASNETI_TSC_WC_MIN_INTERVAL
+      #define GASNETI_TSC_WC_MIN_INTERVAL 1E6 // 1,000,000ns = 1ms
+      #endif
+      #ifndef GASNETI_TSC_WC_MIN_REF_TICKS
+      #define GASNETI_TSC_WC_MIN_REF_TICKS 1000
+      #endif
+      #ifndef GASNETI_TSC_WC_MIN_ITERS
+      #define GASNETI_TSC_WC_MIN_ITERS 10
+      #endif
+      #ifndef GASNETI_TSC_WC_MAX_ITERS
+      #define GASNETI_TSC_WC_MAX_ITERS 100
+      #endif
+      #ifndef GASNETI_TSC_WC_DFLT_TOL
+      #define GASNETI_TSC_WC_DFLT_TOL 0.0005
+      #endif
+      #ifndef GASNETI_TSC_WC_SIGMA
+      #define GASNETI_TSC_WC_SIGMA 1. // rule-of-thumb: 1 X sigma = 68% confidence interval
+      #endif
       // Measure TSC rate against walltime until convergence (or iteration limit)
-      // Worse case: 100 iterations X 1000 ref_res <= 100,000 * 5us = 0.5s
+      // Worse case with defaults: 100 iterations X 1000 ref_res <= 100,000 * 5us = 0.5s
       // More common is 10 iterations of 1ms each, or 0.01s
-      const uint64_t interval_ns = MAX(1E6, 1000*ref_res); // no less than 1ms or 1000 reference ticks
-      const double dflt_error = 0.0005; // By default we stop when (stdev <= 0.05% of mean) ...
-      const double  max_error = (tolerance > 0.0 ? MIN(dflt_error, tolerance) : dflt_error);
-      const int     max_iters = 100;    //   or we've averaged 100 samples ...
-      const int     min_iters = 10;     //   but we don't trust statistics with too few samples.
+
+      // Default interval to sleep is MAX(1ms, 1000 ref ticks)
+      const uint64_t interval_ns = MAX(GASNETI_TSC_WC_MIN_INTERVAL,
+                                       GASNETI_TSC_WC_MIN_REF_TICKS * ref_res);
+
+      // By default we stop when estimated relative error is below 0.05%, subject to:
+      // + confidence in our estimate as given by GASNETI_TSC_WC_SIGMA
+      // + no less than GASNETI_TSC_WC_MIN_ITERS samples (for sound statistics)
+      // + no more than GASNETI_TSC_WC_MAX_ITERS samples (bounds time spent here)
+      const double max_error = ((tolerance > 0.0 ? MIN(GASNETI_TSC_WC_DFLT_TOL, tolerance)
+                                                 : GASNETI_TSC_WC_DFLT_TOL)) / GASNETI_TSC_WC_SIGMA;
+
       // Tabulate some initial samples
       int N; double Sx, Sxx;
-      for (N = Sx = Sxx = 0; N < (min_iters - 1); ++N) {
+      for (N = Sx = Sxx = 0; N < (GASNETI_TSC_WC_MIN_ITERS - 1); ++N) {
         double sample = gasneti_approx_tick_ghz(interval_ns);
         Sx  += sample;
         Sxx += sample * sample;
       }
+
       // Collect additional samples until convergance or iteration limit
       double mean, scv; // SCV = "squared coefficient of variation" = (stdev / mean) ^ 2
       const double max_scv = max_error * max_error;
@@ -2932,26 +2958,28 @@ extern double gasneti_calibrate_tsc(void) {
         mean = Sx / N;
         double variance = (N * Sxx - Sx * Sx) / (N * (N - 1));
         scv = variance / (mean * mean);
-      } while ((scv > max_scv) && (N < max_iters));
+      } while ((scv > max_scv) && (N < GASNETI_TSC_WC_MAX_ITERS));
+
       #if GASNET_DEBUG_VERBOSE
       // SCV is non-negative by defn, but this is not true with IEEE arithmetic.
       // But since we've avoided sqrt(), use of MAX() here is purely cosmetic.
       fprintf(stderr, "TSC: calibrated to SCV of %g in %d iters\n", MAX(0.,scv), N);
       #endif
       // Check that we converged within given tolerance
-      if (check_hard && (scv > hard_tolerance*hard_tolerance)) {
+      const double sigma_sq = GASNETI_TSC_WC_SIGMA * GASNETI_TSC_WC_SIGMA;
+      if (check_hard && (scv*sigma_sq > hard_tolerance*hard_tolerance)) {
         gasneti_fatalerror(
-            "TSC calibration did not converge with reasonable certainty (SCV=%g hard_tol=%g).\n"
+            "TSC calibration did not converge with reasonable certainty (SCV=%g > %g).\n"
             "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_HARD_TOLERANCE or "
             "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.",
-            scv, hard_tolerance);
+            scv, hard_tolerance/sigma_sq);
       }
-      if (check_soft && (scv > soft_tolerance*soft_tolerance)) {
+      if (check_soft && (scv*sigma_sq > soft_tolerance*soft_tolerance)) {
         fprintf(stderr, "WARNING: "
-            "TSC calibration did not converge with reasonable certainty (SCV=%g soft_tol=%g).  "
+            "TSC calibration did not converge with reasonable certainty (SCV=%g > %g).  "
             "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_TOLERANCE or "
             "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.\n",
-            scv, soft_tolerance);
+            scv, soft_tolerance/sigma_sq);
       }
       Tick = 1. / mean; // Inverse GHz
     } else {
