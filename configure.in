@@ -801,6 +801,7 @@ GASNET_IF_ENABLED(gasnet-verbose, Build GASNet lib with debugging status message
   fi
 AM_CONDITIONAL(BUILDCONFIG_DEBUG_VERBOSE, test "$enabled_debug_verbose" = yes)
 
+dnl GASNET_TOOLSONLY_FALSE_BEGIN
 GASNET_IF_ENABLED_WITH_AUTO(trace, Build GASNet with tracing enabled (enabled by default with --enable-debug), 
   enabled_trace=yes, enabled_trace=no, enabled_trace=$enabled_debug)
   if test "$enabled_trace" = yes; then
@@ -821,6 +822,7 @@ GASNET_IF_ENABLED(srclines, Build GASNet with srclines support (enabled by defau
     AC_DEFINE(GASNET_SRCLINES)
   fi
 AM_CONDITIONAL(BUILDCONFIG_SRCLINES, test "$enabled_srclines" = yes)
+dnl GASNET_TOOLSONLY_FALSE_END
 
 GASNET_IF_ENABLED_WITH_AUTO(debug-malloc, Build GASNet with debugging malloc implementation enabled (enabled by default with --enable-debug), 
   enabled_debug_malloc=yes, enabled_debug_malloc=no, enabled_debug_malloc=$enabled_debug)
@@ -845,6 +847,7 @@ case "$CC_FAMILY" in
 esac
 AC_SUBST(KEEPTMP_CFLAGS)      # flags to preserve intermediate file (,i, .s, etc.)
 
+dnl GASNET_TOOLSONLY_FALSE_BEGIN
 segconfig=""
 GASNET_IF_ENABLED(segment-fast, Build GASNet in the FAST shared segment configuration,
   segconfig="fast$segconfig", )
@@ -885,6 +888,7 @@ GASNET_WITH(segment-mmap-max,
         ;;
       *) AC_MSG_ERROR(Illegal value for --with-segment-mmap-max=$withval) ;;
     esac])
+dnl GASNET_TOOLSONLY_FALSE_END
 
 dnl GASNET_GET_PLATFORM_ID(CCVAR, opt compiler-desc)
 dnl probe a compiler for version information
@@ -2046,10 +2050,12 @@ if test "$uni_build" = yes; then
   AC_DEFINE(GASNETI_UNI_BUILD)
 fi
 
+dnl GASNET_TOOLSONLY_FALSE_BEGIN
 GASNET_IF_ENABLED(loopback-memsync, Force memory barriers for GASNet local (loopback) puts and gets,
   [AC_DEFINE(GASNETI_MEMSYNC_ON_LOOPBACK)])
 GASNET_IF_ENABLED(throttle-poll, throttle polling threads in multi-threaded configurations to reduce contention (experimental, only implemented in some conduits),
   [AC_DEFINE(GASNETI_THROTTLE_FEATURE_ENABLED)])
+dnl GASNET_TOOLSONLY_FALSE_END
 
 # FORCED non-default implementations - used mainly for debugging
 #
@@ -2316,7 +2322,7 @@ AC_DEFUN([CONDUIT_OUTPUT],[
 AM_CONDITIONAL(TOOLSONLY_MODE, test "$gasnet_toolsonly_mode" = "yes")
 AM_CONDITIONAL(CONDUIT_MODE, test "$gasnet_toolsonly_mode" = "no")
 dnl GASNET_TOOLSONLY_TRUE_BEGIN
-dnl define([GASNET_ENV_DEFAULT_SUPPRESSHELP],[set])
+dnl define([GASNET_SUPPRESSHELP],[set])
 dnl GASNET_TOOLSONLY_TRUE_END
 #---------------------------------------------------------------------------------------------------------------
 # CODE COMMON TO MULTIPLE CONDUITS
@@ -3945,7 +3951,7 @@ CONDUIT_END([test "$have_ofi" = yes])
 # CONDUIT CONFIGURATIONS FINISH
 #---------------------------------------------------------------------------------------------------------------
 dnl GASNET_TOOLSONLY_TRUE_BEGIN
-dnl undefine([GASNET_ENV_DEFAULT_SUPPRESSHELP])
+dnl undefine([GASNET_SUPPRESSHELP])
 dnl GASNET_TOOLSONLY_TRUE_END
 CONDUITS=
 AC_SUBST(CONDUITS)
