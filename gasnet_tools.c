@@ -2969,14 +2969,14 @@ extern double gasneti_calibrate_tsc(void) {
       const double sigma_sq = GASNETI_TSC_WC_SIGMA * GASNETI_TSC_WC_SIGMA;
       if (check_hard && (scv*sigma_sq > hard_tolerance*hard_tolerance)) {
         gasneti_fatalerror(
-            "TSC calibration did not converge with reasonable certainty (SCV=%g > %g).\n"
+            "TSC calibration did not converge with reasonable certainty (sqrt(%g) > %g).\n"
             "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_HARD_TOLERANCE or "
             "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.",
             scv, hard_tolerance/GASNETI_TSC_WC_SIGMA);
       }
       if (check_soft && (scv*sigma_sq > soft_tolerance*soft_tolerance)) {
         fprintf(stderr, "WARNING: "
-            "TSC calibration did not converge with reasonable certainty (SCV=%g > %g).  "
+            "TSC calibration did not converge with reasonable certainty (sqrt(%g) > %g).  "
             "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_TOLERANCE or "
             "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.\n",
             scv, soft_tolerance/GASNETI_TSC_WC_SIGMA);
