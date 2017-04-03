@@ -2907,7 +2907,7 @@ extern double gasneti_calibrate_tsc(void) {
       Tick = gasneti_calibrate_tsc_from_kernel();
     } else if (tsc_source == tsc_source_wallclock) {
       #ifndef GASNETI_TSC_WC_MIN_INTERVAL
-      #define GASNETI_TSC_WC_MIN_INTERVAL 1E6 // 1,000,000ns = 1ms
+      #define GASNETI_TSC_WC_MIN_INTERVAL 1.5E6 // 1,500,000ns = 1.5ms
       #endif
       #ifndef GASNETI_TSC_WC_MIN_REF_TICKS
       #define GASNETI_TSC_WC_MIN_REF_TICKS 1000
@@ -2926,9 +2926,9 @@ extern double gasneti_calibrate_tsc(void) {
       #endif
       // Measure TSC rate against walltime until convergence (or iteration limit)
       // Worse case with defaults: 100 iterations X 1000 ref_res <= 100,000 * 5us = 0.5s
-      // More common is 10 iterations of 1ms each, or 0.01s
+      // More common is 10 iterations of 1.5ms each, or 0.015s
 
-      // Default interval to sleep is MAX(1ms, 1000 ref ticks)
+      // Default interval to sleep is MAX(1.5ms, 1000 ref ticks)
       const uint64_t interval_ns = MAX(GASNETI_TSC_WC_MIN_INTERVAL,
                                        GASNETI_TSC_WC_MIN_REF_TICKS * ref_res);
 
