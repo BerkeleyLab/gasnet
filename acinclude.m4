@@ -600,7 +600,7 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
   
   dnl create the help prompt just once, and only if not suppressed
   ifdef(with_expanded_[$1], [], [
-   ifdef([GASNET_ENV_DEFAULT_SUPPRESSHELP], [], [
+   ifdef([GASNET_SUPPRESSHELP], [], [
     AC_ARG_WITH(lowerdashname, 
        GASNET_OPTION_HELP(with-[]lowerdashname[]=, [$1] setting[]ifelse([$3],[],[],[: $3])), 
       [], [])
@@ -874,53 +874,80 @@ dnl action-none runs for no foo arg given
 dnl GASNET_WITH(foo, description, action-withval, [action-without], [action-none])
 AC_DEFUN([GASNET_WITH],[
 GASNET_FUN_BEGIN([$0($1,...)])
-AC_ARG_WITH($1,GASNET_OPTION_HELP(with-$1=,[$2]), [
-  case "$withval" in
-    no) :
-        $4 ;;
-    *)  $3 ;;
-  esac
-  ],[
-   :
-   $5
+  pushdef([withname],with_[]patsubst([$1], -, _))
+  ifdef([GASNET_SUPPRESSHELP], [], [
+    AC_ARG_WITH($1,GASNET_OPTION_HELP(with-$1=,[$2]))
   ])
+  if test "${withname+set}" = set; then :
+    withval=$withname;
+    case "$withval" in
+      no) :
+          $4
+      ;;
+      *)  :
+          $3
+      ;;
+    esac
+  else
+    :
+    $5
+  fi
+  popdef([withname])
 GASNET_FUN_END([$0($1,...)])
 ])
 
 AC_DEFUN([GASNET_IF_ENABLED_NOHELP],[
 case "$enable_[]patsubst([$1], -, _)" in
   '' | no) :
-      $3 ;;
-  *)  $2 ;;
+      $3
+  ;;
+  *)  :
+      $2
+  ;;
 esac
 ])
 
 AC_DEFUN([GASNET_IF_ENABLED],[
 GASNET_FUN_BEGIN([$0($1,...)])
-AC_ARG_ENABLE($1,GASNET_OPTION_HELP(enable-$1,[$2]))
-GASNET_IF_ENABLED_NOHELP([$1],[$3],[$4])
+  ifdef([GASNET_SUPPRESSHELP], [], [
+    AC_ARG_ENABLE($1,GASNET_OPTION_HELP(enable-$1,[$2]))
+  ])
+  GASNET_IF_ENABLED_NOHELP([$1],[$3],[$4])
 GASNET_FUN_END([$0($1,...)])
 ])
 
 AC_DEFUN([GASNET_IF_DISABLED],[
 GASNET_FUN_BEGIN([$0($1,...)])
-AC_ARG_ENABLE($1,GASNET_OPTION_HELP(disable-$1,[$2]))
-case "$enable_[]patsubst([$1], -, _)" in
-  '' | yes) :
-       $4 ;;
-  *)   $3 ;;
-esac
+  ifdef([GASNET_SUPPRESSHELP], [], [
+    AC_ARG_ENABLE($1,GASNET_OPTION_HELP(disable-$1,[$2]))
+  ])
+  case "$enable_[]patsubst([$1], -, _)" in
+    '' | yes) :
+         $4
+    ;;
+    *)   :
+         $3
+    ;;
+  esac
 GASNET_FUN_END([$0($1,...)])
 ])
 
 AC_DEFUN([GASNET_IF_ENABLED_WITH_AUTO],[
 GASNET_FUN_BEGIN([$0($1,...)])
-AC_ARG_ENABLE($1,GASNET_OPTION_HELP((en|dis)able-$1,[$2]))
-case "$enable_[]patsubst([$1], -, _)" in
-  no)  $4 ;;
-  yes) $3 ;;
-  *)   $5 ;;
-esac
+  ifdef([GASNET_SUPPRESSHELP], [], [
+    AC_ARG_ENABLE($1,GASNET_OPTION_HELP((en|dis)able-$1,[$2]))
+  ])
+  case "$enable_[]patsubst([$1], -, _)" in
+    no)  :
+        $4 
+    ;;
+    yes) :
+        $3 
+    ;;
+    *)   :
+        $5 
+    ;;
+  esac
 GASNET_FUN_END([$0($1,...)])
 ])
 
@@ -2015,12 +2042,12 @@ AC_DEFUN([GASNET_PROG_HOSTCC], [
 GASNET_FUN_BEGIN([$0])
 if test "$cross_compiling" = "yes" ; then
   HOST_MSG="When cross-compiling, \$HOST_CC or --with-host-cc= must be set to indicate a C compiler for the host machine (ie the machine running this configure script)"
-  pushdef([GASNET_ENV_DEFAULT_SUPPRESSHELP],1)
+  pushdef([GASNET_SUPPRESSHELP],1)
   GASNET_ENV_DEFAULT(HOST_CC, )
   GASNET_ENV_DEFAULT(HOST_CFLAGS, )
   GASNET_ENV_DEFAULT(HOST_LDFLAGS, )
   GASNET_ENV_DEFAULT(HOST_LIBS, )
-  popdef([GASNET_ENV_DEFAULT_SUPPRESSHELP])
+  popdef([GASNET_SUPPRESSHELP])
   AC_SUBST(HOST_CC)
   AC_SUBST(HOST_CFLAGS)
   AC_SUBST(HOST_LDFLAGS)
@@ -2057,12 +2084,12 @@ AC_DEFUN([GASNET_PROG_HOSTCXX], [
 GASNET_FUN_BEGIN([$0])
 if test "$cross_compiling" = "yes" ; then
   HOST_MSG="When cross-compiling, \$HOST_CXX or --with-host-cxx= must be set to indicate a C++ compiler for the host machine (ie the machine running this configure script)"
-  pushdef([GASNET_ENV_DEFAULT_SUPPRESSHELP],1)
+  pushdef([GASNET_SUPPRESSHELP],1)
   GASNET_ENV_DEFAULT(HOST_CXX, )
   GASNET_ENV_DEFAULT(HOST_CXXFLAGS, )
   GASNET_ENV_DEFAULT(HOST_CXX_LDFLAGS, )
   GASNET_ENV_DEFAULT(HOST_CXX_LIBS, )
-  popdef([GASNET_ENV_DEFAULT_SUPPRESSHELP])
+  popdef([GASNET_SUPPRESSHELP])
   AC_SUBST(HOST_CXX)
   AC_SUBST(HOST_CXXFLAGS)
   AC_SUBST(HOST_CXX_LDFLAGS)
@@ -2423,9 +2450,9 @@ AC_DEFUN([GASNET_CROSS_VAR],[
   GASNET_FUN_BEGIN([$0($1,$2,$3)])
   pushdef([cross_varname],CROSS_$2)
   if test "$cross_compiling" = "yes" ; then
-    pushdef([GASNET_ENV_DEFAULT_SUPPRESSHELP],1)
+    pushdef([GASNET_SUPPRESSHELP],1)
     GASNET_ENV_DEFAULT(cross_varname,$3)
-    popdef([GASNET_ENV_DEFAULT_SUPPRESSHELP])
+    popdef([GASNET_SUPPRESSHELP])
     if test "$cross_varname" = "" ; then
       AC_MSG_ERROR([This configure script requires \$cross_varname be set for cross-compilation])
     else 
