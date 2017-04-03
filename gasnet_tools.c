@@ -2922,7 +2922,7 @@ extern double gasneti_calibrate_tsc(void) {
       #define GASNETI_TSC_WC_DFLT_TOL 0.0005
       #endif
       #ifndef GASNETI_TSC_WC_SIGMA
-      #define GASNETI_TSC_WC_SIGMA 1. // rule-of-thumb: 1 X sigma = 68% confidence interval
+      #define GASNETI_TSC_WC_SIGMA 2. // rule-of-thumb: 2 X sigma = 95% confidence interval
       #endif
       // Measure TSC rate against walltime until convergence (or iteration limit)
       // Worse case with defaults: 100 iterations X 1000 ref_res <= 100,000 * 5us = 0.5s
