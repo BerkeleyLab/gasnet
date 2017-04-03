@@ -2972,14 +2972,14 @@ extern double gasneti_calibrate_tsc(void) {
             "TSC calibration did not converge with reasonable certainty (SCV=%g > %g).\n"
             "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_HARD_TOLERANCE or "
             "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.",
-            scv, hard_tolerance/sigma_sq);
+            scv, hard_tolerance/GASNETI_TSC_WC_SIGMA);
       }
       if (check_soft && (scv*sigma_sq > soft_tolerance*soft_tolerance)) {
         fprintf(stderr, "WARNING: "
             "TSC calibration did not converge with reasonable certainty (SCV=%g > %g).  "
             "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_TOLERANCE or "
             "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.\n",
-            scv, soft_tolerance/sigma_sq);
+            scv, soft_tolerance/GASNETI_TSC_WC_SIGMA);
       }
       Tick = 1. / mean; // Inverse GHz
     } else {
