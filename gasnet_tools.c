@@ -2939,47 +2939,53 @@ extern double gasneti_calibrate_tsc(void) {
       const double max_error = ((tolerance > 0.0 ? MIN(GASNETI_TSC_WC_DFLT_TOL, tolerance)
                                                  : GASNETI_TSC_WC_DFLT_TOL)) / GASNETI_TSC_WC_SIGMA;
 
+      // Mean and variance are computed using Welford's numerically stable online algorithm.
+      // See https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online_algorithm
+      // or its cited sources:
+      //   B. P. Welford (1962)
+      //     "Note on a method for calculating corrected sums of squares and products".
+      //     Technometrics 4(3):419-420.  [http://www.jstor.org/stable/1266577]
+      //   Donald E. Knuth (1998)
+      //     The Art of Computer Programming, volume 2: Seminumerical Algorithms,
+      //     3rd edn., p. 232. Boston: Addison-Wesley.
+      int N; double mean, M2;
+
       // Tabulate some initial samples
-      int N; double Sx, Sxx;
-      for (N = Sx = Sxx = 0; N < (GASNETI_TSC_WC_MIN_ITERS - 1); ++N) {
+      for (N = mean = M2 = 0; N < (GASNETI_TSC_WC_MIN_ITERS - 1); ) {
         double sample = gasneti_approx_tick_ghz(interval_ns);
-        Sx  += sample;
-        Sxx += sample * sample;
+        double delta1 = sample - mean; mean += delta1 / ++N;
+        double delta2 = sample - mean; M2   += delta1 * delta2;
       }
 
       // Collect additional samples until convergance or iteration limit
-      double mean, scv; // SCV = "squared coefficient of variation" = (stdev / mean) ^ 2
+      double scv; // SCV = "squared coefficient of variation" = (stdev / mean) ^ 2
       const double max_scv = max_error * max_error;
       do {
         double sample = gasneti_approx_tick_ghz(interval_ns);
-        N   += 1;
-        Sx  += sample;
-        Sxx += sample * sample;
-        mean = Sx / N;
-        double variance = (N * Sxx - Sx * Sx) / (N * (N - 1));
+        double delta1 = sample - mean;  mean += delta1 / ++N;
+        double delta2 = sample - mean;  M2   += delta1 * delta2;
+        double variance = M2 / (N - 1);
         scv = variance / (mean * mean);
       } while ((scv > max_scv) && (N < GASNETI_TSC_WC_MAX_ITERS));
 
       #if GASNET_DEBUG_VERBOSE
-      // SCV is non-negative by defn, but this is not true with IEEE arithmetic.
-      // But since we've avoided sqrt(), use of MAX() here is purely cosmetic.
-      fprintf(stderr, "TSC: calibrated to SCV of %g in %d iters\n", MAX(0.,scv), N);
+      fprintf(stderr, "TSC: calibrated to SCV of %g in %d iters\n", scv, N);
       #endif
       // Check that we converged within given tolerance
       const double sigma_sq = GASNETI_TSC_WC_SIGMA * GASNETI_TSC_WC_SIGMA;
       if (check_hard && (scv*sigma_sq > hard_tolerance*hard_tolerance)) {
         gasneti_fatalerror(
-            "TSC calibration did not converge with reasonable certainty (sqrt(%g) > %g).\n"
+            "TSC calibration did not converge with reasonable certainty (%g*sqrt(%g) > %g).\n"
             "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_HARD_TOLERANCE or "
             "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.",
-            scv, hard_tolerance/GASNETI_TSC_WC_SIGMA);
+            GASNETI_TSC_WC_SIGMA, scv, hard_tolerance);
       }
       if (check_soft && (scv*sigma_sq > soft_tolerance*soft_tolerance)) {
         fprintf(stderr, "WARNING: "
-            "TSC calibration did not converge with reasonable certainty (sqrt(%g) > %g).  "
+            "TSC calibration did not converge with reasonable certainty (%g*sqrt(%g) > %g).  "
             "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_TOLERANCE or "
             "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.\n",
-            scv, soft_tolerance/GASNETI_TSC_WC_SIGMA);
+            GASNETI_TSC_WC_SIGMA, scv, soft_tolerance);
       }
       Tick = 1. / mean; // Inverse GHz
     } else {
