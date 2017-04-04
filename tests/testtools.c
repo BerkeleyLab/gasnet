@@ -278,7 +278,7 @@ int main(int argc, char **argv) {
 
     }
 
-    for (uint64_t ns_delay = 10; ns_delay <= (uint64_t)1e9; ns_delay *= 10) {
+    for (uint64_t ns_delay = 10; ns_delay < (uint64_t)2e9; ns_delay *= 14) {
       start = gasnett_ticks_now();
       int rc = gasnett_nsleep(ns_delay);
       end = gasnett_ticks_now();
