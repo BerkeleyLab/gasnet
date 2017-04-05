@@ -2852,6 +2852,8 @@ out:
 
 /* Clean ups prior to "bottom half" of gasnetc_exit() */
 extern void gasnetc_sys_fini(void) {
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
+
   /* Drain completions for sent exitcode-reduction messages */
   if (gasneti_weakatomic_read(&sys_exit_sent_fini, 0) != sys_exit_sent_init) {
     gasnetc_poll(GASNETC_DIDX_PASS_ALONE);
