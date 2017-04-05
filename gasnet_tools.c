@@ -2673,6 +2673,141 @@ static double gasneti_approx_tick_ghz(uint64_t ns_interval) {
   return (tsc-tsc_base) / (double)(ref-ref_base);
 }
 
+// Calibrate GHz rate of gasneti_ticks_now() against gasneti_wallclock_ns().
+//
+// This algorithm is based on use of upper- and lower-bounds which are collected
+// using sampling methodologies with one-sided errors, and combined via MIN()
+// and MAX() to yield an estimate that is nearly oblivous to noise and outliers.
+//
+// Consider the following code
+//   1.   A0 = sample_timer_A();
+//   2.   B0 = sample_timer_B();
+//   3.   delay();
+//   4.   B1 = sample_timer_B();
+//   5.   A1 = sample_timer_A();
+// If one assumes the delay is sufficiently long relative to the resolutions and
+// overheads of timers A and B, then the ratio (A1-A0)/(B1-B0) will always
+// over-estimate the true ratio of their rates, since the B samples are taken
+// closer togther than the A samples.  The introduction of delays between lines
+// 1 and 2, or between lines 4 and 5 can only increase the ratio, since the
+// diffence in B samples is unchanged.  Meanwhile, any delays beween lines 2 and
+// 4 will increase both the A and B intervals equally (up to their respective
+// resolutions).  A repetition of the AB-BA pattern is the basis for measuring
+// an upper bound on the true ratio of the rates of timers A and B.  By taking
+// the MIN() over many pairs a fairly tight upper-bound is obtained.  The
+// simultaneous collection of a BA-BA pattern provides a fairly tight
+// lower-bound without the need for an additional delay, and the mid-point
+// between the the two bounds is returned as the calibrated rate.
+//
+// IN: ref_res should be a estimated resolution in nanoseconds of the
+// gasneti_wallclock_ns() timer if available, or 1E9 otherwise.
+//
+// OUT: If non-NULL, err_p is a location in which to store the relative
+// error of the calibration.
+//
+// RETURN: the rate gasneti_ticks_now() in units of GHz.
+static double gasneti_calibrate_tick_ghz(uint64_t ref_res, double *err_p) {
+  #ifndef GASNETI_TICKS_WC_ITERS
+  #define GASNETI_TICKS_WC_ITERS 10
+  #endif
+  #ifndef GASNETI_TICKS_WC_MIN_INTERVAL
+  #define GASNETI_TICKS_WC_MIN_INTERVAL 100E6 // 100ms
+  #endif
+  #ifndef GASNETI_TICKS_WC_MIN_REF_TICKS
+  #define GASNETI_TICKS_WC_MIN_REF_TICKS 1000
+  #endif
+
+  // Collected start and end times:
+  uint64_t wc0[GASNETI_TICKS_WC_ITERS], wc1[GASNETI_TICKS_WC_ITERS]; // wallclock samples
+  uint64_t lo0[GASNETI_TICKS_WC_ITERS], lo1[GASNETI_TICKS_WC_ITERS]; // "too low" ticks samples
+  uint64_t hi0[GASNETI_TICKS_WC_ITERS], hi1[GASNETI_TICKS_WC_ITERS]; // "too high" ticks samples
+
+  // Collect start-time samples and compute {ticks,ref}_res.
+  uint64_t ticks_res = 1E9;
+  const int count = GASNETI_TICKS_WC_ITERS;
+  for (int i = 0; i < count; ++i) {
+    gasneti_compiler_fence(); hi0[i] = gasneti_ticks_now();
+    gasneti_compiler_fence(); wc0[i] = gasneti_wallclock_ns();
+    gasneti_compiler_fence(); lo0[i] = gasneti_ticks_now();
+    gasneti_compiler_fence();
+
+    // Ensure next samples will be distinct, and refine *_res estimates.
+    // Use of ">=" is (quite limited) protection against ticks samples going backwards
+    uint64_t tmp1, tmp2;
+    tmp1 = lo0[i];
+    while (tmp1 >= (tmp2 = gasneti_ticks_now())) { gasneti_compiler_fence(); }
+    tmp2 -= tmp1;
+    ticks_res = MIN(ticks_res, tmp2);
+    tmp1 = gasneti_wallclock_ns();
+    while (tmp1 >= (tmp2 = gasneti_wallclock_ns())) { gasneti_compiler_fence(); }
+    tmp2 -= tmp1;
+    ref_res = MIN(ref_res, tmp2);
+  }
+
+  #if GASNET_DEBUG_VERBOSE
+  fprintf(stderr, "TICKS: ticks and wallclock resolutions are %d and %d ns (or better)\n",
+          (int)ticks_res, (int)ref_res);
+  #endif
+
+  // Delay, with a default interval of MAX(100ms, 1000 ref ticks)
+  const uint64_t interval_ns = MAX(GASNETI_TICKS_WC_MIN_INTERVAL,
+                                   GASNETI_TICKS_WC_MIN_REF_TICKS * ref_res);
+  uint64_t now = wc0[count - 1];
+  uint64_t end = now + interval_ns;
+  do {
+    gasneti_nsleep(end - now);
+    now = gasneti_wallclock_ns();
+  } while (now < end);
+
+  // Collect end-time samples
+  static volatile double acc = 0.;
+  for (int i = 0; i < count; ++i) {
+    gasneti_compiler_fence(); lo1[i] = gasneti_ticks_now();
+    gasneti_compiler_fence(); wc1[i] = gasneti_wallclock_ns();
+    gasneti_compiler_fence(); hi1[i] = gasneti_ticks_now();
+    gasneti_compiler_fence();
+
+    // Busy-work to supply some inter-sample delay
+    for (int j = 0; j < i; ++j) { acc += (double)hi1[j]; }
+  }
+
+  // Compute the best lower- and upper-bounds from the collected samples
+  // Worst case each difference is too high or low by its respective granulatity
+  double lo = 0;
+  double hi = 1E12;
+  for (int i = 0; i < count; ++i) {
+    for (int j = 0; j < count; ++j) {
+      const uint64_t delta  = wc1[i] - wc0[j];
+      double new_lo = (lo1[i] - lo0[j] - ticks_res) / (double)(delta + ref_res);
+      double new_hi = (hi1[i] - hi0[j] + ticks_res) / (double)(delta - ref_res);
+      lo = MAX(lo, new_lo);
+      hi = MIN(hi, new_hi);
+      gasneti_assert(lo <= hi);
+    }
+  }
+
+  // Find mid-point beteen the two bounds, and its associated relative error
+  double mid = (hi + lo) / 2.;
+  double half_width = (hi - lo) / 2.;
+  double err = half_width / (mid + half_width);
+  if (err_p) *err_p = err;
+
+  #if GASNET_DEBUG_VERBOSE
+  double sum = 0;
+  for (int i = 0; i < count; ++i) {
+    sum += (hi1[i] - lo0[i]) / (double)(wc1[i] - wc0[i]);
+    sum += (lo1[i] - hi0[i]) / (double)(wc1[i] - wc0[i]);
+  }
+  double mean = sum / (2 * count);
+  fprintf(stderr, "TICKS: range: %ld +/- %ld  mean: %ld  offset: %ld\n",
+          (long)(1e9 * mid),  (long)(1e9 * half_width),
+          (long)(1e9 * mean), (long)(1e9 * (mean-mid)));
+  fprintf(stderr, "TICKS: calibrated to err of %g in %d iters\n", err, GASNETI_TICKS_WC_ITERS);
+  #endif
+
+  return mid;
+}
+
 #if GASNETI_CALIBRATE_TSC /* x86, x86-64, MIC and ia64 */
 extern double gasneti_calibrate_tsc_from_kernel(void) {
   double Tick = 0.0; /* Inverse GHz */
@@ -2906,88 +3041,24 @@ extern double gasneti_calibrate_tsc(void) {
     if (tsc_source == tsc_source_cpuinfo) {
       Tick = gasneti_calibrate_tsc_from_kernel();
     } else if (tsc_source == tsc_source_wallclock) {
-      #ifndef GASNETI_TSC_WC_MIN_INTERVAL
-      #define GASNETI_TSC_WC_MIN_INTERVAL 1.5E6 // 1,500,000ns = 1.5ms
-      #endif
-      #ifndef GASNETI_TSC_WC_MIN_REF_TICKS
-      #define GASNETI_TSC_WC_MIN_REF_TICKS 1000
-      #endif
-      #ifndef GASNETI_TSC_WC_MIN_ITERS
-      #define GASNETI_TSC_WC_MIN_ITERS 10
-      #endif
-      #ifndef GASNETI_TSC_WC_MAX_ITERS
-      #define GASNETI_TSC_WC_MAX_ITERS 100
-      #endif
-      #ifndef GASNETI_TSC_WC_DFLT_TOL
-      #define GASNETI_TSC_WC_DFLT_TOL 0.0005
-      #endif
-      #ifndef GASNETI_TSC_WC_SIGMA
-      #define GASNETI_TSC_WC_SIGMA 2. // rule-of-thumb: 2 X sigma = 95% confidence interval
-      #endif
-      // Measure TSC rate against walltime until convergence (or iteration limit)
-      // Worse case with defaults: 100 iterations X 1000 ref_res <= 100,000 * 5us = 0.5s
-      // More common is 10 iterations of 1.5ms each, or 0.015s
+      double err, rate = gasneti_calibrate_tick_ghz(ref_res , &err);
+      Tick = 1. / rate; // Inverse GHz
 
-      // Default interval to sleep is MAX(1.5ms, 1000 ref ticks)
-      const uint64_t interval_ns = MAX(GASNETI_TSC_WC_MIN_INTERVAL,
-                                       GASNETI_TSC_WC_MIN_REF_TICKS * ref_res);
-
-      // By default we stop when estimated relative error is below 0.05%, subject to:
-      // + confidence in our estimate as given by GASNETI_TSC_WC_SIGMA
-      // + no less than GASNETI_TSC_WC_MIN_ITERS samples (for sound statistics)
-      // + no more than GASNETI_TSC_WC_MAX_ITERS samples (bounds time spent here)
-      const double max_error = ((tolerance > 0.0 ? MIN(GASNETI_TSC_WC_DFLT_TOL, tolerance)
-                                                 : GASNETI_TSC_WC_DFLT_TOL)) / GASNETI_TSC_WC_SIGMA;
-
-      // Mean and variance are computed using Welford's numerically stable online algorithm.
-      // See https://en.wikipedia.org/wiki/Algorithms_for_calculating_variance#Online_algorithm
-      // or its cited sources:
-      //   B. P. Welford (1962)
-      //     "Note on a method for calculating corrected sums of squares and products".
-      //     Technometrics 4(3):419-420.  [http://www.jstor.org/stable/1266577]
-      //   Donald E. Knuth (1998)
-      //     The Art of Computer Programming, volume 2: Seminumerical Algorithms,
-      //     3rd edn., p. 232. Boston: Addison-Wesley.
-      int N; double mean, M2;
-
-      // Tabulate some initial samples
-      for (N = mean = M2 = 0; N < (GASNETI_TSC_WC_MIN_ITERS - 1); ) {
-        double sample = gasneti_approx_tick_ghz(interval_ns);
-        double delta1 = sample - mean; mean += delta1 / ++N;
-        double delta2 = sample - mean; M2   += delta1 * delta2;
-      }
-
-      // Collect additional samples until convergance or iteration limit
-      double scv; // SCV = "squared coefficient of variation" = (stdev / mean) ^ 2
-      const double max_scv = max_error * max_error;
-      do {
-        double sample = gasneti_approx_tick_ghz(interval_ns);
-        double delta1 = sample - mean;  mean += delta1 / ++N;
-        double delta2 = sample - mean;  M2   += delta1 * delta2;
-        double variance = M2 / (N - 1);
-        scv = variance / (mean * mean);
-      } while ((scv > max_scv) && (N < GASNETI_TSC_WC_MAX_ITERS));
-
-      #if GASNET_DEBUG_VERBOSE
-      fprintf(stderr, "TSC: calibrated to SCV of %g in %d iters\n", scv, N);
-      #endif
       // Check that we converged within given tolerance
-      const double sigma_sq = GASNETI_TSC_WC_SIGMA * GASNETI_TSC_WC_SIGMA;
-      if (check_hard && (scv*sigma_sq > hard_tolerance*hard_tolerance)) {
+      if (check_hard && (err > hard_tolerance)) {
         gasneti_fatalerror(
-            "TSC calibration did not converge with reasonable certainty (%g*sqrt(%g) > %g).\n"
+            "TSC calibration did not converge with reasonable certainty (%g > %g).\n"
             "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_HARD_TOLERANCE or "
             "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.",
-            GASNETI_TSC_WC_SIGMA, scv, hard_tolerance);
+            err, hard_tolerance);
       }
-      if (check_soft && (scv*sigma_sq > soft_tolerance*soft_tolerance)) {
+      if (check_soft && (err > soft_tolerance)) {
         fprintf(stderr, "WARNING: "
-            "TSC calibration did not converge with reasonable certainty (%g*sqrt(%g) > %g).  "
+            "TSC calibration did not converge with reasonable certainty (%g > %g).  "
             "Please see GASNet's README-tools for a description of GASNET_TSC_RATE_TOLERANCE or "
             "reconfigure with either --enable-force-gettimeofday or --enable-force-posix-realtime.\n",
-            GASNETI_TSC_WC_SIGMA, scv, soft_tolerance);
+            err, soft_tolerance);
       }
-      Tick = 1. / mean; // Inverse GHz
     } else {
       gasneti_assert(tsc_source == tsc_source_user);
     }
