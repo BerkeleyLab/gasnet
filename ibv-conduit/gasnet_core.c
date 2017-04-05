@@ -698,12 +698,7 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
    *     (SEGMENT_FAST ? MMAP_LIMIT : 0 ) + (FIREHOSE_M + FIREHOSE_MAXVICTIM_M + eplison)
    */
 
-#if PLATFORM_OS_DARWIN
-  /* Note bug #532: Pin requests >= 1GB kill Cluster X nodes */
-  limit = MIN((gasneti_getPhysMemSz(1) / 4) - 1, 0x3fffffff /*1GB-1*/);
-#else
   limit = 2 * (gasneti_getPhysMemSz(1) / 3);
-#endif
   #if defined(RLIMIT_MEMLOCK) && GASNETC_HONOR_RLIMIT_MEMLOCK
   { /* Honor soft mlock limit (build-time option) */
     struct rlimit r;
