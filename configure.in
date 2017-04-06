@@ -36,6 +36,9 @@ define([AC_PACKAGE_BUGREPORT],[http://gasnet-bugs.lbl.gov])
 define([AC_PACKAGE_URL],[http://gasnet.lbl.gov])
 define([AC_PACKAGE_VERSION],[GASNET_RELEASE_VERSION_D])
 
+ifdef([GASNET_TRIM_ACHELP], dnl must precede AC_INIT
+      [GASNET_TRIM_ACHELP(sbindir,libexecdir,sysconfdir,datadir,sharedstatedir,localstatedir,oldincludedir,infodir,localedir,mandir,htmldir,dvidir,pdfdir,psdir)])
+
 dnl the "new" init incantation
 dnl AC_INIT(AC_PACKAGE_NAME, AC_PACKAGE_VERSION, AC_PACKAGE_BUGREPORT, AC_PACKAGE_NAME, AC_PACKAGE_URL)
 dnl AC_CONFIG_SRCDIR(gasnet_tools.h)
@@ -44,6 +47,7 @@ dnl AM_INIT_AUTOMAKE([no-define])
 dnl the "old" init incantation
 AC_INIT(gasnet_tools.h)
 AC_PREREQ(2.13)
+ifdef([GASNET_NO_CHECK_OPTS],[GASNET_NO_CHECK_OPTS]) dnl Don't warn about unknown configure options (which probably belong to client), must precede AC_PRESERVE_HELP_ORDER
 ifdef([AC_PRESERVE_HELP_ORDER],[AC_PRESERVE_HELP_ORDER]) dnl select merged enable/with --help output
 GASNET_FIX_SHELL
 AC_CONFIG_AUX_DIR(config-aux)
@@ -70,9 +74,6 @@ AM_CONDITIONAL(ALWAYS_FALSECOND, test -n "")
 # If/when we raise the mimumin required version of autoconf to 2.60,
 # then we can remove this and all uses of NEED_DOCDIR.
 AM_CONDITIONAL(NEED_DOCDIR, test -z "$docdir")
-
-# Don't warn about unknown configure options (which probably belong to client)
-GASNET_NO_CHECK_OPTS
 
 # Set gasnet_toolsonly_mode based on how we Bootstrapped
 gasnet_toolsonly_mode=no
