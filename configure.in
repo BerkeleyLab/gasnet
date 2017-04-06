@@ -44,6 +44,7 @@ dnl AM_INIT_AUTOMAKE([no-define])
 dnl the "old" init incantation
 AC_INIT(gasnet_tools.h)
 AC_PREREQ(2.13)
+ifdef([AC_PRESERVE_HELP_ORDER],[AC_PRESERVE_HELP_ORDER]) dnl select merged enable/with --help output
 GASNET_FIX_SHELL
 AC_CONFIG_AUX_DIR(config-aux)
  
@@ -59,8 +60,6 @@ dnl GASNET_TOOLSONLY_TRUE_END
 
 AC_PREFIX_DEFAULT(/usr/local/gasnet)
 AM_CONFIG_HEADER(gasnet_config.h)
-
-ifdef([AC_PRESERVE_HELP_ORDER],[AC_PRESERVE_HELP_ORDER]) dnl select merged enable/with --help output
 
 GASNET_START_CONFIGURE([],[CXX CXXCPP CXXFLAGS])
 GASNET_DEFINE_CONFIGURE_VARS([GASNETI])
@@ -2235,6 +2234,8 @@ AC_DEFUN([CONDUIT_BEGIN],[
  pushdef([CONDUIT_DESC],[$2])
  # bug 1946: prevent confusing cross-conduit error messages
  GASNET_ERR_CLEANUP
+ GASNET_HELP_OUTPUT([
+CONDUIT_NAME[]-conduit options: (CONDUIT_DESC)])
  enabled_[]$1=no
 dnl GASNET_TOOLSONLY_FALSE_BEGIN
  GASNET_IF_ENABLED_WITH_AUTO($1, Enable/disable the CONDUIT_DESC (auto-detected),
@@ -2698,7 +2699,9 @@ fi
 
 dnl GASNET_TOOLSONLY_FALSE_BEGIN
 # --enable-mpi-compat controls MPI compatibility in all conduits
-GASNET_IF_ENABLED_WITH_AUTO(mpi-compat, Enable/disable MPI compatibility (auto-detected),
+GASNET_HELP_OUTPUT([
+MPI compatibility options:])
+GASNET_IF_ENABLED_WITH_AUTO(mpi-compat, Enable/disable MPI compatibility in all conduits (auto-detected),
   [enabled_mpi_compat=yes;force_mpi_compat=yes],
   enabled_mpi_compat=no,
   enabled_mpi_compat=yes)
@@ -2706,7 +2709,6 @@ dnl GASNET_TOOLSONLY_FALSE_END
 
 # --enable-mpi controls mpi-conduit
 CONDUIT_BEGIN(mpi,[Portable MPI conduit (mpi)])
-
 
 if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
   # user can explicitly configure MPI by setting MPI_CC, MPI_CFLAGS and MPI_LIBS
@@ -4052,6 +4054,8 @@ dnl GASNET_TOOLSONLY_FALSE_BEGIN
 ########################################################################
 # Configure conduit-independent spawners
 
+GASNET_HELP_OUTPUT([
+Job spawner options:])
 # Things needed by mpi spawner
 
 # All the env var settings (or other common logic) needed by the
@@ -4378,6 +4382,9 @@ fi
 ########################################################################
 # BACKTRACE support
 
+GASNET_HELP_OUTPUT([
+Backtrace options:])
+
 GASNET_IF_ENABLED_WITH_AUTO(backtrace, [support backtrace, via any mechanism (auto-detected)],
                  [use_backtrace="try"], [use_backtrace="no"], [
 		 if test "$cross_compiling" = "yes" ; then
@@ -4492,6 +4499,9 @@ if test "$use_printstack" != no; then
     AC_MSG_ERROR(User requested --enable-backtrace-printstack but printstack support was not found.)
   fi
 fi
+
+GASNET_HELP_OUTPUT([
+Misc options:])
 
 # Runtime Var Arrays
 #GASNET_IF_ENABLED_WITH_AUTO(vararray, Use stack arrays of variable size in code,

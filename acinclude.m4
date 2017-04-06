@@ -858,6 +858,20 @@ ifdef([m4_cleardivert],[],[
 
 AC_DEFUN([GASNET_OPTION_HELP],[  --$1 ]m4_substr[([                               ],len([$1]))[$2]])
 
+dnl Dumps a string directly into the option help output at this point (if supported)
+dnl Currently ignored if not AC_PRESERVE_HELP_ORDER
+AC_DEFUN([GASNET_HELP_OUTPUT],[dnl
+  ifdef([GASNET_SUPPRESSHELP], [], [
+    ifdef([AC_PRESERVE_HELP_ORDER],[
+      AC_PROVIDE_IFELSE([AC_PRESERVE_HELP_ORDER],[
+        ifdef([_m4_divert(HELP_WITH)],[dnl
+          m4_divert_text([HELP_WITH], [$1])dnl
+        ])dnl
+      ])
+    ])dnl
+  ])dnl
+])
+
 AC_DEFUN([GASNET_SUPPRESS_HELPVAR], [
   ifdef([_m4_divert(HELP_VAR)],[
     m4_cleardivert([HELP_VAR])
@@ -1879,7 +1893,7 @@ AC_DEFUN([GASNET_CHECK_CROSS_COMPILE], [
   GASNET_FUN_BEGIN([$0])
   AC_PROVIDE([$0])
   AC_MSG_CHECKING(if user enabled cross-compile)
-  GASNET_IF_ENABLED(cross-compile, [ Enable cross-compilation ], [
+  GASNET_IF_ENABLED(cross-compile, [Enable cross-compilation], [
     AC_MSG_RESULT(yes)
     CROSS_COMPILING=1
   ], [
