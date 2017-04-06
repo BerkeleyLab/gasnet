@@ -881,6 +881,51 @@ AC_DEFUN([GASNET_SUPPRESS_HELPVAR], [
   ])
 ])
 
+dnl GASNET_TRIM_ACHELP(opt1, opt2, ...)
+dnl remove a list of Autoconf-generated options (ie --opt1=, --opt2= ) from --help
+define([GASNET_TRIM_ACHELP], [
+  ifdef([_AC_INIT_HELP],[
+    m4_copy([_AC_INIT_HELP],[_GASNET_INIT_HELP])
+    m4_defun([_AC_INIT_HELP],[patsubst(m4_defn([_GASNET_INIT_HELP]),[^.*--\(]m4_join([\|],$@)[\)=.*
+],[])]) dnl do NOT reindent this line!!!
+  ])
+  dnl Also remove program transform help output
+  ifdef([AC_ARG_PROGRAM],[
+    m4_copy([AC_ARG_PROGRAM],[_GASNET_ARG_PROGRAM])
+    m4_defun([AC_ARG_PROGRAM],[patsubst(m4_defn([_GASNET_ARG_PROGRAM]),[HELP_BEGIN],[KILL])])
+  ])
+  dnl and automake's dependency tracking help and enable
+  ifdef([AM_DEP_TRACK],[
+    m4_copy([AM_DEP_TRACK],[_GASNET_DEP_TRACK])
+    m4_defun([AM_DEP_TRACK],[
+      m4_pushdef([AC_ARG_ENABLE],[enable_dependency_tracking=no;])
+      _GASNET_DEP_TRACK
+      m4_popdef([AC_ARG_ENABLE])
+    ])
+  ])
+  dnl and automake's silent-rules help and enable
+  ifdef([AM_SILENT_RULES],[
+    m4_copy([AM_SILENT_RULES],[_GASNET_SILENT_RULES])
+    m4_defun([AM_SILENT_RULES],[
+      m4_pushdef([AC_ARG_ENABLE],[enable_silent_rules=no;])
+      _GASNET_SILENT_RULES
+      m4_popdef([AC_ARG_ENABLE])
+    ])
+  ])
+])
+
+dnl Perform AC_DISABLE_OPTION_CHECKING if it exists
+define([GASNET_NO_CHECK_OPTS],[
+  ifdef([AC_DISABLE_OPTION_CHECKING],[AC_DISABLE_OPTION_CHECKING])
+  dnl also fixup help
+  pushdef([optcheckpat],[^.*--disable-option-checking.*
+]) dnl do NOT reindent this line!!!
+  ifdef([AC_PRESERVE_HELP_ORDER],[
+    m4_copy([AC_PRESERVE_HELP_ORDER],[_GASNET_PRESERVE_HELP_ORDER])
+    m4_defun([AC_PRESERVE_HELP_ORDER],[patsubst(m4_defn([_GASNET_PRESERVE_HELP_ORDER]),optcheckpat,[])])
+  ])
+])
+
 dnl provide a --with-foo=bar configure option
 dnl action-withval runs for a named value in $withval (or withval=yes if named arg missing)
 dnl action-without runs for --without-foo or --with-foo=no
@@ -2743,7 +2788,3 @@ fi
 GASNET_FUN_END([$0($1,$2,...)])
 ])
 
-dnl We want AC_DISABLE_OPTION_CHECKING if it exists
-ifdef([AC_DISABLE_OPTION_CHECKING],
-      [define([GASNET_NO_CHECK_OPTS], defn([AC_DISABLE_OPTION_CHECKING]))],
-      [define([GASNET_NO_CHECK_OPTS], [])])
