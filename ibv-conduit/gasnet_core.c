@@ -680,37 +680,60 @@ static void gasnetc_fakepin(uintptr_t limit, uintptr_t step) {
 }
 #endif
 
+#ifndef GASNETC_PHYSMEM_MIN
+#define GASNETC_PHYSMEM_MIN (128*1024*1024)
+#endif
+
+static void gasnetc_physmem_check(const char *reason, uintptr_t limit) {
+  if (limit < GASNETC_PHYSMEM_MIN) {
+    char min_display[16];
+    char limit_display[16];
+    gasneti_format_number(GASNETC_PHYSMEM_MIN, min_display, sizeof(min_display), 1);
+    gasneti_format_number(limit, limit_display, sizeof(limit_display), 1);
+    gasneti_fatalerror(
+            "%s yields GASNET_PHYSMEM_MAX of %llu (%s), "
+            "which is less than the minimum supported value of %s.",
+            reason, (unsigned long long)limit, limit_display, min_display);
+  }
+}
+
 /* Search for the total amount of memory we can pin per process.
  */
 static void gasnetc_init_pin_info(int first_local, int num_local) {
   gasnetc_pin_info_t *all_info = gasneti_malloc(gasneti_nodes * sizeof(gasnetc_pin_info_t));
-  unsigned long limit;
-  int do_probe = 1;
+  int do_probe = ! gasneti_getenv_yesno_withdefault("GASNET_PHYSMEM_NOPROBE", 0);
   int i;
 
   /* 
    * We bound our search by the smallest of:
-   *   2/3 of physical memory (1/4 or 1GB for Darwin)
+   *   env(GASNET_PHYSMEM_MAX) as described in README
    *   User's current (soft) mlock limit (optional)
-   *   env(GASNET_PHYSMEM_MAX)
    *   if FIREHOSE_M and FIREHOSE_MAXVICTIM_M are both set:
    *     (SEGMENT_FAST ? MMAP_LIMIT : 0 ) + (FIREHOSE_M + FIREHOSE_MAXVICTIM_M + eplison)
+   *
+   * Unless env(GASNET_PHYSMEM_NOPROBE) is set to a "true" value, we will verify the value.
    */
 
-#if PLATFORM_OS_DARWIN
-  /* Note bug #532: Pin requests >= 1GB kill Cluster X nodes */
-  limit = MIN((gasneti_getPhysMemSz(1) / 4) - 1, 0x3fffffff /*1GB-1*/);
-#else
-  limit = 2 * (gasneti_getPhysMemSz(1) / 3);
+  #ifndef GASNETC_DEFAULT_PHYSMEM_MAX
+  #define GASNETC_DEFAULT_PHYSMEM_MAX "2/3"
+  #endif
+  uint64_t limit = gasneti_getenv_memsize_withdefault(
+                           "GASNET_PHYSMEM_MAX", GASNETC_DEFAULT_PHYSMEM_MAX,
+                           GASNETC_PHYSMEM_MIN, gasneti_getPhysMemSz(1));
+#if PLATFORM_ARCH_32
+   limit = MIN(limit, 0xFFFFFFFF);
 #endif
+
   #if defined(RLIMIT_MEMLOCK) && GASNETC_HONOR_RLIMIT_MEMLOCK
   { /* Honor soft mlock limit (build-time option) */
     struct rlimit r;
     if ((getrlimit(RLIMIT_MEMLOCK, &r) == 0) && (r.rlim_cur != RLIM_INFINITY)) {
       limit = MIN(limit, r.rlim_cur);
+      gasnetc_physmem_check("Application of RLIMIT_MEMLOCK", limit);
     }
   }
   #endif
+
   { /* Honor Firehose params if set */
     unsigned long fh_M = gasneti_parse_int(gasnet_getenv("GASNET_FIREHOSE_M"),(1<<20));
     unsigned long fh_VM = gasneti_parse_int(gasnet_getenv("GASNET_FIREHOSE_MAXVICTIM_M"),(1<<20));
@@ -720,24 +743,12 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
       #else
 	limit = MIN(limit, (fh_M + fh_VM + GASNETI_MMAP_GRANULARITY));
       #endif
+      limit = GASNETI_PAGE_ALIGNDOWN(limit);
+      gasnetc_physmem_check("Application of GASNET_FIREHOSE_M and GASNET_FIREHOSE_MAXVICTIM_M", limit);
     }
   }
-  { /* Honor PHYSMEM_MAX if set */
-    unsigned long tmp = gasneti_getenv_int_withdefault("GASNET_PHYSMEM_MAX", 0, 1);
-    if (tmp) {
-      limit = MIN(limit, tmp);
-      if_pf (gasneti_getenv_yesno_withdefault("GASNET_PHYSMEM_NOPROBE", 0)) {
-	/* Force use of PHYSMEM_MAX w/o probing */
-	limit = tmp;
-	do_probe = 0;
-      }
-    }
-  }
-  limit = GASNETI_PAGE_ALIGNDOWN(limit);
 
-  if_pf (limit == 0) {
-    gasneti_fatalerror("Failed to determine the available physical memory");
-  }
+  GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_PHYSMEM_MAX=%llu", (unsigned long long)limit));
 
   gasnetc_pin_info.memory    = ~((uintptr_t)0);
   gasnetc_pin_info.num_local = num_local;
@@ -783,6 +794,7 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
   for (i = 0; i < gasneti_nodes; i++) {
     gasnetc_pin_info_t *info = &all_info[i];
 
+    limit = MIN(limit, info->memory);
     info->memory = GASNETI_PAGE_ALIGNDOWN(info->memory / info->num_local);
     info->regions /= info->num_local;
 
@@ -790,6 +802,8 @@ static void gasnetc_init_pin_info(int first_local, int num_local) {
     gasnetc_pin_info.regions = MIN(gasnetc_pin_info.regions, info->regions);
   }
   gasneti_free(all_info);
+
+  gasnetc_physmem_check("Probing O/S limits and HCA capabilities", limit);
 }
 
 #if GASNET_TRACE
