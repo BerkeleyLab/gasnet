@@ -2669,6 +2669,8 @@ gasneti_count0s(const void * src, size_t bytes) {
 #endif
 static int gasneti_clock_is_init = 0;
 static void gasneti_clock_init(void) {
+  if (gasneti_clock_is_init) return;
+  gasneti_clock_is_init = 1;
   #if HAVE_CLOCK_GETTIME
     #ifdef _POSIX_MONOTONIC_CLOCK
     struct timespec tm;
@@ -2690,7 +2692,6 @@ static void gasneti_clock_init(void) {
   #elif GASNET_DEBUG_VERBOSE
     fprintf(stderr, "TICKS: using gettimeofday()\n");
   #endif
-  gasneti_clock_is_init = 1;
 }
 GASNETI_INLINE(gasneti_clock_gettime)
 void gasneti_clock_gettime(gasneti_clock_t *x) {
@@ -2709,25 +2710,25 @@ uint64_t gasneti_clock_getns(void) {
 }
 
 // Estimate gasneti_ticks_now() rate in GHz by comparision to
-// gasneti_wallclock_ns() over an interval of the specified length.
+// the OS-provided wallclock an interval of the specified length.
 static double gasneti_approx_tick_ghz(uint64_t ns_interval) {
   gasneti_assert(ns_interval > 0);
   uint64_t ref, ref_base;
   uint64_t tsc, tsc_base;
   uint64_t goal;
-  ref_base = gasneti_wallclock_ns();
+  ref_base = gasneti_clock_getns();
   tsc_base = gasneti_ticks_now();
   ref = ref_base;
   goal = ref_base + ns_interval;
   do {
     gasneti_nsleep(goal - ref);
-    ref = gasneti_wallclock_ns();
+    ref = gasneti_clock_getns();
     tsc = gasneti_ticks_now();
   } while (ref < goal);
   return (tsc-tsc_base) / (double)(ref-ref_base);
 }
 
-// Calibrate GHz rate of gasneti_ticks_now() against gasneti_wallclock_ns().
+// Calibrate GHz rate of gasneti_ticks_now() against the OS-provided wallclock.
 //
 // This algorithm is based on use of upper- and lower-bounds which are collected
 // using sampling methodologies with one-sided errors, and combined via MIN()
@@ -2754,7 +2755,7 @@ static double gasneti_approx_tick_ghz(uint64_t ns_interval) {
 // between the the two bounds is returned as the calibrated rate.
 //
 // IN: ref_res should be a estimated resolution in nanoseconds of the
-// gasneti_wallclock_ns() timer if available, or 1E9 otherwise.
+// gasneti_clock_getns() timer if available, or 1E9 otherwise.
 //
 // OUT: If non-NULL, err_p is a location in which to store the relative
 // error of the calibration.
@@ -2772,7 +2773,7 @@ static double gasneti_calibrate_tick_ghz(uint64_t ref_res, double *err_p) {
   #endif
 
   // Collected start and end times:
-  uint64_t wc0[GASNETI_TICKS_WC_ITERS], wc1[GASNETI_TICKS_WC_ITERS]; // wallclock samples
+  gasneti_clock_t wc0[GASNETI_TICKS_WC_ITERS], wc1[GASNETI_TICKS_WC_ITERS]; // wallclock samples
   uint64_t lo0[GASNETI_TICKS_WC_ITERS], lo1[GASNETI_TICKS_WC_ITERS]; // "too low" ticks samples
   uint64_t hi0[GASNETI_TICKS_WC_ITERS], hi1[GASNETI_TICKS_WC_ITERS]; // "too high" ticks samples
 
@@ -2781,7 +2782,7 @@ static double gasneti_calibrate_tick_ghz(uint64_t ref_res, double *err_p) {
   const int count = GASNETI_TICKS_WC_ITERS;
   for (int i = 0; i < count; ++i) {
     gasneti_compiler_fence(); hi0[i] = gasneti_ticks_now();
-    gasneti_compiler_fence(); wc0[i] = gasneti_wallclock_ns();
+    gasneti_compiler_fence(); gasneti_clock_gettime(&wc0[i]);
     gasneti_compiler_fence(); lo0[i] = gasneti_ticks_now();
     gasneti_compiler_fence();
 
@@ -2792,8 +2793,8 @@ static double gasneti_calibrate_tick_ghz(uint64_t ref_res, double *err_p) {
     while (tmp1 >= (tmp2 = gasneti_ticks_now())) { gasneti_compiler_fence(); }
     tmp2 -= tmp1;
     ticks_res = MIN(ticks_res, tmp2);
-    tmp1 = gasneti_wallclock_ns();
-    while (tmp1 >= (tmp2 = gasneti_wallclock_ns())) { gasneti_compiler_fence(); }
+    tmp1 = gasneti_clock_getns();
+    while (tmp1 >= (tmp2 = gasneti_clock_getns())) { gasneti_compiler_fence(); }
     tmp2 -= tmp1;
     ref_res = MIN(ref_res, tmp2);
   }
@@ -2806,18 +2807,18 @@ static double gasneti_calibrate_tick_ghz(uint64_t ref_res, double *err_p) {
   // Delay, with a default interval of MAX(100ms, 1000 ref ticks)
   const uint64_t interval_ns = MAX(GASNETI_TICKS_WC_MIN_INTERVAL,
                                    GASNETI_TICKS_WC_MIN_REF_TICKS * ref_res);
-  uint64_t now = wc0[count - 1];
+  uint64_t now = gasneti_clock_to_ns(wc0[count - 1]);
   uint64_t end = now + interval_ns;
   do {
     gasneti_nsleep(end - now);
-    now = gasneti_wallclock_ns();
+    now = gasneti_clock_getns();
   } while (now < end);
 
   // Collect end-time samples
   static volatile double acc = 0.;
   for (int i = 0; i < count; ++i) {
     gasneti_compiler_fence(); lo1[i] = gasneti_ticks_now();
-    gasneti_compiler_fence(); wc1[i] = gasneti_wallclock_ns();
+    gasneti_compiler_fence(); gasneti_clock_gettime(&wc1[i]);
     gasneti_compiler_fence(); hi1[i] = gasneti_ticks_now();
     gasneti_compiler_fence();
 
@@ -2831,7 +2832,7 @@ static double gasneti_calibrate_tick_ghz(uint64_t ref_res, double *err_p) {
   double hi = 1E12;
   for (int i = 0; i < count; ++i) {
     for (int j = 0; j < count; ++j) {
-      const uint64_t delta  = wc1[i] - wc0[j];
+      const uint64_t delta  = gasneti_clock_to_ns(wc1[i]) - gasneti_clock_to_ns(wc0[j]);
       double new_lo = (lo1[i] - lo0[j] - ticks_res) / (double)(delta + ref_res);
       double new_hi = (hi1[i] - hi0[j] + ticks_res) / (double)(delta - ref_res);
       lo = MAX(lo, new_lo);
@@ -2849,8 +2850,9 @@ static double gasneti_calibrate_tick_ghz(uint64_t ref_res, double *err_p) {
   #if GASNET_DEBUG_VERBOSE
   double sum = 0;
   for (int i = 0; i < count; ++i) {
-    sum += (hi1[i] - lo0[i]) / (double)(wc1[i] - wc0[i]);
-    sum += (lo1[i] - hi0[i]) / (double)(wc1[i] - wc0[i]);
+    const double delta  = gasneti_clock_to_ns(wc1[i]) - gasneti_clock_to_ns(wc0[i]);
+    sum += (hi1[i] - lo0[i]) / delta;
+    sum += (lo1[i] - hi0[i]) / delta;
   }
   double mean = sum / (2 * count);
   fprintf(stderr, "TICKS: range: %ld +/- %ld  mean: %ld  offset: %ld\n",
@@ -3065,8 +3067,11 @@ extern double gasneti_calibrate_tsc(void) {
       gasneti_envdbl_display("GASNET_TSC_RATE_HARD_TOLERANCE", hard_tolerance, hard_tol_dflt); \
     } while (0)
 
+    // Determine/initialize the best available wallclock timer
+    gasneti_clock_init();
+
     #if GASNET_DEBUG_VERBOSE
-    uint64_t begin_tsc_calibration = gasneti_wallclock_ns();
+    uint64_t begin_tsc_calibration = gasneti_clock_getns();
     #endif
 
     // Approximate the resolution of the reference clock in ns (if needed)
@@ -3077,14 +3082,14 @@ extern double gasneti_calibrate_tsc(void) {
       uint64_t sum = 0;
       for (int i=0; (i < 10) && (ref_res > max_res) && (sum < max_sum); i++) {
         uint64_t start, next;
-        start = gasneti_wallclock_ns();
-        while (start == (next = gasneti_wallclock_ns()));
+        start = gasneti_clock_getns();
+        while (start == (next = gasneti_clock_getns()));
         uint64_t delta = (next-start);
         ref_res = MIN(ref_res, delta);
         sum += delta;
       }
       #if GASNET_DEBUG_VERBOSE
-      fprintf(stderr, "TSC: reference resolution is %d ns or better\n", (int)ref_res);
+      fprintf(stderr, "TICKS: reference resolution is %d ns or better\n", (int)ref_res);
       #endif
       if_pf (ref_res > max_res) {
         gasneti_fatalerror("Reference timer is not acceptable for calibration of the TSC.\n"
@@ -3148,13 +3153,13 @@ extern double gasneti_calibrate_tsc(void) {
         }
       }
       #if GASNET_DEBUG_VERBOSE
-      fprintf(stderr, "TSC: relative to wallclock = %g\n", best);
+      fprintf(stderr, "TICKS: relative to wallclock = %g\n", best);
       #endif
     }
 
     #if GASNET_DEBUG_VERBOSE
-    fprintf(stderr, "TSC: rate calibrated to %g MHz in %g sec\n",
-            1e3/Tick, 1e-9*(gasneti_wallclock_ns()-begin_tsc_calibration));
+    fprintf(stderr, "TICKS: rate calibrated to %g MHz in %g sec\n",
+            1e3/Tick, 1e-9*(gasneti_clock_getns()-begin_tsc_calibration));
     #endif
   #endif
 
