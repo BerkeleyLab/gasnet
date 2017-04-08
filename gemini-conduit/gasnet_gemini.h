@@ -325,11 +325,6 @@ void gasnetc_free_post_descriptor(gasnetc_post_descriptor_t *pd);
 
 int gasnetc_try_pin(void *addr, uintptr_t size);
 
-/* default fraction of phys mem to assume is pinnable under CNL */
-#ifndef GASNETC_DEFAULT_PHYSMEM_PINNABLE_RATIO
-#define GASNETC_DEFAULT_PHYSMEM_PINNABLE_RATIO 0.80
-#endif
-
 /* exit related */
 volatile int gasnetc_shutdownInProgress;
 double gasnetc_shutdown_seconds; /* number of seconds to poll before forceful shutdown */

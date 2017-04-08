@@ -255,14 +255,17 @@ GASNET_GNI_BTE_MULTI_CHANNEL
   bandwidth for large transfers.
   The default is "1" (enabled).
 
-GASNET_PHYSMEM_PINNABLE_RATIO - default 0.80
-GASNET_PHYSMEM_MAX - default <size of physmem> * <pinnable ratio>
-GASNET_PHYSMEM_NOPROBE - default 0
-  The logic for setting the maximum size of the segment is copied from
-  portals-conduit, which uses the following setting to control the
-  maximum size of the segment.  If you set PINNABLE_RATIO 1 (or higher)
-  and PHYSMEM_MAX, and PHYSMEM_NOPROBE you will bypass all the checking.
-  Of course mmap might fail, or you might be swapping the segment...
+GASNET_PHYSMEM_MAX
+  If set, this parameter is used to determine the maximum amount of memory
+  the conduit may pin.  This limits how large the GASNet segment can be, and
+  how much memory is available for firehose (if enabled, see below).
+  The value may specify either a relative or absolute size.  If the value
+  parses as a floating-point value less than 1.0 (including fractions such
+  as "5/8"), then this is taken as a fraction of the (estimated) physical
+  memory.  Otherwise the value is taken as an absolute memory size, with "M",
+  "G" and "T" suffixes accepted to indicate units of Megabytes, Gigabytes,
+  and Terabytes, respectively.
+  The default is "0.8" (80% of estimated physical memory).
 
 GASNET_USE_UDREG
   AVAILABLE UNLESS CONFIGURED WITH --disable-gni-udreg.

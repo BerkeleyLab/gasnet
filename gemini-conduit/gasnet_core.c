@@ -145,6 +145,7 @@ static int gasnetc_bootstrapInit(int *argc, char ***argv) {
   /* As good a place as any for this: */
   if (0 == gasneti_mynode) {
     static const char *old_vars[][3] = {
+        {"GASNET_PHYSMEM_PINNABLE_RATIO", "removed", "GASNET_PHYSMEM_MAX"},
         {"GASNETC_GNI_MIN_NUM_PD", "removed", "GASNET_GNI_NUM_PD"},
         {"GASNETC_GNI_MIN_BOUNCE_SIZE", "removed", "GASNET_GNI_BOUNCE_SIZE"},
         {"GASNETC_GNI_AM_MEM_CONSISTENCY", "removed", NULL},
@@ -487,6 +488,13 @@ static int try_pin(uintptr_t size) {
 }
 #endif
 
+#ifndef GASNETC_DEFAULT_PHYSMEM_MAX
+#define GASNETC_DEFAULT_PHYSMEM_MAX "0.8"
+#endif
+#ifndef GASNETC_PHYSMEM_MIN
+#define GASNETC_PHYSMEM_MIN (128*1024*1024)
+#endif
+
 /* ---------------------------------------------------------------------------------
  * Determine the largest amount of memory that can be pinned on the node.
  * --------------------------------------------------------------------------------- */
@@ -499,8 +507,6 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t msgspace)
 #endif
 
   uintptr_t limit;
-  uintptr_t low;
-  uintptr_t high;
 
   /* On CNL, if we try to pin beyond what the OS will allow, the job is killed.
    * So, there is really no way (that we know of) to determine the EXACT maximum
@@ -509,16 +515,14 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t msgspace)
    * memory.  If that is too big, then the job will be killed at startup.
    * The gasneti_mmapLimit() ensures limit is per compute node, not per process.
    */
-  uintptr_t pm_limit = gasneti_getPhysMemSz(1) *
-                      gasneti_getenv_dbl_withdefault(
-                        "GASNET_PHYSMEM_PINNABLE_RATIO", 
-                        GASNETC_DEFAULT_PHYSMEM_PINNABLE_RATIO);
+  uintptr_t pm_limit = gasneti_getenv_memsize_withdefault(
+                           "GASNET_PHYSMEM_MAX", GASNETC_DEFAULT_PHYSMEM_MAX,
+                           GASNETC_PHYSMEM_MIN, gasneti_getPhysMemSz(1));
 
 #if GASNET_CONDUIT_GEMINI
   /* Even on large memory nodes on Hopper, this appears to be the NIC's limit: */
   pm_limit = MIN(pm_limit, 24UL << 30 /* 24 GB */);
 #endif
-  pm_limit = gasneti_getenv_int_withdefault("GASNET_PHYSMEM_MAX", pm_limit, 1);
 
   /* msgspace is allocated from hugepages (granularity) in every proc */
   msgspace = GASNETI_ALIGNUP(msgspace, granularity) * gasneti_nodemap_local_count;
@@ -532,41 +536,11 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t msgspace)
                             &gasnetc_bootstrapExchange_gni,
                             &gasnetc_bootstrapBarrier_gni);
 
-
-  if_pf (gasneti_getenv_yesno_withdefault("GASNET_PHYSMEM_NOPROBE", 0)) {
-    /* User says to trust them... */
-    return (uintptr_t)limit;
-  }
-
-#if 0 /* TODO: do we ever need to actually try_pin() the mmapLimit result? */
-  /* Allocate a block of memory on which to try pinning */
-  low = high = try_pin_alloc(limit, granularity);
-
-  /* See how much of the block can be pinned */
-  if (!try_pin(high)) {
-    /* Binary search */
-    low = 0;
-    while ((high - low) > granularity) {
-      uint64_t mid = (low + high)/2;
-      if (try_pin(mid)) {
-        low = mid;
-      } else {
-        high = mid;
-      }
-    }
-  }
-
-  /* Free the block we've been pinning */
-  try_pin_free();
-#else
-  low = limit;
-#endif
-
-  if (low < granularity) {
+  if (limit < granularity) {
     gasnetc_GNIT_Abort("Unable to alloc and pin minimal memory of size %d bytes",(int)granularity);
   }
-  GASNETI_TRACE_PRINTF(C,("MaxPinMem = %lu",(unsigned long)low));
-  return (uintptr_t)low;
+  GASNETI_TRACE_PRINTF(C,("MaxPinMem = %lu",(unsigned long)limit));
+  return (uintptr_t)limit;
 }
 
 
@@ -845,9 +819,9 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasnetc_use_firehose = gasneti_getenv_yesno_withdefault("GASNET_USE_FIREHOSE", 1);
   if (gasnetc_use_firehose && gasneti_nodes > 1) {
     /* Configure firehose with capacity to pin the out-of-segment memory twice over */
-    uintptr_t pm_limit = gasneti_getPhysMemSz(1) *
-                         gasneti_getenv_dbl_withdefault("GASNET_PHYSMEM_PINNABLE_RATIO",
-                                                        GASNETC_DEFAULT_PHYSMEM_PINNABLE_RATIO);
+    uintptr_t pm_limit = gasneti_getenv_memsize_withdefault(
+                           "GASNET_PHYSMEM_MAX", GASNETC_DEFAULT_PHYSMEM_MAX,
+                           0, gasneti_getPhysMemSz(1));
     uintptr_t firehose_mem = 2 * (pm_limit - segsize);
     size_t firehose_reg = INT_MAX; /* Will be reduced by firehose_init */
     size_t max_pinsize = 0x200000; /* 2M default - env var can override */
