@@ -165,6 +165,17 @@ popdef([lowername])
 GASNET_FUN_END([$0($1)])
 ])
 
+ifdef([AC_AUTOCONF_VERSION],[ dnl fix a buggy AC_CHECK_SIZEOF(type *) in AC 2.66
+  m4_if(m4_defn([AC_AUTOCONF_VERSION]), [2.66], [ 
+    m4_copy([AC_CHECK_SIZEOF],[_GASNET_CHECK_SIZEOF])
+    m4_defun([AC_CHECK_SIZEOF],[
+      m4_pushdef([AS_LITERAL_IF],[])
+      _GASNET_CHECK_SIZEOF($@)
+      m4_popdef([AS_LITERAL_IF])
+    ])
+  ])
+])
+
 dnl do AC_CHECK_SIZEOF and also AC_SUBST the result, second arg is optional prefix
 AC_DEFUN([GASNET_CHECK_SIZEOF],[
   GASNET_FUN_BEGIN([$0($1,$2)])
