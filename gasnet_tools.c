@@ -444,6 +444,26 @@ extern uint64_t gasneti_gettimeofday_us(void) {
   return retval;
 }
 
+extern uint64_t gasneti_wallclock_ns(void) {
+  #if HAVE_CLOCK_GETTIME
+    struct timespec tm;
+    #if defined(_POSIX_MONOTONIC_CLOCK)
+      static clockid_t clockid = CLOCK_MONOTONIC;
+      if_pf (clock_gettime(clockid,&tm)) {
+        clockid = CLOCK_REALTIME; // next call will succeed
+        gasneti_assert_zeroret(clock_gettime(CLOCK_REALTIME,&tm));
+      }
+    #else
+      gasneti_assert_zeroret(clock_gettime(CLOCK_REALTIME,&tm));
+    #endif
+    return tm.tv_sec*((uint64_t)1E9)+tm.tv_nsec;
+  #else
+    struct timeval tv;
+    gasneti_assert_zeroret(gettimeofday(&tv, NULL));
+    return ((uint64_t)tv.tv_sec)*1000000000 + ((uint64_t)tv.tv_usec)*1000;
+  #endif
+}
+
 extern double gasneti_tick_metric(int idx) {
   static double *_gasneti_tick_metric = NULL;
   gasneti_assert(idx <= 1);
