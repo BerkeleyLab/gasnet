@@ -553,27 +553,7 @@
 extern uint64_t gasneti_gettimeofday_us(void);
 
 /* completely portable (low-performance) potentially-nanosecond granularity wall-clock time */
-#if HAVE_CLOCK_GETTIME
-  #include <time.h>
-#endif
-GASNETI_INLINE(gasneti_wallclock_ns)
-uint64_t gasneti_wallclock_ns(void) {
-  #if HAVE_CLOCK_GETTIME
-    struct timespec tm;
-    #if defined(_POSIX_MONOTONIC_CLOCK) && 0
-      /* this is probably the better timer to use, but
-         some implementations define the symbol and then fail at runtime
-         TODO: sort this out at configure time (unless cross-compiling)?
-       */
-      gasneti_assert_zeroret(clock_gettime(CLOCK_MONOTONIC,&tm));
-    #else
-      gasneti_assert_zeroret(clock_gettime(CLOCK_REALTIME,&tm));
-    #endif
-    return tm.tv_sec*((uint64_t)1E9)+tm.tv_nsec;
-  #else
-    return 1000 * gasneti_gettimeofday_us();
-  #endif
-}
+extern uint64_t gasneti_wallclock_ns(void);
 
 /* portable implementations */
 #if defined(GASNETI_FORCE_GETTIMEOFDAY) || defined(GASNETI_USING_GETTIMEOFDAY)
