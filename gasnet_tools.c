@@ -2654,6 +2654,60 @@ gasneti_count0s(const void * src, size_t bytes) {
 /* ------------------------------------------------------------------------------------ */
 /* "out-of-line" helper(s) for calibration of timers */
 
+// gasneti_clock_t: (struct timespec) or (struct timeval)
+// gasneti_clock_init(x):     required initialization (not thread-safe)
+// gasneti_clock_gettime(&x): record current wallclock as opaque gasneti_clock_t (struct)
+// gasneti_clock_to_ns(x):    convert gasneti_clock_t to nanoseconds since arbitrary base
+// gasneti_clock_getns(x):    return current wallcock as nanoseconds since arbitrary base
+#if HAVE_CLOCK_GETTIME
+  static clockid_t gasneti_clockid = CLOCK_REALTIME;
+  typedef struct timespec gasneti_clock_t;
+  #define gasneti_clock_to_ns(x) ((x).tv_sec*((uint64_t)1E9)+(x).tv_nsec)
+#else
+  typedef struct timeval gasneti_clock_t;
+  #define gasneti_clock_to_ns(x) ((x).tv_sec*((uint64_t)1E9)+1000*(x).tv_usec)
+#endif
+static int gasneti_clock_is_init = 0;
+static void gasneti_clock_init(void) {
+  #if HAVE_CLOCK_GETTIME
+    #ifdef _POSIX_MONOTONIC_CLOCK
+    struct timespec tm;
+    if (!clock_gettime(CLOCK_MONOTONIC, &tm)) {
+      // Monotonic but subject to rate adjustment by NTP
+      gasneti_clockid = CLOCK_MONOTONIC;
+      #if GASNET_DEBUG_VERBOSE
+      fprintf(stderr, "TICKS: using clock_gettime(CLOCK_MONOTONIC)\n");
+      #endif
+    } else
+    #endif
+    {
+      // May be adjusted by both ntp and by clock_settime()
+      gasneti_assert(gasneti_clockid == CLOCK_REALTIME);
+      #if GASNET_DEBUG_VERBOSE
+      fprintf(stderr, "TICKS: using clock_gettime(CLOCK_REALTIME)\n");
+      #endif
+    }
+  #elif GASNET_DEBUG_VERBOSE
+    fprintf(stderr, "TICKS: using gettimeofday()\n");
+  #endif
+  gasneti_clock_is_init = 1;
+}
+GASNETI_INLINE(gasneti_clock_gettime)
+void gasneti_clock_gettime(gasneti_clock_t *x) {
+  gasneti_assert(gasneti_clock_is_init);
+  #if HAVE_CLOCK_GETTIME
+    gasneti_assert_zeroret(clock_gettime(gasneti_clockid, x));
+  #else
+    gasneti_assert_zeroret(gettimeofday(x, NULL));
+  #endif
+}
+GASNETI_INLINE(gasneti_clock_getns)
+uint64_t gasneti_clock_getns(void) {
+  gasneti_clock_t tmp;
+  gasneti_clock_gettime(&tmp);
+  return gasneti_clock_to_ns(tmp);
+}
+
 // Estimate gasneti_ticks_now() rate in GHz by comparision to
 // gasneti_wallclock_ns() over an interval of the specified length.
 static double gasneti_approx_tick_ghz(uint64_t ns_interval) {
