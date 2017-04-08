@@ -143,7 +143,7 @@ static int gasnetc_bootstrapInit(int *argc, char ***argv) {
   #endif
 
   /* As good a place as any for this: */
-  if (0 == gasneti_mynode) {
+  if (!gasneti_mynode && !gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
     static const char *old_vars[][3] = {
         {"GASNET_PHYSMEM_PINNABLE_RATIO", "removed", "GASNET_PHYSMEM_MAX"},
         {"GASNETC_GNI_MIN_NUM_PD", "removed", "GASNET_GNI_NUM_PD"},
