@@ -111,6 +111,7 @@
 #undef PLATFORM_OS_CNL
 #undef PLATFORM_OS_BGP
 #undef PLATFORM_OS_BGQ
+#undef PLATFORM_OS_WSL
 #undef PLATFORM_OS_K42
 #undef PLATFORM_OS_UCLINUX
 #undef PLATFORM_OS_LINUX
@@ -676,6 +677,10 @@
 #elif defined(GASNETI_ARCH_BGQ) || defined(__bgq__)
   #define PLATFORM_OS_BGQ 1
   #define PLATFORM_OS_FAMILYNAME BGQ
+
+#elif defined(GASNETI_ARCH_WSL)
+  #define PLATFORM_OS_WSL 1
+  #define PLATFORM_OS_FAMILYNAME WSL
 
 #elif defined(__K42)
   #define PLATFORM_OS_K42 1
