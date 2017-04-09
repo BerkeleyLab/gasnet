@@ -3100,7 +3100,8 @@ extern double gasneti_calibrate_tsc(void) {
       const uint64_t max_res = 5000;     // We actually only care that it is below 5us
       const uint64_t max_sum = 20000000; // And we don't want to spend more than 20ms here
       uint64_t sum = 0;
-      for (int i=0; (i < 10) && (ref_res > max_res) && (sum < max_sum); i++) {
+      int i;
+      for (i=0; (i < 1000) && (ref_res > max_res) && (i < 10 || sum < max_sum); i++) {
         uint64_t start, next;
         start = gasneti_clock_getns();
         while (start == (next = gasneti_clock_getns()));
@@ -3109,11 +3110,13 @@ extern double gasneti_calibrate_tsc(void) {
         sum += delta;
       }
       #if GASNET_DEBUG_VERBOSE
-      fprintf(stderr, "TICKS: reference resolution is %d ns or better\n", (int)ref_res);
+      fprintf(stderr, "TICKS: reference resolution is %d ns or better (in %d iters, %lu ns)\n",
+                      (int)ref_res, i, (unsigned long)sum);
       #endif
       if_pf (ref_res > max_res) {
-        gasneti_fatalerror("Reference timer is not acceptable for calibration of the TSC.\n"
-                           "Please reconfigure with --enable-force-gettimeofday or --enable-force-posix-realtime.\n");
+        gasneti_fatalerror("Reference timer resolution of %lu ns is not acceptable for calibration of the TSC.\n"
+                           "Please reconfigure with --enable-force-gettimeofday or --enable-force-posix-realtime.\n",
+                           (unsigned long)ref_res);
       }
     }
 
