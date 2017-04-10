@@ -569,33 +569,56 @@ configure args: $CONFIGURE_ARGS])
 ])
 
 AC_DEFUN([GASNET_ENV_DEFAULT_HELPER],[
+  AC_REQUIRE([AC_PROG_AWK])
 gasnet_fn_env_helper()
 {
   gasnet_envh_upper=[$]1
   shift
-  gasnet_envh_lower=[$]1
+  gasnet_envh_norm=[$]1
   shift
   for ac_opt in "[$]@"; do
-      # For command-line args VAR is case-insensitive and dash/underscore insensitive
-      ac_norm=`echo "$ac_opt" | $AWK '{gsub("_","-"); print tolower([$]0)}'`
-      #echo "  '$ac_opt' => '$ac_norm'"
-      case $ac_norm in
-        -with-${gasnet_envh_lower}=* | --with-${gasnet_envh_lower}=* | ${gasnet_envh_lower}=*)
+      case "$ac_opt" in
+        with:${gasnet_envh_norm}=* | ${gasnet_envh_norm}=*)
 	    ac_optarg=`expr "$ac_opt" : '[[^=]]*=\(.*\)'`
             eval cv_prefix[]envvar_${gasnet_envh_upper}=\$ac_optarg
 	    eval envval_src_${gasnet_envh_upper}=given
 	;;
-        -with-${gasnet_envh_lower} | --with-${gasnet_envh_lower})
+        with:${gasnet_envh_norm})
             eval cv_prefix[]envvar_${gasnet_envh_upper}=\$envval_default_${gasnet_envh_upper}
 	    eval envval_src_${gasnet_envh_upper}=default
 	;;
-        -without-${gasnet_envh_lower} | --without-${gasnet_envh_lower})
+        without:${gasnet_envh_norm})
             eval cv_prefix[]envvar_${gasnet_envh_upper}=""
 	    eval envval_src_${gasnet_envh_upper}=disabled
 	;;
       esac
   done
 }
+
+# normalize configure arguments
+gasnet_fn_env_argnorm()
+{
+  cv_prefix[]configure_args_norm=
+  for ac_opt in "[$]@"; do
+    # For command-line args VAR is case-insensitive and dash/underscore insensitive
+    ac_norm=`echo "$ac_opt" | $AWK '{gsub("^--?with-","with:");gsub("^--?without-","without:");gsub("^--?",":");gsub("[[-_]]",""); print tolower([$]0)}'`
+    case "$ac_norm" in
+      :*) : ;; # discard irrelevant arguments
+      *=*) # opts with argument
+        ac_norm=`expr "$ac_norm" : '^\([[^=]]*\)='`
+        ac_optarg=`expr "$ac_opt" : '^[[^=]]*=\(.*\)$'`
+        cv_prefix[]configure_args_norm="$cv_prefix[]configure_args_norm '$ac_norm=$ac_optarg'"
+      ;;
+      *) # bare opts, no argument
+        cv_prefix[]configure_args_norm="$cv_prefix[]configure_args_norm '$ac_norm'"
+      ;;
+    esac
+  done
+  # echo $cv_prefix[]configure_args_norm
+}
+if test "${cv_prefix[]configure_args_norm+set}" = ""; then
+  eval gasnet_fn_env_argnorm $cv_prefix[]configure_args
+fi
 ])
 
 dnl GASNET_ENV_DEFAULT(envvar-name, default-value, optional-help-text)
@@ -606,9 +629,10 @@ dnl  caches the results to guarantee reconfig gets the originally loaded value
 dnl  also adds a --with-foo-bar= option for the env variable FOO_BAR
 AC_DEFUN([GASNET_ENV_DEFAULT],[
   GASNET_FUN_BEGIN([$0($@)])
-  AC_REQUIRE([AC_PROG_AWK])
-  pushdef([lowerdashname],patsubst(translit([$1],'A-Z','a-z'), _, -))
-  
+  pushdef([lowerdashname],patsubst(translit([$1],'A-Z','a-z'),[_],[-]))
+  pushdef([lowernopunct],patsubst(lowerdashname,[-],[]))
+  pushdef([UNSET],[__=-=-=-__NOT_SET__-=-=-=__])
+
   dnl create the help prompt just once, and only if not suppressed
   ifdef(with_expanded_[$1], [], [
    ifdef([GASNET_SUPPRESSHELP], [], [
@@ -624,48 +648,52 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
   envval_src_$1="cached"
   AC_CACHE_VAL(cv_prefix[]envvar_$1, [
     if test "$#" = "1" ; then # no default means unset
-      envval_default_$1="__NOT_SET__"
+      envval_default_$1="UNSET"
     else
       envval_default_$1="[$2]"
     fi
+
     # first capture the environment setting, which might be the enclosing env if there are no cmdline args
-    case "${[$1]-__NOT_SET__}" in
-      __NOT_SET__) 
+    if test "${[$1]+set}" = "set" ; then
+          cv_prefix[]envvar_$1="$[$1]"
+          envval_src_$1=given
+    else
           cv_prefix[]envvar_$1=$envval_default_$1
           envval_src_$1=default
-          ;;
-      *)  cv_prefix[]envvar_$1="$[$1]"
-          envval_src_$1=given
-    esac
+    fi
     # Left-to-right parsing of commandline settings that includes both mechanisms
     # --with-VAR=val or VAR=val =>  set to val
     # --with-VAR     =>  set to default 
     # --without-VAR  =>  set to blank (ie "", not "no")
-    eval gasnet_fn_env_helper $1 lowerdashname $cv_prefix[]configure_args
+    eval gasnet_fn_env_helper $1 lowernopunct $cv_prefix[]configure_args_norm
   ])
 
   [$1]="$cv_prefix[]envvar_$1"
-  pushdef([alignarg],[m4_substr([                ],len([$1]))])
-  case "$envval_src_$1" in
+  pushdef([alignarg],[m4_substr([                 ],len([$1]))])
+  if test "$[$1]" = "UNSET" ; then
+     unset  $1
+     if test "$envval_src_$1" = "cached"; then
+       AC_MSG_RESULT([(not set)])
+     else
+       AC_MSG_RESULT([alignarg (not set)])
+     fi
+  else
+    case "$envval_src_$1" in
       'cached')
 	  AC_MSG_RESULT([alignarg   \"$[$1]\"]) ;; dnl (cached) appended by AC_CACHE_VAL
       'default')
-        if test "$envval_default_$1" = "__NOT_SET__" ; then
-	  unset  cv_prefix[]envvar_$1
-	  unset  $1
-	  AC_MSG_RESULT([alignarg (not set)])
-	else
-	  AC_MSG_RESULT([alignarg (default)  \"$[$1]\"])
-	fi
-	;;
+	  AC_MSG_RESULT([alignarg (default)  \"$[$1]\"]) ;;
       'disabled')
 	  AC_MSG_RESULT([alignarg (disabled) \"$[$1]\"]) ;;
       'given')
 	  AC_MSG_RESULT([alignarg (provided) \"$[$1]\"]) ;;
       *) GASNET_MSG_ERROR(_GASNET_ENV_DEFAULT broken)
-  esac
+    esac
+  fi
   popdef([alignarg])
 
+  popdef([UNSET])
+  popdef([lowernopunct])
   popdef([lowerdashname])
   GASNET_FUN_END([$0($@)])
 ])
