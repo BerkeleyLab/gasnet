@@ -541,6 +541,17 @@ _gasneti_raw_args=
 for arg in "[$]@" ; do
   _gasneti_raw_args="$_gasneti_raw_args '$arg'"
 done
+# also capture the enclosing environment, before autoconf changes it
+_gasneti_envcmd=env
+for envcmd in $ENVCMD /usr/bin/env /bin/env ; do
+  if test -x $envcmd ; then
+    _gasneti_envcmd=$envcmd
+    break
+  fi
+done
+rm -f config.env
+trap 'rm -f config.env' 0 > /dev/null 2>&1 # prevent a leak on --help/--version
+$_gasneti_envcmd > config.env
 ])
 
 dnl Need to capture the *REAL* user-provided command-line to correctly process variable priorities
@@ -619,6 +630,28 @@ gasnet_fn_env_argnorm()
 if test "${cv_prefix[]configure_args_norm+set}" = ""; then
   eval gasnet_fn_env_argnorm $cv_prefix[]configure_args
 fi
+
+# normalize environment varnames and convert to a form we can read back in
+# currently we assume values do not contain newlines and truncate there
+cat config.env | $AWK ['{
+  line=]$[0;
+  if (match(line,"^[A-Za-z0-9_]+=")) {
+    var=substr(line,1,RLENGTH-1);
+    var=tolower(var);
+    gsub("[-_]","",var);
+    val=substr(line,RLENGTH+1);
+    gsub("\x27","\x27\x22\x27\x22\x27",val);
+    if (env[var] && env[var] != val) conf[var]=1;
+    env[var]=val;
+  }
+} END {
+  for (var in env) {
+    if (conf[var]) printf("_gasneti_cenv_%s=\x27%s\x27\n",var,env[var]);
+    else           printf("_gasneti_nenv_%s=\x27%s\x27\n",var,env[var]);
+  }
+}'] > config.env2
+. config.env2
+rm -f config.env config.env2
 ])
 
 dnl GASNET_ENV_DEFAULT(envvar-name, default-value, optional-help-text)
@@ -653,10 +686,13 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
       envval_default_$1="[$2]"
     fi
 
-    # first capture the environment setting, which might be the enclosing env if there are no cmdline args
-    if test "${[$1]+set}" = "set" ; then
-          cv_prefix[]envvar_$1="$[$1]"
+    # Lowest priority are the enclosing environment and the default value argument (lowest)
+    if test "${_gasneti_nenv_[]lowernopunct+set}" = "set" ; then
+          cv_prefix[]envvar_$1="${_gasneti_nenv_[]lowernopunct}"
           envval_src_$1=given
+    elif test "${_gasneti_cenv_[]lowernopunct+set}" = "set" ; then
+          cv_prefix[]envvar_$1="${_gasneti_cenv_[]lowernopunct}"
+          envval_src_$1=conf
     else
           cv_prefix[]envvar_$1=$envval_default_$1
           envval_src_$1=default
@@ -687,6 +723,10 @@ AC_DEFUN([GASNET_ENV_DEFAULT],[
 	  AC_MSG_RESULT([alignarg (disabled) \"$[$1]\"]) ;;
       'given')
 	  AC_MSG_RESULT([alignarg (provided) \"$[$1]\"]) ;;
+      'conf')
+	  AC_MSG_RESULT([alignarg (provided) \"$[$1]\"])
+          GASNET_MSG_ERROR([Ambiguous environment setting for \$$1. Please configure --with-$1="intended value"])
+      ;;
       *) GASNET_MSG_ERROR(_GASNET_ENV_DEFAULT broken)
     esac
   fi
