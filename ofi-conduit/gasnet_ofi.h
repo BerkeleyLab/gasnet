@@ -37,6 +37,7 @@ typedef gasnetc_paratomic(t)         gasnetc_paratomic_t;
 #define gasnetc_paratomic_read       gasnetc_paratomic(read)
 #define gasnetc_paratomic_increment  gasnetc_paratomic(increment)
 #define gasnetc_paratomic_add        gasnetc_paratomic(add)
+#define gasnetc_paratomic_subtract   gasnetc_paratomic(subtract)
 #define gasnetc_paratomic_decrement  gasnetc_paratomic(decrement)
 #define gasnetc_paratomic_decrement_and_test  gasnetc_paratomic(decrement_and_test)
 

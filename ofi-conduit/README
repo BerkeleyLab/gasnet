@@ -164,6 +164,23 @@ Recognized environment variables:
 * GASNET_QUIET - set to 1 to silence the startup warning indicating
   the provider in use may deliver suboptimal performance.
 
+* GASNET_OFI_NUM_INITIAL_SEND_BUFFS - The number of transmit buffers to allocate
+  for the request and reply active message pools. These buffers will be split
+  evenly between the two pools. Because the request and reply paths each need at
+  least one buffer to function, this variable must be greater than or equal to
+  2. If a buffer is requested from an empty pool and if the maximum number of
+  buffers has been allocated (see the next section) then the conduit will poll
+  until previous transmit operations complete and return their buffers to the
+  pool.
+  Default: 500
+
+* GASNET_OFI_MAX_SEND_BUFFS - The maximum number of transmit buffers to allow
+  ofi-conduit to allocate for the active messaging system. This sets a limit on
+  the amount of memory that the active messaging transmission subsystem can
+  consume. This variable must be greater than or equal to the value of
+  GASNET_OFI_NUM_INITIAL_SEND_BUFFS.
+  Default: 1000
+
 * GASNET_OFI_RMA_POLL_FREQ - In order to ensure efficient progress, the conduit polls the RMA
   transmit completion queue once for every GASNET_OFI_RMA_POLL_FREQ RMA injections. Default: 32
 

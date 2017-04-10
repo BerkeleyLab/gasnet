@@ -124,7 +124,10 @@ static size_t ofi_bbuf_size;
 
 static void* am_buffers_region_start = NULL;
 static size_t am_buffers_region_size = 0;
-static size_t num_am_buffs = 0;
+static size_t max_am_send_buffs = 0;
+static size_t num_init_am_send_buffs = 0;
+static int out_of_send_buffers = 0;
+static gasnetc_paratomic_t num_allocated_send_buffers = gasnetc_paratomic_init(0);
 
 static uint64_t             	max_buffered_send;
 static uint64_t             	min_multi_recv;
@@ -182,6 +185,8 @@ GASNETI_INLINE(gasnetc_ofi_handle_am)
 void gasnetc_ofi_handle_am(struct fi_cq_data_entry *re, void *buf);
 void gasnetc_ofi_release_request_am(struct fi_cq_data_entry *re, void *buf);
 void gasnetc_ofi_release_reply_am(struct fi_cq_data_entry *re, void *buf);
+void gasnetc_ofi_tx_poll();
+void gasnetc_ofi_am_recv_poll(int is_request);
 
 /*------------------------------------------------
  * Initialize OFI conduit
@@ -514,18 +519,38 @@ int gasnetc_ofi_init(int *argc, char ***argv,
       buf -= ofi_bbuf_size;
   }
 
-  num_am_buffs = gasneti_getenv_int_withdefault("GASNET_OFI_INITIAL_SEND_BUFFS", 500, 0);
-  
-  am_buffers_region_size = GASNETI_PAGE_ALIGNUP(num_am_buffs*sizeof(gasnetc_ofi_am_buf_t));
+  const char* max_am_send_buffs_env =  "GASNET_OFI_MAX_SEND_BUFFS";
+  const char* num_init_send_buffs_env = "GASNET_OFI_NUM_INITIAL_SEND_BUFFS";
+  const char* max_err_string =  "%s must be greater than or equal to\n"
+                                "%s, which is set to %d in this run.\n";
+  const char* init_err_string =  "%s must be greater than or equal to 2.\n";
+  max_am_send_buffs = gasneti_getenv_int_withdefault(max_am_send_buffs_env, 1000, 0);
+  num_init_am_send_buffs = gasneti_getenv_int_withdefault(num_init_send_buffs_env, 500, 0);
+
+  if (num_init_am_send_buffs < 2) {
+      gasneti_fatalerror(init_err_string, num_init_send_buffs_env);
+  }
+
+  if (max_am_send_buffs < num_init_am_send_buffs) {
+      gasneti_fatalerror(max_err_string, max_am_send_buffs_env, num_init_send_buffs_env, num_init_am_send_buffs);
+  }
+
+  /* We need to keep count of how many buffers we allocate so we can place a
+   * limit on them */
+  gasnetc_paratomic_set(&num_allocated_send_buffers, num_init_am_send_buffs, 0);
+  if (max_am_send_buffs == num_init_am_send_buffs) 
+      out_of_send_buffers = 1;
+
+  am_buffers_region_size = GASNETI_PAGE_ALIGNUP(num_init_am_send_buffs*sizeof(gasnetc_ofi_am_buf_t));
   am_buffers_region_start = gasneti_malloc_aligned(GASNETI_PAGESIZE, am_buffers_region_size);
+  gasneti_leak_aligned(am_buffers_region_start);
   gasnetc_ofi_am_buf_t * bufp = am_buffers_region_start;
-  for (i = 0; i < (int)num_am_buffs/2; i++) {
+  for (i = 0; i < (int)num_init_am_send_buffs/2; i++) {
      bufp->callback = gasnetc_ofi_release_request_am;
      gasneti_lifo_push(&ofi_am_request_pool, bufp);
      bufp++;
   }  
-  for (i = num_am_buffs/2; i < (int)num_am_buffs; i++) {
-
+  for (; i < (int)num_init_am_send_buffs; i++) {
       bufp->callback = gasnetc_ofi_release_reply_am;
       gasneti_lifo_push(&ofi_am_reply_pool, bufp);
       bufp++;
@@ -749,14 +774,46 @@ void gasnetc_ofi_release_reply_am(struct fi_cq_data_entry *re, void *buf)
 GASNETI_INLINE(gasnetc_ofi_am_header)
 gasnetc_ofi_am_buf_t *gasnetc_ofi_am_header(int isreq)
 {
-    gasneti_lifo_head_t* pool = isreq ? &ofi_am_request_pool : &ofi_am_reply_pool;
-    
+    gasneti_lifo_head_t* pool;
+    int poll_type;
+    event_callback_fn 	callback;
+    if (isreq) {
+        pool = &ofi_am_request_pool;
+        poll_type = OFI_POLL_ALL;
+        callback = gasnetc_ofi_release_request_am;
+    } 
+    else {
+        pool = &ofi_am_reply_pool;
+        poll_type = OFI_POLL_REPLY;
+        callback = gasnetc_ofi_release_reply_am;
+    }
+
 	gasnetc_ofi_am_buf_t *header = gasneti_lifo_pop(pool);
-	if_pf (NULL == header) {
-		header = gasneti_malloc(sizeof(gasnetc_ofi_am_buf_t));
-		header->callback = isreq ? gasnetc_ofi_release_request_am : gasnetc_ofi_release_reply_am;
-		gasneti_leak(header);
-	}
+    if (header) 
+        return header;
+    else if (!out_of_send_buffers) {
+        int tmp = gasnetc_paratomic_add(&num_allocated_send_buffers, 1, GASNETI_ATOMIC_ACQ);
+        if (tmp > max_am_send_buffs ) {
+            goto ofi_spin_for_buffer;
+        }
+        else if (tmp == max_am_send_buffs) {
+            /* This update is not threadsafe. This is okay though, as it is only
+             * to prevent continuously decrementing the atomic counter after all 
+             * buffers have been allocated.*/
+            out_of_send_buffers = 1; 
+        }
+        
+        header = gasneti_malloc(sizeof(gasnetc_ofi_am_buf_t));
+        gasneti_leak(header);
+        header->callback = callback;
+        return header;
+    }
+ofi_spin_for_buffer:
+    do {
+        GASNETC_OFI_POLL_SELECTIVE(poll_type);
+        GASNETI_WAITHOOK();
+        header = gasneti_lifo_pop(pool);
+    } while(NULL == header);
     return header;
 }
 
