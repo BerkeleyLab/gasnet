@@ -74,7 +74,7 @@ CONDUIT_SOURCELIST =          \
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = @PSM_INCLUDE@ $(ssh_defines) $(mpi_defines) $(pmi_cppflags)
+CONDUIT_EXTRALIBCFLAGS = @PSM_CFLAGS@ $(ssh_defines) $(mpi_defines) $(pmi_cppflags)
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS =
