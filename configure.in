@@ -1144,13 +1144,14 @@ case "$target_os" in
 
             # Locate system directories for BG/Q
             # TODO: Something like bgpmaster to search on?
+	    # This is the ROOT of the BGQ system dirs, containing several include directories 
+	    # used by gasnet_asm.h eg #include "cnk/include/SPI_syscalls.h"
             bgsys_guess=/bgsys/drivers/ppcfloor
 
-            GASNET_ENV_DEFAULT(BGQ_SYS_HOME, $bgsys_guess, System directory home for BlueGene/Q)
-            GASNET_ENV_DEFAULT(BGQ_SYS_INCLUDE, $BGQ_SYS_HOME, Include directory for BlueGene/Q)
-            if test -e "$BGQ_SYS_INCLUDE/cnk/include"; then
-              tmp_flag="-isystem $BGQ_SYS_INCLUDE"
-              GASNET_TRY_CFLAG([$tmp_flag], [:], [tmp_flag="-I$BGQ_SYS_INCLUDE"])
+            GASNET_ENV_DEFAULT(BGQ_SYS_HOME, $bgsys_guess, ppcfloor system directory for BlueGene/Q)
+            if test -e "$BGQ_SYS_HOME/cnk/include"; then
+              tmp_flag="-isystem $BGQ_SYS_HOME"
+              GASNET_TRY_CFLAG([$tmp_flag], [:], [tmp_flag="-I$BGQ_SYS_HOME"])
               SYS_HEADER_BLD="$SYS_HEADER_BLD $tmp_flag"
               SYS_HEADER_INST="$SYS_HEADER_INST $tmp_flag"
             fi
@@ -2365,7 +2366,7 @@ AC_DEFUN([GASNET_FH_CFLAGS],[
           Sun) fh_cflags_default="-xalias_level=any";;
           PGI) fh_cflags_default="-alias=traditional";;
   esac
-  GASNET_ENV_DEFAULT(FH_CFLAGS, [$fh_cflags_default])
+  GASNET_ENV_DEFAULT(FH_CFLAGS, [$fh_cflags_default], [C flags for building the Firehose memory registration library])
   AC_SUBST(FH_CFLAGS)
 ])
 
@@ -3059,40 +3060,41 @@ elif test "$enabled_mxm" != no; then
     else
       mxm_guess=/usr
     fi
-    GASNET_ENV_DEFAULT(MXMHOME, $mxm_guess)
+    GASNET_ENV_DEFAULT(MXM_HOME, $mxm_guess, [Install prefix of MXM drivers (auto-detected from PATH)])
 
-    AC_MSG_CHECKING(if $MXMHOME is the MXM install directory)
-    if test -r $MXMHOME/include/mxm/api/mxm_api.h; then
-      # MXMHOME looks OK
+    AC_MSG_CHECKING(if $MXM_HOME is the MXM install directory)
+    if test -r $MXM_HOME/include/mxm/api/mxm_api.h; then
+      # MXM_HOME looks OK
       AC_MSG_RESULT([yes])
-    elif test -r $MXMHOME/bin/mxm_dump_config; then
-      mxm_devinfo=$MXMHOME/bin/mxm_dump_config
+    elif test -r $MXM_HOME/bin/mxm_dump_config; then
+      mxm_devinfo=$MXM_HOME/bin/mxm_dump_config
       GASNET_FOLLOWLINKS(mxm_devinfo)
-      MXMHOME=`dirname \`dirname $mxm_devinfo\``
-      AC_MSG_RESULT([no - followed symlink to $MXMHOME])
+      MXM_HOME=`dirname \`dirname $mxm_devinfo\``
+      AC_MSG_RESULT([no - followed symlink to $MXM_HOME])
     else
       AC_MSG_RESULT([probably not])
     fi
 
-    case "$MXMHOME" in
-      /usr|/) mxm_includes_guess='' ;;
-           *) mxm_includes_guess="-I$MXMHOME/include" ;;
+    case "$MXM_HOME" in
+      /usr|/) mxm_cflags_guess='' ;;
+           *) mxm_cflags_guess="-I$MXM_HOME/include" ;;
     esac
-    GASNET_ENV_DEFAULT(MXM_INCLUDE, $mxm_includes_guess)
+    GASNET_ENV_DEFAULT(MXM_CFLAGS, $mxm_cflags_guess)
     GASNET_ENV_DEFAULT(MXM_LIBS, -lmxm)
 
     # Note 'test -d $foo/.' works even if $foo is a symlink
-    if test -f $MXMHOME/lib${GASNETI_PTR_BITS}/libmxm.so; then
-      mxm_libdir_default="-L$MXMHOME/lib${GASNETI_PTR_BITS}"
+    if test -f $MXM_HOME/lib${GASNETI_PTR_BITS}/libmxm.so; then
+      mxm_ldflags_default="-L$MXM_HOME/lib${GASNETI_PTR_BITS}"
     else
-      mxm_libdir_default="-L$MXMHOME/lib"
+      mxm_ldflags_default="-L$MXM_HOME/lib"
     fi
-    GASNET_ENV_DEFAULT(MXM_LIBDIR, $mxm_libdir_default)
+    GASNET_ENV_DEFAULT(MXM_LDFLAGS, $mxm_ldflags_default)
 
-	  # Try to compile and link a basic MXM program
-	  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MXM_INCLUDE")
-	  GASNET_PUSHVAR(LIBS,"$LIBS $MXM_LIBDIR $MXM_LIBS")
-	  GASNET_TRY_CACHE_LINK(for working MXM configuration, mxm_works, [
+    # Try to compile and link a basic MXM program
+    GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MXM_CFLAGS")
+    GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $MXM_LDFLAGS")
+    GASNET_PUSHVAR(LIBS,"$LIBS $MXM_LIBS")
+      GASNET_TRY_CACHE_LINK(for working MXM configuration, mxm_works, [
             #include <mxm/api/mxm_api.h>
             #if MXM_API < MXM_VERSION(2,0)
             #include <mxm/api/mxm_addr.h>
@@ -3101,13 +3103,14 @@ elif test "$enabled_mxm" != no; then
                unsigned long cur_ver = mxm_get_version();
                mxm_error_t mxm_status = mxm_init(NULL,NULL);
             }], [ : ], [ have_mxm=no; GASNET_ERR_SAVE() ] )
-      GASNET_POPVAR(CFLAGS)
-	  GASNET_POPVAR(LIBS)
+    GASNET_POPVAR(CFLAGS)
+    GASNET_POPVAR(LDFLAGS)
+    GASNET_POPVAR(LIBS)
 
   CONDUIT_SPAWNER(mxm)
 fi
-AC_SUBST(MXM_INCLUDE)
-AC_SUBST(MXM_LIBDIR)
+AC_SUBST(MXM_CFLAGS)
+AC_SUBST(MXM_LDFLAGS)
 AC_SUBST(MXM_LIBS)
 AM_CONDITIONAL(USE_MXM_CONDUIT, test "$have_mxm" = yes)
 CONDUIT_EX_UNIMPLEMENTED
@@ -3129,27 +3132,28 @@ elif test "$enabled_psm" = yes; then
     have_psm=yes  # assume success
 
     psm_guess=/usr
-    GASNET_ENV_DEFAULT(PSMHOME, $psm_guess)
+    GASNET_ENV_DEFAULT(PSM_HOME, $psm_guess, [Install prefix of OmniPath PSM2 drivers])
 
-    case "$PSMHOME" in
-      /usr|/) psm_includes_guess='' ;;
-           *) psm_includes_guess="-I$PSMHOME/include" ;;
+    case "$PSM_HOME" in
+      /usr|/) psm_cflags_guess='' ;;
+           *) psm_cflags_guess="-I$PSM_HOME/include" ;;
     esac
-    GASNET_ENV_DEFAULT(PSM_INCLUDE, $psm_includes_guess)
+    GASNET_ENV_DEFAULT(PSM_CFLAGS, $psm_cflags_guess)
     GASNET_ENV_DEFAULT(PSM_LIBS, -lpsm2)
     # Note 'test -d $foo/.' works even if $foo is a symlink
-    if test -f $PSMHOME/lib${GASNETI_PTR_BITS}/libpsm2.so; then
-      psm_libdir_default=-L$PSMHOME/lib${GASNETI_PTR_BITS}
+    if test -f $PSM_HOME/lib${GASNETI_PTR_BITS}/libpsm2.so; then
+      psm_ldflags_default=-L$PSM_HOME/lib${GASNETI_PTR_BITS}
     else
-      psm_libdir_default=-L$PSMHOME/lib
+      psm_ldflags_default=-L$PSM_HOME/lib
     fi
-    GASNET_ENV_DEFAULT(PSM_LIBDIR, $psm_libdir_default)
+    GASNET_ENV_DEFAULT(PSM_LDFLAGS, $psm_ldflags_default)
 
-	if test "$have_psm" = yes; then
-	  # Try to compile and link a basic PSM program
-	  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $PSM_INCLUDE")
-	  GASNET_PUSHVAR(LIBS,"$LIBS $PSM_LIBDIR $PSM_LIBS")
-	  GASNET_TRY_CACHE_LINK(for working PSM configuration, psm_works, [
+    if test "$have_psm" = yes; then
+      # Try to compile and link a basic PSM program
+      GASNET_PUSHVAR(CFLAGS,"$CFLAGS $PSM_CFLAGS")
+      GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $PSM_LDFLAGS")
+      GASNET_PUSHVAR(LIBS,"$LIBS $PSM_LIBS")
+        GASNET_TRY_CACHE_LINK(for working PSM configuration, psm_works, [
             #include <psm2.h>
             #include <psm2_mq.h>
             #include <psm2_am.h>
@@ -3159,13 +3163,14 @@ elif test "$enabled_psm" = yes; then
                psm2_error_t psm_status = psm2_init(&major,&minor);
             }], [ : ], [ have_psm=no; GASNET_ERR_SAVE() ] )
       GASNET_POPVAR(CFLAGS)
-	  GASNET_POPVAR(LIBS)
-	fi
+      GASNET_POPVAR(LDFLAGS)
+      GASNET_POPVAR(LIBS)
+    fi
 
   CONDUIT_SPAWNER(psm)
 fi
-AC_SUBST(PSM_INCLUDE)
-AC_SUBST(PSM_LIBDIR)
+AC_SUBST(PSM_CFLAGS)
+AC_SUBST(PSM_LDFLAGS)
 AC_SUBST(PSM_LIBS)
 AM_CONDITIONAL(USE_PSM_CONDUIT, test "$have_psm" = yes)
 CONDUIT_EX_UNIMPLEMENTED
@@ -3186,38 +3191,36 @@ if test "$enabled_portals4" = yes; then
   else
     portals4_guess=/usr
   fi
-  GASNET_ENV_DEFAULT(PORTALS4HOME, $portals4_guess)
+  GASNET_ENV_DEFAULT(PORTALS4_HOME, $portals4_guess, [Install prefix of Portals4 library (auto-detected from PATH)])
 
-  AC_MSG_CHECKING(if $PORTALS4HOME is the Portals 4 install directory)
-  if test -r $PORTALS4HOME/include/portals4.h; then
-    # PORTALS4HOME looks OK
+  AC_MSG_CHECKING(if $PORTALS4_HOME is the Portals 4 install directory)
+  if test -r $PORTALS4_HOME/include/portals4.h; then
+    # PORTALS4_HOME looks OK
     AC_MSG_RESULT([yes])
-  elif test -r $PORTALS4HOME/bin/yod; then
-    yod=$PORTALS4HOME/bin/yod
+  elif test -r $PORTALS4_HOME/bin/yod; then
+    yod=$PORTALS4_HOME/bin/yod
     GASNET_FOLLOWLINKS(yod)
-    PORTALS4HOME=`dirname \`dirname $yod\``
-    AC_MSG_RESULT([no - followed symlink to $PORTALS4HOME])
+    PORTALS4_HOME=`dirname \`dirname $yod\``
+    AC_MSG_RESULT([no - followed symlink to $PORTALS4_HOME])
   else
     AC_MSG_RESULT([probably not])
   fi
 
-  GASNET_ENV_DEFAULT(PORTALS4_INCLUDE, $PORTALS4HOME/include)
+  GASNET_ENV_DEFAULT(PORTALS4_CFLAGS, -I$PORTALS4_HOME/include)
   GASNET_ENV_DEFAULT(PORTALS4_LIBS, -lportals)
 
   # TODO: we should have (and uniformly use) a macro for this -PHH
-  portals4_lib_guess="$PORTALS4HOME/lib${GASNETI_PTR_BITS}"
-  if test -e "$portals4_lib_guess/libportals.so" -o -e "$portals4_lib_guess/libportals.a"; then
-    : # keep lib32 or lib64 as default
+  portals4_libdir_guess="$PORTALS4_HOME/lib${GASNETI_PTR_BITS}"
+  if test -e "$portals4_libdir_guess/libportals.so" -o -e "$portals4_libdir_guess/libportals.a"; then
+    portals4_ldflags_guess="-L$portals4_libdir_guess"
   else
-    portals4_lib_guess="$PORTALS4HOME/lib"
+    portals4_ldflags_guess="-L$PORTALS4_HOME/lib"
   fi
-  GASNET_ENV_DEFAULT(PORTALS4_LIBDIR, $portals4_lib_guess)
+  GASNET_ENV_DEFAULT(PORTALS4_LDFLAGS, $portals4_ldflags_guess)
 
-  # Assemble any extra flags needed at library build time
-  PORTALS4_LIBCFLAGS=''
-
-  GASNET_PUSHVAR(CFLAGS,"$CFLAGS -I$PORTALS4_INCLUDE $GASNET_THREAD_DEFINES $PORTALS4_LIBCFLAGS")
-  GASNET_PUSHVAR(LIBS,"$LIBS -L$PORTALS4_LIBDIR $PORTALS4_LIBS $GASNET_THREAD_LIBS")
+  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $PORTALS4_CFLAGS $GASNET_THREAD_DEFINES")
+  GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $PORTALS4_LDFLAGS")
+  GASNET_PUSHVAR(LIBS,"$LIBS $PORTALS4_LIBS $GASNET_THREAD_LIBS")
 
   # Try to compile and link a basic Portals 4 program
   GASNET_TRY_CACHE_LINK(for working Portals4 configuration, portals4_works, [
@@ -3228,18 +3231,24 @@ if test "$enabled_portals4" = yes; then
 
   # Try to compile and link Portals 4 PMI support
   # TODO: this could be integrated with the conduit-independent PMI probe -PHH
-  LIBS="$LIBS -lportals_runtime"
+  portals4_pmi_cflags="-I$PORTALS4_HOME/include/portals4 -DHAVE_PMI_H"
+  portals4_pmi_libs="-lportals_runtime"
+  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $portals4_pmi_cflags")
+  GASNET_PUSHVAR(LIBS,"$LIBS $portals4_pmi_libs")
   GASNET_TRY_CACHE_LINK(for PMI support in Portals4 runtime library, portals4_pmi_works, [
       #include <stddef.h>
       #include <portals4/pmi.h>
   ], [{
       PMI_Init(NULL);
   }], [
-      PORTALS4_LIBCFLAGS="$PORTALS4_LIBCFLAGS -I$PORTALS4_INCLUDE/portals4 -DHAVE_PMI_H"
-      PORTALS4_LIBS="$PORTALS4_LIBS -lportals_runtime"
+      PORTALS4_CFLAGS="$PORTALS4_CFLAGS $portals4_pmi_cflags"
+      PORTALS4_LIBS="$PORTALS4_LIBS $portals4_pmi_libs"
    ] )
+  GASNET_POPVAR(CFLAGS)
+  GASNET_POPVAR(LIBS)
 
   GASNET_POPVAR(CFLAGS)
+  GASNET_POPVAR(LDFLAGS)
   GASNET_POPVAR(LIBS)
 
   max_md_size=0
@@ -3273,10 +3282,9 @@ if test "$enabled_portals4" = yes; then
 dnl AS_IF([test $max_md_size -ne 0 -a $max_va_size -ne 0],
 dnl       [AC_MSG_NOTICE([Portals 4 address space size: $max_md_size, $max_va_size])])
 fi
-AC_SUBST(PORTALS4_INCLUDE)
-AC_SUBST(PORTALS4_LIBDIR)
+AC_SUBST(PORTALS4_CFLAGS)
+AC_SUBST(PORTALS4_LDFLAGS)
 AC_SUBST(PORTALS4_LIBS)
-AC_SUBST(PORTALS4_LIBCFLAGS)
 AM_CONDITIONAL(USE_PORTALS4_CONDUIT, test "$have_portals4" = yes)
 CONDUIT_EX_UNIMPLEMENTED
 CONDUIT_END([test "$have_portals4" = yes])
@@ -3304,41 +3312,39 @@ if test "$enabled_ibv" = yes; then
   else
     ibv_guess=/usr
   fi
-  GASNET_ENV_DEFAULT(IBVHOME, $ibv_guess)
+  GASNET_ENV_DEFAULT(IBV_HOME, $ibv_guess, [Install prefix of IB Verbs library (auto-detected from PATH)])
 
-  AC_MSG_CHECKING(if $IBVHOME is the IB Verbs install directory)
-  if test -r $IBVHOME/include/infiniband/verbs.h; then
-    # IBVHOME looks OK
+  AC_MSG_CHECKING(if $IBV_HOME is the IB Verbs install directory)
+  if test -r $IBV_HOME/include/infiniband/verbs.h; then
+    # IBV_HOME looks OK
     AC_MSG_RESULT([yes])
-  elif test -r $IBVHOME/bin/ibv_devinfo; then
-    ibv_devinfo=$IBVHOME/bin/ibv_devinfo
+  elif test -r $IBV_HOME/bin/ibv_devinfo; then
+    ibv_devinfo=$IBV_HOME/bin/ibv_devinfo
     GASNET_FOLLOWLINKS(ibv_devinfo)
-    IBVHOME=`dirname \`dirname $ibv_devinfo\``
-    AC_MSG_RESULT([no - followed symlink to $IBVHOME])
+    IBV_HOME=`dirname \`dirname $ibv_devinfo\``
+    AC_MSG_RESULT([no - followed symlink to $IBV_HOME])
   else
     AC_MSG_RESULT([probably not])
   fi
 
-  case "$IBVHOME" in
-    /usr|/) ibv_includes_guess='' ;;
-         *) ibv_includes_guess="-I$IBVHOME/include" ;;
+  case "$IBV_HOME" in
+    /usr|/) ibv_cflags_guess='' ;;
+         *) ibv_cflags_guess="-I$IBV_HOME/include" ;;
   esac
-  GASNET_ENV_DEFAULT(IBV_INCLUDES, $ibv_includes_guess)
+  GASNET_ENV_DEFAULT(IBV_CFLAGS, $ibv_cflags_guess)
   GASNET_ENV_DEFAULT(IBV_LIBS, -libverbs)
   # Note 'test -d $foo/.' works even if $foo is a symlink
-  if test -d $IBVHOME/lib${GASNETI_PTR_BITS}/.; then
-    ibv_libdir_default=$IBVHOME/lib${GASNETI_PTR_BITS}
+  if test -d $IBV_HOME/lib${GASNETI_PTR_BITS}/.; then
+    ibv_ldflags_default=-L$IBV_HOME/lib${GASNETI_PTR_BITS}
   else
-    ibv_libdir_default=$IBVHOME/lib
+    ibv_ldflags_default=-L$IBV_HOME/lib
   fi
-  GASNET_ENV_DEFAULT(IBV_LIBDIR, $ibv_libdir_default)
-
-  # Assemble any extra flags needed at library build time
-  IBV_LIBCFLAGS='' # None yet
+  GASNET_ENV_DEFAULT(IBV_LDFLAGS, $ibv_ldflags_default)
 
   # Try to compile and link a basic IB Verbs program
-  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $IBV_INCLUDES $GASNET_THREAD_DEFINES $IBV_LIBCFLAGS")
-  GASNET_PUSHVAR(LIBS,"$LIBS -L$IBV_LIBDIR $IBV_LIBS $GASNET_THREAD_LIBS")
+  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $IBV_CFLAGS $GASNET_THREAD_DEFINES")
+  GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $IBV_LDFLAGS")
+  GASNET_PUSHVAR(LIBS,"$LIBS $IBV_LIBS $GASNET_THREAD_LIBS")
 
   GASNET_TRY_CACHE_LINK(for working IB Verbs configuration, ibv_works, [
     #if defined(__GNUC__) && !defined(inline)
@@ -3371,11 +3377,12 @@ if test "$enabled_ibv" = yes; then
   fi
 
   GASNET_POPVAR(CFLAGS)
+  GASNET_POPVAR(LDFLAGS)
   GASNET_POPVAR(LIBS)
 
   if test "$have_ibv" = yes; then
     # XXX: Need to support older (get_devices) interface at some point?
-    #GASNET_PUSHVAR(LIBS,"$LIBS -L$IBV_LIBDIR")
+    #GASNET_PUSHVAR(LIBS,"$LIBS $IBV_LDFLAGS")
     #AC_SEARCH_LIBS(ibv_get_device_list, ibverbs, AC_DEFINE(HAVE_IBV_GET_DEVICE_LIST))
     #AC_SEARCH_LIBS(ibv_get_devices, ibverbs, AC_DEFINE(HAVE_IBV_GET_DEVICES))
     #GASNET_POPVAR(LIBS)
@@ -3445,7 +3452,7 @@ if test "$enabled_ibv" = yes; then
         GASNET_MSG_ERROR([IBV XRC support was requested with --enable-ibv-xrc but requires PSHM support which is not enabled])
       fi
     elif test "$enabled_ibv_xrc" = yes; then
-      GASNET_PUSHVAR(LIBS,"$LIBS -L$IBV_LIBDIR $IBV_LIBS $GASNET_THREAD_LIBS")
+      GASNET_PUSHVAR(LIBS,"$LIBS $IBV_LDFLAGS $IBV_LIBS $GASNET_THREAD_LIBS")
       AC_CHECK_FUNCS([ibv_open_xrc_domain ibv_cmd_open_xrcd], [have_ibv_xrc=yes], [have_ibv_xrc=no])
       GASNET_POPVAR(LIBS)
       if test "$have_ibv_xrc$force_ibv_xrc" = noyes; then
@@ -3454,10 +3461,9 @@ if test "$enabled_ibv" = yes; then
     fi
   fi
 fi
-AC_SUBST(IBV_INCLUDES)
-AC_SUBST(IBV_LIBDIR)
+AC_SUBST(IBV_CFLAGS)
+AC_SUBST(IBV_LDFLAGS)
 AC_SUBST(IBV_LIBS)
-AC_SUBST(IBV_LIBCFLAGS)
 AM_CONDITIONAL(USE_IBV_CONDUIT, test "$have_ibv" = yes)
 AM_CONDITIONAL(IBV_SEQ_THREADS, test "$enabled_ibv_rcv_thread$enabled_ibv_conn_thread" != nono)
 CONDUIT_END([test "$have_ibv" = yes])
@@ -3493,7 +3499,7 @@ fi
 if test ${gni_network}:${enabled_[]lowername} = lowername[]:yes; then
   have_[]lowername=yes # start by assuming we have it
 
-  GNI_INCLUDES=
+  GNI_CFLAGS=
   GNI_LDFLAGS=
   GNI_LIBS=
 
@@ -3503,14 +3509,14 @@ if test ${gni_network}:${enabled_[]lowername} = lowername[]:yes; then
       have_pmi_cray_h=yes
     ],[
       have_pmi_cray_h=yes
-      GNI_INCLUDES="$GNI_INCLUDES $CRAY_PMI_INCLUDE_OPTS"
+      GNI_CFLAGS="$GNI_CFLAGS $CRAY_PMI_INCLUDE_OPTS"
     ])
   GNI_LDFLAGS="$GNI_LDFLAGS $CRAY_PMI_POST_LINK_OPTS"
   GNI_LIBS="$GNI_LIBS -lpmi"
 
   # Look for gni_pub.h, allowing for the possibility we are not using the wrapper compiler
   GASNET_CHECK_CRAY_HEADER([gni_pub.h],[CRAY_GNI_HEADERS_INCLUDE_OPTS],[:],[
-      GNI_INCLUDES="$GNI_INCLUDES $CRAY_GNI_HEADERS_INCLUDE_OPTS"
+      GNI_CFLAGS="$GNI_CFLAGS $CRAY_GNI_HEADERS_INCLUDE_OPTS"
     ])
   GNI_LDFLAGS="$GNI_LDFLAGS $CRAY_UGNI_POST_LINK_OPTS"
   GNI_LIBS="$GNI_LIBS -lugni"
@@ -3522,7 +3528,7 @@ if test ${gni_network}:${enabled_[]lowername} = lowername[]:yes; then
       no) # If none, then we still want hugetlbfs if available.
         if test $have_hugetlbfs = yes; then
           GNI_LIBS="$GNI_LIBS $HUGETLBFS_LIBS"
-          GNI_INCLUDES="$GNI_INCLUDES -DGASNETI_USE_HUGETLBFS"
+          GNI_CFLAGS="$GNI_CFLAGS -DGASNETI_USE_HUGETLBFS"
         fi
         AC_MSG_RESULT(none)
         ;;
@@ -3539,7 +3545,7 @@ if test ${gni_network}:${enabled_[]lowername} = lowername[]:yes; then
   if test $have_[]lowername = yes; then
     GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS ${GNI_LDFLAGS}")
     GASNET_PUSHVAR(LIBS,"$LIBS ${GNI_LIBS}")
-    GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS ${GNI_INCLUDES}")
+    GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS $GNI_CFLAGS")
     GASNET_TRY_CACHE_LINK(for working $1 configuration, lowername[]_works, [
       #include <stddef.h>
       #include <stdint.h>
@@ -3566,7 +3572,7 @@ if test ${gni_network}:${enabled_[]lowername} = lowername[]:yes; then
         AC_DEFINE(GASNETC_GNI_UDREG)
       ],[
         AC_DEFINE(GASNETC_GNI_UDREG)
-        GNI_INCLUDES="$GNI_INCLUDES $CRAY_UDREG_INCLUDE_OPTS"
+        GNI_CFLAGS="$GNI_CFLAGS $CRAY_UDREG_INCLUDE_OPTS"
       ],[
         if test "$gni_udreg" = yes; then
           GASNET_ERR_SAVE()
@@ -3609,7 +3615,7 @@ dnl  ])
 
   AC_SUBST(GNI_LDFLAGS)
   AC_SUBST(GNI_LIBS)
-  AC_SUBST(GNI_INCLUDES)
+  AC_SUBST(GNI_CFLAGS)
 fi
 popdef([lowername])
 ])
@@ -3638,7 +3644,6 @@ CONDUIT_END([test "$have_aries" = yes])
 CONDUIT_BEGIN(shmem,[SGI Altix / Cray X1 Shmem conduit (shmem)])
 
 if test $enabled_shmem = yes; then
-  SHMEM_FLAVOUR="unknown"
   have_shmem=yes
 
   AC_MSG_CHECKING(for SHMEM network type)
@@ -3647,25 +3652,24 @@ if test $enabled_shmem = yes; then
     # Linux shmem may mean Quadrics shmem or SGI shmem, but only SGI shmem is supported.
     linux*)
       if test -n "$GASNETI_ARCH_ALTIX"; then
-	SHMEM_FLAVOUR="SGI_SHMEM"
 	AC_MSG_RESULT(SGI/Altix)
 	if test -n "$MPI_ROOT" && test -d "$MPI_ROOT" ; then
 	  shmem_guess="$MPI_ROOT" # At least SGI UV sets this
 	else
 	  shmem_guess="/usr"
 	fi
-	GASNET_ENV_DEFAULT(SHMEMHOME, $shmem_guess, SHMEM driver home directory)
-	GASNET_ENV_DEFAULT(SHMEM_INCLUDE, "${SHMEMHOME}/include")
-	GASNET_ENV_DEFAULT(SHMEM_LIBDIR, "${SHMEMHOME}/lib")
+	GASNET_ENV_DEFAULT(SHMEM_HOME, $shmem_guess, SHMEM driver home directory)
         # Work around stoopid bug in Intel ecc on Altix: programs won't compile
         # if -L/usr/lib or -I/usr/include is explicitly passed.
-	if test "$SHMEM_LIBDIR" = "/usr/lib"; then
-	  SHMEM_LIBDIR="/anything/but/usr/lib"
-	fi
-	if test "$SHMEM_INCLUDE" = "/usr/include"; then
-	  SHMEM_INCLUDE="/anything/but/usr/include"
-	fi
+        case "$SHMEM_HOME" in
+          /usr|/) shmem_includes_guess='' ; shmem_ldflags_guess='' ;;
+          *)      shmem_includes_guess="-I$SHMEM_HOME/include" ; shmem_ldflags_guess="-L$SHMEM_HOME/lib" ;;
+        esac
+
+	GASNET_ENV_DEFAULT(SHMEM_INCLUDES, $shmem_includes_guess)
+	GASNET_ENV_DEFAULT(SHMEM_LDFLAGS,  $shmem_ldflags_guess)
         GASNET_ENV_DEFAULT(SHMEM_LIBS, [-lsma -lmpi])
+        SHMEM_INCLUDES="$SHMEM_INCLUDES -DSGI_SHMEM"
       else
         AC_MSG_RESULT(unknown)
         have_shmem=no
@@ -3679,13 +3683,10 @@ if test $enabled_shmem = yes; then
 
 
   if test $have_shmem = yes; then
-    if test "$SHMEM_INCLUDE" = "/anything/but/usr/include"; then
-      SHMEM_INC2="/usr/include/mpp"
-    else
-      SHMEM_INC2="${SHMEM_INCLUDE}/mpp"
-    fi
-    GASNET_PUSHVAR(CFLAGS,"$CFLAGS -I${SHMEM_INCLUDE} -I${SHMEM_INC2}")
-    GASNET_PUSHVAR(LIBS,"$LIBS -L${SHMEM_LIBDIR} ${SHMEM_LIBS}")
+    SHMEM_INC2="-I${SHMEM_HOME}/include/mpp"
+    GASNET_PUSHVAR(CFLAGS,"$CFLAGS $SHMEM_INCLUDES $SHMEM_INC2")
+    GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $SHMEM_LDFLAGS")
+    GASNET_PUSHVAR(LIBS,"$LIBS $SHMEM_LIBS")
 
     # only include shmem.h even if some prescribe <mpp/shmem.h> and rely on the
     # include search directories to be correct.  This approach is more general
@@ -3699,10 +3700,11 @@ if test $enabled_shmem = yes; then
       }], [ shmem_test_worked=yes ], [ shmem_test_worked=no GASNET_ERR_SAVE() ] )
     GASNET_POPVAR(CFLAGS)
     AC_CHECK_FUNCS(shmem_long_finc shmem_long_cswap shmem_longlong_cswap)
+    GASNET_POPVAR(LDFLAGS)
     GASNET_POPVAR(LIBS)
   
     if test "$shmem_test_worked" = yes; then
-      SHMEM_FLAGS="-D${SHMEM_FLAVOUR} -I${SHMEM_INCLUDE}"
+      :
     else
       GASNET_MSG_WARN(build test failed: I don't know how to build SHMEM programs on your system)
       have_shmem=no
@@ -3710,10 +3712,9 @@ if test $enabled_shmem = yes; then
   fi
 fi
 
-#AC_SUBST(SHMEM_INCLUDE)  XXX: not currently used outside configure
-AC_SUBST(SHMEM_LIBDIR)
+AC_SUBST(SHMEM_INCLUDES)
+AC_SUBST(SHMEM_LDFLAGS)
 AC_SUBST(SHMEM_LIBS)
-AC_SUBST(SHMEM_FLAGS)
 AM_CONDITIONAL(USE_SHMEM_CONDUIT, test "$enabled_shmem$have_shmem" = yesyes)
 CONDUIT_EX_UNIMPLEMENTED
 CONDUIT_END([test "$enabled_shmem$have_shmem" = yesyes])
@@ -3724,61 +3725,67 @@ CONDUIT_BEGIN(pami,[IBM BlueGene/Q / Power775 PAMI conduit (pami)])
 if test $enabled_pami = yes; then
   have_pami=yes
 
+  if false ; then # just for help strings
+    GASNET_ENV_DEFAULT(PAMI_HOME,, [Install prefix of PAMI drivers])
+  fi
+  pami_libs_guess="-lpami"
   if test -n "$GASNETI_ARCH_BGQ"; then
     GASNET_ENV_DEFAULT(PAMI_HOME, [/bgsys/drivers/ppcfloor])
     if test -e "$PAMI_HOME/comm/include"; then
-      GASNET_ENV_DEFAULT(PAMI_INCLUDE, [-I$PAMI_HOME/comm/include]) 
-      GASNET_ENV_DEFAULT(PAMI_LIBDIR, [-L$PAMI_HOME/comm/lib])
+      pami_cflags_guess="-I$PAMI_HOME/comm/include"
+      pami_ldflags_guess="-L$PAMI_HOME/comm/lib"
       if test "$BUILDCONFIG" = "debug" ; then
-        GASNET_ENV_DEFAULT(PAMI_LIBS, [-lpami-gcc])
+        pami_libs_guess="-lpami-gcc"
       else
-        GASNET_ENV_DEFAULT(PAMI_LIBS, [-lpami-gcc.ndebug])
+        pami_libs_guess="-lpami-gcc.ndebug"
       fi
     elif test "$BUILDCONFIG" = "debug" ; then
-      GASNET_ENV_DEFAULT(PAMI_INCLUDE, [-I$PAMI_HOME/comm/sys/include]) 
-      GASNET_ENV_DEFAULT(PAMI_LIBDIR, [-L$PAMI_HOME/comm/sys/lib])
-      GASNET_ENV_DEFAULT(PAMI_LIBS, [-lpami])
+      pami_cflags_guess="-I$PAMI_HOME/comm/sys/include"
+      pami_ldflags_guess="-L$PAMI_HOME/comm/sys/lib"
     else
-      GASNET_ENV_DEFAULT(PAMI_INCLUDE, [-I$PAMI_HOME/comm/sys-fast/include]) 
-      GASNET_ENV_DEFAULT(PAMI_LIBDIR, [-L$PAMI_HOME/comm/sys-fast/lib])
-      GASNET_ENV_DEFAULT(PAMI_LIBS, [-lpami])
+      pami_cflags_guess="-I$PAMI_HOME/comm/sys-fast/include"
+      pami_ldflags_guess="-L$PAMI_HOME/comm/sys-fast/lib"
     fi
-    GASNET_ENV_DEFAULT(PAMI_SYS_LIBDIR, [-L$PAMI_HOME/spi/lib])
-    GASNET_ENV_DEFAULT(PAMI_SYS_LIBS, [-lSPI_cnk -lpthread -lrt -lstdc++])
+    # pickup system libraries required by libpami
+    pami_ldflags_guess="$pami_ldflags_guess -L$PAMI_HOME/spi/lib"
+    pami_libs_guess="$pami_libs_guess -lSPI_cnk -lpthread -lrt -lstdc++"
   elif test -n "$GASNETI_ARCH_IBMPE"; then
     # XXX: Couldn't we just be using "mpcc" instead?
     #      Doing so would link MPI and POE libs we don't
     #      need, but is there any harm in that?
     GASNET_ENV_DEFAULT(PAMI_HOME, [/opt/ibmhpc/pecurrent/ppe.pami])
-    GASNET_ENV_DEFAULT(PAMI_INCLUDE, [-I$PAMI_HOME/include]) 
+    pami_cflags_guess="-I$PAMI_HOME/include"
     # XXX: There should be a better way to find these libs.
     #      Could/should we literally "find"?
     if test -e "$PAMI_HOME/lib/pami${GASNETI_PTR_BITS}"; then
-        GASNET_ENV_DEFAULT(PAMI_LIBDIR, [-L$PAMI_HOME/lib/pami${GASNETI_PTR_BITS}])
+        pami_ldflags_guess="-L$PAMI_HOME/lib/pami${GASNETI_PTR_BITS}"
     elif test -e "$PAMI_HOME/gnu/lib${GASNETI_PTR_BITS}/pami${GASNETI_PTR_BITS}"; then
-        GASNET_ENV_DEFAULT(PAMI_LIBDIR, [-L$PAMI_HOME/gnu/lib${GASNETI_PTR_BITS}/pami${GASNETI_PTR_BITS}])
+        pami_ldflags_guess="-L$PAMI_HOME/gnu/lib${GASNETI_PTR_BITS}/pami${GASNETI_PTR_BITS}"
     elif test -e "$PAMI_HOME/gnu/lib/pami${GASNETI_PTR_BITS}"; then
-        GASNET_ENV_DEFAULT(PAMI_LIBDIR, [-L$PAMI_HOME/gnu/lib/pami${GASNETI_PTR_BITS}])
+        pami_ldflags_guess="-L$PAMI_HOME/gnu/lib/pami${GASNETI_PTR_BITS}"
     fi
-    GASNET_ENV_DEFAULT(PAMI_LIBS, [-lpami])
-    GASNET_ENV_DEFAULT(PAMI_SYS_LIBDIR, [])
-    GASNET_ENV_DEFAULT(PAMI_SYS_LIBS, [])
   else
     # We'll just make a reasonable guess:
     GASNET_ENV_DEFAULT(PAMI_HOME, [/usr])
-    GASNET_ENV_DEFAULT(PAMI_INCLUDE, [-I$PAMI_HOME/include]) 
-    if test "$PAMI_HOME/lib${GASNETI_PTR_BITS}"; then
-      GASNET_ENV_DEFAULT(PAMI_LIBDIR, [-L$PAMI_HOME/lib${GASNETI_PTR_BITS}])
-    else
-      GASNET_ENV_DEFAULT(PAMI_LIBDIR, [-L$PAMI_HOME/lib])
-    fi
-    GASNET_ENV_DEFAULT(PAMI_LIBS, [-lpami])
-    GASNET_ENV_DEFAULT(PAMI_SYS_LIBDIR, [])
-    GASNET_ENV_DEFAULT(PAMI_SYS_LIBS, [])
+    case "$PAMI_HOME" in
+      /usr|/) pami_cflags_guess='' ; pami_ldflags_guess='' ;;
+      *) pami_cflags_guess="-I$PAMI_HOME/include"
+         if test "$PAMI_HOME/lib${GASNETI_PTR_BITS}"; then
+           pami_ldflags_guess="-L$PAMI_HOME/lib${GASNETI_PTR_BITS}"
+         else
+           pami_ldflags_guess="-L$PAMI_HOME/lib"
+         fi
+      ;;
+    esac
   fi
 
-  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $PAMI_INCLUDE")
-  GASNET_PUSHVAR(LIBS,"$LIBS $PAMI_LIBDIR $PAMI_LIBS $PAMI_SYS_LIBDIR $PAMI_SYS_LIBS")
+  GASNET_ENV_DEFAULT(PAMI_CFLAGS, $pami_cflags_guess) 
+  GASNET_ENV_DEFAULT(PAMI_LDFLAGS, $pami_ldflags_guess) 
+  GASNET_ENV_DEFAULT(PAMI_LIBS, $pami_libs_guess) 
+
+  GASNET_PUSHVAR(CFLAGS,"$CFLAGS $PAMI_CFLAGS")
+  GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $PAMI_LDFLAGS")
+  GASNET_PUSHVAR(LIBS,"$LIBS $PAMI_LIBS")
   # try to compile and link a simple PAMI program
   GASNET_TRY_CACHE_LINK(for working PAMI configuration, pami_works, [
      #include <pami.h>
@@ -3802,14 +3809,13 @@ if test $enabled_pami = yes; then
     AC_DEFINE_UNQUOTED(GASNETI_SIZEOF_PAMI_TASK_T, [$GASNETI_SIZEOF_PAMI_TASK_T])
   fi
   GASNET_POPVAR(CFLAGS)
+  GASNET_POPVAR(LDFLAGS)
   GASNET_POPVAR(LIBS)
 fi #END ENABLE PAMI
 
-AC_SUBST(PAMI_INCLUDE)
-AC_SUBST(PAMI_LIBDIR)
+AC_SUBST(PAMI_CFLAGS)
+AC_SUBST(PAMI_LDFLAGS)
 AC_SUBST(PAMI_LIBS)
-AC_SUBST(PAMI_SYS_LIBDIR)
-AC_SUBST(PAMI_SYS_LIBS)
 AM_CONDITIONAL(USE_PAMI_CONDUIT, test "$enabled_pami$have_pami" = yesyes)
 CONDUIT_END([test "$enabled_pami$have_pami" = yesyes])
 
@@ -3831,39 +3837,40 @@ if test "$enabled_ofi" = yes; then
   else
     ofi_guess=/usr
   fi
-  GASNET_ENV_DEFAULT(OFIHOME, $ofi_guess)
+  GASNET_ENV_DEFAULT(OFI_HOME, $ofi_guess, [Install prefix of OFI libfabric (auto-detected from PATH)])
 
   if test "$have_ofi" = yes; then
-    AC_MSG_CHECKING(if $OFIHOME is a Libfabric install directory)
-    if test -e $OFIHOME/include/rdma/fabric.h; then
+    AC_MSG_CHECKING(if $OFI_HOME is a Libfabric install directory)
+    if test -e $OFI_HOME/include/rdma/fabric.h; then
       AC_MSG_RESULT(yes)
-    elif test -r $OFIHOME/bin/fi_info; then
-      fi_info=$OFIHOME/bin/fi_info
+    elif test -r $OFI_HOME/bin/fi_info; then
+      fi_info=$OFI_HOME/bin/fi_info
       GASNET_FOLLOWLINKS(fi_info)
-      OFIHOME=`dirname \`dirname $fi_info\``
-      AC_MSG_RESULT([no - followed symlink to $OFIHOME])
+      OFI_HOME=`dirname \`dirname $fi_info\``
+      AC_MSG_RESULT([no - followed symlink to $OFI_HOME])
     else
       AC_MSG_RESULT([probably not])
     fi
   fi
 
   if test "$have_ofi" = yes; then
-    case "$OFIHOME" in
-      /usr|/) ofi_includes_guess='' ;;
-           *) ofi_includes_guess="-I$OFIHOME/include" ;;
+    case "$OFI_HOME" in
+      /usr|/) ofi_cflags_guess='' ;;
+           *) ofi_cflags_guess="-I$OFI_HOME/include" ;;
     esac
-    GASNET_ENV_DEFAULT(OFI_INCLUDES, $ofi_includes_guess)
+    GASNET_ENV_DEFAULT(OFI_CFLAGS, $ofi_cflags_guess)
     GASNET_ENV_DEFAULT(OFI_LIBS, -lfabric)
-    ofi_lib_guess="$OFIHOME/lib${GASNETI_PTR_BITS}"
+    ofi_lib_guess="$OFI_HOME/lib${GASNETI_PTR_BITS}"
     if test -e "$ofi_lib_guess/libfabric.so" -o -e "$ofi_lib_guess/libfabric.a"; then
       : # keep lib32 or lib64 as default
     else
-      ofi_lib_guess="$OFIHOME/lib"
+      ofi_lib_guess="$OFI_HOME/lib"
     fi
-    GASNET_ENV_DEFAULT(OFI_LIBDIR, $ofi_lib_guess)
+    GASNET_ENV_DEFAULT(OFI_LDFLAGS, -L$ofi_lib_guess)
 
-    GASNET_PUSHVAR(CFLAGS,"$CFLAGS $OFI_INCLUDES")
-    GASNET_PUSHVAR(LIBS,"$LIBS -L$OFI_LIBDIR $OFI_LIBS")
+    GASNET_PUSHVAR(CFLAGS,"$CFLAGS $OFI_CFLAGS")
+    GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $OFI_LDFLAGS")
+    GASNET_PUSHVAR(LIBS,"$LIBS $OFI_LIBS")
     GASNET_TRY_CACHE_LINK(for working OFI GASNet bindings, ofi_works, [
             #include <rdma/fabric.h>
         ], [{
@@ -3872,6 +3879,7 @@ if test "$enabled_ofi" = yes; then
                               0, 0, 0, 0, 0);
             }], [ : ], [ have_ofi=no; GASNET_ERR_SAVE() ] )
     GASNET_POPVAR(CFLAGS)
+    GASNET_POPVAR(LDFLAGS)
     GASNET_POPVAR(LIBS)
   fi
 
@@ -3889,7 +3897,7 @@ if test "$enabled_ofi" = yes; then
         ofi_provider="$withval", )
     # Don't autodetect if the user knows which provider they want
     if test -z "$ofi_provider"; then
-        GASNET_PUSHVAR(PATH, "$OFIHOME/bin:$PATH")
+        GASNET_PUSHVAR(PATH, "$OFI_HOME/bin:$PATH")
         if command -v fi_info > /dev/null 2>&1; then # Only do this if fi_info is in the $PATH
             for word in $supported_providers 
             do
@@ -3967,10 +3975,9 @@ configured for that provider. If that is not your desired provider, override thi
     AC_DEFINE_UNQUOTED(GASNETC_OFI_MAX_MEDIUM, [$ofi_max_medium])
   fi
 fi
-AC_SUBST(OFI_INCLUDES)
-AC_SUBST(OFI_LIBDIR)
+AC_SUBST(OFI_CFLAGS)
+AC_SUBST(OFI_LDFLAGS)
 AC_SUBST(OFI_LIBS)
-AC_SUBST(OFI_LIBCFLAGS)
 AM_CONDITIONAL(USE_OFI_CONDUIT, test "$have_ofi" = yes)
 CONDUIT_EX_UNIMPLEMENTED
 CONDUIT_END([test "$have_ofi" = yes])

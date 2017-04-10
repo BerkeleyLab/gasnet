@@ -45,7 +45,7 @@ CONDUIT_SOURCELIST =          \
 
 # additional -I or -D directives needed by this specific conduit
 # other than the standard GASNet includes and flags
-CONDUIT_EXTRALIBCFLAGS = @PAMI_INCLUDE@
+CONDUIT_EXTRALIBCFLAGS = @PAMI_CFLAGS@
 
 # additional conduit header files to install from external, non-standard directories
 CONDUIT_EXTRAHEADERS = 
