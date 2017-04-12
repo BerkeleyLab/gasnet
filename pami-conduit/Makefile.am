@@ -51,7 +51,7 @@ CONDUIT_EXTRALIBCFLAGS = @PAMI_INCLUDE@
 CONDUIT_EXTRAHEADERS = 
 
 # headers selected by default rules that should NOT be installed
-CONDUIT_PRIVATEHEADERS =
+CONDUIT_PRIVATEHEADERS = gasnet_coll_pami.h
 
 # additional file dependencies not mentioned elsewhere 
 # that should force libgasnet rebuild on update
