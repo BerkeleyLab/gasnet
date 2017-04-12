@@ -2616,56 +2616,6 @@ AC_DEFUN([GASNET_GET_SIG], [
   GASNET_FUN_END([$0])
 ])
 
-dnl If PTHREAD_INCLUDE and/or PTHREAD_LIB set, check to see that pthread.h and libpthread exist,
-dnl and set -I and -L to use them.  Die if set, but files don't exist
-AC_DEFUN([GASNET_CHECK_OVERRIDE_PTHREADS], [
-  GASNET_FUN_BEGIN([$0])
-  GASNET_ENV_DEFAULT(PTHREADS_INCLUDE, )
-  GASNET_ENV_DEFAULT(PTHREADS_LIB, )
-  if test -n "$PTHREADS_INCLUDE" || test -n "$PTHREADS_LIB"; then
-    if test -z "$PTHREADS_INCLUDE" || test -z "$PTHREADS_LIB"; then
-        AC_MSG_ERROR(['Both \$PTHREADS_INCLUDE and \$PTHREADS_LIB must be set, or neither'])
-    fi
-    # test to see if files exist
-    if test ! -f "$PTHREADS_INCLUDE/pthread.h"; then 
-        AC_MSG_ERROR(["Could not find $PTHREADS_INCLUDE/pthread.h: bad \$PTHREADS_INCLUDE"])
-    fi
-    if test ! -f "$PTHREADS_LIB/libpthread.a" || test ! -f "$PTHREADS_LIB/libpthread.so" ; then 
-        AC_MSG_ERROR(["Could not find $PTHREADS_LIB/libpthread.{a,so}: bad \$PTHREADS_LIB"])
-    fi
-    PTHREAD_INCLUDE_FLAGS="-I$PTHREADS_INCLUDE"
-    SYS_HEADER_INST="$PTHREAD_INCLUDE_FLAGS $SYS_HEADER_INST"
-    SYS_HEADER_BLD="$PTHREAD_INCLUDE_FLAGS $SYS_HEADER_BLD"
-    LDFLAGS="-L$PTHREADS_LIB $LDFLAGS"
-    dnl Allow us to ship patches for certain broken pthread.h implementations
-    GASNET_ENV_DEFAULT(PTHREADS_PATCH, )
-    if test -n "$PTHREADS_PATCH"; then 
-      PTHREADS_PATCHFILE=
-      for file in "$TOP_SRCDIR/$PTHREADS_PATCH" \
-                  "$TOP_SRCDIR/gasnet/$PTHREADS_PATCH" ; do 
-        if test -f "$file" ; then 
-	  PTHREADS_PATCHFILE="$file"
-	fi
-      done
-      if test -z "$PTHREADS_PATCHFILE" ; then
-        AC_MSG_ERROR([Could not find PTHREADS_PATCH file $PTHREADS_PATCH])
-      fi
-      PATCHED_HEADERS_DIR="$TOP_BUILDDIR/patched-headers"
-      mkdir -p "$PATCHED_HEADERS_DIR"
-      /usr/bin/patch -N -o "$PATCHED_HEADERS_DIR/pthread.h" -i "$PTHREADS_PATCHFILE" "$PTHREADS_INCLUDE/pthread.h" || \
-        AC_MSG_ERROR([failed to apply patch $PTHREADS_PATCHFILE to $PTHREADS_INCLUDE/pthread.h - try again without PTHREADS_PATCH option])
-      PATCHED_HEADER="pthread.h"
-      # PATCHED_HEADERS_DIR must precede PTHREADS_INCLUDE to override it
-      SYS_HEADER_INST="-I###INSTALL_INCLUDE###/patched-headers $SYS_HEADER_INST"
-      SYS_HEADER_BLD="-I$PATCHED_HEADERS_DIR $SYS_HEADER_BLD"
-    fi
-  fi
-  AC_SUBST(SYS_HEADER_BLD)
-  AC_SUBST(SYS_HEADER_INST)
-  AC_SUBST(PATCHED_HEADER)
-  GASNET_FUN_END([$0])
-])
-
 dnl check for endianness in a cross-compiling friendly way (using an object scan)
 dnl argument is optional prefix to WORDS_BIGENDIAN setting
 AC_DEFUN([GASNET_BIGENDIAN], [

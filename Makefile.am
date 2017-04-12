@@ -293,12 +293,6 @@ install-data-local:
             chmod 644 "$$destpc" || exit $$? ; \
           else :; fi; \
         done
-	for file in @PATCHED_HEADER@ DUMMY ; do \
-	  if test -f $$file ; then \
-	    $(mkinstalldirs) $(DESTDIR)$(includedir)/patched-headers ; \
-	    $(INSTALL_DATA) patched-headers/$$file $(DESTDIR)$(includedir)/patched-headers/$$file || exit $$? ; \
-	  fi ; \
-	done
 install-exec-local:
 	@if test -n "$(DESTDIR)" -a `expr "X$(DESTDIR)" : X/` = 0; then \
           echo "ERROR: \$$DESTDIR must begin with a '/' character."; \
@@ -326,9 +320,6 @@ uninstall-local:
 	  rm -f $(DESTDIR)$(includedir)/$$file ; \
 	done
 	rm -f $(DESTDIR)$(libdir)/pkgconfig/gasnet_tools-*.pc
-	for file in @PATCHED_HEADER@ ; do \
-	  rm -f $(DESTDIR)$(includedir)/patched-headers/$$file ; \
-	done
 
 # Bug3285: the behavior of distclean-recursive varies in incompatible ways
 # across automake versions, such that no matter what variables we specify
