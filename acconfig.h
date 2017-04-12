@@ -419,6 +419,9 @@
 #undef GASNETC_IBV_CONN_THREAD
 #undef GASNETC_IBV_MAX_HCAS
 
+/* GASNet pami-conduit settings */
+#undef GASNETI_SIZEOF_PAMI_TASK_T
+
 /* GASNet bug1389 detection/work-around */
 #undef GASNETI_BUG1389_WORKAROUND
 
