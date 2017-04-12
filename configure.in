@@ -3576,15 +3576,16 @@ if test ${gni_network}:${enabled_[]lowername} = lowername[]:yes; then
 
   GASNET_IF_ENABLED(lowername-multi-domain, [Use experimental multi-domain support in PAR builds], [AC_DEFINE(GASNETC_GNI_MULTI_DOMAIN)])
 
-  ifelse(lowername,[aries],[
-   GASNET_IF_ENABLED(aries-firehose,
-    [Use firehose for local memory registration caching (experimental, disabled by default)],
-    [ if test "$have_aries" = yes; then
-        AC_DEFINE(GASNETC_GNI_FIREHOSE)
-        GASNET_FH_CFLAGS
-      fi
-    ])
-  ])
+dnl bug 3472: aries firehose support disabled for now
+dnl  ifelse(lowername,[aries],[
+dnl   GASNET_IF_ENABLED(aries-firehose,
+dnl    [Use firehose for local memory registration caching (experimental, disabled by default)],
+dnl    [ if test "$have_aries" = yes; then
+dnl        AC_DEFINE(GASNETC_GNI_FIREHOSE)
+dnl        GASNET_FH_CFLAGS
+dnl      fi
+dnl    ])
+dnl  ])
 
   AC_SUBST(GNI_LDFLAGS)
   AC_SUBST(GNI_LIBS)
