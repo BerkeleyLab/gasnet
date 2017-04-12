@@ -216,6 +216,9 @@ GASNET_IF_ENABLED_NOHELP(arch-ibmpe, [force_arch_ibmpe=yes])
 # There are two distinct "success" cases:
 # 1) The header is found w/o any extra CPPFLAGS
 # 2) The system is a Cray and the header is found only when the env var named by the 2nd arg is appended to CPPFLAGS
+# The includes_var passed is intended for use with CRAY_* variables defined only by Cray-provided standard modules,
+# and hence does NOT use GASNET_ENV_DEFAULT or generate --help output : these variables should NEVER be manually set
+# by an end-user, although they might be implicitly changed by switching loaded modules.
 # GASNET_CHECK_CRAY_HEADER(header, includes_var [, action-on-success-1] [, action-on-success-2] [, action-on-failure])
 AC_DEFUN([GASNET_CHECK_CRAY_HEADER],[
   pushdef([cvname],ac_cv_header_[]translit($1,'.-','__'))  dnl Any others?
@@ -3470,11 +3473,9 @@ fi
 if test ${gni_network}:${enabled_[]lowername} = lowername[]:yes; then
   have_[]lowername=yes # start by assuming we have it
 
-  GASNET_ENV_DEFAULT(GNI_INCLUDES,)
-  GASNET_ENV_DEFAULT(GNI_LIBS,)
-
-  GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS ${GNI_INCLUDES}")
-  GASNET_PUSHVAR(LIBS,"$LIBS ${GNI_LIBS}")
+  GNI_INCLUDES=
+  GNI_LDFLAGS=
+  GNI_LIBS=
 
   # Look for pmi_cray.h, allowing for the possibility we are not using the wrapper compiler
   # Setting $have_pmi_cray squashes a later probe for pmi.h:
@@ -3484,13 +3485,15 @@ if test ${gni_network}:${enabled_[]lowername} = lowername[]:yes; then
       have_pmi_cray_h=yes
       GNI_INCLUDES="$GNI_INCLUDES $CRAY_PMI_INCLUDE_OPTS"
     ])
-  GNI_LIBS="$GNI_LIBS $CRAY_PMI_POST_LINK_OPTS -lpmi"
+  GNI_LDFLAGS="$GNI_LDFLAGS $CRAY_PMI_POST_LINK_OPTS"
+  GNI_LIBS="$GNI_LIBS -lpmi"
 
   # Look for gni_pub.h, allowing for the possibility we are not using the wrapper compiler
   GASNET_CHECK_CRAY_HEADER([gni_pub.h],[CRAY_GNI_HEADERS_INCLUDE_OPTS],[:],[
       GNI_INCLUDES="$GNI_INCLUDES $CRAY_GNI_HEADERS_INCLUDE_OPTS"
     ])
-  GNI_LIBS="$GNI_LIBS $CRAY_UGNI_POST_LINK_OPTS -lugni"
+  GNI_LDFLAGS="$GNI_LDFLAGS $CRAY_UGNI_POST_LINK_OPTS"
+  GNI_LIBS="$GNI_LIBS -lugni"
 
   if test $have_[]lowername = yes; then
     # PSHM must be XPMEM, HUGETLBFS or none.
@@ -3513,10 +3516,8 @@ if test ${gni_network}:${enabled_[]lowername} = lowername[]:yes; then
     esac
   fi
 
-  GASNET_POPVAR(LIBS)
-  GASNET_POPVAR(CPPFLAGS)
-
   if test $have_[]lowername = yes; then
+    GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS ${GNI_LDFLAGS}")
     GASNET_PUSHVAR(LIBS,"$LIBS ${GNI_LIBS}")
     GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS ${GNI_INCLUDES}")
     GASNET_TRY_CACHE_LINK(for working $1 configuration, lowername[]_works, [
@@ -3531,14 +3532,13 @@ if test ${gni_network}:${enabled_[]lowername} = lowername[]:yes; then
       int localranks;
       int ret = PMI_Get_numpes_on_smp(&localranks); /* Cray extension */
     ], [ : ], [ have_[]lowername=no; GASNET_ERR_SAVE() ] )
-    AC_SUBST(GNI_LIBS)
-    AC_SUBST(GNI_INCLUDES)
+    GASNET_POPVAR(LDFLAGS)
     GASNET_POPVAR(LIBS)
     GASNET_POPVAR(CPPFLAGS)
   fi
 
-  GASNET_IF_ENABLED_WITH_AUTO(gni-udreg,
-     [Use Cray's UDREG to cache memory registration on Aries and Gemini (enabled by default if available)],
+  GASNET_IF_ENABLED_WITH_AUTO(lowername-udreg,
+     [Use Cray's UDREG to cache memory registration (enabled by default if available)],
      [gni_udreg=yes], [gni_udreg=no], [gni_udreg=probe])
   if test $gni_udreg != no; then
     # Look for udreg_pub.h, allowing for the possibility we are not using the wrapper compiler
@@ -3550,14 +3550,15 @@ if test ${gni_network}:${enabled_[]lowername} = lowername[]:yes; then
       ],[
         if test "$gni_udreg" = yes; then
           GASNET_ERR_SAVE()
-          AC_MSG_ERROR([--enable-gni-udreg was passed but udreg_pub.h header was not found])
+          AC_MSG_ERROR([--enable-lowername-udreg was passed but udreg_pub.h header was not found])
         fi
       ])
-    GNI_LIBS="$GNI_LIBS $CRAY_UDREG_POST_LINK_OPTS -ludreg"
+    GNI_LDFLAGS="$GNI_LDFLAGS $CRAY_UDREG_POST_LINK_OPTS"
+    GNI_LIBS="$GNI_LIBS -ludreg"
   fi
 
-  GASNET_WITH(gni-max-medium,
-     [gasnet_AMMaxMedium() for Gemini and Aries conduits (default 4032)],
+  GASNET_WITH(lowername-max-medium,
+     [specify gasnet_AMMaxMedium() (default 4032)],
      [if expr "$withval" : '[[0-9]]*$' >/dev/null 2>&1 && \
          expr \( "$withval" / 64 \) \* 64 = "$withval" >/dev/null 2>&1 &&
          expr "$withval" '>=' 512  >/dev/null 2>&1 &&
@@ -3565,26 +3566,27 @@ if test ${gni_network}:${enabled_[]lowername} = lowername[]:yes; then
         gni_max_medium="$withval"
       else
         GASNET_ERR_SAVE()
-        AC_MSG_ERROR([--with-gni-max-medium="$withval" is not legal.  Value must be a multiple of 64, between 512 and 65472, inclusive.])
+        AC_MSG_ERROR([--with-lowername-max-medium="$withval" is not legal.  Value must be a multiple of 64, between 512 and 65472, inclusive.])
       fi
      ],
      [GASNET_ERR_SAVE()
-      AC_MSG_ERROR([--with-gni-max-medium must be a multiple of 64 and no smaller than 512])],
+      AC_MSG_ERROR([--with-lowername-max-medium must be a multiple of 64 and no smaller than 512])],
      [gni_max_medium=4032])
   AC_DEFINE_UNQUOTED(GASNETC_GNI_MAX_MEDIUM, [$gni_max_medium])
 
-  GASNET_IF_ENABLED(gni-multi-domain, [Use experimental multi-domain support in PAR builds of Gemini and Aries conduits], [AC_DEFINE(GASNETC_GNI_MULTI_DOMAIN)])
+  GASNET_IF_ENABLED(lowername-multi-domain, [Use experimental multi-domain support in PAR builds], [AC_DEFINE(GASNETC_GNI_MULTI_DOMAIN)])
 
-  GASNET_IF_ENABLED(gni-firehose,
-    [Use firehose for local memory registration caching in Aries conduit (experimental, disabled by default)],
+  ifelse(lowername,[aries],[
+   GASNET_IF_ENABLED(aries-firehose,
+    [Use firehose for local memory registration caching (experimental, disabled by default)],
     [ if test "$have_aries" = yes; then
         AC_DEFINE(GASNETC_GNI_FIREHOSE)
         GASNET_FH_CFLAGS
-      elif test "$have_gemini" = yes; then
-        GASNET_MSG_WARN([Ignoring --enable-gni-firehose - not supported with Gemini conduit])
       fi
     ])
+  ])
 
+  AC_SUBST(GNI_LDFLAGS)
   AC_SUBST(GNI_LIBS)
   AC_SUBST(GNI_INCLUDES)
 fi
