@@ -3760,6 +3760,21 @@ if test $enabled_pami = yes; then
         pami_client_t client;
         rc = PAMI_Client_create("conftest", &client, NULL, 0);
       }], [:], [ have_pami=no GASNET_ERR_SAVE() ] )
+  if test $have_pami = yes; then
+    # NOTE: When our minumum autoconf is raised to 2.50 or higher, then
+    #       the following can be better implemented by adding an optional
+    #       3rd argument to GASNET_CHECK_SIZEOF() specify INCLUDES.
+    if test "$cross_compiling" = "yes" ; then
+      GASNET_TRY_CACHE_EXTRACT_EXPR([sizeof(pami_task_t) (binary probe)], SIZEOF_PAMI_TASK_T,
+                                    [#include <pami.h>], [(int)sizeof(pami_task_t)],
+                                     GASNETI_SIZEOF_PAMI_TASK_T)
+    else
+      GASNET_TRY_CACHE_RUN_EXPR([sizeof(pami_task_t)], SIZEOF_PAMI_TASK_T,
+                                [#include <pami.h>], [val = (int)sizeof(pami_task_t);],
+                                GASNETI_SIZEOF_PAMI_TASK_T)
+    fi
+    AC_DEFINE_UNQUOTED(GASNETI_SIZEOF_PAMI_TASK_T, [$GASNETI_SIZEOF_PAMI_TASK_T])
+  fi
   GASNET_POPVAR(CFLAGS)
   GASNET_POPVAR(LIBS)
 fi #END ENABLE PAMI

@@ -11,8 +11,6 @@
 #ifndef _GASNET_CORE_FWD_H
 #define _GASNET_CORE_FWD_H
 
-#include <pami.h>
-
 #define GASNET_CORE_VERSION      1.0
 #define GASNET_CORE_VERSION_STR  _STRINGIFY(GASNET_CORE_VERSION)
 #define GASNET_CORE_NAME         PAMI
@@ -32,6 +30,10 @@
   #define GASNET_ALIGNED_SEGMENTS   0 /* user or PSHM disabled segment alignment */
 #else
   #define GASNET_ALIGNED_SEGMENTS   1
+#endif
+
+#if GASNETI_SIZEOF_PAMI_TASK_T != 4
+#error "Invalid GASNETI_SIZEOF_PAMI_TASK_T != 4"
 #endif
 
   /* define to 1 if conduit allows internal GASNet fns to issue put/get for remote
