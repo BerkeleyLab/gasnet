@@ -1187,6 +1187,12 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
   if ((uint64_t)localLimit > sharedLimit) localLimit = sharedLimit;
   maxsz = MIN(maxsz, localLimit);
 
+#if GASNETI_AVOID_MUNMAP
+  { // Must trust the provided limits w/o any validation
+    maxsz = MIN(maxsz, sharedLimit / local_count);
+    maxsz = GASNETI_PAGE_ALIGNDOWN(maxsz);
+  }
+#else
   /* Coordinate the search IFF there are any shared nodes. */
   if (gasneti_myhost.grp_count != gasneti_nodes) {
     uintptr_t *sz_exchg = gasneti_malloc(gasneti_nodes * sizeof(uintptr_t));
@@ -1312,6 +1318,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
     if (se.size) gasneti_do_munmap(se.addr, se.size);
     (*barrierfn)(); /* Ensures munmap()s complete on-node before return */
   }
+#endif // GASNETI_AVOID_MUNMAP
 
 #if GASNET_PSHM
   gasneti_pshm_cs_leave();
@@ -1351,6 +1358,10 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
   { gasneti_segexch_t se;
     int i;
 
+   #if GASNETI_AVOID_MUNMAP
+    gasneti_segment.addr = NULL;
+    gasneti_segment.size = MIN(localSegmentLimit, GASNETI_MMAP_LIMIT);
+   #else
     // NOTE: If the conduit did not derive localSegmentLimit from a call to
     // gasneti_mmapLimit(), then this call might lead to unexpected failures
     // (such as bug 651) due to it's lack of coordination among processes.
@@ -1359,6 +1370,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
                                                   MIN(localSegmentLimit,GASNETI_MMAP_LIMIT));
     GASNETI_TRACE_PRINTF(C, ("My segment: addr="GASNETI_LADDRFMT"  sz=%lu",
       GASNETI_LADDRSTR(gasneti_segment.addr), (unsigned long)gasneti_segment.size));
+   #endif
 
     se.seginfo = gasneti_segment;
   #if PLATFORM_OS_DARWIN
@@ -1505,7 +1517,10 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
     gasneti_pshmnet_bootstrapBarrier();
   #endif
 
-  #ifdef GASNETI_MMAP_OR_PSHM
+  #if GASNETI_AVOID_MUNMAP
+    gasneti_assert(NULL == gasneti_segment.addr);
+    segbase = gasneti_do_mmap(segsize);
+  #elif defined(GASNETI_MMAP_OR_PSHM)
   { /* TODO: this assumes heap grows up */
     uintptr_t topofheap;
     #if GASNET_ALIGNED_SEGMENTS
