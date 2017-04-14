@@ -4156,33 +4156,30 @@ AM_CONDITIONAL(HAVE_BOOTSTRAP_SSH, test "$have_fork" = yes)
 
 # Things for pmi-spawner
 
-GASNET_WITH(pmi, [path to PMI headers and libs],
-            [with_pmi="$withval"; force_pmi=yes], [with_pmi=no], [with_pmi='/usr'])
+GASNET_IF_ENABLED_WITH_AUTO(pmi, [Enable/disable PMI support for job spawning],
+  [enable_pmi=yes; force_pmi=yes], [enable_pmi=no], [enable_pmi=probe])
+
 have_pmi=no
 if test -n "$have_pmi_cray_h"; then
   with_pmi='no'
   have_pmi='yes'
-elif test "$with_pmi" = yes; then
-  with_pmi='/usr'
-fi
+elif test "$enable_pmi" != 'no'; then
+  pmi_guess=/usr
+  GASNET_ENV_DEFAULT(PMI_HOME, $pmi_guess, [Install prefix of PMI library])
 
-if test "$with_pmi" != 'no'; then
-  GASNET_WITH(pmi-libdir, [PMI library directory (if not in default location)],
-   [case "$withval" in
-      yes|no) AC_MSG_ERROR([--with-pmi-libdir requires an argument]) ;;
-           *) PMI_SPAWNER_LIBDIR="-L$withval" ;;
-    esac],
-   [AC_MSG_ERROR([--with-pmi-libdir requires an argument])]
-  )
-  if test "$with_pmi" = '/usr'; then
-    : # Nothing to do
-  elif test -n "${PMI_SPAWNER_LIBDIR+set}" ; then
-    : # Nothing to do
-  elif test -d "${with_pmi}/lib${GASNETI_PTR_BITS}/."; then
-    PMI_SPAWNER_LIBDIR="-L${with_pmi}/lib${GASNETI_PTR_BITS}"
-  elif test -d "${with_pmi}/lib/."; then
-    PMI_SPAWNER_LIBDIR="-L${with_pmi}/lib"
-  fi
+  case "$PMI_HOME" in
+    /usr|/) pmi_ldflags_guess='' ;;
+    *)
+      if test -d "$PMI_HOME/lib${GASNETI_PTR_BITS}"; then
+        pmi_ldflags_guess="-L$PMI_HOME/lib${GASNETI_PTR_BITS}"
+      else
+        pmi_ldflags_guess="-L$PMI_HOME/lib"
+      fi
+    ;;
+  esac
+
+  GASNET_ENV_DEFAULT(PMI_LDFLAGS, $pmi_ldflags_guess)
+  PMI_SPAWNER_LDFLAGS=$PMI_LDFLAGS
 
   # If user specifies one PMI version then disqualify the other
   GASNET_WITH(pmi-version, [PMI version (1 or 2)] , [
@@ -4197,7 +4194,7 @@ if test "$with_pmi" != 'no'; then
   ])
 
   # Check for libs unless disqualifed by --with-pmi-version=
-  GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $PMI_SPAWNER_LIBDIR")
+  GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $PMI_SPAWNER_LDFLAGS")
   GASNET_ENV_DEFAULT(PMI_LIBS, probe)
   if test -z "${use_pmi1+set}"; then
     GASNET_PUSHVAR(LIBS,"")
@@ -4237,14 +4234,15 @@ if test "$with_pmi" != 'no'; then
 
   # Check for header matching the selected lib
   # TODO: fragile if multiple PMI libs are installed
+  # TODO: add a link test for a working PMI configuration
   if test "$have_pmi" = yes; then
-    if test -f "${with_pmi}/include/slurm/pmi${pmi_suffix}.h"; then
-      PMI_SPAWNER_INCLUDES="-I${with_pmi}/include/slurm"
-    elif test -f "${with_pmi}/include/portals4/pmi${pmi_suffix}.h"; then
-      PMI_SPAWNER_INCLUDES="-I${with_pmi}/include/portals4"
-    elif test -f "${with_pmi}/include/pmi${pmi_suffix}.h"; then
-      if test "$with_pmi" != '/usr'; then
-        PMI_SPAWNER_INCLUDES="-I${with_pmi}/include"
+    if test -f "$PMI_HOME/include/slurm/pmi${pmi_suffix}.h"; then
+      PMI_SPAWNER_CFLAGS="-I$PMI_HOME/include/slurm"
+    elif test -f "$PMI_HOME/include/portals4/pmi${pmi_suffix}.h"; then
+      PMI_SPAWNER_CFLAGS="-I$PMI_HOME/include/portals4"
+    elif test -f "$PMI_HOME/include/pmi${pmi_suffix}.h"; then
+      if test "$PMI_HOME" != '/usr'; then
+        PMI_SPAWNER_CFLAGS="-I$PMI_HOME/include"
       fi
     else
       have_pmi=no
@@ -4252,9 +4250,11 @@ if test "$with_pmi" != 'no'; then
   fi
 fi
 
+AC_MSG_CHECKING(for PMI spawner support)
 if test "$have_pmi" = yes; then
+  AC_MSG_RESULT(yes)
   # These have not bee seen outside of Cray PMI, but we can hope:
-  GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $PMI_SPAWNER_LIBDIR")
+  GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $PMI_SPAWNER_LDFLAGS")
   GASNET_PUSHVAR(LIBS,"$LIBS $PMI_SPAWNER_LIBS")
   AC_CHECK_FUNCS([PMI_Allgather PMI_Bcast])
   GASNET_POPVAR(LIBS)
@@ -4269,18 +4269,21 @@ if test "$have_pmi" = yes; then
   GASNET_ENV_DEFAULT(PMIRUN_CMD, $MPIRUN_CMD)
   GASNET_GETFULLPATH(PMIRUN_CMD)
 elif test -z "$force_pmi"; then
+  AC_MSG_RESULT(no)
   PMI_SPAWNER_LIBS=""
-  PMI_SPAWNER_LIBDIR=""
-  PMI_SPAWNER_INCLUDES=""
+  PMI_SPAWNER_LDFLAGS=""
+  PMI_SPAWNER_CFLAGS=""
 elif test -n "${with_pmi_version+set}"; then
+  AC_MSG_RESULT(no)
   GASNET_MSG_ERROR([Requested PMI version $with_pmi_version could not be found])
 else
+  AC_MSG_RESULT(no)
   GASNET_MSG_ERROR([Requested PMI support could not be found])
 fi
 
 AC_SUBST(PMI_SPAWNER_LIBS)
-AC_SUBST(PMI_SPAWNER_LIBDIR)
-AC_SUBST(PMI_SPAWNER_INCLUDES)
+AC_SUBST(PMI_SPAWNER_LDFLAGS)
+AC_SUBST(PMI_SPAWNER_CFLAGS)
 AC_SUBST(PMIRUN_CMD)
 AM_CONDITIONAL(HAVE_BOOTSTRAP_PMI, test "$have_pmi" = yes)
 
