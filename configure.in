@@ -1417,7 +1417,9 @@ if test "$enabled_hugetlbfs" != 'no'; then
  fi
 fi
 with_pshm=no
-GASNET_PSHM_LIBS=""
+GASNET_PSHM_CFLAGS=
+GASNET_PSHM_LDFLAGS=
+GASNET_PSHM_LIBS=
 GASNET_PSHM_ENABLED=no
 GASNET_IF_ENABLED_WITH_AUTO(pshm,
   [Enable/disable inter-process shared memory support (default is system dependent)],
@@ -1534,22 +1536,23 @@ if test "$enabled_pshm" != no; then
   GASNET_PUSHVAR(CPPFLAGS,"")
   GASNET_CHECK_CRAY_HEADER([xpmem.h], [CRAY_XPMEM_INCLUDE_OPTS], [
       found_xpmem_h=yes
-      LDFLAGS="$CRAY_XPMEM_POST_LINK_OPTS -lxpmem " dnl The trailing space is required
     ],[
       found_xpmem_h=yes
-      CPPFLAGS="$CRAY_XPMEM_INCLUDE_OPTS "  dnl The trailing space is required
-      LDFLAGS="$CRAY_XPMEM_POST_LINK_OPTS -lxpmem " dnl The trailing space is required
+      CPPFLAGS="$CRAY_XPMEM_INCLUDE_OPTS"
     ],[
       AC_CHECK_HEADERS([sn/xpmem.h], [found_xpmem_h=yes], [found_xpmem_h=no])
     ])
+  LDFLAGS="$CRAY_XPMEM_POST_LINK_OPTS"
+  LIBS="-lxpmem"
   if test $found_xpmem_h = yes; then
     AC_SEARCH_LIBS(xpmem_get, xpmem, [
       if test $have_hugetlbfs = yes; then
         LIBS="$LIBS $HUGETLBFS_LIBS"
         AC_DEFINE(GASNETI_USE_HUGETLBFS)
       fi
-      SYS_HEADER_BLD="$CPPFLAGS$SYS_HEADER_BLD"
-      GASNET_PSHM_LIBS="$LDFLAGS$LIBS"
+      GASNET_PSHM_CFLAGS="$CPPFLAGS"
+      GASNET_PSHM_LDFLAGS="$LDFLAGS"
+      GASNET_PSHM_LIBS="$LIBS"
       AC_CHECK_FUNCS([xpmem_make_2])
       AC_DEFINE(GASNETI_PSHM_XPMEM)
       with_pshm=xpmem
@@ -1619,6 +1622,8 @@ elif test "$enabled_pshm" = yes; then
   GASNET_MSG_ERROR([User requested --enable-pshm but no supported implementation was found])
 fi
 AC_SUBST(GASNET_PSHM_ENABLED)
+AC_SUBST(GASNET_PSHM_CFLAGS)
+AC_SUBST(GASNET_PSHM_LDFLAGS)
 AC_SUBST(GASNET_PSHM_LIBS)
 
 # Note that --enable-pshm disables aligned segments ONLY for conduits that USE it

@@ -57,6 +57,7 @@ LIBCFLAGS =                       \
         @GASNET_OPT_CFLAGS@       \
         @MISC_CFLAGS@             \
         @MISC_CPPFLAGS@           \
+        @GASNET_PSHM_CFLAGS@      \
         $(LIBDEFINES)             \
         $(CONDUIT_EXTRALIBCFLAGS) \
 	$(LIBINCLUDES)		  \
