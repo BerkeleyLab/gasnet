@@ -4946,92 +4946,60 @@ dnl GASNET_TOOLSONLY_FALSE_BEGIN
 
 ##                        FCA SUPPORT
 GASNET_IF_ENABLED_WITH_AUTO(fca, [Enable/disable FCA for acceleration of collectives (auto-detected)],
-  [enable_fca=yes;force_fca=yes],
-  [enable_fca=no],
-  [enable_fca=probe])
+  [enable_fca=yes], [enable_fca=no], [enable_fca=probe])
 
 have_fca=no
+FCA_INCLUDES=''
+FCA_LDFLAGS=''
+FCA_LIBS=''
 if test "$enable_fca" != "no"; then
-  fca_home=''
-  user_fca_home=''
-  GASNET_WITH(fca, [Specify a custom FCA install directory],
-            [if test "$withval" = 'yes'; then
-                GASNET_MSG_ERROR(["--with-fca requires an argument (FCA install directory)"])
-             fi
-             user_fca_home="$withval"
-             fca_user_provided=yes],
-            [GASNET_MSG_ERROR(["--with-fca requires an argument (FCA install directory).  Use --disable-fca if you wish to disable FCA support."])],
-            [fca_user_provided=no])
-
-  if test "$fca_user_provided" = yes; then
-    fca_home="$user_fca_home"
+  # Start by finding a reasonable default
+  AC_PATH_PROGS(fca_config, fca_config)
+  if test -n "$fca_config"; then
+    fca_guess=`dirname \`dirname $fca_config\``
   else
-    fca_home=/opt/mellanox/fca
+    fca_guess=/opt/mellanox/fca
   fi
+  GASNET_ENV_DEFAULT(FCA_HOME, $fca_guess, [Install prefix of FCA drivers (auto-detected from PATH)])
 
   have_fca=yes # assume success
-  fca_have_header=no
-  fca_have_lib=no
-  fca_in_path=no
-  fca_in_fca_home=no
-
-  FCA_INCLUDES=''
-  FCA_LIBDIR=''
-  FCA_LIBS=''
-
-  if test "$fca_user_provided" != yes; then
-    # looking for FCA in standard locations only if user didn't provide its location
-    AC_CHECK_HEADERS(fca/fca_api.h, fca_have_header=yes)
-    AC_CHECK_LIB(fca, fca_init, fca_have_lib=yes)
-    AC_MSG_CHECKING(for FCA in standard locations)
-    if test "$fca_have_header$fca_have_lib" = yesyes; then
-        fca_in_path=yes
-    fi
-    AC_MSG_RESULT([$fca_in_path])
-  fi
-
-  if test "$fca_in_path" = no; then
-    if test -e "$fca_home/include/fca/fca_api.h" ; then
-      fca_have_header=yes
-    fi
-    if test -e "$fca_home/lib${GASNETI_PTR_BITS}/libfca.so" ; then
-      fca_have_lib=yes
-      fca_lib_path="$fca_home/lib${GASNETI_PTR_BITS}"
-    elif test -e "$fca_home/lib/libfca.so" ; then
-      fca_have_lib=yes
-      fca_lib_path="$fca_home/lib"
-    fi
-
-    AC_MSG_CHECKING(for FCA in $fca_home)
-    if test "$fca_have_header$fca_have_lib" = yesyes; then
-        fca_in_fca_home=yes
-        FCA_INCLUDES="-I$fca_home/include"
-        FCA_LIBDIR="-L$fca_lib_path"
-    fi
-    AC_MSG_RESULT([$fca_in_fca_home])
-  fi
-
-  if test "$fca_user_provided$fca_in_fca_home" = yesno; then
-    GASNET_MSG_WARN(FCA not found in user-provided $user_fca_home - disabling FCA)
-    have_fca=no
-  elif test "$fca_in_path$fca_in_fca_home" = nono; then
+  if test -e "$FCA_HOME/include/fca/fca_api.h" ; then
+    fca_includes="-I$FCA_HOME/include/"
+  else
     have_fca=no
   fi
 
-  if test "$force_fca$have_fca" = yesno; then
-    GASNET_MSG_ERROR([User requested --enable-fca but FCA support could not be found])
+  if test -e "$FCA_HOME/lib${GASNETI_PTR_BITS}/libfca.so" ; then
+    fca_ldflags="-L$FCA_HOME/lib${GASNETI_PTR_BITS}"
+  elif test -e "$FCA_HOME/lib/libfca.so" ; then
+    fca_ldflags="-L$FCA_HOME/lib"
+  else
+    have_fca=no
+  fi
+
+  AC_MSG_CHECKING(for FCA in $FCA_HOME)
+  AC_MSG_RESULT([$have_fca])
+
+  if test "$enable_fca$have_fca" = yesno; then
+    GASNET_MSG_ERROR([User requested --enable-fca but FCA support could not be found. Perhaps you need to pass --with-fca-home=/path/to/fca ?])
   elif test "$have_fca" = yes; then
+    case "$FCA_HOME" in
+      /usr|/) FCA_INCLUDES='' ; FCA_LDFLAGS='' ;;
+      *) FCA_INCLUDES="$fca_includes"
+         FCA_LDFLAGS="$fca_ldflags"
+      ;;
+    esac
     FCA_LIBS="-lfca"
-    AC_DEFINE_UNQUOTED(GASNETI_FCA_HOME, "$fca_home")
+    AC_DEFINE_UNQUOTED(GASNETI_FCA_HOME, "$FCA_HOME")
     AC_DEFINE(GASNET_FCA_ENABLED)
   fi
 fi
 FCA_ENABLED="$have_fca"
-AC_SUBST([FCA_ENABLED])
-AC_SUBST([FCA_INCLUDES])
-AC_SUBST([FCA_LIBDIR])
-AC_SUBST([FCA_LIBS])
+AC_SUBST(FCA_ENABLED) # extracted by UPCR
 AM_CONDITIONAL(FCA_ENABLED, test "$have_fca" = "yes")
+AC_SUBST(FCA_INCLUDES) # extracted by UPCR
+AC_SUBST(FCA_LDFLAGS)
+AC_SUBST(FCA_LIBS)
 
 GASNET_IF_ENABLED_WITH_AUTO(blcr, [Enable/disable BLCR for process checkpoints (auto-detected)],
   [enable_blcr=yes], [enable_blcr=no], [enable_blcr=probe])
