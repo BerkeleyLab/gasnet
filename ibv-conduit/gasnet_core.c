@@ -685,7 +685,11 @@ static void gasnetc_fakepin(uintptr_t limit, uintptr_t step) {
 static void gasnetc_init_pin_info(int first_local, int num_local) {
   gasnetc_pin_info_t *all_info = gasneti_malloc(gasneti_nodes * sizeof(gasnetc_pin_info_t));
   unsigned long limit;
-  int do_probe = 1;
+#if 1 // was GASNETI_AVOID_MUNMAP
+  const int do_probe = 0; // Cannot probe w/o using munmap()
+#else
+  const int do_probe = ! gasneti_getenv_yesno_withdefault("GASNET_PHYSMEM_NOPROBE", 0);
+#endif
   int i;
 
   /* 
