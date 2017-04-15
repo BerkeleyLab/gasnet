@@ -448,6 +448,18 @@ extern int AM_Init() {
     AMUDP_assert(sizeof(uintptr_t) >= sizeof(void *));
 
     AMUDP_assert(sizeof(amudp_msg_t) % 4 == 0); // may be required for correct argument alignment
+    #if PLATFORM_OS_LINUX /* && !PLATFORM_OS_WSL */
+      FILE *fp = fopen("/proc/sys/kernel/osrelease", "r");
+      if (fp) {
+        char line[255];
+        char *rc = fgets(line, sizeof(line), fp);
+        fclose(fp);
+        if (rc && strstr(line, "Microsoft")) { 
+          AMUDP_Warn("AMUDP was built for native Linux, you are running on an emulated kernel which has known differences that might cause problems. "
+          "We do not support this model of operation, but we DO support building from source on this platform. Please rebuild from source here.");
+        }
+      }
+    #endif
   }
   amudp_Initialized++;
   return AM_OK;
