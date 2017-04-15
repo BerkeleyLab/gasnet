@@ -537,9 +537,13 @@ GASNET_FUN_END([$0])
 AC_DEFUN([_GASNET_CONFIGURE_ARGS],[
 # GASNet configure argument processing
 # start by capturing raw args, hopefully before autoconf clobbers positional parameters
-_gasneti_raw_args= 
+_gasneti_raw_args=
 for arg in "[$]@" ; do
-  _gasneti_raw_args="$_gasneti_raw_args '$arg'"
+  if test -z "$_gasneti_raw_args" ; then
+    _gasneti_raw_args="'$arg'"
+  else
+    _gasneti_raw_args="$_gasneti_raw_args '$arg'"
+  fi
 done
 # also capture the enclosing environment, before autoconf changes it
 _gasneti_envcmd=env
@@ -1132,7 +1136,7 @@ GASNET_FUN_END([$0($1,$2,$3)])
 dnl GASNET_GETFULLPATH(var)
 dnl var contains a program name, optionally followed by arguments
 dnl expand the program name to a fully qualified pathname if not already done
-dnl will special case "env var1=val1 var2-val2 prog args" ("env" must be exact)
+dnl will special case "env var1=val1 var2-val2 prog args" ("env" may also be a full path)
 AC_DEFUN([GASNET_GETFULLPATH_CHECK],[
 GASNET_IF_DISABLED(full-path-expansion, [Disable expansion of program names to full pathnames], 
                    [cv_prefix[]_gfp_disable=1])
@@ -1142,15 +1146,18 @@ GASNET_FUN_BEGIN([$0($1)])
 AC_REQUIRE([AC_PROG_AWK])
 AC_REQUIRE([GASNET_GETFULLPATH_CHECK])
 if test "$cv_prefix[]_gfp_disable" = ""; then
-  if expr "$$1" : 'env ' >/dev/null; then
+  if echo "$$1" | $AWK -F' ' '{if ([$]1 ~ /^(.*\/)?env$/) exit 0; else exit 1;}' >/dev/null; then
     AC_PATH_PROGS(ENVCMD, $ENVCMD env, , /usr/bin:${PATH})
-    gasnet_gfp_progenv="$ENVCMD "`echo "$$1" | $AWK -F' ' 'BEGIN { ORS=" "; } { for (i=2;i<=NF;i++) { if ($i ~ /=/) print $i; else break; } }'`
-    gasnet_gfp_progname=`echo "$$1" | $AWK -F' ' 'BEGIN { ORS=" "; } { for (i=2;i<=NF;i++) { if ($i !~ /=/) { print $i; break; } } }'`
-    gasnet_gfp_progargs=`echo "$$1" | $AWK -F' ' 'BEGIN { ORS=" "; } { for (i=2;i<NF;i++) { if ($i !~ /=/) { for (j=i+1;j<=NF;j++) { print $j; } break; } } }'`
+    # assemble "ENVCMD key=val key=val " with a trailing space
+    gasnet_gfp_progenv="$ENVCMD "`echo "$$1" | $AWK -F' ' 'BEGIN { ORS=" "; } { for (i=2;i<=NF;i++) { if ($i ~ /=/) { print $i; } else break; } }'`
+    # just the program name
+    gasnet_gfp_progname=`echo "$$1" | $AWK -F' ' 'BEGIN { ORS=""; } { for (i=2;i<=NF;i++) { if ($i !~ /=/) { print $i; break; } } }'`
+    # list of program arguments with no trailing space
+    gasnet_gfp_progargs=`echo "$$1" | $AWK -F' ' 'BEGIN { ORS=""; } { for (i=2;i<NF;i++) { if ($i !~ /=/) { for (j=i+1;j<=NF;j++) { print sp; sp=" "; print $j; } break; } } }'`
   else
     gasnet_gfp_progenv=""
     gasnet_gfp_progname=`echo "$$1" | $AWK -F' ' '{ print [$]1 }'`
-    gasnet_gfp_progargs=`echo "$$1" | $AWK -F' ' 'BEGIN { ORS=" "; } { for (i=2;i<=NF;i++) print $i; }'`
+    gasnet_gfp_progargs=`echo "$$1" | $AWK -F' ' 'BEGIN { ORS=""; } { for (i=2;i<=NF;i++) { print sp; sp=" "; print $i; } }'`
   fi
   gasnet_gfp_progname0=`echo "$gasnet_gfp_progname" | $AWK '{ print sub[]str([$]0,1,1) }'`
   if test "$gasnet_gfp_progname0" != "/" ; then
@@ -1160,16 +1167,21 @@ if test "$cv_prefix[]_gfp_disable" = ""; then
     # clear cached values, in case this is a pushed var
     unset cv_prefix[]_gfp_fullprogname_$1
     unset ac_cv_path_[]cv_prefix[]_gfp_fullprogname_$1
-    # [AC_PATH_PROG](cv_prefix[]_gfp_fullprogname_$1, $gasnet_gfp_progname,[])
     AC_PATH_PROG(cv_prefix[]_gfp_fullprogname_$1, $gasnet_gfp_progname,[])
-    AC_MSG_CHECKING(for full path expansion of $1)
     if test "$cv_prefix[]_gfp_fullprogname_$1" != "" ; then
-      $1="$gasnet_gfp_progenv$cv_prefix[]_gfp_fullprogname_$1 $gasnet_gfp_progargs"
+      gasnet_gfp_progname="$cv_prefix[]_gfp_fullprogname_$1"
     fi
-    AC_MSG_RESULT($$1)
-  else
-    $1="$gasnet_gfp_progenv$gasnet_gfp_progname $gasnet_gfp_progargs"
   fi
+  AC_MSG_CHECKING(for full path expansion of $1)
+  if test -n "$gasnet_gfp_progargs" ; then
+    $1="$gasnet_gfp_progenv$gasnet_gfp_progname $gasnet_gfp_progargs"
+  else
+    $1="$gasnet_gfp_progenv$gasnet_gfp_progname"
+  fi
+  #echo "gasnet_gfp_progenv='$gasnet_gfp_progenv'"
+  #echo "gasnet_gfp_progname='$gasnet_gfp_progname'"
+  #echo "gasnet_gfp_progargs='$gasnet_gfp_progargs'"
+  AC_MSG_RESULT($$1)
 fi
 GASNET_FUN_END([$0($1)])
 ])
