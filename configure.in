@@ -2594,8 +2594,8 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
   CXXFLAGS="$GASNET_OPT_CXXFLAGS $MISC_CXXFLAGS"
   GASNET_CORRECT_OPTIMIZEDDEBUG(CXX,CXXFLAGS,CXX,[$CPPFLAGS],[])
 
-  GASNET_ENV_DEFAULT(cxxLIBS, )             # C++ LIBS for any C++ link
-  GASNET_ENV_DEFAULT(cxxLDFLAGS, )          # C++ LDFLAGS for any C++ link
+  GASNET_ENV_DEFAULT(cxxLIBS,,    [Libraries to add when linking C++ code])
+  GASNET_ENV_DEFAULT(cxxLDFLAGS,, [Linker flags to add when linking C++ code])
   GASNET_UDP_LIBS="$GASNET_UDP_LIBS $cxxLIBS"
   AC_SUBST(cxxLIBS)
   AC_SUBST(cxxLDFLAGS)
@@ -2697,7 +2697,7 @@ AM_CONDITIONAL(USE_UDP_CONDUIT, test "$enabled_udp$have_udp" = yesyes)
 CONDUIT_END([test "$enabled_udp$have_udp" = yesyes])
 
 if test "$have_udp" = yes ; then
-GASNET_ENV_DEFAULT(GASNET_CSPAWN_CMD, "$TI_CSPAWN_CMD")
+GASNET_ENV_DEFAULT(GASNET_CSPAWN_CMD, "$TI_CSPAWN_CMD", [See udp-conduit/README])
 if test "$GASNET_CSPAWN_CMD" != "" ; then
   AC_DEFINE_UNQUOTED(GASNET_CSPAWN_CMD, "$GASNET_CSPAWN_CMD")
 fi
@@ -2724,6 +2724,12 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
   # First step is to provide sane defaults when the user gave us nothing
   have_mpi=yes # start by assuming they have it
   DEFAULT_MPI_CFLAGS="$GASNET_OPT_CFLAGS" # default flags, assuming they are the same compiler
+  if false ; then # just for help strings
+    GASNET_ENV_DEFAULT(MPI_CC,,     [[The MPI C compiler wrapper]])
+    GASNET_ENV_DEFAULT(MPI_CFLAGS,, [[Flags to add when compiling MPI C code (overrides auto-detected default)]])
+    GASNET_ENV_DEFAULT(MPI_LIBS,,   [[Libraries to add to the MPI link line]])
+    GASNET_ENV_DEFAULT(MPIRUN_CMD,, [[Command template for running MPI programs, see mpi-conduit/README for syntax]])
+  fi
   case "$target_os" in
     linux*) 
         if test -n "$GASNETI_ARCH_ALTIX"; then
@@ -2747,7 +2753,11 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
     	  GASNET_ENV_DEFAULT(MPI_LIBS, )
 	  GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
         fi
-        GASNET_ENV_DEFAULT(MPIRUN_CMD_BATCH, "")
+        if test -n "$GASNETI_ARCH_BGQ"; then # this option only used for BG/Q, hide it to avoid confusion
+          pushdef([GASNET_SUPPRESSHELP],1)
+          GASNET_ENV_DEFAULT(MPIRUN_CMD_BATCH, "")
+          popdef([GASNET_SUPPRESSHELP])
+        fi
         ;;
     mtx*)
     	GASNET_ENV_DEFAULT(MPI_CC, cc)
@@ -4293,7 +4303,7 @@ if test "$have_pmi" = yes; then
   else
     GASNET_ENV_DEFAULT(MPIRUN_CMD, mpirun -np %N %C)
   fi
-  GASNET_ENV_DEFAULT(PMIRUN_CMD, $MPIRUN_CMD)
+  GASNET_ENV_DEFAULT(PMIRUN_CMD, $MPIRUN_CMD, [[Command template for running PMI programs, see other/pmi-spawner/README]])
   GASNET_GETFULLPATH(PMIRUN_CMD)
 elif test -z "$force_pmi"; then
   AC_MSG_RESULT(no)
