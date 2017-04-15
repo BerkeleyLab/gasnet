@@ -2762,7 +2762,7 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
       ;;
   esac
 
-  if test "x$MPI_CC" = 'xno' >/dev/null; then
+  if test -z "$MPI_CC" ; then
     # Avoid unecessary and potentially confusing probes and their errors/warnings
     have_mpi=no
     mpi_reason="was disabled"
@@ -2797,14 +2797,14 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
     else
       GASNET_MSG_WARN([MPI compiler "$MPI_CC" was not found.  Consider passing --with-mpi-cc=/path/to/mpicc if you want mpi-conduit or require MPI compatibility])
       # Avoid unecessary and potentially confusing probes and their errors/warnings
-      MPI_CC=no
+      MPI_CC=
       have_mpi=no
       mpi_reason="was not found"
     fi
   fi
 
-  if test x"$MPI_CC" != xno; then
-  GASNET_GETFULLPATH(MPIRUN_CMD)
+  if test $have_mpi = yes; then
+    GASNET_GETFULLPATH(MPIRUN_CMD)
   fi
 
   # now run a basic test of the MPI configuration to make sure it works
