@@ -654,7 +654,7 @@ cat config.env | $AWK ['{
     else           printf("_gasneti_nenv_%s=\x27%s\x27\n",var,env[var]);
   }
 }'] > config.env2
-. config.env2
+. ./config.env2
 rm -f config.env config.env2
 ])
 
