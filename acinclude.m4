@@ -939,6 +939,10 @@ ifdef([m4_cleardivert],[],[
            [undivert[]], [undivert($@)])divert(_num)popdef([_num])])
 ])
 
+dnl same for m4_newline
+ifdef([m4_newline],[],[ define([m4_newline],[
+$1])]) dnl do NOT reindent this line!!!
+
 AC_DEFUN([GASNET_OPTION_HELP],[  --$1 ]m4_substr[([                               ],len([$1]))[$2]])
 
 dnl Dumps a string directly into the option help output at this point (if supported)
@@ -969,8 +973,7 @@ dnl remove a list of Autoconf-generated options (ie --opt1=, --opt2= ) from --he
 define([GASNET_TRIM_ACHELP], [
   ifdef([_AC_INIT_HELP],[
     m4_copy([_AC_INIT_HELP],[_GASNET_INIT_HELP])
-    m4_defun([_AC_INIT_HELP],[patsubst(m4_defn([_GASNET_INIT_HELP]),[^.*--\(]m4_join([\|],$@)[\)=.*
-],[])]) dnl do NOT reindent this line!!!
+    m4_defun([_AC_INIT_HELP],[patsubst(m4_defn([_GASNET_INIT_HELP]),[^.*--\(]m4_join([\|],$@)[\)=.*]m4_newline,[])])
   ])
   dnl Also remove program transform help output
   ifdef([AC_ARG_PROGRAM],[
@@ -1001,11 +1004,10 @@ dnl Perform AC_DISABLE_OPTION_CHECKING if it exists
 define([GASNET_NO_CHECK_OPTS],[
   ifdef([AC_DISABLE_OPTION_CHECKING],[AC_DISABLE_OPTION_CHECKING])
   dnl also fixup help
-  pushdef([optcheckpat],[^.*--disable-option-checking.*
-]) dnl do NOT reindent this line!!!
   ifdef([AC_PRESERVE_HELP_ORDER],[
     m4_copy([AC_PRESERVE_HELP_ORDER],[_GASNET_PRESERVE_HELP_ORDER])
-    m4_defun([AC_PRESERVE_HELP_ORDER],[patsubst(m4_defn([_GASNET_PRESERVE_HELP_ORDER]),optcheckpat,[])])
+    m4_defun([AC_PRESERVE_HELP_ORDER],[patsubst(m4_defn([_GASNET_PRESERVE_HELP_ORDER]),
+                                       [^.*--disable-option-checking.*]m4_newline,[])])
   ])
 ])
 
