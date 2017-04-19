@@ -18,7 +18,7 @@ endif
 
 if BLCR_ENABLED
   blcr_defines = -DAMUDP_BLCR_ENABLED=1 -DBLCR_BINDIR=\"@BLCR_BINDIR@\" @BLCR_CPPFLAGS@
-  blcr_ldflags = @BLCR_LIBDIR@ @BLCR_LIBS@
+  blcr_ldflags = @BLCR_LDFLAGS@ @BLCR_LIBS@
 else
   blcr_defines =
   blcr_ldflags =
