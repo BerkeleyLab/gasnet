@@ -2895,7 +2895,7 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
         #include <mpi.h>
       ],[, or consider passing --without-mpi-cc if an MPI compiler is not required.])
   elif test "$mpi_reason" = ""; then
-      GASNET_MSG_WARN([build test failed: I don't know how to build MPI programs on your system -- see $TOP_BUILDDIR/config.log for details: consider setting $\MPI_CC \$MPI_CFLAGS and \$MPI_LIBS to configure MPI support for your site if you want mpi-conduit or require MPI compatibility])
+      GASNET_MSG_WARN([build test failed: I don't know how to build MPI programs on your system -- see $TOP_BUILDDIR/config.log for details: consider setting \$MPI_CC \$MPI_CFLAGS and \$MPI_LIBS to configure MPI support for your site if you want mpi-conduit or require MPI compatibility])
       have_mpi=no
   fi
   if test "$have_mpi$mpi_reason" = no ; then
