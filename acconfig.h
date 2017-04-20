@@ -234,7 +234,6 @@
 
 /* BLCR support, path and features */
 #undef GASNETI_BLCR_ENABLED
-#undef GASNETI_BLCR_BINDIR
 
 /* support for backtracing */
 #undef HAVE_EXECINFO_H
