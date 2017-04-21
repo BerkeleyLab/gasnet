@@ -12,6 +12,12 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#if (PLATFORM_OS_LINUX || PLATFORM_OS_CNL) && !GASNETI_AVOID_MUNMAP // Suspect bug 3480
+#define GASNETI_BUG3480_MSG "\nYour system is suspected to be impacted by bug 3480"
+#else
+#define GASNETI_BUG3480_MSG
+#endif
+
 #if defined(GASNETI_MMAP_OR_PSHM) && !defined(HAVE_MMAP)
  #if PLATFORM_OS_CYGWIN && (GASNETI_PSHM_POSIX || GASNETI_PSHM_FILE)
   /* Use of mmap() for PSHM over POSIX or FILE is a less-than-general case.
@@ -191,7 +197,7 @@ static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize) {
               GASNETI_LADDRSTR(ptr), (unsigned long)GASNET_PAGESIZE, (unsigned long)GASNET_PAGESIZE);
   }
   if (segbase && ptr == MAP_FAILED) {
-      gasneti_fatalerror("mmap fixed failed at "GASNETI_LADDRFMT" for size %lu: %s\n",
+      gasneti_fatalerror("mmap fixed failed at "GASNETI_LADDRFMT" for size %lu: %s" GASNETI_BUG3480_MSG,
 	      GASNETI_LADDRSTR(segbase), (unsigned long)segsize, strerror(mmap_errno));
   }
   if (segbase && segbase != ptr) {
@@ -754,7 +760,7 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
     if (!segbase) {
       gasneti_fatalerror("mmap failed for size %lu: %s", (unsigned long)segsize, strerror(mmap_errno));
     } else {
-      gasneti_fatalerror("mmap fixed failed at "GASNETI_LADDRFMT" for size %lu: %s",
+      gasneti_fatalerror("mmap fixed failed at "GASNETI_LADDRFMT" for size %lu: %s" GASNETI_BUG3480_MSG,
               GASNETI_LADDRSTR(segbase), (unsigned long)segsize, strerror(mmap_errno));
     }
   }
