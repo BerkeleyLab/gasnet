@@ -446,7 +446,7 @@ static void gasnetc_init_pin_info(int first_local, int ppn)
     gasnetc_pin_info.memory = ~((uintptr_t)0);
     gasnetc_pin_info.ppn = ppn;
 
-#if GASNETI_AVOID_MUNMAP
+#if GASNETI_BUG3480_WORKAROUND
     const int do_probe = 0; // Cannot probe w/o using munmap()
 #else
     const int do_probe = gasneti_getenv_yesno_withdefault("GASNET_PHYSMEM_PROBE", 0);
