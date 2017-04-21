@@ -2169,17 +2169,43 @@ static int gasneti_set_affinity_cpus(void) {
 void gasneti_set_affinity_default(int rank) {
   #if HAVE_PLPA
   {
+    static int no_op = 0;
     gasneti_plpa_cpu_set_t mask;
     int cpus = gasneti_set_affinity_cpus();
 
+    if (no_op == 1) {
+      /* NO-OP as determined by an earlier call */
+      return;
+    }
+
     if (cpus == 1) {
       /* NO-OP on single-processor platform */
+      no_op = 1;
       return;
+    }
+
+    // Dynamically handle binaries built on native Ubuntu and ported to Microsoft's WSL kernel
+    // emulator, which currently fail inside plpa_sched_setaffinity with EINVAL.
+    // Ideally we would use uname(2) here, but direct experimentation on the 4/16/17 version
+    // of WSL reveals that uname does not return any identifying marks to distinguish Microsoft's
+    // emulated Ubuntu kernel. 
+    // Microsoft devs suggest grepping /proc/version or /proc/sys/kernel/osrelease for "Microsoft"
+    FILE *fp = fopen("/proc/sys/kernel/osrelease", "r");
+    if (fp) {
+      char line[255];
+      char *rc = fgets(line, sizeof(line), fp);
+      fclose(fp);
+      if (rc && strstr(line, "Microsoft")) {
+        /* NO-OP on WSL */
+        no_op = 1;
+        return;
+      }
     }
     
     /* Try a GET first to check for support */
     if_pf (ENOSYS == gasneti_plpa_sched_getaffinity(0, sizeof(mask), &mask)) {
       /* becomes a NO-OP */
+      no_op = 1;
       return;
     }
     
@@ -2920,7 +2946,7 @@ extern double gasneti_calibrate_tsc_from_kernel(void) {
       }
     }
     fclose(fp);
-  #else /* (X86 || X86_64 || MIC) && (Linux || CNL) */
+  #else /* (X86 || X86_64 || MIC) && (Linux || CNL || WSL) */
   FILE *fp = NULL;
   char input[512]; /* 256 is too small for "flags" line in /proc/cpuino */
   double MHz = 0.0;
@@ -3005,9 +3031,9 @@ extern double gasneti_calibrate_tsc(void) {
   //   and will run when it is safe.
   if_pf (firstTime) {
   #if !(PLATFORM_ARCH_X86 || PLATFORM_ARCH_X86_64 || PLATFORM_ARCH_MIC) || \
-      !(PLATFORM_OS_LINUX || PLATFORM_OS_CNL)
+      !(PLATFORM_OS_LINUX || PLATFORM_OS_CNL || PLATFORM_OS_WSL)
     Tick = gasneti_calibrate_tsc_from_kernel();
-  #else /* (X86 || X86_64 || MIC) && (Linux || CNL) */
+  #else /* (X86 || X86_64 || MIC) && (Linux || CNL || WSL) */
     #ifndef GASNETI_DEFAULT_TSC_RATE
     // TODO: need logic to default to "cpuinfo" when we can determine CPU model is trustworthy
     #define GASNETI_DEFAULT_TSC_RATE "wallclock"

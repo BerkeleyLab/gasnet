@@ -69,7 +69,7 @@ CHECK_PP_C = $(srcdir)/check-pp.c
 $(CHECK_PP_C): gasnet_portable_platform.h portable_platform.h
 
 check-pp-tgt: $(CHECK_PP_C)
-	@CC@ @CFLAGS@ @LDFLAGS@ -I$(srcdir) $(MANUAL_DEFINES) $(MANUAL_CFLAGS) $(MANUAL_LDFLAGS) -o $@ $< @LIBS@ $(MANUAL_LIBS)
+	@CC@ @CFLAGS@ @LDFLAGS@ -I$(srcdir) -I$(top_builddir) '-DCONFIG_HEADER="gasnet_config.h"' -D_IN_GASNET_TOOLS_H=1 $(MANUAL_DEFINES) $(MANUAL_CFLAGS) $(MANUAL_LDFLAGS) -o $@ $< @LIBS@ $(MANUAL_LIBS)
 
 # Disabled until we have a more compelling need for configure detection of HOST_CC
 #check-pp-host: $(CHECK_PP_C)

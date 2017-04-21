@@ -218,6 +218,7 @@ static amudp_node_t sourceAddrToId(ep_t ep, en_t sourceAddr, amudp_node_t hint) 
  * Linux (FIONREAD) and Solaris (I_NREAD) get this right, 
  * but all other systems seem to get it wrong, one way or another.
  * Cygwin: (bug 3284) not implemented
+ * WSL (4/8/17) returns raw byte count, which can over or under-report
  * FreeBSD: (bug 2827) returns raw byte count, which can over or under-report
  * others: over-report by returning total bytes in all messages waiting
  */

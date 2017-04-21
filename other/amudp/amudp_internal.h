@@ -101,7 +101,7 @@ extern void AMUDP_InitRetryCache();
 #endif
 
 #if !defined(USE_ASYNC_TCP_CONTROL) && \
-   ( PLATFORM_OS_LINUX )
+   ( PLATFORM_OS_LINUX )   // NOT functional on WSL
   #define USE_ASYNC_TCP_CONTROL     1   /* use O_ASYNC and signals to stat TCP coord sockets, saves overhead on AMPoll */
 #endif
 #ifndef AMUDP_SIGIO

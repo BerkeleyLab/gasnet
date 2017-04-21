@@ -672,7 +672,7 @@ char gasneti_exename[PATH_MAX] = "[unknown]";
 static const char *gasneti_mallocreport_filename = NULL;
 #endif
 
-#if PLATFORM_OS_LINUX || PLATFORM_OS_CNL || PLATFORM_OS_CYGWIN || \
+#if PLATFORM_OS_LINUX || PLATFORM_OS_CNL || PLATFORM_OS_WSL || PLATFORM_OS_CYGWIN || \
     PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD || PLATFORM_OS_OPENBSD
 #define GASNETI_HAVE_ARGV_FROM_PROC 1
 /* Try to get substitute argv from /proc, if available.
@@ -682,7 +682,7 @@ static void gasneti_argv_from_proc(int **ppargc, char ****ppargv) {
   static int argc = 0;
   static char **argv = NULL;
 
-#if PLATFORM_OS_LINUX || PLATFORM_OS_CNL || PLATFORM_OS_CYGWIN
+#if PLATFORM_OS_LINUX || PLATFORM_OS_CNL || PLATFORM_OS_WSL || PLATFORM_OS_CYGWIN
   const char *filename = "/proc/self/cmdline";
 #elif PLATFORM_OS_FREEBSD || PLATFORM_OS_NETBSD || PLATFORM_OS_OPENBSD
   const char *filename = "/proc/curproc/cmdline";
