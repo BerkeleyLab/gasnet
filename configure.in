@@ -622,7 +622,8 @@ case "$CC_FAMILY" in
   Cray) 
     AC_MSG_CHECKING([for Cray C warning flags])
     crayc_warn_flags="236:3185" # 3185 = bug 3306
-    GASNET_TRY_CCOMPILE_WITHWARN(
+    GASNET_PUSHVAR(CFLAGS,"$CFLAGS -g") # bug 3309 is specific to -g
+     GASNET_TRY_CCOMPILE_WITHWARN(
        [ typedef struct { int f1; } S;
          S foo(void) {
            S s;
@@ -631,6 +632,7 @@ case "$CC_FAMILY" in
          } ], [], [],
        [ crayc_warn_flags="${crayc_warn_flags}:7212" ], #  bug 3309, Cray C 8.5+
        [GASNET_MSG_ERROR(failure building struct warning test)])
+    GASNET_POPVAR(CFLAGS)
     case "$target_cpu" in
       x86_64)   MISC_CFLAGS="-hnomessage=$crayc_warn_flags" ;; # XT, XE, XK, XC, etc. 
       *)        AC_MSG_ERROR(Cray C compiler for unknown target CPU) ;;
