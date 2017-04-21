@@ -12,7 +12,7 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
-#if (PLATFORM_OS_LINUX || PLATFORM_OS_CNL) && !GASNETI_AVOID_MUNMAP // Suspect bug 3480
+#if (PLATFORM_OS_LINUX || PLATFORM_OS_CNL) && !GASNETI_BUG3480_WORKAROUND // Suspect bug 3480
 #define GASNETI_BUG3480_MSG "\nYour system is suspected to be impacted by bug 3480"
 #else
 #define GASNETI_BUG3480_MSG
@@ -1193,7 +1193,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
   if ((uint64_t)localLimit > sharedLimit) localLimit = sharedLimit;
   maxsz = MIN(maxsz, localLimit);
 
-#if GASNETI_AVOID_MUNMAP
+#if GASNETI_BUG3480_WORKAROUND
   { // Must trust the provided limits w/o any validation
     maxsz = MIN(maxsz, sharedLimit / local_count);
     maxsz = GASNETI_PAGE_ALIGNDOWN(maxsz);
@@ -1324,7 +1324,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
     if (se.size) gasneti_do_munmap(se.addr, se.size);
     (*barrierfn)(); /* Ensures munmap()s complete on-node before return */
   }
-#endif // GASNETI_AVOID_MUNMAP
+#endif // GASNETI_BUG3480_WORKAROUND
 
 #if GASNET_PSHM
   gasneti_pshm_cs_leave();
@@ -1364,7 +1364,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
   { gasneti_segexch_t se;
     int i;
 
-   #if GASNETI_AVOID_MUNMAP
+   #if GASNETI_BUG3480_WORKAROUND
     gasneti_segment.addr = NULL;
     gasneti_segment.size = MIN(localSegmentLimit, GASNETI_MMAP_LIMIT);
    #else
@@ -1523,7 +1523,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
     gasneti_pshmnet_bootstrapBarrier();
   #endif
 
-  #if GASNETI_AVOID_MUNMAP
+  #if GASNETI_BUG3480_WORKAROUND
     gasneti_assert(NULL == gasneti_segment.addr);
     segbase = gasneti_do_mmap(segsize);
   #elif defined(GASNETI_MMAP_OR_PSHM)
