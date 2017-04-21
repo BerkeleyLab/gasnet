@@ -210,6 +210,7 @@ AC_SUBST(GASNETI_PTR_BITS)
 
 GASNET_IF_ENABLED_NOHELP(arch-altix, [force_arch_altix=yes])
 GASNET_IF_ENABLED_NOHELP(arch-ibmpe, [force_arch_ibmpe=yes])
+GASNET_IF_ENABLED_NOHELP(arch-wsl,   [force_arch_wsl=yes])
 
 ##
 # Look for a Cray-provided header allowing for the possibility we are not using Cray's wrapper compiler
@@ -1140,6 +1141,14 @@ case "$target_os" in
 	    GASNET_PLATFORM=ibmpe
 	    AC_DEFINE(GASNETI_ARCH_IBMPE)
 	fi
+	# Check for Microsoft Windows Subsystem for Linux (WSL)
+	if test x$force_arch_wsl = xyes || 
+           ( test -f /proc/sys/kernel/osrelease &&
+	     grep 'Microsoft' /proc/sys/kernel/osrelease ) >/dev/null 2>&1; then
+	    GASNETI_ARCH_WSL=1
+	    GASNET_PLATFORM=wsl
+	    AC_DEFINE(GASNETI_ARCH_WSL)
+	fi
         case "$target" in
           powerpc64-bgq-linux*) # apparently lacks any identifying preprocessor macro
 	    GASNETI_ARCH_BGQ=1
@@ -1161,6 +1170,8 @@ case "$target_os" in
             fi
 	    ;;
         esac
+	AC_MSG_CHECKING(for Linux flavor)
+	AC_MSG_RESULT($GASNET_PLATFORM)
 	GASNET_THREAD_DEFINES="-D_REENTRANT"
         GASNET_THREAD_LIBS="-lpthread"
 	;;
@@ -4614,7 +4625,13 @@ esac
 enabled_plpa="no"
 if test "$cross_compiling" = "no" ; then
   case "$target_os" in
-    linux*) enabled_plpa="yes";;
+    linux*) 
+      if test "$GASNET_PLATFORM" = "wsl" ; then
+        enabled_plpa="no"
+      else
+        enabled_plpa="yes"
+      fi
+      ;;
   esac
 else
   case "$target" in

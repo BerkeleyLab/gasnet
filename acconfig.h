@@ -368,6 +368,9 @@
 /* platform is an IBM BlueGene/Q multiprocessor */
 #undef GASNETI_ARCH_BGQ
 
+/* platform is Microsoft Windows Subsystem for Linux */
+#undef GASNETI_ARCH_WSL
+
 /* have (potentially buggy) MIPS R10000 multiprocessor */
 #undef GASNETI_ARCH_SGI_IP27
 
