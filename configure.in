@@ -5005,9 +5005,6 @@ GASNET_IF_ENABLED_WITH_AUTO(fca, [Enable/disable FCA for acceleration of collect
   [enable_fca=yes], [enable_fca=no], [enable_fca=probe])
 
 have_fca=no
-FCA_CFLAGS=''
-FCA_LDFLAGS=''
-FCA_LIBS=''
 if test "$enable_fca" != "no"; then
   GASNET_PACKAGE_HOME([FCA],[FCA drivers],[fca_config],[/opt/mellanox/fca],[include/fca/fca_api.h])
   GASNET_PACKAGE_CFLAGS([FCA],[],0)
@@ -5027,13 +5024,16 @@ if test "$enable_fca" != "no"; then
   GASNET_POPVAR(CFLAGS)
   GASNET_POPVAR(LDFLAGS)
   GASNET_POPVAR(LIBS)
-
-  if test "$enable_fca$have_fca" = yesno; then
-    GASNET_MSG_ERROR([User requested --enable-fca but FCA support could not be found. Perhaps you need to pass --with-fca-home=/path/to/fca ?])
-  elif test "$have_fca" = yes; then
+fi
+if test "$have_fca" = yes; then
     AC_DEFINE_UNQUOTED(GASNETI_FCA_HOME, "$FCA_HOME")
     AC_DEFINE(GASNET_FCA_ENABLED)
-  fi
+elif test "$enable_fca" = yes; then
+    GASNET_MSG_ERROR([User requested --enable-fca but FCA support could not be found. Perhaps you need to pass --with-fca-home=/path/to/fca ?])
+else
+    FCA_CFLAGS=
+    FCA_LDFLAGS=
+    FCA_LIBS=
 fi
 FCA_ENABLED="$have_fca"
 AC_SUBST(FCA_ENABLED) # extracted by UPCR
@@ -5043,10 +5043,7 @@ AC_SUBST(FCA_LDFLAGS)
 AC_SUBST(FCA_LIBS)
 
 ##                        BLCR SUPPORT
-BLCR_CFLAGS=''
-BLCR_LDFLAGS=''
-BLCR_LIBS=''
-BLCR_BINDIR=''
+have_blcr=no
 GASNET_IF_ENABLED(blcr, [Enable BLCR for process checkpoints (default is no)], [enable_blcr=yes], [enable_blcr=no])
 case "$target_os" in
   linux*) ;;
@@ -5089,15 +5086,17 @@ if test "$enable_blcr" = 'yes'; then
     GASNET_POPVAR(LDFLAGS)
     GASNET_POPVAR(LIBS)
   fi
-
-  if test "$have_blcr" = yes; then
+fi
+if test "$have_blcr" = yes; then
     BLCR_BINDIR="${blcrbin}"
     AC_DEFINE(GASNETI_BLCR_ENABLED)
-  else
+elif test "$enable_blcr" = 'yes'; then
     GASNET_MSG_ERROR([User requested --enable-blcr but BLCR support could not be found.  Perhaps you need to pass --with-blcr-home=/path/to/blcr ?])
-  fi
 else
-  have_blcr=no
+    BLCR_CFLAGS=
+    BLCR_LDFLAGS=
+    BLCR_LIBS=
+    BLCR_BINDIR=
 fi
 AC_SUBST(BLCR_CFLAGS)
 AC_SUBST(BLCR_LDFLAGS)
