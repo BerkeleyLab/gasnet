@@ -7,6 +7,20 @@ PENDING:
   - Fix bug 3448: x86*/Linux timers once again default to use of the TSC due
     to addition of new logic for correct calibration on newer Intel CPUs.
 
+* Configure and Build
+  - ${C,CXX,CPP,LD}FLAGS are now respected by configure in the traditional manner.
+    Note these do NOT affect MPI_CC or HOST_{CC,CXX}, which have their
+    own dedicated FLAGS variables that must be used for those purposes.
+  - Environment variable inputs to configure (and their corresponding --with*
+    option variants) are now case-insensitive and dash/underscore-insensitive.
+  - --with-pmi has been split into --(en|dis)able-pmi and --with-pmi-home=/path
+  - All --with-*-libdir options are renamed --with-*-ldflags
+  - Most --with-*-includes options are renamed --with-*-cflags
+  - --with-{blcr,fca}=/path are renamed to --with-{blcr,fca}-home=/path
+  - BLCR support now disabled by default, use --enable-blcr to activate
+  - Retire several obsolete or subsumed configure options
+  - Numerous cosmetic improvements to configure --{help,version} output
+
 ----------------------------------------------------------------------
 03-17-2017 : Release 1.28.2
 
