@@ -78,9 +78,8 @@ GASNet" in README-devel (in the GASNet git repo).
 current working directory.  You can run configure from a different directory to
 place your build files somewhere other than inside the source tree (a nice
 option when maintaining several build trees on the same source tree). 
-  Unlike many other configure-based software, GASNet's configure will ignore
-any setting of CFLAGS or CXXFLAGS.  Therefore, any flags that are required
-(e.g. for the correct ABI) must be included in the values of CC, CXX and MPI_CC.
+Any compiler flags required for correct operation on your system (e.g. to 
+select the correct ABI) should be included in the values of CC, CXX and MPI_CC.
 For example to build 32-bit code when your gcc and g++ default to 64-bit:
   configure CC='gcc -m32' CXX='g++ -m32' MPI_CC='mpicc -m32'
 or similarly, if you want libgasnet to contain debugging symbols:
