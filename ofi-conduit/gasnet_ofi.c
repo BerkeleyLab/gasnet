@@ -544,16 +544,18 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   am_buffers_region_size = GASNETI_PAGE_ALIGNUP(num_init_am_send_buffs*sizeof(gasnetc_ofi_am_buf_t));
   am_buffers_region_start = gasneti_malloc_aligned(GASNETI_PAGESIZE, am_buffers_region_size);
   gasneti_leak_aligned(am_buffers_region_start);
-  gasnetc_ofi_am_buf_t * bufp = am_buffers_region_start;
+
+  /* Add the buffers to the stack in reverse order to be friendly to the cache. */
+  gasnetc_ofi_am_buf_t * bufp = (gasnetc_ofi_am_buf_t*)am_buffers_region_start + (num_init_am_send_buffs - 1);
   for (i = 0; i < (int)num_init_am_send_buffs/2; i++) {
      bufp->callback = gasnetc_ofi_release_request_am;
      gasneti_lifo_push(&ofi_am_request_pool, bufp);
-     bufp++;
+     bufp--;
   }  
   for (; i < (int)num_init_am_send_buffs; i++) {
       bufp->callback = gasnetc_ofi_release_reply_am;
       gasneti_lifo_push(&ofi_am_reply_pool, bufp);
-      bufp++;
+      bufp--;
   }
 
   gasnetc_ofi_inited = 1;
