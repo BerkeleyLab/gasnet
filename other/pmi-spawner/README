@@ -77,10 +77,10 @@ at configure time, and pmi-spawner must be instructed how to execute the
 corresponding PMI server.  The following configure options are used for those
 purposes:
 
-  --{enable,disable-pmi
+  --{enable,disable}-pmi
     Enables or disables PMI support. Default is to probe for availability.
     If '--enable-pmi' is given then configure will fail if a PMI client library
-    can not be identified.
+    cannot be identified.
 
   --with-pmi-home=DIR
     Explicitly provide DIR as the install prefix of the PMI support. DIR is taken as
