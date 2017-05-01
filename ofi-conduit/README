@@ -187,6 +187,19 @@ Recognized environment variables:
 * GASNET_OFI_NUM_BBUFS, GASNET_OFI_BBUF_SIZE, GASNET_OFI_BBUF_THRESHOLD - See the
   "Non-bulk, Non-blocking Put Functions" section for detail on these environment variables.
 
+* GASNET_OFI_NUM_RECEIVE_BUFFS, GASNET_OFI_RECEIVE_BUFF_SIZE - Specifies the
+  number and size of active message receive buffers. OFI allows multiple
+  messages to be placed into a single receive buffer until it is full, after
+  which it will be reposted once all active message handlers associated with
+  that buffer have completed. Because both the request and reply active
+  message paths require their own resources, the number of receive buffers
+  must be at least 2 (one for each path). The buffers will be split evenly
+  between the request and receive paths. The minimum size for a receive
+  buffer is the number of bytes required to hold an AM of maximum size plus
+  headers. This is partially determined by the max AM medium size (see
+  --with-ofi-max-medium).
+  Defaults: GASNET_OFI_NUM_MULIRECV_BUFFS=8, GASNET_OFI_MULTIRECV_BUFF_SIZE=1M
+
 * FI_PROVIDER - set to a provider name to override the default OFI provider selection
 
 * All the environment variables provided by libfabric (see `fi_info -e`)

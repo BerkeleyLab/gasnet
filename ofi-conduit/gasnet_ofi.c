@@ -110,8 +110,8 @@ static gasneti_lifo_head_t ofi_am_reply_pool = GASNETI_LIFO_INITIALIZER;
 static gasneti_lifo_head_t ofi_bbuf_pool = GASNETI_LIFO_INITIALIZER;
 static gasneti_lifo_head_t ofi_bbuf_ctxt_pool = GASNETI_LIFO_INITIALIZER;
 
-#define OFI_NUM_MULTIRECV_BUFFS 	8
-#define OFI_MULTIRECV_BUFF_SIZE 	1*1024*1024
+static size_t num_multirecv_buffs;
+static size_t multirecv_buff_size;
 
 /* Variables for bounce buffering of non-blocking, non-bulk puts.
  * The gasnetc_ofi_bbuf_threshold variable is defined in gasnet_ofi.h
@@ -188,6 +188,60 @@ void gasnetc_ofi_release_reply_am(struct fi_cq_data_entry *re, void *buf);
 void gasnetc_ofi_tx_poll();
 void gasnetc_ofi_am_recv_poll(int is_request);
 
+/* Reads any user-provided settings from the environment to avoid clogging up
+ * the gasnetc_ofi_init() function with this code. */
+GASNETI_INLINE(gasnetc_ofi_read_env_vars)
+void gasnetc_ofi_read_env_vars() {
+    const char* max_am_send_buffs_env =  "GASNET_OFI_MAX_SEND_BUFFS";
+    const char* num_init_send_buffs_env = "GASNET_OFI_NUM_INITIAL_SEND_BUFFS";
+    const char* max_err_string =  "%s must be greater than or equal to\n"
+                                  "%s, which is set to %d in this run.\n";
+    const char* init_err_string = "%s must be greater than or equal to 2.\n";
+    max_am_send_buffs = gasneti_getenv_int_withdefault(max_am_send_buffs_env, 1000, 0);
+    num_init_am_send_buffs = gasneti_getenv_int_withdefault(num_init_send_buffs_env, 500, 0);
+
+    if (num_init_am_send_buffs < 2) {
+        gasneti_fatalerror(init_err_string, num_init_send_buffs_env);
+    }
+
+    if (max_am_send_buffs < num_init_am_send_buffs) {
+        gasneti_fatalerror(max_err_string, max_am_send_buffs_env, num_init_send_buffs_env, 
+                num_init_am_send_buffs);
+    }
+
+    /* The number of RMA requests to be issued before a tx_poll takes place */
+    rdma_periodic_poll_threshold = gasneti_getenv_int_withdefault("GASNET_OFI_RMA_POLL_FREQ", 32, 0);
+
+    ofi_num_bbufs = gasneti_getenv_int_withdefault("GASNET_OFI_NUM_BBUFS", 64, 0);
+    ofi_bbuf_size = gasneti_getenv_int_withdefault("GASNET_OFI_BBUF_SIZE", GASNET_PAGESIZE, 1);
+    gasnetc_ofi_bbuf_threshold = gasneti_getenv_int_withdefault("GASNET_OFI_BBUF_THRESHOLD", 4*ofi_bbuf_size, 1);
+
+    if (ofi_num_bbufs < gasnetc_ofi_bbuf_threshold/ofi_bbuf_size)
+        gasneti_fatalerror("The number of bounce buffers must be greater than or equal to the bounce\n"
+                "buffer threshold divided by the bounce buffer size. See the ofi-conduit README.\n");
+
+    if (gasnetc_ofi_bbuf_threshold/ofi_bbuf_size > OFI_MAX_NUM_BOUNCE_BUFFERS) {
+        gasneti_fatalerror("The ofi-conduit limits the max number of bounce buffers used in the non-blocking\n"
+                "put path to %d. Your selections for the bounce buffer tuning parameters exceed this. If you\n" 
+                "truly need more than %d bounce buffers, edit the OFI_MAX_NUM_BOUNCE_BUFFERS macro in\n" 
+                "gasnet_ofi.c and recompile.\n", OFI_MAX_NUM_BOUNCE_BUFFERS, OFI_MAX_NUM_BOUNCE_BUFFERS);
+    }
+
+    const char* num_multirecv_buffs_env = "GASNET_OFI_NUM_RECEIVE_BUFFS";
+    const char* multirecv_size_env = "GASNET_OFI_RECEIVE_BUFF_SIZE";
+    num_multirecv_buffs = gasneti_getenv_int_withdefault(num_multirecv_buffs_env, 8, 0);
+
+    multirecv_buff_size = gasneti_getenv_int_withdefault(multirecv_size_env, 1024*1024, 1);
+    if (num_multirecv_buffs < 2)
+        gasneti_fatalerror("%s must be at least 2.\n", num_multirecv_buffs_env);
+
+    if (multirecv_buff_size < sizeof(gasnetc_ofi_am_buf_t)) {
+        gasneti_fatalerror("%s must be at least %d bytes on this build.\n"
+                "This is the size of gasnet_AMMaxMedium() plus the message header.\n", \
+                multirecv_size_env, (int)sizeof(gasnetc_ofi_am_buf_t));
+    }
+}
+
 /*------------------------------------------------
  * Initialize OFI conduit
  * ----------------------------------------------*/
@@ -216,6 +270,7 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   /* Must init timers after global env, and preferably before tracing */
   GASNETI_TICKS_INIT();
 
+  gasnetc_ofi_read_env_vars();
   /* Ensure uniform FI_* env vars */
   /* TODO: what about provider-specific env vars? */
   gasneti_propagate_env("FI_", GASNETI_PROPAGATE_ENV_PREFIX);
@@ -454,17 +509,13 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   }
 
   /* Receive buffers to post */
-  am_iov = (struct iovec *) gasneti_malloc(sizeof(struct iovec)*OFI_NUM_MULTIRECV_BUFFS);
-  am_buff_msg = (struct fi_msg *) gasneti_malloc(sizeof(struct fi_msg)*OFI_NUM_MULTIRECV_BUFFS);
-  am_buff_ctxt = (gasnetc_ofi_ctxt_t *) gasneti_malloc(sizeof(gasnetc_ofi_ctxt_t)*OFI_NUM_MULTIRECV_BUFFS);
+  am_iov = (struct iovec *) gasneti_malloc(sizeof(struct iovec)*num_multirecv_buffs);
+  am_buff_msg = (struct fi_msg *) gasneti_malloc(sizeof(struct fi_msg)*num_multirecv_buffs);
+  am_buff_ctxt = (gasnetc_ofi_ctxt_t *) gasneti_malloc(sizeof(gasnetc_ofi_ctxt_t)*num_multirecv_buffs);
 
-  /*
-   * TODO: Should there be a way to specify the number of both request and reply buffers, or
-   * should the allocation just be split in half?
-   */
-  for(i = 0; i < OFI_NUM_MULTIRECV_BUFFS; i++) {
-		am_iov[i].iov_base		= gasneti_malloc(OFI_MULTIRECV_BUFF_SIZE);
-		am_iov[i].iov_len		= OFI_MULTIRECV_BUFF_SIZE;
+  for(i = 0; i < num_multirecv_buffs; i++) {
+		am_iov[i].iov_base		= gasneti_malloc(multirecv_buff_size);
+		am_iov[i].iov_len		= multirecv_buff_size;
 		am_buff_msg[i].msg_iov		= &am_iov[i];
 		am_buff_msg[i].iov_count 	= 1;
 		am_buff_msg[i].addr 		= FI_ADDR_UNSPEC;
@@ -477,7 +528,7 @@ int gasnetc_ofi_init(int *argc, char ***argv,
         am_buff_ctxt[i].event_cntr = 0;
         gasnetc_paratomic_set(&am_buff_ctxt[i].consumed_cntr, 0, 0);
 		/* Post buffers for Active Messages */
-        if (i < OFI_NUM_MULTIRECV_BUFFS/2)
+        if (i % 2 == 0)
             ret = fi_recvmsg(gasnetc_ofi_request_epfd, &am_buff_msg[i], FI_MULTI_RECV);
         else
             ret = fi_recvmsg(gasnetc_ofi_reply_epfd, &am_buff_msg[i], FI_MULTI_RECV);
@@ -485,25 +536,8 @@ int gasnetc_ofi_init(int *argc, char ***argv,
 		if (FI_SUCCESS != ret) gasneti_fatalerror("fi_recvmsg failed: %d\n", ret);
 	}
 
-  /* The number of RMA requests to be issued before a tx_poll takes place */
-  rdma_periodic_poll_threshold = gasneti_getenv_int_withdefault("GASNET_OFI_RMA_POLL_FREQ", 32, 0);
-
+  
   /* Allocate bounce buffers*/
-  ofi_num_bbufs = gasneti_getenv_int_withdefault("GASNET_OFI_NUM_BBUFS", 64, 0);
-  ofi_bbuf_size = gasneti_getenv_int_withdefault("GASNET_OFI_BBUF_SIZE", GASNET_PAGESIZE, 1);
-  gasnetc_ofi_bbuf_threshold = gasneti_getenv_int_withdefault("GASNET_OFI_BBUF_THRESHOLD", 4*ofi_bbuf_size, 1);
-
-  if (ofi_num_bbufs < gasnetc_ofi_bbuf_threshold/ofi_bbuf_size)
-      gasneti_fatalerror("The number of bounce buffers must be greater than or equal to the bounce\n"
-              "buffer threshold divided by the bounce buffer size. See the ofi-conduit README.\n");
-
-  if (gasnetc_ofi_bbuf_threshold/ofi_bbuf_size > OFI_MAX_NUM_BOUNCE_BUFFERS) {
-      gasneti_fatalerror("The ofi-conduit limits the max number of bounce buffers used in the non-blocking\n"
-              "put path to %d. Your selections for the bounce buffer tuning parameters exceed this. If you\n" 
-              "truly need more than %d bounce buffers, edit the OFI_MAX_NUM_BOUNCE_BUFFERS macro in\n" 
-              "gasnet_ofi.c and recompile.\n", OFI_MAX_NUM_BOUNCE_BUFFERS, OFI_MAX_NUM_BOUNCE_BUFFERS);
-  }
-
   bounce_region_size = GASNETI_PAGE_ALIGNUP(ofi_num_bbufs * ofi_bbuf_size);
   bounce_region_start = gasneti_malloc_aligned(GASNETI_PAGESIZE, bounce_region_size);
 
@@ -517,22 +551,6 @@ int gasnetc_ofi_init(int *argc, char ***argv,
       container->buf = buf;
       gasneti_lifo_push(&ofi_bbuf_pool, container);
       buf -= ofi_bbuf_size;
-  }
-
-  const char* max_am_send_buffs_env =  "GASNET_OFI_MAX_SEND_BUFFS";
-  const char* num_init_send_buffs_env = "GASNET_OFI_NUM_INITIAL_SEND_BUFFS";
-  const char* max_err_string =  "%s must be greater than or equal to\n"
-                                "%s, which is set to %d in this run.\n";
-  const char* init_err_string =  "%s must be greater than or equal to 2.\n";
-  max_am_send_buffs = gasneti_getenv_int_withdefault(max_am_send_buffs_env, 1000, 0);
-  num_init_am_send_buffs = gasneti_getenv_int_withdefault(num_init_send_buffs_env, 500, 0);
-
-  if (num_init_am_send_buffs < 2) {
-      gasneti_fatalerror(init_err_string, num_init_send_buffs_env);
-  }
-
-  if (max_am_send_buffs < num_init_am_send_buffs) {
-      gasneti_fatalerror(max_err_string, max_am_send_buffs_env, num_init_send_buffs_env, num_init_am_send_buffs);
   }
 
   /* We need to keep count of how many buffers we allocate so we can place a
@@ -590,9 +608,9 @@ void gasnetc_ofi_exit(void)
     GASNETC_OFI_POLL_EVERYTHING();
 
   if(am_buff_ctxt) {
-    for(i = 0; i < OFI_NUM_MULTIRECV_BUFFS; i++) {
+    for(i = 0; i < num_multirecv_buffs; i++) {
       /* cancel the multi-recv */
-        if (i < OFI_NUM_MULTIRECV_BUFFS/2)
+        if (i % 2 == 0)
             ret = fi_cancel(&gasnetc_ofi_request_epfd->fid, &am_buff_ctxt[i].ctxt);
         else
             ret = fi_cancel(&gasnetc_ofi_reply_epfd->fid, &am_buff_ctxt[i].ctxt);
