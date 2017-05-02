@@ -344,7 +344,7 @@ typedef struct {
 // GASNet-1 version of gasnetex_handlerentry_t
 // TODO-EX: enable conditional below once gasnet_attach() is replaced in EX
 //#if defined(_GASNET_H) || defined(_IN_GASNET_INTERNAL_H)
-  typedef struct gasneti_handlerentry_s {
+  typedef struct {
     gasnetex_handler_t index; /*  == 0 for don't care  */
    #ifdef GASNET_USE_STRICT_PROTOTYPES
     void *fnptr;    
