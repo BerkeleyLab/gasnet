@@ -4730,11 +4730,11 @@ if test "$HAVE_MMAP" != "0" ; then
      [ #include <sys/mman.h> ],[ void *junk = mmap(0, 0, 0, MAP_ANON, 0, 0); ],
      [ AC_DEFINE(HAVE_MAP_ANON) ] )
 dnl GASNET_TOOLSONLY_FALSE_BEGIN
-  GASNET_IF_DISABLED(munmap,[avoid use of munmap()],[
-      AC_DEFINE(GASNETI_AVOID_MUNMAP)
+  GASNET_IF_ENABLED(bug3480-workaround,[work around bug 3480],[
+      AC_DEFINE(GASNETI_BUG3480_WORKAROUND)
       if test x"$GASNETI_DISABLE_ALIGNED_SEGMENTS" != x1 && \
          test "$segconfig" != everything; then
-        GASNET_MSG_WARN([--disable-munmap is incompatible with GASNET_ALIGNED_SEGMENTS --  automatically applying option --disable-aligned-segments.])
+        GASNET_MSG_WARN([--enable-bug3480-workaround is incompatible with GASNET_ALIGNED_SEGMENTS --  automatically applying option --disable-aligned-segments.])
         GASNETI_DISABLE_ALIGNED_SEGMENTS=1
         AC_DEFINE(GASNETI_DISABLE_ALIGNED_SEGMENTS)
       fi
