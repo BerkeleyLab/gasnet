@@ -6,6 +6,7 @@
 
 #ifndef _GASNET_H
 #define _GASNET_H
+#define _INCLUDED_GASNET_H
 
 #include <gasnetex.h>
 #include <gasnet_tools.h>
@@ -18,10 +19,14 @@ GASNETI_BEGIN_NOWARN
   Globals
   =====================
 */
-#ifndef g2ex_team
-GASNETT_TENTATIVE_EXTERN gasnetex_team_member_t g2ex_team;
-#endif
+extern gasnetex_client_t      _gasneti_g2ex_client;
+extern gasnetex_endpoint_t    _gasneti_g2ex_endpoint;
+extern gasnetex_team_member_t _gasneti_g2ex_team;
 
+// Use of redundant casts makes these expressions rvalues to prevent assignment
+#define g2ex_client   ((gasnetex_client_t)_gasneti_g2ex_client)
+#define g2ex_endpoint ((gasnetex_endpoint_t)_gasneti_g2ex_endpoint)
+#define g2ex_team     ((gasnetex_team_member_t)_gasneti_g2ex_team)
 
 /* ------------------------------------------------------------------------------------ */
 /*

@@ -1587,6 +1587,14 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
 }
 
 /* ------------------------------------------------------------------------------------ */
+/* G2EX (legacy GASNet-1 compatibility) support: */
+// TODO-EX: relocate to a distinct gasnet_legacy.c?
+
+gasnetex_client_t      _gasneti_g2ex_client   = NULL;
+gasnetex_endpoint_t    _gasneti_g2ex_endpoint = NULL;
+gasnetex_team_member_t _gasneti_g2ex_team     = NULL;
+
+/* ------------------------------------------------------------------------------------ */
 /* Debug memory management
    debug memory format:
   | prev | next | allocdesc (2*sizeof(void*)) | datasz | BEGINPOST | <user data> | ENDPOST |

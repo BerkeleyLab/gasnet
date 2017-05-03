@@ -9,7 +9,6 @@
 
 /* limit segsz to prevent stack overflows for seg_everything tests */
 #define TEST_MAXTHREADS 1
-#define myteam g2ex_team
 #include <test.h>
 
 #define TEST_GASNET 1
