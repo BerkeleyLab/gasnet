@@ -3,6 +3,10 @@ GASNet ChangeLog
 ----------------------------------------------------------------------
 PENDING:
 
+* Cray uGNI (gemini- and aries-conduits)
+  - Work-around bug 3480.  For more details see gemini-conduit/README (source),
+    or share/doc/gasnet/README-{aries,gemini} (installed).
+
 * GASNet tools
   - Fix bug 3448: x86*/Linux timers once again default to use of the TSC due
     to addition of new logic for correct calibration on newer Intel CPUs.

@@ -297,7 +297,29 @@ PMI_GNI_DEV_ID     - Device ID (Selects which NIC is in use)
 Known problems:
 ---------------
 
-* See the GASNet Bugzilla server for details on known bugs:
+* Bug 3480
+  It has been observed on Cray systems running CLE6 that following a call to
+  munmap(), there may be a delay before the physical page frames are available
+  for reallocation.  At startup GASNet normally tries to determine the largest
+  available mmap() region, which is then unmapped, leading to the possibility
+  that subsequent allocation of a large GASNet segment may fail if timing is
+  "just right".  The configure option --enable-bug3480-workaround will disable
+  the max-mmap() probes.  This prevents the failure mode described above, at
+  the expense of some loss of safety.  In particular it becomes possible for
+  GASNet to assume the ability to mmap() more memory than is permitted, leading
+  to less graceful failure modes than the one being worked-around.  If one sees
+  GASNet error mesages related to failed mmap() calls when the work-around is
+  enabled, one may reduce the assumed available memory by setting a lower value
+  for the environment variable GASNET_PHYSMEM_MAX (documented above).
+  In this release, the provided cross-configure-cray-* scripts AUTOMATICALLY
+  enable the work-around if CLE6 is detected.  If you do *not* desire the
+  work-around, then you may pass the option --disable-bug3480-workaround to
+  the cross-configure script.
+  The most up-to-date information on this bug is maintained at:
+    http://gasnet-bugs.lbl.gov/bugzilla/show_bug.cgi?id=3480
+  It is currently unknown if this problem is specific to Cray systems.
+
+* See the GASNet Bugzilla server for details on other known bugs:
   http://gasnet-bugs.lbl.gov/
 
 Future work:
