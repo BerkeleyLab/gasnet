@@ -409,8 +409,16 @@ static void gasnetc_sys_coll_init(void)
 
 done:
   /*  PRE-register the two AM handlers we need */
-  gasnetc_handler[_hidx_gasnetc_sys_barrier_reqh].gex_fnptr  = (gasneti_handler_fn_t)&gasnetc_sys_barrier_reqh;
-  gasnetc_handler[_hidx_gasnetc_sys_exchange_reqh].gex_fnptr = (gasneti_handler_fn_t)&gasnetc_sys_exchange_reqh;
+  { gasnetex_handlerentry_t early_handlers[] = {
+      gasneti_handler_tableentry_no_bits(gasnetc_sys_barrier_reqh,1,0),
+      gasneti_handler_tableentry_no_bits(gasnetc_sys_exchange_reqh,2,0)
+    };
+    int len = sizeof(early_handlers) / sizeof(gasnetex_handlerentry_t);
+    int numreg = 0;
+    if (gasneti_amregister(gasnetc_handler, early_handlers, len, GASNETC_HANDLER_BASE, GASNETE_HANDLER_BASE, 0, &numreg) != GASNET_OK)
+      gasneti_fatalerror("Error registering bootstrap AM handlers");
+    gasneti_assert(numreg == len);
+  }
 
   gasneti_spawner->Cleanup(); /* No further use of PMI-based colelctives */
 }
