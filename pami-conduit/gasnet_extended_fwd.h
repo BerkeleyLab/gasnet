@@ -135,5 +135,10 @@ typedef struct _gasnete_op_t *gasnet_handle_t;
 #define gasnete_amref_memset_nb     gasnete_memset_nb
 #define gasnete_amref_memset_nbi    gasnete_memset_nbi
 
+/* Conduit-specific collective overrides in gasnet_core_internal: */
+#if !defined(GASNET_NO_PAMI_COLL)
+#define GASNETE_COLL_NEEDS_CORE 1
+#endif
+
 #endif
 
