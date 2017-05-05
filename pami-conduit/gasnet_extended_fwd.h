@@ -81,5 +81,10 @@
 /* Configure use of AM-based implementation of get/put */
 /* NOTE: Barriers, Collectives, VIS may use GASNETE_USING_REF_* in algorithm selection */
 
+/* Conduit-specific collective overrides in gasnet_core_internal: */
+#if !defined(GASNET_NO_PAMI_COLL)
+#define GASNETE_COLL_NEEDS_CORE 1
+#endif
+
 #endif
 
