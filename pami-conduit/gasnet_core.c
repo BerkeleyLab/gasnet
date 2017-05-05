@@ -1313,7 +1313,7 @@ extern int gasnetc_AMReplyShortM(
 {
   int retval = GASNET_OK;
   va_list argptr;
-  GASNETI_COMMON_AMREPLYSHORT(token,handler,numargs,flags);
+  GASNETI_COMMON_AMREPLYSHORT(token,handler,flags,numargs);
   va_start(argptr, numargs); /*  pass in last argument */
 #if GASNET_PSHM
   /* (###) If your conduit will support PSHM, let it check the token first. */
