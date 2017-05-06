@@ -1804,7 +1804,7 @@ gasnetc_conn_rcv_wc(struct ibv_wc *comp)
   gasnetc_ud_rcv_desc_t *desc = (gasnetc_ud_rcv_desc_t *)(1 ^ (uintptr_t)comp->wr_id);
   gasnetc_conn_cmd_t cmd = (gasnetc_conn_cmd_t)(comp->imm_data & GASNETC_CONN_CMD_MASK);
   uint32_t is_orig = comp->imm_data & GASNETC_CONN_IS_ORIG;
-  gasnetex_rank_t node = (comp->imm_data >> 16) && 0xffff;
+  gasnetex_rank_t node = (comp->imm_data >> 16) & 0xffff;
   gasneti_tick_t now = gasneti_ticks_now();
 
 #if GASNET_DEBUG /* Drop 1 in N to aid debugging */
