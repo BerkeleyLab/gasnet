@@ -67,6 +67,7 @@ AM_CONFIG_HEADER(gasnet_config.h)
 
 GASNET_START_CONFIGURE([],[CXX CXXCPP CXXFLAGS])
 GASNET_DEFINE_CONFIGURE_VARS([GASNETI])
+GASNET_SPLIT_LINKER_OPTS(LDFLAGS,LIBS) dnl early split to handle direct user input
 AM_CONDITIONAL(ALWAYS_TRUECOND, test -z "")
 AM_CONDITIONAL(ALWAYS_FALSECOND, test -n "")
 
@@ -1190,6 +1191,9 @@ case "$target_os" in
         fi
 	;;
   netbsd*)
+        # The -pthread argument is effectively part of the standard compiler interface on *BSD
+        # It's a frontend macro argument that expands to appropriate compiler-independent -D and -l
+        # options in the right context, so we allow it to live in GASNET_DEFINES and GASNET_LIBS
 	GASNET_THREAD_DEFINES="-pthread -D_REENTRANT" # _REENTRANT probably redundant
         GASNET_THREAD_LIBS="-pthread" # bug 1205: do not explicitly select threading lib
 	;;
@@ -1763,6 +1767,7 @@ if test "$with_pshm" != no; then
 elif test "$enabled_pshm" = yes; then
   GASNET_MSG_ERROR([User requested --enable-pshm but no supported implementation was found])
 fi
+GASNET_SPLIT_LINKER_OPTS(GASNET_PSHM_LDFLAGS,GASNET_PSHM_LIBS)
 AC_SUBST(GASNET_PSHM_ENABLED)
 AC_SUBST(GASNET_PSHM_CFLAGS)
 AC_SUBST(GASNET_PSHM_LDFLAGS)
@@ -2751,6 +2756,7 @@ AC_DEFUN([GASNET_LINKHELPER_TRY_RUN],[GASNET_LINKHELPER_TRY_INNER([RUN_WITHCC],$
 
   GASNET_ENV_DEFAULT(cxxLIBS,,    [Libraries to add when linking C++ code])
   GASNET_ENV_DEFAULT(cxxLDFLAGS,, [Linker flags to add when linking C++ code])
+  GASNET_SPLIT_LINKER_OPTS(cxxLDFLAGS,cxxLIBS)
   GASNET_UDP_LIBS="$GASNET_UDP_LIBS $cxxLIBS"
   AC_SUBST(cxxLIBS)
   AC_SUBST(cxxLDFLAGS)
@@ -3086,6 +3092,8 @@ fi
 AC_SUBST(MPI_CC) # compiler to be used to build AMMPI, and linker for AMMPI-based backends
 AC_SUBST(MPI_CFLAGS) # compiler flags (optimization, includes, etc) to be used with above compiler when building AMMPI
 AC_SUBST(MPI_LIBS) # libs and ldflags that must be used when linking AMMPI-based backend
+# we don't currently GASNET_SPLIT_LINKER_OPTS on MPI_LIBS into MPI_LDFLAGS (which doesn't exist) because
+# a client can't portably replace the MPI_CC in GASNET_LD and still have a working MPI-enabled link
 AC_SUBST(MPIRUN_CMD) # prototype command used by gasnetrun to run MPI programs
 AC_SUBST(MPIRUN_CMD_BATCH) # prototype command used by gasnetrun to run MPI programs
 AM_CONDITIONAL(USE_MPI_CONDUIT, test "$enabled_mpi$have_mpi" = yesyes)
@@ -3225,6 +3233,7 @@ elif test "$enabled_mxm" != no; then
     CONDUIT_CFLAGS
     GASNET_ENV_DEFAULT(MXM_LIBS, -lmxm)
     CONDUIT_LDFLAGS(mxm)
+    GASNET_SPLIT_LINKER_OPTS(MXM_LDFLAGS,MXM_LIBS)
 
     # Try to compile and link a basic MXM program
     GASNET_PUSHVAR(CFLAGS,"$CFLAGS $MXM_CFLAGS")
@@ -3270,6 +3279,7 @@ elif test "$enabled_psm" = yes; then
     CONDUIT_CFLAGS
     GASNET_ENV_DEFAULT(PSM_LIBS, -lpsm2)
     CONDUIT_LDFLAGS(psm2)
+    GASNET_SPLIT_LINKER_OPTS(PSM_LDFLAGS,PSM_LIBS)
 
     if test "$have_psm" = yes; then
       # Try to compile and link a basic PSM program
@@ -3310,6 +3320,7 @@ if test "$enabled_portals4" = yes; then
   CONDUIT_CFLAGS
   GASNET_ENV_DEFAULT(PORTALS4_LIBS, -lportals)
   CONDUIT_LDFLAGS(portals)
+  GASNET_SPLIT_LINKER_OPTS(PORTALS4_LDFLAGS,PORTALS4_LIBS)
 
   GASNET_PUSHVAR(CFLAGS,"$CFLAGS $PORTALS4_CFLAGS $GASNET_THREAD_DEFINES")
   GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $PORTALS4_LDFLAGS")
@@ -3397,6 +3408,7 @@ if test "$enabled_ibv" = yes; then
   CONDUIT_CFLAGS
   GASNET_ENV_DEFAULT(IBV_LIBS, -libverbs)
   CONDUIT_LDFLAGS(ibverbs)
+  GASNET_SPLIT_LINKER_OPTS(IBV_LDFLAGS,IBV_LIBS)
 
   # Try to compile and link a basic IB Verbs program
   GASNET_PUSHVAR(CFLAGS,"$CFLAGS $IBV_CFLAGS $GASNET_THREAD_DEFINES")
@@ -3600,6 +3612,7 @@ if test ${gni_network}:${enabled_[]lowername} = lowername[]:yes; then
   fi
 
   if test $have_[]lowername = yes; then
+    GASNET_SPLIT_LINKER_OPTS(GNI_LDFLAGS,GNI_LIBS)
     GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS ${GNI_LDFLAGS}")
     GASNET_PUSHVAR(LIBS,"$LIBS ${GNI_LIBS}")
     GASNET_PUSHVAR(CPPFLAGS,"$CPPFLAGS $GNI_CFLAGS")
@@ -3636,8 +3649,7 @@ if test ${gni_network}:${enabled_[]lowername} = lowername[]:yes; then
           AC_MSG_ERROR([--enable-lowername-udreg was passed but udreg_pub.h header was not found])
         fi
       ])
-    GNI_LDFLAGS="$GNI_LDFLAGS $CRAY_UDREG_POST_LINK_OPTS"
-    GNI_LIBS="$GNI_LIBS -ludreg"
+    GNI_LIBS="$GNI_LIBS $CRAY_UDREG_POST_LINK_OPTS -ludreg"
   fi
 
   GASNET_WITH(lowername-max-medium,
@@ -3726,6 +3738,7 @@ if test $enabled_shmem = yes; then
 	GASNET_ENV_DEFAULT(SHMEM_INCLUDES, $shmem_includes_guess)
 	GASNET_ENV_DEFAULT(SHMEM_LDFLAGS,  $shmem_ldflags_guess)
         GASNET_ENV_DEFAULT(SHMEM_LIBS, [-lsma -lmpi])
+        GASNET_SPLIT_LINKER_OPTS(SHMEM_LDFLAGS,SHMEM_LIBS)
         SHMEM_INCLUDES="$SHMEM_INCLUDES -DSGI_SHMEM"
       else
         AC_MSG_RESULT(unknown)
@@ -3838,6 +3851,7 @@ if test $enabled_pami = yes; then
   GASNET_ENV_DEFAULT(PAMI_CFLAGS, $pami_cflags_guess) 
   GASNET_ENV_DEFAULT(PAMI_LDFLAGS, $pami_ldflags_guess) 
   GASNET_ENV_DEFAULT(PAMI_LIBS, $pami_libs_guess) 
+  GASNET_SPLIT_LINKER_OPTS(PAMI_LDFLAGS,PAMI_LIBS)
 
   GASNET_PUSHVAR(CFLAGS,"$CFLAGS $PAMI_CFLAGS")
   GASNET_PUSHVAR(LDFLAGS,"$LDFLAGS $PAMI_LDFLAGS")
@@ -3890,6 +3904,7 @@ if test "$enabled_ofi" = yes; then
   CONDUIT_CFLAGS
   GASNET_ENV_DEFAULT(OFI_LIBS, -lfabric)
   CONDUIT_LDFLAGS(fabric)
+  GASNET_SPLIT_LINKER_OPTS(OFI_LDFLAGS,OFI_LIBS)
 
   if test "$have_ofi" = yes; then
     GASNET_PUSHVAR(CFLAGS,"$CFLAGS $OFI_CFLAGS")
@@ -4225,6 +4240,7 @@ elif test "$enable_pmi" != 'no'; then
 
   GASNET_ENV_DEFAULT(PMI_LDFLAGS, $pmi_ldflags_guess)
   PMI_SPAWNER_LDFLAGS=$PMI_LDFLAGS
+  unset PMI_LDFLAGS
 
   # If user specifies one PMI version then disqualify the other
   GASNET_WITH(pmi-version, [PMI version (1 or 2)] , [
@@ -4275,7 +4291,9 @@ elif test "$enable_pmi" != 'no'; then
     fi
     GASNET_POPVAR(LIBS)
   fi
+  unset PMI_LIBS
   GASNET_POPVAR(LDFLAGS)
+  GASNET_SPLIT_LINKER_OPTS(PMI_SPAWNER_LDFLAGS,PMI_SPAWNER_LIBS)
 
   # Check for header matching the selected lib
   # TODO: fragile if multiple PMI libs are installed
@@ -4838,8 +4856,6 @@ AC_SUBST(DEBUGMALLOC)
 AC_SUBST(DEBUGMALLOC_VAR)
 AC_SUBST(DEBUGMALLOC_VAL)
 
-AC_SUBST(LIBS)
-
 ########################################################################
 # Special GCC feature support
 
@@ -4958,7 +4974,6 @@ case "$target_os" in
   ;;
 
 esac
-AC_SUBST(LDFLAGS)
 
 ########################################################################
 
@@ -5017,6 +5032,7 @@ if test "$enable_fca" != "no"; then
   GASNET_PACKAGE_CFLAGS([FCA],[],0)
   GASNET_PACKAGE_LDFLAGS([FCA],[fca],[],0)
   FCA_LIBS='-lfca'
+  GASNET_SPLIT_LINKER_OPTS(FCA_LDFLAGS,FCA_LIBS)
 
   # Try to compile and link a basic FCA program
   GASNET_PUSHVAR(CFLAGS,"$CFLAGS $FCA_CFLAGS")
@@ -5070,6 +5086,7 @@ if test "$enable_blcr" = 'yes'; then
   GASNET_PACKAGE_CFLAGS([BLCR],[],0)
   GASNET_PACKAGE_LDFLAGS([BLCR],[cr],[],0)
   BLCR_LIBS='-lcr'
+  GASNET_SPLIT_LINKER_OPTS(BLCR_LDFLAGS,BLCR_LIBS)
 
   AC_MSG_CHECKING([for BLCR bin directory])
   blcrbin="$BLCR_HOME/bin"
@@ -5163,6 +5180,10 @@ echo "----------------------------------------------------------------------" >>
 CFLAGS="$GASNET_OPT_CFLAGS $MISC_CFLAGS"
 CPPFLAGS="$GASNET_EXTRA_DEFINES $MISC_CPPFLAGS"
 CXXFLAGS="$GASNET_OPT_CXXFLAGS $MISC_CXXFLAGS"
+
+GASNET_SPLIT_LINKER_OPTS(LDFLAGS,LIBS)
+AC_SUBST(LDFLAGS)
+AC_SUBST(LIBS)
 
 # Files added here should also be added to ./unBootstrap
 # ORDER MATTERS: The order here determines the order of timestamps post-configure,
