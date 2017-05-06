@@ -383,7 +383,7 @@ gasnetex_handle_t _gasnete_put_nb (gasnetex_rank_t node, void *dest, void *src, 
   gasneti_resume_spinpollers();
 
   /* Block for completion of head, if any */
-  gasnete_wait(head_op);
+  gasnete_wait(head_op GASNETI_THREAD_PASS);
 
   /* return the tail_op */
   return (gasnetex_handle_t)tail_op;
@@ -486,7 +486,7 @@ void _gasnete_put_nbi (gasnetex_rank_t node, void *dest, void *src, size_t nbyte
   gasneti_resume_spinpollers();
 
   /* Block for completion of head, if any */
-  gasnete_wait(head_op);
+  gasnete_wait(head_op GASNETI_THREAD_PASS);
 }
 
 GASNETI_INLINE(_gasnete_put_nbi_bulk)
