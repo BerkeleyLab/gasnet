@@ -935,6 +935,16 @@ extern void gasneti_munmap(void *segbase, uintptr_t segsize) {
   #define gasneti_do_munmap     gasneti_munmap
 #endif
 
+#if defined(GASNETI_USE_HUGETLBFS)
+  static uintptr_t gasneti_mmap_aligndown(uintptr_t sz) {
+     static long pagesz = 0;
+     if (!pagesz) pagesz = gethugepagesize();
+     return GASNETI_ALIGNDOWN(sz, pagesz);
+  }
+#else
+  #define gasneti_mmap_aligndown GASNETI_PAGE_ALIGNDOWN
+#endif
+
 /* binary search for segment - returns location, not mmaped */
 static gasnet_seginfo_t gasneti_mmap_binary_segsrch(uintptr_t lowsz, uintptr_t highsz) {
   gasnet_seginfo_t si;
@@ -945,7 +955,7 @@ static gasnet_seginfo_t gasneti_mmap_binary_segsrch(uintptr_t lowsz, uintptr_t h
     return si;
   }
 
-  si.size = GASNETI_PAGE_ALIGNDOWN((lowsz + (highsz - lowsz) / 2));
+  si.size = gasneti_mmap_aligndown((lowsz + (highsz - lowsz) / 2));
   gasneti_assert(si.size > 0);
 
   si.addr = gasneti_do_mmap(si.size);
@@ -1062,7 +1072,7 @@ static gasnet_seginfo_t _gasneti_mmap_segment_search_inner(uintptr_t maxsz) {
 extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz) {
   gasnet_seginfo_t si;
 
-  maxsz = GASNETI_PAGE_ALIGNDOWN(maxsz);
+  maxsz = gasneti_mmap_aligndown(maxsz);
   if (maxsz == 0) {
     si.size = 0;
     si.addr = NULL;
@@ -1216,7 +1226,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
     }
 
     /* Allow each node in a given host to probe SEQUENTIALLY, and then collect the results */
-    maxsz = GASNETI_PAGE_ALIGNDOWN(maxsz);
+    maxsz = gasneti_mmap_aligndown(maxsz);
 #if GASNET_PSHM
     if (maxsz && (gasneti_myhost.grp_count == gasneti_mysupernode.grp_count)) { /* host==supernode */
       for (i = 0; i < gasneti_nodemap_local_count; ++i) {
@@ -1259,8 +1269,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
       for (i = 0; i < local_count; ++i) {
         sum += sz_exchg[gasneti_myhost.nodes[i]];
       }
-      maxsz = sum / local_count;
-      maxsz = GASNETI_PAGE_ALIGNDOWN(maxsz);
+      maxsz = gasneti_mmap_aligndown(sum / local_count);
 
 #if GASNET_PSHM
     #if defined(GASNETI_PSHM_GHEAP)
@@ -1305,7 +1314,7 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
             if (tmp_se[i].size) gasneti_do_munmap(tmp_se[i].addr, tmp_se[i].size);
             tmp_se[i].size = 0;
           }
-          maxsz = GASNETI_PAGE_ALIGNDOWN(sum / gasneti_pshm_nodes);
+          maxsz = gasneti_mmap_aligndown(sum / gasneti_pshm_nodes);
         } while (!done);
         gasneti_free(tmp_se);
       }
@@ -1358,7 +1367,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
   gasneti_segexch = (gasneti_segexch_t *)gasneti_malloc(gasneti_nodes*sizeof(gasneti_segexch_t));
 
   if (localSegmentLimit != (uintptr_t)-1) 
-    localSegmentLimit = GASNETI_PAGE_ALIGNDOWN(localSegmentLimit);
+    localSegmentLimit = gasneti_mmap_aligndown(localSegmentLimit);
 
   #ifdef GASNETI_MMAP_OR_PSHM
   { gasneti_segexch_t se;
