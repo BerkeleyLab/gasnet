@@ -1776,6 +1776,8 @@ GASNET_IF_DISABLED([aligned-segments],
 		   [RVMFILE="/proc/sys/kernel/randomize_va_space"
 		    if test -n "$GASNETI_ARCH_BGQ"; then
                       : # Cross-compiled and NOT applicable
+		    elif test "$segconfig" = everything ; then
+		      : # Alignment not applicable to segment-everything
 		    elif test -f $RVMFILE && test "`cat $RVMFILE`" != "0" ; then
 WMSG="$RVMFILE on this node indicates the Linux VM space randomization \
 security feature is enabled. If this feature is also enabled on the compute \
