@@ -1598,6 +1598,15 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
         gasneti_assert(segbase >= gasneti_segment.addr &&
                (uintptr_t)segbase + segsize <= (uintptr_t)gasneti_segment.addr + gasneti_segment.size);
         gasneti_do_munmap(gasneti_segment.addr, gasneti_segment.size);
+      #if GASNETI_BUG3480_WORKAROUND
+        // Barrier between unmap and re-map, via 1-byte exchange (a.k.a. GatherAll).
+        // This is a bit of a hack, but is the most expedient way to get a barrier
+        // with compute-node scope, since gasneti_pshmnet_bootstrapBarrier() may
+        // have a narrower scope when env var GASNET_SUPERNODE_MAXSIZE is set.
+        char a; char *b = gasneti_malloc(gasneti_nodes);
+        (*exchangefn)(&a, sizeof(char), b);
+        gasneti_free(b);
+      #endif
 #if GASNETI_PSHM_MAP_FIXED_IGNORED
         segbase =
 #endif
