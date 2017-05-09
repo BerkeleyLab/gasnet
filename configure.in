@@ -2393,7 +2393,12 @@ dnl GASNET_TOOLSONLY_FALSE_BEGIN
  GASNET_IF_ENABLED_WITH_AUTO($1, Enable/disable the CONDUIT_DESC (auto-detected),
   [enabled_[]$1=yes;force_[]$1=yes;  _conduit_reason_[]$1=enabled],
   [enabled_[]$1=no;                  _conduit_reason_[]$1=disabled],
-  [enabled_[]$1=$enabled_auto_detect;_conduit_reason_[]$1=$_conduit_auto_reason])
+  [ if test "$enable_$1" = "probe" ; then # --enable-conduit=probe overrides --disable-auto-conduit-detect
+      enabled_[]$1=yes; _conduit_reason_[]$1=auto
+    else # default
+      enabled_[]$1=$enabled_auto_detect;_conduit_reason_[]$1=$_conduit_auto_reason
+    fi
+  ])
 dnl GASNET_TOOLSONLY_FALSE_END
 ])
 dnl CONDUIT_DISALLOW_SEGMENT(segment_type)
