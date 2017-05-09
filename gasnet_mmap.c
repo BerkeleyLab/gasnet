@@ -197,6 +197,9 @@ static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize) {
               GASNETI_LADDRSTR(ptr), (unsigned long)GASNET_PAGESIZE, (unsigned long)GASNET_PAGESIZE);
   }
   if (segbase && ptr == MAP_FAILED) {
+    #if GASNETI_BUG3480_WORKAROUND
+      if (mmap_errno == ENOMEM) return MAP_FAILED; // Caller will retry
+    #endif
       gasneti_fatalerror("mmap fixed failed at "GASNETI_LADDRFMT" for size %lu: %s" GASNETI_BUG3480_MSG,
 	      GASNETI_LADDRSTR(segbase), (unsigned long)segsize, strerror(mmap_errno));
   }
@@ -744,6 +747,10 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
         (ptr == MAP_FAILED?strerror(mmap_errno):"")));
 
   if ((ptr == MAP_FAILED) && !may_fail) {
+  #if GASNETI_BUG3480_WORKAROUND
+    if (segbase && (mmap_errno == ENOMEM)) return MAP_FAILED; // Caller will retry
+  #endif
+
     gasneti_cleanup_shm();
 
     if (mmap_errno != ENOMEM) {
@@ -944,6 +951,37 @@ extern void gasneti_munmap(void *segbase, uintptr_t segsize) {
 #else
   #define gasneti_mmap_aligndown GASNETI_PAGE_ALIGNDOWN
 #endif
+
+#if GASNETI_BUG3480_WORKAROUND
+// Bounded retry on FIXED mappings
+static void *gasneti_mmap_fixed_with_retry(void *segbase, uintptr_t segsize) {
+  const uint64_t max_delay = 2e7;
+  uint64_t delay = 1e3;
+  const int max_retries = 100;
+  int retries = 0;
+
+  void *ptr = gasneti_do_mmap_fixed(segbase, segsize);
+
+  while ((ptr == MAP_FAILED) && (errno == ENOMEM) && (retries++ < max_retries)) {
+    GASNETI_TRACE_PRINTF(I, ("Bug 3480: retry #%d delay %gs\n", retries, 1e-9*delay));
+    (void) gasneti_nsleep(delay);
+    delay = MIN(max_delay, delay * 2);
+    ptr = gasneti_do_mmap_fixed(segbase, segsize);
+  }
+
+  if (ptr == MAP_FAILED) {
+  #if GASNET_PSHM
+    gasneti_cleanup_shm();
+  #endif
+    gasneti_fatalerror("mmap fixed failed at "GASNETI_LADDRFMT" for size %lu: %s",
+            GASNETI_LADDRSTR(segbase), (unsigned long)segsize, strerror(errno));
+  }
+
+  return ptr;
+}
+#undef gasneti_do_mmap_fixed
+#define gasneti_do_mmap_fixed gasneti_mmap_fixed_with_retry
+#endif // GASNETI_BUG3480_WORKAROUND
 
 /* binary search for segment - returns location, not mmaped */
 static gasnet_seginfo_t gasneti_mmap_binary_segsrch(uintptr_t lowsz, uintptr_t highsz) {
