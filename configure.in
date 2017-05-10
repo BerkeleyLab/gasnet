@@ -1162,7 +1162,7 @@ case "$target_os" in
             bgsys_guess=/bgsys/drivers/ppcfloor
 
             GASNET_ENV_DEFAULT(BGQ_SYS_HOME, $bgsys_guess, ppcfloor system directory for BlueGene/Q)
-            if test -e "$BGQ_SYS_HOME/cnk/include"; then
+            if test -d "$BGQ_SYS_HOME/cnk/include"; then
               tmp_flag="-isystem $BGQ_SYS_HOME"
               GASNET_TRY_CFLAG([$tmp_flag], [:], [tmp_flag="-I$BGQ_SYS_HOME"])
               SYS_HEADER_BLD="$SYS_HEADER_BLD $tmp_flag"
@@ -3808,7 +3808,7 @@ if test $enabled_pami = yes; then
   pami_libs_guess="-lpami"
   if test -n "$GASNETI_ARCH_BGQ"; then
     GASNET_ENV_DEFAULT(PAMI_HOME, [/bgsys/drivers/ppcfloor])
-    if test -e "$PAMI_HOME/comm/include"; then
+    if test -d "$PAMI_HOME/comm/include"; then
       pami_cflags_guess="-I$PAMI_HOME/comm/include"
       pami_ldflags_guess="-L$PAMI_HOME/comm/lib"
       if test "$BUILDCONFIG" = "debug" ; then
@@ -3834,11 +3834,11 @@ if test $enabled_pami = yes; then
     pami_cflags_guess="-I$PAMI_HOME/include"
     # XXX: There should be a better way to find these libs.
     #      Could/should we literally "find"?
-    if test -e "$PAMI_HOME/lib/pami${GASNETI_PTR_BITS}"; then
+    if test -d "$PAMI_HOME/lib/pami${GASNETI_PTR_BITS}"; then
         pami_ldflags_guess="-L$PAMI_HOME/lib/pami${GASNETI_PTR_BITS}"
-    elif test -e "$PAMI_HOME/gnu/lib${GASNETI_PTR_BITS}/pami${GASNETI_PTR_BITS}"; then
+    elif test -d "$PAMI_HOME/gnu/lib${GASNETI_PTR_BITS}/pami${GASNETI_PTR_BITS}"; then
         pami_ldflags_guess="-L$PAMI_HOME/gnu/lib${GASNETI_PTR_BITS}/pami${GASNETI_PTR_BITS}"
-    elif test -e "$PAMI_HOME/gnu/lib/pami${GASNETI_PTR_BITS}"; then
+    elif test -d "$PAMI_HOME/gnu/lib/pami${GASNETI_PTR_BITS}"; then
         pami_ldflags_guess="-L$PAMI_HOME/gnu/lib/pami${GASNETI_PTR_BITS}"
     fi
   else
@@ -3847,7 +3847,7 @@ if test $enabled_pami = yes; then
     case "$PAMI_HOME" in
       /usr|/) pami_cflags_guess='' ; pami_ldflags_guess='' ;;
       *) pami_cflags_guess="-I$PAMI_HOME/include"
-         if test "$PAMI_HOME/lib${GASNETI_PTR_BITS}"; then
+         if test -d "$PAMI_HOME/lib${GASNETI_PTR_BITS}"; then
            pami_ldflags_guess="-L$PAMI_HOME/lib${GASNETI_PTR_BITS}"
          else
            pami_ldflags_guess="-L$PAMI_HOME/lib"
