@@ -13,7 +13,7 @@ testcxx%: force
 	  makename=`echo $@ | $(PERL) -pe 's/_.*-(seq|par|parsync)$$/-$$1/'`; \
 	   cmdname=`echo $@ | $(PERL) -pe 's/(_.*)?-(seq|par|parsync)$$//'`; \
 	   echo "$$makename => $$cmdname => $@" ; set -x ; \
-	   $(MAKE) -C $(CONDUIT_DIR) $$makename MANUAL_CFLAGS="$(MANUAL_CFLAGS)" && \
+	   $(MAKE) -C $(CONDUIT_DIR) $$makename MANUAL_CXXFLAGS="$(MANUAL_CXXFLAGS)" && \
 	   cp -f $(CONDUIT_DIR)/$$cmdname$(EXESUFFIX) $@$(EXESUFFIX);              \
 	 else                                                                    \
 	   echo '#!/bin/sh' > $@ ; chmod +x $@;                                  \
