@@ -242,6 +242,75 @@ void gasnetc_ofi_read_env_vars() {
     }
 }
 
+/* The intention of separating this logic from gasnetc_ofi_init() is
+ * to contain the complexity of supporting scalable endpoints in the future to
+ * this function and the relevant get-address macros.
+ */
+GASNETI_INLINE(ofi_setup_address_vector)
+void ofi_setup_address_vector() {
+  size_t reqnamelen = 0, repnamelen = 0, rdmanamelen = 0;
+  char* on_node_addresses;
+  int ret = FI_SUCCESS;
+  conn_entry_t *mapped_table;
+  struct fi_av_attr   	av_attr 	= {0};
+
+  /* Open Address Vector and bind the AV to the domain */
+#if USE_AV_MAP
+  av_attr.type        = FI_AV_MAP;
+  addr_table          = (addr_table_t*)gasneti_malloc(gasneti_nodes * NUM_OFI_ENDPOINTS 
+          * sizeof(conn_entry_t) + sizeof(addr_table_t));
+  addr_table->size    = gasneti_nodes * NUM_OFI_ENDPOINTS;
+  mapped_table        = addr_table->table;
+#else
+  av_attr.type        = FI_AV_TABLE;
+  mapped_table        = NULL;
+#endif
+  ret = fi_av_open(gasnetc_ofi_domainfd, &av_attr, &gasnetc_ofi_avfd, NULL);
+  if (FI_SUCCESS != ret) gasneti_fatalerror("fi_av_open failed: %d\n", ret);
+
+  /* Bind AV to endpoints, both RDMA/AM endpoints share the same AV object */
+  ret = fi_ep_bind(gasnetc_ofi_rdma_epfd, &gasnetc_ofi_avfd->fid, 0);
+  if (FI_SUCCESS != ret) gasneti_fatalerror("fi_ep_bind for avfd to rdma_epfd failed: %d\n", ret);
+
+  ret = fi_ep_bind(gasnetc_ofi_request_epfd, &gasnetc_ofi_avfd->fid, 0);
+  if (FI_SUCCESS != ret) gasneti_fatalerror("fi_ep_bind for avfd to am request epfd failed: %d\n", ret);
+
+  ret = fi_ep_bind(gasnetc_ofi_reply_epfd, &gasnetc_ofi_avfd->fid, 0);
+  if (FI_SUCCESS != ret) gasneti_fatalerror("fi_ep_bind for avfd to am reply epfd failed: %d\n", ret);
+
+  /* Query each endpoint for its address length. While in most cases, these
+   * lengths will be equal, there are some cases where they might not be. For
+   * example, when using both IPv4 and IPv6. */
+  ret = fi_getname(&gasnetc_ofi_request_epfd->fid, NULL, &reqnamelen);
+  gasneti_assert(ret == -FI_ETOOSMALL);
+  ret = fi_getname(&gasnetc_ofi_reply_epfd->fid, NULL, &repnamelen);
+  gasneti_assert(ret == -FI_ETOOSMALL);
+  ret = fi_getname(&gasnetc_ofi_rdma_epfd->fid, NULL, &rdmanamelen);
+  gasneti_assert(ret == -FI_ETOOSMALL);
+
+  size_t total_len = reqnamelen + repnamelen + rdmanamelen;
+  on_node_addresses = gasneti_malloc(total_len);
+
+  char* alladdrs = gasneti_malloc(gasneti_nodes*total_len);
+
+  char* getname_error_msg = "fi_getname failed for the %s endpoint with error code %d.\n";
+  ret = fi_getname(&gasnetc_ofi_request_epfd->fid, on_node_addresses, &reqnamelen);
+  if (FI_SUCCESS != ret) gasneti_fatalerror(getname_error_msg, "AM request", ret);
+  ret = fi_getname(&gasnetc_ofi_reply_epfd->fid, on_node_addresses+reqnamelen, &repnamelen);
+  if (FI_SUCCESS != ret) gasneti_fatalerror(getname_error_msg, "AM reply", ret);
+  ret = fi_getname(&gasnetc_ofi_rdma_epfd->fid, on_node_addresses+reqnamelen+repnamelen, &rdmanamelen);
+  if (FI_SUCCESS != ret) gasneti_fatalerror(getname_error_msg, "RDMA", ret);
+
+  gasneti_bootstrapExchange(on_node_addresses, total_len, alladdrs);
+  ret = fi_av_insert(gasnetc_ofi_avfd, alladdrs, gasneti_nodes*NUM_OFI_ENDPOINTS, 
+          (fi_addr_t*)mapped_table,0ULL, NULL);
+  if (gasneti_nodes*NUM_OFI_ENDPOINTS != ret) 
+      gasneti_fatalerror("fi_av_insert failed. Expected: %d Actual: %d\n", gasneti_nodes*NUM_OFI_ENDPOINTS, ret);
+
+  gasneti_free(alladdrs);
+  gasneti_free(on_node_addresses);
+}
+
 /*------------------------------------------------
  * Initialize OFI conduit
  * ----------------------------------------------*/
@@ -252,16 +321,10 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   int result = GASNET_ERR_NOT_INIT;
   struct fi_info		*hints, *info;
   struct fi_cq_attr   	cq_attr 	= {0};
-  struct fi_av_attr   	av_attr 	= {0};
-  char   sockname[128 * NUM_OFI_ENDPOINTS], *alladdrs;
-  size_t reqnamelen = sizeof(sockname)/NUM_OFI_ENDPOINTS;
-  size_t repnamelen = sizeof(sockname)/NUM_OFI_ENDPOINTS;
-  size_t rdmanamelen = sizeof(sockname)/NUM_OFI_ENDPOINTS;
   size_t optlen;
   int num_locks; 
   int i;
   
-  conn_entry_t *mapped_table;
   int high_perf_prov = 0;
 
   gasneti_spawner = gasneti_spawnerInit(argc, argv, NULL, &gasneti_nodes, &gasneti_mynode);
@@ -448,28 +511,6 @@ int gasnetc_ofi_init(int *argc, char ***argv,
   /* Cutoff to use fi_inject */
   max_buffered_send = info->tx_attr->inject_size;
 
-  /* Open Address Vector and bind the AV to the domain */
-#if USE_AV_MAP
-  av_attr.type        = FI_AV_MAP;
-  addr_table          = (addr_table_t*)gasneti_malloc(gasneti_nodes * 2 * sizeof(conn_entry_t) + sizeof(addr_table_t));
-  addr_table->size    = gasneti_nodes * 2;
-  mapped_table        = addr_table->table;
-#else
-  av_attr.type        = FI_AV_TABLE;
-  mapped_table        = NULL;
-#endif
-  ret = fi_av_open(gasnetc_ofi_domainfd, &av_attr, &gasnetc_ofi_avfd, NULL);
-  if (FI_SUCCESS != ret) gasneti_fatalerror("fi_av_open failed: %d\n", ret);
-
-  /* Bind AV to endpoints, both RDMA/AM endpoints share the same AV object */
-  ret = fi_ep_bind(gasnetc_ofi_rdma_epfd, &gasnetc_ofi_avfd->fid, 0);
-  if (FI_SUCCESS != ret) gasneti_fatalerror("fi_ep_bind for avfd to rdma_epfd failed: %d\n", ret);
-
-  ret = fi_ep_bind(gasnetc_ofi_request_epfd, &gasnetc_ofi_avfd->fid, 0);
-  if (FI_SUCCESS != ret) gasneti_fatalerror("fi_ep_bind for avfd to am request epfd failed: %d\n", ret);
-
-  ret = fi_ep_bind(gasnetc_ofi_reply_epfd, &gasnetc_ofi_avfd->fid, 0);
-  if (FI_SUCCESS != ret) gasneti_fatalerror("fi_ep_bind for avfd to am reply epfd failed: %d\n", ret);
 
   /* Enable endpoints */
   ret = fi_enable(gasnetc_ofi_rdma_epfd);
@@ -481,26 +522,8 @@ int gasnetc_ofi_init(int *argc, char ***argv,
 
   gasneti_nodemapInit(gasneti_bootstrapExchange, NULL, 0, 0);
 
-  /* Get the address of AM endpoint and publish to other nodes through bootstrap
-   * exchange function */
-  ret = fi_getname(&gasnetc_ofi_request_epfd->fid, sockname, &reqnamelen);
-  if (FI_SUCCESS != ret) gasneti_fatalerror("fi_getname failed for request ep: %d\n", ret);
-  ret = fi_getname(&gasnetc_ofi_reply_epfd->fid, sockname+reqnamelen, &repnamelen);
-  if (FI_SUCCESS != ret) gasneti_fatalerror("fi_getname failed for reply ep: %d\n", ret);
-  ret = fi_getname(&gasnetc_ofi_rdma_epfd->fid, sockname+reqnamelen+repnamelen, &rdmanamelen);
-  if (FI_SUCCESS != ret) gasneti_fatalerror("fi_getname failed for RDMA ep: %d\n", ret);
-
-  size_t total_len = reqnamelen + repnamelen + rdmanamelen;
-  alladdrs = gasneti_malloc(gasneti_nodes*total_len);
-  gasneti_bootstrapExchange(&sockname, total_len, alladdrs);
-
-  ret = fi_av_insert(gasnetc_ofi_avfd, alladdrs, gasneti_nodes*NUM_OFI_ENDPOINTS, (fi_addr_t*)mapped_table,
-          0ULL, NULL);
-  if (gasneti_nodes*NUM_OFI_ENDPOINTS != ret) 
-      gasneti_fatalerror("fi_av_insert failed. Expected: %d Actual: %d\n", gasneti_nodes*NUM_OFI_ENDPOINTS, ret);
+  ofi_setup_address_vector();
   
-  gasneti_free(alladdrs);
-
   fi_freeinfo(hints);
 
   if (!GASNETC_OFI_HAS_MR_SCALABLE) {
