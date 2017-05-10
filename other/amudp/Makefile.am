@@ -131,10 +131,10 @@ amudprun$(EXEEXT): amudprun.o $(headers) libamudp.a
 	$(link) -o $@ $< -L. -lamudp $(linkend)
 
 %.o: %.c $(allheaders)
-	$(compile) -o $@ -c `test -e $(srcdir)/$< && echo "$(srcdir)/"`$<
+	$(compile) -o $@ -c `test -f $(srcdir)/$< && echo "$(srcdir)/"`$<
 
 %.o: %.cpp $(allheaders) $(top_builddir)/libgasnet_tools-seq.a
-	$(cxxcompile) -o $@ -c `test -e $(srcdir)/$< && echo "$(srcdir)/"`$<
+	$(cxxcompile) -o $@ -c `test -f $(srcdir)/$< && echo "$(srcdir)/"`$<
 
 $(top_builddir)/libgasnet_tools-seq.a: force
 	@cd $(top_builddir) && $(MAKE) libgasnet_tools-seq.a
