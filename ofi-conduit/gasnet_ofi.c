@@ -964,14 +964,14 @@ void gasnetc_ofi_am_recv_poll(int is_request)
     if (is_request) {
         ep = gasnetc_ofi_request_epfd;
         cq = gasnetc_ofi_request_cqfd;
-#if GASNET_PAR
+#if GASNET_PAR && !GASNETC_OFI_USE_THREAD_DOMAIN
         lock_p = &gasnetc_ofi_locks.rx_request_cq;
 #endif
     }
     else {
         ep = gasnetc_ofi_reply_epfd;
         cq = gasnetc_ofi_reply_cqfd;
-#if GASNET_PAR
+#if GASNET_PAR && !GASNETC_OFI_USE_THREAD_DOMAIN
         lock_p = &gasnetc_ofi_locks.rx_reply_cq;
 #endif
     }
