@@ -7,7 +7,6 @@ all:
 PERL ?= perl
 CONDUIT_DIR=$(TOP_BUILDDIR)/gasnet/$(NETWORK)-conduit
 STRICT_PROTO_FLAGS=`echo $$BUPC_STRICT_PROTO_FLAGS | $(PERL) -pe 's/-Wc,//'`
-MANUAL_CFLAGS=
 
 testcxx%: force
 	@if test -n "`$(UPCC) --network=udp --echo-var UPCR_LD 2>/dev/null`"; then \
