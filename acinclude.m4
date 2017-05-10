@@ -534,6 +534,53 @@ GASNET_POPVAR(LIBS)
 GASNET_FUN_END([$0])
 ])
 
+AC_DEFUN([_GASNET_SPLIT_LINKER_OPTS_HELPER], [
+gasnet_fn_split_linker_opts()
+{
+  gasnet_lo_ldflags=[$]1
+  shift
+  gasnet_lo_libs=[$]1
+  shift
+  eval $gasnet_lo_ldflags=
+  eval $gasnet_lo_libs=
+  for ac_opt in "[$]@"; do
+      case "$ac_opt" in
+        -l* | -L*)
+          gasnet_lo_append=$gasnet_lo_libs
+        ;;
+        *)
+          gasnet_lo_append=$gasnet_lo_ldflags
+        ;;
+      esac
+      case "$ac_opt" in
+        *' '* | *'$'* | *'`'*)  # quote args containing selected dangerous characters
+          ac_opt_quot="'$ac_opt'"
+        ;;
+        *)
+          ac_opt_quot="$ac_opt"
+        ;;
+      esac
+      if eval test -z \"\$$gasnet_lo_append\" ; then # avoid extraneous spaces
+        eval $gasnet_lo_append=\"\$ac_opt_quot\"
+      else
+        eval $gasnet_lo_append=\"\$$gasnet_lo_append \$ac_opt_quot\"
+      fi
+  done
+}
+])
+
+dnl GASNET_FILTER_LINKER_OPTS(LDFLAGS, LIBS)
+dnl Filter the current contents of $LDFLAGS and $LIBS 
+dnl Move all -l/-L options into LIBS and anything else into LDFLAGS
+AC_DEFUN([GASNET_SPLIT_LINKER_OPTS],[
+  GASNET_FUN_BEGIN([$0($@)])
+  AC_REQUIRE([_GASNET_SPLIT_LINKER_OPTS_HELPER])
+  eval gasnet_fn_split_linker_opts $1 $2 [$]$1 [$]$2
+  #echo "$1=[$]$1"
+  #echo "$2=[$]$2"
+  GASNET_FUN_END([$0($@)])
+])
+
 AC_DEFUN([_GASNET_CONFIGURE_ARGS],[
 # GASNet configure argument processing
 # start by capturing raw args, hopefully before autoconf clobbers positional parameters
