@@ -406,13 +406,18 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
        So, PLEASE don't add GASNETI_UNUSED annotations here. */
 
   #if GASNETI_LAZY_BEGINFUNCTION
+    // bug 3498: Ensure a sequence point after the assignment to gasnete_threadinfo_cache
+    GASNETI_INLINE(gasneti_lazy_get_threadinfo) GASNETI_WARN_UNUSED_RESULT
+    gasnet_threadinfo_t gasneti_lazy_get_threadinfo(gasnet_threadinfo_t * const _p_ti, 
+                                                    gasnet_threadinfo_t _ti_val) {
+      return (*_p_ti = _ti_val);
+    }
     #define GASNET_GET_THREADINFO()                              \
       ( (sizeof(gasnete_threadinfo_available) == 1) ?            \
         (gasnet_threadinfo_t)gasnete_mythread() :                \
-        ( (uintptr_t)gasnete_threadinfo_cache == 0 ?             \
-          (gasnete_threadinfo_cache =                            \
-            (gasnet_threadinfo_t)gasnete_mythread()) :           \
-          gasnete_threadinfo_cache) )
+        (GASNETT_PREDICT_TRUE(gasnete_threadinfo_cache) ? gasnete_threadinfo_cache :   \
+        gasneti_lazy_get_threadinfo(&gasnete_threadinfo_cache,(gasnet_threadinfo_t)gasnete_mythread()))  \
+      )
   #else
     #define GASNET_GET_THREADINFO()                   \
       ( (sizeof(gasnete_threadinfo_available) == 1) ? \
