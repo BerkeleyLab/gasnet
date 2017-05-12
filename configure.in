@@ -3009,27 +3009,31 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
     GASNET_PUSHVAR(LIBS,"$MPI_LIBS")
 
     # we just try to link an MPI app - running MPI apps is a whole new can of worms
-    GASNET_LINKHELPER_TRY_LINK(for working MPI configuration, mpi_works, [
+    pushdef([mpi_header],[
       #include <mpi.h>
-    ], [
+      #ifdef __cplusplus
+      #error MPI_CC must be a true MPI-enabled ANSI C compiler - a C++ compiler is not an acceptable replacement.
+      #endif
+    ])
+    pushdef([mpi_body],[
       MPI_Init((void*)0,(void*)0);
       MPI_Finalize();
-    ], [ mpi_test_worked=yes ], [ mpi_test_worked=no GASNET_ERR_SAVE() ] )
+    ])
+    GASNET_LINKHELPER_TRY_LINK(for working MPI configuration, mpi_works, mpi_header, mpi_body,
+                               [ mpi_test_worked=yes ], [ mpi_test_worked=no GASNET_ERR_SAVE() ] )
     # Apple's gcc (and thus their mpicc) doesn't provide TLS support, but the
     # FSF gcc does.  The two are link compatible IF we explicitly pass -lgcc_eh
     # XXX: Really only needed for PAR and PARSYNC, but we don't distinguish.
     if test "$mpi_test_worked$have_tls$CC_FAMILY" = noyesGNU; then
       LIBS="$LIBS $LIBGCC -lgcc_eh"  # $LIBGCC appears in $GASNET_LIBS eventually
-      GASNET_LINKHELPER_TRY_LINK(for working MPI configuration w/ added -lgcc_eh, mpi_works_gcc_eh, [
-        #include <mpi.h>
-      ], [
-        MPI_Init((void*)0,(void*)0);
-        MPI_Finalize();
-      ], [ mpi_test_worked=yes
+      GASNET_LINKHELPER_TRY_LINK(for working MPI configuration w/ added -lgcc_eh, mpi_works_gcc_eh, 
+           mpi_header, mpi_body,
+      [    mpi_test_worked=yes
            MPI_LIBS="$MPI_LIBS -lgcc_eh"
       ], [ mpi_test_worked=no GASNET_ERR_SAVE() ] )
     fi
     GASNET_LINKHELPER_CLEANUP()
+    popdef([mpi_body])
 
     if test "$mpi_test_worked" = yes ; then
       GASNET_CHECK_RESTRICT([GASNETI_MPI_CC],[MPI_CC])
@@ -3037,12 +3041,12 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
       GASNET_INLINE_MODIFIER([MPI_CC],[MPI_CC])
       GASNET_GET_GNU_ATTRIBUTES([GASNETI_HAVE_MPI_CC],[MPI_CC])
       if test "$cross_compiling" = "yes" ; then
-        GASNET_TRY_CACHE_EXTRACT_EXPR([MPI_CC for value of MPI_VERSION (binary probe)],MPI_VERSION,[#include <mpi.h>],MPI_VERSION,GASNETI_MPI_VERSION)
+        GASNET_TRY_CACHE_EXTRACT_EXPR([MPI_CC for value of MPI_VERSION (binary probe)],MPI_VERSION,mpi_header,MPI_VERSION,GASNETI_MPI_VERSION)
         if test -z "$GASNETI_MPI_VERSION" ; then # last resort is to use CROSS var
           GASNET_CROSS_VAR(GASNETI_MPI_VERSION,MPI_VERSION)
         fi
       else
-        GASNET_TRY_CACHE_RUN_EXPR([MPI_CC for value of MPI_VERSION], MPI_VERSION, [#include <mpi.h>], [val = MPI_VERSION;], GASNETI_MPI_VERSION)
+        GASNET_TRY_CACHE_RUN_EXPR([MPI_CC for value of MPI_VERSION], MPI_VERSION, mpi_header, [val = MPI_VERSION;], GASNETI_MPI_VERSION)
       fi
       AC_DEFINE(GASNETI_MPI_VERSION)
 
@@ -3052,9 +3056,7 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
        [ mpi_test_worked=no 
          GASNET_MSG_WARN(Unable to find sufficient C99 support features in $MPI_CC to build GASNet. You may need to append flags in \$MPI_CC or \$MPI_CFLAGS to enable C99 support) ])
 
-      GASNET_TRY_CACHE_LINK(for MPI_Init_thread, have_mpi_init_thread, [
-        #include <mpi.h>
-      ], [{
+      GASNET_TRY_CACHE_LINK(for MPI_Init_thread, have_mpi_init_thread, mpi_header, [{
         int required1 = MPI_THREAD_SINGLE;
         int required2 = MPI_THREAD_FUNNELED;
         int required3 = MPI_THREAD_SERIALIZED;
@@ -3063,9 +3065,7 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
         int err = MPI_Init_thread((void*)0,(void*)0,required1,&provided);
       }], [ AC_DEFINE(HAVE_MPI_INIT_THREAD) ])
 
-      GASNET_TRY_CACHE_LINK(for MPI_Query_thread, have_mpi_query_thread, [
-        #include <mpi.h>
-      ], [{
+      GASNET_TRY_CACHE_LINK(for MPI_Query_thread, have_mpi_query_thread, mpi_header, [{
         int provided = -1;
         int err = MPI_Query_thread(&provided);
       }], [ AC_DEFINE(HAVE_MPI_QUERY_THREAD) ])
@@ -3084,9 +3084,8 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
     GASNET_POPVAR(LIBS)
   fi
   if test "$mpi_test_worked" = yes ; then
-      GASNET_CORRECT_OPTIMIZEDDEBUG(MPI_CC,MPI_CFLAGS,MPI_CFLAGS,[], [ 
-        #include <mpi.h>
-      ],[, or consider passing --without-mpi-cc if an MPI compiler is not required.])
+      GASNET_CORRECT_OPTIMIZEDDEBUG(MPI_CC,MPI_CFLAGS,MPI_CFLAGS,[], mpi_header,
+         [, or consider passing --without-mpi-cc if an MPI compiler is not required.])
   elif test "$mpi_reason" = ""; then
       GASNET_MSG_WARN([build test failed: I don't know how to build MPI programs on your system -- see $TOP_BUILDDIR/config.log for details: consider setting \$MPI_CC \$MPI_CFLAGS and \$MPI_LIBS to configure MPI support for your site if you want mpi-conduit or require MPI compatibility])
       have_mpi=no
@@ -3102,6 +3101,7 @@ if test "$enabled_mpi" = yes || test "$enabled_mpi_compat" = yes; then
       AC_DEFINE(GASNETI_PLATFORM_MPI_CC_VERSION, 999999)
       AC_DEFINE(GASNETI_PLATFORM_MPI_CC_IDSTR, "MPI_CC-compiler-rejected")
   fi
+  popdef([mpi_header])
 else
   have_mpi=no
   mpi_reason="was disabled"
