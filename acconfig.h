@@ -160,7 +160,7 @@
 #undef HAVE_MAP_ANON
 #undef HAVE_MAP_ANONYMOUS
 
-/* should avoid use of munmap() to the extent possible */
+/* avoid mmap()-after-munmap() failures */
 #undef GASNETI_BUG3480_WORKAROUND
 
 /* --with-segment-mmap-max value (if given) */
