@@ -694,14 +694,14 @@ cat config.env | $AWK ['{
     var=tolower(var);
     gsub("[-_]","",var);
     val=substr(line,RLENGTH+1);
-    gsub("\x27","\x27\x22\x27\x22\x27",val);
+    gsub("\047","\047\042\047\042\047",val);
     if (env[var] && env[var] != val) conf[var]=1;
     env[var]=val;
   }
 } END {
   for (var in env) {
-    if (conf[var]) printf("_gasneti_cenv_%s=\x27%s\x27\n",var,env[var]);
-    else           printf("_gasneti_nenv_%s=\x27%s\x27\n",var,env[var]);
+    if (conf[var]) printf("_gasneti_cenv_%s=\047%s\047\n",var,env[var]);
+    else           printf("_gasneti_nenv_%s=\047%s\047\n",var,env[var]);
   }
 }'] > config.env2
 . ./config.env2
