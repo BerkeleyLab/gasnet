@@ -701,11 +701,7 @@ static void gasnetc_physmem_check(const char *reason, uintptr_t limit) {
  */
 static void gasnetc_init_pin_info(int first_local, int num_local) {
   gasnetc_pin_info_t *all_info = gasneti_malloc(gasneti_nodes * sizeof(gasnetc_pin_info_t));
-#if GASNETI_BUG3480_WORKAROUND
-  const int do_probe = 0; // Cannot probe w/o using munmap()
-#else
   const int do_probe = ! gasneti_getenv_yesno_withdefault("GASNET_PHYSMEM_NOPROBE", 0);
-#endif
   int i;
 
   /* 
