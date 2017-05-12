@@ -33,6 +33,12 @@
  #endif
 #endif
 
+#if defined(GASNETI_MMAP_OR_PSHM) && defined(GASNETI_USE_HUGETLBFS)
+  #define gasneti_mmap_aligndown(sz) gasneti_mmap_aligndown_huge(sz)
+#else
+  #define gasneti_mmap_aligndown(sz) GASNETI_PAGE_ALIGNDOWN(sz)
+#endif
+
 #ifdef GASNETI_MMAP_OR_PSHM
  #if GASNET_PSHM && !defined(_POSIX_C_SOURCE) && PLATFORM_OS_SOLARIS
   #define _POSIX_C_SOURCE 200112L /* Required for shm_{open,unlink} decls */
@@ -75,6 +81,12 @@
   /* Trim only from top to retain alignment: */
   #undef GASNETI_USE_HIGHSEGMENT
   #define GASNETI_USE_HIGHSEGMENT 0
+  /* Provide greater alignment than default: */
+  static uintptr_t gasneti_mmap_aligndown_huge(uintptr_t sz) {
+     static long pagesz = 0;
+     if (!pagesz) pagesz = gethugepagesize();
+     return GASNETI_ALIGNDOWN(sz, pagesz);
+  }
  #endif
 
  #if GASNET_PSHM && PLATFORM_ARCH_SPARC
@@ -940,16 +952,6 @@ extern void gasneti_munmap(void *segbase, uintptr_t segsize) {
   #define gasneti_do_mmap       gasneti_mmap
   #define gasneti_do_mmap_fixed gasneti_mmap_fixed
   #define gasneti_do_munmap     gasneti_munmap
-#endif
-
-#if defined(GASNETI_USE_HUGETLBFS)
-  static uintptr_t gasneti_mmap_aligndown(uintptr_t sz) {
-     static long pagesz = 0;
-     if (!pagesz) pagesz = gethugepagesize();
-     return GASNETI_ALIGNDOWN(sz, pagesz);
-  }
-#else
-  #define gasneti_mmap_aligndown GASNETI_PAGE_ALIGNDOWN
 #endif
 
 #if GASNETI_BUG3480_WORKAROUND
