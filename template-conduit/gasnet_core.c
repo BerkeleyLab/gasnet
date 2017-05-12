@@ -255,6 +255,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
   /* (###) add code here to gather the segment assignment info into 
            gasneti_seginfo on each node (may be possible to use AMShortRequest here)
+           If gasneti_segmentAttach() was used above, this is already done.
    */
 
   /* ------------------------------------------------------------------------------------ */
