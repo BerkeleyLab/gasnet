@@ -20,9 +20,12 @@ AC_DEFUN([GASNET_GET_AUTOCONF_VERSION],[
 GASNET_FUN_BEGIN([$0])
 AC_REQUIRE([AC_PROG_AWK])
 AC_MSG_CHECKING(autoconf version)
-dnl AUTOCONF_VERSION=`cat ${srcdir}/configure | perl -e '{ while (<STDIN>) { if (m/enerated.*utoconf.*([[0-9]]+)\.([[0-9]]+).*/) { print "[$]1.[$]2\n"; exit 0 } } }'`
-AUTOCONF_VERSION_STR=`cat ${srcdir}/configure | $AWK '/.*enerated.*utoconf.*([[0-9]]+).([[0-9]]+).*/ { [match]([$]0,"[[0-9]]+.[[0-9]]+"); print [substr]([$]0,RSTART,RLENGTH); exit 0 } '`
-AUTOCONF_VERSION=`echo $AUTOCONF_VERSION_STR | $AWK -F. '{ printf("%i%i",[$]1,[$]2); }'`
+ifdef([AC_AUTOCONF_VERSION],[ 
+  AUTOCONF_VERSION_STR='m4_defn([AC_AUTOCONF_VERSION])'
+], [
+  AUTOCONF_VERSION_STR=`$AWK '/.*enerated.*utoconf.*([[0-9]]+).([[0-9]]+).*/ { [match]([$]0,"[[0-9]]+.[[0-9]]+"); print [substr]([$]0,RSTART,RLENGTH); exit 0 } ' < ${srcdir}/configure`
+])
+dnl AUTOCONF_VERSION=`echo $AUTOCONF_VERSION_STR | $AWK -F. '{ printf("%i%i",[$]1,[$]2); }'`
 AC_MSG_RESULT($AUTOCONF_VERSION_STR)
 GASNET_FUN_END([$0])
 ])
