@@ -367,12 +367,13 @@ uintptr_t gasneti_auxseg_preattach(uintptr_t client_request_sz);
 
 /* provide auxseg to GASNet components and init secondary segment arrays 
    requires gasneti_seginfo has been initialized to the correct values
+   exchangefn is used only for GASNET_SEGMENT_EVERYTHING and may be NULL
  */
-void gasneti_auxseg_attach(void);
+void gasneti_auxseg_attach(gasneti_bootstrapExchangefn_t exchangefn);
 
 #if GASNET_SEGMENT_EVERYTHING
   extern void gasnetc_auxseg_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
-                                  gasnetex_handlerarg_t msg, gasnetex_handlerarg_t offset);
+                                  gasnetex_handlerarg_t arg0);
   #define GASNETC_AUXSEG_HANDLERS() \
     gasneti_handler_tableentry_no_bits(gasnetc_auxseg_reqh,2,0)
 #endif

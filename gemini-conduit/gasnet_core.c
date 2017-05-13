@@ -820,7 +820,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   gasneti_assert(gasneti_seginfo[gasneti_mynode].addr == segbase &&
          gasneti_seginfo[gasneti_mynode].size == segsize);
 
-  gasneti_auxseg_attach(); /* provide auxseg */
+  /* (###) exchange_fn is optional (may be NULL) and is only used with GASNET_SEGMENT_EVERYTHING
+           if your conduit has an optimized bootstrapExchange pass it in place of NULL
+   */
+  gasneti_auxseg_attach(gasnetc_bootstrapExchange_gni); /* provide auxseg */
 
   /* After these, puts, and gets should work */
   gasnetc_init_segment(segbase, segsize);

@@ -1968,33 +1968,60 @@ void gasneti_auxseg_init(void) {
 }
 
 #if GASNET_SEGMENT_EVERYTHING
+  static gasnet_seginfo_t _gasneti_my_auxseg;
   static volatile gasnet_seginfo_t *_gasneti_auxseg_everything = NULL;
-  static gasneti_atomic_t _gasneti_auxseg_gatherdone = gasneti_atomic_init(0);
-  static gasneti_atomic_t _gasneti_auxseg_bcastdone = gasneti_atomic_init(0);
+  static gasneti_weakatomic32_t _gasneti_auxseg_rcvd[32] = {}; // Implicitly zero-initialized
 
-  extern void gasnetc_auxseg_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
-                                  gasnetex_handlerarg_t msg, gasnetex_handlerarg_t offset) {
-    gasnetex_rank_t srcid;
-    gasnet_AMGetMsgSource(token, &srcid);
-    gasneti_assert(srcid < gasneti_nodes);
-    switch (msg) {
-      case 0:
-        gasneti_assert(gasneti_mynode == 0);
-        gasneti_assert(offset == 0);
-        gasneti_assert(nbytes == sizeof(gasnet_seginfo_t));
-        gasneti_assert(_gasneti_auxseg_everything != NULL);
-        _gasneti_auxseg_everything[srcid] = *(gasnet_seginfo_t *)buf;
-        gasneti_atomic_increment(&_gasneti_auxseg_gatherdone, GASNETI_ATOMIC_REL);
-        break;
-      case 1:
-        gasneti_assert(srcid == 0);
-        gasneti_assert(nbytes <= sizeof(gasnet_seginfo_t)*gasneti_nodes);
-        gasneti_assert(nbytes % sizeof(gasnet_seginfo_t) == 0);
-        gasneti_assert(_gasneti_auxseg_everything != NULL);
-        memcpy((void *)(_gasneti_auxseg_everything+offset), buf, nbytes);
-        gasneti_atomic_increment(&_gasneti_auxseg_bcastdone, GASNETI_ATOMIC_REL);
-        break;
+  extern void gasnetc_auxseg_reqh(gasnetex_token_t token, void *buf, size_t nbytes, gasnetex_handlerarg_t arg0) {
+    const int step = arg0 & 0x1f; // Max 2^5 steps            => 2^32 nodes
+    const int seq = arg0 >> 5;    // Max 2^27 fragments * 512 => 64GB (and max sent is len*nodes/2)
+    const int distance = (1 << step);
+    uint8_t *dest = (uint8_t*)(_gasneti_auxseg_everything + distance) + (seq * gasnetex_lub_AMRequestMedium());
+    memcpy(dest, buf, nbytes);
+    gasneti_weakatomic32_increment(&_gasneti_auxseg_rcvd[step], GASNETI_ATOMIC_REL);
+  }
+
+  static void gasneti_auxseg_exchange(void) {
+    const size_t len = sizeof(gasnet_seginfo_t);
+    uint8_t *dest = (uint8_t *)_gasneti_auxseg_everything;
+
+    /* copy in local contribution */
+    memcpy(dest, &_gasneti_my_auxseg, len);
+
+    /* Bruck's concatenation algorithm: */
+    unsigned int step, distance;
+    for (step = 0, distance = 1; distance < gasneti_nodes; ++step, distance *= 2) {
+      gasnetex_rank_t peer = (distance <= gasneti_mynode) ? gasneti_mynode - distance
+                                                          : gasneti_mynode + (gasneti_nodes - distance);
+      size_t nbytes = len * distance;
+      size_t offset = 0;
+      uint32_t seq = 0;
+
+      /* Send payload using AMMedium(s) */
+      do {
+        const size_t to_xfer = MIN(nbytes, gasnetex_lub_AMRequestMedium());
+        gasnetex_AMRequestMedium(NULL, peer, _hidx_gasnetc_auxseg_reqh,
+                                 dest + offset, to_xfer, GASNETEX_EVENT_NOW, 0,
+                                 (step | (seq << 5)));
+        ++seq;
+        offset += to_xfer;
+        nbytes -= to_xfer;
+      } while (nbytes);
+
+      /* Poll until we have received the same number of messages as we sent */
+      GASNET_BLOCKUNTIL((int)gasneti_weakatomic32_read(&_gasneti_auxseg_rcvd[step], 0) == (int)seq);
     }
+
+    /* Copy to final destination while performing the rotation */
+    uint8_t *temp = gasneti_malloc(len * gasneti_nodes);
+    const size_t a = len * (gasneti_nodes - gasneti_mynode);
+    const size_t b = len * gasneti_mynode;
+    memcpy(temp, dest + a, b);
+    memcpy(temp + b, dest, a);
+    gasneti_free(dest);
+    _gasneti_auxseg_everything = (volatile gasnet_seginfo_t *)temp;
+
+    gasneti_assert(! memcmp((void*)(_gasneti_auxseg_everything + gasneti_mynode), &_gasneti_my_auxseg, len));
   }
 #endif
 
@@ -2007,8 +2034,8 @@ uintptr_t gasneti_auxseg_preattach(uintptr_t client_request_sz) {
   { /* malloc page/cache aligned space for gasneti_auxseg_sz */
     void *auxseg = gasneti_malloc(gasneti_auxseg_sz+MAX(GASNETI_CACHE_LINE_BYTES, GASNET_PAGESIZE));
     _gasneti_auxseg_everything = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
-    _gasneti_auxseg_everything[gasneti_mynode].addr = (void *)GASNETI_ALIGNUP(auxseg,MAX(GASNETI_CACHE_LINE_BYTES, GASNET_PAGESIZE));
-    _gasneti_auxseg_everything[gasneti_mynode].size = gasneti_auxseg_sz;
+    _gasneti_my_auxseg.addr = (void *)GASNETI_ALIGNUP(auxseg,MAX(GASNETI_CACHE_LINE_BYTES, GASNET_PAGESIZE));
+    _gasneti_my_auxseg.size = gasneti_auxseg_sz;
     result = 0;
   }
   #else
@@ -2030,8 +2057,9 @@ uintptr_t gasneti_auxseg_preattach(uintptr_t client_request_sz) {
 
 /* provide auxseg to GASNet components and init secondary segment arrays 
    requires gasneti_seginfo has been initialized to the correct values
+   exchangefn is used only for GASNET_SEGMENT_EVERYTHING and may be NULL
  */
-void gasneti_auxseg_attach(void) {
+void gasneti_auxseg_attach(gasneti_bootstrapExchangefn_t exchangefn) {
   gasnet_seginfo_t *si;
   int numfns = (sizeof(gasneti_auxsegfns)/sizeof(gasneti_auxsegregfn_t))-1;
   int i,j;
@@ -2042,27 +2070,14 @@ void gasneti_auxseg_attach(void) {
 
   /* point si at the auxseg */
   #if GASNET_SEGMENT_EVERYTHING
-  { /* need to packetize this broadcast to avoid overflowing max medium with high node count */
-    int chunkelems = MIN(gasnetex_lub_AMRequestMedium()/sizeof(gasnet_seginfo_t), gasneti_nodes);
-    int chunks = (gasneti_nodes / chunkelems) + (gasneti_nodes % chunkelems == 0 ? 0 : 1);
-    /* exchange locations into si */
-    gasnetex_AMRequestMedium2(NULL, 0, _hidx_gasnetc_auxseg_reqh,
-                  (void *)(_gasneti_auxseg_everything+gasneti_mynode), sizeof(gasnet_seginfo_t),
-                  GASNETEX_EVENT_NOW, 0, 0, 0);
-    if (gasnet_mynode() == 0) {
-      GASNET_BLOCKUNTIL((int)gasneti_atomic_read(&_gasneti_auxseg_gatherdone, 0) == (int)gasnet_nodes());
-      for (i=0; i < gasneti_nodes; i++) {
-        for (j=0; j < chunks; j++) {
-          gasnetex_AMRequestMedium2(NULL, i, _hidx_gasnetc_auxseg_reqh,
-                    (void *)(_gasneti_auxseg_everything+j*chunkelems), 
-                    MIN(chunkelems, gasneti_nodes-j*chunkelems)*sizeof(gasnet_seginfo_t),
-                    GASNETEX_EVENT_NOW, 0, 1, j*chunkelems);
-        }
-      }
+    /* exchange locations into _gasneti_auxseg_everything */
+    gasneti_assert(_gasneti_auxseg_everything);
+    if (exchangefn) {
+      (*exchangefn)(&_gasneti_my_auxseg, sizeof(gasnet_seginfo_t), (void*)_gasneti_auxseg_everything);
+    } else {
+      gasneti_auxseg_exchange();
     }
-    GASNET_BLOCKUNTIL((int)gasneti_atomic_read(&_gasneti_auxseg_bcastdone, 0) == (int)chunks);
     si = (gasnet_seginfo_t *)_gasneti_auxseg_everything;
-  }
   #else
     si = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
     /* break up fullseg into client seg and auxseg */
