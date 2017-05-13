@@ -1389,37 +1389,54 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
   gasneti_assert(gasneti_nodes > 0);
   gasneti_assert(gasneti_mynode < gasneti_nodes);
 
-  if (localSegmentLimit != (uintptr_t)-1) 
-    localSegmentLimit = gasneti_mmap_aligndown(localSegmentLimit);
+  // PART I: allocate "pre-segment"
+
+#ifdef GASNETI_MMAP_OR_PSHM
+  localSegmentLimit = MIN(localSegmentLimit, GASNETI_MMAP_LIMIT);
+#endif
+  localSegmentLimit = gasneti_mmap_aligndown(localSegmentLimit);
 
   #ifdef GASNETI_MMAP_OR_PSHM
-  { 
     // NOTE: If the conduit did not derive localSegmentLimit from a call to
     // gasneti_mmapLimit(), then this call might lead to unexpected failures
     // (such as bug 651) due to it's lack of coordination among processes.
-    gasneti_segment = gasneti_mmap_segment_search(localSegmentLimit == (uintptr_t)-1 ?
-                                                  GASNETI_MMAP_LIMIT : 
-                                                  MIN(localSegmentLimit,GASNETI_MMAP_LIMIT));
+    gasneti_segment = gasneti_mmap_segment_search(localSegmentLimit);
+
     GASNETI_TRACE_PRINTF(C, ("My segment: addr="GASNETI_LADDRFMT"  sz=%lu",
       GASNETI_LADDRSTR(gasneti_segment.addr), (unsigned long)gasneti_segment.size));
+  #else
+    #if GASNET_ALIGNED_SEGMENTS && !GASNET_CONDUIT_SMP
+      #error bad config: dont know how to provide GASNET_ALIGNED_SEGMENTS when !HAVE_MMAP
+    #endif
+    /* some systems don't support mmap - 
+       TODO: safe mechanism to determine a true max seg sz, 
+       for now just trust the GASNETI_MALLOCSEGMENT_LIMIT size */
+  #endif
 
-    // TODO-EX: This exchange only used to compute gasneti_MaxGlobalSegmentSize and TRACE min/max
+#if GASNET_PSHM
+  gasneti_unlink_segments();
+  gasneti_pshm_cs_leave();
+#endif
+
+  // PART II: determine Max{Local,Global}SegmentSize
+
+  if (1) { // TODO-EX: in anticipation of Max{Local,Global}SegmentSize becoming optional
+  #ifdef GASNETI_MMAP_OR_PSHM
     /* gather the mmap segment location */
-    gasnet_seginfo_t se = gasneti_segment;
-    gasnet_seginfo_t *gasneti_segexch = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
-    (*exchangefn)(&se, sizeof(gasnet_seginfo_t), gasneti_segexch);
+    gasnet_seginfo_t *gasneti_segexch = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
+    (*exchangefn)(&gasneti_segment, sizeof(gasnet_seginfo_t), gasneti_segexch);
 
-    {
-      uintptr_t maxsize = 0;
-      uintptr_t minsize = (uintptr_t)-1;
+    /* compute min and max sizes across nodes */
+    uintptr_t maxsize = gasneti_segexch[0].size;
+    uintptr_t minsize = gasneti_segexch[0].size;
+    for (int i = 1; i < gasneti_nodes; i++) {
+      maxsize = MAX(maxsize, gasneti_segexch[i].size);
+      minsize = MIN(minsize, gasneti_segexch[i].size);
+    }
+    gasneti_free(gasneti_segexch);
+
+    #if GASNET_TRACE
       char segstats[255];
-      /* compute various stats across nodes */
-      for (int i=0;i < gasneti_nodes; i++) {
-        if (gasneti_segexch[i].size > maxsize)
-          maxsize = gasneti_segexch[i].size;
-        if (gasneti_segexch[i].size < minsize)
-          minsize = gasneti_segexch[i].size;
-      }
       snprintf(segstats, sizeof(segstats),
           "Segment stats: "
           "maxsize = %lu   "
@@ -1427,35 +1444,25 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
           (unsigned long)maxsize, (unsigned long)minsize);
       segstats[sizeof(segstats)-1] = '\0';
       GASNETI_TRACE_MSG(C, segstats);
-
-      gasneti_MaxLocalSegmentSize = gasneti_segment.size;
-      gasneti_MaxGlobalSegmentSize = minsize;
-    }
-    gasneti_free(gasneti_segexch);
-  }
-  #else /* !GASNETI_MMAP_OR_PSHM */
-    #if GASNET_ALIGNED_SEGMENTS && !GASNET_CONDUIT_SMP
-      #error bad config: dont know how to provide GASNET_ALIGNED_SEGMENTS when !HAVE_MMAP
     #endif
-    /* some systems don't support mmap - 
-       TODO: safe mechanism to determine a true max seg sz, 
-       for now just trust the GASNETI_MALLOCSEGMENT_LIMIT size */
+
+    gasneti_MaxLocalSegmentSize = gasneti_segment.size;
+    gasneti_MaxGlobalSegmentSize = minsize;
+  #else /* !GASNETI_MMAP_OR_PSHM */
     gasneti_MaxLocalSegmentSize = GASNETI_PAGE_ALIGNDOWN(MIN(localSegmentLimit, GASNETI_MALLOCSEGMENT_LIMIT));
     gasneti_MaxGlobalSegmentSize = gasneti_MaxLocalSegmentSize;
   #endif
-  GASNETI_TRACE_PRINTF(C, ("MaxLocalSegmentSize = %lu   "
-                     "MaxGlobalSegmentSize = %lu",
-                     (unsigned long)gasneti_MaxLocalSegmentSize, 
-                     (unsigned long)gasneti_MaxGlobalSegmentSize));
-  gasneti_assert(gasneti_MaxLocalSegmentSize % GASNET_PAGESIZE == 0);
-  gasneti_assert(gasneti_MaxGlobalSegmentSize % GASNET_PAGESIZE == 0);
-  gasneti_assert(gasneti_MaxGlobalSegmentSize <= gasneti_MaxLocalSegmentSize);
-  gasneti_assert(gasneti_MaxLocalSegmentSize <= localSegmentLimit);
 
-#if GASNET_PSHM
-  gasneti_unlink_segments();
-  gasneti_pshm_cs_leave();
-#endif
+    GASNETI_TRACE_PRINTF(C, ("MaxLocalSegmentSize = %lu   "
+                       "MaxGlobalSegmentSize = %lu",
+                       (unsigned long)gasneti_MaxLocalSegmentSize,
+                       (unsigned long)gasneti_MaxGlobalSegmentSize));
+
+    gasneti_assert(gasneti_MaxLocalSegmentSize % GASNET_PAGESIZE == 0);
+    gasneti_assert(gasneti_MaxGlobalSegmentSize % GASNET_PAGESIZE == 0);
+    gasneti_assert(gasneti_MaxGlobalSegmentSize <= gasneti_MaxLocalSegmentSize);
+    gasneti_assert(gasneti_MaxLocalSegmentSize <= localSegmentLimit);
+  }
 }
 
 /* ------------------------------------------------------------------------------------ */
