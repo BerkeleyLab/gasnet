@@ -524,7 +524,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
          gasneti_seginfo[gasneti_mynode].size == segsize);
 #endif
 
-  gasneti_auxseg_attach(); /* provide auxseg */
+  /* (###) exchange_fn is optional (may be NULL) and is only used with GASNET_SEGMENT_EVERYTHING
+           if your conduit has an optimized bootstrapExchange pass it in place of NULL
+   */
+  gasneti_auxseg_attach(gasnetc_bootstrapExchange); /* provide auxseg */
 
   gasnete_init(); /* init the extended API */
 
