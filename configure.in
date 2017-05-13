@@ -551,11 +551,9 @@ AC_DEFUN([GASNET_GET_PPC64_FLAGS],[
 	#endif
       ]])
   if test "$GASNETI_PTR_BITS" = 32 -a "$DISABLE_PPC64" != 1 -a "$cross_compiling" != "yes"; then 
-    # Bug 1587: "for flag in ; do" chokes the shell on Solaris
-    # Bug 1588: Use of m4_ifval([$2]) to avoid bug 1587 chokes autoconf 2.13
-    # So, we add a dummy element to keep the for-loop list non-empty, and then skip it.
-    for flag in $2 DUMMY ; do
-      if test "$flag" != DUMMY ; then
+    dnl Bug 1587: "for flag in ; do" chokes the shell on Solaris - so use ifelse
+    ifelse([$2],[],[:],[
+      for flag in $2 ; do
         ]GASNET_TRY_[$1]FLAG[([$flag],[ppc64_flag_worked=1],[ppc64_flag_worked=0])
         if test "$ppc64_flag_worked" = 1; then
           GASNET_PUSHVAR([$1]FLAGS,"$[$1]FLAGS $MISC_[$1]FLAGS $flag")
@@ -571,8 +569,8 @@ AC_DEFUN([GASNET_GET_PPC64_FLAGS],[
 	    AC_MSG_RESULT(no)
 	  fi
         fi
-      fi
-    done
+      done
+    ])
   fi
   AC_MSG_CHECKING(for PPC64 instruction support)
   GASNET_PUSHVAR([$1]FLAGS,"$[$1]FLAGS $MISC_[$1]FLAGS")
