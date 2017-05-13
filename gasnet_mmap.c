@@ -1176,17 +1176,12 @@ uintptr_t _gasneti_max_segsize(uint64_t configure_val) {
 /* mmap-based segment init/attach */
 static gasnet_seginfo_t gasneti_segment = {0,0}; /* local segment info */
 #ifdef GASNETI_MMAP_OR_PSHM
-static uintptr_t gasneti_myheapend = 0; /* top of my malloc heap */
-static uintptr_t gasneti_maxheapend = 0; /* top of max malloc heap */
 static uintptr_t gasneti_maxbase = 0; /* start of segment overlap region */
 #endif /* GASNETI_MMAP_OR_PSHM */
 
 typedef struct {
   gasnet_seginfo_t seginfo;
-  union {
-    uintptr_t heapend; /* during init only */
-    uintptr_t segsize_request; /* during attach only */
-  } u;
+  uintptr_t segsize_request; /* during attach only */
 } gasneti_segexch_t;
 static gasneti_segexch_t *gasneti_segexch = NULL; /* exchanged segment information */
 
@@ -1422,18 +1417,8 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
       GASNETI_LADDRSTR(gasneti_segment.addr), (unsigned long)gasneti_segment.size));
 
     se.seginfo = gasneti_segment;
-  #if PLATFORM_OS_DARWIN
-    /* sbrk() is "emulated", making the heap-separation test invalid. */
-    /* TODO: is there an alternative separation test we could/should apply? */
-    gasneti_myheapend = GASNETI_PAGE_ALIGNDOWN((uintptr_t)-1);
-  #else
-    gasneti_myheapend = (uintptr_t)sbrk(0);
-    if (gasneti_myheapend == (uintptr_t)-1) gasneti_fatalerror("Failed to sbrk(0):%s",strerror(errno));
-    gasneti_myheapend = GASNETI_PAGE_ALIGNUP(gasneti_myheapend);
-  #endif
-    se.u.heapend = gasneti_myheapend;
 
-    /* gather the sbrk info and mmap segment location */
+    /* gather the mmap segment location */
     (*exchangefn)(&se, sizeof(gasneti_segexch_t), gasneti_segexch);
 
     /* compute bounding-box of segment location */
@@ -1441,12 +1426,9 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
       uintptr_t maxsize = 0;
       uintptr_t minsize = (uintptr_t)-1;
       uintptr_t minend = (uintptr_t)-1;
-      uintptr_t maxheapend = 0;
       char segstats[255];
       /* compute various stats across nodes */
       for (i=0;i < gasneti_nodes; i++) {
-        if (gasneti_segexch[i].u.heapend > maxheapend)
-          maxheapend = gasneti_segexch[i].u.heapend;
         if (((uintptr_t)gasneti_segexch[i].seginfo.addr) > maxbase)
           maxbase = (uintptr_t)gasneti_segexch[i].seginfo.addr;
         if (gasneti_segexch[i].seginfo.size > maxsize)
@@ -1461,14 +1443,12 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
           "maxsize = %lu   "
           "minsize = %lu   "
           "maxbase = "GASNETI_LADDRFMT"   "
-          "minend = "GASNETI_LADDRFMT"   "
-          "maxheapend = "GASNETI_LADDRFMT"   ",
+          "minend = "GASNETI_LADDRFMT"   ",
           (unsigned long)maxsize, (unsigned long)minsize,
-          GASNETI_LADDRSTR(maxbase), GASNETI_LADDRSTR(minend), GASNETI_LADDRSTR(maxheapend));
+          GASNETI_LADDRSTR(maxbase), GASNETI_LADDRSTR(minend));
       segstats[sizeof(segstats)-1] = '\0';
       GASNETI_TRACE_MSG(C, segstats);
 
-      gasneti_maxheapend = maxheapend;
       gasneti_maxbase = maxbase;
       #if GASNET_ALIGNED_SEGMENTS
        /* BG/[PQ] would incorrectly probe the I/O node */
@@ -1504,11 +1484,10 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
             fprintf(stderr, "%s\n%s\n", wmsg, segstats);
             for (i=0;i < gasneti_nodes; i++) {
               fprintf(stderr, " %i: seg=["GASNETI_LADDRFMT","GASNETI_LADDRFMT"]"
-                              " size=%lu heapend="GASNETI_LADDRFMT"\n", i,
+                              " size=%lu\n", i,
                       GASNETI_LADDRSTR(gasneti_segexch[i].seginfo.addr), 
                       GASNETI_LADDRSTR(((uintptr_t)gasneti_segexch[i].seginfo.addr)+gasneti_segexch[i].seginfo.size), 
-                      (unsigned long)gasneti_segexch[i].seginfo.size,
-                      GASNETI_LADDRSTR(gasneti_segexch[i].u.heapend));
+                      (unsigned long)gasneti_segexch[i].seginfo.size);
               fflush(stderr);
             }
           }
@@ -1551,7 +1530,7 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
 
 /* ------------------------------------------------------------------------------------ */
 
-void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
+void gasneti_segmentAttach(uintptr_t segsize,
                            gasnet_seginfo_t *seginfo,
                            gasneti_bootstrapExchangefn_t exchangefn) {
   void *segbase = NULL;
@@ -1568,7 +1547,6 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
 
   #ifdef GASNETI_MMAP_OR_PSHM
   { /* TODO: this assumes heap grows up */
-    uintptr_t topofheap;
     #if GASNET_ALIGNED_SEGMENTS
       #if GASNETI_USE_HIGHSEGMENT
         { /* the segsizes requested may differ across nodes, so in order to 
@@ -1581,14 +1559,14 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
 
           /* gather the segsize info again */
           se.seginfo = gasneti_segment;
-          se.u.segsize_request = segsize;
+          se.segsize_request = segsize;
           (*exchangefn)(&se, sizeof(gasneti_segexch_t), gasneti_segexch);
 
           for (i=0;i<gasneti_nodes;i++) {
             uintptr_t segstart = 
                 ((uintptr_t)gasneti_segexch[i].seginfo.addr + gasneti_segexch[i].seginfo.size) - 
-                 gasneti_segexch[i].u.segsize_request;
-            /*gasneti_assert(gasneti_segexch[i].u.segsize_request >= 0); True by typing */
+                 gasneti_segexch[i].segsize_request;
+            /*gasneti_assert(gasneti_segexch[i].segsize_request >= 0); True by typing */
             gasneti_assert(segstart >= gasneti_maxbase);
             if (segstart < minsegstart) minsegstart = segstart;
           }
@@ -1598,9 +1576,7 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
       #else /* !GASNETI_USE HIGH_SEGMENTS */
         segbase = (void *)gasneti_maxbase;
       #endif /* GASNETI_USE HIGH_SEGMENTS */
-      topofheap = gasneti_maxheapend;
     #else /* !GASNETI_ALIGNED_SEGMENTS */
-      topofheap = gasneti_myheapend;
       #if GASNETI_USE_HIGHSEGMENT
         segbase = (void *)((uintptr_t)gasneti_segment.addr + 
                            gasneti_segment.size - segsize);
@@ -1614,26 +1590,6 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
       segbase = NULL; 
     }
     else {
-      /* check if segment is above the heap (in its path) and too close */
-      if ((((uintptr_t)segbase + segsize) > topofheap) &&
-        (topofheap + minheapoffset > (uintptr_t)segbase)) {
-        uintptr_t maxsegsz;
-        void *endofseg = (void *)((uintptr_t)gasneti_segment.addr + gasneti_segment.size);
-        /* we're too close to the heap - readjust to prevent collision 
-           note this allows us to return different segsizes on diff nodes
-           (even when we are using GASNET_ALIGNED_SEGMENTS)
-         */
-        segbase = (void *)(topofheap + minheapoffset);
-        if (segbase >= endofseg) 
-          gasneti_fatalerror("minheapoffset too large to accomodate a segment");
-        maxsegsz = (uintptr_t)endofseg - (uintptr_t)segbase;
-        if (segsize > maxsegsz) {
-          GASNETI_TRACE_PRINTF(I, ("WARNING: gasneti_segmentAttach() reducing requested segsize (%lu=>%lu) to accomodate minheapoffset",
-            (unsigned long)segsize, (unsigned long)maxsegsz));
-          segsize = maxsegsz;
-        }
-      }
-
     #if GASNET_PSHM
       /* Must always recreate the segment*/
       const int trim = 1;
@@ -1713,10 +1669,6 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
 
             gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
             gasneti_assert(size % GASNET_PAGESIZE == 0);
-
-            if (((uintptr_t)segbase >= gasneti_myheapend) &&
-                ((uintptr_t)segbase <  gasneti_myheapend + minheapoffset))
-              gasneti_fatalerror("minheapoffset too large to accomodate a remote segment");
 
             gasneti_nodeinfo[node].offset = (uintptr_t)segbase - (uintptr_t)seginfo[node].addr;
 
