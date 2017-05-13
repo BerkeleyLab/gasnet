@@ -30,6 +30,9 @@ gasnetex_handlerentry_t const *gasnetc_get_handlertable(void);
 // TODO-EX: will be replaced with per-EP tables
 gasnetex_handlerentry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
 
+// needed for gasneti_segment{Init,Attach}()
+static gasnet_seginfo_t gasnetc_presegment = {0,0}; /* local segment info */
+
 #if HAVE_ON_EXIT
 static void gasnetc_on_exit(int, void*);
 #else
@@ -630,9 +633,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       /* localSegmentLimit provides a conduit-specific limit on the max segment size.
        * can use (uintptr_t)-1 as unlimited.
        */
-      gasneti_segmentInit( max_pin, &gasnetc_bootstrapExchange_gni);
-
-
+      gasneti_segmentInit(&gasnetc_presegment, max_pin, &gasnetc_bootstrapExchange_gni);
     }
   #elif GASNET_SEGMENT_EVERYTHING
     /* segment is everything - nothing to do */
@@ -742,7 +743,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     if (segsize == 0) segbase = NULL; /* no segment */
     else {
-      gasneti_segmentAttach(segsize, gasneti_seginfo, &gasnetc_bootstrapExchange_gni);
+      gasneti_segmentAttach(&gasnetc_presegment, segsize, gasneti_seginfo, &gasnetc_bootstrapExchange_gni);
       segbase = gasneti_seginfo[gasneti_mynode].addr;
       segsize = gasneti_seginfo[gasneti_mynode].size;
       gasnetc_assert_aligned(segbase, GASNET_PAGESIZE);

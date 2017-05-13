@@ -26,6 +26,9 @@ gasnetex_handlerentry_t const *gasnetc_get_handlertable(void);
 // TODO-EX: will be replaced with per-EP tables
 gasnetex_handlerentry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
+// needed for gasneti_segment{Init,Attach}()
+static gasnet_seginfo_t gasnetc_presegment = {0,0}; /* local segment info */
+
 static void gasnetc_traceoutput(int);
 #if HAVE_ON_EXIT
 static void gasnetc_on_exit(int, void*);
@@ -281,7 +284,7 @@ static int gasnetc_init(int *argc, char ***argv) {
       #else
         limit = (intptr_t)-1;
       #endif
-      gasneti_segmentInit(limit, &gasnetc_bootstrapExchange);
+      gasneti_segmentInit(&gasnetc_presegment, limit, &gasnetc_bootstrapExchange);
     }
     #elif GASNET_SEGMENT_EVERYTHING
       /* segment is everything - nothing to do */
@@ -390,7 +393,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
     gasneti_leak(gasneti_seginfo);
 
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-      gasneti_segmentAttach(segsize, gasneti_seginfo, &gasnetc_bootstrapExchange);
+      gasneti_segmentAttach(&gasnetc_presegment, segsize, gasneti_seginfo, &gasnetc_bootstrapExchange);
     #else /* GASNET_SEGMENT_EVERYTHING */
       { int i;
         for (i=0;i<gasneti_nodes;i++) {

@@ -320,9 +320,11 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasneti_bootstrapExchangefn_t exchangefn,
                             gasneti_bootstrapBarrierfn_t barrierfn);
 #endif /* GASNETI_MMAP_OR_PSHM */
-void gasneti_segmentInit(uintptr_t localSegmentLimit,
+void gasneti_segmentInit(gasnet_seginfo_t *segment_p,
+                         uintptr_t localSegmentLimit,
                          gasneti_bootstrapExchangefn_t exchangefn);
-void gasneti_segmentAttach(uintptr_t segsize,
+void gasneti_segmentAttach(gasnet_seginfo_t *segment_p,
+                           uintptr_t segsize,
                            gasnet_seginfo_t *seginfo,
                            gasneti_bootstrapExchangefn_t exchangefn);
 #endif /* !GASNET_SEGMENT_EVERYTHING */

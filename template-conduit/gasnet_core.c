@@ -28,6 +28,9 @@ static void gasnetc_atexit(void);
 
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
+// (###) maybe needed for gasneti_segment{Init,Attach}()
+//static gasnet_seginfo_t gasnetc_presegment = {0,0}; /* local segment info */
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization

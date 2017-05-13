@@ -26,6 +26,9 @@ gasnetex_handlerentry_t const *gasnetc_get_handlertable(void);
 // TODO-EX: will be replaced with per-EP tables
 gasnetex_handlerentry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
 
+// needed for gasneti_segment{Init,Attach}()
+static gasnet_seginfo_t gasnetc_presegment = {0,0}; /* local segment info */
+
 /* ------------------------------------------------------------------------------------ */
 /*
   Configuration
@@ -1717,14 +1720,14 @@ static int gasnetc_init(int *argc, char ***argv) {
                                   (uint64_t)-1,
                                   &gasnetc_bootstrapExchange_ib,
                                   &gasnetc_bootstrapBarrier_ib);
-    gasneti_segmentInit(limit, &gasnetc_bootstrapExchange_ib);
+    gasneti_segmentInit(&gasnetc_presegment, limit, &gasnetc_bootstrapExchange_ib);
   }
   #elif GASNET_SEGMENT_LARGE
   {
     uintptr_t limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
                                   &gasnetc_bootstrapExchange_ib,
                                   &gasnetc_bootstrapBarrier_ib);
-    gasneti_segmentInit(limit, &gasnetc_bootstrapExchange_ib);
+    gasneti_segmentInit(&gasnetc_presegment, limit, &gasnetc_bootstrapExchange_ib);
   }
   #elif GASNET_SEGMENT_EVERYTHING
     /* segment is everything - nothing to do */
@@ -1851,7 +1854,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
   #elif GASNETC_PIN_SEGMENT
   {
     /* allocate the segment and exchange seginfo */
-    gasneti_segmentAttach(segsize, gasneti_seginfo, &gasnetc_bootstrapExchange_ib);
+    gasneti_segmentAttach(&gasnetc_presegment, segsize, gasneti_seginfo, &gasnetc_bootstrapExchange_ib);
     segbase = gasneti_seginfo[gasneti_mynode].addr;
     segsize = gasneti_seginfo[gasneti_mynode].size;
 
@@ -1967,7 +1970,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
   #else	/* just allocate the segment but don't pin it */
   {
     /* allocate the segment and exchange seginfo */
-    gasneti_segmentAttach(segsize, gasneti_seginfo, gasnetc_bootstrapExchange_ib);
+    gasneti_segmentAttach(&gasnetc_presegment, segsize, gasneti_seginfo, gasnetc_bootstrapExchange_ib);
     segbase = gasneti_seginfo[gasneti_mynode].addr;
     segsize = gasneti_seginfo[gasneti_mynode].size;
   }
