@@ -43,10 +43,8 @@ int gasnetc_complete_eop(gasnete_eop_t *eop, gasnetc_comptype_t type)
       completed = gasnetc_atomic_add(&eop->completed_cnt, 1, GASNETI_ATOMIC_ACQ | GASNETI_ATOMIC_REL);
       initiated = eop->initiated_cnt;
       break;
-  #if GASNET_DEBUG
     default:
       gasneti_fatalerror("Unreachable switch case");
-  #endif
   }
 
   if (completed == (initiated & GASNETI_ATOMIC_MAX)) {
@@ -58,10 +56,8 @@ int gasnetc_complete_eop(gasnete_eop_t *eop, gasnetc_comptype_t type)
       case gasnetc_comptype_eop_get:
         GASNETE_EOP_MARKDONE(op);
         break;
-    #if GASNET_DEBUG
       default:
         gasneti_fatalerror("Unreachable switch case");
-    #endif
     }
     return 1;
   }
