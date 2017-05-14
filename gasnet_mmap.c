@@ -210,7 +210,10 @@ static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize) {
   }
   if (segbase && ptr == MAP_FAILED) {
     #if GASNETI_BUG3480_WORKAROUND
-      if (mmap_errno == ENOMEM) return MAP_FAILED; // Caller will retry
+      if (mmap_errno == ENOMEM) {
+         errno = ENOMEM;
+         return MAP_FAILED; // Caller will retry
+      }
     #endif
       gasneti_fatalerror("mmap fixed failed at "GASNETI_LADDRFMT" for size %lu: %s" GASNETI_BUG3480_MSG,
 	      GASNETI_LADDRSTR(segbase), (unsigned long)segsize, strerror(mmap_errno));
@@ -760,7 +763,10 @@ static void *gasneti_mmap_shared_internal(int pshmnode, void *segbase, uintptr_t
 
   if ((ptr == MAP_FAILED) && !may_fail) {
   #if GASNETI_BUG3480_WORKAROUND
-    if (segbase && (mmap_errno == ENOMEM)) return MAP_FAILED; // Caller will retry
+    if (segbase && (mmap_errno == ENOMEM)) {
+      errno = ENOMEM;
+      return MAP_FAILED; // Caller will retry
+    }
   #endif
 
     gasneti_cleanup_shm();
