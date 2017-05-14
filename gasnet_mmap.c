@@ -635,7 +635,9 @@ static void gasneti_munmap_remote(gasnetex_rank_t pshm_rank, void *segbase, uint
 
 /* Called collectively */
 GASNETI_INLINE(gasneti_export_segment)
-void gasneti_export_segment(void *segbase, uintptr_t segsize) {
+void gasneti_export_segment(gasnet_seginfo_t segment) {
+  void *segbase = segment.addr;
+  uintptr_t segsize = segment.size;
 #if defined(GASNETI_PSHM_XPMEM)
   /* Create and supernode-exchange xpmem segment ids */
   gasneti_xpmem_segid_t segid =
@@ -1466,34 +1468,28 @@ void gasneti_segmentInit(gasnet_seginfo_t *segment_p,
 
 /* ------------------------------------------------------------------------------------ */
 
-void gasneti_segmentAttach(gasnet_seginfo_t *segment_p,
-                           uintptr_t segsize,
-                           gasnet_seginfo_t *seginfo,
-                           gasneti_bootstrapExchangefn_t exchangefn) {
+static // TODO-EX: static for now, at least
+void gasneti_segmentAttachLocal(gasnet_seginfo_t *segment_p, uintptr_t segsize,
+                                gasneti_bootstrapExchangefn_t exchangefn)
+{
   void *segbase = NULL;
-  gasneti_assert(seginfo);
-  gasneti_assert(exchangefn);
-
-  #if GASNET_PSHM
-    /* Avoid leaking shared memory files in case of non-collective exit between init/attach */
-    gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
-    gasneti_pshmnet_bootstrapBarrier();
-  #endif
 
   #ifdef GASNETI_MMAP_OR_PSHM
   {
-      #if GASNETI_USE_HIGHSEGMENT
-        segbase = (void *)((uintptr_t)segment_p->addr + 
-                           segment_p->size - segsize);
-      #else
-        segbase = segment_p->addr;
-      #endif
-
     if (segsize == 0) { /* no segment */
-      gasneti_do_munmap(segment_p->addr, segment_p->size);
+      if (segment_p->addr) gasneti_do_munmap(segment_p->addr, segment_p->size);
       segbase = NULL; 
-    }
-    else {
+    } else if (segment_p->addr) { /* a pre-segment exists */
+    #if GASNETI_USE_HIGHSEGMENT
+      segbase = (void *)((uintptr_t)segment_p->addr + segment_p->size - segsize);
+    #else
+      segbase = segment_p->addr;
+    #endif
+
+      /* New segment must be fully contained within the pre-segment */
+      gasneti_assert(segbase >= segment_p->addr);
+      gasneti_assert((uintptr_t)segbase + segsize <= (uintptr_t)segment_p->addr + segment_p->size);
+
     #if GASNET_PSHM
       /* Must always recreate the segment*/
       const int trim = 1;
@@ -1503,8 +1499,6 @@ void gasneti_segmentAttach(gasnet_seginfo_t *segment_p,
     #endif
 
       if (trim) {
-        gasneti_assert(segbase >= segment_p->addr &&
-               (uintptr_t)segbase + segsize <= (uintptr_t)segment_p->addr + segment_p->size);
         gasneti_do_munmap(segment_p->addr, segment_p->size);
       }
 
@@ -1524,6 +1518,8 @@ void gasneti_segmentAttach(gasnet_seginfo_t *segment_p,
 #endif
         gasneti_do_mmap_fixed(segbase, segsize);
       }
+    } else { /* need segment from scratch */
+      gasneti_fatalerror("segmentAttach without pre-segment is unimplemented");
     }
   }
   #else /* !GASNETI_MMAP_OR_PSHM */
@@ -1543,27 +1539,18 @@ void gasneti_segmentAttach(gasnet_seginfo_t *segment_p,
   GASNETI_TRACE_PRINTF(C, ("Final segment: segbase="GASNETI_LADDRFMT"  segsize=%lu",
     GASNETI_LADDRSTR(segbase), (unsigned long)segsize));
 
-  /*  gather segment information */
   segment_p->addr = segbase;
   segment_p->size = segsize;
-  (*exchangefn)(segment_p, sizeof(gasnet_seginfo_t), seginfo);
+}
 
-  #if GASNET_ALIGNED_SEGMENTS == 1
-    if (segsize > 0) { int i; /*  check that segments are aligned */
-      for (i=0; i < gasneti_nodes; i++) {
-        if (seginfo[i].size != 0 && seginfo[i].addr != segbase) 
-          gasneti_fatalerror("Failed to acquire aligned segments for GASNET_ALIGNED_SEGMENTS");
-      }
-    }
-  #endif
-
-  #if GASNET_PSHM
-  { /* Map the remote shared segments */
-    int i;
-
+#if GASNET_PSHM
+/* Map the remote shared segments */
+static // TODO-EX: static for now, at least
+void gasneti_segmentAttachRemote(gasnet_seginfo_t *segment_p, gasnet_seginfo_t *seginfo)
+{
     gasneti_nodeinfo[gasneti_mynode].offset = 0;
-    gasneti_export_segment(segment_p->addr, segment_p->size);
-    for (i = 0; i < gasneti_pshm_nodes; i++){
+    gasneti_export_segment(seginfo[gasneti_mynode]);
+    for (int i = 0; i < gasneti_pshm_nodes; i++){
         if (i != gasneti_pshm_mynode) {
             const gasnetex_rank_t node = gasneti_nodemap_local[i];
             const uintptr_t size = seginfo[node].size;
@@ -1584,9 +1571,41 @@ void gasneti_segmentAttach(gasnet_seginfo_t *segment_p,
     gasneti_cleanup_shm();
     /* Barrier #2 ensures unlinking completes before return, so crashes cannot leak segments */
     gasneti_pshmnet_bootstrapBarrier();
-    gasneti_pshm_cs_leave();
-  }
-  #endif /* GASNET_PSHM */
+}
+#endif /* GASNET_PSHM */
+
+void gasneti_segmentAttach(gasnet_seginfo_t *segment_p,
+                           uintptr_t segsize,
+                           gasnet_seginfo_t *seginfo,
+                           gasneti_bootstrapExchangefn_t exchangefn)
+{
+  gasneti_assert(seginfo);
+  gasneti_assert(exchangefn);
+
+#if GASNET_PSHM
+  /* Avoid leaking shared memory files in case of non-collective exit between init/attach */
+  gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
+  gasneti_pshmnet_bootstrapBarrier();
+#endif
+
+  gasneti_segmentAttachLocal(segment_p, segsize, exchangefn);
+
+  /*  gather segment information */   // TODO-EX: need scalable replacement
+  (*exchangefn)(segment_p, sizeof(gasnet_seginfo_t), seginfo);
+
+  #if GASNET_ALIGNED_SEGMENTS && 0 // TODO-EX: curently lack "segbase"
+    if (segsize > 0) { int i; /*  check that segments are aligned */
+      for (i=0; i < gasneti_nodes; i++) {
+        if (seginfo[i].size != 0 && seginfo[i].addr != segbase) 
+          gasneti_fatalerror("Failed to acquire aligned segments for GASNET_ALIGNED_SEGMENTS");
+      }
+    }
+  #endif
+
+#if GASNET_PSHM
+  gasneti_segmentAttachRemote(segment_p, seginfo);
+  gasneti_pshm_cs_leave();
+#endif
 }
 #endif /* !GASNET_SEGMENT_EVERYTHING */
 
