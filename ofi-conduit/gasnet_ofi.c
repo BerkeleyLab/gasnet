@@ -21,6 +21,12 @@
 #include <sys/uio.h> /* For struct iovec */
 #endif
 
+typedef struct gasnetc_ofi_recv_metadata {
+    struct iovec iov;
+    struct fi_msg am_buff_msg;
+    struct gasnetc_ofi_ctxt am_buff_ctxt;
+} gasnetc_ofi_recv_metadata_t;
+
 #define NUM_OFI_ENDPOINTS 3
 
 #define USE_AV_MAP 0
@@ -112,6 +118,7 @@ static gasneti_lifo_head_t ofi_bbuf_ctxt_pool = GASNETI_LIFO_INITIALIZER;
 
 static size_t num_multirecv_buffs;
 static size_t multirecv_buff_size;
+static void* receive_region_start = NULL;
 
 /* Variables for bounce buffering of non-blocking, non-bulk puts.
  * The gasnetc_ofi_bbuf_threshold variable is defined in gasnet_ofi.h
@@ -136,9 +143,7 @@ static int using_psm_provider = 0;
 
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
-static struct iovec *am_iov;
-static struct fi_msg *am_buff_msg;
-static gasnetc_ofi_ctxt_t *am_buff_ctxt = NULL;
+gasnetc_ofi_recv_metadata_t* metadata_array;
 
 static gasnetc_paratomic_t pending_rdma = gasnetc_paratomic_init(0);
 static gasnetc_paratomic_t pending_am = gasnetc_paratomic_init(0);
@@ -529,29 +534,29 @@ int gasnetc_ofi_init(int *argc, char ***argv,
       gasneti_assert(gasnetc_ofi_target_keys);
   }
 
-  /* Receive buffers to post */
-  am_iov = (struct iovec *) gasneti_malloc(sizeof(struct iovec)*num_multirecv_buffs);
-  am_buff_msg = (struct fi_msg *) gasneti_malloc(sizeof(struct fi_msg)*num_multirecv_buffs);
-  am_buff_ctxt = (gasnetc_ofi_ctxt_t *) gasneti_malloc(sizeof(gasnetc_ofi_ctxt_t)*num_multirecv_buffs);
+  receive_region_start = gasneti_malloc_aligned(GASNETI_PAGESIZE, multirecv_buff_size*num_multirecv_buffs);
+  metadata_array = gasneti_malloc(sizeof(gasnetc_ofi_recv_metadata_t)*num_multirecv_buffs);
 
   for(i = 0; i < num_multirecv_buffs; i++) {
-		am_iov[i].iov_base		= gasneti_malloc(multirecv_buff_size);
-		am_iov[i].iov_len		= multirecv_buff_size;
-		am_buff_msg[i].msg_iov		= &am_iov[i];
-		am_buff_msg[i].iov_count 	= 1;
-		am_buff_msg[i].addr 		= FI_ADDR_UNSPEC;
-		am_buff_msg[i].desc	  	= NULL;
-		am_buff_msg[i].context 		= &am_buff_ctxt[i].ctxt;
-		am_buff_msg[i].data 		= 0;
-        am_buff_ctxt[i].index		= i;
-        am_buff_ctxt[i].final_cntr = 0;
-        am_buff_ctxt[i].event_cntr = 0;
-        gasnetc_paratomic_set(&am_buff_ctxt[i].consumed_cntr, 0, 0);
+        gasnetc_ofi_recv_metadata_t* metadata = metadata_array + i;
+        metadata->iov.iov_base = ((char*)receive_region_start) + multirecv_buff_size*i;
+        metadata->iov.iov_len = multirecv_buff_size;
+        metadata->am_buff_msg.msg_iov = &metadata->iov;
+        metadata->am_buff_msg.iov_count = 1;
+        metadata->am_buff_msg.addr = FI_ADDR_UNSPEC;
+        metadata->am_buff_msg.desc = NULL;
+        metadata->am_buff_msg.context = &metadata->am_buff_ctxt.ctxt;
+        metadata->am_buff_msg.data = 0;
+        metadata->am_buff_ctxt.index = i;
+        metadata->am_buff_ctxt.final_cntr = 0;
+        metadata->am_buff_ctxt.event_cntr = 0;
+        gasnetc_paratomic_set(&metadata->am_buff_ctxt.consumed_cntr, 0, 0);
+        metadata->am_buff_ctxt.metadata = metadata;
 		/* Post buffers for Active Messages */
         if (i % 2 == 0)
-            ret = fi_recvmsg(gasnetc_ofi_request_epfd, &am_buff_msg[i], FI_MULTI_RECV);
+            ret = fi_recvmsg(gasnetc_ofi_request_epfd, &metadata->am_buff_msg, FI_MULTI_RECV);
         else
-            ret = fi_recvmsg(gasnetc_ofi_reply_epfd, &am_buff_msg[i], FI_MULTI_RECV);
+            ret = fi_recvmsg(gasnetc_ofi_reply_epfd, &metadata->am_buff_msg, FI_MULTI_RECV);
 
 		if (FI_SUCCESS != ret) gasneti_fatalerror("fi_recvmsg failed: %d\n", ret);
 	}
@@ -627,31 +632,22 @@ void gasnetc_ofi_exit(void)
       gasnetc_paratomic_read(&pending_rdma,0))
     GASNETC_OFI_POLL_EVERYTHING();
 
-  if(am_buff_ctxt) {
     for(i = 0; i < num_multirecv_buffs; i++) {
+        gasnetc_ofi_recv_metadata_t* metadata = metadata_array + i;
+        gasnetc_ofi_ctxt_t am_buff_ctxt = metadata->am_buff_ctxt;
       /* cancel the multi-recv */
         if (i % 2 == 0)
-            ret = fi_cancel(&gasnetc_ofi_request_epfd->fid, &am_buff_ctxt[i].ctxt);
+            ret = fi_cancel(&gasnetc_ofi_request_epfd->fid, &am_buff_ctxt.ctxt);
         else
-            ret = fi_cancel(&gasnetc_ofi_reply_epfd->fid, &am_buff_ctxt[i].ctxt);
-    #if 0 /* If exiting from a AM handler context, or multi-threaded, then cancel could fail */
-      if (FI_SUCCESS != ret) gasneti_fatalerror("failed fi_cancel the %d am_buff_msg\n", i);
-      gasneti_free(am_iov[i].iov_base);
-    #elif GASNETI_CLIENT_THREADS
-      /* Unsafe to free AM buffers if other threads may be using them */
-    #else
-      if (FI_SUCCESS == ret)
-        gasneti_free(am_iov[i].iov_base);
-    #endif
+            ret = fi_cancel(&gasnetc_ofi_reply_epfd->fid, &am_buff_ctxt.ctxt);
     }
+
   #if GASNETI_CLIENT_THREADS
     /* Unsafe to free resources if other threads may be using them */
   #else
-    gasneti_free(am_buff_ctxt);
-    gasneti_free(am_iov);
-    gasneti_free(am_buff_msg);
+    gasneti_free(metadata_array);
+    gasneti_free_aligned(receive_region_start);
   #endif
-  }
 
   if(fi_close(&gasnetc_ofi_rdma_mrfd->fid)!=FI_SUCCESS) {
     gasneti_fatalerror("close mrfd failed\n");
@@ -1025,8 +1021,10 @@ void gasnetc_ofi_am_recv_poll(int is_request)
      * still running. */
     uint64_t tmp = gasnetc_paratomic_add(&header->consumed_cntr, 1, GASNETI_ATOMIC_ACQ);
     if_pf (tmp == (GASNETI_ATOMIC_MAX & header->final_cntr)) {
+        gasnetc_ofi_recv_metadata_t* metadata = header->metadata;
+        struct fi_msg* am_buff_msg = &metadata->am_buff_msg;
         GASNETC_OFI_LOCK(&gasnetc_ofi_locks.am_rx);
-        post_ret = fi_recvmsg(ep, &(am_buff_msg[header->index]), FI_MULTI_RECV);
+        post_ret = fi_recvmsg(ep, am_buff_msg, FI_MULTI_RECV);
         GASNETC_OFI_UNLOCK(&gasnetc_ofi_locks.am_rx);
         if_pf (FI_SUCCESS != post_ret) gasneti_fatalerror("fi_recvmsg failed inside am_recv_poll: %d\n", ret);
     }

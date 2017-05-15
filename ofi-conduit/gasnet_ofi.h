@@ -95,15 +95,17 @@ typedef struct gasnetc_ofi_am_send_buf {
                             __attribute__((aligned(GASNETI_MEDBUF_ALIGNMENT)));
 } gasnetc_ofi_am_send_buf_t;
 
+
 typedef struct gasnetc_ofi_am_buf {
   struct fi_context 	ctxt;
   event_callback_fn 	callback;
   gasnetc_ofi_am_send_buf_t 	sendbuf;
 } gasnetc_ofi_am_buf_t;
 
+
 typedef struct gasnetc_ofi_ctxt {
   struct fi_context 	ctxt;
-  event_callback_fn		callback;
+  void * metadata;
   int 					index;
   char _pad0[GASNETI_CACHE_PAD(sizeof(int))];
   gasnetc_paratomic_t   consumed_cntr;
@@ -112,6 +114,7 @@ typedef struct gasnetc_ofi_ctxt {
   char _pad2[GASNETI_CACHE_PAD(sizeof(uint64_t))];
   uint64_t event_cntr;
 } gasnetc_ofi_ctxt_t;
+
 
 typedef struct gasnetc_ofi_op_ctxt {
   struct fi_context 	ctxt;
