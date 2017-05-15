@@ -86,7 +86,6 @@ typedef  void (*rdma_callback_fn) (void *buf);
 typedef struct gasnetc_ofi_am_send_buf {
   gasnetc_ofi_am_type   type;
   int 					len;
-  int 					isreq;
   uint8_t 				handler;
   gasnet_node_t			sourceid;
   uint8_t 				argnum;

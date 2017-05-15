@@ -182,7 +182,7 @@ static inline int gasnetc_is_exiting(void) {
  * Function Declarations
  *-------------------------------------------------*/
 GASNETI_INLINE(gasnetc_ofi_handle_am)
-void gasnetc_ofi_handle_am(struct fi_cq_data_entry *re, void *buf);
+void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq);
 void gasnetc_ofi_release_request_am(struct fi_cq_data_entry *re, void *buf);
 void gasnetc_ofi_release_reply_am(struct fi_cq_data_entry *re, void *buf);
 void gasnetc_ofi_tx_poll();
@@ -190,8 +190,7 @@ void gasnetc_ofi_am_recv_poll(int is_request);
 
 /* Reads any user-provided settings from the environment to avoid clogging up
  * the gasnetc_ofi_init() function with this code. */
-GASNETI_INLINE(gasnetc_ofi_read_env_vars)
-void gasnetc_ofi_read_env_vars() {
+static void gasnetc_ofi_read_env_vars() {
     const char* max_am_send_buffs_env =  "GASNET_OFI_MAX_SEND_BUFFS";
     const char* num_init_send_buffs_env = "GASNET_OFI_NUM_INITIAL_SEND_BUFFS";
     const char* max_err_string =  "%s must be greater than or equal to\n"
@@ -246,8 +245,7 @@ void gasnetc_ofi_read_env_vars() {
  * to contain the complexity of supporting scalable endpoints in the future to
  * this function and the relevant get-address macros.
  */
-GASNETI_INLINE(ofi_setup_address_vector)
-void ofi_setup_address_vector() {
+static void ofi_setup_address_vector() {
   size_t reqnamelen = 0, repnamelen = 0, rdmanamelen = 0;
   char* on_node_addresses;
   int ret = FI_SUCCESS;
@@ -545,7 +543,6 @@ int gasnetc_ofi_init(int *argc, char ***argv,
 		am_buff_msg[i].desc	  	= NULL;
 		am_buff_msg[i].context 		= &am_buff_ctxt[i].ctxt;
 		am_buff_msg[i].data 		= 0;
-        am_buff_ctxt[i].callback	= gasnetc_ofi_handle_am;
         am_buff_ctxt[i].index		= i;
         am_buff_ctxt[i].final_cntr = 0;
         am_buff_ctxt[i].event_cntr = 0;
@@ -706,12 +703,11 @@ void gasnetc_ofi_exit(void)
  * ----------------------------------------------*/
 
 /* Handle Active Messages */
-GASNETI_INLINE(gasnetc_ofi_handle_am_common)
-void gasnetc_ofi_handle_am_common(gasnetc_ofi_am_send_buf_t *header)
+GASNETI_INLINE(gasnetc_ofi_handle_am)
+void gasnetc_ofi_handle_am(gasnetc_ofi_am_send_buf_t *header, int isreq)
 {
 	uint8_t *addr;
 	int nbytes;
-	int isreq = header->isreq;
 	int handler = header->handler;
 	gasneti_handler_fn_t handler_fn = gasnetc_handler[handler];
 	gasnetc_ofi_token_t token; 
@@ -749,19 +745,12 @@ void gasnetc_ofi_handle_am_common(gasnetc_ofi_am_send_buf_t *header)
 #if !GASNET_PSHM
 /* Handle Active Messages from self (not necessary if PSHM is enabled) */
 GASNETI_INLINE(gasnetc_ofi_handle_local_am)
-void gasnetc_ofi_handle_local_am(gasnetc_ofi_am_buf_t *buf)
+void gasnetc_ofi_handle_local_am(gasnetc_ofi_am_buf_t *buf, int isreq)
 {
-    gasnetc_ofi_handle_am_common(&buf->sendbuf);
+    gasnetc_ofi_handle_am(&buf->sendbuf, isreq);
     gasneti_lifo_push(&ofi_am_pool, buf);
 }
 #endif
-
-/* Handle incoming Active Messages */
-GASNETI_INLINE(gasnetc_ofi_handle_am)
-void gasnetc_ofi_handle_am(struct fi_cq_data_entry *re, void *buf)
-{
-    gasnetc_ofi_handle_am_common((gasnetc_ofi_am_send_buf_t*)re->buf);
-}
 
 /* Handle RDMA completion as the initiator */
 GASNETI_INLINE(gasnetc_ofi_handle_rdma)
@@ -819,39 +808,40 @@ gasnetc_ofi_am_buf_t *gasnetc_ofi_am_header(int isreq)
 {
     gasneti_lifo_head_t* pool;
     int poll_type;
-    event_callback_fn 	callback;
     if (isreq) {
         pool = &ofi_am_request_pool;
-        poll_type = OFI_POLL_ALL;
-        callback = gasnetc_ofi_release_request_am;
     } 
     else {
         pool = &ofi_am_reply_pool;
-        poll_type = OFI_POLL_REPLY;
-        callback = gasnetc_ofi_release_reply_am;
     }
 
 	gasnetc_ofi_am_buf_t *header = gasneti_lifo_pop(pool);
-    if (header) 
+    if_pt (header) 
         return header;
     else if (!out_of_send_buffers) {
+        // Poll the tx queue and retry the pool before allocating another buffer
+        gasnetc_ofi_tx_poll();
+        header = gasneti_lifo_pop(pool);
+        if (header) return header;
+
         int tmp = gasnetc_paratomic_add(&num_allocated_send_buffers, 1, GASNETI_ATOMIC_ACQ);
         if (tmp > max_am_send_buffs ) {
             goto ofi_spin_for_buffer;
         }
         else if (tmp == max_am_send_buffs) {
             /* This update is not threadsafe. This is okay though, as it is only
-             * to prevent continuously decrementing the atomic counter after all 
+             * to prevent continuously incrementing the atomic counter after all 
              * buffers have been allocated.*/
             out_of_send_buffers = 1; 
         }
         
         header = gasneti_malloc(sizeof(gasnetc_ofi_am_buf_t));
         gasneti_leak(header);
-        header->callback = callback;
+        header->callback = isreq ? gasnetc_ofi_release_request_am : gasnetc_ofi_release_reply_am;
         return header;
     }
 ofi_spin_for_buffer:
+    poll_type = isreq ? OFI_POLL_ALL : OFI_POLL_REPLY;
     do {
         GASNETC_OFI_POLL_SELECTIVE(poll_type);
         GASNETI_WAITHOOK();
@@ -1027,7 +1017,9 @@ void gasnetc_ofi_am_recv_poll(int is_request)
     }
     GASNETC_OFI_PAR_UNLOCK(lock_p);
 
-    if_pt (re.flags & FI_RECV) header->callback(&re, header);
+    if_pt (re.flags & FI_RECV) {
+        gasnetc_ofi_handle_am(re.buf, is_request);
+    }
 
     /* The atomic here ensures that the buffer is not reposted while an AM handler is
      * still running. */
@@ -1092,7 +1084,6 @@ int gasnetc_ofi_am_send_short(gasnet_node_t dest, gasnet_handler_t handler,
 	}
 
 	/* Copy arg and handle into the buffer */
-	sendbuf->isreq = isreq;
 	sendbuf->handler = (uint8_t) handler;
 	sendbuf->sourceid = gasneti_mynode;
 	sendbuf->type = OFI_AM_SHORT;
@@ -1166,7 +1157,6 @@ int gasnetc_ofi_am_send_medium(gasnet_node_t dest, gasnet_handler_t handler,
 	sendbuf->len += nbytes;
 
 	/* Copy arg and handle into the buffer */
-	sendbuf->isreq = isreq;
 	sendbuf->handler = (uint8_t) handler;
 	sendbuf->sourceid = gasneti_mynode;
 	sendbuf->type = OFI_AM_MEDIUM;
@@ -1280,7 +1270,6 @@ int gasnetc_ofi_am_send_long(gasnet_node_t dest, gasnet_handler_t handler,
 	}
 
 	/* Copy arg and handle into the buffer */
-	sendbuf->isreq = isreq;
 	sendbuf->handler = (uint8_t) handler;
 	sendbuf->sourceid = gasneti_mynode;
 	sendbuf->argnum = numargs;
