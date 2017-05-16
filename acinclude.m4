@@ -1505,7 +1505,7 @@ if test "$[$1]" = "no" ; then
   : # Skip
 else
  GASNET_ENV_DEFAULT([$2], [$3])
- if test "$[$2]" == "$3" ; then # validate default
+ if test "$[$2]" = "$3" ; then # validate default
   GASNET_PUSHVAR(CC,"$[$1]")
   GASNET_PUSHVAR(CFLAGS,"")
     GASNET_TRY_CFLAG([$[$2]], [], [
