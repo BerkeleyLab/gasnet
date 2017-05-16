@@ -27,6 +27,8 @@
     /* conduit-specific timers must be implemented using a macro */
     #error Incomplete conduit-specific timer impl.
   #endif
+#elif defined(GASNETI_FORCE_GETTIMEOFDAY) || defined(GASNETI_FORCE_POSIX_REALTIME)
+/* bug3508: forced portable timer implementation overrides compilation of native timers */
 /* ------------------------------------------------------------------------------------ */
 #elif PLATFORM_OS_MTA
   #include <sys/mta_task.h>
@@ -540,9 +542,8 @@
     else return (st * (1000 / MB_TICKS_PER_US));
   }
 /* ------------------------------------------------------------------------------------ */
-#elif defined(_POSIX_TIMERS) && 0
-  /* POSIX realtime support - disabled for now because haven't found anywhere that it 
-     outperforms gettimeofday, and it usually requires an additional library */
+#elif HAVE_CLOCK_GETTIME
+  /* POSIX realtime support - when available, usually outperforms gettimeofday */
   #define GASNETI_USING_POSIX_REALTIME 1
 /* ------------------------------------------------------------------------------------ */
 #else /* use slow, portable timers */
@@ -611,7 +612,7 @@ extern uint64_t gasneti_wallclock_ns(void);
     #define GASNETI_TIMER_CONFIG   timers_os
   #endif
 #elif GASNETI_USING_POSIX_REALTIME
-  #if defined(GASNETI_FORCE_GETTIMEOFDAY)
+  #if defined(GASNETI_FORCE_POSIX_REALTIME)
     #define GASNETI_TIMER_CONFIG   timers_forced_posixrt
   #else
     #define GASNETI_TIMER_CONFIG   timers_posixrt
