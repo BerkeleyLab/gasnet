@@ -1636,14 +1636,18 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
 
     #if GASNET_PSHM
       /* Must always recreate the segment*/
+      const int trim = 1;
     #else
       /* trim final segment if required */
-      if (gasneti_segment.addr != segbase || gasneti_segment.size != segsize)
+      const int trim = (gasneti_segment.addr != segbase || gasneti_segment.size != segsize);
     #endif
-      {
+
+      if (trim) {
         gasneti_assert(segbase >= gasneti_segment.addr &&
                (uintptr_t)segbase + segsize <= (uintptr_t)gasneti_segment.addr + gasneti_segment.size);
         gasneti_do_munmap(gasneti_segment.addr, gasneti_segment.size);
+      }
+
       #if GASNETI_BUG3480_WORKAROUND
         // Barrier between unmap and re-map, via 1-byte exchange (a.k.a. GatherAll).
         // This is a bit of a hack, but is the most expedient way to get a barrier
@@ -1653,6 +1657,8 @@ void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
         (*exchangefn)(&a, sizeof(char), b);
         gasneti_free(b);
       #endif
+
+      if (trim) {
 #if GASNETI_PSHM_MAP_FIXED_IGNORED
         segbase =
 #endif
