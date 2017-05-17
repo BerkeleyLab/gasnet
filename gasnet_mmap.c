@@ -2011,7 +2011,8 @@ void gasneti_auxseg_init(void) {
       } while (nbytes);
 
       /* Poll until we have received the same number of messages as we sent */
-      GASNET_BLOCKUNTIL((int)gasneti_weakatomic32_read(&_gasneti_auxseg_rcvd[step], 0) == (int)seq);
+      GASNET_BLOCKUNTIL((int)gasneti_weakatomic32_read(&_gasneti_auxseg_rcvd[step], 0) >= (int)seq);
+      gasneti_assert((int)gasneti_weakatomic32_read(&_gasneti_auxseg_rcvd[step], 0) == (int)seq);
     }
 
     /* Copy to final destination while performing the rotation */
