@@ -1977,7 +1977,9 @@ void gasneti_auxseg_init(void) {
     const int step = arg0 & 0x1f; // Max 2^5 steps            => 2^32 nodes
     const int seq = arg0 >> 5;    // Max 2^27 fragments * 512 => 64GB (and max sent is len*nodes/2)
     const int distance = (1 << step);
+    gasneti_assert(distance < gasneti_nodes);
     uint8_t *dest = (uint8_t*)(_gasneti_auxseg_everything + distance) + (seq * gasnetex_lub_AMRequestMedium());
+    gasneti_assert(dest + nbytes <= (uint8_t*)(_gasneti_auxseg_everything + gasneti_nodes));
     memcpy(dest, buf, nbytes);
     gasneti_weakatomic32_increment(&_gasneti_auxseg_rcvd[step], GASNETI_ATOMIC_REL);
   }
