@@ -1160,6 +1160,21 @@ uintptr_t _gasneti_max_segsize(uint64_t configure_val) {
 }
 
 #if !GASNET_SEGMENT_EVERYTHING
+
+#if GASNETI_BUG3480_WORKAROUND
+  // Barrier used between unmap and re-map, via 1-byte exchange (a.k.a. GatherAll).
+  // This is a bit of a hack, but is the most expedient way to get a barrier
+  // with compute-node scope, since gasneti_pshmnet_bootstrapBarrier() may
+  // have a narrower scope when env var GASNET_SUPERNODE_MAXSIZE is set.
+  static void gasneti_bug3480_fence(gasneti_bootstrapExchangefn_t exchangefn) {
+    char a = 0; char *b = gasneti_malloc(gasneti_nodes);
+    (*exchangefn)(&a, sizeof(char), b);
+    gasneti_free(b);
+  }
+#else
+  #define gasneti_bug3480_fence(_e) ((void)0)
+#endif
+
 #ifdef GASNETI_MMAP_OR_PSHM
 /* perform a coordinated mmap probe to determine the max memory
     that can be mmap()ed while considering multiple GASNet nodes
@@ -1466,27 +1481,15 @@ void gasneti_segmentAttachLocal(gasnet_seginfo_t *segment_p, uintptr_t segsize,
       segbase = NULL; 
     } else if (segment_p->addr) { /* a pre-segment exists */
       gasneti_assert(segsize <= segment_p->size);
-      const int trim = GASNET_PSHM || (segment_p->size != segsize);
-
-      if (trim) {
+      if (GASNET_PSHM || (segment_p->size != segsize)) {
         gasneti_do_munmap(segment_p->addr, segment_p->size);
-      }
-
-      #if GASNETI_BUG3480_WORKAROUND
-        // Barrier between unmap and re-map, via 1-byte exchange (a.k.a. GatherAll).
-        // This is a bit of a hack, but is the most expedient way to get a barrier
-        // with compute-node scope, since gasneti_pshmnet_bootstrapBarrier() may
-        // have a narrower scope when env var GASNET_SUPERNODE_MAXSIZE is set.
-        char a; char *b = gasneti_malloc(gasneti_nodes);
-        (*exchangefn)(&a, sizeof(char), b);
-        gasneti_free(b);
-      #endif
-
-      if (trim) {
+        gasneti_bug3480_fence(exchangefn);
 #if GASNETI_PSHM_MAP_FIXED_IGNORED
         segment_p->addr =
 #endif
         gasneti_do_mmap_fixed(segment_p->addr, segsize);
+      } else {
+        gasneti_bug3480_fence(exchangefn);
       }
       segbase = segment_p->addr;
     } else { /* need segment from scratch */
