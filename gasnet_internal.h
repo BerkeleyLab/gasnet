@@ -375,7 +375,7 @@ void gasneti_auxseg_attach(gasneti_bootstrapExchangefn_t exchangefn);
   extern void gasnetc_auxseg_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
                                   gasnetex_handlerarg_t arg0);
   #define GASNETC_AUXSEG_HANDLERS() \
-    gasneti_handler_tableentry_no_bits(gasnetc_auxseg_reqh,2,0)
+    gasneti_handler_tableentry_no_bits(gasnetc_auxseg_reqh,1,0)
 #endif
 
 /* ------------------------------------------------------------------------------------ */
