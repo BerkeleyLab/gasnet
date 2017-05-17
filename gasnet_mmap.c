@@ -1973,6 +1973,7 @@ void gasneti_auxseg_init(void) {
   static gasneti_weakatomic32_t _gasneti_auxseg_rcvd[32] = {}; // Implicitly zero-initialized
 
   extern void gasnetc_auxseg_reqh(gasnetex_token_t token, void *buf, size_t nbytes, gasnetex_handlerarg_t arg0) {
+    gasneti_assert(_gasneti_auxseg_everything != NULL);
     const int step = arg0 & 0x1f; // Max 2^5 steps            => 2^32 nodes
     const int seq = arg0 >> 5;    // Max 2^27 fragments * 512 => 64GB (and max sent is len*nodes/2)
     const int distance = (1 << step);
