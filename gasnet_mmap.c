@@ -78,27 +78,12 @@
 
  #ifdef GASNETI_USE_HUGETLBFS
   #include <hugetlbfs.h>
-  /* Trim only from top to retain alignment: */
-  #undef GASNETI_USE_HIGHSEGMENT
-  #define GASNETI_USE_HIGHSEGMENT 0
   /* Provide greater alignment than default: */
   static uintptr_t gasneti_mmap_aligndown_huge(uintptr_t sz) {
      static long pagesz = 0;
      if (!pagesz) pagesz = gethugepagesize();
      return GASNETI_ALIGNDOWN(sz, pagesz);
   }
- #endif
-
- #if GASNET_PSHM && PLATFORM_ARCH_SPARC
-  /* On SPARC, shared mappings must be L1 data-cache color-aligned.
-     The easiest way to ensure that is to trim only from top to preserve
-     the alignment which the O/S gave to the original (untrimmed) mapping.
-   Possible TODO:
-     Since we only support 64-bit SPARC CPUs the alignment will always be MAX(16K, PAGESIZE).
-     So we could just use that for GASNETI_PAGESIZE.
-   */
-  #undef GASNETI_USE_HIGHSEGMENT
-  #define GASNETI_USE_HIGHSEGMENT 0
  #endif
 
 #if !HAVE_MMAP
@@ -1480,23 +1465,8 @@ void gasneti_segmentAttachLocal(gasnet_seginfo_t *segment_p, uintptr_t segsize,
       if (segment_p->addr) gasneti_do_munmap(segment_p->addr, segment_p->size);
       segbase = NULL; 
     } else if (segment_p->addr) { /* a pre-segment exists */
-    #if GASNETI_USE_HIGHSEGMENT
-      segbase = (void *)((uintptr_t)segment_p->addr + segment_p->size - segsize);
-    #else
-      segbase = segment_p->addr;
-    #endif
-
-      /* New segment must be fully contained within the pre-segment */
-      gasneti_assert(segbase >= segment_p->addr);
-      gasneti_assert((uintptr_t)segbase + segsize <= (uintptr_t)segment_p->addr + segment_p->size);
-
-    #if GASNET_PSHM
-      /* Must always recreate the segment*/
-      const int trim = 1;
-    #else
-      /* trim final segment if required */
-      const int trim = (segment_p->addr != segbase || segment_p->size != segsize);
-    #endif
+      gasneti_assert(segsize <= segment_p->size);
+      const int trim = GASNET_PSHM || (segment_p->size != segsize);
 
       if (trim) {
         gasneti_do_munmap(segment_p->addr, segment_p->size);
@@ -1514,10 +1484,11 @@ void gasneti_segmentAttachLocal(gasnet_seginfo_t *segment_p, uintptr_t segsize,
 
       if (trim) {
 #if GASNETI_PSHM_MAP_FIXED_IGNORED
-        segbase =
+        segment_p->addr =
 #endif
-        gasneti_do_mmap_fixed(segbase, segsize);
+        gasneti_do_mmap_fixed(segment_p->addr, segsize);
       }
+      segbase = segment_p->addr;
     } else { /* need segment from scratch */
       gasneti_fatalerror("segmentAttach without pre-segment is unimplemented");
     }
