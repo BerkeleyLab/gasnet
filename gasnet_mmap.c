@@ -1366,6 +1366,10 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
 }
 #endif /* GASNETI_MMAP_OR_PSHM */
 
+#if GASNET_ALIGNED_SEGMENTS
+uintptr_t gasneti_maxbase;
+#endif
+
 /* do the work necessary for initing a standard segment map in arbitrary memory 
      uses mmap if available, or malloc otherwise
    requires an exchange callback function that can be used to exchange data
@@ -1419,14 +1423,98 @@ void gasneti_segmentInit(gasnet_seginfo_t *segment_p,
   gasneti_pshm_cs_leave();
 #endif
 
-  // PART II: determine Max{Local,Global}SegmentSize
+  // PART II: Exchange segment info if needed for later stage
+  // TODO-EX: Non-scalable exchange where a reduce is probably sufficient
+
+  #ifdef GASNETI_MMAP_OR_PSHM
+  gasnet_seginfo_t *gasneti_segexch = NULL;
+  if (1) { // TODO-EX: in anticipation of alignment and Max*SegmentSize being runtime choices
+    /* gather the mmap segment location */
+    gasneti_segexch = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
+    (*exchangefn)(segment_p, sizeof(gasnet_seginfo_t), gasneti_segexch);
+  }
+  #endif
+
+  // PART III: Optionally align segments
+
+  #if GASNET_ALIGNED_SEGMENTS && defined(GASNETI_MMAP_OR_PSHM)
+  if (1) { // TODO-EX: in anticipation of alignment being a runtime choice
+    /* BG/Q would incorrectly probe the I/O node */
+    #if !defined(PLATFORM_OS_BGQ)
+      if (gasneti_nodes > 1) {
+        /* bug 2067 - detect if the compute nodes are using Linux's 'intentional VM space randomization'
+         * security feature, which is known to break GASNET_ALIGNED_SEGMENTS, esp at large scale
+         */
+         FILE *fp = fopen("/proc/sys/kernel/randomize_va_space", "r");
+         if (fp) {
+           int VMrand = fgetc(fp);
+           if (VMrand != EOF && VMrand != '0') {
+             const char *wmsg = "WARNING: It appears your compute nodes are using a Linux security feature "
+                                "which intentionally randomizes the virtual address space, "
+                                "but GASNet was configured to optimize for congruent address spaces. "
+                                "You probably need to re-configure with --disable-aligned-segments to avoid "
+                                "errors at job startup (especially for runs with large node count or shared segment size).";
+             GASNETI_TRACE_MSG(I, wmsg);
+             if (!gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
+               fprintf(stderr, "%s\n", wmsg);
+               fflush(stderr);
+             }
+           }
+           fclose(fp);
+         }
+      }
+    #endif // !PLATFORM_OS_BGQ
+
+    // Find highest start and lowest end among all segments
+    uintptr_t maxbase = (uintptr_t)gasneti_segexch[0].addr;
+    uintptr_t minend  = (uintptr_t)gasneti_segexch[0].addr + gasneti_segexch[0].size;
+    for (int i = 1; i < gasneti_nodes; i++) {
+      maxbase = MAX(maxbase, (uintptr_t)gasneti_segexch[i].addr);
+      minend  = MIN(minend,  (uintptr_t)gasneti_segexch[i].addr + gasneti_segexch[i].size);
+    }
+
+    char alignstats[255];
+    snprintf(alignstats, sizeof(alignstats),
+        "Segment alignment stats: "
+        "maxbase = "GASNETI_LADDRFMT"   "
+        "minend = "GASNETI_LADDRFMT"   ",
+        GASNETI_LADDRSTR(maxbase), GASNETI_LADDRSTR(minend));
+    alignstats[sizeof(alignstats)-1] = '\0';
+    GASNETI_TRACE_MSG(C, alignstats);
+
+    if (maxbase >= minend) { /* no overlap - maybe should be a fatal error... */
+      const char *wmsg = "WARNING: unable to locate overlapping mmap segments: "
+                         "perhaps you need to re-configure with --disable-aligned-segments";
+      GASNETI_TRACE_MSG(I, wmsg);
+      if (!gasneti_mynode && !gasneti_getenv_yesno_withdefault("GASNET_QUIET",0)) {
+        fprintf(stderr, "%s\n%s\n", wmsg, alignstats);
+        for (int i = 0; i < gasneti_nodes; i++) {
+          fprintf(stderr, " %i: seg=["GASNETI_LADDRFMT","GASNETI_LADDRFMT"]"
+                          " size=%lu\n", i,
+                  GASNETI_LADDRSTR(gasneti_segexch[i].addr),
+                  GASNETI_LADDRSTR(((uintptr_t)gasneti_segexch[i].addr)+gasneti_segexch[i].size),
+                  (unsigned long)gasneti_segexch[i].size);
+          fflush(stderr);
+        }
+      }
+
+      // Zero my size (in two place) to yield Max{Local,Global}SegmentSize == 0
+      segment_p->size = 0;
+      gasneti_segexch[gasneti_mynode].size = 0;
+    } else {
+      // Trim sizes to reflect begining at maxbase (for finding MaxGlobalSegmentSize)
+      for (int i = 0; i < gasneti_nodes; i++) {
+        gasneti_segexch[i].size -= (maxbase - (uintptr_t)gasneti_segexch[i].addr);
+      }
+    }
+    gasneti_maxbase = maxbase;
+  }
+  #endif
+
+  // PART IV: Compute Max{Local,Remote}SegmentSize
 
   if (1) { // TODO-EX: in anticipation of Max{Local,Global}SegmentSize becoming optional
   #ifdef GASNETI_MMAP_OR_PSHM
-    /* gather the mmap segment location */
-    gasnet_seginfo_t *gasneti_segexch = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
-    (*exchangefn)(segment_p, sizeof(gasnet_seginfo_t), gasneti_segexch);
-
     /* compute min and max sizes across nodes */
     uintptr_t maxsize = gasneti_segexch[0].size;
     uintptr_t minsize = gasneti_segexch[0].size;
@@ -1434,7 +1522,6 @@ void gasneti_segmentInit(gasnet_seginfo_t *segment_p,
       maxsize = MAX(maxsize, gasneti_segexch[i].size);
       minsize = MIN(minsize, gasneti_segexch[i].size);
     }
-    gasneti_free(gasneti_segexch);
 
     #if GASNET_TRACE
       char segstats[255];
@@ -1464,6 +1551,10 @@ void gasneti_segmentInit(gasnet_seginfo_t *segment_p,
     gasneti_assert(gasneti_MaxGlobalSegmentSize <= gasneti_MaxLocalSegmentSize);
     gasneti_assert(gasneti_MaxLocalSegmentSize <= localSegmentLimit);
   }
+
+#ifdef GASNETI_MMAP_OR_PSHM
+  gasneti_free(gasneti_segexch);
+#endif
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -1480,18 +1571,22 @@ void gasneti_segmentAttachLocal(gasnet_seginfo_t *segment_p, uintptr_t segsize,
       if (segment_p->addr) gasneti_do_munmap(segment_p->addr, segment_p->size);
       segbase = NULL; 
     } else if (segment_p->addr) { /* a pre-segment exists */
+    #if GASNET_ALIGNED_SEGMENTS
+      segbase = (void*)gasneti_maxbase;
+    #else
+      segbase = segment_p->addr;
+    #endif
       gasneti_assert(segsize <= segment_p->size);
-      if (GASNET_PSHM || (segment_p->size != segsize)) {
+      if (GASNET_PSHM || (segment_p->size != segsize) || (segment_p->addr != segbase)) {
         gasneti_do_munmap(segment_p->addr, segment_p->size);
         gasneti_bug3480_fence(exchangefn);
 #if GASNETI_PSHM_MAP_FIXED_IGNORED
         segment_p->addr =
 #endif
-        gasneti_do_mmap_fixed(segment_p->addr, segsize);
+        gasneti_do_mmap_fixed(segbase, segsize);
       } else {
         gasneti_bug3480_fence(exchangefn);
       }
-      segbase = segment_p->addr;
     } else { /* need segment from scratch */
       gasneti_fatalerror("segmentAttach without pre-segment is unimplemented");
     }
@@ -1567,13 +1662,17 @@ void gasneti_segmentAttach(gasnet_seginfo_t *segment_p,
   /*  gather segment information */   // TODO-EX: need scalable replacement
   (*exchangefn)(segment_p, sizeof(gasnet_seginfo_t), seginfo);
 
-  #if GASNET_ALIGNED_SEGMENTS && 0 // TODO-EX: curently lack "segbase"
-    if (segsize > 0) { int i; /*  check that segments are aligned */
-      for (i=0; i < gasneti_nodes; i++) {
-        if (seginfo[i].size != 0 && seginfo[i].addr != segbase) 
+  #if GASNET_ALIGNED_SEGMENTS
+  if (1) { // TODO-EX: in anticipation of alignment being a runtime choice
+    // check that non-empty segments are aligned
+    if (segsize > 0) {
+      for (int i = 0; i < gasneti_nodes; i++) {
+        if (seginfo[i].size != 0 && seginfo[i].addr != segment_p->addr)  {
           gasneti_fatalerror("Failed to acquire aligned segments for GASNET_ALIGNED_SEGMENTS");
+        }
       }
     }
+  }
   #endif
 
 #if GASNET_PSHM
