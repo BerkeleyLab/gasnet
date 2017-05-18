@@ -103,6 +103,18 @@ static int gasnetc_init(int *argc, char ***argv) {
     ### = gasneti_pshm_init(gasneti_spawner->SNodeBroadcast, ###);
   #endif
 
+  /* allocate and attach an aux segment */
+
+  // (###) gasneti_mmapLimit() may provide a good 'limit' argument here:
+  uintptr_t auxsize = gasneti_auxseg_prepare(###);
+
+  /* (###) it may be appropriate to use the following to allocate and map an aux segment:
+    gasnet_seginfo_t gasnetc_auxsegment = {0,0};
+    gasneti_segmentAttach(&gasnetc_auxsegment, auxsize, gasneti_seginfo_aux, &gasnetc_bootstrapExchange);
+   */
+
+  gasneti_auxseg_attach(gasneti_seginfo_aux); /* provide auxseg */
+
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { 
       /* (###) Add code here to determine optimistic maximum segment size */
@@ -151,8 +163,6 @@ static int gasnetc_init(int *argc, char ***argv) {
 
   gasneti_init_done = 1;  
 
-  gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
-
   return GASNET_OK;
 }
 
@@ -184,8 +194,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
   #else
     segsize = 0;
   #endif
-
-  segsize = gasneti_auxseg_preattach(segsize); /* adjust segsize for auxseg reqts */
 
   /* ------------------------------------------------------------------------------------ */
   /*  create the initial endpoint with internal handlers */
@@ -257,6 +265,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
            If gasneti_segmentAttach() was used above, this is already done.
    */
 
+  gasneti_seginfo_ub = gasneti_seginfo_build_ub(gasneti_seginfo);
+
   /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
   gasneti_attach_done = 1;
@@ -266,11 +276,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
 
   gasneti_assert(gasneti_seginfo[gasneti_mynode].addr == segbase &&
          gasneti_seginfo[gasneti_mynode].size == segsize);
-
-  /* (###) exchange_fn is optional (may be NULL) and is only used with GASNET_SEGMENT_EVERYTHING
-           if your conduit has an optimized bootstrapExchange pass it in place of NULL
-   */
-  gasneti_auxseg_attach(NULL); /* provide auxseg */
 
   gasnete_init(); /* init the extended API */
 
@@ -693,9 +698,6 @@ extern int  gasnetc_hsl_trylock(gasnetex_hsl_t *hsl) {
   (for internal conduit use in bootstrapping, job management, etc.)
 */
 static gasnetex_handlerentry_t const gasnetc_handlers[] = {
-  #ifdef GASNETC_AUXSEG_HANDLERS
-    GASNETC_AUXSEG_HANDLERS(),
-  #endif
   /* ptr-width independent handlers */
 
   /* ptr-width dependent handlers */

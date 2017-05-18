@@ -327,7 +327,9 @@ void gasnete_amref_get_nbi_inner(gasnetex_team_member_t team,
     uint8_t *psrc = src;
     uint8_t *pdest = dest;
     #if GASNETE_USE_LONG_GETS
+     #if 0 // TODO-EX: replace or remove - how to ensure gasneti_in_segment() is "ready"
       gasneti_memcheck(gasneti_seginfo);
+     #endif
       if (gasneti_in_segment(gasneti_mynode, dest, nbytes)) {
         chunksz = gasnetex_lub_AMReplyLong();
         reqhandler = gasneti_handleridx(gasnete_amref_getlong_reqh);

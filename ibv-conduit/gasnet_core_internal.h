@@ -88,7 +88,7 @@ extern gasneti_atomic_t gasnetc_exit_running;
  * These are registered early and are available even before _attach()
  */
 #define _hidx_gasnetc_ack                     0 /* Special case */
-#define _hidx_gasnetc_auxseg_reqh             (GASNETC_HANDLER_BASE+0)
+// Unused - was _hidx_gasnetc_auxseg_reqh     (GASNETC_HANDLER_BASE+0)
 #define _hidx_gasnetc_amrdma_grant_reqh       (GASNETC_HANDLER_BASE+1)
 #define _hidx_gasnetc_exit_reduce_reqh        (GASNETC_HANDLER_BASE+2)
 #define _hidx_gasnetc_exit_role_reqh          (GASNETC_HANDLER_BASE+3)
@@ -484,6 +484,7 @@ typedef struct {
   struct ibv_context *	handle;
   gasnetc_memreg_t	rcv_reg;
   gasnetc_memreg_t	snd_reg;
+  gasnetc_memreg_t      aux_reg;
 #if GASNETC_PIN_SEGMENT
   uint32_t        *seg_lkeys;
   uint32_t	*rkeys;	/* RKey(s) registered at attach time */
@@ -491,6 +492,7 @@ typedef struct {
     gasnetc_memreg_t    *seg_regs;
   #endif
 #endif
+  uint32_t              *aux_rkeys;
 #if GASNETC_IBV_SRQ
   struct ibv_srq	*rqst_srq;
   struct ibv_srq	*repl_srq;

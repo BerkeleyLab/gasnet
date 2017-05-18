@@ -27,7 +27,7 @@
 #define GASNETC_HSL_SPINLOCK 0
 
 /* ------------------------------------------------------------------------------------ */
-#define _hidx_gasnetc_auxseg_reqh             (GASNETC_HANDLER_BASE+0)
+// Unused - was _hidx_gasnetc_auxseg_reqh     (GASNETC_HANDLER_BASE+0)
 /* add new core API handlers here and to the bottom of gasnet_core.c */
 
 /* ------------------------------------------------------------------------------------ */
@@ -115,6 +115,8 @@ extern pami_endpoint_t    *gasnetc_endpoint_tbl;
 extern size_t             gasnetc_num_contexts;
 extern pami_memregion_t   gasnetc_mymemreg;
 extern pami_memregion_t   *gasnetc_memreg;
+extern pami_memregion_t   gasnetc_myauxreg;
+extern pami_memregion_t   *gasnetc_auxreg;
 extern size_t             gasnetc_send_imm_max;
 extern size_t             gasnetc_recv_imm_max;
 

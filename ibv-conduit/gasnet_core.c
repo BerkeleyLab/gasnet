@@ -1705,6 +1705,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_assert(gasnetc_pin_info.regions != 0);
   }
  
+  uintptr_t mmap_limit;
   #if GASNET_SEGMENT_FAST
   {
     /* Reserved memory needed by firehose on each node */
@@ -1715,20 +1716,50 @@ static int gasnetc_init(int *argc, char ***argv) {
     if_pf (gasnetc_pin_info.memory < reserved_mem) {
       gasneti_fatalerror("Pinnable memory (%lu) is less than reserved minimum %lu\n", (unsigned long)gasnetc_pin_info.memory, (unsigned long)reserved_mem);
     }
-    uintptr_t limit = gasneti_mmapLimit(
+    mmap_limit = gasneti_mmapLimit(
                                   (gasnetc_pin_info.memory - reserved_mem),
                                   (uint64_t)-1,
                                   &gasnetc_bootstrapExchange_ib,
                                   &gasnetc_bootstrapBarrier_ib);
-    gasneti_segmentInit(&gasnetc_presegment, limit, &gasnetc_bootstrapExchange_ib);
   }
-  #elif GASNET_SEGMENT_LARGE
-  {
-    uintptr_t limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
+  #else
+    mmap_limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
                                   &gasnetc_bootstrapExchange_ib,
                                   &gasnetc_bootstrapBarrier_ib);
-    gasneti_segmentInit(&gasnetc_presegment, limit, &gasnetc_bootstrapExchange_ib);
+  #endif
+
+
+  /* allocate and attach an aux segment */
+
+  uintptr_t auxsize = gasneti_auxseg_prepare(mmap_limit);
+  mmap_limit -= auxsize;
+
+  gasnet_seginfo_t gasnetc_auxsegment = {0,0};
+  gasneti_segmentAttach(&gasnetc_auxsegment, auxsize, gasneti_seginfo_aux, &gasnetc_bootstrapExchange_ib);
+  gasneti_auxseg_attach(gasneti_seginfo_aux); /* provide auxseg */
+
+  /* The auxseg will be statically pinned even if the segment is not */
+  
+  GASNETC_FOR_ALL_HCA(hca) {
+    if (0 != gasnetc_pin(hca, gasnetc_auxsegment.addr, gasnetc_auxsegment.size,
+                         (enum ibv_access_flags)(IBV_ACCESS_LOCAL_WRITE |
+                                                 IBV_ACCESS_REMOTE_WRITE |
+                                                 IBV_ACCESS_REMOTE_READ),
+                         &hca->aux_reg)) {
+      gasneti_fatalerror("Unexpected error %s (errno=%d) when registering the aux segment",
+                         strerror(errno), errno);
+    }
+    // TODO_EX: need scalable and/or lazy storage of aux segments and their rkeys
+    hca->aux_rkeys = gasneti_malloc(gasneti_nodes*sizeof(uint32_t));
+    gasnetc_bootstrapExchange_ib(&hca->aux_reg.handle->rkey, sizeof(uint32_t), hca->aux_rkeys);
   }
+  gasneti_assert(gasnetc_pin_info.memory > gasnetc_auxsegment.size);
+  gasneti_assert(gasnetc_pin_info.regions > 1);
+  gasnetc_pin_info.memory -= gasnetc_auxsegment.size;
+  gasnetc_pin_info.regions -= 1;
+
+  #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
+    gasneti_segmentInit(&gasnetc_presegment, mmap_limit, &gasnetc_bootstrapExchange_ib);
   #elif GASNET_SEGMENT_EVERYTHING
     /* segment is everything - nothing to do */
   #endif
@@ -1744,8 +1775,6 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_init_done = 1;  
   #endif
   gasnetc_bootstrapBarrier_ib();
-
-  gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
 
   return GASNET_OK;
 }
@@ -1766,19 +1795,31 @@ extern int gasnet_init(int *argc, char ***argv) {
  */
 static firehose_region_t *
 gasnetc_prereg_list(int *count_p) {
-  static firehose_region_t prereg[1];
+  static firehose_region_t prereg[2];
+  int c = 0;
   int h;
 
-  /* Currently only the "snd_reg" is added to the firehose tables */
-  prereg[0].addr             = gasnetc_hca[0].snd_reg.addr;
-  prereg[0].len              = gasnetc_hca[0].snd_reg.len;
-  GASNETC_FOR_ALL_HCA_INDEX(h) {
-    prereg[0].client.handle[h] = NULL;        /* unreg must fail */
-    prereg[0].client.lkey[h]   = gasnetc_hca[h].snd_reg.handle->lkey;
-    prereg[0].client.rkey[h]   = gasnetc_hca[h].snd_reg.handle->rkey;
-  }
+  /* Currently "snd_reg" and "aux_reg" are added to the firehose tables */
 
-  *count_p = (int)(sizeof(prereg) / sizeof(prereg[0]));
+  prereg[c].addr             = gasnetc_hca[0].snd_reg.addr;
+  prereg[c].len              = gasnetc_hca[0].snd_reg.len;
+  GASNETC_FOR_ALL_HCA_INDEX(h) {
+    prereg[c].client.handle[h] = NULL;        /* unreg must fail */
+    prereg[c].client.lkey[h]   = gasnetc_hca[h].snd_reg.handle->lkey;
+    prereg[c].client.rkey[h]   = gasnetc_hca[h].snd_reg.handle->rkey;
+  }
+  ++c;
+
+  prereg[c].addr             = gasnetc_hca[0].aux_reg.addr;
+  prereg[c].len              = gasnetc_hca[0].aux_reg.len;
+  GASNETC_FOR_ALL_HCA_INDEX(h) {
+    prereg[c].client.handle[h] = NULL;        /* unreg must fail */
+    prereg[c].client.lkey[h]   = gasnetc_hca[h].aux_reg.handle->lkey;
+    prereg[c].client.rkey[h]   = gasnetc_hca[h].aux_reg.handle->rkey;
+  }
+  ++c;
+
+  *count_p = c;
   return prereg;
 }
 
@@ -1807,8 +1848,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
   #elif GASNET_SEGMENT_EVERYTHING
     segsize = 0;
   #endif
-
-  segsize = gasneti_auxseg_preattach(segsize); /* adjust segsize for auxseg reqts */
 
   /* ------------------------------------------------------------------------------------ */
   /*  create the initial endpoint with internal handlers */
@@ -1975,6 +2014,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
     segsize = gasneti_seginfo[gasneti_mynode].size;
   }
   #endif
+  gasneti_seginfo_ub = gasneti_seginfo_build_ub(gasneti_seginfo);
 
   /* Per-endpoint work */
   for (i = 0; i < gasneti_nodes; i++) {
@@ -2056,11 +2096,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
 
   gasneti_assert(gasneti_seginfo[gasneti_mynode].addr == segbase &&
          gasneti_seginfo[gasneti_mynode].size == segsize);
-
-  /* (###) exchange_fn is optional (may be NULL) and is only used with GASNET_SEGMENT_EVERYTHING
-           if your conduit has an optimized bootstrapExchange pass it in place of NULL
-   */
-  gasneti_auxseg_attach(gasnetc_bootstrapExchange_ib); /* provide auxseg */
 
   gasnete_init(); /* init the extended API */
 
@@ -3642,10 +3677,6 @@ extern int  gasnetc_hsl_trylock(gasnetex_hsl_t *hsl) {
   (for internal conduit use in bootstrapping, job management, etc.)
 */
 static gasnetex_handlerentry_t const gasnetc_handlers[] = {
-  #ifdef GASNETC_AUXSEG_HANDLERS
-    GASNETC_AUXSEG_HANDLERS(),
-  #endif
-
   /* ptr-width independent handlers */
   gasneti_handler_tableentry_no_bits(gasnetc_exit_reduce_reqh,2,0),
   gasneti_handler_tableentry_no_bits(gasnetc_exit_role_reqh,0,0),

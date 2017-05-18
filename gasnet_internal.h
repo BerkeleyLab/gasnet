@@ -360,25 +360,16 @@ typedef struct {
 
 typedef gasneti_auxseg_request_t (*gasneti_auxsegregfn_t)(gasnet_seginfo_t *auxseg_info);
 
-/* collect required auxseg sizes and subtract them from the max values to report to client */
-void gasneti_auxseg_init(void);
-
-/* consume the client's segsize request and return the 
-   value to acquire including auxseg requirements */
-uintptr_t gasneti_auxseg_preattach(uintptr_t client_request_sz);
+/* collect required auxseg sizes and return their sum, padded to page size */
+uintptr_t gasneti_auxseg_prepare(uintptr_t limit);
 
 /* provide auxseg to GASNet components and init secondary segment arrays 
-   requires gasneti_seginfo has been initialized to the correct values
-   exchangefn is used only for GASNET_SEGMENT_EVERYTHING and may be NULL
+   requires input auxseg_info has been initialized to the correct values
  */
-void gasneti_auxseg_attach(gasneti_bootstrapExchangefn_t exchangefn);
+void gasneti_auxseg_attach(gasnet_seginfo_t *auxseg_info);
 
-#if GASNET_SEGMENT_EVERYTHING
-  extern void gasnetc_auxseg_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
-                                  gasnetex_handlerarg_t arg0);
-  #define GASNETC_AUXSEG_HANDLERS() \
-    gasneti_handler_tableentry_no_bits(gasnetc_auxseg_reqh,1,0)
-#endif
+/* called after segmentAttach to create/initialize an _ub array */
+void ** gasneti_seginfo_build_ub(gasnet_seginfo_t *seginfo);
 
 /* ------------------------------------------------------------------------------------ */
 #ifndef GASNETI_DISABLE_EOP_INTERFACE

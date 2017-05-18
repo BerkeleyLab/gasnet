@@ -33,6 +33,8 @@ gasnetex_handlerentry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler tab
 // needed for gasneti_segment{Init,Attach}()
 static gasnet_seginfo_t gasnetc_presegment = {0,0}; /* local segment info */
 
+gasnet_seginfo_t gasnetc_auxsegment = {0,0}; /* local aux segment info */
+
 #if HAVE_ON_EXIT
 static void gasnetc_on_exit(int, void*);
 #else
@@ -626,10 +628,18 @@ static int gasnetc_init(int *argc, char ***argv) {
   /* Now that messaging is available, use it for remaining bootstrap collectives */
   gasnetc_sys_coll_init();
 
+
+  /* allocate and attach an aux segment */
+  uintptr_t max_pin = gasnetc_MaxPinMem(msgspace);
+
+  uintptr_t auxsize = gasneti_auxseg_prepare(max_pin);
+  max_pin -= auxsize;
+
+  gasneti_segmentAttach(&gasnetc_auxsegment, auxsize, gasneti_seginfo_aux, &gasnetc_bootstrapExchange_gni);
+  gasneti_auxseg_attach(gasneti_seginfo_aux); /* provide auxseg */
+
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { 
-      uintptr_t max_pin = gasnetc_MaxPinMem(msgspace);
-
       /* localSegmentLimit provides a conduit-specific limit on the max segment size.
        * can use (uintptr_t)-1 as unlimited.
        */
@@ -660,7 +670,6 @@ static int gasnetc_init(int *argc, char ***argv) {
                                    gasnetc_bootstrapExchange, gasnetc_bootstrapBroadcast);
   #endif
 
-  gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
 #if GASNET_DEBUG_VERBOSE
   fprintf(stderr, "node %i Leaving gasnetc_init\n",gasneti_mynode);
   fflush(stderr);
@@ -703,8 +712,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
   #else
     segsize = 0;
   #endif
-
-  segsize = gasneti_auxseg_preattach(segsize); /* adjust segsize for auxseg reqts */
 
   /* ------------------------------------------------------------------------------------ */
   /*  create the initial endpoint with internal handlers */
@@ -761,6 +768,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
     segsize = (uintptr_t)-1;
     /* (###) add any code here needed to setup GASNET_SEGMENT_EVERYTHING support */
   #endif
+  gasneti_seginfo_ub = gasneti_seginfo_build_ub(gasneti_seginfo);
 
   /* After local segment is attached, call optional client-provided hook
      (###) should call BEFORE any conduit-specific pinning/registration of the segment
@@ -816,11 +824,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
 
   gasneti_assert(gasneti_seginfo[gasneti_mynode].addr == segbase &&
          gasneti_seginfo[gasneti_mynode].size == segsize);
-
-  /* (###) exchange_fn is optional (may be NULL) and is only used with GASNET_SEGMENT_EVERYTHING
-           if your conduit has an optimized bootstrapExchange pass it in place of NULL
-   */
-  gasneti_auxseg_attach(gasnetc_bootstrapExchange_gni); /* provide auxseg */
 
   /* After these, puts, and gets should work */
   gasnetc_init_segment(segbase, segsize);
@@ -1712,9 +1715,6 @@ extern int  gasnetc_hsl_trylock(gasnetex_hsl_t *hsl) {
   (for internal conduit use in bootstrapping, job management, etc.)
 */
 static gasnetex_handlerentry_t const gasnetc_handlers[] = {
-  #ifdef GASNETC_AUXSEG_HANDLERS
-    GASNETC_AUXSEG_HANDLERS(),
-  #endif
   /* ptr-width independent handlers */
     gasneti_handler_tableentry_no_bits(gasnetc_exit_reqh,1,0),
     gasneti_handler_tableentry_no_bits(gasnetc_sys_barrier_reqh,1,0),
