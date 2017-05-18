@@ -135,7 +135,7 @@ extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentr
   gasnetex_rank_t gasneti_nodes = 0;
 #endif
 
-#if defined(_GASNET_GETMAXSEGMENTSIZE_DEFAULT) && !GASNET_SEGMENT_EVERYTHING
+#if defined(_GASNET_GETMAXSEGMENTSIZE_DEFAULT)
   uintptr_t gasneti_MaxLocalSegmentSize = 0;
   uintptr_t gasneti_MaxGlobalSegmentSize = 0;
 #endif

@@ -314,12 +314,12 @@ void gasneti_defaultSignalHandler(int sig);
 #define GASNETI_USE_HIGHSEGMENT 1  /* use the high end of mmap segments */
 #endif
 
-#if !GASNET_SEGMENT_EVERYTHING
 #ifdef GASNETI_MMAP_OR_PSHM
 uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasneti_bootstrapExchangefn_t exchangefn,
                             gasneti_bootstrapBarrierfn_t barrierfn);
 #endif /* GASNETI_MMAP_OR_PSHM */
+
 void gasneti_segmentInit(gasnet_seginfo_t *segment_p,
                          uintptr_t localSegmentLimit,
                          gasneti_bootstrapExchangefn_t exchangefn);
@@ -327,7 +327,7 @@ void gasneti_segmentAttach(gasnet_seginfo_t *segment_p,
                            uintptr_t segsize,
                            gasnet_seginfo_t *seginfo,
                            gasneti_bootstrapExchangefn_t exchangefn);
-#endif /* !GASNET_SEGMENT_EVERYTHING */
+
 void gasneti_setupGlobalEnvironment(gasnetex_rank_t numnodes, gasnetex_rank_t mynode,
                                      gasneti_bootstrapExchangefn_t exchangefn,
                                      gasneti_bootstrapBroadcastfn_t broadcastfn);

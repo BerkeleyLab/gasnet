@@ -779,12 +779,12 @@ extern int gasneti_wait_mode; /* current waitmode hint */
 #ifndef _GASNET_GETMAXSEGMENTSIZE
 #define _GASNET_GETMAXSEGMENTSIZE
 #define _GASNET_GETMAXSEGMENTSIZE_DEFAULT
+    extern uintptr_t gasneti_MaxLocalSegmentSize;
+    extern uintptr_t gasneti_MaxGlobalSegmentSize;
   #if GASNET_SEGMENT_EVERYTHING
     #define gasnet_getMaxLocalSegmentSize()   ((uintptr_t)-1)
     #define gasnet_getMaxGlobalSegmentSize()  ((uintptr_t)-1)
   #else
-    extern uintptr_t gasneti_MaxLocalSegmentSize;
-    extern uintptr_t gasneti_MaxGlobalSegmentSize;
     #define gasnet_getMaxLocalSegmentSize() \
             (GASNETI_CHECKINIT(), (uintptr_t)gasneti_MaxLocalSegmentSize)
     #define gasnet_getMaxGlobalSegmentSize() \

@@ -1159,8 +1159,6 @@ uintptr_t _gasneti_max_segsize(uint64_t configure_val) {
   return result;
 }
 
-#if !GASNET_SEGMENT_EVERYTHING
-
 #if GASNETI_BUG3480_WORKAROUND
   // Barrier used between unmap and re-map, via 1-byte exchange (a.k.a. GatherAll).
   // This is a bit of a hack, but is the most expedient way to get a barrier
@@ -1680,7 +1678,6 @@ void gasneti_segmentAttach(gasnet_seginfo_t *segment_p,
   gasneti_pshm_cs_leave();
 #endif
 }
-#endif /* !GASNET_SEGMENT_EVERYTHING */
 
 /* Used to pass the nodemap information to the client
  * Similar to gasneti_getSegmentInfo(). 
