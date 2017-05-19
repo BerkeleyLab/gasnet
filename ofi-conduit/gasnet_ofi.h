@@ -1,7 +1,7 @@
 /*   $Source: bitbucket.org:berkeleylab/gasnet.git/ofi-conduit/gasnet_ofi.h $
  * Description: GASNet libfabric (OFI) conduit Implementation
  * Copyright 2002, Dan Bonachea <bonachea@cs.berkeley.edu>
- * Copyright 2015, Intel Corporation
+ * Copyright 2015-2017, Intel Corporation
  * Terms of use are as specified in license.txt
  */
 #ifndef GASNET_OFI_H
@@ -83,18 +83,35 @@ typedef enum GASNETC_OFI_AM_TYPE {
 typedef  void (*event_callback_fn) (struct fi_cq_data_entry *re, void *buf);
 typedef  void (*rdma_callback_fn) (void *buf);
 
-typedef struct gasnetc_ofi_am_send_buf {
-  gasnetc_ofi_am_type   type;
-  int 					len;
-  uint8_t 				handler;
-  gasnet_node_t			sourceid;
-  uint8_t 				argnum;
-  void 					*dest_ptr;
-  size_t 				nbytes;
-  uint8_t 				data[OFI_AM_MAX_DATA_LENGTH]
-                            __attribute__((aligned(GASNETI_MEDBUF_ALIGNMENT)));
-} gasnetc_ofi_am_send_buf_t;
 
+typedef struct gasnetc_ofi_am_short_buf {
+    uint8_t 				data[gasnet_AMMaxArgs()];
+
+} gasnetc_ofi_am_short_buf_t;
+
+typedef struct gasnetc_ofi_am_medium_buf {
+   uint8_t 				data[OFI_AM_MAX_DATA_LENGTH]
+                            __attribute__((aligned(GASNETI_MEDBUF_ALIGNMENT)));
+   
+} gasnetc_ofi_am_medium_buf_t;
+
+typedef struct gasnetc_ofi_am_long_buf {
+  void 					*dest_ptr;
+  uint8_t 				data[OFI_AM_MAX_DATA_LENGTH];
+
+} gasnetc_ofi_am_long_buf_t;
+
+typedef struct gasnetc_ofi_am_send_buf {
+    gasnetc_ofi_am_type type:2;
+    uint8_t argnum:6;
+    uint8_t handler;
+    gasnet_node_t			sourceid;
+    union {
+        gasnetc_ofi_am_short_buf_t short_buf;
+        gasnetc_ofi_am_medium_buf_t medium_buf;
+        gasnetc_ofi_am_long_buf_t long_buf;
+    };
+} gasnetc_ofi_am_send_buf_t;
 
 typedef struct gasnetc_ofi_am_buf {
   struct fi_context 	ctxt;
