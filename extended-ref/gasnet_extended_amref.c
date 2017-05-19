@@ -208,6 +208,16 @@
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+/* Forward declarations */
+#if GASNETE_BUILD_AMREF_GET
+int gasnete_amref_get_nbi( gasnetex_team_member_t team,
+                           void *dest,
+                           gasnetex_rank_t rank, void *src,
+                           size_t nbytes,
+                           gasnetex_flags_t flags GASNETI_THREAD_FARG);
+#endif
+
+/* ------------------------------------------------------------------------------------ */
 #if GASNETE_BUILD_AMREF_GET_HANDLERS
 
 GASNETI_INLINE(gasnete_amref_get_reqh_inner)
@@ -443,7 +453,7 @@ int gasnete_amref_put_nbi_inner (gasnetex_team_member_t team,
 
 #if GASNETE_BUILD_AMREF_GET
 extern
-gasnetex_handle_t gasnete_get_nb(
+gasnetex_handle_t gasnete_amref_get_nb(
                      gasnetex_team_member_t team,
                      void *dest,
                      gasnetex_rank_t rank, void *src,
@@ -472,7 +482,7 @@ gasnetex_handle_t gasnete_get_nb(
 
 #if GASNETE_BUILD_AMREF_PUT
 extern
-gasnetex_handle_t gasnete_put_nb(
+gasnetex_handle_t gasnete_amref_put_nb(
                      gasnetex_team_member_t team,
                      gasnetex_rank_t rank, void *dest,
                      void *src,
