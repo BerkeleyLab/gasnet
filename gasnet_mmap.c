@@ -2002,7 +2002,7 @@ void gasneti_auxseg_init(void) {
     for (step = 0, distance = 1; distance < gasneti_nodes; ++step, distance *= 2) {
       gasnetex_rank_t peer = (distance <= gasneti_mynode) ? gasneti_mynode - distance
                                                           : gasneti_mynode + (gasneti_nodes - distance);
-      size_t nbytes = len * distance;
+      size_t nbytes = len * MIN(distance, gasneti_nodes - distance);
       size_t offset = 0;
       uint32_t seq = 0;
 
