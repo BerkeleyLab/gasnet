@@ -441,6 +441,12 @@ gasnetex_register_value_t gasnet_wait_syncnb_valget(gasnet_valget_handle_t handl
 #define gasnet_wait_syncnbi_all()  gasnetex_wait_syncnbi_all ()
 
 /* ------------------------------------------------------------------------------------ */
+/* Implicit-handle access regions */
+
+#define gasnet_begin_nbi_accessregion() gasnetex_begin_nbi_accessregion(0)
+#define gasnet_end_nbi_accessregion()   gasnetex_end_nbi_accessregion(0)
+
+/* ------------------------------------------------------------------------------------ */
 GASNETI_END_NOWARN
 GASNETT_END_EXTERNC
 
