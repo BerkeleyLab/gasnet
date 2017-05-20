@@ -2817,12 +2817,17 @@ static double gasneti_calibrate_tick_ghz(uint64_t ref_res, double *err_p) {
   #ifndef GASNETI_TICKS_WC_MIN_REF_TICKS
   #define GASNETI_TICKS_WC_MIN_REF_TICKS 1000
   #endif
+  #ifndef GASNETI_TICKS_WC_MAX_RETRY
+  #define GASNETI_TICKS_WC_MAX_RETRY 1
+  #endif
 
   // Collected start and end times:
   gasneti_clock_t wc0[GASNETI_TICKS_WC_ITERS], wc1[GASNETI_TICKS_WC_ITERS]; // wallclock samples
   uint64_t lo0[GASNETI_TICKS_WC_ITERS], lo1[GASNETI_TICKS_WC_ITERS]; // "too low" ticks samples
   uint64_t hi0[GASNETI_TICKS_WC_ITERS], hi1[GASNETI_TICKS_WC_ITERS]; // "too high" ticks samples
+  int trycnt = 0;
 
+retry_calibration:;
   // Collect start-time samples and compute {ticks,ref}_res.
   uint64_t ticks_res = 1E9;
   const int count = GASNETI_TICKS_WC_ITERS;
@@ -2872,6 +2877,39 @@ static double gasneti_calibrate_tick_ghz(uint64_t ref_res, double *err_p) {
     for (int j = 0; j < i; ++j) { acc += (double)hi1[j]; }
   }
 
+  // Sanity check: detect the largest monotonicity violations in the sample set
+  uint64_t max_err_tick = 0;
+  uint64_t max_err_wcns = 0;
+  uint64_t samp_tick = hi0[0];
+  uint64_t samp_wcns = gasneti_clock_to_ns(wc0[0]);
+  #define CHECK_NEXT_TICK(this_tick) do {              \
+    if (this_tick + ticks_res < samp_tick) {           \
+      uint64_t back_step = samp_tick - this_tick;      \
+      max_err_tick = MAX(max_err_tick, back_step);     \
+    }                                                  \
+    samp_tick = this_tick;                             \
+  } while (0)
+  #define CHECK_NEXT_WC(this_wc) do {                  \
+    uint64_t this_wcns = gasneti_clock_to_ns(this_wc); \
+    if (this_wcns + ref_res < samp_wcns) {             \
+      uint64_t back_step = samp_wcns - this_wcns;      \
+      max_err_wcns = MAX(max_err_wcns, back_step);     \
+    }                                                  \
+    samp_wcns = this_wcns;                             \
+  } while (0)
+  for (int i = 0; i < count; ++i) {
+    CHECK_NEXT_TICK(hi0[i]); // do not reorder these calls
+    CHECK_NEXT_TICK(lo0[i]);
+    CHECK_NEXT_WC(wc0[i]);
+  }
+  for (int i = 0; i < count; ++i) {
+    CHECK_NEXT_TICK(lo1[i]); // do not reorder these calls
+    CHECK_NEXT_TICK(hi1[i]);
+    CHECK_NEXT_WC(wc1[i]);
+  }
+  #undef CHECK_NEXT_TICK
+  #undef CHECK_NEXT_WCE
+
   // Compute the best lower- and upper-bounds from the collected samples
   // Worst case each difference is too high or low by its respective granulatity
   double lo = 0;
@@ -2883,7 +2921,28 @@ static double gasneti_calibrate_tick_ghz(uint64_t ref_res, double *err_p) {
       double new_hi = (hi1[i] - hi0[j] + ticks_res) / (double)(delta - ref_res);
       lo = MAX(lo, new_lo);
       hi = MIN(hi, new_hi);
-      gasneti_assert(lo <= hi);
+    }
+  }
+
+  // Sanity check: detect violations of the relationship between computed frequency bounds
+  // This should never happen with properly-behaved clocks (ie those that
+  // reliably return samples with a fixed linear relationship to true time,
+  // within resolution error), but might concievably occur if calibration coincides
+  // with a process migration across cores with sufficiently de-synchronized time bases.
+  if (lo > hi || 
+      max_err_tick > 0 || max_err_wcns > 0) {  // also report monotonicity violations
+    fprintf(stderr, "WARNING: GASNet timer calibration detected non-linear timer behavior: "
+                    "max_err_tick=%ld max_err_wcns=%ld ticks_res=%ld ref_res=%ld lo=%ld hi=%ld. See docs for GASNET_TSC_RATE."
+                    "%s\n",
+                    (long)max_err_tick, (long)max_err_wcns, 
+                    (long)ticks_res, (long)ref_res,
+                    (long)(1e9 * lo), (long)(1e9 * hi), 
+                    (trycnt < GASNETI_TICKS_WC_MAX_RETRY?" Retrying...":""));
+    if (++trycnt <= GASNETI_TICKS_WC_MAX_RETRY) goto retry_calibration;
+
+    if (lo > hi) { // retry did not help
+      // swap hi and lo to prevent sign errors below and continue
+      double tmp = lo; lo = hi; hi = tmp;
     }
   }
 
