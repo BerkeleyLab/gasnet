@@ -12,9 +12,6 @@
 #include "gasnet_internal.h"
 #include "gasnet_core_internal.h"
 #include <gasnet_extended_internal.h>
-#if GASNETC_GNI_FIREHOSE
-#include <firehose.h>
-#endif
 #if GASNETC_GNI_UDREG
 #include <udreg_pub.h>
 #endif
@@ -123,14 +120,6 @@ typedef struct {
   gasnetc_notify_t notify;  
   gasnetc_post_descriptor_t *deferred_reply;
 } gasnetc_token_t;
-
-#if GASNETC_GNI_FIREHOSE
-extern size_t gasnetc_fh_align;
-extern size_t gasnetc_fh_align_mask;
-extern int gasnetc_use_firehose;
-#else
-#define gasnetc_use_firehose 0
-#endif
 
 /* Control messages */
 enum {
@@ -257,7 +246,6 @@ enum {
   /* mutually-exclusive resource recovery actions */
   _gc_post_unbounce,
   _gc_post_unregister,
-  _gc_post_firehose,
   /* mutually-exclusive signaling actions */
   _gc_post_completion_flag,
   _gc_post_completion_cntr,
@@ -275,7 +263,6 @@ enum {
 #define GC_POST_SEND            GC_POST(send)
 #define GC_POST_UNBOUNCE        GC_POST(unbounce)
 #define GC_POST_UNREGISTER      GC_POST(unregister)
-#define GC_POST_FIREHOSE        GC_POST(firehose)
 #define GC_POST_COMPLETION_FLAG GC_POST(completion_flag)
 #define GC_POST_COMPLETION_CNTR GC_POST(completion_cntr)
 #define GC_POST_COMPLETION_EOP  GC_POST(completion_eop)
@@ -298,9 +285,6 @@ struct gasnetc_post_descriptor {
     uint8_t immediate[GASNETC_GNI_IMMEDIATE_BOUNCE_SIZE];
     gasneti_weakatomic_t counter;
     gasnetc_notify_t notify;
-  #if GASNETC_GNI_FIREHOSE
-    firehose_request_t fh_req;
-  #endif
   #if GASNETC_GNI_UDREG
     udreg_entry_t *udreg_entry;
   #endif
@@ -369,16 +353,6 @@ void gasnetc_rdma_get_unaligned(gasnetex_rank_t node,
 int gasnetc_rdma_get_buff(gasnetex_rank_t node,
 		 void *dest_addr, void *source_addr,
 		 size_t nbytes, gasnetc_post_descriptor_t *gpd);
-
-#if GASNETC_GNI_FIREHOSE
-size_t gasnetc_rdma_put_fh(gasnetex_rank_t node,
-		 void *dest_addr, void *source_addr,
-		 size_t nbytes, gasnetc_post_descriptor_t *gpd) GASNETI_WARN_UNUSED_RESULT;
-
-size_t gasnetc_rdma_get_fh(gasnetex_rank_t node,
-		 void *dest_addr, void *source_addr,
-		 size_t nbytes, gasnetc_post_descriptor_t *gpd) GASNETI_WARN_UNUSED_RESULT;
-#endif
 
 /* Extensions: */
 #if GASNETC_GNI_FETCHOP

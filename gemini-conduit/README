@@ -77,16 +77,6 @@ Optional configure-time settings:
    The default is 255 (1 in every 256 polls by threads outside the
    first domain will poll for AM arrivals).
 
---enable-gni-firehose
-   This configure option enables EXPERIMENTAL support for the firehose
-   dynamic memory registration library for caching of dynamic memory
-   registration.  This is only caching of local registration, and NOT
-   the "full" firehose which provides cached remote registration (as
-   for GASNET_SEGMENT_EVERYTHING support).
-   NOTE: This option is largely superseded by the (ON by default) use
-   of Cray UDREG, which does not suffer from firehose's vulnerability
-   when memory is unmapped.
-
 Optional compile-time settings:
 ------------------------------
 
@@ -257,8 +247,7 @@ GASNET_GNI_BTE_MULTI_CHANNEL
 
 GASNET_PHYSMEM_MAX
   If set, this parameter is used to determine the maximum amount of memory
-  the conduit may pin.  This limits how large the GASNet segment can be, and
-  how much memory is available for firehose (if enabled, see below).
+  the conduit may pin.  This limits how large the GASNet segment can be.
   The value may specify either a relative or absolute size.  If the value
   parses as a floating-point value less than 1.0 (including fractions such
   as "5/8"), then this is taken as a fraction of the (estimated) physical
@@ -272,13 +261,6 @@ GASNET_USE_UDREG
   This gives a boolean: "0" to disable or "1" to enable the use of the
   UDREG library for caching of local memory registrations, and is
   intended primarily for debugging purposes.
-  The default is enabled.
-
-GASNET_USE_FIREHOSE
-  AVAILABLE ONLY IF CONFIGURED WITH --enable-gni-firehose.
-  This gives a boolean: "0" to disable or "1" to enable the use
-  of the firehose dynamic pinning library for local memory
-  registration, and is intended primarily for debugging purposes.
   The default is enabled.
 
 GASNET_DOMAIN_COUNT
@@ -319,15 +301,6 @@ Known problems:
 
 Future work:
 ------------
-
- * Caching of memory registrations (Firehose?)
-
-gemini-conduit uses a single fixed memory registration for the GASNet segment.
-It uses another for the AM receive buffers, and transiently uses additional
-registrations for large RDMA transfers outside the segment.  There are only a
-modest number of mapping registers available per rank, so large numbers of
-registrations are inappropriate, but small numbers could be cached rather than
-per-rdma transient.
 
  * Inline
 

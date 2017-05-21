@@ -43,14 +43,6 @@ static void gasnetc_atexit(void);
 
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
-#if GASNETC_GNI_FIREHOSE
-static int gasnetc_did_firehose_init = 0;
-static firehose_info_t gasnetc_firehose_info;
-size_t gasnetc_fh_align;
-size_t gasnetc_fh_align_mask;
-int gasnetc_use_firehose = 1;
-#endif
-
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization
@@ -775,44 +767,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
   }
 
   /* ------------------------------------------------------------------------------------ */
-  /*  gather segment information */
-
-  /* (###) add code here to gather the segment assignment info into
-           gasneti_seginfo on each node (may be possible to use AMShortRequest here)
-           If gasneti_segmentAttach() was used above, this is already done.
-     (LCS) This was done by segmentAttach above
-   */
-
-  /* ------------------------------------------------------------------------------------ */
-  /* Initialize firehose */
-#if GASNETC_GNI_FIREHOSE
-  gasnetc_use_firehose = gasneti_getenv_yesno_withdefault("GASNET_USE_FIREHOSE", 1);
-  if (gasnetc_use_firehose && gasneti_nodes > 1) {
-    /* Configure firehose with capacity to pin the out-of-segment memory twice over */
-    uintptr_t pm_limit = gasneti_getenv_memsize_withdefault(
-                           "GASNET_PHYSMEM_MAX", GASNETC_DEFAULT_PHYSMEM_MAX,
-                           0, gasneti_getPhysMemSz(1));
-    uintptr_t firehose_mem = 2 * (pm_limit - segsize);
-    size_t firehose_reg = INT_MAX; /* Will be reduced by firehose_init */
-    size_t max_pinsize = 0x200000; /* 2M default - env var can override */
-    int flags = FIREHOSE_INIT_FLAG_LOCAL_ONLY;
-
-    /* TODO: add in the prepinned buffers (IMM and AM) ? */
-    firehose_init(firehose_mem, firehose_reg, max_pinsize,
-                  NULL, 0, flags, &gasnetc_firehose_info);
-    gasneti_assert(gasnetc_firehose_info.max_LocalPinSize >= GASNETC_MAX_LONG + FH_BUCKET_SIZE);
-
-    /* Determine alignment (and max size) for fh requests - a power-of-two <= max_region/2 */
-    gasnetc_fh_align = GASNET_PAGESIZE;
-    while ((gasnetc_fh_align * 2) <= (gasnetc_firehose_info.max_LocalPinSize / 2)) {
-      gasnetc_fh_align *= 2;
-    }
-    gasnetc_fh_align_mask = gasnetc_fh_align - 1;
-    gasnetc_did_firehose_init = 1;
-  }
-#endif
-
-  /* ------------------------------------------------------------------------------------ */
   /*  primary attach complete */
   gasneti_attach_done = 1;
   gasnetc_bootstrapBarrier_gni();
@@ -878,18 +832,6 @@ extern int gasnetc_EPCreate( gasnetex_endpoint_t     *ep_p,
       GASNETI_RETURN_ERRR(RESOURCE,"Error registering extended API handlers");
     gasneti_assert(numreg == len);
   }
-
-#if GASNETC_GNI_FIREHOSE
-  { /* firehose handlers */
-    gasnetex_handlerentry_t *ftable = firehose_get_handlertable();
-    int numreg, len = 0;
-    gasneti_assert(ftable);
-    while (ftable[len].gex_fnptr) len++; /* calc len */
-    if (gasneti_amregister(gasnetc_handler, ftable, len, GASNETE_HANDLER_BASE, GASNETI_CLIENT_HANDLER_BASE, 1, &numreg) != GASNET_OK)
-      GASNETI_RETURN_ERRR(RESOURCE, "Error registering firehose handlers");
-    gasneti_assert(numreg == len);
-  }
-#endif
 
   return GASNET_OK;
 }
@@ -1050,15 +992,6 @@ extern void gasnetc_exit(int exitcode) {
 
   alarm(2 + gasnetc_shutdown_seconds);
   gasnetc_sys_fini();
-
-#if GASNETC_GNI_FIREHOSE
-  if (gasnetc_did_firehose_init && !gasnetc_exit_in_signal) {
-    /* Note we skip firehose_fini() on exit via a signal */
-    alarm(10);
-    firehose_fini();
-    alarm(0);
-  }
-#endif
 
   gasneti_flush_streams();
   gasneti_trace_finish();
@@ -1319,11 +1252,6 @@ int gasnetc_put_long_payload( gasnetex_rank_t dest,
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
     gpd->gpd_completion = (uintptr_t) completed_p;
     gpd->flags = GC_POST_COMPLETION_CNTR;
-#if GASNETC_GNI_FIREHOSE
-    if (gasnetc_use_firehose && !gasneti_in_segment(gasneti_mynode, src_addr, chunk)) {
-      chunk= gasnetc_rdma_put_fh(dest, dst_addr, src_addr, chunk, gpd);
-    } else
-#endif
     chunk = gasnetc_rdma_put_bulk(dest, dst_addr, src_addr, chunk, gpd);
     if_pt (0 == (nbytes -= chunk)) break; /* expect to finish in one pass */
 
@@ -1354,11 +1282,6 @@ int gasnetc_put_longasync_payload( gasnetex_rank_t dest,
     gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(GASNETC_DIDX_PASS_ALONE);
     gpd->gpd_completion = (uintptr_t) header_gpd;
     gpd->flags = GC_POST_COMPLETION_SEND;
-#if GASNETC_GNI_FIREHOSE
-    if (gasnetc_use_firehose && !gasneti_in_segment(gasneti_mynode, src_addr, chunk)) {
-      chunk = gasnetc_rdma_put_fh(dest, dst_addr, src_addr, chunk, gpd);
-    } else
-#endif
     chunk = gasnetc_rdma_put_bulk(dest, dst_addr, src_addr, chunk, gpd);
     if_pt (0 == (nbytes -= chunk)) break; /* expect to finish in one pass */
 
