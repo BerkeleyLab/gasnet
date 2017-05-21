@@ -421,23 +421,7 @@ gasnete_get_bulk_inner(void *dest, gasnet_node_t node, void *src, size_t nbytes,
 {
   size_t chunksz;
 
-#if GASNETC_GNI_FIREHOSE
-  /* Let registration boundaries drive the xfer for out-of-segment case */
-  if (gasnetc_use_firehose && !gasneti_in_segment(gasneti_mynode, dest, nbytes)) {
-    gasneti_assert(nbytes);
-    do {
-      gasnetc_post_descriptor_t *gpd = gasnete_cntr_gpd(initiated_p, completed_p GASNETC_DIDX_PASS);
-      chunksz = gasnetc_rdma_get_fh(node, dest, src, nbytes, gpd);
-      dest = (char *) dest + chunksz;
-      src  = (char *) src  + chunksz;
-      nbytes -= chunksz;
-    } while (nbytes);
-    return;
-  }
-  chunksz = GC_MAXRDMA_IN;
-#else
   chunksz = gasneti_in_segment(gasneti_mynode, dest, nbytes) ? GC_MAXRDMA_IN : GC_MAXRDMA_OUT;
-#endif
 
   if (nbytes > 2*chunksz) {
     /* If need more than 2 chunks, then size first one to achieve page alignment of remainder */
@@ -454,7 +438,6 @@ retry:
 
     if_pf (tmp != xfer_len) { /* MemRegister failed */
       gasneti_assert(chunksz == GC_MAXRDMA_OUT); /* out-of-seg and not looping */
-      gasneti_assert(!gasnetc_use_firehose);
       chunksz = tmp; /* Will avoid more MemRegister failures */
       goto retry;
     }
@@ -581,23 +564,7 @@ gasnete_put_bulk_inner(gasnet_node_t node, void *dest, void *src, size_t nbytes,
 {
   size_t chunksz;
 
-#if GASNETC_GNI_FIREHOSE
-  /* Let registration boundaries drive the xfer for out-of-segment case */
-  if (gasnetc_use_firehose && !gasneti_in_segment(gasneti_mynode, src, nbytes)) {
-    gasneti_assert(nbytes);
-    do {
-      gasnetc_post_descriptor_t *gpd = gasnete_cntr_gpd(initiated_p, completed_p GASNETC_DIDX_PASS);
-      chunksz = gasnetc_rdma_put_fh(node, dest, src, nbytes, gpd);
-      dest = (char *) dest + chunksz;
-      src  = (char *) src  + chunksz;
-      nbytes -= chunksz;
-    } while (nbytes);
-    return;
-  }
-  chunksz = GC_MAXRDMA_IN;
-#else
   chunksz = gasneti_in_segment(gasneti_mynode, src, nbytes) ? GC_MAXRDMA_IN : GC_MAXRDMA_OUT;
-#endif
 
   if (nbytes > 2*chunksz) {
     /* If need more than 2 chunks, then size first one to achieve page alignment of remainder */
@@ -614,7 +581,6 @@ retry:
 
     if_pf (tmp != xfer_len) { /* MemRegister failed */
       gasneti_assert(chunksz == GC_MAXRDMA_OUT); /* out-of-seg and not looping */
-      gasneti_assert(!gasnetc_use_firehose);
       chunksz = tmp; /* Will avoid more MemRegister failures */
       goto retry;
     }
