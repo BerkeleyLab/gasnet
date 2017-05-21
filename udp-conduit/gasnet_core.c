@@ -344,43 +344,20 @@ extern int gasnetc_amregister(gasnetex_handler_t index, gasnetex_handlerentry_t 
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
-extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize) {
+static int gasnetc_attach_primary(void) {
   int retval = GASNET_OK;
-  void *segbase = NULL;
-  
-  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%lu)",
-                          numentries, (unsigned long)segsize));
-  AMLOCK();
-    if (!gasneti_init_done) 
-      INITERR(NOT_INIT, "GASNet attach called before init");
-    if (gasneti_attach_done) 
-      INITERR(NOT_INIT, "GASNet already attached");
 
+  AMLOCK();
     /* pause to make sure all nodes have called attach 
        if a node calls gasnet_exit() between init/attach, then this allows us
        to process the AMUDP_SPMD control messages required for job shutdown
      */
     gasnetc_bootstrapBarrier();
 
-    /*  check argument sanity */
-    #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-      if ((segsize % GASNET_PAGESIZE) != 0) 
-        INITERR(BAD_ARG, "segsize not page-aligned");
-      if (segsize > gasneti_MaxLocalSegmentSize) 
-        INITERR(BAD_ARG, "segsize too large");
-    #else
-      segsize = 0;
-    #endif
-
     /* ------------------------------------------------------------------------------------ */
     /*   create the initial endpoint with internal handlers */
     if (gasnetc_EPCreate(NULL, NULL, 0)) // TODO-EX: NULLs are placeholders
       INITERR(RESOURCE,"Error creating initial endpoint");
-
-    /* ------------------------------------------------------------------------------------ */
-    /*  register client handlers */
-    if (table && gasneti_amregister_legacy(gasnetc_handler, table, numentries) != GASNET_OK)
-      INITERR(RESOURCE,"Error registering handlers");
 
     /* ------------------------------------------------------------------------------------ */
     /*  register fatal signal handlers */
@@ -394,14 +371,51 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
     atexit(gasnetc_atexit);
 #endif
 
+    #if GASNET_TRACE || GASNET_DEBUG
+     #if !GASNET_DEBUG
+      if (GASNETI_TRACE_ENABLED(A))
+     #endif
+        GASNETI_AM_SAFE(AMUDP_SetHandlerCallbacks(gasnetc_endpoint,
+          gasnetc_enteringHandler_hook, gasnetc_leavingHandler_hook));
+    #endif
+
+    /* ------------------------------------------------------------------------------------ */
+    /*  primary attach complete */
+    gasneti_attach_done = 1;
+    gasnetc_bootstrapBarrier();
+  AMUNLOCK();
+
+  GASNETI_TRACE_PRINTF(C,("gasnetc_attach_primary(): primary attach complete\n"));
+
+  gasnete_init(); /* init the extended API */
+
+  gasneti_nodemapFini();
+
+  /* ensure extended API is initialized across nodes */
+  AMLOCK();
+    gasnetc_bootstrapBarrier();
+  AMUNLOCK();
+
+  gasneti_assert(retval == GASNET_OK);
+  return retval;
+
+done: /*  error return while locked */
+  AMUNLOCK();
+  GASNETI_RETURN(retval);
+}
+/* ------------------------------------------------------------------------------------ */
+static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn_t exchangefn) {
+    int retval = GASNET_OK;
+
     /* ------------------------------------------------------------------------------------ */
     /*  register segment  */
 
+    void *segbase = NULL;
     gasneti_seginfo = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
     gasneti_leak(gasneti_seginfo);
 
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-      gasneti_segmentAttach(&gasnetc_presegment, segsize, gasneti_seginfo, &gasnetc_bootstrapExchange);
+      gasneti_segmentAttach(&gasnetc_presegment, segsize, gasneti_seginfo, exchangefn);
     #else /* GASNET_SEGMENT_EVERYTHING */
       { int i;
         for (i=0;i<gasneti_nodes;i++) {
@@ -410,8 +424,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
         }
       }
     #endif
-    gasneti_seginfo_ub = gasneti_seginfo_build_ub(gasneti_seginfo);
-
     segbase = gasneti_seginfo[gasneti_mynode].addr;
     segsize = gasneti_seginfo[gasneti_mynode].size;
   
@@ -432,14 +444,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
       if (retval != AM_OK) INITERR(RESOURCE, "AM_SetSeg() failed");
     }
 
-    #if GASNET_TRACE || GASNET_DEBUG
-     #if !GASNET_DEBUG
-      if (GASNETI_TRACE_ENABLED(A))
-     #endif
-        GASNETI_AM_SAFE(AMUDP_SetHandlerCallbacks(gasnetc_endpoint,
-          gasnetc_enteringHandler_hook, gasnetc_leavingHandler_hook));
-    #endif
-
     /* ------------------------------------------------------------------------------------ */
     /*  gather segment information */
 
@@ -449,25 +453,54 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
        Done in gasneti_segmentAttach(), above.
      */
 
-    /* ------------------------------------------------------------------------------------ */
-    /*  primary attach complete */
-    gasneti_attach_done = 1;
-    gasnetc_bootstrapBarrier();
-  AMUNLOCK();
+    gasneti_seginfo_ub = gasneti_seginfo_build_ub(gasneti_seginfo);
 
-  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(): primary attach complete\n"));
+    gasneti_assert(gasneti_seginfo[gasneti_mynode].addr == segbase &&
+                   gasneti_seginfo[gasneti_mynode].size == segsize);
 
-  gasnete_init(); /* init the extended API */
+done:
+    GASNETI_RETURN(retval);
+}
+/* ------------------------------------------------------------------------------------ */
+extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize, uintptr_t minheapoffset) {
+  int retval = GASNET_OK;
 
-  gasneti_nodemapFini();
+  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%lu, minheapoffset=%lu)",
+                          numentries, (unsigned long)segsize, (unsigned long)minheapoffset));
 
-  /* ensure extended API is initialized across nodes */
+  if (!gasneti_init_done) 
+    GASNETI_RETURN_ERRR(NOT_INIT, "GASNet attach called before init");
+  if (gasneti_attach_done) 
+    GASNETI_RETURN_ERRR(NOT_INIT, "GASNet already attached");
+
+  /*  check argument sanity */
+  #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
+    if ((segsize % GASNET_PAGESIZE) != 0) 
+      GASNETI_RETURN_ERRR(BAD_ARG, "segsize not page-aligned");
+    if (segsize > gasneti_MaxLocalSegmentSize) 
+      GASNETI_RETURN_ERRR(BAD_ARG, "segsize too large");
+  #else
+    segsize = 0;
+  #endif
+
+  /*  primary attach  */
+  if (GASNET_OK != gasnetc_attach_primary())
+    GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
+
+  /*  register client segment  */
+  if (GASNET_OK != gasnetc_attach_segment(segsize, gasneti_defaultExchange))
+    GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
+
   AMLOCK();
-  gasnetc_bootstrapBarrier();
+    /*  register client handlers */
+    if (table && gasneti_amregister_legacy(gasnetc_handler, table, numentries) != GASNET_OK)
+      INITERR(RESOURCE,"Error registering handlers");
   AMUNLOCK();
 
-  gasneti_assert(retval == GASNET_OK);
-  return retval;
+  /* ensure everything is initialized across all nodes */
+  gasnet_barrier(0, GASNET_BARRIERFLAG_UNNAMED);
+
+  return GASNET_OK;
 
 done: /*  error return while locked */
   AMUNLOCK();

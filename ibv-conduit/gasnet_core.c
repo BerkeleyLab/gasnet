@@ -122,11 +122,12 @@ int                      gasnetc_num_ports = 0;
   int			gasnetc_max_regs;
   uintptr_t		gasnetc_seg_start;
   uintptr_t		gasnetc_seg_len;
-  uint64_t 		gasnetc_pin_maxsz;
+  static uintptr_t      gasnetc_seg_maxsz;
   uint64_t 		gasnetc_pin_maxsz_mask;
   unsigned int		gasnetc_pin_maxsz_shift;
   static int            gasnetc_seg_regs = 0;
 #endif
+uint64_t 		gasnetc_pin_maxsz;
 firehose_info_t	gasnetc_firehose_info;
 static uintptr_t gasnetc_firehose_mem;
 static int       gasnetc_firehose_reg;
@@ -1728,11 +1729,28 @@ static int gasnetc_init(int *argc, char ***argv) {
                                   &gasnetc_bootstrapBarrier_ib);
   #endif
 
+  /* Determine largest allowable single memory registration */
+  if (!gasnetc_pin_maxsz) {
+    /* Default to largest registration supported by the HCA(s) */
+    gasnetc_pin_maxsz = ~(uint64_t)0;
+    GASNETC_FOR_ALL_HCA(hca) {
+      gasnetc_pin_maxsz = MIN(gasnetc_pin_maxsz, hca->hca_cap.max_mr_size);
+    }
+  } else if (gasnetc_pin_maxsz > gasnetc_max_msg_sz) {
+    char oldval[16], newval[16];
+    gasneti_format_number(gasnetc_pin_maxsz, oldval, sizeof(oldval), 1);
+    gasneti_format_number(gasnetc_max_msg_sz, newval, sizeof(newval), 1);
+    fprintf(stderr,
+            "WARNING: Requested GASNET_PIN_MAXSZ %s reduced to HCA's max_msg_sz of %s\n",
+            oldval, newval);
+    gasnetc_pin_maxsz = gasnetc_max_msg_sz;
+  }
+
 
   /* allocate and attach an aux segment */
 
   gasnet_seginfo_t gasnetc_auxsegment = {0,0};
-  uintptr_t auxsize = gasneti_auxsegAttach(&gasnetc_auxsegment, mmap_limit, &gasnetc_bootstrapExchange_ib);
+  uintptr_t auxsize = gasneti_auxsegAttach(&gasnetc_auxsegment, MIN(mmap_limit,gasnetc_pin_maxsz), &gasnetc_bootstrapExchange_ib);
   mmap_limit -= auxsize;
 
   /* The auxseg will be statically pinned even if the segment is not */
@@ -1772,6 +1790,22 @@ static int gasnetc_init(int *argc, char ***argv) {
     gasneti_init_done = 1;  
   #endif
   gasnetc_bootstrapBarrier_ib();
+
+#if GASNETC_PIN_SEGMENT
+  // TODO-EX: this is a temporary measure to provide (upper bound) values of 
+  //          gasnetc_seg_maxsz and gasnetc_max_regs for use by firehose_init().
+  gasnetc_seg_maxsz = gasneti_MaxLocalSegmentSize;
+  if (gasnetc_pin_maxsz >= gasnetc_seg_maxsz) {
+    gasnetc_max_regs = 1;
+  } else {
+    size_t size = MIN(gasnetc_pin_maxsz, gasnetc_max_msg_sz);
+    int shift;
+    gasneti_assert(size != 0);
+    size >>= 1;
+    for (shift=0; size != 0; ++shift) { size >>= 1; }
+    gasnetc_max_regs = (gasnetc_seg_maxsz + gasnetc_pin_maxsz - 1) >> shift;
+  }
+#endif
 
   return GASNET_OK;
 }
@@ -1821,40 +1855,11 @@ gasnetc_prereg_list(int *count_p) {
 }
 
 /* ------------------------------------------------------------------------------------ */
-extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize) {
-  gasnetc_hca_t *hca;
-  void *segbase = NULL;
-  size_t maxsize = 0;
-  int numreg = 0;
-  gasnetex_rank_t i;
-  
-  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%lu)",
-                          numentries, (unsigned long)segsize));
-
-  if (!gasneti_init_done) 
-    GASNETI_RETURN_ERRR(NOT_INIT, "GASNet attach called before init");
-  if (gasneti_attach_done) 
-    GASNETI_RETURN_ERRR(NOT_INIT, "GASNet already attached");
-
-  /*  check argument sanity */
-  #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-    if ((segsize % GASNET_PAGESIZE) != 0) 
-      GASNETI_RETURN_ERRR(BAD_ARG, "segsize not page-aligned");
-    if (segsize > gasneti_MaxLocalSegmentSize) 
-      GASNETI_RETURN_ERRR(BAD_ARG, "segsize too large");
-  #elif GASNET_SEGMENT_EVERYTHING
-    segsize = 0;
-  #endif
-
+static int gasnetc_attach_primary(void) {
   /* ------------------------------------------------------------------------------------ */
   /*  create the initial endpoint with internal handlers */
   if (gasnetc_EPCreate(NULL, NULL, 0)) // TODO-EX: NULLs are placeholders
     GASNETI_RETURN_ERRR(RESOURCE,"Error creating initial endpoint");
-
-  /* ------------------------------------------------------------------------------------ */
-  /*  register client handlers */
-  if (table && gasneti_amregister_legacy(gasnetc_handler, table, numentries) != GASNET_OK)
-    GASNETI_RETURN_ERRR(RESOURCE,"Error registering handlers");
 
   /* ------------------------------------------------------------------------------------ */
   /*  register fatal signal handlers */
@@ -1867,8 +1872,102 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
    */
 
   /* ------------------------------------------------------------------------------------ */
+  /* Initialize firehose */
+  if (GASNETC_USE_FIREHOSE && (gasneti_nodes > 1)) {
+    int reg_count;
+    firehose_region_t *prereg = gasnetc_prereg_list(&reg_count);
+    size_t maxsz;
+
+    gasnetc_firehose_mem = gasnetc_pin_info.memory;
+    gasnetc_firehose_reg = gasnetc_pin_info.regions;
+
+    /* Adjust for prepinned regions (they were pinned before init_pin_info probe) */
+    for (int i = 0; i < reg_count; ++i) {
+      gasnetc_firehose_mem += prereg[i].len;
+    }
+
+    /* Now initialize firehose */
+    {
+      gasnetc_firehose_flags = 0;
+
+      #if GASNETC_PIN_SEGMENT
+        /* Adjust for the pinned segment (which is not advertised to firehose as prepinned) */
+        // TODO-EX: Need a replacement for use of gasnetc_seg_maxsz and gasnetc_max_regs
+        //          which lack accurate values until the client segment has been registered.
+        // TODO: shouldn't we use *local* values rather than max ones?
+        gasneti_assert_always(gasnetc_firehose_mem > gasnetc_seg_maxsz);
+        gasnetc_firehose_mem -= gasnetc_seg_maxsz;
+        gasneti_assert_always(gasnetc_firehose_reg > gasnetc_max_regs);
+        gasnetc_firehose_reg -= gasnetc_max_regs;
+
+        gasnetc_firehose_flags |= FIREHOSE_INIT_FLAG_LOCAL_ONLY;
+      #endif
+      #if PLATFORM_OS_DARWIN
+        gasnetc_firehose_flags |= FIREHOSE_INIT_FLAG_UNPIN_ON_FINI;
+      #endif
+      #if GASNETC_IBV_SHUTDOWN
+        gasnetc_firehose_flags |= FIREHOSE_INIT_FLAG_UNPIN_ON_FINI
+                               |  FIREHOSE_INIT_FLAG_MAY_REINIT;
+      #endif
+
+
+      firehose_init(gasnetc_firehose_mem, gasnetc_firehose_reg, gasnetc_fh_maxsize,
+                    prereg, reg_count, gasnetc_firehose_flags, &gasnetc_firehose_info);
+      gasnetc_did_firehose_init = 1;
+    }
+
+    /* Determine alignment (and max size) for fh requests - a power-of-two <= max_region/2 */
+    maxsz = MIN(gasnetc_max_msg_sz, gasnetc_firehose_info.max_LocalPinSize);
+    #if !GASNETC_PIN_SEGMENT
+      maxsz = MIN(maxsz, gasnetc_firehose_info.max_RemotePinSize);
+    #endif
+    gasneti_assert_always(maxsz >= (GASNET_PAGESIZE + gasnetc_inline_limit));
+    gasnetc_fh_align = GASNET_PAGESIZE;
+    while ((gasnetc_fh_align * 2) <= (maxsz / 2)) {
+      gasnetc_fh_align *= 2;
+    }
+    gasnetc_fh_align_mask = gasnetc_fh_align - 1;
+  }
+
+  /* ------------------------------------------------------------------------------------ */
+  /*  primary attach complete */
+  gasneti_attach_done = 1;
+  gasnetc_bootstrapBarrier_ib();
+
+  GASNETI_TRACE_PRINTF(C,("gasnetc_attach_primary(): primary attach complete"));
+
+  gasnete_init(); /* init the extended API */
+
+  gasneti_nodemapFini();
+
+  /* ensure extended API is initialized across nodes */
+  gasnetc_bootstrapBarrier_ib();
+
+#if GASNETC_USE_RCV_THREAD
+  /* Start AM receive thread, if applicable */
+  gasnetc_sndrcv_start_thread();
+#endif
+
+  // tear down conduit-specific bootstrap collectives (not used after attach)
+  gasnetc_sys_coll_fini();
+#if GASNET_DEBUG
+  /* Ensure fini-init-fini works (required for checkpoint/restart) */
+  gasnetc_sys_coll_init();
+  gasneti_spawner->Barrier();
+  gasnetc_bootstrapBarrier_ib();
+  gasnetc_sys_coll_fini();
+#endif
+
+  return GASNET_OK;
+}
+/* ------------------------------------------------------------------------------------ */
+static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn_t exchangefn) {
+  /* ------------------------------------------------------------------------------------ */
   /*  register segment  */
 
+  gasnetc_hca_t *hca;
+  gasnetex_rank_t i;
+  void *segbase = NULL;
   gasneti_seginfo = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
   gasneti_leak(gasneti_seginfo);
 
@@ -1890,7 +1989,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
   #elif GASNETC_PIN_SEGMENT
   {
     /* allocate the segment and exchange seginfo */
-    gasneti_segmentAttach(&gasnetc_presegment, segsize, gasneti_seginfo, &gasnetc_bootstrapExchange_ib);
+    gasneti_segmentAttach(&gasnetc_presegment, segsize, gasneti_seginfo, exchangefn);
     segbase = gasneti_seginfo[gasneti_mynode].addr;
     segsize = gasneti_seginfo[gasneti_mynode].size;
 
@@ -1905,31 +2004,17 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
     gasnetc_seg_len   = segsize;
 
     /* Find largest the segment requested */
+    gasnetc_seg_maxsz = 0;
     for (i=0; i<gasneti_nodes; ++i) {
-      maxsize = MAX(maxsize, gasneti_seginfo[i].size);
+      gasnetc_seg_maxsz = MAX(gasnetc_seg_maxsz, gasneti_seginfo[i].size);
     }
 
-    /* Setup gasnetc_pin_maxsz{,_shift,_mask} and gasnetc_max_regs.
+    /* Setup gasnetc_pin_maxsz{_shift,_mask} and gasnetc_max_regs.
      * If possible, a single registration will be used and these variables will
      * enforce the max message size instead of max region length.
      * Otherwise they enforce gasnetc_pin_maxsz (rounded down to a power of two).
      */
-    if (!gasnetc_pin_maxsz) {
-      /* Default to largest registration supported by the HCA(a) */
-      gasnetc_pin_maxsz = ~(uint64_t)0;
-      GASNETC_FOR_ALL_HCA(hca) {
-        gasnetc_pin_maxsz = MIN(gasnetc_pin_maxsz, hca->hca_cap.max_mr_size);
-      }
-    } else if (gasnetc_pin_maxsz > gasnetc_max_msg_sz) {
-      char oldval[16], newval[16];
-      gasneti_format_number(gasnetc_pin_maxsz, oldval, sizeof(oldval), 1);
-      gasneti_format_number(gasnetc_max_msg_sz, newval, sizeof(newval), 1);
-      fprintf(stderr,
-              "WARNING: Requested GASNET_PIN_MAXSZ %s reduced to HCA's max_msg_sz of %s\n",
-              oldval, newval);
-      gasnetc_pin_maxsz = gasnetc_max_msg_sz;
-    }
-    if (gasnetc_pin_maxsz >= maxsize) {
+    if (gasnetc_pin_maxsz >= gasnetc_seg_maxsz) {
       /* Single registration */
       gasnetc_pin_maxsz_shift = (8 * SIZEOF_VOID_P) - 1;
       gasnetc_pin_maxsz_mask = 0;
@@ -1944,10 +2029,10 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
       for (gasnetc_pin_maxsz_shift=0; size != 0; ++gasnetc_pin_maxsz_shift) { size >>= 1; }
       gasnetc_pin_maxsz = ((uint64_t)1) << gasnetc_pin_maxsz_shift;
       gasnetc_pin_maxsz_mask = (gasnetc_pin_maxsz - 1);
-      gasnetc_max_regs = (maxsize + gasnetc_pin_maxsz - 1) >> gasnetc_pin_maxsz_shift;
+      gasnetc_max_regs = (gasnetc_seg_maxsz + gasnetc_pin_maxsz - 1) >> gasnetc_pin_maxsz_shift;
       gasnetc_seg_regs = (segsize + gasnetc_pin_maxsz - 1) >> gasnetc_pin_maxsz_shift;
     }
-    { uint64_t value = gasnetc_pin_maxsz_mask ? gasnetc_pin_maxsz : maxsize;
+    { uint64_t value = gasnetc_pin_maxsz_mask ? gasnetc_pin_maxsz : gasnetc_seg_maxsz;
       char valstr[16];
       gasneti_format_number(value, valstr, sizeof(valstr), 1);
       GASNETI_TRACE_PRINTF(I, ("Final/effective GASNET_PIN_MAXSZ = %s", valstr));
@@ -1998,7 +2083,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
          * + When using PSHM we could store rkeys just once per supernode
          * + When not fully connected, we could utilize sparse storage
          */
-        gasnetc_bootstrapExchange_ib(my_rkeys, gasnetc_max_regs*sizeof(uint32_t), hca->rkeys);
+        (*exchangefn)(my_rkeys, gasnetc_max_regs*sizeof(uint32_t), hca->rkeys);
       }
       gasneti_free(my_rkeys);
     }
@@ -2006,12 +2091,11 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
   #else	/* just allocate the segment but don't pin it */
   {
     /* allocate the segment and exchange seginfo */
-    gasneti_segmentAttach(&gasnetc_presegment, segsize, gasneti_seginfo, gasnetc_bootstrapExchange_ib);
+    gasneti_segmentAttach(&gasnetc_presegment, segsize, gasneti_seginfo, exchangefn);
     segbase = gasneti_seginfo[gasneti_mynode].addr;
     segsize = gasneti_seginfo[gasneti_mynode].size;
   }
   #endif
-  gasneti_seginfo_ub = gasneti_seginfo_build_ub(gasneti_seginfo);
 
   /* Per-endpoint work */
   for (i = 0; i < gasneti_nodes; i++) {
@@ -2019,60 +2103,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
     if (cep) {
       gasnetc_sndrcv_attach_peer(i, cep);
     }
-  }
-
-  /* Initialize firehose */
-  if (GASNETC_USE_FIREHOSE && (gasneti_nodes > 1)) {
-    int reg_count;
-    firehose_region_t *prereg = gasnetc_prereg_list(&reg_count);
-    size_t maxsz;
-
-    gasnetc_firehose_mem = gasnetc_pin_info.memory;
-    gasnetc_firehose_reg = gasnetc_pin_info.regions;
-
-    /* Adjust for prepinned regions (they were pinned before init_pin_info probe) */
-    for (i = 0; i < reg_count; ++i) {
-      gasnetc_firehose_mem += prereg[i].len;
-    }
-
-    /* Now initialize firehose */
-    {
-      gasnetc_firehose_flags = 0;
-
-      #if GASNETC_PIN_SEGMENT
-        /* Adjust for the pinned segment (which is not advertised to firehose as prepinned) */
-        gasneti_assert_always(gasnetc_firehose_mem > maxsize);
-        gasnetc_firehose_mem -= maxsize;
-        gasneti_assert_always(gasnetc_firehose_reg > gasnetc_max_regs);
-        gasnetc_firehose_reg -= gasnetc_max_regs;
-
-        gasnetc_firehose_flags |= FIREHOSE_INIT_FLAG_LOCAL_ONLY;
-      #endif
-      #if PLATFORM_OS_DARWIN
-        gasnetc_firehose_flags |= FIREHOSE_INIT_FLAG_UNPIN_ON_FINI;
-      #endif
-      #if GASNETC_IBV_SHUTDOWN
-        gasnetc_firehose_flags |= FIREHOSE_INIT_FLAG_UNPIN_ON_FINI
-                               |  FIREHOSE_INIT_FLAG_MAY_REINIT;
-      #endif
-
-
-      firehose_init(gasnetc_firehose_mem, gasnetc_firehose_reg, gasnetc_fh_maxsize,
-                    prereg, reg_count, gasnetc_firehose_flags, &gasnetc_firehose_info);
-      gasnetc_did_firehose_init = 1;
-    }
-
-    /* Determine alignment (and max size) for fh requests - a power-of-two <= max_region/2 */
-    maxsz = MIN(gasnetc_max_msg_sz, gasnetc_firehose_info.max_LocalPinSize);
-    #if !GASNETC_PIN_SEGMENT
-      maxsz = MIN(maxsz, gasnetc_firehose_info.max_RemotePinSize);
-    #endif
-    gasneti_assert_always(maxsz >= (GASNET_PAGESIZE + gasnetc_inline_limit));
-    gasnetc_fh_align = GASNET_PAGESIZE;
-    while ((gasnetc_fh_align * 2) <= (maxsz / 2)) {
-      gasnetc_fh_align *= 2;
-    }
-    gasnetc_fh_align_mask = gasnetc_fh_align - 1;
   }
 
   /* ------------------------------------------------------------------------------------ */
@@ -2084,36 +2114,47 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
      Done in gasneti_segmentAttach(), above.
    */
 
-  /* ------------------------------------------------------------------------------------ */
-  /*  primary attach complete */
-  gasneti_attach_done = 1;
-  gasnetc_bootstrapBarrier_ib();
-
-  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(): primary attach complete"));
+  gasneti_seginfo_ub = gasneti_seginfo_build_ub(gasneti_seginfo);
 
   gasneti_assert(gasneti_seginfo[gasneti_mynode].addr == segbase &&
-         gasneti_seginfo[gasneti_mynode].size == segsize);
+                 gasneti_seginfo[gasneti_mynode].size == segsize);
 
-  gasnete_init(); /* init the extended API */
+  return GASNET_OK;
+}
+/* ------------------------------------------------------------------------------------ */
+extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize, uintptr_t minheapoffset) {
+  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%lu, minheapoffset=%lu)",
+                          numentries, (unsigned long)segsize, (unsigned long)minheapoffset));
 
-  gasneti_nodemapFini();
+  if (!gasneti_init_done) 
+    GASNETI_RETURN_ERRR(NOT_INIT, "GASNet attach called before init");
+  if (gasneti_attach_done) 
+    GASNETI_RETURN_ERRR(NOT_INIT, "GASNet already attached");
 
-#if GASNETC_USE_RCV_THREAD
-  /* Start AM receive thread, if applicable */
-  gasnetc_sndrcv_start_thread();
-#endif
+  /*  check argument sanity */
+  #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
+    if ((segsize % GASNET_PAGESIZE) != 0) 
+      GASNETI_RETURN_ERRR(BAD_ARG, "segsize not page-aligned");
+    if (segsize > gasneti_MaxLocalSegmentSize) 
+      GASNETI_RETURN_ERRR(BAD_ARG, "segsize too large");
+  #else
+    segsize = 0;
+  #endif
 
-  /* ensure extended API is initialized across nodes */
-  gasnetc_bootstrapBarrier_ib();
-  gasnetc_sys_coll_fini();
+  /*  primary attach  */
+  if (GASNET_OK != gasnetc_attach_primary())
+    GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
 
-#if GASNET_DEBUG
-  /* Ensure fini-init-fini works (required for checkpoint/restart) */
-  gasnetc_sys_coll_init();
-  gasneti_spawner->Barrier();
-  gasnetc_bootstrapBarrier_ib();
-  gasnetc_sys_coll_fini();
-#endif
+  /*  register client segment  */
+  if (GASNET_OK != gasnetc_attach_segment(segsize, gasneti_defaultExchange))
+    GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
+
+  /*  register client handlers */
+  if (table && gasneti_amregister_legacy(gasnetc_handler, table, numentries) != GASNET_OK)
+    GASNETI_RETURN_ERRR(RESOURCE,"Error registering handlers");
+
+  /* ensure everything is initialized across all nodes */
+  gasnet_barrier(0, GASNET_BARRIERFLAG_UNNAMED);
 
   return GASNET_OK;
 }

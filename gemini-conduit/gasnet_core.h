@@ -22,8 +22,9 @@
    it to ensure proper version linkage */
 extern int gasnet_init(int *argc, char ***argv);
 
-extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize);
-#define gasnet_attach(_t,_n,_s,_m) gasnetc_attach(_t,_n,_s)
+extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
+                          uintptr_t segsize, uintptr_t minheapoffset);
+#define gasnet_attach gasnetc_attach
 
 extern void gasnetc_exit(int exitcode) GASNETI_NORETURN;
 GASNETI_NORETURNP(gasnetc_exit)

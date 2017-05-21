@@ -803,7 +803,12 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
   {
     gni_mem_handle_t *all_mem_handle = gasneti_malloc(2 * gasneti_nodes * sizeof(gni_mem_handle_t));
     gasnetex_rank_t i;
+  #if 0// Cannot use gni-specific bootstrap collectives this late
     gasnetc_bootstrapExchange_gni(my_mem_handles, 2 * sizeof(gni_mem_handle_t), all_mem_handle);
+  #else
+    // TODO-EX: but we want real collectives here eventually anyway
+    gasneti_defaultExchange(my_mem_handles, 2 * sizeof(gni_mem_handle_t), all_mem_handle);
+  #endif
     for (i = 0; i < gasneti_nodes; ++i) {
       peer_data[i].mem_handle = all_mem_handle[2*i];
       peer_data[i].aux_handle = all_mem_handle[2*i+1];
