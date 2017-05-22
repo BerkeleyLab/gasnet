@@ -224,8 +224,8 @@ static void *gasneti_mmap_internal(void *segbase, uintptr_t segsize) {
   }
   return ptr;
 }
-extern void gasneti_mmap_fixed(void *segbase, uintptr_t segsize) {
-  gasneti_mmap_internal(segbase, segsize);
+extern void *gasneti_mmap_fixed(void *segbase, uintptr_t segsize) {
+  return gasneti_mmap_internal(segbase, segsize);
 }
 extern void *gasneti_mmap(uintptr_t segsize) {
   return gasneti_mmap_internal(NULL, segsize);

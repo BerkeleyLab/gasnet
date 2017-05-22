@@ -280,7 +280,7 @@ void gasneti_defaultSignalHandler(int sig);
   #define GASNETI_MMAP_OR_PSHM 1
   extern gasnet_seginfo_t gasneti_mmap_segment_search(uintptr_t maxsz);
  #if defined(HAVE_MMAP)
-  extern void gasneti_mmap_fixed(void *segbase, uintptr_t segsize);
+  extern void *gasneti_mmap_fixed(void *segbase, uintptr_t segsize);
   extern void *gasneti_mmap(uintptr_t segsize);
   extern void gasneti_munmap(void *segbase, uintptr_t segsize);
  #endif
