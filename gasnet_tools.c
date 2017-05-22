@@ -2946,10 +2946,11 @@ retry_calibration:;
     }
   }
 
-  // Find mid-point beteen the two bounds, and its associated relative error
+  // Find mid-point between the two bounds, and its associated relative error
+  gasneti_assert(lo <= hi);
   double mid = (hi + lo) / 2.;
-  double half_width = (hi - lo) / 2.;
-  double err = half_width / (mid + half_width);
+  double half_width = mid - lo;
+  double err = half_width / hi;
   if (err_p) *err_p = err;
 
   #if GASNET_DEBUG_VERBOSE
