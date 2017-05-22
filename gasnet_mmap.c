@@ -1627,26 +1627,35 @@ void gasneti_segmentAttachLocal(gasnet_seginfo_t *segment_p, uintptr_t segsize,
 
 #if GASNET_PSHM
 /* Map the remote shared segments */
+// TODO-EX: need scalable data structure in place of gasneti_nodeinfo
 static // TODO-EX: static for now, at least
 void gasneti_segmentAttachRemote(gasnet_seginfo_t *segment_p, gasnet_seginfo_t *seginfo)
 {
     gasneti_nodeinfo[gasneti_mynode].offset = 0;
+    gasneti_pshm_rank_t local_rank = 0;
+
     gasneti_export_segment(seginfo[gasneti_mynode]);
-    for (int i = 0; i < gasneti_pshm_nodes; i++){
-        if (i != gasneti_pshm_mynode) {
-            const gasnetex_rank_t node = gasneti_nodemap_local[i];
+
+    // Note that we try to avoid iteration over all nodes.
+    // For the case of supernode peers with contiguous ranks we examine no extra nodes
+    for (gasnetex_rank_t node = gasneti_pshm_firstnode; local_rank < gasneti_pshm_nodes; node++) {
+        if (! gasneti_pshm_in_supernode(node)) continue;
+        gasneti_assert(local_rank == gasneti_pshm_local_rank(node));
+        if (node != gasneti_mynode) {
+
             const uintptr_t size = seginfo[node].size;
-            void *segbase = gasneti_mmap_remote_shared(NULL, size, i);
+            void *segbase = gasneti_mmap_remote_shared(NULL, size, local_rank);
 
             gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
             gasneti_assert(size % GASNET_PAGESIZE == 0);
 
-            // TODO-EX: single global gasneti_nodeinfo is a problem to overcome
+            // TODO-EX: single global gasneti_nodeinfo is a problem (eg for aux vs client)
             gasneti_nodeinfo[node].offset = (uintptr_t)segbase - (uintptr_t)seginfo[node].addr;
 
             GASNETI_TRACE_PRINTF(C, ("Remote segment %d: segbase="GASNETI_LADDRFMT"  segsize=%lu",
                                      (int)node, GASNETI_LADDRSTR(segbase), (unsigned long)size));
         }
+        ++local_rank;
     }
 
     /* Barrier #1 ensures all attaches complete before unlinking */
