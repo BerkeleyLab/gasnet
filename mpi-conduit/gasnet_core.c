@@ -1130,6 +1130,10 @@ extern int  gasnetc_hsl_trylock(gasnetex_hsl_t *hsl) {
   ================
 */
 static gasnetex_handlerentry_t const gasnetc_handlers[] = {
+  #ifdef GASNETC_COMMON_HANDLERS
+    GASNETC_COMMON_HANDLERS(),
+  #endif
+
   /* ptr-width independent handlers */
 
   /* ptr-width dependent handlers */

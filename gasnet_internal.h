@@ -740,6 +740,16 @@ extern void gasneti_nodemapFini(void);
 #endif
 
 /* ------------------------------------------------------------------------------------ */
+// An AM-based gasneti_bootstrapExchangefn_t
+// TODO-EX: any/all uses should hopefully use real collectives eventually
+
+void gasneti_defaultExchange(void *src, size_t len, void *dest);
+extern void gasnetc_exchg_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
+                               gasnetex_handlerarg_t arg0, gasnetex_handlerarg_t len);
+#define GASNETC_COMMON_HANDLERS() \
+    gasneti_handler_tableentry_no_bits(gasnetc_exchg_reqh,2,0)
+
+/* ------------------------------------------------------------------------------------ */
 
 #include <gasnet_handler.h>
 

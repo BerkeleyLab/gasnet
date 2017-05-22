@@ -2000,6 +2000,95 @@ void ** gasneti_seginfo_build_ub(gasnet_seginfo_t *seginfo) {
 }
 
 /* ------------------------------------------------------------------------------------ */
+// AM-based gasneti_bootstrapExchangefn_t
+
+static gasneti_weakatomic32_t gasneti_exchg_rcvd[2][32] = {}; // Implicitly zero-initialized
+
+static uint8_t *_gasneti_exchg_data[2] = {NULL,NULL};
+static uint8_t *gasneti_exchg_data(int phase, size_t elemsz) {
+  uint8_t *data = _gasneti_exchg_data[phase];
+  if_pf (! data) {
+    static gasneti_mutex_t lock = GASNETI_MUTEX_INITIALIZER;
+    gasneti_mutex_lock(&lock);
+    data = _gasneti_exchg_data[phase];
+    if (! data) {
+      data = gasneti_malloc(elemsz * gasneti_nodes);
+      _gasneti_exchg_data[phase] = data;
+    }
+    gasneti_mutex_unlock(&lock);
+  }
+  return data;
+}
+
+extern void gasnetc_exchg_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
+                               gasnetex_handlerarg_t arg0, gasnetex_handlerarg_t elemsz) {
+    const int phase = arg0 & 1;
+    const int step = (arg0 >> 1) & 0x1f; // Max 2^5 steps            => 2^32 nodes
+    const int seq  = (arg0 >> 6);        // Max 2^26 fragments * 512 => 32GB (and max sent is elemsz*nodes/2)
+    const int distance = (1 << step);
+    gasneti_assert(distance < gasneti_nodes);
+    uint8_t *data = gasneti_exchg_data(phase, elemsz);
+    uint8_t *dest = data + (elemsz * distance) + (seq * gasnetex_lub_AMRequestMedium());
+    gasneti_assert(dest + nbytes <= data + elemsz * gasneti_nodes);
+    memcpy(dest, buf, nbytes);
+    gasneti_weakatomic32_increment(&gasneti_exchg_rcvd[phase][step], GASNETI_ATOMIC_REL);
+}
+
+extern void gasneti_defaultExchange(void *src, size_t elemsz, void *dst) {
+  static int phase = 0;
+  gasneti_sync_reads();
+
+  uint8_t *data = gasneti_exchg_data(phase, elemsz);
+
+  /* copy in local contribution */
+  memcpy(data, src, elemsz);
+
+  /* Bruck's concatenation algorithm: */
+  unsigned int step, distance;
+  for (step = 0, distance = 1; distance < gasneti_nodes; ++step, distance *= 2) {
+    gasnetex_rank_t peer = (distance <= gasneti_mynode) ? gasneti_mynode - distance
+                                                        : gasneti_mynode + (gasneti_nodes - distance);
+    size_t nbytes = elemsz * MIN(distance, gasneti_nodes - distance);
+    size_t offset = 0;
+    uint32_t seq = 0;
+
+    /* Send payload using AMMedium(s) */
+    do {
+      const size_t to_xfer = MIN(nbytes, gasnetex_lub_AMRequestMedium());
+      gasnetex_AMRequestMedium(NULL, peer, _hidx_gasnetc_exchg_reqh,
+                               data + offset, to_xfer, GASNETEX_EVENT_NOW, 0,
+                               phase | (step << 1) | (seq << 6), (uint32_t)elemsz);
+      ++seq;
+      offset += to_xfer;
+      nbytes -= to_xfer;
+    } while (nbytes);
+
+    /* Poll until we have received the same number of messages as we sent */
+    GASNET_BLOCKUNTIL((int)gasneti_weakatomic32_read(&gasneti_exchg_rcvd[phase][step], 0) >= (int)seq);
+    gasneti_assert((int)gasneti_weakatomic32_read(&gasneti_exchg_rcvd[phase][step], 0) == (int)seq);
+    gasneti_weakatomic32_set(&gasneti_exchg_rcvd[phase][step], 0, 0);
+  }
+
+#if GASNET_PSHM
+  // Cannot use AMPSHM and pshm bootstrap collectives in same pshmnet barrier phase
+  gasneti_pshmnet_bootstrapBarrier();
+#endif
+
+  /* Copy to final destination while performing the rotation */
+  const size_t a = elemsz * (gasneti_nodes - gasneti_mynode);
+  const size_t b = elemsz * gasneti_mynode;
+  memcpy(dst, data + a, b);
+  memcpy((uint8_t*)dst + b, data, a);
+  gasneti_assert(! memcmp((uint8_t*)dst + gasneti_mynode*elemsz, src, elemsz));
+
+  gasneti_free(data);
+  _gasneti_exchg_data[phase] = NULL;
+
+  gasneti_sync_writes();
+  phase ^= 1;
+}
+
+/* ------------------------------------------------------------------------------------ */
 #if defined(GASNETI_PSHM_GHEAP)
   /* Access to unwrapped malloc/free */
   #undef malloc

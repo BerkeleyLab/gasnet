@@ -88,7 +88,7 @@ extern gasneti_atomic_t gasnetc_exit_running;
  * These are registered early and are available even before _attach()
  */
 #define _hidx_gasnetc_ack                     0 /* Special case */
-// Unused - was _hidx_gasnetc_auxseg_reqh     (GASNETC_HANDLER_BASE+0)
+#define _hidx_gasnetc_exchg_reqh              (GASNETC_HANDLER_BASE+0)
 #define _hidx_gasnetc_amrdma_grant_reqh       (GASNETC_HANDLER_BASE+1)
 #define _hidx_gasnetc_exit_reduce_reqh        (GASNETC_HANDLER_BASE+2)
 #define _hidx_gasnetc_exit_role_reqh          (GASNETC_HANDLER_BASE+3)
