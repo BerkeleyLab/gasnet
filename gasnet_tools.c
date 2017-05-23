@@ -2931,11 +2931,11 @@ retry_calibration:;
   if (lo > hi || 
       max_err_tick > 0 || max_err_wcns > 0) {  // also report monotonicity violations
     fprintf(stderr, "WARNING: GASNet timer calibration detected non-linear timer behavior: "
-                    "max_err_tick=%ld max_err_wcns=%ld ticks_res=%ld ref_res=%ld lo=%ld hi=%ld. See docs for GASNET_TSC_RATE."
+                    "max_err_tick=%"PRIu64" max_err_wcns=%"PRIu64" ticks_res=%"PRIu64" ref_res=%"PRIu64" lo=%"PRIu64" hi=%"PRIu64". See docs for GASNET_TSC_RATE."
                     "%s\n",
-                    (long)max_err_tick, (long)max_err_wcns, 
-                    (long)ticks_res, (long)ref_res,
-                    (long)(1e9 * lo), (long)(1e9 * hi), 
+                    max_err_tick, max_err_wcns, 
+                    ticks_res, ref_res,
+                    (uint64_t)(1e9 * lo), (uint64_t)(1e9 * hi), 
                     (trycnt < GASNETI_TICKS_WC_MAX_RETRY?" Retrying...":""));
     if (++trycnt <= GASNETI_TICKS_WC_MAX_RETRY) goto retry_calibration;
 
@@ -2960,9 +2960,9 @@ retry_calibration:;
     sum += (lo1[i] - hi0[i]) / delta;
   }
   double mean = sum / (2 * count);
-  fprintf(stderr, "TICKS: range: %ld +/- %ld  mean: %ld  offset: %ld\n",
-          (long)(1e9 * mid),  (long)(1e9 * half_width),
-          (long)(1e9 * mean), (long)(1e9 * (mean-mid)));
+  fprintf(stderr, "TICKS: range: %"PRIu64" +/- %"PRIu64"  mean: %"PRIu64"  offset: %"PRId64"\n",
+          (uint64_t)(1e9 * mid),  (uint64_t)(1e9 * half_width),
+          (uint64_t)(1e9 * mean), (int64_t)(1e9 * (mean-mid)));
   fprintf(stderr, "TICKS: calibrated to err of %g in %d iters\n", err, GASNETI_TICKS_WC_ITERS);
   #endif
 
