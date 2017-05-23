@@ -215,17 +215,20 @@ All GASNet conduit code is required to meet the following coding standards:
   Configuring with --enable-strict-prototypes and compiling with the GNU or
   PathScale compilers will give you warnings for violations of this rule.
 
-* All code in public header files should be C++98-compliant to support C++
-  GASNet clients.  This means ensuring any macros or inline function code 
-  passes the C++ type checker. Note the top-level public headers already
+* All code in public header files should be C++98/C++14-compliant to support C++
+  GASNet clients.  This means ensuring any macros or inline function code
+  passes the C++98 and C++14 type checker. Note the top-level public headers already
   enforce extern "C" scope around the entire GASNet public headers.
   It is especially important for code in public headers to avoid the few dozen
-  C constructs which are not present in the C subset of the C++98 standard.
+  C constructs which are not present in the C subset of the C++98/C++14 standards.
   Most notably: (incomplete list)
    - Do not use C++ keywords in identifiers
    - Do not use long long types or printf specifiers
    - Do not use tentative definitions
    - Do not use empty preprocessor function macro arguments FOO(,,,)
+   - Do not use 'register' storage class
+   - String literals need a trailing space before another identifier
+     (ie "foo" BAR not "foo"BAR)
   See bug 3296 for a complete list.
   Run a "make testcxx" to verify compliance.
 
