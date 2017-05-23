@@ -421,7 +421,7 @@ extern int AMUDP_Info(const char *msg, ...));
     static uint64_t _cnt = 0;                                           \
     _cnt++;                                                             \
     if_pf (!(_cnt & (_cnt-1))) {                                        \
-      AMUDP_Warn("%s (%llu occurences)",msg,(unsigned long long)_cnt);  \
+      AMUDP_Warn("%s (%" PRIu64 " occurences)",msg,_cnt);               \
     }                                                                   \
   } while (0)
 #else
