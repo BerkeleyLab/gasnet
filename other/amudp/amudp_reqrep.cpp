@@ -138,13 +138,13 @@ static amudp_node_t sourceAddrToId(ep_t ep, en_t sourceAddr, amudp_node_t hint) 
   amudp_perproc_info_t * const pinfo = ep->perProcInfo;
   // hint values are 8-bit, try all the matching entries
   for (amudp_node_t i = hint; i < ep->P; i += 256) {
-    register en_t const name = pinfo[i].remoteName;
+    en_t const name = pinfo[i].remoteName;
     if (enEqual(name, sourceAddr)) return i;
   }
   AMUDP_VERBOSE_INFO(("sourceAddrToId hint missed: hint=%i",(int)hint));
   // hint may be wrong with non-uniform translation tables, brute-force scan
   for (amudp_node_t i = 0; i < ep->P; i++) {
-    register en_t const name = pinfo[i].remoteName;
+    en_t const name = pinfo[i].remoteName;
     if (enEqual(name, sourceAddr)) return i;
   }
   return INVALID_NODE;
