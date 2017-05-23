@@ -48,8 +48,8 @@
       gasneti_sync_writes();
       gasneti_timer_firstTime = 0;
       #if 0
-        printf("first time: ticks=%llu  freq=%f adjust=%f\n", 
-              (unsigned long long) ticks, freq, adjust);
+        printf("first time: ticks=%" PRId64 "  freq=%f adjust=%f\n", 
+               ticks, freq, adjust);
       #endif
     } else gasneti_sync_reads();
     return (uint64_t)(((double)ticks) * gasneti_timer_Tick);

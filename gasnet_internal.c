@@ -808,8 +808,8 @@ extern uint64_t gasneti_getenv_memsize_withdefault(const char *key, const char *
 
   // ALIGNDOWN before checking against minimum
   val = GASNETI_PAGE_ALIGNDOWN(val);
-  GASNETI_TRACE_PRINTF(I, ("%s='%s' yields %llu",
-                           key, str, (unsigned long long)val));
+  GASNETI_TRACE_PRINTF(I, ("%s='%s' yields %"PRId64,
+                           key, str, val));
 
   if (val < minimum) {
     const char *parsed_as = is_fraction ? "a fraction" : "an amount";
@@ -818,9 +818,9 @@ extern uint64_t gasneti_getenv_memsize_withdefault(const char *key, const char *
     gasneti_format_number(minimum, min_display, sizeof(min_display), 1);
     gasneti_format_number(val,     val_display, sizeof(val_display), 1);
     gasneti_fatalerror(
-            "Parsing '%s' as %s of memory yields %s of %llu (%s), "
+            "Parsing '%s' as %s of memory yields %s of %"PRId64" (%s), "
             "which is less than the minimum supported value of %s.",
-            str, parsed_as, key, (unsigned long long)val, val_display, min_display);
+            str, parsed_as, key, val, val_display, min_display);
   }
 
   return (uint64_t) val;
@@ -1556,10 +1556,10 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
   static int gasneti_memalloc_envisinit = 0;
   static gasneti_mutex_t gasneti_memalloc_lock = GASNETI_MUTEX_INITIALIZER;
   static gasneti_memalloc_desc_t *gasneti_memalloc_pos = NULL;
-  #define GASNETI_MEM_BEGINPOST   ((uint64_t)0xDEADBABEDEADBABEllu)
-  #define GASNETI_MEM_LEAKMARK    ((uint64_t)0xBABEDEADCAFEBEEFllu)
-  #define GASNETI_MEM_ENDPOST     ((uint64_t)0xCAFEDEEDCAFEDEEDllu)
-  #define GASNETI_MEM_FREEMARK    ((uint64_t)0xBEEFEFADBEEFEFADllu)
+  #define GASNETI_MEM_BEGINPOST   ((uint64_t)0xDEADBABEDEADBABEULL)
+  #define GASNETI_MEM_LEAKMARK    ((uint64_t)0xBABEDEADCAFEBEEFULL)
+  #define GASNETI_MEM_ENDPOST     ((uint64_t)0xCAFEDEEDCAFEDEEDULL)
+  #define GASNETI_MEM_FREEMARK    ((uint64_t)0xBEEFEFADBEEFEFADULL)
   #define GASNETI_MEM_HEADERSZ    (sizeof(gasneti_memalloc_desc_t))
   #define GASNETI_MEM_TAILSZ      8     
   #define GASNETI_MEM_EXTRASZ     (GASNETI_MEM_HEADERSZ+GASNETI_MEM_TAILSZ)     
@@ -1572,8 +1572,8 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
        Quiet NaN: any bit pattern between 0x7ff8000000000000 and 0x7fffffffffffffff 
                or any bit pattern between 0xfff8000000000000 and 0xffffffffffffffff
     */
-    uint64_t sNAN = 0x7ff7ffffffffffffllu; 
-    uint64_t qNAN = 0x7fffffffffffffffllu;
+    uint64_t sNAN = ((uint64_t)0x7ff7ffffffffffffULL); 
+    uint64_t qNAN = ((uint64_t)0x7fffffffffffffffULL);
     uint64_t val = 0;
     const char *envval = gasneti_getenv_withdefault(name, deflt);
     const char *p = envval;
