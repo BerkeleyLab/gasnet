@@ -187,14 +187,14 @@ gasneti_mxm_get_ep_address(gasnet_mxm_ep_conn_info_t *ep_info, mxm_ptl_id_t id)
  */
 static void setup_pin_maxsz(uint64_t size)
 {
-    MXM_DEBUG("Starting with size=%lu, gasnetc_pin_maxsz=%lu\n", size, gasnetc_pin_maxsz);
+    MXM_DEBUG("Starting with size=%"PRIu64", gasnetc_pin_maxsz=%"PRIu64"\n", size, gasnetc_pin_maxsz);
     gasneti_assert(size != 0);
     size >>= 1;
     for (gasnetc_pin_maxsz_shift=0; size != 0; ++gasnetc_pin_maxsz_shift) {
         size >>= 1;
     }
     gasnetc_pin_maxsz = ((uint64_t)1) << gasnetc_pin_maxsz_shift;
-    MXM_DEBUG("Rounded down to power of two alculated gasnetc_pin_maxsz=%lu\n",
+    MXM_DEBUG("Rounded down to power of two calculated gasnetc_pin_maxsz=%"PRIu64"\n",
               gasnetc_pin_maxsz);
 }
 #endif
@@ -218,7 +218,7 @@ static int gasneti_load_settings(void)
     if (!gasnetc_pin_maxsz) {
         /* 0=automatic.  Will setup later */
     } else if (!GASNETI_POWEROFTWO(gasnetc_pin_maxsz)) {
-        gasneti_fatalerror("GASNET_PIN_MAXSZ (%llu) is not a power of 2", (unsigned long long) gasnetc_pin_maxsz);
+        gasneti_fatalerror("GASNET_PIN_MAXSZ (%"PRIu64") is not a power of 2", gasnetc_pin_maxsz);
     } else if (gasnetc_pin_maxsz < GASNET_PAGESIZE) {
         gasneti_fatalerror("GASNET_PIN_MAXSZ (%lu) is less than GASNET_PAGESIZE (%lu)",
                            (unsigned long) gasnetc_pin_maxsz, (unsigned long) GASNET_PAGESIZE);
