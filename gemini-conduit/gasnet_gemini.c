@@ -92,6 +92,7 @@ static uint32_t notify_ring_mask; /* ring size minus 1 */
 static unsigned int am_slotsz;
 static unsigned int am_slot_bits;
 
+static int have_auxseg = 0;
 static int have_segment = 0;
 
 static gni_cq_handle_t am_cq_handle;
@@ -108,9 +109,8 @@ size_t gasnetc_max_put_lc;
 
 /* read-only: */
 // TODO-EX: this needs to be more general for multi-segment support
-static gni_mem_handle_t my_mem_handles[2];
-#define my_mem_handle (my_mem_handles[0])
-#define my_aux_handle (my_mem_handles[1])
+static gni_mem_handle_t my_mem_handle;
+static gni_mem_handle_t my_aux_handle;
 
 #if GASNETC_USE_MULTI_DOMAIN
 static unsigned int gasnetc_domain_count;
@@ -608,20 +608,28 @@ int my_mb_index(gasnetex_rank_t remote_node) {
 #endif
 }
 
+// Forward declarations
+static void gasnetc_init_post_descriptor_pool(GASNETC_DIDX_FARG_ALONE);
+static void gasnetc_init_bounce_buffer_pool(GASNETC_DIDX_FARG_ALONE);
+
 /*-------------------------------------------------*/
-/* called after segment init. See gasneti_seginfo */
-/* allgather the memory handles for the segments */
-/* create endpoints */
-void gasnetc_init_segment(void *segment_start, size_t segment_size)
+/* called after aux segment init.
+ * compute settings
+ * setup udreg (if applicable)
+ * register the auxseg
+ * allgather the memory handles for the auxseg
+ * create parallen domains (if applicable)
+ */
+void gasnetc_init_gni(gasnet_seginfo_t seginfo)
 {
   gni_return_t status;
-  /* Map the shared segment */
 #if GASNETC_USE_MULTI_DOMAIN
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
   DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle);
   DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
   gni_cq_handle_t  destination_cq_handle = NULL;
 #endif
+
   size_t bb_size = gasnetc_bounce_buffers.size / gasnetc_domain_count;
   int max_memreg = gasneti_getenv_int_withdefault("GASNET_GNI_MEMREG", GASNETC_GNI_MEMREG_DEFAULT, 0);
 
@@ -760,14 +768,14 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
   {
     int count = 0;
     for (;;) {
-      status = GNI_MemRegister(nic_handle, (uint64_t) segment_start, 
-			       (uint64_t) segment_size, destination_cq_handle,
+      status = GNI_MemRegister(nic_handle, (uint64_t) seginfo.addr,
+			       (uint64_t) seginfo.size, destination_cq_handle,
 			       gasnetc_memreg_flags|GNI_MEM_READWRITE, -1,
-			       &my_mem_handle);
+			       &my_aux_handle);
       if (status == GNI_RC_SUCCESS) break;
       if (status == GNI_RC_ERROR_RESOURCE) {
-	gasnetc_GNIT_Log("MemRegister segment fault %d at  %p %lx, code %s", 
-		count, segment_start, segment_size, gasnetc_gni_rc_string(status));
+	gasnetc_GNIT_Log("MemRegister auxseg fault %d at  %p %lx, code %s",
+		count, seginfo.addr, seginfo.size, gasnetc_gni_rc_string(status));
 	count += 1;
 	if (count >= 10) break;
       } else {
@@ -775,20 +783,57 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
       }
     }
   }
+  have_auxseg = 1;
+
+  gasneti_assert_always (status == GNI_RC_SUCCESS);
+
+  {
+    gni_mem_handle_t *all_mem_handle = gasneti_malloc(gasneti_nodes * sizeof(gni_mem_handle_t));
+    gasnetc_bootstrapExchange_gni(&my_aux_handle, sizeof(gni_mem_handle_t), all_mem_handle);
+    for (gasnetex_rank_t i = 0; i < gasneti_nodes; ++i) {
+      peer_data[i].aux_handle = all_mem_handle[i];
+    }
+    gasneti_free(all_mem_handle);
+  }
+
+  gasnetc_init_post_descriptor_pool(GASNETC_DIDX_PASS_ALONE);
+  gasnetc_init_bounce_buffer_pool(GASNETC_DIDX_PASS_ALONE);
+
+#if GASNETC_USE_MULTI_DOMAIN
+  DOMAIN_SPECIFIC_VAL(destination_cq_handle) = destination_cq_handle;
+
+ #if(GASNETC_DOMAIN_ALLOC_POLICY == GASNETC_STATIC_DOMAIN_ALLOC)
+  for (int i = 1; i < gasnetc_domain_count; i++) {
+    gasnetc_create_parallel_domain(gasnetc_get_domain_first_thread_idx(i));
+  }
+ #endif
+#endif
+}
+
+/*-------------------------------------------------*/
+/* called after client segment init. */
+/* allgather the memory handles for the segments */
+void gasnetc_init_segment(gasnet_seginfo_t seginfo)
+{
+  gni_return_t status;
+#if GASNETC_USE_MULTI_DOMAIN
+  GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
+  DOMAIN_SPECIFIC_VAR(gni_nic_handle_t, nic_handle);
+  DOMAIN_SPECIFIC_VAR(peer_struct_t * const, peer_data);
+  gni_cq_handle_t  destination_cq_handle = NULL;
+#endif
+
   {
     int count = 0;
     for (;;) {
-      status = GNI_MemRegister(nic_handle,
-                               (uint64_t) gasnetc_auxsegment.addr, 
-			       (uint64_t) gasnetc_auxsegment.size,
-                               destination_cq_handle,
-			       gasnetc_memreg_flags|GNI_MEM_READWRITE,
-                               -1,
-			       &my_aux_handle);
+      status = GNI_MemRegister(nic_handle, (uint64_t) seginfo.addr,
+			       (uint64_t) seginfo.size, destination_cq_handle,
+			       gasnetc_memreg_flags|GNI_MEM_READWRITE, -1,
+			       &my_mem_handle);
       if (status == GNI_RC_SUCCESS) break;
       if (status == GNI_RC_ERROR_RESOURCE) {
-	gasnetc_GNIT_Log("MemRegister auxseg fault %d at  %p %lx, code %s", 
-		count, gasnetc_auxsegment.addr, gasnetc_auxsegment.size, gasnetc_gni_rc_string(status));
+	gasnetc_GNIT_Log("MemRegister segment fault %d at  %p %lx, code %s",
+		count, seginfo.addr, seginfo.size, gasnetc_gni_rc_string(status));
 	count += 1;
 	if (count >= 10) break;
       } else {
@@ -801,31 +846,29 @@ void gasnetc_init_segment(void *segment_start, size_t segment_size)
   gasneti_assert_always (status == GNI_RC_SUCCESS);
 
   {
-    gni_mem_handle_t *all_mem_handle = gasneti_malloc(2 * gasneti_nodes * sizeof(gni_mem_handle_t));
-    gasnetex_rank_t i;
+    gni_mem_handle_t *all_mem_handle = gasneti_malloc(gasneti_nodes * sizeof(gni_mem_handle_t));
   #if 0// Cannot use gni-specific bootstrap collectives this late
-    gasnetc_bootstrapExchange_gni(my_mem_handles, 2 * sizeof(gni_mem_handle_t), all_mem_handle);
+    gasnetc_bootstrapExchange_gni(&my_mem_handle, sizeof(gni_mem_handle_t), all_mem_handle);
   #else
     // TODO-EX: but we want real collectives here eventually anyway
-    gasneti_defaultExchange(my_mem_handles, 2 * sizeof(gni_mem_handle_t), all_mem_handle);
+    gasneti_defaultExchange(&my_mem_handle, sizeof(gni_mem_handle_t), all_mem_handle);
   #endif
-    for (i = 0; i < gasneti_nodes; ++i) {
-      peer_data[i].mem_handle = all_mem_handle[2*i];
-      peer_data[i].aux_handle = all_mem_handle[2*i+1];
+    for (gasnetex_rank_t i = 0; i < gasneti_nodes; ++i) {
+      peer_data[i].mem_handle = all_mem_handle[i];
     }
     gasneti_free(all_mem_handle);
   }
 
-#if GASNETC_USE_MULTI_DOMAIN
-  DOMAIN_SPECIFIC_VAL(destination_cq_handle) = destination_cq_handle;
-  
- #if(GASNETC_DOMAIN_ALLOC_POLICY == GASNETC_STATIC_DOMAIN_ALLOC)
-  {
-    int i;
-    for(i=1;i<gasnetc_domain_count;i++)
-      gasnetc_create_parallel_domain(gasnetc_get_domain_first_thread_idx(i));
+#if GASNETC_USE_MULTI_DOMAIN && (GASNETC_DOMAIN_ALLOC_POLICY == GASNETC_STATIC_DOMAIN_ALLOC)
+  /* Replicate mem handle - not stricty necessary, but cache-friendly: */
+  for (int d = 1; d < gasnetc_domain_count; d++) {
+    gasnete_threadidx_t tidx = gasnetc_get_domain_first_thread_idx(d);
+    GASNETC_DIDX_POST(gasnetc_get_domain_idx(tidx));
+
+    for (gasnetex_rank_t n = 0; n < gasneti_nodes; ++n) {
+      DOMAIN_SPECIFIC_VAL(peer_data[n]).mem_handle = gasnetc_cdom_data[0].peer_data[n].mem_handle;
+    }
   }
- #endif
 #endif
 }
 
@@ -1234,7 +1277,7 @@ void gasnetc_shutdown(void)
    */
 
 #if GASNETC_GNI_UDREG
-  if (have_segment && gasnetc_udreg_hndl) {
+  if (have_auxseg && gasnetc_udreg_hndl) {
     udreg_return_t rc;
     rc = UDREG_CacheRelease(gasnetc_udreg_hndl);
     if (UDREG_RC_SUCCESS != rc) {
@@ -1311,11 +1354,14 @@ void gasnetc_shutdown(void)
       }
 
       if_pt (have_segment) {
-        status = GNI_MemDeregister(nic_handle, my_mem_handles+0);
+        status = GNI_MemDeregister(nic_handle, &my_mem_handle);
         if_pf (status != GNI_RC_SUCCESS) {
           gasnetc_GNIT_Log("MemDeregister(segment) failed with %s", gasnetc_gni_rc_string(status));
         }
-        status = GNI_MemDeregister(nic_handle, my_mem_handles+1);
+      }
+
+      if_pt (have_auxseg) {
+        status = GNI_MemDeregister(nic_handle, &my_aux_handle);
         if_pf (status != GNI_RC_SUCCESS) {
           gasnetc_GNIT_Log("MemDeregister(auxseg) failed with %s", gasnetc_gni_rc_string(status));
         }
@@ -2504,6 +2550,7 @@ void gasnetc_fetchop_u64(
 
 
 /* Needs no lock because it is called only from the init code */
+static
 void gasnetc_init_post_descriptor_pool(GASNETC_DIDX_FARG_ALONE) 
 {
   int i;
@@ -2829,6 +2876,7 @@ gasneti_auxseg_request_t gasnetc_pd_auxseg_alloc(gasnet_seginfo_t *auxseg_info) 
   return retval;
 }
 
+static
 void gasnetc_init_bounce_buffer_pool(GASNETC_DIDX_FARG_ALONE)
 {
   int i;

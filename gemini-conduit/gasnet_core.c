@@ -33,8 +33,6 @@ gasnetex_handlerentry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler tab
 // needed for gasneti_segment{Init,Attach}()
 static gasnet_seginfo_t gasnetc_presegment = {0,0}; /* local segment info */
 
-gasnet_seginfo_t gasnetc_auxsegment = {0,0}; /* local aux segment info */
-
 #if HAVE_ON_EXIT
 static void gasnetc_on_exit(int, void*);
 #else
@@ -627,6 +625,9 @@ static int gasnetc_init(int *argc, char ***argv) {
   uintptr_t auxsize = gasneti_auxsegAttach(&gasnetc_auxsegment, max_pin, &gasnetc_bootstrapExchange_gni);
   max_pin -= auxsize;
 
+  /* register auxseg and setup subsystems using it */
+  gasnetc_init_gni(gasnetc_auxsegment);
+
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { 
       /* localSegmentLimit provides a conduit-specific limit on the max segment size.
@@ -774,10 +775,8 @@ static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn
      (LCS) This was done by segmentAttach above
    */
 
-  /* After these, puts, and gets should work */
-  gasnetc_init_segment(segbase, segsize);
-  gasnetc_init_post_descriptor_pool(GASNETC_DIDX_PASS_ALONE);
-  gasnetc_init_bounce_buffer_pool(GASNETC_DIDX_PASS_ALONE);
+  /* Register client segment */
+  gasnetc_init_segment(gasneti_seginfo[gasneti_mynode]);
 
   gasneti_seginfo_ub = gasneti_seginfo_build_ub(gasneti_seginfo);
 
