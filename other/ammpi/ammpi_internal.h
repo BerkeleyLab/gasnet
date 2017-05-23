@@ -710,8 +710,8 @@ static int AMMPI_checkMPIreturn(int retcode, const char *fncallstr,
       if (AMMPI_DEBUG_VERBOSE || (repeatcnt & reportmask) == 0) { \
         reportmask = (reportmask << 1) | 0x1;                     \
         fprintf(stderr, "*** AMMPI WARNING: %s. polling..."       \
-          "(has happened %llu times)\n", msg,                     \
-          (unsigned long long)repeatcnt); fflush(stderr);         \
+          "(has happened %"PRIu64" times)\n", msg, repeatcnt);    \
+        fflush(stderr);                                           \
       }                                                           \
     } while (0)
 #else
