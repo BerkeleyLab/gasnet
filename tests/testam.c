@@ -402,8 +402,8 @@ void doAMShort(void) {
       uintptr_t sz;                                                              \
       char msg[255];                                                             \
       for (sz = 0; sz <= MAXREQREP; ) {                                          \
-        snprintf(msg, sizeof(msg), "%7llu "DESC_STR" ping-pong roundtrip ReqRep",\
-                     (unsigned long long)sz);                                    \
+        snprintf(msg, sizeof(msg),                                               \
+                 "%7"PRIuPTR" "DESC_STR" ping-pong roundtrip ReqRep", sz);       \
         BARRIER();                                                               \
         if (sender) {                                                            \
           int64_t start = TIME();                                                \
@@ -426,8 +426,8 @@ void doAMShort(void) {
       uintptr_t sz;                                                              \
       char msg[255];                                                             \
       for (sz = 0; sz <= MAXREQ; ) {                                             \
-        snprintf(msg, sizeof(msg), "%7llu "DESC_STR" ping-pong roundtrip ReqReq",\
-                     (unsigned long long)sz);                                    \
+        snprintf(msg, sizeof(msg),                                               \
+                 "%7"PRIuPTR" "DESC_STR" ping-pong roundtrip ReqReq", sz);       \
         BARRIER();                                                               \
         {                                                                        \
           int64_t start = TIME();                                                \
@@ -468,8 +468,8 @@ void doAMShort(void) {
       char msg[255];                                                             \
       for (sz = 0; sz <= MAXREQ; ) {                                             \
         flag = 0;                                                                \
-        snprintf(msg, sizeof(msg), "%7llu "DESC_STR" flood     one-way   Req",   \
-                     (unsigned long long)sz);                                    \
+        snprintf(msg, sizeof(msg),                                               \
+                 "%7"PRIuPTR" "DESC_STR" flood     one-way   Req", sz);          \
         BARRIER();                                                               \
         if (sender) {                                                            \
           int64_t start = TIME();                                                \
@@ -494,8 +494,8 @@ void doAMShort(void) {
       uintptr_t sz;                                                              \
       char msg[255];                                                             \
       for (sz = 0; sz <= MAXREQREP; ) {                                          \
-        snprintf(msg, sizeof(msg), "%7llu "DESC_STR" flood     roundtrip ReqRep",\
-                     (unsigned long long)sz);                                    \
+        snprintf(msg, sizeof(msg),                                               \
+                 "%7"PRIuPTR" "DESC_STR" flood     roundtrip ReqRep", sz);       \
         BARRIER();                                                               \
         if (sender) {                                                            \
           int64_t start = TIME();                                                \
@@ -517,8 +517,8 @@ void doAMShort(void) {
       uintptr_t sz; int64_t start;                                               \
       char msg[255];                                                             \
       for (sz = 0; sz <= MAXREQ; ) {                                             \
-        snprintf(msg, sizeof(msg), "%7llu "DESC_STR" flood     two-way   Req",   \
-                     (unsigned long long)sz);                                    \
+        snprintf(msg, sizeof(msg),                                               \
+                 "%7"PRIuPTR" "DESC_STR" flood     two-way   Req", sz);          \
         flag = 0;                                                                \
         BARRIER();                                                               \
         start = TIME();                                                          \

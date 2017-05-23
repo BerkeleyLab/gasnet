@@ -37,8 +37,8 @@ static gasnetex_segment_t     mysegment;
 #endif
 #if VEC_SZ == 8
   #define VEC_T       uint64_t
-  #define SEG_VALUE(node, idx)   (((uint64_t)0x8000000000000000ull) | ((uint64_t)(node) << 32) | (uint64_t)(idx))
-  #define HEAP_VALUE(node, idx)  (((uint64_t)0x0000000000000000ull) | ((uint64_t)(node) << 32) | (uint64_t)(idx))
+  #define SEG_VALUE(node, idx)   (((uint64_t)0x8000000000000000ULL) | ((uint64_t)(node) << 32) | (uint64_t)(idx))
+  #define HEAP_VALUE(node, idx)  (((uint64_t)0x0000000000000000ULL) | ((uint64_t)(node) << 32) | (uint64_t)(idx))
   #define VEC_FMT      "0x%08x %08x"
   #define VEC_STR(val) (int)TEST_HIWORD(val), (int)TEST_LOWORD(val)
 #elif VEC_SZ == 4

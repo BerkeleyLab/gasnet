@@ -551,15 +551,15 @@ void doit5(int partner, int *partnerseg) {
           ok = localpos[j] == val;
           if (sz < 8) ok = !memcmp(&(localpos[j]), &val, sz);
           if (!ok) {
-              MSG("*** ERROR - FAILED OUT-OF-SEG PUT_NB/OVERWRITE TEST!!! sz=%i j=%i (got=%016llx expected=%016llx)", (sz), j,
-                  (unsigned long long)localpos[j], (unsigned long long)val);
+              MSG("*** ERROR - FAILED OUT-OF-SEG PUT_NB/OVERWRITE TEST!!! sz=%i j=%i (got=%016" PRIx64 " expected=%016" PRIx64 ")", (sz), j,
+                  localpos[j], val);
               success = 0;
           }
           ok = segpos[j] == val;
           if (sz < 8) ok = !memcmp(&(segpos[j]), &val, sz);
           if (!ok) {
-              MSG("*** ERROR - FAILED IN-SEG PUT_NB/OVERWRITE TEST!!! sz=%i j=%i (got=%016llx expected=%016llx)", (sz), j,
-                  (unsigned long long)segpos[j], (unsigned long long)val);
+              MSG("*** ERROR - FAILED IN-SEG PUT_NB/OVERWRITE TEST!!! sz=%i j=%i (got=%016" PRIx64 " expected=%016" PRIx64 ")", (sz), j,
+                  segpos[j], val);
               success = 0;
           }
         }
@@ -619,15 +619,15 @@ void doit5(int partner, int *partnerseg) {
           ok = localpos[j] == val;
           if (sz < 8) ok = !memcmp(&(localpos[j]), &val, sz);
           if (!ok) {
-              MSG("*** ERROR - FAILED OUT-OF-SEG PUT_NBI/OVERWRITE TEST!!! sz=%i j=%i (got=%016llx expected=%016llx)", (sz), j,
-                  (unsigned long long)localpos[j], (unsigned long long)val);
+              MSG("*** ERROR - FAILED OUT-OF-SEG PUT_NBI/OVERWRITE TEST!!! sz=%i j=%i (got=%016" PRIx64 " expected=%016" PRIx64 ")", (sz), j,
+                  localpos[j], val);
               success = 0;
           }
           ok = segpos[j] == val;
           if (sz < 8) ok = !memcmp(&(segpos[j]), &val, sz);
           if (!ok) {
-              MSG("*** ERROR - FAILED IN-SEG PUT_NBI/OVERWRITE TEST!!! sz=%i j=%i (got=%016llx expected=%016llx)", (sz), j,
-                  (unsigned long long)segpos[j], (unsigned long long)val);
+              MSG("*** ERROR - FAILED IN-SEG PUT_NBI/OVERWRITE TEST!!! sz=%i j=%i (got=%016" PRIx64 " expected=%016" PRIx64 ")", (sz), j,
+                  segpos[j], val);
               success = 0;
           }
         }
