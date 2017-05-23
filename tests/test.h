@@ -357,8 +357,8 @@ static int64_t test_calibrate_delay(int iters, int pollcnt, int64_t *time_p)
                   FATALERR("test_calibrate_delay(%i,%i,%i) failed to converge after %i iterations.\n",
                           iters, pollcnt, (int)*time_p, iters);
               #if 0
-                printf("loops=%llu\n",(unsigned long long)loops); fflush(stdout);
-                printf("ratio=%f target=%f time=%llu\n",ratio,target,(unsigned long long)time); fflush(stdout);
+                printf("loops=%" PRIi64 "\n",loops); fflush(stdout);
+                printf("ratio=%f target=%f time=%" PRIi64 "\n",ratio,target,time); fflush(stdout);
               #endif
 	} while (ratio > 1.0);
 
@@ -692,7 +692,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
     #define TEST_MAXTHREADS      GASNETT_MAX_THREADS
   #endif
   #ifndef TEST_SEGZ_PER_THREAD
-    #define TEST_SEGZ_PER_THREAD (64ULL*1024)
+    #define TEST_SEGZ_PER_THREAD (64*1024)
   #endif
   #ifndef TEST_SEGSZ
     #ifdef TEST_SEGSZ_EXPR
@@ -711,7 +711,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
     #ifdef TEST_SEGSZ_EXPR
       #define TEST_SEGSZ  alignup(TEST_SEGSZ_EXPR,PAGESZ)
     #else
-      #define TEST_SEGSZ  alignup(64ULL*1024,PAGESZ)
+      #define TEST_SEGSZ  alignup(64*1024,PAGESZ)
     #endif
   #endif
 #endif
