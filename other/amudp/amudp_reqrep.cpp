@@ -61,7 +61,7 @@ extern void AMUDP_InitRetryCache() {
   #if 0  // for debugging retry calc
     for (int i=0; i < STATIC_RETRIES*2; i++) {
       amudp_cputick_t tick = REQUEST_TIMEOUT_TICKS(i);
-      printf("Timeout %2i: %9llu us, %9llu ticks\n",i,(unsigned long long)tick/us2ticks(1),(unsigned long long)tick);
+      printf("Timeout %2i: %9" PRIu64 " us, %9" PRIu64 " ticks\n",i,tick/us2ticks(1),tick);
     }
   #endif
 }
