@@ -201,6 +201,7 @@ All GASNet conduit code is required to meet the following coding standards:
    - Do not use zero-length structure fields (aka flexible array member)
    - Do not use compound literals or named struct field initializers
    - Do not use printf format specifiers added in C99, such as: ll,j,z,t,L
+     (Use portable_inttypes.h to get (u)int{64,ptr}_t and PRI[ud]{64,PTR})
    - Do not include any header files introduced by C99 or any features they introduce
    - Do not use restrict, __func__ or _Pragma/#pragma directly
      (use GASNETI_RESTRICT, GASNETI_CURRENT_FUNCTION, and the various attribute
@@ -223,7 +224,7 @@ All GASNet conduit code is required to meet the following coding standards:
   C constructs which are not present in the C subset of the C++98/C++14 standards.
   Most notably: (incomplete list)
    - Do not use C++ keywords in identifiers
-   - Do not use long long types or printf specifiers
+   - Do not use long long types or printf specifiers (use PRI[ud]{64,PTR})
    - Do not use tentative definitions
    - Do not use empty preprocessor function macro arguments FOO(,,,)
    - Do not use 'register' storage class
