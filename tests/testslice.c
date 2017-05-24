@@ -18,6 +18,11 @@ int segsize = 0;
 #endif
 #include "test.h"
 
+static gasnetex_client_t      myclient;
+static gasnetex_endpoint_t    myep;
+static gasnetex_team_member_t myteam;
+static gasnetex_segment_t     mysegment;
+
 #define OUTPUT_SUCCESS 0
 uint64_t failures = 0;
 void assert_eq(char *x, char *y, int len, int start, int i, int j, const char *msg)
@@ -52,7 +57,7 @@ int main(int argc, char **argv)
     char *local_base, *target_base;
 
     /* call startup */
-    GASNET_Safe(gasnet_init(&argc, &argv));
+    GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testslice", 0));
 
     /* get SPMD info */
     myproc = gasnet_mynode();
@@ -66,7 +71,7 @@ int main(int argc, char **argv)
     if (!inner_iterations) inner_iterations = 10;
     if (argc > 4) seedoffset = atoi(argv[4]);
 
-    GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ, TEST_MINHEAPOFFSET));
+    GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ, GASNETEX_MEMKIND_DEFAULT, 0));
 
     test_init("testslice",0, "(segsize) (iterations) (# of sizes per iteration) (seed)");
 

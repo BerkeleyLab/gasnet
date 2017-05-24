@@ -500,12 +500,6 @@ static void test_createandjoin_pthreads(int numthreads, void *(*start_routine)(v
  * ------------------------------------------------------------------------------------ */
 #ifdef TEST_GASNETEX_H
 
-#ifdef _INCLUDED_GASNET_H
-  #define myteam g2ex_team
-#else
-  static gasnetex_team_member_t myteam; // TODO-EX: remove this when new init is added to the tests
-#endif
-
 /* ------------------------------------------------------------------------------------ */
 /* misc GASNet utilities */
 
@@ -728,7 +722,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
      across the nodes, and also works on X-1 where the static data is
      misaligned across nodes. 
      The only assumption is that AM mediums, barriers and atomics work properly
-     We intercept the gasnet_attach call and do the segment exchange there
+     We intercept the gasnet_attach or gasnetex_TeamSegmentCreate call and do the segment exchange there
    */
   static int _test_seggather_idx;
   static gasnett_atomic_t _test_seggather_done = gasnett_atomic_init(0);
@@ -748,7 +742,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
     memcpy(dst, buf, nbytes);
     gasnett_atomic_increment(&_test_segbcast_count, GASNETT_ATOMIC_REL);
   }
-  static int _test_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize, uintptr_t minheapoffset) {
+  static int _test_create_test_segment(gasnetex_team_member_t team, uintptr_t segsize) {
     #ifdef TEST_SEGSZ_EXPR
       /* dynamically allocate segment */
       uint8_t *_test_hidden_seg;
@@ -756,11 +750,9 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
       /* use a block of static data as the segment */
       static uint8_t _test_hidden_seg[TEST_SEGSZ+PAGESZ];
     #endif
-    int i, result;
+    int i;
     gasnet_seginfo_t myseg;
 
-    /* do regular attach, then setup seg_everything segment */
-    GASNET_Safe(result = gasnet_attach(table, numentries, segsize, minheapoffset));
     gasnetex_handlerentry_t mytab[] = {
 #if GASNET_USE_STRICT_PROTOTYPES
       { 0, (void *)_test_seggather, 0, 0, NULL, NULL },
@@ -770,6 +762,8 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
       { 0, (void (*)())_test_segbcast,  0, 1, NULL, NULL }
 #endif
     };
+    // EX-TODO: will need an endpoint (in place of NULL below) for
+    // the AM registration *or* switch to GASNet's collectives
     GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, mytab, 2));
     _test_seggather_idx = mytab[0].gex_index;
     _test_segbcast_idx = mytab[1].gex_index;
@@ -785,7 +779,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
        (PAGESZ-(((uintptr_t)_test_hidden_seg)%PAGESZ)))));
     myseg.size = TEST_SEGSZ;
     BARRIER();
-    gasnetex_AMRequestMedium0(myteam, 0, _test_seggather_idx, &myseg, sizeof(gasnet_seginfo_t), GASNETEX_EVENT_NOW, 0);
+    gasnetex_AMRequestMedium0(team, 0, _test_seggather_idx, &myseg, sizeof(gasnet_seginfo_t), GASNETEX_EVENT_NOW, 0);
     { const size_t total_bytes = gasnet_nodes()*sizeof(gasnet_seginfo_t);
       const size_t msg_bytes = gasnetex_lub_AMRequestMedium();
       const int msg_count = (total_bytes + msg_bytes - 1) / msg_bytes;
@@ -797,7 +791,7 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
         for (idx = 0; idx < msg_count; ++idx) {
           const size_t nbytes = MIN(remain, msg_bytes);
           for (i=0; i < (int)gasnet_nodes(); i++) {
-            gasnetex_AMRequestMedium1(myteam, i, _test_segbcast_idx, payload, nbytes, GASNETEX_EVENT_NOW, 0, idx);
+            gasnetex_AMRequestMedium1(team, i, _test_segbcast_idx, payload, nbytes, GASNETEX_EVENT_NOW, 0, idx);
           }
           remain -= nbytes;
           payload = (void*)((uintptr_t)payload + nbytes);
@@ -810,10 +804,31 @@ static void TEST_DEBUGPERFORMANCE_WARNING(void) {
       assert_always(_test_seginfo[i].size >= TEST_SEGSZ);
       assert_always((((uintptr_t)_test_seginfo[i].addr) % PAGESZ) == 0);
     }
-    return result;
+    return GASNET_OK;
+  }
+ #ifdef _INCLUDED_GASNET_H
+  static int _test_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize, uintptr_t minheapoffset)
+  {
+    /* do regular attach, then setup seg_everything segment */
+    GASNET_Safe(gasnet_attach(table, numentries, segsize, minheapoffset));
+    return _test_create_test_segment(g2ex_team, segsize);
   }
   #undef gasnet_attach
   #define gasnet_attach _test_attach
+ #else
+  static int _test_TeamSegmentCreate(
+                gasnetex_segment_t     *segment_p,
+                gasnetex_team_member_t team,
+                void                   *address,
+                uintptr_t              length,
+                gasnetex_memkind_t     kind,
+                gasnetex_flags_t       flags)
+  {
+    return _test_create_test_segment(team, length);
+  }
+  #undef gasnetex_TeamSegmentCreate
+  #define gasnetex_TeamSegmentCreate _test_TeamSegmentCreate
+ #endif
 #else
   static gasnet_seginfo_t *_test_seginfo;
   static void *_test_getseg(gasnetex_rank_t node) {

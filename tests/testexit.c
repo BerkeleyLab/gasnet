@@ -10,6 +10,11 @@
 #include <test.h>
 #include <signal.h>
 
+static gasnetex_client_t      myclient;
+static gasnetex_endpoint_t    myep;
+static gasnetex_team_member_t myteam;
+static gasnetex_segment_t     mysegment;
+
 int mynode, nodes;
 int peer = -1;
 int testid = 0;
@@ -194,7 +199,7 @@ int main(int argc, char **argv) {
     { hidx_noop_handler, noop_handler,      0, 0 },
   };
 
-  GASNET_Safe(gasnet_init(&argc, &argv));
+  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testexit", 0));
   { int i;
     snprintf(usagestr,sizeof(usagestr),
              "[-r] (exittestnum:1..%i | crashtestnum:100..%i)", (int)NUMTEST, (int)(100+NUMCRASHTEST_WITH_PAR-1));
@@ -269,8 +274,8 @@ int main(int argc, char **argv) {
     }
   }
 
-  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-  GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
+  GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+  GASNET_Safe(gasnetex_EPRegisterHandlers(myep, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
 
   /* register a SIGQUIT handler, as permitted by GASNet spec */
   gasnett_reghandler(SIGQUIT, testSignalHandler);

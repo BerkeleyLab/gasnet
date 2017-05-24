@@ -17,6 +17,11 @@
 
 #include <test.h>
 
+static gasnetex_client_t      myclient;
+static gasnetex_endpoint_t    myep;
+static gasnetex_team_member_t myteam;
+static gasnetex_segment_t     mysegment;
+
 int main(int argc, char **argv) 
 {
   int mynode, nodes, iters=0;
@@ -32,13 +37,13 @@ int main(int argc, char **argv)
   
   gasnet_seginfo_t teamA_scratch;
   gasnet_seginfo_t teamB_scratch;
-  GASNET_Safe(gasnet_init(&argc, &argv));
+  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testteambcast", 0));
 #if !GASNET_SEQ
   MSG0("WARNING: This test does not work for NON-SEQ builds yet.. skipping test\n");
   gasnet_exit(0);
 #endif
 
-  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
   
   A = TEST_MYSEG();
   B = A + SCRATCH_SIZE;

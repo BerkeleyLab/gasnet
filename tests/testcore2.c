@@ -18,6 +18,11 @@ int depth = 0;
 
 #include "test.h"
 
+static gasnetex_client_t      myclient;
+static gasnetex_endpoint_t    myep;
+static gasnetex_team_member_t myteam;
+static gasnetex_segment_t     mysegment;
+
 int myproc;
 int numproc;
 int peerproc;
@@ -150,7 +155,7 @@ int main(int argc, char **argv) {
   };
 
   /* call startup */
-  GASNET_Safe(gasnet_init(&argc, &argv));
+  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testcore2", 0));
 
   #define AMOPT() if (!amopt) { amopt = 1; domed = 0; dolong = 0; }
   while (argc > arg) {
@@ -200,8 +205,8 @@ int main(int argc, char **argv) {
                 gasnetex_max_AMReplyLong    (myteam,GASNETEX_ALL_RANKS,GASNETEX_EVENT_NOW,0,2));
   max_payload = MIN(max_payload,MAX(maxmed,maxlong));
 
-  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-  GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
+  GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+  GASNET_Safe(gasnetex_EPRegisterHandlers(myep, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
   test_init("testcore2",0,"[options] (iters) (max_payload) (depth)\n"
                  "  -m   test AMMedium    (defaults to all types)\n"
                  "  -l   test AMLong      (defaults to all types)\n"

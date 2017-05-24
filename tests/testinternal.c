@@ -9,6 +9,11 @@
 
 #include <test.h>
 
+static gasnetex_client_t      myclient;
+static gasnetex_endpoint_t    myep;
+static gasnetex_team_member_t myteam;
+static gasnetex_segment_t     mysegment;
+
 /* ------------------------------------------------------------------------------------ */
 int main(int argc, char **argv) {
   int iters = 0, threads=0;
@@ -17,9 +22,9 @@ int main(int argc, char **argv) {
   char *test_sections = NULL;
   gasnett_diagnostic_gethandlers(&htable, &htable_cnt);
 
-  GASNET_Safe(gasnet_init(&argc, &argv));
-  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-  GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, htable, htable_cnt));
+  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testinternal", 0));
+  GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+  GASNET_Safe(gasnetex_EPRegisterHandlers(myep, htable, htable_cnt));
   #if GASNET_PAR
     test_init("testinternal",0,"(iters) (threadcnt) (test_sections)");
   #else
@@ -45,7 +50,7 @@ int main(int argc, char **argv) {
   #endif
 
   BARRIER();
-  test_errs = gasnett_run_diagnostics(iters, threads, test_sections, TEST_SEGINFO());
+  test_errs = gasnett_run_diagnostics(iters, threads, test_sections, myteam, TEST_SEGINFO());
   BARRIER();
 
   if (test_errs) ERR("gasnett_run_diagnostics(%i) failed.", iters);

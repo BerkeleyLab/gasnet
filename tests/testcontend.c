@@ -15,6 +15,11 @@
 #error This test can only be built for GASNet PAR configuration
 #endif
 
+static gasnetex_client_t      myclient;
+static gasnetex_endpoint_t    myep;
+static gasnetex_team_member_t myteam;
+static gasnetex_segment_t     mysegment;
+
 typedef struct {
   int activecnt;
   int passivecnt;
@@ -300,9 +305,9 @@ int main(int argc, char **argv) {
 	int help = 0;
         threadcnt_t *ptcount;
 
-	GASNET_Safe(gasnet_init(&argc, &argv));
-        GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-        GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, htable, HANDLER_TABLE_SIZE));
+	GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testcontend", 0));
+        GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+        GASNET_Safe(gasnetex_EPRegisterHandlers(myep, htable, HANDLER_TABLE_SIZE));
 
 	test_init("testcontend",1,"[options] (maxthreads) (iters) (test_sections)\n"
                   "  The -rev option reverses thread numbering");
