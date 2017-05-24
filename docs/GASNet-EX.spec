@@ -121,6 +121,15 @@ typedef struct gasneti_endpoint_s *gasnetex_endpoint_t;
 struct gasneti_client_s;
 typedef struct gasneti_client_s *gasnetex_client_t;
 
+// Opaque type for a segment
+struct gasneti_segment_s;
+typedef struct gasneti_segment_s *gasnetex_segment_t;
+
+// Opaque type for a memory kind and one pre-defined one
+struct gasneti_memkind_s;
+typedef struct gasneti_memkind_s *gasnetex_memkind_t;
+#define GASNETEX_MEMKIND_DEFAULT ((gasnetex_memkind_t)(uintptr_t)1)
+
 // Initialize the client
 extern int gasnetex_ClientInit(
                 gasnetex_client_t      *client_p,
@@ -129,6 +138,15 @@ extern int gasnetex_ClientInit(
                 int                    *argc,
                 char                   ***argv,
                 const char             *clientName,
+                gasnetex_flags_t       flags);
+
+// Collective allocation of segments
+extern int gasnetex_TeamSegmentCreate(
+                gasnetex_segment_t     *segment_p
+                gasnetex_team_member_t team,
+                void                   *address,
+                uintptr_t              length,
+                gasnetex_memkind_t     kind,
                 gasnetex_flags_t       flags);
 
 // Create an endpoint

@@ -380,6 +380,24 @@ extern int gasnetex_ClientInit(gasnetex_client_t       *client_p,
   return GASNET_OK;
 }
 
+extern int gasnetc_TeamSegmentCreate(
+                gasnetex_segment_t     *segment_p,
+                gasnetex_team_member_t team,
+                void                   *address,
+                uintptr_t              length,
+                gasnetex_memkind_t     kind,
+                gasnetex_flags_t       flags)
+{
+  gasneti_assert(segment_p);
+
+  /* (###) add code to create a segment collectively */
+
+  // TODO-EX: will obviously need real object:
+  segment_p = NULL;
+
+  return GASNET_OK;
+}
+
 extern int gasnetc_EPCreate( gasnetex_endpoint_t     *ep_p,
                              gasnetex_client_t       client,
                              gasnetex_flags_t        flags) {

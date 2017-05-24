@@ -579,6 +579,36 @@ extern int gasnetex_ClientInit(gasnetex_client_t       *client_p,
   return GASNET_OK;
 }
 
+extern int gasnetc_TeamSegmentCreate(
+                gasnetex_segment_t     *segment_p,
+                gasnetex_team_member_t team,
+                void                   *address,
+                uintptr_t              length,
+                gasnetex_memkind_t     kind,
+                gasnetex_flags_t       flags)
+{
+  gasneti_assert(segment_p);
+
+  // TODO-EX: remove or update these as the corresponding limitations are removed:
+  static int once = 1;
+  if (once) once = 0;
+  else gasneti_fatalerror("gasnetex_TeamSegmentCreate: current implementaion can be called at most once");
+  gasneti_assert(!address);
+  gasneti_assert(kind == GASNETEX_MEMKIND_DEFAULT);
+  gasneti_assert(flags == 0);
+
+  /* create a segment collectively */
+  // TODO-EX: this implementation only works *once*
+  // TODO-EX: should be using the team's exchange function if possible
+  if (GASNET_OK != gasnetc_attach_segment(length, gasneti_defaultExchange))
+    GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
+
+  // TODO-EX: will obviously need real object:
+  segment_p = NULL;
+
+  return GASNET_OK;
+}
+
 extern int gasnetc_EPCreate( gasnetex_endpoint_t     *ep_p,
                              gasnetex_client_t       client,
                              gasnetex_flags_t        flags) {
