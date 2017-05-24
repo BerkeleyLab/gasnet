@@ -191,6 +191,24 @@ GASNETI_MALLOCP(_gasneti_calloc)
   #define system(s)            gasneti_system_error
 #endif
 
+#define gasneti_thunk_error    ERROR__GASNet_conduit_code_must_not_use_gasneti_thunk_variables
+#ifdef gasneti_thunk_client
+#undef gasneti_thunk_client
+#endif
+#define gasneti_thunk_client   gasneti_thunk_error
+#ifdef gasneti_thunk_endpoint
+#undef gasneti_thunk_endpoint
+#endif
+#define gasneti_thunk_endpoint gasneti_thunk_error
+#ifdef gasneti_thunk_team
+#undef gasneti_thunk_team
+#endif
+#define gasneti_thunk_team     gasneti_thunk_error
+#ifdef gasneti_thunk_segment
+#undef gasneti_thunk_segment
+#endif
+#define gasneti_thunk_segment  gasneti_thunk_error
+
 /* ------------------------------------------------------------------------------------ */
 /* Version of strdup() which is compatible w/ gasneti_free(), instead of plain free() */
 GASNETI_INLINE(_gasneti_strdup) GASNETI_MALLOC
