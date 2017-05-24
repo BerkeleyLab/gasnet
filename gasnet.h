@@ -22,11 +22,13 @@ GASNETI_BEGIN_NOWARN
 extern gasnetex_client_t      _gasneti_g2ex_client;
 extern gasnetex_endpoint_t    _gasneti_g2ex_endpoint;
 extern gasnetex_team_member_t _gasneti_g2ex_team;
+extern gasnetex_segment_t     _gasneti_g2ex_segment;
 
 // Use of redundant casts makes these expressions rvalues to prevent assignment
 #define g2ex_client   ((gasnetex_client_t)_gasneti_g2ex_client)
 #define g2ex_endpoint ((gasnetex_endpoint_t)_gasneti_g2ex_endpoint)
 #define g2ex_team     ((gasnetex_team_member_t)_gasneti_g2ex_team)
+#define g2ex_segment  ((gasnetex_segment_t)_gasneti_g2ex_segment)
 
 /* ------------------------------------------------------------------------------------ */
 /*
@@ -49,6 +51,36 @@ typedef gasnetex_register_value_t gasnet_register_value_t;
 
 typedef gasnetex_handle_t gasnet_handle_t;
 #define GASNET_INVALID_HANDLE GASNETEX_INVALID_HANDLE
+
+/* ------------------------------------------------------------------------------------ */
+/*
+  Initialization
+  ==============
+*/
+
+GASNETT_INLINE(gasnet_init)
+int gasnet_init(int *argc, char ***argv) {
+  return gasnetex_ClientInit ( &_gasneti_g2ex_client,
+                               &_gasneti_g2ex_endpoint,
+                               &_gasneti_g2ex_team,
+                               argc, argv, "LEGACY",
+                               GASNETI_FLAG_INIT_LEGACY);
+}
+
+extern int gasnetc_attach( gasnetex_client_t      *client_p,
+                           gasnetex_endpoint_t    *endpoint_p,
+                           gasnetex_team_member_t *team_p,
+                           gasnetex_segment_t     *segment_p,
+                           gasnet_handlerentry_t  *table,
+                           int                    numentries,
+                           uintptr_t              segsize);
+GASNETT_INLINE(gasnet_attach)
+int gasnet_attach( gasnet_handlerentry_t *table, int numentries,
+                   uintptr_t segsize, uintptr_t minheapoffset ) {
+  return gasnetc_attach( &_gasneti_g2ex_client, &_gasneti_g2ex_endpoint,
+                         &_gasneti_g2ex_team, &_gasneti_g2ex_segment,
+                         table, numentries, segsize);
+}
 
 /* ------------------------------------------------------------------------------------ */
 /*

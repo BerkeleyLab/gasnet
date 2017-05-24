@@ -1386,7 +1386,8 @@ uintptr_t gasneti_maxbase;
  */
 void gasneti_segmentInit(gasnet_seginfo_t *segment_p,
                          uintptr_t localSegmentLimit,
-                         gasneti_bootstrapExchangefn_t exchangefn)
+                         gasneti_bootstrapExchangefn_t exchangefn,
+                         int legacy_mode)
 {
 #if GASNET_PSHM
   gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
@@ -1442,7 +1443,7 @@ void gasneti_segmentInit(gasnet_seginfo_t *segment_p,
   // PART III: Optionally align segments
 
   #if GASNET_ALIGNED_SEGMENTS && defined(GASNETI_MMAP_OR_PSHM)
-  if (1) { // TODO-EX: in anticipation of alignment being a runtime choice
+  if (legacy_mode) { // Aligned segments only available to GASNet-1 clients
     /* BG/Q would incorrectly probe the I/O node */
     #if !defined(PLATFORM_OS_BGQ)
       if (gasneti_nodes > 1) {
@@ -1554,6 +1555,13 @@ void gasneti_segmentInit(gasnet_seginfo_t *segment_p,
     gasneti_assert(gasneti_MaxGlobalSegmentSize % GASNET_PAGESIZE == 0);
     gasneti_assert(gasneti_MaxGlobalSegmentSize <= gasneti_MaxLocalSegmentSize);
     gasneti_assert(gasneti_MaxLocalSegmentSize <= localSegmentLimit);
+  }
+
+  // PART V: Discard the pre-segment if not supporting GASNet-1's attach
+  if (!legacy_mode) {
+    if (segment_p->addr) gasneti_do_munmap(segment_p->addr, segment_p->size);
+    segment_p->addr = NULL;
+    segment_p->size = 0;
   }
 
 #ifdef GASNETI_MMAP_OR_PSHM

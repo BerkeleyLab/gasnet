@@ -322,7 +322,8 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
 
 void gasneti_segmentInit(gasnet_seginfo_t *segment_p,
                          uintptr_t localSegmentLimit,
-                         gasneti_bootstrapExchangefn_t exchangefn);
+                         gasneti_bootstrapExchangefn_t exchangefn,
+                         int legacy_mode);
 void gasneti_segmentAttach(gasnet_seginfo_t *segment_p,
                            uintptr_t segsize,
                            gasnet_seginfo_t *seginfo,

@@ -1593,6 +1593,7 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
 gasnetex_client_t      _gasneti_g2ex_client   = NULL;
 gasnetex_endpoint_t    _gasneti_g2ex_endpoint = NULL;
 gasnetex_team_member_t _gasneti_g2ex_team     = NULL;
+gasnetex_segment_t     _gasneti_g2ex_segment  = NULL;
 
 /* ------------------------------------------------------------------------------------ */
 /* Debug memory management

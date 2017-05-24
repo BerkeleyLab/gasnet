@@ -23,13 +23,6 @@
   Initialization
   ==============
 */
-/* gasnet_init not inlined or renamed because we use redef-name trick on  
-   it to ensure proper version linkage */
-extern int gasnet_init(int *argc, char ***argv);
-
-extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
-                          uintptr_t segsize, uintptr_t minheapoffset);
-#define gasnet_attach gasnetc_attach
 
 extern void gasnetc_exit(int exitcode) GASNETI_NORETURN;
 GASNETI_NORETURNP(gasnetc_exit)
@@ -43,6 +36,17 @@ GASNETI_NORETURNP(gasnetc_exit)
   #define GASNET_NULL_ARGV_OK 0
 #endif
 /* ------------------------------------------------------------------------------------ */
+/* gasnetex_ClientInit not inlined or renamed because we use redef-name trick on
+   it to ensure proper version linkage */
+extern int gasnetex_ClientInit(
+                gasnetex_client_t      *client_p,
+                gasnetex_endpoint_t    *ep_p,
+                gasnetex_team_member_t *team_p,
+                int                    *argc,
+                char                   ***argv,
+                const char             *clientName,
+                gasnetex_flags_t       flags);
+
 extern int gasnetc_EPCreate(
                 gasnetex_endpoint_t     *ep_p,
                 gasnetex_client_t       client,

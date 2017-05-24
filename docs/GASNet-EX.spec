@@ -121,6 +121,16 @@ typedef struct gasneti_endpoint_s *gasnetex_endpoint_t;
 struct gasneti_client_s;
 typedef struct gasneti_client_s *gasnetex_client_t;
 
+// Initialize the client
+extern int gasnetex_ClientInit(
+                gasnetex_client_t      *client_p,
+                gasnetex_endpoint_t    *ep_p,
+                gasnetex_team_member_t *team_p,
+                int                    *argc,
+                char                   ***argv,
+                const char             *clientName,
+                gasnetex_flags_t       flags);
+
 // Create an endpoint
 extern int gasnetex_EPCreate(
                 gasnetex_endpoint_t     *ep_p,
