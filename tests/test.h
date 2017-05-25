@@ -252,7 +252,7 @@ static char test_sections[255];
 static void *_test_malloc(size_t sz, const char *curloc) {
   void *ptr;
   ptr = malloc(sz);
-  if (ptr == NULL) FATALERR("Failed to malloc(%lu) bytes at %s\n",(unsigned long)sz,curloc);
+  if (ptr == NULL) FATALERR("Failed to malloc(%" PRIuPTR ") bytes at %s\n",(uintptr_t)sz,curloc);
   return ptr;
 }
 static void *_test_calloc(size_t sz, const char *curloc) {
