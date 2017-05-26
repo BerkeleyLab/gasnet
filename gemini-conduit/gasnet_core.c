@@ -30,9 +30,6 @@ gasnetex_handlerentry_t const *gasnetc_get_handlertable(void);
 // TODO-EX: will be replaced with per-EP tables
 gasnetex_handlerentry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table (recommended impl) */
 
-// needed for gasneti_segment{Init,Attach}()
-static gasnet_seginfo_t gasnetc_presegment = {0,0}; /* local segment info */
-
 #if HAVE_ON_EXIT
 static void gasnetc_on_exit(int, void*);
 #else
@@ -623,13 +620,14 @@ static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
   /* allocate and attach an aux segment */
   uintptr_t max_pin = gasnetc_MaxPinMem(msgspace);
 
-  uintptr_t auxsize = gasneti_auxsegAttach(&gasnetc_auxsegment, max_pin, &gasnetc_bootstrapExchange_gni);
-  max_pin -= auxsize;
+  gasneti_auxsegAttach(max_pin, &gasnetc_bootstrapExchange_gni);
+  max_pin -= gasneti_seginfo_aux[gasneti_mynode].size;
 
   /* register auxseg and setup subsystems using it */
-  gasnetc_init_gni(gasnetc_auxsegment);
+  gasnetc_init_gni(gasneti_seginfo_aux[gasneti_mynode]);
 
-  gasneti_segmentInit(&gasnetc_presegment, max_pin, &gasnetc_bootstrapExchange_gni, legacy_mode);
+  /* determine Max{Local,GLobal}SegmentSize */
+  gasneti_segmentInit(max_pin, &gasnetc_bootstrapExchange_gni, legacy_mode);
 
   #if 0
     /* Enable this if you wish to use the default GASNet services for broadcasting 
@@ -717,7 +715,7 @@ static int gasnetc_attach_primary( gasnetex_client_t       *client_p,
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
-static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn_t exchangefn) {
+static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn_t exchangefn, gasnetex_flags_t flags) {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
 
   // TODO-EX: crude detection of multiple calls until we support them
@@ -726,7 +724,8 @@ static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn
   /* ------------------------------------------------------------------------------------ */
   /*  register segment  */
 
-  gasneti_segmentAttach(&gasnetc_presegment, segsize, gasneti_seginfo, gasneti_seginfo_ub, exchangefn);
+  const int legacy_mode = (flags & GASNETI_FLAG_INIT_LEGACY);
+  gasneti_segmentAttach(segsize, gasneti_seginfo, gasneti_seginfo_ub, exchangefn, legacy_mode);
 
   void *segbase = gasneti_seginfo[gasneti_mynode].addr;
   segsize = gasneti_seginfo[gasneti_mynode].size;
@@ -793,7 +792,7 @@ extern int gasnetc_attach( gasnetex_client_t      *client_p,
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     /*  register client segment  */
     // TODO-EX: clearly segment_p should be initialized here
-    if (GASNET_OK != gasnetc_attach_segment(segsize, gasneti_defaultExchange))
+    if (GASNET_OK != gasnetc_attach_segment(segsize, gasneti_defaultExchange, GASNETI_FLAG_INIT_LEGACY))
       GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
   #endif
 
@@ -869,7 +868,7 @@ extern int gasnetc_TeamSegmentCreate(
   /* create a segment collectively */
   // TODO-EX: this implementation only works *once*
   // TODO-EX: should be using the team's exchange function if possible
-  if (GASNET_OK != gasnetc_attach_segment(length, gasneti_defaultExchange))
+  if (GASNET_OK != gasnetc_attach_segment(length, gasneti_defaultExchange, flags))
     GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
 
   // TODO-EX: will obviously need real object:

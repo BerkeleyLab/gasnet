@@ -338,15 +338,14 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasneti_bootstrapBarrierfn_t barrierfn);
 #endif /* GASNETI_MMAP_OR_PSHM */
 
-void gasneti_segmentInit(gasnet_seginfo_t *segment_p,
-                         uintptr_t localSegmentLimit,
+void gasneti_segmentInit(uintptr_t localSegmentLimit,
                          gasneti_bootstrapExchangefn_t exchangefn,
                          int legacy_mode);
-void gasneti_segmentAttach(gasnet_seginfo_t *local_segment,
-                           uintptr_t segsize,
+void gasneti_segmentAttach(uintptr_t segsize,
                            gasnet_seginfo_t *all_segments,
                            void **upper_bounds,
-                           gasneti_bootstrapExchangefn_t exchangefn);
+                           gasneti_bootstrapExchangefn_t exchangefn,
+                           int legacy_mode);
 
 void gasneti_setupGlobalEnvironment(gasnetex_rank_t numnodes, gasnetex_rank_t mynode,
                                      gasneti_bootstrapExchangefn_t exchangefn,
@@ -389,9 +388,7 @@ uintptr_t gasneti_auxseg_prepare(uintptr_t limit);
 void gasneti_auxseg_attach(gasnet_seginfo_t *auxseg_info);
 
 /* common case use of gasneti_auxseg_{prepare,attach} for conduits using gasneti_segmentAttach() */
-uintptr_t gasneti_auxsegAttach(gasnet_seginfo_t *local_auxseg,
-                               uintptr_t maxsize,
-                               gasneti_bootstrapExchangefn_t exchangefn);
+void gasneti_auxsegAttach(uintptr_t maxsize, gasneti_bootstrapExchangefn_t exchangefn);
 
 /* ------------------------------------------------------------------------------------ */
 #ifndef GASNETI_DISABLE_EOP_INTERFACE

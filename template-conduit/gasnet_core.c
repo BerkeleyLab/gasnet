@@ -28,9 +28,6 @@ static void gasnetc_atexit(void);
 
 gasneti_spawnerfn_t const *gasneti_spawner = NULL;
 
-// (###) maybe needed for gasneti_segment{Init,Attach}()
-//static gasnet_seginfo_t gasnetc_presegment = {0,0}; /* local segment info */
-
 /* ------------------------------------------------------------------------------------ */
 /*
   Initialization
@@ -107,10 +104,8 @@ static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
 
   /* allocate and attach an aux segment */
 
-  gasnet_seginfo_t gasnetc_auxsegment = {0,0};
-
   /* (###) it may be appropriate to use the following to allocate and map an aux segment
-     uintptr_t auxsize = gasneti_auxsegAttach(&gasnetc_auxsegment, maxsize, &gasneti_spawner->Exchange);
+           gasneti_auxsegAttach(maxsize, &gasneti_spawner->Exchange);
      (###) result of gasneti_mmapLimit() may provide a good maxsize argument here:
    */
 
@@ -215,7 +210,7 @@ static int gasnetc_attach_primary( gasnetex_client_t       *client_p,
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
-static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn_t exchangefn) {
+static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn_t exchangefn, gasnetex_flags_t flags) {
   // TODO-EX: crude detection of multiple calls until we support them
   gasneti_assert(NULL == gasneti_seginfo[0].addr);
 
@@ -289,7 +284,7 @@ extern int gasnetc_attach( gasnetex_client_t      *client_p,
     /*  register client segment  */
     /*  (###) may replace gasneti_defaultExchange with a conduit-specific exchange if available */
     // TODO-EX: clearly segment_p should be initialized here
-    if (GASNET_OK != gasnetc_attach_segment(segsize, gasneti_defaultExchange))
+    if (GASNET_OK != gasnetc_attach_segment(segsize, gasneti_defaultExchange, GASNETI_FLAG_INIT_LEGACY))
       GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
   #endif
 

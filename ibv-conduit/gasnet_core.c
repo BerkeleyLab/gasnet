@@ -26,9 +26,6 @@ gasnetex_handlerentry_t const *gasnetc_get_handlertable(void);
 // TODO-EX: will be replaced with per-EP tables
 gasnetex_handlerentry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS]; /* handler table */
 
-// needed for gasneti_segment{Init,Attach}()
-static gasnet_seginfo_t gasnetc_presegment = {0,0}; /* local segment info */
-
 /* ------------------------------------------------------------------------------------ */
 /*
   Configuration
@@ -1750,14 +1747,16 @@ static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
 
   /* allocate and attach an aux segment */
 
-  gasnet_seginfo_t gasnetc_auxsegment = {0,0};
-  uintptr_t auxsize = gasneti_auxsegAttach(&gasnetc_auxsegment, MIN(mmap_limit,gasnetc_pin_maxsz), &gasnetc_bootstrapExchange_ib);
+  gasneti_auxsegAttach(MIN(mmap_limit,gasnetc_pin_maxsz), &gasnetc_bootstrapExchange_ib);
+
+  void *auxbase = gasneti_seginfo_aux[gasneti_mynode].addr;
+  uintptr_t auxsize = gasneti_seginfo_aux[gasneti_mynode].size;
   mmap_limit -= auxsize;
 
   /* The auxseg will be statically pinned even if the segment is not */
   
   GASNETC_FOR_ALL_HCA(hca) {
-    if (0 != gasnetc_pin(hca, gasnetc_auxsegment.addr, gasnetc_auxsegment.size,
+    if (0 != gasnetc_pin(hca, auxbase, auxsize,
                          (enum ibv_access_flags)(IBV_ACCESS_LOCAL_WRITE |
                                                  IBV_ACCESS_REMOTE_WRITE |
                                                  IBV_ACCESS_REMOTE_READ),
@@ -1769,12 +1768,13 @@ static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
     hca->aux_rkeys = gasneti_malloc(gasneti_nodes*sizeof(uint32_t));
     gasnetc_bootstrapExchange_ib(&hca->aux_reg.handle->rkey, sizeof(uint32_t), hca->aux_rkeys);
   }
-  gasneti_assert(gasnetc_pin_info.memory > gasnetc_auxsegment.size);
+  gasneti_assert(gasnetc_pin_info.memory > auxsize);
   gasneti_assert(gasnetc_pin_info.regions > 1);
-  gasnetc_pin_info.memory -= gasnetc_auxsegment.size;
+  gasnetc_pin_info.memory -= auxsize;
   gasnetc_pin_info.regions -= 1;
 
-  gasneti_segmentInit(&gasnetc_presegment, mmap_limit, &gasnetc_bootstrapExchange_ib, legacy_mode);
+  /* determine Max{Local,GLobal}SegmentSize */
+  gasneti_segmentInit(mmap_limit, &gasnetc_bootstrapExchange_ib, legacy_mode);
 
 #if GASNET_BLCR
   gasneti_checkpoint_init(gasneti_bootstrapBroadcast);
@@ -1959,7 +1959,7 @@ static int gasnetc_attach_primary( gasnetex_client_t       *client_p,
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
-static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn_t exchangefn) {
+static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn_t exchangefn, gasnetex_flags_t flags) {
   // TODO-EX: crude detection of multiple calls until we support them
   gasneti_assert(NULL == gasneti_seginfo[0].addr);
 
@@ -1969,7 +1969,8 @@ static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn
   gasnetc_hca_t *hca;
   gasnetex_rank_t i;
 
-  gasneti_segmentAttach(&gasnetc_presegment, segsize, gasneti_seginfo, gasneti_seginfo_ub, exchangefn);
+  const int legacy_mode = (flags & GASNETI_FLAG_INIT_LEGACY);
+  gasneti_segmentAttach(segsize, gasneti_seginfo, gasneti_seginfo_ub, exchangefn, legacy_mode);
 
   void *segbase = gasneti_seginfo[gasneti_mynode].addr;
   segsize = gasneti_seginfo[gasneti_mynode].size;
@@ -2133,7 +2134,7 @@ extern int gasnetc_attach( gasnetex_client_t      *client_p,
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     /*  register client segment  */
     // TODO-EX: clearly segment_p should be initialized here
-    if (GASNET_OK != gasnetc_attach_segment(segsize, gasneti_defaultExchange))
+    if (GASNET_OK != gasnetc_attach_segment(segsize, gasneti_defaultExchange, GASNETI_FLAG_INIT_LEGACY))
       GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
   #endif
 
@@ -2209,7 +2210,7 @@ extern int gasnetc_TeamSegmentCreate(
   /* create a segment collectively */
   // TODO-EX: this implementation only works *once*
   // TODO-EX: should be using the team's exchange function if possible
-  if (GASNET_OK != gasnetc_attach_segment(length, gasneti_defaultExchange))
+  if (GASNET_OK != gasnetc_attach_segment(length, gasneti_defaultExchange, flags))
     GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
 
   // TODO-EX: will obviously need real object:
