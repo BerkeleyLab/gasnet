@@ -340,12 +340,12 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
 
 void gasneti_segmentInit(uintptr_t localSegmentLimit,
                          gasneti_bootstrapExchangefn_t exchangefn,
-                         int legacy_mode);
+                         gasnetex_flags_t flags);
 void gasneti_segmentAttach(uintptr_t segsize,
                            gasnet_seginfo_t *all_segments,
                            void **upper_bounds,
                            gasneti_bootstrapExchangefn_t exchangefn,
-                           int legacy_mode);
+                           gasnetex_flags_t flags);
 
 void gasneti_setupGlobalEnvironment(gasnetex_rank_t numnodes, gasnetex_rank_t mynode,
                                      gasneti_bootstrapExchangefn_t exchangefn,

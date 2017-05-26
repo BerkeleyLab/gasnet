@@ -1388,8 +1388,9 @@ uintptr_t gasneti_maxbase;
  */
 void gasneti_segmentInit(uintptr_t localSegmentLimit,
                          gasneti_bootstrapExchangefn_t exchangefn,
-                         int legacy_mode)
+                         gasnetex_flags_t flags)
 {
+  const int legacy_mode = flags & GASNETI_FLAG_INIT_LEGACY;
 #if GASNET_PSHM
   gasneti_pshm_cs_enter(&gasneti_cleanup_shm);
 #endif
@@ -1700,7 +1701,7 @@ void gasneti_segmentAttach(uintptr_t segsize,
                            gasnet_seginfo_t *all_segments,
                            void **upper_bounds,
                            gasneti_bootstrapExchangefn_t exchangefn,
-                           int legacy_mode)
+                           gasnetex_flags_t flags)
 {
   gasneti_assert(all_segments);
   gasneti_assert(upper_bounds);
@@ -1714,7 +1715,7 @@ void gasneti_segmentAttach(uintptr_t segsize,
 
   /* in "legacy_mode" we consume the presegment, otherwise working from scratch */
   gasnet_seginfo_t local_segment = {0,0};
-  if (legacy_mode) local_segment = gasneti_presegment;
+  if (flags & GASNETI_FLAG_INIT_LEGACY) local_segment = gasneti_presegment;
   
   gasneti_segmentAttachLocal(&local_segment, segsize, exchangefn);
 

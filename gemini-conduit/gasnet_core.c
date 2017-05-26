@@ -548,7 +548,6 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t msgspace)
 
 
 static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
-  const int legacy_mode = (flags & GASNETI_FLAG_INIT_LEGACY);
   uintptr_t msgspace;
   int ret;
   int localranks;
@@ -627,7 +626,7 @@ static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
   gasnetc_init_gni(gasneti_seginfo_aux[gasneti_mynode]);
 
   /* determine Max{Local,GLobal}SegmentSize */
-  gasneti_segmentInit(max_pin, &gasnetc_bootstrapExchange_gni, legacy_mode);
+  gasneti_segmentInit(max_pin, &gasnetc_bootstrapExchange_gni, flags);
 
   #if 0
     /* Enable this if you wish to use the default GASNet services for broadcasting 
@@ -724,8 +723,7 @@ static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn
   /* ------------------------------------------------------------------------------------ */
   /*  register segment  */
 
-  const int legacy_mode = (flags & GASNETI_FLAG_INIT_LEGACY);
-  gasneti_segmentAttach(segsize, gasneti_seginfo, gasneti_seginfo_ub, exchangefn, legacy_mode);
+  gasneti_segmentAttach(segsize, gasneti_seginfo, gasneti_seginfo_ub, exchangefn, flags);
 
   void *segbase = gasneti_seginfo[gasneti_mynode].addr;
   segsize = gasneti_seginfo[gasneti_mynode].size;

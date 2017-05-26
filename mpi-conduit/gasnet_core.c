@@ -123,7 +123,6 @@ static void gasnetc_bootstrapSNodeBroadcast(void *src, size_t len, void *dest, i
  } while (0)
 
 static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
-  const int legacy_mode = (flags & GASNETI_FLAG_INIT_LEGACY);
   int retval = GASNET_OK;
   int networkdepth = 0;
   const char *pstr = NULL;
@@ -224,7 +223,7 @@ static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
     mmap_limit -= gasneti_seginfo_aux[gasneti_mynode].size;
 
     /* determine Max{Local,GLobal}SegmentSize */
-    gasneti_segmentInit(mmap_limit, &gasnetc_bootstrapExchange, legacy_mode);
+    gasneti_segmentInit(mmap_limit, &gasnetc_bootstrapExchange, flags);
 
   AMUNLOCK();
 
@@ -320,8 +319,7 @@ static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn
     /* ------------------------------------------------------------------------------------ */
     /*  register segment  */
 
-    const int legacy_mode = (flags & GASNETI_FLAG_INIT_LEGACY);
-    gasneti_segmentAttach(segsize, gasneti_seginfo, gasneti_seginfo_ub, exchangefn, legacy_mode);
+    gasneti_segmentAttach(segsize, gasneti_seginfo, gasneti_seginfo_ub, exchangefn, flags);
 
     void *segbase = gasneti_seginfo[gasneti_mynode].addr;
     segsize = gasneti_seginfo[gasneti_mynode].size;

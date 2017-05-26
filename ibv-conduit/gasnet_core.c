@@ -1415,7 +1415,6 @@ static int gasnetc_hca_report(void) {
 }
 
 static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
-  const int legacy_mode = (flags & GASNETI_FLAG_INIT_LEGACY);
 #if GASNET_PSHM
   void                  *shared_mem;
 #endif
@@ -1774,7 +1773,7 @@ static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
   gasnetc_pin_info.regions -= 1;
 
   /* determine Max{Local,GLobal}SegmentSize */
-  gasneti_segmentInit(mmap_limit, &gasnetc_bootstrapExchange_ib, legacy_mode);
+  gasneti_segmentInit(mmap_limit, &gasnetc_bootstrapExchange_ib, flags);
 
 #if GASNET_BLCR
   gasneti_checkpoint_init(gasneti_bootstrapBroadcast);
@@ -1969,8 +1968,7 @@ static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn
   gasnetc_hca_t *hca;
   gasnetex_rank_t i;
 
-  const int legacy_mode = (flags & GASNETI_FLAG_INIT_LEGACY);
-  gasneti_segmentAttach(segsize, gasneti_seginfo, gasneti_seginfo_ub, exchangefn, legacy_mode);
+  gasneti_segmentAttach(segsize, gasneti_seginfo, gasneti_seginfo_ub, exchangefn, flags);
 
   void *segbase = gasneti_seginfo[gasneti_mynode].addr;
   segsize = gasneti_seginfo[gasneti_mynode].size;

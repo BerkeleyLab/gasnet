@@ -42,8 +42,6 @@ static void gasnetc_check_config(void) {
 }
 
 static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
-  const int legacy_mode = (flags & GASNETI_FLAG_INIT_LEGACY);
-
   /*  check system sanity */
   gasnetc_check_config();
 
