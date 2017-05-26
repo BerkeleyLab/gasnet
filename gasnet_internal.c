@@ -1846,14 +1846,14 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
       char curlocstr[GASNETI_MAX_LOCSZ];
       if (allowfail) {
         if_pt (gasneti_attach_done) { gasnet_resume_interrupts(); }
-        GASNETI_TRACE_PRINTF(I,("Warning: returning NULL for a failed gasneti_malloc(%lu): %s",
-                                (unsigned long)nbytes, _gasneti_format_curloc(curlocstr,curloc)));
+        GASNETI_TRACE_PRINTF(I,("Warning: returning NULL for a failed gasneti_malloc(%"PRIuPTR"): %s",
+                                (uintptr_t)nbytes, _gasneti_format_curloc(curlocstr,curloc)));
         return NULL;
       }
-      gasneti_fatalerror("Debug malloc(%lu) failed (%lu bytes in use, in %lu objects): %s", 
-                     (unsigned long)nbytes, 
-                     (unsigned long)(gasneti_memalloc_allocatedbytes - gasneti_memalloc_freedbytes),
-                     (unsigned long)(gasneti_memalloc_allocatedobjects - gasneti_memalloc_freedobjects),
+      gasneti_fatalerror("Debug malloc(%"PRIuPTR") failed (%"PRIu64" bytes in use, in %"PRIu64" objects): %s", 
+                     (uintptr_t)nbytes, 
+                     (gasneti_memalloc_allocatedbytes - gasneti_memalloc_freedbytes),
+                     (gasneti_memalloc_allocatedobjects - gasneti_memalloc_freedobjects),
                      _gasneti_format_curloc(curlocstr,curloc));
     } else {
       uint64_t gasneti_endpost_ref = GASNETI_MEM_ENDPOST;
