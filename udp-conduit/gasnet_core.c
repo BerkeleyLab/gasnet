@@ -30,7 +30,9 @@ gasnetex_handlerentry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 static gasnet_seginfo_t gasnetc_presegment = {0,0}; /* local segment info */
 
 // TODO-EX: This is a hack to support multiple segments w/ a single AM EP
-#define GASNETC_MOCK_EVERYTHING
+#ifndef GASNETC_MOCK_EVERYTHING
+#define GASNETC_MOCK_EVERYTHING 1
+#endif
 
 static void gasnetc_traceoutput(int);
 #if HAVE_ON_EXIT
@@ -425,7 +427,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
 
     /*  AMUDP allows arbitrary registration with no further action  */
     if (segsize) {
-#ifdef GASNETC_MOCK_EVERYTHING
+#if GASNETC_MOCK_EVERYTHING
       retval = AM_SetSeg(gasnetc_endpoint, NULL, (uintptr_t)-1);
 #else
       retval = AM_SetSeg(gasnetc_endpoint, segbase, segsize);
@@ -781,7 +783,7 @@ extern int gasnetc_AMRequestLongM(
 #endif
   {
     uintptr_t dest_offset;
-#ifdef GASNETC_MOCK_EVERYTHING
+#if GASNETC_MOCK_EVERYTHING
     dest_offset = (uintptr_t)dest_addr;
 #else
     dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[rank].addr);
@@ -884,7 +886,7 @@ extern int gasnetc_AMReplyLongM(
     uintptr_t dest_offset;
 
     GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
-#ifdef GASNETC_MOCK_EVERYTHING
+#if GASNETC_MOCK_EVERYTHING
     dest_offset = (uintptr_t)dest_addr;
 #else
     dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
@@ -1039,7 +1041,7 @@ int gasnet_checkpoint(const char *dir) {
     }
 
     /* Segment */
-#ifdef GASNETC_MOCK_EVERYTHING
+#if GASNETC_MOCK_EVERYTHING
     i = AM_SetSeg(gasnetc_endpoint, NULL, (uintptr_t)-1);
 #else
     i = AM_SetSeg(gasnetc_endpoint,
