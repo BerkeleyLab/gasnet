@@ -1732,10 +1732,8 @@ static int gasnetc_init(int *argc, char ***argv) {
   /* allocate and attach an aux segment */
 
   gasnet_seginfo_t gasnetc_auxsegment = {0,0};
-  gasneti_seginfo_aux = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
-  gasneti_leak(gasneti_seginfo_aux);
-
-  uintptr_t auxsize = gasneti_auxsegAttach(&gasnetc_auxsegment, mmap_limit, gasneti_seginfo_aux, &gasnetc_bootstrapExchange_ib);
+  uintptr_t auxsize = gasneti_auxsegAttach(&gasnetc_auxsegment, mmap_limit, &gasnetc_bootstrapExchange_ib);
+  gasneti_assert_always(auxsize <= gasnetc_pin_maxsz);
   mmap_limit -= auxsize;
 
   /* The auxseg will be statically pinned even if the segment is not */

@@ -1955,13 +1955,14 @@ void gasneti_auxseg_attach(gasnet_seginfo_t *auxseg_info) {
 }
 
 /* common case use of gasneti_auxseg_{prepare,attach} for conduits using gasneti_segmentAttach() */
-uintptr_t gasneti_auxsegAttach(gasnet_seginfo_t *auxseg_p,
+uintptr_t gasneti_auxsegAttach(gasnet_seginfo_t *local_auxseg,
                                uintptr_t maxsize,
-                               gasnet_seginfo_t *auxseg_info,
                                gasneti_bootstrapExchangefn_t exchangefn)
 {
   uintptr_t auxsize = gasneti_auxseg_prepare(maxsize);
-  gasneti_segmentAttach(auxseg_p, auxsize, auxseg_info, exchangefn);
+  gasneti_seginfo_aux = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
+  gasneti_leak(gasneti_seginfo_aux); 
+  gasneti_segmentAttach(local_auxseg, auxsize, gasneti_seginfo_aux, exchangefn);
   gasneti_auxseg_attach(auxseg_info);
   return auxsize;
 }

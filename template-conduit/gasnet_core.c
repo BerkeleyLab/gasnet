@@ -106,11 +106,9 @@ static int gasnetc_init(int *argc, char ***argv) {
   /* allocate and attach an aux segment */
 
   gasnet_seginfo_t gasnetc_auxsegment = {0,0};
-  gasneti_seginfo_aux = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
-  gasneti_leak(gasneti_seginfo_aux);
 
   /* (###) it may be appropriate to use the following to allocate and map an aux segment
-     uintptr_t auxsize = gasneti_auxsegAttach(&gasnetc_auxsegment, maxsize, gasneti_seginfo_aux, &gasneti_spawner->Exchange);
+     uintptr_t auxsize = gasneti_auxsegAttach(&gasnetc_auxsegment, maxsize, &gasneti_spawner->Exchange);
      (###) result of gasneti_mmapLimit() may provide a good maxsize argument here:
    */
 
