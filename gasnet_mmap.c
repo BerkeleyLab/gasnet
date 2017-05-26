@@ -1963,7 +1963,7 @@ uintptr_t gasneti_auxsegAttach(gasnet_seginfo_t *local_auxseg,
   gasneti_seginfo_aux = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
   gasneti_leak(gasneti_seginfo_aux); 
   gasneti_segmentAttach(local_auxseg, auxsize, gasneti_seginfo_aux, exchangefn);
-  gasneti_auxseg_attach(local_auxseg);
+  gasneti_auxseg_attach(gasneti_seginfo_aux);
   return auxsize;
 }
 
