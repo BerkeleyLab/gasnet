@@ -1774,11 +1774,7 @@ static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
   gasnetc_pin_info.memory -= gasnetc_auxsegment.size;
   gasnetc_pin_info.regions -= 1;
 
-  #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-    gasneti_segmentInit(&gasnetc_presegment, mmap_limit, &gasnetc_bootstrapExchange_ib, legacy_mode);
-  #elif GASNET_SEGMENT_EVERYTHING
-    /* segment is everything - nothing to do */
-  #endif
+  gasneti_segmentInit(&gasnetc_presegment, mmap_limit, &gasnetc_bootstrapExchange_ib, legacy_mode);
 
 #if GASNET_BLCR
   gasneti_checkpoint_init(gasneti_bootstrapBroadcast);
@@ -1964,50 +1960,32 @@ static int gasnetc_attach_primary( gasnetex_client_t       *client_p,
 }
 /* ------------------------------------------------------------------------------------ */
 static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn_t exchangefn) {
+  // TODO-EX: crude detection of multiple calls until we support them
+  gasneti_assert(NULL == gasneti_seginfo[0].addr);
+
   /* ------------------------------------------------------------------------------------ */
   /*  register segment  */
 
   gasnetc_hca_t *hca;
   gasnetex_rank_t i;
-  void *segbase = NULL;
 
-  if (!gasneti_seginfo) {
-    gasneti_seginfo = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
-    gasneti_leak(gasneti_seginfo);
-  } else {
-    // TODO-EX: crude detection of multiple calls until we support them
-    gasneti_assert(NULL == gasneti_seginfo[0].addr);
+  gasneti_segmentAttach(&gasnetc_presegment, segsize, gasneti_seginfo, gasneti_seginfo_ub, exchangefn);
+
+  void *segbase = gasneti_seginfo[gasneti_mynode].addr;
+  segsize = gasneti_seginfo[gasneti_mynode].size;
+
+  gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
+  gasneti_assert(segsize % GASNET_PAGESIZE == 0);
+
+  /* After local segment is attached, call optional client-provided hook
+     (###) should call BEFORE any conduit-specific pinning/registration of the segment
+   */
+  if (gasnet_client_attach_hook) {
+    gasnet_client_attach_hook(segbase, segsize);
   }
 
-  #if GASNET_SEGMENT_EVERYTHING
+  #if GASNETC_PIN_SEGMENT
   {
-    for (i=0;i<gasneti_nodes;i++) {
-      gasneti_seginfo[i].addr = (void *)0;
-      gasneti_seginfo[i].size = (uintptr_t)-1;
-    }
-    segbase = (void *)0;
-    segsize = (uintptr_t)-1;
-    /* After local segment is attached, call optional client-provided hook
-       (###) should call BEFORE any conduit-specific pinning/registration of the segment
-     */
-    if (gasnet_client_attach_hook) {
-      gasnet_client_attach_hook(segbase, segsize);
-    }
-  }
-  #elif GASNETC_PIN_SEGMENT
-  {
-    /* allocate the segment and exchange seginfo */
-    gasneti_segmentAttach(&gasnetc_presegment, segsize, gasneti_seginfo, exchangefn);
-    segbase = gasneti_seginfo[gasneti_mynode].addr;
-    segsize = gasneti_seginfo[gasneti_mynode].size;
-
-    /* After local segment is attached, call optional client-provided hook
-       (###) should call BEFORE any conduit-specific pinning/registration of the segment
-     */
-    if (gasnet_client_attach_hook) {
-      gasnet_client_attach_hook(segbase, segsize);
-    }
-
     gasnetc_seg_start = (uintptr_t)segbase;
     gasnetc_seg_len   = segsize;
 
@@ -2096,13 +2074,6 @@ static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn
       gasneti_free(my_rkeys);
     }
   }
-  #else	/* just allocate the segment but don't pin it */
-  {
-    /* allocate the segment and exchange seginfo */
-    gasneti_segmentAttach(&gasnetc_presegment, segsize, gasneti_seginfo, exchangefn);
-    segbase = gasneti_seginfo[gasneti_mynode].addr;
-    segsize = gasneti_seginfo[gasneti_mynode].size;
-  }
   #endif
 
   /* Per-endpoint work */
@@ -2121,8 +2092,6 @@ static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn
            If gasneti_segmentAttach() was used above, this is already done.
      Done in gasneti_segmentAttach(), above.
    */
-
-  gasneti_seginfo_ub = gasneti_seginfo_build_ub(gasneti_seginfo);
 
   gasneti_assert(gasneti_seginfo[gasneti_mynode].addr == segbase &&
                  gasneti_seginfo[gasneti_mynode].size == segsize);
@@ -2161,10 +2130,12 @@ extern int gasnetc_attach( gasnetex_client_t      *client_p,
   if (GASNET_OK != gasnetc_attach_primary(client_p, endpoint_p, team_p, 0))
     GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
 
-  /*  register client segment  */
-  // TODO-EX: clearly segment_p should be initialized here
-  if (GASNET_OK != gasnetc_attach_segment(segsize, gasneti_defaultExchange))
-    GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
+  #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
+    /*  register client segment  */
+    // TODO-EX: clearly segment_p should be initialized here
+    if (GASNET_OK != gasnetc_attach_segment(segsize, gasneti_defaultExchange))
+      GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
+  #endif
 
   /*  register client handlers */
   if (table && gasneti_amregister_legacy(gasnetc_handler, table, numentries) != GASNET_OK)
@@ -2209,20 +2180,6 @@ extern int gasnetex_ClientInit(gasnetex_client_t       *client_p,
     /*  primary attach  */
     if (GASNET_OK != gasnetc_attach_primary(client_p, ep_p, team_p, flags))
       GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
-
-  #if GASNET_SEGMENT_EVERYTHING
-    // TODO-EX: this is a temporary hack to retain support for EVERYTHING clients
-    if (GASNET_OK != gasnetc_attach_segment((uintptr_t)-1, gasneti_defaultExchange))
-      GASNETI_RETURN_ERRR(RESOURCE,"Error in establishing everything segment");
-  #else
-    // TODO-EX: this ensures non-NULL gasneti_seginfo[] in Get,Put,Long
-    gasneti_seginfo = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes * sizeof(gasnet_seginfo_t));
-    gasneti_leak(gasneti_seginfo);
-    for (gasnetex_rank_t i = 0; i < gasneti_nodes; i++) {
-      gasneti_seginfo[i].addr = NULL;
-      gasneti_seginfo[i].size = 0;
-    }
-  #endif
 
     /* ensure everything is initialized across all nodes */
     gasnet_barrier(0, GASNET_BARRIERFLAG_UNNAMED);

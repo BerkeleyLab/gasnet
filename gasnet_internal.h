@@ -342,9 +342,10 @@ void gasneti_segmentInit(gasnet_seginfo_t *segment_p,
                          uintptr_t localSegmentLimit,
                          gasneti_bootstrapExchangefn_t exchangefn,
                          int legacy_mode);
-void gasneti_segmentAttach(gasnet_seginfo_t *segment_p,
+void gasneti_segmentAttach(gasnet_seginfo_t *local_segment,
                            uintptr_t segsize,
-                           gasnet_seginfo_t *seginfo,
+                           gasnet_seginfo_t *all_segments,
+                           void **upper_bounds,
                            gasneti_bootstrapExchangefn_t exchangefn);
 
 void gasneti_setupGlobalEnvironment(gasnetex_rank_t numnodes, gasnetex_rank_t mynode,
@@ -391,9 +392,6 @@ void gasneti_auxseg_attach(gasnet_seginfo_t *auxseg_info);
 uintptr_t gasneti_auxsegAttach(gasnet_seginfo_t *local_auxseg,
                                uintptr_t maxsize,
                                gasneti_bootstrapExchangefn_t exchangefn);
-
-/* called after segmentAttach to create/initialize an array of (void*) giving segment upper-bounds */
-void ** gasneti_seginfo_build_ub(gasnet_seginfo_t *seginfo);
 
 /* ------------------------------------------------------------------------------------ */
 #ifndef GASNETI_DISABLE_EOP_INTERFACE

@@ -1399,6 +1399,26 @@ void gasneti_segmentInit(gasnet_seginfo_t *segment_p,
   gasneti_assert(gasneti_nodes > 0);
   gasneti_assert(gasneti_mynode < gasneti_nodes);
 
+#if GASNET_SEGMENT_EVERYTHING
+
+  // Initialize global data
+  gasneti_leak(gasneti_seginfo    = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t)));
+  gasneti_leak(gasneti_seginfo_ub = gasneti_malloc(gasneti_nodes*sizeof(void *)));
+  for (gasnetex_rank_t i = 0; i < gasneti_nodes; i++) {
+    gasneti_seginfo[i].addr = NULL;
+    gasneti_seginfo[i].size = (uintptr_t)-1;
+    gasneti_seginfo_ub[i] = (void*)(uintptr_t)-1;
+  }
+  gasneti_MaxLocalSegmentSize = (uintptr_t)-1;
+  gasneti_MaxGlobalSegmentSize = (uintptr_t)-1;
+
+#else // GASNET_SEGMENT_EVERYTHING
+
+  // PART 0: allocate (and zero-initialize) global data
+
+  gasneti_leak(gasneti_seginfo    = gasneti_calloc(gasneti_nodes, sizeof(gasnet_seginfo_t)));
+  gasneti_leak(gasneti_seginfo_ub = gasneti_calloc(gasneti_nodes, sizeof(void *)));
+
   // PART I: allocate "pre-segment"
 
 #ifdef GASNETI_MMAP_OR_PSHM
@@ -1567,6 +1587,7 @@ void gasneti_segmentInit(gasnet_seginfo_t *segment_p,
 #ifdef GASNETI_MMAP_OR_PSHM
   gasneti_free(gasneti_segexch);
 #endif
+#endif // GASNET_SEGMENT_EVERYTHING
 }
 
 /* ------------------------------------------------------------------------------------ */
@@ -1637,7 +1658,7 @@ void gasneti_segmentAttachLocal(gasnet_seginfo_t *segment_p, uintptr_t segsize,
 /* Map the remote shared segments */
 // TODO-EX: need scalable data structure in place of gasneti_nodeinfo
 static // TODO-EX: static for now, at least
-void gasneti_segmentAttachRemote(gasnet_seginfo_t *segment_p, gasnet_seginfo_t *seginfo)
+void gasneti_segmentAttachRemote(gasnet_seginfo_t *seginfo)
 {
     gasneti_nodeinfo[gasneti_mynode].offset = 0;
     gasneti_pshm_rank_t local_rank = 0;
@@ -1674,12 +1695,15 @@ void gasneti_segmentAttachRemote(gasnet_seginfo_t *segment_p, gasnet_seginfo_t *
 }
 #endif /* GASNET_PSHM */
 
-void gasneti_segmentAttach(gasnet_seginfo_t *segment_p,
+void gasneti_segmentAttach(gasnet_seginfo_t *local_segment,
                            uintptr_t segsize,
-                           gasnet_seginfo_t *seginfo,
+                           gasnet_seginfo_t *all_segments,
+                           void **upper_bounds,
                            gasneti_bootstrapExchangefn_t exchangefn)
 {
-  gasneti_assert(seginfo);
+  gasneti_assert(local_segment);
+  gasneti_assert(all_segments);
+  gasneti_assert(upper_bounds);
   gasneti_assert(exchangefn);
 
 #if GASNET_PSHM
@@ -1688,13 +1712,21 @@ void gasneti_segmentAttach(gasnet_seginfo_t *segment_p,
   gasneti_pshmnet_bootstrapBarrier();
 #endif
 
-  gasneti_segmentAttachLocal(segment_p, segsize, exchangefn);
+  gasneti_segmentAttachLocal(local_segment, segsize, exchangefn);
 
   /*  gather segment information */   // TODO-EX: need scalable replacement
-  (*exchangefn)(segment_p, sizeof(gasnet_seginfo_t), seginfo);
+  (*exchangefn)(local_segment, sizeof(gasnet_seginfo_t), all_segments);
+
+  /*  compute upper bounds */
+  if (upper_bounds) {
+    for (gasnetex_rank_t i = 0; i < gasneti_nodes; i++) {
+      if (all_segments[i].size == 0) gasneti_assert(all_segments[i].addr == 0);
+      upper_bounds[i] = (void*)(((uintptr_t)all_segments[i].addr) + all_segments[i].size);
+    }
+  }
 
 #if GASNET_PSHM
-  gasneti_segmentAttachRemote(segment_p, seginfo);
+  gasneti_segmentAttachRemote(all_segments);
   gasneti_pshm_cs_leave();
 #endif
 }
@@ -1921,18 +1953,6 @@ void gasneti_auxseg_attach(gasnet_seginfo_t *auxseg_info) {
   const int numfns = (sizeof(gasneti_auxsegfns)/sizeof(gasneti_auxsegregfn_t))-1;
   gasneti_assert(gasneti_auxsegfns[numfns] == NULL);
 
-  // TODO-EX: use gasneti_seginfo_build_ub() when it no longer uses {0,-1} for SEGMENT_EVERYTHING
-  gasneti_seginfo_aux_ub = gasneti_malloc(gasneti_nodes*sizeof(void *));
-  gasneti_leak(gasneti_seginfo_aux_ub);
-  for (int i = 0; i < gasneti_nodes; i++) {
-    if (auxseg_info[i].size == 0) {
-      auxseg_info[i].addr = 0;
-      gasneti_seginfo_aux_ub[i] = 0;
-    } else {
-      gasneti_seginfo_aux_ub[i] = (void*)(((uintptr_t)auxseg_info[i].addr) + auxseg_info[i].size);
-    }
-  }
-
   if (numfns > 0) {
     gasnet_seginfo_t *si = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
     memcpy(si, auxseg_info, gasneti_nodes*sizeof(gasnet_seginfo_t));
@@ -1977,34 +1997,11 @@ uintptr_t gasneti_auxsegAttach(gasnet_seginfo_t *local_auxseg,
                                gasneti_bootstrapExchangefn_t exchangefn)
 {
   uintptr_t auxsize = gasneti_auxseg_prepare(maxsize);
-  gasneti_seginfo_aux = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
-  gasneti_leak(gasneti_seginfo_aux); 
-  gasneti_segmentAttach(local_auxseg, auxsize, gasneti_seginfo_aux, exchangefn);
+  gasneti_leak(gasneti_seginfo_aux    = gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t)));
+  gasneti_leak(gasneti_seginfo_aux_ub = gasneti_malloc(gasneti_nodes*sizeof(void *)));
+  gasneti_segmentAttach(local_auxseg, auxsize, gasneti_seginfo_aux, gasneti_seginfo_aux_ub, exchangefn);
   gasneti_auxseg_attach(gasneti_seginfo_aux);
   return auxsize;
-}
-
-/* called after segmentAttach to create/initialize an array of (void*) giving segment upper-bounds */
-void ** gasneti_seginfo_build_ub(gasnet_seginfo_t *seginfo) {
-  void **seginfo_ub = gasneti_malloc(gasneti_nodes*sizeof(void *));
-  gasneti_leak(seginfo_ub);
-
-  for (int i = 0; i < gasneti_nodes; i++) {
-    #if GASNET_SEGMENT_EVERYTHING
-      seginfo[i].addr = 0;
-      seginfo[i].size = (uintptr_t)-1;
-      seginfo_ub[i] = (void *)(uintptr_t)-1;
-    #else
-      if (seginfo[i].size == 0) {
-        seginfo[i].addr = 0;
-        seginfo_ub[i] = 0;
-      } else {
-        seginfo_ub[i] = (void*)(((uintptr_t)seginfo[i].addr) + seginfo[i].size);
-      }
-    #endif
-  }
-
-  return seginfo_ub;
 }
 
 /* ------------------------------------------------------------------------------------ */
