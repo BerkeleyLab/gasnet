@@ -632,11 +632,11 @@ static int gasnetc_init(int *argc, char ***argv) {
   /* allocate and attach an aux segment */
   uintptr_t max_pin = gasnetc_MaxPinMem(msgspace);
 
-  uintptr_t auxsize = gasneti_auxseg_prepare(max_pin);
-  max_pin -= auxsize;
+  gasneti_seginfo_aux = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
+  gasneti_leak(gasneti_seginfo_aux);
 
-  gasneti_segmentAttach(&gasnetc_auxsegment, auxsize, gasneti_seginfo_aux, &gasnetc_bootstrapExchange_gni);
-  gasneti_auxseg_attach(gasneti_seginfo_aux); /* provide auxseg */
+  uintptr_t auxsize = gasneti_auxsegAttach(&gasnetc_auxsegment, max_pin, gasneti_seginfo_aux, &gasnetc_bootstrapExchange_gni);
+  max_pin -= auxsize;
 
   #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
     { 

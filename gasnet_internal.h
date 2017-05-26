@@ -368,6 +368,12 @@ uintptr_t gasneti_auxseg_prepare(uintptr_t limit);
  */
 void gasneti_auxseg_attach(gasnet_seginfo_t *auxseg_info);
 
+/* common case use of gasneti_auxseg_{prepare,attach} for conduits using gasneti_segmentAttach() */
+uintptr_t gasneti_auxsegAttach(gasnet_seginfo_t *auxseg_p,
+                               uintptr_t maxsize,
+                               gasnet_seginfo_t *auxseg_info,
+                               gasneti_bootstrapExchangefn_t exchangefn);
+
 /* called after segmentAttach to create/initialize an _ub array */
 void ** gasneti_seginfo_build_ub(gasnet_seginfo_t *seginfo);
 

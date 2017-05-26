@@ -220,13 +220,12 @@ static int gasnetc_init(int *argc, char ***argv) {
 
     /* allocate and attach an aux segment */
 
-    uintptr_t auxsize = gasneti_auxseg_prepare(mmap_limit);
-    mmap_limit -= auxsize;
-
     gasnet_seginfo_t gasnetc_auxsegment = {0,0};
-    gasneti_segmentAttach(&gasnetc_auxsegment, auxsize, gasneti_seginfo_aux, &gasnetc_bootstrapExchange);
-    gasneti_auxseg_attach(gasneti_seginfo_aux); /* provide auxseg */
+    gasneti_seginfo_aux = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
+    gasneti_leak(gasneti_seginfo_aux);
 
+    uintptr_t auxsize = gasneti_auxsegAttach(&gasnetc_auxsegment, mmap_limit, gasneti_seginfo_aux, &gasnetc_bootstrapExchange);
+    mmap_limit -= auxsize;
 
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
       gasneti_segmentInit(&gasnetc_presegment, mmap_limit, &gasnetc_bootstrapExchange);

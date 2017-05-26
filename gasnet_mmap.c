@@ -1893,10 +1893,6 @@ uintptr_t gasneti_auxseg_prepare(uintptr_t limit) {
   GASNETI_TRACE_PRINTF(C, ("gasneti_auxseg_size(): granted auxseg size = %lu",
                            (unsigned long)auxseg_sz));
 
-  // TODO-EX: this global data should perhaps go away - it certainly needs to be more scalable
-  gasneti_seginfo_aux = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
-  gasneti_leak(gasneti_seginfo_aux);
-
   gasneti_assert(auxseg_sz % GASNET_PAGESIZE == 0);
   return auxseg_sz;
 }
@@ -1956,6 +1952,18 @@ void gasneti_auxseg_attach(gasnet_seginfo_t *auxseg_info) {
     gasneti_nodeinfo[node].auxoffset = gasneti_nodeinfo[node].offset;
   }
 #endif
+}
+
+/* common case use of gasneti_auxseg_{prepare,attach} for conduits using gasneti_segmentAttach() */
+uintptr_t gasneti_auxsegAttach(gasnet_seginfo_t *auxseg_p,
+                               uintptr_t maxsize,
+                               gasnet_seginfo_t *auxseg_info,
+                               gasneti_bootstrapExchangefn_t exchangefn)
+{
+  uintptr_t auxsize = gasneti_auxseg_prepare(maxsize);
+  gasneti_segmentAttach(auxseg_p, auxsize, auxseg_info, exchangefn);
+  gasneti_auxseg_attach(auxseg_info);
+  return auxsize;
 }
 
 /* called after segmentAttach to create/initialize an _ub array */
