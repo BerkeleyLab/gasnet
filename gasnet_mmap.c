@@ -1585,7 +1585,7 @@ void gasneti_segmentAttachLocal(gasnet_seginfo_t *segment_p, uintptr_t segsize,
         gasneti_do_munmap(segment_p->addr, segment_p->size);
         gasneti_bug3480_fence(exchangefn);
 #if GASNETI_PSHM_MAP_FIXED_IGNORED
-        segment_p->addr =
+        segbase =
 #endif
         gasneti_do_mmap_fixed(segbase, segsize);
       } else {
