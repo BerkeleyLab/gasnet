@@ -26,6 +26,12 @@ gasnetex_handlerentry_t const *gasnetc_get_handlertable(void);
 // TODO-EX: will be replaced with per-EP tables
 gasnetex_handlerentry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
+// needed for gasneti_segment{Init,Attach}()
+static gasnet_seginfo_t gasnetc_presegment = {0,0}; /* local segment info */
+
+// TODO-EX: This is a hack to support multiple segments w/ a single AM EP
+#define GASNETC_MOCK_EVERYTHING
+
 static void gasnetc_traceoutput(int);
 #if HAVE_ON_EXIT
 static void gasnetc_on_exit(int, void*);
@@ -272,17 +278,27 @@ static int gasnetc_init(int *argc, char ***argv) {
       gasneti_pshm_init(&gasnetc_bootstrapSNodeBroadcast, 0);
     #endif
 
-    #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-    { uintptr_t limit;
-      #if HAVE_MMAP
-        limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
+    uintptr_t mmap_limit;
+    #if HAVE_MMAP
+      mmap_limit = gasneti_mmapLimit((uintptr_t)-1, (uint64_t)-1,
                                   &gasnetc_bootstrapExchange,
                                   &gasnetc_bootstrapBarrier);
-      #else
-        limit = (intptr_t)-1;
-      #endif
-      gasneti_segmentInit(limit, &gasnetc_bootstrapExchange);
-    }
+    #else
+      // TODO-EX: we can at least look at rlimits but such logic belongs in conduit-indep code
+      mmap_limit = (intptr_t)-1;
+    #endif
+
+    /* allocate and attach an aux segment */
+
+    gasnet_seginfo_t gasnetc_auxsegment = {0,0};
+    gasneti_seginfo_aux = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
+    gasneti_leak(gasneti_seginfo_aux);
+
+    uintptr_t auxsize = gasneti_auxsegAttach(&gasnetc_auxsegment, mmap_limit, gasneti_seginfo_aux, &gasnetc_bootstrapExchange);
+    mmap_limit -= auxsize;
+
+    #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
+      gasneti_segmentInit(&gasnetc_presegment, mmap_limit, &gasnetc_bootstrapExchange);
     #elif GASNET_SEGMENT_EVERYTHING
       /* segment is everything - nothing to do */
     #else
@@ -295,8 +311,6 @@ static int gasnetc_init(int *argc, char ***argv) {
     #endif
 
   AMUNLOCK();
-
-  gasneti_auxseg_init(); /* adjust max seg values based on auxseg */
 
   gasneti_assert(retval == GASNET_OK);
   return retval;
@@ -331,13 +345,12 @@ extern int gasnetc_amregister(gasnetex_handler_t index, gasnetex_handlerentry_t 
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
-extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
-                          uintptr_t segsize, uintptr_t minheapoffset) {
+extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize) {
   int retval = GASNET_OK;
   void *segbase = NULL;
   
-  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%lu, minheapoffset=%lu)",
-                          numentries, (unsigned long)segsize, (unsigned long)minheapoffset));
+  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%lu)",
+                          numentries, (unsigned long)segsize));
   AMLOCK();
     if (!gasneti_init_done) 
       INITERR(NOT_INIT, "GASNet attach called before init");
@@ -356,14 +369,9 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
         INITERR(BAD_ARG, "segsize not page-aligned");
       if (segsize > gasneti_MaxLocalSegmentSize) 
         INITERR(BAD_ARG, "segsize too large");
-      if ((minheapoffset % GASNET_PAGESIZE) != 0) /* round up the minheapoffset to page sz */
-        minheapoffset = ((minheapoffset / GASNET_PAGESIZE) + 1) * GASNET_PAGESIZE;
     #else
       segsize = 0;
-      minheapoffset = 0;
     #endif
-
-    segsize = gasneti_auxseg_preattach(segsize); /* adjust segsize for auxseg reqts */
 
     /* ------------------------------------------------------------------------------------ */
     /*   create the initial endpoint with internal handlers */
@@ -394,7 +402,7 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     gasneti_leak(gasneti_seginfo);
 
     #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-      gasneti_segmentAttach(segsize, minheapoffset, gasneti_seginfo, &gasnetc_bootstrapExchange);
+      gasneti_segmentAttach(&gasnetc_presegment, segsize, gasneti_seginfo, &gasnetc_bootstrapExchange);
     #else /* GASNET_SEGMENT_EVERYTHING */
       { int i;
         for (i=0;i<gasneti_nodes;i++) {
@@ -403,6 +411,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
         }
       }
     #endif
+    gasneti_seginfo_ub = gasneti_seginfo_build_ub(gasneti_seginfo);
+
     segbase = gasneti_seginfo[gasneti_mynode].addr;
     segsize = gasneti_seginfo[gasneti_mynode].size;
   
@@ -415,7 +425,11 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
 
     /*  AMUDP allows arbitrary registration with no further action  */
     if (segsize) {
+#ifdef GASNETC_MOCK_EVERYTHING
+      retval = AM_SetSeg(gasnetc_endpoint, NULL, (uintptr_t)-1);
+#else
       retval = AM_SetSeg(gasnetc_endpoint, segbase, segsize);
+#endif
       if (retval != AM_OK) INITERR(RESOURCE, "AM_SetSeg() failed");
     }
 
@@ -443,11 +457,6 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
   AMUNLOCK();
 
   GASNETI_TRACE_PRINTF(C,("gasnetc_attach(): primary attach complete\n"));
-
-  /* (###) exchange_fn is optional (may be NULL) and is only used with GASNET_SEGMENT_EVERYTHING
-           if your conduit has an optimized bootstrapExchange pass it in place of NULL
-   */
-  gasneti_auxseg_attach(NULL); /* provide auxseg */
 
   gasnete_init(); /* init the extended API */
 
@@ -772,7 +781,11 @@ extern int gasnetc_AMRequestLongM(
 #endif
   {
     uintptr_t dest_offset;
+#ifdef GASNETC_MOCK_EVERYTHING
+    dest_offset = (uintptr_t)dest_addr;
+#else
     dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[rank].addr);
+#endif
 
     if_pf (!nbytes) source_addr = (void*)(uintptr_t)1; /* Bug 2774 - anything but NULL */
 
@@ -871,7 +884,11 @@ extern int gasnetc_AMReplyLongM(
     uintptr_t dest_offset;
 
     GASNETI_SAFE_PROPAGATE(gasnet_AMGetMsgSource(token, &dest));
+#ifdef GASNETC_MOCK_EVERYTHING
+    dest_offset = (uintptr_t)dest_addr;
+#else
     dest_offset = ((uintptr_t)dest_addr) - ((uintptr_t)gasneti_seginfo[dest].addr);
+#endif
 
     if_pf (!nbytes) source_addr = (void*)(uintptr_t)1; /* Bug 2774 - anything but NULL */
 
@@ -1022,9 +1039,13 @@ int gasnet_checkpoint(const char *dir) {
     }
 
     /* Segment */
+#ifdef GASNETC_MOCK_EVERYTHING
+    i = AM_SetSeg(gasnetc_endpoint, NULL, (uintptr_t)-1);
+#else
     i = AM_SetSeg(gasnetc_endpoint,
                   gasneti_seginfo[gasneti_mynode].addr,
                   gasneti_seginfo[gasneti_mynode].size);
+#endif
     /* BLCR-TODO: error-checking */
 
     #if GASNET_TRACE || GASNET_DEBUG
@@ -1066,9 +1087,6 @@ int gasnet_all_checkpoint(const char *dir_arg) {
   (for internal conduit use in bootstrapping, job management, etc.)
 */
 static gasnetex_handlerentry_t const gasnetc_handlers[] = {
-  #ifdef GASNETC_AUXSEG_HANDLERS
-    GASNETC_AUXSEG_HANDLERS(),
-  #endif
   /* ptr-width independent handlers */
 
   /* ptr-width dependent handlers */

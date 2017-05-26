@@ -461,6 +461,29 @@ gasnetc_create_cq(struct ibv_context * hca_hndl, int req_size,
 #define GASNETC_FH_RKEY(_cep, _fhptr)	((_fhptr)->client.rkey[GASNETC_HCA_IDX(_cep)])
 #define GASNETC_FH_LKEY(_cep, _fhptr)	((_fhptr)->client.lkey[GASNETC_HCA_IDX(_cep)])
 
+// TODO-EX: following functions are a hack which wrap GASNETC_SEG_[LR]KEY()
+// to map negative index values to the auxseg keys instead, and will be
+// replaced with more general multi-registration support later.
+#if GASNETC_PIN_SEGMENT
+  GASNETI_INLINE(gasnetc_seg_rkey)
+  uint32_t gasnetc_seg_rkey(gasnetc_cep_t *cep, int index)
+  {
+    return (index >= 0) ? GASNETC_SEG_RKEY(cep, index)
+                        : cep->hca->aux_rkeys[gasnetc_epid2node(cep->epid)];
+  }
+  #undef GASNETC_SEG_RKEY
+  #define GASNETC_SEG_RKEY gasnetc_seg_rkey
+  GASNETI_INLINE(gasnetc_seg_lkey)
+  uint32_t gasnetc_seg_lkey(gasnetc_cep_t *cep, int index)
+  {
+    return (index >= 0) ? GASNETC_SEG_LKEY(cep, index)
+                        : cep->hca->aux_reg.handle->lkey;
+  }
+  #undef GASNETC_SEG_LKEY
+  #define GASNETC_SEG_LKEY gasnetc_seg_lkey
+#endif // GASNETC_PIN_SEGMENT
+
+
 /* This limits the amount we ask for in a firehose_{local,remote}_pin() call,
  * to enourage a steady-state layout of firehoses that has start and end addresses
  * at multpiles of gasnetc_fh_align and length 2*gasnetc_fh_align.
@@ -2496,15 +2519,21 @@ size_t gasnetc_zerocp_common(gasnetc_epid_t epid, int rkey_index, struct ibv_sen
 
   sr_desc->opcode = op;
 
-  if_pf (!gasnetc_unpinned(loc_addr)) {
+  // TODO-EX:
+  //     All uses of loc_auxseg are a temporary hack
+  //     The idea is to allow a negative (base+seg) which gets mapped later to aux_reg
+  //     This will be replaced by general multi-registration support later
+  const int loc_auxseg = gasneti_in_auxsegment(gasneti_mynode, (void*)loc_addr, len);
+
+  if_pf (!gasnetc_unpinned(loc_addr) || loc_auxseg) {
     /* loc_addr is in-segment */
     const uintptr_t offset = loc_addr - gasnetc_seg_start;
-    const int base = gasnetc_seg_index(offset);
-    size_t count = MIN(remain, gasnetc_seg_remain(offset));
+    const int base = loc_auxseg?-GASNETC_SND_SG: gasnetc_seg_index(offset);
+    size_t count = loc_auxseg?remain: MIN(remain, gasnetc_seg_remain(offset));
     int seg;
     sreq->fh_count = 0;
     for (seg = 0; remain && (seg < GASNETC_SND_SG); ++seg) {
-      gasneti_assert((base + seg) == gasnetc_seg_index(loc_addr - gasnetc_seg_start));
+      gasneti_assert((base + seg) == gasnetc_seg_index(loc_addr - gasnetc_seg_start) || loc_auxseg);
 
       sr_desc->sg_list[seg].addr = loc_addr;
       sr_desc->sg_list[seg].length = count;
@@ -3936,6 +3965,7 @@ extern int gasnetc_sndrcv_shutdown(void) {
     gasnetc_unpin_unmap(hca, &hca->snd_reg);
     gasnetc_unpin_unmap(hca, &hca->rcv_reg);
     gasnetc_unpin_unmap(hca, &hca->amrdma_reg);
+    gasnetc_unpin_unmap(hca, &hca->aux_reg);
   }
 
   return GASNET_OK;
@@ -4096,7 +4126,13 @@ extern int gasnetc_rdma_put(
   uintptr_t offset = dst - (uintptr_t)gasneti_seginfo[gasnetc_epid2node(epid)].addr;
 #endif
 
-  gasneti_assert(offset < gasneti_seginfo[gasnetc_epid2node(epid)].size);
+  // TODO-EX:
+  //     All uses of rem_auxseg are a temporary hack
+  //     The idea is to allow a negative rkey_index which gets mapped later to aux_reg
+  //     This will be replaced by general multi-registration support later
+  const int rem_auxseg = gasneti_in_auxsegment(gasnetc_epid2node(epid), dst_ptr, nbytes);
+
+  gasneti_assert(offset < gasneti_seginfo[gasnetc_epid2node(epid)].size || rem_auxseg);
   gasneti_assert(nbytes != 0);
   
   sr_desc->wr.rdma.remote_addr = dst;
@@ -4107,8 +4143,9 @@ extern int gasnetc_rdma_put(
    * Note that we do this based only on the size and alignment, without checking whether
    * the caller cares about local completion, or whether zero-copy is possible.
    */
-  if ((nbytes <= gasnetc_inline_limit) && (nbytes <= gasnetc_seg_remain(offset))) {
-    const int rkey_index = gasnetc_seg_index(offset);
+  if ((nbytes <= gasnetc_inline_limit) && (nbytes <= gasnetc_seg_remain(offset) || rem_auxseg))
+  {
+    const int rkey_index = rem_auxseg?-1: gasnetc_seg_index(offset);
     gasnetc_do_put_inline(epid, rkey_index, sr_desc, nbytes, remote_cnt, remote_cb GASNETI_THREAD_PASS);
     return 0;
   }
@@ -4124,12 +4161,12 @@ extern int gasnetc_rdma_put(
     if (bias_local_cnt) ++(*local_cnt);
     do {
       /* Loop over contiguous pinned regions on remote end */
-      const int rkey_index = gasnetc_seg_index(offset);
+      const int rkey_index = rem_auxseg?-1: gasnetc_seg_index(offset);
       const size_t rem = gasnetc_seg_remain(offset);
-      const size_t count = MIN(nbytes, rem);
+      const size_t count = rem_auxseg?nbytes: MIN(nbytes, rem);
 
       if ((count <= gasnetc_bounce_limit) ||
-          (!GASNETC_USE_FIREHOSE && gasnetc_unpinned(sr_desc_sg_lst[0].addr))) {
+          (!GASNETC_USE_FIREHOSE && gasnetc_unpinned(sr_desc_sg_lst[0].addr) && !rem_auxseg)) {
         /* Because IB lacks any indication of "local" completion, the only ways to
          * implement non-bulk puts are as fully blocking puts, or with bounce buffers.
          * So, if a non-bulk put is "not too large" use bounce buffers.
@@ -4156,11 +4193,11 @@ extern int gasnetc_rdma_put(
   } else {
     do {
       /* Loop over contiguous pinned regions on remote end */
-      const int rkey_index = gasnetc_seg_index(offset);
+      const int rkey_index = rem_auxseg?-1: gasnetc_seg_index(offset);
       const size_t rem = gasnetc_seg_remain(offset);
-      const size_t count = MIN(nbytes, rem);
+      const size_t count = rem_auxseg?nbytes: MIN(nbytes, rem);
 
-      if (!GASNETC_USE_FIREHOSE && gasnetc_unpinned(sr_desc_sg_lst[0].addr)) {
+      if (!GASNETC_USE_FIREHOSE && gasnetc_unpinned(sr_desc_sg_lst[0].addr) && !rem_auxseg) {
          // Firehose disabled.  Must use bounce buffers when src is out-of-segment.
         gasnetc_do_put_bounce(epid, rkey_index, sr_desc, count,
                               remote_cnt, remote_cb GASNETI_THREAD_PASS);
@@ -4211,7 +4248,14 @@ extern int gasnetc_rdma_get(
   uintptr_t offset = src - (uintptr_t)gasneti_seginfo[gasnetc_epid2node(epid)].addr;
 #endif
 
-  gasneti_assert(offset < gasneti_seginfo[gasnetc_epid2node(epid)].size);
+  // TODO-EX:
+  //     All uses of {loc,rem_}auxseg are a temporary hack
+  //     The idea is to allow a negative [lr]key_index which gets mapped later to aux_reg
+  //     This will be replaced by general multi-registration support later
+  const int loc_auxseg = gasneti_in_auxsegment(gasneti_mynode, dst_ptr, nbytes);
+  const int rem_auxseg = gasneti_in_auxsegment(gasnetc_epid2node(epid), src_ptr, nbytes);
+
+  gasneti_assert(offset < gasneti_seginfo[gasnetc_epid2node(epid)].size || rem_auxseg);
   gasneti_assert(nbytes != 0);
   gasneti_assert(remote_cnt != NULL);
 
@@ -4221,14 +4265,14 @@ extern int gasnetc_rdma_get(
   sr_desc_sg_lst[0].addr = dst;
   do {
     /* Loop over contiguous pinned regions on remote end */
-    const int rkey_index = gasnetc_seg_index(offset);
+    const int rkey_index = rem_auxseg?-1: gasnetc_seg_index(offset);
     const size_t rem = gasnetc_seg_remain(offset);
-    const size_t count = MIN(nbytes, rem);
+    const size_t count = rem_auxseg?nbytes: MIN(nbytes, rem);
     nbytes -= count;
 
     if (nbytes) ++(*remote_cnt); // Do NOT advance prior to the last injection
 
-    if (!GASNETC_USE_FIREHOSE && gasnetc_unpinned(sr_desc_sg_lst[0].addr)) {
+    if (!GASNETC_USE_FIREHOSE && gasnetc_unpinned(sr_desc_sg_lst[0].addr) && !loc_auxseg) {
       /* Firehose disabled.  Use bounce buffers since dst is out-of-segment */
       gasnetc_do_get_bounce(epid, rkey_index, sr_desc, count, remote_cnt, remote_cb GASNETI_THREAD_PASS);
     } else

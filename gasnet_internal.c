@@ -135,7 +135,7 @@ extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentr
   gasnetex_rank_t gasneti_nodes = 0;
 #endif
 
-#if defined(_GASNET_GETMAXSEGMENTSIZE_DEFAULT) && !GASNET_SEGMENT_EVERYTHING
+#if defined(_GASNET_GETMAXSEGMENTSIZE_DEFAULT)
   uintptr_t gasneti_MaxLocalSegmentSize = 0;
   uintptr_t gasneti_MaxGlobalSegmentSize = 0;
 #endif
@@ -154,9 +154,9 @@ extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentr
 
 #ifdef _GASNETI_SEGINFO_DEFAULT
   gasnet_seginfo_t *gasneti_seginfo = NULL;
-  gasnet_seginfo_t *gasneti_seginfo_client = NULL;
+  gasnet_seginfo_t *gasneti_seginfo_aux = NULL;
   void **gasneti_seginfo_ub = NULL; /* cached result of gasneti_seginfo[i].addr + gasneti_seginfo[i].size */
-  void **gasneti_seginfo_client_ub = NULL;
+  void **gasneti_seginfo_aux_ub = NULL;
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -1861,7 +1861,7 @@ gasnetex_team_member_t _gasneti_g2ex_team     = NULL;
         (beginpost != GASNETI_MEM_BEGINPOST || endpost != GASNETI_MEM_ENDPOST)) {
       const char *diagnosis = "a bad pointer or local heap corruption";
       #if !GASNET_SEGMENT_EVERYTHING
-        if (gasneti_attach_done && gasneti_in_fullsegment(gasneti_mynode,ptr,1))
+        if (gasneti_attach_done && gasneti_in_segment(gasneti_mynode,ptr,1))
           diagnosis = "a bad pointer, referencing the shared segment (outside malloc heap)";
         else 
       #endif

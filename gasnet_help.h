@@ -117,21 +117,25 @@ void _gasneti_leak_aligned(void *ptr GASNETI_CURLOCFARG) {
 extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
 #if GASNET_SEGMENT_EVERYTHING
   #define gasneti_in_clientsegment(node,ptr,nbytes) (gasneti_assert((node) < gasneti_nodes), 1)
-  #define gasneti_in_fullsegment(node,ptr,nbytes)   (gasneti_assert((node) < gasneti_nodes), 1)
+  #define gasneti_in_auxsegment(node,ptr,nbytes)   (gasneti_assert((node) < gasneti_nodes), 1)
 #else
   #define gasneti_in_clientsegment(node,ptr,nbytes) \
     (gasneti_assert((node) < gasneti_nodes),        \
-     ((ptr) >= gasneti_seginfo_client[node].addr && \
-      (void *)(((uintptr_t)(ptr))+(nbytes)) <= gasneti_seginfo_client_ub[node]))
-  #define gasneti_in_fullsegment(node,ptr,nbytes) \
-    (gasneti_assert((node) < gasneti_nodes),      \
-     ((ptr) >= gasneti_seginfo[node].addr &&      \
+     ((ptr) >= gasneti_seginfo[node].addr && \
       (void *)(((uintptr_t)(ptr))+(nbytes)) <= gasneti_seginfo_ub[node]))
+  #define gasneti_in_auxsegment(node,ptr,nbytes) \
+    (gasneti_assert((node) < gasneti_nodes),      \
+     ((ptr) >= gasneti_seginfo_aux[node].addr &&      \
+      (void *)(((uintptr_t)(ptr))+(nbytes)) <= gasneti_seginfo_aux_ub[node]))
 #endif
 
 #ifdef _INCLUDED_GASNET_INTERNAL_H
+ #if 0 // TODO-EX: restore or remove?
   /* default for GASNet implementation is to check against entire seg */
   #define gasneti_in_segment gasneti_in_fullsegment
+ #else
+  #define gasneti_in_segment gasneti_in_clientsegment
+ #endif
 #else
   /* default for client is to check against just the client seg */
   #define gasneti_in_segment gasneti_in_clientsegment
@@ -779,12 +783,12 @@ extern int gasneti_wait_mode; /* current waitmode hint */
 #ifndef _GASNET_GETMAXSEGMENTSIZE
 #define _GASNET_GETMAXSEGMENTSIZE
 #define _GASNET_GETMAXSEGMENTSIZE_DEFAULT
+    extern uintptr_t gasneti_MaxLocalSegmentSize;
+    extern uintptr_t gasneti_MaxGlobalSegmentSize;
   #if GASNET_SEGMENT_EVERYTHING
     #define gasnet_getMaxLocalSegmentSize()   ((uintptr_t)-1)
     #define gasnet_getMaxGlobalSegmentSize()  ((uintptr_t)-1)
   #else
-    extern uintptr_t gasneti_MaxLocalSegmentSize;
-    extern uintptr_t gasneti_MaxGlobalSegmentSize;
     #define gasnet_getMaxLocalSegmentSize() \
             (GASNETI_CHECKINIT(), (uintptr_t)gasneti_MaxLocalSegmentSize)
     #define gasnet_getMaxGlobalSegmentSize() \
@@ -811,9 +815,9 @@ extern gasnet_nodeinfo_t *gasneti_nodeinfo;
 #define _GASNETI_SEGINFO
 #define _GASNETI_SEGINFO_DEFAULT
   extern gasnet_seginfo_t *gasneti_seginfo;
-  extern gasnet_seginfo_t *gasneti_seginfo_client;
+  extern gasnet_seginfo_t *gasneti_seginfo_aux;
   extern void **gasneti_seginfo_ub;
-  extern void **gasneti_seginfo_client_ub;
+  extern void **gasneti_seginfo_aux_ub;
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -902,8 +906,16 @@ GASNETI_PUREP(gasneti_pshm_in_supernode)
 
 /* Returns local version of remote in-supernode address.
  */
+// TODO-EX: This is probably the wrong interface for at least 2 reasons:
+// + Relies on dense array of nodeinfo even though only supernode-local are non-zero
+// + Was designed for single segment and even auxseg is currently a hack
 GASNETI_INLINE(gasneti_pshm_addr2local) GASNETI_PURE
 void *gasneti_pshm_addr2local(gasnetex_rank_t node, void *addr) {
+#if 1 // TODO-EX: this is a hack!
+  // Properties of unsigned subtraction make the following oblivous to order of client vs aux segment
+  if_pf (((uintptr_t)addr - (uintptr_t)gasneti_seginfo[node].addr) >= gasneti_seginfo[node].size)
+    return (void*)((uintptr_t)addr + (uintptr_t)gasneti_nodeinfo[node].auxoffset);
+#endif
   return  (void*)((uintptr_t)addr
                    + (uintptr_t)gasneti_nodeinfo[node].offset);
 } 

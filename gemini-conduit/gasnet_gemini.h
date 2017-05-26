@@ -89,6 +89,8 @@ extern uint8_t  gasnetc_ptag;
 
 extern unsigned int gasnetc_log2_remote;
 
+extern gasnet_seginfo_t gasnetc_auxsegment;
+
 /* Set to 1 if want to use gasneti_spinlock_t rather than gasneti_mutex_t
  * By default, we will use mutex_t.
  */

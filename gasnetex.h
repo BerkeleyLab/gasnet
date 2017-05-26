@@ -370,6 +370,7 @@ typedef struct {
   #if GASNET_PSHM
     /* Value one must add to find locally mapped address, if any. */
     uintptr_t offset;
+    uintptr_t auxoffset; // TODO-EX: this needs to move elsewhere
   #endif
   } gasnet_nodeinfo_t;
 #endif

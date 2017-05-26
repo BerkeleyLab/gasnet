@@ -936,8 +936,9 @@ can *prove* the current thread has a handle for the current op:
 #define gasnete_coll_in_segment(_node,_addr,_len)	1
 #define GASNETE_COLL_ALWAYS_IN_SEGMENT 1
 #else
+// TODO-EX: bring back auxseg RMDA via "in_fullsegment"?
 #define gasnete_coll_in_segment(_node,_addr,_len) \
-gasneti_in_fullsegment(_node, _addr, _len)
+gasneti_in_clientsegment(_node, _addr, _len)
 #define GASNETE_COLL_ALWAYS_IN_SEGMENT 0
 #endif
 

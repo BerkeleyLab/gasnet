@@ -314,18 +314,20 @@ void gasneti_defaultSignalHandler(int sig);
 #define GASNETI_USE_HIGHSEGMENT 1  /* use the high end of mmap segments */
 #endif
 
-#if !GASNET_SEGMENT_EVERYTHING
 #ifdef GASNETI_MMAP_OR_PSHM
 uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasneti_bootstrapExchangefn_t exchangefn,
                             gasneti_bootstrapBarrierfn_t barrierfn);
 #endif /* GASNETI_MMAP_OR_PSHM */
-void gasneti_segmentInit(uintptr_t localSegmentLimit,
+
+void gasneti_segmentInit(gasnet_seginfo_t *segment_p,
+                         uintptr_t localSegmentLimit,
                          gasneti_bootstrapExchangefn_t exchangefn);
-void gasneti_segmentAttach(uintptr_t segsize, uintptr_t minheapoffset,
+void gasneti_segmentAttach(gasnet_seginfo_t *segment_p,
+                           uintptr_t segsize,
                            gasnet_seginfo_t *seginfo,
                            gasneti_bootstrapExchangefn_t exchangefn);
-#endif /* !GASNET_SEGMENT_EVERYTHING */
+
 void gasneti_setupGlobalEnvironment(gasnetex_rank_t numnodes, gasnetex_rank_t mynode,
                                      gasneti_bootstrapExchangefn_t exchangefn,
                                      gasneti_bootstrapBroadcastfn_t broadcastfn);
@@ -358,25 +360,22 @@ typedef struct {
 
 typedef gasneti_auxseg_request_t (*gasneti_auxsegregfn_t)(gasnet_seginfo_t *auxseg_info);
 
-/* collect required auxseg sizes and subtract them from the max values to report to client */
-void gasneti_auxseg_init(void);
-
-/* consume the client's segsize request and return the 
-   value to acquire including auxseg requirements */
-uintptr_t gasneti_auxseg_preattach(uintptr_t client_request_sz);
+/* collect required auxseg sizes and return their sum, padded to page size */
+uintptr_t gasneti_auxseg_prepare(uintptr_t limit);
 
 /* provide auxseg to GASNet components and init secondary segment arrays 
-   requires gasneti_seginfo has been initialized to the correct values
-   exchangefn is used only for GASNET_SEGMENT_EVERYTHING and may be NULL
+   requires input auxseg_info has been initialized to the correct values
  */
-void gasneti_auxseg_attach(gasneti_bootstrapExchangefn_t exchangefn);
+void gasneti_auxseg_attach(gasnet_seginfo_t *auxseg_info);
 
-#if GASNET_SEGMENT_EVERYTHING
-  extern void gasnetc_auxseg_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
-                                  gasnetex_handlerarg_t arg0);
-  #define GASNETC_AUXSEG_HANDLERS() \
-    gasneti_handler_tableentry_no_bits(gasnetc_auxseg_reqh,1,0)
-#endif
+/* common case use of gasneti_auxseg_{prepare,attach} for conduits using gasneti_segmentAttach() */
+uintptr_t gasneti_auxsegAttach(gasnet_seginfo_t *auxseg_p,
+                               uintptr_t maxsize,
+                               gasnet_seginfo_t *auxseg_info,
+                               gasneti_bootstrapExchangefn_t exchangefn);
+
+/* called after segmentAttach to create/initialize an array of (void*) giving segment upper-bounds */
+void ** gasneti_seginfo_build_ub(gasnet_seginfo_t *seginfo);
 
 /* ------------------------------------------------------------------------------------ */
 #ifndef GASNETI_DISABLE_EOP_INTERFACE

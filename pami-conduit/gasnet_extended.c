@@ -16,6 +16,8 @@ static pami_send_hint_t gasnete_null_send_hint;
 static pami_send_hint_t gasnete_rdma_send_hint;
 static uintptr_t gasnete_mysegbase;
 static uintptr_t gasnete_mysegsize;
+static uintptr_t gasnete_myauxbase;
+static uintptr_t gasnete_myauxsize;
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -155,6 +157,14 @@ extern void gasnete_init(void) {
     gasnete_mysegbase = 0;
     gasnete_mysegsize = 0;
   }
+
+  if (gasnetc_auxreg != NULL) {
+    gasnete_myauxbase = (uintptr_t)gasneti_seginfo_aux[gasneti_mynode].addr;
+    gasnete_myauxsize = gasneti_seginfo_aux[gasneti_mynode].size;
+  } else {
+    gasnete_myauxbase = 0;
+    gasnete_myauxsize = 0;
+  }
 #endif
 }
 
@@ -211,10 +221,31 @@ void gasnete_put_common(gasnetex_rank_t rank, void *dest, void *src, size_t nbyt
                         pami_event_function ldone_fn, pami_event_function rdone_fn,
                         void *cookie) {
 #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-  uintptr_t loc_offset = (uintptr_t)src - gasnete_mysegbase;
-  uintptr_t rem_offset = (uintptr_t)dest - (uintptr_t)gasneti_seginfo[rank].addr;
+  // Find local registration, if any
+  pami_memregion_t *loc_mr = NULL;
+  uintptr_t loc_offset;
+  if ((loc_offset = (uintptr_t)src - gasnete_mysegbase)
+                                   < gasnete_mysegsize) {
+    loc_mr = &gasnetc_mymemreg;
+  } else if ((loc_offset = (uintptr_t)src - gasnete_myauxbase)
+                                          < gasnete_myauxsize) {
+    loc_mr = &gasnetc_myauxreg;
+  }
 
-  if ((loc_offset < gasnete_mysegsize) && GASNETT_PREDICT_TRUE(rem_offset < gasneti_seginfo[rank].size)) {
+  // Find remote registration, if any (but only if we found a local one)
+  pami_memregion_t *rem_mr = NULL;
+  uintptr_t rem_offset;
+  if (loc_mr) {
+    if_pt ((rem_offset = (uintptr_t)dest - (uintptr_t)gasneti_seginfo[rank].addr)
+                                                    < gasneti_seginfo[rank].size) {
+      rem_mr = &gasnetc_memreg[rank];
+    } else if ((rem_offset = (uintptr_t)dest - (uintptr_t)gasneti_seginfo_aux[rank].addr)
+                                                        < gasneti_seginfo_aux[rank].size) {
+      rem_mr = &gasnetc_auxreg[rank];
+    }
+  }
+
+  if (rem_mr) {
     pami_rput_simple_t cmd;
 
     cmd.rma.dest = gasnetc_endpoint(rank);
@@ -222,9 +253,9 @@ void gasnete_put_common(gasnetex_rank_t rank, void *dest, void *src, size_t nbyt
     cmd.rma.bytes = nbytes;
     cmd.rma.cookie = cookie;
     cmd.rma.done_fn = ldone_fn;
-    cmd.rdma.local.mr = &gasnetc_mymemreg;
+    cmd.rdma.local.mr = loc_mr;
     cmd.rdma.local.offset = loc_offset;
-    cmd.rdma.remote.mr = &gasnetc_memreg[rank];
+    cmd.rdma.remote.mr = rem_mr;
     cmd.rdma.remote.offset = rem_offset;
     cmd.put.rdone_fn = rdone_fn;
 
@@ -270,6 +301,7 @@ void gasnete_put_common(gasnetex_rank_t rank, void *dest, void *src, size_t nbyt
 }
 
 /* TODO: use Rget w/ firehose or bounce buffers when only src is in-segment */
+// TODO-EX: enable Rget for auxseg (except no point due to Rget bug on BG/Q)
 GASNETI_INLINE(gasnete_get_common)
 void gasnete_get_common(void *dest, gasnetex_rank_t rank, void *src, size_t nbytes,
                         pami_event_function done_fn, void *cookie) {
