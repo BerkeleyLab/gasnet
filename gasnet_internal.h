@@ -374,7 +374,7 @@ uintptr_t gasneti_auxsegAttach(gasnet_seginfo_t *auxseg_p,
                                gasnet_seginfo_t *auxseg_info,
                                gasneti_bootstrapExchangefn_t exchangefn);
 
-/* called after segmentAttach to create/initialize an _ub array */
+/* called after segmentAttach to create/initialize an array of (void*) giving segment upper-bounds */
 void ** gasneti_seginfo_build_ub(gasnet_seginfo_t *seginfo);
 
 /* ------------------------------------------------------------------------------------ */

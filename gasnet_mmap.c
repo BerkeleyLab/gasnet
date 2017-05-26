@@ -1966,7 +1966,7 @@ uintptr_t gasneti_auxsegAttach(gasnet_seginfo_t *auxseg_p,
   return auxsize;
 }
 
-/* called after segmentAttach to create/initialize an _ub array */
+/* called after segmentAttach to create/initialize an array of (void*) giving segment upper-bounds */
 void ** gasneti_seginfo_build_ub(gasnet_seginfo_t *seginfo) {
   void **seginfo_ub = gasneti_malloc(gasneti_nodes*sizeof(void *));
   gasneti_leak(seginfo_ub);
