@@ -330,7 +330,7 @@
       
       GASNETI_INLINE(gasneti_ticks_now)
       uint64_t gasneti_ticks_now(void) {
-        register uint32_t hi, hi2, lo;
+        uint32_t hi, hi2, lo;
         /* Note we must read hi twice to protect against wrap of lo */
         do {
            hi = gasneti_mftb_high();
