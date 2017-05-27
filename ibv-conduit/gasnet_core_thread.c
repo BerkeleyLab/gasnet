@@ -170,8 +170,8 @@ gasnetc_spawn_progress_thread(gasnetc_progress_thread_t *pthr_p)
         }
       }
     }
-    GASNETI_TRACE_PRINTF(I, ("Stack size for progress thread(s) set to %lu%s",
-                              (unsigned long)stack_sz,
+    GASNETI_TRACE_PRINTF(I, ("Stack size for progress thread(s) set to %"PRIuPTR"%s",
+                              (uintptr_t)stack_sz,
                               (stack_sz == stack_dflt) ? " (default)" : ""));
   }
   gasneti_mutex_unlock(&init_lock);
@@ -180,8 +180,8 @@ gasnetc_spawn_progress_thread(gasnetc_progress_thread_t *pthr_p)
   if (stack_sz) gasneti_assert_zeroret(pthread_attr_setstacksize(&attr, stack_sz));
   gasneti_assert_zeroret(pthread_create(&pthr_p->thread_id, &attr, gasnetc_progress_thread, pthr_p));
   gasneti_assert_zeroret(pthread_attr_destroy(&attr));
-  GASNETI_TRACE_PRINTF(I, ("Spawned progress thread with id 0x%lx",
-                           (unsigned long)(uintptr_t)(pthr_p->thread_id)));
+  GASNETI_TRACE_PRINTF(I, ("Spawned progress thread with id 0x%"PRIxPTR,
+                           (uintptr_t)(pthr_p->thread_id)));
 }
 
 extern void
@@ -195,12 +195,12 @@ gasnetc_stop_progress_thread(gasnetc_progress_thread_t *pthr_p, int block)
 #if GASNETC_THREAD_CANCEL
   (void)pthread_cancel(tid); /* ignore failure */
 #endif
-  GASNETI_TRACE_PRINTF(I, ("Requested termination of progress thread with id 0x%lx",
-                           (unsigned long)(uintptr_t)(tid)));
+  GASNETI_TRACE_PRINTF(I, ("Requested termination of progress thread with id 0x%"PRIxPTR,
+                           (uintptr_t)(tid)));
   if (block) {
     (void)pthread_join(tid, NULL);
-    GASNETI_TRACE_PRINTF(I, ("Joined progress thread with id 0x%lx",
-                             (unsigned long)(uintptr_t)(tid)));
+    GASNETI_TRACE_PRINTF(I, ("Joined progress thread with id 0x%"PRIxPTR,
+                             (uintptr_t)(tid)));
   } else {
     (void)pthread_detach(tid);
   }
