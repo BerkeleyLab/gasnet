@@ -960,8 +960,8 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries,
     gasnet_node_t i;
     size_t maxsize = 0;
 
-    GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%lu, minheapoffset=%lu)",
-                            numentries, (unsigned long)segsize, (unsigned long)minheapoffset));
+    GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%"PRIuPTR", minheapoffset=%"PRIuPTR")",
+                            numentries, segsize, minheapoffset));
 
     if (!gasneti_init_done)
         GASNETI_RETURN_ERRR(NOT_INIT, "GASNet attach called before init");
