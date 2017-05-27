@@ -891,8 +891,8 @@ p4_poll(const ptl_handle_eq_t *eq_handles, unsigned int size, unsigned int limit
 		        p4_free_long_match(match);
                       }
                     } else {
-                        gasneti_fatalerror("unknown active message type.  MB: 0x%lx",
-                                           (unsigned long)ev.match_bits);
+                        gasneti_fatalerror("unknown active message type.  MB: 0x%"PRIx64,
+                                           (uint64_t)ev.match_bits);
                     }
 #ifdef GASNET_PAR
                     gasneti_weakatomic_add(&block->op_count, 1, 0);
@@ -1125,8 +1125,8 @@ p4_poll(const ptl_handle_eq_t *eq_handles, unsigned int size, unsigned int limit
                        until the other thread finishes processing the
                        events associated with this ME */
   #ifdef P4_DEBUG
-                    fprintf(stderr, "%03d: spinning waiting for block to finish %ld, %ld\n",
-                            gasneti_mynode, ct.success + ct.failure, (long)val);
+                    fprintf(stderr, "%03d: spinning waiting for block to finish %"PRIu64", %"PRIu64"\n",
+                            gasneti_mynode, (uint64_t)(ct.success + ct.failure), (uint64_t)val);
   #endif
                     GASNETI_WAITHOOK();
                     val = gasneti_weakatomic_read(&block->op_count, 0);
