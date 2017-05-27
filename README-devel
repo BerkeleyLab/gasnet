@@ -195,6 +195,7 @@ All GASNet conduit code is required to meet the following coding standards:
    2. Mid-block declarations (mixing declarations and code)
    3. Conditional expression declarations, only in for loop headers, 
       ie: for (int i=...) { ..i.. }
+   4. 64-bit integer literals with explicit (U)LL suffix
   All GASNet code should otherwise adhere to C89 restrictions.
   Most notably, we PROHIBIT: (incomplete list)
    - Do not use variable-length array declarations
@@ -202,6 +203,9 @@ All GASNet conduit code is required to meet the following coding standards:
    - Do not use compound literals or named struct field initializers
    - Do not use printf format specifiers added in C99, such as: ll,j,z,t,L
      (Use portable_inttypes.h to get (u)int{64,ptr}_t and PRI[ud]{64,PTR})
+   - Do not use long long types explicitly, or assume that LL suffix constants
+     are exactly 64-bit.  If a particular type width is required then use an intW_t 
+     fixed-width type declaration and/or cast.
    - Do not include any header files introduced by C99 or any features they introduce
    - Do not use restrict, __func__ or _Pragma/#pragma directly
      (use GASNETI_RESTRICT, GASNETI_CURRENT_FUNCTION, and the various attribute
