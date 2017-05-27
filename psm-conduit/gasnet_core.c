@@ -266,7 +266,7 @@ static int gasnetc_init(int *argc, char ***argv) {
         if(params.max_nargs * 2 < gasnet_AMMaxArgs()) {
             char s[255] = {0};
             snprintf(s, sizeof(s), "PSM/AM reports support for %u 32-bit arguments; GASNet requires %lu\n",
-                    params.max_nargs * 2, gasnet_AMMaxArgs());
+                    params.max_nargs * 2, (long)gasnet_AMMaxArgs());
             GASNETI_RETURN_ERRR(NOT_INIT, s);
         }
 
