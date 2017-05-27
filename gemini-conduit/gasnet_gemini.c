@@ -1644,16 +1644,42 @@ gasnetc_post_descriptor_t *gasnetc_alloc_reply_post_descriptor(gasnetex_token_t 
   return(gpd);
 }
 
-#define BUSYWAIT(_condition, _poll, _trace)  \
+// Spin poll until (!_condition), but with some added complications.
+// The idea is that if _condition is initally true, in may become false after
+// a single _poll if the resource(s) it requires are released by pending CQ
+// events.  Only if the first _poll does *not* lead to a false (_condition)
+// is this considered a "stall" which leads to calls to GASNETI_WAITHOOK() and
+// tracing output giving the length of the stall once _condition is false.
+// Additionally, _escape is an expression (with a goto) that allows for the
+// premature exit in the case of GASNETEX_FLAG_IMMEDIATE.
+//
+//  + The AM buffer lock is held on entry and exit
+//    - Must hold AM buffer lock to evaluate _condution
+//    - Must release AM buffer lock to call _poll
+//  + Must evaluate _escape to allow for IMMEDIATE support
+//    - Once at the beginning
+//    - Again if first _poll did not satisfy (!_condition)
+//  + If first _poll did not satisfy (!_condition) this is a stall event
+//    - Will call WAITHOOK before each additional _poll
+//    - Will _trace the stall time at end
+//
+#define BUSYWAIT(_condition, _escape, _poll, _trace)  \
     if_pf (_condition) {                     \
+      _escape;                               \
       GASNETC_TRACE_WAIT_BEGIN();            \
-      do {                                   \
-        GASNETC_UNLOCK_AM_BUFFER();          \
-        GASNETI_WAITHOOK();                  \
-        _poll;                               \
-        GASNETC_LOCK_AM_BUFFER();            \
-      } while (_condition);                  \
-      GASNETC_TRACE_WAIT_END(_trace);        \
+      GASNETC_UNLOCK_AM_BUFFER();            \
+      _poll;                                 \
+      GASNETC_LOCK_AM_BUFFER();              \
+      if_pf (_condition) {                   \
+        _escape;                             \
+        do {                                 \
+          GASNETC_UNLOCK_AM_BUFFER();        \
+          GASNETI_WAITHOOK();                \
+          _poll;                             \
+          GASNETC_LOCK_AM_BUFFER();          \
+        } while (_condition);                \
+        GASNETC_TRACE_WAIT_END(_trace);      \
+      }                                      \
     }                   
 
 static int
@@ -1669,7 +1695,8 @@ gasnetc_remote_slot(peer_struct_t * const peer, const uint64_t mask)
 }
 
 gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnetex_rank_t dest,
-                                                                 size_t length
+                                                                 size_t length,
+                                                                 gasnetex_flags_t flags
                                                                  GASNETI_THREAD_FARG)
 {
   GASNETC_DIDX_POST(GASNETC_DEFAULT_DOMAIN);
@@ -1680,20 +1707,27 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnetex_rank_t
   const unsigned int slots = MAX(1, ((length + am_slotsz - 1) >> am_slot_bits));
   uint64_t mask = (slots == 64) ? ~(uint64_t)0 : (((uint64_t)1 << slots) - 1);
   reply_pool_t *r;
+  gasnetex_flags_t imm_flag = flags & GASNETEX_FLAG_IMMEDIATE;
+  int did_poll = 0; // Allows BUSYWAIT to AMPoll at most once if imm_flag is non-zero
 
   GASNETC_LOCK_AM_BUFFER();
 
 #if GASNET_PAR
   /* Prevent starvation of large allocations by small ones. */
-  while (peer->remote_request_lock) {
-    GASNETC_UNLOCK_AM_BUFFER();
-    while (peer->remote_request_lock) GASNETI_WAITHOOK();
-    GASNETC_LOCK_AM_BUFFER();
+  /* Note that we spin here (*not* polling) IFF another thread *IS* spin polling */
+  if_pf (peer->remote_request_lock) {
+    if (imm_flag) goto out_immediate_1;
+    do {
+      GASNETC_UNLOCK_AM_BUFFER();
+      while (peer->remote_request_lock) GASNETI_WAITHOOK();
+      GASNETC_LOCK_AM_BUFFER();
+    } while (peer->remote_request_lock);
   }
   peer->remote_request_lock = 1;
 #endif
 
   BUSYWAIT(((remote_slot = gasnetc_remote_slot(peer, mask)) == 64),
+           { if (imm_flag && did_poll++) goto out_immediate_2; },
            gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE),
            GET_AM_REM_BUFFER_STALL);
   mask <<= remote_slot;
@@ -1703,22 +1737,45 @@ gasnetc_post_descriptor_t *gasnetc_alloc_request_post_descriptor(gasnetex_rank_t
 #endif
 
   BUSYWAIT(((r = reply_freelist) == NULL), 
+           { if (imm_flag && did_poll++) goto out_immediate_3; },
            gasnetc_AMPoll(GASNETI_THREAD_PASS_ALONE),
            GET_AM_LOC_BUFFER_STALL);
   reply_freelist = r->u.next;
 
   GASNETC_UNLOCK_AM_BUFFER();
 
-  r->u.request_bits = mask;
+  // TODO-EX: can/should (imm_flag && did_poll) suppress the poll+retry w/i alloc_post_descriptor?
+  //          since it is a local poll (no AM recvs) is it cheap enough not to worry about (yet?)
+  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(flags GASNETC_DIDX_PASS);
+  if_pf (!gpd) goto out_immediate_4;
+  gasnetc_format_am_gpd(gpd, r->packet, peer, length, 0);
 
-  gasnetc_post_descriptor_t *gpd = gasnetc_alloc_post_descriptor(0 GASNETC_DIDX_PASS);
   gni_post_descriptor_t *pd = &gpd->pd;
   pd->remote_addr = (uint64_t) peer->remote_request_base + (remote_slot << am_slot_bits);
   pd->sync_flag_value = build_notify(notify_request, r - reply_pool, remote_slot);
+
+  r->u.request_bits = mask;
   
-  gasnetc_format_am_gpd(gpd, r->packet, peer, length, 0);
-  
-  return(gpd);
+  return gpd;
+
+out_immediate_4:
+  GASNETC_LOCK_AM_BUFFER();
+    // Return reply state to freelist
+    r->u.next = reply_freelist;
+    reply_freelist = r;
+out_immediate_3:
+    // Restore bits corresponding to remote buffer allocation
+    peer->remote_request_map |= mask;
+    goto out_immediate_1; // peer->remote_request_lock=0 would be erroneous
+out_immediate_2:
+  #if GASNET_PAR
+    // Release our lock on the per-peer remote buffer allocator
+    peer->remote_request_lock = 0;
+  #endif
+out_immediate_1:
+  GASNETC_UNLOCK_AM_BUFFER();
+
+  return NULL;
 }
 
 /* Choice to inline or not is left to the compiler */
