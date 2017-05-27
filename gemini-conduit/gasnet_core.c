@@ -541,7 +541,7 @@ extern uintptr_t gasnetc_MaxPinMem(uintptr_t msgspace)
   if (limit < granularity) {
     gasnetc_GNIT_Abort("Unable to alloc and pin minimal memory of size %d bytes",(int)granularity);
   }
-  GASNETI_TRACE_PRINTF(C,("MaxPinMem = %lu",(unsigned long)limit));
+  GASNETI_TRACE_PRINTF(C,("MaxPinMem = %"PRIuPTR,limit));
   return (uintptr_t)limit;
 }
 
