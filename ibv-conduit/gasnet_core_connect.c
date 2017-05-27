@@ -2412,8 +2412,8 @@ dump_conn_write(int fd, const char *buf, size_t len)
   /* TODO: loop w/ retry on short writes? */
   ssize_t rc = write(fd, buf, len);
   if_pf (rc != len) {
-    gasneti_fatalerror("Write to connection file failed or truncated: rc=%ld errno=%s(%i)",
-                       (long int)rc, strerror(errno), errno);
+    gasneti_fatalerror("Write to connection file failed or truncated: rc=%"PRIdPTR" errno=%s(%i)",
+                       (intptr_t)rc, strerror(errno), errno);
   }
 }
 
