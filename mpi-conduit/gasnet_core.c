@@ -145,6 +145,7 @@ static int gasnetc_init(int *argc, char ***argv) {
     AMMPI_VerboseErrors = gasneti_VerboseErrors;
     AMMPI_SPMDkillmyprocess = gasneti_killmyprocess;
     #if !GASNETI_DISABLE_MPI_INIT_THREAD
+    { // this scope silences a warning on Cray C about INITERR bypassing this initialization:
       #if GASNETI_THREADS
         int usingthreads = 1;
       #else
@@ -166,6 +167,7 @@ static int gasnetc_init(int *argc, char ***argv) {
                       , pstr);
         tmsgstr = tmsg;
       }
+    }
     #endif
 
     /*  perform job spawn */
