@@ -16,6 +16,11 @@
 #include <myxml/myxml.h>
 
 
+static gasnetex_client_t      myclient;
+static gasnetex_endpoint_t    myep;
+static gasnetex_team_member_t myteam;
+static gasnetex_segment_t     mysegment;
+
 typedef struct {
   int my_local_thread;
   int mythread;
@@ -216,7 +221,7 @@ int main(int argc, char **argv) {
   int i,j;
   static uint8_t *A, *B;
   thread_data_t *td_arr;
-  GASNET_Safe(gasnet_init(&argc, &argv));
+  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testcolltuner", 0));
   
   performance_iters = DEFAULT_PERFORMANCE_ITERS;
     
@@ -261,7 +266,7 @@ int main(int argc, char **argv) {
   nodes = gasnet_nodes();
   THREADS = nodes * threads_per_node;
 
-  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+  GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
   /* ?? test_init("testcolltuner",0,"(-i iters) (-f output_file)"); */
   A = TEST_MYSEG();
   B = A+(SEG_PER_THREAD*threads_per_node);

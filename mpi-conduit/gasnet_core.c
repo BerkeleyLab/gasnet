@@ -23,9 +23,6 @@ gasnetex_handlerentry_t const *gasnetc_get_handlertable(void);
 // TODO-EX: will be replaced with per-EP tables
 gasnetex_handlerentry_t gasnetc_handler[GASNETC_MAX_NUMHANDLERS];
 
-// needed for gasneti_segment{Init,Attach}()
-static gasnet_seginfo_t gasnetc_presegment = {0,0}; /* local segment info */
-
 // TODO-EX: This is a hack to support multiple segments w/ a single AM EP
 #ifndef GASNETC_MOCK_EVERYTHING
 #define GASNETC_MOCK_EVERYTHING 1
@@ -125,7 +122,7 @@ static void gasnetc_bootstrapSNodeBroadcast(void *src, size_t len, void *dest, i
    goto done;                                                           \
  } while (0)
 
-static int gasnetc_init(int *argc, char ***argv) {
+static int gasnetc_init(int *argc, char ***argv, gasnetex_flags_t flags) {
   int retval = GASNET_OK;
   int networkdepth = 0;
   const char *pstr = NULL;
@@ -222,17 +219,11 @@ static int gasnetc_init(int *argc, char ***argv) {
 
     /* allocate and attach an aux segment */
 
-    gasnet_seginfo_t gasnetc_auxsegment = {0,0};
-    uintptr_t auxsize = gasneti_auxsegAttach(&gasnetc_auxsegment, mmap_limit, &gasnetc_bootstrapExchange);
-    mmap_limit -= auxsize;
+    gasneti_auxsegAttach(mmap_limit, &gasnetc_bootstrapExchange);
+    mmap_limit -= gasneti_seginfo_aux[gasneti_mynode].size;
 
-    #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-      gasneti_segmentInit(&gasnetc_presegment, mmap_limit, &gasnetc_bootstrapExchange);
-    #elif GASNET_SEGMENT_EVERYTHING
-      /* segment is everything - nothing to do */
-    #else
-      #error Bad segment config
-    #endif
+    /* determine Max{Local,GLobal}SegmentSize */
+    gasneti_segmentInit(mmap_limit, &gasnetc_bootstrapExchange, flags);
 
   AMUNLOCK();
 
@@ -245,59 +236,37 @@ done: /*  error return while locked */
 }
 
 /* ------------------------------------------------------------------------------------ */
-extern int gasnet_init(int *argc, char ***argv) {
-  int retval = gasnetc_init(argc, argv);
-  if (retval != GASNET_OK) GASNETI_RETURN(retval);
-  #if 0
-    /* called within gasnet_init to allow init tracing */
-    gasneti_trace_init(argc, argv);
-  #endif
-  return GASNET_OK;
-}
-/* ------------------------------------------------------------------------------------ */
 extern int gasnetc_amregister(gasnetex_handler_t index, gasnetex_handlerentry_t *entry) {
   if (AM_SetHandler(gasnetc_endpoint, (handler_t)index, entry->gex_fnptr) != AM_OK)
     GASNETI_RETURN_ERRR(RESOURCE, "AM_SetHandler() failed while registering handlers");
   return GASNET_OK;
 }
 /* ------------------------------------------------------------------------------------ */
-extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize) {
+static int gasnetc_attach_primary( gasnetex_client_t       *client_p,
+                                   gasnetex_endpoint_t     *ep_p,
+                                   gasnetex_team_member_t  *team_p,
+                                   gasnetex_flags_t        flags ) {
   int retval = GASNET_OK;
-  void *segbase = NULL;
   
-  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%lu)",
-                          numentries, (unsigned long)segsize));
   AMLOCK();
-    if (!gasneti_init_done) 
-      INITERR(NOT_INIT, "GASNet attach called before init");
-    if (gasneti_attach_done) 
-      INITERR(NOT_INIT, "GASNet already attached");
-
     /* pause to make sure all nodes have called attach 
        if a node calls gasnet_exit() between init/attach, then this allows us
        to process the AMMPI_SPMD control messages required for job shutdown
      */
     gasnetc_bootstrapBarrier();
 
-    /*  check argument sanity */
-    #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-      if ((segsize % GASNET_PAGESIZE) != 0) 
-        INITERR(BAD_ARG, "segsize not page-aligned");
-      if (segsize > gasneti_MaxLocalSegmentSize) 
-        INITERR(BAD_ARG, "segsize too large");
-    #else
-      segsize = 0;
-    #endif
+    /* ------------------------------------------------------------------------------------ */
+    // TODO-EX: create client
+    *client_p = NULL;
 
     /* ------------------------------------------------------------------------------------ */
     /*  create the initial endpoint with internal handlers */
-    if (gasnetc_EPCreate(NULL, NULL, 0)) // TODO-EX: NULLs are placeholders
+    if (gasnetc_EPCreate(ep_p, *client_p, flags))
       INITERR(RESOURCE,"Error creating initial endpoint");
 
     /* ------------------------------------------------------------------------------------ */
-    /*  register client handlers */
-    if (table && gasneti_amregister_legacy(gasnetc_handler, table, numentries) != GASNET_OK)
-      INITERR(RESOURCE,"Error registering handlers");
+    // TODO-EX: create team
+    *team_p = NULL;
 
     /* ------------------------------------------------------------------------------------ */
     /*  register fatal signal handlers */
@@ -311,26 +280,52 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
     atexit(gasnetc_atexit);
 #endif
 
+    #if GASNETC_MOCK_EVERYTHING
+      retval = AM_SetSeg(gasnetc_endpoint, NULL, (uintptr_t)-1);
+      if (retval != AM_OK) INITERR(RESOURCE, "AM_SetSeg() failed");
+    #endif
+
+    /* ------------------------------------------------------------------------------------ */
+    /*  primary attach complete */
+    gasneti_attach_done = 1;
+    gasnetc_bootstrapBarrier();
+  AMUNLOCK();
+
+  GASNETI_TRACE_PRINTF(C,("gasnetc_attach_primary(): primary attach complete\n"));
+
+  gasnete_init(); /* init the extended API */
+
+  gasneti_nodemapFini();
+
+  /* ensure extended API is initialized across nodes */
+  AMLOCK();
+    gasnetc_bootstrapBarrier();
+  AMUNLOCK();
+
+  gasneti_assert(retval == GASNET_OK);
+  return retval;
+
+done: /*  error return while locked */
+  AMUNLOCK();
+  GASNETI_RETURN(retval);
+}
+/* ------------------------------------------------------------------------------------ */
+static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn_t exchangefn, gasnetex_flags_t flags) {
+    int retval = GASNET_OK;
+
+    // TODO-EX: crude detection of multiple calls until we support them
+    gasneti_assert(NULL == gasneti_seginfo[0].addr);
+
     /* ------------------------------------------------------------------------------------ */
     /*  register segment  */
 
-    gasneti_seginfo = (gasnet_seginfo_t *)gasneti_malloc(gasneti_nodes*sizeof(gasnet_seginfo_t));
-    gasneti_leak(gasneti_seginfo);
+    gasneti_segmentAttach(segsize, gasneti_seginfo, exchangefn, flags);
 
-    #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
-      gasneti_segmentAttach(&gasnetc_presegment, segsize, gasneti_seginfo, &gasnetc_bootstrapExchange);
-    #else /* GASNET_SEGMENT_EVERYTHING */
-      { int i;
-        for (i=0;i<gasneti_nodes;i++) {
-          gasneti_seginfo[i].addr = (void *)0;
-          gasneti_seginfo[i].size = (uintptr_t)-1;
-        }
-      }
-    #endif
-    gasneti_seginfo_ub = gasneti_seginfo_build_ub(gasneti_seginfo);
-
-    segbase = gasneti_seginfo[gasneti_mynode].addr;
+    void *segbase = gasneti_seginfo[gasneti_mynode].addr;
     segsize = gasneti_seginfo[gasneti_mynode].size;
+
+    gasneti_assert(((uintptr_t)segbase) % GASNET_PAGESIZE == 0);
+    gasneti_assert(segsize % GASNET_PAGESIZE == 0);
 
     /* After local segment is attached, call optional client-provided hook
        (###) should call BEFORE any conduit-specific pinning/registration of the segment
@@ -339,15 +334,14 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
       gasnet_client_attach_hook(segbase, segsize);
     }
 
+#if !GASNETC_MOCK_EVERYTHING
     /*  AMMPI allows arbitrary registration with no further action  */
     if (segsize) {
-#if GASNETC_MOCK_EVERYTHING
-      retval = AM_SetSeg(gasnetc_endpoint, NULL, (intptr_t)-1);
-#else
       retval = AM_SetSeg(gasnetc_endpoint, segbase, segsize);
-#endif
       if (retval != AM_OK) INITERR(RESOURCE, "AM_SetSeg() failed");
     }
+#endif
+
     #if GASNETC_HSL_ERRCHECK || GASNET_TRACE || GASNET_DEBUG
       #if !(GASNETC_HSL_ERRCHECK || GASNET_DEBUG)
         if (GASNETI_TRACE_ENABLED(A))
@@ -370,31 +364,140 @@ extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_
        Done in gasneti_segmentAttach(), above.
      */
 
-    /* ------------------------------------------------------------------------------------ */
-    /*  primary attach complete */
-    gasneti_attach_done = 1;
-    gasnetc_bootstrapBarrier();
-  AMUNLOCK();
+    gasneti_assert(gasneti_seginfo[gasneti_mynode].addr == segbase &&
+                   gasneti_seginfo[gasneti_mynode].size == segsize);
 
-  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(): primary attach complete\n"));
+done:
+    GASNETI_RETURN(retval);
+}
+/* ------------------------------------------------------------------------------------ */
+// TODO-EX: this is a candidate for factorization (once we understand the per-conduit variations)
+extern int gasnetc_attach( gasnetex_client_t      *client_p,
+                           gasnetex_endpoint_t    *endpoint_p,
+                           gasnetex_team_member_t *team_p,
+                           gasnetex_segment_t     *segment_p,
+                           gasnet_handlerentry_t  *table,
+                           int                    numentries,
+                           uintptr_t              segsize)
+{
+  int retval = GASNET_OK;
 
-  gasnete_init(); /* init the extended API */
+  GASNETI_TRACE_PRINTF(C,("gasnetc_attach(table (%i entries), segsize=%lu)",
+                          numentries, (unsigned long)segsize));
 
-  gasneti_nodemapFini();
+  if (!gasneti_init_done) 
+    GASNETI_RETURN_ERRR(NOT_INIT, "GASNet attach called before init");
+  if (gasneti_attach_done) 
+    GASNETI_RETURN_ERRR(NOT_INIT, "GASNet already attached");
 
-  /* ensure extended API is initialized across nodes */
+  /*  check argument sanity */
+  #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
+    if ((segsize % GASNET_PAGESIZE) != 0) 
+      GASNETI_RETURN_ERRR(BAD_ARG, "segsize not page-aligned");
+    if (segsize > gasneti_MaxLocalSegmentSize) 
+      GASNETI_RETURN_ERRR(BAD_ARG, "segsize too large");
+  #else
+    segsize = 0;
+  #endif
+
+  /*  primary attach  */
+  if (GASNET_OK != gasnetc_attach_primary(client_p, endpoint_p, team_p, 0))
+    GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
+
   AMLOCK();
-    gasnetc_bootstrapBarrier();
+    #if GASNET_SEGMENT_FAST || GASNET_SEGMENT_LARGE
+      /*  register client segment  */
+      // TODO-EX: clearly segment_p should be initialized here
+      if (GASNET_OK != gasnetc_attach_segment(segsize, gasnetc_bootstrapExchange, GASNETI_FLAG_INIT_LEGACY))
+        INITERR(RESOURCE,"Error attaching segment");
+    #endif
+
+    /*  register client handlers */
+    if (table && gasneti_amregister_legacy(gasnetc_handler, table, numentries) != GASNET_OK)
+      INITERR(RESOURCE,"Error registering handlers");
   AMUNLOCK();
-  
-  gasneti_assert(retval == GASNET_OK);
-  return retval;
+
+  /* ensure everything is initialized across all nodes */
+  gasnet_barrier(0, GASNET_BARRIERFLAG_UNNAMED);
+
+  return GASNET_OK;
 
 done: /*  error return while locked */
   AMUNLOCK();
   GASNETI_RETURN(retval);
 }
 /* ------------------------------------------------------------------------------------ */
+// TODO-EX: this is a candidate for factorization (once we understand the per-conduit variations)
+extern int gasnetex_ClientInit(gasnetex_client_t       *client_p,
+                               gasnetex_endpoint_t     *ep_p,
+                               gasnetex_team_member_t  *team_p,
+                               int                     *argc,
+                               char                    ***argv,
+                               const char              *clientName,
+                               gasnetex_flags_t        flags)
+{
+  gasneti_assert(client_p);
+  gasneti_assert(ep_p);
+  gasneti_assert(team_p);
+  gasneti_assert(clientName);
+#if !GASNET_NULL_ARGV_OK
+  gasneti_assert(argc);
+  gasneti_assert(argv);
+#endif
+
+  // TODO-EX: check name of client is unique
+
+  /*  main init  */
+  // TODO-EX: must split per-client vs. exactly once portions
+  int retval = gasnetc_init(argc, argv, flags);
+  if (retval != GASNET_OK) GASNETI_RETURN(retval);
+#if 0
+  /* called within gasnetc_init to allow init tracing */
+  gasneti_trace_init(argc, argv);
+#endif
+
+  if (0 == (flags & GASNETI_FLAG_INIT_LEGACY)) {
+    /*  primary attach  */
+    if (GASNET_OK != gasnetc_attach_primary(client_p, ep_p, team_p, flags))
+      GASNETI_RETURN_ERRR(RESOURCE,"Error in primary attach");
+
+    /* ensure everything is initialized across all nodes */
+    gasnet_barrier(0, GASNET_BARRIERFLAG_UNNAMED);
+  }
+
+  return GASNET_OK;
+}
+
+extern int gasnetc_TeamSegmentCreate(
+                gasnetex_segment_t     *segment_p,
+                gasnetex_team_member_t team,
+                void                   *address,
+                uintptr_t              length,
+                gasnetex_memkind_t     kind,
+                gasnetex_flags_t       flags)
+{
+  gasneti_assert(segment_p);
+
+  // TODO-EX: remove or update these as the corresponding limitations are removed:
+  static int once = 1;
+  if (once) once = 0;
+  else gasneti_fatalerror("gasnetex_TeamSegmentCreate: current implementaion can be called at most once");
+  gasneti_assert(!address);
+  gasneti_assert(kind == GASNETEX_MEMKIND_DEFAULT);
+  gasneti_assert(flags == 0);
+
+  /* create a segment collectively */
+  // TODO-EX: this implementation only works *once*
+  // TODO-EX: should be using the team's exchange function if possible
+  if (GASNET_OK != gasnetc_attach_segment(length, gasneti_defaultExchange, flags))
+    GASNETI_RETURN_ERRR(RESOURCE,"Error attaching segment");
+
+  // TODO-EX: will obviously need real object:
+  segment_p = NULL;
+
+  return GASNET_OK;
+}
+
 extern int gasnetc_EPCreate( gasnetex_endpoint_t     *ep_p,
                              gasnetex_client_t       client,
                              gasnetex_flags_t        flags) {
@@ -1130,6 +1233,10 @@ extern int  gasnetc_hsl_trylock(gasnetex_hsl_t *hsl) {
   ================
 */
 static gasnetex_handlerentry_t const gasnetc_handlers[] = {
+  #ifdef GASNETC_COMMON_HANDLERS
+    GASNETC_COMMON_HANDLERS(),
+  #endif
+
   /* ptr-width independent handlers */
 
   /* ptr-width dependent handlers */

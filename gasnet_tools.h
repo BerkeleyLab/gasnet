@@ -524,8 +524,10 @@ static void _gasnett_trace_printf_noop(const char *_format, ...)) {
   #else
     #define gasnett_mmap(sz) gasnett_fatalerror("gasnett_mmap not available")
   #endif
-  extern int gasneti_run_diagnostics(int iters, int threadcnt, 
-                                     const char *testsections, gasnet_seginfo_t const *seginfo);
+  extern int gasneti_run_diagnostics(int iters, int threadcnt,
+                                     const char *testsections,
+                                     gasnetex_team_member_t myteam,
+                                     gasnet_seginfo_t const *seginfo);
   extern void gasneti_diagnostic_gethandlers(gasnetex_handlerentry_t **htable, int *htable_cnt);
   #define gasnett_run_diagnostics gasneti_run_diagnostics
   #define gasnett_diagnostic_gethandlers gasneti_diagnostic_gethandlers

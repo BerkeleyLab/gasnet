@@ -18,12 +18,6 @@
   Initialization
   ==============
 */
-/* gasnet_init not inlined or renamed because we use redef-name trick on  
-   it to ensure proper version linkage */
-extern int gasnet_init(int *argc, char ***argv);
-
-extern int gasnetc_attach(gasnet_handlerentry_t *table, int numentries, uintptr_t segsize);
-#define gasnet_attach(_t,_n,_s,_m) gasnetc_attach(_t,_n,_s)
 
 extern void gasnetc_exit(int exitcode) GASNETI_NORETURN;
 GASNETI_NORETURNP(gasnetc_exit)
@@ -33,6 +27,26 @@ GASNETI_NORETURNP(gasnetc_exit)
    Define to 1 if this conduit supports this extension, or to 0 otherwise.  */
 #define GASNET_NULL_ARGV_OK 1
 /* ------------------------------------------------------------------------------------ */
+/* gasnetex_ClientInit not inlined or renamed because we use redef-name trick on
+   it to ensure proper version linkage */
+extern int gasnetex_ClientInit(
+                gasnetex_client_t      *client_p,
+                gasnetex_endpoint_t    *ep_p,
+                gasnetex_team_member_t *team_p,
+                int                    *argc,
+                char                   ***argv,
+                const char             *clientName,
+                gasnetex_flags_t       flags);
+
+extern int gasnetc_TeamSegmentCreate(
+                gasnetex_segment_t     *segment_p,
+                gasnetex_team_member_t team,
+                void                   *address,
+                uintptr_t              length,
+                gasnetex_memkind_t     kind,
+                gasnetex_flags_t       flags);
+#define gasnetex_TeamSegmentCreate gasnetc_TeamSegmentCreate
+
 extern int gasnetc_EPCreate(
                 gasnetex_endpoint_t     *ep_p,
                 gasnetex_client_t       client,

@@ -20,6 +20,11 @@ uintptr_t maxsegmentsz;
 #endif
 #include "test.h"
 
+static gasnetex_client_t      myclient;
+static gasnetex_endpoint_t    myep;
+static gasnetex_team_member_t myteam;
+static gasnetex_segment_t     mysegment;
+
 typedef struct {
 	int datasize;
 	int iters;
@@ -338,7 +343,7 @@ main(int argc, char **argv)
     int help = 0;
 
     /* call startup */
-    GASNET_Safe(gasnet_init(&argc, &argv));
+    GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testnbr", 0));
 
     /* get SPMD info */
     myproc = gasnet_mynode();
@@ -378,8 +383,8 @@ main(int argc, char **argv)
       maxsegmentsz = outsegsz + PAGESZ*nprocs;
     }
 
-    GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-    GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
+    GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+    GASNET_Safe(gasnetex_EPRegisterHandlers(myep, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
     test_init("testnbr",1, "[-f] [-m] [iters] [level]\n\n"
       "-f      run full nbr exchange (NAS MG) instead of per axis\n"
       "-m      run UPC version of GASNet MG test only\n"

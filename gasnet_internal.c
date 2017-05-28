@@ -155,8 +155,6 @@ extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentr
 #ifdef _GASNETI_SEGINFO_DEFAULT
   gasnet_seginfo_t *gasneti_seginfo = NULL;
   gasnet_seginfo_t *gasneti_seginfo_aux = NULL;
-  void **gasneti_seginfo_ub = NULL; /* cached result of gasneti_seginfo[i].addr + gasneti_seginfo[i].size */
-  void **gasneti_seginfo_aux_ub = NULL;
 #endif
 
 /* ------------------------------------------------------------------------------------ */
@@ -1590,9 +1588,14 @@ extern gasneti_spawnerfn_t const *gasneti_spawnerInit(int *argc_p, char ***argv_
 /* G2EX (legacy GASNet-1 compatibility) support: */
 // TODO-EX: relocate to a distinct gasnet_legacy.c?
 
-gasnetex_client_t      _gasneti_g2ex_client   = NULL;
-gasnetex_endpoint_t    _gasneti_g2ex_endpoint = NULL;
-gasnetex_team_member_t _gasneti_g2ex_team     = NULL;
+#undef gasneti_thunk_client
+gasnetex_client_t      gasneti_thunk_client   = NULL;
+#undef gasneti_thunk_endpoint
+gasnetex_endpoint_t    gasneti_thunk_endpoint = NULL;
+#undef gasneti_thunk_team
+gasnetex_team_member_t gasneti_thunk_team     = NULL;
+#undef gasneti_thunk_segment
+gasnetex_segment_t     gasneti_thunk_segment  = NULL;
 
 /* ------------------------------------------------------------------------------------ */
 /* Debug memory management

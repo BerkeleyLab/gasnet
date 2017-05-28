@@ -6,6 +6,11 @@
 
 #include <gasnetex.h>
 
+static gasnetex_client_t      myclient;
+static gasnetex_endpoint_t    myep;
+static gasnetex_team_member_t myteam;
+static gasnetex_segment_t     mysegment;
+
 uintptr_t maxsz = 0;
 #ifndef TEST_SEGSZ
   #define TEST_SEGSZ_EXPR (2*(uintptr_t)maxsz)
@@ -221,7 +226,7 @@ int main(int argc, char **argv) {
     { hidx_pong_longhandler,  pong_longhandler,  0, 0 }
   };
 
-  GASNET_Safe(gasnet_init(&argc, &argv));
+  GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testcore5", 0));
 
   if (argc > 1) iters = atoi(argv[1]);
   if (iters <= 0) iters = 10;
@@ -239,8 +244,8 @@ int main(int argc, char **argv) {
   if (argc > 3) seed = atoi(argv[3]);
   if (!seed) seed = (int)TIME();
 
-  GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
-  GASNET_Safe(gasnetex_EPRegisterHandlers(NULL, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
+  GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
+  GASNET_Safe(gasnetex_EPRegisterHandlers(myep, htable, sizeof(htable)/sizeof(gasnetex_handlerentry_t)));
 
   test_init("testcore5", 0, "(iters) (maxsz) (seed)");
   if (argc > 4) test_usage();

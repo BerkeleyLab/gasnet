@@ -146,8 +146,8 @@ GASNETI_BEGIN_NOWARN
 #endif
 
 /* additional safety check, in case a very smart linker removes all of the checks at the end of this file */
-#define gasnet_init _CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT( \
-                    gasnet_init_GASNET_,                             \
+#define gasnetex_ClientInit _CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT(_CONCAT( \
+                    gasnetex_ClientInit_GASNET_,                     \
                     GASNET_RELEASE_VERSION_MAJOR),                   \
                     GASNET_RELEASE_VERSION_MINOR),                   \
                     GASNET_RELEASE_VERSION_PATCH),                   \
@@ -302,6 +302,14 @@ typedef struct gasneti_client_s *gasnetex_client_t;
 struct gasneti_endpoint_s;
 typedef struct gasneti_endpoint_s *gasnetex_endpoint_t;
 
+struct gasneti_segment_s;
+typedef struct gasneti_segment_s *gasnetex_segment_t;
+
+struct gasneti_memkind_s;
+typedef struct gasneti_memkind_s *gasnetex_memkind_t;
+#define GASNETEX_INVALID_MEMKIND     ((gasnetex_memkind_t)(uintptr_t)0)
+#define GASNETEX_MEMKIND_DEFAULT     ((gasnetex_memkind_t)(uintptr_t)1)
+
 // TODO-EX: remove these legacy checks
 #ifdef _GASNET_NODE_T
 #error "out-of-date #define of _GASNET_NODE_T"
@@ -426,6 +434,10 @@ typedef uintptr_t gasnetex_register_value_t;
 
 #if defined(_IN_GASNET_INTERNAL_H)
   #define GASNETI_FLAG_LC_OPT_IN             (1U << 31)
+#endif
+
+#if defined(_IN_GASNET_INTERNAL_H) || defined(_INCLUDED_GASNET_H)
+  #define GASNETI_FLAG_INIT_LEGACY           (1U << 31)
 #endif
 
 /* ------------------------------------------------------------------------------------ */

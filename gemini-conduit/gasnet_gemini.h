@@ -86,8 +86,6 @@ extern uint8_t  gasnetc_ptag;
 
 extern unsigned int gasnetc_log2_remote;
 
-extern gasnet_seginfo_t gasnetc_auxsegment;
-
 /* Set to 1 if want to use gasneti_spinlock_t rather than gasneti_mutex_t
  * By default, we will use mutex_t.
  */
@@ -200,9 +198,6 @@ typedef union gasnetc_packet_u {
 #define GASNETC_MAX_PACKED_LONG(nargs) \
         (GASNETC_MSG_MAXSIZE - GASNETC_HEADLEN(long, (nargs)))
 #endif
-
-void gasnetc_init_post_descriptor_pool(GASNETC_DIDX_FARG_ALONE);
-void gasnetc_init_bounce_buffer_pool(GASNETC_DIDX_FARG_ALONE);
 
 /* use the auxseg mechanism to allocate registered memory for bounce buffers */
 /* we want this many post descriptors */
@@ -322,7 +317,8 @@ void gasnetc_create_parallel_domain(gasnete_threadidx_t tidx);
 int gasnetc_get_domain_idx(gasnete_threadidx_t tidx);
 #endif
 
-void gasnetc_init_segment(void *segment_start, size_t segment_size);
+void gasnetc_init_gni(gasnet_seginfo_t seginfo);
+void gasnetc_init_segment(gasnet_seginfo_t seginfo);
 uintptr_t gasnetc_init_messaging(void);
 void gasnetc_shutdown(void); /* clean up all gni state */
 

@@ -24,6 +24,11 @@ uintptr_t maxsz = 0;
 
 #include "test.h"
 
+static gasnetex_client_t      myclient;
+static gasnetex_endpoint_t    myep;
+static gasnetex_team_member_t myteam;
+static gasnetex_segment_t     mysegment;
+
 int myproc;
 int numprocs;
 int peerproc;
@@ -88,7 +93,7 @@ void do_test(void) {GASNET_BEGIN_FUNCTION();
 int main(int argc, char **argv) {
 
     /* call startup */
-    GASNET_Safe(gasnet_init(&argc, &argv));
+    GASNET_Safe(gasnetex_ClientInit(&myclient, &myep, &myteam, &argc, &argv, "testrand", 0));
 
     /* parse arguments */
     if (argc > 1) nbytes = atoi(argv[1]);
@@ -104,7 +109,7 @@ int main(int argc, char **argv) {
     #ifdef GASNET_SEGMENT_EVERYTHING
       if (maxsz > TEST_SEGSZ) { MSG("maxsz must be <= %lu on GASNET_SEGMENT_EVERYTHING",(unsigned long)TEST_SEGSZ); gasnet_exit(1); }
     #endif
-    GASNET_Safe(gasnet_attach(NULL, 0, TEST_SEGSZ_REQUEST, TEST_MINHEAPOFFSET));
+    GASNET_Safe(gasnetex_TeamSegmentCreate(&mysegment, myteam, NULL, TEST_SEGSZ_REQUEST, GASNETEX_MEMKIND_DEFAULT, 0));
     test_init("testrand",1, "nbytes (segsz) (seed)");
     if ((argc < 2) || (argc > 4)) test_usage();
 

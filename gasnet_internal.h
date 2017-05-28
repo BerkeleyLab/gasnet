@@ -191,6 +191,24 @@ GASNETI_MALLOCP(_gasneti_calloc)
   #define system(s)            gasneti_system_error
 #endif
 
+#define gasneti_thunk_error    ERROR__GASNet_conduit_code_must_not_use_gasneti_thunk_variables
+#ifdef gasneti_thunk_client
+#undef gasneti_thunk_client
+#endif
+#define gasneti_thunk_client   gasneti_thunk_error
+#ifdef gasneti_thunk_endpoint
+#undef gasneti_thunk_endpoint
+#endif
+#define gasneti_thunk_endpoint gasneti_thunk_error
+#ifdef gasneti_thunk_team
+#undef gasneti_thunk_team
+#endif
+#define gasneti_thunk_team     gasneti_thunk_error
+#ifdef gasneti_thunk_segment
+#undef gasneti_thunk_segment
+#endif
+#define gasneti_thunk_segment  gasneti_thunk_error
+
 /* ------------------------------------------------------------------------------------ */
 /* Version of strdup() which is compatible w/ gasneti_free(), instead of plain free() */
 GASNETI_INLINE(_gasneti_strdup) GASNETI_MALLOC
@@ -320,13 +338,13 @@ uintptr_t gasneti_mmapLimit(uintptr_t localLimit, uint64_t sharedLimit,
                             gasneti_bootstrapBarrierfn_t barrierfn);
 #endif /* GASNETI_MMAP_OR_PSHM */
 
-void gasneti_segmentInit(gasnet_seginfo_t *segment_p,
-                         uintptr_t localSegmentLimit,
-                         gasneti_bootstrapExchangefn_t exchangefn);
-void gasneti_segmentAttach(gasnet_seginfo_t *segment_p,
-                           uintptr_t segsize,
-                           gasnet_seginfo_t *seginfo,
-                           gasneti_bootstrapExchangefn_t exchangefn);
+void gasneti_segmentInit(uintptr_t localSegmentLimit,
+                         gasneti_bootstrapExchangefn_t exchangefn,
+                         gasnetex_flags_t flags);
+void gasneti_segmentAttach(uintptr_t segsize,
+                           gasnet_seginfo_t *all_segments,
+                           gasneti_bootstrapExchangefn_t exchangefn,
+                           gasnetex_flags_t flags);
 
 void gasneti_setupGlobalEnvironment(gasnetex_rank_t numnodes, gasnetex_rank_t mynode,
                                      gasneti_bootstrapExchangefn_t exchangefn,
@@ -369,12 +387,7 @@ uintptr_t gasneti_auxseg_prepare(uintptr_t limit);
 void gasneti_auxseg_attach(gasnet_seginfo_t *auxseg_info);
 
 /* common case use of gasneti_auxseg_{prepare,attach} for conduits using gasneti_segmentAttach() */
-uintptr_t gasneti_auxsegAttach(gasnet_seginfo_t *local_auxseg,
-                               uintptr_t maxsize,
-                               gasneti_bootstrapExchangefn_t exchangefn);
-
-/* called after segmentAttach to create/initialize an array of (void*) giving segment upper-bounds */
-void ** gasneti_seginfo_build_ub(gasnet_seginfo_t *seginfo);
+void gasneti_auxsegAttach(uintptr_t maxsize, gasneti_bootstrapExchangefn_t exchangefn);
 
 /* ------------------------------------------------------------------------------------ */
 #ifndef GASNETI_DISABLE_EOP_INTERFACE
@@ -738,6 +751,16 @@ extern void gasneti_nodemapFini(void);
   #define gasneti_node2supernode(n) \
     (gasneti_assert(gasneti_nodeinfo), gasneti_nodeinfo[(n)].supernode)
 #endif
+
+/* ------------------------------------------------------------------------------------ */
+// An AM-based gasneti_bootstrapExchangefn_t
+// TODO-EX: any/all uses should hopefully use real collectives eventually
+
+void gasneti_defaultExchange(void *src, size_t len, void *dest);
+extern void gasnetc_exchg_reqh(gasnetex_token_t token, void *buf, size_t nbytes,
+                               gasnetex_handlerarg_t arg0, gasnetex_handlerarg_t len);
+#define GASNETC_COMMON_HANDLERS() \
+    gasneti_handler_tableentry_no_bits(gasnetc_exchg_reqh,2,0)
 
 /* ------------------------------------------------------------------------------------ */
 
