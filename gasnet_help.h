@@ -122,11 +122,13 @@ extern uint64_t gasnet_max_segsize; /* client-overrideable max segment size */
   #define gasneti_in_clientsegment(node,ptr,nbytes) \
     (gasneti_assert((node) < gasneti_nodes),        \
      ((ptr) >= gasneti_seginfo[node].addr && \
-      (void *)(((uintptr_t)(ptr))+(nbytes)) <= gasneti_seginfo_ub[node]))
+      ((((uintptr_t)(ptr))+(nbytes)) <=      \
+       (((uintptr_t)gasneti_seginfo[node].addr)+gasneti_seginfo[node].size))))
   #define gasneti_in_auxsegment(node,ptr,nbytes) \
     (gasneti_assert((node) < gasneti_nodes),      \
      ((ptr) >= gasneti_seginfo_aux[node].addr &&      \
-      (void *)(((uintptr_t)(ptr))+(nbytes)) <= gasneti_seginfo_aux_ub[node]))
+      ((((uintptr_t)(ptr))+(nbytes)) <=      \
+       (((uintptr_t)gasneti_seginfo_aux[node].addr)+gasneti_seginfo_aux[node].size))))
 #endif
 
 #ifdef _INCLUDED_GASNET_INTERNAL_H
@@ -816,8 +818,6 @@ extern gasnet_nodeinfo_t *gasneti_nodeinfo;
 #define _GASNETI_SEGINFO_DEFAULT
   extern gasnet_seginfo_t *gasneti_seginfo;
   extern gasnet_seginfo_t *gasneti_seginfo_aux;
-  extern void **gasneti_seginfo_ub;
-  extern void **gasneti_seginfo_aux_ub;
 #endif
 
 /* ------------------------------------------------------------------------------------ */

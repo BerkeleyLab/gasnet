@@ -286,7 +286,7 @@ static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn
   /* ------------------------------------------------------------------------------------ */
   /*  register segment  */
 
-  gasneti_segmentAttach(segsize, gasneti_seginfo, gasneti_seginfo_ub, exchangefn, flags);
+  gasneti_segmentAttach(segsize, gasneti_seginfo, exchangefn, flags);
 
   void *segbase = gasneti_seginfo[gasneti_mynode].addr;
   segsize = gasneti_seginfo[gasneti_mynode].size;

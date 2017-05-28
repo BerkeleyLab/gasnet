@@ -1968,7 +1968,7 @@ static int gasnetc_attach_segment(uintptr_t segsize, gasneti_bootstrapExchangefn
   gasnetc_hca_t *hca;
   gasnetex_rank_t i;
 
-  gasneti_segmentAttach(segsize, gasneti_seginfo, gasneti_seginfo_ub, exchangefn, flags);
+  gasneti_segmentAttach(segsize, gasneti_seginfo, exchangefn, flags);
 
   void *segbase = gasneti_seginfo[gasneti_mynode].addr;
   segsize = gasneti_seginfo[gasneti_mynode].size;

@@ -155,8 +155,6 @@ extern int gasneti_internal_idiotcheck(gasnet_handlerentry_t *table, int numentr
 #ifdef _GASNETI_SEGINFO_DEFAULT
   gasnet_seginfo_t *gasneti_seginfo = NULL;
   gasnet_seginfo_t *gasneti_seginfo_aux = NULL;
-  void **gasneti_seginfo_ub = NULL; /* cached result of gasneti_seginfo[i].addr + gasneti_seginfo[i].size */
-  void **gasneti_seginfo_aux_ub = NULL;
 #endif
 
 /* ------------------------------------------------------------------------------------ */

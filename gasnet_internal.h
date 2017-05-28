@@ -343,7 +343,6 @@ void gasneti_segmentInit(uintptr_t localSegmentLimit,
                          gasnetex_flags_t flags);
 void gasneti_segmentAttach(uintptr_t segsize,
                            gasnet_seginfo_t *all_segments,
-                           void **upper_bounds,
                            gasneti_bootstrapExchangefn_t exchangefn,
                            gasnetex_flags_t flags);
 
