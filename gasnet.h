@@ -410,7 +410,7 @@ void gasnet_FetchGexObjects( gasnetex_client_t      *client_p,
 #define gasnet_get_val(node,src,nbytes) \
                 gasnetex_get_val(gasneti_thunk_team,node,src,nbytes,0)
 
-typedef struct gasnet_valget_handle_s {
+typedef struct {
   gasnetex_register_value_t v;
   gasnetex_handle_t         h;
 } *gasnet_valget_handle_t;
@@ -418,7 +418,7 @@ typedef struct gasnet_valget_handle_s {
 GASNETT_INLINE(gasnet_get_nb_val)
 gasnet_valget_handle_t gasnet_get_nb_val(gasnetex_rank_t node, void *src, size_t nbytes)
 {
-  gasnet_valget_handle_t result = (gasnet_valget_handle_t)malloc(sizeof(struct gasnet_valget_handle_s));
+  gasnet_valget_handle_t result = (gasnet_valget_handle_t)malloc(sizeof(*result));
 #ifdef PLATFORM_ARCH_BIG_ENDIAN
   void *dest = (void*)((uintptr_t)&(result->v) + sizeof(gasnetex_register_value_t) - nbytes);
 #else /* little-endian */
